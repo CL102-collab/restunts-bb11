@@ -185,13 +185,20 @@ public final class LauncherActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        boolean colored = event.getKeyCode() == KeyEvent.KEYCODE_PROG_GREEN
+            || event.getKeyCode() == KeyEvent.KEYCODE_PROG_RED;
+        if (colored && event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() != 0) {
+            return true;
+        }
         int keyCode;
         switch (event.getKeyCode()) {
             case KeyEvent.KEYCODE_BUTTON_A:
             case KeyEvent.KEYCODE_BUTTON_SELECT:
+            case KeyEvent.KEYCODE_PROG_GREEN:
                 keyCode = KeyEvent.KEYCODE_DPAD_CENTER;
                 break;
             case KeyEvent.KEYCODE_BUTTON_B:
+            case KeyEvent.KEYCODE_PROG_RED:
                 keyCode = KeyEvent.KEYCODE_BACK;
                 break;
             default:

@@ -700,6 +700,180 @@ static void test_touch_focus_and_background(void)
 	sdl3_touch_enable(false);
 }
 
+enum REMOTE_SHIFT_CONTEXT {
+	REMOTE_SHIFT_MENU,
+	REMOTE_SHIFT_REPLAY,
+	REMOTE_SHIFT_MODAL,
+	REMOTE_SHIFT_UNFOCUSED,
+	REMOTE_SHIFT_BACKGROUND,
+	REMOTE_SHIFT_REWIND,
+	REMOTE_SHIFT_INTRO,
+	REMOTE_SHIFT_CONTEXT_COUNT
+};
+
+#define TEST_REMOTE_SHIFT_UP_SCAN 30
+#define TEST_REMOTE_SHIFT_DOWN_SCAN 44
+
+struct REMOTE_SHIFT_REQUESTS {
+	const legacy_u16 *flags;
+	legacy_u32 count;
+	legacy_u8 accepted;
+};
+
+static legacy_int SDLCALL request_remote_shifts(void *userdata)
+{
+	struct REMOTE_SHIFT_REQUESTS *requests = userdata;
+	requests->accepted = true;
+	for (legacy_u32 i = 0; i < requests->count; i++) {
+		if (!sdl3_input_request_shift(requests->flags[i] == INPUT_SHIFT_UP_FLAG)) {
+			requests->accepted = false;
+		}
+	}
+	return 0;
+}
+
+static bool SDLCALL reject_remote_shift_request(void *unused, SDL_Event *event)
+{
+	(void)unused;
+	return event->type != SDL_EVENT_USER;
+}
+
+static void remote_shift_context(enum REMOTE_SHIFT_CONTEXT context, legacy_u8 inactive)
+{
+	SDL_Event event;
+	SDL_zero(event);
+	event.window.windowID = SDL_GetWindowID(sdl3_video_window());
+	switch (context) {
+		case REMOTE_SHIFT_MENU:
+			sdl3_input_set_gameplay_active(!inactive);
+			return;
+		case REMOTE_SHIFT_REPLAY:
+			sdl3_input_set_replay_active(inactive);
+			return;
+		case REMOTE_SHIFT_MODAL:
+			if (inactive) {
+				sdl3_input_push_modal();
+			} else {
+				sdl3_input_pop_modal();
+			}
+			return;
+		case REMOTE_SHIFT_UNFOCUSED:
+			event.type = inactive ? SDL_EVENT_WINDOW_FOCUS_LOST : SDL_EVENT_WINDOW_FOCUS_GAINED;
+			break;
+		case REMOTE_SHIFT_BACKGROUND:
+			event.type =
+				inactive ? SDL_EVENT_WILL_ENTER_BACKGROUND : SDL_EVENT_DID_ENTER_FOREGROUND;
+			break;
+		case REMOTE_SHIFT_REWIND:
+			sdl3_touch_set_rewind_active(inactive);
+			return;
+		case REMOTE_SHIFT_INTRO:
+			sdl3_touch_set_intro_active(inactive);
+			return;
+		default:
+			assert(false);
+	}
+	assert(SDL_PushEvent(&event));
+	sdl3_platform_pump();
+}
+
+static void test_remote_shifts(void)
+{
+	static const legacy_u16 flags[] = {INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_DOWN_FLAG,
+									   INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_UP_FLAG,
+									   INPUT_SHIFT_DOWN_FLAG};
+	sdl3_touch_enable(false);
+	sdl3_touch_configure(false, true, true, false);
+	sdl3_input_set_gameplay_active(true);
+	sdl3_input_set_replay_active(false);
+	remote_shift_context(REMOTE_SHIFT_UNFOCUSED, false);
+	kb_init_interrupt();
+	send_key(SDL_SCANCODE_Q, SDL_KMOD_NONE, true, false);
+	assert(kb_read_char() == 'q');
+	/* JNI originates off-thread. Posting requests must not alter game state
+	 * until the game thread pumps them, even with the touch overlay disabled. */
+	struct REMOTE_SHIFT_REQUESTS requests = {flags, SDL_arraysize(flags), false};
+	SDL_Thread *thread = SDL_CreateThread(request_remote_shifts, "Remote shift test", &requests);
+	assert(thread != NULL);
+	legacy_int status;
+	SDL_WaitThread(thread, &status);
+	assert(status == 0 && requests.accepted);
+	assert(sdl3_touch_take_shift_flags() == 0);
+	sdl3_platform_pump();
+	for (legacy_u32 i = 0; i < SDL_arraysize(flags); i++) {
+		assert(sdl3_touch_take_shift_flags() == flags[i]);
+	}
+	assert(sdl3_touch_take_shift_flags() == 0);
+	assert(kb_get_key_state(TEST_TOUCH_REWIND_SCANCODE) == 1);
+	assert(kb_get_key_state(TEST_REMOTE_SHIFT_UP_SCAN) == 0);
+	assert(kb_get_key_state(TEST_REMOTE_SHIFT_DOWN_SCAN) == 0);
+	assert(kb_read_char() == 0);
+	send_key(SDL_SCANCODE_Q, SDL_KMOD_NONE, false, false);
+	sdl3_input_queue_shift(INPUT_NONE);
+	sdl3_input_queue_shift(INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG);
+	assert(sdl3_touch_take_shift_flags() == 0);
+
+	/* Touch and remote actions share one FIFO and retain event arrival order. */
+	sdl3_touch_enable(true);
+	sdl3_touch_configure(true, true, true, false);
+	assert(sdl3_input_request_shift(true));
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_SHIFT_FINGER, TOUCH_SHIFT_DOWN);
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_SHIFT_FINGER, TOUCH_SHIFT_DOWN);
+	assert(sdl3_input_request_shift(true));
+	sdl3_platform_pump();
+	assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_UP_FLAG);
+	assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_DOWN_FLAG);
+	assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_UP_FLAG);
+	assert(sdl3_touch_take_shift_flags() == 0);
+	sdl3_touch_enable(false);
+	sdl3_touch_configure(false, true, true, false);
+
+	for (enum REMOTE_SHIFT_CONTEXT context = REMOTE_SHIFT_MENU;
+		 context < REMOTE_SHIFT_CONTEXT_COUNT; context++) {
+		/* Context changes cancel both accepted actions and unprocessed requests. */
+		assert(sdl3_input_request_shift(true));
+		sdl3_platform_pump();
+		assert(sdl3_input_request_shift(false));
+		remote_shift_context(context, true);
+		assert(sdl3_touch_take_shift_flags() == 0);
+		assert(sdl3_input_request_shift(true));
+		sdl3_platform_pump();
+		assert(sdl3_touch_take_shift_flags() == 0);
+		assert(sdl3_input_request_shift(false));
+		remote_shift_context(context, false);
+		sdl3_platform_pump();
+		assert(sdl3_touch_take_shift_flags() == 0);
+		assert(sdl3_input_request_shift(true));
+		sdl3_platform_pump();
+		assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_UP_FLAG);
+		assert(sdl3_touch_take_shift_flags() == 0);
+	}
+
+	/* Cancel only our tagged requests; a matching code in another user event
+	 * must survive cancellation and must not become a gear action. */
+	SDL_Event unrelated;
+	SDL_zero(unrelated);
+	unrelated.type = SDL_EVENT_USER;
+	unrelated.user.code = INPUT_SHIFT_UP_FLAG;
+	assert(SDL_PushEvent(&unrelated));
+	assert(sdl3_input_request_shift(false));
+	sdl3_input_reset_shifts();
+	SDL_Event retained;
+	assert(SDL_PeepEvents(&retained, 1, SDL_GETEVENT, SDL_EVENT_USER, SDL_EVENT_USER) == 1);
+	assert(retained.user.data1 == NULL && retained.user.code == unrelated.user.code);
+	assert(SDL_PushEvent(&retained));
+	sdl3_platform_pump();
+	assert(sdl3_touch_take_shift_flags() == 0);
+	SDL_EventFilter previous_filter;
+	void *previous_userdata;
+	SDL_GetEventFilter(&previous_filter, &previous_userdata);
+	SDL_SetEventFilter(reject_remote_shift_request, NULL);
+	assert(!sdl3_input_request_shift(true));
+	SDL_SetEventFilter(previous_filter, previous_userdata);
+	sdl3_input_set_gameplay_active(false);
+	assert(kb_read_char() == 0);
+}
+
 static void assert_presented_color(legacy_s32 x, legacy_s32 y, Uint8 red, Uint8 green, Uint8 blue)
 {
 	SDL_Renderer *renderer = SDL_GetRenderer(sdl3_video_window());
@@ -2026,6 +2200,22 @@ static void test_controller_race_start(SDL_Joystick *device)
 	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, 0);
 }
 
+static void test_controller_remote_shifts(SDL_Joystick *device)
+{
+	sdl3_input_set_gameplay_active(true);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_CONTROLLER);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	assert(sdl3_input_request_shift(false));
+	sdl3_platform_pump();
+	assert((sdl3_controller_driving_flags() & INPUT_SHIFT_UP_FLAG) != 0);
+	assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_DOWN_FLAG);
+	assert(sdl3_touch_take_shift_flags() == 0);
+	assert((sdl3_controller_driving_flags() & INPUT_SHIFT_UP_FLAG) != 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	sdl3_input_set_gameplay_active(false);
+}
+
 static void test_controller(void)
 {
 	kb_init_interrupt();
@@ -2045,6 +2235,7 @@ static void test_controller(void)
 	test_controller_dpad_repeat(device);
 	test_controller_dpad_repeat_context(device);
 	test_controller_race_start(device);
+	test_controller_remote_shifts(device);
 	sdl3_input_set_gameplay_active(true);
 	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PARTIAL_TURN);
 	/* Focus loss clears shortcuts while preserving physical key ownership. */
@@ -2109,6 +2300,7 @@ legacy_int main(void)
 	test_video_and_mouse();
 	test_touch_focus_and_background();
 	test_touch_shortcut_keys();
+	test_remote_shifts();
 	test_high_resolution_video();
 	test_dynamic_resolution_video();
 	test_completed_video_pages();

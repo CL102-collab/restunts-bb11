@@ -8,6 +8,9 @@
 #include "../../c/fatal.h"
 #include "../../c/hires.h"
 #include <string.h>
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 
 #define KEY_BUFFER_CAPACITY 64U
 #define INPUT_POLL_DELAY_MS 1U
@@ -713,6 +716,16 @@ static legacy_u8 controller_key_state(SDL_Scancode code)
 			controller_axes[SDL_GAMEPAD_AXIS_RIGHT_TRIGGER] >= JOYSTICK_AXIS_DEADZONE);
 }
 
+#ifdef __ANDROID__
+JNIEXPORT jboolean JNICALL Java_org_restunts_android_GameActivity_requestRemoteShift(
+	JNIEnv *env, jclass activity_class, jboolean up)
+{
+	(void)env;
+	(void)activity_class;
+	return sdl3_input_request_shift(up == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
+}
+#endif
+
 void sdl3_platform_pump(void)
 {
 	if (sdl3_batch_mode) {
@@ -774,6 +787,11 @@ void sdl3_platform_pump(void)
 				if (controller != NULL && event.gdevice.which == SDL_GetGamepadID(controller)) {
 					/* Preserve quick stick flicks while keeping both axes in one update. */
 					controller_update_navigation();
+				}
+				break;
+			case SDL_EVENT_USER:
+				if (input_focused && gameplay_active && !replay_active && modal_depth == 0) {
+					sdl3_input_shift_event(&event.user);
 				}
 				break;
 			case SDL_EVENT_KEY_DOWN:
@@ -1161,6 +1179,7 @@ enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
 void sdl3_input_set_gameplay_active(legacy_u8 active)
 {
 	if (gameplay_active != active) {
+		sdl3_input_reset_shifts();
 		controller_menu_direction = INPUT_NONE;
 		controller_menu_repeat_at = 0;
 		controller_dpad_key = INPUT_NONE;
@@ -1176,6 +1195,7 @@ void sdl3_input_set_gameplay_active(legacy_u8 active)
 void sdl3_input_set_replay_active(legacy_u8 active)
 {
 	if (replay_active != active) {
+		sdl3_input_reset_shifts();
 		controller_menu_direction = INPUT_NONE;
 		controller_menu_repeat_at = 0;
 		controller_dpad_key = INPUT_NONE;
@@ -1190,6 +1210,7 @@ void sdl3_input_set_replay_active(legacy_u8 active)
 
 void sdl3_input_push_modal(void)
 {
+	sdl3_input_reset_shifts();
 	if (modal_depth < LEGACY_U16_MAX) {
 		modal_depth++;
 	}
@@ -1205,6 +1226,7 @@ void sdl3_input_push_modal(void)
 
 void sdl3_input_pop_modal(void)
 {
+	sdl3_input_reset_shifts();
 	if (modal_depth != 0) {
 		modal_depth--;
 	}

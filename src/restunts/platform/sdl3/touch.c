@@ -11,7 +11,7 @@
 #endif
 
 #define TOUCH_FINGER_COUNT 16U
-#define TOUCH_SHIFT_QUEUE_CAPACITY 64U
+#define INPUT_SHIFT_QUEUE_CAPACITY 64U
 #define TOUCH_RADIUS_HEIGHT 0.075f
 #define TOUCH_STEERING_HEIGHT 0.62f
 #define TOUCH_RIGHT_RADIUS_OFFSET 3.5f
@@ -68,7 +68,8 @@ static legacy_u8 replay_active;
 static legacy_u8 game_active;
 static legacy_u8 replay_interaction;
 static legacy_u8 rewind_active;
-static legacy_u16 shift_queue[TOUCH_SHIFT_QUEUE_CAPACITY];
+static legacy_u8 shift_event_source;
+static legacy_u16 shift_queue[INPUT_SHIFT_QUEUE_CAPACITY];
 static legacy_u32 shift_read;
 static legacy_u32 shift_count;
 static legacy_s16 seek_direction;
@@ -79,6 +80,51 @@ static const SDL_Scancode control_scancodes[TOUCH_CONTROL_COUNT] = {
 static const legacy_u16 control_keys[TOUCH_CONTROL_COUNT] = {
 	TOUCH_ESCAPE_CODE, KEY_LEFT, KEY_RIGHT, 'a', 'z', 'q', KEY_UP, KEY_DOWN, 'c', 't'};
 
+static bool SDLCALL input_keep_unrelated_event(void *unused, SDL_Event *event)
+{
+	(void)unused;
+	return event->type != SDL_EVENT_USER || event->user.data1 != &shift_event_source;
+}
+
+void sdl3_input_reset_shifts(void)
+{
+	shift_read = 0;
+	shift_count = 0;
+	/* Cancel requests that have not reached the game thread yet, without
+	 * discarding other SDL user events. */
+	SDL_FilterEvents(input_keep_unrelated_event, NULL);
+}
+
+legacy_u8 sdl3_input_request_shift(legacy_u8 up)
+{
+	SDL_Event event;
+	SDL_zero(event);
+	event.type = SDL_EVENT_USER;
+	event.user.data1 = &shift_event_source;
+	event.user.code = up ? INPUT_SHIFT_UP_FLAG : INPUT_SHIFT_DOWN_FLAG;
+	return SDL_PushEvent(&event);
+}
+
+void sdl3_input_queue_shift(legacy_u16 flag)
+{
+	if ((flag != INPUT_SHIFT_UP_FLAG && flag != INPUT_SHIFT_DOWN_FLAG) || intro_active ||
+		rewind_active) {
+		return;
+	}
+	if (shift_count == INPUT_SHIFT_QUEUE_CAPACITY) {
+		shift_read = (shift_read + 1U) % INPUT_SHIFT_QUEUE_CAPACITY;
+		shift_count--;
+	}
+	shift_queue[(shift_read + shift_count++) % INPUT_SHIFT_QUEUE_CAPACITY] = flag;
+}
+
+void sdl3_input_shift_event(const SDL_UserEvent *event)
+{
+	if (event->data1 == &shift_event_source) {
+		sdl3_input_queue_shift((legacy_u16)event->code);
+	}
+}
+
 void sdl3_touch_reset(void)
 {
 	for (legacy_u32 i = 0; i < TOUCH_FINGER_COUNT; i++) {
@@ -88,8 +134,7 @@ void sdl3_touch_reset(void)
 	}
 	memset(fingers, 0, sizeof(fingers));
 	memset(repeat_at, 0, sizeof(repeat_at));
-	shift_read = 0;
-	shift_count = 0;
+	sdl3_input_reset_shifts();
 	seek_direction = 0;
 }
 
@@ -139,9 +184,8 @@ void sdl3_touch_set_replay_active(legacy_u8 active)
 
 void sdl3_touch_set_rewind_active(legacy_u8 active)
 {
-	if (active && !rewind_active) {
-		shift_read = 0;
-		shift_count = 0;
+	if (rewind_active != active) {
+		sdl3_input_reset_shifts();
 	}
 	rewind_active = active;
 	sdl3_touch_sync_game();
@@ -252,7 +296,7 @@ legacy_u16 sdl3_touch_take_shift_flags(void)
 		return 0;
 	}
 	legacy_u16 result = shift_queue[shift_read];
-	shift_read = (shift_read + 1U) % TOUCH_SHIFT_QUEUE_CAPACITY;
+	shift_read = (shift_read + 1U) % INPUT_SHIFT_QUEUE_CAPACITY;
 	shift_count--;
 	return result;
 }
@@ -267,12 +311,8 @@ legacy_s16 sdl3_touch_take_seek(void)
 static void control_press(enum TOUCH_CONTROL control)
 {
 	if (control == TOUCH_SHIFT_UP || control == TOUCH_SHIFT_DOWN) {
-		if (shift_count == TOUCH_SHIFT_QUEUE_CAPACITY) {
-			shift_read = (shift_read + 1U) % TOUCH_SHIFT_QUEUE_CAPACITY;
-			shift_count--;
-		}
-		shift_queue[(shift_read + shift_count++) % TOUCH_SHIFT_QUEUE_CAPACITY] =
-			control == TOUCH_SHIFT_UP ? INPUT_SHIFT_UP_FLAG : INPUT_SHIFT_DOWN_FLAG;
+		sdl3_input_queue_shift(control == TOUCH_SHIFT_UP ? INPUT_SHIFT_UP_FLAG
+														 : INPUT_SHIFT_DOWN_FLAG);
 	} else {
 		sdl3_input_queue_key(control_keys[control]);
 		repeat_at[control] = SDL_GetTicks() + TOUCH_REPEAT_DELAY_MS;

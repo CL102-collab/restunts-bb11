@@ -151,6 +151,39 @@ In the game, basic remotes send arrows, Enter and Escape, and stay separate
 from the racing joystick. This uses SDL's
 [remote keyboard input setting](https://wiki.libsdl.org/SDL3/SDL_HINT_TV_REMOTE_AS_JOYSTICK).
 
+TV remote color buttons use these gamepad face-button actions:
+
+| Remote button | Gamepad button | Game action |
+| --- | --- | --- |
+| Green | A | Enter: confirm |
+| Red | B | Escape |
+| Blue | X | D: show or hide the dashboard |
+| Yellow | Y | T: switch player/opponent view |
+
+Green also confirms and red goes back in the launcher. Each press sends one
+action; holding a color button does not repeat it. These mappings depend on
+TV firmware delivering Android's standard `KEYCODE_PROG_*` events to the app.
+
+TV remote number and channel buttons use these shortcuts in the game:
+
+| Remote button | Keyboard key | Game action |
+| --- | --- | --- |
+| 1 | T | Switch player/opponent view |
+| 2 | C | Cycle camera |
+| 3 | D | Show or hide the dashboard |
+| 4 | R | Show or hide the replay bar |
+| 5 | Q | Hold rewind until the button is released |
+| Channel Up | A | Shift up |
+| Channel Down | Z | Shift down |
+
+Buttons 1-4 send one command per tap. Channel Up/Down each queue one gear-change
+request per tap, equivalent to A/Z; holding these buttons does not repeat them.
+Button 5 keeps Q held until release. Number shortcuts apply only to
+physical devices classified as TV remotes; full keyboards retain normal
+digits. Number buttons also retain their digits while entering names or
+filenames. Channel mappings require the TV firmware to deliver its standard
+channel-button events to the app.
+
 An external keyboard works with **Keyboard** selected: arrows drive, A/Z shift,
 Q rewinds, Enter selects and Escape leaves racing/replay. Recognized gamepads
 use SDL's standard controller mappings automatically, alongside keyboard input.

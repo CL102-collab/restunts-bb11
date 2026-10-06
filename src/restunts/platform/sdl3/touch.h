@@ -37,6 +37,11 @@ legacy_u8 sdl3_touch_key_state(SDL_Scancode scancode);
 
 /* Deliver touch through the same queues as physical keyboard/mouse input. */
 void sdl3_input_queue_key(legacy_u16 value);
+/* Requests can originate off-thread; apply and consume shifts on the game thread. */
+legacy_u8 sdl3_input_request_shift(legacy_u8 up);
+void sdl3_input_shift_event(const SDL_UserEvent *event);
+void sdl3_input_queue_shift(legacy_u16 flag);
+void sdl3_input_reset_shifts(void);
 void sdl3_input_touch_mouse(legacy_f32 x, legacy_f32 y, legacy_u8 down);
 
 #endif
