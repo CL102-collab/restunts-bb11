@@ -2,6 +2,9 @@
 #include "platform.h"
 #include "shape2d.h"
 #include "ui_input.h"
+#ifdef RESTUNTS_SDL3
+#include "../platform/sdl3/controller_game.h"
+#endif
 #include "ui_text.h"
 #include "game_input.h"
 #include "resource_bytes.h"
@@ -279,6 +282,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 					 legacy_s16 max_characters, legacy_s16 max_pixels, legacy_s16 x, legacy_s16 y,
 					 void(far *callback)(void), legacy_u32 timeout)
 {
+#ifdef RESTUNTS_SDL3
+	sdl3_input_push_modal();
+#endif
 	struct READ_LINE_STATE state;
 	state.input_flags = (legacy_u8)flags;
 	state.text = text;
@@ -297,6 +303,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 #ifdef __ANDROID__
 				SDL_StopTextInput(sdl3_video_window());
 #endif
+#ifdef RESTUNTS_SDL3
+				sdl3_input_pop_modal();
+#endif
 				return 0;
 			}
 			continue;
@@ -306,6 +315,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 			text_edit_toggle_cursor();
 #ifdef __ANDROID__
 			SDL_StopTextInput(sdl3_video_window());
+#endif
+#ifdef RESTUNTS_SDL3
+			sdl3_input_pop_modal();
 #endif
 			return key;
 		}

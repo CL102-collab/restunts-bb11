@@ -8,6 +8,38 @@
 #include "../c/fatal.h"
 #include "../c/ui_dialog_internal.h"
 #include "../c/replay_viewer_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../platform/sdl3/controller_game.h"
+#define TEST_DRIVING_MODE_COUNT 4U
+#define TEST_INPUT_CHOICE_COUNT 3U
+static enum SDL3_DRIVING_INPUT driving_mode;
+static legacy_u16 modal_depth;
+static legacy_u16 input_menu_count;
+static legacy_s16 input_menu_initial;
+static legacy_s8 input_text[] = "Input devices}[ Keyboard][ Joystick][ Mouse]";
+static legacy_s8 *input_resource = input_text;
+
+void sdl3_input_set_driving_mode(enum SDL3_DRIVING_INPUT mode)
+{
+	driving_mode = mode;
+}
+
+enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
+{
+	return driving_mode;
+}
+
+void sdl3_input_push_modal(void)
+{
+	modal_depth++;
+}
+
+void sdl3_input_pop_modal(void)
+{
+	assert(modal_depth != 0);
+	modal_depth--;
+}
+#endif
 
 static legacy_s16 dialog_answers[24];
 static legacy_u32 dialog_index, joystick_index, joystick_limit;
@@ -20,6 +52,11 @@ legacy_s8 *locate_text_res(legacy_s8 *data, const legacy_s8 *name)
 	trace_word(2000);
 	trace_pointer(data);
 	trace_text(name);
+#ifdef RESTUNTS_SDL3
+	if (_strcmp(name, "mid") == 0) {
+		return input_resource;
+	}
+#endif
 	return _strcmp(name, graphics_options_dialog_id) == 0 ? graphics_text : (legacy_s8 *)name;
 }
 void input_push_status(void)
@@ -116,6 +153,14 @@ legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void *text, legacy_u16 
 	trace_word(y);
 	trace_word(border);
 	trace_word(selected);
+#ifdef RESTUNTS_SDL3
+	if (type == DIALOG_TYPE_MENU && text == input_resource) {
+		assert(modal_depth != 0);
+		assert(selected >= 0 && selected < (legacy_s16)TEST_INPUT_CHOICE_COUNT);
+		input_menu_initial = selected;
+		input_menu_count++;
+	}
+#endif
 	if (positions != 0) {
 		for (legacy_u32 i = 0; i < 15U; i++) {
 			positions[i] = LEGACY_S16_FROM_BITS(32750U + i * 43U);
@@ -182,6 +227,14 @@ legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name)
 
 static void reset_options(legacy_u32 index)
 {
+#ifdef RESTUNTS_SDL3
+	assert(modal_depth == 0);
+	driving_mode = index % 3U != 0	 ? SDL3_DRIVING_MOUSE
+				   : index % 2U != 0 ? SDL3_DRIVING_JOYSTICK
+									 : SDL3_DRIVING_KEYBOARD;
+	input_menu_count = 0;
+	input_resource = input_text;
+#endif
 	scenario = index;
 	allocation_index = 0;
 	dialog_index = 0;
@@ -259,12 +312,59 @@ static void test_options(void)
 	trace_word(run_option_menu());
 	record_options();
 }
+#ifdef RESTUNTS_SDL3
+static void test_input_menu(void)
+{
+	for (legacy_u16 mode = 0; mode < TEST_DRIVING_MODE_COUNT; mode++) {
+		reset_options(mode);
+		driving_mode = (enum SDL3_DRIVING_INPUT)mode;
+		legacy_u8 original_mouse = mouse_driving_enabled;
+		legacy_u8 original_joystick = joystick_enabled;
+		dialog_answers[0] = 0;
+		dialog_answers[1] = -1;
+		run_option_menu();
+		legacy_s16 expected_initial =
+			mode < TEST_INPUT_CHOICE_COUNT ? (legacy_s16)mode : (legacy_s16)SDL3_DRIVING_KEYBOARD;
+		assert(input_menu_count == 1 && input_menu_initial == expected_initial);
+		assert(driving_mode == (enum SDL3_DRIVING_INPUT)mode && modal_depth == 0);
+		assert(mouse_driving_enabled == original_mouse && joystick_enabled == original_joystick);
+		assert(_strcmp(input_text, "Input devices}[ Keyboard][ Joystick][ Mouse]") == 0);
+	}
+
+	static const enum SDL3_DRIVING_INPUT manual_modes[] = {
+		SDL3_DRIVING_KEYBOARD, SDL3_DRIVING_JOYSTICK, SDL3_DRIVING_MOUSE};
+	for (legacy_u16 choice = 0; choice < TEST_INPUT_CHOICE_COUNT; choice++) {
+		reset_options(0);
+		driving_mode = SDL3_DRIVING_CONTROLLER;
+		dialog_answers[0] = 0;
+		dialog_answers[1] = (legacy_s16)choice;
+		dialog_answers[2] = 1;
+		run_option_menu();
+		assert(input_menu_count == 1 && input_menu_initial == (legacy_s16)SDL3_DRIVING_KEYBOARD);
+		assert(driving_mode == manual_modes[choice] && modal_depth == 0);
+	}
+
+	reset_options(0);
+	static legacy_s8 localized_text[] = "Geraet]}[Tastatur][Joystick][Maus]";
+	input_resource = localized_text;
+	driving_mode = SDL3_DRIVING_CONTROLLER;
+	dialog_answers[0] = 0;
+	dialog_answers[1] = -1;
+	run_option_menu();
+	assert(input_menu_count == 1 && input_menu_initial == (legacy_s16)SDL3_DRIVING_KEYBOARD);
+	assert(driving_mode == SDL3_DRIVING_CONTROLLER && modal_depth == 0);
+	assert(_strcmp(localized_text, "Geraet]}[Tastatur][Joystick][Maus]") == 0);
+}
+#endif
+
 int main(void)
 {
 	test_calibration();
 	test_graphics();
 	test_options();
-#ifdef OPTIONS_RECORD_BASELINE
+#ifdef RESTUNTS_SDL3
+	test_input_menu();
+#elif defined(OPTIONS_RECORD_BASELINE)
 	fprintf(stdout, "test-menu-options.c=0x%016" LEGACY_PRIx64 "\n", trace_hash);
 #else
 	assert(trace_hash == UINT64_C(0xaf8245c3425601de));

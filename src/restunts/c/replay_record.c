@@ -9,6 +9,7 @@
 #include "car_audio.h"
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/touch_game.h"
+#include "../platform/sdl3/controller_game.h"
 #endif
 
 #define INPUT_STEERING_HISTORY_SIZE 64U
@@ -160,7 +161,14 @@ static legacy_s16 replay_read_mouse_input(void)
 
 static legacy_s16 replay_read_joystick_input(void)
 {
+#ifdef RESTUNTS_SDL3
+	legacy_s16 axis = sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER
+						  ? sdl3_controller_scaled_x()
+						  : joystick_get_scaled_x();
+	legacy_s8 mapped_steering = LEGACY_S8_FROM_BITS(axis);
+#else
 	legacy_s8 mapped_steering = LEGACY_S8_FROM_BITS(joystick_get_scaled_x());
+#endif
 	input_steering_value = mapped_steering;
 	if (mapped_steering > 0) {
 		input_steering_value = joystick_steering_table[(legacy_u8)mapped_steering];
@@ -184,8 +192,14 @@ static legacy_s16 replay_read_live_input(void)
 	}
 
 	legacy_s16 input_flags;
+#ifdef RESTUNTS_SDL3
+	enum SDL3_DRIVING_INPUT mode = sdl3_input_driving_mode();
+	if (mode != SDL3_DRIVING_KEYBOARD) {
+		if (mode == SDL3_DRIVING_MOUSE) {
+#else
 	if (mouse_driving_enabled != 0 || dos_joystick_is_enabled() != 0) {
 		if (mouse_driving_enabled != 0) {
+#endif
 			input_flags = replay_read_mouse_input();
 		} else {
 			input_flags = replay_read_joystick_input();
@@ -195,6 +209,9 @@ static legacy_s16 replay_read_live_input(void)
 		input_steering_history_valid[history_index] = 1;
 	} else {
 		input_flags = get_kb_or_joy_flags();
+#ifdef RESTUNTS_SDL3
+		input_steering_history_valid[(legacy_u16)elapsed_time2 & INPUT_STEERING_HISTORY_MASK] = 0;
+#endif
 	}
 
 	if (kb_get_key_state(KEY_SCAN_GEAR_UP) != 0) {
@@ -204,6 +221,9 @@ static legacy_s16 replay_read_live_input(void)
 		input_flags = (legacy_s16)((legacy_u16)input_flags | INPUT_SHIFT_DOWN_FLAG);
 	}
 #ifdef RESTUNTS_SDL3
+	/* Steering belongs to one device; pedals and gear requests remain independent. */
+	input_flags |= get_kb_or_joy_flags() & INPUT_NON_STEERING_MASK;
+	input_flags |= sdl3_controller_driving_flags() & INPUT_NON_STEERING_MASK;
 	input_flags |= sdl3_touch_take_shift_flags();
 #endif
 	return input_flags;

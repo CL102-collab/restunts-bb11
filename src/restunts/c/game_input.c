@@ -16,6 +16,7 @@
 #include "hires.h"
 #include "frame_adaptive.h"
 #include "skybox_hires.h"
+#include "../platform/sdl3/controller_game.h"
 #endif
 
 #define INPUT_DIRECTION_COUNT 16U
@@ -398,6 +399,28 @@ static legacy_s16 input_handle_camera_shortcut(legacy_s16 key)
 	return 0;
 }
 
+#ifdef RESTUNTS_SDL3
+legacy_s16 input_update_controller_camera(void)
+{
+	legacy_u16 flags = (legacy_u16)sdl3_controller_camera_flags();
+	if (cameramode != CAMERA_MODE_CUSTOM) {
+		return 0;
+	}
+	legacy_s16 changed = 0;
+	if ((flags & INPUT_STEER_RIGHT_FLAG) != 0) {
+		changed |= camera_adjust_custom_direction(KEY_RIGHT);
+	} else if ((flags & INPUT_STEER_LEFT_FLAG) != 0) {
+		changed |= camera_adjust_custom_direction(KEY_LEFT);
+	}
+	if ((flags & INPUT_ACCELERATE_FLAG) != 0) {
+		changed |= camera_adjust_custom_direction(KEY_UP);
+	} else if ((flags & INPUT_BRAKE_FLAG) != 0) {
+		changed |= camera_adjust_custom_direction(KEY_DOWN);
+	}
+	return changed;
+}
+#endif
+
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
 	if (input_handle_display_shortcut(key) || input_handle_camera_shortcut(key)) {
@@ -481,9 +504,16 @@ legacy_s16 get_kb_or_joy_flags(void)
 			flags |= action_flags[index];
 		}
 	}
+#ifdef RESTUNTS_SDL3
+	flags |= (legacy_u16)dos_get_joy_flags() & INPUT_NON_STEERING_MASK;
+	if (sdl3_input_driving_mode() != SDL3_DRIVING_KEYBOARD) {
+		flags &= INPUT_NON_STEERING_MASK;
+	}
+#else
 	if (flags == 0) {
 		flags = (legacy_u16)dos_get_joy_flags();
 	}
+#endif
 	return LEGACY_S16_FROM_BITS(flags);
 }
 
@@ -606,8 +636,15 @@ legacy_s16 input_checking(legacy_s16 frame_delta)
 	if (key != 0) {
 		kbormouse = 0;
 	}
+#ifdef RESTUNTS_SDL3
+	legacy_u16 current_joy_flags = (legacy_u16)sdl3_joystick_menu_flags();
+#else
 	legacy_u16 current_joy_flags = (legacy_u16)dos_get_joy_flags();
+#endif
 	input_combined_flags = get_kb_or_joy_flags();
+#ifdef RESTUNTS_SDL3
+	input_combined_flags = (legacy_u16)input_combined_flags | current_joy_flags;
+#endif
 	input_update_joystick(current_joy_flags);
 	input_update_mouse_activity(frame_delta);
 	input_update_mouse_buttons();
@@ -782,6 +819,9 @@ void check_input(void)
 
 	do {
 		pressed = (get_kb_or_joy_flags() & INPUT_ACTION_BUTTON_MASK) != 0;
+#ifdef RESTUNTS_SDL3
+		pressed |= (sdl3_joystick_menu_flags() & INPUT_ACTION_BUTTON_MASK) != 0;
+#endif
 		if (!pressed) {
 			pressed = input_checking((legacy_s16)timer_get_delta_alt()) != 0;
 		}

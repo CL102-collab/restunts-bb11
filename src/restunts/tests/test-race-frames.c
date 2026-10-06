@@ -63,6 +63,41 @@ legacy_u8 supersight_enabled;
 #define TEST_GHOST_DISTANCE_PER_FRAME 100L
 #define TEST_REWIND_TOUCH_TRANSITIONS 2U
 
+static legacy_u8 controller_menu_request, controller_menu_testing;
+static legacy_u8 controller_start_request, controller_start_testing;
+static legacy_u16 controller_start_polls, controller_start_resets;
+
+legacy_u8 sdl3_controller_take_race_start_request(void)
+{
+	legacy_u8 requested = controller_start_request;
+	controller_start_request = 0;
+	controller_start_polls++;
+	return requested;
+}
+static legacy_u16 controller_menu_opens, controller_menu_transitions, controller_analog_reads;
+
+legacy_u8 sdl3_controller_take_menu_request(void)
+{
+	legacy_u8 request = controller_menu_request;
+	controller_menu_request = 0;
+	return request;
+}
+
+legacy_s16 input_update_controller_camera(void)
+{
+	return 0;
+}
+
+void sdl3_input_set_gameplay_active(legacy_u8 active)
+{
+	(void)active;
+}
+
+void sdl3_input_set_replay_active(legacy_u8 active)
+{
+	(void)active;
+}
+
 static legacy_u8 touch_rewind_active;
 static legacy_u32 touch_rewind_transitions;
 
@@ -365,6 +400,11 @@ legacy_u8 dos_joystick_is_enabled(void)
 void replay_apply_analog_steering_history(void)
 {
 #ifdef RESTUNTS_SDL3
+	if (controller_menu_testing != 0) {
+		assert(controller_analog_reads == scheduled_physics);
+		controller_analog_reads++;
+		scheduled_input[state.game_frame] |= INPUT_STEER_RIGHT_FLAG;
+	}
 	if (hotkey_script.active != 0) {
 		hotkey_script.analog_updates++;
 	}
@@ -488,6 +528,21 @@ void setup_car_shapes(legacy_s16 operation)
 }
 void loop_game(legacy_s16 operation, legacy_s16 recorded, legacy_s16 current)
 {
+#ifdef RESTUNTS_SDL3
+	if (controller_menu_testing != 0) {
+		assert(game_replay_mode == REPLAY_MODE_PLAYBACK);
+		if (operation == REPLAY_LOOP_SELECT_CONTROL) {
+			assert(recorded == REPLAY_CONTROL_PAUSE);
+			controller_menu_transitions++;
+		} else if (operation == REPLAY_LOOP_OPEN_MENU) {
+			controller_menu_opens++;
+			race_exit_request = REPLAY_EXIT_REQUESTED;
+		} else {
+			assert(operation == REPLAY_LOOP_LOAD_RESOURCES);
+		}
+		return;
+	}
+#endif
 	if (replay_render.active != 0) {
 		assert(operation == REPLAY_LOOP_DRAW_CONTROLS);
 		replay_render.controls++;
@@ -639,6 +694,12 @@ void sprite_present_mcga_backbuffer(void)
 }
 void init_game_state_with_frame_rate(legacy_u16 rate)
 {
+#ifdef RESTUNTS_SDL3
+	if (controller_start_testing != 0) {
+		assert(rate == configured_frame_rate);
+		controller_start_resets++;
+	}
+#endif
 	trace(27);
 	trace(rate);
 }
@@ -704,6 +765,14 @@ legacy_s16 dos_kb_get_char(void)
 }
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
+#ifdef RESTUNTS_SDL3
+	if (controller_menu_testing != 0) {
+		assert(key == KEY_ESCAPE);
+		state.game_end_event = CRASH_EVENT_EXIT;
+		race_exit_request = 1;
+		return 1;
+	}
+#endif
 	if (hotkey_script.active != 0) {
 		if (key != KEY_F11 && key != KEY_F12 && key != KEY_ESCAPE && key != 'd') {
 			return 0;
@@ -977,6 +1046,79 @@ enum TEST_HOTKEY_TIMING {
 	TEST_HOTKEY_DURING_STALL,
 	TEST_HOTKEY_TIMING_COUNT
 };
+
+static void test_controller_start_from_truck(void)
+{
+	static const legacy_s8 sequences[] = {RACE_START_SEQUENCE_FLAG_ANIMATION,
+										  RACE_START_SEQUENCE_AUTO_DRIVE,
+										  RACE_START_SEQUENCE_INACTIVE};
+	for (legacy_u32 index = 0; index < sizeof(sequences) / sizeof(sequences[0]); index++) {
+		prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
+		game_replay_mode = REPLAY_MODE_PAUSED;
+		state.game_inputmode = GAME_INPUT_MODE_WAITING;
+		race_start_sequence_state = sequences[index];
+		controller_start_testing = 1;
+		controller_start_request = 0;
+		controller_start_polls = controller_start_resets = 0;
+		scenario = 0;
+		race_handle_driving_input();
+		assert(game_replay_mode == REPLAY_MODE_PAUSED);
+		assert(race_start_sequence_state == sequences[index]);
+		assert(controller_start_resets == 0 && controller_start_polls == 1);
+
+		/* The backend retains a complete stick flick even if it is centered by
+		 * this poll. Start once through the same reset as keyboard arrows. */
+		controller_start_request = 1;
+		race_handle_driving_input();
+		assert(game_replay_mode == REPLAY_MODE_LIVE);
+		assert(race_start_sequence_state == RACE_START_SEQUENCE_INACTIVE);
+		assert(controller_start_request == 0 && controller_start_resets == 1);
+		race_handle_driving_input();
+		assert(controller_start_resets == 1 && controller_start_polls == 2);
+		controller_start_testing = 0;
+	}
+	prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	controller_start_request = 1;
+	controller_start_polls = 0;
+	race_handle_driving_input();
+	assert(controller_start_polls == 0 && controller_start_request != 0);
+	controller_start_request = 0;
+}
+
+static void test_controller_menu_transition(void)
+{
+	static const legacy_s8 modes[] = {REPLAY_MODE_LIVE, REPLAY_MODE_PAUSED, REPLAY_MODE_PLAYBACK};
+	for (legacy_u32 index = 0; index < sizeof(modes) / sizeof(modes[0]); index++) {
+		prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
+		game_replay_mode = modes[index];
+		controller_menu_request = controller_menu_testing = 1;
+		controller_menu_opens = controller_menu_transitions = controller_analog_reads = 0;
+		struct RACE_REWIND_STATE rewind = {0};
+		legacy_s16 last_frame = -1;
+		legacy_u8 menu_pending = 0;
+		if (modes[index] == REPLAY_MODE_LIVE) {
+			elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;
+			assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) == 0);
+			assert(controller_menu_request == 0 && menu_pending != 0);
+			for (legacy_u16 frame = 0; frame < TEST_HOTKEY_CATCHUP_FRAMES; frame++) {
+				assert(race_frame_is_ready(&last_frame) == 0);
+				assert(controller_menu_opens == 0);
+				assert((scheduled_input[frame] & INPUT_STEER_RIGHT_FLAG) != 0);
+			}
+			assert(controller_analog_reads == TEST_HOTKEY_CATCHUP_FRAMES);
+		}
+		assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) != 0);
+		assert(controller_menu_opens == 1);
+		assert(controller_menu_transitions == (modes[index] != REPLAY_MODE_PLAYBACK));
+		assert(scheduled_physics ==
+			   (modes[index] == REPLAY_MODE_LIVE ? TEST_HOTKEY_CATCHUP_FRAMES : 0));
+		assert(controller_menu_request == 0 && menu_pending == 0);
+		assert(race_handle_controller_menu(&rewind, &last_frame, &menu_pending) == 0);
+		assert(controller_menu_opens == 1);
+		controller_menu_testing = 0;
+	}
+}
 
 static void test_hotkeys_during_frame_waits(void)
 {
@@ -1463,6 +1605,8 @@ int main(void)
 	test_replay_dashboard_rendering();
 #ifdef RESTUNTS_SDL3
 	test_render_scale_transitions();
+	test_controller_start_from_truck();
+	test_controller_menu_transition();
 	test_hotkeys_during_frame_waits();
 	test_hotkey_exit_during_catchup();
 	test_presentation_rate();

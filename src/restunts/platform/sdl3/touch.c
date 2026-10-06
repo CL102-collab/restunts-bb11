@@ -1,4 +1,5 @@
 #include "touch.h"
+#include "controller_game.h"
 #include "../../c/game_input.h"
 #include "../../c/keyboard.h"
 #include "../../c/platform.h"
@@ -150,7 +151,7 @@ void sdl3_touch_sync_game(void)
 {
 #ifdef RESTUNTS_FULL
 	sdl3_touch_configure(
-		mouse_driving_enabled == 0 && dos_joystick_is_enabled() == 0,
+		sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD,
 		game_active && replay_interaction &&
 			(rewind_active || (game_replay_mode == REPLAY_MODE_LIVE && is_in_replay == 0)),
 		gameconfig.game_playertransmission == TRANSMISSION_MANUAL,

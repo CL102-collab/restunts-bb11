@@ -1,4 +1,5 @@
 #include "../platform/sdl3/touch.h"
+#include "../platform/sdl3/controller_game.h"
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
 #include "../c/gamestate.h"
@@ -32,11 +33,11 @@ struct GAMEINFO gameconfig;
 legacy_u8 game_replay_mode;
 legacy_s8 is_in_replay;
 legacy_s8 mouse_driving_enabled;
-static legacy_u8 joystick_selected;
+static enum SDL3_DRIVING_INPUT driving_mode;
 
-legacy_u8 dos_joystick_is_enabled(void)
+enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
 {
-	return joystick_selected;
+	return driving_mode;
 }
 
 static const SDL_Rect area = {0, 0, TEST_WIDTH, TEST_HEIGHT};
@@ -351,13 +352,22 @@ static void test_game_state_and_rewind(void)
 	sdl3_touch_sync_game();
 	assert(!sdl3_touch_visible(TOUCH_REWIND) && !sdl3_touch_visible(TOUCH_SHIFT_UP));
 	mouse_driving_enabled = 1;
+	driving_mode = SDL3_DRIVING_MOUSE;
 	sdl3_touch_sync_game();
 	assert(!sdl3_touch_visible(TOUCH_LEFT));
 	mouse_driving_enabled = 0;
-	joystick_selected = 1;
+	driving_mode = SDL3_DRIVING_JOYSTICK;
 	sdl3_touch_sync_game();
 	assert(!sdl3_touch_visible(TOUCH_ESCAPE));
-	joystick_selected = 0;
+	driving_mode = SDL3_DRIVING_CONTROLLER;
+	sdl3_touch_sync_game();
+	assert(!sdl3_touch_visible(TOUCH_LEFT) && !sdl3_touch_visible(TOUCH_ESCAPE));
+	/* Last-used keyboard steering restores touch even if a legacy flag is stale. */
+	mouse_driving_enabled = 1;
+	driving_mode = SDL3_DRIVING_KEYBOARD;
+	sdl3_touch_sync_game();
+	assert(sdl3_touch_visible(TOUCH_LEFT) && sdl3_touch_visible(TOUCH_ESCAPE));
+	mouse_driving_enabled = 0;
 	sdl3_touch_set_game_active(0);
 }
 
@@ -411,12 +421,14 @@ static void test_intro_visibility_and_taps(void)
 	sdl3_touch_set_game_active(0);
 	sdl3_touch_set_intro_active(1);
 	mouse_driving_enabled = 1;
+	driving_mode = SDL3_DRIVING_MOUSE;
 	sdl3_touch_sync_game();
 	sdl3_touch_set_intro_active(0);
 	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
 		assert(!sdl3_touch_visible(control));
 	}
 	mouse_driving_enabled = 0;
+	driving_mode = SDL3_DRIVING_KEYBOARD;
 	sdl3_touch_sync_game();
 	assert(sdl3_touch_visible(TOUCH_LEFT) && sdl3_touch_visible(TOUCH_ESCAPE));
 	assert(!sdl3_touch_visible(TOUCH_SHIFT_UP) && !sdl3_touch_visible(TOUCH_REWIND));

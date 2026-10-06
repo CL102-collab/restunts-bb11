@@ -42,6 +42,7 @@
 #undef draw_button
 #undef font_draw_text
 #include "../c/ghost.h"
+#define OPPONENT_TEST_BUTTON_COUNT 5U
 #ifdef RESTUNTS_SDL3
 #include "../c/opponent_portrait.h"
 #include "../c/shape2d_internal.h"
@@ -52,7 +53,6 @@ static legacy_u8 background_overlay_ready;
 static legacy_u8 background_mapped_draws, background_button_draws, background_ready;
 static legacy_u8 background_window_mode, background_backbuffer_mode;
 
-#define OPPONENT_TEST_BUTTON_COUNT 5U
 enum OPPONENT_TEST_MAPPED_STAGE {
 	OPPONENT_TEST_MAPPED_CLEAR,
 	OPPONENT_TEST_MAPPED_BACKGROUND,
@@ -626,6 +626,35 @@ static void test_clear_ghost(legacy_u8 page_flipping, legacy_u8 selection)
 	assert(ghost_dialogs == 0);
 }
 
+static void test_escape_back(legacy_u8 page_flipping, legacy_u8 opponent, legacy_u8 selection,
+							 legacy_u8 use_mouse)
+{
+	begin_case(opponent, page_flipping);
+	ghost_selected = 1;
+	if (use_mouse == 0) {
+		for (legacy_u8 index = 0; index < selection; index++) {
+			add_event(KEY_RIGHT, opponent);
+		}
+	}
+	add_event(KEY_ESCAPE, opponent);
+	if (use_mouse != 0) {
+		opponent_hits[event_count - 1] = selection;
+	}
+	finish_case(opponent, 1);
+	assert(ghost_selected == 1 && ghost_dialogs == 0 && car_menu_calls == 0);
+}
+
+static void test_escape_after_opponent_change(legacy_u8 page_flipping)
+{
+	begin_case(3, page_flipping);
+	add_event(KEY_RIGHT, 3);
+	add_event(KEY_ENTER, 3);
+	expect_load(4);
+	add_event(KEY_ESCAPE, 4);
+	finish_case(4, 2);
+	assert(ghost_dialogs == 0 && car_menu_calls == 0);
+}
+
 static void test_opponent_car(legacy_u8 page_flipping, legacy_u8 initial_fps)
 {
 	begin_case(3, page_flipping);
@@ -633,8 +662,8 @@ static void test_opponent_car(legacy_u8 page_flipping, legacy_u8 initial_fps)
 	add_event(KEY_ENTER, 3);
 	opponent_hits[event_count - 1] = 3;
 	expect_load(3);
-	add_event(KEY_RIGHT, 3);
-	add_event(KEY_ENTER, 3);
+	/* Car returns to this menu with Car still selected; Back must not reopen it. */
+	add_event(KEY_ESCAPE, 3);
 	finish_case(3, 2);
 	assert(car_menu_calls == 1 && ghost_dialogs == 0 && ghost_button_draws == 0);
 }
@@ -695,6 +724,13 @@ int main(void)
 			}
 		}
 		test_return_to_clock(page_flipping);
+		test_escape_after_opponent_change(page_flipping);
+		for (legacy_u8 selection = 0; selection < OPPONENT_TEST_BUTTON_COUNT; selection++) {
+			for (legacy_u8 use_mouse = 0; use_mouse < 2; use_mouse++) {
+				test_escape_back(page_flipping, 0, selection, use_mouse);
+				test_escape_back(page_flipping, 3, selection, use_mouse);
+			}
+		}
 		for (legacy_u8 already_selected = 0; already_selected < 2; already_selected++) {
 			for (legacy_u8 use_mouse = 0; use_mouse < 2; use_mouse++) {
 				for (legacy_u8 result = 0; result < 3; result++) {

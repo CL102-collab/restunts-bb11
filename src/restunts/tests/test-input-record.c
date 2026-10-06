@@ -96,6 +96,51 @@ static legacy_u8 joystick_enabled, segments_match, nested_callback;
 static legacy_s8 replay_bytes[12000], response_table[256];
 static struct GAMESTATE snapshots[41];
 static struct AUDIO_CAR_STATE audio_samples[AUDIO_CAR_STATE_RECORD_COUNT];
+#ifdef RESTUNTS_SDL3
+static legacy_u8 controller_mode_set;
+static enum SDL3_DRIVING_INPUT controller_mode;
+static legacy_s16 controller_x, controller_pedals, controller_shifts, controller_camera;
+static legacy_u16 joystick_menu_hold_polls, joystick_menu_polls;
+
+enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
+{
+	if (controller_mode_set != 0) {
+		return controller_mode;
+	}
+	return mouse_driving_enabled != 0 ? SDL3_DRIVING_MOUSE
+		   : joystick_enabled != 0	  ? SDL3_DRIVING_JOYSTICK
+									  : SDL3_DRIVING_KEYBOARD;
+}
+
+legacy_s16 sdl3_joystick_menu_flags(void)
+{
+	joystick_menu_polls++;
+	if (joystick_menu_hold_polls != 0) {
+		joystick_menu_hold_polls--;
+		return INPUT_PRIMARY_ACTION_FLAG;
+	}
+	return joystick_flags;
+}
+
+legacy_s16 sdl3_controller_driving_flags(void)
+{
+	legacy_s16 flags = controller_pedals | controller_shifts;
+	controller_shifts = 0;
+	return flags;
+}
+
+legacy_s16 sdl3_controller_scaled_x(void)
+{
+	return controller_x;
+}
+
+legacy_s16 sdl3_controller_camera_flags(void)
+{
+	legacy_s16 flags = controller_camera;
+	controller_camera = 0;
+	return flags;
+}
+#endif
 
 static void hash_word(legacy_u16 value)
 {
@@ -125,6 +170,11 @@ legacy_s16 kb_get_key_state(legacy_s16 key)
 legacy_s16 dos_get_joy_flags(void)
 {
 	hash_word(2);
+#ifdef RESTUNTS_SDL3
+	if (controller_mode_set != 0 && joystick_enabled == 0) {
+		return 0;
+	}
+#endif
 	return joystick_flags;
 }
 legacy_u8 dos_joystick_is_enabled(void)
@@ -240,6 +290,9 @@ static void reset_inputs(void)
 	supersight_status[0] = 0;
 #ifdef RESTUNTS_SDL3
 	touch_shift_flags = 0;
+	controller_mode_set = 0;
+	joystick_menu_hold_polls = joystick_menu_polls = 0;
+	controller_x = controller_pedals = controller_shifts = controller_camera = 0;
 	frame_adaptive_reset(&frame_adaptive);
 	render_timing_reset_count = 0;
 	hires_enabled_transitions = 0;
@@ -495,7 +548,11 @@ static void test_event_priority(void)
 	reset_inputs();
 	key_states[input_key_scancodes[0]] = 1;
 	joystick_flags = INPUT_ACCELERATE_FLAG;
+#ifdef RESTUNTS_SDL3
+	assert(get_kb_or_joy_flags() == (INPUT_PRIMARY_ACTION_FLAG | INPUT_ACCELERATE_FLAG));
+#else
 	assert(get_kb_or_joy_flags() == INPUT_PRIMARY_ACTION_FLAG);
+#endif
 	reset_inputs();
 	joystick_flags = INPUT_PRIMARY_ACTION_FLAG;
 	assert(input_checking(0) == KEY_SPACE);
@@ -528,6 +585,93 @@ static void test_recording_input_modes(void)
 }
 
 #ifdef RESTUNTS_SDL3
+#define TEST_CONTROLLER_AXIS 16
+#define TEST_CONTROLLER_TARGET_ANGLE 44
+#define TEST_CONTROLLER_RESPONSE 8
+
+static void test_controller_recording(void)
+{
+	reset_inputs();
+	controller_mode_set = 1;
+	controller_mode = SDL3_DRIVING_CONTROLLER;
+	controller_x = TEST_CONTROLLER_AXIS;
+	controller_shifts = INPUT_SHIFT_UP_FLAG;
+	key_states[(legacy_u16)KEY_RIGHT >> LEGACY_BYTE_BITS] = 1;
+	key_states[(legacy_u16)KEY_UP >> LEGACY_BYTE_BITS] = 1;
+	replay_update_input_tick(0);
+	assert(replay_bytes[0] == (INPUT_ACCELERATE_FLAG | INPUT_SHIFT_UP_FLAG));
+	assert(input_steering_history_valid[0] != 0);
+	assert(LEGACY_S8_FROM_BITS(input_steering_history[0]) == TEST_CONTROLLER_TARGET_ANGLE);
+	response_table[STEERING_RESPONSE_TABLE_OFFSET] = TEST_CONTROLLER_RESPONSE;
+	/* A later source takeover cannot erase already sampled analog steering. */
+	controller_mode = SDL3_DRIVING_KEYBOARD;
+	replay_apply_analog_steering_history();
+	controller_mode = SDL3_DRIVING_CONTROLLER;
+	assert(replay_bytes[0] ==
+		   (INPUT_ACCELERATE_FLAG | INPUT_SHIFT_UP_FLAG | INPUT_STEER_RIGHT_FLAG));
+	assert(input_steering_history_valid[0] == 0);
+	replay_update_input_tick(0);
+	assert(replay_bytes[1] == INPUT_ACCELERATE_FLAG);
+
+	/* Keyboard steering replaces the target while controller pedals still work.
+	 * A reused ring slot cannot apply an older analog target to the new sample. */
+	controller_mode = SDL3_DRIVING_KEYBOARD;
+	controller_pedals = INPUT_BRAKE_FLAG;
+	key_states[(legacy_u16)KEY_UP >> LEGACY_BYTE_BITS] = 0;
+	elapsed_time2 = INPUT_STEERING_HISTORY_SIZE;
+	input_steering_history_valid[0] = 1;
+	replay_update_input_tick(0);
+	assert(replay_bytes[INPUT_STEERING_HISTORY_SIZE] ==
+		   (INPUT_BRAKE_FLAG | INPUT_STEER_RIGHT_FLAG));
+	assert(input_steering_history_valid[0] == 0);
+
+	/* Leaving a joystick selected cannot restore its steering after a keyboard
+	 * release; its pedals still contribute independently. */
+	joystick_enabled = 1;
+	joystick_flags = INPUT_STEER_LEFT_FLAG | INPUT_ACCELERATE_FLAG;
+	key_states[(legacy_u16)KEY_RIGHT >> LEGACY_BYTE_BITS] = 0;
+	controller_pedals = 0;
+	assert(get_kb_or_joy_flags() == INPUT_ACCELERATE_FLAG);
+}
+
+static void test_raw_joystick_menu_release(void)
+{
+	reset_inputs();
+	controller_mode_set = 1;
+	controller_mode = SDL3_DRIVING_KEYBOARD;
+	joystick_flags = INPUT_PRIMARY_ACTION_FLAG;
+	assert(joystick_enabled == 0 && get_kb_or_joy_flags() == 0);
+	assert(input_checking(0) == KEY_SPACE);
+	assert((input_combined_flags & INPUT_PRIMARY_ACTION_FLAG) != 0);
+	joystick_flags = 0;
+	joystick_menu_polls = 0;
+	joystick_menu_hold_polls = 2;
+	check_input();
+	assert(joystick_menu_hold_polls == 0 && joystick_menu_polls > 2);
+}
+
+static void test_controller_camera(void)
+{
+	reset_inputs();
+	custom_camera.azimuth_angle = CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE;
+	custom_camera.elevation_angle = CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE;
+	cameramode = CAMERA_MODE_COCKPIT;
+	controller_camera = INPUT_STEER_RIGHT_FLAG | INPUT_ACCELERATE_FLAG;
+	assert(input_update_controller_camera() == 0);
+	assert(custom_camera.azimuth_angle == CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE);
+	cameramode = CAMERA_MODE_CUSTOM;
+	assert(input_update_controller_camera() == 0);
+	controller_camera = INPUT_STEER_RIGHT_FLAG | INPUT_ACCELERATE_FLAG;
+	assert(input_update_controller_camera() != 0);
+	assert(custom_camera.azimuth_angle == CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE + CAMERA_ANGLE_STEP);
+	assert(custom_camera.elevation_angle ==
+		   CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE + CAMERA_ANGLE_STEP);
+	custom_camera.elevation_angle = CUSTOM_CAMERA_ELEVATION_LIMIT - CAMERA_ANGLE_STEP;
+	controller_camera = INPUT_ACCELERATE_FLAG;
+	assert(input_update_controller_camera() == 0);
+	assert(custom_camera.elevation_angle == CUSTOM_CAMERA_ELEVATION_LIMIT - CAMERA_ANGLE_STEP);
+}
+
 static void test_touch_shift_recording(void)
 {
 	static const legacy_u16 shifts[] = {INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_DOWN_FLAG};
@@ -856,6 +1000,9 @@ int main(void)
 	test_custom_camera_switches();
 #ifdef RESTUNTS_SDL3
 	test_touch_shift_recording();
+	test_controller_recording();
+	test_controller_camera();
+	test_raw_joystick_menu_release();
 	test_shift_f12_callback();
 	test_locked_display_shortcuts();
 #endif
@@ -865,10 +1012,19 @@ int main(void)
 			" %08" LEGACY_PRIx32 "\n",
 			input_hash, scrollbar_hash, record_hash, callback_hash, shortcut_hash);
 #else
+#ifdef RESTUNTS_SDL3
+	/* SDL samples independent menu devices and combines pedal sources. The
+	 * additional device reads intentionally differ from the original DOS trace. */
+	assert(input_hash == 0x2425c54cUL);
+	assert(scrollbar_hash == 0xb5a5d357UL);
+	assert(record_hash == 0x0942aa8eUL);
+	assert(callback_hash == 0x61d0c8c0UL);
+#else
 	assert(input_hash == 0x2a5d4036UL);
 	assert(scrollbar_hash == 0x207b3fe7UL);
 	assert(record_hash == 0x41c4e48dUL);
 	assert(callback_hash == 0x9bd7fd3eUL);
+#endif
 	/* New display shortcuts bypass the paused-race fallback. Classic keeps its
 	 * original F11/F12 fingerprint; SDL additionally recognizes Shift+F12. */
 #ifdef RESTUNTS_SDL3

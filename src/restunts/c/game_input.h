@@ -32,6 +32,9 @@ legacy_s16 joystick_get_scaled_x(void);
 legacy_s16 joystick_get_scaled_y(void);
 void load_palandcursor(void);
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key);
+#ifdef RESTUNTS_SDL3
+legacy_s16 input_update_controller_camera(void);
+#endif
 void mouse_draw_transparent_check(void);
 void mouse_draw_opaque_check(void);
 /* A clickable rectangle. Menus keep one array of these per screen. */

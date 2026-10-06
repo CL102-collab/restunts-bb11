@@ -350,9 +350,57 @@ at four times the original width and height. The 320x200 mode uses the original
 horizon strips. Banked and inverted views work at every HyperVision resolution.
 Runtime installs include the required
 `bin/skyboxes/` directory; retain it beside the executable when packaging.
-Missing or invalid textures fall back to the original artwork. Menus support
-keyboard, mouse, and an SDL joystick. Existing driving and replay controls remain
-available:
+Missing or invalid textures fall back to the original artwork. Menus accept
+keyboard, mouse, joystick, and controller input interchangeably, regardless of
+the driving input method selected in Options. SDL3 builds detect controllers
+automatically using SDL's standard gamepad mappings for Xbox, PlayStation, and
+other recognized controllers. Connecting or disconnecting a controller during
+play updates the available devices automatically.
+
+During a race, moving the right stick selects controller steering; pressing a
+keyboard steering key selects keyboard steering. Only the most recently used
+steering source affects the wheel. Returning the stick to center does not take
+steering back from the keyboard. Controller pedals and gear changes remain
+available independently of steering ownership. The original Mouse and Joystick
+driving selections also remain available.
+
+The right stick steers and navigates menus. Right-stick up accelerates and down
+brakes, using the existing joystick's on/off pedal behavior. Horizontal steering
+is graded and can be combined with either pedal. The left stick rotates the F3
+custom camera during driving and replay playback; it has no driving action.
+Moving the right stick also starts the race during the truck unloading sequence,
+just like pressing a keyboard arrow.
+Holding a right-stick or D-pad direction repeats menu navigation, including
+track and replay file selection. Both the right stick and all four D-pad
+directions navigate the replay controls. While driving, D-pad left retains Q
+and D-pad right has no action.
+
+| Controller input | Xbox / PlayStation label | Action |
+| --- | --- | --- |
+| Bottom face button | A / Cross | Enter |
+| Left or right trigger | LT or RT / L2 or R2 | Space |
+| Right stick click | R3 | Enter in menus and at replay controls |
+| D-pad up / down | Same | Up / Down in menus and replay controls; shift up / down while driving |
+| Right face button | B / Circle | Escape |
+| Left or right bumper | LB or RB / L1 or R1 | Escape |
+| Top face button | Y / Triangle | T: switch player / opponent view |
+| Left face button | X / Square | D: show / hide dashboard |
+| D-pad left | Same | Left in menus and replay controls; Q while driving |
+| D-pad right | Same | Right in menus and replay controls |
+| View button | View / Share or Create | C: cycle camera |
+| Menu button | Menu / Options | Open the race or replay menu |
+
+Escape or B / Circle returns from opponent selection or either car-selection
+screen to its previous menu without activating the highlighted button.
+Choosing Re-start driving from the replay menu asks "Re-start driving?" using
+the same No / Yes choices as Exit to Dos. Escape, B / Circle, or either bumper
+cancels without restarting the race.
+
+Controller steering uses the same incremental steering commands as the existing
+joystick implementation, so replay files keep their original format. Replays
+record gas and brake as on/off flags rather than pedal percentages.
+
+Existing keyboard driving and replay controls remain available:
 
 - **Up/Down** accelerate and brake; **Left/Right** steer.
 - **F1–F4** select cockpit, follow, custom, and trackside cameras.

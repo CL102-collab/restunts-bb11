@@ -664,7 +664,10 @@ static legacy_s16 car_menu_handle_input(struct CAR_MENU_STATE *menu, legacy_u16 
 																 : (legacy_u8)(menu->selected + 1U);
 		return 0;
 	}
-	if (input != KEY_ENTER && input != KEY_ESCAPE && input != KEY_SPACE) {
+	if (input == KEY_ESCAPE) {
+		return 1;
+	}
+	if (input != KEY_ENTER && input != KEY_SPACE) {
 		return 0;
 	}
 

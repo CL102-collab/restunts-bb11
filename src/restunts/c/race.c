@@ -1,6 +1,7 @@
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/sdl3.h"
 #include "../platform/sdl3/touch_game.h"
+#include "../platform/sdl3/controller_game.h"
 #include "frame_interpolation.h"
 #include "frame_adaptive.h"
 #include "hires.h"
@@ -645,8 +646,12 @@ static void race_handle_driving_input(void)
 
 	if (game_replay_mode == REPLAY_MODE_PAUSED) {
 		dos_mouse_get_state(&mouse_butstate, &mouse_xpos, &mouse_ypos);
-		if (((mouse_butstate & MOUSE_BUTTON_MASK) != 0) ||
-			((get_kb_or_joy_flags() & INPUT_ACTION_BUTTON_MASK) != 0)) {
+		legacy_s16 start_requested = ((mouse_butstate & MOUSE_BUTTON_MASK) != 0) ||
+									 ((get_kb_or_joy_flags() & INPUT_ACTION_BUTTON_MASK) != 0);
+#ifdef RESTUNTS_SDL3
+		start_requested |= sdl3_controller_take_race_start_request() != 0;
+#endif
+		if (start_requested != 0) {
 			game_replay_mode = REPLAY_MODE_LIVE;
 			race_start_sequence_state = RACE_START_SEQUENCE_INACTIVE;
 			init_game_state_with_frame_rate(configured_frame_rate);
@@ -678,8 +683,12 @@ static legacy_u16 race_handle_exit_request(void)
 static legacy_u16 race_frame_is_ready(legacy_s16 *last_processed_frame)
 {
 	if (state.game_frame != elapsed_time2) {
+#ifdef RESTUNTS_SDL3
+		if (game_replay_mode == REPLAY_MODE_LIVE) {
+#else
 		if ((mouse_driving_enabled != 0 || dos_joystick_is_enabled() != 0) &&
 			game_replay_mode == REPLAY_MODE_LIVE) {
+#endif
 			replay_apply_analog_steering_history();
 		}
 		update_gamestate();
@@ -745,10 +754,45 @@ static legacy_s16 race_process_frame_input(void)
 	return 0;
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
+											  legacy_s16 *last_processed_frame,
+											  legacy_u8 *menu_pending)
+{
+	if (sdl3_controller_take_menu_request() != 0) {
+		*menu_pending = 1;
+	}
+	if (*menu_pending == 0) {
+		return 0;
+	}
+	if (rewind->active != 0) {
+		race_rewind_resume(rewind);
+		*last_processed_frame = -1;
+	}
+	/* Sampled live input must reach physics before switching to replay. */
+	if (game_replay_mode == REPLAY_MODE_LIVE && state.game_frame != elapsed_time2) {
+		return 0;
+	}
+	*menu_pending = 0;
+	if (game_replay_mode != REPLAY_MODE_PLAYBACK) {
+		(void)handle_ingame_kb_shortcuts(KEY_ESCAPE);
+		if (race_handle_exit_request() != 0) {
+			return 1;
+		}
+	}
+	sdl3_input_set_replay_active(1);
+	loop_game(REPLAY_LOOP_OPEN_MENU, REPLAY_LOOP_UNUSED_ARGUMENT, REPLAY_LOOP_UNUSED_ARGUMENT);
+	return race_handle_exit_request();
+}
+#endif
+
 static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 {
 	legacy_s16 last_processed_frame = -1;
 	struct RACE_REWIND_STATE rewind = {0};
+#ifdef RESTUNTS_SDL3
+	legacy_u8 controller_menu_pending = 0;
+#endif
 	frame_supersight_reset();
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
@@ -757,6 +801,15 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #endif
 
 	while (1) {
+#ifdef RESTUNTS_SDL3
+		sdl3_input_set_replay_active(game_replay_mode == REPLAY_MODE_PLAYBACK &&
+									 rewind.active == 0);
+		if (race_handle_controller_menu(&rewind, &last_processed_frame, &controller_menu_pending) !=
+			0) {
+			break;
+		}
+		(void)input_update_controller_camera();
+#endif
 		legacy_s16 was_rewinding = rewind.active;
 		race_update_rewind(&rewind);
 		if (was_rewinding != 0 && rewind.active == 0) {
@@ -927,10 +980,12 @@ void run_game(void)
 		race_initialize_state();
 #ifdef RESTUNTS_SDL3
 		sdl3_touch_set_game_active(1);
+		sdl3_input_set_gameplay_active(idle_expired == 0);
 #endif
 		race_run_frames(&cache);
 #ifdef RESTUNTS_SDL3
 		sdl3_touch_set_game_active(0);
+		sdl3_input_set_gameplay_active(0);
 #endif
 		race_release_resources();
 	}

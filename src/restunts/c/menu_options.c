@@ -14,11 +14,16 @@
 #include "replay_viewer_internal.h"
 #include "externs.h"
 #include "keyboard.h"
+#ifdef RESTUNTS_SDL3
+#include "../platform/sdl3/controller_game.h"
+#endif
 
 #define JOYSTICK_BUTTON_MASK 48U
 #define OPTION_MENU_VERSION_TEXT_Y 16
 #define OPTION_MENU_GIT_HASH_LENGTH 7U
 #define REPLAY_LOAD_WAIT_TICKS 150
+
+enum OPTION_INPUT_INDEX { OPTION_INPUT_KEYBOARD, OPTION_INPUT_JOYSTICK, OPTION_INPUT_MOUSE };
 
 #ifndef RESTUNTS_BUILD_DATE
 #define RESTUNTS_BUILD_DATE __DATE__
@@ -46,6 +51,9 @@ void select_keyboard_driving(void)
 				dialog_border_color, 0, 0);
 	dos_joystick_set_enabled(0);
 	mouse_driving_enabled = 0;
+#ifdef RESTUNTS_SDL3
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+#endif
 	dos_timer_set_callbacks_suspended(0);
 	audio_resume();
 	input_pop_status();
@@ -55,6 +63,11 @@ static void joy_dialog_finish(void)
 {
 	kb_check();
 	mouse_driving_enabled = 0;
+#ifdef RESTUNTS_SDL3
+	sdl3_input_set_driving_mode(dos_joystick_is_enabled() != 0 ? SDL3_DRIVING_JOYSTICK
+															   : SDL3_DRIVING_KEYBOARD);
+	sdl3_input_pop_modal();
+#endif
 	audio_resume();
 	dos_timer_set_callbacks_suspended(0);
 	input_pop_status();
@@ -99,6 +112,9 @@ static void joy_dialog_draw_grid(legacy_s16 *positions, legacy_s16 *button_x, le
 
 void calibrate_joystick_driving(void)
 {
+#ifdef RESTUNTS_SDL3
+	sdl3_input_push_modal();
+#endif
 	input_push_status();
 	dos_timer_set_callbacks_suspended(1);
 	audio_suspend();
@@ -166,6 +182,9 @@ void select_mouse_driving(void)
 	dos_timer_set_callbacks_suspended(1);
 	audio_suspend();
 	mouse_driving_enabled = 1;
+#ifdef RESTUNTS_SDL3
+	sdl3_input_set_driving_mode(SDL3_DRIVING_MOUSE);
+#endif
 	show_dialog(DIALOG_TYPE_DELAY, DIALOG_SAVE_BACKGROUND,
 				locate_text_res(mainresptr, mouse_driving_dialog_id), -1, -1, dialog_border_color,
 				0, 0);
@@ -300,27 +319,45 @@ void show_graphic_levels_menu(void)
 static void option_menu_select_input(void)
 {
 	legacy_s8 initial_input;
-	if (mouse_driving_enabled != 0) {
-		initial_input = 2;
-	} else if (dos_joystick_is_enabled() != 0) {
-		initial_input = 1;
-	} else {
-		initial_input = 0;
+#ifdef RESTUNTS_SDL3
+	switch (sdl3_input_driving_mode()) {
+		case SDL3_DRIVING_JOYSTICK:
+			initial_input = OPTION_INPUT_JOYSTICK;
+			break;
+		case SDL3_DRIVING_MOUSE:
+			initial_input = OPTION_INPUT_MOUSE;
+			break;
+		default:
+			initial_input = OPTION_INPUT_KEYBOARD;
+			break;
 	}
-	legacy_s8 selected = LEGACY_S8_FROM_BITS(show_dialog(
-		DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, locate_text_res(miscptr, "mid"),
-		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, performGraphColor, 0, initial_input));
-	if (selected == 0) {
+#else
+	if (mouse_driving_enabled != 0) {
+		initial_input = OPTION_INPUT_MOUSE;
+	} else if (dos_joystick_is_enabled() != 0) {
+		initial_input = OPTION_INPUT_JOYSTICK;
+	} else {
+		initial_input = OPTION_INPUT_KEYBOARD;
+	}
+#endif
+	legacy_s8 *input_text = locate_text_res(miscptr, "mid");
+	legacy_s8 selected = LEGACY_S8_FROM_BITS(
+		show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, input_text, DIALOG_AUTO_POSITION,
+					DIALOG_AUTO_POSITION, performGraphColor, 0, initial_input));
+	if (selected == OPTION_INPUT_KEYBOARD) {
 		select_keyboard_driving();
-	} else if (selected == 1) {
+	} else if (selected == OPTION_INPUT_JOYSTICK) {
 		calibrate_joystick_driving();
-	} else if (selected == 2) {
+	} else if (selected == OPTION_INPUT_MOUSE) {
 		select_mouse_driving();
 	}
 }
 
 legacy_u16 run_option_menu(void)
 {
+#ifdef RESTUNTS_SDL3
+	sdl3_input_push_modal();
+#endif
 	miscptr = file_load_resfile("misc");
 	sprite_select_screen_compat();
 	sprite_clear_target((legacy_u8)graphics_menu_background_color);
@@ -366,6 +403,9 @@ legacy_u16 run_option_menu(void)
 					file_load_replay(replay_directory, replay_filename_input);
 					menu_active = 1;
 					unload_resource(miscptr);
+#ifdef RESTUNTS_SDL3
+					sdl3_input_pop_modal();
+#endif
 					return menu_active;
 				}
 				break;
@@ -381,5 +421,8 @@ legacy_u16 run_option_menu(void)
 	}
 
 	unload_resource(miscptr);
+#ifdef RESTUNTS_SDL3
+	sdl3_input_pop_modal();
+#endif
 	return menu_active;
 }

@@ -41,6 +41,29 @@ static const legacy_s8 *fixture_files[] = {(const legacy_s8 *)"CARVETT.RES",
 										   (const legacy_s8 *)"CARANSX.RES",
 										   (const legacy_s8 *)"CARCOUN.RES"};
 
+enum SHOWROOM_TEST_SELECTION {
+	SHOWROOM_TEST_DONE,
+	SHOWROOM_TEST_NEXT,
+	SHOWROOM_TEST_PREVIOUS,
+	SHOWROOM_TEST_TRANSMISSION,
+	SHOWROOM_TEST_COLOR,
+	SHOWROOM_TEST_SELECTION_COUNT
+};
+
+enum SHOWROOM_TEST_ESCAPE_MODE {
+	SHOWROOM_TEST_ESCAPE_KEYBOARD,
+	SHOWROOM_TEST_ESCAPE_MOUSE,
+	SHOWROOM_TEST_ESCAPE_BROWSED,
+	SHOWROOM_TEST_ESCAPE_MODE_COUNT
+};
+
+static legacy_u8 escape_test, escape_selection, escape_mode;
+static legacy_u16 escape_opponent;
+static const legacy_s16 escape_browse_selections[] = {
+	SHOWROOM_TEST_NEXT, SHOWROOM_TEST_TRANSMISSION, SHOWROOM_TEST_COLOR};
+#define SHOWROOM_TEST_BROWSE_ACTION_COUNT                                                          \
+	(sizeof(escape_browse_selections) / sizeof(escape_browse_selections[0]))
+
 #define SHOWROOM_TEST_MODEL_SCALE 20
 #define SHOWROOM_TEST_SCREEN_WIDTH 320
 #define SHOWROOM_TEST_BACKGROUND_HEIGHT 103
@@ -548,6 +571,16 @@ legacy_s16 input_checking(legacy_s16 frame_delta)
 	assert(drawing_frame == 0);
 	trace_word(1013);
 	trace_word((legacy_u16)frame_delta);
+	if (escape_test != 0) {
+		legacy_u32 exit_frame =
+			escape_mode == SHOWROOM_TEST_ESCAPE_BROWSED
+				? SHOWROOM_TEST_BROWSE_ACTION_COUNT
+				: (escape_mode == SHOWROOM_TEST_ESCAPE_KEYBOARD ? escape_selection : 0);
+		assert(frame_index <= exit_frame);
+		return frame_index == exit_frame
+				   ? KEY_ESCAPE
+				   : (escape_mode == SHOWROOM_TEST_ESCAPE_BROWSED ? KEY_ENTER : KEY_DOWN);
+	}
 	if (display_toggle_test != 0) {
 		assert(display_refresh_pending == 0);
 		if (frame_index == SHOWROOM_TEST_STATUS_EXPIRY_FRAME) {
@@ -662,6 +695,17 @@ legacy_s16 mouse_multi_hittest(legacy_s16 count, const struct BUTTON_AREA *butto
 {
 	trace_word(1022);
 	trace_word((legacy_u16)count);
+	if (escape_test != 0) {
+		legacy_s16 selection = -1;
+		if (escape_mode != SHOWROOM_TEST_ESCAPE_KEYBOARD) {
+			selection = escape_mode == SHOWROOM_TEST_ESCAPE_BROWSED &&
+								frame_index < SHOWROOM_TEST_BROWSE_ACTION_COUNT
+							? escape_browse_selections[frame_index]
+							: escape_selection;
+		}
+		frame_index++;
+		return selection;
+	}
 	if (display_toggle_test != 0) {
 		frame_index++;
 		return -1;
@@ -1101,7 +1145,21 @@ static void run_car_case(legacy_u32 index)
 	if (display_toggle_test != 0) {
 		opponent_type = (display_scenario & 4U) != 0 ? 2U : 0U;
 	}
+	if (escape_test != 0) {
+		opponent_type = escape_opponent;
+	}
 	run_car_menu(car_id, &material, &transmission, opponent_type);
+	if (escape_test != 0) {
+		legacy_u8 browsed = escape_mode == SHOWROOM_TEST_ESCAPE_BROWSED;
+		assert(_strcmp(car_id, (const legacy_s8 *)(browsed != 0 ? "VETT" : "COUN")) == 0);
+		assert(material == (browsed != 0 ? 2 : 1));
+		assert(transmission == (browsed != 0 ? TRANSMISSION_MANUAL : TRANSMISSION_AUTOMATIC));
+		assert(frame_index ==
+			   (browsed != 0
+					? SHOWROOM_TEST_BROWSE_ACTION_COUNT
+					: (escape_mode == SHOWROOM_TEST_ESCAPE_KEYBOARD ? escape_selection : 0)) +
+				   1U);
+	}
 	if (display_toggle_test != 0) {
 		assert(_strcmp(car_id, (const legacy_s8 *)"VETT") == 0);
 		assert(material == 1 && transmission == 0);
@@ -1179,6 +1237,25 @@ static void test_display_toggles(void)
 	puts("Car menu display toggles and overlay cleanup passed (32 scenarios).");
 }
 
+static void test_car_escape_back(void)
+{
+	static const legacy_u16 opponent_types[] = {0, 2};
+	predictive_preview_test = display_toggle_test = supersight_enabled = fps_display_enabled = 0;
+	escape_test = 1;
+	for (legacy_u32 index = 0; index < sizeof(opponent_types) / sizeof(opponent_types[0]);
+		 index++) {
+		escape_opponent = opponent_types[index];
+		for (escape_mode = 0; escape_mode < SHOWROOM_TEST_ESCAPE_MODE_COUNT; escape_mode++) {
+			for (escape_selection = 0; escape_selection < SHOWROOM_TEST_SELECTION_COUNT;
+				 escape_selection++) {
+				run_car_case(1);
+			}
+		}
+	}
+	escape_test = 0;
+	puts("Car menu Escape returns without activation and preserves choices (30 scenarios).");
+}
+
 int main(void)
 {
 	for (legacy_u32 index = 0; index < 102U; index++) {
@@ -1214,6 +1291,7 @@ int main(void)
 	}
 #endif
 	test_display_toggles();
+	test_car_escape_back();
 	puts("Car menu interaction snapshots passed (102 scenarios).");
 	return 0;
 }

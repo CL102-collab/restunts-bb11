@@ -490,7 +490,7 @@ static void test_opponent_navigation(void)
 				menu_hits[1] = -1;
 				menu_keys[2] = KEY_RIGHT;
 				menu_hits[2] = -1;
-				menu_keys[3] = KEY_ESCAPE;
+				menu_keys[3] = KEY_ENTER;
 				menu_hits[3] = -1;
 				break;
 		}

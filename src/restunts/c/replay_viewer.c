@@ -2,6 +2,7 @@
 #include "game_input.h"
 #include "math.h"
 #include "memmgr.h"
+#include "menu_internal.h"
 #include "race_resources.h"
 #include "replay.h"
 #include "replay_viewer.h"
@@ -24,6 +25,7 @@
 #include "frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/touch_game.h"
+#include "../platform/sdl3/controller_game.h"
 #endif
 
 #define REPLAY_PLAYER_COUNT 2U
@@ -68,13 +70,15 @@
 #define REPLAY_CUSTOM_CAMERA_MIN_DISTANCE 120
 #define REPLAY_CUSTOM_CAMERA_MAX_DISTANCE 1500
 #define REPLAY_TRACK_CAMERA_MAX_HEIGHT 900
-#define REPLAY_CUSTOM_CAMERA_ELEVATION_LIMIT ANGLE_QUARTER_TURN
+#define REPLAY_CUSTOM_CAMERA_ELEVATION_LIMIT CUSTOM_CAMERA_ELEVATION_LIMIT
 #define REPLAY_CUSTOM_CAMERA_MODIFIER_SCAN_CODE 29
 
 #define REPLAY_DIRECTION_ANGLE_SHIFT 8U
 #define REPLAY_DIRECTION_MASK 3U
 #define REPLAY_DIALOG_INITIAL_CHOICE 0
 #define REPLAY_DIALOG_ACCEPTED_MINIMUM 1
+#define REPLAY_DIALOG_CONFIRMED_CHOICE 1
+#define REPLAY_RESTART_DIALOG_CAPACITY 512U
 
 #define REPLAY_FILE_CHECK_ARGUMENT 2
 
@@ -307,6 +311,34 @@ static legacy_s8 replay_choose_pause_action(void)
 		DIALOG_AUTO_POSITION, dialog_border_color, options, REPLAY_DIALOG_INITIAL_CHOICE));
 }
 
+static legacy_s16 replay_confirm_restart(void)
+{
+	static const legacy_s8 prompt[] = "Re-start driving?]}";
+	legacy_s8 question[REPLAY_RESTART_DIALOG_CAPACITY];
+	legacy_s8 far *choices = locate_text_res(mainresptr, exit_to_dos_dialog_id);
+	while (*choices != 0 && *choices != '[') {
+		choices++;
+	}
+	if (*choices == 0) {
+		return 0;
+	}
+
+	legacy_u16 length = 0;
+	for (; length < sizeof(prompt) - 1U; length++) {
+		question[length] = prompt[length];
+	}
+	while (*choices != 0 && length + 1U < sizeof(question)) {
+		question[length++] = *choices++;
+	}
+	if (*choices != 0) {
+		return 0;
+	}
+	question[length] = 0;
+	return show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, question, DIALOG_AUTO_POSITION,
+					   DIALOG_AUTO_POSITION, dialog_border_color, 0,
+					   REPLAY_DIALOG_INITIAL_CHOICE) == REPLAY_DIALOG_CONFIRMED_CHOICE;
+}
+
 static void replay_restart_recording(void)
 {
 	check_input();
@@ -348,6 +380,9 @@ static void replay_resume_live(void)
 	show_penalty_counter = 0;
 	followOpponentFlag = 0;
 	game_replay_mode = REPLAY_MODE_LIVE;
+#ifdef RESTUNTS_SDL3
+	sdl3_input_set_replay_active(0);
+#endif
 	state.game_end_event = 0;
 	state.game_frame_in_sec = 0;
 	replay_playback_speed = REPLAY_PLAYBACK_NORMAL;
@@ -500,8 +535,10 @@ static void replay_pause_menu(void)
 			race_exit_request = REPLAY_EXIT_REQUESTED;
 			break;
 		case REPLAY_PAUSE_ACTION_RESTART:
-			replay_restart_recording();
-			replay_resume_live();
+			if (replay_confirm_restart() != 0) {
+				replay_restart_recording();
+				replay_resume_live();
+			}
 			break;
 		case REPLAY_PAUSE_ACTION_CONTINUE:
 			if (replay_continue_recording() != 0) {
@@ -573,7 +610,16 @@ static void replay_fast_forward(void)
 	legacy_u16 amount;
 	legacy_u16 delta;
 	legacy_u16 remaining;
+#ifdef RESTUNTS_SDL3
+	legacy_u8 menu_requested = 0;
+#endif
 	while (((legacy_u8)input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0) {
+#ifdef RESTUNTS_SDL3
+		if (sdl3_controller_take_menu_request() != 0) {
+			menu_requested = 1;
+			break;
+		}
+#endif
 		accumulated = replay_scrub_advance(accumulated, &delta);
 		remaining = LEGACY_U16_WRAP_SUB(gameconfig.game_recordedframes, elapsed_time2);
 		amount = replay_scrub_amount(accumulated);
@@ -605,6 +651,11 @@ static void replay_fast_forward(void)
 		replay_controls_draw(state.game_frame, elapsed_time2);
 	}
 	input_do_checking(REPLAY_INPUT_SETTLE_DELTA);
+#ifdef RESTUNTS_SDL3
+	if (menu_requested != 0) {
+		replay_pause_menu();
+	}
+#endif
 }
 
 static void replay_rewind(void)
@@ -612,7 +663,16 @@ static void replay_rewind(void)
 	legacy_s32 accumulated = replay_scrub_begin(REPLAY_CONTROL_REWIND);
 	legacy_u16 amount;
 	legacy_u16 delta;
+#ifdef RESTUNTS_SDL3
+	legacy_u8 menu_requested = 0;
+#endif
 	while (((legacy_u8)input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0) {
+#ifdef RESTUNTS_SDL3
+		if (sdl3_controller_take_menu_request() != 0) {
+			menu_requested = 1;
+			break;
+		}
+#endif
 		accumulated = replay_scrub_advance(accumulated, &delta);
 		amount = replay_scrub_amount(accumulated);
 		if (amount > elapsed_time2) {
@@ -649,6 +709,11 @@ static void replay_rewind(void)
 	}
 	replay_controls_draw(state.game_frame, state.game_frame);
 	input_do_checking(REPLAY_INPUT_SETTLE_DELTA);
+#ifdef RESTUNTS_SDL3
+	if (menu_requested != 0) {
+		replay_pause_menu();
+	}
+#endif
 }
 
 static legacy_s16 replay_try_zoom(legacy_u16 input)
@@ -741,39 +806,11 @@ static legacy_u16 replay_read_control_input(legacy_s16 delta)
 
 static legacy_u16 replay_adjust_custom_camera(legacy_u16 *input)
 {
-	switch (*input) {
-		case KEY_RIGHT:
-			custom_camera.azimuth_angle =
-				LEGACY_S16_WRAP_ADD(custom_camera.azimuth_angle, CAMERA_ANGLE_STEP);
-			return 1;
-		case KEY_LEFT:
-			custom_camera.azimuth_angle =
-				LEGACY_S16_WRAP_SUB(custom_camera.azimuth_angle, CAMERA_ANGLE_STEP);
-			return 1;
-		case KEY_UP:
-			if (LEGACY_S16_WRAP_ADD(custom_camera.elevation_angle, CAMERA_ANGLE_STEP) <
-				REPLAY_CUSTOM_CAMERA_ELEVATION_LIMIT) {
-				custom_camera.elevation_angle =
-					LEGACY_S16_WRAP_ADD(custom_camera.elevation_angle, CAMERA_ANGLE_STEP);
-				return 1;
-			}
-			*input = 0;
-			break;
-		case KEY_DOWN:
-			if (LEGACY_S16_WRAP_SUB(custom_camera.elevation_angle, CAMERA_ANGLE_STEP) >
-				-REPLAY_CUSTOM_CAMERA_ELEVATION_LIMIT) {
-				custom_camera.elevation_angle =
-					LEGACY_S16_WRAP_SUB(custom_camera.elevation_angle, CAMERA_ANGLE_STEP);
-				return 1;
-			}
-			*input = 0;
-			break;
-		case '+':
-		case '-':
-			break;
-		default:
-			*input = 0;
-			break;
+	if (camera_adjust_custom_direction(*input) != 0) {
+		return 1;
+	}
+	if (*input != '+' && *input != '-') {
+		*input = 0;
 	}
 	return 0;
 }
@@ -958,6 +995,9 @@ static legacy_s16 replay_touch_seek(void)
 
 static void replay_handle_input(void)
 {
+#ifdef RESTUNTS_SDL3
+	sdl3_input_set_replay_active(1);
+#endif
 	if (LEGACY_S8_FROM_BITS(replay_selected_control) >
 			LEGACY_S8_FROM_BITS(game_camera_buttons_count[(legacy_u8)cameramode]) &&
 		cameramode != CAMERA_MODE_CUSTOM) {
@@ -970,6 +1010,15 @@ static void replay_handle_input(void)
 
 	legacy_u16 input;
 	for (;;) {
+#ifdef RESTUNTS_SDL3
+		if (sdl3_controller_take_menu_request() != 0) {
+			replay_pause_menu();
+			return;
+		}
+		if (input_update_controller_camera() != 0) {
+			return;
+		}
+#endif
 		legacy_s16 delta = LEGACY_S16_FROM_BITS((legacy_u16)timer_get_delta_alt());
 		input = replay_read_control_input(delta);
 #ifdef RESTUNTS_SDL3
@@ -1021,6 +1070,12 @@ void loop_game(legacy_s16 operation, legacy_s16 recorded_frame, legacy_s16 curre
 		replay_controls_select((legacy_u8)recorded_frame);
 		return;
 	}
+#ifdef RESTUNTS_SDL3
+	if (operation == REPLAY_LOOP_OPEN_MENU) {
+		replay_pause_menu();
+		return;
+	}
+#endif
 	if (operation != REPLAY_LOOP_HANDLE_INPUT) {
 		return;
 	}

@@ -244,7 +244,7 @@ static legacy_u8 opponent_menu_activate_key(struct OPPONENT_MENU_STATE *menu, le
 							 : OPPONENT_MENU_PREVIOUS_BUTTON;
 		return 0;
 	}
-	if (key != KEY_ENTER && key != KEY_ESCAPE && key != KEY_SPACE) {
+	if (key != KEY_ENTER && key != KEY_SPACE) {
 		return 0;
 	}
 	return 1;
@@ -359,6 +359,9 @@ void run_opponent_menu(void)
 		opponent_menu_refresh(menu);
 
 		legacy_u16 key = opponent_menu_poll_input(menu);
+		if (key == KEY_ESCAPE) {
+			break;
+		}
 
 		if (opponent_menu_activate_key(menu, key) == 0) {
 			continue;
@@ -368,7 +371,7 @@ void run_opponent_menu(void)
 			continue;
 		}
 
-		opponent_menu_release(menu);
-		return;
+		break;
 	}
+	opponent_menu_release(menu);
 }

@@ -293,6 +293,13 @@ run_host_test test-menu-options menu_options.c \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"' \
     -Wno-pointer-sign -Wno-missing-field-initializers
+run_host_test test-menu-options menu_options.c \
+    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    -DRESTUNTS_SDL3 \
+    -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
+    -DRESTUNTS_BUILD_DATE='"Feb 12 1991"' \
+    -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-menu-navigation menu_opponent.c \
     "$test_source_dir/menu_track.c" "$test_source_dir/legacy.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
