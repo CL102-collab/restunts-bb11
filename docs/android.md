@@ -10,10 +10,12 @@ ARMv7 APK. Android 4.x is below the supported SDL3/native-toolchain minimum.
 
 ## Game files
 
-The APK does not contain original Stunts game data. Use **Choose game folder**
-to select the folder containing your Brøderbund Stunts 1.1 (12 Feb. 1991) game
-files. This is the single visible folder for original resources, custom cars,
-opponents, graphics, tracks, replays, high scores and any other game files.
+The APK does not contain original Stunts game data. On phones and TVs with a
+working system document picker, use **Choose game folder** to select your
+Brøderbund Stunts 1.1 (12 Feb. 1991) game files. TVs without a working picker can
+use the app's TV game folder, described below. The selected folder holds original
+resources, custom cars, opponents, graphics, tracks, replays, high scores and any
+other game files.
 The choice is remembered. Copy custom content into this folder with a file
 manager, then press **Start game** again to load it.
 
@@ -38,11 +40,12 @@ are not compared, so custom content remains supported. Validation also runs
 before every start; bad or missing data does not replace the last working cache.
 The game reports other missing resources during loading.
 
-No network or broad storage permission is declared. Access follows the
+No network or broad storage permission is declared. With a system document
+picker, access follows the
 [Android Storage Access Framework](https://developer.android.com/training/data-storage/shared/documents-files),
-using the system picker's grant for one folder. Prefer a normal shared folder
-such as Documents rather than `Android/data`, which newer Android versions
-restrict. The document provider must support creating, renaming and deleting
+using its grant for one folder. The TV fallback also needs no storage permission.
+For system picker selection, prefer a normal shared folder such as Documents
+rather than `Android/data`, which newer Android versions restrict. The document provider must support creating, renaming and deleting
 files so failed replacements can preserve previous data. Game content is limited
 to 4096 files/subfolders and 256 MiB in total, including custom videos.
 
@@ -59,10 +62,11 @@ immediately. Failed copies retain a durable pending copy outside the replaceable
 cache and show an explanation; **Start game** retries them before refreshing.
 If the shared file was also edited, the app preserves both versions and reports
 the conflict. Rename the shared version to keep it, then retry to publish the
-pending game write under its original name. Files in the chosen folder survive
-app uninstallation; after reinstalling, choose that same game folder. Private
-preferences, cached data and unexported pending writes are removed by clearing
-app storage or uninstalling.
+pending game write under its original name. Files in a folder chosen through
+the system picker survive app uninstallation; after reinstalling, choose that
+same game folder. The app-owned TV fallback folder is deleted on uninstall;
+back it up first. Private preferences, cached data and unexported pending writes
+are removed by clearing app storage or uninstalling.
 
 The options row above **Start game** contains **New MIDI** for replacement
 music, **Show FPS** for the FPS/render-time display, and **HyperVision** with
@@ -100,9 +104,46 @@ editing highscore names, track/replay filenames, or file-picker directories.
 
 Both APKs declare touchscreen support optional and provide a TV launcher entry,
 icon and banner, following [Android TV setup](https://developer.android.com/training/tv/start/start).
-Use the APK matching the TV's Android ABI. Import still uses Android's document
-picker; install a compatible document picker if the TV does not provide one.
-An unavailable picker displays an explanation instead of crashing.
+Use the APK matching the TV's Android ABI. TVs with 32-bit ARM Android need the
+ARMv7 APK, including TVs whose processors also support 64-bit instructions.
+
+With a working document picker, folder selection and ZIP import use the normal
+flow described above. If the picker is missing or opens a broken TV screen,
+choose **Use TV game folder**. Its **Choose TV ZIP** action opens the local ZIP
+list directly, bypassing the system picker. The app also offers the fallback
+when it detects an unavailable picker. The dialog shows the actual folder paths
+for that TV; use those paths because storage locations can differ between devices.
+
+Open the app before transferring files so it can create its TV media folder.
+A typical location for a source ZIP is
+`/sdcard/Android/media/org.restunts.android/Stunts11.zip`. Transfer it with a
+file manager or ADB, then choose **Use TV game folder**, **Choose TV ZIP**, and
+select it from the list. After validation, confirm **Extract ZIP here**. The
+source ZIP is retained in the media folder. Extracted game files go in its
+`ChocolateStunts` subfolder, typically
+`/sdcard/Android/media/org.restunts.android/ChocolateStunts`.
+You can also copy an already extracted game into that subfolder and confirm
+**Use this folder** through **Use TV game folder**.
+
+Original resources, custom cars and other custom content all belong in
+`ChocolateStunts`. Tracks, replays, high scores and screenshots are copied back
+there during play. Add or update custom files with a file manager or ADB, then
+press **Start game** to refresh them. For example, using the typical paths:
+
+```sh
+adb push Stunts11.zip /sdcard/Android/media/org.restunts.android/Stunts11.zip
+adb push CUSTOM.TRK /sdcard/Android/media/org.restunts.android/ChocolateStunts/CUSTOM.TRK
+adb pull /sdcard/Android/media/org.restunts.android/ChocolateStunts ./ChocolateStunts-backup
+```
+
+This fallback reads and writes only the app's own media folder and requests no
+storage or network permissions. Android deletes this
+[app-owned media folder on uninstall](https://developer.android.com/reference/android/content/Context#getExternalMediaDirs()),
+including the source ZIP, original game files, custom content and saved games.
+Keep a backup outside it before uninstalling. Install updates with
+`adb install -r PATH_TO_APK` using the same signing key to retain app data and the
+TV game folder. If an update reports a different signing certificate, back up
+the game folder before removing the old app.
 
 Use an external keyboard or compatible controller for racing. The TV remote
 navigates the import screen with its D-pad and center/select; Back leaves it.
@@ -111,13 +152,14 @@ from the racing joystick. This uses SDL's
 [remote keyboard input setting](https://wiki.libsdl.org/SDL3/SDL_HINT_TV_REMOTE_AS_JOYSTICK).
 
 An external keyboard works with **Keyboard** selected: arrows drive, A/Z shift,
-Q rewinds, Enter selects and Escape leaves racing/replay. For a controller,
-select **Joystick** and calibrate in Options. The existing joystick controls
-use the left stick X/Y axes for steering and acceleration/braking and the
-first two buttons for shifting. This port does not yet map an opened Android
-gamepad's D-pad buttons or shoulder/trigger controls. A separate TV remote or
-keyboard can continue to navigate menus. Remote-only racing is not a supported
-setup; controller guidance follows
+Q rewinds, Enter selects and Escape leaves racing/replay. Recognized gamepads
+use SDL's standard controller mappings automatically, alongside keyboard input.
+The right stick steers, accelerates and brakes; the left stick adjusts the F3
+camera. The D-pad navigates menus and replay controls. While racing, D-pad
+up/down shifts and D-pad left holds Q. A/Cross confirms; B/Circle or either
+bumper sends Escape. Menu/Options opens the race or replay menu. See the full
+[SDL3 controller bindings](sdl3.md) for the remaining buttons and steering rules.
+Remote-only racing is not a supported setup; controller guidance follows
 [Android TV controller requirements](https://developer.android.com/training/tv/get-started/controllers).
 
 ## Build
@@ -213,9 +255,10 @@ not uploaded as artifacts.
 Android updates require the same signing key. Debug keys from separate CI runs,
 local builds, or an existing debug installation can differ from the release key,
 so Android may require uninstalling the old app before installing another build.
-Uninstalling removes private preferences, cache and unexported pending writes;
-the selected public game folder and its files survive. Choose that folder again
-after reinstalling.
+Uninstalling removes private preferences, cache and unexported pending writes.
+A public game folder selected through the system picker survives; choose it
+again after reinstalling. The app-owned TV fallback media folder is deleted,
+so copy its game files and saved games elsewhere before uninstalling.
 
 ## Replacing Nuked OPL2
 
@@ -231,8 +274,8 @@ app before installing the replacement. No game executable relinking is needed.
 
 ## Verification
 
-The importer, version validation, launcher options and folder synchronization
-can be tested without Android:
+The importer, version validation, launcher options, folder synchronization and
+local TV folder can be tested without Android:
 
 ```sh
 javac -d out/android-import-tests \
@@ -240,13 +283,15 @@ javac -d out/android-import-tests \
     android/app/src/main/java/org/restunts/android/GameDataVersion.java \
     android/app/src/main/java/org/restunts/android/LaunchOptions.java \
     android/app/src/main/java/org/restunts/android/GameDataSync.java \
+    android/app/src/main/java/org/restunts/android/LocalGameFolder.java \
     android/tests/GameDataImportTest.java android/tests/GameDataVersionTest.java \
     android/tests/LaunchOptionsTest.java \
-    android/tests/GameDataSyncTest.java
+    android/tests/GameDataSyncTest.java android/tests/LocalGameFolderTest.java
 java -cp out/android-import-tests org.restunts.android.GameDataImportTest
 java -cp out/android-import-tests org.restunts.android.GameDataVersionTest
 java -cp out/android-import-tests org.restunts.android.LaunchOptionsTest
 java -cp out/android-import-tests org.restunts.android.GameDataSyncTest
+java -cp out/android-import-tests org.restunts.android.LocalGameFolderTest
 ```
 
 Host CTest covers touch geometry, visibility, simultaneous holds, cancellation,

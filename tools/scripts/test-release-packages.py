@@ -214,7 +214,9 @@ class ReleasePackageTests(unittest.TestCase):
                                "selected public folder", "private working cache",
                                "tracks, replays and screenshots", "persistent release signing key",
                                "PR/local debug APKs use debug keys", "same signing key",
-                               "selected public game folder is preserved",
+                               "Folders selected through the system picker survive",
+                               "TV fallback media folder", "is deleted on uninstall",
+                               "Back up those files outside it beforehand",
                                "unexported pending writes", "share/docs/restunts/android.md"):
                     self.assertIn(detail, instructions)
                 for obsolete in ("This development APK", "Import Stunts folder",

@@ -3,10 +3,13 @@ package org.restunts.android;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
@@ -31,6 +34,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -41,6 +48,8 @@ public final class LauncherActivity extends Activity {
     private static final int REQUEST_ZIP_FOLDER = 3;
     private static final String ZIP_DIRECTORY = "zip-import";
     private static final String ZIP_READY_KEY = "zip_ready";
+    private static final String ZIP_TV_KEY = "zip_tv";
+    private static final String TV_PICKER_STUB_PACKAGE = "com.android.tv.frameworkpackagestubs";
     private static final String INITIAL_URI_EXTRA = "android.provider.extra.INITIAL_URI";
     private static final String DOCUMENTS_URI =
         "content://com.android.externalstorage.documents/document/primary:Documents";
@@ -67,6 +76,7 @@ public final class LauncherActivity extends Activity {
     private Button start;
     private Button folder;
     private Button zip;
+    private Button tvFolder;
     private CheckBox newMidi;
     private CheckBox showFps;
     private Spinner hyperVision;
@@ -98,6 +108,9 @@ public final class LauncherActivity extends Activity {
         }
         folder = button(layout, "Choose game folder", view -> chooseFolder());
         zip = button(layout, "Import Stunts ZIP", view -> chooseZip());
+        if (television) {
+            tvFolder = button(layout, "Use TV game folder", view -> showTvFolderDialog(false));
+        }
         addOptions(layout);
         start = button(layout, "Start game", view -> startGame());
         ScrollView scroll = new ScrollView(this);
@@ -119,17 +132,17 @@ public final class LauncherActivity extends Activity {
         }
         if (!preparingAssets && !assetsReady) {
             preparingAssets = true;
+            boolean tv = television;
             WORKER.execute(() -> {
                 try {
                     GameDataImport.recover(new File(context.getFilesDir(), "game"));
                     copyAssets(context, "", context.getFilesDir());
+                    String readyStatus = initialStatus(context, tv);
                     MAIN_THREAD.post(() -> {
                         preparingAssets = false;
                         assetsReady = true;
                         if (!importing && !synchronizing) {
-                            currentStatus = GameDataStorage.folder(context) == null
-                                ? "Choose your Brøderbund Stunts 1.1 game folder, or import a ZIP."
-                                : "Game folder remembered. Start game to load its current contents.";
+                            currentStatus = readyStatus;
                         }
                         refreshActive();
                     });
@@ -281,6 +294,9 @@ public final class LauncherActivity extends Activity {
         boolean busy = importing || synchronizing || preparingAssets;
         folder.setEnabled(!busy);
         zip.setEnabled(!busy);
+        if (tvFolder != null) {
+            tvFolder.setEnabled(!busy);
+        }
         zip.setText(zipReady(this) ? "Continue ZIP import" : "Import Stunts ZIP");
         folder.setText(GameDataStorage.folder(this) == null ? "Choose game folder" : "Change game folder");
         start.setEnabled(!busy && assetsReady && GameDataStorage.folder(this) != null);
@@ -298,6 +314,9 @@ public final class LauncherActivity extends Activity {
     }
 
     private void startGame() {
+        if (importing || synchronizing || preparingAssets) {
+            return;
+        }
         LaunchOptions options = selectedOptions();
         Context context = getApplicationContext();
         synchronizing = true;
@@ -333,7 +352,6 @@ public final class LauncherActivity extends Activity {
     private void selectGameFolder(Intent data, boolean zipImport) {
         Context context = getApplicationContext();
         Uri selected = data.getData();
-        Uri previous = GameDataStorage.folder(context);
         int permissions = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
         if ((data.getFlags() & permissions) != permissions) {
             currentStatus = "Choose a folder that allows reading and writing game files.";
@@ -355,6 +373,18 @@ public final class LauncherActivity extends Activity {
             return;
         }
         boolean acquired = !alreadyGranted;
+        useGameFolder(selected, zipImport, acquired);
+    }
+
+    private void useGameFolder(Uri selected, boolean zipImport, boolean acquired) {
+        if (importing || synchronizing) {
+            if (acquired) {
+                releaseFolderPermission(getApplicationContext(), selected);
+            }
+            return;
+        }
+        Context context = getApplicationContext();
+        Uri previous = GameDataStorage.folder(context);
         importing = true;
         currentStatus = zipImport ? "Extracting ZIP into your selected game folder…"
             : "Loading and validating the selected game folder…";
@@ -366,7 +396,7 @@ public final class LauncherActivity extends Activity {
                         new File(context.getFilesDir(), ZIP_DIRECTORY));
                     GameDataStorage.importZip(context, selected, importer.gameDirectory());
                     context.getSharedPreferences(OPTIONS_PREFERENCES, MODE_PRIVATE).edit()
-                        .putBoolean(ZIP_READY_KEY, false).apply();
+                        .putBoolean(ZIP_READY_KEY, false).remove(ZIP_TV_KEY).apply();
                     try {
                         GameDataImport.delete(new File(context.getFilesDir(), ZIP_DIRECTORY));
                     } catch (IOException cleanup) {
@@ -378,9 +408,13 @@ public final class LauncherActivity extends Activity {
                 if (previous != null && !previous.equals(selected)) {
                     releaseFolderPermission(context, previous);
                 }
+                String message = GameDataStorage.isTvFolder(selected)
+                    ? "TV game folder: " + GameDataStorage.tvGameDirectory(context).getPath()
+                        + "\nCustom content and all saves belong in this folder."
+                    : "Game folder selected. Custom cars and all saves belong in this folder.";
                 MAIN_THREAD.post(() -> {
                     importing = false;
-                    currentStatus = "Game folder selected. Custom cars and all saves belong in this folder.";
+                    currentStatus = message;
                     refreshActive();
                 });
             } catch (IOException | RuntimeException error) {
@@ -397,6 +431,9 @@ public final class LauncherActivity extends Activity {
     }
 
     private static void releaseFolderPermission(Context context, Uri uri) {
+        if (GameDataStorage.isTvFolder(uri)) {
+            return;
+        }
         try {
             context.getContentResolver().releasePersistableUriPermission(uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
@@ -415,7 +452,8 @@ public final class LauncherActivity extends Activity {
             | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Uri selected = GameDataStorage.folder(this);
-            intent.putExtra(INITIAL_URI_EXTRA, selected == null ? Uri.parse(DOCUMENTS_URI) : selected);
+            intent.putExtra(INITIAL_URI_EXTRA, selected == null || GameDataStorage.isTvFolder(selected)
+                ? Uri.parse(DOCUMENTS_URI) : selected);
         }
         openPicker(intent, request,
             "No folder picker is available. Install a document picker to choose your game folder.");
@@ -444,6 +482,10 @@ public final class LauncherActivity extends Activity {
     }
 
     private void showZipDestinationDialog() {
+        if (getSharedPreferences(OPTIONS_PREFERENCES, MODE_PRIVATE).getBoolean(ZIP_TV_KEY, false)) {
+            showTvFolderDialog(true);
+            return;
+        }
         new AlertDialog.Builder(this).setTitle("Choose ZIP extraction folder")
             .setMessage("Next, select the target folder where the ZIP will be extracted.\n\n"
                 + "Create or select Documents/Chocolate Stunts, or another folder. "
@@ -465,14 +507,159 @@ public final class LauncherActivity extends Activity {
 
     private void openPicker(Intent intent, int request, String unavailableMessage) {
         try {
+            if (television) {
+                List<ResolveInfo> candidates = getPackageManager().queryIntentActivities(intent,
+                    PackageManager.MATCH_DEFAULT_ONLY);
+                ResolveInfo usable = null;
+                for (ResolveInfo candidate : candidates) {
+                    if (candidate.activityInfo == null || !candidate.activityInfo.exported
+                            || TV_PICKER_STUB_PACKAGE.equals(candidate.activityInfo.packageName)) {
+                        continue;
+                    }
+                    String permission = candidate.activityInfo.permission;
+                    if (permission == null || getPackageManager().checkPermission(permission,
+                            getPackageName()) == PackageManager.PERMISSION_GRANTED) {
+                        usable = candidate;
+                        break;
+                    }
+                }
+                if (usable == null) {
+                    showTvFallback(request);
+                    return;
+                }
+                // A TV placeholder may resolve successfully and then show its own failure toast.
+                intent.setComponent(new ComponentName(usable.activityInfo.packageName,
+                    usable.activityInfo.name));
+            }
             startActivityForResult(intent, request);
         } catch (ActivityNotFoundException error) {
-            currentStatus = unavailableMessage;
-            refresh();
+            if (television) {
+                showTvFallback(request);
+            } else {
+                currentStatus = unavailableMessage;
+                refresh();
+            }
         } catch (SecurityException error) {
-            currentStatus = "Cannot open the document picker: " + error.getMessage();
+            if (television) {
+                showTvFallback(request);
+            } else {
+                currentStatus = "Cannot open the document picker: " + error.getMessage();
+                refresh();
+            }
+        }
+    }
+
+    private static String initialStatus(Context context, boolean television) {
+        Uri selected = GameDataStorage.folder(context);
+        if ((television && selected == null) || GameDataStorage.isTvFolder(selected)) {
+            try {
+                File game = GameDataStorage.tvGameDirectory(context);
+                return "Import your Brøderbund Stunts 1.1 game files.\n"
+                    + "Copy a ZIP to: " + GameDataStorage.tvMediaDirectory(context).getPath()
+                    + "\nTV game folder: " + game.getPath()
+                    + "\nThis app-owned folder is removed when the app is uninstalled.";
+            } catch (IOException | RuntimeException error) {
+                return "The TV game folder is unavailable: " + error.getMessage();
+            }
+        }
+        return selected == null ? "Choose your Brøderbund Stunts 1.1 game folder, or import a ZIP."
+            : "Game folder remembered. Start game to load its current contents.";
+    }
+
+    private void showTvFallback(int request) {
+        if (request == REQUEST_ZIP) {
+            chooseTvZipFile();
+        } else {
+            showTvFolderDialog(request == REQUEST_ZIP_FOLDER);
+        }
+    }
+
+    private void showTvFolderDialog(boolean zipImport) {
+        if (importing || synchronizing || preparingAssets) {
+            return;
+        }
+        try {
+            File game = GameDataStorage.tvGameDirectory(this);
+            String instruction = zipImport ? "Extract the validated ZIP into this folder?"
+                : "Copy your extracted Brøderbund Stunts 1.1 files into this folder, then select it. "
+                    + "To import a ZIP, copy it to " + GameDataStorage.tvMediaDirectory(this).getPath()
+                    + " and press Choose TV ZIP.";
+            AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("TV game folder")
+                .setMessage(instruction + "\n\n" + game.getPath()
+                    + "\n\nCustom content and all saves use this folder. No storage permission is needed. "
+                    + "Uninstalling the app deletes this folder; back up your files first.")
+                .setPositiveButton(zipImport ? "Extract ZIP here" : "Use this folder",
+                    (choice, selected) -> useGameFolder(GameDataStorage.tvFolder(), zipImport, false))
+                .setNegativeButton(android.R.string.cancel, null);
+            if (!zipImport) {
+                dialog.setNeutralButton("Choose TV ZIP", (choice, selected) -> chooseTvZipFile());
+            }
+            dialog.show();
+        } catch (IOException | RuntimeException error) {
+            currentStatus = "Cannot use the TV game folder: " + error.getMessage();
             refresh();
         }
+    }
+
+    private void chooseTvZipFile() {
+        if (importing || synchronizing || preparingAssets) {
+            return;
+        }
+        Context context = getApplicationContext();
+        importing = true;
+        currentStatus = "Looking for ZIP files in the TV's app media folder…";
+        refreshActive();
+        WORKER.execute(() -> {
+            try {
+                File directory = GameDataStorage.tvMediaDirectory(context);
+                File[] children = directory.listFiles();
+                if (children == null || children.length > GameDataSync.MAX_FILES) {
+                    throw new IOException("Cannot list the TV import folder, or it contains too many files.");
+                }
+                ArrayList<File> choices = new ArrayList<>();
+                for (File child : children) {
+                    if (child.isFile() && child.getName().toLowerCase(Locale.ROOT).endsWith(".zip")
+                            && directory.equals(child.getCanonicalFile().getParentFile())) {
+                        choices.add(child);
+                    }
+                }
+                File[] files = choices.toArray(new File[0]);
+                Arrays.sort(files, (left, right) -> left.getName().compareToIgnoreCase(right.getName()));
+                MAIN_THREAD.post(() -> {
+                    importing = false;
+                    currentStatus = "Copy your Stunts 1.1 ZIP to: " + directory.getPath()
+                        + "\nChoose Import Stunts ZIP again after copying it.";
+                    refreshActive();
+                    LauncherActivity activity = active.get();
+                    if (activity != null) {
+                        activity.showTvZipFiles(directory, files);
+                    }
+                });
+            } catch (IOException | RuntimeException error) {
+                MAIN_THREAD.post(() -> {
+                    importing = false;
+                    currentStatus = "Cannot read the TV import folder: " + error.getMessage();
+                    refreshActive();
+                });
+            }
+        });
+    }
+
+    private void showTvZipFiles(File directory, File[] files) {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this).setTitle("Import TV game ZIP");
+        if (files.length == 0) {
+            dialog.setMessage("Copy your Brøderbund Stunts 1.1 ZIP into this folder, then choose "
+                + "Import Stunts ZIP again:\n\n" + directory.getPath())
+                .setPositiveButton(android.R.string.ok, null);
+        } else {
+            String[] names = new String[files.length];
+            for (int index = 0; index < files.length; index++) {
+                names[index] = files[index].getName();
+            }
+            dialog.setItems(names, (choice, selected) -> readGameZip(Uri.fromFile(files[selected]), false, true))
+                .setNegativeButton(android.R.string.cancel, null);
+        }
+        dialog.show();
     }
 
     /** Return true only for a grant acquired by this job, which it must release. */
@@ -520,6 +707,17 @@ public final class LauncherActivity extends Activity {
         Uri uri = data.getData();
         Context context = getApplicationContext();
         boolean retainedGrant = retainReadPermission(context, uri, data.getFlags());
+        readGameZip(uri, retainedGrant, false);
+    }
+
+    private void readGameZip(Uri uri, boolean retainedGrant, boolean tvImport) {
+        Context context = getApplicationContext();
+        if (importing || synchronizing) {
+            if (retainedGrant) {
+                releaseReadPermission(context, uri);
+            }
+            return;
+        }
         importing = true;
         currentStatus = "Reading and validating game ZIP…";
         refreshActive();
@@ -533,17 +731,20 @@ public final class LauncherActivity extends Activity {
                 File staging = new File(context.getFilesDir(), ZIP_DIRECTORY);
                 GameDataImport.prepare(staging);
                 GameDataImport importer = new GameDataImport(staging);
-                try (InputStream input = context.getContentResolver().openInputStream(uri)) {
+                try (InputStream input = tvImport
+                        ? GameDataStorage.openTvZip(context, new File(uri.getPath()))
+                        : context.getContentResolver().openInputStream(uri)) {
                     importer.readZip(input);
                 }
                 importer.gameDirectory();
-                if (!importPreferences.edit().putBoolean(ZIP_READY_KEY, true).commit()) {
+                if (!importPreferences.edit().putBoolean(ZIP_READY_KEY, true)
+                        .putBoolean(ZIP_TV_KEY, tvImport).commit()) {
                     throw new IOException("Cannot remember the ZIP import state.");
                 }
                 MAIN_THREAD.post(() -> {
                     importing = false;
-                    currentStatus = "ZIP validated. Create or select Documents/Chocolate Stunts "
-                        + "as its game folder.";
+                    currentStatus = tvImport ? "ZIP validated. Choose the TV game folder for extraction."
+                        : "ZIP validated. Create or select Documents/Chocolate Stunts as its game folder.";
                     refreshActive();
                     LauncherActivity activity = active.get();
                     if (activity != null) {

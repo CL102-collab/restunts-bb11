@@ -8,17 +8,20 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
 
-/** Serializes complete game-folder refreshes and native writes through the SAF grant. */
+/** Serializes game-folder refreshes and native writes through the selected storage adapter. */
 public final class GameDataStorage {
     private static final String PREFERENCES = "game_storage";
     private static final String FOLDER_KEY = "folder";
     private static final String ERROR_KEY = "last_error";
     private static final String STATE_DIRECTORY = "game-sync";
     private static final String GAME_DIRECTORY = "game";
+    private static final String TV_GAME_DIRECTORY = "ChocolateStunts";
+    private static final Uri TV_FOLDER = Uri.parse("restunts:tv-game-folder");
     private static final Handler MAIN_THREAD = new Handler(Looper.getMainLooper());
 
     private GameDataStorage() {}
@@ -36,7 +39,51 @@ public final class GameDataStorage {
         return preferences(context).getString(ERROR_KEY, "");
     }
 
-    private static GameFolder openFolder(Context context, Uri selected) throws IOException {
+    public static Uri tvFolder() {
+        return TV_FOLDER;
+    }
+
+    public static boolean isTvFolder(Uri selected) {
+        return TV_FOLDER.equals(selected);
+    }
+
+    /** Use only the primary app-owned shared directory; never request wider storage access. */
+    public static File tvMediaDirectory(Context context) throws IOException {
+        File[] directories = context.getExternalMediaDirs();
+        if (directories == null || directories.length == 0 || directories[0] == null) {
+            throw new IOException("The TV's shared storage is unavailable.");
+        }
+        File directory = directories[0].getCanonicalFile();
+        GameDataImport.makeDirectory(directory);
+        if (!directory.canRead() || !directory.canWrite()) {
+            throw new IOException("The TV's app media folder cannot be read and written.");
+        }
+        return directory;
+    }
+
+    public static File tvGameDirectory(Context context) throws IOException {
+        File directory = new File(tvMediaDirectory(context), TV_GAME_DIRECTORY);
+        if (!directory.getCanonicalFile().equals(directory.getAbsoluteFile())) {
+            throw new IOException("The TV game folder must not be a symbolic link.");
+        }
+        GameDataImport.makeDirectory(directory);
+        return directory;
+    }
+
+    /** ZIP sources belong directly in the app-owned media root, outside the game content. */
+    public static InputStream openTvZip(Context context, File source) throws IOException {
+        File directory = tvMediaDirectory(context);
+        File canonical = source.getCanonicalFile();
+        if (!directory.equals(canonical.getParentFile()) || !canonical.isFile()) {
+            throw new IOException("Copy the ZIP into the TV's app media folder first.");
+        }
+        return new FileInputStream(canonical);
+    }
+
+    private static GameDataSync.Store openFolder(Context context, Uri selected) throws IOException {
+        if (isTvFolder(selected)) {
+            return new LocalGameFolder(tvGameDirectory(context));
+        }
         for (UriPermission permission : context.getContentResolver().getPersistedUriPermissions()) {
             if (selected.equals(permission.getUri()) && permission.isReadPermission()
                     && permission.isWritePermission()) {
@@ -52,9 +99,9 @@ public final class GameDataStorage {
         // Delay provider access until after publish has captured the completed output.
         // Even a revoked grant must leave a durable pending copy for the next start.
         GameDataSync.Store store = new GameDataSync.Store() {
-            private GameFolder opened;
+            private GameDataSync.Store opened;
 
-            private GameFolder opened() throws IOException {
+            private GameDataSync.Store opened() throws IOException {
                 if (opened == null) {
                     opened = openFolder(context, selected);
                 }

@@ -69,9 +69,10 @@ jobs:
             android/app/src/main/java/org/restunts/android/GameDataVersion.java \
             android/app/src/main/java/org/restunts/android/LaunchOptions.java \
             android/app/src/main/java/org/restunts/android/GameDataSync.java \
+            android/app/src/main/java/org/restunts/android/LocalGameFolder.java \
             android/tests/GameDataImportTest.java android/tests/GameDataVersionTest.java \
             android/tests/LaunchOptionsTest.java \
-            android/tests/GameDataSyncTest.java
+            android/tests/GameDataSyncTest.java android/tests/LocalGameFolderTest.java
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.GameDataImportTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
@@ -80,6 +81,8 @@ jobs:
             org.restunts.android.LaunchOptionsTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.GameDataSyncTest
+          "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
+            org.restunts.android.LocalGameFolderTest
           python3 tools/scripts/test-release-packages.py
 
       - name: Build and verify the ABI-specific debug APK and runtime archive

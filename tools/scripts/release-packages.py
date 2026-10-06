@@ -346,8 +346,10 @@ def readme(target, commit):
                   "Release workflow APKs use the project's persistent release signing key.",
                   "PR/local debug APKs use debug keys, which may differ between builds.",
                   "Android updates require the same signing key. A different key may require",
-                  "uninstalling the old app. Your selected public game folder is preserved;",
-                  "uninstalling removes private preferences, cache and unexported pending writes.",
+                  "uninstalling the old app. Folders selected through the system picker survive.",
+                  "The app-owned TV fallback media folder, including game files, saves and source",
+                  "ZIPs, is deleted on uninstall. Back up those files outside it beforehand.",
+                  "Uninstalling removes private preferences, cache and unexported pending writes.",
                   "See share/docs/restunts/android.md for import, controls and rebuild/signing",
                   "details. Nuked source and build context are in share/restunts/nuked-opl2-lite."]
         if target == "android-armv7":
