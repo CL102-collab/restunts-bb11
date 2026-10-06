@@ -12,6 +12,7 @@
 
 #define TOUCH_FINGER_COUNT 16U
 #define INPUT_SHIFT_QUEUE_CAPACITY 64U
+#define TOUCH_EDGE_MARGIN 10.0f
 #define TOUCH_RADIUS_HEIGHT 0.075f
 #define TOUCH_STEERING_HEIGHT 0.62f
 #define TOUCH_RIGHT_RADIUS_OFFSET 3.5f
@@ -60,6 +61,7 @@ static legacy_u8 enabled = 1;
 #else
 static legacy_u8 enabled;
 #endif
+static legacy_u8 layout_visible = true;
 static legacy_u8 keyboard_selected = 1;
 static legacy_u8 intro_active;
 static legacy_u8 racing;
@@ -158,6 +160,15 @@ void sdl3_touch_configure(legacy_u8 keyboard, legacy_u8 live, legacy_u8 manual, 
 	replay_active = replay;
 }
 
+void sdl3_touch_set_layout_visible(legacy_u8 visible)
+{
+	visible = visible != 0;
+	if (layout_visible != visible) {
+		sdl3_touch_reset();
+	}
+	layout_visible = visible;
+}
+
 void sdl3_touch_set_intro_active(legacy_u8 active)
 {
 	if (intro_active != active) {
@@ -206,7 +217,8 @@ void sdl3_touch_sync_game(void)
 
 legacy_u8 sdl3_touch_visible(enum TOUCH_CONTROL control)
 {
-	if (!enabled || intro_active || !keyboard_selected || control >= TOUCH_CONTROL_COUNT) {
+	if (!enabled || !layout_visible || intro_active || !keyboard_selected ||
+		control >= TOUCH_CONTROL_COUNT) {
 		return false;
 	}
 	if (control == TOUCH_SHIFT_UP || control == TOUCH_SHIFT_DOWN) {
@@ -219,35 +231,35 @@ struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect
 {
 	struct TOUCH_CIRCLE circle;
 	circle.radius = area->h * TOUCH_RADIUS_HEIGHT;
-	circle.x = area->x + circle.radius;
+	circle.x = area->x + TOUCH_EDGE_MARGIN + circle.radius;
 	circle.y = area->y + area->h * TOUCH_STEERING_HEIGHT;
 	switch (control) {
 		case TOUCH_ESCAPE:
-			circle.y = area->y + circle.radius;
+			circle.y = area->y + TOUCH_EDGE_MARGIN + circle.radius;
 			break;
 		case TOUCH_RIGHT:
-			circle.x = area->x + circle.radius * TOUCH_RIGHT_RADIUS_OFFSET;
+			circle.x = area->x + TOUCH_EDGE_MARGIN + circle.radius * TOUCH_RIGHT_RADIUS_OFFSET;
 			break;
 		case TOUCH_SHIFT_UP:
 		case TOUCH_SHIFT_DOWN:
-			circle.x = area->x + circle.radius * TOUCH_SHIFT_RADIUS_OFFSET;
+			circle.x = area->x + TOUCH_EDGE_MARGIN + circle.radius * TOUCH_SHIFT_RADIUS_OFFSET;
 			circle.y += circle.radius * TOUCH_VERTICAL_RADIUS_OFFSET *
 						(control == TOUCH_SHIFT_UP ? -1.0f : 1.0f);
 			break;
 		case TOUCH_CAMERA:
 		case TOUCH_FOLLOW:
-			circle.x = area->x + area->w - circle.radius;
-			circle.y = area->y + circle.radius;
+			circle.x = area->x + area->w - TOUCH_EDGE_MARGIN - circle.radius;
+			circle.y = area->y + TOUCH_EDGE_MARGIN + circle.radius;
 			if (control == TOUCH_FOLLOW) {
 				circle.y += circle.radius * TOUCH_VERTICAL_RADIUS_OFFSET;
 			}
 			break;
 		case TOUCH_REWIND:
-			circle.y = area->y + area->h - circle.radius;
+			circle.y = area->y + area->h - TOUCH_EDGE_MARGIN - circle.radius;
 			break;
 		case TOUCH_ACCELERATE:
 		case TOUCH_BRAKE:
-			circle.x = area->x + area->w - circle.radius;
+			circle.x = area->x + area->w - TOUCH_EDGE_MARGIN - circle.radius;
 			circle.y = area->y + area->h * (control == TOUCH_ACCELERATE ? TOUCH_ACCELERATE_HEIGHT
 																		: TOUCH_BRAKE_HEIGHT);
 			break;
@@ -440,7 +452,7 @@ void sdl3_touch_event(const SDL_TouchFingerEvent *event, const SDL_Rect *area)
 
 void sdl3_touch_draw(SDL_Renderer *renderer, SDL_Window *window)
 {
-	if (!enabled || intro_active || !keyboard_selected) {
+	if (!enabled || !layout_visible || intro_active || !keyboard_selected) {
 		return;
 	}
 	SDL_Rect area;

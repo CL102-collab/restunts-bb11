@@ -4,9 +4,11 @@ package org.restunts.android;
 public final class LaunchOptions {
     public static final String NEW_MIDI_KEY = "new_midi";
     public static final String SHOW_FPS_KEY = "show_fps";
+    public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
     public static final boolean DEFAULT_NEW_MIDI = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
+    public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
 
     public enum HyperVision {
         OFF("Off", null),
@@ -43,20 +45,25 @@ public final class LaunchOptions {
 
     public final boolean newMidi;
     public final boolean showFps;
+    public final boolean showControlLayout;
     public final HyperVision hyperVision;
 
-    public LaunchOptions(boolean newMidi, boolean showFps, HyperVision hyperVision) {
+    public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
+            HyperVision hyperVision) {
         this.newMidi = newMidi;
         this.showFps = showFps;
+        this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
     }
 
     public String[] arguments(String dataDirectory) {
         String midi = newMidi ? "--ogg:on" : "--ogg:off";
         String fps = showFps ? "--fps:on" : "--fps:off";
+        String controls = showControlLayout ? "--control-layout:on" : "--control-layout:off";
         if (hyperVision == HyperVision.OFF) {
-            return new String[] {"--data-dir", dataDirectory, midi, fps};
+            return new String[] {"--data-dir", dataDirectory, midi, fps, controls};
         }
-        return new String[] {"--data-dir", dataDirectory, midi, fps, "--hv:" + hyperVision.argument};
+        return new String[] {"--data-dir", dataDirectory, midi, fps,
+            "--hv:" + hyperVision.argument, controls};
     }
 }

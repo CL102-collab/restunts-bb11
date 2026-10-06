@@ -68,20 +68,25 @@ same game folder. The app-owned TV fallback folder is deleted on uninstall;
 back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
-The options row above **Start game** contains **New MIDI** for replacement
-music, **Show FPS** for the FPS/render-time display, and **HyperVision** with
-**Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets. Start game
-applies all three selections; they are remembered for later launches. The
-defaults use original AdLib music, hide FPS, and leave HyperVision off.
+The options above **Start game** contain **New MIDI** for replacement music,
+**Show FPS** for the FPS/render-time display, **Show Control Layout** for the touch
+circles, and **HyperVision** with **Off**, **Auto**, **Full**, **High**, **Medium**,
+and **Low** presets. Start game applies all selections; they are remembered for
+later launches. The defaults use original AdLib music, hide FPS, keep
+**Show Control Layout** checked, and leave HyperVision off.
 
 ## Touch controls
 
-With **Keyboard** input selected in Options, transparent circles appear at the
-screen edges. The circles are hidden throughout the intro; tap the screen to
-skip it. Left/right steer; upper/lower right accelerate/brake. They support
-simultaneous held touches. Moving outside a circle releases that control.
-The steering cluster has no inset from the usable left edge; display cutouts
-and system bars are respected.
+With **Show Control Layout** checked in the launcher and **Keyboard** input
+selected in Options, transparent circles appear near the screen edges. Unchecking
+**Show Control Layout** hides the circles; direct touch on menus, car/opponent
+choices and replay controls, including the timeline and swipe seeking, remains
+available.
+The circles are hidden throughout the intro; tap the screen to skip it.
+Left/right steer; upper/lower right accelerate/brake. They support simultaneous
+held touches. Moving outside a circle releases that control. Circles keep at
+least 10 pixels from the usable screen edges; display cutouts and system bars
+are respected.
 
 During a live race, bottom-left **Q** holds the existing rewind function. **Shift
 up/down** appear above/below steering only with manual gears selected. Each tap

@@ -37,6 +37,17 @@ static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
 static legacy_u8 expected_fps_display_enabled;
 static legacy_u32 startup_fps_reset_calls;
+#ifdef __ANDROID__
+static legacy_u8 startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_ON;
+static legacy_u32 startup_control_layout_set_calls;
+
+void sdl3_touch_set_layout_visible(legacy_u8 visible)
+{
+	assert(visible == STARTUP_CONTROL_LAYOUT_OFF || visible == STARTUP_CONTROL_LAYOUT_ON);
+	startup_control_layout_visible = visible;
+	++startup_control_layout_set_calls;
+}
+#endif
 
 void frame_fps_reset(void)
 {
@@ -703,6 +714,10 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#ifdef __ANDROID__
+	legacy_u32 before_layout_calls = startup_control_layout_set_calls;
+	legacy_u8 before_layout_visible = startup_control_layout_visible;
+#endif
 	startup_exit_status = EXIT_SUCCESS;
 	if (setjmp(exit_jump) == 0) {
 		init_main(count, arguments);
@@ -713,6 +728,10 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(startup_render_enabled == 0 && supersight_enabled == 0);
 	assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
 	assert(timer_calls == 0);
+#ifdef __ANDROID__
+	assert(startup_control_layout_set_calls == before_layout_calls);
+	assert(startup_control_layout_visible == before_layout_visible);
+#endif
 }
 
 #define STARTUP_TEST_GEOMETRY_TICKS 55U
@@ -962,6 +981,53 @@ static void test_startup_fps_display_options(void)
 		assert(!startup_options.fps_display_specified);
 	}
 }
+#ifdef __ANDROID__
+static void test_startup_control_layout_options(void)
+{
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 visible;
+	} cases[] = {{"--control-layout:off", STARTUP_CONTROL_LAYOUT_OFF},
+				 {"--CONTROL-LAYOUT:On", STARTUP_CONTROL_LAYOUT_ON}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		startup_control_layout_visible = cases[index].visible == STARTUP_CONTROL_LAYOUT_ON
+											 ? STARTUP_CONTROL_LAYOUT_OFF
+											 : STARTUP_CONTROL_LAYOUT_ON;
+		legacy_u32 before = startup_control_layout_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_control_layout_set_calls == before + 1U);
+		assert(startup_control_layout_visible == cases[index].visible);
+		assert(startup_options.control_layout_enabled == cases[index].visible);
+		assert(startup_options.control_layout_specified != 0);
+	}
+
+	/* A later session without an explicit option restores the enabled default. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_OFF;
+	legacy_u32 before = startup_control_layout_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_control_layout_set_calls == before + 1U);
+	assert(startup_control_layout_visible == STARTUP_CONTROL_LAYOUT_ON);
+	assert(startup_options.control_layout_enabled == STARTUP_CONTROL_LAYOUT_ON);
+	assert(startup_options.control_layout_specified == 0);
+
+	static const legacy_s8 *invalid[] = {"--control-layout:", "--control-layout:auto"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	legacy_s8 *duplicate[] = {(legacy_s8 *)"game", (legacy_s8 *)"--control-layout:off",
+							  (legacy_s8 *)"--control-layout:on"};
+	expect_startup_option_error(sizeof(duplicate) / sizeof(duplicate[0]), duplicate);
+	/* Validation of a later option must finish before touching the current layout. */
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--control-layout:off",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+}
+#endif
 #endif
 
 static void test_startup_game_version(void)
@@ -1032,6 +1098,9 @@ int main(void)
 	test_startup_hypervision_options();
 	test_startup_ogg_music_options();
 	test_startup_fps_display_options();
+#ifdef __ANDROID__
+	test_startup_control_layout_options();
+#endif
 #endif
 	return 0;
 }

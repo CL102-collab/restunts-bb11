@@ -79,6 +79,7 @@ public final class LauncherActivity extends Activity {
     private Button tvFolder;
     private CheckBox newMidi;
     private CheckBox showFps;
+    private CheckBox showControlLayout;
     private Spinner hyperVision;
     private SharedPreferences preferences;
     private boolean television;
@@ -246,6 +247,16 @@ public final class LauncherActivity extends Activity {
             LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         fpsLayout.setMarginStart(spacing);
         row.addView(showFps, fpsLayout);
+        showControlLayout = new CheckBox(this);
+        showControlLayout.setText("Show Control Layout");
+        showControlLayout.setTextSize(textSize);
+        showControlLayout.setSingleLine(true);
+        showControlLayout.setChecked(preferences.getBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
+            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT));
+        LinearLayout.LayoutParams controlsLayout = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        controlsLayout.setMarginStart(spacing);
+        row.addView(showControlLayout, controlsLayout);
         TextView label = new TextView(this);
         label.setText("HyperVision");
         label.setTextSize(textSize);
@@ -271,6 +282,7 @@ public final class LauncherActivity extends Activity {
         layout.addView(optionsScroll);
         newMidi.setOnCheckedChangeListener((button, checked) -> saveOptions());
         showFps.setOnCheckedChangeListener((button, checked) -> saveOptions());
+        showControlLayout.setOnCheckedChangeListener((button, checked) -> saveOptions());
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -285,7 +297,7 @@ public final class LauncherActivity extends Activity {
     }
 
     private LaunchOptions selectedOptions() {
-        return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(),
+        return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(), showControlLayout.isChecked(),
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem());
     }
 
@@ -293,6 +305,7 @@ public final class LauncherActivity extends Activity {
         LaunchOptions options = selectedOptions();
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
+            .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name()).apply();
     }
 
@@ -341,6 +354,7 @@ public final class LauncherActivity extends Activity {
                         Intent intent = new Intent(activity, GameActivity.class);
                         intent.putExtra(LaunchOptions.NEW_MIDI_KEY, options.newMidi);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
+                        intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
                         activity.startActivity(intent);
                     }

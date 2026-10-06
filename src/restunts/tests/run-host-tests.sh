@@ -113,6 +113,13 @@ run_host_test test-startup math.c -DRESTUNTS_SDL3 \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
     "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
+run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ \
+    "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
+    "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
+    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-credits legacy.c \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers

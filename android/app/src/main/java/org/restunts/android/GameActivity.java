@@ -170,6 +170,8 @@ public final class GameActivity extends SDLActivity {
         LaunchOptions options = new LaunchOptions(
             intent.getBooleanExtra(LaunchOptions.NEW_MIDI_KEY, LaunchOptions.DEFAULT_NEW_MIDI),
             intent.getBooleanExtra(LaunchOptions.SHOW_FPS_KEY, LaunchOptions.DEFAULT_SHOW_FPS),
+            intent.getBooleanExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
+                LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT),
             LaunchOptions.HyperVision.fromStored(intent.getStringExtra(LaunchOptions.HYPERVISION_KEY)));
         return options.arguments(new File(getFilesDir(), "game").getAbsolutePath());
     }

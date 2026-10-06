@@ -19,25 +19,29 @@ public final class LaunchOptionsTest {
     public static void main(String[] args) {
         require(!LaunchOptions.DEFAULT_NEW_MIDI, "New MIDI must default to original AdLib.");
         require(!LaunchOptions.DEFAULT_SHOW_FPS, "FPS must default to hidden.");
+        require(LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, "Control layout must default to visible.");
         requireArguments(new LaunchOptions(LaunchOptions.DEFAULT_NEW_MIDI,
-            LaunchOptions.DEFAULT_SHOW_FPS, LaunchOptions.HyperVision.fromStored(null)),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off");
-        requireArguments(new LaunchOptions(true, false, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:off");
-        requireArguments(new LaunchOptions(false, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:on");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.AUTO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:auto");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.FULL),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:full");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.HIGH),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:high");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.MEDIUM),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:medium");
-        requireArguments(new LaunchOptions(true, true, LaunchOptions.HyperVision.LOW),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:low");
+            LaunchOptions.DEFAULT_SHOW_FPS, LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT,
+            LaunchOptions.HyperVision.fromStored(null)),
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--control-layout:on");
+        requireArguments(new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:off", "--control-layout:on");
+        requireArguments(new LaunchOptions(false, true, true, LaunchOptions.HyperVision.OFF),
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:on", "--control-layout:on");
+        requireArguments(new LaunchOptions(false, false, false, LaunchOptions.HyperVision.OFF),
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--control-layout:off");
+        requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.OFF),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--control-layout:on");
+        requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.AUTO),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:auto", "--control-layout:off");
+        requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.FULL),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:full", "--control-layout:on");
+        requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:high", "--control-layout:off");
+        requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.MEDIUM),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:medium", "--control-layout:on");
+        requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.LOW),
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:low", "--control-layout:off");
         String[] labels = {"Off", "Auto", "Full", "High", "Medium", "Low"};
         LaunchOptions.HyperVision[] presets = LaunchOptions.HyperVision.values();
         require(presets.length == labels.length, "Unexpected HyperVision choices.");
@@ -50,8 +54,8 @@ public final class LaunchOptionsTest {
             require(LaunchOptions.HyperVision.fromStored(invalid) == LaunchOptions.HyperVision.OFF,
                 "Invalid stored preset must fall back to Off.");
         }
-        requireArguments(new LaunchOptions(false, false, null),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off");
+        requireArguments(new LaunchOptions(false, false, true, null),
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--control-layout:on");
         System.out.println("Android launch defaults, independent flags and HyperVision presets passed.");
     }
 }

@@ -8,6 +8,9 @@
 #include "frame_internal.h"
 #include "hires.h"
 #include "../platform/sdl3/music.h"
+#ifdef __ANDROID__
+#include "../platform/sdl3/touch_game.h"
+#endif
 #endif
 #include "audio.h"
 #include "dashboard.h"
@@ -70,6 +73,11 @@
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
 #define STARTUP_FPS_DISPLAY_PREFIX "--fps:"
 #define STARTUP_SKIP_INTRO_OPTION "--nointro"
+#if defined(RESTUNTS_SDL3) && defined(__ANDROID__)
+#define STARTUP_CONTROL_LAYOUT_PREFIX "--control-layout:"
+#define STARTUP_CONTROL_LAYOUT_OFF 0U
+#define STARTUP_CONTROL_LAYOUT_ON 1U
+#endif
 
 #define STARTUP_PROJECTION_X 36
 #define STARTUP_PROJECTION_Y 17
@@ -189,6 +197,10 @@ struct STARTUP_OPTIONS {
 	legacy_u8 ogg_music_specified;
 	legacy_u8 fps_display_enabled;
 	legacy_u8 fps_display_specified;
+#ifdef __ANDROID__
+	legacy_u8 control_layout_enabled;
+	legacy_u8 control_layout_specified;
+#endif
 #endif
 };
 
@@ -310,6 +322,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->ogg_music_specified = 0;
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
+#ifdef __ANDROID__
+	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_ON;
+	options->control_layout_specified = 0;
+#endif
 #endif
 	for (legacy_u16 i = 1; argc > i; ++i) {
 #ifdef RESTUNTS_SDL3
@@ -318,6 +334,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
 		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
 							  &options->fps_display_enabled, &options->fps_display_specified);
+#ifdef __ANDROID__
+		startup_parse_boolean(argv[i], STARTUP_CONTROL_LAYOUT_PREFIX, "Control layout",
+							  &options->control_layout_enabled, &options->control_layout_specified);
+#endif
 #endif
 		if (strcmp(argv[i], STARTUP_SKIP_INTRO_OPTION) == 0) {
 			options->skip_intro = 1;
@@ -433,6 +453,9 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
 #ifdef RESTUNTS_SDL3
+#ifdef __ANDROID__
+	sdl3_touch_set_layout_visible(startup_options.control_layout_enabled);
+#endif
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 	if (startup_options.hypervision_specified != 0) {

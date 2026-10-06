@@ -9,6 +9,10 @@
 
 #define TEST_WIDTH 1920
 #define TEST_HEIGHT 1080
+#define TEST_HD_WIDTH 1280
+#define TEST_HD_HEIGHT 720
+#define TEST_EDGE_MARGIN 10.0f
+#define TEST_DOUBLE_SIZE 2
 #define TEST_DEVICE 1
 #define TEST_FIRST_FINGER 11
 #define TEST_SECOND_FINGER 12
@@ -101,9 +105,10 @@ static void assert_top_right_geometry(const SDL_Rect *rectangle)
 	struct TOUCH_CIRCLE camera = sdl3_touch_circle(TOUCH_CAMERA, rectangle);
 	struct TOUCH_CIRCLE follow = sdl3_touch_circle(TOUCH_FOLLOW, rectangle);
 	struct TOUCH_CIRCLE accelerate = sdl3_touch_circle(TOUCH_ACCELERATE, rectangle);
-	assert(SDL_fabsf(camera.x + camera.radius - (rectangle->x + rectangle->w)) <
+	assert(SDL_fabsf(camera.x + camera.radius - (rectangle->x + rectangle->w - TEST_EDGE_MARGIN)) <
 		   TEST_COORDINATE_EPSILON);
-	assert(SDL_fabsf(camera.y - camera.radius - rectangle->y) < TEST_COORDINATE_EPSILON);
+	assert(SDL_fabsf(camera.y - camera.radius - (rectangle->y + TEST_EDGE_MARGIN)) <
+		   TEST_COORDINATE_EPSILON);
 	assert(camera.x == follow.x && camera.radius == follow.radius);
 	assert(follow.y - follow.radius > camera.y + camera.radius);
 	assert(follow.y + follow.radius < accelerate.y - accelerate.radius);
@@ -116,21 +121,41 @@ static void test_visibility_and_geometry(void)
 	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
 		assert(sdl3_touch_visible(control));
 	}
-	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
-	struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &area);
-	struct TOUCH_CIRCLE up = sdl3_touch_circle(TOUCH_SHIFT_UP, &area);
-	struct TOUCH_CIRCLE down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, &area);
-	assert(left.x == left.radius);
-	assert(left.y == right.y);
-	assert(up.x > (left.x + right.x) / 2.0f - TEST_COORDINATE_EPSILON);
-	assert(up.x < (left.x + right.x) / 2.0f + TEST_COORDINATE_EPSILON);
-	assert(up.x == down.x && up.y < left.y && down.y > left.y);
-	SDL_Rect inset = {TEST_SAFE_INSET_X, TEST_SAFE_INSET_Y, TEST_WIDTH - TEST_SAFE_INSET_X * 2,
-					  TEST_HEIGHT - TEST_SAFE_INSET_Y * 2};
-	left = sdl3_touch_circle(TOUCH_LEFT, &inset);
-	assert(left.x - left.radius == inset.x);
-	assert_top_right_geometry(&area);
-	assert_top_right_geometry(&inset);
+	static const SDL_Rect rectangles[] = {
+		{0, 0, SDL3_SCREEN_WIDTH, SDL3_SCREEN_HEIGHT},
+		{0, 0, TEST_HD_WIDTH, TEST_HD_HEIGHT},
+		{0, 0, TEST_WIDTH, TEST_HEIGHT},
+		{0, 0, TEST_WIDTH * TEST_DOUBLE_SIZE, TEST_HEIGHT * TEST_DOUBLE_SIZE},
+		{TEST_SAFE_INSET_X, TEST_SAFE_INSET_Y, TEST_WIDTH - TEST_SAFE_INSET_X * 2,
+		 TEST_HEIGHT - TEST_SAFE_INSET_Y * 2}};
+	for (legacy_u32 index = 0; index < SDL_arraysize(rectangles); index++) {
+		const SDL_Rect *rectangle = &rectangles[index];
+		for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+			struct TOUCH_CIRCLE circle = sdl3_touch_circle(control, rectangle);
+			assert(circle.x - circle.radius >=
+				   rectangle->x + TEST_EDGE_MARGIN - TEST_COORDINATE_EPSILON);
+			assert(circle.x + circle.radius <=
+				   rectangle->x + rectangle->w - TEST_EDGE_MARGIN + TEST_COORDINATE_EPSILON);
+			assert(circle.y - circle.radius >=
+				   rectangle->y + TEST_EDGE_MARGIN - TEST_COORDINATE_EPSILON);
+			assert(circle.y + circle.radius <=
+				   rectangle->y + rectangle->h - TEST_EDGE_MARGIN + TEST_COORDINATE_EPSILON);
+		}
+		struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, rectangle);
+		struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, rectangle);
+		struct TOUCH_CIRCLE up = sdl3_touch_circle(TOUCH_SHIFT_UP, rectangle);
+		struct TOUCH_CIRCLE down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, rectangle);
+		struct TOUCH_CIRCLE rewind = sdl3_touch_circle(TOUCH_REWIND, rectangle);
+		assert(SDL_fabsf(left.x - left.radius - (rectangle->x + TEST_EDGE_MARGIN)) <
+			   TEST_COORDINATE_EPSILON);
+		assert(left.y == right.y);
+		assert(SDL_fabsf(up.x - (left.x + right.x) / 2.0f) < TEST_COORDINATE_EPSILON);
+		assert(up.x == down.x && up.y < left.y && down.y > left.y);
+		assert(
+			SDL_fabsf(rewind.y + rewind.radius - (rectangle->y + rectangle->h - TEST_EDGE_MARGIN)) <
+			TEST_COORDINATE_EPSILON);
+		assert_top_right_geometry(rectangle);
+	}
 	sdl3_touch_configure(1, 1, 0, 0);
 	assert(!sdl3_touch_visible(TOUCH_SHIFT_UP) && !sdl3_touch_visible(TOUCH_SHIFT_DOWN));
 	assert(sdl3_touch_visible(TOUCH_REWIND));
@@ -151,6 +176,11 @@ static void test_visibility_and_geometry(void)
 		assert(!sdl3_touch_visible(control));
 	}
 	sdl3_touch_enable(1);
+	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TEST_EDGE_MARGIN / 2.0f, left.y);
+	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT) && key_count == 0 && mouse_count == 1);
+	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TEST_EDGE_MARGIN / 2.0f, left.y);
+	assert(mouse_count == 2 && mouse_down[0] && !mouse_down[1]);
 }
 
 static void test_holds_and_cancellation(void)
@@ -371,6 +401,88 @@ static void test_game_state_and_rewind(void)
 	sdl3_touch_set_game_active(0);
 }
 
+static void test_layout_visibility_and_taps(void)
+{
+	clear();
+	gameconfig.game_playertransmission = TRANSMISSION_MANUAL;
+	game_replay_mode = REPLAY_MODE_LIVE;
+	is_in_replay = 0;
+	sdl3_touch_set_game_active(1);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_SHIFT_UP);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TOUCH_SHIFT_UP);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_LEFT);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_SECOND_FINGER, TOUCH_ACCELERATE);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_THIRD_FINGER, TOUCH_REWIND);
+	assert(sdl3_touch_key_state(SDL_SCANCODE_LEFT) && sdl3_touch_key_state(SDL_SCANCODE_UP) &&
+		   sdl3_touch_key_state(SDL_SCANCODE_Q));
+	sdl3_touch_set_layout_visible(0);
+	sdl3_touch_sync_game();
+	for (enum TOUCH_CONTROL control = TOUCH_ESCAPE; control < TOUCH_CONTROL_COUNT; control++) {
+		assert(!sdl3_touch_visible(control));
+	}
+	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT) && !sdl3_touch_key_state(SDL_SCANCODE_UP) &&
+		   !sdl3_touch_key_state(SDL_SCANCODE_Q));
+	assert(sdl3_touch_take_shift_flags() == 0);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TOUCH_LEFT);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_SECOND_FINGER, TOUCH_ACCELERATE);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_THIRD_FINGER, TOUCH_REWIND);
+	assert(mouse_count == 0);
+	key_count = 0;
+
+	/* Hidden circle positions become ordinary menu taps. Reapplying the preference
+	 * must not interrupt a tap, while actually changing it must release the mouse. */
+	sdl3_touch_set_game_active(0);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_LEFT);
+	sdl3_touch_update();
+	assert(key_count == 0 && mouse_count == 1 && mouse_down[0]);
+	sdl3_touch_set_layout_visible(0);
+	assert(mouse_count == 1);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TOUCH_LEFT);
+	assert(mouse_count == 2 && !mouse_down[1]);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_ESCAPE);
+	sdl3_touch_set_layout_visible(1);
+	assert(mouse_count == 4 && mouse_down[2] && !mouse_down[3]);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TOUCH_ESCAPE);
+	assert(mouse_count == 4 && key_count == 0);
+	assert(sdl3_touch_visible(TOUCH_LEFT) && sdl3_touch_visible(TOUCH_ESCAPE));
+	assert(!sdl3_touch_visible(TOUCH_SHIFT_UP) && !sdl3_touch_visible(TOUCH_REWIND));
+
+	sdl3_touch_set_layout_visible(0);
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	is_in_replay = 1;
+	sdl3_touch_set_game_active(1);
+	clear();
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TEST_VIEW_X, TEST_VIEW_Y);
+	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TEST_VIEW_X + TEST_SWIPE_X, TEST_VIEW_Y);
+	assert(sdl3_touch_take_seek() == 1);
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TEST_VIEW_X, TEST_VIEW_Y);
+	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TEST_VIEW_X - TEST_SWIPE_X, TEST_VIEW_Y);
+	assert(sdl3_touch_take_seek() == -1 && mouse_count == 0);
+	event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TEST_TOOLBAR_X, TEST_TOOLBAR_Y);
+	event(SDL_EVENT_FINGER_MOTION, TEST_FIRST_FINGER, TEST_TOOLBAR_X + TEST_SWIPE_X,
+		  TEST_TOOLBAR_Y);
+	event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TEST_TOOLBAR_X + TEST_SWIPE_X, TEST_TOOLBAR_Y);
+	assert(sdl3_touch_take_seek() == 0 && key_count == 0 && mouse_count == 3);
+	assert(mouse_down[0] && mouse_down[1] && !mouse_down[2]);
+
+	/* Neither game-state synchronization nor an intro exit overrides the preference. */
+	driving_mode = SDL3_DRIVING_MOUSE;
+	sdl3_touch_sync_game();
+	driving_mode = SDL3_DRIVING_KEYBOARD;
+	sdl3_touch_sync_game();
+	sdl3_touch_set_intro_active(1);
+	sdl3_touch_set_intro_active(0);
+	assert(!sdl3_touch_visible(TOUCH_LEFT));
+	sdl3_touch_set_layout_visible(1);
+	circle_event(SDL_EVENT_FINGER_DOWN, TEST_FIRST_FINGER, TOUCH_LEFT);
+	assert(sdl3_touch_key_state(SDL_SCANCODE_LEFT) && key_count == 1 && queued_keys[0] == KEY_LEFT);
+	circle_event(SDL_EVENT_FINGER_UP, TEST_FIRST_FINGER, TOUCH_LEFT);
+	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT));
+	assert(!sdl3_touch_visible(TOUCH_SHIFT_UP) && !sdl3_touch_visible(TOUCH_REWIND));
+	sdl3_touch_set_game_active(0);
+	clear();
+}
+
 static void test_intro_visibility_and_taps(void)
 {
 	clear();
@@ -435,19 +547,8 @@ static void test_intro_visibility_and_taps(void)
 	clear();
 }
 
-static void test_rendering(void)
+static void assert_hidden_rendering(SDL_Renderer *renderer, SDL_Window *window)
 {
-	assert(SDL_InitSubSystem(SDL_INIT_VIDEO));
-	SDL_Window *window = SDL_CreateWindow("Touch layout", TEST_WIDTH, TEST_HEIGHT, 0);
-	assert(window != NULL);
-	SDL_Renderer *renderer = SDL_CreateRenderer(window, "software");
-	assert(renderer != NULL);
-	assert(SDL_SetRenderLogicalPresentation(renderer, SDL3_SCREEN_WIDTH, TEST_PRESENTATION_HEIGHT,
-											SDL_LOGICAL_PRESENTATION_LETTERBOX));
-	assert(SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
-	assert(SDL_RenderClear(renderer));
-	sdl3_touch_configure(1, 1, 1, 0);
-	sdl3_touch_set_intro_active(1);
 	sdl3_touch_draw(renderer, window);
 	legacy_int width, height;
 	SDL_RendererLogicalPresentation mode;
@@ -467,7 +568,28 @@ static void test_rendering(void)
 	}
 	SDL_DestroySurface(hidden);
 	assert(SDL_SetRenderLogicalPresentation(renderer, width, height, mode));
+}
+
+static void test_rendering(void)
+{
+	assert(SDL_InitSubSystem(SDL_INIT_VIDEO));
+	SDL_Window *window = SDL_CreateWindow("Touch layout", TEST_WIDTH, TEST_HEIGHT, 0);
+	assert(window != NULL);
+	SDL_Renderer *renderer = SDL_CreateRenderer(window, "software");
+	assert(renderer != NULL);
+	assert(SDL_SetRenderLogicalPresentation(renderer, SDL3_SCREEN_WIDTH, TEST_PRESENTATION_HEIGHT,
+											SDL_LOGICAL_PRESENTATION_LETTERBOX));
+	assert(SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
+	assert(SDL_RenderClear(renderer));
+	sdl3_touch_configure(1, 1, 1, 0);
+	sdl3_touch_set_intro_active(1);
+	assert_hidden_rendering(renderer, window);
 	sdl3_touch_set_intro_active(0);
+	sdl3_touch_set_layout_visible(0);
+	assert_hidden_rendering(renderer, window);
+	sdl3_touch_set_layout_visible(1);
+	legacy_int width, height;
+	SDL_RendererLogicalPresentation mode;
 	sdl3_touch_draw(renderer, window);
 	assert(SDL_GetRenderLogicalPresentation(renderer, &width, &height, &mode));
 	assert(width == SDL3_SCREEN_WIDTH && height == TEST_PRESENTATION_HEIGHT &&
@@ -475,6 +597,14 @@ static void test_rendering(void)
 	assert(SDL_SetRenderLogicalPresentation(renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED));
 	SDL_Surface *image = SDL_RenderReadPixels(renderer, NULL);
 	assert(image != NULL);
+	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
+	legacy_u8 red, green, blue, alpha;
+	assert(SDL_ReadSurfacePixel(image, (legacy_int)left.x, (legacy_int)left.y, &red, &green, &blue,
+								&alpha));
+	assert(red != 0 || green != 0 || blue != 0);
+	assert(SDL_ReadSurfacePixel(image, (legacy_int)(TEST_EDGE_MARGIN / 2.0f), (legacy_int)left.y,
+								&red, &green, &blue, &alpha));
+	assert(red == 0 && green == 0 && blue == 0 && alpha == SDL_ALPHA_OPAQUE);
 	assert(SDL_SavePNG(image, "touch-layout.png"));
 	SDL_DestroySurface(image);
 	SDL_DestroyRenderer(renderer);
@@ -492,6 +622,7 @@ legacy_int main(void)
 	test_single_tap_shortcuts();
 	test_gestures_and_pointer();
 	test_game_state_and_rewind();
+	test_layout_visibility_and_taps();
 	test_intro_visibility_and_taps();
 	test_rendering();
 	sdl3_touch_reset();
