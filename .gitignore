@@ -1,4 +1,7 @@
 .venv/
+# Local builds, SDK caches, benchmark traces, and packaged downloads.
+/build/
+/dist/
 out/*
 tools/scripts/dumpsrv/dumpsrv/bin/
 tools/scripts/dumpsrv/dumpsrv/obj/

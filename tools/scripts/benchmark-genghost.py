@@ -27,6 +27,14 @@ DEFAULT_CASES = ("ZCT1", "ZCT2", "ZCT3", "ZCT4", "ZCT5", "ZCT6", "ZCT7",
                  "ZCT8", "ZCT9", "ZCT10", "ZCT20", "ZCT68")
 
 
+def resource_hashes(directory):
+    extensions = {".RES", ".PRE", ".3SH", ".P3S", ".VSH", ".PVS", ".VCE",
+                  ".SFX", ".FNT", ".PES", ".ESH", ".PAL"}
+    return {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(directory.iterdir())
+            if path.is_file() and path.suffix.upper() in extensions}
+
+
 def replay_metadata(name, contents):
     if len(contents) < INPUT_OFFSET:
         raise ValueError(f"Truncated replay: {name}")
@@ -59,14 +67,39 @@ def prepare_suite(args, environment, directory):
                 inventory.append(replay_metadata(name, archive.read(name)))
         directory.mkdir(parents=True, exist_ok=True)
         (directory.parent / "inventory.json").write_text(json.dumps(inventory, indent=2) + "\n")
+        if args.suite:
+            selections = json.loads(args.suite.read_text())
+            if (not isinstance(selections, list) or not selections
+                    or any(not isinstance(item, dict) or not all(isinstance(item.get(field), str) for field in
+                           ("name", "replay", "car", "track_sha256")) for item in selections)):
+                raise ValueError("--suite must contain a nonempty list of case objects with "
+                                 "name, replay, car, and track_sha256")
+            if args.case:
+                requested = set(args.case)
+                selections = [item for item in selections if item.get("name") in requested]
+                if {item["name"] for item in selections} != requested:
+                    raise ValueError("Some requested case names are absent from --suite")
+        else:
+            selections = [{"name": name} for name in args.case or DEFAULT_CASES]
         suite = []
-        for name in args.case or DEFAULT_CASES:
-            references = [item for item in inventory if item["track"] == name]
+        used_names = set()
+        for selection in selections:
+            name = selection["name"]
+            if (not isinstance(name, str) or not name or name in (".", "..")
+                    or "/" in name or "\\" in name or name in used_names):
+                raise ValueError(f"Unsafe or duplicate case name: {name!r}")
+            used_names.add(name)
+            references = [item for item in inventory
+                          if (item["replay"] == selection["replay"] if args.suite
+                              else item["track"] == name)]
             if not references:
-                raise ValueError(f"No golden track named {name}")
-            # The first named replay selects track bytes and car. Other names
-            # referring to the same exact track/car remain eligible human runs.
+                raise ValueError(f"No matching golden replay for {name}")
+            # A manifest selects exact track bytes/car, even when a name was
+            # reused for different tracks. Human scores are always re-simulated.
             reference = references[0]
+            if args.suite and any(selection[field] != reference[field]
+                                  for field in ("car", "track_sha256")):
+                raise ValueError(f"Suite metadata does not match its replay: {name}")
             candidates = [item for item in inventory
                           if item["track_sha256"] == reference["track_sha256"]
                           and item["car"] == reference["car"]
@@ -84,7 +117,7 @@ def prepare_suite(args, environment, directory):
                 json.dumps(verified, indent=2) + "\n")
             if not completed:
                 raise ValueError(f"No compatible completed human replay on {name}")
-            best = min(completed, key=lambda item: item["verified"]["total_frames"])
+            best = min(completed, key=lambda item: (item["verified"]["total_frames"], item["replay"]))
             best = {**best, "name": name, "human_candidates": len(verified),
                     "human_successful": len(completed)}
             (directory / f"{name}.TRK").write_bytes(
@@ -204,6 +237,8 @@ def main():
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--jobs", type=int, choices=(1, 2), default=2)
     parser.add_argument("--case", action="append", help="Golden embedded track name; may repeat")
+    parser.add_argument("--suite", type=Path,
+                        help="Exact replay/car/track JSON manifest from analyze-genghost-replays.py")
     parser.add_argument("--modes", nargs="+", choices=("scratch", "seeded"),
                         default=("scratch", "seeded"))
     parser.add_argument("--physics", action="append", default=[],
@@ -213,24 +248,35 @@ def main():
         setattr(args, field, getattr(args, field).resolve())
     if args.repldump:
         args.repldump = args.repldump.resolve()
+    if args.suite:
+        args.suite = args.suite.resolve()
     if args.seconds <= 0 or (args.evaluations is not None and args.evaluations <= 0):
         parser.error("Search budgets must be positive")
-    if Path(args.label).name != args.label or args.label in (".", ".."):
+    if not args.label or Path(args.label).name != args.label or args.label in (".", ".."):
         parser.error("--label must be a single directory name")
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
+    resources = resource_hashes(args.data_dir)
     corpus = args.output / "corpus"
     suite = prepare_suite(args, environment, corpus)
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
         futures = [pool.submit(benchmark, args, case, mode, environment, corpus)
                    for case in suite for mode in args.modes]
         results = [future.result() for future in futures]
+    if resource_hashes(args.data_dir) != resources:
+        raise ValueError("Game resources changed during the benchmark")
     report = {"binary": str(args.binary), "binary_sha256": hashlib.sha256(args.binary.read_bytes()).hexdigest(),
               "corpus_sha256": hashlib.sha256(args.corpus.read_bytes()).hexdigest(),
+              "data_resource_sha256": resources,
+              "repldump_sha256": hashlib.sha256(args.repldump.read_bytes()).hexdigest() if args.repldump else None,
+              "suite": str(args.suite) if args.suite else None,
+              "suite_sha256": hashlib.sha256(args.suite.read_bytes()).hexdigest() if args.suite else None,
               "comparison": {"human": "Best verified total for the same track bytes and car in this corpus",
                              "scratch": "Track bytes only; no human driving inputs",
                              "seeded": "The best matching human recording supplies starting driving inputs"},
-              "seed": args.seed, "seconds": None if args.evaluations else args.seconds,
+              "seed": args.seed, "jobs": args.jobs, "seconds": None if args.evaluations else args.seconds,
               "evaluations": args.evaluations, "physics": args.physics, "results": results}
     (args.output / args.label / "results.json").write_text(json.dumps(report, indent=2) + "\n")
 

@@ -14,6 +14,8 @@ struct GENGHOST_GENE {
 	double lookahead_scale;
 	double shift_rpm_scale;
 	unsigned int shortcut_skip;
+	unsigned int line_mode;
+	double corner_scale;
 	double powergear_bias;
 	double slide_brake;
 };
@@ -31,6 +33,16 @@ struct GENGHOST_WAYPOINT {
 	int physical_model;
 	int height_specified;
 };
+
+struct GENGHOST_REGION {
+	double min_x, max_x, min_z, max_z;
+};
+
+/* Find the shortest broken line from A through an axis-aligned region to B.
+ * The returned crossing lies in the region; direct crossings advance toward
+ * B as far as possible while remaining inside. */
+void genghost_region_crossing(const struct GENGHOST_REGION *region, double ax, double az, double bx,
+							  double bz, double *px, double *pz);
 
 struct GENGHOST_ROUTE {
 	int *pieces;

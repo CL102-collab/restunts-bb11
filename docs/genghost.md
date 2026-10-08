@@ -90,6 +90,17 @@ sector and regenerates the suffix. A faster sector is useful only when the
 resulting lap completes with a better total score. Branch combinations share
 the budget; large graphs and short budgets can prevent exhaustive refinement.
 
+Unrestricted track-only searches also explore tile-area shortcuts. Ordinary route
+recognition uses the car center within the tile footprint, so the planner can
+cut across grass and barely enter a corner without following the painted road.
+It proposes skipping up to two intervening flat road pieces, with branch and
+finish exceptions decided by the real penalty tracker. A local shortest crossing
+of an inset tile rectangle supplies a steering target; the inset grows with speed
+so the 20 Hz simulation can register contact. Braking follows the proposed line's
+curvature, while elevated pieces, stunts, and the finish retain their guidance.
+OWOOT keeps the road-constrained controller. The objective is still total time:
+a longer line that reaches power gear can beat the shortest physical route.
+
 Input refinement targets control transitions: brake release, turn-in, steering
 corrections, and shifts. It moves individual transitions or entire short pulses
 by a few frames while preserving the other controls. Some candidates realign
@@ -98,6 +109,12 @@ speed, with optional small steering corrections. This allows an improved sector
 to rejoin the demonstrated line despite arriving earlier. Airborne and heavily
 banked sections retain their demonstrated steering. Every such continuation
 still consists of ordinary keyboard inputs and must pass full replay validation.
+
+Road and tile policies retain separate populations and replay parents. They
+share one search budget and saved best result: two road rounds alternate with
+one tile round, with short input-refinement batches for completed routes.
+Independent random streams preserve the road search's sequence. A compatible
+verified replay and OWOOT use the original single search schedule.
 
 The search spends more attempts refining a verified human demonstration. A lap
 found from track geometry receives more fresh driving-policy exploration, so
@@ -145,13 +162,17 @@ selected rules (`seed_replay_finished`), its verified score (`seed_total_frames`
 and counts of policy, input, and trajectory-guided evaluations. Guided evaluations
 are a subset of input evaluations. `guided_improvements` counts independently
 validated improvements to the saved best lap from those guided candidates.
+`tile_evaluations` counts candidates from the tile-policy search, including input
+refinements of its parents; `tile_improvements` counts its verified improvements
+to the shared best lap. Both are zero for OWOOT and a verified human seed.
 A replay-assisted result may preserve most of an expert's original driving;
 it should not be interpreted as an independently discovered racing line.
 
 ## Golden replay benchmark
 
-See the [16-track comparison](genghost-benchmark.md) for measured results and
-the remaining gap between track-only driving and human replay refinement.
+See the [initial 16-track comparison](genghost-benchmark.md) and the
+[expanded replay analysis](genghost-expanded-benchmark.md) for measured results
+and the remaining gap between track-only driving and human replay refinement.
 
 [`benchmark-genghost.py`](../tools/scripts/benchmark-genghost.py) compares track-only
 searches and expert-replay refinement separately. It selects the fastest freshly
@@ -167,6 +188,12 @@ python3 tools/scripts/benchmark-genghost.py \
   --repldump build/genghost-linux/repldump --data-dir stunts \
   --seconds 120 --jobs 2 --output build/golden-benchmark --label local
 ```
+
+Use `analyze-genghost-replays.py` to re-simulate a corpus, reserve disjoint track
+hashes, and measure a sample of human trajectories. Its JSON manifests can be
+passed to the benchmark with `--suite PATH` to select exact track bytes and cars,
+even when embedded track names were reused. It copies only missing resources
+when `--car-assets` is supplied and preserves installed packed/unpacked variants.
 
 Use repeated `--case ZCT1` arguments to select tracks, `--evaluations 2000` for a
 repeatable candidate budget, or `--physics=--pg:off` (and other physics options)

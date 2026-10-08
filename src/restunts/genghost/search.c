@@ -35,14 +35,7 @@ struct route_search {
 	int demonstration;
 };
 
-struct search_context {
-	const struct GENGHOST_OPTIONS *options;
-	struct GENGHOST_SEARCH_RESULT *result;
-	uint32_t random;
-	uint64_t started;
-	uint64_t next_progress;
-	genghost_save_function save;
-	void *save_context;
+struct checkpoint_cache {
 	struct GENGHOST_SNAPSHOT *checkpoints;
 	struct GENGHOST_DRIVER *driver_checkpoints;
 	unsigned int checkpoint_count;
@@ -50,10 +43,40 @@ struct search_context {
 	unsigned short *boundaries;
 	struct GENGHOST_GUIDE_POINT *guide;
 	unsigned int guide_count;
-	int guided_candidate;
 	size_t checkpoint_route;
 	uint64_t checkpoint_trial;
 };
+
+struct search_context {
+	struct checkpoint_cache *cache;
+	struct checkpoint_cache caches[2];
+	const struct GENGHOST_OPTIONS *options;
+	struct GENGHOST_SEARCH_RESULT *result;
+	uint32_t random;
+	uint64_t started;
+	uint64_t next_progress;
+	genghost_save_function save;
+	void *save_context;
+	int guided_candidate;
+	int portal_family;
+};
+
+static int allocate_cache(struct checkpoint_cache *cache)
+{
+	cache->checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->checkpoints));
+	cache->driver_checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->driver_checkpoints));
+	cache->guide = calloc(GENGHOST_MAX_FRAMES, sizeof(*cache->guide));
+	cache->boundaries = malloc(GENGHOST_MAX_FRAMES * sizeof(*cache->boundaries));
+	return !cache->checkpoints || !cache->driver_checkpoints || !cache->guide || !cache->boundaries;
+}
+
+static void free_cache(struct checkpoint_cache *cache)
+{
+	free(cache->checkpoints);
+	free(cache->driver_checkpoints);
+	free(cache->boundaries);
+	free(cache->guide);
+}
 
 static double elapsed(const struct search_context *context)
 {
@@ -105,7 +128,15 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
 		}
 		if (!context->options->owoot && random_word(context) % 4U == 0U) {
-			gene->shortcut_skip = random_word(context) % 5U;
+			unsigned int choice = random_word(context);
+			gene->shortcut_skip = choice % 5U;
+			if (context->portal_family) {
+				double delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
+				gene->corner_scale = clamp(gene->corner_scale + delta * 0.2, 0.5, 1.8);
+			}
+			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
+				gene->line_mode = !gene->line_mode;
+			}
 		}
 		if (context->options->powergear) {
 			gene->powergear_bias =
@@ -122,6 +153,9 @@ static void choose_policy(struct search_context *context, struct route_search *s
 		genghost_policy_default(policy);
 		for (unsigned int i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy->segment[i].speed_scale *= speeds[search->trials];
+			if (context->portal_family) {
+				policy->segment[i].line_mode = 1U;
+			}
 			if (search->trials >= 3U) {
 				policy->segment[i].slide_brake = 0.0;
 			}
@@ -130,6 +164,14 @@ static void choose_policy(struct search_context *context, struct route_search *s
 			}
 			if (search->trials == 5U) {
 				policy->segment[i].powergear_bias = 1.0;
+			}
+			if (context->portal_family) {
+				static const unsigned int skips[POPULATION] = {1U, 2U, 2U, 1U, 1U, 2U};
+				policy->segment[i].speed_scale = search->trials % 2U ? 1.5 : 1.2;
+				policy->segment[i].shortcut_skip = skips[search->trials];
+				policy->segment[i].slide_brake = search->trials >= 4U ? 1.0 : 0.0;
+				policy->segment[i].powergear_bias = search->trials % 2U ? 1.0 : 0.5;
+				policy->segment[i].lateral_offset = 0.0;
 			}
 		}
 		return;
@@ -208,6 +250,9 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 		return -1;
 	}
 	context->result->simulated_frames += verified.frames;
+	if (context->portal_family) {
+		++context->result->tile_improvements;
+	}
 	if (context->guided_candidate) {
 		++context->result->guided_improvements;
 	}
@@ -254,26 +299,27 @@ static unsigned int run_policy(struct search_context *context, const struct GENG
 static void cache_checkpoints(struct search_context *context, size_t route_index,
 							  const struct GENGHOST_ROUTE *route, const struct route_search *search)
 {
-	if (context->checkpoint_count && context->checkpoint_route == route_index &&
-		context->checkpoint_trial == search->revision) {
+	if (context->cache->checkpoint_count && context->cache->checkpoint_route == route_index &&
+		context->cache->checkpoint_trial == search->revision) {
 		return;
 	}
 	genghost_sim_reset();
 	struct GENGHOST_DRIVER driver;
 	genghost_driver_reset(&driver);
-	context->checkpoint_count = 0;
-	context->boundary_count = 0;
-	context->guide_count = 0;
+	context->cache->checkpoint_count = 0;
+	context->cache->boundary_count = 0;
+	context->cache->guide_count = 0;
 	for (unsigned int i = 0; i < search->length; ++i) {
 		if (i && search->best_inputs[i] != search->best_inputs[i - 1U]) {
-			context->boundaries[context->boundary_count++] = (unsigned short)i;
+			context->cache->boundaries[context->cache->boundary_count++] = (unsigned short)i;
 		}
 		if (i % CHECKPOINT_INTERVAL == 0U) {
-			context->driver_checkpoints[context->checkpoint_count] = driver;
-			genghost_sim_capture(&context->checkpoints[context->checkpoint_count++]);
+			context->cache->driver_checkpoints[context->cache->checkpoint_count] = driver;
+			genghost_sim_capture(&context->cache->checkpoints[context->cache->checkpoint_count++]);
 		}
 		if (search->race.finished && i < search->race.finish_frame) {
-			genghost_guide_capture(&context->guide[context->guide_count++], search->best_inputs[i]);
+			genghost_guide_capture(&context->cache->guide[context->cache->guide_count++],
+								   search->best_inputs[i]);
 		}
 		int event = genghost_sim_step(search->best_inputs[i]);
 		if (!search->race.finished) {
@@ -284,8 +330,8 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 			break;
 		}
 	}
-	context->checkpoint_route = route_index;
-	context->checkpoint_trial = search->revision;
+	context->cache->checkpoint_route = route_index;
+	context->cache->checkpoint_trial = search->revision;
 }
 
 /* Human laps encode useful control boundaries: brake entry/release, steering
@@ -303,8 +349,8 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 	*start = random_word(context) % length;
 	unsigned int operation = random_word(context) % 12U;
 	unsigned int boundary =
-		context->boundary_count
-			? context->boundaries[random_word(context) % context->boundary_count]
+		context->cache->boundary_count
+			? context->cache->boundaries[random_word(context) % context->cache->boundary_count]
 			: *start;
 	if (boundary >= length) {
 		boundary = length - 1U;
@@ -420,7 +466,7 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 {
 	cache_checkpoints(context, route_index, route, search);
 	unsigned int start, length = mutate_inputs(context, search, inputs, &start);
-	unsigned int common = 0, parent_length = context->guide_count;
+	unsigned int common = 0, parent_length = context->cache->guide_count;
 	while (common < length && common < parent_length &&
 		   inputs[length - common - 1U] == search->best_inputs[parent_length - common - 1U]) {
 		++common;
@@ -440,19 +486,19 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 		++context->result->guided_evaluations;
 	}
 	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
-	if (checkpoint >= context->checkpoint_count) {
+	if (checkpoint >= context->cache->checkpoint_count) {
 		checkpoint = 0;
 	}
-	genghost_sim_restore(&context->checkpoints[checkpoint]);
-	*driver = context->driver_checkpoints[checkpoint];
+	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
+	*driver = context->cache->driver_checkpoints[checkpoint];
 	unsigned int i = checkpoint * CHECKPOINT_INTERVAL;
 	for (; i < limit; ++i) {
 		if (i % 64U == 0U && expired(context)) {
 			break;
 		}
 		if (guided && i >= changed_end) {
-			inputs[i] = genghost_guide_step(context->guide, context->guide_count, &guide_cursor,
-											search->trials % 16U ? 0.35 : 0.0);
+			inputs[i] = genghost_guide_step(context->cache->guide, context->cache->guide_count,
+											&guide_cursor, search->trials % 16U ? 0.35 : 0.0);
 		}
 		int event = genghost_sim_step(inputs[i]);
 		++context->result->simulated_frames;
@@ -475,13 +521,13 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 	unsigned int rollback = 32U << (random_word(context) % 5U);
 	unsigned int start = search->length > rollback ? search->length - rollback : 0U;
 	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
-	if (checkpoint >= context->checkpoint_count) {
+	if (checkpoint >= context->cache->checkpoint_count) {
 		checkpoint = 0;
 	}
 	unsigned int length = checkpoint * CHECKPOINT_INTERVAL;
 	memcpy(inputs, search->best_inputs, length);
-	genghost_sim_restore(&context->checkpoints[checkpoint]);
-	*driver = context->driver_checkpoints[checkpoint];
+	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
+	*driver = context->cache->driver_checkpoints[checkpoint];
 	*policy = search->best_policy;
 	/* Retain the successful prefix and search the failing sector with a fresh
 	 * speed/line/shift choice. This builds a lap incrementally instead of
@@ -501,7 +547,15 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
 		}
 		if (!context->options->owoot && random_word(context) % 3U == 0U) {
-			gene->shortcut_skip = random_word(context) % 5U;
+			unsigned int choice = random_word(context);
+			gene->shortcut_skip = choice % 5U;
+			if (context->portal_family) {
+				double delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
+				gene->corner_scale = clamp(gene->corner_scale + delta * 0.2, 0.5, 1.8);
+			}
+			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
+				gene->line_mode = !gene->line_mode;
+			}
 		}
 	}
 	unsigned int last_progress_tick = length;
@@ -536,22 +590,26 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	struct search_context context = {0};
 	char error[256];
 	int status = 0;
+	unsigned int family_count = 1U;
+	uint64_t family_round = 0U;
+	uint32_t family_random[2];
 	unsigned char *inputs = malloc(GENGHOST_MAX_FRAMES);
 	struct route_search *searches = NULL;
 	memset(result, 0, sizeof(*result));
+	context.cache = &context.caches[0];
 	context.options = options;
 	context.result = result;
 	context.random = options->seed ? options->seed : 1U;
+	family_random[0] = context.random;
+	family_random[1] = context.random ^ 0x9e3779b9U;
+	if (!family_random[1]) {
+		family_random[1] = 1U;
+	}
 	context.started = SDL_GetTicksNS();
 	context.next_progress = context.started + 5000000000ULL;
 	context.save = save;
 	context.save_context = save_context;
-	context.checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*context.checkpoints));
-	context.driver_checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*context.driver_checkpoints));
-	context.guide = calloc(GENGHOST_MAX_FRAMES, sizeof(*context.guide));
-	context.boundaries = malloc(GENGHOST_MAX_FRAMES * sizeof(*context.boundaries));
-	if (!inputs || !context.checkpoints || !context.driver_checkpoints || !context.boundaries ||
-		!context.guide) {
+	if (!inputs || allocate_cache(context.cache)) {
 		status = -1;
 		goto done;
 	}
@@ -601,12 +659,47 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			seed_parent->demonstration = 1;
 		}
 	}
+	/* Keep an independent tile-line population for unrestricted scratch driving.
+	 * Classic and tile populations have distinct RNG streams and replay parents;
+	 * the best validated output and the overall evaluation/time budget are shared.
+	 * A compatible human demonstration and OWOOT retain the original single-family
+	 * schedule, seed policies and random stream exactly. */
+	if (!options->owoot && !result->seed_finished) {
+		if (routes.count > SIZE_MAX / (2U * sizeof(*searches))) {
+			status = -1;
+			goto done;
+		}
+		struct route_search *grown = realloc(searches, routes.count * 2U * sizeof(*searches));
+		if (!grown) {
+			status = -1;
+			goto done;
+		}
+		searches = grown;
+		memset(searches + routes.count, 0, routes.count * sizeof(*searches));
+		for (size_t i = routes.count; i < routes.count * 2U; ++i) {
+			searches[i].fitness = -DBL_MAX;
+		}
+		if (allocate_cache(&context.caches[1])) {
+			status = -1;
+			goto done;
+		}
+		family_count = 2U;
+	}
 	/* Visit every route each round. Give completed parents a short batch of
 	 * refinements to reuse their checkpoints and human control boundaries,
 	 * while unfinished routes keep receiving policy and repair attempts. */
 	while (!expired(&context)) {
+		/* Two classic route rounds, then one tile route round. Existing per-route
+		 * batching is unchanged; this is one budget, not two full searches. */
+		unsigned int family = family_count > 1U && family_round++ % 3U == 2U;
+		context.portal_family = (int)family;
+		context.cache = &context.caches[family];
+		context.random = family_random[family];
 		for (size_t index = 0; index < routes.count && !expired(&context); ++index) {
-			struct route_search *search = &searches[index];
+			size_t search_index = family * routes.count + index;
+			struct route_search *search = &searches[search_index];
+			struct route_search *companion =
+				family_count > 1U ? &searches[(1U - family) * routes.count + index] : NULL;
 			unsigned int attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
 			for (unsigned int attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
 				struct GENGHOST_POLICY policy;
@@ -622,17 +715,20 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					choose_policy(&context, search, &policy);
 				}
 				unsigned int length =
-					mutation ? run_mutation(&context, index, &routes.routes[index], search, inputs,
-											&driver, &race)
-					: repair ? repair_suffix(&context, index, &routes.routes[index], search,
+					mutation ? run_mutation(&context, search_index, &routes.routes[index], search,
+											inputs, &driver, &race)
+					: repair ? repair_suffix(&context, search_index, &routes.routes[index], search,
 											 &policy, inputs, &driver, &race)
 							 : run_policy(&context, &routes.routes[index], &policy, inputs, &driver,
 										  &race);
-				if (!search->trials) {
+				if (!search->trials && (!companion || !companion->trials)) {
 					++result->routes_attempted;
 				}
 				++search->trials;
 				++result->evaluations;
+				if (family) {
+					++result->tile_evaluations;
+				}
 				if (mutation) {
 					++result->input_evaluations;
 				} else {
@@ -640,7 +736,9 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				}
 				if (race.finished && !search->completed_attempt) {
 					search->completed_attempt = 1;
-					++result->routes_finished;
+					if (!companion || !companion->completed_attempt) {
+						++result->routes_finished;
+					}
 				}
 				double fitness = candidate_fitness(&routes.routes[index], &driver, &race);
 				if (!mutation) {
@@ -663,7 +761,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					search->length = length;
 					++search->revision;
 					memcpy(search->best_inputs, inputs, length);
-					context.checkpoint_count = 0;
+					context.cache->checkpoint_count = 0;
 				}
 				if (save_candidate(&context, inputs, length, &race)) {
 					status = -1;
@@ -680,21 +778,25 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				}
 			}
 		}
+		family_random[family] = context.random;
 	}
 done:
 	result->elapsed_seconds = elapsed(&context);
 	if (searches) {
-		for (size_t i = 0; i < routes.count; ++i) {
+		for (size_t i = 0; i < routes.count * family_count; ++i) {
 			free(searches[i].best_inputs);
 		}
 	}
 	free(searches);
 	free(inputs);
-	free(context.checkpoints);
-	free(context.driver_checkpoints);
-	free(context.boundaries);
-	free(context.guide);
+	free_cache(&context.caches[0]);
+	free_cache(&context.caches[1]);
 	genghost_routes_free(&routes);
+	if (family_count > 1U) {
+		fprintf(stderr, "tile family: %llu candidates, %llu verified improvements\n",
+				(unsigned long long)result->tile_evaluations,
+				(unsigned long long)result->tile_improvements);
+	}
 	if (status) {
 		return status;
 	}

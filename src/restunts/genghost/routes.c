@@ -305,6 +305,8 @@ void genghost_policy_default(struct GENGHOST_POLICY *policy)
 		policy->segment[i].lookahead_scale = 1.0;
 		policy->segment[i].shift_rpm_scale = 1.0;
 		policy->segment[i].shortcut_skip = 0U;
+		policy->segment[i].line_mode = 0U;
+		policy->segment[i].corner_scale = 1.0;
 		policy->segment[i].powergear_bias = 0.5;
 		policy->segment[i].slide_brake = 1.0;
 	}
@@ -398,6 +400,187 @@ static void point_at(const struct GENGHOST_ROUTE *route, double distance, double
 	}
 }
 
+/* These pieces offer flat-road alternatives. Elevated geometry and stunts
+ * retain the original driving line so useful launches remain available. */
+static int open_piece(int piece)
+{
+	unsigned int tile = (unsigned char)track_route_element_ids[piece];
+	int model = trkObjectList[tile].ss_physicalModel;
+	return model >= PHYSICAL_MODEL_ROAD && model <= PHYSICAL_MODEL_CROSSROAD;
+}
+
+/* Penalty recognition checks the car center against the complete tile
+ * footprint, including both rows/columns of multi-tile pieces. */
+static void tile_portal(int piece, double margin, struct GENGHOST_REGION *portal)
+{
+	unsigned int tile = (unsigned char)track_route_element_ids[piece];
+	unsigned int flags = (unsigned char)trkObjectList[tile].ss_multiTileFlag;
+	unsigned int column = (unsigned char)track_route_columns[piece];
+	unsigned int row = (unsigned char)track_route_rows[piece];
+	portal->min_x = column * 1024.0 + margin;
+	portal->max_x = (column + 1U + ((flags & 2U) != 0U)) * 1024.0 - margin;
+	portal->min_z = (29.0 - row - ((flags & 1U) != 0U)) * 1024.0 + margin;
+	portal->max_z = (30U - row) * 1024.0 - margin;
+}
+
+static double portal_cost(double x, double z, double ax, double az, double bx, double bz)
+{
+	return sqrt((x - ax) * (x - ax) + (z - az) * (z - az)) +
+		   sqrt((x - bx) * (x - bx) + (z - bz) * (z - bz));
+}
+
+/* Intersect the direct segment first. Otherwise the shortest broken line
+ * meets a rectangle edge: minimizing the sum of its two distances gives
+ * a weighted interpolation along that edge, clamped at its corners. */
+void genghost_region_crossing(const struct GENGHOST_REGION *portal, double ax, double az, double bx,
+							  double bz, double *px, double *pz)
+{
+	double enter = 0.0, leave = 1.0;
+	double delta[2] = {bx - ax, bz - az}, start[2] = {ax, az};
+	double minimum[2] = {portal->min_x, portal->min_z}, maximum[2] = {portal->max_x, portal->max_z};
+	int crosses = 1;
+	for (unsigned int axis = 0U; axis < 2U; axis++) {
+		if (delta[axis] == 0.0) {
+			if (start[axis] < minimum[axis] || start[axis] > maximum[axis]) {
+				crosses = 0;
+			}
+		} else {
+			double a = (minimum[axis] - start[axis]) / delta[axis],
+				   b = (maximum[axis] - start[axis]) / delta[axis];
+			if (a > b) {
+				double swap = a;
+				a = b;
+				b = swap;
+			}
+			enter = fmax(enter, a);
+			leave = fmin(leave, b);
+		}
+	}
+	if (crosses && enter <= leave && leave >= 0.0 && enter <= 1.0) {
+		*px = ax + delta[0] * leave;
+		*pz = az + delta[1] * leave;
+		return;
+	}
+	double best = DBL_MAX, furthest = -1.0;
+	for (unsigned int edge = 0U; edge < 4U; edge++) {
+		double x, z;
+		if (edge < 2U) {
+			x = edge ? portal->max_x : portal->min_x;
+			double da = fabs(x - ax), db = fabs(x - bx), denominator = da + db;
+			z = bounded(denominator > 0.0 ? (db * az + da * bz) / denominator : bz, portal->min_z,
+						portal->max_z);
+		} else {
+			z = edge == 3U ? portal->max_z : portal->min_z;
+			double da = fabs(z - az), db = fabs(z - bz), denominator = da + db;
+			x = bounded(denominator > 0.0 ? (db * ax + da * bx) / denominator : bx, portal->min_x,
+						portal->max_x);
+		}
+		double cost = portal_cost(x, z, ax, az, bx, bz);
+		double distance = (x - ax) * (x - ax) + (z - az) * (z - az);
+		if (cost < best - 0.000001 || (fabs(cost - best) <= 0.000001 && distance > furthest)) {
+			best = cost;
+			furthest = distance;
+			*px = x;
+			*pz = z;
+		}
+	}
+}
+
+static int shortcut_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						   unsigned int advance, double speed, struct GENGHOST_WAYPOINT *target)
+{
+	int confirmed = state.game_player_confirmed_route;
+	size_t current = 0U;
+	for (; current + 1U < route->piece_count; current++) {
+		if (route->pieces[current] == confirmed) {
+			break;
+		}
+	}
+	if (current + 1U >= route->piece_count) {
+		return 0;
+	}
+	/* The finish tile must be crossed through its actual finish plane. */
+	if (confirmed == 0 && driver->progress > route->length * 0.5) {
+		return 0;
+	}
+	size_t next = current + 1U;
+	if (!open_piece(route->pieces[current]) && confirmed != 0) {
+		return 0;
+	}
+	/* On a simple branch the native penalty state normally confirms the
+  * third successor without charging for the two intervening pieces.
+  * Branches and finish handling can differ; simulation decides the score. */
+	if (advance > 3U) {
+		advance = 3U;
+	}
+	for (unsigned int n = 1U; n < advance && next + 1U < route->piece_count; n++) {
+		if (!open_piece(route->pieces[next]) || !open_piece(route->pieces[next + 1U])) {
+			break;
+		}
+		next++;
+	}
+	if (!open_piece(route->pieces[next])) {
+		return 0;
+	}
+	size_t future = next + 1U;
+	if (future >= route->piece_count) {
+		return 0;
+	}
+	if (!open_piece(route->pieces[future])) {
+		return 0;
+	}
+	for (unsigned int n = 1U; n < advance && future + 1U < route->piece_count; n++) {
+		if (!open_piece(route->pieces[future + 1U])) {
+			break;
+		}
+		future++;
+	}
+	/* One input tick travels about speed*0.367 units. Leave enough inset
+  * to give discrete 20 Hz sampling a chance to register a corner touch. */
+	double margin = bounded(40.0 + speed * 0.4, 48.0, 160.0);
+	struct GENGHOST_REGION first, second;
+	tile_portal(route->pieces[next], margin, &first);
+	tile_portal(route->pieces[future], margin, &second);
+	double x = state.playerstate.car_position.lx / 64.0,
+		   z = state.playerstate.car_position.lz / 64.0;
+	struct GENGHOST_REGION origin;
+	tile_portal(route->pieces[current], 0.0, &origin);
+	/* A grass crossing can be far from the painted road while still following
+  * its chosen tile corridor. Outside that corridor use normal recovery. */
+	if (x < fmin(origin.min_x, first.min_x) - 512.0 ||
+		x > fmax(origin.max_x, first.max_x) + 512.0 ||
+		z < fmin(origin.min_z, first.min_z) - 512.0 ||
+		z > fmax(origin.max_z, first.max_z) + 512.0) {
+		return 0;
+	}
+	double bx = (second.min_x + second.max_x) * 0.5, bz = (second.min_z + second.max_z) * 0.5;
+	double tx = bx, tz = bz;
+	genghost_region_crossing(&first, x, z, bx, bz, &tx, &tz);
+	target->x = tx;
+	target->z = tz;
+	target->height_specified = 0;
+	target->distance = driver->progress;
+	for (size_t i = driver->waypoint; i < route->point_count; i++) {
+		if (route->points[i].piece == route->pieces[next]) {
+			target->distance = route->points[i].distance;
+			break;
+		}
+	}
+	struct GENGHOST_WAYPOINT from = *target, to = *target;
+	from.x = x;
+	from.z = z;
+	to.x = bx;
+	to.z = bz;
+	double curvature = point_curvature(&from, target, &to);
+	double angle = 4.0 * atan(wheelbase() * curvature) * GENGHOST_ANGLE_SCALE;
+	double grip = (double)simd_player.grip * 2.0 * simd_player.surface_grip[3] / 256.0;
+	if (grip < 1.0) {
+		grip = 1200.0;
+	}
+	target->speed = bounded(sqrt(512.0 * grip / (angle + 8.0)) * 0.88, 30.0, 250.0);
+	return 1;
+}
+
 int genghost_powergear_kind(void)
 {
 	int mass = simd_player.car_mass;
@@ -461,7 +644,7 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		lookahead = fmin(lookahead, 260.0);
 	}
 	double target_distance = driver->progress + lookahead;
-	if (!owoot && gene->shortcut_skip != 0U) {
+	if (!owoot && gene->line_mode == 0U && gene->shortcut_skip != 0U) {
 		unsigned int remaining = gene->shortcut_skip;
 		int piece = route->points[driver->waypoint].piece;
 		for (size_t i = driver->waypoint + 1U; i < route->point_count; i++) {
@@ -477,6 +660,8 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	struct GENGHOST_WAYPOINT target;
 	point_at(route, target_distance,
 			 bounded(gene->lateral_offset, owoot ? -0.8 : -5.0, owoot ? 0.8 : 5.0), &target);
+	int planned_shortcut = !owoot && gene->line_mode != 0U &&
+						   shortcut_target(route, driver, gene->shortcut_skip + 1U, speed, &target);
 	double world_x = target.x - car->car_position.lx / 64.0;
 	double world_z = target.z - car->car_position.lz / 64.0;
 	double world_y = target.height_specified ? target.y - car->car_position.ly / 64.0 : 0.0;
@@ -504,6 +689,11 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	 * improves braking, so it need not be guessed here. */
 	double braking = fmax(0.15, simd_player.braking_eff / 256.0) * 0.80;
 	double braking_coefficient = 2.0 * braking / GENGHOST_MPH_TRAVEL;
+	if (planned_shortcut) {
+		double available = fmax(0.0, sqrt(world_x * world_x + world_z * world_z) - 140.0);
+		double limit = target.speed * bounded(gene->corner_scale, 0.35, 2.5);
+		target_speed = fmin(target_speed, sqrt(limit * limit + braking_coefficient * available));
+	}
 	int useful_pg = powergear_enabled ? genghost_powergear_kind() : 0;
 	int pg_feature_ahead = 0;
 	for (size_t i = driver->waypoint; i < route->point_count; i++) {
@@ -518,6 +708,9 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		const struct GENGHOST_GENE *future =
 			&policy->segment[policy_segment(route, point->distance)];
 		double limit = point->speed * bounded(future->speed_scale, 0.35, 2.5);
+		if (planned_shortcut && point->distance < target.distance && open_piece(point->piece)) {
+			limit = 250.0;
+		}
 		/* Keep the first feasible seed fast enough to cross upside-down parts;
 		 * later mutations can still explore much faster entries and launches. */
 		if (stunt_model(point->physical_model)) {
@@ -541,7 +734,7 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 			pg_feature_ahead = 1;
 		}
 	}
-	if (local.z < -30 || driver->off_route > 500.0) {
+	if (local.z < -30 || (driver->off_route > 500.0 && !planned_shortcut)) {
 		target_speed = fmin(target_speed, 38.0);
 	}
 	/* Human laps sustain controlled slides under throttle. Keep the safer

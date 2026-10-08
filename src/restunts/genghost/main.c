@@ -200,12 +200,15 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fprintf(file,
 			",\n  \"seed_replay_finished\": %s,\n  \"seed_total_frames\": %u,\n"
 			"  \"policy_evaluations\": %llu,\n  \"input_evaluations\": %llu,\n"
-			"  \"guided_evaluations\": %llu,\n  \"guided_improvements\": %llu",
+			"  \"guided_evaluations\": %llu,\n  \"guided_improvements\": %llu,\n"
+			"  \"tile_evaluations\": %llu,\n  \"tile_improvements\": %llu",
 			result->seed_finished ? "true" : "false", result->seed_total_frames,
 			(unsigned long long)result->policy_evaluations,
 			(unsigned long long)result->input_evaluations,
 			(unsigned long long)result->guided_evaluations,
-			(unsigned long long)result->guided_improvements);
+			(unsigned long long)result->guided_improvements,
+			(unsigned long long)result->tile_evaluations,
+			(unsigned long long)result->tile_improvements);
 	fprintf(
 		file,
 		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "

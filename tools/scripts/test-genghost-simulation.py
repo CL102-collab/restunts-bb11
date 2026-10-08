@@ -24,6 +24,8 @@ PHYSICS_MODES = (
 
 def main():
     simulation, repldump, data_directory, corpus = (Path(argument).resolve() for argument in sys.argv[1:])
+    # Geometry tests are independent of the proprietary game resources.
+    subprocess.run([str(simulation), "--geometry-only"], check=True, timeout=30)
     available = {path.name.upper(): path for path in data_directory.iterdir()} if data_directory.is_dir() else {}
     required = (("GAME.RES", "GAME.PRE"), ("CARLM02.RES", "CARLM02.PRE"),
                 ("STLM02.P3S", "STLM02.3SH"))

@@ -85,6 +85,8 @@ def main():
             assert report["finished"] and not report["globally_optimal"]
             assert 0 <= report["guided_improvements"] <= report["guided_evaluations"] <= report["input_evaluations"]
             assert report["policy_evaluations"] + report["input_evaluations"] <= evaluations
+            assert 0 <= report["tile_improvements"] <= report["tile_evaluations"] <= evaluations
+            assert report["routes_finished"] <= report["routes_attempted"] <= report["route_combinations"]
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                                          "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
@@ -104,6 +106,7 @@ def main():
             report.pop("search_seconds")
             assert report["route_combinations"] == 2 and report["routes_attempted"] == 2
             assert not report["seed_replay_finished"] and report["seed_total_frames"] == 0
+            assert report["tile_evaluations"] > 0, "Tile-line search was not exercised"
             assert report["policy_evaluations"] + report["input_evaluations"] == report["evaluations"]
         assert first_report == second_report, "Repeatable search metrics differ"
         assert first[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET] == track
@@ -115,6 +118,7 @@ def main():
         assert extracted[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET] == default[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET]
         _, clean_report = generate("track.TRK", "COUN", "clean.RPL", 2000, RESTRICTED)
         assert clean_report["route_combinations"] == 2 and clean_report["routes_attempted"] == 2
+        assert clean_report["tile_evaluations"] == clean_report["tile_improvements"] == 0
         print("Replay track extraction and OWOOT with all three bug fixes passed", flush=True)
 
         (temporary / "seed.RPL").write_bytes(seed)
@@ -124,6 +128,7 @@ def main():
         assert seeded_report["seed_replay_finished"] and seeded_report["seed_total_frames"] == seed_score
         assert seeded_report["policy_evaluations"] + seeded_report["input_evaluations"] + 1 == 100
         assert seeded_report["guided_evaluations"] > 0, "Seed refinement did not exercise trajectory guidance"
+        assert seeded_report["tile_evaluations"] == seeded_report["tile_improvements"] == 0
 
         # The game's picker ignores filenames longer than twelve bytes. Default
         # outputs must remain selectable even with a long or unusual source name.
