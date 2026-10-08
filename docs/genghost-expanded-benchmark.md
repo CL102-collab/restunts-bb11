@@ -1,7 +1,10 @@
 # Expanded replay analysis and tile shortcuts
 
-This follow-up compares the tile-aware search with `4e8d398`, the previous
-expert-trajectory optimizer. The golden replay archive is unchanged.
+This follow-up compares the default tile-area search with `4e8d398`, the previous
+expert-trajectory optimizer. Tile shortcuts compete with road-following and
+power-gear strategies within the normal search; there is no separate runtime
+option. The measured results are mixed, as detailed below. The golden replay
+archive is unchanged.
 Track-only searches receive track bytes, car resources, and the game rules;
 replay-assisted searches additionally receive a compatible human recording.
 Those results are reported separately.
@@ -103,6 +106,79 @@ tile semantics, mixing all policies into one small population, and extra
 completed-sector policy repair. They helped selected cases but regressed the
 broader tuning sample. Separate corner speed control prevents the fast tile
 seed profiles from also demanding excessive speed through their turns.
+
+## Reserved tracks: 5,000 evaluations
+
+The numerical algorithm was frozen before inspecting these 16 cases. Both
+versions used seed 1 and the same 5,000-candidate budget, resources, physics,
+transmission, and human reference. Both finished all 16 track-only searches.
+The new version won four, tied one, and lost 11. Combined time was effectively
+unchanged: 2,303.20 to 2,303.45 seconds (+0.011%). Median gap to the compatible
+human reference increased from 41.819% to 45.333%. This does not establish an
+overall autonomous speed improvement on unseen tracks.
+
+Human-seeded results were identical between versions on all 16 cases, as
+expected from retaining their search schedule. Twelve improved the reference
+and four matched it. These are replay-assisted results; the new tile planner
+does not receive credit for improvements already achieved by the baseline.
+All 64 generated finishes agreed with independent `repldump` playback.
+Times below are seconds, including penalties.
+
+| Track | Car | Human | Previous scratch | New scratch | New seeded | New scratch penalty |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| ZCT94 | LM02 | 119.35 | 157.80 | 161.90 | 119.15 | 0.00 |
+| FTT0105 | ANSX | 45.50 | 123.45 | 118.75 | 45.05 | 0.00 |
+| ZCT171 | FGTO | 96.20 | 229.40 | 233.35 | 96.15 | 0.00 |
+| ZCT93 | JAGU | 72.40 | 105.40 | 104.50 | 72.40 | 0.00 |
+| HAVANA | COUN | 56.65 | 123.30 | 98.10 | 56.55 | 0.00 |
+| ZCT103 | AUDI | 84.10 | 201.50 | 201.50 | 84.10 | 195.00 |
+| ZCT149 | P962 | 66.50 | 108.70 | 103.95 | 66.50 | 0.00 |
+| ZCT201 | VETT | 134.45 | 190.65 | 201.30 | 134.40 | 0.00 |
+| ZCT184 | CDOR | 200.30 | 153.25 | 155.00 | 153.25 | 0.00 |
+| R4K22 | F456 | 93.40 | 7.40 | 7.65 | 5.50 | 0.00 |
+| CCCT03R1 | LANI | 302.40 | 181.15 | 183.65 | 186.20 | 0.00 |
+| R4K84 | OXIA | 108.45 | 151.75 | 153.40 | 108.45 | 0.00 |
+| R4K74 | TCTO | 70.90 | 8.45 | 8.80 | 70.85 | 0.00 |
+| ZCT174 | ZF40 | 94.65 | 134.25 | 138.50 | 94.45 | 0.00 |
+| R4K62 | ZMP4 | 174.45 | 273.75 | 277.15 | 173.90 | 0.00 |
+| R4K53 | P962 | 113.05 | 153.00 | 155.95 | 113.00 | 0.00 |
+
+The unrestricted engine accepts very short finishes on some custom-car tracks,
+including R4K22 and R4K74. Independent playback confirms those scores; they
+measure accepted shortcuts or exploits rather than conventional full-road laps.
+The archive does not encode external competition rules, and no additional
+competition constraints are inferred here. ZCT103/AUDI's scratch result includes
+195 seconds of penalty; the tuning sample's zero-penalty result does not extend
+to every validation case.
+
+## Timed follow-up and limits
+
+The first four reserved cases were selected in advance for 60-second track-only
+searches. Paired runs used four synchronized workers on the four-core host, with
+all build and cross-platform validation workers idle. Both versions completed
+all four cases. The new search regressed on all four; combined time
+increased from 571.50 to 576.10 seconds (+0.805%).
+
+| Track | Car | Previous, 60 s | New search, 60 s |
+| --- | --- | ---: | ---: |
+| ZCT94 | LM02 | 149.00 | 149.55 |
+| FTT0105 | ANSX | 110.20 | 110.45 |
+| ZCT171 | FGTO | 219.10 | 220.70 |
+| ZCT93 | JAGU | 93.20 | 95.40 |
+
+All 72 completed outputs across the fixed-candidate and timed phases passed
+independent playback. These results show the cost of allocating part of a finite
+budget to an additional strategy. Tile shortcuts remain part of the default
+search and compete on verified total time, including after reaching power gear.
+A shorter line can win, but preserving a fast power-gear approach can also win.
+No route parameters were retuned using reserved results. The 30-minute default
+budget was not benchmarked in this comparison.
+
+Regression validation covers checkpoint/replay identity on five fixtures under
+six physics configurations, 1,000 independent numerical rectangle cases,
+deterministic searches, both branches, seed preservation, and the replay limit.
+Linux, Windows, and packaged ARMv7 Android native searches were cross-checked
+with independent playback. The Android UI has not been tested on a device.
 
 ## Reproducing the analysis
 
