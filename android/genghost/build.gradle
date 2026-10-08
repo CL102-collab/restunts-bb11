@@ -1,0 +1,86 @@
+plugins {
+    id 'com.android.application'
+}
+
+def toolchain = new Properties()
+rootProject.file('toolchain.properties').withInputStream { toolchain.load(it) }
+def sharedJava = file('../app/src/main/java')
+def storageSources = layout.buildDirectory.dir('generated/storage-java')
+def prepareStorage = tasks.register('prepareGenghostStorageJava', Sync) {
+    from(sharedJava) {
+        include 'org/restunts/android/GameDataStorage.java'
+        include 'org/restunts/android/GameDataSync.java'
+        include 'org/restunts/android/GameDataVersion.java'
+        include 'org/restunts/android/GameDataImport.java'
+        include 'org/restunts/android/GameFolder.java'
+        include 'org/restunts/android/LocalGameFolder.java'
+    }
+    into storageSources
+}
+
+android {
+    namespace 'org.restunts.genghost'
+    compileSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
+    buildToolsVersion toolchain.getProperty('ANDROID_BUILD_TOOLS')
+    ndkVersion toolchain.getProperty('ANDROID_NDK')
+
+    defaultConfig {
+        applicationId 'org.restunts.genghost'
+        minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
+        targetSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
+        versionCode 1
+        versionName '1.0'
+        ndk { abiFilters 'armeabi-v7a' }
+        externalNativeBuild {
+            cmake {
+                arguments '-DRESTUNTS_GENGHOST_ONLY=ON', '-DRESTUNTS_BUILD_TESTS=OFF',
+                    '-DANDROID_STL=c++_static',
+                    "-DFETCHCONTENT_SOURCE_DIR_SDL3=${file('../../out/android-deps/sdl').absolutePath}"
+                targets 'genghost'
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    sourceSets.main {
+        assets.srcDirs 'generated-assets'
+        java.srcDir storageSources
+    }
+    externalNativeBuild {
+        cmake {
+            def androidBuildRoot = providers.gradleProperty('restuntsAndroidBuildRoot')
+            if (androidBuildRoot.isPresent()) {
+                buildStagingDirectory file("${androidBuildRoot.get()}/genghost/.cxx")
+            }
+            path '../../CMakeLists.txt'
+            version toolchain.getProperty('ANDROID_CMAKE')
+        }
+    }
+    buildTypes {
+        debug {
+            debuggable true
+            jniDebuggable true
+            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Debug',
+                "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${layout.buildDirectory.get().asFile}/native-executable/debug/armeabi-v7a"
+        }
+        release {
+            minifyEnabled false
+            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Release',
+                "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${layout.buildDirectory.get().asFile}/native-executable/release/armeabi-v7a"
+        }
+    }
+    // AGP recognizes the lib*.so executable in its CMake model. Its parent directory must be
+    // the ABI name, and it must have only that one packaging source to avoid duplicate entries.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += ['**/libgenghost_exec.so']
+        }
+    }
+}
+
+// Copy a narrow source set instead of exposing the game Activity and its SDL Java dependency.
+tasks.named('preBuild').configure { dependsOn prepareStorage }

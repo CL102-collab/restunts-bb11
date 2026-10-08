@@ -118,6 +118,20 @@ def main():
         _, seeded_report = generate("seed.RPL", "LM02", "seeded.RPL", 100)
         assert seeded_report["total_frames"] <= seed_score, "Search regressed its valid input replay"
 
+        # The game's picker ignores filenames longer than twelve bytes. Default
+        # outputs must remain selectable even with a long or unusual source name.
+        for source, destination in (("seed.RPL", "SEE-LM02.rpl"),
+                                    ("a b long.RPL", "A_B-LM02.rpl"),
+                                    ("x.RPL", "X-LM02.rpl")):
+            (temporary / source).write_bytes(seed)
+            run([source, "LM02", "--evaluations", "1"])
+            generated = temporary / destination
+            assert generated.is_file(), f"Missing default replay {destination}"
+            assert len(generated.stem) <= 8 and len(generated.name.encode("ascii")) <= 12
+            assert generated.suffix.lower() == ".rpl"
+            assert verify(generated, "LM02")["total_frames"] <= seed_score
+        print("Default DOS 8.3 replay names remain selectable in the game", flush=True)
+
         # Waiting until the recording limit is legal. Keep the final finishing
         # input but remove trailing replay padding: this caught zero-sized windows.
         late = bytearray(seed[:REPLAY_INPUT_OFFSET] + (bytes(9709) + seed[REPLAY_INPUT_OFFSET:])[:12000])

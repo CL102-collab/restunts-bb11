@@ -39,6 +39,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "NetBSD")
 endif()
 
 option(RESTUNTS_SYSTEM_SDL "Use an installed SDL3 instead of the pinned source" OFF)
+option(RESTUNTS_GENGHOST_ONLY "Build only the headless ghost generator" OFF)
+if(RESTUNTS_GENGHOST_ONLY AND (EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "DOS"))
+    message(FATAL_ERROR "The standalone ghost generator requires a native SDL3 target")
+endif()
+if(ANDROID AND RESTUNTS_GENGHOST_ONLY)
+    # Static SDL contains C++ Android JNI stubs even with HID support disabled.
+    enable_language(CXX)
+endif()
 if(ANDROID)
     # Keep installable debug APKs fast enough for older ARM phones, with debug symbols.
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O2")
@@ -121,7 +129,16 @@ if(RESTUNTS_SYSTEM_SDL)
     find_package(SDL3 3.4 REQUIRED CONFIG)
 else()
     include(FetchContent)
-    if(ANDROID)
+    if(ANDROID AND RESTUNTS_GENGHOST_ONLY)
+        # The generator is a separate command-line process, with no Java/SDL activity.
+        set(SDL_SHARED OFF CACHE BOOL "Bundle SDL in the Android generator" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "Bundle SDL in the Android generator" FORCE)
+        set(SDL_ANDROID_JAR OFF CACHE BOOL "The generator has no SDL Java glue" FORCE)
+        foreach(subsystem AUDIO VIDEO GPU RENDER CAMERA JOYSTICK HAPTIC HIDAPI POWER
+                SENSOR DIALOG TRAY NOTIFICATION)
+            set(SDL_${subsystem} OFF CACHE BOOL "Headless Android generator" FORCE)
+        endforeach()
+    elseif(ANDROID)
         set(SDL_SHARED ON CACHE BOOL "Android JNI loads shared SDL" FORCE)
         set(SDL_STATIC OFF CACHE BOOL "Android JNI loads shared SDL" FORCE)
     else()
@@ -200,6 +217,32 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         -Wall -Wextra -Wno-pointer-sign -Wno-missing-field-initializers -Wno-missing-braces)
 endif()
 target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
+
+function(restunts_add_genghost)
+    # The optimizer shares repldump's physics and owns its command-line entry point.
+    add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
+        src/restunts/genghost/main.c src/restunts/genghost/simulation.c
+        src/restunts/genghost/routes.c src/restunts/genghost/search.c)
+    target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
+    target_link_libraries(genghost PRIVATE restunts_options)
+    if(ANDROID)
+        # Android permits execution from an APK's extracted native-library directory.
+        # This is still a PIE executable, named as a library solely for APK packaging.
+        set_target_properties(genghost PROPERTIES PREFIX "lib" OUTPUT_NAME genghost_exec
+            SUFFIX ".so")
+    endif()
+    install(TARGETS genghost RUNTIME DESTINATION bin COMPONENT Runtime)
+    install(FILES docs/genghost.md DESTINATION share/docs/restunts COMPONENT Runtime)
+endfunction()
+
+if(RESTUNTS_GENGHOST_ONLY)
+    restunts_add_genghost()
+    if(NOT RESTUNTS_SYSTEM_SDL)
+        install(FILES "${SDL3_SOURCE_DIR}/LICENSE.txt"
+            DESTINATION share/licenses/restunts RENAME SDL-LICENSE.txt COMPONENT Runtime)
+    endif()
+    return()
+endif()
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(NUKED_OPL2_SSE2 ${RESTUNTS_SSE2} CACHE BOOL "Match the game's x86 instruction set" FORCE)
@@ -318,15 +361,7 @@ target_compile_definitions(repldump PRIVATE RESTUNTS_HEADLESS)
 target_link_libraries(repldump PRIVATE restunts_options)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
-    # The offline optimizer uses the same headless physics as repldump. Its own
-    # entry point preserves track and output paths before loading game resources.
-    add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
-        src/restunts/genghost/main.c src/restunts/genghost/simulation.c
-        src/restunts/genghost/routes.c src/restunts/genghost/search.c)
-    target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
-    target_link_libraries(genghost PRIVATE restunts_options)
-    install(TARGETS genghost RUNTIME DESTINATION bin COMPONENT Runtime)
-    install(FILES docs/genghost.md DESTINATION share/docs/restunts COMPONENT Runtime)
+    restunts_add_genghost()
 endif()
 
 add_executable(pixldump ${platform}/main.c src/restunts/pixldump/pixldump.c

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <permission android:name="org.restunts.genghost.permission.STATE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="org.restunts.genghost.permission.STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application android:label="Genghost" android:allowBackup="false"
+        android:icon="@drawable/ic_genghost" android:theme="@style/GenghostTheme"
+        android:extractNativeLibs="true" android:supportsRtl="true">
+        <activity android:name=".GenghostActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name=".GeneratorService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+    </application>
+</manifest>

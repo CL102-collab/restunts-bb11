@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "../../c/platform.h"
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(RESTUNTS_HEADLESS)
 #include <jni.h>
 #include <SDL3/SDL.h>
 #endif
@@ -19,7 +19,13 @@
 #define FILE_PATH_SIZE 1024U
 #define FILE_NAME_SIZE 13U
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && defined(RESTUNTS_HEADLESS)
+void android_saved_file_written(const legacy_s8 *path)
+{
+	/* The Android launcher publishes the command-line process's completed output. */
+	(void)path;
+}
+#elif defined(__ANDROID__)
 static const legacy_char android_save_method[] = "persistSavedFile";
 static const legacy_char android_save_signature[] = "(Ljava/lang/String;)V";
 

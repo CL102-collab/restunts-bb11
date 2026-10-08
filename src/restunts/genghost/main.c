@@ -26,7 +26,7 @@ struct output_context {
 static const char help[] =
 	"genghost - offline, headless Stunts ghost generator\n"
 	"Usage: genghost [--data-dir DIR] TRACK[.TRK|.RPL] CAR [options]\n\n"
-	"  --output FILE          Replay destination (default TRACK-CAR-ghost.rpl).\n"
+	"  --output FILE          Replay destination (default TRK-CAR.rpl, DOS 8.3).\n"
 	"  --seconds N            Search budget; default 1800 seconds, 0 until stopped.\n"
 	"  --evaluations N        Deterministic candidate budget (disables default timer).\n"
 	"  --seed N               Search random seed; default 1.\n"
@@ -429,8 +429,16 @@ int main(int argc, char **argv)
 	if (output_argument) {
 		output = join_path(cwd, output_argument);
 	} else {
-		char default_name[280];
-		snprintf(default_name, sizeof(default_name), "%s-%s-ghost.rpl", track_name, car);
+		/* The game's replay picker only enumerates DOS 8.3 filenames. */
+		char prefix[4] = {0}, default_name[13];
+		for (unsigned int i = 0; i < 3U && track_name[i]; ++i) {
+			unsigned char letter = (unsigned char)toupper((unsigned char)track_name[i]);
+			prefix[i] = '_';
+			if ((letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')) {
+				prefix[i] = (char)letter;
+			}
+		}
+		snprintf(default_name, sizeof(default_name), "%s-%s.rpl", prefix, car);
 		output = join_path(cwd, default_name);
 	}
 	if (!output) {
@@ -441,6 +449,11 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	SDL_SetMainReady();
+#ifdef __ANDROID__
+	/* This executable runs without SDLActivity or a Java VM. Do not ask SDL to
+	 * discover its application name through Android's Java context. */
+	SDL_SetAppMetadata("genghost", RESTUNTS_GIT_HASH, "org.restunts.genghost");
+#endif
 	sdl3_batch_mode = 1;
 	if (!SDL_Init(0)) {
 		fprintf(stderr, "SDL initialization: %s\n", SDL_GetError());

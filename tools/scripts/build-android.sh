@@ -53,6 +53,6 @@ python3 "$restunts_root/tools/scripts/prepare-android.py"
 # Bash 3.2 treats an empty array expansion as unset with nounset.
 if [[ ${#gradle_options[@]} -gt 0 ]]; then
     exec "$restunts_root/out/android-gradle/gradlew" -p "$restunts_root/android" \
-        "$task" "${gradle_options[@]}"
+        ":app:$task" "${gradle_options[@]}"
 fi
-exec "$restunts_root/out/android-gradle/gradlew" -p "$restunts_root/android" "$task"
+exec "$restunts_root/out/android-gradle/gradlew" -p "$restunts_root/android" ":app:$task"

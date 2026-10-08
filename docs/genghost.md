@@ -1,9 +1,10 @@
 # Offline ghost generation
 
 `genghost` searches for driving inputs and writes a standard Stunts replay that
-Restunts can load for playback or use as a ghost. It is a desktop SDL3 tool,
-built alongside `repldump` and `pixldump`: `genghost` on Linux and
-`genghost.exe` on Windows. The search runs locally without network access,
+Restunts can load for playback or use as a ghost. It is an SDL3 tool built
+alongside `repldump` and `pixldump`: `genghost` on Linux and `genghost.exe`
+on Windows. An [Android app](genghost-android.md) packages the same headless
+generator with track and car controls. The search runs locally without network access,
 language models, or an external AI service. Original game resources and the
 selected car's resources must be available in the game data directory.
 
@@ -20,6 +21,12 @@ spaces. `--data-dir` can appear anywhere. Relative input paths are searched in
 the original working directory, then the data directory. Relative output
 paths always refer to the original working directory.
 
+The default output uses a DOS 8.3 filename so the game's replay picker can
+list it: `DEFAULT.TRK COUN` produces `DEF-COUN.rpl`. The prefix takes the first
+three track-name characters (or fewer for a shorter name), uppercases letters,
+and replaces non-alphanumeric characters with `_`. With `--output`, use a
+basename of at most eight characters followed by `.rpl` for in-game selection.
+
 The two positional arguments are a track source and a four-character car code.
 The source may be a `.TRK` file or a `.RPL` file containing an embedded track.
 The car code selects the installed car resources, for example `COUN` or `DIA3`.
@@ -29,7 +36,7 @@ different car.
 | Option | Purpose |
 | --- | --- |
 | `--data-dir DIR` | Game resource directory; defaults to the working directory. |
-| `--output FILE` | Destination replay; defaults to `TRACK-CAR-ghost.rpl`. |
+| `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` using the shortened track prefix above. |
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
