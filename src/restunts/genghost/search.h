@@ -20,6 +20,8 @@ struct GENGHOST_SEARCH_RESULT {
 	uint64_t evaluations, simulated_frames;
 	uint64_t policy_evaluations, input_evaluations, guided_evaluations, guided_improvements;
 	uint64_t tile_evaluations, tile_improvements;
+	uint64_t tactic_evaluations, tactic_improvements;
+	uint64_t dualway_pairs, dualway_evaluations, dualway_improvements;
 	unsigned int seed_total_frames;
 	int seed_finished;
 	size_t routes, routes_attempted, routes_finished;

@@ -35,6 +35,7 @@ def main():
         return 77
     with zipfile.ZipFile(corpus) as archive:
         fixtures = [("0000", archive.read("0000.rpl"))]
+        controller_fixtures = []
         # Exercise guidance identity through rigid/flexible power gear and the
         # modern jump-heavy Jaguar lap, when their optional assets are installed.
         for name, car in (("0027", "VETT"), ("0066", "PMIN"), ("3856", "JAGU")):
@@ -42,12 +43,41 @@ def main():
             car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
             if car_data and car_shape:
                 fixtures.append((name, archive.read(name + ".rpl")))
+        # Fastest verified archive laps for these tracks. Preserve each car's
+        # actual dimensions and native stunt orientation in the restriction
+        # checks: loop rotations 0/256, slalom stones, and clear UD core.
+        for name, car, prefix, model in (("1572", "ZGT3", 838, 27),
+                                         ("o0226", "VETT", 469, 34),
+                                         ("o0226", "VETT", 780, 27),
+                                         ("1531", "ZMP4", 1499, 33)):
+            car_data = any(f"CAR{car}.{suffix}" in available for suffix in ("RES", "PRE"))
+            car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
+            if car_data and car_shape:
+                controller_fixtures.append((name, archive.read(name + ".rpl"), prefix, model))
     if "DEFAULT.RPL" in available:
         fixtures.append(("DEFAULT", available["DEFAULT.RPL"].read_bytes()))
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
     with tempfile.TemporaryDirectory(prefix="genghost-") as directory:
         temporary = Path(directory)
+        if "DEFAULT.TRK" in available:
+            # DEFAULT.RPL embeds a different course. Initialize the branch
+            # regression from the actual DEFAULT track, using installed LM02.
+            header = bytearray(fixtures[0][1][:26])
+            struct.pack_into("<H", header, 24, 1)
+            source = temporary / "dualway.RPL"
+            source.write_bytes(header + available["DEFAULT.TRK"].read_bytes() + b"\0")
+            for switches in PHYSICS_MODES:
+                subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
+                                "--dualway-check", *switches],
+                               env=environment, check=True, timeout=120)
+        for fixture_name, recording, prefix, model in controller_fixtures:
+            source = temporary / "source.RPL"
+            source.write_bytes(recording)
+            subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
+                            "--controller-check", str(prefix), str(model)],
+                           env=environment, check=True, timeout=120)
+            print(f"{fixture_name}: winning-prefix controller restrictions passed", flush=True)
         for fixture_name, recording in fixtures:
             source = temporary / "source.RPL"
             source.write_bytes(recording)

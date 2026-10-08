@@ -209,6 +209,15 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 			(unsigned long long)result->guided_improvements,
 			(unsigned long long)result->tile_evaluations,
 			(unsigned long long)result->tile_improvements);
+	fprintf(file, ",\n  \"tactic_evaluations\": %llu,\n  \"tactic_improvements\": %llu",
+			(unsigned long long)result->tactic_evaluations,
+			(unsigned long long)result->tactic_improvements);
+	fprintf(file,
+			",\n  \"dualway_pairs\": %llu,\n  \"dualway_evaluations\": %llu,\n  "
+			"\"dualway_improvements\": %llu",
+			(unsigned long long)result->dualway_pairs,
+			(unsigned long long)result->dualway_evaluations,
+			(unsigned long long)result->dualway_improvements);
 	fprintf(
 		file,
 		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "

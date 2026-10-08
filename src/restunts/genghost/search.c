@@ -11,6 +11,7 @@
 #undef memcpy
 
 #define POPULATION 6U
+#define MAX_SEARCH_FAMILIES 3U
 #define CHECKPOINT_INTERVAL 64U
 #define CHECKPOINT_COUNT (GENGHOST_MAX_FRAMES / CHECKPOINT_INTERVAL + 1U)
 
@@ -49,7 +50,7 @@ struct checkpoint_cache {
 
 struct search_context {
 	struct checkpoint_cache *cache;
-	struct checkpoint_cache caches[2];
+	struct checkpoint_cache caches[MAX_SEARCH_FAMILIES];
 	const struct GENGHOST_OPTIONS *options;
 	struct GENGHOST_SEARCH_RESULT *result;
 	uint32_t random;
@@ -59,6 +60,10 @@ struct search_context {
 	void *save_context;
 	int guided_candidate;
 	int portal_family;
+	int tactic_candidate;
+	int dualway_family;
+	int dualway_available;
+	int dualway_candidate;
 };
 
 static int allocate_cache(struct checkpoint_cache *cache)
@@ -116,6 +121,15 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 	unsigned int count = broad ? GENGHOST_POLICY_SEGMENTS : 1U + random_word(context) % 4U;
 	for (unsigned int n = 0; n < count; ++n) {
 		struct GENGHOST_GENE *gene = &policy->segment[(first + n) % GENGHOST_POLICY_SEGMENTS];
+		if (context->dualway_family && context->dualway_available) {
+			uint32_t gate = random_word(context);
+			if (gate % 4U == 0U) {
+				uint32_t high = random_word(context);
+				uint32_t low = random_word(context);
+				uint64_t word = ((uint64_t)high << 32U) | low;
+				gene->dualway_choice = genghost_dualway_selector(gate, word);
+			}
+		}
 		gene->speed_scale = clamp(gene->speed_scale + random_signed(context) * 0.28, 0.3, 3.0);
 		gene->lookahead_scale =
 			clamp(gene->lookahead_scale + random_signed(context) * 0.28, 0.3, 2.8);
@@ -137,6 +151,13 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
+			/* First discover a complete lap with the established policies.
+             * Then test one local stunt change in the alternative population;
+             * broad mutations must not force every obstacle at once. */
+			if (context->result->race.finished && context->portal_family && !broad &&
+				(choice >> 6U) % 4U == 0U) {
+				gene->stunt_mode = (choice >> 12U) % 5U;
+			}
 		}
 		if (context->options->powergear) {
 			gene->powergear_bias =
@@ -155,6 +176,9 @@ static void choose_policy(struct search_context *context, struct route_search *s
 			policy->segment[i].speed_scale *= speeds[search->trials];
 			if (context->portal_family) {
 				policy->segment[i].line_mode = 1U;
+				if (context->dualway_family && context->dualway_available) {
+					policy->segment[i].dualway_choice = 1U + search->trials % 2U;
+				}
 			}
 			if (search->trials >= 3U) {
 				policy->segment[i].slide_brake = 0.0;
@@ -250,8 +274,14 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 		return -1;
 	}
 	context->result->simulated_frames += verified.frames;
-	if (context->portal_family) {
+	if (context->tactic_candidate) {
+		++context->result->tactic_improvements;
+	}
+	if (context->portal_family == 1) {
 		++context->result->tile_improvements;
+	}
+	if (context->dualway_candidate) {
+		++context->result->dualway_improvements;
 	}
 	if (context->guided_candidate) {
 		++context->result->guided_improvements;
@@ -278,8 +308,9 @@ static unsigned int run_policy(struct search_context *context, const struct GENG
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
-		unsigned char input = genghost_driver_step(
-			route, policy, driver, context->options->powergear, context->options->owoot);
+		unsigned char input =
+			genghost_driver_step(route, policy, driver, context->options->powergear,
+								 context->options->collision, context->options->owoot);
 		inputs[length++] = input;
 		int event = genghost_sim_step(input);
 		++context->result->simulated_frames;
@@ -528,6 +559,7 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 	memcpy(inputs, search->best_inputs, length);
 	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
 	*driver = context->cache->driver_checkpoints[checkpoint];
+	driver->tactic_ticks = 0U;
 	*policy = search->best_policy;
 	/* Retain the successful prefix and search the failing sector with a fresh
 	 * speed/line/shift choice. This builds a lap incrementally instead of
@@ -556,6 +588,10 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
+			if (context->result->race.finished && context->portal_family &&
+				(choice >> 6U) % 2U == 0U) {
+				gene->stunt_mode = (choice >> 12U) % 5U;
+			}
 		}
 	}
 	unsigned int last_progress_tick = length;
@@ -564,8 +600,9 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
-		unsigned char input = genghost_driver_step(
-			route, policy, driver, context->options->powergear, context->options->owoot);
+		unsigned char input =
+			genghost_driver_step(route, policy, driver, context->options->powergear,
+								 context->options->collision, context->options->owoot);
 		inputs[length++] = input;
 		int event = genghost_sim_step(input);
 		++context->result->simulated_frames;
@@ -582,6 +619,55 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 	return length;
 }
 
+/* Keep whole route sweeps together so each family preserves its own candidate
+ * sequence. A new family receives its initial policies before score selection;
+ * routes without compatible switching geometry do not delay that warmup. */
+static unsigned int choose_family(const struct GENGHOST_ROUTES *routes,
+								  const struct route_search *searches, unsigned int family_count,
+								  uint64_t round)
+{
+	if (family_count == 1U) {
+		return 0U;
+	}
+	unsigned int family = round % 3U == 2U;
+	unsigned int pending[MAX_SEARCH_FAMILIES] = {0};
+	int initialized = 1;
+	double best_score = DBL_MAX;
+	unsigned int winner = 0U;
+	for (unsigned int candidate = 0; candidate < family_count; ++candidate) {
+		for (size_t index = 0; index < routes->count; ++index) {
+			if (candidate == 2U && !routes->routes[index].dualway_count) {
+				continue;
+			}
+			const struct route_search *search = &searches[candidate * routes->count + index];
+			if (search->trials < POPULATION) {
+				initialized = 0;
+				pending[candidate] = 1U;
+			}
+			if (search->race.finished && search->race.total_frames < best_score) {
+				best_score = search->race.total_frames;
+				winner = candidate;
+			}
+		}
+	}
+	if (family_count > 2U && !initialized) {
+		for (unsigned int offset = 0; offset < family_count; ++offset) {
+			unsigned int candidate = (unsigned int)((round + offset) % family_count);
+			if (pending[candidate]) {
+				return candidate;
+			}
+		}
+	}
+	if (initialized && best_score < DBL_MAX) {
+		family = winner;
+		if (round % 4U == 3U) {
+			unsigned int offset = 1U + (unsigned int)((round / 4U) % (family_count - 1U));
+			family = (winner + offset) % family_count;
+		}
+	}
+	return family;
+}
+
 int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char *seed_inputs,
 					unsigned int seed_length, struct GENGHOST_SEARCH_RESULT *result,
 					genghost_save_function save, void *save_context)
@@ -592,7 +678,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	int status = 0;
 	unsigned int family_count = 1U;
 	uint64_t family_round = 0U;
-	uint32_t family_random[2];
+	uint32_t family_random[MAX_SEARCH_FAMILIES];
 	unsigned char *inputs = malloc(GENGHOST_MAX_FRAMES);
 	struct route_search *searches = NULL;
 	memset(result, 0, sizeof(*result));
@@ -604,6 +690,10 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	family_random[1] = context.random ^ 0x9e3779b9U;
 	if (!family_random[1]) {
 		family_random[1] = 1U;
+	}
+	family_random[2] = context.random ^ 0x85ebca6bU;
+	if (!family_random[2]) {
+		family_random[2] = 1U;
 	}
 	context.started = SDL_GetTicksNS();
 	context.next_progress = context.started + 5000000000ULL;
@@ -619,6 +709,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 		goto done;
 	}
 	result->routes = routes.count;
+	result->dualway_pairs = routes.dualway_pairs;
 	fprintf(stderr, "%zu complete route combinations, %zu branch nodes; %s power gear\n",
 			routes.count, routes.branch_count,
 			options->powergear && genghost_powergear_kind() ? "searching for" : "no beneficial");
@@ -689,17 +780,42 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	 * refinements to reuse their checkpoints and human control boundaries,
 	 * while unfinished routes keep receiving policy and repair attempts. */
 	while (!expired(&context)) {
-		/* Two classic route rounds, then one tile route round. Existing per-route
-		 * batching is unchanged; this is one budget, not two full searches. */
-		unsigned int family = family_count > 1U && family_round++ % 3U == 2U;
+		/* Preserve the original road/tile discovery until a replay has actually
+		 * completed and passed canonical validation. Switching then receives an
+		 * independent population, random stream and checkpoint cache. */
+		if (family_count == 2U && routes.dualway_pairs && result->race.finished && result->length) {
+			if (routes.count > SIZE_MAX / (MAX_SEARCH_FAMILIES * sizeof(*searches))) {
+				status = -1;
+				goto done;
+			}
+			struct route_search *grown =
+				realloc(searches, routes.count * MAX_SEARCH_FAMILIES * sizeof(*searches));
+			if (!grown) {
+				status = -1;
+				goto done;
+			}
+			searches = grown;
+			memset(searches + routes.count * 2U, 0, routes.count * sizeof(*searches));
+			for (size_t i = routes.count * 2U; i < routes.count * MAX_SEARCH_FAMILIES; ++i) {
+				searches[i].fitness = -DBL_MAX;
+			}
+			if (allocate_cache(&context.caches[2])) {
+				status = -1;
+				goto done;
+			}
+			family_count = MAX_SEARCH_FAMILIES;
+		}
+		unsigned int family = choose_family(&routes, searches, family_count, family_round++);
 		context.portal_family = (int)family;
+		context.dualway_family = family == 2U;
 		context.cache = &context.caches[family];
 		context.random = family_random[family];
 		for (size_t index = 0; index < routes.count && !expired(&context); ++index) {
+			if (family == 2U && !routes.routes[index].dualway_count) {
+				continue;
+			}
 			size_t search_index = family * routes.count + index;
 			struct route_search *search = &searches[search_index];
-			struct route_search *companion =
-				family_count > 1U ? &searches[(1U - family) * routes.count + index] : NULL;
 			unsigned int attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
 			for (unsigned int attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
 				struct GENGHOST_POLICY policy;
@@ -711,22 +827,50 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 							   random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
 				int repair = search->best_inputs && !search->race.finished &&
 							 search->trials >= POPULATION && random_word(&context) % 3U != 0U;
+				context.dualway_available = routes.routes[index].dualway_count != 0U;
 				if (!mutation && !repair) {
 					choose_policy(&context, search, &policy);
 				}
+				struct GENGHOST_ROUTE effective;
+				const struct GENGHOST_ROUTE *route = &routes.routes[index];
+				const struct GENGHOST_POLICY *route_policy =
+					mutation || repair ? &search->best_policy : &policy;
+				int changed_route = genghost_route_policy(&routes, index, route_policy, &effective,
+														  error, sizeof(error));
+				if (changed_route < 0) {
+					fprintf(stderr, "genghost: %s\n", error);
+					status = -1;
+					goto done;
+				}
+				if (changed_route) {
+					route = &effective;
+				}
+				context.dualway_candidate = changed_route > 0;
+				if (context.dualway_candidate) {
+					++result->dualway_evaluations;
+				}
 				unsigned int length =
-					mutation ? run_mutation(&context, search_index, &routes.routes[index], search,
-											inputs, &driver, &race)
-					: repair ? repair_suffix(&context, search_index, &routes.routes[index], search,
-											 &policy, inputs, &driver, &race)
-							 : run_policy(&context, &routes.routes[index], &policy, inputs, &driver,
-										  &race);
-				if (!search->trials && (!companion || !companion->trials)) {
-					++result->routes_attempted;
+					mutation ? run_mutation(&context, search_index, route, search, inputs, &driver,
+											&race)
+					: repair ? repair_suffix(&context, search_index, route, search, &policy, inputs,
+											 &driver, &race)
+							 : run_policy(&context, route, &policy, inputs, &driver, &race);
+				if (!search->trials) {
+					int attempted = 0;
+					for (unsigned int other = 0; other < family_count; ++other) {
+						attempted |= searches[other * routes.count + index].trials != 0U;
+					}
+					if (!attempted) {
+						++result->routes_attempted;
+					}
+				}
+				context.tactic_candidate = !mutation && driver.tactic_ticks != 0U;
+				if (context.tactic_candidate) {
+					++result->tactic_evaluations;
 				}
 				++search->trials;
 				++result->evaluations;
-				if (family) {
+				if (family == 1U) {
 					++result->tile_evaluations;
 				}
 				if (mutation) {
@@ -735,12 +879,19 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					++result->policy_evaluations;
 				}
 				if (race.finished && !search->completed_attempt) {
+					int completed = 0;
+					for (unsigned int other = 0; other < family_count; ++other) {
+						completed |= searches[other * routes.count + index].completed_attempt;
+					}
 					search->completed_attempt = 1;
-					if (!companion || !companion->completed_attempt) {
+					if (!completed) {
 						++result->routes_finished;
 					}
 				}
-				double fitness = candidate_fitness(&routes.routes[index], &driver, &race);
+				double fitness = candidate_fitness(route, &driver, &race);
+				if (changed_route) {
+					genghost_route_release(&effective);
+				}
 				if (!mutation) {
 					insert_policy(search, &policy, fitness);
 				}
@@ -789,14 +940,18 @@ done:
 	}
 	free(searches);
 	free(inputs);
-	free_cache(&context.caches[0]);
-	free_cache(&context.caches[1]);
+	for (unsigned int family = 0; family < MAX_SEARCH_FAMILIES; ++family) {
+		free_cache(&context.caches[family]);
+	}
 	genghost_routes_free(&routes);
 	if (family_count > 1U) {
 		fprintf(stderr, "tile family: %llu candidates, %llu verified improvements\n",
 				(unsigned long long)result->tile_evaluations,
 				(unsigned long long)result->tile_improvements);
 	}
+	fprintf(stderr, "stunt tactics: %llu candidates, %llu verified improvements\n",
+			(unsigned long long)result->tactic_evaluations,
+			(unsigned long long)result->tactic_improvements);
 	if (status) {
 		return status;
 	}

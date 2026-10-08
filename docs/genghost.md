@@ -101,6 +101,22 @@ curvature, while elevated pieces, stunts, and the finish retain their guidance.
 OWOOT keeps the road-constrained controller. The objective is still total time:
 a longer line that reaches power gear can beat the shortest physical route.
 
+After a validated lap exists, local stunt mutations explore slalom passages,
+loop backside lines, corkscrew ground cuts, road edges, highway median offsets,
+and launches toward later tiles. They change a few route segments at a time.
+The collision switch gates intentional solid crossings; clear cuts remain
+available with collision fixes. Native playback decides whether each proposal
+works for the car. Airborne targets prepare landing; they do not introduce
+midair steering or change the physics.
+
+Dual-way switching is also part of the default search. A separate population
+tries touching a unique tile on one branch, crossing to the other branch before
+their merge, and confirming progress there. Shared split/merge tiles do not
+count as the required unique touch. Short and nearby crossings seed the search;
+mutations can select every eligible departure/arrival pair and combine switches
+in separate branch sections. The simulator supplies the actual penalties.
+These proposals start after the first validated lap and are disabled for OWOOT.
+
 Input refinement targets control transitions: brake release, turn-in, steering
 corrections, and shifts. It moves individual transitions or entire short pulses
 by a few frames while preserving the other controls. Some candidates realign
@@ -110,9 +126,13 @@ to rejoin the demonstrated line despite arriving earlier. Airborne and heavily
 banked sections retain their demonstrated steering. Every such continuation
 still consists of ordinary keyboard inputs and must pass full replay validation.
 
-Road and tile policies retain separate populations and replay parents. They
-share one search budget and saved best result: two road rounds alternate with
-one tile round, with short input-refinement batches for completed routes.
+Road, tile, and dual-way policies retain separate populations and replay parents. They
+share one search budget and saved best result. Initially two road rounds
+alternate with one tile round. The dual-way population joins after a validated
+finish when the track has compatible branches. After the active populations
+receive their initial policies, three of four complete route rounds favor the
+family with the faster completed lap; the fourth rotates through the others. Completed
+routes also receive short input-refinement batches.
 Independent random streams preserve the road search's sequence. A compatible
 verified replay and OWOOT use the original single search schedule.
 
@@ -165,12 +185,20 @@ validated improvements to the saved best lap from those guided candidates.
 `tile_evaluations` counts candidates from the tile-policy search, including input
 refinements of its parents; `tile_improvements` counts its verified improvements
 to the shared best lap. Both are zero for OWOOT and a verified human seed.
+`dualway_pairs` reports the implicit departure/arrival choices across route
+alternatives. `dualway_evaluations` counts candidates with a switched route,
+including refinements of those parents; `dualway_improvements` counts their
+validated improvements. `tactic_evaluations` counts policy or repair candidates
+that actually use a stunt target, and `tactic_improvements` counts their validated
+improvements. These counters identify search proposals, not proof of a particular
+collision bug in the resulting trajectory.
 A replay-assisted result may preserve most of an expert's original driving;
 it should not be interpreted as an independently discovered racing line.
 
 ## Golden replay benchmark
 
-See the [initial 16-track comparison](genghost-benchmark.md) and the
+See the [winning replay and stunt study](genghost-stunt-benchmark.md),
+[initial 16-track comparison](genghost-benchmark.md), and
 [expanded replay analysis](genghost-expanded-benchmark.md) for measured results
 and the remaining gap between track-only driving and human replay refinement.
 
@@ -190,7 +218,9 @@ python3 tools/scripts/benchmark-genghost.py \
 ```
 
 Use `analyze-genghost-replays.py` to re-simulate a corpus, reserve disjoint track
-hashes, and measure a sample of human trajectories. Its JSON manifests can be
+hashes, and measure only the fastest verified recording per exact track, across
+all cars. `analyze-genghost-stunts.py` adds geometry and stunt telemetry for those
+winners. Their JSON manifests can be
 passed to the benchmark with `--suite PATH` to select exact track bytes and cars,
 even when embedded track names were reused. It copies only missing resources
 when `--car-assets` is supplied and preserves installed packed/unpacked variants.

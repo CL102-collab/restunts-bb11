@@ -542,6 +542,10 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     if(NOT CMAKE_CROSSCOMPILING)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
+            add_test(NAME genghost-analysis COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_genghost_analysis.py")
+            add_test(NAME genghost-stunt-analysis COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"

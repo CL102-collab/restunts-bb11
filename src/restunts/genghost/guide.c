@@ -37,10 +37,11 @@ static double pose_cost(const struct GENGHOST_GUIDE_POINT *point)
 	double dz = ((double)point->position.lz - car->car_position.lz) / 64.0;
 	double yaw = angle_difference(point->rotation.x, car->car_rotate.x);
 	double pitch = angle_difference(point->rotation.y, car->car_rotate.y);
+	double roll = angle_difference(point->rotation.z, car->car_rotate.z);
 	double speed = ((double)point->speed - car->car_actual_speed) / 256.0;
 	/* Height and attitude keep nearby loop, bridge and crossing samples distinct. */
 	return dx * dx + dy * dy * 2.0 + dz * dz + yaw * yaw * 8.0 + pitch * pitch * 8.0 +
-		   speed * speed * 0.25;
+		   roll * roll * 8.0 + speed * speed * 0.25;
 }
 
 unsigned char genghost_guide_step(const struct GENGHOST_GUIDE_POINT *points, unsigned int count,

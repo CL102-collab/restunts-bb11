@@ -106,7 +106,8 @@ static void route_speed_limits(struct GENGHOST_ROUTE *route)
 }
 
 static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int *path,
-						size_t depth, size_t *bytes, char *error, size_t error_size)
+						size_t depth, size_t *bytes, const unsigned char *portals, char *error,
+						size_t error_size)
 {
 	size_t point_count = 0U;
 	for (size_t i = 0; i <= depth; i++) {
@@ -119,9 +120,10 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 						"Track route contains a piece without usable driving geometry.");
 			return -1;
 		}
-		point_count += (unsigned char)info[subtype].route_point_count;
+		point_count += portals && portals[i] ? 1U : (unsigned char)info[subtype].route_point_count;
 	}
-	size_t required = (depth + 1U) * sizeof(int) + point_count * sizeof(struct GENGHOST_WAYPOINT);
+	size_t required =
+		(depth + 1U) * (sizeof(int) + 1U) + point_count * sizeof(struct GENGHOST_WAYPOINT);
 	if (required > GENGHOST_ROUTE_MEMORY_LIMIT || *bytes > GENGHOST_ROUTE_MEMORY_LIMIT - required) {
 		route_error(error, error_size,
 					"Enumerating every route exceeds the 512 MiB route-memory limit; no "
@@ -147,9 +149,16 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 	memset(&route, 0, sizeof(route));
 	route.pieces = malloc((depth + 1U) * sizeof(*route.pieces));
 	route.points = calloc(point_count, sizeof(*route.points));
-	if (route.pieces == NULL || route.points == NULL) {
+	if (portals) {
+		route.portals = malloc(depth + 1U);
+		if (route.portals) {
+			memcpy(route.portals, portals, depth + 1U);
+		}
+	}
+	if (route.pieces == NULL || route.points == NULL || (portals && !route.portals)) {
 		free(route.pieces);
 		free(route.points);
+		free(route.portals);
 		route_error(error, error_size, "Out of memory while expanding route driving geometry.");
 		return -1;
 	}
@@ -161,7 +170,8 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 		unsigned int tile = (unsigned char)track_route_element_ids[piece];
 		unsigned int subtype = (unsigned char)track_route_traversal_flags[piece] & 15U;
 		const struct TRKOBJINFO *info = &trkObjectList[tile].ss_trkObjInfoPtr[subtype];
-		for (unsigned int j = 0; j < (unsigned char)info->route_point_count; j++) {
+		for (unsigned int j = 0;
+			 j < (portals && portals[i] ? 1U : (unsigned char)info->route_point_count); j++) {
 			/* The native API writes center, two edges, and a word at byte 18. */
 			struct VECTOR geometry[ROUTE_GEOMETRY_POINT_COUNT];
 			(void)get_track_route_point((legacy_s16)piece, geometry, (legacy_s16)j, NULL);
@@ -176,7 +186,18 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 				point.height_specified ? ((double)geometry[2].y - geometry[1].y) * 0.5 : 0.0;
 			point.edge_z = ((double)geometry[2].z - geometry[1].z) * 0.5;
 			point.piece = piece;
+			point.piece_index = i;
 			point.physical_model = trkObjectList[tile].ss_physicalModel;
+			if (portals && portals[i]) {
+				unsigned int flags = (unsigned char)trkObjectList[tile].ss_multiTileFlag;
+				point.x = ((unsigned char)track_route_columns[piece] + 0.5 + !!(flags & 2U) * 0.5) *
+						  1024.0;
+				point.z =
+					(29.5 - (unsigned char)track_route_rows[piece] - !!(flags & 1U) * 0.5) * 1024.0;
+				point.height_specified = 0;
+				point.edge_x = point.edge_y = point.edge_z = 0.0;
+				point.physical_model = PHYSICAL_MODEL_ROAD;
+			}
 			if (route.point_count != 0U) {
 				const struct GENGHOST_WAYPOINT *previous = &route.points[route.point_count - 1U];
 				double dx = point.x - previous->x, dz = point.z - previous->z;
@@ -198,6 +219,7 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 	if (route.point_count < 2U || route.length < 1.0) {
 		free(route.pieces);
 		free(route.points);
+		free(route.portals);
 		route_error(error, error_size, "Track route is too short to drive.");
 		return -1;
 	}
@@ -207,14 +229,367 @@ static int append_route(struct GENGHOST_ROUTES *set, size_t *capacity, const int
 	return 0;
 }
 
+/* A switch keeps a genuine prefix on one branch and joins a genuine suffix on
+ * the other. Graph nodes alone do not establish that either path was touched:
+ * split and merge tiles often have different node IDs for the same footprint. */
+struct GENGHOST_DUALWAY {
+	size_t split, merge, other, other_split, other_merge;
+	unsigned short *sources, *targets;
+	size_t source_count, target_count;
+	uint64_t pairs, shortest, nearest;
+	double shortest_cost, nearest_cost;
+};
+
+static int piece_overlap(int a, int b)
+{
+	unsigned int at = (unsigned char)track_route_element_ids[a];
+	unsigned int bt = (unsigned char)track_route_element_ids[b];
+	unsigned int af = (unsigned char)trkObjectList[at].ss_multiTileFlag;
+	unsigned int bf = (unsigned char)trkObjectList[bt].ss_multiTileFlag;
+	int ax = (unsigned char)track_route_columns[a], az = (unsigned char)track_route_rows[a];
+	int bx = (unsigned char)track_route_columns[b], bz = (unsigned char)track_route_rows[b];
+	return ax <= bx + !!(bf & 2U) && bx <= ax + !!(af & 2U) && az <= bz + !!(bf & 1U) &&
+		   bz <= az + !!(af & 1U);
+}
+
+static double piece_distance(int a, int b)
+{
+	unsigned int at = (unsigned char)track_route_element_ids[a];
+	unsigned int bt = (unsigned char)track_route_element_ids[b];
+	unsigned int af = (unsigned char)trkObjectList[at].ss_multiTileFlag;
+	unsigned int bf = (unsigned char)trkObjectList[bt].ss_multiTileFlag;
+	double dx =
+		((unsigned char)track_route_columns[a] - (unsigned char)track_route_columns[b]) * 1024.0 +
+		((int)!!(af & 2U) - (int)!!(bf & 2U)) * 512.0;
+	double dz = ((unsigned char)track_route_rows[a] - (unsigned char)track_route_rows[b]) * 1024.0 +
+				((int)!!(af & 1U) - (int)!!(bf & 1U)) * 512.0;
+	return sqrt(dx * dx + dz * dz);
+}
+
+/* Use a separate draw's bits for choosing a recipe. Filtering the selector
+ * itself would make some source/target pairs unreachable after modulo mapping. */
+uint64_t genghost_dualway_selector(uint32_t gate, uint64_t selector)
+{
+	return (gate >> 2U) % 4U == 0U ? selector % 3U : selector;
+}
+
+double genghost_route_piece_distance(const struct GENGHOST_ROUTE *route, size_t piece)
+{
+	for (size_t i = 0; i < route->point_count; ++i) {
+		if (route->points[i].piece_index == piece) {
+			return route->points[i].distance;
+		}
+	}
+	return route->length;
+}
+
+static int dualway_build(struct GENGHOST_ROUTES *set, size_t *bytes, char *error, size_t error_size)
+{
+	for (size_t a = 0; a < set->count; ++a) {
+		struct GENGHOST_ROUTE *base = &set->routes[a];
+		for (size_t b = 0; b < set->count; ++b) {
+			if (a == b) {
+				continue;
+			}
+			const struct GENGHOST_ROUTE *other = &set->routes[b];
+			int positions[900];
+			for (size_t i = 0; i < 900U; ++i) {
+				positions[i] = -1;
+			}
+			for (size_t i = 0; i + 1U < other->piece_count; ++i) {
+				positions[other->pieces[i]] = (int)i;
+			}
+			for (size_t split = 0; split + 2U < base->piece_count; ++split) {
+				int paired = positions[base->pieces[split]];
+				if (paired < 0 || base->pieces[split + 1U] == other->pieces[paired + 1U]) {
+					continue;
+				}
+				size_t merge = split + 2U, other_merge = 0U;
+				for (; merge < base->piece_count; ++merge) {
+					int found = base->pieces[merge] == 0 ? (int)other->piece_count - 1
+														 : positions[base->pieces[merge]];
+					if (found > paired + 1) {
+						other_merge = (size_t)found;
+						break;
+					}
+				}
+				if (merge >= base->piece_count) {
+					continue;
+				}
+				/* Routes that differ only after this merge describe the same switch. */
+				int duplicate = 0;
+				for (size_t i = 0; i < base->dualway_count; ++i) {
+					const struct GENGHOST_DUALWAY *old = &base->dualways[i];
+					if (old->split == split && old->merge == merge &&
+						old->other_merge - old->other_split == other_merge - (size_t)paired &&
+						!memcmp(set->routes[old->other].pieces + old->other_split,
+								other->pieces + paired,
+								(other_merge - (size_t)paired) * sizeof(int))) {
+						duplicate = 1;
+						break;
+					}
+				}
+				if (duplicate) {
+					continue;
+				}
+				unsigned short sources[900], targets[900];
+				size_t ns = 0U, nt = 0U;
+				for (size_t i = split + 1U; i < merge; ++i) {
+					int shared = 0;
+					for (size_t j = (size_t)paired + 1U; j < other_merge; ++j) {
+						if (piece_overlap(base->pieces[i], other->pieces[j])) {
+							shared = 1;
+							break;
+						}
+					}
+					if (!shared) {
+						sources[ns++] = (unsigned short)i;
+					}
+				}
+				for (size_t j = (size_t)paired + 1U; j < other_merge; ++j) {
+					int shared = 0;
+					for (size_t i = split + 1U; i < merge; ++i) {
+						if (piece_overlap(base->pieces[i], other->pieces[j])) {
+							shared = 1;
+							break;
+						}
+					}
+					if (!shared) {
+						targets[nt++] = (unsigned short)j;
+					}
+				}
+				if (!ns || !nt) {
+					continue;
+				}
+				size_t required =
+					sizeof(struct GENGHOST_DUALWAY) + (ns + nt) * sizeof(unsigned short);
+				if (*bytes > GENGHOST_ROUTE_MEMORY_LIMIT - required) {
+					route_error(error, error_size,
+								"Dual-way alternatives exceed the 512 MiB route-memory limit.");
+					return -1;
+				}
+				void *grown =
+					realloc(base->dualways, (base->dualway_count + 1U) * sizeof(*base->dualways));
+				unsigned short *indices = malloc((ns + nt) * sizeof(*indices));
+				if (grown) {
+					base->dualways = grown;
+				}
+				if (!grown || !indices) {
+					free(indices);
+					route_error(error, error_size, "Out of memory building dual-way alternatives.");
+					return -1;
+				}
+				struct GENGHOST_DUALWAY *span = &base->dualways[base->dualway_count++];
+				memset(span, 0, sizeof(*span));
+				span->split = split;
+				span->merge = merge;
+				span->other = b;
+				span->other_split = (size_t)paired;
+				span->other_merge = other_merge;
+				span->sources = indices;
+				span->targets = indices + ns;
+				memcpy(span->sources, sources, ns * sizeof(*sources));
+				memcpy(span->targets, targets, nt * sizeof(*targets));
+				span->source_count = ns;
+				span->target_count = nt;
+				span->pairs = (uint64_t)ns * nt;
+				span->shortest_cost = span->nearest_cost = DBL_MAX;
+				double base_merge = genghost_route_piece_distance(base, merge),
+					   other_merge_distance = genghost_route_piece_distance(other, other_merge);
+				double target_progress[900];
+				for (size_t j = 0; j < nt; ++j) {
+					target_progress[j] = genghost_route_piece_distance(other, targets[j]);
+				}
+				for (size_t i = 0; i < ns; ++i) {
+					double prefix = genghost_route_piece_distance(base, sources[i]);
+					for (size_t j = 0; j < nt; ++j) {
+						double crossing =
+							piece_distance(base->pieces[sources[i]], other->pieces[targets[j]]);
+						double cost = prefix + crossing + other_merge_distance -
+									  target_progress[j] - base_merge;
+						uint64_t pair = (uint64_t)i * nt + j;
+						if (cost < span->shortest_cost) {
+							span->shortest_cost = cost;
+							span->shortest = pair;
+						}
+						/* Prefer short grass crossings that save distance; the full engine
+						 * still judges speed, terrain, collisions, and deferred penalties. */
+						double nearest_cost = crossing + fmax(0.0, cost) * 10.0;
+						if (nearest_cost < span->nearest_cost) {
+							span->nearest_cost = nearest_cost;
+							span->nearest = pair;
+						}
+					}
+				}
+				*bytes += required;
+				if (UINT64_MAX - set->dualway_pairs < span->pairs) {
+					route_error(error, error_size, "Too many dual-way pairs to index.");
+					return -1;
+				}
+				set->dualway_pairs += span->pairs;
+			}
+		}
+	}
+	return 0;
+}
+
+void genghost_route_release(struct GENGHOST_ROUTE *route)
+{
+	free(route->pieces);
+	free(route->points);
+	free(route->portals);
+	for (size_t i = 0; i < route->dualway_count; ++i) {
+		free(route->dualways[i].sources);
+	}
+	free(route->dualways);
+	memset(route, 0, sizeof(*route));
+}
+
+int genghost_route_policy(const struct GENGHOST_ROUTES *set, size_t index,
+						  const struct GENGHOST_POLICY *policy, struct GENGHOST_ROUTE *result,
+						  char *error, size_t error_size)
+{
+	const struct GENGHOST_ROUTE *base = &set->routes[index];
+	int path[901];
+	unsigned char portals[901] = {0}, visited[900] = {0};
+	size_t count = 0U, next = 0U, switches = 0U;
+	unsigned int confirmation_remaining = 0U;
+	memset(result, 0, sizeof(*result));
+	if (!base->dualway_count) {
+		return 0;
+	}
+	int enabled = 0;
+	for (size_t i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+		if (policy->segment[i].dualway_choice) {
+			enabled = 1;
+			break;
+		}
+	}
+	if (!enabled) {
+		return 0;
+	}
+	for (size_t split = 0; split + 1U < base->piece_count; ++split) {
+		if (split < next) {
+			continue;
+		}
+		unsigned int segment = (unsigned int)(genghost_route_piece_distance(base, split) /
+											  base->length * GENGHOST_POLICY_SEGMENTS);
+		if (segment >= GENGHOST_POLICY_SEGMENTS) {
+			segment = GENGHOST_POLICY_SEGMENTS - 1U;
+		}
+		uint64_t choice = policy->segment[segment].dualway_choice;
+		if (!choice) {
+			continue;
+		}
+		uint64_t total = 0U, selected_pair = 0U;
+		const struct GENGHOST_DUALWAY *selected = NULL;
+		double best = DBL_MAX;
+		for (size_t s = 0; s < base->dualway_count; ++s) {
+			const struct GENGHOST_DUALWAY *span = &base->dualways[s];
+			if (span->split != split) {
+				continue;
+			}
+			if (UINT64_MAX - total < span->pairs) {
+				route_error(error, error_size, "Too many dual-way choices to index.");
+				return -1;
+			}
+			total += span->pairs;
+			if (choice <= 2U) {
+				double cost = choice == 1U ? span->shortest_cost : span->nearest_cost;
+				if (cost < best) {
+					best = cost;
+					selected = span;
+					selected_pair = choice == 1U ? span->shortest : span->nearest;
+				}
+			}
+		}
+		if (!total) {
+			continue;
+		}
+		if (choice >= 3U) {
+			uint64_t ordinal = (choice - 3U) % total;
+			for (size_t s = 0; s < base->dualway_count; ++s) {
+				const struct GENGHOST_DUALWAY *span = &base->dualways[s];
+				if (span->split != split) {
+					continue;
+				}
+				if (ordinal < span->pairs) {
+					selected = span;
+					selected_pair = ordinal;
+					break;
+				}
+				ordinal -= span->pairs;
+			}
+		}
+		if (!selected) {
+			continue;
+		}
+		size_t source = selected->sources[selected_pair / selected->target_count];
+		size_t target = selected->targets[selected_pair % selected->target_count];
+		const struct GENGHOST_ROUTE *other = &set->routes[selected->other];
+		for (size_t i = next; i <= source; ++i) {
+			if (count >= 900U || visited[base->pieces[i]]) {
+				goto invalid;
+			}
+			visited[base->pieces[i]] = 1U;
+			if (confirmation_remaining) {
+				portals[count] = 1U;
+				--confirmation_remaining;
+			}
+			path[count++] = base->pieces[i];
+		}
+		portals[count - 1U] = 1U;
+		for (size_t i = target; i < selected->other_merge; ++i) {
+			if (count >= 900U || visited[other->pieces[i]]) {
+				goto invalid;
+			}
+			visited[other->pieces[i]] = 1U;
+			path[count] = other->pieces[i];
+			portals[count++] = i == target ? 2U : i < target + 3U;
+		}
+		confirmation_remaining = selected->other_merge - target < 3U
+									 ? 3U - (unsigned int)(selected->other_merge - target)
+									 : 0U;
+		next = selected->merge;
+		++switches;
+	}
+	if (!switches) {
+		return 0;
+	}
+	for (size_t i = next; i + 1U < base->piece_count; ++i) {
+		if (count >= 900U || visited[base->pieces[i]]) {
+			goto invalid;
+		}
+		visited[base->pieces[i]] = 1U;
+		if (confirmation_remaining) {
+			portals[count] = 1U;
+			--confirmation_remaining;
+		}
+		path[count++] = base->pieces[i];
+	}
+	struct GENGHOST_ROUTES built = {0};
+	size_t capacity = 0U, bytes = 0U;
+	if (append_route(&built, &capacity, path, count, &bytes, portals, error, error_size)) {
+		free(built.routes);
+		return -1;
+	}
+	*result = built.routes[0];
+	free(built.routes);
+	result->switch_count = switches;
+	return 1;
+invalid:
+	/* A nested/cyclic splice that revisits an earlier node is not a simple lap.
+	 * Retain the original route; other selectors remain available. */
+	return 0;
+}
+
 void genghost_routes_free(struct GENGHOST_ROUTES *set)
 {
 	if (set == NULL) {
 		return;
 	}
 	for (size_t i = 0; i < set->count; i++) {
-		free(set->routes[i].pieces);
-		free(set->routes[i].points);
+		genghost_route_release(&set->routes[i]);
 	}
 	free(set->routes);
 	memset(set, 0, sizeof(*set));
@@ -273,7 +648,7 @@ int genghost_routes_build(struct GENGHOST_ROUTES *set, char *error, size_t error
 			continue;
 		}
 		if (next == 0) {
-			if (append_route(set, &capacity, path, depth, &bytes, error, error_size) != 0) {
+			if (append_route(set, &capacity, path, depth, &bytes, NULL, error, error_size) != 0) {
 				result = -1;
 				break;
 			}
@@ -291,6 +666,9 @@ int genghost_routes_build(struct GENGHOST_ROUTES *set, char *error, size_t error
 		route_error(error, error_size, "No start-to-finish route exists in the track graph.");
 		result = -1;
 	}
+	if (result == 0) {
+		result = dualway_build(set, &bytes, error, error_size);
+	}
 	if (result != 0) {
 		genghost_routes_free(set);
 	}
@@ -300,12 +678,14 @@ int genghost_routes_build(struct GENGHOST_ROUTES *set, char *error, size_t error
 void genghost_policy_default(struct GENGHOST_POLICY *policy)
 {
 	for (size_t i = 0; i < GENGHOST_POLICY_SEGMENTS; i++) {
+		policy->segment[i].dualway_choice = 0U;
 		policy->segment[i].speed_scale = 1.0;
 		policy->segment[i].lateral_offset = 0.0;
 		policy->segment[i].lookahead_scale = 1.0;
 		policy->segment[i].shift_rpm_scale = 1.0;
 		policy->segment[i].shortcut_skip = 0U;
 		policy->segment[i].line_mode = 0U;
+		policy->segment[i].stunt_mode = 0U;
 		policy->segment[i].corner_scale = 1.0;
 		policy->segment[i].powergear_bias = 0.5;
 		policy->segment[i].slide_brake = 1.0;
@@ -333,11 +713,29 @@ void genghost_driver_observe(const struct GENGHOST_ROUTE *route, struct GENGHOST
 	double x = car->car_position.lx / 64.0;
 	double y = car->car_position.ly / 64.0;
 	double z = car->car_position.lz / 64.0;
+	if (route->portals) {
+		while (driver->next_portal < route->piece_count) {
+			size_t n = driver->next_portal;
+			int piece = route->pieces[n];
+			unsigned int tile = (unsigned char)track_route_element_ids[piece];
+			unsigned int flags = (unsigned char)trkObjectList[tile].ss_multiTileFlag;
+			double min_x = (unsigned char)track_route_columns[piece] * 1024.0;
+			double max_z = (30 - (unsigned char)track_route_rows[piece]) * 1024.0;
+			if (route->portals[n] && !(x >= min_x && x < min_x + (1U + !!(flags & 2U)) * 1024.0 &&
+									   z < max_z && z >= max_z - (1U + !!(flags & 1U)) * 1024.0)) {
+				break;
+			}
+			++driver->next_portal;
+		}
+	}
 	double best = DBL_MAX, best_progress = driver->progress, best_distance = DBL_MAX;
 	size_t first = driver->waypoint > 2U ? driver->waypoint - 2U : 0U;
 	size_t best_index = driver->waypoint;
 	for (size_t i = first; i + 1U < route->point_count; i++) {
 		const struct GENGHOST_WAYPOINT *a = &route->points[i], *b = &route->points[i + 1U];
+		if (route->portals && b->piece_index > driver->next_portal) {
+			break;
+		}
 		if (a->distance > driver->progress + 6144.0) {
 			break;
 		}
@@ -581,6 +979,225 @@ static int shortcut_target(const struct GENGHOST_ROUTE *route, const struct GENG
 	return 1;
 }
 
+/* Geometry proposals, never alternate physics: every resulting replay still
+ * runs through native contacts, route confirmation and penalty calculation. */
+static void turn_quarter(double x, double z, int angle, double *tx, double *tz)
+{
+	switch ((angle & 1023) / 256) {
+		case 1:
+			*tx = z;
+			*tz = -x;
+			break;
+		case 2:
+			*tx = -x;
+			*tz = -z;
+			break;
+		case 3:
+			*tx = -z;
+			*tz = x;
+			break;
+		default:
+			*tx = x;
+			*tz = z;
+			break;
+	}
+}
+
+static int tactic_model(int model, unsigned int mode, int collision)
+{
+	if (mode == 1U) {
+		return model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
+			   model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B ||
+			   (collision && (stunt_model(model) || model == PHYSICAL_MODEL_SLALOM));
+	}
+	if (mode == 2U || mode == 3U) {
+		return stunt_model(model) || model == PHYSICAL_MODEL_SLALOM ||
+			   model == PHYSICAL_MODEL_HIGHWAY || model == PHYSICAL_MODEL_ELEVATED_ROAD ||
+			   model == PHYSICAL_MODEL_ELEVATED_SPAN || model == PHYSICAL_MODEL_BANKED_ROAD;
+	}
+	return mode == 4U && (stunt_model(model) || model == PHYSICAL_MODEL_RAMP ||
+						  model == PHYSICAL_MODEL_SOLID_RAMP);
+}
+
+static int tactic_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						 const struct GENGHOST_GENE *gene, double lookahead, int collision,
+						 struct GENGHOST_WAYPOINT *target, double *protected_end)
+{
+	unsigned int mode = gene->stunt_mode;
+	if (!mode) {
+		return 0;
+	}
+	size_t begin = driver->waypoint;
+	while (begin && route->points[begin - 1U].piece == route->points[begin].piece) {
+		--begin;
+	}
+	while (begin < route->point_count &&
+		   route->points[begin].distance <= driver->progress + fmax(lookahead, 900.0)) {
+		size_t end = begin;
+		while (end + 1U < route->point_count &&
+			   route->points[end + 1U].piece == route->points[begin].piece) {
+			++end;
+		}
+		int model = route->points[begin].physical_model;
+		if (end > begin && route->points[end].distance > driver->progress - 100.0 &&
+			tactic_model(model, mode, collision)) {
+			const struct GENGHOST_WAYPOINT *first = &route->points[begin],
+										   *last = &route->points[end];
+			int piece = first->piece;
+			unsigned int tile = (unsigned char)track_route_element_ids[piece];
+			const struct TRACKOBJECT *object = &trkObjectList[tile];
+			double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+			double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+			double cx, cz, ax, az, bx, bz;
+			turn_quarter(state.playerstate.car_position.lx / 64.0 - ox,
+						 state.playerstate.car_position.lz / 64.0 - oz, -object->ss_rotY, &cx, &cz);
+			turn_quarter(first->x - ox, first->z - oz, -object->ss_rotY, &ax, &az);
+			turn_quarter(last->x - ox, last->z - oz, -object->ss_rotY, &bx, &bz);
+			double direction = bz >= az ? 1.0 : -1.0;
+			/* Once beyond this piece's exit, do not turn back toward its special line. */
+			if ((cz - bz) * direction > 140.0) {
+				begin = end + 1U;
+				continue;
+			}
+			double px = ax,
+				   pz = direction > 0.0 ? fmax(az, cz + lookahead) : fmin(az, cz - lookahead);
+			int flat = 1;
+			if (mode == 1U) {
+				if (model == PHYSICAL_MODEL_LOOP) {
+					px = direction * (30.0 + gene->lateral_offset * 100.0);
+				} else if (model == PHYSICAL_MODEL_SLALOM) {
+					px = 60.0 + gene->lateral_offset * 140.0;
+				} else if (model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
+						   model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B) {
+					px = gene->lateral_offset * 150.0;
+				} else {
+					px = (ax + bx) * 0.5 + gene->lateral_offset * 150.0;
+				}
+			} else if (mode == 2U || mode == 3U) {
+				double side = mode == 2U ? -1.0 : 1.0;
+				if (model == PHYSICAL_MODEL_HIGHWAY) {
+					px = side * 120.0 + gene->lateral_offset * 40.0;
+				} else if (model == PHYSICAL_MODEL_LOOP) {
+					px = side * 440.0 + gene->lateral_offset * 100.0;
+				} else if (model == PHYSICAL_MODEL_SLALOM) {
+					px = side * 220.0 + gene->lateral_offset * 100.0;
+				} else {
+					point_at(route, driver->progress + lookahead,
+							 side * 1.0 + bounded(gene->lateral_offset, -0.6, 0.6), target);
+					flat = 0;
+				}
+			} else {
+				const struct CARSTATE *car = &state.playerstate;
+				double base_y = first->height_specified ? first->y : 0.0;
+				double car_y = car->car_position.ly / 64.0;
+				int launched = cz * direction > 0.0 && car_y > base_y + 70.0 &&
+							   car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+				if (launched) {
+					/* Flight cannot follow a loop's descending spline. Aim into later tile
+      * footprints; touching their centers in the air uses native recognition. */
+					if (end + 1U >= route->point_count) {
+						return 0;
+					}
+					size_t landing = end + 1U;
+					int pieces = 0, last_piece = route->points[landing].piece;
+					for (size_t k = landing + 1U; k < route->point_count; ++k) {
+						if (route->points[k].piece != last_piece) {
+							last_piece = route->points[k].piece;
+							if (++pieces >= 1 + (int)(gene->shortcut_skip % 3U)) {
+								break;
+							}
+							landing = k;
+						}
+					}
+					*target = route->points[landing];
+					target->height_specified = 0;
+					target->speed = 250.0;
+					*protected_end = target->distance;
+					return 1;
+				}
+				double phase = bounded(gene->lateral_offset, -1.0, 1.0);
+				if (model == PHYSICAL_MODEL_LOOP) {
+					/* Human outer-edge launches hold a nearly straight heading near x=-350
+      * into the rising half. The road narrows inward as it rises, naturally
+      * releasing the car with forward pitch instead of following the crown. */
+					px = -direction * (350.0 + phase * 100.0);
+				} else {
+					double side = model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ? -1.0 : 1.0;
+					/* A descending cork has no higher launch point: follow its exit/drop
+      * instead of targeting its entry behind the car. */
+					double offset = side * 0.9 + phase * 0.5;
+					point_at(route, driver->progress + lookahead, offset, target);
+					flat = 0;
+				}
+			}
+			if (flat) {
+				double wx, wz;
+				turn_quarter(px, pz, object->ss_rotY, &wx, &wz);
+				*target = *first;
+				target->x = ox + wx;
+				target->z = oz + wz;
+				target->height_specified = 0;
+			}
+			target->speed = 250.0;
+			target->distance = last->distance;
+			*protected_end = last->distance;
+			return 1;
+		}
+		begin = end + 1U;
+	}
+	return 0;
+}
+
+static int protected_target(const struct GENGHOST_ROUTE *route,
+							const struct GENGHOST_DRIVER *driver, double lookahead, double speed,
+							struct GENGHOST_WAYPOINT *target)
+{
+	if (!route->portals || driver->next_portal >= route->piece_count) {
+		return 0;
+	}
+	size_t n = driver->next_portal, point = 0U;
+	while (point < route->point_count && route->points[point].piece_index != n) {
+		++point;
+	}
+	if (point >= route->point_count) {
+		return 0;
+	}
+	if (route->portals[n] != 2U &&
+		route->points[point].distance > driver->progress + lookahead + 1024.0) {
+		return 0;
+	}
+	size_t future = n + 1U;
+	while (future + 1U < route->piece_count && !route->portals[future]) {
+		++future;
+	}
+	if (future >= route->piece_count) {
+		future = n;
+	}
+	struct GENGHOST_REGION first, second;
+	double margin = bounded(40.0 + speed * 0.4, 48.0, 160.0);
+	tile_portal(route->pieces[n], margin, &first);
+	tile_portal(route->pieces[future], margin, &second);
+	double x = state.playerstate.car_position.lx / 64.0,
+		   z = state.playerstate.car_position.lz / 64.0;
+	double bx = (second.min_x + second.max_x) * 0.5, bz = (second.min_z + second.max_z) * 0.5;
+	*target = route->points[point];
+	genghost_region_crossing(&first, x, z, bx, bz, &target->x, &target->z);
+	target->height_specified = 0;
+	struct GENGHOST_WAYPOINT from = *target, to = *target;
+	from.x = x;
+	from.z = z;
+	to.x = bx;
+	to.z = bz;
+	double angle =
+		4.0 * atan(wheelbase() * point_curvature(&from, target, &to)) * GENGHOST_ANGLE_SCALE;
+	double grip = (double)simd_player.grip * 2.0 * simd_player.surface_grip[3] / 256.0;
+	if (grip < 1.0) {
+		grip = 1200.0;
+	}
+	target->speed = bounded(sqrt(512.0 * grip / (angle + 8.0)) * 0.88, 30.0, 250.0);
+	return 1;
+}
+
 int genghost_powergear_kind(void)
 {
 	int mass = simd_player.car_mass;
@@ -630,7 +1247,8 @@ unsigned char genghost_steering_key(double wanted)
 
 unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 								   const struct GENGHOST_POLICY *policy,
-								   struct GENGHOST_DRIVER *driver, int powergear_enabled, int owoot)
+								   struct GENGHOST_DRIVER *driver, int powergear_enabled,
+								   int collision_enabled, int owoot)
 {
 	genghost_driver_observe(route, driver);
 	driver->ticks++;
@@ -662,6 +1280,20 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 			 bounded(gene->lateral_offset, owoot ? -0.8 : -5.0, owoot ? 0.8 : 5.0), &target);
 	int planned_shortcut = !owoot && gene->line_mode != 0U &&
 						   shortcut_target(route, driver, gene->shortcut_skip + 1U, speed, &target);
+	double tactic_end = 0.0;
+	int planned_tactic = !owoot && tactic_target(route, driver, gene, lookahead, collision_enabled,
+												 &target, &tactic_end);
+	if (planned_tactic) {
+		planned_shortcut = 0;
+	}
+	if (!owoot && protected_target(route, driver, lookahead, speed, &target)) {
+		planned_shortcut = 1;
+		planned_tactic = 0;
+	}
+	/* Count only a target the controller actually uses. */
+	if (planned_tactic) {
+		++driver->tactic_ticks;
+	}
 	double world_x = target.x - car->car_position.lx / 64.0;
 	double world_z = target.z - car->car_position.lz / 64.0;
 	double world_y = target.height_specified ? target.y - car->car_position.ly / 64.0 : 0.0;
@@ -708,7 +1340,8 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		const struct GENGHOST_GENE *future =
 			&policy->segment[policy_segment(route, point->distance)];
 		double limit = point->speed * bounded(future->speed_scale, 0.35, 2.5);
-		if (planned_shortcut && point->distance < target.distance && open_piece(point->piece)) {
+		if ((planned_tactic && point->distance <= tactic_end) ||
+			(planned_shortcut && point->distance < target.distance && open_piece(point->piece))) {
 			limit = 250.0;
 		}
 		/* Keep the first feasible seed fast enough to cross upside-down parts;
@@ -734,7 +1367,7 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 			pg_feature_ahead = 1;
 		}
 	}
-	if (local.z < -30 || (driver->off_route > 500.0 && !planned_shortcut)) {
+	if (local.z < -30 || (driver->off_route > 500.0 && !planned_shortcut && !planned_tactic)) {
 		target_speed = fmin(target_speed, 38.0);
 	}
 	/* Human laps sustain controlled slides under throttle. Keep the safer

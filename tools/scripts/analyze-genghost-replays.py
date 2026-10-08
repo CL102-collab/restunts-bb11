@@ -116,6 +116,13 @@ def intervals(values):
     return result
 
 
+def replay_tile_id(replay, column, row):
+    """Read an object using top-down route coordinates from bottom-up track bytes."""
+    if not 0 <= column < 30 or not 0 <= row < 30:
+        return None
+    return replay[26 + (29 - row) * 30 + column]
+
+
 def inventory(archive):
     result = []
     basenames = set()
@@ -160,20 +167,20 @@ def select_cases(rows, reserved, count):
     groups = collections.defaultdict(list)
     for item in rows:
         if item["verify_exit"] == 0 and item["verified"].get("finished"):
-            groups[item["track_sha256"], item["car"]].append(item)
+            groups[item["track_sha256"]].append(item)
     cars = collections.defaultdict(list)
-    for (track_hash, car), members in groups.items():
+    for track_hash, members in groups.items():
         if track_hash not in reserved:
             continue
         ordered = sorted(members, key=lambda row: (row["verified"]["total_frames"], row["replay"]))
         best = ordered[0]
         case = {**best, "name": best["track"], "human_candidates": len(members),
                 "human_successful": len(members), "members": [r["replay"] for r in ordered]}
-        cars[car].append(case)
+        cars[best["car"]].append(case)
     for values in cars.values():
         values.sort(key=lambda case: stable_hash(case["track_sha256"]))
-    # Round-robin car types selects diverse resources while preserving disjoint
-    # track hashes. Stock cars come first for the first small benchmark subset.
+    # Only each exact track's overall winner supplies driving evidence. Car
+    # diversity chooses between tracks; it never replaces a faster recording.
     order = [car for car in STOCK_CARS if car in cars] + sorted(set(cars) - set(STOCK_CARS))
     selected, used = [], set()
     while len(selected) < count:
@@ -272,8 +279,7 @@ def trace_metrics(args, row, environment):
     for item in tiles.values():
         item["nearest_center"] = round(item["nearest_center"], 2)
         column, rowindex = item["column"], item["row"]
-        item["tile_id"] = replay[26 + rowindex * 30 + column] \
-            if 0 <= column < 30 and 0 <= rowindex < 30 else None
+        item["tile_id"] = replay_tile_id(replay, column, rowindex)
     penalties = [struct.unpack_from("<H", dump, 2 + i * STATE_SIZE + 0x14A)[0]
                  for i in range(length)]
     confirmed = [struct.unpack_from("<h", dump, 2 + i * STATE_SIZE + 0x2F2)[0]
@@ -464,11 +470,7 @@ def main():
             write_json(args.output / f"{label}-manifest.json", cases)
     print(f"Manifests ready: {len(tuning)} tuning and {len(validation)} validation tracks", flush=True)
     by_replay = {row["replay"]: row for row in rows}
-    selected = []
-    for case in tuning:
-        names = case["members"]
-        for index in sorted({0, len(names) // 2, len(names) - 1}):
-            selected.append(by_replay[names[index]])
+    selected = [by_replay[case["replay"]] for case in tuning]
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
         traces = list(pool.map(lambda row: trace_metrics(args, row, environment), selected))
     if run_provenance(args) != provenance:
