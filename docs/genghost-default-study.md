@@ -155,3 +155,34 @@ latched finish score. Candidate ranking already used the correct total; the
 correction prevents a misleading log such as 31.10 seconds total plus an apparent
 171-second penalty accrued after finishing. A regression preserves the actual
 native tail behavior and checks that the reported counted penalty remains zero.
+
+## Release validation
+
+The numerical source is commit
+`7ec6e9fddf8a19a6ff81b8cc579d2bd1e863cc29` on `feat/ghostgen`. All seven
+genghost CTest checks pass, including native state equivalence, the grounded
+shift fixture, all 6,164 DEFAULT dual-way mappings, the corkscrew geometry,
+ZCT141 completion recovery, restrictions, and post-finish penalty reporting.
+EditorConfig and whitespace checks also pass.
+
+The Linux x64 executable and actual Windows x64 executable under Wine produce
+identical replay bytes and deterministic reports for DEFAULT/PMIN at 5,000
+candidates (72.40 seconds) and DEFAULT/COUN with OWOOT and all three fixes at
+2,000 candidates (124.30 seconds). Native verification and independent replay
+playback agree; the restricted replay passes the separate OWOOT check.
+
+Android ARMv7 debug version 1.0.2 uses the same numerical source. Executing its
+packaged native code under ARM emulation matches Linux exactly at 200 candidates
+(80.35 seconds, skipping the corkscrew branch) and at two initial candidates
+(86.00 seconds, taking the right-side cut). Independent playback confirms the
+latter's low, non-inverted passage: maximum height 60.41 world units and wrapped
+roll 180/1024 of a full turn. APK signature, alignment, 32-bit ARM ABI, debug
+metadata, and retained opaque/software-rendered Android UI settings were checked;
+lint reports zero errors and three existing warnings. This does not replace
+physical Galaxy S5 testing of the reported display artifacts.
+
+The downloadable validation archive contains input hashes, reference ranking,
+winning telemetry, counterfactuals, separate experimental and release results,
+all compared replay outputs, and the final sample reports. It excludes game/car
+resources and the large native state dumps. Build manifests beside the binaries
+record their source revision, file hashes, and platform-specific validation.
