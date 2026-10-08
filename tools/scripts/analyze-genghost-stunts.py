@@ -244,7 +244,10 @@ def trace(args, row, objects, environment):
     if len(dump) != 2 + count * HUMAN.STATE_SIZE:
         raise ValueError(f"Invalid dump size: {source}")
     final = dump[-HUMAN.STATE_SIZE:]
-    actual = [struct.unpack_from("<H", final, offset)[0] for offset in (0x142, 0x146, 0x14A)]
+    total, finish = (struct.unpack_from("<H", final, offset)[0] for offset in (0x142, 0x146))
+    # Playback starts at elapsed_time1=0. Later braking frames may change the
+    # live penalty field, but only the penalty latched at finish counts.
+    actual = [total, finish, (total - finish) & 0xFFFF]
     expected = [row["verified"][field] for field in ("total_frames", "finish_frame", "penalty_frames")]
     if actual != expected or final[0x21B] != 3:
         raise ValueError(f"Independent playback mismatch: {source}: {actual} != {expected}")

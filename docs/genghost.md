@@ -105,8 +105,10 @@ Without OWOOT, initial driving profiles cut the horizontal corkscrew to the
 right of its red central wall. The approach starts near the road center and
 moves sideways gradually, using the car's width to propose clearance. This
 short line is tried from the first candidates, so later sectors can be refined
-without first discarding the cut. Ordinary traversal remains a local fallback;
-both paths are scored using complete native playback and penalties. Collision
+without first discarding the cut. If six initial cut profiles fail to finish,
+the search starts an independent ordinary-traversal lineage so that failed cut
+parents cannot crowd it out. Both paths remain available for later refinement
+and are scored using complete native playback and penalties. Collision
 fixes do not disable this geometric bypass. OWOOT retains full corkscrew traversal.
 
 After a validated lap exists, local stunt mutations explore slalom passages,
@@ -120,8 +122,11 @@ midair steering or change the physics.
 Dual-way switching is also part of the default search. A separate population
 tries touching a unique tile on one branch, crossing to the other branch before
 their merge, and confirming progress there. Shared split/merge tiles do not
-count as the required unique touch. Short and nearby crossings seed the search;
-mutations can select every eligible departure/arrival pair and combine switches
+count as the required unique touch. Short and nearby crossings seed the search,
+alongside early-departure/late-arrival pairs drawn from each branch’s private
+tiles. This gives long grass crossings a starting candidate even when the
+nearest crossing saves little distance. Mutations can select every eligible
+departure/arrival pair and combine switches
 in separate branch sections. The simulator supplies the actual penalties.
 These proposals start after the first validated lap and are disabled for OWOOT.
 
@@ -159,7 +164,12 @@ an embedded track, but its inputs are not reused.
 
 Power gear is considered only for cars whose parameters support it and when
 `--pg:on` is active. The driver accelerates normally on the approach and tries early
-upshifts when the rear wheels become unloaded; it avoids premature airborne
+upshifts when the rear wheels become unloaded. It also considers an earlier
+upshift while climbing with the rear wheels still touching: the car’s gear-knob
+travel predicts clutch time and coasting loss, then its torque curve, top-gear
+ratio, drag, gravity, and native mass division predict whether the shift can
+trigger positive power-gear acceleration. This uses car and physics parameters,
+not track names or recorded frame numbers. It avoids premature airborne
 downshifts in useful power gear cars. Suitable slopes can make reaching power
 gear valuable, but the completed lap score determines whether that approach wins.
 Power gear is not available to every car: the repository's `DIA3` has a mass of
@@ -205,7 +215,8 @@ it should not be interpreted as an independently discovered racing line.
 
 ## Golden replay benchmark
 
-See the [winning replay and stunt study](genghost-stunt-benchmark.md),
+See the [Ayrton DEFAULT study and corkscrew follow-up](genghost-default-study.md),
+[winning replay and stunt study](genghost-stunt-benchmark.md),
 [initial 16-track comparison](genghost-benchmark.md), and
 [expanded replay analysis](genghost-expanded-benchmark.md) for measured results
 and the remaining gap between track-only driving and human replay refinement.

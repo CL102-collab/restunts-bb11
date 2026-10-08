@@ -36,6 +36,9 @@ def main():
     with zipfile.ZipFile(corpus) as archive:
         fixtures = [("0000", archive.read("0000.rpl"))]
         controller_fixtures = []
+        uphill_fixture = (archive.read("0722.rpl") if
+                          any(f"CARPMIN.{suffix}" in available for suffix in ("RES", "PRE")) and
+                          any(f"STPMIN.{suffix}" in available for suffix in ("P3S", "3SH")) else None)
         # Exercise guidance identity through rigid/flexible power gear and the
         # modern jump-heavy Jaguar lap, when their optional assets are installed.
         for name, car in (("0027", "VETT"), ("0066", "PMIN"), ("3856", "JAGU")):
@@ -76,6 +79,11 @@ def main():
                 subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
                                 "--dualway-check", *switches],
                                env=environment, check=True, timeout=120)
+        if uphill_fixture is not None:
+            source = temporary / "uphill.RPL"
+            source.write_bytes(uphill_fixture)
+            subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
+                            "--uphill-check"], env=environment, check=True, timeout=120)
         for fixture_name, recording, prefix, model in controller_fixtures:
             source = temporary / "source.RPL"
             source.write_bytes(recording)

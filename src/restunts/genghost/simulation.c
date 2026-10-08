@@ -192,9 +192,13 @@ void genghost_sim_result(struct GENGHOST_RESULT *result)
 {
 	result->frames = (legacy_u16)state.game_frame;
 	result->finish_frame = (legacy_u16)state.game_pEndFrame;
-	result->penalty_frames = (legacy_u16)state.game_penalty;
 	result->total_frames = (legacy_u16)state.game_total_finish;
 	result->finished = state.playerstate.car_crashBmpFlag == CRASH_EVENT_FINISH;
+	/* Route tracking continues while a finished car brakes through the replay
+	 * tail. Only the penalty latched into the native finish time counts. */
+	result->penalty_frames =
+		result->finished ? (legacy_u16)(result->total_frames - result->finish_frame - elapsed_time1)
+						 : (legacy_u16)state.game_penalty;
 	result->crashed = state.playerstate.car_crashBmpFlag != CRASH_EVENT_NONE && !result->finished;
 }
 

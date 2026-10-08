@@ -35,6 +35,7 @@ struct route_search {
 	uint64_t revision;
 	int completed_attempt;
 	int demonstration;
+	int ordinary_discovery;
 };
 
 struct checkpoint_cache {
@@ -177,38 +178,43 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 static void choose_policy(struct search_context *context, struct route_search *search,
 						  struct GENGHOST_POLICY *policy)
 {
-	if (search->trials < POPULATION) {
+	int ordinary_fallback = search->ordinary_discovery && !context->result->race.finished &&
+							search->trials >= POPULATION && search->trials < POPULATION * 2U;
+	if (search->trials < POPULATION || ordinary_fallback) {
+		unsigned int initial = (unsigned int)(search->trials % POPULATION);
 		static const double speeds[POPULATION] = {1.0, 0.75, 0.55, 1.2, 0.9, 1.5};
 		genghost_policy_default(policy);
 		for (unsigned int i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
-			policy->segment[i].speed_scale *= speeds[search->trials];
+			policy->segment[i].speed_scale *= speeds[initial];
 			/* Seed the short horizontal-cork line across driving profiles so
 			 * refinement does not discard it because of a slower later sector.
-			 * Ordinary traversal remains reachable through local mutations. */
-			if (context->corkscrew_cut_available && !context->options->owoot) {
+			 * If these fail to finish, explicitly fund the ordinary profiles
+			 * before attempting repairs; local mutations also retain both paths. */
+			if (context->corkscrew_cut_available && !context->options->owoot &&
+				!ordinary_fallback) {
 				policy->segment[i].stunt_mode = GENGHOST_STUNT_CORKSCREW_CUT;
 			}
 			if (context->portal_family) {
 				policy->segment[i].line_mode = 1U;
 				if (context->dualway_family && context->dualway_available) {
-					policy->segment[i].dualway_choice = 1U + search->trials % 2U;
+					policy->segment[i].dualway_choice = 1U + initial % 2U;
 				}
 			}
-			if (search->trials >= 3U) {
+			if (initial >= 3U) {
 				policy->segment[i].slide_brake = 0.0;
 			}
-			if (search->trials == 4U) {
+			if (initial == 4U) {
 				policy->segment[i].lateral_offset = -0.35;
 			}
-			if (search->trials == 5U) {
+			if (initial == 5U) {
 				policy->segment[i].powergear_bias = 1.0;
 			}
 			if (context->portal_family) {
 				static const unsigned int skips[POPULATION] = {1U, 2U, 2U, 1U, 1U, 2U};
-				policy->segment[i].speed_scale = search->trials % 2U ? 1.5 : 1.2;
-				policy->segment[i].shortcut_skip = skips[search->trials];
-				policy->segment[i].slide_brake = search->trials >= 4U ? 1.0 : 0.0;
-				policy->segment[i].powergear_bias = search->trials % 2U ? 1.0 : 0.5;
+				policy->segment[i].speed_scale = initial % 2U ? 1.5 : 1.2;
+				policy->segment[i].shortcut_skip = skips[initial];
+				policy->segment[i].slide_brake = initial >= 4U ? 1.0 : 0.0;
+				policy->segment[i].powergear_bias = initial % 2U ? 1.0 : 0.5;
 				policy->segment[i].lateral_offset = 0.0;
 			}
 		}
@@ -836,14 +842,33 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			}
 			context.corkscrew_cut_available = 0;
 			for (size_t point = 0; point < routes.routes[index].point_count; ++point) {
-				if (routes.routes[index].points[point].physical_model ==
-					PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+				if (!options->owoot && routes.routes[index].points[point].physical_model ==
+										   PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 					context.corkscrew_cut_available = 1;
 					break;
 				}
 			}
 			size_t search_index = family * routes.count + index;
 			struct route_search *search = &searches[search_index];
+			if (context.corkscrew_cut_available && !result->race.finished &&
+				search->trials == POPULATION) {
+				/* Failed cut parents may reach farther than ordinary profiles and
+				 * crowd them out forever. Restart discovery with an independent
+				 * ordinary lineage after funding all initial cut profiles. */
+				uint64_t revision = search->revision + 1U;
+				free(search->best_inputs);
+				memset(search, 0, sizeof(*search));
+				search->trials = POPULATION;
+				search->revision = revision;
+				search->fitness = -DBL_MAX;
+				search->ordinary_discovery = 1;
+				context.cache->checkpoint_count = 0U;
+				context.cache->boundary_count = 0U;
+				context.cache->guide_count = 0U;
+			}
+			if (search->ordinary_discovery && !result->race.finished) {
+				context.corkscrew_cut_available = 0;
+			}
 			unsigned int attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
 			for (unsigned int attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
 				struct GENGHOST_POLICY policy;
@@ -853,11 +878,17 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				int mutation = search->best_inputs && search->race.finished &&
 							   search->trials >= POPULATION &&
 							   random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
-				int repair = search->best_inputs && !search->race.finished &&
+				int initial_fallback = search->ordinary_discovery && !result->race.finished &&
+									   search->trials < POPULATION * 2U;
+				int repair = search->best_inputs && !search->race.finished && !initial_fallback &&
 							 search->trials >= POPULATION && random_word(&context) % 3U != 0U;
 				context.dualway_available = routes.routes[index].dualway_count != 0U;
 				if (!mutation && !repair) {
 					choose_policy(&context, search, &policy);
+					if (context.dualway_family && search->trials < POPULATION) {
+						genghost_dualway_seed_policy(&routes, index, &policy,
+													 (unsigned int)search->trials);
+					}
 				}
 				struct GENGHOST_ROUTE effective;
 				const struct GENGHOST_ROUTE *route = &routes.routes[index];

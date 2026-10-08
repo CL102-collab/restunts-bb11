@@ -102,6 +102,10 @@ int genghost_route_policy(const struct GENGHOST_ROUTES *set, size_t index,
 uint64_t genghost_dualway_selector(uint32_t gate, uint64_t selector);
 /* Distance of a particular route occurrence, including the repeated finish. */
 double genghost_route_piece_distance(const struct GENGHOST_ROUTE *route, size_t piece_index);
+/* Seed early private departures and late private arrivals for each branch,
+ * using its own endpoint counts; preserve the short/near recipes for seeds 0/1. */
+void genghost_dualway_seed_policy(const struct GENGHOST_ROUTES *set, size_t index,
+								  struct GENGHOST_POLICY *policy, unsigned int seed);
 void genghost_route_release(struct GENGHOST_ROUTE *route);
 void genghost_routes_free(struct GENGHOST_ROUTES *routes);
 void genghost_policy_default(struct GENGHOST_POLICY *policy);

@@ -32,8 +32,13 @@ def main():
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
     default = available["DEFAULT.RPL"].read_bytes()
     track = available["DEFAULT.TRK"].read_bytes()
+    fallback_resources = (("CARZMP4.RES", "CARZMP4.PRE"), ("STZMP4.P3S", "STZMP4.3SH"))
+    fallback_available = all(any(name in available for name in names) for names in fallback_resources)
     with zipfile.ZipFile(corpus) as archive:
         seed = archive.read("0000.rpl")
+        tail = bytearray(archive.read("0722.rpl")[:REPLAY_INPUT_OFFSET + 642])
+        fallback_track = (archive.read("1531.rpl")[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET]
+                          if fallback_available else None)
 
     with tempfile.TemporaryDirectory(prefix="ghsearch-") as directory:
         temporary = Path(directory)
@@ -66,8 +71,11 @@ def main():
             # Fixed offsets in the original serialized GAMESTATE (stateio.c).
             state = dump[-GAMESTATE_SIZE:]
             assert state[0x21B] == 3  # playerstate.car_crashBmpFlag == CRASH_EVENT_FINISH
-            total, finish, penalty = (struct.unpack_from("<H", state, offset)[0]
-                                      for offset in (0x142, 0x146, 0x14A))
+            total, finish = (struct.unpack_from("<H", state, offset)[0]
+                             for offset in (0x142, 0x146))
+            # Canonical headless replay starts at elapsed_time1=0. Live route
+            # penalties may change during the braking tail after score latching.
+            penalty = (total - finish) & 0xFFFF
             assert (finish, penalty, total) == (report["finish_frame"], report["penalty_frames"],
                                                 report["total_frames"])
             if "--owoot" in flags:
@@ -99,6 +107,33 @@ def main():
                 assert verified[field] == report[field], (field, verified, report)
             independent_playback(path, report, flags)
             return recording, report
+
+        # A small input delta from the winning ZCT079 replay crosses the finish
+        # in 622 ticks, then its braking tail changes the live penalty tracker.
+        # Scoring must keep the penalty latched at the finish, not that late value.
+        changes = {
+            329: 9, 402: 5, 406: 1, 413: 9, 421: 1, 422: 5, 448: 9, 505: 1,
+            511: 9, 513: 1, 519: 9, 523: 9, 534: 9, 535: 9, 541: 1, 542: 1,
+            547: 5, 548: 5, 549: 1, 550: 1, 557: 9, 558: 9, 559: 5, 560: 5,
+            562: 1, 563: 1, 565: 5, 566: 9, 567: 9, 569: 5, 570: 5, 571: 1,
+            597: 9, 598: 9, 602: 1, 603: 1, 605: 5, 606: 5, 622: 0, 623: 0,
+            624: 0,
+        }
+        for frame, value in changes.items():
+            tail[REPLAY_INPUT_OFFSET + frame] = value
+        struct.pack_into("<H", tail, 24, 642)
+        tail_path = temporary / "tail.RPL"
+        tail_path.write_bytes(tail)
+        tail_report = verify("tail.RPL", "PMIN")
+        assert (tail_report["frames"], tail_report["finish_frame"], tail_report["total_frames"],
+                tail_report["penalty_frames"]) == (642, 622, 622, 0), tail_report
+        independent_playback(tail_path, {**tail_report, "replay_frames": 642}, ())
+        dump = tail_path.with_suffix(".BNI").read_bytes()
+        first_finish = next(2 + frame * GAMESTATE_SIZE for frame in range(642)
+                            if dump[2 + frame * GAMESTATE_SIZE + 0x21B] == 3)
+        assert struct.unpack_from("<H", dump, first_finish + 0x14A)[0] == 0
+        assert struct.unpack_from("<H", dump, len(dump) - GAMESTATE_SIZE + 0x14A)[0] == 3420
+        print("Finish score excludes penalties appearing only in the replay's braking tail", flush=True)
 
         # A genuine track-only search: there are no seed driving inputs.
         (temporary / "track.TRK").write_bytes(track)
@@ -148,6 +183,19 @@ def main():
         assert max(sample[1] for sample in passage) < 160, "Car climbed the full corkscrew"
         assert max(sample[3] for sample in passage) < 256, "Car rolled through the full corkscrew"
         print("Initial DEFAULT/PMIN replay crosses right of the cork wall without a full roll", flush=True)
+
+        # Some cars/approaches need an ordinary traversal parent to discover
+        # the rest of the lap. On ZCT141 the failed cut parents reached farther
+        # and previously crowded out every ordinary fallback, losing a finish.
+        # Extract only the map: the human replay must not seed this regression.
+        if fallback_track is not None:
+            (temporary / "zct141.TRK").write_bytes(fallback_track)
+            _, fallback_report = generate("zct141.TRK", "ZMP4", "fallback.RPL", 5000)
+            assert not fallback_report["seed_replay_finished"] and fallback_report["seed_total_frames"] == 0
+            assert fallback_report["tactic_evaluations"] > 0, "Fallback fixture never attempted cork cuts"
+            print("ZCT141/ZMP4 ordinary fallback finishes after unsuccessful initial cork cuts", flush=True)
+        else:
+            print("SKIP: optional ZCT141 fallback regression needs the custom ZMP4 car", flush=True)
 
         # Replay extraction must support changing the original replay's car.
         extracted, _ = generate("source.RPL", "COUN", "extract.RPL", 200)

@@ -433,6 +433,61 @@ static int dualway_build(struct GENGHOST_ROUTES *set, size_t *bytes, char *error
 	return 0;
 }
 
+/* Humans often spend their speed budget on the long cross-country connector:
+ * a few private departure tiles establish the chosen path, and a late private
+ * arrival avoids the remaining branch. These are initial proposals only; every
+ * source/target pair remains available to mutation and native simulation. */
+void genghost_dualway_seed_policy(const struct GENGHOST_ROUTES *set, size_t index,
+								  struct GENGHOST_POLICY *policy, unsigned int seed)
+{
+	if (seed < 2U || seed >= 6U) {
+		return;
+	}
+	static const unsigned int departures[4] = {0U, 1U, 2U, 2U};
+	static const unsigned int arrivals[4] = {2U, 1U, 1U, 0U};
+	const struct GENGHOST_ROUTE *base = &set->routes[index];
+	for (size_t split = 0; split + 1U < base->piece_count; ++split) {
+		double best = DBL_MAX;
+		uint64_t preceding = 0U, selected = 0U;
+		for (size_t s = 0; s < base->dualway_count; ++s) {
+			const struct GENGHOST_DUALWAY *span = &base->dualways[s];
+			if (span->split != split) {
+				continue;
+			}
+			size_t source_rank = departures[seed - 2U];
+			size_t back = arrivals[seed - 2U];
+			if (source_rank >= span->source_count) {
+				source_rank = span->source_count - 1U;
+			}
+			if (back >= span->target_count) {
+				back = span->target_count - 1U;
+			}
+			size_t target_rank = span->target_count - 1U - back;
+			size_t source = span->sources[source_rank], target = span->targets[target_rank];
+			const struct GENGHOST_ROUTE *other = &set->routes[span->other];
+			double cost = genghost_route_piece_distance(base, source) +
+						  piece_distance(base->pieces[source], other->pieces[target]) +
+						  genghost_route_piece_distance(other, span->other_merge) -
+						  genghost_route_piece_distance(other, target) -
+						  genghost_route_piece_distance(base, span->merge);
+			if (cost < best) {
+				best = cost;
+				selected =
+					3U + preceding + (uint64_t)source_rank * span->target_count + target_rank;
+			}
+			preceding += span->pairs;
+		}
+		if (selected) {
+			unsigned int segment = (unsigned int)(genghost_route_piece_distance(base, split) /
+												  base->length * GENGHOST_POLICY_SEGMENTS);
+			if (segment >= GENGHOST_POLICY_SEGMENTS) {
+				segment = GENGHOST_POLICY_SEGMENTS - 1U;
+			}
+			policy->segment[segment].dualway_choice = selected;
+		}
+	}
+}
+
 void genghost_route_release(struct GENGHOST_ROUTE *route)
 {
 	free(route->pieces);
@@ -1234,6 +1289,74 @@ int genghost_powergear_kind(void)
 	return 0;
 }
 
+/* A higher gear can deliberately make uphill engine force negative while
+ * the rear wheels still drive. Test the actual top ratio, torque curve, drag,
+ * gravity and native unsigned mass divide; no car/track name or fixed mph
+ * power-gear threshold is assumed. Shifting clears the limiter, so this is
+ * settled top-gear potential rather than a claim about the current tick. */
+static int uphill_powergear_available(void)
+{
+	const struct CARSTATE *car = &state.playerstate;
+	int gear = simd_player.num_gears;
+	int pitch = car->car_rotate.y;
+	if (car->car_sumSurfRearWheels == CAR_WHEEL_CONTACT_NONE || pitch < 12 || pitch > 192 ||
+		car->car_pseudoGravity >= -12 || car->car_actual_speed < 50U * 256U ||
+		simd_player.car_mass <= 0 || gear <= 0 || gear >= (int)SIMD_GEAR_RATIO_COUNT) {
+		return 0;
+	}
+	/* The knob must physically reach each next gear. Forecast the drag and
+     * uphill speed lost while the clutch is disengaged. A force sign only at
+     * current speed can shift too early and miss the narrow boost window. */
+	if (car->car_current_gear < 1 || car->car_current_gear > gear) {
+		return 0;
+	}
+	unsigned int ticks = 0U;
+	int x = car->car_knob_x, y = car->car_knob_y;
+	for (int g = car->car_current_gear + 1; g <= gear; ++g) {
+		int nx = simd_player.knob_points[g].px, ny = simd_player.knob_points[g].py;
+		int neutral = simd_player.knob_points[0].py;
+		if (x == nx) {
+			ticks += (unsigned int)(abs(ny - y) + 5) / 6U;
+		} else {
+			ticks += (unsigned int)(abs(neutral - y) + 5) / 6U +
+					 (unsigned int)(abs(nx - x) + 5) / 6U +
+					 (unsigned int)(abs(ny - neutral) + 5) / 6U;
+		}
+		x = nx;
+		y = ny;
+	}
+	if (ticks > 128U) {
+		return 0;
+	}
+	legacy_u16 coast_speed = car->car_rev_speed;
+	for (unsigned int tick = 0U; tick < ticks; ++tick) {
+		int next = (int)coast_speed + car->car_pseudoGravity -
+				   simd_player.aerorestable[coast_speed >> 10U];
+		coast_speed = (legacy_u16)bounded(next, 0.0, 65535.0);
+	}
+	legacy_u16 ratio = simd_player.gear_ratios[gear];
+	unsigned int rpm = (legacy_u32)coast_speed * ratio >> 16U;
+	if (rpm < (unsigned int)simd_player.idle_rpm) {
+		rpm = simd_player.idle_rpm;
+	}
+	if (rpm >= (unsigned int)simd_player.max_rpm ||
+		(rpm >> 7U) >= sizeof(simd_player.torque_curve)) {
+		return 0;
+	}
+	unsigned int torque = (unsigned char)simd_player.torque_curve[rpm >> 7U];
+	legacy_s16 force = LEGACY_S16_WRAP_ADD(
+		LEGACY_S16_WRAP_SUB(car->car_pseudoGravity, simd_player.aerorestable[coast_speed >> 10U]),
+		LEGACY_S16_FROM_BITS((legacy_u16)(LEGACY_U16_WRAP_MUL(ratio >> 8U, torque) >> 4U)));
+	if (force >= 0) {
+		return 0;
+	}
+	legacy_s32 product = (legacy_s32)force * 25;
+	legacy_s16 original =
+		LEGACY_S16_FROM_BITS((legacy_u16)((legacy_u32)product / (legacy_u16)simd_player.car_mass));
+	legacy_s16 corrected = LEGACY_S16_FROM_BITS((legacy_u16)(product / simd_player.car_mass));
+	return LEGACY_S16_SAR(original, 1) > 0 && LEGACY_S16_SAR(corrected, 1) < 0;
+}
+
 unsigned char genghost_steering_key(double wanted)
 {
 	const struct CARSTATE *car = &state.playerstate;
@@ -1400,12 +1523,14 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	if (car->car_transmission == TRANSMISSION_MANUAL && !car->car_changing_gear) {
 		double shift_rpm = bounded(simd_player.upshift_rpm * gene->shift_rpm_scale,
 								   simd_player.idle_rpm + 1200.0, simd_player.max_rpm - 100.0);
-		/* Expert power-gear launches keep accelerating in low gears on the
-		 * approach, then shift while unloaded. Shifting to top gear a whole
-		 * tile before takeoff bogs the car down before it can reach the ramp. */
-		int seek_pg = useful_pg && gene->powergear_bias > 0.05 && pg_feature_ahead &&
-					  car->car_sumSurfRearWheels == CAR_WHEEL_CONTACT_NONE &&
-					  speed > bounded(85.0 - 65.0 * gene->powergear_bias, 20.0, 90.0);
+		/* Preserve acceleration on approach. Some cars reach power gear while
+         * still climbing: shift only when top-gear force remains negative
+         * after the clutch's predicted speed loss. Retain unloaded attempts
+         * for other ramps and stunts. */
+		int seek_pg = useful_pg && gene->powergear_bias > 0.05 &&
+					  (uphill_powergear_available() ||
+					   (pg_feature_ahead && car->car_sumSurfRearWheels == CAR_WHEEL_CONTACT_NONE &&
+						speed > bounded(85.0 - 65.0 * gene->powergear_bias, 20.0, 90.0)));
 		if (car->car_current_gear < simd_player.num_gears &&
 			(car->car_currpm >= shift_rpm || seek_pg)) {
 			input |= INPUT_SHIFT_UP_FLAG;

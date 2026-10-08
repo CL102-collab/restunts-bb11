@@ -406,6 +406,42 @@ static int test_dualway_routes(void)
 	char error[256];
 	assert(genghost_routes_build(&set, error, sizeof(error)) == 0);
 	assert(set.count == 2U && set.dualway_pairs == 6164U);
+	/* Endpoint recipes depend on private branch ranks, not DEFAULT node IDs.
+	 * Assert their native realization here, including the winner's third-private
+	 * departure to penultimate arrival, and retain old shortest/near profiles. */
+	static const int expected_departures[2][6] = {{11, 35, 11, 12, 13, 13},
+												  {60, 76, 60, 61, 62, 62}};
+	static const int expected_arrivals[2][6] = {{126, 118, 124, 125, 125, 126},
+												{56, 16, 54, 55, 55, 56}};
+	for (size_t route_index = 0; route_index < set.count; ++route_index) {
+		for (unsigned int seed = 0U; seed < 6U; ++seed) {
+			struct GENGHOST_POLICY policy;
+			memset(&policy, 0, sizeof(policy));
+			genghost_policy_default(&policy);
+			for (size_t i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+				policy.segment[i].dualway_choice = 1U + seed % 2U;
+			}
+			struct GENGHOST_POLICY before;
+			memcpy(&before, &policy, sizeof(policy));
+			genghost_dualway_seed_policy(&set, route_index, &policy, seed);
+			if (seed < 2U) {
+				assert(memcmp(&policy, &before, sizeof(policy)) == 0);
+			}
+			struct GENGHOST_ROUTE candidate;
+			assert(genghost_route_policy(&set, route_index, &policy, &candidate, error,
+										 sizeof(error)) == 1);
+			size_t crossing = 0U;
+			while (crossing + 1U < candidate.piece_count &&
+				   candidate.portals[crossing + 1U] != 2U) {
+				++crossing;
+			}
+			assert(crossing + 1U < candidate.piece_count);
+			assert(candidate.pieces[crossing] == expected_departures[route_index][seed]);
+			assert(candidate.pieces[crossing + 1U] == expected_arrivals[route_index][seed]);
+			genghost_route_release(&candidate);
+		}
+	}
+
 	for (size_t route_index = 0U; route_index < 2U; ++route_index) {
 		/* The repeated finish is native piece zero again, but its distance
 		 * belongs at the end of the lap. Looking up by native ID returns the
@@ -472,6 +508,77 @@ static int test_dualway_routes(void)
 	return 1;
 }
 
+/* Replace only the grounded uphill shift decisions in the fastest ZCT079
+ * recording. Matching every native state rejects an early shift that loses
+ * speed during the clutch transition and misses the power-gear window. */
+static void test_uphill_powergear(const unsigned char *inputs, unsigned int count)
+{
+	assert(count > 300U && count <= GENGHOST_MAX_FRAMES);
+	unsigned char *reference = malloc((size_t)count * GAMESTATE_SERIALIZED_SIZE);
+	assert(reference != NULL);
+	for (unsigned int frame = 0U; frame < count; ++frame) {
+		assert(genghost_sim_step(inputs[frame]) >= 0);
+		assert(gamestate_serialize(reference + (size_t)frame * GAMESTATE_SERIALIZED_SIZE, &state) ==
+			   GAMESTATE_SERIALIZED_SIZE);
+	}
+	genghost_sim_reset();
+	struct GENGHOST_ROUTES routes;
+	char error[256];
+	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+	assert(routes.count > 0U);
+	struct GENGHOST_POLICY policy;
+	genghost_policy_default(&policy);
+	struct GENGHOST_DRIVER driver;
+	genghost_driver_reset(&driver);
+	struct GENGHOST_SNAPSHOT before, after;
+	unsigned int shifts = 0U;
+	const unsigned int shift_mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	for (unsigned int frame = 0U; frame < count; ++frame) {
+		genghost_sim_capture(&before);
+		struct GENGHOST_DRIVER original_driver = driver;
+		unsigned char control = genghost_driver_step(&routes.routes[0], &policy, &driver, 1, 1, 0);
+		genghost_sim_capture(&after);
+		assert(memcmp(&before, &after, sizeof(before)) == 0);
+		if (frame == 261U || frame == 266U) {
+			assert(state.playerstate.car_sumSurfRearWheels != CAR_WHEEL_CONTACT_NONE);
+			assert(state.playerstate.car_pseudoGravity < -12);
+			assert((control & shift_mask) == INPUT_SHIFT_UP_FLAG);
+			/* Compare controller flags at the same real state, without changing
+			 * the engine's rules or stepping a counterfactual simulation. */
+			struct GENGHOST_DRIVER fixed_driver = original_driver;
+			unsigned char fixed =
+				genghost_driver_step(&routes.routes[0], &policy, &fixed_driver, 0, 1, 0);
+			assert(!(fixed & INPUT_SHIFT_UP_FLAG));
+			struct GENGHOST_DRIVER road_driver = original_driver;
+			unsigned char road =
+				genghost_driver_step(&routes.routes[0], &policy, &road_driver, 1, 1, 1);
+			assert((road & shift_mask) == INPUT_SHIFT_UP_FLAG);
+			genghost_sim_capture(&after);
+			assert(memcmp(&before, &after, sizeof(before)) == 0);
+		}
+		unsigned char input = inputs[frame];
+		if (frame >= 240U && frame < 300U) {
+			if (control & INPUT_SHIFT_UP_FLAG) {
+				assert(frame == 261U || frame == 266U);
+				++shifts;
+			}
+			input = (unsigned char)((input & ~shift_mask) | (control & shift_mask));
+		}
+		assert(genghost_sim_step(input) >= 0);
+		unsigned char serialized[GAMESTATE_SERIALIZED_SIZE];
+		assert(gamestate_serialize(serialized, &state) == sizeof(serialized));
+		assert(memcmp(serialized, reference + (size_t)frame * GAMESTATE_SERIALIZED_SIZE,
+					  sizeof(serialized)) == 0);
+	}
+	struct GENGHOST_RESULT result;
+	genghost_sim_result(&result);
+	assert(shifts == 2U && result.finished && result.total_frames == 625U);
+	assert(result.penalty_frames == 0U);
+	free(reference);
+	genghost_routes_free(&routes);
+	puts("Grounded uphill shifts match all winning ZCT079 states; PG-off and OWOOT gates passed.");
+}
+
 /* Resource-backed integration check. Run from a game-data directory:
  * test-genghost-simulation source.rpl normalized.rpl [physics switches]
  * repldump normalized.rpl 1 [the same physics switches]
@@ -512,6 +619,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		test_controller_snapshot(inputs, count,
 								 (unsigned int)strtoul((const char *)argv[3], NULL, 10),
 								 (int)strtol((const char *)argv[4], NULL, 10));
+		return 0;
+	}
+	if (argc == 3 && strcmp((const char *)argv[2], "--uphill-check") == 0) {
+		test_uphill_powergear(inputs, count);
 		return 0;
 	}
 	if (argc >= 3 && strcmp((const char *)argv[2], "--dualway-check") == 0) {

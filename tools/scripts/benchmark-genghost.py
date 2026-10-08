@@ -152,8 +152,10 @@ def independent_playback(binary, data, replay, expected, environment, flags):
     if count != recorded or len(dump) != 2 + count * GAMESTATE_SIZE or count == 0:
         raise ValueError(f"Invalid state dump size: {replay}")
     state = dump[-GAMESTATE_SIZE:]
-    total, finish, penalty = (struct.unpack_from("<H", state, offset)[0]
-                              for offset in (0x142, 0x146, 0x14A))
+    total, finish = (struct.unpack_from("<H", state, offset)[0] for offset in (0x142, 0x146))
+    # Native playback starts with elapsed_time1=0; the finish score is latched
+    # before any extra live penalties accrued during the post-finish tail.
+    penalty = (total - finish) & 0xFFFF
     score = {"driver": "repldump", "finished": state[0x21B] == 3,
              "replay_frames": count, "total_frames": total,
              "finish_frame": finish, "penalty_frames": penalty}
