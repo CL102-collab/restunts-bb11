@@ -45,11 +45,16 @@ def main():
                 fixtures.append((name, archive.read(name + ".rpl")))
         # Fastest verified archive laps for these tracks. Preserve each car's
         # actual dimensions and native stunt orientation in the restriction
-        # checks: loop rotations 0/256, slalom stones, and clear UD core.
+        # checks: loop rotations 0/256, slalom stones, clear UD core, and
+        # horizontal corks in both orientations and traversal directions.
         for name, car, prefix, model in (("1572", "ZGT3", 838, 27),
                                          ("o0226", "VETT", 469, 34),
                                          ("o0226", "VETT", 780, 27),
-                                         ("1531", "ZMP4", 1499, 33)):
+                                         ("1531", "ZMP4", 1499, 33),
+                                         ("a0405", "PMIN", 643, 35),
+                                         ("0750", "JAGU", 61, 35),
+                                         ("3649", "DMCB", 499, 35),
+                                         ("2015", "ANSX", 343, 35)):
             car_data = any(f"CAR{car}.{suffix}" in available for suffix in ("RES", "PRE"))
             car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
             if car_data and car_shape:

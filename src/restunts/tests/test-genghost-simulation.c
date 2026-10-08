@@ -269,13 +269,34 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 		genghost_sim_capture(&after);
 		assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 	}
+	/* The horizontal red-wall bypass is geometric and must remain a proposal
+	 * under either collision setting. It must not target other stunt models,
+	 * depend on power gear, or change any native checkpoint state. */
+	for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+		policy.segment[i].stunt_mode = GENGHOST_STUNT_CORKSCREW_CUT;
+	}
+	for (int powergear = 0; powergear <= 1; ++powergear) {
+		struct GENGHOST_DRIVER collision_reference;
+		genghost_driver_reset(&collision_reference);
+		unsigned char reference_input =
+			genghost_driver_step(&view, &policy, &collision_reference, powergear, 0, 0);
+		assert(collision_reference.tactic_ticks ==
+			   (unsigned int)(model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT));
+		struct GENGHOST_DRIVER legacy_driver;
+		genghost_driver_reset(&legacy_driver);
+		assert(genghost_driver_step(&view, &policy, &legacy_driver, powergear, 1, 0) ==
+			   reference_input);
+		assert(memcmp(&legacy_driver, &collision_reference, sizeof(legacy_driver)) == 0);
+		genghost_sim_capture(&after);
+		assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+	}
 	/* OWOOT must make every stunt gene inert, including launch and median
      * choices. Compare both inputs and optimizer state, not just a flag. */
 	struct GENGHOST_DRIVER reference;
 	genghost_driver_reset(&reference);
 	genghost_policy_default(&policy);
 	unsigned char expected = genghost_driver_step(&view, &policy, &reference, 1, 1, 1);
-	for (unsigned int mode = 1U; mode <= 4U; ++mode) {
+	for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_CORKSCREW_CUT; ++mode) {
 		for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy.segment[i].stunt_mode = mode;
 		}
@@ -287,6 +308,14 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 			genghost_sim_capture(&after);
 			assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 		}
+	}
+	if (model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+		free(view.points);
+		genghost_routes_free(&set);
+		printf("Winning prefix %u: horizontal bypass respects collision settings and OWOOT "
+			   "without changing native state.\n",
+			   prefix);
+		return;
 	}
 	/* Test the gate against native collisions with the same winning input
 	 * suffix and the original car body. Both orientations of the loop and

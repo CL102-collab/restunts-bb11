@@ -1005,6 +1005,9 @@ static void turn_quarter(double x, double z, int angle, double *tx, double *tz)
 
 static int tactic_model(int model, unsigned int mode, int collision)
 {
+	if (mode == GENGHOST_STUNT_CORKSCREW_CUT) {
+		return model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT;
+	}
 	if (mode == 1U) {
 		return model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
 			   model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B ||
@@ -1062,7 +1065,19 @@ static int tactic_target(const struct GENGHOST_ROUTE *route, const struct GENGHO
 			double px = ax,
 				   pz = direction > 0.0 ? fmax(az, cz + lookahead) : fmin(az, cz - lookahead);
 			int flat = 1;
-			if (mode == 1U) {
+			if (mode == GENGHOST_STUNT_CORKSCREW_CUT) {
+				/* Enter near the road center, then pass on the driving-right of
+				 * the diagonal red wall (local x=-60..60). Turning onto its rising
+				 * side too early can crash; the gradual offset follows the clear
+				 * approach used by human cuts. Native contacts decide clearance. */
+				double half_width = fabs((double)simd_player.collide_points[0].px);
+				for (unsigned int wheel = 0; wheel < 4U; ++wheel) {
+					half_width = fmax(half_width, fabs(simd_player.wheel_coords[wheel].x / 64.0));
+				}
+				double clearance = 75.0 + half_width + 12.0 + gene->lateral_offset * 70.0;
+				double phase = bounded((direction * pz + 1000.0) / 1000.0, 0.0, 1.0);
+				px = direction * fmax(60.0 + half_width + 12.0, clearance) * phase;
+			} else if (mode == 1U) {
 				if (model == PHYSICAL_MODEL_LOOP) {
 					px = direction * (30.0 + gene->lateral_offset * 100.0);
 				} else if (model == PHYSICAL_MODEL_SLALOM) {

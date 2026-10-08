@@ -101,6 +101,14 @@ curvature, while elevated pieces, stunts, and the finish retain their guidance.
 OWOOT keeps the road-constrained controller. The objective is still total time:
 a longer line that reaches power gear can beat the shortest physical route.
 
+Without OWOOT, initial driving profiles cut the horizontal corkscrew to the
+right of its red central wall. The approach starts near the road center and
+moves sideways gradually, using the car's width to propose clearance. This
+short line is tried from the first candidates, so later sectors can be refined
+without first discarding the cut. Ordinary traversal remains a local fallback;
+both paths are scored using complete native playback and penalties. Collision
+fixes do not disable this geometric bypass. OWOOT retains full corkscrew traversal.
+
 After a validated lap exists, local stunt mutations explore slalom passages,
 loop backside lines, corkscrew ground cuts, road edges, highway median offsets,
 and launches toward later tiles. They change a few route segments at a time.

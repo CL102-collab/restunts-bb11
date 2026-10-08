@@ -22,7 +22,8 @@ def main():
     available = {path.name.upper(): path for path in data_directory.iterdir()} if data_directory.is_dir() else {}
     required = (("DEFAULT.RPL",), ("DEFAULT.TRK",), ("GAME.RES", "GAME.PRE"),
                 ("CARCOUN.RES", "CARCOUN.PRE"), ("STCOUN.P3S", "STCOUN.3SH"),
-                ("CARLM02.RES", "CARLM02.PRE"), ("STLM02.P3S", "STLM02.3SH"))
+                ("CARLM02.RES", "CARLM02.PRE"), ("STLM02.P3S", "STLM02.3SH"),
+                ("CARPMIN.RES", "CARPMIN.PRE"), ("STPMIN.P3S", "STPMIN.3SH"))
     missing = [" or ".join(names) for names in required if not any(name in available for name in names)]
     if missing:
         print("SKIP: original Stunts resources are needed: " + "; ".join(missing), flush=True)
@@ -87,6 +88,7 @@ def main():
             assert report["policy_evaluations"] + report["input_evaluations"] <= evaluations
             assert 0 <= report["tile_improvements"] <= report["tile_evaluations"] <= evaluations
             assert 0 <= report["dualway_improvements"] <= report["dualway_evaluations"] <= evaluations
+            assert 0 <= report["tactic_improvements"] <= report["tactic_evaluations"] <= evaluations
             assert report["dualway_pairs"] >= 0
             assert report["routes_finished"] <= report["routes_attempted"] <= report["route_combinations"]
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
@@ -116,6 +118,37 @@ def main():
         assert first[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET] == track
         print("Track-only search, both branches, deterministic replay, and independent playback passed", flush=True)
 
+        # DEFAULT/PMIN originally followed the complete horizontal cork. Its
+        # first route policies must use the short line, before replay mutations
+        # or refinements of a finished parent can occur.
+        _, early_report = generate("track.TRK", "PMIN", "early.RPL", 2)
+        assert early_report["tactic_evaluations"] > 0, "Initial policies did not try the horizontal-cork cut"
+        assert early_report["input_evaluations"] == 0, "Unexpected replay mutation in initial population"
+        assert early_report["penalty_frames"] == 0
+
+        # Inspect actual independent playback, rather than accepting a tactic
+        # counter or a faster lap as evidence of bypassing the wall. DEFAULT's
+        # horizontal cork occupies columns 12/13 of bottom-up object row 22;
+        # its native origin is (13312, 23040), rotated one quarter turn. Local
+        # +x is driving-right and local +z points along this traversal.
+        assert track[22 * 30 + 12] == 86, "DEFAULT horizontal-cork fixture changed"
+        dump = (temporary / "early.BNI").read_bytes()
+        passage = []
+        for frame in range(struct.unpack_from("<H", dump)[0]):
+            offset = 2 + frame * GAMESTATE_SIZE + 0x152
+            x, y, z = struct.unpack_from("<iii", dump, offset)
+            roll = struct.unpack_from("<h", dump, offset + 28)[0]
+            local_x, local_z = 23040 - z / 64, x / 64 - 13312
+            if abs(local_x) < 512 and abs(local_z) <= 1024:
+                passage.append((local_x, y / 64, local_z, abs((roll + 512) % 1024 - 512)))
+        assert passage and passage[0][2] < -900 and passage[-1][2] > 900, "Cork was not crossed"
+        assert all(after[2] > before[2] for before, after in zip(passage, passage[1:])), "Cork traversal turned back"
+        beside_wall = [sample for sample in passage if abs(sample[2]) <= 64]
+        assert beside_wall and all(sample[0] > 60 for sample in beside_wall), "Car did not pass right of the red wall"
+        assert max(sample[1] for sample in passage) < 160, "Car climbed the full corkscrew"
+        assert max(sample[3] for sample in passage) < 256, "Car rolled through the full corkscrew"
+        print("Initial DEFAULT/PMIN replay crosses right of the cork wall without a full roll", flush=True)
+
         # Replay extraction must support changing the original replay's car.
         extracted, _ = generate("source.RPL", "COUN", "extract.RPL", 200)
         assert default[:4] != extracted[:4]
@@ -124,6 +157,7 @@ def main():
         assert clean_report["route_combinations"] == 2 and clean_report["routes_attempted"] == 2
         assert clean_report["tile_evaluations"] == clean_report["tile_improvements"] == 0
         assert clean_report["dualway_evaluations"] == clean_report["dualway_improvements"] == 0
+        assert clean_report["tactic_evaluations"] == clean_report["tactic_improvements"] == 0
         _, fixed_report = generate("track.TRK", "COUN", "fixed.RPL", 500,
                                    ("--pg:off", "--lc:off", "--lcb:off"))
         assert fixed_report["dualway_pairs"] == 6164

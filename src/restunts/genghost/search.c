@@ -7,6 +7,7 @@
 #include "guide.h"
 #include "../c/externs.h"
 #include "../c/crash_state.h"
+#include "../c/trackdata_layout.h"
 
 #undef memcpy
 
@@ -61,6 +62,7 @@ struct search_context {
 	int guided_candidate;
 	int portal_family;
 	int tactic_candidate;
+	int corkscrew_cut_available;
 	int dualway_family;
 	int dualway_available;
 	int dualway_candidate;
@@ -151,12 +153,18 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
-			/* First discover a complete lap with the established policies.
-             * Then test one local stunt change in the alternative population;
-             * broad mutations must not force every obstacle at once. */
-			if (context->result->race.finished && context->portal_family && !broad &&
-				(choice >> 6U) % 4U == 0U) {
-				gene->stunt_mode = (choice >> 12U) % 5U;
+			/* Before the first finish, only alternate the clear cork cut with
+			 * ordinary traversal. Other stunt proposals need a validated lap;
+			 * broad mutations must not force every obstacle at once. */
+			if ((context->result->race.finished || context->corkscrew_cut_available) &&
+				context->portal_family && !broad && (choice >> 6U) % 4U == 0U) {
+				if (!context->result->race.finished) {
+					gene->stunt_mode = (choice >> 12U) % 2U ? GENGHOST_STUNT_CORKSCREW_CUT : 0U;
+				} else {
+					gene->stunt_mode =
+						(choice >> 12U) %
+						(context->corkscrew_cut_available ? GENGHOST_STUNT_CORKSCREW_CUT + 1U : 5U);
+				}
 			}
 		}
 		if (context->options->powergear) {
@@ -174,6 +182,12 @@ static void choose_policy(struct search_context *context, struct route_search *s
 		genghost_policy_default(policy);
 		for (unsigned int i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy->segment[i].speed_scale *= speeds[search->trials];
+			/* Seed the short horizontal-cork line across driving profiles so
+			 * refinement does not discard it because of a slower later sector.
+			 * Ordinary traversal remains reachable through local mutations. */
+			if (context->corkscrew_cut_available && !context->options->owoot) {
+				policy->segment[i].stunt_mode = GENGHOST_STUNT_CORKSCREW_CUT;
+			}
 			if (context->portal_family) {
 				policy->segment[i].line_mode = 1U;
 				if (context->dualway_family && context->dualway_available) {
@@ -588,9 +602,15 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
-			if (context->result->race.finished && context->portal_family &&
-				(choice >> 6U) % 2U == 0U) {
-				gene->stunt_mode = (choice >> 12U) % 5U;
+			if ((context->result->race.finished || context->corkscrew_cut_available) &&
+				context->portal_family && (choice >> 6U) % 2U == 0U) {
+				if (!context->result->race.finished) {
+					gene->stunt_mode = (choice >> 12U) % 2U ? GENGHOST_STUNT_CORKSCREW_CUT : 0U;
+				} else {
+					gene->stunt_mode =
+						(choice >> 12U) %
+						(context->corkscrew_cut_available ? GENGHOST_STUNT_CORKSCREW_CUT + 1U : 5U);
+				}
 			}
 		}
 	}
@@ -813,6 +833,14 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 		for (size_t index = 0; index < routes.count && !expired(&context); ++index) {
 			if (family == 2U && !routes.routes[index].dualway_count) {
 				continue;
+			}
+			context.corkscrew_cut_available = 0;
+			for (size_t point = 0; point < routes.routes[index].point_count; ++point) {
+				if (routes.routes[index].points[point].physical_model ==
+					PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+					context.corkscrew_cut_available = 1;
+					break;
+				}
 			}
 			size_t search_index = family * routes.count + index;
 			struct route_search *search = &searches[search_index];

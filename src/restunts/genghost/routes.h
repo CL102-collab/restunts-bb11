@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #define GENGHOST_POLICY_SEGMENTS 64U
+#define GENGHOST_STUNT_CORKSCREW_CUT 5U
 
 /* Coordinates are the game's world units (1024 per tile); speeds are mph.
  * Offset is a fraction of the center-to-edge vector: +/-1 is a road edge.
@@ -19,7 +20,7 @@ struct GENGHOST_GENE {
 	double shift_rpm_scale;
 	unsigned int shortcut_skip;
 	unsigned int line_mode;
-	/* Local stunt proposal: 0 normal, 1 ground, 2/3 edge, 4 launch. */
+	/* Local stunt proposal: 0 normal, 1 ground, 2/3 edge, 4 launch, 5 cork cut. */
 	unsigned int stunt_mode;
 	double corner_scale;
 	double powergear_bias;
