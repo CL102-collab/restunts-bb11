@@ -33,6 +33,13 @@ def main():
         return 77
     with zipfile.ZipFile(corpus) as archive:
         fixtures = [("0000", archive.read("0000.rpl"))]
+        # Exercise guidance identity through rigid/flexible power gear and the
+        # modern jump-heavy Jaguar lap, when their optional assets are installed.
+        for name, car in (("0027", "VETT"), ("0066", "PMIN"), ("3856", "JAGU")):
+            car_data = any(f"CAR{car}.{suffix}" in available for suffix in ("RES", "PRE"))
+            car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
+            if car_data and car_shape:
+                fixtures.append((name, archive.read(name + ".rpl")))
     if "DEFAULT.RPL" in available:
         fixtures.append(("DEFAULT", available["DEFAULT.RPL"].read_bytes()))
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",

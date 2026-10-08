@@ -18,6 +18,9 @@ struct GENGHOST_SEARCH_RESULT {
 	unsigned int length;
 	struct GENGHOST_RESULT race;
 	uint64_t evaluations, simulated_frames;
+	uint64_t policy_evaluations, input_evaluations, guided_evaluations, guided_improvements;
+	unsigned int seed_total_frames;
+	int seed_finished;
 	size_t routes, routes_attempted, routes_finished;
 	double elapsed_seconds;
 };

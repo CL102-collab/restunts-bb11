@@ -83,6 +83,8 @@ def main():
             assert frame_rate == 20 and len(recording) == REPLAY_INPUT_OFFSET + count
             assert report["replay_frames"] == count and report["evaluations"] == evaluations
             assert report["finished"] and not report["globally_optimal"]
+            assert 0 <= report["guided_improvements"] <= report["guided_evaluations"] <= report["input_evaluations"]
+            assert report["policy_evaluations"] + report["input_evaluations"] <= evaluations
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                                          "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
@@ -101,6 +103,8 @@ def main():
         for report in (first_report, second_report):
             report.pop("search_seconds")
             assert report["route_combinations"] == 2 and report["routes_attempted"] == 2
+            assert not report["seed_replay_finished"] and report["seed_total_frames"] == 0
+            assert report["policy_evaluations"] + report["input_evaluations"] == report["evaluations"]
         assert first_report == second_report, "Repeatable search metrics differ"
         assert first[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET] == track
         print("Track-only search, both branches, deterministic replay, and independent playback passed", flush=True)
@@ -117,6 +121,9 @@ def main():
         seed_score = verify("seed.RPL", "LM02")["total_frames"]
         _, seeded_report = generate("seed.RPL", "LM02", "seeded.RPL", 100)
         assert seeded_report["total_frames"] <= seed_score, "Search regressed its valid input replay"
+        assert seeded_report["seed_replay_finished"] and seeded_report["seed_total_frames"] == seed_score
+        assert seeded_report["policy_evaluations"] + seeded_report["input_evaluations"] + 1 == 100
+        assert seeded_report["guided_evaluations"] > 0, "Seed refinement did not exercise trajectory guidance"
 
         # The game's picker ignores filenames longer than twelve bytes. Default
         # outputs must remain selectable even with a long or unusual source name.

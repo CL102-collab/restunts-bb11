@@ -197,6 +197,15 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	json_string(file, context->track_name);
 	fputs(",\n  \"car\": ", file);
 	json_string(file, context->car);
+	fprintf(file,
+			",\n  \"seed_replay_finished\": %s,\n  \"seed_total_frames\": %u,\n"
+			"  \"policy_evaluations\": %llu,\n  \"input_evaluations\": %llu,\n"
+			"  \"guided_evaluations\": %llu,\n  \"guided_improvements\": %llu",
+			result->seed_finished ? "true" : "false", result->seed_total_frames,
+			(unsigned long long)result->policy_evaluations,
+			(unsigned long long)result->input_evaluations,
+			(unsigned long long)result->guided_evaluations,
+			(unsigned long long)result->guided_improvements);
 	fprintf(
 		file,
 		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "

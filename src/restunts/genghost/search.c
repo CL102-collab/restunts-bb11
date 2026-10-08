@@ -4,6 +4,7 @@
 #include <float.h>
 #include <SDL3/SDL.h>
 #include "search.h"
+#include "guide.h"
 #include "../c/externs.h"
 #include "../c/crash_state.h"
 
@@ -31,6 +32,7 @@ struct route_search {
 	uint64_t trials;
 	uint64_t revision;
 	int completed_attempt;
+	int demonstration;
 };
 
 struct search_context {
@@ -44,6 +46,11 @@ struct search_context {
 	struct GENGHOST_SNAPSHOT *checkpoints;
 	struct GENGHOST_DRIVER *driver_checkpoints;
 	unsigned int checkpoint_count;
+	unsigned int boundary_count;
+	unsigned short *boundaries;
+	struct GENGHOST_GUIDE_POINT *guide;
+	unsigned int guide_count;
+	int guided_candidate;
 	size_t checkpoint_route;
 	uint64_t checkpoint_trial;
 };
@@ -94,6 +101,9 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 				  context->options->owoot ? -0.85 : -2.0, context->options->owoot ? 0.85 : 2.0);
 		gene->shift_rpm_scale =
 			clamp(gene->shift_rpm_scale + random_signed(context) * 0.12, 0.45, 1.05);
+		if (random_word(context) % 4U == 0U) {
+			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
+		}
 		if (!context->options->owoot && random_word(context) % 4U == 0U) {
 			gene->shortcut_skip = random_word(context) % 5U;
 		}
@@ -112,6 +122,9 @@ static void choose_policy(struct search_context *context, struct route_search *s
 		genghost_policy_default(policy);
 		for (unsigned int i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy->segment[i].speed_scale *= speeds[search->trials];
+			if (search->trials >= 3U) {
+				policy->segment[i].slide_brake = 0.0;
+			}
 			if (search->trials == 4U) {
 				policy->segment[i].lateral_offset = -0.35;
 			}
@@ -195,6 +208,9 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 		return -1;
 	}
 	context->result->simulated_frames += verified.frames;
+	if (context->guided_candidate) {
+		++context->result->guided_improvements;
+	}
 	memcpy(context->result->inputs, inputs, length);
 	context->result->length = length;
 	context->result->race = verified;
@@ -246,13 +262,23 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 	struct GENGHOST_DRIVER driver;
 	genghost_driver_reset(&driver);
 	context->checkpoint_count = 0;
+	context->boundary_count = 0;
+	context->guide_count = 0;
 	for (unsigned int i = 0; i < search->length; ++i) {
+		if (i && search->best_inputs[i] != search->best_inputs[i - 1U]) {
+			context->boundaries[context->boundary_count++] = (unsigned short)i;
+		}
 		if (i % CHECKPOINT_INTERVAL == 0U) {
 			context->driver_checkpoints[context->checkpoint_count] = driver;
 			genghost_sim_capture(&context->checkpoints[context->checkpoint_count++]);
 		}
+		if (search->race.finished && i < search->race.finish_frame) {
+			genghost_guide_capture(&context->guide[context->guide_count++], search->best_inputs[i]);
+		}
 		int event = genghost_sim_step(search->best_inputs[i]);
-		genghost_driver_observe(route, &driver);
+		if (!search->race.finished) {
+			genghost_driver_observe(route, &driver);
+		}
 		++context->result->simulated_frames;
 		if (event) {
 			break;
@@ -262,18 +288,112 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 	context->checkpoint_trial = search->revision;
 }
 
+/* Human laps encode useful control boundaries: brake entry/release, steering
+ * corrections and gear changes. Move those boundaries without overwriting the
+ * other controls. Small coordinated timing edits preserve far more of an expert
+ * line than replacing a random long block of all the inputs. */
 static unsigned int mutate_inputs(struct search_context *context, const struct route_search *search,
 								  unsigned char *inputs, unsigned int *start)
 {
-	unsigned int length = search->length;
+	unsigned int length = search->race.finished ? search->race.finish_frame : search->length;
+	if (length > search->length) {
+		length = search->length;
+	}
 	memcpy(inputs, search->best_inputs, length);
 	*start = random_word(context) % length;
-	unsigned int width = 1U << (random_word(context) % 7U);
+	unsigned int operation = random_word(context) % 12U;
+	unsigned int boundary =
+		context->boundary_count
+			? context->boundaries[random_word(context) % context->boundary_count]
+			: *start;
+	if (boundary >= length) {
+		boundary = length - 1U;
+	}
+	if ((operation < 6U || operation == 8U) && boundary > 0U) {
+		static const unsigned int masks[] = {3U, 12U, 48U};
+		static const unsigned int widths[] = {1U, 1U, 2U, 2U, 3U, 4U, 6U, 8U};
+		unsigned int changed = inputs[boundary] ^ inputs[boundary - 1U];
+		unsigned int channel = random_word(context) % 3U;
+		for (unsigned int n = 0; n < 3U && !(changed & masks[channel]); ++n) {
+			channel = (channel + 1U) % 3U;
+		}
+		unsigned int mask = masks[channel];
+		unsigned char before = inputs[boundary - 1U] & mask;
+		unsigned char after = inputs[boundary] & mask;
+		unsigned int width = widths[random_word(context) % 8U];
+		int later = random_word(context) % 2U;
+		if (mask == 3U && random_word(context) % 4U != 0U) {
+			/* Usually test less braking/coasting, while retaining exploratory
+			 * earlier braking for tighter and faster corner exits. */
+			later = after != 1U;
+		}
+		unsigned int run_end = boundary + 1U;
+		while (run_end < length && (inputs[run_end] & mask) == after) {
+			++run_end;
+		}
+		if (operation == 8U && run_end < length) {
+			/* Shift an entire correction/gear pulse, preserving its duration
+			 * and keeping all subsequent input timestamps unchanged. */
+			if (width > run_end - boundary) {
+				width = run_end - boundary;
+			}
+			if (later && width > length - run_end) {
+				width = length - run_end;
+			}
+			if (!later && width > boundary) {
+				width = boundary;
+			}
+			unsigned char following = inputs[run_end] & mask;
+			unsigned int first = later ? boundary : boundary - width;
+			unsigned int second = later ? run_end : run_end - width;
+			for (unsigned int i = 0; i < width; ++i) {
+				inputs[first + i] =
+					(unsigned char)((inputs[first + i] & ~mask) | (later ? before : after));
+				inputs[second + i] =
+					(unsigned char)((inputs[second + i] & ~mask) | (later ? after : following));
+			}
+			*start = first;
+		} else if (later) {
+			if (width > run_end - boundary) {
+				width = run_end - boundary;
+			}
+			for (unsigned int i = boundary; i < boundary + width; ++i) {
+				inputs[i] = (unsigned char)((inputs[i] & ~mask) | before);
+			}
+			*start = boundary;
+		} else {
+			unsigned int first = boundary;
+			while (first && boundary - first < width && (inputs[first - 1U] & mask) == before) {
+				--first;
+			}
+			for (unsigned int i = first; i < boundary; ++i) {
+				inputs[i] = (unsigned char)((inputs[i] & ~mask) | after);
+			}
+			*start = first;
+		}
+		return length;
+	}
+	unsigned int width = 1U << (random_word(context) % 6U);
+	if (operation == 7U || operation == 11U) {
+		*start = boundary;
+		width = 1U + random_word(context) % 8U;
+	}
 	if (width > length - *start) {
 		width = length - *start;
 	}
-	switch (random_word(context) % 5U) {
-		case 0: {
+	switch (operation) {
+		case 7:
+			memmove(inputs + *start, inputs + *start + width, length - *start - width);
+			length -= width;
+			break;
+		case 11:
+			if (length + width < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+				memmove(inputs + *start + width, inputs + *start, length - *start);
+				memset(inputs + *start, inputs[*start + width], width);
+				length += width;
+			}
+			break;
+		case 9: {
 			static const unsigned char steering[] = {0U, 4U, 8U};
 			unsigned char mask = steering[random_word(context) % 3U];
 			for (unsigned int i = *start; i < *start + width; ++i) {
@@ -281,30 +401,14 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 			}
 			break;
 		}
-		case 1: {
-			static const unsigned char pedal[] = {0U, 1U, 2U};
-			unsigned char mask = pedal[random_word(context) % 3U];
+		default: {
+			static const unsigned char pedal[] = {1U, 1U, 0U, 2U};
+			unsigned char mask = pedal[random_word(context) % 4U];
 			for (unsigned int i = *start; i < *start + width; ++i) {
 				inputs[i] = (unsigned char)((inputs[i] & ~3U) | mask);
 			}
 			break;
 		}
-		case 2:
-			inputs[*start] =
-				(unsigned char)((inputs[*start] & ~48U) | (random_word(context) % 2U ? 16U : 32U));
-			break;
-		case 3:
-			width = 1U + random_word(context) % (width < 12U ? width : 12U);
-			memmove(inputs + *start, inputs + *start + width, length - *start - width);
-			length -= width;
-			break;
-		default:
-			if (length + width < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
-				memmove(inputs + *start + width, inputs + *start, length - *start);
-				memset(inputs + *start, inputs[*start + width], width);
-				length += width;
-			}
-			break;
 	}
 	return length;
 }
@@ -314,8 +418,27 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 								 const struct route_search *search, unsigned char *inputs,
 								 struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
-	unsigned int start, length = mutate_inputs(context, search, inputs, &start);
 	cache_checkpoints(context, route_index, route, search);
+	unsigned int start, length = mutate_inputs(context, search, inputs, &start);
+	unsigned int common = 0, parent_length = context->guide_count;
+	while (common < length && common < parent_length &&
+		   inputs[length - common - 1U] == search->best_inputs[parent_length - common - 1U]) {
+		++common;
+	}
+	unsigned int changed_end = length - common;
+	unsigned int guide_cursor = parent_length - common;
+	/* Most attempts retain the exact suffix. A minority re-time its demonstrated
+	 * controls by position, so a faster sector can rejoin the line instead of
+	 * applying every later corner input at the old wall-clock timestamp. */
+	int guided = search->trials % 16U < 2U && common > 16U && changed_end > start;
+	unsigned int limit = guided ? length + 120U : length;
+	if (limit > GENGHOST_MAX_FRAMES) {
+		limit = GENGHOST_MAX_FRAMES;
+	}
+	context->guided_candidate = guided;
+	if (guided) {
+		++context->result->guided_evaluations;
+	}
 	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
 	if (checkpoint >= context->checkpoint_count) {
 		checkpoint = 0;
@@ -323,19 +446,21 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 	genghost_sim_restore(&context->checkpoints[checkpoint]);
 	*driver = context->driver_checkpoints[checkpoint];
 	unsigned int i = checkpoint * CHECKPOINT_INTERVAL;
-	for (; i < length; ++i) {
+	for (; i < limit; ++i) {
 		if (i % 64U == 0U && expired(context)) {
 			break;
 		}
+		if (guided && i >= changed_end) {
+			inputs[i] = genghost_guide_step(context->guide, context->guide_count, &guide_cursor,
+											search->trials % 16U ? 0.35 : 0.0);
+		}
 		int event = genghost_sim_step(inputs[i]);
 		++context->result->simulated_frames;
-		genghost_driver_observe(route, driver);
 		if (event) {
 			++i;
 			break;
 		}
 	}
-	genghost_driver_observe(route, driver);
 	genghost_sim_result(race);
 	return i;
 }
@@ -372,6 +497,9 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 				  context->options->owoot ? -0.85 : -2.0, context->options->owoot ? 0.85 : 2.0);
 		gene->shift_rpm_scale =
 			clamp(gene->shift_rpm_scale + random_signed(context) * 0.2, 0.45, 1.05);
+		if (random_word(context) % 3U == 0U) {
+			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
+		}
 		if (!context->options->owoot && random_word(context) % 3U == 0U) {
 			gene->shortcut_skip = random_word(context) % 5U;
 		}
@@ -420,7 +548,10 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	context.save_context = save_context;
 	context.checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*context.checkpoints));
 	context.driver_checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*context.driver_checkpoints));
-	if (!inputs || !context.checkpoints || !context.driver_checkpoints) {
+	context.guide = calloc(GENGHOST_MAX_FRAMES, sizeof(*context.guide));
+	context.boundaries = malloc(GENGHOST_MAX_FRAMES * sizeof(*context.boundaries));
+	if (!inputs || !context.checkpoints || !context.driver_checkpoints || !context.boundaries ||
+		!context.guide) {
 		status = -1;
 		goto done;
 	}
@@ -445,6 +576,8 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 		struct GENGHOST_RESULT seed_result;
 		memcpy(inputs, seed_inputs, seed_length);
 		genghost_sim_evaluate(inputs, seed_length, &seed_result);
+		result->seed_finished = seed_result.finished;
+		result->seed_total_frames = seed_result.total_frames;
 		++result->evaluations;
 		result->simulated_frames += seed_result.frames;
 		if (save_candidate(&context, inputs, seed_length, &seed_result)) {
@@ -465,71 +598,86 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			seed_parent->race = seed_result;
 			seed_parent->fitness = 1000000000.0 - seed_result.total_frames * 1000.0;
 			genghost_policy_default(&seed_parent->best_policy);
+			seed_parent->demonstration = 1;
 		}
 	}
-	/* Fair round-robin scheduling: every enumerated combination gets the same
-	 * number of opportunities before any is revisited. Both route policy and
-	 * short input windows are refined; actual finish+penalty is authoritative. */
+	/* Visit every route each round. Give completed parents a short batch of
+	 * refinements to reuse their checkpoints and human control boundaries,
+	 * while unfinished routes keep receiving policy and repair attempts. */
 	while (!expired(&context)) {
 		for (size_t index = 0; index < routes.count && !expired(&context); ++index) {
 			struct route_search *search = &searches[index];
-			struct GENGHOST_POLICY policy;
-			struct GENGHOST_DRIVER driver;
-			struct GENGHOST_RESULT race;
-			choose_policy(&context, search, &policy);
-			int mutation = search->best_inputs && search->race.finished &&
-						   search->trials >= POPULATION && random_word(&context) % 3U != 0U;
-			int repair = search->best_inputs && !search->race.finished &&
-						 search->trials >= POPULATION && random_word(&context) % 3U != 0U;
-			unsigned int length = mutation ? run_mutation(&context, index, &routes.routes[index],
-														  search, inputs, &driver, &race)
-								  : repair ? repair_suffix(&context, index, &routes.routes[index],
-														   search, &policy, inputs, &driver, &race)
-										   : run_policy(&context, &routes.routes[index], &policy,
-														inputs, &driver, &race);
-			if (!search->trials) {
-				++result->routes_attempted;
-			}
-			++search->trials;
-			++result->evaluations;
-			if (race.finished && !search->completed_attempt) {
-				search->completed_attempt = 1;
-				++result->routes_finished;
-			}
-			double fitness = candidate_fitness(&routes.routes[index], &driver, &race);
-			if (!mutation) {
-				insert_policy(search, &policy, fitness);
-			}
-			if (fitness > search->fitness && length) {
-				if (!search->best_inputs) {
-					search->best_inputs = malloc(GENGHOST_MAX_FRAMES);
+			unsigned int attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
+			for (unsigned int attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
+				struct GENGHOST_POLICY policy;
+				struct GENGHOST_DRIVER driver;
+				struct GENGHOST_RESULT race;
+				context.guided_candidate = 0;
+				int mutation = search->best_inputs && search->race.finished &&
+							   search->trials >= POPULATION &&
+							   random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
+				int repair = search->best_inputs && !search->race.finished &&
+							 search->trials >= POPULATION && random_word(&context) % 3U != 0U;
+				if (!mutation && !repair) {
+					choose_policy(&context, search, &policy);
 				}
-				if (!search->best_inputs) {
+				unsigned int length =
+					mutation ? run_mutation(&context, index, &routes.routes[index], search, inputs,
+											&driver, &race)
+					: repair ? repair_suffix(&context, index, &routes.routes[index], search,
+											 &policy, inputs, &driver, &race)
+							 : run_policy(&context, &routes.routes[index], &policy, inputs, &driver,
+										  &race);
+				if (!search->trials) {
+					++result->routes_attempted;
+				}
+				++search->trials;
+				++result->evaluations;
+				if (mutation) {
+					++result->input_evaluations;
+				} else {
+					++result->policy_evaluations;
+				}
+				if (race.finished && !search->completed_attempt) {
+					search->completed_attempt = 1;
+					++result->routes_finished;
+				}
+				double fitness = candidate_fitness(&routes.routes[index], &driver, &race);
+				if (!mutation) {
+					insert_policy(search, &policy, fitness);
+				}
+				if (fitness > search->fitness && length) {
+					if (!search->best_inputs) {
+						search->best_inputs = malloc(GENGHOST_MAX_FRAMES);
+					}
+					if (!search->best_inputs) {
+						status = -1;
+						goto done;
+					}
+					search->fitness = fitness;
+					search->race = race;
+					if (!mutation) {
+						search->best_policy = policy;
+						search->demonstration = 0;
+					}
+					search->length = length;
+					++search->revision;
+					memcpy(search->best_inputs, inputs, length);
+					context.checkpoint_count = 0;
+				}
+				if (save_candidate(&context, inputs, length, &race)) {
 					status = -1;
 					goto done;
 				}
-				search->fitness = fitness;
-				search->race = race;
-				if (!mutation) {
-					search->best_policy = policy;
+				uint64_t now = SDL_GetTicksNS();
+				if (now >= context.next_progress) {
+					fprintf(stderr,
+							"progress: %llu candidates, %zu/%zu routes attempted, %zu completed, "
+							"%.1fs\n",
+							(unsigned long long)result->evaluations, result->routes_attempted,
+							result->routes, result->routes_finished, elapsed(&context));
+					context.next_progress = now + 5000000000ULL;
 				}
-				search->length = length;
-				++search->revision;
-				memcpy(search->best_inputs, inputs, length);
-				context.checkpoint_count = 0;
-			}
-			if (save_candidate(&context, inputs, length, &race)) {
-				status = -1;
-				goto done;
-			}
-			uint64_t now = SDL_GetTicksNS();
-			if (now >= context.next_progress) {
-				fprintf(
-					stderr,
-					"progress: %llu candidates, %zu/%zu routes attempted, %zu completed, %.1fs\n",
-					(unsigned long long)result->evaluations, result->routes_attempted,
-					result->routes, result->routes_finished, elapsed(&context));
-				context.next_progress = now + 5000000000ULL;
 			}
 		}
 	}
@@ -544,6 +692,8 @@ done:
 	free(inputs);
 	free(context.checkpoints);
 	free(context.driver_checkpoints);
+	free(context.boundaries);
+	free(context.guide);
 	genghost_routes_free(&routes);
 	if (status) {
 		return status;

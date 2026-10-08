@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define GENGHOST_POLICY_SEGMENTS 16U
+#define GENGHOST_POLICY_SEGMENTS 64U
 
 /* Coordinates are the game's world units (1024 per tile); speeds are mph.
  * Offset is a fraction of the center-to-edge vector: +/-1 is a road edge.
@@ -15,6 +15,7 @@ struct GENGHOST_GENE {
 	double shift_rpm_scale;
 	unsigned int shortcut_skip;
 	double powergear_bias;
+	double slide_brake;
 };
 
 struct GENGHOST_POLICY {
@@ -70,6 +71,8 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 								   const struct GENGHOST_POLICY *policy,
 								   struct GENGHOST_DRIVER *driver, int powergear_enabled,
 								   int owoot);
+/* Choose the input whose next-frame steering angle is closest to the target. */
+unsigned char genghost_steering_key(double wanted);
 /* 0 = not useful, 1 = flexible, 2 = rigid and gear ceiling allows >=225 mph. */
 int genghost_powergear_kind(void);
 

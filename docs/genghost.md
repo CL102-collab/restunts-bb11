@@ -80,13 +80,30 @@ playback.
 
 The route planner enumerates simple directed start-to-finish paths through the
 track's branch connections. The search explores alternatives and refines
-driving parameters for route segments, then mutates windows of recorded
-steering, pedal, and shift inputs. Local refinements are evaluated by replaying
-the affected continuation from cached simulation checkpoints. Failed runs
+driving parameters for 64 route segments, then refines recorded steering,
+pedal, and shift inputs. Segment genes control speed, cornering, racing line,
+shifts, shortcut attempts, power gear entry, and whether to brake during a
+slide. Local refinements replay the affected continuation from cached
+simulation checkpoints. Failed runs
 also supply useful prefixes: the search changes the driver near the failing
 sector and regenerates the suffix. A faster sector is useful only when the
 resulting lap completes with a better total score. Branch combinations share
 the budget; large graphs and short budgets can prevent exhaustive refinement.
+
+Input refinement targets control transitions: brake release, turn-in, steering
+corrections, and shifts. It moves individual transitions or entire short pulses
+by a few frames while preserving the other controls. Some candidates realign
+the remaining controls to the parent lap's measured position, orientation, and
+speed, with optional small steering corrections. This allows an improved sector
+to rejoin the demonstrated line despite arriving earlier. Airborne and heavily
+banked sections retain their demonstrated steering. Every such continuation
+still consists of ordinary keyboard inputs and must pass full replay validation.
+
+The search spends more attempts refining a verified human demonstration. A lap
+found from track geometry receives more fresh driving-policy exploration, so
+finding an initially slow finish does not stop the search for a better line.
+Successful parents supply cached checkpoints and control boundaries; no replay
+archive is required at runtime.
 
 An input replay is also a possible starting candidate. Its inputs are useful
 only when its car and transmission match and its recording rate is 20 Hz.
@@ -96,8 +113,10 @@ original opponent. A 10 Hz replay or one using a different car still supplies
 an embedded track, but its inputs are not reused.
 
 Power gear is considered only for cars whose parameters support it and when
-`--pg:on` is active. Early upshifts and suitable slopes can make reaching it
-valuable, but the completed lap score determines whether that approach wins.
+`--pg:on` is active. The driver accelerates normally on the approach and tries early
+upshifts when the rear wheels become unloaded; it avoids premature airborne
+downshifts in useful power gear cars. Suitable slopes can make reaching power
+gear valuable, but the completed lap score determines whether that approach wins.
 Power gear is not available to every car: the repository's `DIA3` has a mass of
 32, which avoids the bug, while the stock `COUN` suffers from anti-power gear.
 `--pg:off` fixes that shared arithmetic defect, removing both effects.
@@ -120,6 +139,40 @@ Restunts with the same physics switches before playing the replay or selecting i
 ghost. For example, a replay generated with `--owoot --pg:off --lc:off --lcb:off`
 must be played with those same options. Changing the car resources can also
 change the replay's outcome.
+
+The JSON report also records whether the input replay finished under the
+selected rules (`seed_replay_finished`), its verified score (`seed_total_frames`),
+and counts of policy, input, and trajectory-guided evaluations. Guided evaluations
+are a subset of input evaluations. `guided_improvements` counts independently
+validated improvements to the saved best lap from those guided candidates.
+A replay-assisted result may preserve most of an expert's original driving;
+it should not be interpreted as an independently discovered racing line.
+
+## Golden replay benchmark
+
+See the [16-track comparison](genghost-benchmark.md) for measured results and
+the remaining gap between track-only driving and human replay refinement.
+
+[`benchmark-genghost.py`](../tools/scripts/benchmark-genghost.py) compares track-only
+searches and expert-replay refinement separately. It selects the fastest freshly
+simulated solo 20 Hz recording for the exact track bytes and car in the provided
+archive. This is a corpus reference, not a claim about the current world record.
+The total score includes penalties and excludes replay padding. Successful outputs
+are replayed again; supplying `--repldump` also checks them with the independent
+replay driver.
+
+```sh
+python3 tools/scripts/benchmark-genghost.py \
+  --binary build/genghost-linux/genghost \
+  --repldump build/genghost-linux/repldump --data-dir stunts \
+  --seconds 120 --jobs 2 --output build/golden-benchmark --label local
+```
+
+Use repeated `--case ZCT1` arguments to select tracks, `--evaluations 2000` for a
+repeatable candidate budget, or `--physics=--pg:off` (and other physics options)
+to re-rank humans and search under those restrictions. The script writes raw
+reports, commands, logs, generated replays, and independent state dumps beneath
+the output directory. It does not change the source archive.
 
 ## Driving rules behind the search
 

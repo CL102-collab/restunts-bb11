@@ -222,7 +222,8 @@ function(restunts_add_genghost)
     # The optimizer shares repldump's physics and owns its command-line entry point.
     add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
         src/restunts/genghost/main.c src/restunts/genghost/simulation.c
-        src/restunts/genghost/routes.c src/restunts/genghost/search.c)
+        src/restunts/genghost/routes.c src/restunts/genghost/search.c
+        src/restunts/genghost/guide.c)
     target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
     target_link_libraries(genghost PRIVATE restunts_options)
     if(ANDROID)
@@ -532,6 +533,7 @@ endif()
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_executable(test-genghost-simulation ${common_sources} ${core}/headless.c ${platform_common}
         ${platform}/main.c src/restunts/genghost/simulation.c
+        src/restunts/genghost/guide.c src/restunts/genghost/routes.c
         src/restunts/tests/test-genghost-simulation.c)
     target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS)
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)

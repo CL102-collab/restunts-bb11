@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../genghost/simulation.h"
+#include "../genghost/guide.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
 
@@ -73,11 +74,14 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	FILE *output = fopen(state_path, "wb");
 	assert(output != NULL);
 	free(state_path);
+	struct GENGHOST_GUIDE_POINT *guide = calloc(count, sizeof(*guide));
+	assert(guide != NULL);
 	unsigned char serialized[GAMESTATE_SERIALIZED_SIZE];
 	LEGACY_WRITE_U16_LE(serialized, count);
 	assert(fwrite(serialized, 1, 2, output) == 2);
 	genghost_sim_reset();
 	for (unsigned int frame = 0; frame < count; frame++) {
+		genghost_guide_capture(&guide[frame], inputs[frame]);
 		assert(genghost_sim_step(inputs[frame]) >= 0);
 		assert(gamestate_serialize(serialized, &state) == sizeof(serialized));
 		assert(fwrite(serialized, 1, sizeof(serialized), output) == sizeof(serialized));
@@ -90,6 +94,19 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	}
 	genghost_sim_capture(&actual);
 	assert(memcmp(&expected, &actual, sizeof(expected)) == 0);
+	/* Following an unmodified demonstrated trajectory must preserve every input
+	 * and the complete final simulator state, including through jumps and slides. */
+	genghost_sim_reset();
+	unsigned int cursor = 0;
+	for (unsigned int frame = 0; frame < count; ++frame) {
+		unsigned char guided = genghost_guide_step(guide, count, &cursor, 0.5);
+		assert(guided == inputs[frame]);
+		assert(cursor == frame + 1U);
+		assert(genghost_sim_step(guided) >= 0);
+	}
+	genghost_sim_capture(&actual);
+	assert(memcmp(&expected, &actual, sizeof(expected)) == 0);
+	free(guide);
 	struct GENGHOST_RESULT result;
 	genghost_sim_result(&result);
 	printf(

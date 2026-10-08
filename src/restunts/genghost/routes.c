@@ -306,6 +306,7 @@ void genghost_policy_default(struct GENGHOST_POLICY *policy)
 		policy->segment[i].shift_rpm_scale = 1.0;
 		policy->segment[i].shortcut_skip = 0U;
 		policy->segment[i].powergear_bias = 0.5;
+		policy->segment[i].slide_brake = 1.0;
 	}
 }
 
@@ -418,7 +419,7 @@ int genghost_powergear_kind(void)
 	return 0;
 }
 
-static unsigned char steering_key(double wanted)
+unsigned char genghost_steering_key(double wanted)
 {
 	const struct CARSTATE *car = &state.playerstate;
 	unsigned int speed_index = (car->car_actual_speed >> 10U) & 252U;
@@ -495,7 +496,7 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		wanted = local.x >= 0 ? 240.0 : -240.0;
 	}
 	wanted = bounded(wanted, -240.0, 240.0);
-	unsigned char input = steering_key(wanted);
+	unsigned char input = genghost_steering_key(wanted);
 
 	double target_speed = 250.0;
 	/* Integrating dv/dframe against native distance/frame yields this exact
@@ -543,7 +544,9 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	if (local.z < -30 || driver->off_route > 500.0) {
 		target_speed = fmin(target_speed, 38.0);
 	}
-	if (car->car_slidingFlag && fabs(wanted) > 60.0) {
+	/* Human laps sustain controlled slides under throttle. Keep the safer
+	 * brake response as a segment gene instead of forcing it on every line. */
+	if (gene->slide_brake > 0.5 && car->car_slidingFlag && fabs(wanted) > 60.0) {
 		target_speed = fmin(target_speed, fmax(35.0, speed - 2.0));
 	}
 	driver->target_speed = target_speed;
@@ -556,13 +559,18 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	if (car->car_transmission == TRANSMISSION_MANUAL && !car->car_changing_gear) {
 		double shift_rpm = bounded(simd_player.upshift_rpm * gene->shift_rpm_scale,
 								   simd_player.idle_rpm + 1200.0, simd_player.max_rpm - 100.0);
+		/* Expert power-gear launches keep accelerating in low gears on the
+		 * approach, then shift while unloaded. Shifting to top gear a whole
+		 * tile before takeoff bogs the car down before it can reach the ramp. */
 		int seek_pg = useful_pg && gene->powergear_bias > 0.05 && pg_feature_ahead &&
+					  car->car_sumSurfRearWheels == CAR_WHEEL_CONTACT_NONE &&
 					  speed > bounded(85.0 - 65.0 * gene->powergear_bias, 20.0, 90.0);
 		if (car->car_current_gear < simd_player.num_gears &&
 			(car->car_currpm >= shift_rpm || seek_pg)) {
 			input |= INPUT_SHIFT_UP_FLAG;
-		} else if (!seek_pg && car->car_current_gear > 1 &&
-				   car->car_currpm < simd_player.downshift_rpm &&
+		} else if (!seek_pg &&
+				   (!useful_pg || car->car_sumSurfRearWheels != CAR_WHEEL_CONTACT_NONE) &&
+				   car->car_current_gear > 1 && car->car_currpm < simd_player.downshift_rpm &&
 				   car->car_currpm * (double)simd_player.gear_ratios[car->car_current_gear - 1] /
 						   fmax(1.0, simd_player.gear_ratios[car->car_current_gear]) <
 					   shift_rpm - 300.0) {
