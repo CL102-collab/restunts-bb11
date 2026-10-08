@@ -48,6 +48,10 @@ Main repository: https://github.com/4d-stunts/restunts
 		Replay-driven renderer test tool. It renders every frame incrementally
 		and hashes the 320x200 camera framebuffer at frame 0 and every subsequent frame.
 
+	src\restunts\genghost
+		SDL3 desktop tool that searches headless physics simulations for faster
+		driving inputs and writes a replay for use as a ghost.
+
 
 ## Running the game
 
@@ -552,8 +556,10 @@ SDL3 builds support Linux, BSD, Haiku, Windows, macOS, 32-bit DOS, and
 ### SDL3 native builds: Linux, BSD, Haiku, Windows, macOS, and 32-bit DOS
 
 The CMake build produces the game (`restunts`), physics dumper (`repldump`),
-and renderer dumper (`pixldump`) for all native targets. Run the commands below
-from the repository root. Use a separate build directory for each target,
+and renderer dumper (`pixldump`) for all native targets. SDL3 desktop builds also
+include the offline ghost generator (`genghost`); see [its guide](docs/genghost.md)
+for track/replay inputs, physics restrictions, and search settings. Run the commands
+below from the repository root. Use a separate build directory for each target,
 architecture, compiler, and host; do not reuse a native Windows build directory
 from WSL, or vice versa.
 
@@ -626,7 +632,7 @@ cmake -S . -B out/sdl3-linux-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build out/sdl3-linux-x86 --parallel 2
 ```
 
-The build directory contains `restunts`, `repldump`, `pixldump`, and
+The build directory contains `restunts`, `repldump`, `pixldump`, `genghost`, and
 `libnuked-opl2.so`. After adding the game assets, test and run the x64 build:
 
 ```sh
@@ -651,9 +657,9 @@ cmake -S . -B out/sdl3-windows-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build out/sdl3-windows-x86 --parallel 2
 ```
 
-Each directory contains `restunts.exe`, `repldump.exe`, `pixldump.exe`, and
-`nuked-opl2.dll`. Run the executables and test binaries on Windows. For a
-complete transferable package, use the packaging commands below.
+Each directory contains `restunts.exe`, `repldump.exe`, `pixldump.exe`,
+`genghost.exe`, and `nuked-opl2.dll`. Run the executables and test binaries on
+Windows. For a complete transferable package, use the packaging commands below.
 
 #### Linux host: DOS backend
 
@@ -834,7 +840,7 @@ cmake --install out/sdl3-macos-arm64 --prefix out/package-macos-arm64 --componen
 Use `x86_64` in both directory names and the architecture option for Intel;
 use `universal` in the directory names and
 `'-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'` for a universal build.
-The build directory contains `restunts`, `repldump`, `pixldump`, and
+The build directory contains `restunts`, `repldump`, `pixldump`, `genghost`, and
 `libnuked-opl2.dylib`. The package keeps executables in `bin/`, the replaceable
 audio library in `lib/`, and enhanced artwork beside the executables.
 
@@ -897,9 +903,10 @@ the terminal's working directory. The equivalent direct command is:
 ```
 
 Saved games, replays, and dump outputs go into the selected game-data folder.
-Use `repldump` or `pixldump` from the same `bin/` folder with their normal
-arguments. The runtime is a Terminal-launched program; there is no Finder
-`.app` bundle. On keyboards that assign system actions to function keys, use
+Use `repldump`, `pixldump`, or `genghost` from the same `bin/` folder with their
+normal arguments. The [ghost generator](docs/genghost.md) resolves input and output
+paths from your working directory. The runtime is a Terminal-launched program;
+there is no Finder `.app` bundle. On keyboards that assign system actions to function keys, use
 Fn/Globe with F11/F12 for the game's timing and HyperVision controls.
 
 #### BSD hosts: FreeBSD, OpenBSD, and NetBSD

@@ -317,6 +317,18 @@ add_executable(repldump ${common_sources} ${core}/headless.c ${platform_common}
 target_compile_definitions(repldump PRIVATE RESTUNTS_HEADLESS)
 target_link_libraries(repldump PRIVATE restunts_options)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    # The offline optimizer uses the same headless physics as repldump. Its own
+    # entry point preserves track and output paths before loading game resources.
+    add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
+        src/restunts/genghost/main.c src/restunts/genghost/simulation.c
+        src/restunts/genghost/routes.c src/restunts/genghost/search.c)
+    target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
+    target_link_libraries(genghost PRIVATE restunts_options)
+    install(TARGETS genghost RUNTIME DESTINATION bin COMPONENT Runtime)
+    install(FILES docs/genghost.md DESTINATION share/docs/restunts COMPONENT Runtime)
+endif()
+
 add_executable(pixldump ${platform}/main.c src/restunts/pixldump/pixldump.c
     src/restunts/pixldump/murmur3.c src/restunts/pixldump/legacy_context.c)
 target_compile_definitions(pixldump PRIVATE RESTUNTS_PIXLDUMP)
@@ -398,6 +410,16 @@ if(RESTUNTS_BUILD_TESTS)
             WORKING_DIRECTORY "${command_line_test_directory}"
             ENVIRONMENT "SDL_VIDEODRIVER=restunts-invalid-driver;SDL_AUDIODRIVER=restunts-invalid-driver"
             TIMEOUT 10)
+        if(TARGET genghost)
+            add_test(NAME genghost-help COMMAND genghost
+                --data-dir "${command_line_test_directory}/missing" --help)
+            add_test(NAME genghost-version COMMAND genghost
+                --data-dir "${command_line_test_directory}/missing" --version)
+            set_tests_properties(genghost-help genghost-version PROPERTIES
+                WORKING_DIRECTORY "${command_line_test_directory}"
+                ENVIRONMENT "SDL_VIDEODRIVER=restunts-invalid-driver;SDL_AUDIODRIVER=restunts-invalid-driver"
+                TIMEOUT 10)
+        endif()
     endif()
     add_executable(test-sdl3-timer src/restunts/tests/test-sdl3-timer.c)
     target_link_libraries(test-sdl3-timer PRIVATE restunts_options)
@@ -473,6 +495,27 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
 endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    add_executable(test-genghost-simulation ${common_sources} ${core}/headless.c ${platform_common}
+        ${platform}/main.c src/restunts/genghost/simulation.c
+        src/restunts/tests/test-genghost-simulation.c)
+    target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS)
+    target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
+    target_link_libraries(test-genghost-simulation PRIVATE restunts_options)
+    if(NOT CMAKE_CROSSCOMPILING)
+        find_package(Python3 COMPONENTS Interpreter QUIET)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
+                "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
+                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(genghost-simulation PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+            add_test(NAME genghost-search COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-search.py"
+                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
+                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(genghost-search PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+        endif()
+    endif()
     add_executable(test-render-workers src/restunts/tests/test-render-workers.c)
     target_link_libraries(test-render-workers PRIVATE restunts_options)
     target_compile_options(test-render-workers PRIVATE -UNDEBUG)

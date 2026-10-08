@@ -86,7 +86,7 @@ class ReleasePackageTests(unittest.TestCase):
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
-            if name in {"bin/restunts", "bin/repldump", "bin/pixldump", "run-restunts.sh"}:
+            if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {"run-restunts.sh"}:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
         for name, content in (asset_data or {}).items():
             path = runtime / name
@@ -158,6 +158,27 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.subTest(target=target, executable=executable), \
                         self.assertRaisesRegex(ValueError, f"Missing executable permission: {name}"):
                     PACKAGES.validate_contents(target, files, {**modes, name: PACKAGES.FILE_MODE})
+
+    def test_genghost_is_packaged_only_for_desktop_targets(self):
+        for target in PACKAGES.TARGETS:
+            with self.subTest(target=target):
+                files = PACKAGES.required_files(target)
+                if target.startswith(("dos", "android")) or target == "browser":
+                    self.assertFalse(any("genghost" in name for name in files))
+                else:
+                    generator = "bin/genghost.exe" if target.startswith("windows") else "bin/genghost"
+                    self.assertIn(generator, files)
+                    self.assertIn("share/docs/restunts/genghost.md", files)
+                    self.assertIn(generator, PACKAGES.readme(target, COMMIT).decode("utf-8"))
+
+    def test_desktop_packages_require_genghost_and_its_guide(self):
+        files = {name: FILE_DATA for name in PACKAGES.required_files("windows-x64")}
+        modes = {name: PACKAGES.FILE_MODE for name in files}
+        for missing in ("bin/genghost.exe", "share/docs/restunts/genghost.md"):
+            incomplete = files.copy()
+            incomplete.pop(missing)
+            with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):
+                PACKAGES.validate_contents("windows-x64", incomplete, modes)
 
     def test_elf_archives_reject_wrong_or_missing_elf_architecture(self):
         for target in ELF_TARGETS:

@@ -21,7 +21,8 @@ MANIFEST = "PACKAGE-MANIFEST.json"
 MANIFEST_VERSION = 1
 README = "README-PACKAGE.txt"
 DOS_EXECUTABLES = ("restunts", "restunto", "repldump", "repldumo", "pixldump", "pixldumo")
-NATIVE_EXECUTABLES = ("restunts", "repldump", "pixldump")
+DOS32_EXECUTABLES = ("restunts", "repldump", "pixldump")
+NATIVE_EXECUTABLES = (*DOS32_EXECUTABLES, "genghost")
 TARGETS = {
     "android-armv7": ".zip",
     "android-arm64": ".zip",
@@ -270,7 +271,12 @@ def required_files(target):
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
         return required
-    names = DOS_EXECUTABLES if target == "dos16" else NATIVE_EXECUTABLES
+    if target == "dos16":
+        names = DOS_EXECUTABLES
+    elif target == "dos32":
+        names = DOS32_EXECUTABLES
+    else:
+        names = NATIVE_EXECUTABLES
     extension = ".exe" if target.startswith(("dos", "windows")) else ""
     prefix = "" if target == "dos16" else "bin/"
     required |= {f"{prefix}{name}{extension}" for name in names}
@@ -287,6 +293,7 @@ def required_files(target):
                  for opponent in range(1, OPPONENT_COUNT + 1)}
     if target == "dos32":
         return required | {"bin/CWSDPMI.EXE", "share/licenses/restunts/CWSDPMI.DOC"}
+    required.add("share/docs/restunts/genghost.md")
     required |= {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/Nuked-OPL2-LICENSE"}
     required |= nuked_source_files()
     if target.startswith("windows"):
@@ -370,6 +377,11 @@ def readme(target, commit):
                   "Enhanced skyboxes, opponent portraits, and menu backgrounds are included",
                   "beside the game.",
                   "See share/docs/restunts/sdl3.md for controls and platform details."]
+        if target != "dos32":
+            generator = "genghost.exe" if target.startswith("windows") else "genghost"
+            lines += [f"Generate ghosts offline with bin/{generator} TRACK.TRK CAR_CODE",
+                      "--data-dir PATH_TO_YOUR_STUNTS_FOLDER. Track input can also be an .RPL file.",
+                      "See share/docs/restunts/genghost.md for search options and physics settings."]
     if target == "macos-universal":
         lines += ["macOS 11.0 or newer; Intel and Apple Silicon are in the same binary.",
                   "You can also use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
