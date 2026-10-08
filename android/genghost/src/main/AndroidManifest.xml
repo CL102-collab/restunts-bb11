@@ -11,7 +11,10 @@
     <application android:label="Genghost" android:allowBackup="false"
         android:icon="@drawable/ic_genghost" android:theme="@style/GenghostTheme"
         android:extractNativeLibs="true" android:supportsRtl="true">
-        <activity android:name=".GenghostActivity" android:exported="true">
+        <!-- This form needs no GPU rendering. Older Android 9 drivers can retain stale
+             glyphs during scrolling; disable HWUI for the whole window, including startup. -->
+        <activity android:name=".GenghostActivity" android:exported="true"
+            android:hardwareAccelerated="false">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

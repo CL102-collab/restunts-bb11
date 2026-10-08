@@ -3,10 +3,10 @@
     <style name="GenghostTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#73E2D1</item>
-        <item name="android:windowBackground">#111820</item>
-        <item name="android:colorBackground">#111820</item>
-        <item name="android:statusBarColor">#111820</item>
-        <item name="android:navigationBarColor">#111820</item>
+        <item name="android:windowBackground">@color/genghost_background</item>
+        <item name="android:colorBackground">@color/genghost_background</item>
+        <item name="android:statusBarColor">@color/genghost_background</item>
+        <item name="android:navigationBarColor">@color/genghost_background</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
 </resources>

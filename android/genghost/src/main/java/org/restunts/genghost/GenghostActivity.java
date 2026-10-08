@@ -104,6 +104,7 @@ public final class GenghostActivity extends Activity {
         exportSource = saved == null ? null : saved.getString("export_source");
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
+        page.setBackgroundResource(R.color.genghost_background);
         page.setPadding(dp(24), dp(28), dp(24), dp(28));
         page.setFitsSystemWindows(true);
         TextView title = text(page, "Genghost", 32);
@@ -159,6 +160,8 @@ public final class GenghostActivity extends Activity {
         log.setTypeface(Typeface.MONOSPACE);
         log.setTextIsSelectable(true);
         ScrollView scroll = new ScrollView(this);
+        // Paint every exposed viewport pixel instead of relying on the window background.
+        scroll.setBackgroundResource(R.color.genghost_background);
         scroll.setFillViewport(true);
         scroll.setFitsSystemWindows(true);
         scroll.addView(page);

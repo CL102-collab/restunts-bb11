@@ -33,6 +33,19 @@ in private storage. A search without a valid finish produces no completed ghost.
 The debug package keeps native debug symbols while compiling the C engine
 with optimization for search throughput.
 
+## Display compatibility
+
+Version 1.0.1 uses software drawing for the launcher window and an opaque
+background for both the scrolling viewport and its contents. This avoids the
+hardware redraw path associated with smeared text on older Android 9 devices,
+including the reported Galaxy S5, and paints exposed pixels during startup
+and scrolling. The headless search engine is unchanged.
+
+Install the updated APK over the previous build to keep the selected folder
+and settings. It uses the same application ID and debug signing certificate.
+A physical Galaxy S5 is still needed to confirm the device-specific artifacts
+are gone; native engine tests do not validate screen rendering.
+
 ## Build
 
 Install Java 17, Python 3, and the Android SDK components pinned in
