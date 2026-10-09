@@ -36,6 +36,7 @@ def main():
     with zipfile.ZipFile(corpus) as archive:
         fixtures = [("0000", archive.read("0000.rpl"))]
         controller_fixtures = []
+        catalog_fixtures = []
         uphill_fixture = (archive.read("0722.rpl") if
                           any(f"CARPMIN.{suffix}" in available for suffix in ("RES", "PRE")) and
                           any(f"STPMIN.{suffix}" in available for suffix in ("P3S", "3SH")) else None)
@@ -62,6 +63,30 @@ def main():
             car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
             if car_data and car_shape:
                 controller_fixtures.append((name, archive.read(name + ".rpl"), prefix, model))
+        # Fresh best-per-exact-track recordings cover every supported physical
+        # stunt model. These checkpoints test the real car dimensions, terrain,
+        # rotations, and native route geometry, without hardcoding a track in
+        # the production controller. Missing optional custom cars skip only
+        # their own fixtures, never the complete simulation regression.
+        for name, car, prefix, model in (
+                ("r0720", "P962", 1624, 4), ("2885", "VETT", 75, 5),
+                ("a0473", "ANSX", 378, 10), ("r0883", "DBMW", 135, 11),
+                ("r0523", "CERV", 71, 16), ("r0743", "STRA", 616, 17),
+                ("r0743", "STRA", 1213, 18), ("r0743", "STRA", 655, 19),
+                ("r0930", "ZLET", 1503, 20), ("1973", "ZPTR", 696, 21),
+                ("r0883", "DBMW", 65, 22), ("a0110", "COUN", 1301, 23),
+                ("1973", "ZPTR", 1034, 24), ("3152", "FGTO", 1140, 25),
+                ("a0110", "COUN", 1335, 26), ("r0720", "P962", 1098, 27),
+                ("a0473", "ANSX", 215, 28), ("3152", "FGTO", 123, 29),
+                ("2600", "ANSX", 272, 30), ("3152", "FGTO", 159, 31),
+                ("r0313", "ZMP4", 4142, 32), ("2364", "PMIN", 56, 33),
+                ("2585", "P962", 1475, 34), ("a0473", "ANSX", 282, 35)):
+            car_data = any(f"CAR{car}.{suffix}" in available for suffix in ("RES", "PRE"))
+            car_shape = any(f"ST{car}.{suffix}" in available for suffix in ("P3S", "3SH"))
+            if car_data and car_shape:
+                catalog_fixtures.append((name, archive.read(name + ".rpl"), prefix, model))
+            else:
+                print(f"SKIP: optional catalog model {model} fixture needs {car}", flush=True)
     if "DEFAULT.RPL" in available:
         fixtures.append(("DEFAULT", available["DEFAULT.RPL"].read_bytes()))
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
@@ -91,6 +116,13 @@ def main():
                             "--controller-check", str(prefix), str(model)],
                            env=environment, check=True, timeout=120)
             print(f"{fixture_name}: winning-prefix controller restrictions passed", flush=True)
+        for fixture_name, recording, prefix, model in catalog_fixtures:
+            source = temporary / "source.RPL"
+            source.write_bytes(recording)
+            subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
+                            "--catalog-check", str(prefix), str(model)],
+                           env=environment, check=True, timeout=120)
+            print(f"{fixture_name}: model {model} catalog geometry and rule gates passed", flush=True)
         for fixture_name, recording in fixtures:
             source = temporary / "source.RPL"
             source.write_bytes(recording)

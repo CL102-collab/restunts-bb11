@@ -10,6 +10,7 @@
 #include "../c/game_input.h"
 #include "../c/track_objects.h"
 #include "../c/trackdata_layout.h"
+#include "../c/track_collision.h"
 
 #undef memcpy
 
@@ -1058,8 +1059,392 @@ static void turn_quarter(double x, double z, int angle, double *tx, double *tz)
 	}
 }
 
+/* The two columns deliberately describe rule sets rather than making up a
+ * collision exploit for every obstacle. Clear geometric cuts remain useful
+ * with either rule set. This catalog contains every drivable stunt model;
+ * plain roads, intersections and scenery are not stunt recipes. */
+struct STUNT_CATALOG_ENTRY {
+	int model;
+	struct GENGHOST_STUNT_RECIPE legacy, fixed;
+	enum GENGHOST_STUNT_RECIPE_KIND alternate;
+};
+static const struct STUNT_CATALOG_ENTRY stunt_catalog[] = {
+	{PHYSICAL_MODEL_CHICANE_RIGHT_LEFT,
+	 {GENGHOST_RECIPE_CHORD, "chicane chord"},
+	 {GENGHOST_RECIPE_CHORD, "chicane chord"},
+	 GENGHOST_RECIPE_CHORD},
+	{PHYSICAL_MODEL_CHICANE_LEFT_RIGHT,
+	 {GENGHOST_RECIPE_CHORD, "chicane chord"},
+	 {GENGHOST_RECIPE_CHORD, "chicane chord"},
+	 GENGHOST_RECIPE_CHORD},
+	{PHYSICAL_MODEL_HIGHWAY_ENTRANCE,
+	 {GENGHOST_RECIPE_MEDIAN, "median approach"},
+	 {GENGHOST_RECIPE_CLEAR_LANE, "clear inner lane"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_HIGHWAY,
+	 {GENGHOST_RECIPE_MEDIAN, "two-wheel median ride"},
+	 {GENGHOST_RECIPE_MEDIAN, "two-wheel median ride"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_RAMP,
+	 {GENGHOST_RECIPE_OUTSIDE, "outside ramp bypass"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside ramp bypass"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_SOLID_RAMP,
+	 {GENGHOST_RECIPE_OUTSIDE, "outside solid ramp bypass"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside solid ramp bypass"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_ELEVATED_ROAD,
+	 {GENGHOST_RECIPE_UNDERPASS, "low underpass or deck exit"},
+	 {GENGHOST_RECIPE_UNDERPASS, "low underpass or deck exit"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_ELEVATED_SPAN,
+	 {GENGHOST_RECIPE_UNDERPASS, "low underpass or deck exit"},
+	 {GENGHOST_RECIPE_UNDERPASS, "low underpass or deck exit"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_SOLID_ROAD,
+	 {GENGHOST_RECIPE_LOW_EDGE, "solid deck edge or outside bypass"},
+	 {GENGHOST_RECIPE_LOW_EDGE, "solid deck edge or outside bypass"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_ELEVATED_CORNER,
+	 {GENGHOST_RECIPE_CHORD, "low chord or inside deck line"},
+	 {GENGHOST_RECIPE_CHORD, "low chord or inside deck line"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_OVERPASS,
+	 {GENGHOST_RECIPE_UNDERPASS, "low crossing or deck exit"},
+	 {GENGHOST_RECIPE_UNDERPASS, "low crossing or deck exit"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_BANKED_ENTRANCE_B,
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank entry"},
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank entry"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_BANKED_ENTRANCE_A,
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank entry"},
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank entry"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_BANKED_ROAD,
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank edge"},
+	 {GENGHOST_RECIPE_LOW_EDGE, "low bank edge"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_BANKED_CORNER,
+	 {GENGHOST_RECIPE_CHORD, "inside bank chord"},
+	 {GENGHOST_RECIPE_CHORD, "inside bank chord"},
+	 GENGHOST_RECIPE_LOW_EDGE},
+	{PHYSICAL_MODEL_LOOP,
+	 {GENGHOST_RECIPE_GROUND_CROSS, "loop ground crossing"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside loop bypass"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_TUNNEL,
+	 {GENGHOST_RECIPE_FAST_PASS, "straight tunnel passage"},
+	 {GENGHOST_RECIPE_FAST_PASS, "straight tunnel passage"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_PIPE_ENTRANCE,
+	 {GENGHOST_RECIPE_FAST_PASS, "pipe floor entry"},
+	 {GENGHOST_RECIPE_FAST_PASS, "pipe floor entry"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_PIPE,
+	 {GENGHOST_RECIPE_FAST_PASS, "pipe floor chord"},
+	 {GENGHOST_RECIPE_FAST_PASS, "pipe floor chord"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_HALF_PIPE,
+	 {GENGHOST_RECIPE_OUTSIDE, "outside half-pipe bypass"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside half-pipe bypass"},
+	 GENGHOST_RECIPE_FAST_PASS},
+	{PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A,
+	 {GENGHOST_RECIPE_GROUND_CROSS, "corkscrew wall crossing"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside vertical corkscrew"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B,
+	 {GENGHOST_RECIPE_GROUND_CROSS, "corkscrew wall crossing"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside vertical corkscrew"},
+	 GENGHOST_RECIPE_LAUNCH},
+	{PHYSICAL_MODEL_SLALOM,
+	 {GENGHOST_RECIPE_GROUND_CROSS, "slalom stone crossing"},
+	 {GENGHOST_RECIPE_OUTSIDE, "outside slalom stones"},
+	 GENGHOST_RECIPE_OUTSIDE},
+	{PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT,
+	 {GENGHOST_RECIPE_CORK_CUT, "right of red wall"},
+	 {GENGHOST_RECIPE_CORK_CUT, "right of red wall"},
+	 GENGHOST_RECIPE_OUTSIDE}};
+
+static const struct STUNT_CATALOG_ENTRY *catalog_entry(int model)
+{
+	for (size_t i = 0; i < sizeof(stunt_catalog) / sizeof(stunt_catalog[0]); ++i) {
+		if (stunt_catalog[i].model == model) {
+			return &stunt_catalog[i];
+		}
+	}
+	return NULL;
+}
+
+const struct GENGHOST_STUNT_RECIPE *genghost_stunt_recipe(int model, int collision_enabled)
+{
+	const struct STUNT_CATALOG_ENTRY *entry = catalog_entry(model);
+	return entry ? (collision_enabled ? &entry->legacy : &entry->fixed) : NULL;
+}
+
+int genghost_stunt_catalog_model(int model)
+{
+	return catalog_entry(model) != NULL;
+}
+
+static double car_half_width(void)
+{
+	double half = 0.0;
+	for (unsigned int point = 0; point < SIMD_COLLISION_POINT_COUNT; ++point) {
+		half = fmax(half, fabs((double)simd_player.collide_points[point].px));
+	}
+	for (unsigned int wheel = 0; wheel < 4U; ++wheel) {
+		half = fmax(half, fabs(simd_player.wheel_coords[wheel].x / 64.0));
+	}
+	return half;
+}
+
+static double car_half_length(void)
+{
+	double half = 0.0;
+	for (unsigned int point = 0; point < SIMD_COLLISION_POINT_COUNT; ++point) {
+		half = fmax(half, fabs((double)simd_player.collide_points[point].py));
+	}
+	for (unsigned int wheel = 0; wheel < 4U; ++wheel) {
+		half = fmax(half, fabs(simd_player.wheel_coords[wheel].z / 64.0));
+	}
+	return half;
+}
+
+static double catalog_corner_speed(const struct GENGHOST_WAYPOINT *target,
+								   const struct GENGHOST_WAYPOINT *after)
+{
+	struct GENGHOST_WAYPOINT from = *target;
+	from.x = state.playerstate.car_position.lx / 64.0;
+	from.z = state.playerstate.car_position.lz / 64.0;
+	double curvature = point_curvature(&from, target, after);
+	double angle = 4.0 * atan(wheelbase() * curvature) * GENGHOST_ANGLE_SCALE;
+	double grip = (double)simd_player.grip * 2.0 * simd_player.surface_grip[3] / 256.0;
+	if (grip < 1.0) {
+		grip = 1200.0;
+	}
+	return bounded(sqrt(512.0 * grip / (angle + 8.0)) * 0.88, 35.0, 250.0);
+}
+
+/* A chord removes unnecessary steering, including the alternating chicane
+ * spline. Projection is geometric, so all object rotations and reverse routes
+ * use the same rule. Small lateral variations refine the entry/exit angle. */
+static void catalog_chord(double cx, double cz, double ax, double az, double bx, double bz,
+						  double lookahead, double offset, double *px, double *pz)
+{
+	double dx = bx - ax, dz = bz - az;
+	double length = sqrt(dx * dx + dz * dz);
+	if (length < 1.0) {
+		*px = bx;
+		*pz = bz;
+		return;
+	}
+	double along =
+		bounded(((cx - ax) * dx + (cz - az) * dz) / length + lookahead, 0.0, length + 120.0);
+	*px = ax + (along * dx + offset * dz) / length;
+	*pz = az + (along * dz - offset * dx) / length;
+}
+
+/* Straight outside corridors include the approach, not just an offset target
+ * inside a wall. If already committed inside a solid's longitudinal span,
+ * leave the normal controller in charge instead of steering through its side. */
+static int catalog_outside(double cx, double cz, double direction, double entry, double exit,
+						   double left, double right, double side, double half, double lookahead,
+						   double *px, double *pz)
+{
+	double margin = half + 16.0;
+	double boundary = side > 0.0 ? right : left;
+	double corridor = boundary + side * margin;
+	double longitudinal = car_half_length() + 20.0;
+	double before = direction * entry - longitudinal;
+	double after = direction * exit + longitudinal;
+	double forward = direction * cz;
+	if (forward >= before && forward <= after && side * (cx - boundary) < half + 8.0) {
+		return 0;
+	}
+	*px = corridor;
+	*pz = direction * fmin(forward + lookahead, after + 120.0);
+	if (forward < before && side * (cx - boundary) < half + 8.0) {
+		*pz = direction * fmin(direction * *pz, before);
+	}
+	return 1;
+}
+
+static int catalog_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						  const struct GENGHOST_GENE *gene, double lookahead, int collision,
+						  size_t begin, size_t end, const struct TRACKOBJECT *object, double ox,
+						  double oz, double cx, double cz, double ax, double az, double bx,
+						  double bz, struct GENGHOST_WAYPOINT *target, double *protected_end)
+{
+	int model = route->points[begin].physical_model;
+	const struct STUNT_CATALOG_ENTRY *entry = catalog_entry(model);
+	if (!entry) {
+		return 0;
+	}
+	int alternate = gene->stunt_mode == GENGHOST_STUNT_HUMAN_ALT;
+	enum GENGHOST_STUNT_RECIPE_KIND kind =
+		alternate ? entry->alternate : (collision ? entry->legacy.kind : entry->fixed.kind);
+	double direction = bz >= az ? 1.0 : -1.0;
+	double side = direction * (alternate ? -1.0 : 1.0);
+	double half = car_half_width();
+	double phase = bounded(gene->lateral_offset, -1.0, 1.0);
+	double px = ax, pz = cz + direction * lookahead;
+	const struct GENGHOST_WAYPOINT *first = &route->points[begin], *last = &route->points[end];
+	const struct CARSTATE *car = &state.playerstate;
+	int elevated = model == PHYSICAL_MODEL_ELEVATED_ROAD || model == PHYSICAL_MODEL_ELEVATED_SPAN ||
+				   model == PHYSICAL_MODEL_SOLID_ROAD || model == PHYSICAL_MODEL_ELEVATED_CORNER ||
+				   model == PHYSICAL_MODEL_OVERPASS;
+	/* The route carries terrain-adjusted heights. An already elevated car
+	 * cannot take the low underpass; keep its deck line until a real exit. */
+	int on_deck =
+		elevated && first->height_specified && car->car_position.ly / 64.0 > first->y - 90.0;
+	if ((kind == GENGHOST_RECIPE_CHORD || kind == GENGHOST_RECIPE_UNDERPASS) && on_deck) {
+		kind = GENGHOST_RECIPE_LOW_EDGE;
+	}
+	if (kind == GENGHOST_RECIPE_LOW_EDGE && model == PHYSICAL_MODEL_SOLID_ROAD && !on_deck) {
+		/* A filled bridge has no ground-level underpass. Approach its outside
+		 * corridor from before the entrance rather than aiming at the deck. */
+		kind = GENGHOST_RECIPE_OUTSIDE;
+	}
+	if (kind == GENGHOST_RECIPE_CHORD || kind == GENGHOST_RECIPE_UNDERPASS) {
+		catalog_chord(cx, cz, ax, az, bx, bz, lookahead, phase * (alternate ? 140.0 : 55.0), &px,
+					  &pz);
+	} else if (kind == GENGHOST_RECIPE_OUTSIDE) {
+		double width = 120.0, in = az, out = bz;
+		if (model == PHYSICAL_MODEL_TUNNEL) {
+			width = 270.0;
+		} else if (model == PHYSICAL_MODEL_PIPE_ENTRANCE || model == PHYSICAL_MODEL_PIPE ||
+				   model == PHYSICAL_MODEL_HALF_PIPE) {
+			width = 164.0;
+		} else if (model == PHYSICAL_MODEL_SLALOM) {
+			width = SLALOM_POLE_OUTER_X;
+			in = -direction * SLALOM_POLE_FAR_Z;
+			out = direction * SLALOM_POLE_FAR_Z;
+		} else if (model == PHYSICAL_MODEL_HIGHWAY || model == PHYSICAL_MODEL_HIGHWAY_ENTRANCE) {
+			width = 360.0;
+		} else if (model == PHYSICAL_MODEL_LOOP) {
+			width = 440.0;
+		} else if (model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+			width = 150.0;
+		} else if (model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
+				   model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B) {
+			width = 700.0;
+		}
+		/* Keep a clear side that the car already reached. Before entry, test
+		 * the shorter approach first; the alternate can try the other side. */
+		if (fabs(cx) > width + half + 8.0) {
+			side = cx > 0.0 ? 1.0 : -1.0;
+		} else if (fabs(cx) > 30.0 || fabs(ax) > 30.0) {
+			double approach = fabs(cx) > 30.0 ? cx : ax;
+			side = (approach > 0.0 ? 1.0 : -1.0) * (alternate ? -1.0 : 1.0);
+		}
+		if (!catalog_outside(cx, cz, direction, in, out, -width, width, side,
+							 half + fabs(phase) * 45.0, lookahead, &px, &pz)) {
+			return 0;
+		}
+	} else if (kind == GENGHOST_RECIPE_FAST_PASS) {
+		/* The tunnel/pipe center is a straight floor, not their banking or
+		 * roof. Keep the whole car inside the smaller entrance aperture. */
+		px = phase * fmax(0.0, 31.0 - half - 4.0);
+		double opening = (model == PHYSICAL_MODEL_TUNNEL ? 120.0 : 115.0) - half - 12.0;
+		double before = direction * az - car_half_length() - 20.0;
+		double after = direction * bz + car_half_length() + 20.0;
+		if (fabs(cx) > opening && direction * cz >= before && direction * cz <= after) {
+			return 0;
+		}
+		if (fabs(cx) > opening && direction * cz < before) {
+			pz = direction * fmin(direction * pz, before);
+		}
+	} else if (kind == GENGHOST_RECIPE_CLEAR_LANE || kind == GENGHOST_RECIPE_MEDIAN) {
+		if (fabs(ax) > 20.0) {
+			side = ax > 0.0 ? 1.0 : -1.0;
+		}
+		double lane = kind == GENGHOST_RECIPE_MEDIAN ? 120.0 : 120.0 + half + 16.0;
+		lane += fabs(phase) * 40.0;
+		if (model == PHYSICAL_MODEL_HIGHWAY_ENTRANCE) {
+			/* The median grows only in the second half. Approach it from the
+			 * actual entering lane instead of cutting across its front face. */
+			double blend = bounded((pz + 512.0) / 512.0, 0.0, 1.0);
+			px = (1.0 - blend) * ax + blend * side * lane;
+		} else {
+			px = side * lane;
+		}
+	} else if (kind == GENGHOST_RECIPE_LOW_EDGE) {
+		point_at(route, driver->progress + lookahead, 0.0, target);
+		/* Choose the lower of the real two edges; for a flat elevated corner
+		 * use its inner edge, keeping a car-width margin inside the guardrail. */
+		double edge = sqrt(target->edge_x * target->edge_x + target->edge_z * target->edge_z);
+		double amount = edge > half + 18.0 ? (edge - half - 18.0) / edge : 0.0;
+		double chosen = target->edge_y > 0.0 ? -1.0 : 1.0;
+		if (model == PHYSICAL_MODEL_ELEVATED_CORNER || model == PHYSICAL_MODEL_BANKED_CORNER) {
+			double tx, tz, ex, ez;
+			turn_quarter(target->x - ox, target->z - oz, -object->ss_rotY, &tx, &tz);
+			turn_quarter(target->edge_x, target->edge_z, -object->ss_rotY, &ex, &ez);
+			chosen = (tx + 1024.0) * ex + (tz + 1024.0) * ez > 0.0 ? -1.0 : 1.0;
+		}
+		amount *= bounded(0.9 + phase * 0.1, 0.6, 1.0);
+		target->x += chosen * amount * target->edge_x;
+		target->y += chosen * amount * target->edge_y;
+		target->z += chosen * amount * target->edge_z;
+		target->speed = fmin(180.0, catalog_corner_speed(target, last));
+		target->distance = last->distance;
+		*protected_end = last->distance;
+		return 1;
+	} else if (kind == GENGHOST_RECIPE_LAUNCH && elevated) {
+		if (car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE && end + 1U < route->point_count) {
+			size_t landing = end + 1U;
+			unsigned int remaining = 1U + gene->shortcut_skip % 3U;
+			for (size_t k = landing + 1U; k < route->point_count; ++k) {
+				if (route->points[k].piece != route->points[landing].piece) {
+					if (!remaining--) {
+						break;
+					}
+					landing = k;
+				}
+			}
+			*target = route->points[landing];
+			target->height_specified = 0;
+			*protected_end = target->distance;
+		} else {
+			/* A low car must not aim into the side of a solid deck. A car on
+			 * its deck uses a legal edge approach before native physics releases it. */
+			if (!on_deck) {
+				return 0;
+			}
+			point_at(route, driver->progress + lookahead, bounded(0.7 + phase * 0.2, 0.4, 0.9),
+					 target);
+			target->distance = last->distance;
+			*protected_end = last->distance;
+		}
+		target->speed = 250.0;
+		return 1;
+	} else {
+		/* Reuse the previously native-tested crossing, launch and red-wall
+		 * planners. Their parameter space remains available independently. */
+		struct GENGHOST_GENE legacy = *gene;
+		legacy.stunt_mode = kind == GENGHOST_RECIPE_CORK_CUT ? GENGHOST_STUNT_CORKSCREW_CUT
+							: kind == GENGHOST_RECIPE_LAUNCH ? 4U
+															 : 1U;
+		return genghost_stunt_target(route, driver, &legacy, lookahead, collision, target,
+									 protected_end);
+	}
+	double wx, wz;
+	turn_quarter(px, pz, object->ss_rotY, &wx, &wz);
+	*target = *first;
+	target->x = ox + wx;
+	target->z = oz + wz;
+	target->height_specified = 0;
+	target->speed = catalog_corner_speed(target, last);
+	target->distance = last->distance;
+	*protected_end = last->distance;
+	return 1;
+}
+
 static int tactic_model(int model, unsigned int mode, int collision)
 {
+	if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
+		return genghost_stunt_catalog_model(model);
+	}
 	if (mode == GENGHOST_STUNT_CORKSCREW_CUT) {
 		return model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT;
 	}
@@ -1077,9 +1462,9 @@ static int tactic_model(int model, unsigned int mode, int collision)
 						  model == PHYSICAL_MODEL_SOLID_RAMP);
 }
 
-static int tactic_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
-						 const struct GENGHOST_GENE *gene, double lookahead, int collision,
-						 struct GENGHOST_WAYPOINT *target, double *protected_end)
+int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						  const struct GENGHOST_GENE *gene, double lookahead, int collision,
+						  struct GENGHOST_WAYPOINT *target, double *protected_end)
 {
 	unsigned int mode = gene->stunt_mode;
 	if (!mode) {
@@ -1113,9 +1498,21 @@ static int tactic_target(const struct GENGHOST_ROUTE *route, const struct GENGHO
 			turn_quarter(last->x - ox, last->z - oz, -object->ss_rotY, &bx, &bz);
 			double direction = bz >= az ? 1.0 : -1.0;
 			/* Once beyond this piece's exit, do not turn back toward its special line. */
-			if ((cz - bz) * direction > 140.0) {
+			double exit_progress = (cz - bz) * direction;
+			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
+				double dx = bx - ax, dz = bz - az;
+				double length = sqrt(dx * dx + dz * dz);
+				if (length > 1.0) {
+					exit_progress = ((cx - bx) * dx + (cz - bz) * dz) / length;
+				}
+			}
+			if (exit_progress > 140.0) {
 				begin = end + 1U;
 				continue;
+			}
+			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
+				return catalog_target(route, driver, gene, lookahead, collision, begin, end, object,
+									  ox, oz, cx, cz, ax, az, bx, bz, target, protected_end);
 			}
 			double px = ax,
 				   pz = direction > 0.0 ? fmax(az, cz + lookahead) : fmin(az, cz - lookahead);
@@ -1419,8 +1816,8 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	int planned_shortcut = !owoot && gene->line_mode != 0U &&
 						   shortcut_target(route, driver, gene->shortcut_skip + 1U, speed, &target);
 	double tactic_end = 0.0;
-	int planned_tactic = !owoot && tactic_target(route, driver, gene, lookahead, collision_enabled,
-												 &target, &tactic_end);
+	int planned_tactic = !owoot && genghost_stunt_target(route, driver, gene, lookahead,
+														 collision_enabled, &target, &tactic_end);
 	if (planned_tactic) {
 		planned_shortcut = 0;
 	}
@@ -1459,7 +1856,8 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	 * improves braking, so it need not be guessed here. */
 	double braking = fmax(0.15, simd_player.braking_eff / 256.0) * 0.80;
 	double braking_coefficient = 2.0 * braking / GENGHOST_MPH_TRAVEL;
-	if (planned_shortcut) {
+	if (planned_shortcut || (planned_tactic && (gene->stunt_mode == GENGHOST_STUNT_HUMAN ||
+												gene->stunt_mode == GENGHOST_STUNT_HUMAN_ALT))) {
 		double available = fmax(0.0, sqrt(world_x * world_x + world_z * world_z) - 140.0);
 		double limit = target.speed * bounded(gene->corner_scale, 0.35, 2.5);
 		target_speed = fmin(target_speed, sqrt(limit * limit + braking_coefficient * available));

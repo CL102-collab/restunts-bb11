@@ -36,6 +36,14 @@ struct route_search {
 	int completed_attempt;
 	int demonstration;
 	int ordinary_discovery;
+	size_t catalog_cursor;
+	uint64_t catalog_next_trial;
+	int catalog_exhausted;
+	unsigned int catalog_parent_frontier;
+	size_t catalog_deferred_cursor;
+	unsigned int catalog_deferred_segment;
+	unsigned int catalog_requeues;
+	int catalog_deferred;
 };
 
 struct checkpoint_cache {
@@ -48,6 +56,7 @@ struct checkpoint_cache {
 	unsigned int guide_count;
 	size_t checkpoint_route;
 	uint64_t checkpoint_trial;
+	int driver_traced;
 };
 
 struct search_context {
@@ -64,6 +73,7 @@ struct search_context {
 	int portal_family;
 	int tactic_candidate;
 	int corkscrew_cut_available;
+	int catalog_mutations_available;
 	int dualway_family;
 	int dualway_available;
 	int dualway_candidate;
@@ -154,12 +164,14 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
-			/* Before the first finish, only alternate the clear cork cut with
-			 * ordinary traversal. Other stunt proposals need a validated lap;
-			 * broad mutations must not force every obstacle at once. */
-			if ((context->result->race.finished || context->corkscrew_cut_available) &&
+			/* Fund each localized catalog recipe before allowing it in random
+			 * refinement. Broad mutations must not force every obstacle at once. */
+			if ((context->result->race.finished || context->corkscrew_cut_available ||
+				 context->catalog_mutations_available) &&
 				context->portal_family && !broad && (choice >> 6U) % 4U == 0U) {
-				if (!context->result->race.finished) {
+				if (context->catalog_mutations_available) {
+					gene->stunt_mode = (choice >> 12U) % (GENGHOST_STUNT_HUMAN_ALT + 1U);
+				} else if (!context->result->race.finished) {
 					gene->stunt_mode = (choice >> 12U) % 2U ? GENGHOST_STUNT_CORKSCREW_CUT : 0U;
 				} else {
 					gene->stunt_mode =
@@ -348,10 +360,12 @@ static unsigned int run_policy(struct search_context *context, const struct GENG
 }
 
 static void cache_checkpoints(struct search_context *context, size_t route_index,
-							  const struct GENGHOST_ROUTE *route, const struct route_search *search)
+							  const struct GENGHOST_ROUTE *route, const struct route_search *search,
+							  int trace_driver)
 {
 	if (context->cache->checkpoint_count && context->cache->checkpoint_route == route_index &&
-		context->cache->checkpoint_trial == search->revision) {
+		context->cache->checkpoint_trial == search->revision &&
+		(!trace_driver || context->cache->driver_traced)) {
 		return;
 	}
 	genghost_sim_reset();
@@ -373,7 +387,7 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 								   search->best_inputs[i]);
 		}
 		int event = genghost_sim_step(search->best_inputs[i]);
-		if (!search->race.finished) {
+		if (!search->race.finished || trace_driver) {
 			genghost_driver_observe(route, &driver);
 		}
 		++context->result->simulated_frames;
@@ -383,6 +397,147 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 	}
 	context->cache->checkpoint_route = route_index;
 	context->cache->checkpoint_trial = search->revision;
+	context->cache->driver_traced = trace_driver || !search->race.finished;
+}
+
+/* A catalog proposal targets one actual stunt occurrence and its approach,
+ * instead of setting every policy segment. Queue both lines under the active collision
+ * rules after the ordinary warmup, with at least four ordinary attempts between
+ * proposals. No finished lap or human demonstration is needed to fund them. */
+static int choose_catalog_policy(struct search_context *context,
+								 const struct GENGHOST_ROUTES *routes, size_t route_index,
+								 struct route_search *search, struct GENGHOST_POLICY *policy,
+								 unsigned int *first_segment, char *error, size_t error_size)
+{
+	/* A probe beyond the parent's reached prefix cannot exercise its recipe.
+	 * Retry that deferred tail when the parent reaches it, at most twice; an
+	 * improving ordinary lineage must not leave later stunts permanently unfunded. */
+	if (!context->options->owoot && search->catalog_exhausted && search->catalog_deferred &&
+		search->catalog_requeues < 2U &&
+		search->catalog_parent_frontier >= search->catalog_deferred_segment) {
+		search->catalog_cursor = search->catalog_deferred_cursor;
+		search->catalog_exhausted = 0;
+		search->catalog_deferred = 0;
+		++search->catalog_requeues;
+	}
+	unsigned int warmup = search->ordinary_discovery && !context->result->race.finished
+							  ? POPULATION * 2U
+							  : POPULATION;
+	if (context->options->owoot || search->catalog_exhausted || search->trials < warmup ||
+		search->trials < search->catalog_next_trial) {
+		return 0;
+	}
+	if (search->best_inputs) {
+		*policy = search->best_policy;
+	} else {
+		genghost_policy_default(policy);
+	}
+	struct GENGHOST_ROUTE effective;
+	const struct GENGHOST_ROUTE *route = &routes->routes[route_index];
+	int changed = genghost_route_policy(routes, route_index, policy, &effective, error, error_size);
+	if (changed < 0) {
+		return -1;
+	}
+	if (changed) {
+		route = &effective;
+	}
+	size_t ordinal = 0U;
+	int found = 0;
+	for (size_t begin = 0U; begin < route->point_count;) {
+		size_t end = begin;
+		while (end + 1U < route->point_count &&
+			   route->points[end + 1U].piece_index == route->points[begin].piece_index) {
+			++end;
+		}
+		if (end > begin && genghost_stunt_catalog_model(route->points[begin].physical_model)) {
+			if (ordinal == search->catalog_cursor / 2U) {
+				double start = clamp(route->points[begin].distance - 900.0, 0.0, route->length);
+				unsigned int first =
+					(unsigned int)(start / route->length * GENGHOST_POLICY_SEGMENTS);
+				unsigned int last = (unsigned int)(route->points[end].distance / route->length *
+												   GENGHOST_POLICY_SEGMENTS);
+				if (first >= GENGHOST_POLICY_SEGMENTS) {
+					first = GENGHOST_POLICY_SEGMENTS - 1U;
+				}
+				if (last >= GENGHOST_POLICY_SEGMENTS) {
+					last = GENGHOST_POLICY_SEGMENTS - 1U;
+				}
+				unsigned int mode =
+					search->catalog_cursor % 2U ? GENGHOST_STUNT_HUMAN_ALT : GENGHOST_STUNT_HUMAN;
+				for (unsigned int segment = first; segment <= last; ++segment) {
+					policy->segment[segment].stunt_mode = mode;
+				}
+				*first_segment = first;
+				++search->catalog_cursor;
+				search->catalog_next_trial = search->trials + 4U;
+				found = 1;
+				break;
+			}
+			++ordinal;
+		}
+		begin = end + 1U;
+	}
+	if (!found) {
+		search->catalog_exhausted = 1;
+	}
+	if (changed) {
+		genghost_route_release(&effective);
+	}
+	return found;
+}
+
+static unsigned int run_catalog_policy(struct search_context *context, size_t route_index,
+									   const struct GENGHOST_ROUTE *route,
+									   const struct route_search *search,
+									   const struct GENGHOST_POLICY *policy,
+									   unsigned int first_segment, unsigned char *inputs,
+									   struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
+{
+	if (!search->best_inputs || !search->length) {
+		return run_policy(context, route, policy, inputs, driver, race);
+	}
+	cache_checkpoints(context, route_index, route, search, 1);
+	unsigned int checkpoint = 0U;
+	for (unsigned int next = 1U; next < context->cache->checkpoint_count; ++next) {
+		if (context->cache->driver_checkpoints[next].segment >= first_segment) {
+			break;
+		}
+		checkpoint = next;
+	}
+	unsigned int length = checkpoint * CHECKPOINT_INTERVAL;
+	memcpy(inputs, search->best_inputs, length);
+	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
+	*driver = context->cache->driver_checkpoints[checkpoint];
+	driver->tactic_ticks = 0U;
+	unsigned int last_progress_tick = length;
+	double furthest = driver->progress;
+	int replay_prefix = 1;
+	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+		if (length % 64U == 0U && expired(context)) {
+			break;
+		}
+		if (driver->segment >= first_segment || length >= search->length) {
+			replay_prefix = 0;
+		}
+		unsigned char input =
+			replay_prefix
+				? search->best_inputs[length]
+				: genghost_driver_step(route, policy, driver, context->options->powergear,
+									   context->options->collision, context->options->owoot);
+		inputs[length++] = input;
+		int event = genghost_sim_step(input);
+		++context->result->simulated_frames;
+		genghost_driver_observe(route, driver);
+		if (driver->progress > furthest + 8.0) {
+			furthest = driver->progress;
+			last_progress_tick = length;
+		}
+		if (event || length - last_progress_tick > 400U) {
+			break;
+		}
+	}
+	genghost_sim_result(race);
+	return length;
 }
 
 /* Human laps encode useful control boundaries: brake entry/release, steering
@@ -515,7 +670,7 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 								 const struct route_search *search, unsigned char *inputs,
 								 struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
-	cache_checkpoints(context, route_index, route, search);
+	cache_checkpoints(context, route_index, route, search, 0);
 	unsigned int start, length = mutate_inputs(context, search, inputs, &start);
 	unsigned int common = 0, parent_length = context->cache->guide_count;
 	while (common < length && common < parent_length &&
@@ -568,7 +723,7 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 								  unsigned char *inputs, struct GENGHOST_DRIVER *driver,
 								  struct GENGHOST_RESULT *race)
 {
-	cache_checkpoints(context, route_index, route, search);
+	cache_checkpoints(context, route_index, route, search, 0);
 	unsigned int rollback = 32U << (random_word(context) % 5U);
 	unsigned int start = search->length > rollback ? search->length - rollback : 0U;
 	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
@@ -608,9 +763,12 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
 				gene->line_mode = !gene->line_mode;
 			}
-			if ((context->result->race.finished || context->corkscrew_cut_available) &&
+			if ((context->result->race.finished || context->corkscrew_cut_available ||
+				 context->catalog_mutations_available) &&
 				context->portal_family && (choice >> 6U) % 2U == 0U) {
-				if (!context->result->race.finished) {
+				if (context->catalog_mutations_available) {
+					gene->stunt_mode = (choice >> 12U) % (GENGHOST_STUNT_HUMAN_ALT + 1U);
+				} else if (!context->result->race.finished) {
 					gene->stunt_mode = (choice >> 12U) % 2U ? GENGHOST_STUNT_CORKSCREW_CUT : 0U;
 				} else {
 					gene->stunt_mode =
@@ -774,6 +932,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			seed_parent->fitness = 1000000000.0 - seed_result.total_frames * 1000.0;
 			genghost_policy_default(&seed_parent->best_policy);
 			seed_parent->demonstration = 1;
+			seed_parent->catalog_parent_frontier = GENGHOST_POLICY_SEGMENTS;
 		}
 	}
 	/* Keep an independent tile-line population for unrestricted scratch driving.
@@ -875,15 +1034,27 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				struct GENGHOST_DRIVER driver;
 				struct GENGHOST_RESULT race;
 				context.guided_candidate = 0;
-				int mutation = search->best_inputs && search->race.finished &&
+				unsigned int catalog_first_segment = 0U;
+				int catalog = choose_catalog_policy(&context, &routes, index, search, &policy,
+													&catalog_first_segment, error, sizeof(error));
+				if (catalog < 0) {
+					fprintf(stderr, "genghost: %s\n", error);
+					status = -1;
+					goto done;
+				}
+				context.catalog_mutations_available = !options->owoot && result->race.finished &&
+													  search->catalog_exhausted &&
+													  search->catalog_cursor != 0U;
+				int mutation = !catalog && search->best_inputs && search->race.finished &&
 							   search->trials >= POPULATION &&
 							   random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
 				int initial_fallback = search->ordinary_discovery && !result->race.finished &&
 									   search->trials < POPULATION * 2U;
-				int repair = search->best_inputs && !search->race.finished && !initial_fallback &&
-							 search->trials >= POPULATION && random_word(&context) % 3U != 0U;
+				int repair = !catalog && search->best_inputs && !search->race.finished &&
+							 !initial_fallback && search->trials >= POPULATION &&
+							 random_word(&context) % 3U != 0U;
 				context.dualway_available = routes.routes[index].dualway_count != 0U;
-				if (!mutation && !repair) {
+				if (!catalog && !mutation && !repair) {
 					choose_policy(&context, search, &policy);
 					if (context.dualway_family && search->trials < POPULATION) {
 						genghost_dualway_seed_policy(&routes, index, &policy,
@@ -909,8 +1080,10 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					++result->dualway_evaluations;
 				}
 				unsigned int length =
-					mutation ? run_mutation(&context, search_index, route, search, inputs, &driver,
-											&race)
+					catalog	   ? run_catalog_policy(&context, search_index, route, search, &policy,
+													catalog_first_segment, inputs, &driver, &race)
+					: mutation ? run_mutation(&context, search_index, route, search, inputs,
+											  &driver, &race)
 					: repair ? repair_suffix(&context, search_index, route, search, &policy, inputs,
 											 &driver, &race)
 							 : run_policy(&context, route, &policy, inputs, &driver, &race);
@@ -923,11 +1096,22 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 						++result->routes_attempted;
 					}
 				}
+				if (catalog && !driver.tactic_ticks && driver.segment < catalog_first_segment &&
+					(!search->catalog_deferred ||
+					 search->catalog_cursor - 1U < search->catalog_deferred_cursor)) {
+					search->catalog_deferred = 1;
+					search->catalog_deferred_cursor = search->catalog_cursor - 1U;
+					search->catalog_deferred_segment = catalog_first_segment;
+				}
 				context.tactic_candidate = !mutation && driver.tactic_ticks != 0U;
 				if (context.tactic_candidate) {
 					++result->tactic_evaluations;
 				}
-				++search->trials;
+				/* Catalog probes consume the public budget without displacing an
+				 * ordinary trial or advancing its random schedule. */
+				if (!catalog) {
+					++search->trials;
+				}
 				++result->evaluations;
 				if (family == 1U) {
 					++result->tile_evaluations;
@@ -951,10 +1135,13 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				if (changed_route) {
 					genghost_route_release(&effective);
 				}
-				if (!mutation) {
+				if (!mutation && (!catalog || race.finished)) {
 					insert_policy(search, &policy, fitness);
 				}
-				if (fitness > search->fitness && length) {
+				/* Failed localized probes keep both the ordinary policy population
+				 * and replay parent intact. A verified finish has an unambiguous
+				 * score and may replace that parent. */
+				if ((!catalog || race.finished) && fitness > search->fitness && length) {
 					if (!search->best_inputs) {
 						search->best_inputs = malloc(GENGHOST_MAX_FRAMES);
 					}
@@ -964,6 +1151,8 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					}
 					search->fitness = fitness;
 					search->race = race;
+					search->catalog_parent_frontier =
+						race.finished ? GENGHOST_POLICY_SEGMENTS : driver.segment;
 					if (!mutation) {
 						search->best_policy = policy;
 						search->demonstration = 0;

@@ -111,13 +111,23 @@ parents cannot crowd it out. Both paths remain available for later refinement
 and are scored using complete native playback and penalties. Collision
 fixes do not disable this geometric bypass. OWOOT retains full corkscrew traversal.
 
-After a validated lap exists, local stunt mutations explore slalom passages,
-loop backside lines, corkscrew ground cuts, road edges, highway median offsets,
-and launches toward later tiles. They change a few route segments at a time.
-The collision switch gates intentional solid crossings; clear cuts remain
-available with collision fixes. Native playback decides whether each proposal
-works for the car. Airborne targets prepare landing; they do not introduce
-midair steering or change the physics.
+The built-in [stunt catalog](genghost-stunt-catalog.md) covers both chicanes,
+highway pieces, ramps, elevated and banked pieces, loops, tunnels, pipes,
+half-pipes, both vertical corkscrews, slalom stones, and the horizontal corkscrew.
+Every model has a preferred recipe for each collision setting plus another line
+to refine. The search funds local probes after its ordinary initial profiles,
+including before a first finish. Probes preserve the known input prefix and
+change one stunt's approach and traversal; unreachable sectors can be retried
+when the ordinary parent advances. Normal traversal remains available.
+
+Recipes include straight chords, ground or outside bypasses, median riding,
+low edges, wall crossings where the original collision behavior permits them,
+and launches toward later tiles. Fixed-collision paths respect solid clearance
+and height. Clear geometric cuts can work with either collision setting; a
+special collision exploit is not assumed for every stunt. OWOOT disables these
+proposals. Native full replay completion and penalties decide which line wins.
+Airborne targets prepare landing; they do not introduce midair steering or
+change the physics.
 
 Dual-way switching is also part of the default search. A separate population
 tries touching a unique tile on one branch, crossing to the other branch before
@@ -215,7 +225,8 @@ it should not be interpreted as an independently discovered racing line.
 
 ## Golden replay benchmark
 
-See the [Ayrton DEFAULT study and corkscrew follow-up](genghost-default-study.md),
+See the [complete stunt catalog and new winner study](genghost-stunt-catalog.md),
+[Ayrton DEFAULT study and corkscrew follow-up](genghost-default-study.md),
 [winning replay and stunt study](genghost-stunt-benchmark.md),
 [initial 16-track comparison](genghost-benchmark.md), and
 [expanded replay analysis](genghost-expanded-benchmark.md) for measured results

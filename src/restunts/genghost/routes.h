@@ -6,6 +6,8 @@
 
 #define GENGHOST_POLICY_SEGMENTS 64U
 #define GENGHOST_STUNT_CORKSCREW_CUT 5U
+#define GENGHOST_STUNT_HUMAN 6U
+#define GENGHOST_STUNT_HUMAN_ALT 7U
 
 /* Coordinates are the game's world units (1024 per tile); speeds are mph.
  * Offset is a fraction of the center-to-edge vector: +/-1 is a road edge.
@@ -20,7 +22,8 @@ struct GENGHOST_GENE {
 	double shift_rpm_scale;
 	unsigned int shortcut_skip;
 	unsigned int line_mode;
-	/* Local stunt proposal: 0 normal, 1 ground, 2/3 edge, 4 launch, 5 cork cut. */
+	/* Local proposals: 0 normal, 1 ground, 2/3 edge, 4 launch, 5 cork cut,
+	 * 6 collision-aware human recipe, 7 its alternative. */
 	unsigned int stunt_mode;
 	double corner_scale;
 	double powergear_bias;
@@ -111,6 +114,32 @@ void genghost_routes_free(struct GENGHOST_ROUTES *routes);
 void genghost_policy_default(struct GENGHOST_POLICY *policy);
 void genghost_driver_reset(struct GENGHOST_DRIVER *driver);
 void genghost_driver_observe(const struct GENGHOST_ROUTE *route, struct GENGHOST_DRIVER *driver);
+/* Every supported stunt has an explicit recipe for original/fixed collisions.
+ * Equal entries mean the useful line does not rely on a collision bug. These
+ * are proposals; native replay completion and penalties decide their value. */
+enum GENGHOST_STUNT_RECIPE_KIND {
+	GENGHOST_RECIPE_CHORD = 1,
+	GENGHOST_RECIPE_GROUND_CROSS,
+	GENGHOST_RECIPE_OUTSIDE,
+	GENGHOST_RECIPE_LAUNCH,
+	GENGHOST_RECIPE_MEDIAN,
+	GENGHOST_RECIPE_CLEAR_LANE,
+	GENGHOST_RECIPE_CORK_CUT,
+	GENGHOST_RECIPE_LOW_EDGE,
+	GENGHOST_RECIPE_UNDERPASS,
+	GENGHOST_RECIPE_FAST_PASS
+};
+struct GENGHOST_STUNT_RECIPE {
+	enum GENGHOST_STUNT_RECIPE_KIND kind;
+	const char *name;
+};
+const struct GENGHOST_STUNT_RECIPE *genghost_stunt_recipe(int model, int collision_enabled);
+int genghost_stunt_catalog_model(int model);
+/* Pure target planner: reads current car dimensions/position, never writes
+ * native physics. The driver disables this entire planner under OWOOT. */
+int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						  const struct GENGHOST_GENE *gene, double lookahead, int collision_enabled,
+						  struct GENGHOST_WAYPOINT *target, double *protected_end);
 /* Read the current player and car parameters from the original engine. The
  * Physics flags must reflect --pg and --lc; owoot is the active road rule.
  * Solid-crossing proposals require original collisions; clear ground cuts and

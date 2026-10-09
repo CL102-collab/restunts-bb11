@@ -34,9 +34,13 @@ def main():
     track = available["DEFAULT.TRK"].read_bytes()
     fallback_resources = (("CARZMP4.RES", "CARZMP4.PRE"), ("STZMP4.P3S", "STZMP4.3SH"))
     fallback_available = all(any(name in available for name in names) for names in fallback_resources)
+    catalog_resources = (("CARGATE.RES", "CARGATE.PRE"), ("STGATE.P3S", "STGATE.3SH"))
+    catalog_available = all(any(name in available for name in names) for names in catalog_resources)
     with zipfile.ZipFile(corpus) as archive:
         seed = archive.read("0000.rpl")
         tail = bytearray(archive.read("0722.rpl")[:REPLAY_INPUT_OFFSET + 642])
+        catalog_track = (archive.read("r0389.rpl")[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET]
+                         if catalog_available else None)
         fallback_track = (archive.read("1531.rpl")[REPLAY_HEADER_SIZE:REPLAY_INPUT_OFFSET]
                           if fallback_available else None)
 
@@ -196,6 +200,18 @@ def main():
             print("ZCT141/ZMP4 ordinary fallback finishes after unsuccessful initial cork cuts", flush=True)
         else:
             print("SKIP: optional ZCT141 fallback regression needs the custom ZMP4 car", flush=True)
+
+        # A failed catalog proposal must not displace the ordinary policies
+        # that can finish. R4K9/GATE previously lost a finish after 62 baseline
+        # attempts and still failed at 3,000 when failed probes entered selection.
+        # This map-only fixture finishes within 100 attempts with isolated probes.
+        if catalog_track is not None:
+            (temporary / "catalog.TRK").write_bytes(catalog_track)
+            _, catalog_report = generate("catalog.TRK", "GATE", "catalog.RPL", 100, ("--lc:off",))
+            assert not catalog_report["seed_replay_finished"] and catalog_report["seed_total_frames"] == 0
+            print("Failed stunt probes preserve the ordinary R4K9/GATE completion lineage", flush=True)
+        else:
+            print("SKIP: optional catalog population regression needs the custom GATE car", flush=True)
 
         # Replay extraction must support changing the original replay's car.
         extracted, _ = generate("source.RPL", "COUN", "extract.RPL", 200)

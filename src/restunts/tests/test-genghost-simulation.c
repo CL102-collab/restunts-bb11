@@ -200,21 +200,21 @@ static void test_regions(void)
 /* Use a real winning prefix, then isolate its nearest native stunt geometry.
  * This keeps neighboring stunts from masking which proposal the rule gates.
  * No vehicle state, car dimensions, track placement, or physics is fabricated. */
-static void test_controller_snapshot(const unsigned char *inputs, unsigned int count,
-									 unsigned int prefix, int model)
+static void controller_view(const unsigned char *inputs, unsigned int count, unsigned int prefix,
+							int model, int include_exit, struct GENGHOST_ROUTES *set,
+							struct GENGHOST_ROUTE *view)
 {
 	assert(prefix < count);
 	for (unsigned int frame = 0; frame < prefix; ++frame) {
 		assert(genghost_sim_step(inputs[frame]) == 0);
 	}
-	struct GENGHOST_ROUTES set;
 	char error[256];
-	assert(genghost_routes_build(&set, error, sizeof(error)) == 0);
+	assert(genghost_routes_build(set, error, sizeof(error)) == 0);
 	const struct GENGHOST_ROUTE *selected = NULL;
 	size_t selected_index = 0U;
 	double nearest = DBL_MAX;
-	for (size_t r = 0U; r < set.count; ++r) {
-		const struct GENGHOST_ROUTE *route = &set.routes[r];
+	for (size_t r = 0U; r < set->count; ++r) {
+		const struct GENGHOST_ROUTE *route = &set->routes[r];
 		for (size_t i = 0U; i < route->point_count; ++i) {
 			const struct GENGHOST_WAYPOINT *point = &route->points[i];
 			if (point->physical_model != model) {
@@ -239,19 +239,34 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	while (end < selected->point_count && selected->points[end].piece == piece) {
 		++end;
 	}
-	struct GENGHOST_ROUTE view = {0};
-	view.pieces = &piece;
-	view.piece_count = 1U;
-	view.point_count = end - first;
-	assert(view.point_count >= 2U);
-	view.points = calloc(view.point_count, sizeof(*view.points));
-	assert(view.points != NULL);
-	for (size_t i = 0U; i < view.point_count; ++i) {
-		view.points[i] = selected->points[first + i];
-		view.points[i].distance -= selected->points[first].distance;
-		view.points[i].piece_index = 0U;
+	size_t first_piece = selected->points[first].piece_index;
+	if (include_exit && end < selected->point_count) {
+		int exit_piece = selected->points[end].piece;
+		while (end < selected->point_count && selected->points[end].piece == exit_piece) {
+			++end;
+		}
 	}
-	view.length = view.points[view.point_count - 1U].distance;
+	memset(view, 0, sizeof(*view));
+	view->pieces = &selected->pieces[selected->points[selected_index].piece_index];
+	view->piece_count = selected->points[end - 1U].piece_index - first_piece + 1U;
+	view->point_count = end - first;
+	assert(view->point_count >= 2U);
+	view->points = calloc(view->point_count, sizeof(*view->points));
+	assert(view->points != NULL);
+	for (size_t i = 0U; i < view->point_count; ++i) {
+		view->points[i] = selected->points[first + i];
+		view->points[i].distance -= selected->points[first].distance;
+		view->points[i].piece_index -= first_piece;
+	}
+	view->length = view->points[view->point_count - 1U].distance;
+}
+
+static void test_controller_snapshot(const unsigned char *inputs, unsigned int count,
+									 unsigned int prefix, int model)
+{
+	struct GENGHOST_ROUTES set;
+	struct GENGHOST_ROUTE view;
+	controller_view(inputs, count, prefix, model, 0, &set, &view);
 	struct GENGHOST_SNAPSHOT saved, after;
 	genghost_sim_capture(&saved);
 	struct GENGHOST_POLICY policy;
@@ -296,7 +311,7 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	genghost_driver_reset(&reference);
 	genghost_policy_default(&policy);
 	unsigned char expected = genghost_driver_step(&view, &policy, &reference, 1, 1, 1);
-	for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_CORKSCREW_CUT; ++mode) {
+	for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
 		for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy.segment[i].stunt_mode = mode;
 		}
@@ -350,6 +365,238 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	genghost_routes_free(&set);
 	printf("Winning prefix %u: native stunt %d controller gates preserve the complete physics "
 		   "snapshot.\n",
+		   prefix, model);
+}
+
+/* Check real proposal endpoints in object coordinates, independently of the
+ * planner's recipe selection. Fixed-collision passages must fit the actual
+ * car inside a clear corridor or wholly beyond its solid side wall. */
+static void catalog_clearance(const struct GENGHOST_ROUTE *view,
+							  const struct GENGHOST_WAYPOINT *target, int model)
+{
+	if (target->piece != view->points[0].piece) {
+		return; /* A launched car can target the following native route piece. */
+	}
+	int piece = view->points[0].piece;
+	const struct TRACKOBJECT *object =
+		&trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	double x = target->x - track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+	double z = target->z - track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	double local_x = object->ss_rotY == 0	  ? x
+					 : object->ss_rotY == 256 ? -z
+					 : object->ss_rotY == 512 ? -x
+											  : z;
+	double half_width = fabs((double)simd_player.collide_points[0].px);
+	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
+		double width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
+		if (width > half_width) {
+			half_width = width;
+		}
+	}
+	double lateral = fabs(local_x);
+	if (model == PHYSICAL_MODEL_SLALOM) {
+		assert(lateral >= 97.0 + half_width);
+	} else if (model == PHYSICAL_MODEL_TUNNEL) {
+		assert(lateral + half_width <= 120.0 || lateral >= 270.0 + half_width);
+	} else if (model == PHYSICAL_MODEL_PIPE_ENTRANCE) {
+		assert(lateral + half_width <= 115.0 || lateral >= 164.0 + half_width);
+	} else if (model == PHYSICAL_MODEL_PIPE) {
+		assert(lateral + half_width <= 164.0 || lateral >= 164.0 + half_width);
+	}
+}
+
+static void test_quarter_turn(double x, double z, int angle, double *rx, double *rz)
+{
+	switch ((angle & 1023) / 256) {
+		case 1:
+			*rx = z;
+			*rz = -x;
+			break;
+		case 2:
+			*rx = -x;
+			*rz = -z;
+			break;
+		case 3:
+			*rx = -z;
+			*rz = x;
+			break;
+		default:
+			*rx = x;
+			*rz = z;
+			break;
+	}
+}
+
+/* Synthetic approach positions exercise a geometry guard, never a simulated
+ * race result. Use the native object's own endpoints and real car dimensions,
+ * rotate the entire local configuration, and reverse the route. A shortcut
+ * must not turn through a tunnel/pipe side wall in either direction, or
+ * steer a ground-level car onto a solid deck above it. */
+static void test_corridor_guard(const struct GENGHOST_ROUTE *view, int model)
+{
+	if (model != PHYSICAL_MODEL_TUNNEL && model != PHYSICAL_MODEL_PIPE_ENTRANCE &&
+		model != PHYSICAL_MODEL_PIPE && model != PHYSICAL_MODEL_SOLID_ROAD) {
+		return;
+	}
+	int piece = view->points[0].piece;
+	struct TRACKOBJECT *object = &trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	struct TRACKOBJECT original_object = *object;
+	struct GENGHOST_SNAPSHOT saved, positioned, after;
+	genghost_sim_capture(&saved);
+	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	size_t last = 0U;
+	while (last + 1U < view->point_count && view->points[last + 1U].piece == piece) {
+		++last;
+	}
+	double ax, az, bx, bz;
+	test_quarter_turn(view->points[0].x - ox, view->points[0].z - oz, -object->ss_rotY, &ax, &az);
+	test_quarter_turn(view->points[last].x - ox, view->points[last].z - oz, -object->ss_rotY, &bx,
+					  &bz);
+	for (int rotation = 0; rotation < 1024; rotation += 256) {
+		object->ss_rotY = (legacy_s16)rotation;
+		for (int reverse = 0; reverse <= 1; ++reverse) {
+			struct GENGHOST_WAYPOINT points[2] = {view->points[0], view->points[last]};
+			test_quarter_turn(reverse ? bx : ax, reverse ? bz : az, rotation, &points[0].x,
+							  &points[0].z);
+			test_quarter_turn(reverse ? ax : bx, reverse ? az : bz, rotation, &points[1].x,
+							  &points[1].z);
+			for (unsigned int i = 0U; i < 2U; ++i) {
+				points[i].x += ox;
+				points[i].z += oz;
+				points[i].distance = i * 1024.0;
+			}
+			struct GENGHOST_ROUTE route = *view;
+			route.points = points;
+			route.point_count = 2U;
+			route.length = 1024.0;
+			for (int side = -1; side <= 1; side += 2) {
+				double wx, wz;
+				test_quarter_turn(side * 400.0, 0.0, rotation, &wx, &wz);
+				state.playerstate.car_position.lx = (legacy_s32)((ox + wx) * 64.0);
+				state.playerstate.car_position.lz = (legacy_s32)((oz + wz) * 64.0);
+				if (model == PHYSICAL_MODEL_SOLID_ROAD) {
+					state.playerstate.car_position.ly =
+						(legacy_s32)((view->points[0].y - 450.0) * 64.0);
+				}
+				genghost_sim_capture(&positioned);
+				struct GENGHOST_POLICY policy;
+				struct GENGHOST_DRIVER driver;
+				genghost_policy_default(&policy);
+				genghost_driver_reset(&driver);
+				policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN;
+				struct GENGHOST_WAYPOINT target;
+				double protected_end;
+				int planned = genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0,
+													&target, &protected_end);
+				assert(planned == (model == PHYSICAL_MODEL_SOLID_ROAD));
+				if (planned) {
+					double local_x, local_z;
+					test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
+					assert(side * local_x > 120.0 && !target.height_specified);
+				}
+				policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN_ALT;
+				assert(genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0, &target,
+											 &protected_end));
+				double local_x, local_z;
+				test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
+				assert(side * local_x > (model == PHYSICAL_MODEL_TUNNEL		  ? 270.0
+										 : model == PHYSICAL_MODEL_SOLID_ROAD ? 120.0
+																			  : 164.0));
+				genghost_sim_capture(&after);
+				assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+			}
+		}
+	}
+	*object = original_object;
+	genghost_sim_restore(&saved);
+	genghost_sim_capture(&after);
+	assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+}
+
+static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, unsigned int prefix,
+							   int model)
+{
+	struct GENGHOST_ROUTES set;
+	struct GENGHOST_ROUTE view;
+	controller_view(inputs, count, prefix, model, 1, &set, &view);
+	struct GENGHOST_SNAPSHOT saved, after;
+	genghost_sim_capture(&saved);
+	test_corridor_guard(&view, model);
+	assert(genghost_stunt_catalog_model(model));
+	unsigned int proposals[2] = {0};
+	const double lookaheads[] = {160.0, 400.0, 900.0};
+	for (int collision = 0; collision <= 1; ++collision) {
+		assert(genghost_stunt_recipe(model, collision) != NULL);
+		for (unsigned int mode = GENGHOST_STUNT_HUMAN; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
+			for (int offset = -2; offset <= 2; offset += 2) {
+				struct GENGHOST_POLICY policy;
+				genghost_policy_default(&policy);
+				for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+					policy.segment[i].stunt_mode = mode;
+					policy.segment[i].lateral_offset = offset;
+				}
+				struct GENGHOST_DRIVER driver;
+				genghost_driver_reset(&driver);
+				for (size_t look = 0U; look < sizeof(lookaheads) / sizeof(lookaheads[0]); ++look) {
+					struct GENGHOST_WAYPOINT target;
+					double protected_end = 0.0;
+					int planned =
+						genghost_stunt_target(&view, &driver, &policy.segment[0], lookaheads[look],
+											  collision, &target, &protected_end);
+					assert(planned == 0 || planned == 1);
+					if (planned) {
+						++proposals[collision];
+						assert(target.x > -4096.0 && target.x < 34816.0);
+						assert(target.z > -4096.0 && target.z < 34816.0);
+						assert(target.speed > 0.0 && target.speed <= 250.0);
+						assert(protected_end >= 0.0 && protected_end <= view.length + 0.001);
+						if (!collision) {
+							catalog_clearance(&view, &target, model);
+						}
+					}
+					genghost_sim_capture(&after);
+					assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+				}
+				unsigned char input =
+					genghost_driver_step(&view, &policy, &driver, 1, collision, 0);
+				assert(!(input & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
+				assert((input & INPUT_PEDAL_MASK) != INPUT_PEDAL_MASK);
+				assert((input & INPUT_STEERING_MASK) != INPUT_STEERING_MASK);
+				genghost_sim_capture(&after);
+				assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+			}
+		}
+	}
+	assert(proposals[0] && proposals[1]);
+	/* OWOOT suppresses every shortcut mode under either collision regime;
+     * check resulting driving inputs and optimizer state against ordinary
+     * traversal, both with power gear enabled and disabled. */
+	for (int powergear = 0; powergear <= 1; ++powergear) {
+		struct GENGHOST_POLICY policy;
+		struct GENGHOST_DRIVER reference;
+		genghost_policy_default(&policy);
+		genghost_driver_reset(&reference);
+		unsigned char expected = genghost_driver_step(&view, &policy, &reference, powergear, 0, 1);
+		for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
+			for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+				policy.segment[i].stunt_mode = mode;
+			}
+			for (int collision = 0; collision <= 1; ++collision) {
+				struct GENGHOST_DRIVER driver;
+				genghost_driver_reset(&driver);
+				assert(genghost_driver_step(&view, &policy, &driver, powergear, collision, 1) ==
+					   expected);
+				assert(memcmp(&driver, &reference, sizeof(driver)) == 0);
+				genghost_sim_capture(&after);
+				assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+			}
+		}
+	}
+	free(view.points);
+	genghost_routes_free(&set);
+	printf("Winning prefix %u model %d: both stunt recipes, fixed clearance, OWOOT and read-only "
+		   "native state passed.\n",
 		   prefix, model);
 }
 
@@ -619,6 +866,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		test_controller_snapshot(inputs, count,
 								 (unsigned int)strtoul((const char *)argv[3], NULL, 10),
 								 (int)strtol((const char *)argv[4], NULL, 10));
+		return 0;
+	}
+	if (argc == 5 && strcmp((const char *)argv[2], "--catalog-check") == 0) {
+		test_stunt_catalog(inputs, count, (unsigned int)strtoul((const char *)argv[3], NULL, 10),
+						   (int)strtol((const char *)argv[4], NULL, 10));
 		return 0;
 	}
 	if (argc == 3 && strcmp((const char *)argv[2], "--uphill-check") == 0) {

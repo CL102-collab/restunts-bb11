@@ -40,7 +40,9 @@ background for both the scrolling viewport and its contents. This avoids the
 hardware redraw path associated with smeared text on older Android 9 devices,
 including the reported Galaxy S5, and paints exposed pixels during startup
 and scrolling. Version 1.0.2 retains this display fix and includes the
-[Ayrton DEFAULT search improvements](genghost-default-study.md).
+[Ayrton DEFAULT search improvements](genghost-default-study.md). Version 1.0.3
+also includes the [complete stunt tactic catalog](genghost-stunt-catalog.md),
+with collision-aware shortcuts as part of the default search.
 
 Install the updated APK over the previous build to keep the selected folder
 and settings. It uses the same application ID and debug signing certificate.

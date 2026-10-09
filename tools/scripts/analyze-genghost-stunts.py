@@ -29,7 +29,8 @@ SPEC = importlib.util.spec_from_file_location(
     "human_replays", Path(__file__).with_name("analyze-genghost-replays.py"))
 HUMAN = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(HUMAN)
-MODELS = {10: "highway_entrance", 11: "highway", 16: "ramp", 17: "solid_ramp",
+MODELS = {4: "chicane_right_left", 5: "chicane_left_right",
+          10: "highway_entrance", 11: "highway", 16: "ramp", 17: "solid_ramp",
           18: "elevated_road", 19: "elevated_span", 20: "solid_road",
           21: "elevated_corner", 22: "overpass", 23: "banked_entrance",
           24: "banked_entrance", 25: "banked_road", 26: "banked_corner",
@@ -37,6 +38,13 @@ MODELS = {10: "highway_entrance", 11: "highway", 16: "ramp", 17: "solid_ramp",
           31: "half_pipe", 32: "corkscrew_up", 33: "corkscrew_down",
           34: "slalom", 35: "corkscrew_lr"}
 TARGETS = {11, 18, 27, 32, 33, 34, 35}
+LEGACY_MODELS = set(MODELS) - {4, 5}
+# Native subst_hillroad_track in trkutil.c. Invalid hill/piece combinations
+# become empty, while alternate ramp/bank spellings share a sloped road.
+HILLROAD_PIECES = ((4, 14, 24, 39, 59, 98), (5, 15, 25, 36, 56, 95),
+                   (4, 14, 24, 38, 58, 97), (5, 15, 25, 37, 57, 96))
+HILLROAD_SHAPES = ((182, 186, 190, 194), (183, 187, 191, 195),
+                  (184, 188, 192, 196), (185, 189, 193, 197))
 
 
 def stable(value):
@@ -64,11 +72,12 @@ def local(x, z, orientation):
     return {0: (x, z), 256: (-z, x), 512: (-x, -z), 768: (z, -x)}[orientation]
 
 
-def tile_object(track, objects, x, z):
+def tile_object(track, objects, x, z, native_terrain=False):
     # Element rows run from low to high world z; terrain rows are reversed.
     col, row = int(x // 1024), int(z // 1024)
     if not (0 <= row < 30 and 0 <= col < 30):
         return None
+    sample_terrain = track[901 + (29 - row) * 30 + col]
     element = track[row * 30 + col]
     if element in (253, 254):
         row += 1
@@ -82,9 +91,17 @@ def tile_object(track, objects, x, z):
     obj = objects[element]
     center_x = (col + (1 if obj["multi"] & 2 else .5)) * 1024
     center_z = (row + (0 if obj["multi"] & 1 else .5)) * 1024
+    terrain = sample_terrain if native_terrain else track[901 + (29 - row) * 30 + col]
+    raw_element = element
+    if native_terrain and 7 <= terrain <= 10:
+        row_pieces = HILLROAD_PIECES[terrain - 7]
+        if element not in row_pieces:
+            return None
+        variant = min(row_pieces.index(element), 3)
+        element = HILLROAD_SHAPES[terrain - 7][variant]
+        obj = objects[element]
     lx, lz = local(x - center_x, z - center_z, obj["orientation"])
-    terrain = track[901 + (29 - row) * 30 + col]
-    return {**obj, "column": col, "row": 29 - row, "raw_row": row, "center_x": center_x,
+    return {**obj, **({"raw_element": raw_element} if native_terrain else {}), "column": col, "row": 29 - row, "raw_row": row, "center_x": center_x,
             "center_z": center_z, "local_x": lx, "local_z": lz,
             "terrain": terrain, "base_y": 450 if terrain == 6 else 0}
 
@@ -113,16 +130,17 @@ def select(args, inventory, old_rows, archive, objects):
         counts = collections.Counter(objects[tile]["model"] for tile in track[:900] if tile < len(objects))
         info[track_hash] = counts
     selected, used, car_counts = [], set(), collections.Counter()
+    targets = set(MODELS) if args.stunt_catalog == "all" else TARGETS
     # Rotate targeted model priorities, favor broad car coverage and rich maps.
     for index in range(args.telemetry_tracks):
-        target = sorted(TARGETS)[index % len(TARGETS)]
+        target = sorted(targets)[index % len(targets)]
         options = [key for key in by_track if key not in used and info[key][target]]
         if not options:
-            options = [key for key in by_track if key not in used and set(info[key]) & TARGETS]
+            options = [key for key in by_track if key not in used and set(info[key]) & targets]
         if not options:
             break
         key = min(options, key=lambda k: (min(car_counts[r["car"]] for r in by_track[k]),
-                  -sum(bool(info[k][model]) for model in TARGETS), stable(k)))
+                  -sum(bool(info[k][model]) for model in targets), stable(k)))
         groups = collections.defaultdict(list)
         for row in by_track[key]:
             groups[row["car"]].append(row)
@@ -261,8 +279,11 @@ def trace(args, row, objects, environment):
     fields["crash"] = [dump[2 + i * HUMAN.STATE_SIZE + HUMAN.PLAYER + 201] for i in range(count)]
     track = replay[26:1828]
     positions = [(fields["x"][i] / 64, fields["y"][i] / 64, fields["z"][i] / 64) for i in range(count)]
-    elements = [tile_object(track, objects, x, z) for x, y, z in positions]
-    keys = [(obj["column"], obj["row"], obj["model"]) if obj and obj["model"] in MODELS else None for obj in elements]
+    elements = [tile_object(track, objects, x, z, native_terrain=args.stunt_catalog == "all")
+                for x, y, z in positions]
+    measured_models = set(MODELS) if args.stunt_catalog == "all" else LEGACY_MODELS
+    keys = [(obj["column"], obj["row"], obj["model"])
+            if obj and obj["model"] in measured_models else None for obj in elements]
     events, begin, previous = [], 0, None
     for i, key in enumerate([*keys, None]):
         if key != previous:
@@ -312,6 +333,8 @@ def trace(args, row, objects, environment):
                  "local_x_max": max(s["local"][0] for s in samples),
                  "local_z_min": min(s["local"][2] for s in samples),
                  "local_z_max": max(s["local"][2] for s in samples), "samples": samples}
+        if args.stunt_catalog == "all":
+            event["raw_element"] = obj["raw_element"]
         if obj["model"] == 34:
             boxes = (((23, 97), (0, 44), (-271, -241)), ((-97, -23), (0, 44), (241, 271)))
             crossing = []
@@ -416,6 +439,8 @@ def main():
     parser.add_argument("--telemetry-tracks", type=int, default=60)
     parser.add_argument("--validation-tracks", type=int, default=20)
     parser.add_argument("--jobs", type=int, choices=(1, 2), default=2)
+    parser.add_argument("--stunt-catalog", choices=("legacy", "all"), default="legacy",
+                        help="Keep the original seven-model selection, or target every stunt including both chicanes")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--reuse-ranking", action="store_true")
     parser.add_argument("--reuse-traces", action="store_true")
@@ -433,6 +458,7 @@ def main():
     provenance = input_provenance(args)
     analysis_provenance = {**provenance,
         "selection_mode": "fastest_verified_per_track_across_cars",
+        "stunt_catalog": args.stunt_catalog,
         "analyzer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "helper_sha256": hashlib.sha256(Path(HUMAN.__file__).read_bytes()).hexdigest()}
     analysis_provenance_path = args.output / "analysis-provenance.json"

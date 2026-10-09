@@ -5,9 +5,11 @@ import importlib.util
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import zipfile
@@ -32,6 +34,46 @@ class StuntCoordinates(unittest.TestCase):
         self.assertEqual((obj["element"], obj["model"], obj["row"], obj["raw_row"]),
                          (115, 34, 22, 7))
         self.assertEqual((obj["local_x"], obj["local_z"], obj["base_y"]), (0, 0, 450))
+
+    def test_hill_substitutions_match_native_physics_tables(self):
+        source = (ROOT / "src/restunts/c/trkutil.c").read_text()
+        tables = []
+        for name in ("hillroad_pieces", "hillroad_shapes"):
+            body = source.split(f"{name}[", 1)[1].split("= {", 1)[1].split("};", 1)[0]
+            tables.append(tuple(tuple(map(int, re.findall(r"\d+", row)))
+                                for row in re.findall(r"\{([^{}]+)\}", body)))
+        self.assertEqual(tuple(map(tuple, STUNTS.HILLROAD_PIECES)), tables[0])
+        self.assertEqual(tuple(map(tuple, STUNTS.HILLROAD_SHAPES)), tables[1])
+        for terrain, pieces in enumerate(tables[0], 7):
+            for index, raw_element in enumerate(pieces):
+                with self.subTest(terrain=terrain, raw_element=raw_element):
+                    track = bytearray(1802)
+                    track[7 * 30 + 5] = raw_element
+                    track[901 + 22 * 30 + 5] = terrain
+                    native = STUNTS.tile_object(track, self.objects, 5.5 * 1024, 7.5 * 1024,
+                                                native_terrain=True)
+                    legacy = STUNTS.tile_object(track, self.objects, 5.5 * 1024, 7.5 * 1024)
+                    expected = tables[1][terrain - 7][min(index, 3)]
+                    self.assertEqual((native["raw_element"], native["element"], native["model"]),
+                                     (raw_element, expected, self.objects[expected]["model"]))
+                    if terrain == 10 and raw_element in (57, 96):
+                        self.assertEqual((native["element"], native["model"]), (197, 19))
+                    self.assertEqual(legacy["element"], raw_element)
+                    self.assertEqual((native["center_x"], native["center_z"]),
+                                     (legacy["center_x"], legacy["center_z"]))
+
+    def test_invalid_hill_combination_is_absent_but_flat_stunt_remains(self):
+        track = bytearray(1802)
+        track[7 * 30 + 5] = 66  # Tunnel: no native hill-road substitution exists.
+        track[901 + 22 * 30 + 5] = 7
+        self.assertIsNone(STUNTS.tile_object(track, self.objects, 5.5 * 1024, 7.5 * 1024,
+                                             native_terrain=True))
+        legacy = STUNTS.tile_object(track, self.objects, 5.5 * 1024, 7.5 * 1024)
+        self.assertEqual(legacy["model"], 28)
+        track[901 + 22 * 30 + 5] = 0
+        native = STUNTS.tile_object(track, self.objects, 5.5 * 1024, 7.5 * 1024,
+                                    native_terrain=True)
+        self.assertEqual((native["element"], native["model"]), (66, 28))
 
     def test_vertical_continuation_shares_loop_origin(self):
         track = bytearray(1802)
@@ -93,6 +135,32 @@ class WinnerSelection(unittest.TestCase):
                 for name, car in (("z.rpl", "PMIN"), ("a.rpl", "JAGU"))]
         self.assertEqual(STUNTS.best_track_replays(rows)["same"]["replay"], "a.rpl")
         self.assertEqual(STUNTS.best_track_replays(list(reversed(rows)))["same"]["replay"], "a.rpl")
+
+
+class CatalogDiscovery(unittest.TestCase):
+    def test_complete_catalog_finds_chicanes_without_changing_legacy_selection(self):
+        objects = STUNTS.metadata(ROOT / "src/restunts/c/headless_trackdata.c")
+        rows = []
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive_path = root / "tracks.zip"
+            with zipfile.ZipFile(archive_path, "w") as archive:
+                for model in (4, 5, 27):
+                    track = bytearray(1802)
+                    track[0] = next(obj["element"] for obj in objects if obj["model"] == model)
+                    name = f"model{model}.rpl"
+                    archive.writestr(name, bytes(26) + track)
+                    rows.append({"replay": name, "track": f"catalog{model}", "car": "PMIN",
+                                 "track_sha256": hashlib.sha256(track).hexdigest(), "verify_exit": 0,
+                                 "verified": {"finished": True, "total_frames": 100}})
+            args = SimpleNamespace(exclude_manifest=[], validation_tracks=0, telemetry_tracks=2,
+                                   output=root, stunt_catalog="legacy")
+            with zipfile.ZipFile(archive_path) as archive:
+                legacy, _ = STUNTS.select(args, rows, rows, archive, objects)
+                args.stunt_catalog = "all"
+                complete, _ = STUNTS.select(args, rows, rows, archive, objects)
+            self.assertEqual([row["replay"] for row in legacy], ["model27.rpl"])
+            self.assertEqual([row["replay"] for row in complete], ["model4.rpl", "model5.rpl"])
 
 
 class WheelContactEvidence(unittest.TestCase):
