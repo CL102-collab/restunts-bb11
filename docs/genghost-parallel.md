@@ -14,7 +14,8 @@ independent; workers do not import one another's live candidates.
 
 ## Measured throughput
 
-The following are one 20-second run per configuration, seed 1, track files only,
+The final release binary from commit `8c4934e1` produced the following results:
+one 20-second run per configuration, seed 1, track files only,
 with original physics. Other build and test jobs were paused. This Linux
 environment permits five CPUs in its affinity mask and has a four-CPU quota.
 All six outputs finished with zero penalty and passed independent `repldump`
@@ -23,14 +24,14 @@ candidate-budget benchmarks or general performance guarantees.
 
 | Track / car | Workers | Simulation ticks / second | Speedup | Final lap |
 | --- | ---: | ---: | ---: | ---: |
-| DEFAULT / PMIN | 1 | 1,010,277 | 1.00x | 67.40 s |
-| DEFAULT / PMIN | 2 | 2,036,390 | 2.02x | 64.90 s |
-| DEFAULT / PMIN | 4 | 4,040,681 | 4.00x | 64.90 s |
-| ZCT181 / LM02 | 1 | 716,055 | 1.00x | 122.10 s |
-| ZCT181 / LM02 | 2 | 1,377,701 | 1.92x | 122.55 s |
-| ZCT181 / LM02 | 4 | 2,808,835 | 3.92x | 119.00 s |
+| DEFAULT / PMIN | 1 | 1,013,897 | 1.00x | 67.40 s |
+| DEFAULT / PMIN | 2 | 2,049,205 | 2.02x | 64.90 s |
+| DEFAULT / PMIN | 4 | 4,075,185 | 4.02x | 64.90 s |
+| ZCT181 / LM02 | 1 | 718,973 | 1.00x | 122.10 s |
+| ZCT181 / LM02 | 2 | 1,418,987 | 1.97x | 122.10 s |
+| ZCT181 / LM02 | 4 | 2,849,977 | 3.96x | 119.00 s |
 
-Measured CPU consumption was approximately 1.00, 2.01, and 3.99 CPU-seconds per
+Measured CPU consumption was approximately 1.00, 2.00, and 3.98 CPU-seconds per
 wall-clock second for DEFAULT, confirming simultaneous use of multiple CPUs.
 Simulation counts sum worker activity and exclude the coordinator's verification
 passes. Faster simulation does not guarantee a faster final lap: each worker
