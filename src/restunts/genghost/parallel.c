@@ -12,6 +12,8 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <fcntl.h>
+#include <io.h>
 #else
 #include <unistd.h>
 #include <signal.h>
@@ -501,10 +503,8 @@ static void aggregate(struct GENGHOST_SEARCH_RESULT *result, const struct worker
 	result->elapsed_seconds = (SDL_GetTicksNS() - started) / 1000000000.0;
 }
 
-static void show_worker_error(unsigned int index, const struct worker *worker)
+static void show_worker_log(const struct worker *worker)
 {
-	fprintf(stderr, "genghost: worker %u failed (exit %d); retained any verified best replay.\n",
-			index, worker->exit_status);
 	FILE *file = fopen(worker->log_path, "rb");
 	if (file) {
 		char log[2049];
@@ -513,6 +513,13 @@ static void show_worker_error(unsigned int index, const struct worker *worker)
 		fputs(log, stderr);
 		fclose(file);
 	}
+}
+
+static void show_worker_error(unsigned int index, const struct worker *worker)
+{
+	fprintf(stderr, "genghost: worker %u failed (exit %d); retained any verified best replay.\n",
+			index, worker->exit_status);
+	show_worker_log(worker);
 }
 
 int genghost_parallel_search(const char *executable, const char *output, const char *data_dir,
@@ -818,14 +825,18 @@ static int cooperative_publish(const char *path, uint64_t sequence, const void *
 	}
 	FILE *file = fopen(temporary, "wb");
 	int failed = !file;
+	const char *operation = "open temporary record";
 	if (file) {
+		operation = "write temporary record";
 		failed = fwrite(&header, 1, sizeof(header), file) != sizeof(header) ||
 				 fwrite(bytes, 1, size, file) != size;
 		if (fclose(file)) {
 			failed = 1;
+			operation = "close temporary record";
 		}
 	}
 	if (!failed) {
+		operation = "replace record";
 		failed = 1;
 		for (unsigned int attempt = 0; attempt < 20U; ++attempt) {
 			if (SDL_RenamePath(temporary, path)) {
@@ -836,32 +847,95 @@ static int cooperative_publish(const char *path, uint64_t sequence, const void *
 		}
 	}
 	if (failed) {
+		fprintf(
+			stderr, "genghost: cooperative IPC cannot %s %s (sequence %llu, %zu bytes): %s; %s\n",
+			operation, path, (unsigned long long)sequence, size, strerror(errno), SDL_GetError());
 		remove(temporary);
 	}
 	SDL_free(temporary);
 	return failed ? -1 : 0;
 }
 
-/* An old response remains present until atomically replaced. Its sequence is
- * ignored; malformed current records and unexpected future records are errors. */
+static FILE *cooperative_open_read(const char *path)
+{
+#ifdef _WIN32
+	/* CRT fopen does not share deletion. A polling reader can therefore block
+	 * MoveFileEx from replacing an old packet indefinitely, even though every
+	 * individual read is short. Allow replacement while our handle continues
+	 * reading the complete old file, matching POSIX rename semantics. */
+	WCHAR *wide = (WCHAR *)SDL_iconv_string("UTF-16LE", "UTF-8", path, strlen(path) + 1U);
+	if (!wide) {
+		errno = ENOMEM;
+		return NULL;
+	}
+	HANDLE handle =
+		CreateFileW(wide, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+					NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	DWORD error = GetLastError();
+	SDL_free(wide);
+	if (handle == INVALID_HANDLE_VALUE) {
+		errno = error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND	   ? ENOENT
+				: error == ERROR_ACCESS_DENIED || error == ERROR_SHARING_VIOLATION ? EACCES
+																				   : EIO;
+		return NULL;
+	}
+	int descriptor = _open_osfhandle((intptr_t)handle, _O_RDONLY | _O_BINARY);
+	if (descriptor < 0) {
+		CloseHandle(handle);
+		return NULL;
+	}
+	FILE *file = _fdopen(descriptor, "rb");
+	if (!file) {
+		_close(descriptor);
+	}
+	return file;
+#else
+	return fopen(path, "rb");
+#endif
+}
+
+static int cooperative_consume(const char *path)
+{
+	/* Each direction has exactly one packet in flight. The consumer removes
+	 * it before acknowledging it through the other direction, so the next
+	 * publication targets an empty inbox instead of replacing a polled file.
+	 * This also avoids Windows/Wine replacement denial on busy filesystems. */
+	for (unsigned int attempt = 0U; attempt < 20U; ++attempt) {
+		if (!remove(path) || errno == ENOENT) {
+			return 0;
+		}
+		SDL_Delay(2U);
+	}
+	fprintf(stderr, "genghost: cooperative IPC cannot consume record %s: %s\n", path,
+			strerror(errno));
+	return -1;
+}
+
+/* Consume only the expected response. Stale sequences are ignored; malformed
+ * current records and unexpected future records are errors. */
 static int cooperative_read(const char *path, uint64_t sequence, void *bytes, size_t size,
 							int *status)
 {
-	FILE *file = fopen(path, "rb");
+	FILE *file = cooperative_open_read(path);
 	if (!file) {
 #ifdef _WIN32
-		/* The CRT can transiently report a sharing violation while another
+		/* Windows can transiently report a sharing violation while another
 		 * process replaces this private record with MoveFileEx. */
 		if (errno == EACCES) {
 			return 0;
 		}
 #endif
-		return errno == ENOENT ? 0 : -1;
+		if (errno == ENOENT) {
+			return 0;
+		}
+		fprintf(stderr, "genghost: cooperative IPC cannot read reply %s: %s\n", path,
+				strerror(errno));
+		return -1;
 	}
-	struct cooperative_header header;
-	int valid = fread(&header, 1, sizeof(header), file) == sizeof(header) &&
-				!memcmp(header.magic, "GGCOOP2", 8U) && header.size <= COOPERATIVE_MAX_RECORD &&
-				header.status >= 0 && header.status <= 2;
+	struct cooperative_header header = {0};
+	size_t header_bytes = fread(&header, 1, sizeof(header), file);
+	int valid = header_bytes == sizeof(header) && !memcmp(header.magic, "GGCOOP2", 8U) &&
+				header.size <= COOPERATIVE_MAX_RECORD && header.status >= 0 && header.status <= 2;
 	int result = -1;
 	if (valid && header.sequence < sequence) {
 		result = 0;
@@ -871,6 +945,17 @@ static int cooperative_read(const char *path, uint64_t sequence, void *bytes, si
 		result = 1;
 	}
 	fclose(file);
+	if (result > 0 && cooperative_consume(path)) {
+		return -1;
+	}
+	if (result < 0) {
+		fprintf(stderr,
+				"genghost: cooperative IPC invalid reply %s (header %zu/%zu, sequence %llu/%llu, "
+				"size %llu/%zu, status %d): %s\n",
+				path, header_bytes, sizeof(header), (unsigned long long)header.sequence,
+				(unsigned long long)sequence, (unsigned long long)header.size, size, header.status,
+				strerror(errno));
+	}
 	return result;
 }
 
@@ -936,40 +1021,58 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 		/* One packet contains this worker's deterministic subsequence of a
 		 * complete frontier batch. Cached short macros no longer wait for a
 		 * filesystem round trip between every individual expansion. */
-		FILE *file = fopen(request_path, "rb");
+		FILE *file = cooperative_open_read(request_path);
 		if (!file) {
 			if (errno != ENOENT
 #ifdef _WIN32
 				&& errno != EACCES
 #endif
 			) {
+				fprintf(stderr, "genghost: cooperative IPC cannot read request %s: %s\n",
+						request_path, strerror(errno));
 				failed = 1;
 				break;
 			}
 			SDL_Delay(1U);
 			continue;
 		}
-		struct cooperative_header header;
+		struct cooperative_header header = {0};
+		size_t header_bytes = fread(&header, 1, sizeof(header), file);
 		int valid =
-			fread(&header, 1, sizeof(header), file) == sizeof(header) &&
-			!memcmp(header.magic, "GGCOOP2", 8U) && header.size &&
+			header_bytes == sizeof(header) && !memcmp(header.magic, "GGCOOP2", 8U) && header.size &&
 			header.size <= COOPERATIVE_MAX_RECORD && !(header.size % request_size) &&
 			header.size / request_size <= cooperative_packet_limit(request_size, reply_size) &&
 			!header.status;
 		size_t count = valid ? (size_t)(header.size / request_size) : 0U;
+		size_t records_read = 0U;
+		int extra = EOF;
 		if (valid && header.sequence > sequence) {
 			valid = !cooperative_reserve(&requests, &replies, &capacity, count, request_size,
-										 reply_size) &&
-					fread(requests, request_size, count, file) == count && fgetc(file) == EOF;
+										 reply_size);
+			if (valid) {
+				records_read = fread(requests, request_size, count, file);
+				extra = fgetc(file);
+				valid = records_read == count && extra == EOF;
+			}
 		}
 		fclose(file);
 		if (!valid) {
+			fprintf(stderr,
+					"genghost: cooperative IPC invalid request %s (header %zu/%zu, sequence %llu, "
+					"size %llu, status %d, records %zu/%zu of %zu, extra %d): %s\n",
+					request_path, header_bytes, sizeof(header), (unsigned long long)header.sequence,
+					(unsigned long long)header.size, header.status, records_read, count,
+					request_size, extra, strerror(errno));
 			failed = 1;
 			break;
 		}
 		if (header.sequence <= sequence) {
 			SDL_Delay(1U);
 			continue;
+		}
+		if (cooperative_consume(request_path)) {
+			failed = 1;
+			break;
 		}
 		sequence = header.sequence;
 		memset(replies, 0, count * reply_size);
@@ -985,6 +1088,10 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 				status = 1;
 			}
 			if (status) {
+				fprintf(stderr,
+						"genghost: cooperative executor returned %d for record %zu/%zu, sequence "
+						"%llu\n",
+						status, i + 1U, count, (unsigned long long)sequence);
 				break;
 			}
 		}
@@ -1224,6 +1331,7 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 					return 2;
 				}
 				fprintf(stderr, "genghost: invalid/failed cooperative reply from worker %u\n", i);
+				show_worker_log(&worker->process);
 				pool->report->workers[i].status = 1;
 				pool->failed = 1;
 				return 1;

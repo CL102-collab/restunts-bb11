@@ -193,3 +193,19 @@ speed or the planner's readiness counter. The original lap subsequently reaches
 245 mph and scores 181.60 seconds including 18 seconds penalty. Those unchanged
 inputs crash with PG disabled. This validates discovery of a useful setup, not
 a claim that the complete lap is close to the human record.
+
+## Portable worker handoff
+
+Final Windows testing exposed a file-replacement race in the cooperative
+transport. Each consumer now closes and removes its current packet before
+acknowledging it, so the next publication targets an empty inbox. Windows readers
+also share deletion. Twenty repeated Windows runs at two/four cores and six
+Linux runs at one/two/four cores preserve replay bytes, task hashes and state
+counters. Variable-size packet, failure and deadline checks pass on Linux, Wine
+and ARMv7 Android emulation.
+
+The timed comparisons above measure the frozen numerical candidate, before this
+portability fix. Fixed-budget parity validates the search decisions after the
+fix; it does not establish identical wall-clock throughput. Packaged binaries
+are rebuilt and validated separately, with their exact source revisions and
+hashes recorded in the release manifests.
