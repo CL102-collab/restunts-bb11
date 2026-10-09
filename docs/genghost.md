@@ -244,10 +244,19 @@ Recipes include straight chords, ground or outside bypasses, median riding,
 low edges, wall crossings where the original collision behavior permits them,
 and launches toward later tiles. Fixed-collision paths respect solid clearance
 and height. Clear geometric cuts can work with either collision setting; a
-special collision exploit is not assumed for every stunt. OWOOT disables these
-proposals. Native full replay completion and penalties decide which line wins.
+special collision exploit is not assumed for every stunt. OWOOT disables off-road
+proposals but permits a physically clear slalom center passage. Native full replay
+completion and penalties decide which line wins.
 Airborne targets prepare landing; they do not introduce midair steering or
 change the physics.
+
+Slalom proposals include precise straight center guidance under either collision
+setting, with an outside fallback when the car cannot fit. The center controller
+aligns before the stones and removes the ordinary slalom speed cap only for that
+selected line; subsequent corners still constrain braking. The state planner also
+keeps an actual airborne approach through the obstacle instead of forcing a
+last-moment weave. It never treats stones as a launch ramp. See the
+[slalom correction and native checks](genghost-state-planner.md#slalom-correction).
 
 Dual-way switching is also part of the default search. A separate population
 tries touching a unique tile on one branch, crossing to the other branch before

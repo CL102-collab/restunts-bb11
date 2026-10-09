@@ -1158,8 +1158,8 @@ static const struct STUNT_CATALOG_ENTRY stunt_catalog[] = {
 	 {GENGHOST_RECIPE_OUTSIDE, "outside vertical corkscrew"},
 	 GENGHOST_RECIPE_LAUNCH},
 	{PHYSICAL_MODEL_SLALOM,
-	 {GENGHOST_RECIPE_GROUND_CROSS, "slalom stone crossing"},
-	 {GENGHOST_RECIPE_OUTSIDE, "outside slalom stones"},
+	 {GENGHOST_RECIPE_SLALOM_CENTER, "slalom center passage"},
+	 {GENGHOST_RECIPE_SLALOM_CENTER, "slalom center passage"},
 	 GENGHOST_RECIPE_OUTSIDE},
 	{PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT,
 	 {GENGHOST_RECIPE_CORK_CUT, "right of red wall"},
@@ -1197,6 +1197,41 @@ static double car_half_width(void)
 		half = fmax(half, fabs(simd_player.wheel_coords[wheel].x / 64.0));
 	}
 	return half;
+}
+
+/* Collision point zero contains body extents. Point one is a broad-phase
+ * radius, not another body corner: using it makes even COUN appear wider than
+ * the real 46-unit gap. Include the wheel centers in the alignment envelope. */
+static double slalom_half_width(void)
+{
+	double half = fabs((double)simd_player.collide_points[0].px);
+	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
+		half = fmax(half, fabs(simd_player.wheel_coords[wheel].x / 64.0));
+	}
+	return half;
+}
+
+int genghost_slalom_center_fits(void)
+{
+	return slalom_half_width() < SLALOM_POLE_INNER_X - 1.0;
+}
+
+static double slalom_half_length(void)
+{
+	/* Native box: point0.x is width, point1.x is length; their y fields
+	 * describe height and the broad-phase radius, respectively. */
+	double half = fabs((double)simd_player.collide_points[1].px);
+	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
+		half = fmax(half, fabs(simd_player.wheel_coords[wheel].z / 64.0));
+	}
+	return half;
+}
+
+static int slalom_center_available(int collision)
+{
+	/* Original collision behavior may admit a wider car as an exploit. The
+	 * fixed collision proposal must fit the actual narrow center corridor. */
+	return collision || genghost_slalom_center_fits();
 }
 
 static double car_half_length(void)
@@ -1298,6 +1333,9 @@ static int catalog_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 	 * cannot take the low underpass; keep its deck line until a real exit. */
 	int on_deck =
 		elevated && first->height_specified && car->car_position.ly / 64.0 > first->y - 90.0;
+	if (kind == GENGHOST_RECIPE_SLALOM_CENTER && !slalom_center_available(collision)) {
+		kind = GENGHOST_RECIPE_OUTSIDE;
+	}
 	if ((kind == GENGHOST_RECIPE_CHORD || kind == GENGHOST_RECIPE_UNDERPASS) && on_deck) {
 		kind = GENGHOST_RECIPE_LOW_EDGE;
 	}
@@ -1306,7 +1344,33 @@ static int catalog_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 		 * corridor from before the entrance rather than aiming at the deck. */
 		kind = GENGHOST_RECIPE_OUTSIDE;
 	}
-	if (kind == GENGHOST_RECIPE_CHORD || kind == GENGHOST_RECIPE_UNDERPASS) {
+	if (kind == GENGHOST_RECIPE_SLALOM_CENTER) {
+		/* Stones alternate sides but leave the physical middle open. Aim at
+		 * exactly x=0: COUN has only three units of nominal body clearance.
+		 * A short pursuit horizon settles lateral/yaw error before the stones;
+		 * the normal long road lookahead can drift into their inner corners. */
+		double forward = direction * cz;
+		double before = -SLALOM_POLE_FAR_Z - slalom_half_length() - 16.0;
+		double after = SLALOM_POLE_FAR_Z + slalom_half_length() + 16.0;
+		legacy_u16 yaw = (legacy_u16)(car->car_rotate.x - object->ss_rotY);
+		double projected = slalom_half_width() * fabs(cos_fast(yaw) / 16384.0) +
+						   slalom_half_length() * fabs(sin_fast(yaw) / 16384.0);
+		double opening = fmax(0.0, SLALOM_POLE_INNER_X - projected - 1.0);
+		int unaligned =
+			fabs(cx) > opening || (!collision && projected >= SLALOM_POLE_INNER_X - 1.0);
+		if (unaligned && forward >= before && forward <= after &&
+			car->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
+			/* Do not acquire a narrow corridor by steering through a stone's
+			 * side after its entrance. A native airborne continuation is scored
+			 * separately; zero contacts alone never proves height clearance. */
+			return 0;
+		}
+		px = 0.0;
+		pz = direction * fmin(forward + 150.0, after + 120.0);
+		if (unaligned && forward < before) {
+			pz = direction * fmin(direction * pz, before);
+		}
+	} else if (kind == GENGHOST_RECIPE_CHORD || kind == GENGHOST_RECIPE_UNDERPASS) {
 		catalog_chord(cx, cz, ax, az, bx, bz, lookahead, phase * (alternate ? 140.0 : 55.0), &px,
 					  &pz);
 	} else if (kind == GENGHOST_RECIPE_OUTSIDE) {
@@ -1434,7 +1498,8 @@ static int catalog_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 	target->x = ox + wx;
 	target->z = oz + wz;
 	target->height_specified = 0;
-	target->speed = catalog_corner_speed(target, last);
+	target->speed =
+		kind == GENGHOST_RECIPE_SLALOM_CENTER ? 250.0 : catalog_corner_speed(target, last);
 	target->distance = last->distance;
 	*protected_end = last->distance;
 	return 1;
@@ -1442,6 +1507,9 @@ static int catalog_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 
 static int tactic_model(int model, unsigned int mode, int collision)
 {
+	if (mode == GENGHOST_STUNT_SLALOM_CENTER) {
+		return model == PHYSICAL_MODEL_SLALOM;
+	}
 	if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
 		return genghost_stunt_catalog_model(model);
 	}
@@ -1462,9 +1530,9 @@ static int tactic_model(int model, unsigned int mode, int collision)
 						  model == PHYSICAL_MODEL_SOLID_RAMP);
 }
 
-int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
-						  const struct GENGHOST_GENE *gene, double lookahead, int collision,
-						  struct GENGHOST_WAYPOINT *target, double *protected_end)
+static int stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						const struct GENGHOST_GENE *gene, double lookahead, int collision,
+						struct GENGHOST_WAYPOINT *target, double *protected_end, int slalom_only)
 {
 	unsigned int mode = gene->stunt_mode;
 	if (!mode) {
@@ -1483,6 +1551,7 @@ int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 		}
 		int model = route->points[begin].physical_model;
 		if (end > begin && route->points[end].distance > driver->progress - 100.0 &&
+			(!slalom_only || model == PHYSICAL_MODEL_SLALOM) &&
 			tactic_model(model, mode, collision)) {
 			const struct GENGHOST_WAYPOINT *first = &route->points[begin],
 										   *last = &route->points[end];
@@ -1499,7 +1568,8 @@ int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 			double direction = bz >= az ? 1.0 : -1.0;
 			/* Once beyond this piece's exit, do not turn back toward its special line. */
 			double exit_progress = (cz - bz) * direction;
-			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
+			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT ||
+				mode == GENGHOST_STUNT_SLALOM_CENTER) {
 				double dx = bx - ax, dz = bz - az;
 				double length = sqrt(dx * dx + dz * dz);
 				if (length > 1.0) {
@@ -1510,7 +1580,8 @@ int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 				begin = end + 1U;
 				continue;
 			}
-			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT) {
+			if (mode == GENGHOST_STUNT_HUMAN || mode == GENGHOST_STUNT_HUMAN_ALT ||
+				mode == GENGHOST_STUNT_SLALOM_CENTER) {
 				return catalog_target(route, driver, gene, lookahead, collision, begin, end, object,
 									  ox, oz, cx, cz, ax, az, bx, bz, target, protected_end);
 			}
@@ -1613,6 +1684,13 @@ int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 		begin = end + 1U;
 	}
 	return 0;
+}
+
+int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
+						  const struct GENGHOST_GENE *gene, double lookahead, int collision,
+						  struct GENGHOST_WAYPOINT *target, double *protected_end)
+{
+	return stunt_target(route, driver, gene, lookahead, collision, target, protected_end, 0);
 }
 
 static int protected_target(const struct GENGHOST_ROUTE *route,
@@ -1816,8 +1894,14 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	int planned_shortcut = !owoot && gene->line_mode != 0U &&
 						   shortcut_target(route, driver, gene->shortcut_skip + 1U, speed, &target);
 	double tactic_end = 0.0;
-	int planned_tactic = !owoot && genghost_stunt_target(route, driver, gene, lookahead,
-														 collision_enabled, &target, &tactic_end);
+	int road_center = owoot &&
+					  (gene->stunt_mode == GENGHOST_STUNT_HUMAN ||
+					   gene->stunt_mode == GENGHOST_STUNT_SLALOM_CENTER) &&
+					  genghost_slalom_center_fits();
+	int planned_tactic =
+		(!owoot || road_center) &&
+		stunt_target(route, driver, gene, lookahead, road_center ? 0 : collision_enabled, &target,
+					 &tactic_end, road_center);
 	if (planned_tactic) {
 		planned_shortcut = 0;
 	}
@@ -1856,8 +1940,10 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 	 * improves braking, so it need not be guessed here. */
 	double braking = fmax(0.15, simd_player.braking_eff / 256.0) * 0.80;
 	double braking_coefficient = 2.0 * braking / GENGHOST_MPH_TRAVEL;
-	if (planned_shortcut || (planned_tactic && (gene->stunt_mode == GENGHOST_STUNT_HUMAN ||
-												gene->stunt_mode == GENGHOST_STUNT_HUMAN_ALT))) {
+	if (planned_shortcut ||
+		(planned_tactic && (gene->stunt_mode == GENGHOST_STUNT_HUMAN ||
+							gene->stunt_mode == GENGHOST_STUNT_HUMAN_ALT ||
+							gene->stunt_mode == GENGHOST_STUNT_SLALOM_CENTER))) {
 		double available = fmax(0.0, sqrt(world_x * world_x + world_z * world_z) - 140.0);
 		double limit = target.speed * bounded(gene->corner_scale, 0.35, 2.5);
 		target_speed = fmin(target_speed, sqrt(limit * limit + braking_coefficient * available));
@@ -1876,6 +1962,17 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		const struct GENGHOST_GENE *future =
 			&policy->segment[policy_segment(route, point->distance)];
 		double limit = point->speed * bounded(future->speed_scale, 0.35, 2.5);
+		/* Fund the real approach, not just the last 900 units of a stunt.
+		 * Braking for the ordinary slalom spline can otherwise kill a native
+		 * ramp jump before the center tactic becomes active. Exempt only the
+		 * selected slalom points; the next corner retains its braking envelope. */
+		if (point->physical_model == PHYSICAL_MODEL_SLALOM &&
+			(future->stunt_mode == GENGHOST_STUNT_HUMAN ||
+			 future->stunt_mode == GENGHOST_STUNT_SLALOM_CENTER) &&
+			(!owoot || genghost_slalom_center_fits()) &&
+			slalom_center_available(collision_enabled)) {
+			limit = 250.0;
+		}
 		if ((planned_tactic && point->distance <= tactic_end) ||
 			(planned_shortcut && point->distance < target.distance && open_piece(point->piece))) {
 			limit = 250.0;

@@ -212,6 +212,12 @@ static void choose_policy(struct search_context *context, struct route_search *s
 				!ordinary_fallback) {
 				policy->segment[i].stunt_mode = GENGHOST_STUNT_CORKSCREW_CUT;
 			}
+			if (context->options->owoot && initial >= 3U && genghost_slalom_center_fits()) {
+				/* OWOOT permits a physically clear slalom center passage. Keep
+				 * the first three ordinary profiles and fund it in the others;
+				 * the restricted driver ignores this gene for every other stunt. */
+				policy->segment[i].stunt_mode = GENGHOST_STUNT_SLALOM_CENTER;
+			}
 			if (context->portal_family) {
 				policy->segment[i].line_mode = 1U;
 				if (context->dualway_family && context->dualway_available) {

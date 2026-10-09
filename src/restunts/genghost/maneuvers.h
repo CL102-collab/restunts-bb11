@@ -15,7 +15,9 @@ enum GENGHOST_MANEUVER_KIND {
 	GENGHOST_MANEUVER_CHICANE_GRASS,
 	GENGHOST_MANEUVER_LAUNCH,
 	GENGHOST_MANEUVER_POWERGEAR,
-	GENGHOST_MANEUVER_LANDING
+	GENGHOST_MANEUVER_LANDING,
+	GENGHOST_MANEUVER_SLALOM_CENTER,
+	GENGHOST_MANEUVER_SLALOM_JUMP
 };
 
 /* Immutable, parameterized macro action. Geometry uses world units; headings
@@ -37,8 +39,9 @@ struct GENGHOST_MANEUVER {
 };
 
 /* Deterministic proposal ordering. Always begins with an unchanged normal
- * controller. Flags are the active simulator rules; OWOOT forbids off-road
- * macros and disabled power gear forbids its shift proposals. No native
+ * controller. Flags are the active simulator rules; OWOOT permits the road-only
+ * slalom center and slope shifts, while forbidding off-road macros. Disabled
+ * power gear forbids its shift proposals. No native
  * state is advanced or written while generating proposals. */
 size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
 						  const struct GENGHOST_POLICY *policy, int powergear, int collision,

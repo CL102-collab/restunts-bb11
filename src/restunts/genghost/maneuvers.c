@@ -5,6 +5,7 @@
 #include "../c/externs.h"
 #include "../c/game_input.h"
 #include "../c/track_objects.h"
+#include "../c/track_collision.h"
 #include "../c/trackdata_layout.h"
 
 #undef memcpy
@@ -29,7 +30,8 @@ const char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind)
 {
 	static const char *const names[] = {
 		"follow",		   "accelerate",		 "brake",  "tile touch", "stunt",
-		"stunt alternate", "chicane fast grass", "launch", "power gear", "landing"};
+		"stunt alternate", "chicane fast grass", "launch", "power gear", "landing",
+		"slalom center",   "slalom jump"};
 	return (unsigned int)kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "unknown";
 }
 
@@ -210,6 +212,81 @@ static void add_action(struct GENGHOST_MANEUVER *actions, size_t *count, size_t 
 	}
 }
 
+static struct GENGHOST_MANEUVER feature_action(const struct GENGHOST_MANEUVER *ordinary,
+											   const struct GENGHOST_ROUTE *route,
+											   const struct GENGHOST_DRIVER *driver, size_t begin,
+											   size_t end)
+{
+	struct GENGHOST_MANEUVER feature = *ordinary;
+	feature.approach = route->points[begin];
+	feature.exit = route->points[end];
+	feature.feature_begin = feature.approach.distance;
+	feature.feature_end = feature.exit.distance;
+	feature.physical_model = feature.approach.physical_model;
+	feature.approach_speed = feature.exit_speed = 250.0;
+	feature.exit_heading_x = feature.exit.x - feature.approach.x;
+	feature.exit_heading_z = feature.exit.z - feature.approach.z;
+	double length = sqrt(feature.exit_heading_x * feature.exit_heading_x +
+						 feature.exit_heading_z * feature.exit_heading_z);
+	if (length > 1.0) {
+		feature.exit_heading_x /= length;
+		feature.exit_heading_z /= length;
+	}
+	feature.horizon_frames = (unsigned int)bounded(
+		(feature.feature_end - driver->progress + 240.0) /
+			fmax(20.0, state.playerstate.car_actual_speed / 256.0 * MANEUVER_MPH_TRAVEL),
+		24.0, 64.0);
+	feature.gene.line_mode = 0U;
+	feature.gene.shortcut_skip = 0U;
+	feature.gene.slide_brake = 0.0;
+	return feature;
+}
+
+/* Keep an actual flight's incoming line rather than steering over to the
+ * grounded center corridor while above a stone. No height or takeoff state is
+ * invented: the caller proposes this only after native wheel contact is lost.
+ * Both collision modes must still validate body clearance and the landing. */
+static int slalom_flight(struct GENGHOST_MANEUVER *action)
+{
+	int piece = action->approach.piece;
+	unsigned int tile = (unsigned char)track_route_element_ids[piece];
+	const struct TRACKOBJECT *object = &trkObjectList[tile];
+	const struct CARSTATE *car = &state.playerstate;
+	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	double ax, az, bx, bz, cx, cz, dx, dz;
+	turn_quarter(action->approach.x - ox, action->approach.z - oz, -object->ss_rotY, &ax, &az);
+	turn_quarter(action->exit.x - ox, action->exit.z - oz, -object->ss_rotY, &bx, &bz);
+	turn_quarter(car->car_position.lx / 64.0 - ox, car->car_position.lz / 64.0 - oz,
+				 -object->ss_rotY, &cx, &cz);
+	turn_quarter((car->car_position.lx - (double)car->car_previous_position.lx) / 64.0,
+				 (car->car_position.lz - (double)car->car_previous_position.lz) / 64.0,
+				 -object->ss_rotY, &dx, &dz);
+	double direction = bz >= az ? 1.0 : -1.0;
+	/* Native body half-length is point one's x coordinate. Point zero holds
+	 * width/height, while point one's y coordinate is a collision radius. */
+	double rear = fabs((double)simd_player.collide_points[1].px);
+	for (unsigned int i = 0U; i < 4U; ++i) {
+		rear = fmax(rear, fabs(simd_player.wheel_coords[i].z / 64.0));
+	}
+	double clear = direction * (SLALOM_POLE_FAR_Z + rear + 80.0);
+	if (direction * dz <= 0.25 || direction * (clear - cz) <= 0.0) {
+		return 0;
+	}
+	double x = cx + dx * (clear - cz) / dz;
+	action->approach.x = car->car_position.lx / 64.0;
+	action->approach.y = car->car_position.ly / 64.0;
+	action->approach.z = car->car_position.lz / 64.0;
+	turn_quarter(x, clear, object->ss_rotY, &action->exit.x, &action->exit.z);
+	action->exit.x += ox;
+	action->exit.z += oz;
+	action->exit.height_specified = 0;
+	double length = sqrt(dx * dx + dz * dz);
+	turn_quarter(dx / length, dz / length, object->ss_rotY, &action->exit_heading_x,
+				 &action->exit_heading_z);
+	return 1;
+}
+
 size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
 						  const struct GENGHOST_POLICY *policy, int powergear, int collision,
 						  int owoot, struct GENGHOST_MANEUVER *actions, size_t capacity)
@@ -275,6 +352,29 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 			add_action(actions, &count, capacity, &action);
 		}
 	}
+	/* Reserve narrow center guidance and a real-flight continuation before
+	 * nearby launch/landing variants can fill the bounded proposal array. Look
+	 * through the preceding stunt too: DEFAULT's first slalom follows a ramp. */
+	size_t slalom_begin = begin, slalom_end = end;
+	for (unsigned int number = 0U; number < 2U && slalom_begin < route->point_count; ++number) {
+		if (route->points[slalom_begin].physical_model == PHYSICAL_MODEL_SLALOM &&
+			(!owoot || genghost_slalom_center_fits())) {
+			action = feature_action(&ordinary, route, driver, slalom_begin, slalom_end);
+			action.kind = GENGHOST_MANEUVER_SLALOM_CENTER;
+			action.road_only = 1U;
+			action.gene.stunt_mode = GENGHOST_STUNT_SLALOM_CENTER;
+			action.gene.lateral_offset = 0.0;
+			action.gene.speed_scale = 1.5;
+			add_action(actions, &count, capacity, &action);
+			if (!owoot && car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE &&
+				car->car_actual_speed > 0U && slalom_flight(&action)) {
+				action.kind = GENGHOST_MANEUVER_SLALOM_JUMP;
+				action.road_only = 0U;
+				add_action(actions, &count, capacity, &action);
+			}
+		}
+		slalom_begin = feature_ahead(route, driver, slalom_end + 1U, &slalom_end);
+	}
 	if (owoot) {
 		return count;
 	}
@@ -311,28 +411,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	 * behind a stunt the car is deliberately avoiding. */
 	for (unsigned int feature_number = 0U;
 		 feature_number < 2U && begin < route->point_count && count < capacity; ++feature_number) {
-		struct GENGHOST_MANEUVER feature = ordinary;
-		feature.approach = route->points[begin];
-		feature.exit = route->points[end];
-		feature.feature_begin = feature.approach.distance;
-		feature.feature_end = feature.exit.distance;
-		feature.physical_model = feature.approach.physical_model;
-		feature.approach_speed = feature.exit_speed = 250.0;
-		feature.exit_heading_x = feature.exit.x - feature.approach.x;
-		feature.exit_heading_z = feature.exit.z - feature.approach.z;
-		double length = sqrt(feature.exit_heading_x * feature.exit_heading_x +
-							 feature.exit_heading_z * feature.exit_heading_z);
-		if (length > 1.0) {
-			feature.exit_heading_x /= length;
-			feature.exit_heading_z /= length;
-		}
-		feature.horizon_frames = (unsigned int)bounded(
-			(feature.feature_end - driver->progress + 240.0) /
-				fmax(20.0, car->car_actual_speed / 256.0 * MANEUVER_MPH_TRAVEL),
-			24.0, 64.0);
-		feature.gene.line_mode = 0U;
-		feature.gene.shortcut_skip = 0U;
-		feature.gene.slide_brake = 0.0;
+		struct GENGHOST_MANEUVER feature = feature_action(&ordinary, route, driver, begin, end);
 		for (unsigned int variant = 0U; variant < 4U; ++variant) {
 			action = feature;
 			action.kind =
@@ -501,6 +580,13 @@ unsigned char genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 	struct GENGHOST_POLICY local = *policy;
 	for (unsigned int i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 		local.segment[i] = action->gene;
+		if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER ||
+			action->kind == GENGHOST_MANEUVER_SLALOM_JUMP) {
+			/* Parameter refinement retains the exact narrow corridor and cannot
+			 * turn a preceding ramp into a generic catalog bypass. */
+			local.segment[i].stunt_mode = GENGHOST_STUNT_SLALOM_CENTER;
+			local.segment[i].lateral_offset = 0.0;
+		}
 	}
 	unsigned char input = genghost_driver_step(route, &local, driver, powergear, collision, owoot);
 	if (owoot && action->kind != GENGHOST_MANEUVER_POWERGEAR) {
@@ -512,6 +598,12 @@ unsigned char genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 	if (!owoot && action->kind == GENGHOST_MANEUVER_CHICANE_GRASS &&
 		chicane_target(route, driver, action, &target, &target_speed)) {
 		input = toward_target(&target, target_speed, input, driver);
+	} else if (!owoot && action->kind == GENGHOST_MANEUVER_SLALOM_JUMP &&
+			   car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE &&
+			   (action->exit.x - car->car_position.lx / 64.0) * action->exit_heading_x +
+					   (action->exit.z - car->car_position.lz / 64.0) * action->exit_heading_z >
+				   0.0) {
+		input = toward_target(&action->exit, action->exit_speed, input, driver);
 	} else if (!owoot && !action->road_only &&
 			   (action->kind == GENGHOST_MANEUVER_LAUNCH ||
 				action->kind == GENGHOST_MANEUVER_POWERGEAR ||

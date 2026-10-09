@@ -221,7 +221,10 @@ def main():
         assert clean_report["route_combinations"] == 2 and clean_report["routes_attempted"] == 2
         assert clean_report["tile_evaluations"] == clean_report["tile_improvements"] == 0
         assert clean_report["dualway_evaluations"] == clean_report["dualway_improvements"] == 0
-        assert clean_report["tactic_evaluations"] == clean_report["tactic_improvements"] == 0
+        # A clear slalom center is a legal road line under OWOOT. The common
+        # verifier above checks every saved frame against the native road rule;
+        # tile cuts and dual-way switches remain disabled.
+        assert clean_report["tactic_evaluations"] > 0, "Legal slalom center was never tried"
         _, fixed_report = generate("track.TRK", "COUN", "fixed.RPL", 500,
                                    ("--pg:off", "--lc:off", "--lcb:off"))
         assert fixed_report["dualway_pairs"] == 6164

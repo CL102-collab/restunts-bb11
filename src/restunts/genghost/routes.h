@@ -8,6 +8,7 @@
 #define GENGHOST_STUNT_CORKSCREW_CUT 5U
 #define GENGHOST_STUNT_HUMAN 6U
 #define GENGHOST_STUNT_HUMAN_ALT 7U
+#define GENGHOST_STUNT_SLALOM_CENTER 8U
 
 /* Coordinates are the game's world units (1024 per tile); speeds are mph.
  * Offset is a fraction of the center-to-edge vector: +/-1 is a road edge.
@@ -23,7 +24,7 @@ struct GENGHOST_GENE {
 	unsigned int shortcut_skip;
 	unsigned int line_mode;
 	/* Local proposals: 0 normal, 1 ground, 2/3 edge, 4 launch, 5 cork cut,
-	 * 6 collision-aware human recipe, 7 its alternative. */
+	 * 6 collision-aware human recipe, 7 its alternative, 8 slalom center only. */
 	unsigned int stunt_mode;
 	double corner_scale;
 	double powergear_bias;
@@ -127,7 +128,8 @@ enum GENGHOST_STUNT_RECIPE_KIND {
 	GENGHOST_RECIPE_CORK_CUT,
 	GENGHOST_RECIPE_LOW_EDGE,
 	GENGHOST_RECIPE_UNDERPASS,
-	GENGHOST_RECIPE_FAST_PASS
+	GENGHOST_RECIPE_FAST_PASS,
+	GENGHOST_RECIPE_SLALOM_CENTER
 };
 struct GENGHOST_STUNT_RECIPE {
 	enum GENGHOST_STUNT_RECIPE_KIND kind;
@@ -135,15 +137,17 @@ struct GENGHOST_STUNT_RECIPE {
 };
 const struct GENGHOST_STUNT_RECIPE *genghost_stunt_recipe(int model, int collision_enabled);
 int genghost_stunt_catalog_model(int model);
+/* The real body/wheel width fits between the inner slalom stone faces. */
+int genghost_slalom_center_fits(void);
 /* Pure target planner: reads current car dimensions/position, never writes
- * native physics. The driver disables this entire planner under OWOOT. */
+ * native physics. OWOOT permits only the physically clear slalom center recipe. */
 int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
 						  const struct GENGHOST_GENE *gene, double lookahead, int collision_enabled,
 						  struct GENGHOST_WAYPOINT *target, double *protected_end);
 /* Read the current player and car parameters from the original engine. The
  * Physics flags must reflect --pg and --lc; owoot is the active road rule.
  * Solid-crossing proposals require original collisions; clear ground cuts and
- * edge jumps remain available with collision fixes. OWOOT disables all tactics. */
+ * edge jumps remain available with collision fixes. OWOOT permits only a clear slalom center pass. */
 unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 								   const struct GENGHOST_POLICY *policy,
 								   struct GENGHOST_DRIVER *driver, int powergear_enabled,

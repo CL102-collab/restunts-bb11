@@ -9,6 +9,7 @@
 #include "../c/game_input.h"
 #include "../c/owoot_road.h"
 #include "../c/track_objects.h"
+#include "../c/track_collision.h"
 #include "../c/trackdata_layout.h"
 
 #undef memcpy
@@ -131,9 +132,13 @@ static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned in
 				assert(pg || action->kind != GENGHOST_MANEUVER_POWERGEAR);
 				if (owoot) {
 					assert(action->kind != GENGHOST_MANEUVER_CHICANE_GRASS);
+					assert(action->kind != GENGHOST_MANEUVER_SLALOM_JUMP);
 					assert(action->kind != GENGHOST_MANEUVER_TILE_TOUCH);
 					assert(action->kind != GENGHOST_MANEUVER_STUNT);
 					assert(action->kind != GENGHOST_MANEUVER_STUNT_ALTERNATE);
+					if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER) {
+						assert(action->road_only && genghost_slalom_center_fits());
+					}
 					if (action->kind == GENGHOST_MANEUVER_POWERGEAR) {
 						assert(action->gene.stunt_mode == 0U && action->gene.line_mode == 0U);
 						assert(action->gene.shortcut_skip == 0U);
@@ -159,6 +164,214 @@ static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned in
 	printf("%u maneuver proposals preserve native state and respect rule gates (%u fast-grass).\n",
 		   proposals, chicane);
 	return chicane;
+}
+
+/* Geometry-only fixtures retain the native car dimensions and element table.
+ * Cardinal rotations and reverse approaches must project the same actual
+ * movement line, even when a preceding launch would otherwise fill the action
+ * list. The from-start test below establishes physical feasibility separately. */
+static void test_slalom_proposal_geometry(void)
+{
+	struct GENGHOST_SNAPSHOT saved;
+	genghost_sim_capture(&saved);
+	legacy_s8 saved_ids[2] = {track_route_element_ids[0], track_route_element_ids[1]};
+	legacy_s8 saved_columns[2] = {track_route_columns[0], track_route_columns[1]};
+	legacy_s8 saved_rows[2] = {track_route_rows[0], track_route_rows[1]};
+	unsigned int checked = 0U, loop_tile = 0U;
+	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+		if (trkObjectList[tile].ss_physicalModel == PHYSICAL_MODEL_LOOP) {
+			loop_tile = tile;
+			break;
+		}
+	}
+	assert(loop_tile != 0U);
+	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+		const struct TRACKOBJECT *object = &trkObjectList[tile];
+		if (object->ss_physicalModel != PHYSICAL_MODEL_SLALOM || object->ss_surfaceType != 0) {
+			continue;
+		}
+		for (int direction = -1; direction <= 1; direction += 2) {
+			struct GENGHOST_WAYPOINT points[8] = {0};
+			struct GENGHOST_ROUTE route = {0};
+			route.points = points;
+			route.point_count = 8U;
+			route.length = 2600.0;
+			track_route_element_ids[0] = (legacy_s8)loop_tile;
+			track_route_element_ids[1] = (legacy_s8)tile;
+			track_route_columns[0] = track_route_columns[1] = 10;
+			track_route_rows[0] = track_route_rows[1] = 10;
+			double ox = track_object_base_x(object, 10);
+			double oz = track_object_base_z(object, 10);
+			for (size_t point = 0; point < 8U; ++point) {
+				int z = point < 4U ? -1500 + (int)point * 300 : -512 + (int)(point - 4U) * 341;
+				struct VECTOR placed = world_point(object->ss_rotY, 0, 0, direction * z);
+				points[point].x = ox + placed.x - 11 * 1024;
+				points[point].z = oz + placed.z - 10 * 1024;
+				points[point].piece = point < 4U ? 0 : 1;
+				points[point].piece_index = point < 4U ? 0 : 1;
+				points[point].physical_model =
+					point < 4U ? PHYSICAL_MODEL_LOOP : PHYSICAL_MODEL_SLALOM;
+				points[point].distance = point < 4U ? point * 300.0 : 1000.0 + (point - 4U) * 341.0;
+				points[point].speed = 65.0;
+			}
+			struct VECTOR here = world_point(object->ss_rotY, 58, 0, direction * -420);
+			struct VECTOR previous = world_point(object->ss_rotY, 57, 0, direction * -450);
+			state.playerstate.car_position.lx = (legacy_s32)((ox + here.x - 11 * 1024) * 64.0);
+			state.playerstate.car_position.lz = (legacy_s32)((oz + here.z - 10 * 1024) * 64.0);
+			state.playerstate.car_previous_position.lx =
+				(legacy_s32)((ox + previous.x - 11 * 1024) * 64.0);
+			state.playerstate.car_previous_position.lz =
+				(legacy_s32)((oz + previous.z - 10 * 1024) * 64.0);
+			state.playerstate.car_actual_speed = 150 * 256;
+			struct GENGHOST_DRIVER driver = {0};
+			driver.progress = 600.0;
+			struct GENGHOST_POLICY policy;
+			genghost_policy_default(&policy);
+			for (unsigned int flags = 0U; flags < 8U; ++flags) {
+				int airborne = (flags & 1U) != 0U, collision = (flags & 2U) != 0U;
+				int owoot = (flags & 4U) != 0U;
+				state.playerstate.car_sumSurfAllWheels = airborne ? CAR_WHEEL_CONTACT_NONE : 4;
+				struct GENGHOST_SNAPSHOT before, after;
+				genghost_sim_capture(&before);
+				struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
+				size_t count = genghost_maneuvers(&route, &driver, &policy, 1, collision, owoot,
+												  actions, GENGHOST_MANEUVER_CAPACITY);
+				unsigned int centers = 0U, jumps = 0U, landings = 0U;
+				for (size_t i = 0U; i < count; ++i) {
+					const struct GENGHOST_MANEUVER *action = &actions[i];
+					if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER) {
+						++centers;
+						assert(action->gene.lateral_offset == 0.0 &&
+							   action->gene.slide_brake == 0.0);
+						assert(action->gene.stunt_mode == GENGHOST_STUNT_SLALOM_CENTER);
+						/* The preceding loop retains its ordinary approach.
+						 * A dedicated center proposal must reach the slalom
+						 * instead of selecting the generic loop/ramp bypass. */
+						struct GENGHOST_WAYPOINT target;
+						double protected_end = 0.0;
+						assert(genghost_stunt_target(&route, &driver, &action->gene, 150.0,
+													 collision, &target, &protected_end));
+						assert(target.physical_model == PHYSICAL_MODEL_SLALOM && target.piece == 1);
+						assert(protected_end == points[7].distance);
+					}
+					if (action->kind == GENGHOST_MANEUVER_SLALOM_JUMP) {
+						++jumps;
+						double dx = state.playerstate.car_position.lx -
+									(double)state.playerstate.car_previous_position.lx;
+						double dz = state.playerstate.car_position.lz -
+									(double)state.playerstate.car_previous_position.lz;
+						double tx = action->exit.x - state.playerstate.car_position.lx / 64.0;
+						double tz = action->exit.z - state.playerstate.car_position.lz / 64.0;
+						double cross = dx * tz - dz * tx;
+						assert(cross > -0.01 && cross < 0.01);
+						assert(dx * tx + dz * tz > 0.0);
+						assert(action->physical_model == PHYSICAL_MODEL_SLALOM);
+					}
+					landings += action->kind == GENGHOST_MANEUVER_LANDING;
+				}
+				assert(centers == (!owoot || genghost_slalom_center_fits() ? 1U : 0U));
+				assert(jumps == (!owoot && airborne ? 1U : 0U));
+				assert(landings == (!owoot && airborne ? 3U : 0U));
+				genghost_sim_capture(&after);
+				assert(memcmp(&before, &after, sizeof(before)) == 0);
+				++checked;
+			}
+		}
+	}
+	for (unsigned int i = 0U; i < 2U; ++i) {
+		track_route_element_ids[i] = saved_ids[i];
+		track_route_columns[i] = saved_columns[i];
+		track_route_rows[i] = saved_rows[i];
+	}
+	genghost_sim_restore(&saved);
+	assert(checked >= 32U);
+	printf(
+		"%u slalom rotation/contact/rule cases retain center, flight and landing alternatives.\n",
+		checked);
+}
+
+/* Optional integration fixture: inputs must reach the first DEFAULT slalom
+ * from the actual start without editing native state. Both cars and collision
+ * settings use exactly the same proposal code, with no car-name dispatch. */
+static void test_slalom_continuation(const struct GENGHOST_OPTIONS *options,
+									 const unsigned char *inputs, unsigned int prefix, int jump)
+{
+	assert(!jump || !options->owoot);
+	genghost_sim_reset();
+	struct GENGHOST_ROUTES routes;
+	char error[256];
+	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+	assert(routes.count > 0U);
+	const struct GENGHOST_ROUTE *route = &routes.routes[0];
+	struct GENGHOST_DRIVER driver;
+	genghost_driver_reset(&driver);
+	for (unsigned int frame = 0U; frame < prefix; ++frame) {
+		assert(genghost_sim_step(inputs[frame]) == 0);
+		genghost_driver_observe(route, &driver);
+	}
+	assert((state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE) == jump);
+	struct GENGHOST_POLICY policy;
+	genghost_policy_default(&policy);
+	struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
+	size_t count =
+		genghost_maneuvers(route, &driver, &policy, options->powergear, options->collision,
+						   options->owoot, actions, GENGHOST_MANEUVER_CAPACITY);
+	size_t chosen = count;
+	for (size_t i = 0U; i < count; ++i) {
+		if (actions[i].kind ==
+			(jump ? GENGHOST_MANEUVER_SLALOM_JUMP : GENGHOST_MANEUVER_SLALOM_CENTER)) {
+			chosen = i;
+			break;
+		}
+	}
+	assert(chosen < count);
+	const struct GENGHOST_MANEUVER *action = &actions[chosen];
+	int piece = route->points[driver.waypoint].piece;
+	if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER) {
+		piece = action->approach.piece;
+	} else {
+		piece = action->exit.piece;
+	}
+	const struct TRACKOBJECT *object =
+		&trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	assert(object->ss_physicalModel == PHYSICAL_MODEL_SLALOM);
+	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	struct VECTOR axis = world_point(object->ss_rotY, 0, 0, 1);
+	double dx = axis.x - 11 * 1024, dz = axis.z - 10 * 1024;
+	if (dx * action->exit_heading_x + dz * action->exit_heading_z < 0.0) {
+		dx = -dx;
+		dz = -dz;
+	}
+	struct GENGHOST_RESULT before, after;
+	genghost_sim_result(&before);
+	unsigned int speed = state.playerstate.car_actual_speed;
+	int cleared = 0;
+	unsigned int ticks = 0U;
+	for (; ticks < action->horizon_frames; ++ticks) {
+		unsigned char input =
+			genghost_maneuver_step(route, &policy, &driver, action, ticks, options->powergear,
+								   options->collision, options->owoot);
+		assert(!(input & INPUT_BRAKE_FLAG));
+		assert(genghost_sim_step(input) == 0);
+		genghost_driver_observe(route, &driver);
+		genghost_sim_result(&after);
+		assert(!after.crashed && after.penalty_frames == before.penalty_frames);
+		assert(state.playerstate.car_actual_speed + 2U * 256U >= speed);
+		double along = (state.playerstate.car_position.lx / 64.0 - ox) * dx +
+					   (state.playerstate.car_position.lz / 64.0 - oz) * dz;
+		if (along > SLALOM_POLE_FAR_Z + simd_player.collide_points[1].px + 20.0) {
+			cleared = 1;
+			break;
+		}
+	}
+	assert(cleared);
+	assert(state.playerstate.car_actual_speed >= speed);
+	printf("Native %s slalom continuation clears both stones in %u frames: %.2f -> %.2f mph, no "
+		   "brakes or added penalty.\n",
+		   jump ? "airborne" : "center", ticks + 1U, speed / 256.0,
+		   state.playerstate.car_actual_speed / 256.0);
+	genghost_routes_free(&routes);
 }
 
 static void same_reply(struct GENGHOST_STATE_REPLY *first, struct GENGHOST_STATE_REPLY *second)
@@ -362,9 +575,14 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	struct GENGHOST_OPTIONS options = {0};
 	options.powergear = options.collision = options.left_bias = 1;
 	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
+	int slalom = 0;
 	for (int i = 3; i < argc; ++i) {
 		const char *flag = (const char *)argv[i];
-		if (strcmp(flag, "--expect-chicane") == 0) {
+		if (strcmp(flag, "--expect-slalom-center") == 0) {
+			slalom = 1;
+		} else if (strcmp(flag, "--expect-slalom-jump") == 0) {
+			slalom = 2;
+		} else if (strcmp(flag, "--expect-chicane") == 0) {
 			expect_chicane = 1;
 		} else if (strcmp(flag, "--expect-powergear") == 0) {
 			expect_powergear = 1;
@@ -384,6 +602,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	}
 	if (recovery) {
 		test_failed_pilot_recovery(&options);
+		return 0;
+	}
+	test_slalom_proposal_geometry();
+	if (slalom) {
+		test_slalom_continuation(&options, recording + REPLAY_INPUT_OFFSET, prefix, slalom == 2);
 		return 0;
 	}
 	test_fast_grass();

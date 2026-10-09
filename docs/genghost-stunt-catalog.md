@@ -5,7 +5,8 @@ stunt variants**, with an explicit preferred recipe for each collision setting
 and another geometric line to refine. No runtime switch enables this catalog:
 it is part of ordinary offline search. Complete native playback, including
 penalties and the selected physics fixes, decides whether a proposal is useful.
-OWOOT retains the original constrained traversal and disables these cuts.
+OWOOT retains constrained traversal and disables off-road cuts. A physically
+clear slalom center passage remains available because it satisfies the road rule.
 
 ## Human evidence
 
@@ -73,11 +74,13 @@ visit or skipped piece earns a penalty.
 | Half pipe | outside half-pipe bypass | outside half-pipe bypass | straight floor passage |
 | Vertical corkscrew up | corkscrew wall crossing | outside vertical corkscrew | launch toward later tiles |
 | Vertical corkscrew down | corkscrew wall crossing | outside vertical corkscrew | launch toward later tiles |
-| Slalom | slalom stone crossing | outside slalom stones | outside bypass |
+| Slalom | precise center passage | precise center passage if the car fits | outside bypass; real airborne continuation in state search |
 | Horizontal corkscrew | right of red wall | right of red wall | outside bypass |
 
 Ground crossings through loop/corkscrew walls or slalom stones are selected only
-with original collision behavior. Fixed-collision alternatives stay outside the
+with original collision behavior. The slalom center passage goes between the
+solids and is distinct from stone penetration; fixed collisions permit it when
+the actual car envelope fits. Other fixed-collision alternatives stay outside the
 relevant solids. Tunnel/pipe recipes prepare their entrance before reaching the
 wall and decline a late sideways crossing. A grounded car uses an outside line
 around a solid deck; an elevated car can keep a lower edge or launch from a real
@@ -110,7 +113,7 @@ are separate measurements; neither proves global optimality.
 
 Native tests cover every catalog model at winning replay checkpoints, both
 collision settings, extreme lateral offsets, full planner state immutability,
-and OWOOT equivalence. Tunnel/pipe entry and low solid-deck guards are tested
+and OWOOT restrictions, including the legal slalom center exception. Tunnel/pipe entry and low solid-deck guards are tested
 under four rotations and both traversal directions. Analyzer tests compare all
 24 accepted hill substitutions with the native tables so a ramp converted by
 hill terrain is not misclassified as the raw track element.

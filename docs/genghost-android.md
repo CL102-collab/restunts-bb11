@@ -49,6 +49,8 @@ also includes the [complete stunt tactic catalog](genghost-stunt-catalog.md),
 with collision-aware shortcuts as part of the default search.
 Version 1.0.4 adds the CPU core control and process-isolated parallel search.
 Version 1.0.5 adds the state search preview alongside the existing route search.
+Version 1.0.6 corrects slalom center clearance and steering; state jump proposals
+require actual native airborne contact loss and remain disabled under OWOOT.
 Both use the same native physics and respect the selected driving rules.
 
 Install the updated APK over the previous build to keep the selected folder

@@ -209,3 +209,81 @@ portability fix. Fixed-budget parity validates the search decisions after the
 fix; it does not establish identical wall-clock throughput. Packaged binaries
 are rebuilt and validated separately, with their exact source revisions and
 hashes recorded in the release manifests.
+
+## Slalom correction
+
+The shared stunt catalog now proposes the physical middle of a slalom under
+both collision settings. The old default aimed at local x=60, toward a stone,
+and the fixed-collision recipe always detoured outside. Native stones leave a
+46-unit gap around x=0. COUN's actual half width is 20 units and PMIN's is 19;
+their longitudinal half extents are 54 and 56. Those dimensions occupy separate
+SIMD metadata fields, so the length/radius must not be mistaken for body width.
+
+The new center controller targets exactly x=0 with a short alignment horizon.
+It prepares the entrance before the first stone, checks projected yaw clearance
+for fixed collisions, and guides beyond the second stone's rear-clearance limit.
+A car that does not fit retains the outside proposal; original collision-only
+stone-crossing attempts remain separate. Selected center policies exempt the
+slalom's ordinary 65 mph cap during braking preview, while preserving limits for
+later corners. Ordinary traversal remains available.
+
+State search explicitly reserves center and native airborne continuation actions
+before optional stunt variants can fill its action list. The flight action keeps
+the observed incoming line beyond the stones and returns to ground guidance on
+landing. It is offered only after real wheel-contact loss, never by inventing a
+jump or treating the slalom as a ramp. A dedicated slalom-only gene prevents this
+approach from accidentally selecting the outside bypass of a preceding ramp.
+
+A clear center pass is also legal under OWOOT. The restricted driver admits only
+that narrow road corridor, with fixed geometric clearance, and ignores other
+stunt recipes. Legacy search funds it alongside ordinary initial profiles; state
+search offers it as a road-only action. OWOOT still disables the separate jump
+shortcut proposal. Native OWOOT validation decides whether each completed replay
+satisfies the full wheel/route rules.
+
+From-start DEFAULT input fixtures establish local feasibility without moving or
+editing the native car state. COUN passes the stones on the ground at about
+137–139 mph. PMIN crosses the first stone's longitudinal position while airborne
+at 151.27 mph, then lands and clears the second on the center line. Both fixtures
+also pass fixed collisions and OWOOT because their projected center corridor is
+clear; this does not make arbitrary jumps over a stone's footprint legal under
+OWOOT. Each partial replay matches independent `repldump` playback.
+
+Production action tests start from those replayed prefixes. COUN clears the
+section in 14 frames, accelerating from 136.74 to 138.84 mph under original/fixed
+collisions and fixed collisions with OWOOT. PMIN clears it in 15 frames,
+151.27 to 177.34 mph, under both collision modes. These tests require no braking,
+crash, added penalty, or speed loss. Geometry checks cover rotations, reverse
+traversal, early alignment, late-entry rejection, yaw, wide cars, rear clearance,
+and action capacity. These are local maneuver results, not whole-lap records.
+
+A separate before/after comparison uses DEFAULT track input only, manual
+transmission, one core, seed 1 and 2,000 evaluations per search. Each case runs
+against the previous release and the corrected engine with identical resources.
+All twelve outputs finish with zero penalty and pass native plus independent
+playback. These are fixed-budget results, not wall-clock throughput measurements.
+
+| DEFAULT case | Before seconds | After seconds |
+| --- | ---: | ---: |
+| PMIN, legacy, original physics | 75.30 | 75.30 |
+| PMIN, state, original physics | 83.80 | 83.80 |
+| COUN, legacy, original physics | 110.55 | 106.90 |
+| COUN, state, original physics | 113.45 | 113.45 |
+| COUN, legacy, OWOOT and all fixes | 124.30 | 116.75 |
+| COUN, state, OWOOT and all fixes | 125.70 | 126.05 |
+
+The improved unrestricted COUN lap removes all twelve former slalom brake ticks
+and accelerates from 111.35 to 139.25 mph through the tile. The restricted legacy
+lap also improves overall, but still brakes in that section; the restricted
+state run is 0.35 seconds slower. PMIN's saved best still brakes within the
+slalom at this budget. A faster feasible local maneuver does not automatically
+produce a better whole lap with its later corners and landing. Legacy remains
+the default; no universal or near-record improvement is claimed.
+
+Frozen comparison candidate SHA256:
+`9c83f1af94f8dedd389e3b47825b72a49ea5a688fcea16763203f0dcaae9f103`.
+The baseline is release `43a9d6fa` with binary SHA256
+`a0ff96bc0f51548832097d71923f58f97e4b64de116f07d597c48bfedd31c209`.
+The slalom validation archive includes the controller probe, partial fixtures,
+failed alignment attempts, native action tests, complete generated replays,
+resource hashes, and separate final package checks.

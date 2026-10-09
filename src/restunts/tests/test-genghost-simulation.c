@@ -13,6 +13,7 @@
 #include "../c/state_internal.h"
 #include "../c/trackdata_layout.h"
 #include "../c/track_objects.h"
+#include "../c/track_collision.h"
 #include "../c/physics_internal.h"
 
 #undef memcpy
@@ -305,8 +306,8 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 		genghost_sim_capture(&after);
 		assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 	}
-	/* OWOOT must make every stunt gene inert, including launch and median
-     * choices. Compare both inputs and optimizer state, not just a flag. */
+	/* OWOOT suppresses shortcut genes. A narrow car's central slalom passage
+	 * is a road maneuver; all other choices remain identical to road following. */
 	struct GENGHOST_DRIVER reference;
 	genghost_driver_reset(&reference);
 	genghost_policy_default(&policy);
@@ -318,8 +319,15 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 		for (int collision = 0; collision <= 1; ++collision) {
 			struct GENGHOST_DRIVER driver;
 			genghost_driver_reset(&driver);
-			assert(genghost_driver_step(&view, &policy, &driver, 1, collision, 1) == expected);
-			assert(memcmp(&driver, &reference, sizeof(driver)) == 0);
+			unsigned char actual = genghost_driver_step(&view, &policy, &driver, 1, collision, 1);
+			if (model == PHYSICAL_MODEL_SLALOM && mode == GENGHOST_STUNT_HUMAN &&
+				genghost_slalom_center_fits()) {
+				assert(driver.tactic_ticks <= 1U);
+				assert(!(actual & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
+			} else {
+				assert(actual == expected);
+				assert(memcmp(&driver, &reference, sizeof(driver)) == 0);
+			}
 			genghost_sim_capture(&after);
 			assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 		}
@@ -395,7 +403,10 @@ static void catalog_clearance(const struct GENGHOST_ROUTE *view,
 	}
 	double lateral = fabs(local_x);
 	if (model == PHYSICAL_MODEL_SLALOM) {
-		assert(lateral >= 97.0 + half_width);
+		/* Native box point 0 stores width; point 1 stores length and radius.
+		 * A narrow car can fit the central opening with collision fixes too. */
+		assert(lateral + half_width < SLALOM_POLE_INNER_X ||
+			   lateral >= SLALOM_POLE_OUTER_X + half_width);
 	} else if (model == PHYSICAL_MODEL_TUNNEL) {
 		assert(lateral + half_width <= 120.0 || lateral >= 270.0 + half_width);
 	} else if (model == PHYSICAL_MODEL_PIPE_ENTRANCE) {
@@ -425,6 +436,229 @@ static void test_quarter_turn(double x, double z, int angle, double *rx, double 
 			*rz = z;
 			break;
 	}
+}
+
+/* Find an aligned native heading independently of the planner's local-angle
+ * convention: its forward direction must become positive car-local z. */
+static legacy_s16 slalom_heading(int rotation, double direction)
+{
+	double wx, wz;
+	test_quarter_turn(0.0, direction * 512.0, rotation, &wx, &wz);
+	struct VECTOR forward = {(legacy_s16)wx, 0, (legacy_s16)wz}, local;
+	for (legacy_s16 heading = 0; heading < 1024; heading += 256) {
+		struct MATRIX *matrix = mat_rot_zxy(0, 0, heading, MATRIX_ROTATION_ORDER_YXZ);
+		mat_mul_vector(&forward, matrix, &local);
+		if (local.z > 0 && local.x == 0) {
+			return heading;
+		}
+	}
+	assert(!"Cardinal slalom direction has no native heading");
+	return 0;
+}
+
+static void slalom_position(double ox, double oz, int rotation, double x, double z,
+							legacy_s16 heading)
+{
+	double wx, wz;
+	test_quarter_turn(x, z, rotation, &wx, &wz);
+	state.playerstate.car_position.lx = (legacy_s32)((ox + wx) * 64.0);
+	state.playerstate.car_position.lz = (legacy_s32)((oz + wz) * 64.0);
+	state.playerstate.car_position.ly = 0;
+	state.playerstate.car_rotate = (struct VECTOR){heading, 0, 0};
+	state.playerstate.car_actual_speed = 160U * 256U;
+	state.playerstate.car_sumSurfAllWheels = 4;
+	state.playerstate.car_sumSurfFrontWheels = 2;
+	state.playerstate.car_sumSurfRearWheels = 2;
+}
+
+/* These are isolated geometry contracts, not synthetic completed races. Keep
+ * the real car dimensions and native slalom endpoints, rotate/reverse the whole
+ * setup, and ask for a clear high-speed corridor through both stone footprints.
+ * In particular the rear is still beside stone 2 after the spline has ended. */
+static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int model)
+{
+	if (model != PHYSICAL_MODEL_SLALOM) {
+		return;
+	}
+	int piece = view->points[0].piece;
+	struct TRACKOBJECT *object = &trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	struct TRACKOBJECT original_object = *object;
+	struct SIMD original_simd = simd_player;
+	struct GENGHOST_SNAPSHOT saved, positioned, after;
+	genghost_sim_capture(&saved);
+	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
+	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	size_t last = 0U;
+	while (last + 1U < view->point_count && view->points[last + 1U].piece == piece) {
+		++last;
+	}
+	double ax, az, bx, bz;
+	test_quarter_turn(view->points[0].x - ox, view->points[0].z - oz, -object->ss_rotY, &ax, &az);
+	test_quarter_turn(view->points[last].x - ox, view->points[last].z - oz, -object->ss_rotY, &bx,
+					  &bz);
+	double half_width = fabs((double)simd_player.collide_points[0].px);
+	double half_length = fabs((double)simd_player.collide_points[1].px);
+	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
+		double width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
+		double length = fabs(simd_player.wheel_coords[wheel].z / 64.0);
+		if (width > half_width) {
+			half_width = width;
+		}
+		if (length > half_length) {
+			half_length = length;
+		}
+	}
+	for (int rotation = 0; rotation < 1024; rotation += 256) {
+		object->ss_rotY = (legacy_s16)rotation;
+		for (int reverse = 0; reverse <= 1; ++reverse) {
+			struct GENGHOST_WAYPOINT points[2] = {view->points[0], view->points[last]};
+			test_quarter_turn(reverse ? bx : ax, reverse ? bz : az, rotation, &points[0].x,
+							  &points[0].z);
+			test_quarter_turn(reverse ? ax : bx, reverse ? az : bz, rotation, &points[1].x,
+							  &points[1].z);
+			for (unsigned int i = 0U; i < 2U; ++i) {
+				points[i].x += ox;
+				points[i].z += oz;
+				points[i].distance = i * 1024.0;
+			}
+			struct GENGHOST_ROUTE route = *view;
+			route.points = points;
+			route.point_count = 2U;
+			route.length = 1024.0;
+			double direction = (reverse ? az - bz : bz - az) > 0.0 ? 1.0 : -1.0;
+			legacy_s16 heading = slalom_heading(rotation, direction);
+			struct GENGHOST_POLICY policy;
+			struct GENGHOST_DRIVER driver;
+			genghost_policy_default(&policy);
+			genghost_driver_reset(&driver);
+			policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN;
+			for (int collision = 0; collision <= 1; ++collision) {
+				assert(genghost_stunt_recipe(model, collision)->kind ==
+					   GENGHOST_RECIPE_SLALOM_CENTER);
+				struct GENGHOST_WAYPOINT target;
+				double protected_end, local_x, local_z;
+				if (half_width < SLALOM_POLE_INNER_X - 1.0) {
+					const double positions[] = {-500.0, 0.0, SLALOM_POLE_FAR_Z + half_length - 2.0};
+					for (size_t sample = 0U; sample < sizeof(positions) / sizeof(positions[0]);
+						 ++sample) {
+						slalom_position(ox, oz, rotation, 0.0, direction * positions[sample],
+										heading);
+						genghost_sim_capture(&positioned);
+						for (int phase = -1; phase <= 1; ++phase) {
+							policy.segment[0].lateral_offset = phase;
+							assert(genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0,
+														 collision, &target, &protected_end));
+							test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x,
+											  &local_z);
+							assert(fabs(local_x) < 1e-9);
+							assert(direction * local_z > positions[sample]);
+							assert(target.speed > 65.0 && target.speed <= 250.0);
+							genghost_sim_capture(&after);
+							assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+						}
+						/* The same truly clear center is legal under OWOOT; this
+						 * must not retain the old artificial slalom braking cap. */
+						for (size_t segment = 0U; segment < GENGHOST_POLICY_SEGMENTS; ++segment) {
+							policy.segment[segment].stunt_mode = GENGHOST_STUNT_HUMAN;
+							policy.segment[segment].lateral_offset = 0.0;
+						}
+						struct GENGHOST_DRIVER road_driver;
+						genghost_driver_reset(&road_driver);
+						unsigned char road_input =
+							genghost_driver_step(&route, &policy, &road_driver, 0, collision, 1);
+						assert(road_driver.tactic_ticks == 1U);
+						assert(!(road_input & INPUT_BRAKE_FLAG));
+						genghost_sim_capture(&after);
+						assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+					}
+				}
+				policy.segment[0].lateral_offset = 0.0;
+				if (half_width < SLALOM_POLE_INNER_X - 1.0) {
+					/* Prepare the center while there is still road before stone 1.
+					 * The proposed alignment target must leave room for the front. */
+					slalom_position(ox, oz, rotation, 80.0, -direction * 600.0, heading);
+					genghost_sim_capture(&positioned);
+					assert(genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0,
+												 collision, &target, &protected_end));
+					test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
+					assert(fabs(local_x) < 1e-9);
+					assert(direction * local_z + half_length < -SLALOM_POLE_FAR_Z);
+					genghost_sim_capture(&after);
+					assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+				}
+				/* A late transverse approach inside the stunt has no aligned
+				 * clearance yet. Reject the fast-center proposal or retain an
+				 * outside continuation; native search may explore recovery. */
+				for (int side = -1; side <= 1; side += 2) {
+					slalom_position(ox, oz, rotation, side * 80.0, 0.0, heading);
+					genghost_sim_capture(&positioned);
+					if (genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, collision,
+											  &target, &protected_end)) {
+						test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x,
+										  &local_z);
+						assert(side * local_x >= SLALOM_POLE_OUTER_X + half_width);
+					}
+					genghost_sim_capture(&after);
+					assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+				}
+				if (!collision && half_length >= SLALOM_POLE_INNER_X) {
+					/* A narrow width alone cannot admit a car that is sideways
+					 * between the barriers under corrected solid collisions. */
+					slalom_position(ox, oz, rotation, 0.0, 0.0,
+									(legacy_s16)((heading + 256) & 1023));
+					genghost_sim_capture(&positioned);
+					assert(!genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0,
+												  collision, &target, &protected_end));
+					genghost_sim_capture(&after);
+					assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+				}
+				/* Past both the whole car and an exit margin, never turn back
+				 * toward the slalom's shorter/wavy opponent spline. */
+				slalom_position(ox, oz, rotation, 0.0,
+								direction * (SLALOM_POLE_FAR_Z + half_length + 200.0), heading);
+				assert(!genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, collision,
+											  &target, &protected_end));
+			}
+			/* Car width is resource data, not a codename rule. A wider body
+			 * cannot use the central gap under corrected solid collisions. */
+			simd_player.collide_points[0].px = SLALOM_POLE_INNER_X + 8;
+			slalom_position(ox, oz, rotation, 0.0, -direction * 750.0, heading);
+			genghost_sim_capture(&positioned);
+			struct GENGHOST_WAYPOINT target;
+			double protected_end;
+			if (genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0, &target,
+									  &protected_end)) {
+				double local_x, local_z;
+				test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
+				assert(fabs(local_x) >= SLALOM_POLE_OUTER_X + simd_player.collide_points[0].px);
+			}
+			genghost_sim_capture(&after);
+			assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+			assert(!genghost_slalom_center_fits());
+			struct GENGHOST_POLICY road_policy;
+			struct GENGHOST_DRIVER road_driver, center_driver;
+			genghost_policy_default(&road_policy);
+			genghost_driver_reset(&road_driver);
+			genghost_driver_reset(&center_driver);
+			unsigned char road_input =
+				genghost_driver_step(&route, &road_policy, &road_driver, 0, 0, 1);
+			for (size_t segment = 0U; segment < GENGHOST_POLICY_SEGMENTS; ++segment) {
+				road_policy.segment[segment].stunt_mode = GENGHOST_STUNT_HUMAN;
+			}
+			assert(genghost_driver_step(&route, &road_policy, &center_driver, 0, 0, 1) ==
+				   road_input);
+			assert(memcmp(&road_driver, &center_driver, sizeof(road_driver)) == 0);
+			genghost_sim_capture(&after);
+			assert(memcmp(&positioned, &after, sizeof(after)) == 0);
+			simd_player = original_simd;
+		}
+	}
+	*object = original_object;
+	genghost_sim_restore(&saved);
+	genghost_sim_capture(&after);
+	assert(memcmp(&saved, &after, sizeof(saved)) == 0);
+	puts("Slalom center corridors, late-entry guards, wide bodies and rear clearance passed in all "
+		 "orientations.");
 }
 
 /* Synthetic approach positions exercise a geometry guard, never a simulated
@@ -523,6 +757,7 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 	struct GENGHOST_SNAPSHOT saved, after;
 	genghost_sim_capture(&saved);
 	test_corridor_guard(&view, model);
+	test_slalom_center_guard(&view, model);
 	assert(genghost_stunt_catalog_model(model));
 	unsigned int proposals[2] = {0};
 	const double lookaheads[] = {160.0, 400.0, 900.0};
@@ -569,9 +804,8 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 		}
 	}
 	assert(proposals[0] && proposals[1]);
-	/* OWOOT suppresses every shortcut mode under either collision regime;
-     * check resulting driving inputs and optimizer state against ordinary
-     * traversal, both with power gear enabled and disabled. */
+	/* OWOOT suppresses shortcut modes under either collision regime. Only
+	 * a physically narrow slalom center remains available as legal road driving. */
 	for (int powergear = 0; powergear <= 1; ++powergear) {
 		struct GENGHOST_POLICY policy;
 		struct GENGHOST_DRIVER reference;
@@ -585,9 +819,16 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 			for (int collision = 0; collision <= 1; ++collision) {
 				struct GENGHOST_DRIVER driver;
 				genghost_driver_reset(&driver);
-				assert(genghost_driver_step(&view, &policy, &driver, powergear, collision, 1) ==
-					   expected);
-				assert(memcmp(&driver, &reference, sizeof(driver)) == 0);
+				unsigned char actual =
+					genghost_driver_step(&view, &policy, &driver, powergear, collision, 1);
+				if (model == PHYSICAL_MODEL_SLALOM && mode == GENGHOST_STUNT_HUMAN &&
+					genghost_slalom_center_fits()) {
+					assert(driver.tactic_ticks <= 1U);
+					assert(!(actual & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
+				} else {
+					assert(actual == expected);
+					assert(memcmp(&driver, &reference, sizeof(driver)) == 0);
+				}
 				genghost_sim_capture(&after);
 				assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 			}
