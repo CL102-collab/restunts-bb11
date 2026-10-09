@@ -14,19 +14,22 @@ public final class GenerationRequest {
     public static final int DEFAULT_SECONDS = 1800;
     public static final int DEFAULT_CORES = 1;
     public static final int MAX_CORES = 256;
+    public static final String DEFAULT_STRATEGY = "legacy";
     public final String trackPath;
     public final String car;
     public final int seconds;
     public final int cores;
+    public final String strategy;
     public final String transmission;
     public final String[] physicsFlags;
 
-    public GenerationRequest(String trackPath, String car, int seconds, int cores, String transmission,
-            String[] physicsFlags) {
+    public GenerationRequest(String trackPath, String car, int seconds, int cores, String strategy,
+            String transmission, String[] physicsFlags) {
         this.trackPath = trackPath == null ? "" : trackPath.trim();
         this.car = car == null ? "" : car.trim().toUpperCase(Locale.ROOT);
         this.seconds = seconds;
         this.cores = cores;
+        this.strategy = strategy == null ? DEFAULT_STRATEGY : strategy;
         this.transmission = transmission == null ? "source" : transmission;
         this.physicsFlags = physicsFlags == null ? new String[0] : physicsFlags.clone();
     }
@@ -36,6 +39,7 @@ public final class GenerationRequest {
         intent.putExtra("car", car);
         intent.putExtra("seconds", seconds);
         intent.putExtra("cores", cores);
+        intent.putExtra("strategy", strategy);
         intent.putExtra("transmission", transmission);
         intent.putExtra("physics", physicsFlags);
     }
@@ -44,6 +48,7 @@ public final class GenerationRequest {
         return new GenerationRequest(intent.getStringExtra("track"), intent.getStringExtra("car"),
             intent.getIntExtra("seconds", DEFAULT_SECONDS),
             intent.getIntExtra("cores", DEFAULT_CORES),
+            intent.getStringExtra("strategy"),
             intent.getStringExtra("transmission"), intent.getStringArrayExtra("physics"));
     }
 
@@ -57,6 +62,9 @@ public final class GenerationRequest {
         if (cores < 0 || cores > MAX_CORES) {
             throw new IOException("Choose between 1 and " + MAX_CORES
                 + " cores, or 0 for all available cores.");
+        }
+        if (!strategy.equals("legacy") && !strategy.equals("state")) {
+            throw new IOException("Unknown search method.");
         }
         if (!transmission.equals("source") && !transmission.equals("manual")
                 && !transmission.equals("auto")) {
@@ -103,6 +111,8 @@ public final class GenerationRequest {
         command.add(Integer.toString(seconds));
         command.add("--cores");
         command.add(Integer.toString(cores));
+        command.add("--strategy");
+        command.add(strategy);
         command.add("--output");
         command.add(output.getAbsolutePath());
         if (!transmission.equals("source")) {

@@ -9,6 +9,8 @@
 struct GENGHOST_SEARCH_RESULT;
 typedef int (*genghost_progress_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
 
+enum GENGHOST_STRATEGY { GENGHOST_STRATEGY_LEGACY = 0, GENGHOST_STRATEGY_STATE = 1 };
+
 struct GENGHOST_OPTIONS {
 	double seconds;
 	uint64_t evaluations;
@@ -17,6 +19,7 @@ struct GENGHOST_OPTIONS {
 	/* Optional worker heartbeat/cancellation; never runs concurrent physics. */
 	genghost_progress_function progress;
 	void *progress_context;
+	enum GENGHOST_STRATEGY strategy;
 };
 
 struct GENGHOST_SEARCH_RESULT {
@@ -28,6 +31,11 @@ struct GENGHOST_SEARCH_RESULT {
 	uint64_t tile_evaluations, tile_improvements;
 	uint64_t tactic_evaluations, tactic_improvements;
 	uint64_t dualway_pairs, dualway_evaluations, dualway_improvements;
+	uint64_t state_evaluations, state_frontier_peak, state_duplicates, state_task_hash;
+	uint64_t state_pg_evaluations, state_pg_states;
+	uint64_t state_section_evaluations, state_section_starts;
+	uint64_t state_rescue_starts, state_diversity_preserved, state_transition_stops;
+	uint64_t state_macro_evaluations, state_input_evaluations, state_chicane_evaluations;
 	unsigned int seed_total_frames;
 	int seed_finished;
 	size_t routes, routes_attempted, routes_finished;

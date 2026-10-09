@@ -223,7 +223,8 @@ function(restunts_add_genghost)
     add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
         src/restunts/genghost/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/search.c
-        src/restunts/genghost/guide.c src/restunts/genghost/parallel.c)
+        src/restunts/genghost/guide.c src/restunts/genghost/parallel.c
+        src/restunts/genghost/maneuvers.c src/restunts/genghost/state_search.c)
     target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
     target_link_libraries(genghost PRIVATE restunts_options)
     if(ANDROID)
@@ -233,7 +234,8 @@ function(restunts_add_genghost)
             SUFFIX ".so")
     endif()
     install(TARGETS genghost RUNTIME DESTINATION bin COMPONENT Runtime)
-    install(FILES docs/genghost.md DESTINATION share/docs/restunts COMPONENT Runtime)
+    install(FILES docs/genghost.md docs/genghost-state-planner.md
+        DESTINATION share/docs/restunts COMPONENT Runtime)
 endfunction()
 
 if(RESTUNTS_GENGHOST_ONLY)
@@ -538,6 +540,15 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS)
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-simulation PRIVATE restunts_options)
+    add_executable(test-genghost-state ${common_sources} ${core}/headless.c ${platform_common}
+        ${platform}/main.c src/restunts/genghost/simulation.c
+        src/restunts/genghost/guide.c src/restunts/genghost/routes.c
+        src/restunts/genghost/search.c src/restunts/genghost/parallel.c
+        src/restunts/genghost/maneuvers.c src/restunts/genghost/state_search.c
+        src/restunts/tests/test-genghost-state.c)
+    target_compile_definitions(test-genghost-state PRIVATE RESTUNTS_HEADLESS)
+    target_compile_options(test-genghost-state PRIVATE -UNDEBUG)
+    target_link_libraries(test-genghost-state PRIVATE restunts_options)
     add_test(NAME genghost-regions COMMAND test-genghost-simulation --geometry-only)
     if(NOT CMAKE_CROSSCOMPILING)
         find_package(Python3 COMPONENTS Interpreter QUIET)
@@ -561,6 +572,12 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-parallel PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
+            add_test(NAME genghost-state COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-state.py"
+                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
+                "$<TARGET_FILE:test-genghost-state>"
+                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
         endif()
     endif()
     add_executable(test-render-workers src/restunts/tests/test-render-workers.c)

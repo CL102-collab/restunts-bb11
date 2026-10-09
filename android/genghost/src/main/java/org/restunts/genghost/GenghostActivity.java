@@ -50,6 +50,8 @@ public final class GenghostActivity extends Activity {
     private static final int REQUEST_NOTIFICATIONS = 3;
     private static final String OPTIONS = "genghost_options";
     private static final String[] TRANSMISSIONS = {"source", "manual", "auto"};
+    private static final String[] STRATEGIES = {"legacy", "state"};
+    private static final String[] STRATEGY_LABELS = {"Route search", "State search (preview)"};
     private static final ExecutorService FILE_WORKER = Executors.newSingleThreadExecutor();
     private static final Handler MAIN_THREAD = new Handler(Looper.getMainLooper());
     private static WeakReference<GenghostActivity> active = new WeakReference<>(null);
@@ -67,6 +69,7 @@ public final class GenghostActivity extends Activity {
     private Spinner track;
     private Spinner car;
     private Spinner transmission;
+    private Spinner strategy;
     private EditText minutes;
     private EditText cores;
     private CheckBox powerGear;
@@ -143,6 +146,10 @@ public final class GenghostActivity extends Activity {
         page.addView(cores, fullWidth());
         text(page, "1 uses one core; 0 uses all available cores. More cores use more memory "
             + "and battery.", 14);
+        label(page, "Search method");
+        strategy = spinner(page, Arrays.asList(STRATEGY_LABELS));
+        strategy.setSelection(Math.max(0, Arrays.asList(STRATEGIES).indexOf(
+            preferences.getString("strategy", GenerationRequest.DEFAULT_STRATEGY))));
         label(page, "Transmission");
         transmission = spinner(page, Arrays.asList("Follow replay; otherwise manual", "Manual",
             "Automatic"));
@@ -309,6 +316,7 @@ public final class GenghostActivity extends Activity {
         SharedPreferences.Editor changes = preferences.edit()
             .putString("minutes", minutes.getText().toString())
             .putString("cores", cores.getText().toString())
+            .putString("strategy", STRATEGIES[strategy.getSelectedItemPosition()])
             .putInt("transmission", transmission.getSelectedItemPosition())
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
@@ -347,6 +355,7 @@ public final class GenghostActivity extends Activity {
         car.setEnabled(!busy && !availableCars.isEmpty());
         minutes.setEnabled(!busy);
         cores.setEnabled(!busy);
+        strategy.setEnabled(!busy);
         transmission.setEnabled(!busy);
         powerGear.setEnabled(!busy);
         collision.setEnabled(!busy);
@@ -366,6 +375,7 @@ public final class GenghostActivity extends Activity {
             message += String.format(Locale.ROOT, "\nElapsed %d:%02d", elapsed / 60, elapsed % 60);
             message += "\nCPU cores: " + (generation.cores == 0
                 ? "all available" : Integer.toString(generation.cores));
+            message += "\n" + STRATEGY_LABELS["state".equals(generation.strategy) ? 1 : 0];
         }
         runStatus.setText(message);
         String currentLog = generation.log == null ? "" : generation.log;
@@ -519,7 +529,8 @@ public final class GenghostActivity extends Activity {
         }
         try {
             GeneratorService.start(this, new GenerationRequest(selected(track), selected(car),
-                budget * 60, searchCores, TRANSMISSIONS[transmission.getSelectedItemPosition()],
+                budget * 60, searchCores, STRATEGIES[strategy.getSelectedItemPosition()],
+                TRANSMISSIONS[transmission.getSelectedItemPosition()],
                 flags.toArray(new String[0])));
             refreshState();
         } catch (RuntimeException error) {

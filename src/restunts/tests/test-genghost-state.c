@@ -1,0 +1,401 @@
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../genghost/state_search.h"
+#include "../c/externs.h"
+#include "../c/car_speed.h"
+#include "../c/game_input.h"
+#include "../c/owoot_road.h"
+#include "../c/track_objects.h"
+#include "../c/trackdata_layout.h"
+
+#undef memcpy
+#undef strlen
+#undef printf
+
+/* Transform a fixture point with the native element's cardinal orientation.
+ * The collision implementation performs the inverse transform on queries. */
+static struct VECTOR world_point(int rotation, int x, int y, int z)
+{
+	int old_x = x;
+	switch (rotation & 1023) {
+		case 256:
+			x = z;
+			z = -old_x;
+			break;
+		case 512:
+			x = -x;
+			z = -z;
+			break;
+		case 768:
+			x = -z;
+			z = old_x;
+			break;
+	}
+	return (struct VECTOR){(legacy_s16)(11 * 1024 + x), (legacy_s16)y, (legacy_s16)(10 * 1024 + z)};
+}
+
+static int wheel_on_road(int rotation, int x, int z)
+{
+	struct VECTOR vertices[8];
+	for (unsigned int rim = 0; rim < 2U; ++rim) {
+		for (unsigned int i = 0; i < 4U; ++i) {
+			vertices[rim * 4U + i] = world_point(
+				rotation, x + (rim ? 5 : -5), i == 0U || i == 3U ? 0 : 20, z + (i < 2U ? -5 : 5));
+		}
+	}
+	return track_road_overlaps_wheel(vertices, 4, 0);
+}
+
+/* The green interior of a chicane uses paved native grip, while OWOOT's
+ * geometric road test correctly rejects it. Exercise actual native element
+ * definitions and collision queries; no planner metadata supplies the answer. */
+static void test_fast_grass(void)
+{
+	unsigned char original[REPLAY_TRACK_SIZE];
+	memcpy(original, track_element_map, sizeof(original));
+	struct GENGHOST_SNAPSHOT before;
+	genghost_sim_capture(&before);
+	unsigned int checked = 0U, models = 0U;
+	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+		const struct TRACKOBJECT *object = &trkObjectList[tile];
+		int model = object->ss_physicalModel;
+		if ((model != PHYSICAL_MODEL_CHICANE_RIGHT_LEFT &&
+			 model != PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) ||
+			object->ss_surfaceType != 0 || object->ss_multiTileFlag != 3) {
+			continue;
+		}
+		memset(track_element_map, 0, sizeof(original));
+		track_element_map[terrainrows[10] + 10] = (unsigned char)tile;
+		track_element_map[terrainrows[9] + 10] = TRACK_TILE_CONTINUATION_SOUTH;
+		track_element_map[terrainrows[10] + 11] = TRACK_TILE_CONTINUATION_EAST;
+		track_element_map[terrainrows[9] + 11] = TRACK_TILE_CONTINUATION_SOUTHEAST;
+		int rotation = object->ss_rotY;
+		struct VECTOR grass = world_point(rotation, 0, 0, 500);
+		struct VECTOR road =
+			world_point(rotation, model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT ? -350 : 350, 0, 500);
+		struct VECTOR ordinary_grass = world_point(rotation, 2500, 0, 500);
+		build_track_object(&road, &road);
+		assert(current_surf_type == CAR_SURFACE_PAVED);
+		build_track_object(&grass, &grass);
+		assert(current_surf_type == CAR_SURFACE_PAVED);
+		assert(!wheel_on_road(rotation, 0, 500));
+		assert(
+			wheel_on_road(rotation, model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT ? -350 : 350, 500));
+		build_track_object(&ordinary_grass, &ordinary_grass);
+		assert(current_surf_type == CAR_SURFACE_GRASS);
+		++checked;
+		models |= 1U << (unsigned int)(model - PHYSICAL_MODEL_CHICANE_RIGHT_LEFT);
+	}
+	memcpy(track_element_map, original, sizeof(original));
+	genghost_sim_restore(&before);
+	assert(checked >= 2U && models == 3U);
+	printf("%u native chicane variants: green interior has paved grip, but fails OWOOT.\n",
+		   checked);
+}
+
+static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned int prefix)
+{
+	genghost_sim_reset();
+	struct GENGHOST_ROUTES routes;
+	char error[256];
+	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+	struct GENGHOST_POLICY policy;
+	genghost_policy_default(&policy);
+	unsigned int proposals = 0U, chicane = 0U;
+	for (size_t r = 0; r < routes.count; ++r) {
+		struct GENGHOST_DRIVER driver;
+		genghost_sim_reset();
+		genghost_driver_reset(&driver);
+		for (unsigned int i = 0; i < prefix; ++i) {
+			assert(genghost_sim_step(inputs[i]) == 0);
+			genghost_driver_observe(&routes.routes[r], &driver);
+		}
+		for (unsigned int flags = 0; flags < 8U; ++flags) {
+			int pg = (flags & 1U) != 0U, lc = (flags & 2U) != 0U;
+			int owoot = (flags & 4U) != 0U;
+			struct GENGHOST_SNAPSHOT before, after;
+			genghost_sim_capture(&before);
+			struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
+			size_t count = genghost_maneuvers(&routes.routes[r], &driver, &policy, pg, lc, owoot,
+											  actions, GENGHOST_MANEUVER_CAPACITY);
+			assert(count > 0U && count <= GENGHOST_MANEUVER_CAPACITY);
+			assert(actions[0].kind == GENGHOST_MANEUVER_FOLLOW);
+			unsigned int landings = 0U;
+			for (size_t i = 0; i < count; ++i) {
+				const struct GENGHOST_MANEUVER *action = &actions[i];
+				assert(action->horizon_frames > 0U &&
+					   action->horizon_frames <= GENGHOST_MAX_FRAMES);
+				assert(pg || action->kind != GENGHOST_MANEUVER_POWERGEAR);
+				if (owoot) {
+					assert(action->kind != GENGHOST_MANEUVER_CHICANE_GRASS);
+					assert(action->kind != GENGHOST_MANEUVER_TILE_TOUCH);
+					assert(action->kind != GENGHOST_MANEUVER_STUNT);
+					assert(action->kind != GENGHOST_MANEUVER_STUNT_ALTERNATE);
+					if (action->kind == GENGHOST_MANEUVER_POWERGEAR) {
+						assert(action->gene.stunt_mode == 0U && action->gene.line_mode == 0U);
+						assert(action->gene.shortcut_skip == 0U);
+					}
+				}
+				struct GENGHOST_DRIVER child = driver;
+				unsigned char input = genghost_maneuver_step(&routes.routes[r], &policy, &child,
+															 action, 0U, pg, lc, owoot);
+				assert(!(input & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
+				++proposals;
+				chicane += action->kind == GENGHOST_MANEUVER_CHICANE_GRASS;
+				landings += action->kind == GENGHOST_MANEUVER_LANDING;
+			}
+			if (!owoot && state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE &&
+				state.playerstate.car_actual_speed > 0U) {
+				assert(landings == 3U);
+			}
+			genghost_sim_capture(&after);
+			assert(memcmp(&before, &after, sizeof(before)) == 0);
+		}
+	}
+	genghost_routes_free(&routes);
+	printf("%u maneuver proposals preserve native state and respect rule gates (%u fast-grass).\n",
+		   proposals, chicane);
+	return chicane;
+}
+
+static void same_reply(struct GENGHOST_STATE_REPLY *first, struct GENGHOST_STATE_REPLY *second)
+{
+	/* Physical work varies with checkpoint reuse; candidate identity, inputs,
+	 * scoring, controller state and native features must not. */
+	first->simulated_frames = second->simulated_frames = 0U;
+	assert(memcmp(first, second, sizeof(*first)) == 0);
+}
+
+static void execute_and_compare(const struct GENGHOST_OPTIONS *options,
+								struct GENGHOST_STATE_EXECUTOR *cached,
+								const struct GENGHOST_STATE_TASK *task,
+								struct GENGHOST_STATE_REPLY *actual)
+{
+	struct GENGHOST_STATE_REPLY expected = {0};
+	assert(genghost_state_execute(task, actual, cached) == 0);
+	assert(actual->id == task->id && actual->available && actual->length > task->prefix_length);
+	assert(memcmp(actual->inputs, task->prefix, task->prefix_length) == 0);
+	struct GENGHOST_SNAPSHOT actual_state, expected_state, replayed_state;
+	genghost_sim_capture(&actual_state);
+	struct GENGHOST_STATE_EXECUTOR *fresh = genghost_state_executor_create(options);
+	assert(fresh != NULL);
+	assert(genghost_state_execute(task, &expected, fresh) == 0);
+	genghost_sim_capture(&expected_state);
+	genghost_state_executor_destroy(fresh);
+	same_reply(actual, &expected);
+	assert(memcmp(&actual_state, &expected_state, sizeof(actual_state)) == 0);
+	struct GENGHOST_RESULT replayed;
+	if (actual->transition_stop) {
+		assert(task->kind == 0U && actual->action_ticks >= 4U);
+		assert(genghost_sim_evaluate(actual->inputs, actual->length - 1U, &replayed) == 0);
+		int airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+		int ready = options->powergear && genghost_maneuver_powergear_ready();
+		assert(genghost_sim_step(actual->inputs[actual->length - 1U]) >= 0);
+		int now_airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+		int now_ready = options->powergear && genghost_maneuver_powergear_ready();
+		assert(airborne != now_airborne || (!ready && now_ready));
+		genghost_sim_result(&replayed);
+	} else {
+		assert(genghost_sim_evaluate(actual->inputs, actual->length, &replayed) == 0);
+	}
+	genghost_sim_capture(&replayed_state);
+	assert(memcmp(&actual_state, &replayed_state, sizeof(actual_state)) == 0);
+	assert(memcmp(&actual->race, &replayed, sizeof(replayed)) == 0);
+}
+
+static void test_executor(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
+						  unsigned int prefix)
+{
+	struct GENGHOST_STATE_EXECUTOR *cached = genghost_state_executor_create(options);
+	assert(cached != NULL);
+	struct GENGHOST_STATE_TASK task = {0};
+	task.prefix_length = prefix;
+	memcpy(task.prefix, inputs, prefix);
+	unsigned int transitions = 0U;
+	for (unsigned int trial = 0U; trial < 6U; ++trial) {
+		/* Same length and long common prefix, but a different final steering
+		 * input. A cache keyed by length/progress rather than full inputs fails. */
+		task.id = trial + 1U;
+		task.action_index = trial & 1U;
+		task.prefix[prefix - 1U] = inputs[prefix - 1U] ^ (trial & 2U ? INPUT_STEER_LEFT_FLAG : 0U);
+		struct GENGHOST_STATE_REPLY actual = {0};
+		execute_and_compare(options, cached, &task, &actual);
+		transitions += actual.transition_stop != 0U;
+	}
+	genghost_state_executor_destroy(cached);
+	printf("Cached/fresh workers and full replay agree in every state byte for six branches (%u "
+		   "event stops).\n",
+		   transitions);
+}
+
+static void test_guided_executor(const struct GENGHOST_OPTIONS *options,
+								 const unsigned char *inputs, unsigned int count,
+								 unsigned int prefix)
+{
+	assert(prefix + 1U < count);
+	struct GENGHOST_STATE_EXECUTOR *cached = genghost_state_executor_create(options);
+	assert(cached != NULL);
+	struct GENGHOST_STATE_TASK task = {0};
+	task.kind = 3U;
+	task.prefix_length = prefix;
+	task.reference_first = prefix;
+	task.reference_length = count;
+	for (unsigned int trial = 0U; trial < 5U; ++trial) {
+		task.id = 100U + trial;
+		task.action_index = trial == 4U ? 1U : 0U;
+		memcpy(task.prefix, inputs, prefix);
+		memcpy(task.reference, inputs, count);
+		/* Reference length and cursor stay fixed while its actual input bytes
+		 * change. Guide reconstruction must not accidentally use a previous
+		 * demonstration or leave the engine at the end of that demonstration. */
+		if (trial == 1U) {
+			task.reference[prefix + 1U] ^= INPUT_STEER_LEFT_FLAG;
+		} else if (trial == 2U) {
+			task.reference[prefix - 1U] ^= INPUT_STEER_RIGHT_FLAG;
+		} else if (trial == 3U) {
+			task.prefix[prefix - 1U] ^= INPUT_STEER_LEFT_FLAG;
+		}
+		struct GENGHOST_STATE_REPLY actual = {0};
+		execute_and_compare(options, cached, &task, &actual);
+		if (trial == 0U || trial == 4U) {
+			/* An unchanged native trajectory must keep every control byte, even
+			 * through a jump or collision-dependent stunt. Its finish/crash is
+			 * decided by the selected native rules, not the reference's header. */
+			assert(actual.length <= count);
+			assert(memcmp(actual.inputs, inputs, actual.length) == 0);
+		}
+	}
+	genghost_state_executor_destroy(cached);
+	puts("Guided continuation preserves exact reference inputs and native state across five cache "
+		 "changes.");
+}
+
+/* Use the native drivetrain itself as an oracle. A readiness classifier is
+ * useful only if its opportunities include real positive unsigned-divide
+ * acceleration, not merely a high gear, a launch, or a speed threshold. */
+static void test_powergear(const unsigned char *inputs, unsigned int count)
+{
+	legacy_s8 *on[] = {(legacy_s8 *)"test", (legacy_s8 *)"--pg:on"};
+	legacy_s8 *off[] = {(legacy_s8 *)"test", (legacy_s8 *)"--pg:off"};
+	unsigned int opportunities = 0U, boosts = 0U, first_boost = GENGHOST_MAX_FRAMES;
+	genghost_sim_reset();
+	configure_powergear_bug(2, on);
+	for (unsigned int frame = 0; frame < count; ++frame) {
+		struct GENGHOST_SNAPSHOT before, after;
+		genghost_sim_capture(&before);
+		int ready = genghost_maneuver_powergear_ready();
+		genghost_sim_capture(&after);
+		assert(memcmp(&before, &after, sizeof(before)) == 0);
+		if (ready) {
+			assert(!state.playerstate.car_changing_gear);
+			assert(state.playerstate.car_sumSurfRearWheels != CAR_WHEEL_CONTACT_NONE);
+			struct CARSTATE original = state.playerstate, corrected = state.playerstate;
+			update_car_speed(INPUT_ACCELERATE_FLAG, PLAYER_CAR_INDEX, &original, &simd_player);
+			genghost_sim_restore(&before);
+			configure_powergear_bug(2, off);
+			update_car_speed(INPUT_ACCELERATE_FLAG, PLAYER_CAR_INDEX, &corrected, &simd_player);
+			genghost_sim_restore(&before);
+			configure_powergear_bug(2, on);
+			++opportunities;
+			if (original.car_actual_speed > corrected.car_actual_speed) {
+				++boosts;
+				if (first_boost == GENGHOST_MAX_FRAMES) {
+					first_boost = frame;
+				}
+			}
+		}
+		assert(genghost_sim_step(inputs[frame]) >= 0);
+	}
+	assert(opportunities > 0U && boosts > 0U);
+	struct GENGHOST_RESULT race;
+	genghost_sim_result(&race);
+	assert(race.finished && first_boost < race.finish_frame);
+	printf("%u PG opportunities include %u native acceleration advantages; first at frame %u.\n",
+		   opportunities, boosts, first_boost);
+}
+
+static void test_failed_pilot_recovery(const struct GENGHOST_OPTIONS *options)
+{
+	struct GENGHOST_OPTIONS bounded = *options;
+	bounded.evaluations = 2501U;
+	bounded.seed = 1U;
+	bounded.seconds = 0.0;
+	struct GENGHOST_SEARCH_RESULT result = {0};
+	/* The recording supplies its map and car only. No human inputs enter the
+	 * search, so a section start before the first finish must come from an
+	 * autonomous pilot that failed later in its run. */
+	int status = genghost_state_search(&bounded, NULL, 0U, &result, NULL, NULL, NULL, NULL);
+	assert(status == 0 || status == 2);
+	assert(result.evaluations == bounded.evaluations);
+	assert(!result.seed_finished && !result.seed_total_frames);
+	assert(result.state_rescue_starts > 0U && result.state_section_evaluations > 0U);
+	if (result.race.finished) {
+		struct GENGHOST_RESULT replayed;
+		assert(genghost_sim_evaluate(result.inputs, result.length, &replayed) == 0);
+		assert(memcmp(&result.race, &replayed, sizeof(replayed)) == 0);
+	}
+	printf("Map-only search expanded %llu failed-pilot sections without human input seeds.\n",
+		   (unsigned long long)result.state_rescue_starts);
+}
+
+legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
+{
+	assert(argc >= 3);
+	unsigned char recording[REPLAY_INPUT_OFFSET + GENGHOST_MAX_FRAMES + 1U];
+	FILE *source = fopen((const char *)argv[1], "rb");
+	assert(source != NULL);
+	size_t size = fread(recording, 1, sizeof(recording), source);
+	assert(!ferror(source) && fclose(source) == 0);
+	assert(size >= REPLAY_INPUT_OFFSET);
+	struct GAMEINFO config;
+	replay_gameinfo_decode(&config, recording);
+	assert(config.game_opponenttype == 0);
+	assert(size == REPLAY_INPUT_OFFSET + config.game_recordedframes);
+	unsigned int prefix = (unsigned int)strtoul((const char *)argv[2], NULL, 10);
+	assert(prefix > 0U && prefix < config.game_recordedframes);
+	assert(genghost_sim_init(recording + REPLAY_GAMEINFO_SIZE,
+							 (const char *)config.game_playercarid, config.game_playertransmission,
+							 argc, (char **)argv) == 0);
+	struct GENGHOST_OPTIONS options = {0};
+	options.powergear = options.collision = options.left_bias = 1;
+	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
+	for (int i = 3; i < argc; ++i) {
+		const char *flag = (const char *)argv[i];
+		if (strcmp(flag, "--expect-chicane") == 0) {
+			expect_chicane = 1;
+		} else if (strcmp(flag, "--expect-powergear") == 0) {
+			expect_powergear = 1;
+		} else if (strcmp(flag, "--expect-landing") == 0) {
+			expect_landing = 1;
+		} else if (strcmp(flag, "--search-recovery") == 0) {
+			recovery = 1;
+		} else if (strcmp(flag, "--pg:off") == 0) {
+			options.powergear = 0;
+		} else if (strcmp(flag, "--lc:off") == 0) {
+			options.collision = 0;
+		} else if (strcmp(flag, "--lcb:off") == 0) {
+			options.left_bias = 0;
+		} else if (strcmp(flag, "--owoot") == 0) {
+			options.owoot = 1;
+		}
+	}
+	if (recovery) {
+		test_failed_pilot_recovery(&options);
+		return 0;
+	}
+	test_fast_grass();
+	unsigned int chicane = test_maneuver_rules(recording + REPLAY_INPUT_OFFSET, prefix);
+	assert(!expect_chicane || chicane > 0U);
+	assert(!expect_landing || state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE);
+	test_executor(&options, recording + REPLAY_INPUT_OFFSET, prefix);
+	test_guided_executor(&options, recording + REPLAY_INPUT_OFFSET, config.game_recordedframes,
+						 prefix);
+	if (expect_powergear) {
+		assert(options.powergear && !options.owoot);
+		test_powergear(recording + REPLAY_INPUT_OFFSET, config.game_recordedframes);
+	}
+	return 0;
+}

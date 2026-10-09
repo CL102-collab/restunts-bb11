@@ -14,6 +14,7 @@ selected car's resources must be available in the game data directory.
 genghost --data-dir /path/to/game TRACK.TRK COUN --output ghost.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 4 --output parallel.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.rpl
+genghost --data-dir /path/to/game DEFAULT.TRK PMIN --strategy state --cores 4 --output state.rpl
 genghost --data-dir /path/to/game race.RPL DIA3 --seconds 1800 --output ghost.rpl
 genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --output clean.rpl
 ```
@@ -40,6 +41,7 @@ different car.
 | `--data-dir DIR` | Game resource directory; defaults to the working directory. |
 | `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` using the shortened track prefix above. |
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
+| `--strategy MODE` | `legacy` (default route optimizer) or `state` (new cooperative state planner). |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
 | `--cores N` | Number of parallel search workers, from `1` to `256`: `1` by default, `0` for automatic CPU selection. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
@@ -82,7 +84,7 @@ quotas, up to the 256-worker limit. A candidate budget smaller than the requeste
 worker count reduces the number started. An explicit count can exceed the
 available CPU count, but does not create additional physical processing capacity.
 
-Each worker runs the optimizer in its own process, with independent simulator
+With the default `--strategy legacy`, each worker runs the optimizer in its own process, with independent simulator
 state and a distinct, reproducible random seed. This isolation is necessary
 because the original game physics uses global state. Workers explore and refine
 their own populations concurrently. A coordinator checks their completed laps
@@ -117,6 +119,76 @@ temporary `.work-...` directory behind.
 See the [parallel validation report](genghost-parallel.md) for measured throughput,
 replay comparisons, and lifecycle checks.
 
+## State planner
+
+`--strategy state` enables the new planner; Android exposes it as **State search
+(preview)** under **Search method**. The route optimizer remains available as
+`--strategy legacy`. Both use the same native physics, resources, replay format,
+penalties, and restrictions. A matching input replay is a verified starting
+candidate, not a required runtime training archive.
+
+The state planner keeps a bounded frontier of alternative driving states. It
+preserves differences in position, heading, speed, gear, airborne state, power
+gear opportunity, native route confirmations, and penalties. These buckets are
+heuristic pruning: two similar states are not assumed to be interchangeable.
+Exact duplicate removal requires identical replay prefixes and route geometry.
+Every saved finish is replayed from the start before publication.
+
+Parameterized maneuvers cover acceleration, braking, tile touches, stunt
+traversals and bypasses, launches, power gear setup, and landing recovery.
+Each stunt maneuver has an approach, an action, and a useful exit or landing.
+The existing two-physics stunt catalog supplies collision-dependent geometry.
+Normal traversal remains an alternative. Macro parameters and short input
+intervals are refined using whole-lap native scores, including penalties. Short
+macros can stop at takeoff, landing, or a newly available power gear opportunity
+so the next decision can preserve that state. Useful gear/contact categories
+receive reserved representatives within the bounded beam.
+
+A separate section frontier refines approach and exit states from the best
+completed lap, then retimes its demonstrated continuation to the changed pose.
+Fresh controllers remain fallback continuations. Before a first finish, safe
+prefixes from failed driving policies also supply recovery sections; the native
+simulator reconstructs them from inputs. Periodic new driving profiles continue
+to explore instead of repeatedly restarting only at the grid.
+
+**Chicane fast grass is built in.** Both chicane models assign paved grip to
+visually grassy areas inside their selected native object footprint. The new
+planner proposes diagonal and near-straight crossings without an ordinary-grass
+speed limit. It still simulates the actual wheel contacts; ordinary grass beyond
+the footprint keeps its normal physics. OWOOT uses its separate geometric road
+coverage rule and disables these crossings. Collision fixes alone do not remove
+fast grass.
+
+Power gear proposals use native torque, gearing, drag, gravity, rear-wheel
+contact, and the signed/unsigned acceleration arithmetic. They can preserve a
+useful fourth-gear uphill setup rather than always shifting straight to top gear.
+A positive readiness prediction is an opportunity to test, not a persistent
+power gear flag or proof of a successful lap. `--pg:off` disables these proposals
+and their ranking reward.
+
+For this strategy, `--cores` selects persistent workers sharing one coordinator's
+frontier and task schedule. Each worker reconstructs replay prefixes and keeps
+complete simulator checkpoints locally; native pointers never cross process
+boundaries. Requests are batched to reduce process handshakes. Results are consumed in deterministic task order. With fixed
+resources, physics, seed, and evaluation budget, changing worker count preserves
+the task sequence and resulting replay. Cache work and wall-clock throughput can
+still differ. A time budget may stop at different batches on different machines.
+
+The JSON report records `strategy`, `state_task_hash`, frontier size, duplicate
+prefixes, macro/input counts, section/recovery work, guided continuations, transition stops,
+fast-grass proposals, and power gear opportunities.
+`state_pg_opportunities` is explicitly a readiness count, not detected boosts.
+For cooperative runs, `winner_worker` is null because the coordinator combines
+work from all workers; dynamic worker budgets and individual winning laps are
+also null. Worker tick counts cover completed batches and exclude parent
+validation; total simulated ticks include validation. Route coverage is the
+shared frontier's union. A candidate budget counts valid evaluated proposals;
+unavailable maneuver slots still appear in the deterministic task hash.
+
+See [state planner validation](genghost-state-planner.md) for human evidence,
+benchmarks, and the default-strategy decision. The planner is a bounded heuristic
+and does not promise every route combination, every exploit, or human-best times.
+
 ## Search and scoring
 
 The evaluator runs the game's player physics without rendering. It measures
@@ -126,7 +198,7 @@ provided their final score is better. Grass, slopes, collisions, gearing, and
 the selected restrictions all act through the same simulation used for replay
 playback.
 
-The route planner enumerates simple directed start-to-finish paths through the
+The legacy route planner enumerates simple directed start-to-finish paths through the
 track's branch connections. The search explores alternatives and refines
 driving parameters for 64 route segments, then refines recorded steering,
 pedal, and shift inputs. Segment genes control speed, cornering, racing line,

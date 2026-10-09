@@ -607,6 +607,8 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		const char *arguments[32];
 		unsigned int n = 0;
 		arguments[n++] = executable;
+		arguments[n++] = "--strategy";
+		arguments[n++] = "legacy";
 		arguments[n++] = "--data-dir";
 		arguments[n++] = data_dir;
 		arguments[n++] = input_path;
@@ -770,4 +772,577 @@ cleanup:
 	SDL_free(directory);
 	free(workers);
 	return failed ? 1 : result->race.finished ? 0 : 2;
+}
+
+#define COOPERATIVE_MAX_RECORD (1024U * 1024U)
+#define COOPERATIVE_PACKET_RECORDS 32U
+
+struct cooperative_header {
+	char magic[8];
+	uint64_t sequence;
+	uint64_t size;
+	int status;
+};
+
+struct cooperative_worker {
+	struct worker process;
+	char *request_path;
+	uint64_t sequence;
+	size_t task_index, task_count, capacity;
+	void *requests, *replies;
+	int busy;
+};
+
+struct GENGHOST_COOPERATIVE_POOL {
+	struct cooperative_worker *workers;
+	unsigned int count;
+	char *directory, *input_path, *stop_path;
+	void *job;
+	uint64_t started, sequence;
+	size_t request_size, reply_size;
+	const struct GENGHOST_OPTIONS *options;
+	genghost_cooperative_execute execute;
+	void *execute_context;
+	struct GENGHOST_PARALLEL_REPORT *report;
+	int failed, directory_created;
+};
+
+static int cooperative_publish(const char *path, uint64_t sequence, const void *bytes, size_t size,
+							   int status)
+{
+	struct cooperative_header header = {"GGCOOP2", sequence, size, status};
+	char *temporary = NULL;
+	SDL_asprintf(&temporary, "%s.tmp", path);
+	if (!temporary) {
+		return -1;
+	}
+	FILE *file = fopen(temporary, "wb");
+	int failed = !file;
+	if (file) {
+		failed = fwrite(&header, 1, sizeof(header), file) != sizeof(header) ||
+				 fwrite(bytes, 1, size, file) != size;
+		if (fclose(file)) {
+			failed = 1;
+		}
+	}
+	if (!failed) {
+		failed = 1;
+		for (unsigned int attempt = 0; attempt < 20U; ++attempt) {
+			if (SDL_RenamePath(temporary, path)) {
+				failed = 0;
+				break;
+			}
+			SDL_Delay(2U);
+		}
+	}
+	if (failed) {
+		remove(temporary);
+	}
+	SDL_free(temporary);
+	return failed ? -1 : 0;
+}
+
+/* An old response remains present until atomically replaced. Its sequence is
+ * ignored; malformed current records and unexpected future records are errors. */
+static int cooperative_read(const char *path, uint64_t sequence, void *bytes, size_t size,
+							int *status)
+{
+	FILE *file = fopen(path, "rb");
+	if (!file) {
+#ifdef _WIN32
+		/* The CRT can transiently report a sharing violation while another
+		 * process replaces this private record with MoveFileEx. */
+		if (errno == EACCES) {
+			return 0;
+		}
+#endif
+		return errno == ENOENT ? 0 : -1;
+	}
+	struct cooperative_header header;
+	int valid = fread(&header, 1, sizeof(header), file) == sizeof(header) &&
+				!memcmp(header.magic, "GGCOOP2", 8U) && header.size <= COOPERATIVE_MAX_RECORD &&
+				header.status >= 0 && header.status <= 2;
+	int result = -1;
+	if (valid && header.sequence < sequence) {
+		result = 0;
+	} else if (valid && header.sequence == sequence && header.size == size &&
+			   fread(bytes, 1, size, file) == size && fgetc(file) == EOF) {
+		*status = header.status;
+		result = 1;
+	}
+	fclose(file);
+	return result;
+}
+
+static int cooperative_parent_stopped(struct GENGHOST_WORKER_CONTROL *control)
+{
+#ifdef _WIN32
+	if (WaitForSingleObject((HANDLE)control->parent_handle, 0) != WAIT_TIMEOUT) {
+		genghost_interrupted = 1;
+	}
+#else
+	if ((uint64_t)getppid() != control->parent_pid) {
+		genghost_interrupted = 1;
+	}
+#endif
+	FILE *stop = fopen(control->stop_path, "rb");
+	if (stop) {
+		fclose(stop);
+		genghost_interrupted = 1;
+	}
+	return genghost_interrupted;
+}
+
+static size_t cooperative_packet_limit(size_t request_size, size_t reply_size)
+{
+	size_t record_size = request_size > reply_size ? request_size : reply_size;
+	size_t limit = COOPERATIVE_MAX_RECORD / record_size;
+	return limit < COOPERATIVE_PACKET_RECORDS ? limit : COOPERATIVE_PACKET_RECORDS;
+}
+
+static int cooperative_reserve(void **requests, void **replies, size_t *capacity, size_t count,
+							   size_t request_size, size_t reply_size)
+{
+	if (count <= *capacity) {
+		return 0;
+	}
+	void *buffer = realloc(*requests, count * request_size);
+	if (!buffer) {
+		return -1;
+	}
+	*requests = buffer;
+	buffer = realloc(*replies, count * reply_size);
+	if (!buffer) {
+		return -1;
+	}
+	*replies = buffer;
+	*capacity = count;
+	return 0;
+}
+
+int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const char *request_path,
+								size_t request_size, size_t reply_size,
+								genghost_cooperative_execute execute, void *execute_context)
+{
+	if (!control || !request_path || !execute || !request_size || !reply_size ||
+		request_size > COOPERATIVE_MAX_RECORD || reply_size > COOPERATIVE_MAX_RECORD) {
+		return 1;
+	}
+	void *requests = NULL, *replies = NULL;
+	size_t capacity = 0U;
+	int failed = 0;
+	uint64_t sequence = 0;
+	while (!failed && !cooperative_parent_stopped(control)) {
+		/* One packet contains this worker's deterministic subsequence of a
+		 * complete frontier batch. Cached short macros no longer wait for a
+		 * filesystem round trip between every individual expansion. */
+		FILE *file = fopen(request_path, "rb");
+		if (!file) {
+			if (errno != ENOENT
+#ifdef _WIN32
+				&& errno != EACCES
+#endif
+			) {
+				failed = 1;
+				break;
+			}
+			SDL_Delay(1U);
+			continue;
+		}
+		struct cooperative_header header;
+		int valid =
+			fread(&header, 1, sizeof(header), file) == sizeof(header) &&
+			!memcmp(header.magic, "GGCOOP2", 8U) && header.size &&
+			header.size <= COOPERATIVE_MAX_RECORD && !(header.size % request_size) &&
+			header.size / request_size <= cooperative_packet_limit(request_size, reply_size) &&
+			!header.status;
+		size_t count = valid ? (size_t)(header.size / request_size) : 0U;
+		if (valid && header.sequence > sequence) {
+			valid = !cooperative_reserve(&requests, &replies, &capacity, count, request_size,
+										 reply_size) &&
+					fread(requests, request_size, count, file) == count && fgetc(file) == EOF;
+		}
+		fclose(file);
+		if (!valid) {
+			failed = 1;
+			break;
+		}
+		if (header.sequence <= sequence) {
+			SDL_Delay(1U);
+			continue;
+		}
+		sequence = header.sequence;
+		memset(replies, 0, count * reply_size);
+		int status = 0;
+		for (size_t i = 0; i < count; ++i) {
+			if (cooperative_parent_stopped(control)) {
+				status = 2;
+				break;
+			}
+			status = execute((unsigned char *)requests + i * request_size,
+							 (unsigned char *)replies + i * reply_size, execute_context);
+			if (status < 0 || status > 2) {
+				status = 1;
+			}
+			if (status) {
+				break;
+			}
+		}
+		if (cooperative_publish(control->status_path, sequence, replies, count * reply_size,
+								status)) {
+			failed = 1;
+			break;
+		}
+		if (status) {
+			failed = status == 1;
+			break;
+		}
+	}
+	free(requests);
+	free(replies);
+	return failed ? 1 : 0;
+}
+
+static int cooperative_stopped(const struct GENGHOST_COOPERATIVE_POOL *pool)
+{
+	return genghost_interrupted ||
+		   (pool->options->seconds > 0.0 &&
+			(SDL_GetTicksNS() - pool->started) / 1000000000.0 >= pool->options->seconds);
+}
+
+struct GENGHOST_COOPERATIVE_POOL *
+genghost_cooperative_open(const char *executable, const char *output, const char *data_dir,
+						  const unsigned char *source, size_t source_length, const char *car,
+						  int transmission, unsigned int requested_cores,
+						  const struct GENGHOST_OPTIONS *options, size_t request_size,
+						  size_t reply_size, genghost_cooperative_execute execute,
+						  void *execute_context, struct GENGHOST_PARALLEL_REPORT *report)
+{
+	if (!options || !execute || !report || !request_size || !reply_size ||
+		request_size > COOPERATIVE_MAX_RECORD || reply_size > COOPERATIVE_MAX_RECORD ||
+		requested_cores > GENGHOST_MAX_CORES) {
+		return NULL;
+	}
+	struct GENGHOST_COOPERATIVE_POOL *pool = calloc(1U, sizeof(*pool));
+	if (!pool) {
+		return NULL;
+	}
+	pool->count = requested_cores ? requested_cores : genghost_available_cores();
+	if (options->evaluations && options->evaluations < pool->count) {
+		pool->count = (unsigned int)options->evaluations;
+	}
+	pool->started = SDL_GetTicksNS();
+	pool->options = options;
+	pool->request_size = request_size;
+	pool->reply_size = reply_size;
+	pool->execute = execute;
+	pool->execute_context = execute_context;
+	pool->report = report;
+	memset(report, 0, sizeof(*report));
+	report->cores_requested = requested_cores;
+	report->cores_used = pool->count;
+	report->winner_worker = UINT_MAX;
+	report->winner_seed = options->seed;
+	for (unsigned int i = 0; i < pool->count; ++i) {
+		report->workers[i].seed = options->seed;
+	}
+	if (pool->count == 1U) {
+		return pool;
+	}
+	if (!executable || !output || !data_dir || !source || !car) {
+		goto fail;
+	}
+	pool->workers = calloc(pool->count, sizeof(*pool->workers));
+	SDL_asprintf(&pool->directory, "%s.coop-%llu-%llu", output, (unsigned long long)current_pid(),
+				 (unsigned long long)pool->started);
+	if (!pool->workers || !pool->directory || !SDL_CreateDirectory(pool->directory)) {
+		goto fail;
+	}
+	pool->directory_created = 1;
+	SDL_asprintf(&pool->input_path, "%s/source.%s", pool->directory,
+				 source_length == REPLAY_TRACK_SIZE ? "trk" : "rpl");
+	SDL_asprintf(&pool->stop_path, "%s/stop", pool->directory);
+	if (!pool->input_path || !pool->stop_path ||
+		write_bytes(pool->input_path, source, source_length)) {
+		goto fail;
+	}
+#ifdef _WIN32
+	pool->job = CreateJobObjectW(NULL, NULL);
+	JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {0};
+	limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	if (!pool->job || !SetInformationJobObject((HANDLE)pool->job, JobObjectExtendedLimitInformation,
+											   &limits, sizeof(limits))) {
+		goto fail;
+	}
+#endif
+	fprintf(stderr, "cooperative search: %u workers; shared deterministic frontier\n", pool->count);
+	for (unsigned int i = 0; i < pool->count; ++i) {
+		/* Startup is charged to the same wall-clock deadline as expansion. */
+		if (cooperative_stopped(pool)) {
+			pool->count = i;
+			report->cores_used = i;
+			break;
+		}
+		struct cooperative_worker *worker = &pool->workers[i];
+		SDL_asprintf(&worker->request_path, "%s/w%03u.task", pool->directory, i);
+		SDL_asprintf(&worker->process.status_path, "%s/w%03u.reply", pool->directory, i);
+		SDL_asprintf(&worker->process.log_path, "%s/w%03u.log", pool->directory, i);
+		if (!worker->request_path || !worker->process.status_path || !worker->process.log_path) {
+			goto fail;
+		}
+		char seed[16], parent[32];
+		snprintf(seed, sizeof(seed), "%u", options->seed);
+		snprintf(parent, sizeof(parent), "%llu", (unsigned long long)current_pid());
+		const char *arguments[32];
+		unsigned int n = 0;
+		arguments[n++] = executable;
+		arguments[n++] = "--strategy";
+		arguments[n++] = "state";
+		arguments[n++] = "--data-dir";
+		arguments[n++] = data_dir;
+		arguments[n++] = pool->input_path;
+		arguments[n++] = car;
+		arguments[n++] = "--cores";
+		arguments[n++] = "1";
+		arguments[n++] = "--seconds";
+		arguments[n++] = "0";
+		arguments[n++] = "--seed";
+		arguments[n++] = seed;
+		arguments[n++] = "--transmission";
+		arguments[n++] = transmission ? "auto" : "manual";
+		arguments[n++] = options->powergear ? "--pg:on" : "--pg:off";
+		arguments[n++] = options->collision ? "--lc:on" : "--lc:off";
+		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
+		if (options->owoot) {
+			arguments[n++] = "--owoot";
+		}
+		arguments[n++] = "--worker-status";
+		arguments[n++] = worker->process.status_path;
+		arguments[n++] = "--worker-stop";
+		arguments[n++] = pool->stop_path;
+		arguments[n++] = "--worker-parent";
+		arguments[n++] = parent;
+		arguments[n++] = "--cooperative-worker";
+		arguments[n++] = worker->request_path;
+		arguments[n] = NULL;
+		if (start_worker(&worker->process, arguments, pool->job)) {
+			fprintf(stderr, "genghost: cannot start cooperative worker %u: %s\n", i,
+					SDL_GetError());
+			goto fail;
+		}
+	}
+	return pool;
+fail:
+	pool->failed = 1;
+	genghost_cooperative_close(pool);
+	return NULL;
+}
+
+static int cooperative_dispatch(struct GENGHOST_COOPERATIVE_POOL *pool, unsigned int index,
+								size_t task_index, size_t count, const void *requests)
+{
+	struct cooperative_worker *worker = &pool->workers[index];
+	worker->task_index = task_index;
+	worker->task_count = 1U + (count - 1U - task_index) / pool->count;
+	size_t limit = cooperative_packet_limit(pool->request_size, pool->reply_size);
+	if (worker->task_count > limit) {
+		worker->task_count = limit;
+	}
+	if (cooperative_reserve(&worker->requests, &worker->replies, &worker->capacity,
+							worker->task_count, pool->request_size, pool->reply_size)) {
+		return -1;
+	}
+	worker->sequence = ++pool->sequence;
+	worker->busy = 1;
+	for (size_t i = 0; i < worker->task_count; ++i) {
+		memcpy((unsigned char *)worker->requests + i * pool->request_size,
+			   (const unsigned char *)requests +
+				   (task_index + i * pool->count) * pool->request_size,
+			   pool->request_size);
+	}
+	if (cooperative_publish(worker->request_path, worker->sequence, worker->requests,
+							worker->task_count * pool->request_size, 0)) {
+		return -1;
+	}
+	return 0;
+}
+
+int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const void *requests,
+							   void *replies, size_t count)
+{
+	if (!pool || pool->failed || (count && (!requests || !replies)) ||
+		count > SIZE_MAX / pool->request_size || count > SIZE_MAX / pool->reply_size) {
+		return 1;
+	}
+	if (!count) {
+		return 0;
+	}
+	if (cooperative_stopped(pool)) {
+		return 2;
+	}
+	if (pool->count == 1U) {
+		for (size_t i = 0; i < count; ++i) {
+			if (cooperative_stopped(pool)) {
+				return 2;
+			}
+			void *reply = (unsigned char *)replies + i * pool->reply_size;
+			memset(reply, 0, pool->reply_size);
+			int status = pool->execute((const unsigned char *)requests + i * pool->request_size,
+									   reply, pool->execute_context);
+			if (status) {
+				pool->failed = status != 2;
+				pool->report->workers[0].status = status;
+				return pool->failed ? 1 : 2;
+			}
+		}
+		pool->report->workers[0].evaluations += count;
+		return 0;
+	}
+	for (unsigned int i = 0; i < pool->count && i < count; ++i) {
+		if (cooperative_dispatch(pool, i, i, count, requests)) {
+			pool->failed = 1;
+			return 1;
+		}
+	}
+	size_t completed = 0;
+	while (completed < count) {
+		if (cooperative_stopped(pool)) {
+			return 2;
+		}
+		int advanced = 0;
+		for (unsigned int i = 0; i < pool->count; ++i) {
+			struct cooperative_worker *worker = &pool->workers[i];
+			if (!worker->busy) {
+				continue;
+			}
+			int status = 0;
+			int received =
+				cooperative_read(worker->process.status_path, worker->sequence, worker->replies,
+								 worker->task_count * pool->reply_size, &status);
+			if (received < 0 || (received > 0 && status)) {
+				if (received > 0 && status == 2) {
+					return 2;
+				}
+				fprintf(stderr, "genghost: invalid/failed cooperative reply from worker %u\n", i);
+				pool->report->workers[i].status = 1;
+				pool->failed = 1;
+				return 1;
+			}
+			if (!received) {
+				if (poll_worker(&worker->process)) {
+					show_worker_error(i, &worker->process);
+					pool->report->workers[i].status = 1;
+					pool->failed = 1;
+					return 1;
+				}
+				continue;
+			}
+			for (size_t n = 0; n < worker->task_count; ++n) {
+				memcpy((unsigned char *)replies +
+						   (worker->task_index + n * pool->count) * pool->reply_size,
+					   (unsigned char *)worker->replies + n * pool->reply_size, pool->reply_size);
+			}
+			completed += worker->task_count;
+			worker->busy = 0;
+			advanced = 1;
+			/* Fixed striding keeps task ownership deterministic as well as the
+			 * frontier, without serializing the actual simulator execution. */
+			size_t remaining = 1U + (count - 1U - worker->task_index) / pool->count;
+			if (worker->task_count < remaining) {
+				size_t next = worker->task_index + worker->task_count * pool->count;
+				if (cooperative_dispatch(pool, i, next, count, requests)) {
+					pool->failed = 1;
+					return 1;
+				}
+			}
+		}
+		if (!advanced) {
+			SDL_Delay(1U);
+		}
+	}
+	/* Only complete batches enter the planner or its metrics. Incomplete work
+	 * at cancellation is deliberately excluded from both dispatch and tick
+	 * counters, rather than presenting a partly consumed frontier. */
+	for (unsigned int i = 0; i < pool->count; ++i) {
+		pool->report->workers[i].evaluations += count / pool->count + (i < count % pool->count);
+	}
+	return 0;
+}
+
+static void cooperative_remove_record(const char *path)
+{
+	if (!path) {
+		return;
+	}
+	remove(path);
+	char *temporary = NULL;
+	SDL_asprintf(&temporary, "%s.tmp", path);
+	if (temporary) {
+		remove(temporary);
+	}
+	SDL_free(temporary);
+}
+
+void genghost_cooperative_close(struct GENGHOST_COOPERATIVE_POOL *pool)
+{
+	if (!pool) {
+		return;
+	}
+	if (pool->stop_path) {
+		write_bytes(pool->stop_path, "stop\n", 5U);
+	}
+	uint64_t deadline = SDL_GetTicksNS() + STOP_GRACE_NS;
+	if (pool->workers) {
+		for (;;) {
+			unsigned int active = 0;
+			for (unsigned int i = 0; i < pool->count; ++i) {
+				struct worker *worker = &pool->workers[i].process;
+				if (worker->started && !poll_worker(worker)) {
+					++active;
+				}
+			}
+			if (!active || SDL_GetTicksNS() >= deadline) {
+				break;
+			}
+			SDL_Delay(5U);
+		}
+		for (unsigned int i = 0; i < pool->count; ++i) {
+			struct cooperative_worker *worker = &pool->workers[i];
+			force_worker(&worker->process);
+#ifndef __ANDROID__
+			if (worker->process.process) {
+				SDL_DestroyProcess(worker->process.process);
+			}
+#endif
+			cooperative_remove_record(worker->request_path);
+			cooperative_remove_record(worker->process.status_path);
+			if (worker->process.log_path) {
+				remove(worker->process.log_path);
+			}
+			SDL_free(worker->request_path);
+			SDL_free(worker->process.status_path);
+			SDL_free(worker->process.log_path);
+			free(worker->requests);
+			free(worker->replies);
+		}
+	}
+#ifdef _WIN32
+	if (pool->job) {
+		CloseHandle((HANDLE)pool->job);
+	}
+#endif
+	if (pool->input_path) {
+		remove(pool->input_path);
+	}
+	if (pool->stop_path) {
+		remove(pool->stop_path);
+	}
+	if (pool->directory_created) {
+		SDL_RemovePath(pool->directory);
+	}
+	SDL_free(pool->input_path);
+	SDL_free(pool->stop_path);
+	SDL_free(pool->directory);
+	free(pool->workers);
+	free(pool);
 }
