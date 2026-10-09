@@ -18,6 +18,12 @@ resources are included, and the app does not request Internet access.
    **Route search** is the default. **State search (preview)** explores driving
    states with a shared search across the selected cores. The app remembers
    your selection.
+   For a completed `.RPL`, enable **Fine-tune replay** to refine its driving
+   inputs. Keep the same car and transmission; **Follow replay** inherits the
+   recorded transmission. The engine verifies the replay under your selected
+   driving rules before refinement. This option is unavailable for `.TRK` files.
+   The app saves a separate replay and reports any time saved; if no faster replay
+   is found, it keeps the original time.
 4. Start the search. Progress appears in the app and an ongoing notification.
    You can leave the interface while the foreground service works. Cancel
    asks the generator to preserve its best completed replay.
@@ -51,7 +57,8 @@ Version 1.0.4 adds the CPU core control and process-isolated parallel search.
 Version 1.0.5 adds the state search preview alongside the existing route search.
 Version 1.0.6 corrects slalom center clearance and steering; state jump proposals
 require actual native airborne contact loss and remain disabled under OWOOT.
-Both use the same native physics and respect the selected driving rules.
+Version 1.0.7 adds the optional Fine-tune replay control for completed replays.
+Both search methods use the same native physics and respect the selected rules.
 
 Install the updated APK over the previous build to keep the selected folder
 and settings. It uses the same application ID and debug signing certificate.

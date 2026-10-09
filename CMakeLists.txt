@@ -567,6 +567,12 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-search PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+            add_test(NAME genghost-fine-tune COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-fine-tune.py"
+                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
+                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip"
+                "$<TARGET_FILE:test-genghost-state>")
+            set_tests_properties(genghost-fine-tune PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
             add_test(NAME genghost-parallel COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-parallel.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"

@@ -10,6 +10,12 @@
 #include <unistd.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#endif
 #include "search.h"
 #include "parallel.h"
 #include "state_search.h"
@@ -24,6 +30,7 @@ struct output_context {
 	const struct GENGHOST_OPTIONS *options;
 	int transmission;
 	const struct GENGHOST_PARALLEL_REPORT *parallel;
+	unsigned int baseline_total_frames;
 };
 
 static const char help[] =
@@ -40,6 +47,7 @@ static const char help[] =
 	"  --lc:on|off            Original collision behavior (default on).\n"
 	"  --lcb:on|off           Original left corner bias (default on).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
+	"  --fine-tune            Improve a completed replay with local input refinements.\n"
 	"  --verify               Validate the input replay and print its score; no search.\n"
 	"  --help, -h             Show this help without loading game resources.\n"
 	"  --version, -v          Show version.\n\n"
@@ -50,6 +58,8 @@ static const char help[] =
 	"The evaluation budget is shared across workers; seconds are wall-clock time.\n"
 	"Ctrl+C keeps the best fully validated completed replay found so far.\n"
 	"The accompanying .json records the physics flags required for playback.\n"
+	"Fine-tuning requires a solo 20 Hz replay that finishes under the selected rules.\n"
+	"It writes a separate *-FT.rpl by default and reports whether the time improved.\n"
 	"A bounded heuristic search cannot guarantee a finish or global optimum.\n";
 
 static const char *strategy_name(const struct GENGHOST_OPTIONS *options)
@@ -145,7 +155,7 @@ static int read_file(const char *path, unsigned char **data, size_t *length)
 }
 
 static int read_source(const char *source, const char *cwd, const char *data_dir,
-					   unsigned char **data, size_t *length)
+					   unsigned char **data, size_t *length, char **resolved_path)
 {
 	static const char *suffixes[] = {"", ".TRK", ".trk", ".RPL", ".rpl"};
 	for (unsigned int directory = 0; directory < 2U; ++directory) {
@@ -157,13 +167,65 @@ static int read_source(const char *source, const char *cwd, const char *data_dir
 				return -1;
 			}
 			int status = read_file(path, data, length);
-			free(path);
 			if (!status) {
+				*resolved_path = path;
 				return 0;
 			}
+			free(path);
 		}
 	}
 	return -1;
+}
+
+/* Compare existing file identities so relative paths, case differences on
+ * Windows, symlinks, and hard links cannot overwrite the fine-tuning source. */
+static int same_file(const char *source, const char *destination)
+{
+#ifdef _WIN32
+	WCHAR *a = (WCHAR *)SDL_iconv_string("UTF-16LE", "UTF-8", source, strlen(source) + 1U);
+	WCHAR *b =
+		(WCHAR *)SDL_iconv_string("UTF-16LE", "UTF-8", destination, strlen(destination) + 1U);
+	if (!a || !b) {
+		SDL_free(a);
+		SDL_free(b);
+		return -1;
+	}
+	DWORD sharing = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+	HANDLE first = CreateFileW(a, 0, sharing, NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE second = CreateFileW(b, 0, sharing, NULL, OPEN_EXISTING, 0, NULL);
+	DWORD error = GetLastError();
+	SDL_free(a);
+	SDL_free(b);
+	int result = -1;
+	if (first != INVALID_HANDLE_VALUE && second != INVALID_HANDLE_VALUE) {
+		BY_HANDLE_FILE_INFORMATION left, right;
+		if (GetFileInformationByHandle(first, &left) &&
+			GetFileInformationByHandle(second, &right)) {
+			result = left.dwVolumeSerialNumber == right.dwVolumeSerialNumber &&
+					 left.nFileIndexHigh == right.nFileIndexHigh &&
+					 left.nFileIndexLow == right.nFileIndexLow;
+		}
+	} else if (first != INVALID_HANDLE_VALUE &&
+			   (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)) {
+		result = 0;
+	}
+	if (first != INVALID_HANDLE_VALUE) {
+		CloseHandle(first);
+	}
+	if (second != INVALID_HANDLE_VALUE) {
+		CloseHandle(second);
+	}
+	return result;
+#else
+	struct stat left, right;
+	if (stat(source, &left)) {
+		return -1;
+	}
+	if (stat(destination, &right)) {
+		return errno == ENOENT || errno == ENOTDIR ? 0 : -1;
+	}
+	return left.st_dev == right.st_dev && left.st_ino == right.st_ino;
+#endif
 }
 
 static int parse_integer(const char *text, uint64_t maximum, uint64_t *value)
@@ -229,11 +291,24 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	json_string(file, context->car);
 	fputs(",\n  \"strategy\": ", file);
 	json_string(file, strategy_name(context->options));
+	fprintf(file, ",\n  \"fine_tune\": %s", context->options->fine_tune ? "true" : "false");
+	if (context->options->fine_tune) {
+		unsigned int saved = context->baseline_total_frames - result->race.total_frames;
+		fprintf(file,
+				",\n  \"baseline_total_frames\": %u,\n  \"baseline_total_seconds\": %.2f,\n"
+				"  \"improved\": %s,\n  \"saved_frames\": %u,\n  \"saved_seconds\": %.2f",
+				context->baseline_total_frames, context->baseline_total_frames / 20.0,
+				saved ? "true" : "false", saved, saved / 20.0);
+	} else {
+		fputs(",\n  \"baseline_total_frames\": null,\n  \"baseline_total_seconds\": null,\n"
+			  "  \"improved\": null,\n  \"saved_frames\": null,\n  \"saved_seconds\": null",
+			  file);
+	}
 	const struct GENGHOST_PARALLEL_REPORT *parallel = context->parallel;
 	int shared = context->options->strategy == GENGHOST_STRATEGY_STATE;
 	fprintf(file, ",\n  \"cores_requested\": %u,\n  \"cores_used\": %u,\n  \"winner_worker\": ",
 			parallel ? parallel->cores_requested : 1U, parallel ? parallel->cores_used : 1U);
-	if (shared) {
+	if (shared || (parallel && parallel->winner_worker == UINT_MAX)) {
 		fputs("null", file);
 	} else {
 		fprintf(file, "%u", parallel ? parallel->winner_worker : 0U);
@@ -347,6 +422,11 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
 {
 	struct output_context *context = opaque;
+	if (context->options->fine_tune &&
+		(!result->race.finished || result->race.total_frames > context->baseline_total_frames)) {
+		fputs("genghost: refusing a fine-tuning result worse than its verified baseline\n", stderr);
+		return -1;
+	}
 	char suffix[64];
 	snprintf(suffix, sizeof(suffix), ".tmp-%llu", (unsigned long long)SDL_GetTicksNS());
 	char *temporary = with_suffix(context->path, suffix);
@@ -390,7 +470,8 @@ int main(int argc, char **argv)
 	unsigned int cores = 1U;
 	const char *cooperative_request = NULL;
 	struct GENGHOST_WORKER_CONTROL worker_control = {0};
-	char *cwd = NULL, *data_dir = NULL, *output = NULL, *executable = NULL;
+	char *cwd = NULL, *data_dir = NULL, *output = NULL, *executable = NULL, *source_path = NULL;
+	struct GENGHOST_RESULT baseline = {0};
 	unsigned char *file = NULL;
 	size_t file_length = 0;
 	for (int i = 1; i < argc; ++i) {
@@ -421,6 +502,10 @@ int main(int argc, char **argv)
 		}
 		if (!SDL_strcasecmp(argument, "--owoot")) {
 			options.owoot = 1;
+			continue;
+		}
+		if (!strcmp(argument, "--fine-tune")) {
+			options.fine_tune = 1;
 			continue;
 		}
 		if (!strcmp(argument, "--verify")) {
@@ -503,6 +588,10 @@ int main(int argc, char **argv)
 			goto done;
 		}
 	}
+	if (options.fine_tune && verify) {
+		fputs("--fine-tune cannot be combined with --verify\n", stderr);
+		goto done;
+	}
 	if (!source || !car_argument) {
 		fputs(help, stderr);
 		goto done;
@@ -543,7 +632,7 @@ int main(int argc, char **argv)
 	if (!cwd || !(data_dir = join_path(cwd, data_argument))) {
 		goto done;
 	}
-	if (read_source(source, cwd, data_dir, &file, &file_length)) {
+	if (read_source(source, cwd, data_dir, &file, &file_length, &source_path)) {
 		fprintf(stderr, "Cannot read track/replay: %s\n", source);
 		goto done;
 	}
@@ -577,6 +666,15 @@ int main(int argc, char **argv)
 	if (transmission < 0) {
 		transmission = 0;
 	}
+	if (options.fine_tune && (!is_replay || !seed_inputs || !seed_length)) {
+		fputs("--fine-tune requires a 20 Hz replay with matching car and transmission\n", stderr);
+		goto done;
+	}
+	if (options.fine_tune && replay.game_opponenttype != 0) {
+		fputs("--fine-tune requires a solo replay; opponent collisions change the simulation\n",
+			  stderr);
+		goto done;
+	}
 	if (verify && (!seed_inputs || !seed_length)) {
 		fputs("--verify requires a 20 Hz replay with matching car and transmission\n", stderr);
 		goto done;
@@ -596,6 +694,16 @@ int main(int argc, char **argv)
 	}
 	if (output_argument) {
 		output = join_path(cwd, output_argument);
+	} else if (options.fine_tune) {
+		char prefix[6] = {0}, default_name[13];
+		for (unsigned int i = 0; i < 5U && track_name[i]; ++i) {
+			unsigned char letter = (unsigned char)toupper((unsigned char)track_name[i]);
+			prefix[i] = (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')
+							? (char)letter
+							: '_';
+		}
+		snprintf(default_name, sizeof(default_name), "%s-FT.rpl", prefix);
+		output = join_path(cwd, default_name);
 	} else {
 		/* The game's replay picker only enumerates DOS 8.3 filenames. */
 		char prefix[4] = {0}, default_name[13];
@@ -611,6 +719,19 @@ int main(int argc, char **argv)
 	}
 	if (!output) {
 		goto done;
+	}
+	if (options.fine_tune) {
+		char *report_path = with_suffix(output, ".json");
+		int source_output = same_file(source_path, output);
+		int source_report = report_path ? same_file(source_path, report_path) : -1;
+		free(report_path);
+		if (source_output != 0 || source_report != 0) {
+			fputs("--fine-tune must preserve its input replay; choose a different --output path\n",
+				  stderr);
+			goto done;
+		}
+		memcpy(track_name, replay.game_trackname, sizeof(replay.game_trackname));
+		track_name[sizeof(replay.game_trackname)] = 0;
 	}
 	if (chdir(data_dir)) {
 		perror(data_dir);
@@ -633,6 +754,17 @@ int main(int argc, char **argv)
 								 options.left_bias ? "--lcb:on" : "--lcb:off", "--owoot"};
 	if (genghost_sim_init(track, car, transmission, options.owoot ? 5 : 4, physics_arguments)) {
 		goto done;
+	}
+	if (options.fine_tune) {
+		if (genghost_sim_evaluate(seed_inputs, seed_length, &baseline) || !baseline.finished) {
+			fputs("--fine-tune requires an input replay that finishes under the selected physics "
+				  "and OWOOT settings\n",
+				  stderr);
+			goto done;
+		}
+		fprintf(stderr, "fine-tune baseline: %.2fs (driving %.2fs + penalty %.2fs)\n",
+				baseline.total_frames / 20.0, baseline.finish_frame / 20.0,
+				baseline.penalty_frames / 20.0);
 	}
 	if (verify) {
 		struct GENGHOST_RESULT race;
@@ -659,7 +791,8 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	struct GENGHOST_SEARCH_RESULT result = {0};
-	struct output_context context = {output, track_name, car, &options, transmission};
+	struct output_context context = {output, track_name,		   car, &options, transmission,
+									 NULL,	 baseline.total_frames};
 	struct GENGHOST_PARALLEL_REPORT parallel = {0};
 	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s%s\n", track_name, car,
 			transmission ? "automatic" : "manual", options.powergear ? "on" : "off",
@@ -712,6 +845,15 @@ int main(int argc, char **argv)
 			goto done;
 		}
 		printf("Saved %s (%.2fs including penalties)\n", output, result.race.total_frames / 20.0);
+		if (options.fine_tune) {
+			unsigned int saved = baseline.total_frames - result.race.total_frames;
+			if (saved) {
+				printf("Fine-tuned %.2fs -> %.2fs; saved %.2fs including penalties\n",
+					   baseline.total_frames / 20.0, result.race.total_frames / 20.0, saved / 20.0);
+			} else {
+				puts("No faster replay found within the budget; saved the verified baseline.");
+			}
+		}
 		status = 0;
 	} else if (search_status == 2) {
 		fputs("No completed replay found within the budget; no ghost was written.\n", stderr);
@@ -725,6 +867,7 @@ int main(int argc, char **argv)
 done:
 	genghost_worker_close(&worker_control);
 	free(file);
+	free(source_path);
 	free(data_dir);
 	free(output);
 	SDL_free(cwd);

@@ -20,6 +20,8 @@ struct GENGHOST_OPTIONS {
 	genghost_progress_function progress;
 	void *progress_context;
 	enum GENGHOST_STRATEGY strategy;
+	/* Refine a completed compatible replay; never restart track-only discovery. */
+	int fine_tune;
 };
 
 struct GENGHOST_SEARCH_RESULT {

@@ -540,6 +540,24 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 	report->cores_requested = requested_cores;
 	report->cores_used = count;
 	report->winner_worker = UINT_MAX;
+	report->winner_seed = options->seed;
+	unsigned int baseline_total_frames = 0U;
+	if (options->fine_tune) {
+		/* Retain a canonical parent baseline even if cancellation or startup
+		 * overhead prevents every child from publishing its first result. */
+		if (!source || source_length <= REPLAY_INPUT_OFFSET ||
+			source_length - REPLAY_INPUT_OFFSET > GENGHOST_MAX_FRAMES) {
+			return 1;
+		}
+		result->length = (unsigned int)(source_length - REPLAY_INPUT_OFFSET);
+		memcpy(result->inputs, source + REPLAY_INPUT_OFFSET, result->length);
+		if (genghost_sim_evaluate(result->inputs, result->length, &result->race) ||
+			!result->race.finished) {
+			return 1;
+		}
+		result->seed_finished = 1;
+		baseline_total_frames = result->seed_total_frames = result->race.total_frames;
+	}
 	struct worker *workers = calloc(count, sizeof(*workers));
 	char *directory = NULL, *input_path = NULL, *stop_path = NULL;
 	void *job = NULL;
@@ -611,7 +629,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		snprintf(seed, sizeof(seed), "%u", stats->seed);
 		snprintf(budget, sizeof(budget), "%llu", (unsigned long long)stats->budget_evaluations);
 		snprintf(parent, sizeof(parent), "%llu", (unsigned long long)current_pid());
-		const char *arguments[32];
+		const char *arguments[36];
 		unsigned int n = 0;
 		arguments[n++] = executable;
 		arguments[n++] = "--strategy";
@@ -633,6 +651,9 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
+		}
+		if (options->fine_tune) {
+			arguments[n++] = "--fine-tune";
 		}
 		if (options->evaluations) {
 			arguments[n++] = "--evaluations";
@@ -720,6 +741,10 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			active += !worker->done;
 		}
 		aggregate(result, workers, count, started);
+		if (options->fine_tune) {
+			result->seed_finished = 1;
+			result->seed_total_frames = baseline_total_frames;
+		}
 		if (result->race.finished && (improved || !active || now >= next_progress)) {
 			if (save(result, save_context)) {
 				failed = 1;
@@ -1200,7 +1225,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		char seed[16], parent[32];
 		snprintf(seed, sizeof(seed), "%u", options->seed);
 		snprintf(parent, sizeof(parent), "%llu", (unsigned long long)current_pid());
-		const char *arguments[32];
+		const char *arguments[36];
 		unsigned int n = 0;
 		arguments[n++] = executable;
 		arguments[n++] = "--strategy";
@@ -1222,6 +1247,9 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
+		}
+		if (options->fine_tune) {
+			arguments[n++] = "--fine-tune";
 		}
 		arguments[n++] = "--worker-status";
 		arguments[n++] = worker->process.status_path;

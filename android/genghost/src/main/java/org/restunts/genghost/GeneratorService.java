@@ -78,6 +78,7 @@ public final class GeneratorService extends Service {
         public int seconds = GenerationRequest.DEFAULT_SECONDS;
         public int cores = GenerationRequest.DEFAULT_CORES;
         public String strategy = GenerationRequest.DEFAULT_STRATEGY;
+        public boolean fineTune;
         public int exitCode = -1;
         public long startTimeMillis;
         public long elapsedSeconds;
@@ -99,6 +100,7 @@ public final class GeneratorService extends Service {
             seconds = saved.optInt("seconds", seconds);
             cores = saved.optInt("cores", cores);
             strategy = saved.optString("strategy", strategy);
+            fineTune = saved.optBoolean("fine_tune");
             exitCode = saved.optInt("exitCode", -1);
             startTimeMillis = saved.optLong("startTimeMillis");
             elapsedSeconds = saved.optLong("elapsedSeconds");
@@ -115,6 +117,7 @@ public final class GeneratorService extends Service {
                     .put("running", running).put("outputAvailable", outputAvailable)
                     .put("reportAvailable", reportAvailable).put("seconds", seconds)
                     .put("cores", cores).put("strategy", strategy)
+                    .put("fine_tune", fineTune)
                     .put("exitCode", exitCode).put("startTimeMillis", startTimeMillis)
                     .put("elapsedSeconds", elapsedSeconds).put("nativePid", nativePid)
                     .put("nativeToken", nativeToken).put("recoveryAttempted", recoveryAttempted);
@@ -137,6 +140,7 @@ public final class GeneratorService extends Service {
         preparing.seconds = request.seconds;
         preparing.cores = request.cores;
         preparing.strategy = request.strategy;
+        preparing.fineTune = request.fineTune;
         preparing.startTimeMillis = System.currentTimeMillis();
         pendingStart = preparing;
         pendingCancelled = false;
@@ -570,6 +574,7 @@ public final class GeneratorService extends Service {
             state.seconds = request.seconds;
             state.cores = request.cores;
             state.strategy = request.strategy;
+            state.fineTune = request.fineTune;
             state.startTimeMillis = System.currentTimeMillis();
         }
         workerRunning = true;
@@ -632,7 +637,8 @@ public final class GeneratorService extends Service {
                 state.outputName = outputName;
                 state.reportName = outputName + ".json";
             }
-            update("running", "Searching and refining routes…");
+            update("running", request.fineTune ? "Fine-tuning replay inputs…"
+                : "Searching and refining routes…");
             int exitCode = runNative(request.arguments(executable, game, track, output), game);
             synchronized (stateLock) {
                 state.exitCode = exitCode;
@@ -657,6 +663,12 @@ public final class GeneratorService extends Service {
                     result.getDouble("total_seconds"));
                 String message = (cancelled ? "Stopped. Best replay saved: " : "Replay saved: ")
                     + score + ".";
+                if (request.fineTune) {
+                    message += result.getBoolean("improved")
+                        ? String.format(Locale.ROOT, " Improved by %.2f s.",
+                            result.getDouble("saved_seconds"))
+                        : " No faster replay found; the original time was kept.";
+                }
                 if (!exportError.isEmpty()) {
                     message += " " + exportError + " Use Export to save another copy.";
                 }

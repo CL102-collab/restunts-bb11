@@ -788,11 +788,12 @@ static int state_dispatch(struct state_search *search, size_t count, struct stat
 		if (reply->driver.tactic_ticks) {
 			++search->result->tactic_evaluations;
 		}
-		if (!search->route_attempted[task->route_index]) {
+		if (!search->options->fine_tune && !search->route_attempted[task->route_index]) {
 			search->route_attempted[task->route_index] = 1U;
 			++search->result->routes_attempted;
 		}
-		if (reply->race.finished && !search->route_finished[task->route_index]) {
+		if (!search->options->fine_tune && reply->race.finished &&
+			!search->route_finished[task->route_index]) {
 			search->route_finished[task->route_index] = 1U;
 			++search->result->routes_finished;
 		}
@@ -848,10 +849,156 @@ static void task_root(struct state_search *search, struct GENGHOST_STATE_TASK *t
 	task->route_variant = root % variants;
 }
 
+/* Fine-tune actual replay control boundaries rather than rediscovering a
+ * driving policy. Keep unrelated input channels and most of the suffix exact;
+ * a minority of candidates rejoin the same incumbent by native position. */
+static int fine_tune_inputs(struct state_search *search)
+{
+	unsigned short boundaries[GENGHOST_MAX_FRAMES];
+	unsigned int boundary_count = 0U;
+	unsigned int finish = search->result->race.finish_frame;
+	for (unsigned int frame = 1U; frame < finish; ++frame) {
+		if (search->result->inputs[frame] != search->result->inputs[frame - 1U]) {
+			boundaries[boundary_count++] = (unsigned short)frame;
+		}
+	}
+	/* Full replay candidates can be expensive on older Android devices. Small
+	 * batches return to deadline/cancellation checks promptly. */
+	size_t count = state_budget(search, 12U);
+	for (size_t n = 0U; n < count; ++n) {
+		struct GENGHOST_STATE_TASK *task = &search->tasks[n];
+		task_root(search, task, 0U);
+		task->kind = 2U;
+		task->route_index = search->incumbent_route;
+		task->route_variant = search->incumbent_variant;
+		task->prefix_length = search->result->length;
+		memcpy(task->prefix, search->result->inputs, task->prefix_length);
+		uint32_t word = (uint32_t)(task->id * 2654435761U) ^ search->options->seed;
+		word ^= word >> 16U;
+		word *= 2246822519U;
+		word ^= word >> 13U;
+		unsigned int mode = (unsigned int)(task->id % 12U);
+		unsigned int first = boundary_count ? boundaries[word % boundary_count] : word % finish;
+		static const unsigned int widths[] = {1U, 1U, 2U, 2U, 3U, 4U, 6U, 8U};
+		unsigned int width = widths[(word >> 16U) % 8U];
+		unsigned int changed_end = first;
+		if (mode < 8U && first) {
+			static const unsigned int masks[] = {INPUT_PEDAL_MASK, INPUT_STEERING_MASK,
+												 INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG};
+			unsigned int channel = (word >> 8U) % 3U;
+			unsigned int changed = task->prefix[first] ^ task->prefix[first - 1U];
+			for (unsigned int k = 0U; k < 3U && !(changed & masks[channel]); ++k) {
+				channel = (channel + 1U) % 3U;
+			}
+			unsigned int mask = masks[channel];
+			unsigned char before = task->prefix[first - 1U] & mask;
+			unsigned char after = task->prefix[first] & mask;
+			unsigned int end = first + 1U;
+			while (end < finish && (task->prefix[end] & mask) == after) {
+				++end;
+			}
+			int later = mode % 2U;
+			if (mode >= 6U && end < finish) {
+				/* Move an entire steering/gear pulse without changing its
+                 * duration or the timestamps of all later inputs. */
+				if (width > end - first) {
+					width = end - first;
+				}
+				if (later && width > finish - end) {
+					width = finish - end;
+				}
+				if (!later && width > first) {
+					width = first;
+				}
+				unsigned char following = task->prefix[end] & mask;
+				unsigned int available = 0U;
+				while (available < width &&
+					   (later ? (task->prefix[end + available] & mask) == following
+							  : (task->prefix[first - available - 1U] & mask) == before)) {
+					++available;
+				}
+				width = available;
+				unsigned int left = later ? first : first - width;
+				unsigned int right = later ? end : end - width;
+				for (unsigned int k = 0U; k < width; ++k) {
+					task->prefix[left + k] = (unsigned char)((task->prefix[left + k] & ~mask) |
+															 (later ? before : after));
+					task->prefix[right + k] = (unsigned char)((task->prefix[right + k] & ~mask) |
+															  (later ? after : following));
+				}
+				first = left;
+				changed_end = right + width;
+			} else if (later) {
+				if (width > end - first) {
+					width = end - first;
+				}
+				changed_end = first + width;
+				for (unsigned int k = first; k < changed_end; ++k) {
+					task->prefix[k] = (unsigned char)((task->prefix[k] & ~mask) | before);
+				}
+			} else {
+				unsigned int left = first;
+				while (left && first - left < width && (task->prefix[left - 1U] & mask) == before) {
+					--left;
+				}
+				changed_end = first;
+				for (unsigned int k = left; k < first; ++k) {
+					task->prefix[k] = (unsigned char)((task->prefix[k] & ~mask) | after);
+				}
+				first = left;
+			}
+		} else {
+			if (width > finish - first) {
+				width = finish - first;
+			}
+			changed_end = first + width;
+			if (mode == 8U) {
+				memmove(task->prefix + first, task->prefix + first + width,
+						task->prefix_length - first - width);
+				task->prefix_length -= width;
+			} else if (mode == 9U) {
+				if (width <= GENGHOST_MAX_FRAMES - task->prefix_length) {
+					memmove(task->prefix + first + width, task->prefix + first,
+							task->prefix_length - first);
+					memset(task->prefix + first, task->prefix[first + width], width);
+					task->prefix_length += width;
+				}
+			} else {
+				static const unsigned char steering[] = {0U, INPUT_STEER_LEFT_FLAG,
+														 INPUT_STEER_RIGHT_FLAG};
+				static const unsigned char pedals[] = {INPUT_ACCELERATE_FLAG, INPUT_ACCELERATE_FLAG,
+													   0U, INPUT_BRAKE_FLAG};
+				unsigned int mask = mode == 10U ? INPUT_STEERING_MASK : INPUT_PEDAL_MASK;
+				unsigned char replacement =
+					mode == 10U ? steering[(word >> 8U) % 3U] : pedals[(word >> 8U) % 4U];
+				for (unsigned int k = first; k < changed_end; ++k) {
+					task->prefix[k] = (unsigned char)((task->prefix[k] & ~mask) | replacement);
+				}
+			}
+		}
+		task->first = first;
+		/* kind 2 with width zero evaluates the already edited input sequence.
+         * kind 3 keeps that local edit and retimes only the incumbent suffix. */
+		if (task->id % 8U == 0U && changed_end > first && changed_end < finish && mode != 8U &&
+			mode != 9U) {
+			task->kind = 3U;
+			task->prefix_length = changed_end;
+			task->reference_length = finish;
+			task->reference_first = first;
+			task->action_index = (word >> 20U) % 2U;
+			memcpy(task->reference, search->result->inputs, finish);
+		}
+	}
+	return state_dispatch(search, count, NULL, NULL);
+}
+
 static int refine_inputs(struct state_search *search)
 {
 	if (!search->result->race.finished || state_expired(search)) {
 		return 0;
+	}
+	if (search->options->fine_tune) {
+		return fine_tune_inputs(search);
 	}
 	size_t count = state_budget(search, 12U);
 	for (size_t n = 0; n < count; ++n) {
@@ -1106,7 +1253,7 @@ static int refine_section(struct state_search *search)
 	/* Complete each exit with two native controllers before judging the local
 	 * change. A slower section with a fast/PG-ready exit can win the full lap. */
 	if (!state_expired(search)) {
-		unsigned int kinds = reference_length ? 3U : 2U;
+		unsigned int kinds = reference_length && !search->options->fine_tune ? 3U : 2U;
 		size_t batch_count = state_budget(search, (size_t)count * kinds);
 		for (size_t n = 0U; n < batch_count; ++n) {
 			unsigned int parent = (unsigned int)n / kinds;
@@ -1167,6 +1314,11 @@ int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned
 	search.save_context = save_context;
 	search.started = SDL_GetTicksNS();
 	search.next_progress = search.started + 5000000000ULL;
+	if (seed_length > GENGHOST_MAX_FRAMES || (seed_length && !seed_inputs) ||
+		(options->fine_tune && !seed_length)) {
+		fputs("genghost: fine-tune requires a completed compatible replay\n", stderr);
+		goto done;
+	}
 	search.executor = genghost_state_executor_create(options);
 	search.tasks = calloc(STATE_BATCH_COUNT, sizeof(*search.tasks));
 	search.replies = calloc(STATE_BATCH_COUNT, sizeof(*search.replies));
@@ -1201,9 +1353,24 @@ int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned
 		result->simulated_frames += reply->race.frames;
 		result->seed_finished = reply->race.finished;
 		result->seed_total_frames = reply->race.total_frames;
+		if (options->fine_tune && (!reply->race.finished || !reply->race.finish_frame)) {
+			fputs("genghost: fine-tune replay does not finish under the selected rules\n", stderr);
+			goto done;
+		}
 		if (state_save(&search, reply)) {
 			goto done;
 		}
+	}
+	if (options->fine_tune) {
+		/* Every candidate descends from the current completed replay. Section
+         * exits rejoin its guide, never a fresh whole-route driving policy. */
+		for (search.round = 0U; !state_expired(&search); ++search.round) {
+			if (refine_inputs(&search) || (search.round % 32U == 31U && refine_section(&search))) {
+				goto done;
+			}
+		}
+		status = 0;
+		goto done;
 	}
 	/* Whole-route controllers provide a verified incumbent and scout failures.
 	 * Their prefixes are reusable, while the beam also starts at the grid so

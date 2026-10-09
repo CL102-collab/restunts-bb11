@@ -1,9 +1,11 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "../genghost/state_search.h"
+#include "../genghost/parallel.h"
 #include "../c/externs.h"
 #include "../c/car_speed.h"
 #include "../c/game_input.h"
@@ -554,6 +556,223 @@ static void test_failed_pilot_recovery(const struct GENGHOST_OPTIONS *options)
 		   (unsigned long long)result.state_rescue_starts);
 }
 
+/* The batch hook exposes actual scheduled work without replacing native
+ * physics. Reference hashes remember verified incumbents, including older
+ * section references that remain in flight after a newer lap is found. */
+#define FINE_TUNE_TEST_BUDGET 1201U
+struct fine_tune_observer {
+	struct GENGHOST_STATE_EXECUTOR *executor;
+	struct GENGHOST_SEARCH_RESULT *result;
+	unsigned int initial_total, last_total, saves, batches;
+	unsigned int kinds[4];
+	unsigned int reference_lengths[2U * FINE_TUNE_TEST_BUDGET];
+	uint64_t reference_hashes[2U * FINE_TUNE_TEST_BUDGET];
+};
+
+static uint64_t fine_tune_input_hash(const unsigned char *inputs, unsigned int count)
+{
+	uint64_t hash = UINT64_C(14695981039346656037);
+	for (unsigned int n = 0U; n < count; ++n) {
+		hash = (hash ^ inputs[n]) * UINT64_C(1099511628211);
+	}
+	return hash;
+}
+
+static int fine_tune_known_reference(const struct fine_tune_observer *observer,
+									 const unsigned char *inputs, unsigned int count)
+{
+	uint64_t hash = fine_tune_input_hash(inputs, count);
+	for (unsigned int n = 0U; n < observer->saves * 2U; ++n) {
+		if (observer->reference_lengths[n] == count && observer->reference_hashes[n] == hash) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
+{
+	struct fine_tune_observer *observer = context;
+	struct GENGHOST_RESULT replayed;
+	struct GENGHOST_SNAPSHOT before;
+	/* Observing an accepted replay must not change a worker's hidden collision
+	 * state or the search's current section checkpoint. */
+	genghost_sim_capture(&before);
+	assert(genghost_sim_evaluate(result->inputs, result->length, &replayed) == 0);
+	assert(replayed.finished && memcmp(&replayed, &result->race, sizeof(replayed)) == 0);
+	genghost_sim_restore(&before);
+	assert(observer->saves < FINE_TUNE_TEST_BUDGET);
+	if (observer->saves) {
+		assert(replayed.total_frames < observer->last_total);
+	} else {
+		assert(replayed.total_frames == observer->initial_total);
+	}
+	unsigned int slot = observer->saves * 2U;
+	observer->reference_lengths[slot] = replayed.finish_frame;
+	observer->reference_hashes[slot] = fine_tune_input_hash(result->inputs, replayed.finish_frame);
+	observer->reference_lengths[slot + 1U] = result->length;
+	observer->reference_hashes[slot + 1U] = fine_tune_input_hash(result->inputs, result->length);
+	observer->last_total = replayed.total_frames;
+	++observer->saves;
+	return 0;
+}
+
+static int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *tasks,
+						   struct GENGHOST_STATE_REPLY *replies, size_t count)
+{
+	struct fine_tune_observer *observer = context;
+	++observer->batches;
+	assert(observer->executor != NULL);
+	for (size_t n = 0U; n < count; ++n) {
+		const struct GENGHOST_STATE_TASK *task = &tasks[n];
+		assert(task->kind < 4U && task->kind != 1U);
+		++observer->kinds[task->kind];
+		if (task->kind == 0U) {
+			/* A seeded launch section may legitimately begin at frame zero.
+			 * Fresh grid beams have no incumbent section start. */
+			assert(observer->result->state_section_starts > 0U);
+		} else if (task->kind == 2U) {
+			/* Local edits may already be applied in the request. The inputs
+			 * before the declared edit still belong to the verified parent. */
+			assert(task->first <= task->prefix_length && task->first <= observer->result->length);
+			assert(memcmp(task->prefix, observer->result->inputs, task->first) == 0);
+		} else {
+			assert(task->reference_length > 0U && task->reference_first <= task->reference_length);
+			assert(fine_tune_known_reference(observer, task->reference, task->reference_length));
+		}
+		assert(genghost_state_execute(task, &replies[n], observer->executor) == 0);
+	}
+	return 0;
+}
+
+static int fine_tune_search(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
+							unsigned int count, struct GENGHOST_SEARCH_RESULT *result,
+							struct fine_tune_observer *observer)
+{
+	observer->result = result;
+	return options->strategy == GENGHOST_STRATEGY_STATE
+			   ? genghost_state_search(options, inputs, count, result, fine_tune_save, observer,
+									   fine_tune_batch, observer)
+			   : genghost_search(options, inputs, count, result, fine_tune_save, observer);
+}
+
+static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
+						   unsigned int count)
+{
+	struct GENGHOST_RESULT original, unfinished;
+	assert(genghost_sim_evaluate(inputs, count, &original) == 0 && original.finished);
+	assert(genghost_sim_evaluate(inputs, 1U, &unfinished) == 0 && !unfinished.finished);
+	for (int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE; ++strategy) {
+		struct GENGHOST_OPTIONS bounded = *options;
+		bounded.fine_tune = 1;
+		bounded.strategy = (enum GENGHOST_STRATEGY)strategy;
+		bounded.evaluations = 1U;
+		bounded.seconds = 0.0;
+		bounded.seed = 1U;
+		const unsigned char *invalid_inputs[] = {NULL, NULL, inputs, inputs};
+		const unsigned int invalid_lengths[] = {0U, 1U, 0U, 1U};
+		for (unsigned int invalid = 0U; invalid < 4U; ++invalid) {
+			struct GENGHOST_SEARCH_RESULT result = {0};
+			struct fine_tune_observer observer = {0};
+			assert(fine_tune_search(&bounded, invalid_inputs[invalid], invalid_lengths[invalid],
+									&result, &observer) < 0);
+			assert(!observer.saves && !observer.batches && !result.race.finished);
+		}
+		struct GENGHOST_SEARCH_RESULT retained = {0};
+		struct fine_tune_observer retention = {0};
+		retention.initial_total = original.total_frames;
+		assert(fine_tune_search(&bounded, inputs, count, &retained, &retention) == 0);
+		assert(retention.saves == 1U && !retention.batches && retained.evaluations == 1U);
+		assert(retained.seed_finished && retained.seed_total_frames == original.total_frames);
+		assert(retained.race.finished && retained.race.total_frames == original.total_frames &&
+			   retained.race.finish_frame == original.finish_frame &&
+			   retained.race.penalty_frames == original.penalty_frames);
+		assert(retained.length >= original.finish_frame &&
+			   memcmp(retained.inputs, inputs, original.finish_frame) == 0);
+
+		struct GENGHOST_SEARCH_RESULT refined = {0};
+		struct fine_tune_observer refinement = {0};
+		refinement.initial_total = original.total_frames;
+		bounded.evaluations = strategy == GENGHOST_STRATEGY_STATE ? FINE_TUNE_TEST_BUDGET : 129U;
+		if (strategy == GENGHOST_STRATEGY_STATE) {
+			refinement.executor = genghost_state_executor_create(&bounded);
+			assert(refinement.executor != NULL);
+		}
+		assert(fine_tune_search(&bounded, inputs, count, &refined, &refinement) == 0);
+		genghost_state_executor_destroy(refinement.executor);
+		assert(refined.evaluations == bounded.evaluations && refinement.saves > 0U);
+		assert(refined.race.finished && refined.race.total_frames <= original.total_frames);
+		assert(refined.race.total_frames == refinement.last_total);
+		if (strategy == GENGHOST_STRATEGY_STATE) {
+			assert(refinement.kinds[0] && refinement.kinds[2] && refinement.kinds[3]);
+			assert(!refinement.kinds[1] && !refined.state_rescue_starts);
+			assert(refined.state_section_starts && refined.state_section_evaluations);
+		}
+		printf("Fine-tune strategy %d rejects missing/unfinished seeds, retains budget-one inputs, "
+			   "and verifies %u strictly improving incumbent updates over %llu evaluations.\n",
+			   strategy, refinement.saves - 1U, (unsigned long long)refined.evaluations);
+	}
+}
+
+static int fine_tune_cancel_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
+{
+	const struct GENGHOST_RESULT *original = context;
+	struct GENGHOST_RESULT replayed;
+	assert(result->seed_finished && result->seed_total_frames == original->total_frames);
+	assert(result->race.finished && result->race.total_frames == original->total_frames &&
+		   result->race.finish_frame == original->finish_frame &&
+		   result->race.penalty_frames == original->penalty_frames);
+	assert(genghost_sim_evaluate(result->inputs, result->length, &replayed) == 0);
+	assert(memcmp(&result->race, &replayed, sizeof(replayed)) == 0);
+	return 0;
+}
+
+static void test_fine_tune_parallel_cancel(const struct GENGHOST_OPTIONS *options,
+										   const unsigned char *recording, size_t size,
+										   const struct GAMEINFO *config)
+{
+	struct GENGHOST_OPTIONS bounded = *options;
+	bounded.fine_tune = 1;
+	bounded.strategy = GENGHOST_STRATEGY_LEGACY;
+	bounded.evaluations = 129U;
+	bounded.seconds = 0.0;
+	bounded.seed = 1U;
+	struct GENGHOST_RESULT original;
+	assert(genghost_sim_evaluate(recording + REPLAY_INPUT_OFFSET, config->game_recordedframes,
+								 &original) == 0 &&
+		   original.finished);
+	struct GENGHOST_SEARCH_RESULT result = {0};
+	struct GENGHOST_PARALLEL_REPORT report = {0};
+	char car[5] = {0};
+	memcpy(car, config->game_playercarid, 4U);
+	/* Cancellation before startup must still retain the supplied finished lap.
+	 * A nonexistent executable makes any attempted child launch fail, so a
+	 * successful result with zero worker records proves the launch was skipped. */
+	sig_atomic_t previous_interrupt = genghost_interrupted;
+	genghost_interrupted = 1;
+	int status =
+		genghost_parallel_search("./must-not-launch-fine-tune-worker", "fine-tune-cancel-test.RPL",
+								 ".", recording, size, car, config->game_playertransmission, 4U,
+								 &bounded, &result, &report, fine_tune_cancel_save, &original);
+	genghost_interrupted = previous_interrupt;
+	assert(status == 0 && result.race.finished);
+	assert(result.seed_finished && result.seed_total_frames == original.total_frames);
+	assert(result.race.total_frames == original.total_frames &&
+		   result.race.finish_frame == original.finish_frame &&
+		   result.race.penalty_frames == original.penalty_frames);
+	assert(result.length >= original.finish_frame &&
+		   memcmp(result.inputs, recording + REPLAY_INPUT_OFFSET, original.finish_frame) == 0);
+	assert(report.cores_requested == 4U && report.cores_used == 0U &&
+		   report.winner_worker == UINT_MAX);
+	struct GENGHOST_WORKER_STATS empty = {0};
+	for (unsigned int n = 0U; n < GENGHOST_MAX_CORES; ++n) {
+		assert(memcmp(&report.workers[n], &empty, sizeof(empty)) == 0);
+	}
+	fine_tune_cancel_save(&result, &original);
+	puts("Pre-start parallel cancellation retains the verified fine-tune seed without launching "
+		 "any workers.");
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc >= 3);
@@ -575,10 +794,12 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	struct GENGHOST_OPTIONS options = {0};
 	options.powergear = options.collision = options.left_bias = 1;
 	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
-	int slalom = 0;
+	int slalom = 0, fine_tune = 0;
 	for (int i = 3; i < argc; ++i) {
 		const char *flag = (const char *)argv[i];
-		if (strcmp(flag, "--expect-slalom-center") == 0) {
+		if (strcmp(flag, "--test-fine-tune") == 0) {
+			fine_tune = 1;
+		} else if (strcmp(flag, "--expect-slalom-center") == 0) {
 			slalom = 1;
 		} else if (strcmp(flag, "--expect-slalom-jump") == 0) {
 			slalom = 2;
@@ -599,6 +820,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		} else if (strcmp(flag, "--owoot") == 0) {
 			options.owoot = 1;
 		}
+	}
+	if (fine_tune) {
+		test_fine_tune(&options, recording + REPLAY_INPUT_OFFSET, config.game_recordedframes);
+		test_fine_tune_parallel_cancel(&options, recording, size, &config);
+		return 0;
 	}
 	if (recovery) {
 		test_failed_pilot_recovery(&options);

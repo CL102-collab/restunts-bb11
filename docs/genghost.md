@@ -16,6 +16,7 @@ genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 4 --output parallel.r
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --strategy state --cores 4 --output state.rpl
 genghost --data-dir /path/to/game race.RPL DIA3 --seconds 1800 --output ghost.rpl
+genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --output WINNERFT.rpl
 genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --output clean.rpl
 ```
 
@@ -42,6 +43,7 @@ different car.
 | `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` using the shortened track prefix above. |
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
 | `--strategy MODE` | `legacy` (default route optimizer) or `state` (new cooperative state planner). |
+| `--fine-tune` | Refine a compatible completed input replay, keeping its validated score as the baseline. |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
 | `--cores N` | Number of parallel search workers, from `1` to `256`: `1` by default, `0` for automatic CPU selection. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
@@ -73,6 +75,50 @@ genghost --data-dir /path/to/game ghost.rpl COUN --verify
 transmission. Supply the physics options used to generate it. The command
 prints finish and penalty counts in frames and returns a nonzero exit status
 if the replay does not finish.
+
+## Fine-tuning a completed replay
+
+Use `--fine-tune` when you want to improve an existing lap with the same car:
+
+```sh
+genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --seconds 1800 --output WINNERFT.rpl
+genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --strategy state --cores 4 --output STATEFT.rpl
+```
+
+The source must be a complete, solo 20 Hz replay with a matching car and
+transmission. Its transmission is inherited unless you explicitly select the
+same setting. Before searching, the tool replays the entire source under your
+selected physics flags and OWOOT setting. A source that does not finish under
+those settings is rejected, as are track-only inputs, mismatched cars or
+transmissions, and combining `--fine-tune` with `--verify`. Physics flags are
+not stored in the RPL format: supply the settings required by the source lap.
+
+Fine-tuning spends the budget on variations of the validated lap. The legacy
+strategy changes intervals of driving inputs. The state strategy also refines
+short sections and tries to rejoin the lap's demonstrated continuation. Neither
+starts an unrelated route search in this mode. Both honor `--cores`, the search
+budget, penalties, and the selected restrictions. A full native replay check
+must confirm each improvement before it is saved.
+
+The source score is retained if no better completed lap is found; a limited
+budget does not guarantee an improvement. The comparison uses total time,
+including penalties. The JSON report records `fine_tune`,
+`baseline_total_frames`, `baseline_total_seconds`, `improved`, `saved_frames`,
+and `saved_seconds`. The saved counts are zero when the score is unchanged;
+comparison fields are null when `--fine-tune` is absent. Improvements to a human
+replay should be described as human-seeded refinements, rather than independently
+discovered laps or proof of a new competition record.
+
+By default, the output name uses the first five sanitized source-filename
+characters plus `-FT.rpl`, fitting the game's eight-character basename limit.
+For example, `winner.RPL` produces `WINNE-FT.rpl`. The embedded track name is
+preserved. The input replay is protected: an output path or report sidecar that
+would overwrite it, including a filesystem alias, is rejected. Choose a different
+`--output` path in that case. Use an explicit output name to preserve an earlier
+fine-tuned result when repeating a run.
+
+Without `--fine-tune`, a compatible replay continues to provide a starting
+candidate for the broader route or state search described below.
 
 ## Parallel search
 

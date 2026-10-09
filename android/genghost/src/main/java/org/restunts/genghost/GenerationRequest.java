@@ -20,16 +20,18 @@ public final class GenerationRequest {
     public final int seconds;
     public final int cores;
     public final String strategy;
+    public final boolean fineTune;
     public final String transmission;
     public final String[] physicsFlags;
 
     public GenerationRequest(String trackPath, String car, int seconds, int cores, String strategy,
-            String transmission, String[] physicsFlags) {
+            boolean fineTune, String transmission, String[] physicsFlags) {
         this.trackPath = trackPath == null ? "" : trackPath.trim();
         this.car = car == null ? "" : car.trim().toUpperCase(Locale.ROOT);
         this.seconds = seconds;
         this.cores = cores;
         this.strategy = strategy == null ? DEFAULT_STRATEGY : strategy;
+        this.fineTune = fineTune;
         this.transmission = transmission == null ? "source" : transmission;
         this.physicsFlags = physicsFlags == null ? new String[0] : physicsFlags.clone();
     }
@@ -40,6 +42,7 @@ public final class GenerationRequest {
         intent.putExtra("seconds", seconds);
         intent.putExtra("cores", cores);
         intent.putExtra("strategy", strategy);
+        intent.putExtra("fine_tune", fineTune);
         intent.putExtra("transmission", transmission);
         intent.putExtra("physics", physicsFlags);
     }
@@ -49,6 +52,7 @@ public final class GenerationRequest {
             intent.getIntExtra("seconds", DEFAULT_SECONDS),
             intent.getIntExtra("cores", DEFAULT_CORES),
             intent.getStringExtra("strategy"),
+            intent.getBooleanExtra("fine_tune", false),
             intent.getStringExtra("transmission"), intent.getStringArrayExtra("physics"));
     }
 
@@ -97,6 +101,9 @@ public final class GenerationRequest {
         if (!name.endsWith(".trk") && !name.endsWith(".rpl")) {
             throw new IOException("Choose a .TRK track or .RPL replay.");
         }
+        if (fineTune && !name.endsWith(".rpl")) {
+            throw new IOException("Fine-tuning requires a completed .RPL replay.");
+        }
         return track;
     }
 
@@ -113,6 +120,9 @@ public final class GenerationRequest {
         command.add(Integer.toString(cores));
         command.add("--strategy");
         command.add(strategy);
+        if (fineTune) {
+            command.add("--fine-tune");
+        }
         command.add("--output");
         command.add(output.getAbsolutePath());
         if (!transmission.equals("source")) {

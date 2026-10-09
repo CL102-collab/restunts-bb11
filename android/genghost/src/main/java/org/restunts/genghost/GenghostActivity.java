@@ -20,6 +20,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -76,6 +77,9 @@ public final class GenghostActivity extends Activity {
     private CheckBox collision;
     private CheckBox leftBias;
     private CheckBox owoot;
+    private CheckBox fineTune;
+    private boolean fineTunePreferred;
+    private boolean updatingFineTune;
     private Button chooseFolder;
     private Button refreshFolder;
     private Button generate;
@@ -126,6 +130,14 @@ public final class GenghostActivity extends Activity {
 
         label(page, "Track or replay");
         track = spinner(page, Collections.emptyList());
+        fineTunePreferred = preferences.getBoolean("fine_tune", false);
+        fineTune = checkbox(page, "Fine-tune replay", "fine_tune", false);
+        fineTune.setOnCheckedChangeListener((button, checked) -> {
+            if (!updatingFineTune) {
+                fineTunePreferred = checked;
+            }
+        });
+        text(page, "Requires a completed .RPL with the same car and transmission.", 14);
         label(page, "Car");
         car = spinner(page, Collections.emptyList());
         label(page, "Search time (minutes)");
@@ -184,6 +196,17 @@ public final class GenghostActivity extends Activity {
         scroll.setFitsSystemWindows(true);
         scroll.addView(page);
         setContentView(scroll);
+        track.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                refreshState();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                refreshState();
+            }
+        });
         populateCatalog();
         refreshState();
     }
@@ -317,6 +340,7 @@ public final class GenghostActivity extends Activity {
             .putString("minutes", minutes.getText().toString())
             .putString("cores", cores.getText().toString())
             .putString("strategy", STRATEGIES[strategy.getSelectedItemPosition()])
+            .putBoolean("fine_tune", fineTunePreferred)
             .putInt("transmission", transmission.getSelectedItemPosition())
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
@@ -352,6 +376,13 @@ public final class GenghostActivity extends Activity {
         chooseFolder.setEnabled(!busy);
         refreshFolder.setEnabled(!busy && GameDataStorage.folder(this) != null);
         track.setEnabled(!busy && !availableTracks.isEmpty());
+        boolean replaySelected = selected(track).toLowerCase(Locale.ROOT).endsWith(".rpl");
+        // Adapter replacement can briefly clear the selection. Keep the remembered
+        // choice while showing this control as unchecked for tracks or an empty list.
+        updatingFineTune = true;
+        fineTune.setChecked(replaySelected && fineTunePreferred);
+        updatingFineTune = false;
+        fineTune.setEnabled(!busy && replaySelected);
         car.setEnabled(!busy && !availableCars.isEmpty());
         minutes.setEnabled(!busy);
         cores.setEnabled(!busy);
@@ -376,6 +407,9 @@ public final class GenghostActivity extends Activity {
             message += "\nCPU cores: " + (generation.cores == 0
                 ? "all available" : Integer.toString(generation.cores));
             message += "\n" + STRATEGY_LABELS["state".equals(generation.strategy) ? 1 : 0];
+            if (generation.fineTune) {
+                message += "\nFine-tune replay";
+            }
         }
         runStatus.setText(message);
         String currentLog = generation.log == null ? "" : generation.log;
@@ -488,6 +522,11 @@ public final class GenghostActivity extends Activity {
     }
 
     private void startGeneration() {
+        if (fineTune.isChecked()
+                && !selected(track).toLowerCase(Locale.ROOT).endsWith(".rpl")) {
+            showError("Fine-tuning requires a completed .RPL replay.");
+            return;
+        }
         int budget;
         int searchCores;
         try {
@@ -530,6 +569,7 @@ public final class GenghostActivity extends Activity {
         try {
             GeneratorService.start(this, new GenerationRequest(selected(track), selected(car),
                 budget * 60, searchCores, STRATEGIES[strategy.getSelectedItemPosition()],
+                fineTune.isChecked(),
                 TRANSMISSIONS[transmission.getSelectedItemPosition()],
                 flags.toArray(new String[0])));
             refreshState();

@@ -608,6 +608,15 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 				width = boundary;
 			}
 			unsigned char following = inputs[run_end] & mask;
+			if (context->options->fine_tune) {
+				unsigned int available = 0U;
+				while (available < width &&
+					   (later ? (inputs[run_end + available] & mask) == following
+							  : (inputs[boundary - available - 1U] & mask) == before)) {
+					++available;
+				}
+				width = available;
+			}
 			unsigned int first = later ? boundary : boundary - width;
 			unsigned int second = later ? run_end : run_end - width;
 			for (unsigned int i = 0; i < width; ++i) {
@@ -815,6 +824,42 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 	return length;
 }
 
+/* A fine-tune parent is always the current canonically verified incumbent.
+ * Reuse its native checkpoints and real control boundaries, spending no budget
+ * on autonomous policy warmup or unrelated route populations. */
+static int refine_seed(struct search_context *context, const struct GENGHOST_ROUTE *route,
+					   struct route_search *parent, unsigned char *inputs)
+{
+	while (!expired(context)) {
+		struct GENGHOST_DRIVER driver;
+		struct GENGHOST_RESULT race;
+		context->guided_candidate = 0;
+		unsigned int length = run_mutation(context, 0U, route, parent, inputs, &driver, &race);
+		++parent->trials;
+		++context->result->evaluations;
+		++context->result->input_evaluations;
+		unsigned int previous_total = context->result->race.total_frames;
+		if (save_candidate(context, inputs, length, &race)) {
+			return -1;
+		}
+		if (context->result->race.total_frames < previous_total) {
+			parent->race = context->result->race;
+			parent->length = context->result->length;
+			memcpy(parent->best_inputs, context->result->inputs, parent->length);
+			++parent->revision;
+			context->cache->checkpoint_count = 0U;
+		}
+		uint64_t now = SDL_GetTicksNS();
+		if (now >= context->next_progress) {
+			fprintf(stderr, "fine-tune progress: %llu candidates, best %.2fs, %.1fs\n",
+					(unsigned long long)context->result->evaluations,
+					context->result->race.total_frames / 20.0, elapsed(context));
+			context->next_progress = now + 5000000000ULL;
+		}
+	}
+	return 0;
+}
+
 /* Keep whole route sweeps together so each family preserves its own candidate
  * sequence. A new family receives its initial policies before score selection;
  * routes without compatible switching geometry do not delay that warmup. */
@@ -895,6 +940,12 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	context.next_progress = context.started + 5000000000ULL;
 	context.save = save;
 	context.save_context = save_context;
+	if (seed_length > GENGHOST_MAX_FRAMES || (seed_length && !seed_inputs) ||
+		(options->fine_tune && !seed_length)) {
+		fputs("genghost: fine-tune requires a completed compatible replay\n", stderr);
+		status = -1;
+		goto done;
+	}
 	if (!inputs || allocate_cache(context.cache)) {
 		status = -1;
 		goto done;
@@ -925,6 +976,11 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 		result->seed_total_frames = seed_result.total_frames;
 		++result->evaluations;
 		result->simulated_frames += seed_result.frames;
+		if (options->fine_tune && (!seed_result.finished || !seed_result.finish_frame)) {
+			fputs("genghost: fine-tune replay does not finish under the selected rules\n", stderr);
+			status = -1;
+			goto done;
+		}
 		if (save_candidate(&context, inputs, seed_length, &seed_result)) {
 			status = -1;
 			goto done;
@@ -946,6 +1002,10 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			seed_parent->demonstration = 1;
 			seed_parent->catalog_parent_frontier = GENGHOST_POLICY_SEGMENTS;
 		}
+	}
+	if (options->fine_tune) {
+		status = refine_seed(&context, &routes.routes[0], &searches[0], inputs);
+		goto done;
 	}
 	/* Keep an independent tile-line population for unrestricted scratch driving.
 	 * Classic and tile populations have distinct RNG streams and replay parents;

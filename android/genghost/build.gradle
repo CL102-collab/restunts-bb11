@@ -28,8 +28,8 @@ android {
         applicationId 'org.restunts.genghost'
         minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
         targetSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
-        versionCode 7
-        versionName '1.0.6'
+        versionCode 8
+        versionName '1.0.7'
         ndk { abiFilters 'armeabi-v7a' }
         externalNativeBuild {
             cmake {
