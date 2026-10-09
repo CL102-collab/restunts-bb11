@@ -131,3 +131,78 @@ selection. Failed probes now leave both its population and replay parent intact,
 and random catalog mutations require a verified finish. Deterministic probes
 still run before a first finish. A map-only R4K9/GATE regression with collision
 fixes verifies that ordinary completion remains discoverable within 100 attempts.
+
+### Fixed-budget whole-lap comparison
+
+The final numerical change is commit `ed498d8ca100a93a44b6a09af42841b7302359c9`.
+The benchmark plan was frozen before inspecting candidate performance. It uses
+six reserved tracks and six tuning tracks, each with collision bugs enabled and
+disabled, at 3,000 candidates and seed 1. Three DEFAULT/PMIN cases use 5,000
+candidates. All searches start from track files without human replay inputs.
+The baseline is `7ec6e9fd`. Every finish was checked with fresh native verification
+and independent frozen `repldump` playback using the same physics settings.
+
+| Group | Finishes before / after | Faster / tied / slower | Total scored time before / after |
+| --- | --- | --- | --- |
+| Reserved tracks, 12 cases | 10 / 10 | 6 / 0 / 4 | 1,429.60 / 1,414.60 s |
+| Tuning tracks, 12 cases | 11 / 11 | 8 / 0 / 3 | 2,462.55 / 2,438.20 s |
+| DEFAULT, 3 cases | 3 / 3 | 0 / 1 / 2 | 229.05 / 234.20 s |
+| All 27 cases | 24 / 24 | 14 / 1 / 9 | 4,121.20 / 4,087.00 s |
+
+Totals compare completed pairs and include penalty time. No previously completed
+case was lost. SIOFOK/ANSX under both collision settings and R4K9/GATE with
+original collisions still do not finish within this budget. Of the 24 accepted
+new laps, 21 have zero penalty. ZCT45/AUDI with original collisions has 18 seconds
+of penalty; 4K2020-5/ZMP4 has 18 seconds with original collisions and 36 seconds
+with fixed collisions. The full case table and driving/penalty decomposition are
+in `study/benchmark-release/findings.md` and `penalties.md` in the evidence archive.
+
+The largest improvement is ZCT180/P962 with fixed collisions, 152.10 to 131.20
+seconds, including removal of its previous 12-second penalty. The largest
+regression is ZCT45/AUDI with fixed collisions, 217.45 to 229.00 seconds.
+DEFAULT at 5,000 candidates changes from 72.40 to 74.30 seconds with original
+physics and from 77.90 to 81.15 seconds with all fixes. Its OWOOT result remains
+78.75 seconds, with identical replay bytes. New proposals consume search budget
+and change subsequent refinement, so the catalog does not improve every run.
+
+A separate final-release DEFAULT/PMIN run at 100,000 candidates, seed 1,
+produced **63.55 seconds with zero penalty**, compared with the previous
+release's 64.95-second result at that budget. It starts from `DEFAULT.TRK`, without
+a human seed. Its replay and report are distributed as `DFSTUNT.RPL` and
+`DFSTUNT.RPL.json`; the earlier `DEFPMIN.RPL` and human-assisted `AYR31.RPL`
+remain separate. These fixed-candidate results do not establish 30-minute search
+performance, human-best performance, or optimality.
+
+Independent playback confirms the 63.55-second lap and zero penalty. This sample
+skips the horizontal corkscrew's footprint entirely and does not reach power
+gear: its peak speed is about 153.95 mph, and disabling power gear produces
+identical native states. Its improvement is a route/refinement result, not
+evidence of successful power-gear exploitation.
+
+### Release checks
+
+All seven relevant CTest suites passed after the final search change. The actual
+Linux release reproduced the frozen benchmark candidate's replay bytes, full
+native state streams, scores, and deterministic counters on ZCT181/LM02 under
+both collision settings and R4K9/GATE with collision fixes.
+
+Linux x64 and Windows x64 under Wine produced identical replay bytes and
+deterministic metrics for DEFAULT/PMIN at 5,000 candidates and DEFAULT/COUN
+at 2,000 candidates with OWOOT and all fixes. Both outputs passed independent
+playback; the constrained COUN lap also passed OWOOT validation.
+
+Android ARMv7 debug APK **1.0.3, version code 4**, contains the same source revision.
+The actual packaged native executable ran under QEMU ARM with Android Bionic
+and matched Linux byte-for-byte in three searches: DEFAULT/PMIN with original
+collisions, with collision fixes, and a two-candidate horizontal-corkscrew cut.
+Each replay passed native and independent playback verification. APK signature,
+alignment, API 21 compatibility, debug symbols, and existing software-rendered
+opaque UI configuration were checked. Android lint reported no errors and three
+existing warnings. Scrolling on a physical Galaxy S5 running Android 9 has not
+been tested here.
+
+The evidence archive keeps unsuccessful local probes, slower full laps, and
+rejected prototype comparisons. Use `study/benchmark-release/` for the final
+27-case comparison; `study/benchmark-final/` is an earlier prototype, despite
+its directory name. Artifact manifests distinguish the algorithm commit from
+the subsequent documentation-only commit.
