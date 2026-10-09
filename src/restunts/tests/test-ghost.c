@@ -56,6 +56,7 @@ static legacy_s32 fail_read;
 #ifdef RESTUNTS_SDL3
 static legacy_u32 read_calls;
 static legacy_u8 render_fixture;
+static legacy_u8 line_fixture;
 #endif
 
 struct TEST_FILE {
@@ -200,6 +201,44 @@ static void set_recorded_camera(legacy_s16 frame)
 	state.game_trackside_camera_index[PLAYER_CAR_INDEX] = (legacy_s8)(frame % 8);
 	state.game_pEndFrame = frame >= 2 ? 2 : 0;
 #ifdef RESTUNTS_SDL3
+	if (line_fixture != 0) {
+		legacy_s16 x = 1000;
+		legacy_s16 y = 0;
+		legacy_s16 z = 1000 + frame * (line_fixture == 3 ? 2 : 100);
+		if (line_fixture == 2 && frame > 4) {
+			x += (frame - 4) * 100;
+			z = 1400;
+		}
+		if (line_fixture == 4) {
+			y = frame * 100;
+			z = 1000;
+		}
+		if (line_fixture == 5 && frame >= 4) {
+			z += 10000;
+		}
+		if (line_fixture == 6) {
+			z = 1000;
+		}
+		if (line_fixture == 7) {
+			z = 1000 + (frame % 28) * 1000;
+		}
+		if (line_fixture == 8) {
+			z = 1000 + (frame > 0 ? frame - 1 : 0) * 100;
+		}
+		const legacy_s16 side[4] = {-10, 10, 10, -10};
+		const legacy_s16 front[4] = {20, 20, -20, -20};
+		for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+			state.playerstate.car_wheel_contact_positions[wheel] =
+				(struct VECTOR){x + side[wheel], line_fixture == 4 ? y + front[wheel] : y,
+								line_fixture == 4 ? z : z + front[wheel]};
+			if (line_fixture == 8) {
+				state.playerstate.car_wheel_contact_positions[wheel] =
+					frame == 0 ? (struct VECTOR){x, y, z}
+							   : (struct VECTOR){x, y + side[wheel], z + front[wheel]};
+			}
+		}
+		state.playerstate.car_actual_speed = (40 + frame * 5) * 256;
+	}
 	if (render_fixture != 0) {
 		state.playerstate.car_position.lx = frame * 100L;
 		state.playerstate.car_actual_speed = 1000 + frame;
@@ -438,6 +477,19 @@ static void test_long_recording_and_preparation_failure(void)
 {
 	make_replay("maximum.rpl", GAME_FRAME_RATE_NORMAL, TRACKDATA_REPLAY_INPUT_BUFFER_SIZE, 0);
 	assert(ghost_select_replay(0, (const legacy_s8 *)"maximum") == 0);
+#ifdef RESTUNTS_SDL3
+	/* Unrealistic high travel exhausts the bounded optional cache; the ghost
+	 * still works, no incomplete route is exposed, and preparation can retry. */
+	line_fixture = 7;
+	assert(ghost_prepare_race() == 0);
+	assert(ghost_is_active());
+	for (legacy_s16 south = 0; south < 30; south++) {
+		for (legacy_s16 east = 0; east < 30; east++) {
+			assert(ghost_racing_line_first(east, south) == 0);
+		}
+	}
+	line_fixture = 0;
+#endif
 	struct GAMESTATE before = state;
 	struct GAMEINFO config = gameconfig;
 	fail_write = 1;
@@ -481,6 +533,183 @@ static void test_long_recording_and_preparation_failure(void)
 }
 
 #ifdef RESTUNTS_SDL3
+static legacy_u32 collect_racing_line(const struct GHOST_RACING_LINE_SEGMENT **segments,
+									  legacy_u32 capacity)
+{
+	legacy_u32 count = 0;
+	for (legacy_s16 south = 0; south < 30; south++) {
+		for (legacy_s16 east = 0; east < 30; east++) {
+			for (const struct GHOST_RACING_LINE_SEGMENT *segment =
+					 ghost_racing_line_first(east, south);
+				 segment != 0; segment = ghost_racing_line_next(segment)) {
+				assert(count < capacity);
+				segments[count++] = segment;
+				legacy_s32 x = (segment->start_left.lx + segment->start_right.lx +
+								segment->end_left.lx + segment->end_right.lx) /
+							   4;
+				legacy_s32 z = (segment->start_left.lz + segment->start_right.lz +
+								segment->end_left.lz + segment->end_right.lz) /
+							   4;
+				assert((x >> 16) == east);
+				assert(29 - (z >> 16) == south);
+			}
+		}
+	}
+	return count;
+}
+
+static void test_racing_line_speed_colors(void)
+{
+	legacy_u16 speed = 60U * 256U;
+	assert(ghost_racing_line_color(speed, speed) == GHOST_RACING_LINE_YELLOW);
+	assert(ghost_racing_line_color(speed + 768U, speed) == GHOST_RACING_LINE_YELLOW);
+	assert(ghost_racing_line_color(speed - 768U, speed) == GHOST_RACING_LINE_YELLOW);
+	assert(ghost_racing_line_color(speed + 769U, speed) == GHOST_RACING_LINE_RED);
+	assert(ghost_racing_line_color(speed - 769U, speed) == GHOST_RACING_LINE_GREEN);
+	assert(ghost_racing_line_color(0, 65535U) == GHOST_RACING_LINE_GREEN);
+	assert(ghost_racing_line_color(65535U, 0) == GHOST_RACING_LINE_RED);
+	assert(ghost_racing_line_color(0, 768U) == GHOST_RACING_LINE_YELLOW);
+	assert(ghost_racing_line_color(65535U, 65535U - 768U) == GHOST_RACING_LINE_YELLOW);
+}
+
+static void test_racing_line_sampling_and_lifetime(void)
+{
+	const struct GHOST_RACING_LINE_SEGMENT *segments[64];
+	line_fixture = 1;
+	assert(ghost_select_replay(0, (const legacy_s8 *)"source") == 0);
+	struct GAMESTATE before = state;
+	assert(ghost_prepare_race() == 0);
+	assert(memcmp(&state, &before, sizeof(before)) == 0);
+	/* 800 renderer units = 48.768 metres: 24 complete pieces and a short tail.
+	 * The whole route is present before the ghost or the live car advances. */
+	assert(collect_racing_line(segments, 64) == 25);
+	legacy_u32 full_count = 0;
+	legacy_s32 total_length = 0;
+	for (legacy_u16 index = 0; index < 25; index++) {
+		const struct GHOST_RACING_LINE_SEGMENT *segment = segments[index];
+		legacy_s32 length = segment->end_left.lz - segment->start_left.lz;
+		assert(length > 0 && length <= 2100);
+		if (length >= 2099) {
+			full_count++;
+		}
+		total_length += length;
+		assert(segment->start_left.lx == 998L * 64L);
+		assert(segment->start_right.lx == 1002L * 64L);
+		assert(segment->start_left.ly == 128);
+		assert(segment->end_left.ly == 128);
+		legacy_f64 midpoint = (segment->start_left.lz + segment->end_left.lz) * 0.5;
+		legacy_s32 expected_speed = (legacy_s32)(10240 + (midpoint - 64000) * 0.2 + 0.5);
+		assert((legacy_s32)segment->speed - expected_speed >= -1);
+		assert((legacy_s32)segment->speed - expected_speed <= 1);
+	}
+	assert(full_count == 24 && total_length == 800L * 64L);
+	assert(ghost_racing_line_first(-1, 0) == 0);
+	assert(ghost_racing_line_first(30, 0) == 0);
+	assert(ghost_racing_line_first(0, -1) == 0);
+	assert(ghost_racing_line_first(0, 30) == 0);
+	assert(ghost_racing_line_next(0) == 0);
+	struct GHOST_RACING_LINE_SEGMENT cached = *segments[0];
+	struct CARSTATE ghost_before = *ghost_car_state();
+	legacy_u32 reads = read_calls;
+	legacy_s32 steps = simulation_steps;
+	for (legacy_u16 speed = 0; speed < 200U * 256U; speed += 256U) {
+		(void)ghost_racing_line_color(speed, segments[0]->speed);
+		assert(collect_racing_line(segments, 64) == 25);
+	}
+	assert(read_calls == reads && simulation_steps == steps);
+	assert(memcmp(&cached, segments[0], sizeof(cached)) == 0);
+	assert(memcmp(&ghost_before, ghost_car_state(), sizeof(ghost_before)) == 0);
+	ghost_update(24000, GAME_FRAME_RATE_NORMAL);
+	assert(collect_racing_line(segments, 64) == 25);
+	assert(memcmp(&cached, segments[0], sizeof(cached)) == 0);
+	ghost_update(0, GAME_FRAME_RATE_LOW);
+	assert(collect_racing_line(segments, 64) == 25);
+	assert(memcmp(&cached, segments[0], sizeof(cached)) == 0);
+	ghost_end_race();
+	assert(collect_racing_line(segments, 64) == 0);
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 25);
+	/* A 20 Hz recording produces the same distance samples as the 10 Hz source. */
+	assert(ghost_select_replay(0, (const legacy_s8 *)"render") == 0);
+	assert(collect_racing_line(segments, 64) == 0);
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 25);
+	assert(memcmp(&cached.start_left, &segments[0]->start_left, 4U * sizeof(struct VECTORLONG)) ==
+		   0);
+	assert(cached.speed == segments[0]->speed && cached.next == segments[0]->next);
+	line_fixture = 0;
+}
+
+static void test_racing_line_curves_and_short_recordings(void)
+{
+	const struct GHOST_RACING_LINE_SEGMENT *segments[64];
+	line_fixture = 2;
+	assert(ghost_select_replay(0, (const legacy_s8 *)"source") == 0);
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 25);
+	legacy_u16 turning = 0;
+	for (legacy_u16 index = 0; index < 25; index++) {
+		const struct GHOST_RACING_LINE_SEGMENT *segment = segments[index];
+		if (segment->start_left.lx != segment->end_left.lx &&
+			segment->start_left.lz != segment->end_left.lz) {
+			turning++;
+		}
+	}
+	assert(turning == 1);
+	line_fixture = 3;
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 1);
+	assert(segments[0]->end_left.lz - segments[0]->start_left.lz == 16L * 64L);
+	assert(segments[0]->speed == 60U * 256U);
+	/* A vertical loop face keeps the ribbon in the wheel plane: its lift points
+	 * toward -Z while its width remains across X, rather than floating up Y. */
+	line_fixture = 4;
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 25);
+	for (legacy_u16 index = 0; index < 25; index++) {
+		assert(segments[index]->start_left.lz == 998L * 64L);
+		assert(segments[index]->end_left.lz == 998L * 64L);
+		assert(segments[index]->end_left.ly > segments[index]->start_left.ly);
+	}
+	/* Initialization has coincident wheels. Their real bank becomes available
+	 * while stationary, before the first movement: the initial ribbon endpoint
+	 * must acquire that bank too, rather than keeping the default X/Y axes. */
+	line_fixture = 8;
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 22);
+	legacy_u16 initial_endpoint = 0;
+	for (legacy_u16 index = 0; index < 22; index++) {
+		if (segments[index]->start_left.lz == 1000L * 64L) {
+			initial_endpoint++;
+			assert(segments[index]->start_left.lx == 998L * 64L);
+			assert(segments[index]->start_right.lx == 998L * 64L);
+			assert(segments[index]->start_left.ly == -128);
+			assert(segments[index]->start_right.ly == 128);
+		}
+	}
+	assert(initial_endpoint == 1);
+	line_fixture = 5;
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 23);
+	for (legacy_u16 index = 0; index < 23; index++) {
+		assert(segments[index]->end_left.lz - segments[index]->start_left.lz <= 2100);
+	}
+	line_fixture = 6;
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 0);
+	line_fixture = 1;
+	fail_write = 1;
+	assert(ghost_prepare_race() != 0);
+	fail_write = 0;
+	assert(collect_racing_line(segments, 64) == 0);
+	assert(ghost_prepare_race() == 0);
+	assert(collect_racing_line(segments, 64) == 25);
+	test_track[100]++;
+	ghost_check_track();
+	assert(collect_racing_line(segments, 64) == 0);
+	line_fixture = 0;
+}
+
 static void assert_render_sample(legacy_u32 live_frame, legacy_u16 live_rate, legacy_u32 lag,
 								 legacy_s32 position)
 {
@@ -639,6 +868,9 @@ int main(void)
 #ifdef RESTUNTS_SDL3
 	test_render_sampling();
 	test_render_discontinuities();
+	test_racing_line_speed_colors();
+	test_racing_line_sampling_and_lifetime();
+	test_racing_line_curves_and_short_recordings();
 #endif
 	test_long_recording_and_preparation_failure();
 	test_track_changes_and_cleanup();

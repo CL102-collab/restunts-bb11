@@ -44,6 +44,308 @@ static struct {
 	legacy_u16 upper_frame;
 	legacy_u8 valid;
 } ghost_render_cache;
+
+#define GHOST_LINE_TILE_COUNT 900U
+#define GHOST_LINE_GRID_SIZE 30
+#define GHOST_LINE_NO_SEGMENT ((legacy_u32) - 1)
+#define GHOST_LINE_INITIAL_CAPACITY 1024U
+#define GHOST_LINE_MAX_SEGMENTS 131072UL
+/* Five renderer units per foot, with 64 position units per renderer unit:
+ * 2 metres * 5 * 64 / 0.3048 = 800000 / 381. Keep fractional distance so
+ * rounding each cached coordinate never accumulates along the recording. */
+#define GHOST_LINE_SPACING (800000.0 / 381.0)
+#define GHOST_LINE_HALF_WIDTH 128.0
+#define GHOST_LINE_SURFACE_LIFT 128.0
+#define GHOST_LINE_MAX_FRAME_DISTANCE 131072.0
+
+struct GHOST_LINE_VECTOR {
+	legacy_f64 x, y, z;
+};
+
+struct GHOST_LINE_POSE {
+	struct GHOST_LINE_VECTOR center;
+	struct GHOST_LINE_VECTOR right;
+	struct GHOST_LINE_VECTOR up;
+	legacy_f64 speed;
+	legacy_u8 has_orientation;
+};
+
+static struct GHOST_RACING_LINE_SEGMENT *ghost_line_segments;
+static legacy_u32 ghost_line_count;
+static legacy_u32 ghost_line_capacity;
+static legacy_u32 ghost_line_heads[GHOST_LINE_TILE_COUNT];
+static struct {
+	struct GHOST_LINE_POSE previous;
+	struct GHOST_LINE_POSE sample;
+	legacy_f64 distance;
+	legacy_f64 midpoint_speed;
+	legacy_u8 initialized;
+	legacy_u8 failed;
+} ghost_line_builder;
+
+static void ghost_line_clear(void)
+{
+	free(ghost_line_segments);
+	ghost_line_segments = 0;
+	ghost_line_count = 0;
+	ghost_line_capacity = 0;
+	ghost_line_builder.initialized = 0;
+	ghost_line_builder.failed = 0;
+	for (legacy_u16 tile = 0; tile < GHOST_LINE_TILE_COUNT; tile++) {
+		ghost_line_heads[tile] = GHOST_LINE_NO_SEGMENT;
+	}
+}
+
+/* Normalize before Newton iteration, keeping its input in [1,3]. This avoids
+ * an SDL dependency in the standalone ghost tests and remains finite even
+ * for invalid recorded coordinates. Eight iterations exceed double precision. */
+static legacy_f64 ghost_line_length(struct GHOST_LINE_VECTOR vector)
+{
+	legacy_f64 x = vector.x < 0 ? -vector.x : vector.x;
+	legacy_f64 y = vector.y < 0 ? -vector.y : vector.y;
+	legacy_f64 z = vector.z < 0 ? -vector.z : vector.z;
+	legacy_f64 scale = x > y ? x : y;
+	if (z > scale) {
+		scale = z;
+	}
+	if (scale == 0) {
+		return 0;
+	}
+	x /= scale;
+	y /= scale;
+	z /= scale;
+	legacy_f64 square = x * x + y * y + z * z;
+	legacy_f64 root = 2;
+	for (legacy_u16 iteration = 0; iteration < 8U; iteration++) {
+		root = (root + square / root) * 0.5;
+	}
+	return root * scale;
+}
+
+static legacy_s16 ghost_line_normalize(struct GHOST_LINE_VECTOR *vector)
+{
+	legacy_f64 length = ghost_line_length(*vector);
+	if (length < 0.000001) {
+		return 0;
+	}
+	vector->x /= length;
+	vector->y /= length;
+	vector->z /= length;
+	return 1;
+}
+
+static struct GHOST_LINE_VECTOR ghost_line_blend(struct GHOST_LINE_VECTOR first,
+												 struct GHOST_LINE_VECTOR second,
+												 legacy_f64 fraction)
+{
+	struct GHOST_LINE_VECTOR result = {first.x + (second.x - first.x) * fraction,
+									   first.y + (second.y - first.y) * fraction,
+									   first.z + (second.z - first.z) * fraction};
+	return result;
+}
+
+static struct GHOST_LINE_POSE ghost_line_pose(const struct CARSTATE *car)
+{
+	struct GHOST_LINE_POSE pose = {0};
+	const struct VECTOR *wheel = car->car_wheel_contact_positions;
+	/* Wheels are clockwise: front-left, front-right, rear-right, rear-left. */
+	for (legacy_u16 index = 0; index < CARSTATE_WHEEL_COUNT; index++) {
+		pose.center.x += (legacy_f64)wheel[index].x * 16;
+		pose.center.y += (legacy_f64)wheel[index].y * 16;
+		pose.center.z += (legacy_f64)wheel[index].z * 16;
+	}
+	pose.right.x = (legacy_f64)wheel[1].x + wheel[2].x - wheel[0].x - wheel[3].x;
+	pose.right.y = (legacy_f64)wheel[1].y + wheel[2].y - wheel[0].y - wheel[3].y;
+	pose.right.z = (legacy_f64)wheel[1].z + wheel[2].z - wheel[0].z - wheel[3].z;
+	struct GHOST_LINE_VECTOR forward = {
+		(legacy_f64)wheel[0].x + wheel[1].x - wheel[2].x - wheel[3].x,
+		(legacy_f64)wheel[0].y + wheel[1].y - wheel[2].y - wheel[3].y,
+		(legacy_f64)wheel[0].z + wheel[1].z - wheel[2].z - wheel[3].z};
+	pose.up.x = forward.y * pose.right.z - forward.z * pose.right.y;
+	pose.up.y = forward.z * pose.right.x - forward.x * pose.right.z;
+	pose.up.z = forward.x * pose.right.y - forward.y * pose.right.x;
+	pose.has_orientation = ghost_line_normalize(&pose.right) && ghost_line_normalize(&pose.up);
+	if (!pose.has_orientation) {
+		pose.right = (struct GHOST_LINE_VECTOR){1, 0, 0};
+		pose.up = (struct GHOST_LINE_VECTOR){0, 1, 0};
+	}
+	pose.speed = car->car_actual_speed;
+	return pose;
+}
+
+static struct GHOST_LINE_POSE ghost_line_interpolate(const struct GHOST_LINE_POSE *first,
+													 const struct GHOST_LINE_POSE *second,
+													 legacy_f64 fraction)
+{
+	struct GHOST_LINE_POSE result;
+	result.center = ghost_line_blend(first->center, second->center, fraction);
+	result.right = ghost_line_blend(first->right, second->right, fraction);
+	result.up = ghost_line_blend(first->up, second->up, fraction);
+	if (!ghost_line_normalize(&result.right)) {
+		result.right = first->right;
+	}
+	if (!ghost_line_normalize(&result.up)) {
+		result.up = first->up;
+	}
+	result.speed = first->speed + (second->speed - first->speed) * fraction;
+	result.has_orientation = 1;
+	return result;
+}
+
+static legacy_s32 ghost_line_round(legacy_f64 coordinate)
+{
+	return (legacy_s32)(coordinate + (coordinate < 0 ? -0.5 : 0.5));
+}
+
+static struct VECTORLONG ghost_line_edge(const struct GHOST_LINE_POSE *pose, legacy_f64 side)
+{
+	struct VECTORLONG result = {ghost_line_round(pose->center.x + pose->right.x * side +
+												 pose->up.x * GHOST_LINE_SURFACE_LIFT),
+								ghost_line_round(pose->center.y + pose->right.y * side +
+												 pose->up.y * GHOST_LINE_SURFACE_LIFT),
+								ghost_line_round(pose->center.z + pose->right.z * side +
+												 pose->up.z * GHOST_LINE_SURFACE_LIFT)};
+	return result;
+}
+
+static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 speed)
+{
+	legacy_f64 x = (ghost_line_builder.sample.center.x + end->center.x) * 0.5;
+	legacy_f64 z = (ghost_line_builder.sample.center.z + end->center.z) * 0.5;
+	if (x < 0 || z < 0 || x >= GHOST_LINE_GRID_SIZE * 65536.0 ||
+		z >= GHOST_LINE_GRID_SIZE * 65536.0 || ghost_line_builder.failed) {
+		return;
+	}
+	if (ghost_line_count == ghost_line_capacity) {
+		legacy_u32 capacity =
+			ghost_line_capacity == 0 ? GHOST_LINE_INITIAL_CAPACITY : ghost_line_capacity * 2U;
+		struct GHOST_RACING_LINE_SEGMENT *segments = 0;
+		if (capacity <= GHOST_LINE_MAX_SEGMENTS) {
+			segments = realloc(ghost_line_segments, capacity * sizeof(*segments));
+		}
+		if (segments == 0) {
+			/* An optional visual must not break replay physics or retain a partial
+			 * route after an allocation failure or an unreasonable recording. */
+			ghost_line_clear();
+			ghost_line_builder.failed = 1;
+			return;
+		}
+		ghost_line_segments = segments;
+		ghost_line_capacity = capacity;
+	}
+	legacy_u16 east = (legacy_u16)(x / 65536.0);
+	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U - (legacy_u16)(z / 65536.0);
+	legacy_u16 tile = south * GHOST_LINE_GRID_SIZE + east;
+	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
+	segment->start_left = ghost_line_edge(&ghost_line_builder.sample, -GHOST_LINE_HALF_WIDTH);
+	segment->start_right = ghost_line_edge(&ghost_line_builder.sample, GHOST_LINE_HALF_WIDTH);
+	segment->end_left = ghost_line_edge(end, -GHOST_LINE_HALF_WIDTH);
+	segment->end_right = ghost_line_edge(end, GHOST_LINE_HALF_WIDTH);
+	segment->speed = (legacy_u16)(speed + 0.5);
+	segment->next = ghost_line_heads[tile];
+	ghost_line_heads[tile] = ghost_line_count++;
+}
+
+static void ghost_line_finish(void)
+{
+	if (ghost_line_builder.initialized && !ghost_line_builder.failed &&
+		ghost_line_builder.distance > 1.0) {
+		ghost_line_append(&ghost_line_builder.previous,
+						  (ghost_line_builder.sample.speed + ghost_line_builder.previous.speed) *
+							  0.5);
+		ghost_line_builder.distance = 0;
+	}
+}
+
+static void ghost_line_record(const struct CARSTATE *car)
+{
+	if (ghost_line_builder.failed) {
+		return;
+	}
+	struct GHOST_LINE_POSE current = ghost_line_pose(car);
+	if (!ghost_line_builder.initialized) {
+		ghost_line_builder.previous = current;
+		ghost_line_builder.sample = current;
+		ghost_line_builder.distance = 0;
+		ghost_line_builder.initialized = 1;
+		return;
+	}
+	struct GHOST_LINE_POSE *previous = &ghost_line_builder.previous;
+	struct GHOST_LINE_VECTOR delta = {current.center.x - previous->center.x,
+									  current.center.y - previous->center.y,
+									  current.center.z - previous->center.z};
+	legacy_f64 length = ghost_line_length(delta);
+	/* Initialized wheel contacts can coincide until the first physics tick.
+	 * Adopt their real orientation even if that tick does not move the car. */
+	if (!previous->has_orientation && current.has_orientation) {
+		previous->right = current.right;
+		previous->up = current.up;
+		previous->has_orientation = 1;
+		if (ghost_line_builder.distance == 0) {
+			ghost_line_builder.sample = *previous;
+		}
+	}
+	if (length > GHOST_LINE_MAX_FRAME_DISTANCE) {
+		/* Never draw a chord across a teleport or corrupt wheel coordinates. */
+		ghost_line_finish();
+		ghost_line_builder.sample = current;
+		ghost_line_builder.distance = 0;
+	} else if (length > 0) {
+		legacy_f64 consumed = 0;
+		while (consumed < length && !ghost_line_builder.failed) {
+			legacy_f64 remaining = GHOST_LINE_SPACING - ghost_line_builder.distance;
+			legacy_f64 step = length - consumed < remaining ? length - consumed : remaining;
+			if (ghost_line_builder.distance <= GHOST_LINE_SPACING * 0.5 &&
+				ghost_line_builder.distance + step >= GHOST_LINE_SPACING * 0.5) {
+				legacy_f64 fraction =
+					(consumed + GHOST_LINE_SPACING * 0.5 - ghost_line_builder.distance) / length;
+				ghost_line_builder.midpoint_speed =
+					previous->speed + (current.speed - previous->speed) * fraction;
+			}
+			consumed += step;
+			ghost_line_builder.distance += step;
+			if (ghost_line_builder.distance >= GHOST_LINE_SPACING - 0.000001) {
+				struct GHOST_LINE_POSE sample =
+					ghost_line_interpolate(previous, &current, consumed / length);
+				ghost_line_append(&sample, ghost_line_builder.midpoint_speed);
+				ghost_line_builder.sample = sample;
+				ghost_line_builder.distance = 0;
+			}
+		}
+	}
+	ghost_line_builder.previous = current;
+}
+
+const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south)
+{
+	if (!ghost_is_active() || east < 0 || south < 0 || east >= GHOST_LINE_GRID_SIZE ||
+		south >= GHOST_LINE_GRID_SIZE || ghost_line_count == 0) {
+		return 0;
+	}
+	legacy_u32 index = ghost_line_heads[south * GHOST_LINE_GRID_SIZE + east];
+	return index == GHOST_LINE_NO_SEGMENT ? 0 : &ghost_line_segments[index];
+}
+
+const struct GHOST_RACING_LINE_SEGMENT *
+ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment)
+{
+	if (!ghost_is_active() || segment == 0 || segment->next >= ghost_line_count) {
+		return 0;
+	}
+	return &ghost_line_segments[segment->next];
+}
+
+legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed)
+{
+	legacy_s32 difference = (legacy_s32)current_speed - recorded_speed;
+	if (difference > 3 * 256) {
+		return GHOST_RACING_LINE_RED;
+	}
+	if (difference < -(3 * 256)) {
+		return GHOST_RACING_LINE_GREEN;
+	}
+	return GHOST_RACING_LINE_YELLOW;
+}
 #endif
 
 static legacy_s16 ghost_seek(legacy_u16 file, legacy_s32 offset)
@@ -62,6 +364,7 @@ void ghost_end_race(void)
 	ghost_pose_valid = 0;
 #ifdef RESTUNTS_SDL3
 	ghost_render_cache.valid = 0;
+	ghost_line_clear();
 #endif
 }
 
@@ -361,6 +664,9 @@ legacy_s16 ghost_prepare_race(void)
 			update_gamestate_silent();
 		}
 		ghost_pose.car = state.playerstate;
+#ifdef RESTUNTS_SDL3
+		ghost_line_record(&state.playerstate);
+#endif
 		ghost_pose.camera.follow_position = state.game_follow_camera_position[PLAYER_CAR_INDEX];
 		ghost_pose.camera.previous_position = state.game_player_camera_previous;
 		ghost_pose.camera.trackside_index = state.game_trackside_camera_index[PLAYER_CAR_INDEX];
@@ -392,8 +698,14 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_render_player_headings_active = saved_render_headings;
 	init_kevinrandom(seed);
 	if (!succeeded) {
+#ifdef RESTUNTS_SDL3
+		ghost_line_clear();
+#endif
 		return 1;
 	}
+#ifdef RESTUNTS_SDL3
+	ghost_line_finish();
+#endif
 	ghost_active = 1;
 	ghost_update(0, framespersec);
 	return ghost_pose_valid ? 0 : 1;

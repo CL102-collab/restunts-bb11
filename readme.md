@@ -399,6 +399,15 @@ it stays in its final position. Restarting or rewinding keeps it synchronized
 with your race time. Press **T** to switch between your view and the ghost's
 view; **F1** through **F4** select the camera mode for either car.
 
+SDL builds, including Android, also show the ghost's racing line. It follows
+the recorded path even when the ghost is too far ahead to see. Each 2-meter
+section compares the ghost's speed there with your current speed: **red** means
+you are more than 3 MPH faster and should slow down, **green** means you are
+more than 3 MPH slower and should accelerate, and **yellow** means you are
+within 3 MPH either way. The colors update as your speed changes. The line has
+the width of the road's center markings, so it appears wider nearby and narrower
+in the distance, and follows the recorded slopes and banking.
+
 Choose **Clock** again to remove the ghost. Loading a different track, changing
 its layout in the editor, or selecting an AI opponent also clears the ghost.
 Canceling the replay picker keeps the previous selection. The ghost selection

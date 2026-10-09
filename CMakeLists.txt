@@ -508,6 +508,15 @@ if(RESTUNTS_BUILD_TESTS)
         add_test(NAME render-replay COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-replay.py"
             "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
+        add_executable(test-ghost-racing-line ${platform}/main.c
+            src/restunts/tests/test-ghost-racing-line.c)
+        target_compile_definitions(test-ghost-racing-line PRIVATE RESTUNTS_PIXLDUMP)
+        target_link_libraries(test-ghost-racing-line PRIVATE restunts_game)
+        target_compile_options(test-ghost-racing-line PRIVATE -UNDEBUG)
+        add_test(NAME ghost-racing-line COMMAND test-ghost-racing-line
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts" DEFAULT)
+        set_tests_properties(ghost-racing-line PROPERTIES
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE=")
         add_executable(benchmark-hypervision EXCLUDE_FROM_ALL ${platform}/main.c
             src/restunts/benchmarks/benchmark-hypervision.c)
         target_compile_definitions(benchmark-hypervision PRIVATE RESTUNTS_PIXLDUMP)

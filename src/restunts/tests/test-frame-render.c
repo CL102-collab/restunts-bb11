@@ -54,6 +54,48 @@ static legacy_s16 shadow_count, shadow_begin_count, shadow_projection_count;
 static legacy_s16 shadow_frame_active;
 static legacy_s16 car_ground_offsets[2];
 
+#define RACING_LINE_TEST_SEGMENTS 125U
+#define RACING_LINE_TEST_BATCHES 8U
+static struct GHOST_RACING_LINE_SEGMENT racing_line_segments[RACING_LINE_TEST_SEGMENTS];
+static legacy_s16 racing_line_east[RACING_LINE_TEST_SEGMENTS];
+static legacy_s16 racing_line_south[RACING_LINE_TEST_SEGMENTS];
+static legacy_u32 racing_line_segment_count, racing_line_bucket_reads;
+static legacy_u8 racing_line_capture_enabled;
+static legacy_s16 racing_line_transform_result;
+static legacy_u32 racing_line_batch_count;
+static struct {
+	struct TRANSFORMEDSHAPE3D instance;
+	legacy_u16 count;
+	legacy_s16 order;
+	struct VECTOR vertices[248];
+	legacy_u8 paints[FRAME_RACING_LINE_BATCH_SIZE];
+} racing_line_batches[RACING_LINE_TEST_BATCHES];
+
+const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south)
+{
+	racing_line_bucket_reads++;
+	for (legacy_u32 index = 0; index < racing_line_segment_count; index++) {
+		if (racing_line_east[index] == east && racing_line_south[index] == south) {
+			return &racing_line_segments[index];
+		}
+	}
+	return 0;
+}
+
+const struct GHOST_RACING_LINE_SEGMENT *
+ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment)
+{
+	return segment->next < racing_line_segment_count ? &racing_line_segments[segment->next] : 0;
+}
+
+legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed)
+{
+	legacy_s32 difference = (legacy_s32)current_speed - recorded_speed;
+	return difference > 768	   ? GHOST_RACING_LINE_RED
+		   : difference < -768 ? GHOST_RACING_LINE_GREEN
+							   : GHOST_RACING_LINE_YELLOW;
+}
+
 legacy_s16 shape3d_car_ground_offset(const struct SHAPE3D *shape)
 {
 	assert(shape == &game3dshapes[PLAYER_CAR_WHEEL_SHAPE] ||
@@ -163,6 +205,11 @@ void shape2d_draw_scaled_transparent_clipped(legacy_s16 scale, struct SHAPE2D fa
 struct CARSTATE *ghost_car_state(void)
 {
 	return ghost_fixture_active != 0 ? &ghost_fixture : 0;
+}
+
+legacy_s16 ghost_is_active(void)
+{
+	return ghost_fixture_active != 0 && gameconfig.game_opponenttype == 0;
 }
 
 const struct GHOST_CAMERA_STATE *ghost_camera_state(void)
@@ -290,6 +337,39 @@ static void trace_shape(const struct TRANSFORMEDSHAPE3D *shape)
 
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *shape)
 {
+#if defined(RESTUNTS_SDL3)
+	if (racing_line_capture_enabled != 0 &&
+		((uintptr_t)shape->shapeptr < (uintptr_t)game3dshapes ||
+		 (uintptr_t)shape->shapeptr >= (uintptr_t)(game3dshapes + 130))) {
+		assert(racing_line_batch_count < RACING_LINE_TEST_BATCHES);
+		legacy_u32 batch = racing_line_batch_count++;
+		racing_line_batches[batch].instance = *shape;
+		racing_line_batches[batch].count = shape->shapeptr->shape3d_numprimitives;
+		racing_line_batches[batch].order = ++transform_count;
+		assert(shape->shapeptr->shape3d_numverts <= 248);
+		assert(shape->shapeptr->shape3d_numverts == 8 + 4 * racing_line_batches[batch].count);
+		assert(racing_line_batches[batch].count <= FRAME_RACING_LINE_BATCH_SIZE);
+		for (legacy_u16 vertex = 0; vertex < shape->shapeptr->shape3d_numverts; vertex++) {
+			const legacy_u8 *source = shape->shapeptr->shape3d_vertex_bytes + vertex * 6;
+			racing_line_batches[batch].vertices[vertex] =
+				(struct VECTOR){LEGACY_READ_S16_LE(source), LEGACY_READ_S16_LE(source + 2),
+								LEGACY_READ_S16_LE(source + 4)};
+		}
+		for (legacy_u16 polygon = 0; polygon < racing_line_batches[batch].count; polygon++) {
+			const legacy_u8 *primitive = shape->shapeptr->shape3d_primitives + polygon * 7;
+			assert(primitive[0] == 4 && primitive[1] == 1);
+			racing_line_batches[batch].paints[polygon] = primitive[2];
+			for (legacy_u16 vertex = 0; vertex < 4; vertex++) {
+				assert(primitive[3 + vertex] == 8 + polygon * 4 + vertex);
+			}
+		}
+		assert(shape->shapeptr->shape3d_primitives[racing_line_batches[batch].count * 7] == 0);
+		/* Check both bytes after full and partial batches: an invisible final
+		 * polygon makes the classic renderer read these flags before the type. */
+		assert(shape->shapeptr->shape3d_primitives[racing_line_batches[batch].count * 7 + 1] == 0);
+		return (legacy_u16)racing_line_transform_result;
+	}
+#endif
 	trace_word(4);
 	trace_shape(shape);
 	trace_word(backlights_paint_override);
@@ -323,6 +403,16 @@ void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct V
 
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source)
 {
+#if defined(RESTUNTS_SDL3)
+	if (shape != &game3dshapes[111]) {
+		assert(racing_line_capture_enabled != 0);
+		legacy_u8 *destination = shape->shape3d_vertex_bytes + index * SHAPE3D_VERTEX_SIZE;
+		LEGACY_WRITE_U16_LE(destination, (legacy_u16)source->x);
+		LEGACY_WRITE_U16_LE(destination + 2, (legacy_u16)source->y);
+		LEGACY_WRITE_U16_LE(destination + 4, (legacy_u16)source->z);
+		return;
+	}
+#endif
 	assert(shape == &game3dshapes[111]);
 	trace_word(6);
 	trace_word(index);
@@ -537,7 +627,7 @@ static void test_sorted_shapes(void)
 		}
 		transform_stop_at = (scenario / 5U) % 4U;
 		rejected_shape = scenario % 4U;
-		frame_draw_sorted_shapes(cars);
+		frame_draw_sorted_shapes(cars, 0, 0, 0);
 		trace_word(cars[0].explosion_visible);
 		trace_word(cars[1].explosion_visible);
 	}
@@ -663,7 +753,7 @@ static void test_ghost_uses_independent_visual_state(void)
 	assert(currenttransshape[0].shapeptr == &game3dshapes[OPPONENT_CAR_HIGH_SHAPE]);
 	assert((currenttransshape[0].ts_flags & SHAPE3D_GHOST_FLAG) != 0U);
 	assert(currenttransshape[0].pos.x == position_to_word(ghost_fixture.car_position.lx));
-	frame_draw_sorted_shapes(cars);
+	frame_draw_sorted_shapes(cars, 0, 0, 0);
 	assert(cars[OPPONENT_CAR_INDEX].explosion_visible == 0);
 	assert(memcmp(&state, &original_state, sizeof(state)) == 0);
 	assert(gameconfig.game_opponenttype == 0);
@@ -841,7 +931,7 @@ static void test_prediction_uses_authoritative_events(void)
 						expected_flags |= SHAPE3D_GHOST_FLAG;
 					}
 					assert(currenttransshape[0].ts_flags == expected_flags);
-					frame_draw_sorted_shapes(cars);
+					frame_draw_sorted_shapes(cars, 0, 0, 0);
 					assert(cars[car_index].explosion_visible ==
 						   (real_event == CRASH_EVENT_COLLISION && viewed != 2));
 				}
@@ -1174,7 +1264,7 @@ static void test_supersight_capacity_retries(void)
 		curtransshape_ptr->shapeptr = &game3dshapes[0];
 		transformed_shape_add_for_sort(i == 0 ? -2048 : 0, 0);
 	}
-	frame_draw_sorted_shapes(cars);
+	frame_draw_sorted_shapes(cars, 0, 0, 0);
 	for (legacy_s16 i = 0; i < transformedshape_counter; i++) {
 		assert(transformedshape_indices[i] == i);
 	}
@@ -2130,6 +2220,117 @@ static void test_adaptive_detached_particles(void)
 	frame_adaptive_active = shadow_frame_active = supersight_enabled = 0;
 }
 
+static void test_racing_line_batches_and_sorting(void)
+{
+	struct FRAME_CAR_RENDER cars[2] = {0};
+	struct FRAME_CAMERA camera = {0};
+	camera.position = (struct VECTOR){4000, 100, 7000};
+	struct FRAME_TILE tile = {0};
+	tile.east = tile.last_east = 4;
+	tile.south = tile.last_south = 22;
+	tile.element = 1;
+	tile.position = (struct VECTOR){500, -100, 1000};
+	struct GAMESTATE presentation = {0};
+	presentation.playerstate.car_actual_speed = 60 * 256;
+	frame_state = &presentation;
+	gameconfig.game_opponenttype = 0;
+	racing_line_capture_enabled = 1;
+	racing_line_segment_count = RACING_LINE_TEST_SEGMENTS;
+	for (legacy_u32 index = 0; index < racing_line_segment_count; index++) {
+		struct GHOST_RACING_LINE_SEGMENT *segment = &racing_line_segments[index];
+		segment->start_left = (struct VECTORLONG){4498 * 64, (legacy_s32)index * 64,
+												  (8000 + (legacy_s32)index * 33) * 64};
+		segment->start_right = segment->start_left;
+		segment->start_right.lx += 4 * 64;
+		segment->end_left = segment->start_left;
+		segment->end_left.lz += 33 * 64;
+		segment->end_right = segment->start_right;
+		segment->end_right.lz += 33 * 64;
+		segment->speed = (legacy_u16)((50 + index % 3 * 10) * 256);
+		segment->next = index + 1;
+		racing_line_east[index] = tile.east;
+		racing_line_south[index] = tile.south;
+	}
+	reset_shapes();
+	transform_capacity = 0;
+	racing_line_bucket_reads = racing_line_batch_count = 0;
+	ghost_fixture_active = 0;
+	assert(frame_draw_sorted_shapes(cars, &tile, &camera, 8) == 0);
+	assert(racing_line_bucket_reads == 0 && racing_line_batch_count == 0);
+	ghost_fixture_active = 1;
+	for (legacy_s16 mode = 0; mode < 2; mode++) {
+		supersight_enabled = mode;
+		racing_line_batch_count = 0;
+		struct GAMESTATE saved = presentation;
+		assert(frame_draw_sorted_shapes(cars, &tile, &camera, 8) == 0);
+		assert(memcmp(&saved, &presentation, sizeof(saved)) == 0);
+		assert(racing_line_batch_count == 3);
+		legacy_u32 segments = 0;
+		static const legacy_u8 expected_paints[] = {12, 14, 10};
+		for (legacy_u32 batch = 0; batch < racing_line_batch_count; batch++) {
+			assert(racing_line_batches[batch].count == (batch == 2 ? 5 : 60));
+			assert(racing_line_batches[batch].instance.rectptr == &frame_sorted_shapes_rect);
+			assert((racing_line_batches[batch].instance.ts_flags &
+					(SHAPE3D_NO_SHADOW_RECEIVE_FLAG | 8)) == (SHAPE3D_NO_SHADOW_RECEIVE_FLAG | 8));
+			for (legacy_u32 segment = 0; segment < racing_line_batches[batch].count; segment++) {
+				assert(racing_line_batches[batch].paints[segment] == expected_paints[segments % 3]);
+				const struct VECTOR *vertices = racing_line_batches[batch].vertices;
+				assert(vertices[8 + segment * 4].x == -2);
+				assert(vertices[9 + segment * 4].x == 2);
+				assert(vertices[8 + segment * 4].y == (legacy_s16)segments);
+				assert(vertices[8 + segment * 4].z == (legacy_s16)(segments * 33));
+				for (legacy_u32 corner = 0; corner < 4; corner++) {
+					const struct VECTOR *vertex = &vertices[8 + segment * 4 + corner];
+					assert(vertex->x >= vertices[0].x && vertex->x <= vertices[7].x);
+					assert(vertex->y >= vertices[0].y && vertex->y <= vertices[7].y);
+					assert(vertex->z >= vertices[0].z && vertex->z <= vertices[7].z);
+				}
+				segments++;
+			}
+		}
+		assert(segments == RACING_LINE_TEST_SEGMENTS);
+	}
+
+	/* A multitile piece must retain guidance in all of its covered cells. */
+	racing_line_segment_count = 4;
+	tile.last_east++;
+	tile.last_south++;
+	for (legacy_u32 index = 0; index < racing_line_segment_count; index++) {
+		racing_line_east[index] = tile.east + (index & 1U);
+		racing_line_south[index] = tile.south + (index >> 1);
+		racing_line_segments[index].next = RACING_LINE_TEST_SEGMENTS;
+	}
+	racing_line_batch_count = 0;
+	assert(frame_draw_sorted_shapes(cars, &tile, &camera, 0) == 0);
+	assert(racing_line_batch_count == 4);
+
+	/* Guidance merges after the road and before a nearer car without consuming
+	 * any of the fixed shape slots. A failed optional batch preserves the car. */
+	tile.last_east = tile.east;
+	tile.last_south = tile.south;
+	racing_line_segment_count = 1;
+	supersight_enabled = 0;
+	for (legacy_s16 result = -1; result <= 1; result++) {
+		reset_shapes();
+		racing_line_batch_count = 0;
+		racing_line_transform_result = result;
+		transformedshape_counter = 29;
+		for (legacy_s16 index = 0; index < 29; index++) {
+			currenttransshape[index].shapeptr = &game3dshapes[index];
+			transformed_shape_sort_types[index] = 0;
+			transformedshape_indices[index] = index;
+			transformedshape_zarray[index] = index == 0 ? 1000 : 700 - index;
+		}
+		assert(frame_draw_sorted_shapes(cars, &tile, &camera, 0) == 0);
+		assert(transformedshape_counter == 29 && transform_count == 30);
+		assert(racing_line_batch_count == 1 && racing_line_batches[0].order == 2);
+	}
+	racing_line_capture_enabled = ghost_fixture_active = 0;
+	racing_line_segment_count = 0;
+	racing_line_transform_result = 0;
+	frame_state = &state;
+}
+
 #endif
 
 legacy_int main(void)
@@ -2167,6 +2368,7 @@ legacy_int main(void)
 	test_adaptive_car_submission_near_track_edge();
 	test_adaptive_car_footprint_and_fallback();
 	test_adaptive_detached_particles();
+	test_racing_line_batches_and_sorting();
 #endif
 	puts("Frame rendering snapshots, ghost isolation and SuperSight passed.");
 	return 0;

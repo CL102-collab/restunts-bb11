@@ -28,6 +28,29 @@ void ghost_update(legacy_u32 frame, legacy_u16 live_frame_rate);
 struct CARSTATE *ghost_car_state(void);
 const struct GHOST_CAMERA_STATE *ghost_camera_state(void);
 #ifdef RESTUNTS_SDL3
+enum GHOST_RACING_LINE_COLOR {
+	GHOST_RACING_LINE_RED = 0,
+	GHOST_RACING_LINE_YELLOW = 1,
+	GHOST_RACING_LINE_GREEN = 2
+};
+
+/* Immutable, two-metre ribbon pieces in CARSTATE position units (64 per
+ * renderer unit). Wheel contacts provide banking and a small surface lift.
+ * `speed` is MPH * 256; `next` is private to the tile-bucket iterator. */
+struct GHOST_RACING_LINE_SEGMENT {
+	struct VECTORLONG start_left;
+	struct VECTORLONG start_right;
+	struct VECTORLONG end_left;
+	struct VECTORLONG end_right;
+	legacy_u16 speed;
+	legacy_u32 next;
+};
+
+const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south);
+const struct GHOST_RACING_LINE_SEGMENT *
+ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment);
+legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed);
+
 /* Sample cached recorded poses at (live_frame - lag / 65536) / live_frame_rate.
  * This presentation-only read never advances physics or changes the live ghost.
  * Failure leaves both outputs untouched. Start/end times clamp to the replay. */
