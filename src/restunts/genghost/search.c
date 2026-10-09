@@ -103,6 +103,12 @@ static double elapsed(const struct search_context *context)
 
 static int expired(const struct search_context *context)
 {
+	if (context->options->progress) {
+		context->result->elapsed_seconds = elapsed(context);
+		if (context->options->progress(context->result, context->options->progress_context)) {
+			return 1;
+		}
+	}
 	return genghost_interrupted ||
 		   (context->options->seconds > 0.0 && elapsed(context) >= context->options->seconds) ||
 		   (context->options->evaluations &&

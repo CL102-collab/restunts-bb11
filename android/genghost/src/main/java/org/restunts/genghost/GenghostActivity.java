@@ -68,6 +68,7 @@ public final class GenghostActivity extends Activity {
     private Spinner car;
     private Spinner transmission;
     private EditText minutes;
+    private EditText cores;
     private CheckBox powerGear;
     private CheckBox collision;
     private CheckBox leftBias;
@@ -132,6 +133,16 @@ public final class GenghostActivity extends Activity {
         minutes.setSelectAllOnFocus(true);
         page.addView(minutes, fullWidth());
         text(page, "The best completed replay is kept as the search improves it.", 14);
+        label(page, "CPU cores");
+        cores = new EditText(this);
+        cores.setSingleLine(true);
+        cores.setInputType(InputType.TYPE_CLASS_NUMBER);
+        cores.setText(preferences.getString("cores",
+            Integer.toString(GenerationRequest.DEFAULT_CORES)));
+        cores.setSelectAllOnFocus(true);
+        page.addView(cores, fullWidth());
+        text(page, "1 uses one core; 0 uses all available cores. More cores use more memory "
+            + "and battery.", 14);
         label(page, "Transmission");
         transmission = spinner(page, Arrays.asList("Follow replay; otherwise manual", "Manual",
             "Automatic"));
@@ -297,6 +308,7 @@ public final class GenghostActivity extends Activity {
     private void saveOptions() {
         SharedPreferences.Editor changes = preferences.edit()
             .putString("minutes", minutes.getText().toString())
+            .putString("cores", cores.getText().toString())
             .putInt("transmission", transmission.getSelectedItemPosition())
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
@@ -334,6 +346,7 @@ public final class GenghostActivity extends Activity {
         track.setEnabled(!busy && !availableTracks.isEmpty());
         car.setEnabled(!busy && !availableCars.isEmpty());
         minutes.setEnabled(!busy);
+        cores.setEnabled(!busy);
         transmission.setEnabled(!busy);
         powerGear.setEnabled(!busy);
         collision.setEnabled(!busy);
@@ -351,6 +364,8 @@ public final class GenghostActivity extends Activity {
         if (generation.running) {
             long elapsed = Math.max(0, (System.currentTimeMillis() - generation.startTimeMillis) / 1000);
             message += String.format(Locale.ROOT, "\nElapsed %d:%02d", elapsed / 60, elapsed % 60);
+            message += "\nCPU cores: " + (generation.cores == 0
+                ? "all available" : Integer.toString(generation.cores));
         }
         runStatus.setText(message);
         String currentLog = generation.log == null ? "" : generation.log;
@@ -464,6 +479,7 @@ public final class GenghostActivity extends Activity {
 
     private void startGeneration() {
         int budget;
+        int searchCores;
         try {
             budget = Integer.parseInt(minutes.getText().toString().trim());
             if (budget < 1 || budget > 1440) {
@@ -472,6 +488,17 @@ public final class GenghostActivity extends Activity {
         } catch (NumberFormatException error) {
             minutes.setError("Enter between 1 and 1440 minutes.");
             minutes.requestFocus();
+            return;
+        }
+        try {
+            searchCores = Integer.parseInt(cores.getText().toString().trim());
+            if (searchCores < 0 || searchCores > GenerationRequest.MAX_CORES) {
+                throw new NumberFormatException();
+            }
+        } catch (NumberFormatException error) {
+            cores.setError("Enter 1 to " + GenerationRequest.MAX_CORES
+                + " cores, or 0 for all available cores.");
+            cores.requestFocus();
             return;
         }
         List<String> flags = new ArrayList<>();
@@ -492,7 +519,7 @@ public final class GenghostActivity extends Activity {
         }
         try {
             GeneratorService.start(this, new GenerationRequest(selected(track), selected(car),
-                budget * 60, TRANSMISSIONS[transmission.getSelectedItemPosition()],
+                budget * 60, searchCores, TRANSMISSIONS[transmission.getSelectedItemPosition()],
                 flags.toArray(new String[0])));
             refreshState();
         } catch (RuntimeException error) {

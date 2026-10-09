@@ -13,7 +13,8 @@ resources are included, and the app does not request Internet access.
    and `.TRK` or `.RPL` files. Grant the requested folder access. The app
    stages the files in private storage for the native engine.
 3. Select the track/replay and car, then choose the search time (30 minutes
-   by default), transmission, and physics options.
+   by default), CPU core count, transmission, and physics options. The core count
+   defaults to `1`; `0` uses automatic CPU selection.
 4. Start the search. Progress appears in the app and an ongoing notification.
    You can leave the interface while the foreground service works. Cancel
    asks the generator to preserve its best completed replay.
@@ -43,6 +44,7 @@ and scrolling. Version 1.0.2 retains this display fix and includes the
 [Ayrton DEFAULT search improvements](genghost-default-study.md). Version 1.0.3
 also includes the [complete stunt tactic catalog](genghost-stunt-catalog.md),
 with collision-aware shortcuts as part of the default search.
+Version 1.0.4 adds the CPU core control and process-isolated parallel search.
 
 Install the updated APK over the previous build to keep the selected folder
 and settings. It uses the same application ID and debug signing certificate.

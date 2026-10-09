@@ -9,20 +9,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/** Validated options for one isolated, headless genghost process. */
+/** Validated options for one headless genghost search. */
 public final class GenerationRequest {
     public static final int DEFAULT_SECONDS = 1800;
+    public static final int DEFAULT_CORES = 1;
+    public static final int MAX_CORES = 256;
     public final String trackPath;
     public final String car;
     public final int seconds;
+    public final int cores;
     public final String transmission;
     public final String[] physicsFlags;
 
-    public GenerationRequest(String trackPath, String car, int seconds, String transmission,
+    public GenerationRequest(String trackPath, String car, int seconds, int cores, String transmission,
             String[] physicsFlags) {
         this.trackPath = trackPath == null ? "" : trackPath.trim();
         this.car = car == null ? "" : car.trim().toUpperCase(Locale.ROOT);
         this.seconds = seconds;
+        this.cores = cores;
         this.transmission = transmission == null ? "source" : transmission;
         this.physicsFlags = physicsFlags == null ? new String[0] : physicsFlags.clone();
     }
@@ -31,6 +35,7 @@ public final class GenerationRequest {
         intent.putExtra("track", trackPath);
         intent.putExtra("car", car);
         intent.putExtra("seconds", seconds);
+        intent.putExtra("cores", cores);
         intent.putExtra("transmission", transmission);
         intent.putExtra("physics", physicsFlags);
     }
@@ -38,6 +43,7 @@ public final class GenerationRequest {
     static GenerationRequest from(Intent intent) {
         return new GenerationRequest(intent.getStringExtra("track"), intent.getStringExtra("car"),
             intent.getIntExtra("seconds", DEFAULT_SECONDS),
+            intent.getIntExtra("cores", DEFAULT_CORES),
             intent.getStringExtra("transmission"), intent.getStringArrayExtra("physics"));
     }
 
@@ -47,6 +53,10 @@ public final class GenerationRequest {
         }
         if (seconds < 1 || seconds > 86400) {
             throw new IOException("Choose a search budget between 1 second and 24 hours.");
+        }
+        if (cores < 0 || cores > MAX_CORES) {
+            throw new IOException("Choose between 1 and " + MAX_CORES
+                + " cores, or 0 for all available cores.");
         }
         if (!transmission.equals("source") && !transmission.equals("manual")
                 && !transmission.equals("auto")) {
@@ -91,6 +101,8 @@ public final class GenerationRequest {
         command.add(car);
         command.add("--seconds");
         command.add(Integer.toString(seconds));
+        command.add("--cores");
+        command.add(Integer.toString(cores));
         command.add("--output");
         command.add(output.getAbsolutePath());
         if (!transmission.equals("source")) {

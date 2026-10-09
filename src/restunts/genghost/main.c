@@ -11,6 +11,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "search.h"
+#include "parallel.h"
 #include "../platform/sdl3/sdl3.h"
 
 #ifndef RESTUNTS_GIT_HASH
@@ -21,6 +22,7 @@ struct output_context {
 	const char *path, *track_name, *car;
 	const struct GENGHOST_OPTIONS *options;
 	int transmission;
+	const struct GENGHOST_PARALLEL_REPORT *parallel;
 };
 
 static const char help[] =
@@ -30,6 +32,7 @@ static const char help[] =
 	"  --seconds N            Search budget; default 1800 seconds, 0 until stopped.\n"
 	"  --evaluations N        Deterministic candidate budget (disables default timer).\n"
 	"  --seed N               Search random seed; default 1.\n"
+	"  --cores N              Parallel search workers (1 default, 0 available cores).\n"
 	"  --transmission MODE    manual or auto; defaults to compatible replay, else manual.\n"
 	"  --pg:on|off            Original power gear bug (default on).\n"
 	"  --lc:on|off            Original collision behavior (default on).\n"
@@ -42,6 +45,7 @@ static const char help[] =
 	"Relative input paths resolve from the current directory, then --data-dir.\n"
 	"Output paths always resolve from the original current directory.\n"
 	"Search uses the original 20 Hz physics, including finish penalties.\n"
+	"The evaluation budget is shared across workers; seconds are wall-clock time.\n"
 	"Ctrl+C keeps the best fully validated completed replay found so far.\n"
 	"The accompanying .json records the physics flags required for playback.\n"
 	"A bounded heuristic search cannot guarantee a finish or global optimum.\n";
@@ -197,6 +201,31 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	json_string(file, context->track_name);
 	fputs(",\n  \"car\": ", file);
 	json_string(file, context->car);
+	const struct GENGHOST_PARALLEL_REPORT *parallel = context->parallel;
+	fprintf(file,
+			",\n  \"cores_requested\": %u,\n  \"cores_used\": %u,\n  \"winner_worker\": %u,\n"
+			"  \"winner_seed\": %u,\n  \"route_coverage\": \"%s\",\n  \"worker_results\": [",
+			parallel ? parallel->cores_requested : 1U, parallel ? parallel->cores_used : 1U,
+			parallel ? parallel->winner_worker : 0U,
+			parallel ? parallel->winner_seed : context->options->seed,
+			parallel ? "maximum_from_one_worker" : "single_worker");
+	unsigned int worker_count = parallel ? parallel->cores_used : 1U;
+	for (unsigned int i = 0; i < worker_count; ++i) {
+		const struct GENGHOST_WORKER_STATS *worker = parallel ? &parallel->workers[i] : NULL;
+		fprintf(file,
+				"%s\n    {\"index\": %u, \"seed\": %u, \"budget_evaluations\": %llu, "
+				"\"evaluations\": %llu, \"simulated_frames\": %llu, \"finished\": %s, "
+				"\"total_frames\": %u, \"status\": %d}",
+				i ? "," : "", i, worker ? worker->seed : context->options->seed,
+				(unsigned long long)(worker ? worker->budget_evaluations
+											: context->options->evaluations),
+				(unsigned long long)(worker ? worker->evaluations : result->evaluations),
+				(unsigned long long)(worker ? worker->simulated_frames : result->simulated_frames),
+				(worker ? worker->finished : result->race.finished) ? "true" : "false",
+				worker ? worker->total_frames : result->race.total_frames,
+				worker ? worker->status : 0);
+	}
+	fputs("\n  ]", file);
 	fprintf(file,
 			",\n  \"seed_replay_finished\": %s,\n  \"seed_total_frames\": %u,\n"
 			"  \"policy_evaluations\": %llu,\n  \"input_evaluations\": %llu,\n"
@@ -285,7 +314,9 @@ int main(int argc, char **argv)
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
 	char car[5] = {0}, track_name[256];
 	int transmission = -1, verify = 0, explicit_seconds = 0, status = 1;
-	char *cwd = NULL, *data_dir = NULL, *output = NULL;
+	unsigned int cores = 1U;
+	struct GENGHOST_WORKER_CONTROL worker_control = {0};
+	char *cwd = NULL, *data_dir = NULL, *output = NULL, *executable = NULL;
 	unsigned char *file = NULL;
 	size_t file_length = 0;
 	for (int i = 1; i < argc; ++i) {
@@ -324,7 +355,9 @@ int main(int argc, char **argv)
 		}
 		if (!strcmp(argument, "--data-dir") || !strcmp(argument, "--output") ||
 			!strcmp(argument, "--seconds") || !strcmp(argument, "--evaluations") ||
-			!strcmp(argument, "--seed") || !strcmp(argument, "--transmission")) {
+			!strcmp(argument, "--seed") || !strcmp(argument, "--transmission") ||
+			!strcmp(argument, "--cores") || !strcmp(argument, "--worker-status") ||
+			!strcmp(argument, "--worker-stop") || !strcmp(argument, "--worker-parent")) {
 			if (++i == argc) {
 				fprintf(stderr, "Missing value for %s\n", argument);
 				goto done;
@@ -333,6 +366,10 @@ int main(int argc, char **argv)
 				data_argument = argv[i];
 			} else if (!strcmp(argument, "--output")) {
 				output_argument = argv[i];
+			} else if (!strcmp(argument, "--worker-status")) {
+				worker_control.status_path = argv[i];
+			} else if (!strcmp(argument, "--worker-stop")) {
+				worker_control.stop_path = argv[i];
 			} else if (!strcmp(argument, "--transmission")) {
 				if (!strcmp(argv[i], "manual")) {
 					transmission = 0;
@@ -344,12 +381,18 @@ int main(int argc, char **argv)
 				}
 			} else {
 				uint64_t value;
-				if (parse_integer(argv[i], !strcmp(argument, "--seed") ? UINT32_MAX : UINT64_MAX,
-								  &value)) {
+				uint64_t maximum = !strcmp(argument, "--seed")	  ? UINT32_MAX
+								   : !strcmp(argument, "--cores") ? GENGHOST_MAX_CORES
+																  : UINT64_MAX;
+				if (parse_integer(argv[i], maximum, &value)) {
 					fprintf(stderr, "Invalid numeric value for %s: %s\n", argument, argv[i]);
 					goto done;
 				}
-				if (!strcmp(argument, "--seconds")) {
+				if (!strcmp(argument, "--cores")) {
+					cores = (unsigned int)value;
+				} else if (!strcmp(argument, "--worker-parent")) {
+					worker_control.parent_pid = value;
+				} else if (!strcmp(argument, "--seconds")) {
 					options.seconds = (double)value;
 					explicit_seconds = 1;
 				} else if (!strcmp(argument, "--evaluations")) {
@@ -391,6 +434,18 @@ int main(int argc, char **argv)
 	}
 	if (options.evaluations && !explicit_seconds) {
 		options.seconds = 0.0;
+	}
+	if (worker_control.status_path || worker_control.stop_path || worker_control.parent_pid) {
+		if (cores != 1U || verify || genghost_worker_attach(&worker_control)) {
+			fputs("Invalid or orphaned internal search worker\n", stderr);
+			goto done;
+		}
+		options.progress = genghost_worker_progress;
+		options.progress_context = &worker_control;
+	}
+	if (cores != 1U && !(executable = genghost_executable_path(argv[0]))) {
+		fputs("Cannot resolve generator executable for parallel search\n", stderr);
+		goto done;
 	}
 	cwd = SDL_GetCurrentDirectory();
 	if (!cwd || !(data_dir = join_path(cwd, data_argument))) {
@@ -499,14 +554,30 @@ int main(int argc, char **argv)
 	}
 	signal(SIGINT, interrupt_search);
 	signal(SIGTERM, interrupt_search);
+	genghost_parallel_install_interrupt_handler();
 	struct GENGHOST_SEARCH_RESULT result;
 	struct output_context context = {output, track_name, car, &options, transmission};
+	struct GENGHOST_PARALLEL_REPORT parallel;
 	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s%s\n", track_name, car,
 			transmission ? "automatic" : "manual", options.powergear ? "on" : "off",
 			options.collision ? "on" : "off", options.left_bias ? "on" : "off",
 			options.owoot ? " --owoot" : "");
-	int search_status =
-		genghost_search(&options, seed_inputs, seed_length, &result, save_result, &context);
+	int search_status;
+	if (cores != 1U) {
+		context.parallel = &parallel;
+		search_status = genghost_parallel_search(executable, output, data_dir, file, file_length,
+												 car, transmission, cores, &options, &result,
+												 &parallel, save_result, &context);
+	} else {
+		search_status = genghost_search(
+			&options, seed_inputs, seed_length, &result,
+			worker_control.status_path ? genghost_worker_save : save_result,
+			worker_control.status_path ? (void *)&worker_control : (void *)&context);
+	}
+	if (worker_control.status_path) {
+		status = genghost_worker_finish(&worker_control, &result, search_status);
+		goto done;
+	}
 	fprintf(stderr, "%llu candidates, %llu simulated ticks, %.2fs; %zu/%zu routes attempted\n",
 			(unsigned long long)result.evaluations, (unsigned long long)result.simulated_frames,
 			result.elapsed_seconds, result.routes_attempted, result.routes);
@@ -521,9 +592,11 @@ int main(int argc, char **argv)
 		status = 2;
 	}
 done:
+	genghost_worker_close(&worker_control);
 	free(file);
 	free(data_dir);
 	free(output);
 	SDL_free(cwd);
+	SDL_free(executable);
 	return status;
 }

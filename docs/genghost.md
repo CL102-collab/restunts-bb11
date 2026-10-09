@@ -12,6 +12,8 @@ selected car's resources must be available in the game data directory.
 
 ```sh
 genghost --data-dir /path/to/game TRACK.TRK COUN --output ghost.rpl
+genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 4 --output parallel.rpl
+genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.rpl
 genghost --data-dir /path/to/game race.RPL DIA3 --seconds 1800 --output ghost.rpl
 genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --output clean.rpl
 ```
@@ -39,6 +41,7 @@ different car.
 | `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` using the shortened track prefix above. |
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
+| `--cores N` | Number of parallel search workers, from `1` to `256`: `1` by default, `0` for automatic CPU selection. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
 | `--transmission MODE` | `manual` or `auto`; defaults to a matching 20 Hz replay's setting, otherwise manual. |
 | `--pg:on`, `--pg:off` | Enable or disable the original power gear arithmetic bug. |
@@ -52,7 +55,7 @@ Physics option spelling is case-insensitive, and the last value for an on/off
 option wins. OWOOT is independent of the three bug switches: enabling it does
 not implicitly disable power gear or change collision arithmetic.
 
-A fixed seed with a fixed evaluation budget makes the search repeatable with
+A fixed seed, core count, and evaluation budget make the search repeatable with
 the same resources and physics. Adding `--seconds` also imposes a time limit,
 which can stop at different candidates on different computers. Ctrl+C stops
 the search while keeping the best fully validated completed replay found so
@@ -68,6 +71,51 @@ genghost --data-dir /path/to/game ghost.rpl COUN --verify
 transmission. Supply the physics options used to generate it. The command
 prints finish and penalty counts in frames and returns a nonzero exit status
 if the replay does not finish.
+
+## Parallel search
+
+Use `--cores 4` to run four search workers, or `--cores 0` to select the available
+CPU count automatically. The default is one worker, preserving the previous
+single-core search. The Android app exposes the same setting as **CPU cores**.
+Automatic selection respects process CPU affinity and common Linux container
+quotas, up to the 256-worker limit. A candidate budget smaller than the requested
+worker count reduces the number started. An explicit count can exceed the
+available CPU count, but does not create additional physical processing capacity.
+
+Each worker runs the optimizer in its own process, with independent simulator
+state and a distinct, reproducible random seed. This isolation is necessary
+because the original game physics uses global state. Workers explore and refine
+their own populations concurrently. A coordinator checks their completed laps
+with fresh native playback and saves the best overall score, including penalties,
+as the search continues. All workers use the selected car, transmission, physics
+flags, and compatible input replay. Their populations remain independent; this
+is a parallel search across several seeds, rather than a thread-safe rewrite of
+the game engine.
+
+`--seconds` sets the overall wall-clock search budget. `--evaluations` sets the
+combined candidate budget, divided across the workers; it is not multiplied by
+the core count. Changing the core count changes the search trajectories and can
+change the resulting replay. More workers provide more simultaneous exploration,
+but a fixed candidate budget gives each worker less refinement time. Neither a
+faster lap nor a linear speedup is guaranteed.
+
+Ctrl+C and Android's Stop control stop all workers while retaining the best
+completed replay already validated. The JSON report records the requested and
+used worker counts, per-worker results, and the seed of the winning worker.
+`--verify` remains a single replay simulation and does not launch search workers.
+
+The report's evaluation counters sum worker activity; simulated ticks exclude
+the coordinator's independent validation passes. Route coverage counts are the
+maximum reported by an individual worker, identified by
+`route_coverage: "maximum_from_one_worker"`; they are not a union of route visits.
+Worker status `0` means a completed replay was found, `2` means none was found,
+`1` indicates an error, and `3` means the worker is still running in a progress
+report. A worker error stops the pool and returns a failing command status while
+retaining any already validated output. Normal exit cleans up private worker
+files. Forcibly killing the coordinator stops its workers, but can leave its
+temporary `.work-...` directory behind.
+See the [parallel validation report](genghost-parallel.md) for measured throughput,
+replay comparisons, and lifecycle checks.
 
 ## Search and scoring
 

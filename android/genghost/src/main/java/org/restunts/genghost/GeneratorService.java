@@ -76,6 +76,7 @@ public final class GeneratorService extends Service {
         public boolean outputAvailable;
         public boolean reportAvailable;
         public int seconds = GenerationRequest.DEFAULT_SECONDS;
+        public int cores = GenerationRequest.DEFAULT_CORES;
         public int exitCode = -1;
         public long startTimeMillis;
         public long elapsedSeconds;
@@ -95,6 +96,7 @@ public final class GeneratorService extends Service {
             outputAvailable = saved.optBoolean("outputAvailable");
             reportAvailable = saved.optBoolean("reportAvailable");
             seconds = saved.optInt("seconds", seconds);
+            cores = saved.optInt("cores", cores);
             exitCode = saved.optInt("exitCode", -1);
             startTimeMillis = saved.optLong("startTimeMillis");
             elapsedSeconds = saved.optLong("elapsedSeconds");
@@ -110,6 +112,7 @@ public final class GeneratorService extends Service {
                     .put("outputName", outputName).put("reportName", reportName)
                     .put("running", running).put("outputAvailable", outputAvailable)
                     .put("reportAvailable", reportAvailable).put("seconds", seconds)
+                    .put("cores", cores)
                     .put("exitCode", exitCode).put("startTimeMillis", startTimeMillis)
                     .put("elapsedSeconds", elapsedSeconds).put("nativePid", nativePid)
                     .put("nativeToken", nativeToken).put("recoveryAttempted", recoveryAttempted);
@@ -130,6 +133,7 @@ public final class GeneratorService extends Service {
         preparing.message = "Starting generation…";
         preparing.running = true;
         preparing.seconds = request.seconds;
+        preparing.cores = request.cores;
         preparing.startTimeMillis = System.currentTimeMillis();
         pendingStart = preparing;
         pendingCancelled = false;
@@ -561,6 +565,7 @@ public final class GeneratorService extends Service {
             state.message = "Refreshing your game folder…";
             state.running = true;
             state.seconds = request.seconds;
+            state.cores = request.cores;
             state.startTimeMillis = System.currentTimeMillis();
         }
         workerRunning = true;

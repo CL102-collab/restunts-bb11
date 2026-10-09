@@ -6,11 +6,17 @@
 #include "simulation.h"
 #include "routes.h"
 
+struct GENGHOST_SEARCH_RESULT;
+typedef int (*genghost_progress_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
+
 struct GENGHOST_OPTIONS {
 	double seconds;
 	uint64_t evaluations;
 	uint32_t seed;
 	int powergear, collision, left_bias, owoot;
+	/* Optional worker heartbeat/cancellation; never runs concurrent physics. */
+	genghost_progress_function progress;
+	void *progress_context;
 };
 
 struct GENGHOST_SEARCH_RESULT {

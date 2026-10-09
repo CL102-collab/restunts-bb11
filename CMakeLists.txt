@@ -223,7 +223,7 @@ function(restunts_add_genghost)
     add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
         src/restunts/genghost/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/search.c
-        src/restunts/genghost/guide.c)
+        src/restunts/genghost/guide.c src/restunts/genghost/parallel.c)
     target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
     target_link_libraries(genghost PRIVATE restunts_options)
     if(ANDROID)
@@ -556,6 +556,11 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-search PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+            add_test(NAME genghost-parallel COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-parallel.py"
+                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
+                "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(genghost-parallel PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
         endif()
     endif()
     add_executable(test-render-workers src/restunts/tests/test-render-workers.c)
