@@ -559,7 +559,7 @@ static void full_initialize_screen_sprite(struct SPRITE far *sprite)
 	sprite->sprite_reserved_word1 = 0;
 	sprite->sprite_reserved_word2 = 0;
 	sprite->sprite_reserved_word3 = 0;
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	sprite->sprite_lineofs = (legacy_u8 *)full_screen_line_offsets;
 #else
 	sprite->sprite_lineofs = (legacy_u8 *)dos_memory_make_near_pointer(
@@ -579,12 +579,12 @@ static void full_initialize_screen_sprite(struct SPRITE far *sprite)
 void full_data_initialize(void)
 {
 	for (legacy_u16 index = 0; index < 200U; index++) {
-		full_screen_line_offsets[index] = (legacy_u16)(index * 320U);
+		LEGACY_WRITE_U16_LE((legacy_u8 far *)&full_screen_line_offsets[index], index * 320U);
 	}
 	for (legacy_u16 index = 0; index < WINDOW_DEFINITION_BUFFER_SIZE; index++) {
 		wnd_defs[index] = 0;
 	}
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	next_wnd_def = (legacy_s8 *)wnd_defs;
 #else
 	next_wnd_def = (legacy_s8 *)dos_memory_make_near_pointer(dos_memory_pointer_offset(wnd_defs));

@@ -1,3 +1,9 @@
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#define AMIGA_RACE_TRACE(stage) do { puts("Amiga race resources: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_RACE_TRACE(stage) ((void)0)
+#endif
 #include "dashboard.h"
 #include "fileio.h"
 #include "memmgr.h"
@@ -19,6 +25,9 @@
 #include "car_resources.h"
 #include "externs.h"
 #include "video_pages.h"
+#ifdef RESTUNTS_AMIGA
+#include "shape2d_internal.h"
+#endif
 #ifdef RESTUNTS_SDL3
 #include "skybox_hires.h"
 #endif
@@ -108,10 +117,14 @@ void load_skybox(legacy_s8 skybox_index)
 
 static void setup_car_engine_resources(void)
 {
+	AMIGA_RACE_TRACE("engine disk check");
 	ensure_file_exists(3);
+	AMIGA_RACE_TRACE("engine voice file");
 	eng1ptr = file_load_resource(FILE_RESOURCE_VOICE, "eng1");
+	AMIGA_RACE_TRACE("engine sound file");
 	engptr = file_load_resource(FILE_RESOURCE_SOUND_EFFECTS, "eng");
 	audio_add_driver_timer();
+	AMIGA_RACE_TRACE("engine definition mapping");
 	audio_player_engine_channel =
 		audio_init_engine(PLAYER_ENGINE_LEGACY_TYPE, &player_engine_definition, eng1ptr, engptr);
 
@@ -168,19 +181,24 @@ void ghost_free_simulation_resources(void)
 
 static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 {
+	AMIGA_RACE_TRACE("legacy resource layout");
 	setup_legacy_penalty_route_word();
 	render_window_sprite = 0;
 	/* Dump tools retain their linear buffer and original resource layout. */
 	if (load_dashboard_shapes != 0) {
 		video_pages_begin_race();
 	}
+	AMIGA_RACE_TRACE("car disk check");
 	ensure_file_exists(2);
+	AMIGA_RACE_TRACE("car 3D geometry");
 	shape3d_load_car_shapes(gameconfig.game_playercarid, ghost_is_active()
 															 ? (legacy_s8 *)ghost_car_id()
 															 : gameconfig.game_opponentcarid);
+	AMIGA_RACE_TRACE("car physics");
 	setup_car_physics_resources();
 
 	setup_car_engine_resources();
+	AMIGA_RACE_TRACE("LED font");
 	fontledresptr = file_load_resource(FILE_RESOURCE_BINARY_FATAL, "fontled.fnt");
 	slow_video_mgmt_copy = slow_video_mgmt;
 	init_rect_arrays();
@@ -189,23 +207,37 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 	 * state still observes that memory layout, but avoid the much larger 2D
 	 * dashboard allocation that memory-heavy custom cars cannot afford. */
 	if (idle_expired == 0 && load_dashboard_shapes) {
+		AMIGA_RACE_TRACE("dashboard");
 		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
 	}
 
 	if (idle_expired == 0) {
+		AMIGA_RACE_TRACE("race overlays");
 		sdgameresptr = file_load_resource(FILE_RESOURCE_SHAPE2D_COLLECTION, "sdgame");
 		loop_game(REPLAY_LOOP_LOAD_RESOURCES, REPLAY_LOOP_UNUSED_ARGUMENT,
 				  REPLAY_LOOP_UNUSED_ARGUMENT);
 	}
 
+	AMIGA_RACE_TRACE("track collision");
 	load_track_collision_resources();
+	AMIGA_RACE_TRACE("race effects");
 	load_sdgame2_shapes();
+	AMIGA_RACE_TRACE("skybox");
 	load_skybox(track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
+	AMIGA_RACE_TRACE("track 3D geometry");
 	if (shape3d_load_all() != 0) {
 		return 1;
 	}
 
+#ifdef RESTUNTS_AMIGA
+	if (load_dashboard_shapes != 0) {
+		/* The native planar pages display the previous frame while this one
+		 * indexed surface receives both world geometry and dashboard pixels. */
+		render_window_sprite = &screen_sprite;
+	} else
+#endif
 	if (video_uses_page_flipping == 0) {
+		AMIGA_RACE_TRACE("render framebuffer");
 		legacy_u32 window_pixel_bytes = LEGACY_U16_DIV_OR_ZERO(
 			RENDER_WINDOW_PIXEL_BYTES,
 			LEGACY_U16_WRAP_MUL(video_shape_width_scale, video_buffer_height_divisor));
@@ -234,7 +266,11 @@ legacy_s16 setup_player_cars_without_dashboard(void)
 void free_player_cars(void)
 {
 	if (video_uses_page_flipping == 0) {
-		if (render_window_sprite != 0) {
+		if (render_window_sprite != 0
+#ifdef RESTUNTS_AMIGA
+			&& render_window_sprite != &screen_sprite
+#endif
+		) {
 			sprite_free_wnd(render_window_sprite);
 		}
 	}

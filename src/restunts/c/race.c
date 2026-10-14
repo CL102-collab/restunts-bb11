@@ -1,3 +1,6 @@
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#endif
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/sdl3.h"
 #include "../platform/sdl3/touch_game.h"
@@ -6,6 +9,9 @@
 #include "frame_adaptive.h"
 #include "hires.h"
 #include "presentation.h"
+#endif
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
 #endif
 #include "dashboard.h"
 #include "fileio.h"
@@ -32,6 +38,12 @@
 #include "keyboard.h"
 #include "timing.h"
 #include "frame_internal.h"
+
+#ifdef RESTUNTS_AMIGA_TRACE
+#define AMIGA_NORMAL_RACE_TRACE(stage) do { puts("Amiga normal race: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_NORMAL_RACE_TRACE(stage) ((void)0)
+#endif
 
 #define RACE_SCREEN_WIDTH 320
 #define RACE_SCREEN_HEIGHT 200
@@ -503,6 +515,9 @@ static void race_presentation_interpolate_ghost(legacy_u32 fraction)
 
 static void race_draw_frame(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_begin_frame();
+#endif
 #ifdef RESTUNTS_SDL3
 	legacy_s32 render_scale =
 		supersight_enabled != 0 ? frame_adaptive_render_scale(&frame_adaptive) : HIRES_SCALE;
@@ -591,6 +606,9 @@ static void race_draw_frame(void)
 		dashboard_buffer_index = frame_buffer_index;
 		mouse_draw_transparent_check();
 	}
+#ifdef RESTUNTS_AMIGA
+	amiga_video_present();
+#endif
 	frame_fps_record_presented();
 #ifdef RESTUNTS_SDL3
 	sdl3_video_end_frame();
@@ -788,6 +806,9 @@ static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
 
 static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 {
+#ifdef RESTUNTS_AMIGA_TRACE
+	legacy_u16 traced_frames = 0;
+#endif
 	legacy_s16 last_processed_frame = -1;
 	struct RACE_REWIND_STATE rewind = {0};
 #ifdef RESTUNTS_SDL3
@@ -855,7 +876,9 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		}
 
 		ghost_update(race_ghost_frame(), framespersec);
+		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("viewport begin");
 		race_update_viewport(cache, rewind.active);
+		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("viewport complete");
 #ifdef RESTUNTS_SDL3
 		race_presentation_capture();
 		if (supersight_enabled == 0 || rewind.active != 0 ||
@@ -869,7 +892,15 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			race_presentation.started = 1;
 		}
 #else
+		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("draw begin");
 		race_draw_frame();
+		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("draw complete");
+#ifdef RESTUNTS_AMIGA_TRACE
+		if (++traced_frames <= 8 || (traced_frames % 50) == 0) {
+			fprintf(stdout, "Amiga normal race: frame=%d elapsed=%u mode=%d start=%d\n", (int)state.game_frame, (unsigned)elapsed_time2, (int)game_replay_mode, (int)race_start_sequence_state);
+			fflush(stdout);
+		}
+#endif
 #endif
 		if (game_replay_mode == REPLAY_MODE_PAUSED &&
 			race_start_sequence_state == RACE_START_SEQUENCE_INACTIVE) {
@@ -953,6 +984,7 @@ static void race_release_resources(void)
 
 void run_game(void)
 {
+	AMIGA_NORMAL_RACE_TRACE("run_game begin");
 	rect_windshield.left = 0;
 	rect_windshield.right = RACE_SCREEN_WIDTH;
 	struct RACE_VIEWPORT_CACHE cache;
@@ -977,12 +1009,23 @@ void run_game(void)
 		free_player_cars();
 		show_insufficient_memory_dialog();
 	} else {
+		AMIGA_NORMAL_RACE_TRACE("initialize begin");
 		race_initialize_state();
+		AMIGA_NORMAL_RACE_TRACE("initialize complete; frames begin");
 #ifdef RESTUNTS_SDL3
 		sdl3_touch_set_game_active(1);
 		sdl3_input_set_gameplay_active(idle_expired == 0);
 #endif
+#ifdef RESTUNTS_AMIGA
+		/* Input polling must not present an unfinished frame or spend more
+		 * time converting pixels than the simulation can catch up. */
+		amiga_video_set_auto_refresh(0);
+#endif
 		race_run_frames(&cache);
+#ifdef RESTUNTS_AMIGA
+		amiga_video_set_auto_refresh(1);
+#endif
+		AMIGA_NORMAL_RACE_TRACE("frames complete");
 #ifdef RESTUNTS_SDL3
 		sdl3_touch_set_game_active(0);
 		sdl3_input_set_gameplay_active(0);

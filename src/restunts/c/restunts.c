@@ -424,13 +424,23 @@ static void startup_measure_video(void)
 	slow_video_mgmt_copy = slow_video_mgmt;
 }
 
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#define STARTUP_TRACE(message) do { puts("Amiga startup: " message); fflush(stdout); } while (0)
+#else
+#define STARTUP_TRACE(message) ((void)0)
+#endif
+
 void init_main(legacy_s16 argc, legacy_s8 *argv[])
 {
+	STARTUP_TRACE("keyboard and geometry");
 	startup_install_keyboard_callbacks();
 	// Video
 	init_video_geometry_flags();
 
+	STARTUP_TRACE("resource arena");
 	mmgr_init_conventional_arena();
+	STARTUP_TRACE("game data version");
 	if (file_game_version_matches() == 0) {
 		static const legacy_s8 message[] =
 			"Incompatible game data. Use Broderbund Stunts 1.1 (Feb 12 1991). "
@@ -470,18 +480,21 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	// Unused "/nd" switch. Maybe used when loading other video drivers?
 	(void)startup_options.unused_nd_option;
 
+	STARTUP_TRACE("display");
 	// Video mode.
 	dos_video_set_mode_13h();
 	if (startup_options.mode4_requested) {
 		dos_video_set_mode4();
 	}
 
+	STARTUP_TRACE("timer");
 	dos_timer_setup_interrupt();
 
 	sprite_select_screen_and_clear();
 
 	dos_mouse_init(GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT);
 
+	STARTUP_TRACE("audio");
 	// Audio driver.
 	if (audio_load_dos_driver(audiodriverstring, 0, 0)) {
 		dos_timer_shutdown();
@@ -501,12 +514,15 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 
 	dos_set_critical_error_handler(&show_disk_error_dialog);
 
+	STARTUP_TRACE("palette and cursor");
 	load_palandcursor();
 
+	STARTUP_TRACE("benchmark");
 	startup_measure_video();
 
 	random_wait();
 
+	STARTUP_TRACE("materials");
 	copy_material_list_pointers(material_clrlist_ptr, material_clrlist2_ptr, material_patlist_ptr,
 								material_patlist2_ptr, 0);
 }
@@ -707,8 +723,10 @@ static void main_menu_restore_track(void)
 
 static legacy_s16 main_menu_prepare_track(void)
 {
+	STARTUP_TRACE("menu track begin");
 	if (idle_expired == 0) {
 		legacy_s16 result = track_setup();
+		STARTUP_TRACE("menu track complete");
 		//result = setup_track();
 		if (result != 0) {
 			run_tracks_menu(1);
@@ -729,6 +747,7 @@ static legacy_s16 main_menu_prepare_track(void)
 
 static void main_menu_run_race(legacy_s8 start_in_replay)
 {
+	STARTUP_TRACE("menu race begin");
 	cvxptr = mmgr_alloc_resbytes("cvx", sizeof(struct GAMESTATE) * GAMESTATE_CHECKPOINT_COUNT);
 	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
 

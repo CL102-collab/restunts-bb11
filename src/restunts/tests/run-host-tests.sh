@@ -60,6 +60,16 @@ run_host_test() {
     "$test_build_dir/$test_name"
 }
 
+run_host_test test-amiga-endian shape2d.c \
+    "$test_source_dir/shape2d_blit.c" "$test_source_dir/shape3d.c" \
+    "$test_source_dir/audio_engine.c" \
+    -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable -Wno-sign-compare
+run_host_test test-amiga-display ../platform/amiga/display.c
+run_host_test test-amiga-decompression fileio.c -DRESTUNTS_AMIGA -Wno-pointer-sign
+run_host_test test-amiga-rle shape2d.c "$test_source_dir/shape2d_blit.c" \
+    -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable
+run_host_test test-amiga-unflip shape2d.c "$test_source_dir/resource.c" \
+    -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable
 run_host_test test-audio-engine legacy.c -Wno-unused-variable -Wno-sign-compare
 run_host_test test-audio-car legacy.c \
     "$test_source_dir/math.c" "$test_source_dir/full_data.c" \
@@ -231,12 +241,19 @@ run_host_test test-input-record legacy.c \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
 run_host_test test-input-record legacy.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
+run_host_test test-input-record legacy.c \
+    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
     "$test_source_dir/frame_adaptive.c" -DRESTUNTS_SDL3 \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
 run_host_test test-replay-menu replay.c \
     "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
+run_host_test test-replay-menu replay.c \
+    "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-menu replay.c \
     "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
@@ -364,6 +381,7 @@ run_host_test test-ui-file-input ui_dialog.c \
     "$test_source_dir/ui_input.c" "$test_source_dir/legacy.c" \
     "$test_source_dir/strlib.c" "$test_source_dir/resource.c" -Wno-pointer-sign
 run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" -Wno-pointer-sign
+run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" -DRESTUNTS_AMIGA -Wno-pointer-sign
 run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" \
     -D__ANDROID__ -Wno-pointer-sign
 

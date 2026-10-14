@@ -1,5 +1,5 @@
 #include <stddef.h>
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA_TRACE)
 #include <stdio.h>
 #endif
 #include "externs.h"
@@ -21,6 +21,12 @@ static const legacy_s8 headless_pack_error[] = "Invalid packed resource: %s";
 #define file_write_error_format headless_write_error
 #define file_size_error_format headless_size_error
 #define invalid_pack_type_error_format headless_pack_error
+#endif
+
+#ifdef RESTUNTS_AMIGA_TRACE
+#define AMIGA_DECOMP_TRACE(stage) do { puts("Amiga decompress: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_DECOMP_TRACE(stage) ((void)0)
 #endif
 
 #define FILE_IO_PAGE_SIZE 16384
@@ -272,7 +278,7 @@ void far *file_read(const legacy_s8 *filename, void far *dst, legacy_s16 fatal)
 	legacy_s16 readlen;
 	fileio_handle file;
 	if ((file = fileio_open(filename, DOS_FILE_OPEN_EXISTING)) != FILEIO_INVALID_HANDLE) {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 		/* The caller allocates the file's actual size. Windows can reject an
 		 * oversized read request that crosses the end of a small stack object,
 		 * even if EOF would otherwise limit the number of transferred bytes. */
@@ -358,7 +364,7 @@ legacy_s16 file_write(const legacy_s8 *filename, void far *src, legacy_u32 lengt
 				break;
 			}
 			length -= wrtlen;
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 			if (length != 0) {
 				src = (legacy_u8 *)src + wrtlen;
 			}
@@ -577,13 +583,22 @@ legacy_u32 file_decomp_rle(legacy_u8 huge *src, legacy_u8 huge *dst, legacy_u16 
 		esclookup[i] = 0;
 	}
 
-	for (legacy_u16 i = 0; i < esclen; ++i) {
+	/* Keep this induction variable full width. GCC 6 for the 68000 can
+	 * lower the 16-bit form to an address-register countdown whose upper
+	 * bits retain part of escapes, preventing the loop from terminating. */
+	for (legacy_u32 i = 0; i < esclen; ++i) {
 		esclookup[escapes[i]] = i + 1;
 	}
 
+#ifdef RESTUNTS_AMIGA_TRACE
+	fprintf(stdout, "Amiga decompress: RLE length=%lu source=%lu escapes=%u skip=%u\n", (unsigned long)len, (unsigned long)srclen, (unsigned)esclen, (unsigned)skipseq);
+	fflush(stdout);
+#endif
 	if (!skipseq) {
+		AMIGA_DECOMP_TRACE("RLE sequence begin");
 		legacy_u32 passlen = file_decomp_rle_seq(src, dst, srclen, escapes[RS_RLE_ESCSEQ_POS]);
 
+		AMIGA_DECOMP_TRACE("RLE sequence complete");
 		// In main decomp func:
 		src = file_relocate_decomp_output(dst, decompparas, passlen);
 	}
@@ -594,7 +609,9 @@ legacy_u32 file_decomp_rle(legacy_u8 huge *src, legacy_u8 huge *dst, legacy_u16 
 	// stops on `dst < dstend` and a run that straddles the end writes past it,
 	// so its count can exceed len. The declared length must still be returned:
 	// file_decomp uses it to position the source for a following pass.
+	AMIGA_DECOMP_TRACE("RLE single begin");
 	file_decomp_rle_single(src, dst, len, esclookup);
+	AMIGA_DECOMP_TRACE("RLE single complete");
 	return len;
 }
 
@@ -789,7 +806,9 @@ static void far *file_decomp_internal(const legacy_s8 *filename, legacy_s16 fata
 		return dst;
 	}
 
+	AMIGA_DECOMP_TRACE("header begin");
 	legacy_u16 decompparas = file_decomp_paras(filename, fatal);
+	AMIGA_DECOMP_TRACE("header complete");
 
 	legacy_s16 err = 0;
 	legacy_u32 passlen;
@@ -800,16 +819,22 @@ static void far *file_decomp_internal(const legacy_s8 *filename, legacy_s16 fata
 		decompparas += COMPRESSION_WORKSPACE_PARAGRAPHS;
 		legacy_u16 allocated_paragraphs =
 			retained_paragraphs > decompparas ? retained_paragraphs : decompparas;
+		AMIGA_DECOMP_TRACE("allocation begin");
 		dst = file_alloc_tail_pages(filename, allocated_paragraphs, tail_bytes);
+		AMIGA_DECOMP_TRACE("allocation complete");
 		/* Extra retained storage must not move the compressed source or any
 		 * intermediate pass: those offsets determine the legacy tail bytes. */
 
+		AMIGA_DECOMP_TRACE("file size begin");
 		legacy_u16 paras = file_paras(filename, fatal);
+		AMIGA_DECOMP_TRACE("file size complete");
 		if (paras) {
 			legacy_u8 far *src =
 				dos_memory_make_pointer(decompparas - paras + dos_memory_pointer_segment(dst),
 										dos_memory_pointer_offset(dst));
+			AMIGA_DECOMP_TRACE("read begin");
 			src = file_read(filename, src, fatal);
+			AMIGA_DECOMP_TRACE("read complete");
 			if (src) {
 				legacy_u8 passes = *src;
 
@@ -828,20 +853,29 @@ static void far *file_decomp_internal(const legacy_s8 *filename, legacy_s16 fata
 
 				// Decode all compression passes.
 				while (!err && passes) {
+#ifdef RESTUNTS_AMIGA_TRACE
+					fprintf(stdout, "Amiga decompress: pass begin, remaining=%u codec=%u\n", (unsigned)passes, (unsigned)*src);
+					fflush(stdout);
+#endif
 					if (file_decomp_pass(src, dst, decompparas, &passlen) == 0) {
 						err = 1;
 					}
 
+					AMIGA_DECOMP_TRACE("pass complete");
 					// Set source for next pass.
 					if (!err && (--passes != 0)) {
+						AMIGA_DECOMP_TRACE("relocate begin");
 						src = file_relocate_decomp_output(dst, decompparas, passlen);
+						AMIGA_DECOMP_TRACE("relocate complete");
 					}
 				}
 
 				// Free unneeded overhead.
 				if (!err) {
+					AMIGA_DECOMP_TRACE("resize begin");
 					mmgr_resize_memory(dos_memory_pointer_offset(dst),
 									   dos_memory_pointer_segment(dst), retained_paragraphs);
+					AMIGA_DECOMP_TRACE("resize complete");
 
 					return dst;
 				}

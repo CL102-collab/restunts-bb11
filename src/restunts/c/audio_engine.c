@@ -152,7 +152,7 @@ void audio_remove_driver_timer(void)
 static void audio_copy_engine_definition(struct AUDIO_ENGINE_DEFINITION *engine_definition,
 										 void far *source_pointer)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	/* Full-game definitions contain native C pointers. Encode them into the
 	 * sequencer's fixed four-byte pointer format instead of copying addresses. */
 	const struct FULL_AUDIO_ENGINE_DEFINITION *source = source_pointer;
@@ -570,7 +570,7 @@ legacy_s16 audio_effect_channel_idle(legacy_s16 channel)
 
 void audio_set_finish_callback(legacy_s16 channel, void far *value)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	audio_write_far_pointer((legacy_u8 *)&audio_channels[channel].finish_callback, value);
 #else
 	void far **field = (void far **)&audio_channels[channel].finish_callback;
@@ -622,16 +622,17 @@ void audio_init_channel_range(legacy_s16 first_channel, legacy_s16 last_channel,
 			legacy_u32 pointer_value = resource_read_u32le(resource_data);
 			legacy_u16 pointer_offset = LEGACY_U16_WRAP_ADD((legacy_u16)pointer_value, 4U);
 			legacy_u16 pointer_segment = (legacy_u16)(pointer_value >> 16);
-			chunk->call_stack[0].offset = pointer_offset;
-			chunk->call_stack[0].segment = pointer_segment;
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->call_stack[0].offset, pointer_offset);
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->call_stack[0].segment, pointer_segment);
 			pointer_value = resource_read_u32le(resource_data);
 			pointer_offset = LEGACY_U16_WRAP_ADD((legacy_u16)pointer_value, 4U);
 			pointer_segment = (legacy_u16)(pointer_value >> 16);
-			chunk->cursor.offset = pointer_offset;
-			chunk->cursor.segment = pointer_segment;
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->cursor.offset, pointer_offset);
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->cursor.segment, pointer_segment);
 			resource_data_offset = LEGACY_U16_WRAP_ADD(resource_data_offset, 5U);
-			chunk->instruments.offset = LEGACY_U16_WRAP_ADD(resource_offset, 7U);
-			chunk->instruments.segment = resource_segment;
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->instruments.offset,
+								LEGACY_U16_WRAP_ADD(resource_offset, 7U));
+			LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->instruments.segment, resource_segment);
 		} else {
 			chunk->cursor.offset = 0;
 			chunk->cursor.segment = 0;
@@ -781,7 +782,7 @@ static void audio_reclaim_driver_context(legacy_s16 selected, struct AUDIO_CHANN
 	struct AUDIO_CONTEXT *context = &dos_audio_contexts[selected];
 	struct AUDIO_CHANNEL *old_timer;
 	if (dos_audio_uses_direct_channels == 0 && restrict_to_timer == 0) {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 		/* Native globals need not share one DOS data segment. */
 		old_timer = &audio_channels[context->channel];
 #else
@@ -806,6 +807,11 @@ static legacy_s16 audio_find_driver_context(legacy_u8 far *resource, struct AUDI
 	if (resource_mask == 0) {
 		return -1;
 	}
+#ifdef RESTUNTS_AMIGA
+	/* AdLib percussion masks select FM channels 8 and 9. Every enabled
+	 * instrument can use any of Paula's four voices (driver contexts 1..4). */
+	resource_mask = 0x001eU;
+#endif
 	struct AUDIO_CONTEXT_SELECTION selection;
 	selection.oldest_state1 = -1;
 	selection.oldest_state2 = -1;
@@ -868,8 +874,10 @@ legacy_s16 audio_start_note(struct AUDIO_CHANNEL *timer, legacy_u16 value, legac
 		return -1;
 	}
 	struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
-	if (context->resource.offset != dos_memory_pointer_offset(resource) ||
-		context->resource.segment != dos_memory_pointer_segment(resource)) {
+	if (LEGACY_READ_U16_LE((const legacy_u8 *)&context->resource.offset) !=
+		dos_memory_pointer_offset(resource) ||
+		LEGACY_READ_U16_LE((const legacy_u8 *)&context->resource.segment) !=
+		dos_memory_pointer_segment(resource)) {
 		audio_write_far_pointer((legacy_u8 *)&context->resource, resource);
 		if (dos_audio_uses_direct_channels == 0) {
 			dos_audio_driver_prepare_context(context_index, context, (legacy_u8 *)timer, resource);

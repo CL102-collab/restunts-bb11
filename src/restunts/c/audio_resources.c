@@ -166,7 +166,7 @@ static void audio_load_driver_bank(void)
 legacy_s16 audio_load_dos_driver(const legacy_s8 *driver, legacy_s16 unused, legacy_s16 mode)
 {
 	(void)unused;
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	/* Native builds implement the AdLib driver in C; executable DOS drivers
 	 * cannot run in their flat address space. Always select its instruments. */
 	(void)driver;
@@ -338,14 +338,14 @@ legacy_s16 audioresource_compare_chunknames(legacy_s16 case_sensitive,
 	if (remaining == 0) {
 		return 1;
 	}
-#ifndef RESTUNTS_SDL3
+#if !defined(RESTUNTS_SDL3) && !defined(RESTUNTS_AMIGA)
 	legacy_u16 first_offset = (legacy_u16)dos_memory_pointer_offset(first_name);
 	legacy_u16 first_segment = (legacy_u16)dos_memory_pointer_segment(first_name);
 	legacy_u16 second_offset = (legacy_u16)dos_memory_pointer_offset(second_name);
 	legacy_u16 second_segment = (legacy_u16)dos_memory_pointer_segment(second_name);
 #endif
 	do {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 		/* Host objects may straddle a registered 64 KiB page. Advance the
 		 * pointers themselves, not offsets inside one DOS segment alias. */
 		legacy_u8 first = (legacy_u8)*first_name++;
@@ -366,7 +366,7 @@ legacy_s16 audioresource_compare_chunknames(legacy_s16 case_sensitive,
 		} else if (legacy_toupper(second) != legacy_toupper(first)) {
 			return 0;
 		}
-#ifndef RESTUNTS_SDL3
+#if !defined(RESTUNTS_SDL3) && !defined(RESTUNTS_AMIGA)
 		first_offset = LEGACY_U16_WRAP_ADD(first_offset, 1U);
 		second_offset = LEGACY_U16_WRAP_ADD(second_offset, 1U);
 #endif
@@ -383,7 +383,7 @@ legacy_s16 audioresource_get_chunk_index(legacy_s16 extra_name_stride, legacy_s1
 	if (count <= 0) {
 		return -1;
 	}
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	const legacy_s8 *requested_name_far = requested_name;
 	const legacy_u8 *candidate = chunk_names;
 #else
@@ -393,7 +393,7 @@ legacy_s16 audioresource_get_chunk_index(legacy_s16 extra_name_stride, legacy_s1
 	legacy_u16 names_segment = (legacy_u16)dos_memory_pointer_segment(chunk_names);
 #endif
 	for (legacy_s16 index = 0; index < count; index = LEGACY_S16_WRAP_ADD(index, 1)) {
-#ifndef RESTUNTS_SDL3
+#if !defined(RESTUNTS_SDL3) && !defined(RESTUNTS_AMIGA)
 		const legacy_u8 far *candidate =
 			(const legacy_u8 far *)dos_memory_make_pointer(names_segment, names_offset);
 #endif
@@ -401,7 +401,7 @@ legacy_s16 audioresource_get_chunk_index(legacy_s16 extra_name_stride, legacy_s1
 											 requested_name_far, AUDIO_RESOURCE_ID_LENGTH)) {
 			return index;
 		}
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 		candidate += LEGACY_U16_WRAP_ADD(AUDIO_RESOURCE_ID_LENGTH, extra_name_stride);
 #else
 		names_offset = LEGACY_U16_WRAP_ADD(
@@ -413,7 +413,7 @@ legacy_s16 audioresource_get_chunk_index(legacy_s16 extra_name_stride, legacy_s1
 
 static void far *audio_far_pointer_add_normalized(void far *pointer, legacy_u16 increment)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	return (legacy_u8 *)pointer + increment;
 #else
 	legacy_u16 old_offset = (legacy_u16)dos_memory_pointer_offset(pointer);
@@ -429,7 +429,7 @@ static void far *audio_far_pointer_add_normalized(void far *pointer, legacy_u16 
 void far *audioresource_find(void far *resource, const legacy_s8 *chunk_name)
 {
 	legacy_u8 far *bytes = (legacy_u8 far *)resource;
-#ifndef RESTUNTS_SDL3
+#if !defined(RESTUNTS_SDL3) && !defined(RESTUNTS_AMIGA)
 	legacy_u16 resource_offset = (legacy_u16)dos_memory_pointer_offset(resource);
 	legacy_u16 resource_segment = (legacy_u16)dos_memory_pointer_segment(resource);
 #endif
@@ -444,7 +444,7 @@ void far *audioresource_find(void far *resource, const legacy_s8 *chunk_name)
 		return 0;
 	}
 
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	const legacy_u8 *offset_entry = bytes + AUDIO_RESOURCE_TABLE_OFFSET +
 									(legacy_u32)chunk_count * AUDIO_RESOURCE_ID_LENGTH +
 									(legacy_u32)chunk_index * AUDIO_RESOURCE_OFFSET_ENTRY_SIZE;
@@ -505,7 +505,7 @@ void audio_map_song_instruments(void far *song, void far *instruments)
 	}
 
 	audio_map_percussion_instruments(instruments);
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	/* The original lookup retained the bank's segment, so its offset includes
 	 * the chunk's displacement. Native pointer normalization loses that alias. */
 	legacy_closed_hihat_offset =
@@ -784,7 +784,7 @@ void audioresource_copy_n_bytes(const legacy_u8 far *source, legacy_u8 far *dest
 	if (remaining <= 0) {
 		return;
 	}
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	do {
 		*destination++ = *source++;
 		remaining--;

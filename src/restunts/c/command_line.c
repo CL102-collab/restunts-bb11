@@ -12,7 +12,7 @@
 #define COMMAND_LINE_FIRST_OPTION_INDEX 1
 #define COMMAND_LINE_DATA_DIRECTORY_ARGUMENT_COUNT 2
 
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 #define COMMAND_LINE_NEWLINE "\n"
 #else
 #define COMMAND_LINE_NEWLINE "\r\n"
@@ -25,7 +25,7 @@ static const legacy_s8 command_line_version_suffix[] =
 	" (" RESTUNTS_BUILD_DATE ")" COMMAND_LINE_NEWLINE;
 
 static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	"Usage: restunts [--data-dir DIR] [options]" COMMAND_LINE_NEWLINE
 #else
 	"Usage: restunts.exe [options]" COMMAND_LINE_NEWLINE
@@ -36,7 +36,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --licenses       Show dependency notices and exit; use alone." COMMAND_LINE_NEWLINE
 #endif
 	COMMAND_LINE_NEWLINE
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	"  --data-dir DIR   Read game data and saves in DIR; must be first." COMMAND_LINE_NEWLINE
 #endif
 	"  --nointro        Skip the startup intro." COMMAND_LINE_NEWLINE
@@ -63,6 +63,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  /sXX             Legacy audio selection; SDL3 always uses AdLib." COMMAND_LINE_NEWLINE
 	"  /h               Legacy video switch; no alternate mode in SDL3." COMMAND_LINE_NEWLINE
+#elif defined(RESTUNTS_AMIGA)
+	"  /sXX             Legacy selection; Amiga uses Paula with AdLib instruments." COMMAND_LINE_NEWLINE
+	"  /h               Legacy switch; Amiga always uses 320x200, 32 colors." COMMAND_LINE_NEWLINE
 #else
 	"  /sXX             Load DOS audio driver XX15.DRV." COMMAND_LINE_NEWLINE
 	"                   IDs: AD (AdLib), PC (PC speaker), MT (MT-32), TD." COMMAND_LINE_NEWLINE
@@ -76,6 +79,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
 	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
+#elif defined(RESTUNTS_AMIGA)
+	"Amiga 500+: 68000, ECS, 320x200, 32 colors, four Paula voices." COMMAND_LINE_NEWLINE
 #else
 	"AdLib is the default driver. F12 toggles SuperSight; no presets." COMMAND_LINE_NEWLINE
 #endif
@@ -134,7 +139,7 @@ static legacy_s16 command_line_print_version(void)
 legacy_s16 command_line_print_info(legacy_s32 argc, legacy_s8 *argv[])
 {
 	legacy_s32 first_option = COMMAND_LINE_FIRST_OPTION_INDEX;
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	if (argc > first_option && command_line_matches(argv[first_option], "--data-dir")) {
 		first_option += COMMAND_LINE_DATA_DIRECTORY_ARGUMENT_COUNT;
 	}

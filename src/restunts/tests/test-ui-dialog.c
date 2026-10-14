@@ -20,6 +20,10 @@ static legacy_s16 scripted_hits[16];
 static legacy_u32 input_index;
 static legacy_u32 timer_calls;
 static legacy_s16 save_succeeds;
+#ifdef RESTUNTS_AMIGA
+static legacy_u16 presented_dialogs;
+void amiga_video_present(void) { ++presented_dialogs; }
+#endif
 
 #define FIXTURE_INPUT_FIELD_COUNT 2U
 #define FIXTURE_INPUT_POSITION_STRIDE 2U
@@ -171,6 +175,9 @@ legacy_u32 timer_get_delta_alt(void)
 
 legacy_u32 slow_timer_wait_ticks(legacy_u32 ticks)
 {
+#ifdef RESTUNTS_AMIGA
+	assert(presented_dialogs == 1);
+#endif
 	trace_word(14);
 	trace_word((legacy_u16)ticks);
 	return ticks;
@@ -245,12 +252,19 @@ static void run_dialog_case(legacy_u32 scenario)
 	dialog_background_color = 7;
 	performGraphColor = 9;
 	trace_word((legacy_u16)scenario);
+#ifdef RESTUNTS_AMIGA
+	presented_dialogs = 0;
+#endif
 	legacy_u16 result = show_dialog(
 		type, scenario % 2U, (void *)texts[scenario % 4U],
 		scenario % 3U == 0U ? DIALOG_AUTO_POSITION : (legacy_u16)(scenario % 400U),
 		scenario % 3U == 1U ? DIALOG_AUTO_POSITION : (legacy_u16)(scenario % 250U), 3,
 		scenario % 3U == 0U && type != DIALOG_TYPE_PLACEHOLDERS ? 0 : choices, scenario % count);
 	trace_word(result);
+#ifdef RESTUNTS_AMIGA
+	assert(presented_dialogs == ((scenario % 2U == 0U || save_succeeds) &&
+		(type == DIALOG_TYPE_MESSAGE || type == DIALOG_TYPE_DELAY)));
+#endif
 	for (legacy_u32 i = 0; i < 40U; i++) {
 		trace_word(choices[i]);
 	}

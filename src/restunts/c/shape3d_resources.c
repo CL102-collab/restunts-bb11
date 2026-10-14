@@ -2,6 +2,12 @@
 #include "memmgr.h"
 #include "shape3d.h"
 #include "scene_resources.h"
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#define AMIGA_SHAPE_TRACE(stage) do { puts("Amiga track shapes: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_SHAPE_TRACE(stage) ((void)0)
+#endif
 
 #define SHAPE3D_REQUIRED_ARENA_BYTES 65000UL
 #define SHAPE3D_BASE_TRACK_SHAPE_COUNT 116
@@ -16,13 +22,20 @@ legacy_s16 shape3d_load_all()
 	game2ptr = 0;
 
 	legacy_u32 mmgrofsdiff = mmgr_get_res_ofs_diff_scaled();
+#ifdef RESTUNTS_AMIGA_TRACE
+	printf("Amiga track shapes: %lu bytes free\n", (unsigned long)mmgrofsdiff);
+	fflush(stdout);
+#endif
 
 	if (mmgrofsdiff < SHAPE3D_REQUIRED_ARENA_BYTES) {
 		return 1;
 	}
 
+	AMIGA_SHAPE_TRACE("load GAME1");
 	game1ptr = file_load_3dres("game1");
+	AMIGA_SHAPE_TRACE("load GAME2");
 	game2ptr = file_load_3dres("game2");
+	AMIGA_SHAPE_TRACE("initialize descriptors");
 
 	for (legacy_s16 i = 0; i < SHAPE3D_BASE_TRACK_SHAPE_COUNT; i++) {
 		legacy_s8 *shapename = &game_shape_names[i * SHAPE3D_TRACK_SHAPE_NAME_SIZE];
@@ -32,6 +45,7 @@ legacy_s16 shape3d_load_all()
 		}
 		shape3d_init_shape(curshapeptr, &game3dshapes[i]);
 	}
+	AMIGA_SHAPE_TRACE("complete");
 	return 0;
 }
 

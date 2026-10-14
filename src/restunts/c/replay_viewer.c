@@ -23,6 +23,9 @@
 #include "externs.h"
 #include "keyboard.h"
 #include "frame_internal.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/touch_game.h"
 #include "../platform/sdl3/controller_game.h"
@@ -1080,5 +1083,13 @@ void loop_game(legacy_s16 operation, legacy_s16 recorded_frame, legacy_s16 curre
 		return;
 	}
 
+#ifdef RESTUNTS_AMIGA
+	/* Paused replay controls and their save/load dialogs draw between input
+	 * polls without returning to the normal race presentation loop. */
+	legacy_u8 saved_refresh = amiga_video_set_auto_refresh(1);
+#endif
 	replay_handle_input();
+#ifdef RESTUNTS_AMIGA
+	amiga_video_set_auto_refresh(saved_refresh);
+#endif
 }

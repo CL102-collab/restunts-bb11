@@ -274,9 +274,10 @@ void fatal_error(const legacy_s8 *format, ...)
 	if (!sdl3_batch_mode) {
 		flush_stdin();
 	}
-#else
+#elif !defined(RESTUNTS_AMIGA)
 	flush_stdin();
 #endif
+	/* Native Amiga teardown restores the shell so fatal errors remain visible. */
 	call_exitlist();
 	va_start(arguments, format);
 	fatal_vprintf(format, arguments);

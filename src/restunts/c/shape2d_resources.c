@@ -1,4 +1,7 @@
 #include <stddef.h>
+#ifdef RESTUNTS_AMIGA
+#include <string.h>
+#endif
 #include "externs.h"
 #include "fileio.h"
 #include "legacy.h"
@@ -7,6 +10,12 @@
 #include "resource.h"
 #include "shape2d.h"
 #include "shape2d_internal.h"
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#define AMIGA_SHAPE2D_TRACE(stage) do { puts("Amiga shape2d: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_SHAPE2D_TRACE(stage) ((void)0)
+#endif
 
 #define DOS_PARAGRAPH_SHIFT 4U
 #define DOS_PARAGRAPH_OFFSET_MASK 15U
@@ -56,13 +65,25 @@ legacy_s16 shape2d_count_repeated_bytes(void far *data)
 {
 	legacy_u16 source_segment = dos_memory_pointer_segment(data);
 	legacy_u16 source = dos_memory_pointer_offset(data);
+#ifdef RESTUNTS_AMIGA
+	/* No allocation occurs while scanning. Resolve this segment once, keeping
+	 * the original 16-bit offset wrap even on native 32-bit pointers. */
+	const legacy_u8 *source_base = dos_memory_make_pointer(source_segment, 0);
+	legacy_u8 value = source_base[source];
+#else
 	legacy_u8 far *source_ptr = (legacy_u8 far *)dos_memory_make_pointer(source_segment, source);
 	legacy_u8 value = *source_ptr;
+#endif
 	legacy_u16 count = 0;
 	for (;;) {
+#ifdef RESTUNTS_AMIGA
+		legacy_u8 next = source_base[source];
+#else
 		source_ptr = (legacy_u8 far *)dos_memory_make_pointer(source_segment, source);
+		legacy_u8 next = *source_ptr;
+#endif
 		source++;
-		if (*source_ptr != value) {
+		if (next != value) {
 			return count;
 		}
 		count++;
@@ -95,9 +116,20 @@ static void shape2d_copy_wrapped(legacy_u16 source_segment, legacy_u16 *source,
 								 legacy_u16 count)
 {
 	legacy_u16 copied = 0;
+#ifdef RESTUNTS_AMIGA
+	/* Both mappings are local to this copy, so a later arena move cannot
+	 * leave cached resource addresses behind. Increment the offsets, not
+	 * the native pointers, to retain segment wrapping and overlap order. */
+	const legacy_u8 *source_base = dos_memory_make_pointer(source_segment, 0);
+	legacy_u8 *destination_base = dos_memory_make_pointer(destination_segment, 0);
+#endif
 	while (LEGACY_S16_FROM_BITS(copied) < LEGACY_S16_FROM_BITS(count)) {
+#ifdef RESTUNTS_AMIGA
+		destination_base[*destination] = source_base[*source];
+#else
 		shape2d_far_write_byte(destination_segment, *destination,
 							   shape2d_far_read_byte(source_segment, *source));
+#endif
 		(*source)++;
 		(*destination)++;
 		copied++;
@@ -291,6 +323,89 @@ legacy_u16 file_get_res_shape_count(void far *memchunk)
 	return resource_file_count((const legacy_u8 far *)memchunk);
 }
 
+#ifdef RESTUNTS_AMIGA
+static legacy_u32 shape2d_unflip_source(legacy_u32 destination, legacy_u16 width,
+									 legacy_u16 height, legacy_u8 layout)
+{
+	legacy_u16 row;
+	legacy_u16 column;
+	if (destination <= LEGACY_U16_MAX) {
+		/* Keep the division 16-bit so GCC uses the 68000 DIVU instruction
+		 * instead of its software 32-bit division routine for game images. */
+		legacy_u16 narrow = (legacy_u16)destination;
+		row = (legacy_u16)(narrow / width);
+		column = (legacy_u16)(narrow % width);
+	} else {
+		row = (legacy_u16)(destination / width);
+		column = (legacy_u16)(destination % width);
+	}
+	if (layout == 1) {
+		return (legacy_u32)column * height + row;
+	}
+	legacy_u16 even_rows = ((legacy_u32)height + 1U) >> 1;
+	if (layout == 2) {
+		return (legacy_u32)column * height + (row >> 1) + ((row & 1U) != 0 ? even_rows : 0U);
+	}
+	if ((row & 1U) != 0) {
+		return (legacy_u32)width * even_rows + (legacy_u32)column * (legacy_u16)(height >> 1) +
+			   (row >> 1);
+	}
+	return (legacy_u32)column * even_rows + (row >> 1);
+}
+
+/* A layout is a permutation of the bitmap bytes. Rotate each cycle in place
+ * and remember the completed pixels using one bit each. A 320x200 bitmap
+ * needs 8000 bytes of workspace instead of a second 64000-byte bitmap. */
+static void shape2d_unflip_in_place(legacy_u8 *pixels, legacy_u8 *visited,
+									legacy_s16 width, legacy_s16 height, legacy_u8 layout)
+{
+	if (width <= 0 || height <= 0) {
+		return;
+	}
+	legacy_u32 count = (legacy_u32)width * height;
+	memset(visited, 0, (count + 7U) >> 3);
+	for (legacy_u32 start = 0; start < count; start++) {
+		if ((visited[start >> 3] & (1U << (start & 7U))) != 0) {
+			continue;
+		}
+		legacy_u8 saved = pixels[start];
+		legacy_u32 destination = start;
+		for (;;) {
+			visited[destination >> 3] |= (legacy_u8)(1U << (destination & 7U));
+			legacy_u32 source = shape2d_unflip_source(destination, width, height, layout);
+			if (source == start) {
+				pixels[destination] = saved;
+				break;
+			}
+			pixels[destination] = pixels[source];
+			destination = source;
+		}
+	}
+}
+
+static legacy_u16 shape2d_unflip_workspace_pages(legacy_u8 *resource)
+{
+	legacy_u16 count = resource_file_count(resource);
+	legacy_u32 largest = 0;
+	for (legacy_u16 index = 0; index < count; index++) {
+		const struct SHAPE2D *shape = file_get_shape2d(resource, index);
+		legacy_u8 layout = shape->plane_flags[2] >> SHAPE2D_FLIP_FLAG_SHIFT;
+		if ((shape->plane_flags[3] & SHAPE2D_FLIP_FLAG_MASK) != 0 ||
+			layout == 0 || layout > SHAPE2D_FLIP_TYPE_COUNT) {
+			continue;
+		}
+		legacy_s16 width = shape2d_get_width(shape);
+		legacy_s16 height = shape2d_get_height(shape);
+		if (width > 0 && height > 0) {
+			legacy_u32 pixels = (legacy_u32)width * height;
+			if (pixels > largest) {
+				largest = pixels;
+			}
+		}
+	}
+	return (legacy_u16)((largest + 127U) >> 7);
+}
+#else
 static void shape2d_unflip_transpose(legacy_s8 far *membitmapptr, legacy_s8 far *mempages,
 									 legacy_s16 width, legacy_s16 height)
 {
@@ -347,6 +462,7 @@ static void shape2d_unflip_column_blocks(legacy_s8 far *membitmapptr, legacy_s8 
 		}
 	}
 }
+#endif
 
 void file_unflip_shape2d(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 {
@@ -371,8 +487,12 @@ void file_unflip_shape2d(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 				// on to mmgr_release without ever reading ax, and the three
 				// arms below cover every flip type the resources use.
 				if (flag <= SHAPE2D_FLIP_TYPE_COUNT) {
-					legacy_s16 width = shape_header->width;
-					legacy_s16 height = shape_header->height;
+					legacy_s16 width = shape2d_get_width(shape_header);
+					legacy_s16 height = shape2d_get_height(shape_header);
+#ifdef RESTUNTS_AMIGA
+					shape2d_unflip_in_place((legacy_u8 *)membitmapptr,
+										   (legacy_u8 *)mempages, width, height, flag);
+#else
 					switch (flag - 1) {
 						case 0:
 							shape2d_unflip_transpose(membitmapptr, mempages, width, height);
@@ -391,6 +511,7 @@ void file_unflip_shape2d(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 							membitmapptr[i + j * width] = mempages[i + j * width];
 						}
 					}
+#endif
 				}
 			}
 		}
@@ -413,8 +534,8 @@ void file_unflip_shape2d_pes(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 				(shape_header->plane_flags[2] >> SHAPE2D_FLIP_FLAG_SHIFT) & SHAPE2D_PATTERN_MASK;
 
 			if (val) {
-				legacy_s16 width = shape_header->width;
-				legacy_s16 height = shape_header->height;
+				legacy_s16 width = shape2d_get_width(shape_header);
+				legacy_s16 height = shape2d_get_height(shape_header);
 				legacy_u8 far *membitmapptr = memshape + SHAPE2D_HEADER_SIZE;
 
 				for (legacy_s16 j = 0; j < SHAPE2D_PLANAR_PLANE_COUNT; ++j) {
@@ -459,7 +580,7 @@ void file_load_shape2d_expand(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 	for (legacy_s16 i = 0; i < shapecount; ++i) {
 		legacy_u8 far *srcshape = file_get_shape2d_bytes(memchunk, i);
 		source_header = (struct SHAPE2D far *)srcshape;
-		legacy_u32 product = (legacy_u32)source_header->width * source_header->height;
+		legacy_u32 product = (legacy_u32)shape2d_get_width(source_header) * shape2d_get_height(source_header);
 		legacy_s16 length = (legacy_s16)(legacy_u16)product;
 
 		// dx:ax at this point is HIWORD(w*h) : (LOWORD(w*h)*8 + 16), each
@@ -481,8 +602,8 @@ void file_load_shape2d_expand(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 		// nibbles and are deliberately left alone in the destination.
 		fmemcpy(dstshape, srcshape, SHAPE2D_COPIED_HEADER_WORDS * sizeof(legacy_u16));
 
-		destination_header->width =
-			LEGACY_U16_WRAP_MUL(destination_header->width, SHAPE2D_BITS_PER_PLANE_BYTE);
+		shape2d_put_word(dstshape + offsetof(struct SHAPE2D, width),
+			LEGACY_U16_WRAP_MUL(shape2d_get_width(destination_header), SHAPE2D_BITS_PER_PLANE_BYTE));
 
 		if (length && length <= SHAPE2D_EXPANDED_PIXEL_LIMIT) {
 			mempagesptr = dstshape + SHAPE2D_HEADER_SIZE;
@@ -535,7 +656,7 @@ legacy_u16 file_get_unflip_size(legacy_s8 far *memchunk)
 		legacy_u8 far *memshape = file_get_shape2d_bytes((legacy_u8 far *)memchunk, i);
 		shape_header = (struct SHAPE2D far *)memshape;
 		legacy_u16 size =
-			(shape_header->width * shape_header->height + SHAPE2D_UNFLIP_PARAGRAPH_PADDING) >>
+			(shape2d_get_width(shape_header) * shape2d_get_height(shape_header) + SHAPE2D_UNFLIP_PARAGRAPH_PADDING) >>
 			DOS_PARAGRAPH_SHIFT;
 		if (size > maxsize) {
 			maxsize = size;
@@ -560,7 +681,7 @@ legacy_u16 file_load_shape2d_expandedsize(void far *memchunk)
 		// `shl ax, 3` then `sub dx, dx / adc`: the per-shape term is a
 		// 16-bit value ZERO-extended into the accumulator, and the header
 		// size is folded in afterwards with its own carry.
-		size += (legacy_u32)(legacy_u16)(shape_header->width * shape_header->height *
+		size += (legacy_u32)(legacy_u16)(shape2d_get_width(shape_header) * shape2d_get_height(shape_header) *
 										 SHAPE2D_BITS_PER_PLANE_BYTE) +
 				SHAPE2D_HEADER_SIZE;
 	}
@@ -583,7 +704,7 @@ void file_load_shape2d_palmap_apply(legacy_u8 far *memchunk, legacy_u8 palmap[])
 	for (legacy_u16 i = 0; i < shapecount; ++i) {
 		legacy_u8 far *memshape = file_get_shape2d_bytes(memchunk, i);
 		shape_header = (struct SHAPE2D far *)memshape;
-		legacy_u16 length = shape_header->width * shape_header->height;
+		legacy_u16 length = shape2d_get_width(shape_header) * shape2d_get_height(shape_header);
 
 		legacy_u8 far *memchunkptr = memshape + SHAPE2D_HEADER_SIZE;
 
@@ -666,15 +787,29 @@ void far *file_load_shape2d(const legacy_s8 *shapename, legacy_s16 fatal)
 
 	void far *mempages;
 	if (stricmp(strptr, ".PVS") == 0) {
+		AMIGA_SHAPE2D_TRACE("decompress begin");
 		memchunk = file_decomp(str, fatal);
+		AMIGA_SHAPE2D_TRACE("decompress complete");
 		if (!memchunk) {
 			return dos_memory_make_pointer(0, 0);
 		}
 
+#ifdef RESTUNTS_AMIGA
+		AMIGA_SHAPE2D_TRACE("workspace sizing begin");
+		legacy_u16 unflipsize = shape2d_unflip_workspace_pages(memchunk);
+		AMIGA_SHAPE2D_TRACE("workspace sizing complete");
+		if (unflipsize == 0) {
+			return memchunk;
+		}
+#else
 		legacy_s16 unflipsize = file_get_unflip_size(memchunk);
+#endif
 		mempages = mmgr_alloc_pages("UNFLIP", unflipsize);
+		AMIGA_SHAPE2D_TRACE("unflip begin");
 		file_unflip_shape2d(memchunk, mempages);
+		AMIGA_SHAPE2D_TRACE("unflip complete");
 		mmgr_release(mempages);
+		AMIGA_SHAPE2D_TRACE("workspace released");
 
 		return memchunk;
 	} else if (stricmp(strptr, ".XVS") == 0) {

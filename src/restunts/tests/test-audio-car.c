@@ -186,9 +186,9 @@ static void test_replay_shutdown(void)
 }
 static void assert_audio_vector(const struct VECTOR *actual, const struct VECTOR *expected)
 {
-	assert(actual->x == expected->x);
-	assert(actual->y == expected->y);
-	assert(actual->z == expected->z);
+	assert(LEGACY_READ_S16_LE((const legacy_u8 *)&actual->x) == expected->x);
+	assert(LEGACY_READ_S16_LE((const legacy_u8 *)&actual->y) == expected->y);
+	assert(LEGACY_READ_S16_LE((const legacy_u8 *)&actual->z) == expected->z);
 }
 
 static void test_ghost_camera_audio(void)
@@ -248,7 +248,8 @@ static void test_ghost_camera_audio(void)
 				assert_audio_vector(&record->player_previous, &expected_previous);
 				assert_audio_vector(&record->player_current,
 									view == 0 ? &ghost_current[mode] : &player_current[mode]);
-				assert(record->player_rpm == state.playerstate.car_currpm);
+				assert(LEGACY_READ_S16_LE((const legacy_u8 *)&record->player_rpm) ==
+					   state.playerstate.car_currpm);
 				assert_audio_vector(&record->opponent_previous, &untouched);
 				assert_audio_vector(&record->opponent_current, &untouched);
 				assert(record->opponent_rpm == 0x5a5a);

@@ -17,6 +17,35 @@
 #undef strcmp
 #undef strlen
 
+#ifdef RESTUNTS_AMIGA
+static legacy_u8 auto_refresh;
+legacy_u8 amiga_video_set_auto_refresh(legacy_u8 enabled)
+{
+	legacy_u8 previous = auto_refresh;
+	auto_refresh = enabled != 0;
+	return previous;
+}
+
+static void test_modal_refresh_restore(void)
+{
+	for (legacy_u8 initial = 0; initial <= 1; ++initial) {
+		auto_refresh = initial;
+		kbormouse = 1;
+		assert(input_mode_stack_depth == 0);
+		input_push_status();
+		assert(auto_refresh == 1);
+		input_push_status();
+		assert(auto_refresh == 1);
+		input_pop_status();
+		assert(auto_refresh == 1);
+		input_pop_status();
+		assert(auto_refresh == initial && input_mode_stack_depth == 0);
+		input_pop_status();
+		assert(auto_refresh == initial);
+	}
+}
+#endif
+
 static struct CARSTATE ghost_fixture;
 static legacy_s16 ghost_fixture_active;
 
@@ -998,6 +1027,9 @@ int main(void)
 	test_display_shortcuts();
 	test_custom_camera_cycle();
 	test_custom_camera_switches();
+#ifdef RESTUNTS_AMIGA
+	test_modal_refresh_restore();
+#endif
 #ifdef RESTUNTS_SDL3
 	test_touch_shift_recording();
 	test_controller_recording();

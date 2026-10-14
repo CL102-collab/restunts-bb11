@@ -45,6 +45,17 @@ typedef char highscore_entry_opponent_must_have_expected_offset
 typedef char highscore_entry_time_must_have_expected_offset
 	[(offsetof(struct HIGHSCORE_ENTRY, time) == HIGHSCORE_TIME_OFFSET) ? 1 : -1];
 
+/* The table stays in its DOS file representation even on big-endian hosts. */
+static inline legacy_u16 highscore_entry_time(const struct HIGHSCORE_ENTRY far *entry)
+{
+	return LEGACY_READ_U16_LE((const legacy_u8 far *)entry + HIGHSCORE_TIME_OFFSET);
+}
+
+static inline void highscore_entry_set_time(struct HIGHSCORE_ENTRY far *entry, legacy_u16 time)
+{
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)entry + HIGHSCORE_TIME_OFFSET, time);
+}
+
 legacy_s16 highscore_load_or_create(legacy_s16 create_default);
 
 void print_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets);

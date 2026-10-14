@@ -172,7 +172,7 @@ legacy_s16 highscore_load_or_create(legacy_s16 create_default)
 		record.opponent[offset] = '.';
 	}
 	record.opponent[HIGHSCORE_OPPONENT_TEXT_BYTES] = 0;
-	record.time = HIGHSCORE_EMPTY_TIME;
+	highscore_entry_set_time(&record, HIGHSCORE_EMPTY_TIME);
 	struct HIGHSCORE_ENTRY far *scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
 	for (legacy_u16 entry = 0; entry < HIGHSCORE_ENTRY_COUNT; entry++) {
 		scores[entry] = record;
@@ -221,7 +221,7 @@ void print_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
 
 	legacy_s16 saved_frame_rate = framespersec;
 	framespersec = GAME_FRAME_RATE_NORMAL;
-	legacy_s16 frame_count = LEGACY_S16_FROM_BITS(record.time);
+	legacy_s16 frame_count = LEGACY_S16_FROM_BITS(highscore_entry_time(&record));
 	legacy_s8 formatted_time[HIGHSCORE_FORMAT_BUFFER_SIZE];
 	format_frame_as_string(formatted_time, frame_count == -1 ? 0 : frame_count, 1);
 	text_offsets[3] = (legacy_u8)output_offset;
@@ -279,13 +279,13 @@ void enter_hiscore(legacy_s16 frame_count, void far *prompt, legacy_u8 car_flag)
 		time_bits = LEGACY_U16_WRAP_MUL(time_bits, HIGHSCORE_LOW_FRAME_RATE_TIME_SCALE);
 	}
 	struct HIGHSCORE_ENTRY far *scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
-	if (scores[HIGHSCORE_LAST_ENTRY_INDEX].time <= time_bits) {
+	if (highscore_entry_time(&scores[HIGHSCORE_LAST_ENTRY_INDEX]) <= time_bits) {
 		highscore_draw_table();
 		return;
 	}
 
 	legacy_u16 entry = 0;
-	while (scores[entry].time <= time_bits) {
+	while (highscore_entry_time(&scores[entry]) <= time_bits) {
 		if (entry >= HIGHSCORE_ENTRY_COUNT) {
 			break;
 		}
@@ -314,7 +314,7 @@ void enter_hiscore(legacy_s16 frame_count, void far *prompt, legacy_u8 car_flag)
 	} else {
 		strcpy(record.opponent, " ");
 	}
-	record.time = time_bits;
+	highscore_entry_set_time(&record, time_bits);
 	scores[HIGHSCORE_LAST_ENTRY_INDEX] = record;
 
 	sprite_select_render_window();
@@ -816,7 +816,7 @@ static void end_hiscore_check_score(struct END_SCREEN_STATE *screen)
 		scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
 		if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_HIGHSCORE_INELIGIBLE_FLAGS) ==
 				0 &&
-			scores[HIGHSCORE_LAST_ENTRY_INDEX].time > (legacy_u16)screen->finish_time) {
+			highscore_entry_time(&scores[HIGHSCORE_LAST_ENTRY_INDEX]) > (legacy_u16)screen->finish_time) {
 			screen->score_status = 1;
 		}
 	}

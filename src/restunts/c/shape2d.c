@@ -44,22 +44,22 @@ void shape2d_put_word(legacy_u8 far *destination, legacy_u16 value)
 
 legacy_u16 shape2d_get_width(const struct SHAPE2D far *shape)
 {
-	return shape->width;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, width));
 }
 
 legacy_u16 shape2d_get_height(const struct SHAPE2D far *shape)
 {
-	return shape->height;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, height));
 }
 
 legacy_u16 shape2d_get_anchor_x(const struct SHAPE2D far *shape)
 {
-	return shape->centre_x;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, centre_x));
 }
 
 legacy_u16 shape2d_get_anchor_y(const struct SHAPE2D far *shape)
 {
-	return shape->centre_y;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, centre_y));
 }
 
 /* An anchored draw puts the sprite's stored anchor point on (x, y), so the
@@ -76,17 +76,17 @@ legacy_u16 shape2d_anchored_y(const struct SHAPE2D far *shape, legacy_s16 y)
 
 legacy_u16 shape2d_get_pos_x(const struct SHAPE2D far *shape)
 {
-	return shape->position_x;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, position_x));
 }
 
 legacy_u16 shape2d_get_pos_y(const struct SHAPE2D far *shape)
 {
-	return shape->position_y;
+	return shape2d_get_word((const legacy_u8 far *)shape + offsetof(struct SHAPE2D, position_y));
 }
 
 legacy_u16 shape2d_get_line_offset(legacy_u16 sprite_segment, legacy_u16 y)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	(void)sprite_segment;
 	return shape2d_get_word(drawing_sprite.sprite_lineofs + (legacy_u16)(y << 1));
 #else
@@ -102,7 +102,7 @@ legacy_u16 shape2d_get_line_offset(legacy_u16 sprite_segment, legacy_u16 y)
  * segment containing the sprite. Keep 16-bit row-offset arithmetic intact. */
 legacy_u8 far *shape2d_line_pointer(const struct SPRITE far *sprite, legacy_u16 offset)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	return sprite->sprite_lineofs + offset;
 #else
 	return (legacy_u8 far *)dos_memory_make_pointer(dos_memory_pointer_segment(sprite), offset);
@@ -589,7 +589,7 @@ static void sprite_draw_dissolve_row(legacy_u16 shape_segment, legacy_u8 far *bi
 		remaining = LEGACY_U16_WRAP_SUB(remaining, skip);
 		source = LEGACY_U16_WRAP_ADD(source, skip);
 		destination = LEGACY_U16_WRAP_ADD(destination, skip);
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 		video_pages_copy_span(bitmap, destination, dos_memory_make_pointer(shape_segment, 0),
 							  source, 1);
 #else
@@ -1122,7 +1122,7 @@ void sprite_copy_rect_shifted(legacy_s16 source_x, legacy_s16 source_y, legacy_s
 
 void sprite_set_palette_map(legacy_s16 destination_index, legacy_s16 count, void far *source_data)
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	/* The native static palette may straddle a registered 64 KiB address page. */
 	const legacy_u8 *source = source_data;
 	legacy_u8 *destination = sprite_palette_map + (legacy_u16)destination_index;

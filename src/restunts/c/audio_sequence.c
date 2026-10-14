@@ -1,5 +1,14 @@
 #include "audio_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+static legacy_u8 amiga_trace_sequence;
+static unsigned amiga_trace_sequence_calls;
+static unsigned amiga_trace_sequence_events;
+#define AMIGA_SEQUENCE_TRACE(stage) do { if (amiga_trace_sequence) { puts("Amiga sequence: " stage); fflush(stdout); } } while (0)
+#else
+#define AMIGA_SEQUENCE_TRACE(stage) ((void)0)
+#endif
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/music.h"
 #endif
@@ -339,7 +348,17 @@ static void audio_service_sequence_channel(legacy_s16 channel)
 		}
 
 		audio_parse_sequence_event((const legacy_u8 far *)pointer, &event);
-		chunk->cursor.offset = LEGACY_U16_WRAP_ADD(chunk->cursor.offset, event.size);
+#ifdef RESTUNTS_AMIGA_TRACE
+		if (amiga_trace_sequence && amiga_trace_sequence_events++ < 32U) {
+			printf("Amiga sequence: channel=%d event=%u arg=%u delay=%lu value=%lu\n",
+				   (int)channel, (unsigned)event.command, (unsigned)event.argument,
+				   (unsigned long)event.delay, (unsigned long)event.value);
+			fflush(stdout);
+		}
+#endif
+		LEGACY_WRITE_U16_LE((legacy_u8 *)&chunk->cursor.offset,
+			LEGACY_U16_WRAP_ADD(LEGACY_READ_U16_LE((const legacy_u8 *)&chunk->cursor.offset),
+								event.size));
 		if (event.command < AUDIO_SEQUENCE_COMMAND_BASE) {
 			if (event.command < AUDIO_SEQUENCE_STATUS_BIT) {
 				event.argument = chunk->note_velocity;
@@ -381,7 +400,20 @@ void audio_sequence_timer(void)
 	}
 
 	audio_sequence_timer_active = AUDIO_SEQUENCE_TIMER_ACTIVE;
+#ifdef RESTUNTS_AMIGA_TRACE
+	amiga_trace_sequence = audio_music_active == AUDIO_STATE_ENABLED && amiga_trace_sequence_calls < 2U;
+	if (amiga_trace_sequence) {
+		amiga_trace_sequence_calls++;
+		amiga_trace_sequence_events = 0;
+		printf("Amiga sequence: tick %u period=%u elapsed=%u\n",
+			   amiga_trace_sequence_calls, (unsigned)audio_sequence_tick_period,
+			   (unsigned)audio_sequence_elapsed_ticks);
+		fflush(stdout);
+	}
+#endif
+	AMIGA_SEQUENCE_TRACE("update contexts begin");
 	audio_update_driver_contexts();
+	AMIGA_SEQUENCE_TRACE("update contexts complete");
 	if (audio_music_active == AUDIO_STATE_ENABLED && audio_music_enabled == AUDIO_STATE_ENABLED &&
 		audio_suspended == AUDIO_STATE_DISABLED) {
 #ifdef RESTUNTS_SDL3
@@ -390,11 +422,15 @@ void audio_sequence_timer(void)
 		audio_sequence_elapsed_ticks =
 			LEGACY_U16_WRAP_ADD(audio_sequence_elapsed_ticks, AUDIO_SEQUENCE_TIMER_TICK_STEP);
 		while (audio_sequence_elapsed_ticks >= audio_sequence_tick_period) {
+			AMIGA_SEQUENCE_TRACE("music contexts begin");
 			audio_advance_music_contexts();
+			AMIGA_SEQUENCE_TRACE("music contexts complete");
 			audio_sequence_elapsed_ticks =
 				LEGACY_U16_WRAP_SUB(audio_sequence_elapsed_ticks, audio_sequence_tick_period);
 			for (legacy_u16 channel = 0; channel < audio_music_channel_count; channel++) {
+				AMIGA_SEQUENCE_TRACE("channel begin");
 				audio_service_sequence_channel((legacy_s16)channel);
+				AMIGA_SEQUENCE_TRACE("channel complete");
 			}
 		}
 	} else {
@@ -405,4 +441,5 @@ void audio_sequence_timer(void)
 		audio_service_sequence_channel((legacy_s16)channel);
 	}
 	audio_sequence_timer_active = AUDIO_SEQUENCE_TIMER_INACTIVE;
+	AMIGA_SEQUENCE_TRACE("tick complete");
 }

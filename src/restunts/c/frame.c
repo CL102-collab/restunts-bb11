@@ -10,6 +10,9 @@
 #include "camera.h"
 #include "video_frame.h"
 #include "shape2d.h"
+#ifdef RESTUNTS_AMIGA
+#include "shape2d_internal.h"
+#endif
 #include "car_model.h"
 #include "scene_resources.h"
 #include "projection.h"
@@ -477,6 +480,21 @@ static void frame_mark_changed_rects(void)
 
 void frame_present(struct RECTANGLE *cliprect)
 {
+#ifdef RESTUNTS_AMIGA
+	if (render_window_sprite == &screen_sprite) {
+		/* Native races draw into the indexed screen, already hidden behind
+		 * the displayed planar page. Presentation follows dashboard updates. */
+		sprite_select_screen_compat();
+		mouse_draw_transparent_check();
+		if (slow_video_mgmt_copy != 0) {
+			frame_buffer_camera_headings[1] = last_rendered_camera_heading;
+			for (legacy_s16 i = 0; i < FRAME_DIRTY_RECT_COUNT; i++) {
+				frame_rects_page1[i] = frame_rects_page0[i];
+			}
+		}
+		return;
+	}
+#endif
 	if (video_uses_page_flipping != 0) {
 		return;
 	}

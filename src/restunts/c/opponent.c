@@ -692,7 +692,10 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 	output[TRACK_ROUTE_RESULT_CENTER_INDEX].z = route_average(first_point->z, second_point->z);
 	output[TRACK_ROUTE_RESULT_FIRST_POINT_INDEX] = *first_point;
 	output[TRACK_ROUTE_RESULT_SECOND_POINT_INDEX] = *second_point;
-	LEGACY_WRITE_U16_LE((legacy_u8 *)output + TRACK_ROUTE_FLAG_OFFSET, has_opponent_path);
+	/* This flag follows three native VECTORs in CARSTATE, not a file record. */
+	legacy_s16 native_flag = has_opponent_path;
+	((legacy_u8 *)output)[TRACK_ROUTE_FLAG_OFFSET] = ((const legacy_u8 *)&native_flag)[0];
+	((legacy_u8 *)output)[TRACK_ROUTE_FLAG_OFFSET + 1U] = ((const legacy_u8 *)&native_flag)[1];
 }
 
 static void store_route_speed(const struct TRKOBJINFO *track_info,

@@ -10,6 +10,9 @@
 #include "resource_bytes.h"
 #include "externs.h"
 #include "keyboard.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 
 #ifdef __ANDROID__
 #include "../platform/sdl3/sdl3.h"
@@ -62,6 +65,18 @@ legacy_s16 sprite_blit_to_video(struct SPRITE far *sprite, legacy_s16 mode)
 {
 	sprite_select_screen_compat();
 	mouse_draw_opaque_check();
+#ifdef RESTUNTS_AMIGA
+	/* A dissolve requires repeated full chunky-to-planar conversions. Keep
+	 * menu navigation responsive on the 68000 with one completed screen. */
+	legacy_s16 result = (legacy_u16)mode == SPRITE_BLIT_IMMEDIATE_MODE ? 0 :
+		input_do_checking((legacy_s16)timer_get_delta_alt());
+	/* Input callbacks may open modal dialogs before this frame begins. */
+	amiga_video_begin_frame();
+	sprite_putimage(sprite->sprite_bitmapptr);
+	mouse_draw_transparent_check();
+	amiga_video_present();
+	return result;
+#else
 	if ((legacy_u16)mode == SPRITE_BLIT_IMMEDIATE_MODE) {
 		sprite_putimage(sprite->sprite_bitmapptr);
 		mouse_draw_transparent_check();
@@ -82,6 +97,7 @@ legacy_s16 sprite_blit_to_video(struct SPRITE far *sprite, legacy_s16 mode)
 	}
 	mouse_draw_transparent_check();
 	return result;
+#endif
 }
 
 static void read_line_delete_character(legacy_s8 *text, legacy_s16 max_characters)

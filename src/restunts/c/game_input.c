@@ -12,6 +12,9 @@
 #include "externs.h"
 #include "ghost.h"
 #include "frame_internal.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #ifdef RESTUNTS_SDL3
 #include "hires.h"
 #include "frame_adaptive.h"
@@ -106,6 +109,9 @@ static const legacy_u8 input_key_scancodes[INPUT_KEY_COUNT] = {57, 28, 71, 72, 7
 static legacy_u8 input_mode_stack_depth;
 static legacy_s8 input_draw_mode_stack[INPUT_MODE_STACK_LIMIT];
 static legacy_s8 input_device_mode_stack[INPUT_MODE_STACK_LIMIT];
+#ifdef RESTUNTS_AMIGA
+static legacy_u8 input_refresh_stack[INPUT_MODE_STACK_LIMIT];
+#endif
 
 void kb_reg_callback(legacy_s16 code, void(far *callback)(void))
 {
@@ -214,15 +220,26 @@ legacy_s16 joystick_get_scaled_y(void)
 	return dos_joystick_get_scaled_axis(1U);
 }
 
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#define AMIGA_PALETTE_TRACE(stage) do { puts("Amiga palette/cursor: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_PALETTE_TRACE(stage) ((void)0)
+#endif
+
 void load_palandcursor(void)
 {
+	AMIGA_PALETTE_TRACE("load palette resource");
 	legacy_s8 far *resource = (legacy_s8 far *)file_load_shape2d_fatal("sdmain");
+	AMIGA_PALETTE_TRACE("locate palette");
 	struct SHAPE2D far *mouse_shape = (struct SHAPE2D far *)locate_shape_fatal(resource, "!pal");
 	legacy_u8 palette[VGA_PALETTE_BYTE_COUNT];
 	for (legacy_u16 i = 0; i < sizeof(palette); ++i) {
 		palette[i] = ((legacy_u8 far *)mouse_shape)[SHAPE2D_HEADER_SIZE + i];
 	}
+	AMIGA_PALETTE_TRACE("apply native palette");
 	dos_video_set_palette(0, VGA_PALETTE_COLOR_COUNT, palette);
+	AMIGA_PALETTE_TRACE("native palette complete");
 #ifdef RESTUNTS_SDL3
 	skybox_hires_set_palette(palette);
 #endif
@@ -232,24 +249,31 @@ void load_palandcursor(void)
 	legacy_u16 mouse_height = shape2d_get_height(mouse_shape);
 	mmgr_free(resource);
 
+	AMIGA_PALETTE_TRACE("allocate cursor sprites");
 	mouse_small_sprite = sprite_make_wnd(mouse_width, mouse_height, MOUSE_SPRITE_TRANSPARENT_COLOR);
 	mouse_medium_sprite =
 		sprite_make_wnd(mouse_width, mouse_height, MOUSE_SPRITE_TRANSPARENT_COLOR);
 	mouse_background_sprite = sprite_make_wnd(mouse_width + video_x_alignment, mouse_height,
 											  MOUSE_SPRITE_TRANSPARENT_COLOR);
 
+	AMIGA_PALETTE_TRACE("reload cursor resource");
 	resource = (legacy_s8 far *)file_load_shape2d_fatal("sdmain");
+	AMIGA_PALETTE_TRACE("render small cursor");
 	sprite_select_target(mouse_small_sprite);
 	mouse_shape = (struct SHAPE2D far *)locate_shape_fatal(resource, "smou");
 	sprite_shape_to_1(mouse_shape, 0, 0);
 
+	AMIGA_PALETTE_TRACE("render medium cursor");
 	sprite_select_target(mouse_medium_sprite);
 	mouse_shape = (struct SHAPE2D far *)locate_shape_fatal(resource, "mmou");
 	sprite_shape_to_1(mouse_shape, 0, 0);
 
 	mmgr_free(resource);
 	sprite_select_screen_compat();
+	AMIGA_PALETTE_TRACE("palette and cursors complete");
 }
+
+#undef AMIGA_PALETTE_TRACE
 
 #ifdef RESTUNTS_SDL3
 static void input_select_supersight(legacy_s16 key)
@@ -846,6 +870,10 @@ void input_push_status(void)
 
 	input_draw_mode_stack[index] = mouse_transparent_mode;
 	input_device_mode_stack[index] = kbormouse;
+#ifdef RESTUNTS_AMIGA
+	/* Modal keyboard dialogs poll input while the race renderer is stopped. */
+	input_refresh_stack[index] = amiga_video_set_auto_refresh(1);
+#endif
 	input_mode_stack_depth++;
 }
 
@@ -862,6 +890,9 @@ void input_pop_status(void)
 	if (kbormouse == 0) {
 		mouse_draw_opaque_check();
 	}
+#ifdef RESTUNTS_AMIGA
+	amiga_video_set_auto_refresh(input_refresh_stack[index]);
+#endif
 }
 
 legacy_s16 input_repeat_check(legacy_s16 duration)

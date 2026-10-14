@@ -34,6 +34,9 @@ Main repository: https://github.com/4d-stunts/restunts
 	src\restunts\platform\dos
 		DOS specific code.
 
+	src\restunts\platform\amiga
+		Native Amiga 500+ port: Motorola 68000, 320x200, 32 colors, Paula audio.
+
 	src\restunts\platform\templeos
 		Native HolyC port for TempleOS/TinkerOS: 640x400 rendering, 16 colors, PC speaker.
 
@@ -47,6 +50,9 @@ Main repository: https://github.com/4d-stunts/restunts
 
 
 ## Running the game
+
+The experimental [Amiga 500+ port](docs/amiga.md) builds a native AmigaOS
+executable from the classic DOS game core. See its current performance limits.
 
 An SDL3 [WebAssembly build](docs/wasm.md) runs directly from a local HTML file
 without a web server. Only enhanced artwork is embedded; select your own

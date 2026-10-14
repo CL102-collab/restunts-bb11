@@ -9,6 +9,21 @@
 #undef memcpy
 #undef printf
 
+#ifdef RESTUNTS_AMIGA
+void locate_many_resources(legacy_s8 far *data, const legacy_s8 *names, legacy_s8 far **result)
+{
+	(void)data; (void)names; (void)result;
+	assert(0 && "Input polling must not reload replay resources");
+}
+static legacy_u8 auto_refresh, checking_refresh_scope;
+legacy_u8 amiga_video_set_auto_refresh(legacy_u8 enabled)
+{
+	legacy_u8 previous = auto_refresh;
+	auto_refresh = enabled != 0;
+	return previous;
+}
+#endif
+
 static struct CARSTATE ghost_fixture;
 static legacy_s16 ghost_fixture_active;
 static legacy_u32 ghost_end_calls;
@@ -104,6 +119,9 @@ legacy_s16 frame_fps_expire_idle(void)
 legacy_s16 input_checking(legacy_s16 delta)
 {
 	assert(delta == 1);
+#ifdef RESTUNTS_AMIGA
+	if (checking_refresh_scope) assert(auto_refresh == 1);
+#endif
 	assert(++input_polls <= input_exit_poll);
 	return input_polls == input_exit_poll ? KEY_F2 : 0;
 }
@@ -766,6 +784,28 @@ static void test_paused_replay_fps_refresh(void)
 	assert(input_polls == 1 && fps_expiry_checks == 0);
 }
 
+#ifdef RESTUNTS_AMIGA
+static void test_replay_refresh_restore(void)
+{
+	for (legacy_u8 initial = 0; initial <= 1; ++initial) {
+		for (legacy_u8 paused = 0; paused <= 1; ++paused) {
+			reset_viewer();
+			game_replay_mode = REPLAY_MODE_PLAYBACK;
+			is_in_replay = paused;
+			input_polls = fps_expiry_checks = 0;
+			input_exit_poll = 3;
+			fps_expire_poll = 0;
+			auto_refresh = initial;
+			checking_refresh_scope = 1;
+			loop_game(REPLAY_LOOP_HANDLE_INPUT, 0, 0);
+			checking_refresh_scope = 0;
+			assert(auto_refresh == initial);
+			assert(input_polls == (paused ? 3U : 1U));
+		}
+	}
+}
+#endif
+
 #ifdef RESTUNTS_SDL3
 static void test_controller_pause_menu(void)
 {
@@ -861,6 +901,9 @@ legacy_int main(void)
 	test_save_cleanup();
 	test_ghost_view_display_option();
 	test_paused_replay_fps_refresh();
+#ifdef RESTUNTS_AMIGA
+	test_replay_refresh_restore();
+#endif
 #ifdef RESTUNTS_SDL3
 	test_touch_seek_reconstruction();
 	test_controller_pause_menu();

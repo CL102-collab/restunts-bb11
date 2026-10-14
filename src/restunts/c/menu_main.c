@@ -1,3 +1,6 @@
+#ifdef RESTUNTS_AMIGA_TRACE
+#include <stdio.h>
+#endif
 #include "fileio.h"
 #include "audio_control.h"
 #include "legacy.h"
@@ -15,6 +18,12 @@
 #include "game_input.h"
 #include "frame_internal.h"
 #include "menu_background.h"
+#endif
+
+#ifdef RESTUNTS_AMIGA_TRACE
+#define AMIGA_MENU_TRACE(stage) do { puts("Amiga menu: " stage); fflush(stdout); } while (0)
+#else
+#define AMIGA_MENU_TRACE(stage) ((void)0)
 #endif
 
 #define MAIN_MENU_BUTTON_COUNT 5U
@@ -44,6 +53,9 @@ legacy_s8 run_menu(void)
 		MAIN_MENU_TRACK, MAIN_MENU_DRIVE, MAIN_MENU_CAR, MAIN_MENU_OPTIONS, MAIN_MENU_OPPONENT};
 
 	legacy_u8 selected = MAIN_MENU_DRIVE;
+#ifdef RESTUNTS_AMIGA_TRACE
+	legacy_u8 first_loop = 1;
+#endif
 	legacy_u8 previous = MAIN_MENU_NO_SELECTION;
 	legacy_u8 blit_mode = MENU_BLIT_MODE_INITIAL;
 	/* Keep music resources below the temporary menu allocations, but defer
@@ -76,7 +88,9 @@ legacy_s8 run_menu(void)
 			menu_background_draw(render_window_sprite, render_window_sprite->sprite_bitmapptr,
 								 MENU_BACKGROUND_MAIN);
 #endif
+			AMIGA_MENU_TRACE("blit begin");
 			sprite_blit_to_video(render_window_sprite, LEGACY_S8_FROM_BITS(blit_mode));
+			AMIGA_MENU_TRACE("blit complete");
 			blit_mode = MENU_BLIT_MODE_REFRESH;
 			sprite_select_screen_compat();
 #ifdef RESTUNTS_SDL3
@@ -91,14 +105,26 @@ legacy_s8 run_menu(void)
 #endif
 			menu_reset_animation_timers();
 			if (start_music != 0) {
+				AMIGA_MENU_TRACE("music begin");
 				load_audio_finalize(audio_resource);
+				AMIGA_MENU_TRACE("music complete");
 				start_music = 0;
 			}
 		}
 
+#ifdef RESTUNTS_AMIGA_TRACE
+		if (first_loop) AMIGA_MENU_TRACE("highlight begin");
+#endif
 		legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
 			selected, menu_buttons, menu_highlight_second_color, menu_highlight_first_color);
+#ifdef RESTUNTS_AMIGA_TRACE
+		if (first_loop) AMIGA_MENU_TRACE("highlight complete; input begin");
+#endif
 		legacy_u16 key = (legacy_u16)input_checking(LEGACY_S16_FROM_BITS(elapsed));
+#ifdef RESTUNTS_AMIGA_TRACE
+		if (first_loop) { AMIGA_MENU_TRACE("input complete"); first_loop = 0; }
+		if (key) { fprintf(stdout, "Amiga menu: key=%u\n", (unsigned)key); fflush(stdout); }
+#endif
 		legacy_s16 hit = (legacy_s16)mouse_multi_hittest(MAIN_MENU_BUTTON_COUNT, menu_buttons);
 		if (hit != MAIN_MENU_MOUSE_HIT_NONE) {
 			selected = (legacy_u8)hit;
@@ -137,6 +163,7 @@ legacy_s8 run_menu(void)
 #ifdef RESTUNTS_SDL3
 	menu_background_unload();
 #endif
+	AMIGA_MENU_TRACE("selection complete");
 	sprite_free_wnd(render_window_sprite);
 	return LEGACY_S8_FROM_BITS(selected);
 }

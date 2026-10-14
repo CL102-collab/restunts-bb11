@@ -32,12 +32,18 @@ static void audio_carstate_offsets(struct VECTOR far *previous, struct VECTOR fa
 								   const struct VECTOR *car_previous,
 								   const struct VECTOR *car_current)
 {
-	previous->x = LEGACY_S16_WRAP_SUB(camera_previous->x, car_previous->x);
-	previous->y = LEGACY_S16_WRAP_SUB(camera_previous->y, car_previous->y);
-	previous->z = LEGACY_S16_WRAP_SUB(camera_previous->z, car_previous->z);
-	current->x = LEGACY_S16_WRAP_SUB(camera_current->x, car_current->x);
-	current->y = LEGACY_S16_WRAP_SUB(camera_current->y, car_current->y);
-	current->z = LEGACY_S16_WRAP_SUB(camera_current->z, car_current->z);
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->x,
+		LEGACY_S16_WRAP_SUB(camera_previous->x, car_previous->x));
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->y,
+		LEGACY_S16_WRAP_SUB(camera_previous->y, car_previous->y));
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->z,
+		LEGACY_S16_WRAP_SUB(camera_previous->z, car_previous->z));
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->x,
+		LEGACY_S16_WRAP_SUB(camera_current->x, car_current->x));
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->y,
+		LEGACY_S16_WRAP_SUB(camera_current->y, car_current->y));
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->z,
+		LEGACY_S16_WRAP_SUB(camera_current->z, car_current->z));
 }
 
 static legacy_u8 audio_carstate_update_flags(struct CARSTATE *carstate, legacy_s16 channel,
@@ -170,14 +176,14 @@ static legacy_s16 audio_carstate_write_record(struct AUDIO_CAR_POSITIONS *positi
 	audio_carstate_offsets(&record->player_previous, &record->player_current,
 						   &positions->camera_previous, &positions->camera_current,
 						   &positions->player_previous, &positions->player_current);
-	record->player_rpm = state.playerstate.car_currpm;
+	LEGACY_WRITE_U16_LE((legacy_u8 far *)&record->player_rpm, state.playerstate.car_currpm);
 
 	legacy_s16 car_count = 1;
 	if (gameconfig.game_opponenttype != 0) {
 		audio_carstate_offsets(&record->opponent_previous, &record->opponent_current,
 							   &positions->camera_previous, &positions->camera_current,
 							   &positions->opponent_previous, &positions->opponent_current);
-		record->opponent_rpm = state.opponentstate.car_currpm;
+		LEGACY_WRITE_U16_LE((legacy_u8 far *)&record->opponent_rpm, state.opponentstate.car_currpm);
 		car_count = AUDIO_CAR_COUNT_WITH_OPPONENT;
 	}
 	return car_count;

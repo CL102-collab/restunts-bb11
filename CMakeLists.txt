@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 project(restunts VERSION 1.0 LANGUAGES C)
 
+option(RESTUNTS_AMIGA "Build the native Amiga 500+ port" OFF)
+if(RESTUNTS_AMIGA)
+    include(cmake/amiga.cmake)
+    return()
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
     # SDL's native Haiku backend needs C++ link information in the parent scope.
     enable_language(CXX)

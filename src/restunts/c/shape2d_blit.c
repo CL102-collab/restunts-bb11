@@ -2,6 +2,9 @@
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/sdl3.h"
 #endif
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "externs.h"
 #include "fatal.h"
 #include "legacy.h"
@@ -11,8 +14,9 @@
 #include "shape2d_internal.h"
 #include "game_input.h"
 #include "video_pages.h"
-#ifdef RESTUNTS_SDL3
-static struct SPRITE sdl3_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY][SPRITE_STATE_COUNT];
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
+static struct SPRITE
+	native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY][SPRITE_STATE_COUNT];
 #endif
 
 #define WINDOW_DEFINITION_TABLE_BYTES 3600U
@@ -35,6 +39,9 @@ struct SHAPE2D_CLIP {
 
 struct SHAPE2D_RLE_CURSOR {
 	legacy_u16 shape_segment;
+#ifdef RESTUNTS_AMIGA
+	const legacy_u8 *source_base;
+#endif
 	legacy_u16 source;
 	legacy_u16 remaining;
 	legacy_u8 value;
@@ -92,6 +99,11 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 							   legacy_s16 operation)
 {
 	legacy_u16 shape_segment = dos_memory_pointer_segment(shape);
+#ifdef RESTUNTS_AMIGA
+	/* Resource allocation/compaction cannot occur inside a blit. Cache only
+	 * for this draw, retaining the wrapping 16-bit source offset below. */
+	const legacy_u8 *source_base = dos_memory_make_pointer(shape_segment, 0);
+#endif
 	legacy_u16 source = LEGACY_U16_WRAP_ADD(dos_memory_pointer_offset(shape), SHAPE2D_HEADER_SIZE);
 	legacy_u16 width = shape2d_get_width(shape);
 	legacy_u16 line_entry = LEGACY_U16_WRAP_ADD(shape2d_line_base(&drawing_sprite),
@@ -104,8 +116,12 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 	legacy_u8 planar = video_pages_uses_raster_hooks(bitmap);
 	legacy_u8 value = 0;
 	for (;;) {
+#ifdef RESTUNTS_AMIGA
+		legacy_u8 control_bits = source_base[source];
+#else
 		legacy_u8 far *source_ptr = (legacy_u8 far *)dos_memory_make_pointer(shape_segment, source);
 		legacy_u8 control_bits = *source_ptr;
+#endif
 		source++;
 		legacy_s8 control = LEGACY_S8_FROM_BITS(control_bits);
 		if (control == 0) {
@@ -117,8 +133,12 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 			count = (legacy_u8)(0U - control_bits);
 		} else {
 			count = control_bits;
+#ifdef RESTUNTS_AMIGA
+			value = source_base[source];
+#else
 			source_ptr = (legacy_u8 far *)dos_memory_make_pointer(shape_segment, source);
 			value = *source_ptr;
+#endif
 			source++;
 		}
 		do {
@@ -136,8 +156,12 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 				}
 			} else {
 				if (literal != 0) {
+#ifdef RESTUNTS_AMIGA
+					value = source_base[source];
+#else
 					source_ptr = (legacy_u8 far *)dos_memory_make_pointer(shape_segment, source);
 					value = *source_ptr;
+#endif
 					source++;
 				}
 				shape2d_write_raster(bitmap, destination, value, operation, planar);
@@ -210,7 +234,7 @@ struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u
 {
 	(void)unused_flags;
 
-#ifndef RESTUNTS_SDL3
+#if !defined(RESTUNTS_SDL3) && !defined(RESTUNTS_AMIGA)
 	legacy_u16 wnddefseg = dos_memory_pointer_segment(&wnd_defs);
 #endif
 
@@ -220,17 +244,17 @@ struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u
 
 	struct SHAPE2D far *header =
 		(struct SHAPE2D far *)dos_memory_make_pointer(dos_memory_pointer_segment(shapebuf), 0);
-	header->width = width;
-	header->height = height;
-	header->position_x = 0U;
-	header->position_y = 0U;
-	header->centre_x = 0U;
-	header->centre_y = 0U;
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, width), width);
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, height), height);
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, position_x), 0U);
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, position_y), 0U);
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, centre_x), 0U);
+	shape2d_put_word((legacy_u8 far *)header + offsetof(struct SHAPE2D, centre_y), 0U);
 
 	// it is safe to read/write the pointers to next_wnd_def/wnd_defs, but not the contents
 	legacy_s8 *wnd = next_wnd_def;
 	legacy_s8 *nextwnd = next_wnd_def + sizeof(struct SPRITE) + height * sizeof(legacy_u16);
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	if (nextwnd > (legacy_s8 *)wnd_defs + WINDOW_DEFINITION_TABLE_BYTES) {
 #else
 	if (dos_memory_pointer_offset(nextwnd) >=
@@ -241,7 +265,7 @@ struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u
 	next_wnd_def = nextwnd;
 
 	// get a writable far pointer to the render_window_sprite
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	struct SPRITE *farwnd = (struct SPRITE *)wnd;
 #else
 	struct SPRITE far *farwnd = dos_memory_make_pointer(wnddefseg, dos_memory_pointer_offset(wnd));
@@ -260,7 +284,7 @@ struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u
 	farwnd->sprite_raster_right = width;
 
 	// create a writable far pointer to the line offsets
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	legacy_u8 *farlineofsptr = lineofsptr;
 #else
 	legacy_u8 far *farlineofsptr =
@@ -290,7 +314,7 @@ void sprite_free_wnd(struct SPRITE far *render_window_sprite)
 	legacy_u16 spritesize =
 		sizeof(struct SPRITE) +
 		shape2d_get_height(render_window_sprite->sprite_bitmapptr) * sizeof(legacy_u16);
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	if ((legacy_s8 *)render_window_sprite + spritesize != next_wnd_def) {
 #else
 	if (dos_memory_pointer_offset(render_window_sprite) + spritesize !=
@@ -329,6 +353,12 @@ void sprite_select_screen_and_clear(void)
 
 void sprite_select_render_window(void)
 {
+#ifdef RESTUNTS_AMIGA
+	if (render_window_sprite == &screen_sprite) {
+		amiga_video_begin_frame();
+		mouse_draw_opaque_check();
+	}
+#endif
 	sprite_select_target(render_window_sprite);
 }
 
@@ -340,7 +370,7 @@ void sprite_select_render_window_and_clear(void)
 
 void sprite_save_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	saved_context[0] = drawing_sprite;
 	saved_context[1] = screen_sprite;
 #else
@@ -350,7 +380,7 @@ void sprite_save_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
 
 void sprite_restore_context(struct SPRITE saved_context[SPRITE_STATE_COUNT])
 {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	drawing_sprite = saved_context[0];
 	screen_sprite = saved_context[1];
 #else
@@ -379,8 +409,8 @@ legacy_s16 sprite_push_background(legacy_s16 left, legacy_s16 right, legacy_s16 
 	sprite_background_saved_y[index] = top;
 	struct SPRITE saved_sprites[SPRITE_STATE_COUNT];
 	sprite_save_context(saved_sprites);
-#ifdef RESTUNTS_SDL3
-	fmemcpy(sdl3_background_contexts[index], saved_sprites, sizeof(saved_sprites));
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
+	fmemcpy(native_background_contexts[index], saved_sprites, sizeof(saved_sprites));
 #else
 	fmemcpy(sprite_background_state_stack + index * sizeof(saved_sprites), saved_sprites,
 			sizeof(saved_sprites));
@@ -402,8 +432,8 @@ void sprite_pop_background(void)
 	sprite_shape_to_1(sprite_ptrs[index]->sprite_bitmapptr, sprite_background_saved_x[index],
 					  sprite_background_saved_y[index]);
 	struct SPRITE saved_sprites[SPRITE_STATE_COUNT];
-#ifdef RESTUNTS_SDL3
-	fmemcpy(saved_sprites, sdl3_background_contexts[index], sizeof(saved_sprites));
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
+	fmemcpy(saved_sprites, native_background_contexts[index], sizeof(saved_sprites));
 #else
 	fmemcpy(saved_sprites, sprite_background_state_stack + index * sizeof(saved_sprites),
 			sizeof(saved_sprites));
@@ -562,14 +592,22 @@ static legacy_s16 shape2d_clip_blit(struct SHAPE2D far *shape, legacy_u16 x, leg
 	return 1;
 }
 
+static legacy_u8 shape2d_rle_read(struct SHAPE2D_RLE_CURSOR *cursor)
+{
+#ifdef RESTUNTS_AMIGA
+	legacy_u8 value = cursor->source_base[cursor->source];
+#else
+	legacy_u8 value = *(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment,
+															  cursor->source);
+#endif
+	cursor->source++;
+	return value;
+}
+
 static legacy_s16 shape2d_rle_next(struct SHAPE2D_RLE_CURSOR *cursor, legacy_u8 *value)
 {
-	legacy_u8 far *source_ptr;
 	if (cursor->remaining == 0) {
-		source_ptr =
-			(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment, cursor->source);
-		legacy_u8 control_bits = *source_ptr;
-		cursor->source++;
+		legacy_u8 control_bits = shape2d_rle_read(cursor);
 		legacy_s8 control = LEGACY_S8_FROM_BITS(control_bits);
 		if (control == 0) {
 			return 0;
@@ -579,17 +617,11 @@ static legacy_s16 shape2d_rle_next(struct SHAPE2D_RLE_CURSOR *cursor, legacy_u8 
 			cursor->remaining = (legacy_u8)(0U - control_bits);
 		} else {
 			cursor->remaining = control_bits;
-			source_ptr =
-				(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment, cursor->source);
-			cursor->value = *source_ptr;
-			cursor->source++;
+			cursor->value = shape2d_rle_read(cursor);
 		}
 	}
 	if (cursor->literal != 0) {
-		source_ptr =
-			(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment, cursor->source);
-		cursor->value = *source_ptr;
-		cursor->source++;
+		cursor->value = shape2d_rle_read(cursor);
 	}
 	*value = cursor->value;
 	cursor->remaining--;
@@ -658,6 +690,9 @@ static void shape2d_render_rle_clipped(struct SHAPE2D far *shape, legacy_u16 x, 
 	}
 	struct SHAPE2D_RLE_CURSOR cursor;
 	cursor.shape_segment = dos_memory_pointer_segment(shape);
+#ifdef RESTUNTS_AMIGA
+	cursor.source_base = dos_memory_make_pointer(cursor.shape_segment, 0);
+#endif
 	cursor.source = data_start;
 	cursor.remaining = 0;
 	cursor.value = 0;
@@ -829,6 +864,12 @@ void sprite_putimage_transparent(struct SHAPE2D far *shape, legacy_s16 x, legacy
 
 void sprite_present_mcga_backbuffer(void)
 {
+#ifdef RESTUNTS_AMIGA
+	/* The indexed screen is already hidden behind the native planar pages. */
+	sprite_select_target(&screen_sprite);
+	amiga_video_present();
+	return;
+#endif
 	if (video_pages_is_active() != 0) {
 		video_pages_present();
 		return;
@@ -842,11 +883,20 @@ void sprite_present_mcga_backbuffer(void)
 	sprite_putimage(mcga_backbuffer_sprite->sprite_bitmapptr);
 #ifdef RESTUNTS_SDL3
 	sdl3_video_present();
+#elif defined(RESTUNTS_AMIGA)
+	amiga_video_present();
 #endif
 }
 
 void sprite_select_mcga_backbuffer(void)
 {
+#ifdef RESTUNTS_AMIGA
+	/* Reuse the indexed screen while the Copper displays the completed
+	 * planar frame, saving a second 64 KB indexed allocation and copy. */
+	amiga_video_begin_frame();
+	sprite_select_target(&screen_sprite);
+	return;
+#endif
 	if (video_pages_is_active() != 0) {
 		video_pages_select_backbuffer();
 		return;

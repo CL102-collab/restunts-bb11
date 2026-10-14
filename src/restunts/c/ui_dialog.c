@@ -16,6 +16,9 @@
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/controller_game.h"
 #endif
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 
 #define RST_ASC_CHAR_UPPER 1
 #define RST_ASC_CHAR_LOWER 2
@@ -419,6 +422,13 @@ static legacy_u16 show_dialog_impl(legacy_s16 dialog_type, legacy_s16 save_backg
 	}
 	dialog_draw_message(&dialog, text_resource, dialog_type, disabled_choices);
 	dialog_measure_choices(&dialog);
+#ifdef RESTUNTS_AMIGA
+	/* These paths do not poll keyboard or mouse, so present before returning
+	 * to resource loading or waiting on a timer that only advances time. */
+	if (dialog_type == DIALOG_TYPE_MESSAGE || dialog_type == DIALOG_TYPE_DELAY) {
+		amiga_video_present();
+	}
+#endif
 	if (dialog_type == DIALOG_TYPE_MESSAGE) {
 		return 0;
 	}
