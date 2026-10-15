@@ -3,6 +3,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "ui_text.h"
@@ -357,6 +360,9 @@ legacy_u16 run_option_menu(void)
 {
 #ifdef RESTUNTS_SDL3
 	sdl3_input_push_modal();
+#endif
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDTITL", "!def");
 #endif
 	miscptr = file_load_resfile("misc");
 	sprite_select_screen_compat();

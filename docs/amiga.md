@@ -4,13 +4,56 @@ The native Amiga backend lives in `src/restunts/platform/amiga`, alongside the
 DOS, SDL3 and TempleOS backends. It builds the same classic C game source list
 as the 16-bit DOS executable, with a Motorola 68000 target and no SDL dependency.
 
-The display is 320 × 200, non-interlaced, with five bitplanes and 32 colors
-selected from the ECS 4,096-color palette. Original VGA artwork is mapped to
-32 colors; the original 256 colors cannot all be displayed at once. The game
-still renders indexed pixels internally, then converts completed frames to
-Amiga planar pixels. With enough free RAM, two planar buffers keep conversion
-off the visible page. Low-memory launches use one planar buffer, so conversion
-can be visible while the screen updates.
+The display is 320 × 200, non-interlaced, with five bitplanes and 32 hardware
+color registers selected from the ECS 4,096-color palette. It uses the original
+Amiga release's palette tables and 3D material colors while retaining the DOS
+artwork and game layouts. The game still renders indexed pixels internally,
+then converts completed frames to Amiga planar pixels. On AmigaOS, enough free
+RAM enables two planar buffers to keep conversion off the visible page. AROS
+and low-memory launches use one planar buffer, so conversion can be visible
+while the screen updates.
+
+## Original Amiga colors
+
+The palette reference contains 31 original tables of 32 RGB4 color words and
+the original executable's 129 material color indexes. These numeric facts were
+extracted from the supplied Amiga release. Source hashes, decoded resource
+hashes, byte offsets, and observed DOS-to-Amiga pixel correspondences are
+recorded in `src/restunts/tests/fixtures/amiga-palette-reference.json`;
+`src/restunts/platform/amiga/palette_data.h` holds the runtime tables.
+The repository includes no original Amiga images, sound, or executable code.
+
+Menus select their original palette. During racing, registers 0–15 hold the
+original 16-color world palette, and registers 16–31 hold the selected car's
+16-color dashboard palette. A Copper list changes registers 16–31 at the replay
+bar's scanline when that panel is visible. This uses the existing five-plane
+screen and 32 registers; the world, dashboard, and replay panel have independent
+pixel maps.
+
+Maps for matched menu images and Countach/Ferrari dashboard artwork use observed
+pixel pairs from the DOS and Amiga resources. Where a DOS index corresponds to
+several original indexes, the most frequent correspondence is selected;
+unobserved indexes use the nearest original palette color. Consequently, the
+palette values and material table are exact, but DOS artwork, layout differences,
+and ambiguous index mappings prevent a claim of pixel-identical Amiga screens.
+
+Verify the checked-in numeric data without commercial assets, or additionally
+compare it with local copies of the original releases:
+
+```sh
+python3 tools/scripts/verify-amiga-palette-data.py
+python3 tools/scripts/verify-amiga-palette-data.py \
+    --original-directory /path/to/extracted-amiga-release \
+    --dos-directory /path/to/bb11-data
+```
+
+The Amiga directory must contain `disk1/`, `disk2/`, and the unpacked PPkc
+resources under `decoded/disk1/` and `decoded/disk2/`. The second command checks
+the original file hashes and table bytes, the DOS VGA palette, and the pixel
+pairs used for the artwork maps. Scene selection and raster palette behavior
+also have static original-executable references in the fixture. The original
+executable's title screen was observed running under AROS; its menus and race
+palette changes have not been validated by a live original-game trace.
 
 ## Build
 
@@ -77,6 +120,13 @@ and OS allocations are completed before the resource arena is sized, retaining
 8 KiB for later OS work. The executable requests a 20 KiB stack. A second planar
 buffer is enabled only when enough contiguous resource memory remains,
 including a 272 KiB reserve for stock car, opponent and scenery resources.
+
+Display flips preserve the operating system's original `BitMap` object and
+change only its plane addresses, retaining the driver data needed for later
+palette operations. AROS is detected through `aros.library` and always uses
+one planar buffer: its graphics driver caches plane addresses that
+`ScrollVPort` does not reliably refresh. This avoids stale alternating frames
+under AROS. Earlier two-buffer AROS measurements below are historical results.
 
 Diagnostic code is built separately to leave more memory for stock cars and
 opponents in the shipping executable. The native platform self-test exercises
@@ -145,6 +195,21 @@ session; capture mode does not count as an automated pass. `--key 80:Return`
 sends a menu key, and `--hold 180:30:Up` holds the accelerator for 30 seconds.
 Optional `-DRESTUNTS_AMIGA_TRACE=ON` enables native startup/resource diagnostics.
 
+Scenery capture fixtures preserve the original geometry and terrain. The ramp
+and windmill views relocate the start/finish in DOS `DEFAULT.TRK`; the water view
+relocates it beside the original pond in Amiga `JOES.TRK`. Each changes only the
+old and new start tiles. The diner view uses Amiga `SKIDS.TRK` unchanged, with the
+native replay camera adjusted before continuing the drive. Fixtures are staged
+as temporary `DEFAULT.TRK` copies, with their source hashes and byte edits
+recorded beside the capture artifacts; original game files remain intact.
+
+The palette update passes the source-data verifier, host regressions, and
+AddressSanitizer checks. Native A500+ platform, display, and replay smoke tests
+pass, as do the final A4000 platform and smoke tests using the AROS single-buffer
+fallback. Captured world pixels match the exact original 16-color palette;
+the visible replay bar independently matches its original palette. The broader
+development results and performance measurements below predate this update.
+
 This is an experimental functional port, with substantial performance work
 still required for comfortable play on a stock 7 MHz 68000. The optimized
 68000 conversion alone measured approximately 686 ms per complete screen.
@@ -175,3 +240,43 @@ with sound enabled. Launching without arguments displayed the title and entered
 the 3D intro; the complete unattended intro sequence was not tested. No commercial
 Kickstart ROM or physical Amiga was available; native execution tests used open
 AROS in FS-UAE.
+
+## A4000 compatibility tests
+
+The same 68000 executable also passes tests using FS-UAE 3.2.35's A4000/040
+profile with AGA, 2 MiB Chip RAM and 4 MiB motherboard Fast RAM. The game still
+uses its 320 × 200, 32-color display. Select this profile with `--machine a4000`:
+
+```sh
+python3 tools/scripts/run-amiga-platform-test.py \
+    --fs-uae /tmp/restunts-amiga-emulator/FS-UAE/Linux/x86-64/fs-uae \
+    --machine a4000 --mode selftest
+python3 tools/scripts/run-amiga-platform-test.py \
+    --fs-uae /tmp/restunts-amiga-emulator/FS-UAE/Linux/x86-64/fs-uae \
+    --machine a4000 --mode smoke
+```
+
+This sets `motherboard_ram = 4096`, with no Zorro II, Zorro III or Slow RAM.
+The emulator's effective configuration was checked for 68040 CPU/FPU/MMU, AGA,
+the requested memory sizes, and disabled JIT. The default harness profile
+remains the unexpanded A500+ and passed its platform test again.
+
+The A4000 platform self-test passes with two planar display buffers and a
+589,824-byte resource arena. Both replay fixtures pass, and their exported
+images match the A500+ output byte for byte:
+
+| Replay fixture | Resource high-water mark | Average render/physics time per frame |
+| --- | ---: | ---: |
+| Original `DEFAULT.RPL` | 233,664 bytes | 90 ms |
+| LM02 player, Audi opponent, Alpine scenery | 265,872 bytes | 97 ms |
+
+An interactive run also confirmed main-menu navigation, starting a normal race,
+acceleration, visible pause/resume, collision, the results screen, return to the
+main menu, high-score file creation, and normal exit with the unchanged shipping
+executable.
+
+Both runs leave 1,995,256 bytes of Chip RAM free. These timings measure four
+frames in FS-UAE's host-dependent **fastest interpreter mode**, with JIT off.
+They are not predictions for a physical 25 MHz A4000: this emulator's 68040
+timing model is not cycle-exact, and its frequency controls do not provide a
+validated stock-speed benchmark. Testing uses the open AROS ROM.

@@ -4,6 +4,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "trackdata_layout.h"
@@ -1500,6 +1503,9 @@ static void track_editor_release_resources(struct TRACK_EDITOR_SESSION *editor)
 
 void load_tracks_menu_shapes(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDTITL", "!def");
+#endif
 	struct TRACK_EDITOR_SESSION session;
 	struct TRACK_EDITOR_SESSION *editor = &session;
 

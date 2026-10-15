@@ -3,6 +3,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "ui_text.h"
@@ -721,6 +724,9 @@ void run_car_menu(legacy_s8 *car_id, legacy_s8 *material, legacy_s8 *transmissio
 	if (!car_menu_find_cars(menu, car_id)) {
 		return;
 	}
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDCSEL", "!pal");
+#endif
 	car_menu_initialize(menu);
 	for (;;) {
 		menu->render_deferred = 0;

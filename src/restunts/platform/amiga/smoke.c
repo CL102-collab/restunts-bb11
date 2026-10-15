@@ -44,18 +44,8 @@ static void smoke_progress(const char *description)
 	fflush(stdout);
 }
 
-static void smoke_capture_palette(struct AMIGA_PALETTE *palette)
-{
-	legacy_s8 *resource = file_load_shape2d_fatal((const legacy_s8 *)"sdmain");
-	legacy_u8 *rgb = (legacy_u8 *)locate_shape_fatal(resource, (const legacy_s8 *)"!pal") +
-		SHAPE2D_HEADER_SIZE;
-	memset(palette, 0, sizeof(*palette));
-	amiga_palette_update(palette, 0, 256, rgb);
-	mmgr_free(resource);
-}
-
 /* Export the same 12-bit, 32-entry palette and index mapping sent to ECS. */
-static legacy_s16 smoke_write_picture(const struct AMIGA_PALETTE *palette)
+static legacy_s16 smoke_write_picture(void)
 {
 	static const char header[] = "P6\n320 200\n255\n";
 	legacy_u8 row[AMIGA_WIDTH * 3U];
@@ -66,7 +56,7 @@ static legacy_s16 smoke_write_picture(const struct AMIGA_PALETTE *palette)
 	ok = dos_file_write(output, header, sizeof(header) - 1U) == sizeof(header) - 1U;
 	for (legacy_u16 y = 0; ok && y < AMIGA_HEIGHT; ++y) {
 		for (legacy_u16 x = 0; x < AMIGA_WIDTH; ++x) {
-			legacy_u16 color = palette->colors[palette->map[pixels[(legacy_u32)y * AMIGA_WIDTH + x]]];
+			legacy_u16 color = amiga_video_color(y, pixels[(legacy_u32)y * AMIGA_WIDTH + x]);
 			row[x * 3U] = ((color >> 8U) & 15U) * 17U;
 			row[x * 3U + 1U] = ((color >> 4U) & 15U) * 17U;
 			row[x * 3U + 2U] = (color & 15U) * 17U;
@@ -77,20 +67,18 @@ static legacy_s16 smoke_write_picture(const struct AMIGA_PALETTE *palette)
 	return ok;
 }
 
-static legacy_u16 smoke_region_colors(const struct AMIGA_PALETTE *palette,
-	legacy_u16 top, legacy_u16 bottom)
+static legacy_u16 smoke_region_colors(legacy_u16 top, legacy_u16 bottom)
 {
-	legacy_u8 seen[AMIGA_COLORS];
+	legacy_u8 seen[4096 / 8];
 	legacy_u16 count = 0;
 	const legacy_u8 *pixels = amiga_video_pixels();
 	if (top >= bottom || bottom > AMIGA_HEIGHT) return 0;
 	memset(seen, 0, sizeof(seen));
 	for (legacy_u32 offset = (legacy_u32)top * AMIGA_WIDTH;
 		offset < (legacy_u32)bottom * AMIGA_WIDTH; ++offset) {
-		legacy_u8 color = palette->map[pixels[offset]];
-		if (color >= AMIGA_COLORS) return 0;
-		if (!seen[color]) {
-			seen[color] = 1;
+		legacy_u16 color = amiga_video_color(offset / AMIGA_WIDTH, pixels[offset]);
+		if (!(seen[color >> 3] & (1U << (color & 7U)))) {
+			seen[color >> 3] |= 1U << (color & 7U);
 			++count;
 		}
 	}
@@ -122,7 +110,6 @@ legacy_s16 amiga_game_smoke(void)
 {
 	legacy_s8 program[] = "restunts";
 	legacy_s8 *arguments[] = {program};
-	struct AMIGA_PALETTE palette;
 	legacy_u16 initial_frame, world_colors, dashboard_colors;
 	legacy_u32 hash = 2166136261UL;
 	legacy_u32 highwater, capacity;
@@ -141,7 +128,6 @@ legacy_s16 amiga_game_smoke(void)
 	init_trackdata();
 	reset_race_loop_state();
 	init_kevinrandom((const legacy_s8 *)"kevin");
-	smoke_capture_palette(&palette);
 	smoke_progress("load DEFAULT.RPL and build its track");
 	if (!smoke_check(file_load_replay((const legacy_s8 *)"", (const legacy_s8 *)"DEFAULT") == 0,
 		"DEFAULT.RPL could not be loaded")) { ok = 0; goto finished; }
@@ -214,9 +200,9 @@ legacy_s16 amiga_game_smoke(void)
 		smoke_render_frame();
 	}
 	rendering_ticks = amiga_clock_ticks() - rendering_started;
-	world_colors = smoke_region_colors(&palette, (legacy_u16)rect_windshield.top,
+	world_colors = smoke_region_colors((legacy_u16)rect_windshield.top,
 		(legacy_u16)rect_windshield.bottom);
-	dashboard_colors = smoke_region_colors(&palette, (legacy_u16)dashbmp_y, AMIGA_HEIGHT);
+	dashboard_colors = smoke_region_colors((legacy_u16)dashbmp_y, AMIGA_HEIGHT);
 	ok &= smoke_check((legacy_u16)state.game_frame == initial_frame + SMOKE_REPLAY_TICKS,
 		"recorded simulation did not advance three frames");
 	ok &= smoke_check(state.playerstate.car_position.lx != 0 && state.playerstate.car_position.lz != 0,
@@ -236,7 +222,7 @@ legacy_s16 amiga_game_smoke(void)
 		(unsigned long)loading_ticks * 10UL, (unsigned long)rendering_ticks * 10UL,
 		(unsigned)(SMOKE_REPLAY_TICKS + 1U),
 		(unsigned long)rendering_ticks * 10UL / (SMOKE_REPLAY_TICKS + 1U));
-	ok &= smoke_check(smoke_write_picture(&palette), "AMIGASMOKE.PPM export failed");
+	ok &= smoke_check(smoke_write_picture(), "AMIGASMOKE.PPM export failed");
 	printf("Amiga smoke total_ms=%lu\n", (unsigned long)(amiga_clock_ticks() - started) * 10UL);
 finished:
 	fflush(stdout);

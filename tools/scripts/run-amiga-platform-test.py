@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Boot a native executable on an unexpanded A500+ using FS-UAE and open AROS ROMs.
+"""Test native Amiga executables using FS-UAE and open AROS ROMs.
 
 Requires FS-UAE 3.2.x and an X11 display (or Xvfb). Test runs copy game assets,
 so configuration and high scores in the source directory cannot be changed.
+The default is an unexpanded A500+; --machine a4000 uses an A4000/040 with
+2 MB Chip RAM and 4 MB motherboard Fast RAM. Its 68040 timing is not cycle-exact.
 Use --mode capture to record an interactive game session for visual inspection;
 capture mode deliberately does not claim that the game passed an automated test.
 """
@@ -113,7 +115,8 @@ def main():
     parser.add_argument("--xvfb", default="Xvfb")
     parser.add_argument("--display", help="Use an existing X11 display instead of starting Xvfb")
     parser.add_argument("--kickstart", type=Path, help="Optional user-supplied Kickstart ROM; defaults to bundled AROS")
-    parser.add_argument("--chip-memory", type=int, choices=(1024, 2048), default=1024, help="Chip RAM in KB; 2048 is an expanded-machine diagnostic")
+    parser.add_argument("--machine", choices=("a500plus", "a4000"), default="a500plus", help="A500+ or A4000/040 with 4 MB motherboard Fast RAM")
+    parser.add_argument("--chip-memory", type=int, choices=(1024, 2048), help="Chip RAM in KB; defaults to 1024 for A500+, 2048 for A4000")
     parser.add_argument("--keep-cli", action="store_true", help="Keep the boot console open, retaining its shell and window memory")
     parser.add_argument("--mode", choices=("selftest", "smoke", "capture"), default="selftest")
     parser.add_argument("--args", help="Override executable arguments (quote as one string)")
@@ -125,6 +128,11 @@ def main():
     parser.add_argument("--click", action="append", default=[], metavar="SECONDS:X:Y[:BUTTON]", help="Click absolute host-window coordinates (default left button)")
     parser.add_argument("--capture-at", action="append", type=float, default=[], metavar="SECONDS", help="Save an emulator screenshot at this elapsed time")
     args = parser.parse_args()
+    is_a4000 = args.machine == "a4000"
+    model, cpu, chipset = ("A4000/040", "68040", "AGA") if is_a4000 else ("A500+", "68000", "ECS")
+    if args.chip_memory is None:
+        args.chip_memory = 2048 if is_a4000 else 1024
+    motherboard_ram = 4096 if is_a4000 else 0
     if args.executable is None:
         name = "restunts" if args.mode == "capture" else "test-amiga-platform"
         args.executable = repository / "out/amiga" / name
@@ -197,11 +205,13 @@ def main():
         (disk / "S/startup-sequence").write_text(
             "Stack 20480\nRun >DH0:RUN.TXT Execute S:test-sequence\nEndCLI\n"
         )
-    configuration = directory / "a500plus.fs-uae"
+    configuration = directory / f"{args.machine}.fs-uae"
     extension_configuration = f"kickstart_ext_file = {extension}\n" if extension else ""
     configuration.write_text(
         "[fs-uae]\n"
-        f"amiga_model = A500+\ncpu = 68000\nchip_memory = {args.chip_memory}\nfast_memory = 0\nslow_memory = 0\n"
+        f"amiga_model = {model}\ncpu = {cpu}\nchip_memory = {args.chip_memory}\n"
+        f"motherboard_ram = {motherboard_ram}\nfast_memory = 0\nzorro_iii_memory = 0\nslow_memory = 0\n"
+        "jit_compiler = 0\n"
         f"kickstart_file = {rom}\n"
         f"{extension_configuration}"
         f"hard_drive_0 = {disk}\nhard_drive_0_label = RESTUNTS\n"
@@ -216,7 +226,10 @@ def main():
     xvfb = None
     process = None
     inputs = None
-    print(f"A500+ / 68000 / ECS / {args.chip_memory} KB Chip RAM; artifacts: {directory}", flush=True)
+    print(f"{model} / {cpu} / {chipset} / {args.chip_memory} KB Chip RAM / "
+          f"{motherboard_ram} KB motherboard Fast RAM; artifacts: {directory}", flush=True)
+    if is_a4000:
+        print("68040 uses FS-UAE's fastest interpreter mode (JIT off); timings are not a 25 MHz hardware benchmark.", flush=True)
     try:
         display = args.display
         if not display:
@@ -256,14 +269,14 @@ def main():
     print(result.strip() or "No program output was produced.")
     emulator_log = directory / "logs/fs-uae.log.txt"
     if emulator_log.is_file() and "Non-autoconfig RAM" in emulator_log.read_text(errors="replace"):
-        print("FAILED: emulator added non-autoconfig RAM; this was not an unexpanded A500+.")
+        print("FAILED: emulator added unexpected non-autoconfig RAM.")
         return 1
     if args.mode == "capture" and not args.expect:
         print(f"Capture finished; inspect {screenshots}. This is not an automated pass.")
         return 0 if list(screenshots.glob("*.png")) else 1
     expected = args.expect or f"AMIGA {args.mode.upper()} PASS"
     if (disk / "DONE.TXT").exists() and expected in result:
-        print(f"Native 68000 test passed in {time.monotonic() - started:.1f}s.")
+        print(f"Native {cpu} test passed in {time.monotonic() - started:.1f}s.")
         return 0
     print(f"FAILED: expected completed program containing {expected!r}; inspect {directory}.")
     return 1

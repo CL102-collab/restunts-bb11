@@ -3,6 +3,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "ui_text.h"
@@ -299,6 +302,9 @@ static legacy_u8 opponent_menu_activate_selection(struct OPPONENT_MENU_STATE *me
 		run_car_menu(&gameconfig.game_opponentcarid[0], &gameconfig.game_opponentmaterial,
 					 &gameconfig.game_opponenttransmission,
 					 (legacy_u8)gameconfig.game_opponenttype);
+#ifdef RESTUNTS_AMIGA
+		amiga_video_palette_scene("SDOSEL", "!pal");
+#endif
 		menu->displayed_opponent = OPPONENT_MENU_NO_SELECTION;
 		mouse_draw_transparent_check();
 		return 0;
@@ -337,6 +343,9 @@ static void opponent_menu_release(struct OPPONENT_MENU_STATE *menu)
 
 void run_opponent_menu(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDOSEL", "!pal");
+#endif
 	struct OPPONENT_MENU_STATE session;
 	struct OPPONENT_MENU_STATE *menu = &session;
 

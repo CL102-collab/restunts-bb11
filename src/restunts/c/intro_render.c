@@ -1,5 +1,8 @@
 #include "frame_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "game_input.h"
@@ -554,6 +557,9 @@ static void intro_finish_session(struct INTRO_SESSION *intro)
 
 legacy_s8 setup_intro(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDTITL", "!def");
+#endif
 	struct INTRO_SESSION intro;
 	intro_load_title(&intro);
 	intro_create_stars(intro.stars);

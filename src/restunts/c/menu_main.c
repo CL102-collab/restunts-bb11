@@ -7,6 +7,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "shape2d.h"
 #include "shape3d.h"
 #include "ui_input.h"
@@ -47,6 +50,9 @@ enum MAIN_MENU_SELECTION {
 
 legacy_s8 run_menu(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDMSEL", "!pal");
+#endif
 	static const legacy_u8 previous_selection[MAIN_MENU_BUTTON_COUNT] = {
 		MAIN_MENU_CAR, MAIN_MENU_OPPONENT, MAIN_MENU_OPTIONS, MAIN_MENU_DRIVE, MAIN_MENU_TRACK};
 	static const legacy_u8 next_selection[MAIN_MENU_BUTTON_COUNT] = {

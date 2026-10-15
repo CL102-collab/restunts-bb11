@@ -16,6 +16,8 @@ unsigned long __stack = 20480;
 extern void full_data_initialize(void);
 #ifdef RESTUNTS_AMIGA_SMOKE
 static legacy_u32 selftest_callbacks;
+extern legacy_s16 roofbmpheight_copy, dashbmp_y_copy;
+extern legacy_s8 replaybar_enabled;
 
 static void selftest_tick(void) { ++selftest_callbacks; }
 static int selftest_check(int condition, const char *description)
@@ -71,6 +73,33 @@ static int amiga_selftest(void)
 		dos_memory_pointer_offset(pixels) == 0, "framebuffer segment identity");
 	for (i = 0; i < AMIGA_SCREEN_BYTES; ++i) pixels[i] = (legacy_u8)((i % 320U) / 10U);
 	sprite_present_mcga_backbuffer();
+	/* Change palettes after both pages have been presented: the AROS bitmap
+	 * includes private driver metadata that must survive repeated flips. */
+	puts("AMIGA SELFTEST: scene palettes and replay Copper");
+	fflush(stdout);
+	amiga_video_present();
+	amiga_video_palette_scene("SDMSEL", "!pal");
+	amiga_video_present();
+	ok &= selftest_check(amiga_video_color(0, 108) == 0x470, "original main palette");
+	amiga_video_palette_scene("SDCSEL", "!pal");
+	amiga_video_present();
+	ok &= selftest_check(amiga_video_color(0, 108) == 0x555, "original car palette");
+	roofbmpheight_copy = 9;
+	dashbmp_y_copy = 130;
+	replaybar_enabled = 0;
+	amiga_video_palette_race("COUN", 1);
+	amiga_video_present();
+	ok &= selftest_check(amiga_video_color(9, 2) == 0x0a0 &&
+		amiga_video_color(130, 37) == 0xe82, "world and Countach palette bands");
+	replaybar_enabled = 1;
+	amiga_video_present();
+	ok &= selftest_check(amiga_video_color(150, 37) == 0xe82 &&
+		amiga_video_color(151, 37) == 0xa00, "replay palette boundary");
+	replaybar_enabled = 0;
+	amiga_video_present();
+	ok &= selftest_check(amiga_video_color(151, 37) == 0xe82, "replay palette removal");
+	amiga_video_palette_race("COUN", 0);
+	amiga_video_present();
 	puts("AMIGA SELFTEST: input and 100 Hz timing");
 	fflush(stdout);
 	amiga_timer_pump();

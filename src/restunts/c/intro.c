@@ -1,4 +1,7 @@
 #include "fileio.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "legacy.h"
 #include "memmgr.h"
 #include "menu_internal.h"
@@ -97,6 +100,9 @@ static void intro_draw_native_audio_notice(void)
 
 static legacy_s16 run_intro(void far *audio_resource)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDTITL", "!pa0");
+#endif
 	mouse_draw_opaque_check();
 	sprite_select_screen_and_clear();
 	mouse_draw_transparent_check();
@@ -118,6 +124,9 @@ static legacy_s16 run_intro(void far *audio_resource)
 	}
 
 	if (result == 0) {
+#ifdef RESTUNTS_AMIGA
+		amiga_video_palette_scene("SDTITL", "!pa1");
+#endif
 		sprite_select_render_window_and_clear();
 		waitflag = INTRO_DEFAULT_PAGE_WAIT;
 		shape = (struct SHAPE2D far *)locate_shape_fatal((legacy_s8 far *)ui_temp_resource, "titl");
@@ -150,6 +159,9 @@ legacy_s16 run_intro_looped(void)
 	if (result == 0) {
 		result = setup_intro();
 		if (result == 0) {
+#ifdef RESTUNTS_AMIGA
+			amiga_video_palette_scene("SDCRED", "!pal");
+#endif
 			ui_temp_resource = file_load_resource(FILE_RESOURCE_SHAPE2D, "sdcred");
 			render_window_sprite =
 				sprite_make_wnd(INTRO_SCREEN_WIDTH, INTRO_SCREEN_HEIGHT, INTRO_SCREEN_COLOR);

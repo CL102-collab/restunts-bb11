@@ -3,6 +3,9 @@
 #include "memmgr.h"
 #include "menu_internal.h"
 #include "platform.h"
+#ifdef RESTUNTS_AMIGA
+#include "../platform/amiga/amiga.h"
+#endif
 #include "replay.h"
 #include "resource.h"
 #include "shape2d.h"
@@ -742,6 +745,9 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			opponent_win_animation_name[3] = (legacy_s8)(screen->opponent_active + '0');
 			screen->animation_resource = (legacy_s8 far *)file_load_resource(
 				FILE_RESOURCE_SHAPE2D_COLLECTION, opponent_win_animation_name);
+#ifdef RESTUNTS_AMIGA
+			amiga_video_palette_scene((const char *)opponent_win_animation_name, "!pal");
+#endif
 			screen->animation_sequence =
 				(legacy_u8 far *)locate_shape_alt(screen->opponent_resource, opponent_win_text_id);
 			end_outcome_variant =
@@ -756,6 +762,9 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			opponent_loss_animation_name[3] = (legacy_s8)(screen->opponent_active + '0');
 			screen->animation_resource = (legacy_s8 far *)file_load_resource(
 				FILE_RESOURCE_SHAPE2D_COLLECTION, opponent_loss_animation_name);
+#ifdef RESTUNTS_AMIGA
+			amiga_video_palette_scene((const char *)opponent_loss_animation_name, "!pal");
+#endif
 			screen->animation_sequence =
 				(legacy_u8 far *)locate_shape_alt(screen->opponent_resource, opponent_loss_text_id);
 			end_outcome_variant =
@@ -1131,6 +1140,9 @@ static legacy_u16 end_hiscore_release(struct END_SCREEN_STATE *screen)
 
 legacy_u16 end_hiscore(void)
 {
+#ifdef RESTUNTS_AMIGA
+	amiga_video_palette_scene("SDTITL", "!def");
+#endif
 	struct END_SCREEN_STATE screen;
 	end_hiscore_initialize(&screen);
 	end_hiscore_draw_player_time(&screen);

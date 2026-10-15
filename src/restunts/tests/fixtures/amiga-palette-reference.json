@@ -1,0 +1,7037 @@
+{
+  "format_version": 1,
+  "description": "Numeric palette and color-index facts from the original Amiga release. No original images, audio, executable code, or compressed resources are included.",
+  "color_encoding": "ECS 12-bit RGB words, 0xRGB; original resource words are big-endian.",
+  "original_executable": {
+    "source": "disk1/stunts",
+    "sha256": "9470d0df4747049b6d8b23bf7c22f4a96e88a15a5c4a8fc1619319a895e262c9"
+  },
+  "palettes": [
+    {
+      "source_sha256": "739c0ebc4a1d6f2f4892a620ba348df3618d8dd918cceff397582c2dc099370b",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "58125eaf28d7c7540e6652b0fe48efc11539b3f829acfcc3b133f1c56a51b994",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 38,
+      "decoded_palette_data_offset": 58,
+      "original_file_data_offset": null,
+      "palette_sha256": "47930ab4c04812e0cadb8ef789bbd147df4d1eec69378516ec2c536fd7d06d41",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xff0",
+        "0x444",
+        "0xa00",
+        "0xa0a",
+        "0x853",
+        "0xaaa",
+        "0x555",
+        "0x494",
+        "0x321",
+        "0xb85",
+        "0x742",
+        "0x777",
+        "0xff5",
+        "0xfda",
+        "0xfbb",
+        "0xc96",
+        "0xfdd",
+        "0xed0",
+        "0x272",
+        "0xf99",
+        "0x6b6",
+        "0x5a5",
+        "0xca8",
+        "0xfbf",
+        "0xfdf",
+        "0xa41",
+        "0xf77",
+        "0x7d7",
+        "0xfca",
+        "0xfff"
+      ],
+      "source": "disk1/OPP1LOSE.psh",
+      "decoded_file": "decoded/disk1/OPP1LOSE.psh",
+      "resource": "OPP1LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "40b0d7ee56d544b4543f8259530adf96a63ced5ccf7a20b15ec804bac3e2869f",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "cc6a8d0e9d93b5c8ee8ae70f846e75ec35b180bff0988d1d99430a58be99b7c1",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 38,
+      "decoded_palette_data_offset": 58,
+      "original_file_data_offset": null,
+      "palette_sha256": "78c00a6f2939e35b85d226734a7a504031407a51c55d2051f1df7ef53e531f7a",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xff0",
+        "0x853",
+        "0xa00",
+        "0xa0a",
+        "0xfdc",
+        "0xaaa",
+        "0x555",
+        "0xb85",
+        "0x666",
+        "0xc96",
+        "0x444",
+        "0x742",
+        "0xff5",
+        "0xeca",
+        "0x594",
+        "0xc97",
+        "0xfbb",
+        "0x777",
+        "0xed0",
+        "0xfdf",
+        "0xf99",
+        "0xdb9",
+        "0x383",
+        "0xfca",
+        "0xea7",
+        "0x530",
+        "0xfbf",
+        "0x999",
+        "0xfb9",
+        "0xfff"
+      ],
+      "source": "disk1/OPP1WIN.psh",
+      "decoded_file": "decoded/disk1/OPP1WIN.psh",
+      "resource": "OPP1WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "96d0d07f05924d25b9e109c6c000543a4489ed54749a132768a1be87dd9914e9",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "8625f4b6ab2494ec80b0bbe9629ee088b33f71fbf58cb9ea851628ca8564ef83",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "f9b10b7a1b6e97a826de8cc8d328575bec557bddd58dc810e376d83f3bd3b3d6",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xb2f",
+        "0x222",
+        "0xa00",
+        "0xa0a",
+        "0x305",
+        "0xaaa",
+        "0x555",
+        "0x742",
+        "0x963",
+        "0xb85",
+        "0xe85",
+        "0x531",
+        "0xff5",
+        "0x606",
+        "0xea8",
+        "0xc63",
+        "0xfca",
+        "0xc96",
+        "0xb52",
+        "0xe97",
+        "0x931",
+        "0x80c",
+        "0xfdc",
+        "0x508",
+        "0xca8",
+        "0x90e",
+        "0x700",
+        "0xfb9",
+        "0x007",
+        "0xfff"
+      ],
+      "source": "disk1/OPP2LOSE.psh",
+      "decoded_file": "decoded/disk1/OPP2LOSE.psh",
+      "resource": "OPP2LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "897e774b3e7745706b3a2f27fc75a1a7c27620db0a661cb5f6e6062150bb4380",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "ab651a37ac66455b7163ec0fb979fb6fe4224205f724dfcfaa7fd89c0c028eb5",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "773c6ce52eca626fc34415b3da459116bb9dab9f51cc380cf46886441b8b25cd",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x853",
+        "0xb85",
+        "0xa00",
+        "0xa0a",
+        "0x742",
+        "0xaaa",
+        "0x555",
+        "0xe97",
+        "0x531",
+        "0x305",
+        "0xe85",
+        "0xfdc",
+        "0xff5",
+        "0xeca",
+        "0xc96",
+        "0xfed",
+        "0xfc9",
+        "0xea8",
+        "0xfda",
+        "0xfca",
+        "0xfc8",
+        "0xca8",
+        "0xdb9",
+        "0xfb6",
+        "0xa61",
+        "0xd74",
+        "0xc62",
+        "0xfa5",
+        "0x930",
+        "0xfff"
+      ],
+      "source": "disk1/OPP2WIN.psh",
+      "decoded_file": "decoded/disk1/OPP2WIN.psh",
+      "resource": "OPP2WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "c8f4248dc9b50d7caeac969eb148500b1a9bee6bc7e5079ee0680c050dfe1ae9",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "53c366ddb7a0bf19e475243a2d6a47bd189ab6ad0ef89ad3944c107774031fb9",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 46,
+      "decoded_palette_data_offset": 66,
+      "original_file_data_offset": null,
+      "palette_sha256": "ae65af085a1a73435dcf50136afb8f4a6e7c40a04ae9cdb6c030a9dfb9d900e4",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x7b0",
+        "0xddd",
+        "0xa00",
+        "0xa0a",
+        "0xb85",
+        "0xaaa",
+        "0x555",
+        "0x333",
+        "0x742",
+        "0x963",
+        "0xfb9",
+        "0xc96",
+        "0xff5",
+        "0xa41",
+        "0xfbb",
+        "0xe97",
+        "0xfca",
+        "0xf99",
+        "0x666",
+        "0xd84",
+        "0xea8",
+        "0xc97",
+        "0x888",
+        "0x594",
+        "0xdb9",
+        "0xf77",
+        "0x9e0",
+        "0x505",
+        "0x999",
+        "0xfff"
+      ],
+      "source": "disk1/OPP3LOSE.psh",
+      "decoded_file": "decoded/disk1/OPP3LOSE.psh",
+      "resource": "OPP3LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "1c4a1e3f8a2c69830861dc323a701f2677df80ee5831673fefd92294210c5c42",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "379e7dd282a67dcd99bb26b9e91a3aa56f568d209c0c1c0c6851eadb0833e474",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 70,
+      "decoded_palette_data_offset": 90,
+      "original_file_data_offset": null,
+      "palette_sha256": "4b8d373801bf158cfe2a06e660edc679d6ebd7d05275f150b1745b99e8ec2013",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x7b0",
+        "0x333",
+        "0xa00",
+        "0xa0a",
+        "0xb85",
+        "0xaaa",
+        "0x555",
+        "0xddd",
+        "0xfbb",
+        "0x963",
+        "0xc96",
+        "0x742",
+        "0xff5",
+        "0x999",
+        "0xe96",
+        "0xfb9",
+        "0xf99",
+        "0xfcb",
+        "0xca8",
+        "0xea8",
+        "0x666",
+        "0xfca",
+        "0x5a5",
+        "0x888",
+        "0xd84",
+        "0xf77",
+        "0xdb9",
+        "0xc63",
+        "0x9e0",
+        "0xfff"
+      ],
+      "source": "disk1/OPP3WIN.psh",
+      "decoded_file": "decoded/disk1/OPP3WIN.psh",
+      "resource": "OPP3WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "5d26e80c05a4fed322dc1320fb5422b2b76bf6dacdb4cb772deb51f11c5cf70a",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "f527986f2518b7f2b1be8dccce156257a8a22feda9161984ce3e2c0b93bb2b8b",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "bbba275c75ce81dbb9c8ba23538d8c18d51f84854c0dc5596265dbc21dacef3f",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xf77",
+        "0x222",
+        "0xf33",
+        "0xa0a",
+        "0xb85",
+        "0xaaa",
+        "0x555",
+        "0xfdc",
+        "0x963",
+        "0xf55",
+        "0x852",
+        "0xf99",
+        "0xff5",
+        "0xca8",
+        "0xc96",
+        "0xe85",
+        "0xfbb",
+        "0xfda",
+        "0xea8",
+        "0x642",
+        "0xfdf",
+        "0xfc9",
+        "0xfed",
+        "0xfca",
+        "0x930",
+        "0xc62",
+        "0x777",
+        "0xdb9",
+        "0xfb6",
+        "0xfff"
+      ],
+      "source": "disk1/opp4lose.psh",
+      "decoded_file": "decoded/disk1/opp4lose.psh",
+      "resource": "OPP4LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "a1ab57002e5fc0ce78a793b160f8a9db9fe301e7f95426f94ac66d510b51ddad",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "d0350c743596401fa03c5e05944235edc67066c765308bab7719664dc70608f2",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 78,
+      "decoded_palette_data_offset": 98,
+      "original_file_data_offset": null,
+      "palette_sha256": "d874ad89cc9da5353520f6715ba617e2a22e4833e89e7f53bcab32561162191a",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xf77",
+        "0x222",
+        "0xa00",
+        "0xa0a",
+        "0x853",
+        "0xaaa",
+        "0x555",
+        "0xf99",
+        "0xfbb",
+        "0x742",
+        "0xf9f",
+        "0xa74",
+        "0xff5",
+        "0xfff",
+        "0xf55",
+        "0xea8",
+        "0xc62",
+        "0x444",
+        "0xfbf",
+        "0xa41",
+        "0xe85",
+        "0x777",
+        "0xf7f",
+        "0xc96",
+        "0x930",
+        "0xfdf",
+        "0xfca",
+        "0xfdd",
+        "0x500",
+        "0x888"
+      ],
+      "source": "disk1/OPP4WIN.psh",
+      "decoded_file": "decoded/disk1/OPP4WIN.psh",
+      "resource": "OPP4WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "d397026d0949257cb1df682ab9f203bb56e6744258ebe1a122376b5059dc9043",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "e74bdf0eed869cf1642188755a95eb5d841b0b5ffe9f066977135ce06c737069",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 70,
+      "decoded_palette_data_offset": 90,
+      "original_file_data_offset": null,
+      "palette_sha256": "cf38c93c3aed258ed3fbae8d54a56f2648ccaa0640335341e2f0cf5a3e87b47d",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xfbf",
+        "0xb85",
+        "0xa00",
+        "0xa0a",
+        "0x963",
+        "0xaaa",
+        "0x555",
+        "0x400",
+        "0x740",
+        "0xc96",
+        "0xe85",
+        "0xda8",
+        "0xff5",
+        "0xfa5",
+        "0xea7",
+        "0xc71",
+        "0xeb9",
+        "0xfca",
+        "0x930",
+        "0xfc8",
+        "0xc97",
+        "0xa41",
+        "0xfc9",
+        "0xfb6",
+        "0xeca",
+        "0xf99",
+        "0xfda",
+        "0xfbb",
+        "0xd74",
+        "0xfff"
+      ],
+      "source": "disk1/OPP5LOSE.psh",
+      "decoded_file": "decoded/disk1/OPP5LOSE.psh",
+      "resource": "OPP5LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "90659667f6d2622ad606c52f1bad89139f6a5f46bf4f1c2bfbb1895fc44761f0",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "4c0df2e814a43b6485728c6fe86d7bd77331aee93559f27d30bc5eb42f0f39a1",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 78,
+      "decoded_palette_data_offset": 98,
+      "original_file_data_offset": null,
+      "palette_sha256": "e8292d4dda03f6fda72d854c350d79ead762ad2a4026906214b945840180947d",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xfbf",
+        "0x400",
+        "0xa00",
+        "0xa0a",
+        "0x740",
+        "0xaaa",
+        "0x555",
+        "0x963",
+        "0xb85",
+        "0xe85",
+        "0xc96",
+        "0xea8",
+        "0xff5",
+        "0xd74",
+        "0xc97",
+        "0x930",
+        "0xfca",
+        "0xfda",
+        "0xfc8",
+        "0xc71",
+        "0xdb9",
+        "0x777",
+        "0xfc9",
+        "0xa41",
+        "0xe97",
+        "0xfb6",
+        "0xeca",
+        "0xfb9",
+        "0xfdc",
+        "0xfff"
+      ],
+      "source": "disk1/OPP5WIN.psh",
+      "decoded_file": "decoded/disk1/OPP5WIN.psh",
+      "resource": "OPP5WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "c8db2547cbc30526d57beadd81a86c8b6860d66ce52c2890ad8423a93757365a",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "87a59dafe98d6189ef03bc0ac486b42c245ec0b7b0c6cc1c1ebdd3c0b4508975",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 78,
+      "decoded_palette_data_offset": 98,
+      "original_file_data_offset": null,
+      "palette_sha256": "16cf881e618a87ae8832d335375399a232acd52b50ce9ee0c51f5ce5003c6312",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x0ee",
+        "0x222",
+        "0xa00",
+        "0xa0a",
+        "0x444",
+        "0xaaa",
+        "0x555",
+        "0x500",
+        "0x666",
+        "0x305",
+        "0xe85",
+        "0xa74",
+        "0xff5",
+        "0xf92",
+        "0x742",
+        "0x963",
+        "0x930",
+        "0x777",
+        "0xc62",
+        "0xfb9",
+        "0xa41",
+        "0xfdc",
+        "0x0bb",
+        "0xfcb",
+        "0xc96",
+        "0x999",
+        "0xd74",
+        "0xea8",
+        "0xe82",
+        "0xfff"
+      ],
+      "source": "disk1/OPP6LOSE.psh",
+      "decoded_file": "decoded/disk1/OPP6LOSE.psh",
+      "resource": "OPP6LOSE",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "b752c8b4243ee1ea40ac7bb47562205d9e19b1829b742fb5633e4f840a66882e",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "613923733e8e516d5ee3e806e627b194001a2cecf03d805d6459a1a8e3561b70",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 78,
+      "decoded_palette_data_offset": 98,
+      "original_file_data_offset": null,
+      "palette_sha256": "45e6d85aaaceffafb6556a79c4b462147f354ba8bab0fce76b71d1f7c2715a7f",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x0ee",
+        "0x400",
+        "0xa00",
+        "0xa0a",
+        "0x853",
+        "0xaaa",
+        "0x555",
+        "0x742",
+        "0xa74",
+        "0xd84",
+        "0x004",
+        "0x444",
+        "0xff5",
+        "0xca8",
+        "0xea8",
+        "0xe96",
+        "0xc62",
+        "0x700",
+        "0x930",
+        "0xed0",
+        "0x777",
+        "0xe82",
+        "0xf92",
+        "0xc96",
+        "0xa50",
+        "0xcc0",
+        "0x0aa",
+        "0xfb9",
+        "0x407",
+        "0xfff"
+      ],
+      "source": "disk1/opp6win.psh",
+      "decoded_file": "decoded/disk1/opp6win.psh",
+      "resource": "OPP6WIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "9904f543ce9af94197fa82e2ca754fda94809056b39dab0d6f4441e057c6097c",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "c2bd2e20775557271138c0da16631427f26c16a858f76fc92832f3cf2b65d5fd",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 102,
+      "decoded_palette_data_offset": 122,
+      "original_file_data_offset": null,
+      "palette_sha256": "f6fe681ed28fc2f981b97e29bcbe62d3881b937648febac74de48780d56a69a1",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x0a0",
+        "0x0aa",
+        "0xa00",
+        "0xa0a",
+        "0xa50",
+        "0xaaa",
+        "0x555",
+        "0x55f",
+        "0x5f5",
+        "0x5ff",
+        "0xf55",
+        "0xf5f",
+        "0xff5",
+        "0xfff",
+        "0xfff",
+        "0xddd",
+        "0xccc",
+        "0xccc",
+        "0xbbb",
+        "0xaaa",
+        "0x999",
+        "0x888",
+        "0x777",
+        "0x777",
+        "0x666",
+        "0x555",
+        "0x444",
+        "0x333",
+        "0x222",
+        "0x222"
+      ],
+      "source": "disk2/sdcred.psh",
+      "decoded_file": "decoded/disk2/sdcred.psh",
+      "resource": "SDCRED",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "89692cd6b8b91cdf7d10daf7ca4fbdabf4656d5044369846135700ee5d9b9377",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "f97b6e533a62734c780011281148ad5d85330879229fc40b6ca1980f15f829b2",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 30,
+      "decoded_palette_data_offset": 50,
+      "original_file_data_offset": null,
+      "palette_sha256": "b4ac3c8b59663f7862d8c3ddcd3e583ac94f849cbf72f9533eb3cdc62f2dc173",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x0a0",
+        "0x0aa",
+        "0xa00",
+        "0xa0a",
+        "0xa50",
+        "0xaaa",
+        "0x555",
+        "0x55f",
+        "0x5f5",
+        "0x5ff",
+        "0xf55",
+        "0xf5f",
+        "0xff5",
+        "0xfff",
+        "0x666",
+        "0xe00",
+        "0xf22",
+        "0xddd",
+        "0xbbb",
+        "0x00f",
+        "0x00b",
+        "0xccc",
+        "0xccc",
+        "0x00d",
+        "0x007",
+        "0x888",
+        "0xc00",
+        "0x500",
+        "0x999",
+        "0xfff"
+      ],
+      "source": "disk2/sdcsel.psh",
+      "decoded_file": "decoded/disk2/sdcsel.psh",
+      "resource": "SDCSEL",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "316b586e72ee1bc231b160af5def9affad821b9d15d9f04df432fe54fefdc7aa",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "40183b1959f26d0c1bfb4da9f61d45ffd8e09bffcfe0abf757b7e13247b741fe",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 286,
+      "decoded_palette_data_offset": 306,
+      "original_file_data_offset": null,
+      "palette_sha256": "434aa42ecef7786a24070aa3a0c0c056165d2be05b50fec8bc0c456c41b00008",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x777",
+        "0x55f",
+        "0xa00",
+        "0x888",
+        "0x555",
+        "0x594",
+        "0xddd",
+        "0xaaa",
+        "0x777",
+        "0x999",
+        "0x7c6",
+        "0x222",
+        "0x262",
+        "0xfff",
+        "0x8e8",
+        "0x666",
+        "0xe00",
+        "0xfff",
+        "0xc00",
+        "0xb00",
+        "0xf00",
+        "0x800",
+        "0x333",
+        "0xccc",
+        "0x900",
+        "0xbbb",
+        "0x700",
+        "0x222",
+        "0xf22",
+        "0x444"
+      ],
+      "source": "disk2/sdgame.psh",
+      "decoded_file": "decoded/disk2/sdgame.psh",
+      "resource": "SDGAME",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "1bb1aa7073f0e515626f6832b59fe9e4da9959b2a6bf4ffd92f2996d8a141596",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "041d538dc5c20dd64b49eb68f8eca0433a33fd0a4638ed82fc311256739f239a",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 22,
+      "decoded_palette_data_offset": 42,
+      "original_file_data_offset": null,
+      "palette_sha256": "9f5976cfd95b017369eb039393e9fc2886f428955d21cdd6cef263dad0859fba",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x470",
+        "0x555",
+        "0xa00",
+        "0xa0a",
+        "0x5bf",
+        "0x580",
+        "0x494",
+        "0xe00",
+        "0xcc0",
+        "0xccc",
+        "0x00f",
+        "0x980",
+        "0xff5",
+        "0x777",
+        "0x00e",
+        "0xf92",
+        "0x00b",
+        "0xccc",
+        "0xddd",
+        "0xfff",
+        "0x690",
+        "0xf00",
+        "0xc96",
+        "0x7cf",
+        "0x44f",
+        "0x666",
+        "0x009",
+        "0xbbb",
+        "0xdef",
+        "0xfff"
+      ],
+      "source": "disk2/sdmsel.psh",
+      "decoded_file": "decoded/disk2/sdmsel.psh",
+      "resource": "SDMSEL",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "abdf05876c96cd92984d62a5fdd3140d6a57c80e234838bc77f7c7362108fba7",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "55066b32b3c9e46a25089de0ab140c1a4e73e0837a40748dfcdfb06d57a9bf2a",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 86,
+      "decoded_palette_data_offset": 106,
+      "original_file_data_offset": null,
+      "palette_sha256": "2e460fc63e46e444d73d75a212ff6027b7f0aa2ebe8f3c35abd2a173c7a53ade",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xddd",
+        "0x400",
+        "0xa00",
+        "0xc71",
+        "0xccc",
+        "0xaaa",
+        "0x555",
+        "0xa61",
+        "0x00e",
+        "0x740",
+        "0xff0",
+        "0x7b0",
+        "0x951",
+        "0x0ee",
+        "0x555",
+        "0xb2f",
+        "0xfbf",
+        "0x204",
+        "0xe82",
+        "0xf92",
+        "0xf77",
+        "0xa74",
+        "0xd84",
+        "0xb85",
+        "0x800",
+        "0x963",
+        "0xea8",
+        "0xc96",
+        "0xe85",
+        "0xfff"
+      ],
+      "source": "disk1/sdosel.psh",
+      "decoded_file": "decoded/disk1/sdosel.psh",
+      "resource": "SDOSEL",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "f954e109672d6887122c4b556a31a2b5e37a06cfa0a11a9c1bb8a1a65aca8378",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "f66a89864314fc6de39a9dec612a839712197172de64a103ac0ce49897949eb5",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 46,
+      "decoded_palette_data_offset": 66,
+      "original_file_data_offset": null,
+      "palette_sha256": "aee4de1b4221b6c8cbe8db87cf71114c79b14d72e55759522e2f39b6cfbc341a",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x0a0",
+        "0x0aa",
+        "0xa00",
+        "0xa0a",
+        "0xa50",
+        "0xaaa",
+        "0x555",
+        "0x55f",
+        "0x5f5",
+        "0x5ff",
+        "0xf55",
+        "0xf5f",
+        "0xff5",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff",
+        "0xfff"
+      ],
+      "source": "disk2/sdtitl.psh",
+      "decoded_file": "decoded/disk2/sdtitl.psh",
+      "resource": "SDTITL",
+      "chunk": "!def"
+    },
+    {
+      "source_sha256": "f954e109672d6887122c4b556a31a2b5e37a06cfa0a11a9c1bb8a1a65aca8378",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "f66a89864314fc6de39a9dec612a839712197172de64a103ac0ce49897949eb5",
+      "resource_index": 1,
+      "decoded_resource_header_offset": 130,
+      "decoded_palette_data_offset": 150,
+      "original_file_data_offset": null,
+      "palette_sha256": "d6e88a9d555533fb3dda65f51fd44352f99082abfaebf1f0d9f454791434dfae",
+      "ecs_words": [
+        "0x000",
+        "0xfd5",
+        "0xeb4",
+        "0xda3",
+        "0xd83",
+        "0xc72",
+        "0xb62",
+        "0xa51",
+        "0x941",
+        "0x831",
+        "0x720",
+        "0x610",
+        "0x510",
+        "0x400",
+        "0x999",
+        "0xfff",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf00",
+        "0xf10"
+      ],
+      "source": "disk2/sdtitl.psh",
+      "decoded_file": "decoded/disk2/sdtitl.psh",
+      "resource": "SDTITL",
+      "chunk": "!pa0"
+    },
+    {
+      "source_sha256": "f954e109672d6887122c4b556a31a2b5e37a06cfa0a11a9c1bb8a1a65aca8378",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "f66a89864314fc6de39a9dec612a839712197172de64a103ac0ce49897949eb5",
+      "resource_index": 2,
+      "decoded_resource_header_offset": 214,
+      "decoded_palette_data_offset": 234,
+      "original_file_data_offset": null,
+      "palette_sha256": "7a1635bf46f4f3846e1ab17d44022897080584bed59c694fddb6e2fc4e7e6cb9",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0xff2",
+        "0xc00",
+        "0xa00",
+        "0x222",
+        "0xe00",
+        "0x650",
+        "0xed0",
+        "0xf00",
+        "0x555",
+        "0xba0",
+        "0x980",
+        "0x333",
+        "0x777",
+        "0x800",
+        "0xb00",
+        "0x900",
+        "0x700",
+        "0x870",
+        "0x540",
+        "0xcc0",
+        "0x888",
+        "0x666",
+        "0x500",
+        "0xaaa",
+        "0xccc",
+        "0xfbb",
+        "0xff7",
+        "0xccc",
+        "0x420",
+        "0xfff"
+      ],
+      "source": "disk2/sdtitl.psh",
+      "decoded_file": "decoded/disk2/sdtitl.psh",
+      "resource": "SDTITL",
+      "chunk": "!pa1"
+    },
+    {
+      "source_sha256": "7abd460bcef8229cea56fa05faf899c8d40ec6cd4f65fe887995fc1e1eb49642",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "d7a7e6eeb67af6ab567db580a44e2d786dd078b2fe54c1b14e2dfd6a9a1e200d",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "917ce315475dbbdd4dd1efff0abf69186ebf76a9b521593e65a2d68590362515",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x555",
+        "0x333",
+        "0xa00",
+        "0x222",
+        "0x666",
+        "0x222",
+        "0x444",
+        "0x777",
+        "0x888",
+        "0x555",
+        "0x777",
+        "0xfff",
+        "0xccc",
+        "0xfff",
+        "0x999",
+        "0xaaa",
+        "0xf00",
+        "0xbbb",
+        "0xddd",
+        "0x035",
+        "0xccc",
+        "0xb00",
+        "0xfa3",
+        "0xfb6",
+        "0xfc8",
+        "0xe82",
+        "0xf22",
+        "0x383",
+        "0x151",
+        "0x5a5"
+      ],
+      "source": "disk2/STDBANSX.psh",
+      "decoded_file": "decoded/disk2/STDBANSX.psh",
+      "resource": "STDBANSX",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "56c094a249f3292ecaf8c29bcc4b0336c8617bce6664b6987b594b15356a0287",
+      "compression": "PPkc stored",
+      "decoded_sha256": "56c094a249f3292ecaf8c29bcc4b0336c8617bce6664b6987b594b15356a0287",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": 82,
+      "palette_sha256": "76543b408dcf782168220f586e33c8bc432b209b5a56d89b59d86f3eb70be646",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x333",
+        "0xa00",
+        "0x222",
+        "0x444",
+        "0x666",
+        "0x777",
+        "0x555",
+        "0x555",
+        "0x777",
+        "0x888",
+        "0xaaa",
+        "0xccc",
+        "0xfff",
+        "0x0a0",
+        "0x5bf",
+        "0xa50",
+        "0xbef",
+        "0xdef",
+        "0xddd",
+        "0xccc",
+        "0x0aa",
+        "0xbbb",
+        "0xa0a",
+        "0x999",
+        "0xaaa",
+        "0xfff",
+        "0x55f",
+        "0x5f5",
+        "0x5ff"
+      ],
+      "source": "disk2/stdbaudi.psh",
+      "decoded_file": "decoded/disk2/stdbaudi.psh",
+      "resource": "STDBAUDI",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "63268082a04feb51f589bfd1d698078ec600b0886c83bbb2803cd7105bb62455",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "1082aca8dd9eeda9eb07816942afb7035f0c6e43eca028fa596e4248ea924c88",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "e06f76c61c8739fa0a25a96fd9e91cdbdab7ebda5b0c996b0b57b4323cb0e5c2",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0xfa3",
+        "0xa00",
+        "0xaaa",
+        "0xbbb",
+        "0x444",
+        "0x999",
+        "0xfc8",
+        "0xc71",
+        "0xfb6",
+        "0x666",
+        "0xe82",
+        "0xa61",
+        "0xfff",
+        "0x888",
+        "0x951",
+        "0xccc",
+        "0xfc9",
+        "0x530",
+        "0xff5",
+        "0xf22",
+        "0x740",
+        "0xfda",
+        "0xddd",
+        "0xe00",
+        "0xfff",
+        "0xff2",
+        "0xf55",
+        "0xf77",
+        "0xfbb"
+      ],
+      "source": "disk2/STDBCOUN.psh",
+      "decoded_file": "decoded/disk2/STDBCOUN.psh",
+      "resource": "STDBCOUN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "73b82051a4d8c6c082594c2cb750dfc572439a5531e567631e6cc23d47268e3b",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "3a56525499fefdb1bb6d01751569f523ad10575cafe259c416fc90274a95106e",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "ac837a540fd7f5240c824f9148bd4d140698ec854542876a4e834ccba15783e9",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x555",
+        "0x666",
+        "0xa00",
+        "0x222",
+        "0x333",
+        "0x444",
+        "0x777",
+        "0x888",
+        "0x999",
+        "0xf22",
+        "0xf92",
+        "0xbbb",
+        "0xaaa",
+        "0xfff",
+        "0xccc",
+        "0xddd",
+        "0xc00",
+        "0xdef",
+        "0xe82",
+        "0xc71",
+        "0xb00",
+        "0x035",
+        "0xa61",
+        "0xfc9",
+        "0xe00",
+        "0xfff",
+        "0xf77",
+        "0xfb6",
+        "0x036",
+        "0xfa3"
+      ],
+      "source": "disk2/STDBFGTO.psh",
+      "decoded_file": "decoded/disk2/STDBFGTO.psh",
+      "resource": "STDBFGTO",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "a14eb8f22b1b6832af01681973c953cec87274ce23f21ebf94d4139f0f2dd864",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "b28066099f4a6a20336be4f544c102f3117669ce7849f5ae1055e7fc3a771ff7",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "4aef54e671a15f867883ccbf1b1d538baffd0b51fe46220ac103e35ed1b6acd9",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x333",
+        "0xa00",
+        "0x606",
+        "0x404",
+        "0x444",
+        "0xcc0",
+        "0x555",
+        "0x777",
+        "0x888",
+        "0xed0",
+        "0x666",
+        "0xaaa",
+        "0xfff",
+        "0xfff",
+        "0xbbb",
+        "0x80c",
+        "0xccc",
+        "0x505",
+        "0xddd",
+        "0x870",
+        "0x999",
+        "0xb4f",
+        "0xe00",
+        "0x980",
+        "0x540",
+        "0x800",
+        "0xb00",
+        "0x407",
+        "0x700"
+      ],
+      "source": "disk2/STDBJAGU.psh",
+      "decoded_file": "decoded/disk2/STDBJAGU.psh",
+      "resource": "STDBJAGU",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "9924175b96883c99fd9c1ff402222da168b637f6392f0660646088a94399eb3d",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "3b7e30b79614a8568d289f9bc71d73e6208c0a938394d26f50b9e9b33863a553",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "22adee0801c5494894e492cf198b8cc4b44f056779683ad9b3e903cd91dfe52d",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0xa61",
+        "0xa00",
+        "0x951",
+        "0xc71",
+        "0x530",
+        "0xfa5",
+        "0x740",
+        "0xf92",
+        "0x742",
+        "0x852",
+        "0xe82",
+        "0xfa3",
+        "0xfff",
+        "0x420",
+        "0x963",
+        "0x853",
+        "0xfb6",
+        "0xc96",
+        "0xfc8",
+        "0x777",
+        "0x642",
+        "0xddd",
+        "0x333",
+        "0x888",
+        "0x666",
+        "0xa50",
+        "0x444",
+        "0xfdc",
+        "0xfda"
+      ],
+      "source": "disk2/STDBLANC.psh",
+      "decoded_file": "decoded/disk2/STDBLANC.psh",
+      "resource": "STDBLANC",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "b7957275553dab1637e88837a6ef9ddbd4ffa95141b873f1265c393cb2b8537f",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "06144f0dd6b6c07b347cd62c92f44a8bc2f425639401026ab4294193109cf345",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "f9b4bacdbca5e076392d3e95a9dd6596c658b469f2ff7a5d2dc469ee1e720523",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x333",
+        "0xa00",
+        "0xc71",
+        "0x555",
+        "0x777",
+        "0xa61",
+        "0xccc",
+        "0x444",
+        "0x888",
+        "0xddd",
+        "0x666",
+        "0xaaa",
+        "0xfff",
+        "0x951",
+        "0xe82",
+        "0x999",
+        "0xfff",
+        "0xf92",
+        "0x740",
+        "0xbbb",
+        "0x420",
+        "0x530",
+        "0xf00",
+        "0x900",
+        "0xfb6",
+        "0x594",
+        "0x383",
+        "0x7c6",
+        "0xa50"
+      ],
+      "source": "disk2/STDBLM02.psh",
+      "decoded_file": "decoded/disk2/STDBLM02.psh",
+      "resource": "STDBLM02",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "9f2f87563a0da2cf7b461883bf9e3f5cd35e35092058a49795d7590187851399",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "63ab90890d4c01c2bf008ebc3cf1f513a1e745ade175fecbf3c6f9b242a3adce",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "b4598b61b79b0d88fc1ccc9ce0af3bd409d45c87afe5a40ef9a41a9a4d11be48",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x555",
+        "0xa00",
+        "0xf22",
+        "0x666",
+        "0x777",
+        "0x777",
+        "0x888",
+        "0xbbb",
+        "0xf44",
+        "0xfff",
+        "0xaaa",
+        "0xb00",
+        "0xfff",
+        "0x999",
+        "0x700",
+        "0xccc",
+        "0xddd",
+        "0xc00",
+        "0x900",
+        "0x800",
+        "0x951",
+        "0xf92",
+        "0xf55",
+        "0xfbb",
+        "0xf77",
+        "0x00a",
+        "0x740",
+        "0xccc",
+        "0x530"
+      ],
+      "source": "disk2/STDBP962.psh",
+      "decoded_file": "decoded/disk2/STDBP962.psh",
+      "resource": "STDBP962",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "fe30d59f3cb36f053797964afc7c76981aa2875308d43c8f96e9490681b1c21b",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "1d06bfe0b61732d904329a73c10c2f77bd1e9afff541aea65a631de23269cd81",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "ef850bcf5804c29066e9063b7f4cf98d1bfd0362365065694c2fb472902da050",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x444",
+        "0xa00",
+        "0x333",
+        "0x555",
+        "0x888",
+        "0x666",
+        "0xddd",
+        "0x777",
+        "0xccc",
+        "0x999",
+        "0xaaa",
+        "0xfa3",
+        "0xfff",
+        "0xfff",
+        "0xe00",
+        "0xb00",
+        "0xe82",
+        "0x900",
+        "0xbbb",
+        "0x951",
+        "0xc00",
+        "0xfa5",
+        "0xa61",
+        "0xf00",
+        "0xf22",
+        "0x800",
+        "0xc71",
+        "0x0a0",
+        "0xa0a"
+      ],
+      "source": "disk2/stdbpc04.psh",
+      "decoded_file": "decoded/disk2/stdbpc04.psh",
+      "resource": "STDBPC04",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "2a35e03d48dc9e3391cbe46ce9948dc1f8b0d5ab882903d1b68f55a649019619",
+      "compression": "EAC Huffman 0x26FB",
+      "decoded_sha256": "9f24911700544700da4f4cade01777ab0288fe6cc9f4a693b478a6dac35e931b",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 62,
+      "decoded_palette_data_offset": 82,
+      "original_file_data_offset": null,
+      "palette_sha256": "96c53c385c775d978868c2d424241053cb146a3b753a010dcc7140f36d3f6e7f",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x333",
+        "0x222",
+        "0xa00",
+        "0x222",
+        "0x666",
+        "0x777",
+        "0x444",
+        "0x555",
+        "0xff4",
+        "0xba0",
+        "0x870",
+        "0xff2",
+        "0x555",
+        "0xfff",
+        "0x777",
+        "0xcc0",
+        "0x980",
+        "0xff9",
+        "0xf00",
+        "0xed0",
+        "0x650",
+        "0x888",
+        "0xaaa",
+        "0xbbb",
+        "0xccc",
+        "0x900",
+        "0x999",
+        "0x540",
+        "0xccc",
+        "0x5a5"
+      ],
+      "source": "disk2/stdbpmin.psh",
+      "decoded_file": "decoded/disk2/stdbpmin.psh",
+      "resource": "STDBPMIN",
+      "chunk": "!pal"
+    },
+    {
+      "source_sha256": "7526c292ab00e2578615fb48a34022ee32fc904ad7f13b0f363062959d8bb98d",
+      "compression": "EAC BPE 0x42FB",
+      "decoded_sha256": "bc14b5625d0b1791178bede9dcdd2f2a68dbcbf4429076ca19e9094bebc4ab4d",
+      "resource_index": 0,
+      "decoded_resource_header_offset": 142,
+      "decoded_palette_data_offset": 162,
+      "original_file_data_offset": null,
+      "palette_sha256": "0adc0b1416e6a1a5ce5086f606349376bfc21b7469a14d8f736801bbb8208f76",
+      "ecs_words": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0x777",
+        "0xa00",
+        "0x555",
+        "0x666",
+        "0x333",
+        "0x444",
+        "0x888",
+        "0x951",
+        "0x999",
+        "0xbbb",
+        "0xf92",
+        "0xff5",
+        "0xfff",
+        "0x530",
+        "0xaaa",
+        "0xddd",
+        "0xc71",
+        "0xccc",
+        "0x740",
+        "0xa61",
+        "0x500",
+        "0xfff",
+        "0xe82",
+        "0xf22",
+        "0xfa5",
+        "0xfc9",
+        "0xfa3",
+        "0x420",
+        "0xdef"
+      ],
+      "source": "disk2/STDBVETT.psh",
+      "decoded_file": "decoded/disk2/STDBVETT.psh",
+      "resource": "STDBVETT",
+      "chunk": "!pal"
+    }
+  ],
+  "dos_reference_palette": {
+    "source": "SDMAIN.PVS",
+    "source_sha256": "a33b54cff282fed2d68134fcf334f4e44917f906a6556013e0f6c6dd546cdd3b",
+    "decoded_sha256": "1b6de497bdb3ef4a17e96283663cbd8784a9ed63f7344793643601c56e86b78a",
+    "resource": "!pal",
+    "decoded_resource_header_offset": 52,
+    "decoded_palette_data_offset": 68,
+    "palette_sha256": "5e8dc3e868d0c6c25856455bef24acf291686b2b6ab2c7efd7b359188ed2bd9c",
+    "encoding": "256 RGB triplets, 6-bit VGA DAC values 0..63",
+    "rgb6_bytes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      42,
+      0,
+      42,
+      0,
+      0,
+      42,
+      42,
+      42,
+      0,
+      0,
+      42,
+      0,
+      42,
+      42,
+      21,
+      0,
+      42,
+      42,
+      42,
+      21,
+      21,
+      21,
+      21,
+      21,
+      63,
+      21,
+      63,
+      21,
+      21,
+      63,
+      63,
+      63,
+      21,
+      21,
+      63,
+      21,
+      63,
+      63,
+      63,
+      21,
+      63,
+      63,
+      63,
+      63,
+      63,
+      63,
+      55,
+      55,
+      55,
+      51,
+      51,
+      51,
+      48,
+      48,
+      48,
+      44,
+      44,
+      44,
+      41,
+      41,
+      41,
+      38,
+      38,
+      38,
+      34,
+      34,
+      34,
+      31,
+      31,
+      31,
+      28,
+      28,
+      28,
+      24,
+      24,
+      24,
+      21,
+      21,
+      21,
+      18,
+      18,
+      18,
+      14,
+      14,
+      14,
+      11,
+      11,
+      11,
+      8,
+      8,
+      8,
+      63,
+      54,
+      54,
+      63,
+      46,
+      46,
+      63,
+      39,
+      39,
+      63,
+      31,
+      31,
+      63,
+      23,
+      23,
+      63,
+      16,
+      16,
+      63,
+      8,
+      8,
+      63,
+      0,
+      0,
+      57,
+      0,
+      0,
+      51,
+      0,
+      0,
+      45,
+      0,
+      0,
+      39,
+      0,
+      0,
+      33,
+      0,
+      0,
+      28,
+      0,
+      0,
+      22,
+      0,
+      0,
+      16,
+      0,
+      0,
+      63,
+      58,
+      54,
+      63,
+      55,
+      48,
+      63,
+      53,
+      43,
+      63,
+      50,
+      37,
+      63,
+      48,
+      32,
+      63,
+      46,
+      26,
+      63,
+      43,
+      21,
+      63,
+      41,
+      15,
+      63,
+      39,
+      10,
+      56,
+      34,
+      8,
+      49,
+      30,
+      7,
+      42,
+      25,
+      5,
+      36,
+      21,
+      4,
+      29,
+      16,
+      2,
+      22,
+      12,
+      1,
+      16,
+      8,
+      0,
+      63,
+      63,
+      54,
+      63,
+      63,
+      46,
+      63,
+      63,
+      39,
+      63,
+      63,
+      31,
+      63,
+      62,
+      23,
+      63,
+      61,
+      16,
+      63,
+      61,
+      8,
+      63,
+      61,
+      0,
+      57,
+      54,
+      0,
+      51,
+      48,
+      0,
+      45,
+      41,
+      0,
+      39,
+      35,
+      0,
+      33,
+      29,
+      0,
+      27,
+      22,
+      0,
+      21,
+      16,
+      0,
+      16,
+      10,
+      0,
+      62,
+      63,
+      54,
+      61,
+      63,
+      46,
+      58,
+      63,
+      39,
+      56,
+      63,
+      31,
+      52,
+      63,
+      23,
+      49,
+      63,
+      16,
+      45,
+      63,
+      8,
+      40,
+      63,
+      0,
+      36,
+      57,
+      0,
+      32,
+      51,
+      0,
+      29,
+      45,
+      0,
+      24,
+      39,
+      0,
+      20,
+      33,
+      0,
+      17,
+      28,
+      0,
+      13,
+      22,
+      0,
+      10,
+      16,
+      0,
+      54,
+      63,
+      54,
+      39,
+      63,
+      39,
+      36,
+      59,
+      36,
+      33,
+      56,
+      33,
+      30,
+      52,
+      30,
+      28,
+      49,
+      27,
+      25,
+      46,
+      25,
+      22,
+      42,
+      22,
+      20,
+      39,
+      19,
+      17,
+      36,
+      16,
+      14,
+      32,
+      13,
+      11,
+      29,
+      11,
+      9,
+      26,
+      8,
+      6,
+      22,
+      5,
+      3,
+      19,
+      2,
+      1,
+      16,
+      0,
+      54,
+      63,
+      63,
+      46,
+      63,
+      63,
+      39,
+      63,
+      63,
+      31,
+      63,
+      62,
+      23,
+      63,
+      63,
+      16,
+      63,
+      63,
+      8,
+      63,
+      63,
+      0,
+      63,
+      63,
+      0,
+      57,
+      57,
+      0,
+      51,
+      51,
+      0,
+      45,
+      45,
+      0,
+      39,
+      39,
+      0,
+      33,
+      33,
+      0,
+      28,
+      28,
+      0,
+      22,
+      22,
+      0,
+      16,
+      16,
+      54,
+      59,
+      63,
+      46,
+      56,
+      63,
+      39,
+      53,
+      63,
+      31,
+      50,
+      63,
+      23,
+      47,
+      63,
+      16,
+      44,
+      63,
+      0,
+      39,
+      63,
+      0,
+      35,
+      57,
+      0,
+      32,
+      52,
+      0,
+      29,
+      47,
+      0,
+      25,
+      42,
+      0,
+      22,
+      36,
+      0,
+      19,
+      31,
+      0,
+      15,
+      26,
+      0,
+      12,
+      21,
+      0,
+      9,
+      16,
+      54,
+      54,
+      63,
+      46,
+      47,
+      63,
+      39,
+      39,
+      63,
+      31,
+      32,
+      63,
+      23,
+      24,
+      63,
+      16,
+      16,
+      63,
+      0,
+      1,
+      63,
+      0,
+      0,
+      57,
+      0,
+      0,
+      52,
+      0,
+      0,
+      47,
+      0,
+      0,
+      42,
+      0,
+      0,
+      36,
+      0,
+      0,
+      31,
+      0,
+      0,
+      26,
+      0,
+      0,
+      21,
+      0,
+      0,
+      16,
+      60,
+      54,
+      63,
+      57,
+      46,
+      63,
+      54,
+      39,
+      63,
+      52,
+      31,
+      63,
+      50,
+      23,
+      63,
+      47,
+      16,
+      63,
+      45,
+      8,
+      63,
+      42,
+      0,
+      63,
+      38,
+      0,
+      57,
+      32,
+      0,
+      51,
+      29,
+      0,
+      45,
+      24,
+      0,
+      39,
+      20,
+      0,
+      33,
+      17,
+      0,
+      28,
+      13,
+      0,
+      22,
+      10,
+      0,
+      16,
+      63,
+      54,
+      63,
+      63,
+      46,
+      63,
+      63,
+      39,
+      63,
+      63,
+      31,
+      63,
+      63,
+      23,
+      63,
+      63,
+      16,
+      63,
+      63,
+      8,
+      63,
+      56,
+      0,
+      57,
+      51,
+      0,
+      51,
+      46,
+      0,
+      46,
+      41,
+      0,
+      41,
+      36,
+      0,
+      36,
+      31,
+      0,
+      31,
+      26,
+      0,
+      26,
+      21,
+      0,
+      21,
+      16,
+      0,
+      16,
+      63,
+      58,
+      55,
+      60,
+      53,
+      49,
+      57,
+      49,
+      43,
+      54,
+      45,
+      38,
+      51,
+      40,
+      32,
+      48,
+      36,
+      27,
+      45,
+      32,
+      21,
+      43,
+      28,
+      16,
+      39,
+      25,
+      14,
+      35,
+      23,
+      13,
+      32,
+      21,
+      11,
+      28,
+      19,
+      10,
+      24,
+      16,
+      8,
+      21,
+      14,
+      7,
+      17,
+      12,
+      5,
+      14,
+      10,
+      4,
+      63,
+      54,
+      51,
+      62,
+      51,
+      46,
+      61,
+      48,
+      42,
+      60,
+      45,
+      37,
+      59,
+      42,
+      33,
+      58,
+      39,
+      29,
+      57,
+      37,
+      25,
+      56,
+      35,
+      22,
+      54,
+      32,
+      19,
+      53,
+      30,
+      16,
+      50,
+      27,
+      13,
+      48,
+      24,
+      11,
+      45,
+      21,
+      9,
+      42,
+      18,
+      7,
+      39,
+      15,
+      5,
+      37,
+      12,
+      3,
+      61,
+      48,
+      42,
+      60,
+      47,
+      40,
+      60,
+      46,
+      39,
+      60,
+      45,
+      37,
+      59,
+      44,
+      36,
+      59,
+      43,
+      34,
+      59,
+      42,
+      33,
+      58,
+      41,
+      32,
+      58,
+      40,
+      30,
+      58,
+      39,
+      29,
+      57,
+      38,
+      27,
+      57,
+      37,
+      26,
+      57,
+      37,
+      25,
+      63,
+      39,
+      39,
+      63,
+      37,
+      37,
+      63,
+      36,
+      36,
+      63,
+      35,
+      35,
+      63,
+      33,
+      33,
+      63,
+      32,
+      32,
+      63,
+      31,
+      31,
+      54,
+      45,
+      38,
+      52,
+      43,
+      35,
+      51,
+      41,
+      33,
+      50,
+      39,
+      31,
+      49,
+      37,
+      29,
+      48,
+      36,
+      27,
+      48,
+      48,
+      48,
+      47,
+      47,
+      47,
+      46,
+      46,
+      46,
+      45,
+      45,
+      45,
+      44,
+      44,
+      44,
+      63,
+      63,
+      63
+    ]
+  },
+  "menu_mapping_method": "Pair DOS and Amiga decoded pixels at identical local coordinates within same-named, same-size bitmap chunks. Preserve counts, use largest count, lowest index wins ties.",
+  "menu_mapping_fallback": "For unobserved DOS indices, nearest normalized RGB squared distance to ECS profile palette; compare RGB6*15 against RGB4*63, lowest index wins ties. Observed majority values always take precedence.",
+  "menu_mapping_limitations": "Majority mapping is not lossless: some DOS indices correspond to multiple original Amiga indices. Fullscreen UI overlays and other resources can need separate treatment. No runtime scene API is assumed.",
+  "menu_maps": [
+    {
+      "dos_source": "SDMSEL.PVS",
+      "dos_source_sha256": "fa238c39546d755a0954aac27668cae2024b17c8da513cf509912b8080251e8d",
+      "dos_decoded_sha256": "1babfe1c26fe96cc1c52f02e1767bcd8c6832acba40531af01d1b809ce47daf0",
+      "amiga_source": "disk2/sdmsel.psh",
+      "amiga_source_sha256": "1bb1aa7073f0e515626f6832b59fe9e4da9959b2a6bf4ffd92f2996d8a141596",
+      "amiga_decoded_sha256": "041d538dc5c20dd64b49eb68f8eca0433a33fd0a4638ed82fc311256739f239a",
+      "amiga_palette_resource": "!pal",
+      "amiga_palette_sha256": "9f5976cfd95b017369eb039393e9fc2886f428955d21cdd6cef263dad0859fba",
+      "pixels": 64000,
+      "dominant_mapping_agreement": 63228,
+      "agreement_fraction": 0.9879375,
+      "used_dos_colors": 87,
+      "ambiguous_dos_colors": 34,
+      "pairs": {
+        "0": {
+          "0": 3645,
+          "3": 46,
+          "28": 4
+        },
+        "15": {
+          "8": 11,
+          "9": 20,
+          "11": 5,
+          "16": 13,
+          "17": 20,
+          "27": 15,
+          "31": 2057
+        },
+        "16": {
+          "21": 657
+        },
+        "17": {
+          "1": 1,
+          "3": 1,
+          "4": 1,
+          "9": 1,
+          "20": 659
+        },
+        "18": {
+          "18": 3,
+          "19": 772,
+          "23": 1
+        },
+        "19": {
+          "11": 1233
+        },
+        "20": {
+          "1": 1,
+          "3": 1,
+          "4": 1,
+          "9": 1,
+          "29": 437
+        },
+        "21": {
+          "29": 178
+        },
+        "22": {
+          "15": 216
+        },
+        "23": {
+          "15": 90
+        },
+        "24": {
+          "3": 3,
+          "4": 1,
+          "15": 257,
+          "27": 1
+        },
+        "25": {
+          "27": 64
+        },
+        "26": {
+          "3": 2,
+          "4": 2,
+          "11": 6,
+          "27": 417
+        },
+        "27": {
+          "27": 35,
+          "29": 1
+        },
+        "28": {
+          "1": 1,
+          "3": 85
+        },
+        "29": {
+          "1": 2,
+          "3": 1917,
+          "4": 2
+        },
+        "30": {
+          "3": 6093,
+          "29": 1
+        },
+        "31": {
+          "3": 995,
+          "11": 19,
+          "31": 1
+        },
+        "35": {
+          "17": 120
+        },
+        "36": {
+          "23": 16
+        },
+        "38": {
+          "23": 68
+        },
+        "39": {
+          "23": 490
+        },
+        "40": {
+          "9": 1897,
+          "11": 18,
+          "31": 13
+        },
+        "41": {
+          "9": 22
+        },
+        "42": {
+          "4": 18
+        },
+        "45": {
+          "3": 2
+        },
+        "51": {
+          "17": 42
+        },
+        "52": {
+          "17": 19
+        },
+        "56": {
+          "11": 12,
+          "17": 905,
+          "31": 8
+        },
+        "58": {
+          "24": 26
+        },
+        "59": {
+          "9": 9,
+          "13": 9
+        },
+        "60": {
+          "13": 62
+        },
+        "62": {
+          "3": 36
+        },
+        "72": {
+          "10": 18
+        },
+        "73": {
+          "10": 1544
+        },
+        "74": {
+          "13": 10
+        },
+        "75": {
+          "13": 1031
+        },
+        "77": {
+          "2": 17
+        },
+        "78": {
+          "3": 34
+        },
+        "79": {
+          "3": 2
+        },
+        "85": {
+          "14": 2
+        },
+        "86": {
+          "10": 57
+        },
+        "87": {
+          "10": 12
+        },
+        "88": {
+          "10": 236
+        },
+        "89": {
+          "22": 310
+        },
+        "90": {
+          "22": 124
+        },
+        "91": {
+          "22": 584
+        },
+        "92": {
+          "1": 14,
+          "7": 4732,
+          "9": 20
+        },
+        "93": {
+          "1": 20,
+          "2": 9006,
+          "3": 83,
+          "4": 51,
+          "9": 7
+        },
+        "94": {
+          "1": 6,
+          "2": 1540
+        },
+        "95": {
+          "3": 1107,
+          "4": 1
+        },
+        "100": {
+          "22": 4
+        },
+        "105": {
+          "8": 2127,
+          "11": 20
+        },
+        "112": {
+          "30": 23
+        },
+        "128": {
+          "30": 441
+        },
+        "129": {
+          "30": 297
+        },
+        "130": {
+          "25": 321
+        },
+        "131": {
+          "25": 541
+        },
+        "132": {
+          "6": 9977,
+          "18": 1,
+          "26": 1
+        },
+        "133": {
+          "6": 1
+        },
+        "134": {
+          "6": 118
+        },
+        "135": {
+          "6": 2,
+          "26": 2
+        },
+        "146": {
+          "25": 72
+        },
+        "147": {
+          "3": 2,
+          "26": 219,
+          "28": 5
+        },
+        "148": {
+          "3": 2,
+          "26": 213,
+          "28": 1
+        },
+        "149": {
+          "3": 3,
+          "16": 1,
+          "26": 525,
+          "28": 4
+        },
+        "150": {
+          "3": 24,
+          "10": 4,
+          "12": 1033,
+          "16": 68,
+          "28": 17
+        },
+        "151": {
+          "11": 11,
+          "16": 917,
+          "31": 6
+        },
+        "152": {
+          "18": 27
+        },
+        "153": {
+          "18": 822
+        },
+        "154": {
+          "1": 3,
+          "3": 1,
+          "28": 1
+        },
+        "155": {
+          "3": 5,
+          "28": 437
+        },
+        "156": {
+          "28": 8
+        },
+        "157": {
+          "0": 6,
+          "3": 218,
+          "28": 120
+        },
+        "158": {
+          "0": 1,
+          "3": 8,
+          "28": 43
+        },
+        "163": {
+          "0": 2,
+          "6": 2
+        },
+        "164": {
+          "3": 1
+        },
+        "166": {
+          "0": 1,
+          "18": 1,
+          "23": 1,
+          "26": 2
+        },
+        "169": {
+          "3": 1,
+          "18": 7,
+          "26": 1,
+          "27": 1
+        },
+        "192": {
+          "20": 131
+        },
+        "194": {
+          "19": 12
+        },
+        "197": {
+          "24": 547
+        },
+        "198": {
+          "13": 5
+        },
+        "199": {
+          "13": 22
+        },
+        "200": {
+          "13": 199
+        },
+        "201": {
+          "13": 3
+        },
+        "202": {
+          "2": 3
+        }
+      },
+      "resource": "SDMSEL",
+      "paired_chunks": [
+        {
+          "chunk": "scrn",
+          "width": 320,
+          "height": 200,
+          "dos_decoded_header_offset": 302,
+          "amiga_decoded_header_offset": 106,
+          "dos_pixels_sha256": "d0b5d3b4fa180e781e3e4f216653b5cc810fd158075153eca742083685e111f5",
+          "amiga_pixels_sha256": "4dc1818259e5a6eff7b2e08404db001eac911b2adb112f6c89f2645ef22b9664"
+        }
+      ],
+      "indexes": [
+        0,
+        1,
+        2,
+        6,
+        4,
+        5,
+        13,
+        29,
+        3,
+        26,
+        8,
+        25,
+        17,
+        11,
+        14,
+        31,
+        21,
+        20,
+        19,
+        11,
+        29,
+        29,
+        15,
+        15,
+        15,
+        27,
+        27,
+        27,
+        3,
+        3,
+        3,
+        3,
+        20,
+        11,
+        24,
+        17,
+        23,
+        23,
+        23,
+        23,
+        9,
+        9,
+        4,
+        4,
+        4,
+        3,
+        4,
+        0,
+        20,
+        20,
+        20,
+        17,
+        17,
+        24,
+        17,
+        17,
+        17,
+        17,
+        24,
+        9,
+        13,
+        2,
+        3,
+        0,
+        21,
+        20,
+        14,
+        14,
+        14,
+        14,
+        14,
+        10,
+        10,
+        10,
+        13,
+        13,
+        13,
+        2,
+        3,
+        3,
+        21,
+        20,
+        20,
+        14,
+        14,
+        14,
+        10,
+        10,
+        10,
+        22,
+        22,
+        22,
+        7,
+        2,
+        2,
+        3,
+        20,
+        29,
+        29,
+        29,
+        22,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        2,
+        2,
+        2,
+        0,
+        30,
+        30,
+        25,
+        25,
+        25,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        8,
+        8,
+        8,
+        3,
+        3,
+        30,
+        30,
+        25,
+        25,
+        6,
+        6,
+        6,
+        6,
+        26,
+        26,
+        1,
+        28,
+        28,
+        28,
+        28,
+        0,
+        30,
+        11,
+        25,
+        26,
+        26,
+        26,
+        12,
+        16,
+        18,
+        18,
+        1,
+        28,
+        28,
+        3,
+        28,
+        0,
+        30,
+        20,
+        11,
+        0,
+        3,
+        5,
+        26,
+        5,
+        5,
+        18,
+        5,
+        5,
+        28,
+        28,
+        28,
+        0,
+        21,
+        20,
+        20,
+        11,
+        11,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        3,
+        3,
+        3,
+        20,
+        20,
+        19,
+        29,
+        24,
+        24,
+        13,
+        13,
+        13,
+        13,
+        2,
+        3,
+        3,
+        3,
+        2,
+        0,
+        20,
+        20,
+        11,
+        29,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        13,
+        13,
+        13,
+        4,
+        4,
+        11,
+        11,
+        11,
+        29,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        24,
+        29,
+        24,
+        24,
+        24,
+        24,
+        24,
+        29,
+        29,
+        29,
+        29,
+        29,
+        21
+      ]
+    },
+    {
+      "dos_source": "SDCSEL.PVS",
+      "dos_source_sha256": "ffefac20280034739c875b57c383d06e49c7b2d03340323d90594912d5f3b8ac",
+      "dos_decoded_sha256": "2b5195090db352c2cdb23c17570e9628e47d86b1cde8551aa54271b7ebac356c",
+      "amiga_source": "disk2/sdcsel.psh",
+      "amiga_source_sha256": "89692cd6b8b91cdf7d10daf7ca4fbdabf4656d5044369846135700ee5d9b9377",
+      "amiga_decoded_sha256": "f97b6e533a62734c780011281148ad5d85330879229fc40b6ca1980f15f829b2",
+      "amiga_palette_resource": "!pal",
+      "amiga_palette_sha256": "b4ac3c8b59663f7862d8c3ddcd3e583ac94f849cbf72f9533eb3cdc62f2dc173",
+      "pixels": 36368,
+      "dominant_mapping_agreement": 36368,
+      "agreement_fraction": 1.0,
+      "used_dos_colors": 44,
+      "ambiguous_dos_colors": 0,
+      "pairs": {
+        "0": {
+          "0": 216
+        },
+        "1": {
+          "1": 721
+        },
+        "7": {
+          "7": 3240
+        },
+        "8": {
+          "8": 405
+        },
+        "15": {
+          "15": 1766
+        },
+        "16": {
+          "31": 1105
+        },
+        "17": {
+          "19": 1778
+        },
+        "18": {
+          "23": 1102
+        },
+        "19": {
+          "24": 1065
+        },
+        "20": {
+          "20": 1730
+        },
+        "22": {
+          "30": 577
+        },
+        "23": {
+          "27": 689
+        },
+        "24": {
+          "27": 493
+        },
+        "26": {
+          "16": 7736
+        },
+        "27": {
+          "16": 314
+        },
+        "28": {
+          "8": 2
+        },
+        "29": {
+          "0": 4
+        },
+        "30": {
+          "0": 18
+        },
+        "38": {
+          "18": 1261
+        },
+        "39": {
+          "18": 529
+        },
+        "40": {
+          "17": 2978
+        },
+        "41": {
+          "28": 616
+        },
+        "42": {
+          "4": 469
+        },
+        "43": {
+          "4": 154
+        },
+        "44": {
+          "29": 14
+        },
+        "45": {
+          "29": 45
+        },
+        "46": {
+          "29": 580
+        },
+        "72": {
+          "14": 18
+        },
+        "74": {
+          "6": 44
+        },
+        "75": {
+          "6": 34
+        },
+        "76": {
+          "6": 60
+        },
+        "77": {
+          "8": 86
+        },
+        "78": {
+          "29": 14
+        },
+        "148": {
+          "9": 218
+        },
+        "149": {
+          "9": 497
+        },
+        "150": {
+          "21": 1660
+        },
+        "151": {
+          "25": 383
+        },
+        "152": {
+          "25": 900
+        },
+        "153": {
+          "22": 1589
+        },
+        "155": {
+          "26": 220
+        },
+        "156": {
+          "26": 775
+        },
+        "157": {
+          "0": 8
+        },
+        "158": {
+          "0": 253
+        },
+        "203": {
+          "8": 2
+        }
+      },
+      "resource": "SDCSEL",
+      "paired_chunks": [
+        {
+          "chunk": "grap",
+          "width": 48,
+          "height": 71,
+          "dos_decoded_header_offset": 33558,
+          "amiga_decoded_header_offset": 114,
+          "dos_pixels_sha256": "3fd93bff2ef897cac4e9d557cb2714bc15f2c71eae031b19ddc08f7ce82e50e0",
+          "amiga_pixels_sha256": "5ab7033b31cd05ae758f58a7096d78a04a735b136c2e879acacceed26cee3e33"
+        },
+        {
+          "chunk": "stop",
+          "width": 320,
+          "height": 103,
+          "dos_decoded_header_offset": 38,
+          "amiga_decoded_header_offset": 1412,
+          "dos_pixels_sha256": "aed24eb9946875cdcef62210ff9d235176c7f874d8f340474ce916514a4176e9",
+          "amiga_pixels_sha256": "5d0c6aad2d9908694eebd2678c4a0c2fcd008c6b52c0b272dd6ffae46a4da10c"
+        }
+      ],
+      "indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        31,
+        19,
+        23,
+        24,
+        20,
+        7,
+        30,
+        27,
+        27,
+        16,
+        16,
+        16,
+        8,
+        0,
+        0,
+        0,
+        19,
+        23,
+        20,
+        12,
+        12,
+        12,
+        18,
+        18,
+        17,
+        28,
+        4,
+        4,
+        29,
+        29,
+        29,
+        29,
+        19,
+        19,
+        19,
+        23,
+        14,
+        14,
+        14,
+        12,
+        12,
+        12,
+        6,
+        6,
+        6,
+        6,
+        29,
+        29,
+        15,
+        19,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        14,
+        6,
+        6,
+        6,
+        6,
+        8,
+        29,
+        29,
+        15,
+        19,
+        19,
+        14,
+        14,
+        14,
+        14,
+        10,
+        10,
+        10,
+        6,
+        2,
+        2,
+        2,
+        8,
+        0,
+        19,
+        20,
+        7,
+        10,
+        10,
+        10,
+        27,
+        16,
+        16,
+        8,
+        8,
+        8,
+        8,
+        2,
+        0,
+        0,
+        15,
+        19,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        8,
+        26,
+        19,
+        19,
+        23,
+        11,
+        11,
+        11,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        26,
+        26,
+        26,
+        26,
+        19,
+        23,
+        20,
+        9,
+        9,
+        9,
+        21,
+        25,
+        25,
+        22,
+        1,
+        26,
+        26,
+        0,
+        0,
+        26,
+        15,
+        19,
+        23,
+        13,
+        13,
+        13,
+        13,
+        5,
+        5,
+        5,
+        5,
+        5,
+        26,
+        26,
+        26,
+        26,
+        15,
+        19,
+        13,
+        13,
+        13,
+        13,
+        13,
+        5,
+        5,
+        5,
+        5,
+        5,
+        5,
+        8,
+        8,
+        29,
+        19,
+        19,
+        23,
+        20,
+        7,
+        30,
+        27,
+        6,
+        6,
+        6,
+        6,
+        8,
+        8,
+        8,
+        29,
+        29,
+        19,
+        19,
+        23,
+        20,
+        20,
+        12,
+        12,
+        12,
+        12,
+        12,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        23,
+        23,
+        23,
+        20,
+        20,
+        20,
+        20,
+        7,
+        7,
+        12,
+        12,
+        12,
+        12,
+        20,
+        20,
+        12,
+        12,
+        12,
+        12,
+        12,
+        20,
+        7,
+        7,
+        7,
+        30,
+        30,
+        20,
+        20,
+        20,
+        20,
+        7,
+        15
+      ]
+    },
+    {
+      "dos_source": "SDOSEL.PVS",
+      "dos_source_sha256": "43dc5b1ef38b2d345ce0674c5e1d8b13f8961024fdb5ef510d2ed945c2c2ba7d",
+      "dos_decoded_sha256": "6fb1faf557cc72187828f18501730c848460cd8a6669713154bede527601c1fe",
+      "amiga_source": "disk1/sdosel.psh",
+      "amiga_source_sha256": "abdf05876c96cd92984d62a5fdd3140d6a57c80e234838bc77f7c7362108fba7",
+      "amiga_decoded_sha256": "55066b32b3c9e46a25089de0ab140c1a4e73e0837a40748dfcdfb06d57a9bf2a",
+      "amiga_palette_resource": "!pal",
+      "amiga_palette_sha256": "2e460fc63e46e444d73d75a212ff6027b7f0aa2ebe8f3c35abd2a173c7a53ade",
+      "pixels": 105200,
+      "dominant_mapping_agreement": 100976,
+      "agreement_fraction": 0.9598479087452472,
+      "used_dos_colors": 218,
+      "ambiguous_dos_colors": 175,
+      "pairs": {
+        "0": {
+          "0": 2852,
+          "3": 7,
+          "19": 4
+        },
+        "1": {
+          "0": 1
+        },
+        "2": {
+          "13": 2
+        },
+        "3": {
+          "1": 1,
+          "7": 6,
+          "15": 3
+        },
+        "4": {
+          "4": 2
+        },
+        "5": {
+          "1": 1,
+          "22": 2,
+          "25": 1
+        },
+        "6": {
+          "5": 1,
+          "9": 26,
+          "23": 4,
+          "27": 1
+        },
+        "7": {
+          "6": 5,
+          "7": 21,
+          "27": 2,
+          "28": 1,
+          "29": 2
+        },
+        "8": {
+          "1": 1,
+          "3": 1,
+          "8": 150,
+          "11": 2,
+          "27": 1
+        },
+        "12": {
+          "22": 8
+        },
+        "15": {
+          "2": 1,
+          "3": 1,
+          "8": 1,
+          "18": 13,
+          "22": 1,
+          "28": 38,
+          "31": 6298
+        },
+        "16": {
+          "31": 114
+        },
+        "17": {
+          "2": 26791,
+          "6": 4,
+          "7": 2,
+          "27": 41,
+          "28": 104,
+          "31": 1
+        },
+        "18": {
+          "2": 56,
+          "6": 96,
+          "28": 9
+        },
+        "19": {
+          "2": 9,
+          "6": 4182,
+          "7": 9,
+          "24": 1,
+          "29": 1
+        },
+        "20": {
+          "6": 4,
+          "7": 21,
+          "8": 1,
+          "28": 1
+        },
+        "21": {
+          "6": 1,
+          "7": 231,
+          "8": 5,
+          "27": 1,
+          "29": 2
+        },
+        "22": {
+          "6": 3,
+          "7": 503,
+          "8": 11,
+          "10": 1,
+          "13": 7,
+          "25": 1,
+          "27": 4,
+          "28": 6,
+          "29": 6
+        },
+        "23": {
+          "0": 1,
+          "3": 1,
+          "7": 99,
+          "8": 46,
+          "11": 1,
+          "13": 7,
+          "14": 1,
+          "15": 1,
+          "25": 3,
+          "27": 12,
+          "28": 2,
+          "29": 4
+        },
+        "24": {
+          "1": 4,
+          "7": 239,
+          "8": 329,
+          "13": 3,
+          "25": 4,
+          "27": 15,
+          "29": 2,
+          "30": 1
+        },
+        "25": {
+          "1": 4,
+          "7": 13,
+          "8": 288,
+          "13": 4,
+          "25": 1,
+          "27": 3,
+          "28": 1
+        },
+        "26": {
+          "0": 1,
+          "3": 1,
+          "8": 357,
+          "13": 1,
+          "14": 1
+        },
+        "27": {
+          "1": 1,
+          "7": 1,
+          "8": 1094
+        },
+        "28": {
+          "0": 2,
+          "3": 3,
+          "8": 355,
+          "14": 1,
+          "19": 1
+        },
+        "29": {
+          "0": 6,
+          "3": 730,
+          "8": 1,
+          "11": 36,
+          "14": 9,
+          "19": 1,
+          "26": 1
+        },
+        "30": {
+          "0": 2,
+          "3": 1385,
+          "11": 1,
+          "19": 1
+        },
+        "31": {
+          "0": 6,
+          "3": 989,
+          "19": 1
+        },
+        "32": {
+          "2": 10,
+          "18": 13,
+          "28": 33,
+          "31": 2
+        },
+        "33": {
+          "2": 35,
+          "8": 1,
+          "18": 73,
+          "22": 9,
+          "28": 509
+        },
+        "34": {
+          "18": 15,
+          "22": 52,
+          "28": 262,
+          "29": 2
+        },
+        "35": {
+          "22": 1029,
+          "28": 20,
+          "29": 7,
+          "30": 1
+        },
+        "36": {
+          "22": 99
+        },
+        "37": {
+          "20": 1,
+          "22": 11
+        },
+        "38": {
+          "22": 6
+        },
+        "39": {
+          "12": 6,
+          "13": 18,
+          "15": 21,
+          "17": 18,
+          "18": 18,
+          "22": 20
+        },
+        "40": {
+          "24": 22
+        },
+        "41": {
+          "4": 10,
+          "5": 5,
+          "24": 4
+        },
+        "42": {
+          "4": 14
+        },
+        "43": {
+          "4": 8,
+          "14": 18,
+          "27": 4
+        },
+        "44": {
+          "4": 1,
+          "26": 768
+        },
+        "45": {
+          "11": 165,
+          "26": 3
+        },
+        "46": {
+          "3": 284,
+          "26": 2
+        },
+        "47": {
+          "0": 3,
+          "3": 5176,
+          "11": 1
+        },
+        "48": {
+          "2": 1,
+          "28": 4,
+          "31": 3
+        },
+        "49": {
+          "2": 1,
+          "28": 31,
+          "31": 1
+        },
+        "50": {
+          "2": 4,
+          "28": 84
+        },
+        "51": {
+          "22": 1,
+          "28": 112
+        },
+        "52": {
+          "8": 1,
+          "21": 1,
+          "28": 111
+        },
+        "53": {
+          "21": 9,
+          "28": 57
+        },
+        "54": {
+          "21": 38,
+          "28": 9,
+          "29": 1,
+          "30": 1
+        },
+        "55": {
+          "21": 62,
+          "29": 1
+        },
+        "56": {
+          "20": 2,
+          "21": 1082
+        },
+        "57": {
+          "20": 1172,
+          "21": 3,
+          "30": 1
+        },
+        "58": {
+          "5": 4348,
+          "20": 5,
+          "23": 1,
+          "24": 3,
+          "25": 2
+        },
+        "59": {
+          "4": 1,
+          "5": 4,
+          "9": 3831,
+          "14": 1,
+          "20": 1,
+          "23": 7,
+          "27": 2
+        },
+        "60": {
+          "9": 5,
+          "14": 1377,
+          "23": 2,
+          "27": 19
+        },
+        "61": {
+          "8": 1,
+          "11": 1326,
+          "14": 9,
+          "26": 4,
+          "27": 1
+        },
+        "62": {
+          "3": 543
+        },
+        "63": {
+          "0": 2,
+          "3": 230,
+          "19": 1
+        },
+        "64": {
+          "2": 194,
+          "12": 2,
+          "31": 5
+        },
+        "65": {
+          "0": 1,
+          "2": 18,
+          "12": 6,
+          "28": 7,
+          "31": 10
+        },
+        "66": {
+          "2": 7,
+          "8": 1,
+          "12": 15,
+          "28": 2
+        },
+        "67": {
+          "2": 66,
+          "12": 211,
+          "25": 1,
+          "31": 24
+        },
+        "68": {
+          "2": 1,
+          "12": 3
+        },
+        "71": {
+          "3": 8,
+          "12": 2833
+        },
+        "72": {
+          "12": 273,
+          "13": 1,
+          "20": 2,
+          "21": 7,
+          "28": 114,
+          "29": 124
+        },
+        "73": {
+          "9": 1,
+          "12": 302,
+          "13": 13,
+          "20": 188,
+          "21": 9,
+          "29": 145,
+          "30": 2
+        },
+        "74": {
+          "5": 1,
+          "13": 13,
+          "20": 1,
+          "25": 28,
+          "29": 134
+        },
+        "75": {
+          "5": 3,
+          "11": 1,
+          "13": 58,
+          "23": 61,
+          "25": 143,
+          "27": 147,
+          "29": 1
+        },
+        "76": {
+          "9": 1,
+          "13": 4,
+          "14": 242,
+          "23": 1,
+          "25": 1,
+          "27": 176,
+          "29": 1
+        },
+        "77": {
+          "8": 1,
+          "11": 124,
+          "14": 15,
+          "25": 12,
+          "26": 2,
+          "27": 3
+        },
+        "78": {
+          "3": 119,
+          "8": 61,
+          "11": 46,
+          "20": 1
+        },
+        "79": {
+          "3": 137,
+          "11": 1,
+          "19": 1
+        },
+        "80": {
+          "2": 2,
+          "28": 10,
+          "31": 25
+        },
+        "81": {
+          "2": 1,
+          "12": 2,
+          "28": 5,
+          "31": 1
+        },
+        "82": {
+          "2": 1,
+          "12": 2,
+          "28": 2
+        },
+        "83": {
+          "12": 4
+        },
+        "84": {
+          "12": 1,
+          "28": 1
+        },
+        "88": {
+          "13": 11
+        },
+        "90": {
+          "13": 2131
+        },
+        "91": {
+          "13": 6
+        },
+        "92": {
+          "1": 1,
+          "8": 5,
+          "13": 1
+        },
+        "93": {
+          "0": 1,
+          "8": 7
+        },
+        "94": {
+          "0": 10,
+          "8": 1
+        },
+        "95": {
+          "0": 30,
+          "8": 3
+        },
+        "96": {
+          "2": 4,
+          "3": 1,
+          "28": 3,
+          "31": 2
+        },
+        "97": {
+          "6": 1
+        },
+        "98": {
+          "6": 1,
+          "7": 1,
+          "13": 1,
+          "15": 1
+        },
+        "99": {
+          "6": 2,
+          "7": 1,
+          "12": 1,
+          "13": 1,
+          "15": 1
+        },
+        "100": {
+          "6": 8,
+          "7": 4,
+          "13": 13,
+          "15": 11,
+          "25": 1
+        },
+        "101": {
+          "7": 9,
+          "13": 12,
+          "15": 7
+        },
+        "102": {
+          "7": 5,
+          "13": 28,
+          "15": 7,
+          "29": 1
+        },
+        "103": {
+          "1": 4,
+          "7": 3,
+          "8": 6,
+          "13": 35,
+          "15": 1
+        },
+        "104": {
+          "0": 1,
+          "1": 3,
+          "3": 1,
+          "7": 1,
+          "8": 5,
+          "13": 67,
+          "15": 3
+        },
+        "105": {
+          "1": 5,
+          "7": 3,
+          "8": 14,
+          "13": 38,
+          "15": 4
+        },
+        "106": {
+          "8": 25,
+          "13": 8
+        },
+        "107": {
+          "8": 11,
+          "13": 7
+        },
+        "108": {
+          "8": 26,
+          "13": 4
+        },
+        "109": {
+          "0": 4
+        },
+        "110": {
+          "0": 6,
+          "8": 1
+        },
+        "111": {
+          "0": 47,
+          "8": 3
+        },
+        "112": {
+          "28": 4,
+          "31": 9
+        },
+        "120": {
+          "15": 1927
+        },
+        "122": {
+          "1": 3,
+          "7": 6,
+          "15": 24
+        },
+        "123": {
+          "1": 1,
+          "13": 1
+        },
+        "124": {
+          "8": 8,
+          "13": 1
+        },
+        "125": {
+          "8": 4
+        },
+        "126": {
+          "8": 4
+        },
+        "127": {
+          "3": 1,
+          "19": 18
+        },
+        "128": {
+          "2": 1,
+          "28": 1,
+          "31": 1
+        },
+        "129": {
+          "2": 1
+        },
+        "130": {
+          "15": 3
+        },
+        "131": {
+          "15": 1
+        },
+        "132": {
+          "15": 2
+        },
+        "133": {
+          "15": 1
+        },
+        "139": {
+          "8": 3
+        },
+        "140": {
+          "1": 3,
+          "8": 2
+        },
+        "141": {
+          "19": 12
+        },
+        "142": {
+          "3": 1,
+          "19": 36
+        },
+        "143": {
+          "8": 1,
+          "19": 97
+        },
+        "144": {
+          "18": 2,
+          "28": 8
+        },
+        "145": {
+          "2": 11,
+          "6": 6,
+          "15": 4,
+          "18": 11,
+          "28": 1,
+          "31": 1
+        },
+        "146": {
+          "2": 17,
+          "6": 15,
+          "15": 29,
+          "17": 45,
+          "18": 15
+        },
+        "147": {
+          "2": 6,
+          "6": 5,
+          "8": 1,
+          "10": 12,
+          "15": 30,
+          "17": 56,
+          "18": 6
+        },
+        "148": {
+          "2": 1,
+          "6": 4,
+          "10": 21,
+          "15": 15,
+          "17": 26
+        },
+        "149": {
+          "10": 162,
+          "15": 25,
+          "17": 53
+        },
+        "150": {
+          "10": 436
+        },
+        "151": {
+          "1": 6,
+          "10": 3714
+        },
+        "152": {
+          "1": 24,
+          "10": 114
+        },
+        "153": {
+          "1": 4
+        },
+        "154": {
+          "1": 512
+        },
+        "155": {
+          "1": 1,
+          "8": 1
+        },
+        "156": {
+          "8": 1,
+          "19": 1
+        },
+        "157": {
+          "19": 13
+        },
+        "158": {
+          "19": 36
+        },
+        "159": {
+          "3": 1,
+          "19": 242
+        },
+        "160": {
+          "2": 2,
+          "12": 1,
+          "18": 9,
+          "28": 1
+        },
+        "161": {
+          "6": 1,
+          "8": 1,
+          "18": 3,
+          "28": 3
+        },
+        "162": {
+          "17": 3,
+          "18": 1
+        },
+        "163": {
+          "2": 1,
+          "17": 7,
+          "29": 1
+        },
+        "164": {
+          "8": 1,
+          "17": 15,
+          "18": 1
+        },
+        "165": {
+          "17": 3
+        },
+        "166": {
+          "10": 1,
+          "17": 1540
+        },
+        "168": {
+          "10": 4,
+          "17": 48
+        },
+        "170": {
+          "1": 2,
+          "8": 1
+        },
+        "171": {
+          "1": 9,
+          "27": 1
+        },
+        "172": {
+          "1": 11,
+          "8": 6
+        },
+        "173": {
+          "1": 4,
+          "8": 29,
+          "19": 9
+        },
+        "174": {
+          "1": 1,
+          "3": 1,
+          "19": 149
+        },
+        "175": {
+          "3": 3,
+          "19": 704
+        },
+        "176": {
+          "8": 1,
+          "18": 14,
+          "28": 31,
+          "31": 9
+        },
+        "177": {
+          "18": 1283,
+          "28": 34
+        },
+        "178": {
+          "18": 125,
+          "28": 11
+        },
+        "179": {
+          "18": 14,
+          "28": 3
+        },
+        "180": {
+          "18": 1
+        },
+        "186": {
+          "7": 1,
+          "29": 1
+        },
+        "187": {
+          "1": 5,
+          "8": 5,
+          "27": 4
+        },
+        "188": {
+          "1": 2,
+          "8": 10,
+          "26": 1,
+          "27": 1
+        },
+        "189": {
+          "4": 3,
+          "8": 38,
+          "26": 4,
+          "27": 1
+        },
+        "190": {
+          "1": 1,
+          "8": 38,
+          "19": 66
+        },
+        "191": {
+          "0": 1,
+          "3": 285,
+          "11": 1,
+          "19": 2,
+          "26": 1
+        },
+        "192": {
+          "0": 1,
+          "2": 2,
+          "28": 11,
+          "31": 3
+        },
+        "193": {
+          "2": 6,
+          "25": 1,
+          "28": 28
+        },
+        "194": {
+          "2": 2,
+          "6": 2,
+          "8": 1,
+          "28": 36,
+          "29": 2
+        },
+        "195": {
+          "6": 10,
+          "7": 1,
+          "27": 2,
+          "28": 67,
+          "29": 12
+        },
+        "196": {
+          "6": 1,
+          "7": 3,
+          "13": 1,
+          "28": 18,
+          "29": 78,
+          "30": 1
+        },
+        "197": {
+          "5": 1,
+          "7": 2,
+          "25": 4,
+          "28": 3,
+          "29": 485
+        },
+        "198": {
+          "5": 2,
+          "8": 1,
+          "23": 10,
+          "24": 1,
+          "25": 775,
+          "29": 27
+        },
+        "199": {
+          "4": 1,
+          "5": 2,
+          "9": 2,
+          "20": 2,
+          "23": 955,
+          "25": 34,
+          "27": 3,
+          "29": 1
+        },
+        "200": {
+          "4": 3,
+          "9": 4,
+          "14": 3,
+          "23": 9,
+          "25": 1,
+          "27": 726
+        },
+        "201": {
+          "4": 1,
+          "5": 1,
+          "9": 4,
+          "11": 5,
+          "14": 603,
+          "27": 22
+        },
+        "202": {
+          "3": 1,
+          "8": 1,
+          "11": 859,
+          "14": 4,
+          "26": 1
+        },
+        "203": {
+          "11": 490,
+          "14": 7,
+          "26": 7
+        },
+        "204": {
+          "8": 3,
+          "11": 455,
+          "14": 5
+        },
+        "205": {
+          "0": 2,
+          "3": 307,
+          "8": 1,
+          "19": 1
+        },
+        "206": {
+          "0": 3,
+          "3": 622
+        },
+        "207": {
+          "0": 3,
+          "3": 326,
+          "19": 1
+        },
+        "208": {
+          "2": 1,
+          "28": 276
+        },
+        "209": {
+          "2": 4,
+          "18": 1,
+          "28": 181
+        },
+        "210": {
+          "2": 6,
+          "18": 1,
+          "22": 1,
+          "28": 352
+        },
+        "211": {
+          "28": 310
+        },
+        "212": {
+          "28": 354
+        },
+        "213": {
+          "8": 1,
+          "21": 2,
+          "22": 1,
+          "25": 1,
+          "28": 192,
+          "29": 3,
+          "30": 28
+        },
+        "214": {
+          "24": 1,
+          "28": 2,
+          "29": 4,
+          "30": 177
+        },
+        "215": {
+          "24": 3,
+          "28": 3,
+          "30": 333
+        },
+        "216": {
+          "20": 4,
+          "24": 553,
+          "29": 1,
+          "30": 34
+        },
+        "217": {
+          "5": 2,
+          "20": 2,
+          "24": 263,
+          "30": 12
+        },
+        "218": {
+          "5": 247
+        },
+        "219": {
+          "4": 2,
+          "5": 195,
+          "25": 2
+        },
+        "220": {
+          "4": 17,
+          "5": 12,
+          "8": 1,
+          "9": 120,
+          "23": 28,
+          "25": 3
+        },
+        "221": {
+          "4": 78,
+          "9": 4,
+          "14": 105,
+          "27": 22
+        },
+        "222": {
+          "4": 61,
+          "9": 2,
+          "14": 138,
+          "26": 1,
+          "27": 9
+        },
+        "223": {
+          "4": 62,
+          "9": 3,
+          "14": 118,
+          "27": 7
+        },
+        "224": {
+          "28": 4
+        },
+        "225": {
+          "2": 1,
+          "28": 28
+        },
+        "226": {
+          "28": 98
+        },
+        "228": {
+          "28": 92,
+          "29": 1,
+          "30": 1
+        },
+        "229": {
+          "28": 41
+        },
+        "230": {
+          "28": 3
+        },
+        "231": {
+          "28": 123
+        },
+        "232": {
+          "28": 88,
+          "29": 1,
+          "30": 1
+        },
+        "234": {
+          "28": 96,
+          "30": 24
+        },
+        "235": {
+          "28": 1,
+          "30": 145
+        },
+        "238": {
+          "28": 26
+        },
+        "239": {
+          "18": 1,
+          "22": 31,
+          "28": 15,
+          "29": 1
+        },
+        "240": {
+          "6": 1,
+          "7": 1,
+          "22": 17,
+          "28": 24,
+          "29": 2
+        },
+        "241": {
+          "22": 25,
+          "28": 8,
+          "29": 1
+        },
+        "242": {
+          "22": 5,
+          "28": 6
+        },
+        "244": {
+          "6": 1,
+          "28": 1
+        },
+        "245": {
+          "6": 2,
+          "7": 4,
+          "28": 46,
+          "29": 13
+        },
+        "246": {
+          "8": 2,
+          "28": 9,
+          "29": 39,
+          "30": 2
+        },
+        "247": {
+          "7": 1,
+          "28": 11,
+          "29": 73
+        },
+        "248": {
+          "7": 1,
+          "8": 1,
+          "9": 1,
+          "25": 3,
+          "28": 2,
+          "29": 188,
+          "30": 1
+        },
+        "249": {
+          "29": 1
+        },
+        "251": {
+          "6": 18,
+          "7": 1,
+          "8": 1,
+          "27": 1
+        },
+        "252": {
+          "6": 8,
+          "7": 2,
+          "8": 1,
+          "28": 1
+        },
+        "253": {
+          "6": 4,
+          "7": 17,
+          "8": 1,
+          "17": 1
+        },
+        "255": {
+          "9": 1,
+          "11": 5,
+          "12": 5,
+          "25": 1,
+          "27": 15,
+          "28": 1,
+          "29": 2
+        }
+      },
+      "resource": "SDOSEL",
+      "paired_chunks": [
+        {
+          "chunk": "clip",
+          "width": 32,
+          "height": 15,
+          "dos_decoded_header_offset": 59550,
+          "amiga_decoded_header_offset": 170,
+          "dos_pixels_sha256": "9d1d7b6bcabd8ca148fb97fa7f0a5c6b96e5b2b2df44e7112b924852d5e69d0a",
+          "amiga_pixels_sha256": "a1af668ff044df7e1037067e2be2843843728a860d212623347e560ac3898a6e"
+        },
+        {
+          "chunk": "opp0",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 60046,
+          "amiga_decoded_header_offset": 490,
+          "dos_pixels_sha256": "31ab13f88d75964ebabd9f9dab39b403c5cdaf583ad6e98466fe446b5204159b",
+          "amiga_pixels_sha256": "30cbee9d688443e3eb86ee7ef1adc43d7036be63f02502857a83e1a6ac9d1083"
+        },
+        {
+          "chunk": "opp1",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 101886,
+          "amiga_decoded_header_offset": 4660,
+          "dos_pixels_sha256": "13ea648f7fd5eb4a1f34ace5cae102a7bb67a8b5b5c7cb576552b299d570a627",
+          "amiga_pixels_sha256": "20fe9d423fb20976cac60093c2a86590fb97176f39fcaff8633f44b7d9d6381a"
+        },
+        {
+          "chunk": "opp2",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 68606,
+          "amiga_decoded_header_offset": 8830,
+          "dos_pixels_sha256": "c3f39069c078768d4a55bb644b39d1a81d8d77446875ab7f89170147aee65f23",
+          "amiga_pixels_sha256": "e197b7d2f296a074621caf65f62a416cf0d091a96e3883010ded7e6096bb98a5"
+        },
+        {
+          "chunk": "opp3",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 75262,
+          "amiga_decoded_header_offset": 13000,
+          "dos_pixels_sha256": "7432fe920fb06cf3f2e6aabccfdfd9c021d6fb1b09e185f6370f8651ff8c766f",
+          "amiga_pixels_sha256": "f751cdf27ef33bd49019f2cf7b7c81855175dd8f33ac29339bdd2efeb89267db"
+        },
+        {
+          "chunk": "opp4",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 81918,
+          "amiga_decoded_header_offset": 17170,
+          "dos_pixels_sha256": "816146eb44c88bc14944443569c58bd138071bf6eb01609f3afd676919df3002",
+          "amiga_pixels_sha256": "a042d60ba15ff9351c0ac6e2da3b9540762bc64e74e6bf65b5250dcee3dde758"
+        },
+        {
+          "chunk": "opp5",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 88574,
+          "amiga_decoded_header_offset": 21340,
+          "dos_pixels_sha256": "fa174108eb4f7469af1c77de9a5bd523d4cf3ff3328997165967b499171665d9",
+          "amiga_pixels_sha256": "38e570a83dc41cf4686a6a6a67024138d60089829f80394c878c443ea570a006"
+        },
+        {
+          "chunk": "opp6",
+          "width": 80,
+          "height": 83,
+          "dos_decoded_header_offset": 95230,
+          "amiga_decoded_header_offset": 25510,
+          "dos_pixels_sha256": "4b8270258f0fb81d44e30584fb3922658c379c76ed6d7c9649ec7c35c439fd66",
+          "amiga_pixels_sha256": "ca1b84df0ada48a8c41aef78d33222e02d0b0b85aa7c31f59fdbc9b6426beda1"
+        },
+        {
+          "chunk": "scrn",
+          "width": 320,
+          "height": 182,
+          "dos_decoded_header_offset": 206,
+          "amiga_decoded_header_offset": 29680,
+          "dos_pixels_sha256": "1a37aa36fa4c46bd2d413c4fb783a188ea7fbe3a933cb8bb2cba561df3a9270e",
+          "amiga_pixels_sha256": "229388f71ca8c34c426b870ccb9ef6c497f5fa65cde1594265114e49e3b87e2f"
+        }
+      ],
+      "indexes": [
+        0,
+        0,
+        13,
+        7,
+        4,
+        22,
+        9,
+        7,
+        8,
+        17,
+        13,
+        15,
+        22,
+        17,
+        12,
+        31,
+        31,
+        2,
+        6,
+        6,
+        7,
+        7,
+        7,
+        7,
+        8,
+        8,
+        8,
+        8,
+        8,
+        3,
+        3,
+        3,
+        28,
+        28,
+        28,
+        22,
+        22,
+        22,
+        22,
+        15,
+        24,
+        4,
+        4,
+        14,
+        26,
+        11,
+        3,
+        3,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        21,
+        21,
+        21,
+        20,
+        5,
+        9,
+        14,
+        11,
+        3,
+        3,
+        2,
+        2,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        29,
+        27,
+        14,
+        11,
+        3,
+        3,
+        31,
+        28,
+        12,
+        12,
+        12,
+        12,
+        12,
+        13,
+        13,
+        13,
+        13,
+        13,
+        8,
+        8,
+        0,
+        0,
+        2,
+        6,
+        6,
+        6,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        8,
+        8,
+        8,
+        0,
+        0,
+        0,
+        31,
+        2,
+        2,
+        6,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        1,
+        8,
+        8,
+        8,
+        19,
+        2,
+        2,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        15,
+        1,
+        1,
+        8,
+        1,
+        19,
+        19,
+        19,
+        28,
+        2,
+        17,
+        17,
+        17,
+        10,
+        10,
+        10,
+        10,
+        1,
+        1,
+        1,
+        8,
+        19,
+        19,
+        19,
+        18,
+        18,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        17,
+        1,
+        1,
+        1,
+        8,
+        19,
+        19,
+        28,
+        18,
+        18,
+        18,
+        18,
+        17,
+        17,
+        17,
+        17,
+        17,
+        7,
+        1,
+        8,
+        8,
+        19,
+        3,
+        28,
+        28,
+        28,
+        28,
+        29,
+        29,
+        25,
+        23,
+        27,
+        14,
+        11,
+        11,
+        11,
+        3,
+        3,
+        3,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        30,
+        30,
+        24,
+        24,
+        5,
+        5,
+        9,
+        14,
+        14,
+        14,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        28,
+        30,
+        30,
+        28,
+        28,
+        22,
+        28,
+        22,
+        28,
+        22,
+        6,
+        28,
+        29,
+        29,
+        29,
+        29,
+        6,
+        6,
+        6,
+        7,
+        7,
+        27
+      ]
+    },
+    {
+      "sources": [
+        {
+          "asset": "STDACOUN",
+          "dos_source": "STDACOUN.PVS",
+          "dos_source_sha256": "1bebc0b9831acad8c6b5f2f8372993d4eacd759e9d4358f6235f97d27851e48b",
+          "dos_decoded_sha256": "28f575d25850015a5eacd494f7e2b0262123acd1bb76a1fe544039ad95ec881b",
+          "amiga_source": "disk2/STDACOUN.psh",
+          "amiga_source_sha256": "4d40a8ac0151d0c23af4e532c73d62962ef93ccc240f20aef559d4a31adf6928",
+          "amiga_decoded_sha256": "f8046a2c3cfbe9e210a0f90c9d677c0dad490b4f5568ed00437f059ecb1cd468"
+        },
+        {
+          "asset": "STDBCOUN",
+          "dos_source": "STDBCOUN.PVS",
+          "dos_source_sha256": "a6ff453d39265017034da029c70692fd813c307f31a148761d5b6d64e2846324",
+          "dos_decoded_sha256": "cfe97c2bfe3347fc4d7757fdb70aa8865bf51646742f115c7d05e095a5b59a4a",
+          "amiga_source": "disk2/STDBCOUN.psh",
+          "amiga_source_sha256": "63268082a04feb51f589bfd1d698078ec600b0886c83bbb2803cd7105bb62455",
+          "amiga_decoded_sha256": "1082aca8dd9eeda9eb07816942afb7035f0c6e43eca028fa596e4248ea924c88"
+        }
+      ],
+      "amiga_palette_resource": "!pal",
+      "amiga_palette_sha256": "e06f76c61c8739fa0a25a96fd9e91cdbdab7ebda5b0c996b0b57b4323cb0e5c2",
+      "amiga_palette_decoded_data_offset": 82,
+      "amiga_palette_first16": [
+        "0x000",
+        "0x00a",
+        "0x222",
+        "0xfa3",
+        "0xa00",
+        "0xaaa",
+        "0xbbb",
+        "0x444",
+        "0x999",
+        "0xfc8",
+        "0xc71",
+        "0xfb6",
+        "0x666",
+        "0xe82",
+        "0xa61",
+        "0xfff"
+      ],
+      "pixels": 52576,
+      "dominant_mapping_agreement": 52570,
+      "agreement_fraction": 0.9998858794887401,
+      "used_dos_colors": 60,
+      "ambiguous_dos_colors": 3,
+      "pairs": {
+        "0": {
+          "0": 12974
+        },
+        "1": {
+          "1": 2
+        },
+        "2": {
+          "2": 2
+        },
+        "3": {
+          "3": 2
+        },
+        "4": {
+          "4": 2
+        },
+        "5": {
+          "5": 2
+        },
+        "6": {
+          "6": 2
+        },
+        "7": {
+          "5": 24,
+          "7": 2
+        },
+        "8": {
+          "7": 286,
+          "8": 2
+        },
+        "9": {
+          "9": 30
+        },
+        "10": {
+          "10": 2
+        },
+        "11": {
+          "11": 2
+        },
+        "12": {
+          "12": 2
+        },
+        "13": {
+          "13": 2
+        },
+        "14": {
+          "9": 136,
+          "14": 2
+        },
+        "15": {
+          "15": 938
+        },
+        "16": {
+          "15": 79
+        },
+        "17": {
+          "15": 61
+        },
+        "18": {
+          "6": 408
+        },
+        "19": {
+          "6": 23
+        },
+        "20": {
+          "6": 2635
+        },
+        "21": {
+          "5": 3209
+        },
+        "22": {
+          "8": 2168
+        },
+        "23": {
+          "8": 567
+        },
+        "24": {
+          "8": 274
+        },
+        "25": {
+          "12": 724
+        },
+        "26": {
+          "12": 764
+        },
+        "27": {
+          "7": 641
+        },
+        "28": {
+          "7": 1115
+        },
+        "29": {
+          "2": 1416
+        },
+        "30": {
+          "2": 3107
+        },
+        "31": {
+          "2": 6854
+        },
+        "33": {
+          "9": 12
+        },
+        "34": {
+          "9": 12
+        },
+        "35": {
+          "3": 31
+        },
+        "36": {
+          "13": 33
+        },
+        "37": {
+          "13": 24
+        },
+        "38": {
+          "13": 47
+        },
+        "39": {
+          "13": 39
+        },
+        "40": {
+          "13": 57
+        },
+        "42": {
+          "4": 3
+        },
+        "44": {
+          "4": 9
+        },
+        "46": {
+          "7": 5
+        },
+        "47": {
+          "2": 24
+        },
+        "50": {
+          "9": 65
+        },
+        "51": {
+          "9": 197
+        },
+        "52": {
+          "9": 1834
+        },
+        "53": {
+          "11": 1659
+        },
+        "54": {
+          "3": 1256
+        },
+        "55": {
+          "3": 2184
+        },
+        "56": {
+          "3": 1270
+        },
+        "57": {
+          "13": 974
+        },
+        "58": {
+          "10": 1885
+        },
+        "59": {
+          "14": 948
+        },
+        "60": {
+          "14": 701
+        },
+        "61": {
+          "7": 101
+        },
+        "62": {
+          "7": 172
+        },
+        "63": {
+          "2": 535
+        },
+        "69": {
+          "9": 4
+        },
+        "70": {
+          "9": 36
+        }
+      },
+      "resource": "STDBCOUN",
+      "indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        5,
+        7,
+        9,
+        10,
+        11,
+        12,
+        13,
+        9,
+        15,
+        15,
+        15,
+        6,
+        6,
+        6,
+        5,
+        8,
+        8,
+        8,
+        12,
+        12,
+        7,
+        7,
+        2,
+        2,
+        2,
+        15,
+        9,
+        9,
+        3,
+        13,
+        13,
+        13,
+        13,
+        13,
+        4,
+        4,
+        4,
+        4,
+        4,
+        7,
+        2,
+        15,
+        9,
+        9,
+        9,
+        9,
+        11,
+        3,
+        3,
+        3,
+        13,
+        10,
+        14,
+        14,
+        7,
+        7,
+        2,
+        15,
+        15,
+        9,
+        9,
+        9,
+        9,
+        9,
+        3,
+        3,
+        3,
+        10,
+        14,
+        14,
+        14,
+        2,
+        2,
+        15,
+        15,
+        9,
+        9,
+        9,
+        11,
+        3,
+        3,
+        10,
+        14,
+        14,
+        14,
+        7,
+        7,
+        2,
+        2,
+        15,
+        6,
+        5,
+        5,
+        8,
+        8,
+        8,
+        12,
+        12,
+        12,
+        7,
+        7,
+        7,
+        2,
+        2,
+        2,
+        15,
+        15,
+        15,
+        6,
+        6,
+        6,
+        6,
+        5,
+        8,
+        8,
+        12,
+        12,
+        12,
+        7,
+        7,
+        2,
+        15,
+        15,
+        6,
+        6,
+        6,
+        5,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        7,
+        2,
+        2,
+        15,
+        6,
+        6,
+        5,
+        8,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        15,
+        15,
+        6,
+        6,
+        6,
+        5,
+        8,
+        8,
+        1,
+        1,
+        1,
+        1,
+        1,
+        7,
+        2,
+        2,
+        15,
+        15,
+        15,
+        6,
+        6,
+        6,
+        6,
+        8,
+        8,
+        12,
+        12,
+        12,
+        7,
+        7,
+        7,
+        2,
+        15,
+        6,
+        9,
+        6,
+        5,
+        8,
+        10,
+        14,
+        14,
+        14,
+        14,
+        7,
+        7,
+        7,
+        2,
+        2,
+        15,
+        9,
+        9,
+        9,
+        9,
+        11,
+        11,
+        11,
+        13,
+        13,
+        10,
+        10,
+        14,
+        14,
+        14,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        9,
+        9,
+        9,
+        11,
+        11,
+        11,
+        11,
+        6,
+        5,
+        5,
+        5,
+        8,
+        8,
+        6,
+        6,
+        6,
+        6,
+        5,
+        15
+      ],
+      "palette_entries_used": 16,
+      "paired_chunks": [
+        {
+          "asset": "STDACOUN",
+          "chunk": "dash",
+          "width": 320,
+          "height": 70,
+          "amiga_storage_width": 320,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 24318,
+          "amiga_decoded_header_offset": 94,
+          "dos_pixels_sha256": "2cd9182ab071d384b0ed90fd64355f511a9e4bfdf8d633aca17f931c79df3a23",
+          "amiga_compared_pixels_sha256": "88950ba2fb63f51f73f55529c3a7f501fa9cb280a4adfd3401e895841604d4a3"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "gbox",
+          "width": 64,
+          "height": 56,
+          "amiga_storage_width": 64,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 110,
+          "amiga_decoded_header_offset": 11314,
+          "dos_pixels_sha256": "ec03620e2c8c8096c10f1bac75e62c6ecb37707251ff13222fb6aecf1df069ec",
+          "amiga_compared_pixels_sha256": "6d6e85e36b398c04dc08946ed45edbc386053187f428035b4ad5b9f8f4d62a6e"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "ins2",
+          "width": 136,
+          "height": 39,
+          "amiga_storage_width": 144,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 46734,
+          "amiga_decoded_header_offset": 14326,
+          "dos_pixels_sha256": "68191bb03ba77ee48e75229c7cf1b547ccef8df5d05deb7141425eb7611e1e2b",
+          "amiga_compared_pixels_sha256": "b5c606e8e59df146986644aa2512777b7db641df47fe827bb9d85c129e4542ac"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "roof",
+          "width": 320,
+          "height": 9,
+          "amiga_storage_width": 320,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 3710,
+          "amiga_decoded_header_offset": 17934,
+          "dos_pixels_sha256": "cceb102469445ca4eddc4cafaea9bd4a06d5db579da06d292397bc5ef2ad6ab5",
+          "amiga_compared_pixels_sha256": "f32f58f966db6301e7dddfb55ae82a5f4b7a30d5a750c33d22252e9d8444e6ed"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "whl1",
+          "width": 184,
+          "height": 32,
+          "amiga_storage_width": 192,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 6606,
+          "amiga_decoded_header_offset": 19394,
+          "dos_pixels_sha256": "6898442c16da5d2ad4ce32a2ade71aa9ec2ce7f6cd7fb27d887f63bd72f975f2",
+          "amiga_compared_pixels_sha256": "314bdfb6e643a27d61ef6cdf6d7b20954020e0b93404a7ea697cfbebf2243a0e"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "whl2",
+          "width": 184,
+          "height": 32,
+          "amiga_storage_width": 192,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 18414,
+          "amiga_decoded_header_offset": 22486,
+          "dos_pixels_sha256": "fab883d9285db9e3cdb95ffe8fde3c664656a341e11b5bf8c4df500154500295",
+          "amiga_compared_pixels_sha256": "f6edc57618bfbd84b921ec1ea49e9ce66ace03328e1a6a0117680f701abf73f4"
+        },
+        {
+          "asset": "STDACOUN",
+          "chunk": "whl3",
+          "width": 184,
+          "height": 32,
+          "amiga_storage_width": 192,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 12510,
+          "amiga_decoded_header_offset": 25578,
+          "dos_pixels_sha256": "4b2f8e34a1f74cbd2f36e7e03d1adb553fceb8d1a7e2f67a377277fa60562bf1",
+          "amiga_compared_pixels_sha256": "d44094b2ea8fdb1994946148731709b55852d761e4bbf46913c02027e490784d"
+        },
+        {
+          "asset": "STDBCOUN",
+          "chunk": "dot1",
+          "width": 24,
+          "height": 4,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 1302,
+          "amiga_decoded_header_offset": 174,
+          "dos_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a",
+          "amiga_compared_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a"
+        },
+        {
+          "asset": "STDBCOUN",
+          "chunk": "dot2",
+          "width": 24,
+          "height": 4,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 1414,
+          "amiga_decoded_header_offset": 258,
+          "dos_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a",
+          "amiga_compared_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a"
+        },
+        {
+          "asset": "STDBCOUN",
+          "chunk": "gnob",
+          "width": 24,
+          "height": 23,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 166,
+          "amiga_decoded_header_offset": 482,
+          "dos_pixels_sha256": "91871455c2fefeecffdbda73988b92a8763a8e88097e541a9b55e62f935b7ac0",
+          "amiga_compared_pixels_sha256": "6f4533ffa8e07d7a90a3f03061faae96cb5e765ef3cfdcf2b1c3544d776fb38e"
+        }
+      ]
+    },
+    {
+      "sources": [
+        {
+          "asset": "STDAFGTO",
+          "dos_source": "STDAFGTO.PVS",
+          "dos_source_sha256": "cf208925803939e99f75456cbbf511d21b2b15cec397d6b535c9c997948c0126",
+          "dos_decoded_sha256": "0901f0e04da0da4a8a7c042ee1a724bd2302b7dfebabd9e03c5ddff22bc873bb",
+          "amiga_source": "disk2/STDAFGTO.psh",
+          "amiga_source_sha256": "1e5bc304a10a6a80da5121917204c5cbc1592f59652c78a27f0a8fdd84335c5f",
+          "amiga_decoded_sha256": "df8cdaf00822a4bc2e53ebba6644f78f1791801e66409c0a14d98eb91b9298a4"
+        },
+        {
+          "asset": "STDBFGTO",
+          "dos_source": "STDBFGTO.PVS",
+          "dos_source_sha256": "e229810bf3bcf7dafb5c37c4c45bf9a532366aa15e3951c1f470a61bc9151ff7",
+          "dos_decoded_sha256": "8c494a5d4fc4d94870d365a6d76dbbc4ee2554e751150d1f76e8d0875ef40fbb",
+          "amiga_source": "disk2/STDBFGTO.psh",
+          "amiga_source_sha256": "73b82051a4d8c6c082594c2cb750dfc572439a5531e567631e6cc23d47268e3b",
+          "amiga_decoded_sha256": "3a56525499fefdb1bb6d01751569f523ad10575cafe259c416fc90274a95106e"
+        }
+      ],
+      "amiga_palette_resource": "!pal",
+      "amiga_palette_sha256": "ac837a540fd7f5240c824f9148bd4d140698ec854542876a4e834ccba15783e9",
+      "amiga_palette_decoded_data_offset": 82,
+      "amiga_palette_first16": [
+        "0x000",
+        "0x00a",
+        "0x555",
+        "0x666",
+        "0xa00",
+        "0x222",
+        "0x333",
+        "0x444",
+        "0x777",
+        "0x888",
+        "0x999",
+        "0xf22",
+        "0xf92",
+        "0xbbb",
+        "0xaaa",
+        "0xfff"
+      ],
+      "pixels": 55976,
+      "dominant_mapping_agreement": 55974,
+      "agreement_fraction": 0.9999642704016007,
+      "used_dos_colors": 64,
+      "ambiguous_dos_colors": 1,
+      "pairs": {
+        "0": {
+          "0": 8479
+        },
+        "1": {
+          "1": 2
+        },
+        "2": {
+          "2": 2
+        },
+        "3": {
+          "3": 2
+        },
+        "4": {
+          "4": 2
+        },
+        "5": {
+          "5": 2
+        },
+        "6": {
+          "6": 2
+        },
+        "7": {
+          "7": 2
+        },
+        "8": {
+          "2": 1421,
+          "8": 2
+        },
+        "9": {
+          "9": 30
+        },
+        "10": {
+          "10": 2
+        },
+        "11": {
+          "11": 2
+        },
+        "12": {
+          "12": 2
+        },
+        "13": {
+          "13": 2
+        },
+        "14": {
+          "14": 2
+        },
+        "15": {
+          "15": 76
+        },
+        "16": {
+          "15": 110
+        },
+        "17": {
+          "13": 269
+        },
+        "18": {
+          "13": 119
+        },
+        "19": {
+          "13": 280
+        },
+        "20": {
+          "13": 548
+        },
+        "21": {
+          "14": 552
+        },
+        "22": {
+          "10": 668
+        },
+        "23": {
+          "9": 903
+        },
+        "24": {
+          "8": 1189
+        },
+        "25": {
+          "8": 979
+        },
+        "26": {
+          "3": 6798
+        },
+        "27": {
+          "2": 13562
+        },
+        "28": {
+          "7": 4872
+        },
+        "29": {
+          "6": 6038
+        },
+        "30": {
+          "5": 3357
+        },
+        "31": {
+          "5": 2921
+        },
+        "35": {
+          "12": 64
+        },
+        "36": {
+          "11": 32
+        },
+        "38": {
+          "11": 583
+        },
+        "39": {
+          "11": 8
+        },
+        "40": {
+          "11": 92
+        },
+        "41": {
+          "4": 214
+        },
+        "42": {
+          "4": 129
+        },
+        "43": {
+          "4": 16
+        },
+        "44": {
+          "4": 4
+        },
+        "51": {
+          "12": 98
+        },
+        "52": {
+          "12": 28
+        },
+        "53": {
+          "12": 52
+        },
+        "54": {
+          "12": 6
+        },
+        "55": {
+          "12": 46
+        },
+        "56": {
+          "12": 550
+        },
+        "57": {
+          "12": 134
+        },
+        "58": {
+          "4": 134
+        },
+        "59": {
+          "4": 104
+        },
+        "99": {
+          "14": 5
+        },
+        "103": {
+          "8": 10
+        },
+        "106": {
+          "2": 5
+        },
+        "128": {
+          "15": 170
+        },
+        "129": {
+          "15": 44
+        },
+        "130": {
+          "13": 46
+        },
+        "132": {
+          "13": 2
+        },
+        "141": {
+          "7": 46
+        },
+        "142": {
+          "6": 125
+        },
+        "147": {
+          "13": 3
+        },
+        "150": {
+          "1": 1
+        },
+        "159": {
+          "5": 1
+        },
+        "197": {
+          "10": 8
+        },
+        "198": {
+          "9": 19
+        }
+      },
+      "resource": "STDBFGTO",
+      "indexes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        2,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        15,
+        13,
+        13,
+        13,
+        13,
+        14,
+        10,
+        9,
+        8,
+        8,
+        3,
+        2,
+        7,
+        6,
+        5,
+        5,
+        15,
+        13,
+        13,
+        12,
+        11,
+        11,
+        11,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        5,
+        5,
+        15,
+        15,
+        13,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        4,
+        4,
+        4,
+        7,
+        6,
+        5,
+        15,
+        15,
+        15,
+        13,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        2,
+        7,
+        6,
+        5,
+        15,
+        15,
+        13,
+        13,
+        13,
+        12,
+        12,
+        12,
+        12,
+        12,
+        3,
+        2,
+        7,
+        7,
+        6,
+        5,
+        15,
+        13,
+        14,
+        14,
+        10,
+        9,
+        9,
+        8,
+        3,
+        2,
+        2,
+        7,
+        6,
+        6,
+        5,
+        5,
+        15,
+        15,
+        15,
+        13,
+        13,
+        13,
+        13,
+        14,
+        10,
+        9,
+        8,
+        3,
+        2,
+        7,
+        6,
+        6,
+        15,
+        15,
+        13,
+        13,
+        13,
+        14,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        7,
+        6,
+        5,
+        15,
+        13,
+        13,
+        13,
+        10,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        5,
+        5,
+        15,
+        15,
+        13,
+        13,
+        13,
+        14,
+        10,
+        9,
+        1,
+        1,
+        1,
+        1,
+        1,
+        7,
+        6,
+        5,
+        15,
+        15,
+        15,
+        13,
+        13,
+        13,
+        13,
+        10,
+        9,
+        8,
+        8,
+        3,
+        2,
+        7,
+        6,
+        6,
+        15,
+        13,
+        13,
+        13,
+        14,
+        10,
+        9,
+        8,
+        3,
+        3,
+        2,
+        2,
+        7,
+        6,
+        6,
+        5,
+        15,
+        13,
+        13,
+        13,
+        13,
+        14,
+        12,
+        12,
+        12,
+        12,
+        12,
+        12,
+        11,
+        4,
+        4,
+        4,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        13,
+        14,
+        14,
+        14,
+        12,
+        12,
+        12,
+        13,
+        13,
+        13,
+        13,
+        14,
+        12,
+        12,
+        13,
+        14,
+        14,
+        14,
+        10,
+        10,
+        13,
+        13,
+        13,
+        13,
+        14,
+        15
+      ],
+      "palette_entries_used": 16,
+      "paired_chunks": [
+        {
+          "asset": "STDAFGTO",
+          "chunk": "dash",
+          "width": 320,
+          "height": 70,
+          "amiga_storage_width": 320,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 29902,
+          "amiga_decoded_header_offset": 94,
+          "dos_pixels_sha256": "c6f3d8d6045b56b2ac2366eec531854fb0add5ce50c5fd1606d08093dfe5377a",
+          "amiga_compared_pixels_sha256": "d941c6603f349c4c789de52495ff5c6e71f8ab4855520c30368c259960307899"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "gbox",
+          "width": 64,
+          "height": 54,
+          "amiga_storage_width": 64,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 26430,
+          "amiga_decoded_header_offset": 11314,
+          "dos_pixels_sha256": "2a2610cc1253718a6e29f55c60165ba2ee3f544593e92dc3b42b7bd3c39c6f37",
+          "amiga_compared_pixels_sha256": "2040c7666df88456a6423d16c060beaf0660e1554fffd6f7c95559be1c9db153"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "ins1",
+          "width": 112,
+          "height": 14,
+          "amiga_storage_width": 112,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 56030,
+          "amiga_decoded_header_offset": 13494,
+          "dos_pixels_sha256": "af3ecdbf1ced0ca76a0bf69c9bd009cb0c2005bc47a24ac623ba20988876ccec",
+          "amiga_compared_pixels_sha256": "b5e83e13c1bd13142e243daa6853218e691d4f64f3989e744751359742a02bcd"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "ins2",
+          "width": 128,
+          "height": 44,
+          "amiga_storage_width": 128,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 8974,
+          "amiga_decoded_header_offset": 14298,
+          "dos_pixels_sha256": "31257232360fdf3be7557922f3a7c83b4cdda7c700f44b8d39a555160e85aa41",
+          "amiga_compared_pixels_sha256": "e50ddc1692b61e0f9f260cf99ce2a0af164f1d8dbb60c2483ce41f87edec5d4f"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "ins3",
+          "width": 112,
+          "height": 14,
+          "amiga_storage_width": 112,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 57614,
+          "amiga_decoded_header_offset": 17134,
+          "dos_pixels_sha256": "4fcacf9bf2155d6232eb1fcb5157bbdf22a2b29111340a146c13975f94ba985d",
+          "amiga_compared_pixels_sha256": "17fe7d5b7efd08bb7c7c11c3cfdec0dd4671870a60226276fb2de0f2fbc38114"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "roof",
+          "width": 320,
+          "height": 10,
+          "amiga_storage_width": 320,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 110,
+          "amiga_decoded_header_offset": 17938,
+          "dos_pixels_sha256": "1882cf5df51e1b41828fe11f893d0449cd24d20e3d940c80f4a8b6c8a2850c68",
+          "amiga_compared_pixels_sha256": "fb039487fce93e03dcf3dca0d6cd40e49bb10c345c47fc12e4a52cfae2bfae08"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "whl1",
+          "width": 192,
+          "height": 32,
+          "amiga_storage_width": 192,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 20270,
+          "amiga_decoded_header_offset": 19558,
+          "dos_pixels_sha256": "e07bfeb327fb2773b507339db9abb0d50e7610cbdd8909c2b8b5cfd0c1d15ce8",
+          "amiga_compared_pixels_sha256": "f676655159df881e6e48cef952cc920f839fb7a2d33688d484dd655894c81a2a"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "whl2",
+          "width": 176,
+          "height": 32,
+          "amiga_storage_width": 176,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 3326,
+          "amiga_decoded_header_offset": 22650,
+          "dos_pixels_sha256": "613eb502628e6ecbfcfb37455f14ad4829e646ac40b08943eaad80e59b02183d",
+          "amiga_compared_pixels_sha256": "2f89e3a89759ee7d79d452201378527d7c2419a81cfe07268c09a3d651581f3a"
+        },
+        {
+          "asset": "STDAFGTO",
+          "chunk": "whl3",
+          "width": 176,
+          "height": 32,
+          "amiga_storage_width": 176,
+          "ignored_right_padding_pixels": 0,
+          "dos_decoded_header_offset": 14622,
+          "amiga_decoded_header_offset": 25486,
+          "dos_pixels_sha256": "5251a091d0c8cb67dd90e3d4247109ed43564cb7bbddcb586a5fed19f57b3b48",
+          "amiga_compared_pixels_sha256": "a0d332bf07e400dc98272f15f0ed60caa9222a2bcb4a06050a3c7a7b533e2eaf"
+        },
+        {
+          "asset": "STDBFGTO",
+          "chunk": "dot1",
+          "width": 24,
+          "height": 4,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 1414,
+          "amiga_decoded_header_offset": 174,
+          "dos_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a",
+          "amiga_compared_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a"
+        },
+        {
+          "asset": "STDBFGTO",
+          "chunk": "dot2",
+          "width": 24,
+          "height": 4,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 1302,
+          "amiga_decoded_header_offset": 258,
+          "dos_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a",
+          "amiga_compared_pixels_sha256": "4a493ee28e8a3a72a0238e563aaefd3c4e3a09e02bdf60bb50bbe4e4dbbdd43a"
+        },
+        {
+          "asset": "STDBFGTO",
+          "chunk": "gnob",
+          "width": 24,
+          "height": 23,
+          "amiga_storage_width": 32,
+          "ignored_right_padding_pixels": 8,
+          "dos_decoded_header_offset": 166,
+          "amiga_decoded_header_offset": 482,
+          "dos_pixels_sha256": "91871455c2fefeecffdbda73988b92a8763a8e88097e541a9b55e62f935b7ac0",
+          "amiga_compared_pixels_sha256": "b7d087657863f2c9164abd75e7f2d8c5cf5d6583092e6008b45e83759073af6e"
+        }
+      ]
+    }
+  ],
+  "material_colors": {
+    "source_sha256": "9470d0df4747049b6d8b23bf7c22f4a96e88a15a5c4a8fc1619319a895e262c9",
+    "material_color_file_offset": 252942,
+    "color_table_data_offset": 14898,
+    "entries": 129,
+    "pointer_file_offset": 254232,
+    "pointer_target_data_offset": 14898,
+    "pattern_table_file_offset": 253200,
+    "pattern_table_data_offset": 15156,
+    "pointer_renderer_code": "0x16cb4..0x16cbc",
+    "original_material_colors": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      2,
+      11,
+      15,
+      8,
+      0,
+      14,
+      8,
+      0,
+      14,
+      6,
+      6,
+      6,
+      15,
+      15,
+      15,
+      7,
+      15,
+      3,
+      11,
+      4,
+      12,
+      1,
+      0,
+      8,
+      7,
+      3,
+      11,
+      8,
+      0,
+      4,
+      4,
+      12,
+      1,
+      1,
+      9,
+      9,
+      4,
+      4,
+      12,
+      12,
+      0,
+      8,
+      7,
+      7,
+      7,
+      14,
+      14,
+      15,
+      3,
+      3,
+      11,
+      11,
+      2,
+      2,
+      10,
+      10,
+      5,
+      5,
+      13,
+      5,
+      7,
+      7,
+      15,
+      15,
+      14,
+      14,
+      14,
+      14,
+      4,
+      4,
+      4,
+      4,
+      5,
+      5,
+      5,
+      5,
+      8,
+      8,
+      8,
+      10,
+      15,
+      7,
+      6,
+      4,
+      9,
+      10,
+      2,
+      2,
+      10,
+      10,
+      15,
+      15,
+      6,
+      6,
+      4,
+      6,
+      4,
+      8,
+      13,
+      5,
+      13,
+      0,
+      0,
+      8,
+      0,
+      15,
+      7,
+      14,
+      7,
+      4,
+      12,
+      12,
+      15
+    ],
+    "dos_material_colors": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      108,
+      116,
+      15,
+      28,
+      29,
+      14,
+      28,
+      31,
+      14,
+      200,
+      198,
+      196,
+      112,
+      114,
+      116,
+      194,
+      197,
+      200,
+      146,
+      37,
+      35,
+      181,
+      29,
+      31,
+      19,
+      3,
+      11,
+      27,
+      0,
+      4,
+      4,
+      12,
+      156,
+      154,
+      152,
+      150,
+      42,
+      40,
+      38,
+      37,
+      27,
+      26,
+      25,
+      24,
+      72,
+      70,
+      68,
+      66,
+      123,
+      121,
+      120,
+      117,
+      92,
+      90,
+      88,
+      87,
+      173,
+      171,
+      169,
+      167,
+      20,
+      19,
+      18,
+      17,
+      77,
+      76,
+      74,
+      73,
+      45,
+      44,
+      42,
+      41,
+      159,
+      175,
+      174,
+      172,
+      29,
+      28,
+      18,
+      90,
+      15,
+      7,
+      200,
+      219,
+      136,
+      99,
+      101,
+      103,
+      104,
+      106,
+      17,
+      20,
+      60,
+      77,
+      46,
+      61,
+      45,
+      202,
+      190,
+      186,
+      183,
+      180,
+      0,
+      28,
+      30,
+      16,
+      20,
+      68,
+      54,
+      39,
+      43,
+      12,
+      17
+    ],
+    "vga_index_conflicts": {
+      "116": [
+        [
+          17,
+          11
+        ],
+        [
+          30,
+          15
+        ]
+      ],
+      "29": [
+        [
+          20,
+          0
+        ],
+        [
+          38,
+          0
+        ],
+        [
+          92,
+          8
+        ]
+      ],
+      "31": [
+        [
+          23,
+          0
+        ],
+        [
+          39,
+          8
+        ]
+      ],
+      "200": [
+        [
+          25,
+          6
+        ],
+        [
+          33,
+          3
+        ],
+        [
+          98,
+          6
+        ]
+      ],
+      "37": [
+        [
+          35,
+          4
+        ],
+        [
+          55,
+          12
+        ]
+      ],
+      "27": [
+        [
+          43,
+          8
+        ],
+        [
+          56,
+          0
+        ]
+      ],
+      "90": [
+        [
+          69,
+          2
+        ],
+        [
+          95,
+          10
+        ]
+      ],
+      "20": [
+        [
+          76,
+          7
+        ],
+        [
+          107,
+          15
+        ],
+        [
+          122,
+          7
+        ]
+      ],
+      "18": [
+        [
+          78,
+          15
+        ],
+        [
+          94,
+          8
+        ]
+      ],
+      "77": [
+        [
+          80,
+          14
+        ],
+        [
+          109,
+          6
+        ]
+      ]
+    }
+  },
+  "raster_layout": {
+    "executable": "disk1/stunts",
+    "code_hunk_file_offset": 40,
+    "data_hunk_file_offset": 238044,
+    "a4_data_offset": 32766,
+    "world_palette_source": "disk2/sdtitl.psh:!def",
+    "world_palette_init_code": "0x2966..0x29b2",
+    "dashboard_palette_init_code": "0x81ea..0x828a",
+    "replay_panel_palette_init_code": "0x915e..0x91ce",
+    "raster_palette_chain_code": "0x6e10..0x6eda",
+    "raster_palette_emit_code": "0x35118..0x35314",
+    "dashboard_bounds_load_code": "0x8324..0x83a2",
+    "dashboard_palette_entries_used": 16,
+    "replay_palette_entries_used": 16,
+    "replay_panel_y": 151,
+    "cars": {
+      "ANSX": {
+        "asset": "decoded/disk2/STDAANSX.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 15466,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "AUDI": {
+        "asset": "decoded/disk2/STDAAUDI.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 16698,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "COUN": {
+        "asset": "decoded/disk2/STDACOUN.psh",
+        "world_start_row": 9,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 17934,
+          "width_bytes": 40,
+          "height": 9,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "FGTO": {
+        "asset": "decoded/disk2/STDAFGTO.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 17938,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "LANC": {
+        "asset": "decoded/disk2/STDALANC.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 13986,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "LM02": {
+        "asset": "decoded/disk2/STDALM02.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 16282,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "P962": {
+        "asset": "decoded/disk2/STDAP962.psh",
+        "world_start_row": 10,
+        "world_end_row_exclusive": 135,
+        "dash": {
+          "resource_header_offset": 110,
+          "width_bytes": 40,
+          "height": 65,
+          "x": 0,
+          "y": 135,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 13414,
+          "width_bytes": 40,
+          "height": 10,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            10,
+            4,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "VETT": {
+        "asset": "decoded/disk2/STDAVETT.psh",
+        "world_start_row": 9,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 15742,
+          "width_bytes": 40,
+          "height": 9,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            5,
+            2,
+            8,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "JAGU": {
+        "asset": "decoded/disk2/stdajagu.psh",
+        "world_start_row": 11,
+        "world_end_row_exclusive": 138,
+        "dash": {
+          "resource_header_offset": 110,
+          "width_bytes": 40,
+          "height": 62,
+          "x": 0,
+          "y": 138,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 15506,
+          "width_bytes": 40,
+          "height": 11,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        }
+      },
+      "PC04": {
+        "asset": "decoded/disk2/stdapc04.psh",
+        "world_start_row": 11,
+        "world_end_row_exclusive": 130,
+        "dash": {
+          "resource_header_offset": 94,
+          "width_bytes": 40,
+          "height": 70,
+          "x": 0,
+          "y": 130,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": {
+          "resource_header_offset": 16322,
+          "width_bytes": 40,
+          "height": 11,
+          "x": 0,
+          "y": 0,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "PMIN": {
+        "asset": "decoded/disk2/stdapmin.psh",
+        "world_start_row": 0,
+        "world_end_row_exclusive": 138,
+        "dash": {
+          "resource_header_offset": 102,
+          "width_bytes": 40,
+          "height": 62,
+          "x": 0,
+          "y": 138,
+          "plane_codes": [
+            1,
+            2,
+            4,
+            8,
+            0,
+            0
+          ]
+        },
+        "roof": null
+      }
+    }
+  },
+  "dashboard_mapping_method": "Same-named visible DOS/Amiga STDA and STDB bitmaps at equal local coordinates, equal positions/heights; ignore only right-side16-pixel alignment padding in original Amiga bitmap. Original indices restricted0..15.",
+  "dashboard_mapping_limitations": "Majority correspondence is descriptive, not lossless. A car-wide map merges all compared chunks, so an index can have conflicting instrument/dashboard mappings. Raw transparent pixels are included, masks excluded. No original runtime palette application is inferred from this table.",
+  "dashboard_mapping_skipped": [
+    {
+      "asset": "STDACOUN",
+      "chunk": "inm1",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDACOUN",
+      "chunk": "inm3",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDACOUN",
+      "chunk": "ins1",
+      "reason": "Dimensions or positions differ beyond expected Amiga16-pixel row padding.",
+      "dos_dimensions": [
+        72,
+        18
+      ],
+      "amiga_dimensions": [
+        80,
+        19
+      ],
+      "dos_position": [
+        64,
+        21
+      ],
+      "amiga_position": [
+        64,
+        20
+      ]
+    },
+    {
+      "asset": "STDACOUN",
+      "chunk": "ins3",
+      "reason": "Dimensions or positions differ beyond expected Amiga16-pixel row padding.",
+      "dos_dimensions": [
+        72,
+        18
+      ],
+      "amiga_dimensions": [
+        80,
+        19
+      ],
+      "dos_position": [
+        0,
+        21
+      ],
+      "amiga_position": [
+        0,
+        20
+      ]
+    },
+    {
+      "asset": "STDBCOUN",
+      "chunk": "dot ",
+      "reason": "Only F0 four-plane visible bitmaps are included; FB single-plane dot excluded pending runtime flag verification."
+    },
+    {
+      "asset": "STDBCOUN",
+      "chunk": "dota",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDBCOUN",
+      "chunk": "gnab",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDAFGTO",
+      "chunk": "inm1",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDAFGTO",
+      "chunk": "inm3",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDBFGTO",
+      "chunk": "dot ",
+      "reason": "Only F0 four-plane visible bitmaps are included; FB single-plane dot excluded pending runtime flag verification."
+    },
+    {
+      "asset": "STDBFGTO",
+      "chunk": "dota",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    },
+    {
+      "asset": "STDBFGTO",
+      "chunk": "gnab",
+      "reason": "One-plane weight31 mask; not a visible 0..15 color bitmap."
+    }
+  ],
+  "scene_palette_provenance": {
+    "source": "disk1/stunts",
+    "source_sha256": "9470d0df4747049b6d8b23bf7c22f4a96e88a15a5c4a8fc1619319a895e262c9",
+    "code_hunk_file_offset": 40,
+    "data_hunk_file_offset": 238044,
+    "a4_data_offset": 32766,
+    "address_convention": "All code addresses are offsets within CODE hunk; add40 for original file offset. A4=DATA+32766.",
+    "world_palette": {
+      "resource": "SDTITL",
+      "chunk": "!def",
+      "lookup_name_code_offset": "0x2a9d",
+      "lookup_call_code_offset": "0x296e",
+      "copy_code_range": [
+        "0x2988",
+        "0x29b2"
+      ],
+      "destination": "A4-0x16a0",
+      "colors": 32
+    },
+    "palette_apply": {
+      "a4_thunk_offset": "-0x7a34",
+      "data_thunk_offset": "0x5ca",
+      "code_offset": "0x3444a",
+      "behavior": "Copies palette words from stack argument+8 into render-window palette record+0x98, colors at record+0x0a, for both render lists."
+    },
+    "scenes": [
+      {
+        "scene": "track_selection",
+        "palette": "SDTITL:!def",
+        "confidence": "explicit static call",
+        "apply_sequence": [
+          "0x34b4: clear chain A4-0x16aa",
+          "0x34b8: push palette A4-0x16a0",
+          "0x34bc: call A4-0x7a34"
+        ]
+      },
+      {
+        "scene": "options",
+        "palette": "SDTITL:!def",
+        "confidence": "explicit static call",
+        "apply_sequence": [
+          "0x5370: clear chain A4-0x16aa",
+          "0x5374: push palette A4-0x16a0",
+          "0x5378: call A4-0x7a34"
+        ],
+        "identification": "Loads misc, gstu, gver and mop text resources in same function0x535c..0x5576."
+      },
+      {
+        "scene": "track_editor",
+        "palette": "SDTITL:!def",
+        "confidence": "inherited static caller-state, not independently applied in editor",
+        "normal_entry": [
+          "track_selection applies !def at0x34b4..0x34bc",
+          "Edit action branches0x38a0\u21920x3862",
+          "0x387e calls A4-0x7d0a\u2192CODE0x1b6d4"
+        ],
+        "special_entry": [
+          "0x342a..0x3432 applies !def",
+          "0x3446 branches0x386c",
+          "0x387e calls editor"
+        ],
+        "editor": "CODE0x1b6d4 loads SDTEDIT at0x1b6d8..0x1b6e4; no direct palette-apply calls A4-0x7a34 in code0x1b6d4..0x1d438; SDTEDIT contains no palette chunk."
+      }
+    ],
+    "limitations": [
+      "Static call-path analysis, not a live original-Amiga emulator palette trace.",
+      "Full recursive helper-call proof was not attempted; known editor callers and direct palette writes were inspected."
+    ]
+  }
+}
