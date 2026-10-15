@@ -1,7 +1,8 @@
 name: Build and validate
 
 # Checks formatting, regression services, host tests and sanitizers, and plans shards
-# in parallel. Then builds, validates physics, validates rendering, and reports.
+# in parallel. Then builds DOS, SDL3, Amiga and TempleOS, validates physics,
+# validates rendering, and reports. Replay selection applies only to DOS/SDL3.
 # PR and release workflows both gate on this validation.
 on:
   workflow_call:
@@ -409,6 +410,111 @@ jobs:
           name: restunts-sdl3-replay-exes
           path: sdl3-runtime.tar.gz
           if-no-files-found: error
+          retention-days: 14
+
+  build-amiga:
+    name: Build Amiga 500+ (68000)
+    needs: [formatting, dumpsrv-tests, host-tests, sanitizers, plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install build tools and the pinned Amiga SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build
+          bash tools/scripts/install-amiga-toolchain.sh "$RUNNER_TEMP/amiga-toolchain"
+          echo "AMIGA_TOOLCHAIN=$RUNNER_TEMP/amiga-toolchain" >> "$GITHUB_ENV"
+
+      - name: Verify original Amiga palette reference data
+        run: python3 tools/scripts/verify-amiga-palette-data.py
+
+      - name: Cross-compile the game and native regressions
+        run: |
+          cmake -S . -B build/amiga -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/amiga-m68k.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/amiga --parallel 2 --target restunts \
+            test-amiga-platform test-amiga-endian test-amiga-display \
+            test-amiga-rle test-amiga-unflip test-amiga-decompression
+
+      - name: Archive the Amiga executable and guide
+        run: |
+          cmake --install build/amiga --prefix "$RUNNER_TEMP/amiga-runtime"
+          cp docs/amiga.md "$RUNNER_TEMP/amiga-runtime/README.md"
+          cp build/amiga/restunts.map "$RUNNER_TEMP/amiga-runtime/restunts.map"
+          tar -C "$RUNNER_TEMP/amiga-runtime" -czf restunts-amiga-build.tar.gz .
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: restunts-amiga-build
+          path: restunts-amiga-build.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  build-templeos:
+    name: Build stock TempleOS (HolyC)
+    needs: [formatting, dumpsrv-tests, host-tests, sanitizers, plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install headless guest build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qemu-system-x86 dosfstools mtools p7zip-full python3-pil
+
+      - name: Download and verify the stock TempleOS ISO
+        run: |
+          curl --fail --location --silent --show-error --retry 3 --connect-timeout 20 \
+            https://github.com/Terry-Davis-Archive/TempleOS-ISO/releases/download/v1.0/TempleOS.7z \
+            --output "$RUNNER_TEMP/TempleOS.7z"
+          echo '573e303aede546531b9810e05bc651d14c3de1289d60030e38a45a09201b0d5e' \
+            " $RUNNER_TEMP/TempleOS.7z" | sha256sum --check --strict
+          7z x -o"$RUNNER_TEMP/templeos-iso" "$RUNNER_TEMP/TempleOS.7z" TempleOS.ISO
+          echo '5d0fc944e5d89c155c0fc17c148646715bc1db6fa5750c0b913772cfec19ba26' \
+            " $RUNNER_TEMP/templeos-iso/TempleOS.ISO" | sha256sum --check --strict
+
+      - name: Compile the complete port with stock HolyC
+        run: |
+          python3 src/restunts/platform/templeos/tools/VM.PY \
+            --work "$RUNNER_TEMP/templeos-compile" run \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --source src/restunts/platform/templeos --entry COMPILE.HC \
+            --boot-seconds 35 --timeout 300
+
+      - name: Build the code-only installation CD and ZIP
+        run: |
+          python3 src/restunts/platform/templeos/tools/PACKAGE.PY \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --output build/templeos/RESTUNTS_STOCK_TEMPLEOS
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: restunts-templeos-build
+          path: build/templeos/RESTUNTS_STOCK_TEMPLEOS.ZIP
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Upload HolyC compiler diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: templeos-build-logs
+          path: |
+            ${{ runner.temp }}/templeos-compile/DEBUG.LOG
+            ${{ runner.temp }}/templeos-compile/VMRUN.HC
+            ${{ runner.temp }}/templeos-compile/SCREEN.*
+          if-no-files-found: warn
           retention-days: 14
 
   physics:
