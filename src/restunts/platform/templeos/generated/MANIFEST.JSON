@@ -79,8 +79,8 @@
     "stateio",
     "memory"
   ],
-  "functions": 1833,
-  "classes": 102,
+  "functions": 1882,
+  "classes": 106,
   "external": [
     "RsDosAudioBindChannelContext",
     "RsDosAudioDriverActivateContext",
@@ -148,6 +148,7 @@
     "RsDosWriteStdout",
     "RsFlushStdin",
     "RsFputs",
+    "RsFree",
     "RsInternal1Memcpy",
     "RsInternal2Fmemcpy",
     "RsKbCallReadcharCallback",
@@ -163,6 +164,7 @@
     "RsPreRenderPatterned",
     "RsPreRenderSphere",
     "RsPreRenderTwoColor",
+    "RsRealloc",
     "RsShape2dSelectEgaPalette",
     "RsTimerGetCounter",
     "RsTimerGetDelta",

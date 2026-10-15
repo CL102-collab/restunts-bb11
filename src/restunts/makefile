@@ -2,7 +2,7 @@ include watcom.mk
 
 MAKE_PARAMS = CONFIG=$(CONFIG) LINKER=$(LINKER)
 .DEFAULT_GOAL := restunts
-.PHONY: restunts restunts-original asmorig dosplatform c-headless c-full repldump repldump-original pixldump pixldump-original test-dos-platform test-race-memory clean
+.PHONY: restunts restunts-original asmorig dosplatform c-headless c-full repldump repldump-original pixldump pixldump-original test-dos-platform test-race-memory test-ghost-racing-line clean
 
 restunts: dosplatform c-full
 	$(MAKE) -C dos TARGET=full $(MAKE_PARAMS)
@@ -39,6 +39,9 @@ test-dos-platform:
 
 test-race-memory: dosplatform c-full
 	$(MAKE) -C tests race-memory $(MAKE_PARAMS)
+
+test-ghost-racing-line: dosplatform c-full
+	$(MAKE) -C tests ghost-racing-line $(MAKE_PARAMS)
 
 clean:
 	$(MAKE) -C dos $(MAKE_PARAMS) clean

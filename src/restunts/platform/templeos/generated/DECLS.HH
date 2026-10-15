@@ -256,6 +256,7 @@ extern legacy_void RsGhostClear();
 extern legacy_void RsGhostCheckTrack();
 extern legacy_s16 RsGhostPrepareRace();
 extern legacy_void RsGhostEndRace();
+extern legacy_s16 RsGhostIsActive();
 extern legacy_void RsGhostUpdate(legacy_u32 frame,legacy_u16 live_frame_rate);
 extern CCarState *RsGhostCarState();
 extern legacy_void RsAudioAllocateCarStateRecords();

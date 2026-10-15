@@ -52,6 +52,10 @@ $(GIT_REVISION_HEADER): force-git-revision | $(OBJDIR)
 $(OBJDIR)/menu_options.obj $(OBJDIR)/command_line.obj: $(GIT_REVISION_HEADER) force-git-revision
 $(OBJDIR)/menu_options.obj $(OBJDIR)/command_line.obj: CFLAGS += -fi=$(GIT_REVISION_HEADER)
 
+# Ghost guidance uses floating-point geometry; the custom DOS startup does not
+# initialize an 8087 or the CRT's floating-point formatting support.
+$(OBJDIR)/ghost.obj: CFLAGS += -fpc -zls
+
 $(OBJDIR)/%.obj: %.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) $(CFLAGS) -fo=$@ $<
 

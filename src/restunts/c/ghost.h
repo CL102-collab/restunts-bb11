@@ -27,7 +27,6 @@ legacy_s16 ghost_is_active(void);
 void ghost_update(legacy_u32 frame, legacy_u16 live_frame_rate);
 struct CARSTATE *ghost_car_state(void);
 const struct GHOST_CAMERA_STATE *ghost_camera_state(void);
-#ifdef RESTUNTS_SDL3
 enum GHOST_RACING_LINE_COLOR {
 	GHOST_RACING_LINE_RED = 0,
 	GHOST_RACING_LINE_YELLOW = 1,
@@ -46,11 +45,14 @@ struct GHOST_RACING_LINE_SEGMENT {
 	legacy_u32 next;
 };
 
+/* DOS16 streams pieces from disk; consume or copy each result before the next
+ * iterator call. Other targets retain the complete immutable route in memory. */
 const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south);
 const struct GHOST_RACING_LINE_SEGMENT *
 ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment);
 legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed);
 
+#ifdef RESTUNTS_SDL3
 /* Sample cached recorded poses at (live_frame - lag / 65536) / live_frame_rate.
  * This presentation-only read never advances physics or changes the live ghost.
  * Failure leaves both outputs untouched. Start/end times clamp to the replay. */

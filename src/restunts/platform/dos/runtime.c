@@ -10,6 +10,15 @@
 #define DOS_RUNTIME_STDERR_HANDLE 2U
 #define DOS_RUNTIME_WRITE_ERROR (-1)
 
+/* Watcom's -fpc helpers inspect these byte-sized runtime flags before choosing
+ * hardware arithmetic. Keep them in software mode: our DOS entry point owns
+ * startup and deliberately does not run the CRT's 8087 detection/initializers.
+ * Defining the exact helper ABI symbols also avoids linking that CRT startup. */
+legacy_u8 dos_software_float = 0;
+legacy_u8 dos_software_real87 = 0;
+#pragma aux dos_software_float "__8087"
+#pragma aux dos_software_real87 "__real87"
+
 /* Keep the game's legacy entry points while using the Watcom memory routines. */
 void *_memcpy(void *destination, const void *source, legacy_u16 length)
 {

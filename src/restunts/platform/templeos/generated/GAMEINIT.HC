@@ -273,9 +273,15 @@ legacy_void RsGameinitInitRaceCars(legacy_s16 initialization_mode)
   RsGameinitInitCarAtStart((&(state.opponentstate)),(&(simd_opponent)),
       TempleCastS8(TRANSMISSION_AUTOMATIC),TempleCastS16(temple_start_column_offset_637),
       TempleCastS16(temple_start_row_offset_636));
-  temple_tmp_639=!!(gameconfig.game_opponenttype);
+  temple_tmp_639=0;
+  if(gameconfig.game_opponenttype) {
+    temple_tmp_639=1;
+  }
   if(temple_tmp_639) {
-    temple_tmp_639=!!((initialization_mode!=GAMESTATE_INIT_SKIP_ROUTE_SETUP));
+    temple_tmp_639=0;
+    if((initialization_mode!=GAMESTATE_INIT_SKIP_ROUTE_SETUP)) {
+      temple_tmp_639=1;
+    }
   }
   if(temple_tmp_639) {
     (temple_route_point_638=TempleCastU8(TempleCastU8(state.opponentstate.car_route_point_index)));
@@ -396,13 +402,25 @@ legacy_void RsRestoreGamestate(legacy_u16 frame)
   legacy_s32 noreg temple_tmp_653;
   legacy_u16 noreg temple_curframe_654;
   legacy_s32 noreg temple_tmp_655;
-  temple_tmp_652=!!((frame==0));
-  if(temple_tmp_652) {
-    temple_tmp_652=!!((elapsed_time1==0));
+  temple_tmp_652=0;
+  if((frame==0)) {
+    temple_tmp_652=1;
   }
-  temple_tmp_653=!!(temple_tmp_652);
+  if(temple_tmp_652) {
+    temple_tmp_652=0;
+    if((elapsed_time1==0)) {
+      temple_tmp_652=1;
+    }
+  }
+  temple_tmp_653=0;
+  if(temple_tmp_652) {
+    temple_tmp_653=1;
+  }
   if(temple_tmp_653) {
-    temple_tmp_653=!!((cvxptr[0].game_checkpoint_valid==GAMESTATE_CHECKPOINT_INVALID));
+    temple_tmp_653=0;
+    if((cvxptr[0].game_checkpoint_valid==GAMESTATE_CHECKPOINT_INVALID)) {
+      temple_tmp_653=1;
+    }
   }
   if(temple_tmp_653) {
     RsInitGameState(TempleCastS16(GAMESTATE_INIT_NORMAL));
@@ -414,9 +432,15 @@ legacy_void RsRestoreGamestate(legacy_u16 frame)
     (temple_curframe_654=TempleCastU16(
         TempleCastU16(TempleCastS32((TempleCastU16(temple_curframe_654)-TempleCastU16(1))))));
   }
-  temple_tmp_655=!!((frame!=0));
+  temple_tmp_655=0;
+  if((frame!=0)) {
+    temple_tmp_655=1;
+  }
   if(temple_tmp_655) {
-    temple_tmp_655=!!((frame>=state.game_frame));
+    temple_tmp_655=0;
+    if((frame>=state.game_frame)) {
+      temple_tmp_655=1;
+    }
   }
   if(temple_tmp_655) {
     while(1) {

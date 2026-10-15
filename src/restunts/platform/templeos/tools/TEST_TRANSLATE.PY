@@ -203,6 +203,24 @@ legacy_s32 TranslationSemantics(void)
             TRANSLATION_STORAGE_EXPECTED ||
         TranslationIgnoredVariadic(TRANSLATION_STORAGE_EXPECTED, TRANSLATION_STORAGE_STEP) !=
             TRANSLATION_STORAGE_EXPECTED) { return TRANSLATION_VARIADIC_FAILURE; }
+    legacy_f64 floating = 30 * 65536.0;
+    if (floating != 1966080.0 || 2 + 0.5 != 2.5 || 2 / 4.0 != 0.5) { return 53; }
+    if ((legacy_u16)3.9 != 3 || (legacy_s32)-3.9 != -3) { return 54; }
+    if ((legacy_s64)-3.9 != -3 || (legacy_u64)3.9 != 3) { return 55; }
+    floating = (legacy_f64)floating;
+    floating += 2;
+    if (floating != 1966082.0) { return 56; }
+    legacy_f64 implicit_float = 2;
+    if (implicit_float != 2.0) { return 57; }
+    implicit_float = word;
+    if (implicit_float != 38.0) { return 58; }
+    legacy_f64 floating_zero = 0.0;
+    legacy_f64 floating_positive = 6400.0;
+    if ((floating_zero < floating_positive && 1) != 1) { return 59; }
+    if ((floating_zero > floating_positive || 1) != 1) { return 60; }
+    legacy_s32 floating_truth = floating_zero < floating_positive;
+    if (floating_truth != 1 || !!(floating_zero < floating_positive) != 1) { return 61; }
+    if (!floating_zero != 1 || !floating_positive != 0) { return 62; }
     return 0;
 }
 '''

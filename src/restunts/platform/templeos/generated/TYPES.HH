@@ -141,29 +141,6 @@
 #define LEGACY_RESIDUE_SECOND_WORD 1
 #define LEGACY_RESIDUE_THIRD_WORD 2
 #define LEGACY_RESIDUE_FOURTH_WORD 3
-#define CAMERA_MODE_COCKPIT 0
-#define CAMERA_MODE_FOLLOW 1
-#define CAMERA_MODE_CUSTOM 2
-#define CAMERA_MODE_TRACKSIDE 3
-#define SHAPE3D_PRIMITIVE_POLYGON_FIRST 3
-#define SHAPE3D_PRIMITIVE_SPHERE 11
-#define BACKLIGHT_PAINT_DEFAULT 45
-#define BACKLIGHT_PAINT_NORMAL 46
-#define BACKLIGHT_PAINT_BRAKING 47
-#define PLAYER_CAR_LOW_SHAPE 124
-#define OPPONENT_CAR_LOW_SHAPE 125
-#define PLAYER_CAR_WHEEL_SHAPE 126
-#define OPPONENT_CAR_WHEEL_SHAPE 127
-#define PLAYER_CAR_HIGH_SHAPE 128
-#define OPPONENT_CAR_HIGH_SHAPE 129
-#define AUDIO_STATE_DISABLED 0
-#define AUDIO_STATE_ENABLED 1
-#define AUDIO_UPDATE_UNLOCKED 0
-#define AUDIO_UPDATE_LOCKED 1
-#define DASHBOARD_OPERATION_LOAD 0
-#define DASHBOARD_OPERATION_REDRAW_STATIC 1
-#define DASHBOARD_OPERATION_UPDATE 2
-#define DASHBOARD_OPERATION_UNLOAD 3
 #define KEY_TAB 9
 #define KEY_ENTER 13
 #define KEY_ESCAPE 27
@@ -187,6 +164,33 @@
 #define KEY_DOWN 20480
 #define KEY_INSERT 20992
 #define KEY_SHIFT_F1 21504
+#define CAMERA_MODE_COCKPIT 0
+#define CAMERA_MODE_FOLLOW 1
+#define CAMERA_MODE_CUSTOM 2
+#define CAMERA_MODE_TRACKSIDE 3
+#define SHAPE3D_PRIMITIVE_EMPTY 0
+#define SHAPE3D_PRIMITIVE_POLYGON_FIRST 3
+#define SHAPE3D_PRIMITIVE_SPHERE 11
+#define BACKLIGHT_PAINT_DEFAULT 45
+#define BACKLIGHT_PAINT_NORMAL 46
+#define BACKLIGHT_PAINT_BRAKING 47
+#define PLAYER_CAR_LOW_SHAPE 124
+#define OPPONENT_CAR_LOW_SHAPE 125
+#define PLAYER_CAR_WHEEL_SHAPE 126
+#define OPPONENT_CAR_WHEEL_SHAPE 127
+#define PLAYER_CAR_HIGH_SHAPE 128
+#define OPPONENT_CAR_HIGH_SHAPE 129
+#define AUDIO_STATE_DISABLED 0
+#define AUDIO_STATE_ENABLED 1
+#define AUDIO_UPDATE_UNLOCKED 0
+#define AUDIO_UPDATE_LOCKED 1
+#define DASHBOARD_OPERATION_LOAD 0
+#define DASHBOARD_OPERATION_REDRAW_STATIC 1
+#define DASHBOARD_OPERATION_UPDATE 2
+#define DASHBOARD_OPERATION_UNLOAD 3
+#define GHOST_RACING_LINE_RED 0
+#define GHOST_RACING_LINE_YELLOW 1
+#define GHOST_RACING_LINE_GREEN 2
 #define REPLAY_CONTROL_FAST_FORWARD 0
 #define REPLAY_CONTROL_REWIND 1
 #define REPLAY_CONTROL_FAST_PLAY 2
@@ -255,6 +259,9 @@
 #define MAIN_MENU_OPPONENT 2
 #define MAIN_MENU_TRACK 3
 #define MAIN_MENU_OPTIONS 4
+#define OPTION_INPUT_KEYBOARD (-1+1)
+#define OPTION_INPUT_JOYSTICK ((-1+1)+1)
+#define OPTION_INPUT_MOUSE (((-1+1)+1)+1)
 #define OPTION_MENU_LOW_FRAME_RATE_INDEX 7
 #define OPTION_MENU_NORMAL_FRAME_RATE_INDEX 8
 #define TRACK_MENU_LOAD_BUTTON 0
@@ -991,6 +998,16 @@ class CGhostCameraState
   legacy_s16 crash_frame;
 };
 
+class CGhostRacingLineSegment
+{
+  CVectorLong start_left;
+  CVectorLong start_right;
+  CVectorLong end_left;
+  CVectorLong end_right;
+  legacy_u16 speed;
+  legacy_u32 next;
+};
+
 class CStartupOptions
 {
   legacy_u8 mode4_requested;
@@ -1128,6 +1145,32 @@ class CGhostPose
 {
   CCarState car;
   CGhostCameraState camera;
+};
+
+class CGhostLineVector
+{
+  legacy_f64 x;
+  legacy_f64 y;
+  legacy_f64 z;
+};
+
+class CGhostLinePose
+{
+  CGhostLineVector center;
+  CGhostLineVector right;
+  CGhostLineVector up;
+  legacy_f64 speed;
+  legacy_u8 has_orientation;
+};
+
+class CRsAnon248e9e105020
+{
+  CGhostLinePose previous;
+  CGhostLinePose sample;
+  legacy_f64 distance;
+  legacy_f64 midpoint_speed;
+  legacy_u8 initialized;
+  legacy_u8 failed;
 };
 
 class CSkybox

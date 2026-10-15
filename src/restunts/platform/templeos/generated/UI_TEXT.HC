@@ -274,9 +274,15 @@ legacy_void RsParseFilepathSeparators(legacy_s8 *destination,legacy_s8 *path)
       break;
     }
     (temple_current_1210=TempleCastS8(path[TempleCastU32((temple_path_index_1209-1))]));
-    temple_tmp_1212=!!((temple_current_1210=='\\'));
+    temple_tmp_1212=0;
+    if((temple_current_1210=='\\')) {
+      temple_tmp_1212=1;
+    }
     if(!temple_tmp_1212) {
-      temple_tmp_1212=!!((temple_current_1210==':'));
+      temple_tmp_1212=0;
+      if((temple_current_1210==':')) {
+        temple_tmp_1212=1;
+      }
     }
     if(temple_tmp_1212) {
       break;
@@ -354,9 +360,15 @@ legacy_s16 RsUiTextFontMeasure(legacy_s8 *text,legacy_u16 remaining,legacy_s16 b
   legacy_u16 noreg temple_glyph_offset_1229;
   legacy_u16 *temple_tmp_1230;
   legacy_u16 noreg temple_tmp_1231;
-  temple_tmp_1222=!!((bounded!=0));
+  temple_tmp_1222=0;
+  if((bounded!=0)) {
+    temple_tmp_1222=1;
+  }
   if(temple_tmp_1222) {
-    temple_tmp_1222=!!((remaining==0));
+    temple_tmp_1222=0;
+    if((remaining==0)) {
+      temple_tmp_1222=1;
+    }
   }
   if(temple_tmp_1222) {
     return TempleCastS16(0);

@@ -501,6 +501,8 @@ class Generator:
         return expr
 
     def convert(self, expr, source, target):
+        if target and self.type_text(target) == "legacy_f64":
+            return expr if source and self.type_text(source) == "legacy_f64" else f"ToF64({expr})"
         source_info, target_info = self.integer_info(source), self.integer_info(target)
         if not source_info or not target_info:
             return expr
@@ -523,6 +525,8 @@ class Generator:
             return left
         if isinstance(right, (A.PtrDecl, A.ArrayDecl)):
             return right
+        if any(self.type_text(typ) == "legacy_f64" for typ in (left, right) if typ):
+            return scalar_type("legacy_f64")
         left, right = self.promote(left), self.promote(right)
         a, b = self.integer_info(left), self.integer_info(right)
         if a and b:
@@ -669,12 +673,21 @@ class Generator:
                 # even when the right operand is an ordinary function call.
                 temp = self.temp(n)
                 test = temp if n.op == "&&" else "!" + temp
-                return a + [f"{temp} = !!({x});", f"if ({test}) {{"] + indent(b + [f"{temp} = !!({y});"]) + ["}"], temp
+                # Materialize an integer truth value in branches. HolyC's
+                # repeated logical negation of floating comparisons can keep
+                # a floating value whose narrow integer store becomes zero.
+                left = [f"{temp} = 0;", f"if ({x}) {{", f"  {temp} = 1;", "}"]
+                right = [f"{temp} = 0;", f"if ({y}) {{", f"  {temp} = 1;", "}"]
+                return a + left + [f"if ({test}) {{"] + indent(b + right) + ["}"], temp
             if self.in_function and n.op not in ("&&", "||", "<<", ">>"):
                 common = self.common_type(self.node_type(n.left), self.node_type(n.right))
                 x = self.convert(x, self.node_type(n.left), common)
                 y = self.convert(y, self.node_type(n.right), common)
             expr = self.division(x, y, n.op, self.node_type(n))
+            if (self.in_function and n.op in ("==", "!=", "<", ">", "<=", ">=") and common and
+                    self.type_text(common) == "legacy_f64"):
+                temp = self.temp(n)
+                return a + b + [f"{temp} = 0;", f"if ({expr}) {{", f"  {temp} = 1;", "}"], temp
             if n.op not in ("==", "!=", "<", ">", "<=", ">=", "&&", "||"):
                 expr = self.normalize(expr, self.node_type(n))
             return a + b, expr
@@ -684,8 +697,10 @@ class Generator:
             if typ == "legacy_void":
                 return a, x
             if typ == "legacy_f64":
-                return a, f"ToF64({x})"
+                return a, self.convert(x, self.node_type(n.expr), n.to_type.type)
             if self.integer_info(n.to_type.type):
+                if self.node_type(n.expr) and self.type_text(self.node_type(n.expr)) == "legacy_f64":
+                    x = f"ToI64({x})"
                 if self.integer_info(n.to_type.type)[0] == 64:
                     return a, f"TempleCast{'S' if self.integer_info(n.to_type.type)[1] else 'U'}64({x})"
                 return a, self.normalize(x, n.to_type.type)
@@ -729,6 +744,10 @@ class Generator:
             if n.op.startswith("p"):
                 return a, "(" + x + n.op[1:] + ")"
             expr = "(" + n.op + "(" + x + "))"
+            if (self.in_function and n.op == "!" and self.node_type(n.expr) and
+                    self.type_text(self.node_type(n.expr)) == "legacy_f64"):
+                temp = self.temp(n)
+                return a + [f"{temp} = 0;", f"if ({expr}) {{", f"  {temp} = 1;", "}"], temp
             if n.op in ("-", "+", "~"):
                 expr = self.normalize(expr, self.node_type(n))
             return a, expr

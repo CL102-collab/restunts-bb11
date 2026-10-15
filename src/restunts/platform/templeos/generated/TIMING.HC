@@ -141,10 +141,16 @@ legacy_u32 RsTimingSecondaryTimerTarget()
 legacy_s16 RsTimingSecondaryTimerTargetReached(legacy_u32 current,legacy_u32 target)
 {
   legacy_s32 noreg temple_tmp_1057;
-  temple_tmp_1057=!!((TempleCastU16(TempleCastU32((current>>16)))>=
-      TempleCastU16(TempleCastU32((target>>16)))));
+  temple_tmp_1057=0;
+  if((TempleCastU16(TempleCastU32((current>>16)))>=
+        TempleCastU16(TempleCastU32((target>>16))))) {
+    temple_tmp_1057=1;
+  }
   if(temple_tmp_1057) {
-    temple_tmp_1057=!!((TempleCastU16(current)>=TempleCastU16(target)));
+    temple_tmp_1057=0;
+    if((TempleCastU16(current)>=TempleCastU16(target))) {
+      temple_tmp_1057=1;
+    }
   }
   return TempleCastS16(temple_tmp_1057);
 }

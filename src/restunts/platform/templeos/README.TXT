@@ -170,8 +170,9 @@ Each check must finish without compiler errors or warnings:
     TEST_GRAPHICS.HC  EGA materials, generated graphics, layouts, and sprite storage.
     TEST_RESOURCES.HC Original-resource loading and native-buffer file round trips.
     TEST_REPLAY.HC    Compare 120 physics frames with an independent DOS oracle.
+    TEST_GHOST_LINE.HC Reconstruct replay ribbon and verify native colors and physics isolation.
 
-The replay check needs --data pointing to the original game directory, including
+The replay and ghost-line checks need --data pointing to the original game directory, including
 its unchanged DEFAULT.RPL. Tests create temporary files in the disposable guest;
 they should not run against an existing game disk. tools/VM.TXT gives commands,
 oracle provenance, and diagnostic paths. tools/TEST_TRANSLATE.PY builds a host

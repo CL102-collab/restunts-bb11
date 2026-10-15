@@ -97,9 +97,15 @@ legacy_u8 RsSubstHillroadTrack(legacy_u8 terrain,legacy_u8 track)
   legacy_u32 noreg temple_tmp_863;
   legacy_u16 *temple_tmp_864;
   legacy_u16 noreg temple_tmp_865;
-  temple_tmp_859=!!((terrain<7));
+  temple_tmp_859=0;
+  if((terrain<7)) {
+    temple_tmp_859=1;
+  }
   if(!temple_tmp_859) {
-    temple_tmp_859=!!((terrain>10));
+    temple_tmp_859=0;
+    if((terrain>10)) {
+      temple_tmp_859=1;
+    }
   }
   if(temple_tmp_859) {
     return TempleCastU8(0);

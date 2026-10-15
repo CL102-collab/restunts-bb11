@@ -110,9 +110,15 @@ legacy_s16 RsInternal1Strcmp(legacy_s8 *left,legacy_s8 *right)
 legacy_u8 RsStrlibLegacyAsciiLower(legacy_u8 character)
 {
   legacy_s32 noreg temple_tmp_583;
-  temple_tmp_583=!!((character>='A'));
+  temple_tmp_583=0;
+  if((character>='A')) {
+    temple_tmp_583=1;
+  }
   if(temple_tmp_583) {
-    temple_tmp_583=!!((character<='Z'));
+    temple_tmp_583=0;
+    if((character<='Z')) {
+      temple_tmp_583=1;
+    }
   }
   if(temple_tmp_583) {
     return TempleCastU8(TempleCastU8(TempleCastS32((character+TempleCastS32(('a' -'A'))))));

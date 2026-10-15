@@ -56,9 +56,15 @@ legacy_s16 RsCallReadLine(
   RsMouseDrawTransparentCheck();
   temple_length_1237=TempleCastU16(TempleCastU16(RsInternal1Strlen(text)));
   while(1) {
-    temple_tmp_1239=!!((temple_length_1237!=0));
+    temple_tmp_1239=0;
+    if((temple_length_1237!=0)) {
+      temple_tmp_1239=1;
+    }
     if(temple_tmp_1239) {
-      temple_tmp_1239=!!((text[TempleCastU32((temple_length_1237-1))]==' '));
+      temple_tmp_1239=0;
+      if((text[TempleCastU32((temple_length_1237-1))]==' ')) {
+        temple_tmp_1239=1;
+      }
     }
     if(!(temple_tmp_1239)) {
       break;
@@ -214,9 +220,15 @@ legacy_s16 RsUiInputReadLineBlinkCursor(legacy_u32 timeout)
     temple_tmp_1255=TempleCastS32(1);
   }
   (rs_ui_input_text_edit_cursor_visible=TempleCastU16(temple_tmp_1255));
-  temple_tmp_1256=!!((timeout!=TempleCastU32(0)));
+  temple_tmp_1256=0;
+  if((timeout!=TempleCastU32(0))) {
+    temple_tmp_1256=1;
+  }
   if(temple_tmp_1256) {
-    temple_tmp_1256=!!(RsTimerDeadlineReached());
+    temple_tmp_1256=0;
+    if(RsTimerDeadlineReached()) {
+      temple_tmp_1256=1;
+    }
   }
   if(temple_tmp_1256) {
     RsTextEditToggleCursor();
@@ -233,29 +245,65 @@ legacy_s16 RsUiInputReadLineIsFinished(legacy_u16 key,legacy_u8 input_flags)
   legacy_s32 noreg temple_tmp_1260;
   legacy_s32 noreg temple_tmp_1261;
   legacy_s32 noreg temple_tmp_1262;
-  temple_tmp_1257=!!((key==KEY_ENTER));
+  temple_tmp_1257=0;
+  if((key==KEY_ENTER)) {
+    temple_tmp_1257=1;
+  }
   if(!temple_tmp_1257) {
-    temple_tmp_1257=!!((key==KEY_ESCAPE));
+    temple_tmp_1257=0;
+    if((key==KEY_ESCAPE)) {
+      temple_tmp_1257=1;
+    }
   }
-  temple_tmp_1258=!!(temple_tmp_1257);
+  temple_tmp_1258=0;
+  if(temple_tmp_1257) {
+    temple_tmp_1258=1;
+  }
   if(!temple_tmp_1258) {
-    temple_tmp_1258=!!((key==KEY_UP));
+    temple_tmp_1258=0;
+    if((key==KEY_UP)) {
+      temple_tmp_1258=1;
+    }
   }
-  temple_tmp_1260=!!(temple_tmp_1258);
+  temple_tmp_1260=0;
+  if(temple_tmp_1258) {
+    temple_tmp_1260=1;
+  }
   if(!temple_tmp_1260) {
-    temple_tmp_1259=!!((key==KEY_DOWN));
+    temple_tmp_1259=0;
+    if((key==KEY_DOWN)) {
+      temple_tmp_1259=1;
+    }
     if(temple_tmp_1259) {
-      temple_tmp_1259=!!((TempleCastU32((input_flags&8))==TempleCastU32(0)));
+      temple_tmp_1259=0;
+      if((TempleCastU32((input_flags&8))==TempleCastU32(0))) {
+        temple_tmp_1259=1;
+      }
     }
-    temple_tmp_1260=!!(temple_tmp_1259);
+    temple_tmp_1260=0;
+    if(temple_tmp_1259) {
+      temple_tmp_1260=1;
+    }
   }
-  temple_tmp_1262=!!(temple_tmp_1260);
+  temple_tmp_1262=0;
+  if(temple_tmp_1260) {
+    temple_tmp_1262=1;
+  }
   if(!temple_tmp_1262) {
-    temple_tmp_1261=!!((key==KEY_TAB));
-    if(temple_tmp_1261) {
-      temple_tmp_1261=!!((TempleCastU32((input_flags&16))==TempleCastU32(0)));
+    temple_tmp_1261=0;
+    if((key==KEY_TAB)) {
+      temple_tmp_1261=1;
     }
-    temple_tmp_1262=!!(temple_tmp_1261);
+    if(temple_tmp_1261) {
+      temple_tmp_1261=0;
+      if((TempleCastU32((input_flags&16))==TempleCastU32(0))) {
+        temple_tmp_1261=1;
+      }
+    }
+    temple_tmp_1262=0;
+    if(temple_tmp_1261) {
+      temple_tmp_1262=1;
+    }
   }
   return TempleCastS16(temple_tmp_1262);
 }
@@ -310,11 +358,17 @@ legacy_s16 RsUiInputReadLineApplyEditKey(CReadLineState *state,legacy_u16 key)
       RsUiInputReadLineMoveCursor(state,TempleCastU16(key));
       return TempleCastS16(1);
     case 21248:
-      temple_tmp_1264=!!((
-          RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(state->max_characters)))>
-          RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(rs_ui_input_text_edit_cursor)))));
+      temple_tmp_1264=0;
+      if((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(state->max_characters)))>
+            RsUiInputLegacyS16FromBits(
+                TempleCastU16(TempleCastU16(rs_ui_input_text_edit_cursor))))) {
+        temple_tmp_1264=1;
+      }
       if(temple_tmp_1264) {
-        temple_tmp_1264=!!((state->text[TempleCastU16(rs_ui_input_text_edit_cursor)]!=0));
+        temple_tmp_1264=0;
+        if((state->text[TempleCastU16(rs_ui_input_text_edit_cursor)]!=0)) {
+          temple_tmp_1264=1;
+        }
       }
       if(temple_tmp_1264) {
         RsUiInputReadLineEraseCharacter(
@@ -355,23 +409,41 @@ legacy_void RsUiInputReadLineTypeCharacter(CReadLineState *state,legacy_u16 key)
   legacy_s32 noreg temple_tmp_1268;
   legacy_u16 noreg temple_index_1269;
   legacy_s32 noreg temple_tmp_1270;
-  temple_tmp_1267=!!((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(key)))<32));
-  if(!temple_tmp_1267) {
-    temple_tmp_1267=!!((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(key)))>122));
+  temple_tmp_1267=0;
+  if((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(key)))<32)) {
+    temple_tmp_1267=1;
   }
-  temple_tmp_1268=!!(temple_tmp_1267);
+  if(!temple_tmp_1267) {
+    temple_tmp_1267=0;
+    if((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(key)))>122)) {
+      temple_tmp_1267=1;
+    }
+  }
+  temple_tmp_1268=0;
+  if(temple_tmp_1267) {
+    temple_tmp_1268=1;
+  }
   if(!temple_tmp_1268) {
-    temple_tmp_1268=!!((
-        RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(state->max_characters)))<=
-        RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(rs_ui_input_text_edit_cursor)))));
+    temple_tmp_1268=0;
+    if((RsUiInputLegacyS16FromBits(TempleCastU16(TempleCastU16(state->max_characters)))<=
+          RsUiInputLegacyS16FromBits(
+              TempleCastU16(TempleCastU16(rs_ui_input_text_edit_cursor))))) {
+      temple_tmp_1268=1;
+    }
   }
   if(temple_tmp_1268) {
     return;
   }
   RsTextEditToggleCursor();
-  temple_tmp_1270=!!(state->first_key);
+  temple_tmp_1270=0;
+  if(state->first_key) {
+    temple_tmp_1270=1;
+  }
   if(temple_tmp_1270) {
-    temple_tmp_1270=!!((TempleCastU32((state->input_flags&4))==TempleCastU32(0)));
+    temple_tmp_1270=0;
+    if((TempleCastU32((state->input_flags&4))==TempleCastU32(0))) {
+      temple_tmp_1270=1;
+    }
   }
   if(temple_tmp_1270) {
     (rs_ui_input_text_edit_cursor=TempleCastU16(0));

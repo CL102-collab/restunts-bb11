@@ -65,3 +65,20 @@ $(RACE_MEMORY_OUTFILE): $(RACE_MEMORY_OBJECTS) ../dos/full-game-objects.mk makef
 	$(file >>$(OBJDIR)/race-memory.lnk,$(WATCOM_LIBPATH))
 	$(file >>$(OBJDIR)/race-memory.lnk,file $(subst $(SPACE),$(COMMA),$(RACE_MEMORY_OBJECTS)))
 	$(WLINK) @$(OBJDIR)/race-memory.lnk
+
+GHOST_LINE_OUTFILE = $(OBJDIR)/GHOSTLIN.EXE
+GHOST_LINE_OBJECTS = $(filter-out $(FULL_GAME_DIR)/ghost.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-ghost-racing-line-dos.obj,$(RACE_MEMORY_OBJECTS)))
+
+.PHONY: ghost-racing-line
+ghost-racing-line: $(GHOST_LINE_OUTFILE)
+
+$(OBJDIR)/test-ghost-racing-line-dos.obj: test-ghost-racing-line-dos.c ../c/restunts.c ../c/ghost.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+	$(CC) $(WATCOM_CFLAGS) -fpc -zls -dRESTUNTS_FULL -i=../c -fo=$@ $<
+
+$(GHOST_LINE_OUTFILE): $(GHOST_LINE_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
+	$(file >$(OBJDIR)/ghost-line.lnk,name $(GHOST_LINE_OUTFILE))
+	$(file >>$(OBJDIR)/ghost-line.lnk,format dos $(WATCOM_LFLAGS) option START=_headless_start option MAP=$(OBJDIR)/ghostlin.map)
+	$(file >>$(OBJDIR)/ghost-line.lnk,$(WATCOM_PORTED_LINK_ORDER))
+	$(file >>$(OBJDIR)/ghost-line.lnk,$(WATCOM_LIBPATH))
+	$(file >>$(OBJDIR)/ghost-line.lnk,file $(subst $(SPACE),$(COMMA),$(GHOST_LINE_OBJECTS)))
+	$(WLINK) @$(OBJDIR)/ghost-line.lnk

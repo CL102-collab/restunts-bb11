@@ -29,3 +29,31 @@ legacy_s32 RsFputs(legacy_u8 *text,legacy_s64 stream)
   Print("%s",text);
   return StrLen(text);
 }
+
+legacy_void RsFree(legacy_u8 *pointer)
+{
+  Free(pointer);
+}
+
+legacy_u8 *RsRealloc(legacy_u8 *pointer,legacy_u64 size)
+{
+  legacy_u8 *resized;
+  legacy_u64 copy_size;
+  if(!size) {
+    Free(pointer);
+    return 0;
+  }
+  resized=MAlloc(size);
+  if(!resized) {
+    return 0;
+  }
+  if(pointer) {
+    copy_size=MSize(pointer);
+    if(copy_size>size) {
+      copy_size=size;
+    }
+    MemCpy(resized,pointer,copy_size);
+    Free(pointer);
+  }
+  return resized;
+}

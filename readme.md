@@ -399,14 +399,16 @@ it stays in its final position. Restarting or rewinding keeps it synchronized
 with your race time. Press **T** to switch between your view and the ghost's
 view; **F1** through **F4** select the camera mode for either car.
 
-SDL builds, including Android, also show the ghost's racing line. It follows
+All game builds also show the ghost's racing line. It follows
 the recorded path even when the ghost is too far ahead to see. Each 2-meter
 section compares the ghost's speed there with your current speed: **red** means
 you are more than 3 MPH faster and should slow down, **green** means you are
 more than 3 MPH slower and should accelerate, and **yellow** means you are
 within 3 MPH either way. The colors update as your speed changes. The line has
 the width of the road's center markings, so it appears wider nearby and narrower
-in the distance, and follows the recorded slopes and banking.
+in the distance, and follows the recorded slopes and banking. DOS16 and
+TempleOS omit guidance for a frame if it would exceed the renderer's polygon
+budget, preserving the complete road and car scene.
 
 Choose **Clock** again to remove the ghost. Loading a different track, changing
 its layout in the editor, or selecting an AI opponent also clears the ghost.
@@ -417,6 +419,8 @@ format and do not include the ghost.
 Preparing the ghost reconstructs the selected replay before driving and caches
 its positions in a temporary `GHxxxxxx.TMP` file in the game directory. The game
 removes this file when the selection is cleared or the game exits normally.
+The 16-bit DOS build streams the racing line from a second temporary
+`GLxxxxxx.TMP` file, removed when the race ends.
 As with ordinary replay playback, use the physics switches used to record it.
 
 ### Rewind while driving
@@ -1114,7 +1118,12 @@ The supported targets are:
 | `pixldump-original` | Builds `pixldumo.exe` from the original assembly and renderer dump wrapper. |
 | `test-dos-platform` | Builds the DOS platform ABI test, `tests/build/watcom/<configuration>/DOSPLAT.EXE`. |
 | `test-race-memory` | Builds the full-game race memory test, `tests/build/watcom/<configuration>/RACEMEM.EXE`. |
+| `test-ghost-racing-line` | Builds the DOS16 ghost reconstruction and racing-line renderer test, `tests/build/watcom/<configuration>/GHOSTLIN.EXE`. |
 | `clean` | Removes generated build objects and candidate executables. |
+
+Run the DOS16 racing-line check with
+`python3 tools/scripts/run-ghost-racing-line-dos-test.py` after building its target.
+It requires DOSBox and the original game resources in `stunts/`.
 
 The `*-original` dump targets assemble the original game code with WASM,
 compile the dump wrappers with WCC, and link them with WLINK. The resulting

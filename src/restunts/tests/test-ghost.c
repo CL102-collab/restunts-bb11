@@ -53,10 +53,10 @@ static legacy_s32 simulation_steps;
 static legacy_s32 simulation_frees;
 static legacy_s32 fail_write;
 static legacy_s32 fail_read;
-#ifdef RESTUNTS_SDL3
 static legacy_u32 read_calls;
-static legacy_u8 render_fixture;
 static legacy_u8 line_fixture;
+#ifdef RESTUNTS_SDL3
+static legacy_u8 render_fixture;
 #endif
 
 struct TEST_FILE {
@@ -111,9 +111,7 @@ legacy_s16 dos_file_remove(const legacy_s8 *name)
 
 legacy_u16 dos_file_read(legacy_u16 file, void *destination, legacy_u16 length)
 {
-#ifdef RESTUNTS_SDL3
 	read_calls++;
-#endif
 	if (fail_read) {
 		return 0;
 	}
@@ -200,7 +198,6 @@ static void set_recorded_camera(legacy_s16 frame)
 	state.game_player_camera_previous.z = 299 + frame;
 	state.game_trackside_camera_index[PLAYER_CAR_INDEX] = (legacy_s8)(frame % 8);
 	state.game_pEndFrame = frame >= 2 ? 2 : 0;
-#ifdef RESTUNTS_SDL3
 	if (line_fixture != 0) {
 		legacy_s16 x = 1000;
 		legacy_s16 y = 0;
@@ -239,6 +236,7 @@ static void set_recorded_camera(legacy_s16 frame)
 		}
 		state.playerstate.car_actual_speed = (40 + frame * 5) * 256;
 	}
+#ifdef RESTUNTS_SDL3
 	if (render_fixture != 0) {
 		state.playerstate.car_position.lx = frame * 100L;
 		state.playerstate.car_actual_speed = 1000 + frame;
@@ -477,7 +475,6 @@ static void test_long_recording_and_preparation_failure(void)
 {
 	make_replay("maximum.rpl", GAME_FRAME_RATE_NORMAL, TRACKDATA_REPLAY_INPUT_BUFFER_SIZE, 0);
 	assert(ghost_select_replay(0, (const legacy_s8 *)"maximum") == 0);
-#ifdef RESTUNTS_SDL3
 	/* Unrealistic high travel exhausts the bounded optional cache; the ghost
 	 * still works, no incomplete route is exposed, and preparation can retry. */
 	line_fixture = 7;
@@ -489,7 +486,6 @@ static void test_long_recording_and_preparation_failure(void)
 		}
 	}
 	line_fixture = 0;
-#endif
 	struct GAMESTATE before = state;
 	struct GAMEINFO config = gameconfig;
 	fail_write = 1;
@@ -532,7 +528,6 @@ static void test_long_recording_and_preparation_failure(void)
 	assert_camera_at_frame(0);
 }
 
-#ifdef RESTUNTS_SDL3
 static legacy_u32 collect_racing_line(const struct GHOST_RACING_LINE_SEGMENT **segments,
 									  legacy_u32 capacity)
 {
@@ -630,7 +625,8 @@ static void test_racing_line_sampling_and_lifetime(void)
 	assert(ghost_prepare_race() == 0);
 	assert(collect_racing_line(segments, 64) == 25);
 	/* A 20 Hz recording produces the same distance samples as the 10 Hz source. */
-	assert(ghost_select_replay(0, (const legacy_s8 *)"render") == 0);
+	make_replay("line.rpl", GAME_FRAME_RATE_NORMAL, TEST_RECORDING_FRAMES, 0);
+	assert(ghost_select_replay(0, (const legacy_s8 *)"line") == 0);
 	assert(collect_racing_line(segments, 64) == 0);
 	assert(ghost_prepare_race() == 0);
 	assert(collect_racing_line(segments, 64) == 25);
@@ -710,6 +706,7 @@ static void test_racing_line_curves_and_short_recordings(void)
 	line_fixture = 0;
 }
 
+#ifdef RESTUNTS_SDL3
 static void assert_render_sample(legacy_u32 live_frame, legacy_u16 live_rate, legacy_u32 lag,
 								 legacy_s32 position)
 {
@@ -868,10 +865,10 @@ int main(void)
 #ifdef RESTUNTS_SDL3
 	test_render_sampling();
 	test_render_discontinuities();
+#endif
 	test_racing_line_speed_colors();
 	test_racing_line_sampling_and_lifetime();
 	test_racing_line_curves_and_short_recordings();
-#endif
 	test_long_recording_and_preparation_failure();
 	test_track_changes_and_cleanup();
 	return 0;

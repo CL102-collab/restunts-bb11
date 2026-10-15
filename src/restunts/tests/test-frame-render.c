@@ -34,6 +34,10 @@ static legacy_s16 cockpit_effect_frame;
 static legacy_s16 cockpit_effect_kind;
 static legacy_s16 ghost_fixture_active;
 static legacy_s16 ghost_wheel_updates;
+#if !defined(RESTUNTS_SDL3)
+static legacy_s16 fixed_queue_capacity;
+static legacy_s16 fixed_queue_cost;
+#endif
 
 #if defined(RESTUNTS_SDL3)
 legacy_u16 frame_callback_count;
@@ -53,6 +57,7 @@ static struct VECTOR shadow_camera;
 static legacy_s16 shadow_count, shadow_begin_count, shadow_projection_count;
 static legacy_s16 shadow_frame_active;
 static legacy_s16 car_ground_offsets[2];
+#endif
 
 #define RACING_LINE_TEST_SEGMENTS 125U
 #define RACING_LINE_TEST_BATCHES 8U
@@ -96,6 +101,7 @@ legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_
 							   : GHOST_RACING_LINE_YELLOW;
 }
 
+#if defined(RESTUNTS_SDL3)
 legacy_s16 shape3d_car_ground_offset(const struct SHAPE3D *shape)
 {
 	assert(shape == &game3dshapes[PLAYER_CAR_WHEEL_SHAPE] ||
@@ -337,7 +343,11 @@ static void trace_shape(const struct TRANSFORMEDSHAPE3D *shape)
 
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *shape)
 {
-#if defined(RESTUNTS_SDL3)
+#if !defined(RESTUNTS_SDL3)
+	if (fixed_queue_capacity != 0 && polygon_buffer_full != 0) {
+		return 1;
+	}
+#endif
 	if (racing_line_capture_enabled != 0 &&
 		((uintptr_t)shape->shapeptr < (uintptr_t)game3dshapes ||
 		 (uintptr_t)shape->shapeptr >= (uintptr_t)(game3dshapes + 130))) {
@@ -367,9 +377,17 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *shape)
 		/* Check both bytes after full and partial batches: an invisible final
 		 * polygon makes the classic renderer read these flags before the type. */
 		assert(shape->shapeptr->shape3d_primitives[racing_line_batches[batch].count * 7 + 1] == 0);
+#if !defined(RESTUNTS_SDL3)
+		if (fixed_queue_capacity != 0) {
+			fixed_queue_cost += racing_line_batches[batch].count;
+			if (fixed_queue_cost >= fixed_queue_capacity) {
+				polygon_buffer_full = 1;
+				return 1;
+			}
+		}
+#endif
 		return (legacy_u16)racing_line_transform_result;
 	}
-#endif
 	trace_word(4);
 	trace_shape(shape);
 	trace_word(backlights_paint_override);
@@ -380,6 +398,12 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *shape)
 	}
 #endif
 	transform_count++;
+#if !defined(RESTUNTS_SDL3)
+	if (fixed_queue_capacity != 0 && ++fixed_queue_cost >= fixed_queue_capacity) {
+		polygon_buffer_full = 1;
+		return 1;
+	}
+#endif
 	if (check_retry_brake_paint != 0 && transform_count == 1) {
 		assert(backlights_paint_override == BACKLIGHT_PAINT_DEFAULT);
 	}
@@ -403,7 +427,6 @@ void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct V
 
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source)
 {
-#if defined(RESTUNTS_SDL3)
 	if (shape != &game3dshapes[111]) {
 		assert(racing_line_capture_enabled != 0);
 		legacy_u8 *destination = shape->shape3d_vertex_bytes + index * SHAPE3D_VERTEX_SIZE;
@@ -412,7 +435,6 @@ void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct 
 		LEGACY_WRITE_U16_LE(destination + 4, (legacy_u16)source->z);
 		return;
 	}
-#endif
 	assert(shape == &game3dshapes[111]);
 	trace_word(6);
 	trace_word(index);
@@ -431,6 +453,10 @@ legacy_u8 subst_hillroad_track(legacy_u8 terrain, legacy_u8 element)
 void polyinfo_reset(void)
 {
 	transform_count = 0;
+#if !defined(RESTUNTS_SDL3)
+	polygon_buffer_full = 0;
+	fixed_queue_cost = 0;
+#endif
 	queue_resets++;
 }
 
@@ -2220,6 +2246,77 @@ static void test_adaptive_detached_particles(void)
 	frame_adaptive_active = shadow_frame_active = supersight_enabled = 0;
 }
 
+#endif
+
+#if !defined(RESTUNTS_SDL3)
+static void test_racing_line_queue_exhaustion(void)
+{
+	struct FRAME_LOOKAHEAD_TILE lookahead[FRAME_SUPERSIGHT_TILE_COUNT] = {{0}};
+	struct FRAME_TILE_SELECTION tiles = {0};
+	struct FRAME_CAMERA camera = {0};
+	struct FRAME_CAR_RENDER cars[2] = {{0}};
+	configure_track();
+	memset(&state, 0, sizeof(state));
+	memset(&ghost_fixture, 0, sizeof(ghost_fixture));
+	frame_state = &state;
+	gameconfig.game_opponenttype = 0;
+	cameramode = CAMERA_MODE_COCKPIT;
+	followOpponentFlag = 0;
+	detail_level = 1;
+	start_finish_column = -1;
+	camera.position = (struct VECTOR){15 * 1024, 0, 14 * 1024};
+	tiles.lookahead = lookahead;
+	tiles.count = FRAME_SUPERSIGHT_TILE_COUNT;
+	for (legacy_s16 index = 0; index < tiles.count; index++) {
+		tiles.markers[index] = FRAME_TILE_UNAVAILABLE_MARKER;
+	}
+	for (legacy_s16 index = 0; index < 3; index++) {
+		tiles.markers[index] = FRAME_TILE_DRAW_MARKER;
+		tiles.east[index] = 15;
+		tiles.south[index] = 15 + index;
+		tiles.terrain[index] = 1;
+	}
+	ghost_fixture_active = racing_line_capture_enabled = 1;
+	racing_line_transform_result = 0;
+	fixed_queue_capacity = 4;
+	for (legacy_s16 mode = 0; mode < 2; mode++) {
+		supersight_enabled = mode;
+		for (legacy_s16 exhaustion = 0; exhaustion < 3; exhaustion++) {
+			/* Fill the queue in guidance, in a later world shape, or in the last
+			 * line after tiles report success. Every case must restore all tiles. */
+			racing_line_segment_count = exhaustion == 1 ? 5 : 1;
+			for (legacy_u32 index = 0; index < racing_line_segment_count; index++) {
+				racing_line_segments[index] = (struct GHOST_RACING_LINE_SEGMENT){0};
+				racing_line_segments[index].next = index + 1;
+				racing_line_east[index] = 15;
+				racing_line_south[index] = exhaustion == 2 ? 17 : 15;
+			}
+			reset_shapes();
+			polyinfo_reset();
+			queue_resets = 0;
+			racing_line_batch_count = 0;
+			tiles.first = 0;
+			struct GAMESTATE saved = state;
+			if (mode != 0) {
+				frame_supersight_reset();
+				frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+				assert(supersight_attempt_hint == 0);
+			} else {
+				frame_draw_classic(&tiles, &camera, cars, 0, 0, 0);
+			}
+			assert(queue_resets == 1 && racing_line_batch_count == 1);
+			assert(transform_count == 3 && fixed_queue_cost == 3);
+			assert(polygon_buffer_full == 0 && tiles.first == 0);
+			assert(frame_racing_line_enabled != 0);
+			assert(memcmp(&saved, &state, sizeof(saved)) == 0);
+		}
+	}
+	fixed_queue_capacity = 0;
+	ghost_fixture_active = racing_line_capture_enabled = supersight_enabled = 0;
+	racing_line_segment_count = 0;
+}
+#endif
+
 static void test_racing_line_batches_and_sorting(void)
 {
 	struct FRAME_CAR_RENDER cars[2] = {0};
@@ -2309,29 +2406,36 @@ static void test_racing_line_batches_and_sorting(void)
 	tile.last_east = tile.east;
 	tile.last_south = tile.south;
 	racing_line_segment_count = 1;
-	supersight_enabled = 0;
-	for (legacy_s16 result = -1; result <= 1; result++) {
-		reset_shapes();
-		racing_line_batch_count = 0;
-		racing_line_transform_result = result;
-		transformedshape_counter = 29;
-		for (legacy_s16 index = 0; index < 29; index++) {
-			currenttransshape[index].shapeptr = &game3dshapes[index];
-			transformed_shape_sort_types[index] = 0;
-			transformedshape_indices[index] = index;
-			transformedshape_zarray[index] = index == 0 ? 1000 : 700 - index;
+	for (legacy_s16 mode = 0; mode < 2; mode++) {
+		supersight_enabled = mode;
+		legacy_s16 expected_order = 2;
+#if defined(RESTUNTS_SDL3)
+		if (mode != 0) {
+			expected_order = 1;
 		}
-		assert(frame_draw_sorted_shapes(cars, &tile, &camera, 0) == 0);
-		assert(transformedshape_counter == 29 && transform_count == 30);
-		assert(racing_line_batch_count == 1 && racing_line_batches[0].order == 2);
+#endif
+		for (legacy_s16 result = -1; result <= 1; result++) {
+			reset_shapes();
+			racing_line_batch_count = 0;
+			racing_line_transform_result = result;
+			transformedshape_counter = 29;
+			for (legacy_s16 index = 0; index < 29; index++) {
+				currenttransshape[index].shapeptr = &game3dshapes[index];
+				transformed_shape_sort_types[index] = 0;
+				transformedshape_indices[index] = index;
+				transformedshape_zarray[index] = index == 0 ? 1000 : 700 - index;
+			}
+			assert(frame_draw_sorted_shapes(cars, &tile, &camera, 0) == 0);
+			assert(transformedshape_counter == 29 && transform_count == 30);
+			assert(racing_line_batch_count == 1 && racing_line_batches[0].order == expected_order);
+		}
 	}
+	supersight_enabled = 0;
 	racing_line_capture_enabled = ghost_fixture_active = 0;
 	racing_line_segment_count = 0;
 	racing_line_transform_result = 0;
 	frame_state = &state;
 }
-
-#endif
 
 legacy_int main(void)
 {
@@ -2368,7 +2472,10 @@ legacy_int main(void)
 	test_adaptive_car_submission_near_track_edge();
 	test_adaptive_car_footprint_and_fallback();
 	test_adaptive_detached_particles();
+#endif
 	test_racing_line_batches_and_sorting();
+#if !defined(RESTUNTS_SDL3)
+	test_racing_line_queue_exhaustion();
 #endif
 	puts("Frame rendering snapshots, ghost isolation and SuperSight passed.");
 	return 0;

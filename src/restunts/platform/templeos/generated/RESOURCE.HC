@@ -183,17 +183,35 @@ legacy_u16 RsResourceTextEquals(
   legacy_u32 noreg temple_character_287;
   legacy_u32 *temple_tmp_288;
   legacy_u32 noreg temple_tmp_289;
-  temple_tmp_252=!!((!(resource)));
+  temple_tmp_252=0;
+  if((!(resource))) {
+    temple_tmp_252=1;
+  }
   if(!temple_tmp_252) {
-    temple_tmp_252=!!((!(name)));
+    temple_tmp_252=0;
+    if((!(name))) {
+      temple_tmp_252=1;
+    }
   }
-  temple_tmp_253=!!(temple_tmp_252);
+  temple_tmp_253=0;
+  if(temple_tmp_252) {
+    temple_tmp_253=1;
+  }
   if(!temple_tmp_253) {
-    temple_tmp_253=!!((!(expected)));
+    temple_tmp_253=0;
+    if((!(expected))) {
+      temple_tmp_253=1;
+    }
   }
-  temple_tmp_254=!!(temple_tmp_253);
+  temple_tmp_254=0;
+  if(temple_tmp_253) {
+    temple_tmp_254=1;
+  }
   if(!temple_tmp_254) {
-    temple_tmp_254=!!((length<6));
+    temple_tmp_254=0;
+    if((length<6)) {
+      temple_tmp_254=1;
+    }
   }
   if(temple_tmp_254) {
     return TempleCastU16(0);
@@ -219,9 +237,15 @@ legacy_u16 RsResourceTextEquals(
                           TempleCastU32((TempleCastU32(TempleCastU8((resource+0)[1]))<<8))))|
           TempleCastU32((TempleCastU32(TempleCastU8((resource+0)[2]))<<16))))|
           TempleCastU32((TempleCastU32(TempleCastU8((resource+0)[3]))<<24))))));
-  temple_tmp_260=!!((temple_declared_length_259<6));
+  temple_tmp_260=0;
+  if((temple_declared_length_259<6)) {
+    temple_tmp_260=1;
+  }
   if(!temple_tmp_260) {
-    temple_tmp_260=!!((temple_declared_length_259>length));
+    temple_tmp_260=0;
+    if((temple_declared_length_259>length)) {
+      temple_tmp_260=1;
+    }
   }
   if(temple_tmp_260) {
     return TempleCastU16(0);
@@ -313,9 +337,15 @@ legacy_u16 RsResourceTextEquals(
             TempleCastU32((TempleCastU32(TempleCastU8(((resource+temple_offsets_start_263)+
                               TempleCastU32((temple_index_280*4)))[3]))
                 <<24))))));
-    temple_tmp_282=!!((temple_offset_281>temple_text_start_266));
+    temple_tmp_282=0;
+    if((temple_offset_281>temple_text_start_266)) {
+      temple_tmp_282=1;
+    }
     if(temple_tmp_282) {
-      temple_tmp_282=!!((temple_offset_281<temple_text_end_278));
+      temple_tmp_282=0;
+      if((temple_offset_281<temple_text_end_278)) {
+        temple_tmp_282=1;
+      }
     }
     if(temple_tmp_282) {
       (temple_text_end_278=TempleCastU32(temple_offset_281));
@@ -369,9 +399,15 @@ legacy_s8 *RsLocateResource(legacy_s8 *data,legacy_s8 *name,legacy_u16 fatal)
     if(!((temple_character_293<4))) {
       break;
     }
-    temple_tmp_295=!!((temple_padding_291==0));
+    temple_tmp_295=0;
+    if((temple_padding_291==0)) {
+      temple_tmp_295=1;
+    }
     if(temple_tmp_295) {
-      temple_tmp_295=!!((name[temple_character_293]!=0));
+      temple_tmp_295=0;
+      if((name[temple_character_293]!=0)) {
+        temple_tmp_295=1;
+      }
     }
     if(temple_tmp_295) {
       (temple_padded_name_292[temple_character_293]=TempleCastS8(name[temple_character_293]));
@@ -405,13 +441,25 @@ legacy_s8 *RsLocateResource(legacy_s8 *data,legacy_s8 *name,legacy_u16 fatal)
       *temple_tmp_302=TempleCastU16((temple_tmp_303+1));
       temple_tmp_303;
     }
-    temple_tmp_305=!!((temple_character_293==4));
+    temple_tmp_305=0;
+    if((temple_character_293==4)) {
+      temple_tmp_305=1;
+    }
     if(!temple_tmp_305) {
-      temple_tmp_304=!!((temple_identifier_300[temple_character_293]==0));
-      if(temple_tmp_304) {
-        temple_tmp_304=!!((temple_padded_name_292[temple_character_293]==' '));
+      temple_tmp_304=0;
+      if((temple_identifier_300[temple_character_293]==0)) {
+        temple_tmp_304=1;
       }
-      temple_tmp_305=!!(temple_tmp_304);
+      if(temple_tmp_304) {
+        temple_tmp_304=0;
+        if((temple_padded_name_292[temple_character_293]==' ')) {
+          temple_tmp_304=1;
+        }
+      }
+      temple_tmp_305=0;
+      if(temple_tmp_304) {
+        temple_tmp_305=1;
+      }
     }
     if(temple_tmp_305) {
       return (RsResourceFileData((data)(legacy_u8 *),TempleCastU16(temple_index_299)))(

@@ -1,4 +1,7 @@
 #include "ghost.h"
+#ifndef RESTUNTS_DOS16
+#include <stdlib.h>
+#endif
 #include "opponent.h"
 #include "camera.h"
 #include "externs.h"
@@ -44,6 +47,7 @@ static struct {
 	legacy_u16 upper_frame;
 	legacy_u8 valid;
 } ghost_render_cache;
+#endif
 
 #define GHOST_LINE_TILE_COUNT 900U
 #define GHOST_LINE_GRID_SIZE 30
@@ -70,9 +74,20 @@ struct GHOST_LINE_POSE {
 	legacy_u8 has_orientation;
 };
 
+#ifdef RESTUNTS_DOS16
+/* A route can exceed the entire conventional-memory arena. Keep it in a
+ * separate temporary file, with only tile heads and one iterator piece in RAM. */
+static legacy_u16 ghost_line_file;
+static legacy_s8 ghost_line_temp_name[GHOST_TEMP_NAME_SIZE];
+static struct GHOST_RACING_LINE_SEGMENT ghost_line_cached;
+static legacy_u32 ghost_line_cached_index = GHOST_LINE_NO_SEGMENT;
+static legacy_s16 ghost_seek(legacy_u16 file, legacy_s32 offset);
+static legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind);
+#else
 static struct GHOST_RACING_LINE_SEGMENT *ghost_line_segments;
-static legacy_u32 ghost_line_count;
 static legacy_u32 ghost_line_capacity;
+#endif
+static legacy_u32 ghost_line_count;
 static legacy_u32 ghost_line_heads[GHOST_LINE_TILE_COUNT];
 static struct {
 	struct GHOST_LINE_POSE previous;
@@ -85,10 +100,19 @@ static struct {
 
 static void ghost_line_clear(void)
 {
+#ifdef RESTUNTS_DOS16
+	if (ghost_line_file != 0) {
+		(void)dos_file_close(ghost_line_file);
+		(void)dos_file_remove(ghost_line_temp_name);
+		ghost_line_file = 0;
+	}
+	ghost_line_cached_index = GHOST_LINE_NO_SEGMENT;
+#else
 	free(ghost_line_segments);
 	ghost_line_segments = 0;
-	ghost_line_count = 0;
 	ghost_line_capacity = 0;
+#endif
+	ghost_line_count = 0;
 	ghost_line_builder.initialized = 0;
 	ghost_line_builder.failed = 0;
 	for (legacy_u16 tile = 0; tile < GHOST_LINE_TILE_COUNT; tile++) {
@@ -138,9 +162,10 @@ static struct GHOST_LINE_VECTOR ghost_line_blend(struct GHOST_LINE_VECTOR first,
 												 struct GHOST_LINE_VECTOR second,
 												 legacy_f64 fraction)
 {
-	struct GHOST_LINE_VECTOR result = {first.x + (second.x - first.x) * fraction,
-									   first.y + (second.y - first.y) * fraction,
-									   first.z + (second.z - first.z) * fraction};
+	struct GHOST_LINE_VECTOR result;
+	result.x = first.x + (second.x - first.x) * fraction;
+	result.y = first.y + (second.y - first.y) * fraction;
+	result.z = first.z + (second.z - first.z) * fraction;
 	return result;
 }
 
@@ -157,17 +182,19 @@ static struct GHOST_LINE_POSE ghost_line_pose(const struct CARSTATE *car)
 	pose.right.x = (legacy_f64)wheel[1].x + wheel[2].x - wheel[0].x - wheel[3].x;
 	pose.right.y = (legacy_f64)wheel[1].y + wheel[2].y - wheel[0].y - wheel[3].y;
 	pose.right.z = (legacy_f64)wheel[1].z + wheel[2].z - wheel[0].z - wheel[3].z;
-	struct GHOST_LINE_VECTOR forward = {
-		(legacy_f64)wheel[0].x + wheel[1].x - wheel[2].x - wheel[3].x,
-		(legacy_f64)wheel[0].y + wheel[1].y - wheel[2].y - wheel[3].y,
-		(legacy_f64)wheel[0].z + wheel[1].z - wheel[2].z - wheel[3].z};
+	struct GHOST_LINE_VECTOR forward;
+	forward.x = (legacy_f64)wheel[0].x + wheel[1].x - wheel[2].x - wheel[3].x;
+	forward.y = (legacy_f64)wheel[0].y + wheel[1].y - wheel[2].y - wheel[3].y;
+	forward.z = (legacy_f64)wheel[0].z + wheel[1].z - wheel[2].z - wheel[3].z;
 	pose.up.x = forward.y * pose.right.z - forward.z * pose.right.y;
 	pose.up.y = forward.z * pose.right.x - forward.x * pose.right.z;
 	pose.up.z = forward.x * pose.right.y - forward.y * pose.right.x;
 	pose.has_orientation = ghost_line_normalize(&pose.right) && ghost_line_normalize(&pose.up);
 	if (!pose.has_orientation) {
-		pose.right = (struct GHOST_LINE_VECTOR){1, 0, 0};
-		pose.up = (struct GHOST_LINE_VECTOR){0, 1, 0};
+		pose.right.x = 1;
+		pose.right.y = pose.right.z = 0;
+		pose.up.x = pose.up.z = 0;
+		pose.up.y = 1;
 	}
 	pose.speed = car->car_actual_speed;
 	return pose;
@@ -199,12 +226,13 @@ static legacy_s32 ghost_line_round(legacy_f64 coordinate)
 
 static struct VECTORLONG ghost_line_edge(const struct GHOST_LINE_POSE *pose, legacy_f64 side)
 {
-	struct VECTORLONG result = {ghost_line_round(pose->center.x + pose->right.x * side +
-												 pose->up.x * GHOST_LINE_SURFACE_LIFT),
-								ghost_line_round(pose->center.y + pose->right.y * side +
-												 pose->up.y * GHOST_LINE_SURFACE_LIFT),
-								ghost_line_round(pose->center.z + pose->right.z * side +
-												 pose->up.z * GHOST_LINE_SURFACE_LIFT)};
+	struct VECTORLONG result;
+	result.lx = ghost_line_round(pose->center.x + pose->right.x * side +
+								 pose->up.x * GHOST_LINE_SURFACE_LIFT);
+	result.ly = ghost_line_round(pose->center.y + pose->right.y * side +
+								 pose->up.y * GHOST_LINE_SURFACE_LIFT);
+	result.lz = ghost_line_round(pose->center.z + pose->right.z * side +
+								 pose->up.z * GHOST_LINE_SURFACE_LIFT);
 	return result;
 }
 
@@ -216,6 +244,18 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 spee
 		z >= GHOST_LINE_GRID_SIZE * 65536.0 || ghost_line_builder.failed) {
 		return;
 	}
+#ifdef RESTUNTS_DOS16
+	if (ghost_line_count == 0) {
+		ghost_line_file = ghost_create_file(ghost_line_temp_name, 'L');
+	}
+	if (ghost_line_file == 0 || ghost_line_count == GHOST_LINE_MAX_SEGMENTS) {
+		ghost_line_clear();
+		ghost_line_builder.failed = 1;
+		return;
+	}
+	struct GHOST_RACING_LINE_SEGMENT storage;
+	struct GHOST_RACING_LINE_SEGMENT *segment = &storage;
+#else
 	if (ghost_line_count == ghost_line_capacity) {
 		legacy_u32 capacity =
 			ghost_line_capacity == 0 ? GHOST_LINE_INITIAL_CAPACITY : ghost_line_capacity * 2U;
@@ -233,16 +273,24 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 spee
 		ghost_line_segments = segments;
 		ghost_line_capacity = capacity;
 	}
+	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
+#endif
 	legacy_u16 east = (legacy_u16)(x / 65536.0);
 	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U - (legacy_u16)(z / 65536.0);
 	legacy_u16 tile = south * GHOST_LINE_GRID_SIZE + east;
-	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
 	segment->start_left = ghost_line_edge(&ghost_line_builder.sample, -GHOST_LINE_HALF_WIDTH);
 	segment->start_right = ghost_line_edge(&ghost_line_builder.sample, GHOST_LINE_HALF_WIDTH);
 	segment->end_left = ghost_line_edge(end, -GHOST_LINE_HALF_WIDTH);
 	segment->end_right = ghost_line_edge(end, GHOST_LINE_HALF_WIDTH);
 	segment->speed = (legacy_u16)(speed + 0.5);
 	segment->next = ghost_line_heads[tile];
+#ifdef RESTUNTS_DOS16
+	if (dos_file_write(ghost_line_file, segment, sizeof(*segment)) != sizeof(*segment)) {
+		ghost_line_clear();
+		ghost_line_builder.failed = 1;
+		return;
+	}
+#endif
 	ghost_line_heads[tile] = ghost_line_count++;
 }
 
@@ -271,9 +319,10 @@ static void ghost_line_record(const struct CARSTATE *car)
 		return;
 	}
 	struct GHOST_LINE_POSE *previous = &ghost_line_builder.previous;
-	struct GHOST_LINE_VECTOR delta = {current.center.x - previous->center.x,
-									  current.center.y - previous->center.y,
-									  current.center.z - previous->center.z};
+	struct GHOST_LINE_VECTOR delta;
+	delta.x = current.center.x - previous->center.x;
+	delta.y = current.center.y - previous->center.y;
+	delta.z = current.center.z - previous->center.z;
 	legacy_f64 length = ghost_line_length(delta);
 	/* Initialized wheel contacts can coincide until the first physics tick.
 	 * Adopt their real orientation even if that tick does not move the car. */
@@ -316,6 +365,28 @@ static void ghost_line_record(const struct CARSTATE *car)
 	ghost_line_builder.previous = current;
 }
 
+static const struct GHOST_RACING_LINE_SEGMENT *ghost_line_at(legacy_u32 index)
+{
+	if (index >= ghost_line_count) {
+		return 0;
+	}
+#ifdef RESTUNTS_DOS16
+	if (ghost_line_cached_index != index) {
+		if (!ghost_seek(ghost_line_file, (legacy_s32)(index * sizeof(ghost_line_cached))) ||
+			dos_file_read(ghost_line_file, &ghost_line_cached, sizeof(ghost_line_cached)) !=
+				sizeof(ghost_line_cached)) {
+			ghost_line_clear();
+			ghost_line_builder.failed = 1;
+			return 0;
+		}
+		ghost_line_cached_index = index;
+	}
+	return &ghost_line_cached;
+#else
+	return &ghost_line_segments[index];
+#endif
+}
+
 const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south)
 {
 	if (!ghost_is_active() || east < 0 || south < 0 || east >= GHOST_LINE_GRID_SIZE ||
@@ -323,7 +394,7 @@ const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east,
 		return 0;
 	}
 	legacy_u32 index = ghost_line_heads[south * GHOST_LINE_GRID_SIZE + east];
-	return index == GHOST_LINE_NO_SEGMENT ? 0 : &ghost_line_segments[index];
+	return ghost_line_at(index);
 }
 
 const struct GHOST_RACING_LINE_SEGMENT *
@@ -332,7 +403,7 @@ ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment)
 	if (!ghost_is_active() || segment == 0 || segment->next >= ghost_line_count) {
 		return 0;
 	}
-	return &ghost_line_segments[segment->next];
+	return ghost_line_at(segment->next);
 }
 
 legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed)
@@ -346,7 +417,6 @@ legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_
 	}
 	return GHOST_RACING_LINE_YELLOW;
 }
-#endif
 
 static legacy_s16 ghost_seek(legacy_u16 file, legacy_s32 offset)
 {
@@ -364,8 +434,8 @@ void ghost_end_race(void)
 	ghost_pose_valid = 0;
 #ifdef RESTUNTS_SDL3
 	ghost_render_cache.valid = 0;
-	ghost_line_clear();
 #endif
+	ghost_line_clear();
 }
 
 void ghost_clear(void)
@@ -446,11 +516,12 @@ const legacy_s8 *ghost_car_id(void)
 
 /* The DOS create API truncates existing files, so only use an unused private
  * name. No persistent arena allocation may pin the opponent menu's resources. */
-static legacy_u16 ghost_create_file(legacy_s8 *name)
+static legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind)
 {
 	for (legacy_u32 candidate = 0; candidate < GHOST_TEMP_NAME_CANDIDATE_COUNT; candidate++) {
 		legacy_u32 digits = candidate;
 		strcpy(name, "GH000000.TMP");
+		name[1] = kind;
 		for (legacy_u16 index = 0; index < GHOST_TEMP_NAME_DIGITS; index++) {
 			name[GHOST_TEMP_NAME_DIGIT_OFFSET + GHOST_TEMP_NAME_DIGITS - 1U - index] =
 				(legacy_s8)('0' + digits % 10UL);
@@ -531,7 +602,7 @@ legacy_s16 ghost_select_replay(const legacy_s8 *directory, const legacy_s8 *name
 	}
 	config.game_trackname[REPLAY_TRACK_NAME_SIZE - 1U] = 0;
 	legacy_s8 temp_name[GHOST_TEMP_NAME_SIZE];
-	legacy_u16 destination = ghost_create_file(temp_name);
+	legacy_u16 destination = ghost_create_file(temp_name, 'H');
 	if (destination == 0) {
 		(void)dos_file_close(source);
 		return 1;
@@ -664,9 +735,7 @@ legacy_s16 ghost_prepare_race(void)
 			update_gamestate_silent();
 		}
 		ghost_pose.car = state.playerstate;
-#ifdef RESTUNTS_SDL3
 		ghost_line_record(&state.playerstate);
-#endif
 		ghost_pose.camera.follow_position = state.game_follow_camera_position[PLAYER_CAR_INDEX];
 		ghost_pose.camera.previous_position = state.game_player_camera_previous;
 		ghost_pose.camera.trackside_index = state.game_trackside_camera_index[PLAYER_CAR_INDEX];
@@ -698,14 +767,10 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_render_player_headings_active = saved_render_headings;
 	init_kevinrandom(seed);
 	if (!succeeded) {
-#ifdef RESTUNTS_SDL3
 		ghost_line_clear();
-#endif
 		return 1;
 	}
-#ifdef RESTUNTS_SDL3
 	ghost_line_finish();
-#endif
 	ghost_active = 1;
 	ghost_update(0, framespersec);
 	return ghost_pose_valid ? 0 : 1;

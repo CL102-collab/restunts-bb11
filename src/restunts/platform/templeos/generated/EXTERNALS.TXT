@@ -79,6 +79,7 @@ legacy_s16 RsDosWriteStderr(legacy_s8 *text, legacy_u16 length);
 legacy_s16 RsDosWriteStdout(legacy_s8 *text, legacy_u16 length);
 legacy_void RsFlushStdin();
 legacy_int RsFputs(legacy_char *str, legacy_u8 *stream);
+legacy_void RsFree(legacy_u8 *ptr);
 legacy_s16 RsKbCallReadcharCallback();
 legacy_s16 RsKbCheck();
 legacy_s16 RsKbChecking();
@@ -92,6 +93,7 @@ legacy_void RsPreRenderLine(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 e
 legacy_void RsPreRenderPatterned(legacy_u16 pattern, legacy_u16 color, legacy_u16 vertex_count, CPoint2D *vertices);
 legacy_void RsPreRenderSphere(legacy_s16 x, legacy_s16 y, legacy_u16 size, legacy_u16 color);
 legacy_void RsPreRenderTwoColor(legacy_u16 pattern, legacy_u16 color, legacy_u16 alternate_color, legacy_u16 vertex_count, CPoint2D *vertices);
+legacy_u8 * RsRealloc(legacy_u8 *ptr, legacy_u64 size);
 legacy_void RsShape2dSelectEgaPalette(legacy_u8 *resource, legacy_u8 index);
 legacy_u32 RsTimerGetCounter();
 legacy_u32 RsTimerGetDelta();
