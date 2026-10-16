@@ -104,7 +104,8 @@
         <canvas id="canvas" width="960" height="720" tabindex="0" aria-label="Restunts game"></canvas>
         <p>Click the game to focus the keyboard. Use the arrow keys to drive and Esc to return to menus.
             Enable <strong>Show Control Layout</strong> before starting to play with the Android touch controls.
-            For phones, use fullscreen landscape mode to place the controls in the black side areas.
+            Fullscreen requests landscape orientation and locks it where your browser supports it,
+            placing phone controls in the black side areas.
             Your browser may reserve some function keys. Press <strong>Alt+Enter</strong> or click Fullscreen for a larger view.</p>
         <p id="save-mode"></p>
         <div id="save-controls" hidden>
@@ -461,6 +462,51 @@
             event.preventDefault();
             fail('The graphics context was lost. Export saves and reload this page.');
         });
+
+        let fullscreenOrientation = null;
+        let fullscreenOrientationRequest = 0;
+
+        function unlockFullscreenOrientation(orientation) {
+            try {
+                if (typeof orientation.unlock === 'function') orientation.unlock();
+            } catch (error) {
+                log('Cannot release fullscreen orientation: ' + error.message);
+            }
+        }
+
+        // SDL's Fullscreen button and Alt+Enter both fullscreen this canvas.
+        // Mobile browsers require fullscreen to be active before locking orientation.
+        document.addEventListener('fullscreenchange', async () => {
+            const request = ++fullscreenOrientationRequest;
+            if (document.fullscreenElement !== canvas) {
+                if (fullscreenOrientation) {
+                    const orientation = fullscreenOrientation;
+                    fullscreenOrientation = null;
+                    unlockFullscreenOrientation(orientation);
+                }
+                return;
+            }
+            const orientation = window.screen && window.screen.orientation;
+            if (!orientation || typeof orientation.lock !== 'function') {
+                log('Landscape orientation lock is unavailable in this browser.');
+                return;
+            }
+            fullscreenOrientation = orientation;
+            try {
+                await orientation.lock('landscape');
+                // A browser may finish locking after the player has already left.
+                if (document.fullscreenElement !== canvas) {
+                    if (fullscreenOrientation === orientation) fullscreenOrientation = null;
+                    unlockFullscreenOrientation(orientation);
+                }
+            } catch (error) {
+                if (request === fullscreenOrientationRequest) {
+                    fullscreenOrientation = null;
+                    log('Cannot lock fullscreen to landscape: ' + error.message);
+                }
+            }
+        });
+
         fullscreen.addEventListener('click', async () => {
             try {
                 Module.requestFullscreen(false, true);

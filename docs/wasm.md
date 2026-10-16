@@ -129,7 +129,12 @@ Browser support for directory writes is described in
 and [MDN's directory picker reference](https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker).
 Both paths work offline. Browser settings and policies may restrict folder
 access. Audio needs a user gesture; browser shortcuts can take precedence over
-some function keys. Use the page's **Fullscreen** button for fullscreen mode.
+some function keys. Use the page's **Fullscreen** button or **Alt+Enter** for
+fullscreen mode. Entering fullscreen requests landscape orientation even when
+the phone is held upright, and keeps it in landscape as the device rotates.
+The orientation lock is released when fullscreen ends. This requires browser
+support for the Screen Orientation lock API; if it is unavailable or refused,
+fullscreen still works with the browser's normal orientation behavior.
 With the canvas focused, **F12** toggles HyperVision Auto and **Shift+F12** cycles
 fixed **Full → High → Medium → Low** presets. **F11** or **Shift+F11** toggles
 the FPS and render-time display on or off. Use Shift+F11 to avoid the browser
