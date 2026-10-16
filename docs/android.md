@@ -267,27 +267,29 @@ or package archives.
 
 PR validation and Release both call the shared package workflow. Its Android
 matrix builds `android-armv7` and `android-arm64` independently and uploads
-`packages-android-armv7` and `packages-android-arm64`. Each artifact contains
-`restunts-android-<cpu>.zip` and its SHA-256 sidecar. The ZIP includes the
-installable `bin/restunts.apk`, these instructions, dependency licenses, and
+`packages-android-armv7` and `packages-android-arm64`. Both jobs build and verify
+the game and the Android ghost generator for their selected ABI. Each artifact
+contains `restunts-android-<cpu>.zip` and its SHA-256 sidecar. The ZIP includes the
+installable `bin/restunts.apk` and `bin/genghost.apk`, these instructions,
+[generator instructions](genghost-android.md), dependency licenses, and
 the exact Nuked OPL2 library sources/build settings. Release verifies and
 attests both archives with the other platform packages before publishing.
 Original Stunts data is never downloaded by the Android build or bundled.
 
 Each job tests the folder/ZIP importer, version validation, launcher options and
-complete-folder synchronization, checks the APK signature and 16 KB alignment,
+complete-folder synchronization, checks both APKs' signatures and 16 KB alignment,
 verifies each target's minimum SDK (21 for both ARMv7 and ARM64) and common target
-SDK, and checks that all native libraries match the selected ABI. Package
+SDK, and checks that all native binaries match the selected ABI. Package
 verification also checks required enhancement assets/licenses and rejects embedded
 original game resources. CI builds do
 not replace installation, performance, audio, controller, or lifecycle testing
-on a real Galaxy S5, phone, or TV. Both APKs include a classic launcher
+on a real Galaxy S5, phone, or TV. Both game APKs include a classic launcher
 icon for Android 5-7 and a JAR/v1 signature for pre-Android 7 installation;
 newer systems can use their adaptive icons and newer signature schemes.
 
-The manually dispatched Release workflow builds both APKs as non-debuggable
-release variants using the project's persistent release signing key. Configure
-GitHub Actions secrets `ANDROID_KEYSTORE_BASE64` (the base64-encoded keystore),
+The manually dispatched Release workflow builds both apps for both ABIs as
+non-debuggable release variants using the project's persistent release signing key.
+Configure GitHub Actions secrets `ANDROID_KEYSTORE_BASE64` (the base64-encoded keystore),
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`.
 Release forwards only these signing secrets to the shared package workflow.
 PR validation and local builds use debug variants by default and need no release

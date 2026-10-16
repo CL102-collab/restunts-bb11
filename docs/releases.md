@@ -29,11 +29,14 @@ and a SHA-256 sidecar for each archive:
 | `restunts-macos-universal.tar.gz` | Intel and Apple Silicon, macOS 11.0+ |
 | `restunts-browser.zip` | Offline HTML/WebAssembly |
 
-Android targets build separate installable APKs, verify signatures, SDK levels,
-ABI-specific libraries and assets, and test folder/ZIP import. The APKs use CI
-debug signing keys; updates from a different key require uninstalling the old
-app, removing app data. See [Android builds and controls](android.md) for import,
-TV setup, development signing and device testing.
+Each Android target builds both the game and Genghost as separate installable
+APKs for its ABI. CI verifies both apps' signatures, SDK levels, native files and
+assets, and tests folder/ZIP import. PR packages use debug signing keys; trusted
+Release dispatches sign both apps with the configured persistent release key.
+Updates require the same signing key for each app. A different key may require
+uninstalling the old app and removing its private data. See
+[Android builds and controls](android.md) and [Genghost for Android](genghost-android.md)
+for setup, signing and device testing.
 
 These are build baselines, not a claim that CI exercises every OS version and
 CPU. The full golden replay suites run on native Linux SDL3 and/or 16-bit DOS,
@@ -62,9 +65,11 @@ licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
 source and the object/archive files needed to rebuild the HTML with a modified
 library. Only the HTML is needed to play; distribute the complete archive.
 
-Android ZIPs contain `bin/restunts.apk`, Android setup instructions, dependency
-notices/licenses, and the exact Nuked sources/build settings. Enhancement
-assets are inside the APK; original game data must be imported at launch.
+Each Android ZIP contains `bin/restunts.apk` for the game and `bin/genghost.apk`
+for the ghost generator, both matching the archive's ARMv7 or ARM64 ABI. It also
+includes both apps' setup guides, dependency notices/licenses, and the exact
+Nuked sources/build settings. Enhancement assets are inside the game APK;
+select your original game folder separately in each app.
 
 DOS uses hardware AdLib/OPL and includes neither Nuked binaries nor its sources.
 DOS32 includes `bin/CWSDPMI.EXE` and the accompanying CWSDPMI redistribution

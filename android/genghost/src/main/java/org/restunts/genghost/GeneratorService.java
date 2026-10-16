@@ -632,7 +632,7 @@ public final class GeneratorService extends Service {
             File track = request.validate(game);
             File executable = new File(getApplicationInfo().nativeLibraryDir, "libgenghost_exec.so");
             if (!executable.isFile() || !executable.canExecute()) {
-                throw new IOException("The packaged ARMv7 generator is unavailable.");
+                throw new IOException("The packaged generator is unavailable.");
             }
             String outputName = uniqueOutputName(game);
             File output = new File(game, outputName);

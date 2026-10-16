@@ -4,6 +4,11 @@ plugins {
 
 def toolchain = new Properties()
 rootProject.file('toolchain.properties').withInputStream { toolchain.load(it) }
+def releaseSigning = ['ANDROID_KEYSTORE_FILE', 'ANDROID_KEYSTORE_PASSWORD',
+    'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD'].collectEntries { name ->
+    [(name): providers.environmentVariable(name).orNull]
+}
+def releaseSigningConfigured = releaseSigning.values().every { it != null && !it.isEmpty() }
 def sharedJava = file('../app/src/main/java')
 def storageSources = layout.buildDirectory.dir('generated/storage-java')
 def prepareStorage = tasks.register('prepareGenghostStorageJava', Sync) {
@@ -26,11 +31,9 @@ android {
 
     defaultConfig {
         applicationId 'org.restunts.genghost'
-        minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
         targetSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
         versionCode 8
         versionName '1.0.7'
-        ndk { abiFilters 'armeabi-v7a' }
         externalNativeBuild {
             cmake {
                 arguments '-DRESTUNTS_GENGHOST_ONLY=ON', '-DRESTUNTS_BUILD_TESTS=OFF',
@@ -38,6 +41,20 @@ android {
                     "-DFETCHCONTENT_SOURCE_DIR_SDL3=${file('../../out/android-deps/sdl').absolutePath}"
                 targets 'genghost'
             }
+        }
+    }
+
+    flavorDimensions 'cpu'
+    productFlavors {
+        armv7 {
+            dimension 'cpu'
+            minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARMV7_MIN_SDK'))
+            ndk { abiFilters 'armeabi-v7a' }
+        }
+        arm64 {
+            dimension 'cpu'
+            minSdk Integer.parseInt(toolchain.getProperty('ANDROID_ARM64_MIN_SDK'))
+            ndk { abiFilters 'arm64-v8a' }
         }
     }
 
@@ -59,17 +76,32 @@ android {
             version toolchain.getProperty('ANDROID_CMAKE')
         }
     }
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            release {
+                storeFile file(releaseSigning['ANDROID_KEYSTORE_FILE'])
+                storePassword releaseSigning['ANDROID_KEYSTORE_PASSWORD']
+                keyAlias releaseSigning['ANDROID_KEY_ALIAS']
+                keyPassword releaseSigning['ANDROID_KEY_PASSWORD']
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
     buildTypes {
         debug {
             debuggable true
             jniDebuggable true
-            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Debug',
-                "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${layout.buildDirectory.get().asFile}/native-executable/debug/armeabi-v7a"
+            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Debug'
         }
         release {
+            debuggable false
+            jniDebuggable false
             minifyEnabled false
-            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Release',
-                "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${layout.buildDirectory.get().asFile}/native-executable/release/armeabi-v7a"
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+            externalNativeBuild.cmake.arguments '-DCMAKE_BUILD_TYPE=Release'
         }
     }
     // AGP recognizes the lib*.so executable in its CMake model. Its parent directory must be

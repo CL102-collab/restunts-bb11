@@ -230,8 +230,11 @@ function(restunts_add_genghost)
     if(ANDROID)
         # Android permits execution from an APK's extracted native-library directory.
         # This is still a PIE executable, named as a library solely for APK packaging.
+        # AGP uses the executable's parent directory to identify its ABI.
+        # Keep each ABI and variant in its own CMake build tree.
         set_target_properties(genghost PROPERTIES PREFIX "lib" OUTPUT_NAME genghost_exec
-            SUFFIX ".so")
+            SUFFIX ".so"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/genghost-bin/${ANDROID_ABI}")
     endif()
     install(TARGETS genghost RUNTIME DESTINATION bin COMPONENT Runtime)
     install(FILES docs/genghost.md docs/genghost-state-planner.md

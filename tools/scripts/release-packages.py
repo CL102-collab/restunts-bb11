@@ -63,6 +63,7 @@ ANDROID_VERSIONS = {21: "5.0", 28: "9"}
 ANDROID_ADAPTIVE_ICON_API = 26
 ANDROID_FALLBACK_ICON = "res/mipmap-anydpi-v21/ic_launcher.xml"
 ANDROID_APK = "bin/restunts.apk"
+ANDROID_GENGHOST_APK = "bin/genghost.apk"
 ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so")
 ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LICENSE.txt",
                     "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt")
@@ -75,6 +76,11 @@ ANDROID_RESOURCES = {"res/drawable/ic_launcher_foreground.xml", "res/drawable/tv
 ANDROID_METADATA = {"AndroidManifest.xml", "resources.arsc", "META-INF/MANIFEST.MF",
                     "META-INF/com/android/build/gradle/app-metadata.properties",
                     "META-INF/version-control-info.textproto"}
+ANDROID_GENGHOST_ASSETS = {"assets/genghost.md", "assets/genghost-android.md",
+                           "assets/licenses/SDL-LICENSE.txt",
+                           "assets/licenses/Android-NDK-NOTICE.txt",
+                           "assets/licenses/Android-NDK-NOTICE.toolchain.txt"}
+ANDROID_GENGHOST_RESOURCES = {"res/drawable/ic_genghost.xml"}
 ELF_MAGIC = b"\x7fELF"
 ELF_CLASS_32 = 1
 ELF_CLASS_64 = 2
@@ -202,6 +208,31 @@ def validate_elf(target, name, content, elf_class, machine):
             f"Wrong ELF architecture for {target}: {name}")
 
 
+def validate_android_pie(target, name, content):
+    elf_class, machine = ELF_ARCHITECTURES[target.split("-")[1]]
+    validate_elf(target, name, content, elf_class, machine)
+    word = "<I" if elf_class == ELF_CLASS_32 else "<Q"
+    entry = struct.unpack_from(word, content, 24)[0]
+    phoff = struct.unpack_from(word, content, 28 if elf_class == ELF_CLASS_32 else 32)[0]
+    phsize, phcount = struct.unpack_from("<HH", content, 42 if elf_class == ELF_CLASS_32 else 54)
+    require(struct.unpack_from("<H", content, ELF_TYPE_OFFSET)[0] == ELF_TYPE_SHARED and entry,
+            f"Expected an Android ELF PIE executable: {name}")
+    require(phsize == (32 if elf_class == ELF_CLASS_32 else 56) and phcount and
+            phoff >= ELF_HEADER_SIZES[elf_class] and phoff + phsize * phcount <= len(content),
+            f"Missing or truncated ELF program headers: {name}")
+    interpreters = []
+    for index in range(phcount):
+        header = phoff + phsize * index
+        kind = struct.unpack_from("<I", content, header)[0]
+        offset = struct.unpack_from(word, content, header + (4 if elf_class == ELF_CLASS_32 else 8))[0]
+        size = struct.unpack_from(word, content, header + (16 if elf_class == ELF_CLASS_32 else 32))[0]
+        require(offset + size <= len(content), f"Truncated ELF program segment: {name}")
+        if kind == 3:  # PT_INTERP identifies a dynamically linked executable.
+            interpreters.append(content[offset:offset + size])
+    interpreter = b"/system/bin/linker\0" if elf_class == ELF_CLASS_32 else b"/system/bin/linker64\0"
+    require(interpreters == [interpreter], f"Wrong or missing Android ELF PIE interpreter: {name}")
+
+
 def validate_android_apk(target, content):
     abi = ANDROID_TARGETS[target]
     native = {f"lib/{abi}/{name}" for name in ANDROID_LIBRARIES}
@@ -244,13 +275,48 @@ def validate_android_apk(target, content):
                 f"Expected an Android ELF shared library: {name}")
 
 
+def validate_android_genghost_apk(target, content):
+    abi = ANDROID_TARGETS[target]
+    native = f"lib/{abi}/libgenghost_exec.so"
+    required = {"AndroidManifest.xml", "classes.dex", "resources.arsc", native}
+    required |= ANDROID_GENGHOST_ASSETS | ANDROID_GENGHOST_RESOURCES
+    files = {}
+    names = set()
+    with zipfile.ZipFile(io.BytesIO(content)) as apk:
+        for entry in apk.infolist():
+            name = entry.filename
+            checked_path(name[:-1] if entry.is_dir() else name)
+            require(name not in names, f"Duplicate APK member: {name}")
+            names.add(name)
+            mode = entry.external_attr >> 16
+            require(not stat.S_IFMT(mode) or stat.S_ISREG(mode) or
+                    (entry.is_dir() and stat.S_ISDIR(mode)), f"Unsupported APK member: {name}")
+            require(not entry.flag_bits & 1, f"Encrypted APK member: {name}")
+            if entry.is_dir():
+                continue
+            if name.startswith("lib/"):
+                require(name == native, f"Unexpected Android ABI or native library for {target}: {name}")
+            elif name.startswith("assets/"):
+                require(name in ANDROID_GENGHOST_ASSETS, f"Unexpected APK asset: {name}")
+            else:
+                require(name in ANDROID_METADATA or name in ANDROID_GENGHOST_RESOURCES or
+                        ANDROID_DEX_PATTERN.fullmatch(name) or
+                        ANDROID_SIGNATURE_PATTERN.fullmatch(name), f"Unexpected APK member: {name}")
+            files[name] = apk.read(entry)
+            require(files[name], f"Empty APK member: {name}")
+    missing = required - files.keys()
+    require(not missing, f"{target}: missing generator APK members: {', '.join(sorted(missing))}")
+    validate_android_pie(target, native, files[native])
+
+
 def required_files(target):
     required = {README} | optional_music_files(target)
     if target != "dos16":
         required.add("THIRD-PARTY-NOTICES.txt")
         required |= {f"share/licenses/restunts/{name}" for name in SDL_DECODER_LICENSES}
     if target in ANDROID_TARGETS:
-        required |= {ANDROID_APK, "share/docs/restunts/android.md",
+        required |= {ANDROID_APK, ANDROID_GENGHOST_APK, "share/docs/restunts/android.md",
+                     "share/docs/restunts/genghost.md", "share/docs/restunts/genghost-android.md",
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE"}
         return required | nuked_source_files()
@@ -333,6 +399,7 @@ def validate_contents(target, files, modes):
             validate_elf(target, name, files[name], elf_class, machine)
     if target in ANDROID_TARGETS:
         validate_android_apk(target, files[ANDROID_APK])
+        validate_android_genghost_apk(target, files[ANDROID_GENGHOST_APK])
 
 
 def readme(target, commit):
@@ -342,14 +409,17 @@ def readme(target, commit):
     if target in ANDROID_TARGETS:
         minimum = android_minimum_sdk(target)
         version = ANDROID_VERSIONS[minimum]
-        lines += [f"Requires Android {version} (API {minimum}) or newer; runs in landscape only.",
-                  f"This APK contains only {ANDROID_TARGETS[target]} native libraries.",
+        lines += [f"Requires Android {version} (API {minimum}) or newer. The game runs in landscape.",
+                  f"Both APKs contain only {ANDROID_TARGETS[target]} native code.",
                   "Install bin/restunts.apk, then use Choose game folder or Import Stunts ZIP.",
+                  "Install bin/genghost.apk to generate ghosts on the same Android device.",
+                  "See share/docs/restunts/genghost-android.md for generator setup and exports,",
+                  "and share/docs/restunts/genghost.md for search options and driving rules.",
                   "Original resources and custom game files use one selected public folder.",
                   "ZIP import extracts into the exact destination folder you select.",
                   "The app manages its private working cache and copies completed game writes",
                   "back to your selected folder, including tracks, replays and screenshots.",
-                  "Enhanced artwork/music and dependency notices are included in the APK.",
+                  "Enhanced artwork/music are inside the game APK; both APKs include dependency notices.",
                   "Release workflow APKs use the project's persistent release signing key.",
                   "PR/local debug APKs use debug keys, which may differ between builds.",
                   "Android updates require the same signing key. A different key may require",

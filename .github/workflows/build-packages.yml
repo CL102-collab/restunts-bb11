@@ -35,7 +35,7 @@ on:
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
   android:
-    name: Package ${{ matrix.target }} (Android 5+)
+    name: Package game and generator ${{ matrix.target }} (Android 5+)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     strategy:
@@ -62,7 +62,7 @@ jobs:
       - name: Install the pinned Android SDK, NDK and CMake
         run: bash tools/scripts/install-android-package-dependencies.sh
 
-      - name: Test Android imports and package validation
+      - name: Test Android imports, build helpers and package validation
         run: |
           "$JAVA_HOME/bin/javac" -d "$RUNNER_TEMP/android-import-tests" \
             android/app/src/main/java/org/restunts/android/GameDataImport.java \
@@ -83,15 +83,16 @@ jobs:
             org.restunts.android.GameDataSyncTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.LocalGameFolderTest
+          python3 -m unittest discover -s tools/scripts/tests -p 'test_android_build_helpers.py'
           python3 tools/scripts/test-release-packages.py
 
-      - name: Build and verify the ABI-specific debug APK and runtime archive
+      - name: Build and verify both ABI-specific debug APKs and runtime archive
         if: ${{ !inputs.android-release }}
         env:
           PACKAGE_TARGET: ${{ matrix.target }}
         run: bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
 
-      - name: Build and verify the signed ABI-specific release APK and runtime archive
+      - name: Build and verify both signed ABI-specific release APKs and runtime archive
         if: inputs.android-release && github.event_name == 'workflow_dispatch'
         env:
           PACKAGE_TARGET: ${{ matrix.target }}

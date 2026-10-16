@@ -1,14 +1,17 @@
 # Genghost for Android
 
-The ARMv7 debug APK installs **Genghost**, an interface for the same headless
-offline optimizer as the desktop tool. It supports Android 5.0 (API 21) or
-later on devices that can run 32-bit ARM apps. Devices that support only
-64-bit apps cannot install this build. No game renderer or original game
-resources are included, and the app does not request Internet access.
+The Android APKs install **Genghost**, an interface for the same headless
+offline optimizer as the desktop tool. Choose **android-armv7** for 32-bit ARM
+(`armeabi-v7a`), including the Galaxy S5, or **android-arm64** for 64-bit ARM
+(`arm64-v8a`), including devices that support only 64-bit apps. Both require
+Android 5.0 (API 21) or later. Each APK contains only its selected architecture.
+No game renderer or original game resources are included, and the app does not
+request Internet access.
 
 ## Generate a ghost
 
-1. Install `genghost-android-armv7-debug.apk` and open **Genghost**.
+1. Install the Genghost APK matching your Android ARM architecture and open
+   **Genghost**.
 2. Choose a folder containing your original game resources, car resources,
    and `.TRK` or `.RPL` files. Grant the requested folder access. The app
    stages the files in private storage for the native engine.
@@ -78,19 +81,47 @@ Install Java 17, Python 3, and the Android SDK components pinned in
 `android/toolchain.properties`. Set `JAVA_HOME` and `ANDROID_HOME`, then run:
 
 ```sh
-tools/scripts/build-genghost-android.sh --no-daemon
+tools/scripts/build-genghost-android.sh android-armv7 --no-daemon
+tools/scripts/build-genghost-android.sh android-arm64 --no-daemon
 ```
 
-The APK is `android/genghost/build/outputs/apk/debug/genghost-debug.apk`.
+Omit the target (or use `all`) to build both debug APKs. The outputs are:
+
+- `android/genghost/build/outputs/apk/armv7/debug/genghost-armv7-debug.apk`
+- `android/genghost/build/outputs/apk/arm64/debug/genghost-arm64-debug.apk`
+
 Use `-PrestuntsAndroidBuildRoot=/absolute/build/path` to place build output
-elsewhere; the APK is then under `genghost/build/outputs/apk/debug/` there.
-The build downloads the pinned, checksum-verified SDL source and its Gradle
-wrapper. Gradle resolves its pinned Android plugin through the configured
-repositories. A local Android debug key signs the APK.
+elsewhere; the APKs are then under `genghost/build/outputs/apk/<flavor>/debug/`
+there. The build downloads the pinned, checksum-verified SDL source and its
+Gradle wrapper. Gradle resolves its pinned Android plugin through the configured
+repositories. A local Android debug key signs debug APKs.
+
+For signed release builds, set `ANDROID_KEYSTORE_FILE`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` to the same persistent release key
+used for Chocolate Stunts. Then run:
+
+```sh
+tools/scripts/build-genghost-android.sh all --release
+```
+
+The helper requires every signing setting and a readable keystore before building.
+It produces non-debuggable, signed APKs under `outputs/apk/<flavor>/release/`,
+named `genghost-<flavor>-release.apk`; it does not fall back to a debug or unsigned
+build. `RESTUNTS_ANDROID_BUILD_TYPE=release` selects the same release mode.
+Keep using the same signing key to install updates without removing app data.
+
+The shared PR/release Android CI matrix builds both Chocolate Stunts and Genghost
+for **android-armv7** and **android-arm64**. Each ABI's `restunts-android-<cpu>.zip`
+contains `bin/restunts.apk` and `bin/genghost.apk`. PR validation builds debug APKs;
+the trusted Release workflow signs both apps with the configured release key.
+Package checks verify signatures, SDK levels, native ABI, dependency notices and
+exclusion of original game resources for both APKs.
 
 The CMake option `RESTUNTS_GENGHOST_ONLY=ON` builds the generator independently
-of the game. Android packages it as `lib/armeabi-v7a/libgenghost_exec.so`, a
-32-bit ARM PIE executable with statically linked SDL and C++ runtime. It is
-extracted to Android's native library directory and run as a separate child
-process. Each search gets fresh simulator globals. The Activity and foreground
-service use Java, with no SDL Activity, JNI simulation bridge, or rendering.
+of the game. Android packages its native worker as
+`lib/<abi>/libgenghost_exec.so`, a PIE executable with statically linked SDL and
+C++ runtime. CMake keeps its output in a separate directory for each ABI and
+variant so Gradle includes exactly the matching worker. It is extracted to
+Android's native library directory and run as a separate child process. Each
+search gets fresh simulator globals. The Activity and foreground service use
+Java, with no SDL Activity, JNI simulation bridge, or rendering.
