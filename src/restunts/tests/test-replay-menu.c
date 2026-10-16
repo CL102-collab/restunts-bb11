@@ -30,13 +30,13 @@ static legacy_u32 ghost_end_calls;
 static legacy_s16 opponent_view_disabled;
 static legacy_u8 supersight_reset_pending;
 static legacy_u32 input_polls, input_exit_poll, fps_expire_poll, fps_expiry_checks;
+legacy_s16 input_combined_flags;
 #ifdef RESTUNTS_SDL3
 #define TEST_SEEK_CHECKPOINT_INTERVAL 60U
 #define TEST_SEEK_RECORDING_FRAMES 1000U
 #define TEST_SEEK_START_FRAME 501U
 static legacy_u8 controller_menu_request, controller_scrub_testing;
 static legacy_u16 controller_scrub_polls;
-legacy_s16 input_combined_flags;
 static struct RECTANGLE controller_scrub_text_bounds;
 
 void copy_string(legacy_s8 *destination, legacy_s8 far *source)
