@@ -220,6 +220,12 @@ Cd("C:/Restunts/PORT");
 Restunts("C:/Restunts/DATA", TRUE);
 ```
 
+To use the original Amiga grass-grip coefficients for stock cars, pass a third
+`TRUE` argument: `Restunts("C:/Restunts/DATA", TRUE, TRUE);`. This is the TempleOS
+equivalent of `/amigagrass`; it defaults to `FALSE` and affects both the player
+and opponent. Custom car IDs retain their own coefficients. Replays do not store
+this option, so use the same setting when replaying a recording.
+
 Install and import once. On later boots, repeat only the launch commands.
 Both CDs may be ejected after import. Tracks, replays, high scores, and
 configuration files remain in the installed `DATA` directory.

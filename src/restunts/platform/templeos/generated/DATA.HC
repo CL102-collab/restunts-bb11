@@ -268,6 +268,11 @@ CRectangle rs_frame_overlay_fps_present_bounds;
 MemSet(&rs_frame_overlay_fps_present_bounds,0,sizeof(rs_frame_overlay_fps_present_bounds));
 legacy_u8 rs_frame_overlay_fps_present_pending=0;
 legacy_s16 rs_physics_grip_left_corner_bias_enabled=0;
+legacy_s8 rs_physics_grip_amiga_grass_car_ids[11][5];
+MemSet(&rs_physics_grip_amiga_grass_car_ids,0,sizeof(rs_physics_grip_amiga_grass_car_ids));
+legacy_s16 rs_physics_grip_amiga_grass_values[11];
+MemSet(&rs_physics_grip_amiga_grass_values,0,sizeof(rs_physics_grip_amiga_grass_values));
+legacy_s16 rs_physics_grip_amiga_grass_enabled=0;
 CVector rs_opponent_legacy_null_track_vectors[256];
 MemSet(&rs_opponent_legacy_null_track_vectors,0,sizeof(rs_opponent_legacy_null_track_vectors));
 CTrkObjInfo rs_opponent_legacy_null_track_info;
@@ -322,7 +327,7 @@ MemSet(&rs_command_line_command_line_revision,0,sizeof(rs_command_line_command_l
 legacy_s8 rs_command_line_command_line_version_suffix[17];
 MemSet(&rs_command_line_command_line_version_suffix,0,
     sizeof(rs_command_line_command_line_version_suffix));
-legacy_s8 rs_command_line_command_line_help[161];
+legacy_s8 rs_command_line_command_line_help[225];
 MemSet(&rs_command_line_command_line_help,0,sizeof(rs_command_line_command_line_help));
 CGameInfo gameconfig;
 MemSet(&gameconfig,0,sizeof(gameconfig));

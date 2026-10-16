@@ -17,9 +17,10 @@
 #include "RUNTIME.HC"
 #include "generated/ALL.HC"
 
-#define TEMPLE_LAUNCH_ARGUMENT_CAPACITY 2
+#define TEMPLE_LAUNCH_ARGUMENT_CAPACITY 3
 
-legacy_s16 Restunts(legacy_u8 *data_directory="C:/DATA",legacy_u8 skip_intro=FALSE)
+legacy_s16 Restunts(
+    legacy_u8 *data_directory="C:/DATA",legacy_u8 skip_intro=FALSE,legacy_u8 amiga_grass=FALSE)
 {
   legacy_u8 *previous_directory=StrNew(Fs->cur_dir);
   legacy_u8 noreg previous_drive=Fs->cur_dv->drv_let;
@@ -34,6 +35,9 @@ legacy_s16 Restunts(legacy_u8 *data_directory="C:/DATA",legacy_u8 skip_intro=FAL
   arguments[0]="RESTUNTS";
   if(skip_intro) {
     arguments[argument_count++]="--nointro";
+  }
+  if(amiga_grass) {
+    arguments[argument_count++]="/amigagrass";
   }
   temple_exit_status=0;
   try {

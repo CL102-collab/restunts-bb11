@@ -399,6 +399,253 @@ static void test_corrected_cornering_symmetry(void)
 	configure_cornering_option(NULL);
 }
 
+static void configure_grass_option(const legacy_s8 *option)
+{
+	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)option};
+	configure_amiga_grass(option != NULL ? 2 : 1, arguments);
+}
+
+static void run_grass_grip(legacy_u8 enabled, const legacy_s8 car_id[4], legacy_s16 behavior)
+{
+	configure_grass_option(enabled != 0 ? (const legacy_s8 *)"/amigagrass" : NULL);
+	apply_amiga_grass(&simd, car_id);
+	run_grip(behavior);
+}
+
+static void test_amiga_grass_options(void)
+{
+	/* No startup configuration has run yet: the optional override starts off. */
+	reset_car();
+	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
+	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 256);
+	static const struct {
+		const legacy_s8 *option;
+		legacy_s16 expected_grass;
+	} cases[] = {{NULL, 256},
+				 {(const legacy_s8 *)"/amigagrass", 30},
+				 {(const legacy_s8 *)"/AMIGAGRASS", 30},
+				 {(const legacy_s8 *)"/AmIgAgRaSs", 30},
+				 {(const legacy_s8 *)"", 256},
+				 {(const legacy_s8 *)"amigagrass", 256},
+				 {(const legacy_s8 *)"--amigagrass", 256},
+				 {(const legacy_s8 *)"-amigagrass", 256},
+				 {(const legacy_s8 *)"/amigagras", 256},
+				 {(const legacy_s8 *)"/amigagrassx", 256},
+				 {(const legacy_s8 *)"/amigagrass ", 256},
+				 {(const legacy_s8 *)" /amigagrass", 256},
+				 {(const legacy_s8 *)"/amigagrass:on", 256},
+				 {(const legacy_s8 *)"/amigagrass:off", 256},
+				 {(const legacy_s8 *)"/amigagrass=1", 256},
+				 {(const legacy_s8 *)"--lc:on", 256}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		configure_grass_option((const legacy_s8 *)"/amigagrass");
+		configure_grass_option(cases[index].option);
+		reset_car();
+		apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
+		assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] ==
+			   cases[index].expected_grass);
+	}
+	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--lc:off",
+							  (legacy_s8 *)"/amigagrass", (legacy_s8 *)"/amigagrass:off"};
+	configure_amiga_grass(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	reset_car();
+	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
+	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 30);
+
+	legacy_s8 *executable_only[] = {(legacy_s8 *)"/amigagrass"};
+	configure_amiga_grass(1, executable_only);
+	reset_car();
+	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
+	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 256);
+	configure_grass_option((const legacy_s8 *)"/amigagrass");
+	configure_amiga_grass(0, NULL);
+	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
+	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 256);
+}
+
+static void test_amiga_grass_profiles(void)
+{
+	/* Numeric resource facts from fixtures/amiga-grass-reference.json. */
+	static const struct {
+		legacy_s8 car_id[4];
+		legacy_s16 amiga_grass;
+	} cases[] = {{"ANSX", 128}, {"AUDI", 200}, {"COUN", 128}, {"FGTO", 128}, {"JAGU", 40},
+				 {"LANC", 210}, {"LM02", 230}, {"P962", 30},  {"PC04", 180}, {"PMIN", 30},
+				 {"VETT", 128}, {"CSIL", 173}, {"DIA3", 173}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		for (legacy_u8 enabled = 0; enabled < 2; enabled++) {
+			for (legacy_u8 lower_case = 0; lower_case < 2; lower_case++) {
+				/* Four bytes intentionally have no terminator, like replay car IDs. */
+				legacy_s8 car_id[4];
+				for (legacy_u16 character = 0; character < sizeof(car_id); character++) {
+					car_id[character] = cases[index].car_id[character];
+					if (lower_case != 0 && car_id[character] >= 'A' && car_id[character] <= 'Z') {
+						car_id[character] += 'a' - 'A';
+					}
+				}
+				memset(&simd, 0xa5, sizeof(simd));
+				simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] = 173;
+				struct SIMD expected = simd;
+				if (enabled != 0) {
+					expected.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] =
+						cases[index].amiga_grass;
+				}
+				configure_grass_option(enabled != 0 ? (const legacy_s8 *)"/amigagrass" : NULL);
+				apply_amiga_grass(&simd, car_id);
+				assert(memcmp(&expected, &simd, sizeof(simd)) == 0);
+			}
+		}
+	}
+	configure_grass_option(NULL);
+}
+
+static void reset_grass_reference_car(void)
+{
+	reset_car();
+	car.car_actual_speed = 20480;
+	car.car_rev_speed = 20480;
+	simd.grip = 600;
+	simd.sliding = 0;
+	simd.surface_grip[CAR_SURFACE_PAVED - CAR_SURFACE_PAVED] = 256;
+	simd.surface_grip[CAR_SURFACE_DIRT - CAR_SURFACE_PAVED] = 192;
+	simd.surface_grip[CAR_SURFACE_ICE - CAR_SURFACE_PAVED] = 64;
+	simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] = 128;
+}
+
+static void test_amiga_grass_non_grass_equivalence(void)
+{
+	static const legacy_s8 surfaces[] = {CAR_WHEEL_CONTACT_NONE, CAR_SURFACE_PAVED,
+										 CAR_SURFACE_DIRT, CAR_SURFACE_ICE, CAR_SURFACE_WATER};
+	static const legacy_s16 behaviors[] = {GRIP_BEHAVIOR_PLAYER, GRIP_BEHAVIOR_OPPONENT};
+	for (legacy_u16 behavior = 0; behavior < sizeof(behaviors) / sizeof(behaviors[0]); behavior++) {
+		for (legacy_u16 combination = 0; combination < 625; combination++) {
+			reset_grass_reference_car();
+			car.car_steeringAngle = combination % 2 != 0 ? 128 : -128;
+			car.car_velocity_heading_offset = 7;
+			car.car_slide_yaw_delta = -5;
+			car.car_slip_angle = 9;
+			car.car_slidingFlag = CAR_SLIDING_ACTIVE;
+			car.car_sound_flags = 1;
+			car.car_sumSurfAllWheels = 0;
+			legacy_u16 remaining = combination;
+			for (legacy_u16 wheel = 0; wheel < 4; wheel++) {
+				car.car_surfaceWhl[wheel] = surfaces[remaining % 5];
+				car.car_sumSurfAllWheels += car.car_surfaceWhl[wheel];
+				remaining /= 5;
+			}
+			memset(&legacy_execution_residue, 0x5a, sizeof(legacy_execution_residue));
+			struct CARSTATE before = car;
+			struct SIMD original_simd = simd;
+			struct LEGACY_EXECUTION_RESIDUE before_residue = legacy_execution_residue;
+			run_grass_grip(0, (const legacy_s8 *)"PMIN", behaviors[behavior]);
+			struct CARSTATE expected = car;
+			struct LEGACY_EXECUTION_RESIDUE expected_residue = legacy_execution_residue;
+			car = before;
+			simd = original_simd;
+			legacy_execution_residue = before_residue;
+			run_grass_grip(1, (const legacy_s8 *)"PMIN", behaviors[behavior]);
+			assert(memcmp(&expected, &car, sizeof(car)) == 0);
+			assert(memcmp(&expected_residue, &legacy_execution_residue, sizeof(expected_residue)) ==
+				   0);
+		}
+	}
+	configure_grass_option(NULL);
+}
+
+static void test_amiga_grass_mixed_contacts(void)
+{
+	static const legacy_s16 expected_grip[2][4] = {{1050, 900, 750, 600}, {935, 670, 405, 140}};
+	static const legacy_u16 expected_drag_speed[] = {20400, 20374, 20320, 20160};
+	for (legacy_u16 mask = 1; mask < 16; mask++) {
+		legacy_u16 grass_count = 0;
+		for (legacy_u16 wheel = 0; wheel < 4; wheel++) {
+			if ((mask & (1U << wheel)) != 0) {
+				grass_count++;
+			}
+		}
+		for (legacy_u16 turning = 0; turning < 2; turning++) {
+			struct CARSTATE dos_result = {0};
+			for (legacy_u8 enabled = 0; enabled < 2; enabled++) {
+				reset_grass_reference_car();
+				car.car_steeringAngle = turning != 0 ? 128 : 0;
+				for (legacy_u16 wheel = 0; wheel < 4; wheel++) {
+					if ((mask & (1U << wheel)) != 0) {
+						car.car_surfaceWhl[wheel] = CAR_SURFACE_GRASS;
+					}
+				}
+				run_grass_grip(enabled, (const legacy_s8 *)"PMIN", GRIP_BEHAVIOR_PLAYER);
+				assert(car.car_surfacegrip_sum == expected_grip[enabled][grass_count - 1]);
+				assert(car.car_actual_speed == car.car_rev_speed);
+				if (turning == 0) {
+					assert(car.car_actual_speed == expected_drag_speed[grass_count - 1]);
+					assert(car.car_slidingFlag == CAR_SLIDING_INACTIVE);
+					assert(car.car_sound_flags == 0);
+				} else {
+					assert(car.car_slidingFlag == CAR_SLIDING_ACTIVE);
+					assert(car.car_sound_flags == (grass_count < 4 ? CAR_SOUND_SKID_PAVED_FLAG
+																   : CAR_SOUND_SKID_OFFROAD_FLAG));
+					if (enabled == 0) {
+						dos_result = car;
+					} else {
+						assert(car.car_demandedGrip == dos_result.car_demandedGrip);
+						assert(car.car_front_wheel_response_angle <
+							   dos_result.car_front_wheel_response_angle);
+						assert(car.car_actual_speed < dos_result.car_actual_speed);
+					}
+				}
+			}
+		}
+	}
+	configure_grass_option(NULL);
+}
+
+static void test_amiga_grass_original_vectors(void)
+{
+	/* Outputs of the original Amiga 68000 routine, including its DOS-coefficient
+	 * controls, recorded in fixtures/amiga-grass-reference.json. */
+	static const struct {
+		legacy_s16 steering;
+		legacy_s8 surface;
+		legacy_u8 enabled;
+		legacy_u16 speed;
+		legacy_s16 demanded_grip;
+		legacy_s16 available_grip;
+		legacy_s16 wheel_response;
+		legacy_s16 heading_offset;
+		legacy_s16 yaw_delta;
+		legacy_u8 sliding;
+		legacy_u8 sound;
+	} cases[] = {{32, CAR_SURFACE_PAVED, 1, 20480, 400, 1200, 32, 0, 0, 0, 0},
+				 {32, CAR_SURFACE_PAVED, 0, 20480, 400, 1200, 32, 0, 0, 0, 0},
+				 {32, CAR_SURFACE_GRASS, 1, 20118, 380, 140, 11, 0, 0, 1, 4},
+				 {32, CAR_SURFACE_GRASS, 0, 20160, 380, 600, 32, 0, 0, 0, 0},
+				 {128, CAR_SURFACE_PAVED, 1, 20360, 1600, 1200, 68, 0, 0, 1, 2},
+				 {128, CAR_SURFACE_PAVED, 0, 20360, 1600, 1200, 68, 0, 0, 1, 2},
+				 {128, CAR_SURFACE_GRASS, 1, 19974, 1520, 140, 35, 3, -3, 1, 4},
+				 {128, CAR_SURFACE_GRASS, 0, 20004, 1520, 600, 50, 0, 0, 1, 4}};
+	configure_collision_option(NULL);
+	configure_cornering_option(NULL);
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		reset_grass_reference_car();
+		car.car_steeringAngle = cases[index].steering;
+		for (legacy_u16 wheel = 0; wheel < 4; wheel++) {
+			car.car_surfaceWhl[wheel] = cases[index].surface;
+		}
+		run_grass_grip(cases[index].enabled, (const legacy_s8 *)"PMIN", GRIP_BEHAVIOR_PLAYER);
+		assert(car.car_actual_speed == cases[index].speed);
+		assert(car.car_rev_speed == cases[index].speed);
+		assert(car.car_demandedGrip == cases[index].demanded_grip);
+		assert(car.car_surfacegrip_sum == cases[index].available_grip);
+		assert(car.car_front_wheel_response_angle == cases[index].wheel_response);
+		assert(car.car_velocity_heading_offset == cases[index].heading_offset);
+		assert(car.car_slide_yaw_delta == cases[index].yaw_delta);
+		assert(car.car_slidingFlag == cases[index].sliding);
+		assert(car.car_sound_flags == cases[index].sound);
+		assert(car.car_slip_angle == 0);
+	}
+	configure_grass_option(NULL);
+}
+
 int main(void)
 {
 	test_contact_and_grass();
@@ -409,5 +656,10 @@ int main(void)
 	test_cornering_options();
 	test_cornering_skid_bias();
 	test_corrected_cornering_symmetry();
+	test_amiga_grass_options();
+	test_amiga_grass_profiles();
+	test_amiga_grass_non_grass_equivalence();
+	test_amiga_grass_mixed_contacts();
+	test_amiga_grass_original_vectors();
 	return 0;
 }

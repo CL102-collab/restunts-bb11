@@ -319,6 +319,7 @@ legacy_void RsSetupAeroTrackdata(legacy_u8 *carresptr,legacy_s16 is_opponent)
   temple_simd_resource_803=(RsLocateShapeAlt(carresptr,"simd"))(legacy_u8 *);
   if((is_opponent==0)) {
     RsSimdDecode((&(simd_player)),temple_simd_resource_803);
+    RsApplyAmigaGrass((&(simd_player)),gameconfig.game_playercarid);
     (simd_player.aerorestable=player_aero_resistance_table);
     temple_i_805=TempleCastS16(0);
     while(1) {
@@ -335,6 +336,7 @@ legacy_void RsSetupAeroTrackdata(legacy_u8 *carresptr,legacy_s16 is_opponent)
     RsCopyString(gnam_string,RsLocateShapeAlt(carresptr,"gnam"));
   } else {
     RsSimdDecode((&(simd_opponent)),temple_simd_resource_803);
+    RsApplyAmigaGrass((&(simd_opponent)),gameconfig.game_opponentcarid);
     (simd_opponent.aerorestable=opponent_aero_resistance_table);
     temple_i_809=TempleCastS16(0);
     while(1) {

@@ -223,13 +223,14 @@ extern legacy_void RsDrawBeveledBorder(legacy_s16 x,legacy_s16 y,legacy_s16 widt
     legacy_s16 bottom_outer_color,legacy_s16 bottom_inner_color);
 extern legacy_void RsDrawThreeColorBeveledBorder(legacy_s16 x,legacy_s16 y,legacy_s16 width,
     legacy_s16 height,legacy_s16 outer_color,legacy_s16 inner_color,legacy_s16 opposite_color);
-extern legacy_void RsSetupCarShapes(legacy_s16 operation);
 extern legacy_s16 RsSweepTrackUnderside(CVector *previous,CVector *current,legacy_s16 *fraction);
 extern legacy_s16 RsSweepTrackSolidObstacle(
     CVectorLong *previous,CVectorLong *current,legacy_s16 *fraction);
 extern legacy_s16 RsSweepTrackWallSpan(CVectorLong *previous_first,CVectorLong *previous_second,
     CVectorLong *current_first,CVectorLong *current_second,legacy_s16 *fraction);
 extern legacy_void RsConfigureLeftCornerBias(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_void RsApplyAmigaGrass(CSimd *simd,legacy_s8 *car_id);
 extern legacy_void RsConfigureLegacyCollision(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_s16 RsBodyPlaneCrossingIsCollision(CVector *previous,CVector *current);
 extern legacy_s16 RsDampCollisionAngle(legacy_s16 angle);
@@ -249,6 +250,7 @@ extern legacy_s16 RsResolveCarCollisionSpeeds(CCarState *first_state,CCarState *
 extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
     CVector *first_world_coordinates,CPoint2D *second_collision_points,
     CVector *second_world_coordinates);
+extern legacy_void RsSetupCarShapes(legacy_s16 operation);
 extern legacy_void RsDrawTrackPreview();
 extern legacy_void RsLoadTracksMenuShapes();
 extern legacy_void RsRunGame();

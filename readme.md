@@ -489,6 +489,14 @@ selects it. These switches are case-insensitive, and the last one wins. They
 can be combined with `--pg:off`, `--lc:off`, `--nointro`, and other startup
 options. Collision recovery rounding remains controlled separately by `--lc:off`.
 
+Run `restunts.exe /amigagrass` to use original Amiga grass grip for the 11 stock
+cars. This option is off by default and leaves road grip unchanged. Custom car
+IDs retain their authored grass grip. The switch is case-insensitive and can
+be combined with the other physics and startup options. As in the original,
+the Indycar, Jaguar XJR-9 and Porsche 962 skid earlier on grass; some stock
+cars gain grass grip, while the NSX, Countach, Ferrari GTO and Corvette
+retain their DOS grass grip.
+
 The ported physics dump tool accepts the same switches after the replay name:
 `repldump.exe 0681 --pg:off --lc:off --lcb:off`. Replays do not store these
 options, so use the same physics settings for recording and playback. Original

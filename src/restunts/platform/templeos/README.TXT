@@ -79,7 +79,14 @@ In a fresh TempleOS task:
     #include "LOAD.HC";
     Restunts("C:/DATA");
 
-Restunts("C:/DATA", TRUE) skips the intro. RUN.HC loads and starts the default
+Restunts("C:/DATA", TRUE) skips the intro. A third TRUE enables the original
+Amiga grass-grip coefficients for stock cars, for example:
+
+    Restunts("C:/DATA", TRUE, TRUE);
+
+The grass option defaults to FALSE and affects both player and opponent cars.
+Custom car IDs retain their own coefficients. Replays do not store this option;
+use the same setting when replaying a recording. RUN.HC loads the default
 directory. COMPILE.HC loads without starting. Ctrl+Q opens the original exit
 dialog; select Yes to return to the TempleOS prompt. Cleanup restores the
 task's display settings and the system palette.

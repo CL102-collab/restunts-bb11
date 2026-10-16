@@ -1,0 +1,368 @@
+{
+  "format_version": 1,
+  "description": "Numeric grip facts and observed 68000 outputs from the original Amiga release. No original executable code or resources are included.",
+  "original_archive": {
+    "source": "4dsports-amiga.zip",
+    "sha256": "b528d4b6918dac1e9d213a91087cfae5dca98f1f34353d5341e0dc66517f84a7"
+  },
+  "original_executable": {
+    "source": "disk1/stunts",
+    "sha256": "9470d0df4747049b6d8b23bf7c22f4a96e88a15a5c4a8fc1619319a895e262c9",
+    "code_file_offset": 40,
+    "update_grip_code_offset": 63446,
+    "update_grip_file_offset": 63486
+  },
+  "resource_encoding": "Original Amiga words are big-endian; DOS comparison words are little-endian. All listed SIMD chunks begin at file offset 38.",
+  "field_offsets": {
+    "simd_file_offset": 38,
+    "base_grip_simd_offset": 164,
+    "sliding_table_simd_offset": 180,
+    "grass_simd_offset": 188,
+    "grass_file_offset": 226
+  },
+  "scope": "Only surface 4 (grass) is overridden. Original dirt, ice, reserved handling, and global angle-wrapping differences are outside this option.",
+  "grass_drag": {
+    "original_table_file_offset": 241254,
+    "original_code_start": 63554,
+    "divisors_for_1_to_4_grass_wheels": [
+      256,
+      192,
+      128,
+      64
+    ],
+    "formula": "actual_speed -= unsigned_floor(actual_speed/divisor); rev_speed = actual_speed. Same as DOS."
+  },
+  "grip_formula": {
+    "original_code_start": 63700,
+    "formula": "Signed16 wrapped doubled base grip times signed16 wrapped sum of four wheel coefficients, arithmetic-shifted right 10; retain signed16. Same as DOS."
+  },
+  "cars": [
+    {
+      "car_id": "ANSX",
+      "amiga_source": "disk2/caransx.res",
+      "amiga_source_sha256": "3a6ee9c61340e04942cc00e1f6ea00c07d0da585d61ee60c16c8460bf3e1d036",
+      "dos_source": "CARANSX.RES",
+      "dos_source_sha256": "c1bac12d2bc0b84b9d132553aea400d494cdb5646d8ffcad88953b73f7710d5f",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 128
+    },
+    {
+      "car_id": "AUDI",
+      "amiga_source": "disk2/caraudi.res",
+      "amiga_source_sha256": "728c2b88d89118d1cb21337093f748f0f21365575e52b2ce8f1eecd85e3f01f1",
+      "dos_source": "CARAUDI.RES",
+      "dos_source_sha256": "94168342b0e96b4d88f628060ff5531ec329287f76c777b2fb64645aa4893abf",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 200
+    },
+    {
+      "car_id": "COUN",
+      "amiga_source": "disk2/carcoun.res",
+      "amiga_source_sha256": "820d4f567f794394ccd150392b35a734835d6cd9868ead5a5597bdf58bc3b034",
+      "dos_source": "CARCOUN.RES",
+      "dos_source_sha256": "49675cd82b090a2cd51e0e0812282745bd5d2c87901feca43ee933a1185c08ff",
+      "base_grip": 210,
+      "dos_grass": 128,
+      "amiga_grass": 128
+    },
+    {
+      "car_id": "FGTO",
+      "amiga_source": "disk2/carfgto.res",
+      "amiga_source_sha256": "16017d1edf504389659d259854d91e92249bfecb6b60f1e6f9927ef3908dc998",
+      "dos_source": "CARFGTO.RES",
+      "dos_source_sha256": "8487ec8258f939cd66a0fe8b45c738fcb3f31c35cc084a1e1bdebd0f47ee4a0f",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 128
+    },
+    {
+      "car_id": "JAGU",
+      "amiga_source": "disk2/carjagu.res",
+      "amiga_source_sha256": "41e7cd44f2ebfbb1ae0431e4cc04a2320abf86ea5215dde9ef283777e5981f80",
+      "dos_source": "CARJAGU.RES",
+      "dos_source_sha256": "01f6be51ea1da4bcb8f2c040ae1ac245a682e1dc8020d1f10347f7062fdf67cb",
+      "base_grip": 480,
+      "dos_grass": 128,
+      "amiga_grass": 40
+    },
+    {
+      "car_id": "LANC",
+      "amiga_source": "disk2/carlanc.res",
+      "amiga_source_sha256": "bc8defe10c10ec5bcab92ead6beb6af1986f674170444065c4917fe6c35f6f90",
+      "dos_source": "CARLANC.RES",
+      "dos_source_sha256": "09e589c18fbad3af6b396463145ad210b02a943ae1a33937ba80278415a0bfcc",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 210
+    },
+    {
+      "car_id": "LM02",
+      "amiga_source": "disk2/carlm02.res",
+      "amiga_source_sha256": "c49b256605788920ea57879deee9e8993af3a67d75e470dc8320105c37272840",
+      "dos_source": "CARLM02.RES",
+      "dos_source_sha256": "91bfb375cfa9e39c0932396406f4573ebdc84ca398b19e4f5a366194dcdfe0bb",
+      "base_grip": 211,
+      "dos_grass": 192,
+      "amiga_grass": 230
+    },
+    {
+      "car_id": "P962",
+      "amiga_source": "disk2/carp962.res",
+      "amiga_source_sha256": "63ce4220246e26a63674a94956362d14ff43688f6301afd71d3c10e07d8d25f9",
+      "dos_source": "CARP962.RES",
+      "dos_source_sha256": "bc38aa99ddb882fd71946ffbf3dca3d43172b2a5850b27409d7e358e6f252497",
+      "base_grip": 500,
+      "dos_grass": 128,
+      "amiga_grass": 30
+    },
+    {
+      "car_id": "PC04",
+      "amiga_source": "disk2/carpc04.res",
+      "amiga_source_sha256": "ac66a08acfe8380e4e3361d150767dfa2d07991b9a5ef225715f4d84e42a3ffa",
+      "dos_source": "CARPC04.RES",
+      "dos_source_sha256": "53443980bdc8bb881e3b2b6cf4a2b9097d5bb98c36fab91fbec2458ea0190dd4",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 180
+    },
+    {
+      "car_id": "PMIN",
+      "amiga_source": "disk2/carpmin.res",
+      "amiga_source_sha256": "8241491813295c3f92e9e2fd89d56de5568e55a5cc0b7876dcc44720bfedad74",
+      "dos_source": "CARPMIN.RES",
+      "dos_source_sha256": "7c8ae2eb12df43d948a82f5809c4816d9c94def52d18f884a054a725b0c54ca1",
+      "base_grip": 600,
+      "dos_grass": 128,
+      "amiga_grass": 30
+    },
+    {
+      "car_id": "VETT",
+      "amiga_source": "disk2/carvett.res",
+      "amiga_source_sha256": "ceaf714a71842e42cde54d219f38378f35b407c9b450348f8d4e070715d093ca",
+      "dos_source": "CARVETT.RES",
+      "dos_source_sha256": "b690b8e51ad539b3ece24e1475b6e2a80a0a59bcd525ee720fdb268025fb84c6",
+      "base_grip": 211,
+      "dos_grass": 128,
+      "amiga_grass": 128
+    }
+  ],
+  "runtime_validation": {
+    "engine": "Unicorn 2.1.4, UC_ARCH_M68K, UC_CPU_M68K_M68000",
+    "execution": "Executed the unmodified original update_grip routine and its original arithmetic helpers. The DOS-coefficient controls change only the original SIMD grass word to 128; they are not executions of the DOS binary.",
+    "initial_state": "Zero every CARSTATE byte, then assign the fields below. Load the original PMIN SIMD resource, optionally overriding only grass. Call update_grip with player argument 1. No game_fps reads occur on these paths.",
+    "common_input": {
+      "car": "PMIN",
+      "simd_grip": 600,
+      "car_sumSurfAllWheels": 4,
+      "car_actual_speed": 20480,
+      "car_rev_speed": 20480,
+      "car_velocity_heading_offset": 0,
+      "car_slide_yaw_delta": 0,
+      "car_slip_angle": 0,
+      "car_slidingFlag": 0,
+      "car_crashBmpFlag": 0,
+      "car_sound_flags": 0,
+      "car_rotate": [
+        0,
+        0,
+        0
+      ]
+    },
+    "vectors": [
+      {
+        "input": {
+          "car_steeringAngle": 32,
+          "car_surfaceWhl": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "grass_coefficient": 30
+        },
+        "expected": {
+          "car_actual_speed": 20480,
+          "car_rev_speed": 20480,
+          "car_demandedGrip": 400,
+          "car_surfacegrip_sum": 1200,
+          "car_front_wheel_response_angle": 32,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 0,
+          "car_sound_flags": 0
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 32,
+          "car_surfaceWhl": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "grass_coefficient": 128
+        },
+        "expected": {
+          "car_actual_speed": 20480,
+          "car_rev_speed": 20480,
+          "car_demandedGrip": 400,
+          "car_surfacegrip_sum": 1200,
+          "car_front_wheel_response_angle": 32,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 0,
+          "car_sound_flags": 0
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 32,
+          "car_surfaceWhl": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "grass_coefficient": 30
+        },
+        "expected": {
+          "car_actual_speed": 20118,
+          "car_rev_speed": 20118,
+          "car_demandedGrip": 380,
+          "car_surfacegrip_sum": 140,
+          "car_front_wheel_response_angle": 11,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 1,
+          "car_sound_flags": 4
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 32,
+          "car_surfaceWhl": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "grass_coefficient": 128
+        },
+        "expected": {
+          "car_actual_speed": 20160,
+          "car_rev_speed": 20160,
+          "car_demandedGrip": 380,
+          "car_surfacegrip_sum": 600,
+          "car_front_wheel_response_angle": 32,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 0,
+          "car_sound_flags": 0
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 128,
+          "car_surfaceWhl": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "grass_coefficient": 30
+        },
+        "expected": {
+          "car_actual_speed": 20360,
+          "car_rev_speed": 20360,
+          "car_demandedGrip": 1600,
+          "car_surfacegrip_sum": 1200,
+          "car_front_wheel_response_angle": 68,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 1,
+          "car_sound_flags": 2
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 128,
+          "car_surfaceWhl": [
+            1,
+            1,
+            1,
+            1
+          ],
+          "grass_coefficient": 128
+        },
+        "expected": {
+          "car_actual_speed": 20360,
+          "car_rev_speed": 20360,
+          "car_demandedGrip": 1600,
+          "car_surfacegrip_sum": 1200,
+          "car_front_wheel_response_angle": 68,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 1,
+          "car_sound_flags": 2
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 128,
+          "car_surfaceWhl": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "grass_coefficient": 30
+        },
+        "expected": {
+          "car_actual_speed": 19974,
+          "car_rev_speed": 19974,
+          "car_demandedGrip": 1520,
+          "car_surfacegrip_sum": 140,
+          "car_front_wheel_response_angle": 35,
+          "car_velocity_heading_offset": 3,
+          "car_slide_yaw_delta": -3,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 1,
+          "car_sound_flags": 4
+        }
+      },
+      {
+        "input": {
+          "car_steeringAngle": 128,
+          "car_surfaceWhl": [
+            4,
+            4,
+            4,
+            4
+          ],
+          "grass_coefficient": 128
+        },
+        "expected": {
+          "car_actual_speed": 20004,
+          "car_rev_speed": 20004,
+          "car_demandedGrip": 1520,
+          "car_surfacegrip_sum": 600,
+          "car_front_wheel_response_angle": 50,
+          "car_velocity_heading_offset": 0,
+          "car_slide_yaw_delta": 0,
+          "car_slip_angle": 0,
+          "car_slidingFlag": 1,
+          "car_sound_flags": 4
+        }
+      }
+    ]
+  }
+}

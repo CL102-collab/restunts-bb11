@@ -10,6 +10,7 @@
 #include "car_model.h"
 #include "car_resources.h"
 #include "owoot.h"
+#include "physics_internal.h"
 
 extern legacy_s8 opponent_name_text_id[];
 extern legacy_s8 opponent_path_resource_id[];
@@ -151,6 +152,7 @@ void setup_aero_trackdata(void far *carresptr, legacy_s16 is_opponent)
 
 	if (is_opponent == 0) {
 		(void)simd_decode(&simd_player, simd_resource);
+		apply_amiga_grass(&simd_player, gameconfig.game_playercarid);
 		simd_player.aerorestable = player_aero_resistance_table;
 		for (legacy_s16 i = 0; i < AERO_RESISTANCE_TABLE_COUNT; i++) {
 			player_aero_resistance_table[i] = aero_resistance_at(simd_player.aero_resistance, i);
@@ -158,6 +160,7 @@ void setup_aero_trackdata(void far *carresptr, legacy_s16 is_opponent)
 		copy_string(gnam_string, locate_shape_alt(carresptr, "gnam"));
 	} else {
 		(void)simd_decode(&simd_opponent, simd_resource);
+		apply_amiga_grass(&simd_opponent, gameconfig.game_opponentcarid);
 		simd_opponent.aerorestable = opponent_aero_resistance_table;
 		for (legacy_s16 i = 0; i < AERO_RESISTANCE_TABLE_COUNT; i++) {
 			opponent_aero_resistance_table[i] =

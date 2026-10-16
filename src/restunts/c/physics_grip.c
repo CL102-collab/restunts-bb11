@@ -84,6 +84,48 @@ void configure_left_corner_bias(legacy_s16 argc, legacy_s8 *argv[])
 	}
 }
 
+/* Original grass coefficients: tests/fixtures/amiga-grass-reference.json.
+ * Only grass is overridden; grass drag and skid formulas are shared. */
+static const legacy_s8 amiga_grass_car_ids[][5] = {"ANSX", "AUDI", "COUN", "FGTO", "JAGU", "LANC",
+												   "LM02", "P962", "PC04", "PMIN", "VETT"};
+static const legacy_s16 amiga_grass_values[] = {128, 200, 128, 128, 40, 210, 230, 30, 180, 30, 128};
+static legacy_s16 amiga_grass_enabled;
+
+void configure_amiga_grass(legacy_s16 argc, legacy_s8 *argv[])
+{
+	amiga_grass_enabled = 0;
+	for (legacy_s16 index = 1; index < argc; index++) {
+		if (stricmp(argv[index], (const legacy_s8 *)"/amigagrass") == 0) {
+			amiga_grass_enabled = 1;
+		}
+	}
+}
+
+void apply_amiga_grass(struct SIMD *simd, const legacy_s8 car_id[4])
+{
+	if (amiga_grass_enabled == 0) {
+		return;
+	}
+	for (legacy_u16 index = 0; index < sizeof(amiga_grass_car_ids) / sizeof(amiga_grass_car_ids[0]);
+		 index++) {
+		legacy_u16 character;
+		for (character = 0; character < 4U; character++) {
+			legacy_s8 letter = car_id[character];
+			if (letter >= 'a' && letter <= 'z') {
+				letter = (legacy_s8)(letter - 'a' + 'A');
+			}
+			if (letter != amiga_grass_car_ids[index][character]) {
+				break;
+			}
+		}
+		if (character == 4U) {
+			simd->surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] = amiga_grass_values[index];
+			return;
+		}
+	}
+	/* Custom car IDs have no original Amiga counterpart: retain their data. */
+}
+
 legacy_s16 scale_cornering_angle(legacy_s16 angle, legacy_u8 shift)
 {
 	if (left_corner_bias_enabled == LEFT_CORNER_BIAS_OFF && angle < 0) {

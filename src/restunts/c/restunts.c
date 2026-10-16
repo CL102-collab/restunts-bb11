@@ -460,6 +460,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_powergear_bug(argc, argv);
 	configure_legacy_collision(argc, argv);
 	configure_left_corner_bias(argc, argv);
+	configure_amiga_grass(argc, argv);
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
 #ifdef RESTUNTS_SDL3
