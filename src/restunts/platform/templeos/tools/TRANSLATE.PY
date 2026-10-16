@@ -215,8 +215,13 @@ def prepare_sources(folder):
             if count != 1:
                 raise ValueError("Native XOR raster adaptation missing")
         if path.name == "shape2d_blit.c":
-            text = text.replace("#ifdef RESTUNTS_SDL3\nstatic struct SPRITE sdl3_background_contexts", "#ifdef RESTUNTS_TEMPLEOS\nstatic struct SPRITE sdl3_background_contexts")
-            text = text.replace("sdl3_background_contexts", "temple_background_contexts")
+            text, count = re.subn(
+                r"#if defined\(RESTUNTS_SDL3\) \|\| defined\(RESTUNTS_AMIGA\)"
+                r"(\nstatic struct SPRITE\s+native_background_contexts\b)",
+                r"#ifdef RESTUNTS_TEMPLEOS\1", text)
+            if count != 1:
+                raise ValueError("Native background storage adaptation missing")
+            text = text.replace("native_background_contexts", "temple_background_contexts")
             text = text.replace("return farwnd;", "TempleRasterRegisterSprite(farwnd);\n\treturn farwnd;")
             text = text.replace("fmemcpy(&drawing_sprite, target_sprite, sizeof(struct SPRITE));", "fmemcpy(&drawing_sprite, target_sprite, sizeof(struct SPRITE));\n\tTempleRasterSelect(&drawing_sprite);")
             text = text.replace("\tsprite_putimage(mcga_backbuffer_sprite->sprite_bitmapptr);", "\tsprite_putimage(mcga_backbuffer_sprite->sprite_bitmapptr);\n\tTempleVideoPresent();")
@@ -1116,8 +1121,10 @@ def output_text(lines, name, name_map=None, formatter=None):
 
 
 def write(name, lines, name_map=None):
-    data = output_text(lines, name, name_map, FORMATTER)
-    encoded = data.replace("\r\n", "\n").replace("\n", "\r\n").encode()
+    data = output_text(lines, name, name_map, FORMATTER).replace("\r\n", "\n")
+    if name.endswith((".HC", ".HH", ".TXT")):
+        data = data.replace("\n", "\r\n")
+    encoded = data.encode()
     destination = GEN / name
     if CHECK:
         if not destination.exists() or destination.read_bytes() != encoded:

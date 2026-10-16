@@ -441,9 +441,12 @@ legacy_s8 temple_message_941[133];
 MemSet(&temple_message_941,0,sizeof(temple_message_941));
 legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
 {
+  0;
   RsRestuntsStartupInstallKeyboardCallbacks();
   RsInitVideoGeometryFlags();
+  0;
   RsMmgrInitConventionalArena();
+  0;
   if((RsFileGameVersionMatches()==0)) {
     RsDosShowStartupError(temple_message_941);
     RsCallExitlist();
@@ -460,13 +463,16 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
   RsConfigureOwoot(TempleCastS16(argc),argv);
   RsRestuntsStartupParseOptions(TempleCastS16(argc),argv,(&(rs_restunts_startup_options)));
   rs_restunts_startup_options.unused_nd_option;
+  0;
   RsDosVideoSetMode13h();
   if(rs_restunts_startup_options.mode4_requested) {
     RsDosVideoSetMode4();
   }
+  0;
   RsDosTimerSetupInterrupt();
   RsSpriteSelectScreenAndClear();
   RsDosMouseInit(TempleCastS16(320),TempleCastS16(200));
+  0;
   if(RsAudioLoadDosDriver(audiodriverstring,TempleCastS16(0),TempleCastS16(0))) {
     RsDosTimerShutdown();
     RsDosProcessExit(TempleCastS16(1));
@@ -476,9 +482,12 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
     RsAudioToggleEffects();
   }
   RsDosSetCriticalErrorHandler(&RsShowDiskErrorDialog);
+  0;
   RsLoadPalandcursor();
+  0;
   RsRestuntsStartupMeasureVideo();
   RsRandomWait();
+  0;
   RsCopyMaterialListPointers(material_clrlist_ptr,material_clrlist2_ptr,material_patlist_ptr,
       material_patlist2_ptr,TempleCastU16(0));
 }
@@ -713,8 +722,10 @@ legacy_void RsRestuntsMainMenuRestoreTrack()
 legacy_s16 RsRestuntsMainMenuPrepareTrack()
 {
   legacy_s16 noreg temple_result_971;
+  0;
   if((idle_expired==0)) {
     temple_result_971=TempleCastS16(RsTrackSetup());
+    0;
     if((temple_result_971!=0)) {
       RsRunTracksMenu(TempleCastS16(1));
       return TempleCastS16(0);
@@ -735,6 +746,7 @@ legacy_void RsRestuntsMainMenuRunRace(legacy_s8 start_in_replay)
 {
   legacy_s32 noreg temple_tmp_973;
   legacy_s16 noreg temple_result_974;
+  0;
   (cvxptr=RsMmgrAllocResbytes("cvx",TempleCastS32((sizeof(CGameState)*20))));
   RsInitGameState(TempleCastS16(GAMESTATE_INIT_RESET_CHECKPOINTS));
   if((start_in_replay!=0)) {

@@ -219,7 +219,9 @@ legacy_void RsLoadPalandcursor()
   legacy_u16 noreg temple_tmp_1083;
   legacy_u16 noreg temple_mouse_width_1084;
   legacy_u16 noreg temple_mouse_height_1085;
+  0;
   temple_resource_1077=(RsFileLoadShape2dFatal("sdmain"))(legacy_s8 *);
+  0;
   temple_mouse_shape_1078=(RsLocateShapeFatal(temple_resource_1077,"!pal"))(CShape2D *);
   temple_i_1081=TempleCastU16(0);
   while(1) {
@@ -233,12 +235,15 @@ legacy_void RsLoadPalandcursor()
     *temple_tmp_1082=TempleCastU16((temple_tmp_1083+1));
     (*temple_tmp_1082);
   }
+  0;
   RsDosVideoSetPalette(TempleCastU16(0),TempleCastU16(256),temple_palette_1079);
+  0;
   (temple_mouse_shape_1078=(RsLocateShapeFatal(temple_resource_1077,"smou"))(CShape2D *));
   temple_mouse_width_1084=TempleCastU16(TempleCastU16(
       TempleCastS32((RsShape2dGetWidth(temple_mouse_shape_1078)*video_x_alignment))));
   temple_mouse_height_1085=TempleCastU16(RsShape2dGetHeight(temple_mouse_shape_1078));
   RsMmgrFree(temple_resource_1077);
+  0;
   (mouse_small_sprite=RsSpriteMakeWnd(TempleCastU16(temple_mouse_width_1084),
       TempleCastU16(temple_mouse_height_1085),TempleCastU16(15)));
   (mouse_medium_sprite=RsSpriteMakeWnd(TempleCastU16(temple_mouse_width_1084),
@@ -246,15 +251,19 @@ legacy_void RsLoadPalandcursor()
   (mouse_background_sprite=RsSpriteMakeWnd(
       TempleCastU16(TempleCastS32((temple_mouse_width_1084+video_x_alignment))),
       TempleCastU16(temple_mouse_height_1085),TempleCastU16(15)));
+  0;
   (temple_resource_1077=(RsFileLoadShape2dFatal("sdmain"))(legacy_s8 *));
+  0;
   RsSpriteSelectTarget(mouse_small_sprite);
   (temple_mouse_shape_1078=(RsLocateShapeFatal(temple_resource_1077,"smou"))(CShape2D *));
   RsSpriteShapeTo1(temple_mouse_shape_1078,TempleCastS16(0),TempleCastS16(0));
+  0;
   RsSpriteSelectTarget(mouse_medium_sprite);
   (temple_mouse_shape_1078=(RsLocateShapeFatal(temple_resource_1077,"mmou"))(CShape2D *));
   RsSpriteShapeTo1(temple_mouse_shape_1078,TempleCastS16(0),TempleCastS16(0));
   RsMmgrFree(temple_resource_1077);
   RsSpriteSelectScreenCompat();
+  0;
 }
 
 legacy_s16 RsGameInputInputHandleDisplayShortcut(legacy_s16 key)

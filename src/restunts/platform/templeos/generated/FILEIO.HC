@@ -563,9 +563,9 @@ legacy_u32 RsFileDecompRle(legacy_u8 *src,legacy_u8 *dst,legacy_u16 decompparas)
   legacy_u16 noreg temple_i_76;
   legacy_u16 *temple_tmp_77;
   legacy_u16 noreg temple_tmp_78;
-  legacy_u16 noreg temple_i_80;
-  legacy_u16 *temple_tmp_81;
-  legacy_u16 noreg temple_tmp_82;
+  legacy_u32 noreg temple_i_80;
+  legacy_u32 *temple_tmp_81;
+  legacy_u32 noreg temple_tmp_82;
   legacy_u32 noreg temple_passlen_83;
   decompparas;
   temple_len_67=TempleCastU32(
@@ -594,25 +594,29 @@ legacy_u32 RsFileDecompRle(legacy_u8 *src,legacy_u8 *dst,legacy_u16 decompparas)
     *temple_tmp_77=TempleCastU16((temple_tmp_78+1));
     (*temple_tmp_77);
   }
-  temple_i_80=TempleCastU16(0);
+  temple_i_80=TempleCastU32(0);
   while(1) {
     if(!((temple_i_80<temple_esclen_70))) {
       break;
     }
     (temple_esclookup_74[temple_escapes_71[temple_i_80]]=
-            TempleCastU8(TempleCastS32((temple_i_80+1))));
+            TempleCastU8(TempleCastU32((temple_i_80+TempleCastU32(1)))));
     temple_tmp_81=&(temple_i_80);
     temple_tmp_82=*temple_tmp_81;
-    *temple_tmp_81=TempleCastU16((temple_tmp_82+1));
+    *temple_tmp_81=TempleCastU32((temple_tmp_82+1));
     (*temple_tmp_81);
   }
   if((!(temple_skipseq_72))) {
+    0;
     temple_passlen_83=TempleCastU32(RsFileDecompRleSeq(
         src,dst,TempleCastU32(temple_srclen_69),TempleCastU8(temple_escapes_71[1])));
+    0;
     (src=RsFileioFileRelocateDecompOutput(
         dst,TempleCastU16(decompparas),TempleCastU32(temple_passlen_83)));
   }
+  0;
   RsFileDecompRleSingle(src,dst,TempleCastU32(temple_len_67),temple_esclookup_74);
+  0;
   return TempleCastU32(temple_len_67);
 }
 
@@ -981,7 +985,9 @@ legacy_u8 *RsFileioFileDecompInternal(legacy_s8 *filename,legacy_s16 fatal,legac
   if(temple_dst_157) {
     return temple_dst_157;
   }
+  0;
   temple_decompparas_159=TempleCastU16(RsFileDecompParas(filename,TempleCastS16(fatal)));
+  0;
   temple_err_160=TempleCastS16(0);
   if(temple_decompparas_159) {
     temple_retained_paragraphs_162=TempleCastU16(TempleCastS32(
@@ -994,15 +1000,21 @@ legacy_u8 *RsFileioFileDecompInternal(legacy_s8 *filename,legacy_s16 fatal,legac
       temple_tmp_165=TempleCastS32(temple_decompparas_159);
     }
     temple_allocated_paragraphs_164=TempleCastU16(temple_tmp_165);
+    0;
     (temple_dst_157=RsFileioFileAllocTailPages(
         filename,TempleCastU16(temple_allocated_paragraphs_164),TempleCastU16(tail_bytes)));
+    0;
+    0;
     temple_paras_166=TempleCastU16(RsFileParas(filename,TempleCastS16(fatal)));
+    0;
     if(temple_paras_166) {
       temple_src_167=RsDosMemoryMakePointer(
           TempleCastU16(TempleCastS32((TempleCastS32((temple_decompparas_159-temple_paras_166))+
               RsDosMemoryPointerSegment(temple_dst_157)))),
           TempleCastU16(RsDosMemoryPointerOffset(temple_dst_157)));
+      0;
       (temple_src_167=RsFileRead(filename,temple_src_167,TempleCastS16(fatal)));
+      0;
       if(temple_src_167) {
         temple_passes_168=TempleCastU8((*(temple_src_167)));
         if(TempleCastU32((temple_passes_168&128))) {
@@ -1031,6 +1043,7 @@ legacy_u8 *RsFileioFileDecompInternal(legacy_s8 *filename,legacy_s16 fatal,legac
                   TempleCastU16(temple_decompparas_159),(&(temple_passlen_161)))==0)) {
             (temple_err_160=TempleCastS16(1));
           }
+          0;
           temple_tmp_174=0;
           if((!(temple_err_160))) {
             temple_tmp_174=1;
@@ -1045,14 +1058,18 @@ legacy_u8 *RsFileioFileDecompInternal(legacy_s8 *filename,legacy_s16 fatal,legac
             }
           }
           if(temple_tmp_174) {
+            0;
             (temple_src_167=RsFileioFileRelocateDecompOutput(temple_dst_157,
                 TempleCastU16(temple_decompparas_159),TempleCastU32(temple_passlen_161)));
+            0;
           }
         }
         if((!(temple_err_160))) {
+          0;
           RsMmgrResizeMemory(TempleCastU16(RsDosMemoryPointerOffset(temple_dst_157)),
               TempleCastU16(RsDosMemoryPointerSegment(temple_dst_157)),
               TempleCastU16(temple_retained_paragraphs_162));
+          0;
           return temple_dst_157;
         }
       }

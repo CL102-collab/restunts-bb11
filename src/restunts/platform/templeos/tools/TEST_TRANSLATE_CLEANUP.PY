@@ -3,6 +3,7 @@
 import importlib.machinery
 import importlib.util
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +16,26 @@ LOADER.exec_module(TRANSLATE)
 
 
 class CleanupTests(unittest.TestCase):
+    def test_metadata_check_accepts_git_checkout_line_endings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "MANIFEST.JSON").write_bytes(b'{"modules": []}\n')
+            with patch.object(TRANSLATE, "GEN", output), \
+                    patch.object(TRANSLATE, "CHECK", True), \
+                    patch.object(TRANSLATE, "MISMATCHES", []):
+                TRANSLATE.write("MANIFEST.JSON", ['{"modules": []}'])
+                self.assertEqual(TRANSLATE.MISMATCHES, [])
+
+    def test_native_background_storage_compiles_with_flat_pointer_contexts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sources = TRANSLATE.prepare_sources(Path(directory))
+            result = subprocess.run([
+                "gcc", "-fsyntax-only", "-Wno-implicit-function-declaration",
+                "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS",
+                str(sources / "shape2d_blit.c"),
+            ], text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_constants_follow_transitive_dependencies(self):
         definitions = {"BASE": "2", "NEXT": "BASE + 1", "LIMIT": "NEXT + 1",
                        "UNUSED": "BASE + 9"}
