@@ -46,18 +46,25 @@ needed. The HTML's location does not determine where the game looks for data.
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
 3. Choose the startup options above the game. **Skip intro** is optional.
-   **HiperVision** and **New MIDI** are enabled by default. HiperVision starts
-   adaptive rendering (`--hv:auto`); uncheck it to start without a HyperVision
-   option. New MIDI selects Ogg replacement music (`--ogg:on`); uncheck it for
-   original AdLib music (`--ogg:off`). The **Graphics settings** group also has
-   **Show Control Layout** (`--control-layout:on`), which enables the same touch controls
-   as Android. On phones, use fullscreen landscape mode to put the controls
-   in the black side areas. The **Driving rules** group below it keeps
-   **Power Gear**, **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and
-   **Amiga Grass** together in one row. The first three preserve the original
-   driving behavior by default. OWOOT and Amiga Grass start off; Amiga Grass
-   uses the original Amiga grass grip for stock cars (`/amigagrass`). All checkbox
-   choices are remembered for this page, including with read-only folder access.
+   **New MIDI** selects Ogg replacement music (`--ogg:on`); uncheck it for
+   original AdLib music (`--ogg:off`). It is enabled by default.
+   **Graphics settings** contains **Show FPS** (`--fps:on`),
+   **Show Control Layout** (`--control-layout:on`), and the **HyperVision**
+   selector, in that order. HyperVision offers **Off**, **Auto**, **Full**,
+   **High**, **Medium**, and **Low**, matching Android. Auto is the browser
+   default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
+   Off starts without HyperVision. Show FPS and Show Control Layout start off.
+   Enable Show Control Layout for the same touch controls as Android. On
+   phones, use fullscreen landscape mode to put them in the black side areas.
+   The separate **Driving rules** group below graphics contains **Power Gear**,
+   **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and
+   **Amiga Grass**. Each group lays out its controls horizontally and wraps to more
+   lines as needed, without horizontal scrolling. The first three rules
+   preserve the original driving behavior by default. OWOOT and Amiga Grass
+   start off; Amiga Grass uses the original Amiga grass grip for stock cars
+   (`/amigagrass`). All settings are remembered for this page, including with
+   read-only folder access. Earlier HyperVision checkbox choices are retained
+   as Auto when enabled and Off when disabled.
 4. Click **Start game**. This user gesture enables browser audio. Click the
    canvas to focus the game keyboard.
 
@@ -93,11 +100,11 @@ game and on the page. Deletions are also propagated. Closing or reloading a tab
 while a save is in progress can interrupt it; wait until the page reports the
 save is complete.
 
-The selected directory handle and startup checkbox choices are stored in IndexedDB
+The selected directory handle and startup settings are stored in IndexedDB
 for this HTML's location; original game data is not stored in that database. On
 reopening, the game checks read/write permission and asks for approval through
 **Allow folder access** only when needed. Clearing browser storage, moving the
-HTML, or browser restrictions can require selecting the folder and checkbox
+HTML, or browser restrictions can require selecting the folder and startup
 choices again. If storage is unavailable, folder selection, startup options, and
 saving still work for the current session.
 

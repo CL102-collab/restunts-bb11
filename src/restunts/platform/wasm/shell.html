@@ -32,8 +32,8 @@
         .settings { min-width: 0; margin: 16px 0; padding: 10px 12px 12px; border: 1px solid #63748a; border-radius: 6px; }
         .settings legend { padding: 0 6px; }
         .settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-        .settings-row label { white-space: nowrap; }
-        .driving-rules .settings-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+        .settings-row label { max-width: 100%; white-space: normal; }
+        select { max-width: 100%; font: inherit; border: 1px solid #63748a; border-radius: 6px; padding: 6px; background: #243246; color: inherit; }
         button, .file-label { font: inherit; border: 1px solid #63748a; border-radius: 6px; padding: 8px 14px; background: #243246; color: inherit; cursor: pointer; }
         button:disabled { opacity: .5; cursor: default; }
         #start { background: #145b99; }
@@ -78,8 +78,16 @@
         <fieldset class="settings" id="graphics-settings">
             <legend>Graphics settings</legend>
             <div class="settings-row">
-                <label><input id="hypervision" type="checkbox" checked disabled> HiperVision</label>
+                <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
+                <label for="hypervision">HyperVision <select id="hypervision" disabled>
+                    <option value="off">Off</option>
+                    <option value="auto" selected>Auto</option>
+                    <option value="full">Full</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select></label>
             </div>
         </fieldset>
         <fieldset class="settings driving-rules" id="driving-rules">
@@ -214,7 +222,7 @@
         const STORAGE_DATABASE_VERSION = 2;
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'hypervision', 'new-midi', 'show-control-layout',
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
             'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
@@ -243,6 +251,7 @@
         const openFolder = document.getElementById('open-folder');
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
+        const hyperVision = document.getElementById('hypervision');
         const saveControls = document.getElementById('save-controls');
         const saveMode = document.getElementById('save-mode');
         const directSavingAvailable = typeof window.showDirectoryPicker === 'function';
@@ -430,8 +439,9 @@
             canvas.focus();
             const args = ['--data-dir', DATA_DIRECTORY];
             if (document.getElementById('skip-intro').checked) args.push('--nointro');
-            if (document.getElementById('hypervision').checked) args.push('--hv:auto');
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
+            args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
+            if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
             args.push(document.getElementById('legacy-collision').checked ? '--lc:on' : '--lc:off');
@@ -581,8 +591,16 @@
         async function restoreLaunchOptions() {
             try {
                 const stored = await browserStorage(LAUNCH_OPTIONS_STORE, 'readonly');
+                if (!stored || typeof stored !== 'object') return;
                 for (const option of launchOptions) {
-                    if (stored && typeof stored[option.id] === 'boolean') option.checked = stored[option.id];
+                    const value = stored[option.id];
+                    if (option === hyperVision) {
+                        // Older pages stored HyperVision as an on/off checkbox.
+                        const mode = typeof value === 'boolean' ? (value ? 'auto' : 'off') : value;
+                        if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
+                    } else if (typeof value === 'boolean') {
+                        option.checked = value;
+                    }
                 }
             } catch (error) {
                 log('Remembered launch options unavailable: ' + error.message);
@@ -591,7 +609,8 @@
 
         for (const option of launchOptions) {
             option.addEventListener('change', async () => {
-                const values = Object.fromEntries(launchOptions.map(option => [option.id, option.checked]));
+                const values = Object.fromEntries(launchOptions.map(option =>
+                    [option.id, option === hyperVision ? option.value : option.checked]));
                 try {
                     await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);
                 } catch (error) {

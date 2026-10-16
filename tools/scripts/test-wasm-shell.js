@@ -13,9 +13,10 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'hypervision', 'new-midi', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
+const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
 const RUNTIME = `<script>
@@ -46,31 +47,54 @@ async function loadFixture(page, directory) {
     await page.waitForFunction(() => !document.getElementById('start').disabled);
 }
 
-async function assertRulesRow(page) {
+async function storedOptions(page) {
+    // Reading the same object store waits behind pending change writes.
+    return page.evaluate(() => browserStorage(LAUNCH_OPTIONS_STORE, 'readonly'));
+}
+
+async function assertSettingsLayout(page, narrow) {
     const layout = await page.evaluate(ids => {
-        const row = document.querySelector('#driving-rules .settings-row');
         const graphics = document.getElementById('graphics-settings').getBoundingClientRect();
         const driving = document.getElementById('driving-rules').getBoundingClientRect();
         return {
             graphicsBottom: graphics.bottom,
             drivingTop: driving.top,
+            graphicsControls: Array.from(document.querySelectorAll('#graphics-settings input, #graphics-settings select'))
+                .map(option => option.id),
             rules: ids.map(id => {
                 const input = document.getElementById(id);
-                const bounds = input.parentElement.getBoundingClientRect();
-                return { grouped: input.closest('fieldset').id === 'driving-rules', y: bounds.y };
+                return { grouped: input.closest('fieldset').id === 'driving-rules',
+                    y: input.parentElement.getBoundingClientRect().y };
             }),
-            scrollable: getComputedStyle(row).overflowX === 'auto',
+            rows: Array.from(document.querySelectorAll('.controls, .settings-row')).map(row => {
+                const style = getComputedStyle(row);
+                const bounds = row.getBoundingClientRect();
+                return { display: style.display, wrap: style.flexWrap, scrollWidth: row.scrollWidth,
+                    clientWidth: row.clientWidth, childrenFit: Array.from(row.children).every(child => {
+                        const item = child.getBoundingClientRect();
+                        return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
+                    }) };
+            }),
             documentWidth: document.documentElement.scrollWidth,
             viewportWidth: innerWidth
         };
     }, RULES);
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
+    assert.deepEqual(layout.graphicsControls, ['show-fps', 'show-control-layout', 'hypervision'],
+        'Graphics must match the Android order with HyperVision last');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
-    assert.ok(layout.rules.every(rule => rule.y === layout.rules[0].y), 'Driving rules must stay on one line');
-    assert.ok(layout.scrollable, 'A narrow screen must be able to scroll the rules');
-    assert.ok(layout.documentWidth <= layout.viewportWidth, 'Settings must not overflow the mobile page');
-    assert.equal(await page.locator('#graphics-settings #show-control-layout').count(), 1,
-        'Show Control Layout must be part of graphics settings');
+    const ruleLines = new Set(layout.rules.map(rule => rule.y)).size;
+    if (narrow !== undefined) {
+        assert.ok(narrow ? ruleLines > 1 : ruleLines === 1,
+            'Driving rules must wrap on phones and fit one line when space allows');
+    }
+    for (const row of layout.rows) {
+        assert.equal(row.display, 'flex', 'Settings groups must use horizontal flex stacks');
+        assert.equal(row.wrap, 'wrap', 'Every settings group must wrap');
+        assert.ok(row.scrollWidth <= row.clientWidth + 1, 'Settings must fit without horizontal scrolling');
+        assert.ok(row.childrenFit, 'Each control must stay inside its settings group');
+    }
+    assert.ok(layout.documentWidth <= layout.viewportWidth, 'Settings must not overflow the page');
 }
 
 async function main() {
@@ -101,7 +125,22 @@ async function main() {
         page.on('pageerror', error => errors.push(String(error)));
         await page.goto('http://127.0.0.1:' + server.address().port + '/');
         await ready(page);
-        await assertRulesRow(page);
+        for (const width of [320, 390, 1000, 1920]) {
+            await page.setViewportSize({ width, height: 844 });
+            await assertSettingsLayout(page, width < 600);
+        }
+        await page.evaluate(() => { document.documentElement.style.fontSize = '150%'; });
+        for (const width of [320, 390]) {
+            await page.setViewportSize({ width, height: 844 });
+            await assertSettingsLayout(page);
+        }
+        await page.evaluate(() => { document.documentElement.style.fontSize = ''; });
+        await page.setViewportSize({ width: 390, height: 844 });
+        assert.deepEqual(await page.locator('#hypervision option').evaluateAll(options =>
+            options.map(option => ({ value: option.value, label: option.label }))),
+        PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
+        assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
+        assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-control-layout').isChecked(), false);
         assert.equal(await page.locator('#power-gear').isChecked(), true);
         assert.equal(await page.locator('#legacy-collision').isChecked(), true);
@@ -111,30 +150,77 @@ async function main() {
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--hv:auto', '--ogg:on', '--control-layout:off', '--pg:on', '--lc:on', '--lcb:on'
+            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--hv:auto', '--control-layout:off',
+            '--pg:on', '--lc:on', '--lcb:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
+
+        for (const [index, preset] of PRESETS.entries()) {
+            await page.reload();
+            await ready(page);
+            await page.locator('#hypervision').selectOption(preset);
+            const fps = index % 2 === 1;
+            await page.locator('#show-fps').setChecked(fps);
+            const stored = await storedOptions(page);
+            assert.equal(stored.hypervision, preset, 'Preset must be stored as its string value');
+            assert.equal(stored['show-fps'], fps, 'FPS must be stored as a boolean');
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#hypervision').inputValue(), preset, 'Preset must persist');
+            assert.equal(await page.locator('#show-fps').isChecked(), fps, 'FPS must persist');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            const args = await page.evaluate(() => window.launchedArguments);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
+                preset === 'off' ? [] : ['--hv:' + preset], 'Only the chosen preset may be passed');
+            assert.deepEqual(args.filter(arg => arg.startsWith('--fps:')), [fps ? '--fps:on' : '--fps:off']);
+        }
+
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-control-layout', 'owoot', 'amiga-grass']) await page.locator('#' + id).check();
-        for (const id of ['hypervision', 'new-midi', ...RULES.slice(0, 3)]) await page.locator('#' + id).uncheck();
-        // Reading the same object store waits behind all pending change writes.
-        await page.evaluate(() => browserStorage(LAUNCH_OPTIONS_STORE, 'readonly'));
+        for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
+            await page.locator('#' + id).check();
+        }
+        for (const id of ['new-midi', ...RULES.slice(0, 3)]) await page.locator('#' + id).uncheck();
+        await page.locator('#hypervision').selectOption('high');
+        const stored = await storedOptions(page);
+        for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-control-layout', 'owoot', 'amiga-grass']) {
+        for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
-        for (const id of ['hypervision', 'new-midi', ...RULES.slice(0, 3)]) {
+        for (const id of ['new-midi', ...RULES.slice(0, 3)]) {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
+        assert.equal(await page.locator('#hypervision').inputValue(), 'high');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '--ogg:off', '--control-layout:on', '--pg:off', '--lc:off', '--lcb:off', '--owoot', '/amigagrass'
+            '--data-dir', '/stunts', '--nointro', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
+            '--pg:off', '--lc:off', '--lcb:off', '--owoot', '/amigagrass'
         ]);
+
+        for (const [legacy, expected] of [[true, 'auto'], [false, 'off'], ['invalid', 'auto']]) {
+            await page.evaluate(value => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite',
+                { hypervision: value, 'show-fps': 'true', 'new-midi': false }), legacy);
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#hypervision').inputValue(), expected,
+                'Legacy checkbox values must migrate; unknown presets must use the browser default');
+            assert.equal(await page.locator('#show-fps').isChecked(), false, 'Malformed boolean values must be ignored');
+            assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
+            await page.locator('#show-fps').check();
+            assert.equal((await storedOptions(page)).hypervision, expected,
+                'Saving settings must replace the legacy boolean with the migrated preset');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            const args = await page.evaluate(() => window.launchedArguments);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
+                expected === 'off' ? [] : ['--hv:' + expected]);
+        }
         await page.setViewportSize({ width: 1000, height: 500 });
-        await assertRulesRow(page);
+        await assertSettingsLayout(page, false);
         await page.locator('#fullscreen').click();
         await page.waitForFunction(() => document.fullscreenElement === document.getElementById('canvas'));
         const fullscreen = await page.locator('#canvas').evaluate(canvas => {
@@ -150,7 +236,7 @@ async function main() {
         await page.evaluate(() => document.exitFullscreen());
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
-        console.log('PASS: web settings grouping, mobile row, defaults, launch flags, persistence, fullscreen canvas and touch-action CSS');
+        console.log('PASS: wrapping web settings, six HyperVision presets, FPS, typed persistence, legacy migration, fullscreen canvas and touch-action CSS');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

@@ -24,7 +24,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -230,25 +229,25 @@ public final class LauncherActivity extends Activity {
     }
 
     private void addOptions(LinearLayout layout) {
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER);
         int textSize = television ? TEXT_SIZE_SP : OPTION_TEXT_SIZE_SP;
         int spacing = Math.round(OPTION_SPACING_DP * getResources().getDisplayMetrics().density);
-        newMidi = option(row, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
-            LaunchOptions.DEFAULT_NEW_MIDI, textSize, 0);
-        showFps = option(row, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
-            LaunchOptions.DEFAULT_SHOW_FPS, textSize, spacing);
-        showControlLayout = option(row, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
-            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize, spacing);
+        WrappingLayout startup = new WrappingLayout(this, spacing, spacing);
+        newMidi = option(startup, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
+            LaunchOptions.DEFAULT_NEW_MIDI, textSize);
+        addOptionsGroup(layout, startup);
+
+        WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
+        showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
+            LaunchOptions.DEFAULT_SHOW_FPS, textSize);
+        showControlLayout = option(graphics, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
+            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
+        // Keep the label and selector as one graphics item; at large font sizes
+        // the label can move above the selector without squeezing its value.
+        WrappingLayout hyperVisionOption = new WrappingLayout(this, 0, 0);
         TextView label = new TextView(this);
         label.setText("HyperVision");
         label.setTextSize(textSize);
-        label.setSingleLine(true);
-        LinearLayout.LayoutParams labelLayout = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        labelLayout.setMarginStart(spacing);
-        row.addView(label, labelLayout);
+        hyperVisionOption.addView(label);
         hyperVision = new Spinner(this);
         hyperVision.setId(View.generateViewId());
         label.setLabelFor(hyperVision.getId());
@@ -258,29 +257,21 @@ public final class LauncherActivity extends Activity {
         hyperVision.setAdapter(adapter);
         hyperVision.setSelection(LaunchOptions.HyperVision.fromStored(
             preferences.getString(LaunchOptions.HYPERVISION_KEY, null)).ordinal());
-        row.addView(hyperVision);
-        addOptionsRow(layout, row);
+        hyperVisionOption.addView(hyperVision);
+        graphics.addView(hyperVisionOption);
 
-        LinearLayout drivingRules = new LinearLayout(this);
-        drivingRules.setOrientation(LinearLayout.HORIZONTAL);
-        drivingRules.setGravity(Gravity.CENTER);
-        TextView drivingLabel = new TextView(this);
-        drivingLabel.setText("Driving rules");
-        drivingLabel.setTextSize(textSize);
-        drivingLabel.setSingleLine(true);
-        drivingRules.addView(drivingLabel);
+        WrappingLayout drivingRules = settingsGroup(layout, "Driving rules", textSize, spacing);
         powerGear = option(drivingRules, "Power Gear", LaunchOptions.POWER_GEAR_KEY,
-            LaunchOptions.DEFAULT_POWER_GEAR, textSize, spacing);
+            LaunchOptions.DEFAULT_POWER_GEAR, textSize);
         legacyCollision = option(drivingRules, "Original Collision Bugs", LaunchOptions.LEGACY_COLLISION_KEY,
-            LaunchOptions.DEFAULT_LEGACY_COLLISION, textSize, spacing);
+            LaunchOptions.DEFAULT_LEGACY_COLLISION, textSize);
         leftCornerBias = option(drivingRules, "Left Corner Bias", LaunchOptions.LEFT_CORNER_BIAS_KEY,
-            LaunchOptions.DEFAULT_LEFT_CORNER_BIAS, textSize, spacing);
+            LaunchOptions.DEFAULT_LEFT_CORNER_BIAS, textSize);
         owoot = option(drivingRules, "OWOOT", LaunchOptions.OWOOT_KEY,
-            LaunchOptions.DEFAULT_OWOOT, textSize, spacing);
+            LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
-            LaunchOptions.DEFAULT_AMIGA_GRASS, textSize, spacing);
-        addOptionsRow(layout, drivingRules);
+            LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         for (CheckBox option : new CheckBox[] {
                 newMidi, showFps, showControlLayout, powerGear, legacyCollision,
                 leftCornerBias, owoot, amigaGrass}) {
@@ -299,26 +290,36 @@ public final class LauncherActivity extends Activity {
         });
     }
 
-    private CheckBox option(LinearLayout row, String label, String key, boolean defaultValue,
-            int textSize, int spacing) {
+    private CheckBox option(WrappingLayout group, String label, String key, boolean defaultValue,
+            int textSize) {
         CheckBox option = new CheckBox(this);
         option.setText(label);
         option.setTextSize(textSize);
-        option.setSingleLine(true);
         option.setChecked(preferences.getBoolean(key, defaultValue));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.setMarginStart(spacing);
-        row.addView(option, params);
+        group.addView(option);
         return option;
     }
 
-    private void addOptionsRow(LinearLayout layout, LinearLayout row) {
-        HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(row, new HorizontalScrollView.LayoutParams(
-            HorizontalScrollView.LayoutParams.WRAP_CONTENT, HorizontalScrollView.LayoutParams.WRAP_CONTENT));
-        layout.addView(scroll);
+    private WrappingLayout settingsGroup(LinearLayout layout, String label, int textSize, int spacing) {
+        TextView title = new TextView(this);
+        title.setText(label);
+        title.setTextSize(textSize);
+        title.setGravity(Gravity.START);
+        if (Build.VERSION.SDK_INT >= 28) {
+            title.setAccessibilityHeading(true);
+        }
+        LinearLayout.LayoutParams titleLayout = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleLayout.topMargin = spacing;
+        layout.addView(title, titleLayout);
+        WrappingLayout group = new WrappingLayout(this, spacing, spacing);
+        addOptionsGroup(layout, group);
+        return group;
+    }
+
+    private void addOptionsGroup(LinearLayout layout, WrappingLayout group) {
+        layout.addView(group, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private LaunchOptions selectedOptions() {
