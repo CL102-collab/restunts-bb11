@@ -652,6 +652,9 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
 		}
+		if (options->amiga_grass) {
+			arguments[n++] = "/amigagrass";
+		}
 		if (options->fine_tune) {
 			arguments[n++] = "--fine-tune";
 		}
@@ -1247,6 +1250,9 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
+		}
+		if (options->amiga_grass) {
+			arguments[n++] = "/amigagrass";
 		}
 		if (options->fine_tune) {
 			arguments[n++] = "--fine-tune";

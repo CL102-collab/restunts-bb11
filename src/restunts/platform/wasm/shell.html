@@ -29,11 +29,18 @@
         h1 { margin-bottom: 8px; }
         p { color: #b8c6d8; line-height: 1.5; }
         .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+        .settings { min-width: 0; margin: 16px 0; padding: 10px 12px 12px; border: 1px solid #63748a; border-radius: 6px; }
+        .settings legend { padding: 0 6px; }
+        .settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .settings-row label { white-space: nowrap; }
+        .driving-rules .settings-row { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
         button, .file-label { font: inherit; border: 1px solid #63748a; border-radius: 6px; padding: 8px 14px; background: #243246; color: inherit; cursor: pointer; }
         button:disabled { opacity: .5; cursor: default; }
         #start { background: #145b99; }
-        canvas { display: block; width: 100%; aspect-ratio: 4 / 3; background: #000; image-rendering: pixelated; outline-offset: 4px; }
-        canvas:fullscreen { width: 100vw; height: 100vh; object-fit: contain; }
+        canvas { display: block; width: 100%; aspect-ratio: 4 / 3; background: #000; image-rendering: pixelated; outline-offset: 4px; touch-action: none; user-select: none; }
+        /* SDL resizes the fullscreen canvas to the viewport and draws its own 4:3
+           game area, leaving the side gutters available to the native controls. */
+        canvas:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; object-fit: fill; }
         #status { min-height: 1.5em; }
         #log { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
         input[type="file"] { max-width: 100%; }
@@ -65,14 +72,31 @@
         <div class="controls">
             <button id="start" disabled>Start game</button>
             <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
-            <label><input id="hypervision" type="checkbox" checked disabled> HiperVision</label>
             <label><input id="new-midi" type="checkbox" checked disabled> New MIDI</label>
             <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
-
         </div>
+        <fieldset class="settings" id="graphics-settings">
+            <legend>Graphics settings</legend>
+            <div class="settings-row">
+                <label><input id="hypervision" type="checkbox" checked disabled> HiperVision</label>
+                <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
+            </div>
+        </fieldset>
+        <fieldset class="settings driving-rules" id="driving-rules">
+            <legend>Driving rules</legend>
+            <div class="settings-row">
+                <label><input id="power-gear" type="checkbox" checked disabled> Power Gear</label>
+                <label><input id="legacy-collision" type="checkbox" checked disabled> Original Collision Bugs</label>
+                <label><input id="left-corner-bias" type="checkbox" checked disabled> Left Corner Bias</label>
+                <label><input id="owoot" type="checkbox" disabled> OWOOT</label>
+                <label><input id="amiga-grass" type="checkbox" disabled> Amiga Grass</label>
+            </div>
+        </fieldset>
         <p id="status" role="status" aria-live="polite">Preparing game…</p>
         <canvas id="canvas" width="960" height="720" tabindex="0" aria-label="Restunts game"></canvas>
         <p>Click the game to focus the keyboard. Use the arrow keys to drive and Esc to return to menus.
+            Enable <strong>Show Control Layout</strong> before starting to play with the Android touch controls.
+            For phones, use fullscreen landscape mode to place the controls in the black side areas.
             Your browser may reserve some function keys. Press <strong>Alt+Enter</strong> or click Fullscreen for a larger view.</p>
         <p id="save-mode"></p>
         <div id="save-controls" hidden>
@@ -190,7 +214,8 @@
         const STORAGE_DATABASE_VERSION = 2;
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'hypervision', 'new-midi'];
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'hypervision', 'new-midi', 'show-control-layout',
+            'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -407,6 +432,12 @@
             if (document.getElementById('skip-intro').checked) args.push('--nointro');
             if (document.getElementById('hypervision').checked) args.push('--hv:auto');
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
+            args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
+            args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
+            args.push(document.getElementById('legacy-collision').checked ? '--lc:on' : '--lc:off');
+            args.push(document.getElementById('left-corner-bias').checked ? '--lcb:on' : '--lcb:off');
+            if (document.getElementById('owoot').checked) args.push('--owoot');
+            if (document.getElementById('amiga-grass').checked) args.push('/amigagrass');
             try {
                 Module.callMain(args);
             } catch (error) {

@@ -30,6 +30,13 @@ resources are included, and the app does not request Internet access.
 5. Export the resulting `.RPL` and its JSON report. Completed files are also
    published to the selected game folder when its storage provider allows it.
 
+The **Driving rules** checkboxes stay together in one horizontally scrollable
+row: **Power Gear**, **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**,
+and **Amiga Grass**. The first three default to enabled; OWOOT and Amiga Grass
+default to disabled. All five selections are remembered. **Amiga Grass** uses
+the original Amiga grass grip for stock cars, and is included in the report and
+in verification after an interrupted search.
+
 The app requires the same resource files as the desktop tool. A replay can
 supply its embedded track, including when its car differs from the selected
 car. Refresh the folder after adding tracks or cars. Play generated replays

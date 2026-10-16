@@ -118,7 +118,8 @@ def main():
             replay = temporary / "check.RPL"
             replay.write_bytes((temporary / output).read_bytes())
             physics_flags = [flag for flag in flags
-                             if flag == "--owoot" or flag.startswith(("--pg:", "--lc:", "--lcb:"))]
+                             if flag in ("--owoot", "/amigagrass")
+                             or flag.startswith(("--pg:", "--lc:", "--lcb:"))]
             result = subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                      str(replay), "1", *physics_flags], cwd=temporary, env=environment,
                                     capture_output=True, text=True, timeout=15)
@@ -148,7 +149,8 @@ def main():
             assert report["evaluations"] == evaluations, report
             assert report["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags}, report
+                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                "amiga_grass": "/amigagrass" in flags}, report
             assert report["cores_requested"] == (1 if cores is None else cores), report
             workers = report["worker_results"]
             assert len(workers) == report["cores_used"]
@@ -223,6 +225,25 @@ def main():
         assert automatic["transmission"] == "auto"
         assert (temporary / "automatic.RPL").read_bytes()[5] == 1
         print("Replay seed inputs, inherited transmission, and explicit automatic gears propagate", flush=True)
+
+        # PMIN has different DOS/Amiga grass coefficients. Compare both islands
+        # with fresh single-worker runs using exactly the same rule and seed.
+        grass_flags = ("/amigagrass",)
+        grass, grass_report = generate("grass.RPL", cores=2, flags=grass_flags)
+        assert grass_report["total_frames"] != first_report["total_frames"], (
+            "Grass fixture must distinguish the two grip modes")
+        stock = json.loads(run(["grass.RPL", "PMIN", "--verify"], expected=2).stdout)
+        assert not stock["finished"], "The saved fixture must require Amiga grass grip"
+        grass_islands = []
+        for worker in grass_report["worker_results"]:
+            recording, report = generate(f"grass{worker['index']}.RPL",
+                                         evaluations=worker["budget_evaluations"],
+                                         cores=1, seed=worker["seed"], flags=grass_flags)
+            assert worker["total_frames"] == report["total_frames"]
+            assert worker["simulated_frames"] == report["simulated_frames"]
+            grass_islands.append(recording)
+        assert grass == grass_islands[grass_report["winner_worker"]]
+        print("Amiga Grass reaches both islands and matches fresh verification and native playback", flush=True)
 
         # Find a fully OWOOT-valid seed using the existing single-core engine,
         # then require both parallel workers to accept it under identical rules.

@@ -47,6 +47,7 @@ static const char help[] =
 	"  --lc:on|off            Original collision behavior (default on).\n"
 	"  --lcb:on|off           Original left corner bias (default on).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
+	"  /amigagrass            Original Amiga grass grip for stock cars (default off).\n"
 	"  --fine-tune            Improve a completed replay with local input refinements.\n"
 	"  --verify               Validate the input replay and print its score; no search.\n"
 	"  --help, -h             Show this help without loading game resources.\n"
@@ -398,7 +399,7 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fprintf(
 		file,
 		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "
-		"\"owoot\": %s},\n"
+		"\"owoot\": %s, \"amiga_grass\": %s},\n"
 		"  \"finished\": true,\n  \"frames_per_second\": 20,\n  \"replay_frames\": %u,\n"
 		"  \"finish_frame\": %u,\n  \"penalty_frames\": %u,\n  \"total_frames\": %u,\n"
 		"  \"total_seconds\": %.2f,\n  \"seed\": %u,\n  \"evaluations\": %llu,\n"
@@ -408,10 +409,11 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 		context->transmission ? "auto" : "manual", context->options->powergear ? "true" : "false",
 		context->options->collision ? "true" : "false",
 		context->options->left_bias ? "true" : "false", context->options->owoot ? "true" : "false",
-		result->length, result->race.finish_frame, result->race.penalty_frames,
-		result->race.total_frames, result->race.total_frames / 20.0, context->options->seed,
-		(unsigned long long)result->evaluations, (unsigned long long)result->simulated_frames,
-		result->routes, result->routes_attempted, result->routes_finished, result->elapsed_seconds);
+		context->options->amiga_grass ? "true" : "false", result->length, result->race.finish_frame,
+		result->race.penalty_frames, result->race.total_frames, result->race.total_frames / 20.0,
+		context->options->seed, (unsigned long long)result->evaluations,
+		(unsigned long long)result->simulated_frames, result->routes, result->routes_attempted,
+		result->routes_finished, result->elapsed_seconds);
 	int failed = ferror(file);
 	if (fclose(file)) {
 		failed = 1;
@@ -463,7 +465,7 @@ static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque
 
 int main(int argc, char **argv)
 {
-	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 0};
+	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 0, 0};
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
 	char car[5] = {0}, track_name[256];
 	int transmission = -1, verify = 0, explicit_seconds = 0, status = 1;
@@ -502,6 +504,10 @@ int main(int argc, char **argv)
 		}
 		if (!SDL_strcasecmp(argument, "--owoot")) {
 			options.owoot = 1;
+			continue;
+		}
+		if (!SDL_strcasecmp(argument, "/amigagrass")) {
+			options.amiga_grass = 1;
 			continue;
 		}
 		if (!strcmp(argument, "--fine-tune")) {
@@ -749,10 +755,20 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	atexit(SDL_Quit);
-	char *physics_arguments[] = {"genghost", options.powergear ? "--pg:on" : "--pg:off",
+	char *physics_arguments[] = {"genghost",
+								 options.powergear ? "--pg:on" : "--pg:off",
 								 options.collision ? "--lc:on" : "--lc:off",
-								 options.left_bias ? "--lcb:on" : "--lcb:off", "--owoot"};
-	if (genghost_sim_init(track, car, transmission, options.owoot ? 5 : 4, physics_arguments)) {
+								 options.left_bias ? "--lcb:on" : "--lcb:off",
+								 NULL,
+								 NULL};
+	int physics_count = 4;
+	if (options.owoot) {
+		physics_arguments[physics_count++] = "--owoot";
+	}
+	if (options.amiga_grass) {
+		physics_arguments[physics_count++] = "/amigagrass";
+	}
+	if (genghost_sim_init(track, car, transmission, physics_count, physics_arguments)) {
 		goto done;
 	}
 	if (options.fine_tune) {
@@ -794,10 +810,10 @@ int main(int argc, char **argv)
 	struct output_context context = {output, track_name,		   car, &options, transmission,
 									 NULL,	 baseline.total_frames};
 	struct GENGHOST_PARALLEL_REPORT parallel = {0};
-	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s%s\n", track_name, car,
+	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s%s%s\n", track_name, car,
 			transmission ? "automatic" : "manual", options.powergear ? "on" : "off",
 			options.collision ? "on" : "off", options.left_bias ? "on" : "off",
-			options.owoot ? " --owoot" : "");
+			options.owoot ? " --owoot" : "", options.amiga_grass ? " /amigagrass" : "");
 	fprintf(stderr, "search strategy: %s\n", strategy_name(&options));
 	int search_status;
 	if (options.strategy == GENGHOST_STRATEGY_STATE && cores != 1U) {

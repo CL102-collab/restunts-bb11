@@ -92,6 +92,9 @@ static void test_help_contents(void)
 #ifdef RESTUNTS_SDL3
 		"  --ogg:on|off",
 		"  --fps:on|off",
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+		"  --control-layout:on|off",
+#endif
 #endif
 	};
 	static const legacy_char *physics_options[] = {"  --pg:on|off", "  --lc:on|off",

@@ -104,6 +104,9 @@ run_host_test test-command-line command_line.c \
 run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
+run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ \
+    -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
+    -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
 run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 -D__DJGPP__ \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
@@ -124,6 +127,13 @@ run_host_test test-startup math.c -DRESTUNTS_SDL3 \
     "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ \
+    "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
+    "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
+    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
+run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \

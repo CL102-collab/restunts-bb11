@@ -52,9 +52,13 @@ different car.
 | `--lc:on`, `--lc:off` | Enable or disable the original collision behavior. |
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
 | `--owoot` | Enforce the game's One Wheel On/Over Track rules. |
+| `/amigagrass` | Use original Amiga grass grip for stock cars; defaults off. |
 | `--verify` | Re-simulate a compatible input replay and print its score, without searching or writing a ghost. |
 
-Physics defaults match Restunts: `--pg:on --lc:on --lcb:on`, with OWOOT off.
+Physics defaults match Restunts: `--pg:on --lc:on --lcb:on`, with OWOOT and
+Amiga Grass off. `/amigagrass` applies during generation, worker searches, and
+verification; the JSON report records it as `physics.amiga_grass`. Use the same
+flag when playing or verifying the generated replay.
 Physics option spelling is case-insensitive, and the last value for an on/off
 option wins. OWOOT is independent of the three bug switches: enabling it does
 not implicitly disable power gear or change collision arithmetic.

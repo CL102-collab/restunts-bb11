@@ -25,6 +25,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -77,6 +78,7 @@ public final class GenghostActivity extends Activity {
     private CheckBox collision;
     private CheckBox leftBias;
     private CheckBox owoot;
+    private CheckBox amigaGrass;
     private CheckBox fineTune;
     private boolean fineTunePreferred;
     private boolean updatingFineTune;
@@ -168,10 +170,18 @@ public final class GenghostActivity extends Activity {
         transmission.setSelection(Math.max(0, Math.min(2, preferences.getInt("transmission", 0))));
 
         label(page, "Driving rules");
-        powerGear = checkbox(page, "Allow power gear", "power_gear", true);
-        collision = checkbox(page, "Allow original collision bugs", "collision", true);
-        leftBias = checkbox(page, "Allow left corner bias", "left_bias", true);
-        owoot = checkbox(page, "One Wheel On / Over Track (OWOOT)", "owoot", false);
+        LinearLayout drivingRules = new LinearLayout(this);
+        drivingRules.setOrientation(LinearLayout.HORIZONTAL);
+        powerGear = drivingRule(drivingRules, "Power Gear", "power_gear", true);
+        collision = drivingRule(drivingRules, "Original Collision Bugs", "collision", true);
+        leftBias = drivingRule(drivingRules, "Left Corner Bias", "left_bias", true);
+        owoot = drivingRule(drivingRules, "OWOOT", "owoot", false);
+        owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
+        amigaGrass = drivingRule(drivingRules, "Amiga Grass", "amiga_grass", false);
+        HorizontalScrollView drivingScroll = new HorizontalScrollView(this);
+        drivingScroll.addView(drivingRules, new HorizontalScrollView.LayoutParams(
+            HorizontalScrollView.LayoutParams.WRAP_CONTENT, HorizontalScrollView.LayoutParams.WRAP_CONTENT));
+        page.addView(drivingScroll, fullWidth());
         text(page, "Use the same driving rules when playing the saved replay.", 14);
 
         generate = button(page, "Generate ghost", view -> startGeneration(), false);
@@ -330,6 +340,16 @@ public final class GenghostActivity extends Activity {
         return result;
     }
 
+    private CheckBox drivingRule(LinearLayout parent, String value, String key, boolean fallback) {
+        CheckBox result = checkbox(parent, value, key, fallback);
+        result.setSingleLine(true);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMarginEnd(dp(12));
+        result.setLayoutParams(params);
+        return result;
+    }
+
     private String selected(Spinner spinner) {
         Object value = spinner.getSelectedItem();
         return value == null ? "" : value.toString();
@@ -345,7 +365,8 @@ public final class GenghostActivity extends Activity {
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
             .putBoolean("left_bias", leftBias.isChecked())
-            .putBoolean("owoot", owoot.isChecked());
+            .putBoolean("owoot", owoot.isChecked())
+            .putBoolean("amiga_grass", amigaGrass.isChecked());
         if (track.getSelectedItem() != null) {
             changes.putString("track", selected(track));
         }
@@ -392,6 +413,7 @@ public final class GenghostActivity extends Activity {
         collision.setEnabled(!busy);
         leftBias.setEnabled(!busy);
         owoot.setEnabled(!busy);
+        amigaGrass.setEnabled(!busy);
         generate.setEnabled(!busy && catalogReady && !availableTracks.isEmpty()
             && !availableCars.isEmpty());
         cancel.setEnabled(generation.running);
@@ -556,6 +578,9 @@ public final class GenghostActivity extends Activity {
         flags.add(leftBias.isChecked() ? "--lcb:on" : "--lcb:off");
         if (owoot.isChecked()) {
             flags.add("--owoot");
+        }
+        if (amigaGrass.isChecked()) {
+            flags.add("/amigagrass");
         }
         saveOptions();
         if (Build.VERSION.SDK_INT >= 33

@@ -44,6 +44,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
 	"  --fps:on|off     Start with FPS display enabled/disabled; supply once." COMMAND_LINE_NEWLINE
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+	"  --control-layout:on|off  Show/hide the touch controls; supply once." COMMAND_LINE_NEWLINE
+#endif
 #endif
 	COMMAND_LINE_NEWLINE
 	"  --pg:on|off      Enable/disable the original power gear bug." COMMAND_LINE_NEWLINE
@@ -65,13 +68,16 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  /sXX             Legacy audio selection; SDL3 always uses AdLib." COMMAND_LINE_NEWLINE
 	"  /h               Legacy video switch; no alternate mode in SDL3." COMMAND_LINE_NEWLINE
 #elif defined(RESTUNTS_AMIGA)
-	"  /sXX             Legacy selection; Amiga uses Paula with AdLib instruments." COMMAND_LINE_NEWLINE
+	"  /sXX             Legacy selection; Amiga uses Paula with AdLib "
+	"instruments." COMMAND_LINE_NEWLINE
 	"  /h               Legacy switch; Amiga always uses 320x200, 32 colors." COMMAND_LINE_NEWLINE
 #else
-	"  /sXX             Load DOS audio driver XX15.DRV." COMMAND_LINE_NEWLINE
-	"                   IDs: AD (AdLib), PC (PC speaker), MT (MT-32), TD." COMMAND_LINE_NEWLINE
-	"                   SB selects AdLib FM for Sound Blaster cards." COMMAND_LINE_NEWLINE
-	"  /h               Request legacy Hercules/mode-4 initialization." COMMAND_LINE_NEWLINE
+						 "  /sXX             Load DOS audio driver XX15.DRV." COMMAND_LINE_NEWLINE
+						 "                   IDs: AD (AdLib), PC (PC speaker), MT (MT-32), "
+						 "TD." COMMAND_LINE_NEWLINE "                   SB selects AdLib FM for "
+						 "Sound Blaster cards." COMMAND_LINE_NEWLINE
+						 "  /h               Request legacy Hercules/mode-4 "
+						 "initialization." COMMAND_LINE_NEWLINE
 #endif
 	"  /nd              Recognized legacy switch with no "
 	"effect." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
@@ -84,7 +90,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #elif defined(RESTUNTS_AMIGA)
 	"Amiga 500+: 68000, ECS, 320x200, 32 colors, four Paula voices." COMMAND_LINE_NEWLINE
 #else
-	"AdLib is the default driver. F12 toggles SuperSight; no presets." COMMAND_LINE_NEWLINE
+						 "AdLib is the default driver. F12 toggles SuperSight; no "
+						 "presets." COMMAND_LINE_NEWLINE
 #endif
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3

@@ -104,7 +104,8 @@ def main():
             assert report["dualway_pairs"] >= 0
             assert report["routes_finished"] <= report["routes_attempted"] <= report["route_combinations"]
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                                         "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags}
+                                         "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                                         "amiga_grass": "/amigagrass" in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
             verified = verify(path, car, flags)
             for field in ("finish_frame", "penalty_frames", "total_frames"):

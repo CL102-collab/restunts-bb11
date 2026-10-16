@@ -45,12 +45,19 @@ needed. The HTML's location does not determine where the game looks for data.
    Supported browsers remember it for this page and reopen it when permission
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
-3. Choose the startup options beside **Start game**. **Skip intro** is optional.
+3. Choose the startup options above the game. **Skip intro** is optional.
    **HiperVision** and **New MIDI** are enabled by default. HiperVision starts
    adaptive rendering (`--hv:auto`); uncheck it to start without a HyperVision
    option. New MIDI selects Ogg replacement music (`--ogg:on`); uncheck it for
-   original AdLib music (`--ogg:off`). All three checkbox choices are remembered
-   for this page, including with read-only folder access.
+   original AdLib music (`--ogg:off`). The **Graphics settings** group also has
+   **Show Control Layout** (`--control-layout:on`), which enables the same touch controls
+   as Android. On phones, use fullscreen landscape mode to put the controls
+   in the black side areas. The **Driving rules** group below it keeps
+   **Power Gear**, **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and
+   **Amiga Grass** together in one row. The first three preserve the original
+   driving behavior by default. OWOOT and Amiga Grass start off; Amiga Grass
+   uses the original Amiga grass grip for stock cars (`/amigagrass`). All checkbox
+   choices are remembered for this page, including with read-only folder access.
 4. Click **Start game**. This user gesture enables browser audio. Click the
    canvas to focus the game keyboard.
 
@@ -181,7 +188,18 @@ emcc -O2 -Wno-pointer-sign -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS \
 node out/test-wasm-fileio.js
 ```
 
-The browser smoke test uses Node.js and Playwright with Chromium installed:
+The launch-form browser test needs Node.js and Playwright, but no Emscripten
+build or game files. It checks startup flags, remembered settings, mobile layout,
+and fullscreen canvas sizing with a stub for the native runtime:
+
+```sh
+NODE_PATH="$PWD/out/wasm-test-tools/node_modules" node tools/scripts/test-wasm-shell.js
+```
+
+Set `CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium installation.
+This form test does not exercise the native touch controls or renderer.
+
+The full browser smoke test uses Node.js and Playwright with Chromium installed:
 
 ```sh
 npm install --prefix out/wasm-test-tools playwright

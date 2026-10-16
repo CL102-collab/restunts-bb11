@@ -8,7 +8,7 @@
 #include "frame_internal.h"
 #include "hires.h"
 #include "../platform/sdl3/music.h"
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 #include "../platform/sdl3/touch_game.h"
 #endif
 #endif
@@ -73,7 +73,7 @@
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
 #define STARTUP_FPS_DISPLAY_PREFIX "--fps:"
 #define STARTUP_SKIP_INTRO_OPTION "--nointro"
-#if defined(RESTUNTS_SDL3) && defined(__ANDROID__)
+#if defined(RESTUNTS_SDL3) && (defined(__ANDROID__) || defined(__EMSCRIPTEN__))
 #define STARTUP_CONTROL_LAYOUT_PREFIX "--control-layout:"
 #define STARTUP_CONTROL_LAYOUT_OFF 0U
 #define STARTUP_CONTROL_LAYOUT_ON 1U
@@ -197,7 +197,7 @@ struct STARTUP_OPTIONS {
 	legacy_u8 ogg_music_specified;
 	legacy_u8 fps_display_enabled;
 	legacy_u8 fps_display_specified;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	legacy_u8 control_layout_enabled;
 	legacy_u8 control_layout_specified;
 #endif
@@ -322,7 +322,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->ogg_music_specified = 0;
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_ON;
 	options->control_layout_specified = 0;
 #endif
@@ -334,7 +334,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
 		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
 							  &options->fps_display_enabled, &options->fps_display_specified);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 		startup_parse_boolean(argv[i], STARTUP_CONTROL_LAYOUT_PREFIX, "Control layout",
 							  &options->control_layout_enabled, &options->control_layout_specified);
 #endif
@@ -426,7 +426,11 @@ static void startup_measure_video(void)
 
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
-#define STARTUP_TRACE(message) do { puts("Amiga startup: " message); fflush(stdout); } while (0)
+#define STARTUP_TRACE(message)                                                                     \
+	do {                                                                                           \
+		puts("Amiga startup: " message);                                                           \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define STARTUP_TRACE(message) ((void)0)
 #endif
@@ -464,7 +468,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
 #ifdef RESTUNTS_SDL3
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	sdl3_touch_set_layout_visible(startup_options.control_layout_enabled);
 #endif
 	fps_display_enabled = startup_options.fps_display_enabled;

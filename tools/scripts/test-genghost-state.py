@@ -123,7 +123,8 @@ def main():
             assert result["strategy"] == strategy, result
             assert result["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags}
+                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                "amiga_grass": "/amigagrass" in flags}
             assert result["globally_optimal"] is False
             assert result["total_seconds"] == result["total_frames"] / 20
             if strategy == "state":
@@ -207,6 +208,16 @@ def main():
                         "guided_evaluations", "guided_improvements"):
                     assert result[field] == value, (field, result[field], value)
         print("One/two/four workers agree on fixed-budget search, replay, and native states", flush=True)
+
+        # Cooperative workers must initialize the same non-default car grip as
+        # the coordinator. Check saved inputs and every independent replay state.
+        grass = generate("grass1.RPL", budget=201, flags=("/amigagrass",))
+        grass_parallel = generate("grass2.RPL", budget=201, cores=2, flags=("/amigagrass",))
+        assert grass_parallel[0] == grass[0] and grass_parallel[2] == grass[2]
+        assert grass_parallel[1]["state_task_hash"] == grass[1]["state_task_hash"]
+        stock = json.loads(run(["grass2.RPL", "PMIN", "--verify"], expected=2).stdout)
+        assert not stock["finished"], "The saved fixture must require Amiga grass grip"
+        print("Amiga Grass agrees across cooperative workers and independent native playback", flush=True)
 
         # A deeper budget reaches the separately retained section frontier.
         # Repeat at different worker counts after its coordinated continuations

@@ -466,6 +466,9 @@ public final class GeneratorService extends Service {
         if (physics.getBoolean("owoot")) {
             command.add("--owoot");
         }
+        if (physics.optBoolean("amiga_grass", false)) {
+            command.add("/amigagrass");
+        }
         Process process = new ProcessBuilder(command).directory(game)
             .redirectErrorStream(true).start();
         StringBuilder output = new StringBuilder();

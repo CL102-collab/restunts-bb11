@@ -37,7 +37,7 @@ static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
 static legacy_u8 expected_fps_display_enabled;
 static legacy_u32 startup_fps_reset_calls;
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 static legacy_u8 startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_ON;
 static legacy_u32 startup_control_layout_set_calls;
 
@@ -714,7 +714,7 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	legacy_u32 before_layout_calls = startup_control_layout_set_calls;
 	legacy_u8 before_layout_visible = startup_control_layout_visible;
 #endif
@@ -728,7 +728,7 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(startup_render_enabled == 0 && supersight_enabled == 0);
 	assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
 	assert(timer_calls == 0);
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	assert(startup_control_layout_set_calls == before_layout_calls);
 	assert(startup_control_layout_visible == before_layout_visible);
 #endif
@@ -981,7 +981,7 @@ static void test_startup_fps_display_options(void)
 		assert(!startup_options.fps_display_specified);
 	}
 }
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 static void test_startup_control_layout_options(void)
 {
 	static const struct {
@@ -1098,7 +1098,7 @@ int main(void)
 	test_startup_hypervision_options();
 	test_startup_ogg_music_options();
 	test_startup_fps_display_options();
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	test_startup_control_layout_options();
 #endif
 #endif

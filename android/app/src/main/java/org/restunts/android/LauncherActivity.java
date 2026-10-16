@@ -80,6 +80,11 @@ public final class LauncherActivity extends Activity {
     private CheckBox newMidi;
     private CheckBox showFps;
     private CheckBox showControlLayout;
+    private CheckBox powerGear;
+    private CheckBox legacyCollision;
+    private CheckBox leftCornerBias;
+    private CheckBox owoot;
+    private CheckBox amigaGrass;
     private Spinner hyperVision;
     private SharedPreferences preferences;
     private boolean television;
@@ -230,33 +235,12 @@ public final class LauncherActivity extends Activity {
         row.setGravity(Gravity.CENTER);
         int textSize = television ? TEXT_SIZE_SP : OPTION_TEXT_SIZE_SP;
         int spacing = Math.round(OPTION_SPACING_DP * getResources().getDisplayMetrics().density);
-        newMidi = new CheckBox(this);
-        newMidi.setText("New MIDI");
-        newMidi.setTextSize(textSize);
-        newMidi.setSingleLine(true);
-        newMidi.setChecked(preferences.getBoolean(LaunchOptions.NEW_MIDI_KEY,
-            LaunchOptions.DEFAULT_NEW_MIDI));
-        row.addView(newMidi);
-        showFps = new CheckBox(this);
-        showFps.setText("Show FPS");
-        showFps.setTextSize(textSize);
-        showFps.setSingleLine(true);
-        showFps.setChecked(preferences.getBoolean(LaunchOptions.SHOW_FPS_KEY,
-            LaunchOptions.DEFAULT_SHOW_FPS));
-        LinearLayout.LayoutParams fpsLayout = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        fpsLayout.setMarginStart(spacing);
-        row.addView(showFps, fpsLayout);
-        showControlLayout = new CheckBox(this);
-        showControlLayout.setText("Show Control Layout");
-        showControlLayout.setTextSize(textSize);
-        showControlLayout.setSingleLine(true);
-        showControlLayout.setChecked(preferences.getBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
-            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT));
-        LinearLayout.LayoutParams controlsLayout = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        controlsLayout.setMarginStart(spacing);
-        row.addView(showControlLayout, controlsLayout);
+        newMidi = option(row, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
+            LaunchOptions.DEFAULT_NEW_MIDI, textSize, 0);
+        showFps = option(row, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
+            LaunchOptions.DEFAULT_SHOW_FPS, textSize, spacing);
+        showControlLayout = option(row, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
+            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize, spacing);
         TextView label = new TextView(this);
         label.setText("HyperVision");
         label.setTextSize(textSize);
@@ -275,14 +259,33 @@ public final class LauncherActivity extends Activity {
         hyperVision.setSelection(LaunchOptions.HyperVision.fromStored(
             preferences.getString(LaunchOptions.HYPERVISION_KEY, null)).ordinal());
         row.addView(hyperVision);
-        HorizontalScrollView optionsScroll = new HorizontalScrollView(this);
-        optionsScroll.setFillViewport(true);
-        optionsScroll.addView(row, new HorizontalScrollView.LayoutParams(
-            HorizontalScrollView.LayoutParams.WRAP_CONTENT, HorizontalScrollView.LayoutParams.WRAP_CONTENT));
-        layout.addView(optionsScroll);
-        newMidi.setOnCheckedChangeListener((button, checked) -> saveOptions());
-        showFps.setOnCheckedChangeListener((button, checked) -> saveOptions());
-        showControlLayout.setOnCheckedChangeListener((button, checked) -> saveOptions());
+        addOptionsRow(layout, row);
+
+        LinearLayout drivingRules = new LinearLayout(this);
+        drivingRules.setOrientation(LinearLayout.HORIZONTAL);
+        drivingRules.setGravity(Gravity.CENTER);
+        TextView drivingLabel = new TextView(this);
+        drivingLabel.setText("Driving rules");
+        drivingLabel.setTextSize(textSize);
+        drivingLabel.setSingleLine(true);
+        drivingRules.addView(drivingLabel);
+        powerGear = option(drivingRules, "Power Gear", LaunchOptions.POWER_GEAR_KEY,
+            LaunchOptions.DEFAULT_POWER_GEAR, textSize, spacing);
+        legacyCollision = option(drivingRules, "Original Collision Bugs", LaunchOptions.LEGACY_COLLISION_KEY,
+            LaunchOptions.DEFAULT_LEGACY_COLLISION, textSize, spacing);
+        leftCornerBias = option(drivingRules, "Left Corner Bias", LaunchOptions.LEFT_CORNER_BIAS_KEY,
+            LaunchOptions.DEFAULT_LEFT_CORNER_BIAS, textSize, spacing);
+        owoot = option(drivingRules, "OWOOT", LaunchOptions.OWOOT_KEY,
+            LaunchOptions.DEFAULT_OWOOT, textSize, spacing);
+        owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
+        amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
+            LaunchOptions.DEFAULT_AMIGA_GRASS, textSize, spacing);
+        addOptionsRow(layout, drivingRules);
+        for (CheckBox option : new CheckBox[] {
+                newMidi, showFps, showControlLayout, powerGear, legacyCollision,
+                leftCornerBias, owoot, amigaGrass}) {
+            option.setOnCheckedChangeListener((button, checked) -> saveOptions());
+        }
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -296,9 +299,32 @@ public final class LauncherActivity extends Activity {
         });
     }
 
+    private CheckBox option(LinearLayout row, String label, String key, boolean defaultValue,
+            int textSize, int spacing) {
+        CheckBox option = new CheckBox(this);
+        option.setText(label);
+        option.setTextSize(textSize);
+        option.setSingleLine(true);
+        option.setChecked(preferences.getBoolean(key, defaultValue));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.setMarginStart(spacing);
+        row.addView(option, params);
+        return option;
+    }
+
+    private void addOptionsRow(LinearLayout layout, LinearLayout row) {
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.addView(row, new HorizontalScrollView.LayoutParams(
+            HorizontalScrollView.LayoutParams.WRAP_CONTENT, HorizontalScrollView.LayoutParams.WRAP_CONTENT));
+        layout.addView(scroll);
+    }
+
     private LaunchOptions selectedOptions() {
         return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(), showControlLayout.isChecked(),
-            (LaunchOptions.HyperVision) hyperVision.getSelectedItem());
+            (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
+            legacyCollision.isChecked(), leftCornerBias.isChecked(), owoot.isChecked(), amigaGrass.isChecked());
     }
 
     private void saveOptions() {
@@ -306,7 +332,12 @@ public final class LauncherActivity extends Activity {
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
-            .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name()).apply();
+            .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
+            .putBoolean(LaunchOptions.POWER_GEAR_KEY, options.powerGear)
+            .putBoolean(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision)
+            .putBoolean(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias)
+            .putBoolean(LaunchOptions.OWOOT_KEY, options.owoot)
+            .putBoolean(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass).apply();
     }
 
     private void refresh() {
@@ -356,6 +387,11 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
+                        intent.putExtra(LaunchOptions.POWER_GEAR_KEY, options.powerGear);
+                        intent.putExtra(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision);
+                        intent.putExtra(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias);
+                        intent.putExtra(LaunchOptions.OWOOT_KEY, options.owoot);
+                        intent.putExtra(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass);
                         activity.startActivity(intent);
                     }
                 });

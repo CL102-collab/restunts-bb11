@@ -71,9 +71,15 @@ are removed by clearing app storage or uninstalling.
 The options above **Start game** contain **New MIDI** for replacement music,
 **Show FPS** for the FPS/render-time display, **Show Control Layout** for the touch
 circles, and **HyperVision** with **Off**, **Auto**, **Full**, **High**, **Medium**,
-and **Low** presets. Start game applies all selections; they are remembered for
-later launches. The defaults use original AdLib music, hide FPS, keep
-**Show Control Layout** checked, and leave HyperVision off.
+and **Low** presets. Directly below the graphics settings, **Driving rules**
+groups **Power Gear**, **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**,
+and **Amiga Grass** together in one line. Swipe a row horizontally on smaller
+screens to reach all its settings. Start game applies all selections; they are
+remembered for later launches. The defaults use original AdLib music, hide FPS,
+keep **Show Control Layout** checked, and leave HyperVision off. The first three
+driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
+**Amiga Grass** uses the original Amiga grass grip for stock cars. Use the same
+driving rules that were selected when generating a ghost or recording a replay.
 
 ## Touch controls
 

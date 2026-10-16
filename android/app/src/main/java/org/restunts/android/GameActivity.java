@@ -172,7 +172,12 @@ public final class GameActivity extends SDLActivity {
             intent.getBooleanExtra(LaunchOptions.SHOW_FPS_KEY, LaunchOptions.DEFAULT_SHOW_FPS),
             intent.getBooleanExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
                 LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT),
-            LaunchOptions.HyperVision.fromStored(intent.getStringExtra(LaunchOptions.HYPERVISION_KEY)));
+            LaunchOptions.HyperVision.fromStored(intent.getStringExtra(LaunchOptions.HYPERVISION_KEY)),
+            intent.getBooleanExtra(LaunchOptions.POWER_GEAR_KEY, LaunchOptions.DEFAULT_POWER_GEAR),
+            intent.getBooleanExtra(LaunchOptions.LEGACY_COLLISION_KEY, LaunchOptions.DEFAULT_LEGACY_COLLISION),
+            intent.getBooleanExtra(LaunchOptions.LEFT_CORNER_BIAS_KEY, LaunchOptions.DEFAULT_LEFT_CORNER_BIAS),
+            intent.getBooleanExtra(LaunchOptions.OWOOT_KEY, LaunchOptions.DEFAULT_OWOOT),
+            intent.getBooleanExtra(LaunchOptions.AMIGA_GRASS_KEY, LaunchOptions.DEFAULT_AMIGA_GRASS));
         return options.arguments(new File(getFilesDir(), "game").getAbsolutePath());
     }
 }
