@@ -25,7 +25,6 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -171,17 +170,14 @@ public final class GenghostActivity extends Activity {
 
         label(page, "Driving rules");
         LinearLayout drivingRules = new LinearLayout(this);
-        drivingRules.setOrientation(LinearLayout.HORIZONTAL);
-        powerGear = drivingRule(drivingRules, "Power Gear", "power_gear", true);
-        collision = drivingRule(drivingRules, "Original Collision Bugs", "collision", true);
-        leftBias = drivingRule(drivingRules, "Left Corner Bias", "left_bias", true);
-        owoot = drivingRule(drivingRules, "OWOOT", "owoot", false);
+        drivingRules.setOrientation(LinearLayout.VERTICAL);
+        powerGear = checkbox(drivingRules, "Power Gear", "power_gear", true);
+        collision = checkbox(drivingRules, "Original Collision Bugs", "collision", true);
+        leftBias = checkbox(drivingRules, "Left Corner Bias", "left_bias", true);
+        owoot = checkbox(drivingRules, "OWOOT", "owoot", false);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
-        amigaGrass = drivingRule(drivingRules, "Amiga Grass", "amiga_grass", false);
-        HorizontalScrollView drivingScroll = new HorizontalScrollView(this);
-        drivingScroll.addView(drivingRules, new HorizontalScrollView.LayoutParams(
-            HorizontalScrollView.LayoutParams.WRAP_CONTENT, HorizontalScrollView.LayoutParams.WRAP_CONTENT));
-        page.addView(drivingScroll, fullWidth());
+        amigaGrass = checkbox(drivingRules, "Amiga Grass", "amiga_grass", false);
+        page.addView(drivingRules, fullWidth());
         text(page, "Use the same driving rules when playing the saved replay.", 14);
 
         generate = button(page, "Generate ghost", view -> startGeneration(), false);
@@ -337,16 +333,6 @@ public final class GenghostActivity extends Activity {
         result.setTextSize(15);
         result.setChecked(preferences.getBoolean(key, fallback));
         parent.addView(result, fullWidth());
-        return result;
-    }
-
-    private CheckBox drivingRule(LinearLayout parent, String value, String key, boolean fallback) {
-        CheckBox result = checkbox(parent, value, key, fallback);
-        result.setSingleLine(true);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.setMarginEnd(dp(12));
-        result.setLayoutParams(params);
         return result;
     }
 
