@@ -72,6 +72,21 @@ legacy_s16 RsGhostCameraAdjustCustomDirection(legacy_u16 direction)
   return TempleCastS16(0);
 }
 
+legacy_f64 RsGhostGhostLineMultiply(legacy_f64 first,legacy_f64 second)
+{
+  return (first*second);
+}
+
+legacy_f64 RsGhostGhostLineDivide(legacy_f64 first,legacy_f64 second)
+{
+  return (first/second);
+}
+
+legacy_s32 RsGhostGhostLineInteger(legacy_f64 value)
+{
+  return TempleCastS32(TempleCastS32(ToI64(value)));
+}
+
 legacy_void RsGhostGhostLineClear()
 {
   legacy_u16 noreg temple_tile_1956;
@@ -174,24 +189,27 @@ legacy_f64 RsGhostGhostLineLength(CGhostLineVector *temple_value_vector)
   if(temple_tmp_1972) {
     return 0;
   }
-  (temple_x_1959/=temple_scale_1968);
-  (temple_y_1962/=temple_scale_1968);
-  (temple_z_1965/=temple_scale_1968);
-  temple_square_1973=(((temple_x_1959*temple_x_1959)+(temple_y_1962*temple_y_1962))+
-      (temple_z_1965*temple_z_1965));
-  temple_root_1974=2;
+  (temple_x_1959=RsGhostGhostLineDivide(temple_x_1959,temple_scale_1968));
+  (temple_y_1962=RsGhostGhostLineDivide(temple_y_1962,temple_scale_1968));
+  (temple_z_1965=RsGhostGhostLineDivide(temple_z_1965,temple_scale_1968));
+  temple_square_1973=((RsGhostGhostLineMultiply(temple_x_1959,temple_x_1959)+
+                          RsGhostGhostLineMultiply(temple_y_1962,temple_y_1962))+
+      RsGhostGhostLineMultiply(temple_z_1965,temple_z_1965));
+  temple_root_1974=ToF64(2);
   temple_iteration_1976=TempleCastU16(0);
   while(1) {
     if(!((temple_iteration_1976<8))) {
       break;
     }
-    (temple_root_1974=((temple_root_1974+(temple_square_1973/temple_root_1974))*0.5));
+    (temple_root_1974=
+            ((temple_root_1974+RsGhostGhostLineDivide(temple_square_1973,temple_root_1974))/
+                ToF64(2)));
     temple_tmp_1977=&(temple_iteration_1976);
     temple_tmp_1978=*temple_tmp_1977;
     *temple_tmp_1977=TempleCastU16((temple_tmp_1978+1));
     temple_tmp_1978;
   }
-  return (temple_root_1974*temple_scale_1968);
+  return RsGhostGhostLineMultiply(temple_root_1974,temple_scale_1968);
 }
 
 legacy_s16 RsGhostGhostLineNormalize(CGhostLineVector *vector)
@@ -206,9 +224,9 @@ legacy_s16 RsGhostGhostLineNormalize(CGhostLineVector *vector)
   if(temple_tmp_1980) {
     return TempleCastS16(0);
   }
-  (vector->x/=temple_length_1979);
-  (vector->y/=temple_length_1979);
-  (vector->z/=temple_length_1979);
+  (vector->x=RsGhostGhostLineDivide(vector->x,temple_length_1979));
+  (vector->y=RsGhostGhostLineDivide(vector->y,temple_length_1979));
+  (vector->z=RsGhostGhostLineDivide(vector->z,temple_length_1979));
   return TempleCastS16(1);
 }
 
@@ -221,9 +239,9 @@ legacy_void RsGhostGhostLineBlend(CGhostLineVector *temple_value_first,
   CGhostLineVector temple_result_1981;
   MemCpy(&first,temple_value_first,sizeof(CGhostLineVector));
   MemCpy(&second,temple_value_second,sizeof(CGhostLineVector));
-  (temple_result_1981.x=(first.x+((second.x-first.x)*fraction)));
-  (temple_result_1981.y=(first.y+((second.y-first.y)*fraction)));
-  (temple_result_1981.z=(first.z+((second.z-first.z)*fraction)));
+  (temple_result_1981.x=(first.x+RsGhostGhostLineMultiply((second.x-first.x),fraction)));
+  (temple_result_1981.y=(first.y+RsGhostGhostLineMultiply((second.y-first.y),fraction)));
+  (temple_result_1981.z=(first.z+RsGhostGhostLineMultiply((second.z-first.z),fraction)));
   MemCpy(temple_return_value,&(temple_result_1981),sizeof(CGhostLineVector));
   return;
 }
@@ -252,30 +270,45 @@ legacy_void RsGhostGhostLinePose(CCarState *car,CGhostLinePose *temple_return_va
     *temple_tmp_1986=TempleCastU16((temple_tmp_1987+1));
     temple_tmp_1987;
   }
-  (temple_pose_1982.right.x=(((ToF64(temple_wheel_1983[1].x)+ToF64(temple_wheel_1983[2].x))-
-                                  ToF64(temple_wheel_1983[0].x))-
-      ToF64(temple_wheel_1983[3].x)));
-  (temple_pose_1982.right.y=(((ToF64(temple_wheel_1983[1].y)+ToF64(temple_wheel_1983[2].y))-
-                                  ToF64(temple_wheel_1983[0].y))-
-      ToF64(temple_wheel_1983[3].y)));
-  (temple_pose_1982.right.z=(((ToF64(temple_wheel_1983[1].z)+ToF64(temple_wheel_1983[2].z))-
-                                  ToF64(temple_wheel_1983[0].z))-
-      ToF64(temple_wheel_1983[3].z)));
-  (temple_forward_1988.x=(((ToF64(temple_wheel_1983[0].x)+ToF64(temple_wheel_1983[1].x))-
-                              ToF64(temple_wheel_1983[2].x))-
-      ToF64(temple_wheel_1983[3].x)));
-  (temple_forward_1988.y=(((ToF64(temple_wheel_1983[0].y)+ToF64(temple_wheel_1983[1].y))-
-                              ToF64(temple_wheel_1983[2].y))-
-      ToF64(temple_wheel_1983[3].y)));
-  (temple_forward_1988.z=(((ToF64(temple_wheel_1983[0].z)+ToF64(temple_wheel_1983[1].z))-
-                              ToF64(temple_wheel_1983[2].z))-
-      ToF64(temple_wheel_1983[3].z)));
-  (temple_pose_1982.up.x=((temple_forward_1988.y*temple_pose_1982.right.z)-
-      (temple_forward_1988.z*temple_pose_1982.right.y)));
-  (temple_pose_1982.up.y=((temple_forward_1988.z*temple_pose_1982.right.x)-
-      (temple_forward_1988.x*temple_pose_1982.right.z)));
-  (temple_pose_1982.up.z=((temple_forward_1988.x*temple_pose_1982.right.y)-
-      (temple_forward_1988.y*temple_pose_1982.right.x)));
+  (temple_pose_1982.right.x=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[1].x)+temple_wheel_1983[2].x))-
+                temple_wheel_1983[0].x))-
+          temple_wheel_1983[3].x))));
+  (temple_pose_1982.right.y=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[1].y)+temple_wheel_1983[2].y))-
+                temple_wheel_1983[0].y))-
+          temple_wheel_1983[3].y))));
+  (temple_pose_1982.right.z=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[1].z)+temple_wheel_1983[2].z))-
+                temple_wheel_1983[0].z))-
+          temple_wheel_1983[3].z))));
+  (temple_forward_1988.x=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[0].x)+temple_wheel_1983[1].x))-
+                temple_wheel_1983[2].x))-
+          temple_wheel_1983[3].x))));
+  (temple_forward_1988.y=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[0].y)+temple_wheel_1983[1].y))-
+                temple_wheel_1983[2].y))-
+          temple_wheel_1983[3].y))));
+  (temple_forward_1988.z=ToF64(TempleCastS32(
+      (TempleCastS32(
+            (TempleCastS32((TempleCastS32(temple_wheel_1983[0].z)+temple_wheel_1983[1].z))-
+                temple_wheel_1983[2].z))-
+          temple_wheel_1983[3].z))));
+  (temple_pose_1982.up.x=
+          (RsGhostGhostLineMultiply(temple_forward_1988.y,temple_pose_1982.right.z)-
+              RsGhostGhostLineMultiply(temple_forward_1988.z,temple_pose_1982.right.y)));
+  (temple_pose_1982.up.y=
+          (RsGhostGhostLineMultiply(temple_forward_1988.z,temple_pose_1982.right.x)-
+              RsGhostGhostLineMultiply(temple_forward_1988.x,temple_pose_1982.right.z)));
+  (temple_pose_1982.up.z=
+          (RsGhostGhostLineMultiply(temple_forward_1988.x,temple_pose_1982.right.y)-
+              RsGhostGhostLineMultiply(temple_forward_1988.y,temple_pose_1982.right.x)));
   temple_tmp_1989=0;
   if(RsGhostGhostLineNormalize((&(temple_pose_1982.right)))) {
     temple_tmp_1989=1;
@@ -288,12 +321,12 @@ legacy_void RsGhostGhostLinePose(CCarState *car,CGhostLinePose *temple_return_va
   }
   (temple_pose_1982.has_orientation=TempleCastU8(temple_tmp_1989));
   if((!(temple_pose_1982.has_orientation))) {
-    (temple_pose_1982.right.x=1);
+    (temple_pose_1982.right.x=ToF64(1));
     (temple_pose_1982.right.y=(temple_pose_1982.right.z=0));
     (temple_pose_1982.up.x=(temple_pose_1982.up.z=0));
-    (temple_pose_1982.up.y=1);
+    (temple_pose_1982.up.y=ToF64(1));
   }
-  (temple_pose_1982.speed=car->car_actual_speed);
+  (temple_pose_1982.speed=ToF64(car->car_actual_speed));
   MemCpy(temple_return_value,&(temple_pose_1982),sizeof(CGhostLinePose));
   return;
 }
@@ -317,7 +350,8 @@ legacy_void RsGhostGhostLineInterpolate(CGhostLinePose *first,CGhostLinePose *se
   if((!(RsGhostGhostLineNormalize((&(temple_result_1990.up)))))) {
     MemCpy(&(temple_result_1990.up),&(first->up),sizeof(CGhostLineVector));
   }
-  (temple_result_1990.speed=(first->speed+((second->speed-first->speed)*fraction)));
+  (temple_result_1990.speed=
+          (first->speed+RsGhostGhostLineMultiply((second->speed-first->speed),fraction)));
   (temple_result_1990.has_orientation=TempleCastU8(1));
   MemCpy(temple_return_value,&(temple_result_1990),sizeof(CGhostLinePose));
   return;
@@ -332,11 +366,11 @@ legacy_s32 RsGhostGhostLineRound(legacy_f64 coordinate)
     temple_tmp_1994=1;
   }
   if(temple_tmp_1994) {
-    temple_tmp_1995=(-(0.5));
+    temple_tmp_1995=((-(ToF64(1)))/ToF64(2));
   } else {
-    temple_tmp_1995=0.5;
+    temple_tmp_1995=(ToF64(1)/ToF64(2));
   }
-  return TempleCastS32(TempleCastS32(ToI64((coordinate+temple_tmp_1995))));
+  return TempleCastS32(RsGhostGhostLineInteger((coordinate+temple_tmp_1995)));
 }
 
 legacy_void RsGhostGhostLineEdge(
@@ -344,11 +378,14 @@ legacy_void RsGhostGhostLineEdge(
 {
   CVectorLong temple_result_1996;
   (temple_result_1996.lx=TempleCastS32(
-      RsGhostGhostLineRound(((pose->center.x+(pose->right.x*side))+(pose->up.x*128.0)))));
+      RsGhostGhostLineRound(((pose->center.x+RsGhostGhostLineMultiply(pose->right.x,side))+
+          (pose->up.x*ToF64(128))))));
   (temple_result_1996.ly=TempleCastS32(
-      RsGhostGhostLineRound(((pose->center.y+(pose->right.y*side))+(pose->up.y*128.0)))));
+      RsGhostGhostLineRound(((pose->center.y+RsGhostGhostLineMultiply(pose->right.y,side))+
+          (pose->up.y*ToF64(128))))));
   (temple_result_1996.lz=TempleCastS32(
-      RsGhostGhostLineRound(((pose->center.z+(pose->right.z*side))+(pose->up.z*128.0)))));
+      RsGhostGhostLineRound(((pose->center.z+RsGhostGhostLineMultiply(pose->right.z,side))+
+          (pose->up.z*ToF64(128))))));
   MemCpy(temple_return_value,&(temple_result_1996),sizeof(CVectorLong));
   return;
 }
@@ -378,8 +415,8 @@ legacy_void RsGhostGhostLineAppend(CGhostLinePose *end,legacy_f64 speed)
   CVectorLong temple_tmp_2017;
   legacy_u32 *temple_tmp_2018;
   legacy_u32 noreg temple_tmp_2019;
-  temple_x_1997=((rs_ghost_ghost_line_builder.sample.center.x+end->center.x)*0.5);
-  temple_z_1998=((rs_ghost_ghost_line_builder.sample.center.z+end->center.z)*0.5);
+  temple_x_1997=((rs_ghost_ghost_line_builder.sample.center.x+end->center.x)/ToF64(2));
+  temple_z_1998=((rs_ghost_ghost_line_builder.sample.center.z+end->center.z)/ToF64(2));
   temple_tmp_1999=0;
   if((temple_x_1997<ToF64(0))) {
     temple_tmp_1999=1;
@@ -404,7 +441,7 @@ legacy_void RsGhostGhostLineAppend(CGhostLinePose *end,legacy_f64 speed)
   }
   if(!temple_tmp_2003) {
     temple_tmp_2002=0;
-    if((temple_x_1997>=(ToF64(30)*65536.0))) {
+    if((temple_x_1997>=ToF64(TempleCastS32((30*65536))))) {
       temple_tmp_2002=1;
     }
     temple_tmp_2003=0;
@@ -418,7 +455,7 @@ legacy_void RsGhostGhostLineAppend(CGhostLinePose *end,legacy_f64 speed)
   }
   if(!temple_tmp_2005) {
     temple_tmp_2004=0;
-    if((temple_z_1998>=(ToF64(30)*65536.0))) {
+    if((temple_z_1998>=ToF64(TempleCastS32((30*65536))))) {
       temple_tmp_2004=1;
     }
     temple_tmp_2005=0;
@@ -460,20 +497,23 @@ legacy_void RsGhostGhostLineAppend(CGhostLinePose *end,legacy_f64 speed)
     (rs_ghost_ghost_line_capacity=TempleCastU32(temple_capacity_2007));
   }
   temple_segment_2010=(&(rs_ghost_ghost_line_segments[rs_ghost_ghost_line_count]));
-  temple_east_2011=TempleCastU16(TempleCastU16(ToI64((temple_x_1997/65536.0))));
-  temple_south_2012=TempleCastU16(TempleCastU32(
-      (TempleCastU32((TempleCastU32(30)-1))-TempleCastU16(ToI64((temple_z_1998/65536.0))))));
+  temple_east_2011=TempleCastU16(
+      TempleCastU16(TempleCastS32(TempleDivideS64(RsGhostGhostLineInteger(temple_x_1997),65536))));
+  temple_south_2012=TempleCastU16(TempleCastU32((TempleCastU32((TempleCastU32(30)-1))-
+      TempleCastU16(
+          TempleCastS32(TempleDivideS64(RsGhostGhostLineInteger(temple_z_1998),65536))))));
   temple_tile_2013=
       TempleCastU16(TempleCastS32((TempleCastS32((temple_south_2012*30))+temple_east_2011)));
-  RsGhostGhostLineEdge((&(rs_ghost_ghost_line_builder.sample)),(-(128.0)),&temple_tmp_2014);
+  RsGhostGhostLineEdge((&(rs_ghost_ghost_line_builder.sample)),(-(ToF64(128))),&temple_tmp_2014);
   MemCpy(&(temple_segment_2010->start_left),&(temple_tmp_2014),sizeof(CVectorLong));
-  RsGhostGhostLineEdge((&(rs_ghost_ghost_line_builder.sample)),128.0,&temple_tmp_2015);
+  RsGhostGhostLineEdge((&(rs_ghost_ghost_line_builder.sample)),ToF64(128),&temple_tmp_2015);
   MemCpy(&(temple_segment_2010->start_right),&(temple_tmp_2015),sizeof(CVectorLong));
-  RsGhostGhostLineEdge(end,(-(128.0)),&temple_tmp_2016);
+  RsGhostGhostLineEdge(end,(-(ToF64(128))),&temple_tmp_2016);
   MemCpy(&(temple_segment_2010->end_left),&(temple_tmp_2016),sizeof(CVectorLong));
-  RsGhostGhostLineEdge(end,128.0,&temple_tmp_2017);
+  RsGhostGhostLineEdge(end,ToF64(128),&temple_tmp_2017);
   MemCpy(&(temple_segment_2010->end_right),&(temple_tmp_2017),sizeof(CVectorLong));
-  (temple_segment_2010->speed=TempleCastU16(TempleCastU16(ToI64((speed+0.5)))));
+  (temple_segment_2010->speed=
+          TempleCastU16(TempleCastU16(RsGhostGhostLineInteger((speed+(ToF64(1)/ToF64(2)))))));
   (temple_segment_2010->next=TempleCastU32(rs_ghost_ghost_line_heads[temple_tile_2013]));
   temple_tmp_2018=&(rs_ghost_ghost_line_count);
   temple_tmp_2019=*temple_tmp_2018;
@@ -502,7 +542,7 @@ legacy_void RsGhostGhostLineFinish()
   }
   if(temple_tmp_2022) {
     temple_tmp_2021=0;
-    if((rs_ghost_ghost_line_builder.distance>1.0)) {
+    if((rs_ghost_ghost_line_builder.distance>ToF64(1))) {
       temple_tmp_2021=1;
     }
     temple_tmp_2022=0;
@@ -512,8 +552,8 @@ legacy_void RsGhostGhostLineFinish()
   }
   if(temple_tmp_2022) {
     RsGhostGhostLineAppend((&(rs_ghost_ghost_line_builder.previous)),
-        ((rs_ghost_ghost_line_builder.sample.speed+rs_ghost_ghost_line_builder.previous.speed)*
-            0.5));
+        ((rs_ghost_ghost_line_builder.sample.speed+rs_ghost_ghost_line_builder.previous.speed)/
+            ToF64(2)));
     (rs_ghost_ghost_line_builder.distance=0);
   }
 }
@@ -584,7 +624,7 @@ legacy_void RsGhostGhostLineRecord(CCarState *car)
     }
   }
   temple_tmp_2030=0;
-  if((temple_length_2027>131072.0)) {
+  if((temple_length_2027>ToF64(131072))) {
     temple_tmp_2030=1;
   }
   if(temple_tmp_2030) {
@@ -628,7 +668,7 @@ legacy_void RsGhostGhostLineRecord(CCarState *car)
         }
         temple_step_2037=temple_tmp_2039;
         temple_tmp_2040=0;
-        if((rs_ghost_ghost_line_builder.distance<=((800000.0/381.0)*0.5))) {
+        if((rs_ghost_ghost_line_builder.distance<=((800000.0/381.0)/ToF64(2)))) {
           temple_tmp_2040=1;
         }
         temple_tmp_2042=0;
@@ -638,7 +678,7 @@ legacy_void RsGhostGhostLineRecord(CCarState *car)
         if(temple_tmp_2042) {
           temple_tmp_2041=0;
           if(((rs_ghost_ghost_line_builder.distance+temple_step_2037)>=
-                ((800000.0/381.0)*0.5))) {
+                ((800000.0/381.0)/ToF64(2)))) {
             temple_tmp_2041=1;
           }
           temple_tmp_2042=0;
@@ -647,11 +687,13 @@ legacy_void RsGhostGhostLineRecord(CCarState *car)
           }
         }
         if(temple_tmp_2042) {
-          temple_fraction_2043=(((temple_consumed_2032+((800000.0/381.0)*0.5))-
-                                    rs_ghost_ghost_line_builder.distance)/
-              temple_length_2027);
+          temple_fraction_2043=
+              RsGhostGhostLineDivide(((temple_consumed_2032+((800000.0/381.0)/ToF64(2)))-
+                                        rs_ghost_ghost_line_builder.distance),
+                  temple_length_2027);
           (rs_ghost_ghost_line_builder.midpoint_speed=(temple_previous_2025->speed+
-              ((temple_current_2023.speed-temple_previous_2025->speed)*temple_fraction_2043)));
+              RsGhostGhostLineMultiply((temple_current_2023.speed-temple_previous_2025->speed),
+                  temple_fraction_2043)));
         }
         (temple_consumed_2032+=temple_step_2037);
         (rs_ghost_ghost_line_builder.distance+=temple_step_2037);
@@ -661,7 +703,7 @@ legacy_void RsGhostGhostLineRecord(CCarState *car)
         }
         if(temple_tmp_2044) {
           RsGhostGhostLineInterpolate(temple_previous_2025,(&(temple_current_2023)),
-              (temple_consumed_2032/temple_length_2027),&temple_tmp_2046);
+              RsGhostGhostLineDivide(temple_consumed_2032,temple_length_2027),&temple_tmp_2046);
           MemCpy(&temple_sample_2045,&(temple_tmp_2046),sizeof(CGhostLinePose));
           RsGhostGhostLineAppend(
               (&(temple_sample_2045)),rs_ghost_ghost_line_builder.midpoint_speed);

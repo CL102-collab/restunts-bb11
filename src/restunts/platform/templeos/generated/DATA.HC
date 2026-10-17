@@ -148,7 +148,7 @@ legacy_u32 rs_ghost_ghost_line_capacity=0;
 legacy_u32 rs_ghost_ghost_line_count=0;
 legacy_u32 rs_ghost_ghost_line_heads[900];
 MemSet(&rs_ghost_ghost_line_heads,0,sizeof(rs_ghost_ghost_line_heads));
-CRsAnon248e9e105020 rs_ghost_ghost_line_builder;
+CRsAnonF66041140cbb rs_ghost_ghost_line_builder;
 MemSet(&rs_ghost_ghost_line_builder,0,sizeof(rs_ghost_ghost_line_builder));
 legacy_s8 rs_race_resources_skybox_resource_names[5][9];
 MemSet(

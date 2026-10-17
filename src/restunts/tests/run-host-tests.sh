@@ -65,6 +65,13 @@ run_host_test test-amiga-endian shape2d.c \
     "$test_source_dir/audio_engine.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable -Wno-sign-compare
 run_host_test test-amiga-display ../platform/amiga/display.c
+# This fixture includes ghost.c to exercise its private fixed-point helpers.
+echo "Building test-amiga-ghost-line"
+"$test_compiler" "${test_compile_flags[@]}" -DRESTUNTS_AMIGA -Wno-pointer-sign \
+    "$test_script_dir/test-amiga-ghost-line.c" \
+    "${test_link_flags[@]}" -lm -o "$test_build_dir/test-amiga-ghost-line"
+echo "Running test-amiga-ghost-line"
+"$test_build_dir/test-amiga-ghost-line"
 run_host_test test-amiga-decompression fileio.c -DRESTUNTS_AMIGA -Wno-pointer-sign
 run_host_test test-amiga-rle shape2d.c "$test_source_dir/shape2d_blit.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable

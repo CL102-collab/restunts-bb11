@@ -45,7 +45,7 @@ struct GHOST_RACING_LINE_SEGMENT {
 	legacy_u32 next;
 };
 
-/* DOS16 streams pieces from disk; consume or copy each result before the next
+/* DOS16 and Amiga stream pieces from disk; consume or copy each result before the next
  * iterator call. Other targets retain the complete immutable route in memory. */
 const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south);
 const struct GHOST_RACING_LINE_SEGMENT *

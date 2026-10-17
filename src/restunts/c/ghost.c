@@ -57,26 +57,91 @@ static struct {
 /* Five renderer units per foot, with 64 position units per renderer unit:
  * 2 metres * 5 * 64 / 0.3048 = 800000 / 381. Keep fractional distance so
  * rounding each cached coordinate never accumulates along the recording. */
+#ifdef RESTUNTS_AMIGA
+/* Q24 arithmetic keeps the 68000 port independent of disk-based IEEE libraries.
+ * Four signed 16-bit wheel coordinates bound cross products below 2^59 in Q24;
+ * normalized lengths stay below 2^60. Split products and long division retain
+ * that bound without first multiplying a large remainder by the Q24 scale. */
+typedef legacy_s64 ghost_line_scalar;
+#define GHOST_LINE_FRACTION_BITS 24U
+#define GHOST_LINE_ONE (1LL << GHOST_LINE_FRACTION_BITS)
+#define GHOST_LINE_VALUE(value) ((ghost_line_scalar)(value) * GHOST_LINE_ONE)
+#define GHOST_LINE_SPACING (800000LL * GHOST_LINE_ONE / 381LL)
+#define GHOST_LINE_NORMALIZATION_MIN ((GHOST_LINE_ONE + 999999LL) / 1000000LL)
+#define GHOST_LINE_SAMPLE_THRESHOLD GHOST_LINE_SPACING
+static ghost_line_scalar ghost_line_multiply(ghost_line_scalar first, ghost_line_scalar second)
+{
+	ghost_line_scalar remainder = first % GHOST_LINE_ONE;
+	return first / GHOST_LINE_ONE * second + remainder * (second / GHOST_LINE_ONE) +
+		   remainder * (second % GHOST_LINE_ONE) / GHOST_LINE_ONE;
+}
+/* Callers divide by a positive scale, nonzero root, or nonzero length. */
+static ghost_line_scalar ghost_line_divide(ghost_line_scalar first, ghost_line_scalar second)
+{
+	ghost_line_scalar quotient = first / second;
+	ghost_line_scalar remainder = first % second;
+	if (remainder < 0) {
+		remainder = -remainder;
+	}
+	ghost_line_scalar fraction;
+	if (remainder <= (9223372036854775807LL / GHOST_LINE_ONE)) {
+		fraction = remainder * GHOST_LINE_ONE / second;
+	} else {
+		fraction = 0;
+		for (legacy_u16 bit = 0; bit < GHOST_LINE_FRACTION_BITS; bit++) {
+			fraction *= 2;
+			if (remainder >= second - remainder) {
+				remainder -= second - remainder;
+				fraction++;
+			} else {
+				remainder += remainder;
+			}
+		}
+	}
+	return quotient * GHOST_LINE_ONE + (first < 0 ? -fraction : fraction);
+}
+static legacy_s32 ghost_line_integer(ghost_line_scalar value)
+{
+	return value / GHOST_LINE_ONE;
+}
+#else
+typedef legacy_f64 ghost_line_scalar;
+#define GHOST_LINE_VALUE(value) ((ghost_line_scalar)(value))
 #define GHOST_LINE_SPACING (800000.0 / 381.0)
-#define GHOST_LINE_HALF_WIDTH 128.0
-#define GHOST_LINE_SURFACE_LIFT 128.0
-#define GHOST_LINE_MAX_FRAME_DISTANCE 131072.0
+#define GHOST_LINE_NORMALIZATION_MIN 0.000001
+#define GHOST_LINE_SAMPLE_THRESHOLD (GHOST_LINE_SPACING - 0.000001)
+static ghost_line_scalar ghost_line_multiply(ghost_line_scalar first, ghost_line_scalar second)
+{
+	return first * second;
+}
+static ghost_line_scalar ghost_line_divide(ghost_line_scalar first, ghost_line_scalar second)
+{
+	return first / second;
+}
+static legacy_s32 ghost_line_integer(ghost_line_scalar value)
+{
+	return (legacy_s32)value;
+}
+#endif
+#define GHOST_LINE_HALF_WIDTH GHOST_LINE_VALUE(128)
+#define GHOST_LINE_SURFACE_LIFT 128
+#define GHOST_LINE_MAX_FRAME_DISTANCE GHOST_LINE_VALUE(131072)
 
 struct GHOST_LINE_VECTOR {
-	legacy_f64 x, y, z;
+	ghost_line_scalar x, y, z;
 };
 
 struct GHOST_LINE_POSE {
 	struct GHOST_LINE_VECTOR center;
 	struct GHOST_LINE_VECTOR right;
 	struct GHOST_LINE_VECTOR up;
-	legacy_f64 speed;
+	ghost_line_scalar speed;
 	legacy_u8 has_orientation;
 };
 
-#ifdef RESTUNTS_DOS16
-/* A route can exceed the entire conventional-memory arena. Keep it in a
- * separate temporary file, with only tile heads and one iterator piece in RAM. */
+#if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
+/* Keep the route outside the constrained DOS/Amiga resource arena, with only
+ * tile heads and one iterator piece in RAM. */
 static legacy_u16 ghost_line_file;
 static legacy_s8 ghost_line_temp_name[GHOST_TEMP_NAME_SIZE];
 static struct GHOST_RACING_LINE_SEGMENT ghost_line_cached;
@@ -92,15 +157,15 @@ static legacy_u32 ghost_line_heads[GHOST_LINE_TILE_COUNT];
 static struct {
 	struct GHOST_LINE_POSE previous;
 	struct GHOST_LINE_POSE sample;
-	legacy_f64 distance;
-	legacy_f64 midpoint_speed;
+	ghost_line_scalar distance;
+	ghost_line_scalar midpoint_speed;
 	legacy_u8 initialized;
 	legacy_u8 failed;
 } ghost_line_builder;
 
 static void ghost_line_clear(void)
 {
-#ifdef RESTUNTS_DOS16
+#if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
 	if (ghost_line_file != 0) {
 		(void)dos_file_close(ghost_line_file);
 		(void)dos_file_remove(ghost_line_temp_name);
@@ -123,49 +188,50 @@ static void ghost_line_clear(void)
 /* Normalize before Newton iteration, keeping its input in [1,3]. This avoids
  * an SDL dependency in the standalone ghost tests and remains finite even
  * for invalid recorded coordinates. Eight iterations exceed double precision. */
-static legacy_f64 ghost_line_length(struct GHOST_LINE_VECTOR vector)
+static ghost_line_scalar ghost_line_length(struct GHOST_LINE_VECTOR vector)
 {
-	legacy_f64 x = vector.x < 0 ? -vector.x : vector.x;
-	legacy_f64 y = vector.y < 0 ? -vector.y : vector.y;
-	legacy_f64 z = vector.z < 0 ? -vector.z : vector.z;
-	legacy_f64 scale = x > y ? x : y;
+	ghost_line_scalar x = vector.x < 0 ? -vector.x : vector.x;
+	ghost_line_scalar y = vector.y < 0 ? -vector.y : vector.y;
+	ghost_line_scalar z = vector.z < 0 ? -vector.z : vector.z;
+	ghost_line_scalar scale = x > y ? x : y;
 	if (z > scale) {
 		scale = z;
 	}
 	if (scale == 0) {
 		return 0;
 	}
-	x /= scale;
-	y /= scale;
-	z /= scale;
-	legacy_f64 square = x * x + y * y + z * z;
-	legacy_f64 root = 2;
+	x = ghost_line_divide(x, scale);
+	y = ghost_line_divide(y, scale);
+	z = ghost_line_divide(z, scale);
+	ghost_line_scalar square =
+		ghost_line_multiply(x, x) + ghost_line_multiply(y, y) + ghost_line_multiply(z, z);
+	ghost_line_scalar root = GHOST_LINE_VALUE(2);
 	for (legacy_u16 iteration = 0; iteration < 8U; iteration++) {
-		root = (root + square / root) * 0.5;
+		root = (root + ghost_line_divide(square, root)) / 2;
 	}
-	return root * scale;
+	return ghost_line_multiply(root, scale);
 }
 
 static legacy_s16 ghost_line_normalize(struct GHOST_LINE_VECTOR *vector)
 {
-	legacy_f64 length = ghost_line_length(*vector);
-	if (length < 0.000001) {
+	ghost_line_scalar length = ghost_line_length(*vector);
+	if (length < GHOST_LINE_NORMALIZATION_MIN) {
 		return 0;
 	}
-	vector->x /= length;
-	vector->y /= length;
-	vector->z /= length;
+	vector->x = ghost_line_divide(vector->x, length);
+	vector->y = ghost_line_divide(vector->y, length);
+	vector->z = ghost_line_divide(vector->z, length);
 	return 1;
 }
 
 static struct GHOST_LINE_VECTOR ghost_line_blend(struct GHOST_LINE_VECTOR first,
 												 struct GHOST_LINE_VECTOR second,
-												 legacy_f64 fraction)
+												 ghost_line_scalar fraction)
 {
 	struct GHOST_LINE_VECTOR result;
-	result.x = first.x + (second.x - first.x) * fraction;
-	result.y = first.y + (second.y - first.y) * fraction;
-	result.z = first.z + (second.z - first.z) * fraction;
+	result.x = first.x + ghost_line_multiply(second.x - first.x, fraction);
+	result.y = first.y + ghost_line_multiply(second.y - first.y, fraction);
+	result.z = first.z + ghost_line_multiply(second.z - first.z, fraction);
 	return result;
 }
 
@@ -175,34 +241,37 @@ static struct GHOST_LINE_POSE ghost_line_pose(const struct CARSTATE *car)
 	const struct VECTOR *wheel = car->car_wheel_contact_positions;
 	/* Wheels are clockwise: front-left, front-right, rear-right, rear-left. */
 	for (legacy_u16 index = 0; index < CARSTATE_WHEEL_COUNT; index++) {
-		pose.center.x += (legacy_f64)wheel[index].x * 16;
-		pose.center.y += (legacy_f64)wheel[index].y * 16;
-		pose.center.z += (legacy_f64)wheel[index].z * 16;
+		pose.center.x += GHOST_LINE_VALUE(wheel[index].x) * 16;
+		pose.center.y += GHOST_LINE_VALUE(wheel[index].y) * 16;
+		pose.center.z += GHOST_LINE_VALUE(wheel[index].z) * 16;
 	}
-	pose.right.x = (legacy_f64)wheel[1].x + wheel[2].x - wheel[0].x - wheel[3].x;
-	pose.right.y = (legacy_f64)wheel[1].y + wheel[2].y - wheel[0].y - wheel[3].y;
-	pose.right.z = (legacy_f64)wheel[1].z + wheel[2].z - wheel[0].z - wheel[3].z;
+	pose.right.x = GHOST_LINE_VALUE((legacy_s32)wheel[1].x + wheel[2].x - wheel[0].x - wheel[3].x);
+	pose.right.y = GHOST_LINE_VALUE((legacy_s32)wheel[1].y + wheel[2].y - wheel[0].y - wheel[3].y);
+	pose.right.z = GHOST_LINE_VALUE((legacy_s32)wheel[1].z + wheel[2].z - wheel[0].z - wheel[3].z);
 	struct GHOST_LINE_VECTOR forward;
-	forward.x = (legacy_f64)wheel[0].x + wheel[1].x - wheel[2].x - wheel[3].x;
-	forward.y = (legacy_f64)wheel[0].y + wheel[1].y - wheel[2].y - wheel[3].y;
-	forward.z = (legacy_f64)wheel[0].z + wheel[1].z - wheel[2].z - wheel[3].z;
-	pose.up.x = forward.y * pose.right.z - forward.z * pose.right.y;
-	pose.up.y = forward.z * pose.right.x - forward.x * pose.right.z;
-	pose.up.z = forward.x * pose.right.y - forward.y * pose.right.x;
+	forward.x = GHOST_LINE_VALUE((legacy_s32)wheel[0].x + wheel[1].x - wheel[2].x - wheel[3].x);
+	forward.y = GHOST_LINE_VALUE((legacy_s32)wheel[0].y + wheel[1].y - wheel[2].y - wheel[3].y);
+	forward.z = GHOST_LINE_VALUE((legacy_s32)wheel[0].z + wheel[1].z - wheel[2].z - wheel[3].z);
+	pose.up.x =
+		ghost_line_multiply(forward.y, pose.right.z) - ghost_line_multiply(forward.z, pose.right.y);
+	pose.up.y =
+		ghost_line_multiply(forward.z, pose.right.x) - ghost_line_multiply(forward.x, pose.right.z);
+	pose.up.z =
+		ghost_line_multiply(forward.x, pose.right.y) - ghost_line_multiply(forward.y, pose.right.x);
 	pose.has_orientation = ghost_line_normalize(&pose.right) && ghost_line_normalize(&pose.up);
 	if (!pose.has_orientation) {
-		pose.right.x = 1;
+		pose.right.x = GHOST_LINE_VALUE(1);
 		pose.right.y = pose.right.z = 0;
 		pose.up.x = pose.up.z = 0;
-		pose.up.y = 1;
+		pose.up.y = GHOST_LINE_VALUE(1);
 	}
-	pose.speed = car->car_actual_speed;
+	pose.speed = GHOST_LINE_VALUE(car->car_actual_speed);
 	return pose;
 }
 
 static struct GHOST_LINE_POSE ghost_line_interpolate(const struct GHOST_LINE_POSE *first,
 													 const struct GHOST_LINE_POSE *second,
-													 legacy_f64 fraction)
+													 ghost_line_scalar fraction)
 {
 	struct GHOST_LINE_POSE result;
 	result.center = ghost_line_blend(first->center, second->center, fraction);
@@ -214,37 +283,38 @@ static struct GHOST_LINE_POSE ghost_line_interpolate(const struct GHOST_LINE_POS
 	if (!ghost_line_normalize(&result.up)) {
 		result.up = first->up;
 	}
-	result.speed = first->speed + (second->speed - first->speed) * fraction;
+	result.speed = first->speed + ghost_line_multiply(second->speed - first->speed, fraction);
 	result.has_orientation = 1;
 	return result;
 }
 
-static legacy_s32 ghost_line_round(legacy_f64 coordinate)
+static legacy_s32 ghost_line_round(ghost_line_scalar coordinate)
 {
-	return (legacy_s32)(coordinate + (coordinate < 0 ? -0.5 : 0.5));
+	return ghost_line_integer(
+		coordinate + (coordinate < 0 ? -GHOST_LINE_VALUE(1) / 2 : GHOST_LINE_VALUE(1) / 2));
 }
 
-static struct VECTORLONG ghost_line_edge(const struct GHOST_LINE_POSE *pose, legacy_f64 side)
+static struct VECTORLONG ghost_line_edge(const struct GHOST_LINE_POSE *pose, ghost_line_scalar side)
 {
 	struct VECTORLONG result;
-	result.lx = ghost_line_round(pose->center.x + pose->right.x * side +
+	result.lx = ghost_line_round(pose->center.x + ghost_line_multiply(pose->right.x, side) +
 								 pose->up.x * GHOST_LINE_SURFACE_LIFT);
-	result.ly = ghost_line_round(pose->center.y + pose->right.y * side +
+	result.ly = ghost_line_round(pose->center.y + ghost_line_multiply(pose->right.y, side) +
 								 pose->up.y * GHOST_LINE_SURFACE_LIFT);
-	result.lz = ghost_line_round(pose->center.z + pose->right.z * side +
+	result.lz = ghost_line_round(pose->center.z + ghost_line_multiply(pose->right.z, side) +
 								 pose->up.z * GHOST_LINE_SURFACE_LIFT);
 	return result;
 }
 
-static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 speed)
+static void ghost_line_append(const struct GHOST_LINE_POSE *end, ghost_line_scalar speed)
 {
-	legacy_f64 x = (ghost_line_builder.sample.center.x + end->center.x) * 0.5;
-	legacy_f64 z = (ghost_line_builder.sample.center.z + end->center.z) * 0.5;
-	if (x < 0 || z < 0 || x >= GHOST_LINE_GRID_SIZE * 65536.0 ||
-		z >= GHOST_LINE_GRID_SIZE * 65536.0 || ghost_line_builder.failed) {
+	ghost_line_scalar x = (ghost_line_builder.sample.center.x + end->center.x) / 2;
+	ghost_line_scalar z = (ghost_line_builder.sample.center.z + end->center.z) / 2;
+	if (x < 0 || z < 0 || x >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * 65536L) ||
+		z >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * 65536L) || ghost_line_builder.failed) {
 		return;
 	}
-#ifdef RESTUNTS_DOS16
+#if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
 	if (ghost_line_count == 0) {
 		ghost_line_file = ghost_create_file(ghost_line_temp_name, 'L');
 	}
@@ -275,16 +345,16 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 spee
 	}
 	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
 #endif
-	legacy_u16 east = (legacy_u16)(x / 65536.0);
-	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U - (legacy_u16)(z / 65536.0);
+	legacy_u16 east = (legacy_u16)(ghost_line_integer(x) / 65536L);
+	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U - (legacy_u16)(ghost_line_integer(z) / 65536L);
 	legacy_u16 tile = south * GHOST_LINE_GRID_SIZE + east;
 	segment->start_left = ghost_line_edge(&ghost_line_builder.sample, -GHOST_LINE_HALF_WIDTH);
 	segment->start_right = ghost_line_edge(&ghost_line_builder.sample, GHOST_LINE_HALF_WIDTH);
 	segment->end_left = ghost_line_edge(end, -GHOST_LINE_HALF_WIDTH);
 	segment->end_right = ghost_line_edge(end, GHOST_LINE_HALF_WIDTH);
-	segment->speed = (legacy_u16)(speed + 0.5);
+	segment->speed = (legacy_u16)ghost_line_integer(speed + GHOST_LINE_VALUE(1) / 2);
 	segment->next = ghost_line_heads[tile];
-#ifdef RESTUNTS_DOS16
+#if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
 	if (dos_file_write(ghost_line_file, segment, sizeof(*segment)) != sizeof(*segment)) {
 		ghost_line_clear();
 		ghost_line_builder.failed = 1;
@@ -297,10 +367,10 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, legacy_f64 spee
 static void ghost_line_finish(void)
 {
 	if (ghost_line_builder.initialized && !ghost_line_builder.failed &&
-		ghost_line_builder.distance > 1.0) {
+		ghost_line_builder.distance > GHOST_LINE_VALUE(1)) {
 		ghost_line_append(&ghost_line_builder.previous,
-						  (ghost_line_builder.sample.speed + ghost_line_builder.previous.speed) *
-							  0.5);
+						  (ghost_line_builder.sample.speed + ghost_line_builder.previous.speed) /
+							  2);
 		ghost_line_builder.distance = 0;
 	}
 }
@@ -323,7 +393,7 @@ static void ghost_line_record(const struct CARSTATE *car)
 	delta.x = current.center.x - previous->center.x;
 	delta.y = current.center.y - previous->center.y;
 	delta.z = current.center.z - previous->center.z;
-	legacy_f64 length = ghost_line_length(delta);
+	ghost_line_scalar length = ghost_line_length(delta);
 	/* Initialized wheel contacts can coincide until the first physics tick.
 	 * Adopt their real orientation even if that tick does not move the car. */
 	if (!previous->has_orientation && current.has_orientation) {
@@ -340,22 +410,23 @@ static void ghost_line_record(const struct CARSTATE *car)
 		ghost_line_builder.sample = current;
 		ghost_line_builder.distance = 0;
 	} else if (length > 0) {
-		legacy_f64 consumed = 0;
+		ghost_line_scalar consumed = 0;
 		while (consumed < length && !ghost_line_builder.failed) {
-			legacy_f64 remaining = GHOST_LINE_SPACING - ghost_line_builder.distance;
-			legacy_f64 step = length - consumed < remaining ? length - consumed : remaining;
-			if (ghost_line_builder.distance <= GHOST_LINE_SPACING * 0.5 &&
-				ghost_line_builder.distance + step >= GHOST_LINE_SPACING * 0.5) {
-				legacy_f64 fraction =
-					(consumed + GHOST_LINE_SPACING * 0.5 - ghost_line_builder.distance) / length;
+			ghost_line_scalar remaining = GHOST_LINE_SPACING - ghost_line_builder.distance;
+			ghost_line_scalar step = length - consumed < remaining ? length - consumed : remaining;
+			if (ghost_line_builder.distance <= GHOST_LINE_SPACING / 2 &&
+				ghost_line_builder.distance + step >= GHOST_LINE_SPACING / 2) {
+				ghost_line_scalar fraction = ghost_line_divide(
+					consumed + GHOST_LINE_SPACING / 2 - ghost_line_builder.distance, length);
 				ghost_line_builder.midpoint_speed =
-					previous->speed + (current.speed - previous->speed) * fraction;
+					previous->speed +
+					ghost_line_multiply(current.speed - previous->speed, fraction);
 			}
 			consumed += step;
 			ghost_line_builder.distance += step;
-			if (ghost_line_builder.distance >= GHOST_LINE_SPACING - 0.000001) {
+			if (ghost_line_builder.distance >= GHOST_LINE_SAMPLE_THRESHOLD) {
 				struct GHOST_LINE_POSE sample =
-					ghost_line_interpolate(previous, &current, consumed / length);
+					ghost_line_interpolate(previous, &current, ghost_line_divide(consumed, length));
 				ghost_line_append(&sample, ghost_line_builder.midpoint_speed);
 				ghost_line_builder.sample = sample;
 				ghost_line_builder.distance = 0;
@@ -370,7 +441,7 @@ static const struct GHOST_RACING_LINE_SEGMENT *ghost_line_at(legacy_u32 index)
 	if (index >= ghost_line_count) {
 		return 0;
 	}
-#ifdef RESTUNTS_DOS16
+#if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
 	if (ghost_line_cached_index != index) {
 		if (!ghost_seek(ghost_line_file, (legacy_s32)(index * sizeof(ghost_line_cached))) ||
 			dos_file_read(ghost_line_file, &ghost_line_cached, sizeof(ghost_line_cached)) !=
