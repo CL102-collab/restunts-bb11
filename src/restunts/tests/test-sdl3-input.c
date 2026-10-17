@@ -2216,6 +2216,232 @@ static void test_controller_remote_shifts(SDL_Joystick *device)
 	sdl3_input_set_gameplay_active(false);
 }
 
+static void publish_tilt(legacy_s16 axis, legacy_u8 enabled)
+{
+	/* Unchanged samples still publish a new timestamp, as Android's sensor does. */
+	SDL_Delay(2);
+	sdl3_input_set_tilt(axis, enabled);
+	sdl3_platform_pump();
+}
+
+static void assert_tilt_idle(void)
+{
+	assert(sdl3_tilt_scaled_x() == 0);
+	assert(sdl3_input_driving_mode() != SDL3_DRIVING_TILT);
+	assert(kb_read_char() == 0);
+	assert(sdl3_controller_driving_flags() == 0);
+	assert(!sdl3_controller_take_menu_request());
+	assert(!sdl3_controller_take_race_start_request());
+}
+
+static legacy_int SDLCALL publish_tilt_thread(void *unused)
+{
+	(void)unused;
+	sdl3_input_set_tilt(-16, true);
+	return 0;
+}
+
+static void test_tilt_steering(void)
+{
+	kb_init_interrupt();
+	publish_tilt(0, false);
+	sdl3_input_set_gameplay_active(true);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	/* Publishing on the sensor thread cannot change game-owned steering state. */
+	sdl3_batch_mode = true;
+	SDL_Thread *publisher = SDL_CreateThread(publish_tilt_thread, "tilt sensor", NULL);
+	assert(publisher != NULL);
+	SDL_WaitThread(publisher, NULL);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert(sdl3_tilt_scaled_x() == 0);
+	sdl3_batch_mode = false;
+	assert(sdl3_tilt_scaled_x() == -16);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_TILT);
+	static const legacy_s16 axes[] = {-32, -16, -8, -1, 0, 1, 8, 16, 32, 100, -100};
+	for (legacy_u32 index = 0; index < SDL_arraysize(axes); index++) {
+		publish_tilt(axes[index], true);
+		assert(sdl3_tilt_scaled_x() == SDL_clamp(axes[index], -32, 32));
+		assert(sdl3_input_driving_mode() ==
+			   (axes[index] == 0 ? SDL3_DRIVING_KEYBOARD : SDL3_DRIVING_TILT));
+		assert(kb_read_char() == 0);
+		assert(kb_get_key_state(TEST_CONTROLLER_SCAN_LEFT) == 0);
+		assert(kb_get_key_state(TEST_CONTROLLER_SCAN_RIGHT) == 0);
+		assert(sdl3_controller_driving_flags() == 0);
+		assert(!sdl3_controller_take_menu_request());
+		assert(!sdl3_controller_take_race_start_request());
+	}
+	publish_tilt(0, false);
+	assert_tilt_idle();
+	sdl3_input_set_gameplay_active(false);
+}
+
+static void test_tilt_manual_override(void)
+{
+	kb_init_interrupt();
+	publish_tilt(0, false);
+	sdl3_input_set_gameplay_active(true);
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	/* A complete key tap within one pump still owns steering afterward. */
+	send_key(SDL_SCANCODE_LEFT, SDL_KMOD_NONE, true, false);
+	send_key(SDL_SCANCODE_LEFT, SDL_KMOD_NONE, false, false);
+	publish_tilt(1, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert(kb_read_char() == KEY_LEFT);
+	publish_tilt(2, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	publish_tilt(4, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	publish_tilt(6, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_TILT);
+	/* Held physical arrows win even over large, fresh sensor movements. */
+	send_key(SDL_SCANCODE_RIGHT, SDL_KMOD_NONE, true, false);
+	publish_tilt(-32, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_RIGHT));
+	send_key(SDL_SCANCODE_RIGHT, SDL_KMOD_NONE, false, false);
+	publish_tilt(-32, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	publish_tilt(0, true);
+	publish_tilt(-1, true);
+	assert(sdl3_tilt_scaled_x() == -1);
+	kb_init_interrupt();
+	/* Tilt leaves touch pedals and manual shifts available and independent. */
+	sdl3_touch_enable(true);
+	sdl3_touch_configure(true, true, true, false);
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_THROTTLE_FINGER, TOUCH_ACCELERATE);
+	send_touch_shift();
+	sdl3_platform_pump();
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_TILT);
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_UP));
+	assert(sdl3_touch_take_shift_flags() == INPUT_SHIFT_UP_FLAG);
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_THROTTLE_FINGER, TOUCH_ACCELERATE);
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_STEERING_FINGER, TOUCH_LEFT);
+	publish_tilt(32, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert(kb_get_key_state(TEST_CONTROLLER_SCAN_LEFT));
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_STEERING_FINGER, TOUCH_LEFT);
+	publish_tilt(32, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	publish_tilt(0, true);
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	/* A short touch arrow tap also remains the last active steering source. */
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_STEERING_FINGER, TOUCH_RIGHT);
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_STEERING_FINGER, TOUCH_RIGHT);
+	publish_tilt(1, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	sdl3_touch_enable(false);
+	publish_tilt(0, false);
+	sdl3_input_set_gameplay_active(false);
+	kb_init_interrupt();
+}
+
+static void test_tilt_lifecycle(void)
+{
+	static const SDL_EventType focus_events[] = {SDL_EVENT_WINDOW_FOCUS_LOST,
+												 SDL_EVENT_WILL_ENTER_BACKGROUND};
+	kb_init_interrupt();
+	publish_tilt(32, true);
+	assert_tilt_idle();
+	/* Entering a race discards the menu's pending sample until a new update. */
+	sdl3_input_set_gameplay_active(true);
+	assert_tilt_idle();
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	/* Replays and nested modal dialogs cannot steer or queue actions. */
+	sdl3_input_set_replay_active(true);
+	publish_tilt(32, true);
+	assert_tilt_idle();
+	sdl3_input_set_replay_active(false);
+	assert_tilt_idle();
+	publish_tilt(32, true);
+	assert_tilt_idle();
+	publish_tilt(0, true);
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	sdl3_input_push_modal();
+	sdl3_input_push_modal();
+	publish_tilt(-32, true);
+	assert_tilt_idle();
+	sdl3_input_pop_modal();
+	publish_tilt(32, true);
+	assert_tilt_idle();
+	sdl3_input_pop_modal();
+	assert_tilt_idle();
+	publish_tilt(32, true);
+	assert_tilt_idle();
+	for (legacy_u32 index = 0; index < SDL_arraysize(focus_events); index++) {
+		publish_tilt(0, true);
+		publish_tilt(-1, true);
+		assert(sdl3_tilt_scaled_x() == -1);
+		SDL_Event event;
+		SDL_zero(event);
+		event.type = focus_events[index];
+		assert(SDL_PushEvent(&event));
+		sdl3_platform_pump();
+		publish_tilt(-32, true);
+		assert_tilt_idle();
+		event.type = index == 0 ? SDL_EVENT_WINDOW_FOCUS_GAINED : SDL_EVENT_DID_ENTER_FOREGROUND;
+		assert(SDL_PushEvent(&event));
+		sdl3_platform_pump();
+		assert_tilt_idle();
+		publish_tilt(-32, true);
+		assert_tilt_idle();
+	}
+	publish_tilt(0, true);
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	SDL_Delay(550);
+	assert_tilt_idle();
+	publish_tilt(1, true);
+	assert_tilt_idle();
+	publish_tilt(0, true);
+	publish_tilt(1, true);
+	assert(sdl3_tilt_scaled_x() == 1);
+	publish_tilt(0, false);
+	assert_tilt_idle();
+	sdl3_input_set_gameplay_active(false);
+}
+
+static void test_controller_tilt_arbitration(SDL_Joystick *device)
+{
+	kb_init_interrupt();
+	publish_tilt(0, false);
+	sdl3_input_set_gameplay_active(true);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PARTIAL_TURN);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	assert(sdl3_controller_take_race_start_request());
+	publish_tilt(1, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	publish_tilt(2, true);
+	publish_tilt(1, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	assert(!sdl3_controller_take_race_start_request());
+	publish_tilt(8, true);
+	assert(sdl3_tilt_scaled_x() == 8);
+	/* Pedals and gears remain a separate controller channel while tilt steers. */
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, TEST_CONTROLLER_AXIS_MIN);
+	assert((sdl3_controller_driving_flags() & INPUT_PEDAL_MASK) == INPUT_ACCELERATE_FLAG);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, 0);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	assert(sdl3_controller_driving_flags() & INPUT_SHIFT_UP_FLAG);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_TILT);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_AXIS_MIN);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	publish_tilt(8, true);
+	publish_tilt(9, true);
+	publish_tilt(8, true);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	publish_tilt(0, false);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_CONTROLLER);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+	sdl3_input_set_gameplay_active(false);
+	kb_init_interrupt();
+}
+
 static void test_controller(void)
 {
 	kb_init_interrupt();
@@ -2236,6 +2462,7 @@ static void test_controller(void)
 	test_controller_dpad_repeat_context(device);
 	test_controller_race_start(device);
 	test_controller_remote_shifts(device);
+	test_controller_tilt_arbitration(device);
 	sdl3_input_set_gameplay_active(true);
 	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PARTIAL_TURN);
 	/* Focus loss clears shortcuts while preserving physical key ownership. */
@@ -2309,6 +2536,9 @@ legacy_int main(void)
 	test_adaptive_frame_timing();
 	test_fullscreen_shortcut();
 	test_joystick();
+	test_tilt_steering();
+	test_tilt_manual_override();
+	test_tilt_lifecycle();
 	test_controller();
 	SDL_Event quit;
 	SDL_zero(quit);

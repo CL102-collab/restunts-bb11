@@ -68,7 +68,8 @@ same game folder. The app-owned TV fallback folder is deleted on uninstall;
 back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
-Above **Start game**, **New MIDI** selects replacement music. The separate
+Above **Start game**, **New MIDI** selects replacement music. **Controls**
+contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 **Show Control Layout** for the touch circles, and finally the **HyperVision**
 selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
@@ -113,6 +114,22 @@ toolbar to skip backward/forward ten seconds, clamped to the recording's ends.
 Seeking pauses playback. Text fields open the Android software keyboard.
 Text-entry dialogs appear at the top so names and paths remain visible while
 editing highscore names, track/replay filenames, or file-picker directories.
+
+## Tilt steering
+
+Enable **Controls → Tilt steering** before starting to steer by tilting your
+phone, tablet or handheld console. The game runs in landscape: lower the left
+edge to steer left and the right edge to steer right. Both landscape rotations
+work.
+A 4-degree deadzone keeps small movements neutral; steering increases gradually
+until full steering at 30 degrees. Use touch controls or a gamepad for the
+accelerator and brake.
+
+Tilt steering starts **off on every device**. Devices with a gravity sensor or
+accelerometer can opt in with the checkbox. Devices without either sensor
+show a disabled, unchecked option. The choice is remembered, so an earlier
+saved selection takes precedence over the default. Sensor input stops and
+steering returns to neutral when the app is suspended, loses focus or closes.
 
 ## Android TV
 
@@ -323,22 +340,24 @@ app before installing the replacement. No game executable relinking is needed.
 
 ## Verification
 
-The importer, version validation, launcher options, folder synchronization and
-local TV folder can be tested without Android:
+The importer, version validation, launcher options, tilt steering math/default
+policy, folder synchronization and local TV folder can be tested without Android:
 
 ```sh
 javac -d out/android-import-tests \
     android/app/src/main/java/org/restunts/android/GameDataImport.java \
     android/app/src/main/java/org/restunts/android/GameDataVersion.java \
     android/app/src/main/java/org/restunts/android/LaunchOptions.java \
+    android/app/src/main/java/org/restunts/android/TiltSteeringMath.java \
     android/app/src/main/java/org/restunts/android/GameDataSync.java \
     android/app/src/main/java/org/restunts/android/LocalGameFolder.java \
     android/tests/GameDataImportTest.java android/tests/GameDataVersionTest.java \
-    android/tests/LaunchOptionsTest.java \
+    android/tests/LaunchOptionsTest.java android/tests/TiltSteeringTest.java \
     android/tests/GameDataSyncTest.java android/tests/LocalGameFolderTest.java
 java -cp out/android-import-tests org.restunts.android.GameDataImportTest
 java -cp out/android-import-tests org.restunts.android.GameDataVersionTest
 java -cp out/android-import-tests org.restunts.android.LaunchOptionsTest
+java -cp out/android-import-tests org.restunts.android.TiltSteeringTest
 java -cp out/android-import-tests org.restunts.android.GameDataSyncTest
 java -cp out/android-import-tests org.restunts.android.LocalGameFolderTest
 ```

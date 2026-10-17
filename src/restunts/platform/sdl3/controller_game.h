@@ -8,7 +8,8 @@ enum SDL3_DRIVING_INPUT {
 	SDL3_DRIVING_KEYBOARD,
 	SDL3_DRIVING_JOYSTICK,
 	SDL3_DRIVING_MOUSE,
-	SDL3_DRIVING_CONTROLLER
+	SDL3_DRIVING_CONTROLLER,
+	SDL3_DRIVING_TILT
 };
 
 void sdl3_input_set_driving_mode(enum SDL3_DRIVING_INPUT mode);
@@ -20,6 +21,9 @@ void sdl3_input_pop_modal(void);
 legacy_s16 sdl3_joystick_menu_flags(void);
 legacy_s16 sdl3_controller_driving_flags(void);
 legacy_s16 sdl3_controller_scaled_x(void);
+/* Safe from the Android sensor thread; axis is negative left, positive right. */
+void sdl3_input_set_tilt(legacy_s16 axis, legacy_u8 enabled);
+legacy_s16 sdl3_tilt_scaled_x(void);
 /* Direction flags repeat at a fixed interval, independently of polling frequency. */
 legacy_s16 sdl3_controller_camera_flags(void);
 legacy_u8 sdl3_controller_take_menu_request(void);

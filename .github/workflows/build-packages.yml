@@ -68,10 +68,11 @@ jobs:
             android/app/src/main/java/org/restunts/android/GameDataImport.java \
             android/app/src/main/java/org/restunts/android/GameDataVersion.java \
             android/app/src/main/java/org/restunts/android/LaunchOptions.java \
+            android/app/src/main/java/org/restunts/android/TiltSteeringMath.java \
             android/app/src/main/java/org/restunts/android/GameDataSync.java \
             android/app/src/main/java/org/restunts/android/LocalGameFolder.java \
             android/tests/GameDataImportTest.java android/tests/GameDataVersionTest.java \
-            android/tests/LaunchOptionsTest.java \
+            android/tests/LaunchOptionsTest.java android/tests/TiltSteeringTest.java \
             android/tests/GameDataSyncTest.java android/tests/LocalGameFolderTest.java
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.GameDataImportTest
@@ -79,6 +80,8 @@ jobs:
             org.restunts.android.GameDataVersionTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.LaunchOptionsTest
+          "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
+            org.restunts.android.TiltSteeringTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \
             org.restunts.android.GameDataSyncTest
           "$JAVA_HOME/bin/java" -cp "$RUNNER_TEMP/android-import-tests" \

@@ -508,6 +508,15 @@ static void test_game_state_and_rewind(void)
 	driving_mode = SDL3_DRIVING_CONTROLLER;
 	sdl3_touch_sync_game();
 	assert(!sdl3_touch_visible(TOUCH_LEFT) && !sdl3_touch_visible(TOUCH_ESCAPE));
+	/* Tilt steering keeps the same touch pedals, gears and steering override. */
+	driving_mode = SDL3_DRIVING_TILT;
+	sdl3_touch_sync_game();
+	assert(sdl3_touch_visible(TOUCH_LEFT) && sdl3_touch_visible(TOUCH_ACCELERATE));
+	assert(!sdl3_touch_visible(TOUCH_SHIFT_UP) && !sdl3_touch_visible(TOUCH_SHIFT_DOWN));
+	game_replay_mode = REPLAY_MODE_LIVE;
+	is_in_replay = 0;
+	sdl3_touch_sync_game();
+	assert(sdl3_touch_visible(TOUCH_SHIFT_UP) && sdl3_touch_visible(TOUCH_SHIFT_DOWN));
 	/* Last-used keyboard steering restores touch even if a legacy flag is stale. */
 	mouse_driving_enabled = 1;
 	driving_mode = SDL3_DRIVING_KEYBOARD;

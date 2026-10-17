@@ -3,6 +3,7 @@ package org.restunts.android;
 import android.content.Intent;
 import android.content.Context;
 import android.content.res.Configuration;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -18,6 +19,8 @@ public final class GameActivity extends SDLActivity {
     private final SparseArray<SparseIntArray> remotePressed = new SparseArray<>();
     private final SparseIntArray remoteHeld = new SparseIntArray();
     private boolean television;
+    private boolean nativeReady;
+    private TiltSteering tiltSteering;
 
     @Override
     public void onCreate(Bundle state) {
@@ -25,7 +28,27 @@ public final class GameActivity extends SDLActivity {
         television = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_TYPE_MASK)
             == Configuration.UI_MODE_TYPE_TELEVISION;
         super.onCreate(state);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        nativeReady = !mBrokenLibraries;
+        if (nativeReady) {
+            boolean enabled = getIntent().getBooleanExtra(LaunchOptions.TILT_STEERING_KEY,
+                LaunchOptions.DEFAULT_TILT_STEERING);
+            tiltSteering = new TiltSteering(this, enabled, (axis, active) -> {
+                if (nativeReady && !mBrokenLibraries) {
+                    setTiltSteering(axis, active);
+                }
+            });
+            tiltSteering.setFocused(hasWindowFocus());
+        }
     }
+
+    /** SDL's resizable-window request must preserve either landscape rotation. */
+    @Override
+    public void setOrientationBis(int width, int height, boolean resizable, String hint) {
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+    }
+
+    public static native void setTiltSteering(int axis, boolean enabled);
 
     private boolean remoteNumberInput(KeyEvent event) {
         View focused = getCurrentFocus();
@@ -98,7 +121,18 @@ public final class GameActivity extends SDLActivity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        if (tiltSteering != null) {
+            tiltSteering.setResumed(true);
+        }
+    }
+
+    @Override
     protected void onPause() {
+        if (tiltSteering != null) {
+            tiltSteering.setResumed(false);
+        }
         releaseRemoteKeys();
         super.onPause();
     }
@@ -106,9 +140,25 @@ public final class GameActivity extends SDLActivity {
     @Override
     public void onWindowFocusChanged(boolean focused) {
         if (!focused) {
+            if (tiltSteering != null) {
+                tiltSteering.setFocused(false);
+            }
             releaseRemoteKeys();
         }
         super.onWindowFocusChanged(focused);
+        if (focused && tiltSteering != null) {
+            tiltSteering.setFocused(true);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (tiltSteering != null) {
+            tiltSteering.close();
+            tiltSteering = null;
+        }
+        nativeReady = false;
+        super.onDestroy();
     }
 
     @Override

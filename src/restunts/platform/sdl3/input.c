@@ -21,6 +21,13 @@
 #define JOYSTICK_Y_AXIS 1U
 #define CONTROLLER_STEERING_ACTIVITY_DEADZONE 2048
 #define CONTROLLER_STEERING_ACTIVITY_DELTA 1024
+#define TILT_STEERING_ACTIVITY_DEADZONE 6
+#define TILT_STEERING_ACTIVITY_DELTA 3
+#define TILT_SAMPLE_TIMEOUT_MS 500U
+#define TILT_SAMPLE_AXIS_MASK 127U
+#define TILT_SAMPLE_ENABLED 128U
+#define TILT_SAMPLE_TIME_SHIFT 8U
+#define TILT_SAMPLE_TIME_MASK 0x7FFFFFU
 #define CONTROLLER_MENU_REPEAT_DELAY_MS 350U
 #define CONTROLLER_MENU_REPEAT_INTERVAL_MS 100U
 #define CONTROLLER_CAMERA_REPEAT_INTERVAL_MS 50U
@@ -79,6 +86,13 @@ static legacy_u64 controller_camera_repeat_at;
 static legacy_s16 controller_steering_activity_axis;
 static legacy_u8 pumping;
 static legacy_u64 last_event_poll;
+/* One atomic packet keeps the filtered sensor axis and timestamp coherent. */
+static SDL_AtomicInt tilt_sample;
+static legacy_u32 tilt_last_sample;
+static legacy_s16 tilt_axis;
+static legacy_s16 tilt_previous_axis;
+static legacy_s16 tilt_steering_activity_axis;
+static legacy_u8 tilt_manual_override;
 
 static const legacy_u8 dos_kb_keymap1[DOS_KB_PRIMARY_KEYMAP_SIZE] = {
 	0,	 27,  49,  50,	51,	 52,  53,  54,	55,	 56,  57,  48,	45,	 61,  8,   9,	113, 119, 101,
@@ -254,6 +268,100 @@ static legacy_u8 input_steering_scancode(SDL_Scancode code)
 		   code == SDL_SCANCODE_KP_1 || code == SDL_SCANCODE_KP_3;
 }
 
+void sdl3_input_set_tilt(legacy_s16 axis, legacy_u8 enabled)
+{
+	axis = SDL_clamp(axis, -JOYSTICK_AXIS_SCALE, JOYSTICK_AXIS_SCALE);
+	legacy_u32 timestamp = (legacy_u32)SDL_GetTicks() & TILT_SAMPLE_TIME_MASK;
+	legacy_u32 sample = (timestamp << TILT_SAMPLE_TIME_SHIFT) |
+						(enabled ? TILT_SAMPLE_ENABLED : 0U) |
+						(legacy_u32)(axis + JOYSTICK_AXIS_SCALE);
+	SDL_SetAtomicInt(&tilt_sample, (legacy_int)sample);
+}
+
+static legacy_s16 input_tilt_sample_axis(legacy_u32 sample)
+{
+	return (legacy_s16)(sample & TILT_SAMPLE_AXIS_MASK) - JOYSTICK_AXIS_SCALE;
+}
+
+static void input_tilt_reset(void)
+{
+	tilt_last_sample = (legacy_u32)SDL_GetAtomicInt(&tilt_sample);
+	tilt_previous_axis = (tilt_last_sample & TILT_SAMPLE_ENABLED) != 0
+							 ? input_tilt_sample_axis(tilt_last_sample)
+							 : 0;
+	tilt_steering_activity_axis = tilt_previous_axis;
+	tilt_axis = 0;
+	tilt_manual_override =
+		tilt_previous_axis != 0 && (driving_mode == SDL3_DRIVING_TILT || tilt_manual_override);
+	if (driving_mode == SDL3_DRIVING_TILT) {
+		driving_mode = SDL3_DRIVING_KEYBOARD;
+	}
+}
+
+static legacy_u8 input_manual_steering_held(void)
+{
+	for (legacy_u32 code = 1; code < SDL_SCANCODE_COUNT; code++) {
+		if (keys[code] && !consumed_keys[code] && input_steering_scancode((SDL_Scancode)code)) {
+			return true;
+		}
+	}
+	return sdl3_touch_key_state(SDL_SCANCODE_LEFT) || sdl3_touch_key_state(SDL_SCANCODE_RIGHT);
+}
+
+static void input_tilt_update(void)
+{
+	legacy_u32 sample = (legacy_u32)SDL_GetAtomicInt(&tilt_sample);
+	legacy_u32 now = (legacy_u32)SDL_GetTicks() & TILT_SAMPLE_TIME_MASK;
+	legacy_u32 age = (now - (sample >> TILT_SAMPLE_TIME_SHIFT)) & TILT_SAMPLE_TIME_MASK;
+	if (!input_focused || !gameplay_active || replay_active || modal_depth != 0 ||
+		(sample & TILT_SAMPLE_ENABLED) == 0 || age > TILT_SAMPLE_TIMEOUT_MS) {
+		input_tilt_reset();
+		return;
+	}
+	legacy_s16 axis = input_tilt_sample_axis(sample);
+	legacy_u8 manual_held = input_manual_steering_held();
+	if (manual_held) {
+		tilt_manual_override = true;
+		tilt_steering_activity_axis = axis;
+		if (driving_mode == SDL3_DRIVING_TILT) {
+			driving_mode = SDL3_DRIVING_KEYBOARD;
+		}
+	}
+	if (sample == tilt_last_sample) {
+		return;
+	}
+	tilt_last_sample = sample;
+	legacy_s16 previous = tilt_previous_axis;
+	tilt_previous_axis = axis;
+	tilt_axis = axis;
+	if (axis == 0) {
+		tilt_steering_activity_axis = 0;
+		tilt_manual_override = false;
+		if (driving_mode == SDL3_DRIVING_TILT) {
+			driving_mode = SDL3_DRIVING_KEYBOARD;
+		}
+		return;
+	}
+	if (manual_held) {
+		return;
+	}
+	legacy_s16 magnitude = axis < 0 ? -axis : axis;
+	legacy_s16 previous_magnitude = previous < 0 ? -previous : previous;
+	legacy_s16 delta = axis - tilt_steering_activity_axis;
+	legacy_u8 changed_side = (axis < 0 && previous > 0) || (axis > 0 && previous < 0);
+	/* A fresh gentle tilt starts steering from neutral. Other active devices
+	 * keep ownership until a meaningful movement, never a noisy static sample. */
+	if ((driving_mode == SDL3_DRIVING_KEYBOARD && !tilt_manual_override) ||
+		(magnitude >= TILT_STEERING_ACTIVITY_DEADZONE &&
+		 (changed_side || magnitude > previous_magnitude) &&
+		 (delta <= -TILT_STEERING_ACTIVITY_DELTA || delta >= TILT_STEERING_ACTIVITY_DELTA))) {
+		driving_mode = SDL3_DRIVING_TILT;
+		tilt_steering_activity_axis = axis;
+	} else if (!changed_side && magnitude <= previous_magnitude) {
+		tilt_steering_activity_axis = axis;
+	}
+}
+
 static void input_key(const SDL_KeyboardEvent *event)
 {
 	if ((legacy_u32)event->scancode >= SDL_SCANCODE_COUNT) {
@@ -272,6 +380,8 @@ static void input_key(const SDL_KeyboardEvent *event)
 	if (event->down && !event->repeat && gameplay_active && !replay_active && modal_depth == 0 &&
 		input_steering_scancode(event->scancode)) {
 		driving_mode = SDL3_DRIVING_KEYBOARD;
+		tilt_manual_override = true;
+		tilt_steering_activity_axis = tilt_previous_axis;
 	}
 	legacy_u8 was_pressed = keys[event->scancode];
 	keys[event->scancode] = event->down;
@@ -350,6 +460,15 @@ static void input_key(const SDL_KeyboardEvent *event)
 
 void sdl3_input_queue_key(legacy_u16 value)
 {
+	/* Touch arrows use this queue too, including a tap released before polling. */
+	if (input_focused && gameplay_active && !replay_active && modal_depth == 0 &&
+		(value == KEY_LEFT || value == KEY_RIGHT)) {
+		if (driving_mode == SDL3_DRIVING_TILT) {
+			driving_mode = SDL3_DRIVING_KEYBOARD;
+		}
+		tilt_manual_override = true;
+		tilt_steering_activity_axis = tilt_previous_axis;
+	}
 	if (key_count == KEY_BUFFER_CAPACITY) {
 		key_read = (key_read + 1U) % KEY_BUFFER_CAPACITY;
 		key_count--;
@@ -717,6 +836,17 @@ static legacy_u8 controller_key_state(SDL_Scancode code)
 }
 
 #ifdef __ANDROID__
+JNIEXPORT void JNICALL Java_org_restunts_android_GameActivity_setTiltSteering(JNIEnv *env,
+																			  jclass activity_class,
+																			  jint axis,
+																			  jboolean enabled)
+{
+	(void)env;
+	(void)activity_class;
+	sdl3_input_set_tilt((legacy_s16)SDL_clamp(axis, -JOYSTICK_AXIS_SCALE, JOYSTICK_AXIS_SCALE),
+						enabled == JNI_TRUE);
+}
+
 JNIEXPORT jboolean JNICALL Java_org_restunts_android_GameActivity_requestRemoteShift(
 	JNIEnv *env, jclass activity_class, jboolean up)
 {
@@ -802,6 +932,7 @@ void sdl3_platform_pump(void)
 			case SDL_EVENT_WILL_ENTER_BACKGROUND:
 				sdl3_touch_reset();
 				input_focused = false;
+				input_tilt_reset();
 				controller_reset_state();
 				/* A fullscreen transition can change focus while Enter is held.
 				 * Keep consumed shortcuts latched until release or a fresh press. */
@@ -812,9 +943,11 @@ void sdl3_platform_pump(void)
 				break;
 			case SDL_EVENT_WINDOW_FOCUS_GAINED:
 				input_focused = true;
+				input_tilt_reset();
 				break;
 			case SDL_EVENT_DID_ENTER_FOREGROUND:
 				input_focused = true;
+				input_tilt_reset();
 				sdl3_timer_rebase();
 				redraw_requested = true;
 				break;
@@ -899,6 +1032,8 @@ void sdl3_platform_pump(void)
 	}
 	controller_update_navigation();
 	controller_update_dpad_navigation();
+	input_tilt_update();
+	sdl3_touch_sync_game();
 	sdl3_touch_update();
 	sdl3_timer_pump();
 	if (redraw_requested) {
@@ -910,6 +1045,8 @@ void sdl3_platform_pump(void)
 
 void sdl3_input_shutdown(void)
 {
+	sdl3_input_set_tilt(0, false);
+	input_tilt_reset();
 	sdl3_touch_reset();
 	SDL_CloseJoystick(joystick);
 	joystick = NULL;
@@ -1168,6 +1305,8 @@ void sdl3_input_set_driving_mode(enum SDL3_DRIVING_INPUT mode)
 {
 	driving_mode = mode;
 	controller_steering_activity_axis = controller_axes[SDL_GAMEPAD_AXIS_RIGHTX];
+	tilt_steering_activity_axis = tilt_previous_axis;
+	tilt_manual_override = mode == SDL3_DRIVING_KEYBOARD && tilt_previous_axis != 0;
 }
 
 enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
@@ -1179,6 +1318,7 @@ enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
 void sdl3_input_set_gameplay_active(legacy_u8 active)
 {
 	if (gameplay_active != active) {
+		input_tilt_reset();
 		sdl3_input_reset_shifts();
 		controller_menu_direction = INPUT_NONE;
 		controller_menu_repeat_at = 0;
@@ -1195,6 +1335,7 @@ void sdl3_input_set_gameplay_active(legacy_u8 active)
 void sdl3_input_set_replay_active(legacy_u8 active)
 {
 	if (replay_active != active) {
+		input_tilt_reset();
 		sdl3_input_reset_shifts();
 		controller_menu_direction = INPUT_NONE;
 		controller_menu_repeat_at = 0;
@@ -1210,6 +1351,7 @@ void sdl3_input_set_replay_active(legacy_u8 active)
 
 void sdl3_input_push_modal(void)
 {
+	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth < LEGACY_U16_MAX) {
 		modal_depth++;
@@ -1226,6 +1368,7 @@ void sdl3_input_push_modal(void)
 
 void sdl3_input_pop_modal(void)
 {
+	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth != 0) {
 		modal_depth--;
@@ -1270,6 +1413,15 @@ legacy_s16 sdl3_controller_scaled_x(void)
 	return (
 		legacy_s16)(((legacy_s32)controller_axes[SDL_GAMEPAD_AXIS_RIGHTX] * JOYSTICK_AXIS_SCALE) /
 					(legacy_s32)LEGACY_U16_SIGN_BIT);
+}
+
+legacy_s16 sdl3_tilt_scaled_x(void)
+{
+	sdl3_platform_pump();
+	return driving_mode == SDL3_DRIVING_TILT && input_focused && gameplay_active &&
+				   !replay_active && modal_depth == 0
+			   ? tilt_axis
+			   : 0;
 }
 
 legacy_s16 sdl3_controller_camera_flags(void)

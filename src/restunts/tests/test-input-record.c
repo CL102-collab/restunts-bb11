@@ -126,15 +126,22 @@ static legacy_s8 replay_bytes[12000], response_table[256];
 static struct GAMESTATE snapshots[41];
 static struct AUDIO_CAR_STATE audio_samples[AUDIO_CAR_STATE_RECORD_COUNT];
 #ifdef RESTUNTS_SDL3
-static legacy_u8 controller_mode_set;
+static legacy_u8 controller_mode_set, controller_switch_to_keyboard;
 static enum SDL3_DRIVING_INPUT controller_mode;
 static legacy_s16 controller_x, controller_pedals, controller_shifts, controller_camera;
+static legacy_s16 tilt_x;
+static legacy_u32 tilt_sample_count;
 static legacy_u16 joystick_menu_hold_polls, joystick_menu_polls;
 
 enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
 {
 	if (controller_mode_set != 0) {
-		return controller_mode;
+		enum SDL3_DRIVING_INPUT mode = controller_mode;
+		if (controller_switch_to_keyboard != 0) {
+			controller_switch_to_keyboard = 0;
+			controller_mode = SDL3_DRIVING_KEYBOARD;
+		}
+		return mode;
 	}
 	return mouse_driving_enabled != 0 ? SDL3_DRIVING_MOUSE
 		   : joystick_enabled != 0	  ? SDL3_DRIVING_JOYSTICK
@@ -161,6 +168,12 @@ legacy_s16 sdl3_controller_driving_flags(void)
 legacy_s16 sdl3_controller_scaled_x(void)
 {
 	return controller_x;
+}
+
+legacy_s16 sdl3_tilt_scaled_x(void)
+{
+	tilt_sample_count++;
+	return tilt_x;
 }
 
 legacy_s16 sdl3_controller_camera_flags(void)
@@ -319,9 +332,11 @@ static void reset_inputs(void)
 	supersight_status[0] = 0;
 #ifdef RESTUNTS_SDL3
 	touch_shift_flags = 0;
-	controller_mode_set = 0;
+	controller_mode_set = controller_switch_to_keyboard = 0;
 	joystick_menu_hold_polls = joystick_menu_polls = 0;
 	controller_x = controller_pedals = controller_shifts = controller_camera = 0;
+	tilt_x = 0;
+	tilt_sample_count = 0;
 	frame_adaptive_reset(&frame_adaptive);
 	render_timing_reset_count = 0;
 	hires_enabled_transitions = 0;
@@ -661,6 +676,111 @@ static void test_controller_recording(void)
 	key_states[(legacy_u16)KEY_RIGHT >> LEGACY_BYTE_BITS] = 0;
 	controller_pedals = 0;
 	assert(get_kb_or_joy_flags() == INPUT_ACCELERATE_FLAG);
+}
+
+static void test_tilt_recording(void)
+{
+	static const legacy_s16 axes[] = {-40, -32, -24, -16, -8, -1, 0, 1, 8, 16, 24, 32, 40};
+	static const legacy_s8 targets[] = {-127, -127, -95, -63, -31, -3, 0, 3, 31, 63, 95, 127, 127};
+	const legacy_u8 pedals_and_gears =
+		INPUT_ACCELERATE_FLAG | INPUT_BRAKE_FLAG | INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	for (legacy_u32 index = 0; index < sizeof(axes) / sizeof(axes[0]); index++) {
+		reset_inputs();
+		controller_mode_set = 1;
+		controller_mode = SDL3_DRIVING_TILT;
+		tilt_x = axes[index];
+		/* Other steering sources must not replace the selected tilt target. */
+		joystick_enabled = 1;
+		joystick_axis = controller_x = 32;
+		joystick_flags = INPUT_ACCELERATE_FLAG | INPUT_STEER_LEFT_FLAG;
+		key_states[(legacy_u16)KEY_RIGHT >> LEGACY_BYTE_BITS] = 1;
+		key_states[KEY_SCAN_GEAR_UP] = 1;
+		controller_pedals = INPUT_BRAKE_FLAG;
+		controller_shifts = INPUT_SHIFT_UP_FLAG;
+		touch_shift_flags = INPUT_SHIFT_DOWN_FLAG;
+		replay_update_input_tick(0);
+		assert(replay_bytes[0] == pedals_and_gears);
+		assert(tilt_sample_count == 1);
+		assert(input_steering_history_valid[0] != 0);
+		assert(LEGACY_S8_FROM_BITS(input_steering_history[0]) == targets[index]);
+		assert(controller_shifts == 0 && touch_shift_flags == 0);
+
+		response_table[STEERING_RESPONSE_TABLE_OFFSET] = TEST_CONTROLLER_RESPONSE;
+		replay_apply_analog_steering_history();
+		legacy_u8 steering = 0;
+		if (targets[index] >= TEST_CONTROLLER_RESPONSE) {
+			steering = INPUT_STEER_RIGHT_FLAG;
+		} else if (targets[index] <= -TEST_CONTROLLER_RESPONSE) {
+			steering = INPUT_STEER_LEFT_FLAG;
+		}
+		assert(replay_bytes[0] == (pedals_and_gears | steering));
+		assert(input_steering_history_valid[0] == 0 && tilt_sample_count == 1);
+	}
+
+	reset_inputs();
+	controller_mode_set = 1;
+	controller_mode = SDL3_DRIVING_TILT;
+	tilt_x = TEST_CONTROLLER_AXIS;
+	/* Input pumping can choose the next source while this sample is collected. */
+	controller_switch_to_keyboard = 1;
+	joystick_axis = -32;
+	key_states[(legacy_u16)KEY_UP >> LEGACY_BYTE_BITS] = 1;
+	replay_update_input_tick(0);
+	assert(replay_bytes[0] == INPUT_ACCELERATE_FLAG);
+	assert(LEGACY_S8_FROM_BITS(input_steering_history[0]) == 63);
+	/* Sampling a new sensor value or choosing a new source does not change the
+	 * target already captured for this frame, or the resulting replay input. */
+	tilt_x = -32;
+	controller_mode = SDL3_DRIVING_KEYBOARD;
+	response_table[STEERING_RESPONSE_TABLE_OFFSET] = TEST_CONTROLLER_RESPONSE;
+	replay_apply_analog_steering_history();
+	assert(replay_bytes[0] == (INPUT_ACCELERATE_FLAG | INPUT_STEER_RIGHT_FLAG));
+	assert(tilt_sample_count == 1);
+
+	elapsed_time2 = INPUT_STEERING_HISTORY_SIZE;
+	state.game_frame = INPUT_STEERING_HISTORY_SIZE;
+	input_steering_history_valid[0] = 1;
+	key_states[(legacy_u16)KEY_LEFT >> LEGACY_BYTE_BITS] = 1;
+	replay_update_input_tick(0);
+	assert(input_steering_history_valid[0] == 0);
+	replay_apply_analog_steering_history();
+	assert(replay_bytes[INPUT_STEERING_HISTORY_SIZE] ==
+		   (INPUT_ACCELERATE_FLAG | INPUT_STEER_LEFT_FLAG));
+	assert(tilt_sample_count == 1);
+}
+
+static void test_tilt_recording_inactive(void)
+{
+	static const legacy_u8 modes[] = {REPLAY_MODE_PLAYBACK, REPLAY_MODE_PAUSED, REPLAY_MODE_LIVE};
+	for (legacy_u32 index = 0; index < sizeof(modes) / sizeof(modes[0]); index++) {
+		reset_inputs();
+		controller_mode_set = 1;
+		controller_mode = SDL3_DRIVING_TILT;
+		tilt_x = -32;
+		controller_pedals = INPUT_BRAKE_FLAG;
+		controller_shifts = INPUT_SHIFT_UP_FLAG;
+		touch_shift_flags = INPUT_SHIFT_DOWN_FLAG;
+		key_states[(legacy_u16)KEY_UP >> LEGACY_BYTE_BITS] = 1;
+		game_replay_mode = modes[index];
+		gameconfig.game_recordedframes = 2;
+		replay_bytes[0] = INPUT_ACCELERATE_FLAG | INPUT_STEER_RIGHT_FLAG;
+		input_steering_history[0] = -TEST_CONTROLLER_TARGET_ANGLE;
+		input_steering_history_valid[0] = 1;
+		replay_update_input_tick(modes[index] == REPLAY_MODE_LIVE);
+		assert(elapsed_time2 == 1 && tilt_sample_count == 0);
+		assert(input_steering_history_valid[0] == (modes[index] == REPLAY_MODE_PLAYBACK));
+		assert(controller_shifts == INPUT_SHIFT_UP_FLAG);
+		assert(touch_shift_flags == INPUT_SHIFT_DOWN_FLAG);
+		if (modes[index] == REPLAY_MODE_PLAYBACK) {
+			assert(gameconfig.game_recordedframes == 2);
+			assert(replay_bytes[0] == (INPUT_ACCELERATE_FLAG | INPUT_STEER_RIGHT_FLAG));
+		} else {
+			assert(gameconfig.game_recordedframes == 3 && replay_bytes[0] == 0);
+			response_table[STEERING_RESPONSE_TABLE_OFFSET] = TEST_CONTROLLER_RESPONSE;
+			replay_apply_analog_steering_history();
+			assert(replay_bytes[0] == 0);
+		}
+	}
 }
 
 static void test_raw_joystick_menu_release(void)
@@ -1033,6 +1153,8 @@ int main(void)
 #ifdef RESTUNTS_SDL3
 	test_touch_shift_recording();
 	test_controller_recording();
+	test_tilt_recording();
+	test_tilt_recording_inactive();
 	test_controller_camera();
 	test_raw_joystick_menu_release();
 	test_shift_f12_callback();

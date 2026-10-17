@@ -77,6 +77,7 @@ public final class LauncherActivity extends Activity {
     private Button zip;
     private Button tvFolder;
     private CheckBox newMidi;
+    private CheckBox tiltSteering;
     private CheckBox showFps;
     private CheckBox showControlLayout;
     private CheckBox powerGear;
@@ -236,6 +237,15 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_NEW_MIDI, textSize);
         addOptionsGroup(layout, startup);
 
+        WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
+        tiltSteering = option(controls, "Tilt steering", LaunchOptions.TILT_STEERING_KEY,
+            LaunchOptions.DEFAULT_TILT_STEERING, textSize);
+        boolean tiltAvailable = TiltSteering.isAvailable(this);
+        tiltSteering.setEnabled(tiltAvailable);
+        if (!tiltAvailable) {
+            tiltSteering.setChecked(false);
+        }
+
         WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
@@ -273,7 +283,7 @@ public final class LauncherActivity extends Activity {
         amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
             LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         for (CheckBox option : new CheckBox[] {
-                newMidi, showFps, showControlLayout, powerGear, legacyCollision,
+                newMidi, tiltSteering, showFps, showControlLayout, powerGear, legacyCollision,
                 leftCornerBias, owoot, amigaGrass}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
@@ -295,7 +305,11 @@ public final class LauncherActivity extends Activity {
         CheckBox option = new CheckBox(this);
         option.setText(label);
         option.setTextSize(textSize);
-        option.setChecked(preferences.getBoolean(key, defaultValue));
+        try {
+            option.setChecked(preferences.getBoolean(key, defaultValue));
+        } catch (ClassCastException error) {
+            option.setChecked(defaultValue);
+        }
         group.addView(option);
         return option;
     }
@@ -331,6 +345,7 @@ public final class LauncherActivity extends Activity {
     private void saveOptions() {
         LaunchOptions options = selectedOptions();
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
+            .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
@@ -370,6 +385,7 @@ public final class LauncherActivity extends Activity {
             return;
         }
         LaunchOptions options = selectedOptions();
+        boolean selectedTiltSteering = tiltSteering.isEnabled() && tiltSteering.isChecked();
         Context context = getApplicationContext();
         synchronizing = true;
         currentStatus = "Loading and validating your game folder…";
@@ -385,6 +401,7 @@ public final class LauncherActivity extends Activity {
                     if (activity != null) {
                         Intent intent = new Intent(activity, GameActivity.class);
                         intent.putExtra(LaunchOptions.NEW_MIDI_KEY, options.newMidi);
+                        intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());

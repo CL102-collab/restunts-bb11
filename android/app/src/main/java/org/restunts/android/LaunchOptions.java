@@ -6,6 +6,7 @@ import java.util.List;
 /** Launcher choices shared by preference storage, Intent extras and native arguments. */
 public final class LaunchOptions {
     public static final String NEW_MIDI_KEY = "new_midi";
+    public static final String TILT_STEERING_KEY = "tilt_steering";
     public static final String SHOW_FPS_KEY = "show_fps";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
@@ -15,6 +16,7 @@ public final class LaunchOptions {
     public static final String OWOOT_KEY = "owoot";
     public static final String AMIGA_GRASS_KEY = "amiga_grass";
     public static final boolean DEFAULT_NEW_MIDI = false;
+    public static final boolean DEFAULT_TILT_STEERING = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
     public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
     public static final boolean DEFAULT_POWER_GEAR = true;

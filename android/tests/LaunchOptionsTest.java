@@ -18,6 +18,7 @@ public final class LaunchOptionsTest {
 
     public static void main(String[] args) {
         require(!LaunchOptions.DEFAULT_NEW_MIDI, "New MIDI must default to original AdLib.");
+        require(!LaunchOptions.DEFAULT_TILT_STEERING, "Tilt steering must default to off.");
         require(!LaunchOptions.DEFAULT_SHOW_FPS, "FPS must default to hidden.");
         require(LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, "Control layout must default to visible.");
         require(LaunchOptions.DEFAULT_POWER_GEAR, "Power gear must preserve its native default.");

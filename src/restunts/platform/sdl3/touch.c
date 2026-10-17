@@ -207,8 +207,9 @@ void sdl3_touch_set_rewind_active(legacy_u8 active)
 void sdl3_touch_sync_game(void)
 {
 #ifdef RESTUNTS_FULL
+	enum SDL3_DRIVING_INPUT mode = sdl3_input_driving_mode();
 	sdl3_touch_configure(
-		sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD,
+		mode == SDL3_DRIVING_KEYBOARD || mode == SDL3_DRIVING_TILT,
 		game_active && replay_interaction &&
 			(rewind_active || (game_replay_mode == REPLAY_MODE_LIVE && is_in_replay == 0)),
 		gameconfig.game_playertransmission == TRANSMISSION_MANUAL,
