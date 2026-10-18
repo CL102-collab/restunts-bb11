@@ -121,10 +121,13 @@ jobs:
           - sanitizer: address
             compiler: clang-18
             linker-flags: -Wl,-z,start-stop-gc
+            timeout-multiplier: 2
           - sanitizer: thread
             compiler: gcc
+            timeout-multiplier: 20
           - sanitizer: undefined
             compiler: gcc
+            timeout-multiplier: 1
     env:
       CC: ${{ matrix.compiler }}
       CFLAGS: -O2 -g -fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer -fno-sanitize-recover=all
@@ -134,9 +137,9 @@ jobs:
       TSAN_OPTIONS: halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS: 600
-      # TSan substantially slows fixed-budget native ghost searches. Apply
+      # Sanitizers slow fixed-budget native ghost searches. Apply
       # matching limits in CTest and the Python subprocesses it launches.
-      RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.sanitizer == 'thread' && '10' || '1' }}
+      RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.timeout-multiplier }}
       CTEST_TIMEOUT_SECONDS: 1800
       SDL_VIDEODRIVER: dummy
       SDL_AUDIODRIVER: dummy
