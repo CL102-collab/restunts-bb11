@@ -5,6 +5,8 @@ Ubuntu 10.04 LTS works with an experimental x86_64 rebuild. No game or SDL
 source changes were needed relative to d3545286f0d4d0af37e041db4c6f5b811c053e08.
 The existing production CI continues to build its separate Ubuntu 20.04 package;
 these experiments do not lower its advertised support baseline.
+Fedora has no LTS release series; the Fedora results below concern historical
+regular releases and do not imply ongoing distribution maintenance.
 
 Verified environments
 
@@ -21,6 +23,15 @@ Verified environments
 * Fedora 20 and Fedora 34 official Docker userspaces: final AppImage passes
   info commands, dependency checks, dummy video/audio menu and replay rendering.
   Docker shares the host kernel; these are not historical Fedora kernel tests.
+* Fedora 19 (glibc 2.17), from Fedora Cloud maintainer Matthew Miller's
+  mattdm/fedora:f19 image, passes those checks plus genghost --help.
+  Its installed records identify glibc-2.17-19.fc19.x86_64 and
+  fedora-release-19-5.noarch; rpm -V glibc reports no mismatches.
+  This is the oldest confirmed Fedora userspace tested so far.
+* ParaTools' Fedora 16-labelled image (glibc 2.14.90) also passes the complete
+  Docker smoke suite and genghost --help. Its release files and RPM records
+  are stripped, and no image build recipe was found. Treat this as a successful
+  vendor-runtime probe, not verification of an original Fedora 16 installation.
 
 The VM uses an external Xvfb server and ALSA file/null output with nonzero PCM
 samples, not physical graphics/audio hardware. A compatible fusermount helper
@@ -54,6 +65,9 @@ experiment establishes a game incompatibility. ppoll alone does not impose a
 Original earlier distro archives are blocked by the execution environment's
 network policy. Official Docker tags for Ubuntu 7.10/8.04 and Fedora 7 are absent;
 other historical images found were 32-bit or required blocked download mirrors.
+An official Red Hat article links a Fedora 14 VM export at
+quay.io/fatherlinux/fedora14, but that image is no longer publicly retrievable
+(anonymous tag/manifest access is denied). It provides no new runtime result.
 Original older userspaces/kernels remain necessary for a verified release boundary.
 
 Build provenance
@@ -71,6 +85,21 @@ newer X11 extensions are disabled; this is not modern desktop feature parity.
 Relinking the same objects with -no-pie resolves old-loader CLI crashes.
 All 23 cross-build CTest cases pass after supplying the original audio fixture.
 
+Additional Fedora image provenance (same final AppImage; no rebuild)
+
+mattdm/fedora:f19 registry manifest:
+sha256:12b43be757cbac489af962e45cce4a1a0331589f9e55ad00afa642d8118f6c76
+Fedora 19 rootfs layer (downloaded and SHA256-verified):
+sha256:26dfe0e19ee50413899adcb508a3e5b4aad24f3672f17a15af0e8090350502a1
+paratools/fedora:16 registry manifest:
+sha256:70fd70ca6287a7b49f3374eef446fe490b5eb89825972abf3f2f8fde26524511
+Both images use historical Docker schema 1, no longer accepted by Docker 28.
+Their registry layers were downloaded with normal anonymous registry access,
+digest-verified and imported locally; no system libraries were replaced.
+All game tests ran with networking disabled and only the AppImage archive plus
+original game data mounted. Normal FUSE mounting was covered by the earlier
+Ubuntu VM suite; Docker uses extract-and-run.
+
 Primary release and ABI references
 
 Ubuntu 6.06: https://lists.ubuntu.com/archives/ubuntu-announce/2006-June/000083.html
@@ -82,3 +111,7 @@ Fedora Core 6: https://fedoraproject.org/wiki/FSA/FC6
 Fedora 7: https://fedoraproject.org/wiki/FSA/F7
 CPU_COUNT ABI: https://github.com/bminor/glibc/blob/glibc-2.6/posix/Versions
 ppoll fallback: https://github.com/bminor/glibc/blob/glibc-2.4/sysdeps/unix/sysv/linux/ppoll.c
+Fedora lifecycle: https://fedoraproject.org/wiki/Differences_to_Ubuntu#Life_cycle
+Fedora 19 image: https://hub.docker.com/r/mattdm/fedora
+Fedora 16-labelled image: https://hub.docker.com/r/paratools/fedora
+Fedora 14 image history: https://www.redhat.com/en/blog/engineering-compatibility-red-hat-universal-base-image
