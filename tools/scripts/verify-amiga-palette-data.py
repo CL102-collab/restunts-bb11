@@ -118,7 +118,7 @@ def main():
     args = parser.parse_args()
     facts = json.loads(FIXTURE.read_text())
     header = HEADER.read_text()
-    palettes = re.findall(r'\{"([A-Z0-9]+)", "(![a-z0-9]+)", \{(.*?)\}\}', header, re.S)
+    palettes = re.findall(r'\{\s*"([A-Z0-9]+)",\s*"(![a-z0-9]+)",\s*\{(.*?)\}\s*\}', header, re.S)
     actual = {(resource, chunk): integers(body) for resource, chunk, body in palettes}
     check(len(actual) == len(facts['palettes']) == 31, 'Expected 31 distinct palette records')
     for palette in facts['palettes']:
@@ -142,7 +142,7 @@ def main():
     check(list(rgb) == canonical['rgb6_bytes'], 'Header VGA reference differs')
     check(digest(rgb) == canonical['palette_sha256'], 'VGA reference hash differs')
     maps_block = header.split('amiga_original_color_maps[] = {', 1)[1].split('\n};', 1)[0]
-    maps = {name: integers(body) for name, body in re.findall(r'\{"([A-Z0-9]+)", \{(.*?)\}\}', maps_block, re.S)}
+    maps = {name: integers(body) for name, body in re.findall(r'\{\s*"([A-Z0-9]+)",\s*\{(.*?)\}\s*\}', maps_block, re.S)}
     for mapping in facts['menu_maps']:
         values = maps[mapping['resource']]
         check(values == mapping['indexes'], f'Header map differs: {mapping["resource"]}')
