@@ -94,6 +94,15 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+      - name: Upload the standalone AppImage for direct download
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: appimage-${{ matrix.target }}
+          path: build/package-runtime/${{ matrix.target }}/bin/restunts.AppImage
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
       - name: Attest the package and its checksum
         if: inputs.attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
@@ -142,7 +151,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            qemu-system-x86 cpio xvfb x11-utils squashfs-tools libarchive-tools
+            qemu-system-x86 cpio xvfb x11-utils squashfs-tools libarchive-tools xz-utils e2fsprogs
 
       - name: Download game data for isolated startup and rendering tests
         run: |

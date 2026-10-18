@@ -66,6 +66,9 @@ exact Nuked source, license, standalone build files and build context are under
 The Linux AppImage archive also contains `bin/restunts.AppImage`, embedding the
 complete runtime, enhancement artwork, notices, licenses and Nuked rebuild kit.
 The ordinary binaries and source kit remain available outside the AppImage.
+CI also uploads each standalone image as an `appimage-<target>` artifact for
+direct download; restore its executable bit with `chmod +x restunts.AppImage`
+after downloading. Release archives retain the complete package and its manifest.
 Run the AppImage with your original game directory:
 
 ```sh
@@ -94,10 +97,12 @@ Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run
 with compatible 32-bit system libraries, including on current 64-bit distributions.
 The no-SSE2 variant also runs on QEMU's Pentium III CPU model.
 
-The tests check launcher options and shared libraries, start the game with
-`--nointro`, and render a replay frame. Container tests use AppImage extraction
-so they do not require FUSE. Original game data is downloaded separately for
-testing and is never included in a package. Compatibility failures block both
+The tests check launcher options and shared libraries, keep the game menu
+running with `--nointro`, verify a replay frame against its expected hash, and
+capture non-silent output from the bundled ALSA backend. The Ubuntu 10.04 VM
+also checks ordinary FUSE launching and records the actual X11 menu window.
+Container tests use AppImage extraction so they do not require FUSE. Original
+game data is downloaded separately for testing and is never included in a package. Compatibility failures block both
 PR validation and release publication.
 
 The browser package contains the single playable `restunts.html`, notices,

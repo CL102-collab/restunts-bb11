@@ -65,7 +65,13 @@ gpgcheck=1
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-20-x86_64
 sslcacert=/run/compat-ca.pem
 REPO
+        # The final Docker image contains NSS 3.19.2, while the archived
+        # i686 packages stop at 3.19.1. Downgrade the native NSS family together
+        # to the signed archive packages before adding the matching 32-bit ABI.
+        # Keep Yum's protected_multilib check enabled.
+        yum -y --disablerepo='*' --enablerepo='restunts-compat-*' downgrade 'nss*.x86_64'
         yum -y --disablerepo='*' --enablerepo='restunts-compat-*' install glibc.i686
+        rpm -q glibc.x86_64 glibc.i686 nss-softokn-freebl.x86_64 nss-softokn-freebl.i686
         ;;
 esac
 test -x /lib/ld-linux.so.2
