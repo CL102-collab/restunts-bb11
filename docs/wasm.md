@@ -62,7 +62,8 @@ needed. The HTML's location does not determine where the game looks for data.
    lines as needed, without horizontal scrolling. The first three rules
    preserve the original driving behavior by default. OWOOT and Amiga Grass
    start off; Amiga Grass uses the original Amiga grass grip for stock cars
-   (`/amigagrass`). All settings are remembered for this page, including with
+   (`/amigagrass`). Custom-car surface adhesion is activated by the car resource
+   capability flag. All settings are remembered for this page, including with
    read-only folder access. Earlier HyperVision checkbox choices are retained
    as Auto when enabled and Off when disabled.
 4. Click **Start game**. This user gesture enables browser audio. Click the

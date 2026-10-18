@@ -1,0 +1,94 @@
+TESLA ROADSTER ROCKET - TERR
+
+Select Tesla Roadster Rocket in the game's car menu. The default paint is the
+grey body shown in the supplied photographs. Other paints keep the same black
+aero and all-black glazing. Original low polygon geometry and digital cockpit.
+
+INSTALL
+Copy CARTERR.RES, STTERR.3SH, STDATERR.VSH and STDBTERR.VSH to your Stunts game
+data directory. They are also installed in this repository's stunts/ directory
+by the creation command. No existing car is replaced.
+
+Fan adhesion activates automatically in updated Restunts when this car is
+selected. The one-byte fand=1 resource is the sole trigger; no startup option
+or launcher control is needed. Cars without that flag keep the original physics.
+Original Stunts ignores it. One fixed forward ratio represents the EV drivetrain. No gear
+changes are necessary.
+Surface adhesion holds the car against supported drivable surfaces, including
+inverted and vertical contacts at a standstill. It is not a free-flight mode.
+Use the same car resources when recording and playing back a replay.
+
+PERFORMANCE
+Reported Rocket targets: under 0.59 s to 60 mph, above 230 mph, above 300 miles
+range; rear twin-motor drive, reported 1000 kW. These are announced targets.
+The demonstration's roughly 0.81-second run is distinct from that claim.
+Native game straight-line measurement: 0-60 mph in 0.55 s at 20 Hz, maximum
+236.97 mph. The low-speed torque peak approximates compressed-air launch thrust.
+Mass, gearing, grip, torque bytes and dimensions are game tuning estimates.
+Battery capacity and exact Rocket mass were not confirmed; no old 2017 specs
+are substituted. Range, gas capacity, flight and active aero are not simulated.
+
+DASHBOARD MEMORY
+Raw/extracted: STDA 53,131 + STDB 1,916 = 55,047 bytes.
+DIA3 reference: 146,014 + 2,022 = 148,036 bytes.
+Game-prepared resources: TERR 12,400 vs DIA3 66,176 bytes.
+TERR instrument scratch is 168x24; DIA3 is 188x75. Both dashboards share their
+instrument/selector scratch. These are expanded/loaded comparisons, not ZIP
+or compressed PVS sizes. The generator rejects either resource over its cap.
+The steering wheel follows supplied cockpit photos 1000005072.jpg and
+1000005071.jpg: upright silver-edged grips, open spokes, paddles, switches and
+a broad dark central pad. Every part rotates around a fixed hub using the
+original left/centre/right frames. All three frames restore the same background
+rectangle. The motor gauge sits slightly higher to keep live readings clear.
+The speedometer uses conventional seven-segment numerals: three horizontal
+bars of equal thickness and four vertical bars, with a single centre bar.
+Exposed vertical ends on 1, 4 and 7 reach the full digit height.
+Reference: https://en.wikipedia.org/wiki/Seven-segment_display#Characters
+The computer screen, bezel and console are flat rectangles with straight edges.
+When updating this cockpit, replace CARTERR.RES, STDATERR.VSH and STDBTERR.VSH
+together: the CAR resource also stores the new digit and gauge coordinates.
+
+REBUILD / VERIFY (from repository root, Python 3.10+)
+python3 tools/scripts/generate-tesla-roadster.py --install stunts
+python3 tools/scripts/generate-tesla-roadster.py --check --install stunts
+
+MODEL REFERENCE PHOTOGRAPHS (supplied by the user)
+1000004851.jpg - Front: trapezoid hood, thin light strip and deep black fascia.
+1000004850.jpg - Rocket demonstration: profile and smooth aero disc wheels.
+1000004849.jpg - Front three-quarter: grey body facets and continuous canopy.
+1000004848.jpg - Rear three-quarter: recessed red light bar and lower diffuser.
+1000004856.jpg - Elevated front: bowed nose, hood taper and curved windshield.
+1000004855.jpg - Elevated rear: narrow glass, broad haunches and layered bumper.
+1000004854.jpg - Demonstration profile: door boundaries and dark aero wheels.
+Doors remain CLOSED in all game models. Open-door photos are reference only.
+The model follows these actual images: grey body, swept black canopy and side
+windows, low tapered nose, sculpted wheel haunches and inward-sloping sills.
+The hood widens toward its bowed leading edge and is framed by crowned
+fenders. Slim grey roof rails surround black glass; the rear screen narrows
+between broad grey haunches. Closed-door seams, side markers, a shallow aero
+lip, layered rear bumper and four round recessed nozzles add exterior detail.
+The dark aero wheels use the original renderer's wheel proportions.
+Showroom and racing share a stock-relative size calibration: reported 2026
+width about 2,000 mm and wheelbase 2,825 mm, referenced against Corvette/NSX.
+Showroom geometry uses the stock 20x display scale. Exact Tesla length and
+height remain unconfirmed; stock car dimensions are not uniformly scaled.
+See TERR-sizing.md in the car package for the sources and estimates.
+Wheels target a 25% reduction relative to the resized body, rounded to the
+game's integer coordinates. Circular wheel openings extend below each axle
+and use finer, symmetric arc segments in both showroom and racing models.
+All glazing is black as requested. The body is interpreted within the game's
+255-vertex and 255-primitive limits. Wheel contacts, collision bounds and eye
+height follow the larger racing model. Gearing and torque are retained.
+Car dimensions affect handling; use the same car resources for
+recording and playback. Replace both CARTERR.RES and STTERR.3SH together.
+
+NEWS / ORIGINAL REVEAL LINKS (accessed 2026-10-17)
+The following news sources support the performance claims above.
+
+https://www.tesla.com/roadster
+https://electrek.co/2026/10/15/tesla-unveils-cyberfied-new-roadster-kickflip/
+https://www.caranddriver.com/news/a74145531/tesla-roadster-revealed/
+https://www.topgear.com/car-news/electric/tesla-roadster-has-finally-landed-thrusters-0-60mph-059s-and-flight
+https://www.caranddriver.com/photos/a74152579/tesla-roadster-revealed-exterior-gallery/
+https://electrek.co/wp-content/uploads/sites/3/2026/10/roadster-03-carousel-slide-1-tesla-roadster-2026.jpg
+https://electrek.co/wp-content/uploads/sites/3/2026/10/roadster-02-pilot-tesla-roadster-2026.jpg

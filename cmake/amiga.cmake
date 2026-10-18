@@ -104,3 +104,24 @@ target_compile_definitions(test-amiga-decompression PRIVATE RESTUNTS_AMIGA RESTU
 target_compile_options(test-amiga-decompression PRIVATE -Os -m68000 -fsigned-char
     -fno-strict-aliasing -ffunction-sections -fdata-sections -UNDEBUG)
 target_link_options(test-amiga-decompression PRIVATE -Wl,--gc-sections)
+
+# Custom-car physics tests can also run on the native CPU.
+# Keep them outside the shipping executable and normal build.
+function(configure_amiga_diagnostic target)
+    target_include_directories(${target} PRIVATE "${core}")
+    target_compile_definitions(${target} PRIVATE RESTUNTS_AMIGA)
+    target_compile_options(${target} PRIVATE -Os -m68000 -fsigned-char
+        -fno-strict-aliasing -ffunction-sections -fdata-sections -UNDEBUG
+        -Wno-pointer-sign -Wno-missing-field-initializers -Wno-missing-braces)
+    target_link_options(${target} PRIVATE -Wl,--gc-sections)
+    set_target_properties(${target} PROPERTIES SUFFIX "")
+endfunction()
+
+add_executable(test-amiga-car-adhesion EXCLUDE_FROM_ALL
+    "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-car-adhesion.c"
+    "${core}/physics_collision.c" "${core}/trackobj.c" "${core}/headless_data.c"
+    "${core}/headless_trackdata.c" "${core}/math.c" "${core}/legacy.c"
+    "${core}/strlib.c" "${core}/trkutil.c" "${core}/resource.c"
+    "${core}/physics_grip.c")
+configure_amiga_diagnostic(test-amiga-car-adhesion)
+target_compile_definitions(test-amiga-car-adhesion PRIVATE RESTUNTS_HEADLESS)

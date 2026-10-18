@@ -4,6 +4,7 @@
 #include "platform.h"
 #include "fatal.h"
 #include "car_speed.h"
+#include "car_resources.h"
 #include "physics_internal.h"
 #include "owoot.h"
 
@@ -49,6 +50,7 @@ void init_div0(void)
 void init_main(legacy_s16 argc, legacy_s8 *argv[])
 {
 	configure_powergear_bug(argc, argv);
+	reset_car_capabilities();
 	configure_legacy_collision(argc, argv);
 	configure_left_corner_bias(argc, argv);
 	configure_amiga_grass(argc, argv);

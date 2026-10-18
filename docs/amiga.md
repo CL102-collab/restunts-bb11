@@ -190,6 +190,22 @@ python3 tools/scripts/run-amiga-platform-test.py \
     --expect 'Amiga decompression tests passed.'
 ```
 
+Custom-car surface adhesion tests also build as a native 68000 executable.
+They exercise stopped or moving inverted surface contact:
+
+```sh
+cmake --build out/amiga --target test-amiga-car-adhesion
+python3 tools/scripts/run-amiga-platform-test.py \
+    --executable out/amiga/test-amiga-car-adhesion --args='' \
+    --expect 'car surface adhesion tests passed' --timeout 180
+```
+
+Surface adhesion activates automatically for a car with a one-byte `fand`
+resource set to `1`; cars without that capability keep the original physics.
+The adhesion suite passed in FS-UAE 3.2.35 with the pinned open AROS ROM on both
+the 68000 A500+ with 1 MB Chip RAM and the A4000/040. These runs do not substitute
+for physical Amiga validation.
+
 Use `--mode capture --capture-at 110 --timeout 150` to capture an interactive
 session; capture mode does not count as an automated pass. `--key 80:Return`
 sends a menu key, and `--hold 180:30:Up` holds the accelerator for 30 seconds.

@@ -439,7 +439,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build/amiga --parallel 2 --target restunts \
             test-amiga-platform test-amiga-endian test-amiga-display \
-            test-amiga-rle test-amiga-unflip test-amiga-decompression
+            test-amiga-rle test-amiga-unflip test-amiga-decompression \
+            test-amiga-car-adhesion
 
       - name: Archive the Amiga executable and guide
         run: |

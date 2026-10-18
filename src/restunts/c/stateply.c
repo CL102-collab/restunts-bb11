@@ -9,6 +9,7 @@
 #include "wheel_transform.h"
 #include "owoot.h"
 #include "car_audio.h"
+#include "car_resources.h"
 #include "externs.h"
 
 #define PLAYER_PHYSICS_WHEEL_COUNT 4
@@ -133,6 +134,7 @@ struct PLAYER_WHEEL_MOTION {
 	legacy_s16 contact_distances[PLAYER_PHYSICS_WHEEL_COUNT];
 	legacy_s16 travel;
 	legacy_s16 inverted_adjustment;
+	legacy_u8 surface_adhesion;
 	struct VECTOR inverted_offset;
 };
 
@@ -372,6 +374,12 @@ static void prepare_wheel_motion(struct CARSTATE *carstate, struct SIMD *simd,
 	legacy_s16 front_wheel_heading_offset = prepare_wheel_travel(carstate, motion);
 	restore_stopped_wheel_headings(carstate, motion, car_index);
 	prepare_wheel_rotation(carstate, motion);
+	motion->surface_adhesion = car_surface_adhesion[car_index == OPPONENT_CAR_INDEX];
+	if (motion->surface_adhesion) {
+		/* The optional fan replaces the original speed-dependent loop attachment.
+		 * Its contact test below also works when the car is stopped or vertical. */
+		motion->inverted_adjustment = 0;
+	}
 
 	legacy_s16 slide_rotation =
 		player_motion_fraction == 0
@@ -613,6 +621,43 @@ static void apply_wheel_gravity(struct CARSTATE *carstate, struct VECTORLONG *po
 	if (nextPosAndNormalIP > PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT) {
 		carstate->car_surfaceWhl[wheel_index] = CAR_WHEEL_CONTACT_NONE;
 	}
+}
+
+/* Hold only an actual nearby driving surface with the tires facing it. The
+ * ordinary track lookup supplies its finite footprint; an upside-down car in
+ * open air selects distant ground and cannot acquire an attachment. */
+static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
+										struct PLAYER_WHEEL_MOTION *motion, legacy_s16 wheel_index)
+{
+	if (!motion->surface_adhesion || carstate->car_crashBmpFlag != CRASH_EVENT_NONE ||
+		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO ||
+		current_surf_type < CAR_SURFACE_PAVED || current_surf_type > CAR_SURFACE_GRASS ||
+		nextPosAndNormalIP < 0 || nextPosAndNormalIP > PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT) {
+		return 0;
+	}
+
+	struct VECTOR up = {0, TRIG_FIXED_ONE, 0};
+	struct VECTOR car_up;
+	struct VECTOR surface_up;
+	mat_mul_vector(&up, &car_to_world_rotation, &car_up);
+	mat_mul_vector2(&up, &planptr[planindex].plane_rotation, &surface_up);
+	legacy_s32 alignment = (legacy_s32)car_up.x * surface_up.x +
+						   (legacy_s32)car_up.y * surface_up.y +
+						   (legacy_s32)car_up.z * surface_up.z;
+	if (alignment < (legacy_s32)TRIG_FIXED_ONE * (TRIG_FIXED_ONE / 2)) {
+		return 0;
+	}
+
+	/* Resolve the existing contact tolerance along the surface normal, rather
+	 * than applying world gravity and letting an inverted wheel separate. */
+	struct VECTOR normal = {0, 0, 0};
+	normal.y = -nextPosAndNormalIP * (1 << PLAYER_PHYSICS_POSITION_SCALE_SHIFT);
+	struct VECTOR correction;
+	mat_mul_vector2(&normal, &planptr[planindex].plane_rotation, &correction);
+	physics_position_offset(&motion->current[wheel_index], &motion->current[wheel_index],
+							&correction);
+	nextPosAndNormalIP = 0;
+	return 1;
 }
 
 static void move_airborne_wheel(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTION *motion,
@@ -929,7 +974,9 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 	do {
 		legacy_s16 initial_distance =
 			inherited_wheel_plane_distance(&motion->previous[wheel_index]);
-		move_airborne_wheel(carstate, motion, wheel_index);
+		if (!hold_wheel_to_surface(carstate, motion, wheel_index)) {
+			move_airborne_wheel(carstate, motion, wheel_index);
+		}
 		if (stop_at_track_underside(carstate, motion, wheel_index, car_index)) {
 			return 0;
 		}

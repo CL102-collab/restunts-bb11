@@ -1,0 +1,177 @@
+{
+  "car_id": "TERR",
+  "name": "Tesla Roadster Rocket",
+  "reference_event": "2026-10-15 Tesla Roadster demonstration",
+  "default_paint": "Metallic grey, black aero and all-black glazing",
+  "geometry_reference": "Seven user-supplied photographs; black glazing follows the user's colour instruction.",
+  "geometry_revision": "Stock-relative scale in showroom and racing, smaller wheels, and circular triangulated wheel arches in all detail levels.",
+  "doors": "Closed in every game model; open-door photographs supply body and panel reference only.",
+  "reference_images": [
+    {
+      "file": "1000004851.jpg",
+      "view": "Front, recessed fascia and trapezoid hood"
+    },
+    {
+      "file": "1000004850.jpg",
+      "view": "Rocket demonstration, profile and aero disc wheels"
+    },
+    {
+      "file": "1000004849.jpg",
+      "view": "Front three-quarter, grey facets and continuous canopy"
+    },
+    {
+      "file": "1000004848.jpg",
+      "view": "Rear three-quarter, light recess and four-nozzle diffuser"
+    },
+    {
+      "file": "1000004856.jpg",
+      "view": "Elevated front, curved nose and hood taper; doors are reference-only"
+    },
+    {
+      "file": "1000004855.jpg",
+      "view": "Elevated rear, narrow glass, broad haunches, spoiler and bumper layers"
+    },
+    {
+      "file": "1000004854.jpg",
+      "view": "Demonstration profile, door cutlines and dark aero wheels"
+    }
+  ],
+  "announced_targets": {
+    "zero_to_60_mph_seconds_under": 0.59,
+    "top_speed_mph_over": 230,
+    "range_miles_over": 300
+  },
+  "simulation": "Single-speed EV with a launch torque pulse; no separate flight/thruster controls.",
+  "capabilities": {
+    "fand": "Automatic fan adhesion to contacted driving surfaces in updated Restunts, enabled solely by this one-byte capability."
+  },
+  "geometry_dimensions": "Calibrated against stock Corvette/NSX using reported 2026 width and wheelbase; length and height remain photo-based estimates. See TERR-sizing.md.",
+  "sizing": {
+    "reported_width_mm_approx": 2000,
+    "reported_wheelbase_mm": 2825,
+    "confirmed_length_mm": null,
+    "confirmed_height_mm": null,
+    "body_axis_multipliers": [
+      1.3235294117647058,
+      1.2,
+      1.4
+    ],
+    "wheel_size_multiplier_requested": 0.75,
+    "wheel_radius_game_units": 6,
+    "quantization": "25% smaller wheel target is rounded to whole game units; identical six-unit radii are used in both racing LODs and at 20x in the showroom.",
+    "sources": [
+      "https://www.youtube.com/watch?v=JdkIOhFmbKI",
+      "https://electronmotion.com/2026/10/16/tesla-roadster-reviews/",
+      "https://evwire.com/p/tesla-roadster-deep-dive-videos-hagerty-top-gear-motortrend"
+    ]
+  },
+  "showroom": {
+    "scale": 20,
+    "vertical_offset": 120,
+    "reference": "Same calibrated car as racing, at the stock 20x display scale."
+  },
+  "dashboard_revision": "Photo-based rotating wheel; seven-segment digits with one uniform centre bar and full-height exposed vertical ends on 1, 4 and 7; flat rectangular computer screen, bezel and console.",
+  "dashboard_reference_images": [
+    "1000005072.jpg",
+    "1000005071.jpg"
+  ],
+  "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
+  "dashboard_steering_degrees": [
+    -10,
+    0,
+    10
+  ],
+  "dashboard_decompressed_bytes": {
+    "A": {
+      "TERR": 53131,
+      "DIA3": 146014
+    },
+    "B": {
+      "TERR": 1916,
+      "DIA3": 2022
+    }
+  },
+  "dashboard_game_prepared_bytes": {
+    "TERR": 12400,
+    "DIA3": 66176
+  },
+  "models": {
+    "car0": {
+      "vertices": 252,
+      "primitives": 213,
+      "paint_jobs": 7,
+      "visible_dimensions": {
+        "width": 900,
+        "height_including_tyres": 466,
+        "length": 2100
+      }
+    },
+    "car1": {
+      "vertices": 243,
+      "primitives": 213,
+      "paint_jobs": 7,
+      "visible_dimensions": {
+        "width": 44,
+        "height_including_tyres": 23,
+        "length": 105
+      }
+    },
+    "car2": {
+      "vertices": 233,
+      "primitives": 193,
+      "paint_jobs": 7,
+      "visible_dimensions": {
+        "width": 44,
+        "height_including_tyres": 23,
+        "length": 105
+      }
+    },
+    "exp0": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp1": {
+      "vertices": 3,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp2": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp3": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    }
+  },
+  "sources": [
+    "https://www.tesla.com/roadster",
+    "https://electrek.co/2026/10/15/tesla-unveils-cyberfied-new-roadster-kickflip/",
+    "https://www.caranddriver.com/news/a74145531/tesla-roadster-revealed/",
+    "https://www.topgear.com/car-news/electric/tesla-roadster-has-finally-landed-thrusters-0-60mph-059s-and-flight",
+    "https://www.caranddriver.com/photos/a74152579/tesla-roadster-revealed-exterior-gallery/",
+    "https://electrek.co/wp-content/uploads/sites/3/2026/10/roadster-03-carousel-slide-1-tesla-roadster-2026.jpg",
+    "https://electrek.co/wp-content/uploads/sites/3/2026/10/roadster-02-pilot-tesla-roadster-2026.jpg"
+  ],
+  "files": {
+    "CARTERR.RES": {
+      "bytes": 971,
+      "sha256": "6db4b22ab7ad321a2c2c2a794de57630f372f15ef067b703c2d9eac35c528af6"
+    },
+    "STTERR.3SH": {
+      "bytes": 17294,
+      "sha256": "da8ae4ab030ff7992d1daa926004fd23fe706ede0123641636de3ddadf7f9f56"
+    },
+    "STDATERR.VSH": {
+      "bytes": 53131,
+      "sha256": "2e215199fe8d58595134811da7ded5c41422c782434ccab2776727c91e94ab3c"
+    },
+    "STDBTERR.VSH": {
+      "bytes": 1916,
+      "sha256": "5f0a65e60e3df8de588aaf14aa18506b64baeacc9699d5cc3e6b93c1ccda5bf3"
+    }
+  }
+}

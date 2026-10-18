@@ -548,6 +548,28 @@ the tachometer. The stock value `0x0010` keeps both needles white, and
 `0x0000` makes both black. Digital speedometer digits are unaffected.
 
 
+### Tesla Roadster Rocket custom car
+
+The `TERR` car includes a grey model based on the supplied reference photos,
+with black glazing, a digital cockpit, and one fixed forward ratio. Its
+performance approximates the October 2026 Rocket announcements. Install it with:
+
+```sh
+python3 tools/scripts/generate-tesla-roadster.py --install stunts
+```
+
+The generator checks both dashboard resources against DIA3 after extraction
+and game preparation. See [car details and references](tools/scripts/cars/READTERR.TXT).
+
+Fan adhesion activates automatically when a car includes the optional one-byte
+`fand` resource containing `1`; it needs no startup option or launcher control.
+Cars without that flag keep the original physics.
+Fan adhesion holds tire contacts against supported drivable surfaces,
+including inverted and vertical surfaces at a standstill, and releases when
+the car leaves the surface. The flag is loaded independently for each car;
+absent or zero keeps the original physics. Original Stunts ignores this flag.
+
+
 The [Android port](docs/android.md) runs in landscape on Android 5.0 or newer
 for both 32-bit ARM and ARM64. Import your original game folder or ZIP on first
 launch; game data is not bundled in the APK. Transparent touch circles support

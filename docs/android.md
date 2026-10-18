@@ -85,6 +85,11 @@ driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
 **Amiga Grass** uses the original Amiga grass grip for stock cars. Use the same
 driving rules that were selected when generating a ghost or recording a replay.
 
+Custom car capabilities are declared by each car's resources and activate
+automatically. For example, a car with the `fand=1` resource uses surface adhesion
+at zero speed on loops and vertical roads. Cars without this flag retain their
+original driving behavior.
+
 ## Touch controls
 
 With **Show Control Layout** checked in the launcher and **Keyboard** input

@@ -9,6 +9,7 @@
 #include "camera.h"
 #include "car_model.h"
 #include "car_resources.h"
+#include "resource.h"
 #include "owoot.h"
 #include "physics_internal.h"
 
@@ -139,6 +140,66 @@ static void opponent_route_write(legacy_u16 index, legacy_u16 value)
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)opponent_route_track_indices + offset, value);
 }
 
+legacy_u8 car_surface_adhesion[2];
+
+void reset_car_capabilities(void)
+{
+	car_surface_adhesion[0] = car_surface_adhesion[1] = 0;
+}
+
+static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opponent)
+{
+	car_surface_adhesion[is_opponent != 0] = 0;
+	if (!car_resource) {
+		return;
+	}
+	/* Read only this optional capability. Keep the original resource lookup
+	 * and SIMD decoding unchanged for cars without it. Reject empty or
+	 * oversized payloads rather than reading into a neighbouring resource. */
+	const legacy_u8 huge *resource = car_resource;
+	legacy_u32 size = LEGACY_READ_U32_LE(resource + RESOURCE_FILE_SIZE_OFFSET);
+	legacy_u16 count = resource_file_count(car_resource);
+	legacy_u32 offsets_start =
+		RESOURCE_FILE_DIRECTORY_OFFSET + (legacy_u32)count * RESOURCE_FILE_IDENTIFIER_SIZE;
+	legacy_u32 data_start = offsets_start + (legacy_u32)count * RESOURCE_FILE_OFFSET_SIZE;
+	if (size <= data_start) {
+		return;
+	}
+	legacy_u32 data_size = size - data_start;
+	legacy_u32 flag_start = data_size;
+	legacy_u16 found = 0;
+	for (legacy_u16 index = 0; index < count; index++) {
+		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
+											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
+		if (offset > data_size) {
+			return;
+		}
+		const legacy_u8 huge *name = resource + RESOURCE_FILE_DIRECTORY_OFFSET +
+									 (legacy_u32)index * RESOURCE_FILE_IDENTIFIER_SIZE;
+		if (name[0] == 'f' && name[1] == 'a' && name[2] == 'n' && name[3] == 'd') {
+			if (found) {
+				return;
+			}
+			flag_start = offset;
+			found = 1;
+		}
+	}
+	if (!found || flag_start >= data_size) {
+		return;
+	}
+	legacy_u32 flag_end = data_size;
+	for (legacy_u16 index = 0; index < count; index++) {
+		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
+											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
+		if (offset > flag_start && offset < flag_end) {
+			flag_end = offset;
+		}
+	}
+	if (flag_end - flag_start == 1) {
+		car_surface_adhesion[is_opponent != 0] = resource[data_start + flag_start] == 1;
+	}
+}
+
 static legacy_s16 aero_resistance_at(legacy_s16 resistance, legacy_s16 speed_index)
 {
 	legacy_s32 product = LEGACY_S32_WRAP_MUL(resistance, speed_index);
@@ -149,6 +210,7 @@ static legacy_s16 aero_resistance_at(legacy_s16 resistance, legacy_s16 speed_ind
 void setup_aero_trackdata(void far *carresptr, legacy_s16 is_opponent)
 {
 	const legacy_u8 far *simd_resource = (const legacy_u8 far *)locate_shape_alt(carresptr, "simd");
+	setup_car_surface_adhesion(carresptr, is_opponent);
 
 	if (is_opponent == 0) {
 		(void)simd_decode(&simd_player, simd_resource);
