@@ -1627,6 +1627,7 @@ class CPlayerWheelMotion
   legacy_s16 contact_distances[4];
   legacy_s16 travel;
   legacy_s16 inverted_adjustment;
+  legacy_u8 surface_adhesion;
   CVector inverted_offset;
 };
 

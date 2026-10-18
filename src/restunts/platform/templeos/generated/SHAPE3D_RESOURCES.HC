@@ -2,51 +2,51 @@
 
 legacy_s8 RsShape3dResourcesLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_3528;
+  legacy_s32 noreg temple_tmp_3553;
   if((value<=127)) {
-    temple_tmp_3528=TempleCastS32(TempleCastS8(value));
+    temple_tmp_3553=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_3528=TempleCastS32(TempleCastS8(
+    temple_tmp_3553=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_3528);
+  return TempleCastS8(temple_tmp_3553);
 }
 
 legacy_s16 RsShape3dResourcesLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_3529;
+  legacy_s32 noreg temple_tmp_3554;
   if((value<=32767)) {
-    temple_tmp_3529=TempleCastS32(TempleCastS16(value));
+    temple_tmp_3554=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_3529=TempleCastS32(TempleCastS16(
+    temple_tmp_3554=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_3529);
+  return TempleCastS16(temple_tmp_3554);
 }
 
 legacy_s32 RsShape3dResourcesLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_3530;
+  legacy_s32 noreg temple_tmp_3555;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_3530=TempleCastS32(TempleCastS32(value));
+    temple_tmp_3555=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_3530=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_3555=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_3530);
+  return TempleCastS32(temple_tmp_3555);
 }
 
 legacy_s16 RsShape3dLoadAll()
 {
-  legacy_u32 noreg temple_mmgrofsdiff_3531;
-  legacy_s16 noreg temple_i_3533;
-  legacy_s8 *temple_shapename_3534;
-  legacy_s16 *temple_tmp_3535;
-  legacy_s16 noreg temple_tmp_3536;
+  legacy_u32 noreg temple_mmgrofsdiff_3556;
+  legacy_s16 noreg temple_i_3558;
+  legacy_s8 *temple_shapename_3559;
+  legacy_s16 *temple_tmp_3560;
+  legacy_s16 noreg temple_tmp_3561;
   (game1ptr=0);
   (game2ptr=0);
-  temple_mmgrofsdiff_3531=TempleCastU32(RsMmgrGetResOfsDiffScaled());
-  if((temple_mmgrofsdiff_3531<65000)) {
+  temple_mmgrofsdiff_3556=TempleCastU32(RsMmgrGetResOfsDiffScaled());
+  if((temple_mmgrofsdiff_3556<65000)) {
     return TempleCastS16(1);
   }
   0;
@@ -54,21 +54,21 @@ legacy_s16 RsShape3dLoadAll()
   0;
   (game2ptr=RsFileLoad3dres("game2"));
   0;
-  temple_i_3533=TempleCastS16(0);
+  temple_i_3558=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_3533<116))) {
+    if(!((temple_i_3558<116))) {
       break;
     }
-    temple_shapename_3534=(&(game_shape_names[TempleCastS32((temple_i_3533*5))]));
-    (curshapeptr=RsLocateShapeNofatal(game1ptr,temple_shapename_3534));
+    temple_shapename_3559=(&(game_shape_names[TempleCastS32((temple_i_3558*5))]));
+    (curshapeptr=RsLocateShapeNofatal(game1ptr,temple_shapename_3559));
     if((curshapeptr==0)) {
-      (curshapeptr=RsLocateShapeFatal(game2ptr,temple_shapename_3534));
+      (curshapeptr=RsLocateShapeFatal(game2ptr,temple_shapename_3559));
     }
-    RsShape3dInitShape(curshapeptr,(&(game3dshapes[temple_i_3533])));
-    temple_tmp_3535=&(temple_i_3533);
-    temple_tmp_3536=*temple_tmp_3535;
-    *temple_tmp_3535=TempleCastS16((temple_tmp_3536+1));
-    temple_tmp_3536;
+    RsShape3dInitShape(curshapeptr,(&(game3dshapes[temple_i_3558])));
+    temple_tmp_3560=&(temple_i_3558);
+    temple_tmp_3561=*temple_tmp_3560;
+    *temple_tmp_3560=TempleCastS16((temple_tmp_3561+1));
+    temple_tmp_3561;
   }
   0;
   return TempleCastS16(0);
@@ -86,26 +86,26 @@ legacy_void RsShape3dFreeAll()
 
 legacy_void RsShape3dInitShape(legacy_s8 *shapeptr,CShape3D *gameshape)
 {
-  legacy_u16 noreg temple_primitive_count_3537;
-  legacy_u16 noreg temple_vertex_bytes_3538;
+  legacy_u16 noreg temple_primitive_count_3562;
+  legacy_u16 noreg temple_vertex_bytes_3563;
   (gameshape->shape3d_numverts=TempleCastU16(TempleCastU8(shapeptr[0])));
-  temple_primitive_count_3537=TempleCastU16(TempleCastU8(shapeptr[1]));
-  (gameshape->shape3d_numprimitives=TempleCastU16(temple_primitive_count_3537));
+  temple_primitive_count_3562=TempleCastU16(TempleCastU8(shapeptr[1]));
+  (gameshape->shape3d_numprimitives=TempleCastU16(temple_primitive_count_3562));
   (gameshape->shape3d_numpaints=TempleCastU16(TempleCastU8(shapeptr[2])));
-  temple_vertex_bytes_3538=TempleCastU16(
+  temple_vertex_bytes_3563=TempleCastU16(
       TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(gameshape->shape3d_numverts))*
           TempleCastU32(TempleCastU16(6))))));
   (gameshape->shape3d_vertex_bytes=((shapeptr)(legacy_u8 *)+4));
-  (gameshape->shape3d_visibility_masks=(((shapeptr)(legacy_u8 *)+temple_vertex_bytes_3538)+4));
+  (gameshape->shape3d_visibility_masks=(((shapeptr)(legacy_u8 *)+temple_vertex_bytes_3563)+4));
   (gameshape->shape3d_front_facing_masks=
           ((((shapeptr)(legacy_u8 *)+TempleCastU16(
-                TempleCastU32((TempleCastU32(TempleCastU16(temple_primitive_count_3537))*
+                TempleCastU32((TempleCastU32(TempleCastU16(temple_primitive_count_3562))*
                     TempleCastU32(TempleCastU16(4))))))+
-              temple_vertex_bytes_3538)+
+              temple_vertex_bytes_3563)+
               4));
   (gameshape->shape3d_primitives=((((shapeptr)(legacy_u8 *)+TempleCastU16(TempleCastU32(
-                                        (TempleCastU32(TempleCastU16(temple_primitive_count_3537))*
+                                        (TempleCastU32(TempleCastU16(temple_primitive_count_3562))*
                                             TempleCastU32(TempleCastU16(8))))))+
-                                      temple_vertex_bytes_3538)+
+                                      temple_vertex_bytes_3563)+
       4));
 }

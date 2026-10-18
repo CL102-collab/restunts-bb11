@@ -27,6 +27,8 @@ CMemChunk *mmgr_last_live_chunk=0;
 legacy_u32 rs_numlib_legacy_rand_seed=0;
 legacy_u8 rs_kevinrnd_g_kevinrandom_seed[6];
 MemSet(&rs_kevinrnd_g_kevinrandom_seed,0,sizeof(rs_kevinrnd_g_kevinrandom_seed));
+legacy_u8 car_surface_adhesion[2];
+MemSet(&car_surface_adhesion,0,sizeof(car_surface_adhesion));
 legacy_u8 rs_trkutil_hillroad_pieces[4][6];
 MemSet(&rs_trkutil_hillroad_pieces,0,sizeof(rs_trkutil_hillroad_pieces));
 legacy_u8 rs_trkutil_hillroad_shapes[4][4];

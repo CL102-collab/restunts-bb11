@@ -565,7 +565,8 @@ and game preparation. See [car details and references](tools/scripts/cars/READTE
 
 Fan adhesion activates automatically when a car includes the optional one-byte
 `fand` resource containing `1`; it needs no startup option or launcher control.
-Cars without that flag keep the original physics.
+The updated physics is available on every ported platform. Cars without that
+flag keep the original physics.
 Fan adhesion holds tire contacts against supported drivable surfaces,
 including inverted and vertical surfaces at a standstill, and releases when
 the car leaves the surface. The flag is loaded independently for each car;
