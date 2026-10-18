@@ -133,7 +133,7 @@ fi
 echo "AppImage game startup passed ($video_driver video)."
 if [[ ${RESTUNTS_EXPECT_FUSE:-0} == 1 ]]; then
     SDL_VIDEODRIVER="$video_driver" SDL_AUDIODRIVER=dummy SDL_RENDER_DRIVER=software \
-        "$appimage" --data-dir "$work_dir/data" --nointro > "$work_dir/fuse-game.log" 2>&1 &
+        setsid "$appimage" --data-dir "$work_dir/data" --nointro > "$work_dir/fuse-game.log" 2>&1 &
     game_pid=$!
     sleep 12
     if ! kill -0 "$game_pid" 2>/dev/null; then
@@ -144,10 +144,29 @@ if [[ ${RESTUNTS_EXPECT_FUSE:-0} == 1 ]]; then
     if [[ "$video_driver" == x11 ]]; then
         # The VM host checks the actual window tree and saves the framebuffer.
         echo 'RESTUNTS_FUSE_MENU_READY'
-        sleep 3
+        sleep 60
     fi
-    kill "$game_pid"
-    wait "$game_pid" || [[ $? == 143 ]]
+    if ! kill -0 "$game_pid" 2>/dev/null; then
+        cat "$work_dir/fuse-game.log" >&2
+        echo 'The FUSE-mounted AppImage exited during the visible menu check.' >&2
+        exit 1
+    fi
+    if [[ "$video_driver" == x11 ]]; then echo 'RESTUNTS_FUSE_MENU_DONE'; fi
+    # The launcher and game may be separate processes. Remove the entire group
+    # before later probes so an old window or dummy mixer cannot affect them.
+    kill -TERM -- "-$game_pid" 2>/dev/null || true
+    for ((attempt = 0; attempt < 50; attempt++)); do
+        kill -0 -- "-$game_pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    kill -KILL -- "-$game_pid" 2>/dev/null || true
+    game_status=0
+    wait "$game_pid" 2>/dev/null || game_status=$?
+    if [[ "$game_status" != 0 && "$game_status" != 143 && "$game_status" != 137 ]]; then
+        cat "$work_dir/fuse-game.log" >&2
+        echo "The FUSE-mounted AppImage failed with exit $game_status." >&2
+        exit 1
+    fi
     echo 'FUSE-mounted AppImage game startup passed.'
 fi
 bmp="$work_dir/data/DEFAULT.2.0.5.PDD.bmp"

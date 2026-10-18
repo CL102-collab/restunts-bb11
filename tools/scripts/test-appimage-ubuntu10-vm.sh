@@ -17,7 +17,7 @@ case "$target" in
     *) echo "Unknown AppImage target: $target" >&2; exit 2 ;;
 esac
 [[ -f "$archive" && -d "$data_dir" ]]
-required_tools=(cpio gzip xz mkfs.ext3 qemu-system-x86_64 Xvfb xwininfo)
+required_tools=(cpio gzip xz mkfs.ext3 qemu-system-x86_64 Xvfb xwininfo identify)
 if [[ -z ${RESTUNTS_UBUNTU10_ROOTFS:-} ]]; then
     required_tools+=(curl bsdtar unsquashfs)
 fi
@@ -80,7 +80,8 @@ rootfs="$work_dir/rootfs"
 "${root_command[@]}" test -c "$rootfs/dev/console" || "${root_command[@]}" mknod -m 600 "$rootfs/dev/console" c 5 1
 
 display_number=$((100 + $$ % 500))
-Xvfb ":$display_number" -screen 0 1024x768x24 -ac -listen tcp -fbdir "$result_dir" \
+# The guest reaches X11 over TCP and cannot share the host's System V IPC.
+Xvfb ":$display_number" -screen 0 1024x768x24 -ac -listen tcp -extension MIT-SHM -fbdir "$result_dir" \
     > "$result_dir/xvfb.log" 2>&1 &
 xvfb_pid=$!
 for ((attempt = 0; attempt < 50; attempt++)); do
@@ -103,15 +104,28 @@ mount -t devpts devpts /dev/pts
 [ -c /dev/random ] || mknod -m 666 /dev/random c 1 8
 [ -c /dev/urandom ] || mknod -m 666 /dev/urandom c 1 9
 [ -c /dev/fuse ] || mknod -m 666 /dev/fuse c 10 229
+chmod 666 /dev/fuse
 modprobe fuse
 modprobe e1000
 ifconfig eth0 10.0.2.15 netmask 255.255.255.0 up
-export DISPLAY=10.0.2.2:$display_number SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software
-export RESTUNTS_REQUIRE_NO_SSE2=$no_sse2 RESTUNTS_EXPECT_FUSE=1
+chmod 1777 /tmp
+mkdir -p /tmp/restunts-home
+chown 65534:65534 /tmp/restunts-home
+chmod -R a+rX /compat
 printf '\nRESTUNTS_VM_BOOTED\n'
 uname -a
 cat /proc/cpuinfo
-bash /compat/test-appimage-guest.sh '$target' /compat/release.tar.gz /compat/data ubuntu10.04
+for helper in /bin/fusermount /usr/bin/fusermount /bin/fusermount3 /usr/bin/fusermount3; do
+    [ ! -e "\$helper" ] || stat -Lc 'FUSE helper: %n mode=%a uid=%u gid=%g' "\$helper"
+done
+# Match an ordinary desktop user: root can grant SDL audio threads nice -20,
+# which can starve the game and PCM reader on an emulated old CPU.
+su -s /bin/bash nobody -c '
+export HOME=/tmp/restunts-home DISPLAY=10.0.2.2:$display_number SDL_VIDEODRIVER=x11 SDL_RENDER_DRIVER=software
+export RESTUNTS_REQUIRE_NO_SSE2=$no_sse2 RESTUNTS_EXPECT_FUSE=1
+id
+bash /compat/test-appimage-guest.sh "$target" /compat/release.tar.gz /compat/data ubuntu10.04
+'
 test_status=\$?
 printf '\nRESTUNTS_VM_FINISHED status=%s\n' "\$test_status"
 sync
@@ -207,13 +221,27 @@ timeout --kill-after=10s 600s qemu-system-x86_64 \
     -append "$kernel_arguments" > "$result_dir/qemu.log" 2>&1 &
 qemu_pid=$!
 captured=0
+frame_colors=0
 while kill -0 "$qemu_pid" 2>/dev/null; do
     if (( !captured )) && [[ -f "$result_dir/serial.log" ]] && \
-        grep -q '^RESTUNTS_FUSE_MENU_READY' "$result_dir/serial.log"; then
-        cp "$result_dir/Xvfb_screen0" "$result_dir/game-menu.xwd"
-        DISPLAY=":$display_number" xwininfo -root -tree > "$result_dir/windows.log"
-        grep -q '"restunts" "restunts"' "$result_dir/windows.log"
-        captured=1
+        grep -q '^RESTUNTS_FUSE_MENU_READY' "$result_dir/serial.log" && \
+        ! grep -q '^RESTUNTS_FUSE_MENU_DONE' "$result_dir/serial.log"; then
+        frame_colors=$(identify -format '%k' "XWD:$result_dir/Xvfb_screen0" 2>/dev/null || true)
+        if [[ "$frame_colors" =~ ^[0-9]+$ ]] && (( frame_colors >= 16 )) && \
+            DISPLAY=":$display_number" xwininfo -root -tree > "$work_dir/menu-windows.log" && \
+            grep -q '"restunts" "restunts"' "$work_dir/menu-windows.log"; then
+            # Validate the saved snapshot too: the live framebuffer can change
+            # between decoding it and copying it, especially during a fade.
+            cp "$result_dir/Xvfb_screen0" "$work_dir/menu-frame.xwd"
+            saved_colors=$(identify -format '%k' "XWD:$work_dir/menu-frame.xwd" 2>/dev/null || true)
+            if [[ "$saved_colors" =~ ^[0-9]+$ ]] && (( saved_colors >= 16 )); then
+                cp "$work_dir/menu-frame.xwd" "$result_dir/game-menu.xwd"
+                cp "$work_dir/menu-windows.log" "$result_dir/windows.log"
+                printf '%s unique colors\n' "$saved_colors" > "$result_dir/game-menu-colors.txt"
+                echo "Visible game menu captured ($saved_colors unique colors)."
+                captured=1
+            fi
+        fi
     fi
     sleep 1
 done
@@ -225,5 +253,8 @@ cat "$result_dir/serial.log"
 [[ "$qemu_status" == 0 ]]
 grep -q '^RESTUNTS_COMPATIBILITY_PASSED ' "$result_dir/serial.log"
 grep -q '^RESTUNTS_VM_FINISHED status=0' "$result_dir/serial.log"
-[[ "$captured" == 1 ]]
+if (( !captured )); then
+    echo "The game never drew a visible X11 menu (requires 16 colors; last count: ${frame_colors:-unknown})." >&2
+    exit 1
+fi
 echo "Ubuntu 10.04 VM compatibility passed. Evidence: $result_dir"

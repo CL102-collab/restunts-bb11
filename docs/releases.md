@@ -92,8 +92,8 @@ includes its X11 and ALSA dependencies, their licenses and required source.
 PR and Release CI build all three variants and test the exact uploaded archive
 bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
 supported and newest stable Ubuntu/Fedora releases selected for this matrix.
-Ubuntu 10.04 tests run in QEMU with its original kernel and userspace; current
-Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run
+Ubuntu 10.04 tests run as an ordinary user in QEMU with its original kernel
+and userspace; current Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run
 with compatible 32-bit system libraries, including on current 64-bit distributions.
 The no-SSE2 variant also runs on QEMU's Pentium III CPU model.
 
