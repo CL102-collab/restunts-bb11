@@ -94,7 +94,7 @@ case "$target" in
         ;;
     *)
         case "$target" in
-            linux-x64) ;;
+            linux-x64|linux-appimage-x64) ;;
             linux-x86) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake) ;;
             linux-x86-no-sse2)
                 cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake -DRESTUNTS_SSE2=OFF) ;;
@@ -147,6 +147,10 @@ case "$target" in
         fi
         ;;
 esac
+
+if [[ "$target" == linux-appimage-x64 ]]; then
+    bash "$script_dir/build-appimage.sh" "$package_dir"
+fi
 
 case "$target" in
     freebsd-*|openbsd-*|netbsd-*|haiku-*)

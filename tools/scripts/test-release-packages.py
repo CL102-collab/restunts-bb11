@@ -112,6 +112,14 @@ class ReleasePackageTests(unittest.TestCase):
             return self.apk_data(target)
         if target in PACKAGES.ANDROID_TARGETS and name == PACKAGES.ANDROID_GENGHOST_APK:
             return self.genghost_apk_data(target)
+        if target == PACKAGES.APPIMAGE_TARGET:
+            if name == PACKAGES.APPIMAGE:
+                content = bytearray(self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64))
+                offset = PACKAGES.APPIMAGE_MAGIC_OFFSET
+                content[offset:offset + len(PACKAGES.APPIMAGE_MAGIC)] = PACKAGES.APPIMAGE_MAGIC
+                return bytes(content)
+            if name in PACKAGES.ELF_FILES:
+                return self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64)
         if target not in ELF_TARGETS or name not in PACKAGES.ELF_FILES:
             return FILE_DATA
         elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
@@ -123,7 +131,8 @@ class ReleasePackageTests(unittest.TestCase):
             path = runtime / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
-            if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {"run-restunts.sh"}:
+            if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {
+                    "run-restunts.sh", PACKAGES.APPIMAGE}:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
         for name, content in (asset_data or {}).items():
             path = runtime / name
@@ -161,6 +170,39 @@ class ReleasePackageTests(unittest.TestCase):
         (self.output / "injected.exe").write_bytes(FILE_DATA)
         with self.assertRaisesRegex(ValueError, "injected.exe"):
             PACKAGES.verify_directory(arguments)
+
+    def test_appimage_archive_retains_complete_runtime_and_rebuild_kit(self):
+        target = PACKAGES.APPIMAGE_TARGET
+        archive = self.create(target)
+        files, modes = PACKAGES.archive_contents(archive)
+        self.assertEqual(set(files) - {PACKAGES.MANIFEST},
+                         PACKAGES.required_files("linux-x64") | {PACKAGES.APPIMAGE})
+        self.assertEqual(files[PACKAGES.APPIMAGE], self.runtime_data(target, PACKAGES.APPIMAGE))
+        self.assertTrue(modes[PACKAGES.APPIMAGE] & stat.S_IXUSR)
+        instructions = files[PACKAGES.README].decode("utf-8")
+        self.assertIn("bin/restunts.AppImage --data-dir", instructions)
+        self.assertIn("--appimage-extract", instructions)
+        self.assertIn("glibc 2.31", instructions)
+
+    def test_appimage_requires_native_architecture_type2_magic_and_execute_permission(self):
+        target = PACKAGES.APPIMAGE_TARGET
+        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+        modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+        PACKAGES.validate_contents(target, files, modes)
+        with self.assertRaisesRegex(ValueError, "missing packaged files.*restunts.AppImage"):
+            PACKAGES.validate_contents(target, {name: data for name, data in files.items()
+                                               if name != PACKAGES.APPIMAGE}, modes)
+        with self.assertRaisesRegex(ValueError, "Missing executable permission.*restunts.AppImage"):
+            PACKAGES.validate_contents(target, files, {**modes, PACKAGES.APPIMAGE: PACKAGES.FILE_MODE})
+        wrong_magic = bytearray(files[PACKAGES.APPIMAGE])
+        wrong_magic[PACKAGES.APPIMAGE_MAGIC_OFFSET + 2] = 1
+        with self.assertRaisesRegex(ValueError, "Type-2 AppImage"):
+            PACKAGES.validate_contents(target, {**files, PACKAGES.APPIMAGE: wrong_magic}, modes)
+        for name in PACKAGES.ELF_FILES | {PACKAGES.APPIMAGE}:
+            for content in (FILE_DATA, self.elf_data(PACKAGES.ELF_CLASS_32, PACKAGES.ELF_MACHINE_X86),
+                            self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_AARCH64)):
+                with self.subTest(name=name, content=content), self.assertRaisesRegex(ValueError, "ELF"):
+                    PACKAGES.validate_contents(target, {**files, name: content}, modes)
 
     def test_elf_archives_include_native_runtime_and_platform_instructions(self):
         for target, platform in ELF_TARGETS.items():
@@ -605,6 +647,7 @@ class ReleasePackageTests(unittest.TestCase):
         modes = {name: PACKAGES.FILE_MODE for name in files}
         for missing in ("bin/opponents/game/opp6.png", "bin/skyboxes/sky4-3.png",
                         "bin/menus/main.png", "bin/menus/showroom.png", "bin/menus/opponent.png",
+                        "share/docs/restunts/genghost-state-planner.md",
                         "bin/nuked-opl2.dll", "share/restunts/nuked-opl2-lite/opl2.c",
                         "share/licenses/restunts/Nuked-OPL2-LICENSE"):
             incomplete = files.copy()

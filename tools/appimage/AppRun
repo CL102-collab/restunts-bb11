@@ -1,0 +1,5 @@
+#!/bin/sh
+# Keep the caller's working directory and forward every game option verbatim.
+set -eu
+appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "$appdir/usr/bin/restunts" "$@"

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Install one release target's cross compiler and native driver headers.
 set -euo pipefail
+# Ubuntu's driver dependencies include tzdata; CI must never prompt for a zone.
+export DEBIAN_FRONTEND=noninteractive
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$script_dir/package-toolchains.conf"
@@ -17,7 +19,7 @@ download() {
 case "$target" in
     linux-*)
         case "$target" in
-            linux-x64) architecture=amd64 ;;
+            linux-x64|linux-appimage-x64) architecture=amd64 ;;
             linux-x86|linux-x86-no-sse2) architecture=i386; compiler=gcc-multilib ;;
             linux-arm32) architecture=armhf; compiler=gcc-arm-linux-gnueabihf ;;
             linux-arm64) architecture=arm64; compiler=gcc-aarch64-linux-gnu ;;
@@ -39,6 +41,13 @@ case "$target" in
             "libwayland-dev:$architecture" "libxkbcommon-dev:$architecture" \
             "libudev-dev:$architecture" "libdrm-dev:$architecture" "libgbm-dev:$architecture" \
             "libegl1-mesa-dev:$architecture" "libgl1-mesa-dev:$architecture"
+        if [[ "$target" == linux-appimage-x64 ]]; then
+            download "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256" "$tool_root/downloads/appimagetool.AppImage"
+            download "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256" "$tool_root/downloads/appimage-runtime-x86_64"
+            chmod +x "$tool_root/downloads/appimagetool.AppImage"
+            mkdir -p "$tool_root/appimagetool"
+            (cd "$tool_root/appimagetool"; "$tool_root/downloads/appimagetool.AppImage" --appimage-extract > /dev/null)
+        fi
         ;;
     windows-x86|windows-x86-no-sse2|windows-x64)
         apt-get update

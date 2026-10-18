@@ -1,7 +1,7 @@
 # Release packages and verification
 
 The **PR validation** and manual **Release** workflows call the same
-`build-packages.yml` workflow. Every successful run produces these 22 archives
+`build-packages.yml` workflow. Every successful run produces these 23 archives
 and a SHA-256 sidecar for each archive:
 
 | Archive | Target baseline |
@@ -15,6 +15,7 @@ and a SHA-256 sidecar for each archive:
 | `restunts-linux-x86.tar.gz` | 32-bit x86 with SSE2, Debian 12+ |
 | `restunts-linux-x86-no-sse2.tar.gz` | 32-bit x86 without SSE2, Debian 12+ |
 | `restunts-linux-x64.tar.gz` | x86_64, Debian 12+ |
+| `restunts-linux-appimage-x64.tar.gz` | x86_64 AppImage, Ubuntu 20.04 build baseline, glibc 2.31+ |
 | `restunts-windows-arm64.zip` | ARM64, Windows 10+ |
 | `restunts-windows-x86.zip` | 32-bit x86 with SSE2, Windows XP SP2+ |
 | `restunts-windows-x86-no-sse2.zip` | 32-bit x86 without SSE2, Windows XP SP2+ |
@@ -59,6 +60,27 @@ Desktop packages contain the game, physics dumper, renderer dumper, statically
 linked SDL, its license, and the replaceable Nuked OPL2 shared library. The
 exact Nuked source, license, standalone build files and build context are under
 `share/restunts/nuked-opl2-lite/`. Keep the complete package together.
+
+The Linux AppImage archive also contains `bin/restunts.AppImage`, embedding the
+complete runtime, enhancement artwork, notices, licenses and Nuked rebuild kit.
+The ordinary binaries and source kit remain available outside the AppImage.
+Run the AppImage with your original game directory:
+
+```sh
+bin/restunts.AppImage --data-dir /path/to/Stunts
+```
+
+AppImages use FUSE to mount their filesystem. Docker containers usually lack
+FUSE, so extract the image first and run its launcher from any working directory:
+
+```sh
+/path/to/bin/restunts.AppImage --appimage-extract
+./squashfs-root/AppRun --data-dir /path/to/Stunts
+```
+
+Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a
+library rebuilt from the included sources. The AppImage uses the Ubuntu 20.04
+build baseline so its glibc requirement is older than Fedora 34's glibc 2.33.
 
 The browser package contains the single playable `restunts.html`, notices,
 licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's

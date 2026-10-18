@@ -31,6 +31,7 @@ TARGETS = {
     "freebsd-x64": ".tar.gz",
     "haiku-x64": ".tar.gz",
     "haiku-x86": ".tar.gz",
+    "linux-appimage-x64": ".tar.gz",
     "linux-arm32": ".tar.gz",
     "linux-arm64": ".tar.gz",
     "linux-x86": ".tar.gz",
@@ -82,6 +83,10 @@ ANDROID_GENGHOST_ASSETS = {"assets/genghost.md", "assets/genghost-android.md",
                            "assets/licenses/Android-NDK-NOTICE.toolchain.txt"}
 ANDROID_GENGHOST_RESOURCES = {"res/drawable/ic_genghost.xml"}
 ELF_MAGIC = b"\x7fELF"
+APPIMAGE = "bin/restunts.AppImage"
+APPIMAGE_TARGET = "linux-appimage-x64"
+APPIMAGE_MAGIC = b"AI\x02"
+APPIMAGE_MAGIC_OFFSET = 8
 ELF_CLASS_32 = 1
 ELF_CLASS_64 = 2
 ELF_DATA_LSB = 1
@@ -359,7 +364,7 @@ def required_files(target):
                  for opponent in range(1, OPPONENT_COUNT + 1)}
     if target == "dos32":
         return required | {"bin/CWSDPMI.EXE", "share/licenses/restunts/CWSDPMI.DOC"}
-    required.add("share/docs/restunts/genghost.md")
+    required |= {"share/docs/restunts/genghost.md", "share/docs/restunts/genghost-state-planner.md"}
     required |= {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/Nuked-OPL2-LICENSE"}
     required |= nuked_source_files()
     if target.startswith("windows"):
@@ -368,6 +373,8 @@ def required_files(target):
         required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh"}
     else:
         required.add("lib/libnuked-opl2.so")
+    if target == APPIMAGE_TARGET:
+        required.add(APPIMAGE)
     return required
 
 
@@ -391,6 +398,8 @@ def validate_contents(target, files, modes):
         executables = {f"bin/{name}" for name in NATIVE_EXECUTABLES}
         if target == "macos-universal":
             executables.add("run-restunts.sh")
+        if target == APPIMAGE_TARGET:
+            executables.add(APPIMAGE)
         for name in executables:
             require(modes[name] & stat.S_IXUSR, f"Missing executable permission: {name}")
     if target in ELF_TARGETS:
@@ -400,6 +409,13 @@ def validate_contents(target, files, modes):
     if target in ANDROID_TARGETS:
         validate_android_apk(target, files[ANDROID_APK])
         validate_android_genghost_apk(target, files[ANDROID_GENGHOST_APK])
+    if target == APPIMAGE_TARGET:
+        for name in ELF_FILES:
+            validate_elf(target, name, files[name], ELF_CLASS_64, ELF_MACHINE_X64)
+        content = files[APPIMAGE]
+        validate_elf(target, APPIMAGE, content, ELF_CLASS_64, ELF_MACHINE_X64)
+        require(content[APPIMAGE_MAGIC_OFFSET:APPIMAGE_MAGIC_OFFSET + len(APPIMAGE_MAGIC)] ==
+                APPIMAGE_MAGIC, f"Expected a Type-2 AppImage: {APPIMAGE}")
 
 
 def readme(target, commit):
@@ -455,6 +471,15 @@ def readme(target, commit):
     if target == "macos-universal":
         lines += ["macOS 11.0 or newer; Intel and Apple Silicon are in the same binary.",
                   "You can also use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
+    if target == APPIMAGE_TARGET:
+        lines += ["Linux x86-64; built on Ubuntu 20.04 with glibc 2.31.",
+                  "Start the Linux x86-64 AppImage with:",
+                  "bin/restunts.AppImage --data-dir PATH_TO_YOUR_STUNTS_FOLDER",
+                  "The AppImage embeds the complete runtime and dependency notices.",
+                  "If FUSE is unavailable, run it with --appimage-extract, then use",
+                  "squashfs-root/AppRun --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
+                  "The unpacked runtime, tools, licenses and Nuked rebuild kit are retained",
+                  "in this archive; redistribute the complete archive."]
     if target.startswith("windows-x86"):
         lines += ["Requires Windows XP SP2 or newer (the pinned SDL system API minimum)."]
     if target in ELF_TARGETS:

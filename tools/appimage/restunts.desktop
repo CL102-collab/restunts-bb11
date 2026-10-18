@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Chocolate Stunts
+Comment=Play Stunts with your original game data
+Exec=restunts
+Icon=restunts
+Categories=Game;SportsGame;
+Terminal=false

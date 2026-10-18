@@ -34,6 +34,81 @@ on:
 # Inherit the caller's permissions: PRs are read-only; releases additionally
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
+  appimage:
+    name: Package linux-appimage-x64 (glibc 2.31)
+    runs-on: ubuntu-24.04
+    container: ubuntu:20.04@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install Ubuntu 20.04 build tools and pinned CMake
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ninja-build git curl ca-certificates pkg-config python3-pip
+          python3 -m pip install --no-cache-dir cmake==3.31.6
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install Linux drivers and verified AppImage tools
+        run: bash tools/scripts/install-package-dependencies.sh linux-appimage-x64
+
+      - name: Build and verify the complete AppImage runtime archive
+        run: bash tools/scripts/build-package.sh linux-appimage-x64
+
+      - name: Upload immutable package artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: packages-linux-appimage-x64
+          path: dist/packages/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Attest the package and its checksum
+        if: inputs.attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/packages/*
+
+  appimage-fedora34:
+    name: Test packaged AppImage on Fedora 34
+    needs: appimage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: packages-linux-appimage-x64
+          path: dist/packages
+
+      - name: Verify the downloaded archive
+        run: |
+          python3 tools/scripts/release-packages.py verify --target linux-appimage-x64 \
+            --directory dist/packages --commit "$GITHUB_SHA"
+
+      - name: Download game data for the isolated rendering smoke test
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
+            --output "$RUNNER_TEMP/BB11.zip"
+          echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
+            | sha256sum --check --strict
+          unzip -oq "$RUNNER_TEMP/BB11.zip" -d "$RUNNER_TEMP/stunts"
+
+      - name: Test the archived AppImage in a clean Fedora 34 container
+        run: |
+          bash tools/scripts/test-appimage-fedora34.sh \
+            dist/packages/restunts-linux-appimage-x64.tar.gz "$RUNNER_TEMP/stunts"
+
   android:
     name: Package game and generator ${{ matrix.target }} (Android 5+)
     runs-on: ubuntu-24.04
