@@ -181,8 +181,10 @@ LD_LIBRARY_PATH="$app_dir/usr/lib" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 sha256sum "$bmp"
 printf '%s  %s\n' 808e1a11ac05d5757379d425a6a857a5584912cc62f7ec567662a7dbcefa74fa "$bmp" | sha256sum --check
 
-# Exercise the bundled ALSA backend without a physical sound card. Keep one
-# bounded PCM sample and drain the rest, because the null sink runs without pacing.
+# Exercise the bundled ALSA backend without a physical sound card. Video was
+# checked above; use dummy video here so remote X11 rendering does not compete
+# with real audio synthesis on the emulated CPU. Keep one bounded PCM sample
+# and drain the rest, because the null sink runs without pacing.
 audio_fifo="$work_dir/audio.pipe" audio_raw="$work_dir/audio.raw" audio_ready="$work_dir/audio.ready"
 pcm_bytes=65536
 mkfifo "$audio_fifo"
@@ -216,7 +218,7 @@ exec 3<> "$audio_fifo"
 ) < "$audio_fifo" 3>&- 2> "$work_dir/audio-reader.log" &
 audio_reader_pid=$!
 setsid env APPIMAGE_EXTRACT_AND_RUN=1 ALSA_CONFIG_PATH="$work_dir/alsa.conf" \
-    SDL_VIDEODRIVER="$video_driver" SDL_AUDIODRIVER=alsa SDL_RENDER_DRIVER=software \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=alsa SDL_RENDER_DRIVER=software \
     "$appimage" --data-dir "$work_dir/data" --nointro 3>&- > "$work_dir/audio.log" 2>&1 &
 audio_pid=$!
 audio_captured=0
