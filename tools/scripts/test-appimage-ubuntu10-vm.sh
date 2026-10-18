@@ -194,13 +194,17 @@ if (( $(stat -c %s "$work_dir/initramfs.gz") > 67108864 )); then
     echo 'The boot initramfs exceeds the 64 MiB bound for the historical i386 kernel.' >&2
     exit 1
 fi
+# The old i386 kernel rejects QEMU's valid ACPI tables when its BIOS date is
+# absent. Its own diagnostic requests acpi=force; this also enables S5 shutdown.
+kernel_arguments='console=ttyS0 rdinit=/init panic=1'
+[[ "$architecture" != i386 ]] || kernel_arguments+=' acpi=force'
 timeout --kill-after=10s 600s qemu-system-x86_64 \
     -machine pc -accel tcg -cpu "$cpu" -m 4096 -smp 2 \
     -display none -monitor none -serial "file:$result_dir/serial.log" -no-reboot \
     -netdev user,id=net0 -device e1000,netdev=net0 \
     -drive "file=$work_dir/rootfs.ext3,format=raw,if=ide,index=0" \
     -kernel "$work_dir/vmlinuz" -initrd "$work_dir/initramfs.gz" \
-    -append 'console=ttyS0 rdinit=/init panic=1' > "$result_dir/qemu.log" 2>&1 &
+    -append "$kernel_arguments" > "$result_dir/qemu.log" 2>&1 &
 qemu_pid=$!
 captured=0
 while kill -0 "$qemu_pid" 2>/dev/null; do
