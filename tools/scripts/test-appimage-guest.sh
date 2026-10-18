@@ -64,11 +64,15 @@ run_with_timeout() {
     ) > /dev/null 2>&1 &
     timer_pid=$!
     wait "$command_pid" 2>/dev/null || status=$?
-    kill "$timer_pid" 2>/dev/null || true
-    wait "$timer_pid" 2>/dev/null || true
     if [[ -e "$marker" ]]; then
+        # The launcher can exit before its game child handles SIGTERM. Keep
+        # the watchdog alive until it also finishes the process group cleanup.
+        wait "$timer_pid" 2>/dev/null || true
         status=124
         rm "$marker"
+    else
+        kill "$timer_pid" 2>/dev/null || true
+        wait "$timer_pid" 2>/dev/null || true
     fi
     return "$status"
 }
@@ -160,7 +164,7 @@ printf '%s  %s\n' 808e1a11ac05d5757379d425a6a857a5584912cc62f7ec567662a7dbcefa74
 
 # Exercise the bundled ALSA backend without a physical sound card. Keep one
 # MiB of PCM and drain the rest, because the null sink runs without pacing.
-audio_fifo="$work_dir/audio.pipe" audio_raw="$work_dir/audio.raw"
+audio_fifo="$work_dir/audio.pipe" audio_raw="$work_dir/audio.raw" audio_ready="$work_dir/audio.ready"
 mkfifo "$audio_fifo"
 cat > "$work_dir/alsa.conf" <<EOF
 pcm.!default {
@@ -170,31 +174,65 @@ pcm.!default {
     format "raw"
 }
 EOF
-{
+# Keep the FIFO open across any ALSA device probes/reopens. The reader and
+# game close this extra descriptor; it belongs only to this coordinating shell.
+exec 3<> "$audio_fifo"
+(
+    trap 'printf "PCM reader exit=%s\n" "$?" >&2' EXIT
+    blocks=0
     # SDL starts its audio thread before loading the game's music. Discard
     # complete silent buffers until music starts, then retain one bounded block.
-    while dd bs=65536 count=16 iflag=fullblock of="$audio_raw" 2> "$work_dir/audio-dd.log"; do
-        [[ "$(stat -c %s "$audio_raw")" == 1048576 ]] || break
-        if [[ -n "$(od -An -tu4 "$audio_raw" | tr -d ' 0*\n')" ]]; then
+    while head -c 1048576 > "$audio_raw"; do
+        bytes=$(stat -c %s "$audio_raw")
+        [[ "$bytes" == 1048576 ]] || { echo "Short PCM block: $bytes bytes" >&2; break; }
+        blocks=$((blocks + 1))
+        if [[ -n "$(od -An -tu4 "$audio_raw" | tr -d '[:space:]0*')" ]]; then
+            echo "Captured nonzero PCM in block $blocks" >&2
+            : > "$audio_ready"
             cat > /dev/null
             break
         fi
     done
-} < "$audio_fifo" &
+) < "$audio_fifo" 3>&- 2> "$work_dir/audio-reader.log" &
 audio_reader_pid=$!
-audio_status=0
-APPIMAGE_EXTRACT_AND_RUN=1 ALSA_CONFIG_PATH="$work_dir/alsa.conf" \
+setsid env APPIMAGE_EXTRACT_AND_RUN=1 ALSA_CONFIG_PATH="$work_dir/alsa.conf" \
     SDL_VIDEODRIVER="$video_driver" SDL_AUDIODRIVER=alsa SDL_RENDER_DRIVER=software \
-    run_with_timeout 12 "$appimage" --data-dir "$work_dir/data" --nointro \
-    > "$work_dir/audio.log" 2>&1 || audio_status=$?
-kill "$audio_reader_pid" 2>/dev/null || true
-wait "$audio_reader_pid" 2>/dev/null || true
-if [[ "$audio_status" != 124 || ! -f "$audio_raw" || "$(stat -c %s "$audio_raw")" != 1048576 ]]; then
+    "$appimage" --data-dir "$work_dir/data" --nointro 3>&- > "$work_dir/audio.log" 2>&1 &
+audio_pid=$!
+audio_captured=0
+# TCG and the unpaced null sink can delay music initialization. Finish as soon
+# as real PCM arrives, while retaining a bounded 60-second failure deadline.
+for ((attempt = 0; attempt < 120; attempt++)); do
+    kill -0 "$audio_pid" 2>/dev/null || break
+    if [[ -f "$audio_ready" ]]; then audio_captured=1; break; fi
+    kill -0 "$audio_reader_pid" 2>/dev/null || break
+    sleep 0.5
+done
+# Stop every game process before closing the FIFO, so teardown cannot turn a
+# successful capture into an ALSA EPIPE/assertion in a still-running child.
+kill -TERM -- "-$audio_pid" 2>/dev/null || true
+for ((attempt = 0; attempt < 50; attempt++)); do
+    kill -0 -- "-$audio_pid" 2>/dev/null || break
+    sleep 0.1
+done
+kill -KILL -- "-$audio_pid" 2>/dev/null || true
+audio_status=0 audio_reader_status=0
+wait "$audio_pid" 2>/dev/null || audio_status=$?
+exec 3>&-
+wait "$audio_reader_pid" 2>/dev/null || audio_reader_status=$?
+audio_bytes=0
+[[ ! -f "$audio_raw" ]] || audio_bytes=$(stat -c %s "$audio_raw")
+if [[ "$audio_captured" != 1 || "$audio_bytes" != 1048576 || "$audio_reader_status" != 0 || \
+    ( "$audio_status" != 0 && "$audio_status" != 143 && "$audio_status" != 137 ) ]]; then
+    printf 'PCM capture: ready=%s bytes=%s producer_exit=%s reader_exit=%s\n' \
+        "$audio_captured" "$audio_bytes" "$audio_status" "$audio_reader_status" >&2
+    cat "$work_dir/audio-reader.log" >&2
     cat "$work_dir/audio.log" >&2
-    echo "Bundled ALSA backend did not produce the expected PCM capture (exit $audio_status)." >&2
+    echo 'Bundled ALSA backend did not produce the expected PCM capture.' >&2
     exit 1
 fi
-[[ -n "$(od -An -v -tu1 "$audio_raw" | tr -d ' 0\n')" ]] || {
+[[ -n "$(od -An -v -tu1 "$audio_raw" | tr -d '[:space:]0')" ]] || {
+    cat "$work_dir/audio-reader.log" >&2
     cat "$work_dir/audio.log" >&2
     echo 'Bundled ALSA backend produced only silence.' >&2
     exit 1
