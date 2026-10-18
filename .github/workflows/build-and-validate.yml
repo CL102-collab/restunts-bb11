@@ -334,6 +334,12 @@ jobs:
           make -C src/restunts test-dos-platform
           python3 tools/scripts/run-dos-platform-test.py
 
+      - name: Verify DOS16 startup and driving settings
+        run: |
+          python3 tools/scripts/generate-tesla-roadster.py --install stunts
+          make -C src/restunts test-driving-options
+          python3 tools/scripts/run-driving-options-dos-test.py
+
       - name: Collect the executables
         run: |
           set -eu
@@ -440,7 +446,7 @@ jobs:
           cmake --build build/amiga --parallel 2 --target restunts \
             test-amiga-platform test-amiga-endian test-amiga-display \
             test-amiga-rle test-amiga-unflip test-amiga-decompression \
-            test-amiga-car-adhesion
+            test-amiga-command-line test-amiga-startup test-amiga-car-adhesion
 
       - name: Archive the Amiga executable and guide
         run: |

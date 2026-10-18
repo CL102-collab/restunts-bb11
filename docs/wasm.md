@@ -46,6 +46,8 @@ needed. The HTML's location does not determine where the game looks for data.
    is still granted. Otherwise, click **Allow folder access** to approve access
    again. Use **Change game folder** to select a different folder.
 3. Choose the startup options above the game. **Skip intro** is optional.
+   **Sound enabled** starts on; uncheck it to disable music and sound effects
+   (`/ns`). The New MIDI choice is remembered independently of this setting.
    **New MIDI** selects Ogg replacement music (`--ogg:on`); uncheck it for
    original AdLib music (`--ogg:off`). It is enabled by default.
    **Graphics settings** contains **Show FPS** (`--fps:on`),
@@ -57,14 +59,14 @@ needed. The HTML's location does not determine where the game looks for data.
    Enable Show Control Layout for the same touch controls as Android. On
    phones, use fullscreen landscape mode to put them in the black side areas.
    The separate **Driving rules** group below graphics contains **Power Gear**,
-   **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and
-   **Amiga Grass**. Each group lays out its controls horizontally and wraps to more
-   lines as needed, without horizontal scrolling. The first three rules
+   **Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and **Amiga Grass**.
+   Each group lays out its controls horizontally and
+   wraps to more lines as needed, without horizontal scrolling. The first three rules
    preserve the original driving behavior by default. OWOOT and Amiga Grass
    start off; Amiga Grass uses the original Amiga grass grip for stock cars
    (`/amigagrass`). Custom-car surface adhesion is activated by the car resource
-   capability flag. All settings are remembered for this page, including with
-   read-only folder access. Earlier HyperVision checkbox choices are retained
+   capability flag. All settings are remembered for this page, including
+   with read-only folder access. Earlier HyperVision checkbox choices are retained
    as Auto when enabled and Off when disabled.
 4. Click **Start game**. This user gesture enables browser audio. Click the
    canvas to focus the game keyboard.
@@ -202,8 +204,9 @@ node out/test-wasm-fileio.js
 ```
 
 The launch-form browser test needs Node.js and Playwright, but no Emscripten
-build or game files. It checks startup flags, remembered settings, mobile layout,
-and fullscreen canvas sizing with a stub for the native runtime:
+build or game files. It checks startup flags, sound enable/disable, remembered
+settings, migration of removed preferences, mobile layout, and fullscreen canvas sizing
+with a stub for the native runtime:
 
 ```sh
 NODE_PATH="$PWD/out/wasm-test-tools/node_modules" node tools/scripts/test-wasm-shell.js

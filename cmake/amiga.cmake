@@ -105,7 +105,7 @@ target_compile_options(test-amiga-decompression PRIVATE -Os -m68000 -fsigned-cha
     -fno-strict-aliasing -ffunction-sections -fdata-sections -UNDEBUG)
 target_link_options(test-amiga-decompression PRIVATE -Wl,--gc-sections)
 
-# Custom-car physics tests can also run on the native CPU.
+# Shared option and custom-car physics tests can also run on the native CPU.
 # Keep them outside the shipping executable and normal build.
 function(configure_amiga_diagnostic target)
     target_include_directories(${target} PRIVATE "${core}")
@@ -116,6 +116,22 @@ function(configure_amiga_diagnostic target)
     target_link_options(${target} PRIVATE -Wl,--gc-sections)
     set_target_properties(${target} PROPERTIES SUFFIX "")
 endfunction()
+
+add_executable(test-amiga-command-line EXCLUDE_FROM_ALL
+    "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-command-line.c"
+    "${core}/command_line.c")
+configure_amiga_diagnostic(test-amiga-command-line)
+target_compile_definitions(test-amiga-command-line PRIVATE
+    RESTUNTS_GIT_HASH="0123456789abcdef0123456789abcdef01234567"
+    RESTUNTS_BUILD_DATE="Feb 12 1991")
+
+add_executable(test-amiga-startup EXCLUDE_FROM_ALL
+    "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-startup.c"
+    "${core}/math.c" "${core}/owoot.c" "${core}/carsetup.c"
+    "${core}/statecar.c" "${core}/strlib.c" "${core}/physics_collision.c"
+    "${core}/physics_grip.c" "${core}/full_data.c" "${core}/full_strings.c"
+    "${core}/headless_data.c" "${core}/legacy.c")
+configure_amiga_diagnostic(test-amiga-startup)
 
 add_executable(test-amiga-car-adhesion EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-car-adhesion.c"

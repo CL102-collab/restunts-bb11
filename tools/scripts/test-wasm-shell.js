@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -312,6 +312,8 @@ async function main() {
             options.map(option => ({ value: option.value, label: option.label }))),
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
+        assert.equal(await page.locator('#sound-enabled').isChecked(), true,
+            'Sound must retain its existing enabled default');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-control-layout').isChecked(), false);
         assert.equal(await page.locator('#power-gear').isChecked(), true);
@@ -319,6 +321,10 @@ async function main() {
         assert.equal(await page.locator('#left-corner-bias').isChecked(), true);
         assert.equal(await page.locator('#owoot').isChecked(), false);
         assert.equal(await page.locator('#amiga-grass').isChecked(), false);
+        await page.evaluate(() => setLoading(true));
+        for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true,
+            id + ' must lock while loading');
+        await page.evaluate(() => setLoading(false));
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
@@ -353,7 +359,7 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
-        for (const id of ['new-midi', ...RULES.slice(0, 3)]) await page.locator('#' + id).uncheck();
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 3)]) await page.locator('#' + id).uncheck();
         await page.locator('#hypervision').selectOption('high');
         const stored = await storedOptions(page);
         for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
@@ -362,34 +368,53 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
-        for (const id of ['new-midi', ...RULES.slice(0, 3)]) {
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 3)]) {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--owoot', '/amigagrass'
         ]);
 
+        await page.reload();
+        await ready(page);
+        await page.locator('#sound-enabled').check();
+        assert.equal((await storedOptions(page))['sound-enabled'], true);
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#sound-enabled').isChecked(), true,
+            'An explicitly re-enabled sound choice must persist');
+        await loadFixture(page, fixture);
+        await page.locator('#start').click();
+        assert.equal(await page.evaluate(() => window.launchedArguments.includes('/ns')), false,
+            'Enabled sound must omit the sound-disable argument');
+
         for (const [legacy, expected] of [[true, 'auto'], [false, 'off'], ['invalid', 'auto']]) {
             await page.evaluate(value => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite',
-                { hypervision: value, 'show-fps': 'true', 'new-midi': false }), legacy);
+                { hypervision: value, 'show-fps': 'true', 'new-midi': false, 'unknown-preference': true }), legacy);
             await page.reload();
             await ready(page);
             assert.equal(await page.locator('#hypervision').inputValue(), expected,
                 'Legacy checkbox values must migrate; unknown presets must use the browser default');
             assert.equal(await page.locator('#show-fps').isChecked(), false, 'Malformed boolean values must be ignored');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
+            assert.equal(await page.locator('#sound-enabled').isChecked(), true,
+                'Preferences from earlier versions must leave sound enabled');
             await page.locator('#show-fps').check();
-            assert.equal((await storedOptions(page)).hypervision, expected,
+            const migrated = await storedOptions(page);
+            assert.equal(migrated.hypervision, expected,
                 'Saving settings must replace the legacy boolean with the migrated preset');
+            assert.equal(Object.hasOwn(migrated, 'unknown-preference'), false,
+                'Saving settings must discard unknown preferences');
             await loadFixture(page, fixture);
             await page.locator('#start').click();
             const args = await page.evaluate(() => window.launchedArguments);
             assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
                 expected === 'off' ? [] : ['--hv:' + expected]);
+            assert.equal(args.includes('/ns'), false);
         }
         await page.setViewportSize({ width: 1000, height: 500 });
         await assertSettingsLayout(page, false);
@@ -409,7 +434,7 @@ async function main() {
         await exerciseFullscreenOrientation(page);
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
-        console.log('PASS: wrapping web settings, six HyperVision presets, FPS, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle and touch-action CSS');
+        console.log('PASS: wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle and touch-action CSS');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

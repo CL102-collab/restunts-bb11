@@ -27,6 +27,8 @@ static const legacy_s8 command_line_version_suffix[] =
 static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 	"Usage: restunts [--data-dir DIR] [options]" COMMAND_LINE_NEWLINE
+#elif defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL)
+	"Usage: restunts.exe [--data-dir DIR] [options]" COMMAND_LINE_NEWLINE
 #else
 	"Usage: restunts.exe [options]" COMMAND_LINE_NEWLINE
 #endif
@@ -36,19 +38,20 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --licenses       Show dependency notices and exit; use alone." COMMAND_LINE_NEWLINE
 #endif
 	COMMAND_LINE_NEWLINE
-#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
+	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 	"  --data-dir DIR   Read game data and saves in DIR; must be first." COMMAND_LINE_NEWLINE
 #endif
 	"  --nointro        Skip the startup intro." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
-	"  --fps:on|off     Start with FPS display enabled/disabled; supply once." COMMAND_LINE_NEWLINE
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	"  --control-layout:on|off  Show/hide the touch controls; supply once." COMMAND_LINE_NEWLINE
 #endif
 #endif
-	COMMAND_LINE_NEWLINE
+	"  --fps:on|off     Start with FPS display enabled/disabled; supply "
+	"once." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 	"  --pg:on|off      Enable/disable the original power gear bug." COMMAND_LINE_NEWLINE
 	"  --lc:on|off      Enable/disable original collision behavior." COMMAND_LINE_NEWLINE
 	"  --lcb:on|off     Enable/disable the original left corner bias." COMMAND_LINE_NEWLINE
@@ -72,12 +75,11 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"instruments." COMMAND_LINE_NEWLINE
 	"  /h               Legacy switch; Amiga always uses 320x200, 32 colors." COMMAND_LINE_NEWLINE
 #else
-						 "  /sXX             Load DOS audio driver XX15.DRV." COMMAND_LINE_NEWLINE
-						 "                   IDs: AD (AdLib), PC (PC speaker), MT (MT-32), "
-						 "TD." COMMAND_LINE_NEWLINE "                   SB selects AdLib FM for "
-						 "Sound Blaster cards." COMMAND_LINE_NEWLINE
-						 "  /h               Request legacy Hercules/mode-4 "
-						 "initialization." COMMAND_LINE_NEWLINE
+	"  /sXX             Load DOS audio driver XX15.DRV." COMMAND_LINE_NEWLINE
+	"                   IDs: AD (AdLib), PC (PC speaker), MT (MT-32), "
+	"TD." COMMAND_LINE_NEWLINE "                   SB selects AdLib FM for "
+	"Sound Blaster cards." COMMAND_LINE_NEWLINE "  /h               Request legacy Hercules/mode-4 "
+	"initialization." COMMAND_LINE_NEWLINE
 #endif
 	"  /nd              Recognized legacy switch with no "
 	"effect." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
@@ -86,18 +88,18 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
-	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
 #elif defined(RESTUNTS_AMIGA)
 	"Amiga 500+: 68000, ECS, 320x200, 32 colors, four Paula voices." COMMAND_LINE_NEWLINE
 #else
-						 "AdLib is the default driver. F12 toggles SuperSight; no "
-						 "presets." COMMAND_LINE_NEWLINE
+	"AdLib is the default driver. F12 toggles SuperSight; no "
+	"presets." COMMAND_LINE_NEWLINE
 #endif
+	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision presets and Ogg music options are also case-insensitive." COMMAND_LINE_NEWLINE
-	"FPS display options are case-insensitive." COMMAND_LINE_NEWLINE
 #endif
+	"FPS display options are case-insensitive." COMMAND_LINE_NEWLINE
 	"Other switch names are case-sensitive; keep legacy names lowercase." COMMAND_LINE_NEWLINE
 	"For example, /sAD uses lowercase s and a two-letter audio driver ID." COMMAND_LINE_NEWLINE
 	"The first --help/-h or --version/-v request wins." COMMAND_LINE_NEWLINE;
@@ -148,7 +150,8 @@ static legacy_s16 command_line_print_version(void)
 legacy_s16 command_line_print_info(legacy_s32 argc, legacy_s8 *argv[])
 {
 	legacy_s32 first_option = COMMAND_LINE_FIRST_OPTION_INDEX;
-#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
+	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 	if (argc > first_option && command_line_matches(argv[first_option], "--data-dir")) {
 		first_option += COMMAND_LINE_DATA_DIRECTORY_ARGUMENT_COUNT;
 	}

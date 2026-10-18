@@ -108,6 +108,13 @@ run_host_test test-collision-interpolation physics_collision.c \
 run_host_test test-command-line command_line.c \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
+run_host_test test-command-line command_line.c -DRESTUNTS_AMIGA \
+    -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
+    -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
+run_host_test test-command-line command_line.c -DRESTUNTS_DOS16 -DRESTUNTS_FULL \
+    -Dfar= -Dhuge= \
+    -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
+    -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
 run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
@@ -122,6 +129,13 @@ run_host_test test-command-line command_line.c \
     -DCOMMAND_LINE_TEST_VERSION='"Version source-archive (Feb 12 1991)"'
 run_host_test test-startup math.c "$test_source_dir/owoot.c" \
     "$test_source_dir/carsetup.c" \
+    "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
+    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
+run_host_test test-startup math.c -DRESTUNTS_AMIGA \
+    "$test_source_dir/owoot.c" "$test_source_dir/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \

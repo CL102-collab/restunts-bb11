@@ -190,21 +190,36 @@ python3 tools/scripts/run-amiga-platform-test.py \
     --expect 'Amiga decompression tests passed.'
 ```
 
-Custom-car surface adhesion tests also build as a native 68000 executable.
-They exercise stopped or moving inverted surface contact:
+Shared startup, command-line, and custom-car adhesion tests also build as native
+68000 executables. They exercise default settings, option parsing and application,
+help/version output, and stopped or moving inverted surface contact:
 
 ```sh
-cmake --build out/amiga --target test-amiga-car-adhesion
+cmake --build out/amiga --target test-amiga-command-line test-amiga-startup test-amiga-car-adhesion
+python3 tools/scripts/run-amiga-platform-test.py \
+    --executable out/amiga/test-amiga-command-line --args='' --machine a4000 \
+    --expect 'command line tests passed'
+python3 tools/scripts/run-amiga-platform-test.py \
+    --executable out/amiga/test-amiga-startup --args='' --machine a4000 \
+    --expect 'startup option tests passed'
 python3 tools/scripts/run-amiga-platform-test.py \
     --executable out/amiga/test-amiga-car-adhesion --args='' \
     --expect 'car surface adhesion tests passed' --timeout 180
 ```
 
+Use `--machine a4000` for faster interpreted test execution. The binaries still
+target the 68000. `--fps:on|off` is a startup option on Amiga, alongside the
+existing power gear, collision, corner bias, grass grip, and OWOOT switches.
 Surface adhesion activates automatically for a car with a one-byte `fand`
 resource set to `1`; cars without that capability keep the original physics.
-The adhesion suite passed in FS-UAE 3.2.35 with the pinned open AROS ROM on both
-the 68000 A500+ with 1 MB Chip RAM and the A4000/040. These runs do not substitute
-for physical Amiga validation.
+
+The settings update was cross-built and run in FS-UAE 3.2.35 with the pinned
+open AROS ROM. Native command-line and startup suites passed on the A4000/040
+profile; the adhesion suite passed on both the 68000 A500+ with 1 MB Chip RAM and
+the A4000/040. The shipping executable also reached a cockpit with all common
+physics switches, `--data-dir`, `--nointro`, `/ns`, and `--fps:on` supplied together;
+the FPS overlay was visible. A500+ platform self-tests and the A4000 stock replay
+smoke test passed. These runs do not substitute for physical Amiga validation.
 
 Use `--mode capture --capture-at 110 --timeout 150` to capture an interactive
 session; capture mode does not count as an automated pass. `--key 80:Return`

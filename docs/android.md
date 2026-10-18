@@ -68,8 +68,11 @@ same game folder. The app-owned TV fallback folder is deleted on uninstall;
 back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
-Above **Start game**, **New MIDI** selects replacement music. **Controls**
-contains the saved **Tilt steering** checkbox. The separate
+Above **Start game**, **Sound** enables music and sound effects, **New MIDI**
+selects replacement music, and **Skip intro** opens the game without the startup
+intro. Sound starts enabled and Skip intro starts disabled. These choices are
+remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
+`--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 **Show Control Layout** for the touch circles, and finally the **HyperVision**
 selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.

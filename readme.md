@@ -391,9 +391,9 @@ The main menu, opponent biographies, and track-selection menu hide F11 diagnosti
 the F11 setting is retained when returning to a screen that displays them.
 
 HyperVision and the FPS display start off by default. Use `--fps:on` to show
-FPS and render time from startup in SDL3 builds, or `--fps:off` to select the
-default explicitly. Like `--ogg:on|off`, the FPS option is case-insensitive and
-must appear only once. Their selections persist until changed or the game exits.
+FPS from startup on every port, or `--fps:off` to select the default explicitly.
+SDL3 also shows render time. The FPS option is case-insensitive and must appear
+only once. Its selection persists until changed or the game exits.
 The renderer and display shortcuts work in all driving and replay cameras,
 including opponent and ghost views and paused replays. Holding a shortcut key
 changes its selection only once.
@@ -443,6 +443,9 @@ with your new driving; the run is marked as modified, like continuing from a
 replay, and does not qualify for the normal high-score table.
 
 ### Optional parameters
+
+See [startup settings by platform](docs/parameters.md) for the complete common
+options, Android/web controls, launch examples, and platform-specific features.
 
 Run `restunts.exe --nointro` to skip the startup intro and open the main menu
 immediately after initialization. The intro remains available when leaving the
@@ -547,7 +550,6 @@ For example, `0x040F` selects palette index 15 for the speedometer and 4 for
 the tachometer. The stock value `0x0010` keeps both needles white, and
 `0x0000` makes both black. Digital speedometer digits are unaffected.
 
-
 ### Tesla Roadster Rocket custom car
 
 The `TERR` car includes a grey model based on the supplied reference photos,
@@ -575,7 +577,10 @@ for both 32-bit ARM and ARM64. Import your original game folder or ZIP on first
 launch; game data is not bundled in the APK. Transparent touch circles support
 driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
-offers **New MIDI**, **Show FPS**, and all six **HyperVision** presets.
+offers **New MIDI**, **Show FPS**, **Show Control Layout**, **Tilt steering**,
+and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
+**Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and **Amiga Grass**,
+with the same defaults as the command-line options.
 Upper-right **C**/**T** circles send the camera/follow keyboard shortcuts.
 
 ## How to build
@@ -1162,6 +1167,7 @@ The supported targets are:
 | `test-dos-platform` | Builds the DOS platform ABI test, `tests/build/watcom/<configuration>/DOSPLAT.EXE`. |
 | `test-race-memory` | Builds the full-game race memory test, `tests/build/watcom/<configuration>/RACEMEM.EXE`. |
 | `test-ghost-racing-line` | Builds the DOS16 ghost reconstruction and racing-line renderer test, `tests/build/watcom/<configuration>/GHOSTLIN.EXE`. |
+| `test-driving-options` | Builds DOS16 startup, driving-settings, and command-tail regression executables. |
 | `clean` | Removes generated build objects and candidate executables. |
 
 Run the DOS16 racing-line check with

@@ -23,7 +23,7 @@ else
   LINK_ORDER = $(WATCOM_PORTED_LINK_ORDER)
 endif
 C_DIR = ../c/build/watcom/$(CONFIG)/dosfull
-PLATFORM_NAMES = timer runtime memory file keyboard divide joystick mouse video audio critical
+PLATFORM_NAMES = timer runtime_options data_directory memory file keyboard divide joystick mouse video audio critical
 PLATFORM_DIR = ../platform/dos/build/watcom/$(CONFIG)
 PLATFORM_ASM_DIR = $(PLATFORM_DIR)/wasm
 PLATFORM_OBJECTS = $(addprefix $(PLATFORM_DIR)/,$(addsuffix .obj,$(PLATFORM_NAMES)))

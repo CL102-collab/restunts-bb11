@@ -77,6 +77,8 @@ public final class LauncherActivity extends Activity {
     private Button zip;
     private Button tvFolder;
     private CheckBox newMidi;
+    private CheckBox sound;
+    private CheckBox skipIntro;
     private CheckBox tiltSteering;
     private CheckBox showFps;
     private CheckBox showControlLayout;
@@ -233,8 +235,12 @@ public final class LauncherActivity extends Activity {
         int textSize = television ? TEXT_SIZE_SP : OPTION_TEXT_SIZE_SP;
         int spacing = Math.round(OPTION_SPACING_DP * getResources().getDisplayMetrics().density);
         WrappingLayout startup = new WrappingLayout(this, spacing, spacing);
+        sound = option(startup, "Sound", LaunchOptions.SOUND_KEY,
+            LaunchOptions.DEFAULT_SOUND, textSize);
         newMidi = option(startup, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
             LaunchOptions.DEFAULT_NEW_MIDI, textSize);
+        skipIntro = option(startup, "Skip intro", LaunchOptions.SKIP_INTRO_KEY,
+            LaunchOptions.DEFAULT_SKIP_INTRO, textSize);
         addOptionsGroup(layout, startup);
 
         WrappingLayout controls = settingsGroup(layout, "Controls", textSize, spacing);
@@ -283,7 +289,7 @@ public final class LauncherActivity extends Activity {
         amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
             LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         for (CheckBox option : new CheckBox[] {
-                newMidi, tiltSteering, showFps, showControlLayout, powerGear, legacyCollision,
+                sound, newMidi, skipIntro, tiltSteering, showFps, showControlLayout, powerGear, legacyCollision,
                 leftCornerBias, owoot, amigaGrass}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
@@ -339,12 +345,15 @@ public final class LauncherActivity extends Activity {
     private LaunchOptions selectedOptions() {
         return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(), showControlLayout.isChecked(),
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
-            legacyCollision.isChecked(), leftCornerBias.isChecked(), owoot.isChecked(), amigaGrass.isChecked());
+            legacyCollision.isChecked(), leftCornerBias.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
+            sound.isChecked(), skipIntro.isChecked());
     }
 
     private void saveOptions() {
         LaunchOptions options = selectedOptions();
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
+            .putBoolean(LaunchOptions.SOUND_KEY, options.sound)
+            .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
@@ -401,6 +410,8 @@ public final class LauncherActivity extends Activity {
                     if (activity != null) {
                         Intent intent = new Intent(activity, GameActivity.class);
                         intent.putExtra(LaunchOptions.NEW_MIDI_KEY, options.newMidi);
+                        intent.putExtra(LaunchOptions.SOUND_KEY, options.sound);
+                        intent.putExtra(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro);
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);

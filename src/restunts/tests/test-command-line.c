@@ -1,11 +1,12 @@
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "../c/command_line.h"
 #include "../c/platform.h"
 
 #define COMMAND_LINE_TEST_OUTPUT_CAPACITY 8192U
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 #define COMMAND_LINE_TEST_GROUP_SEPARATOR "\n\n"
 #else
 #define COMMAND_LINE_TEST_GROUP_SEPARATOR "\r\n\r\n"
@@ -57,6 +58,9 @@ static legacy_s16 run_arguments(legacy_s32 count, legacy_s8 *arguments[])
 
 static void expect_text(const legacy_char *text)
 {
+	if (strstr(output, text) == NULL) {
+		fprintf(stderr, "Missing help text: %s\n", text);
+	}
 	assert(strstr(output, text) != NULL);
 }
 
@@ -85,17 +89,18 @@ static void test_help_contents(void)
 #endif
 	};
 	static const legacy_char *startup_options[] = {
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
+	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 		"  --data-dir DIR",
 #endif
 		"  --nointro",
 #ifdef RESTUNTS_SDL3
 		"  --ogg:on|off",
-		"  --fps:on|off",
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 		"  --control-layout:on|off",
 #endif
 #endif
+		"  --fps:on|off",
 	};
 	static const legacy_char *physics_options[] = {"  --pg:on|off", "  --lc:on|off",
 												   "  --lcb:on|off", "  /amigagrass", "  --owoot"};
@@ -130,24 +135,31 @@ static void test_help_contents(void)
 	expect_text("Amiga grass grip starts off; enable with /amigagrass.");
 	expect_text("Use original Amiga grass grip (stock cars).");
 	expect_text("no effect");
-#ifdef RESTUNTS_SDL3
-	expect_text("HyperVision starts off.");
-	expect_text("Ogg music starts off.");
 	expect_text("FPS display starts off.");
 	expect_text("F11 toggles it during play.");
 	expect_text("FPS display options are case-insensitive.");
+#ifdef RESTUNTS_SDL3
+	expect_text("HyperVision starts off.");
+	expect_text("Ogg music starts off.");
 	expect_text("Shift+F10 switches music sources outside races.");
 	expect_text("Ogg music options are also case-insensitive.");
 #ifdef __DJGPP__
 	assert(strstr(output, "--licenses") == NULL);
 #endif
 #else
+#if !defined(RESTUNTS_AMIGA) && !(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 	assert(strstr(output, "--data-dir") == NULL);
+#endif
 	assert(strstr(output, "--ogg") == NULL);
-	assert(strstr(output, "--fps") == NULL);
 	assert(strstr(output, "hv:") == NULL);
 	assert(strstr(output, "--licenses") == NULL);
 	expect_text("AdLib");
+#ifdef RESTUNTS_AMIGA
+	expect_text("Paula");
+	expect_text("Amiga always uses 320x200, 32 colors.");
+	expect_text("four Paula voices.");
+	assert(strstr(output, "Hercules") == NULL);
+#else
 	expect_text("Hercules");
 	expect_text("AD");
 	expect_text("PC");
@@ -155,6 +167,7 @@ static void test_help_contents(void)
 	expect_text("TD");
 	expect_text("SB");
 	expect_text("AdLib is the default driver.");
+#endif
 #endif
 }
 
@@ -237,7 +250,8 @@ static void test_data_directory_operands(void)
 	for (legacy_u16 index = 0; index < COMMAND_LINE_TEST_ARGUMENT_COUNT(flags); index++) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--data-dir",
 								  (legacy_s8 *)flags[index]};
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
+	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 		assert(run_arguments(COMMAND_LINE_TEST_ARGUMENT_COUNT(arguments), arguments) ==
 			   COMMAND_LINE_CONTINUE);
 		assert(output_length == 0);
@@ -251,7 +265,8 @@ static void test_data_directory_operands(void)
 										(legacy_s8 *)"--help", (legacy_s8 *)"-v"};
 	assert(run_arguments(COMMAND_LINE_TEST_ARGUMENT_COUNT(followed_by_version),
 						 followed_by_version) == COMMAND_LINE_SUCCESS);
-#ifdef RESTUNTS_SDL3
+#if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
+	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
 	expect_text(COMMAND_LINE_TEST_VERSION);
 	assert(strstr(output, "--help") == NULL);
 #else
@@ -316,5 +331,6 @@ legacy_int main(void)
 	test_data_directory_operands();
 	test_large_argument_count();
 	test_output_failure();
+	puts("command line tests passed");
 	return EXIT_SUCCESS;
 }

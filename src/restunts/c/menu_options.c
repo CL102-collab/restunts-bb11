@@ -343,7 +343,7 @@ static void option_menu_select_input(void)
 		initial_input = OPTION_INPUT_KEYBOARD;
 	}
 #endif
-	legacy_s8 *input_text = locate_text_res(miscptr, "mid");
+	legacy_s8 far *input_text = locate_text_res(miscptr, "mid");
 	legacy_s8 selected = LEGACY_S8_FROM_BITS(
 		show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, input_text, DIALOG_AUTO_POSITION,
 					DIALOG_AUTO_POSITION, performGraphColor, 0, initial_input));

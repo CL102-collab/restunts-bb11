@@ -8,13 +8,9 @@
 #endif
 
 #define HEADLESS_COMMAND_LINE_SIZE 128
-#ifdef RESTUNTS_FULL
 /* The shortest argument and its separator occupy two command-tail bytes. */
 #define HEADLESS_MIN_ARGUMENT_SIZE 2U
 #define HEADLESS_MAX_ARGS (HEADLESS_COMMAND_LINE_SIZE / HEADLESS_MIN_ARGUMENT_SIZE + 1U)
-#else
-#define HEADLESS_MAX_ARGS 6
-#endif
 #define HEADLESS_STACK_PARAGRAPHS 512
 #define HEADLESS_DOS_INTERRUPT 33
 #define HEADLESS_DOS_RESIZE_MEMORY_FUNCTION 74
@@ -106,6 +102,34 @@ static legacy_s16 headless_parse_command_line(void)
 	return argc;
 }
 
+#ifdef RESTUNTS_FULL
+static legacy_s16 headless_is_data_directory_option(const legacy_s8 *argument)
+{
+	static const legacy_s8 option[] = "--data-dir";
+	legacy_u16 index = 0;
+	while (argument[index] != 0 && argument[index] == option[index]) {
+		index++;
+	}
+	return argument[index] == 0 && option[index] == 0;
+}
+
+static legacy_s16 headless_select_data_directory(legacy_s16 *argc)
+{
+	if (*argc > 1 && headless_is_data_directory_option(headless_argv[1])) {
+		if (*argc <= 2 || !dos_startup_select_data_directory(headless_argv[2])) {
+			static const legacy_s8 message[] = "Cannot open --data-dir directory\r\n";
+			dos_write_stdout(message, sizeof(message) - 1U);
+			return 0;
+		}
+		*argc -= 2;
+		for (legacy_s16 index = 1; index < *argc; index++) {
+			headless_argv[index] = headless_argv[index + 2];
+		}
+	}
+	return 1;
+}
+#endif
+
 static void headless_run(void)
 {
 	headless_release_extra_memory();
@@ -114,6 +138,10 @@ static void headless_run(void)
 	legacy_s16 info_result = command_line_print_info(argc, headless_argv);
 	if (info_result != COMMAND_LINE_CONTINUE) {
 		headless_exit(info_result);
+		return;
+	}
+	if (!headless_select_data_directory(&argc)) {
+		headless_exit(1);
 		return;
 	}
 #endif

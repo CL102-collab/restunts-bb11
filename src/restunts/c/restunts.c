@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "frame_adaptive.h"
-#include "frame_internal.h"
 #include "hires.h"
 #include "../platform/sdl3/music.h"
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
@@ -23,6 +22,7 @@
 #include "fileio.h"
 #include "fatal.h"
 #include "game_input.h"
+#include "frame_internal.h"
 #include "keyboard.h"
 #include "legacy.h"
 #include "math.h"
@@ -191,13 +191,13 @@ struct STARTUP_OPTIONS {
 	legacy_u8 sound_disabled;
 	legacy_u8 unused_nd_option;
 	legacy_u8 skip_intro;
+	legacy_u8 fps_display_enabled;
+	legacy_u8 fps_display_specified;
 #ifdef RESTUNTS_SDL3
 	legacy_u16 hypervision_preset;
 	legacy_u8 hypervision_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
-	legacy_u8 fps_display_enabled;
-	legacy_u8 fps_display_specified;
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	legacy_u8 control_layout_enabled;
 	legacy_u8 control_layout_specified;
@@ -278,12 +278,26 @@ static void startup_parse_hypervision(const legacy_s8 *argument, struct STARTUP_
 			argument);
 	dos_process_exit(EXIT_FAILURE);
 }
+#endif
+
+static void startup_option_error_text(const legacy_s8 *text)
+{
+	dos_write_stderr(text, strlen(text));
+}
+
 static void startup_parse_boolean(const legacy_s8 *argument, const legacy_s8 *prefix,
 								  const legacy_s8 *name, legacy_u8 *enabled, legacy_u8 *specified)
 {
 	const legacy_s8 *option = prefix;
 	const legacy_s8 *value = argument;
-	while (*option != 0 && tolower((legacy_u8)*value) == *option) {
+	while (*option != 0) {
+		legacy_u8 character = (legacy_u8)*value;
+		if (character >= 'A' && character <= 'Z') {
+			character += 'a' - 'A';
+		}
+		if (character != (legacy_u8)*option) {
+			break;
+		}
 		option++;
 		value++;
 	}
@@ -291,8 +305,12 @@ static void startup_parse_boolean(const legacy_s8 *argument, const legacy_s8 *pr
 		return;
 	}
 	if (*specified != 0) {
-		fprintf(stderr, "Only one %s option may be specified (%s).\n", name, prefix);
-		dos_process_exit(EXIT_FAILURE);
+		startup_option_error_text("Only one ");
+		startup_option_error_text(name);
+		startup_option_error_text(" option may be specified (");
+		startup_option_error_text(prefix);
+		startup_option_error_text(").\n");
+		dos_process_exit(1);
 		return;
 	}
 	*specified = 1;
@@ -304,10 +322,17 @@ static void startup_parse_boolean(const legacy_s8 *argument, const legacy_s8 *pr
 		*enabled = 0;
 		return;
 	}
-	fprintf(stderr, "Invalid %s option '%s'; use %son or %soff.\n", name, argument, prefix, prefix);
-	dos_process_exit(EXIT_FAILURE);
+	startup_option_error_text("Invalid ");
+	startup_option_error_text(name);
+	startup_option_error_text(" option '");
+	startup_option_error_text(argument);
+	startup_option_error_text("'; use ");
+	startup_option_error_text(prefix);
+	startup_option_error_text("on or ");
+	startup_option_error_text(prefix);
+	startup_option_error_text("off.\n");
+	dos_process_exit(1);
 }
-#endif
 
 static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 								  struct STARTUP_OPTIONS *options)
@@ -316,13 +341,13 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->sound_disabled = 0;
 	options->unused_nd_option = 0;
 	options->skip_intro = 0;
+	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
+	options->fps_display_specified = 0;
 #ifdef RESTUNTS_SDL3
 	options->hypervision_preset = FRAME_ADAPTIVE_PRESET_AUTO;
 	options->hypervision_specified = 0;
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
-	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
-	options->fps_display_specified = 0;
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_ON;
 	options->control_layout_specified = 0;
@@ -333,13 +358,13 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 		startup_parse_hypervision(argv[i], options);
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
-		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
-							  &options->fps_display_enabled, &options->fps_display_specified);
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 		startup_parse_boolean(argv[i], STARTUP_CONTROL_LAYOUT_PREFIX, "Control layout",
 							  &options->control_layout_enabled, &options->control_layout_specified);
 #endif
 #endif
+		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
+							  &options->fps_display_enabled, &options->fps_display_specified);
 		if (strcmp(argv[i], STARTUP_SKIP_INTRO_OPTION) == 0) {
 			options->skip_intro = 1;
 		}
@@ -469,12 +494,12 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_amiga_grass(argc, argv);
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
+	fps_display_enabled = startup_options.fps_display_enabled;
+	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	sdl3_touch_set_layout_visible(startup_options.control_layout_enabled);
 #endif
-	fps_display_enabled = startup_options.fps_display_enabled;
-	frame_fps_reset();
 	if (startup_options.hypervision_specified != 0) {
 		frame_adaptive_set_preset(&frame_adaptive,
 								  (enum FRAME_ADAPTIVE_PRESET)startup_options.hypervision_preset);

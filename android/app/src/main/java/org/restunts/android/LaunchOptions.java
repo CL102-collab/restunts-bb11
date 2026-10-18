@@ -6,6 +6,8 @@ import java.util.List;
 /** Launcher choices shared by preference storage, Intent extras and native arguments. */
 public final class LaunchOptions {
     public static final String NEW_MIDI_KEY = "new_midi";
+    public static final String SOUND_KEY = "sound";
+    public static final String SKIP_INTRO_KEY = "skip_intro";
     public static final String TILT_STEERING_KEY = "tilt_steering";
     public static final String SHOW_FPS_KEY = "show_fps";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
@@ -16,6 +18,8 @@ public final class LaunchOptions {
     public static final String OWOOT_KEY = "owoot";
     public static final String AMIGA_GRASS_KEY = "amiga_grass";
     public static final boolean DEFAULT_NEW_MIDI = false;
+    public static final boolean DEFAULT_SOUND = true;
+    public static final boolean DEFAULT_SKIP_INTRO = false;
     public static final boolean DEFAULT_TILT_STEERING = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
     public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
@@ -59,6 +63,8 @@ public final class LaunchOptions {
     }
 
     public final boolean newMidi;
+    public final boolean sound;
+    public final boolean skipIntro;
     public final boolean showFps;
     public final boolean showControlLayout;
     public final HyperVision hyperVision;
@@ -77,7 +83,17 @@ public final class LaunchOptions {
     public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
             HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
             boolean leftCornerBias, boolean owoot, boolean amigaGrass) {
+        this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
+            leftCornerBias, owoot, amigaGrass, DEFAULT_SOUND, DEFAULT_SKIP_INTRO);
+    }
+
+    public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
+            HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
+            boolean leftCornerBias, boolean owoot, boolean amigaGrass,
+            boolean sound, boolean skipIntro) {
         this.newMidi = newMidi;
+        this.sound = sound;
+        this.skipIntro = skipIntro;
         this.showFps = showFps;
         this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
@@ -106,6 +122,12 @@ public final class LaunchOptions {
         }
         if (amigaGrass) {
             arguments.add("/amigagrass");
+        }
+        if (!sound) {
+            arguments.add("/ns");
+        }
+        if (skipIntro) {
+            arguments.add("--nointro");
         }
         return arguments.toArray(new String[0]);
     }

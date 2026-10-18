@@ -1,6 +1,9 @@
 #include "../../c/legacy.h"
 #include "../../c/platform.h"
 
+#ifdef RESTUNTS_STARTUP_DIRECTORY
+#include "dos_interrupts.h"
+#endif
 #include <string.h>
 
 #define DOS_RUNTIME_INTERRUPT 33
@@ -68,6 +71,9 @@ void dos_show_startup_error(const legacy_s8 *message)
 
 void dos_process_exit(legacy_s16 status)
 {
+#ifdef RESTUNTS_STARTUP_DIRECTORY
+	dos_startup_restore_data_directory();
+#endif
 	__asm {
 		mov     ax, status
 		mov     ah, DOS_RUNTIME_EXIT_FUNCTION

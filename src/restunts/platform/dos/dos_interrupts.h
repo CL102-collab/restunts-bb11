@@ -14,4 +14,8 @@ typedef void interrupt(far *dos_interrupt_handler_type)();
 #define peekb(segment, offset) (*(legacy_u8 far *)MK_FP(segment, offset))
 #define pokeb(segment, offset, value) (peekb(segment, offset) = (legacy_u8)(value))
 
+/* Select startup resources and restore the caller's DOS drive/CWD on exit. */
+legacy_s16 dos_startup_select_data_directory(const legacy_s8 *directory);
+void dos_startup_restore_data_directory(void);
+
 #endif

@@ -72,6 +72,7 @@
         <div class="controls">
             <button id="start" disabled>Start game</button>
             <label><input id="skip-intro" type="checkbox" disabled> Skip intro</label>
+            <label><input id="sound-enabled" type="checkbox" checked disabled> Sound enabled</label>
             <label><input id="new-midi" type="checkbox" checked disabled> New MIDI</label>
             <button id="fullscreen" disabled>Fullscreen (Alt+Enter)</button>
         </div>
@@ -223,7 +224,7 @@
         const STORAGE_DATABASE_VERSION = 2;
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
             'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
@@ -440,6 +441,7 @@
             canvas.focus();
             const args = ['--data-dir', DATA_DIRECTORY];
             if (document.getElementById('skip-intro').checked) args.push('--nointro');
+            if (!document.getElementById('sound-enabled').checked) args.push('/ns');
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
