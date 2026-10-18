@@ -111,7 +111,7 @@ jobs:
   sanitizers:
     name: Native sanitizer (${{ matrix.sanitizer }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: ${{ matrix.sanitizer == 'thread' && 60 || 45 }}
     strategy:
       fail-fast: false
       matrix:
@@ -134,6 +134,9 @@ jobs:
       TSAN_OPTIONS: halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS: 600
+      # TSan substantially slows fixed-budget native ghost searches. Apply
+      # matching limits in CTest and the Python subprocesses it launches.
+      RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.sanitizer == 'thread' && '10' || '1' }}
       CTEST_TIMEOUT_SECONDS: 1800
       SDL_VIDEODRIVER: dummy
       SDL_AUDIODRIVER: dummy
@@ -165,7 +168,8 @@ jobs:
       - name: Build instrumented native binaries
         run: |
           cmake -S . -B build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-            -DRESTUNTS_BUILD_TESTS=ON
+            -DRESTUNTS_BUILD_TESTS=ON \
+            -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
           cmake --build build/sanitizer --parallel 2
 
       - name: Run instrumented host and SDL3 regressions

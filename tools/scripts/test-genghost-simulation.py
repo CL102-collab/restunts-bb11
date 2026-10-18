@@ -9,6 +9,8 @@ import sys
 import tempfile
 import zipfile
 
+from regression_timeouts import scaled_timeout
+
 
 GAMESTATE_SIZE = 1120
 REPLAY_INPUT_OFFSET = 1828
@@ -25,7 +27,7 @@ PHYSICS_MODES = (
 def main():
     simulation, repldump, data_directory, corpus = (Path(argument).resolve() for argument in sys.argv[1:])
     # Geometry tests are independent of the proprietary game resources.
-    subprocess.run([str(simulation), "--geometry-only"], check=True, timeout=30)
+    subprocess.run([str(simulation), "--geometry-only"], check=True, timeout=scaled_timeout(30))
     available = {path.name.upper(): path for path in data_directory.iterdir()} if data_directory.is_dir() else {}
     required = (("GAME.RES", "GAME.PRE"), ("CARLM02.RES", "CARLM02.PRE"),
                 ("STLM02.P3S", "STLM02.3SH"))
@@ -103,25 +105,25 @@ def main():
             for switches in PHYSICS_MODES:
                 subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
                                 "--dualway-check", *switches],
-                               env=environment, check=True, timeout=120)
+                               env=environment, check=True, timeout=scaled_timeout(120))
         if uphill_fixture is not None:
             source = temporary / "uphill.RPL"
             source.write_bytes(uphill_fixture)
             subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
-                            "--uphill-check"], env=environment, check=True, timeout=120)
+                            "--uphill-check"], env=environment, check=True, timeout=scaled_timeout(120))
         for fixture_name, recording, prefix, model in controller_fixtures:
             source = temporary / "source.RPL"
             source.write_bytes(recording)
             subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
                             "--controller-check", str(prefix), str(model)],
-                           env=environment, check=True, timeout=120)
+                           env=environment, check=True, timeout=scaled_timeout(120))
             print(f"{fixture_name}: winning-prefix controller restrictions passed", flush=True)
         for fixture_name, recording, prefix, model in catalog_fixtures:
             source = temporary / "source.RPL"
             source.write_bytes(recording)
             subprocess.run([str(simulation), "--data-dir", str(data_directory), str(source),
                             "--catalog-check", str(prefix), str(model)],
-                           env=environment, check=True, timeout=120)
+                           env=environment, check=True, timeout=scaled_timeout(120))
             print(f"{fixture_name}: model {model} catalog geometry and rule gates passed", flush=True)
         for fixture_name, recording in fixtures:
             source = temporary / "source.RPL"
@@ -131,7 +133,7 @@ def main():
                 output = temporary / "ghost.RPL"
                 command = [str(simulation), "--data-dir", str(data_directory),
                            str(source), str(output), *switches]
-                subprocess.run(command, env=environment, check=True, timeout=120)
+                subprocess.run(command, env=environment, check=True, timeout=scaled_timeout(120))
                 normalized = output.read_bytes()
                 assert struct.unpack_from("<H", normalized, 22)[0] == 20
                 assert len(normalized) == REPLAY_INPUT_OFFSET + count
@@ -139,7 +141,7 @@ def main():
                 assert normalized[REPLAY_INPUT_OFFSET:] == recording[REPLAY_INPUT_OFFSET:]
                 subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                 str(output), "1", *switches],
-                               env=environment, check=True, timeout=120)
+                               env=environment, check=True, timeout=scaled_timeout(120))
                 actual = output.with_suffix(".RPL.states").read_bytes()
                 reference = output.with_suffix(".BNI").read_bytes()
                 assert len(actual) == 2 + count * GAMESTATE_SIZE

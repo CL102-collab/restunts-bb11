@@ -10,6 +10,8 @@ import sys
 import tempfile
 import zipfile
 
+from regression_timeouts import scaled_timeout
+
 
 INPUT_OFFSET = 1828
 STATE_SIZE = 1120
@@ -51,7 +53,7 @@ def main():
         def run(arguments, *, success=True, timeout=90):
             result = subprocess.run([str(binary), "--data-dir", str(data), *map(str, arguments)],
                                     cwd=temporary, env=environment, capture_output=True,
-                                    text=True, timeout=timeout)
+                                    text=True, timeout=scaled_timeout(timeout))
             assert (result.returncode == 0) == success, (
                 arguments, result.returncode, result.stdout, result.stderr)
             return result
@@ -71,7 +73,7 @@ def main():
             check.write_bytes((temporary / output).read_bytes())
             playback = subprocess.run([str(repldump), "--data-dir", str(data),
                                        str(check), "1", *flags], cwd=temporary,
-                                      env=environment, capture_output=True, text=True, timeout=30)
+                                      env=environment, capture_output=True, text=True, timeout=scaled_timeout(30))
             assert playback.returncode == 0, (playback.stdout, playback.stderr)
             states = check.with_suffix(".BNI").read_bytes()
             count = struct.unpack_from("<H", states)[0]
@@ -234,7 +236,7 @@ def main():
         if native:
             subprocess.run([str(native), "--data-dir", str(data),
                             str(temporary / "auto seed.RPL"), "1", "--test-fine-tune"],
-                           cwd=temporary, env=environment, check=True, timeout=90)
+                           cwd=temporary, env=environment, check=True, timeout=scaled_timeout(90))
             print("Native engines preserve the baseline and reject invalid direct-call seeds", flush=True)
 
         # Build a seed legal under the selected restrictions without relying on

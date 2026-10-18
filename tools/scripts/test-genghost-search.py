@@ -10,6 +10,8 @@ import sys
 import tempfile
 import zipfile
 
+from regression_timeouts import scaled_timeout
+
 
 REPLAY_HEADER_SIZE = 26
 REPLAY_INPUT_OFFSET = 1828
@@ -50,7 +52,7 @@ def main():
         def run(arguments, *, expected=0):
             command = [str(genghost), "--data-dir", str(data_directory), *map(str, arguments)]
             result = subprocess.run(command, cwd=temporary, env=environment, capture_output=True,
-                                    text=True, timeout=90)
+                                    text=True, timeout=scaled_timeout(90))
             if result.returncode != expected:
                 raise AssertionError(f"Command exited {result.returncode}, expected {expected}: {command}\n"
                                      f"{result.stdout}{result.stderr}")
@@ -65,7 +67,7 @@ def main():
             result = subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                      str(path), "1", *flags],
                                     cwd=temporary, env=environment, capture_output=True,
-                                    text=True, timeout=90)
+                                    text=True, timeout=scaled_timeout(90))
             if result.returncode:
                 raise AssertionError(f"Independent replay failed: {result.stdout}{result.stderr}")
             dump = path.with_suffix(".BNI").read_bytes()

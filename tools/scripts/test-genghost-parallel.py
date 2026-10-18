@@ -13,6 +13,8 @@ import tempfile
 import time
 import zipfile
 
+from regression_timeouts import scaled_timeout
+
 
 REPLAY_INPUT_OFFSET = 1828
 GAMESTATE_SIZE = 1120
@@ -99,7 +101,7 @@ def main():
 
         def run(arguments, expected=0):
             result = subprocess.run(command(arguments), cwd=temporary, env=environment,
-                                    capture_output=True, text=True, timeout=40)
+                                    capture_output=True, text=True, timeout=scaled_timeout(40))
             assert result.returncode == expected, (
                 result.returncode, expected, arguments, result.stdout, result.stderr)
             return result
@@ -122,7 +124,7 @@ def main():
                              or flag.startswith(("--pg:", "--lc:", "--lcb:"))]
             result = subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                      str(replay), "1", *physics_flags], cwd=temporary, env=environment,
-                                    capture_output=True, text=True, timeout=15)
+                                    capture_output=True, text=True, timeout=scaled_timeout(15))
             assert result.returncode == 0, (result.stdout, result.stderr)
             dump = replay.with_suffix(".BNI").read_bytes()
             count = struct.unpack_from("<H", dump)[0]

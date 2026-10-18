@@ -560,6 +560,8 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_genghost_analysis.py")
             add_test(NAME genghost-stunt-analysis COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
+            add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
@@ -587,6 +589,24 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "$<TARGET_FILE:test-genghost-state>"
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
             set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
+            # CTest's --timeout does not override an explicit test TIMEOUT.
+            # Propagate the same multiplier to the Python subprocess deadlines.
+            set(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER 1 CACHE STRING
+                "Timeout multiplier for native ghost regressions")
+            if(NOT RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER MATCHES "^[1-9][0-9]*$")
+                message(FATAL_ERROR
+                    "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
+            endif()
+            foreach(restunts_genghost_test genghost-simulation genghost-search
+                    genghost-fine-tune genghost-parallel genghost-state)
+                get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
+                math(EXPR restunts_genghost_timeout
+                    "${restunts_genghost_timeout} * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
+                set_tests_properties(${restunts_genghost_test} PROPERTIES
+                    TIMEOUT ${restunts_genghost_timeout})
+                set_property(TEST ${restunts_genghost_test} APPEND PROPERTY ENVIRONMENT
+                    "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
+            endforeach()
         endif()
     endif()
     add_executable(test-render-workers src/restunts/tests/test-render-workers.c)

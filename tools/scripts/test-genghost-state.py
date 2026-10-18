@@ -12,6 +12,8 @@ import tempfile
 import time
 import zipfile
 
+from regression_timeouts import scaled_timeout
+
 
 INPUT_OFFSET = 1828
 GAMESTATE_SIZE = 1120
@@ -80,7 +82,7 @@ def main():
 
         def run(arguments, expected=0, timeout=90):
             result = subprocess.run(command(arguments), cwd=temporary, env=environment,
-                                    capture_output=True, text=True, timeout=timeout)
+                                    capture_output=True, text=True, timeout=scaled_timeout(timeout))
             assert result.returncode == expected, (
                 arguments, result.returncode, expected, result.stdout, result.stderr)
             return result
@@ -98,7 +100,7 @@ def main():
             playback.write_bytes((temporary / name).read_bytes())
             checked = subprocess.run([str(repldump), "--data-dir", str(data),
                                       str(playback), "1", *flags], cwd=temporary,
-                                     env=environment, capture_output=True, text=True, timeout=30)
+                                     env=environment, capture_output=True, text=True, timeout=scaled_timeout(30))
             assert checked.returncode == 0, (checked.stdout, checked.stderr)
             states = playback.with_suffix(".BNI").read_bytes()
             count = struct.unpack_from("<H", states)[0]
@@ -149,20 +151,20 @@ def main():
         # state, including prefixes differing in a single input byte.
         for prefix, flags in ((261, ("--expect-powergear",)), (200, ("--lc:off",)), (40, RESTRICTED)):
             subprocess.run([str(native), "--data-dir", str(data), str(temporary / "uphill.RPL"), str(prefix),
-                            *flags], cwd=temporary, env=environment, check=True, timeout=90)
+                            *flags], cwd=temporary, env=environment, check=True, timeout=scaled_timeout(90))
         subprocess.run([str(native), "--data-dir", str(data), str(temporary / "airborne.RPL"),
                         "440", "--expect-landing"], cwd=temporary, env=environment,
-                       check=True, timeout=90)
+                       check=True, timeout=scaled_timeout(90))
         p962 = (("CARP962.RES", "CARP962.PRE"), ("STP962.P3S", "STP962.3SH"))
         if all(any(name in available for name in names) for names in p962):
             (temporary / "chicane.RPL").write_bytes(chicane)
             subprocess.run([str(native), "--data-dir", str(data), str(temporary / "chicane.RPL"), "1624",
                             "--expect-chicane"], cwd=temporary, env=environment,
-                           check=True, timeout=90)
+                           check=True, timeout=scaled_timeout(90))
         (temporary / "recover.RPL").write_bytes(failed_pilot)
         subprocess.run([str(native), "--data-dir", str(data), str(temporary / "recover.RPL"),
                         "1", "--search-recovery"], cwd=temporary, env=environment,
-                       check=True, timeout=90)
+                       check=True, timeout=scaled_timeout(90))
         print("Native checkpoint identity, maneuver rule gates, and chicane fast grass passed", flush=True)
 
         # Explicit legacy selection must preserve existing fixed-budget replay
@@ -176,7 +178,7 @@ def main():
             result = subprocess.run([frozen, "--data-dir", str(data), "track.TRK", "PMIN",
                                      "--cores", "1", "--evaluations", "201", "--seed", "1",
                                      "--output", "frozen.RPL"], cwd=temporary, env=environment,
-                                    capture_output=True, text=True, timeout=90)
+                                    capture_output=True, text=True, timeout=scaled_timeout(90))
             assert result.returncode == 0, (result.stdout, result.stderr)
             assert legacy == (temporary / "frozen.RPL").read_bytes()
         print("Explicit legacy search preserves replay inputs", flush=True)
