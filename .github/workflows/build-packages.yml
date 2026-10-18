@@ -18,6 +18,10 @@ on:
         description: Skip AppImages when another caller job already builds and tests them.
         type: boolean
         default: false
+      only-netbsd-haiku:
+        description: Build only three NetBSD and two Haiku packages; takes precedence over only-appimages.
+        type: boolean
+        default: false
       attest:
         description: Attest package archives and checksums for a release run.
         type: boolean
@@ -44,7 +48,7 @@ on:
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
   appimage:
-    if: ${{ !inputs.skip-appimages }}
+    if: ${{ !inputs.skip-appimages && !inputs.only-netbsd-haiku }}
     name: Package ${{ matrix.target }} (Ubuntu 10.04 ABI)
     runs-on: ubuntu-24.04
     container: ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
@@ -111,7 +115,7 @@ jobs:
           subject-path: dist/packages/*
 
   appimage-compatibility:
-    if: ${{ !inputs.skip-appimages }}
+    if: ${{ !inputs.skip-appimages && !inputs.only-netbsd-haiku }}
     name: Test ${{ matrix.target }} on ${{ matrix.distro }}
     needs: appimage
     runs-on: ubuntu-24.04
@@ -183,7 +187,7 @@ jobs:
           retention-days: 14
 
   android:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ !inputs.only-appimages && !inputs.only-netbsd-haiku }}
     name: Package game and generator ${{ matrix.target }} (Android 5+)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -291,7 +295,7 @@ jobs:
           subject-path: dist/packages/*
 
   cross:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ !inputs.only-appimages && !inputs.only-netbsd-haiku }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     container: debian:12
@@ -351,19 +355,14 @@ jobs:
           subject-path: dist/packages/*
 
   bsd:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ inputs.only-netbsd-haiku || !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - freebsd-x64
-          - openbsd-x64
-          - netbsd-x64
-          - netbsd-x86
-          - netbsd-x86-no-sse2
+        target: ${{ fromJSON(inputs.only-netbsd-haiku && '["netbsd-x64","netbsd-x86","netbsd-x86-no-sse2"]' || '["freebsd-x64","openbsd-x64","netbsd-x64","netbsd-x86","netbsd-x86-no-sse2"]') }}
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
     steps:
@@ -406,7 +405,8 @@ jobs:
           sync: rsync
           envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           prepare: |
-            /usr/sbin/pkg_add curl git-base mozilla-rootcerts-openssl
+            # Refresh older dependencies already installed in the VM image.
+            /usr/sbin/pkg_add -u curl git-base mozilla-rootcerts-openssl
           run: |
             set -eu
             export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
@@ -433,7 +433,7 @@ jobs:
           subject-path: dist/packages/*
 
   haiku:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ inputs.only-netbsd-haiku || !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -522,7 +522,7 @@ jobs:
           subject-path: dist/packages/*
 
   dos16:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ !inputs.only-appimages && !inputs.only-netbsd-haiku }}
     name: Package DOS16 validation artifacts
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -558,7 +558,7 @@ jobs:
           subject-path: dist/packages/*
 
   macos:
-    if: ${{ !inputs.only-appimages }}
+    if: ${{ !inputs.only-appimages && !inputs.only-netbsd-haiku }}
     name: Package macOS Universal
     runs-on: macos-15
     timeout-minutes: 45

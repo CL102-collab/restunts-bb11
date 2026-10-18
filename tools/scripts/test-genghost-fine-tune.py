@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify explicit replay refinement, seed preservation, and native playback."""
 
+import errno
 import json
 import os
 from pathlib import Path
@@ -179,8 +180,17 @@ def main():
         aliases = ["human.RPL", "./human.RPL"]
         if os.name == "posix":
             (temporary / "alias.RPL").symlink_to("human.RPL")
-            os.link(temporary / "human.RPL", temporary / "hard.RPL")
-            aliases.extend(("alias.RPL", "hard.RPL"))
+            aliases.append("alias.RPL")
+            try:
+                os.link(temporary / "human.RPL", temporary / "hard.RPL")
+            except OSError as error:
+                # Haiku's BFS rejects hard links with B_NOT_ALLOWED (EPERM).
+                # Keep the other aliases and all refinement checks enabled.
+                if not sys.platform.startswith("haiku") or error.errno != errno.EPERM:
+                    raise
+                print("SKIP: hard-link alias check (unsupported by Haiku BFS)", flush=True)
+            else:
+                aliases.append("hard.RPL")
         for output in aliases:
             run(["human.RPL", "PMIN", "--fine-tune", "--evaluations", 1,
                  "--output", output], success=False)

@@ -1,7 +1,7 @@
 name: PR validation
 
-# Blocks a pull request when any executable fails to build, full physics
-# validation fails, or sampled renderer output differs from pixldumo.
+# Full validation runs normally. The netbsd-haiku-only label or dispatch input
+# limits a follow-up to those packages after the other checks have passed.
 on:
   #push:
   #  branches: [cl102/feat]
@@ -9,6 +9,10 @@ on:
     branches: [main, integ2]
   workflow_dispatch:
     inputs:
+      only-netbsd-haiku:
+        description: Recheck only NetBSD and Haiku packages, without golden replays or other passed checks.
+        type: boolean
+        default: false
       platforms:
         description: Nonempty JSON array of unique candidate platforms (dos, sdl3).
         type: string
@@ -36,6 +40,7 @@ concurrency:
 jobs:
   appimages:
     name: Portable Linux AppImages
+    if: ${{ !inputs.only-netbsd-haiku && !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
     uses: ./.github/workflows/build-packages.yml
     with:
       only-appimages: true
@@ -43,6 +48,7 @@ jobs:
 
   validate:
     name: Golden replays
+    if: ${{ !inputs.only-netbsd-haiku && !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
     uses: ./.github/workflows/build-and-validate.yml
     with:
       platforms: ${{ github.event.inputs.platforms || '["sdl3"]' }}
@@ -55,9 +61,16 @@ jobs:
   packages:
     name: All release packages
     needs: validate
+    if: >-
+      ${{ !cancelled() &&
+          (needs.validate.result == 'success' ||
+           (needs.validate.result == 'skipped' &&
+            (inputs.only-netbsd-haiku ||
+             contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only')))) }}
     uses: ./.github/workflows/build-packages.yml
     with:
       dos-artifact: ${{ needs.validate.outputs.exe-artifact }}
       skip-appimages: true
+      only-netbsd-haiku: ${{ inputs.only-netbsd-haiku || contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
       attest: false
       android-release: false

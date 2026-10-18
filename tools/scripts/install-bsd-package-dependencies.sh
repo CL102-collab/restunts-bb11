@@ -66,7 +66,9 @@ case "$target:$host_system:$host_architecture" in
             package_architecture=x86_64
         fi
         export PKG_PATH="${PKG_PATH:-https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/}"
-        pkg_add bash cmake ninja-build git-base python313 pkgconf curl mozilla-rootcerts-openssl
+        # The VM image may contain older dependencies than the package mirror.
+        # Update those recursively when a requested package needs a newer one.
+        pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl mozilla-rootcerts-openssl
         install_netbsd_x11
         ;;
     *)
