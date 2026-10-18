@@ -82,6 +82,11 @@ Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a
 library rebuilt from the included sources. The AppImage uses the Ubuntu 20.04
 build baseline so its glibc requirement is older than Fedora 34's glibc 2.33.
 
+CI tests the finished AppImage archive in a separate Fedora 34 Docker container.
+The test checks launcher options and shared libraries, starts the game with
+`--nointro` using SDL's dummy video/audio drivers, and renders a replay frame.
+It uses AppImage extraction so the container does not need FUSE.
+
 The browser package contains the single playable `restunts.html`, notices,
 licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
 source and the object/archive files needed to rebuild the HTML with a modified

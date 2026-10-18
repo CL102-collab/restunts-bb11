@@ -74,6 +74,7 @@
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
 #define STARTUP_FPS_DISPLAY_PREFIX "--fps:"
 #define STARTUP_SKIP_INTRO_OPTION "--nointro"
+#define STARTUP_WAITING_MESSAGE_Y 180
 #if defined(RESTUNTS_SDL3) && (defined(__ANDROID__) || defined(__EMSCRIPTEN__))
 #define STARTUP_CONTROL_LAYOUT_PREFIX "--control-layout:"
 #define STARTUP_CONTROL_LAYOUT_OFF 0U
@@ -834,6 +835,8 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 		legacy_s16 result = 0;
 		if (startup_options.skip_intro != 0) {
 			startup_options.skip_intro = 0;
+			/* The intro normally places the waiting dialog below the title. */
+			waitflag = STARTUP_WAITING_MESSAGE_Y;
 		} else {
 			result = run_intro_looped();
 		}

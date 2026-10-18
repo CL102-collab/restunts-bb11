@@ -477,6 +477,10 @@ legacy_s8 run_menu(void)
 	if (expected_initial_intro_calls >= 0) {
 		assert(menu_calls == 1);
 		assert(intro_calls == (legacy_u32)expected_initial_intro_calls);
+		if (expected_initial_intro_calls == 0) {
+			/* A zero Y makes the waiting dialog draw above the screen. */
+			assert(waitflag == 180);
+		}
 		assert(is_audioloaded != 0);
 		return -1;
 	}
@@ -630,6 +634,7 @@ static void test_startup_intro_option(void)
 	static const legacy_s16 counts[] = {2, 4, 4, 3, 2, 2, 2, 2, 2, 2, 1};
 	for (legacy_u32 scenario = 0; scenario < sizeof(counts) / sizeof(counts[0]); scenario++) {
 		expected_initial_intro_calls = scenario < 4 ? 0 : 1;
+		waitflag = 0;
 		menu_calls = intro_calls = game_calls = score_calls = 0;
 		timer_calls = status_calls = 0;
 		audio_failure = 0;

@@ -96,6 +96,19 @@ if [[ -d /stunts-data ]]; then
     mkdir "$work_dir/game-data"
     cp -R /stunts-data/. "$work_dir/game-data/"
     chmod -R u+w "$work_dir/game-data"
+    # Exercise interactive initialization and menu drawing as well as batch tools.
+    # The dummy drivers need neither a display server nor an audio device.
+    startup_result=0
+    APPIMAGE_EXTRACT_AND_RUN=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+        timeout --kill-after=5s 5s "$appimage" \
+        --data-dir "$work_dir/game-data" --nointro > "$work_dir/startup.log" 2>&1 \
+        || startup_result=$?
+    if [[ "$startup_result" != 124 ]]; then
+        cat "$work_dir/startup.log" >&2
+        echo "AppImage game startup failed: expected the running menu, got exit $startup_result" >&2
+        exit 1
+    fi
+    echo "Fedora 34 AppImage game startup passed (dummy video and audio)."
     bmp="$work_dir/game-data/DEFAULT.2.0.5.PDD.bmp"
     rm -f -- "$bmp"
     if ! SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
