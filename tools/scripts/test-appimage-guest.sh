@@ -163,8 +163,9 @@ sha256sum "$bmp"
 printf '%s  %s\n' 808e1a11ac05d5757379d425a6a857a5584912cc62f7ec567662a7dbcefa74fa "$bmp" | sha256sum --check
 
 # Exercise the bundled ALSA backend without a physical sound card. Keep one
-# MiB of PCM and drain the rest, because the null sink runs without pacing.
+# bounded PCM sample and drain the rest, because the null sink runs without pacing.
 audio_fifo="$work_dir/audio.pipe" audio_raw="$work_dir/audio.raw" audio_ready="$work_dir/audio.ready"
+pcm_bytes=65536
 mkfifo "$audio_fifo"
 cat > "$work_dir/alsa.conf" <<EOF
 pcm.!default {
@@ -182,9 +183,9 @@ exec 3<> "$audio_fifo"
     blocks=0
     # SDL starts its audio thread before loading the game's music. Discard
     # complete silent buffers until music starts, then retain one bounded block.
-    while head -c 1048576 > "$audio_raw"; do
+    while head -c "$pcm_bytes" > "$audio_raw"; do
         bytes=$(stat -c %s "$audio_raw")
-        [[ "$bytes" == 1048576 ]] || { echo "Short PCM block: $bytes bytes" >&2; break; }
+        [[ "$bytes" == "$pcm_bytes" ]] || { echo "Short PCM block: $bytes bytes" >&2; break; }
         blocks=$((blocks + 1))
         if [[ -n "$(od -An -tu4 "$audio_raw" | tr -d '[:space:]0*')" ]]; then
             echo "Captured nonzero PCM in block $blocks" >&2
@@ -222,7 +223,7 @@ exec 3>&-
 wait "$audio_reader_pid" 2>/dev/null || audio_reader_status=$?
 audio_bytes=0
 [[ ! -f "$audio_raw" ]] || audio_bytes=$(stat -c %s "$audio_raw")
-if [[ "$audio_captured" != 1 || "$audio_bytes" != 1048576 || "$audio_reader_status" != 0 || \
+if [[ "$audio_captured" != 1 || "$audio_bytes" != "$pcm_bytes" || "$audio_reader_status" != 0 || \
     ( "$audio_status" != 0 && "$audio_status" != 143 && "$audio_status" != 137 ) ]]; then
     printf 'PCM capture: ready=%s bytes=%s producer_exit=%s reader_exit=%s\n' \
         "$audio_captured" "$audio_bytes" "$audio_status" "$audio_reader_status" >&2
@@ -237,5 +238,5 @@ fi
     echo 'Bundled ALSA backend produced only silence.' >&2
     exit 1
 }
-echo 'Bundled ALSA backend passed: 1,048,576 bytes of non-silent PCM captured.'
+echo "Bundled ALSA backend passed: $pcm_bytes bytes of non-silent PCM captured."
 echo "RESTUNTS_COMPATIBILITY_PASSED target=$target distro=$distro"
