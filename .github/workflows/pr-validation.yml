@@ -34,13 +34,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  appimages:
-    name: Portable Linux AppImages
-    uses: ./.github/workflows/build-packages.yml
-    with:
-      only-appimages: true
-      attest: false
-
   validate:
     name: Golden replays
     uses: ./.github/workflows/build-and-validate.yml
@@ -58,6 +51,5 @@ jobs:
     uses: ./.github/workflows/build-packages.yml
     with:
       dos-artifact: ${{ needs.validate.outputs.exe-artifact }}
-      skip-appimages: true
       attest: false
       android-release: false

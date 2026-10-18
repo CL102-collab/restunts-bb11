@@ -8,16 +8,7 @@ on:
       dos-artifact:
         description: The six DOS16 executables produced by build-and-validate.
         type: string
-        required: false
-        default: ''
-      only-appimages:
-        description: Build and test only the three portable Linux AppImages.
-        type: boolean
-        default: false
-      skip-appimages:
-        description: Skip AppImages when another caller job already builds and tests them.
-        type: boolean
-        default: false
+        required: true
       attest:
         description: Attest package archives and checksums for a release run.
         type: boolean
@@ -44,7 +35,6 @@ on:
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
   appimage:
-    if: ${{ !inputs.skip-appimages }}
     name: Package ${{ matrix.target }} (Ubuntu 10.04 ABI)
     runs-on: ubuntu-24.04
     container: ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
@@ -111,7 +101,6 @@ jobs:
           subject-path: dist/packages/*
 
   appimage-compatibility:
-    if: ${{ !inputs.skip-appimages }}
     name: Test ${{ matrix.target }} on ${{ matrix.distro }}
     needs: appimage
     runs-on: ubuntu-24.04
@@ -183,7 +172,6 @@ jobs:
           retention-days: 14
 
   android:
-    if: ${{ !inputs.only-appimages }}
     name: Package game and generator ${{ matrix.target }} (Android 5+)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -291,7 +279,6 @@ jobs:
           subject-path: dist/packages/*
 
   cross:
-    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     container: debian:12
@@ -351,7 +338,6 @@ jobs:
           subject-path: dist/packages/*
 
   bsd:
-    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -434,7 +420,6 @@ jobs:
           subject-path: dist/packages/*
 
   haiku:
-    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -523,7 +508,6 @@ jobs:
           subject-path: dist/packages/*
 
   dos16:
-    if: ${{ !inputs.only-appimages }}
     name: Package DOS16 validation artifacts
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -559,7 +543,6 @@ jobs:
           subject-path: dist/packages/*
 
   macos:
-    if: ${{ !inputs.only-appimages }}
     name: Package macOS Universal
     runs-on: macos-15
     timeout-minutes: 45
