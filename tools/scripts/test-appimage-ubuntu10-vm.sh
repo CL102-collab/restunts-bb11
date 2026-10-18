@@ -167,7 +167,11 @@ if [ "$mounted" = 0 ]; then
     poweroff -f
     exit 1
 fi
-mount -n -o move /dev /newroot/dev
+mount -n --move /dev /newroot/dev 2>/dev/null || mount -n -o move /dev /newroot/dev || {
+    echo 'RESTUNTS_VM_DEV_MOVE_FAILED'
+    poweroff -f
+    exit 1
+}
 umount -n /proc
 umount -n /sys
 exec "$run_init" /newroot /init < /newroot/dev/console > /newroot/dev/console 2>&1
