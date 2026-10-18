@@ -1,7 +1,7 @@
 # Release packages and verification
 
 The **PR validation** and manual **Release** workflows call the same
-`build-packages.yml` workflow. Every successful run produces these 23 archives
+`build-packages.yml` workflow. Every successful run produces these 25 archives
 and a SHA-256 sidecar for each archive:
 
 | Archive | Target baseline |
@@ -15,7 +15,9 @@ and a SHA-256 sidecar for each archive:
 | `restunts-linux-x86.tar.gz` | 32-bit x86 with SSE2, Debian 12+ |
 | `restunts-linux-x86-no-sse2.tar.gz` | 32-bit x86 without SSE2, Debian 12+ |
 | `restunts-linux-x64.tar.gz` | x86_64, Debian 12+ |
-| `restunts-linux-appimage-x64.tar.gz` | x86_64 AppImage, Ubuntu 20.04 build baseline, glibc 2.31+ |
+| `restunts-linux-appimage-x64.tar.gz` | x86_64 AppImage, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
+| `restunts-linux-appimage-x86.tar.gz` | 32-bit x86 AppImage with SSE2, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
+| `restunts-linux-appimage-x86-no-sse2.tar.gz` | 32-bit x86 AppImage without SSE2, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
 | `restunts-windows-arm64.zip` | ARM64, Windows 10+ |
 | `restunts-windows-x86.zip` | 32-bit x86 with SSE2, Windows XP SP2+ |
 | `restunts-windows-x86-no-sse2.zip` | 32-bit x86 without SSE2, Windows XP SP2+ |
@@ -79,13 +81,24 @@ FUSE, so extract the image first and run its launcher from any working directory
 ```
 
 Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a
-library rebuilt from the included sources. The AppImage uses the Ubuntu 20.04
-build baseline so its glibc requirement is older than Fedora 34's glibc 2.33.
+library rebuilt from the included sources. All three AppImages use a verified
+legacy sysroot targeting Ubuntu 10.04's glibc 2.11. A modern compiler runs on the
+build host; the host's newer glibc is neither linked nor bundled. Each AppImage
+includes its X11 and ALSA dependencies, their licenses and required source.
 
-CI tests the finished AppImage archive in a separate Fedora 34 Docker container.
-The test checks launcher options and shared libraries, starts the game with
-`--nointro` using SDL's dummy video/audio drivers, and renders a replay frame.
-It uses AppImage extraction so the container does not need FUSE.
+PR and Release CI build all three variants and test the exact uploaded archive
+bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
+supported and newest stable Ubuntu/Fedora releases selected for this matrix.
+Ubuntu 10.04 tests run in QEMU with its original kernel and userspace; current
+Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run
+with compatible 32-bit system libraries, including on current 64-bit distributions.
+The no-SSE2 variant also runs on QEMU's Pentium III CPU model.
+
+The tests check launcher options and shared libraries, start the game with
+`--nointro`, and render a replay frame. Container tests use AppImage extraction
+so they do not require FUSE. Original game data is downloaded separately for
+testing and is never included in a package. Compatibility failures block both
+PR validation and release publication.
 
 The browser package contains the single playable `restunts.html`, notices,
 licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's

@@ -112,14 +112,15 @@ class ReleasePackageTests(unittest.TestCase):
             return self.apk_data(target)
         if target in PACKAGES.ANDROID_TARGETS and name == PACKAGES.ANDROID_GENGHOST_APK:
             return self.genghost_apk_data(target)
-        if target == PACKAGES.APPIMAGE_TARGET:
+        if target in PACKAGES.APPIMAGE_TARGETS:
+            elf_class, machine = PACKAGES.ELF_ARCHITECTURES[PACKAGES.APPIMAGE_TARGETS[target]]
             if name == PACKAGES.APPIMAGE:
-                content = bytearray(self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64))
+                content = bytearray(self.elf_data(elf_class, machine))
                 offset = PACKAGES.APPIMAGE_MAGIC_OFFSET
                 content[offset:offset + len(PACKAGES.APPIMAGE_MAGIC)] = PACKAGES.APPIMAGE_MAGIC
                 return bytes(content)
             if name in PACKAGES.ELF_FILES:
-                return self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64)
+                return self.elf_data(elf_class, machine)
         if target not in ELF_TARGETS or name not in PACKAGES.ELF_FILES:
             return FILE_DATA
         elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
@@ -172,37 +173,44 @@ class ReleasePackageTests(unittest.TestCase):
             PACKAGES.verify_directory(arguments)
 
     def test_appimage_archive_retains_complete_runtime_and_rebuild_kit(self):
-        target = PACKAGES.APPIMAGE_TARGET
-        archive = self.create(target)
-        files, modes = PACKAGES.archive_contents(archive)
-        self.assertEqual(set(files) - {PACKAGES.MANIFEST},
-                         PACKAGES.required_files("linux-x64") | {PACKAGES.APPIMAGE})
-        self.assertEqual(files[PACKAGES.APPIMAGE], self.runtime_data(target, PACKAGES.APPIMAGE))
-        self.assertTrue(modes[PACKAGES.APPIMAGE] & stat.S_IXUSR)
-        instructions = files[PACKAGES.README].decode("utf-8")
-        self.assertIn("bin/restunts.AppImage --data-dir", instructions)
-        self.assertIn("--appimage-extract", instructions)
-        self.assertIn("glibc 2.31", instructions)
+        for target, architecture in PACKAGES.APPIMAGE_TARGETS.items():
+            with self.subTest(target=target):
+                archive = self.create(target)
+                files, modes = PACKAGES.archive_contents(archive)
+                self.assertEqual(set(files) - {PACKAGES.MANIFEST},
+                                 PACKAGES.required_files(f"linux-{architecture}") | {PACKAGES.APPIMAGE})
+                self.assertEqual(files[PACKAGES.APPIMAGE], self.runtime_data(target, PACKAGES.APPIMAGE))
+                self.assertTrue(modes[PACKAGES.APPIMAGE] & stat.S_IXUSR)
+                instructions = files[PACKAGES.README].decode("utf-8")
+                self.assertIn("bin/restunts.AppImage --data-dir", instructions)
+                self.assertIn("--appimage-extract", instructions)
+                self.assertIn("Ubuntu 10.04 (glibc 2.11)", instructions)
+                if target.endswith("-no-sse2"):
+                    self.assertIn("without SSE2", instructions)
 
     def test_appimage_requires_native_architecture_type2_magic_and_execute_permission(self):
-        target = PACKAGES.APPIMAGE_TARGET
-        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
-        modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
-        PACKAGES.validate_contents(target, files, modes)
-        with self.assertRaisesRegex(ValueError, "missing packaged files.*restunts.AppImage"):
-            PACKAGES.validate_contents(target, {name: data for name, data in files.items()
-                                               if name != PACKAGES.APPIMAGE}, modes)
-        with self.assertRaisesRegex(ValueError, "Missing executable permission.*restunts.AppImage"):
-            PACKAGES.validate_contents(target, files, {**modes, PACKAGES.APPIMAGE: PACKAGES.FILE_MODE})
-        wrong_magic = bytearray(files[PACKAGES.APPIMAGE])
-        wrong_magic[PACKAGES.APPIMAGE_MAGIC_OFFSET + 2] = 1
-        with self.assertRaisesRegex(ValueError, "Type-2 AppImage"):
-            PACKAGES.validate_contents(target, {**files, PACKAGES.APPIMAGE: wrong_magic}, modes)
-        for name in PACKAGES.ELF_FILES | {PACKAGES.APPIMAGE}:
-            for content in (FILE_DATA, self.elf_data(PACKAGES.ELF_CLASS_32, PACKAGES.ELF_MACHINE_X86),
-                            self.elf_data(PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_AARCH64)):
-                with self.subTest(name=name, content=content), self.assertRaisesRegex(ValueError, "ELF"):
-                    PACKAGES.validate_contents(target, {**files, name: content}, modes)
+        for target, architecture in PACKAGES.APPIMAGE_TARGETS.items():
+            with self.subTest(target=target):
+                elf_class, machine = PACKAGES.ELF_ARCHITECTURES[architecture]
+                files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+                modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+                PACKAGES.validate_contents(target, files, modes)
+                with self.assertRaisesRegex(ValueError, "missing packaged files.*restunts.AppImage"):
+                    PACKAGES.validate_contents(target, {name: data for name, data in files.items()
+                                                       if name != PACKAGES.APPIMAGE}, modes)
+                with self.assertRaisesRegex(ValueError, "Missing executable permission.*restunts.AppImage"):
+                    PACKAGES.validate_contents(target, files, {**modes, PACKAGES.APPIMAGE: PACKAGES.FILE_MODE})
+                wrong_magic = bytearray(files[PACKAGES.APPIMAGE])
+                wrong_magic[PACKAGES.APPIMAGE_MAGIC_OFFSET + 2] = 1
+                with self.assertRaisesRegex(ValueError, "Type-2 AppImage"):
+                    PACKAGES.validate_contents(target, {**files, PACKAGES.APPIMAGE: wrong_magic}, modes)
+                wrong_architecture = (PACKAGES.ELF_CLASS_32, PACKAGES.ELF_MACHINE_X86) if \
+                    elf_class == PACKAGES.ELF_CLASS_64 else (PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64)
+                for name in PACKAGES.ELF_FILES | {PACKAGES.APPIMAGE}:
+                    for content in (FILE_DATA, self.elf_data(*wrong_architecture),
+                                    self.elf_data(elf_class, PACKAGES.ELF_MACHINE_AARCH64)):
+                        with self.subTest(name=name, content=content), self.assertRaisesRegex(ValueError, "ELF"):
+                            PACKAGES.validate_contents(target, {**files, name: content}, modes)
 
     def test_elf_archives_include_native_runtime_and_platform_instructions(self):
         for target, platform in ELF_TARGETS.items():

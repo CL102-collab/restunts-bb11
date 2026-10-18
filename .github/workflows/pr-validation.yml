@@ -6,7 +6,7 @@ on:
   #push:
   #  branches: [cl102/feat]
   pull_request:
-    branches: [main]
+    branches: [main, integ2]
   workflow_dispatch:
     inputs:
       platforms:

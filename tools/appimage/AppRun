@@ -2,4 +2,8 @@
 # Keep the caller's working directory and forward every game option verbatim.
 set -eu
 appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export LD_LIBRARY_PATH="$appdir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XLOCALEDIR="${XLOCALEDIR:-$appdir/usr/share/X11/locale}"
+export RESTUNTS_ALSA_CONFIG_DIR="$appdir/usr/share/alsa"
+export ALSA_CONFIG_PATH="${ALSA_CONFIG_PATH:-$appdir/usr/share/alsa/alsa.conf}"
 exec "$appdir/usr/bin/restunts" "$@"

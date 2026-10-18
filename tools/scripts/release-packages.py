@@ -32,6 +32,8 @@ TARGETS = {
     "haiku-x64": ".tar.gz",
     "haiku-x86": ".tar.gz",
     "linux-appimage-x64": ".tar.gz",
+    "linux-appimage-x86": ".tar.gz",
+    "linux-appimage-x86-no-sse2": ".tar.gz",
     "linux-arm32": ".tar.gz",
     "linux-arm64": ".tar.gz",
     "linux-x86": ".tar.gz",
@@ -84,7 +86,11 @@ ANDROID_GENGHOST_ASSETS = {"assets/genghost.md", "assets/genghost-android.md",
 ANDROID_GENGHOST_RESOURCES = {"res/drawable/ic_genghost.xml"}
 ELF_MAGIC = b"\x7fELF"
 APPIMAGE = "bin/restunts.AppImage"
-APPIMAGE_TARGET = "linux-appimage-x64"
+APPIMAGE_TARGETS = {
+    "linux-appimage-x64": "x64",
+    "linux-appimage-x86": "x86",
+    "linux-appimage-x86-no-sse2": "x86",
+}
 APPIMAGE_MAGIC = b"AI\x02"
 APPIMAGE_MAGIC_OFFSET = 8
 ELF_CLASS_32 = 1
@@ -373,7 +379,7 @@ def required_files(target):
         required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh"}
     else:
         required.add("lib/libnuked-opl2.so")
-    if target == APPIMAGE_TARGET:
+    if target in APPIMAGE_TARGETS:
         required.add(APPIMAGE)
     return required
 
@@ -398,7 +404,7 @@ def validate_contents(target, files, modes):
         executables = {f"bin/{name}" for name in NATIVE_EXECUTABLES}
         if target == "macos-universal":
             executables.add("run-restunts.sh")
-        if target == APPIMAGE_TARGET:
+        if target in APPIMAGE_TARGETS:
             executables.add(APPIMAGE)
         for name in executables:
             require(modes[name] & stat.S_IXUSR, f"Missing executable permission: {name}")
@@ -409,11 +415,12 @@ def validate_contents(target, files, modes):
     if target in ANDROID_TARGETS:
         validate_android_apk(target, files[ANDROID_APK])
         validate_android_genghost_apk(target, files[ANDROID_GENGHOST_APK])
-    if target == APPIMAGE_TARGET:
+    if target in APPIMAGE_TARGETS:
+        elf_class, machine = ELF_ARCHITECTURES[APPIMAGE_TARGETS[target]]
         for name in ELF_FILES:
-            validate_elf(target, name, files[name], ELF_CLASS_64, ELF_MACHINE_X64)
+            validate_elf(target, name, files[name], elf_class, machine)
         content = files[APPIMAGE]
-        validate_elf(target, APPIMAGE, content, ELF_CLASS_64, ELF_MACHINE_X64)
+        validate_elf(target, APPIMAGE, content, elf_class, machine)
         require(content[APPIMAGE_MAGIC_OFFSET:APPIMAGE_MAGIC_OFFSET + len(APPIMAGE_MAGIC)] ==
                 APPIMAGE_MAGIC, f"Expected a Type-2 AppImage: {APPIMAGE}")
 
@@ -471,15 +478,21 @@ def readme(target, commit):
     if target == "macos-universal":
         lines += ["macOS 11.0 or newer; Intel and Apple Silicon are in the same binary.",
                   "You can also use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
-    if target == APPIMAGE_TARGET:
-        lines += ["Linux x86-64; built on Ubuntu 20.04 with glibc 2.31.",
-                  "Start the Linux x86-64 AppImage with:",
+    if target in APPIMAGE_TARGETS:
+        architecture = "x86-64" if APPIMAGE_TARGETS[target] == "x64" else "32-bit x86"
+        lines += [f"Linux {architecture}; targets Ubuntu 10.04 (glibc 2.11) or newer.",
+                  "Built using a verified legacy sysroot; the host's glibc is not bundled.",
+                  "Start the AppImage with:",
                   "bin/restunts.AppImage --data-dir PATH_TO_YOUR_STUNTS_FOLDER",
                   "The AppImage embeds the complete runtime and dependency notices.",
                   "If FUSE is unavailable, run it with --appimage-extract, then use",
                   "squashfs-root/AppRun --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
                   "The unpacked runtime, tools, licenses and Nuked rebuild kit are retained",
                   "in this archive; redistribute the complete archive."]
+        if target.endswith("-no-sse2"):
+            lines += ["The game and bundled dependencies are built without SSE2 instructions."]
+        elif APPIMAGE_TARGETS[target] == "x86":
+            lines += ["This 32-bit AppImage requires a processor with SSE2."]
     if target.startswith("windows-x86"):
         lines += ["Requires Windows XP SP2 or newer (the pinned SDL system API minimum)."]
     if target in ELF_TARGETS:

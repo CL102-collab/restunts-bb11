@@ -94,7 +94,25 @@ case "$target" in
         ;;
     *)
         case "$target" in
-            linux-x64|linux-appimage-x64) ;;
+            linux-x64) ;;
+            linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2)
+                appimage_environment="$tool_root/appimage-sysroots/$target.env"
+                [[ -f "$appimage_environment" ]] || {
+                    echo "Missing legacy AppImage environment; run install-package-dependencies.sh $target first." >&2
+                    exit 1
+                }
+                # shellcheck source=/dev/null
+                source "$appimage_environment"
+                cmake_options+=("-DCMAKE_TOOLCHAIN_FILE=$RESTUNTS_APPIMAGE_CMAKE_TOOLCHAIN"
+                    -DSDL_X11_XCURSOR=OFF -DSDL_X11_XINPUT=OFF -DSDL_X11_XFIXES=OFF
+                    -DSDL_X11_XRANDR=OFF -DSDL_X11_XTEST=OFF -DSDL_X11_XSCRNSAVER=OFF
+                    -DSDL_WAYLAND=OFF -DSDL_VULKAN=OFF -DSDL_GPU_VULKAN=OFF)
+                if [[ "$target" == linux-appimage-x86-no-sse2 ]]; then
+                    cmake_options+=(-DRESTUNTS_SSE2=OFF)
+                else
+                    cmake_options+=(-DRESTUNTS_SSE2=ON)
+                fi
+                ;;
             linux-x86) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake) ;;
             linux-x86-no-sse2)
                 cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake -DRESTUNTS_SSE2=OFF) ;;
@@ -148,8 +166,8 @@ case "$target" in
         ;;
 esac
 
-if [[ "$target" == linux-appimage-x64 ]]; then
-    bash "$script_dir/build-appimage.sh" "$package_dir"
+if [[ "$target" == linux-appimage-* ]]; then
+    bash "$script_dir/build-appimage.sh" "$package_dir" "$target"
 fi
 
 case "$target" in

@@ -3,8 +3,10 @@ Historical Linux AppImage compatibility investigation (2026-10-18)
 The absolute oldest supported release has NOT been established.
 Ubuntu 10.04 LTS works with an experimental x86_64 rebuild. No game or SDL
 source changes were needed relative to d3545286f0d4d0af37e041db4c6f5b811c053e08.
-The existing production CI continues to build its separate Ubuntu 20.04 package;
-these experiments do not lower its advertised support baseline.
+These experiments led to three AppImage CI targets using glibc 2.11 sysroots:
+x86_64, x86 with SSE2 and x86 without SSE2. See docs/releases.md for the current
+build and compatibility test matrix. The results below describe the exploratory
+artifacts; current CI artifacts carry their own source commit and test evidence.
 Fedora has no LTS release series; the Fedora results below concern historical
 regular releases and do not imply ongoing distribution maintenance.
 

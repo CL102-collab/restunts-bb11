@@ -12,14 +12,35 @@ mkdir -p "$tool_root/downloads"
 
 download() {
     local url=$1 checksum=$2 destination=$3
+    if [[ -f "$destination" ]] && printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check --status; then
+        return
+    fi
     curl --fail --location --retry 3 --connect-timeout 20 "$url" --output "$destination"
     printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check --status
 }
 
 case "$target" in
+    linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2)
+        # The compiler is modern; all target headers, CRT objects and runtime
+        # libraries come from the verified historical sysroot instead of apt.
+        apt-get update
+        apt-get install -y --no-install-recommends \
+            build-essential gcc-multilib cmake ninja-build python3 curl ca-certificates \
+            pkg-config autoconf automake libtool libtool-bin meson patch gawk ripgrep qemu-user \
+            file bzip2 xz-utils
+        bash "$script_dir/prepare-appimage-sysroot.sh" "$target"
+        download "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256" "$tool_root/downloads/appimagetool.AppImage"
+        download "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256" "$tool_root/downloads/appimage-runtime-x86_64"
+        chmod +x "$tool_root/downloads/appimagetool.AppImage"
+        mkdir -p "$tool_root/appimagetool"
+        (cd "$tool_root/appimagetool"; "$tool_root/downloads/appimagetool.AppImage" --appimage-extract > /dev/null)
+        if [[ "$target" != linux-appimage-x64 ]]; then
+            bash "$script_dir/build-appimage-runtime.sh" "$target"
+        fi
+        ;;
     linux-*)
         case "$target" in
-            linux-x64|linux-appimage-x64) architecture=amd64 ;;
+            linux-x64) architecture=amd64 ;;
             linux-x86|linux-x86-no-sse2) architecture=i386; compiler=gcc-multilib ;;
             linux-arm32) architecture=armhf; compiler=gcc-arm-linux-gnueabihf ;;
             linux-arm64) architecture=arm64; compiler=gcc-aarch64-linux-gnu ;;
@@ -41,13 +62,6 @@ case "$target" in
             "libwayland-dev:$architecture" "libxkbcommon-dev:$architecture" \
             "libudev-dev:$architecture" "libdrm-dev:$architecture" "libgbm-dev:$architecture" \
             "libegl1-mesa-dev:$architecture" "libgl1-mesa-dev:$architecture"
-        if [[ "$target" == linux-appimage-x64 ]]; then
-            download "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256" "$tool_root/downloads/appimagetool.AppImage"
-            download "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256" "$tool_root/downloads/appimage-runtime-x86_64"
-            chmod +x "$tool_root/downloads/appimagetool.AppImage"
-            mkdir -p "$tool_root/appimagetool"
-            (cd "$tool_root/appimagetool"; "$tool_root/downloads/appimagetool.AppImage" --appimage-extract > /dev/null)
-        fi
         ;;
     windows-x86|windows-x86-no-sse2|windows-x64)
         apt-get update
