@@ -1,0 +1,84 @@
+Historical Linux AppImage compatibility investigation (2026-10-18)
+
+The absolute oldest supported release has NOT been established.
+Ubuntu 10.04 LTS works with an experimental x86_64 rebuild. No game or SDL
+source changes were needed relative to d3545286f0d4d0af37e041db4c6f5b811c053e08.
+The existing production CI continues to build its separate Ubuntu 20.04 package;
+these experiments do not lower its advertised support baseline.
+
+Verified environments
+
+* Ubuntu 10.04 official userspace (glibc 2.11.1), booted in QEMU TCG with a
+  newly built upstream Linux 2.6.32 kernel: final experimental AppImage passes
+  19 checks, including normal FUSE and extract-and-run launches as root and
+  an ordinary user, visible X11 menu, replay rendering, and ALSA PCM output.
+  Native genghost --help also passes in a separate VM check.
+* The preceding PIE build passes the same native suite with upstream Linux
+  2.6.21, 2.6.22 and 2.6.32. These are not stock Ubuntu installation images.
+* Original CentOS 5 glibc 2.5 in the VM: the final non-PIE game passes
+  help/version/licenses, visible menu and replay rendering. Genghost correctly
+  fails to load because GLIBC_2.6 is missing.
+* Fedora 20 and Fedora 34 official Docker userspaces: final AppImage passes
+  info commands, dependency checks, dummy video/audio menu and replay rendering.
+  Docker shares the host kernel; these are not historical Fedora kernel tests.
+
+The VM uses an external Xvfb server and ALSA file/null output with nonzero PCM
+samples, not physical graphics/audio hardware. A compatible fusermount helper
+is supplied to the minimal Ubuntu rootfs for ordinary-user FUSE tests.
+The expected replay BMP is 65078 bytes, SHA256
+808e1a11ac05d5757379d425a6a857a5584912cc62f7ec567662a7dbcefa74fa.
+
+Earlier candidates, inferred from required symbol versions, NOT verified releases
+
+* Main game with this SDL configuration: GLIBC_2.4. First candidates are
+  Ubuntu 6.10 and Fedora Core 5. Ubuntu 6.06 and Fedora Core 4 lack that ABI.
+* Complete bundle including optional genghost: GLIBC_2.6 (__sched_cpucount
+  used by CPU_COUNT). First candidates are Ubuntu 7.10 and Fedora 7;
+  the first Ubuntu LTS candidate is 8.04. Ubuntu 7.04/Fedora Core 6 lack this ABI.
+* SDL configuration can change the game's symbol requirements. These are
+  boundaries of the measured build, not every possible build of unchanged source.
+
+Search and limitations
+
+The LTS search used a known 20.04 build, native 16.04 build, old-sysroot 12.04
+rebuild and 10.04 VM. The native 16.04 binary needed GLIBC_2.17 and failed on
+12.04; changing the build sysroot resolved it. This subdivides build targets,
+not one immutable binary's monotonic support range. The requested 10.04 starting
+point passes, so it does not establish an absolute minimum.
+
+Both custom Linux 2.6.15 configurations panic before guest initialization.
+A custom-built glibc 2.6 loader also crashes before program startup. Neither
+experiment establishes a game incompatibility. ppoll alone does not impose a
+2.6.16 kernel floor because glibc provides a poll fallback on ENOSYS.
+
+Original earlier distro archives are blocked by the execution environment's
+network policy. Official Docker tags for Ubuntu 7.10/8.04 and Fedora 7 are absent;
+other historical images found were 32-bit or required blocked download mirrors.
+Original older userspaces/kernels remain necessary for a verified release boundary.
+
+Build provenance
+
+Final research file: restunts-oldlinux-nopie.AppImage
+SHA256: b0f47284a190a3b013392dd58e8d3107142757ed05105235501c82644a6cff77
+Preceding PIE file SHA256:
+96d4f5eebd87d251e5f0aa46c3ac6fa440dfdb110b5b608a0bee63a62832a804
+
+Modern GCC 14/CMake 3.31 compile against a PyPA manylinux1 CentOS 5 sysroot,
+with Ubuntu 10 link-time libc inputs and glibc 2.11 sched headers for CPU_COUNT.
+No glibc or loader is bundled. Older X11 libraries and rebuilt ALSA 1.0.27.2
+are bundled with their licenses and ALSA source. Optional Wayland/Vulkan and
+newer X11 extensions are disabled; this is not modern desktop feature parity.
+Relinking the same objects with -no-pie resolves old-loader CLI crashes.
+All 23 cross-build CTest cases pass after supplying the original audio fixture.
+
+Primary release and ABI references
+
+Ubuntu 6.06: https://lists.ubuntu.com/archives/ubuntu-announce/2006-June/000083.html
+Ubuntu 6.10: https://lists.ubuntu.com/archives/edgy-changes/2006-October/007101.html
+Ubuntu 7.04: https://lists.ubuntu.com/archives/feisty-changes/2006-December/002738.html
+Ubuntu 7.10: https://lists.ubuntu.com/archives/gutsy-changes/2007-October/009999.html
+Fedora Core 5: https://bugzilla.redhat.com/show_bug.cgi?id=190829
+Fedora Core 6: https://fedoraproject.org/wiki/FSA/FC6
+Fedora 7: https://fedoraproject.org/wiki/FSA/F7
+CPU_COUNT ABI: https://github.com/bminor/glibc/blob/glibc-2.6/posix/Versions
+ppoll fallback: https://github.com/bminor/glibc/blob/glibc-2.4/sysdeps/unix/sysv/linux/ppoll.c
