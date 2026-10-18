@@ -135,13 +135,18 @@ esac
 # shellcheck disable=SC2016 # Positional parameters belong to the child shell.
 "${root_command[@]}" bash -c 'cd "$1"; cpio -id --quiet --no-absolute-filenames < "$2"' \
     bash "$work_dir/initramfs" "$work_dir/original-initrd.cpio"
-"${root_command[@]}" test -x "$work_dir/initramfs/sbin/run-init" || {
-    echo 'The original initramfs must contain its run-init executable.' >&2
-    exit 1
-}
+echo 'Original initramfs run-init candidates:'
+# Inspect links without following guest-absolute targets in the host root.
+"${root_command[@]}" find "$work_dir/initramfs" -name run-init -ls
 cat > "$work_dir/disk-init" <<'EOF'
 #!/bin/sh
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+run_init=$(command -v run-init) || {
+    echo 'RESTUNTS_VM_RUN_INIT_MISSING: original run-init is not executable on the guest PATH'
+    ls -l /bin/run-init /sbin/run-init /usr/bin/run-init /usr/sbin/run-init
+    poweroff -f
+    exit 1
+}
 mount -n -t proc proc /proc
 mount -n -t sysfs sysfs /sys
 mount -n -t devtmpfs devtmpfs /dev || mount -n -t tmpfs tmpfs /dev
@@ -165,7 +170,7 @@ fi
 mount -n -o move /dev /newroot/dev
 umount -n /proc
 umount -n /sys
-exec run-init /newroot /init < /newroot/dev/console > /newroot/dev/console 2>&1
+exec "$run_init" /newroot /init < /newroot/dev/console > /newroot/dev/console 2>&1
 EOF
 "${root_command[@]}" rm -f "$work_dir/initramfs/init"
 "${root_command[@]}" cp "$work_dir/disk-init" "$work_dir/initramfs/init"

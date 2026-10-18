@@ -75,6 +75,7 @@ jobs:
         with:
           path: /tmp/restunts-toolchains/downloads
           key: appimage-downloads-${{ matrix.target }}-${{ hashFiles('tools/scripts/package-toolchains.conf', 'tools/scripts/*appimage*') }}
+          restore-keys: appimage-downloads-${{ matrix.target }}-
 
       - name: Test legacy SDK extraction and verified downloads
         run: python3 tools/scripts/test-appimage-sysroot.py
