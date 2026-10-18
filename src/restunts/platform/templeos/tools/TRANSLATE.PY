@@ -179,10 +179,32 @@ def prepare_sources(folder):
             text = text.replace("audiodriverstring[5] = {'a', 'd', '1', '5', 0}", "audiodriverstring[5] = {'p', 'c', '1', '5', 0}")
         if path.name == "command_line.c":
             help_text = ('Restunts for TempleOS\r\n'
-                         'Run Restunts("C:/DATA"); append TRUE to skip the intro.\r\n'
-                         'A third TRUE enables original Amiga grass grip for stock cars.\r\n'
+                         'Usage: Restunts("C:/DATA", FALSE, FALSE, "options");\r\n'
+                         'The second and third arguments enable skip intro and Amiga grass.\r\n'
+                         'RestuntsArgs(directory, argc, argv) accepts a native argument vector.\r\n'
+                         'argv[0] is the program name; use directory for game data and saves.\r\n'
+                         '\r\n'
+                         '  --help, -h       Show this help and exit, without loading game data.\r\n'
+                         '  --version, -v    Show the build version and exit.\r\n'
+                         '  --nointro        Skip the startup intro.\r\n'
+                         '  --fps:on|off     Start with FPS display enabled/disabled; supply once.\r\n'
+                         '  --pg:on|off      Enable/disable the original power gear bug.\r\n'
+                         '  --lc:on|off      Enable/disable original collision behavior.\r\n'
+                         '  --lcb:on|off     Enable/disable the original left corner bias.\r\n'
+                         '  /amigagrass      Use original Amiga grass grip for stock cars.\r\n'
+                         '  --owoot          Enable One Wheel On/Over Track driving rules.\r\n'
+                         '  /ns              Start with music and sound effects disabled.\r\n'
+                         '\r\n'
+                         'Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on.\r\n'
+                         'FPS, Amiga grass, and OWOOT start off.\r\n'
+                         'Physics and FPS switches are case-insensitive.\r\n'
+                         'For physics on/off switches, the last value wins.\r\n'
+                         'Supply --fps only once; other switch names are case-sensitive.\r\n'
                          'Video: 640 x 400 (8:5), 16 colors. Audio: PC speaker.\r\n'
-                         'F12 toggles SuperSight.\r\n')
+                         'F11 toggles FPS; F12 toggles SuperSight.\r\n'
+                         '/sXX and /h are legacy compatibility switches with no alternate\r\n'
+                         'TempleOS device; /nd is a recognized legacy switch with no effect.\r\n'
+                         'The first --help/-h or --version/-v request wins.\r\n')
             replacement = 'static const legacy_s8 command_line_help[] = ' + json.dumps(help_text) + ';'
             text, count = re.subn(r'static const legacy_s8 command_line_help\[\] =.*?COMMAND_LINE_NEWLINE;', lambda match: replacement, text, flags=re.S)
             if count != 1:
@@ -763,8 +785,17 @@ class Generator:
             while isinstance(base, A.ArrayRef):
                 indices.insert(0, base.subscript)
                 base = base.name
-            if isinstance(base, A.ID) and base.name in self.param_arrays:
-                typ = self.param_arrays[base.name]
+            parameter_array = self.param_arrays.get(base.name) if isinstance(base, A.ID) else None
+            dimension = parameter_array
+            array_depth = 0
+            while isinstance(dimension, A.ArrayDecl):
+                array_depth += 1
+                dimension = dimension.type
+            # Flatten contiguous array dimensions only. An array of pointers
+            # needs a pointer load before indexing the pointed-to object.
+            # Recurse below when a subscript crosses that pointer boundary.
+            if len(indices) <= array_depth:
+                typ = parameter_array
                 a, terms = [], []
                 for index in indices:
                     b, value = self.expr(index)

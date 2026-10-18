@@ -251,6 +251,20 @@ extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
     CVector *first_world_coordinates,CPoint2D *second_collision_points,
     CVector *second_world_coordinates);
 extern legacy_void RsSetupCarShapes(legacy_s16 operation);
+extern legacy_void RsFrameSupersightReset();
+extern legacy_void RsFrameFpsReset();
+extern legacy_void RsFrameSupersightShowStatus(legacy_s8 *name);
+extern legacy_s16 RsFrameStatusOverlayActive();
+extern legacy_s16 RsFrameStatusExpireIdle();
+extern CRectangle *RsFrameStatusDrawText();
+extern legacy_s16 RsFrameDisplayOverlayActive();
+extern legacy_s16 RsFrameFpsExpireIdle();
+extern legacy_void RsFrameFpsRecordPresented();
+extern legacy_void RsFrameFpsPresentRoof();
+extern CRectangle *RsFrameFpsDrawText();
+extern CRectangle *RsDrawIngameText();
+extern CRectangle *RsInitCrak(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
+extern CRectangle *RsDoSinking(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
 extern legacy_void RsDrawTrackPreview();
 extern legacy_void RsLoadTracksMenuShapes();
 extern legacy_void RsRunGame();
@@ -281,20 +295,6 @@ extern legacy_void RsDrawButton(legacy_s8 *text,legacy_s16 x,legacy_s16 y,legacy
 extern legacy_void RsMenuResetAnimationTimers();
 extern legacy_s16 RsMenuAnimateButtonHighlight(
     legacy_s16 item_index,CButtonArea *buttons,legacy_s16 second_color,legacy_s16 first_color);
-extern legacy_void RsFrameSupersightReset();
-extern legacy_void RsFrameFpsReset();
-extern legacy_void RsFrameSupersightShowStatus(legacy_s8 *name);
-extern legacy_s16 RsFrameStatusOverlayActive();
-extern legacy_s16 RsFrameStatusExpireIdle();
-extern CRectangle *RsFrameStatusDrawText();
-extern legacy_s16 RsFrameDisplayOverlayActive();
-extern legacy_s16 RsFrameFpsExpireIdle();
-extern legacy_void RsFrameFpsRecordPresented();
-extern legacy_void RsFrameFpsPresentRoof();
-extern CRectangle *RsFrameFpsDrawText();
-extern CRectangle *RsDrawIngameText();
-extern CRectangle *RsInitCrak(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
-extern CRectangle *RsDoSinking(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
 extern legacy_s16 RsSkyboxRender(legacy_s16 view_index,CRectangle *clip,legacy_s16 direction,
     CMatrix *rotation,legacy_s16 roll,legacy_s16 angle,legacy_s16 camera_y);
 extern legacy_u16 RsMenuTrackEditorTrackMenuPreviousRow(legacy_u16 row);

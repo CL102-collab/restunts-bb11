@@ -105,6 +105,9 @@ jobs:
       - name: Compile and run the host tests
         run: bash src/restunts/tests/run-host-tests.sh
 
+      - name: Verify TempleOS argument construction with sanitizers
+        run: python3 src/restunts/platform/templeos/tools/TEST_LAUNCH.PY
+
   sanitizers:
     name: Native sanitizer (${{ matrix.sanitizer }})
     runs-on: ubuntu-24.04
@@ -477,7 +480,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            qemu-system-x86 dosfstools mtools p7zip-full python3-pil
+            qemu-system-x86 dosfstools mtools p7zip-full python3-pil python3-venv
+          python3 -m venv --system-site-packages "$RUNNER_TEMP/templeos-tools"
+          "$RUNNER_TEMP/templeos-tools/bin/python" -m pip install \
+            pycparser==2.22 clang-format==18.1.8
+          echo "$RUNNER_TEMP/templeos-tools/bin" >> "$GITHUB_PATH"
+
+      - name: Verify HolyC translation and build its semantic oracle
+        run: |
+          python3 src/restunts/platform/templeos/tools/TRANSLATE.PY \
+            --formatter "$(command -v clang-format)" --check
+          python3 src/restunts/platform/templeos/tools/TEST_TRANSLATE.PY \
+            src/restunts/platform/templeos/TEST_SEMANTICS.HC \
+            --formatter "$(command -v clang-format)"
 
       - name: Download and verify the stock TempleOS ISO
         run: |
@@ -496,6 +511,22 @@ jobs:
             --work "$RUNNER_TEMP/templeos-compile" run \
             --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
             --source src/restunts/platform/templeos --entry COMPILE.HC \
+            --boot-seconds 35 --timeout 300
+
+      - name: Verify TempleOS launcher and shared startup options
+        run: |
+          python3 src/restunts/platform/templeos/tools/VM.PY \
+            --work "$RUNNER_TEMP/templeos-options" run \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --source src/restunts/platform/templeos --entry TEST_LAUNCH.HC \
+            --boot-seconds 35 --timeout 300
+
+      - name: Verify C semantics with stock HolyC
+        run: |
+          python3 src/restunts/platform/templeos/tools/VM.PY \
+            --work "$RUNNER_TEMP/templeos-semantics" run \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --source src/restunts/platform/templeos --entry TEST_SEMANTICS.HC \
             --boot-seconds 35 --timeout 300
 
       - name: Build the code-only installation CD and ZIP
@@ -521,6 +552,12 @@ jobs:
             ${{ runner.temp }}/templeos-compile/DEBUG.LOG
             ${{ runner.temp }}/templeos-compile/VMRUN.HC
             ${{ runner.temp }}/templeos-compile/SCREEN.*
+            ${{ runner.temp }}/templeos-options/DEBUG.LOG
+            ${{ runner.temp }}/templeos-options/VMRUN.HC
+            ${{ runner.temp }}/templeos-options/SCREEN.*
+            ${{ runner.temp }}/templeos-semantics/DEBUG.LOG
+            ${{ runner.temp }}/templeos-semantics/VMRUN.HC
+            ${{ runner.temp }}/templeos-semantics/SCREEN.*
           if-no-files-found: warn
           retention-days: 14
 

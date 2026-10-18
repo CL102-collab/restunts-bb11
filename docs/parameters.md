@@ -1,6 +1,6 @@
 # Startup settings by platform
 
-The ported game uses the same driving options on DOS16, Amiga,
+The ported game uses the same driving options on DOS16, Amiga, TempleOS,
 SDL3 desktop builds (including DOS32), Android, and web. Original Stunts and
 the preserved assembly executable retain their original interfaces.
 
@@ -23,7 +23,7 @@ and playing them.
 
 Custom-car surface adhesion activates automatically when the selected car has
 a one-byte `fand` resource set to `1`. It is loaded independently for the player
-and opponent. Absent, zero or invalid flags keep the
+and opponent on every ported platform. Absent, zero or invalid flags keep the
 original physics; no command-line or launcher setting is required.
 
 ## Launching
@@ -39,6 +39,18 @@ restunts --nointro --pg:off --lc:off --lcb:off /amigagrass --fps:on
 directory for game data and saves. Quote paths containing spaces. The browser
 uses its folder picker; Android uses the game-folder selector and storage
 controls. DOS16 paths follow the DOS filesystem's naming rules.
+
+TempleOS accepts the same common switches in the fourth argument:
+
+```c
+Restunts("C:/DATA", FALSE, FALSE,
+    "--pg:off --lc:off --lcb:off /amigagrass --fps:on");
+Restunts("C:/DATA", FALSE, FALSE, "--help");
+```
+
+The existing second and third arguments still enable skipping the intro and
+Amiga grass grip. `RestuntsArgs(directory, argc, argv)` accepts a native argument
+vector, with the program name in `argv[0]`. See the [TempleOS guide](templeos.md).
 
 Android and web expose all common settings above in their startup controls,
 remember selections, and pass the corresponding parameters to the shared

@@ -92,6 +92,28 @@ static legacy_s32 TranslationIgnoredVariadic(legacy_s32 value, ...)
 {
     return value;
 }
+static legacy_s32 TranslationPointerArray(legacy_s8 *arguments[])
+{
+    legacy_s16 index = 1;
+    if (arguments[index][0] != '/' || arguments[index][1] != 'n' ||
+            arguments[index][2] != 's' || arguments[index][3] != 0) { return 0; }
+    index = 0;
+    if (arguments[index++][1] != '-' || index != 1) { return 0; }
+    switch (arguments[index][1]) {
+    case 'n': return arguments[0][2] == 'f';
+    default: return 0;
+    }
+}
+static legacy_s32 TranslationScalarMatrix(legacy_s16 values[][3])
+{
+    legacy_s16 *row = values[1];
+    return values[0][1] == 2 && values[1][2] == 6 && row[0] == 4;
+}
+static legacy_s32 TranslationPointerMatrix(legacy_s8 *values[][2])
+{
+    return values[0][1][1] == 'n' && values[1][0][2] == 'f' &&
+        values[1][1][0] == '/';
+}
 legacy_s32 TranslationSemantics(void)
 {
     legacy_u16 word = 65535U;
@@ -221,6 +243,12 @@ legacy_s32 TranslationSemantics(void)
     legacy_s32 floating_truth = floating_zero < floating_positive;
     if (floating_truth != 1 || !!(floating_zero < floating_positive) != 1) { return 61; }
     if (!floating_zero != 1 || !floating_positive != 0) { return 62; }
+    legacy_s8 *arguments[2] = {"--fps:on", "/ns"};
+    if (!TranslationPointerArray(arguments)) { return 63; }
+    legacy_s16 matrix[2][3] = {{1, 2, 3}, {4, 5, 6}};
+    if (!TranslationScalarMatrix(matrix)) { return 64; }
+    legacy_s8 *pointer_matrix[2][2] = {{"--fps:on", "/ns"}, {"--fps:on", "/ns"}};
+    if (!TranslationPointerMatrix(pointer_matrix)) { return 65; }
     return 0;
 }
 '''

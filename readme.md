@@ -445,7 +445,7 @@ replay, and does not qualify for the normal high-score table.
 ### Optional parameters
 
 See [startup settings by platform](docs/parameters.md) for the complete common
-options, Android/web controls, launch examples, and platform-specific features.
+options, Android/web controls, TempleOS calls, and platform-specific features.
 
 Run `restunts.exe --nointro` to skip the startup intro and open the main menu
 immediately after initialization. The intro remains available when leaving the

@@ -91,6 +91,35 @@ directory. COMPILE.HC loads without starting. Ctrl+Q opens the original exit
 dialog; select Yes to return to the TempleOS prompt. Cleanup restores the
 task's display settings and the system palette.
 
+All common startup settings are accepted in an optional fourth options string:
+
+    Restunts("C:/DATA", TRUE, FALSE,
+        "--pg:off --lc:off --lcb:off /amigagrass --owoot /ns");
+
+The existing first three arguments keep their defaults. --pg:on/off,
+--lc:on/off, and --lcb:on/off are case-insensitive; the last value wins. The
+original physics defaults are on. /amigagrass and --owoot are opt-in.
+Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
+--nointro skips the intro and /ns disables startup music/effects. --fps:on/off selects the FPS
+display (off by default); supply once. F11 toggles it during play. Replays do not store these
+physics choices, so use the same settings for playback.
+
+    Restunts("C:/DATA", FALSE, FALSE, "--help");
+    Restunts("C:/DATA", FALSE, FALSE, "--version");
+
+Help and version return before opening the data directory or initializing the
+game. The options string splits on whitespace and supports single/double quotes;
+backslashes stay literal. Storage grows with the options, with no fixed number
+of supported switches. RestuntsArgs(data_directory, argument_count, arguments)
+provides direct argv access instead; arguments[0] must be the program name:
+
+    legacy_s8 *arguments[]={"RESTUNTS", "--pg:off", "--owoot", "/ns"};
+    RestuntsArgs("C:/DATA", 4, arguments);
+
+The native PC-speaker/16-color backends are fixed. Legacy /sXX, /h, and /nd
+switches are accepted without selecting alternate devices. SDL-only Ogg,
+HyperVision, and touch-control options have no TempleOS implementation.
+
 Preparing files on the host
 ---------------------------
 
@@ -170,6 +199,7 @@ Each check must finish without compiler errors or warnings:
 
     COMPILE.HC        Compile the complete port without starting the game.
     TEST_NATIVE.HC    File persistence, input scaling, and real-time timer cadence.
+    TEST_LAUNCH.HC    Full startup-option parsing, defaults, quoting, and help/version.
     TEST_TIMER.HC     Clock rollback, callback cadence, suspension, and reset.
     TEST_RENDERER.HC  Palette, native raster, masks, backgrounds, video cleanup.
     TEST_AUDIO.HC     Speaker note/engine/bend periods and PCM task cleanup.
@@ -185,7 +215,8 @@ they should not run against an existing game disk. tools/VM.TXT gives commands,
 oracle provenance, and diagnostic paths. tools/TEST_TRANSLATE.PY builds a host
 C oracle and matching HolyC language-semantics fixture. tools/TEST_TRANSLATE_CLEANUP.PY
 checks constant dependencies and required forward declarations; tools/TEST_VM.PY
-checks compiler diagnostic detection. tools/TEST_RENDERER.PY checks EGA materials
+checks compiler diagnostic detection. tools/TEST_LAUNCH.PY checks argument-string
+construction with address/undefined-behavior sanitizers. tools/TEST_RENDERER.PY checks EGA materials
 and raster behavior with address/undefined-behavior sanitizers.
 Host checks complement actual HolyC compilation and guest runtime tests.
 

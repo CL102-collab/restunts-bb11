@@ -1440,6 +1440,8 @@
   "rs_restunts_shutdown_dos_game": "RsRestuntsShutdownDosGame",
   "rs_restunts_startup_install_keyboard_callbacks": "RsRestuntsStartupInstallKeyboardCallbacks",
   "rs_restunts_startup_measure_video": "RsRestuntsStartupMeasureVideo",
+  "rs_restunts_startup_option_error_text": "RsRestuntsStartupOptionErrorText",
+  "rs_restunts_startup_parse_boolean": "RsRestuntsStartupParseBoolean",
   "rs_restunts_startup_parse_options": "RsRestuntsStartupParseOptions",
   "rs_restunts_startup_select_audio_driver": "RsRestuntsStartupSelectAudioDriver",
   "rs_shape2d_blit_legacy_s16_from_bits": "RsShape2dBlitLegacyS16FromBits",

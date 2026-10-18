@@ -226,6 +226,49 @@ equivalent of `/amigagrass`; it defaults to `FALSE` and affects both the player
 and opponent. Custom car IDs retain their own coefficients. Replays do not store
 this option, so use the same setting when replaying a recording.
 
+All implemented startup settings are also available in the fourth argument,
+using the same option names as the command-line builds. For example:
+
+```c
+Restunts("C:/Restunts/DATA", TRUE, FALSE,
+    "--pg:off --lc:off --lcb:off /amigagrass --owoot /ns");
+```
+
+| Option | Effect |
+| --- | --- |
+| `--nointro` | Skip the intro; equivalent to the second `TRUE` argument. |
+| `--pg:on`, `--pg:off` | Enable or disable the original power gear bug. |
+| `--lc:on`, `--lc:off` | Enable or disable original collision behavior. |
+| `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
+| `/amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
+| `--owoot` | Enable One Wheel On/Over Track rules. |
+| `/ns` | Start with music and sound effects disabled. |
+| `--fps:on`, `--fps:off` | Start with the FPS display enabled or disabled; supply once. F11 toggles it during play. |
+| `--help`, `-h` | Print available TempleOS options and return without loading game data. |
+| `--version`, `-v` | Print the build version and return without loading game data. |
+
+Power gear, original collisions, and left corner bias default to on. Amiga grass,
+OWOOT, and the FPS display default to off; intro and sound default to on.
+Custom-car surface adhesion is enabled only by its `fand=1` car-resource flag.
+Physics on/off options are processed in order and the last value wins. Supply
+`--fps` only once. Existing calls
+with one, two, or three arguments retain their original behavior. The options
+string accepts whitespace-separated arguments and single or double quotes;
+backslashes remain literal. The argument array grows with the string, so
+combining settings does not silently discard later flags.
+
+For direct argument-array access, include the program name in slot zero:
+
+```c
+legacy_s8 *arguments[]={"RESTUNTS", "--pg:off", "--owoot", "/ns"};
+RestuntsArgs("C:/Restunts/DATA", 4, arguments);
+```
+
+TempleOS always uses its native 16-color display and PC-speaker audio backend.
+Legacy `/sXX`, `/h`, and `/nd` switches remain accepted but do not select another
+native audio/video backend. SDL3-specific Ogg, HyperVision, and touch-control
+options are unavailable on this platform.
+
 Install and import once. On later boots, repeat only the launch commands.
 Both CDs may be ejected after import. Tracks, replays, high scores, and
 configuration files remain in the installed `DATA` directory.
