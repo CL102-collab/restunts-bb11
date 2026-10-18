@@ -18,10 +18,6 @@ on:
         description: Skip AppImages when another caller job already builds and tests them.
         type: boolean
         default: false
-      package-scope:
-        description: all, netbsd-haiku, or haiku-x86; focused scopes take precedence over only-appimages.
-        type: string
-        default: all
       attest:
         description: Attest package archives and checksums for a release run.
         type: boolean
@@ -48,7 +44,7 @@ on:
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
   appimage:
-    if: ${{ !inputs.skip-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.skip-appimages }}
     name: Package ${{ matrix.target }} (Ubuntu 10.04 ABI)
     runs-on: ubuntu-24.04
     container: ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
@@ -115,7 +111,7 @@ jobs:
           subject-path: dist/packages/*
 
   appimage-compatibility:
-    if: ${{ !inputs.skip-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.skip-appimages }}
     name: Test ${{ matrix.target }} on ${{ matrix.distro }}
     needs: appimage
     runs-on: ubuntu-24.04
@@ -187,7 +183,7 @@ jobs:
           retention-days: 14
 
   android:
-    if: ${{ !inputs.only-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.only-appimages }}
     name: Package game and generator ${{ matrix.target }} (Android 5+)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -295,7 +291,7 @@ jobs:
           subject-path: dist/packages/*
 
   cross:
-    if: ${{ !inputs.only-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     container: debian:12
@@ -355,14 +351,19 @@ jobs:
           subject-path: dist/packages/*
 
   bsd:
-    if: ${{ inputs.package-scope != 'haiku-x86' && (inputs.package-scope == 'netbsd-haiku' || !inputs.only-appimages) }}
+    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(inputs.package-scope == 'netbsd-haiku' && '["netbsd-x64","netbsd-x86","netbsd-x86-no-sse2"]' || '["freebsd-x64","openbsd-x64","netbsd-x64","netbsd-x86","netbsd-x86-no-sse2"]') }}
+        target:
+          - freebsd-x64
+          - openbsd-x64
+          - netbsd-x64
+          - netbsd-x86
+          - netbsd-x86-no-sse2
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
     steps:
@@ -433,14 +434,14 @@ jobs:
           subject-path: dist/packages/*
 
   haiku:
-    if: ${{ inputs.package-scope == 'netbsd-haiku' || inputs.package-scope == 'haiku-x86' || !inputs.only-appimages }}
+    if: ${{ !inputs.only-appimages }}
     name: Package ${{ matrix.target }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(inputs.package-scope == 'haiku-x86' && '["haiku-x86"]' || '["haiku-x64","haiku-x86"]') }}
+        target: [haiku-x64, haiku-x86]
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
     steps:
@@ -522,7 +523,7 @@ jobs:
           subject-path: dist/packages/*
 
   dos16:
-    if: ${{ !inputs.only-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.only-appimages }}
     name: Package DOS16 validation artifacts
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -558,7 +559,7 @@ jobs:
           subject-path: dist/packages/*
 
   macos:
-    if: ${{ !inputs.only-appimages && inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' }}
+    if: ${{ !inputs.only-appimages }}
     name: Package macOS Universal
     runs-on: macos-15
     timeout-minutes: 45
