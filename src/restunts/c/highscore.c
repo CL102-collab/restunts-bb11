@@ -825,7 +825,8 @@ static void end_hiscore_check_score(struct END_SCREEN_STATE *screen)
 		scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
 		if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_HIGHSCORE_INELIGIBLE_FLAGS) ==
 				0 &&
-			highscore_entry_time(&scores[HIGHSCORE_LAST_ENTRY_INDEX]) > (legacy_u16)screen->finish_time) {
+			highscore_entry_time(&scores[HIGHSCORE_LAST_ENTRY_INDEX]) >
+				(legacy_u16)screen->finish_time) {
 			screen->score_status = 1;
 		}
 	}

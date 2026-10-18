@@ -24,7 +24,11 @@
 #endif
 
 #ifdef RESTUNTS_AMIGA_TRACE
-#define AMIGA_MENU_TRACE(stage) do { puts("Amiga menu: " stage); fflush(stdout); } while (0)
+#define AMIGA_MENU_TRACE(stage)                                                                    \
+	do {                                                                                           \
+		puts("Amiga menu: " stage);                                                                \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_MENU_TRACE(stage) ((void)0)
 #endif
@@ -119,17 +123,27 @@ legacy_s8 run_menu(void)
 		}
 
 #ifdef RESTUNTS_AMIGA_TRACE
-		if (first_loop) AMIGA_MENU_TRACE("highlight begin");
+		if (first_loop) {
+			AMIGA_MENU_TRACE("highlight begin");
+		}
 #endif
 		legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
 			selected, menu_buttons, menu_highlight_second_color, menu_highlight_first_color);
 #ifdef RESTUNTS_AMIGA_TRACE
-		if (first_loop) AMIGA_MENU_TRACE("highlight complete; input begin");
+		if (first_loop) {
+			AMIGA_MENU_TRACE("highlight complete; input begin");
+		}
 #endif
 		legacy_u16 key = (legacy_u16)input_checking(LEGACY_S16_FROM_BITS(elapsed));
 #ifdef RESTUNTS_AMIGA_TRACE
-		if (first_loop) { AMIGA_MENU_TRACE("input complete"); first_loop = 0; }
-		if (key) { fprintf(stdout, "Amiga menu: key=%u\n", (unsigned)key); fflush(stdout); }
+		if (first_loop) {
+			AMIGA_MENU_TRACE("input complete");
+			first_loop = 0;
+		}
+		if (key) {
+			fprintf(stdout, "Amiga menu: key=%u\n", (unsigned)key);
+			fflush(stdout);
+		}
 #endif
 		legacy_s16 hit = (legacy_s16)mouse_multi_hittest(MAIN_MENU_BUTTON_COUNT, menu_buttons);
 		if (hit != MAIN_MENU_MOUSE_HIT_NONE) {

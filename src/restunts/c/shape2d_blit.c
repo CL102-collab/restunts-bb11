@@ -15,8 +15,8 @@
 #include "game_input.h"
 #include "video_pages.h"
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
-static struct SPRITE
-	native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY][SPRITE_STATE_COUNT];
+static struct SPRITE native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY]
+											   [SPRITE_STATE_COUNT];
 #endif
 
 #define WINDOW_DEFINITION_TABLE_BYTES 3600U
@@ -597,8 +597,8 @@ static legacy_u8 shape2d_rle_read(struct SHAPE2D_RLE_CURSOR *cursor)
 #ifdef RESTUNTS_AMIGA
 	legacy_u8 value = cursor->source_base[cursor->source];
 #else
-	legacy_u8 value = *(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment,
-															  cursor->source);
+	legacy_u8 value =
+		*(legacy_u8 far *)dos_memory_make_pointer(cursor->shape_segment, cursor->source);
 #endif
 	cursor->source++;
 	return value;

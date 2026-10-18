@@ -22,7 +22,10 @@ static legacy_u32 timer_calls;
 static legacy_s16 save_succeeds;
 #ifdef RESTUNTS_AMIGA
 static legacy_u16 presented_dialogs;
-void amiga_video_present(void) { ++presented_dialogs; }
+void amiga_video_present(void)
+{
+	++presented_dialogs;
+}
 #endif
 
 #define FIXTURE_INPUT_FIELD_COUNT 2U
@@ -263,7 +266,7 @@ static void run_dialog_case(legacy_u32 scenario)
 	trace_word(result);
 #ifdef RESTUNTS_AMIGA
 	assert(presented_dialogs == ((scenario % 2U == 0U || save_succeeds) &&
-		(type == DIALOG_TYPE_MESSAGE || type == DIALOG_TYPE_DELAY)));
+								 (type == DIALOG_TYPE_MESSAGE || type == DIALOG_TYPE_DELAY)));
 #endif
 	for (legacy_u32 i = 0; i < 40U; i++) {
 		trace_word(choices[i]);

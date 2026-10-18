@@ -40,7 +40,11 @@
 #include "frame_internal.h"
 
 #ifdef RESTUNTS_AMIGA_TRACE
-#define AMIGA_NORMAL_RACE_TRACE(stage) do { puts("Amiga normal race: " stage); fflush(stdout); } while (0)
+#define AMIGA_NORMAL_RACE_TRACE(stage)                                                             \
+	do {                                                                                           \
+		puts("Amiga normal race: " stage);                                                         \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_NORMAL_RACE_TRACE(stage) ((void)0)
 #endif
@@ -876,9 +880,13 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		}
 
 		ghost_update(race_ghost_frame(), framespersec);
-		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("viewport begin");
+		if (state.game_frame == 0) {
+			AMIGA_NORMAL_RACE_TRACE("viewport begin");
+		}
 		race_update_viewport(cache, rewind.active);
-		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("viewport complete");
+		if (state.game_frame == 0) {
+			AMIGA_NORMAL_RACE_TRACE("viewport complete");
+		}
 #ifdef RESTUNTS_SDL3
 		race_presentation_capture();
 		if (supersight_enabled == 0 || rewind.active != 0 ||
@@ -892,12 +900,18 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			race_presentation.started = 1;
 		}
 #else
-		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("draw begin");
+		if (state.game_frame == 0) {
+			AMIGA_NORMAL_RACE_TRACE("draw begin");
+		}
 		race_draw_frame();
-		if (state.game_frame == 0) AMIGA_NORMAL_RACE_TRACE("draw complete");
+		if (state.game_frame == 0) {
+			AMIGA_NORMAL_RACE_TRACE("draw complete");
+		}
 #ifdef RESTUNTS_AMIGA_TRACE
 		if (++traced_frames <= 8 || (traced_frames % 50) == 0) {
-			fprintf(stdout, "Amiga normal race: frame=%d elapsed=%u mode=%d start=%d\n", (int)state.game_frame, (unsigned)elapsed_time2, (int)game_replay_mode, (int)race_start_sequence_state);
+			fprintf(stdout, "Amiga normal race: frame=%d elapsed=%u mode=%d start=%d\n",
+					(int)state.game_frame, (unsigned)elapsed_time2, (int)game_replay_mode,
+					(int)race_start_sequence_state);
 			fflush(stdout);
 		}
 #endif

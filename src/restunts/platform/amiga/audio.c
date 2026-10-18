@@ -78,18 +78,15 @@ static legacy_u8 paula_deferred;
 static legacy_u8 paula_channels[] = {PAULA_DMA_MASK};
 
 static const legacy_s8 paula_sine[32] = {
-	0, 25, 49, 71, 90, 106, 117, 125, 127, 125, 117, 106, 90, 71, 49, 25,
-	0, -25, -49, -71, -90, -106, -117, -125, -127, -125, -117, -106, -90, -71, -49, -25
-};
-static const legacy_u8 paula_multiplier[16] = {
-	1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 20, 24, 24, 30, 30
-};
+	0, 25,	49,	 71,  90,  106,	 117,  125,	 127,  125,	 117,  106,	 90,  71,  49,	25,
+	0, -25, -49, -71, -90, -106, -117, -125, -127, -125, -117, -106, -90, -71, -49, -25};
+static const legacy_u8 paula_multiplier[16] = {1,  2,  4,  6,  8,  10, 12, 14,
+											   16, 18, 20, 20, 24, 24, 30, 30};
 static const legacy_u16 adlib_frequencies[] = {
-	21, 23, 24, 25, 27, 29, 30, 32, 34, 36, 38, 40, 43, 45, 48,
-	51, 54, 57, 61, 64, 68, 72, 76, 81, 86, 91, 96, 102, 108, 114,
+	21,	 23,  24,  25,	27,	 29,  30,  32,	34,	 36,  38,  40,	43,	 45,  48,
+	51,	 54,  57,  61,	64,	 68,  72,  76,	81,	 86,  91,  96,	102, 108, 114,
 	121, 128, 136, 144, 153, 162, 171, 182, 192, 204, 216, 229, 242, 257, 272,
-	288, 306, 324, 343, 363, 385, 408, 432, 458, 485, 514, 544, 577, 611, 647
-};
+	288, 306, 324, 343, 363, 385, 408, 432, 458, 485, 514, 544, 577, 611, 647};
 
 static legacy_s16 paula_voice_index(legacy_s16 channel)
 {
@@ -105,9 +102,12 @@ static legacy_u16 paula_note_pitch(legacy_u16 note)
 static legacy_u16 paula_bend_target(legacy_u8 note, legacy_s16 semitones)
 {
 	legacy_s16 index = 24 + note % 12U + semitones;
-	if (index < 0) index = 0;
-	if ((legacy_u16)index >= sizeof(adlib_frequencies) / sizeof(adlib_frequencies[0]))
+	if (index < 0) {
+		index = 0;
+	}
+	if ((legacy_u16)index >= sizeof(adlib_frequencies) / sizeof(adlib_frequencies[0])) {
 		index = sizeof(adlib_frequencies) / sizeof(adlib_frequencies[0]) - 1;
+	}
 	return (legacy_u16)(((note / 12U) & 7U) << 10U) | adlib_frequencies[index];
 }
 
@@ -135,14 +135,14 @@ static legacy_s16 paula_operator_sample(legacy_u16 phase, legacy_u8 waveform)
 {
 	legacy_s16 sample = paula_sine[phase & 31U];
 	switch (waveform & 3U) {
-	case 1:
-		return sample < 0 ? 0 : sample;
-	case 2:
-		return sample < 0 ? -sample : sample;
-	case 3:
-		return (phase & 8U) ? 0 : (sample < 0 ? -sample : sample);
-	default:
-		return sample;
+		case 1:
+			return sample < 0 ? 0 : sample;
+		case 2:
+			return sample < 0 ? -sample : sample;
+		case 3:
+			return (phase & 8U) ? 0 : (sample < 0 ? -sample : sample);
+		default:
+			return sample;
 	}
 }
 
@@ -159,13 +159,17 @@ static void paula_make_wave(legacy_u16 voice)
 	}
 	/* Two base cycles make the OPL half-frequency multiplier a full loop. */
 	for (legacy_u16 index = 0; index < state->wave_bytes; ++index) {
-		legacy_u16 mod_phase = (index * paula_multiplier[state->modulator_multiplier] * 32U) >> shift;
-		legacy_s16 mod = paula_operator_sample(mod_phase, resource[ADLIB_MODULATOR + ADLIB_OPERATOR_WAVEFORM]);
+		legacy_u16 mod_phase =
+			(index * paula_multiplier[state->modulator_multiplier] * 32U) >> shift;
+		legacy_s16 mod =
+			paula_operator_sample(mod_phase, resource[ADLIB_MODULATOR + ADLIB_OPERATOR_WAVEFORM]);
 		legacy_s16 phase_offset = (mod * state->modulator_gain) / 256;
 		phase_offset += (previous * state->feedback) / 128;
-		legacy_u16 carrier_phase = (index * paula_multiplier[state->carrier_multiplier] * 32U) >> shift;
-		legacy_s16 sample = paula_operator_sample((legacy_u16)(carrier_phase + phase_offset),
-			resource[ADLIB_CARRIER + ADLIB_OPERATOR_WAVEFORM]);
+		legacy_u16 carrier_phase =
+			(index * paula_multiplier[state->carrier_multiplier] * 32U) >> shift;
+		legacy_s16 sample =
+			paula_operator_sample((legacy_u16)(carrier_phase + phase_offset),
+								  resource[ADLIB_CARRIER + ADLIB_OPERATOR_WAVEFORM]);
 		if (resource[68] != 0) {
 			sample = (sample + mod * state->modulator_gain / 127) / 2;
 		}
@@ -177,8 +181,12 @@ static void paula_make_wave(legacy_u16 voice)
 	legacy_s16 mean = (legacy_s16)(sum / state->wave_bytes);
 	for (legacy_u16 index = 0; index < state->wave_bytes; ++index) {
 		legacy_s16 sample = wave[index] - mean;
-		if (sample > 127) sample = 127;
-		if (sample < -127) sample = -127;
+		if (sample > 127) {
+			sample = 127;
+		}
+		if (sample < -127) {
+			sample = -127;
+		}
 		wave[index] = (legacy_s8)sample;
 	}
 	state->dirty = 0;
@@ -188,16 +196,24 @@ static void paula_volume(legacy_u16 voice)
 {
 	struct PAULA_VOICE *state = &paula_voices[voice];
 	legacy_u32 volume = state->channel ? state->channel->volume : 0;
-	if (volume > 127U) volume = 127U;
+	if (volume > 127U) {
+		volume = 127U;
+	}
 	volume = (volume * state->velocity * state->carrier_gain) >> 15U;
-	if (volume > 64U) volume = 64U;
-	if (paula_ready && !paula_deferred) paula->aud[voice].ac_vol = state->active ? (UWORD)volume : 0;
+	if (volume > 64U) {
+		volume = 64U;
+	}
+	if (paula_ready && !paula_deferred) {
+		paula->aud[voice].ac_vol = state->active ? (UWORD)volume : 0;
+	}
 }
 
 static void paula_commit_voice(legacy_u16 voice)
 {
 	struct PAULA_VOICE *state = &paula_voices[voice];
-	if (!paula_ready || !state->resource) return;
+	if (!paula_ready || !state->resource) {
+		return;
+	}
 	if (state->dirty) {
 		legacy_u8 active = state->active;
 		paula_stop(voice);
@@ -209,20 +225,29 @@ static void paula_commit_voice(legacy_u16 voice)
 		state->active = active;
 	}
 	paula->aud[voice].ac_per = state->period;
-	if (state->active) paula->dmacon = DMAF_SETCLR | DMAF_MASTER | (1U << voice);
+	if (state->active) {
+		paula->dmacon = DMAF_SETCLR | DMAF_MASTER | (1U << voice);
+	}
 	paula_volume(voice);
 }
 
 /* Resource loads and slow frames leave several logical 100 Hz ticks pending.
  * Advance all sequencer/envelope state, then synthesize only the final audible
  * waveform. Rebuilding every historical waveform can outrun a 7 MHz 68000. */
-void amiga_audio_begin_update(void) { ++paula_deferred; }
+void amiga_audio_begin_update(void)
+{
+	++paula_deferred;
+}
 
 void amiga_audio_end_update(void)
 {
-	if (!paula_deferred || --paula_deferred != 0) return;
+	if (!paula_deferred || --paula_deferred != 0) {
+		return;
+	}
 	for (legacy_u16 voice = 0; voice < PAULA_VOICES; ++voice) {
-		if (paula_voices[voice].active) paula_commit_voice(voice);
+		if (paula_voices[voice].active) {
+			paula_commit_voice(voice);
+		}
 	}
 }
 
@@ -232,7 +257,9 @@ static void paula_apply_pitch(legacy_u16 voice, legacy_u16 pitch)
 	/* Envelope ticks commonly change only loudness. Avoid software 32-bit
 	 * division when the Paula period and sample length stay the same. */
 	if (state->period != 0 && pitch == state->last_pitch) {
-		if (!paula_deferred) paula_commit_voice(voice);
+		if (!paula_deferred) {
+			paula_commit_voice(voice);
+		}
 		return;
 	}
 	state->last_pitch = pitch;
@@ -248,14 +275,20 @@ static void paula_apply_pitch(legacy_u16 voice, legacy_u16 pitch)
 			period = (paula_clock * 32UL) / (frequency16 * bytes);
 		}
 	}
-	if (period < PAULA_MIN_PERIOD) period = PAULA_MIN_PERIOD;
-	if (period > 65535U) period = 65535U;
+	if (period < PAULA_MIN_PERIOD) {
+		period = PAULA_MIN_PERIOD;
+	}
+	if (period > 65535U) {
+		period = 65535U;
+	}
 	if (bytes != state->wave_bytes) {
 		state->wave_bytes = bytes;
 		state->dirty = 1;
 	}
 	state->period = (legacy_u16)period;
-	if (!paula_deferred) paula_commit_voice(voice);
+	if (!paula_deferred) {
+		paula_commit_voice(voice);
+	}
 }
 
 static void paula_control(legacy_u16 voice, legacy_u16 selector, legacy_u16 value)
@@ -263,12 +296,27 @@ static void paula_control(legacy_u16 voice, legacy_u16 selector, legacy_u16 valu
 	struct PAULA_VOICE *state = &paula_voices[voice];
 	legacy_u8 *destination = NULL;
 	switch (selector) {
-	case 0x81: destination = &state->modulator_multiplier; value = (value >> 3U) & 7U; break;
-	case 0x82: destination = &state->carrier_multiplier; value = (value >> 3U) & 7U; break;
-	case 0x83: destination = &state->modulator_gain; value &= 127U; break;
-	case 0x84: state->carrier_gain = (legacy_u8)(value & 127U); break;
-	case 0x85: destination = &state->feedback; value = (value >> 4U) & 7U; break;
-	default: break;
+		case 0x81:
+			destination = &state->modulator_multiplier;
+			value = (value >> 3U) & 7U;
+			break;
+		case 0x82:
+			destination = &state->carrier_multiplier;
+			value = (value >> 3U) & 7U;
+			break;
+		case 0x83:
+			destination = &state->modulator_gain;
+			value &= 127U;
+			break;
+		case 0x84:
+			state->carrier_gain = (legacy_u8)(value & 127U);
+			break;
+		case 0x85:
+			destination = &state->feedback;
+			value = (value >> 4U) & 7U;
+			break;
+		default:
+			break;
 	}
 	if (destination && *destination != value) {
 		*destination = (legacy_u8)value;
@@ -278,9 +326,13 @@ static void paula_control(legacy_u16 voice, legacy_u16 selector, legacy_u16 valu
 
 legacy_u8 dos_audio_driver_initialize(void)
 {
-	if (paula_ready) return PAULA_CONTEXTS;
+	if (paula_ready) {
+		return PAULA_CONTEXTS;
+	}
 	paula_port = CreateMsgPort();
-	if (!paula_port) return 0;
+	if (!paula_port) {
+		return 0;
+	}
 	memset(&paula_request, 0, sizeof(paula_request));
 	paula_request.ioa_Request.io_Message.mn_ReplyPort = paula_port;
 	paula_request.ioa_Request.io_Message.mn_Length = sizeof(paula_request);
@@ -312,11 +364,13 @@ legacy_u8 dos_audio_driver_initialize(void)
 }
 
 void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
-	legacy_u8 *timer, void *resource)
+									  legacy_u8 *timer, void *resource)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
 	(void)context;
-	if (voice < 0 || !resource || resource_read_u32le(resource) < ADLIB_RESOURCE_BYTES) return;
+	if (voice < 0 || !resource || resource_read_u32le(resource) < ADLIB_RESOURCE_BYTES) {
+		return;
+	}
 	struct PAULA_VOICE *state = &paula_voices[voice];
 	const legacy_u8 *bytes = resource;
 	state->resource = bytes;
@@ -335,13 +389,15 @@ void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CO
 }
 
 void dos_audio_driver_set_context_value(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
-	legacy_u16 value)
+										legacy_u16 value)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
 	legacy_u32 numerator = (legacy_u32)value << 16U;
 	legacy_u16 block = 0;
 	(void)context;
-	if (voice < 0) return;
+	if (voice < 0) {
+		return;
+	}
 	while (numerator > 511UL * 50000UL && block < 7U) {
 		numerator >>= 1U;
 		++block;
@@ -350,38 +406,60 @@ void dos_audio_driver_set_context_value(legacy_s16 driver_channel, struct AUDIO_
 }
 
 void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
-	legacy_u8 *timer, legacy_s16 pitch, legacy_u16 parameter, void *resource)
+									   legacy_u8 *timer, legacy_s16 pitch, legacy_u16 parameter,
+									   void *resource)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
-	if (voice < 0 || !paula_ready) return;
+	if (voice < 0 || !paula_ready) {
+		return;
+	}
 	struct PAULA_VOICE *state = &paula_voices[voice];
-	if (state->resource != resource) dos_audio_driver_prepare_context(driver_channel, context, timer, resource);
-	if (!resource || state->resource != resource) return;
+	if (state->resource != resource) {
+		dos_audio_driver_prepare_context(driver_channel, context, timer, resource);
+	}
+	if (!resource || state->resource != resource) {
+		return;
+	}
 	paula_stop((legacy_u16)voice);
 	state->channel = (struct AUDIO_CHANNEL *)timer;
 	state->note = (legacy_u8)pitch;
 	state->velocity = state->resource[21] ? (legacy_u8)(parameter & 127U) : 127U;
-	if (state->note != AUDIO_NOTE_USE_DRIVER_VALUE) state->base_pitch = paula_note_pitch(state->note);
+	if (state->note != AUDIO_NOTE_USE_DRIVER_VALUE) {
+		state->base_pitch = paula_note_pitch(state->note);
+	}
 	state->dirty = 1;
-	paula_apply_pitch((legacy_u16)voice, (legacy_u16)(state->base_pitch + (legacy_s8)state->resource[17]));
+	paula_apply_pitch((legacy_u16)voice,
+					  (legacy_u16)(state->base_pitch + (legacy_s8)state->resource[17]));
 	state->active = 1;
-	if (!paula_deferred) paula->dmacon = DMAF_SETCLR | DMAF_MASTER | (1U << voice);
+	if (!paula_deferred) {
+		paula->dmacon = DMAF_SETCLR | DMAF_MASTER | (1U << voice);
+	}
 	paula_volume((legacy_u16)voice);
 }
 
 void dos_audio_driver_suspend_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
-	legacy_u16 value, void *resource)
+									  legacy_u16 value, void *resource)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
 	(void)value;
-	if (voice < 0 || !context || !context->state || !resource) return;
+	if (voice < 0 || !context || !context->state || !resource) {
+		return;
+	}
 	struct PAULA_VOICE *state = &paula_voices[voice];
 	const legacy_u8 *bytes = resource;
-	if (state->resource != bytes) return;
+	if (state->resource != bytes) {
+		return;
+	}
 	legacy_u16 pitch = state->base_pitch;
-	if (bytes[53] == ADLIB_SELECTOR_NOTE) pitch = paula_note_pitch(state->note + context->sequence_value);
-	if (bytes[40] == ADLIB_SELECTOR_PITCH) pitch = (legacy_u16)(pitch + context->modulation);
-	if (bytes[25] == ADLIB_SELECTOR_PITCH) pitch = (legacy_u16)(pitch + context->level);
+	if (bytes[53] == ADLIB_SELECTOR_NOTE) {
+		pitch = paula_note_pitch(state->note + context->sequence_value);
+	}
+	if (bytes[40] == ADLIB_SELECTOR_PITCH) {
+		pitch = (legacy_u16)(pitch + context->modulation);
+	}
+	if (bytes[25] == ADLIB_SELECTOR_PITCH) {
+		pitch = (legacy_u16)(pitch + context->level);
+	}
 	legacy_s16 bend = state->channel ? LEGACY_S16_FROM_BITS(state->channel->pitch) : 0;
 	if (bend != 0) {
 		legacy_s16 semitones = bend > 0 ? bytes[18] : -(legacy_s16)bytes[18];
@@ -399,7 +477,9 @@ void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONT
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
 	(void)context;
-	if (voice >= 0) paula_stop((legacy_u16)voice);
+	if (voice >= 0) {
+		paula_stop((legacy_u16)voice);
+	}
 }
 
 void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
@@ -410,67 +490,108 @@ void dos_audio_driver_end_context(legacy_s16 driver_channel, struct AUDIO_CONTEX
 void dos_audio_driver_release_channel(legacy_s16 driver_channel)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
-	if (voice < 0) return;
+	if (voice < 0) {
+		return;
+	}
 	paula_stop((legacy_u16)voice);
 	memset(&paula_voices[voice], 0, sizeof(paula_voices[voice]));
 }
 
 void dos_audio_driver_start(void)
 {
-	for (legacy_s16 channel = 1; (legacy_u16)channel <= PAULA_VOICES; ++channel) dos_audio_driver_release_channel(channel);
+	for (legacy_s16 channel = 1; (legacy_u16)channel <= PAULA_VOICES; ++channel) {
+		dos_audio_driver_release_channel(channel);
+	}
 }
 
 void dos_audio_set_channel_volume(legacy_s16 channel, legacy_s16 volume)
 {
-	if (channel < 0 || (legacy_u16)channel >= AUDIO_CHANNEL_COUNT) return;
+	if (channel < 0 || (legacy_u16)channel >= AUDIO_CHANNEL_COUNT) {
+		return;
+	}
 	audio_channels[channel].volume = (legacy_u8)volume;
 	for (legacy_u16 voice = 0; voice < PAULA_VOICES; ++voice) {
-		if (paula_voices[voice].channel == &audio_channels[channel]) paula_volume(voice);
+		if (paula_voices[voice].channel == &audio_channels[channel]) {
+			paula_volume(voice);
+		}
 	}
 }
 
 void dos_audio_bind_channel_context(legacy_s16 channel, void *resource)
 {
-	if (channel < 0 || (legacy_u16)channel >= AUDIO_CHANNEL_COUNT || !resource) return;
+	if (channel < 0 || (legacy_u16)channel >= AUDIO_CHANNEL_COUNT || !resource) {
+		return;
+	}
 	struct AUDIO_CHANNEL *state = &audio_channels[channel];
 	audio_write_far_pointer((legacy_u8 *)&state->resource, resource);
-	state->driver_channel = (legacy_u8)((channel & AUDIO_DIRECT_CHANNEL_MASK) + AUDIO_DRIVER_CHANNEL_BASE);
+	state->driver_channel =
+		(legacy_u8)((channel & AUDIO_DIRECT_CHANNEL_MASK) + AUDIO_DRIVER_CHANNEL_BASE);
 	for (legacy_s16 index = 1; (legacy_u16)index < PAULA_CONTEXTS; ++index) {
-		if (dos_audio_contexts[index].channel == channel)
-			dos_audio_driver_prepare_context(index, &dos_audio_contexts[index], (legacy_u8 *)state, resource);
+		if (dos_audio_contexts[index].channel == channel) {
+			dos_audio_driver_prepare_context(index, &dos_audio_contexts[index], (legacy_u8 *)state,
+											 resource);
+		}
 	}
 }
 
 void dos_audio_set_context_pitch(legacy_s16 context_index, legacy_s16 pitch)
 {
-	if (context_index <= 0 || (legacy_u16)context_index >= PAULA_CONTEXTS) return;
+	if (context_index <= 0 || (legacy_u16)context_index >= PAULA_CONTEXTS) {
+		return;
+	}
 	struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
 	dos_audio_driver_set_context_value(context->driver_channel, context, (legacy_u16)pitch);
 }
 
 void dos_audio_driver_set_control(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context,
-	legacy_u16 control, legacy_u16 value)
+								  legacy_u16 control, legacy_u16 value)
 {
 	legacy_s16 voice = paula_voice_index(driver_channel);
-	if (voice < 0 || !context || !context->state || !paula_voices[voice].resource) return;
+	if (voice < 0 || !context || !context->state || !paula_voices[voice].resource) {
+		return;
+	}
 	const legacy_u8 *resource = paula_voices[voice].resource;
-	if (control == 7) dos_audio_set_channel_volume(context->channel, (legacy_s16)value);
-	else if (control == 1) paula_control((legacy_u16)voice, resource[22], value);
-	else if (control == 11) paula_control((legacy_u16)voice, resource[23], value);
-	else if (control == 12) paula_control((legacy_u16)voice, resource[24], value);
+	if (control == 7) {
+		dos_audio_set_channel_volume(context->channel, (legacy_s16)value);
+	} else if (control == 1) {
+		paula_control((legacy_u16)voice, resource[22], value);
+	} else if (control == 11) {
+		paula_control((legacy_u16)voice, resource[23], value);
+	} else if (control == 12) {
+		paula_control((legacy_u16)voice, resource[24], value);
+	}
 }
 
 /* These are MT-32/driver transport operations. The selected AD instruments
  * do not use them; pitch/envelope changes arrive in suspend_context above. */
-void dos_audio_driver_load_bank(void *bank) { (void)bank; }
-void dos_audio_driver_send_data(legacy_u16 length, legacy_u8 *data) { (void)length; (void)data; }
-void dos_audio_driver_set_master_state(legacy_s16 operation, void *state) { (void)operation; (void)state; }
+void dos_audio_driver_load_bank(void *bank)
+{
+	(void)bank;
+}
+void dos_audio_driver_send_data(legacy_u16 length, legacy_u8 *data)
+{
+	(void)length;
+	(void)data;
+}
+void dos_audio_driver_set_master_state(legacy_s16 operation, void *state)
+{
+	(void)operation;
+	(void)state;
+}
 void dos_audio_driver_set_pitch(legacy_u8 *timer, legacy_s16 pitch, legacy_s16 driver_channel)
 {
-	(void)timer; (void)pitch; (void)driver_channel;
+	(void)timer;
+	(void)pitch;
+	(void)driver_channel;
 }
-void dos_audio_driver_suspend_all(struct AUDIO_CONTEXT *contexts) { (void)contexts; }
-void dos_audio_driver_reset(void) { amiga_timer_pump(); }
+void dos_audio_driver_suspend_all(struct AUDIO_CONTEXT *contexts)
+{
+	(void)contexts;
+}
+void dos_audio_driver_reset(void)
+{
+	amiga_timer_pump();
+}
 
 void dos_audio_shutdown(void)
 {
@@ -499,7 +620,9 @@ void dos_audio_shutdown(void)
 #ifdef RESTUNTS_AMIGA_SMOKE
 static legacy_s16 paula_selftest_check(legacy_s16 condition, const char *message)
 {
-	if (!condition) dos_write_stderr((const legacy_s8 *)message, (legacy_u16)strlen(message));
+	if (!condition) {
+		dos_write_stderr((const legacy_s8 *)message, (legacy_u16)strlen(message));
+	}
 	return condition;
 }
 
@@ -514,7 +637,9 @@ legacy_s16 amiga_audio_selftest(void)
 	legacy_s16 ok = 1;
 	legacy_u32 started;
 	if (!paula_selftest_check(dos_audio_driver_initialize() == PAULA_CONTEXTS,
-		"Amiga audio selftest: initial channel allocation failed\n")) return 0;
+							  "Amiga audio selftest: initial channel allocation failed\n")) {
+		return 0;
+	}
 	memset(instrument, 0, sizeof(instrument));
 	LEGACY_WRITE_U32_LE(instrument, ADLIB_RESOURCE_BYTES);
 	instrument[ADLIB_MODULATOR + ADLIB_OPERATOR_LEVEL] = 63;
@@ -522,32 +647,36 @@ legacy_s16 amiga_audio_selftest(void)
 	audio_channels[0].volume = 127;
 	dos_audio_contexts[1].state = AUDIO_CONTEXT_STATE_PLAYING;
 	amiga_audio_begin_update();
-	dos_audio_driver_activate_context(1, &dos_audio_contexts[1],
-		(legacy_u8 *)&audio_channels[0], 60, 127, instrument);
-	dos_audio_driver_activate_context(1, &dos_audio_contexts[1],
-		(legacy_u8 *)&audio_channels[0], 64, 127, instrument);
-	ok &= paula_selftest_check((paula->dmaconr & 1U) == 0 && paula_voices[0].dirty,
+	dos_audio_driver_activate_context(1, &dos_audio_contexts[1], (legacy_u8 *)&audio_channels[0],
+									  60, 127, instrument);
+	dos_audio_driver_activate_context(1, &dos_audio_contexts[1], (legacy_u8 *)&audio_channels[0],
+									  64, 127, instrument);
+	ok &= paula_selftest_check(
+		(paula->dmaconr & 1U) == 0 && paula_voices[0].dirty,
 		"Amiga audio selftest: historical waveform was committed inside timer batch\n");
 	amiga_audio_end_update();
-	ok &= paula_selftest_check(paula_voices[0].note == 64 && !paula_voices[0].dirty,
+	ok &= paula_selftest_check(
+		paula_voices[0].note == 64 && !paula_voices[0].dirty,
 		"Amiga audio selftest: final timer batch waveform was not committed\n");
 	ok &= paula_selftest_check((paula->dmaconr & 1U) != 0,
-		"Amiga audio selftest: channel DMA did not start\n");
+							   "Amiga audio selftest: channel DMA did not start\n");
 	/* A stale interrupt at initialization would otherwise mask a broken loop. */
 	paula->intreq = 0x0080U;
 	started = amiga_clock_ticks();
 	while (!(paula->intreqr & 0x0080U) && amiga_clock_ticks() - started < 10U) {
 	}
 	ok &= paula_selftest_check((paula->intreqr & 0x0080U) != 0,
-		"Amiga audio selftest: Paula did not finish a sample loop\n");
+							   "Amiga audio selftest: Paula did not finish a sample loop\n");
 	dos_audio_driver_end_context(1, &dos_audio_contexts[1]);
 	paula_dma_settle();
 	ok &= paula_selftest_check((paula->dmaconr & 1U) == 0,
-		"Amiga audio selftest: channel DMA did not stop\n");
+							   "Amiga audio selftest: channel DMA did not stop\n");
 	dos_audio_shutdown();
 	port = CreateMsgPort();
 	if (!paula_selftest_check(port != NULL,
-		"Amiga audio selftest: allocation test port unavailable\n")) return 0;
+							  "Amiga audio selftest: allocation test port unavailable\n")) {
+		return 0;
+	}
 	memset(&blocker, 0, sizeof(blocker));
 	blocker.ioa_Request.io_Message.mn_ReplyPort = port;
 	blocker.ioa_Request.io_Message.mn_Length = sizeof(blocker);
@@ -562,12 +691,15 @@ legacy_s16 amiga_audio_selftest(void)
 		return 0;
 	}
 	ok &= paula_selftest_check(dos_audio_driver_initialize() == 0,
-		"Amiga audio selftest: allocated channels were not protected\n");
+							   "Amiga audio selftest: allocated channels were not protected\n");
 	/* A non-conforming device allowing equal-priority theft is cleaned up too. */
-	if (paula_ready) dos_audio_shutdown();
+	if (paula_ready) {
+		dos_audio_shutdown();
+	}
 	CloseDevice((struct IORequest *)&blocker);
 	DeleteMsgPort(port);
-	ok &= paula_selftest_check(dos_audio_driver_initialize() == PAULA_CONTEXTS,
+	ok &= paula_selftest_check(
+		dos_audio_driver_initialize() == PAULA_CONTEXTS,
 		"Amiga audio selftest: reinitialization after allocation failure failed\n");
 	dos_audio_shutdown();
 	dos_audio_contexts[1].state = AUDIO_CONTEXT_STATE_FREE;

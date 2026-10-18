@@ -32,8 +32,7 @@ legacy_u16 dos_memory_pointer_segment(const void far *pointer)
 	if (pointer == &drawing_sprite) {
 		return 0x6000U;
 	}
-	if (address >= (uintptr_t)source_base &&
-		address < (uintptr_t)source_base + SEGMENT_BYTES) {
+	if (address >= (uintptr_t)source_base && address < (uintptr_t)source_base + SEGMENT_BYTES) {
 		return SOURCE_SEGMENT;
 	}
 	assert(address >= (uintptr_t)bitmap && address < (uintptr_t)bitmap + SEGMENT_BYTES);
@@ -44,7 +43,7 @@ legacy_u16 dos_memory_pointer_offset(const void far *pointer)
 {
 	legacy_u16 segment = dos_memory_pointer_segment(pointer);
 	return (legacy_u16)((const legacy_u8 *)pointer -
-						  (segment == SOURCE_SEGMENT ? source_base : bitmap));
+						(segment == SOURCE_SEGMENT ? source_base : bitmap));
 }
 
 static void test_wrapped_scan_and_copy(void)

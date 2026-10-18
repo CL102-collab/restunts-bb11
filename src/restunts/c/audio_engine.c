@@ -875,9 +875,9 @@ legacy_s16 audio_start_note(struct AUDIO_CHANNEL *timer, legacy_u16 value, legac
 	}
 	struct AUDIO_CONTEXT *context = &dos_audio_contexts[context_index];
 	if (LEGACY_READ_U16_LE((const legacy_u8 *)&context->resource.offset) !=
-		dos_memory_pointer_offset(resource) ||
+			dos_memory_pointer_offset(resource) ||
 		LEGACY_READ_U16_LE((const legacy_u8 *)&context->resource.segment) !=
-		dos_memory_pointer_segment(resource)) {
+			dos_memory_pointer_segment(resource)) {
 		audio_write_far_pointer((legacy_u8 *)&context->resource, resource);
 		if (dos_audio_uses_direct_channels == 0) {
 			dos_audio_driver_prepare_context(context_index, context, (legacy_u8 *)timer, resource);

@@ -900,7 +900,7 @@ static int fine_tune_inputs(struct state_search *search)
 			int later = mode % 2U;
 			if (mode >= 6U && end < finish) {
 				/* Move an entire steering/gear pulse without changing its
-                 * duration or the timestamps of all later inputs. */
+				 * duration or the timestamps of all later inputs. */
 				if (width > end - first) {
 					width = end - first;
 				}
@@ -978,7 +978,7 @@ static int fine_tune_inputs(struct state_search *search)
 		}
 		task->first = first;
 		/* kind 2 with width zero evaluates the already edited input sequence.
-         * kind 3 keeps that local edit and retimes only the incumbent suffix. */
+		 * kind 3 keeps that local edit and retimes only the incumbent suffix. */
 		if (task->id % 8U == 0U && changed_end > first && changed_end < finish && mode != 8U &&
 			mode != 9U) {
 			task->kind = 3U;
@@ -1363,7 +1363,7 @@ int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned
 	}
 	if (options->fine_tune) {
 		/* Every candidate descends from the current completed replay. Section
-         * exits rejoin its guide, never a fresh whole-route driving policy. */
+		 * exits rejoin its guide, never a fresh whole-route driving policy. */
 		for (search.round = 0U; !state_expired(&search); ++search.round) {
 			if (refine_inputs(&search) || (search.round % 32U == 31U && refine_section(&search))) {
 				goto done;

@@ -12,7 +12,11 @@
 #include "shape2d_internal.h"
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
-#define AMIGA_SHAPE2D_TRACE(stage) do { puts("Amiga shape2d: " stage); fflush(stdout); } while (0)
+#define AMIGA_SHAPE2D_TRACE(stage)                                                                 \
+	do {                                                                                           \
+		puts("Amiga shape2d: " stage);                                                             \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_SHAPE2D_TRACE(stage) ((void)0)
 #endif
@@ -324,8 +328,8 @@ legacy_u16 file_get_res_shape_count(void far *memchunk)
 }
 
 #ifdef RESTUNTS_AMIGA
-static legacy_u32 shape2d_unflip_source(legacy_u32 destination, legacy_u16 width,
-									 legacy_u16 height, legacy_u8 layout)
+static legacy_u32 shape2d_unflip_source(legacy_u32 destination, legacy_u16 width, legacy_u16 height,
+										legacy_u8 layout)
 {
 	legacy_u16 row;
 	legacy_u16 column;
@@ -356,8 +360,8 @@ static legacy_u32 shape2d_unflip_source(legacy_u32 destination, legacy_u16 width
 /* A layout is a permutation of the bitmap bytes. Rotate each cycle in place
  * and remember the completed pixels using one bit each. A 320x200 bitmap
  * needs 8000 bytes of workspace instead of a second 64000-byte bitmap. */
-static void shape2d_unflip_in_place(legacy_u8 *pixels, legacy_u8 *visited,
-									legacy_s16 width, legacy_s16 height, legacy_u8 layout)
+static void shape2d_unflip_in_place(legacy_u8 *pixels, legacy_u8 *visited, legacy_s16 width,
+									legacy_s16 height, legacy_u8 layout)
 {
 	if (width <= 0 || height <= 0) {
 		return;
@@ -390,8 +394,8 @@ static legacy_u16 shape2d_unflip_workspace_pages(legacy_u8 *resource)
 	for (legacy_u16 index = 0; index < count; index++) {
 		const struct SHAPE2D *shape = file_get_shape2d(resource, index);
 		legacy_u8 layout = shape->plane_flags[2] >> SHAPE2D_FLIP_FLAG_SHIFT;
-		if ((shape->plane_flags[3] & SHAPE2D_FLIP_FLAG_MASK) != 0 ||
-			layout == 0 || layout > SHAPE2D_FLIP_TYPE_COUNT) {
+		if ((shape->plane_flags[3] & SHAPE2D_FLIP_FLAG_MASK) != 0 || layout == 0 ||
+			layout > SHAPE2D_FLIP_TYPE_COUNT) {
 			continue;
 		}
 		legacy_s16 width = shape2d_get_width(shape);
@@ -490,8 +494,8 @@ void file_unflip_shape2d(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 					legacy_s16 width = shape2d_get_width(shape_header);
 					legacy_s16 height = shape2d_get_height(shape_header);
 #ifdef RESTUNTS_AMIGA
-					shape2d_unflip_in_place((legacy_u8 *)membitmapptr,
-										   (legacy_u8 *)mempages, width, height, flag);
+					shape2d_unflip_in_place((legacy_u8 *)membitmapptr, (legacy_u8 *)mempages, width,
+											height, flag);
 #else
 					switch (flag - 1) {
 						case 0:
@@ -580,7 +584,8 @@ void file_load_shape2d_expand(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 	for (legacy_s16 i = 0; i < shapecount; ++i) {
 		legacy_u8 far *srcshape = file_get_shape2d_bytes(memchunk, i);
 		source_header = (struct SHAPE2D far *)srcshape;
-		legacy_u32 product = (legacy_u32)shape2d_get_width(source_header) * shape2d_get_height(source_header);
+		legacy_u32 product =
+			(legacy_u32)shape2d_get_width(source_header) * shape2d_get_height(source_header);
 		legacy_s16 length = (legacy_s16)(legacy_u16)product;
 
 		// dx:ax at this point is HIWORD(w*h) : (LOWORD(w*h)*8 + 16), each
@@ -603,7 +608,8 @@ void file_load_shape2d_expand(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 		fmemcpy(dstshape, srcshape, SHAPE2D_COPIED_HEADER_WORDS * sizeof(legacy_u16));
 
 		shape2d_put_word(dstshape + offsetof(struct SHAPE2D, width),
-			LEGACY_U16_WRAP_MUL(shape2d_get_width(destination_header), SHAPE2D_BITS_PER_PLANE_BYTE));
+						 LEGACY_U16_WRAP_MUL(shape2d_get_width(destination_header),
+											 SHAPE2D_BITS_PER_PLANE_BYTE));
 
 		if (length && length <= SHAPE2D_EXPANDED_PIXEL_LIMIT) {
 			mempagesptr = dstshape + SHAPE2D_HEADER_SIZE;
@@ -655,9 +661,9 @@ legacy_u16 file_get_unflip_size(legacy_s8 far *memchunk)
 	for (legacy_u16 i = 0; i < shapecount; i++) {
 		legacy_u8 far *memshape = file_get_shape2d_bytes((legacy_u8 far *)memchunk, i);
 		shape_header = (struct SHAPE2D far *)memshape;
-		legacy_u16 size =
-			(shape2d_get_width(shape_header) * shape2d_get_height(shape_header) + SHAPE2D_UNFLIP_PARAGRAPH_PADDING) >>
-			DOS_PARAGRAPH_SHIFT;
+		legacy_u16 size = (shape2d_get_width(shape_header) * shape2d_get_height(shape_header) +
+						   SHAPE2D_UNFLIP_PARAGRAPH_PADDING) >>
+						  DOS_PARAGRAPH_SHIFT;
 		if (size > maxsize) {
 			maxsize = size;
 		}
@@ -681,7 +687,8 @@ legacy_u16 file_load_shape2d_expandedsize(void far *memchunk)
 		// `shl ax, 3` then `sub dx, dx / adc`: the per-shape term is a
 		// 16-bit value ZERO-extended into the accumulator, and the header
 		// size is folded in afterwards with its own carry.
-		size += (legacy_u32)(legacy_u16)(shape2d_get_width(shape_header) * shape2d_get_height(shape_header) *
+		size += (legacy_u32)(legacy_u16)(shape2d_get_width(shape_header) *
+										 shape2d_get_height(shape_header) *
 										 SHAPE2D_BITS_PER_PLANE_BYTE) +
 				SHAPE2D_HEADER_SIZE;
 	}

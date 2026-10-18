@@ -24,7 +24,11 @@ static const legacy_s8 headless_pack_error[] = "Invalid packed resource: %s";
 #endif
 
 #ifdef RESTUNTS_AMIGA_TRACE
-#define AMIGA_DECOMP_TRACE(stage) do { puts("Amiga decompress: " stage); fflush(stdout); } while (0)
+#define AMIGA_DECOMP_TRACE(stage)                                                                  \
+	do {                                                                                           \
+		puts("Amiga decompress: " stage);                                                          \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_DECOMP_TRACE(stage) ((void)0)
 #endif
@@ -591,7 +595,8 @@ legacy_u32 file_decomp_rle(legacy_u8 huge *src, legacy_u8 huge *dst, legacy_u16 
 	}
 
 #ifdef RESTUNTS_AMIGA_TRACE
-	fprintf(stdout, "Amiga decompress: RLE length=%lu source=%lu escapes=%u skip=%u\n", (unsigned long)len, (unsigned long)srclen, (unsigned)esclen, (unsigned)skipseq);
+	fprintf(stdout, "Amiga decompress: RLE length=%lu source=%lu escapes=%u skip=%u\n",
+			(unsigned long)len, (unsigned long)srclen, (unsigned)esclen, (unsigned)skipseq);
 	fflush(stdout);
 #endif
 	if (!skipseq) {
@@ -854,7 +859,8 @@ static void far *file_decomp_internal(const legacy_s8 *filename, legacy_s16 fata
 				// Decode all compression passes.
 				while (!err && passes) {
 #ifdef RESTUNTS_AMIGA_TRACE
-					fprintf(stdout, "Amiga decompress: pass begin, remaining=%u codec=%u\n", (unsigned)passes, (unsigned)*src);
+					fprintf(stdout, "Amiga decompress: pass begin, remaining=%u codec=%u\n",
+							(unsigned)passes, (unsigned)*src);
 					fflush(stdout);
 #endif
 					if (file_decomp_pass(src, dst, decompparas, &passlen) == 0) {

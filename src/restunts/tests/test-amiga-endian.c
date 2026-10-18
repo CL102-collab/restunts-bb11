@@ -39,8 +39,8 @@ extern void audio_write_far_pointer(legacy_u8 far *destination, const void far *
 static void test_unaligned_bitmap_header(void)
 {
 	/* A resource payload can start at an odd address, with little-endian words. */
-	legacy_u8 bytes[17] = {0, 0x40, 0x01, 0xc8, 0, 0x34, 0x12, 0x78, 0x56,
-						  0xbc, 0x9a, 0xf0, 0xde, 1, 2, 3, 4};
+	legacy_u8 bytes[17] = {0,	 0x40, 0x01, 0xc8, 0, 0x34, 0x12, 0x78, 0x56,
+						   0xbc, 0x9a, 0xf0, 0xde, 1, 2,	3,	  4};
 	const struct SHAPE2D *shape = (const struct SHAPE2D *)(bytes + 1);
 	assert(shape2d_get_width(shape) == 320);
 	assert(shape2d_get_height(shape) == 200);

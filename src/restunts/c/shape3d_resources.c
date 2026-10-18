@@ -4,7 +4,11 @@
 #include "scene_resources.h"
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
-#define AMIGA_SHAPE_TRACE(stage) do { puts("Amiga track shapes: " stage); fflush(stdout); } while (0)
+#define AMIGA_SHAPE_TRACE(stage)                                                                   \
+	do {                                                                                           \
+		puts("Amiga track shapes: " stage);                                                        \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_SHAPE_TRACE(stage) ((void)0)
 #endif

@@ -52,7 +52,9 @@ static legacy_s16 smoke_write_picture(void)
 	const legacy_u8 *pixels = amiga_video_pixels();
 	legacy_u16 output = dos_file_open((const legacy_s8 *)"AMIGASMOKE.PPM", DOS_FILE_CREATE);
 	legacy_s16 ok;
-	if (!output) return 0;
+	if (!output) {
+		return 0;
+	}
 	ok = dos_file_write(output, header, sizeof(header) - 1U) == sizeof(header) - 1U;
 	for (legacy_u16 y = 0; ok && y < AMIGA_HEIGHT; ++y) {
 		for (legacy_u16 x = 0; x < AMIGA_WIDTH; ++x) {
@@ -63,7 +65,9 @@ static legacy_s16 smoke_write_picture(void)
 		}
 		ok = dos_file_write(output, row, sizeof(row)) == sizeof(row);
 	}
-	if (dos_file_close(output) != 0) ok = 0;
+	if (dos_file_close(output) != 0) {
+		ok = 0;
+	}
 	return ok;
 }
 
@@ -72,10 +76,12 @@ static legacy_u16 smoke_region_colors(legacy_u16 top, legacy_u16 bottom)
 	legacy_u8 seen[4096 / 8];
 	legacy_u16 count = 0;
 	const legacy_u8 *pixels = amiga_video_pixels();
-	if (top >= bottom || bottom > AMIGA_HEIGHT) return 0;
+	if (top >= bottom || bottom > AMIGA_HEIGHT) {
+		return 0;
+	}
 	memset(seen, 0, sizeof(seen));
 	for (legacy_u32 offset = (legacy_u32)top * AMIGA_WIDTH;
-		offset < (legacy_u32)bottom * AMIGA_WIDTH; ++offset) {
+		 offset < (legacy_u32)bottom * AMIGA_WIDTH; ++offset) {
 		legacy_u16 color = amiga_video_color(offset / AMIGA_WIDTH, pixels[offset]);
 		if (!(seen[color >> 3] & (1U << (color & 7U)))) {
 			seen[color >> 3] |= 1U << (color & 7U);
@@ -103,7 +109,9 @@ static void smoke_render_frame(void)
 	sprite_set_target_clip_bounds(0, AMIGA_WIDTH, 0, AMIGA_HEIGHT);
 	mouse_draw_opaque_check();
 	amiga_video_present();
-	if (full_redraw_frames_remaining != 0) --full_redraw_frames_remaining;
+	if (full_redraw_frames_remaining != 0) {
+		--full_redraw_frames_remaining;
+	}
 }
 
 legacy_s16 amiga_game_smoke(void)
@@ -130,20 +138,31 @@ legacy_s16 amiga_game_smoke(void)
 	init_kevinrandom((const legacy_s8 *)"kevin");
 	smoke_progress("load DEFAULT.RPL and build its track");
 	if (!smoke_check(file_load_replay((const legacy_s8 *)"", (const legacy_s8 *)"DEFAULT") == 0,
-		"DEFAULT.RPL could not be loaded")) { ok = 0; goto finished; }
+					 "DEFAULT.RPL could not be loaded")) {
+		ok = 0;
+		goto finished;
+	}
 	if (!smoke_check(gameconfig.game_recordedframes >= SMOKE_REPLAY_TICKS &&
-		(gameconfig.game_framespersec == GAME_FRAME_RATE_LOW ||
-		 gameconfig.game_framespersec == GAME_FRAME_RATE_NORMAL),
-		"replay frame count or rate is invalid")) { ok = 0; goto finished; }
+						 (gameconfig.game_framespersec == GAME_FRAME_RATE_LOW ||
+						  gameconfig.game_framespersec == GAME_FRAME_RATE_NORMAL),
+					 "replay frame count or rate is invalid")) {
+		ok = 0;
+		goto finished;
+	}
 	replay_filename[0] = 0;
 	memcpy(&gameconfigcopy, &gameconfig, sizeof(gameconfig));
-	for (legacy_u16 index = 0; index < TRACKDATA_LINK_TABLE_SIZE; ++index)
+	for (legacy_u16 index = 0; index < TRACKDATA_LINK_TABLE_SIZE; ++index) {
 		track_and_directory_backup[index] = track_element_map[index];
+	}
 	for (legacy_u16 index = 0; index < TRACKDATA_CHECKPOINT_DATA_SIZE; ++index) {
 		track_and_directory_backup[index + TRACKDATA_LINK_TABLE_SIZE] = track_directory[index];
-		track_and_directory_backup[index + TRACKDATA_CHECKPOINT_SECOND_OFFSET] = replay_directory[index];
+		track_and_directory_backup[index + TRACKDATA_CHECKPOINT_SECOND_OFFSET] =
+			replay_directory[index];
 	}
-	if (!smoke_check(track_setup() == 0, "track route setup failed")) { ok = 0; goto finished; }
+	if (!smoke_check(track_setup() == 0, "track route setup failed")) {
+		ok = 0;
+		goto finished;
+	}
 	cvxptr = mmgr_alloc_resbytes((const legacy_s8 *)"cvx", SMOKE_CHECKPOINT_BYTES);
 	framespersec = gameconfig.game_framespersec;
 	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
@@ -160,14 +179,17 @@ legacy_s16 amiga_game_smoke(void)
 	supersight_enabled = 0;
 	smoke_progress("load car, dashboard, sound, skybox and track geometry");
 	if (!smoke_check(setup_player_cars() == 0, "race resource setup failed")) {
-		ok = 0; goto finished;
+		ok = 0;
+		goto finished;
 	}
 	cars_ready = 1;
 	if (!smoke_check(game1ptr != NULL && game2ptr != NULL &&
-		game3dshapes[PLAYER_CAR_LOW_SHAPE].shape3d_numverts != 0 && stdaresptr != NULL &&
-		stdbresptr != NULL && render_window_sprite != NULL && dashbmp_y > roofbmpheight &&
-		(legacy_u16)dashbmp_y < AMIGA_HEIGHT, "loaded scene or dashboard geometry is invalid")) {
-		ok = 0; goto finished;
+						 game3dshapes[PLAYER_CAR_LOW_SHAPE].shape3d_numverts != 0 &&
+						 stdaresptr != NULL && stdbresptr != NULL && render_window_sprite != NULL &&
+						 dashbmp_y > roofbmpheight && (legacy_u16)dashbmp_y < AMIGA_HEIGHT,
+					 "loaded scene or dashboard geometry is invalid")) {
+		ok = 0;
+		goto finished;
 	}
 	kbormouse = 0;
 	replay_playback_speed = REPLAY_PLAYBACK_NORMAL;
@@ -200,28 +222,30 @@ legacy_s16 amiga_game_smoke(void)
 		smoke_render_frame();
 	}
 	rendering_ticks = amiga_clock_ticks() - rendering_started;
-	world_colors = smoke_region_colors((legacy_u16)rect_windshield.top,
-		(legacy_u16)rect_windshield.bottom);
+	world_colors =
+		smoke_region_colors((legacy_u16)rect_windshield.top, (legacy_u16)rect_windshield.bottom);
 	dashboard_colors = smoke_region_colors((legacy_u16)dashbmp_y, AMIGA_HEIGHT);
 	ok &= smoke_check((legacy_u16)state.game_frame == initial_frame + SMOKE_REPLAY_TICKS,
-		"recorded simulation did not advance three frames");
-	ok &= smoke_check(state.playerstate.car_position.lx != 0 && state.playerstate.car_position.lz != 0,
-		"player world position was not initialized");
+					  "recorded simulation did not advance three frames");
+	ok &= smoke_check(state.playerstate.car_position.lx != 0 &&
+						  state.playerstate.car_position.lz != 0,
+					  "player world position was not initialized");
 	ok &= smoke_check(world_colors >= 4U, "rendered world is blank or lacks geometry");
 	ok &= smoke_check(dashboard_colors >= 4U, "rendered dashboard is blank");
-	for (legacy_u32 offset = 0; offset < AMIGA_SCREEN_BYTES; ++offset)
+	for (legacy_u32 offset = 0; offset < AMIGA_SCREEN_BYTES; ++offset) {
 		hash = (hash ^ amiga_video_pixels()[offset]) * 16777619UL;
+	}
 	highwater = (legacy_u32)(mmgr_high_water_segment - mmgr_arena_start_segment) * 16UL;
 	capacity = (legacy_u32)(mmgr_arena_end_segment - mmgr_arena_start_segment) * 16UL;
 	printf("Amiga smoke: frame=%u world_colors=%u dashboard_colors=%u checksum=%08lx\n",
-		(unsigned)(legacy_u16)state.game_frame, (unsigned)world_colors,
-		(unsigned)dashboard_colors, (unsigned long)hash);
+		   (unsigned)(legacy_u16)state.game_frame, (unsigned)world_colors,
+		   (unsigned)dashboard_colors, (unsigned long)hash);
 	printf("Amiga memory: resource_high_water=%lu arena_capacity=%lu free_chip=%lu bytes\n",
-		(unsigned long)highwater, (unsigned long)capacity, (unsigned long)AvailMem(MEMF_CHIP));
+		   (unsigned long)highwater, (unsigned long)capacity, (unsigned long)AvailMem(MEMF_CHIP));
 	printf("Amiga timing: load_ms=%lu render_physics_ms=%lu frames=%u average_ms_per_frame=%lu\n",
-		(unsigned long)loading_ticks * 10UL, (unsigned long)rendering_ticks * 10UL,
-		(unsigned)(SMOKE_REPLAY_TICKS + 1U),
-		(unsigned long)rendering_ticks * 10UL / (SMOKE_REPLAY_TICKS + 1U));
+		   (unsigned long)loading_ticks * 10UL, (unsigned long)rendering_ticks * 10UL,
+		   (unsigned)(SMOKE_REPLAY_TICKS + 1U),
+		   (unsigned long)rendering_ticks * 10UL / (SMOKE_REPLAY_TICKS + 1U));
 	ok &= smoke_check(smoke_write_picture(), "AMIGASMOKE.PPM export failed");
 	printf("Amiga smoke total_ms=%lu\n", (unsigned long)(amiga_clock_ticks() - started) * 10UL);
 finished:
@@ -233,6 +257,8 @@ finished:
 	smoke_progress("shutdown audio and game exit handlers");
 	call_exitlist();
 	smoke_progress("game exit handlers complete");
-	if (ok) puts("AMIGA SMOKE PASS");
+	if (ok) {
+		puts("AMIGA SMOKE PASS");
+	}
 	return ok ? 0 : 1;
 }

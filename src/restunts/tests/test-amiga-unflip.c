@@ -83,8 +83,7 @@ static void test_layout(unsigned width, unsigned height, unsigned layout, unsign
 	} else {
 		memcpy(expected, original, count);
 	}
-	assert(shape2d_unflip_workspace_pages(resource) ==
-		   (applies ? (visited_bytes + 15U) / 16U : 0));
+	assert(shape2d_unflip_workspace_pages(resource) == (applies ? (visited_bytes + 15U) / 16U : 0));
 	file_unflip_shape2d(resource, (legacy_s8 *)(workspace + 1));
 	assert(memcmp(pixels, expected, count) == 0);
 	assert(memcmp(resource, saved_prefix, sizeof(saved_prefix)) == 0);
@@ -100,10 +99,9 @@ static void test_layout(unsigned width, unsigned height, unsigned layout, unsign
 
 int main(void)
 {
-	static const unsigned dimensions[][2] = {
-		{0, 0}, {0, 5}, {5, 0}, {1, 1}, {1, 7}, {7, 1},
-		{2, 3}, {3, 2}, {7, 5}, {8, 6}, {319, 199}, {320, 200}
-	};
+	static const unsigned dimensions[][2] = {{0, 0}, {0, 5}, {5, 0},	 {1, 1},
+											 {1, 7}, {7, 1}, {2, 3},	 {3, 2},
+											 {7, 5}, {8, 6}, {319, 199}, {320, 200}};
 	for (unsigned layout = 1; layout <= 3; layout++) {
 		for (unsigned index = 0; index < sizeof(dimensions) / sizeof(dimensions[0]); index++) {
 			test_layout(dimensions[index][0], dimensions[index][1], layout, 0);

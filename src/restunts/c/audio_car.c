@@ -33,17 +33,17 @@ static void audio_carstate_offsets(struct VECTOR far *previous, struct VECTOR fa
 								   const struct VECTOR *car_current)
 {
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->x,
-		LEGACY_S16_WRAP_SUB(camera_previous->x, car_previous->x));
+						LEGACY_S16_WRAP_SUB(camera_previous->x, car_previous->x));
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->y,
-		LEGACY_S16_WRAP_SUB(camera_previous->y, car_previous->y));
+						LEGACY_S16_WRAP_SUB(camera_previous->y, car_previous->y));
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&previous->z,
-		LEGACY_S16_WRAP_SUB(camera_previous->z, car_previous->z));
+						LEGACY_S16_WRAP_SUB(camera_previous->z, car_previous->z));
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->x,
-		LEGACY_S16_WRAP_SUB(camera_current->x, car_current->x));
+						LEGACY_S16_WRAP_SUB(camera_current->x, car_current->x));
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->y,
-		LEGACY_S16_WRAP_SUB(camera_current->y, car_current->y));
+						LEGACY_S16_WRAP_SUB(camera_current->y, car_current->y));
 	LEGACY_WRITE_U16_LE((legacy_u8 far *)&current->z,
-		LEGACY_S16_WRAP_SUB(camera_current->z, car_current->z));
+						LEGACY_S16_WRAP_SUB(camera_current->z, car_current->z));
 }
 
 static legacy_u8 audio_carstate_update_flags(struct CARSTATE *carstate, legacy_s16 channel,

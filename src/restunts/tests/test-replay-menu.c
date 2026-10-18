@@ -12,7 +12,9 @@
 #ifdef RESTUNTS_AMIGA
 void locate_many_resources(legacy_s8 far *data, const legacy_s8 *names, legacy_s8 far **result)
 {
-	(void)data; (void)names; (void)result;
+	(void)data;
+	(void)names;
+	(void)result;
 	assert(0 && "Input polling must not reload replay resources");
 }
 static legacy_u8 auto_refresh, checking_refresh_scope;
@@ -120,7 +122,9 @@ legacy_s16 input_checking(legacy_s16 delta)
 {
 	assert(delta == 1);
 #ifdef RESTUNTS_AMIGA
-	if (checking_refresh_scope) assert(auto_refresh == 1);
+	if (checking_refresh_scope) {
+		assert(auto_refresh == 1);
+	}
 #endif
 	assert(++input_polls <= input_exit_poll);
 	return input_polls == input_exit_poll ? KEY_F2 : 0;

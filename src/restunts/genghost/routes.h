@@ -147,7 +147,8 @@ int genghost_stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGH
 /* Read the current player and car parameters from the original engine. The
  * Physics flags must reflect --pg and --lc; owoot is the active road rule.
  * Solid-crossing proposals require original collisions; clear ground cuts and
- * edge jumps remain available with collision fixes. OWOOT permits only a clear slalom center pass. */
+ * edge jumps remain available with collision fixes. OWOOT permits only a clear
+ * slalom center pass. */
 unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 								   const struct GENGHOST_POLICY *policy,
 								   struct GENGHOST_DRIVER *driver, int powergear_enabled,

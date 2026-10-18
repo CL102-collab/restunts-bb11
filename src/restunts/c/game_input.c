@@ -222,7 +222,11 @@ legacy_s16 joystick_get_scaled_y(void)
 
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
-#define AMIGA_PALETTE_TRACE(stage) do { puts("Amiga palette/cursor: " stage); fflush(stdout); } while (0)
+#define AMIGA_PALETTE_TRACE(stage)                                                                 \
+	do {                                                                                           \
+		puts("Amiga palette/cursor: " stage);                                                      \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_PALETTE_TRACE(stage) ((void)0)
 #endif

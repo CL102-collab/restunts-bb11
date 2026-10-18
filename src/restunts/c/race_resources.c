@@ -1,6 +1,10 @@
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
-#define AMIGA_RACE_TRACE(stage) do { puts("Amiga race resources: " stage); fflush(stdout); } while (0)
+#define AMIGA_RACE_TRACE(stage)                                                                    \
+	do {                                                                                           \
+		puts("Amiga race resources: " stage);                                                      \
+		fflush(stdout);                                                                            \
+	} while (0)
 #else
 #define AMIGA_RACE_TRACE(stage) ((void)0)
 #endif
@@ -239,7 +243,7 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 		render_window_sprite = &screen_sprite;
 	} else
 #endif
-	if (video_uses_page_flipping == 0) {
+		if (video_uses_page_flipping == 0) {
 		AMIGA_RACE_TRACE("render framebuffer");
 		legacy_u32 window_pixel_bytes = LEGACY_U16_DIV_OR_ZERO(
 			RENDER_WINDOW_PIXEL_BYTES,

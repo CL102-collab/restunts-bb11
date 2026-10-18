@@ -962,8 +962,8 @@ static int shortcut_target(const struct GENGHOST_ROUTE *route, const struct GENG
 		return 0;
 	}
 	/* On a simple branch the native penalty state normally confirms the
-  * third successor without charging for the two intervening pieces.
-  * Branches and finish handling can differ; simulation decides the score. */
+	 * third successor without charging for the two intervening pieces.
+	 * Branches and finish handling can differ; simulation decides the score. */
 	if (advance > 3U) {
 		advance = 3U;
 	}
@@ -990,7 +990,7 @@ static int shortcut_target(const struct GENGHOST_ROUTE *route, const struct GENG
 		future++;
 	}
 	/* One input tick travels about speed*0.367 units. Leave enough inset
-  * to give discrete 20 Hz sampling a chance to register a corner touch. */
+	 * to give discrete 20 Hz sampling a chance to register a corner touch. */
 	double margin = bounded(40.0 + speed * 0.4, 48.0, 160.0);
 	struct GENGHOST_REGION first, second;
 	tile_portal(route->pieces[next], margin, &first);
@@ -1000,7 +1000,7 @@ static int shortcut_target(const struct GENGHOST_ROUTE *route, const struct GENG
 	struct GENGHOST_REGION origin;
 	tile_portal(route->pieces[current], 0.0, &origin);
 	/* A grass crossing can be far from the painted road while still following
-  * its chosen tile corridor. Outside that corridor use normal recovery. */
+	 * its chosen tile corridor. Outside that corridor use normal recovery. */
 	if (x < fmin(origin.min_x, first.min_x) - 512.0 ||
 		x > fmax(origin.max_x, first.max_x) + 512.0 ||
 		z < fmin(origin.min_z, first.min_z) - 512.0 ||
@@ -1632,7 +1632,7 @@ static int stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOS
 							   car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
 				if (launched) {
 					/* Flight cannot follow a loop's descending spline. Aim into later tile
-      * footprints; touching their centers in the air uses native recognition. */
+					 * footprints; touching their centers in the air uses native recognition. */
 					if (end + 1U >= route->point_count) {
 						return 0;
 					}
@@ -1656,13 +1656,13 @@ static int stunt_target(const struct GENGHOST_ROUTE *route, const struct GENGHOS
 				double phase = bounded(gene->lateral_offset, -1.0, 1.0);
 				if (model == PHYSICAL_MODEL_LOOP) {
 					/* Human outer-edge launches hold a nearly straight heading near x=-350
-      * into the rising half. The road narrows inward as it rises, naturally
-      * releasing the car with forward pitch instead of following the crown. */
+					 * into the rising half. The road narrows inward as it rises, naturally
+					 * releasing the car with forward pitch instead of following the crown. */
 					px = -direction * (350.0 + phase * 100.0);
 				} else {
 					double side = model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ? -1.0 : 1.0;
 					/* A descending cork has no higher launch point: follow its exit/drop
-      * instead of targeting its entry behind the car. */
+					 * instead of targeting its entry behind the car. */
 					double offset = side * 0.9 + phase * 0.5;
 					point_at(route, driver->progress + lookahead, offset, target);
 					flat = 0;
@@ -1780,8 +1780,8 @@ static int uphill_powergear_available(void)
 		return 0;
 	}
 	/* The knob must physically reach each next gear. Forecast the drag and
-     * uphill speed lost while the clutch is disengaged. A force sign only at
-     * current speed can shift too early and miss the narrow boost window. */
+	 * uphill speed lost while the clutch is disengaged. A force sign only at
+	 * current speed can shift too early and miss the narrow boost window. */
 	if (car->car_current_gear < 1 || car->car_current_gear > gear) {
 		return 0;
 	}
@@ -2019,9 +2019,9 @@ unsigned char genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		double shift_rpm = bounded(simd_player.upshift_rpm * gene->shift_rpm_scale,
 								   simd_player.idle_rpm + 1200.0, simd_player.max_rpm - 100.0);
 		/* Preserve acceleration on approach. Some cars reach power gear while
-         * still climbing: shift only when top-gear force remains negative
-         * after the clutch's predicted speed loss. Retain unloaded attempts
-         * for other ramps and stunts. */
+		 * still climbing: shift only when top-gear force remains negative
+		 * after the clutch's predicted speed loss. Retain unloaded attempts
+		 * for other ramps and stunts. */
 		int seek_pg = useful_pg && gene->powergear_bias > 0.05 &&
 					  (uphill_powergear_available() ||
 					   (pg_feature_ahead && car->car_sumSurfRearWheels == CAR_WHEEL_CONTACT_NONE &&
