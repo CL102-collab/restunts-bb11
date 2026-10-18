@@ -233,7 +233,8 @@ static void test_landscape_pillarboxes(legacy_int width, legacy_int height, lega
 				   circle.radius + next.radius);
 		}
 		if (allow_overlap) {
-			assert(circle.radius == safe.h * 0.075f);
+			/* Stored float radii can round differently from x87 intermediates. */
+			assert(SDL_fabsf(circle.radius - safe.h * 0.075f) < TEST_COORDINATE_EPSILON);
 		} else if (control == TOUCH_CAMERA || control == TOUCH_FOLLOW ||
 				   control == TOUCH_ACCELERATE || control == TOUCH_BRAKE) {
 			assert(circle.x - circle.radius >=
@@ -248,7 +249,8 @@ static void test_landscape_pillarboxes(legacy_int width, legacy_int height, lega
 		struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &safe);
 		struct TOUCH_CIRCLE up = sdl3_touch_circle(TOUCH_SHIFT_UP, &safe);
 		struct TOUCH_CIRCLE down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, &safe);
-		assert(left.radius == safe.h * 0.075f && right.radius == left.radius);
+		assert(SDL_fabsf(left.radius - safe.h * 0.075f) < TEST_COORDINATE_EPSILON);
+		assert(right.radius == left.radius);
 		assert(left.y == right.y && right.x > left.x);
 		assert(SDL_fabsf(up.x - (left.x + right.x) / 2.0f) < TEST_COORDINATE_EPSILON);
 		assert(up.x == down.x && up.y < left.y && down.y > left.y);
@@ -295,7 +297,7 @@ static void test_narrow_pillarboxes(void)
 	SDL_FRect saved_viewport = game_viewport;
 	game_viewport = (SDL_FRect){area.x, area.y, area.w, area.h};
 	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
-	assert(left.radius == area.h * 0.075f);
+	assert(SDL_fabsf(left.radius - area.h * 0.075f) < TEST_COORDINATE_EPSILON);
 	game_viewport = saved_viewport;
 }
 

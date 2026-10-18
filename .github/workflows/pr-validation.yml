@@ -1,7 +1,7 @@
 name: PR validation
 
-# Full validation runs normally. The netbsd-haiku-only label or dispatch input
-# limits a follow-up to those packages after the other checks have passed.
+# Full validation runs normally. Package scope labels or the dispatch input
+# limit a follow-up after the other checks have passed.
 on:
   #push:
   #  branches: [cl102/feat]
@@ -9,10 +9,11 @@ on:
     branches: [main, integ2]
   workflow_dispatch:
     inputs:
-      only-netbsd-haiku:
-        description: Recheck only NetBSD and Haiku packages, without golden replays or other passed checks.
-        type: boolean
-        default: false
+      package-scope:
+        description: Packages to recheck without repeating other passed checks.
+        type: choice
+        options: [all, netbsd-haiku, haiku-x86]
+        default: all
       platforms:
         description: Nonempty JSON array of unique candidate platforms (dos, sdl3).
         type: string
@@ -40,7 +41,10 @@ concurrency:
 jobs:
   appimages:
     name: Portable Linux AppImages
-    if: ${{ !inputs.only-netbsd-haiku && !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
+    if: >-
+      ${{ inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' &&
+          !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') &&
+          !contains(github.event.pull_request.labels.*.name, 'haiku-x86-only') }}
     uses: ./.github/workflows/build-packages.yml
     with:
       only-appimages: true
@@ -48,7 +52,10 @@ jobs:
 
   validate:
     name: Golden replays
-    if: ${{ !inputs.only-netbsd-haiku && !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
+    if: >-
+      ${{ inputs.package-scope != 'netbsd-haiku' && inputs.package-scope != 'haiku-x86' &&
+          !contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') &&
+          !contains(github.event.pull_request.labels.*.name, 'haiku-x86-only') }}
     uses: ./.github/workflows/build-and-validate.yml
     with:
       platforms: ${{ github.event.inputs.platforms || '["sdl3"]' }}
@@ -65,12 +72,13 @@ jobs:
       ${{ !cancelled() &&
           (needs.validate.result == 'success' ||
            (needs.validate.result == 'skipped' &&
-            (inputs.only-netbsd-haiku ||
-             contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only')))) }}
+            (inputs.package-scope == 'netbsd-haiku' || inputs.package-scope == 'haiku-x86' ||
+             contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') ||
+             contains(github.event.pull_request.labels.*.name, 'haiku-x86-only')))) }}
     uses: ./.github/workflows/build-packages.yml
     with:
       dos-artifact: ${{ needs.validate.outputs.exe-artifact }}
       skip-appimages: true
-      only-netbsd-haiku: ${{ inputs.only-netbsd-haiku || contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') }}
+      package-scope: ${{ inputs.package-scope || (contains(github.event.pull_request.labels.*.name, 'haiku-x86-only') && 'haiku-x86') || (contains(github.event.pull_request.labels.*.name, 'netbsd-haiku-only') && 'netbsd-haiku') || 'all' }}
       attest: false
       android-release: false
