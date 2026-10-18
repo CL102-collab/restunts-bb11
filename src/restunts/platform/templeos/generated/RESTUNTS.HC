@@ -893,6 +893,7 @@ legacy_s16 RsRunMainMenuLoop(legacy_s16 argc,legacy_s8 **argv)
     temple_result_1009=TempleCastS16(0);
     if((rs_restunts_startup_options.skip_intro!=0)) {
       (rs_restunts_startup_options.skip_intro=TempleCastU8(0));
+      (waitflag=TempleCastS16(180));
     } else {
       (temple_result_1009=TempleCastS16(RsRunIntroLooped()));
     }
