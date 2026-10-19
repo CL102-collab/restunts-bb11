@@ -24,7 +24,11 @@ and playing them.
 Custom-car surface adhesion activates automatically when the selected car has
 a one-byte `fand` resource set to `1`. It is loaded independently for the player
 and opponent on every ported platform. Absent, zero or invalid flags keep the
-original physics; no command-line or launcher setting is required.
+original physics; no command-line or launcher setting is required. An optional
+`adhs` resource configures attachment distance, alignment angle and materials.
+Defaults are 12 world units, 60 degrees, and paved/dirt/ice/grass; malformed
+settings disable adhesion for that car. See [the resource format](car-adhesion.md)
+for bounds, compatibility and measurement details.
 
 ## Launching
 

@@ -10,7 +10,8 @@ unsigned-division power-gear bug does not manufacture extra acceleration.
 Keep the stock Acura SIMD's reserved fields.  The dashboard builder supplies
 only the instrument/gear-knob byte patches it needs via ``dashboard_patch``.
 The optional one-byte ``fand=1`` resource automatically enables suction adhesion
-in updated Restunts. The original game ignores that resource.
+in updated Restunts. The ``adhs`` resource supplies the distance, alignment and
+material settings below. The original game ignores both resources.
 """
 
 from pathlib import Path
@@ -41,6 +42,26 @@ COLLISION_HALF_LENGTH = math.ceil(39 * BODY_SCALE[2])
 COLLISION_RADIUS = math.ceil(math.hypot(COLLISION_HALF_WIDTH, COLLISION_HALF_LENGTH))
 # The camera subtracts the engine's fixed six-unit tyre contact height.
 COCKPIT_HEIGHT = 6 + round((18 - 6) * BODY_SCALE[1])
+
+# Per-car adhesion settings, kept outside the stock SIMD layout. The runtime
+# reads the fixed-point cosine directly; degree conversion happens only here.
+ADHESION_VERSION = 1
+ADHESION_MAX_DISTANCE = 12  # World units from the tyre contact to its surface.
+ADHESION_MAX_ALIGNMENT_DEGREES = 60
+ADHESION_MIN_ALIGNMENT_Q14 = round(
+    math.cos(math.radians(ADHESION_MAX_ALIGNMENT_DEGREES)) * 16384)
+ADHESION_SURFACE_MASK = 0x0F  # Paved, dirt, ice and grass (bits 0 through 3).
+
+
+def _adhesion_settings() -> bytes:
+    """Encode the version-one six-byte ``adhs`` settings resource."""
+    if (ADHESION_VERSION != 1 or not 0 <= ADHESION_MAX_DISTANCE <= 511 or
+            not 0 <= ADHESION_MAX_ALIGNMENT_DEGREES <= 90 or
+            not 0 <= ADHESION_MIN_ALIGNMENT_Q14 <= 16384 or
+            ADHESION_SURFACE_MASK & ~0x0F):
+        raise ValueError("Invalid adhesion settings")
+    return struct.pack("<BHHB", ADHESION_VERSION, ADHESION_MAX_DISTANCE,
+                       ADHESION_MIN_ALIGNMENT_Q14, ADHESION_SURFACE_MASK)
 
 
 def _resources(data: bytes) -> dict[bytes, bytes]:
@@ -139,4 +160,5 @@ def build_car(repo: Path, dashboard_patch: dict[int, bytes]) -> bytes:
                   "Tesla targets:]0-60 <0.59 seconds]"
                   ">230 MPH / >300 mi]Game approximation").encode("ascii") + b"\0",
         b"fand": b"\x01",
+        b"adhs": _adhesion_settings(),
     })

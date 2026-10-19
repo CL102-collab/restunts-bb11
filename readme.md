@@ -565,12 +565,16 @@ and game preparation. See [car details and references](tools/scripts/cars/READTE
 
 Fan adhesion activates automatically when a car includes the optional one-byte
 `fand` resource containing `1`; it needs no startup option or launcher control.
-The updated physics is available on every ported platform. Cars without that
-flag keep the original physics.
+The optional `adhs` resource customizes the maximum attachment distance,
+alignment angle, and allowed materials independently for each car. TERR uses
+12 world units, 60 degrees, and paved/dirt/ice/grass. Existing `fand=1` cars
+without `adhs` retain those defaults; invalid settings disable adhesion.
 Fan adhesion holds tire contacts against supported drivable surfaces,
 including inverted and vertical surfaces at a standstill, and releases when
-the car leaves the surface. The flag is loaded independently for each car;
-absent or zero keeps the original physics. Original Stunts ignores this flag.
+the car leaves the surface. Every ported platform supports it. Cars without
+that flag keep the original physics; original Stunts ignores both resources.
+See [adhesion resource settings](docs/car-adhesion.md) for the binary format,
+limits, and measurement rules.
 
 
 The [Android port](docs/android.md) runs in landscape on Android 5.0 or newer

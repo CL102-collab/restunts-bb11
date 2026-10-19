@@ -16,7 +16,11 @@ from tesla_roadster_dashboard import (INSTRUMENT_RECT, WHEEL_TURN_DEGREES,
                                      build_dashboards, prepared_stda_size)
 from tesla_roadster_model import (BODY_SCALE, SHOWROOM_SCALE, SHOWROOM_Y_OFFSET,
                                   WHEEL_RADIUS, WHEEL_SIZE_MULTIPLIER, build_models)
-from tesla_roadster_physics import build_car
+from tesla_roadster_physics import (ADHESION_MAX_ALIGNMENT_DEGREES,
+                                    ADHESION_MAX_DISTANCE,
+                                    ADHESION_MIN_ALIGNMENT_Q14,
+                                    ADHESION_SURFACE_MASK, ADHESION_VERSION,
+                                    build_car)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -116,6 +120,16 @@ def validate(outputs, repository):
         raise ValueError("Expected a 776-byte single-speed SIMD")
     if car.get("fand") != b"\x01":
         raise ValueError("Missing fan surface adhesion capability")
+    adhesion = car.get("adhs", b"")
+    if len(adhesion) != 6:
+        raise ValueError("Expected a six-byte adhesion settings resource")
+    version, distance, alignment, surface_mask = struct.unpack("<BHHB", adhesion)
+    if version != 1 or distance > 511 or alignment > 16384 or surface_mask & ~0x0F:
+        raise ValueError("Invalid adhesion settings")
+    if (version, distance, alignment, surface_mask) != (
+            ADHESION_VERSION, ADHESION_MAX_DISTANCE,
+            ADHESION_MIN_ALIGNMENT_Q14, ADHESION_SURFACE_MASK):
+        raise ValueError("Adhesion resource disagrees with Tesla tuning")
     for name in ("gnam", "gsna", "edes"):
         if not car[name].endswith(b"\0"):
             raise ValueError("Unterminated car text")
@@ -186,6 +200,9 @@ def generate(repository):
                "STTERR.3SH": build_models(),
                "STDATERR.VSH": primary, "STDBTERR.VSH": secondary}
     model_metadata, budget, prepared = validate(outputs, repository)
+    adhesion_surfaces = [name for bit, name in enumerate(
+        ("paved", "dirt", "ice", "grass"))
+        if ADHESION_SURFACE_MASK & (1 << bit)]
     manifest = {
         "car_id": CAR_ID,
         "name": "Tesla Roadster Rocket",
@@ -198,7 +215,13 @@ def generate(repository):
         "announced_targets": {"zero_to_60_mph_seconds_under": 0.59,
                               "top_speed_mph_over": 230, "range_miles_over": 300},
         "simulation": "Single-speed EV with a launch torque pulse; no separate flight/thruster controls.",
-        "capabilities": {"fand": "Automatic fan adhesion to contacted driving surfaces in updated Restunts, enabled solely by this one-byte capability."},
+        "capabilities": {"fand": "Automatic fan adhesion to contacted driving surfaces in updated Restunts; one-byte enable flag, with optional adhs settings."},
+        "adhesion": {"resource": "adhs", "version": ADHESION_VERSION,
+                     "max_distance_world_units": ADHESION_MAX_DISTANCE,
+                     "max_alignment_degrees": ADHESION_MAX_ALIGNMENT_DEGREES,
+                     "min_alignment_cosine_q14": ADHESION_MIN_ALIGNMENT_Q14,
+                     "surface_mask": ADHESION_SURFACE_MASK,
+                     "surfaces": adhesion_surfaces},
         "geometry_dimensions": "Calibrated against stock Corvette/NSX using reported 2026 width and wheelbase; length and height remain photo-based estimates. See TERR-sizing.md.",
         "sizing": {"reported_width_mm_approx": 2000, "reported_wheelbase_mm": 2825,
                    "confirmed_length_mm": None, "confirmed_height_mm": None,
@@ -235,13 +258,21 @@ data directory. They are also installed in this repository's stunts/ directory
 by the creation command. No existing car is replaced.
 
 Fan adhesion activates automatically in updated Restunts when this car is
-selected. The one-byte fand=1 resource is the sole trigger; no startup option
-or launcher control is needed. Cars without that flag keep the original physics.
-Original Stunts ignores it. One fixed forward ratio represents the EV drivetrain. No gear
-changes are necessary.
+selected. The one-byte fand=1 resource enables it; no startup option or launcher
+control is needed. A separate version-{ADHESION_VERSION} adhs resource sets the maximum contact
+distance to {ADHESION_MAX_DISTANCE} world units, maximum alignment angle to {ADHESION_MAX_ALIGNMENT_DEGREES} degrees (Q14 cosine
+{ADHESION_MIN_ALIGNMENT_Q14}), and allowed material mask to 0x{ADHESION_SURFACE_MASK:02X} ({', '.join(adhesion_surfaces) or 'none'}).
+Distance is measured from each tyre contact to its selected surface plane;
+this does not search for arbitrary nearby surfaces. No water adhesion.
+Cars without fand=1 keep the original physics. Missing adhs uses engine defaults
+(12 units, 60 degrees, all four materials). Malformed or unsupported adhs
+disables adhesion for that car.
+Original Stunts ignores both extra resources. One fixed forward ratio
+represents the EV drivetrain. No gear changes are necessary.
 Surface adhesion holds the car against supported drivable surfaces, including
 inverted and vertical contacts at a standstill. It is not a free-flight mode.
 Use the same car resources when recording and playing back a replay.
+See docs/car-adhesion.md in the repository for the settings format and bounds.
 
 PERFORMANCE
 Reported Rocket targets: under 0.59 s to 60 mph, above 230 mph, above 300 miles

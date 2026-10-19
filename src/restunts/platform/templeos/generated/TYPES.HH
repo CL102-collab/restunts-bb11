@@ -889,6 +889,13 @@ class CShape3DLegacyOpponentRenderContext
   legacy_u16 material_color_offset;
 };
 
+class CCarSurfaceAdhesionSettings
+{
+  legacy_u16 max_distance;
+  legacy_u16 min_alignment;
+  legacy_u8 surface_mask;
+};
+
 class CTrackResourceReader
 {
   legacy_u8 *source;
@@ -1630,6 +1637,7 @@ class CPlayerWheelMotion
   legacy_s16 travel;
   legacy_s16 inverted_adjustment;
   legacy_u8 surface_adhesion;
+  legacy_s16 car_index;
   CVector inverted_offset;
 };
 

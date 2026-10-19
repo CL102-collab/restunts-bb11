@@ -141,21 +141,33 @@ static void opponent_route_write(legacy_u16 index, legacy_u16 value)
 }
 
 legacy_u8 car_surface_adhesion[2];
+struct CAR_SURFACE_ADHESION_SETTINGS car_surface_adhesion_settings[2] = {
+	{CAR_ADHESION_DEFAULT_DISTANCE, CAR_ADHESION_DEFAULT_ALIGNMENT, CAR_ADHESION_SURFACE_MASK},
+	{CAR_ADHESION_DEFAULT_DISTANCE, CAR_ADHESION_DEFAULT_ALIGNMENT, CAR_ADHESION_SURFACE_MASK}};
+
+static void reset_car_surface_adhesion(legacy_s16 car_index)
+{
+	car_surface_adhesion[car_index] = 0;
+	car_surface_adhesion_settings[car_index].max_distance = CAR_ADHESION_DEFAULT_DISTANCE;
+	car_surface_adhesion_settings[car_index].min_alignment = CAR_ADHESION_DEFAULT_ALIGNMENT;
+	car_surface_adhesion_settings[car_index].surface_mask = CAR_ADHESION_SURFACE_MASK;
+}
 
 void reset_car_capabilities(void)
 {
-	car_surface_adhesion[0] = car_surface_adhesion[1] = 0;
+	reset_car_surface_adhesion(0);
+	reset_car_surface_adhesion(1);
 }
 
 static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opponent)
 {
-	car_surface_adhesion[is_opponent != 0] = 0;
+	legacy_s16 car_index = is_opponent != 0;
+	reset_car_surface_adhesion(car_index);
 	if (!car_resource) {
 		return;
 	}
-	/* Read only this optional capability. Keep the original resource lookup
-	 * and SIMD decoding unchanged for cars without it. Reject empty or
-	 * oversized payloads rather than reading into a neighbouring resource. */
+	/* Bound both optional payloads using their directory neighbours. Malformed
+	 * settings fail closed; a missing settings chunk keeps `fand` compatibility. */
 	const legacy_u8 huge *resource = car_resource;
 	legacy_u32 size = LEGACY_READ_U32_LE(resource + RESOURCE_FILE_SIZE_OFFSET);
 	legacy_u16 count = resource_file_count(car_resource);
@@ -166,7 +178,9 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 		return;
 	}
 	legacy_u32 data_size = size - data_start;
-	legacy_u32 flag_start = data_size;
+	legacy_u32 starts[2] = {data_size, data_size};
+	legacy_u32 ends[2] = {data_size, data_size};
+	legacy_u16 aliases[2] = {0, 0};
 	legacy_u16 found = 0;
 	for (legacy_u16 index = 0; index < count; index++) {
 		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
@@ -176,28 +190,56 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 		}
 		const legacy_u8 huge *name = resource + RESOURCE_FILE_DIRECTORY_OFFSET +
 									 (legacy_u32)index * RESOURCE_FILE_IDENTIFIER_SIZE;
+		legacy_u16 slot;
 		if (name[0] == 'f' && name[1] == 'a' && name[2] == 'n' && name[3] == 'd') {
-			if (found) {
-				return;
-			}
-			flag_start = offset;
-			found = 1;
+			slot = 0;
+		} else if (name[0] == 'a' && name[1] == 'd' && name[2] == 'h' && name[3] == 's') {
+			slot = 1;
+		} else {
+			continue;
 		}
+		if ((found & (1U << slot)) != 0 || offset >= data_size) {
+			return;
+		}
+		starts[slot] = offset;
+		found |= 1U << slot;
 	}
-	if (!found || flag_start >= data_size) {
+	if ((found & 1U) == 0) {
 		return;
 	}
-	legacy_u32 flag_end = data_size;
 	for (legacy_u16 index = 0; index < count; index++) {
 		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
 											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
-		if (offset > flag_start && offset < flag_end) {
-			flag_end = offset;
+		for (legacy_u16 slot = 0; slot < 2; slot++) {
+			if (offset == starts[slot]) {
+				aliases[slot]++;
+			} else if (offset > starts[slot] && offset < ends[slot]) {
+				ends[slot] = offset;
+			}
 		}
 	}
-	if (flag_end - flag_start == 1) {
-		car_surface_adhesion[is_opponent != 0] = resource[data_start + flag_start] == 1;
+	if (aliases[0] != 1 || ends[0] - starts[0] != 1 || resource[data_start + starts[0]] != 1) {
+		return;
 	}
+	if ((found & 2U) != 0) {
+		if (aliases[1] != 1 || ends[1] - starts[1] != CAR_ADHESION_SETTINGS_SIZE) {
+			return;
+		}
+		const legacy_u8 huge *settings = resource + data_start + starts[1];
+		legacy_u16 max_distance = LEGACY_READ_U16_LE(settings + 1);
+		legacy_u16 min_alignment = LEGACY_READ_U16_LE(settings + 3);
+		legacy_u8 surface_mask = settings[5];
+		if (settings[0] != CAR_ADHESION_SETTINGS_VERSION ||
+			max_distance > CAR_ADHESION_MAX_DISTANCE ||
+			min_alignment > CAR_ADHESION_MAX_ALIGNMENT ||
+			(surface_mask & ~CAR_ADHESION_SURFACE_MASK) != 0) {
+			return;
+		}
+		car_surface_adhesion_settings[car_index].max_distance = max_distance;
+		car_surface_adhesion_settings[car_index].min_alignment = min_alignment;
+		car_surface_adhesion_settings[car_index].surface_mask = surface_mask;
+	}
+	car_surface_adhesion[car_index] = 1;
 }
 
 static legacy_s16 aero_resistance_at(legacy_s16 resistance, legacy_s16 speed_index)

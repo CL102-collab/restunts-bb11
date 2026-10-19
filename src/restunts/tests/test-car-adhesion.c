@@ -109,6 +109,148 @@ static void test_resource_capability(void)
 	assert(car_surface_adhesion[OPPONENT_CAR_INDEX] == 0);
 }
 
+/* The optional versioned settings follow the legacy one-byte fand flag. */
+static void make_settings_resource(legacy_u8 resource[29], legacy_u16 max_distance,
+								   legacy_u16 min_alignment, legacy_u8 surface_mask)
+{
+	memset(resource, 0, 29);
+	resource_file_set_size(resource, 29);
+	LEGACY_WRITE_U16_LE(resource + RESOURCE_FILE_COUNT_OFFSET, 2);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "fandadhs", 8);
+	resource_file_set_offset(resource, 2, 0, 0);
+	resource_file_set_offset(resource, 2, 1, 1);
+	resource[22] = 1;
+	resource[23] = 1;
+	LEGACY_WRITE_U16_LE(resource + 24, max_distance);
+	LEGACY_WRITE_U16_LE(resource + 26, min_alignment);
+	resource[28] = surface_mask;
+}
+
+static void assert_settings(legacy_s16 car_index, legacy_u16 max_distance, legacy_u16 min_alignment,
+							legacy_u8 surface_mask)
+{
+	assert(car_surface_adhesion_settings[car_index].max_distance == max_distance);
+	assert(car_surface_adhesion_settings[car_index].min_alignment == min_alignment);
+	assert(car_surface_adhesion_settings[car_index].surface_mask == surface_mask);
+}
+
+static void test_resource_settings(void)
+{
+	legacy_u8 resource[30];
+	legacy_u8 legacy_resource[15];
+	reset_car_capabilities();
+	assert_settings(PLAYER_CAR_INDEX, 12, 8192, 15);
+	assert_settings(OPPONENT_CAR_INDEX, 12, 8192, 15);
+
+	make_settings_resource(resource, 24, 14189, 5);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 1);
+	assert_settings(PLAYER_CAR_INDEX, 24, 14189, 5);
+	assert_settings(OPPONENT_CAR_INDEX, 12, 8192, 15);
+	make_settings_resource(resource, 4, 0, 2);
+	setup_car_surface_adhesion(resource, OPPONENT_CAR_INDEX);
+	assert(car_surface_adhesion[OPPONENT_CAR_INDEX] == 1);
+	assert_settings(OPPONENT_CAR_INDEX, 4, 0, 2);
+	assert_settings(PLAYER_CAR_INDEX, 24, 14189, 5);
+
+	/* Selecting a legacy car restores its defaults without leaking settings
+	 * between drivers, even if the preceding car customized every field. */
+	make_capability_resource(legacy_resource, 1);
+	setup_car_surface_adhesion(legacy_resource, PLAYER_CAR_INDEX);
+	assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 1);
+	assert_settings(PLAYER_CAR_INDEX, 12, 8192, 15);
+	assert_settings(OPPONENT_CAR_INDEX, 4, 0, 2);
+	setup_car_surface_adhesion(0, OPPONENT_CAR_INDEX);
+	assert(car_surface_adhesion[OPPONENT_CAR_INDEX] == 0);
+	assert_settings(OPPONENT_CAR_INDEX, 12, 8192, 15);
+
+	/* Directory order need not match data order. */
+	make_settings_resource(resource, 511, 16384, 15);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "adhsfand", 8);
+	resource_file_set_offset(resource, 2, 0, 1);
+	resource_file_set_offset(resource, 2, 1, 0);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 1);
+	assert_settings(PLAYER_CAR_INDEX, 511, 16384, 15);
+
+	/* Zero means exact contact, any tire-facing angle, and no allowed material.
+	 * These are valid settings, rather than absent values or an enable flag. */
+	make_settings_resource(resource, 0, 0, 0);
+	setup_car_surface_adhesion(resource, OPPONENT_CAR_INDEX);
+	assert(car_surface_adhesion[OPPONENT_CAR_INDEX] == 1);
+	assert_settings(OPPONENT_CAR_INDEX, 0, 0, 0);
+	reset_car_capabilities();
+	assert_settings(PLAYER_CAR_INDEX, 12, 8192, 15);
+	assert_settings(OPPONENT_CAR_INDEX, 12, 8192, 15);
+
+	/* Settings alone cannot enable adhesion. */
+	make_settings_resource(resource, 24, 8192, 15);
+	memcpy(resource + RESOURCE_FILE_DIRECTORY_OFFSET, "gnam", 4);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 0);
+
+	make_settings_resource(resource, 7, 14189, 2);
+	setup_car_surface_adhesion(resource, OPPONENT_CAR_INDEX);
+
+	/* A malformed extension must fail closed instead of silently using the
+	 * legacy behavior, or keeping settings left over from the preceding car. */
+	for (legacy_u16 invalid = 0; invalid < 8; invalid++) {
+		make_settings_resource(resource, 24, 8192, 15);
+		setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+		assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 1);
+		switch (invalid) {
+			case 0:
+				resource[23] = 0;
+				break;
+			case 1:
+				resource[23] = 2;
+				break;
+			case 2:
+				LEGACY_WRITE_U16_LE(resource + 24, 512);
+				break;
+			case 3:
+				LEGACY_WRITE_U16_LE(resource + 26, 16385);
+				break;
+			case 4:
+				resource[28] = 16;
+				break;
+			case 5:
+				resource_file_set_size(resource, 28);
+				break;
+			case 6:
+				resource[29] = 0;
+				resource_file_set_size(resource, 30);
+				break;
+			case 7:
+				resource_file_set_offset(resource, 2, 1, 8);
+				break;
+		}
+		setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+		assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 0);
+		assert_settings(PLAYER_CAR_INDEX, 12, 8192, 15);
+		assert(car_surface_adhesion[OPPONENT_CAR_INDEX] == 1);
+		assert_settings(OPPONENT_CAR_INDEX, 7, 14189, 2);
+	}
+
+	/* Duplicate extension identifiers are ambiguous even if both agree. */
+	legacy_u8 duplicate[43];
+	memset(duplicate, 0, sizeof(duplicate));
+	resource_file_set_size(duplicate, sizeof(duplicate));
+	LEGACY_WRITE_U16_LE(duplicate + RESOURCE_FILE_COUNT_OFFSET, 3);
+	memcpy(duplicate + RESOURCE_FILE_DIRECTORY_OFFSET, "fandadhsadhs", 12);
+	resource_file_set_offset(duplicate, 3, 0, 0);
+	resource_file_set_offset(duplicate, 3, 1, 1);
+	resource_file_set_offset(duplicate, 3, 2, 7);
+	duplicate[30] = 1;
+	make_settings_resource(resource, 24, 8192, 15);
+	memcpy(duplicate + 31, resource + 23, 6);
+	memcpy(duplicate + 37, resource + 23, 6);
+	setup_car_surface_adhesion(duplicate, PLAYER_CAR_INDEX);
+	assert(car_surface_adhesion[PLAYER_CAR_INDEX] == 0);
+	assert_settings(PLAYER_CAR_INDEX, 12, 8192, 15);
+	reset_car_capabilities();
+}
+
 static void initialize_plane(legacy_s16 roll)
 {
 	memset(planes, 0, sizeof(planes));
@@ -144,10 +286,12 @@ static void test_selected_car_capability(void)
 	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
 	prepare_wheel_motion(&car, &simd, &motion, PLAYER_CAR_INDEX);
 	assert(motion.surface_adhesion == 1);
+	assert(motion.car_index == PLAYER_CAR_INDEX);
 	assert(motion.inverted_adjustment == 0);
 	assert(motion.current[0].ly == car_working_y + PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT);
 	prepare_wheel_motion(&car, &simd, &motion, OPPONENT_CAR_INDEX);
 	assert(motion.surface_adhesion == 0);
+	assert(motion.car_index == OPPONENT_CAR_INDEX);
 	assert(motion.inverted_adjustment == -PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT);
 	assert(motion.current[0].ly == car_working_y + PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT -
 									   PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT);
@@ -155,6 +299,109 @@ static void test_selected_car_capability(void)
 	prepare_wheel_motion(&car, &simd, &motion, OPPONENT_CAR_INDEX);
 	assert(motion.surface_adhesion == 1);
 	assert(motion.inverted_adjustment == 0);
+	reset_car_capabilities();
+}
+
+static void assert_configured_contact(struct PLAYER_WHEEL_MOTION *motion, legacy_s16 distance,
+									  legacy_s16 relative_roll, legacy_s16 surface,
+									  legacy_s16 expected)
+{
+	initialize_plane(ANGLE_HALF_TURN);
+	mat_rot_z(&car_to_world_rotation, ANGLE_HALF_TURN + relative_roll);
+	current_surf_type = surface;
+	struct CARSTATE car = {0};
+	motion->current[0] = (struct VECTORLONG){0, (1000L - distance) * 64, 0};
+	measure_wheel_plane_distance(&motion->current[0]);
+	assert(nextPosAndNormalIP == distance);
+	assert(hold_wheel_to_surface(&car, motion, 0) == expected);
+	if (expected) {
+		assert(nextPosAndNormalIP == 0);
+		assert(motion->current[0].lx == 0);
+		assert(motion->current[0].ly == 1000L * 64);
+		assert(motion->current[0].lz == 0);
+	}
+}
+
+static void test_configured_contacts(void)
+{
+	legacy_u8 resource[29];
+	struct PLAYER_WHEEL_MOTION player = {0};
+	struct PLAYER_WHEEL_MOTION opponent = {0};
+	player.surface_adhesion = opponent.surface_adhesion = 1;
+	opponent.car_index = OPPONENT_CAR_INDEX;
+	reset_car_capabilities();
+
+	/* A smaller capture radius replaces the old twelve-unit tolerance. The
+	 * other driver's larger radius must also work beyond that old tolerance. */
+	make_settings_resource(resource, 4, 8192, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	make_settings_resource(resource, 24, 8192, 15);
+	setup_car_surface_adhesion(resource, OPPONENT_CAR_INDEX);
+	assert_configured_contact(&player, 4, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 5, 0, CAR_SURFACE_PAVED, 0);
+	assert_configured_contact(&player, 13, 0, CAR_SURFACE_PAVED, 0);
+	assert_configured_contact(&opponent, 13, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&opponent, 24, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&opponent, 25, 0, CAR_SURFACE_PAVED, 0);
+	assert_configured_contact(&opponent, -1, 0, CAR_SURFACE_PAVED, 0);
+
+	make_settings_resource(resource, 0, 8192, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 0, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_PAVED, 0);
+	make_settings_resource(resource, 511, 8192, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 511, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 512, 0, CAR_SURFACE_PAVED, 0);
+
+	/* A 45-degree relative tire orientation fits the legacy 60-degree limit,
+	 * but fails a resource specifying about 30 degrees (Q14 cosine 14189). */
+	make_settings_resource(resource, 24, 14189, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 1, ANGLE_QUARTER_TURN / 2, CAR_SURFACE_PAVED, 0);
+	assert_configured_contact(&opponent, 1, ANGLE_QUARTER_TURN / 2, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&opponent, 1, ANGLE_QUARTER_TURN, CAR_SURFACE_PAVED, 0);
+	make_settings_resource(resource, 24, 0, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 1, ANGLE_QUARTER_TURN, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 1, ANGLE_HALF_TURN, CAR_SURFACE_PAVED, 0);
+	make_settings_resource(resource, 24, 16384, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_PAVED, 1);
+	assert_configured_contact(&player, 1, ANGLE_QUARTER_TURN / 2, CAR_SURFACE_PAVED, 0);
+
+	/* Fixed-point sine/cosine vectors at 45 degrees are slightly shorter than
+	 * one. A zero-angle setting must still accept identical orientations. */
+	initialize_plane(ANGLE_QUARTER_TURN / 2);
+	struct CARSTATE car = {0};
+	player.current[0] = (struct VECTORLONG){0, 1000L * 64, 0};
+	measure_wheel_plane_distance(&player.current[0]);
+	assert(hold_wheel_to_surface(&car, &player, 0));
+	mat_rot_z(&car_to_world_rotation, ANGLE_QUARTER_TURN / 2 + 1);
+	measure_wheel_plane_distance(&player.current[0]);
+	assert(!hold_wheel_to_surface(&car, &player, 0));
+
+	/* Every material bit gates its own surface, without allowing water or
+	 * unknown material identifiers through even when every bit is set. */
+	for (legacy_s16 allowed = CAR_SURFACE_PAVED; allowed <= CAR_SURFACE_GRASS; allowed++) {
+		make_settings_resource(resource, 24, 8192,
+							   (legacy_u8)(1U << (allowed - CAR_SURFACE_PAVED)));
+		setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+		for (legacy_s16 surface = CAR_SURFACE_PAVED; surface <= CAR_SURFACE_GRASS; surface++) {
+			assert_configured_contact(&player, 1, 0, surface, surface == allowed);
+		}
+	}
+	make_settings_resource(resource, 24, 8192, 0);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	for (legacy_s16 surface = CAR_SURFACE_PAVED; surface <= CAR_SURFACE_GRASS; surface++) {
+		assert_configured_contact(&player, 0, 0, surface, 0);
+	}
+	make_settings_resource(resource, 24, 8192, 15);
+	setup_car_surface_adhesion(resource, PLAYER_CAR_INDEX);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_WATER, 0);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_PAVED - 1, 0);
+	assert_configured_contact(&player, 1, 0, CAR_SURFACE_GRASS + 1, 0);
 	reset_car_capabilities();
 }
 
@@ -382,7 +629,9 @@ static void test_full_moving_loop_facets(void)
 int main(void)
 {
 	test_resource_capability();
+	test_resource_settings();
 	test_selected_car_capability();
+	test_configured_contacts();
 	test_stopped_inverted_and_vertical_contacts();
 	test_contact_releases_and_stock_gravity();
 	test_finite_loop_surface();

@@ -29,6 +29,8 @@ legacy_u8 rs_kevinrnd_g_kevinrandom_seed[6];
 MemSet(&rs_kevinrnd_g_kevinrandom_seed,0,sizeof(rs_kevinrnd_g_kevinrandom_seed));
 legacy_u8 car_surface_adhesion[2];
 MemSet(&car_surface_adhesion,0,sizeof(car_surface_adhesion));
+CCarSurfaceAdhesionSettings car_surface_adhesion_settings[2];
+MemSet(&car_surface_adhesion_settings,0,sizeof(car_surface_adhesion_settings));
 legacy_u8 rs_trkutil_hillroad_pieces[4][6];
 MemSet(&rs_trkutil_hillroad_pieces,0,sizeof(rs_trkutil_hillroad_pieces));
 legacy_u8 rs_trkutil_hillroad_shapes[4][4];

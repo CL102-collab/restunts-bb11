@@ -43,7 +43,21 @@
   },
   "simulation": "Single-speed EV with a launch torque pulse; no separate flight/thruster controls.",
   "capabilities": {
-    "fand": "Automatic fan adhesion to contacted driving surfaces in updated Restunts, enabled solely by this one-byte capability."
+    "fand": "Automatic fan adhesion to contacted driving surfaces in updated Restunts; one-byte enable flag, with optional adhs settings."
+  },
+  "adhesion": {
+    "resource": "adhs",
+    "version": 1,
+    "max_distance_world_units": 12,
+    "max_alignment_degrees": 60,
+    "min_alignment_cosine_q14": 8192,
+    "surface_mask": 15,
+    "surfaces": [
+      "paved",
+      "dirt",
+      "ice",
+      "grass"
+    ]
   },
   "geometry_dimensions": "Calibrated against stock Corvette/NSX using reported 2026 width and wheelbase; length and height remain photo-based estimates. See TERR-sizing.md.",
   "sizing": {
@@ -158,8 +172,8 @@
   ],
   "files": {
     "CARTERR.RES": {
-      "bytes": 971,
-      "sha256": "6db4b22ab7ad321a2c2c2a794de57630f372f15ef067b703c2d9eac35c528af6"
+      "bytes": 985,
+      "sha256": "dd3597b1d52c80edfe2a1839458e344b0790d758bfce466c53ad279f7a1459d5"
     },
     "STTERR.3SH": {
       "bytes": 17294,

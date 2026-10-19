@@ -135,6 +135,7 @@ struct PLAYER_WHEEL_MOTION {
 	legacy_s16 travel;
 	legacy_s16 inverted_adjustment;
 	legacy_u8 surface_adhesion;
+	legacy_s16 car_index;
 	struct VECTOR inverted_offset;
 };
 
@@ -374,6 +375,7 @@ static void prepare_wheel_motion(struct CARSTATE *carstate, struct SIMD *simd,
 	legacy_s16 front_wheel_heading_offset = prepare_wheel_travel(carstate, motion);
 	restore_stopped_wheel_headings(carstate, motion, car_index);
 	prepare_wheel_rotation(carstate, motion);
+	motion->car_index = car_index;
 	motion->surface_adhesion = car_surface_adhesion[car_index == OPPONENT_CAR_INDEX];
 	if (motion->surface_adhesion) {
 		/* The optional fan replaces the original speed-dependent loop attachment.
@@ -629,10 +631,13 @@ static void apply_wheel_gravity(struct CARSTATE *carstate, struct VECTORLONG *po
 static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
 										struct PLAYER_WHEEL_MOTION *motion, legacy_s16 wheel_index)
 {
+	const struct CAR_SURFACE_ADHESION_SETTINGS *settings =
+		&car_surface_adhesion_settings[motion->car_index == OPPONENT_CAR_INDEX];
 	if (!motion->surface_adhesion || carstate->car_crashBmpFlag != CRASH_EVENT_NONE ||
 		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO ||
 		current_surf_type < CAR_SURFACE_PAVED || current_surf_type > CAR_SURFACE_GRASS ||
-		nextPosAndNormalIP < 0 || nextPosAndNormalIP > PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT) {
+		nextPosAndNormalIP < 0 || nextPosAndNormalIP > settings->max_distance ||
+		(settings->surface_mask & (1U << (current_surf_type - CAR_SURFACE_PAVED))) == 0) {
 		return 0;
 	}
 
@@ -644,11 +649,18 @@ static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
 	legacy_s32 alignment = (legacy_s32)car_up.x * surface_up.x +
 						   (legacy_s32)car_up.y * surface_up.y +
 						   (legacy_s32)car_up.z * surface_up.z;
-	if (alignment < (legacy_s32)TRIG_FIXED_ONE * (TRIG_FIXED_ONE / 2)) {
-		return 0;
+	if (alignment < (legacy_s32)TRIG_FIXED_ONE * settings->min_alignment) {
+		/* Fixed-point rotations can shorten even identical up vectors. Keep
+		 * exact co-directional alignment valid at a configured zero-degree limit. */
+		if (alignment <= 0 ||
+			(legacy_s32)car_up.x * surface_up.y != (legacy_s32)car_up.y * surface_up.x ||
+			(legacy_s32)car_up.x * surface_up.z != (legacy_s32)car_up.z * surface_up.x ||
+			(legacy_s32)car_up.y * surface_up.z != (legacy_s32)car_up.z * surface_up.y) {
+			return 0;
+		}
 	}
 
-	/* Resolve the existing contact tolerance along the surface normal, rather
+	/* Resolve the configured contact distance along the surface normal, rather
 	 * than applying world gravity and letting an inverted wheel separate. */
 	struct VECTOR normal = {0, 0, 0};
 	normal.y = -nextPosAndNormalIP * (1 << PLAYER_PHYSICS_POSITION_SCALE_SHIFT);

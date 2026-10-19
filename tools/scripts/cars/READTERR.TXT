@@ -10,13 +10,21 @@ data directory. They are also installed in this repository's stunts/ directory
 by the creation command. No existing car is replaced.
 
 Fan adhesion activates automatically in updated Restunts when this car is
-selected. The one-byte fand=1 resource is the sole trigger; no startup option
-or launcher control is needed. Cars without that flag keep the original physics.
-Original Stunts ignores it. One fixed forward ratio represents the EV drivetrain. No gear
-changes are necessary.
+selected. The one-byte fand=1 resource enables it; no startup option or launcher
+control is needed. A separate version-1 adhs resource sets the maximum contact
+distance to 12 world units, maximum alignment angle to 60 degrees (Q14 cosine
+8192), and allowed material mask to 0x0F (paved, dirt, ice, grass).
+Distance is measured from each tyre contact to its selected surface plane;
+this does not search for arbitrary nearby surfaces. No water adhesion.
+Cars without fand=1 keep the original physics. Missing adhs uses engine defaults
+(12 units, 60 degrees, all four materials). Malformed or unsupported adhs
+disables adhesion for that car.
+Original Stunts ignores both extra resources. One fixed forward ratio
+represents the EV drivetrain. No gear changes are necessary.
 Surface adhesion holds the car against supported drivable surfaces, including
 inverted and vertical contacts at a standstill. It is not a free-flight mode.
 Use the same car resources when recording and playing back a replay.
+See docs/car-adhesion.md in the repository for the settings format and bounds.
 
 PERFORMANCE
 Reported Rocket targets: under 0.59 s to 60 mph, above 230 mph, above 300 miles
