@@ -87,6 +87,12 @@ folder must contain the original game resources, including `MAIN.RES` (or
 `MAIN.PRE`), `FONTDEF.FNT`, and `FONTN.FNT`. Other missing resources are reported by
 the game. Files are read locally and are never uploaded.
 
+Folder loading checks and reads up to eight files concurrently, with separate
+scanning, checking, and reading progress. All files are validated and read before
+replacing the current selection, so read and filename errors keep the previous
+game data.
+Large track/replay collections and cloud or network folders can still take longer.
+
 On **Start game**, the game checks the version text in `MISC.RES` (preferred) or
 `MISC.PRE`. It requires Broderbund Stunts 1.1 (12 Feb. 1991), while allowing
 modifications to other resources. A missing or incompatible version displays an
@@ -112,7 +118,10 @@ choices again. If storage is unavailable, folder selection, startup options, and
 saving still work for the current session.
 
 Firefox, Safari, and other browsers without that API use a read-only directory
-picker and require selecting the folder each time. The page shows **Export saves** and **Import saves, tracks, or replays**
+picker and require selecting the folder each time. That picker may scan all
+subfolders before returning the selection, including folders whose files the game
+ignores; keeping unrelated large subfolders outside the game folder avoids that
+browser-controlled delay. The page shows **Export saves** and **Import saves, tracks, or replays**
 only on this fallback path (or after a direct-write failure). Export downloads a
 JSON bundle of changed/new tracks, replays, high scores, and configuration files;
 it does not copy unchanged original resources. Select the game folder and import
@@ -205,7 +214,8 @@ node out/test-wasm-fileio.js
 
 The launch-form browser test needs Node.js and Playwright, but no Emscripten
 build or game files. It checks startup flags, sound enable/disable, remembered
-settings, migration of removed preferences, mobile layout, and fullscreen canvas sizing
+settings, migration of removed preferences, mobile layout, fullscreen canvas sizing,
+and concurrent folder loading with filename validation and failed-import recovery
 with a stub for the native runtime:
 
 ```sh

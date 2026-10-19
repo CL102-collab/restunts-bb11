@@ -203,6 +203,7 @@
         const SAVE_VERSION = 1;
         const MAX_IMPORT_BYTES = 16 * 1024 * 1024;
         const MAX_GAME_BYTES = 256 * 1024 * 1024;
+        const FILE_READ_CONCURRENCY = 8;
         const ANIMATION_DIRECTORY = 'opponents/animations';
         // Use character comparisons: HTML minifiers may unescape regex control ranges.
         const DOS_BASENAME_MAX_LENGTH = 8;
@@ -545,31 +546,71 @@
             exporter.disabled = loading || !gameLoaded;
         }
 
+        async function forEachGameFile(files, processFile) {
+            let next = 0;
+            let failed = false;
+            let firstError;
+            await Promise.all(Array.from({ length: Math.min(FILE_READ_CONCURRENCY, files.length) }, async () => {
+                while (!failed && next < files.length) {
+                    const file = files[next++];
+                    try {
+                        await processFile(file);
+                    } catch (error) {
+                        if (!failed) firstError = error;
+                        failed = true;
+                    }
+                }
+            }));
+            // Finish in-flight reads before the form can start another folder load.
+            if (failed) throw firstError;
+        }
+
         async function loadGameFiles(files, selectedDirectory) {
+            const candidates = [];
+            for (const entry of files) {
+                const name = gameImportPath(entry.path);
+                if (name) candidates.push({ ...entry, name });
+            }
+            let checked = 0;
+            status.textContent = 'Checking game files… 0 of ' + candidates.length + '.';
+            await forEachGameFile(candidates, async entry => {
+                // Directory handles need an asynchronous metadata lookup; fallback File objects do not.
+                entry.file = entry.file || await entry.handle.getFile();
+                status.textContent = 'Checking game files… ' + (++checked) + ' of ' + candidates.length + '.';
+            });
             const pending = new Map();
             let totalBytes = 0;
-            for (const entry of files) {
-                const file = entry.file;
-                const name = gameImportPath(entry.path);
-                if (!name) continue;
+            for (const { name, file } of candidates) {
                 if (pending.has(name)) {
-                    const previous = pending.get(name);
-                    if (file.size !== previous.size || !sameBytes(new Uint8Array(await file.arrayBuffer()),
-                        new Uint8Array(await previous.arrayBuffer()))) {
+                    const previous = pending.get(name)[0];
+                    if (file.size !== previous.size) {
                         throw new Error('Conflicting game filenames: ' + previous.name + ' and ' + file.name);
                     }
+                    pending.get(name).push(file);
                     continue;
                 }
                 totalBytes += file.size;
                 if (totalBytes > MAX_GAME_BYTES) throw new Error('Game folder resources exceed 256 MiB.');
-                pending.set(name, file);
+                pending.set(name, [file]);
             }
             if ((!pending.has('main.res') && !pending.has('main.pre')) ||
                 !pending.has('fontdef.fnt') || !pending.has('fontn.fnt')) {
                 throw new Error('Select the folder containing MAIN.RES (or MAIN.PRE), FONTDEF.FNT, and FONTN.FNT.');
             }
             const contents = new Map();
-            for (const [name, file] of pending) contents.set(name, new Uint8Array(await file.arrayBuffer()));
+            let completed = 0;
+            status.textContent = 'Reading game files… 0 of ' + pending.size + '.';
+            await forEachGameFile(Array.from(pending), async ([name, matchingFiles]) => {
+                const first = matchingFiles[0];
+                const bytes = new Uint8Array(await first.arrayBuffer());
+                for (const file of matchingFiles.slice(1)) {
+                    if (!sameBytes(bytes, new Uint8Array(await file.arrayBuffer()))) {
+                        throw new Error('Conflicting game filenames: ' + first.name + ' and ' + file.name);
+                    }
+                }
+                contents.set(name, bytes);
+                status.textContent = 'Reading game files… ' + (++completed) + ' of ' + pending.size + '.';
+            });
             function clearDirectory(path) {
                 for (const name of Module.FS.readdir(path)) {
                     if (name === '.' || name === '..') continue;
@@ -583,14 +624,15 @@
                 }
             }
             clearDirectory(DATA_DIRECTORY);
-            for (const [name, bytes] of contents) {
+            for (const name of pending.keys()) {
+                const bytes = contents.get(name);
                 const path = DATA_DIRECTORY + '/' + name;
                 Module.FS.mkdirTree(path.slice(0, path.lastIndexOf('/')));
                 Module.FS.writeFile(path, bytes);
             }
             directoryHandle = selectedDirectory;
             diskNames.clear();
-            for (const [name, file] of pending) diskNames.set(name, file.name);
+            for (const [name, matchingFiles] of pending) diskNames.set(name, matchingFiles[0].name);
             baseline.clear();
             for (const name of saveFiles()) {
                 baseline.set(name.toLowerCase(), Module.FS.readFile(DATA_DIRECTORY + '/' + name));
@@ -678,13 +720,15 @@
         }
 
         async function loadDirectory(selected) {
-            status.textContent = 'Reading game files from ' + selected.name + '…';
+            status.textContent = 'Scanning game folder ' + selected.name + '…';
             const files = [];
             async function collectDirectory(directory, prefix) {
                 for await (const entry of directory.values()) {
                     const path = prefix + entry.name;
                     if (entry.kind === 'file' && gameImportPath(path)) {
-                        files.push({ file: await entry.getFile(), path });
+                        // Collect handles first so browser filesystem requests can run concurrently.
+                        files.push({ handle: entry, path });
+                        status.textContent = 'Scanning game folder ' + selected.name + '… ' + files.length + ' game files found.';
                     } else if (entry.kind === 'directory' &&
                         (path.toLowerCase() === 'opponents' || path.toLowerCase() === ANIMATION_DIRECTORY)) {
                         await collectDirectory(entry, path + '/');
