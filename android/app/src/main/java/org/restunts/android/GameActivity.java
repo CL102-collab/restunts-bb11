@@ -4,7 +4,10 @@ import android.content.Intent;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.pm.ActivityInfo;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 import android.view.InputDevice;
@@ -15,12 +18,16 @@ import org.libsdl.app.SDLActivity;
 
 /** SDL owns lifecycle, graphics, audio, multitouch and the software keyboard. */
 public final class GameActivity extends SDLActivity {
+    private static final long CAR_IMPACT_VIBRATION_MS = 40;
     private static Context applicationContext;
     private final SparseArray<SparseIntArray> remotePressed = new SparseArray<>();
     private final SparseIntArray remoteHeld = new SparseIntArray();
     private boolean television;
     private boolean nativeReady;
+    private boolean vibrationEnabled;
+    private boolean resumed;
     private TiltSteering tiltSteering;
+    private Vibrator vibrator;
 
     @Override
     public void onCreate(Bundle state) {
@@ -30,7 +37,17 @@ public final class GameActivity extends SDLActivity {
         super.onCreate(state);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         nativeReady = !mBrokenLibraries;
+        vibrationEnabled = getIntent().getBooleanExtra(LaunchOptions.VIBRATION_KEY,
+            LaunchOptions.DEFAULT_VIBRATION);
         if (nativeReady) {
+            try {
+                Vibrator device = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (device != null && device.hasVibrator()) {
+                    vibrator = device;
+                }
+            } catch (RuntimeException unavailable) {
+                // Vibration is optional on devices with missing or restricted hardware.
+            }
             boolean enabled = getIntent().getBooleanExtra(LaunchOptions.TILT_STEERING_KEY,
                 LaunchOptions.DEFAULT_TILT_STEERING);
             tiltSteering = new TiltSteering(this, enabled, (axis, active) -> {
@@ -120,9 +137,40 @@ public final class GameActivity extends SDLActivity {
         remotePressed.clear();
     }
 
+    /** Called when the player's bump, scrape or crash sound starts in racing or replay playback. */
+    public void vibrateCarImpact() {
+        runOnUiThread(() -> {
+            if (!vibrationEnabled || !resumed || !nativeReady || mBrokenLibraries || !hasWindowFocus()
+                    || isFinishing() || isDestroyed() || vibrator == null) {
+                return;
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= 26) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(CAR_IMPACT_VIBRATION_MS,
+                        VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    vibrator.vibrate(CAR_IMPACT_VIBRATION_MS);
+                }
+            } catch (RuntimeException unavailable) {
+                vibrator = null;
+            }
+        });
+    }
+
+    private void cancelVibration() {
+        if (vibrator != null) {
+            try {
+                vibrator.cancel();
+            } catch (RuntimeException unavailable) {
+                vibrator = null;
+            }
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         if (tiltSteering != null) {
             tiltSteering.setResumed(true);
         }
@@ -130,6 +178,8 @@ public final class GameActivity extends SDLActivity {
 
     @Override
     protected void onPause() {
+        resumed = false;
+        cancelVibration();
         if (tiltSteering != null) {
             tiltSteering.setResumed(false);
         }
@@ -140,6 +190,7 @@ public final class GameActivity extends SDLActivity {
     @Override
     public void onWindowFocusChanged(boolean focused) {
         if (!focused) {
+            cancelVibration();
             if (tiltSteering != null) {
                 tiltSteering.setFocused(false);
             }
@@ -153,6 +204,8 @@ public final class GameActivity extends SDLActivity {
 
     @Override
     protected void onDestroy() {
+        resumed = false;
+        cancelVibration();
         if (tiltSteering != null) {
             tiltSteering.close();
             tiltSteering = null;

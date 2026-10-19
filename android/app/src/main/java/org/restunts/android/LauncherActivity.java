@@ -78,6 +78,7 @@ public final class LauncherActivity extends Activity {
     private Button tvFolder;
     private CheckBox newMidi;
     private CheckBox sound;
+    private CheckBox vibration;
     private CheckBox skipIntro;
     private CheckBox tiltSteering;
     private CheckBox showFps;
@@ -237,6 +238,8 @@ public final class LauncherActivity extends Activity {
         WrappingLayout startup = new WrappingLayout(this, spacing, spacing);
         sound = option(startup, "Sound", LaunchOptions.SOUND_KEY,
             LaunchOptions.DEFAULT_SOUND, textSize);
+        vibration = option(startup, "Vibration", LaunchOptions.VIBRATION_KEY,
+            LaunchOptions.DEFAULT_VIBRATION, textSize);
         newMidi = option(startup, "New MIDI", LaunchOptions.NEW_MIDI_KEY,
             LaunchOptions.DEFAULT_NEW_MIDI, textSize);
         skipIntro = option(startup, "Skip intro", LaunchOptions.SKIP_INTRO_KEY,
@@ -289,8 +292,8 @@ public final class LauncherActivity extends Activity {
         amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
             LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         for (CheckBox option : new CheckBox[] {
-                sound, newMidi, skipIntro, tiltSteering, showFps, showControlLayout, powerGear, legacyCollision,
-                leftCornerBias, owoot, amigaGrass}) {
+                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, showControlLayout,
+                powerGear, legacyCollision, leftCornerBias, owoot, amigaGrass}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -353,6 +356,7 @@ public final class LauncherActivity extends Activity {
         LaunchOptions options = selectedOptions();
         preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
             .putBoolean(LaunchOptions.SOUND_KEY, options.sound)
+            .putBoolean(LaunchOptions.VIBRATION_KEY, vibration.isChecked())
             .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
@@ -394,6 +398,7 @@ public final class LauncherActivity extends Activity {
             return;
         }
         LaunchOptions options = selectedOptions();
+        boolean selectedVibration = vibration.isChecked();
         boolean selectedTiltSteering = tiltSteering.isEnabled() && tiltSteering.isChecked();
         Context context = getApplicationContext();
         synchronizing = true;
@@ -411,6 +416,7 @@ public final class LauncherActivity extends Activity {
                         Intent intent = new Intent(activity, GameActivity.class);
                         intent.putExtra(LaunchOptions.NEW_MIDI_KEY, options.newMidi);
                         intent.putExtra(LaunchOptions.SOUND_KEY, options.sound);
+                        intent.putExtra(LaunchOptions.VIBRATION_KEY, selectedVibration);
                         intent.putExtra(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro);
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);

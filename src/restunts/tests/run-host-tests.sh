@@ -78,6 +78,8 @@ run_host_test test-amiga-rle shape2d.c "$test_source_dir/shape2d_blit.c" \
 run_host_test test-amiga-unflip shape2d.c "$test_source_dir/resource.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable
 run_host_test test-audio-engine legacy.c -Wno-unused-variable -Wno-sign-compare
+# Exercise Android impact-sound feedback with a stubbed phone vibration callback.
+run_host_test test-audio-engine legacy.c -D__ANDROID__ -Wno-unused-variable -Wno-sign-compare
 run_host_test test-audio-car legacy.c \
     "$test_source_dir/math.c" "$test_source_dir/full_data.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers

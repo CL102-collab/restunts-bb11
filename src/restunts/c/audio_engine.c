@@ -1318,19 +1318,34 @@ void audio_play_engine_start(legacy_s16 index)
 	audio_timers[index].restart_engine = 1;
 }
 
+static void audio_start_impact_event(legacy_s16 index, legacy_u16 resource_index,
+									 legacy_u8 priority)
+{
+	if (audio_start_indexed_event(index, resource_index, priority) < 0) {
+		return;
+	}
+#ifdef __ANDROID__
+	/* Replay Play clears is_in_replay; pause and seeking set it to suppress audio. */
+	if (index == audio_player_engine_channel && is_in_replay == 0 &&
+		state.game_inputmode == GAME_INPUT_MODE_ACTIVE && audio_suspended == AUDIO_STATE_DISABLED) {
+		android_car_impact_feedback();
+	}
+#endif
+}
+
 void audio_play_bump(legacy_s16 index)
 {
-	audio_start_indexed_event(index, 8U, AUDIO_EFFECT_DEFAULT_PRIORITY);
+	audio_start_impact_event(index, 8U, AUDIO_EFFECT_DEFAULT_PRIORITY);
 }
 
 void audio_play_scrape(legacy_s16 index)
 {
-	audio_start_indexed_event(index, 9U, AUDIO_EFFECT_DEFAULT_PRIORITY);
+	audio_start_impact_event(index, 9U, AUDIO_EFFECT_DEFAULT_PRIORITY);
 }
 
 void audio_play_crash_and_stop_engine(legacy_s16 index)
 {
-	audio_start_indexed_event(index, 5U, AUDIO_EFFECT_HIGH_PRIORITY);
+	audio_start_impact_event(index, 5U, AUDIO_EFFECT_HIGH_PRIORITY);
 	audio_stop_engine(index);
 }
 

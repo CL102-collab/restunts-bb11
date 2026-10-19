@@ -7,6 +7,7 @@ import java.util.List;
 public final class LaunchOptions {
     public static final String NEW_MIDI_KEY = "new_midi";
     public static final String SOUND_KEY = "sound";
+    public static final String VIBRATION_KEY = "vibration";
     public static final String SKIP_INTRO_KEY = "skip_intro";
     public static final String TILT_STEERING_KEY = "tilt_steering";
     public static final String SHOW_FPS_KEY = "show_fps";
@@ -19,6 +20,7 @@ public final class LaunchOptions {
     public static final String AMIGA_GRASS_KEY = "amiga_grass";
     public static final boolean DEFAULT_NEW_MIDI = false;
     public static final boolean DEFAULT_SOUND = true;
+    public static final boolean DEFAULT_VIBRATION = true;
     public static final boolean DEFAULT_SKIP_INTRO = false;
     public static final boolean DEFAULT_TILT_STEERING = false;
     public static final boolean DEFAULT_SHOW_FPS = false;

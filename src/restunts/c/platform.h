@@ -64,6 +64,7 @@ const legacy_s8 *dos_file_find_next(void);
 
 #ifdef __ANDROID__
 void android_saved_file_written(const legacy_s8 *path);
+void android_car_impact_feedback(void);
 #endif
 
 void dos_install_divide_error_handler(void);

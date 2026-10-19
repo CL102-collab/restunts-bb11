@@ -14,6 +14,16 @@ legacy_s8 audio_effects_enabled;
 static legacy_u8 memory[1048576];
 static legacy_u8 segments_match;
 static legacy_u64 trace_hash = UINT64_C(1469598103934665603);
+#ifdef __ANDROID__
+struct GAMESTATE state;
+legacy_s8 is_in_replay;
+legacy_u8 game_replay_mode;
+static unsigned impact_feedback_count;
+void android_car_impact_feedback(void)
+{
+	impact_feedback_count++;
+}
+#endif
 static void trace_word(legacy_u16 value)
 {
 	trace_hash = (trace_hash ^ (value & 255U)) * UINT64_C(1099511628211);
@@ -331,6 +341,132 @@ static void test_driver_timer(void)
 		}
 	}
 }
+#ifdef __ANDROID__
+static void reset_impact_sound(void)
+{
+	reset_engine(700);
+	impact_feedback_count = 0;
+	audio_player_engine_channel = 0;
+	audio_opponent_engine_channel = 1;
+	audio_car_state_ready = 1;
+	audio_suspended = AUDIO_STATE_DISABLED;
+	game_replay_mode = REPLAY_MODE_LIVE;
+	is_in_replay = 0;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	memory[0x50000 + AUDIO_EFFECT_RESOURCE_TYPE_OFFSET] = AUDIO_RESOURCE_TYPE_EFFECT;
+	for (legacy_u16 index = 0; index < 2; index++) {
+		audio_timers[index].current_volume = 100U << AUDIO_TIMER_INTERPOLATION_FRACTION_BITS;
+		for (legacy_u16 resource = 2; resource < 10; resource++) {
+			audio_write_far_pointer(
+				(legacy_u8 *)&audio_timers[index].definition.resources[resource], memory + 0x50000);
+		}
+	}
+}
+
+static void play_impact_sound(legacy_u16 event, legacy_s16 channel)
+{
+	if (event == 0) {
+		audio_play_car_events(AUDIO_CAR_EVENT_BUMP_FLAG, channel);
+	} else if (event == 1) {
+		audio_play_car_events(AUDIO_CAR_EVENT_SCRAPE_FLAG, channel);
+	} else {
+		audio_play_crash_and_stop_engine(channel);
+	}
+}
+
+static void test_impact_feedback(void)
+{
+	static const legacy_u8 modes[] = {REPLAY_MODE_LIVE, REPLAY_MODE_PLAYBACK};
+	for (legacy_u16 mode = 0; mode < sizeof(modes) / sizeof(modes[0]); mode++) {
+		for (legacy_u16 event = 0; event < 3; event++) {
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			/* Playing a replay uses is_in_replay == 0, just like live driving. */
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(impact_feedback_count == 1);
+			assert(audio_timers[audio_player_engine_channel].effect_channel >= 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			play_impact_sound(event, audio_opponent_engine_channel);
+			assert(audio_timers[audio_opponent_engine_channel].effect_channel >= 0);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			audio_effects_enabled = AUDIO_STATE_DISABLED;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(audio_timers[audio_player_engine_channel].effect_channel == -1);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			for (legacy_u16 channel = AUDIO_EFFECT_CHANNEL_FIRST;
+				 channel <= AUDIO_EFFECT_CHANNEL_LAST; channel++) {
+				audio_channel_reserved[channel] = 1;
+			}
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(audio_timers[audio_player_engine_channel].effect_channel == -1);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			memory[0x50000 + AUDIO_EFFECT_RESOURCE_TYPE_OFFSET] = 0;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(audio_timers[audio_player_engine_channel].effect_channel == -1);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			/* Paused, scrubbed, and reconstructed frames suppress feedback. */
+			is_in_replay = 1;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			state.game_inputmode = GAME_INPUT_MODE_INTRO;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			state.game_inputmode = GAME_INPUT_MODE_WAITING;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(impact_feedback_count == 0);
+
+			reset_impact_sound();
+			game_replay_mode = modes[mode];
+			audio_suspended = AUDIO_STATE_ENABLED;
+			play_impact_sound(event, audio_player_engine_channel);
+			assert(impact_feedback_count == 0);
+		}
+	}
+
+	reset_impact_sound();
+	audio_play_car_events(0, audio_player_engine_channel);
+	assert(impact_feedback_count == 0);
+	audio_car_state_ready = 0;
+	audio_play_car_events(AUDIO_CAR_EVENT_BUMP_FLAG | AUDIO_CAR_EVENT_SCRAPE_FLAG,
+						  audio_player_engine_channel);
+	assert(impact_feedback_count == 0);
+
+	reset_impact_sound();
+	audio_play_car_events(AUDIO_CAR_EVENT_BUMP_FLAG | AUDIO_CAR_EVENT_SCRAPE_FLAG,
+						  audio_player_engine_channel);
+	assert(impact_feedback_count == 2);
+
+	static void (*const other_sounds[])(legacy_s16) = {
+		audio_play_engine_start, audio_play_engine_stop, audio_play_engine_failure,
+		audio_play_paved_skid, audio_play_offroad_skid};
+	for (legacy_u16 sound = 0; sound < sizeof(other_sounds) / sizeof(other_sounds[0]); sound++) {
+		reset_impact_sound();
+		other_sounds[sound](audio_player_engine_channel);
+		assert(impact_feedback_count == 0);
+	}
+}
+#endif
+
 int main(void)
 {
 	test_envelopes();
@@ -338,6 +474,9 @@ int main(void)
 	test_engine_initialization();
 	test_driver_timer();
 	assert(trace_hash == UINT64_C(0xf07059b72776afde));
+#ifdef __ANDROID__
+	test_impact_feedback();
+#endif
 	printf("test-audio-engine: passed\n");
 	return 0;
 }

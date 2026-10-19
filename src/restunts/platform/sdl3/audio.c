@@ -11,6 +11,9 @@
 #include "../../c/platform.h"
 #include "../../c/timing.h"
 #include "../../c/resource_bytes.h"
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 #ifdef __DJGPP__
 #include <inlines/pc.h>
 #else
@@ -20,6 +23,38 @@
 #endif
 
 extern legacy_s32 sdl3_batch_mode;
+
+#ifdef __ANDROID__
+void android_car_impact_feedback(void)
+{
+	JNIEnv *env = SDL_GetAndroidJNIEnv();
+	if (env == NULL) {
+		return;
+	}
+	jobject activity = SDL_GetAndroidActivity();
+	jclass activity_class = NULL;
+	jmethodID vibrate = NULL;
+	if (activity != NULL && !(*env)->ExceptionCheck(env)) {
+		activity_class = (*env)->GetObjectClass(env, activity);
+	}
+	if (activity_class != NULL && !(*env)->ExceptionCheck(env)) {
+		vibrate = (*env)->GetMethodID(env, activity_class, "vibrateCarImpact", "()V");
+	}
+	if (vibrate != NULL && !(*env)->ExceptionCheck(env)) {
+		(*env)->CallVoidMethod(env, activity, vibrate);
+	}
+	if ((*env)->ExceptionCheck(env)) {
+		(*env)->ExceptionClear(env);
+		SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Cannot vibrate for car impact: Java exception");
+	}
+	if (activity_class != NULL) {
+		(*env)->DeleteLocalRef(env, activity_class);
+	}
+	if (activity != NULL) {
+		(*env)->DeleteLocalRef(env, activity);
+	}
+}
+#endif
 
 #define ADLIB_VOICES 9U
 /* The original context mask reserves bit zero for its sampled-sound path.
