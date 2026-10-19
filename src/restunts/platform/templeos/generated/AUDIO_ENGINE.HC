@@ -2007,19 +2007,28 @@ legacy_void RsAudioPlayEngineStart(legacy_s16 index)
   (audio_timers[index].restart_engine=TempleCastU8(1));
 }
 
+legacy_void RsAudioEngineAudioStartImpactEvent(
+    legacy_s16 index,legacy_u16 resource_index,legacy_u8 priority)
+{
+  if((RsAudioEngineAudioStartIndexedEvent(
+          TempleCastS16(index),TempleCastU16(resource_index),TempleCastU8(priority))<0)) {
+    return;
+  }
+}
+
 legacy_void RsAudioPlayBump(legacy_s16 index)
 {
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(8),TempleCastU8(64));
+  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(8),TempleCastU8(64));
 }
 
 legacy_void RsAudioPlayScrape(legacy_s16 index)
 {
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(9),TempleCastU8(64));
+  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(9),TempleCastU8(64));
 }
 
 legacy_void RsAudioPlayCrashAndStopEngine(legacy_s16 index)
 {
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(5),TempleCastU8(100));
+  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(5),TempleCastU8(100));
   RsAudioStopEngine(TempleCastS16(index));
 }
 

@@ -698,6 +698,7 @@
   "rs_audio_engine_audio_resolve_engine_definition": "RsAudioEngineAudioResolveEngineDefinition",
   "rs_audio_engine_audio_restart_timer_engine": "RsAudioEngineAudioRestartTimerEngine",
   "rs_audio_engine_audio_select_sample_resource": "RsAudioEngineAudioSelectSampleResource",
+  "rs_audio_engine_audio_start_impact_event": "RsAudioEngineAudioStartImpactEvent",
   "rs_audio_engine_audio_start_indexed_event": "RsAudioEngineAudioStartIndexedEvent",
   "rs_audio_engine_audio_start_secondary_event": "RsAudioEngineAudioStartSecondaryEvent",
   "rs_audio_engine_audio_start_timer_resource": "RsAudioEngineAudioStartTimerResource",
