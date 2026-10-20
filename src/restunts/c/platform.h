@@ -62,6 +62,10 @@ legacy_s16 dos_file_remove(const legacy_s8 *path);
 const legacy_s8 *dos_file_find_first(const legacy_s8 *query);
 const legacy_s8 *dos_file_find_next(void);
 
+#ifdef RESTUNTS_SDL3
+void sdl3_car_impact_feedback(void);
+#endif
+
 #ifdef __ANDROID__
 void android_saved_file_written(const legacy_s8 *path);
 void android_car_impact_feedback(void);

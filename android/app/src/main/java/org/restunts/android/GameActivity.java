@@ -40,6 +40,7 @@ public final class GameActivity extends SDLActivity {
         vibrationEnabled = getIntent().getBooleanExtra(LaunchOptions.VIBRATION_KEY,
             LaunchOptions.DEFAULT_VIBRATION);
         if (nativeReady) {
+            setControllerVibrationEnabled(vibrationEnabled);
             try {
                 Vibrator device = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
                 if (device != null && device.hasVibrator()) {
@@ -66,6 +67,8 @@ public final class GameActivity extends SDLActivity {
     }
 
     public static native void setTiltSteering(int axis, boolean enabled);
+
+    public static native void setControllerVibrationEnabled(boolean enabled);
 
     private boolean remoteNumberInput(KeyEvent event) {
         View focused = getCurrentFocus();

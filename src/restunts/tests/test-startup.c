@@ -50,6 +50,17 @@ static legacy_s32 startup_audio_driver_loaded;
 static legacy_s32 startup_ogg_music_enabled;
 static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
+#ifndef __ANDROID__
+static legacy_u8 startup_controller_vibration_enabled = 1;
+static legacy_u32 startup_controller_vibration_set_calls;
+
+void sdl3_controller_set_vibration_enabled(legacy_u8 enabled)
+{
+	assert(enabled == 0 || enabled == 1);
+	startup_controller_vibration_enabled = enabled;
+	++startup_controller_vibration_set_calls;
+}
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 static legacy_u8 startup_control_layout_visible = STARTUP_CONTROL_LAYOUT_ON;
 static legacy_u32 startup_control_layout_set_calls;
@@ -728,6 +739,10 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
+	legacy_u32 before_vibration_calls = startup_controller_vibration_set_calls;
+	legacy_u8 before_vibration_enabled = startup_controller_vibration_enabled;
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	legacy_u32 before_layout_calls = startup_control_layout_set_calls;
 	legacy_u8 before_layout_visible = startup_control_layout_visible;
@@ -744,6 +759,10 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
+	assert(startup_controller_vibration_set_calls == before_vibration_calls);
+	assert(startup_controller_vibration_enabled == before_vibration_enabled);
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	assert(startup_control_layout_set_calls == before_layout_calls);
 	assert(startup_control_layout_visible == before_layout_visible);
@@ -1056,6 +1075,68 @@ static void test_startup_control_layout_options(void)
 #endif
 #endif
 
+static void test_startup_controller_vibration_options(void)
+{
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 enabled;
+	} cases[] = {{"--controller-vibration:on", 1},
+				 {"--controller-vibration:off", 0},
+				 {"--CONTROLLER-VIBRATION:On", 1},
+				 {"--Controller-Vibration:OfF", 0}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		startup_controller_vibration_enabled = !cases[index].enabled;
+		legacy_u32 before = startup_controller_vibration_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_controller_vibration_set_calls == before + 1U);
+		assert(startup_controller_vibration_enabled == cases[index].enabled);
+		assert(startup_options.controller_vibration_enabled == cases[index].enabled);
+		assert(startup_options.controller_vibration_specified != 0);
+	}
+
+	/* A startup without the option restores On after an earlier Off session. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_controller_vibration_enabled = 0;
+	legacy_u32 before = startup_controller_vibration_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_controller_vibration_set_calls == before + 1U);
+	assert(startup_controller_vibration_enabled == 1);
+	assert(startup_options.controller_vibration_enabled == 1);
+	assert(startup_options.controller_vibration_specified == 0);
+
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); ++first) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); ++second) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)"--nointro",
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+	static const legacy_s8 *invalid[] = {"--controller-vibration:", "--controller-vibration:auto",
+										 "--controller-vibration:1", "--controller-vibration:onx",
+										 "--controller-vibration:off:on"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	/* A valid vibration value must not apply before all later options validate. */
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--controller-vibration:off",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+#else
+	/* Android uses its existing Vibration launcher setting. Other backends have no rumble option. */
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--controller-vibration:off",
+							  (legacy_s8 *)"--controller-vibration:on",
+							  (legacy_s8 *)"--controller-vibration:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
+
 static void test_startup_game_version(void)
 {
 	legacy_s8 *arguments[] = {(legacy_s8 *)"game"};
@@ -1128,6 +1209,7 @@ int main(void)
 #endif
 #endif
 	test_startup_fps_display_options();
+	test_startup_controller_vibration_options();
 	puts("startup option tests passed");
 	return 0;
 }

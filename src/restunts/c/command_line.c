@@ -46,6 +46,10 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
+#ifndef __ANDROID__
+	"  --controller-vibration:on|off  Enable/disable controller vibration; supply "
+	"once." COMMAND_LINE_NEWLINE
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	"  --control-layout:on|off  Show/hide the touch controls; supply once." COMMAND_LINE_NEWLINE
 #endif
@@ -90,6 +94,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
+#ifndef __ANDROID__
+	"Controller vibration starts on." COMMAND_LINE_NEWLINE
+#endif
 #elif defined(RESTUNTS_AMIGA)
 	"Amiga 500+: 68000, ECS, 320x200, 32 colors, four Paula voices." COMMAND_LINE_NEWLINE
 #else
@@ -100,6 +107,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision presets and Ogg music options are also case-insensitive." COMMAND_LINE_NEWLINE
+#ifndef __ANDROID__
+	"Controller vibration options are case-insensitive." COMMAND_LINE_NEWLINE
+#endif
 #endif
 	"FPS display options are case-insensitive." COMMAND_LINE_NEWLINE
 	"Other switch names are case-sensitive; keep legacy names lowercase." COMMAND_LINE_NEWLINE

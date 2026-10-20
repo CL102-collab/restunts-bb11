@@ -21,6 +21,8 @@
 #define JOYSTICK_Y_AXIS 1U
 #define CONTROLLER_STEERING_ACTIVITY_DEADZONE 2048
 #define CONTROLLER_STEERING_ACTIVITY_DELTA 1024
+#define CONTROLLER_IMPACT_RUMBLE_MS 40U
+#define CONTROLLER_IMPACT_RUMBLE_STRENGTH 32768U
 #define TILT_STEERING_ACTIVITY_DEADZONE 6
 #define TILT_STEERING_ACTIVITY_DELTA 3
 #define TILT_SAMPLE_TIMEOUT_MS 500U
@@ -66,6 +68,7 @@ static legacy_u32 mouse_transition_count;
 static legacy_u8 input_devices_initialized;
 static legacy_u8 joystick_enabled;
 static SDL_Joystick *joystick;
+static legacy_s16 joystick_feedback_axes[JOYSTICK_AXIS_COUNT];
 static SDL_Gamepad *controller;
 static legacy_s16 controller_axes[SDL_GAMEPAD_AXIS_COUNT];
 static legacy_u8 controller_buttons[SDL_GAMEPAD_BUTTON_COUNT];
@@ -84,6 +87,15 @@ static legacy_u64 controller_dpad_repeat_at;
 static legacy_s16 controller_camera_direction;
 static legacy_u64 controller_camera_repeat_at;
 static legacy_s16 controller_steering_activity_axis;
+/* Feedback follows the last device used, independently of steering selection. */
+static legacy_u8 controller_feedback_active;
+static legacy_u8 controller_rumbling;
+static legacy_s16 controller_feedback_axes[SDL_GAMEPAD_AXIS_COUNT];
+#ifdef __ANDROID__
+static SDL_AtomicInt controller_vibration_disabled;
+#else
+static legacy_u8 controller_vibration_enabled = true;
+#endif
 static legacy_u8 pumping;
 static legacy_u64 last_event_poll;
 /* One atomic packet keeps the filtered sensor axis and timestamp coherent. */
@@ -93,6 +105,62 @@ static legacy_s16 tilt_axis;
 static legacy_s16 tilt_previous_axis;
 static legacy_s16 tilt_steering_activity_axis;
 static legacy_u8 tilt_manual_override;
+
+static void controller_stop_rumble(void)
+{
+	if (controller_rumbling) {
+		if (controller != NULL) {
+			SDL_RumbleGamepad(controller, 0, 0, 0);
+		}
+		controller_rumbling = false;
+	}
+}
+
+static void input_feedback_use_controller(legacy_u8 active)
+{
+	if (!active) {
+		controller_stop_rumble();
+	}
+	controller_feedback_active = active;
+}
+
+#ifndef __ANDROID__
+legacy_u8 sdl3_controller_vibration_enabled(void)
+{
+	return controller_vibration_enabled;
+}
+
+void sdl3_controller_set_vibration_enabled(legacy_u8 enabled)
+{
+	controller_vibration_enabled = enabled != 0;
+	if (!controller_vibration_enabled) {
+		controller_stop_rumble();
+	}
+}
+#endif
+
+void sdl3_car_impact_feedback(void)
+{
+	if (sdl3_batch_mode || !input_focused || !gameplay_active || modal_depth != 0) {
+		return;
+	}
+#ifdef __ANDROID__
+	android_car_impact_feedback();
+	if (SDL_GetAtomicInt(&controller_vibration_disabled)) {
+		return;
+	}
+#else
+	if (!controller_vibration_enabled) {
+		return;
+	}
+#endif
+	if (controller_feedback_active && controller != NULL && SDL_GamepadConnected(controller)) {
+		/* Unsupported rumble is optional; SDL simply reports failure. */
+		controller_rumbling =
+			SDL_RumbleGamepad(controller, CONTROLLER_IMPACT_RUMBLE_STRENGTH,
+							  CONTROLLER_IMPACT_RUMBLE_STRENGTH, CONTROLLER_IMPACT_RUMBLE_MS);
+	}
+}
 
 static const legacy_u8 dos_kb_keymap1[DOS_KB_PRIMARY_KEYMAP_SIZE] = {
 	0,	 27,  49,  50,	51,	 52,  53,  54,	55,	 56,  57,  48,	45,	 61,  8,   9,	113, 119, 101,
@@ -356,6 +424,7 @@ static void input_tilt_update(void)
 		 (changed_side || magnitude > previous_magnitude) &&
 		 (delta <= -TILT_STEERING_ACTIVITY_DELTA || delta >= TILT_STEERING_ACTIVITY_DELTA))) {
 		driving_mode = SDL3_DRIVING_TILT;
+		input_feedback_use_controller(false);
 		tilt_steering_activity_axis = axis;
 	} else if (!changed_side && magnitude <= previous_magnitude) {
 		tilt_steering_activity_axis = axis;
@@ -366,6 +435,9 @@ static void input_key(const SDL_KeyboardEvent *event)
 {
 	if ((legacy_u32)event->scancode >= SDL_SCANCODE_COUNT) {
 		return;
+	}
+	if (input_focused && event->down && !event->repeat) {
+		input_feedback_use_controller(false);
 	}
 #ifdef __ANDROID__
 	if (event->scancode == SDL_SCANCODE_AC_BACK && event->down && !event->repeat) {
@@ -536,6 +608,8 @@ static legacy_u8 controller_navigation_active(void)
 
 static void controller_reset_state(void)
 {
+	input_feedback_use_controller(false);
+	memset(controller_feedback_axes, 0, sizeof(controller_feedback_axes));
 	memset(controller_axes, 0, sizeof(controller_axes));
 	memset(controller_buttons, 0, sizeof(controller_buttons));
 	controller_menu_requested = false;
@@ -562,6 +636,11 @@ static void open_joystick(void)
 		/* A mapped gamepad uses its standardized right stick, never raw axes. */
 		if (!SDL_IsGamepad(ids[index])) {
 			joystick = SDL_OpenJoystick(ids[index]);
+			if (joystick != NULL) {
+				for (legacy_u16 axis = 0; axis < JOYSTICK_AXIS_COUNT; axis++) {
+					joystick_feedback_axes[axis] = SDL_GetJoystickAxis(joystick, axis);
+				}
+			}
 		}
 	}
 	SDL_free(ids);
@@ -582,6 +661,7 @@ static void open_controller(void)
 		controller_reset_state();
 		for (legacy_u32 axis = 0; axis < SDL_GAMEPAD_AXIS_COUNT; axis++) {
 			controller_axes[axis] = SDL_GetGamepadAxis(controller, (SDL_GamepadAxis)axis);
+			controller_feedback_axes[axis] = controller_axes[axis];
 		}
 		for (legacy_u32 button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; button++) {
 			controller_buttons[button] =
@@ -644,6 +724,9 @@ static void input_controller_button(const SDL_GamepadButtonEvent *event)
 	}
 	legacy_u8 was_pressed = controller_buttons[event->button];
 	controller_buttons[event->button] = event->down;
+	if (event->down && !was_pressed) {
+		input_feedback_use_controller(true);
+	}
 	if (controller_navigation_active() && (event->button == SDL_GAMEPAD_BUTTON_DPAD_UP ||
 										   event->button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ||
 										   event->button == SDL_GAMEPAD_BUTTON_DPAD_LEFT ||
@@ -684,6 +767,26 @@ static void input_controller_axis(const SDL_GamepadAxisEvent *event)
 	}
 	legacy_s16 previous = controller_axes[event->axis];
 	controller_axes[event->axis] = event->value;
+	legacy_s32 feedback_delta = (legacy_s32)event->value - controller_feedback_axes[event->axis];
+	legacy_s32 feedback_magnitude = event->value < 0 ? -(legacy_s32)event->value : event->value;
+	legacy_s32 feedback_previous = previous < 0 ? -(legacy_s32)previous : previous;
+	legacy_u8 feedback_steering =
+		event->axis == SDL_GAMEPAD_AXIS_RIGHTX && !controller_navigation_active();
+	legacy_s16 feedback_deadzone =
+		feedback_steering ? CONTROLLER_STEERING_ACTIVITY_DEADZONE : JOYSTICK_AXIS_DEADZONE;
+	legacy_u8 feedback_changed_side =
+		(event->value < 0 && previous > 0) || (event->value > 0 && previous < 0);
+	/* Noise and returning to centre must not steal feedback from another device. */
+	if (feedback_magnitude < feedback_deadzone ||
+		(!feedback_changed_side && feedback_magnitude <= feedback_previous)) {
+		controller_feedback_axes[event->axis] = event->value;
+	} else if ((!feedback_steering &&
+				(feedback_previous < feedback_deadzone || feedback_changed_side)) ||
+			   feedback_delta <= -CONTROLLER_STEERING_ACTIVITY_DELTA ||
+			   feedback_delta >= CONTROLLER_STEERING_ACTIVITY_DELTA) {
+		input_feedback_use_controller(true);
+		controller_feedback_axes[event->axis] = event->value;
+	}
 	if (event->axis == SDL_GAMEPAD_AXIS_RIGHTX && gameplay_active && !replay_active &&
 		modal_depth == 0) {
 		legacy_s32 delta = (legacy_s32)event->value - controller_steering_activity_axis;
@@ -836,6 +939,14 @@ static legacy_u8 controller_key_state(SDL_Scancode code)
 }
 
 #ifdef __ANDROID__
+JNIEXPORT void JNICALL Java_org_restunts_android_GameActivity_setControllerVibrationEnabled(
+	JNIEnv *env, jclass activity_class, jboolean enabled)
+{
+	(void)env;
+	(void)activity_class;
+	SDL_SetAtomicInt(&controller_vibration_disabled, enabled != JNI_TRUE);
+}
+
 JNIEXPORT void JNICALL Java_org_restunts_android_GameActivity_setTiltSteering(JNIEnv *env,
 																			  jclass activity_class,
 																			  jint axis,
@@ -891,6 +1002,11 @@ void sdl3_platform_pump(void)
 				SDL_Rect area;
 				SDL_Window *window = sdl3_video_window();
 				if (window != NULL && SDL_GetWindowSafeArea(window, &area)) {
+					if (input_focused && (event.type == SDL_EVENT_FINGER_DOWN ||
+										  (event.type == SDL_EVENT_FINGER_MOTION &&
+										   (event.tfinger.dx != 0 || event.tfinger.dy != 0)))) {
+						input_feedback_use_controller(false);
+					}
 					sdl3_touch_event(&event.tfinger, &area);
 				}
 				break;
@@ -898,6 +1014,7 @@ void sdl3_platform_pump(void)
 #ifdef __ANDROID__
 			case SDL_EVENT_TEXT_INPUT:
 				if (SDL_TextInputActive(sdl3_video_window())) {
+					input_feedback_use_controller(false);
 					for (const legacy_char *text = event.text.text; *text != '\0'; text++) {
 						if ((legacy_u8)*text >= KEY_SPACE && (legacy_u8)*text < LEGACY_S8_MAX) {
 							sdl3_input_queue_key((legacy_u8)*text);
@@ -921,7 +1038,9 @@ void sdl3_platform_pump(void)
 				break;
 			case SDL_EVENT_USER:
 				if (input_focused && gameplay_active && !replay_active && modal_depth == 0) {
-					sdl3_input_shift_event(&event.user);
+					if (sdl3_input_shift_event(&event.user)) {
+						input_feedback_use_controller(false);
+					}
 				}
 				break;
 			case SDL_EVENT_KEY_DOWN:
@@ -960,10 +1079,17 @@ void sdl3_platform_pump(void)
 				redraw_requested = true;
 				break;
 			case SDL_EVENT_MOUSE_MOTION:
+				if (input_focused && event.motion.which != SDL_TOUCH_MOUSEID &&
+					(event.motion.xrel != 0 || event.motion.yrel != 0)) {
+					input_feedback_use_controller(false);
+				}
 				input_mouse_position(event.motion.x, event.motion.y);
 				break;
 			case SDL_EVENT_MOUSE_BUTTON_DOWN:
 			case SDL_EVENT_MOUSE_BUTTON_UP: {
+				if (input_focused && event.button.down && event.button.which != SDL_TOUCH_MOUSEID) {
+					input_feedback_use_controller(false);
+				}
 				legacy_s16 flag = event.button.button == SDL_BUTTON_LEFT	 ? MOUSE_LEFT_FLAG
 								  : event.button.button == SDL_BUTTON_RIGHT	 ? MOUSE_RIGHT_FLAG
 								  : event.button.button == SDL_BUTTON_MIDDLE ? MOUSE_MIDDLE_FLAG
@@ -988,6 +1114,34 @@ void sdl3_platform_pump(void)
 				}
 				break;
 			}
+			case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+				if (input_focused && joystick != NULL &&
+					event.jaxis.which == SDL_GetJoystickID(joystick) &&
+					event.jaxis.axis < JOYSTICK_AXIS_COUNT) {
+					legacy_s16 previous = joystick_feedback_axes[event.jaxis.axis];
+					legacy_s32 magnitude = SDL_abs((legacy_s32)event.jaxis.value);
+					joystick_feedback_axes[event.jaxis.axis] = event.jaxis.value;
+					if (magnitude >= JOYSTICK_AXIS_DEADZONE &&
+						(magnitude > SDL_abs((legacy_s32)previous) ||
+						 (event.jaxis.value < 0 && previous > 0) ||
+						 (event.jaxis.value > 0 && previous < 0))) {
+						input_feedback_use_controller(false);
+					}
+				}
+				break;
+			case SDL_EVENT_JOYSTICK_HAT_MOTION:
+				if (input_focused && joystick != NULL &&
+					event.jhat.which == SDL_GetJoystickID(joystick) &&
+					event.jhat.value != SDL_HAT_CENTERED) {
+					input_feedback_use_controller(false);
+				}
+				break;
+			case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+				if (input_focused && joystick != NULL &&
+					event.jbutton.which == SDL_GetJoystickID(joystick)) {
+					input_feedback_use_controller(false);
+				}
+				break;
 			case SDL_EVENT_JOYSTICK_REMOVED:
 				if (joystick != NULL && event.jdevice.which == SDL_GetJoystickID(joystick)) {
 					SDL_CloseJoystick(joystick);
@@ -1318,6 +1472,9 @@ enum SDL3_DRIVING_INPUT sdl3_input_driving_mode(void)
 void sdl3_input_set_gameplay_active(legacy_u8 active)
 {
 	if (gameplay_active != active) {
+		if (!active) {
+			input_feedback_use_controller(false);
+		}
 		input_tilt_reset();
 		sdl3_input_reset_shifts();
 		controller_menu_direction = INPUT_NONE;
@@ -1351,6 +1508,7 @@ void sdl3_input_set_replay_active(legacy_u8 active)
 
 void sdl3_input_push_modal(void)
 {
+	input_feedback_use_controller(false);
 	input_tilt_reset();
 	sdl3_input_reset_shifts();
 	if (modal_depth < LEGACY_U16_MAX) {

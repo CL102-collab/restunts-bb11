@@ -371,6 +371,19 @@ automatically using SDL's standard gamepad mappings for Xbox, PlayStation, and
 other recognized controllers. Connecting or disconnecting a controller during
 play updates the available devices automatically.
 
+A connected controller with rumble support gives a short 40 ms pulse for the
+player's suspension bump, wall scrape, and crash sounds during racing and replay
+playback, when the controller was the last input used. Using the keyboard, mouse,
+touch, or tilt steering stops controller feedback until the controller is used
+again. Silent contacts, soft landings, opponent-only impacts, disabled sound
+effects, paused replays, and timeline seeking do not rumble. Controllers without
+rumble support skip the effect, and rumble stops when the game loses focus.
+Controller vibration starts on in non-Android SDL3 builds. Use
+`--controller-vibration:off` to disable it, or `--controller-vibration:on` to
+select the default explicitly. Supply the option once; its name and value are
+case-insensitive. Android uses the launcher's existing **Vibration** option
+instead.
+
 During a race, moving the right stick selects controller steering; pressing a
 keyboard steering key selects keyboard steering. Only the most recently used
 steering source affects the wheel. Returning the stick to center does not take

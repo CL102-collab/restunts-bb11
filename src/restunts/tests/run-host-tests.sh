@@ -78,8 +78,10 @@ run_host_test test-amiga-rle shape2d.c "$test_source_dir/shape2d_blit.c" \
 run_host_test test-amiga-unflip shape2d.c "$test_source_dir/resource.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable
 run_host_test test-audio-engine legacy.c -Wno-unused-variable -Wno-sign-compare
-# Exercise Android impact-sound feedback with a stubbed phone vibration callback.
-run_host_test test-audio-engine legacy.c -D__ANDROID__ -Wno-unused-variable -Wno-sign-compare
+# Exercise shared SDL3 impact feedback on desktop and Android with a stubbed callback.
+run_host_test test-audio-engine legacy.c -DRESTUNTS_SDL3 -Wno-unused-variable -Wno-sign-compare
+run_host_test test-audio-engine legacy.c -DRESTUNTS_SDL3 -D__ANDROID__ \
+    -Wno-unused-variable -Wno-sign-compare
 run_host_test test-audio-car legacy.c \
     "$test_source_dir/math.c" "$test_source_dir/full_data.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
@@ -118,6 +120,9 @@ run_host_test test-command-line command_line.c -DRESTUNTS_DOS16 -DRESTUNTS_FULL 
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
 run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 \
+    -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
+    -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
+run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 -D__ANDROID__ \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"'
 run_host_test test-command-line command_line.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ \

@@ -122,11 +122,14 @@ void sdl3_input_queue_shift(legacy_u16 flag)
 	shift_queue[(shift_read + shift_count++) % INPUT_SHIFT_QUEUE_CAPACITY] = flag;
 }
 
-void sdl3_input_shift_event(const SDL_UserEvent *event)
+legacy_u8 sdl3_input_shift_event(const SDL_UserEvent *event)
 {
-	if (event->data1 == &shift_event_source) {
-		sdl3_input_queue_shift((legacy_u16)event->code);
+	if (event->data1 != &shift_event_source ||
+		(event->code != INPUT_SHIFT_UP_FLAG && event->code != INPUT_SHIFT_DOWN_FLAG)) {
+		return false;
 	}
+	sdl3_input_queue_shift((legacy_u16)event->code);
+	return true;
 }
 
 void sdl3_touch_reset(void)

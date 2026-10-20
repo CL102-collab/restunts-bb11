@@ -69,8 +69,8 @@ back it up first. Private preferences, cached data and unexported pending writes
 are removed by clearing app storage or uninstalling.
 
 Above **Start game**, **Sound** enables music and sound effects, **Vibration**
-enables phone feedback for impact sounds, **New MIDI** selects replacement music,
-and **Skip intro** opens the game without the startup intro. Sound and Vibration
+enables phone and controller feedback for impact sounds, **New MIDI** selects
+replacement music, and **Skip intro** opens the game without the startup intro. Sound and Vibration
 start enabled and Skip intro starts disabled. These choices are
 remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
 `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
@@ -116,6 +116,12 @@ into the opponent, walls, or solid scenery. Existing sounds are preserved: silen
 car-to-car contact stays silent and does not vibrate. Soft landings, impacts affecting only the opponent,
 disabled sound effects, paused replays, and timeline seeking do not vibrate. Devices
 without a vibrator skip the effect. Vibration stops when the app loses focus.
+
+A connected controller also gives a 40 ms rumble for these same sounds when it
+was the last input used. Keyboard, mouse, touch, or tilt input stops controller
+feedback until the controller is used again. Controllers without rumble support
+skip the effect. The **Vibration** option enables both phone and controller
+feedback; phone vibration remains available when using a controller.
 
 During a live race, bottom-left **Q** holds the existing rewind function. **Shift
 up/down** appear above/below steering only with manual gears selected. Each tap

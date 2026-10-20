@@ -1642,6 +1642,24 @@ static void test_joystick(void)
 #define TEST_CONTROLLER_SCAN_LEFT 75
 #define TEST_CONTROLLER_SCAN_RIGHT 77
 
+static legacy_u32 controller_rumble_starts;
+static legacy_u32 controller_rumble_stops;
+static Uint16 controller_rumble_low;
+static Uint16 controller_rumble_high;
+
+static bool SDLCALL test_controller_rumble_callback(void *userdata, Uint16 low, Uint16 high)
+{
+	(void)userdata;
+	controller_rumble_low = low;
+	controller_rumble_high = high;
+	if (low != 0 || high != 0) {
+		controller_rumble_starts++;
+	} else {
+		controller_rumble_stops++;
+	}
+	return true;
+}
+
 static SDL_JoystickID attach_test_controller(SDL_Joystick **device)
 {
 	SDL_VirtualJoystickDesc descriptor;
@@ -1650,6 +1668,7 @@ static SDL_JoystickID attach_test_controller(SDL_Joystick **device)
 	descriptor.naxes = SDL_GAMEPAD_AXIS_COUNT;
 	descriptor.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
 	descriptor.name = "Restunts mapped controller test";
+	descriptor.Rumble = test_controller_rumble_callback;
 	SDL_JoystickID id = SDL_AttachVirtualJoystick(&descriptor);
 	assert(id != 0);
 	*device = SDL_OpenJoystick(id);
@@ -2504,6 +2523,253 @@ static void test_controller(void)
 	sdl3_platform_pump();
 }
 
+static void assert_controller_impact_rumble(SDL_Joystick *device, legacy_u8 expected)
+{
+	/* SDL coalesces identical motor levels, so stop the previous pulse first. */
+	assert(SDL_RumbleJoystick(device, 0, 0, 0));
+	controller_rumble_starts = 0;
+	sdl3_car_impact_feedback();
+	assert(controller_rumble_starts == (expected ? 1U : 0U));
+	if (expected) {
+		assert(controller_rumble_low != 0 && controller_rumble_high != 0);
+	}
+	assert(SDL_RumbleJoystick(device, 0, 0, 0));
+}
+
+static void rumble_keyboard_input(void)
+{
+	send_key(SDL_SCANCODE_UP, SDL_KMOD_NONE, true, false);
+	sdl3_platform_pump();
+	send_key(SDL_SCANCODE_UP, SDL_KMOD_NONE, false, false);
+	sdl3_platform_pump();
+}
+
+static void test_controller_rumble_joystick(SDL_Joystick *device)
+{
+	SDL_VirtualJoystickDesc descriptor;
+	SDL_INIT_INTERFACE(&descriptor);
+	descriptor.type = SDL_JOYSTICK_TYPE_UNKNOWN;
+	descriptor.naxes = 2;
+	descriptor.nbuttons = 1;
+	descriptor.nhats = 1;
+	descriptor.name = "Restunts rumble input handover test";
+	SDL_JoystickID id = SDL_AttachVirtualJoystick(&descriptor);
+	assert(id != 0);
+	SDL_Joystick *raw = SDL_OpenJoystick(id);
+	assert(raw != NULL && !SDL_IsGamepad(id));
+	dos_joystick_set_enabled(1);
+	sdl3_platform_pump();
+	for (legacy_u32 source = 0; source < 3; source++) {
+		controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+		controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+		assert_controller_impact_rumble(device, true);
+		if (source == 0) {
+			assert(SDL_SetJoystickVirtualAxis(raw, 0, TEST_CONTROLLER_AXIS_MAX));
+		} else if (source == 1) {
+			assert(SDL_SetJoystickVirtualButton(raw, 0, true));
+		} else {
+			assert(SDL_SetJoystickVirtualHat(raw, 0, SDL_HAT_UP));
+		}
+		SDL_UpdateJoysticks();
+		sdl3_platform_pump();
+		assert_controller_impact_rumble(device, false);
+		controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+		controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+		assert(SDL_SetJoystickVirtualAxis(raw, 0, 0));
+		assert(SDL_SetJoystickVirtualButton(raw, 0, false));
+		assert(SDL_SetJoystickVirtualHat(raw, 0, SDL_HAT_CENTERED));
+		SDL_UpdateJoysticks();
+		sdl3_platform_pump();
+		assert_controller_impact_rumble(device, true);
+	}
+	SDL_CloseJoystick(raw);
+	assert(SDL_DetachVirtualJoystick(id));
+	sdl3_platform_pump();
+	dos_joystick_set_enabled(0);
+}
+
+static void test_controller_rumble(void)
+{
+#ifndef __ANDROID__
+	assert(sdl3_controller_vibration_enabled());
+#endif
+	kb_init_interrupt();
+	sdl3_input_set_gameplay_active(true);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	SDL_Joystick *device;
+	SDL_JoystickID id = attach_test_controller(&device);
+	/* Merely connecting a controller must not make it the active input. */
+	assert_controller_impact_rumble(device, false);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	assert_controller_impact_rumble(device, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	assert_controller_impact_rumble(device, true);
+
+#ifndef __ANDROID__
+	/* Turning vibration off stops a pulse without changing input ownership. */
+	sdl3_car_impact_feedback();
+	assert(controller_rumble_low != 0 && controller_rumble_high != 0);
+	sdl3_controller_set_vibration_enabled(false);
+	assert(!sdl3_controller_vibration_enabled());
+	assert(controller_rumble_low == 0 && controller_rumble_high == 0);
+	assert_controller_impact_rumble(device, false);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	assert_controller_impact_rumble(device, false);
+	sdl3_controller_set_vibration_enabled(true);
+	assert(sdl3_controller_vibration_enabled());
+	assert_controller_impact_rumble(device, true);
+#endif
+
+	/* Pedals and buttons count even when the keyboard owns steering. */
+	rumble_keyboard_input();
+	assert_controller_impact_rumble(device, false);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, TEST_CONTROLLER_AXIS_MIN);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert_controller_impact_rumble(device, true);
+	rumble_keyboard_input();
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTY, 0);
+	assert_controller_impact_rumble(device, false);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PARTIAL_TURN);
+	assert_controller_impact_rumble(device, true);
+	rumble_keyboard_input();
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_RECENTER_TURN);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_STEERING_NOISE);
+	assert_controller_impact_rumble(device, false);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, TEST_CONTROLLER_AXIS_MAX);
+	assert_controller_impact_rumble(device, true);
+	rumble_keyboard_input();
+	controller_axis(device, SDL_GAMEPAD_AXIS_LEFTX, 0);
+	assert_controller_impact_rumble(device, false);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MAX);
+	assert_controller_impact_rumble(device, true);
+	rumble_keyboard_input();
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, TEST_CONTROLLER_AXIS_MIN);
+	assert_controller_impact_rumble(device, false);
+
+	/* A tiny movement across a pedal/camera threshold is still a new action. */
+	static const SDL_GamepadAxis digital_axes[] = {SDL_GAMEPAD_AXIS_RIGHTY, SDL_GAMEPAD_AXIS_LEFTX,
+												   SDL_GAMEPAD_AXIS_LEFTY};
+	for (legacy_u32 axis = 0; axis < SDL_arraysize(digital_axes); axis++) {
+		controller_axis(device, digital_axes[axis], TEST_CONTROLLER_PEDAL_THRESHOLD - 1);
+		rumble_keyboard_input();
+		assert_controller_impact_rumble(device, false);
+		controller_axis(device, digital_axes[axis], TEST_CONTROLLER_PEDAL_THRESHOLD);
+		assert_controller_impact_rumble(device, true);
+		rumble_keyboard_input();
+		controller_axis(device, digital_axes[axis], 0);
+		assert_controller_impact_rumble(device, false);
+	}
+
+	/* A keyboard release after a controller press does not take input back. */
+	send_key(SDL_SCANCODE_UP, SDL_KMOD_NONE, true, false);
+	sdl3_platform_pump();
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	send_key(SDL_SCANCODE_UP, SDL_KMOD_NONE, false, false);
+	sdl3_platform_pump();
+	assert_controller_impact_rumble(device, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+
+	/* Replay navigation selects the controller without changing steering mode. */
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	sdl3_input_set_replay_active(true);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PEDAL_THRESHOLD - 1);
+	rumble_keyboard_input();
+	assert_controller_impact_rumble(device, false);
+	/* Its digital navigation threshold counts even after a tiny stick movement. */
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, TEST_CONTROLLER_PEDAL_THRESHOLD);
+	assert(sdl3_input_driving_mode() == SDL3_DRIVING_KEYBOARD);
+	assert_controller_impact_rumble(device, true);
+	controller_axis(device, SDL_GAMEPAD_AXIS_RIGHTX, 0);
+	sdl3_input_set_replay_active(false);
+
+	SDL_Event event;
+	SDL_zero(event);
+	/* SDL user events unrelated to remote gear changes are not player input. */
+	event.type = SDL_EVENT_USER;
+	event.user.code = INPUT_SHIFT_UP_FLAG;
+	assert(SDL_PushEvent(&event));
+	sdl3_platform_pump();
+	assert_controller_impact_rumble(device, true);
+	assert(sdl3_input_request_shift(true));
+	sdl3_platform_pump();
+	assert_controller_impact_rumble(device, false);
+	sdl3_input_reset_shifts();
+	test_controller_rumble_joystick(device);
+	event.type = SDL_EVENT_MOUSE_MOTION;
+	event.motion.which = 1;
+	event.motion.xrel = 1;
+	assert(SDL_PushEvent(&event));
+	sdl3_platform_pump();
+	assert_controller_impact_rumble(device, false);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	sdl3_touch_enable(true);
+	sdl3_touch_configure(true, true, false, false);
+	send_touch_control(SDL_EVENT_FINGER_DOWN, TEST_TOUCH_STEERING_FINGER, TOUCH_LEFT);
+	sdl3_platform_pump();
+	assert_controller_impact_rumble(device, false);
+	send_touch_control(SDL_EVENT_FINGER_UP, TEST_TOUCH_STEERING_FINGER, TOUCH_LEFT);
+	sdl3_platform_pump();
+	sdl3_touch_enable(false);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	sdl3_input_set_driving_mode(SDL3_DRIVING_KEYBOARD);
+	publish_tilt(8, true);
+	assert_controller_impact_rumble(device, false);
+	publish_tilt(0, false);
+
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	/* SDL stops the short pulse automatically without another impact. */
+	controller_rumble_starts = 0;
+	sdl3_car_impact_feedback();
+	assert(controller_rumble_starts == 1);
+	legacy_u32 stops = controller_rumble_stops;
+	SDL_Delay(60);
+	SDL_UpdateJoysticks();
+	assert(controller_rumble_stops > stops);
+	assert(controller_rumble_low == 0 && controller_rumble_high == 0);
+
+	/* Focus loss also stops a pulse immediately and prevents new effects. */
+	sdl3_car_impact_feedback();
+	assert(controller_rumble_low != 0 && controller_rumble_high != 0);
+	event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
+	assert(SDL_PushEvent(&event));
+	sdl3_platform_pump();
+	assert(controller_rumble_low == 0 && controller_rumble_high == 0);
+	assert_controller_impact_rumble(device, false);
+	event.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+	assert(SDL_PushEvent(&event));
+	sdl3_platform_pump();
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	assert_controller_impact_rumble(device, true);
+	sdl3_input_push_modal();
+	assert_controller_impact_rumble(device, false);
+	sdl3_input_pop_modal();
+	sdl3_input_set_gameplay_active(false);
+	assert_controller_impact_rumble(device, false);
+	sdl3_input_set_gameplay_active(true);
+
+	SDL_CloseJoystick(device);
+	assert(SDL_DetachVirtualJoystick(id));
+	sdl3_platform_pump();
+	sdl3_car_impact_feedback();
+	id = attach_test_controller(&device);
+	assert_controller_impact_rumble(device, false);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, true);
+	assert_controller_impact_rumble(device, true);
+	controller_button(device, SDL_GAMEPAD_BUTTON_DPAD_UP, false);
+	SDL_CloseJoystick(device);
+	assert(SDL_DetachVirtualJoystick(id));
+	sdl3_platform_pump();
+	sdl3_input_set_gameplay_active(false);
+	kb_init_interrupt();
+}
+
 legacy_int main(void)
 {
 	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
@@ -2540,6 +2806,7 @@ legacy_int main(void)
 	test_tilt_manual_override();
 	test_tilt_lifecycle();
 	test_controller();
+	test_controller_rumble();
 	SDL_Event quit;
 	SDL_zero(quit);
 	quit.type = SDL_EVENT_QUIT;

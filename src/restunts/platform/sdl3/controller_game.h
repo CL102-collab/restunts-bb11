@@ -30,4 +30,9 @@ legacy_u8 sdl3_controller_take_menu_request(void);
 /* Preserve a quick right-stick movement until the truck start wait polls it. */
 legacy_u8 sdl3_controller_take_race_start_request(void);
 
+#ifndef __ANDROID__
+legacy_u8 sdl3_controller_vibration_enabled(void);
+void sdl3_controller_set_vibration_enabled(legacy_u8 enabled);
+#endif
+
 #endif

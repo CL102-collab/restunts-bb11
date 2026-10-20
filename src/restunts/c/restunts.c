@@ -7,6 +7,9 @@
 #include "frame_adaptive.h"
 #include "hires.h"
 #include "../platform/sdl3/music.h"
+#ifndef __ANDROID__
+#include "../platform/sdl3/controller_game.h"
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 #include "../platform/sdl3/touch_game.h"
 #endif
@@ -72,6 +75,9 @@
 
 #define STARTUP_HYPERVISION_PREFIX "--hv:"
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
+#define STARTUP_CONTROLLER_VIBRATION_PREFIX "--controller-vibration:"
+#endif
 #define STARTUP_FPS_DISPLAY_PREFIX "--fps:"
 #define STARTUP_SKIP_INTRO_OPTION "--nointro"
 #define STARTUP_WAITING_MESSAGE_Y 180
@@ -199,6 +205,10 @@ struct STARTUP_OPTIONS {
 	legacy_u8 hypervision_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
+#ifndef __ANDROID__
+	legacy_u8 controller_vibration_enabled;
+	legacy_u8 controller_vibration_specified;
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	legacy_u8 control_layout_enabled;
 	legacy_u8 control_layout_specified;
@@ -349,6 +359,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->hypervision_specified = 0;
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
+#ifndef __ANDROID__
+	options->controller_vibration_enabled = 1;
+	options->controller_vibration_specified = 0;
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	options->control_layout_enabled = STARTUP_CONTROL_LAYOUT_ON;
 	options->control_layout_specified = 0;
@@ -359,6 +373,11 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 		startup_parse_hypervision(argv[i], options);
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
+#ifndef __ANDROID__
+		startup_parse_boolean(argv[i], STARTUP_CONTROLLER_VIBRATION_PREFIX, "Controller vibration",
+							  &options->controller_vibration_enabled,
+							  &options->controller_vibration_specified);
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 		startup_parse_boolean(argv[i], STARTUP_CONTROL_LAYOUT_PREFIX, "Control layout",
 							  &options->control_layout_enabled, &options->control_layout_specified);
@@ -499,6 +518,9 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+#ifndef __ANDROID__
+	sdl3_controller_set_vibration_enabled(startup_options.controller_vibration_enabled);
+#endif
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	sdl3_touch_set_layout_visible(startup_options.control_layout_enabled);
 #endif

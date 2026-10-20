@@ -1324,11 +1324,11 @@ static void audio_start_impact_event(legacy_s16 index, legacy_u16 resource_index
 	if (audio_start_indexed_event(index, resource_index, priority) < 0) {
 		return;
 	}
-#ifdef __ANDROID__
+#ifdef RESTUNTS_SDL3
 	/* Replay Play clears is_in_replay; pause and seeking set it to suppress audio. */
 	if (index == audio_player_engine_channel && is_in_replay == 0 &&
 		state.game_inputmode == GAME_INPUT_MODE_ACTIVE && audio_suspended == AUDIO_STATE_DISABLED) {
-		android_car_impact_feedback();
+		sdl3_car_impact_feedback();
 	}
 #endif
 }
