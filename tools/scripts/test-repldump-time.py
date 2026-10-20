@@ -91,13 +91,15 @@ def main():
             rate = struct.unpack_from("<H", recording, 22)[0]
             finish = struct.unpack_from("<H", final, 0x146)[0]
             total = struct.unpack_from("<H", final, 0x142)[0]
-            wanted = (viewer_time(finish, rate) + b"\n" + penalty_time((total - finish) & 0xFFFF, rate)
+            wanted = (viewer_time(finish, rate) + b"\r\n" + penalty_time((total - finish) & 0xFFFF, rate)
                       if final[0x21B] == FINISH_EVENT else b"")
             assert value == wanted, (stem, value, wanted)
             if expected is not None:
                 assert value == expected, (stem, value, expected)
-            assert b"\0" not in value and b"\r" not in value and not value.endswith(b"\n")
-            assert value.count(b"\n") == (1 if value else 0)
+            assert b"\0" not in value and not value.endswith((b"\r", b"\n"))
+            assert value.count(b"\r\n") == (1 if value else 0)
+            without_separator = value.replace(b"\r\n", b"")
+            assert b"\r" not in without_separator and b"\n" not in without_separator
             return final, dump
 
         # With no option, a sidecar is neither created nor overwritten. Asking
@@ -111,21 +113,21 @@ def main():
         run("plain")
         assert source.with_suffix(".tim").read_bytes() == b"keep existing time"
         run("plain", ("--TiMe", "--time"))
-        assert source.with_suffix(".tim").read_bytes() == b"1:53.60\n0:00"
+        assert source.with_suffix(".tim").read_bytes() == b"1:53.60\r\n0:00"
         assert source.with_suffix(".BNI").read_bytes() == original_dump
 
         # The real switched replay has 198 seconds of penalty in fixed mode.
         # Its driving time remains 31.25 seconds, independently of its score.
-        final, _ = verify_time("penalty", shortcut, ("--dws:off",), b"0:31.25\n3:18")
+        final, _ = verify_time("penalty", shortcut, ("--dws:off",), b"0:31.25\r\n3:18")
         total, finish = (struct.unpack_from("<H", final, offset)[0] for offset in (0x142, 0x146))
         assert finish == 625 and total - finish == 3960
         assert viewer_time(total, 20) != b"0:31.25"
 
-        final, _ = verify_time("tenhz", ten_hz, expected=b"1:38.70\n0:00")
+        final, _ = verify_time("tenhz", ten_hz, expected=b"1:38.70\r\n0:00")
         assert struct.unpack_from("<H", ten_hz, 22)[0] == 10
         assert struct.unpack_from("<H", final, 0x146)[0] == 987
 
-        final, _ = verify_time("tail", post_finish_fixture(shortcut), expected=b"0:31.10\n0:00")
+        final, _ = verify_time("tail", post_finish_fixture(shortcut), expected=b"0:31.10\r\n0:00")
         assert struct.unpack_from("<H", final, 0x14A)[0] == 3420
         assert struct.unpack_from("<H", final, 0x140)[0] == 642
 
@@ -133,17 +135,17 @@ def main():
         # time from an earlier invocation. OWOOT still writes its own verdict.
         unfinished = bytearray(ordinary[:INPUT_OFFSET + 10])
         struct.pack_into("<H", unfinished, 24, 10)
-        (directory / "partial.tim").write_bytes(b"3:03.00\n0:30")
+        (directory / "partial.tim").write_bytes(b"3:03.00\r\n0:30")
         final, _ = verify_time("partial", unfinished, expected=b"")
         assert final[0x21B] == 0
-        (directory / "crash.tim").write_bytes(b"3:03.00\n0:30")
+        (directory / "crash.tim").write_bytes(b"3:03.00\r\n0:30")
         final, _ = verify_time("crash", shortcut, ("--owoot",), b"")
         assert final[0x21B] not in (0, FINISH_EVENT)
         assert (directory / "crash.owo").read_bytes() == b"fail"
 
         # Stale success is cleared before a replay/resource error can abort the
         # driver. A sidecar create failure is reported instead of silent success.
-        (directory / "missing.tim").write_bytes(b"3:03.00\n0:30")
+        (directory / "missing.tim").write_bytes(b"3:03.00\r\n0:30")
         run("missing", ("--time",), success=False)
         assert (directory / "missing.tim").read_bytes() == b""
         (directory / "blocked.RPL").write_bytes(ordinary)

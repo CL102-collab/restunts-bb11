@@ -314,7 +314,8 @@ original game resources and replay/car additions together there.
 excluding penalties and the recording tail after finishing, formatted like the
 replay viewer as `m:ss.hh` (for example, `3:03.00`). The second line contains the
 penalty counted at the finish as `m:ss`, such as `0:30` or `4:00`, with `0:00`
-for no penalty. There are no surrounding spaces or trailing newline. The file
+for no penalty. The line separator is CRLF, with no surrounding spaces or
+trailing newline. The file
 starts empty; a replay that crashes before finishing
 or never finishes leaves it empty. Loading or writing errors return a nonzero
 exit code. The flag is case-insensitive and combines with physics switches and

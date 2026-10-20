@@ -38,17 +38,17 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     cases = [
         {"name": "TIMEBASE", "source": "0000.rpl", "flags": "--time",
-         "time": b"1:53.60\n0:00", "exit": 0},
+         "time": b"1:53.60\r\n0:00", "exit": 0},
         {"name": "TIMEDWS", "source": "0722.rpl", "flags": "--time --dws:off",
-         "time": b"0:31.25\n3:18", "exit": 0},
+         "time": b"0:31.25\r\n3:18", "exit": 0},
         {"name": "TIME10HZ", "source": "1904.rpl", "flags": "--time",
-         "time": b"1:38.70\n0:00", "exit": 0},
+         "time": b"1:38.70\r\n0:00", "exit": 0},
         {"name": "TIMEOWO", "source": "r0019.rpl", "flags": "--TiMe --OWOOT",
          "extension": ".RpL", "time": b"", "owoot": b"fail", "exit": 0},
         {"name": "NOFLAG", "source": "0000.rpl", "flags": "",
          "time": b"previous time", "seed": b"previous time", "exit": 0},
         {"name": "UNFINISH", "source": "0000.rpl", "flags": "--time",
-         "time": b"", "seed": b"1:00.00", "truncate": True, "exit": 0},
+         "time": b"", "seed": b"1:00.00\r\n0:00", "truncate": True, "exit": 0},
         {"name": "BADTIME", "source": "0000.rpl", "flags": "--time",
          "directory": True, "exit": 1},
     ]

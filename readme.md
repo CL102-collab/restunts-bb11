@@ -553,7 +553,8 @@ player's driving time to the finish on the first line, excluding penalties and
 any recording frames after finishing. The second line contains the penalty
 counted at the finish, in minutes and seconds (`0:00` when there is no penalty).
 The first line uses the replay viewer's minutes, seconds, and hundredths format.
-There are no alignment spaces or trailing newline. For example:
+The two lines are separated by CRLF, with no alignment spaces or trailing
+newline. For example:
 
 ```text
 3:03.00

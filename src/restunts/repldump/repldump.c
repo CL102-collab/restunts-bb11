@@ -412,6 +412,7 @@ static legacy_s16 repldump_write_time_result(const legacy_s8 *stem, legacy_s16 c
 		legacy_u16 driving_frames =
 			LEGACY_U16_WRAP_ADD((legacy_u16)state.game_pEndFrame, elapsed_time1);
 		length = repldump_format_time(text, driving_frames);
+		text[length++] = '\r';
 		text[length++] = '\n';
 		length += repldump_format_penalty_time(
 			text + length,

@@ -197,7 +197,7 @@ static void enable_time_output(const char *name)
 	state.game_penalty = 720;
 	state.game_total_finish = 4260;
 	state.game_frame = 3680;
-	expected_write_length = 12;
+	expected_write_length = 13;
 }
 
 static void assert_time_result(const char *result)
@@ -286,43 +286,43 @@ static void test_time_file_contents(void)
 {
 	enable_time_output("R0000.tim");
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("3:03.00\n0:30");
+	assert_time_result("3:03.00\r\n0:30");
 	/* Both lines use latched finish fields, despite a changing live penalty. */
 	enable_time_output("R0000.tim");
 	state.game_total_finish = state.game_pEndFrame;
 	state.game_penalty = 4800;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("3:03.00\n0:00");
+	assert_time_result("3:03.00\r\n0:00");
 	enable_time_output("R0000.tim");
 	state.game_total_finish = 8460;
 	state.game_penalty = 0;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("3:03.00\n4:00");
+	assert_time_result("3:03.00\r\n4:00");
 	enable_time_output("R0000.tim");
 	state.game_pEndFrame = 3659;
 	elapsed_time1 = 2;
 	state.game_total_finish = 4261;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("3:03.05\n0:30");
+	assert_time_result("3:03.05\r\n0:30");
 	enable_time_output("R0000.tim");
 	state.game_pEndFrame = 3641;
 	elapsed_time1 = 20;
 	state.game_total_finish = 4261;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("3:03.05\n0:30");
+	assert_time_result("3:03.05\r\n0:30");
 	enable_time_output("R0000.tim");
 	state.game_pEndFrame = LEGACY_S16_FROM_BITS(65535U);
 	elapsed_time1 = 1;
 	state.game_total_finish = 0;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("0:00.00\n0:00");
+	assert_time_result("0:00.00\r\n0:00");
 	/* Wrapped score subtraction must still recover the original 30 seconds. */
 	enable_time_output("R0000.tim");
 	state.game_pEndFrame = LEGACY_S16_FROM_BITS(65530U);
 	state.game_total_finish = 594;
-	expected_write_length = 13;
+	expected_write_length = 14;
 	assert(repldump_write_time_result("R0000", 1));
-	assert_time_result("54:36.50\n0:30");
+	assert_time_result("54:36.50\r\n0:30");
 }
 
 static void test_unfinished_time_file_is_empty(void)
@@ -333,8 +333,8 @@ static void test_unfinished_time_file_is_empty(void)
 		enable_time_output("R0000.tim");
 		state.playerstate.car_crashBmpFlag = events[index];
 		output_exists = 1;
-		output_length = 12;
-		memcpy(output_bytes, "3:03.00\n0:30", 12);
+		output_length = 13;
+		memcpy(output_bytes, "3:03.00\r\n0:30", 13);
 		assert(repldump_write_time_result("R0000", 1));
 		assert(output_exists && output_length == 0);
 		assert(open_count == 1 && close_count == 1 && write_count == 0);
@@ -349,12 +349,13 @@ static void test_time_disabled_does_not_touch_results(void)
 {
 	reset_output("R0000.tim");
 	output_exists = 1;
-	output_length = 12;
-	memcpy(output_bytes, "3:03.00\n0:30", 12);
+	output_length = 13;
+	memcpy(output_bytes, "3:03.00\r\n0:30", 13);
 	state.playerstate.car_crashBmpFlag = CRASH_EVENT_FINISH;
 	assert(repldump_write_time_result("R0000", 0));
 	assert(repldump_write_time_result("R0000", 1));
-	assert(output_exists && output_length == 12 && memcmp(output_bytes, "3:03.00\n0:30", 12) == 0);
+	assert(output_exists && output_length == 13 &&
+		   memcmp(output_bytes, "3:03.00\r\n0:30", 13) == 0);
 	assert(open_count == 0 && write_count == 0 && close_count == 0 && remove_count == 0);
 }
 
@@ -362,8 +363,8 @@ static void test_time_io_failures_remove_output(void)
 {
 	enable_time_output("R0000.tim");
 	output_exists = 1;
-	output_length = 12;
-	memcpy(output_bytes, "3:03.00\n0:30", 12);
+	output_length = 13;
+	memcpy(output_bytes, "3:03.00\r\n0:30", 13);
 	create_fails = 1;
 	assert(!repldump_write_time_result("R0000", 1));
 	assert(!output_exists && write_count == 0);
