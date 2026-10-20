@@ -978,17 +978,28 @@ static int test_dualway_routes(void)
 		}
 	}
 	/* Read the actual native penalty search, not an optimizer approximation.
-	 * The same destination costs 65 skipped elements before a private A tile
-	 * is confirmed, and receives the legacy wraparound marker afterward. */
-	for (int confirmed = 9; confirmed <= 11; confirmed += 2) {
-		genghost_sim_reset();
-		state.game_startcol = state.game_startcol2 = -1;
-		state.game_startrow = state.game_startrow2 = -1;
-		place_on_piece(125);
-		legacy_s16 current = (legacy_s16)confirmed, skipped = 0;
-		assert(detect_penalty(&current, &skipped) != 0);
-		assert(current == 125);
-		assert(skipped == (confirmed == 9 ? 65 : -1));
+	 * Before choosing a branch, the destination costs 65 skipped elements.
+	 * Once private A is confirmed, the legacy mode wraps past the finish;
+	 * fixed mode keeps A confirmed and recognizes the other branch as off-route.
+	 * Configuration must survive simulator resets and branch restoration. */
+	for (int switching = 0; switching <= 1; ++switching) {
+		legacy_s8 *flags[] = {(legacy_s8 *)"test",
+							  (legacy_s8 *)(switching ? "--dws:on" : "--dws:off")};
+		configure_dual_way_switching(2, flags);
+		for (int confirmed = 9; confirmed <= 11; confirmed += 2) {
+			genghost_sim_reset();
+			state.game_startcol = state.game_startcol2 = -1;
+			state.game_startrow = state.game_startrow2 = -1;
+			place_on_piece(125);
+			legacy_s16 current = (legacy_s16)confirmed, skipped = 0;
+			assert(detect_penalty(&current, &skipped) != 0);
+			if (!switching && confirmed == 11) {
+				assert(current == confirmed && skipped == PENALTY_ROUTE_OUTSIDE_TRACK);
+			} else {
+				assert(current == 125);
+				assert(skipped == (confirmed == 9 ? 65 : PENALTY_ROUTE_FINISH_REACHED));
+			}
+		}
 	}
 	genghost_routes_free(&set);
 	genghost_sim_reset();

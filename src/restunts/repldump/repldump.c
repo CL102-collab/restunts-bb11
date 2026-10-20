@@ -35,6 +35,7 @@
 #define REPLDUMP_CAR_ID_BUFFER_SIZE 5U
 #define REPLDUMP_REPLAY_EXTENSION_SIZE 4U
 #define REPLDUMP_OWOOT_RESULT_LENGTH 4U
+#define REPLDUMP_TIME_TEXT_SIZE 9U
 #define REPLDUMP_SERIALIZED_CHUNK_NAME_SIZE 12U
 #define REPLDUMP_POLYINFO_RESOURCE_SIZE 10400U
 #define REPLDUMP_CVX_RESOURCE_SIZE 22400U
@@ -327,6 +328,104 @@ static legacy_s16 repldump_complete_owoot_result(const legacy_s8 *stem)
 									   state.playerstate.car_crashBmpFlag == CRASH_EVENT_FINISH);
 }
 
+static legacy_s16 time_enabled;
+
+static void repldump_configure_time(legacy_s16 argc, legacy_s8 *argv[])
+{
+	time_enabled = 0;
+	/* argv[1] is the replay stem, which may itself be named --time. */
+	for (legacy_s16 index = 2; index < argc; index++) {
+		if (stricmp(argv[index], "--time") == 0) {
+			time_enabled = 1;
+		}
+	}
+}
+
+static legacy_u16 repldump_format_time(legacy_s8 *destination, legacy_u16 frames)
+{
+	/* Match format_frame_as_string's frame-rate quantization and two-digit
+	 * fields, omitting the minute field's leading UI alignment space. */
+	legacy_u16 frames_per_minute = LEGACY_U16_WRAP_MUL(60U, framespersec);
+	legacy_u16 minutes = LEGACY_U16_DIV_OR_ZERO(frames, frames_per_minute);
+	frames = LEGACY_U16_WRAP_SUB(frames, LEGACY_U16_WRAP_MUL(frames_per_minute, minutes));
+	legacy_u16 seconds = LEGACY_U16_DIV_OR_ZERO(frames, framespersec);
+	frames = LEGACY_U16_WRAP_SUB(frames, LEGACY_U16_WRAP_MUL(framespersec, seconds));
+	legacy_u16 hundredths = LEGACY_U16_WRAP_MUL(LEGACY_U16_DIV_OR_ZERO(100U, framespersec), frames);
+	legacy_u16 length = 0;
+	if (minutes >= 10U) {
+		destination[length++] = (legacy_s8)('0' + minutes / 10U % 10U);
+	}
+	destination[length++] = (legacy_s8)('0' + minutes % 10U);
+	destination[length++] = ':';
+	destination[length++] = (legacy_s8)('0' + seconds / 10U);
+	destination[length++] = (legacy_s8)('0' + seconds % 10U);
+	destination[length++] = '.';
+	destination[length++] = (legacy_s8)('0' + hundredths / 10U);
+	destination[length++] = (legacy_s8)('0' + hundredths % 10U);
+	destination[length] = 0;
+	return length;
+}
+
+static legacy_u16 repldump_format_penalty_time(legacy_s8 *destination, legacy_u16 frames)
+{
+	legacy_u16 total_seconds = LEGACY_U16_DIV_OR_ZERO(frames, framespersec);
+	legacy_u16 minutes = total_seconds / 60U;
+	legacy_u16 seconds = total_seconds % 60U;
+	legacy_u16 divisor = 10000U;
+	while (divisor > 1U && minutes < divisor) {
+		divisor /= 10U;
+	}
+	legacy_u16 length = 0;
+	do {
+		destination[length++] = (legacy_s8)('0' + minutes / divisor);
+		minutes %= divisor;
+		divisor /= 10U;
+	} while (divisor != 0);
+	destination[length++] = ':';
+	destination[length++] = (legacy_s8)('0' + seconds / 10U);
+	destination[length++] = (legacy_s8)('0' + seconds % 10U);
+	destination[length] = 0;
+	return length;
+}
+
+static legacy_s16 repldump_write_time_result(const legacy_s8 *stem, legacy_s16 completed)
+{
+	if (!time_enabled) {
+		return 1;
+	}
+	legacy_s8 name[REPLDUMP_OUTPUT_NAME_SIZE];
+	if (!repldump_output_name(name, stem, ".tim")) {
+		return 0;
+	}
+	/* An empty result replaces stale times before loading and remains empty
+	 * for crashed or unfinished replays, which have no completed lap time. */
+	(void)dos_file_remove(name);
+	REPLDUMP_OUTPUT output = repldump_output_open(name);
+	if (output == 0) {
+		return 0;
+	}
+	legacy_s8 text[REPLDUMP_TIME_TEXT_SIZE * 2U];
+	legacy_u16 length = 0;
+	if (completed && state.playerstate.car_crashBmpFlag == CRASH_EVENT_FINISH) {
+		/* Both times come from the latched finish. Route tracking may add
+		 * further live penalties while the finished car brakes in the tail. */
+		legacy_u16 driving_frames =
+			LEGACY_U16_WRAP_ADD((legacy_u16)state.game_pEndFrame, elapsed_time1);
+		length = repldump_format_time(text, driving_frames);
+		text[length++] = '\n';
+		length += repldump_format_penalty_time(
+			text + length,
+			LEGACY_U16_WRAP_SUB((legacy_u16)state.game_total_finish, driving_frames));
+	}
+	legacy_u16 written = length != 0 ? repldump_output_write(output, text, length) : 0;
+	legacy_s16 closed = repldump_output_close(output);
+	if (written != length || closed != 0) {
+		(void)dos_file_remove(name);
+		return 0;
+	}
+	return 1;
+}
+
 static legacy_u8 far *serialized_gamestate;
 static const legacy_s8 serialized_state_chunk_name[REPLDUMP_SERIALIZED_CHUNK_NAME_SIZE] = {
 	'g', 'a', 'm', 'e', 's', 't', 'a', 't', 'e', 0, 0, 0};
@@ -365,9 +464,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 #else
 	repldump_strip_replay_extension(argv[1]);
 	configure_owoot(argc, argv);
+	repldump_configure_time(argc, argv);
 	/* Start with fail before loading resources: aborted runs must not retain
 	 * a successful verdict from an earlier invocation. */
-	if (!repldump_write_owoot_result(argv[1], 0)) {
+	if (!repldump_write_owoot_result(argv[1], 0) || !repldump_write_time_result(argv[1], 0)) {
 		return 1;
 	}
 #endif
@@ -406,6 +506,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	printf("File: %s\n\n", argv[1]);
 	printf("Loading replay... ");
 	file_load_replay("", argv[1]);
+#ifndef RESTUNTS_ORIGINAL
+	/* Replay simulation and its formatted clock use the viewer's stored rate. */
+	framespersec =
+		(legacy_s16)LEGACY_S8_FROM_BITS(LEGACY_U16_LOW_BYTE(gameconfig.game_framespersec));
+#endif
 	printf("OK\n");
 	legacy_s8 carid[REPLDUMP_CAR_ID_BUFFER_SIZE];
 	_memcpy(carid, gameconfig.game_playercarid, REPLDUMP_CAR_ID_SIZE);
@@ -477,7 +582,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	cameramode = 0;
 	game_replay_mode = REPLAY_MODE_PLAYBACK;
 	start_flag_animation = REPLDUMP_FRAME_TIMER_VALUE;
+#ifdef RESTUNTS_ORIGINAL
 	framespersec = GAME_FRAME_RATE_NORMAL;
+#endif
 
 	restore_gamestate(0);
 	restore_gamestate(gameconfig.game_recordedframes);
@@ -538,7 +645,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	printf("OK\n");
 
 #ifndef RESTUNTS_ORIGINAL
-	if (repldump_output_close(fout) != 0 || !repldump_complete_owoot_result(argv[1])) {
+	if (repldump_output_close(fout) != 0 || !repldump_complete_owoot_result(argv[1]) ||
+		!repldump_write_time_result(argv[1], 1)) {
 		return 1;
 	}
 #else

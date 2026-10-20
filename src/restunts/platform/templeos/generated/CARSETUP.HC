@@ -360,12 +360,9 @@ legacy_void RsCarsetupSetupCarSurfaceAdhesion(legacy_u8 *car_resource,legacy_s16
     return;
   }
   temple_data_size_806=TempleCastU32(TempleCastU32((temple_size_802-temple_data_start_805)));
-  MemSet(&temple_starts_807,0,sizeof(temple_starts_807));
-  temple_starts_807[0]=TempleCastU32(temple_data_size_806);
-  temple_starts_807[1]=TempleCastU32(temple_data_size_806);
-  MemSet(&temple_ends_808,0,sizeof(temple_ends_808));
-  temple_ends_808[0]=TempleCastU32(temple_data_size_806);
-  temple_ends_808[1]=TempleCastU32(temple_data_size_806);
+  (temple_starts_807[0]=
+          TempleCastU32((temple_starts_807[1]=TempleCastU32(temple_data_size_806))));
+  (temple_ends_808[0]=TempleCastU32((temple_ends_808[1]=TempleCastU32(temple_data_size_806))));
   MemSet(&temple_aliases_809,0,sizeof(temple_aliases_809));
   temple_found_810=TempleCastU16(0);
   temple_index_812=TempleCastU16(0);

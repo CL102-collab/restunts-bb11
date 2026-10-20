@@ -649,6 +649,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		arguments[n++] = options->powergear ? "--pg:on" : "--pg:off";
 		arguments[n++] = options->collision ? "--lc:on" : "--lc:off";
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
+		arguments[n++] = options->dual_way_switching ? "--dws:on" : "--dws:off";
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
 		}
@@ -1248,6 +1249,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		arguments[n++] = options->powergear ? "--pg:on" : "--pg:off";
 		arguments[n++] = options->collision ? "--lc:on" : "--lc:off";
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
+		arguments[n++] = options->dual_way_switching ? "--dws:on" : "--dws:off";
 		if (options->owoot) {
 			arguments[n++] = "--owoot";
 		}

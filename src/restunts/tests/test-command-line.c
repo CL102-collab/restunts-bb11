@@ -102,8 +102,9 @@ static void test_help_contents(void)
 #endif
 		"  --fps:on|off",
 	};
-	static const legacy_char *physics_options[] = {"  --pg:on|off", "  --lc:on|off",
-												   "  --lcb:on|off", "  /amigagrass", "  --owoot"};
+	static const legacy_char *physics_options[] = {"  --pg:on|off",	 "  --lc:on|off",
+												   "  --lcb:on|off", "  --dws:on|off",
+												   "  /amigagrass",	 "  --owoot"};
 #ifdef RESTUNTS_SDL3
 	static const legacy_char *hypervision_options[] = {"  --hv:auto", "  --hv:full", "  --hv:high",
 													   "  --hv:medium", "  --hv:low"};
@@ -126,12 +127,13 @@ static void test_help_contents(void)
 	assert(strstr(cursor, "Defaults:") == cursor);
 	assert(strstr(output, "ss:") == NULL);
 	static const legacy_char *removed_options[] = {
-		"/nointro", "/pg:",	 "/lc:",		 "/lcb:",		"/owoot",
-		"  lcb:",	"  hv:", "--amigagrass", "/amigagrass:"};
+		"/nointro", "/pg:",			"/lc:",			"/lcb:", "/owoot", "  lcb:",
+		"  hv:",	"--amigagrass", "/amigagrass:", "/dws:", "  dws:"};
 	for (legacy_u16 index = 0; index < COMMAND_LINE_TEST_ARGUMENT_COUNT(removed_options); index++) {
 		assert(strstr(output, removed_options[index]) == NULL);
 	}
-	expect_text("Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on; --owoot off.");
+	expect_text("Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on; --owoot off.");
+	expect_text("Enable/disable original Dual-Way Switching.");
 	expect_text("Amiga grass grip starts off; enable with /amigagrass.");
 	expect_text("Use original Amiga grass grip (stock cars).");
 	expect_text("no effect");
@@ -194,12 +196,12 @@ static void test_aliases_and_version(void)
 static void test_normal_and_similar_arguments(void)
 {
 	static const legacy_char *normal_arguments[] = {
-		"/h",		 "/sAD",	   "/ns",		"/nd",		 "--nointro",  "--hv:full",
-		"--pg:off",	 "--lc:on",	   "--lcb:off", "--owoot",	 "--licenses", "--data-dir",
-		"",			 "-H",		   "-V",		"-help",	 "-version",   "/help",
-		"/v",		 "/version",   "help",		"version",	 "--helpful",  "--version=1",
-		"-hv",		 "-vh",		   "--ogg:on",	"--ogg:off", "--hv:auto",  "--fps:on",
-		"--fps:off", "/amigagrass"};
+		"/h",		 "/sAD",		"/ns",		 "/nd",		  "--nointro",	"--hv:full",
+		"--pg:off",	 "--lc:on",		"--lcb:off", "--owoot",	  "--licenses", "--data-dir",
+		"",			 "-H",			"-V",		 "-help",	  "-version",	"/help",
+		"/v",		 "/version",	"help",		 "version",	  "--helpful",	"--version=1",
+		"-hv",		 "-vh",			"--ogg:on",	 "--ogg:off", "--hv:auto",	"--fps:on",
+		"--fps:off", "/amigagrass", "--dws:on",	 "--dws:off", "--DWS:OFF"};
 	legacy_s8 *executable_only[] = {(legacy_s8 *)"--help"};
 	assert(run_arguments(COMMAND_LINE_TEST_ARGUMENT_COUNT(executable_only), executable_only) ==
 		   COMMAND_LINE_CONTINUE);

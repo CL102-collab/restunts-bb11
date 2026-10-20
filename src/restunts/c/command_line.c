@@ -55,6 +55,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --pg:on|off      Enable/disable the original power gear bug." COMMAND_LINE_NEWLINE
 	"  --lc:on|off      Enable/disable original collision behavior." COMMAND_LINE_NEWLINE
 	"  --lcb:on|off     Enable/disable the original left corner bias." COMMAND_LINE_NEWLINE
+	"  --dws:on|off     Enable/disable original Dual-Way Switching." COMMAND_LINE_NEWLINE
 	"  /amigagrass      Use original Amiga grass grip (stock cars)." COMMAND_LINE_NEWLINE
 	"  --owoot          Enable One Wheel On/Over Track driving "
 	"rules." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
@@ -83,7 +84,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #endif
 	"  /nd              Recognized legacy switch with no "
 	"effect." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
-	"Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on; --owoot off." COMMAND_LINE_NEWLINE
+	"Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on; "
+	"--owoot off." COMMAND_LINE_NEWLINE
 	"Amiga grass grip starts off; enable with /amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE

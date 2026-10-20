@@ -9,6 +9,7 @@ the preserved assembly executable retain their original interfaces.
 | Original power gear behavior | `--pg:on` / `--pg:off` | On |
 | Original collision behavior | `--lc:on` / `--lc:off` | On |
 | Original left corner bias | `--lcb:on` / `--lcb:off` | On |
+| Dual-Way Switching | `--dws:on` / `--dws:off` | On |
 | Original Amiga grass grip for stock cars | `/amigagrass` | Off |
 | One Wheel On/Over Track rules | `--owoot` | Off |
 | Skip intro | `--nointro` | Off |
@@ -16,10 +17,16 @@ the preserved assembly executable retain their original interfaces.
 | FPS display | `--fps:on` / `--fps:off` | Off |
 
 Physics switches and FPS values are case-insensitive. For power gear,
-collision, and corner bias, the last value wins. Supply the FPS option once;
-invalid or repeated FPS options report an error. F11 toggles FPS during play.
+collision, corner bias, and dual-way switching, the last value wins. Supply the
+FPS option once; invalid or repeated FPS options report an error. F11 toggles FPS
+during play.
 Replays do not record driving options: use the same settings when recording
 and playing them.
+
+**Dual-Way Switching** preserves the original penalty-time behavior when on.
+Use `--dws:off` to charge skipped elements when switching between branches of a
+dual-way track. See [Penalty time](https://wiki.stunts.hu/wiki/Penalty_time) and
+[Dual-way switching](https://wiki.stunts.hu/wiki/Dual-way_switching).
 
 Custom-car surface adhesion activates automatically when the selected car has
 a one-byte `fand` resource set to `1`. It is loaded independently for the player
@@ -35,7 +42,7 @@ for bounds, compatibility and measurement details.
 DOS16, Amiga, and SDL3 executables accept switches after the executable name:
 
 ```text
-restunts --nointro --pg:off --lc:off --lcb:off /amigagrass --fps:on
+restunts --nointro --pg:off --lc:off --lcb:off --dws:off /amigagrass --fps:on
 ```
 
 `--help` / `-h` and `--version` / `-v` exit without opening game data. Use
@@ -48,7 +55,7 @@ TempleOS accepts the same common switches in the fourth argument:
 
 ```c
 Restunts("C:/DATA", FALSE, FALSE,
-    "--pg:off --lc:off --lcb:off /amigagrass --fps:on");
+    "--pg:off --lc:off --lcb:off --dws:off /amigagrass --fps:on");
 Restunts("C:/DATA", FALSE, FALSE, "--help");
 ```
 

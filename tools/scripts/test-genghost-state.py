@@ -125,7 +125,8 @@ def main():
             assert result["strategy"] == strategy, result
             assert result["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
+                "owoot": "--owoot" in flags,
                 "amiga_grass": "/amigagrass" in flags}
             assert result["globally_optimal"] is False
             assert result["total_seconds"] == result["total_frames"] / 20
@@ -244,6 +245,12 @@ def main():
         assert generated[0][26:INPUT_OFFSET] == available["DEFAULT.TRK"].read_bytes()
         assert not generated[1]["seed_replay_finished"]
         generate("fixed.RPL", budget=257, cores=2, flags=("--pg:off", "--lc:off", "--lcb:off"))
+        fixed_switch = generate("dws1.RPL", budget=257, flags=("--dws:off",))
+        parallel_switch = generate("dws2.RPL", budget=257, cores=2, flags=("--dws:off",))
+        assert fixed_switch[0] == parallel_switch[0] and fixed_switch[2] == parallel_switch[2]
+        assert fixed_switch[1]["state_task_hash"] == parallel_switch[1]["state_task_hash"]
+        assert not parallel_switch[1]["physics"]["dws"]
+        print("Dual-Way Switching off preserves cooperative task identity and native playback", flush=True)
         generate("owoot.RPL", car="COUN", budget=2000, cores=2, flags=RESTRICTED)
         print("Track-only state search and matching-physics replay/OWOOT validation passed", flush=True)
 

@@ -106,7 +106,8 @@ def main():
             assert report["dualway_pairs"] >= 0
             assert report["routes_finished"] <= report["routes_attempted"] <= report["route_combinations"]
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                                         "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                                         "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
+                                         "owoot": "--owoot" in flags,
                                          "amiga_grass": "/amigagrass" in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
             verified = verify(path, car, flags)
@@ -236,6 +237,12 @@ def main():
 
         (temporary / "seed.RPL").write_bytes(seed)
         seed_score = verify("seed.RPL", "LM02")["total_frames"]
+        # Physics switches are case-insensitive and the last supplied value
+        # wins; the report must record the exact rules used for playback.
+        for suffix, flags in (("on", ("--DWS:OFF", "--dws:on")),
+                              ("off", ("--DWS:ON", "--dws:off"))):
+            _, switched = generate("seed.RPL", "LM02", f"dws{suffix}.RPL", 1, flags)
+            assert switched["physics"]["dws"] is (suffix == "on")
         _, seeded_report = generate("seed.RPL", "LM02", "seeded.RPL", 100)
         assert seeded_report["total_frames"] <= seed_score, "Search regressed its valid input replay"
         assert seeded_report["seed_replay_finished"] and seeded_report["seed_total_frames"] == seed_score
@@ -283,6 +290,8 @@ def main():
             ["track.TRK", "COUN", "--seed", "4294967296"],
             ["track.TRK", "COUN", "--seconds", "nan"],
             ["track.TRK", "COUN", "--pg:maybe"],
+            ["track.TRK", "COUN", "--dws:maybe"],
+            ["track.TRK", "COUN", "--dws:offx"],
             ["track.TRK", "COUN", "--transmission", "invalid"],
             ["track.TRK", "TOOLONG"],
             ["bad.RPL", "LM02"],

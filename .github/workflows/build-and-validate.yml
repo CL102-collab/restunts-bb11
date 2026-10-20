@@ -528,6 +528,14 @@ jobs:
             --source src/restunts/platform/templeos --entry TEST_LAUNCH.HC \
             --boot-seconds 35 --timeout 300
 
+      - name: Verify Dual-Way Switching penalties with stock HolyC
+        run: |
+          python3 src/restunts/platform/templeos/tools/VM.PY \
+            --work "$RUNNER_TEMP/templeos-dws" run \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --source src/restunts/platform/templeos --entry TEST_DWS.HC \
+            --boot-seconds 35 --timeout 300
+
       - name: Verify C semantics with stock HolyC
         run: |
           python3 src/restunts/platform/templeos/tools/VM.PY \

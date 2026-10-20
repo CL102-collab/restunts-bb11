@@ -301,12 +301,25 @@ the first argument. Existing game and dump parameters follow it unchanged:
 ```sh
 out/sdl3-linux-x64/restunts --data-dir stunts --nointro
 out/sdl3-linux-x64/repldump --data-dir stunts DEFAULT.RPL
+out/sdl3-linux-x64/repldump --data-dir stunts DEFAULT.RPL --time --owoot
 out/sdl3-linux-x64/pixldump --data-dir stunts DEFAULT.RPL 2 0 5
 ```
 
 Windows uses the corresponding `.exe` names. Dump outputs and saved game data
 are written in the selected data directory, so it must be writable. Keep the
 original game resources and replay/car additions together there.
+
+`repldump --time` also writes a `.tim` file with the replay's basename, such as
+`DEFAULT.tim`. Its first line contains the player's driving time to the finish,
+excluding penalties and the recording tail after finishing, formatted like the
+replay viewer as `m:ss.hh` (for example, `3:03.00`). The second line contains the
+penalty counted at the finish as `m:ss`, such as `0:30` or `4:00`, with `0:00`
+for no penalty. There are no surrounding spaces or trailing newline. The file
+starts empty; a replay that crashes before finishing
+or never finishes leaves it empty. Loading or writing errors return a nonzero
+exit code. The flag is case-insensitive and combines with physics switches and
+`--owoot`; the latter still writes its separate `.owo` result. Omitting `--time`
+leaves any existing `.tim` file untouched.
 
 On Linux, BSD, Haiku, Windows, and macOS, the interactive game defaults to serial rendering with
 zero background render workers. `RESTUNTS_RENDER_WORKERS=auto` enables automatic

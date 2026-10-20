@@ -463,6 +463,7 @@ public final class GeneratorService extends Service {
         for (String key : new String[] {"pg", "lc", "lcb"}) {
             command.add("--" + key + ":" + (physics.getBoolean(key) ? "on" : "off"));
         }
+        command.add(physics.optBoolean("dws", true) ? "--dws:on" : "--dws:off");
         if (physics.getBoolean("owoot")) {
             command.add("--owoot");
         }

@@ -492,6 +492,12 @@ selects it. These switches are case-insensitive, and the last one wins. They
 can be combined with `--pg:off`, `--lc:off`, `--nointro`, and other startup
 options. Collision recovery rounding remains controlled separately by `--lc:off`.
 
+Run `restunts.exe --dws:off` to disable **Dual-Way Switching**, correcting the
+penalty calculation when cutting from one branch of a split track to the other.
+The original switching behavior remains the default; `--dws:on` explicitly
+selects it. These switches are case-insensitive, and the last value wins.
+They are available on every port and can be combined with other startup options.
+
 Run `restunts.exe /amigagrass` to use original Amiga grass grip for the 11 stock
 cars. This option is off by default and leaves road grip unchanged. Custom car
 IDs retain their authored grass grip. The switch is case-insensitive and can
@@ -501,8 +507,8 @@ cars gain grass grip, while the NSX, Countach, Ferrari GTO and Corvette
 retain their DOS grass grip.
 
 The ported physics dump tool accepts the same switches after the replay name:
-`repldump.exe 0681 --pg:off --lc:off --lcb:off`. Replays do not store these
-options, so use the same physics settings for recording and playback. Original
+`repldump.exe 0681 --pg:off --lc:off --lcb:off --dws:off`. Replays do not store
+these options, so use the same physics settings for recording and playback. Original
 assembly executables and the renderer dump tools retain their existing interfaces.
 
 ### OWOOT driving rules
@@ -538,6 +544,31 @@ violation; ordinary crashes and unfinished replays fail too. The result starts
 as `fail` and changes to `pass` only after successful processing. File-writing
 or replay-loading errors return a nonzero exit code; check that code as well
 when validating a batch. Without `--owoot`, no `.owo` file is created or updated.
+
+### Replay driving-time reports
+
+In the ported DOS16 and SDL3 physics dump tools, `repldump.exe R0019.RPL --time`
+also writes `R0019.tim` beside the normal dump output. The file contains the
+player's driving time to the finish on the first line, excluding penalties and
+any recording frames after finishing. The second line contains the penalty
+counted at the finish, in minutes and seconds (`0:00` when there is no penalty).
+The first line uses the replay viewer's minutes, seconds, and hundredths format.
+There are no alignment spaces or trailing newline. For example:
+
+```text
+3:03.00
+0:30
+```
+
+The `.tim` file starts empty before replay loading and receives a time only if
+the player finishes. A replay that crashes before finishing or never finishes
+leaves it empty. Replay-loading and file-writing errors return a nonzero exit
+code; check that code when processing batches. Without `--time`, no `.tim` file
+is created or updated.
+
+The flag is case-insensitive and can be combined with physics switches and
+`--owoot`: `repldump.exe R0019.RPL --time --owoot --dws:off` writes both the
+`.tim` driving and penalty times and the independent `.owo` verdict.
 
 ### Needle colours
 
@@ -584,7 +615,8 @@ driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
 offers **New MIDI**, **Show FPS**, **Show Control Layout**, **Tilt steering**,
 and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
-**Original Collision Bugs**, **Left Corner Bias**, **OWOOT**, and **Amiga Grass**,
+**Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
+**OWOOT**, and **Amiga Grass**,
 with the same defaults as the command-line options.
 Upper-right **C**/**T** circles send the camera/follow keyboard shortcuts.
 

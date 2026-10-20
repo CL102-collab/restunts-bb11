@@ -14,8 +14,8 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
 const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
-    'power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
-const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'owoot', 'amiga-grass'];
+    'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
+const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
@@ -611,6 +611,8 @@ async function main() {
         assert.equal(await page.locator('#power-gear').isChecked(), true);
         assert.equal(await page.locator('#legacy-collision').isChecked(), true);
         assert.equal(await page.locator('#left-corner-bias').isChecked(), true);
+        assert.equal(await page.locator('#dual-way-switching').isChecked(), true);
+        assert.equal((await page.locator('#dual-way-switching').locator('..').innerText()).trim(), 'Dual-Way Switching');
         assert.equal(await page.locator('#owoot').isChecked(), false);
         assert.equal(await page.locator('#amiga-grass').isChecked(), false);
         await page.evaluate(() => setLoading(true));
@@ -621,7 +623,7 @@ async function main() {
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--hv:auto', '--control-layout:off',
-            '--pg:on', '--lc:on', '--lcb:on'
+            '--pg:on', '--lc:on', '--lcb:on', '--dws:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
 
@@ -651,7 +653,7 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 3)]) await page.locator('#' + id).uncheck();
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 4)]) await page.locator('#' + id).uncheck();
         await page.locator('#hypervision').selectOption('high');
         const stored = await storedOptions(page);
         for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
@@ -660,7 +662,7 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 3)]) {
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 4)]) {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
@@ -668,7 +670,7 @@ async function main() {
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
-            '--pg:off', '--lc:off', '--lcb:off', '--owoot', '/amigagrass'
+            '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--owoot', '/amigagrass'
         ]);
 
         await page.reload();
@@ -695,6 +697,8 @@ async function main() {
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
             assert.equal(await page.locator('#sound-enabled').isChecked(), true,
                 'Preferences from earlier versions must leave sound enabled');
+            assert.equal(await page.locator('#dual-way-switching').isChecked(), true,
+                'Preferences from earlier versions must preserve original dual-way switching');
             await page.locator('#show-fps').check();
             const migrated = await storedOptions(page);
             assert.equal(migrated.hypervision, expected,

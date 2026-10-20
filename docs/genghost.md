@@ -17,7 +17,7 @@ genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.r
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --strategy state --cores 4 --output state.rpl
 genghost --data-dir /path/to/game race.RPL DIA3 --seconds 1800 --output ghost.rpl
 genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --output WINNERFT.rpl
-genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --output clean.rpl
+genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --dws:off --output clean.rpl
 ```
 
 On Windows, use the same arguments with `genghost.exe`; quote paths containing
@@ -51,16 +51,17 @@ different car.
 | `--pg:on`, `--pg:off` | Enable or disable the original power gear arithmetic bug. |
 | `--lc:on`, `--lc:off` | Enable or disable the original collision behavior. |
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
+| `--dws:on`, `--dws:off` | Enable original Dual-Way Switching or fix penalties for switching between branches. |
 | `--owoot` | Enforce the game's One Wheel On/Over Track rules. |
 | `/amigagrass` | Use original Amiga grass grip for stock cars; defaults off. |
 | `--verify` | Re-simulate a compatible input replay and print its score, without searching or writing a ghost. |
 
-Physics defaults match Restunts: `--pg:on --lc:on --lcb:on`, with OWOOT and
+Physics defaults match Restunts: `--pg:on --lc:on --lcb:on --dws:on`, with OWOOT and
 Amiga Grass off. `/amigagrass` applies during generation, worker searches, and
 verification; the JSON report records it as `physics.amiga_grass`. Use the same
 flag when playing or verifying the generated replay.
 Physics option spelling is case-insensitive, and the last value for an on/off
-option wins. OWOOT is independent of the three bug switches: enabling it does
+option wins. OWOOT is independent of the four bug switches: enabling it does
 not implicitly disable power gear or change collision arithmetic.
 
 A fixed seed, core count, and evaluation budget make the search repeatable with
@@ -377,10 +378,11 @@ finish within that limit.
 ## Playback and reports
 
 The output uses the standard `.RPL` format, which does **not** store the power
-gear, collision, left corner bias, or OWOOT switches. A companion report,
-`FILE.rpl.json`, records the selected physics options and search result. Launch
+gear, collision, left corner bias, dual-way switching, or OWOOT switches.
+A companion report, `FILE.rpl.json`, records the selected physics options and
+search result. Launch
 Restunts with the same physics switches before playing the replay or selecting it as a
-ghost. For example, a replay generated with `--owoot --pg:off --lc:off --lcb:off`
+ghost. For example, a replay generated with `--owoot --pg:off --lc:off --lcb:off --dws:off`
 must be played with those same options. Changing the car resources can also
 change the replay's outcome.
 

@@ -229,6 +229,7 @@ extern legacy_s16 RsSweepTrackSolidObstacle(
 extern legacy_s16 RsSweepTrackWallSpan(CVectorLong *previous_first,CVectorLong *previous_second,
     CVectorLong *current_first,CVectorLong *current_second,legacy_s16 *fraction);
 extern legacy_void RsConfigureLeftCornerBias(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_void RsConfigureDualWaySwitching(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsApplyAmigaGrass(CSimd *simd,legacy_s8 *car_id);
 extern legacy_void RsConfigureLegacyCollision(legacy_s16 argc,legacy_s8 **argv);

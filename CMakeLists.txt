@@ -434,6 +434,14 @@ if(RESTUNTS_BUILD_TESTS)
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
     enable_testing()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_executable(test-penalty-routing src/restunts/tests/test-penalty-routing.c
+            ${core}/physics_grip.c ${core}/strlib.c)
+        target_link_libraries(test-penalty-routing PRIVATE restunts_options)
+        target_compile_options(test-penalty-routing PRIVATE -UNDEBUG ${restunts_test_section_options})
+        target_link_options(test-penalty-routing PRIVATE ${restunts_test_gc_sections})
+        add_test(NAME penalty-routing COMMAND test-penalty-routing)
+    endif()
     if(NOT CMAKE_CROSSCOMPILING)
         # Information switches must work without game files or a working data path.
         set(command_line_test_directory "${CMAKE_CURRENT_BINARY_DIR}/command-line-test")
@@ -556,6 +564,11 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     if(NOT CMAKE_CROSSCOMPILING)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
+            add_test(NAME repldump-time COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-repldump-time.py"
+                "$<TARGET_FILE:repldump>" "${CMAKE_SOURCE_DIR}/stunts"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(repldump-time PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
             add_test(NAME genghost-analysis COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_genghost_analysis.py")
             add_test(NAME genghost-stunt-analysis COMMAND "${Python3_EXECUTABLE}"

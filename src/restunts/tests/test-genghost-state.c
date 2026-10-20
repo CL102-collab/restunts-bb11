@@ -792,7 +792,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 							 (const char *)config.game_playercarid, config.game_playertransmission,
 							 argc, (char **)argv) == 0);
 	struct GENGHOST_OPTIONS options = {0};
-	options.powergear = options.collision = options.left_bias = 1;
+	options.powergear = options.collision = options.left_bias = options.dual_way_switching = 1;
 	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
 	int slalom = 0, fine_tune = 0;
 	for (int i = 3; i < argc; ++i) {
@@ -817,6 +817,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			options.collision = 0;
 		} else if (strcmp(flag, "--lcb:off") == 0) {
 			options.left_bias = 0;
+		} else if (strcmp(flag, "--dws:off") == 0) {
+			options.dual_way_switching = 0;
 		} else if (strcmp(flag, "--owoot") == 0) {
 			options.owoot = 1;
 		}

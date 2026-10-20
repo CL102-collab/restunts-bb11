@@ -5,6 +5,8 @@
 
 /* Exercise the actual contact solver, including its file-private wheel state. */
 #include "../c/stateply.c"
+/* Keep the actual route-confirmation and penalty commit in this DOS regression. */
+#include "../c/state.c"
 #include "audio_internal.h"
 #include "car_speed.h"
 
@@ -25,6 +27,58 @@ static void driving_options_fill(void *memory, legacy_u8 value, legacy_u16 lengt
 			return 1;                                                                              \
 		}                                                                                          \
 	} while (0)
+
+/* Use the game's allocated far Trackdata buffers, so this also exercises the
+ * real DOS memory model and shared startup parser rather than a host fixture. */
+static void driving_options_reset_dualway(void)
+{
+	driving_options_fill(&state, 0, sizeof(state));
+	track_pieces_counter = 19;
+	for (legacy_s16 piece = 0; piece < track_pieces_counter; piece++) {
+		track_primary_route_links[piece] = piece + 1;
+		track_alternate_route_links[piece] = -1;
+		track_route_columns[piece] = (legacy_s8)piece;
+		track_route_rows[piece] = 5;
+		track_route_element_ids[piece] = 0;
+	}
+	trkObjectList[0].ss_multiTileFlag = 0;
+	track_primary_route_links[7] = 16;
+	track_alternate_route_links[1] = 8;
+	track_route_columns[8] = track_route_columns[2];
+	track_primary_route_links[18] = 0;
+	state.game_startcol = state.game_startcol2 = -1;
+	state.game_startrow = state.game_startrow2 = -1;
+	state.game_player_route_status = ROUTE_TRACKING_NORMAL;
+	framespersec = GAME_FRAME_RATE_NORMAL;
+}
+
+static void driving_options_visit_route(legacy_s16 piece)
+{
+	state.playerstate.car_position.lx = (legacy_s32)track_route_columns[piece] * 65536L;
+	state.playerstate.car_position.lz = (29L - track_route_rows[piece]) * 65536L;
+	update_player_route_penalty();
+}
+
+static legacy_s16 driving_options_check_dualway(legacy_s16 fixed)
+{
+	for (legacy_s16 direction = 0; direction < 2; direction++) {
+		driving_options_reset_dualway();
+		state.game_player_confirmed_route = state.game_player_previous_route = direction ? 9 : 3;
+		legacy_s16 piece = direction ? 4 : 13;
+		while (piece != 0) {
+			driving_options_visit_route(piece);
+			piece = track_primary_route_links[piece];
+		}
+		driving_options_visit_route(0);
+		CHECK_OPTION(state.playerstate.car_lap_count == 1, "DWS lap completion");
+		CHECK_OPTION(state.game_penalty == (fixed ? (direction ? 24 : 18) * 20 : 0),
+					 "DWS startup switch reaches actual penalty calculation");
+	}
+	const legacy_s8 *message =
+		fixed ? "DWS penalties: 18/24 seconds\r\n" : "DWS penalties: 0/0 seconds\r\n";
+	dos_write_stdout(message, strlen(message));
+	return 0;
+}
 
 static legacy_s16 driving_options_check(legacy_s16 opt_in)
 {
@@ -161,6 +215,10 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 	legacy_s16 opt_in = argc > 1 && strcmp(argv[1], "optin") == 0;
 	init_full_game(argc, argv);
 	legacy_s16 result = driving_options_check(opt_in);
+	if (result == 0) {
+		legacy_s16 fixed = argc > 1 && strcmp(argv[1], "dwsfixed") == 0;
+		result = driving_options_check_dualway(fixed);
+	}
 	shutdown_dos_game();
 	const legacy_s8 *message = result ? driving_options_failure : "DOS driving options passed";
 	dos_write_stdout(message, strlen(message));

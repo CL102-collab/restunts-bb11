@@ -44,6 +44,12 @@ def main():
         ("TAIL", "C:\\DOSTAIL " + " ".join(["x"] * 63), 0, "DOS command tail passed"),
         ("QUOTED", 'C:\\DOSTAIL quoted "one two" three', 0, "DOS command tail passed"),
         ("DEFAULT", "C:\\OPTIONS --data-dir D:\\ defaults", 0, "DOS driving options passed"),
+        ("DWSON", "C:\\OPTIONS --data-dir D:\\ defaults --dws:on", 0, "DWS penalties: 0/0 seconds"),
+        ("DWSOFF", "C:\\OPTIONS --data-dir D:\\ dwsfixed --dws:off", 0, "DWS penalties: 18/24 seconds"),
+        ("DWSLAST", "C:\\OPTIONS --data-dir D:\\ defaults --dws:off --DWS:ON", 0,
+         "DWS penalties: 0/0 seconds"),
+        ("DWSCASE", "C:\\OPTIONS --data-dir D:\\ dwsfixed --DWS:OFF", 0,
+         "DWS penalties: 18/24 seconds"),
         ("OPTIN", "C:\\OPTIONS --data-dir D:\\ optin --pg:off --lc:off --lcb:off "
          "/amigagrass --owoot --nointro /ns /sPC /nd --fps:on",
          0, "DOS driving options passed"),

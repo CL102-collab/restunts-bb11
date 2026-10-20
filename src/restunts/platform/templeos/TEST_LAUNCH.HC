@@ -20,6 +20,7 @@ legacy_void TestLaunchConfigure(legacy_s32 count,legacy_s8 **arguments)
   RsConfigurePowergearBug(count,arguments);
   RsConfigureLegacyCollision(count,arguments);
   RsConfigureLeftCornerBias(count,arguments);
+  RsConfigureDualWaySwitching(count,arguments);
   RsConfigureAmigaGrass(count,arguments);
   RsConfigureOwoot(count,arguments);
   RsResetCarCapabilities();
@@ -28,8 +29,8 @@ legacy_void TestLaunchConfigure(legacy_s32 count,legacy_s8 **arguments)
 
 legacy_void TestLaunch()
 {
-  legacy_s8 *text=
-      StrNew("  --pg:off\t--lc:off --lcb:off /amigagrass --owoot /ns --nointro --fps:on ");
+  legacy_s8 *text=StrNew(
+      "  --pg:off\t--lc:off --lcb:off --dws:off /amigagrass --owoot /ns --nointro --fps:on ");
   legacy_s8 *legacy_options=StrNew("/ns /nd /h /sPC");
   legacy_s8 *quoted=StrNew("\"--pg:off\" '--lc:off' --lcb:off");
   legacy_s8 many[TEMPLE_LAUNCH_TEST_TEXT_BYTES];
@@ -39,11 +40,13 @@ legacy_void TestLaunch()
   legacy_u8 noreg previous_drive=Fs->cur_dv->drv_let;
   arguments[0]="RESTUNTS";
   count=TempleLaunchSplit(text,arguments,1);
-  TestLaunchAssert(count==9&&arguments[count]==NULL,"all eight startup options arrive");
+  TestLaunchAssert(count==10&&arguments[count]==NULL,"all nine startup options arrive");
   TestLaunchConfigure(count,arguments);
   TestLaunchAssert(!rs_statecar_powergear_bug_enabled,"power gear can be disabled");
   TestLaunchAssert(!rs_physics_collision_legacy_collision_enabled,"collision can be disabled");
   TestLaunchAssert(!rs_physics_grip_left_corner_bias_enabled,"corner bias can be disabled");
+  TestLaunchAssert(
+      !rs_physics_grip_dual_way_switching_enabled,"Dual-Way Switching can be disabled");
   TestLaunchAssert(rs_physics_grip_amiga_grass_enabled,"Amiga grass can be enabled");
   TestLaunchAssert(owoot_enabled,"OWOOT can be enabled");
   TestLaunchAssert(rs_restunts_startup_options.sound_disabled,"sound can be disabled");
@@ -59,7 +62,8 @@ legacy_void TestLaunch()
       "legacy PC audio argument reaches the parser");
   TestLaunchConfigure(1,arguments);
   TestLaunchAssert(rs_statecar_powergear_bug_enabled&&
-          rs_physics_collision_legacy_collision_enabled&&rs_physics_grip_left_corner_bias_enabled,
+          rs_physics_collision_legacy_collision_enabled&&
+          rs_physics_grip_left_corner_bias_enabled&&rs_physics_grip_dual_way_switching_enabled,
       "original physics defaults are restored");
   TestLaunchAssert(
       !rs_physics_grip_amiga_grass_enabled&&!owoot_enabled,"opt-in physics resets when omitted");
@@ -69,6 +73,17 @@ legacy_void TestLaunch()
   TestLaunchAssert(!rs_restunts_startup_options.fps_display_enabled&&
           !rs_restunts_startup_options.fps_display_specified,
       "FPS defaults to off");
+  arguments[1]="--dws:off";
+  arguments[2]="--DWS:ON";
+  RsConfigureDualWaySwitching(3,arguments);
+  TestLaunchAssert(rs_physics_grip_dual_way_switching_enabled,
+      "Dual-Way Switching uses the last case-insensitive value");
+  arguments[1]="--DWS:ON";
+  arguments[2]="--dws:off";
+  RsConfigureDualWaySwitching(3,arguments);
+  TestLaunchAssert(!rs_physics_grip_dual_way_switching_enabled,
+      "Dual-Way Switching can be disabled after an earlier option");
+  RsConfigureDualWaySwitching(1,arguments);
   count=TempleLaunchSplit(quoted,arguments,1);
   TestLaunchAssert(
       count==4&&!StrCmp(arguments[1],"--pg:off")&&!StrCmp(arguments[2],"--lc:off"),

@@ -538,6 +538,7 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
   RsResetCarCapabilities();
   RsConfigureLegacyCollision(TempleCastS16(argc),argv);
   RsConfigureLeftCornerBias(TempleCastS16(argc),argv);
+  RsConfigureDualWaySwitching(TempleCastS16(argc),argv);
   RsConfigureAmigaGrass(TempleCastS16(argc),argv);
   RsConfigureOwoot(TempleCastS16(argc),argv);
   RsRestuntsStartupParseOptions(TempleCastS16(argc),argv,(&(rs_restunts_startup_options)));

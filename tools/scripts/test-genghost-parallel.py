@@ -121,7 +121,7 @@ def main():
             replay.write_bytes((temporary / output).read_bytes())
             physics_flags = [flag for flag in flags
                              if flag in ("--owoot", "/amigagrass")
-                             or flag.startswith(("--pg:", "--lc:", "--lcb:"))]
+                             or flag.startswith(("--pg:", "--lc:", "--lcb:", "--dws:"))]
             result = subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                      str(replay), "1", *physics_flags], cwd=temporary, env=environment,
                                     capture_output=True, text=True, timeout=scaled_timeout(15))
@@ -151,7 +151,8 @@ def main():
             assert report["evaluations"] == evaluations, report
             assert report["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
-                "lcb": "--lcb:off" not in flags, "owoot": "--owoot" in flags,
+                "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
+                "owoot": "--owoot" in flags,
                 "amiga_grass": "/amigagrass" in flags}, report
             assert report["cores_requested"] == (1 if cores is None else cores), report
             workers = report["worker_results"]
@@ -246,6 +247,22 @@ def main():
             grass_islands.append(recording)
         assert grass == grass_islands[grass_report["winner_worker"]]
         print("Amiga Grass reaches both islands and matches fresh verification and native playback", flush=True)
+
+        # Switching penalties must reach every independent worker, with the
+        # same results as fresh single-worker runs and independent replay.
+        switching_flags = ("--dws:off",)
+        fixed_switching, fixed_report = generate("fixed switch.RPL", cores=2, flags=switching_flags)
+        assert not fixed_report["physics"]["dws"]
+        fixed_islands = []
+        for worker in fixed_report["worker_results"]:
+            recording, report = generate(f"switch{worker['index']}.RPL", cores=1,
+                                         evaluations=worker["budget_evaluations"],
+                                         seed=worker["seed"], flags=switching_flags)
+            assert worker["total_frames"] == report["total_frames"]
+            assert worker["simulated_frames"] == report["simulated_frames"]
+            fixed_islands.append(recording)
+        assert fixed_switching == fixed_islands[fixed_report["winner_worker"]]
+        print("Dual-Way Switching off matches independent islands and native playback", flush=True)
 
         # Find a fully OWOOT-valid seed using the existing single-core engine,
         # then require both parallel workers to accept it under identical rules.

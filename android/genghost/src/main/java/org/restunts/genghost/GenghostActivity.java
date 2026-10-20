@@ -76,6 +76,7 @@ public final class GenghostActivity extends Activity {
     private CheckBox powerGear;
     private CheckBox collision;
     private CheckBox leftBias;
+    private CheckBox dualWaySwitching;
     private CheckBox owoot;
     private CheckBox amigaGrass;
     private CheckBox fineTune;
@@ -174,6 +175,7 @@ public final class GenghostActivity extends Activity {
         powerGear = checkbox(drivingRules, "Power Gear", "power_gear", true);
         collision = checkbox(drivingRules, "Original Collision Bugs", "collision", true);
         leftBias = checkbox(drivingRules, "Left Corner Bias", "left_bias", true);
+        dualWaySwitching = checkbox(drivingRules, "Dual-Way Switching", "dual_way_switching", true);
         owoot = checkbox(drivingRules, "OWOOT", "owoot", false);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         amigaGrass = checkbox(drivingRules, "Amiga Grass", "amiga_grass", false);
@@ -351,6 +353,7 @@ public final class GenghostActivity extends Activity {
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
             .putBoolean("left_bias", leftBias.isChecked())
+            .putBoolean("dual_way_switching", dualWaySwitching.isChecked())
             .putBoolean("owoot", owoot.isChecked())
             .putBoolean("amiga_grass", amigaGrass.isChecked());
         if (track.getSelectedItem() != null) {
@@ -398,6 +401,7 @@ public final class GenghostActivity extends Activity {
         powerGear.setEnabled(!busy);
         collision.setEnabled(!busy);
         leftBias.setEnabled(!busy);
+        dualWaySwitching.setEnabled(!busy);
         owoot.setEnabled(!busy);
         amigaGrass.setEnabled(!busy);
         generate.setEnabled(!busy && catalogReady && !availableTracks.isEmpty()
@@ -562,6 +566,7 @@ public final class GenghostActivity extends Activity {
         flags.add(powerGear.isChecked() ? "--pg:on" : "--pg:off");
         flags.add(collision.isChecked() ? "--lc:on" : "--lc:off");
         flags.add(leftBias.isChecked() ? "--lcb:on" : "--lcb:off");
+        flags.add(dualWaySwitching.isChecked() ? "--dws:on" : "--dws:off");
         if (owoot.isChecked()) {
             flags.add("--owoot");
         }

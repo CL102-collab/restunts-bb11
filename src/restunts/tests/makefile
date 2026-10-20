@@ -84,12 +84,12 @@ $(GHOST_LINE_OUTFILE): $(GHOST_LINE_OBJECTS) ../dos/full-game-objects.mk makefil
 	$(WLINK) @$(OBJDIR)/ghost-line.lnk
 
 DRIVING_OPTIONS_OUTFILE = $(OBJDIR)/OPTIONS.EXE
-DRIVING_OPTIONS_OBJECTS = $(filter-out $(FULL_GAME_DIR)/stateply.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-driving-options-dos.obj,$(RACE_MEMORY_OBJECTS)))
+DRIVING_OPTIONS_OBJECTS = $(filter-out $(FULL_GAME_DIR)/stateply.obj $(FULL_GAME_DIR)/state.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-driving-options-dos.obj,$(RACE_MEMORY_OBJECTS)))
 
 .PHONY: driving-options
 driving-options: $(DRIVING_OPTIONS_OUTFILE)
 
-$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/stateply.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/stateply.c ../c/state.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(DRIVING_OPTIONS_OUTFILE): $(DRIVING_OPTIONS_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link

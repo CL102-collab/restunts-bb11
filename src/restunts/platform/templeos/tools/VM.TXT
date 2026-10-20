@@ -103,3 +103,12 @@ engine pitch, pitch-bend rounding, native PCM completion, and cleanup. Use
 TEST_AUDIO_CORE.HC loads the complete translated core and checks native
 function-pointer round trips through packed DOS audio fields, including
 that assigning a callback preserves adjacent fields and channels.
+
+DUAL-WAY SWITCHING REGRESSION
+
+TEST_DWS.HC requires no game resources. It calls the generated route detector
+and penalty-time commit with a synthetic split/rejoin track. Default/on mode
+keeps both switch directions penalty-free; --dws:off charges 18 or 24 seconds
+for the same cuts. Both complete legal paths remain penalty-free. Nested
+alternatives, the last-piece finish penalty, and wrong-way detection are also
+checked. Run it like TEST_LAUNCH.HC with --entry TEST_DWS.HC.

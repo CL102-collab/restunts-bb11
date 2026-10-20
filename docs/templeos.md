@@ -231,7 +231,7 @@ using the same option names as the command-line builds. For example:
 
 ```c
 Restunts("C:/Restunts/DATA", TRUE, FALSE,
-    "--pg:off --lc:off --lcb:off /amigagrass --owoot /ns");
+    "--pg:off --lc:off --lcb:off --dws:off /amigagrass --owoot /ns");
 ```
 
 | Option | Effect |
@@ -240,6 +240,7 @@ Restunts("C:/Restunts/DATA", TRUE, FALSE,
 | `--pg:on`, `--pg:off` | Enable or disable the original power gear bug. |
 | `--lc:on`, `--lc:off` | Enable or disable original collision behavior. |
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
+| `--dws:on`, `--dws:off` | Dual-Way Switching: preserve original penalty behavior when on; fix branch-switching penalties when off. |
 | `/amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
 | `--owoot` | Enable One Wheel On/Over Track rules. |
 | `/ns` | Start with music and sound effects disabled. |
@@ -247,8 +248,9 @@ Restunts("C:/Restunts/DATA", TRUE, FALSE,
 | `--help`, `-h` | Print available TempleOS options and return without loading game data. |
 | `--version`, `-v` | Print the build version and return without loading game data. |
 
-Power gear, original collisions, and left corner bias default to on. Amiga grass,
-OWOOT, and the FPS display default to off; intro and sound default to on.
+Power gear, original collisions, left corner bias, and Dual-Way Switching default
+to on. Amiga grass, OWOOT, and the FPS display default to off; intro and sound
+default to on.
 Custom-car surface adhesion is enabled only by its `fand=1` car-resource flag.
 Physics on/off options are processed in order and the last value wins. Supply
 `--fps` only once. Existing calls

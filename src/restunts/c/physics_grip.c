@@ -69,6 +69,21 @@ enum PENALTY_DETECTION_RESULT { PENALTY_NOT_DETECTED = 0, PENALTY_DETECTED = 1 }
 enum LEFT_CORNER_BIAS_MODE { LEFT_CORNER_BIAS_OFF = 0, LEFT_CORNER_BIAS_ON = 1 };
 
 static legacy_s16 left_corner_bias_enabled = LEFT_CORNER_BIAS_ON;
+static legacy_s16 dual_way_switching_enabled = 1;
+
+void configure_dual_way_switching(legacy_s16 argc, legacy_s8 *argv[])
+{
+	static const legacy_s8 off_option[] = "--dws:off";
+	static const legacy_s8 on_option[] = "--dws:on";
+	dual_way_switching_enabled = 1;
+	for (legacy_s16 index = 1; index < argc; index++) {
+		if (stricmp(argv[index], off_option) == 0) {
+			dual_way_switching_enabled = 0;
+		} else if (stricmp(argv[index], on_option) == 0) {
+			dual_way_switching_enabled = 1;
+		}
+	}
+}
 
 void configure_left_corner_bias(legacy_s16 argc, legacy_s8 *argv[])
 {
@@ -279,6 +294,65 @@ static legacy_s16 penalty_route_record_match(struct PENALTY_ROUTE_SEARCH *search
 	return 0;
 }
 
+/* A tile behind the confirmed route is still needed by the wrong-way detector.
+ * It must lead back to that route without passing the finish line: a sibling
+ * branch only becomes reachable by wrapping around the lap, which is the
+ * original dual-way switching bug. Reuse the search scratch storage. */
+static legacy_s16 penalty_route_reaches(struct PENALTY_ROUTE_SEARCH *search, legacy_s16 first_track,
+										legacy_s16 target_track)
+{
+	for (legacy_u16 index = 0; index < (legacy_u16)track_pieces_counter; index++) {
+		search->visited[index] = PENALTY_ROUTE_TRACK_UNVISITED;
+	}
+	legacy_u16 pending_count = 0;
+	legacy_s16 track_index = first_track;
+	for (;;) {
+		if (track_index == target_track) {
+			return 1;
+		}
+		if (track_index > TRACK_START_FINISH_PIECE_INDEX && track_index < track_pieces_counter &&
+			search->visited[track_index] == PENALTY_ROUTE_TRACK_UNVISITED) {
+			search->visited[track_index] = PENALTY_ROUTE_TRACK_VISITED;
+			legacy_s16 alternate_track = track_alternate_route_links[track_index];
+			if (alternate_track > TRACK_START_FINISH_PIECE_INDEX &&
+				alternate_track < track_pieces_counter &&
+				pending_count < PENALTY_ROUTE_PENDING_CAPACITY) {
+				search->pending_track[pending_count++] = alternate_track;
+			}
+			track_index = track_primary_route_links[track_index];
+			continue;
+		}
+		if (pending_count == 0) {
+			return 0;
+		}
+		track_index = search->pending_track[--pending_count];
+	}
+}
+
+static legacy_s16 match_previous_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
+											   legacy_s16 *current_track, legacy_s16 *penalty_count)
+{
+	if (*current_track < 0 || *current_track >= track_pieces_counter) {
+		return 0;
+	}
+	for (legacy_s16 index = 1; index < track_pieces_counter; index++) {
+		struct PENALTY_ROUTE_BOUNDS bounds;
+		penalty_route_bounds(index, &bounds);
+		if (!penalty_route_contains(search, &bounds) ||
+			!penalty_route_reaches(search, index, *current_track)) {
+			continue;
+		}
+		state.game_startcol = LEGACY_S8_FROM_BITS(bounds.minimum_column);
+		state.game_startcol2 = LEGACY_S8_FROM_BITS(bounds.maximum_column);
+		state.game_startrow = LEGACY_S8_FROM_BITS(bounds.minimum_row);
+		state.game_startrow2 = LEGACY_S8_FROM_BITS(bounds.maximum_row);
+		*current_track = index;
+		*penalty_count = PENALTY_ROUTE_FINISH_REACHED;
+		return 1;
+	}
+	return 0;
+}
+
 static legacy_s16 search_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
 									   legacy_s16 *current_track, legacy_s16 *penalty_count)
 {
@@ -295,8 +369,15 @@ static legacy_s16 search_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
 	legacy_s16 next_track;
 	for (;;) {
 		next_track = penalty_route_next(search->track_index);
-		if (!penalty_route_visit(search, next_track)) {
+		if ((dual_way_switching_enabled == 0 && (search->distance == PENALTY_ROUTE_FINISH_REACHED ||
+												 search->track_index == PENALTY_ROUTE_SENTINEL)) ||
+			!penalty_route_visit(search, next_track)) {
 			if (search->pending_count == PENALTY_ROUTE_PENDING_NONE) {
+				if (dual_way_switching_enabled == 0 &&
+					search->best_distance == PENALTY_ROUTE_DISTANCE_NONE &&
+					match_previous_penalty_route(search, current_track, penalty_count)) {
+					return PENALTY_DETECTED;
+				}
 				return finish_penalty_route(current_track, penalty_count, search->best_track,
 											search->best_distance, search->column, search->row);
 			}
@@ -306,7 +387,8 @@ static legacy_s16 search_penalty_route(struct PENALTY_ROUTE_SEARCH *search,
 			search->distance = search->pending_distance[search->pending_count];
 			continue;
 		}
-		if (penalty_route_record_match(search, &next_track, current_track, penalty_count)) {
+		if ((dual_way_switching_enabled != 0 || next_track != PENALTY_ROUTE_SENTINEL) &&
+			penalty_route_record_match(search, &next_track, current_track, penalty_count)) {
 			return PENALTY_DETECTED;
 		}
 		legacy_s16 alternate_track = penalty_route_alternate(search->track_index);

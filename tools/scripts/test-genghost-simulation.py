@@ -19,6 +19,7 @@ PHYSICS_MODES = (
     ("--pg:off",),
     ("--lc:off",),
     ("--lcb:off",),
+    ("--dws:off",),
     ("--owoot",),
     ("--owoot", "--pg:off", "--lc:off", "--lcb:off"),
 )

@@ -46,6 +46,7 @@ static const char help[] =
 	"  --pg:on|off            Original power gear bug (default on).\n"
 	"  --lc:on|off            Original collision behavior (default on).\n"
 	"  --lcb:on|off           Original left corner bias (default on).\n"
+	"  --dws:on|off           Dual-Way Switching (original behavior; default on).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
 	"  /amigagrass            Original Amiga grass grip for stock cars (default off).\n"
 	"  --fine-tune            Improve a completed replay with local input refinements.\n"
@@ -399,7 +400,7 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fprintf(
 		file,
 		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "
-		"\"owoot\": %s, \"amiga_grass\": %s},\n"
+		"\"dws\": %s, \"owoot\": %s, \"amiga_grass\": %s},\n"
 		"  \"finished\": true,\n  \"frames_per_second\": 20,\n  \"replay_frames\": %u,\n"
 		"  \"finish_frame\": %u,\n  \"penalty_frames\": %u,\n  \"total_frames\": %u,\n"
 		"  \"total_seconds\": %.2f,\n  \"seed\": %u,\n  \"evaluations\": %llu,\n"
@@ -408,7 +409,9 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 		"  \"search_seconds\": %.6f,\n  \"globally_optimal\": false\n}\n",
 		context->transmission ? "auto" : "manual", context->options->powergear ? "true" : "false",
 		context->options->collision ? "true" : "false",
-		context->options->left_bias ? "true" : "false", context->options->owoot ? "true" : "false",
+		context->options->left_bias ? "true" : "false",
+		context->options->dual_way_switching ? "true" : "false",
+		context->options->owoot ? "true" : "false",
 		context->options->amiga_grass ? "true" : "false", result->length, result->race.finish_frame,
 		result->race.penalty_frames, result->race.total_frames, result->race.total_frames / 20.0,
 		context->options->seed, (unsigned long long)result->evaluations,
@@ -465,7 +468,7 @@ static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque
 
 int main(int argc, char **argv)
 {
-	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 0, 0};
+	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 1, 0, 0};
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
 	char car[5] = {0}, track_name[256];
 	int transmission = -1, verify = 0, explicit_seconds = 0, status = 1;
@@ -494,6 +497,9 @@ int main(int argc, char **argv)
 		}
 		if (!flag) {
 			flag = physics_option(argument, "--lcb:", &options.left_bias);
+		}
+		if (!flag) {
+			flag = physics_option(argument, "--dws:", &options.dual_way_switching);
 		}
 		if (flag < 0) {
 			fprintf(stderr, "Invalid physics option: %s\n", argument);
@@ -759,9 +765,10 @@ int main(int argc, char **argv)
 								 options.powergear ? "--pg:on" : "--pg:off",
 								 options.collision ? "--lc:on" : "--lc:off",
 								 options.left_bias ? "--lcb:on" : "--lcb:off",
+								 options.dual_way_switching ? "--dws:on" : "--dws:off",
 								 NULL,
 								 NULL};
-	int physics_count = 4;
+	int physics_count = 5;
 	if (options.owoot) {
 		physics_arguments[physics_count++] = "--owoot";
 	}
@@ -810,10 +817,11 @@ int main(int argc, char **argv)
 	struct output_context context = {output, track_name,		   car, &options, transmission,
 									 NULL,	 baseline.total_frames};
 	struct GENGHOST_PARALLEL_REPORT parallel = {0};
-	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s%s%s\n", track_name, car,
-			transmission ? "automatic" : "manual", options.powergear ? "on" : "off",
+	fprintf(stderr, "genghost %s / %s, %s, --pg:%s --lc:%s --lcb:%s --dws:%s%s%s\n", track_name,
+			car, transmission ? "automatic" : "manual", options.powergear ? "on" : "off",
 			options.collision ? "on" : "off", options.left_bias ? "on" : "off",
-			options.owoot ? " --owoot" : "", options.amiga_grass ? " /amigagrass" : "");
+			options.dual_way_switching ? "on" : "off", options.owoot ? " --owoot" : "",
+			options.amiga_grass ? " /amigagrass" : "");
 	fprintf(stderr, "search strategy: %s\n", strategy_name(&options));
 	int search_status;
 	if (options.strategy == GENGHOST_STRATEGY_STATE && cores != 1U) {

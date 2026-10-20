@@ -91,7 +91,7 @@
                 <h2 id="parameters-title">Launch parameters</h2>
                 <p>For native builds, add switches after the executable name in a terminal or shortcut. For example: <code>restunts.exe --nointro --hv:auto --ogg:on</code>. On Linux or macOS, use <code>./restunts</code> instead.</p>
             </div>
-            <p class="guide-callout small"><strong>Keep replay settings consistent.</strong> Replays do not store the physics fixes or OWOOT setting. Use the same settings for recording, playback, and ghost racing. The three legacy behaviours below default to <code>on</code>; use <code>off</code> to apply each fix.</p>
+            <p class="guide-callout small"><strong>Keep replay settings consistent.</strong> Replays do not store the physics fixes or OWOOT setting. Use the same settings for recording, playback, and ghost racing. The four legacy behaviours below default to <code>on</code>; use <code>off</code> to apply each fix.</p>
             <dl class="guide-list">
                 <div>
                     <dt><code>--nointro</code> — Go straight to the menu.</dt>
@@ -118,6 +118,10 @@
                     <dd>Prevent missed wall, block, and loop-base impacts; avoid false crashes in clear passages under ramps; and remove permanent steering bias after contact. <code>--lc:on</code> restores legacy collision behaviour for original replay compatibility.</dd>
                 </div>
                 <div>
+                    <dt><code>--dws:off</code> — Fix Dual-Way Switching penalties.</dt>
+                    <dd>Correct penalty calculation for shortcuts between the branches of a split track. <code>--dws:on</code> preserves the original switching behaviour and is the default. Android and browser launchers expose this as “Dual-Way Switching”.</dd>
+                </div>
+                <div>
                     <dt><code>--owoot</code> — Enforce One Wheel On Or Over Track.</dt>
                     <dd>Keep part of at least one tyre on or above the road and follow each stunt’s intended route. Under-road driving and large-corner rumble strips do not count. A single gap tile between connected, aligned ramps or bridges is allowed. A violation crashes the player, including during replay playback. Omit the switch to disable it.</dd>
                 </div>
@@ -142,7 +146,7 @@
                     <dd>The separate physics dump tool writes <code>RACE.owo</code> with <code>pass</code> or <code>fail</code>. Passing requires a completed, crash-free run without OWOOT violations. Add the recording’s physics switches after the replay name; when checking batches, also check the tool’s exit code.</dd>
                 </div>
             </dl>
-            <p class="note">The HyperVision, Ogg, physics, and OWOOT options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, and <code>--lcb</code>, the last supplied value wins. <code>--nointro</code> is case-sensitive. The browser launcher exposes the checkboxes described below.</p>
+            <p class="note">The HyperVision, Ogg, physics, and OWOOT options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, <code>--lcb</code>, and <code>--dws</code>, the last supplied value wins. <code>--nointro</code> is case-sensitive. The browser launcher exposes the checkboxes described below.</p>
         </section>
 
         <section class="guide-section" id="extras" aria-labelledby="extras-title">

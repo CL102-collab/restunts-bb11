@@ -252,7 +252,7 @@ run_host_test test-simulation-setup gameinit.c "$test_source_dir/owoot.c" \
     "$test_source_dir/gamestep.c" "$test_source_dir/carsetup.c" \
     "$test_source_dir/math.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" -Wno-pointer-sign -Wno-sign-compare
-run_host_test test-penalty-routing physics_grip.c -Wno-sign-compare
+run_host_test test-penalty-routing physics_grip.c "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-wheel-suspension physics_collision.c
 run_host_test test-car-adhesion physics_collision.c \
     "$test_source_dir/trackobj.c" "$test_source_dir/headless_data.c" \
@@ -450,7 +450,7 @@ run_host_test test-owoot math.c \
 run_host_test test-owoot-road legacy.c
 run_host_test test-owoot-route owoot_route.c "$test_source_dir/owoot_road.c"
 
-run_host_test test-repldump-owoot legacy.c "$test_source_dir/strlib.c" \
+run_host_test test-repldump-owoot legacy.c "$test_source_dir/strlib.c" "$test_source_dir/ui_text.c" \
     -I"$test_source_dir" -Wno-pointer-sign -Wno-sign-compare
 
 echo "All host regression tests passed."

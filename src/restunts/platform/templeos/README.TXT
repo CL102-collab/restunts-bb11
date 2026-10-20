@@ -94,11 +94,13 @@ task's display settings and the system palette.
 All common startup settings are accepted in an optional fourth options string:
 
     Restunts("C:/DATA", TRUE, FALSE,
-        "--pg:off --lc:off --lcb:off /amigagrass --owoot /ns");
+        "--pg:off --lc:off --lcb:off --dws:off /amigagrass --owoot /ns");
 
 The existing first three arguments keep their defaults. --pg:on/off,
---lc:on/off, and --lcb:on/off are case-insensitive; the last value wins. The
-original physics defaults are on. /amigagrass and --owoot are opt-in.
+--lc:on/off, --lcb:on/off, and --dws:on/off are case-insensitive; the last value
+wins. The original physics defaults are on. Dual-Way Switching (--dws:on)
+preserves the original branch-switching penalty behavior; --dws:off fixes it.
+/amigagrass and --owoot are opt-in.
 Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
 --nointro skips the intro and /ns disables startup music/effects. --fps:on/off selects the FPS
 display (off by default); supply once. F11 toggles it during play. Replays do not store these
@@ -200,6 +202,7 @@ Each check must finish without compiler errors or warnings:
     COMPILE.HC        Compile the complete port without starting the game.
     TEST_NATIVE.HC    File persistence, input scaling, and real-time timer cadence.
     TEST_LAUNCH.HC    Full startup-option parsing, defaults, quoting, and help/version.
+    TEST_DWS.HC       Dual-way switching penalties, legal branches, and finish rules.
     TEST_TIMER.HC     Clock rollback, callback cadence, suspension, and reset.
     TEST_RENDERER.HC  Palette, native raster, masks, backgrounds, video cleanup.
     TEST_AUDIO.HC     Speaker note/engine/bend periods and PCM task cleanup.
