@@ -29,16 +29,17 @@ WHEEL_HALF_WIDTH = round(2 * BODY_SCALE[0] * WHEEL_SIZE_MULTIPLIER)
 SHOWROOM_SCALE = 20
 # Align tyre bottoms with the stock Corvette's actual wheel-circle bottom.
 SHOWROOM_Y_OFFSET = WHEEL_RADIUS * SHOWROOM_SCALE
-PAINT_NAMES = ("Demonstrator grey", "Silver", "Graphite", "Deep red", "Midnight blue", "Steel gray", "Aubergine")
+PAINT_NAMES = ("Demonstrator grey", "Silver", "Graphite", "Deep red", "Midnight blue", "White", "Aubergine")
 
 # Indices address Stunts' material table, not VGA palette indices. The first
 # paint is neutral metallic grey: resolved VGA RGB 178, 125 and 97.
-# White is reserved for the lamps, never the demonstrated body finish.
-PAINT_TOP = (76, 78, 56, 86, 49, 77, 90)
-PAINT_SIDE = (59, 76, 19, 85, 48, 59, 89)
-PAINT_EDGE = (57, 59, 20, 84, 88, 58, 88)
+# The sixth paint has a white body with black lower trim.
+PAINT_TOP = (76, 78, 56, 86, 49, 15, 90)
+PAINT_SIDE = (59, 76, 19, 85, 48, 15, 89)
+PAINT_EDGE = (57, 59, 20, 84, 88, 0, 88)
 BLACK = 0
 DARK = 39  # Solid charcoal; material 23 is the patterned version.
+PAINT_SILL = (DARK, DARK, DARK, DARK, DARK, BLACK, DARK)
 SILVER = 40
 # Every window and the continuous glazed canopy are opaque black.
 GLASS_BLACK = BLACK
@@ -320,7 +321,7 @@ def _body(shape: _Shape, simple: bool) -> None:
                     if front_z == 16:
                         shape.line((e, d), DARK)
                 shape.polygon((d, c, (side * (bw - 1.8), -3.5, back_z),
-                               (side * (fw - 1.8), -3.5, front_z)), DARK, facing=(side, 0, 0))
+                               (side * (fw - 1.8), -3.5, front_z)), PAINT_SILL, facing=(side, 0, 0))
             else:
                 shape.polygon((a, b, c, d), PAINT_SIDE, facing=(side, 0, 0))
         for front, back in zip(_STATIONS, _STATIONS[1:]):
