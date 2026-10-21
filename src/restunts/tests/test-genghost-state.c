@@ -656,6 +656,100 @@ static int fine_tune_search(const struct GENGHOST_OPTIONS *options, const unsign
 			   : genghost_search(options, inputs, count, result, fine_tune_save, observer);
 }
 
+/* Moving shift timing must preserve the pulse and every unrelated input,
+ * including controls at the old and new pulse boundaries. */
+static void test_shift_inputs(void)
+{
+	enum { LENGTH = 128 };
+	const unsigned int mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	const unsigned int starts[] = {40U, 88U}, widths[] = {3U, 4U};
+	const unsigned int flags[] = {INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_DOWN_FLAG};
+	static const int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
+	unsigned char original[LENGTH + 2U], actual[LENGTH + 2U], expected[LENGTH + 2U];
+	original[0] = 0xA5U;
+	original[LENGTH + 1U] = 0x5AU;
+	for (unsigned int frame = 0U; frame < LENGTH; ++frame) {
+		original[frame + 1U] = (unsigned char)(frame % 16U);
+	}
+	for (unsigned int event = 0U; event < 2U; ++event) {
+		for (unsigned int frame = starts[event]; frame < starts[event] + widths[event]; ++frame) {
+			original[frame + 1U] |= (unsigned char)flags[event];
+		}
+	}
+	for (unsigned int proposal = 0U; proposal < 24U; ++proposal) {
+		unsigned int event = proposal % 2U;
+		unsigned int old_start = starts[event];
+		unsigned int new_start = (unsigned int)((int)old_start + offsets[proposal / 2U]);
+		memcpy(actual, original, sizeof(actual));
+		memcpy(expected, original, sizeof(expected));
+		for (unsigned int n = 0U; n < widths[event]; ++n) {
+			expected[old_start + n + 1U] &= (unsigned char)~mask;
+		}
+		for (unsigned int n = 0U; n < widths[event]; ++n) {
+			expected[new_start + n + 1U] |= (unsigned char)flags[event];
+		}
+		unsigned int first = LENGTH, end = 0U;
+		assert(genghost_shift_inputs(actual + 1U, LENGTH, proposal, &first, &end) == 1);
+		assert(memcmp(actual, expected, sizeof(actual)) == 0);
+		assert(first <= old_start && first <= new_start && end <= LENGTH);
+		assert(end >= old_start + widths[event] && end >= new_start + widths[event]);
+		for (unsigned int frame = 0U; frame < LENGTH; ++frame) {
+			assert((actual[frame + 1U] & ~mask) == (original[frame + 1U] & ~mask));
+		}
+	}
+
+	unsigned char edges[16], changed[16];
+	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] = (unsigned char)(frame % 16U);
+	}
+	edges[0] |= INPUT_SHIFT_UP_FLAG;
+	edges[1] |= INPUT_SHIFT_UP_FLAG;
+	edges[12] |= INPUT_SHIFT_DOWN_FLAG;
+	edges[13] |= INPUT_SHIFT_DOWN_FLAG;
+	unsigned int first = 0U, end = 0U;
+	/* Frame-zero pulses are eligible, while an earlier launch and a later
+	 * pulse beyond the input suffix are rejected without touching controls. */
+	memcpy(changed, edges, sizeof(changed));
+	assert(genghost_shift_inputs(changed, sizeof(changed), 0U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	assert(genghost_shift_inputs(changed, sizeof(changed), 23U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	assert(genghost_shift_inputs(changed, sizeof(changed), 2U, &first, &end) == 1);
+	assert(!(changed[0] & mask) && (changed[1] & mask) == INPUT_SHIFT_UP_FLAG &&
+		   (changed[2] & mask) == INPUT_SHIFT_UP_FLAG && !(changed[3] & mask));
+	for (unsigned int frame = 0U; frame < sizeof(changed); ++frame) {
+		assert((changed[frame] & ~mask) == (edges[frame] & ~mask));
+	}
+
+	/* Leave the clear tick separating neighboring shifts intact: merging
+	 * held buttons can suppress a later native gear change. */
+	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] &= (unsigned char)~mask;
+	}
+	edges[4] |= INPUT_SHIFT_UP_FLAG;
+	edges[5] |= INPUT_SHIFT_UP_FLAG;
+	edges[7] |= INPUT_SHIFT_DOWN_FLAG;
+	edges[8] |= INPUT_SHIFT_DOWN_FLAG;
+	memcpy(changed, edges, sizeof(changed));
+	assert(genghost_shift_inputs(changed, sizeof(changed), 2U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	assert(genghost_shift_inputs(changed, sizeof(changed), 1U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	/* Large proposals may neither cross nor overwrite a neighboring pulse. */
+	assert(genghost_shift_inputs(changed, sizeof(changed), 10U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+
+	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] &= (unsigned char)~mask;
+	}
+	memcpy(changed, edges, sizeof(changed));
+	assert(genghost_shift_inputs(changed, sizeof(changed), 0U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	assert(genghost_shift_inputs(changed, 0U, 0U, &first, &end) == 0);
+	assert(memcmp(changed, edges, sizeof(changed)) == 0);
+	puts("Shift refinement moves up/down pulses early and late without changing other controls.");
+}
+
 static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
 						   unsigned int count)
 {
@@ -824,6 +918,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		}
 	}
 	if (fine_tune) {
+		test_shift_inputs();
 		test_fine_tune(&options, recording + REPLAY_INPUT_OFFSET, config.game_recordedframes);
 		test_fine_tune_parallel_cancel(&options, recording, size, &config);
 		return 0;

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify explicit replay refinement, seed preservation, and native playback."""
+"""Verify manual replay refinement, automatic seed conversion, and native playback."""
 
 import errno
 import json
@@ -91,11 +91,11 @@ def main():
             return report, states
 
         def refine(output, *, source="human.RPL", car="PMIN", strategy="legacy",
-                   cores=1, budget=2001, flags=(), transmission=None):
+                   cores=1, budget=2001, flags=(), transmission=None, seed=1):
             baseline = score(source, car, flags)
             original = (temporary / source).read_bytes()
             arguments = [source, car, "--fine-tune", "--strategy", strategy,
-                         "--cores", cores, "--evaluations", budget, "--seed", 1,
+                         "--cores", cores, "--evaluations", budget, "--seed", seed,
                          "--output", output, *flags]
             if transmission:
                 arguments.extend(("--transmission", transmission))
@@ -114,7 +114,7 @@ def main():
             assert report["strategy"] == strategy
             assert report["cores_requested"] == cores
             assert report["cores_used"] == min(cores, budget)
-            assert report["transmission"] == ("auto" if original[5] else "manual")
+            assert report["transmission"] == "manual"
             assert report["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
@@ -132,7 +132,7 @@ def main():
             assert report["globally_optimal"] is False
             assert (temporary / source).read_bytes() == original, "Fine-tuning modified its input"
             replay = (temporary / output).read_bytes()
-            assert replay[5] == original[5]
+            assert replay[5] == 0, "Fine-tuned replays must use manual transmission"
             track_name = original[13:22].split(b"\0")[0]
             assert replay[13:22].split(b"\0")[0] == track_name, (
                 "Embedded track identity was replaced by a filename")
@@ -156,7 +156,6 @@ def main():
         rejected = [
             ["track.TRK", "PMIN"],
             ["human.RPL", "COUN"],
-            ["human.RPL", "PMIN", "--transmission", "auto"],
             ["opponent.RPL", "PMIN"],
             ["tenhz.RPL", "PMIN"],
             ["unfinished.RPL", "PMIN"],
@@ -237,12 +236,49 @@ def main():
             improvements.append(deeper[1]["saved_frames"])
         assert any(value > 0 for value in improvements), "No real human lap improvement was demonstrated"
 
+        automatic_baseline = score("auto seed.RPL", "LM02")
         for strategy in ("legacy", "state"):
-            for explicit in (None, "auto"):
-                output = ("autol" if strategy == "legacy" else "autos") + ("x" if explicit else "i") + ".RPL"
+            for cores in (1, 2):
+                output = f"auto{strategy[0]}{cores}.RPL"
+                replay, report, _ = refine(output, source="auto seed.RPL", car="LM02",
+                                          strategy=strategy, budget=1, cores=cores)
+                assert report["total_frames"] == automatic_baseline["total_frames"]
+                finish = automatic_baseline["finish_frame"]
+                before = automatic[INPUT_OFFSET:INPUT_OFFSET + finish]
+                after = replay[INPUT_OFFSET:INPUT_OFFSET + finish]
+                assert len(before) == len(after) == finish
+                assert bytes(value & ~0x30 for value in before) == bytes(
+                    value & ~0x30 for value in after), "Conversion changed pedals or steering"
+                assert any(value & 0x30 for value in after), "Automatic shifts were not recorded"
+            # These seeds keep every pedal/steering input through the new
+            # finish intact: both the upshift and downshift schedules improve.
+            normalized = replay
+            shifted, report, _ = refine(f"shift{strategy[0]}.RPL", source="auto seed.RPL",
+                                        car="LM02", strategy=strategy, budget=257,
+                                        seed=2 if strategy == "legacy" else 1)
+            assert report["saved_frames"] > 0, "Gear timing did not improve the automatic lap"
+            finish = report["finish_frame"]
+            before = normalized[INPUT_OFFSET:INPUT_OFFSET + finish]
+            after = shifted[INPUT_OFFSET:INPUT_OFFSET + finish]
+            assert bytes(value & ~0x30 for value in before) == bytes(
+                value & ~0x30 for value in after), "Gear-only refinement changed driving controls"
+            for gear in (0x10, 0x20):
+                assert any((old ^ new) & gear for old, new in zip(before, after)), (
+                    "Both upshift and downshift timing should improve", strategy, gear)
+            for explicit in ("manual", "auto"):
+                output = f"auto{strategy[0]}{explicit[0]}.RPL"
                 refine(output, source="auto seed.RPL", car="LM02", strategy=strategy,
                        budget=17, cores=2, transmission=explicit)
-        print("Human refinement improves a native score; automatic transmission reaches every worker", flush=True)
+                refine(f"man{strategy[0]}{explicit[0]}.RPL", strategy=strategy, budget=1,
+                       cores=2, transmission=explicit)
+        # General replay-seeded searches keep their requested transmission.
+        run(["auto seed.RPL", "LM02", "--evaluations", 1, "--output", "keepauto.RPL"])
+        ordinary_auto, _ = verify("keepauto.RPL", "LM02")
+        assert ordinary_auto["fine_tune"] is False
+        assert ordinary_auto["transmission"] == "auto"
+        assert (temporary / "keepauto.RPL").read_bytes()[5] == 1
+        assert ordinary_auto["total_frames"] == automatic_baseline["total_frames"]
+        print("Fine-tuning converts automatic seeds to manual and preserves native scores on every worker", flush=True)
 
         if native:
             subprocess.run([str(native), "--data-dir", str(data),

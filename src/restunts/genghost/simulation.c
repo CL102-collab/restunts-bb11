@@ -13,6 +13,7 @@
 #include "../c/wheel_transform.h"
 #include "../c/crash_state.h"
 #include "../c/trackdata_layout.h"
+#include "../c/game_input.h"
 
 #undef memcpy
 #undef strlen
@@ -217,6 +218,96 @@ int genghost_sim_evaluate(const unsigned char *inputs, unsigned int length,
 	}
 	genghost_sim_result(result);
 	return 0;
+}
+
+static void set_transmission(int transmission)
+{
+	gameconfig.game_playertransmission = (legacy_s8)transmission;
+	gameconfigcopy.game_playertransmission = (legacy_s8)transmission;
+	initial_snapshot.state.playerstate.car_transmission = (legacy_s8)transmission;
+	genghost_sim_reset();
+}
+
+int genghost_sim_manual_inputs(unsigned char *inputs, unsigned int length,
+							   struct GENGHOST_RESULT *baseline)
+{
+	if (!initialized || inputs == NULL || baseline == NULL || length > GENGHOST_MAX_FRAMES) {
+		return -1;
+	}
+	int transmission = initial_snapshot.state.playerstate.car_transmission;
+	if (transmission == TRANSMISSION_MANUAL) {
+		return genghost_sim_evaluate(inputs, length, baseline) || !baseline->finished ? -1 : 0;
+	}
+
+	unsigned char converted[GENGHOST_MAX_FRAMES];
+	struct GENGHOST_SNAPSHOT finish_snapshot, manual_snapshot;
+	unsigned int finish_frame = 0;
+	genghost_sim_reset();
+	for (unsigned int frame = 0; frame < length; ++frame) {
+		int gear = state.playerstate.car_current_gear;
+		int driving = state.playerstate.car_crashBmpFlag == CRASH_EVENT_NONE;
+		int waiting = state.game_inputmode == GAME_INPUT_MODE_WAITING;
+		int event = genghost_sim_step(inputs[frame]);
+		if (event < 0 || (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH)) {
+			return -1;
+		}
+		converted[frame] = inputs[frame] & INPUT_DRIVING_MASK;
+		/* current_gear changes when a native shift starts, before the knob reaches
+		 * its target and the ratio engages. One tick reproduces that full shift. */
+		if (driving && state.playerstate.car_current_gear > gear) {
+			converted[frame] |= INPUT_SHIFT_UP_FLAG;
+		} else if (driving && state.playerstate.car_current_gear < gear) {
+			converted[frame] |= INPUT_SHIFT_DOWN_FLAG;
+		}
+		/* Any nonzero input starts the race. An action-only automatic input has
+		 * no driving effect; a downshift in first (or neutral) preserves that. */
+		if (waiting && (inputs[frame] & 63U) && converted[frame] == INPUT_NONE) {
+			if (gear > 1) {
+				return -1;
+			}
+			converted[frame] = INPUT_SHIFT_DOWN_FLAG;
+		}
+		if (event == CRASH_EVENT_FINISH && !finish_frame) {
+			finish_frame = frame + 1U;
+			genghost_sim_capture(&finish_snapshot);
+			finish_snapshot.state.playerstate.car_transmission = TRANSMISSION_MANUAL;
+		}
+	}
+	genghost_sim_result(baseline);
+	if (!baseline->finished || !finish_frame) {
+		return -1;
+	}
+
+	set_transmission(TRANSMISSION_MANUAL);
+	for (unsigned int frame = 0; frame < length; ++frame) {
+		int event = genghost_sim_step(converted[frame]);
+		if (event < 0 || (event != CRASH_EVENT_NONE && event != CRASH_EVENT_FINISH)) {
+			goto failed;
+		}
+		if (frame + 1U == finish_frame) {
+			genghost_sim_capture(&manual_snapshot);
+			if (memcmp(&finish_snapshot, &manual_snapshot, sizeof(finish_snapshot))) {
+				goto failed;
+			}
+		}
+	}
+	struct GENGHOST_RESULT manual;
+	genghost_sim_result(&manual);
+	if (!manual.finished || manual.finish_frame != baseline->finish_frame ||
+		manual.penalty_frames != baseline->penalty_frames ||
+		manual.total_frames != baseline->total_frames) {
+		goto failed;
+	}
+	/* The engine forces braking after the finish, discarding manual shift
+	 * buttons. Preserve tail driving inputs and length; only the scored lap
+	 * through the finish is required to have an identical native snapshot. */
+	memcpy(inputs, converted, length);
+	genghost_sim_reset();
+	return 0;
+
+failed:
+	set_transmission(transmission);
+	return -1;
 }
 
 int genghost_sim_write_replay(const char *path, const char *track_name, const unsigned char *inputs,

@@ -8,6 +8,7 @@
 #include "../c/externs.h"
 #include "../c/crash_state.h"
 #include "../c/trackdata_layout.h"
+#include "../c/game_input.h"
 
 #undef memcpy
 
@@ -17,6 +18,68 @@
 #define CHECKPOINT_COUNT (GENGHOST_MAX_FRAMES / CHECKPOINT_INTERVAL + 1U)
 
 volatile sig_atomic_t genghost_interrupted;
+
+int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t proposal,
+						  unsigned int *first, unsigned int *end)
+{
+	static const int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
+	const unsigned int mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	if (!inputs || !length || length > GENGHOST_MAX_FRAMES || !first || !end) {
+		return 0;
+	}
+	unsigned int count = 0U;
+	for (unsigned int frame = 0U; frame < length;) {
+		unsigned int shift = inputs[frame] & mask;
+		unsigned int next = frame + 1U;
+		while (next < length && (inputs[next] & mask) == shift) {
+			++next;
+		}
+		if (shift == INPUT_SHIFT_UP_FLAG || shift == INPUT_SHIFT_DOWN_FLAG) {
+			++count;
+		}
+		frame = next;
+	}
+	if (!count) {
+		return 0;
+	}
+	unsigned int selected = (unsigned int)(proposal % count);
+	int offset = offsets[(proposal / count) % (sizeof(offsets) / sizeof(offsets[0]))];
+	for (unsigned int frame = 0U; frame < length;) {
+		unsigned int shift = inputs[frame] & mask;
+		unsigned int next = frame + 1U;
+		while (next < length && (inputs[next] & mask) == shift) {
+			++next;
+		}
+		if ((shift == INPUT_SHIFT_UP_FLAG || shift == INPUT_SHIFT_DOWN_FLAG) && !selected--) {
+			int moved = (int)frame + offset;
+			int moved_end = (int)next + offset;
+			if (moved < 0 || moved_end > (int)length) {
+				return 0;
+			}
+			unsigned int left = (unsigned int)moved, right = (unsigned int)moved_end;
+			unsigned int begin = left < frame ? left : frame;
+			unsigned int finish = right > next ? right : next;
+			/* Keep separate pulses separate, including when the destination
+			 * overlaps the original hold. Never jump over another shift. */
+			for (unsigned int i = begin ? begin - 1U : begin; i < length && i <= finish; ++i) {
+				if ((i < frame || i >= next) && (inputs[i] & mask)) {
+					return 0;
+				}
+			}
+			for (unsigned int i = frame; i < next; ++i) {
+				inputs[i] = (unsigned char)(inputs[i] & ~mask);
+			}
+			for (unsigned int i = left; i < right; ++i) {
+				inputs[i] = (unsigned char)((inputs[i] & ~mask) | shift);
+			}
+			*first = begin;
+			*end = finish;
+			return 1;
+		}
+		frame = next;
+	}
+	return 0;
+}
 
 struct individual {
 	struct GENGHOST_POLICY policy;
@@ -692,18 +755,32 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 								 struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
 	cache_checkpoints(context, route_index, route, search, 0);
-	unsigned int start, length = mutate_inputs(context, search, inputs, &start);
+	unsigned int start, changed_end;
+	unsigned int length = search->race.finish_frame;
+	int shift = 0;
+	if (context->options->fine_tune && search->trials % 2U == 0U) {
+		memcpy(inputs, search->best_inputs, length);
+		shift = genghost_shift_inputs(inputs, length, search->trials / 2U, &start, &changed_end);
+	}
+	if (!shift) {
+		length = mutate_inputs(context, search, inputs, &start);
+	} else {
+		/* A shift may trade a later finish for fewer penalty frames. Keep the
+		 * parent's tail available so the native total can still improve. */
+		memcpy(inputs + length, search->best_inputs + length, search->length - length);
+		length = search->length;
+	}
 	unsigned int common = 0, parent_length = context->cache->guide_count;
 	while (common < length && common < parent_length &&
 		   inputs[length - common - 1U] == search->best_inputs[parent_length - common - 1U]) {
 		++common;
 	}
-	unsigned int changed_end = length - common;
+	changed_end = length - common;
 	unsigned int guide_cursor = parent_length - common;
 	/* Most attempts retain the exact suffix. A minority re-time its demonstrated
 	 * controls by position, so a faster sector can rejoin the line instead of
 	 * applying every later corner input at the old wall-clock timestamp. */
-	int guided = search->trials % 16U < 2U && common > 16U && changed_end > start;
+	int guided = !shift && search->trials % 16U < 2U && common > 16U && changed_end > start;
 	unsigned int limit = guided ? length + 120U : length;
 	if (limit > GENGHOST_MAX_FRAMES) {
 		limit = GENGHOST_MAX_FRAMES;

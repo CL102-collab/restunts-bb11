@@ -52,6 +52,11 @@ void genghost_sim_result(struct GENGHOST_RESULT *result);
  * any post-finish input frames. Returns zero for valid input length. */
 int genghost_sim_evaluate(const unsigned char *inputs, unsigned int length,
 						  struct GENGHOST_RESULT *result);
+/* Validate the source lap in its initialized transmission and materialize native
+ * automatic shifts as manual input buttons. On success, inputs and the canonical
+ * simulation/configuration are manual, with the original finish and score. */
+int genghost_sim_manual_inputs(unsigned char *inputs, unsigned int length,
+							   struct GENGHOST_RESULT *baseline);
 /* Save original track bytes and standard v1.1 header. Caller must validate the
  * complete input sequence first. Output errors return nonzero. */
 int genghost_sim_write_replay(const char *path, const char *track_name, const unsigned char *inputs,

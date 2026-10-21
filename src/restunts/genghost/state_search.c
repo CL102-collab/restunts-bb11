@@ -62,6 +62,7 @@ struct state_search {
 	uint64_t incumbent_revision, section_revision;
 	unsigned int section_frames[STATE_SECTION_COUNT];
 	unsigned int section_count, section_cursor;
+	uint64_t fine_tune_trials;
 	struct state_node rescue[STATE_RESCUE_COUNT];
 	unsigned int rescue_count, rescue_cursor, scout_cursor;
 };
@@ -882,7 +883,12 @@ static int fine_tune_inputs(struct state_search *search)
 		static const unsigned int widths[] = {1U, 1U, 2U, 2U, 3U, 4U, 6U, 8U};
 		unsigned int width = widths[(word >> 16U) % 8U];
 		unsigned int changed_end = first;
-		if (mode < 8U && first) {
+		uint64_t trial = search->fine_tune_trials++;
+		int shift = trial % 2U == 0U &&
+					genghost_shift_inputs(task->prefix, finish, trial / 2U, &first, &changed_end);
+		if (shift) {
+			/* Replay the exact continuation so only shift timing changes. */
+		} else if (mode < 8U && first) {
 			static const unsigned int masks[] = {INPUT_PEDAL_MASK, INPUT_STEERING_MASK,
 												 INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG};
 			unsigned int channel = (word >> 8U) % 3U;
@@ -979,8 +985,8 @@ static int fine_tune_inputs(struct state_search *search)
 		task->first = first;
 		/* kind 2 with width zero evaluates the already edited input sequence.
 		 * kind 3 keeps that local edit and retimes only the incumbent suffix. */
-		if (task->id % 8U == 0U && changed_end > first && changed_end < finish && mode != 8U &&
-			mode != 9U) {
+		if (!shift && task->id % 8U == 0U && changed_end > first && changed_end < finish &&
+			mode != 8U && mode != 9U) {
 			task->kind = 3U;
 			task->prefix_length = changed_end;
 			task->reference_length = finish;

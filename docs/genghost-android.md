@@ -22,8 +22,9 @@ request Internet access.
    states with a shared search across the selected cores. The app remembers
    your selection.
    For a completed `.RPL`, enable **Fine-tune replay** to refine its driving
-   inputs. Keep the same car and transmission; **Follow replay** inherits the
-   recorded transmission. The engine verifies the replay under your selected
+   inputs with the same car. Fine-tuning always uses manual transmission,
+   converting an automatic replay's shifts before optimizing earlier and later
+   upshifts and downshifts. The engine verifies the replay under your selected
    driving rules before refinement. This option is unavailable for `.TRK` files.
    The app saves a separate replay and reports any time saved; if no faster replay
    is found, it keeps the original time.

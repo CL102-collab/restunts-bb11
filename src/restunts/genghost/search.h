@@ -47,6 +47,13 @@ struct GENGHOST_SEARCH_RESULT {
 extern volatile sig_atomic_t genghost_interrupted;
 typedef int (*genghost_save_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
 
+/* Move one existing up/down shift pulse earlier or later, preserving its
+ * duration and every other input channel. Proposals cycle through all pulses
+ * at offsets of +/-1, 2, 4, 8, 16 and 32 frames. Reject moves outside the lap
+ * or across another pulse. first/end delimit the changed half-open interval. */
+int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t proposal,
+						  unsigned int *first, unsigned int *end);
+
 /* Every candidate uses original player input and the real simulator. The save
  * callback is invoked only after a fresh, complete, successful resimulation. */
 int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char *seed_inputs,

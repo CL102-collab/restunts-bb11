@@ -49,7 +49,7 @@ static const char help[] =
 	"  --dws:on|off           Dual-Way Switching (original behavior; default on).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
 	"  /amigagrass            Original Amiga grass grip for stock cars (default off).\n"
-	"  --fine-tune            Improve a completed replay with local input refinements.\n"
+	"  --fine-tune            Refine a completed replay using manual transmission.\n"
 	"  --verify               Validate the input replay and print its score; no search.\n"
 	"  --help, -h             Show this help without loading game resources.\n"
 	"  --version, -v          Show version.\n\n"
@@ -61,6 +61,7 @@ static const char help[] =
 	"Ctrl+C keeps the best fully validated completed replay found so far.\n"
 	"The accompanying .json records the physics flags required for playback.\n"
 	"Fine-tuning requires a solo 20 Hz replay that finishes under the selected rules.\n"
+	"Automatic seed shifts become manual inputs; --fine-tune always writes manual.\n"
 	"It writes a separate *-FT.rpl by default and reports whether the time improved.\n"
 	"A bounded heuristic search cannot guarantee a finish or global optimum.\n";
 
@@ -666,7 +667,7 @@ int main(int argc, char **argv)
 			if (transmission < 0) {
 				transmission = replay.game_playertransmission;
 			}
-			if (transmission == replay.game_playertransmission) {
+			if (options.fine_tune || transmission == replay.game_playertransmission) {
 				seed_inputs = file + REPLAY_INPUT_OFFSET;
 				seed_length = replay.game_recordedframes;
 			}
@@ -679,8 +680,16 @@ int main(int argc, char **argv)
 		transmission = 0;
 	}
 	if (options.fine_tune && (!is_replay || !seed_inputs || !seed_length)) {
-		fputs("--fine-tune requires a 20 Hz replay with matching car and transmission\n", stderr);
+		fputs("--fine-tune requires a 20 Hz replay with matching car\n", stderr);
 		goto done;
+	}
+	if (options.fine_tune) {
+		if (transmission == TRANSMISSION_AUTOMATIC) {
+			fputs("--fine-tune uses manual transmission; automatic seed shifts are preserved "
+				  "as manual inputs\n",
+				  stderr);
+		}
+		transmission = TRANSMISSION_MANUAL;
 	}
 	if (options.fine_tune && replay.game_opponenttype != 0) {
 		fputs("--fine-tune requires a solo replay; opponent collisions change the simulation\n",
@@ -775,16 +784,21 @@ int main(int argc, char **argv)
 	if (options.amiga_grass) {
 		physics_arguments[physics_count++] = "/amigagrass";
 	}
-	if (genghost_sim_init(track, car, transmission, physics_count, physics_arguments)) {
+	int source_transmission = options.fine_tune ? replay.game_playertransmission : transmission;
+	if (genghost_sim_init(track, car, source_transmission, physics_count, physics_arguments)) {
 		goto done;
 	}
 	if (options.fine_tune) {
-		if (genghost_sim_evaluate(seed_inputs, seed_length, &baseline) || !baseline.finished) {
+		if (genghost_sim_manual_inputs(seed_inputs, seed_length, &baseline)) {
 			fputs("--fine-tune requires an input replay that finishes under the selected physics "
-				  "and OWOOT settings\n",
+				  "and OWOOT settings, with an equivalent manual lap\n",
 				  stderr);
 			goto done;
 		}
+		/* Parallel workers must receive the same converted manual seed as the
+		 * parent, including its header, rather than the untouched source file. */
+		replay.game_playertransmission = TRANSMISSION_MANUAL;
+		replay_gameinfo_encode(file, &replay);
 		fprintf(stderr, "fine-tune baseline: %.2fs (driving %.2fs + penalty %.2fs)\n",
 				baseline.total_frames / 20.0, baseline.finish_frame / 20.0,
 				baseline.penalty_frames / 20.0);

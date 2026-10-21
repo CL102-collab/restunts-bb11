@@ -90,13 +90,17 @@ genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --second
 genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --strategy state --cores 4 --output STATEFT.rpl
 ```
 
-The source must be a complete, solo 20 Hz replay with a matching car and
-transmission. Its transmission is inherited unless you explicitly select the
-same setting. Before searching, the tool replays the entire source under your
-selected physics flags and OWOOT setting. A source that does not finish under
-those settings is rejected, as are track-only inputs, mismatched cars or
-transmissions, and combining `--fine-tune` with `--verify`. Physics flags are
-not stored in the RPL format: supply the settings required by the source lap.
+The source must be a complete, solo 20 Hz replay with a matching car.
+Fine-tuning always uses manual transmission. An automatic source is first
+replayed with its original transmission, then converted to manual inputs that
+reproduce its native upshifts and downshifts. The converted lap must retain the
+same finish time and penalties before searching starts. An explicit
+`--transmission auto` is overridden in this mode. Before searching, the tool
+replays the entire source under your selected physics flags and OWOOT setting.
+A source that does not finish under those settings is rejected, as are
+track-only inputs, mismatched cars, and combining `--fine-tune` with `--verify`.
+Physics flags are not stored in the RPL format: supply the settings required by
+the source lap.
 
 Fine-tuning spends the budget on variations of the validated lap. The legacy
 strategy changes intervals of driving inputs. The state strategy also refines
@@ -104,6 +108,12 @@ short sections and tries to rejoin the lap's demonstrated continuation. Neither
 starts an unrelated route search in this mode. Both honor `--cores`, the search
 budget, penalties, and the selected restrictions. A full native replay check
 must confirm each improvement before it is saved.
+
+Both strategies reserve input refinement attempts for gear timing, moving
+existing upshift and downshift pulses earlier and later by 1, 2, 4, 8, 16,
+or 32 frames (0.05 to 1.6 seconds). These attempts preserve the shift duration,
+pedals, steering, and later input timestamps, and cannot cross another shift.
+Manual sources receive the same gear optimization as converted automatic laps.
 
 The source score is retained if no better completed lap is found; a limited
 budget does not guarantee an improvement. The comparison uses total time,

@@ -139,7 +139,7 @@ public final class GenghostActivity extends Activity {
                 fineTunePreferred = checked;
             }
         });
-        text(page, "Requires a completed .RPL with the same car and transmission.", 14);
+        text(page, "Requires a completed .RPL with the same car; optimizes manual gear shifts.", 14);
         label(page, "Car");
         car = spinner(page, Collections.emptyList());
         label(page, "Search time (minutes)");
