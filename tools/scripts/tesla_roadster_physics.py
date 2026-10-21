@@ -22,8 +22,8 @@ from tesla_roadster_model import BODY_SCALE, WHEEL_CENTERS
 
 CAR_ID = "TERR"
 CAR_NAME = "Tesla Roadster Rocket"
-SCOREBOARD_NAME = "Rocket"
-SHORT_NAME = "TRKT"
+SCOREBOARD_NAME = CAR_NAME
+SHORT_NAME = "TERR"
 SIMD_SIZE = 776
 
 # All of these values belong to the game, not to a production-car spec sheet.
