@@ -428,6 +428,9 @@ run_host_test test-track-resource-decoding trackres.c
 run_host_test test-ui-file-input ui_dialog.c \
     "$test_source_dir/ui_input.c" "$test_source_dir/legacy.c" \
     "$test_source_dir/strlib.c" "$test_source_dir/resource.c" -Wno-pointer-sign
+run_host_test test-ui-file-input ui_dialog.c \
+    "$test_source_dir/ui_input.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/strlib.c" "$test_source_dir/resource.c" -D__EMSCRIPTEN__ -Wno-pointer-sign
 run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" -Wno-pointer-sign
 run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" -DRESTUNTS_AMIGA -Wno-pointer-sign
 run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" \

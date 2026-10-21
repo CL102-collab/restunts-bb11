@@ -1,5 +1,6 @@
 #include "sdl3.h"
 #include "touch.h"
+#include "soft_keyboard.h"
 #include "../../c/platform.h"
 #include "../../c/fatal.h"
 #include "../../c/hires.h"
@@ -236,6 +237,12 @@ void sdl3_video_window_to_game(legacy_f32 window_x, legacy_f32 window_y, legacy_
 {
 	*x = window_x;
 	*y = window_y;
+	if (sdl3_soft_keyboard_active()) {
+		SDL_FRect area = sdl3_soft_keyboard_game_area(window);
+		*x = (window_x - area.x) * SDL3_SCREEN_WIDTH / area.w;
+		*y = (window_y - area.y) * SDL3_SCREEN_HEIGHT / area.h;
+		return;
+	}
 	if (renderer != NULL) {
 		SDL_RenderCoordinatesFromWindow(renderer, window_x, window_y, x, y);
 		*y *= (legacy_f32)SDL3_SCREEN_HEIGHT / PRESENTATION_HEIGHT;
@@ -250,6 +257,12 @@ void sdl3_video_game_to_window(legacy_f32 x, legacy_f32 y, legacy_f32 *window_x,
 {
 	*window_x = x;
 	*window_y = y;
+	if (sdl3_soft_keyboard_active()) {
+		SDL_FRect area = sdl3_soft_keyboard_game_area(window);
+		*window_x = area.x + x * area.w / SDL3_SCREEN_WIDTH;
+		*window_y = area.y + y * area.h / SDL3_SCREEN_HEIGHT;
+		return;
+	}
 	if (renderer != NULL) {
 		SDL_RenderCoordinatesToWindow(renderer, x,
 									  y * ((legacy_f32)PRESENTATION_HEIGHT / SDL3_SCREEN_HEIGHT),
@@ -392,7 +405,24 @@ static void present_texture(legacy_u8 new_frame)
 		}
 		SDL_UnlockTexture(texture);
 	}
-	if (!SDL_RenderClear(renderer) || !SDL_RenderTexture(renderer, texture, NULL, NULL)) {
+	legacy_u8 keyboard_active = sdl3_soft_keyboard_active();
+	legacy_int logical_w = 0, logical_h = 0;
+	SDL_RendererLogicalPresentation presentation = SDL_LOGICAL_PRESENTATION_DISABLED;
+	legacy_f32 scale_x = 1, scale_y = 1;
+	SDL_FRect game_area;
+	if (keyboard_active) {
+		SDL_GetRenderLogicalPresentation(renderer, &logical_w, &logical_h, &presentation);
+		SDL_GetRenderScale(renderer, &scale_x, &scale_y);
+		SDL_SetRenderLogicalPresentation(renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED);
+		legacy_int output_w, output_h, window_w, window_h;
+		SDL_GetCurrentRenderOutputSize(renderer, &output_w, &output_h);
+		SDL_GetWindowSize(window, &window_w, &window_h);
+		SDL_SetRenderScale(renderer, (legacy_f32)output_w / window_w,
+						   (legacy_f32)output_h / window_h);
+		game_area = sdl3_soft_keyboard_game_area(window);
+	}
+	if (!SDL_RenderClear(renderer) ||
+		!SDL_RenderTexture(renderer, texture, NULL, keyboard_active ? &game_area : NULL)) {
 		video_fail("Render video texture");
 	}
 	/* Include CPU composition and submission, but exclude the presentation
@@ -400,10 +430,18 @@ static void present_texture(legacy_u8 new_frame)
 	if (new_frame) {
 		video_record_render_work();
 	}
-	sdl3_touch_draw(renderer, window);
+	if (keyboard_active) {
+		sdl3_soft_keyboard_draw(renderer, window);
+	} else {
+		sdl3_touch_draw(renderer, window);
+	}
 	legacy_u64 present_started = SDL_GetTicksNS();
 	if (!SDL_RenderPresent(renderer)) {
 		video_fail("Present video");
+	}
+	if (keyboard_active) {
+		SDL_SetRenderLogicalPresentation(renderer, logical_w, logical_h, presentation);
+		SDL_SetRenderScale(renderer, scale_x, scale_y);
 	}
 #ifdef __EMSCRIPTEN__
 	/* SDL's implicit Asyncify sleep is disabled. Keep long rendering loops

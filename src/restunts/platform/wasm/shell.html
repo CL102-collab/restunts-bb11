@@ -325,6 +325,7 @@
         var Module = {
             canvas,
             noInitialRun: true,
+            mobileDevice: isMobileDevice(),
             print: log,
             printErr(message) {
                 log(message);
@@ -499,6 +500,10 @@
         // SDL's Fullscreen button and Alt+Enter both fullscreen this canvas.
         // Mobile browsers require fullscreen to be active before locking orientation.
         document.addEventListener('fullscreenchange', async () => {
+            // The SDK sizes the canvas from screen dimensions before fullscreen
+            // settles. Notify SDL of the actual viewport after its own fullscreen
+            // handler has run, keeping both rendering and touch coordinates aligned.
+            requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
             const request = ++fullscreenOrientationRequest;
             if (document.fullscreenElement !== canvas) {
                 if (fullscreenOrientation) {

@@ -199,7 +199,7 @@ list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")
 set(platform_common ${platform}/memory.c ${platform}/file.c ${platform}/runtime.c)
 set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c ${platform}/timer.c
-    ${platform}/audio.c ${platform}/music.c ${platform}/touch.c)
+    ${platform}/audio.c ${platform}/music.c ${platform}/touch.c ${platform}/soft_keyboard.c)
 
 execute_process(COMMAND git -c safe.directory=${CMAKE_SOURCE_DIR} rev-parse HEAD
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}" OUTPUT_VARIABLE RESTUNTS_GIT_HASH
@@ -631,8 +631,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_link_libraries(test-sdl3-touch PRIVATE restunts_options)
     target_compile_options(test-sdl3-touch PRIVATE -UNDEBUG)
     add_test(NAME sdl3-touch COMMAND test-sdl3-touch)
+    add_executable(test-sdl3-soft-keyboard src/restunts/tests/test-sdl3-soft-keyboard.c
+        ${platform}/soft_keyboard.c)
+    target_link_libraries(test-sdl3-soft-keyboard PRIVATE restunts_options)
+    target_compile_options(test-sdl3-soft-keyboard PRIVATE -UNDEBUG)
+    add_test(NAME sdl3-soft-keyboard COMMAND test-sdl3-soft-keyboard)
     add_executable(test-sdl3-input src/restunts/tests/test-sdl3-input.c
-        ${platform}/input.c ${platform}/video.c ${platform}/timer.c ${platform}/touch.c ${core}/frame_adaptive.c)
+        ${platform}/input.c ${platform}/video.c ${platform}/timer.c ${platform}/touch.c
+        ${platform}/soft_keyboard.c ${core}/frame_adaptive.c)
     target_link_libraries(test-sdl3-input PRIVATE restunts_options)
     target_compile_options(test-sdl3-input PRIVATE -UNDEBUG)
     add_test(NAME sdl3-input COMMAND test-sdl3-input)

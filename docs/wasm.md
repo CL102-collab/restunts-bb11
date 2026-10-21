@@ -75,6 +75,19 @@ needed. The HTML's location does not determine where the game looks for data.
 4. Click **Start game**. This user gesture enables browser audio. Click the
    canvas to focus the game keyboard.
 
+On phones and tablets, an in-game keyboard appears automatically while editing
+high-score names or track/replay filenames. In track/replay **Load** dialogs,
+tap the top path field to edit it. If a path contains no matching files, the
+empty list stays open; tap the path again to edit it.
+
+The keyboard offers English letters, digits, space, dash, underscore, period,
+and slash. **Shift** switches between lowercase and uppercase. Use **Backspace**,
+**Left**, **Right**, **Home**, and **End** to edit, then **Done** to accept or
+**Cancel** to leave the field. The game stays visible beside the keyboard in
+wide landscape mode and above it in other layouts. This keyboard is available
+even when **Show Control Layout** is disabled. Desktop browsers keep their
+existing hardware-keyboard input.
+
 **Your game files and saves stay on your device and are never uploaded**, even
 when you play from a website. Selecting a folder gives the game local access to
 its files; it does not send them to the hosting server.

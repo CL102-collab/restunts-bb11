@@ -13,6 +13,9 @@
 #include "../c/timing.h"
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
+#ifdef __EMSCRIPTEN__
+#include "../platform/sdl3/touch_game.h"
+#endif
 #undef printf
 
 legacy_s16 font_glyph_height;
@@ -28,6 +31,46 @@ static legacy_s16 scripted_buttons[512];
 static legacy_u32 input_index;
 static legacy_u32 timer_calls;
 static legacy_s16 save_succeeds;
+#ifdef __EMSCRIPTEN__
+static legacy_u8 test_soft_keyboard_enabled;
+static legacy_u8 test_soft_keyboard_active;
+static legacy_u32 test_soft_keyboard_begins;
+static legacy_u32 test_soft_keyboard_ends;
+static legacy_u32 empty_list_messages;
+static const legacy_s8 *matching_directory;
+
+legacy_u8 sdl3_soft_keyboard_enabled(void)
+{
+	return test_soft_keyboard_enabled;
+}
+
+void sdl3_soft_keyboard_begin(const legacy_s8 *text, legacy_u16 cursor, const legacy_char *label)
+{
+	(void)text;
+	(void)cursor;
+	(void)label;
+	if (test_soft_keyboard_enabled) {
+		assert(!test_soft_keyboard_active);
+		test_soft_keyboard_active = 1;
+		test_soft_keyboard_begins++;
+	}
+}
+
+void sdl3_soft_keyboard_update(const legacy_s8 *text, legacy_u16 cursor)
+{
+	(void)text;
+	(void)cursor;
+}
+
+void sdl3_soft_keyboard_end(void)
+{
+	if (test_soft_keyboard_enabled) {
+		assert(test_soft_keyboard_active);
+		test_soft_keyboard_active = 0;
+		test_soft_keyboard_ends++;
+	}
+}
+#endif
 
 static void trace_word(legacy_u16 value)
 {
@@ -114,6 +157,11 @@ legacy_s16 font_text_width(const legacy_s8 *text)
 
 void font_draw_text_opaque(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 {
+#ifdef __EMSCRIPTEN__
+	if (strcmp(text, "No files found") == 0) {
+		empty_list_messages++;
+	}
+#endif
 	trace_word(12);
 	trace_word(x);
 	trace_word(y);
@@ -139,6 +187,9 @@ legacy_u32 slow_timer_wait_ticks(legacy_u32 ticks)
 
 legacy_s16 input_checking(legacy_s16 delta)
 {
+#ifdef __EMSCRIPTEN__
+	assert(!test_soft_keyboard_active);
+#endif
 	trace_word(15);
 	trace_word(delta);
 	assert(input_index < 512U);
@@ -307,6 +358,11 @@ const legacy_s8 *file_combine_and_find(const legacy_s8 *directory, const legacy_
 	if (listed_count == 0 || (first_search_empty && find_calls == 1)) {
 		return 0;
 	}
+#ifdef __EMSCRIPTEN__
+	if (matching_directory != NULL && strcmp(directory, matching_directory) != 0) {
+		return 0;
+	}
+#endif
 	return listed_names[listed_index++];
 }
 const legacy_s8 *file_find_next_alt(void)
@@ -345,6 +401,14 @@ static void reset_case(void)
 	font_definition[0] = 7;
 	font_definition[2] = 3;
 	font_definition[18] = 8;
+#ifdef __EMSCRIPTEN__
+	test_soft_keyboard_enabled = 0;
+	test_soft_keyboard_active = 0;
+	test_soft_keyboard_begins = 0;
+	test_soft_keyboard_ends = 0;
+	empty_list_messages = 0;
+	matching_directory = NULL;
+#endif
 }
 
 static void check_hash(const legacy_char *name, legacy_u64 expected)
@@ -651,6 +715,85 @@ static void test_save_dialog(void)
 	puts("Save dialog text editing, confirmation, cancellation and background restoration passed.");
 }
 
+#ifdef __EMSCRIPTEN__
+static void test_mobile_empty_load_paths(void)
+{
+	static legacy_s8 extensions[][4] = {"RPL", "TRK"};
+	for (legacy_u32 extension = 0; extension < 2; extension++) {
+		for (legacy_u32 scenario = 0; scenario < 3; scenario++) {
+			reset_case();
+			test_soft_keyboard_enabled = 1;
+			matching_directory = "DIR";
+			listed_count = 1;
+			snprintf(listed_names[0], sizeof(listed_names[0]), "TEST.%s", extensions[extension]);
+			legacy_s8 directory[32];
+			strcpy(directory, scenario == 0 ? "DIR" : "BAD");
+			legacy_s8 filename[16] = "UNCHANGED";
+			if (scenario == 0) {
+				/* Submit a bad path once, then leave the empty list. Accept and
+				 * navigation keys must not select nonexistent filenames. */
+				scripted_keys[0] = 0;
+				scripted_hits[0] = 0;
+				scripted_buttons[0] = 1;
+				keyboard_keys[0] = 'B';
+				keyboard_keys[1] = 'A';
+				keyboard_keys[2] = 'D';
+				keyboard_keys[3] = KEY_ENTER;
+				keyboard_count = 4;
+				scripted_keys[1] = KEY_ENTER;
+				scripted_keys[2] = KEY_SPACE;
+				scripted_keys[3] = KEY_DOWN;
+				scripted_hits[3] = 9;
+				scripted_buttons[3] = 1;
+				scripted_keys[4] = KEY_ESCAPE;
+			} else if (scenario == 1) {
+				/* An initially empty search waits for an explicit path tap;
+				 * editing it to a valid directory makes files selectable. */
+				scripted_keys[0] = KEY_ENTER;
+				scripted_keys[1] = KEY_SPACE;
+				scripted_keys[2] = KEY_DOWN;
+				scripted_hits[2] = 9;
+				scripted_buttons[2] = 1;
+				scripted_keys[3] = 0;
+				scripted_hits[3] = 0;
+				scripted_buttons[3] = 1;
+				keyboard_keys[0] = 'D';
+				keyboard_keys[1] = 'I';
+				keyboard_keys[2] = 'R';
+				keyboard_keys[3] = KEY_ENTER;
+				keyboard_count = 4;
+				scripted_keys[4] = KEY_ENTER;
+			} else {
+				/* Cancelling an explicit edit exits even when no files exist. */
+				scripted_keys[0] = 0;
+				scripted_hits[0] = 0;
+				scripted_buttons[0] = 1;
+				keyboard_keys[0] = KEY_ESCAPE;
+				keyboard_count = 1;
+			}
+			legacy_s16 result =
+				do_fileselect_dialog(directory, filename, extensions[extension], "Load file");
+			assert(result == (scenario == 1));
+			if (scenario == 1) {
+				assert(strcmp(filename, listed_names[0]) == 0);
+			} else {
+				assert(strcmp(filename, "UNCHANGED") == 0);
+			}
+			assert(strcmp(directory, scenario == 1 ? "DIR" : "BAD") == 0);
+			assert(find_calls == (scenario == 2 ? 1U : 2U));
+			assert(input_index == (scenario == 2 ? 1U : 5U));
+			assert(keyboard_index == keyboard_count);
+			assert(test_soft_keyboard_begins == 1);
+			assert(test_soft_keyboard_ends == 1);
+			assert(!test_soft_keyboard_active);
+			assert(empty_list_messages != 0);
+			assert(pop_calls == 1);
+		}
+	}
+	puts("Mobile replay/track empty-load paths wait for explicit editing and recover safely.");
+}
+#endif
+
 int main(void)
 {
 	test_file_dialog();
@@ -659,6 +802,9 @@ int main(void)
 	test_read_line_empty_fields();
 	test_character_limit();
 	test_save_dialog();
+#ifdef __EMSCRIPTEN__
+	test_mobile_empty_load_paths();
+#endif
 	puts("UI file-selection and text-editing regression checks passed.");
 	return 0;
 }

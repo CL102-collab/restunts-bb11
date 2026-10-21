@@ -5,6 +5,9 @@
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/controller_game.h"
 #endif
+#ifdef __EMSCRIPTEN__
+#include "../platform/sdl3/touch_game.h"
+#endif
 #include "ui_text.h"
 #include "game_input.h"
 #include "resource_bytes.h"
@@ -307,6 +310,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 	state.text = text;
 	state.max_characters = max_characters;
 	read_line_initialize(&state, max_pixels, x, y);
+#ifdef __EMSCRIPTEN__
+	sdl3_soft_keyboard_begin(text, text_edit_cursor, max_characters == 18 ? "Path" : "Name");
+#endif
 #ifdef __ANDROID__
 	SDL_StartTextInput(sdl3_video_window());
 #endif
@@ -317,6 +323,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 		legacy_u16 key = read_line_wait_key(&initial_key, callback);
 		if (key == 0) {
 			if (read_line_blink_cursor(timeout)) {
+#ifdef __EMSCRIPTEN__
+				sdl3_soft_keyboard_end();
+#endif
 #ifdef __ANDROID__
 				SDL_StopTextInput(sdl3_video_window());
 #endif
@@ -330,6 +339,9 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 		timer_set_deadline(timeout);
 		if (read_line_is_finished(key, state.input_flags)) {
 			text_edit_toggle_cursor();
+#ifdef __EMSCRIPTEN__
+			sdl3_soft_keyboard_end();
+#endif
 #ifdef __ANDROID__
 			SDL_StopTextInput(sdl3_video_window());
 #endif
@@ -339,10 +351,16 @@ legacy_s16 read_line(legacy_s16 flags, legacy_s8 *text, legacy_s16 initial_key,
 			return key;
 		}
 		if (read_line_apply_edit_key(&state, key)) {
+#ifdef __EMSCRIPTEN__
+			sdl3_soft_keyboard_update(text, text_edit_cursor);
+#endif
 			state.first_key = 0;
 			continue;
 		}
 		read_line_type_character(&state, key);
+#ifdef __EMSCRIPTEN__
+		sdl3_soft_keyboard_update(text, text_edit_cursor);
+#endif
 		state.first_key = 0;
 	}
 }

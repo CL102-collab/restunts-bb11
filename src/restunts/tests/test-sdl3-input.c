@@ -976,6 +976,13 @@ static void test_completed_video_pages(void)
 	dos_video_set_palette(PAGE_VIDEO_FIRST_INDEX, PAGE_VIDEO_COLOR_COUNT, next_colors);
 	request_page_repaint(SDL_EVENT_WINDOW_EXPOSED);
 	assert_presented_page(PAGE_VIDEO_RED, PAGE_VIDEO_RED);
+	static const legacy_u32 resize_events[] = {SDL_EVENT_WINDOW_RESIZED,
+											   SDL_EVENT_WINDOW_ENTER_FULLSCREEN,
+											   SDL_EVENT_WINDOW_LEAVE_FULLSCREEN};
+	for (legacy_u32 index = 0; index < SDL_arraysize(resize_events); index++) {
+		request_page_repaint(resize_events[index]);
+		assert_presented_page(PAGE_VIDEO_RED, PAGE_VIDEO_RED);
+	}
 	assert(frame_adaptive.samples == 0);
 	memset(framebuffer + PAGE_VIDEO_PIXELS / 2, PAGE_VIDEO_SECOND_INDEX, PAGE_VIDEO_PIXELS / 2);
 	sdl3_video_end_frame();

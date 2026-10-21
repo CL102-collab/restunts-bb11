@@ -1,6 +1,7 @@
 #include "sdl3.h"
 #include "music.h"
 #include "touch.h"
+#include "soft_keyboard.h"
 #include "controller_game.h"
 #include "../../c/platform.h"
 #include "../../c/keyboard.h"
@@ -10,6 +11,11 @@
 #include <string.h>
 #ifdef __ANDROID__
 #include <jni.h>
+#endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+
+EM_JS(legacy_int, browser_mobile_device, (), { return Module['mobileDevice'] ? 1 : 0; });
 #endif
 
 #define KEY_BUFFER_CAPACITY 64U
@@ -97,6 +103,7 @@ static SDL_AtomicInt controller_vibration_disabled;
 static legacy_u8 controller_vibration_enabled = true;
 #endif
 static legacy_u8 pumping;
+static legacy_u8 soft_keyboard_captured;
 static legacy_u64 last_event_poll;
 /* One atomic packet keeps the filtered sensor axis and timestamp coherent. */
 static SDL_AtomicInt tilt_sample;
@@ -676,6 +683,9 @@ static void input_open_devices(void)
 	if (sdl3_batch_mode || input_devices_initialized) {
 		return;
 	}
+#ifdef __EMSCRIPTEN__
+	sdl3_soft_keyboard_enable(browser_mobile_device());
+#endif
 	input_devices_initialized = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
 	if (!input_devices_initialized) {
 		return;
@@ -985,10 +995,26 @@ void sdl3_platform_pump(void)
 	sdl3_browser_yield_if_due();
 #endif
 	legacy_u8 redraw_requested = false;
+	legacy_u8 keyboard_active = sdl3_soft_keyboard_active();
+	if (keyboard_active != soft_keyboard_captured) {
+		/* Release the canvas click that opened this field. Keyboard taps must
+		 * never remain held as clicks in the underlying file selector. */
+		sdl3_touch_reset();
+		mouse_buttons = 0;
+		mouse_transition_count = 0;
+		if (keyboard_active) {
+			key_count = 0;
+		}
+		soft_keyboard_captured = keyboard_active;
+		redraw_requested = true;
+	}
 	SDL_Event event;
 	legacy_u8 poll_events =
 		SDL_GetTicks() != last_event_poll || SDL_HasEvents(SDL_EVENT_FIRST, SDL_EVENT_LAST);
 	while (poll_events && SDL_PollEvent(&event)) {
+		if (sdl3_soft_keyboard_event(&event, sdl3_video_window())) {
+			continue;
+		}
 		switch (event.type) {
 			case SDL_EVENT_QUIT:
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
@@ -1075,7 +1101,10 @@ void sdl3_platform_pump(void)
 				redraw_requested = true;
 				break;
 			case SDL_EVENT_WINDOW_EXPOSED:
+			case SDL_EVENT_WINDOW_RESIZED:
 			case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+			case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+			case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
 				redraw_requested = true;
 				break;
 			case SDL_EVENT_MOUSE_MOTION:
@@ -1190,6 +1219,9 @@ void sdl3_platform_pump(void)
 	sdl3_touch_sync_game();
 	sdl3_touch_update();
 	sdl3_timer_pump();
+	if (sdl3_soft_keyboard_take_redraw()) {
+		redraw_requested = true;
+	}
 	if (redraw_requested) {
 		sdl3_video_redraw();
 	}
@@ -1199,6 +1231,8 @@ void sdl3_platform_pump(void)
 
 void sdl3_input_shutdown(void)
 {
+	sdl3_soft_keyboard_enable(false);
+	soft_keyboard_captured = false;
 	sdl3_input_set_tilt(0, false);
 	input_tilt_reset();
 	sdl3_touch_reset();
