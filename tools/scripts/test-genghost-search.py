@@ -93,11 +93,13 @@ def main():
             recording = path.read_bytes()
             report = json.loads(path.with_name(path.name + ".json").read_text())
             assert recording[:4] == car.encode("ascii")
+            assert recording[5] == 0  # Generated ghosts always use manual transmission.
             assert recording[6] == 0  # Generated ghosts are solo races.
             frame_rate, count = struct.unpack_from("<HH", recording, 22)
             assert frame_rate == 20 and len(recording) == REPLAY_INPUT_OFFSET + count
             assert report["replay_frames"] == count and report["evaluations"] == evaluations
             assert report["finished"] and not report["globally_optimal"]
+            assert report["transmission"] == "manual"
             assert 0 <= report["guided_improvements"] <= report["guided_evaluations"] <= report["input_evaluations"]
             assert report["policy_evaluations"] + report["input_evaluations"] <= evaluations
             assert 0 <= report["tile_improvements"] <= report["tile_evaluations"] <= evaluations
@@ -235,8 +237,15 @@ def main():
         assert fixed_report["dualway_evaluations"] > 0, "Collision/PG fixes incorrectly disabled switching"
         print("Replay track extraction and OWOOT with all three bug fixes passed", flush=True)
 
-        (temporary / "seed.RPL").write_bytes(seed)
+        # Verification still accepts a historical automatic replay. Ordinary
+        # generation takes a compatible manual replay as its retained seed.
+        (temporary / "auto.RPL").write_bytes(seed)
+        automatic_score = verify("auto.RPL", "LM02")["total_frames"]
+        run(["auto.RPL", "--fine-tune", "--evaluations", 1, "--output", "seed.RPL"])
+        seed = (temporary / "seed.RPL").read_bytes()
+        assert seed[5] == 0
         seed_score = verify("seed.RPL", "LM02")["total_frames"]
+        assert seed_score == automatic_score
         # Physics switches are case-insensitive and the last supplied value
         # wins; the report must record the exact rules used for playback.
         for suffix, flags in (("on", ("--DWS:OFF", "--dws:on")),
@@ -292,7 +301,8 @@ def main():
             ["track.TRK", "COUN", "--pg:maybe"],
             ["track.TRK", "COUN", "--dws:maybe"],
             ["track.TRK", "COUN", "--dws:offx"],
-            ["track.TRK", "COUN", "--transmission", "invalid"],
+            ["track.TRK", "COUN", "--transmission", "manual"],
+            ["track.TRK", "COUN", "--transmission", "auto"],
             ["track.TRK", "TOOLONG"],
             ["bad.RPL", "LM02"],
             ["bad.TRK", "COUN"],
@@ -301,7 +311,9 @@ def main():
             ["seed.RPL", "COUN", "--verify"],
         ]
         for arguments in failures:
-            run([*arguments, "--output", "invalid.RPL"], expected=1)
+            failure = run([*arguments, "--output", "invalid.RPL"], expected=1)
+            if "--transmission" in arguments:
+                assert "--transmission" in failure.stderr
             assert not (temporary / "invalid.RPL").exists()
             assert not (temporary / "invalid.RPL.json").exists()
         print("Invalid arguments, malformed sources, and asset-free information flags passed", flush=True)

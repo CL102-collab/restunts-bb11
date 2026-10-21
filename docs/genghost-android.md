@@ -15,17 +15,22 @@ request Internet access.
 2. Choose a folder containing your original game resources, car resources,
    and `.TRK` or `.RPL` files. Grant the requested folder access. The app
    stages the files in private storage for the native engine.
-3. Select the track/replay and car, then choose the search time (30 minutes
-   by default), CPU core count, search method, transmission, and physics options.
+3. Select the track/replay and Search mode, then choose the search time (30 minutes
+   by default), CPU core count, search method, and physics options.
    The core count defaults to `1`; `0` uses automatic CPU selection.
    **Route search** is the default. **State search (preview)** explores driving
    states with a shared search across the selected cores. The app remembers
    your selection.
-   For a completed `.RPL`, enable **Fine-tune replay** to refine its driving
-   inputs with the same car. Fine-tuning always uses manual transmission,
-   converting an automatic replay's shifts before optimizing earlier and later
+   Choose **Generate replay** and select a car to search from a track or replay.
+   For a completed `.RPL`, choose **Fine-tune replay** to refine all driving
+   inputs, or **Fine-tune gears only** to optimize shift timing while preserving
+   throttle, braking, steering, and the complete input timeline. The single mode
+   selector makes these choices mutually exclusive. Both fine-tuning modes use
+   the replay's car automatically, so the car selector is hidden.
+   All generated replays use manual transmission. Fine-tuning converts
+   an automatic replay's shifts before optimizing earlier and later
    upshifts and downshifts. The engine verifies the replay under your selected
-   driving rules before refinement. This option is unavailable for `.TRK` files.
+   driving rules before refinement. Fine-tuning is unavailable for `.TRK` files.
    The app saves a separate replay and reports any time saved; if no faster replay
    is found, it keeps the original time.
 4. Start the search. Progress appears in the app and an ongoing notification.

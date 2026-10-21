@@ -22,6 +22,8 @@ struct GENGHOST_OPTIONS {
 	enum GENGHOST_STRATEGY strategy;
 	/* Refine a completed compatible replay; never restart track-only discovery. */
 	int fine_tune;
+	/* Restrict fine-tuning to shift buttons; preserve the complete input timeline. */
+	int fine_tune_gears_only;
 };
 
 struct GENGHOST_SEARCH_RESULT {

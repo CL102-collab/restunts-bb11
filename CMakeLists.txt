@@ -571,6 +571,9 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set_tests_properties(repldump-time PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
             add_test(NAME genghost-analysis COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_genghost_analysis.py")
+            add_test(NAME genghost-android-request COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-android-request.py")
+            set_tests_properties(genghost-android-request PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
             add_test(NAME genghost-stunt-analysis COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"

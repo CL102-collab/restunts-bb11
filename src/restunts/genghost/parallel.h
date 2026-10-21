@@ -29,7 +29,8 @@ struct GENGHOST_WORKER_CONTROL {
 /* A persistent pool for cooperative search. Requests and replies are private
  * pointer-free records shared only between the exact same executable. The
  * coordinator owns search priorities, deduplication and accepted checkpoints;
- * workers only evaluate one deterministic expansion at a time. */
+ * workers only evaluate one deterministic expansion at a time. The transmission
+ * argument is retained for native callers; CLI workers always use manual. */
 struct GENGHOST_COOPERATIVE_POOL;
 typedef int (*genghost_cooperative_execute)(const void *request, void *reply, void *context);
 
@@ -65,7 +66,9 @@ int genghost_worker_finish(struct GENGHOST_WORKER_CONTROL *control,
 						   const struct GENGHOST_SEARCH_RESULT *result, int status);
 
 /* Separate seeded search islands: the simulation is deliberately process-global.
- * Only the coordinator writes the public output, after canonical resimulation. */
+ * Only the coordinator writes the public output, after canonical resimulation.
+ * The transmission argument is retained for native callers; CLI workers always
+ * use manual. */
 int genghost_parallel_search(const char *executable, const char *output, const char *data_dir,
 							 const unsigned char *source, size_t source_length, const char *car,
 							 int transmission, unsigned int requested_cores,

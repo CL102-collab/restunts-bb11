@@ -2,7 +2,9 @@ package org.restunts.genghost;
 
 import android.content.Intent;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -15,24 +17,29 @@ public final class GenerationRequest {
     public static final int DEFAULT_CORES = 1;
     public static final int MAX_CORES = 256;
     public static final String DEFAULT_STRATEGY = "legacy";
+    public static final String MODE_GENERATE = "generate";
+    public static final String MODE_FINE_TUNE = "fine-tune";
+    public static final String MODE_GEARS_ONLY = "gears-only";
     public final String trackPath;
     public final String car;
     public final int seconds;
     public final int cores;
     public final String strategy;
+    public final String mode;
     public final boolean fineTune;
-    public final String transmission;
+    public final boolean fineTuneGearsOnly;
     public final String[] physicsFlags;
 
     public GenerationRequest(String trackPath, String car, int seconds, int cores, String strategy,
-            boolean fineTune, String transmission, String[] physicsFlags) {
+            String mode, String[] physicsFlags) {
         this.trackPath = trackPath == null ? "" : trackPath.trim();
         this.car = car == null ? "" : car.trim().toUpperCase(Locale.ROOT);
         this.seconds = seconds;
         this.cores = cores;
         this.strategy = strategy == null ? DEFAULT_STRATEGY : strategy;
-        this.fineTune = fineTune;
-        this.transmission = transmission == null ? "source" : transmission;
+        this.mode = mode == null ? MODE_GENERATE : mode;
+        this.fineTuneGearsOnly = MODE_GEARS_ONLY.equals(this.mode);
+        this.fineTune = MODE_FINE_TUNE.equals(this.mode) || fineTuneGearsOnly;
         this.physicsFlags = physicsFlags == null ? new String[0] : physicsFlags.clone();
     }
 
@@ -42,8 +49,7 @@ public final class GenerationRequest {
         intent.putExtra("seconds", seconds);
         intent.putExtra("cores", cores);
         intent.putExtra("strategy", strategy);
-        intent.putExtra("fine_tune", fineTune);
-        intent.putExtra("transmission", transmission);
+        intent.putExtra("mode", mode);
         intent.putExtra("physics", physicsFlags);
     }
 
@@ -51,13 +57,16 @@ public final class GenerationRequest {
         return new GenerationRequest(intent.getStringExtra("track"), intent.getStringExtra("car"),
             intent.getIntExtra("seconds", DEFAULT_SECONDS),
             intent.getIntExtra("cores", DEFAULT_CORES),
-            intent.getStringExtra("strategy"),
-            intent.getBooleanExtra("fine_tune", false),
-            intent.getStringExtra("transmission"), intent.getStringArrayExtra("physics"));
+            intent.getStringExtra("strategy"), intent.getStringExtra("mode"),
+            intent.getStringArrayExtra("physics"));
     }
 
     File validate(File game) throws IOException {
-        if (!car.matches("[A-Z0-9]{4}")) {
+        if (!mode.equals(MODE_GENERATE) && !mode.equals(MODE_FINE_TUNE)
+                && !mode.equals(MODE_GEARS_ONLY)) {
+            throw new IOException("Choose one search mode.");
+        }
+        if (!fineTune && !car.matches("[A-Z0-9]{4}")) {
             throw new IOException("Use a four-character car code, such as COUN or DIA3.");
         }
         if (seconds < 1 || seconds > 86400) {
@@ -69,10 +78,6 @@ public final class GenerationRequest {
         }
         if (!strategy.equals("legacy") && !strategy.equals("state")) {
             throw new IOException("Unknown search method.");
-        }
-        if (!transmission.equals("source") && !transmission.equals("manual")
-                && !transmission.equals("auto")) {
-            throw new IOException("Unknown transmission setting.");
         }
         Set<String> options = new HashSet<>();
         for (String flag : physicsFlags) {
@@ -101,10 +106,41 @@ public final class GenerationRequest {
         if (!name.endsWith(".trk") && !name.endsWith(".rpl")) {
             throw new IOException("Choose a .TRK track or .RPL replay.");
         }
-        if (fineTune && !name.endsWith(".rpl")) {
-            throw new IOException("Fine-tuning requires a completed .RPL replay.");
+        if (fineTune) {
+            if (!name.endsWith(".rpl")) {
+                throw new IOException("Fine-tuning requires a completed .RPL replay.");
+            }
+            resolvedCar(track);
         }
         return track;
+    }
+
+    /** Fine-tuning always uses the replay car, independently of the car selector. */
+    String resolvedCar(File track) throws IOException {
+        if (!fineTune) {
+            return car;
+        }
+        byte[] header = new byte[26];
+        try (FileInputStream input = new FileInputStream(track)) {
+            int total = 0;
+            while (total < header.length) {
+                int count = input.read(header, total, header.length - total);
+                if (count < 0) {
+                    throw new IOException("The replay header is incomplete.");
+                }
+                total += count;
+            }
+        }
+        String replayCar = new String(header, 0, 4, StandardCharsets.US_ASCII)
+            .toUpperCase(Locale.ROOT);
+        int frames = (header[24] & 255) | ((header[25] & 255) << 8);
+        if (!replayCar.matches("[A-Z0-9]{4}") || header[5] < 0 || header[5] > 1
+                || header[6] != 0 || (header[22] & 255) != 20 || header[23] != 0
+                || frames == 0 || frames > 12000 || track.length() != 1828L + frames) {
+            throw new IOException("Fine-tuning requires a complete solo 20 Hz .RPL replay "
+                + "with a valid car code.");
+        }
+        return replayCar;
     }
 
     List<String> arguments(File executable, File game, File track, File output) {
@@ -113,7 +149,9 @@ public final class GenerationRequest {
         command.add("--data-dir");
         command.add(game.getAbsolutePath());
         command.add(track.getAbsolutePath());
-        command.add(car);
+        if (!fineTune) {
+            command.add(car);
+        }
         command.add("--seconds");
         command.add(Integer.toString(seconds));
         command.add("--cores");
@@ -121,14 +159,10 @@ public final class GenerationRequest {
         command.add("--strategy");
         command.add(strategy);
         if (fineTune) {
-            command.add("--fine-tune");
+            command.add(fineTuneGearsOnly ? "--fine-tune-gears-only" : "--fine-tune");
         }
         command.add("--output");
         command.add(output.getAbsolutePath());
-        if (!transmission.equals("source")) {
-            command.add("--transmission");
-            command.add(transmission);
-        }
         for (String flag : physicsFlags) {
             command.add(flag);
         }

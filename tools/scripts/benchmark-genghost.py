@@ -174,14 +174,26 @@ def benchmark(args, case, mode, environment, corpus):
     for old in (replay, replay.with_name(replay.name + ".json")):
         old.unlink(missing_ok=True)
     source = corpus / (f"{case['name']}.TRK" if mode == "scratch" else Path(case["replay"]).name)
+    if mode == "seeded" and case["transmission"]:
+        # Generation always uses manual transmission. Preserve automatic human
+        # demonstrations by materializing their native shifts before timing
+        # the seeded search; conversion does not optimize or change the score.
+        normalized = directory / "SEED.RPL"
+        conversion = subprocess.run(
+            [str(args.binary), "--data-dir", str(args.data_dir), str(source),
+             "--fine-tune", "--evaluations", "1", "--output", str(normalized), *args.physics],
+            capture_output=True, text=True, timeout=60, env=environment, cwd=directory)
+        (directory / "seed-conversion.log").write_text(conversion.stdout + conversion.stderr)
+        if conversion.returncode:
+            raise ValueError(f"Cannot convert automatic benchmark seed: {source}: "
+                             f"{conversion.stderr}")
+        source = normalized
     command = [str(args.binary), "--data-dir", str(args.data_dir), str(source), case["car"],
                "--seed", str(args.seed), "--output", str(replay), *args.physics]
     if args.evaluations is not None:
         command += ["--evaluations", str(args.evaluations)]
     else:
         command += ["--seconds", str(args.seconds)]
-    # A matching transmission keeps seeded and scratch runs comparable.
-    command += ["--transmission", "auto" if case["transmission"] else "manual"]
     started = time.monotonic()
     with (directory / "stdout.log").open("w") as stdout, (directory / "stderr.log").open("w") as stderr:
         try:

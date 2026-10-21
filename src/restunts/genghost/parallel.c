@@ -530,6 +530,8 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 							 struct GENGHOST_PARALLEL_REPORT *report, genghost_save_function save,
 							 void *save_context)
 {
+	/* Kept for native callers; generated workers always use manual transmission. */
+	(void)transmission;
 	unsigned int count = requested_cores ? requested_cores : genghost_available_cores();
 	if (options->evaluations && options->evaluations < count) {
 		count = (unsigned int)options->evaluations;
@@ -637,15 +639,15 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		arguments[n++] = "--data-dir";
 		arguments[n++] = data_dir;
 		arguments[n++] = input_path;
-		arguments[n++] = car;
+		if (!options->fine_tune) {
+			arguments[n++] = car;
+		}
 		arguments[n++] = "--cores";
 		arguments[n++] = "1";
 		arguments[n++] = "--seconds";
 		arguments[n++] = "0";
 		arguments[n++] = "--seed";
 		arguments[n++] = seed;
-		arguments[n++] = "--transmission";
-		arguments[n++] = transmission ? "auto" : "manual";
 		arguments[n++] = options->powergear ? "--pg:on" : "--pg:off";
 		arguments[n++] = options->collision ? "--lc:on" : "--lc:off";
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
@@ -657,7 +659,8 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			arguments[n++] = "/amigagrass";
 		}
 		if (options->fine_tune) {
-			arguments[n++] = "--fine-tune";
+			arguments[n++] =
+				options->fine_tune_gears_only ? "--fine-tune-gears-only" : "--fine-tune";
 		}
 		if (options->evaluations) {
 			arguments[n++] = "--evaluations";
@@ -1154,6 +1157,8 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 						  size_t reply_size, genghost_cooperative_execute execute,
 						  void *execute_context, struct GENGHOST_PARALLEL_REPORT *report)
 {
+	/* Kept for native callers; generated workers always use manual transmission. */
+	(void)transmission;
 	if (!options || !execute || !report || !request_size || !reply_size ||
 		request_size > COOPERATIVE_MAX_RECORD || reply_size > COOPERATIVE_MAX_RECORD ||
 		requested_cores > GENGHOST_MAX_CORES) {
@@ -1237,15 +1242,15 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		arguments[n++] = "--data-dir";
 		arguments[n++] = data_dir;
 		arguments[n++] = pool->input_path;
-		arguments[n++] = car;
+		if (!options->fine_tune) {
+			arguments[n++] = car;
+		}
 		arguments[n++] = "--cores";
 		arguments[n++] = "1";
 		arguments[n++] = "--seconds";
 		arguments[n++] = "0";
 		arguments[n++] = "--seed";
 		arguments[n++] = seed;
-		arguments[n++] = "--transmission";
-		arguments[n++] = transmission ? "auto" : "manual";
 		arguments[n++] = options->powergear ? "--pg:on" : "--pg:off";
 		arguments[n++] = options->collision ? "--lc:on" : "--lc:off";
 		arguments[n++] = options->left_bias ? "--lcb:on" : "--lcb:off";
@@ -1257,7 +1262,8 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 			arguments[n++] = "/amigagrass";
 		}
 		if (options->fine_tune) {
-			arguments[n++] = "--fine-tune";
+			arguments[n++] =
+				options->fine_tune_gears_only ? "--fine-tune-gears-only" : "--fine-tune";
 		}
 		arguments[n++] = "--worker-status";
 		arguments[n++] = worker->process.status_path;

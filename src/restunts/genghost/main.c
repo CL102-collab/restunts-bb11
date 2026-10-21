@@ -35,25 +35,29 @@ struct output_context {
 
 static const char help[] =
 	"genghost - offline, headless Stunts ghost generator\n"
-	"Usage: genghost [--data-dir DIR] TRACK[.TRK|.RPL] CAR [options]\n\n"
+	"Usage: genghost [--data-dir DIR] TRACK[.TRK|.RPL] CAR [options]\n"
+	"       genghost [--data-dir DIR] REPLAY.RPL [CAR] --fine-tune [options]\n"
+	"       genghost [--data-dir DIR] REPLAY.RPL [CAR] --fine-tune-gears-only [options]\n\n"
 	"  --output FILE          Replay destination (default TRK-CAR.rpl, DOS 8.3).\n"
 	"  --seconds N            Search budget; default 1800 seconds, 0 until stopped.\n"
 	"  --evaluations N        Deterministic candidate budget (disables default timer).\n"
 	"  --seed N               Search random seed; default 1.\n"
 	"  --strategy MODE        legacy (default) or state (cooperative state planner).\n"
 	"  --cores N              Parallel search workers (1 default, 0 available cores).\n"
-	"  --transmission MODE    manual or auto; defaults to compatible replay, else manual.\n"
 	"  --pg:on|off            Original power gear bug (default on).\n"
 	"  --lc:on|off            Original collision behavior (default on).\n"
 	"  --lcb:on|off           Original left corner bias (default on).\n"
 	"  --dws:on|off           Dual-Way Switching (original behavior; default on).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
 	"  /amigagrass            Original Amiga grass grip for stock cars (default off).\n"
-	"  --fine-tune            Refine a completed replay using manual transmission.\n"
+	"  --fine-tune            Refine driving and gear inputs of a completed replay.\n"
+	"  --fine-tune-gears-only Refine gear timing, preserving every driving input.\n"
 	"  --verify               Validate the input replay and print its score; no search.\n"
 	"  --help, -h             Show this help without loading game resources.\n"
 	"  --version, -v          Show version.\n\n"
 	"CAR is a four-character resource code, such as COUN, PMIN, or DIA3.\n"
+	"Fine-tuning reads CAR from the replay and ignores any supplied CAR argument.\n"
+	"All generated replays use manual transmission; --verify honors recorded gears.\n"
 	"Relative input paths resolve from the current directory, then --data-dir.\n"
 	"Output paths always resolve from the original current directory.\n"
 	"Search uses the original 20 Hz physics, including finish penalties.\n"
@@ -61,7 +65,8 @@ static const char help[] =
 	"Ctrl+C keeps the best fully validated completed replay found so far.\n"
 	"The accompanying .json records the physics flags required for playback.\n"
 	"Fine-tuning requires a solo 20 Hz replay that finishes under the selected rules.\n"
-	"Automatic seed shifts become manual inputs; --fine-tune always writes manual.\n"
+	"Automatic seed shifts become manual inputs in either fine-tuning mode.\n"
+	"--fine-tune and --fine-tune-gears-only cannot be combined.\n"
 	"It writes a separate *-FT.rpl by default and reports whether the time improved.\n"
 	"A bounded heuristic search cannot guarantee a finish or global optimum.\n";
 
@@ -157,12 +162,16 @@ static int read_file(const char *path, unsigned char **data, size_t *length)
 	return 0;
 }
 
-static int read_source(const char *source, const char *cwd, const char *data_dir,
+static int read_source(const char *source, const char *cwd, const char *data_dir, int replay_only,
 					   unsigned char **data, size_t *length, char **resolved_path)
 {
-	static const char *suffixes[] = {"", ".TRK", ".trk", ".RPL", ".rpl"};
+	static const char *track_suffixes[] = {"", ".TRK", ".trk", ".RPL", ".rpl"};
+	static const char *replay_suffixes[] = {"", ".RPL", ".rpl"};
+	const char **suffixes = replay_only ? replay_suffixes : track_suffixes;
+	unsigned int suffix_count = replay_only ? sizeof(replay_suffixes) / sizeof(replay_suffixes[0])
+											: sizeof(track_suffixes) / sizeof(track_suffixes[0]);
 	for (unsigned int directory = 0; directory < 2U; ++directory) {
-		for (unsigned int i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); ++i) {
+		for (unsigned int i = 0; i < suffix_count; ++i) {
 			char *name = with_suffix(source, suffixes[i]);
 			char *path = name ? join_path(directory ? data_dir : cwd, name) : NULL;
 			free(name);
@@ -295,6 +304,8 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fputs(",\n  \"strategy\": ", file);
 	json_string(file, strategy_name(context->options));
 	fprintf(file, ",\n  \"fine_tune\": %s", context->options->fine_tune ? "true" : "false");
+	fprintf(file, ",\n  \"fine_tune_gears_only\": %s",
+			context->options->fine_tune_gears_only ? "true" : "false");
 	if (context->options->fine_tune) {
 		unsigned int saved = context->baseline_total_frames - result->race.total_frames;
 		fprintf(file,
@@ -472,7 +483,7 @@ int main(int argc, char **argv)
 	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 1, 0, 0};
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
 	char car[5] = {0}, track_name[256];
-	int transmission = -1, verify = 0, explicit_seconds = 0, status = 1;
+	int transmission = TRANSMISSION_MANUAL, verify = 0, explicit_seconds = 0, status = 1;
 	unsigned int cores = 1U;
 	const char *cooperative_request = NULL;
 	struct GENGHOST_WORKER_CONTROL worker_control = {0};
@@ -521,16 +532,20 @@ int main(int argc, char **argv)
 			options.fine_tune = 1;
 			continue;
 		}
+		if (!strcmp(argument, "--fine-tune-gears-only")) {
+			options.fine_tune_gears_only = 1;
+			continue;
+		}
 		if (!strcmp(argument, "--verify")) {
 			verify = 1;
 			continue;
 		}
 		if (!strcmp(argument, "--data-dir") || !strcmp(argument, "--output") ||
 			!strcmp(argument, "--seconds") || !strcmp(argument, "--evaluations") ||
-			!strcmp(argument, "--seed") || !strcmp(argument, "--transmission") ||
-			!strcmp(argument, "--cores") || !strcmp(argument, "--worker-status") ||
-			!strcmp(argument, "--worker-stop") || !strcmp(argument, "--worker-parent") ||
-			!strcmp(argument, "--strategy") || !strcmp(argument, "--cooperative-worker")) {
+			!strcmp(argument, "--seed") || !strcmp(argument, "--cores") ||
+			!strcmp(argument, "--worker-status") || !strcmp(argument, "--worker-stop") ||
+			!strcmp(argument, "--worker-parent") || !strcmp(argument, "--strategy") ||
+			!strcmp(argument, "--cooperative-worker")) {
 			if (++i == argc) {
 				fprintf(stderr, "Missing value for %s\n", argument);
 				goto done;
@@ -552,15 +567,6 @@ int main(int argc, char **argv)
 					options.strategy = GENGHOST_STRATEGY_STATE;
 				} else {
 					fputs("Strategy must be legacy or state\n", stderr);
-					goto done;
-				}
-			} else if (!strcmp(argument, "--transmission")) {
-				if (!strcmp(argv[i], "manual")) {
-					transmission = 0;
-				} else if (!strcmp(argv[i], "auto")) {
-					transmission = 1;
-				} else {
-					fputs("Transmission must be manual or auto\n", stderr);
 					goto done;
 				}
 			} else {
@@ -601,24 +607,46 @@ int main(int argc, char **argv)
 			goto done;
 		}
 	}
+	if (options.fine_tune && options.fine_tune_gears_only) {
+		fputs("--fine-tune and --fine-tune-gears-only cannot be combined\n", stderr);
+		goto done;
+	}
+	options.fine_tune = options.fine_tune || options.fine_tune_gears_only;
+	const char *fine_tune_option =
+		options.fine_tune_gears_only ? "--fine-tune-gears-only" : "--fine-tune";
 	if (options.fine_tune && verify) {
-		fputs("--fine-tune cannot be combined with --verify\n", stderr);
+		fprintf(stderr, "%s cannot be combined with --verify\n", fine_tune_option);
 		goto done;
 	}
-	if (!source || !car_argument) {
-		fputs(help, stderr);
+	if (!source) {
+		if (options.fine_tune) {
+			fprintf(stderr, "%s requires an input replay (.RPL)\n", fine_tune_option);
+		} else {
+			fputs(help, stderr);
+		}
 		goto done;
 	}
-	if (strlen(car_argument) != 4U) {
-		fputs("CAR must have exactly four alphanumeric characters\n", stderr);
-		goto done;
-	}
-	for (unsigned int i = 0; i < 4U; ++i) {
-		if (!isalnum((unsigned char)car_argument[i])) {
-			fputs("Invalid CAR code\n", stderr);
+	if (options.fine_tune) {
+		if (car_argument) {
+			fprintf(stderr, "Warning: ignoring CAR argument '%s'; %s uses the replay's car\n",
+					car_argument, fine_tune_option);
+		}
+	} else {
+		if (!car_argument) {
+			fputs("CAR is required for generation and --verify\n", stderr);
 			goto done;
 		}
-		car[i] = (char)toupper((unsigned char)car_argument[i]);
+		if (strlen(car_argument) != 4U) {
+			fputs("CAR must have exactly four alphanumeric characters\n", stderr);
+			goto done;
+		}
+		for (unsigned int i = 0; i < 4U; ++i) {
+			if (!isalnum((unsigned char)car_argument[i])) {
+				fputs("Invalid CAR code\n", stderr);
+				goto done;
+			}
+			car[i] = (char)toupper((unsigned char)car_argument[i]);
+		}
 	}
 	if (options.evaluations && !explicit_seconds) {
 		options.seconds = 0.0;
@@ -645,14 +673,20 @@ int main(int argc, char **argv)
 	if (!cwd || !(data_dir = join_path(cwd, data_argument))) {
 		goto done;
 	}
-	if (read_source(source, cwd, data_dir, &file, &file_length, &source_path)) {
-		fprintf(stderr, "Cannot read track/replay: %s\n", source);
+	if (read_source(source, cwd, data_dir, options.fine_tune, &file, &file_length, &source_path)) {
+		fprintf(stderr, "Cannot read %s: %s\n",
+				options.fine_tune ? "input replay (.RPL)" : "track/replay", source);
 		goto done;
 	}
 	unsigned char *track = file, *seed_inputs = NULL;
 	unsigned int seed_length = 0;
 	struct GAMEINFO replay = {0};
 	int is_replay = file_length >= REPLAY_INPUT_OFFSET && file_length != REPLAY_TRACK_SIZE;
+	if (options.fine_tune && !is_replay) {
+		fprintf(stderr, "%s requires a complete replay (.RPL), not a track-only or invalid file\n",
+				fine_tune_option);
+		goto done;
+	}
 	if (is_replay) {
 		replay_gameinfo_decode(&replay, file);
 		if ((replay.game_framespersec != 10U && replay.game_framespersec != 20U) ||
@@ -663,11 +697,19 @@ int main(int argc, char **argv)
 			goto done;
 		}
 		track = file + REPLAY_GAMEINFO_SIZE;
-		if (memcmp(replay.game_playercarid, car, 4U) == 0 && replay.game_framespersec == 20U) {
-			if (transmission < 0) {
-				transmission = replay.game_playertransmission;
+		if (options.fine_tune) {
+			for (unsigned int i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
+				if (!isalnum((unsigned char)replay.game_playercarid[i])) {
+					fputs("Invalid CAR code in input replay header\n", stderr);
+					goto done;
+				}
+				car[i] = (char)toupper((unsigned char)replay.game_playercarid[i]);
 			}
-			if (options.fine_tune || transmission == replay.game_playertransmission) {
+		}
+		if ((options.fine_tune || memcmp(replay.game_playercarid, car, 4U) == 0) &&
+			replay.game_framespersec == 20U) {
+			if (options.fine_tune || verify ||
+				replay.game_playertransmission == TRANSMISSION_MANUAL) {
 				seed_inputs = file + REPLAY_INPUT_OFFSET;
 				seed_length = replay.game_recordedframes;
 			}
@@ -676,28 +718,20 @@ int main(int argc, char **argv)
 		fputs("Invalid track; expected 1802 bytes or a complete Stunts 1.1 replay\n", stderr);
 		goto done;
 	}
-	if (transmission < 0) {
-		transmission = 0;
-	}
-	if (options.fine_tune && (!is_replay || !seed_inputs || !seed_length)) {
-		fputs("--fine-tune requires a 20 Hz replay with matching car\n", stderr);
+	if (options.fine_tune && (!seed_inputs || !seed_length)) {
+		fprintf(stderr, "%s requires a nonempty 20 Hz replay\n", fine_tune_option);
 		goto done;
 	}
-	if (options.fine_tune) {
-		if (transmission == TRANSMISSION_AUTOMATIC) {
-			fputs("--fine-tune uses manual transmission; automatic seed shifts are preserved "
-				  "as manual inputs\n",
-				  stderr);
-		}
-		transmission = TRANSMISSION_MANUAL;
+	if (options.fine_tune && replay.game_playertransmission == TRANSMISSION_AUTOMATIC) {
+		fprintf(stderr, "%s preserves automatic seed shifts as manual inputs\n", fine_tune_option);
 	}
 	if (options.fine_tune && replay.game_opponenttype != 0) {
-		fputs("--fine-tune requires a solo replay; opponent collisions change the simulation\n",
-			  stderr);
+		fprintf(stderr, "%s requires a solo replay; opponent collisions change the simulation\n",
+				fine_tune_option);
 		goto done;
 	}
 	if (verify && (!seed_inputs || !seed_length)) {
-		fputs("--verify requires a 20 Hz replay with matching car and transmission\n", stderr);
+		fputs("--verify requires a 20 Hz replay with matching car\n", stderr);
 		goto done;
 	}
 	if (verify && replay.game_opponenttype != 0) {
@@ -747,8 +781,8 @@ int main(int argc, char **argv)
 		int source_report = report_path ? same_file(source_path, report_path) : -1;
 		free(report_path);
 		if (source_output != 0 || source_report != 0) {
-			fputs("--fine-tune must preserve its input replay; choose a different --output path\n",
-				  stderr);
+			fprintf(stderr, "%s must preserve its input replay; choose a different --output path\n",
+					fine_tune_option);
 			goto done;
 		}
 		memcpy(track_name, replay.game_trackname, sizeof(replay.game_trackname));
@@ -784,20 +818,23 @@ int main(int argc, char **argv)
 	if (options.amiga_grass) {
 		physics_arguments[physics_count++] = "/amigagrass";
 	}
-	int source_transmission = options.fine_tune ? replay.game_playertransmission : transmission;
+	int source_transmission =
+		options.fine_tune || verify ? replay.game_playertransmission : TRANSMISSION_MANUAL;
 	if (genghost_sim_init(track, car, source_transmission, physics_count, physics_arguments)) {
 		goto done;
 	}
 	if (options.fine_tune) {
 		if (genghost_sim_manual_inputs(seed_inputs, seed_length, &baseline)) {
-			fputs("--fine-tune requires an input replay that finishes under the selected physics "
-				  "and OWOOT settings, with an equivalent manual lap\n",
-				  stderr);
+			fprintf(stderr,
+					"%s requires an input replay that finishes under the selected physics "
+					"and OWOOT settings, with an equivalent manual lap\n",
+					fine_tune_option);
 			goto done;
 		}
 		/* Parallel workers must receive the same converted manual seed as the
 		 * parent, including its header, rather than the untouched source file. */
 		replay.game_playertransmission = TRANSMISSION_MANUAL;
+		memcpy(replay.game_playercarid, car, REPLAY_CAR_ID_SIZE);
 		replay_gameinfo_encode(file, &replay);
 		fprintf(stderr, "fine-tune baseline: %.2fs (driving %.2fs + penalty %.2fs)\n",
 				baseline.total_frames / 20.0, baseline.finish_frame / 20.0,

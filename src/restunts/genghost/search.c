@@ -363,18 +363,29 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 							race->total_frames >= context->result->race.total_frames)) {
 		return 0;
 	}
-	/* Store the normal one-second finish tail, never truncate or claim a finish
-	 * based on route geometry. Replay it again from a clean canonical state. */
-	length = race->finish_frame;
-	if (length > GENGHOST_MAX_FRAMES) {
-		return -1;
+	if (context->options->fine_tune_gears_only) {
+		/* Every candidate retains the entire source timeline, including input
+		 * channels after an improved finish. Only shift buttons may differ. */
+		if (context->result->length) {
+			length = context->result->length;
+		}
+		if (length > GENGHOST_MAX_FRAMES) {
+			return -1;
+		}
+	} else {
+		/* Store the normal one-second finish tail, never truncate or claim a finish
+		 * based on route geometry. Replay it again from a clean canonical state. */
+		length = race->finish_frame;
+		if (length > GENGHOST_MAX_FRAMES) {
+			return -1;
+		}
+		unsigned int tail = GENGHOST_MAX_FRAMES - length;
+		if (tail > GENGHOST_FRAME_RATE) {
+			tail = GENGHOST_FRAME_RATE;
+		}
+		memset(inputs + length, 0, tail);
+		length += tail;
 	}
-	unsigned int tail = GENGHOST_MAX_FRAMES - length;
-	if (tail > GENGHOST_FRAME_RATE) {
-		tail = GENGHOST_FRAME_RATE;
-	}
-	memset(inputs + length, 0, tail);
-	length += tail;
 	if (genghost_sim_evaluate(inputs, length, &verified) || !verified.finished ||
 		verified.total_frames != race->total_frames) {
 		fputs("genghost: candidate failed full replay validation\n", stderr);
@@ -758,13 +769,19 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 	unsigned int start, changed_end;
 	unsigned int length = search->race.finish_frame;
 	int shift = 0;
-	if (context->options->fine_tune && search->trials % 2U == 0U) {
+	int gears_only = context->options->fine_tune_gears_only;
+	if (gears_only) {
+		memcpy(inputs, search->best_inputs, search->length);
+		start = changed_end = 0U;
+		shift = genghost_shift_inputs(inputs, length, search->trials, &start, &changed_end);
+		length = search->length;
+	} else if (context->options->fine_tune && search->trials % 2U == 0U) {
 		memcpy(inputs, search->best_inputs, length);
 		shift = genghost_shift_inputs(inputs, length, search->trials / 2U, &start, &changed_end);
 	}
-	if (!shift) {
+	if (!shift && !gears_only) {
 		length = mutate_inputs(context, search, inputs, &start);
-	} else {
+	} else if (shift && !gears_only) {
 		/* A shift may trade a later finish for fewer penalty frames. Keep the
 		 * parent's tail available so the native total can still improve. */
 		memcpy(inputs + length, search->best_inputs + length, search->length - length);
@@ -780,7 +797,8 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 	/* Most attempts retain the exact suffix. A minority re-time its demonstrated
 	 * controls by position, so a faster sector can rejoin the line instead of
 	 * applying every later corner input at the old wall-clock timestamp. */
-	int guided = !shift && search->trials % 16U < 2U && common > 16U && changed_end > start;
+	int guided =
+		!gears_only && !shift && search->trials % 16U < 2U && common > 16U && changed_end > start;
 	unsigned int limit = guided ? length + 120U : length;
 	if (limit > GENGHOST_MAX_FRAMES) {
 		limit = GENGHOST_MAX_FRAMES;
@@ -990,6 +1008,11 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					unsigned int seed_length, struct GENGHOST_SEARCH_RESULT *result,
 					genghost_save_function save, void *save_context)
 {
+	struct GENGHOST_OPTIONS normalized = *options;
+	if (normalized.fine_tune_gears_only) {
+		normalized.fine_tune = 1;
+	}
+	options = &normalized;
 	struct GENGHOST_ROUTES routes = {0};
 	struct search_context context = {0};
 	char error[256];

@@ -83,7 +83,9 @@ def main():
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
     with zipfile.ZipFile(corpus) as archive:
-        human_seed = archive.read("0000.rpl")
+        human_seed = archive.read("0722.rpl")
+        automatic_seed = archive.read("0723.rpl")
+    assert human_seed[5] == 0 and automatic_seed[5] == 1
 
     # Spaces in both cwd and user paths catch accidentally shell-joined worker
     # arguments. Keep the root short enough for repldump's legacy path buffer.
@@ -91,6 +93,7 @@ def main():
         temporary = Path(directory)
         (temporary / "a track.TRK").write_bytes(available["DEFAULT.TRK"].read_bytes())
         (temporary / "human seed.RPL").write_bytes(human_seed)
+        (temporary / "auto seed.RPL").write_bytes(automatic_seed)
         game_directory = data_directory
         if os.name == "posix":
             game_directory = temporary / "game assets"
@@ -149,6 +152,8 @@ def main():
             run(arguments)
             report = verify(output, car, flags)
             assert report["evaluations"] == evaluations, report
+            assert report["transmission"] == "manual", report
+            assert (temporary / output).read_bytes()[5] == 0
             assert report["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
@@ -217,17 +222,17 @@ def main():
         assert capped["cores_used"] == 1
         print("Automatic/explicit worker counts respect the global candidate budget", flush=True)
 
-        # Compatible replay seeds and inherited transmission must reach every
-        # island. Two candidates means one seed evaluation in each island.
-        _, seeded = generate("seeded.RPL", source="human seed.RPL", car="LM02", evaluations=2, cores=2)
-        assert seeded["seed_replay_finished"] and seeded["seed_total_frames"] > 0
-        assert seeded["transmission"] == ("auto" if human_seed[5] else "manual")
+        # Compatible manual replay seeds must reach every island. Two
+        # candidates means one seed evaluation in each island.
+        _, seeded = generate("seeded.RPL", source="human seed.RPL", evaluations=2, cores=2)
+        assert seeded["seed_replay_finished"] and seeded["seed_total_frames"] == 625
         assert all(worker["finished"] for worker in seeded["worker_results"])
-        _, automatic = generate("automatic.RPL", car="COUN", evaluations=2, cores=2,
-                                flags=("--transmission", "auto"))
-        assert automatic["transmission"] == "auto"
-        assert (temporary / "automatic.RPL").read_bytes()[5] == 1
-        print("Replay seed inputs, inherited transmission, and explicit automatic gears propagate", flush=True)
+        # Ordinary generation uses an automatic replay's embedded track without
+        # inheriting its inputs or transmission, even with a matching car.
+        _, automatic = generate("automatic.RPL", source="auto seed.RPL", evaluations=2, cores=2)
+        assert not automatic["seed_replay_finished"] and automatic["seed_total_frames"] == 0
+        assert automatic_seed[:4] == b"PMIN"
+        print("Manual replay seeds reach every worker; automatic sources supply only the track", flush=True)
 
         # PMIN has different DOS/Amiga grass coefficients. Compare both islands
         # with fresh single-worker runs using exactly the same rule and seed.
@@ -294,10 +299,10 @@ def main():
         print("Invalid counts, unusable output directories, and clean no-finish handling passed", flush=True)
 
         started = time.monotonic()
-        run(["human seed.RPL", "LM02", "--cores", 2, "--seconds", 1,
+        run(["human seed.RPL", "PMIN", "--cores", 2, "--seconds", 1,
              "--evaluations", 1000000, "--output", "timed.RPL"])
         elapsed = time.monotonic() - started
-        timed = verify("timed.RPL", "LM02")
+        timed = verify("timed.RPL", "PMIN")
         assert 0.8 <= elapsed < 8, (elapsed, timed)
         assert 0 < timed["evaluations"] < 1000000, timed
         assert sum(worker["evaluations"] for worker in timed["worker_results"]) == timed["evaluations"]
@@ -306,7 +311,7 @@ def main():
 
         if sys.platform == "linux" and Path("/proc/self/task").is_dir():
             def stop_run(output, action="cancel"):
-                arguments = ["human seed.RPL", "LM02", "--cores", 2, "--seconds", 0,
+                arguments = ["human seed.RPL", "PMIN", "--cores", 2, "--seconds", 0,
                              "--output", output]
                 children = {}
                 log_path = temporary / (output + ".log")
@@ -372,7 +377,7 @@ def main():
                             shutil.rmtree(scratch)
                     else:
                         assert not scratch.exists(), f"Private worker files survived: {scratch}"
-                report = verify(output, "LM02")
+                report = verify(output, "PMIN")
                 assert report["total_frames"] <= report["seed_total_frames"]
                 if action == "failure":
                     assert any(worker["status"] == 1 for worker in report["worker_results"]), report

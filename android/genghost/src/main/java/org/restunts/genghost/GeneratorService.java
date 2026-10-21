@@ -68,7 +68,7 @@ public final class GeneratorService extends Service {
     /** Immutable to callers by convention: loadState always returns an independent snapshot. */
     public static final class State {
         public String phase = "idle";
-        public String message = "Choose a game folder, track, and car to begin.";
+        public String message = "Choose a game folder and a track or replay to begin.";
         public String log = "";
         public String outputName = "";
         public String reportName = "";
@@ -79,6 +79,7 @@ public final class GeneratorService extends Service {
         public int cores = GenerationRequest.DEFAULT_CORES;
         public String strategy = GenerationRequest.DEFAULT_STRATEGY;
         public boolean fineTune;
+        public boolean fineTuneGearsOnly;
         public int exitCode = -1;
         public long startTimeMillis;
         public long elapsedSeconds;
@@ -101,6 +102,7 @@ public final class GeneratorService extends Service {
             cores = saved.optInt("cores", cores);
             strategy = saved.optString("strategy", strategy);
             fineTune = saved.optBoolean("fine_tune");
+            fineTuneGearsOnly = saved.optBoolean("fine_tune_gears_only");
             exitCode = saved.optInt("exitCode", -1);
             startTimeMillis = saved.optLong("startTimeMillis");
             elapsedSeconds = saved.optLong("elapsedSeconds");
@@ -117,7 +119,7 @@ public final class GeneratorService extends Service {
                     .put("running", running).put("outputAvailable", outputAvailable)
                     .put("reportAvailable", reportAvailable).put("seconds", seconds)
                     .put("cores", cores).put("strategy", strategy)
-                    .put("fine_tune", fineTune)
+                    .put("fine_tune", fineTune).put("fine_tune_gears_only", fineTuneGearsOnly)
                     .put("exitCode", exitCode).put("startTimeMillis", startTimeMillis)
                     .put("elapsedSeconds", elapsedSeconds).put("nativePid", nativePid)
                     .put("nativeToken", nativeToken).put("recoveryAttempted", recoveryAttempted);
@@ -141,6 +143,7 @@ public final class GeneratorService extends Service {
         preparing.cores = request.cores;
         preparing.strategy = request.strategy;
         preparing.fineTune = request.fineTune;
+        preparing.fineTuneGearsOnly = request.fineTuneGearsOnly;
         preparing.startTimeMillis = System.currentTimeMillis();
         pendingStart = preparing;
         pendingCancelled = false;
@@ -458,8 +461,6 @@ public final class GeneratorService extends Service {
         command.add(replay.getAbsolutePath());
         command.add(car);
         command.add("--verify");
-        command.add("--transmission");
-        command.add(transmission);
         for (String key : new String[] {"pg", "lc", "lcb"}) {
             command.add("--" + key + ":" + (physics.getBoolean(key) ? "on" : "off"));
         }
@@ -579,6 +580,7 @@ public final class GeneratorService extends Service {
             state.cores = request.cores;
             state.strategy = request.strategy;
             state.fineTune = request.fineTune;
+            state.fineTuneGearsOnly = request.fineTuneGearsOnly;
             state.startTimeMillis = System.currentTimeMillis();
         }
         workerRunning = true;
@@ -631,6 +633,7 @@ public final class GeneratorService extends Service {
             refreshData();
             checkCancelled();
             File track = request.validate(game);
+            String car = request.resolvedCar(track);
             File executable = new File(getApplicationInfo().nativeLibraryDir, "libgenghost_exec.so");
             if (!executable.isFile() || !executable.canExecute()) {
                 throw new IOException("The packaged generator is unavailable.");
@@ -641,15 +644,15 @@ public final class GeneratorService extends Service {
                 state.outputName = outputName;
                 state.reportName = outputName + ".json";
             }
-            update("running", request.fineTune ? "Fine-tuning replay inputs…"
-                : "Searching and refining routes…");
+            update("running", request.fineTuneGearsOnly ? "Fine-tuning gear shifts…"
+                : request.fineTune ? "Fine-tuning replay inputs…" : "Searching and refining routes…");
             int exitCode = runNative(request.arguments(executable, game, track, output), game);
             synchronized (stateLock) {
                 state.exitCode = exitCode;
             }
             if (exitCode == 0) {
                 File report = new File(game, outputName + ".json");
-                JSONObject result = validateOutput(output, report, request.car);
+                JSONObject result = validateOutput(output, report, car);
                 retain(this, output, "ghost-results");
                 retain(this, report, "ghost-results");
                 synchronized (stateLock) {

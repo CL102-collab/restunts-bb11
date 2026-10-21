@@ -123,6 +123,8 @@ def main():
             result, states = verify(name, car, flags)
             assert result["evaluations"] == budget, result
             assert result["strategy"] == strategy, result
+            assert result["transmission"] == "manual"
+            assert (temporary / name).read_bytes()[5] == 0
             assert result["physics"] == {
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
@@ -141,6 +143,13 @@ def main():
                 if "--owoot" in flags:
                     assert result["state_chicane_evaluations"] == 0
             return (temporary / name).read_bytes(), result, states
+
+        # Ordinary generation seeds from manual recordings. Materialize this
+        # historical automatic lap once, retaining its demonstrated route.
+        run(["human.RPL", "--fine-tune", "--evaluations", 1, "--output", "manual.RPL"])
+        human = (temporary / "manual.RPL").read_bytes()
+        assert human[5] == 0
+        (temporary / "human.RPL").write_bytes(human)
 
         help_text = run(["--help"]).stdout
         assert "--strategy" in help_text and "state" in help_text and "legacy" in help_text

@@ -607,18 +607,21 @@ static int state_save(struct state_search *search, const struct GENGHOST_STATE_R
 								  reply->race.total_frames >= search->result->race.total_frames)) {
 		return 0;
 	}
-	unsigned int length = reply->race.finish_frame;
+	unsigned int length =
+		search->options->fine_tune_gears_only ? reply->length : reply->race.finish_frame;
 	if (length > GENGHOST_MAX_FRAMES) {
 		return -1;
 	}
 	unsigned char inputs[GENGHOST_MAX_FRAMES];
 	memcpy(inputs, reply->inputs, length);
-	unsigned int tail = GENGHOST_MAX_FRAMES - length;
-	if (tail > GENGHOST_FRAME_RATE) {
-		tail = GENGHOST_FRAME_RATE;
+	if (!search->options->fine_tune_gears_only) {
+		unsigned int tail = GENGHOST_MAX_FRAMES - length;
+		if (tail > GENGHOST_FRAME_RATE) {
+			tail = GENGHOST_FRAME_RATE;
+		}
+		memset(inputs + length, 0, tail);
+		length += tail;
 	}
-	memset(inputs + length, 0, tail);
-	length += tail;
 	struct GENGHOST_RESULT verified;
 	if (genghost_sim_evaluate(inputs, length, &verified) || !verified.finished ||
 		verified.total_frames != reply->race.total_frames) {
@@ -874,6 +877,14 @@ static int fine_tune_inputs(struct state_search *search)
 		task->route_variant = search->incumbent_variant;
 		task->prefix_length = search->result->length;
 		memcpy(task->prefix, search->result->inputs, task->prefix_length);
+		if (search->options->fine_tune_gears_only) {
+			unsigned int first = 0U, end = 0U;
+			/* Invalid moves still evaluate the unchanged lap, consuming the
+			 * requested budget without falling back to other input channels. */
+			genghost_shift_inputs(task->prefix, finish, search->fine_tune_trials++, &first, &end);
+			task->first = first;
+			continue;
+		}
 		uint32_t word = (uint32_t)(task->id * 2654435761U) ^ search->options->seed;
 		word ^= word >> 16U;
 		word *= 2246822519U;
@@ -1308,6 +1319,11 @@ int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned
 						  genghost_save_function save, void *save_context,
 						  genghost_state_batch_function batch, void *batch_context)
 {
+	struct GENGHOST_OPTIONS normalized = *options;
+	if (normalized.fine_tune_gears_only) {
+		normalized.fine_tune = 1;
+	}
+	options = &normalized;
 	struct state_search search = {0};
 	struct state_node *frontier = calloc(STATE_BEAM_WIDTH, sizeof(*frontier));
 	struct state_node *next = calloc(STATE_BEAM_WIDTH, sizeof(*next));
@@ -1371,7 +1387,8 @@ int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned
 		/* Every candidate descends from the current completed replay. Section
 		 * exits rejoin its guide, never a fresh whole-route driving policy. */
 		for (search.round = 0U; !state_expired(&search); ++search.round) {
-			if (refine_inputs(&search) || (search.round % 32U == 31U && refine_section(&search))) {
+			if (refine_inputs(&search) || (!options->fine_tune_gears_only &&
+										   search.round % 32U == 31U && refine_section(&search))) {
 				goto done;
 			}
 		}

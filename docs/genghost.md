@@ -16,7 +16,8 @@ genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 4 --output parallel.r
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --strategy state --cores 4 --output state.rpl
 genghost --data-dir /path/to/game race.RPL DIA3 --seconds 1800 --output ghost.rpl
-genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --output WINNERFT.rpl
+genghost --data-dir /path/to/game winner.RPL --fine-tune --cores 0 --output WINNERFT.rpl
+genghost --data-dir /path/to/game winner.RPL --fine-tune-gears-only --output GEARSFT.rpl
 genghost --data-dir /path/to/game TRACK.TRK COUN --owoot --pg:off --lc:off --lcb:off --dws:off --output clean.rpl
 ```
 
@@ -31,11 +32,14 @@ three track-name characters (or fewer for a shorter name), uppercases letters,
 and replaces non-alphanumeric characters with `_`. With `--output`, use a
 basename of at most eight characters followed by `.rpl` for in-game selection.
 
-The two positional arguments are a track source and a four-character car code.
+The positional arguments are a track source and a four-character car code.
 The source may be a `.TRK` file or a `.RPL` file containing an embedded track.
 The car code selects the installed car resources, for example `COUN` or `DIA3`.
 An input replay can therefore supply a track even when it was driven with a
 different car.
+With either fine-tuning option, omit the car code: the replay supplies it.
+A supplied car argument is ignored with a warning, including a different car.
+All generated replays use manual transmission; there is no transmission option.
 
 | Option | Purpose |
 | --- | --- |
@@ -44,10 +48,10 @@ different car.
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
 | `--strategy MODE` | `legacy` (default route optimizer) or `state` (new cooperative state planner). |
 | `--fine-tune` | Refine a compatible completed input replay, keeping its validated score as the baseline. |
+| `--fine-tune-gears-only` | Refine only upshift and downshift timing in a completed replay, preserving all other controls. Mutually exclusive with `--fine-tune`. |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
 | `--cores N` | Number of parallel search workers, from `1` to `256`: `1` by default, `0` for automatic CPU selection. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
-| `--transmission MODE` | `manual` or `auto`; defaults to a matching 20 Hz replay's setting, otherwise manual. |
 | `--pg:on`, `--pg:off` | Enable or disable the original power gear arithmetic bug. |
 | `--lc:on`, `--lc:off` | Enable or disable the original collision behavior. |
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
@@ -76,9 +80,9 @@ For an independent check of a generated replay:
 genghost --data-dir /path/to/game ghost.rpl COUN --verify
 ```
 
-`--verify` requires a solo 20 Hz replay with the requested car and matching
-transmission. Supply the physics options used to generate it. The command
-prints finish and penalty counts in frames and returns a nonzero exit status
+`--verify` requires a solo 20 Hz replay with the requested car and uses the
+transmission recorded in that replay. Supply its required physics options.
+The command prints finish and penalty counts in frames and returns a nonzero exit status
 if the replay does not finish.
 
 ## Fine-tuning a completed replay
@@ -86,19 +90,22 @@ if the replay does not finish.
 Use `--fine-tune` when you want to improve an existing lap with the same car:
 
 ```sh
-genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --cores 0 --seconds 1800 --output WINNERFT.rpl
-genghost --data-dir /path/to/game winner.RPL PMIN --fine-tune --strategy state --cores 4 --output STATEFT.rpl
+genghost --data-dir /path/to/game winner.RPL --fine-tune --cores 0 --seconds 1800 --output WINNERFT.rpl
+genghost --data-dir /path/to/game winner.RPL --fine-tune --strategy state --cores 4 --output STATEFT.rpl
+genghost --data-dir /path/to/game winner.RPL --fine-tune-gears-only --cores 4 --output GEARSFT.rpl
 ```
 
-The source must be a complete, solo 20 Hz replay with a matching car.
+Both modes require a complete, solo 20 Hz `.RPL` replay and automatically use
+its recorded car. A supplied car argument is ignored with a warning. `.TRK`
+inputs are rejected. The two fine-tuning options cannot be combined, and neither
+can be combined with `--verify`.
+
 Fine-tuning always uses manual transmission. An automatic source is first
 replayed with its original transmission, then converted to manual inputs that
 reproduce its native upshifts and downshifts. The converted lap must retain the
-same finish time and penalties before searching starts. An explicit
-`--transmission auto` is overridden in this mode. Before searching, the tool
-replays the entire source under your selected physics flags and OWOOT setting.
-A source that does not finish under those settings is rejected, as are
-track-only inputs, mismatched cars, and combining `--fine-tune` with `--verify`.
+same finish time and penalties before searching starts. The tool replays the
+entire source under your selected physics flags and OWOOT setting.
+A source that does not finish under those settings is rejected.
 Physics flags are not stored in the RPL format: supply the settings required by
 the source lap.
 
@@ -115,13 +122,19 @@ or 32 frames (0.05 to 1.6 seconds). These attempts preserve the shift duration,
 pedals, steering, and later input timestamps, and cannot cross another shift.
 Manual sources receive the same gear optimization as converted automatic laps.
 
+`--fine-tune-gears-only` spends every refinement attempt on shift timing.
+It preserves the complete input length, throttle, braking, steering, and their
+timestamps, including the postfinish inputs. It does not refine driving lines
+or sections. Both search strategies and parallel workers support this mode.
+
 The source score is retained if no better completed lap is found; a limited
 budget does not guarantee an improvement. The comparison uses total time,
-including penalties. The JSON report records `fine_tune`,
+including penalties. The JSON report records `fine_tune` (true for either mode),
+`fine_tune_gears_only`,
 `baseline_total_frames`, `baseline_total_seconds`, `improved`, `saved_frames`,
 and `saved_seconds`. The saved counts are zero when the score is unchanged;
-comparison fields are null when `--fine-tune` is absent. Improvements to a human
-replay should be described as human-seeded refinements, rather than independently
+comparison fields are null when neither fine-tuning option is present.
+Improvements to a human replay should be described as human-seeded refinements, rather than independently
 discovered laps or proof of a new competition record.
 
 By default, the output name uses the first five sanitized source-filename
@@ -132,8 +145,9 @@ would overwrite it, including a filesystem alias, is rejected. Choose a differen
 `--output` path in that case. Use an explicit output name to preserve an earlier
 fine-tuned result when repeating a run.
 
-Without `--fine-tune`, a compatible replay continues to provide a starting
-candidate for the broader route or state search described below.
+Without either fine-tuning option, a compatible manual replay continues to
+provide a starting candidate for the broader route or state search described
+below. An automatic replay supplies its embedded track for that search.
 
 ## Parallel search
 
@@ -150,7 +164,7 @@ state and a distinct, reproducible random seed. This isolation is necessary
 because the original game physics uses global state. Workers explore and refine
 their own populations concurrently. A coordinator checks their completed laps
 with fresh native playback and saves the best overall score, including penalties,
-as the search continues. All workers use the selected car, transmission, physics
+as the search continues. All workers use the selected car, manual transmission, physics
 flags, and compatible input replay. Their populations remain independent; this
 is a parallel search across several seeds, rather than a thread-safe rewrite of
 the game engine.

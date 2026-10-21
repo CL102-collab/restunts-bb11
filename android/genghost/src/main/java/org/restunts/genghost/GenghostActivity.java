@@ -50,7 +50,10 @@ public final class GenghostActivity extends Activity {
     private static final int REQUEST_EXPORT = 2;
     private static final int REQUEST_NOTIFICATIONS = 3;
     private static final String OPTIONS = "genghost_options";
-    private static final String[] TRANSMISSIONS = {"source", "manual", "auto"};
+    private static final String[] MODES = {GenerationRequest.MODE_GENERATE,
+        GenerationRequest.MODE_FINE_TUNE, GenerationRequest.MODE_GEARS_ONLY};
+    private static final String[] MODE_LABELS = {"Generate replay", "Fine-tune replay",
+        "Fine-tune gears only"};
     private static final String[] STRATEGIES = {"legacy", "state"};
     private static final String[] STRATEGY_LABELS = {"Route search", "State search (preview)"};
     private static final ExecutorService FILE_WORKER = Executors.newSingleThreadExecutor();
@@ -67,9 +70,10 @@ public final class GenghostActivity extends Activity {
     private TextView folderStatus;
     private TextView runStatus;
     private TextView log;
+    private TextView carLabel;
     private Spinner track;
     private Spinner car;
-    private Spinner transmission;
+    private Spinner mode;
     private Spinner strategy;
     private EditText minutes;
     private EditText cores;
@@ -79,9 +83,6 @@ public final class GenghostActivity extends Activity {
     private CheckBox dualWaySwitching;
     private CheckBox owoot;
     private CheckBox amigaGrass;
-    private CheckBox fineTune;
-    private boolean fineTunePreferred;
-    private boolean updatingFineTune;
     private Button chooseFolder;
     private Button refreshFolder;
     private Button generate;
@@ -121,8 +122,8 @@ public final class GenghostActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setTextColor(Color.rgb(115, 226, 209));
         text(page, "Build a faster ghost", 19);
-        text(page, "Choose a track and car, then let the search refine a replay in the "
-            + "background. No race is displayed.", 15);
+        text(page, "Generate a ghost from a track and car, or fine-tune a completed replay "
+            + "using its recorded car. The search runs in the background.", 15);
 
         label(page, "Game folder");
         folderStatus = text(page, folderMessage, 15);
@@ -132,15 +133,15 @@ public final class GenghostActivity extends Activity {
 
         label(page, "Track or replay");
         track = spinner(page, Collections.emptyList());
-        fineTunePreferred = preferences.getBoolean("fine_tune", false);
-        fineTune = checkbox(page, "Fine-tune replay", "fine_tune", false);
-        fineTune.setOnCheckedChangeListener((button, checked) -> {
-            if (!updatingFineTune) {
-                fineTunePreferred = checked;
-            }
-        });
-        text(page, "Requires a completed .RPL with the same car; optimizes manual gear shifts.", 14);
-        label(page, "Car");
+        label(page, "Search mode");
+        mode = spinner(page, Arrays.asList(MODE_LABELS));
+        String rememberedMode = preferences.getString("mode",
+            preferences.getBoolean("fine_tune", false)
+                ? GenerationRequest.MODE_FINE_TUNE : GenerationRequest.MODE_GENERATE);
+        mode.setSelection(Math.max(0, Arrays.asList(MODES).indexOf(rememberedMode)));
+        text(page, "Fine-tuning requires a completed .RPL and uses its recorded car. "
+            + "Gears only changes shift timing. All generated replays use manual transmission.", 14);
+        carLabel = label(page, "Car");
         car = spinner(page, Collections.emptyList());
         label(page, "Search time (minutes)");
         minutes = new EditText(this);
@@ -164,10 +165,6 @@ public final class GenghostActivity extends Activity {
         strategy = spinner(page, Arrays.asList(STRATEGY_LABELS));
         strategy.setSelection(Math.max(0, Arrays.asList(STRATEGIES).indexOf(
             preferences.getString("strategy", GenerationRequest.DEFAULT_STRATEGY))));
-        label(page, "Transmission");
-        transmission = spinner(page, Arrays.asList("Follow replay; otherwise manual", "Manual",
-            "Automatic"));
-        transmission.setSelection(Math.max(0, Math.min(2, preferences.getInt("transmission", 0))));
 
         label(page, "Driving rules");
         LinearLayout drivingRules = new LinearLayout(this);
@@ -205,6 +202,17 @@ public final class GenghostActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
         track.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                refreshState();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                refreshState();
+            }
+        });
+        mode.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 refreshState();
@@ -289,10 +297,11 @@ public final class GenghostActivity extends Activity {
         return result;
     }
 
-    private void label(LinearLayout parent, String value) {
+    private TextView label(LinearLayout parent, String value) {
         TextView result = text(parent, value, 16);
         result.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         result.setPadding(0, dp(21), 0, dp(3));
+        return result;
     }
 
     private LinearLayout row(LinearLayout parent) {
@@ -348,8 +357,9 @@ public final class GenghostActivity extends Activity {
             .putString("minutes", minutes.getText().toString())
             .putString("cores", cores.getText().toString())
             .putString("strategy", STRATEGIES[strategy.getSelectedItemPosition()])
-            .putBoolean("fine_tune", fineTunePreferred)
-            .putInt("transmission", transmission.getSelectedItemPosition())
+            .putString("mode", MODES[mode.getSelectedItemPosition()])
+            .remove("fine_tune")
+            .remove("transmission")
             .putBoolean("power_gear", powerGear.isChecked())
             .putBoolean("collision", collision.isChecked())
             .putBoolean("left_bias", leftBias.isChecked())
@@ -386,18 +396,13 @@ public final class GenghostActivity extends Activity {
         chooseFolder.setEnabled(!busy);
         refreshFolder.setEnabled(!busy && GameDataStorage.folder(this) != null);
         track.setEnabled(!busy && !availableTracks.isEmpty());
-        boolean replaySelected = selected(track).toLowerCase(Locale.ROOT).endsWith(".rpl");
-        // Adapter replacement can briefly clear the selection. Keep the remembered
-        // choice while showing this control as unchecked for tracks or an empty list.
-        updatingFineTune = true;
-        fineTune.setChecked(replaySelected && fineTunePreferred);
-        updatingFineTune = false;
-        fineTune.setEnabled(!busy && replaySelected);
-        car.setEnabled(!busy && !availableCars.isEmpty());
+        mode.setEnabled(!busy);
+        carLabel.setVisibility(fineTuningSelected() ? View.GONE : View.VISIBLE);
+        car.setVisibility(fineTuningSelected() ? View.GONE : View.VISIBLE);
+        car.setEnabled(!busy && !fineTuningSelected() && !availableCars.isEmpty());
         minutes.setEnabled(!busy);
         cores.setEnabled(!busy);
         strategy.setEnabled(!busy);
-        transmission.setEnabled(!busy);
         powerGear.setEnabled(!busy);
         collision.setEnabled(!busy);
         leftBias.setEnabled(!busy);
@@ -405,7 +410,7 @@ public final class GenghostActivity extends Activity {
         owoot.setEnabled(!busy);
         amigaGrass.setEnabled(!busy);
         generate.setEnabled(!busy && catalogReady && !availableTracks.isEmpty()
-            && !availableCars.isEmpty());
+            && (fineTuningSelected() || !availableCars.isEmpty()));
         cancel.setEnabled(generation.running);
         export.setEnabled(!generation.running && !exporting && generation.outputAvailable);
         exportReport.setEnabled(!generation.running && !exporting && generation.reportAvailable);
@@ -420,7 +425,8 @@ public final class GenghostActivity extends Activity {
                 ? "all available" : Integer.toString(generation.cores));
             message += "\n" + STRATEGY_LABELS["state".equals(generation.strategy) ? 1 : 0];
             if (generation.fineTune) {
-                message += "\nFine-tune replay";
+                message += generation.fineTuneGearsOnly
+                    ? "\nFine-tune gears only" : "\nFine-tune replay";
             }
         }
         runStatus.setText(message);
@@ -533,8 +539,12 @@ public final class GenghostActivity extends Activity {
         });
     }
 
+    private boolean fineTuningSelected() {
+        return mode.getSelectedItemPosition() > 0;
+    }
+
     private void startGeneration() {
-        if (fineTune.isChecked()
+        if (fineTuningSelected()
                 && !selected(track).toLowerCase(Locale.ROOT).endsWith(".rpl")) {
             showError("Fine-tuning requires a completed .RPL replay.");
             return;
@@ -583,11 +593,10 @@ public final class GenghostActivity extends Activity {
                 REQUEST_NOTIFICATIONS);
         }
         try {
-            GeneratorService.start(this, new GenerationRequest(selected(track), selected(car),
-                budget * 60, searchCores, STRATEGIES[strategy.getSelectedItemPosition()],
-                fineTune.isChecked(),
-                TRANSMISSIONS[transmission.getSelectedItemPosition()],
-                flags.toArray(new String[0])));
+            GeneratorService.start(this, new GenerationRequest(selected(track),
+                fineTuningSelected() ? "" : selected(car), budget * 60, searchCores,
+                STRATEGIES[strategy.getSelectedItemPosition()],
+                MODES[mode.getSelectedItemPosition()], flags.toArray(new String[0])));
             refreshState();
         } catch (RuntimeException error) {
             showError("Cannot start the search: " + error.getMessage());

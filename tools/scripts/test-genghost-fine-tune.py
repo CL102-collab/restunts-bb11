@@ -90,20 +90,26 @@ def main():
                 assert check.with_suffix(".owo").read_text() == "pass"
             return report, states
 
-        def refine(output, *, source="human.RPL", car="PMIN", strategy="legacy",
-                   cores=1, budget=2001, flags=(), transmission=None, seed=1):
-            baseline = score(source, car, flags)
+        def refine(output, *, source="human.RPL", car=None, strategy="legacy",
+                   cores=1, budget=2001, flags=(), gears_only=False, seed=1):
             original = (temporary / source).read_bytes()
-            arguments = [source, car, "--fine-tune", "--strategy", strategy,
-                         "--cores", cores, "--evaluations", budget, "--seed", seed,
-                         "--output", output, *flags]
-            if transmission:
-                arguments.extend(("--transmission", transmission))
-            run(arguments)
-            report, states = verify(output, car, flags)
+            replay_car = original[:4].decode("ascii")
+            baseline = score(source, replay_car, flags)
+            arguments = [source]
+            if car is not None:
+                arguments.append(car)
+            arguments.extend(("--fine-tune-gears-only" if gears_only else "--fine-tune",
+                              "--strategy", strategy, "--cores", cores,
+                              "--evaluations", budget, "--seed", seed, "--output", output, *flags))
+            process = run(arguments)
+            if car is not None:
+                assert "ignor" in process.stderr.lower() and "car" in process.stderr.lower(), process.stderr
+            report, states = verify(output, replay_car, flags)
             saved = baseline["total_frames"] - report["total_frames"]
             assert saved >= 0, (baseline, report)
             assert report["fine_tune"] is True
+            assert report["fine_tune_gears_only"] is gears_only
+            assert report["car"] == replay_car
             assert report["baseline_total_frames"] == baseline["total_frames"]
             assert report["baseline_total_seconds"] == baseline["total_frames"] / 20
             assert report["saved_frames"] == saved and report["saved_seconds"] == saved / 20
@@ -133,6 +139,11 @@ def main():
             assert (temporary / source).read_bytes() == original, "Fine-tuning modified its input"
             replay = (temporary / output).read_bytes()
             assert replay[5] == 0, "Fine-tuned replays must use manual transmission"
+            if gears_only:
+                assert len(replay) == len(original), "Gear refinement changed the input timeline"
+                assert bytes(value & ~0x30 for value in replay[INPUT_OFFSET:]) == bytes(
+                    value & ~0x30 for value in original[INPUT_OFFSET:]), (
+                        "Gear refinement changed pedals/steering or the post-finish tail")
             track_name = original[13:22].split(b"\0")[0]
             assert replay[13:22].split(b"\0")[0] == track_name, (
                 "Embedded track identity was replaced by a filename")
@@ -140,7 +151,9 @@ def main():
             assert replay[26:INPUT_OFFSET] == original[26:INPUT_OFFSET]
             return replay, report, states
 
-        assert "--fine-tune" in run(["--help"]).stdout
+        help_text = run(["--help"]).stdout
+        assert "--fine-tune" in help_text and "--fine-tune-gears-only" in help_text
+        assert "--transmission" not in help_text
         baseline = score("human.RPL", "PMIN")
         assert baseline["total_frames"] == 625 and baseline["penalty_frames"] == 0
 
@@ -155,7 +168,6 @@ def main():
             (temporary / name).write_bytes(contents)
         rejected = [
             ["track.TRK", "PMIN"],
-            ["human.RPL", "COUN"],
             ["opponent.RPL", "PMIN"],
             ["tenhz.RPL", "PMIN"],
             ["unfinished.RPL", "PMIN"],
@@ -164,15 +176,29 @@ def main():
             ["human.RPL", "PMIN", "--owoot"],
             ["human.RPL", "PMIN", "--verify"],
         ]
-        for index, arguments in enumerate(rejected):
-            output = f"bad{index}.RPL"
-            original = (temporary / arguments[0]).read_bytes()
-            result = run([*arguments, "--fine-tune", "--evaluations", 1,
-                          "--cores", 2, "--output", output], success=False)
-            assert result.stderr.strip(), "Rejected input needs a useful diagnostic"
+        for mode in ("--fine-tune", "--fine-tune-gears-only"):
+            for index, arguments in enumerate(rejected):
+                output = f"bad{index}.RPL"
+                original = (temporary / arguments[0]).read_bytes()
+                result = run([*arguments, mode, "--evaluations", 1,
+                              "--cores", 2, "--output", output], success=False)
+                assert result.stderr.strip(), "Rejected input needs a useful diagnostic"
+                assert not (temporary / output).exists()
+                assert not (temporary / (output + ".json")).exists()
+                assert (temporary / arguments[0]).read_bytes() == original
+        for index, arguments in enumerate((
+                ["human.RPL", "--fine-tune", "--fine-tune-gears-only"],
+                ["human.RPL", "--fine-tune-gears-only", "--fine-tune"],
+                ["human.RPL", "--fine-tune", "--transmission", "manual"],
+                ["auto seed.RPL", "--fine-tune-gears-only", "--transmission", "auto"],
+                ["track.TRK", "PMIN", "--transmission", "manual"])):
+            output = f"args{index}.RPL"
+            result = run([*arguments, "--evaluations", 1, "--output", output], success=False)
+            assert result.stderr.strip()
+            if "--transmission" in arguments:
+                assert "unknown" in result.stderr.lower() and "--transmission" in result.stderr
             assert not (temporary / output).exists()
             assert not (temporary / (output + ".json")).exists()
-            assert (temporary / arguments[0]).read_bytes() == original
         print("Incompatible, unfinished, physics-invalid, and conflicting inputs are rejected", flush=True)
 
         # Refusal must happen before any save callback can overwrite the input,
@@ -215,9 +241,15 @@ def main():
         assert default.read_bytes()[13:22] == human[13:22]
         assert (temporary / "human.RPL").read_bytes() == human
         for strategy in ("legacy", "state"):
-            _, minimum, _ = refine("min" + strategy[:1] + ".RPL", strategy=strategy,
-                                    budget=1, cores=2)
-            assert minimum["total_frames"] == baseline["total_frames"]
+            for gears_only in (False, True):
+                _, minimum, _ = refine(f"min{strategy[0]}{int(gears_only)}.RPL",
+                                        strategy=strategy, budget=1, cores=2,
+                                        gears_only=gears_only)
+                assert minimum["total_frames"] == baseline["total_frames"]
+        for gears_only in (False, True):
+            for index, ignored in enumerate(("COUN", "malformed-car-code", "x")):
+                refine(f"car{int(gears_only)}{index}.RPL", car=ignored, budget=1,
+                       gears_only=gears_only)
         print("Input aliases are protected; default output preserves the validated seed", flush=True)
 
         improvements = []
@@ -265,19 +297,18 @@ def main():
             for gear in (0x10, 0x20):
                 assert any((old ^ new) & gear for old, new in zip(before, after)), (
                     "Both upshift and downshift timing should improve", strategy, gear)
-            for explicit in ("manual", "auto"):
-                output = f"auto{strategy[0]}{explicit[0]}.RPL"
-                refine(output, source="auto seed.RPL", car="LM02", strategy=strategy,
-                       budget=17, cores=2, transmission=explicit)
-                refine(f"man{strategy[0]}{explicit[0]}.RPL", strategy=strategy, budget=1,
-                       cores=2, transmission=explicit)
-        # General replay-seeded searches keep their requested transmission.
-        run(["auto seed.RPL", "LM02", "--evaluations", 1, "--output", "keepauto.RPL"])
-        ordinary_auto, _ = verify("keepauto.RPL", "LM02")
-        assert ordinary_auto["fine_tune"] is False
-        assert ordinary_auto["transmission"] == "auto"
-        assert (temporary / "keepauto.RPL").read_bytes()[5] == 1
-        assert ordinary_auto["total_frames"] == automatic_baseline["total_frames"]
+            for cores in (1, 2):
+                _, preserved, _ = refine(f"gmin{strategy[0]}{cores}.RPL", source="auto seed.RPL",
+                                          strategy=strategy, budget=1, cores=cores, gears_only=True)
+                assert preserved["total_frames"] == automatic_baseline["total_frames"]
+                shifted, report, _ = refine(f"gear{strategy[0]}{cores}.RPL", source="auto seed.RPL",
+                                            strategy=strategy, budget=257, cores=cores, gears_only=True)
+                assert report["saved_frames"] > 0, "Gear-only search did not improve the automatic lap"
+                before = normalized[INPUT_OFFSET:]
+                after = shifted[INPUT_OFFSET:]
+                for gear in (0x10, 0x20):
+                    assert any((old ^ new) & gear for old, new in zip(before, after)), (
+                        "Both upshift and downshift timing should improve", strategy, cores, gear)
         print("Fine-tuning converts automatic seeds to manual and preserves native scores on every worker", flush=True)
 
         if native:
@@ -290,7 +321,7 @@ def main():
         # whether a historical human replay obeyed modern native OWOOT checks.
         run(["track.TRK", "COUN", "--evaluations", 1000, "--output", "clean.RPL", *RESTRICTED])
         clean, _ = verify("clean.RPL", "COUN", RESTRICTED)
-        assert clean["fine_tune"] is False
+        assert clean["fine_tune"] is False and clean["fine_tune_gears_only"] is False
         assert all(clean[key] is None for key in COMPARISON_FIELDS)
         for strategy in ("legacy", "state"):
             refine(("cleanl" if strategy == "legacy" else "cleans") + ".RPL",

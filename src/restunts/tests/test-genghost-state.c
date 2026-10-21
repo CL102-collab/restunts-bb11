@@ -564,6 +564,8 @@ struct fine_tune_observer {
 	struct GENGHOST_STATE_EXECUTOR *executor;
 	struct GENGHOST_SEARCH_RESULT *result;
 	unsigned int initial_total, last_total, saves, batches;
+	const unsigned char *fixed_inputs;
+	unsigned int fixed_length;
 	unsigned int kinds[4];
 	unsigned int reference_lengths[2U * FINE_TUNE_TEST_BUDGET];
 	uint64_t reference_hashes[2U * FINE_TUNE_TEST_BUDGET];
@@ -595,6 +597,13 @@ static int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *con
 	struct fine_tune_observer *observer = context;
 	struct GENGHOST_RESULT replayed;
 	struct GENGHOST_SNAPSHOT before;
+	if (observer->fixed_inputs) {
+		assert(result->length == observer->fixed_length);
+		for (unsigned int frame = 0U; frame < result->length; ++frame) {
+			assert((result->inputs[frame] & ~INPUT_ACTION_BUTTON_MASK) ==
+				   (observer->fixed_inputs[frame] & ~INPUT_ACTION_BUTTON_MASK));
+		}
+	}
 	/* Observing an accepted replay must not change a worker's hidden collision
 	 * state or the search's current section checkpoint. */
 	genghost_sim_capture(&before);
@@ -626,6 +635,13 @@ static int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *task
 	for (size_t n = 0U; n < count; ++n) {
 		const struct GENGHOST_STATE_TASK *task = &tasks[n];
 		assert(task->kind < 4U && task->kind != 1U);
+		if (observer->fixed_inputs) {
+			assert(task->kind == 2U && task->prefix_length == observer->fixed_length);
+			for (unsigned int frame = 0U; frame < task->prefix_length; ++frame) {
+				assert((task->prefix[frame] & ~INPUT_ACTION_BUTTON_MASK) ==
+					   (observer->fixed_inputs[frame] & ~INPUT_ACTION_BUTTON_MASK));
+			}
+		}
 		++observer->kinds[task->kind];
 		if (task->kind == 0U) {
 			/* A seeded launch section may legitimately begin at frame zero.
@@ -808,6 +824,44 @@ static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const unsigne
 	}
 }
 
+/* A real automatic lap supplies both upshifts and downshifts. Their manual
+ * timing can improve without retiming a single driving input or tail frame. */
+static void test_gears_only_search(const struct GENGHOST_OPTIONS *options,
+								   const unsigned char *inputs, unsigned int count)
+{
+	unsigned char manual[GENGHOST_MAX_FRAMES];
+	memcpy(manual, inputs, count);
+	struct GENGHOST_RESULT baseline;
+	assert(genghost_sim_manual_inputs(manual, count, &baseline) == 0 && baseline.finished);
+	for (int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE; ++strategy) {
+		struct GENGHOST_OPTIONS bounded = *options;
+		bounded.fine_tune = bounded.fine_tune_gears_only = 1;
+		bounded.strategy = (enum GENGHOST_STRATEGY)strategy;
+		bounded.evaluations = 257U;
+		bounded.seconds = 0.0;
+		bounded.seed = 1U;
+		struct GENGHOST_SEARCH_RESULT result = {0};
+		struct fine_tune_observer observer = {0};
+		observer.initial_total = baseline.total_frames;
+		observer.fixed_inputs = manual;
+		observer.fixed_length = count;
+		if (strategy == GENGHOST_STRATEGY_STATE) {
+			observer.executor = genghost_state_executor_create(&bounded);
+			assert(observer.executor != NULL);
+		}
+		assert(fine_tune_search(&bounded, manual, count, &result, &observer) == 0);
+		genghost_state_executor_destroy(observer.executor);
+		assert(result.evaluations == bounded.evaluations);
+		assert(result.race.finished && result.race.total_frames < baseline.total_frames);
+		assert(observer.saves > 1U && result.length == count);
+		assert(!result.policy_evaluations && !result.guided_evaluations &&
+			   !result.state_section_evaluations && !result.state_macro_evaluations);
+		printf(
+			"Gear-only strategy %d improves %u to %u frames with an unchanged driving timeline.\n",
+			strategy, baseline.total_frames, result.race.total_frames);
+	}
+}
+
 static int fine_tune_cancel_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
 {
 	const struct GENGHOST_RESULT *original = context;
@@ -921,6 +975,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		test_shift_inputs();
 		test_fine_tune(&options, recording + REPLAY_INPUT_OFFSET, config.game_recordedframes);
 		test_fine_tune_parallel_cancel(&options, recording, size, &config);
+		test_gears_only_search(&options, recording + REPLAY_INPUT_OFFSET,
+							   config.game_recordedframes);
 		return 0;
 	}
 	if (recovery) {
