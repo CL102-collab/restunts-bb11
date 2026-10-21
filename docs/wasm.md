@@ -55,8 +55,9 @@ needed. The HTML's location does not determine where the game looks for data.
    selector, in that order. HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
-   Off starts without HyperVision. Show FPS and Show Control Layout start off.
-   Enable Show Control Layout for the same touch controls as Android. On
+   Off starts without HyperVision. Show FPS starts off. Show Control Layout
+   starts on for phones and tablets and off for desktops; a remembered choice
+   overrides this default. It enables the same touch controls as Android. On
    phones, use fullscreen landscape mode to put them in the black side areas.
    The separate **Driving rules** group below graphics contains **Power Gear**,
    **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,

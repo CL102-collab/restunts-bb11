@@ -615,6 +615,54 @@ async function exerciseFallbackLoading(browser, url, temporary) {
     }
 }
 
+async function exerciseMobileControlLayout(browser, url, fixture) {
+    const profiles = [
+        { name: 'Android', enabled: true, saved: false, hasTouch: true, isMobile: true,
+            userAgent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 ' +
+                '(KHTML, like Gecko) Chrome/147.0.0.0 Mobile Safari/537.36' },
+        { name: 'desktop', enabled: false, saved: true, hasTouch: false },
+        { name: 'touchscreen desktop', enabled: false, hasTouch: true }
+    ];
+    for (const profile of profiles) {
+        const context = await browser.newContext({
+            viewport: { width: 390, height: 844 }, hasTouch: profile.hasTouch,
+            isMobile: Boolean(profile.isMobile),
+            ...(profile.userAgent ? { userAgent: profile.userAgent } : {})
+        });
+        await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+        const page = await context.newPage();
+        try {
+            await page.goto(url);
+            await ready(page);
+            const controlLayout = page.locator('#show-control-layout');
+            assert.equal(await controlLayout.isChecked(), profile.enabled,
+                profile.name + ' must use the appropriate fresh control-layout default');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
+                argument.startsWith('--control-layout:'))),
+            [profile.enabled ? '--control-layout:on' : '--control-layout:off']);
+            if (typeof profile.saved === 'boolean') {
+                await page.reload();
+                await ready(page);
+                await controlLayout.setChecked(profile.saved);
+                await storedOptions(page);
+                await page.reload();
+                await ready(page);
+                assert.equal(await controlLayout.isChecked(), profile.saved,
+                    profile.name + ' must preserve an explicit preference after reload');
+                await loadFixture(page, fixture);
+                await page.locator('#start').click();
+                assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(argument =>
+                    argument.startsWith('--control-layout:'))),
+                [profile.saved ? '--control-layout:on' : '--control-layout:off']);
+            }
+        } finally {
+            await context.close();
+        }
+    }
+}
+
 async function main() {
     const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'restunts-web-shell-'));
     const fixture = path.join(temporary, 'game-files');
@@ -794,9 +842,10 @@ async function main() {
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
         const url = 'http://127.0.0.1:' + server.address().port + '/';
+        await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
-        console.log('PASS: wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, duplicate handling and failed-import draining');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, duplicate handling and failed-import draining');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));
