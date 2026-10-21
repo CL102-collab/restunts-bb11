@@ -42,6 +42,16 @@
            game area, leaving the side gutters available to the native controls. */
         canvas:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; object-fit: fill; }
         #status { min-height: 1.5em; }
+        #load-progress { height: 18px; margin: -4px 0 16px; overflow: hidden; border: 1px solid #6b3e26; border-radius: 4px; background: #243246; }
+        #load-progress-fill { width: 0; height: 100%; background-color: #edbd73;
+            /* Each brown stripe is one tenth the width of the yellow band. */
+            background-image: linear-gradient(135deg, #6b3e26 0 4.545%, #edbd73 4.545% 50%, #6b3e26 50% 54.545%, #edbd73 54.545% 100%);
+            background-size: 32px 32px; }
+        #load-progress.loading #load-progress-fill { animation: load-stripes 1s linear infinite; }
+        @keyframes load-stripes { to { background-position: 32px 0; } }
+        @media (prefers-reduced-motion: reduce) {
+            #load-progress.loading #load-progress-fill { animation: none; }
+        }
         #log { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
         input[type="file"] { max-width: 100%; }
     </style>
@@ -103,6 +113,10 @@
             </div>
         </fieldset>
         <p id="status" role="status" aria-live="polite">Preparing game…</p>
+        <div id="load-progress" role="progressbar" aria-label="Loading game files" aria-describedby="status"
+            aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+            <div id="load-progress-fill"></div>
+        </div>
         <canvas id="canvas" width="960" height="720" tabindex="0" aria-label="Restunts game"></canvas>
         <p>Click the game to focus the keyboard. Use the arrow keys to drive and Esc to return to menus.
             Enable <strong>Show Control Layout</strong> before starting to play with the Android touch controls.
@@ -249,6 +263,8 @@
 
         const canvas = document.getElementById('canvas');
         const status = document.getElementById('status');
+        const loadProgress = document.getElementById('load-progress');
+        const loadProgressFill = document.getElementById('load-progress-fill');
         const start = document.getElementById('start');
         const importer = document.getElementById('import');
         const gameFiles = document.getElementById('game-files');
@@ -430,6 +446,7 @@
         start.addEventListener('click', () => {
             if (started || !gameLoaded) return;
             started = true;
+            loadProgress.hidden = true;
             start.disabled = true;
             importer.disabled = true;
             gameFiles.disabled = true;
@@ -539,6 +556,13 @@
         });
 
         function setLoading(loading) {
+            // A completed import clears the class itself; otherwise it failed.
+            if (loading || loadProgress.classList.contains('loading')) loadProgress.hidden = true;
+            loadProgress.classList.remove('loading');
+            if (loading) {
+                loadProgress.setAttribute('aria-valuenow', '0');
+                loadProgressFill.style.width = '0%';
+            }
             for (const option of launchOptions) option.disabled = loading || started;
             openFolder.disabled = loading || started;
             restoreFolder.disabled = loading || started;
@@ -546,6 +570,17 @@
             start.disabled = loading || started || !gameLoaded;
             importer.disabled = loading || started || !gameLoaded;
             exporter.disabled = loading || !gameLoaded;
+        }
+
+        function updateLoadProgress(pass, completed, total) {
+            // Checking metadata and reading contents each account for half the bar.
+            const percent = 50 * (pass + (total ? completed / total : 0));
+            loadProgress.hidden = false;
+            loadProgress.classList.add('loading');
+            loadProgress.setAttribute('aria-valuenow', String(percent));
+            loadProgressFill.style.width = percent + '%';
+            status.textContent = (pass === 0 ? 'Checking' : 'Reading') +
+                ' game files… ' + completed + ' of ' + total + '.';
         }
 
         async function forEachGameFile(files, processFile) {
@@ -574,11 +609,11 @@
                 if (name) candidates.push({ ...entry, name });
             }
             let checked = 0;
-            status.textContent = 'Checking game files… 0 of ' + candidates.length + '.';
+            updateLoadProgress(0, 0, candidates.length);
             await forEachGameFile(candidates, async entry => {
                 // Directory handles need an asynchronous metadata lookup; fallback File objects do not.
                 entry.file = entry.file || await entry.handle.getFile();
-                status.textContent = 'Checking game files… ' + (++checked) + ' of ' + candidates.length + '.';
+                updateLoadProgress(0, ++checked, candidates.length);
             });
             const pending = new Map();
             let totalBytes = 0;
@@ -601,7 +636,7 @@
             }
             const contents = new Map();
             let completed = 0;
-            status.textContent = 'Reading game files… 0 of ' + pending.size + '.';
+            updateLoadProgress(1, 0, pending.size);
             await forEachGameFile(Array.from(pending), async ([name, matchingFiles]) => {
                 const first = matchingFiles[0];
                 const bytes = new Uint8Array(await first.arrayBuffer());
@@ -611,7 +646,7 @@
                     }
                 }
                 contents.set(name, bytes);
-                status.textContent = 'Reading game files… ' + (++completed) + ' of ' + pending.size + '.';
+                updateLoadProgress(1, ++completed, pending.size);
             });
             function clearDirectory(path) {
                 for (const name of Module.FS.readdir(path)) {
@@ -640,6 +675,7 @@
                 baseline.set(name.toLowerCase(), Module.FS.readFile(DATA_DIRECTORY + '/' + name));
             }
             gameLoaded = true;
+            loadProgress.classList.remove('loading');
             status.textContent = 'Loaded ' + pending.size + ' game files. Click Start game to play with sound.';
         }
 

@@ -91,9 +91,11 @@ folder must contain the original game resources, including `MAIN.RES` (or
 the game. Files are read locally and are never uploaded.
 
 Folder loading checks and reads up to eight files concurrently, with separate
-scanning, checking, and reading progress. All files are validated and read before
-replacing the current selection, so read and filename errors keep the previous
-game data.
+scanning, checking, and reading progress. A horizontal yellow progress bar fills
+to 50% while checking files and to 100% while reading them. Thin brown diagonal
+stripes move across the fill during loading, unless reduced motion is requested.
+All files are validated and read before replacing the current selection, so read
+and filename errors keep the previous game data.
 Large track/replay collections and cloud or network folders can still take longer.
 
 On **Start game**, the game checks the version text in `MISC.RES` (preferred) or

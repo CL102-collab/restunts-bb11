@@ -396,6 +396,42 @@ async function finishLoading(page) {
     await page.waitForFunction(() => !document.getElementById('open-folder').disabled);
 }
 
+async function assertLoadProgress(page, value, { visible = true, loading = true } = {}) {
+    const progress = page.locator('#load-progress');
+    assert.equal(await progress.isVisible(), visible, 'Progress must follow the folder-loading lifecycle');
+    assert.equal(await progress.evaluate(element => element.classList.contains('loading')), loading,
+        'Stripes must animate only while game files are being processed');
+    const current = Number(await progress.getAttribute('aria-valuenow'));
+    assert.ok(Number.isFinite(current) && current >= 0 && current <= 100,
+        'Accessible progress must stay within its percentage range');
+    if (value !== undefined) assert.ok(Math.abs(current - value) < 0.001,
+        'Accessible progress must match the current processing pass');
+    if (visible) {
+        await page.waitForFunction(expected => {
+            const progress = document.getElementById('load-progress');
+            const fill = document.getElementById('load-progress-fill').getBoundingClientRect();
+            return Math.abs(fill.width - progress.clientWidth * expected / 100) < 1;
+        }, current);
+        const fits = await progress.evaluate(element => {
+            const bounds = element.getBoundingClientRect();
+            return bounds.width > bounds.height && bounds.left >= 0 && bounds.right <= innerWidth &&
+                element.scrollWidth <= element.clientWidth;
+        });
+        assert.ok(fits, 'The horizontal progress bar must fit the available width');
+    }
+}
+
+async function assertProgressMotion(page) {
+    const fill = page.locator('#load-progress-fill');
+    const position = await fill.evaluate(element => getComputedStyle(element).backgroundPosition);
+    await page.waitForFunction(previous =>
+        getComputedStyle(document.getElementById('load-progress-fill')).backgroundPosition !== previous, position);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    assert.equal(await fill.evaluate(element => getComputedStyle(element).animationName), 'none',
+        'Reduced-motion preferences must stop the moving stripes');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+}
+
 async function exerciseDirectoryLoading(browser, url) {
     const context = await browser.newContext();
     await context.addInitScript(() => {
@@ -418,14 +454,22 @@ async function exerciseDirectoryLoading(browser, url) {
         await page.locator('#open-folder').click();
         await assertConcurrentPhase(page, 'metadata');
         assert.match(await page.locator('#status').textContent(), /^Checking game files… 0 of 18\./);
+        await assertLoadProgress(page, 0);
         assert.equal(await page.locator('#start').isDisabled(), true);
+        await page.evaluate(() => testLoadingFixture.pending.metadata.find(item => item.path === 'FONTDEF.FNT').finish());
+        await page.waitForFunction(() => document.getElementById('status').textContent === 'Checking game files… 1 of 18.');
+        await assertLoadProgress(page, 50 / 18);
         await page.evaluate(() => testLoadingFixture.release('metadata', true));
         await assertConcurrentPhase(page, 'content');
         assert.match(await page.locator('#status').textContent(), /^Reading game files… 0 of 17\./);
+        await assertLoadProgress(page, 50);
+        await assertProgressMotion(page);
         await page.evaluate(() => testLoadingFixture.pending.content.find(item => item.path === 'FONTDEF.FNT').finish());
         await page.waitForFunction(() => document.getElementById('status').textContent === 'Reading game files… 1 of 17.');
+        await assertLoadProgress(page, 50 + 50 / 17);
         await finishLoading(page);
         assert.match(await page.locator('#status').textContent(), /^Loaded 17 game files\./);
+        await assertLoadProgress(page, 100, { loading: false });
         const imported = await page.evaluate(() => ({
             files: Array.from(fixtureFiles.keys()),
             casing: Array.from(diskNames),
@@ -455,12 +499,16 @@ async function exerciseDirectoryLoading(browser, url) {
             'Saving must preserve the original filename casing after concurrent loading');
         const original = await loadingState(page);
         await page.evaluate(() => { window.testOriginalDirectory = directoryHandle; });
+        await page.evaluate(() => setLoading(true));
+        await assertLoadProgress(page, 0, { visible: false, loading: false });
+        await page.evaluate(() => setLoading(false));
 
         for (const phase of ['metadata', 'content']) {
             await installLoadingFixture(page, specs);
             if (phase === 'content') await page.evaluate(() => { testLoadingFixture.automatic.metadata = true; });
             await page.locator('#open-folder').click();
             await assertConcurrentPhase(page, phase);
+            await assertLoadProgress(page, phase === 'metadata' ? 0 : 50);
             const inFlight = await page.evaluate(phase => {
                 const count = testLoadingFixture.active[phase];
                 testLoadingFixture.pending[phase][0].finish(true);
@@ -474,6 +522,7 @@ async function exerciseDirectoryLoading(browser, url) {
             assert.equal(await loadingState(page), original, 'Failed imports must preserve the complete previous folder');
             await finishLoading(page);
             assert.match(await page.locator('#status').textContent(), new RegExp('^Folder loading failed: Fixture ' + phase + ' failure'));
+            await assertLoadProgress(page, undefined, { visible: false, loading: false });
             const settled = await page.evaluate(() => ({
                 calls: testLoadingFixture.calls,
                 active: testLoadingFixture.active,
@@ -544,9 +593,14 @@ async function exerciseFallbackLoading(browser, url, temporary) {
         await installLoadingFixture(page, [], false);
         await page.locator('#game-files').setInputFiles(directory);
         await assertConcurrentPhase(page, 'content');
+        await assertLoadProgress(page, 50);
         assert.equal(await page.locator('#start').isDisabled(), true);
+        await page.evaluate(() => testLoadingFixture.pending.content[0].finish());
+        await page.waitForFunction(() => document.getElementById('status').textContent === 'Reading game files… 1 of 15.');
+        await assertLoadProgress(page, 50 + 50 / names.length);
         await page.evaluate(() => testLoadingFixture.release('content', true));
         await page.waitForFunction(() => !document.getElementById('start').disabled);
+        await assertLoadProgress(page, 100, { loading: false });
         const actual = await page.evaluate(() => ({
             calls: testLoadingFixture.calls.content.map(name => name.split('/').pop()),
             peak: testLoadingFixture.peak.content,
@@ -589,6 +643,13 @@ async function main() {
         page.on('pageerror', error => errors.push(String(error)));
         await page.goto('http://127.0.0.1:' + server.address().port + '/');
         await ready(page);
+        await assertLoadProgress(page, 0, { visible: false, loading: false });
+        const progress = page.locator('#load-progress');
+        assert.equal(await progress.getAttribute('role'), 'progressbar');
+        assert.equal(await progress.getAttribute('aria-label'), 'Loading game files');
+        assert.equal(await progress.getAttribute('aria-describedby'), 'status');
+        assert.equal(await progress.getAttribute('aria-valuemin'), '0');
+        assert.equal(await progress.getAttribute('aria-valuemax'), '100');
         for (const width of [320, 390, 1000, 1920]) {
             await page.setViewportSize({ width, height: 844 });
             await assertSettingsLayout(page, width < 600);
@@ -620,7 +681,9 @@ async function main() {
             id + ' must lock while loading');
         await page.evaluate(() => setLoading(false));
         await loadFixture(page, fixture);
+        await assertLoadProgress(page, 100, { loading: false });
         await page.locator('#start').click();
+        await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on'
@@ -733,7 +796,7 @@ async function main() {
         const url = 'http://127.0.0.1:' + server.address().port + '/';
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
-        console.log('PASS: wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, progress, duplicate handling and failed-import draining');
+        console.log('PASS: wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, duplicate handling and failed-import draining');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));
