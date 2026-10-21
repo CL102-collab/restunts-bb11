@@ -25,6 +25,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -72,6 +73,7 @@ public final class LauncherActivity extends Activity {
     private static String currentStatus = "Import your Brøderbund Stunts 1.1 game files.\n"
         + "Choose the game folder itself, or a ZIP to extract into Chocolate Stunts.";
     private TextView status;
+    private ProgressBar preparationProgress;
     private Button start;
     private Button folder;
     private Button zip;
@@ -122,6 +124,11 @@ public final class LauncherActivity extends Activity {
             tvFolder = button(layout, "Use TV game folder", view -> showTvFolderDialog(false));
         }
         addOptions(layout);
+        preparationProgress = new ProgressBar(this);
+        preparationProgress.setIndeterminate(true);
+        preparationProgress.setContentDescription("Preparing game files");
+        layout.addView(preparationProgress, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         start = button(layout, "Start game", view -> startGame());
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -377,6 +384,7 @@ public final class LauncherActivity extends Activity {
     private void refresh() {
         status.setText(currentStatus);
         boolean busy = importing || synchronizing || preparingAssets;
+        preparationProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         folder.setEnabled(!busy);
         zip.setEnabled(!busy);
         if (tvFolder != null) {
