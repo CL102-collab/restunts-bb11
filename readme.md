@@ -582,6 +582,20 @@ For example, `0x040F` selects palette index 15 for the speedometer and 4 for
 the tachometer. The stock value `0x0010` keeps both needles white, and
 `0x0000` makes both black. Digital speedometer digits are unaffected.
 
+### McMurtry Speirling PURE custom car
+
+The `MCMU` car represents the 2026 production Speirling PURE from
+manufacturer reference images, with matching showroom/racing scale, seven
+paints, a digital race cockpit, single-speed electric drive and fan adhesion.
+Install it with:
+
+```sh
+python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
+```
+
+See [car details, specifications and model sources](docs/mcmurtry-speirling.md).
+Verify the generated package with the same command plus `--check`.
+
 ### Tesla Roadster Rocket custom car
 
 The `TERR` car includes a grey model based on the supplied reference photos,

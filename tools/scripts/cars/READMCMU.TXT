@@ -1,0 +1,87 @@
+MCMURTRY SPEIRLING PURE (2026 PRODUCTION) - MCMU
+
+INSTALL
+Copy CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH into your
+Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
+Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
+Single-speed electric drive. No stock car is replaced.
+
+Fan adhesion is enabled by fand=1 and adhs=01 0C 00 00 20 0F. Updated
+Restunts attaches tyre contacts to supported driving surfaces automatically,
+including vertical/inverted surfaces, with a 12-unit gap and 60-degree
+alignment limit on paved, dirt, ice and grass. No water adhesion. This is
+a game approximation, not a physical aerodynamic simulation. The original
+DOS game ignores these extra resources. Use identical car resources when
+recording and playing back a replay.
+
+REAL CAR AND SCALE
+This is the 2026 production PURE: 3815 x 1795 x 1056 mm,
+2200 mm wheelbase, approximately 1350 kg (subject to options),
+1000 bhp (745 kW), 190 mph, 100 kWh, twin-motor rear-wheel drive.
+One fixed forward ratio is represented. The production car was unveiled
+in July 2026 and publicly debuted at Monterey Car Week in August 2026.
+The manufacturer's 1.55-second 0-60 mph claim uses one-foot rollout.
+Normal 20 Hz game tuning gives 1.75 s from rest, approximately
+1.55 s after excluding the first foot of travel.
+Mass, grip, gearing and torque bytes are Stunts tuning, not SI measurements.
+
+Wikipedia was checked alongside the current McMurtry production sources.
+Its obsolete under-1000/900 kg weight and rounded 1050 mm height conflict
+with the factory's current approximately 1350 kg and 1056 mm values.
+MCMU.json records the factory figures. The in-game description uses the
+user's supplied display text.
+
+Geometry uses 44 mm per racing-model unit, calibrated to the stock Corvette
+and NSX. Both race LODs have the same real-world size; the showroom uses
+the same proportions at the stock 20x scale. Wheels and physical contacts
+agree, with tyre bottoms on the engine's six-unit contact plane.
+
+MODEL SOURCES
+A free Sketchfab model was found, but its official download endpoint
+requires authentication; other candidates were paid or lacked clear reuse
+permission. This package therefore uses original photo-based low-polygon
+geometry and cockpit artwork, as authorized by the request. No third-party
+mesh or manufacturer photograph is redistributed. MCMU.json records the
+model search, photo URLs, specifications, dimensions and resource hashes.
+The front and rear are reconstructed from the manufacturer's 2026 production
+photographs, including the sculpted rear ducts and divided nose intakes.
+MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
+Y-up with tyre bottoms at ground level; keep these two files together.
+The raised fender shoulders cover the upper tyre envelope in all model
+detail levels, checked against the quantized geometry during generation.
+Each wheel's cover triangles follow it with native primitive flag 2, so
+the painter draws the fender after its wheel even at shallow angles.
+The four real wheel-crown openings are represented by bounded recessed
+vents with painted rims, dark recessed bowls and cross ribs, based on
+the user's 1000005898/5901/5899/5900.jpg detail photographs.
+The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
+the earlier rectangular LCD wheel reference. A continuous shaped steering
+rim joins textured side grips with contrasting carbon top and bottom bridges.
+It has five matching blank fluted knobs, a red instrument needle, turquoise
+vent pods, silver circular vents, stitched carbon trim and release hardware. Native
+dast/dasm masks show the gently bowed carbon cowl, raised turquoise front
+fenders and top apertures while preserving the live road above them. The earlier
+wheel reference remains available at:
+https://www.topgear.com/car-reviews/speirling/first-drive
+
+REBUILD
+python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
+python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
+
+The generator validates all model, wheel, bitmap and adhesion resources
+and requires dashboard memory use to stay strictly below DIA3:
+Extracted A+B: 83,907 vs 148,036 bytes.
+Prepared A+B: 37,408 vs 66,176 bytes.
+With scratch: 39,984 vs 80,304 bytes.
+These are classic-mode arena payloads; shared window tables are preallocated.
+See docs/mcmurtry-speirling.md
+for dimensional calibration, source details and validation.
+
+SOURCES
+https://mcmurtry.com/speirling-pure/
+https://mcmurtry.com/mcmurtry-speirling-production-form/
+https://mcmurtry.com/speirling-usa-debut/
+https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling
+https://www.carthrottle.com/news/finished-mcmurtry-speirling-pure-fan-car-here-1000bhp
+https://www.zr1netregistry.com/Information/C4ZR-1GeneralInfo/Dimensions.aspx
+https://acuranews.com/en-US/releases/release-ff6633ebcc698302413a3d004c34ca74-1991-acura-nsx-specifications

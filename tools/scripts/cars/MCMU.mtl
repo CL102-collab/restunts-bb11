@@ -1,0 +1,60 @@
+# Original model; material names retain their native Stunts IDs.
+newmtl material_0
+Kd 0.0080 0.0090 0.0120
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_15
+Kd 0.9500 0.9600 0.9800
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_19
+Kd 0.2800 0.2900 0.3100
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_39
+Kd 0.0600 0.0650 0.0750
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_40
+Kd 0.6500 0.6800 0.7200
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_45
+Kd 0.6500 0.0050 0.0080
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_64
+Kd 0.0000 0.6000 0.6000
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_65
+Kd 0.0000 0.8000 0.8000
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_66
+Kd 0.0000 0.9600 0.9600
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32
+
+newmtl material_88
+Kd 0.0100 0.0250 0.0700
+Ka 0.04 0.04 0.04
+Ks 0.15 0.15 0.15
+Ns 32

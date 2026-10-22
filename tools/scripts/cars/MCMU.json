@@ -1,0 +1,414 @@
+{
+  "car_id": "MCMU",
+  "name": "McMurtry Spéirling PURE",
+  "variant": "2026 Speirling PURE production car",
+  "model_year": 2026,
+  "specifications_verified_date": "2026-10-21",
+  "game_name": "McMurtry Speirling PURE",
+  "geometry": "Original low-polygon reconstruction from manufacturer photographs/renders, with front and rear bodywork rebuilt from the 2026 production-car photographs; no downloaded third-party mesh.",
+  "geometry_revision": "Production-car front and rear reconstructed with divided nose intakes, inset headlights, recessed rear ducts, four small tail lamps and a separate lower diffuser. Raised, triangulated fender shoulders clear the upper tyre envelope in all three model detail levels. Cover faces and bounded recessed wheel-arch vents follow their matching wheel with native flag 2, preserving their drawing order in angled views.",
+  "model_search": [
+    {
+      "url": "https://sketchfab.com/3d-models/mcmurtry-speirling-8217dad4511a441baadffac685ba4a62",
+      "license": "CC BY-NC-SA 4.0",
+      "result": "Official download API requires authentication (HTTP 401); not used."
+    },
+    {
+      "url": "https://www.turbosquid.com/3d-models/3d-mcmurtry-speirling-model-2411624",
+      "result": "Paid, editorial license; not used."
+    }
+  ],
+  "reference_images": [
+    {
+      "view": "2026 production front",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-front-2048x1280.jpg"
+    },
+    {
+      "view": "2026 production front three-quarter",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-front-3_4-2048x1279.jpg"
+    },
+    {
+      "view": "2026 production front detail",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-front-detail-2048x1280.jpg"
+    },
+    {
+      "view": "2026 production rear",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-rear-2048x1280.jpg"
+    },
+    {
+      "view": "2026 production rear three-quarter",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-rear-3_4-2048x1280.jpg"
+    },
+    {
+      "view": "2026 production rear studio detail",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/06/rear-FINAL-2048x1365.jpg"
+    },
+    {
+      "view": "2026 production rear track detail",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/06/TRACK-REAR-1-2048x1366.jpg"
+    },
+    {
+      "view": "2026 production overhead",
+      "url": "https://mcmurtry.com/wp-content/uploads/2026/06/TRACK-OVERHEAD-1-2048x1365.jpg"
+    }
+  ],
+  "initial_reconstruction_reference_images": [
+    {
+      "view": "front",
+      "url": "https://mcmurtry.com/wp-content/uploads/2024/06/McMurtry-Speirling-PURE-Front-View-1-1024x723-1.jpg"
+    },
+    {
+      "view": "side",
+      "url": "https://mcmurtry.com/wp-content/uploads/2024/06/McMurtry-Speirling-PURE-Side-View-1-1024x723-1.jpg"
+    },
+    {
+      "view": "rear",
+      "url": "https://mcmurtry.com/wp-content/uploads/2024/06/McMurtry-Speirling-PURE-Rear-3-4-1024x723-1.jpg"
+    },
+    {
+      "view": "front three-quarter",
+      "url": "https://mcmurtry.com/wp-content/uploads/2024/06/Speirling-PURE-Hero-Shot-with-logos-1024x723-1.jpg"
+    }
+  ],
+  "user_supplied_detail_references": [
+    {
+      "file": "1000005898.jpg",
+      "view": "Close-up of front wheel-crown aperture, rim, dark recess and cross rib."
+    },
+    {
+      "file": "1000005901.jpg",
+      "view": "Rear wheel-crown apertures beside the wing."
+    },
+    {
+      "file": "1000005899.jpg",
+      "view": "Front three-quarter view showing both front apertures."
+    },
+    {
+      "file": "1000005900.jpg",
+      "view": "Low front three-quarter view showing the aperture within the fender crown."
+    }
+  ],
+  "wheel_arch_vents": {
+    "count": 4,
+    "locations": [
+      {
+        "wheel": 0,
+        "center_x": -15.86489898989899,
+        "center_z": 25.56672494172494
+      },
+      {
+        "wheel": 1,
+        "center_x": 15.86489898989899,
+        "center_z": 25.56672494172494
+      },
+      {
+        "wheel": 2,
+        "center_x": 15.86489898989899,
+        "center_z": -25.56672494172494
+      },
+      {
+        "wheel": 3,
+        "center_x": -15.86489898989899,
+        "center_z": -25.56672494172494
+      }
+    ],
+    "width_game_units": 5.666035353535354,
+    "length_game_units": 10.004370629370628,
+    "recess_depth_game_units": 0.8347826086956522,
+    "representation": "Chamfered painted rims, dark recessed bowls and a cross rib; a low-polygon approximation of the photographed wheel-crown openings."
+  },
+  "reference_image_usage": "Reference only; manufacturer images are not redistributed in the car package.",
+  "specifications": {
+    "variant": "2026 Speirling PURE production car",
+    "model_year": 2026,
+    "verified_date": "2026-10-21",
+    "length_mm": 3815,
+    "width_mm": 1795,
+    "height_mm": 1056,
+    "wheelbase_mm": 2200,
+    "weight_kg": 1350,
+    "weight_note": "Approximately 1350 kg, subject to options",
+    "peak_power_bhp": 1000,
+    "peak_power_kw": 745,
+    "top_speed_mph": 190,
+    "battery_kwh": 100,
+    "drive": "Twin-motor rear-wheel drive with E-differential",
+    "forward_gears": 1,
+    "front_tyres": "30/68-18 Michelin Pilot Sport GT S8M slick",
+    "rear_tyres": "31/71-18 Michelin Pilot Sport GT S8M slick",
+    "downforce_kg_at_standstill": 2000,
+    "cornering_g": 3,
+    "braking_g": 3,
+    "zero_to_60_mph_seconds": 1.55,
+    "acceleration_rollout_feet": 1,
+    "acceleration_reference": "Manufacturer's production-car claim: 0-60 mph in 1.55 seconds with one-foot rollout. This excludes travel through the first 0.3048 metres; it is not a standing-start timing measurement.",
+    "production_status": "Production-ready car publicly debuted at Monterey Car Week 2026; first customer deliveries planned later in 2026.",
+    "source_reconciliation": "Wikipedia currently combines 2026 dimensions and battery with obsolete under-1000/900 kg mass figures and a rounded 1050 mm height. The current manufacturer sources consistently specify approximately 1350 kg and 1056 mm; those values are used here.",
+    "sources": [
+      "https://mcmurtry.com/speirling-pure/",
+      "https://mcmurtry.com/mcmurtry-speirling-production-form/",
+      "https://mcmurtry.com/speirling-usa-debut/",
+      "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling",
+      "https://www.carthrottle.com/news/finished-mcmurtry-speirling-pure-fan-car-here-1000bhp"
+    ]
+  },
+  "performance_note": "The 2026 production-car claim of 1.55 s to 60 mph includes one-foot rollout. Both standing-start and rollout-adjusted game timings are recorded separately; native tuning is an approximation of the production figures.",
+  "game_straight_line_performance": [
+    {
+      "fps": 20,
+      "duration_seconds": 600,
+      "zero_to_60_mph_seconds": 1.75,
+      "zero_to_100_mph_seconds": 3.1,
+      "one_foot_rollout_seconds": 0.19753072040067557,
+      "zero_to_60_mph_with_one_foot_rollout_seconds": 1.5524692795993245,
+      "peak_speed_mph": 190.21875,
+      "settled_speed_mph": 186.9609375
+    },
+    {
+      "fps": 10,
+      "duration_seconds": 600,
+      "zero_to_60_mph_seconds": 1.8,
+      "zero_to_100_mph_seconds": 3.1,
+      "one_foot_rollout_seconds": 0.19711917380078817,
+      "zero_to_60_mph_with_one_foot_rollout_seconds": 1.6028808261992118,
+      "peak_speed_mph": 190.4375,
+      "settled_speed_mph": 185.25
+    }
+  ],
+  "performance_measurement": "Full-throttle level-ground integer drivetrain update with all four tyres grounded; checked against native statecar.c. This isolates gearing and torque from track and steering effects. The native redline brake produces a small limiter sawtooth.",
+  "sizing": {
+    "millimetres_per_game_unit": 44.0,
+    "showroom_scale": 20,
+    "showroom_y_offset": 120,
+    "wheel_radius_game_units": 8,
+    "wheel_centres_game_units": [
+      [
+        -16,
+        2,
+        25
+      ],
+      [
+        16,
+        2,
+        25
+      ],
+      [
+        16,
+        2,
+        -25
+      ],
+      [
+        -16,
+        2,
+        -25
+      ]
+    ],
+    "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
+    "rounding": "2026 production dimensions set the nominal calibration. Symmetric racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x."
+  },
+  "paint_jobs": [
+    "Turquoise",
+    "Purple",
+    "Orange",
+    "Yellow",
+    "Blue",
+    "White",
+    "Light gray"
+  ],
+  "adhesion": {
+    "fand": 1,
+    "resource": "adhs",
+    "version": 1,
+    "max_distance_world_units": 12,
+    "min_alignment_cosine_q14": 8192,
+    "max_alignment_degrees": 60,
+    "surface_mask": 15,
+    "surfaces": [
+      "paved",
+      "dirt",
+      "ice",
+      "grass"
+    ],
+    "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
+  },
+  "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels.",
+  "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
+  "dashboard_reference_images": [
+    {
+      "url": "https://www.topgear.com/car-reviews/speirling/first-drive",
+      "view": "September 2024 first-hand prototype review and photo gallery; single seat, single gear, fan and motor-power controls."
+    },
+    {
+      "url": "https://www.topgear.com/sites/default/files/2024/09/DSC00094_3.jpg",
+      "view": "Prototype cockpit: central rectangular LCD wheel, five rotary knobs, textured hand grips, bare carbon tub and red release handle."
+    },
+    {
+      "url": "https://www.topgear.com/sites/default/files/2024/09/DSC00356_3.jpg",
+      "view": "Detached prototype wheel close-up: eleven shift-lamp lenses, McMurtry/record-holder branding, TC/FAN/PWR/EPAS controls and textured grips."
+    },
+    {
+      "file": "1-1000005914.jpg",
+      "view": "User photograph: prototype carbon cockpit, curved upper trim, release handle, seams and fasteners."
+    },
+    {
+      "file": "2-1000005913.jpg",
+      "view": "User photograph: prototype LCD and five fluted rotary knobs; user requests all five match the unlabelled second knob."
+    },
+    {
+      "file": "3-1000005912.jpg",
+      "view": "User photograph: continuous shaped steering-wheel rim, circular silver vents, padded carbon sills and turquoise front-fender crowns with upper openings. Vent-pod trim is turquoise as requested."
+    }
+  ],
+  "dashboard_decompressed_bytes": {
+    "A": {
+      "MCMU": 81991,
+      "DIA3": 146014
+    },
+    "B": {
+      "MCMU": 1916,
+      "DIA3": 2022
+    }
+  },
+  "dashboard_game_prepared_bytes": {
+    "MCMU": 37408,
+    "DIA3": 66176
+  },
+  "dashboard_ram_bytes": {
+    "MCMU": {
+      "extracted_resources_bytes": 83907,
+      "prepared_resources_bytes": 37408,
+      "scratch_bitmap_bytes": 2576,
+      "scratch_dimensions": [
+        [
+          88,
+          29
+        ]
+      ],
+      "resident_arena_bytes": 39984
+    },
+    "DIA3": {
+      "extracted_resources_bytes": 148036,
+      "prepared_resources_bytes": 66176,
+      "scratch_bitmap_bytes": 14128,
+      "scratch_dimensions": [
+        [
+          188,
+          75
+        ]
+      ],
+      "resident_arena_bytes": 80304
+    }
+  },
+  "dashboard_ram_note": "Classic 320x200 native arena payloads including 16-byte allocation rounding and shared instrument/gearbox scratch bitmaps. Sprite definitions and row tables use the common preallocated window table. Generation requires strictly less extracted, prepared and resident dashboard RAM than DIA3.",
+  "models": {
+    "car0": {
+      "vertices": 254,
+      "primitives": 255,
+      "paint_jobs": 7,
+      "dimensions_game_units": {
+        "length": 86.7,
+        "width": 40.8,
+        "height": 24.0,
+        "wheelbase": 50.0
+      },
+      "minimum_upper_tyre_clearance_game_units": 1.07,
+      "wheel_cover_triangles_attached_to_each_wheel": [
+        19,
+        19,
+        14,
+        14
+      ]
+    },
+    "car1": {
+      "vertices": 253,
+      "primitives": 252,
+      "paint_jobs": 7,
+      "dimensions_game_units": {
+        "length": 86.0,
+        "width": 40.0,
+        "height": 24.0,
+        "wheelbase": 50.0
+      },
+      "minimum_upper_tyre_clearance_game_units": 1.093,
+      "wheel_cover_triangles_attached_to_each_wheel": [
+        19,
+        19,
+        14,
+        14
+      ]
+    },
+    "car2": {
+      "vertices": 247,
+      "primitives": 244,
+      "paint_jobs": 7,
+      "dimensions_game_units": {
+        "length": 86.0,
+        "width": 40.0,
+        "height": 24.0,
+        "wheelbase": 50.0
+      },
+      "minimum_upper_tyre_clearance_game_units": 1.093,
+      "wheel_cover_triangles_attached_to_each_wheel": [
+        19,
+        19,
+        14,
+        14
+      ]
+    },
+    "exp0": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp1": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp2": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    },
+    "exp3": {
+      "vertices": 4,
+      "primitives": 1,
+      "paint_jobs": 7
+    }
+  },
+  "sources": [
+    "https://mcmurtry.com/speirling-pure/",
+    "https://mcmurtry.com/mcmurtry-speirling-production-form/",
+    "https://mcmurtry.com/speirling-usa-debut/",
+    "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling",
+    "https://www.carthrottle.com/news/finished-mcmurtry-speirling-pure-fan-car-here-1000bhp",
+    "https://www.zr1netregistry.com/Information/C4ZR-1GeneralInfo/Dimensions.aspx",
+    "https://acuranews.com/en-US/releases/release-ff6633ebcc698302413a3d004c34ca74-1991-acura-nsx-specifications"
+  ],
+  "files": {
+    "CARMCMU.RES": {
+      "bytes": 1012,
+      "sha256": "4c1f7da07f53c1933aaa99f6abdea168e0b2ca5e4f88c0f9adcd470f68b13c11"
+    },
+    "STMCMU.3SH": {
+      "bytes": 19958,
+      "sha256": "b26d27dee1592c6bb6a57a2c2f90a0d4402e2a8c3ebdc75f5b1142e7516a419a"
+    },
+    "STDAMCMU.VSH": {
+      "bytes": 81991,
+      "sha256": "adb8c8887245b42e4a3e482d2a023528d0efb659eeb7f63992b1f31e09e7c594"
+    },
+    "STDBMCMU.VSH": {
+      "bytes": 1916,
+      "sha256": "5f0a65e60e3df8de588aaf14aa18506b64baeacc9699d5cc3e6b93c1ccda5bf3"
+    },
+    "MCMU.obj": {
+      "bytes": 22184,
+      "sha256": "700940aea65e96b0cb349b531e3cfae6313cad0f141c15b23e52e52497fd9e58"
+    },
+    "MCMU.mtl": {
+      "bytes": 923,
+      "sha256": "62e23a9807ddbd3cd213a922f5776f78ce717ec6f0ce86aa372647774b17b0a0"
+    }
+  }
+}
