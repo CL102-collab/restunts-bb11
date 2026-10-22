@@ -108,8 +108,9 @@ or toolchain stamp change.
 These source builds are separate from the independent Borland reference
 binaries under [`tools/oracles/borland`](../tools/oracles/borland/README.md).
 Source builds never replace the archived files. CI replay validation uses
-both archived dump executables. The archived renderer captures every frame
-with incremental redraws and writes `PIXLDUMP 2` hash dumps.
+both source-built original dump executables so playback follows the recording's
+frame rate. The archived wrappers force 20 Hz. Both renderer references capture
+every frame with incremental redraws and write `PIXLDUMP 2` hash dumps.
 `validate-toolchain.py` uses the archived physics oracle and the renderer
 reference from `--candidate-directory` (default: `stunts/`), normally built
 with `pixldump-original`. Developer comparisons through `autocheck.sh` and

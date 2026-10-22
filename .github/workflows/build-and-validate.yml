@@ -52,7 +52,7 @@ on:
         default: 980
     outputs:
       exe-artifact:
-        description: Artifact holding the six DOS executables, when a DOS build is requested.
+        description: Artifact holding both original dump references and all six executables when requested.
         value: ${{ jobs.build.outputs.exe-artifact }}
 
 env:
@@ -301,11 +301,12 @@ jobs:
   build:
     name: Build DOS executables
     needs: [formatting, dumpsrv-tests, host-tests, sanitizers, plan]
-    if: inputs.build-dos-artifact || contains(fromJSON(needs.plan.outputs.platforms), 'dos')
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
       exe-artifact: ${{ steps.names.outputs.value }}
+    env:
+      BUILD_DOS_EXECUTABLES: ${{ inputs.build-dos-artifact || contains(fromJSON(needs.plan.outputs.platforms), 'dos') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -332,19 +333,28 @@ jobs:
               --connect-timeout 20 "$STUNTS_URL" --output "$zip_path"
           unzip -oq "$zip_path" -d stunts
 
+      - name: Build original dump references
+        run: make -C src/restunts repldump-original pixldump-original
+
       - name: Build all six DOS executables
+        if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
           make -C src/restunts restunts repldump pixldump
-          make -C src/restunts restunts-original repldump-original pixldump-original
+          make -C src/restunts restunts-original
 
-      - name: Check the DOS platform ABI and dump timer masking
+      - name: Install DOSBox-X
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends dosbox-x
+
+      - name: Check the DOS platform ABI and dump timer masking
+        if: env.BUILD_DOS_EXECUTABLES == 'true'
+        run: |
           make -C src/restunts test-dos-platform
           python3 tools/scripts/run-dos-platform-test.py
 
       - name: Verify DOS16 startup and driving settings
+        if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
           python3 tools/scripts/generate-tesla-roadster.py --install stunts
           make -C src/restunts test-driving-options
@@ -354,7 +364,11 @@ jobs:
         run: |
           set -eu
           mkdir -p dist
-          for exe in restunts restunto repldump repldumo pixldump pixldumo; do
+          executables=(repldumo pixldumo)
+          if [[ "$BUILD_DOS_EXECUTABLES" == true ]]; then
+              executables=(restunts restunto repldump repldumo pixldump pixldumo)
+          fi
+          for exe in "${executables[@]}"; do
               test -s "stunts/$exe.exe"
               cp -- "stunts/$exe.exe" "dist/$exe.exe"
           done
@@ -579,12 +593,10 @@ jobs:
   physics:
     name: Physics replays (${{ matrix.platform }})
     needs: [build, build-sdl3, plan]
-    # An unselected build is intentionally skipped; selected builds must pass.
+    # Every platform uses the freshly built original physics reference.
     if: >-
       ${{ !cancelled() && needs.plan.result == 'success' &&
-          (needs.build.result == 'success' ||
-           (needs.build.result == 'skipped' && !inputs.build-dos-artifact &&
-            !contains(fromJSON(needs.plan.outputs.platforms), 'dos'))) &&
+          needs.build.result == 'success' &&
           (needs.build-sdl3.result == 'success' ||
            (needs.build-sdl3.result == 'skipped' &&
             !contains(fromJSON(needs.plan.outputs.platforms), 'sdl3'))) }}

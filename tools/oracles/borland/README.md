@@ -4,9 +4,16 @@ These executable files use the original game disassembly and Borland-built dump
 wrappers as independent regression references. They must not be rebuilt with
 Watcom or replaced while fixing the C port.
 
-Current CI uses both archived oracles to generate missing or invalid cached
-outputs. The archived renderer uses incremental redraws and hashes every frame,
-including frame 0, with the `PIXLDUMP 2` output format.
+CI uses the current original-assembly `repldumo.exe` and `pixldumo.exe` from
+the DOS build artifact. Both wrappers read the recording's frame rate before
+initializing replay state. The archived executables below force 20 Hz and
+remain historical references. Use the source builds for 10 Hz recordings and
+when regenerating their published `.BIN` and `.PDO` outputs. Existing 10 Hz
+caches from the archived executables must be replaced for every camera and
+target; their format alone does not identify the incorrect simulation rate.
+
+Both renderer references use incremental redraws and hash every frame,
+including frame 0, with the `PIXLDUMP 2` format.
 
 | File | Bytes | Purpose |
 | --- | ---: | --- |
@@ -58,5 +65,5 @@ regenerates those caches.
 
 See the [shared regression runner](../../scripts/dumpsrv/README.md) for running
 and merging replay comparisons. CI imports published physics and renderer caches
-and uses the corresponding archived Borland oracle when regeneration is needed.
-A deliberate oracle change requires provenance and regression review.
+and uses the source-built original-assembly dumpers when regeneration is
+needed. A deliberate oracle change requires provenance and regression review.

@@ -571,6 +571,10 @@ The flag is case-insensitive and can be combined with physics switches and
 `--owoot`: `repldump.exe R0019.RPL --time --owoot --dws:off` writes both the
 `.tim` driving and penalty times and the independent `.owo` verdict.
 
+Physics dumps always simulate at the recording's stored 10 or 20 Hz rate,
+matching the replay viewer. `--time` only adds its report; it does not change
+the `.BNI` dump or an `.owo` verdict.
+
 ### Needle colours
 
 The ported game includes the [needle colour mod](https://wiki.stunts.hu/wiki/Needle_colour_mod).

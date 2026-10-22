@@ -259,7 +259,8 @@ dotnet out/dumpsrv/dumpsrv.dll run \
 
 To test the SDL3 port, point the same runner at an installed native `bin`
 directory (or a native build directory). The game directory still contains the
-assets, replays, and archived `repldumo.exe` / `pixldumo.exe` DOS oracles:
+assets, replays, and source-built `repldumo.exe` / `pixldumo.exe` DOS oracles
+(`make -C src/restunts repldump-original pixldump-original`):
 
 ```sh
 dotnet out/dumpsrv/dumpsrv.dll run \
@@ -343,7 +344,9 @@ Use `platforms: '["dos"]'` for DOS only, `platforms: '["sdl3"]'` for Linux x64
 SDL3 only, or `platforms: '["dos","sdl3"]'` for both. Like `cameras` and
 `targets`, it is available in the manual **PR validation** and **Release**
 workflows and the reusable **Build and validate** workflow. Unselected replay
-builds are skipped. **PR validation** and **Release** always build every
+candidate builds are skipped. The original-assembly physics and renderer
+references are always built, including for SDL3-only replay tests.
+**PR validation** and **Release** always build every
 distribution package, including DOS, even for SDL3-only replay tests.
 
 The planning job publishes one plan per selected target as `target0.json` or
@@ -424,10 +427,12 @@ pass extraction and shard-plan validation.
 Physics compares original `.BIN` output against fresh `.BNI` output. Rendering
 uses the selected camera and target, comparing original `.PDO` output against
 fresh `.PDD` output. Both renderer executables must use incremental redraws and
-hashes on every frame. CI uses the archived Borland `pixldumo.exe`; for local
-runs, use that archive or build `pixldump-original` alongside `pixldump`.
-See the [oracle guide](../../oracles/borland/README.md) for preparing archived
-references. Comparisons are byte for byte.
+hashes on every frame and the recording's simulation rate. CI uses the
+source-built original-assembly `repldumo.exe` and `pixldumo.exe`; for local runs,
+build `repldump-original` and `pixldump-original` alongside the candidates.
+See the [oracle guide](../../oracles/borland/README.md) for the historical
+Borland references. Their wrappers force 20 Hz, so existing 10 Hz `.BIN` and
+`.PDO` caches need replacement. Comparisons are byte for byte.
 
 Renderer caches also require a matching `<replay>.PDO.settings` file containing
 the camera and target, separated by one space. The runner and oracle extractor
@@ -443,9 +448,10 @@ frames 0, 1, 2, ... through the replay's final frame. Empty, truncated, or
 malformed caches are regenerated, including five-frame sampled dumps and files
 left by older runners without a pending marker. The header
 also invalidates full-redraw caches from the old renderer wrapper. Regeneration
-uses `pixldumo.exe` from the game directory: CI supplies the current archived
-Borland renderer, while local runs can also use a current `pixldump-original`
-source build.
+uses `pixldumo.exe` from the game directory: CI supplies the current
+`pixldump-original` source build. Cache completeness does not distinguish the
+archived wrapper's fixed 20 Hz from the recording's rate; replace affected
+published caches when correcting that rate.
 
 A `.BIN.pending` or `.PDO.pending` marker is written before oracle generation
 and removed only after successful execution produces a complete output.

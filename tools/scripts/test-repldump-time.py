@@ -15,6 +15,8 @@ from regression_timeouts import scaled_timeout
 INPUT_OFFSET = 1828
 STATE_SIZE = 1120
 FINISH_EVENT = 3
+FRAME_RATE_OFFSET = 22
+NORMAL_FRAME_RATE = 20
 
 
 def viewer_time(frames, rate):
@@ -88,7 +90,7 @@ def main():
             run(stem, ("--time", *flags))
             dump, final = states(stem)
             value = (directory / (stem + ".tim")).read_bytes()
-            rate = struct.unpack_from("<H", recording, 22)[0]
+            rate = struct.unpack_from("<H", recording, FRAME_RATE_OFFSET)[0]
             finish = struct.unpack_from("<H", final, 0x146)[0]
             total = struct.unpack_from("<H", final, 0x142)[0]
             wanted = (viewer_time(finish, rate) + b"\r\n" + penalty_time((total - finish) & 0xFFFF, rate)
@@ -123,9 +125,23 @@ def main():
         assert finish == 625 and total - finish == 3960
         assert viewer_time(total, 20) != b"0:31.25"
 
-        final, _ = verify_time("tenhz", ten_hz, expected=b"1:38.70\r\n0:00")
-        assert struct.unpack_from("<H", ten_hz, 22)[0] == 10
+        # The stored rate controls simulation even without a time report.
+        # Changing only that rate must change the dump; asking for a report
+        # must not change simulation or its serialized output.
+        normal_rate = bytearray(ten_hz)
+        struct.pack_into("<H", normal_rate, FRAME_RATE_OFFSET, NORMAL_FRAME_RATE)
+        (directory / "ten20.RPL").write_bytes(normal_rate)
+        run("ten20")
+        normal_dump, _ = states("ten20")
+        (directory / "tenbase.RPL").write_bytes(ten_hz)
+        run("tenbase")
+        recorded_dump, _ = states("tenbase")
+        assert recorded_dump != normal_dump, "Replay simulation must honor the stored frame rate"
+
+        final, timed_dump = verify_time("tenhz", ten_hz, expected=b"1:38.70\r\n0:00")
+        assert struct.unpack_from("<H", ten_hz, FRAME_RATE_OFFSET)[0] == 10
         assert struct.unpack_from("<H", final, 0x146)[0] == 987
+        assert timed_dump == recorded_dump, "Time reporting must not change replay simulation"
 
         final, _ = verify_time("tail", post_finish_fixture(shortcut), expected=b"0:31.10\r\n0:00")
         assert struct.unpack_from("<H", final, 0x14A)[0] == 3420
@@ -153,7 +169,8 @@ def main():
         (directory / "blocked.tim" / "keep").write_bytes(b"keep")
         run("blocked", ("--time",), success=False)
         assert (directory / "blocked.tim" / "keep").read_bytes() == b"keep"
-    print("Replay .tim driving and latched penalty times match at 20/10 Hz; tails, "
+    print("Replay dumps honor recorded rates with or without time reports; .tim driving and "
+          "latched penalty times match at 20/10 Hz; tails, "
           "incomplete/crashed runs, optional output, stale results, I/O errors, and OWOOT passed.")
     return 0
 

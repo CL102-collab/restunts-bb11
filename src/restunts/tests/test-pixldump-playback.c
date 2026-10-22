@@ -6,11 +6,10 @@
 #undef memcpy
 #undef strcmp
 
-struct GAMEINFO gameconfig;
-struct GAMESTATE state;
-struct RECTANGLE rect_windshield;
+#define TEST_REPLAY_FRAMES 3U
+#define TEST_RATE_HEADER_HIGH_BITS 0x1200U
+
 struct LEGACY_EXECUTION_RESIDUE legacy_execution_residue;
-legacy_s8 full_redraw_frames_remaining;
 
 static legacy_u8 framebuffer[64000];
 static legacy_u8 output_bytes[65535];
@@ -18,6 +17,79 @@ static legacy_u8 palette_resource[SHAPE2D_HEADER_SIZE + 768];
 static legacy_u32 output_length, render_count, present_count, close_count;
 static legacy_s32 render_stack_enabled;
 static legacy_s16 expected_bmp_mode;
+static legacy_s16 expected_frame_rate;
+static legacy_u16 stored_frame_rate, initialization_count;
+static legacy_u8 replay_track[TRACKDATA_LINK_TABLE_SIZE];
+static legacy_s8 replay_backup[TRACKDATA_TRACK_FILE_APPEND_SIZE];
+static legacy_u8 checkpoint_bytes[PIXLDUMP_CVX_RESOURCE_SIZE];
+
+void *_memcpy(void *destination, const void *source, legacy_u16 length)
+{
+	return memcpy(destination, source, length);
+}
+
+static void assert_frame_rate(void)
+{
+	if (expected_frame_rate != 0) {
+		assert(framespersec == (legacy_u16)expected_frame_rate);
+	}
+}
+
+legacy_s16 file_load_replay(const legacy_s8 *directory, const legacy_s8 *name)
+{
+	assert(directory[0] == 0 && name[0] != 0);
+	gameconfig.game_framespersec = stored_frame_rate;
+	gameconfig.game_recordedframes = TEST_REPLAY_FRAMES;
+	return 0;
+}
+
+legacy_s16 track_setup(void)
+{
+	return 0;
+}
+
+void far *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size)
+{
+	assert(name[0] != 0 && size == sizeof(checkpoint_bytes));
+	return checkpoint_bytes;
+}
+
+void init_game_state(legacy_s16 mode)
+{
+	assert(mode == GAMESTATE_INIT_RESET_CHECKPOINTS);
+	assert_frame_rate();
+	initialization_count++;
+}
+
+legacy_s16 get_kevinrandom(void)
+{
+	return 0;
+}
+
+legacy_s16 setup_player_cars_without_dashboard(void)
+{
+	assert(initialization_count == 1);
+	assert_frame_rate();
+	return 0;
+}
+
+void set_projection(legacy_s16 horizontal_fov, legacy_s16 vertical_fov, legacy_s16 width,
+					legacy_s16 height)
+{
+	(void)horizontal_fov;
+	(void)vertical_fov;
+	assert(width == PIXLDUMP_SCREEN_WIDTH && height == PIXLDUMP_SCREEN_HEIGHT);
+}
+
+void restore_gamestate(legacy_u16 frame)
+{
+	assert(frame == 0 || frame == TEST_REPLAY_FRAMES);
+	assert_frame_rate();
+}
+
+void init_rect_arrays(void)
+{
+}
 
 void far *dos_memory_make_pointer(legacy_u16 segment, legacy_u16 offset)
 {
@@ -54,6 +126,7 @@ void sprite_select_render_window(void)
 
 void update_frame(legacy_s8 index, struct RECTANGLE *clip)
 {
+	assert_frame_rate();
 	assert(index == 0 && clip == &rect_windshield);
 	assert(render_stack_enabled);
 	assert(render_count == (legacy_u32)state.game_frame);
@@ -76,6 +149,7 @@ void mouse_draw_opaque_check(void)
 
 void update_gamestate_with_legacy_si(legacy_s16 caller_si)
 {
+	assert_frame_rate();
 	assert(caller_si == pixldump_caller_si);
 	assert(render_count == (legacy_u32)state.game_frame + 1);
 	state.game_frame++;
@@ -129,6 +203,8 @@ void far *mmgr_free(legacy_s8 far *pointer)
 
 static void reset_capture(void)
 {
+	expected_frame_rate = 0;
+	initialization_count = 0;
 	memset(framebuffer, 0, sizeof(framebuffer));
 	memset(output_bytes, 0, sizeof(output_bytes));
 	state.game_frame = 0;
@@ -180,9 +256,36 @@ static void test_bmp_capture(void)
 	}
 }
 
+static void test_recorded_frame_rate(void)
+{
+	static const struct {
+		legacy_u16 stored;
+		legacy_s16 expected;
+	} cases[] = {
+		{GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_LOW},
+		{GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_NORMAL},
+		{TEST_RATE_HEADER_HIGH_BITS | GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_LOW},
+		{TEST_RATE_HEADER_HIGH_BITS | (legacy_u8)-GAME_FRAME_RATE_LOW, -GAME_FRAME_RATE_LOW}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		reset_capture();
+		expected_bmp_mode = 0;
+		expected_frame_rate = cases[index].expected;
+		stored_frame_rate = cases[index].stored;
+		framespersec = 0;
+		track_element_map = replay_track;
+		track_and_directory_backup = replay_backup;
+		assert(pixldump_process_replay((const legacy_s8 *)"rate", (const legacy_s8 *)"rate.PDD", 1,
+									   0, 0, 0) == 0);
+		assert(initialization_count == 1);
+		assert(render_count == TEST_REPLAY_FRAMES + 1U);
+		assert_frame_rate();
+	}
+}
+
 int main(void)
 {
 	test_hash_capture();
 	test_bmp_capture();
+	test_recorded_frame_rate();
 	return 0;
 }

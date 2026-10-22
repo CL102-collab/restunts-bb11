@@ -322,6 +322,9 @@ exit code. The flag is case-insensitive and combines with physics switches and
 `--owoot`; the latter still writes its separate `.owo` result. Omitting `--time`
 leaves any existing `.tim` file untouched.
 
+Physics dumps use the recording's stored 10 or 20 Hz rate, matching the
+replay viewer. Adding `--time` does not change the `.BNI` or `.owo` output.
+
 On Linux, BSD, Haiku, Windows, and macOS, the interactive game defaults to serial rendering with
 zero background render workers. `RESTUNTS_RENDER_WORKERS=auto` enables automatic
 parallel rendering, or use a count from `0` through `7`. See the

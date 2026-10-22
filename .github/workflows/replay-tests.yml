@@ -9,7 +9,7 @@ on:
         type: string
         required: true
       exe-artifact:
-        description: Artifact holding built DOS candidates, required when testing DOS.
+        description: Built DOS executables and both original dump references, required for every phase.
         type: string
         default: ''
       candidate-platform:
@@ -78,10 +78,14 @@ jobs:
           NATIVE_ARTIFACT: ${{ inputs.native-artifact }}
         run: |
           case "$CANDIDATE_PLATFORM" in
-            dos) test -n "$DOS_ARTIFACT" ;;
+            dos) ;;
             sdl3) test -n "$NATIVE_ARTIFACT" ;;
             *) echo "::error::candidate-platform must be dos or sdl3"; exit 1 ;;
           esac
+          if [[ -z "$DOS_ARTIFACT" ]]; then
+              echo "::error::replay tests require the built DOS reference artifact"
+              exit 1
+          fi
 
       - name: Validate camera and target
         run: |
@@ -118,8 +122,8 @@ jobs:
               -conf tools/scripts/dosbox.proc.conf \
               -c "mount c $RUNNER_TEMP" -c "c:" -c "exit"
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        if: inputs.candidate-platform == 'dos'
+      - name: Download the DOS executables and original references
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: ${{ inputs.exe-artifact }}
           path: exes
@@ -159,9 +163,14 @@ jobs:
           if [[ "$CANDIDATE_PLATFORM" == dos ]]; then
               cp exes/*.exe "$game_dir/"
           fi
-          # Use the archived Borland built oracle on cache-miss
-          (cd tools/oracles/borland && sha256sum --check SHA256SUMS)
-          cp tools/oracles/borland/repldumo.exe tools/oracles/borland/pixldumo.exe "$game_dir/"
+          # Both phases regenerate missing caches with the freshly built original engine.
+          for oracle in repldumo pixldumo; do
+              if [[ ! -s "exes/$oracle.exe" ]]; then
+                  echo "::error::built original dump reference exes/$oracle.exe is missing or empty"
+                  exit 1
+              fi
+              cp "exes/$oracle.exe" "$game_dir/"
+          done
           unzip -q tools/scripts/rpls_golden/replays.zip -d "$game_dir"
           echo "GAME_DIR=$game_dir" >> "$GITHUB_ENV"
 
@@ -170,7 +179,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: ${{ inputs.shards }}
           RENDERER_TEST_PERCENTAGE: ${{ inputs.renderer-test-percentage }}
-          ORACLE_URL: https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.4
+          ORACLE_URL: https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.5
         run: |
           set -eu
           archive=BINs

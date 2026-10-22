@@ -1,9 +1,12 @@
 # Renderer parity with the original game
 
-CI pixel comparisons use the archived Borland `pixldumo.exe`. Local builds
-with `pixldump-original` produce a Watcom executable from the original
-assembly and current capture wrapper. Both renderer references capture
-every frame with incremental redraws and write `PIXLDUMP 2` hash dumps.
+CI pixel comparisons use `pixldumo.exe` built with `pixldump-original` from
+the original assembly and current capture wrapper. Both renderer dumpers use
+the recording's frame rate before initializing replay state, capture every
+frame with incremental redraws, and write `PIXLDUMP 2` hash dumps. The archived
+Borland wrapper forces 20 Hz; its 10 Hz `.PDO` caches must be replaced with
+source-built outputs for each camera and target. The archived executable
+remains available for historical comparisons, including the 20 Hz controls.
 Rendering and simulation are not independent in the original executable: its
 physics reads values left in stack slots by earlier rendering calls. The C port
 represents those values explicitly instead of depending on undefined C locals,

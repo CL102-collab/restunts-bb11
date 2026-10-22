@@ -507,11 +507,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	printf("File: %s\n\n", argv[1]);
 	printf("Loading replay... ");
 	file_load_replay("", argv[1]);
-#ifndef RESTUNTS_ORIGINAL
-	/* Replay simulation and its formatted clock use the viewer's stored rate. */
+	/* Match the original replay viewer before initializing rate-dependent state. */
 	framespersec =
 		(legacy_s16)LEGACY_S8_FROM_BITS(LEGACY_U16_LOW_BYTE(gameconfig.game_framespersec));
-#endif
 	printf("OK\n");
 	legacy_s8 carid[REPLDUMP_CAR_ID_BUFFER_SIZE];
 	_memcpy(carid, gameconfig.game_playercarid, REPLDUMP_CAR_ID_SIZE);
@@ -583,9 +581,6 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	cameramode = 0;
 	game_replay_mode = REPLAY_MODE_PLAYBACK;
 	start_flag_animation = REPLDUMP_FRAME_TIMER_VALUE;
-#ifdef RESTUNTS_ORIGINAL
-	framespersec = GAME_FRAME_RATE_NORMAL;
-#endif
 
 	restore_gamestate(0);
 	restore_gamestate(gameconfig.game_recordedframes);

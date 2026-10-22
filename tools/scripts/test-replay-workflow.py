@@ -50,7 +50,10 @@ def block_after(source, heading):
 
 def step_script(workflow, name):
     step = block_after(workflow, "      - name: " + name)
-    return textwrap.dedent(block_after(step, "        run: |"))
+    if "        run: |" in step.splitlines():
+        return textwrap.dedent(block_after(step, "        run: |"))
+    return next(line.removeprefix("        run: ") for line in step.splitlines()
+                if line.startswith("        run: "))
 
 
 class ReplayWorkflowTests(unittest.TestCase):
@@ -59,21 +62,176 @@ class ReplayWorkflowTests(unittest.TestCase):
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
         cls.replay_workflow = REPLAY_WORKFLOW.read_text(encoding="utf-8")
 
-    def run_step(self, name, directory, **environment):
+    def run_step(self, name, directory, workflow=None, **environment):
         output = directory / "github-output.txt"
         output.write_text("", encoding="utf-8")
         result = subprocess.run(
             ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", "-c",
-             step_script(self.workflow, name)],
+             step_script(workflow or self.workflow, name)],
             cwd=directory,
             env=os.environ | environment | {
                 "GITHUB_OUTPUT": str(output),
+                "GITHUB_ENV": str(directory / "github-env.txt"),
                 "GITHUB_STEP_SUMMARY": str(directory / "summary.md"),
             },
             capture_output=True, text=True, timeout=COMMAND_TIMEOUT_SECONDS,
         )
         outputs = dict(line.split("=", 1) for line in output.read_text().splitlines())
         return result, outputs
+
+    def write_stub(self, directory, name, source):
+        path = directory / name
+        path.write_text("#!" + sys.executable + "\n" + textwrap.dedent(source), encoding="utf-8")
+        path.chmod(0o755)
+
+    def make_game_fixture(self, directory):
+        binaries = directory / "stub-bin"
+        binaries.mkdir()
+        self.write_stub(binaries, "curl", """
+            from pathlib import Path
+            import sys
+            Path(sys.argv[sys.argv.index("--output") + 1]).write_bytes(b"archive")
+        """)
+        self.write_stub(binaries, "unzip", """
+            from pathlib import Path
+            import sys
+            destination = Path(sys.argv[sys.argv.index("-d") + 1])
+            destination.mkdir(parents=True, exist_ok=True)
+            if any(argument.endswith("BB11.zip") for argument in sys.argv):
+                (destination / "repldumo.exe").write_bytes(b"asset physics")
+                (destination / "pixldumo.exe").write_bytes(b"asset renderer")
+            else:
+                (destination / "golden.rpl").write_bytes(b"golden replay")
+        """)
+        cars = directory / "tools" / "scripts" / "cars"
+        cars.mkdir(parents=True)
+        (cars / "car.res").write_bytes(b"car resource")
+        archived = directory / "tools" / "oracles" / "borland"
+        archived.mkdir(parents=True)
+        for name, contents in (("repldumo.exe", b"archived physics"),
+                               ("pixldumo.exe", b"archived renderer")):
+            (archived / name).write_bytes(contents)
+        exes = directory / "exes"
+        exes.mkdir()
+        (exes / "repldumo.exe").write_bytes(b"built physics")
+        (exes / "pixldumo.exe").write_bytes(b"built renderer")
+        runner = directory / "runner"
+        runner.mkdir()
+        return {
+            "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+            "RUNNER_TEMP": str(runner), "STUNTS_URL": "test-assets",
+        }
+
+    def test_game_assembly_uses_built_original_references_for_both_phases(self):
+        for platform, physics in (("sdl3", True), ("dos", True),
+                                  ("sdl3", False), ("dos", False)):
+            with self.subTest(platform=platform, physics=physics), \
+                    tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                environment = self.make_game_fixture(directory)
+                result, _ = self.run_step(
+                    "Assemble the game directory", directory, workflow=self.replay_workflow,
+                    CANDIDATE_PLATFORM=platform, PHYSICS_TESTS=str(physics).lower(),
+                    **environment)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                game = Path(environment["RUNNER_TEMP"]) / "gamedir"
+                self.assertEqual(b"built physics", (game / "repldumo.exe").read_bytes())
+                self.assertEqual(b"built renderer", (game / "pixldumo.exe").read_bytes())
+
+    def test_game_assembly_rejects_missing_or_empty_built_original_references(self):
+        cases = ((platform, physics, oracle, empty) for platform in ("sdl3", "dos")
+                 for physics in (True, False) for oracle in ("repldumo", "pixldumo")
+                 for empty in (False, True))
+        for platform, physics, oracle, empty in cases:
+            with self.subTest(platform=platform, physics=physics, oracle=oracle, empty=empty), \
+                    tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                environment = self.make_game_fixture(directory)
+                reference = directory / "exes" / f"{oracle}.exe"
+                if empty:
+                    reference.write_bytes(b"")
+                else:
+                    reference.unlink()
+                result, _ = self.run_step(
+                    "Assemble the game directory", directory, workflow=self.replay_workflow,
+                    CANDIDATE_PLATFORM=platform, PHYSICS_TESTS=str(physics).lower(), **environment)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("built original dump reference", result.stdout + result.stderr)
+                self.assertFalse((directory / "github-env.txt").exists())
+
+    def test_artifact_validation_requires_built_references_for_every_platform_and_phase(self):
+        for platform, physics, dos_artifact, native_artifact, success in (
+                ("sdl3", "true", "dos-build", "native-build", True),
+                ("sdl3", "true", "", "native-build", False),
+                ("sdl3", "false", "", "native-build", False),
+                ("sdl3", "false", "dos-build", "native-build", True),
+                ("sdl3", "true", "dos-build", "", False),
+                ("dos", "true", "dos-build", "", True),
+                ("dos", "false", "dos-build", "", True),
+                ("dos", "false", "", "", False)):
+            with self.subTest(platform=platform, physics=physics, dos=dos_artifact), \
+                    tempfile.TemporaryDirectory() as temporary:
+                result, _ = self.run_step(
+                    "Validate candidate platform", Path(temporary), workflow=self.replay_workflow,
+                    CANDIDATE_PLATFORM=platform, PHYSICS_TESTS=physics,
+                    DOS_ARTIFACT=dos_artifact, NATIVE_ARTIFACT=native_artifact)
+                self.assertEqual(success, result.returncode == 0, result.stdout + result.stderr)
+        download = block_after(self.replay_workflow,
+                               "      - name: Download the DOS executables and original references")
+        self.assertNotIn("        if:", download)
+        self.assertIn("name: ${{ inputs.exe-artifact }}", download)
+
+    def test_sdl3_only_build_publishes_original_references_without_full_dos_build(self):
+        build = block_after(self.workflow, "  build:")
+        self.assertFalse(any(line.startswith("    if:") for line in build.splitlines()))
+        self.assertIn("BUILD_DOS_EXECUTABLES: ${{ inputs.build-dos-artifact || "
+                      "contains(fromJSON(needs.plan.outputs.platforms), 'dos') }}", build)
+        for name in ("Build all six DOS executables",
+                     "Check the DOS platform ABI and dump timer masking",
+                     "Verify DOS16 startup and driving settings"):
+            step = block_after(build, "      - name: " + name)
+            self.assertIn("if: env.BUILD_DOS_EXECUTABLES == 'true'", step)
+        for name in ("Build original dump references", "Install DOSBox-X",
+                     "Check the renderer address model against the built oracle",
+                     "Check original dump failure cleanup"):
+            step = block_after(build, "      - name: " + name)
+            self.assertNotIn("        if:", step)
+        self.assertIn("dosbox-x", step_script(self.workflow, "Install DOSBox-X"))
+        physics = block_after(self.workflow, "  physics:")
+        self.assertIn("needs.build.result == 'success'", physics)
+        self.assertNotIn("needs.build.result == 'skipped'", physics)
+        self.assertIn("exe-artifact: ${{ needs.build.outputs.exe-artifact }}", physics)
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            binaries = directory / "stub-bin"
+            binaries.mkdir()
+            self.write_stub(binaries, "make", """
+                from pathlib import Path
+                import sys
+                assert sys.argv[1:] == ["-C", "src/restunts", "repldump-original",
+                                        "pixldump-original"]
+                stunts = Path("stunts")
+                stunts.mkdir()
+                (stunts / "repldumo.exe").write_bytes(b"built physics")
+                (stunts / "pixldumo.exe").write_bytes(b"built renderer")
+            """)
+            environment = {"BUILD_DOS_EXECUTABLES": "false",
+                           "PATH": str(binaries) + os.pathsep + os.environ["PATH"]}
+            result, _ = self.run_step("Build original dump references", directory, **environment)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            result, _ = self.run_step("Collect the executables", directory, **environment)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(["pixldumo.exe", "repldumo.exe"],
+                             sorted(path.name for path in (directory / "dist").iterdir()))
+            shutil.rmtree(directory / "dist")
+            full_names = ("restunts", "restunto", "repldump", "repldumo", "pixldump", "pixldumo")
+            for name in full_names:
+                (directory / "stunts" / f"{name}.exe").write_bytes(name.encode())
+            environment["BUILD_DOS_EXECUTABLES"] = "true"
+            result, _ = self.run_step("Collect the executables", directory, **environment)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(sorted(f"{name}.exe" for name in full_names),
+                             sorted(path.name for path in (directory / "dist").iterdir()))
 
     def test_targets_input_is_a_json_array_defaulting_to_both_targets(self):
         inputs = block_after(self.workflow, "    inputs:")

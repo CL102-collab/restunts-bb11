@@ -530,6 +530,9 @@ static legacy_s16 PIXLDUMP_LEGACY_FRAME pixldump_process_replay(
 	if (file_load_replay("", replay_name) != 0) {
 		return 1;
 	}
+	/* Playback physics and its rate-dependent setup follow the replay viewer. */
+	framespersec =
+		(legacy_s16)LEGACY_S8_FROM_BITS(LEGACY_U16_LOW_BYTE(gameconfig.game_framespersec));
 #ifndef RESTUNTS_ORIGINAL
 	/* Keep the new filename overlay out of renderer oracle comparisons. */
 	replay_filename[0] = 0;
@@ -586,7 +589,6 @@ static legacy_s16 PIXLDUMP_LEGACY_FRAME pixldump_process_replay(
 	recording_limit_warning_requested = 0;
 	dashb_toggle = 0;
 	followOpponentFlag = (legacy_u8)target;
-	framespersec = GAME_FRAME_RATE_NORMAL;
 	start_flag_animation = PIXLDUMP_FRAME_TIMER_VALUE;
 	rect_windshield.left = 0;
 	rect_windshield.right = 320;
