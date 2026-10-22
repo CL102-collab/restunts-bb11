@@ -2,98 +2,98 @@
 
 legacy_s8 RsHeapsortLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_4939;
+  legacy_s32 noreg temple_tmp_4944;
   if((value<=127)) {
-    temple_tmp_4939=TempleCastS32(TempleCastS8(value));
+    temple_tmp_4944=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_4939=TempleCastS32(TempleCastS8(
+    temple_tmp_4944=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_4939);
+  return TempleCastS8(temple_tmp_4944);
 }
 
 legacy_s16 RsHeapsortLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_4940;
+  legacy_s32 noreg temple_tmp_4945;
   if((value<=32767)) {
-    temple_tmp_4940=TempleCastS32(TempleCastS16(value));
+    temple_tmp_4945=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_4940=TempleCastS32(TempleCastS16(
+    temple_tmp_4945=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_4940);
+  return TempleCastS16(temple_tmp_4945);
 }
 
 legacy_s32 RsHeapsortLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_4941;
+  legacy_s32 noreg temple_tmp_4946;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_4941=TempleCastS32(TempleCastS32(value));
+    temple_tmp_4946=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_4941=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_4946=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_4941);
+  return TempleCastS32(temple_tmp_4946);
 }
 
 legacy_void RsHeapsortByOrder(legacy_s16 count,legacy_s16 *values,legacy_s16 *order)
 {
-  legacy_s16 noreg temple_gap_4942;
-  legacy_s16 noreg temple_counter_4944;
-  legacy_s16 noreg temple_index_4946;
-  legacy_s32 noreg temple_tmp_4948;
-  legacy_s16 noreg temple_temp_4949;
-  legacy_s16 *temple_tmp_4950;
-  legacy_s16 *temple_tmp_4951;
-  legacy_s16 noreg temple_tmp_4952;
-  temple_gap_4942=TempleCastS16(RsLegacyS16DivOrZero(
+  legacy_s16 noreg temple_gap_4947;
+  legacy_s16 noreg temple_counter_4949;
+  legacy_s16 noreg temple_index_4951;
+  legacy_s32 noreg temple_tmp_4953;
+  legacy_s16 noreg temple_temp_4954;
+  legacy_s16 *temple_tmp_4955;
+  legacy_s16 *temple_tmp_4956;
+  legacy_s16 noreg temple_tmp_4957;
+  temple_gap_4947=TempleCastS16(RsLegacyS16DivOrZero(
       TempleCastS16(RsHeapsortLegacyS16FromBits(TempleCastU16(TempleCastU16(count)))),
       TempleCastS16(RsHeapsortLegacyS16FromBits(TempleCastU16(TempleCastU16(2))))));
   while(1) {
-    if(!((temple_gap_4942>0))) {
+    if(!((temple_gap_4947>0))) {
       break;
     }
-    temple_counter_4944=TempleCastS16(temple_gap_4942);
+    temple_counter_4949=TempleCastS16(temple_gap_4947);
     while(1) {
-      if(!((temple_counter_4944<count))) {
+      if(!((temple_counter_4949<count))) {
         break;
       }
-      temple_index_4946=TempleCastS16(TempleCastS32((temple_counter_4944-temple_gap_4942)));
+      temple_index_4951=TempleCastS16(TempleCastS32((temple_counter_4949-temple_gap_4947)));
       while(1) {
-        temple_tmp_4948=0;
-        if((temple_index_4946>=0)) {
-          temple_tmp_4948=1;
+        temple_tmp_4953=0;
+        if((temple_index_4951>=0)) {
+          temple_tmp_4953=1;
         }
-        if(temple_tmp_4948) {
-          temple_tmp_4948=0;
-          if((values[TempleCastS32((temple_index_4946+temple_gap_4942))]>
-                values[temple_index_4946])) {
-            temple_tmp_4948=1;
+        if(temple_tmp_4953) {
+          temple_tmp_4953=0;
+          if((values[TempleCastS32((temple_index_4951+temple_gap_4947))]>
+                values[temple_index_4951])) {
+            temple_tmp_4953=1;
           }
         }
-        if(!(temple_tmp_4948)) {
+        if(!(temple_tmp_4953)) {
           break;
         }
-        temple_temp_4949=TempleCastS16(values[temple_index_4946]);
-        (values[temple_index_4946]=
-                TempleCastS16(values[TempleCastS32((temple_index_4946+temple_gap_4942))]));
-        (values[TempleCastS32((temple_index_4946+temple_gap_4942))]=
-                TempleCastS16(temple_temp_4949));
-        (temple_temp_4949=TempleCastS16(order[temple_index_4946]));
-        (order[temple_index_4946]=
-                TempleCastS16(order[TempleCastS32((temple_index_4946+temple_gap_4942))]));
-        (order[TempleCastS32((temple_index_4946+temple_gap_4942))]=
-                TempleCastS16(temple_temp_4949));
-        temple_tmp_4950=&(temple_index_4946);
-        ((*temple_tmp_4950)=TempleCastS16(((*temple_tmp_4950)-temple_gap_4942)));
+        temple_temp_4954=TempleCastS16(values[temple_index_4951]);
+        (values[temple_index_4951]=
+                TempleCastS16(values[TempleCastS32((temple_index_4951+temple_gap_4947))]));
+        (values[TempleCastS32((temple_index_4951+temple_gap_4947))]=
+                TempleCastS16(temple_temp_4954));
+        (temple_temp_4954=TempleCastS16(order[temple_index_4951]));
+        (order[temple_index_4951]=
+                TempleCastS16(order[TempleCastS32((temple_index_4951+temple_gap_4947))]));
+        (order[TempleCastS32((temple_index_4951+temple_gap_4947))]=
+                TempleCastS16(temple_temp_4954));
+        temple_tmp_4955=&(temple_index_4951);
+        ((*temple_tmp_4955)=TempleCastS16(((*temple_tmp_4955)-temple_gap_4947)));
       }
-      temple_tmp_4951=&(temple_counter_4944);
-      temple_tmp_4952=*temple_tmp_4951;
-      *temple_tmp_4951=TempleCastS16((temple_tmp_4952+1));
-      temple_tmp_4952;
+      temple_tmp_4956=&(temple_counter_4949);
+      temple_tmp_4957=*temple_tmp_4956;
+      *temple_tmp_4956=TempleCastS16((temple_tmp_4957+1));
+      temple_tmp_4957;
     }
-    (temple_gap_4942=TempleCastS16(RsLegacyS16DivOrZero(
-        TempleCastS16(RsHeapsortLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_gap_4942)))),
+    (temple_gap_4947=TempleCastS16(RsLegacyS16DivOrZero(
+        TempleCastS16(RsHeapsortLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_gap_4947)))),
         TempleCastS16(RsHeapsortLegacyS16FromBits(TempleCastU16(TempleCastU16(2)))))));
   }
 }
