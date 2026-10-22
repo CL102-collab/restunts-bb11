@@ -363,7 +363,7 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels.",
+        "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. Every rim section uses the same rotation about the hub, preserving the upper bridge's shape while steering. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels.",
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -435,6 +435,7 @@ the user's 1000005898/5901/5899/5900.jpg detail photographs.
 The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
 the earlier rectangular LCD wheel reference. A continuous shaped steering
 rim joins textured side grips with contrasting carbon top and bottom bridges.
+Every rim section rotates about the same hub, including the upper bridge.
 It has five matching blank fluted knobs, a red instrument needle, turquoise
 vent pods, silver circular vents, stitched carbon trim and release hardware. Native
 dast/dasm masks show the gently bowed carbon cowl, raised turquoise front

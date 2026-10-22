@@ -23,7 +23,7 @@ from pathlib import Path
 import struct
 
 from tesla_roadster_dashboard import (
-    Canvas, FONT, _container, _digit, _helpers, _palette, _resource_dict, _shape,
+    Canvas, _container, _digit, _helpers, _palette, _resource_dict, _shape,
     prepared_stda_size,
 )
 
@@ -32,9 +32,18 @@ WIDTH, HEIGHT = 320, 200
 DASH_TOP = 125
 DASH_OPAQUE_TOP = DASH_TOP
 TOP_OVERLAY_RECT = (0, 103, WIDTH, DASH_TOP - 103)
-INSTRUMENT_RECT = (116, 135, 88, 29)
+INSTRUMENT_RECT = (116, 142, 88, 29)
 WHEEL_RECT = (70, 125, 180, 75)
 WHEEL_TURN_DEGREES = 10
+WHEEL_CENTER = (160, 163)
+WHEEL_VERTICAL_SCALE = .72
+# One unchanged local shape for every steering state. The full rim uses the
+# same rotation and projection as the grips, lower return and control plate.
+UPPER_RIM_OUTER = ((-68, -29), (-54, -37.5), (-45, -41.25), (-33, -42.5),
+                   (33, -42.5), (45, -41.25), (54, -37.5), (68, -29))
+UPPER_RIM_INNER = ((58, -21), (51, -32.5), (42, -36.25), (33, -38.75),
+                   (-33, -38.75), (-42, -36.25), (-51, -32.5), (-58, -21))
+CONTROL_CENTERS = ((-36, 28), (-19, 35), (0, 31), (23, 32), (37, 28))
 DIGIT_WIDTH, DIGIT_HEIGHT = 8, 12
 DIGIT_POSITIONS = ((6, 11), (16, 11), (26, 11))
 BLACK, CHARCOAL, CARBON, EDGE = 0, 31, 29, 27
@@ -73,34 +82,34 @@ def _bolt(canvas, x, y):
 
 def _lcd(canvas):
     """Stationary live screen and actual prototype's shaped display surround."""
-    bezel = [(111, 132), (117, 129), (201, 129), (209, 132),
-             (209, 165), (204, 170), (115, 170), (111, 165)]
+    bezel = [(111, 138), (117, 135), (201, 135), (209, 138),
+             (209, 169), (204, 172), (115, 172), (111, 169)]
     canvas.polygon(bezel, EDGE)
-    canvas.polygon([(114, 132), (120, 130), (200, 130), (206, 132),
-                    (206, 164), (203, 167), (117, 167), (114, 164)], CARBON)
-    canvas.line((114, 132), (120, 130), SILVER)
-    canvas.line((120, 130), (199, 130), SILVER)
+    canvas.polygon([(114, 138), (120, 136), (200, 136), (206, 138),
+                    (206, 168), (203, 170), (117, 170), (114, 168)], CARBON)
+    canvas.line((114, 138), (120, 136), SILVER)
+    canvas.line((120, 136), (199, 136), SILVER)
     # The photographed lamps are unlit pale lenses, not fake shift telemetry.
     for index in range(11):
         x = 121 + index * 7
-        canvas.rect(x - 1, 131, x + 1, 133, BLACK)
-        canvas.point(x, 131, SILVER)
-        canvas.point(x, 132, EDGE)
-    canvas.rect(115, 134, 204, 164, BLACK)
-    canvas.line((117, 136), (202, 136), EDGE)
-    canvas.text(120, 138, "SPEED", WHITE)
-    canvas.text(174, 138, "MOTOR", WHITE)
-    canvas.text(152, 151, "MPH", SILVER)
-    canvas.line((168, 140), (168, 162), CARBON)
+        canvas.rect(x - 1, 137, x + 1, 139, BLACK)
+        canvas.point(x, 137, SILVER)
+        canvas.point(x, 138, EDGE)
+    canvas.rect(115, 141, 204, 171, BLACK)
+    canvas.line((117, 143), (202, 143), EDGE)
+    canvas.text(120, 145, "SPEED", WHITE)
+    canvas.text(174, 145, "MOTOR", WHITE)
+    canvas.text(152, 158, "MPH", SILVER)
+    canvas.line((168, 147), (168, 169), CARBON)
     for index in range(13):
         angle = math.pi - index * math.pi / 12
         cx, cy = INSTRUMENT_RECT[0] + MOTOR_CENTER[0], INSTRUMENT_RECT[1] + MOTOR_CENTER[1]
         canvas.line((cx + 14 * math.cos(angle), cy - 11 * math.sin(angle)),
                     (cx + 12 * math.cos(angle), cy - 9 * math.sin(angle)),
                     RED if index > 9 else SILVER)
-    canvas.line((120, 166), (199, 166), CHARCOAL)
-    _bolt(canvas, 116, 167)
-    _bolt(canvas, 204, 167)
+    canvas.text(120, 166, "MCMURTRY", SILVER)
+    _bolt(canvas, 116, 170)
+    _bolt(canvas, 204, 170)
 
 
 def _ellipse(canvas, x, y, rx, ry, color):
@@ -227,32 +236,36 @@ def _panel():
     return canvas
 
 
+def transform_wheel_points(vertices, direction):
+    """Rigid wheel-plane rotation followed by the shared cockpit projection."""
+    angle = math.radians(direction * WHEEL_TURN_DEGREES)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    return [(WHEEL_CENTER[0] + x * cosine - y * sine,
+             WHEEL_CENTER[1] + WHEEL_VERTICAL_SCALE * (x * sine + y * cosine))
+            for x, y in vertices]
+
+
 def _wheel(canvas, direction):
     """Draw a closed shaped rim, textured side grips and five-knob plate."""
     # Keep the actual instrument face identical in every wheel sprite. The
     # game's dashboard_update_instruments redraws it after wheel restoration,
     # including when steering changes while the speed/RPM are unchanged.
-    lcd_rect = (111, 129, 99, 42)
+    lcd_rect = (111, 135, 99, 38)
     lcd_pixels = canvas.crop(lcd_rect)
-    angle = math.radians(direction * WHEEL_TURN_DEGREES)
-    cosine, sine = math.cos(angle), math.sin(angle)
 
     def points(vertices):
-        return [(160 + (x * cosine - y * sine),
-                 159 + .8 * (x * sine + y * cosine)) for x, y in vertices]
+        transformed = transform_wheel_points(vertices, direction)
+        x, y, width, height = WHEEL_RECT
+        if any(not x <= round(px) < x + width or
+               not y <= round(py) < y + height for px, py in transformed):
+            raise ValueError("Rigid wheel geometry escapes its redraw rectangle")
+        return transformed
 
     def polygon(vertices, color):
         canvas.polygon(points(vertices), color)
 
     def line(vertices, color, thickness=1):
         canvas.line(*points(vertices), color, thickness)
-
-    def label(x, y, text, color=WHITE):
-        for letter in text:
-            for index, pixel in enumerate(FONT[letter]):
-                if pixel == "1":
-                    canvas.point(*points([(x + index % 3, y + index // 3)])[0], color)
-            x += 4
 
     # A non-circular lower return connects both hand grips around the controls.
     # It sits behind the control plate and its knobs, with a shaped central
@@ -304,13 +317,13 @@ def _wheel(canvas, direction):
     polygon(plate, BLACK)
     polygon([(x * .96, y * .97) for x, y in plate], CARBON)
     line([(-44, 10), (43, 10)], EDGE)
-    label(-17, 16, "MCMURTRY", WHITE)
-    controls = ((-36, 23), (-19, 35), (0, 31), (23, 32), (37, 22))
-    for x, y in controls:
+    for x, y in CONTROL_CENTERS:
         # All five match the previous unlabelled second control: a dark face
         # and fluted outer grip. There is no white interior mark or dial text.
         surround = [(x + 8 * math.cos(a * math.pi / 4),
                      y + 7 * math.sin(a * math.pi / 4)) for a in range(8)]
+        if min(round(py) for _, py in points(surround)) < lcd_rect[1] + lcd_rect[3]:
+            raise ValueError("Rotary knob overlaps the restored LCD")
         polygon(surround, EDGE)
         polygon([(x + 6 * math.cos(a * math.pi / 4),
                   y + 5 * math.sin(a * math.pi / 4)) for a in range(8)], BLACK)
@@ -323,21 +336,17 @@ def _wheel(canvas, direction):
     for row in range(height):
         start = (y + row) * WIDTH + x
         canvas.pixels[start:start + width] = lcd_pixels[row * width:(row + 1) * width]
-    # The upper bridge remains visibly connected above the live screen. Its
-    # shoulder joins follow the steered grips while its narrow central cap
-    # surrounds the upright LCD. Restore only the bezel below this bridge, so
-    # neither display redraw nor the top-art mask can erase the closed rim.
-    left_outer, right_outer = points([(-68, -29), (68, -29)])
-    left_inner, right_inner = points([(-58, -21), (58, -21)])
-    top_outer = [left_outer, (106, 129), (115, 126), (127, 125),
-                 (193, 125), (205, 126), (214, 129), right_outer]
-    top_inner = [right_inner, (211, 133), (202, 130), (193, 128),
-                 (127, 128), (118, 130), (109, 133), left_inner]
-    canvas.polygon(top_outer + top_inner, CARBON)
-    for first, last in zip(top_outer, top_outer[1:]):
-        canvas.line(first, last, SILVER)
-    for first, last in zip(top_inner, top_inner[1:]):
-        canvas.line(first, last, BLACK)
+    # Restore the upright LCD first, then draw the complete rigid bridge over
+    # it. Layout clearance keeps every bridge pixel outside the live display,
+    # so native instrument redraw cannot erase part of the rotating rim.
+    live_pixels = canvas.crop(INSTRUMENT_RECT)
+    polygon(UPPER_RIM_OUTER + UPPER_RIM_INNER, CARBON)
+    for first, last in zip(UPPER_RIM_OUTER, UPPER_RIM_OUTER[1:]):
+        line([first, last], SILVER)
+    for first, last in zip(UPPER_RIM_INNER, UPPER_RIM_INNER[1:]):
+        line([first, last], BLACK)
+    if canvas.crop(INSTRUMENT_RECT) != live_pixels:
+        raise ValueError("Rigid upper rim overlaps the live instrument rectangle")
 
 
 def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
@@ -432,8 +441,9 @@ def write_preview(repo: Path, path: Path, speed=150):
                 if color:
                     canvas.point(INSTRUMENT_RECT[0] + x + column,
                                  INSTRUMENT_RECT[1] + y + row, color)
-    canvas.line((INSTRUMENT_RECT[0] + MOTOR_CENTER[0],
-                 INSTRUMENT_RECT[1] + MOTOR_CENTER[1]), (197, 149), RED)
+    motor_x = INSTRUMENT_RECT[0] + MOTOR_CENTER[0]
+    motor_y = INSTRUMENT_RECT[1] + MOTOR_CENTER[1]
+    canvas.line((motor_x, motor_y), (motor_x + 12, motor_y - 11), RED)
     path = Path(path)
     path.write_bytes(_helpers(Path(repo))["indexed_png"](
         WIDTH, HEIGHT, bytes(canvas.pixels), _palette(Path(repo))))

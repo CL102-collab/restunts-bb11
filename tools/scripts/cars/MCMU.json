@@ -231,7 +231,7 @@
     ],
     "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
   },
-  "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels.",
+  "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. Every rim section uses the same rotation about the hub, preserving the upper bridge's shape while steering. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels.",
   "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
   "dashboard_reference_images": [
     {
@@ -270,13 +270,13 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "MCMU": 37408,
+    "MCMU": 36576,
     "DIA3": 66176
   },
   "dashboard_ram_bytes": {
     "MCMU": {
       "extracted_resources_bytes": 83907,
-      "prepared_resources_bytes": 37408,
+      "prepared_resources_bytes": 36576,
       "scratch_bitmap_bytes": 2576,
       "scratch_dimensions": [
         [
@@ -284,7 +284,7 @@
           29
         ]
       ],
-      "resident_arena_bytes": 39984
+      "resident_arena_bytes": 39152
     },
     "DIA3": {
       "extracted_resources_bytes": 148036,
@@ -396,7 +396,7 @@
     },
     "STDAMCMU.VSH": {
       "bytes": 81991,
-      "sha256": "adb8c8887245b42e4a3e482d2a023528d0efb659eeb7f63992b1f31e09e7c594"
+      "sha256": "7cf639e5c4b930c2be7587a140c7c338fb8714e7aebea67610e2b8fec062b08d"
     },
     "STDBMCMU.VSH": {
       "bytes": 1916,

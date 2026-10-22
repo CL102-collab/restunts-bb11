@@ -80,6 +80,8 @@ photographs and the earlier
 [wheel reference](https://www.topgear.com/car-reviews/speirling/first-drive).
 It combines an upright LCD and unlit lamp row with a continuous shaped steering
 rim: textured side grips join contrasting carbon top and bottom bridges.
+All rim sections use the same rotation about the wheel hub in each steering
+view, preserving the upper bridge's shape as it turns.
 The five fluted knobs match and have blank interiors. The record-holder
 inscription is removed and the live instrument needle is red. Turquoise vent
 pods, four silver circular vents, stitched padding, carbon trim, seams,
@@ -209,15 +211,15 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
 | Extracted STDA + STDB | 83,907 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 37,408 bytes | 66,176 bytes |
+| Prepared STDA + STDB in the arena | 36,576 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 2,576 bytes | 14,128 bytes |
-| Resident arena total including scratch | **39,984 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **39,152 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
 88×29 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
 the common preallocated window table. MCMU therefore uses about 43% less
-extracted resource memory and 50% less resident dashboard arena memory.
+extracted resource memory and 51% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The native renderer and resource loader are also exercised with a temporary
