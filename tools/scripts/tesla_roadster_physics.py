@@ -34,7 +34,7 @@ MAX_RPM = 11264
 AERO_RESISTANCE = 20
 IDLE_TORQUE = 165
 BRAKING = 512
-GRIP = 704
+GRIP = 800
 WHEEL_POINTS = WHEEL_CENTERS
 COLLISION_HALF_WIDTH = math.ceil(19 * BODY_SCALE[0])
 COLLISION_HEIGHT = math.ceil(20 * BODY_SCALE[1])
@@ -156,9 +156,10 @@ def build_car(repo: Path, dashboard_patch: dict[int, bytes]) -> bytes:
         b"simd": bytes(simd),
         b"gnam": SCOREBOARD_NAME.encode("ascii") + b"\0",
         b"gsna": SHORT_NAME.encode("ascii") + b"\0",
-        b"edes": (CAR_NAME + "]]]Twin motor, RW Drive]1000 kW (reported)]"
-                  "Tesla targets:]0-60 <0.59 seconds]"
-                  ">230 MPH / >300 mi]Game approximation").encode("ascii") + b"\0",
+        # The car menu draws a description line when it encounters ']'.
+        b"edes": (CAR_NAME + "]]]Twin motor, RW Drive]Ten cold-gas thrusters]"
+                  "1341 HP / 1000 kW]0-60 0.59 sec]Top Speed 230 MPH]"
+                  "Price: Invitation only]").encode("ascii") + b"\0",
         b"fand": b"\x01",
         b"adhs": _adhesion_settings(),
     })

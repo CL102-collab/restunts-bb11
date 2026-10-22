@@ -234,8 +234,9 @@ def generate(repository):
                                "https://evwire.com/p/tesla-roadster-deep-dive-videos-hagerty-top-gear-motortrend"]},
         "showroom": {"scale": SHOWROOM_SCALE, "vertical_offset": SHOWROOM_Y_OFFSET,
                      "reference": "Same calibrated car as racing, at the stock 20x display scale."},
-        "dashboard_revision": "Photo-based rotating wheel; seven-segment digits with one uniform centre bar and full-height exposed vertical ends on 1, 4 and 7; flat rectangular computer screen, bezel and console.",
-        "dashboard_reference_images": ["1000005072.jpg", "1000005071.jpg"],
+        "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen.",
+        "dashboard_reference_images": ["1000005072.jpg", "1000005071.jpg",
+                                       "1000005951.jpg", "1000005952.jpg", "1000005953.jpg"],
         "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
         "dashboard_steering_degrees": [-WHEEL_TURN_DEGREES, 0, WHEEL_TURN_DEGREES],
         "dashboard_decompressed_bytes": budget,
@@ -291,16 +292,21 @@ Game-prepared resources: TERR {prepared['TERR']:,} vs DIA3 {prepared['DIA3']:,} 
 TERR instrument scratch is {INSTRUMENT_RECT[2]}x{INSTRUMENT_RECT[3]}; DIA3 is 188x75. Both dashboards share their
 instrument/selector scratch. These are expanded/loaded comparisons, not ZIP
 or compressed PVS sizes. The generator rejects either resource over its cap.
-The steering wheel follows supplied cockpit photos 1000005072.jpg and
-1000005071.jpg: upright silver-edged grips, open spokes, paddles, switches and
-a broad dark central pad. Every part rotates around a fixed hub using the
-original left/centre/right frames. All three frames restore the same background
-rectangle. The motor gauge sits slightly higher to keep live readings clear.
+The larger steering wheel follows supplied cockpit photos 1000005072.jpg,
+1000005071.jpg and 1000005951.jpg through 1000005953.jpg: padded silver-edged
+grips, open spokes, paddles, scroll rollers, switches and a broad dark central
+pad. Every part rotates around a fixed hub using the original left/centre/right
+frames. All three frames restore the same background rectangle. Live speed and
+motor readings sit on the centre screen, clear of the larger wheel.
+The suede dashboard has a shaped upper silhouette and recessed steering column,
+with vent slats, seams, red door trim and a carbon-fibre console. The optional
+dast/dasm artwork and mask leave scenery visible above the contoured edge.
 The speedometer uses conventional seven-segment numerals: three horizontal
 bars of equal thickness and four vertical bars, with a single centre bar.
 Exposed vertical ends on 1, 4 and 7 reach the full digit height.
 Reference: https://en.wikipedia.org/wiki/Seven-segment_display#Characters
-The computer screen, bezel and console are flat rectangles with straight edges.
+The freestanding computer screen and bezel remain rectangular, with metallic
+rails framing the lower centre console.
 When updating this cockpit, replace CARTERR.RES, STDATERR.VSH and STDBTERR.VSH
 together: the CAR resource also stores the new digit and gauge coordinates.
 

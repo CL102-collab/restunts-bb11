@@ -9,10 +9,12 @@ motor ratios remain the caller's responsibility. The returned patches configure
 the digital speed display, motor tachometer, and stationary EV selector.
 
 Artwork is drawn directly in the game's indexed palette using the standard
-library. The driver displays and steering yoke occupy separate rectangles, so
+library. The centre display and steering yoke occupy separate rectangles, so
 steering never erases live instruments. Required instrument masks and selector
 sprites are valid one-pixel identity operations. ``write_preview`` draws a
 static cockpit illustration; the game draws the actual live speed and RPM.
+The raised dash uses the game's optional ``dast``/``dasm`` AND/OR pair to leave
+scenery visible above its contoured silhouette.
 """
 
 import argparse
@@ -23,12 +25,15 @@ import struct
 
 
 WIDTH, HEIGHT = 320, 200
-DASH_TOP = 125
-INSTRUMENT_RECT = (16, 130, 168, 24)
-WHEEL_RECT = (8, 154, 176, 46)
+DASH_TOP = 132
+DASH_CONTOUR_TOP = 108
+INSTRUMENT_RECT = (194, 138, 116, 30)
+WHEEL_RECT = (12, 132, 172, 68)
 WHEEL_TURN_DEGREES = 10
 DIGIT_WIDTH, DIGIT_HEIGHT = 8, 12
-DIGIT_POSITIONS = ((30, 12), (40, 12), (50, 12))
+DIGIT_POSITIONS = ((8, 8), (18, 8), (28, 8))
+MOTOR_CENTER = (85, 22)
+TRANSPARENT = 255
 BLACK, RED, WHITE = 0, 39, 19
 CHARCOAL, EDGE, SHADE = 31, 27, 29
 
@@ -143,50 +148,94 @@ def _palette(repo):
 
 
 def _panel():
-    canvas = Canvas()
-    canvas.rect(0, DASH_TOP, 319, 199, CHARCOAL)
-    canvas.polygon([(0, 125), (320, 125), (320, 138), (245, 130),
-                    (188, 130), (184, 165), (8, 165), (0, 159)], SHADE)
-    canvas.line((0, 125), (319, 125), WHITE, 2)
-    canvas.line((0, 128), (319, 128), EDGE)
-    canvas.line((0, 131), (11, 135), WHITE)
-    canvas.line((311, 133), (319, 131), WHITE)
-    canvas.line((0, 196), (319, 196), BLACK, 4)
+    # The padded dash rolls down into the steering-column recess. Pixels above
+    # its outline become a separate AND/OR overlay, leaving the world visible.
+    canvas = Canvas(color=TRANSPARENT)
+    contour = [(0, 124), (14, 120), (34, 117), (56, 115), (79, 114),
+               (111, 116), (131, 122), (145, 132), (159, 131),
+               (175, 123), (193, 119), (218, 118), (250, 119),
+               (280, 122), (302, 121), (319, 117)]
+    canvas.polygon(contour + [(320, 200), (0, 200)], CHARCOAL)
+    canvas.polygon(contour + [(319, 141), (281, 145), (224, 140),
+                             (179, 141), (152, 148), (125, 139),
+                             (61, 133), (26, 139), (0, 144)], SHADE)
+    for first, last in zip(contour, contour[1:]):
+        canvas.line(first, last, 25)
+        canvas.line((first[0], first[1] + 2), (last[0], last[1] + 2), 30)
+    # Restrained suede flecks, rather than a solid band across the windshield.
+    for y in range(117, 142):
+        for x in range(WIDTH):
+            if canvas.pixels[y * WIDTH + x] == SHADE and (x * 5 + y * 3) % 29 == 0:
+                canvas.point(x, y, 28)
 
-    # Two independent driver displays, with a black digital-speed background.
-    for left, right in ((22, 92), (96, 178)):
-        canvas.rect(left, 132, right, 163, EDGE)
-        canvas.rect(left + 1, 133, right - 1, 162, BLACK)
-        canvas.line((left + 4, 134), (right - 4, 134), RED)
-    canvas.text(29, 136, "SPEED", 23)
-    canvas.text(78, 145, "MPH", RED)
-    canvas.text(106, 136, "MOTOR", 23)
+    # Carbon-lined column pocket, deep vent slot, and layered lower fascia.
+    canvas.polygon([(42, 134), (48, 126), (58, 122), (119, 123),
+                    (132, 133), (141, 155), (43, 155)], BLACK)
+    canvas.line((49, 127), (60, 124), 24)
+    canvas.line((60, 124), (117, 125), EDGE)
+    canvas.line((117, 125), (129, 135), 24)
+    for x in range(54, 121, 4):
+        canvas.line((x, 129), (x + 2, 131), 30)
+    canvas.polygon([(63, 136), (122, 136), (135, 174), (51, 174)], 30)
+    canvas.polygon([(72, 139), (111, 139), (123, 173), (61, 173)], BLACK)
+    for y in (144, 147, 150):
+        canvas.line((2, y), (39, y - 4), BLACK, 2)
+        canvas.line((2, y + 2), (39, y - 2), 28)
+        canvas.line((147, y + 1), (185, y - 3), BLACK, 2)
+    canvas.line((0, 159), (37, 150), 25)
+    canvas.line((146, 155), (186, 150), EDGE)
+    canvas.polygon([(0, 164), (18, 169), (25, 192), (0, 186)], 30)
+    canvas.line((0, 167), (16, 172), 43, 2)
+    canvas.line((0, 170), (15, 175), RED)
+    canvas.polygon([(0, 190), (24, 196), (47, 200), (0, 200)], BLACK)
+    canvas.rect(147, 170, 185, 199, BLACK)
+    for x in range(151, 185, 4):
+        canvas.line((x, 178), (x - 7, 199), 30)
+
+    # The photo's freestanding rectangular centre screen carries the live
+    # instruments, leaving room for a much larger wheel on the driver's side.
+    canvas.rect(187, 113, 315, 185, BLACK)
+    canvas.rect(189, 109, 312, 182, EDGE)
+    canvas.line((190, 109), (310, 109), 22)
+    canvas.line((189, 110), (189, 179), 24)
+    canvas.rect(192, 112, 309, 179, BLACK)
+    canvas.text(200, 118, "TESLA", WHITE, 2)
+    canvas.text(200, 126, "ROADSTER", RED)
+    route = [(269, 121), (275, 117), (279, 118), (278, 123),
+             (286, 125), (291, 120), (298, 122), (294, 130),
+             (288, 131), (286, 128), (279, 128), (269, 121)]
+    for first, last in zip(route, route[1:]):
+        canvas.line(first, last, 43)
+    canvas.line((199, 135), (301, 135), SHADE)
+    canvas.text(202, 139, "SPEED", 23)
+    canvas.text(235, 152, "MPH", RED)
+    canvas.text(263, 139, "MOTOR", 23)
+    cx = INSTRUMENT_RECT[0] + MOTOR_CENTER[0]
+    cy = INSTRUMENT_RECT[1] + MOTOR_CENTER[1]
     for step in range(17):
         angle = math.pi - step * math.pi / 16
-        start = (126 + 20 * math.cos(angle), 153 - 10 * math.sin(angle))
-        end = (126 + 18 * math.cos(angle), 153 - 8 * math.sin(angle))
-        canvas.line(start, end, RED if step > 12 else 27)
-    canvas.text(154, 153, "EV", RED)
+        start = (cx + 20 * math.cos(angle), cy - 10 * math.sin(angle))
+        end = (cx + 18 * math.cos(angle), cy - 8 * math.sin(angle))
+        canvas.line(start, end, RED if step > 12 else EDGE)
+    canvas.text(273, 164, "EV", 23)
+    canvas.text(200, 171, "FAN ON", 23)
+    canvas.rect(263, 171, 297, 176, 24)
+    canvas.rect(264, 172, 296, 175, BLACK)
+    canvas.rect(298, 172, 300, 175, 24)
+    for x in range(266, 294, 7):
+        canvas.rect(x, 173, x + 4, 174, 43)
 
-    # Flat rectangular screen, bezel and console, without perspective skew.
-    canvas.rect(192, 133, 313, 184, EDGE)
-    canvas.rect(195, 136, 310, 181, BLACK)
-    canvas.text(204, 141, "TESLA", WHITE, 2)
-    canvas.text(204, 150, "ROADSTER", RED)
-    canvas.line((203, 159), (300, 159), 29)
-    canvas.rect(270, 165, 298, 174, 23)
-    canvas.rect(271, 166, 297, 173, BLACK)
-    canvas.rect(299, 168, 301, 171, 23)
-    for left in (273, 281, 289):
-        canvas.rect(left, 168, left + 5, 171, RED)
-    canvas.text(204, 166, "ROCKET", 23)
-    canvas.text(204, 173, "DRIVE", 23)
-    canvas.rect(209, 185, 295, 187, 27)
-    canvas.line((219, 186), (284, 186), BLACK)
-    canvas.rect(194, 190, 305, 199, 30)
-    for x in range(195, 300, 6):
-        canvas.line((x, 192), (x + 3, 192), 31)
-        canvas.line((x + 2, 195), (x + 5, 195), 31)
+    # Thin metallic console rails around a carbon-fibre centre spine.
+    canvas.polygon([(220, 184), (285, 184), (302, 200), (208, 200)], 30)
+    for y in range(188, 200, 3):
+        for x in range(222, 284, 6):
+            canvas.line((x, y), (x + 2, y + 1), CHARCOAL)
+    canvas.line((219, 184), (211, 199), 22)
+    canvas.line((222, 185), (216, 199), BLACK)
+    canvas.line((285, 184), (299, 199), 24)
+    canvas.rect(234, 188, 269, 199, BLACK)
+    canvas.line((236, 189), (267, 189), EDGE)
+    canvas.line((236, 190), (236, 199), 25)
     return canvas
 
 
@@ -199,8 +248,8 @@ def _wheel(canvas, direction):
     cosine, sine = math.cos(angle), math.sin(angle)
 
     def points(vertices):
-        return [(96 + 0.72 * (x * cosine - y * sine),
-                 176.5 + 0.61 * (x * sine + y * cosine)) for x, y in vertices]
+        return [(96 + 1.12 * (x * cosine - y * sine),
+                 169 + 0.78 * (x * sine + y * cosine)) for x, y in vertices]
 
     def polygon(vertices, color):
         canvas.polygon(points(vertices), color)
@@ -222,6 +271,7 @@ def _wheel(canvas, direction):
                        [(34, 11), (40, 11), (43, 19), (36, 19)]):
             polygon(mirrored(paddle), 22)
             line(mirrored(paddle[:2]), WHITE)
+            line(mirrored([(37, -16), (40, -16)]), BLACK)
 
         polygon(mirrored([(18, -10), (44, -8), (45, 8), (18, 7)]), BLACK)
         polygon(mirrored([(20, -7), (42, -6), (42, 5), (20, 4)]), CHARCOAL)
@@ -231,6 +281,12 @@ def _wheel(canvas, direction):
         line(mirrored([(30, -3), (30, 1)]), EDGE)
         for x, y in ((25, -4), (25, 1), (37, -3), (38, 2)):
             line(mirrored([(x, y), (x + 1, y)]), 22)
+        # Recessed scroll roller and separate tactile switches on each spoke.
+        polygon(mirrored([(29, -4), (32, -4), (32, 3), (29, 3)]), EDGE)
+        for y in (-3, 0, 2):
+            line(mirrored([(29, y), (32, y)]), BLACK)
+        line(mirrored([(24, -5), (26, -5)]), WHITE)
+        line(mirrored([(37, 0), (39, 0)]), 23)
 
         # One concave grip outlines each open side; there is no lower bridge.
         rim = [(29, -27), (42, -30), (51, -28), (57, -23),
@@ -248,6 +304,15 @@ def _wheel(canvas, direction):
         for first, last in zip(rim[:7], rim[1:8]):
             line(mirrored([first, last]), WHITE)
         line(mirrored([(56, -12), (56, 13)]), SHADE)
+        line(mirrored([(52, -15), (52, 15)]), BLACK)
+        # Padded thumb rests, brushed upper caps, and leather seam stitches.
+        polygon(mirrored([(32, -25), (41, -27), (47, -24),
+                          (43, -19), (31, -18)]), 24)
+        line(mirrored([(33, -25), (41, -26)]), 18)
+        line(mirrored([(44, 24), (51, 24)]), 23)
+        for y in range(-10, 15, 4):
+            line(mirrored([(58, y), (58, y + 1)]), 26)
+        line(mirrored([(38, 21), (46, 22)]), BLACK)
 
     # The large softly faceted pad is the defining centre of the new wheel.
     hub = [(-9, -25), (9, -25), (17, -18), (22, -6), (21, 12),
@@ -255,8 +320,12 @@ def _wheel(canvas, direction):
     polygon(hub, BLACK)
     polygon([(x * 0.94, y * 0.94) for x, y in hub], SHADE)
     polygon([(x * 0.84, y * 0.85) for x, y in hub], CHARCOAL)
+    polygon([(-8, -22), (8, -22), (15, -17), (18, -8),
+             (1, -13), (-17, -9), (-14, -17)], 30)
     line([(-9, -21), (9, -21)], 30)
     line([(-15, 18), (15, 18)], 30)
+    line([(-18, 0), (-17, 11)], 29)
+    line([(18, 0), (17, 11)], BLACK)
     # Subtle shield badge, instead of the old bright stationary T.
     polygon([(-4, -5), (4, -5), (3, 3), (0, 7), (-3, 3)], SHADE)
     polygon([(-2, -3), (2, -3), (1, 3), (0, 4), (-1, 3)], BLACK)
@@ -269,7 +338,7 @@ def _digit(number):
     # https://en.wikipedia.org/wiki/Seven-segment_display#Characters
     # All horizontal strokes are two pixels thick, including the single g
     # bar. The upper/lower openings are symmetric; the seven parts do not
-    # overlap. Twelve rows fit above the wheel by starting one row higher.
+    # overlap. Twelve rows keep the centre display readable at native resolution.
     segments = ("abcdef", "bc", "abdeg", "abcdg", "bcfg", "acdfg",
                 "acdefg", "abc", "abcdefg", "abcdfg")
     rectangles = {"a": (1, 0, 6, 1), "b": (6, 2, 7, 4),
@@ -349,6 +418,14 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     a = dict(maps)
     a["dash"] = _shape(WIDTH, HEIGHT - DASH_TOP,
                        canvas.crop((0, DASH_TOP, WIDTH, HEIGHT - DASH_TOP)), y=DASH_TOP)
+    top_rect = (0, DASH_CONTOUR_TOP, WIDTH, DASH_TOP - DASH_CONTOUR_TOP)
+    top_pixels = canvas.crop(top_rect)
+    a["dast"] = _shape(WIDTH, top_rect[3],
+                       bytes(0 if pixel == TRANSPARENT else pixel for pixel in top_pixels),
+                       y=DASH_CONTOUR_TOP)
+    a["dasm"] = _shape(WIDTH, top_rect[3],
+                       bytes(255 if pixel == TRANSPARENT else 0 for pixel in top_pixels),
+                       y=DASH_CONTOUR_TOP)
     for index, direction in enumerate((-1, 0, 1), 1):
         steering = _panel()
         _wheel(steering, direction)
@@ -376,18 +453,24 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     if any(x < 0 or y < 0 or x + DIGIT_WIDTH > INSTRUMENT_RECT[2] or
            y + DIGIT_HEIGHT > INSTRUMENT_RECT[3] for x, y in DIGIT_POSITIONS):
         raise ValueError("Speed digit escapes the live instrument rectangle")
+    if INSTRUMENT_RECT[1] < DASH_TOP or WHEEL_RECT[1] < DASH_TOP:
+        raise ValueError("Dynamic dashboard artwork overlaps the world viewport")
+    ix, iy, iw, ih = INSTRUMENT_RECT
+    wx, wy, ww, wh = WHEEL_RECT
+    if ix < wx + ww and wx < ix + iw and iy < wy + wh and wy < iy + ih:
+        raise ValueError("Steering redraw overlaps the live instruments")
     speed_points = bytes(value for pair in DIGIT_POSITIONS for value in pair) + bytes(202)
     rev_points = bytearray()
     for step in range(128):
         angle = math.pi - step * math.pi / 127
-        rev_points.extend((round(110 + 17 * math.cos(angle)),
-                           round(23 - 8 * math.sin(angle))))
+        rev_points.extend((round(MOTOR_CENTER[0] + 18 * math.cos(angle)),
+                           round(MOTOR_CENTER[1] - 8 * math.sin(angle))))
     patches = {
         0x01E: bytes(26),  # Selector centre line plus all six fixed knob positions.
         0x0EA: bytes(62),  # The yoke supplies its own steering indication.
         0x128: struct.pack("<hhH", 0, 0, 1),  # Centre Y=0 selects digital speed.
         0x12E: speed_points,
-        0x1FE: struct.pack("<hhH", 110, 23, 128),
+        0x1FE: struct.pack("<hhH", *MOTOR_CENTER, 128),
         0x204: bytes(rev_points),
         0x0AE: struct.pack("<H", RED | (RED << 8)),
     }
@@ -402,12 +485,15 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
 
 def write_preview(repo: Path, path: Path, speed=230):
     """Write an indexed PNG illustration with the neutral yoke and sample speed."""
-    canvas = _panel()
+    canvas = Canvas()
     canvas.rect(0, 0, 319, 89, 116)
-    canvas.rect(0, 90, 319, 124, 84)
-    canvas.polygon([(151, 90), (168, 90), (220, 124), (96, 124)], 27)
+    canvas.rect(0, 90, 319, DASH_TOP - 1, 84)
+    canvas.polygon([(151, 90), (168, 90), (230, DASH_TOP - 1), (86, DASH_TOP - 1)], 27)
     canvas.line((159, 93), (159, 101), WHITE)
-    canvas.line((159, 108), (159, 122), WHITE)
+    canvas.line((159, 108), (159, DASH_TOP - 1), WHITE)
+    for offset, pixel in enumerate(_panel().pixels):
+        if pixel != TRANSPARENT:
+            canvas.pixels[offset] = pixel
     _wheel(canvas, 0)
     for digit, (x, y) in zip(f"{speed:03d}", DIGIT_POSITIONS):
         pixels = _digit(int(digit))
@@ -417,7 +503,8 @@ def write_preview(repo: Path, path: Path, speed=230):
                 if color:
                     canvas.point(INSTRUMENT_RECT[0] + x + column,
                                  INSTRUMENT_RECT[1] + y + row, color)
-    canvas.line((126, 153), (139, 147), RED)
+    cx, cy = (INSTRUMENT_RECT[index] + MOTOR_CENTER[index] for index in (0, 1))
+    canvas.line((cx, cy), (cx + 13, cy - 6), RED)
     path = Path(path)
     path.write_bytes(_helpers(Path(repo))["indexed_png"](
         WIDTH, HEIGHT, bytes(canvas.pixels), _palette(Path(repo))))

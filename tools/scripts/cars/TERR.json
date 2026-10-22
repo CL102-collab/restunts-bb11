@@ -84,10 +84,13 @@
     "vertical_offset": 120,
     "reference": "Same calibrated car as racing, at the stock 20x display scale."
   },
-  "dashboard_revision": "Photo-based rotating wheel; seven-segment digits with one uniform centre bar and full-height exposed vertical ends on 1, 4 and 7; flat rectangular computer screen, bezel and console.",
+  "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen.",
   "dashboard_reference_images": [
     "1000005072.jpg",
-    "1000005071.jpg"
+    "1000005071.jpg",
+    "1000005951.jpg",
+    "1000005952.jpg",
+    "1000005953.jpg"
   ],
   "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
   "dashboard_steering_degrees": [
@@ -97,7 +100,7 @@
   ],
   "dashboard_decompressed_bytes": {
     "A": {
-      "TERR": 53131,
+      "TERR": 76547,
       "DIA3": 146014
     },
     "B": {
@@ -106,7 +109,7 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "TERR": 12400,
+    "TERR": 23440,
     "DIA3": 66176
   },
   "models": {
@@ -172,16 +175,16 @@
   ],
   "files": {
     "CARTERR.RES": {
-      "bytes": 1000,
-      "sha256": "76b96a3de51e526e603edebd17aafd5919b0328d51ff1caf37b1dc1816d91f8a"
+      "bytes": 1006,
+      "sha256": "23771a9cb97bb93dda31fd025d87fbbdd2fa59bf76d351ffeaf263cb16bd169d"
     },
     "STTERR.3SH": {
       "bytes": 17294,
       "sha256": "abbbe8a0bcc89f9c6e084e909665e50e0460871ed73c761cfc4603a388f4df2b"
     },
     "STDATERR.VSH": {
-      "bytes": 53131,
-      "sha256": "2e215199fe8d58595134811da7ded5c41422c782434ccab2776727c91e94ab3c"
+      "bytes": 76547,
+      "sha256": "38cebe1fc45a02ca4f3cf87844d4e29886ae7511a67c0effdd3599fcced6bc80"
     },
     "STDBTERR.VSH": {
       "bytes": 1916,

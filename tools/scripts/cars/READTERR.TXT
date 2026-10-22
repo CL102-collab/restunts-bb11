@@ -37,22 +37,27 @@ Battery capacity and exact Rocket mass were not confirmed; no old 2017 specs
 are substituted. Range, gas capacity, flight and active aero are not simulated.
 
 DASHBOARD MEMORY
-Raw/extracted: STDA 53,131 + STDB 1,916 = 55,047 bytes.
+Raw/extracted: STDA 76,547 + STDB 1,916 = 78,463 bytes.
 DIA3 reference: 146,014 + 2,022 = 148,036 bytes.
-Game-prepared resources: TERR 12,400 vs DIA3 66,176 bytes.
-TERR instrument scratch is 168x24; DIA3 is 188x75. Both dashboards share their
+Game-prepared resources: TERR 23,440 vs DIA3 66,176 bytes.
+TERR instrument scratch is 116x30; DIA3 is 188x75. Both dashboards share their
 instrument/selector scratch. These are expanded/loaded comparisons, not ZIP
 or compressed PVS sizes. The generator rejects either resource over its cap.
-The steering wheel follows supplied cockpit photos 1000005072.jpg and
-1000005071.jpg: upright silver-edged grips, open spokes, paddles, switches and
-a broad dark central pad. Every part rotates around a fixed hub using the
-original left/centre/right frames. All three frames restore the same background
-rectangle. The motor gauge sits slightly higher to keep live readings clear.
+The larger steering wheel follows supplied cockpit photos 1000005072.jpg,
+1000005071.jpg and 1000005951.jpg through 1000005953.jpg: padded silver-edged
+grips, open spokes, paddles, scroll rollers, switches and a broad dark central
+pad. Every part rotates around a fixed hub using the original left/centre/right
+frames. All three frames restore the same background rectangle. Live speed and
+motor readings sit on the centre screen, clear of the larger wheel.
+The suede dashboard has a shaped upper silhouette and recessed steering column,
+with vent slats, seams, red door trim and a carbon-fibre console. The optional
+dast/dasm artwork and mask leave scenery visible above the contoured edge.
 The speedometer uses conventional seven-segment numerals: three horizontal
 bars of equal thickness and four vertical bars, with a single centre bar.
 Exposed vertical ends on 1, 4 and 7 reach the full digit height.
 Reference: https://en.wikipedia.org/wiki/Seven-segment_display#Characters
-The computer screen, bezel and console are flat rectangles with straight edges.
+The freestanding computer screen and bezel remain rectangular, with metallic
+rails framing the lower centre console.
 When updating this cockpit, replace CARTERR.RES, STDATERR.VSH and STDBTERR.VSH
 together: the CAR resource also stores the new digit and gauge coordinates.
 
