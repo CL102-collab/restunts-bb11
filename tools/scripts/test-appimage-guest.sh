@@ -178,8 +178,11 @@ LD_LIBRARY_PATH="$app_dir/usr/lib" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
         exit 1
     }
 [[ -f "$bmp" && "$(head -c 2 "$bmp")" == BM && "$(stat -c %s "$bmp")" == 65078 ]]
+# DEFAULT.RPL was recorded at 10 Hz. This frame matches the source-built
+# original-assembly renderer using that recorded rate.
+expected_bmp_sha256=0713b4ca9a6db8ba1ebe8696f3baa9a97798b02b69556e2d1862a073a6fbfe80
 sha256sum "$bmp"
-printf '%s  %s\n' 808e1a11ac05d5757379d425a6a857a5584912cc62f7ec567662a7dbcefa74fa "$bmp" | sha256sum --check
+printf '%s  %s\n' "$expected_bmp_sha256" "$bmp" | sha256sum --check
 
 # Exercise the bundled ALSA backend without a physical sound card. Video was
 # checked above; use dummy video here so remote X11 rendering does not compete
