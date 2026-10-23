@@ -7,12 +7,27 @@ import shutil
 
 
 PORT = Path(__file__).resolve().parent.parent
+BUNDLED_CARS = PORT.parents[3] / "assets/cars"
 SOURCE_EXTENSIONS = {".HC", ".HH"}
+CAR_EXTENSIONS = {".RES", ".3SH", ".VSH"}
 DATA_EXTENSIONS = {
-    ".RES", ".PRE", ".PVS", ".VSH", ".PES", ".ESH", ".3SH", ".P3S",
+    ".RES", ".PRE", ".PVS", ".VSH", ".XVS", ".PES", ".ESH", ".3SH", ".P3S",
     ".TRK", ".RPL", ".HIG", ".CFG", ".DAT", ".DRV", ".VCE", ".SFX",
     ".KMS", ".FNT", ".PLB",
 }
+
+
+def collect_resources(directory, extensions):
+    assets = {}
+    for source in sorted(directory.iterdir()):
+        if source.is_file() and source.suffix.upper() in extensions:
+            name = source.name.upper()
+            if name in assets:
+                if source.read_bytes() != assets[name].read_bytes():
+                    raise ValueError("Different files have the same uppercase name: " + name)
+            else:
+                assets[name] = source
+    return assets
 
 
 def prepare(data, destination):
@@ -24,17 +39,19 @@ def prepare(data, destination):
         raise ValueError("Choose a new output directory; existing packages are never overwritten")
     if data is not None and (destination == data or data in destination.parents):
         raise ValueError("The output must be outside the original game directory")
-    assets = {}
-    for source in sorted(data.iterdir()) if data is not None else ():
-        if source.is_file() and source.suffix.upper() in DATA_EXTENSIONS:
-            name = source.name.upper()
-            if name in assets:
-                if source.read_bytes() != assets[name].read_bytes():
-                    raise ValueError("Different files have the same uppercase name: " + name)
-            else:
-                assets[name] = source
+    assets = collect_resources(data, DATA_EXTENSIONS) if data is not None else {}
     if data is not None and not any(name in assets for name in ("MISC.RES", "MISC.PRE")):
         raise ValueError("The data directory has no MISC.RES or MISC.PRE")
+    car_directories = [source for source in data.iterdir()
+                       if source.is_dir() and source.name.upper() == "CARS"] if data else []
+    if len(car_directories) > 1:
+        raise ValueError("Directories have the same uppercase name: CARS")
+    if car_directories:
+        assets.update({"CARS/" + name: source for name, source in
+                       collect_resources(car_directories[0], DATA_EXTENSIONS).items()})
+    bundled_cars = collect_resources(BUNDLED_CARS, CAR_EXTENSIONS)
+    if not bundled_cars:
+        raise ValueError("No bundled car resources found")
     code = [source for source in PORT.rglob("*")
             if source.is_file() and source.suffix in SOURCE_EXTENSIONS
             and not {"tools", "package"}.intersection(source.relative_to(PORT).parts)
@@ -49,9 +66,15 @@ def prepare(data, destination):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     shutil.copyfile(PORT / "README.TXT", destination / "PORT" / "README.TXT")
+    (destination / "PORT/CARS").mkdir()
+    for name, source in bundled_cars.items():
+        shutil.copyfile(source, destination / "PORT/CARS" / name)
     for name, source in assets.items():
-        shutil.copyfile(source, destination / "DATA" / name)
-    print(f"Prepared {len(code)} HolyC files and {len(assets)} game resources in {destination}")
+        target = destination / "DATA" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    print(f"Prepared {len(code)} HolyC files, {len(bundled_cars)} bundled car resources, "
+          f"and {len(assets)} private game resources in {destination}")
 
 
 def main():

@@ -23,6 +23,16 @@ def prepareStorage = tasks.register('prepareGenghostStorageJava', Sync) {
     into storageSources
 }
 
+def carAssets = layout.buildDirectory.dir('generated/car-assets')
+def prepareCars = tasks.register('prepareGenghostCarAssets', Sync) {
+    from('../../assets/cars') {
+        caseSensitive = false
+        include '*.res', '*.3sh', '*.vsh'
+        into 'cars'
+    }
+    into carAssets
+}
+
 android {
     namespace 'org.restunts.genghost'
     compileSdk Integer.parseInt(toolchain.getProperty('ANDROID_COMPILE_SDK'))
@@ -63,7 +73,7 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
     sourceSets.main {
-        assets.srcDirs 'generated-assets'
+        assets.srcDirs 'generated-assets', carAssets
         java.srcDir storageSources
     }
     externalNativeBuild {
@@ -115,4 +125,4 @@ android {
 }
 
 // Copy a narrow source set instead of exposing the game Activity and its SDL Java dependency.
-tasks.named('preBuild').configure { dependsOn prepareStorage }
+tasks.named('preBuild').configure { dependsOn prepareStorage, prepareCars }

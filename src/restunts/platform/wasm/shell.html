@@ -220,6 +220,8 @@
         const MAX_GAME_BYTES = 256 * 1024 * 1024;
         const FILE_READ_CONCURRENCY = 8;
         const ANIMATION_DIRECTORY = 'opponents/animations';
+        const CAR_DIRECTORY = 'cars';
+        const CAR_EXTENSIONS = new Set(['res', 'pre', '3sh', 'p3s', 'vsh', 'pvs']);
         // Use character comparisons: HTML minifiers may unescape regex control ranges.
         const DOS_BASENAME_MAX_LENGTH = 8;
         const DOS_BACKSLASH_CODE = 92;
@@ -257,6 +259,8 @@
         function gameImportPath(path) {
             const name = path.toLowerCase();
             if (!name.includes('/') && validFilename(path, GAME_EXTENSIONS)) return name;
+            if (name.startsWith(CAR_DIRECTORY + '/') &&
+                validFilename(path.slice(CAR_DIRECTORY.length + 1), CAR_EXTENSIONS)) return name;
             if (/^opponents\/animations\/opp[1-6](win|lose)\.webm$/.test(name)) return name;
             return null;
         }
@@ -782,7 +786,8 @@
                         files.push({ handle: entry, path });
                         status.textContent = 'Scanning game folder ' + selected.name + '… ' + files.length + ' game files found.';
                     } else if (entry.kind === 'directory' &&
-                        (path.toLowerCase() === 'opponents' || path.toLowerCase() === ANIMATION_DIRECTORY)) {
+                        (path.toLowerCase() === CAR_DIRECTORY || path.toLowerCase() === 'opponents' ||
+                            path.toLowerCase() === ANIMATION_DIRECTORY)) {
                         await collectDirectory(entry, path + '/');
                     }
                 }
@@ -860,7 +865,7 @@
             setLoading(true);
             status.textContent = 'Reading game files from your folder…';
             try {
-                // Import only immediate game resources and supported opponent animations.
+                // Import immediate game resources, car resources, and supported opponent animations.
                 const files = Array.from(gameFiles.files).map(file => ({ file,
                     path: file.webkitRelativePath.split('/').slice(1).join('/') }));
                 await loadGameFiles(files, null);

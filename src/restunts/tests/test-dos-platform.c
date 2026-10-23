@@ -4,6 +4,19 @@
 #include "../platform/dos/dos_interrupts.h"
 #include "../platform/dos/dump_timer.h"
 #include "../c/platform.h"
+#include "../c/fileio.h"
+
+static legacy_u16 car_base_initialized;
+
+void file_car_set_base(const legacy_s8 *directory)
+{
+	const legacy_s8 *end = directory;
+	while (*end != 0) {
+		end++;
+	}
+	car_base_initialized =
+		end != directory && (end[-1] == '\\' || end[-1] == '/' || end[-1] == ':');
+}
 #include "../c/resource.h"
 #include "../c/fatal.h"
 
@@ -269,6 +282,7 @@ static legacy_s16 test_file_io(legacy_u8 far *buffer)
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
+	CHECK(car_base_initialized != 0, "executable resource base before startup");
 	(void)argc;
 	(void)argv;
 	CHECK(dos_data_stack_segments_match() != 0, "startup DS equals SS");

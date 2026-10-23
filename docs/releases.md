@@ -58,6 +58,18 @@ are distributed in these archives. Enhanced opponent portraits and skyboxes
 are included for the SDL3 game; the browser embeds them in `restunts.html`.
 Packages retain their directory layout so the game can locate those assets.
 
+Every release includes the Tesla Roadster Rocket (`TERR`) and McMurtry Speirling
+PURE (`MCMU`). Only their eight `.RES`, `.3SH` and `.VSH` resources are shipped:
+native packages install them in `bin/cars/`, DOS16 uses `cars/` at the archive
+root, Android bundles them in both APKs, and the browser embeds `/assets/cars/`
+and retains the files in its relinking kit. The original game files remain
+required. Car authoring metadata, readmes and editable models are not packaged.
+
+Car discovery and loading search loose files in the selected game-data folder
+and beside the executable before their `cars/` subfolders and the bundled
+resource folder. Any compatible car placed in these folders is discovered
+automatically; duplicate car IDs appear once, with loose files taking priority.
+
 Desktop packages contain the game, physics dumper, renderer dumper, statically
 linked SDL, its license, and the replaceable Nuked OPL2 shared library. The
 exact Nuked source, license, standalone build files and build context are under
@@ -120,7 +132,7 @@ DOS uses hardware AdLib/OPL and includes neither Nuked binaries nor its sources.
 DOS32 includes `bin/CWSDPMI.EXE` and the accompanying CWSDPMI redistribution
 material. Copy the DOS32 executables, CWSDPMI and enhanced artwork directories
 into the writable directory containing your original game files. DOS16 keeps its executables at the archive root; copy them into the original
-game directory before running.
+game directory, including the `cars/` folder, before running.
 
 Each package also contains `PACKAGE-MANIFEST.json`, recording the source commit,
 build run and hashes of its packaged files. The corresponding `<archive>.sha256`

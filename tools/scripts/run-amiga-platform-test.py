@@ -106,6 +106,20 @@ def aros_roms(emulator, directory):
     raise RuntimeError("Cannot locate FS-UAE's bundled AROS ROM files; use --kickstart with your own ROM")
 
 
+CAR_RESOURCE_EXTENSIONS = frozenset((".res", ".pre", ".3sh", ".p3s", ".vsh", ".pvs",
+                                     ".xvs", ".pes", ".esh"))
+
+
+def copy_car_resources(source_directory, destination_directory):
+    """Keep the packaged car folder and user overrides in the emulator disk."""
+    if not source_directory.is_dir():
+        return
+    for source in source_directory.iterdir():
+        if source.is_file() and source.suffix.lower() in CAR_RESOURCE_EXTENSIONS:
+            destination_directory.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination_directory / source.name.upper())
+
+
 def main():
     repository = Path(__file__).resolve().parents[2]
     parser = argparse.ArgumentParser(description=__doc__)
@@ -182,6 +196,11 @@ def main():
         for source in args.game_directory.iterdir():
             if source.is_file() and source.suffix.lower() not in (".exe", ".com", ".bat", ".uaem"):
                 shutil.copyfile(source, disk / source.name.upper())
+    copy_car_resources(repository / "assets/cars", disk / "cars")
+    if args.game_directory.is_dir():
+        for source in args.game_directory.iterdir():
+            if source.is_dir() and source.name.lower() == "cars":
+                copy_car_resources(source, disk / "cars")
     shutil.copyfile(args.executable, disk / "Restunts")
     command_args = args.args
     if command_args is None:

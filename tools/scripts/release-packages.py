@@ -123,6 +123,10 @@ SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
 OPPONENT_COUNT = 6
 MENU_BACKGROUNDS = ("main", "showroom", "opponent")
 MUSIC_TRACKS = ("titl", "slct", "over", "vict")
+CUSTOM_CAR_FILES = ("CARMCMU.RES", "CARTERR.RES", "STMCMU.3SH", "STTERR.3SH",
+                    "STDAMCMU.VSH", "STDATERR.VSH", "STDBMCMU.VSH", "STDBTERR.VSH")
+CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
+                          "share/restunts/wasm-relink/data/assets/cars"}
 SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE")
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 COMMIT_PATTERN = re.compile(r"[0-9a-f]{40}")
@@ -145,13 +149,33 @@ def archive_name(target):
     return f"restunts-{target}{TARGETS[target]}"
 
 
+def custom_car_source(name):
+    path = PurePosixPath(name)
+    if str(path.parent) in CUSTOM_CAR_DIRECTORIES and path.name in CUSTOM_CAR_FILES:
+        return ROOT / "assets/cars" / path.name
+    return None
+
+
+def validate_custom_car_resources(files):
+    for name, content in files.items():
+        source = custom_car_source(name)
+        if source is not None:
+            require(source.is_file(), f"Missing custom car source resource: {source}")
+            require(content == source.read_bytes(),
+                    f"Custom car resource differs from source: {name}")
+
+
+def custom_car_files(directory):
+    return {f"{directory}/{name}" for name in CUSTOM_CAR_FILES}
+
+
 def checked_path(name):
     path = PurePosixPath(name)
     require(name and path.parts and not path.is_absolute() and ".." not in path.parts and
             ":" not in name and not any(ord(character) < 32 for character in name) and
             "\\" not in name and str(path) == name,
             f"Unsafe or noncanonical package path: {name!r}")
-    require(path.suffix.lower() not in ORIGINAL_SUFFIXES,
+    require(path.suffix.lower() not in ORIGINAL_SUFFIXES or custom_car_source(name) is not None,
             f"Original game content or regression output is forbidden: {name}")
     require("stunts" not in (part.lower() for part in path.parts),
             f"Original game directory is forbidden: {name}")
@@ -200,6 +224,7 @@ def android_required_resources(target):
 
 def android_required_assets():
     required = {f"assets/licenses/{name}" for name in ANDROID_LICENSES}
+    required |= custom_car_files("assets/cars")
     required |= {f"assets/skyboxes/{theme}-{image}.png"
                  for theme in SKYBOX_THEMES for image in SKYBOX_IMAGES}
     required |= {f"assets/menus/{background}.png" for background in MENU_BACKGROUNDS}
@@ -279,6 +304,7 @@ def validate_android_apk(target, content):
             require(files[name], f"Empty APK member: {name}")
     missing = required - files.keys()
     require(not missing, f"{target}: missing APK members: {', '.join(sorted(missing))}")
+    validate_custom_car_resources(files)
     elf_class, machine = ELF_ARCHITECTURES[target.split("-")[1]]
     for name in native:
         validate_elf(target, name, files[name], elf_class, machine)
@@ -290,7 +316,8 @@ def validate_android_genghost_apk(target, content):
     abi = ANDROID_TARGETS[target]
     native = f"lib/{abi}/libgenghost_exec.so"
     required = {"AndroidManifest.xml", "classes.dex", "resources.arsc", native}
-    required |= ANDROID_GENGHOST_ASSETS | ANDROID_GENGHOST_RESOURCES
+    allowed_assets = ANDROID_GENGHOST_ASSETS | custom_car_files("assets/cars")
+    required |= allowed_assets | ANDROID_GENGHOST_RESOURCES
     files = {}
     names = set()
     with zipfile.ZipFile(io.BytesIO(content)) as apk:
@@ -308,7 +335,7 @@ def validate_android_genghost_apk(target, content):
             if name.startswith("lib/"):
                 require(name == native, f"Unexpected Android ABI or native library for {target}: {name}")
             elif name.startswith("assets/"):
-                require(name in ANDROID_GENGHOST_ASSETS, f"Unexpected APK asset: {name}")
+                require(name in allowed_assets, f"Unexpected APK asset: {name}")
             else:
                 require(name in ANDROID_METADATA or name in ANDROID_GENGHOST_RESOURCES or
                         ANDROID_DEX_PATTERN.fullmatch(name) or
@@ -317,6 +344,7 @@ def validate_android_genghost_apk(target, content):
             require(files[name], f"Empty APK member: {name}")
     missing = required - files.keys()
     require(not missing, f"{target}: missing generator APK members: {', '.join(sorted(missing))}")
+    validate_custom_car_resources(files)
     validate_android_pie(target, native, files[native])
 
 
@@ -347,7 +375,7 @@ def required_files(target):
                      for background in MENU_BACKGROUNDS}
         required |= {f"{relink}/data/assets/opponents/game/opp{opponent}.png"
                      for opponent in range(1, OPPONENT_COUNT + 1)}
-        return required
+        return required | custom_car_files(f"{relink}/data/assets/cars")
     if target == "dos16":
         names = DOS_EXECUTABLES
     elif target == "dos32":
@@ -358,7 +386,8 @@ def required_files(target):
     prefix = "" if target == "dos16" else "bin/"
     required |= {f"{prefix}{name}{extension}" for name in names}
     if target == "dos16":
-        return required
+        return required | custom_car_files("cars")
+    required |= custom_car_files("bin/cars")
     required |= {"share/docs/restunts/sdl3.md", "share/licenses/restunts/SDL-LICENSE.txt"}
     if target in HAIKU_TARGETS:
         required.add("share/docs/restunts/haiku.md")
@@ -397,6 +426,7 @@ def validate_contents(target, files, modes):
         require(name in required, f"Unexpected package file: {name}")
         if target.startswith("dos"):
             require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
+    validate_custom_car_resources(files)
     if target == "browser":
         require(any(name.startswith("share/restunts/wasm-relink/objects/") for name in files),
                 "Browser package is missing application entry objects for relinking")
@@ -442,7 +472,8 @@ def readme(target, commit):
                   "ZIP import extracts into the exact destination folder you select.",
                   "The app manages its private working cache and copies completed game writes",
                   "back to your selected folder, including tracks, replays and screenshots.",
-                  "Enhanced artwork/music are inside the game APK; both APKs include dependency notices.",
+                  "Custom cars are inside both APKs; enhanced artwork/music are inside the game APK.",
+                  "Both APKs include dependency notices.",
                   "Release workflow APKs use the project's persistent release signing key.",
                   "PR/local debug APKs use debug keys, which may differ between builds.",
                   "Android updates require the same signing key. A different key may require",
@@ -458,17 +489,18 @@ def readme(target, commit):
             lines += ["Requires a 64-bit ARM Android operating system."]
     elif target == "browser":
         lines += ["Open restunts.html in your browser and choose your game-data folder.",
+                  "Custom cars are embedded under /assets/cars and loaded automatically.",
                   "The HTML runs offline by itself. Keep the licenses and Nuked source/relink",
                   "kit with redistributed packages; see wasm.md for instructions."]
     elif target == "dos16":
-        lines += ["Copy the executable files into your original game's directory.",
+        lines += ["Copy the executables and cars folder into your original game's directory.",
                   "Run restunts.exe in DOS or DOSBox with core=dynamic and cycles=max.",
                   "The other executables are original/rebuilt game and regression tools."]
     else:
         executable = "restunts.exe" if target.startswith(("windows", "dos")) else "restunts"
         lines += [f"Run bin/{executable} --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
                   "Enhanced skyboxes, opponent portraits, and menu backgrounds are included",
-                  "beside the game.",
+                  "beside the game. Custom cars in bin/cars are loaded automatically.",
                   "See share/docs/restunts/sdl3.md for controls and platform details."]
         if target != "dos32":
             generator = "genghost.exe" if target.startswith("windows") else "genghost"

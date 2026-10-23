@@ -58,7 +58,9 @@ configure_amiga_game(test-amiga-platform)
 target_compile_definitions(test-amiga-platform PRIVATE RESTUNTS_AMIGA_SMOKE)
 # The classic renderer uses integer math. libnix's libm also replaces printf
 # with a floating-point formatter and requires a disk-based math library.
-install(TARGETS restunts RUNTIME DESTINATION .)
+install(TARGETS restunts RUNTIME DESTINATION . COMPONENT Runtime)
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/cars/" DESTINATION cars COMPONENT Runtime
+    FILES_MATCHING REGEX "\\.([rR][eE][sS]|3[sS][hH]|[vV][sS][hH])$")
 
 # Run this executable on a real 68000 or in the emulator harness. Unlike a
 # little-endian host test it also detects odd-address word loads on the 68000.

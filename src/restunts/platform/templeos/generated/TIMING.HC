@@ -2,38 +2,38 @@
 
 legacy_s8 RsTimingLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_1098;
+  legacy_s32 noreg temple_tmp_1207;
   if((value<=127)) {
-    temple_tmp_1098=TempleCastS32(TempleCastS8(value));
+    temple_tmp_1207=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_1098=TempleCastS32(TempleCastS8(
+    temple_tmp_1207=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_1098);
+  return TempleCastS8(temple_tmp_1207);
 }
 
 legacy_s16 RsTimingLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_1099;
+  legacy_s32 noreg temple_tmp_1208;
   if((value<=32767)) {
-    temple_tmp_1099=TempleCastS32(TempleCastS16(value));
+    temple_tmp_1208=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_1099=TempleCastS32(TempleCastS16(
+    temple_tmp_1208=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_1099);
+  return TempleCastS16(temple_tmp_1208);
 }
 
 legacy_s32 RsTimingLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_1100;
+  legacy_s32 noreg temple_tmp_1209;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_1100=TempleCastS32(TempleCastS32(value));
+    temple_tmp_1209=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_1100=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_1209=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_1100);
+  return TempleCastS32(temple_tmp_1209);
 }
 
 legacy_void RsTimerRegCallback(legacy_u8 *callback)
@@ -50,11 +50,11 @@ legacy_void RsTimerRemoveCallback(legacy_u8 *callback)
 
 legacy_s16 RsTimerReadKeyUntilDeadline()
 {
-  legacy_s16 noreg temple_key_1102;
+  legacy_s16 noreg temple_key_1211;
   while(1) {
-    temple_key_1102=TempleCastS16(RsKbCallReadcharCallback());
-    if((temple_key_1102!=0)) {
-      return TempleCastS16(temple_key_1102);
+    temple_key_1211=TempleCastS16(RsKbCallReadcharCallback());
+    if((temple_key_1211!=0)) {
+      return TempleCastS16(temple_key_1211);
     }
     if(!((RsTimerGetCounter()<rs_timing_timer_wait_target))) {
       break;
@@ -65,15 +65,15 @@ legacy_s16 RsTimerReadKeyUntilDeadline()
 
 legacy_s16 RsTimerReadKeyWithTimeout(legacy_u32 ticks)
 {
-  legacy_u32 noreg temple_target_1103;
-  legacy_s16 noreg temple_key_1105;
-  temple_target_1103=TempleCastU32(TempleCastU32(TempleCastU32((RsTimerGetCounter()+ticks))));
+  legacy_u32 noreg temple_target_1212;
+  legacy_s16 noreg temple_key_1214;
+  temple_target_1212=TempleCastU32(TempleCastU32(TempleCastU32((RsTimerGetCounter()+ticks))));
   while(1) {
-    temple_key_1105=TempleCastS16(RsKbCallReadcharCallback());
-    if((temple_key_1105!=0)) {
-      return TempleCastS16(temple_key_1105);
+    temple_key_1214=TempleCastS16(RsKbCallReadcharCallback());
+    if((temple_key_1214!=0)) {
+      return TempleCastS16(temple_key_1214);
     }
-    if(!((TempleCastU32(RsTimerGetCounter())<temple_target_1103))) {
+    if(!((TempleCastU32(RsTimerGetCounter())<temple_target_1212))) {
       break;
     }
   }
@@ -103,14 +103,14 @@ legacy_u32 RsTimerSetDeadline(legacy_u32 ticks)
 
 legacy_u32 RsTimerWaitForDeadline()
 {
-  legacy_u32 noreg temple_res_1106;
+  legacy_u32 noreg temple_res_1215;
   while(1) {
-    (temple_res_1106=TempleCastU32(RsTimerGetCounter()));
-    if(!((temple_res_1106<rs_timing_timer_wait_target))) {
+    (temple_res_1215=TempleCastU32(RsTimerGetCounter()));
+    if(!((temple_res_1215<rs_timing_timer_wait_target))) {
       break;
     }
   }
-  return TempleCastU32(temple_res_1106);
+  return TempleCastU32(temple_res_1215);
 }
 
 legacy_s16 RsTimerDeadlineReached()
@@ -120,16 +120,16 @@ legacy_s16 RsTimerDeadlineReached()
 
 legacy_u32 RsTimerWaitTicks(legacy_u32 ticks)
 {
-  legacy_u32 noreg temple_target_1108;
-  legacy_u32 noreg temple_res_1109;
-  temple_target_1108=TempleCastU32(TempleCastU32((RsTimerGetCounter()+ticks)));
+  legacy_u32 noreg temple_target_1217;
+  legacy_u32 noreg temple_res_1218;
+  temple_target_1217=TempleCastU32(TempleCastU32((RsTimerGetCounter()+ticks)));
   while(1) {
-    (temple_res_1109=TempleCastU32(RsTimerGetCounter()));
-    if(!((temple_res_1109<temple_target_1108))) {
+    (temple_res_1218=TempleCastU32(RsTimerGetCounter()));
+    if(!((temple_res_1218<temple_target_1217))) {
       break;
     }
   }
-  return TempleCastU32(temple_res_1109);
+  return TempleCastU32(temple_res_1218);
 }
 
 legacy_u32 RsTimingSecondaryTimerTarget()
@@ -140,30 +140,30 @@ legacy_u32 RsTimingSecondaryTimerTarget()
 
 legacy_s16 RsTimingSecondaryTimerTargetReached(legacy_u32 current,legacy_u32 target)
 {
-  legacy_s32 noreg temple_tmp_1111;
-  temple_tmp_1111=0;
+  legacy_s32 noreg temple_tmp_1220;
+  temple_tmp_1220=0;
   if((TempleCastU16(TempleCastU32((current>>16)))>=
         TempleCastU16(TempleCastU32((target>>16))))) {
-    temple_tmp_1111=1;
+    temple_tmp_1220=1;
   }
-  if(temple_tmp_1111) {
-    temple_tmp_1111=0;
+  if(temple_tmp_1220) {
+    temple_tmp_1220=0;
     if((TempleCastU16(current)>=TempleCastU16(target))) {
-      temple_tmp_1111=1;
+      temple_tmp_1220=1;
     }
   }
-  return TempleCastS16(temple_tmp_1111);
+  return TempleCastS16(temple_tmp_1220);
 }
 
 legacy_u32 RsSlowTimerSetDeadline(legacy_u32 ticks)
 {
-  legacy_u32 noreg temple_target_1112;
-  temple_target_1112=
+  legacy_u32 noreg temple_target_1221;
+  temple_target_1221=
       TempleCastU32(TempleCastU32(TempleCastU32((RsTimerGetSlowCounter()+ticks))));
-  (slow_timer_deadline_low=TempleCastU16(TempleCastU16(temple_target_1112)));
+  (slow_timer_deadline_low=TempleCastU16(TempleCastU16(temple_target_1221)));
   (slow_timer_deadline_high=
-          TempleCastU16(TempleCastU16(TempleCastU32((temple_target_1112>>16)))));
-  return TempleCastU32(temple_target_1112);
+          TempleCastU16(TempleCastU16(TempleCastU32((temple_target_1221>>16)))));
+  return TempleCastU32(temple_target_1221);
 }
 
 legacy_s16 RsSlowTimerDeadlineReached()
@@ -174,16 +174,16 @@ legacy_s16 RsSlowTimerDeadlineReached()
 
 legacy_u32 RsSlowTimerWaitTicks(legacy_u32 ticks)
 {
-  legacy_u32 noreg temple_target_1113;
-  legacy_u32 noreg temple_current_1114;
-  temple_target_1113=
+  legacy_u32 noreg temple_target_1222;
+  legacy_u32 noreg temple_current_1223;
+  temple_target_1222=
       TempleCastU32(TempleCastU32(TempleCastU32((RsTimerGetSlowCounter()+ticks))));
   while(1) {
-    (temple_current_1114=TempleCastU32(RsTimerGetSlowCounter()));
+    (temple_current_1223=TempleCastU32(RsTimerGetSlowCounter()));
     if(!((!(RsTimingSecondaryTimerTargetReached(
-          TempleCastU32(temple_current_1114),TempleCastU32(temple_target_1113)))))) {
+          TempleCastU32(temple_current_1223),TempleCastU32(temple_target_1222)))))) {
       break;
     }
   }
-  return TempleCastU32(temple_current_1114);
+  return TempleCastU32(temple_current_1223);
 }

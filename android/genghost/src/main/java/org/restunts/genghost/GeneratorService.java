@@ -48,6 +48,7 @@ public final class GeneratorService extends Service {
     private static volatile State pendingStart;
     private static volatile boolean recovering;
     private static boolean pendingCancelled;
+    private static boolean carsReady;
 
     private final Object stateLock = new Object();
     private final Object processLock = new Object();
@@ -304,6 +305,22 @@ public final class GeneratorService extends Service {
         return false;
     }
 
+    static synchronized void prepareCars(Context context) throws IOException {
+        if (!carsReady) {
+            CarResources.prepare(context.getFilesDir(), context.getAssets().list(CarResources.DIRECTORY),
+                name -> context.getAssets().open(CarResources.DIRECTORY + "/" + name));
+            carsReady = true;
+        }
+    }
+
+    private static ProcessBuilder nativeProcess(Context context, List<String> command, File game)
+            throws IOException {
+        prepareCars(context);
+        ProcessBuilder builder = new ProcessBuilder(command).directory(game).redirectErrorStream(true);
+        builder.environment().put(CarResources.ASSETS_ENVIRONMENT, context.getFilesDir().getAbsolutePath());
+        return builder;
+    }
+
     /** Call on a storage worker before refresh/select can replace the old game's cache. */
     public static void recoverInterrupted(Context context) throws IOException {
         synchronized (RECOVERY_LOCK) {
@@ -447,7 +464,7 @@ public final class GeneratorService extends Service {
             throws IOException, JSONException {
         String car = report.getString("car");
         String transmission = report.getString("transmission");
-        if (!car.matches("[A-Za-z0-9]{4}")
+        if (!CarResources.validCode(car)
                 || !(transmission.equals("manual") || transmission.equals("auto"))) {
             throw new IOException("The interrupted report has invalid car settings.");
         }
@@ -471,8 +488,7 @@ public final class GeneratorService extends Service {
         if (physics.optBoolean("amiga_grass", false)) {
             command.add("/amigagrass");
         }
-        Process process = new ProcessBuilder(command).directory(game)
-            .redirectErrorStream(true).start();
+        Process process = nativeProcess(context, command, game).start();
         StringBuilder output = new StringBuilder();
         AtomicReference<IOException> readFailure = new AtomicReference<>();
         Thread reader = new Thread(() -> {
@@ -765,7 +781,7 @@ public final class GeneratorService extends Service {
         Process process;
         synchronized (processLock) {
             checkCancelled();
-            process = new ProcessBuilder(command).directory(game).redirectErrorStream(true).start();
+            process = nativeProcess(this, command, game).start();
             child = process;
         }
         try (InputStreamReader reader = new InputStreamReader(process.getInputStream(),

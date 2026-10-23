@@ -128,6 +128,7 @@ def main():
     game.mkdir()
     validation.copy_assets(ROOT / "stunts", game)
     validation.copy_assets(ROOT / "tools/scripts/cars", game)
+    validation.copy_assets(ROOT / "assets/cars", game)
     for line in (ORACLES / "SHA256SUMS").read_text().splitlines():
         expected, filename = line.split()
         source = ORACLES / filename

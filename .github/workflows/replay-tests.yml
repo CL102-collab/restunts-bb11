@@ -158,6 +158,8 @@ jobs:
           unzip -oq "$zip_path" -d "$game_dir"
           # Custom cars use mixed-case extensions; copy the complete asset pack.
           cp -R tools/scripts/cars/. "$game_dir/"
+          # Original-engine oracle tools still require loose car resources.
+          cp -R assets/cars/. "$game_dir/"
           # The archived golden corpus is the complete replay set for CI.
           find "$game_dir" -maxdepth 1 -type f -iname '*.rpl' -delete
           if [[ "$CANDIDATE_PLATFORM" == dos ]]; then

@@ -106,6 +106,9 @@ class ReplayWorkflowTests(unittest.TestCase):
         cars = directory / "tools" / "scripts" / "cars"
         cars.mkdir(parents=True)
         (cars / "car.res").write_bytes(b"car resource")
+        bundled_cars = directory / "assets" / "cars"
+        bundled_cars.mkdir(parents=True)
+        (bundled_cars / "CARTERR.RES").write_bytes(b"bundled car resource")
         archived = directory / "tools" / "oracles" / "borland"
         archived.mkdir(parents=True)
         for name, contents in (("repldumo.exe", b"archived physics"),
@@ -135,6 +138,8 @@ class ReplayWorkflowTests(unittest.TestCase):
                     **environment)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 game = Path(environment["RUNNER_TEMP"]) / "gamedir"
+                self.assertEqual(b"car resource", (game / "car.res").read_bytes())
+                self.assertEqual(b"bundled car resource", (game / "CARTERR.RES").read_bytes())
                 self.assertEqual(b"built physics", (game / "repldumo.exe").read_bytes())
                 self.assertEqual(b"built renderer", (game / "pixldumo.exe").read_bytes())
 

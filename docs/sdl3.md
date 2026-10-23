@@ -309,6 +309,15 @@ Windows uses the corresponding `.exe` names. Dump outputs and saved game data
 are written in the selected data directory, so it must be writable. Keep the
 original game resources and replay/car additions together there.
 
+Custom cars are also discovered automatically in `cars/` inside the game-data
+folder, beside the executable, and in the bundled car resource directory.
+Native packages include Tesla (`TERR`) and McMurtry (`MCMU`) in `bin/cars/`.
+Keep each car's physics resource, 3D models and dashboard resources together.
+Loose car files in the game-data folder or beside the executable retain priority
+over files in `cars/`; duplicate IDs appear only once in the car menu. Source
+builds also search `assets/cars/`. Browser and Android builds bundle these same
+car resources automatically.
+
 `repldump --time` also writes a `.tim` file with the replay's basename, such as
 `DEFAULT.tim`. Its first line contains the player's driving time to the finish,
 excluding penalties and the recording tail after finishing, formatted like the

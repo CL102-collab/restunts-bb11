@@ -8,6 +8,7 @@
 #include "../../c/restunts.h"
 #include "../../c/command_line.h"
 #include "../../c/asset_path.h"
+#include "../../c/fileio.h"
 #include "sdl3.h"
 
 extern void full_data_initialize(void);
@@ -57,6 +58,11 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 #endif
 #ifndef RESTUNTS_HEADLESS
 	asset_path_initialize(argc > 0 ? argv[0] : NULL);
+	file_car_set_base((const legacy_s8 *)asset_path_base());
+#else
+	const legacy_char *asset_directory = getenv("RESTUNTS_ASSETS_DIR");
+	file_car_set_base(
+		(const legacy_s8 *)(asset_directory != NULL ? asset_directory : SDL_GetBasePath()));
 #endif
 	/* Accept a resource directory without changing the historical game and
  * dump argument syntax. By default resources are read from the current dir. */

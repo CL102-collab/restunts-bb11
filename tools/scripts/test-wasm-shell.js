@@ -445,30 +445,38 @@ async function exerciseDirectoryLoading(browser, url) {
         await ready(page);
         const specs = ['MaIn.ReS', 'FONTDEF.FNT', 'FONTN.FNT', 'MiXeD.HIG',
             ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
-            'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM',
-            'ignored.exe', 'archive/MAIN.RES', 'opponents/animations/opp7win.webm']
+            'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM', 'CARTERR.RES',
+            'Cars/CaRTerR.ReS', 'cars/STMCMU.3SH', 'cars/STDAMCMU.VSH',
+            'cars/CARCSTM.PRE', 'cars/STCSTM.P3S', 'cars/STDBCSTM.PVS',
+            'ignored.exe', 'archive/MAIN.RES', 'opponents/animations/opp7win.webm',
+            'cars/IGNORE.TRK', 'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES']
             .map(path => ({ path, bytes: [1, 2, 3] }));
         const accepted = specs.filter(spec => !['ignored.exe', 'archive/MAIN.RES',
-            'opponents/animations/opp7win.webm'].includes(spec.path));
+            'opponents/animations/opp7win.webm', 'cars/IGNORE.TRK',
+            'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES'].includes(spec.path));
+        const metadataCount = accepted.length;
+        const fileCount = new Set(accepted.map(spec => spec.path.toLowerCase())).size;
         await installLoadingFixture(page, specs);
         await page.locator('#open-folder').click();
         await assertConcurrentPhase(page, 'metadata');
-        assert.match(await page.locator('#status').textContent(), /^Checking game files… 0 of 18\./);
+        assert.equal(await page.locator('#status').textContent(), 'Checking game files… 0 of ' + metadataCount + '.');
         await assertLoadProgress(page, 0);
         assert.equal(await page.locator('#start').isDisabled(), true);
         await page.evaluate(() => testLoadingFixture.pending.metadata.find(item => item.path === 'FONTDEF.FNT').finish());
-        await page.waitForFunction(() => document.getElementById('status').textContent === 'Checking game files… 1 of 18.');
-        await assertLoadProgress(page, 50 / 18);
+        await page.waitForFunction(count => document.getElementById('status').textContent ===
+            'Checking game files… 1 of ' + count + '.', metadataCount);
+        await assertLoadProgress(page, 50 / metadataCount);
         await page.evaluate(() => testLoadingFixture.release('metadata', true));
         await assertConcurrentPhase(page, 'content');
-        assert.match(await page.locator('#status').textContent(), /^Reading game files… 0 of 17\./);
+        assert.equal(await page.locator('#status').textContent(), 'Reading game files… 0 of ' + fileCount + '.');
         await assertLoadProgress(page, 50);
         await assertProgressMotion(page);
         await page.evaluate(() => testLoadingFixture.pending.content.find(item => item.path === 'FONTDEF.FNT').finish());
-        await page.waitForFunction(() => document.getElementById('status').textContent === 'Reading game files… 1 of 17.');
-        await assertLoadProgress(page, 50 + 50 / 17);
+        await page.waitForFunction(count => document.getElementById('status').textContent ===
+            'Reading game files… 1 of ' + count + '.', fileCount);
+        await assertLoadProgress(page, 50 + 50 / fileCount);
         await finishLoading(page);
-        assert.match(await page.locator('#status').textContent(), /^Loaded 17 game files\./);
+        assert.ok((await page.locator('#status').textContent()).startsWith('Loaded ' + fileCount + ' game files.'));
         await assertLoadProgress(page, 100, { loading: false });
         const imported = await page.evaluate(() => ({
             files: Array.from(fixtureFiles.keys()),
@@ -486,7 +494,14 @@ async function exerciseDirectoryLoading(browser, url) {
         assert.equal(new Map(imported.casing).get('main.res'), 'MaIn.ReS',
             'The first filename casing must survive out-of-order completion');
         assert.ok(imported.files.includes('/stunts/opponents/animations/opp1win.webm'));
-        assert.equal(imported.files.length, 17);
+        assert.ok(imported.files.includes('/stunts/carterr.res'), 'Loose car resources must still load');
+        assert.ok(imported.files.includes('/stunts/cars/carterr.res'), 'Mixed-case car folders must load');
+        assert.ok(imported.files.includes('/stunts/cars/stmcmu.3sh'));
+        assert.ok(imported.files.includes('/stunts/cars/stdamcmu.vsh'));
+        assert.ok(imported.files.includes('/stunts/cars/carcstm.pre'));
+        assert.ok(imported.files.includes('/stunts/cars/stcstm.p3s'));
+        assert.ok(imported.files.includes('/stunts/cars/stdbcstm.pvs'));
+        assert.equal(imported.files.length, fileCount);
         assert.ok(imported.baseline.includes('mixed.hig'), 'Existing saves must retain their export baseline');
         assert.ok(imported.statuses.some(value => value.startsWith('Scanning game folder ')),
             'Directory enumeration must report progress');
@@ -541,7 +556,7 @@ async function exerciseDirectoryLoading(browser, url) {
                 { names: ['MAIN.RES', 'FONTDEF.FNT'], error: 'Select the folder containing' },
                 { names: ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'main.res'],
                     sizes: [3, 3, 3, 4], error: 'Conflicting game filenames' },
-                { names: ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'LARGE.TRK'],
+                { names: ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'cars/STLARGE.3SH'],
                     sizes: [3, 3, 3, 256 * 1024 * 1024], error: 'Game folder resources exceed 256 MiB' },
                 { names: ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'main.res'],
                     conflicting: true, error: 'Conflicting game filenames' }
@@ -579,9 +594,13 @@ async function exerciseDirectoryLoading(browser, url) {
 async function exerciseFallbackLoading(browser, url, temporary) {
     const directory = path.join(temporary, 'many-game-files');
     await fs.mkdir(directory);
-    const names = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT',
-        ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK')];
-    await Promise.all(names.concat('IGNORE.EXE').map(name => fs.writeFile(path.join(directory, name), 'fixture')));
+    const names = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'CARTERR.RES',
+        ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
+        'CaRs/CaRMcmu.ReS', 'CaRs/STMCMU.3SH', 'CaRs/STDAMCMU.VSH'];
+    await fs.mkdir(path.join(directory, 'CaRs'));
+    await fs.mkdir(path.join(directory, 'CaRs', 'nested'));
+    await Promise.all(names.concat('IGNORE.EXE', 'CaRs/IGNORE.TRK', 'CaRs/nested/CARNEST.RES')
+        .map(name => fs.writeFile(path.join(directory, name), 'fixture')));
     await fs.mkdir(path.join(directory, 'archive'));
     await fs.writeFile(path.join(directory, 'archive', 'OLD.TRK'), 'ignored');
     const context = await browser.newContext();
@@ -596,18 +615,24 @@ async function exerciseFallbackLoading(browser, url, temporary) {
         await assertLoadProgress(page, 50);
         assert.equal(await page.locator('#start').isDisabled(), true);
         await page.evaluate(() => testLoadingFixture.pending.content[0].finish());
-        await page.waitForFunction(() => document.getElementById('status').textContent === 'Reading game files… 1 of 15.');
+        await page.waitForFunction(count => document.getElementById('status').textContent ===
+            'Reading game files… 1 of ' + count + '.', names.length);
         await assertLoadProgress(page, 50 + 50 / names.length);
         await page.evaluate(() => testLoadingFixture.release('content', true));
         await page.waitForFunction(() => !document.getElementById('start').disabled);
         await assertLoadProgress(page, 100, { loading: false });
         const actual = await page.evaluate(() => ({
-            calls: testLoadingFixture.calls.content.map(name => name.split('/').pop()),
+            calls: testLoadingFixture.calls.content.map(name => name.split('/').slice(1).join('/')),
+            files: Array.from(fixtureFiles.keys()),
             peak: testLoadingFixture.peak.content,
             mode: document.getElementById('save-mode').textContent
         }));
         assert.deepEqual(actual.calls.slice().sort(), names.slice().sort(),
-            'Read-only directory loading must concurrently read supported immediate files exactly once');
+            'Read-only directory loading must concurrently read supported root and car files exactly once');
+        assert.ok(actual.files.includes('/stunts/cars/carmcmu.res'));
+        assert.ok(actual.files.includes('/stunts/cars/stmcmu.3sh'));
+        assert.ok(actual.files.includes('/stunts/cars/stdamcmu.vsh'));
+        assert.ok(actual.files.includes('/stunts/carterr.res'));
         assert.ok(actual.peak > 1 && actual.peak <= 8);
         assert.match(actual.mode, /read-only/);
     } finally {
@@ -845,7 +870,7 @@ async function main() {
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, duplicate handling and failed-import draining');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

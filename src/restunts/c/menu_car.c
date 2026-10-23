@@ -137,23 +137,10 @@ struct CAR_MENU_STATE {
 static legacy_s16 car_menu_find_cars(struct CAR_MENU_STATE *menu, legacy_s8 *car_id)
 {
 	ensure_file_exists(GAME_RESOURCE_FILE_INDEX);
-	const legacy_s8 *found_path =
-		file_combine_and_find(0, car_resource_wildcard, car_resource_extension);
-	if (found_path == 0) {
+	menu->car_count = (legacy_u8)file_find_car_ids(menu->car_ids, CAR_MENU_MAXIMUM_CARS);
+	if (menu->car_count == 0) {
 		return 0;
 	}
-	menu->car_count = 0;
-	do {
-		for (legacy_u16 i = 0; i < CAR_ID_LENGTH; i++) {
-			menu->car_ids[menu->car_count][i] = found_path[i + CAR_RESOURCE_ID_OFFSET];
-		}
-		menu->car_ids[menu->car_count][CAR_ID_LENGTH] = 0;
-		menu->car_count++;
-		if (menu->car_count >= CAR_MENU_MAXIMUM_CARS) {
-			break;
-		}
-		found_path = file_find_next_alt();
-	} while (found_path != 0);
 
 	legacy_u16 j;
 	legacy_s8 swap_id[CAR_ID_BUFFER_SIZE];

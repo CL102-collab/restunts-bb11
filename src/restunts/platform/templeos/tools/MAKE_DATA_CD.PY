@@ -62,7 +62,7 @@ FILENAME_BITMAP_BITS = 32
 HELPER_NAMES = ("IMPORT.HC", "VERIFY.HH", "LEGACY.HH")
 # Keep this whitelist identical to tools/PREPARE.PY.
 DATA_EXTENSIONS = {
-    ".RES", ".PRE", ".PVS", ".VSH", ".PES", ".ESH", ".3SH", ".P3S",
+    ".RES", ".PRE", ".PVS", ".VSH", ".XVS", ".PES", ".ESH", ".3SH", ".P3S",
     ".TRK", ".RPL", ".HIG", ".CFG", ".DAT", ".DRV", ".VCE", ".SFX",
     ".KMS", ".FNT", ".PLB",
 }
@@ -119,6 +119,20 @@ def collect_data(data):
             assets[name] = read_entry(name, source)
     if not any(name in assets for name in ("MISC.RES", "MISC.PRE")):
         raise ValueError("The game folder must contain MISC.RES or MISC.PRE")
+    car_directories = [source for source in data.iterdir()
+                       if source.is_dir() and source.name.upper() == "CARS"]
+    if len(car_directories) > 1:
+        raise ValueError("Directories have the same uppercase name: CARS")
+    if car_directories:
+        cars = {}
+        for source in sorted(car_directories[0].iterdir()):
+            if source.is_file() and source.suffix.upper() in DATA_EXTENSIONS:
+                name = source.name.upper()
+                if name in cars:
+                    raise ValueError("Files have the same uppercase name: " + name)
+                cars[name] = read_entry(name, source)
+        if cars:
+            assets["CARS"] = {"name": "CARS", "children": [cars[name] for name in sorted(cars)]}
     return [assets[name] for name in sorted(assets)]
 
 
@@ -166,12 +180,24 @@ def volume_descriptors(image, root_cluster):
 
 
 def build_image(helpers, assets):
-    root_bytes = round_up((len(helpers) + 1 + DIRECTORY_RESERVED_ENTRIES) *
-                          DIRECTORY_ENTRY_BYTES, SECTOR_BYTES)
-    data_bytes = round_up((len(assets) + DIRECTORY_RESERVED_ENTRIES) *
-                          DIRECTORY_ENTRY_BYTES, SECTOR_BYTES)
-    entries = helpers + assets
-    payload_sectors = (root_bytes + data_bytes) // SECTOR_BYTES
+    root = {"name": ".", "children": helpers + [{"name": "DATA", "children": assets}]}
+    directories = []
+    entries = []
+
+    def collect(directory, parent, prefix):
+        directory["parent"] = parent
+        directory["size"] = round_up((len(directory["children"]) + DIRECTORY_RESERVED_ENTRIES) *
+                                      DIRECTORY_ENTRY_BYTES, SECTOR_BYTES)
+        directories.append(directory)
+        for entry in directory["children"]:
+            entry["path"] = prefix + entry["name"]
+            if "children" in entry:
+                collect(entry, directory, entry["path"] + "/")
+            else:
+                entries.append(entry)
+
+    collect(root, root, "")
+    payload_sectors = sum(directory["size"] // SECTOR_BYTES for directory in directories)
     payload_sectors += sum(round_up(len(entry["data"]), SECTOR_BYTES) // SECTOR_BYTES
                            for entry in entries)
     bitmap_sectors = 1
@@ -185,30 +211,28 @@ def build_image(helpers, assets):
         bitmap_sectors = required
     image = bytearray(total_sectors * SECTOR_BYTES)
     root_cluster = REDSEA_OFFSET + 1 + bitmap_sectors
-    data_cluster = root_cluster + root_bytes // SECTOR_BYTES
-    next_cluster = data_cluster + data_bytes // SECTOR_BYTES
+    next_cluster = root_cluster
+    for directory in directories:
+        directory["cluster"] = next_cluster
+        next_cluster += directory["size"] // SECTOR_BYTES
     fingerprint = hashlib.sha256()
     for entry in entries:
         content = entry["data"]
         entry["cluster"] = next_cluster if content else INVALID_CLUSTER
         put(image, next_cluster * SECTOR_BYTES, content)
         next_cluster += round_up(len(content), SECTOR_BYTES) // SECTOR_BYTES
-        fingerprint.update(entry["name"].encode("ascii") + b"\x00" + content)
+        fingerprint.update(entry["path"].encode("ascii") + b"\x00" + content)
     date = max(entry["date"] for entry in entries)
-
-    def write_directory(cluster, size, self_name, children):
-        records = [directory_record(self_name, cluster, size, date, True),
-                   directory_record("..", root_cluster, 0, date, True)]
-        records.extend(children)
-        put(image, cluster * SECTOR_BYTES, b"".join(records))
-
-    root_records = [directory_record("DATA", data_cluster, data_bytes, date, True)]
-    root_records += [directory_record(entry["name"], entry["cluster"],
-                                      len(entry["data"]), entry["date"]) for entry in helpers]
-    data_records = [directory_record(entry["name"], entry["cluster"],
-                                     len(entry["data"]), entry["date"]) for entry in assets]
-    write_directory(root_cluster, root_bytes, ".", root_records)
-    write_directory(data_cluster, data_bytes, "DATA", data_records)
+    for directory in directories:
+        records = [directory_record(directory["name"], directory["cluster"],
+                                    directory["size"], date, True),
+                   directory_record("..", directory["parent"]["cluster"], 0, date, True)]
+        for entry in directory["children"]:
+            is_directory = "children" in entry
+            records.append(directory_record(entry["name"], entry["cluster"],
+                                            entry["size"] if is_directory else len(entry["data"]),
+                                            date if is_directory else entry["date"], is_directory))
+        put(image, directory["cluster"] * SECTOR_BYTES, b"".join(records))
     boot_offset = REDSEA_OFFSET * SECTOR_BYTES
     image[boot_offset + 3] = REDSEA_SIGNATURE
     struct.pack_into("<5Q", image, boot_offset + BOOT_FIELDS_OFFSET,
@@ -242,7 +266,8 @@ def make_data_cd(data, output):
     with output.open("xb") as stream:
         stream.write(image)
     print("Created private RedSea data CD: " + str(output))
-    print(f"{len(assets)} game files; {len(image)} bytes; "
+    file_count = sum(len(entry["children"]) if "children" in entry else 1 for entry in assets)
+    print(f"{file_count} game files; {len(image)} bytes; "
           f"SHA256 {hashlib.sha256(image).hexdigest()}")
     print("Insert it in the running TempleOS VM, then use DskChg('T'); Cd(\"T:/\");")
     print('Run #include "IMPORT.HC"; to copy into the installed game.')

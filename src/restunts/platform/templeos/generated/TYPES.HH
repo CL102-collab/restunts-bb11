@@ -74,6 +74,16 @@
 #define DIALOG_TYPE_DELAY 4
 #define COMPRESSION_RLE_TYPE 1
 #define COMPRESSION_VLE_TYPE 2
+#define FILE_CAR_DATA_LOOSE (-1+1)
+#define FILE_CAR_BASE_LOOSE ((-1+1)+1)
+#define FILE_CAR_DATA_DIRECTORY (((-1+1)+1)+1)
+#define FILE_CAR_BASE_DIRECTORY ((((-1+1)+1)+1)+1)
+#define FILE_CAR_BUNDLED_DIRECTORY (((((-1+1)+1)+1)+1)+1)
+#define FILE_CAR_ROOT_COUNT ((((((-1+1)+1)+1)+1)+1)+1)
+#define FILE_CAR_NONE (-1+1)
+#define FILE_CAR_PHYSICS ((-1+1)+1)
+#define FILE_CAR_MODEL (((-1+1)+1)+1)
+#define FILE_CAR_DASHBOARD ((((-1+1)+1)+1)+1)
 #define RESOURCE_NOT_FOUND_IGNORE 0
 #define RESOURCE_NOT_FOUND_SHAPE_FATAL 1
 #define RESOURCE_NOT_FOUND_SOUND_FATAL 2
@@ -766,7 +776,7 @@ class CSprite
 
 class CFileFindDos
 {
-  legacy_s8 path[128];
+  legacy_s8 path[1024];
   legacy_s8 *dirdelim;
 };
 

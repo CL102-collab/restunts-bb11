@@ -1,5 +1,6 @@
 #include "legacy.h"
 #include "platform.h"
+#include "fileio.h"
 
 #include "dos_interrupts.h"
 #include "restunts.h"
@@ -15,6 +16,9 @@
 #define HEADLESS_DOS_INTERRUPT 33
 #define HEADLESS_DOS_RESIZE_MEMORY_FUNCTION 74
 #define HEADLESS_PSP_COMMAND_LINE_OFFSET 128U
+#define HEADLESS_PSP_ENVIRONMENT_OFFSET 44U
+#define HEADLESS_ENVIRONMENT_LIMIT 32767U
+#define HEADLESS_ENVIRONMENT_TRAILER_SIZE 3U
 
 #if defined(RESTUNTS_FULL) || defined(RESTUNTS_PIXLDUMP)
 extern void full_data_initialize(void);
@@ -130,9 +134,43 @@ static legacy_s16 headless_select_data_directory(legacy_s16 *argc)
 }
 #endif
 
+/* DOS 3+ stores the fully qualified executable name after the environment's
+ * double terminator and word count. Retain its directory across --data-dir. */
+static void headless_set_car_base(void)
+{
+	legacy_u16 far *environment_segment =
+		(legacy_u16 far *)MK_FP(headless_psp_segment, HEADLESS_PSP_ENVIRONMENT_OFFSET);
+	if (*environment_segment == 0) {
+		return;
+	}
+	const legacy_u8 far *environment = (const legacy_u8 far *)MK_FP(*environment_segment, 0);
+	legacy_u16 offset = 0;
+	while (offset + HEADLESS_ENVIRONMENT_TRAILER_SIZE < HEADLESS_ENVIRONMENT_LIMIT &&
+		   (environment[offset] != 0 || environment[offset + 1U] != 0)) {
+		offset++;
+	}
+	offset += HEADLESS_ENVIRONMENT_TRAILER_SIZE + 1U;
+	legacy_s8 path[FILE_CAR_PATH_SIZE];
+	legacy_u16 length = 0;
+	legacy_u16 directory_end = 0;
+	while (offset < HEADLESS_ENVIRONMENT_LIMIT && environment[offset] != 0 &&
+		   length + 1U < sizeof(path)) {
+		path[length] = environment[offset++];
+		if (path[length] == '/' || path[length] == '\\' || path[length] == ':') {
+			directory_end = length + 1U;
+		}
+		length++;
+	}
+	if (offset < HEADLESS_ENVIRONMENT_LIMIT && environment[offset] == 0 && directory_end != 0) {
+		path[directory_end] = 0;
+		file_car_set_base(path);
+	}
+}
+
 static void headless_run(void)
 {
 	headless_release_extra_memory();
+	headless_set_car_base();
 	legacy_s16 argc = headless_parse_command_line();
 #ifdef RESTUNTS_FULL
 	legacy_s16 info_result = command_line_print_info(argc, headless_argv);

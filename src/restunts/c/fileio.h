@@ -19,6 +19,21 @@ enum FILE_RESOURCE_TYPE {
 extern "C" {
 #endif
 
+#define FILE_CAR_ID_LENGTH 4U
+#define FILE_CAR_ID_BUFFER_SIZE (FILE_CAR_ID_LENGTH + 1U)
+#ifdef RESTUNTS_DOS16
+#define FILE_CAR_PATH_SIZE 128U
+#else
+#define FILE_CAR_PATH_SIZE 1024U
+#endif
+
+/* Preserve the executable/asset directory before selecting the game-data dir.
+ * Loose game data takes priority over cars/ and bundled replacement assets. */
+void file_car_set_base(const legacy_s8 *directory);
+legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity);
+/* Open an existing resource, including the car search directories. */
+legacy_u16 file_open_resource(const legacy_s8 *filename);
+
 const legacy_s8 *file_find(const legacy_s8 *query);
 const legacy_s8 *file_find_next(void);
 const legacy_s8 *file_find_next_alt(void);

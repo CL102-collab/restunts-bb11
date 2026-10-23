@@ -31,7 +31,8 @@ def main():
     for executable in executables.values():
         if not executable.is_file():
             parser.error(f"Missing {executable}; build restunts and test-driving-options first")
-    if not (args.data_dir / "CARTERR.RES").is_file():
+    if not any((directory / "CARTERR.RES").is_file()
+               for directory in (args.data_dir, args.data_dir / "cars")):
         parser.error("--data-dir must contain the game data and installed Tesla car")
     args.output.mkdir(parents=True, exist_ok=True)
 
@@ -77,6 +78,8 @@ def main():
         for source in args.data_dir.iterdir():
             if source.is_file():
                 shutil.copyfile(source, data / source.name.upper())
+        if (args.data_dir / "cars").is_dir():
+            shutil.copytree(args.data_dir / "cars", data / "cars")
         for name, source in executables.items():
             shutil.copyfile(source, directory / name)
         commands = []

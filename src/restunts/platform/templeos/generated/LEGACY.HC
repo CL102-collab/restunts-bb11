@@ -2,38 +2,38 @@
 
 legacy_s8 RsLegacyLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_236;
+  legacy_s32 noreg temple_tmp_345;
   if((value<=127)) {
-    temple_tmp_236=TempleCastS32(TempleCastS8(value));
+    temple_tmp_345=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_236=TempleCastS32(TempleCastS8(
+    temple_tmp_345=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_236);
+  return TempleCastS8(temple_tmp_345);
 }
 
 legacy_s16 RsLegacyLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_237;
+  legacy_s32 noreg temple_tmp_346;
   if((value<=32767)) {
-    temple_tmp_237=TempleCastS32(TempleCastS16(value));
+    temple_tmp_346=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_237=TempleCastS32(TempleCastS16(
+    temple_tmp_346=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_237);
+  return TempleCastS16(temple_tmp_346);
 }
 
 legacy_s32 RsLegacyLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_238;
+  legacy_s32 noreg temple_tmp_347;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_238=TempleCastS32(TempleCastS32(value));
+    temple_tmp_347=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_238=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_347=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_238);
+  return TempleCastS32(temple_tmp_347);
 }
 
 legacy_u16 RsLegacyU16DivOrZero(legacy_u16 numerator,legacy_u16 denominator)
@@ -46,29 +46,29 @@ legacy_u16 RsLegacyU16DivOrZero(legacy_u16 numerator,legacy_u16 denominator)
 
 legacy_s16 RsLegacyS16DivOrZero(legacy_s16 numerator,legacy_s16 denominator)
 {
-  legacy_s32 noreg temple_tmp_239;
-  legacy_s32 noreg temple_tmp_240;
-  temple_tmp_240=0;
+  legacy_s32 noreg temple_tmp_348;
+  legacy_s32 noreg temple_tmp_349;
+  temple_tmp_349=0;
   if((denominator==0)) {
-    temple_tmp_240=1;
+    temple_tmp_349=1;
   }
-  if(!temple_tmp_240) {
-    temple_tmp_239=0;
+  if(!temple_tmp_349) {
+    temple_tmp_348=0;
     if((TempleCastU16(numerator)==32768)) {
-      temple_tmp_239=1;
+      temple_tmp_348=1;
     }
-    if(temple_tmp_239) {
-      temple_tmp_239=0;
+    if(temple_tmp_348) {
+      temple_tmp_348=0;
       if((denominator==TempleCastS32((-(1))))) {
-        temple_tmp_239=1;
+        temple_tmp_348=1;
       }
     }
-    temple_tmp_240=0;
-    if(temple_tmp_239) {
-      temple_tmp_240=1;
+    temple_tmp_349=0;
+    if(temple_tmp_348) {
+      temple_tmp_349=1;
     }
   }
-  if(temple_tmp_240) {
+  if(temple_tmp_349) {
     return TempleCastS16(0);
   }
   return TempleCastS16(TempleCastS16(TempleCastS32(TempleDivideS64(numerator,denominator))));
@@ -84,29 +84,29 @@ legacy_u32 RsLegacyU32DivOrZero(legacy_u32 numerator,legacy_u32 denominator)
 
 legacy_s32 RsLegacyS32DivOrZero(legacy_s32 numerator,legacy_s32 denominator)
 {
-  legacy_s32 noreg temple_tmp_241;
-  legacy_s32 noreg temple_tmp_242;
-  temple_tmp_242=0;
+  legacy_s32 noreg temple_tmp_350;
+  legacy_s32 noreg temple_tmp_351;
+  temple_tmp_351=0;
   if((denominator==TempleCastS32(0))) {
-    temple_tmp_242=1;
+    temple_tmp_351=1;
   }
-  if(!temple_tmp_242) {
-    temple_tmp_241=0;
+  if(!temple_tmp_351) {
+    temple_tmp_350=0;
     if((TempleCastU32(numerator)==TempleCastU32(2147483648))) {
-      temple_tmp_241=1;
+      temple_tmp_350=1;
     }
-    if(temple_tmp_241) {
-      temple_tmp_241=0;
+    if(temple_tmp_350) {
+      temple_tmp_350=0;
       if((denominator==TempleCastS32(TempleCastS32((-(1)))))) {
-        temple_tmp_241=1;
+        temple_tmp_350=1;
       }
     }
-    temple_tmp_242=0;
-    if(temple_tmp_241) {
-      temple_tmp_242=1;
+    temple_tmp_351=0;
+    if(temple_tmp_350) {
+      temple_tmp_351=1;
     }
   }
-  if(temple_tmp_242) {
+  if(temple_tmp_351) {
     return TempleCastS32(TempleCastS32(0));
   }
   return TempleCastS32(TempleCastS32(TempleCastS32(TempleDivideS64(numerator,denominator))));

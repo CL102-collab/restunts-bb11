@@ -108,6 +108,9 @@ jobs:
       - name: Verify TempleOS argument construction with sanitizers
         run: python3 src/restunts/platform/templeos/tools/TEST_LAUNCH.PY
 
+      - name: Verify TempleOS custom car packaging
+        run: python3 src/restunts/platform/templeos/tools/TEST_PACKAGE.PY
+
   sanitizers:
     name: Native sanitizer (${{ matrix.sanitizer }})
     runs-on: ubuntu-24.04
@@ -472,9 +475,9 @@ jobs:
             test-amiga-rle test-amiga-unflip test-amiga-decompression \
             test-amiga-command-line test-amiga-startup test-amiga-car-adhesion
 
-      - name: Archive the Amiga executable and guide
+      - name: Archive the Amiga executable, custom cars and guide
         run: |
-          cmake --install build/amiga --prefix "$RUNNER_TEMP/amiga-runtime"
+          cmake --install build/amiga --prefix "$RUNNER_TEMP/amiga-runtime" --component Runtime
           cp docs/amiga.md "$RUNNER_TEMP/amiga-runtime/README.md"
           cp build/amiga/restunts.map "$RUNNER_TEMP/amiga-runtime/restunts.map"
           tar -C "$RUNNER_TEMP/amiga-runtime" -czf restunts-amiga-build.tar.gz .
@@ -542,6 +545,18 @@ jobs:
             --source src/restunts/platform/templeos --entry TEST_LAUNCH.HC \
             --boot-seconds 35 --timeout 300
 
+      - name: Verify bundled TempleOS cars and resource overrides
+        run: |
+          python3 src/restunts/platform/templeos/tools/PREPARE.PY \
+            --output "$RUNNER_TEMP/templeos-car-package"
+          cp src/restunts/platform/templeos/TEST_CARS.HC \
+            "$RUNNER_TEMP/templeos-car-package/PORT/"
+          python3 src/restunts/platform/templeos/tools/VM.PY \
+            --work "$RUNNER_TEMP/templeos-cars" run \
+            --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
+            --source "$RUNNER_TEMP/templeos-car-package/PORT" --entry TEST_CARS.HC \
+            --boot-seconds 35 --timeout 300
+
       - name: Verify Dual-Way Switching penalties with stock HolyC
         run: |
           python3 src/restunts/platform/templeos/tools/VM.PY \
@@ -558,7 +573,7 @@ jobs:
             --source src/restunts/platform/templeos --entry TEST_SEMANTICS.HC \
             --boot-seconds 35 --timeout 300
 
-      - name: Build the code-only installation CD and ZIP
+      - name: Build the installation CD and ZIP with custom cars
         run: |
           python3 src/restunts/platform/templeos/tools/PACKAGE.PY \
             --iso "$RUNNER_TEMP/templeos-iso/TempleOS.ISO" \
@@ -584,6 +599,9 @@ jobs:
             ${{ runner.temp }}/templeos-options/DEBUG.LOG
             ${{ runner.temp }}/templeos-options/VMRUN.HC
             ${{ runner.temp }}/templeos-options/SCREEN.*
+            ${{ runner.temp }}/templeos-cars/DEBUG.LOG
+            ${{ runner.temp }}/templeos-cars/VMRUN.HC
+            ${{ runner.temp }}/templeos-cars/SCREEN.*
             ${{ runner.temp }}/templeos-semantics/DEBUG.LOG
             ${{ runner.temp }}/templeos-semantics/VMRUN.HC
             ${{ runner.temp }}/templeos-semantics/SCREEN.*

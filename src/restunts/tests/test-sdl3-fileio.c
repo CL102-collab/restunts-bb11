@@ -15,6 +15,8 @@
 #include "../c/fileio.h"
 #include "../c/highscore.h"
 #include "../c/platform.h"
+#include "../c/memmgr.h"
+#include "../c/shape2d.h"
 
 #define TEST_GUARD_BYTES 19U
 #define TEST_GUARD_VALUE 0xa7U
@@ -107,6 +109,57 @@ static void test_heap_buffers(void)
 	free(destination_allocation);
 }
 
+static void test_external_car_loaders(void)
+{
+	static const legacy_char *const filenames[] = {
+		"CaSeDir/cars/CARZ9Z9.RES", "CaSeDir/cars/STZ9Z9.3SH", "CaSeDir/cars/STDAZ9Z9.VSH",
+		"CaSeDir/cars/STDBZ9Z9.VSH"};
+	legacy_char directory[FILE_CAR_PATH_SIZE];
+	assert(getcwd(directory, sizeof(directory)) != NULL);
+	assert(strlen(directory) + sizeof("/CaSeDir") <= sizeof(directory));
+	strcat(directory, "/CaSeDir");
+#ifdef _WIN32
+	assert(_mkdir("CaSeDir/cars") == 0);
+#else
+	assert(mkdir("CaSeDir/cars", 0700) == 0);
+#endif
+	legacy_u8 expected[TEST_GUARD_BYTES];
+	fill_pattern(expected, sizeof(expected));
+	for (legacy_u16 index = 0; index < sizeof(filenames) / sizeof(filenames[0]); index++) {
+		assert(file_write_fatal((const legacy_s8 *)filenames[index], expected, sizeof(expected)) ==
+			   0);
+	}
+	file_car_set_base((const legacy_s8 *)directory);
+	legacy_s8 ids[LEGACY_U8_MAX][FILE_CAR_ID_BUFFER_SIZE];
+	legacy_u16 count = file_find_car_ids(ids, LEGACY_U8_MAX);
+	legacy_u16 matches = 0;
+	for (legacy_u16 index = 0; index < count; index++) {
+		matches += strcmp((const legacy_char *)ids[index], "Z9Z9") == 0;
+	}
+	assert(matches == 1);
+	mmgr_init_conventional_arena();
+	void *resource = file_load_resfile((const legacy_s8 *)"carz9z9");
+	assert(resource != NULL && memcmp(resource, expected, sizeof(expected)) == 0);
+	mmgr_release(resource);
+	resource = file_load_resfile_with_tail((const legacy_s8 *)"carz9z9", TEST_GUARD_BYTES);
+	assert(resource != NULL && memcmp(resource, expected, sizeof(expected)) == 0);
+	mmgr_release(resource);
+	resource = file_load_3dres((const legacy_s8 *)"stz9z9");
+	assert(resource != NULL && memcmp(resource, expected, sizeof(expected)) == 0);
+	mmgr_release(resource);
+	resource = file_load_shape2d_fatal((const legacy_s8 *)"stdaz9z9");
+	assert(resource != NULL && memcmp(resource, expected, sizeof(expected)) == 0);
+	mmgr_release(resource);
+	resource = file_load_shape2d_fatal((const legacy_s8 *)"stdbz9z9");
+	assert(resource != NULL && memcmp(resource, expected, sizeof(expected)) == 0);
+	mmgr_release(resource);
+	file_car_set_base(NULL);
+	for (legacy_u16 index = 0; index < sizeof(filenames) / sizeof(filenames[0]); index++) {
+		assert(remove(filenames[index]) == 0);
+	}
+	assert(rmdir("CaSeDir/cars") == 0);
+}
+
 legacy_int main(void)
 {
 	sdl3_batch_mode = 1;
@@ -118,6 +171,7 @@ legacy_int main(void)
 	assert(result == 0 || errno == EEXIST);
 	test_highscore_stack_buffers();
 	test_heap_buffers();
+	test_external_car_loaders();
 	assert(rmdir("CaSeDir") == 0);
 	puts("SDL3 core file I/O stack, heap, page-boundary and path regressions passed");
 	return 0;

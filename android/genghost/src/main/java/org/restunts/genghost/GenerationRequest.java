@@ -66,7 +66,7 @@ public final class GenerationRequest {
                 && !mode.equals(MODE_GEARS_ONLY)) {
             throw new IOException("Choose one search mode.");
         }
-        if (!fineTune && !car.matches("[A-Z0-9]{4}")) {
+        if (!fineTune && !CarResources.validCode(car)) {
             throw new IOException("Use a four-character car code, such as COUN or DIA3.");
         }
         if (seconds < 1 || seconds > 86400) {
@@ -134,7 +134,7 @@ public final class GenerationRequest {
         String replayCar = new String(header, 0, 4, StandardCharsets.US_ASCII)
             .toUpperCase(Locale.ROOT);
         int frames = (header[24] & 255) | ((header[25] & 255) << 8);
-        if (!replayCar.matches("[A-Z0-9]{4}") || header[5] < 0 || header[5] > 1
+        if (!CarResources.validCode(replayCar) || header[5] < 0 || header[5] > 1
                 || header[6] != 0 || (header[22] & 255) != 20 || header[23] != 0
                 || frames == 0 || frames > 12000 || track.length() != 1828L + frames) {
             throw new IOException("Fine-tuning requires a complete solo 20 Hz .RPL replay "

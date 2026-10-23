@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a code-only RedSea port CD and a private-data import tool."""
+"""Build a RedSea port CD with custom cars and a private-data import tool."""
 
 import argparse
 import hashlib
@@ -109,7 +109,7 @@ def package(args):
                    "Restunts stock TempleOS CD\n\n"
                    "Filesystem: native TempleOS RedSea CD, written by RedSeaISO.\n"
                    "GAME.ISO.C was extracted byte-for-byte and named RESTUNTS.ISO.\n"
-                   "This is a code-only port CD, not a replacement operating system.\n"
+                   "This port CD contains HolyC sources and bundled custom cars.\n"
                    f"CD contains {len(files)} files; CONTENTS.TXT records their SHA256 hashes.\n"
                    f"Build-system ISO SHA256: {sha256(iso)}\n"
                    "No original game data is included. DATA_CD_TOOL creates a separate\n"

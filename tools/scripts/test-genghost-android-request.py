@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Android generator request validation on a host JDK, without an Android SDK."""
+"""Run Android generator request and car resource tests on a host JDK, without an Android SDK."""
 
 import os
 from pathlib import Path
@@ -52,9 +52,16 @@ def main():
         subprocess.run([java, "-m", "jdk.compiler/com.sun.tools.javac.Main", "-source", "8", "-target", "8", "-Xlint:-options",
                         "-d", str(classes), str(stub),
                         str(ROOT / "android/genghost/src/main/java/org/restunts/genghost/GenerationRequest.java"),
-                        str(ROOT / "android/tests/GenerationRequestTest.java")], check=True)
+                        str(ROOT / "android/genghost/src/main/java/org/restunts/genghost/CarResources.java"),
+                        str(ROOT / "android/app/src/main/java/org/restunts/android/GameDataImport.java"),
+                        str(ROOT / "android/app/src/main/java/org/restunts/android/GameDataSync.java"),
+                        str(ROOT / "android/app/src/main/java/org/restunts/android/GameDataVersion.java"),
+                        str(ROOT / "android/tests/GenerationRequestTest.java"),
+                        str(ROOT / "android/tests/CarResourcesTest.java")], check=True)
         subprocess.run([java, "-ea", "-cp", str(classes),
                         "org.restunts.genghost.GenerationRequestTest", str(game)], check=True)
+        subprocess.run([java, "-ea", "-cp", str(classes),
+                        "org.restunts.genghost.CarResourcesTest"], check=True)
     return 0
 
 

@@ -20,6 +20,7 @@
 #include "parallel.h"
 #include "state_search.h"
 #include "../platform/sdl3/sdl3.h"
+#include "../c/fileio.h"
 
 #ifndef RESTUNTS_GIT_HASH
 #define RESTUNTS_GIT_HASH "source-archive"
@@ -480,6 +481,9 @@ static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque
 
 int main(int argc, char **argv)
 {
+	const legacy_char *asset_directory = getenv("RESTUNTS_ASSETS_DIR");
+	file_car_set_base(
+		(const legacy_s8 *)(asset_directory != NULL ? asset_directory : SDL_GetBasePath()));
 	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1, 1, 1, 0, 0};
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
 	char car[5] = {0}, track_name[256];
@@ -637,11 +641,11 @@ int main(int argc, char **argv)
 			goto done;
 		}
 		if (strlen(car_argument) != 4U) {
-			fputs("CAR must have exactly four alphanumeric characters\n", stderr);
+			fputs("CAR must have exactly four letters, digits or underscores\n", stderr);
 			goto done;
 		}
 		for (unsigned int i = 0; i < 4U; ++i) {
-			if (!isalnum((unsigned char)car_argument[i])) {
+			if (!isalnum((unsigned char)car_argument[i]) && car_argument[i] != '_') {
 				fputs("Invalid CAR code\n", stderr);
 				goto done;
 			}
@@ -699,7 +703,8 @@ int main(int argc, char **argv)
 		track = file + REPLAY_GAMEINFO_SIZE;
 		if (options.fine_tune) {
 			for (unsigned int i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
-				if (!isalnum((unsigned char)replay.game_playercarid[i])) {
+				if (!isalnum((unsigned char)replay.game_playercarid[i]) &&
+					replay.game_playercarid[i] != '_') {
 					fputs("Invalid CAR code in input replay header\n", stderr);
 					goto done;
 				}

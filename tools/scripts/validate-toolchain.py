@@ -69,6 +69,7 @@ def prepare(args):
     game.mkdir()
     copy_assets(ROOT / "stunts", game)
     copy_assets(ROOT / "tools/scripts/cars", game)
+    copy_assets(ROOT / "assets/cars", game)
     for line in (ORACLES / "SHA256SUMS").read_text().splitlines():
         expected, name = line.split()
         source = ORACLES / name

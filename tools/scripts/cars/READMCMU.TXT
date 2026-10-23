@@ -1,7 +1,10 @@
 MCMURTRY SPEIRLING PURE (2026 PRODUCTION) - MCMU
 
 INSTALL
-Copy CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH into your
+Restunts loads this car automatically from its cars resource folder. The
+repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
+assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
+For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.

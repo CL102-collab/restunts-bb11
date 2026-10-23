@@ -29,7 +29,8 @@ there:
 - The `.rpl` replay corpus, all required custom-car files, and other Stunts data.
 
 When preparing a Linux game directory from this repository, copy the whole car
-pack with `cp -R tools/scripts/cars/. /path/to/stunts/`. Do not filter by
+pack with `cp -R tools/scripts/cars/. assets/cars/. /path/to/stunts/`.
+The original oracle executables require loose car files. Do not filter by
 uppercase extensions: the pack includes `.3sh`, `.vsh`, and `.res` files as well.
 Omitting these files leaves the original renderer waiting in its resource-error
 dialog and is reported as a timeout. The replays using PACK, PFCR, LANI, LRDE,

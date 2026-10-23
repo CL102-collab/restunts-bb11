@@ -44,6 +44,12 @@ class ReleasePackageTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.output = self.root / "archives"
 
+    def copy_car_sources(self, source):
+        for name in PACKAGES.CUSTOM_CAR_FILES:
+            path = source / "assets/cars" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((PACKAGES.ROOT / "assets/cars" / name).read_bytes())
+
     def elf_data(self, elf_class, machine, shared=False):
         header = bytearray(PACKAGES.ELF_HEADER_SIZES[elf_class])
         header[:len(PACKAGES.ELF_MAGIC)] = PACKAGES.ELF_MAGIC
@@ -57,7 +63,7 @@ class ReleasePackageTests(unittest.TestCase):
     def apk_data(self, target, replacements=None, missing=()):
         abi = PACKAGES.ANDROID_TARGETS[target]
         elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
-        files = {name: FILE_DATA for name in
+        files = {name: self.runtime_data(target, name) for name in
                  PACKAGES.android_required_assets() | PACKAGES.android_required_resources(target)}
         files |= {"AndroidManifest.xml": FILE_DATA, "classes.dex": FILE_DATA,
                   "classes2.dex": FILE_DATA, "resources.arsc": FILE_DATA}
@@ -93,8 +99,9 @@ class ReleasePackageTests(unittest.TestCase):
 
     def genghost_apk_data(self, target, replacements=None, missing=()):
         abi = PACKAGES.ANDROID_TARGETS[target]
-        files = {name: FILE_DATA for name in
-                 PACKAGES.ANDROID_GENGHOST_ASSETS | PACKAGES.ANDROID_GENGHOST_RESOURCES}
+        files = {name: self.runtime_data(target, name) for name in
+                 PACKAGES.ANDROID_GENGHOST_ASSETS | PACKAGES.ANDROID_GENGHOST_RESOURCES |
+                 PACKAGES.custom_car_files("assets/cars")}
         files |= {"AndroidManifest.xml": FILE_DATA, "classes.dex": FILE_DATA,
                   "classes2.dex": FILE_DATA, "classes3.dex": FILE_DATA, "resources.arsc": FILE_DATA,
                   f"lib/{abi}/libgenghost_exec.so": self.pie_data(target)}
@@ -108,6 +115,9 @@ class ReleasePackageTests(unittest.TestCase):
         return output.getvalue()
 
     def runtime_data(self, target, name):
+        car_source = PACKAGES.custom_car_source(name)
+        if car_source is not None:
+            return car_source.read_bytes()
         if target in PACKAGES.ANDROID_TARGETS and name == PACKAGES.ANDROID_APK:
             return self.apk_data(target)
         if target in PACKAGES.ANDROID_TARGETS and name == PACKAGES.ANDROID_GENGHOST_APK:
@@ -161,6 +171,70 @@ class ReleasePackageTests(unittest.TestCase):
         files, modes = PACKAGES.archive_contents(self.output / PACKAGES.archive_name("linux-x64"))
         self.assertTrue(modes["bin/restunts"] & stat.S_IXUSR)
         self.assertEqual(files["bin/restunts"], FILE_DATA)
+
+    def test_custom_cars_survive_every_archive_and_both_android_apks(self):
+        for target in PACKAGES.TARGETS:
+            with self.subTest(target=target):
+                archive = self.create(target)
+                files, _ = PACKAGES.archive_contents(archive)
+                if target in PACKAGES.ANDROID_TARGETS:
+                    collections = []
+                    for apk_name in (PACKAGES.ANDROID_APK, PACKAGES.ANDROID_GENGHOST_APK):
+                        with zipfile.ZipFile(io.BytesIO(files[apk_name])) as apk:
+                            collections.append({name: apk.read(name) for name in apk.namelist()})
+                    directory = "assets/cars"
+                else:
+                    collections = [files]
+                    directory = "cars" if target == "dos16" else "bin/cars"
+                    if target == "browser":
+                        directory = "share/restunts/wasm-relink/data/assets/cars"
+                for contents in collections:
+                    packaged = {name for name in contents if name.startswith(directory + "/")}
+                    self.assertEqual(packaged, PACKAGES.custom_car_files(directory))
+                    for name in packaged:
+                        expected = PACKAGES.custom_car_source(name).read_bytes()
+                        self.assertEqual(contents[name], expected)
+                        self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
+
+    def test_custom_car_sources_are_required_and_cannot_be_substituted(self):
+        for target in PACKAGES.TARGETS:
+            if target in PACKAGES.ANDROID_TARGETS:
+                continue
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            for name in files:
+                if PACKAGES.custom_car_source(name) is None:
+                    continue
+                with self.subTest(target=target, missing=name), \
+                        self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents(target, {key: data for key, data in files.items()
+                                                        if key != name}, modes)
+                with self.subTest(target=target, replaced=name), \
+                        self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
+                    PACKAGES.validate_contents(target, {**files, name: FILE_DATA}, modes)
+        for target in PACKAGES.ANDROID_TARGETS:
+            for make_apk, validate in ((self.apk_data, PACKAGES.validate_android_apk),
+                                       (self.genghost_apk_data, PACKAGES.validate_android_genghost_apk)):
+                for name in PACKAGES.custom_car_files("assets/cars"):
+                    with self.subTest(target=target, apk=make_apk.__name__, missing=name), \
+                            self.assertRaisesRegex(ValueError, "missing.*APK members"):
+                        validate(target, make_apk(target, missing=(name,)))
+                    with self.subTest(target=target, apk=make_apk.__name__, replaced=name), \
+                            self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
+                        validate(target, make_apk(target, {name: FILE_DATA}))
+
+    def test_custom_car_exception_allows_only_distributed_names_and_directories(self):
+        for directory in PACKAGES.CUSTOM_CAR_DIRECTORIES:
+            for name in PACKAGES.CUSTOM_CAR_FILES:
+                self.assertEqual(PACKAGES.checked_path(f"{directory}/{name}").name, name)
+            for name in ("MISC.RES", "STCOUN.3SH", "STDACOUN.VSH", "CARTERR.res", "CARMCMU.PVS"):
+                with self.subTest(directory=directory, name=name), \
+                        self.assertRaisesRegex(ValueError, "Original game content"):
+                    PACKAGES.checked_path(f"{directory}/{name}")
+        for directory in ("", "bin", "assets", "cars/nested", "other/cars"):
+            name = f"{directory}/CARTERR.RES" if directory else "CARTERR.RES"
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "Original game content"):
+                PACKAGES.checked_path(name)
 
     def test_missing_target_and_unexpected_release_asset_are_rejected(self):
         self.create("dos16")
@@ -265,7 +339,7 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertIn(generator, PACKAGES.readme(target, COMMIT).decode("utf-8"))
 
     def test_desktop_packages_require_genghost_and_its_guide(self):
-        files = {name: FILE_DATA for name in PACKAGES.required_files("windows-x64")}
+        files = {name: self.runtime_data("windows-x64", name) for name in PACKAGES.required_files("windows-x64")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
         for missing in ("bin/genghost.exe", "share/docs/restunts/genghost.md"):
             incomplete = files.copy()
@@ -410,6 +484,7 @@ class ReleasePackageTests(unittest.TestCase):
         assets = {"assets/genghost.md", "assets/genghost-android.md", "assets/licenses/SDL-LICENSE.txt",
                   "assets/licenses/Android-NDK-NOTICE.txt",
                   "assets/licenses/Android-NDK-NOTICE.toolchain.txt"}
+        assets |= PACKAGES.custom_car_files("assets/cars")
         for target, abi in PACKAGES.ANDROID_TARGETS.items():
             content = self.genghost_apk_data(target)
             with self.subTest(target=target):
@@ -548,6 +623,7 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_android_optional_source_music_is_required_inside_apk_only(self):
         source = self.root / "android-source"
+        self.copy_car_sources(source)
         with mock.patch.object(PACKAGES, "ROOT", source):
             baseline = {target: self.apk_data(target) for target in PACKAGES.ANDROID_TARGETS}
             for track in PACKAGES.MUSIC_TRACKS:
@@ -644,14 +720,14 @@ class ReleasePackageTests(unittest.TestCase):
             PACKAGES.verify_package(archive, "dos16", COMMIT, RUN_ID, "1")
 
     def test_original_data_unknown_suffixes_and_other_extra_files_are_rejected(self):
-        files = {name: FILE_DATA for name in PACKAGES.required_files("dos32")}
+        files = {name: self.runtime_data("dos32", name) for name in PACKAGES.required_files("dos32")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
         for extra in ("bin/MISC.RES", "bin/DEFAULT.P3S", "assets.zip", "unrelated.exe"):
             with self.subTest(extra=extra), self.assertRaises(ValueError):
                 PACKAGES.validate_contents("dos32", dict(files, **{extra: FILE_DATA}), modes)
 
     def test_missing_artwork_library_source_and_license_are_rejected(self):
-        files = {name: FILE_DATA for name in PACKAGES.required_files("windows-arm64")}
+        files = {name: self.runtime_data("windows-arm64", name) for name in PACKAGES.required_files("windows-arm64")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
         for missing in ("bin/opponents/game/opp6.png", "bin/skyboxes/sky4-3.png",
                         "bin/menus/main.png", "bin/menus/showroom.png", "bin/menus/opponent.png",
@@ -664,7 +740,7 @@ class ReleasePackageTests(unittest.TestCase):
                 PACKAGES.validate_contents("windows-arm64", incomplete, modes)
 
     def test_dos_runtime_filenames_do_not_require_long_filename_support(self):
-        files = {name: FILE_DATA for name in PACKAGES.required_files("dos32")}
+        files = {name: self.runtime_data("dos32", name) for name in PACKAGES.required_files("dos32")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
         PACKAGES.validate_contents("dos32", files, modes)
         for extra in ("bin/opponents/game/opp1.png", "bin/skyboxes/image.long", "bin/with space/a.png"):
@@ -685,7 +761,7 @@ class ReleasePackageTests(unittest.TestCase):
             PACKAGES.archive_contents(archive)
 
     def test_browser_requires_relink_objects_and_dos_omits_nuked(self):
-        files = {name: FILE_DATA for name in PACKAGES.required_files("browser")}
+        files = {name: self.runtime_data("browser", name) for name in PACKAGES.required_files("browser")}
         for missing in ("share/restunts/wasm-relink/objects/main.c.o",
                         "share/restunts/wasm-relink/data/assets/menus/main.png",
                         "share/restunts/wasm-relink/data/assets/menus/showroom.png",
@@ -702,6 +778,7 @@ class ReleasePackageTests(unittest.TestCase):
         tracks = ("titl", "slct", "over", "vict")
         targets = {"linux-x64": "bin/music", "dos32": "bin/music",
                    "browser": "share/restunts/wasm-relink/data/assets/music"}
+        self.copy_car_sources(source)
         with mock.patch.object(PACKAGES, "ROOT", source):
             baseline = {target: PACKAGES.required_files(target) for target in targets}
             for track in tracks:
@@ -711,7 +788,7 @@ class ReleasePackageTests(unittest.TestCase):
             for target, directory in targets.items():
                 audio = {f"{directory}/{track}.ogg":
                          (source / "assets/music" / f"{track}.ogg").read_bytes() for track in tracks}
-                files = {name: FILE_DATA for name in baseline[target]} | audio
+                files = {name: self.runtime_data(target, name) for name in baseline[target]} | audio
                 modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
                 with self.subTest(target=target):
                     PACKAGES.validate_contents(target, files, modes)
@@ -731,11 +808,13 @@ class ReleasePackageTests(unittest.TestCase):
             self.assertFalse(any("/music/" in name for name in PACKAGES.required_files("dos16")))
 
     def test_absent_music_is_optional(self):
-        with mock.patch.object(PACKAGES, "ROOT", self.root / "empty-source"):
+        source = self.root / "empty-source"
+        self.copy_car_sources(source)
+        with mock.patch.object(PACKAGES, "ROOT", source):
             for target in ("linux-x64", "dos32", "browser"):
                 with self.subTest(target=target):
                     self.assertEqual(PACKAGES.optional_music_files(target), set())
-                    files = {name: FILE_DATA for name in PACKAGES.required_files(target)}
+                    files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
                     modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
                     PACKAGES.validate_contents(target, files, modes)
 
@@ -748,7 +827,7 @@ class ReleasePackageTests(unittest.TestCase):
             expected = decoder_files.copy()
             if target == "browser":
                 expected.add("share/restunts/wasm-relink/lib/librestunts_webm.a")
-            files = {name: FILE_DATA for name in PACKAGES.required_files(target)}
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
             with self.subTest(target=target):
                 self.assertTrue(expected <= files.keys())

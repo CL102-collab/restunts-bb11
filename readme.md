@@ -610,6 +610,14 @@ performance approximates the October 2026 Rocket announcements. Install it with:
 python3 tools/scripts/generate-tesla-roadster.py --install stunts
 ```
 
+All release packages include the Tesla and McMurtry cars in their `cars/`
+resource folder, alongside `music/` and `skyboxes/` where those are supported.
+The repository stores only their `.RES`, `.3SH` and `.VSH` game resources in
+`assets/cars/`; authoring metadata remains in `tools/scripts/cars/`.
+The generator's `--install stunts` option writes the four resources to
+`stunts/cars/`. Restunts discovers compatible cars there automatically and
+continues to load loose cars from the game-data and executable folders.
+
 The generator checks both dashboard resources against DIA3 after extraction
 and game preparation. See [car details and references](tools/scripts/cars/READTERR.TXT).
 

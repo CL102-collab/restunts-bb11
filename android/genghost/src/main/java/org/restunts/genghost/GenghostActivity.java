@@ -39,7 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.TreeSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.restunts.android.GameDataStorage;
@@ -487,10 +487,11 @@ public final class GenghostActivity extends Activity {
         refreshState();
         FILE_WORKER.execute(() -> {
             List<String> tracks = new ArrayList<>();
-            TreeSet<String> cars = new TreeSet<>();
+            Set<String> cars = Collections.emptySet();
             String message;
             boolean success = false;
             try {
+                GeneratorService.prepareCars(context);
                 if (!readCacheOnly) {
                     GeneratorService.recoverInterrupted(context);
                 }
@@ -502,16 +503,7 @@ public final class GenghostActivity extends Activity {
                 File game = new File(context.getFilesDir(), "game");
                 collectTracks(game, game, tracks, 0);
                 Collections.sort(tracks, String.CASE_INSENSITIVE_ORDER);
-                File[] files = game.listFiles();
-                if (files == null) {
-                    throw new IOException("Cannot read car files.");
-                }
-                for (File file : files) {
-                    String name = file.getName().toUpperCase(Locale.ROOT);
-                    if (file.isFile() && name.matches("CAR[A-Z0-9]{4}\\.(RES|PRE)")) {
-                        cars.add(name.substring(3, 7));
-                    }
-                }
+                cars = CarResources.available(game, context.getFilesDir());
                 message = tracks.size() + " tracks / replays · " + cars.size() + " cars";
                 if (tracks.isEmpty()) {
                     message += "\nAdd .TRK or .RPL files to your game folder, then tap Refresh.";
@@ -525,12 +517,13 @@ public final class GenghostActivity extends Activity {
             }
             final String resultMessage = message;
             final boolean resultSuccess = success;
+            final List<String> resultCars = new ArrayList<>(cars);
             MAIN_THREAD.post(() -> {
                 folderBusy = false;
                 catalogReady = resultSuccess;
                 folderMessage = resultMessage;
                 availableTracks = resultSuccess ? tracks : Collections.emptyList();
-                availableCars = resultSuccess ? new ArrayList<>(cars) : Collections.emptyList();
+                availableCars = resultSuccess ? resultCars : Collections.emptyList();
                 GenghostActivity activity = active.get();
                 if (activity != null) {
                     activity.populateCatalog();

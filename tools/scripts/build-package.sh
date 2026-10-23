@@ -84,6 +84,12 @@ case "$target" in
         for executable in restunts restunto repldump repldumo pixldump pixldumo; do
             cp -- "$dos_directory/$executable.exe" "$package_dir/$executable.exe"
         done
+        mkdir -p "$package_dir/cars"
+        for car_code in MCMU TERR; do
+            for car_file in "CAR$car_code.RES" "ST$car_code.3SH" "STDA$car_code.VSH" "STDB$car_code.VSH"; do
+                cp -- "$repo_dir/assets/cars/$car_file" "$package_dir/cars/$car_file"
+            done
+        done
         ;;
     macos-universal)
         bash "$script_dir/build-macos.sh" --arch universal --build-dir "$build_dir" \

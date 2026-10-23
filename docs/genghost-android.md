@@ -6,7 +6,9 @@ offline optimizer as the desktop tool. Choose **android-armv7** for 32-bit ARM
 (`arm64-v8a`), including devices that support only 64-bit apps. Both require
 Android 5.0 (API 21) or later. Each APK contains only its selected architecture.
 No game renderer or original game resources are included, and the app does not
-request Internet access.
+request Internet access. The Tesla Roadster and McMurtry custom cars are bundled
+in the app's private `cars/` folder. Additional car resources can remain loose in
+your game folder or go in its `cars/` subfolder; Refresh discovers all three locations.
 
 ## Generate a ghost
 

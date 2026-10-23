@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build and validate the MCMU Stunts car from original photo-based geometry.
 
-Run with --install stunts to install the four game resources, or --check to
+Run with --install stunts to install the four game resources in stunts/cars, or --check to
 verify that the checked-in files match their deterministic authoring sources.
 No third-party model download or graphics package is needed to rebuild them.
 """
@@ -379,7 +379,10 @@ def generate(repository):
     outputs["READMCMU.TXT"] = (f"""MCMURTRY SPEIRLING PURE ({specs['model_year']} PRODUCTION) - MCMU
 
 INSTALL
-Copy CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH into your
+Restunts loads this car automatically from its cars resource folder. The
+repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
+assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
+For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
@@ -469,10 +472,15 @@ def main():
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     outputs = generate(args.repository_root)
-    output = args.output_directory or args.repository_root / "tools/scripts/cars"
-    targets = [(output, outputs)]
+    game_outputs = {name: outputs[name] for name in GAME_FILES}
+    if args.output_directory:
+        targets = [(args.output_directory, outputs)]
+    else:
+        targets = [(args.repository_root / "assets/cars", game_outputs),
+                   (args.repository_root / "tools/scripts/cars",
+                    {name: data for name, data in outputs.items() if name not in GAME_FILES})]
     if args.install:
-        targets.append((args.install, {name: outputs[name] for name in GAME_FILES}))
+        targets.append((args.install / "cars", game_outputs))
     for directory, files in targets:
         if not args.check:
             directory.mkdir(parents=True, exist_ok=True)

@@ -16,6 +16,9 @@ Brøderbund Stunts 1.1 (12 Feb. 1991) game files. TVs without a working picker c
 use the app's TV game folder, described below. The selected folder holds original
 resources, custom cars, opponents, graphics, tracks, replays, high scores and any
 other game files.
+Car resources may be placed directly in the game folder or in its `cars/`
+subfolder. The bundled Tesla Roadster and McMurtry cars load automatically from
+the app's private `cars/` folder alongside its music and skyboxes.
 The choice is remembered. Copy custom content into this folder with a file
 manager, then press **Start game** again to load it.
 

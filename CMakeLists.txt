@@ -208,9 +208,16 @@ if(NOT RESTUNTS_GIT_HASH)
     set(RESTUNTS_GIT_HASH "source-archive")
 endif()
 
+if(EMSCRIPTEN)
+    set(restunts_asset_directory "/assets")
+else()
+    set(restunts_asset_directory "${CMAKE_SOURCE_DIR}/assets")
+endif()
+
 add_library(restunts_options INTERFACE)
 target_compile_definitions(restunts_options INTERFACE RESTUNTS_SDL3
-    RESTUNTS_GIT_HASH="${RESTUNTS_GIT_HASH}")
+    RESTUNTS_GIT_HASH="${RESTUNTS_GIT_HASH}"
+    RESTUNTS_CAR_DIRECTORY="${restunts_asset_directory}/cars")
 target_include_directories(restunts_options INTERFACE "${CMAKE_SOURCE_DIR}/${core}")
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(restunts_options INTERFACE -fsigned-char -fno-strict-aliasing
@@ -265,13 +272,10 @@ target_compile_definitions(restunts_vorbis PRIVATE STB_VORBIS_NO_PUSHDATA_API)
 add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_common} ${platform_game}
     $<TARGET_OBJECTS:restunts_vorbis>)
 target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
-if(EMSCRIPTEN)
-    set(restunts_asset_directory "/assets")
-else()
-    set(restunts_asset_directory "${CMAKE_SOURCE_DIR}/assets")
-endif()
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
+set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STTERR.3SH
+    STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
     RESTUNTS_MENU_DIRECTORY="${restunts_asset_directory}/menus"
     RESTUNTS_SKYBOX_DIRECTORY="${restunts_asset_directory}/skyboxes"
@@ -376,6 +380,9 @@ target_compile_definitions(pixldump PRIVATE RESTUNTS_PIXLDUMP)
 target_link_libraries(pixldump PRIVATE restunts_game)
 
 install(TARGETS restunts repldump pixldump RUNTIME DESTINATION bin COMPONENT Runtime)
+foreach(car_file IN LISTS restunts_car_files)
+    install(FILES "assets/cars/${car_file}" DESTINATION bin/cars COMPONENT Runtime)
+endforeach()
 foreach(music IN LISTS music_tracks)
     install(FILES "assets/music/${music}.ogg" DESTINATION bin/music COMPONENT Runtime OPTIONAL)
 endforeach()

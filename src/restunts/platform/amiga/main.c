@@ -3,6 +3,7 @@
 #include "../../c/keyboard.h"
 #include "../../c/restunts.h"
 #include "../../c/command_line.h"
+#include "../../c/fileio.h"
 #include "../../c/shape2d_internal.h"
 #include <exec/memory.h>
 #include <proto/exec.h>
@@ -188,6 +189,8 @@ int main(int argc, char **argv)
 	legacy_s16 info;
 	BPTR data_lock = 0, previous_directory = 0;
 	int result;
+	/* AmigaDOS resolves PROGDIR: beside the executable, even after CurrentDir. */
+	file_car_set_base((const legacy_s8 *)"PROGDIR:");
 	if (atexit(amiga_platform_shutdown) != 0) {
 		return 1;
 	}

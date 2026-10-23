@@ -3,7 +3,8 @@
 This package targets stock TempleOS 5.03 from the official `TempleOS.ISO`.
 Start with an existing, working installation of the original TempleOS.
 The distributable package contains the native HolyC port, documentation, and
-installation/import tools. **It contains no original game data.** Each player
+installation/import tools, and the Tesla Roadster and McMurtry Spéirling custom cars.
+**It contains no original game data.** Each player
 must supply their own Broderbund Stunts 1.1 files (the 12 February 1991 release).
 No fork, SDL, network connection, shared folder, or additional compiler is needed
 inside TempleOS. TempleOS compiles the HolyC sources when you launch it.
@@ -26,7 +27,7 @@ Unzip **RESTUNTS_STOCK_TEMPLEOS.ZIP on the host computer**. It contains:
 
 | File | Purpose |
 | --- | --- |
-| `RESTUNTS.ISO` | Code-only installation CD in TempleOS's native RedSea format. |
+| `RESTUNTS.ISO` | HolyC port and custom cars on a native RedSea installation CD. |
 | `README.MD` | This guide, readable on the host. |
 | `SHA256SUMS.TXT` | SHA256 checksums for the package files. |
 | `CONTENTS.TXT` | SHA256 checksums of the individual files inside the CD. |
@@ -144,7 +145,7 @@ No QEMU, mounting software, or third-party Python library is needed to create
 this private CD. The output path must not already exist.
 
 `STUNTSDATA.ISO` contains **your game data**. Keep it for personal use, outside the
-redistributable package; do not include it when sharing the port. Only the code-only
+redistributable package; do not include it when sharing the port. The public
 `RESTUNTS_STOCK_TEMPLEOS.ZIP` is the distribution package.
 
 ## 5. Import the private data CD into TempleOS
@@ -275,6 +276,14 @@ Install and import once. On later boots, repeat only the launch commands.
 Both CDs may be ejected after import. Tracks, replays, high scores, and
 configuration files remain in the installed `DATA` directory.
 
+The bundled custom-car resources are in `PORT/CARS`, beside `LOAD.HC`. The
+game discovers them automatically, including when `Restunts` uses game data
+from another installation. Additional compatible cars can go in this folder
+or in `DATA/CARS`; unpacked and packed car resources are supported. Loose car
+files in `DATA` retain priority, followed by loose files beside `LOAD.HC`,
+`DATA/CARS`, and `PORT/CARS`. The private-data CD tool preserves an existing
+`cars` subfolder and converts its names to uppercase for TempleOS.
+
 ## Update an existing installation
 
 Quit the game and attach the new `RESTUNTS.ISO`. Install the updated code in a
@@ -335,7 +344,8 @@ emulation path.
   A generic ISO9660/Joliet image made from the extracted files is unsuitable for
   the stock system's normal directory-copy commands.
 - **Original game data is missing:** complete steps 4–5 using your own Stunts 1.1
-  files. The code CD deliberately contains no game assets.
+  files. The installation CD contains the port and custom cars; supply the
+  original game data separately.
 - **Missing include file:** start with the exact `Cd` command above, preserve
   filename case, and keep `PORT/generated` intact. Extensions must stay uppercase.
 - **Installer reports a copy mismatch:** check free space and the CD attachment.
@@ -364,9 +374,10 @@ python3 src/restunts/platform/templeos/tools/PACKAGE.PY \
 
 The output path must not exist. This creates the package directory and a sibling
 `RESTUNTS_STOCK_TEMPLEOS.ZIP`. Original input files are not renamed or changed.
-The public builder has no game-data input. Its CD has an empty `DATA` directory,
-and the ZIP includes the standalone private-data CD tool. The public build does
-not read or package anyone's game assets.
+The public builder has no game-data input. Its CD has the bundled Tesla and
+McMurtry car resources in `PORT/CARS` and an empty `DATA` directory. The ZIP
+includes the standalone private-data CD tool. The public build does not read
+or package anyone's original game assets.
 
 Official references: [TempleOS downloads](https://templeos.org/Downloads/),
 [mounting and copying files](https://templeos.info/Wb/Doc/Install.DD.HTML), and

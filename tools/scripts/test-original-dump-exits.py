@@ -82,6 +82,7 @@ def main():
 
         copy_assets(ROOT / "stunts", game)
         copy_assets(ROOT / "tools/scripts/cars", game)
+        copy_assets(ROOT / "assets/cars", game)
         with zipfile.ZipFile(ROOT / "tools/scripts/rpls_golden/replays.zip") as archive:
             (game / "0000.RPL").write_bytes(archive.read("0000.rpl"))
         shutil.copyfile(args.executable, game / "REPLDUMO.EXE")

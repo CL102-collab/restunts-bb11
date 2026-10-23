@@ -13,6 +13,7 @@
 #define TEST_ARGUMENT_TEXT_CAPACITY 64
 #define TEST_EXIT_HANDLER_CAPACITY 2
 #define TEST_GAME_RESULT 7
+#define TEST_EXECUTABLE_DIRECTORY "/test/executable/"
 #define TEST_ARGUMENT_COUNT(arguments)                                                             \
 	((legacy_int)(sizeof(arguments) / sizeof((arguments)[0]) - 1U))
 
@@ -50,6 +51,7 @@ static legacy_int expected_count;
 static const legacy_char *const *expected_arguments;
 static legacy_s16 information_result;
 static legacy_int directory_calls;
+static legacy_u16 asset_base_initialized, car_base_calls;
 static legacy_int initialization_calls;
 static legacy_int game_calls;
 static legacy_int fail_allocation;
@@ -91,6 +93,7 @@ static void reset_test(legacy_int argc, legacy_char **argv, legacy_int game_argc
 	expected_arguments = game_argv;
 	information_result = COMMAND_LINE_CONTINUE;
 	directory_calls = 0;
+	asset_base_initialized = car_base_calls = 0;
 	initialization_calls = 0;
 	game_calls = 0;
 	fail_allocation = 0;
@@ -134,6 +137,7 @@ static legacy_int test_atexit(void (*handler)(void))
 
 static legacy_int test_chdir(const legacy_char *directory)
 {
+	assert(car_base_calls == 1);
 	directory_calls++;
 	assert(strcmp(directory, "data-directory") == 0);
 	return 0;
@@ -169,6 +173,20 @@ void asset_path_initialize(const legacy_char *executable)
 {
 	assert(executable == (original_count > 0 ? original_arguments[0] : NULL));
 	assert(directory_calls == 0);
+	asset_base_initialized = 1;
+}
+
+const legacy_char *asset_path_base(void)
+{
+	assert(asset_base_initialized != 0 && directory_calls == 0);
+	return TEST_EXECUTABLE_DIRECTORY;
+}
+
+void file_car_set_base(const legacy_s8 *directory)
+{
+	assert(asset_base_initialized != 0 && directory_calls == 0);
+	assert(strcmp((const legacy_char *)directory, TEST_EXECUTABLE_DIRECTORY) == 0);
+	car_base_calls++;
 }
 
 void full_data_initialize(void)
@@ -233,6 +251,7 @@ static void test_dispatch(legacy_int argc, legacy_char **argv, legacy_int game_a
 		assert(direct_exit);
 	}
 	assert(game_calls == 1);
+	assert(car_base_calls == 1);
 	assert(initialization_calls == 1);
 }
 
@@ -293,6 +312,7 @@ legacy_int main(void)
 	information_result = COMMAND_LINE_SUCCESS;
 	assert(test_entry_main(original_count, original_arguments) == COMMAND_LINE_SUCCESS);
 	assert(directory_calls == 0 && initialization_calls == 0 && exit_handler_count == 0);
+	assert(car_base_calls == 0);
 	information_result = COMMAND_LINE_CONTINUE;
 	assert(test_entry_main(original_count, original_arguments) == COMMAND_LINE_FAILURE);
 	assert(directory_calls == 0 && initialization_calls == 0 && exit_handler_count == 0);

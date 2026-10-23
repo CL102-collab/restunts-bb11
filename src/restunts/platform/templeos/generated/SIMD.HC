@@ -2,72 +2,72 @@
 
 legacy_s8 RsSimdLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_733;
+  legacy_s32 noreg temple_tmp_842;
   if((value<=127)) {
-    temple_tmp_733=TempleCastS32(TempleCastS8(value));
+    temple_tmp_842=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_733=TempleCastS32(TempleCastS8(
+    temple_tmp_842=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_733);
+  return TempleCastS8(temple_tmp_842);
 }
 
 legacy_s16 RsSimdLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_734;
+  legacy_s32 noreg temple_tmp_843;
   if((value<=32767)) {
-    temple_tmp_734=TempleCastS32(TempleCastS16(value));
+    temple_tmp_843=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_734=TempleCastS32(TempleCastS16(
+    temple_tmp_843=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_734);
+  return TempleCastS16(temple_tmp_843);
 }
 
 legacy_s32 RsSimdLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_735;
+  legacy_s32 noreg temple_tmp_844;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_735=TempleCastS32(TempleCastS32(value));
+    temple_tmp_844=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_735=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_844=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_735);
+  return TempleCastS32(temple_tmp_844);
 }
 
 legacy_u8 RsSimdSimdReadU8(CSimdReader *reader)
 {
-  legacy_u8 noreg temple_value_736;
-  temple_value_736=TempleCastU8(reader->source[reader->offset]);
+  legacy_u8 noreg temple_value_845;
+  temple_value_845=TempleCastU8(reader->source[reader->offset]);
   (reader->offset=TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(reader->offset)+TempleCastU16(1))))));
-  return TempleCastU8(temple_value_736);
+  return TempleCastU8(temple_value_845);
 }
 
 legacy_s8 RsSimdSimdReadS8(CSimdReader *reader)
 {
-  legacy_u8 noreg temple_value_737;
-  temple_value_737=TempleCastU8(RsSimdSimdReadU8(reader));
-  return TempleCastS8(RsSimdLegacyS8FromBits(TempleCastU8(TempleCastU8(temple_value_737))));
+  legacy_u8 noreg temple_value_846;
+  temple_value_846=TempleCastU8(RsSimdSimdReadU8(reader));
+  return TempleCastS8(RsSimdLegacyS8FromBits(TempleCastU8(TempleCastU8(temple_value_846))));
 }
 
 legacy_u16 RsSimdSimdReadU16(CSimdReader *reader)
 {
-  legacy_u16 noreg temple_value_738;
-  temple_value_738=TempleCastU16(TempleCastU16(TempleCastS32((
+  legacy_u16 noreg temple_value_847;
+  temple_value_847=TempleCastU16(TempleCastU16(TempleCastS32((
       TempleCastU16(TempleCastU8((reader->source+reader->offset)[0]))|
       TempleCastS32((TempleCastU16(TempleCastU8((reader->source+reader->offset)[1]))<<8))))));
   (reader->offset=TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(reader->offset)+TempleCastU16(2))))));
-  return TempleCastU16(temple_value_738);
+  return TempleCastU16(temple_value_847);
 }
 
 legacy_s16 RsSimdSimdReadS16(CSimdReader *reader)
 {
-  legacy_u16 noreg temple_value_739;
-  temple_value_739=TempleCastU16(RsSimdSimdReadU16(reader));
-  return TempleCastS16(RsSimdLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_739))));
+  legacy_u16 noreg temple_value_848;
+  temple_value_848=TempleCastU16(RsSimdSimdReadU16(reader));
+  return TempleCastS16(RsSimdLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_848))));
 }
 
 legacy_void RsSimdSimdReadPoint(CSimdReader *reader,CPoint2D *point)
@@ -85,130 +85,130 @@ legacy_void RsSimdSimdReadVector(CSimdReader *reader,CVector *vector)
 
 legacy_void RsSimdSimdReadS8Array(CSimdReader *reader,legacy_s8 *values,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_741;
-  legacy_u16 *temple_tmp_742;
-  legacy_u16 noreg temple_tmp_743;
-  temple_index_741=TempleCastU16(0);
+  legacy_u16 noreg temple_index_850;
+  legacy_u16 *temple_tmp_851;
+  legacy_u16 noreg temple_tmp_852;
+  temple_index_850=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_741<count))) {
+    if(!((temple_index_850<count))) {
       break;
     }
-    (values[temple_index_741]=TempleCastS8(RsSimdSimdReadS8(reader)));
-    temple_tmp_742=&(temple_index_741);
-    temple_tmp_743=*temple_tmp_742;
-    *temple_tmp_742=TempleCastU16((temple_tmp_743+1));
-    temple_tmp_743;
+    (values[temple_index_850]=TempleCastS8(RsSimdSimdReadS8(reader)));
+    temple_tmp_851=&(temple_index_850);
+    temple_tmp_852=*temple_tmp_851;
+    *temple_tmp_851=TempleCastU16((temple_tmp_852+1));
+    temple_tmp_852;
   }
 }
 
 legacy_void RsSimdSimdReadU16Array(CSimdReader *reader,legacy_u16 *values,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_745;
-  legacy_u16 *temple_tmp_746;
-  legacy_u16 noreg temple_tmp_747;
-  temple_index_745=TempleCastU16(0);
+  legacy_u16 noreg temple_index_854;
+  legacy_u16 *temple_tmp_855;
+  legacy_u16 noreg temple_tmp_856;
+  temple_index_854=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_745<count))) {
+    if(!((temple_index_854<count))) {
       break;
     }
-    (values[temple_index_745]=TempleCastU16(RsSimdSimdReadU16(reader)));
-    temple_tmp_746=&(temple_index_745);
-    temple_tmp_747=*temple_tmp_746;
-    *temple_tmp_746=TempleCastU16((temple_tmp_747+1));
-    temple_tmp_747;
+    (values[temple_index_854]=TempleCastU16(RsSimdSimdReadU16(reader)));
+    temple_tmp_855=&(temple_index_854);
+    temple_tmp_856=*temple_tmp_855;
+    *temple_tmp_855=TempleCastU16((temple_tmp_856+1));
+    temple_tmp_856;
   }
 }
 
 legacy_void RsSimdSimdReadS16Array(CSimdReader *reader,legacy_s16 *values,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_749;
-  legacy_u16 *temple_tmp_750;
-  legacy_u16 noreg temple_tmp_751;
-  temple_index_749=TempleCastU16(0);
+  legacy_u16 noreg temple_index_858;
+  legacy_u16 *temple_tmp_859;
+  legacy_u16 noreg temple_tmp_860;
+  temple_index_858=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_749<count))) {
+    if(!((temple_index_858<count))) {
       break;
     }
-    (values[temple_index_749]=TempleCastS16(RsSimdSimdReadS16(reader)));
-    temple_tmp_750=&(temple_index_749);
-    temple_tmp_751=*temple_tmp_750;
-    *temple_tmp_750=TempleCastU16((temple_tmp_751+1));
-    temple_tmp_751;
+    (values[temple_index_858]=TempleCastS16(RsSimdSimdReadS16(reader)));
+    temple_tmp_859=&(temple_index_858);
+    temple_tmp_860=*temple_tmp_859;
+    *temple_tmp_859=TempleCastU16((temple_tmp_860+1));
+    temple_tmp_860;
   }
 }
 
 legacy_void RsSimdSimdReadPointArray(CSimdReader *reader,CPoint2D *points,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_753;
-  legacy_u16 *temple_tmp_754;
-  legacy_u16 noreg temple_tmp_755;
-  temple_index_753=TempleCastU16(0);
+  legacy_u16 noreg temple_index_862;
+  legacy_u16 *temple_tmp_863;
+  legacy_u16 noreg temple_tmp_864;
+  temple_index_862=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_753<count))) {
+    if(!((temple_index_862<count))) {
       break;
     }
-    RsSimdSimdReadPoint(reader,(&(points[temple_index_753])));
-    temple_tmp_754=&(temple_index_753);
-    temple_tmp_755=*temple_tmp_754;
-    *temple_tmp_754=TempleCastU16((temple_tmp_755+1));
-    temple_tmp_755;
+    RsSimdSimdReadPoint(reader,(&(points[temple_index_862])));
+    temple_tmp_863=&(temple_index_862);
+    temple_tmp_864=*temple_tmp_863;
+    *temple_tmp_863=TempleCastU16((temple_tmp_864+1));
+    temple_tmp_864;
   }
 }
 
 legacy_void RsSimdSimdReadVectorArray(CSimdReader *reader,CVector *vectors,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_757;
-  legacy_u16 *temple_tmp_758;
-  legacy_u16 noreg temple_tmp_759;
-  temple_index_757=TempleCastU16(0);
+  legacy_u16 noreg temple_index_866;
+  legacy_u16 *temple_tmp_867;
+  legacy_u16 noreg temple_tmp_868;
+  temple_index_866=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_757<count))) {
+    if(!((temple_index_866<count))) {
       break;
     }
-    RsSimdSimdReadVector(reader,(&(vectors[temple_index_757])));
-    temple_tmp_758=&(temple_index_757);
-    temple_tmp_759=*temple_tmp_758;
-    *temple_tmp_758=TempleCastU16((temple_tmp_759+1));
-    temple_tmp_759;
+    RsSimdSimdReadVector(reader,(&(vectors[temple_index_866])));
+    temple_tmp_867=&(temple_index_866);
+    temple_tmp_868=*temple_tmp_867;
+    *temple_tmp_867=TempleCastU16((temple_tmp_868+1));
+    temple_tmp_868;
   }
 }
 
 legacy_u16 RsSimdDecode(CSimd *destination,legacy_u8 *source)
 {
-  CSimdReader temple_reader_760;
-  (temple_reader_760.source=source);
-  (temple_reader_760.offset=TempleCastU16(0));
-  (destination->num_gears=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_760)))));
-  (destination->reserved_gear_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_760)))));
-  (destination->car_mass=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->braking_eff=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->idle_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->downshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->upshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->max_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  RsSimdSimdReadU16Array((&(temple_reader_760)),destination->gear_ratios,TempleCastU16(7));
-  RsSimdSimdReadPointArray((&(temple_reader_760)),destination->knob_points,TempleCastU16(7));
-  (destination->aero_resistance=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  (destination->idle_torque=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_760)))));
-  RsSimdSimdReadS8Array((&(temple_reader_760)),destination->torque_curve,TempleCastU16(104));
-  (destination->reserved_torque_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_760)))));
-  (destination->grip=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
+  CSimdReader temple_reader_869;
+  (temple_reader_869.source=source);
+  (temple_reader_869.offset=TempleCastU16(0));
+  (destination->num_gears=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_869)))));
+  (destination->reserved_gear_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_869)))));
+  (destination->car_mass=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->braking_eff=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->idle_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->downshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->upshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->max_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  RsSimdSimdReadU16Array((&(temple_reader_869)),destination->gear_ratios,TempleCastU16(7));
+  RsSimdSimdReadPointArray((&(temple_reader_869)),destination->knob_points,TempleCastU16(7));
+  (destination->aero_resistance=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  (destination->idle_torque=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_869)))));
+  RsSimdSimdReadS8Array((&(temple_reader_869)),destination->torque_curve,TempleCastU16(104));
+  (destination->reserved_torque_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_869)))));
+  (destination->grip=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
   RsSimdSimdReadS16Array(
-      (&(temple_reader_760)),destination->reserved_handling_words,TempleCastU16(7));
-  (destination->sliding=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  RsSimdSimdReadS16Array((&(temple_reader_760)),destination->surface_grip,TempleCastU16(4));
+      (&(temple_reader_869)),destination->reserved_handling_words,TempleCastU16(7));
+  (destination->sliding=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  RsSimdSimdReadS16Array((&(temple_reader_869)),destination->surface_grip,TempleCastU16(4));
   RsSimdSimdReadS8Array(
-      (&(temple_reader_760)),destination->reserved_grip_bytes,TempleCastU16(10));
-  RsSimdSimdReadPointArray((&(temple_reader_760)),destination->collide_points,TempleCastU16(2));
-  (destination->car_height=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  RsSimdSimdReadVectorArray((&(temple_reader_760)),destination->wheel_coords,TempleCastU16(4));
-  RsSimdSimdReadS8Array((&(temple_reader_760)),destination->steeringdots,TempleCastU16(62));
-  RsSimdSimdReadPoint((&(temple_reader_760)),(&(destination->spdcenter)));
-  (destination->spdnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  RsSimdSimdReadS8Array((&(temple_reader_760)),destination->spdpoints,TempleCastU16(208));
-  RsSimdSimdReadPoint((&(temple_reader_760)),(&(destination->revcenter)));
-  (destination->revnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_760)))));
-  RsSimdSimdReadS8Array((&(temple_reader_760)),destination->revpoints,TempleCastU16(256));
+      (&(temple_reader_869)),destination->reserved_grip_bytes,TempleCastU16(10));
+  RsSimdSimdReadPointArray((&(temple_reader_869)),destination->collide_points,TempleCastU16(2));
+  (destination->car_height=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  RsSimdSimdReadVectorArray((&(temple_reader_869)),destination->wheel_coords,TempleCastU16(4));
+  RsSimdSimdReadS8Array((&(temple_reader_869)),destination->steeringdots,TempleCastU16(62));
+  RsSimdSimdReadPoint((&(temple_reader_869)),(&(destination->spdcenter)));
+  (destination->spdnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  RsSimdSimdReadS8Array((&(temple_reader_869)),destination->spdpoints,TempleCastU16(208));
+  RsSimdSimdReadPoint((&(temple_reader_869)),(&(destination->revcenter)));
+  (destination->revnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_869)))));
+  RsSimdSimdReadS8Array((&(temple_reader_869)),destination->revpoints,TempleCastU16(256));
   (destination->aerorestable=0);
-  return TempleCastU16(temple_reader_760.offset);
+  return TempleCastU16(temple_reader_869.offset);
 }

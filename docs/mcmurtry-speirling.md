@@ -35,8 +35,10 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 
 Select **McMurtry Speirling PURE** in the car menu. For another game-data
 folder, copy `CARMCMU.RES`, `STMCMU.3SH`, `STDAMCMU.VSH` and `STDBMCMU.VSH`
-from `tools/scripts/cars/`. Install the four files together. The folder also
-contains `MCMU.json` with reference URLs, dimensions and resource hashes, and
+from `assets/cars/` into its `cars/` subfolder. Restunts release packages include
+the car automatically, and loose files in the game-data or executable folder
+remain supported. Install the four files together. `tools/scripts/cars/` retains
+`MCMU.json` with reference URLs, dimensions and resource hashes, and
 `READMCMU.TXT` with installation instructions. `MCMU.obj` and `MCMU.mtl`
 provide a portable, editable 3D source export in metres, with Y up and tyre
 bottoms at ground level; keep those two files together when importing.

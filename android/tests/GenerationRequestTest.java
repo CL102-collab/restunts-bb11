@@ -79,6 +79,16 @@ public final class GenerationRequestTest {
         assert generated.get(generated.indexOf(track.getAbsolutePath()) + 1).equals("COUN");
         assert !generated.contains("--fine-tune") && !generated.contains("--fine-tune-gears-only");
         assert !generated.contains("--transmission");
+        GenerationRequest custom = request(track.getName(), "_cst", GenerationRequest.MODE_GENERATE);
+        assert custom.validate(game).equals(track);
+        assert custom.resolvedCar(track).equals("_CST");
+        byte[] customReplay = replay();
+        byte[] customCode = custom.car.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        System.arraycopy(customCode, 0, customReplay, 0, customCode.length);
+        Files.write(source.toPath(), customReplay);
+        assert request(source.getName(), "", GenerationRequest.MODE_FINE_TUNE)
+            .resolvedCar(source).equals("_CST");
+        Files.write(source.toPath(), replay());
         rejected(() -> request(track.getName(), "", GenerationRequest.MODE_GENERATE).validate(game));
         rejected(() -> request(track.getName(), "COUN", "fine-tune,gears-only").validate(game));
 

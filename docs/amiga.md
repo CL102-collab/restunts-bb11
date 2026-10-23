@@ -67,6 +67,7 @@ cmake -S . -B out/amiga -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/amiga-m68k.cmake \
     -DCMAKE_BUILD_TYPE=Release
 cmake --build out/amiga --parallel 2
+cmake --install out/amiga --prefix out/package-amiga --component Runtime
 ```
 
 On Linux x86-64, `tools/scripts/install-amiga-toolchain.sh /opt/amiga` installs
@@ -94,6 +95,13 @@ replays, and high scores. Original `.PRE`, `.PVS`, `.RES`, `.VCE`, `.TRK` and
 AmigaDOS. Existing game options such as `--nointro`, `/ns`, and the physics
 switches remain available; `restunts --help` lists them.
 Alternatively, put `--data-dir PATH` before the other game arguments.
+
+The release includes a `cars/` folder beside `restunts`, containing the Tesla
+and McMurtry `.RES`, `.3SH` and `.VSH` resources. Copy this folder with the
+executable. The game discovers custom cars automatically in `cars/` under
+the game-data directory or beside the executable. Loose car resources in the
+game-data directory and beside the executable remain supported and take
+priority. Executable-relative resources also work with `--data-dir`.
 
 Use the keyboard or mouse for the menus. Arrow keys control the car, and the
 original game's gear, camera and replay controls remain in place.
@@ -151,7 +159,9 @@ python3 tools/scripts/run-amiga-platform-test.py \
 
 The harness requires Xvfb and libXtst; `--xvfb PATH` selects a local Xvfb
 installation. It copies the executable and game assets to a temporary disk,
-preserving the source saves. Logs, configuration, native stdout, and screenshots
+preserving the source saves. It includes the packaged `cars/` resources and
+overlays car resources from the selected game folder's `cars/` directory.
+Logs, configuration, native stdout, and screenshots
 are retained. Test modes use `test-amiga-platform`; interactive capture uses the
 shipping `restunts`. `--executable PATH` overrides either default.
 A detached startup script closes the boot console; `--keep-cli`

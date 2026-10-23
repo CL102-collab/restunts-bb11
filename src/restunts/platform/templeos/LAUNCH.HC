@@ -74,6 +74,7 @@ legacy_s16 RestuntsArgs(legacy_u8 *data_directory,legacy_s32 argument_count,lega
   if(information!=COMMAND_LINE_CONTINUE) {
     return information;
   }
+  RsFileCarSetBase(temple_program_directory);
   previous_directory=StrNew(Fs->cur_dir);
   previous_drive=Fs->cur_dv->drv_let;
   if(!Cd(data_directory)) {

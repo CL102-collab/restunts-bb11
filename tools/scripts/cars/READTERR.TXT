@@ -5,9 +5,11 @@ grey body shown in the supplied photographs. Other paints keep the same black
 aero and all-black glazing. Original low polygon geometry and digital cockpit.
 
 INSTALL
-Copy CARTERR.RES, STTERR.3SH, STDATERR.VSH and STDBTERR.VSH to your Stunts game
-data directory. They are also installed in this repository's stunts/ directory
-by the creation command. No existing car is replaced.
+Restunts loads this car automatically from its cars resource folder. The
+repository keeps CARTERR.RES, STTERR.3SH, STDATERR.VSH and STDBTERR.VSH in
+assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
+For original Stunts, copy these four files directly to your Stunts game
+data directory. No existing car is replaced.
 
 Fan adhesion activates automatically in updated Restunts when this car is
 selected. The one-byte fand=1 resource enables it; no startup option or launcher

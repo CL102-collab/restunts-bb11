@@ -17,4 +17,8 @@
 #include "RUNTIME.HC"
 #include "generated/ALL.HC"
 
+// Keep the loaded port directory even when the launcher selects other game data.
+legacy_u8 *temple_program_directory=StrNew(__DIR__);
+RsFileCarSetBase(temple_program_directory);
+
 #include "LAUNCH.HC"

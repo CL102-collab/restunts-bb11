@@ -58,7 +58,8 @@ Stock TempleOS installation CD
 
 For the player guide, see docs/templeos.md in the repository. The stock package
 contains a native RedSea RESTUNTS.ISO with INSTALL.HC and PLAY.HC, plus the game
-sources and an empty DATA directory. Original game resources are not included.
+sources, the bundled Tesla and McMurtry cars in PORT/CARS, and an empty DATA
+directory. Original game resources are not included.
 Mount it as a CD in the existing TempleOS VM.
 The installer copies and verifies a new C:/Restunts directory; it never replaces
 an existing installation. tools/PACKAGE.PY builds the CD using stock TempleOS.
@@ -68,10 +69,18 @@ on a separate private RedSea CD. See docs/templeos.md for both steps.
 Loading in the guest
 --------------------
 
-Copy this directory's .HC/.HH files, including generated/, into C:/PORT and
+Copy the prepared PORT directory, including generated/ and CARS/, into C:/PORT and
 the original Broderbund Stunts 1.1 game data into C:/DATA. Extensions must stay
 uppercase. Use a writable data directory for tracks, replays, and configuration.
 The game verifies the MISC resource version exactly as the DOS build does.
+
+Cars are discovered automatically in the selected data directory, beside LOAD.HC,
+and in their CARS subfolders, in that order. Loose resources retain priority.
+The code directory is captured when LOAD.HC is loaded, so custom cars still work
+after changing the current directory or selecting data from another installation.
+The prepared PORT/CARS contains only the bundled .RES/.3SH/.VSH files; additional
+compatible custom cars may be added there or in DATA/CARS. Packed car resources
+are supported as well. All TempleOS filenames must be uppercase.
 
 In a fresh TempleOS task:
 
@@ -130,7 +139,9 @@ From the repository root, prepare a new directory (inputs are never renamed):
     python3 src/restunts/platform/templeos/tools/PREPARE.PY \
         --data /path/to/original/game --output /path/to/new/package
 
-The package contains PORT/ and DATA/. Case collisions with different contents
+The package contains PORT/ with bundled CARS/ and DATA/ with your private game
+files. Existing cars/ under the input game directory is preserved as DATA/CARS.
+Case collisions with different contents
 are rejected. Existing output directories are rejected to protect prior saves.
 Copy those two folders to a guest disk. Do not mount a disk on the host while
 the guest is using it. tools/VM.PY builds its own disposable FAT32 disk instead;
@@ -202,6 +213,7 @@ Each check must finish without compiler errors or warnings:
     COMPILE.HC        Compile the complete port without starting the game.
     TEST_NATIVE.HC    File persistence, input scaling, and real-time timer cadence.
     TEST_LAUNCH.HC    Full startup-option parsing, defaults, quoting, and help/version.
+    TEST_CARS.HC      Bundled car discovery, complete reads, and override priority.
     TEST_DWS.HC       Dual-way switching penalties, legal branches, and finish rules.
     TEST_TIMER.HC     Clock rollback, callback cadence, suspension, and reset.
     TEST_RENDERER.HC  Palette, native raster, masks, backgrounds, video cleanup.
@@ -212,13 +224,16 @@ Each check must finish without compiler errors or warnings:
     TEST_REPLAY.HC    Compare 120 physics frames with an independent DOS oracle.
     TEST_GHOST_LINE.HC Reconstruct replay ribbon and verify native colors and physics isolation.
 
+The car check needs the prepared PORT/CARS. Run PREPARE.PY without --data, copy
+TEST_CARS.HC into its PORT, then pass that PORT as the VM --source.
 The replay and ghost-line checks need --data pointing to the original game directory, including
 its unchanged DEFAULT.RPL. Tests create temporary files in the disposable guest;
 they should not run against an existing game disk. tools/VM.TXT gives commands,
 oracle provenance, and diagnostic paths. tools/TEST_TRANSLATE.PY builds a host
 C oracle and matching HolyC language-semantics fixture. tools/TEST_TRANSLATE_CLEANUP.PY
 checks constant dependencies and required forward declarations; tools/TEST_VM.PY
-checks compiler diagnostic detection. tools/TEST_LAUNCH.PY checks argument-string
+checks compiler diagnostic detection. tools/TEST_PACKAGE.PY checks bundled-car
+placement and private-data car-folder transfers. tools/TEST_LAUNCH.PY checks argument-string
 construction with address/undefined-behavior sanitizers. tools/TEST_RENDERER.PY checks EGA materials
 and raster behavior with address/undefined-behavior sanitizers.
 Host checks complement actual HolyC compilation and guest runtime tests.

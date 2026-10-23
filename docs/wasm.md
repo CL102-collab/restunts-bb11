@@ -2,8 +2,9 @@
 
 The SDL3 platform also builds with Emscripten. The output is one offline
 `restunts.html`: JavaScript, WebAssembly, enhanced artwork, and any supplied
-optional Ogg Vorbis music replacements are embedded. **No original game data is
-included**, including cars, tracks, replays, sounds, fonts, or menus. The build does not require a `stunts/`
+optional Ogg Vorbis music replacements are embedded. The Tesla Roadster and
+McMurtry custom cars are bundled under `/assets/cars/`. **No original game data is
+included**, including stock cars, tracks, replays, sounds, fonts, or menus. The build does not require a `stunts/`
 directory. The redistributable package and relink kit also exclude that data.
 
 ## Build
@@ -92,12 +93,15 @@ existing hardware-keyboard input.
 when you play from a website. Selecting a folder gives the game local access to
 its files; it does not send them to the hosting server.
 
-Immediate game files and custom opponent animations in
+Immediate game files, car resources in `cars/`, and custom opponent animations in
 `opponents/animations/opp1win.webm` through `opp6win.webm`, or `opp1lose.webm`
 through `opp6lose.webm`, are loaded. Animation names describe the opponent's
 result. Use WebM with VP8 video; animations play silently while HyperVision is
 on, keeping the game's music. Missing or unusable clips retain the original
-animation. Other subfolders, executables, and the HTML are ignored.
+animation. The `cars/` folder accepts `.RES`, `.PRE`, `.3SH`, `.P3S`, `.VSH`, and
+`.PVS` resources directly; loose car resources in the game folder still work.
+Bundled cars load automatically, alongside cars in your selected folder. Other
+subfolders, executables, and the HTML are ignored.
 Filenames are resolved case-insensitively. Identical files differing
 only in case are accepted; conflicting contents report an error. The selected
 folder must contain the original game resources, including `MAIN.RES` (or

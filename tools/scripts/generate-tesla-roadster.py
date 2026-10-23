@@ -3,7 +3,7 @@
 
 The four raw resources work in original Stunts and Restunts. No executable or
 car registry changes are needed. Run --check to verify checked-in assets, or
---install DIRECTORY to also copy the generated car into a playable game folder.
+--install DIRECTORY to also copy the car into that game folder's cars directory.
 """
 
 import argparse
@@ -25,6 +25,7 @@ from tesla_roadster_physics import (ADHESION_MAX_ALIGNMENT_DEGREES,
 
 ROOT = Path(__file__).resolve().parents[2]
 CAR_ID = "TERR"
+GAME_FILES = ("CARTERR.RES", "STTERR.3SH", "STDATERR.VSH", "STDBTERR.VSH")
 REFERENCE_IMAGES = [
     {"file": "1000004851.jpg", "view": "Front, recessed fascia and trapezoid hood"},
     {"file": "1000004850.jpg", "view": "Rocket demonstration, profile and aero disc wheels"},
@@ -254,9 +255,11 @@ grey body shown in the supplied photographs. Other paints keep the same black
 aero and all-black glazing. Original low polygon geometry and digital cockpit.
 
 INSTALL
-Copy CARTERR.RES, STTERR.3SH, STDATERR.VSH and STDBTERR.VSH to your Stunts game
-data directory. They are also installed in this repository's stunts/ directory
-by the creation command. No existing car is replaced.
+Restunts loads this car automatically from its cars resource folder. The
+repository keeps CARTERR.RES, STTERR.3SH, STDATERR.VSH and STDBTERR.VSH in
+assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
+For original Stunts, copy these four files directly to your Stunts game
+data directory. No existing car is replaced.
 
 Fan adhesion activates automatically in updated Restunts when this car is
 selected. The one-byte fand=1 resource enables it; no startup option or launcher
@@ -358,12 +361,20 @@ def main():
     parser.add_argument("--install", type=Path, metavar="GAME_DIRECTORY")
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    directory = args.output_directory or args.repository_root / "tools/scripts/cars"
     outputs = generate(args.repository_root)
-    for target in [directory] + ([args.install] if args.install else []):
+    game_outputs = {name: outputs[name] for name in GAME_FILES}
+    if args.output_directory:
+        targets = [(args.output_directory, outputs)]
+    else:
+        targets = [(args.repository_root / "assets/cars", game_outputs),
+                   (args.repository_root / "tools/scripts/cars",
+                    {name: data for name, data in outputs.items() if name not in GAME_FILES})]
+    if args.install:
+        targets.append((args.install / "cars", game_outputs))
+    for target, files in targets:
         if not args.check:
             target.mkdir(parents=True, exist_ok=True)
-        for name, data in outputs.items():
+        for name, data in files.items():
             path = target / name
             if args.check:
                 if path.read_bytes() != data:

@@ -516,6 +516,21 @@ const legacy_s8 *file_find_next_alt(void)
 	return 0;
 }
 
+legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity)
+{
+	const legacy_s8 *found =
+		file_combine_and_find(0, car_resource_wildcard, car_resource_extension);
+	legacy_u16 count = 0;
+	while (found != 0 && count < capacity) {
+		for (legacy_u16 index = 0; index < FILE_CAR_ID_LENGTH; index++) {
+			car_ids[count][index] = found[sizeof("car") - 1U + index];
+		}
+		car_ids[count++][FILE_CAR_ID_LENGTH] = 0;
+		found = file_find_next_alt();
+	}
+	return count;
+}
+
 void *file_load_resfile(const legacy_s8 *filename)
 {
 	trace_word(1006);

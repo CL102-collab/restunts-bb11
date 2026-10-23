@@ -1,9 +1,13 @@
-# Emscripten application packaging. Embed enhanced artwork and optional music.
+# Emscripten application packaging. Embed custom cars, artwork and optional music.
 # Original game resources are selected by the player and loaded into MEMFS by the shell.
 set(restunts_web_assets "${CMAKE_CURRENT_BINARY_DIR}/web-assets")
 set(restunts_web_shell "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/shell.html")
 # Recreate only this generated directory so removed assets cannot linger.
 file(REMOVE_RECURSE "${restunts_web_assets}")
+foreach(car_file IN LISTS restunts_car_files)
+    configure_file("${CMAKE_SOURCE_DIR}/assets/cars/${car_file}"
+        "${restunts_web_assets}/assets/cars/${car_file}" COPYONLY)
+endforeach()
 foreach(theme desert tropical alpine city country)
     foreach(image scen sce2 sce3 sce4)
         configure_file("${CMAKE_SOURCE_DIR}/assets/skyboxes/${theme}-${image}.png"
