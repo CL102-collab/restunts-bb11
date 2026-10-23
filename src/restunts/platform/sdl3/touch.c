@@ -13,11 +13,9 @@
 #define TOUCH_FINGER_COUNT 16U
 #define INPUT_SHIFT_QUEUE_CAPACITY 64U
 #define TOUCH_EDGE_MARGIN 10.0f
-#define TOUCH_VIEWPORT_MARGIN 1.0f
 #define TOUCH_RADIUS_HEIGHT 0.075f
 #define TOUCH_STEERING_HEIGHT 0.62f
 #define TOUCH_RIGHT_RADIUS_OFFSET 3.5f
-#define TOUCH_MIN_GUTTER_SCALE 0.6f
 #define TOUCH_SHIFT_RADIUS_OFFSET 2.25f
 #define TOUCH_VERTICAL_RADIUS_OFFSET 2.2f
 #define TOUCH_ACCELERATE_HEIGHT 0.55f
@@ -237,23 +235,6 @@ struct TOUCH_CIRCLE sdl3_touch_circle(enum TOUCH_CONTROL control, const SDL_Rect
 {
 	struct TOUCH_CIRCLE circle;
 	circle.radius = area->h * TOUCH_RADIUS_HEIGHT;
-	legacy_f32 game_left, game_right, unused;
-	sdl3_video_game_to_window(0, 0, &game_left, &unused);
-	sdl3_video_game_to_window(SDL3_SCREEN_WIDTH, 0, &game_right, &unused);
-	legacy_u8 right_side = control == TOUCH_CAMERA || control == TOUCH_FOLLOW ||
-						   control == TOUCH_ACCELERATE || control == TOUCH_BRAKE;
-	legacy_f32 gutter = right_side ? area->x + area->w - game_right : game_left - area->x;
-	/* Line rasterization can round fractional circle edges toward the game. */
-	gutter -= TOUCH_EDGE_MARGIN + TOUCH_VIEWPORT_MARGIN;
-	legacy_f32 gutter_radius = gutter / (right_side ? 2.0f : TOUCH_RIGHT_RADIUS_OFFSET + 1.0f);
-	legacy_f32 steering_radius = (game_left - area->x - TOUCH_EDGE_MARGIN - TOUCH_VIEWPORT_MARGIN) /
-								 (TOUCH_RIGHT_RADIUS_OFFSET + 1.0f);
-	/* Preserve the Android arrangement on ordinary and wide phone displays.
-	 * Narrower borders allow overlap rather than shrinking buttons too far. */
-	if (steering_radius >= circle.radius * TOUCH_MIN_GUTTER_SCALE &&
-		gutter_radius >= circle.radius * TOUCH_MIN_GUTTER_SCALE) {
-		circle.radius = SDL_min(circle.radius, gutter_radius);
-	}
 	circle.x = area->x + TOUCH_EDGE_MARGIN + circle.radius;
 	circle.y = area->y + area->h * TOUCH_STEERING_HEIGHT;
 	switch (control) {

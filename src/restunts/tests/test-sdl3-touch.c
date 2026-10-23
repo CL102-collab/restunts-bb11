@@ -11,7 +11,15 @@
 #define TEST_HEIGHT 1080
 #define TEST_HD_WIDTH 1280
 #define TEST_HD_HEIGHT 720
+#define TEST_WIDE_WIDTH 2340
+#define TEST_16X10_WIDTH 1280
+#define TEST_16X10_HEIGHT 800
+#define TEST_FORMER_SHRINK_THRESHOLD_WIDTH 1900
 #define TEST_EDGE_MARGIN 10.0f
+#define TEST_RADIUS_HEIGHT 0.075f
+#define TEST_STEERING_HEIGHT 0.62f
+#define TEST_RIGHT_RADIUS_OFFSET 3.5f
+#define TEST_OUTER_RADIUS_OFFSET 0.75f
 #define TEST_DOUBLE_SIZE 2
 #define TEST_DEVICE 1
 #define TEST_FIRST_FINGER 11
@@ -210,7 +218,7 @@ static void test_visibility_and_geometry(void)
 }
 
 static void test_landscape_pillarboxes(legacy_int width, legacy_int height, legacy_int inset,
-									   legacy_u8 allow_overlap)
+									   legacy_u8 expect_overlap)
 {
 	SDL_Rect safe = {inset, 0, width - inset * 2, height};
 	SDL_FRect saved_viewport = game_viewport;
@@ -232,37 +240,23 @@ static void test_landscape_pillarboxes(legacy_int width, legacy_int height, lega
 			assert(SDL_sqrtf(dx * dx + dy * dy) + TEST_COORDINATE_EPSILON >=
 				   circle.radius + next.radius);
 		}
-		if (allow_overlap) {
-			/* Stored float radii can round differently from x87 intermediates. */
-			assert(SDL_fabsf(circle.radius - safe.h * 0.075f) < TEST_COORDINATE_EPSILON);
-		} else if (control == TOUCH_CAMERA || control == TOUCH_FOLLOW ||
-				   control == TOUCH_ACCELERATE || control == TOUCH_BRAKE) {
-			assert(circle.x - circle.radius >=
-				   game_viewport.x + game_viewport.w - TEST_COORDINATE_EPSILON);
-		} else {
-			assert(circle.x + circle.radius <= game_viewport.x + TEST_COORDINATE_EPSILON);
-		}
+		/* Stored float radii can round differently from x87 intermediates. */
+		assert(SDL_fabsf(circle.radius - safe.h * TEST_RADIUS_HEIGHT) < TEST_COORDINATE_EPSILON);
 	}
-	if (allow_overlap) {
-		/* 16:10 keeps the normal steering/shift cluster even across the game edge. */
-		struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &safe);
-		struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &safe);
-		struct TOUCH_CIRCLE up = sdl3_touch_circle(TOUCH_SHIFT_UP, &safe);
-		struct TOUCH_CIRCLE down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, &safe);
-		assert(SDL_fabsf(left.radius - safe.h * 0.075f) < TEST_COORDINATE_EPSILON);
-		assert(right.radius == left.radius);
-		assert(left.y == right.y && right.x > left.x);
-		assert(SDL_fabsf(up.x - (left.x + right.x) / 2.0f) < TEST_COORDINATE_EPSILON);
-		assert(up.x == down.x && up.y < left.y && down.y > left.y);
-		assert(right.x + right.radius > game_viewport.x);
-	}
+	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &safe);
+	struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &safe);
+	struct TOUCH_CIRCLE up = sdl3_touch_circle(TOUCH_SHIFT_UP, &safe);
+	struct TOUCH_CIRCLE down = sdl3_touch_circle(TOUCH_SHIFT_DOWN, &safe);
+	assert(left.y == right.y && right.x > left.x);
+	assert(SDL_fabsf(up.x - (left.x + right.x) / 2.0f) < TEST_COORDINATE_EPSILON);
+	assert(up.x == down.x && up.y < left.y && down.y > left.y);
+	assert((right.x + right.radius > game_viewport.x) == expect_overlap);
 	/* Touch coordinates cover the full canvas, including both black side areas. */
 	SDL_TouchFingerEvent finger;
 	SDL_zero(finger);
 	finger.type = SDL_EVENT_FINGER_DOWN;
 	finger.touchID = TEST_DEVICE;
 	finger.fingerID = TEST_FIRST_FINGER;
-	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &safe);
 	/* A NULL test window uses the area's right/bottom edges as the window size. */
 	finger.x = left.x / (safe.x + safe.w);
 	finger.y = left.y / (safe.y + safe.h);
@@ -275,18 +269,21 @@ static void test_landscape_pillarboxes(legacy_int width, legacy_int height, lega
 	assert(sdl3_touch_key_state(SDL_SCANCODE_LEFT));
 	assert(sdl3_touch_key_state(SDL_SCANCODE_UP));
 	assert(key_count == 2 && queued_keys[0] == KEY_LEFT && queued_keys[1] == KEY_UP);
-	if (allow_overlap) {
-		/* The part over the game still hits the same right-arrow control. */
-		struct TOUCH_CIRCLE right = sdl3_touch_circle(TOUCH_RIGHT, &safe);
-		finger.fingerID = TEST_THIRD_FINGER;
-		finger.x = right.x / (safe.x + safe.w);
-		finger.y = right.y / (safe.y + safe.h);
-		sdl3_touch_event(&finger, &safe);
-		assert(sdl3_touch_key_state(SDL_SCANCODE_RIGHT));
-	}
+	/* Use a full-size outer point independent of the returned circle. Gutter-based
+	 * shrinking on 16:9 screens used to turn this right-arrow tap into a mouse tap. */
+	legacy_f32 radius = safe.h * TEST_RADIUS_HEIGHT;
+	finger.fingerID = TEST_THIRD_FINGER;
+	finger.x = (safe.x + TEST_EDGE_MARGIN +
+				radius * (TEST_RIGHT_RADIUS_OFFSET + TEST_OUTER_RADIUS_OFFSET)) /
+			   (safe.x + safe.w);
+	finger.y = (safe.y + safe.h * TEST_STEERING_HEIGHT) / (safe.y + safe.h);
+	sdl3_touch_event(&finger, &safe);
+	assert(sdl3_touch_key_state(SDL_SCANCODE_RIGHT));
+	assert(key_count == 3 && queued_keys[2] == KEY_RIGHT && mouse_count == 0);
 	sdl3_touch_enable(0);
 	assert(!sdl3_touch_key_state(SDL_SCANCODE_LEFT));
 	assert(!sdl3_touch_key_state(SDL_SCANCODE_UP));
+	assert(!sdl3_touch_key_state(SDL_SCANCODE_RIGHT));
 	sdl3_touch_enable(1);
 	game_viewport = saved_viewport;
 	clear();
@@ -297,7 +294,7 @@ static void test_narrow_pillarboxes(void)
 	SDL_FRect saved_viewport = game_viewport;
 	game_viewport = (SDL_FRect){area.x, area.y, area.w, area.h};
 	struct TOUCH_CIRCLE left = sdl3_touch_circle(TOUCH_LEFT, &area);
-	assert(SDL_fabsf(left.radius - area.h * 0.075f) < TEST_COORDINATE_EPSILON);
+	assert(SDL_fabsf(left.radius - area.h * TEST_RADIUS_HEIGHT) < TEST_COORDINATE_EPSILON);
 	game_viewport = saved_viewport;
 }
 
@@ -701,7 +698,7 @@ static void assert_hidden_rendering(SDL_Renderer *renderer, SDL_Window *window,
 }
 
 static void test_rendering(legacy_int window_width, legacy_int window_height,
-						   const legacy_char *filename, legacy_u8 allow_overlap)
+						   const legacy_char *filename, legacy_u8 expect_overlap)
 {
 	SDL_Rect rectangle = {0, 0, window_width, window_height};
 	SDL_FRect saved_viewport = game_viewport;
@@ -763,17 +760,17 @@ static void test_rendering(legacy_int window_width, legacy_int window_height,
 			if (red != 0 || green != 0 || blue != 0) {
 				++overlay_pixels;
 			}
-			if (!allow_overlap && (red != 0 || green != 0 || blue != 0)) {
+			if (!expect_overlap && (red != 0 || green != 0 || blue != 0)) {
 				fprintf(
 					stderr,
 					"Overlay entered game at %d,%d in %dx%d; viewport %.3f..%.3f, RGB %u,%u,%u\n",
 					x, y, window_width, window_height, game_viewport.x,
 					game_viewport.x + game_viewport.w, red, green, blue);
 			}
-			assert(allow_overlap || (red == 0 && green == 0 && blue == 0));
+			assert(expect_overlap || (red == 0 && green == 0 && blue == 0));
 		}
 	}
-	assert((overlay_pixels > 0) == allow_overlap);
+	assert((overlay_pixels > 0) == expect_overlap);
 	assert(SDL_SavePNG(image, filename));
 	SDL_DestroySurface(image);
 	SDL_DestroyRenderer(renderer);
@@ -786,10 +783,14 @@ legacy_int main(void)
 	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
 	assert(SDL_Init(0));
 	test_visibility_and_geometry();
-	test_landscape_pillarboxes(TEST_WIDTH, TEST_HEIGHT, 0, 0);
+	test_landscape_pillarboxes(TEST_WIDTH, TEST_HEIGHT, 0, 1);
 	test_landscape_pillarboxes(TEST_WIDTH, TEST_HEIGHT, TEST_SAFE_INSET_X, 1);
-	test_landscape_pillarboxes(2340, TEST_HEIGHT, 0, 0);
-	test_landscape_pillarboxes(1280, 800, 0, 1);
+	test_landscape_pillarboxes(TEST_WIDE_WIDTH, TEST_HEIGHT, 0, 0);
+	test_landscape_pillarboxes(TEST_16X10_WIDTH, TEST_16X10_HEIGHT, 0, 1);
+	test_landscape_pillarboxes(TEST_WIDTH * TEST_DOUBLE_SIZE, TEST_HEIGHT * TEST_DOUBLE_SIZE, 0, 1);
+	/* Adjacent widths straddle the old discontinuous switch to smaller buttons. */
+	test_landscape_pillarboxes(TEST_FORMER_SHRINK_THRESHOLD_WIDTH - 1, TEST_HEIGHT, 0, 1);
+	test_landscape_pillarboxes(TEST_FORMER_SHRINK_THRESHOLD_WIDTH, TEST_HEIGHT, 0, 1);
 	test_narrow_pillarboxes();
 	test_holds_and_cancellation();
 	test_single_tap_shifts();
@@ -799,9 +800,9 @@ legacy_int main(void)
 	test_game_state_and_rewind();
 	test_layout_visibility_and_taps();
 	test_intro_visibility_and_taps();
-	test_rendering(TEST_WIDTH, TEST_HEIGHT, "touch-layout.png", 0);
-	test_rendering(2340, TEST_HEIGHT, "touch-layout-wide.png", 0);
-	test_rendering(1280, 800, "touch-layout-16x10.png", 1);
+	test_rendering(TEST_WIDTH, TEST_HEIGHT, "touch-layout.png", 1);
+	test_rendering(TEST_WIDE_WIDTH, TEST_HEIGHT, "touch-layout-wide.png", 0);
+	test_rendering(TEST_16X10_WIDTH, TEST_16X10_HEIGHT, "touch-layout-16x10.png", 1);
 	sdl3_touch_reset();
 	SDL_Quit();
 	puts("SDL3 touch layout, visibility, multitouch, tap shortcuts, shifting and replay gestures "
