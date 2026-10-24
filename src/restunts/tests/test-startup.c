@@ -50,6 +50,19 @@ static legacy_s32 startup_audio_driver_loaded;
 static legacy_s32 startup_ogg_music_enabled;
 static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
+#ifdef STARTUP_FULLSCREEN_PREFIX
+static legacy_u8 startup_fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
+static legacy_u32 startup_fullscreen_set_calls;
+static legacy_u32 startup_fullscreen_before_video_calls;
+
+void sdl3_video_set_startup_fullscreen(legacy_u8 enabled)
+{
+	assert(enabled == SDL3_STARTUP_FULLSCREEN_OFF || enabled == SDL3_STARTUP_FULLSCREEN_ON);
+	startup_fullscreen_enabled = enabled;
+	startup_fullscreen_before_video_calls = startup_video_calls;
+	++startup_fullscreen_set_calls;
+}
+#endif
 #ifndef __ANDROID__
 static legacy_u8 startup_controller_vibration_enabled = 1;
 static legacy_u32 startup_controller_vibration_set_calls;
@@ -195,6 +208,9 @@ void audio_allocate_car_state_records(void)
 }
 void dos_video_set_mode_13h(void)
 {
+#ifdef STARTUP_FULLSCREEN_PREFIX
+	assert(startup_fullscreen_before_video_calls == startup_video_calls);
+#endif
 	startup_video_calls++;
 #ifdef RESTUNTS_SDL3
 	check_startup_hypervision();
@@ -739,6 +755,10 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#ifdef STARTUP_FULLSCREEN_PREFIX
+	legacy_u32 before_fullscreen_calls = startup_fullscreen_set_calls;
+	legacy_u8 before_fullscreen_enabled = startup_fullscreen_enabled;
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	legacy_u32 before_vibration_calls = startup_controller_vibration_set_calls;
 	legacy_u8 before_vibration_enabled = startup_controller_vibration_enabled;
@@ -759,6 +779,10 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
+#ifdef STARTUP_FULLSCREEN_PREFIX
+	assert(startup_fullscreen_set_calls == before_fullscreen_calls);
+	assert(startup_fullscreen_enabled == before_fullscreen_enabled);
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	assert(startup_controller_vibration_set_calls == before_vibration_calls);
 	assert(startup_controller_vibration_enabled == before_vibration_enabled);
@@ -923,6 +947,67 @@ static void test_startup_ogg_music_options(void)
 }
 
 #endif
+
+static void test_startup_fullscreen_options(void)
+{
+#ifdef STARTUP_FULLSCREEN_PREFIX
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 enabled;
+	} cases[] = {{"--fullscreen:on", SDL3_STARTUP_FULLSCREEN_ON},
+				 {"--fullscreen:off", SDL3_STARTUP_FULLSCREEN_OFF},
+				 {"--FULLSCREEN:On", SDL3_STARTUP_FULLSCREEN_ON},
+				 {"--fUlLsCrEeN:OfF", SDL3_STARTUP_FULLSCREEN_OFF}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		startup_fullscreen_enabled = cases[index].enabled == SDL3_STARTUP_FULLSCREEN_ON
+										 ? SDL3_STARTUP_FULLSCREEN_OFF
+										 : SDL3_STARTUP_FULLSCREEN_ON;
+		legacy_u32 before = startup_fullscreen_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_fullscreen_set_calls == before + 1U);
+		assert(startup_fullscreen_enabled == cases[index].enabled);
+		assert(startup_options.fullscreen_enabled == cases[index].enabled);
+		assert(startup_options.fullscreen_specified != 0);
+	}
+	/* A new startup without the option clears the previous session's choice. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_ON;
+	legacy_u32 before = startup_fullscreen_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_fullscreen_set_calls == before + 1U);
+	assert(startup_fullscreen_enabled == SDL3_STARTUP_FULLSCREEN_OFF);
+	assert(startup_options.fullscreen_enabled == SDL3_STARTUP_FULLSCREEN_OFF);
+	assert(startup_options.fullscreen_specified == 0);
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); ++first) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); ++second) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)"--nointro",
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+	static const legacy_s8 *invalid[] = {"--fullscreen:",		"--fullscreen:auto",
+										 "--fullscreen:1",		"--fullscreen:onx",
+										 "--fullscreen:off:on", "--FULLSCREEN:unknown"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	/* No platform setting changes until every later option has validated. */
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--fullscreen:on",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+#else
+	/* Other platforms keep their existing fullscreen policies and parser behavior. */
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--fullscreen:on",
+							  (legacy_s8 *)"--fullscreen:off", (legacy_s8 *)"--fullscreen:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
 
 static void test_startup_fps_display_options(void)
 {
@@ -1209,6 +1294,7 @@ int main(void)
 #endif
 #endif
 	test_startup_fps_display_options();
+	test_startup_fullscreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");
 	return 0;

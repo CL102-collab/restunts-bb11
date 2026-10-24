@@ -1,7 +1,7 @@
-# Project C sources/headers and C# tools. CRLF matches .gitattributes.
+# Project C/C++ sources/headers and C# tools. CRLF matches .gitattributes.
 root = true
 
-[src/**.{c,h}]
+[src/**.{c,cpp,h}]
 charset = utf-8
 indent_style = tab
 indent_size = 4

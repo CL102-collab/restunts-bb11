@@ -27,7 +27,7 @@ case "$target" in
         apt-get install -y --no-install-recommends \
             build-essential gcc-multilib cmake ninja-build python3 curl ca-certificates \
             pkg-config autoconf automake libtool libtool-bin meson patch gawk ripgrep qemu-user \
-            file bzip2 xz-utils
+            file bzip2 xz-utils patchelf
         bash "$script_dir/prepare-appimage-sysroot.sh" "$target"
         download "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256" "$tool_root/downloads/appimagetool.AppImage"
         download "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256" "$tool_root/downloads/appimage-runtime-x86_64"
@@ -41,9 +41,9 @@ case "$target" in
     linux-*)
         case "$target" in
             linux-x64) architecture=amd64 ;;
-            linux-x86|linux-x86-no-sse2) architecture=i386; compiler=gcc-multilib ;;
-            linux-arm32) architecture=armhf; compiler=gcc-arm-linux-gnueabihf ;;
-            linux-arm64) architecture=arm64; compiler=gcc-aarch64-linux-gnu ;;
+            linux-x86|linux-x86-no-sse2) architecture=i386; compiler=gcc-multilib; cxx_compiler=g++-multilib ;;
+            linux-arm32) architecture=armhf; compiler=gcc-arm-linux-gnueabihf; cxx_compiler=g++-arm-linux-gnueabihf ;;
+            linux-arm64) architecture=arm64; compiler=gcc-aarch64-linux-gnu; cxx_compiler=g++-aarch64-linux-gnu ;;
             *) echo "Unknown Linux target: $target" >&2; exit 1 ;;
         esac
         if [[ "$architecture" != amd64 ]]; then
@@ -51,10 +51,10 @@ case "$target" in
         fi
         apt-get update
         if [[ -n "${compiler:-}" ]]; then
-            apt-get install -y --no-install-recommends "$compiler"
+            apt-get install -y --no-install-recommends "$compiler" "$cxx_compiler"
         fi
         apt-get install -y --no-install-recommends \
-            "libasound2-dev:$architecture" "libpulse-dev:$architecture" \
+            "libasound2-dev:$architecture" "libpulse-dev:$architecture" "libgtk-3-dev:$architecture" \
             "libx11-dev:$architecture" "libxext-dev:$architecture" \
             "libxrandr-dev:$architecture" "libxcursor-dev:$architecture" \
             "libxi-dev:$architecture" "libxfixes-dev:$architecture" \

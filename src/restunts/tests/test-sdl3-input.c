@@ -510,6 +510,42 @@ static void test_video_borderless(void)
 	SDL_free(saved);
 }
 
+static void test_video_startup_fullscreen(void)
+{
+	static const struct {
+		const legacy_char *borderless;
+		legacy_u8 fullscreen;
+	} cases[] = {{"0", SDL3_STARTUP_FULLSCREEN_OFF},
+				 {"0", SDL3_STARTUP_FULLSCREEN_ON},
+				 {"1", SDL3_STARTUP_FULLSCREEN_OFF},
+				 {"1", SDL3_STARTUP_FULLSCREEN_ON}};
+	const legacy_char *original = getenv(TEST_BORDERLESS_ENVIRONMENT);
+	legacy_char *saved = original != NULL ? SDL_strdup(original) : NULL;
+	assert(original == NULL || saved != NULL);
+	for (legacy_u32 index = 0; index < SDL_arraysize(cases); index++) {
+		legacy_u8 borderless = strcmp(cases[index].borderless, "1") == 0;
+		set_borderless_environment(cases[index].borderless);
+		sdl3_video_set_startup_fullscreen(cases[index].fullscreen);
+		dos_video_set_mode_13h();
+		assert_borderless_video(borderless, cases[index].fullscreen);
+		/* Leaving initial fullscreen restores the selected window policy. */
+		sdl3_video_toggle_fullscreen();
+		assert_borderless_video(borderless, !cases[index].fullscreen);
+		/* The startup policy survives shutdown and window recreation. */
+		dos_video_set_mode_13h();
+		assert_borderless_video(borderless, cases[index].fullscreen);
+	}
+	sdl3_video_shutdown();
+	sdl3_batch_mode = true;
+	sdl3_video_set_startup_fullscreen(SDL3_STARTUP_FULLSCREEN_ON);
+	dos_video_set_mode_13h();
+	assert(sdl3_video_window() == NULL);
+	sdl3_batch_mode = false;
+	sdl3_video_set_startup_fullscreen(SDL3_STARTUP_FULLSCREEN_OFF);
+	set_borderless_environment(saved);
+	SDL_free(saved);
+}
+
 static void test_video_and_mouse(void)
 {
 	dos_video_set_mode_13h();
@@ -2797,6 +2833,7 @@ legacy_int main(void)
 	test_timer();
 	test_video_vsync();
 	test_video_borderless();
+	test_video_startup_fullscreen();
 	test_video_and_mouse();
 	test_touch_focus_and_background();
 	test_touch_shortcut_keys();

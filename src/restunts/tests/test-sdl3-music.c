@@ -49,8 +49,10 @@ static legacy_s32 test_put_audio_stream_data(SDL_AudioStream *stream, const void
 #endif
 #define RESTUNTS_MUSIC_DIRECTORY TEST_CONFIGURED_DIRECTORY
 #define SDL_PutAudioStreamData test_put_audio_stream_data
+#define asset_path_base test_asset_path_base
 #include "../platform/sdl3/music.c"
 #undef SDL_PutAudioStreamData
+#undef asset_path_base
 
 legacy_s32 sdl3_batch_mode;
 legacy_s8 audio_music_enabled = AUDIO_STATE_DISABLED;
@@ -65,7 +67,7 @@ static legacy_s32 callbacks_suspended;
 static legacy_u32 pending_ticks;
 static legacy_u32 pump_count;
 
-const legacy_char *asset_path_base(void)
+const legacy_char *test_asset_path_base(void)
 {
 	return test_base_path;
 }

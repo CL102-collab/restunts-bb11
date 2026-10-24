@@ -10,6 +10,7 @@
 #include <unistd.h>
 #ifdef _WIN32
 #include <direct.h>
+#include <windows.h>
 #endif
 #include "../platform/sdl3/sdl3.h"
 #include "../c/fileio.h"
@@ -21,6 +22,10 @@
 #define TEST_GUARD_BYTES 19U
 #define TEST_GUARD_VALUE 0xa7U
 #define TEST_LARGE_FILE_BYTES 98341U
+#ifdef _WIN32
+#define TEST_WINDOWS_NUL_LENGTH (-1)
+#define TEST_WINDOWS_PATH_CAPACITY 1024U
+#endif
 
 static void fill_pattern(legacy_u8 *data, size_t length)
 {
@@ -115,7 +120,15 @@ static void test_external_car_loaders(void)
 		"CaSeDir/cars/CARZ9Z9.RES", "CaSeDir/cars/STZ9Z9.3SH", "CaSeDir/cars/STDAZ9Z9.VSH",
 		"CaSeDir/cars/STDBZ9Z9.VSH"};
 	legacy_char directory[FILE_CAR_PATH_SIZE];
+#ifdef _WIN32
+	WCHAR wide_directory[TEST_WINDOWS_PATH_CAPACITY];
+	DWORD path_length = GetCurrentDirectoryW(TEST_WINDOWS_PATH_CAPACITY, wide_directory);
+	assert(path_length != 0 && path_length < TEST_WINDOWS_PATH_CAPACITY);
+	assert(WideCharToMultiByte(CP_UTF8, 0, wide_directory, TEST_WINDOWS_NUL_LENGTH, directory,
+							   sizeof(directory), NULL, NULL) != 0);
+#else
 	assert(getcwd(directory, sizeof(directory)) != NULL);
+#endif
 	assert(strlen(directory) + sizeof("/CaSeDir") <= sizeof(directory));
 	strcat(directory, "/CaSeDir");
 #ifdef _WIN32
@@ -160,9 +173,8 @@ static void test_external_car_loaders(void)
 	assert(rmdir("CaSeDir/cars") == 0);
 }
 
-legacy_int main(void)
+static void run_file_io_tests(void)
 {
-	sdl3_batch_mode = 1;
 #ifdef _WIN32
 	legacy_s32 result = _mkdir("CaSeDir");
 #else
@@ -173,6 +185,39 @@ legacy_int main(void)
 	test_heap_buffers();
 	test_external_car_loaders();
 	assert(rmdir("CaSeDir") == 0);
+}
+
+legacy_int main(void)
+{
+	sdl3_batch_mode = 1;
+	run_file_io_tests();
+#ifdef _WIN32
+	/* ANSI MinGW dirent returns no entries in a directory outside the ACP,
+	 * even for opendir("."). Repeat real core reads/writes, mixed-case lookup,
+	 * wildcard enumeration and absolute external-car paths in such a directory. */
+	static const WCHAR unicode_directory[] = L"Restunts-\u0151\u0171-\u6771\u4eac";
+	WCHAR original[TEST_WINDOWS_PATH_CAPACITY];
+	DWORD count = GetCurrentDirectoryW(TEST_WINDOWS_PATH_CAPACITY, original);
+	assert(count != 0 && count < TEST_WINDOWS_PATH_CAPACITY);
+	assert(CreateDirectoryW(unicode_directory, NULL));
+	assert(SetCurrentDirectoryW(unicode_directory));
+	run_file_io_tests();
+	legacy_char absolute[FILE_CAR_PATH_SIZE];
+	WCHAR wide_directory[TEST_WINDOWS_PATH_CAPACITY];
+	count = GetCurrentDirectoryW(TEST_WINDOWS_PATH_CAPACITY, wide_directory);
+	assert(count != 0 && count < TEST_WINDOWS_PATH_CAPACITY);
+	assert(WideCharToMultiByte(CP_UTF8, 0, wide_directory, TEST_WINDOWS_NUL_LENGTH, absolute,
+							   sizeof(absolute), NULL, NULL) != 0);
+	static const legacy_char filename[] = "/REMOVE.BIN";
+	assert(strlen(absolute) + sizeof(filename) <= sizeof(absolute));
+	strcat(absolute, filename);
+	legacy_u16 handle = dos_file_open((const legacy_s8 *)absolute, DOS_FILE_CREATE);
+	assert(handle != 0);
+	assert(dos_file_close(handle) == 0);
+	assert(dos_file_remove((const legacy_s8 *)absolute) == 0);
+	assert(SetCurrentDirectoryW(original));
+	assert(RemoveDirectoryW(unicode_directory));
+#endif
 	puts("SDL3 core file I/O stack, heap, page-boundary and path regressions passed");
 	return 0;
 }

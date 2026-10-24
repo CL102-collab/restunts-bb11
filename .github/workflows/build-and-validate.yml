@@ -72,8 +72,8 @@ jobs:
       - name: Validate C/H formatting against .editorconfig
         run: ec
 
-      - name: Validate C layout and braces with clang-format
-        run: git ls-files -z 'src/*.c' 'src/*.h' | xargs -0 -r clang-format --dry-run --Werror
+      - name: Validate C and C++ layout and braces with clang-format
+        run: git ls-files -z 'src/*.c' 'src/*.cpp' 'src/*.h' | xargs -0 -r clang-format --dry-run --Werror
 
   dumpsrv-tests:
     name: C# regression service tests
@@ -157,7 +157,7 @@ jobs:
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
             libwayland-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev \
-            libegl1-mesa-dev libgl1-mesa-dev
+            libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 
       - name: Reserve a compatible address space for ThreadSanitizer
         if: matrix.sanitizer == 'thread'
@@ -406,7 +406,7 @@ jobs:
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
             libwayland-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev \
-            libegl1-mesa-dev libgl1-mesa-dev
+            libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 
       - name: Download and extract the game assets
         run: |

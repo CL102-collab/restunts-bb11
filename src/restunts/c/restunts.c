@@ -7,6 +7,7 @@
 #include "frame_adaptive.h"
 #include "hires.h"
 #include "../platform/sdl3/music.h"
+#include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -76,6 +77,10 @@
 
 #define STARTUP_HYPERVISION_PREFIX "--hv:"
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
+	!defined(__DJGPP__)
+#define STARTUP_FULLSCREEN_PREFIX "--fullscreen:"
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 #define STARTUP_CONTROLLER_VIBRATION_PREFIX "--controller-vibration:"
 #endif
@@ -206,6 +211,10 @@ struct STARTUP_OPTIONS {
 	legacy_u8 hypervision_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+	legacy_u8 fullscreen_enabled;
+	legacy_u8 fullscreen_specified;
+#endif
 #ifndef __ANDROID__
 	legacy_u8 controller_vibration_enabled;
 	legacy_u8 controller_vibration_specified;
@@ -360,6 +369,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->hypervision_specified = 0;
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+	options->fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
+	options->fullscreen_specified = 0;
+#endif
 #ifndef __ANDROID__
 	options->controller_vibration_enabled = 1;
 	options->controller_vibration_specified = 0;
@@ -374,6 +387,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 		startup_parse_hypervision(argv[i], options);
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+		startup_parse_boolean(argv[i], STARTUP_FULLSCREEN_PREFIX, "Fullscreen",
+							  &options->fullscreen_enabled, &options->fullscreen_specified);
+#endif
 #ifndef __ANDROID__
 		startup_parse_boolean(argv[i], STARTUP_CONTROLLER_VIBRATION_PREFIX, "Controller vibration",
 							  &options->controller_vibration_enabled,
@@ -519,6 +536,9 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);
+#endif
 #ifndef __ANDROID__
 	sdl3_controller_set_vibration_enabled(startup_options.controller_vibration_enabled);
 #endif

@@ -22,7 +22,13 @@ MANIFEST_VERSION = 1
 README = "README-PACKAGE.txt"
 DOS_EXECUTABLES = ("restunts", "restunto", "repldump", "repldumo", "pixldump", "pixldumo")
 DOS32_EXECUTABLES = ("restunts", "repldump", "pixldump")
-NATIVE_EXECUTABLES = (*DOS32_EXECUTABLES, "genghost")
+NATIVE_EXECUTABLES = (*DOS32_EXECUTABLES, "genghost", "restunts-launcher")
+MACOS_LAUNCHER = "Restunts.app/Contents/MacOS/restunts-launcher"
+WINDOWS_GCC_TARGETS = {"windows-x86", "windows-x86-no-sse2", "windows-x64"}
+GCC_RUNTIME_NOTICES = {"COPYING3.txt", "COPYING.RUNTIME.txt",
+                       "gcc-mingw-w64-copyright.txt", "README.md"}
+LLVM_RUNTIME_NOTICES = {"libcxx-LICENSE.txt", "libcxxabi-LICENSE.txt", "libunwind-LICENSE.txt",
+                        "compiler-rt-LICENSE.txt", "README.md"}
 TARGETS = {
     "android-armv7": ".zip",
     "android-arm64": ".zip",
@@ -400,17 +406,45 @@ def required_files(target):
     if target == "dos32":
         return required | {"bin/CWSDPMI.EXE", "share/licenses/restunts/CWSDPMI.DOC"}
     required |= {"share/docs/restunts/genghost.md", "share/docs/restunts/genghost-state-planner.md"}
+    required |= {"share/docs/restunts/launcher.md", "share/licenses/restunts/wxWidgets-LICENSE",
+                 "share/licenses/restunts/wxWidgets-LGPL.txt"}
+    if target.startswith("linux") or target in BSD_TARGETS:
+        required |= {"share/applications/restunts.desktop",
+                     "share/icons/hicolor/scalable/apps/restunts.svg"}
+    if target.startswith("windows-x86"):
+        required.add("share/restunts/restunts-launcher-audit.json")
     required |= {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/Nuked-OPL2-LICENSE"}
     required |= nuked_source_files()
     if target.startswith("windows"):
         required.add("bin/nuked-opl2.dll")
+        if target in WINDOWS_GCC_TARGETS:
+            required |= {f"share/licenses/gcc-runtime/{name}" for name in GCC_RUNTIME_NOTICES}
+        else:
+            required |= {f"share/licenses/llvm-runtime/{name}" for name in LLVM_RUNTIME_NOTICES}
     elif target == "macos-universal":
-        required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh"}
+        required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh", MACOS_LAUNCHER,
+                     "Restunts.app/Contents/Info.plist"}
     else:
         required.add("lib/libnuked-opl2.so")
     if target in APPIMAGE_TARGETS:
         required.add(APPIMAGE)
     return required
+
+
+def validate_windows_launcher_audit(target, files):
+    if not target.startswith("windows-x86"):
+        return
+    try:
+        audit = json.loads(files["share/restunts/restunts-launcher-audit.json"])
+    except (ValueError, UnicodeError) as error:
+        raise ValueError(f"Invalid Windows launcher audit: {error}") from error
+    require(isinstance(audit, dict), "Windows launcher audit must be a JSON object")
+    require(audit.get("passed") is True and audit.get("problems") == [],
+            "Windows launcher compatibility audit did not pass")
+    require(audit.get("sha256") == sha256(files["bin/restunts-launcher.exe"]),
+            "Windows launcher differs from its compatibility audit")
+    require(audit.get("forbid_simd") is target.endswith("-no-sse2"),
+            "Windows launcher audit used the wrong instruction policy")
 
 
 def validate_contents(target, files, modes):
@@ -427,13 +461,14 @@ def validate_contents(target, files, modes):
         if target.startswith("dos"):
             require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
     validate_custom_car_resources(files)
+    validate_windows_launcher_audit(target, files)
     if target == "browser":
         require(any(name.startswith("share/restunts/wasm-relink/objects/") for name in files),
                 "Browser package is missing application entry objects for relinking")
     if TARGETS[target] == ".tar.gz":
         executables = {f"bin/{name}" for name in NATIVE_EXECUTABLES}
         if target == "macos-universal":
-            executables.add("run-restunts.sh")
+            executables |= {"run-restunts.sh", MACOS_LAUNCHER}
         if target in APPIMAGE_TARGETS:
             executables.add(APPIMAGE)
         for name in executables:
@@ -503,19 +538,26 @@ def readme(target, commit):
                   "beside the game. Custom cars in bin/cars are loaded automatically.",
                   "See share/docs/restunts/sdl3.md for controls and platform details."]
         if target != "dos32":
+            launcher = "restunts-launcher.exe" if target.startswith("windows") else "restunts-launcher"
+            lines += [f"Open bin/{launcher} to choose the game folder and startup options.",
+                      "The original game folder must be writable; preferences are per user.",
+                      "See share/docs/restunts/launcher.md for desktop dependencies and direct CLI use."]
             generator = "genghost.exe" if target.startswith("windows") else "genghost"
             lines += [f"Generate ghosts offline with bin/{generator} TRACK.TRK CAR_CODE",
                       "--data-dir PATH_TO_YOUR_STUNTS_FOLDER. Track input can also be an .RPL file.",
                       "See share/docs/restunts/genghost.md for search options and physics settings."]
     if target == "macos-universal":
         lines += ["macOS 11.0 or newer; Intel and Apple Silicon are in the same binary.",
-                  "You can also use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
+                  "Open Restunts.app while keeping the complete package beside it.",
+                  "With no arguments, bash run-restunts.sh also opens the startup window.",
+                  "For direct CLI use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
     if target in APPIMAGE_TARGETS:
         architecture = "x86-64" if APPIMAGE_TARGETS[target] == "x64" else "32-bit x86"
         lines += [f"Linux {architecture}; targets Ubuntu 10.04 (glibc 2.11) or newer.",
                   "Built using a verified legacy sysroot; the host's glibc is not bundled.",
                   "Start the AppImage with:",
-                  "bin/restunts.AppImage --data-dir PATH_TO_YOUR_STUNTS_FOLDER",
+                  "bin/restunts.AppImage (no arguments opens the startup window)",
+                  "For direct CLI use: bin/restunts.AppImage --data-dir PATH_TO_YOUR_STUNTS_FOLDER",
                   "The AppImage embeds the complete runtime and dependency notices.",
                   "If FUSE is unavailable, run it with --appimage-extract, then use",
                   "squashfs-root/AppRun --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",

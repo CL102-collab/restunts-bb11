@@ -65,6 +65,7 @@ esac
 for tool in cmake ninja git xcrun; do
     command -v "$tool" >/dev/null 2>&1 || fail "Missing $tool; see readme.md for prerequisites."
 done
+cxx_compiler="$(xcrun --find clang++)" || fail "Install Xcode Command Line Tools: xcode-select --install"
 compiler="$(xcrun --find clang)" || fail "Install Xcode Command Line Tools: xcode-select --install"
 sdk="$(xcrun --sdk macosx --show-sdk-path)" || fail "Cannot locate the macOS SDK."
 
@@ -77,6 +78,7 @@ deployment_target="${MACOSX_DEPLOYMENT_TARGET:-$default_deployment_target}"
 
 cmake -S "$repo_dir" -B "$build_dir" -G Ninja \
     "-DCMAKE_C_COMPILER=$compiler" \
+    "-DCMAKE_CXX_COMPILER=$cxx_compiler" \
     "-DCMAKE_OSX_SYSROOT=$sdk" \
     "-DCMAKE_OSX_ARCHITECTURES=$cmake_architectures" \
     "-DCMAKE_OSX_DEPLOYMENT_TARGET=$deployment_target" \

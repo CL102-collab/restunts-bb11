@@ -53,12 +53,14 @@ static legacy_u64 animation_test_ticks(void)
 
 /* Decode the real container/bitstream with a deterministic presentation clock. */
 #define SDL_GetTicksNS animation_test_ticks
+#define asset_path_base test_asset_path_base
 #undef RESTUNTS_OPPONENT_DIRECTORY
 #define RESTUNTS_OPPONENT_DIRECTORY "source"
 #include "../c/opponent_animation.c"
 #undef SDL_GetTicksNS
+#undef asset_path_base
 
-const legacy_char *asset_path_base(void)
+const legacy_char *test_asset_path_base(void)
 {
 	return "installed/";
 }

@@ -46,11 +46,11 @@ install_netbsd_x11() {
 case "$target:$host_system:$host_architecture" in
     freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64)
         pkg install -y bash cmake ninja git python313 pkgconf \
-            libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
+            gtk3 libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
         ;;
     openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64)
         # OpenBSD ships pkg-config in base; its Python 3 branch is lang/python/3.
-        pkg_add -I bash cmake ninja git 'python%3'
+        pkg_add -I bash cmake ninja git 'python%3' gtk+3
         if [ ! -f /usr/X11R6/include/X11/Xlib.h ]; then
             echo "Install the OpenBSD xbase and xshare sets before building SDL3." >&2
             exit 1
@@ -68,8 +68,10 @@ case "$target:$host_system:$host_architecture" in
         export PKG_PATH="${PKG_PATH:-https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/}"
         # The VM image may contain older dependencies than the package mirror.
         # Update those recursively when a requested package needs a newer one.
-        pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl mozilla-rootcerts-openssl
+        pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl \
+            mozilla-rootcerts-openssl
         install_netbsd_x11
+        pkg_add -u gtk3+
         ;;
     *)
         echo "$target requires its matching native BSD userspace; found $host_system $host_architecture." >&2

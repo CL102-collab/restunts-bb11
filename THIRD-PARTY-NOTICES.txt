@@ -68,6 +68,32 @@ The upstream sources are unmodified; only the portable VP8 decoder is built,
 without encoders, VP9, assembly, threads or external codec dependencies.
 The generated libvpx configuration is in third_party/libvpx-config/.
 
+wxWidgets
+---------
+The native desktop startup window normally uses bundled wxWidgets 3.2.12.
+https://github.com/wxWidgets/wxWidgets/releases/tag/v3.2.12
+Haiku instead uses HaikuPorts' patched wxQt 3.2.4 system package by default.
+https://github.com/haikuports/haikuports/tree/master/dev-qt/wxqt
+wxWidgets uses the wxWindows Library Licence, a modified LGPL with an exception
+allowing static linking without applying the LGPL to this application. Complete terms are installed as share/licenses/restunts/wxWidgets-LICENSE
+and wxWidgets-LGPL.txt. The launcher uses system GTK on Linux/BSD, Cocoa on macOS,
+and Qt with Haiku platform/style plugins on Haiku. Those system libraries retain
+their own licenses. Web, Android and DOS builds do not include wxWidgets.
+Builds explicitly using system wxWidgets use that installation's version and
+accompanying license instead of the bundled source.
+
+GCC compiler runtimes
+---------------------
+Windows x86/x64 launcher builds statically link GCC's libstdc++ and libgcc.
+Those runtime libraries use GNU GPL version 3 or later with GCC Runtime
+Library Exception version 3.1. The complete license, exception and compiler
+package copyright notices are installed in share/licenses/gcc-runtime/.
+Its README.md records the source and verified package provenance. AppImages
+include the matching notices from their pinned legacy GCC SDK in the same
+license directory. Windows ARM64 uses LLVM's libc++ and support runtimes;
+their complete upstream license texts and provenance are installed in
+share/licenses/llvm-runtime/.
+
 SDL3
 ----
 Bundled SDL3 builds include SDL's zlib license in

@@ -53,7 +53,7 @@ static SDL_Surface *menu_background_load(const legacy_char *directory,
 	if (length < 0 || (size_t)length >= sizeof(path)) {
 		return NULL;
 	}
-	FILE *file = fopen(path, "rb");
+	FILE *file = asset_path_open_file(path, "rb");
 	if (file == NULL) {
 		return NULL;
 	}

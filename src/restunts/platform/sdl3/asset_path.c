@@ -1,5 +1,51 @@
 #include "../../c/asset_path.h"
 #include <SDL3/SDL.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#define ASSET_NUL_TERMINATED_LENGTH (-1)
+
+static WCHAR *asset_path_to_wide(const legacy_char *text)
+{
+	legacy_int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text,
+										   ASSET_NUL_TERMINATED_LENGTH, NULL, 0);
+	if (count <= 0 || (size_t)count > SIZE_MAX / sizeof(WCHAR)) {
+		return NULL;
+	}
+	WCHAR *wide = malloc((size_t)count * sizeof(*wide));
+	if (wide == NULL) {
+		return NULL;
+	}
+	if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, ASSET_NUL_TERMINATED_LENGTH, wide,
+							count) != count) {
+		free(wide);
+		return NULL;
+	}
+	return wide;
+}
+#endif
+
+FILE *asset_path_open_file(const legacy_char *path, const legacy_char *mode)
+{
+	if (path == NULL || mode == NULL) {
+		return NULL;
+	}
+#ifdef _WIN32
+	WCHAR *wide_path = asset_path_to_wide(path);
+	if (wide_path == NULL) {
+		return NULL;
+	}
+	WCHAR *wide_mode = asset_path_to_wide(mode);
+	FILE *file = wide_mode != NULL ? _wfopen(wide_path, wide_mode) : NULL;
+	free(wide_mode);
+	free(wide_path);
+	return file;
+#else
+	return fopen(path, mode);
+#endif
+}
 
 #if !defined(_WIN32) && !defined(__DJGPP__) && !defined(__EMSCRIPTEN__)
 #include <limits.h>

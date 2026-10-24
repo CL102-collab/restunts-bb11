@@ -19,6 +19,44 @@
 #define FILE_PATH_SIZE 1024U
 #define FILE_NAME_SIZE 13U
 
+#ifdef _WIN32
+#include "file_windows.h"
+#else
+typedef DIR NativeDirectory;
+
+static NativeDirectory *native_directory_open(const legacy_char *path)
+{
+	return opendir(path);
+}
+
+static const legacy_char *native_directory_read(NativeDirectory *directory)
+{
+	struct dirent *entry = readdir(directory);
+	return entry != NULL ? entry->d_name : NULL;
+}
+
+static void native_directory_close(NativeDirectory *directory)
+{
+	closedir(directory);
+}
+
+static FILE *native_file_open(const legacy_char *path, legacy_s16 create)
+{
+	return fopen(path, create == DOS_FILE_OPEN_EXISTING ? "rb" : "wb+");
+}
+
+static legacy_int native_file_remove(const legacy_char *path)
+{
+	return remove(path);
+}
+
+static legacy_u16 native_regular_file(const legacy_char *path)
+{
+	struct stat info;
+	return stat(path, &info) == 0 && S_ISREG(info.st_mode);
+}
+#endif
+
 #if defined(__ANDROID__) && defined(RESTUNTS_HEADLESS)
 void android_saved_file_written(const legacy_s8 *path)
 {
@@ -168,22 +206,21 @@ static legacy_s32 resolve_path(const legacy_char *source, legacy_char result[FIL
 		}
 		legacy_char selected[FILE_PATH_SIZE];
 		strcpy(selected, component);
-		DIR *directory = opendir(result[0] != 0 ? result : ".");
+		NativeDirectory *directory = native_directory_open(result[0] != 0 ? result : ".");
 		if (directory != NULL) {
-			struct dirent *entry;
+			const legacy_char *entry;
 			legacy_s32 found = 0;
-			while ((entry = readdir(directory)) != NULL) {
-				if (compare_names(component, entry->d_name) == 0 &&
-					(!found || strcmp(entry->d_name, selected) < 0 ||
-					 strcmp(entry->d_name, component) == 0)) {
-					strcpy(selected, entry->d_name);
+			while ((entry = native_directory_read(directory)) != NULL) {
+				if (compare_names(component, entry) == 0 &&
+					(!found || strcmp(entry, selected) < 0 || strcmp(entry, component) == 0)) {
+					strcpy(selected, entry);
 					found = 1;
 					if (strcmp(selected, component) == 0) {
 						break;
 					}
 				}
 			}
-			closedir(directory);
+			native_directory_close(directory);
 		}
 		size_t used = strlen(result);
 		legacy_s32 needs_separator =
@@ -239,7 +276,7 @@ legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 	}
 	for (legacy_u16 handle = FILE_FIRST_HANDLE; handle < FILE_HANDLE_COUNT; handle++) {
 		if (files[handle] == NULL) {
-			files[handle] = fopen(resolved, create == DOS_FILE_OPEN_EXISTING ? "rb" : "wb+");
+			files[handle] = native_file_open(resolved, create);
 			if (files[handle] != NULL) {
 				file_directions[handle] = FILE_IO_NONE;
 #ifdef __EMSCRIPTEN__
@@ -362,7 +399,7 @@ legacy_s16 dos_file_remove(const legacy_s8 *path)
 		return -1;
 	}
 #endif
-	if (remove(resolved) != 0) {
+	if (native_file_remove(resolved) != 0) {
 		file_error = 1;
 		return -1;
 	}
@@ -430,21 +467,20 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 	} else {
 		pattern = resolved;
 	}
-	DIR *directory = opendir(directory_name);
+	NativeDirectory *directory = native_directory_open(directory_name);
 	if (directory == NULL) {
 		return NULL;
 	}
-	struct dirent *entry;
-	while ((entry = readdir(directory)) != NULL) {
-		if (entry->d_name[0] == '.' || strlen(entry->d_name) >= FILE_NAME_SIZE ||
-			!wildcard_matches(pattern, entry->d_name)) {
+	const legacy_char *entry;
+	while ((entry = native_directory_read(directory)) != NULL) {
+		if (entry[0] == '.' || strlen(entry) >= FILE_NAME_SIZE ||
+			!wildcard_matches(pattern, entry)) {
 			continue;
 		}
 		legacy_char full_path[FILE_PATH_SIZE];
-		struct stat info;
-		if (snprintf(full_path, sizeof(full_path), "%s/%s", directory_name, entry->d_name) >=
+		if (snprintf(full_path, sizeof(full_path), "%s/%s", directory_name, entry) >=
 				(legacy_s32)sizeof(full_path) ||
-			stat(full_path, &info) != 0 || !S_ISREG(info.st_mode)) {
+			!native_regular_file(full_path)) {
 			continue;
 		}
 		legacy_char **grown = realloc(matches, (match_count + 1) * sizeof(*matches));
@@ -458,9 +494,9 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 			file_error = 1;
 			break;
 		}
-		strcpy(matches[match_count++], entry->d_name);
+		strcpy(matches[match_count++], entry);
 	}
-	closedir(directory);
+	native_directory_close(directory);
 	if (match_count > 1) {
 		qsort(matches, match_count, sizeof(*matches), sort_names);
 	}

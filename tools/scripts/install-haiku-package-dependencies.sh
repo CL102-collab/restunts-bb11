@@ -20,4 +20,5 @@ esac
 # Build tools publish unsuffixed command providers on both architectures.
 pkgman install -y cmd:cmake cmd:ninja cmd:git cmd:python3 "cmd:gcc$package_suffix" \
     "cmd:g++$package_suffix" "cmd:ld$package_suffix" "cmd:pkg_config$package_suffix" \
-    "cmd:readelf$package_suffix" "haiku${package_suffix}_devel" "devel:libgl$package_suffix"
+    "cmd:readelf$package_suffix" "haiku${package_suffix}_devel" "devel:libgl$package_suffix" \
+    "wxqt${package_suffix}_devel" "devel:libQt5Widgets$package_suffix" "qthaikuplugins$package_suffix"

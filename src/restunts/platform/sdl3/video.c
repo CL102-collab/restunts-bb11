@@ -57,6 +57,15 @@ static legacy_u8 drawing_frame;
 static legacy_u8 adaptive_frame;
 static legacy_u8 measured_frame;
 static legacy_u64 render_frame_started;
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+static legacy_u8 startup_fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
+
+void sdl3_video_set_startup_fullscreen(legacy_u8 enabled)
+{
+	startup_fullscreen_enabled =
+		enabled != 0 ? SDL3_STARTUP_FULLSCREEN_ON : SDL3_STARTUP_FULLSCREEN_OFF;
+}
+#endif
 
 #ifdef __EMSCRIPTEN__
 EM_ASYNC_JS(legacy_int, save_browser_screenshot, (const legacy_char *path), {
@@ -665,6 +674,11 @@ void dos_video_set_mode_13h(void)
 	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE;
 #ifndef __EMSCRIPTEN__
 	window_flags = desktop_window_flags();
+#ifndef __ANDROID__
+	if (startup_fullscreen_enabled != SDL3_STARTUP_FULLSCREEN_OFF) {
+		window_flags |= SDL_WINDOW_FULLSCREEN;
+	}
+#endif
 #endif
 	window = SDL_CreateWindow("Chocolate Stunts", SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE,
 							  PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE, window_flags);

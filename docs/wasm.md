@@ -164,9 +164,13 @@ Browser support for directory writes is described in
 and [MDN's directory picker reference](https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker).
 Both paths work offline. Browser settings and policies may restrict folder
 access. Audio needs a user gesture; browser shortcuts can take precedence over
-some function keys. Use the page's **Fullscreen** button or **Alt+Enter** for
-fullscreen mode. Entering fullscreen requests landscape orientation even when
-the phone is held upright, and keeps it in landscape as the device rotates.
+some function keys. Check **Fullscreen** in Graphics settings before clicking
+**Start game** to enter fullscreen with that same click. This preference starts
+off and is remembered with the other startup settings. If the browser refuses
+fullscreen, the game continues in the page. The page's **Fullscreen** button and
+**Alt+Enter** remain available during play. Entering fullscreen requests
+landscape orientation even when the phone is held upright, and keeps it in
+landscape as the device rotates.
 The orientation lock is released when fullscreen ends. This requires browser
 support for the Screen Orientation lock API; if it is unavailable or refused,
 fullscreen still works with the browser's normal orientation behavior.
@@ -237,7 +241,8 @@ node out/test-wasm-fileio.js
 
 The launch-form browser test needs Node.js and Playwright, but no Emscripten
 build or game files. It checks startup flags, sound enable/disable, remembered
-settings, migration of removed preferences, mobile layout, fullscreen canvas sizing,
+settings, migration of removed preferences, mobile layout, one-click startup
+fullscreen and nonfatal request denial, fullscreen canvas sizing,
 and concurrent folder loading with filename validation and failed-import recovery
 with a stub for the native runtime:
 

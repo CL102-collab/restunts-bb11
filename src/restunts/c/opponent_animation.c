@@ -354,7 +354,7 @@ static legacy_s32 animation_load_path(const legacy_char *directory, legacy_u8 op
 	if (length < 0 || (size_t)length >= sizeof(path)) {
 		return 0;
 	}
-	FILE *file = fopen(path, "rb");
+	FILE *file = asset_path_open_file(path, "rb");
 	if (file == NULL) {
 		return 0;
 	}

@@ -9,6 +9,8 @@
 *.TXT text eol=crlf
 *.html text eol=crlf
 *.c text eol=crlf
+*.cpp text eol=crlf
+*.CPP text eol=crlf
 *.C text eol=crlf
 *.h text eol=crlf
 *.cs text eol=crlf

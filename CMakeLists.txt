@@ -40,6 +40,15 @@ endif()
 
 option(RESTUNTS_SYSTEM_SDL "Use an installed SDL3 instead of the pinned source" OFF)
 option(RESTUNTS_GENGHOST_ONLY "Build only the headless ghost generator" OFF)
+set(restunts_launcher_supported OFF)
+if(CMAKE_SYSTEM_NAME MATCHES "^(Windows|Linux|Darwin|FreeBSD|OpenBSD|NetBSD|Haiku)$"
+        AND NOT ANDROID AND NOT EMSCRIPTEN AND NOT RESTUNTS_GENGHOST_ONLY)
+    set(restunts_launcher_supported ON)
+endif()
+option(RESTUNTS_BUILD_LAUNCHER "Build the native desktop startup window" ${restunts_launcher_supported})
+if(RESTUNTS_BUILD_LAUNCHER AND NOT restunts_launcher_supported)
+    message(FATAL_ERROR "The startup window requires a desktop game build")
+endif()
 if(RESTUNTS_GENGHOST_ONLY AND (EMSCRIPTEN OR CMAKE_SYSTEM_NAME STREQUAL "DOS"))
     message(FATAL_ERROR "The standalone ghost generator requires a native SDL3 target")
 endif()
@@ -156,6 +165,16 @@ else()
         URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(SDL3)
+    if(RESTUNTS_APPIMAGE_REQUIRE_PULSEAUDIO)
+        # SDL's requested backend can still be disabled when SDK headers are missing.
+        # Require the detected driver source so a silent ALSA-only build cannot ship.
+        get_target_property(restunts_sdl_sources SDL3::SDL3 SOURCES)
+        list(FILTER restunts_sdl_sources INCLUDE
+            REGEX "/audio/pulseaudio/SDL_pulseaudio\\.c$")
+        if(NOT restunts_sdl_sources)
+            message(FATAL_ERROR "The AppImage SDK must build SDL's PulseAudio backend")
+        endif()
+    endif()
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_HAIKU_SECONDARY_ARCH)
         # Hybrid Haiku's implicit paths prefer the primary GCC2 OpenGL kit.
         # Use the matching Mesa C++ headers alongside the secondary libraries.
@@ -427,6 +446,10 @@ if(TARGET nuked_opl2)
         LIBRARY DESTINATION lib COMPONENT Runtime)
 endif()
 
+if(RESTUNTS_BUILD_LAUNCHER)
+    include(cmake/launcher.cmake)
+endif()
+
 if(RESTUNTS_BUILD_TESTS)
     # Fixtures include selected implementation files; discard unrelated code
     # and its unresolved references using the target platform's linker syntax.
@@ -491,6 +514,12 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-sdl3-entry PRIVATE -UNDEBUG)
     add_test(NAME sdl3-entry COMMAND test-sdl3-entry)
     set_tests_properties(sdl3-platform PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/platform-test")
+    if(WIN32 OR UNIX)
+        add_executable(test-sdl3-asset-stream src/restunts/tests/test-sdl3-asset-stream.c)
+        target_link_libraries(test-sdl3-asset-stream PRIVATE restunts_options)
+        target_compile_options(test-sdl3-asset-stream PRIVATE -UNDEBUG)
+        add_test(NAME sdl3-asset-stream COMMAND test-sdl3-asset-stream)
+    endif()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-asset-path src/restunts/tests/test-sdl3-asset-path.c)
         target_link_libraries(test-sdl3-asset-path PRIVATE restunts_options)
@@ -513,7 +542,7 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
     target_compile_options(test-sdl3-audio-trace PRIVATE -UNDEBUG)
     add_test(NAME sdl3-audio-trace COMMAND test-sdl3-audio-trace)
     add_executable(test-sdl3-music src/restunts/tests/test-sdl3-music.c
-        $<TARGET_OBJECTS:restunts_vorbis>)
+        ${platform}/asset_path.c $<TARGET_OBJECTS:restunts_vorbis>)
     target_link_libraries(test-sdl3-music PRIVATE restunts_options)
     target_include_directories(test-sdl3-music PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
     target_compile_options(test-sdl3-music PRIVATE -UNDEBUG)
@@ -725,7 +754,8 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME opponent-portrait COMMAND test-opponent-portrait)
     set_tests_properties(opponent-portrait PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-test")
-    add_executable(test-opponent-animation src/restunts/tests/test-opponent-animation.c)
+    add_executable(test-opponent-animation src/restunts/tests/test-opponent-animation.c
+        ${platform}/asset_path.c)
     target_link_libraries(test-opponent-animation PRIVATE restunts_options restunts_webm)
     target_compile_options(test-opponent-animation PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-animation-test")

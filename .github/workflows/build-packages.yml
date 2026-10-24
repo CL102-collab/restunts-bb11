@@ -67,8 +67,11 @@ jobs:
           key: appimage-downloads-${{ matrix.target }}-${{ hashFiles('tools/scripts/package-toolchains.conf', 'tools/scripts/*appimage*') }}
           restore-keys: appimage-downloads-${{ matrix.target }}-
 
-      - name: Test legacy SDK extraction and verified downloads
-        run: python3 tools/scripts/test-appimage-sysroot.py
+      - name: Test legacy SDK extraction, downloads and desktop audio discovery
+        run: |
+          python3 tools/scripts/test-appimage-sysroot.py
+          python3 tools/scripts/test-appimage-apprun.py
+          python3 tools/scripts/test-appimage-abi.py
 
       - name: Install verified legacy sysroots, dependencies and AppImage tools
         run: bash tools/scripts/install-package-dependencies.sh "$PACKAGE_TARGET"

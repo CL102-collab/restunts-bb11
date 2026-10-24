@@ -72,7 +72,8 @@ engine. **Sound** enabled means `/ns` is omitted.
 | Option | Platforms with the implementation |
 | --- | --- |
 | HyperVision `--hv:auto/full/high/medium/low` | All SDL3 builds, including Android, web, and DOS32. Classic ports use their native renderer and F12 SuperSight. |
-| Ogg replacement music `--ogg:on/off` | SDL3 builds. Android/web label this **New MIDI**. Browser default is on; native default is off. |
+| Ogg replacement music `--ogg:on/off` | SDL3 builds. Android/web label this **New MIDI**. Web and desktop launcher default to on; direct native CLI defaults to off. |
+| Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
 | Touch control layout `--control-layout:on/off` | Android and web. |
 | Tilt steering | Android launcher and sensor backend. |
 | DOS audio driver `/sXX` | DOS16: AD, PC, MT, TD; SB selects AdLib FM. Other ports use their native audio backend. |
@@ -82,6 +83,21 @@ engine. **Sound** enabled means `/ns` is omitted.
 The legacy `/nd` switch has no effect. Compatibility handling of `/sXX` and
 `/h` on other ports does not add alternate hardware drivers there. Features
 without a platform backend are not offered as working launcher choices.
+
+Desktop fullscreen names and values are case-insensitive. Supply this option
+once; unknown values and repeated options report an error before creating the
+game window. `--fullscreen:on` starts the first window in fullscreen, and
+`--fullscreen:off` starts windowed. `RESTUNTS_BORDERLESS=1` still selects the
+window style restored when leaving fullscreen. Alt+Enter toggles fullscreen
+during play. The game ignores this option on SDL3 DOS32, Android, browser and
+non-SDL3 builds, including invalid or repeated values. DOS32 always uses its
+native fullscreen video modes; other ports keep their existing display behavior.
+
+The web startup page has a separate **Fullscreen** checkbox, initially off. It
+remembers your choice and requests browser fullscreen directly from the
+**Start game** click. It does not pass a fullscreen argument to the game. If the
+browser refuses fullscreen, the game continues in the page; the manual
+**Fullscreen** button and **Alt+Enter** remain available.
 
 See [Android](android.md), [web](wasm.md), [Amiga](amiga.md), and
 [SDL3](sdl3.md) for platform controls and build instructions.

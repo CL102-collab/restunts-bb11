@@ -57,7 +57,8 @@ cp "$repo_dir/tools/appimage/restunts.desktop" "$appdir/"
 cp "$repo_dir/site/assets/favicon.svg" "$appdir/restunts.svg"
 find "$appdir" -type d -exec chmod 755 {} +
 find "$appdir" -type f -exec chmod a+r {} +
-chmod 755 "$appdir/AppRun" "$appdir/usr/bin/"{restunts,repldump,pixldump,genghost}
+chmod 755 "$appdir/AppRun" \
+    "$appdir/usr/bin/"{restunts,restunts-launcher,repldump,pixldump,genghost,restunts-gtk-modules}
 python3 "$script_dir/check-appimage-abi.py" "$appdir" "$target" --runtime "$runtime"
 
 # Extracted appimagetool and a pinned static runtime avoid FUSE and network use.

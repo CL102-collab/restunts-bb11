@@ -7,16 +7,20 @@ libraries that are actually shipped in the AppImage.
 """
 
 import argparse
+import gzip
 import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import time
 import urllib.parse
 import urllib.request
+
+from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
 
 
 def sha256(path):
@@ -66,11 +70,46 @@ def download(url, checksum, destination):
     return destination
 
 
-def selected(name, runtime=False):
+LEGACY_CXX_PREFIX = "opt/rh/devtoolset-2/root/usr"
+LEGACY_COMPILER_INPUTS = frozenset({
+    "libstdc++.a", "libsupc++.a", "libgcc.a", "libgcc_eh.a",
+    "crtbegin.o", "crtbeginS.o", "crtbeginT.o", "crtend.o", "crtendS.o", "crtfastmath.o",
+    "crtprec32.o", "crtprec64.o", "crtprec80.o",
+})
+GTK_ARCHIVE_ROOT = "https://archive.debian.org/debian/"
+GTK_ROOT_PACKAGES = (
+    "libgtk2.0-dev", "libglib2.0-dev", "libpango1.0-dev", "fontconfig-config", "libpulse-dev",
+)
+GTK_RUNTIME_ROOTS = ("libgtk-x11-2.0.so.0", "libSM.so.6", "libasound.so.2", "libpulse.so.0")
+GTK_EXTERNAL_PACKAGES = frozenset({
+    "libc6", "libc6-dev", "libc-dev", "libc-bin", "libgcc1", "libstdc++6", "libxml2-utils",
+})
+
+
+def selected(name, runtime=False, gtk=False):
     if runtime:
-        return name == "lib" or name.startswith("lib/") or name == "lib64" or name.startswith("lib64/")
+        return (
+            name == "lib" or name.startswith("lib/") or name == "lib64" or name.startswith("lib64/")
+            or name.startswith("usr/share/common-licenses/")
+        )
+    if name.startswith(LEGACY_CXX_PREFIX + "/share/doc/devtoolset-2-gcc-"):
+        return PurePosixPath(name).name.startswith("COPYING")
+    if name.startswith(LEGACY_CXX_PREFIX + "/include/c++/"):
+        return True
+    if name.startswith(LEGACY_CXX_PREFIX + "/lib/gcc/"):
+        return PurePosixPath(name).name in LEGACY_COMPILER_INPUTS
     if name == "usr/include" or name.startswith("usr/include/"):
         return True
+    if gtk:
+        if name.startswith("usr/share/pkgconfig/"):
+            return True
+        if name.startswith(("etc/fonts/", "etc/gtk-2.0/", "etc/pango/", "usr/share/doc/",
+                            "usr/share/gtk-2.0/", "usr/share/fontconfig/", "usr/share/libthai/")):
+            return True
+        if name.startswith(("lib/", "usr/lib/")):
+            basename = PurePosixPath(name).name
+            return basename.endswith((".h", ".pc", ".a", ".la", ".so")) or ".so." in basename
+        return False
     for prefix in ("lib", "lib64", "usr/lib", "usr/lib64"):
         if name == prefix:
             return True
@@ -94,7 +133,7 @@ def remove(path):
         shutil.rmtree(path)
 
 
-def extract(archive, destination, runtime=False):
+def extract(archive, destination, runtime=False, gtk=False):
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
     with tarfile.open(archive) as source:
@@ -105,7 +144,7 @@ def extract(archive, destination, runtime=False):
             parts = PurePosixPath(name).parts
             if not parts or name.startswith("/") or ".." in parts:
                 raise RuntimeError(f"Unsafe archive member: {member.name}")
-            if not selected(name, runtime):
+            if not selected(name, runtime, gtk):
                 continue
             path = destination.joinpath(*parts)
             if not path.parent.resolve().is_relative_to(root):
@@ -160,6 +199,131 @@ def overlay_runtime(runtime, sysroot, lib_directory):
         path.chmod(0o644)
 
 
+def prepare_gtk(index_url, index_checksum, cache, destination):
+    """Extract a dependency closure from one immutable, verified Debian index."""
+    index = download(index_url, index_checksum, cache / (index_checksum + ".Packages.gz"))
+    packages = {}
+    for stanza in gzip.decompress(index.read_bytes()).decode("utf-8").split("\n\n"):
+        fields = {}
+        for line in stanza.splitlines():
+            if line[:1].isspace():
+                continue
+            key, separator, value = line.partition(": ")
+            if separator:
+                fields[key] = value
+        if "Package" in fields:
+            packages[fields["Package"]] = fields
+    names = set()
+    pending = list(GTK_ROOT_PACKAGES)
+    while pending:
+        name = pending.pop()
+        if name in names:
+            continue
+        names.add(name)
+        for group in packages[name].get("Depends", "").split(","):
+            dependency = group.strip().split(" ", 1)[0]
+            if dependency in GTK_EXTERNAL_PACKAGES:
+                continue
+            if dependency in packages and (
+                dependency.startswith(("lib", "zlib")) or dependency.endswith("-dev")
+            ):
+                pending.append(dependency)
+    manifest = []
+    for name in sorted(names):
+        package = packages[name]
+        checksum = package["SHA256"]
+        url = GTK_ARCHIVE_ROOT + package["Filename"]
+        archive = download(url, checksum, cache / (checksum + ".deb"))
+        with tempfile.TemporaryDirectory(prefix="restunts-gtk-package-") as directory:
+            contents = Path(directory) / "contents.tar"
+            with contents.open("wb") as output:
+                subprocess.run(["dpkg-deb", "--fsys-tarfile", str(archive)], stdout=output,
+                               check=True)
+            extract(contents, destination, gtk=True)
+        manifest.append(f"{name} {package['Version']} {checksum} {url}")
+    patch_gtk_headers(destination)
+    (destination / "packages.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
+
+
+def prune_runtime(directory, roots=GTK_RUNTIME_ROOTS):
+    """Retain the GUI/audio library closure and matching optional GTK modules."""
+    libraries = [path for path in directory.rglob("*") if path.is_file() and
+                 (path.name.endswith(".so") or ".so." in path.name)]
+    pending = [directory / name for name in roots]
+    # The startup dialog has no printing UI. Other module families provide
+    # text input, font shaping and image decoding and remain relocatable.
+    pending.extend(path for path in libraries if path.parent != directory and
+                   "printbackends" not in path.relative_to(directory).parts)
+    required = set()
+    while pending:
+        path = pending.pop()
+        if path in required:
+            continue
+        if not path.is_file():
+            raise RuntimeError(f"Missing bundled runtime dependency: {path.name}")
+        required.add(path)
+        needed = subprocess.check_output(["patchelf", "--print-needed", str(path)], text=True)
+        for name in needed.splitlines():
+            if "/" in name:
+                raise RuntimeError(f"Nonrelocatable runtime dependency: {name}")
+            if name not in SYSTEM_RUNTIME_LIBRARIES:
+                pending.append(directory / name)
+    # Resolve the entire graph before removing anything, so a missing library
+    # cannot leave a partially pruned SDK behind.
+    for path in libraries:
+        if path not in required:
+            path.unlink()
+
+
+def patch_cxx_headers(destination):
+    # Modern GCC emits this C++11 ABI helper; the pinned runtime predates it.
+    # Keep the standard exception type and inheritance instead of substituting
+    # bad_alloc or increasing the glibc requirement with a newer runtime.
+    header = destination / LEGACY_CXX_PREFIX / "include/c++/4.8.2/new"
+    text = header.read_text()
+    if "class bad_array_new_length" not in text:
+        declaration = """
+#if __cplusplus >= 201103L
+  class bad_array_new_length : public bad_alloc
+  {
+  public:
+    bad_array_new_length() throw() { }
+    virtual ~bad_array_new_length() throw();
+    virtual decltype(bad_alloc().what()) what() const throw();
+  };
+#endif
+
+"""
+        marker = "  struct nothrow_t"
+        if text.count(marker) != 1:
+            raise RuntimeError("Unexpected pinned C++ allocation header layout")
+        header.write_text(text.replace(marker, declaration + marker))
+
+
+def patch_gtk_headers(destination):
+    # wxWidgets uses this GLib 2.28 convenience API with GTK2. Its complete
+    # semantics need no newer runtime symbol: destroy each payload, free nodes.
+    header = destination / "usr/include/glib-2.0/glib/gslist.h"
+    text = header.read_text()
+    if "g_slist_free_full" not in text:
+        compatibility = """
+/* Restunts legacy SDK compatibility for GLib before 2.28. */
+static inline void restunts_g_slist_free_full(GSList *list, GDestroyNotify destroy)
+{
+    if (destroy != NULL) {
+        for (GSList *node = list; node != NULL; node = node->next) {
+            destroy(node->data);
+        }
+    }
+    g_slist_free(list);
+}
+#define g_slist_free_full restunts_g_slist_free_full
+"""
+        if text.count("\nG_END_DECLS") != 1:
+            raise RuntimeError("Unexpected pinned GLib singly-linked-list header layout")
+        header.write_text(text.replace("\nG_END_DECLS", compatibility + "\nG_END_DECLS"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -167,6 +331,13 @@ def main():
     fetch.add_argument("url")
     fetch.add_argument("checksum")
     fetch.add_argument("destination", type=Path)
+    gtk = subparsers.add_parser("gtk")
+    gtk.add_argument("--index-url", required=True)
+    gtk.add_argument("--index-sha256", required=True)
+    gtk.add_argument("--cache", required=True, type=Path)
+    gtk.add_argument("--destination", required=True, type=Path)
+    runtime = subparsers.add_parser("prune-runtime")
+    runtime.add_argument("directory", type=Path)
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--cache", required=True, type=Path)
     prepare.add_argument("--sysroot", required=True, type=Path)
@@ -179,6 +350,12 @@ def main():
     if args.command == "download":
         download(args.url, args.checksum, args.destination)
         return
+    if args.command == "gtk":
+        prepare_gtk(args.index_url, args.index_sha256, args.cache, args.destination)
+        return
+    if args.command == "prune-runtime":
+        prune_runtime(args.directory)
+        return
     archives = {}
     for resource in ("base", "development", "runtime"):
         checksum = getattr(args, resource + "_sha256")
@@ -188,6 +365,7 @@ def main():
         )
     extract(archives["base"], args.sysroot)
     extract(archives["development"], args.sysroot)
+    patch_cxx_headers(args.sysroot)
     extract(archives["runtime"], args.runtime, runtime=True)
     overlay_runtime(args.runtime, args.sysroot, args.lib_directory)
 

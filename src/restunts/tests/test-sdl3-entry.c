@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <wchar.h>
+#endif
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
@@ -21,7 +25,11 @@ legacy_s32 sdl3_batch_mode;
 
 static bool SDLCALL test_sdl_init(SDL_InitFlags flags);
 static const legacy_char *SDLCALL test_sdl_error(void);
+#ifdef _WIN32
+static BOOL WINAPI test_set_current_directory(const WCHAR *directory);
+#else
 static legacy_int test_chdir(const legacy_char *directory);
+#endif
 static legacy_int test_atexit(void (*handler)(void));
 static void *test_malloc(size_t size);
 static void test_free(void *allocation);
@@ -30,7 +38,11 @@ static void test_free(void *allocation);
 #define main test_entry_main
 #define SDL_Init test_sdl_init
 #define SDL_GetError test_sdl_error
+#ifdef _WIN32
+#define SetCurrentDirectoryW test_set_current_directory
+#else
 #define chdir test_chdir
+#endif
 #define atexit test_atexit
 #define malloc test_malloc
 #define free test_free
@@ -39,6 +51,9 @@ static void test_free(void *allocation);
 #undef malloc
 #undef atexit
 #undef chdir
+#ifdef _WIN32
+#undef SetCurrentDirectoryW
+#endif
 #undef SDL_GetError
 #undef SDL_Init
 #undef main
@@ -51,6 +66,10 @@ static legacy_int expected_count;
 static const legacy_char *const *expected_arguments;
 static legacy_s16 information_result;
 static legacy_int directory_calls;
+#ifdef _WIN32
+static const WCHAR *expected_windows_directory = L"data-directory";
+static legacy_u8 fail_directory;
+#endif
 static legacy_u16 asset_base_initialized, car_base_calls;
 static legacy_int initialization_calls;
 static legacy_int game_calls;
@@ -93,6 +112,9 @@ static void reset_test(legacy_int argc, legacy_char **argv, legacy_int game_argc
 	expected_arguments = game_argv;
 	information_result = COMMAND_LINE_CONTINUE;
 	directory_calls = 0;
+#ifdef _WIN32
+	fail_directory = 0;
+#endif
 	asset_base_initialized = car_base_calls = 0;
 	initialization_calls = 0;
 	game_calls = 0;
@@ -135,6 +157,15 @@ static legacy_int test_atexit(void (*handler)(void))
 	return 0;
 }
 
+#ifdef _WIN32
+static BOOL WINAPI test_set_current_directory(const WCHAR *directory)
+{
+	assert(car_base_calls == 1);
+	directory_calls++;
+	assert(wcscmp(directory, expected_windows_directory) == 0);
+	return fail_directory == 0;
+}
+#else
 static legacy_int test_chdir(const legacy_char *directory)
 {
 	assert(car_base_calls == 1);
@@ -142,6 +173,7 @@ static legacy_int test_chdir(const legacy_char *directory)
 	assert(strcmp(directory, "data-directory") == 0);
 	return 0;
 }
+#endif
 
 static bool SDLCALL test_sdl_init(SDL_InitFlags flags)
 {
@@ -287,6 +319,37 @@ static void test_event_thread_startup(void)
 	puts("SDL3 event polling before video on a dedicated game thread passed");
 }
 
+#ifdef _WIN32
+static void test_windows_utf8_directory(void)
+{
+	legacy_char program[] = "restunts";
+	legacy_char data_option[] = "--data-dir";
+	legacy_char directory[] = "Game Data \xC3\xA1rv\xC3\xADz & test";
+	legacy_char *arguments[] = {program, data_option, directory, NULL};
+	const legacy_char *expected[] = {"restunts", NULL};
+	expected_windows_directory = L"Game Data \x00E1rv\x00EDz & test";
+	test_dispatch(TEST_ARGUMENT_COUNT(arguments), arguments, TEST_ARGUMENT_COUNT(expected),
+				  expected, 0);
+	assert(directory_calls == 1);
+	/* A failed directory change must release its conversion buffer. */
+	reset_test(TEST_ARGUMENT_COUNT(arguments), arguments, 0, NULL);
+	fail_directory = 1;
+	assert(test_entry_main(original_count, arguments) == COMMAND_LINE_FAILURE);
+	assert(directory_calls == 1 && initialization_calls == 0 && live_allocation == NULL);
+	reset_test(TEST_ARGUMENT_COUNT(arguments), arguments, 0, NULL);
+	fail_allocation = 1;
+	assert(test_entry_main(original_count, arguments) == COMMAND_LINE_FAILURE);
+	assert(directory_calls == 0 && initialization_calls == 0 && live_allocation == NULL);
+	/* Invalid UTF-8 is rejected before invoking the Windows directory API. */
+	legacy_char invalid[] = "\xC3";
+	legacy_char *malformed[] = {program, data_option, invalid, NULL};
+	reset_test(TEST_ARGUMENT_COUNT(malformed), malformed, 0, NULL);
+	assert(test_entry_main(original_count, malformed) == COMMAND_LINE_FAILURE);
+	assert(directory_calls == 0 && initialization_calls == 0 && live_allocation == NULL);
+	expected_windows_directory = L"data-directory";
+}
+#endif
+
 legacy_int main(void)
 {
 	legacy_char program[] = "restunts";
@@ -339,6 +402,9 @@ legacy_int main(void)
 	assert(test_entry_main(original_count, plain) == TEST_GAME_RESULT);
 	run_exit_handlers();
 	sdl3_batch_mode = 0;
+#ifdef _WIN32
+	test_windows_utf8_directory();
+#endif
 	puts("SDL3 entry-point argument tests passed");
 	return 0;
 }

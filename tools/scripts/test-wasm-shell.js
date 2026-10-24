@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -96,8 +96,8 @@ async function assertSettingsLayout(page, narrow) {
         };
     }, RULES);
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['show-fps', 'show-control-layout', 'hypervision'],
-        'Graphics must match the Android order with HyperVision last');
+    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-control-layout', 'hypervision'],
+        'Fullscreen must precede the shared graphics controls, with HyperVision last');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
     const ruleLines = new Set(layout.rules.map(rule => rule.y)).size;
     if (narrow !== undefined) {
@@ -198,6 +198,7 @@ async function exerciseFullscreenOrientation(page) {
     assert.deepEqual(await orientationCalls(page), [], 'Orientation must remain free before fullscreen');
     for (const direct of [false, true]) {
         const before = await orientationCalls(page);
+        let metrics;
         if (!direct) {
             // Emscripten snapshots portrait dimensions into inline CSS before
             // entering fullscreen. A later landscape resize must still fill it.
@@ -216,7 +217,13 @@ async function exerciseFullscreenOrientation(page) {
         'Landscape must be requested only after the canvas has entered fullscreen');
         assert.equal(await page.evaluate(() => window.testOrientationActive), true);
         if (!direct) {
-            await page.setViewportSize({ width: 844, height: 390 });
+            // Rotate the emulated device without resizing the native browser
+            // window, which Chromium forbids while that window is fullscreen.
+            metrics = await page.context().newCDPSession(page);
+            await metrics.send('Emulation.setDeviceMetricsOverride', {
+                width: 844, height: 390, mobile: false,
+                deviceScaleFactor: await page.evaluate(() => devicePixelRatio)
+            });
             await settleOrientation(page);
             const canvasSize = await page.locator('#canvas').evaluate(canvas => {
                 const bounds = canvas.getBoundingClientRect();
@@ -229,6 +236,10 @@ async function exerciseFullscreenOrientation(page) {
                 'Landscape fullscreen height must override stale inline portrait CSS');
         }
         await exitFullscreen(page);
+        if (metrics) {
+            await metrics.send('Emulation.clearDeviceMetricsOverride');
+            await metrics.detach();
+        }
         const exited = await orientationCalls(page);
         assert.ok(exited.filter(call => call.type === 'unlock').length >
             before.filter(call => call.type === 'unlock').length,
@@ -688,6 +699,128 @@ async function exerciseMobileControlLayout(browser, url, fixture) {
     }
 }
 
+async function exerciseStartupFullscreen(browser, url, fixture) {
+    const context = await browser.newContext();
+    await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    try {
+        await page.goto(url);
+        await ready(page);
+        assert.equal(await page.locator('#start-fullscreen').isChecked(), false);
+        await loadFixture(page, fixture);
+        await page.locator('#start').click();
+        assert.equal(await page.evaluate(() => document.fullscreenElement), null,
+            'Unchecked startup fullscreen must leave the browser windowed');
+
+        await page.reload();
+        await ready(page);
+        await page.locator('#start-fullscreen').check();
+        assert.equal((await storedOptions(page))['start-fullscreen'], true);
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#start-fullscreen').isChecked(), true,
+            'Startup fullscreen must restore the saved per-page choice');
+        await loadFixture(page, fixture);
+        await stubOrientation(page, 'success');
+        await page.evaluate(() => {
+            const canvas = document.getElementById('canvas');
+            const request = canvas.requestFullscreen;
+            window.startupFullscreenCalls = [];
+            window.startupFullscreenUnhandled = [];
+            window.addEventListener('unhandledrejection', event =>
+                window.startupFullscreenUnhandled.push(String(event.reason)));
+            canvas.requestFullscreen = function(...args) {
+                window.startupFullscreenCalls.push({
+                    activeGesture: navigator.userActivation.isActive,
+                    gameAlreadyStarted: !!window.launchedArguments,
+                    targetIsCanvas: this === canvas
+                });
+                return Reflect.apply(request, this, args);
+            };
+            // The real SDK does not have SDL's canvas-specific entry point until
+            // the game's window exists. Startup must not call its earlier wrapper.
+            Module.requestFullscreen = () => { throw new Error('No SDL window yet'); };
+        });
+        await page.locator('#start').click();
+        await page.waitForFunction(() => document.fullscreenElement === document.getElementById('canvas'));
+        await settleOrientation(page);
+        assert.deepEqual(await page.evaluate(() => window.startupFullscreenCalls), [{
+            activeGesture: true, gameAlreadyStarted: false, targetIsCanvas: true
+        }], 'Start must request canvas fullscreen synchronously within its trusted click');
+        assert.equal(await page.locator('#start-fullscreen').isDisabled(), true);
+        assert.equal(await page.evaluate(() => window.launchedArguments.some(argument =>
+            argument.startsWith('--fullscreen:'))), false,
+        'The browser owns its fullscreen choice rather than passing a game flag');
+        assert.ok((await orientationCalls(page)).some(call =>
+            call.type === 'lock' && call.mode === 'landscape' && call.canvasFullscreen),
+        'Fullscreen from Start must use the existing canvas orientation lifecycle');
+        await exitFullscreen(page);
+        assert.deepEqual(await page.evaluate(() => window.startupFullscreenUnhandled), []);
+
+        // Both an asynchronously denied request and an unsupported/throwing API
+        // must leave the game playable and consume all request rejections.
+        for (const failure of ['reject', 'throw', 'unsupported']) {
+            await page.reload();
+            await ready(page);
+            await loadFixture(page, fixture);
+            await page.evaluate(failure => {
+                window.startupFullscreenUnhandled = [];
+                window.addEventListener('unhandledrejection', event =>
+                    window.startupFullscreenUnhandled.push(String(event.reason)));
+                document.getElementById('canvas').webkitRequestFullscreen = undefined;
+                document.getElementById('canvas').requestFullscreen = failure === 'unsupported' ? undefined : () => {
+                    const error = new DOMException('Fullscreen blocked by test policy', 'NotAllowedError');
+                    if (failure === 'throw') throw error;
+                    return Promise.reject(error);
+                };
+            }, failure);
+            await page.locator('#start').click();
+            await page.waitForFunction(() => Array.isArray(window.launchedArguments));
+            await page.waitForFunction(() => document.getElementById('status').textContent.includes('Fullscreen is unavailable'));
+            await settleOrientation(page);
+            assert.equal(await page.evaluate(() => document.fullscreenElement), null);
+            assert.equal(await page.locator('#fullscreen').isEnabled(), true,
+                'The manual fullscreen button must remain available after a refused startup request');
+            assert.deepEqual(await page.evaluate(() => window.startupFullscreenUnhandled), [],
+                failure + ' must not create an unhandled promise rejection');
+        }
+        for (const outcome of ['throw', 'abort', 'exit']) {
+            await page.reload();
+            await ready(page);
+            await loadFixture(page, fixture);
+            await page.evaluate(outcome => {
+                document.getElementById('canvas').requestFullscreen = () =>
+                    Promise.reject(new DOMException('Fullscreen blocked', 'NotAllowedError'));
+                Module.callMain = args => {
+                    window.launchedArguments = args;
+                    const error = new Error('Game startup failed');
+                    if (outcome === 'throw') throw error;
+                    if (outcome === 'abort') Module.onAbort(error);
+                    if (outcome === 'exit') Module.onExit(1);
+                };
+            }, outcome);
+            await page.locator('#start').click();
+            await page.waitForFunction(() => document.getElementById('log').textContent.includes('Fullscreen is unavailable'));
+            assert.match(await page.locator('#status').innerText(),
+                outcome === 'exit' ? /Game exited with code 1/ : /Game error: Game startup failed/,
+                'A later fullscreen rejection must preserve the game failure/exit status');
+        }
+        await page.reload();
+        await ready(page);
+        await page.locator('#start-fullscreen').uncheck();
+        assert.equal((await storedOptions(page))['start-fullscreen'], false);
+        await page.reload();
+        await ready(page);
+        assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
+            'A saved windowed choice must also persist');
+        assert.deepEqual(errors, [], 'Startup fullscreen must not report browser errors');
+    } finally {
+        await context.close();
+    }
+}
+
 async function main() {
     const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'restunts-web-shell-'));
     const fixture = path.join(temporary, 'game-files');
@@ -740,6 +873,8 @@ async function main() {
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
         assert.equal(await page.locator('#sound-enabled').isChecked(), true,
             'Sound must retain its existing enabled default');
+        assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
+            'Initial fullscreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
         assert.equal(await page.locator('#show-control-layout').isChecked(), false);
         assert.equal(await page.locator('#power-gear').isChecked(), true);
@@ -867,10 +1002,11 @@ async function main() {
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
         const url = 'http://127.0.0.1:' + server.address().port + '/';
+        await exerciseStartupFullscreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

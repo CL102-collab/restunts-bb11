@@ -55,6 +55,12 @@ Main repository: https://github.com/4d-stunts/restunts
 
 ## Running the game
 
+Desktop builds include a [native startup window](docs/launcher.md). Run
+`restunts-launcher` (`restunts-launcher.exe` on Windows) to choose your original
+game folder, startup options and Fullscreen setting. macOS packages also include
+`Restunts.app`; AppImages open this window when started without arguments.
+
+
 The experimental [Amiga 500+ port](docs/amiga.md) builds a native AmigaOS
 executable from the classic DOS game core. See its current performance limits.
 
@@ -1468,6 +1474,9 @@ and a required braced body for every `if`, `else`, `for`, `while`, and `do`.
 Conventional `else if` chains are allowed. Empty loops also need braces. Keep
 CRLF line endings, as required by `.gitattributes`.
 
+The desktop launcher uses C++11 and follows the same whitespace and brace rules.
+Its `.cpp` files are included in the formatting checks below.
+
 C sources use the C99 features supported by Open Watcom (`-zastd=c99`).
 Declare local variables close to their first use, combining the declaration
 and first assignment when possible. Keep declarations in the enclosing scope
@@ -1504,13 +1513,13 @@ ec
 Check C formatting too (Bash or Git Bash):
 
 ```sh
-git ls-files -z 'src/*.c' 'src/*.h' | xargs -0 -r clang-format --dry-run --Werror
+git ls-files -z 'src/*.c' 'src/*.cpp' 'src/*.h' | xargs -0 -r clang-format --dry-run --Werror
 ```
 
 Format all tracked project C/H files:
 
 ```sh
-git ls-files -z 'src/*.c' 'src/*.h' | xargs -0 -r clang-format -i
+git ls-files -z 'src/*.c' 'src/*.cpp' 'src/*.h' | xargs -0 -r clang-format -i
 ```
 
 For an individual file, use `clang-format -i path/to/file.c`. Add new files to

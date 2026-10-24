@@ -4,13 +4,14 @@ set -euo pipefail
 
 usage() {
     cat <<'USAGE'
-Usage: bash run-restunts.sh --data-dir DIR [--runtime-dir DIR] [-- game arguments...]
+Usage: bash run-restunts.sh [--data-dir DIR] [--runtime-dir DIR] [-- game arguments...]
 
   --data-dir DIR     Writable folder containing original Broderbund Stunts 1.1 data.
   --runtime-dir DIR  Runtime package or CMake build directory.
   --help            Show this help.
 
-In a runtime package, the launcher finds bin/restunts beside itself. From a
+With no arguments, open the native startup window. With --data-dir, start the
+game directly. In a runtime package, find bin/restunts beside this script. From a
 source checkout, the default is out/package-macos-<native architecture>.
 Relative paths are resolved from the current working directory. All arguments
 after -- are passed to the game, for example: -- --nointro --hv:medium
@@ -42,9 +43,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(uname -s)" == Darwin ]] || fail "This launcher requires macOS."
-[[ -n "$data_dir" ]] || fail "Specify --data-dir with your Stunts 1.1 game folder."
-[[ -d "$data_dir" && -w "$data_dir" ]] || fail "Game data directory must exist and be writable: $data_dir"
-data_dir="$(cd -- "$data_dir" && pwd)"
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "$runtime_dir" ]]; then
@@ -63,6 +61,14 @@ else
     executable="$runtime_dir/restunts"
     library="$runtime_dir/libnuked-opl2.dylib"
 fi
+if [[ -z "$data_dir" && $# -eq 0 ]]; then
+    native_launcher="$(dirname -- "$executable")/restunts-launcher"
+    [[ -x "$native_launcher" ]] || fail "Missing desktop launcher: $native_launcher"
+    exec "$native_launcher"
+fi
+[[ -n "$data_dir" ]] || fail "Specify --data-dir with your Stunts 1.1 game folder."
+[[ -d "$data_dir" && -w "$data_dir" ]] || fail "Game data directory must exist and be writable: $data_dir"
+data_dir="$(cd -- "$data_dir" && pwd)"
 [[ -x "$executable" ]] || fail "Missing executable or execute permission: $executable"
 [[ -f "$library" ]] || fail "Missing audio library: $library. Keep the complete runtime package together."
 exec "$executable" --data-dir "$data_dir" "$@"

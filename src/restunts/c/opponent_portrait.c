@@ -63,7 +63,7 @@ static SDL_Surface *portrait_load(const legacy_char *directory, legacy_u8 oppone
 	}
 	/* Check dimensions before decoding optional artwork, so a malformed or
 	 * oversized replacement cannot trigger a large image allocation. */
-	FILE *file = fopen(path, "rb");
+	FILE *file = asset_path_open_file(path, "rb");
 	if (file == NULL) {
 		return NULL;
 	}

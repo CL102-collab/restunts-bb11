@@ -18,6 +18,14 @@ sh tools/scripts/install-haiku-package-dependencies.sh haiku-x64
 If dependency installation requests a reboot, restart Haiku before configuring.
 A system update can leave the newly installed tools inactive until the next boot.
 
+The [desktop startup window](launcher.md) uses HaikuPorts' patched wxQt 3.2.4
+package with Qt 5 and the native Haiku platform/style plugins. The installer
+selects `wxqt_devel`, `devel:libQt5Widgets` and `qthaikuplugins` on x64, or their
+modern x86 equivalents on the hybrid system. CMake defaults to
+`RESTUNTS_SYSTEM_WX=ON` on Haiku to retain those port fixes. Keep wxQt, Qt and
+the platform/style plugins installed when running the package. The launcher
+still needs native Haiku build and GUI validation.
+
 Use `haiku-x86` instead on 32-bit Haiku. Before a manual CMake build there,
 select the modern compiler environment with `export PATH="$(setarch -p x86)"`.
 Use a separate output directory for each architecture. For x86, replace
@@ -30,6 +38,8 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     ctest --test-dir out/sdl3-haiku-x64 --output-on-failure
 cmake --install out/sdl3-haiku-x64 --prefix "$PWD/out/package-haiku-x64" \
     --component Runtime
+out/package-haiku-x64/bin/restunts-launcher
+# Direct command-line launch remains available:
 out/package-haiku-x64/bin/restunts --data-dir "$PWD/stunts" --nointro
 ```
 

@@ -5,6 +5,7 @@ import argparse
 import contextlib
 import importlib.util
 import io
+import json
 import os
 from pathlib import Path
 import stat
@@ -26,6 +27,7 @@ OTHER_COMMIT = "b" * 40
 RUN_ID = "12345"
 RUN_ATTEMPT = "2"
 FILE_DATA = b"release fixture\n"
+FIXTURE_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 ELF_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
     "haiku-x64": "Haiku x86-64",
@@ -75,7 +77,7 @@ class ReleasePackageTests(unittest.TestCase):
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w") as apk:
             for name, content in files.items():
-                apk.writestr(name, content)
+                apk.writestr(zipfile.ZipInfo(name, FIXTURE_ZIP_TIMESTAMP), content)
         return output.getvalue()
 
     def pie_data(self, target, interpreter=None):
@@ -111,10 +113,14 @@ class ReleasePackageTests(unittest.TestCase):
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w") as apk:
             for name, content in files.items():
-                apk.writestr(name, content)
+                apk.writestr(zipfile.ZipInfo(name, FIXTURE_ZIP_TIMESTAMP), content)
         return output.getvalue()
 
     def runtime_data(self, target, name):
+        if name == "share/restunts/restunts-launcher-audit.json":
+            return json.dumps({"passed": True, "problems": [],
+                               "sha256": PACKAGES.sha256(FILE_DATA),
+                               "forbid_simd": target.endswith("-no-sse2")}).encode()
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
             return car_source.read_bytes()
@@ -143,7 +149,7 @@ class ReleasePackageTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
             if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {
-                    "run-restunts.sh", PACKAGES.APPIMAGE}:
+                    "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.APPIMAGE}:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
         for name, content in (asset_data or {}).items():
             path = runtime / name
@@ -341,11 +347,27 @@ class ReleasePackageTests(unittest.TestCase):
     def test_desktop_packages_require_genghost_and_its_guide(self):
         files = {name: self.runtime_data("windows-x64", name) for name in PACKAGES.required_files("windows-x64")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
-        for missing in ("bin/genghost.exe", "share/docs/restunts/genghost.md"):
+        for missing in ("bin/genghost.exe", "share/docs/restunts/genghost.md",
+                        *(f"share/licenses/gcc-runtime/{name}" for name in
+                          PACKAGES.GCC_RUNTIME_NOTICES)):
             incomplete = files.copy()
             incomplete.pop(missing)
             with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):
                 PACKAGES.validate_contents("windows-x64", incomplete, modes)
+
+    def test_windows_launcher_audits_reject_stale_failed_or_wrong_policy_results(self):
+        target = "windows-x86-no-sse2"
+        audit_name = "share/restunts/restunts-launcher-audit.json"
+        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+        modes = {name: PACKAGES.FILE_MODE for name in files}
+        audit = json.loads(files[audit_name])
+        for replacement in ({"passed": False}, {"problems": ["Vista API"]},
+                            {"sha256": "0" * 64}, {"forbid_simd": False}):
+            changed = {**files, audit_name: json.dumps({**audit, **replacement}).encode()}
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "launcher"):
+                PACKAGES.validate_contents(target, changed, modes)
+        with self.assertRaisesRegex(ValueError, "differs from its compatibility audit"):
+            PACKAGES.validate_contents(target, {**files, "bin/restunts-launcher.exe": b"changed"}, modes)
 
     def test_elf_archives_reject_wrong_or_missing_elf_architecture(self):
         for target in ELF_TARGETS:
@@ -733,7 +755,9 @@ class ReleasePackageTests(unittest.TestCase):
                         "bin/menus/main.png", "bin/menus/showroom.png", "bin/menus/opponent.png",
                         "share/docs/restunts/genghost-state-planner.md",
                         "bin/nuked-opl2.dll", "share/restunts/nuked-opl2-lite/opl2.c",
-                        "share/licenses/restunts/Nuked-OPL2-LICENSE"):
+                        "share/licenses/restunts/Nuked-OPL2-LICENSE",
+                        *(f"share/licenses/llvm-runtime/{name}" for name in
+                          PACKAGES.LLVM_RUNTIME_NOTICES)):
             incomplete = files.copy()
             incomplete.pop(missing)
             with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):

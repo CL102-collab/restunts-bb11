@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "../../c/restunts.h"
@@ -17,6 +20,11 @@ extern legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[]);
 #define SDL3_FIRST_OPTION_INDEX 1
 #define SDL3_DATA_DIRECTORY_INDEX 2
 #define SDL3_DATA_DIRECTORY_ARGUMENT_COUNT 2
+#define SDL3_DIRECTORY_SUCCESS 0
+#define SDL3_DIRECTORY_FAILURE (-1)
+#ifdef _WIN32
+#define SDL3_NUL_TERMINATED_LENGTH (-1)
+#endif
 
 static legacy_char **game_arguments;
 
@@ -24,6 +32,33 @@ static void free_game_arguments(void)
 {
 	free(game_arguments);
 	game_arguments = NULL;
+}
+
+static legacy_int enter_data_directory(const legacy_char *directory)
+{
+#ifdef _WIN32
+	/* SDL supplies UTF-8 arguments. The XP ANSI CRT cannot open every folder
+	 * chosen by the Unicode launcher; change only the process directory here. */
+	legacy_int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, directory,
+										   SDL3_NUL_TERMINATED_LENGTH, NULL, 0);
+	if (count <= 0 || (size_t)count > SIZE_MAX / sizeof(WCHAR)) {
+		return SDL3_DIRECTORY_FAILURE;
+	}
+	WCHAR *wide_directory = malloc((size_t)count * sizeof(*wide_directory));
+	if (wide_directory == NULL) {
+		return SDL3_DIRECTORY_FAILURE;
+	}
+	legacy_int result = SDL3_DIRECTORY_FAILURE;
+	if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, directory, SDL3_NUL_TERMINATED_LENGTH,
+							wide_directory, count) == count &&
+		SetCurrentDirectoryW(wide_directory)) {
+		result = SDL3_DIRECTORY_SUCCESS;
+	}
+	free(wide_directory);
+	return result;
+#else
+	return chdir(directory);
+#endif
 }
 
 /* Match the argument and result types required by the C runtime. */
@@ -69,7 +104,8 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 	legacy_int argument_offset = 0;
 	if (argc > SDL3_FIRST_OPTION_INDEX &&
 		strcmp(argv[SDL3_FIRST_OPTION_INDEX], "--data-dir") == 0) {
-		if (argc <= SDL3_DATA_DIRECTORY_INDEX || chdir(argv[SDL3_DATA_DIRECTORY_INDEX]) != 0) {
+		if (argc <= SDL3_DATA_DIRECTORY_INDEX ||
+			enter_data_directory(argv[SDL3_DATA_DIRECTORY_INDEX]) != SDL3_DIRECTORY_SUCCESS) {
 			fputs("Cannot open --data-dir directory\n", stderr);
 			return 1;
 		}

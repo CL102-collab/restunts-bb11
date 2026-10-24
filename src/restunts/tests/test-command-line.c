@@ -96,6 +96,9 @@ static void test_help_contents(void)
 		"  --nointro",
 #ifdef RESTUNTS_SDL3
 		"  --ogg:on|off",
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
+		"  --fullscreen:on|off",
+#endif
 #ifndef __ANDROID__
 		"  --controller-vibration:on|off",
 #endif
@@ -143,6 +146,15 @@ static void test_help_contents(void)
 	expect_text("FPS display starts off.");
 	expect_text("F11 toggles it during play.");
 	expect_text("FPS display options are case-insensitive.");
+#if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
+	!defined(__DJGPP__)
+	expect_text("Fullscreen starts off.");
+	expect_text("Alt+Enter toggles fullscreen during play.");
+	expect_text("Fullscreen options are case-insensitive.");
+#else
+	assert(strstr(output, "--fullscreen") == NULL);
+	assert(strstr(output, "Fullscreen starts") == NULL);
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__)
 	expect_text("Controller vibration starts on.");
 	expect_text("Controller vibration options are case-insensitive.");

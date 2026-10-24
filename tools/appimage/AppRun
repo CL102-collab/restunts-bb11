@@ -6,4 +6,33 @@ export LD_LIBRARY_PATH="$appdir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export XLOCALEDIR="${XLOCALEDIR:-$appdir/usr/share/X11/locale}"
 export RESTUNTS_ALSA_CONFIG_DIR="$appdir/usr/share/alsa"
 export ALSA_CONFIG_PATH="${ALSA_CONFIG_PATH:-$appdir/usr/share/alsa/alsa.conf}"
+# The baseline-compatible PulseAudio client predates XDG runtime directories.
+# Supply its default socket directory without overriding an explicit server or
+# its client configuration. This also reaches PipeWire's PulseAudio service.
+if [ "${PULSE_SERVER+x}" != x ] && [ "${PULSE_RUNTIME_PATH+x}" != x ] \
+    && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
+    export PULSE_RUNTIME_PATH="$XDG_RUNTIME_DIR/pulse"
+fi
+if [ "$#" -eq 0 ]; then
+    # Module caches contain absolute filenames, so regenerate them for this
+    # relocated/extracted AppImage using a helper built with the same SDK.
+    umask 077
+    gtk_cache=$(mktemp -d "${TMPDIR:-/tmp}/restunts-gtk.XXXXXXXX")
+    trap 'rm -rf -- "$gtk_cache"' EXIT HUP INT TERM
+    "$appdir/usr/bin/restunts-gtk-modules" pango \
+        "$appdir"/usr/lib/pango/1.6.0/modules/*.so > "$gtk_cache/pango.modules"
+    printf '[Pango]\nModuleFiles=%s\n' "$gtk_cache/pango.modules" > "$gtk_cache/pangorc"
+    "$appdir/usr/bin/restunts-gtk-modules" pixbuf \
+        "$appdir"/usr/lib/gtk-2.0/2.10.0/loaders/*.so > "$gtk_cache/pixbuf.loaders"
+    export PANGO_RC_FILE="$gtk_cache/pangorc"
+    export GDK_PIXBUF_MODULE_FILE="$gtk_cache/pixbuf.loaders"
+    export FONTCONFIG_PATH="$appdir/usr/etc/fonts"
+    export FONTCONFIG_FILE="$appdir/usr/etc/fonts/fonts.conf"
+    export LIBTHAI_DICTDIR="$appdir/usr/share/libthai"
+    export GIO_EXTRA_MODULES="$appdir/usr/lib/gio/modules"
+    set +e
+    "$appdir/usr/bin/restunts-launcher" --wait-for-game
+    result=$?
+    exit "$result"
+fi
 exec "$appdir/usr/bin/restunts" "$@"

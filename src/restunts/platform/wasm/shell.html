@@ -89,6 +89,7 @@
         <fieldset class="settings" id="graphics-settings">
             <legend>Graphics settings</legend>
             <div class="settings-row">
+                <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
@@ -122,6 +123,7 @@
             <strong>Show Control Layout</strong> enables the Android touch controls and starts enabled on mobile devices.
             Fullscreen requests landscape orientation and locks it where your browser supports it,
             placing phone controls in the black side areas.
+            Select <strong>Fullscreen</strong> before starting to enter it with Start game.
             Your browser may reserve some function keys. Press <strong>Alt+Enter</strong> or click Fullscreen for a larger view.</p>
         <p id="save-mode"></p>
         <div id="save-controls" hidden>
@@ -242,8 +244,8 @@
         const STORAGE_DATABASE_VERSION = 2;
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'show-fps', 'show-control-layout',
-            'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
+            'show-fps', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -287,6 +289,7 @@
         const baseline = new Map();
         const logLines = [];
         let started = false;
+        let gameRunning = false;
         let gameLoaded = false;
         let lastErrorMessage = '';
 
@@ -321,6 +324,7 @@
         }
 
         function fail(error) {
+            gameRunning = false;
             const message = error instanceof Error ? error.message : String(error);
             status.textContent = 'Game error: ' + message;
             log(message);
@@ -427,6 +431,7 @@
                 status.textContent = 'Downloaded screenshot ' + name + '.';
             },
             onExit(code) {
+                gameRunning = false;
                 status.textContent = code === 0 ? (directoryHandle ? 'Game closed. Reload to play again.' :
                     'Game closed. Export your saves, or reload to play again.') :
                     (lastErrorMessage ? 'Game error: ' + lastErrorMessage :
@@ -451,6 +456,7 @@
         start.addEventListener('click', () => {
             if (started || !gameLoaded) return;
             started = true;
+            gameRunning = true;
             loadProgress.hidden = true;
             start.disabled = true;
             importer.disabled = true;
@@ -477,6 +483,9 @@
             if (document.getElementById('owoot').checked) args.push('--owoot');
             if (document.getElementById('amiga-grass').checked) args.push('/amigagrass');
             try {
+                // Keep the browser request inside this click's user activation.
+                // SDL has not created its window or fullscreen helper yet.
+                if (document.getElementById('start-fullscreen').checked) requestCanvasFullscreen();
                 Module.callMain(args);
             } catch (error) {
                 fail(error);
@@ -501,7 +510,7 @@
             }
         }
 
-        // SDL's Fullscreen button and Alt+Enter both fullscreen this canvas.
+        // The Fullscreen button and Alt+Enter both fullscreen this canvas.
         // Mobile browsers require fullscreen to be active before locking orientation.
         document.addEventListener('fullscreenchange', async () => {
             // The SDK sizes the canvas from screen dimensions before fullscreen
@@ -538,13 +547,27 @@
             }
         });
 
-        fullscreen.addEventListener('click', async () => {
+        function fullscreenUnavailable(error) {
+            const message = 'Fullscreen is unavailable: ' + error.message;
+            log(message);
+            if (gameRunning) status.textContent = message + ' You can keep playing in the page.';
+        }
+
+        function requestCanvasFullscreen() {
             try {
-                Module.requestFullscreen(false, true);
-                canvas.focus();
+                const request = canvas.requestFullscreen || canvas.webkitRequestFullscreen;
+                if (typeof request !== 'function') throw new Error('This browser does not support canvas fullscreen.');
+                // The SDL and SDK helpers discard the promise. Requesting the
+                // canvas directly also works before SDL creates its window.
+                Promise.resolve(request.call(canvas)).catch(fullscreenUnavailable);
             } catch (error) {
-                status.textContent = 'Fullscreen is unavailable: ' + error.message;
+                fullscreenUnavailable(error);
             }
+        }
+
+        fullscreen.addEventListener('click', () => {
+            requestCanvasFullscreen();
+            canvas.focus();
         });
 
         exporter.addEventListener('click', () => {

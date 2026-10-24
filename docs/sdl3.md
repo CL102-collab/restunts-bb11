@@ -8,7 +8,7 @@ under `src/restunts/platform/dos/`.
 
 ## Dependencies and supported build targets
 
-CMake 3.25+, a C99 GCC-compatible compiler (plus C++ for SDL on Windows and Haiku), a build
+CMake 3.25+, a C99 GCC-compatible compiler and a C++11 compiler for the desktop launcher, a build
 tool, Git, and network access are required. CMake fetches and verifies SDL3 upstream commit
 [`015489c672f24feed28c2aa2cdd6176df95329f3`](https://github.com/libsdl-org/SDL/tree/015489c672f24feed28c2aa2cdd6176df95329f3).
 That revision includes SDL's DOS backend and the gameport/Sound Blaster timing fix
@@ -37,6 +37,12 @@ non-SSE2 processors, and physical DOS hardware need testing on those systems.
 SDL's DOS minimum is i386 with 4 MB RAM; the game's actual memory and performance
 requirements can be higher. See [SDL's DOS notes](https://github.com/libsdl-org/SDL/blob/015489c672f24feed28c2aa2cdd6176df95329f3/docs/README-dos.md).
 
+Desktop builds include the [native startup window](launcher.md), using pinned
+wxWidgets 3.2.12 and system GTK 3 development/runtime libraries on Linux/BSD,
+and Cocoa on macOS. Haiku uses the patched HaikuPorts wxQt 3.2.4 system package
+with Qt 5 and Haiku platform/style plugins. `RESTUNTS_BUILD_LAUNCHER=OFF` provides
+a headless game/tools-only build. Web, Android and DOS exclude this dependency.
+
 ## Linux
 
 On Debian 12 x64, install the compiler, build tools, and common desktop drivers:
@@ -46,7 +52,7 @@ sudo apt-get update
 sudo apt-get install build-essential cmake ninja-build git curl ca-certificates pkg-config \
     libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
     libxi-dev libxfixes-dev libxss-dev libxtst-dev libwayland-dev libxkbcommon-dev libudev-dev \
-    libdrm-dev libgbm-dev libegl1-mesa-dev libgl1-mesa-dev
+    libdrm-dev libgbm-dev libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 cmake -S . -B out/sdl3-linux-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build out/sdl3-linux-x64
 ctest --test-dir out/sdl3-linux-x64 --output-on-failure
@@ -79,6 +85,14 @@ by default.
 `-DRESTUNTS_SYSTEM_SDL=ON` uses an installed SDL 3.4+ CMake package instead of the
 pinned source. This option is incompatible with `RESTUNTS_SSE2=OFF`, because
 CMake cannot control the instruction set of a prebuilt SDL library.
+
+The x86 and x64 AppImage SDK bundles a PulseAudio client for desktop audio,
+including PipeWire's PulseAudio service, with ALSA as a fallback. AppImages find
+the per-user socket through `XDG_RUNTIME_DIR` while preserving explicit
+`PULSE_SERVER`, `PULSE_RUNTIME_PATH` and PulseAudio client configuration. The
+package build requires SDL's PulseAudio backend and checks the complete shared
+library dependency closure, so missing SDK headers or optional host libraries
+cannot silently remove desktop audio support.
 
 ## BSD
 

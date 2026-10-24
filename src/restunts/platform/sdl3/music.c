@@ -22,6 +22,7 @@
 #define MUSIC_ASSET_DIRECTORY "assets/music/"
 #define MUSIC_PACKAGE_DIRECTORY "music/"
 #define MUSIC_NO_TRACK (-1)
+#define MUSIC_CLOSE_ASSET_STREAM 1
 
 static const legacy_char *const music_names[] = {"titl", "slct", "over", "vict"};
 #define MUSIC_TRACK_COUNT (sizeof(music_names) / sizeof(music_names[0]))
@@ -69,8 +70,13 @@ static stb_vorbis *music_open(const legacy_char *base, const legacy_char *direct
 	if (length < 0 || (size_t)length >= sizeof(path)) {
 		return NULL;
 	}
+	FILE *file = asset_path_open_file(path, "rb");
+	if (file == NULL) {
+		return NULL;
+	}
+	/* The decoder owns and closes the stream, including decoder failures. */
 	legacy_int error;
-	stb_vorbis *decoder = stb_vorbis_open_filename(path, &error, NULL);
+	stb_vorbis *decoder = stb_vorbis_open_file(file, MUSIC_CLOSE_ASSET_STREAM, &error, NULL);
 	if (decoder != NULL) {
 		stb_vorbis_info info = stb_vorbis_get_info(decoder);
 		if (info.channels < MUSIC_CHANNELS_MONO || info.channels > MUSIC_CHANNELS_STEREO ||

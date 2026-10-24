@@ -8,6 +8,8 @@ import re
 import subprocess
 import sys
 
+from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
+
 
 TARGETS = {
     "linux-appimage-x64": ("ELF64", "Advanced Micro Devices X86-64", "/lib64/ld-linux-x86-64.so.2"),
@@ -18,6 +20,7 @@ SYSTEM_LIBRARIES = re.compile(
     r"(?:ld(?:-linux[^/]*|-[0-9][^/]*)?|"
     r"lib(?:c|m|dl|pthread|rt|resolv|nss_[^/]+)(?:-[0-9][^/]*)?)\.so(?:\..*)?$"
 )
+AUDIO_RUNTIME_LIBRARIES = ("libasound.so.2", "libpulse.so.0")
 
 
 def is_elf(path):
@@ -60,6 +63,22 @@ def check_elf(path, target, *, static=False):
     return description
 
 
+def check_dependency_closure(descriptions):
+    libraries = {path.name for path in descriptions}
+    for path, description in descriptions.items():
+        for needed in re.findall(r"\(NEEDED\).*?\[([^\]]+)\]", description):
+            if needed not in SYSTEM_RUNTIME_LIBRARIES and needed not in libraries:
+                raise ValueError(f"{path}: missing bundled dependency {needed}")
+
+
+def check_audio_runtime(root, descriptions):
+    # SDL loads these backend roots with dlopen; DT_NEEDED cannot discover them.
+    for name in AUDIO_RUNTIME_LIBRARIES:
+        path = root / "usr/lib" / name
+        if path not in descriptions:
+            raise ValueError(f"{path}: missing ELF audio runtime dependency")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("appdir", type=Path)
@@ -67,16 +86,18 @@ def main():
     parser.add_argument("--runtime", required=True, type=Path)
     args = parser.parse_args()
     root = args.appdir.resolve(strict=True)
-    checked = 0
+    descriptions = {}
     for path in sorted(root.rglob("*")):
         if path.is_symlink() and not path.resolve(strict=True).is_relative_to(root):
             raise ValueError(f"{path}: symlink escapes the AppDir")
         if path.is_file() and is_elf(path):
             if SYSTEM_LIBRARIES.fullmatch(path.name):
                 raise ValueError(f"{path}: do not bundle the system glibc/loader")
-            check_elf(path, args.target)
-            checked += 1
-    for name in ("restunts", "repldump", "pixldump", "genghost"):
+            descriptions[path] = check_elf(path, args.target)
+    check_audio_runtime(root, descriptions)
+    check_dependency_closure(descriptions)
+    for name in ("restunts", "restunts-launcher", "restunts-gtk-modules",
+                 "repldump", "pixldump", "genghost"):
         path = root / "usr/bin" / name
         if not path.is_file() or not is_elf(path):
             raise ValueError(f"{path}: missing ELF executable")
@@ -86,7 +107,8 @@ def main():
         if "[$ORIGIN/../lib]" not in description:
             raise ValueError(f"{path}: missing installed $ORIGIN/../lib search path")
     check_elf(args.runtime, args.target, static=True)
-    print(f"AppImage ABI passed: {args.target}; {checked} ELF files; GLIBC <= 2.11; static runtime")
+    print(f"AppImage ABI passed: {args.target}; {len(descriptions)} ELF files; "
+          "GLIBC <= 2.11; bundled dependency closure; static runtime")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 
 spec = importlib.util.spec_from_file_location(
@@ -85,6 +86,110 @@ class SysrootTests(unittest.TestCase):
         sdk.extract(layer, destination)
         self.assertFalse((destination / "lib/old.so").exists())
         self.assertFalse((destination / "lib/.wh.old.so").exists())
+
+    def test_cxx_inputs_are_kept_without_obsolete_compilers(self):
+        prefix = "opt/rh/devtoolset-2/root/usr"
+        header = prefix + "/include/c++/4.8.2/vector"
+        archive_name = prefix + "/lib/gcc/x86_64-redhat-linux/4.8.2/libstdc++.a"
+        startup = prefix + "/lib/gcc/x86_64-redhat-linux/4.8.2/crtbeginS.o"
+        compiler = prefix + "/bin/g++"
+        archive = self.archive("cxx.tar.gz", [
+            (header, b"C++11 declarations", None),
+            (archive_name, b"old ABI archive", None),
+            (startup, b"target startup object", None),
+            (compiler, b"must not execute", None),
+            ("usr/lib/python/site-packages/unrelated.so", b"unrelated", None),
+        ])
+        destination = self.root / "sysroot"
+        sdk.extract(archive, destination)
+        self.assertEqual((destination / header).read_bytes(), b"C++11 declarations")
+        self.assertEqual((destination / archive_name).read_bytes(), b"old ABI archive")
+        self.assertEqual((destination / startup).read_bytes(), b"target startup object")
+        self.assertFalse((destination / compiler).exists())
+        self.assertFalse((destination / "usr/lib/python").exists())
+
+    def test_cxx_exception_header_patch_is_idempotent(self):
+        header = self.root / sdk.LEGACY_CXX_PREFIX / "include/c++/4.8.2/new"
+        header.parent.mkdir(parents=True)
+        header.write_text("namespace std {\n  struct nothrow_t { };\n}\n")
+        sdk.patch_cxx_headers(self.root)
+        patched = header.read_text()
+        self.assertIn("class bad_array_new_length : public bad_alloc", patched)
+        sdk.patch_cxx_headers(self.root)
+        self.assertEqual(header.read_text(), patched)
+
+    def test_runtime_pruning_keeps_transitive_and_module_dependencies(self):
+        libraries = self.root / "lib"
+        module = "gtk-2.0/immodules/im-test.so"
+        printer = "gtk-2.0/printbackends/cups.so"
+        graph = {"libroot.so.1": "libdependency.so.1\nlibc.so.6\n",
+                 "libdependency.so.1": "libz.so.1\n", "libz.so.1": "",
+                 module: "libroot.so.1\n", printer: "libmissing-printer.so.1\n",
+                 "libunused.so.1": ""}
+        for name in graph:
+            path = libraries / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"library fixture")
+        def dependencies(command, **kwargs):
+            return graph[str(Path(command[-1]).relative_to(libraries))]
+        with mock.patch.object(sdk.subprocess, "check_output", side_effect=dependencies):
+            sdk.prune_runtime(libraries, roots=("libroot.so.1",))
+        remaining = {str(path.relative_to(libraries)) for path in libraries.rglob("*")
+                     if path.is_file()}
+        self.assertEqual(remaining, {"libroot.so.1", "libdependency.so.1", "libz.so.1", module})
+
+    def test_runtime_pruning_retains_native_pulse_client_and_its_private_library(self):
+        libraries = self.root / "lib"
+        libraries.mkdir()
+        graph = {name: "" for name in sdk.GTK_RUNTIME_ROOTS}
+        graph["libpulse.so.0"] = "libpulsecommon-0.9.21.so\nlibc.so.6\n"
+        graph["libpulsecommon-0.9.21.so"] = "libwrap.so.0\nlibdbus-1.so.3\n"
+        graph["libwrap.so.0"] = "libc.so.6\n"
+        graph["libdbus-1.so.3"] = "libpthread.so.0\n"
+        graph["libunused-audio.so.1"] = ""
+        for name in graph:
+            (libraries / name).write_bytes(b"audio library fixture")
+        def dependencies(command, **kwargs):
+            return graph[Path(command[-1]).name]
+        with mock.patch.object(sdk.subprocess, "check_output", side_effect=dependencies):
+            sdk.prune_runtime(libraries)
+        self.assertTrue((libraries / "libpulse.so.0").is_file())
+        self.assertTrue((libraries / "libpulsecommon-0.9.21.so").is_file())
+        self.assertTrue((libraries / "libwrap.so.0").is_file())
+        self.assertFalse((libraries / "libunused-audio.so.1").exists())
+        self.assertFalse((libraries / "libnsl.so.1").exists())
+        graph["libwrap.so.0"] = "libnsl.so.1\nlibc.so.6\n"
+        with mock.patch.object(sdk.subprocess, "check_output", side_effect=dependencies):
+            with self.assertRaisesRegex(RuntimeError, "Missing bundled runtime dependency: libnsl"):
+                sdk.prune_runtime(libraries)
+
+    def test_runtime_missing_dependency_fails_before_pruning(self):
+        libraries = self.root / "lib"
+        libraries.mkdir()
+        root = libraries / "libroot.so.1"
+        unused = libraries / "libunused.so.1"
+        root.write_bytes(b"root")
+        unused.write_bytes(b"unused")
+        with mock.patch.object(sdk.subprocess, "check_output", return_value="libmissing.so.1\n"):
+            with self.assertRaisesRegex(RuntimeError, "Missing bundled runtime dependency"):
+                sdk.prune_runtime(libraries, roots=(root.name,))
+        self.assertTrue(unused.exists())
+
+    def test_gtk_nested_headers_and_modules_exclude_old_tools(self):
+        header = "usr/lib/glib-2.0/include/glibconfig.h"
+        module = "usr/lib/pango/1.6.0/modules/pango-basic-fc.so"
+        archive = self.archive("gtk.tar.gz", [
+            (header, b"target configuration", None),
+            (module, b"matching renderer", None),
+            ("usr/bin/pango-querymodules", b"obsolete tool", None),
+            ("usr/lib/gtk-2.0/old-helper", b"obsolete helper", None),
+        ])
+        destination = self.root / "gtk"
+        sdk.extract(archive, destination, gtk=True)
+        self.assertEqual((destination / header).read_bytes(), b"target configuration")
+        self.assertEqual((destination / module).read_bytes(), b"matching renderer")
+        self.assertFalse((destination / "usr/bin").exists())
+        self.assertFalse((destination / "usr/lib/gtk-2.0/old-helper").exists())
 
 
 if __name__ == "__main__":
