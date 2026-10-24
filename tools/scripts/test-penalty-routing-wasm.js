@@ -56,7 +56,7 @@ async function main() {
         '-std=c99', '-O2', '-UNDEBUG', '-ffunction-sections', '-fdata-sections',
         '-Wno-sign-compare',
         'src/restunts/tests/test-penalty-routing.c',
-        'src/restunts/c/physics_grip.c', 'src/restunts/c/strlib.c',
+        'src/restunts/c/race_route.c', 'src/restunts/c/strlib.c',
         '-Wl,--gc-sections', '-sASSERTIONS=1', '-sEXIT_RUNTIME=1',
         '-sSINGLE_FILE=1', '-sENVIRONMENT=web,node', '-o', javascript
     ]);

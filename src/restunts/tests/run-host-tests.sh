@@ -138,39 +138,39 @@ run_host_test test-startup math.c "$test_source_dir/owoot.c" \
     "$test_source_dir/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
-    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race_route.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_AMIGA \
     "$test_source_dir/owoot.c" "$test_source_dir/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
-    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race_route.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 \
     "$test_source_dir/carsetup.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
-    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race_route.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ \
     "$test_source_dir/carsetup.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
-    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race_route.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ \
     "$test_source_dir/carsetup.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
-    "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race_route.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-credits legacy.c \
     "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
@@ -262,7 +262,7 @@ run_host_test test-simulation-setup gameinit.c "$test_source_dir/owoot.c" \
     "$test_source_dir/gamestep.c" "$test_source_dir/carsetup.c" \
     "$test_source_dir/math.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" -Wno-pointer-sign -Wno-sign-compare
-run_host_test test-penalty-routing physics_grip.c "$test_source_dir/strlib.c" -Wno-sign-compare
+run_host_test test-penalty-routing race_route.c "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-wheel-suspension physics_collision.c
 run_host_test test-car-adhesion physics_collision.c \
     "$test_source_dir/trackobj.c" "$test_source_dir/headless_data.c" \
@@ -443,7 +443,8 @@ run_host_test test-ui-dialog ui_dialog.c "$test_source_dir/legacy.c" \
     -D__ANDROID__ -Wno-pointer-sign
 
 run_host_test test-gameplay-residue gamestep.c \
-    "$test_source_dir/state.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/state.c" "$test_source_dir/race_route.c" \
+    "$test_source_dir/physics_grip.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math.c" \
     "$test_source_dir/legacy.c" \

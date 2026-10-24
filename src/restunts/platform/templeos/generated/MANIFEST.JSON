@@ -57,6 +57,7 @@
     "intro_render",
     "track_preview",
     "state",
+    "race_route",
     "physics_grip",
     "opponent",
     "track_setup",
@@ -79,7 +80,7 @@
     "stateio",
     "memory"
   ],
-  "functions": 1916,
+  "functions": 1920,
   "classes": 107,
   "external": [
     "RsDosAudioBindChannelContext",

@@ -3,12 +3,9 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/state_internal.h"
+#include "../c/race_route.h"
 #include "../c/residue.h"
 #include "../c/track_objects.h"
-#include "../c/physics_internal.h"
-/* Exercise the same confirmation and penalty-time commit used during a lap. */
-#include "../c/state.c"
 
 struct GAMESTATE state;
 legacy_u16 framespersec = 20;

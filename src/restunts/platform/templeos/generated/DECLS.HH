@@ -183,7 +183,6 @@ extern legacy_s16 RsAudioInitEngine(legacy_s16 unused_type,legacy_u8 *source_poi
     legacy_u8 *shape_resources,legacy_u8 *audio_resources);
 extern legacy_void RsAudioCarstate();
 extern legacy_void RsUpdatePlayerTickWithLegacySi(legacy_s8 input_flags,legacy_s16 caller_si);
-extern legacy_s16 RsDetectPenalty(legacy_s16 *current_track,legacy_s16 *penalty_count);
 extern legacy_void RsUpdateGrip(CCarState *carstate,CSimd *simd,legacy_s16 grip_behavior);
 extern legacy_void RsUpdateLegacyGripStackWords(CCarState *carstate,CSimd *simd,
     legacy_u16 speed_before_grip,legacy_u16 speed2_before_grip,legacy_s16 caller_si);
@@ -229,7 +228,6 @@ extern legacy_s16 RsSweepTrackSolidObstacle(
 extern legacy_s16 RsSweepTrackWallSpan(CVectorLong *previous_first,CVectorLong *previous_second,
     CVectorLong *current_first,CVectorLong *current_second,legacy_s16 *fraction);
 extern legacy_void RsConfigureLeftCornerBias(legacy_s16 argc,legacy_s8 **argv);
-extern legacy_void RsConfigureDualWaySwitching(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsApplyAmigaGrass(CSimd *simd,legacy_s8 *car_id);
 extern legacy_void RsConfigureLegacyCollision(legacy_s16 argc,legacy_s8 **argv);
@@ -252,6 +250,10 @@ extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
     CVector *first_world_coordinates,CPoint2D *second_collision_points,
     CVector *second_world_coordinates);
 extern legacy_void RsSetupCarShapes(legacy_s16 operation);
+extern legacy_void RsConfigureDualWaySwitching(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_void RsUpdatePenaltyDisplay();
+extern legacy_void RsUpdatePlayerRoutePenalty();
+extern legacy_void RsUpdatePlayerRouteGuidance(legacy_s8 previous_route_status);
 extern legacy_void RsFrameSupersightReset();
 extern legacy_void RsFrameFpsReset();
 extern legacy_void RsFrameSupersightShowStatus(legacy_s8 *name);

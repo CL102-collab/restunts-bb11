@@ -6,6 +6,7 @@
 #include "car_speed.h"
 #include "car_resources.h"
 #include "physics_internal.h"
+#include "race_route.h"
 #include "owoot.h"
 
 extern void headless_exit(legacy_s16 result);

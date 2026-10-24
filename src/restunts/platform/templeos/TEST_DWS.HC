@@ -101,7 +101,7 @@ legacy_void TempleDwsSwitching()
     TempleDwsReset;
     for(piece=13;piece<=18;piece++) {
       TempleDwsPlace(piece);
-      RsStateUpdatePlayerRoutePenalty;
+      RsUpdatePlayerRoutePenalty;
       if(mode==2&&piece<16) {
         TempleDwsAssert(state.game_player_confirmed_route==3,
             "switch must retain the chosen branch until rejoining");
@@ -116,7 +116,7 @@ legacy_void TempleDwsSwitching()
     TempleDwsAssert(state.game_penalty==expected*TEMPLE_DWS_FRAMES_PER_SECOND,
         "forward branch-switch penalty");
     TempleDwsPlace(0);
-    RsStateUpdatePlayerRoutePenalty;
+    RsUpdatePlayerRoutePenalty;
     TempleDwsAssert(state.playerstate.car_lap_count==1,"forward switch reaches finish");
     TempleDwsAssert(state.game_penalty==expected*TEMPLE_DWS_FRAMES_PER_SECOND,
         "forward penalty survives finish");
@@ -127,11 +127,11 @@ legacy_void TempleDwsSwitching()
     piece=4;
     while(piece!=0) {
       TempleDwsPlace(piece);
-      RsStateUpdatePlayerRoutePenalty;
+      RsUpdatePlayerRoutePenalty;
       piece=temple_dws_primary[piece];
     }
     TempleDwsPlace(0);
-    RsStateUpdatePlayerRoutePenalty;
+    RsUpdatePlayerRoutePenalty;
     expected=0;
     if(mode==2) {
       expected=24;
@@ -154,7 +154,7 @@ legacy_void TempleDwsLegalRoutes()
     piece=1;
     while(piece!=0) {
       TempleDwsPlace(piece);
-      RsStateUpdatePlayerRoutePenalty;
+      RsUpdatePlayerRoutePenalty;
       if(branch&&piece==1) {
         piece=8;
       } else {
@@ -162,7 +162,7 @@ legacy_void TempleDwsLegalRoutes()
       }
     }
     TempleDwsPlace(0);
-    RsStateUpdatePlayerRoutePenalty;
+    RsUpdatePlayerRoutePenalty;
     TempleDwsAssert(state.playerstate.car_lap_count==1,"legal branch reaches finish");
     TempleDwsAssert(state.game_penalty==0,"legal branch remains penalty-free");
     Print("DWS: legal branch %d remains penalty-free.\n",branch);
@@ -180,7 +180,7 @@ legacy_void TempleDwsLegalRoutes()
   TempleDwsReset;
   state.game_player_confirmed_route=state.game_player_previous_route=17;
   TempleDwsPlace(0);
-  RsStateUpdatePlayerRoutePenalty;
+  RsUpdatePlayerRoutePenalty;
   TempleDwsAssert(state.game_penalty==3*TEMPLE_DWS_FRAMES_PER_SECOND,
       "skipping the last piece still costs three seconds");
   TempleDwsAssert(state.playerstate.car_lap_count==1,"last-piece cut still finishes");
@@ -188,7 +188,7 @@ legacy_void TempleDwsLegalRoutes()
   TempleDwsReset;
   state.game_player_confirmed_route=state.game_player_previous_route=5;
   TempleDwsPlace(4);
-  RsStateUpdatePlayerRoutePenalty;
+  RsUpdatePlayerRoutePenalty;
   TempleDwsAssert(state.game_player_route_status==ROUTE_TRACKING_WRONG_WAY,
       "driving backwards remains a wrong-way event");
   TempleDwsAssert(state.game_penalty==0,"wrong-way event does not add shortcut penalty");

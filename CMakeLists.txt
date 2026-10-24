@@ -182,7 +182,7 @@ set(platform src/restunts/platform/sdl3)
 set(common_sources
     fileio.c legacy.c resource.c math.c memmgr.c strlib.c numlib.c kevinrnd.c
     replinit.c gameinit.c gamestep.c simd.c carsetup.c trkutil.c trackres.c
-    headless_data.c headless_trackdata.c state.c physics_grip.c opponent.c
+    headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
     track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
     owoot.c owoot_wheels.c owoot_road.c owoot_route.c replay.c stateio.c)
 set(game_sources
@@ -443,7 +443,7 @@ if(RESTUNTS_BUILD_TESTS)
     enable_testing()
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(test-penalty-routing src/restunts/tests/test-penalty-routing.c
-            ${core}/physics_grip.c ${core}/strlib.c)
+            ${core}/race_route.c ${core}/strlib.c)
         target_link_libraries(test-penalty-routing PRIVATE restunts_options)
         target_compile_options(test-penalty-routing PRIVATE -UNDEBUG ${restunts_test_section_options})
         target_link_options(test-penalty-routing PRIVATE ${restunts_test_gc_sections})

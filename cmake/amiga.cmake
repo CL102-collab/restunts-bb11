@@ -131,15 +131,15 @@ add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-startup.c"
     "${core}/math.c" "${core}/owoot.c" "${core}/carsetup.c"
     "${core}/statecar.c" "${core}/strlib.c" "${core}/physics_collision.c"
-    "${core}/physics_grip.c" "${core}/full_data.c" "${core}/full_strings.c"
-    "${core}/headless_data.c" "${core}/legacy.c")
+    "${core}/physics_grip.c" "${core}/race_route.c" "${core}/full_data.c"
+    "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c")
 configure_amiga_diagnostic(test-amiga-startup)
 
 # Exercise dual-way route confirmation and committed penalty times on 68000.
 foreach(target test-amiga-penalty-routing test-amiga-penalty-routing-features)
     add_executable(${target} EXCLUDE_FROM_ALL
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-penalty-routing.c"
-        "${core}/physics_grip.c" "${core}/strlib.c")
+        "${core}/race_route.c" "${core}/strlib.c")
     configure_amiga_diagnostic(${target})
 endforeach()
 # Keep every feature assertion on a cycle-accurate A500+, while the full target

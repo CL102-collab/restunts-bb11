@@ -45,8 +45,7 @@ legacy_void TestLaunch()
   TestLaunchAssert(!rs_statecar_powergear_bug_enabled,"power gear can be disabled");
   TestLaunchAssert(!rs_physics_collision_legacy_collision_enabled,"collision can be disabled");
   TestLaunchAssert(!rs_physics_grip_left_corner_bias_enabled,"corner bias can be disabled");
-  TestLaunchAssert(
-      !rs_physics_grip_dual_way_switching_enabled,"Dual-Way Switching can be disabled");
+  TestLaunchAssert(!rs_race_route_dual_way_switching_enabled,"Dual-Way Switching can be disabled");
   TestLaunchAssert(rs_physics_grip_amiga_grass_enabled,"Amiga grass can be enabled");
   TestLaunchAssert(owoot_enabled,"OWOOT can be enabled");
   TestLaunchAssert(rs_restunts_startup_options.sound_disabled,"sound can be disabled");
@@ -63,7 +62,7 @@ legacy_void TestLaunch()
   TestLaunchConfigure(1,arguments);
   TestLaunchAssert(rs_statecar_powergear_bug_enabled&&
           rs_physics_collision_legacy_collision_enabled&&
-          rs_physics_grip_left_corner_bias_enabled&&rs_physics_grip_dual_way_switching_enabled,
+          rs_physics_grip_left_corner_bias_enabled&&rs_race_route_dual_way_switching_enabled,
       "original physics defaults are restored");
   TestLaunchAssert(
       !rs_physics_grip_amiga_grass_enabled&&!owoot_enabled,"opt-in physics resets when omitted");
@@ -76,12 +75,12 @@ legacy_void TestLaunch()
   arguments[1]="--dws:off";
   arguments[2]="--DWS:ON";
   RsConfigureDualWaySwitching(3,arguments);
-  TestLaunchAssert(rs_physics_grip_dual_way_switching_enabled,
+  TestLaunchAssert(rs_race_route_dual_way_switching_enabled,
       "Dual-Way Switching uses the last case-insensitive value");
   arguments[1]="--DWS:ON";
   arguments[2]="--dws:off";
   RsConfigureDualWaySwitching(3,arguments);
-  TestLaunchAssert(!rs_physics_grip_dual_way_switching_enabled,
+  TestLaunchAssert(!rs_race_route_dual_way_switching_enabled,
       "Dual-Way Switching can be disabled after an earlier option");
   RsConfigureDualWaySwitching(1,arguments);
   count=TempleLaunchSplit(quoted,arguments,1);

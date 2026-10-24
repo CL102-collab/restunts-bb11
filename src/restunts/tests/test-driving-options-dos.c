@@ -5,7 +5,7 @@
 
 /* Exercise the actual contact solver, including its file-private wheel state. */
 #include "../c/stateply.c"
-/* Keep the actual route-confirmation and penalty commit in this DOS regression. */
+/* Exercise the player tick with the actual route and penalty module. */
 #include "../c/state.c"
 #include "audio_internal.h"
 #include "car_speed.h"

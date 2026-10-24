@@ -19,6 +19,7 @@
 #include "car_speed.h"
 #include "car_resources.h"
 #include "physics_internal.h"
+#include "race_route.h"
 #include "owoot.h"
 #include "restunts.h"
 #include "video_pages.h"

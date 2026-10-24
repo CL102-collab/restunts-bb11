@@ -58,6 +58,7 @@
 #include "generated/INTRO_RENDER.HC"
 #include "generated/TRACK_PREVIEW.HC"
 #include "generated/STATE.HC"
+#include "generated/RACE_ROUTE.HC"
 #include "generated/PHYSICS_GRIP.HC"
 #include "generated/OPPONENT.HC"
 #include "generated/TRACK_SETUP.HC"

@@ -41,7 +41,6 @@ legacy_s16 sweep_track_wall_span(struct VECTORLONG *previous_first,
 								 struct VECTORLONG *current_second, legacy_s16 *fraction);
 
 void configure_left_corner_bias(legacy_s16 argc, legacy_s8 *argv[]);
-void configure_dual_way_switching(legacy_s16 argc, legacy_s8 *argv[]);
 void configure_amiga_grass(legacy_s16 argc, legacy_s8 *argv[]);
 void apply_amiga_grass(struct SIMD *simd, const legacy_s8 car_id[4]);
 legacy_s16 scale_cornering_angle(legacy_s16 angle, legacy_u8 shift);

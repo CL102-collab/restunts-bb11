@@ -61,7 +61,7 @@ def main():
     shared = ["-std=c99", "-O2", "-Wall", "-Wextra", "-ffunction-sections",
               "-fdata-sections", "-Wl,--gc-sections"]
     fixtures = [
-        ("test-penalty-routing", ["physics_grip.c", "strlib.c"],
+        ("test-penalty-routing", ["race_route.c", "strlib.c"],
          ["-Wno-sign-compare"],
          "DWS default/on/off, option parsing, switched-route penalties, legal routes"),
         ("test-command-line", ["command_line.c"],
@@ -71,7 +71,8 @@ def main():
          "Android command-line help and option classification"),
         ("test-startup", ["math.c", "carsetup.c", "frame_adaptive.c", "owoot.c",
                           "statecar.c", "strlib.c", "physics_collision.c", "physics_grip.c",
-                          "full_data.c", "full_strings.c", "headless_data.c", "legacy.c"],
+                          "race_route.c", "full_data.c", "full_strings.c", "headless_data.c",
+                          "legacy.c"],
          ["-DRESTUNTS_SDL3", "-Wno-pointer-sign", "-Wno-missing-field-initializers",
           "-Wno-unused-variable"],
          "Android game startup with default, enabled, and disabled driving options"),
