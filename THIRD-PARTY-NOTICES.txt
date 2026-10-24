@@ -76,3 +76,25 @@ use that installation's library and accompanying license instead.
 
 DOS builds write the hardware AdLib chip and do not include Nuked OPL2 Lite.
 Original game resources are supplied separately and retain their own terms.
+
+McMurtry Speirling model reference
+---------------------------------
+Title: 2026 McMurtry Spéirling
+Author: Dave Love SketchFab (https://sketchfab.com/Tyler_Dave)
+Source: https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+http://creativecommons.org/licenses/by/4.0/
+
+The user-supplied GLB identifies the author, title, source and license above
+in its embedded asset.extras metadata. MCMU's exterior geometry adapts that
+reference into completely rebuilt low-polygon topology for the showroom and
+both racing detail levels, following the supplied mesh as the exterior
+reference. Changes include uniform length scaling, integer-quantized native
+animated wheels, rounded and enlarged wheel areas for visible tyre clearance,
+simplified lamps and rear details, native materials and seven paint schemes.
+The internal filename suggests an earlier prototype despite its 2026 title.
+The original high-polygon GLB and its textures are not included. The editable
+adapted geometry is exported as
+MCMU.obj and MCMU.mtl; runtime geometry is in STMCMU.3SH. Attribution and source
+hashes are also recorded in MCMU.json and READMCMU.TXT. These changes do not
+imply endorsement by the source author.

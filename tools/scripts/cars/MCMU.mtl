@@ -1,4 +1,4 @@
-# Original model; material names retain their native Stunts IDs.
+# Source-derived model; material names retain native Stunts IDs.
 newmtl material_0
 Kd 0.0080 0.0090 0.0120
 Ka 0.04 0.04 0.04
@@ -49,12 +49,6 @@ Ns 32
 
 newmtl material_66
 Kd 0.0000 0.9600 0.9600
-Ka 0.04 0.04 0.04
-Ks 0.15 0.15 0.15
-Ns 32
-
-newmtl material_88
-Kd 0.0100 0.0250 0.0700
 Ka 0.04 0.04 0.04
 Ks 0.15 0.15 0.15
 Ns 32

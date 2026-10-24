@@ -18,7 +18,8 @@ DOS game ignores these extra resources. Use identical car resources when
 recording and playing back a replay.
 
 REAL CAR AND SCALE
-This is the 2026 production PURE: 3815 x 1795 x 1056 mm,
+The driving specification targets the 2026 production PURE:
+3815 x 1795 x 1056 mm,
 2200 mm wheelbase, approximately 1350 kg (subject to options),
 1000 bhp (745 kW), 190 mph, 100 kWh, twin-motor rear-wheel drive.
 One fixed forward ratio is represented. The production car was unveiled
@@ -35,28 +36,68 @@ MCMU.json records the factory figures. The in-game description uses the
 user's supplied display text.
 
 Geometry uses 44 mm per racing-model unit, calibrated to the stock Corvette
-and NSX. Both race LODs have the same real-world size; the showroom uses
-the same proportions at the stock 20x scale. Wheels and physical contacts
-agree, with tyre bottoms on the engine's six-unit contact plane.
+and NSX. The supplied mesh is uniformly scaled to the nominal car length;
+its width and height retain the source proportions. Both race LODs have the
+same size; the showroom uses the stock 20x scale.
+Wheel locations follow the supplied mesh with native integer quantization.
+Wheels and physical contacts agree on the engine's six-unit contact plane.
 
 MODEL SOURCES
-A free Sketchfab model was found, but its official download endpoint
-requires authentication; other candidates were paid or lacked clear reuse
-permission. This package therefore uses original photo-based low-polygon
-geometry and cockpit artwork, as authorized by the request. No third-party
-mesh or manufacturer photograph is redistributed. MCMU.json records the
-model search, photo URLs, specifications, dimensions and resource hashes.
-The front and rear are reconstructed from the manufacturer's 2026 production
-photographs, including the sculpted rear ducts and divided nose intakes.
+The exterior is a new native low-polygon adaptation guided by the supplied
+2026-mcmurtry-speirling.zip GLB. Its embedded asset.extras metadata credits:
+2026 McMurtry Speirling by Dave Love SketchFab
+https://sketchfab.com/Tyler_Dave
+https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b
+License: CC BY 4.0 - http://creativecommons.org/licenses/by/4.0/
+Supplied GLB SHA-256:
+c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013
+The source hierarchy names exmods_mcmurtry_speirling22.fbx, suggesting an
+earlier prototype despite its 2026 title. The supplied high-resolution mesh
+is the exterior ground truth for the nose, canopy, main rear wing and wheels.
+All three exterior topologies are rebuilt from scratch for native Stunts
+primitives, uniform length scaling, animated wheels and seven paint schemes.
+The original high-polygon GLB, its textures and manufacturer photographs
+are not included.
+MCMU.json records the supplied GLB hash, attribution, changes, photo URLs,
+specifications, dimensions and resource hashes. The cockpit remains original
+indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
-The raised fender shoulders cover the upper tyre envelope in all model
-detail levels, checked against the quantized geometry during generation.
+The nose has curved body-coloured upper and lower bands and rolled side
+cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
+The four white front lamp markers are omitted.
+A tall, narrow, recessed dark-grey gill sits behind each front wheel. The
+highlighted side duct in detail.png is simplified into a vertical fish-like
+gill, as requested, with tapered ends and body-coloured panels around it.
+Its grey wall faces rearward, behind an outer lip that screens it from the front.
+The old side skin is replaced so the recess remains visible at oblique angles.
+Its surrounding panels follow every existing arch chord to retain tyre clearance.
+Mirror heads are retained; stalks join existing crown vertices to save space.
+The wheel pods have rounded transverse sections and bowed outer shoulders.
+The front crown follows the shallow source profile toward the cockpit,
+without a tall peak above the axle. A small lift retains the arch lip.
+Enlarged circular arches leave a visible gap around the tyres; side panels
+are checked against the encoded front-steering envelope and rear circles.
+The minimum side and upper-cover gap is 1 game unit
+(44 mm), checked after integer quantization in every model.
+The rear has painted rolled shoulders and a lower bumper around a compact
+dark-grey inset, replacing the broad black equipment-bay cap. Its lower
+corners are recessed 1 game unit, giving the painted bands real depth.
+Four small round brake lamps form an upper and lower pair at each rear corner.
+They follow the supplied rear photographs; native round primitives replace
+the old two point markers and retain the game brake-light material.
+The upper lenses are about 89-98 mm across and the lower lenses are 88 mm.
+The editable OBJ represents the lamps as circular lens discs.
+The rear undertray rises into the body fascia with shared floor and tail
+seams, replacing the projecting low flap and central strake. Its exposed
+ramp and corner returns use the same darker grey as the underbody. The main floor
+stays inside the tyre paths and widens behind the rear openings.
+The thin centre fin above the canopy and rear cowl is omitted.
+The canopy surface, main rear wing and wheel controls are preserved.
 Each wheel's cover triangles follow it with native primitive flag 2, so
 the painter draws the fender after its wheel even at shallow angles.
-The four real wheel-crown openings are represented by bounded recessed
-vents with painted rims, dark recessed bowls and cross ribs, based on
-the user's 1000005898/5901/5899/5900.jpg detail photographs.
+The four bounded dark crown openings follow the source mesh and are native
+quadrilateral surfaces within the fenders.
 The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
 the earlier rectangular LCD wheel reference. A continuous shaped steering
 rim joins textured side grips with contrasting carbon top and bottom bridges.
@@ -87,5 +128,6 @@ https://mcmurtry.com/mcmurtry-speirling-production-form/
 https://mcmurtry.com/speirling-usa-debut/
 https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling
 https://www.carthrottle.com/news/finished-mcmurtry-speirling-pure-fan-car-here-1000bhp
+https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b
 https://www.zr1netregistry.com/Information/C4ZR-1GeneralInfo/Dimensions.aspx
 https://acuranews.com/en-US/releases/release-ff6633ebcc698302413a3d004c34ca74-1991-acura-nsx-specifications

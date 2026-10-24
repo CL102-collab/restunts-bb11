@@ -1,27 +1,33 @@
 # McMurtry Spéirling PURE custom car
 
-`MCMU` adds the **2026 production Spéirling PURE** as a new car. It includes
-original bodywork, turquoise default paint and six alternatives, a digital
-race cockpit, one forward gear and automatic fan adhesion. No existing car
-or engine code is replaced.
+`MCMU` adds a **McMurtry Spéirling** custom car with entirely rebuilt
+low-polygon bodywork, turquoise default paint and six alternatives, a digital
+race cockpit, one forward gear and automatic fan adhesion. Its exterior
+follows the supplied high-resolution model with rounded, enlarged wheel
+areas; its driving specification retains
+the 2026 production PURE figures described below. No existing car or engine
+code is replaced.
 
 Paint order: turquoise (default), purple, orange, yellow, blue, white and
 light gray.
 
 [View all seven paint jobs](cars/mcmurtry-paints.png).
 
-![MCMU in the native game renderer](cars/mcmurtry-race.png)
+![Current painted nose, rear bodywork and upright side gills, showroom and racing models from six views](cars/mcmurtry-models.png)
 
-[Front-fender close-up](cars/mcmurtry-fender-detail.png) ·
-[Front](cars/mcmurtry-front.png) ·
-[Rear](cars/mcmurtry-rear.png) ·
-[Rear three-quarter](cars/mcmurtry-rearquarter.png) ·
-[High-resolution view](cars/mcmurtry-hires.png) ·
+![Earlier boxier and refined rounded MCMU wheel areas from matching angles](cars/mcmurtry-model-comparison.png)
+
+![Rear before and after the connected rising diffuser correction](cars/mcmurtry-rear-comparison.png)
+
+![Front fender before and after lowering the crown toward the source profile](cars/mcmurtry-front-profile-comparison.png)
+
+![Front nose before and after replacing the broad black opening with curved paint and a narrow dark-grey inset](cars/mcmurtry-nose-comparison.png)
+
+![Rear before and after replacing the broad black fascia with curved paint and a compact dark-grey inset](cars/mcmurtry-tail-comparison.png)
+
+![Historical plain side panels and the original forward-facing upright gills, from side and front-quarter views](cars/mcmurtry-side-detail.png)
+
 [2026 specifications in the car menu](cars/mcmurtry-menu.png)
-
-![MCMU from above, showing four bounded wheel-arch vents](cars/mcmurtry-overhead.png)
-
-[Four vent details](cars/mcmurtry-vent-detail.png)
 
 ![MCMU cockpit showing live speed](cars/mcmurtry-cockpit.png)
 
@@ -45,36 +51,88 @@ bottoms at ground level; keep those two files together when importing.
 
 ## Model source
 
-An internet search found a free
-[OUTPISTON Sketchfab model](https://sketchfab.com/3d-models/mcmurtry-speirling-8217dad4511a441baadffac685ba4a62)
-under CC BY-NC-SA 4.0, but its official download API required authentication.
-The other candidates were paid marketplace assets or extracted game models
-without clear redistribution permission. None of those meshes is used.
+The exterior was rebuilt from scratch as native low-polygon topology, guided
+by the user-supplied `2026-mcmurtry-speirling.zip` GLB. The source is
+[2026 McMurtry Spéirling](https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b)
+by [Dave Love SketchFab](https://sketchfab.com/Tyler_Dave), identified in its
+embedded `asset.extras` metadata as
+[CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). The manifest records
+that attribution and the supplied GLB's SHA-256 hash. The source contains
+211,145 triangles, 110 meshes and 43 materials; its original high-polygon
+GLB and textures are not included in this package.
 
-The initial car was reconstructed from the front, side, rear and
-three-quarter manufacturer renders accompanying the
-[June 2023 PURE announcement](https://mcmurtry.com/the-mcmurtry-speirling-pure-a-record-breaking-track-only-fan-car-you-can-own/).
-The front and rear have since been rebuilt from the manufacturer's
-[2026 production photographs](https://mcmurtry.com/mcmurtry-speirling-production-form/),
-including the divided nose intakes, headlight housings, sculpted rear ducts,
-tail lamps and diffuser. The shell also incorporates the user's wheel-vent
-detail photographs and is calibrated to the current 2026 dimensions and wheelbase.
-The original geometry retains the narrow bubble cockpit, rounded nose,
-separate wheel arches, recessed sides, rear fan ducts and raised wing.
-Manufacturer reference images are linked in the manifest, rather than
-redistributed. The editable authoring source is
-[`mcmurtry_model.py`](../tools/scripts/mcmurtry_model.py).
+Although the download is titled 2026, its hierarchy names
+`exmods_mcmurtry_speirling22.fbx`, suggesting an earlier prototype. The supplied
+high-resolution mesh establishes the exterior reference. The adaptation
+replaces all exterior topology in the showroom and both racing detail levels.
+The nose, canopy, side recesses, rear bodywork, roof, main rear wing and
+wheel locations follow the source mesh. The thin centre fin above the canopy
+and rear cowl is omitted for a clean roof silhouette. A subsequent wheel-area
+refinement prioritizes rounded fenders and a visible tyre gap. The accepted
+canopy surface and animated wheel controls remain unchanged. Mirror heads
+retain their shape, with stems attached to existing fender-crown vertices to
+reserve geometry for the side gills. The front fender crown follows the
+source's shallow, nearly level profile toward the cockpit, with a small lift over the enlarged native arch instead of a tall
+peak over the axle.
+The nose has curved body-colour bands above and below a narrow dark-grey
+inset, rolled painted cheeks and a low splitter. The four white front lamp
+markers are omitted. Four shared rows of five points form the front
+curvature, with triangles joining the bands and side caps. The inset
+uses native grey material 19 (RGB 72, 72, 72), keeping the remaining intake
+visible without a broad black opening. The front cap and lower rim share
+seams with the hood and undertray, including at racing precision.
+Each side has a single tall, narrow, tapered gill behind the front wheel.
+The user-supplied `detail.png` guides its vertical shape; the opening faces
+rearward as requested. Its recessed dark-grey triangular wall is visible
+from behind, while body-colour skin covers it from front-quarter views.
+The centre pulls 1.5 game units inward to give the recess depth, while the
+surrounding side panels share the existing wheel-arch edges. Three added
+vertices per side form this detail without changing the tyre clearance.
+The wing has two elements and large swept endplates. Native animated wheels
+use integer controls, and seven paint schemes use native materials.
+The rear fascia has painted shoulders that roll down from the complete
+rear roof cross-section, and a painted lower bumper around a compact
+dark-grey inset. Its lower edge sits one game unit inward, giving the
+inset a shallow recess. It uses the same grey material 19 as the front
+instead of a broad black panel. Four small round red brake lamps form an
+upper and lower pair at each rear corner, placed from the three rear
+photographs supplied by the user. The upper lenses are approximately
+89–98 mm across after native quantization; the lower lenses are about 88 mm.
+Native round primitives simplify them to solid red circles, with brake
+material 45 preserving their brighter appearance under braking. Their
+upper diameter controls reuse existing fender-crown vertices to fit the
+native vertex limit. The canopy rear cap and main wing retain their geometry.
+The rear undertray rises into the lower fascia,
+with shared seams joining its centre ramp and side panels to the body. It
+ends flush with the rear body instead of extending downward beneath the wing.
+The exposed diffuser ramp and corner returns use the same darker grey
+carbon material 39 as the underbody. The upper rear inset retains grey
+material 19. The main floor stays inside the tyres and widens behind the
+rear arches.
 
-The nose has raised outer fenders, a low centre section, inset dark headlight
-lenses, divided black intakes and a carbon splitter. The rear's two duct
-mouths have four-corner inner sections, closed dark backs and small painted
-sidewalls. A narrow central spine and outer diffuser walls define the lower
-rear, with four small red lamps and hooked wing supports above it. These
-features are geometry in the showroom and both racing detail levels.
+The manifest retains earlier exterior photo URLs as historical references.
+The editable authoring source is
+[`mcmurtry_model.py`](../tools/scripts/mcmurtry_model.py), with measured GLB
+cross-sections, wheel centres and part bounds in
+[`mcmurtry_source_profile.json`](../tools/scripts/mcmurtry_source_profile.json).
+The reference GLB is not required for deterministic regeneration.
+`MCMU.obj` and `MCMU.mtl`
+export the adapted low-polygon geometry, with 16-sided discs for the rear
+lamp lenses. See
+[`THIRD-PARTY-NOTICES.txt`](../THIRD-PARTY-NOTICES.txt) for its attribution
+and modification notice.
 
 `car0` is the showroom shape; `car1` and `car2` are the racing detail levels.
-Four `exp` shapes provide crash debris. All shapes use native Stunts
+Four new `exp` shapes use panels from the rebuilt fender, door, glass and
+wing as crash debris. All shapes use native Stunts
 primitives and remain within its 255-vertex and 255-primitive limits.
+
+| Shape | Vertices | Primitives |
+| --- | ---: | ---: |
+| `car0` showroom | 255 | 246 |
+| `car1` racing | 255 | 245 |
+| `car2` distant racing | 247 | 241 |
+
 The first eight car vertices are bounds; the following 24 control the four
 animated wheels. The cockpit is original indexed-colour artwork based on
 the supplied `1000005914.jpg`, `1000005913.jpg` and `1000005912.jpg` cockpit
@@ -99,23 +157,20 @@ curved edge. These bitmap fenders use the
 default turquoise finish in every exterior paint scheme, as with fixed-colour
 bodywork in stock Stunts dashboards.
 
-The fenders have raised inner shoulders and explicitly triangulated covers
-above the tyre envelope, while the central bonnet stays low and the side
-wheel arches remain open. Four recessed wheel-crown vents follow the user's
-detail photographs `1000005898.jpg`, `1000005901.jpg`, `1000005899.jpg` and
-`1000005900.jpg`. Each has a chamfered painted rim, dark inset bowl,
-and a cross rib. This bounded low-polygon recess represents the real opening;
-it is distinct from an uncontrolled tyre painting over adjacent bodywork.
-The showroom and both racing models include the vents.
+The fender crowns use four points across each side to round the shoulders.
+Side arch openings follow a ten-unit circle in 30-degree steps around the
+eight-unit tyres. The larger openings preserve a visible gap after native
+integer rounding, including the projected front-wheel steering envelope.
+Four source-derived wheel-crown openings use bounded dark quadrilateral
+surfaces within the fenders. Their native attachment to each animated wheel
+preserves the drawing order in angled views.
 
 The native painter sorts a whole wheel at its rim centre and ordinary
 polygons at their average vertex depth. A physically correct fender can
 therefore paint behind its wheel in an angled view. Each wheel is now
-followed by its covering roof triangles and vent details with primitive flag
-`0x02`, which attaches them to the wheel's drawing order. The wheel paints
-first, then its cover and bounded vent recess. Outward face culling and open
-side arches are retained. The headlight lenses follow the front fender skin
-in the same group so the native painter preserves their visible surfaces.
+followed by its covering fender faces with primitive flag `0x02`, which
+attaches them to the wheel's drawing order. The wheel paints first, then
+its cover. Outward face culling and open side arches are retained.
 
 ## Real specifications and scale
 
@@ -145,19 +200,19 @@ A uniform **44 mm per racing-model unit** follows the stock Corvette's
 4,506 mm / 103 units and the NSX's 4,405 mm / 100 units. Stock cars have
 stylized proportions, so no new car can match every stock car exactly.
 
-| Dimension | Real 2026 PURE | Racing model | Stock NSX model |
-| --- | ---: | ---: | ---: |
-| Length | 3,815 mm | 86 | 100 |
-| Width | 1,795 mm | 40 | 40 |
-| Height including tyres | 1,056 mm | 24 | 24 |
-| Wheelbase | 2,200 mm | 50 | 58 |
+The downloaded mesh is uniformly scaled to the nominal 3,815 mm car length
+at that scale. Its width and height preserve the source aspect ratio; they
+are not adjusted to the production specification. The unrounded visual
+envelope is approximately 86.7 × 38.8 × 27.3 game units (length × width ×
+height). The rounded wheel areas deliberately adapt that reference. The
+showroom uses the stock 20× scale, and both racing detail levels share the
+same overall size and wheel controls.
 
-The showroom uses the stock 20× scale and retains approximately
-86.7 × 40.8 × 24 racing units. Symmetric integer rounding gives the racing
-dimensions above. Both racing detail levels have identical overall size and
-wheel contacts. Eight-unit tyre radii and two-unit axle height keep tyre
-bottoms on the engine's `y = -6` contact plane.
-The SIMD wheel coordinates, collision box and cockpit height follow the mesh.
+Wheel locations follow the source mesh with integer quantization for native
+animated wheels: front centres are `(±16, 2, 27)` and rear centres are
+`(±16, 2, -24)`, with eight-unit radii and three-unit half-widths. Tyre bottoms
+meet the engine's `y = -6` contact plane. The SIMD wheel coordinates,
+collision box and cockpit height follow the rebuilt geometry.
 See [the stock dimensional references](tesla-sizing.md#stock-reference-measurements)
 for the Corvette and NSX sources.
 
@@ -197,16 +252,32 @@ recording and replay playback.
 The generator validates DSI directories, the 776-byte SIMD, car text,
 seven model resources, polygon indices and normals, animated wheel slots,
 bounding boxes, visual/physical wheel agreement, contact height and uniform
-real-world scale. It also samples the encoded upper tyre envelope against
-the body surface, catching the original intersection in all three detail
-levels; the production-sized meshes have at least 1.07 model units of clearance.
-Only triangles attached to the matching wheel count as cover, so a change
-that loses the required native drawing order also fails generation.
+source scaling. Visible height follows the canopy ridge after removing the
+centre fin; the original source bounds remain recorded separately.
+It samples the encoded upper tyre envelope against the body surface and measures the actual side-facing triangles around each outer
+tyre face. This catches arch chords or filled openings that intersect a tyre
+after integer rounding, even when the roof clears it. Front-wheel checks
+include a conservative projected envelope for the full steering range.
+Every encoded outer arch must leave at least **one game unit (44 mm)** of
+gap. Current minimum clearances, in game units, are:
+
+| Shape | Front arches | Rear arches | Upper cover |
+| --- | ---: | ---: | ---: |
+| `car0` showroom | 1.108 | 1.317 | 1.510 |
+| `car1` / `car2` racing | 1.262 | 1.191 | 1.408 |
+
+The lower front crown retains the same side-arch gaps and more than one
+game unit of upper tyre clearance after native integer rounding.
+The arch minima apply to both wheels on each axle. Only triangles attached
+to the matching wheel count as upper cover, so a change that loses the
+required native drawing order also fails generation.
 It validates cockpit bitmaps, paired windshield masks and needle colour.
 Generation requires strictly less dashboard memory than DIA3, both after
 extraction and after native preparation, including instrument/gearbox scratch.
 `--check` compares generated bytes with the package and optional installed
-game files.
+game files. Run `python3 tools/scripts/test-mcmurtry-wheel-clearance.py` for
+focused regressions covering crossed arch chords, filled openings, inner
+channel faces, steering envelopes and both coordinate scales.
 
 The classic 320×200 native loader and allocator give these dashboard sizes:
 
@@ -224,25 +295,32 @@ the common preallocated window table. MCMU therefore uses about 43% less
 extracted resource memory and 51% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
-The native renderer and resource loader are also exercised with a temporary
-replay selecting `MCMU`, including a two-car setup that checks adhesion for
-both slots. The actual car menu renders the nine-row user-supplied
-description within its panel at classic and high resolutions.
-Overhead and elevated views check fender occlusion, and moving
-cockpit captures check live instruments and steering redraws. These checks
-use isolated game data and leave saved games intact.
+The exterior contact sheet renders the encoded showroom and both racing
+models through the native renderer from six views. The wheel comparison uses
+matching angles for the earlier boxier wheel areas and the refined rounded
+fenders and arches. The rear comparison shows the removed hanging panel and
+its replacement with a connected rising undertray from matching angles.
+The front-profile comparison records the earlier lower, flatter crown
+correction from matching side, front-quarter and front cameras. The nose
+comparison shows the broad black opening replaced with curved painted panels
+and a narrow dark-grey inset. The tail comparison shows the broad black
+rear fascia replaced with rolled painted shoulders, a lower painted bumper
+and a compact recessed grey inset. It retains the lighter grey diffuser
+surfaces from that earlier revision. The historical side-detail comparison
+shows the earlier plain side panels and the original forward-facing upright
+gills from matching side and front-quarter cameras for the showroom and
+racing models. The current exterior and paint previews include the revised
+ends and rear-facing side gills, with the lower rear matching the darker grey
+underbody, the white front lamp markers removed and four round rear brake
+lamps in vertical pairs. The other comparison sheets retain their earlier
+stages, including any front markers or the earlier two rear point markers.
+These deterministic captures make the visible tyre gap, source-shaped
+silhouette, painted nose and rear curvature, upright side gills, clean canopy,
+two-element wing, swept endplates, round rear lamps and dark crown slots
+reviewable.
 
-The angled wheel-occlusion regression also disables only wheel rasterization,
-preserving the native queue, depth sorting and attached cover polygons. In
-front, rear and overhead views, wheel-colour diagnostics distinguish tyre
-pixels from painted bodywork and confirm that normal near-side tyres remain
-visible.
-Far-wheel checks cover both racing detail levels and the actual showroom
-at classic and high resolutions. They require zero tyre drawing over the
-painted bodywork; overhead views also require zero wheel rasterization.
-Near-wheel controls confirm that visible tyres are drawn. Material isolation
-distinguishes the near tyre covering bodywork seen through its open side
-arch from a tyre drawing over its own fender skin.
-The four intentional vent recesses remain unchanged when wheel rasterization
-is disabled, distinguishing their modeled black interiors and cross ribs
-from unintended tyre drawing through the surrounding fenders.
+Existing cockpit and menu captures document the digital instruments,
+steering positions and nine-row car description. The retained driving
+validation uses a temporary `MCMU` replay, including a two-car setup that
+checks adhesion for both slots. These checks use isolated game data and
+leave saved games intact.

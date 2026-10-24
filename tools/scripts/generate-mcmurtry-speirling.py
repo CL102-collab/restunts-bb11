@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build and validate the MCMU Stunts car from original photo-based geometry.
+"""Build and validate the MCMU Stunts car from its native low-polygon sources.
 
 Run with --install stunts to install the four game resources in stunts/cars, or --check to
 verify that the checked-in files match their deterministic authoring sources.
-No third-party model download or graphics package is needed to rebuild them.
+The recorded reference GLB and graphics packages are not needed to regenerate them.
 """
 
 import argparse
@@ -20,9 +20,31 @@ import mcmurtry_physics as physics
 
 ROOT = Path(__file__).resolve().parents[2]
 CAR_ID = "MCMU"
+MODEL_DIMENSION_TOLERANCE = 1.1
+WHEEL_ARCH_MIN_CLEARANCE = 1.0
+WHEEL_ARCH_SIDE_BAND = 1.0
+FRONT_STEERED_WHEEL_COUNT = 2
+GEOMETRY_TOLERANCE = 1e-9
 GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH")
+DOWNLOADED_MODEL = {
+    "title": "2026 McMurtry Spéirling",
+    "author": "Dave Love SketchFab",
+    "author_url": "https://sketchfab.com/Tyler_Dave",
+    "source_url": "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
+    "license": "CC-BY-4.0",
+    "license_url": "http://creativecommons.org/licenses/by/4.0/",
+    "attribution_basis": "Author, title, source and license recorded in the supplied GLB asset.extras metadata.",
+    "supplied_archive": "2026-mcmurtry-speirling.zip",
+    "glb_sha256": "c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013",
+    "measured_source_profile": "tools/scripts/mcmurtry_source_profile.json",
+    "source_triangles": 211145, "source_meshes": 110, "source_materials": 43,
+    "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
+    "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small round brake lamps form an upper and lower pair at each rear corner, matching the supplied rear photographs. Native round primitives replace the old two point markers; shared crown vertices provide the upper diameter controls. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The original GLB and textures are not included.",
+}
 SPEC_SOURCE = physics.SPECIFICATION_SOURCE
 SOURCES = list(dict.fromkeys(physics.REAL_SPECIFICATIONS["sources"] + [
+    DOWNLOADED_MODEL["source_url"],
     "https://www.zr1netregistry.com/Information/C4ZR-1GeneralInfo/Dimensions.aspx",
     "https://acuranews.com/en-US/releases/release-ff6633ebcc698302413a3d004c34ca74-1991-acura-nsx-specifications",
 ]))
@@ -189,11 +211,92 @@ def validate_wheel_covers(points, triangles, scale, shift, name, *, wheel_groups
                     if min(u, v, 1 - u - v) >= -1e-8:
                         heights.append(a[1] + u * (b[1] - a[1]) + v * (c[1] - a[1]))
                 clearance = max(heights, default=-math.inf) - tyre_top
-                if clearance < .1:
+                if clearance < WHEEL_ARCH_MIN_CLEARANCE:
                     raise ValueError(f"Tyre protrudes through {name} wheel {wheel + 1} "
                                      f"at X={x:g}, Z={z:g}: clearance {clearance:.3f}")
                 minimum = min(minimum, clearance)
     return round(minimum, 3)
+
+
+def validate_wheel_arch_clearance(points, triangles, scale, shift, name):
+    """Measure the encoded side panels against the swept tyre silhouette.
+
+    Upper-cover rays do not detect a wheel arch whose vertices clear the tyre
+    but whose connecting chords cut through it. Clip the actual side-facing
+    triangles to a narrow band around the outer tyre face, then measure the
+    exact closest point of their YZ projections. This also detects a triangle
+    filling an intended opening after integer quantization. The front tyre's
+    enclosing projected radius includes its full width under any steering
+    angle; the rear tyres use their ordinary unsteered radius.
+    """
+    def normalize(point):
+        return point[0] / scale, (point[1] - shift) / scale, point[2] / scale
+
+    def clip_x(polygon, boundary, sense):
+        result = []
+        for a, b in zip(polygon, polygon[1:] + polygon[:1]):
+            a_inside = (a[0] - boundary) * sense >= -GEOMETRY_TOLERANCE
+            b_inside = (b[0] - boundary) * sense >= -GEOMETRY_TOLERANCE
+            if a_inside:
+                result.append(a)
+            if a_inside != b_inside:
+                fraction = (boundary - a[0]) / (b[0] - a[0])
+                result.append(tuple(a[axis] + fraction * (b[axis] - a[axis])
+                                    for axis in range(3)))
+        return result
+
+    def projected_distance(polygon, cy, cz):
+        projected = [(point[1] - cy, point[2] - cz) for point in polygon]
+        edges = list(zip(projected, projected[1:] + projected[:1]))
+        crosses = [a[0] * b[1] - a[1] * b[0] for a, b in edges]
+        if abs(sum(crosses)) > GEOMETRY_TOLERANCE and (
+                min(crosses) >= -GEOMETRY_TOLERANCE or
+                max(crosses) <= GEOMETRY_TOLERANCE):
+            return 0.0
+        minimum = math.inf
+        for a, b in edges:
+            dy, dz = b[0] - a[0], b[1] - a[1]
+            length_squared = dy * dy + dz * dz
+            fraction = (max(0.0, min(1.0, -(a[0] * dy + a[1] * dz) / length_squared))
+                        if length_squared > GEOMETRY_TOLERANCE else 0.0)
+            minimum = min(minimum, math.hypot(a[0] + fraction * dy,
+                                            a[1] + fraction * dz))
+        return minimum
+
+    side_faces = []
+    for triangle in triangles:
+        a, b, c = map(normalize, triangle)
+        u, v = [tuple(point[axis] - a[axis] for axis in range(3)) for point in (b, c)]
+        normal = (u[1] * v[2] - u[2] * v[1],
+                  u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+        if (abs(normal[0]) > GEOMETRY_TOLERANCE and
+                abs(normal[0]) >= max(abs(normal[1]), abs(normal[2]))):
+            side_faces.append([a, b, c])
+
+    clearances = []
+    for wheel in range(len(model.WHEEL_CENTERS)):
+        first = model.WHEEL_CONTROL_START + wheel * model.WHEEL_CONTROL_COUNT
+        inner, radial, outer = [normalize(points[first + index]) for index in (0, 1, 3)]
+        cy, cz = [(inner[axis] + outer[axis]) / 2 for axis in (1, 2)]
+        radius = abs(radial[1] - inner[1])
+        half_width = abs(outer[0] - inner[0]) / 2
+        swept_radius = (math.hypot(radius, half_width)
+                        if wheel < FRONT_STEERED_WHEEL_COUNT else radius)
+        minimum = math.inf
+        for triangle in side_faces:
+            polygon = clip_x(triangle, outer[0] - WHEEL_ARCH_SIDE_BAND, 1)
+            if polygon:
+                polygon = clip_x(polygon, outer[0] + WHEEL_ARCH_SIDE_BAND, -1)
+            if len(polygon) >= 3:
+                minimum = min(minimum, projected_distance(polygon, cy, cz) - swept_radius)
+        if not math.isfinite(minimum):
+            raise ValueError(f"No encoded wheel-arch side panels in {name} wheel {wheel + 1}")
+        if minimum + GEOMETRY_TOLERANCE < WHEEL_ARCH_MIN_CLEARANCE:
+            raise ValueError(f"Wheel arch intersects the tyre clearance envelope in {name} "
+                             f"wheel {wheel + 1}: clearance {minimum:.3f}, "
+                             f"required {WHEEL_ARCH_MIN_CLEARANCE:g}")
+        clearances.append(round(minimum, 3))
+    return clearances
 
 
 def dashboard_ram_usage(primary, secondary):
@@ -267,14 +370,17 @@ def validate(outputs, repository):
             "height": (max(p[1] for p in points[8:]) - floor) / scale,
             "wheelbase": (contacts[0][2] - contacts[3][2]) / 64,
         }
-        for axis in ("length", "width", "height", "wheelbase"):
-            mm = physics.REAL_SPECIFICATIONS[f"{axis}_mm"]
-            if abs(dimensions[axis] - mm / model.MM_PER_UNIT) > 1.1:
-                raise ValueError(f"Incorrect real-world scale for {axis} in {name}: {dimensions}")
+        expected = {"length": model.LENGTH, "width": model.WIDTH, "height": model.BODY_HEIGHT,
+                    "wheelbase": model.WHEEL_CENTERS[0][2] - model.WHEEL_CENTERS[3][2]}
+        for axis, value in expected.items():
+            if abs(dimensions[axis] - value) > MODEL_DIMENSION_TOLERANCE:
+                raise ValueError(f"Incorrect adapted model dimensions for {axis} in {name}: {dimensions}")
         metadata[name]["dimensions_game_units"] = dimensions
         wheel_groups = wheel_cover_groups(shape, points)
         metadata[name]["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
             points, triangles, scale, shift, name, wheel_groups=wheel_groups)
+        metadata[name]["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
+            points, triangles, scale, shift, name)
         metadata[name]["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
     budgets = {}
     for part, required in (("A", set("dash dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox".split())),
@@ -335,20 +441,28 @@ def generate(repository):
     manifest = {
         "car_id": CAR_ID, "name": "McMurtry Spéirling PURE", "variant": specs["variant"],
         "model_year": specs["model_year"], "specifications_verified_date": specs["verified_date"],
-        "game_name": "McMurtry Speirling PURE", "geometry": "Original low-polygon reconstruction from manufacturer photographs/renders, with front and rear bodywork rebuilt from the 2026 production-car photographs; no downloaded third-party mesh.",
-        "geometry_revision": "Production-car front and rear reconstructed with divided nose intakes, inset headlights, recessed rear ducts, four small tail lamps and a separate lower diffuser. Raised, triangulated fender shoulders clear the upper tyre envelope in all three model detail levels. Cover faces and bounded recessed wheel-arch vents follow their matching wheel with native flag 2, preserving their drawing order in angled views.",
-        "model_search": [{"url": "https://sketchfab.com/3d-models/mcmurtry-speirling-8217dad4511a441baadffac685ba4a62",
-                          "license": "CC BY-NC-SA 4.0", "result": "Official download API requires authentication (HTTP 401); not used."},
-                         {"url": "https://www.turbosquid.com/3d-models/3d-mcmurtry-speirling-model-2411624", "result": "Paid, editorial license; not used."}],
-        "reference_images": REFERENCE_IMAGES,
-        "initial_reconstruction_reference_images": INITIAL_REFERENCE_IMAGES,
-        "user_supplied_detail_references": DETAIL_REFERENCE_IMAGES,
-        "wheel_arch_vents": {"count": len(model.VENTS), "locations": model.VENTS,
-                             "width_game_units": model.VENT_WIDTH,
-                             "length_game_units": model.VENT_LENGTH,
-                             "recess_depth_game_units": model.VENT_DEPTH,
-                             "representation": "Chamfered painted rims, dark recessed bowls and a cross rib; a low-polygon approximation of the photographed wheel-crown openings."},
-        "reference_image_usage": "Reference only; manufacturer images are not redistributed in the car package.",
+        "game_name": "McMurtry Speirling PURE", "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
+        "geometry_revision": "The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small round brake lamps form vertical pairs at the rear corners, following the supplied photographs. Native round primitives and shared upper diameter controls retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+        "downloaded_model": DOWNLOADED_MODEL,
+        "historical_exterior_reference_images": REFERENCE_IMAGES,
+        "historical_initial_reconstruction_reference_images": INITIAL_REFERENCE_IMAGES,
+        "historical_user_supplied_exterior_detail_references": DETAIL_REFERENCE_IMAGES,
+        "side_duct_detail_reference": {"file": "detail.png",
+                                      "view": "User-highlighted side duct behind the front wheel.",
+                                      "usage": "Simplified into a narrow vertical fish-like gill on both sides, opening toward the rear as subsequently requested; reference image is not redistributed."},
+        "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
+        "rear_lamps": {"count": 4, "layout": "Upper and lower round lens at each outer rear corner.",
+                       "centres_game_units": [[side * model.REAR_LAMP_X, y,
+                                                model.REAR_BODY_Z - model.REAR_LAMP_FACE_OFFSET]
+                                               for side in (-1, 1)
+                                               for y in (model.REAR_LAMP_UPPER_Y, model.REAR_LAMP_LOWER_Y)],
+                       "lower_diameter_mm": model.REAR_LAMP_DIAMETER * model.MM_PER_UNIT,
+                       "upper_diameter_note": "Approximately 89 mm in the showroom and 98 mm after racing quantization; uses an existing crown vertex as the diameter endpoint.",
+                       "rendering": "Native round primitive 11, using the existing brake-light material; OBJ exports circular rear lens discs.",
+                       "user_reference_images": ["mcmurtry-speirling.3_l-2885740449.jpg",
+                                                 "McMurtry_Speirling_PURE_VP1_at_Castle_Combe_-_Rear_Side-1024x552-1480087278.jpg",
+                                                 "mas-rapido-que-un-formula-1-con-1000-cv-y-menos-de-una-tonelada-por-fin-llegan-los-primeros-mcmurtry-speirling-pure-2026112494-1770713231_3-2452372269.jpg"],
+                       "reference_usage": "Lamp placement and approximate size only; reference photographs are not redistributed."},
         "specifications": specs,
         "performance_note": "The 2026 production-car claim of 1.55 s to 60 mph includes one-foot rollout. Both standing-start and rollout-adjusted game timings are recorded separately; native tuning is an approximation of the production figures.",
         "game_straight_line_performance": performance,
@@ -356,8 +470,18 @@ def generate(repository):
         "sizing": {"millimetres_per_game_unit": model.MM_PER_UNIT, "showroom_scale": model.SHOWROOM_SCALE,
                    "showroom_y_offset": model.SHOWROOM_Y_OFFSET, "wheel_radius_game_units": model.WHEEL_RADIUS,
                    "wheel_centres_game_units": model.WHEEL_CENTERS,
+                   "reference_glb_bounds": model.SOURCE_BOUNDS,
+                   "reference_glb_uniform_scale": model.SOURCE_SCALE,
+                   "reference_model_dimensions_game_units": {"length": model.LENGTH,
+                       "width": model.WIDTH, "height": model.HEIGHT},
+                   "adapted_body_height_game_units": model.BODY_HEIGHT,
                    "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-                   "rounding": "2026 production dimensions set the nominal calibration. Symmetric racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x."},
+                   "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. Source wheel locations are quantized to integer native controls and the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling bounds enclose the quantized body and detail geometry."},
+        "wheel_arch_clearance": {"minimum_game_units": WHEEL_ARCH_MIN_CLEARANCE,
+                                 "minimum_mm": WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT,
+                                 "authored_arch_radius_game_units": model.ARCH_RADIUS,
+                                 "tyre_radius_game_units": model.WHEEL_RADIUS,
+                                 "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread."},
         "paint_jobs": list(model.PAINT_NAMES),
         "adhesion": {"fand": 1, "resource": "adhs", "version": 1, "max_distance_world_units": 12,
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
@@ -396,7 +520,8 @@ DOS game ignores these extra resources. Use identical car resources when
 recording and playing back a replay.
 
 REAL CAR AND SCALE
-This is the {specs['model_year']} production PURE: {specs['length_mm']} x {specs['width_mm']} x {specs['height_mm']} mm,
+The driving specification targets the {specs['model_year']} production PURE:
+{specs['length_mm']} x {specs['width_mm']} x {specs['height_mm']} mm,
 {specs['wheelbase_mm']} mm wheelbase, approximately {specs['weight_kg']} kg (subject to options),
 {specs['peak_power_bhp']} bhp ({specs['peak_power_kw']} kW), {specs['top_speed_mph']} mph, {specs['battery_kwh']} kWh, twin-motor rear-wheel drive.
 One fixed forward ratio is represented. The production car was unveiled
@@ -413,28 +538,68 @@ MCMU.json records the factory figures. The in-game description uses the
 user's supplied display text.
 
 Geometry uses 44 mm per racing-model unit, calibrated to the stock Corvette
-and NSX. Both race LODs have the same real-world size; the showroom uses
-the same proportions at the stock 20x scale. Wheels and physical contacts
-agree, with tyre bottoms on the engine's six-unit contact plane.
+and NSX. The supplied mesh is uniformly scaled to the nominal car length;
+its width and height retain the source proportions. Both race LODs have the
+same size; the showroom uses the stock 20x scale.
+Wheel locations follow the supplied mesh with native integer quantization.
+Wheels and physical contacts agree on the engine's six-unit contact plane.
 
 MODEL SOURCES
-A free Sketchfab model was found, but its official download endpoint
-requires authentication; other candidates were paid or lacked clear reuse
-permission. This package therefore uses original photo-based low-polygon
-geometry and cockpit artwork, as authorized by the request. No third-party
-mesh or manufacturer photograph is redistributed. MCMU.json records the
-model search, photo URLs, specifications, dimensions and resource hashes.
-The front and rear are reconstructed from the manufacturer's 2026 production
-photographs, including the sculpted rear ducts and divided nose intakes.
+The exterior is a new native low-polygon adaptation guided by the supplied
+2026-mcmurtry-speirling.zip GLB. Its embedded asset.extras metadata credits:
+2026 McMurtry Speirling by Dave Love SketchFab
+https://sketchfab.com/Tyler_Dave
+{DOWNLOADED_MODEL['source_url']}
+License: CC BY 4.0 - {DOWNLOADED_MODEL['license_url']}
+Supplied GLB SHA-256:
+{DOWNLOADED_MODEL['glb_sha256']}
+The source hierarchy names exmods_mcmurtry_speirling22.fbx, suggesting an
+earlier prototype despite its 2026 title. The supplied high-resolution mesh
+is the exterior ground truth for the nose, canopy, main rear wing and wheels.
+All three exterior topologies are rebuilt from scratch for native Stunts
+primitives, uniform length scaling, animated wheels and seven paint schemes.
+The original high-polygon GLB, its textures and manufacturer photographs
+are not included.
+MCMU.json records the supplied GLB hash, attribution, changes, photo URLs,
+specifications, dimensions and resource hashes. The cockpit remains original
+indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
-The raised fender shoulders cover the upper tyre envelope in all model
-detail levels, checked against the quantized geometry during generation.
+The nose has curved body-coloured upper and lower bands and rolled side
+cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
+The four white front lamp markers are omitted.
+A tall, narrow, recessed dark-grey gill sits behind each front wheel. The
+highlighted side duct in detail.png is simplified into a vertical fish-like
+gill, as requested, with tapered ends and body-coloured panels around it.
+Its grey wall faces rearward, behind an outer lip that screens it from the front.
+The old side skin is replaced so the recess remains visible at oblique angles.
+Its surrounding panels follow every existing arch chord to retain tyre clearance.
+Mirror heads are retained; stalks join existing crown vertices to save space.
+The wheel pods have rounded transverse sections and bowed outer shoulders.
+The front crown follows the shallow source profile toward the cockpit,
+without a tall peak above the axle. A small lift retains the arch lip.
+Enlarged circular arches leave a visible gap around the tyres; side panels
+are checked against the encoded front-steering envelope and rear circles.
+The minimum side and upper-cover gap is {WHEEL_ARCH_MIN_CLEARANCE:g} game unit
+({WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT:g} mm), checked after integer quantization in every model.
+The rear has painted rolled shoulders and a lower bumper around a compact
+dark-grey inset, replacing the broad black equipment-bay cap. Its lower
+corners are recessed {model.REAR_INSET_RECESS:g} game unit, giving the painted bands real depth.
+Four small round brake lamps form an upper and lower pair at each rear corner.
+They follow the supplied rear photographs; native round primitives replace
+the old two point markers and retain the game brake-light material.
+The upper lenses are about 89-98 mm across and the lower lenses are 88 mm.
+The editable OBJ represents the lamps as circular lens discs.
+The rear undertray rises into the body fascia with shared floor and tail
+seams, replacing the projecting low flap and central strake. Its exposed
+ramp and corner returns use the same darker grey as the underbody. The main floor
+stays inside the tyre paths and widens behind the rear openings.
+The thin centre fin above the canopy and rear cowl is omitted.
+The canopy surface, main rear wing and wheel controls are preserved.
 Each wheel's cover triangles follow it with native primitive flag 2, so
 the painter draws the fender after its wheel even at shallow angles.
-The four real wheel-crown openings are represented by bounded recessed
-vents with painted rims, dark recessed bowls and cross ribs, based on
-the user's 1000005898/5901/5899/5900.jpg detail photographs.
+The four bounded dark crown openings follow the source mesh and are native
+quadrilateral surfaces within the fenders.
 The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
 the earlier rectangular LCD wheel reference. A continuous shaped steering
 rim joins textured side grips with contrasting carbon top and bottom bridges.

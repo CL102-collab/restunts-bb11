@@ -588,9 +588,10 @@ the tachometer. The stock value `0x0010` keeps both needles white, and
 
 ### McMurtry Speirling PURE custom car
 
-The `MCMU` car represents the 2026 production Speirling PURE from
-manufacturer reference images, with matching showroom/racing scale, seven
-paints, a digital race cockpit, single-speed electric drive and fan adhesion.
+The `MCMU` car has new showroom/racing meshes rebuilt from the supplied
+high-resolution Speirling model, seven paints, a digital race cockpit,
+single-speed electric drive and fan adhesion. Driving specifications retain
+the 2026 production PURE tuning; exterior proportions follow the source mesh.
 Install it with:
 
 ```sh

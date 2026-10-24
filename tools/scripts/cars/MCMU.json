@@ -5,20 +5,27 @@
   "model_year": 2026,
   "specifications_verified_date": "2026-10-21",
   "game_name": "McMurtry Speirling PURE",
-  "geometry": "Original low-polygon reconstruction from manufacturer photographs/renders, with front and rear bodywork rebuilt from the 2026 production-car photographs; no downloaded third-party mesh.",
-  "geometry_revision": "Production-car front and rear reconstructed with divided nose intakes, inset headlights, recessed rear ducts, four small tail lamps and a separate lower diffuser. Raised, triangulated fender shoulders clear the upper tyre envelope in all three model detail levels. Cover faces and bounded recessed wheel-arch vents follow their matching wheel with native flag 2, preserving their drawing order in angled views.",
-  "model_search": [
-    {
-      "url": "https://sketchfab.com/3d-models/mcmurtry-speirling-8217dad4511a441baadffac685ba4a62",
-      "license": "CC BY-NC-SA 4.0",
-      "result": "Official download API requires authentication (HTTP 401); not used."
-    },
-    {
-      "url": "https://www.turbosquid.com/3d-models/3d-mcmurtry-speirling-model-2411624",
-      "result": "Paid, editorial license; not used."
-    }
-  ],
-  "reference_images": [
+  "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
+  "geometry_revision": "The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small round brake lamps form vertical pairs at the rear corners, following the supplied photographs. Native round primitives and shared upper diameter controls retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+  "downloaded_model": {
+    "title": "2026 McMurtry Spéirling",
+    "author": "Dave Love SketchFab",
+    "author_url": "https://sketchfab.com/Tyler_Dave",
+    "source_url": "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
+    "license": "CC-BY-4.0",
+    "license_url": "http://creativecommons.org/licenses/by/4.0/",
+    "attribution_basis": "Author, title, source and license recorded in the supplied GLB asset.extras metadata.",
+    "supplied_archive": "2026-mcmurtry-speirling.zip",
+    "glb_sha256": "c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013",
+    "measured_source_profile": "tools/scripts/mcmurtry_source_profile.json",
+    "source_triangles": 211145,
+    "source_meshes": 110,
+    "source_materials": 43,
+    "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
+    "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small round brake lamps form an upper and lower pair at each rear corner, matching the supplied rear photographs. Native round primitives replace the old two point markers; shared crown vertices provide the upper diameter controls. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The original GLB and textures are not included."
+  },
+  "historical_exterior_reference_images": [
     {
       "view": "2026 production front",
       "url": "https://mcmurtry.com/wp-content/uploads/2026/07/McMurtry-Speirling-PURE-front-2048x1280.jpg"
@@ -52,7 +59,7 @@
       "url": "https://mcmurtry.com/wp-content/uploads/2026/06/TRACK-OVERHEAD-1-2048x1365.jpg"
     }
   ],
-  "initial_reconstruction_reference_images": [
+  "historical_initial_reconstruction_reference_images": [
     {
       "view": "front",
       "url": "https://mcmurtry.com/wp-content/uploads/2024/06/McMurtry-Speirling-PURE-Front-View-1-1024x723-1.jpg"
@@ -70,7 +77,7 @@
       "url": "https://mcmurtry.com/wp-content/uploads/2024/06/Speirling-PURE-Hero-Shot-with-logos-1024x723-1.jpg"
     }
   ],
-  "user_supplied_detail_references": [
+  "historical_user_supplied_exterior_detail_references": [
     {
       "file": "1000005898.jpg",
       "view": "Close-up of front wheel-crown aperture, rim, dark recess and cross rib."
@@ -88,36 +95,47 @@
       "view": "Low front three-quarter view showing the aperture within the fender crown."
     }
   ],
-  "wheel_arch_vents": {
-    "count": 4,
-    "locations": [
-      {
-        "wheel": 0,
-        "center_x": -15.86489898989899,
-        "center_z": 25.56672494172494
-      },
-      {
-        "wheel": 1,
-        "center_x": 15.86489898989899,
-        "center_z": 25.56672494172494
-      },
-      {
-        "wheel": 2,
-        "center_x": 15.86489898989899,
-        "center_z": -25.56672494172494
-      },
-      {
-        "wheel": 3,
-        "center_x": -15.86489898989899,
-        "center_z": -25.56672494172494
-      }
-    ],
-    "width_game_units": 5.666035353535354,
-    "length_game_units": 10.004370629370628,
-    "recess_depth_game_units": 0.8347826086956522,
-    "representation": "Chamfered painted rims, dark recessed bowls and a cross rib; a low-polygon approximation of the photographed wheel-crown openings."
+  "side_duct_detail_reference": {
+    "file": "detail.png",
+    "view": "User-highlighted side duct behind the front wheel.",
+    "usage": "Simplified into a narrow vertical fish-like gill on both sides, opening toward the rear as subsequently requested; reference image is not redistributed."
   },
-  "reference_image_usage": "Reference only; manufacturer images are not redistributed in the car package.",
+  "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
+  "rear_lamps": {
+    "count": 4,
+    "layout": "Upper and lower round lens at each outer rear corner.",
+    "centres_game_units": [
+      [
+        -14.39,
+        8.33,
+        -39.05
+      ],
+      [
+        -14.39,
+        -1.5,
+        -39.05
+      ],
+      [
+        14.39,
+        8.33,
+        -39.05
+      ],
+      [
+        14.39,
+        -1.5,
+        -39.05
+      ]
+    ],
+    "lower_diameter_mm": 88.0,
+    "upper_diameter_note": "Approximately 89 mm in the showroom and 98 mm after racing quantization; uses an existing crown vertex as the diameter endpoint.",
+    "rendering": "Native round primitive 11, using the existing brake-light material; OBJ exports circular rear lens discs.",
+    "user_reference_images": [
+      "mcmurtry-speirling.3_l-2885740449.jpg",
+      "McMurtry_Speirling_PURE_VP1_at_Castle_Combe_-_Rear_Side-1024x552-1480087278.jpg",
+      "mas-rapido-que-un-formula-1-con-1000-cv-y-menos-de-una-tonelada-por-fin-llegan-los-primeros-mcmurtry-speirling-pure-2026112494-1770713231_3-2452372269.jpg"
+    ],
+    "reference_usage": "Lamp placement and approximate size only; reference photographs are not redistributed."
+  },
   "specifications": {
     "variant": "2026 Speirling PURE production car",
     "model_year": 2026,
@@ -185,26 +203,52 @@
       [
         -16,
         2,
-        25
+        27
       ],
       [
         16,
         2,
-        25
+        27
       ],
       [
         16,
         2,
-        -25
+        -24
       ],
       [
         -16,
         2,
-        -25
+        -24
       ]
     ],
+    "reference_glb_bounds": [
+      [
+        -0.007688376135638886,
+        -2.053976013049806e-05,
+        -0.017174607131452687
+      ],
+      [
+        0.00768837673168532,
+        0.010808423515966005,
+        0.01717460593935982
+      ]
+    ],
+    "reference_glb_uniform_scale": 2524.2076223347526,
+    "reference_model_dimensions_game_units": {
+      "length": 86.70454545454545,
+      "width": 38.814116794457526,
+      "height": 27.334551643505907
+    },
+    "adapted_body_height_game_units": 25.9,
     "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-    "rounding": "2026 production dimensions set the nominal calibration. Symmetric racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x."
+    "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. Source wheel locations are quantized to integer native controls and the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling bounds enclose the quantized body and detail geometry."
+  },
+  "wheel_arch_clearance": {
+    "minimum_game_units": 1.0,
+    "minimum_mm": 44.0,
+    "authored_arch_radius_game_units": 10.0,
+    "tyre_radius_game_units": 8,
+    "validation": "Exact closest distance to encoded side-panel triangles clipped at the outer tyre face. Front wheels use the enclosing YZ radius hypot(tyre_radius, half_width) for any steering angle. Upper covers are independently ray-tested across the tread."
   },
   "paint_jobs": [
     "Turquoise",
@@ -302,57 +346,75 @@
   "dashboard_ram_note": "Classic 320x200 native arena payloads including 16-byte allocation rounding and shared instrument/gearbox scratch bitmaps. Sprite definitions and row tables use the common preallocated window table. Generation requires strictly less extracted, prepared and resident dashboard RAM than DIA3.",
   "models": {
     "car0": {
-      "vertices": 254,
-      "primitives": 255,
+      "vertices": 255,
+      "primitives": 246,
       "paint_jobs": 7,
       "dimensions_game_units": {
         "length": 86.7,
-        "width": 40.8,
-        "height": 24.0,
-        "wheelbase": 50.0
+        "width": 38.5,
+        "height": 25.9,
+        "wheelbase": 51.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.07,
+      "minimum_upper_tyre_clearance_game_units": 1.51,
+      "minimum_side_arch_tyre_clearance_game_units": [
+        1.108,
+        1.108,
+        1.317,
+        1.317
+      ],
       "wheel_cover_triangles_attached_to_each_wheel": [
-        19,
-        19,
-        14,
-        14
+        27,
+        27,
+        22,
+        22
       ]
     },
     "car1": {
-      "vertices": 253,
-      "primitives": 252,
+      "vertices": 255,
+      "primitives": 245,
       "paint_jobs": 7,
       "dimensions_game_units": {
         "length": 86.0,
-        "width": 40.0,
-        "height": 24.0,
-        "wheelbase": 50.0
+        "width": 38.0,
+        "height": 26.0,
+        "wheelbase": 51.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.093,
+      "minimum_upper_tyre_clearance_game_units": 1.408,
+      "minimum_side_arch_tyre_clearance_game_units": [
+        1.262,
+        1.262,
+        1.191,
+        1.191
+      ],
       "wheel_cover_triangles_attached_to_each_wheel": [
-        19,
-        19,
-        14,
-        14
+        27,
+        27,
+        22,
+        22
       ]
     },
     "car2": {
       "vertices": 247,
-      "primitives": 244,
+      "primitives": 241,
       "paint_jobs": 7,
       "dimensions_game_units": {
         "length": 86.0,
-        "width": 40.0,
-        "height": 24.0,
-        "wheelbase": 50.0
+        "width": 38.0,
+        "height": 26.0,
+        "wheelbase": 51.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.093,
+      "minimum_upper_tyre_clearance_game_units": 1.408,
+      "minimum_side_arch_tyre_clearance_game_units": [
+        1.262,
+        1.262,
+        1.191,
+        1.191
+      ],
       "wheel_cover_triangles_attached_to_each_wheel": [
-        19,
-        19,
-        14,
-        14
+        27,
+        27,
+        22,
+        22
       ]
     },
     "exp0": {
@@ -382,17 +444,18 @@
     "https://mcmurtry.com/speirling-usa-debut/",
     "https://en.wikipedia.org/wiki/McMurtry_Sp%C3%A9irling",
     "https://www.carthrottle.com/news/finished-mcmurtry-speirling-pure-fan-car-here-1000bhp",
+    "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
     "https://www.zr1netregistry.com/Information/C4ZR-1GeneralInfo/Dimensions.aspx",
     "https://acuranews.com/en-US/releases/release-ff6633ebcc698302413a3d004c34ca74-1991-acura-nsx-specifications"
   ],
   "files": {
     "CARMCMU.RES": {
       "bytes": 1012,
-      "sha256": "4c1f7da07f53c1933aaa99f6abdea168e0b2ca5e4f88c0f9adcd470f68b13c11"
+      "sha256": "ed1bcda3aaad3a213a0d437d58e073278786b18414315990172bad52bb994861"
     },
     "STMCMU.3SH": {
-      "bytes": 19958,
-      "sha256": "b26d27dee1592c6bb6a57a2c2f90a0d4402e2a8c3ebdc75f5b1142e7516a419a"
+      "bytes": 19722,
+      "sha256": "0a2b680de46fccfd20fac6fc9e4f3a5329dfb072ff26bfd1bb9579629e566f7c"
     },
     "STDAMCMU.VSH": {
       "bytes": 81991,
@@ -403,12 +466,12 @@
       "sha256": "5f0a65e60e3df8de588aaf14aa18506b64baeacc9699d5cc3e6b93c1ccda5bf3"
     },
     "MCMU.obj": {
-      "bytes": 22184,
-      "sha256": "700940aea65e96b0cb349b531e3cfae6313cad0f141c15b23e52e52497fd9e58"
+      "bytes": 24674,
+      "sha256": "d601d14554b57ae62339cf1681dd2e3f4e61d10f66130d5d19ac428f4a9a6f8e"
     },
     "MCMU.mtl": {
-      "bytes": 923,
-      "sha256": "62e23a9807ddbd3cd213a922f5776f78ce717ec6f0ce86aa372647774b17b0a0"
+      "bytes": 837,
+      "sha256": "66c84309ee34ff07c0768d860e06828ad2e9076e181ea8e50ff57152d244c3d8"
     }
   }
 }
