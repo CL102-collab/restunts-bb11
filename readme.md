@@ -718,28 +718,34 @@ sudo apt-get install build-essential cmake ninja-build git curl ca-certificates 
 
 #### Linux host: Linux backend
 
-Install the desktop driver development libraries, then configure and build:
+Install the desktop driver development libraries and GTK 3 development files
+for the native startup window, then configure and build:
 
 ```sh
 sudo apt-get install libasound2-dev libpulse-dev libx11-dev libxext-dev \
     libxrandr-dev libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
     libwayland-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev \
-    libegl1-mesa-dev libgl1-mesa-dev
+    libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev
 cmake -S . -B out/sdl3-linux-x64 -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build out/sdl3-linux-x64 --parallel 2
 ```
 
-For **32-bit Linux** on the same x64 host, install multilib and the i386
-versions of the driver libraries, then use the Linux x86 toolchain:
+The [native startup window](docs/launcher.md) is enabled by default and uses
+wxWidgets with GTK 3 on Linux. To build without it, add
+`-DRESTUNTS_BUILD_LAUNCHER=OFF` to the CMake configure command.
+
+For **32-bit Linux** on the same x64 host, install C and C++ multilib and the
+i386 versions of the driver and GTK libraries, then use the Linux x86 toolchain:
 
 ```sh
 sudo dpkg --add-architecture i386
 sudo apt-get update
-sudo apt-get install gcc-multilib libasound2-dev:i386 libpulse-dev:i386 \
+sudo apt-get install gcc-multilib g++-multilib \
+    libasound2-dev:i386 libpulse-dev:i386 \
     libx11-dev:i386 libxext-dev:i386 libxrandr-dev:i386 libxcursor-dev:i386 \
     libxi-dev:i386 libxfixes-dev:i386 libxss-dev:i386 libxtst-dev:i386 \
     libwayland-dev:i386 libxkbcommon-dev:i386 libudev-dev:i386 libdrm-dev:i386 \
-    libgbm-dev:i386 libegl1-mesa-dev:i386 libgl1-mesa-dev:i386
+    libgbm-dev:i386 libegl1-mesa-dev:i386 libgl1-mesa-dev:i386 libgtk-3-dev:i386
 cmake -S . -B out/sdl3-linux-x86 -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake
 cmake --build out/sdl3-linux-x86 --parallel 2
