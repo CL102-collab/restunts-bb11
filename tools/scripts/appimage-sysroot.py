@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import shlex
 import shutil
 import subprocess
 import tarfile
@@ -88,7 +89,7 @@ GTK_EXTERNAL_PACKAGES = frozenset({
 })
 
 
-def selected(name, runtime=False, gtk=False):
+def selected(name, runtime=False, gtk=False, sdk=False):
     if runtime:
         return (
             name == "lib" or name.startswith("lib/") or name == "lib64" or name.startswith("lib64/")
@@ -102,6 +103,18 @@ def selected(name, runtime=False, gtk=False):
         return PurePosixPath(name).name in LEGACY_COMPILER_INPUTS
     if name == "usr/include" or name.startswith("usr/include/"):
         return True
+    if sdk:
+        if name.startswith("usr/lib/gcc/"):
+            return PurePosixPath(name).name in LEGACY_COMPILER_INPUTS | {"libatomic.a"}
+        if name.startswith(("lib/", "usr/lib/")) and name.endswith(".o"):
+            return True
+        if name.startswith(("usr/share/alsa/", "usr/share/X11/",
+                            "usr/share/common-licenses/")):
+            return True
+        if name.startswith("usr/share/doc/"):
+            return PurePosixPath(name).name in ("copyright", "COPYING", "COPYING3",
+                                                "COPYING.RUNTIME")
+        return selected(name, gtk=True)
     if gtk:
         if name.startswith("usr/share/pkgconfig/"):
             return True
@@ -135,7 +148,7 @@ def remove(path):
         shutil.rmtree(path)
 
 
-def extract(archive, destination, runtime=False, gtk=False):
+def extract(archive, destination, runtime=False, gtk=False, sdk=False):
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
     with tarfile.open(archive) as source:
@@ -146,7 +159,7 @@ def extract(archive, destination, runtime=False, gtk=False):
             parts = PurePosixPath(name).parts
             if not parts or name.startswith("/") or ".." in parts:
                 raise RuntimeError(f"Unsafe archive member: {member.name}")
-            if not selected(name, runtime, gtk):
+            if not selected(name, runtime, gtk, sdk):
                 continue
             path = destination.joinpath(*parts)
             if not path.parent.resolve().is_relative_to(root):
@@ -177,7 +190,7 @@ def extract(archive, destination, runtime=False, gtk=False):
                 remove(path)
                 with source.extractfile(member) as content, path.open("wb") as output:
                     shutil.copyfileobj(content, output, 1024 * 1024)
-                path.chmod(0o644)
+                path.chmod(0o755 if member.mode & 0o111 else 0o644)
             # Device nodes and other container metadata are never needed.
 
 
@@ -264,6 +277,113 @@ def prepare_gtk(index_url, index_checksum, cache, destination):
     (destination / "packages.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
 
 
+def debian_package_index(index):
+    packages = {}
+    for stanza in gzip.decompress(index.read_bytes()).decode("utf-8").split("\n\n"):
+        fields = {}
+        for line in stanza.splitlines():
+            key, separator, value = line.partition(": ")
+            if separator and not line[:1].isspace():
+                fields[key] = value
+        if "Package" in fields:
+            packages[fields["Package"]] = fields
+    return packages
+
+
+def compiler_include_arguments(compiler, sysroot, triple):
+    """Retain compiler intrinsics while excluding the host cross-libc headers."""
+    directories = []
+    for resource in ("include", "include-fixed"):
+        path = Path(subprocess.check_output(
+            [compiler, "-print-file-name=" + resource], text=True).strip())
+        if path.is_dir():
+            directories.append(path)
+        elif resource == "include":
+            raise RuntimeError("The cross compiler is missing its intrinsic headers")
+    directories.extend((sysroot / "usr/include" / triple, sysroot / "usr/include"))
+    return ["-nostdinc", *("-isystem" + str(path) for path in directories)]
+
+
+def debian_sdk_packages(packages, roots):
+    """Follow library/header dependencies without extracting obsolete programs."""
+    names, pending = set(), list(roots)
+    while pending:
+        name = pending.pop()
+        if name in names:
+            continue
+        if name not in packages:
+            raise RuntimeError(f"Missing pinned SDK package: {name}")
+        names.add(name)
+        for field in ("Depends", "Pre-Depends"):
+            for group in packages[name].get(field, "").split(","):
+                alternatives = [alternative.strip().split(" ", 1)[0].split(":", 1)[0]
+                                for alternative in group.split("|")]
+                dependency = next((item for item in alternatives if item in packages), None)
+                if dependency and (dependency.startswith(("lib", "zlib")) or
+                                   dependency.endswith("-dev") or dependency in roots):
+                    pending.append(dependency)
+    return sorted(names)
+
+
+def prepare_debian_sdk(index_url, index_checksum, archive_root, cache, destination, roots):
+    index = download(index_url, index_checksum, cache / (index_checksum + ".Packages.gz"))
+    packages = debian_package_index(index)
+    manifest = []
+    for name in debian_sdk_packages(packages, roots):
+        package = packages[name]
+        checksum = package["SHA256"]
+        url = urllib.parse.urljoin(archive_root, package["Filename"])
+        archive = download(url, checksum, cache / (checksum + ".deb"))
+        with tempfile.TemporaryDirectory(prefix="restunts-sdk-package-") as directory:
+            contents = Path(directory) / "contents.tar"
+            with contents.open("wb") as output:
+                subprocess.run(["dpkg-deb", "--fsys-tarfile", str(archive)], stdout=output,
+                               check=True)
+            extract(contents, destination, sdk=True)
+        manifest.append(f"{name} {package['Version']} {checksum} {url}")
+    (destination / "packages.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
+
+
+def copy_debian_runtime(sysroot, destination, triple):
+    """Flatten multiarch SONAMEs while retaining GTK's module directories."""
+    module_directories = frozenset(("gtk-2.0", "gdk-pixbuf-2.0", "pango", "gio"))
+    output = destination / "lib"
+    output.mkdir(parents=True, exist_ok=True)
+    for relative in ("lib", "usr/lib"):
+        library_root = sysroot / relative
+        for library in library_root.rglob("*"):
+            if not library.is_file() or ".so" not in library.name:
+                continue
+            with library.open("rb") as stream:
+                if stream.read(4) != b"\x7fELF":
+                    continue
+            parts = library.relative_to(library_root).parts
+            if parts[0] == triple:
+                parts = parts[1:]
+            target = output.joinpath(*parts) if parts[0] in module_directories else output / library.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(library.resolve(), target)
+    for relative, target in (("etc/fonts", "etc/fonts"), ("usr/share/alsa", "share/alsa"),
+                             ("usr/share/X11", "share/X11"), ("usr/share/libthai", "share/libthai"),
+                             ("usr/share/common-licenses", "share/licenses/debian")):
+        source = sysroot / relative
+        if source.is_dir():
+            shutil.copytree(source, destination / target, symlinks=False, dirs_exist_ok=True)
+    for copyright in (sysroot / "usr/share/doc").rglob("copyright"):
+        if copyright.is_file():
+            target = destination / "share/licenses/packages" / copyright.relative_to(sysroot / "usr/share/doc")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(copyright.resolve(), target)
+    source_directory = destination / "share/sources"
+    source_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(sysroot / "packages.txt", source_directory / "appimage-sdk-packages.txt")
+    loaders = output / "gdk-pixbuf-2.0/2.10.0/loaders"
+    legacy_loaders = output / "gtk-2.0/2.10.0/loaders"
+    if loaders.is_dir() and not legacy_loaders.exists():
+        legacy_loaders.parent.mkdir(parents=True, exist_ok=True)
+        legacy_loaders.symlink_to(os.path.relpath(loaders, legacy_loaders.parent))
+
+
 def prune_runtime(directory, roots=GTK_RUNTIME_ROOTS):
     """Retain the GUI/audio library closure and matching optional GTK modules."""
     libraries = [path for path in directory.rglob("*") if path.is_file() and
@@ -294,11 +414,11 @@ def prune_runtime(directory, roots=GTK_RUNTIME_ROOTS):
             path.unlink()
 
 
-def patch_cxx_headers(destination):
+def patch_cxx_headers(destination, header_relative=None):
     # Modern GCC emits this C++11 ABI helper; the pinned runtime predates it.
     # Keep the standard exception type and inheritance instead of substituting
     # bad_alloc or increasing the glibc requirement with a newer runtime.
-    header = destination / LEGACY_CXX_PREFIX / "include/c++/4.8.2/new"
+    header = destination / (header_relative or (LEGACY_CXX_PREFIX + "/include/c++/4.8.2/new"))
     text = header.read_text()
     if "class bad_array_new_length" not in text:
         declaration = """
@@ -355,6 +475,25 @@ def main():
     gtk.add_argument("--index-sha256", required=True)
     gtk.add_argument("--cache", required=True, type=Path)
     gtk.add_argument("--destination", required=True, type=Path)
+    debian = subparsers.add_parser("debian-sdk")
+    debian.add_argument("--index-url", required=True)
+    debian.add_argument("--index-sha256", required=True)
+    debian.add_argument("--archive-root", required=True)
+    debian.add_argument("--cache", required=True, type=Path)
+    debian.add_argument("--destination", required=True, type=Path)
+    debian.add_argument("packages", nargs="+")
+    copy_runtime = subparsers.add_parser("debian-runtime")
+    copy_runtime.add_argument("sysroot", type=Path)
+    copy_runtime.add_argument("destination", type=Path)
+    copy_runtime.add_argument("triple")
+    cxx = subparsers.add_parser("patch-cxx")
+    cxx.add_argument("sysroot", type=Path)
+    cxx.add_argument("header")
+    includes = subparsers.add_parser("compiler-includes")
+    includes.add_argument("compiler")
+    includes.add_argument("sysroot", type=Path)
+    includes.add_argument("triple")
+    includes.add_argument("--shell", action="store_true")
     runtime = subparsers.add_parser("prune-runtime")
     runtime.add_argument("directory", type=Path)
     prepare = subparsers.add_parser("prepare")
@@ -371,6 +510,20 @@ def main():
         return
     if args.command == "gtk":
         prepare_gtk(args.index_url, args.index_sha256, args.cache, args.destination)
+        return
+    if args.command == "debian-sdk":
+        prepare_debian_sdk(args.index_url, args.index_sha256, args.archive_root,
+                           args.cache, args.destination, args.packages)
+        return
+    if args.command == "debian-runtime":
+        copy_debian_runtime(args.sysroot, args.destination, args.triple)
+        return
+    if args.command == "patch-cxx":
+        patch_cxx_headers(args.sysroot, args.header)
+        return
+    if args.command == "compiler-includes":
+        arguments = compiler_include_arguments(args.compiler, args.sysroot, args.triple)
+        print(shlex.join(arguments) if args.shell else "\n".join(arguments))
         return
     if args.command == "prune-runtime":
         prune_runtime(args.directory)

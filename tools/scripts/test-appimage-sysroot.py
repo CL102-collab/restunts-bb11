@@ -4,6 +4,7 @@
 import hashlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -72,6 +73,17 @@ class SysrootTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Unsafe archive member"):
             sdk.extract(archive, self.root / "sysroot")
         self.assertFalse((self.root / "escape").exists())
+
+    def test_selected_target_loader_keeps_its_executable_permission(self):
+        archive = self.root / "loader.tar.gz"
+        content = b"target ELF loader"
+        with tarfile.open(archive, "w:gz") as output:
+            member = tarfile.TarInfo("lib/ld-linux-armhf.so.3")
+            member.size, member.mode = len(content), 0o755
+            output.addfile(member, io.BytesIO(content))
+        sdk.extract(archive, self.root / "sysroot", sdk=True)
+        loader = self.root / "sysroot/lib/ld-linux-armhf.so.3"
+        self.assertEqual(loader.stat().st_mode & 0o777, 0o755)
 
     def test_relative_symlink_escape_is_rejected(self):
         archive = self.archive("symlink.tar.gz", [
@@ -159,6 +171,81 @@ class SysrootTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Unexpected SDK multilib directory"):
             sdk.expose_x86_multilib(self.root, "lib")
         self.assertTrue(existing.is_dir())
+
+    def test_debian_sdk_closure_keeps_baseline_libraries_without_old_programs(self):
+        packages = {
+            "sdk-root": {"Depends": "libc6, missing | libchosen:any, python:any, gcc-base"},
+            "libc6": {"Pre-Depends": "libgcc1"}, "libgcc1": {}, "libchosen": {},
+            "python": {}, "gcc-base": {},
+        }
+        self.assertEqual(sdk.debian_sdk_packages(packages, ("sdk-root", "gcc-base")),
+                         ["gcc-base", "libc6", "libchosen", "libgcc1", "sdk-root"])
+        with self.assertRaisesRegex(RuntimeError, "Missing pinned SDK package"):
+            sdk.debian_sdk_packages(packages, ("missing-root",))
+
+    def test_compiler_header_isolation_keeps_pinned_headers_ahead_of_host_headers(self):
+        compiler = shutil.which("gcc")
+        if compiler is None:
+            self.skipTest("GCC is needed to exercise compiler header search ordering")
+        sysroot, host = self.root / "sysroot", self.root / "host-cross-libc"
+        pinned = sysroot / "usr/include"
+        for directory in (host, pinned):
+            directory.mkdir(parents=True)
+        (host / "baseline.h").write_text("#define RESTUNTS_HEADER_ORIGIN host\n")
+        (pinned / "baseline.h").write_text("#define RESTUNTS_HEADER_ORIGIN pinned\n")
+        environment = dict(os.environ, C_INCLUDE_PATH=str(host))
+        command = [compiler, "--sysroot=" + str(sysroot), "-E", "-dM", "-x", "c",
+                   "-include", "baseline.h", "-"]
+        before = subprocess.check_output(command, input="", env=environment, text=True)
+        self.assertIn("#define RESTUNTS_HEADER_ORIGIN host", before)
+        includes = sdk.compiler_include_arguments(compiler, sysroot, "target-triple")
+        after = subprocess.check_output(command + includes, input="", env=environment, text=True)
+        self.assertIn("#define RESTUNTS_HEADER_ORIGIN pinned", after)
+        self.assertIn("-nostdinc", includes)
+
+    def test_debian_sdk_extracts_target_crt_and_archives_without_compiler_programs(self):
+        triple = "arm-linux-gnueabihf"
+        gcc = "usr/lib/gcc/" + triple + "/4.7/"
+        startup = "usr/lib/" + triple + "/crt1.o"
+        header = "usr/include/c++/4.7/" + triple + "/bits/c++config.h"
+        archive = self.archive("arm-sdk.tar.gz", [
+            (startup, b"target startup", None), (gcc + "libgcc.a", b"target runtime", None),
+            (header, b"target C++ declarations", None),
+            (gcc + "liblto_plugin.so", b"obsolete compiler plugin", None),
+            (gcc + "cc1", b"obsolete compiler", None),
+            ("usr/bin/old-gcc", b"obsolete driver", None),
+        ])
+        destination = self.root / "sysroot"
+        sdk.extract(archive, destination, sdk=True)
+        self.assertEqual((destination / startup).read_bytes(), b"target startup")
+        self.assertEqual((destination / (gcc + "libgcc.a")).read_bytes(), b"target runtime")
+        self.assertTrue((destination / header).is_file())
+        self.assertFalse((destination / (gcc + "liblto_plugin.so")).exists())
+        self.assertFalse((destination / (gcc + "cc1")).exists())
+        self.assertFalse((destination / "usr/bin").exists())
+
+    def test_debian_runtime_flattens_multiarch_libraries_and_retains_gtk_modules(self):
+        triple = "aarch64-linux-gnu"
+        sysroot, destination = self.root / "sysroot", self.root / "deps"
+        libraries = sysroot / "usr/lib" / triple
+        module = "gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-png.so"
+        for name in ("libgtk-x11-2.0.so.0", "pulseaudio/libpulsecommon-5.0.so", module):
+            path = libraries / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"\x7fELFtarget runtime fixture")
+        (libraries / "libc.so").write_text("GROUP ( /lib/libc.so.6 )")
+        (sysroot / "packages.txt").write_text("pinned package manifest\n")
+        sdk.copy_debian_runtime(sysroot, destination, triple)
+        self.assertTrue((destination / "lib/libgtk-x11-2.0.so.0").is_file())
+        self.assertTrue((destination / "lib/libpulsecommon-5.0.so").is_file())
+        self.assertTrue((destination / "lib" / module).is_file())
+        alias = destination / "lib/gtk-2.0/2.10.0/loaders"
+        self.assertTrue(alias.is_symlink())
+        self.assertTrue(alias.resolve().is_relative_to(destination))
+        self.assertTrue((alias / "libpixbufloader-png.so").is_file())
+        self.assertFalse((destination / "lib/libc.so").exists())
+        self.assertEqual((destination / "share/sources/appimage-sdk-packages.txt").read_text(),
+                         "pinned package manifest\n")
 
     def test_runtime_pruning_keeps_transitive_and_module_dependencies(self):
         libraries = self.root / "lib"

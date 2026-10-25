@@ -257,14 +257,19 @@ class ReleasePackageTests(unittest.TestCase):
             with self.subTest(target=target):
                 archive = self.create(target)
                 files, modes = PACKAGES.archive_contents(archive)
+                native_target = "linux-arm32" if architecture == "armv7" else f"linux-{architecture}"
                 self.assertEqual(set(files) - {PACKAGES.MANIFEST},
-                                 PACKAGES.required_files(f"linux-{architecture}") | {PACKAGES.APPIMAGE})
+                                 PACKAGES.required_files(native_target) | {PACKAGES.APPIMAGE})
                 self.assertEqual(files[PACKAGES.APPIMAGE], self.runtime_data(target, PACKAGES.APPIMAGE))
                 self.assertTrue(modes[PACKAGES.APPIMAGE] & stat.S_IXUSR)
                 instructions = files[PACKAGES.README].decode("utf-8")
                 self.assertIn("bin/restunts.AppImage --data-dir", instructions)
                 self.assertIn("--appimage-extract", instructions)
-                self.assertIn("Ubuntu 10.04 (glibc 2.11)", instructions)
+                self.assertIn(PACKAGES.APPIMAGE_BASELINES[architecture], instructions)
+                if architecture == "armv7":
+                    self.assertIn("Pi 1 and the original Pi Zero use ARMv6", instructions)
+                elif architecture == "arm64":
+                    self.assertIn("Wheezy had no ARM64 release", instructions)
                 if target.endswith("-no-sse2"):
                     self.assertIn("without SSE2", instructions)
 
@@ -284,11 +289,10 @@ class ReleasePackageTests(unittest.TestCase):
                 wrong_magic[PACKAGES.APPIMAGE_MAGIC_OFFSET + 2] = 1
                 with self.assertRaisesRegex(ValueError, "Type-2 AppImage"):
                     PACKAGES.validate_contents(target, {**files, PACKAGES.APPIMAGE: wrong_magic}, modes)
-                wrong_architecture = (PACKAGES.ELF_CLASS_32, PACKAGES.ELF_MACHINE_X86) if \
-                    elf_class == PACKAGES.ELF_CLASS_64 else (PACKAGES.ELF_CLASS_64, PACKAGES.ELF_MACHINE_X64)
+                wrong_architectures = set(PACKAGES.ELF_ARCHITECTURES.values()) - {(elf_class, machine)}
                 for name in PACKAGES.ELF_FILES | {PACKAGES.APPIMAGE}:
-                    for content in (FILE_DATA, self.elf_data(*wrong_architecture),
-                                    self.elf_data(elf_class, PACKAGES.ELF_MACHINE_AARCH64)):
+                    for content in (FILE_DATA, *(self.elf_data(*wrong)
+                                                for wrong in sorted(wrong_architectures))):
                         with self.subTest(name=name, content=content), self.assertRaisesRegex(ValueError, "ELF"):
                             PACKAGES.validate_contents(target, {**files, name: content}, modes)
 

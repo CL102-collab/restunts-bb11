@@ -40,6 +40,8 @@ TARGETS = {
     "linux-appimage-x64": ".tar.gz",
     "linux-appimage-x86": ".tar.gz",
     "linux-appimage-x86-no-sse2": ".tar.gz",
+    "linux-appimage-armv7": ".tar.gz",
+    "linux-appimage-arm64": ".tar.gz",
     "linux-arm32": ".tar.gz",
     "linux-arm64": ".tar.gz",
     "linux-x86": ".tar.gz",
@@ -96,6 +98,18 @@ APPIMAGE_TARGETS = {
     "linux-appimage-x64": "x64",
     "linux-appimage-x86": "x86",
     "linux-appimage-x86-no-sse2": "x86",
+    "linux-appimage-armv7": "armv7",
+    "linux-appimage-arm64": "arm64",
+}
+APPIMAGE_ARCHITECTURE_NAMES = {
+    "x64": "x86-64", "x86": "32-bit x86",
+    "armv7": "ARMv7 hard-float", "arm64": "AArch64",
+}
+APPIMAGE_BASELINES = {
+    "x64": "Ubuntu 10.04 (glibc 2.11)",
+    "x86": "Ubuntu 10.04 (glibc 2.11)",
+    "armv7": "Raspbian 7 Wheezy (glibc 2.13)",
+    "arm64": "Debian 8 Jessie (glibc 2.19)",
 }
 APPIMAGE_MAGIC = b"AI\x02"
 APPIMAGE_MAGIC_OFFSET = 8
@@ -552,8 +566,9 @@ def readme(target, commit):
                   "With no arguments, bash run-restunts.sh also opens the startup window.",
                   "For direct CLI use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
     if target in APPIMAGE_TARGETS:
-        architecture = "x86-64" if APPIMAGE_TARGETS[target] == "x64" else "32-bit x86"
-        lines += [f"Linux {architecture}; targets Ubuntu 10.04 (glibc 2.11) or newer.",
+        architecture = APPIMAGE_TARGETS[target]
+        lines += [f"Linux {APPIMAGE_ARCHITECTURE_NAMES[architecture]}; targets "
+                  f"{APPIMAGE_BASELINES[architecture]} or newer.",
                   "Built using a verified legacy sysroot; the host's glibc is not bundled.",
                   "Start the AppImage with:",
                   "bin/restunts.AppImage (no arguments opens the startup window)",
@@ -567,6 +582,13 @@ def readme(target, commit):
             lines += ["The game and bundled dependencies are built without SSE2 instructions."]
         elif APPIMAGE_TARGETS[target] == "x86":
             lines += ["This 32-bit AppImage requires a processor with SSE2."]
+        elif architecture == "armv7":
+            lines += ["Requires an ARMv7 CPU, such as Raspberry Pi 2 or newer;",
+                      "Pi 1 and the original Pi Zero use ARMv6."]
+        elif architecture == "arm64":
+            lines += ["Requires a 64-bit ARM operating system; Wheezy had no ARM64 release.",
+                      "Raspberry Pi OS 64-bit starts with the Buster beta (2020),",
+                      "or Bullseye for its first stable 64-bit release (2022)."]
     if target.startswith("windows-x86"):
         lines += ["Requires Windows XP SP2 or newer (the pinned SDL system API minimum)."]
     if target in ELF_TARGETS:

@@ -5,5 +5,5 @@
 # dependencies must be provided inside the AppImage and meet its ABI baseline.
 SYSTEM_RUNTIME_LIBRARIES = frozenset({
     "libc.so.6", "libm.so.6", "libdl.so.2", "libpthread.so.0", "librt.so.1", "libresolv.so.2",
-    "ld-linux.so.2", "ld-linux-x86-64.so.2",
+    "ld-linux.so.2", "ld-linux-x86-64.so.2", "ld-linux-armhf.so.3", "ld-linux-aarch64.so.1",
 })

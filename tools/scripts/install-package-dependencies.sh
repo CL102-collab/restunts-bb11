@@ -20,23 +20,43 @@ download() {
 }
 
 case "$target" in
-    linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2)
+    linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2|linux-appimage-armv7|linux-appimage-arm64)
         # The compiler is modern; all target headers, CRT objects and runtime
         # libraries come from the verified historical sysroot instead of apt.
+        case "$target" in
+            linux-appimage-armv7)
+                compiler_packages=(gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf) ;;
+            linux-appimage-arm64)
+                compiler_packages=(gcc-aarch64-linux-gnu g++-aarch64-linux-gnu) ;;
+            *) compiler_packages=(gcc-multilib) ;;
+        esac
         apt-get update
         apt-get install -y --no-install-recommends \
-            build-essential gcc-multilib cmake ninja-build python3 curl ca-certificates \
+            build-essential "${compiler_packages[@]}" cmake ninja-build python3 curl ca-certificates \
             pkg-config autoconf automake libtool libtool-bin meson patch gawk ripgrep qemu-user \
             file bzip2 xz-utils patchelf
-        bash "$script_dir/prepare-appimage-sysroot.sh" "$target"
+        case "$target" in
+            linux-appimage-armv7|linux-appimage-arm64)
+                bash "$script_dir/prepare-appimage-arm-sysroot.sh" "$target" ;;
+            *) bash "$script_dir/prepare-appimage-sysroot.sh" "$target" ;;
+        esac
         download "$APPIMAGETOOL_URL" "$APPIMAGETOOL_SHA256" "$tool_root/downloads/appimagetool.AppImage"
         download "$APPIMAGE_RUNTIME_URL" "$APPIMAGE_RUNTIME_SHA256" "$tool_root/downloads/appimage-runtime-x86_64"
         chmod +x "$tool_root/downloads/appimagetool.AppImage"
         mkdir -p "$tool_root/appimagetool"
         (cd "$tool_root/appimagetool"; "$tool_root/downloads/appimagetool.AppImage" --appimage-extract > /dev/null)
-        if [[ "$target" != linux-appimage-x64 ]]; then
-            bash "$script_dir/build-appimage-runtime.sh" "$target"
-        fi
+        case "$target" in
+            linux-appimage-armv7)
+                download "$APPIMAGE_RUNTIME_ARMV7_URL" "$APPIMAGE_RUNTIME_ARMV7_SHA256" \
+                    "$tool_root/downloads/appimage-runtime-armhf"
+                chmod +x "$tool_root/downloads/appimage-runtime-armhf" ;;
+            linux-appimage-arm64)
+                download "$APPIMAGE_RUNTIME_ARM64_URL" "$APPIMAGE_RUNTIME_ARM64_SHA256" \
+                    "$tool_root/downloads/appimage-runtime-aarch64"
+                chmod +x "$tool_root/downloads/appimage-runtime-aarch64" ;;
+            linux-appimage-x86|linux-appimage-x86-no-sse2)
+                bash "$script_dir/build-appimage-runtime.sh" "$target" ;;
+        esac
         ;;
     linux-*)
         case "$target" in

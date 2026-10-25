@@ -102,6 +102,77 @@ All game tests ran with networking disabled and only the AppImage archive plus
 original game data mounted. Normal FUSE mounting was covered by the earlier
 Ubuntu VM suite; Docker uses extract-and-run.
 
+ARM AppImage userspace baselines (2026-10-25)
+
+The ARMv7 AppImage targets Raspbian Wheezy's hard-float ABI and glibc 2.13.
+Its pinned archive supplies libc 2.13-38+rpi2+deb7u12, GCC 4.7.2-5+rpi1
+C++ headers/static libraries, and Linux 3.2.51-1+rpi1 userspace headers.
+The generated application uses ARMv7 instructions; Raspberry Pi 1 and the
+original Pi Zero use ARMv6 and are outside this target. Raspbian's ARMv6
+hard-float libraries retain the same calling convention on ARMv7 hardware.
+
+The ARM64 AppImage targets Debian Jessie's AArch64 ABI and glibc 2.19, using
+libc 2.19-18+deb8u10 and GCC 4.9.2-10+deb8u1 C++ headers/static libraries.
+Jessie was Debian's first official ARM64 release. There is no ARM64 Wheezy
+release: Raspberry Pi announced its first 64-bit OS beta in May 2020, then
+the stable 64-bit Raspberry Pi OS in February 2022. The Jessie ABI baseline
+predates both Raspberry Pi OS releases; it is not a claim that an ARM64
+Raspbian Wheezy image existed.
+
+Modern cross compilers use the historical SDK's headers, startup objects,
+libc and static compiler/C++ archives. They do not execute the archived
+compiler programs. The generated Wheezy SDK adds the existing C++11
+bad_array_new_length compatibility helper; the Jessie runtime already has
+that exception type. ARM64 uses ARMv8-A without compiler outline-atomic
+helpers so it can retain the pinned compiler runtime. No game or SDL source
+change is required to select these historical userspace ABIs. As for x86,
+the AppImage bundles neither glibc nor its ELF interpreter.
+
+The CI compatibility driver is tools/scripts/test-appimage-arm.sh. It takes
+TARGET ARCHIVE GAME_DATA RESULT_DIRECTORY and tests the exact archived
+AppImage with qemu-arm/cortex-a7 or qemu-aarch64/cortex-a53. The checks cover
+static-runtime extraction, every bundled ELF's architecture/ABI, resolution
+through the pinned old loader, help/version/licenses, genghost --help, a
+running dummy-video/audio menu, the original-renderer replay BMP checksum,
+and a bounded 65536-byte non-silent ALSA file/null PCM capture. Guest library
+paths are passed through QEMU_SET_ENV; host Python, QEMU and diagnostic tools
+keep their own libraries. Logs, BMP, PCM and result.json remain in the result
+directory, including the tested archive, loader and libc SHA256 values.
+A result is successful only when result.json records passed=true.
+
+These are emulated userspace checks on the CI host's kernel. They do not
+boot a historical Raspberry Pi image or test an old kernel, physical video
+or audio hardware, or FUSE mounting. They establish a reproducible userspace
+ABI target and release-specific evidence, not an absolute oldest supported
+Raspberry Pi operating-system/kernel combination.
+
+The official package indexes and selected libc/C++ archives were downloaded
+and SHA256-verified during the investigation. Core index pins are:
+
+Raspbian Wheezy armhf:
+https://legacy.raspbian.org/raspbian/dists/wheezy/main/binary-armhf/Packages.gz
+SHA256: 258f11a9d726c0730cd4832ab4c2a57d30f321f2d21b4cb41ca8895f21a2e797
+Debian Jessie arm64:
+https://archive.debian.org/debian/dists/jessie/main/binary-arm64/Packages.gz
+SHA256: f3d44397ac153424859b69409a9620d5be331e4e45ddb236ec24b6e772779eaf
+Per-package filenames and hashes are read from these pinned indexes. The
+current SDK recipe and tests are the authority for each release artifact.
+
+ARM primary references
+
+Debian Wheezy release and armhf architecture:
+https://www.debian.org/releases/wheezy/index.en.html
+Debian Jessie introduced arm64:
+https://chronicles.debian.org/www/News/2015/20150426
+Raspberry Pi 64-bit OS beta announcement (2020-05-29):
+https://www.raspberrypi.com/news/latest-raspberry-pi-os-update-may-2020/
+Raspberry Pi 64-bit OS stable announcement (2022-02-02), CPU architecture table:
+https://www.raspberrypi.com/news/raspberry-pi-os-64-bit/
+Pinned wxWidgets platform/compiler requirements:
+https://github.com/wxWidgets/wxWidgets/blob/v3.2.12/README.md
+Pinned SDL ARM CPU-feature fallback without getauxval:
+https://github.com/libsdl-org/SDL/blob/015489c672f24feed28c2aa2cdd6176df95329f3/src/cpuinfo/SDL_cpuinfo.c
+
 Primary release and ABI references
 
 Ubuntu 6.06: https://lists.ubuntu.com/archives/ubuntu-announce/2006-June/000083.html

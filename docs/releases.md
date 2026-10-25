@@ -18,6 +18,8 @@ and a SHA-256 sidecar for each archive:
 | `restunts-linux-appimage-x64.tar.gz` | x86_64 AppImage, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
 | `restunts-linux-appimage-x86.tar.gz` | 32-bit x86 AppImage with SSE2, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
 | `restunts-linux-appimage-x86-no-sse2.tar.gz` | 32-bit x86 AppImage without SSE2, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
+| `restunts-linux-appimage-armv7.tar.gz` | ARMv7 hard-float AppImage, Raspbian Wheezy, glibc 2.13+; Pi 2 and newer |
+| `restunts-linux-appimage-arm64.tar.gz` | AArch64 AppImage, Debian Jessie ABI, glibc 2.19+; requires a 64-bit OS |
 | `restunts-windows-arm64.zip` | ARM64, Windows 10+ |
 | `restunts-windows-x86.zip` | 32-bit x86 with SSE2, Windows XP SP2+ |
 | `restunts-windows-x86-no-sse2.zip` | 32-bit x86 without SSE2, Windows XP SP2+ |
@@ -96,13 +98,26 @@ FUSE, so extract the image first and run its launcher from any working directory
 ```
 
 Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a
-library rebuilt from the included sources. All three AppImages use a verified
+library rebuilt from the included sources. The three x86 AppImages use a verified
 legacy sysroot targeting Ubuntu 10.04's glibc 2.11. A modern compiler runs on the
 build host; the host's newer glibc is neither linked nor bundled. Each AppImage
 includes its X11 and ALSA dependencies, their licenses and required source.
 
-PR and Release CI build all three variants and test the exact uploaded archive
-bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
+The ARMv7 AppImage uses the original Raspbian Wheezy packages (glibc 2.13);
+it requires ARMv7 hardware, such as Pi 2 or newer, rather than Pi 1 or the original Pi Zero. The
+ARM64 AppImage uses Debian Jessie packages (glibc 2.19). Wheezy had no ARM64
+release. Raspberry Pi OS first offered a 64-bit Buster beta in 2020 and a
+stable 64-bit Bullseye release in 2022; both exceed this ABI baseline.
+The game sources are shared unchanged between these packages.
+
+ARM CI jobs test the exact archive with QEMU user emulation and its pinned
+historical loader/libraries. They check AppImage extraction, dependency
+resolution, information commands, menu startup, replay rendering and ALSA
+output. These are userspace tests on the build host's kernel, not tests of
+original Raspberry Pi kernels, FUSE mounting or physical graphics/audio devices.
+
+PR and Release CI build all five variants. The three x86 variants test the exact
+uploaded archive bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
 supported and newest stable Ubuntu/Fedora releases selected for this matrix.
 Ubuntu 10.04 tests run as an ordinary user in QEMU with its original kernel
 and userspace; current Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run

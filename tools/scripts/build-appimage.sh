@@ -20,6 +20,16 @@ case "$target" in
         runtime="$tool_root/appimage-runtime-i586/runtime-i586"
         (cd "$tool_root/appimage-runtime-i586"; sha256sum --check --status runtime-i586.sha256)
         ;;
+    linux-appimage-armv7)
+        architecture=armhf
+        runtime="$tool_root/downloads/appimage-runtime-armhf"
+        printf '%s  %s\n' "$APPIMAGE_RUNTIME_ARMV7_SHA256" "$runtime" | sha256sum --check --status
+        ;;
+    linux-appimage-arm64)
+        architecture=aarch64
+        runtime="$tool_root/downloads/appimage-runtime-aarch64"
+        printf '%s  %s\n' "$APPIMAGE_RUNTIME_ARM64_SHA256" "$runtime" | sha256sum --check --status
+        ;;
     *) echo "Unknown AppImage target: $target" >&2; exit 1 ;;
 esac
 # shellcheck source=/dev/null

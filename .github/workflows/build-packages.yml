@@ -35,14 +35,24 @@ on:
 # grant OIDC and attestation writes to the guarded provenance steps.
 jobs:
   appimage:
-    name: Package ${{ matrix.target }} (Ubuntu 10.04 ABI)
+    name: Package ${{ matrix.target }} (${{ matrix.baseline }} ABI)
     runs-on: ubuntu-24.04
     container: ubuntu:24.04@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        target: [linux-appimage-x64, linux-appimage-x86, linux-appimage-x86-no-sse2]
+        include:
+          - target: linux-appimage-x64
+            baseline: Ubuntu 10.04
+          - target: linux-appimage-x86
+            baseline: Ubuntu 10.04
+          - target: linux-appimage-x86-no-sse2
+            baseline: Ubuntu 10.04
+          - target: linux-appimage-armv7
+            baseline: Raspbian Wheezy
+          - target: linux-appimage-arm64
+            baseline: Debian Jessie
     defaults:
       run:
         shell: bash
@@ -54,7 +64,7 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential cmake ninja-build git curl ca-certificates pkg-config python3
+            build-essential cmake ninja-build git curl ca-certificates pkg-config python3 unzip
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -78,6 +88,35 @@ jobs:
 
       - name: Build and verify the complete AppImage runtime archive
         run: bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
+
+      - name: Download game data for historical ARM userspace tests
+        if: startsWith(matrix.target, 'linux-appimage-arm')
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
+            --output "$RUNNER_TEMP/BB11.zip"
+          echo "71fd29f55c726a5f1ee6a6073275708cdb6eb2799a25b1a83b44ed0c01742511  $RUNNER_TEMP/BB11.zip" \
+            | sha256sum --check --strict
+          unzip -oq "$RUNNER_TEMP/BB11.zip" -d "$RUNNER_TEMP/stunts"
+
+      - name: Test the exact ARM AppImage against its historical userspace
+        if: startsWith(matrix.target, 'linux-appimage-arm')
+        run: |
+          set -euo pipefail
+          result_dir="dist/appimage-tests/$PACKAGE_TARGET"
+          mkdir -p "$result_dir"
+          bash tools/scripts/test-appimage-arm.sh "$PACKAGE_TARGET" \
+            "dist/packages/restunts-$PACKAGE_TARGET.tar.gz" "$RUNNER_TEMP/stunts" "$result_dir" \
+            2>&1 | tee "$result_dir/runner.log"
+
+      - name: Upload ARM compatibility test evidence
+        if: always() && startsWith(matrix.target, 'linux-appimage-arm')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: appimage-tests-${{ matrix.target }}
+          path: dist/appimage-tests/${{ matrix.target }}
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload immutable package artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

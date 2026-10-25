@@ -20,6 +20,7 @@ All platforms use the same revision; no separate SDL fork is required.
 | Linux x64 | GCC, Debian 12 build baseline. |
 | Linux x86 | GCC multilib or an i386 environment, Debian 12 build baseline; separate SSE2 and no-SSE2 packages. |
 | Linux ARM32 and ARM64 | Debian 12 cross-compilers; ARMv7 hard-float (Pi 2+) or AArch64. Debian/Raspbian 12+ baseline. |
+| Linux ARM AppImages | ARMv7: Raspbian Wheezy/glibc 2.13; ARM64: Debian Jessie/glibc 2.19. Historical userspace checks run under QEMU; see [release packages](releases.md). |
 | FreeBSD x64 | Native compiler, FreeBSD 14.4 amd64 build baseline. |
 | OpenBSD x64 | Native Clang, OpenBSD 7.9 amd64 build baseline. |
 | NetBSD x64 and x86 | Native GCC, NetBSD 10.2 amd64/i386 build baseline; separate x86 SSE2 and no-SSE2 packages. |
@@ -86,7 +87,7 @@ by default.
 pinned source. This option is incompatible with `RESTUNTS_SSE2=OFF`, because
 CMake cannot control the instruction set of a prebuilt SDL library.
 
-The x86 and x64 AppImage SDK bundles a PulseAudio client for desktop audio,
+The Linux AppImage SDKs bundle a PulseAudio client for desktop audio,
 including PipeWire's PulseAudio service, with ALSA as a fallback. AppImages find
 the per-user socket through `XDG_RUNTIME_DIR` while preserving explicit
 `PULSE_SERVER`, `PULSE_RUNTIME_PATH` and PulseAudio client configuration. The

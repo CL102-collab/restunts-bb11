@@ -101,7 +101,8 @@ case "$target" in
     *)
         case "$target" in
             linux-x64) ;;
-            linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2)
+            linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2|\
+            linux-appimage-armv7|linux-appimage-arm64)
                 appimage_environment="$tool_root/appimage-sysroots/$target.env"
                 [[ -f "$appimage_environment" ]] || {
                     echo "Missing legacy AppImage environment; run install-package-dependencies.sh $target first." >&2

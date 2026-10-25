@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Reject an AppDir that loses the Ubuntu 10.04 ABI or loads build-host files."""
+"""Reject an AppDir that exceeds its distribution ABI or loads build-host files."""
 
 import argparse
+from collections import namedtuple
 import os
 from pathlib import Path
 import re
@@ -11,10 +12,22 @@ import sys
 from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
 
 
+TargetAbi = namedtuple("TargetAbi", "elf_class machine interpreter glibc_version distribution")
+UBUNTU_LUCID = ((2, 11), "Ubuntu 10.04")
+RASPBIAN_WHEEZY = ((2, 13), "Raspbian Wheezy")
+DEBIAN_JESSIE = ((2, 19), "Debian Jessie")
+ARM_EABI_VERSION = "Version5 EABI"
+ARM_HARD_FLOAT_ATTRIBUTE = r"^\s*Tag_ABI_VFP_args:\s*VFP registers\s*$"
 TARGETS = {
-    "linux-appimage-x64": ("ELF64", "Advanced Micro Devices X86-64", "/lib64/ld-linux-x86-64.so.2"),
-    "linux-appimage-x86": ("ELF32", "Intel 80386", "/lib/ld-linux.so.2"),
-    "linux-appimage-x86-no-sse2": ("ELF32", "Intel 80386", "/lib/ld-linux.so.2"),
+    "linux-appimage-x64": TargetAbi(
+        "ELF64", "Advanced Micro Devices X86-64", "/lib64/ld-linux-x86-64.so.2", *UBUNTU_LUCID),
+    "linux-appimage-x86": TargetAbi("ELF32", "Intel 80386", "/lib/ld-linux.so.2", *UBUNTU_LUCID),
+    "linux-appimage-x86-no-sse2": TargetAbi(
+        "ELF32", "Intel 80386", "/lib/ld-linux.so.2", *UBUNTU_LUCID),
+    "linux-appimage-armv7": TargetAbi(
+        "ELF32", "ARM", "/lib/ld-linux-armhf.so.3", *RASPBIAN_WHEEZY),
+    "linux-appimage-arm64": TargetAbi(
+        "ELF64", "AArch64", "/lib/ld-linux-aarch64.so.1", *DEBIAN_JESSIE),
 }
 SYSTEM_LIBRARIES = re.compile(
     r"(?:ld(?:-linux[^/]*|-[0-9][^/]*)?|"
@@ -30,7 +43,8 @@ def is_elf(path):
 
 def inspect(path):
     return subprocess.check_output(
-        ["readelf", "--wide", "--file-header", "--program-headers", "--dynamic", "--version-info", str(path)],
+        ["readelf", "--wide", "--file-header", "--program-headers", "--dynamic", "--version-info",
+         "--arch-specific", str(path)],
         env=dict(os.environ, LC_ALL="C"),
         text=True,
         stderr=subprocess.STDOUT,
@@ -39,20 +53,29 @@ def inspect(path):
 
 def check_elf(path, target, *, static=False):
     description = inspect(path)
-    elf_class, machine, interpreter = TARGETS[target]
-    for field, value in (("Class", elf_class), ("Machine", machine)):
+    target_abi = TARGETS[target]
+    for field, value in (("Class", target_abi.elf_class), ("Machine", target_abi.machine)):
         if not re.search(rf"^\s*{field}:\s*{re.escape(value)}\s*$", description, re.MULTILINE):
             raise ValueError(f"{path}: expected {field} {value}")
+    if target_abi.machine == "ARM":
+        flags = re.search(r"^\s*Flags:\s*(.*)$", description, re.MULTILINE)
+        # Wheezy's binutils records VFP calling conventions in attributes only.
+        hard_float = (flags and "hard-float ABI" in flags[1]
+                      or re.search(ARM_HARD_FLOAT_ATTRIBUTE, description, re.MULTILINE))
+        if (not flags or ARM_EABI_VERSION not in flags[1]
+                or "soft-float ABI" in flags[1] or not hard_float):
+            raise ValueError(f"{path}: expected ARM EABI5 hard-float ABI")
     requested = re.search(r"Requesting program interpreter:\s*([^\]]+)", description)
     if static:
         if requested or re.search(r"\(NEEDED\)", description):
             raise ValueError(f"{path}: AppImage runtime must be static")
-    elif requested and requested[1] != interpreter:
+    elif requested and requested[1] != target_abi.interpreter:
         raise ValueError(f"{path}: unexpected interpreter {requested[1]}")
     for version in set(re.findall(r"\bGLIBC_[A-Za-z0-9_.]+", description)):
         suffix = version.removeprefix("GLIBC_")
-        if not re.fullmatch(r"\d+(?:\.\d+)*", suffix) or tuple(map(int, suffix.split("."))) > (2, 11):
-            raise ValueError(f"{path}: {version} exceeds the Ubuntu 10.04 ABI")
+        if (not re.fullmatch(r"\d+(?:\.\d+)*", suffix)
+                or tuple(map(int, suffix.split("."))) > target_abi.glibc_version):
+            raise ValueError(f"{path}: {version} exceeds the {target_abi.distribution} ABI")
     for needed in re.findall(r"\(NEEDED\).*?\[([^\]]+)\]", description):
         if "/" in needed:
             raise ValueError(f"{path}: absolute/build-relative dependency {needed}")
@@ -107,8 +130,9 @@ def main():
         if "[$ORIGIN/../lib]" not in description:
             raise ValueError(f"{path}: missing installed $ORIGIN/../lib search path")
     check_elf(args.runtime, args.target, static=True)
+    glibc_version = ".".join(map(str, TARGETS[args.target].glibc_version))
     print(f"AppImage ABI passed: {args.target}; {len(descriptions)} ELF files; "
-          "GLIBC <= 2.11; bundled dependency closure; static runtime")
+          f"GLIBC <= {glibc_version}; bundled dependency closure; static runtime")
 
 
 if __name__ == "__main__":
