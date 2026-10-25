@@ -4,6 +4,22 @@ set -eu
 appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # Keep host utilities on the caller's libraries; only packaged programs use ours.
 app_library_path="$appdir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+query_gtk_modules() (
+    module_kind=$1
+    module_directory=$2
+    set --
+    # An SDK may build its shapers/loaders into the library. POSIX shells
+    # retain an unmatched glob, so pass only existing module files onward.
+    for module_path in "$module_directory"/*.so; do
+        if [ -f "$module_path" ]; then
+            set -- "$@" "$module_path"
+        fi
+    done
+    if [ "$#" -gt 0 ]; then
+        LD_LIBRARY_PATH="$app_library_path" "$appdir/usr/bin/restunts-gtk-modules" \
+            "$module_kind" "$@"
+    fi
+)
 export XLOCALEDIR="${XLOCALEDIR:-$appdir/usr/share/X11/locale}"
 export RESTUNTS_ALSA_CONFIG_DIR="$appdir/usr/share/alsa"
 export ALSA_CONFIG_PATH="${ALSA_CONFIG_PATH:-$appdir/usr/share/alsa/alsa.conf}"
@@ -20,11 +36,9 @@ if [ "$#" -eq 0 ]; then
     umask 077
     gtk_cache=$(mktemp -d "${TMPDIR:-/tmp}/restunts-gtk.XXXXXXXX")
     trap 'rm -rf -- "$gtk_cache"' EXIT HUP INT TERM
-    LD_LIBRARY_PATH="$app_library_path" "$appdir/usr/bin/restunts-gtk-modules" pango \
-        "$appdir"/usr/lib/pango/1.6.0/modules/*.so > "$gtk_cache/pango.modules"
+    query_gtk_modules pango "$appdir/usr/lib/pango/1.6.0/modules" > "$gtk_cache/pango.modules"
     printf '[Pango]\nModuleFiles=%s\n' "$gtk_cache/pango.modules" > "$gtk_cache/pangorc"
-    LD_LIBRARY_PATH="$app_library_path" "$appdir/usr/bin/restunts-gtk-modules" pixbuf \
-        "$appdir"/usr/lib/gtk-2.0/2.10.0/loaders/*.so > "$gtk_cache/pixbuf.loaders"
+    query_gtk_modules pixbuf "$appdir/usr/lib/gtk-2.0/2.10.0/loaders" > "$gtk_cache/pixbuf.loaders"
     export PANGO_RC_FILE="$gtk_cache/pangorc"
     export GDK_PIXBUF_MODULE_FILE="$gtk_cache/pixbuf.loaders"
     export FONTCONFIG_PATH="$appdir/usr/etc/fonts"

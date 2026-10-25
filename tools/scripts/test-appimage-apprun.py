@@ -43,6 +43,13 @@ print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:]
         helper = executable_directory / "restunts-gtk-modules"
         helper.write_text("#!/bin/sh\nexit 0\n")
         helper.chmod(0o755)
+        self.module_directories = (
+            self.appdir / "usr/lib/pango/1.6.0/modules",
+            self.appdir / "usr/lib/gtk-2.0/2.10.0/loaders",
+        )
+        for directory in self.module_directories:
+            directory.mkdir(parents=True)
+            (directory / "libfixture.so").write_text("module fixture")
         self.runtime = self.root / "session runtime"
         (self.runtime / "pulse").mkdir(parents=True)
         self.server = socket.socket(socket.AF_UNIX)
@@ -80,6 +87,46 @@ print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:]
         result = self.run_app(LD_LIBRARY_PATH=caller_path)
         self.assertEqual(result["environment"]["LD_LIBRARY_PATH"],
                          str(self.appdir / "usr/lib") + os.pathsep + caller_path)
+
+    def test_builtin_gtk_modules_create_empty_isolated_caches(self):
+        for directory in self.module_directories:
+            shutil.rmtree(directory)
+        helper = self.appdir / "usr/bin/restunts-gtk-modules"
+        helper.write_text("#!/bin/sh\necho 'No external modules should be queried' >&2\nexit 1\n")
+        launcher = self.appdir / "usr/bin/restunts-launcher"
+        launcher.write_text('''#!/usr/bin/env python3
+import json, os
+from pathlib import Path
+configuration = Path(os.environ["PANGO_RC_FILE"]).read_text().splitlines()
+pango = next(line.partition("=")[2] for line in configuration if line.startswith("ModuleFiles="))
+print(json.dumps({"pango": Path(pango).read_text(),
+                  "pixbuf": Path(os.environ["GDK_PIXBUF_MODULE_FILE"]).read_text()}))
+''')
+        self.assertEqual(self.run_app(()), {"pango": "", "pixbuf": ""})
+        self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
+
+    def test_external_gtk_module_paths_are_queried_together_without_splitting(self):
+        extra = self.module_directories[0] / "libmodule with spaces.so"
+        extra.write_text("second module fixture")
+        log = self.root / "module-arguments.log"
+        helper = self.appdir / "usr/bin/restunts-gtk-modules"
+        helper.write_text('''#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ["RESTUNTS_TEST_MODULE_LOG"], "a") as output:
+    print(json.dumps(sys.argv[1:]), file=output)
+''')
+        self.run_app((), RESTUNTS_TEST_MODULE_LOG=str(log))
+        actual = [json.loads(line) for line in log.read_text().splitlines()]
+        expected = [[mode, *map(str, sorted(directory.glob("*.so")))]
+                    for mode, directory in zip(("pango", "pixbuf"), self.module_directories)]
+        self.assertEqual(actual, expected)
+
+    def test_external_gtk_module_query_failures_stop_launcher_and_clean_caches(self):
+        helper = self.appdir / "usr/bin/restunts-gtk-modules"
+        helper.write_text("#!/bin/sh\nexit 1\n")
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_app(())
+        self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
 
     def test_gui_library_path_does_not_reach_host_tools_or_cleanup(self):
         caller_path = "/caller libraries"
