@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Exercise the completed release archive in an unmodified Fedora 34 userspace.
+# Exercise the release archive with Fedora 34's own desktop core libraries.
 set -euo pipefail
 
 if (( $# > 2 )); then
@@ -13,6 +13,31 @@ archive=${1:-$repo_dir/dist/packages/restunts-linux-appimage-x64.tar.gz}
 [[ -f "$archive" ]] || { echo "Missing AppImage archive: $archive" >&2; exit 1; }
 archive=$(cd -- "$(dirname -- "$archive")" && printf '%s/%s' "$PWD" "$(basename -- "$archive")")
 fedora_image=fedora:34@sha256:55a74d948c47bb002edff3c7a9a7e864152c686d7c2dc8e3df1ac4d611a20898
+setup_container='' test_image=''
+cleanup() {
+    [[ -z "$setup_container" ]] || docker rm -f "$setup_container" >/dev/null 2>&1 || true
+    [[ -z "$test_image" ]] || docker image rm "$test_image" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+setup_container=$(docker create --platform=linux/amd64 \
+    --mount type=bind,src=/etc/ssl/certs/ca-certificates.crt,dst=/run/compat-ca.pem,readonly \
+    "$fedora_image" sleep infinity)
+docker start "$setup_container" >/dev/null
+docker exec -i "$setup_container" bash -s <<'FEDORA_SETUP'
+set -euo pipefail
+cat > /etc/yum.repos.d/restunts-compat.repo <<'REPO'
+[restunts-compat-base]
+name=Original Fedora 34 packages
+baseurl=https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/34/Everything/x86_64/os/
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-34-x86_64
+sslcacert=/run/compat-ca.pem
+REPO
+dnf -y --disablerepo='*' --enablerepo=restunts-compat-base install libX11 libX11-xcb libxcb
+FEDORA_SETUP
+test_image="restunts-fedora34-test:${setup_container:0:12}"
+docker commit "$setup_container" "$test_image" >/dev/null
 docker_options=(--rm --interactive --network=none --platform=linux/amd64
     --mount "type=bind,src=$archive,dst=/release.tar.gz,readonly")
 if (( $# == 2 )); then
@@ -23,7 +48,7 @@ fi
 
 # Only the archive and optional original game data enter the container. In
 # particular, no source checkout, build tree, or host library is available.
-docker run "${docker_options[@]}" "$fedora_image" bash -s <<'FEDORA_SMOKE'
+docker run "${docker_options[@]}" "$test_image" bash -s <<'FEDORA_SMOKE'
 set -euo pipefail
 source /etc/os-release
 [[ "$ID" == fedora && "$VERSION_ID" == 34 ]] || {

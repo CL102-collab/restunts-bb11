@@ -34,7 +34,7 @@ import json, os, sys
 print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:],
                   "environment": {key: value for key, value in os.environ.items()
                                   if key.startswith(("PULSE_", "ALSA_", "RESTUNTS_ALSA"))
-                                  or key == "LD_LIBRARY_PATH"}}))
+                                  or key in ("LD_LIBRARY_PATH", "XLOCALEDIR")}}))
 """
         for name in ("restunts", "restunts-launcher"):
             path = executable_directory / name
@@ -87,6 +87,15 @@ print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:]
         result = self.run_app(LD_LIBRARY_PATH=caller_path)
         self.assertEqual(result["environment"]["LD_LIBRARY_PATH"],
                          str(self.appdir / "usr/lib") + os.pathsep + caller_path)
+
+    def test_host_xlib_uses_its_default_locale_directory(self):
+        self.environment.pop("XLOCALEDIR", None)
+        self.assertNotIn("XLOCALEDIR", self.run_app()["environment"])
+
+    def test_explicit_xlib_locale_directory_is_preserved(self):
+        locale_directory = "/caller X11 locale modules"
+        result = self.run_app(XLOCALEDIR=locale_directory)
+        self.assertEqual(result["environment"]["XLOCALEDIR"], locale_directory)
 
     def test_builtin_gtk_modules_create_empty_isolated_caches(self):
         for directory in self.module_directories:

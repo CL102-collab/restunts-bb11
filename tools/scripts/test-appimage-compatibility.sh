@@ -29,24 +29,45 @@ cleanup() {
     rm -rf -- "$work_dir"
 }
 trap cleanup EXIT
-# The setup container may install the distribution's own 32-bit libc. The
-# subsequent test container has no network and receives only package and data.
-if [[ "$target" != linux-appimage-x64 ]]; then
-    ca_bundle=/etc/ssl/certs/ca-certificates.crt
-    setup_container=$(docker create --platform=linux/amd64 \
-        --mount "type=bind,src=$ca_bundle,dst=/run/compat-ca.pem,readonly" \
-        "$image" sleep infinity)
-    docker start "$setup_container" >/dev/null
-    docker exec -i "$setup_container" bash -s -- "$distro" <<'SETUP'
+# Graphics clients must use the distribution's matching X11/XCB core libraries.
+# Modern x64 guests also exercise Mesa OpenGL through a private Xvfb server.
+# The subsequent test container has no network and receives only package and data.
+test_opengl=0
+if [[ "$target" == linux-appimage-x64 && "$distro" != fedora20 ]]; then
+    test_opengl=1
+fi
+ca_bundle=/etc/ssl/certs/ca-certificates.crt
+setup_container=$(docker create --platform=linux/amd64 \
+    --mount "type=bind,src=$ca_bundle,dst=/run/compat-ca.pem,readonly" \
+    "$image" sleep infinity)
+docker start "$setup_container" >/dev/null
+docker exec -i "$setup_container" bash -s -- "$distro" "$target" "$test_opengl" <<'SETUP'
 set -euo pipefail
+architecture=x86_64
+if [[ "$2" != linux-appimage-x64 ]]; then architecture=i686; fi
 case "$1" in
     ubuntu*)
         export DEBIAN_FRONTEND=noninteractive
+        debian_architecture=amd64
+        if [[ "$architecture" == i686 ]]; then
+            debian_architecture=i386
+            dpkg --add-architecture "$debian_architecture"
+        fi
         apt-get -o Acquire::https::CaInfo=/run/compat-ca.pem update
-        apt-get -o Acquire::https::CaInfo=/run/compat-ca.pem install -y --no-install-recommends libc6-i386
+        packages=("libx11-6:$debian_architecture" "libx11-xcb1:$debian_architecture"
+            "libxcb1:$debian_architecture")
+        if [[ "$3" == 1 ]]; then
+            packages+=(python3 xvfb libgl1 libgl1-mesa-dri libglx-mesa0)
+        fi
+        apt-get -o Acquire::https::CaInfo=/run/compat-ca.pem install -y --no-install-recommends \
+            "${packages[@]}"
         ;;
     fedora44)
-        dnf -y --setopt=sslcacert=/run/compat-ca.pem install glibc.i686
+        packages=("libX11.$architecture" "libX11-xcb.$architecture" "libxcb.$architecture")
+        if [[ "$3" == 1 ]]; then
+            packages+=(python3 xorg-x11-server-Xvfb mesa-dri-drivers mesa-libGL)
+        fi
+        dnf -y --setopt=sslcacert=/run/compat-ca.pem install "${packages[@]}"
         ;;
     fedora20)
         cat > /etc/yum.repos.d/restunts-compat.repo <<'REPO'
@@ -69,19 +90,33 @@ REPO
         # i686 packages stop at 3.19.1. Downgrade the native NSS family together
         # to the signed archive packages before adding the matching 32-bit ABI.
         # Keep Yum's protected_multilib check enabled.
-        yum -y --disablerepo='*' --enablerepo='restunts-compat-*' downgrade 'nss*.x86_64'
-        yum -y --disablerepo='*' --enablerepo='restunts-compat-*' install glibc.i686
-        rpm -q glibc.x86_64 glibc.i686 nss-softokn-freebl.x86_64 nss-softokn-freebl.i686
+        if [[ "$architecture" == i686 ]]; then
+            yum -y --disablerepo='*' --enablerepo='restunts-compat-*' downgrade 'nss*.x86_64'
+        fi
+        yum -y --disablerepo='*' --enablerepo='restunts-compat-*' install \
+            "libX11.$architecture" "libX11-xcb.$architecture" "libxcb.$architecture"
+        if [[ "$architecture" == i686 ]]; then
+            rpm -q glibc.x86_64 glibc.i686 nss-softokn-freebl.x86_64 nss-softokn-freebl.i686
+        fi
         ;;
 esac
-test -x /lib/ld-linux.so.2
+if [[ "$architecture" == i686 ]]; then test -x /lib/ld-linux.so.2; fi
 SETUP
-    test_image="restunts-appimage-test:$(basename -- "$work_dir" | tr '[:upper:]' '[:lower:]')"
-    docker commit "$setup_container" "$test_image" >/dev/null
-    image=$test_image
-fi
+test_image="restunts-appimage-test:$(basename -- "$work_dir" | tr '[:upper:]' '[:lower:]')"
+docker commit "$setup_container" "$test_image" >/dev/null
+image=$test_image
 docker run --rm --network=none --platform=linux/amd64 \
     --mount "type=bind,src=$archive,dst=/release.tar.gz,readonly" \
     --mount "type=bind,src=$data_dir,dst=/stunts-data,readonly" \
     --mount "type=bind,src=$script_dir/test-appimage-guest.sh,dst=/test-appimage-guest.sh,readonly" \
-    "$image" bash /test-appimage-guest.sh "$target" /release.tar.gz /stunts-data "$distro"
+    --mount "type=bind,src=$script_dir/test-appimage-opengl.py,dst=/test-appimage-opengl.py,readonly" \
+    "$image" bash -c '
+set -euo pipefail
+bash /test-appimage-guest.sh "$1" /release.tar.gz /stunts-data "$2"
+if [[ "$3" == 1 ]]; then
+    work_dir=$(mktemp -d)
+    trap '\''rm -rf -- "$work_dir"'\'' EXIT
+    tar -xzf /release.tar.gz -C "$work_dir" bin/restunts.AppImage
+    python3 /test-appimage-opengl.py "$work_dir/bin/restunts.AppImage" /stunts-data
+fi
+' bash "$target" "$distro" "$test_opengl"

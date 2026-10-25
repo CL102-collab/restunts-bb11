@@ -292,6 +292,40 @@ class SysrootTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Missing bundled runtime dependency: libnsl"):
                 sdk.prune_runtime(libraries)
 
+    def test_runtime_pruning_uses_host_graphics_without_changing_the_link_sdk(self):
+        triple = "aarch64-linux-gnu"
+        sysroot, destination = self.root / "sysroot", self.root / "deps"
+        source = sysroot / "usr/lib" / triple
+        source.mkdir(parents=True)
+        graph = {
+            "libgtk-x11-2.0.so.0": "libX11.so.6\nlibXrender.so.1\nlibc.so.6\n",
+            "libXrender.so.1": "libX11.so.6\n",
+            "libpulse.so.0": "libpulsecommon-5.0.so\n",
+            "libpulsecommon-5.0.so": "libX11-xcb.so.1\nlibX11.so.6\nlibxcb.so.1\n",
+        }
+        graphics = ("libX11.so.6.2.1", "libX11-xcb.so.1.0.0", "libxcb.so.1.1.0")
+        for name in (*graph, *graphics):
+            (source / name).write_bytes(b"\x7fELFtarget runtime fixture")
+        for name, target in (("libX11.so.6", "libX11.so.6.2.1"),
+                             ("libX11.so", "libX11.so.6"),
+                             ("libX11-xcb.so.1", "libX11-xcb.so.1.0.0"),
+                             ("libX11-xcb.so", "libX11-xcb.so.1"),
+                             ("libxcb.so.1", "libxcb.so.1.1.0"),
+                             ("libxcb.so", "libxcb.so.1")):
+            (source / name).symlink_to(target)
+        original = {path.name: (path.read_bytes(), path.readlink() if path.is_symlink() else None)
+                    for path in source.iterdir()}
+        (sysroot / "packages.txt").write_text("pinned graphics development packages\n")
+        sdk.copy_debian_runtime(sysroot, destination, triple)
+        libraries = destination / "lib"
+        def dependencies(command, **kwargs):
+            return graph[Path(command[-1]).name]
+        with mock.patch.object(sdk.subprocess, "check_output", side_effect=dependencies):
+            sdk.prune_runtime(libraries, roots=("libgtk-x11-2.0.so.0", "libpulse.so.0"))
+        self.assertEqual({path.name for path in libraries.iterdir()}, set(graph))
+        self.assertEqual({path.name: (path.read_bytes(), path.readlink() if path.is_symlink() else None)
+                          for path in source.iterdir()}, original)
+
     def test_runtime_missing_dependency_fails_before_pruning(self):
         libraries = self.root / "lib"
         libraries.mkdir()

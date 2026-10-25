@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Keep AppImage dependencies closed without bundling the host C library."""
+"""Keep AppImage dependencies closed around the host C and graphics libraries."""
 
 import importlib.util
 from pathlib import Path
+import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -110,6 +112,51 @@ class ElfAbiTests(unittest.TestCase):
 
 
 class DependencyClosureTests(unittest.TestCase):
+    def test_host_x11_xcb_dependencies_stay_external(self):
+        abi.check_dependency_closure({
+            Path("usr/lib/libgtk-x11-2.0.so.0"): dependencies("libX11.so.6", "libc.so.6"),
+            Path("usr/lib/libpulsecommon-5.0.so"): dependencies("libX11-xcb.so.1", "libxcb.so.1"),
+        })
+
+    def test_optional_x11_extensions_remain_bundled(self):
+        for filename in ("libXrender.so.1", "libxcb-render-util.so.0"):
+            with self.subTest(library=filename):
+                with self.assertRaisesRegex(ValueError, "missing bundled dependency " + filename):
+                    abi.check_dependency_closure({
+                        Path("usr/lib/libcairo.so.2"): dependencies(filename),
+                    })
+
+    def test_bundled_host_x11_xcb_libraries_and_aliases_are_rejected(self):
+        filenames = ("libX11.so", "libX11.so.6", "libX11.so.6.2.1",
+                     "libX11-xcb.so", "libX11-xcb.so.1", "libX11-xcb.so.1.0.0",
+                     "libxcb.so", "libxcb.so.1", "libxcb.so.1.1.0")
+        for filename in filenames:
+            with self.subTest(library=filename):
+                with tempfile.TemporaryDirectory(prefix="restunts-abi-graphics-") as temporary:
+                    root = Path(temporary)
+                    library = root / "usr/lib" / filename
+                    library.parent.mkdir(parents=True)
+                    library.write_bytes(b"\x7fELFbundled old graphics runtime")
+                    arguments = ["check-appimage-abi.py", str(root), "linux-appimage-x64",
+                                 "--runtime", str(root / "runtime")]
+                    with mock.patch.object(sys, "argv", arguments):
+                        with self.assertRaisesRegex(ValueError, "do not bundle the host X11/XCB"):
+                            abi.main()
+
+    def test_bundled_host_graphics_symlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory(prefix="restunts-abi-graphics-") as temporary:
+            root = Path(temporary)
+            library = root / "usr/lib/libX11.so"
+            library.parent.mkdir(parents=True)
+            target = library.with_name("zz-runtime.so")
+            target.write_bytes(b"\x7fELFbundled old graphics runtime")
+            library.symlink_to(target.name)
+            arguments = ["check-appimage-abi.py", str(root), "linux-appimage-x64",
+                         "--runtime", str(root / "runtime")]
+            with mock.patch.object(sys, "argv", arguments):
+                with self.assertRaisesRegex(ValueError, "do not bundle the host X11/XCB"):
+                    abi.main()
+
     def test_dynamic_audio_roots_are_required_without_direct_dependencies(self):
         root = Path("AppDir")
         for omitted in abi.AUDIO_RUNTIME_LIBRARIES:

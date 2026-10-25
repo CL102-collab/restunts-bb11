@@ -9,7 +9,7 @@ import re
 import subprocess
 import sys
 
-from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
+from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES, is_system_graphics_library
 
 
 TargetAbi = namedtuple("TargetAbi", "elf_class machine interpreter glibc_version distribution")
@@ -116,6 +116,8 @@ def main():
         if path.is_file() and is_elf(path):
             if SYSTEM_LIBRARIES.fullmatch(path.name):
                 raise ValueError(f"{path}: do not bundle the system glibc/loader")
+            if is_system_graphics_library(path.name):
+                raise ValueError(f"{path}: do not bundle the host X11/XCB runtime")
             descriptions[path] = check_elf(path, args.target)
     check_audio_runtime(root, descriptions)
     check_dependency_closure(descriptions)

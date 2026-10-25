@@ -20,7 +20,7 @@ query_gtk_modules() (
             "$module_kind" "$@"
     fi
 )
-export XLOCALEDIR="${XLOCALEDIR:-$appdir/usr/share/X11/locale}"
+# Host Xlib uses its matching locale modules and any caller's XLOCALEDIR.
 export RESTUNTS_ALSA_CONFIG_DIR="$appdir/usr/share/alsa"
 export ALSA_CONFIG_PATH="${ALSA_CONFIG_PATH:-$appdir/usr/share/alsa/alsa.conf}"
 # The baseline-compatible PulseAudio client predates XDG runtime directories.

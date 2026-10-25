@@ -45,6 +45,17 @@ appdir="$appdir_parent/Restunts.AppDir"
 mkdir -p "$appdir/usr"
 cp -a "$runtime_dir/." "$appdir/usr/"
 cp -a "$deps_prefix/." "$appdir/usr/"
+# Apply the graphics policy here too, including when reusing a cached SDK.
+python3 - "$script_dir" "$appdir/usr/lib" <<'PY'
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[1])
+from appimage_runtime import is_system_graphics_library
+
+for path in Path(sys.argv[2]).rglob('*'):
+    if (path.is_file() or path.is_symlink()) and is_system_graphics_library(path.name):
+        path.unlink()
+PY
 # The host libc and ELF loader must always come from the user's distribution.
 if compgen -G "$appdir/usr/lib/libc.so*" > /dev/null \
     || compgen -G "$appdir/usr/lib/ld-linux*" > /dev/null; then

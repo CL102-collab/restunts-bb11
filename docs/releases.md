@@ -101,7 +101,11 @@ Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a
 library rebuilt from the included sources. The three x86 AppImages use a verified
 legacy sysroot targeting Ubuntu 10.04's glibc 2.11. A modern compiler runs on the
 build host; the host's newer glibc is neither linked nor bundled. Each AppImage
-includes its X11 and ALSA dependencies, their licenses and required source.
+includes its GTK, X11 extension and audio dependencies, their licenses and required
+source. The host supplies the X11/XCB core libraries (`libX11.so.6`,
+`libX11-xcb.so.1` and `libxcb.so.1`) alongside its OpenGL drivers. Bundling old
+copies of these core libraries can prevent modern GLX/EGL drivers from loading
+and force SDL to use software presentation. No `LD_PRELOAD` workaround is needed.
 
 The ARMv7 AppImage uses the original Raspbian Wheezy packages (glibc 2.13);
 it requires ARMv7 hardware, such as Pi 2 or newer, rather than Pi 1 or the original Pi Zero. The
