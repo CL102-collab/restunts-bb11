@@ -5,6 +5,8 @@ import hashlib
 import importlib.util
 import io
 from pathlib import Path
+import shutil
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -117,6 +119,46 @@ class SysrootTests(unittest.TestCase):
         self.assertIn("class bad_array_new_length : public bad_alloc", patched)
         sdk.patch_cxx_headers(self.root)
         self.assertEqual(header.read_text(), patched)
+
+    def test_x86_multilib_keeps_pinned_startup_libc_and_compiler_runtime(self):
+        compiler = shutil.which("gcc")
+        if compiler is None:
+            self.skipTest("GCC is needed to exercise multilib library selection")
+        probe = subprocess.run([compiler, "-m32", "-print-multi-directory"],
+                               capture_output=True, text=True)
+        if probe.returncode or probe.stdout.strip() != sdk.GCC_X86_MULTILIB_DIRECTORY:
+            self.skipTest("GCC's x86 -m32 multilib layout is needed")
+        compiler_directory = self.root / sdk.LEGACY_X86_GCC_DIRECTORY
+        development_directory = self.root / "usr/lib"
+        host_directory = self.root / "host"
+        host_multilib = host_directory / sdk.GCC_X86_MULTILIB_DIRECTORY
+        for directory in (compiler_directory, development_directory, host_multilib):
+            directory.mkdir(parents=True)
+        pinned = {"crt1.o": development_directory, "libc.so": development_directory,
+                  "libgcc.a": compiler_directory}
+        for name, directory in pinned.items():
+            (directory / name).write_bytes(b"pinned target input")
+            (host_multilib / name).write_bytes(b"incompatible host input")
+        command = [compiler, "-m32", f"-B{compiler_directory}/",
+                   f"-B{development_directory}/", f"-B{host_directory}/"]
+        def selected(name):
+            return Path(subprocess.check_output(
+                command + ["-print-file-name=" + name], text=True).strip()).resolve()
+        # Reproduce the host multilib taking precedence over existing -B inputs.
+        for name in pinned:
+            self.assertEqual(selected(name), host_multilib / name)
+        sdk.expose_x86_multilib(self.root, "lib")
+        sdk.expose_x86_multilib(self.root, "lib")
+        for name, directory in pinned.items():
+            self.assertEqual(selected(name), directory / name)
+
+    def test_multilib_alias_does_not_replace_existing_sdk_data(self):
+        directory = self.root / sdk.LEGACY_X86_GCC_DIRECTORY
+        existing = directory / sdk.GCC_X86_MULTILIB_DIRECTORY
+        existing.mkdir(parents=True)
+        with self.assertRaisesRegex(RuntimeError, "Unexpected SDK multilib directory"):
+            sdk.expose_x86_multilib(self.root, "lib")
+        self.assertTrue(existing.is_dir())
 
     def test_runtime_pruning_keeps_transitive_and_module_dependencies(self):
         libraries = self.root / "lib"

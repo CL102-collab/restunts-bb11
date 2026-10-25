@@ -71,6 +71,8 @@ def download(url, checksum, destination):
 
 
 LEGACY_CXX_PREFIX = "opt/rh/devtoolset-2/root/usr"
+LEGACY_X86_GCC_DIRECTORY = LEGACY_CXX_PREFIX + "/lib/gcc/i386-redhat-linux/4.8.2"
+GCC_X86_MULTILIB_DIRECTORY = "32"
 LEGACY_COMPILER_INPUTS = frozenset({
     "libstdc++.a", "libsupc++.a", "libgcc.a", "libgcc_eh.a",
     "crtbegin.o", "crtbeginS.o", "crtbeginT.o", "crtend.o", "crtendS.o", "crtfastmath.o",
@@ -197,6 +199,23 @@ def overlay_runtime(runtime, sysroot, lib_directory):
         remove(path)
         shutil.copyfile(candidates[0].resolve(), path)
         path.chmod(0o644)
+
+
+def expose_x86_multilib(sysroot, lib_directory):
+    """Keep host GCC's -m32 searches inside the single-architecture SDK."""
+    if lib_directory != "lib":
+        return
+    # GCC tries the multilib suffix across every -B prefix before trying any
+    # unsuffixed prefix. Without these aliases, an installed host lib32 can
+    # supply crt1.o, libc and libgcc ahead of our pinned i386 files.
+    for relative in (LEGACY_X86_GCC_DIRECTORY, "usr/lib"):
+        directory = sysroot / relative
+        alias = directory / GCC_X86_MULTILIB_DIRECTORY
+        if alias.is_symlink() and alias.resolve() == directory.resolve():
+            continue
+        if alias.exists() or alias.is_symlink():
+            raise RuntimeError(f"Unexpected SDK multilib directory: {alias}")
+        alias.symlink_to(".")
 
 
 def prepare_gtk(index_url, index_checksum, cache, destination):
@@ -368,6 +387,7 @@ def main():
     patch_cxx_headers(args.sysroot)
     extract(archives["runtime"], args.runtime, runtime=True)
     overlay_runtime(args.runtime, args.sysroot, args.lib_directory)
+    expose_x86_multilib(args.sysroot, args.lib_directory)
 
 
 if __name__ == "__main__":
