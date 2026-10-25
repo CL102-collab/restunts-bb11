@@ -184,6 +184,8 @@ chmod 644 "$output/lib/libasyncns.so.0" "$output/share/licenses/libasyncns/"* \
 repo_directory=$(cd -- "$script_dir/../.." && pwd)
 context="$output/share/sources/appimage-pulse-build-context"
 for relative in tools/scripts/build-appimage-pulse-dependencies.sh \
+    tools/scripts/build-appimage-font-dependencies.sh tools/appimage/test-font-runtime.c \
+    tools/appimage/test-font-overflow.c \
     tools/scripts/prepare-appimage-sysroot.sh tools/scripts/prepare-appimage-arm-sysroot.sh \
     tools/scripts/appimage-sysroot.py \
     tools/scripts/appimage_runtime.py tools/scripts/package-toolchains.conf \

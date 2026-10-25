@@ -17,6 +17,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # SDL's DOS/POSIX backends need the platform declarations hidden by strict ANSI.
 set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Legacy 32-bit directory entries cannot hold every filesystem's d_off cookie.
+# Enable the 64-bit file ABI before dependencies and all platform/test targets.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID AND CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_compile_definitions(_FILE_OFFSET_BITS=64)
+endif()
 # Both build-tree and installed binaries must accept a user-rebuilt OPL library.
 set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 if(CMAKE_SHARED_LIBRARY_RPATH_ORIGIN_TOKEN)

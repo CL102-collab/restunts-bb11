@@ -54,6 +54,9 @@ recipe=$(cat "$script_dir/prepare-appimage-sysroot.sh" "$script_dir/appimage-sys
     "$script_dir/../appimage/legacy-compiler-runtime.c" \
     "$script_dir/../appimage/test-legacy-cxx-runtime.cpp" \
     "$script_dir/build-appimage-pulse-dependencies.sh" "$script_dir/../appimage/test-libwrap-runtime.c" \
+    "$script_dir/build-appimage-font-dependencies.sh" "$script_dir/../appimage/test-font-runtime.c" \
+    "$script_dir/../appimage/test-font-overflow.c" \
+    "$script_dir/../../src/restunts/c/legacy.h" \
     "$script_dir/../appimage/test-asyncns-runtime.c"; \
     "$compiler" -dumpmachine; "$compiler" --version; "$cxx_compiler" --version)
 recipe_sha=$(printf '%s' "$recipe" | sha256sum | cut -d ' ' -f 1)
@@ -226,6 +229,9 @@ PY
     cp -a "$stage/sysroot/usr/share/alsa" "$stage/deps/share/alsa"
     cp -a "$stage/sysroot/usr/share/X11" "$stage/deps/share/X11"
     bash "$script_dir/build-appimage-pulse-dependencies.sh" "$architecture" "$stage/sysroot" "$stage/deps"
+    if [[ "$architecture" == x86 ]]; then
+        bash "$script_dir/build-appimage-font-dependencies.sh" "$architecture" "$stage/sysroot" "$stage/deps"
+    fi
     python3 "$script_dir/appimage-sysroot.py" prune-runtime "$stage/deps/lib"
     # Packaged libraries can carry distribution build paths. Remove those
     # only from our copied runtime; AppRun supplies the relocated library path.

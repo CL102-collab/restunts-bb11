@@ -8,6 +8,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#if defined(__linux__) && !defined(__ANDROID__)
+#include <dirent.h>
+#endif
 #ifdef _WIN32
 #include <direct.h>
 #include <windows.h>
@@ -189,6 +192,12 @@ static void run_file_io_tests(void)
 
 legacy_int main(void)
 {
+#if defined(__linux__) && !defined(__ANDROID__)
+	/* Overlay filesystems can return 64-bit directory cookies for tiny files.
+	 * Keep the Linux file ABI wide even when CI's filesystem has small cookies. */
+	assert(sizeof(off_t) >= 8);
+	assert(sizeof(((struct dirent *)0)->d_off) >= 8);
+#endif
 	sdl3_batch_mode = 1;
 	run_file_io_tests();
 #ifdef _WIN32

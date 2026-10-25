@@ -55,6 +55,8 @@ flock 9
 recipe=$(cat "$script_dir/prepare-appimage-arm-sysroot.sh" "$script_dir/appimage-sysroot.py" \
     "$script_dir/package-toolchains.conf" "$script_dir/appimage_runtime.py" \
     "$script_dir/build-appimage-pulse-dependencies.sh" \
+    "$script_dir/build-appimage-font-dependencies.sh" "$script_dir/../appimage/test-font-runtime.c" \
+    "$script_dir/../appimage/test-font-overflow.c" \
     "$script_dir/../appimage/legacy-cxx-runtime.cpp" \
     "$script_dir/../appimage/test-legacy-cxx-runtime.cpp" \
     "$script_dir/../appimage/query-gtk-modules.c" \
@@ -120,17 +122,18 @@ if [[ "$cached_recipe" != "$recipe_sha" ]]; then
         "$APPIMAGE_ALSA_SHA256" "$downloads/alsa-lib_1.0.27.2.orig.tar.bz2"
     tar -xjf "$downloads/alsa-lib_1.0.27.2.orig.tar.bz2" -C "$stage"
     mkdir "$stage/alsa-build"
+    # ALSA guesses a cross compiler when CC lacks "-gcc"; retain the SDK wrapper.
     {
         printf '#!/usr/bin/env bash\nexec '
         printf '%q ' "$compiler" "${common_arguments[@]}" "${link_arguments[@]}"
         printf '"$@"\n'
-    } > "$stage/compiler"
-    chmod 755 "$stage/compiler"
+    } > "$stage/compiler-gcc"
+    chmod 755 "$stage/compiler-gcc"
     (
         cd "$stage/alsa-build"
         # Parse kernel typedefs before ALSA's userspace type aliases, including
         # on Wheezy's 32-bit headers with 64-bit file offsets enabled.
-        CC="$stage/compiler" CFLAGS="$architecture_flags -O2 -fPIC -include linux/types.h" \
+        CC="$stage/compiler-gcc" CFLAGS="$architecture_flags -O2 -fPIC -include linux/types.h" \
             "$stage/alsa-lib-1.0.27.2/configure" --prefix=/usr \
                 --libdir="/usr/lib/$triple" --host="$triple" --disable-python \
                 > configure.log 2>&1 &&
@@ -143,6 +146,10 @@ if [[ "$cached_recipe" != "$recipe_sha" ]]; then
     python3 "$script_dir/appimage-sysroot.py" debian-runtime "$stage/sysroot" "$stage/deps" "$triple"
     CC="$compiler" bash "$script_dir/build-appimage-pulse-dependencies.sh" \
         "$architecture" "$stage/sysroot" "$stage/deps"
+    if [[ "$architecture" == armv7 ]]; then
+        CC="$compiler" bash "$script_dir/build-appimage-font-dependencies.sh" \
+            "$architecture" "$stage/sysroot" "$stage/deps"
+    fi
     python3 "$script_dir/appimage-sysroot.py" prune-runtime "$stage/deps/lib"
     while IFS= read -r -d '' library; do patchelf --remove-rpath "$library"; done \
         < <(find "$stage/deps/lib" -type f -name '*.so*' -print0)
