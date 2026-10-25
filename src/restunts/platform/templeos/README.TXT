@@ -100,6 +100,10 @@ directory. COMPILE.HC loads without starting. Ctrl+Q opens the original exit
 dialog; select Yes to return to the TempleOS prompt. Cleanup restores the
 task's display settings and the system palette.
 
+Chicane fast-grass starts enabled. Include --cfg:off in the fourth options
+string to give green chicane areas ordinary grass grip and drag; --cfg:on
+restores the original behavior. It works with /amigagrass.
+
 All common startup settings are accepted in an optional fourth options string:
 
     Restunts("C:/DATA", TRUE, FALSE,

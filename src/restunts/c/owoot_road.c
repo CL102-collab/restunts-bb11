@@ -10,6 +10,7 @@
 #define OWOOT_HILL_ROAD_MODEL 36U
 #define OWOOT_ROAD_TILE_OVERHANG 8
 #define OWOOT_SLALOM_BARRIER_VERTEX_COUNT 4U
+#define OWOOT_ROAD_TRIANGLE_VERTEX_COUNT 3U
 
 struct OWOOT_ROAD_TRIANGLE {
 	struct VECTOR vertex[3];
@@ -36,6 +37,43 @@ static legacy_s64 road_cross(const struct OWOOT_PROJECTED_POINT *a,
 							 const struct OWOOT_PROJECTED_POINT *c)
 {
 	return (legacy_s64)(b->x - a->x) * (c->z - a->z) - (legacy_s64)(b->z - a->z) * (c->x - a->x);
+}
+
+legacy_s16 track_road_contains_local_point(legacy_s16 physical_model, const struct VECTOR *position)
+{
+	if (physical_model < 0 ||
+		(legacy_u16)physical_model >= sizeof(owoot_road_models) / sizeof(owoot_road_models[0])) {
+		return 0;
+	}
+	const struct OWOOT_ROAD_MODEL *geometry = &owoot_road_models[physical_model];
+	struct OWOOT_PROJECTED_POINT point;
+	point.x = position->x;
+	point.z = position->z;
+	for (legacy_u16 index = 0; index < geometry->triangle_count; index++) {
+		const struct OWOOT_ROAD_TRIANGLE far *triangle =
+			&owoot_road_triangles[geometry->first_triangle + index];
+		struct OWOOT_PROJECTED_POINT projected[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+		for (legacy_u16 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
+			projected[vertex].x = triangle->vertex[vertex].x;
+			projected[vertex].z = triangle->vertex[vertex].z;
+		}
+		if (road_cross(&projected[0], &projected[1], &projected[2]) == 0) {
+			continue;
+		}
+		legacy_s16 negative = 0;
+		legacy_s16 positive = 0;
+		for (legacy_u16 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
+			legacy_s64 side =
+				road_cross(&projected[vertex],
+						   &projected[(vertex + 1U) % OWOOT_ROAD_TRIANGLE_VERTEX_COUNT], &point);
+			negative |= side < 0;
+			positive |= side > 0;
+		}
+		if (!(negative && positive)) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 static legacy_s16 point_precedes(const struct OWOOT_PROJECTED_POINT *a,

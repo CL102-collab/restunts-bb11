@@ -33,6 +33,13 @@ legacy_int main()
 	if (!initialize.IsOk()) {
 		return TEST_FAILURE;
 	}
+	check(LAUNCHER_CHICANE_FAST_GRASS + 1 == LAUNCHER_AMIGA_GRASS &&
+			  LAUNCHER_AMIGA_GRASS + 1 == LAUNCHER_OWOOT &&
+			  LAUNCHER_OWOOT + 1 == LAUNCHER_OPTION_COUNT,
+		  "Last driving rules must be Chicane Fast-Grass, Amiga Grass, OWOOT.");
+	check(wxString(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].label) ==
+			  "Chicane Fast-Grass",
+		  "The Chicane Fast-Grass checkbox must use its public label.");
 	LauncherOptions options;
 	options.folder = wxString::FromUTF8("/game data/árvíz & test/");
 	const wxString game = "/program files/restunts";
@@ -42,7 +49,7 @@ legacy_int main()
 		  "Program and data paths must remain separate argv elements.");
 	const legacy_char *defaults[] = {
 		"--ogg:on", "--hv:auto", "--fullscreen:off", "--fps:off", "--controller-vibration:on",
-		"--pg:on",	"--lc:on",	 "--lcb:on",		 "--dws:on"};
+		"--pg:on",	"--lc:on",	 "--lcb:on",		 "--dws:on",  "--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -64,6 +71,7 @@ legacy_int main()
 									"--lc:off",
 									"--lcb:off",
 									"--dws:off",
+									"--cfg:off",
 									"--owoot",
 									"/amigagrass"};
 	for (const legacy_char *argument : changed) {
@@ -108,15 +116,23 @@ legacy_int main()
 							wxCONFIG_USE_LOCAL_FILE);
 		config.DisableAutoSave();
 		config.Write("hypervision", "unknown-future-preset");
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
+	check(
+		restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
+			restored.enabled[LAUNCHER_AMIGA_GRASS] == options.enabled[LAUNCHER_AMIGA_GRASS] &&
+			restored.enabled[LAUNCHER_OWOOT] == options.enabled[LAUNCHER_OWOOT],
+		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
-			  !restored.enabled[LAUNCHER_FULLSCREEN] && restored.hypervision == LAUNCHER_HV_AUTO,
+			  !restored.enabled[LAUNCHER_FULLSCREEN] &&
+			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
+			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");
 	check(!wxFileExists(settings), "Reading a missing configuration must not create a file.");
 	return failures == 0 ? TEST_SUCCESS : TEST_FAILURE;

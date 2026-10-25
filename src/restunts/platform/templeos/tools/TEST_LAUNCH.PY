@@ -62,10 +62,10 @@ int main(void)
   assert(captured_count==3);
   assert(!strcmp(captured[1],"--nointro") && !strcmp(captured[2],"/amigagrass"));
   assert(Restunts("C:/DATA",FALSE,FALSE,
-      "--pg:off --lc:off --lcb:off --dws:off /amigagrass --owoot /ns --fps:on --nointro")==42);
-  assert(captured_count==10 && !strcmp(captured[4],"--dws:off"));
-  assert(!strcmp(captured[7],"/ns"));
-  assert(!strcmp(captured[8],"--fps:on") && !strcmp(captured[9],"--nointro"));
+      "--pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --owoot /ns --fps:on --nointro")==42);
+  assert(captured_count==11 && !strcmp(captured[4],"--dws:off"));
+  assert(!strcmp(captured[5],"--cfg:off") && !strcmp(captured[8],"/ns"));
+  assert(!strcmp(captured[9],"--fps:on") && !strcmp(captured[10],"--nointro"));
   assert(Restunts("C:/DATA",TRUE,TRUE,"--pg:off --pg:on --pg:off")==42);
   assert(captured_count==6 && !strcmp(captured[5],"--pg:off"));
   assert(Restunts("C:/DATA",FALSE,FALSE," \t\r\n \"--owoot\" '--pg:off' \"two words\" '' C:\\DATA ")==42);

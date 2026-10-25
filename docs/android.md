@@ -81,16 +81,19 @@ remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
 **Show Control Layout** for the touch circles, and finally the **HyperVision**
 selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
-Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **OWOOT**, and **Amiga Grass**. Each settings group
+Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
+**Amiga Grass**, and **OWOOT**. Each settings group
 places its controls side by side and wraps onto additional rows on smaller
 screens, keeping every option visible without horizontal scrolling. The
 HyperVision label and selector stay grouped; the label moves above the selector
 when needed. Start game applies all selections and remembers them for later
 launches. Defaults use original AdLib music, hide FPS, keep **Show Control Layout**
-checked, and leave HyperVision off. The first four
+checked, and leave HyperVision off. The first five
 driving rules default to enabled; OWOOT and Amiga Grass default to disabled.
 **Dual-Way Switching** passes `--dws:on` when checked; uncheck it for
 `--dws:off` to fix penalty calculation for shortcuts between split-track branches.
+**Chicane Fast-Grass** passes `--cfg:on` when checked; uncheck it to pass
+`--cfg:off` and give green chicane areas ordinary grass grip and drag.
 **Amiga Grass** uses the original Amiga grass grip for stock cars. Use the same
 driving rules that were selected when generating a ghost or recording a replay.
 

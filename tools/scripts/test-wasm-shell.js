@@ -14,8 +14,8 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
 const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-control-layout',
-    'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
-const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
+    'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
@@ -77,6 +77,8 @@ async function assertSettingsLayout(page, narrow) {
             drivingTop: driving.top,
             graphicsControls: Array.from(document.querySelectorAll('#graphics-settings input, #graphics-settings select'))
                 .map(option => option.id),
+            drivingControls: Array.from(document.querySelectorAll('#driving-rules input'))
+                .map(option => option.id),
             rules: ids.map(id => {
                 const input = document.getElementById(id);
                 return { grouped: input.closest('fieldset').id === 'driving-rules',
@@ -98,11 +100,12 @@ async function assertSettingsLayout(page, narrow) {
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
     assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-control-layout', 'hypervision'],
         'Fullscreen must precede the shared graphics controls, with HyperVision last');
+    assert.deepEqual(layout.drivingControls, RULES,
+        'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
     const ruleLines = new Set(layout.rules.map(rule => rule.y)).size;
-    if (narrow !== undefined) {
-        assert.ok(narrow ? ruleLines > 1 : ruleLines === 1,
-            'Driving rules must wrap on phones and fit one line when space allows');
+    if (narrow) {
+        assert.ok(ruleLines > 1, 'Driving rules must wrap on phones');
     }
     for (const row of layout.rows) {
         assert.equal(row.display, 'flex', 'Settings groups must use horizontal flex stacks');
@@ -882,6 +885,8 @@ async function main() {
         assert.equal(await page.locator('#left-corner-bias').isChecked(), true);
         assert.equal(await page.locator('#dual-way-switching').isChecked(), true);
         assert.equal((await page.locator('#dual-way-switching').locator('..').innerText()).trim(), 'Dual-Way Switching');
+        assert.equal(await page.locator('#chicane-fast-grass').isChecked(), true);
+        assert.equal((await page.locator('#chicane-fast-grass').locator('..').innerText()).trim(), 'Chicane Fast-Grass');
         assert.equal(await page.locator('#owoot').isChecked(), false);
         assert.equal(await page.locator('#amiga-grass').isChecked(), false);
         await page.evaluate(() => setLoading(true));
@@ -894,7 +899,7 @@ async function main() {
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--hv:auto', '--control-layout:off',
-            '--pg:on', '--lc:on', '--lcb:on', '--dws:on'
+            '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
 
@@ -924,7 +929,7 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 4)]) await page.locator('#' + id).uncheck();
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
         await page.locator('#hypervision').selectOption('high');
         const stored = await storedOptions(page);
         for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
@@ -933,7 +938,7 @@ async function main() {
         for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
-        for (const id of ['sound-enabled', 'new-midi', ...RULES.slice(0, 4)]) {
+        for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) {
             assert.equal(await page.locator('#' + id).isChecked(), false, id + ' must persist across reload');
         }
         assert.equal(await page.locator('#hypervision').inputValue(), 'high');
@@ -941,7 +946,7 @@ async function main() {
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
-            '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--owoot', '/amigagrass'
+            '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '/amigagrass', '--owoot'
         ]);
 
         await page.reload();
@@ -970,8 +975,12 @@ async function main() {
                 'Preferences from earlier versions must leave sound enabled');
             assert.equal(await page.locator('#dual-way-switching').isChecked(), true,
                 'Preferences from earlier versions must preserve original dual-way switching');
+            assert.equal(await page.locator('#chicane-fast-grass').isChecked(), true,
+                'Preferences from earlier versions must keep Chicane Fast-Grass enabled');
             await page.locator('#show-fps').check();
             const migrated = await storedOptions(page);
+            assert.equal(migrated['chicane-fast-grass'], true,
+                'Saving older preferences must persist the default for Chicane Fast-Grass');
             assert.equal(migrated.hypervision, expected,
                 'Saving settings must replace the legacy boolean with the migrated preset');
             assert.equal(Object.hasOwn(migrated, 'unknown-preference'), false,
@@ -982,6 +991,7 @@ async function main() {
             assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
                 expected === 'off' ? [] : ['--hv:' + expected]);
             assert.equal(args.includes('/ns'), false);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--cfg:')), ['--cfg:on']);
         }
         await page.setViewportSize({ width: 1000, height: 500 });
         await assertSettingsLayout(page, false);

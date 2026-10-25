@@ -43,8 +43,12 @@ your game folder or go in its `cars/` subfolder; Refresh discovers all three loc
 
 The **Driving rules** checkboxes stay together in a vertical stack, one per
 row, without horizontal scrolling: **Power Gear**, **Original Collision Bugs**,
-**Left Corner Bias**, **OWOOT**, and **Amiga Grass**. The first three default to
-enabled; OWOOT and Amiga Grass default to disabled. All five selections are remembered. **Amiga Grass** uses
+**Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
+**Amiga Grass**, and **OWOOT**. The first five default to enabled; OWOOT and
+Amiga Grass default to disabled. All seven selections are remembered.
+Uncheck **Chicane Fast-Grass** to use `--cfg:off`, giving green chicane areas
+ordinary grass grip and drag. The report records this choice for replay
+verification, including after an interrupted search. **Amiga Grass** uses
 the original Amiga grass grip for stock cars, and is included in the report and
 in verification after an interrupted search.
 

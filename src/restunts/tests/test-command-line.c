@@ -108,9 +108,9 @@ static void test_help_contents(void)
 #endif
 		"  --fps:on|off",
 	};
-	static const legacy_char *physics_options[] = {"  --pg:on|off",	 "  --lc:on|off",
-												   "  --lcb:on|off", "  --dws:on|off",
-												   "  /amigagrass",	 "  --owoot"};
+	static const legacy_char *physics_options[] = {
+		"  --pg:on|off",  "  --lc:on|off", "  --lcb:on|off", "  --dws:on|off",
+		"  --cfg:on|off", "  /amigagrass", "  --owoot"};
 #ifdef RESTUNTS_SDL3
 	static const legacy_char *hypervision_options[] = {"  --hv:auto", "  --hv:full", "  --hv:high",
 													   "  --hv:medium", "  --hv:low"};
@@ -138,8 +138,11 @@ static void test_help_contents(void)
 	for (legacy_u16 index = 0; index < COMMAND_LINE_TEST_ARGUMENT_COUNT(removed_options); index++) {
 		assert(strstr(output, removed_options[index]) == NULL);
 	}
-	expect_text("Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on; --owoot off.");
+	expect_text("Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on; "
+				"--owoot off.");
 	expect_text("Enable/disable original Dual-Way Switching.");
+	expect_text("Enable/disable Chicane fast-grass.");
+	expect_text("With --cfg:off, green chicane areas behave as grass.");
 	expect_text("Amiga grass grip starts off; enable with /amigagrass.");
 	expect_text("Use original Amiga grass grip (stock cars).");
 	expect_text("no effect");

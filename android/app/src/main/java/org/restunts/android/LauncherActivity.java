@@ -89,6 +89,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox legacyCollision;
     private CheckBox leftCornerBias;
     private CheckBox dualWaySwitching;
+    private CheckBox chicaneFastGrass;
     private CheckBox owoot;
     private CheckBox amigaGrass;
     private Spinner hyperVision;
@@ -296,14 +297,16 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_LEFT_CORNER_BIAS, textSize);
         dualWaySwitching = option(drivingRules, "Dual-Way Switching", LaunchOptions.DUAL_WAY_SWITCHING_KEY,
             LaunchOptions.DEFAULT_DUAL_WAY_SWITCHING, textSize);
+        chicaneFastGrass = option(drivingRules, "Chicane Fast-Grass", LaunchOptions.CHICANE_FAST_GRASS_KEY,
+            LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, textSize);
+        amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
+            LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         owoot = option(drivingRules, "OWOOT", LaunchOptions.OWOOT_KEY,
             LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
-        amigaGrass = option(drivingRules, "Amiga Grass", LaunchOptions.AMIGA_GRASS_KEY,
-            LaunchOptions.DEFAULT_AMIGA_GRASS, textSize);
         for (CheckBox option : new CheckBox[] {
                 sound, vibration, newMidi, skipIntro, tiltSteering, showFps, showControlLayout,
-                powerGear, legacyCollision, leftCornerBias, dualWaySwitching, owoot, amigaGrass}) {
+                powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -359,7 +362,7 @@ public final class LauncherActivity extends Activity {
         return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(), showControlLayout.isChecked(),
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
             legacyCollision.isChecked(), leftCornerBias.isChecked(), dualWaySwitching.isChecked(),
-            owoot.isChecked(), amigaGrass.isChecked(),
+            chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
             sound.isChecked(), skipIntro.isChecked());
     }
 
@@ -377,6 +380,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision)
             .putBoolean(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias)
             .putBoolean(LaunchOptions.DUAL_WAY_SWITCHING_KEY, options.dualWaySwitching)
+            .putBoolean(LaunchOptions.CHICANE_FAST_GRASS_KEY, options.chicaneFastGrass)
             .putBoolean(LaunchOptions.OWOOT_KEY, options.owoot)
             .putBoolean(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass).apply();
     }
@@ -439,6 +443,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision);
                         intent.putExtra(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias);
                         intent.putExtra(LaunchOptions.DUAL_WAY_SWITCHING_KEY, options.dualWaySwitching);
+                        intent.putExtra(LaunchOptions.CHICANE_FAST_GRASS_KEY, options.chicaneFastGrass);
                         intent.putExtra(LaunchOptions.OWOOT_KEY, options.owoot);
                         intent.putExtra(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass);
                         activity.startActivity(intent);

@@ -129,7 +129,8 @@ def main():
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                 "owoot": "--owoot" in flags,
-                "amiga_grass": "/amigagrass" in flags}
+                "amiga_grass": "/amigagrass" in flags,
+                "chicane_fast_grass": "--cfg:off" not in flags}
             assert result["globally_optimal"] is False
             assert result["total_seconds"] == result["total_frames"] / 20
             if strategy == "state":
@@ -159,7 +160,8 @@ def main():
         # A native fixture verifies that planning never alters physics and
         # checkpoint reuse restores hidden route, penalty, collision and RNG
         # state, including prefixes differing in a single input byte.
-        for prefix, flags in ((261, ("--expect-powergear",)), (200, ("--lc:off",)), (40, RESTRICTED)):
+        for prefix, flags in ((261, ("--expect-powergear",)),
+                              (200, ("--lc:off", "--CFG:OFF")), (40, RESTRICTED)):
             subprocess.run([str(native), "--data-dir", str(data), str(temporary / "uphill.RPL"), str(prefix),
                             *flags], cwd=temporary, env=environment, check=True, timeout=scaled_timeout(90))
         subprocess.run([str(native), "--data-dir", str(data), str(temporary / "airborne.RPL"),
@@ -260,6 +262,12 @@ def main():
         assert fixed_switch[1]["state_task_hash"] == parallel_switch[1]["state_task_hash"]
         assert not parallel_switch[1]["physics"]["dws"]
         print("Dual-Way Switching off preserves cooperative task identity and native playback", flush=True)
+        chicane = generate("cfg1.RPL", budget=257, flags=("--cfg:off",))
+        parallel_chicane = generate("cfg2.RPL", budget=257, cores=2, flags=("--cfg:off",))
+        assert chicane[0] == parallel_chicane[0] and chicane[2] == parallel_chicane[2]
+        assert chicane[1]["state_task_hash"] == parallel_chicane[1]["state_task_hash"]
+        assert not parallel_chicane[1]["physics"]["chicane_fast_grass"]
+        print("Chicane fast-grass off preserves cooperative task identity and native playback", flush=True)
         generate("owoot.RPL", car="COUN", budget=2000, cores=2, flags=RESTRICTED)
         print("Track-only state search and matching-physics replay/OWOOT validation passed", flush=True)
 
@@ -267,9 +275,10 @@ def main():
             for mode in ("cancel", "failed"):
                 log = temporary / (mode + ".log")
                 name = mode + ".RPL"
+                flags = ("--cfg:off",) if mode == "cancel" else ("--cfg:on",)
                 with log.open("w") as output:
                     process = subprocess.Popen(command(["human.RPL", "LM02", "--strategy", "state",
-                        "--cores", "2", "--seconds", "0", "--output", name]),
+                        "--cores", "2", "--seconds", "0", "--output", name, *flags]),
                         cwd=temporary, env=environment, stdout=output, stderr=subprocess.STDOUT)
                     worker_ids = []
                     try:
@@ -281,6 +290,9 @@ def main():
                             assert process.poll() is None, log.read_text()
                             time.sleep(0.05)
                         assert len(worker_ids) == 2, "No persistent native state workers were running"
+                        for pid in worker_ids:
+                            arguments = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+                            assert flags[0].encode() in arguments, arguments
                         assert (temporary / (name + ".json")).is_file(), log.read_text()
                         if mode == "cancel":
                             process.send_signal(signal.SIGINT)
@@ -293,7 +305,7 @@ def main():
                             process.kill()
                             process.wait(timeout=5)
                     assert not any(alive(pid) for pid in worker_ids), "Search left live native workers"
-                    verify(name, "LM02")
+                    verify(name, "LM02", flags)
             print("Cancellation and worker failure preserve a verified finish and reap all workers", flush=True)
     return 0
 

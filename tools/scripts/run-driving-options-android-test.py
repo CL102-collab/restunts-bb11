@@ -69,7 +69,7 @@ def main():
           '-DRESTUNTS_GIT_HASH="0123456789abcdef0123456789abcdef01234567"',
           '-DRESTUNTS_BUILD_DATE="Feb 12 1991"'],
          "Android command-line help and option classification"),
-        ("test-startup", ["math.c", "carsetup.c", "frame_adaptive.c", "owoot.c",
+        ("test-startup", ["math.c", "carsetup.c", "frame_adaptive.c", "owoot.c", "trackobj.c",
                           "statecar.c", "strlib.c", "physics_collision.c", "physics_grip.c",
                           "race_route.c", "full_data.c", "full_strings.c", "headless_data.c",
                           "legacy.c"],

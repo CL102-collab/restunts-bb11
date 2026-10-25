@@ -71,6 +71,23 @@ public final class GenerationRequestTest {
             rejected(() -> request(track.getName(), "COUN", mode).validate(game));
         }
 
+        for (String flag : new String[] {"--cfg:on", "--cfg:off"}) {
+            GenerationRequest chicane = new GenerationRequest(track.getName(), "COUN", 60, 2,
+                "state", GenerationRequest.MODE_GENERATE, new String[] {flag, "/amigagrass", "--owoot"});
+            assert chicane.validate(game).equals(track);
+            List<String> command = chicane.arguments(executable, game, track, output);
+            assert command.contains(flag);
+            Intent transport = new Intent();
+            chicane.putInto(transport);
+            assert GenerationRequest.from(transport).arguments(executable, game, track, output)
+                .equals(command);
+        }
+        for (String[] flags : new String[][] {{"--cfg:maybe"}, {"--cfg:offx"},
+                {"--cfg:on", "--cfg:off"}}) {
+            rejected(() -> new GenerationRequest(track.getName(), "COUN", 60, 2, "state",
+                GenerationRequest.MODE_GENERATE, flags).validate(game));
+        }
+
         GenerationRequest generation = request(track.getName(), "coun", GenerationRequest.MODE_GENERATE);
         assert generation.validate(game).equals(track);
         assert generation.resolvedCar(track).equals("COUN");

@@ -81,8 +81,9 @@ public final class GenghostActivity extends Activity {
     private CheckBox collision;
     private CheckBox leftBias;
     private CheckBox dualWaySwitching;
-    private CheckBox owoot;
+    private CheckBox chicaneFastGrass;
     private CheckBox amigaGrass;
+    private CheckBox owoot;
     private Button chooseFolder;
     private Button refreshFolder;
     private Button generate;
@@ -173,9 +174,10 @@ public final class GenghostActivity extends Activity {
         collision = checkbox(drivingRules, "Original Collision Bugs", "collision", true);
         leftBias = checkbox(drivingRules, "Left Corner Bias", "left_bias", true);
         dualWaySwitching = checkbox(drivingRules, "Dual-Way Switching", "dual_way_switching", true);
+        chicaneFastGrass = checkbox(drivingRules, "Chicane Fast-Grass", "chicane_fast_grass", true);
+        amigaGrass = checkbox(drivingRules, "Amiga Grass", "amiga_grass", false);
         owoot = checkbox(drivingRules, "OWOOT", "owoot", false);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
-        amigaGrass = checkbox(drivingRules, "Amiga Grass", "amiga_grass", false);
         page.addView(drivingRules, fullWidth());
         text(page, "Use the same driving rules when playing the saved replay.", 14);
 
@@ -364,8 +366,9 @@ public final class GenghostActivity extends Activity {
             .putBoolean("collision", collision.isChecked())
             .putBoolean("left_bias", leftBias.isChecked())
             .putBoolean("dual_way_switching", dualWaySwitching.isChecked())
-            .putBoolean("owoot", owoot.isChecked())
-            .putBoolean("amiga_grass", amigaGrass.isChecked());
+            .putBoolean("chicane_fast_grass", chicaneFastGrass.isChecked())
+            .putBoolean("amiga_grass", amigaGrass.isChecked())
+            .putBoolean("owoot", owoot.isChecked());
         if (track.getSelectedItem() != null) {
             changes.putString("track", selected(track));
         }
@@ -407,8 +410,9 @@ public final class GenghostActivity extends Activity {
         collision.setEnabled(!busy);
         leftBias.setEnabled(!busy);
         dualWaySwitching.setEnabled(!busy);
-        owoot.setEnabled(!busy);
+        chicaneFastGrass.setEnabled(!busy);
         amigaGrass.setEnabled(!busy);
+        owoot.setEnabled(!busy);
         generate.setEnabled(!busy && catalogReady && !availableTracks.isEmpty()
             && (fineTuningSelected() || !availableCars.isEmpty()));
         cancel.setEnabled(generation.running);
@@ -570,11 +574,12 @@ public final class GenghostActivity extends Activity {
         flags.add(collision.isChecked() ? "--lc:on" : "--lc:off");
         flags.add(leftBias.isChecked() ? "--lcb:on" : "--lcb:off");
         flags.add(dualWaySwitching.isChecked() ? "--dws:on" : "--dws:off");
-        if (owoot.isChecked()) {
-            flags.add("--owoot");
-        }
+        flags.add(chicaneFastGrass.isChecked() ? "--cfg:on" : "--cfg:off");
         if (amigaGrass.isChecked()) {
             flags.add("/amigagrass");
+        }
+        if (owoot.isChecked()) {
+            flags.add("--owoot");
         }
         saveOptions();
         if (Build.VERSION.SDK_INT >= 33

@@ -62,12 +62,13 @@ needed. The HTML's location does not determine where the game looks for data.
    phones, use fullscreen landscape mode to put them in the black side areas.
    The separate **Driving rules** group below graphics contains **Power Gear**,
    **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
-   **OWOOT**, and **Amiga Grass**.
+   **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**.
    Each group lays out its controls horizontally and
-   wraps to more lines as needed, without horizontal scrolling. The first four rules
+   wraps to more lines as needed, without horizontal scrolling. The first five rules
    preserve the original driving behavior by default. Uncheck **Dual-Way Switching**
    to pass `--dws:off` and fix penalty calculation for shortcuts between branches.
-   OWOOT and Amiga Grass
+   Uncheck **Chicane Fast-Grass** to pass `--cfg:off` and give green chicane
+   areas ordinary grass grip and drag. OWOOT and Amiga Grass
    start off; Amiga Grass uses the original Amiga grass grip for stock cars
    (`/amigagrass`). Custom-car surface adhesion is activated by the car resource
    capability flag. All settings are remembered for this page, including

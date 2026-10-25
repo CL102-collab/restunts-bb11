@@ -18,6 +18,11 @@ runs as a separate process and remains running after the launcher closes. The
 AppImage hides the startup window and waits for the game to exit so its mounted
 assets remain available.
 
+The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
+and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it
+off passes `--cfg:off`, giving green chicane areas ordinary grass behavior.
+The setting is remembered with the other startup options.
+
 Use the launcher from your desktop application menu where installed. macOS
 packages include `Restunts.app`; keep it beside the package's `bin`, `lib` and
 `share` directories. `run-restunts.sh` also opens the window with no arguments.

@@ -228,6 +228,7 @@ extern legacy_s16 RsSweepTrackSolidObstacle(
 extern legacy_s16 RsSweepTrackWallSpan(CVectorLong *previous_first,CVectorLong *previous_second,
     CVectorLong *current_first,CVectorLong *current_second,legacy_s16 *fraction);
 extern legacy_void RsConfigureLeftCornerBias(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_void RsConfigureChicaneFastGrass(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsApplyAmigaGrass(CSimd *simd,legacy_s8 *car_id);
 extern legacy_void RsConfigureLegacyCollision(legacy_s16 argc,legacy_s8 **argv);
@@ -330,7 +331,8 @@ extern legacy_void RsPolygonMergeSecondEdge(legacy_u16 *line_setup,legacy_u16 ch
 extern legacy_u16 RsLinePrepare(legacy_u16 start_x,legacy_u16 start_y,legacy_u16 end_x,
     legacy_u16 end_y,legacy_u16 *line,legacy_u16 skip_clipping);
 extern CVector *RsHeadlessTrackVectorFromLegacyOffset(legacy_u16 offset);
-extern legacy_s16 RsOwootRouteIsValid(CCarState *carstate,legacy_s16 allowed_jump);
-extern legacy_s16 RsOwootJumpIsValid(CCarState *carstate);
+extern legacy_s16 RsTrackRoadContainsLocalPoint(legacy_s16 physical_model,CVector *position);
 extern legacy_s16 RsTrackRoadOverlapsWheel(
     CVector *vertices,legacy_u16 ring_count,legacy_s16 road_contact);
+extern legacy_s16 RsOwootRouteIsValid(CCarState *carstate,legacy_s16 allowed_jump);
+extern legacy_s16 RsOwootJumpIsValid(CCarState *carstate);

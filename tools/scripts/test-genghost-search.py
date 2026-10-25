@@ -110,7 +110,8 @@ def main():
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                                          "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                                          "owoot": "--owoot" in flags,
-                                         "amiga_grass": "/amigagrass" in flags}
+                                         "amiga_grass": "/amigagrass" in flags,
+                                         "chicane_fast_grass": "--cfg:off" not in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
             verified = verify(path, car, flags)
             for field in ("finish_frame", "penalty_frames", "total_frames"):
@@ -252,6 +253,10 @@ def main():
                               ("off", ("--DWS:ON", "--dws:off"))):
             _, switched = generate("seed.RPL", "LM02", f"dws{suffix}.RPL", 1, flags)
             assert switched["physics"]["dws"] is (suffix == "on")
+        for suffix, flags in (("on", ("--CFG:OFF", "--cfg:on")),
+                              ("off", ("--CFG:ON", "--cfg:off"))):
+            _, chicane = generate("early.RPL", "PMIN", f"cfg{suffix}.RPL", 1, flags)
+            assert chicane["physics"]["chicane_fast_grass"] is (suffix == "on")
         _, seeded_report = generate("seed.RPL", "LM02", "seeded.RPL", 100)
         assert seeded_report["total_frames"] <= seed_score, "Search regressed its valid input replay"
         assert seeded_report["seed_replay_finished"] and seeded_report["seed_total_frames"] == seed_score
@@ -301,6 +306,8 @@ def main():
             ["track.TRK", "COUN", "--pg:maybe"],
             ["track.TRK", "COUN", "--dws:maybe"],
             ["track.TRK", "COUN", "--dws:offx"],
+            ["track.TRK", "COUN", "--cfg:maybe"],
+            ["track.TRK", "COUN", "--cfg:offx"],
             ["track.TRK", "COUN", "--transmission", "manual"],
             ["track.TRK", "COUN", "--transmission", "auto"],
             ["track.TRK", "TOOLONG"],

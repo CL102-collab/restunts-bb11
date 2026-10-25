@@ -85,6 +85,7 @@ legacy_void TempleReplaySetup()
   RsConfigurePowergearBug(1,arguments);
   RsConfigureLegacyCollision(1,arguments);
   RsConfigureLeftCornerBias(1,arguments);
+  RsConfigureChicaneFastGrass(1,arguments);
   RsConfigureAmigaGrass(1,arguments);
   RsConfigureOwoot(1,arguments);
   RsInitVideoGeometryFlags;

@@ -109,8 +109,9 @@
                 <label><input id="legacy-collision" type="checkbox" checked disabled> Original Collision Bugs</label>
                 <label><input id="left-corner-bias" type="checkbox" checked disabled> Left Corner Bias</label>
                 <label><input id="dual-way-switching" type="checkbox" checked disabled> Dual-Way Switching</label>
-                <label><input id="owoot" type="checkbox" disabled> OWOOT</label>
+                <label><input id="chicane-fast-grass" type="checkbox" checked disabled> Chicane Fast-Grass</label>
                 <label><input id="amiga-grass" type="checkbox" disabled> Amiga Grass</label>
+                <label><input id="owoot" type="checkbox" disabled> OWOOT</label>
             </div>
         </fieldset>
         <p id="status" role="status" aria-live="polite">Preparing game…</p>
@@ -245,7 +246,7 @@
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
         const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
-            'show-fps', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'owoot', 'amiga-grass'];
+            'show-fps', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -480,8 +481,9 @@
             args.push(document.getElementById('legacy-collision').checked ? '--lc:on' : '--lc:off');
             args.push(document.getElementById('left-corner-bias').checked ? '--lcb:on' : '--lcb:off');
             args.push(document.getElementById('dual-way-switching').checked ? '--dws:on' : '--dws:off');
-            if (document.getElementById('owoot').checked) args.push('--owoot');
+            args.push(document.getElementById('chicane-fast-grass').checked ? '--cfg:on' : '--cfg:off');
             if (document.getElementById('amiga-grass').checked) args.push('/amigagrass');
+            if (document.getElementById('owoot').checked) args.push('--owoot');
             try {
                 // Keep the browser request inside this click's user activation.
                 // SDL has not created its window or fullscreen helper yet.

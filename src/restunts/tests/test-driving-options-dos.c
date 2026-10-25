@@ -9,6 +9,9 @@
 #include "../c/state.c"
 #include "audio_internal.h"
 #include "car_speed.h"
+#include "track_collision.h"
+#include "track_objects.h"
+#include "trackdata_layout.h"
 
 static const legacy_s8 *driving_options_failure;
 
@@ -76,6 +79,62 @@ static legacy_s16 driving_options_check_dualway(legacy_s16 fixed)
 	}
 	const legacy_s8 *message =
 		fixed ? "DWS penalties: 18/24 seconds\r\n" : "DWS penalties: 0/0 seconds\r\n";
+	dos_write_stdout(message, strlen(message));
+	return 0;
+}
+
+#define DRIVING_OPTIONS_CHICANE_ROW 10
+#define DRIVING_OPTIONS_CHICANE_COLUMN 10
+#define DRIVING_OPTIONS_CHICANE_TILE 1U
+#define DRIVING_OPTIONS_CHICANE_PAVED_MATERIAL 0
+#define DRIVING_OPTIONS_CHICANE_GRASS_Z 500
+#define DRIVING_OPTIONS_CHICANE_ROAD_X (-350)
+
+static legacy_s16 driving_options_check_chicane(legacy_s16 fixed)
+{
+	struct TRACK_COLLISION_SNAPSHOT collision;
+	track_collision_capture(&collision);
+	struct TRACKOBJECT original_object = trkObjectList[DRIVING_OPTIONS_CHICANE_TILE];
+	legacy_s16 element_index =
+		terrainrows[DRIVING_OPTIONS_CHICANE_ROW] + DRIVING_OPTIONS_CHICANE_COLUMN;
+	legacy_s16 terrain_index =
+		trackrows[DRIVING_OPTIONS_CHICANE_ROW] + DRIVING_OPTIONS_CHICANE_COLUMN;
+	legacy_u8 original_element = track_element_map[element_index];
+	legacy_u8 original_terrain = track_terrain_map[terrain_index];
+	trkObjectList[DRIVING_OPTIONS_CHICANE_TILE].ss_physicalModel =
+		PHYSICAL_MODEL_CHICANE_RIGHT_LEFT;
+	trkObjectList[DRIVING_OPTIONS_CHICANE_TILE].ss_multiTileFlag = 0;
+	trkObjectList[DRIVING_OPTIONS_CHICANE_TILE].ss_rotY = 0;
+	trkObjectList[DRIVING_OPTIONS_CHICANE_TILE].ss_surfaceType =
+		DRIVING_OPTIONS_CHICANE_PAVED_MATERIAL;
+	track_element_map[element_index] = DRIVING_OPTIONS_CHICANE_TILE;
+	track_terrain_map[terrain_index] = 0;
+	struct VECTOR position;
+	position.x = track_column_centers[DRIVING_OPTIONS_CHICANE_COLUMN];
+	position.y = 0;
+	position.z = terraincenterpos[DRIVING_OPTIONS_CHICANE_ROW] + DRIVING_OPTIONS_CHICANE_GRASS_Z;
+	build_track_object(&position, &position);
+	legacy_s8 green_surface = current_surf_type;
+	legacy_s16 green_height = terrainHeight;
+	position.x += DRIVING_OPTIONS_CHICANE_ROAD_X;
+	build_track_object(&position, &position);
+	legacy_s8 road_surface = current_surf_type;
+	position.x -= DRIVING_OPTIONS_CHICANE_ROAD_X;
+	track_element_map[element_index] = 0;
+	build_track_object(&position, &position);
+	legacy_s16 ordinary_grass_height = terrainHeight;
+	track_element_map[element_index] = original_element;
+	track_terrain_map[terrain_index] = original_terrain;
+	trkObjectList[DRIVING_OPTIONS_CHICANE_TILE] = original_object;
+	track_collision_restore(&collision);
+	CHECK_OPTION(green_surface == (fixed ? CAR_SURFACE_GRASS : CAR_SURFACE_PAVED),
+				 "Chicane fast-grass startup switch reaches green surface");
+	CHECK_OPTION(road_surface == CAR_SURFACE_PAVED,
+				 "Chicane road retains its material when fast grass is disabled");
+	CHECK_OPTION(!fixed || green_height == ordinary_grass_height,
+				 "Chicane green uses ordinary grass height");
+	const legacy_s8 *message =
+		fixed ? "CFG surfaces: grass/road\r\n" : "CFG surfaces: road/road\r\n";
 	dos_write_stdout(message, strlen(message));
 	return 0;
 }
@@ -214,7 +273,11 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 {
 	legacy_s16 opt_in = argc > 1 && strcmp(argv[1], "optin") == 0;
 	init_full_game(argc, argv);
-	legacy_s16 result = driving_options_check(opt_in);
+	legacy_s16 cfg_fixed = argc > 1 && strcmp(argv[1], "cfgfixed") == 0;
+	legacy_s16 result = driving_options_check_chicane(cfg_fixed);
+	if (result == 0) {
+		result = driving_options_check(opt_in);
+	}
 	if (result == 0) {
 		legacy_s16 fixed = argc > 1 && strcmp(argv[1], "dwsfixed") == 0;
 		result = driving_options_check_dualway(fixed);

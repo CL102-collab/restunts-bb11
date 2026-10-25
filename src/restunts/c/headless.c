@@ -55,6 +55,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_legacy_collision(argc, argv);
 	configure_left_corner_bias(argc, argv);
 	configure_dual_way_switching(argc, argv);
+	configure_chicane_fast_grass(argc, argv);
 	configure_amiga_grass(argc, argv);
 	configure_owoot(argc, argv);
 	init_video_geometry_flags();

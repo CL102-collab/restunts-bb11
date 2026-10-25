@@ -219,7 +219,9 @@ python3 tools/scripts/run-amiga-platform-test.py \
 
 Use `--machine a4000` for faster interpreted test execution. The binaries still
 target the 68000. `--fps:on|off` is a startup option on Amiga, alongside the
-existing power gear, collision, corner bias, grass grip, and OWOOT switches.
+existing power gear, collision, corner bias, Chicane Fast-Grass (`--cfg:on/off`),
+grass grip, and OWOOT switches. Chicane Fast-Grass defaults to on; turn it off
+to give green chicane areas ordinary grass grip and drag.
 Surface adhesion activates automatically for a car with a one-byte `fand`
 resource set to `1`; cars without that capability keep the original physics.
 

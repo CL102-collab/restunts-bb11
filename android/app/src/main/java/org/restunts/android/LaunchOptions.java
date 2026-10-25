@@ -17,6 +17,7 @@ public final class LaunchOptions {
     public static final String LEGACY_COLLISION_KEY = "legacy_collision";
     public static final String LEFT_CORNER_BIAS_KEY = "left_corner_bias";
     public static final String DUAL_WAY_SWITCHING_KEY = "dual_way_switching";
+    public static final String CHICANE_FAST_GRASS_KEY = "chicane_fast_grass";
     public static final String OWOOT_KEY = "owoot";
     public static final String AMIGA_GRASS_KEY = "amiga_grass";
     public static final boolean DEFAULT_NEW_MIDI = false;
@@ -30,6 +31,7 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_LEGACY_COLLISION = true;
     public static final boolean DEFAULT_LEFT_CORNER_BIAS = true;
     public static final boolean DEFAULT_DUAL_WAY_SWITCHING = true;
+    public static final boolean DEFAULT_CHICANE_FAST_GRASS = true;
     public static final boolean DEFAULT_OWOOT = false;
     public static final boolean DEFAULT_AMIGA_GRASS = false;
 
@@ -76,6 +78,7 @@ public final class LaunchOptions {
     public final boolean legacyCollision;
     public final boolean leftCornerBias;
     public final boolean dualWaySwitching;
+    public final boolean chicaneFastGrass;
     public final boolean owoot;
     public final boolean amigaGrass;
 
@@ -83,19 +86,22 @@ public final class LaunchOptions {
             HyperVision hyperVision) {
         this(newMidi, showFps, showControlLayout, hyperVision, DEFAULT_POWER_GEAR,
             DEFAULT_LEGACY_COLLISION, DEFAULT_LEFT_CORNER_BIAS, DEFAULT_DUAL_WAY_SWITCHING,
-            DEFAULT_OWOOT, DEFAULT_AMIGA_GRASS);
+            DEFAULT_CHICANE_FAST_GRASS, DEFAULT_OWOOT, DEFAULT_AMIGA_GRASS);
     }
 
     public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
             HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
-            boolean leftCornerBias, boolean dualWaySwitching, boolean owoot, boolean amigaGrass) {
+            boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
+            boolean owoot, boolean amigaGrass) {
         this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
-            leftCornerBias, dualWaySwitching, owoot, amigaGrass, DEFAULT_SOUND, DEFAULT_SKIP_INTRO);
+            leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
+            DEFAULT_SOUND, DEFAULT_SKIP_INTRO);
     }
 
     public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
             HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
-            boolean leftCornerBias, boolean dualWaySwitching, boolean owoot, boolean amigaGrass,
+            boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
+            boolean owoot, boolean amigaGrass,
             boolean sound, boolean skipIntro) {
         this.newMidi = newMidi;
         this.sound = sound;
@@ -107,6 +113,7 @@ public final class LaunchOptions {
         this.legacyCollision = legacyCollision;
         this.leftCornerBias = leftCornerBias;
         this.dualWaySwitching = dualWaySwitching;
+        this.chicaneFastGrass = chicaneFastGrass;
         this.owoot = owoot;
         this.amigaGrass = amigaGrass;
     }
@@ -125,11 +132,12 @@ public final class LaunchOptions {
         arguments.add(legacyCollision ? "--lc:on" : "--lc:off");
         arguments.add(leftCornerBias ? "--lcb:on" : "--lcb:off");
         arguments.add(dualWaySwitching ? "--dws:on" : "--dws:off");
-        if (owoot) {
-            arguments.add("--owoot");
-        }
+        arguments.add(chicaneFastGrass ? "--cfg:on" : "--cfg:off");
         if (amigaGrass) {
             arguments.add("/amigagrass");
+        }
+        if (owoot) {
+            arguments.add("--owoot");
         }
         if (!sound) {
             arguments.add("/ns");

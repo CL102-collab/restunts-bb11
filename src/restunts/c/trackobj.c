@@ -5,6 +5,8 @@
 #include "track_types.h"
 #include "track_objects.h"
 #include "track_collision.h"
+#include "physics_internal.h"
+#include "owoot_road.h"
 #include "externs.h"
 
 #define TRACK_ARC_CENTER_OFFSET 1024
@@ -398,6 +400,24 @@ static legacy_s16 track_arc_segment(const struct VECTOR *position)
 	return LEGACY_S16_WRAP_NEGATE(LEGACY_S16_WRAP_SUB(value, TRACK_ARC_LAST_SEGMENT));
 }
 
+enum CHICANE_FAST_GRASS_MODE { CHICANE_FAST_GRASS_OFF = 0, CHICANE_FAST_GRASS_ON = 1 };
+
+static legacy_s16 chicane_fast_grass_enabled = CHICANE_FAST_GRASS_ON;
+
+void configure_chicane_fast_grass(legacy_s16 argc, legacy_s8 *argv[])
+{
+	static const legacy_s8 off_option[] = "--cfg:off";
+	static const legacy_s8 on_option[] = "--cfg:on";
+	chicane_fast_grass_enabled = CHICANE_FAST_GRASS_ON;
+	for (legacy_s16 index = 1; index < argc; index++) {
+		if (stricmp(argv[index], off_option) == 0) {
+			chicane_fast_grass_enabled = CHICANE_FAST_GRASS_OFF;
+		} else if (stricmp(argv[index], on_option) == 0) {
+			chicane_fast_grass_enabled = CHICANE_FAST_GRASS_ON;
+		}
+	}
+}
+
 /* One collision query in the element's local coordinates. Keep this on the
  * caller's stack: handlers only share the query and the existing collision
  * outputs, so simultaneous calls do not acquire a new static work area. */
@@ -446,6 +466,15 @@ static void track_object_large_corner(struct TRACK_OBJECT_SAMPLE *sample)
 
 static void track_object_chicane(struct TRACK_OBJECT_SAMPLE *sample)
 {
+	if (chicane_fast_grass_enabled == CHICANE_FAST_GRASS_OFF) {
+		/* Use the visible road footprint: the old circular approximation
+		 * cuts across the chicane's rendered curves and their edges. */
+		current_surf_type =
+			track_road_contains_local_point(sample->physical_model, &sample->position)
+				? (legacy_u8)sample->surface_type
+				: CAR_SURFACE_GRASS;
+		return;
+	}
 	if (sample->physical_model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) {
 		sample->position.x = LEGACY_S16_WRAP_NEGATE(sample->position.x);
 	}

@@ -482,6 +482,7 @@ public final class GeneratorService extends Service {
             command.add("--" + key + ":" + (physics.getBoolean(key) ? "on" : "off"));
         }
         command.add(physics.optBoolean("dws", true) ? "--dws:on" : "--dws:off");
+        command.add(physics.optBoolean("chicane_fast_grass", true) ? "--cfg:on" : "--cfg:off");
         if (physics.getBoolean("owoot")) {
             command.add("--owoot");
         }

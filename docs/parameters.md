@@ -10,6 +10,7 @@ the preserved assembly executable retain their original interfaces.
 | Original collision behavior | `--lc:on` / `--lc:off` | On |
 | Original left corner bias | `--lcb:on` / `--lcb:off` | On |
 | Dual-Way Switching | `--dws:on` / `--dws:off` | On |
+| Chicane Fast-Grass | `--cfg:on` / `--cfg:off` | On |
 | Original Amiga grass grip for stock cars | `/amigagrass` | Off |
 | One Wheel On/Over Track rules | `--owoot` | Off |
 | Skip intro | `--nointro` | Off |
@@ -17,7 +18,7 @@ the preserved assembly executable retain their original interfaces.
 | FPS display | `--fps:on` / `--fps:off` | Off |
 
 Physics switches and FPS values are case-insensitive. For power gear,
-collision, corner bias, and dual-way switching, the last value wins. Supply the
+collision, corner bias, dual-way switching, and chicane fast-grass, the last value wins. Supply the
 FPS option once; invalid or repeated FPS options report an error. F11 toggles FPS
 during play.
 Replays do not record driving options: use the same settings when recording
@@ -27,6 +28,11 @@ and playing them.
 Use `--dws:off` to charge skipped elements when switching between branches of a
 dual-way track. See [Penalty time](https://wiki.stunts.hu/wiki/Penalty_time) and
 [Dual-way switching](https://wiki.stunts.hu/wiki/Dual-way_switching).
+
+**Chicane Fast-Grass** keeps the green areas of chicane elements as fast as
+road. Use `--cfg:off` to give those areas ordinary grass grip and drag while
+keeping the visible road unchanged. `/amigagrass` also applies to those grass
+contacts when enabled.
 
 Custom-car surface adhesion activates automatically when the selected car has
 a one-byte `fand` resource set to `1`. It is loaded independently for the player
@@ -42,7 +48,7 @@ for bounds, compatibility and measurement details.
 DOS16, Amiga, and SDL3 executables accept switches after the executable name:
 
 ```text
-restunts --nointro --pg:off --lc:off --lcb:off --dws:off /amigagrass --fps:on
+restunts --nointro --pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --fps:on
 ```
 
 `--help` / `-h` and `--version` / `-v` exit without opening game data. Use
@@ -55,7 +61,7 @@ TempleOS accepts the same common switches in the fourth argument:
 
 ```c
 Restunts("C:/DATA", FALSE, FALSE,
-    "--pg:off --lc:off --lcb:off --dws:off /amigagrass --fps:on");
+    "--pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --fps:on");
 Restunts("C:/DATA", FALSE, FALSE, "--help");
 ```
 

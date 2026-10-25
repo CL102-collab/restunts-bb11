@@ -318,6 +318,7 @@ CLegacyExecutionResidue legacy_execution_residue;
 MemSet(&legacy_execution_residue,0,sizeof(legacy_execution_residue));
 legacy_s16 legacy_render_player_headings_active=0;
 legacy_s16 rs_statecar_powergear_bug_enabled=0;
+legacy_s16 rs_trackobj_chicane_fast_grass_enabled=0;
 CTrackObjectHandler rs_trackobj_track_object_handlers[39];
 MemSet(&rs_trackobj_track_object_handlers,0,sizeof(rs_trackobj_track_object_handlers));
 legacy_s16 owoot_enabled=0;
@@ -341,7 +342,7 @@ MemSet(&rs_command_line_command_line_revision,0,sizeof(rs_command_line_command_l
 legacy_s8 rs_command_line_command_line_version_suffix[17];
 MemSet(&rs_command_line_command_line_version_suffix,0,
     sizeof(rs_command_line_command_line_version_suffix));
-legacy_s8 rs_command_line_command_line_help[1554];
+legacy_s8 rs_command_line_command_line_help[1686];
 MemSet(&rs_command_line_command_line_help,0,sizeof(rs_command_line_command_line_help));
 CGameInfo gameconfig;
 MemSet(&gameconfig,0,sizeof(gameconfig));

@@ -1385,6 +1385,7 @@ rs_physics_collision_collision_models[4].physical_model=PHYSICAL_MODEL_CORKSCREW
 rs_physics_collision_collision_models[4].points=corkscrew_lr_collision_points;
 rs_physics_collision_collision_models[4].count=2;
 rs_statecar_powergear_bug_enabled=1;
+rs_trackobj_chicane_fast_grass_enabled=CHICANE_FAST_GRASS_ON;
 MemSet(&rs_trackobj_track_object_handlers,0,sizeof(rs_trackobj_track_object_handlers));
 rs_trackobj_track_object_handlers[0].physical_model=PHYSICAL_MODEL_START_FINISH;
 rs_trackobj_track_object_handlers[0].handle=&RsTrackobjTrackObjectStraight;
@@ -5720,16 +5721,18 @@ MemCpy(rs_command_line_command_line_help,
     "once.\r\n  --pg:on|off      Enable/disable the original power gear bug.\r\n  --lc:on|off      "
     "Enable/disable original collision behavior.\r\n  --lcb:on|off     Enable/disable the original "
     "left corner bias.\r\n  --dws:on|off     Dual-Way Switching: off fixes branch-switching "
-    "penalties.\r\n  /amigagrass      Use original Amiga grass grip for stock cars.\r\n  --owoot   "
-    "       Enable One Wheel On/Over Track driving rules.\r\n  /ns              Start with music "
-    "and sound effects disabled.\r\n\r\nDefaults: intro and sound on; --pg:on, --lc:on, --lcb:on, "
-    "--dws:on.\r\nFPS, Amiga grass, and OWOOT start off.\r\nPhysics and FPS switches are "
-    "case-insensitive.\r\nFor physics on/off switches, the last value wins.\r\nSupply --fps only "
-    "once; other switch names are case-sensitive.\r\nVideo: 640 x 400 (8:5), 16 colors. Audio: PC "
-    "speaker.\r\nF11 toggles FPS; F12 toggles SuperSight.\r\n/sXX and /h are legacy compatibility "
-    "switches with no alternate\r\nTempleOS device; /nd is a recognized legacy switch with no "
-    "effect.\r\nThe first --help/-h or --version/-v request wins.\r\n",
-    1554);
+    "penalties.\r\n  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n                   Off "
+    "makes green chicane areas behave as grass.\r\n  /amigagrass      Use original Amiga grass "
+    "grip for stock cars.\r\n  --owoot          Enable One Wheel On/Over Track driving rules.\r\n  "
+    "/ns              Start with music and sound effects disabled.\r\n\r\nDefaults: intro and "
+    "sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on.\r\nFPS, Amiga grass, and OWOOT "
+    "start off.\r\nPhysics and FPS switches are case-insensitive.\r\nFor physics on/off switches, "
+    "the last value wins.\r\nSupply --fps only once; other switch names are "
+    "case-sensitive.\r\nVideo: 640 x 400 (8:5), 16 colors. Audio: PC speaker.\r\nF11 toggles FPS; "
+    "F12 toggles SuperSight.\r\n/sXX and /h are legacy compatibility switches with no "
+    "alternate\r\nTempleOS device; /nd is a recognized legacy switch with no effect.\r\nThe first "
+    "--help/-h or --version/-v request wins.\r\n",
+    1686);
 MemSet(&hill_height_consts,0,sizeof(hill_height_consts));
 hill_height_consts[1]=450;
 MemSet(&car_resource_name,0,sizeof(car_resource_name));
@@ -14105,100 +14108,104 @@ MemSet(&temple_off_option_6858,0,sizeof(temple_off_option_6858));
 MemCpy(temple_off_option_6858,"--pg:off",9);
 MemSet(&temple_on_option_6859,0,sizeof(temple_on_option_6859));
 MemCpy(temple_on_option_6859,"--pg:on",8);
-MemSet(&temple_planes_6995,0,sizeof(temple_planes_6995));
-temple_planes_6995[0][0]=60;
-temple_planes_6995[0][1]=66;
-temple_planes_6995[0][2]=57;
-temple_planes_6995[0][3]=59;
-temple_planes_6995[0][4]=58;
-temple_planes_6995[0][5]=67;
-temple_planes_6995[0][6]=68;
-temple_planes_6995[1][0]=60;
-temple_planes_6995[1][1]=66;
-temple_planes_6995[1][2]=63;
-temple_planes_6995[1][3]=61;
-temple_planes_6995[1][4]=62;
-temple_planes_6995[1][5]=65;
-temple_planes_6995[1][6]=64;
-MemSet(&temple_segments_7003,0,sizeof(temple_segments_7003));
-temple_segments_7003[0][0]=CORK_LR_LOWER_LEFT_SIDE_SEGMENT;
-temple_segments_7003[0][1]=CORK_LR_LOWER_RIGHT_SIDE_SEGMENT;
-temple_segments_7003[0][2]=CORK_LR_NO_SEGMENT;
-temple_segments_7003[0][3]=CORK_LR_LOWER_LEFT_OUTER_SEGMENT;
-temple_segments_7003[0][4]=CORK_LR_LOWER_LEFT_INNER_SEGMENT;
-temple_segments_7003[0][5]=CORK_LR_LOWER_RIGHT_OUTER_SEGMENT;
-temple_segments_7003[0][6]=CORK_LR_LOWER_RIGHT_INNER_SEGMENT;
-temple_segments_7003[1][0]=CORK_LR_LOWER_LEFT_SIDE_SEGMENT;
-temple_segments_7003[1][1]=CORK_LR_LOWER_RIGHT_SIDE_SEGMENT;
-temple_segments_7003[1][2]=CORK_LR_UPPER_CENTER_SEGMENT;
-temple_segments_7003[1][3]=CORK_LR_UPPER_LEFT_OUTER_SEGMENT;
-temple_segments_7003[1][4]=CORK_LR_UPPER_LEFT_INNER_SEGMENT;
-temple_segments_7003[1][5]=CORK_LR_UPPER_RIGHT_OUTER_SEGMENT;
-temple_segments_7003[1][6]=CORK_LR_UPPER_RIGHT_INNER_SEGMENT;
-MemSet(&temple_water_angles_7044,0,sizeof(temple_water_angles_7044));
-temple_water_angles_7044[0]=128;
-temple_water_angles_7044[1]=(-(640));
-temple_water_angles_7044[2]=(-(384));
-temple_water_angles_7044[3]=(-(128));
-MemSet(&temple_orientations_7049,0,sizeof(temple_orientations_7049));
-temple_orientations_7049[1]=768;
-temple_orientations_7049[2]=512;
-temple_orientations_7049[3]=256;
-MemSet(&temple_slalom_boxes_7125,0,sizeof(temple_slalom_boxes_7125));
-temple_slalom_boxes_7125[0].minimum.x=23;
-temple_slalom_boxes_7125[0].minimum.z=(-(271));
-temple_slalom_boxes_7125[0].maximum.x=97;
-temple_slalom_boxes_7125[0].maximum.y=(2+42);
-temple_slalom_boxes_7125[0].maximum.z=(-(241));
-temple_slalom_boxes_7125[1].minimum.x=(-(97));
-temple_slalom_boxes_7125[1].minimum.z=241;
-temple_slalom_boxes_7125[1].maximum.x=(-(23));
-temple_slalom_boxes_7125[1].maximum.y=(2+42);
-temple_slalom_boxes_7125[1].maximum.z=271;
-MemSet(&temple_aperture_7375,0,sizeof(temple_aperture_7375));
-temple_aperture_7375[0].x=(-(31));
-temple_aperture_7375[1].x=31;
-temple_aperture_7375[2].x=84;
-temple_aperture_7375[2].z=35;
-temple_aperture_7375[3].x=115;
-temple_aperture_7375[3].z=88;
-temple_aperture_7375[4].x=115;
-temple_aperture_7375[4].z=151;
-temple_aperture_7375[5].x=84;
-temple_aperture_7375[5].z=204;
-temple_aperture_7375[6].x=31;
-temple_aperture_7375[6].z=235;
-temple_aperture_7375[7].x=(-(31));
-temple_aperture_7375[7].z=235;
-temple_aperture_7375[8].x=(-(84));
-temple_aperture_7375[8].z=204;
-temple_aperture_7375[9].x=(-(115));
-temple_aperture_7375[9].z=151;
-temple_aperture_7375[10].x=(-(115));
-temple_aperture_7375[10].z=88;
-temple_aperture_7375[11].x=(-(84));
-temple_aperture_7375[11].z=35;
-MemSet(&temple_aperture_7376,0,sizeof(temple_aperture_7376));
-temple_aperture_7376[0].x=(-(120));
-temple_aperture_7376[1].x=120;
-temple_aperture_7376[2].x=120;
-temple_aperture_7376[2].z=144;
-temple_aperture_7376[3].x=(-(120));
-temple_aperture_7376[3].z=144;
-MemSet(&temple_barriers_7406,0,sizeof(temple_barriers_7406));
-temple_barriers_7406[0][0].x=23;
-temple_barriers_7406[0][0].z=(-(271));
-temple_barriers_7406[0][1].x=97;
-temple_barriers_7406[0][1].z=(-(271));
-temple_barriers_7406[0][2].x=97;
-temple_barriers_7406[0][2].z=(-(241));
-temple_barriers_7406[0][3].x=23;
-temple_barriers_7406[0][3].z=(-(241));
-temple_barriers_7406[1][0].x=(-(97));
-temple_barriers_7406[1][0].z=241;
-temple_barriers_7406[1][1].x=(-(23));
-temple_barriers_7406[1][1].z=241;
-temple_barriers_7406[1][2].x=(-(23));
-temple_barriers_7406[1][2].z=271;
-temple_barriers_7406[1][3].x=(-(97));
-temple_barriers_7406[1][3].z=271;
+MemSet(&temple_off_option_6915,0,sizeof(temple_off_option_6915));
+MemCpy(temple_off_option_6915,"--cfg:off",10);
+MemSet(&temple_on_option_6916,0,sizeof(temple_on_option_6916));
+MemCpy(temple_on_option_6916,"--cfg:on",9);
+MemSet(&temple_planes_7002,0,sizeof(temple_planes_7002));
+temple_planes_7002[0][0]=60;
+temple_planes_7002[0][1]=66;
+temple_planes_7002[0][2]=57;
+temple_planes_7002[0][3]=59;
+temple_planes_7002[0][4]=58;
+temple_planes_7002[0][5]=67;
+temple_planes_7002[0][6]=68;
+temple_planes_7002[1][0]=60;
+temple_planes_7002[1][1]=66;
+temple_planes_7002[1][2]=63;
+temple_planes_7002[1][3]=61;
+temple_planes_7002[1][4]=62;
+temple_planes_7002[1][5]=65;
+temple_planes_7002[1][6]=64;
+MemSet(&temple_segments_7010,0,sizeof(temple_segments_7010));
+temple_segments_7010[0][0]=CORK_LR_LOWER_LEFT_SIDE_SEGMENT;
+temple_segments_7010[0][1]=CORK_LR_LOWER_RIGHT_SIDE_SEGMENT;
+temple_segments_7010[0][2]=CORK_LR_NO_SEGMENT;
+temple_segments_7010[0][3]=CORK_LR_LOWER_LEFT_OUTER_SEGMENT;
+temple_segments_7010[0][4]=CORK_LR_LOWER_LEFT_INNER_SEGMENT;
+temple_segments_7010[0][5]=CORK_LR_LOWER_RIGHT_OUTER_SEGMENT;
+temple_segments_7010[0][6]=CORK_LR_LOWER_RIGHT_INNER_SEGMENT;
+temple_segments_7010[1][0]=CORK_LR_LOWER_LEFT_SIDE_SEGMENT;
+temple_segments_7010[1][1]=CORK_LR_LOWER_RIGHT_SIDE_SEGMENT;
+temple_segments_7010[1][2]=CORK_LR_UPPER_CENTER_SEGMENT;
+temple_segments_7010[1][3]=CORK_LR_UPPER_LEFT_OUTER_SEGMENT;
+temple_segments_7010[1][4]=CORK_LR_UPPER_LEFT_INNER_SEGMENT;
+temple_segments_7010[1][5]=CORK_LR_UPPER_RIGHT_OUTER_SEGMENT;
+temple_segments_7010[1][6]=CORK_LR_UPPER_RIGHT_INNER_SEGMENT;
+MemSet(&temple_water_angles_7051,0,sizeof(temple_water_angles_7051));
+temple_water_angles_7051[0]=128;
+temple_water_angles_7051[1]=(-(640));
+temple_water_angles_7051[2]=(-(384));
+temple_water_angles_7051[3]=(-(128));
+MemSet(&temple_orientations_7056,0,sizeof(temple_orientations_7056));
+temple_orientations_7056[1]=768;
+temple_orientations_7056[2]=512;
+temple_orientations_7056[3]=256;
+MemSet(&temple_slalom_boxes_7132,0,sizeof(temple_slalom_boxes_7132));
+temple_slalom_boxes_7132[0].minimum.x=23;
+temple_slalom_boxes_7132[0].minimum.z=(-(271));
+temple_slalom_boxes_7132[0].maximum.x=97;
+temple_slalom_boxes_7132[0].maximum.y=(2+42);
+temple_slalom_boxes_7132[0].maximum.z=(-(241));
+temple_slalom_boxes_7132[1].minimum.x=(-(97));
+temple_slalom_boxes_7132[1].minimum.z=241;
+temple_slalom_boxes_7132[1].maximum.x=(-(23));
+temple_slalom_boxes_7132[1].maximum.y=(2+42);
+temple_slalom_boxes_7132[1].maximum.z=271;
+MemSet(&temple_aperture_7405,0,sizeof(temple_aperture_7405));
+temple_aperture_7405[0].x=(-(31));
+temple_aperture_7405[1].x=31;
+temple_aperture_7405[2].x=84;
+temple_aperture_7405[2].z=35;
+temple_aperture_7405[3].x=115;
+temple_aperture_7405[3].z=88;
+temple_aperture_7405[4].x=115;
+temple_aperture_7405[4].z=151;
+temple_aperture_7405[5].x=84;
+temple_aperture_7405[5].z=204;
+temple_aperture_7405[6].x=31;
+temple_aperture_7405[6].z=235;
+temple_aperture_7405[7].x=(-(31));
+temple_aperture_7405[7].z=235;
+temple_aperture_7405[8].x=(-(84));
+temple_aperture_7405[8].z=204;
+temple_aperture_7405[9].x=(-(115));
+temple_aperture_7405[9].z=151;
+temple_aperture_7405[10].x=(-(115));
+temple_aperture_7405[10].z=88;
+temple_aperture_7405[11].x=(-(84));
+temple_aperture_7405[11].z=35;
+MemSet(&temple_aperture_7406,0,sizeof(temple_aperture_7406));
+temple_aperture_7406[0].x=(-(120));
+temple_aperture_7406[1].x=120;
+temple_aperture_7406[2].x=120;
+temple_aperture_7406[2].z=144;
+temple_aperture_7406[3].x=(-(120));
+temple_aperture_7406[3].z=144;
+MemSet(&temple_barriers_7436,0,sizeof(temple_barriers_7436));
+temple_barriers_7436[0][0].x=23;
+temple_barriers_7436[0][0].z=(-(271));
+temple_barriers_7436[0][1].x=97;
+temple_barriers_7436[0][1].z=(-(271));
+temple_barriers_7436[0][2].x=97;
+temple_barriers_7436[0][2].z=(-(241));
+temple_barriers_7436[0][3].x=23;
+temple_barriers_7436[0][3].z=(-(241));
+temple_barriers_7436[1][0].x=(-(97));
+temple_barriers_7436[1][0].z=241;
+temple_barriers_7436[1][1].x=(-(23));
+temple_barriers_7436[1][1].z=241;
+temple_barriers_7436[1][2].x=(-(23));
+temple_barriers_7436[1][2].z=271;
+temple_barriers_7436[1][3].x=(-(97));
+temple_barriers_7436[1][3].z=271;

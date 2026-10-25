@@ -7,6 +7,11 @@
 #define OWOOT_WHEEL_RING_MAX OWOOT_WHEEL_RING_COUNT
 #define OWOOT_WHEEL_VERTEX_MAX OWOOT_WHEEL_VERTEX_COUNT
 
+/* Test the rendered road footprint in an element's local XZ coordinates.
+ * Height is ignored; triangle edges are part of the footprint. */
+legacy_s16 track_road_contains_local_point(legacy_s16 physical_model,
+										   const struct VECTOR *position);
+
 /* Supply two convex wheel rims in matching cyclic order: the first ring_count
  * vertices form one rim and the next ring_count form the other. The complete
  * tire volume must overlap a road surface vertically, allowing the physics

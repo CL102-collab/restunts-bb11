@@ -13,6 +13,7 @@
 #include "../c/track_objects.h"
 #include "../c/track_collision.h"
 #include "../c/trackdata_layout.h"
+#include "../c/physics_internal.h"
 
 #undef memcpy
 #undef strlen
@@ -52,10 +53,10 @@ static int wheel_on_road(int rotation, int x, int z)
 	return track_road_overlaps_wheel(vertices, 4, 0);
 }
 
-/* The green interior of a chicane uses paved native grip, while OWOOT's
- * geometric road test correctly rejects it. Exercise actual native element
- * definitions and collision queries; no planner metadata supplies the answer. */
-static void test_fast_grass(void)
+/* Check the headless startup setting before exercising both fast-grass modes
+ * against actual native element definitions. OWOOT's geometric road coverage
+ * stays independent of the surface material assigned to the green interior. */
+static void test_fast_grass(legacy_s16 expected_fast_grass)
 {
 	unsigned char original[REPLAY_TRACK_SIZE];
 	memcpy(original, track_element_map, sizeof(original));
@@ -83,7 +84,19 @@ static void test_fast_grass(void)
 		build_track_object(&road, &road);
 		assert(current_surf_type == CAR_SURFACE_PAVED);
 		build_track_object(&grass, &grass);
-		assert(current_surf_type == CAR_SURFACE_PAVED);
+		assert(current_surf_type == (expected_fast_grass ? CAR_SURFACE_PAVED : CAR_SURFACE_GRASS));
+		for (legacy_s16 enabled = 0; enabled <= 1; enabled++) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game",
+									  (legacy_s8 *)(enabled ? "--cfg:on" : "--cfg:off")};
+			configure_chicane_fast_grass(sizeof(arguments) / sizeof(arguments[0]), arguments);
+			build_track_object(&road, &road);
+			assert(current_surf_type == CAR_SURFACE_PAVED);
+			build_track_object(&grass, &grass);
+			assert(current_surf_type == (enabled ? CAR_SURFACE_PAVED : CAR_SURFACE_GRASS));
+		}
+		legacy_s8 *restore[] = {(legacy_s8 *)"game",
+								(legacy_s8 *)(expected_fast_grass ? "--cfg:on" : "--cfg:off")};
+		configure_chicane_fast_grass(sizeof(restore) / sizeof(restore[0]), restore);
 		assert(!wheel_on_road(rotation, 0, 500));
 		assert(
 			wheel_on_road(rotation, model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT ? -350 : 350, 500));
@@ -95,8 +108,9 @@ static void test_fast_grass(void)
 	memcpy(track_element_map, original, sizeof(original));
 	genghost_sim_restore(&before);
 	assert(checked >= 2U && models == 3U);
-	printf("%u native chicane variants: green interior has paved grip, but fails OWOOT.\n",
-		   checked);
+	printf(
+		"%u native chicane variants: fast grass toggles paved/grass grip independently of OWOOT.\n",
+		checked);
 }
 
 static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned int prefix)
@@ -940,7 +954,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 							 (const char *)config.game_playercarid, config.game_playertransmission,
 							 argc, (char **)argv) == 0);
 	struct GENGHOST_OPTIONS options = {0};
-	options.powergear = options.collision = options.left_bias = options.dual_way_switching = 1;
+	options.powergear = options.collision = options.left_bias = options.dual_way_switching =
+		options.chicane_fast_grass = 1;
 	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
 	int slalom = 0, fine_tune = 0;
 	for (int i = 3; i < argc; ++i) {
@@ -967,6 +982,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			options.left_bias = 0;
 		} else if (strcmp(flag, "--dws:off") == 0) {
 			options.dual_way_switching = 0;
+		} else if (stricmp((const legacy_s8 *)flag, (const legacy_s8 *)"--cfg:off") == 0) {
+			options.chicane_fast_grass = 0;
+		} else if (stricmp((const legacy_s8 *)flag, (const legacy_s8 *)"--cfg:on") == 0) {
+			options.chicane_fast_grass = 1;
 		} else if (strcmp(flag, "--owoot") == 0) {
 			options.owoot = 1;
 		}
@@ -988,7 +1007,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		test_slalom_continuation(&options, recording + REPLAY_INPUT_OFFSET, prefix, slalom == 2);
 		return 0;
 	}
-	test_fast_grass();
+	test_fast_grass(options.chicane_fast_grass);
 	unsigned int chicane = test_maneuver_rules(recording + REPLAY_INPUT_OFFSET, prefix);
 	assert(!expect_chicane || chicane > 0U);
 	assert(!expect_landing || state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE);

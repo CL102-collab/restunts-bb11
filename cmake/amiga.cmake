@@ -129,7 +129,7 @@ target_compile_definitions(test-amiga-command-line PRIVATE
 
 add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-startup.c"
-    "${core}/math.c" "${core}/owoot.c" "${core}/carsetup.c"
+    "${core}/math.c" "${core}/owoot.c" "${core}/carsetup.c" "${core}/trackobj.c"
     "${core}/statecar.c" "${core}/strlib.c" "${core}/physics_collision.c"
     "${core}/physics_grip.c" "${core}/race_route.c" "${core}/full_data.c"
     "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c")
@@ -148,7 +148,7 @@ target_compile_definitions(test-amiga-penalty-routing-features PRIVATE PENALTY_R
 
 add_executable(test-amiga-car-adhesion EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-car-adhesion.c"
-    "${core}/physics_collision.c" "${core}/trackobj.c" "${core}/headless_data.c"
+    "${core}/physics_collision.c" "${core}/trackobj.c" "${core}/owoot_road.c" "${core}/headless_data.c"
     "${core}/headless_trackdata.c" "${core}/math.c" "${core}/legacy.c"
     "${core}/strlib.c" "${core}/trkutil.c" "${core}/resource.c"
     "${core}/physics_grip.c")

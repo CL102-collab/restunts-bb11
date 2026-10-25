@@ -25,8 +25,9 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"legacy_collision", "Original Collision Bugs", "--lc:on", "--lc:off", true},
 	{"left_corner_bias", "Left Corner Bias", "--lcb:on", "--lcb:off", true},
 	{"dual_way_switching", "Dual-Way Switching", "--dws:on", "--dws:off", true},
-	{"owoot", "OWOOT", "--owoot", nullptr, false},
-	{"amiga_grass", "Amiga Grass", "/amigagrass", nullptr, false}};
+	{"chicane_fast_grass", "Chicane Fast-Grass", "--cfg:on", "--cfg:off", true},
+	{"amiga_grass", "Amiga Grass", "/amigagrass", nullptr, false},
+	{"owoot", "OWOOT", "--owoot", nullptr, false}};
 
 const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT] = {
 	{"off", "Off", nullptr},

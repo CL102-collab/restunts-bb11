@@ -31,7 +31,7 @@ def deterministic(value):
     return value
 
 
-def process_workers(parent):
+def process_workers(parent, chicane_flag=None):
     """Read actual child PIDs and CPU time; do not infer workers from a log."""
     children = Path(f"/proc/{parent}/task/{parent}/children")
     try:
@@ -49,6 +49,8 @@ def process_workers(parent):
                 continue
             arguments = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
             marker = arguments.index(b"--worker-status")
+            if chicane_flag is not None:
+                assert chicane_flag.encode() in arguments, arguments
             status_path = Path(os.fsdecode(arguments[marker + 1]))
             workers[pid] = (int(fields[11]) + int(fields[12]), status_path.parent)
         except (FileNotFoundError, ProcessLookupError, ValueError, IndexError):
@@ -124,7 +126,7 @@ def main():
             replay.write_bytes((temporary / output).read_bytes())
             physics_flags = [flag for flag in flags
                              if flag in ("--owoot", "/amigagrass")
-                             or flag.startswith(("--pg:", "--lc:", "--lcb:", "--dws:"))]
+                             or flag.startswith(("--pg:", "--lc:", "--lcb:", "--dws:", "--cfg:"))]
             result = subprocess.run([str(repldump), "--data-dir", str(data_directory),
                                      str(replay), "1", *physics_flags], cwd=temporary, env=environment,
                                     capture_output=True, text=True, timeout=scaled_timeout(15))
@@ -158,7 +160,8 @@ def main():
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                 "owoot": "--owoot" in flags,
-                "amiga_grass": "/amigagrass" in flags}, report
+                "amiga_grass": "/amigagrass" in flags,
+                "chicane_fast_grass": "--cfg:off" not in flags}, report
             assert report["cores_requested"] == (1 if cores is None else cores), report
             workers = report["worker_results"]
             assert len(workers) == report["cores_used"]
@@ -269,6 +272,20 @@ def main():
         assert fixed_switching == fixed_islands[fixed_report["winner_worker"]]
         print("Dual-Way Switching off matches independent islands and native playback", flush=True)
 
+        chicane_flags = ("--cfg:off",)
+        chicane, chicane_report = generate("slow chicane.RPL", cores=2, flags=chicane_flags)
+        assert not chicane_report["physics"]["chicane_fast_grass"]
+        chicane_islands = []
+        for worker in chicane_report["worker_results"]:
+            recording, report = generate(f"chicane{worker['index']}.RPL", cores=1,
+                                         evaluations=worker["budget_evaluations"],
+                                         seed=worker["seed"], flags=chicane_flags)
+            assert worker["total_frames"] == report["total_frames"]
+            assert worker["simulated_frames"] == report["simulated_frames"]
+            chicane_islands.append(recording)
+        assert chicane == chicane_islands[chicane_report["winner_worker"]]
+        print("Chicane fast-grass off matches independent islands and native playback", flush=True)
+
         # Find a fully OWOOT-valid seed using the existing single-core engine,
         # then require both parallel workers to accept it under identical rules.
         # These restrictive searches are deliberately bounded at 1,000 inputs.
@@ -311,8 +328,9 @@ def main():
 
         if sys.platform == "linux" and Path("/proc/self/task").is_dir():
             def stop_run(output, action="cancel"):
+                flags = ("--cfg:off",) if action == "cancel" else ("--cfg:on",)
                 arguments = ["human seed.RPL", "PMIN", "--cores", 2, "--seconds", 0,
-                             "--output", output]
+                             "--output", output, *flags]
                 children = {}
                 log_path = temporary / (output + ".log")
                 with log_path.open("w") as log:
@@ -323,7 +341,7 @@ def main():
                         deadline = time.monotonic() + 10
                         while time.monotonic() < deadline:
                             assert process.poll() is None, log_path.read_text()
-                            observed = process_workers(process.pid)
+                            observed = process_workers(process.pid, flags[0])
                             children.update(observed)
                             if len(observed) == 2:
                                 if not before:
@@ -377,7 +395,7 @@ def main():
                             shutil.rmtree(scratch)
                     else:
                         assert not scratch.exists(), f"Private worker files survived: {scratch}"
-                report = verify(output, "PMIN")
+                report = verify(output, "PMIN", flags)
                 assert report["total_frames"] <= report["seed_total_frames"]
                 if action == "failure":
                     assert any(worker["status"] == 1 for worker in report["worker_results"]), report
