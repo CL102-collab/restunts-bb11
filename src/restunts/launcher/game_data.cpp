@@ -7,6 +7,7 @@
 #include <wx/log.h>
 #include <algorithm>
 #include <new>
+#include <utility>
 #include <vector>
 
 namespace
@@ -228,7 +229,7 @@ static Bytes unpack(Bytes input, legacy_u32 final_length)
 		type = byte(input, 0);
 		Bytes decoded;
 		if (type == RLE_TYPE) {
-			decoded = rle(input, length, capacity);
+			decoded = rle(std::move(input), length, capacity);
 		} else if (type == VLE_TYPE) {
 			decoded = vle(input, length, capacity);
 		} else {
@@ -367,7 +368,7 @@ wxString launcher_validate_game_data(const wxString &folder)
 					paragraphs(length) + WORKSPACE_PARAGRAPHS) {
 				throw DataError{"Invalid packed resource size."};
 			}
-			contents = unpack(contents, length);
+			contents = unpack(std::move(contents), length);
 		}
 		check_version(contents, length);
 		return wxEmptyString;

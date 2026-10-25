@@ -7,8 +7,8 @@ against XP's exports, dynamically resolved APIs, or code inside system DLLs.
 All executable sections are scanned, including guarded runtime code. Recognized
 compiler data contributions are excluded only when COFF section-definition
 auxiliaries describe their exact byte ranges, even when merged into code. GNU
-PE32 constructor/destructor list header symbols also identify a single DWORD
-of data, provided its contents match the linker's documented -1 sentinel.
+PE32 constructor/destructor list symbols identify bounded DWORD pointer tables
+when their -1 header, null terminator and executable targets are verified.
 By default, even unreachable SIMD instructions fail; --allow-simd retains the
 XP import and decoding checks for SSE2-enabled x86 builds.
 Any undecodable bytes outside proven data make this check fail as well.
@@ -67,8 +67,9 @@ SECTION_VIRTUAL_SIZE_INDEX = 1
 SECTION_CHARACTERISTICS_INDEX = 9
 SECTION_MEMORY_EXECUTE = 0x20000000
 X86_NOP = b"\x90"
-GNU_PE32_LIST_HEADER = struct.Struct("<I")
+GNU_PE32_LIST_WORD = struct.Struct("<I")
 GNU_LIST_HEADER_SENTINEL = 0xFFFFFFFF
+GNU_LIST_TERMINATOR = 0
 GNU_LIST_HEADER_SYMBOLS = frozenset({
     "__CTOR_LIST__", "___CTOR_LIST__", "__DTOR_LIST__", "___DTOR_LIST__",
 })
@@ -275,7 +276,7 @@ def read_compiler_data_ranges(data):
         for index in range(section_count)
     ]
     ranges = []
-    linker_headers = set()
+    linker_headers = {}
     index = 0
     while index < symbol_count:
         offset = symbol_offset + index * COFF_SYMBOL.size
@@ -325,9 +326,9 @@ def read_compiler_data_ranges(data):
                         "file_offset": raw_offset,
                         "size_bytes": length,
                     })
-        # GNU i386pe.x emits LONG(-1) at these symbols, followed by .ctors/
-        # .dtors contributions and LONG(0). The COFF aliases alone are not
-        # enough: validate the exact header word and exclude only its bytes.
+        # GNU i386pe.x emits LONG(-1), constructor/destructor pointers and
+        # LONG(0). Some runtime objects retain function symbols but omit .ctors
+        # section auxiliaries, so prove the complete list after reading symbols.
         if (
             magic == PE32_MAGIC
             and storage == COFF_EXTERNAL_STORAGE_CLASS
@@ -338,31 +339,77 @@ def read_compiler_data_ranges(data):
         ):
             section = sections[section_number - 1]
             if section[SECTION_CHARACTERISTICS_INDEX] & SECTION_MEMORY_EXECUTE:
-                length = GNU_PE32_LIST_HEADER.size
-                raw_size = section[SECTION_RAW_SIZE_INDEX]
-                virtual_size = section[SECTION_VIRTUAL_SIZE_INDEX] or raw_size
-                raw_offset = section[SECTION_RAW_OFFSET_INDEX] + value
-                if value + length > min(raw_size, virtual_size) or raw_offset + length > len(data):
-                    raise ValueError(f"GNU linker list header exceeds its output section: {name}")
-                sentinel = GNU_PE32_LIST_HEADER.unpack_from(data, raw_offset)[0]
-                if sentinel != GNU_LIST_HEADER_SENTINEL:
-                    raise ValueError(f"Unexpected GNU linker list header contents: {name}")
                 key = (section_number, value)
-                if key not in linker_headers:
-                    linker_headers.add(key)
-                    address = image_base + section[SECTION_VIRTUAL_ADDRESS_INDEX] + value
-                    ranges.append({
-                        "proof": "GNU PE32 list symbol and verified DWORD sentinel",
-                        "linker_symbol": name,
-                        "output_section_index": section_number,
-                        "symbol_index": index,
-                        "start_address": address,
-                        "end_address": address + length,
-                        "file_offset": raw_offset,
-                        "size_bytes": length,
-                    })
+                linker_headers.setdefault(key, {
+                    "linker_symbol": name,
+                    "output_section_index": section_number,
+                    "symbol_index": index,
+                })
         index = next_index
-    return sorted(ranges, key=lambda item: item["start_address"])
+    list_targets = []
+    for (section_number, value), header in sorted(linker_headers.items()):
+        section = sections[section_number - 1]
+        raw_size = section[SECTION_RAW_SIZE_INDEX]
+        virtual_size = section[SECTION_VIRTUAL_SIZE_INDEX] or raw_size
+        section_size = min(raw_size, virtual_size)
+        raw_offset = section[SECTION_RAW_OFFSET_INDEX] + value
+        name = header["linker_symbol"]
+        if value % GNU_PE32_LIST_WORD.size:
+            raise ValueError(f"Unaligned GNU linker list: {name}")
+        # A missing terminator must not consume an adjacent linker list.
+        limit = min(section_size, min(
+            (other_value for other_section, other_value in linker_headers
+             if other_section == section_number and other_value > value),
+            default=section_size,
+        ))
+        if (value + GNU_PE32_LIST_WORD.size > section_size
+                or raw_offset + GNU_PE32_LIST_WORD.size > len(data)):
+            raise ValueError(f"GNU linker list header exceeds its output section: {name}")
+        if GNU_PE32_LIST_WORD.unpack_from(data, raw_offset)[0] != GNU_LIST_HEADER_SENTINEL:
+            raise ValueError(f"Unexpected GNU linker list header contents: {name}")
+        cursor = value + GNU_PE32_LIST_WORD.size
+        entry_count = 0
+        while True:
+            word_offset = section[SECTION_RAW_OFFSET_INDEX] + cursor
+            if (cursor + GNU_PE32_LIST_WORD.size > limit
+                    or word_offset + GNU_PE32_LIST_WORD.size > len(data)):
+                raise ValueError(f"Unterminated GNU linker list: {name}")
+            target = GNU_PE32_LIST_WORD.unpack_from(data, word_offset)[0]
+            cursor += GNU_PE32_LIST_WORD.size
+            if target == GNU_LIST_TERMINATOR:
+                break
+            if not any(
+                target_section[SECTION_CHARACTERISTICS_INDEX] & SECTION_MEMORY_EXECUTE
+                and image_base + target_section[SECTION_VIRTUAL_ADDRESS_INDEX] <= target
+                < image_base + target_section[SECTION_VIRTUAL_ADDRESS_INDEX] + min(
+                    target_section[SECTION_RAW_SIZE_INDEX],
+                    target_section[SECTION_VIRTUAL_SIZE_INDEX]
+                    or target_section[SECTION_RAW_SIZE_INDEX],
+                )
+                and target_section[SECTION_RAW_OFFSET_INDEX]
+                + target - image_base - target_section[SECTION_VIRTUAL_ADDRESS_INDEX] < len(data)
+                for target_section in sections
+            ):
+                raise ValueError(f"GNU linker list target is outside executable data: {name}")
+            list_targets.append((name, target))
+            entry_count += 1
+        address = image_base + section[SECTION_VIRTUAL_ADDRESS_INDEX] + value
+        ranges.append(dict(header,
+            proof="GNU PE32 list symbol, verified sentinels and executable targets",
+            start_address=address,
+            end_address=image_base + section[SECTION_VIRTUAL_ADDRESS_INDEX] + cursor,
+            file_offset=raw_offset,
+            size_bytes=cursor - value,
+            entry_count=entry_count,
+        ))
+    ranges.sort(key=lambda item: item["start_address"])
+    intervals = merged_data_intervals(ranges)
+    interval_starts = [start for start, _ in intervals]
+    for name, target in list_targets:
+        interval = bisect_right(interval_starts, target) - 1
+        if interval >= 0 and target < intervals[interval][1]:
+            raise ValueError(f"GNU linker list target points into proven data: {name}")
+    return ranges
 
 
 def merged_data_intervals(ranges):
@@ -492,7 +539,7 @@ def audit(binary, objdump, allow_simd=False):
              if allow_simd else
              "SIMD in guarded runtime paths also fails this conservative instruction policy."),
             "Compiler data exclusions require bounded COFF section-definition auxiliaries.",
-            "GNU PE32 list headers require linker symbols and a verified DWORD -1 sentinel.",
+            "GNU PE32 lists require linker symbols, verified sentinels and executable targets.",
             "Any undecodable bytes outside proven data fail, including stripped embedded data.",
         ],
     }
