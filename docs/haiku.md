@@ -20,11 +20,13 @@ A system update can leave the newly installed tools inactive until the next boot
 
 The [desktop startup window](launcher.md) uses HaikuPorts' patched wxQt 3.2.4
 package with Qt 5 and the native Haiku platform/style plugins. The installer
-selects `wxqt_devel`, `devel:libQt5Widgets` and `qthaikuplugins` on x64, or their
-modern x86 equivalents on the hybrid system. CMake defaults to
-`RESTUNTS_SYSTEM_WX=ON` on Haiku to retain those port fixes. Keep wxQt, Qt and
-the platform/style plugins installed when running the package. The launcher
-still needs native Haiku build and GUI validation.
+selects `wxqt_devel`, `qt5_devel`, `libsdl_devel` and `qthaikuplugins` on x64,
+or their modern x86 equivalents on the hybrid system. SDL 1.2 development files
+are required by wxQt's link flags; the game itself uses the pinned SDL3.
+CMake defaults to `RESTUNTS_SYSTEM_WX=ON` on Haiku to retain those port fixes. Keep wxQt, Qt and
+the platform/style plugins installed when running the package. Browse opens
+Haiku's native folder picker. Verify startup, folder selection, saved preferences
+and sound on the target architecture before distributing a package.
 
 Use `haiku-x86` instead on 32-bit Haiku. Before a manual CMake build there,
 select the modern compiler environment with `export PATH="$(setarch -p x86)"`.

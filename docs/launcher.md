@@ -63,11 +63,11 @@ texts downloaded from the official 3.2.4 tag with verified SHA-256 hashes.
 
 Linux and BSD builds additionally need GTK 3 development packages, and users
 need the matching GTK runtime. For example, install `libgtk-3-dev` on Debian,
-`gtk3` on FreeBSD/NetBSD, or `gtk+3` on OpenBSD. Haiku builds need `wxqt_devel`,
-`devel:libQt5Widgets` and `qthaikuplugins`, including matching Qt platform and
-style plugins at runtime. On the hybrid system use `wxqt_x86_devel`,
-`devel:libQt5Widgets_x86` and `qthaikuplugins_x86`. The dependency installer
-selects these packages automatically. macOS uses the Xcode SDK and does not
+`gtk3` on FreeBSD, `gtk3+` on NetBSD, or `gtk+3` on OpenBSD. Haiku builds need
+`wxqt_devel`, `qt5_devel`, `libsdl_devel` and `qthaikuplugins`, including matching
+Qt platform and style plugins at runtime. On the hybrid system use
+`wxqt_x86_devel`, `qt5_x86_devel`, `libsdl_x86_devel` and `qthaikuplugins_x86`.
+The dependency installer selects these packages automatically. macOS uses the Xcode SDK and does not
 need an external GUI toolkit. The AppImage SDK selects GTK 2 to retain its
 historical distribution baseline and bundles its GUI runtime dependencies.
 

@@ -7,6 +7,11 @@
 #include <wx/utils.h>
 #include "options.h"
 #include "game_data.h"
+#ifdef __WXQT__
+#include <QtGui/QKeyEvent>
+#include <QtWidgets/QApplication>
+#include <QtWidgets/QWidget>
+#endif
 
 static const legacy_char LAUNCHER_TITLE[] = "Chocolate Stunts";
 static const legacy_char LAUNCHER_APP_NAME[] = "Restunts";
@@ -34,6 +39,48 @@ static const legacy_int MINIMUM_DIALOG_HEIGHT = 320;
 static const legacy_int VISIBLE_SCREEN_NUMERATOR = 9;
 static const legacy_int VISIBLE_SCREEN_DENOMINATOR = 10;
 
+#ifdef __WXQT__
+class LauncherPopupFilter : public QObject
+{
+	protected:
+	legacy_bool eventFilter(QObject *, QEvent *event) override
+	{
+		const QEvent::Type type = event->type();
+		if (type != QEvent::ShortcutOverride && type != QEvent::KeyPress &&
+			type != QEvent::KeyRelease) {
+			return false;
+		}
+		const QKeyEvent *key = static_cast<QKeyEvent *>(event);
+		if (key->key() != Qt::Key_Escape) {
+			return false;
+		}
+		if (type == QEvent::KeyRelease) {
+			popup_escape_pending_ = false;
+			return false;
+		}
+		if (popup_escape_pending_) {
+			if (type == QEvent::KeyPress) {
+				popup_escape_pending_ = false;
+			}
+			event->accept();
+			return true;
+		}
+		QWidget *popup = QApplication::activePopupWidget();
+		if (!popup) {
+			return false;
+		}
+		// Keep Escape from reaching the main dialog after closing a Qt popup.
+		popup_escape_pending_ = type == QEvent::ShortcutOverride;
+		popup->close();
+		event->accept();
+		return true;
+	}
+
+	private:
+	legacy_bool popup_escape_pending_ = false;
+};
+
+#endif
 static wxString initial_folder(const wxString &game)
 {
 	const wxString current = wxGetCwd();
@@ -131,6 +178,20 @@ class LauncherDialog : public wxDialog
 		folder_->SetFocus();
 		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_folder, this);
 		Bind(wxEVT_BUTTON, &LauncherDialog::start_game, this, wxID_OK);
+#ifdef __WXQT__
+		Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { Close(); }, wxID_CANCEL);
+		Bind(wxEVT_SHOW, [this](wxShowEvent &event) {
+			// Qt rejection hides modeless dialogs without sending a close event.
+			if (!event.IsShown() && !IsIconized() && !starting_game_) {
+				wxTheApp->ExitMainLoop();
+			}
+			event.Skip();
+		});
+		Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent &) {
+			Hide();
+			wxTheApp->ExitMainLoop();
+		});
+#endif
 	}
 
 	legacy_int game_exit_code() const
@@ -223,11 +284,17 @@ class LauncherDialog : public wxDialog
 		legacy_s64 process;
 		{
 			wxLogNull quiet;
+#ifdef __WXQT__
+			starting_game_ = true;
+#endif
 			if (wait_for_game_) {
 				Hide();
 			}
 			process = wxExecute(argument_vector.data(), wait_for_game_ ? wxEXEC_SYNC : wxEXEC_ASYNC,
 								nullptr, &environment);
+#ifdef __WXQT__
+			starting_game_ = false;
+#endif
 		}
 		if (process ==
 			(wait_for_game_ ? SYNCHRONOUS_PROCESS_START_FAILURE : PROCESS_START_FAILURE)) {
@@ -238,7 +305,11 @@ class LauncherDialog : public wxDialog
 		if (wait_for_game_) {
 			game_exit_code_ = static_cast<legacy_int>(process);
 		}
+#ifdef __WXQT__
+		Close();
+#else
 		EndModal(wxID_OK);
+#endif
 	}
 
 	wxString game_;
@@ -250,6 +321,9 @@ class LauncherDialog : public wxDialog
 	wxStaticText *status_;
 	legacy_bool wait_for_game_;
 	legacy_int game_exit_code_ = LAUNCHER_SUCCESS;
+#ifdef __WXQT__
+	legacy_bool starting_game_ = false;
+#endif
 };
 
 class LauncherApp : public wxApp
@@ -298,7 +372,17 @@ class LauncherApp : public wxApp
 	{
 		LauncherDialog dialog(game_, folder_, wait_for_game_);
 		SetTopWindow(&dialog);
+#ifdef __WXQT__
+		// wxQt ends modal loops when hiding a dialog. Keep the main window
+		// modeless for game waiting and Haiku's native folder panel ordering.
+		LauncherPopupFilter popup_filter;
+		QApplication::instance()->installEventFilter(&popup_filter);
+		dialog.Show();
+		wxApp::OnRun();
+		QApplication::instance()->removeEventFilter(&popup_filter);
+#else
 		dialog.ShowModal();
+#endif
 		SetTopWindow(nullptr);
 		return dialog.game_exit_code();
 	}

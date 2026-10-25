@@ -124,6 +124,20 @@ function(restunts_add_desktop_launcher)
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         target_link_libraries(restunts-launcher PRIVATE be)
     endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" OR RESTUNTS_WX_TOOLKIT STREQUAL "qt"
+            OR "__WXQT__" IN_LIST wxWidgets_DEFINITIONS)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_HAIKU_SECONDARY_ARCH AND NOT Qt5_DIR)
+            # Keep direct Qt calls in the same modern ABI as the wxQt library.
+            find_path(Qt5_DIR Qt5Config.cmake
+                HINTS
+                    "/boot/home/config/non-packaged/lib/${CMAKE_HAIKU_SECONDARY_ARCH}/cmake/Qt5"
+                    "/boot/system/non-packaged/lib/${CMAKE_HAIKU_SECONDARY_ARCH}/cmake/Qt5"
+                    "/boot/system/lib/${CMAKE_HAIKU_SECONDARY_ARCH}/cmake/Qt5"
+                NO_DEFAULT_PATH REQUIRED)
+        endif()
+        find_package(Qt5 REQUIRED COMPONENTS Widgets)
+        target_link_libraries(restunts-launcher PRIVATE Qt5::Widgets)
+    endif()
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(restunts-launcher PRIVATE -Wall -Wextra -Werror)
     endif()
