@@ -1631,40 +1631,46 @@ platform selection and gate both PR validation and releases. Each job uses
 debug symbols, frame pointers, and fail-on-error sanitizer settings. ASan uses
 Clang 18 and also checks for leaks; TSan and UBSan use GCC. The ASan linker
 flags preserve removal of unused fixture data while retaining checks on all
-globals that remain in the executable. Bundled SDL3 and Nuked are instrumented
-along with the game and tests. Test logs are retained in `sanitizer-<sanitizer>-logs`
-artifacts, including on failure. TSan's runner lowers ASLR mapping entropy
-to keep its shadow-memory range available. Sanitizer jobs allow ten minutes
-per replay subprocess and thirty minutes per CTest entry. Normal replay tests
+globals that remain in the executable. Bundled SDL3, wxWidgets, and Nuked are
+instrumented along with the game, launcher, and tests. Sanitizer builds disable
+SDL D-Bus support because the headless dummy drivers do not need desktop IPC.
+Test logs are retained in `sanitizer-<sanitizer>-logs` artifacts, including on
+failure. TSan's runner lowers ASLR mapping entropy to keep its shadow-memory
+range available. Sanitizer jobs allow ten minutes per replay subprocess and
+thirty minutes per CTest entry. Normal replay tests
 retain their two-minute limit (five minutes with `--full`); set
 `RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS` to override it with a positive integer.
 
 To reproduce ASan locally on Linux, install `clang-18`, `libclang-rt-18-dev`,
-and `llvm-18`. Use a fresh build directory and keep `CFLAGS` and `LDFLAGS` set
-while running CTest so the standalone host tests receive the same instrumentation.
+and `llvm-18`. Use matching C and C++ compilers with the same sanitizer flags.
+Use a fresh build directory and keep `CFLAGS` and `LDFLAGS` set while running
+CTest so the standalone host tests receive the same instrumentation.
 Original game data must be present in `stunts/`, as for the normal SDL3 regressions:
 
 ```sh
 export CC=clang-18
+export CXX=clang++-18
 export LDFLAGS=-Wl,-z,start-stop-gc
 export CFLAGS='-O2 -g -fsanitize=address -fno-omit-frame-pointer -fno-sanitize-recover=all'
+export CXXFLAGS="$CFLAGS"
 export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1
 export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-18
 export TSAN_OPTIONS=halt_on_error=1
 export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 export RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS=600
 cmake -S . -B out/sanitizer-address -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-    -DRESTUNTS_BUILD_TESTS=ON
+    -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF
 cmake --build out/sanitizer-address --parallel 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     ctest --test-dir out/sanitizer-address --output-on-failure --no-tests=error --timeout 1800
 ```
 
 Replace `address` with `thread` or `undefined` in both the flag and build
-directory for the other sanitizers, and use `CC=gcc` to match CI. The host
-runner accepts `CFLAGS` and `LDFLAGS` as whitespace-separated arguments,
-without shell evaluation. TSan on Linux hosts with high ASLR entropy may
-need `sudo sysctl -w vm.mmap_rnd_bits=28`, as in CI, before running the tests.
+directory for the other sanitizers, and use `CC=gcc` and `CXX=g++` to match CI.
+Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
+`LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
+Linux hosts with high ASLR entropy may need
+`sudo sysctl -w vm.mmap_rnd_bits=28`, as in CI, before running the tests.
 Use a separate shell or unset the exported variables before ordinary builds.
 
 The `platforms` input selects the replay-test builds, tests, and reports. It is a

@@ -123,17 +123,22 @@ jobs:
           # while keeping ASan checks on every global that survives the link.
           - sanitizer: address
             compiler: clang-18
+            cxx-compiler: clang++-18
             linker-flags: -Wl,-z,start-stop-gc
             timeout-multiplier: 2
           - sanitizer: thread
             compiler: gcc
+            cxx-compiler: g++
             timeout-multiplier: 20
           - sanitizer: undefined
             compiler: gcc
+            cxx-compiler: g++
             timeout-multiplier: 1
     env:
       CC: ${{ matrix.compiler }}
+      CXX: ${{ matrix.cxx-compiler }}
       CFLAGS: -O2 -g -fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer -fno-sanitize-recover=all
+      CXXFLAGS: -O2 -g -fsanitize=${{ matrix.sanitizer }} -fno-omit-frame-pointer -fno-sanitize-recover=all
       LDFLAGS: ${{ matrix.linker-flags }}
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       ASAN_SYMBOLIZER_PATH: /usr/bin/llvm-symbolizer-18
@@ -152,7 +157,7 @@ jobs:
       - name: Install native build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc clang-18 libclang-rt-18-dev llvm-18 \
+          sudo apt-get install -y --no-install-recommends gcc g++ clang-18 libclang-rt-18-dev llvm-18 \
             cmake ninja-build pkg-config \
             libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
@@ -172,9 +177,11 @@ jobs:
           unzip -oq "$RUNNER_TEMP/BB11.zip" -d stunts
 
       - name: Build instrumented native binaries
+        # Headless dummy-driver regressions do not need desktop D-Bus IPC.
+        # Avoid system libdbus lock-order inversions during SDL startup/shutdown.
         run: |
           cmake -S . -B build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-            -DRESTUNTS_BUILD_TESTS=ON \
+            -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF \
             -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
           cmake --build build/sanitizer --parallel 2
 
