@@ -2,6 +2,9 @@
 enable_language(CXX)
 if(WIN32)
     enable_language(RC)
+elseif(APPLE)
+    # wxWidgets' Cocoa sources need Objective-C++ rules outside the function scope.
+    enable_language(OBJCXX)
 endif()
 set(restunts_system_wx_default OFF)
 if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
