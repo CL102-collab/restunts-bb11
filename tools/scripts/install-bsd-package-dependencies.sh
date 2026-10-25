@@ -59,13 +59,18 @@ case "$target:$host_system:$host_architecture" in
     netbsd-x64:NetBSD:amd64|netbsd-x64:NetBSD:x86_64|\
     netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386)
         export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
-        # NetBSD packages use the major release's ABI and the base X11 sets.
-        package_release=$(uname -r | cut -d . -f 1).0
-        package_architecture=$host_architecture
-        if [ "$package_architecture" = amd64 ]; then
-            package_architecture=x86_64
+        # Keep the caller's PKG_PATH or the VM's configured quarterly mirrors.
+        # Use a fallback only for unconfigured systems, such as fresh i386 base sets.
+        package_path=$(pkg_admin config-var PKG_PATH)
+        if [ -z "$package_path" ]; then
+            # NetBSD packages use the major release's ABI and the base X11 sets.
+            package_release=$(uname -r | cut -d . -f 1).0
+            package_architecture=$host_architecture
+            if [ "$package_architecture" = amd64 ]; then
+                package_architecture=x86_64
+            fi
+            export PKG_PATH="https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/"
         fi
-        export PKG_PATH="${PKG_PATH:-https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/}"
         # The VM image may contain older dependencies than the package mirror.
         # Update those recursively when a requested package needs a newer one.
         pkg_add -u bash cmake ninja-build git-base python313 pkgconf curl \
