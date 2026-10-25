@@ -106,20 +106,22 @@ for specification in '--help|Usage: restunts' '--version|Version ' '--licenses|N
     fi
     echo "AppImage $option passed."
 done
-export LD_LIBRARY_PATH="$app_dir/usr/lib"
 shopt -s nullglob globstar
 libraries=("$app_dir"/usr/lib/**/*.so "$app_dir"/usr/lib/**/*.so.*)
 (( ${#libraries[@]} > 0 ))
 for binary in "$app_dir"/usr/bin/{restunts,repldump,pixldump,genghost} "${libraries[@]}"; do
     [[ -f "$binary" ]]
     [[ "$(od -An -tu1 -j4 -N1 "$binary" | tr -d ' ')" == "$elf_class" ]]
-    if ! linkage=$(ldd "$binary" 2>&1) || [[ "$linkage" == *'not found'* ]]; then
+    # Only target loading uses bundled libraries. Host tools and the timeout
+    # watchdog must keep the distribution's matching dependency versions.
+    if ! linkage=$(LD_LIBRARY_PATH="$app_dir/usr/lib" ldd "$binary" 2>&1) || \
+        [[ "$linkage" == *'not found'* ]]; then
         printf 'Unresolved dependency for %s:\n%s\n' "$binary" "$linkage" >&2
         exit 1
     fi
 done
-run_with_timeout 60 "$app_dir/usr/bin/genghost" --help > "$work_dir/genghost.log" 2>&1
-unset LD_LIBRARY_PATH
+run_with_timeout 60 env LD_LIBRARY_PATH="$app_dir/usr/lib" \
+    "$app_dir/usr/bin/genghost" --help > "$work_dir/genghost.log" 2>&1
 video_driver=${SDL_VIDEODRIVER:-dummy}
 startup_result=0
 APPIMAGE_EXTRACT_AND_RUN=1 SDL_VIDEODRIVER="$video_driver" SDL_AUDIODRIVER=dummy \
@@ -171,8 +173,8 @@ if [[ ${RESTUNTS_EXPECT_FUSE:-0} == 1 ]]; then
 fi
 bmp="$work_dir/data/DEFAULT.2.0.5.PDD.bmp"
 rm -f -- "$bmp"
-LD_LIBRARY_PATH="$app_dir/usr/lib" SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    run_with_timeout 120 "$app_dir/usr/bin/pixldump" \
+run_with_timeout 120 env LD_LIBRARY_PATH="$app_dir/usr/lib" \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$app_dir/usr/bin/pixldump" \
     --data-dir "$work_dir/data" DEFAULT.RPL 2 0 5 > "$work_dir/render.log" 2>&1 || {
         cat "$work_dir/render.log" >&2
         exit 1
