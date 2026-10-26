@@ -59,7 +59,7 @@ def main():
         ("DWSCASE", "C:\\OPTIONS --data-dir D:\\ dwsfixed --DWS:OFF", 0,
          "DWS penalties: 18/24 seconds"),
         ("OPTIN", "C:\\OPTIONS --data-dir D:\\ optin --pg:off --lc:off --lcb:off "
-         "/amigagrass --owoot --nointro /ns /sPC /nd --fps:on",
+         "--amigagrass --owoot --nointro /ns /sPC /nd --fps:on",
          0, "DOS driving options passed"),
         ("OVERRIDE", "C:\\OPTIONS --data-dir D:\\ defaults --pg:off --lc:off --lcb:off "
          "--pg:on --lc:on --lcb:on --fps:off", 0, "DOS driving options passed"),

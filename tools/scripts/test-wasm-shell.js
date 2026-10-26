@@ -946,7 +946,7 @@ async function main() {
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
             '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
-            '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '/amigagrass', '--owoot'
+            '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
         await page.reload();

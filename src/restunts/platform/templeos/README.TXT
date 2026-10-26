@@ -102,18 +102,18 @@ task's display settings and the system palette.
 
 Chicane fast-grass starts enabled. Include --cfg:off in the fourth options
 string to give green chicane areas ordinary grass grip and drag; --cfg:on
-restores the original behavior. It works with /amigagrass.
+restores the original behavior. It works with --amigagrass.
 
 All common startup settings are accepted in an optional fourth options string:
 
     Restunts("C:/DATA", TRUE, FALSE,
-        "--pg:off --lc:off --lcb:off --dws:off /amigagrass --owoot /ns");
+        "--pg:off --lc:off --lcb:off --dws:off --amigagrass --owoot /ns");
 
 The existing first three arguments keep their defaults. --pg:on/off,
 --lc:on/off, --lcb:on/off, and --dws:on/off are case-insensitive; the last value
 wins. The original physics defaults are on. Dual-Way Switching (--dws:on)
 preserves the original branch-switching penalty behavior; --dws:off fixes it.
-/amigagrass and --owoot are opt-in.
+--amigagrass and --owoot are opt-in.
 Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
 --nointro skips the intro and /ns disables startup music/effects. --fps:on/off selects the FPS
 display (off by default); supply once. F11 toggles it during play. Replays do not store these

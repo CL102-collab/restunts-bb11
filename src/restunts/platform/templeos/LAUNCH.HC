@@ -122,7 +122,7 @@ legacy_s16 Restunts(legacy_u8 *data_directory="C:/DATA",legacy_u8 skip_intro=FAL
     arguments[argument_count++]="--nointro";
   }
   if(amiga_grass) {
-    arguments[argument_count++]="/amigagrass";
+    arguments[argument_count++]="--amigagrass";
   }
   argument_count=TempleLaunchSplit(option_copy,arguments,argument_count);
   if(argument_count>=0) {

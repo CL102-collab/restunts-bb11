@@ -125,7 +125,7 @@ def main():
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                 "owoot": "--owoot" in flags,
-                "amiga_grass": "/amigagrass" in flags,
+                "amiga_grass": "--amigagrass" in flags,
                 "chicane_fast_grass": "--cfg:off" not in flags}
             # Local state macros share the historical policy counter. Only
             # whole-route pilots are forbidden; native task-level checks below

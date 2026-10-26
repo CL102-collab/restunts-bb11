@@ -657,7 +657,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			arguments[n++] = "--owoot";
 		}
 		if (options->amiga_grass) {
-			arguments[n++] = "/amigagrass";
+			arguments[n++] = "--amigagrass";
 		}
 		if (options->fine_tune) {
 			arguments[n++] =
@@ -1261,7 +1261,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 			arguments[n++] = "--owoot";
 		}
 		if (options->amiga_grass) {
-			arguments[n++] = "/amigagrass";
+			arguments[n++] = "--amigagrass";
 		}
 		if (options->fine_tune) {
 			arguments[n++] =

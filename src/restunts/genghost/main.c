@@ -53,7 +53,7 @@ static const char help[] =
 	"  --lcb:on|off           Original left corner bias (default on).\n"
 	"  --dws:on|off           Dual-Way Switching (original behavior; default on).\n"
 	"  --cfg:on|off           Chicane fast-grass (default on).\n"
-	"  /amigagrass            Original Amiga grass grip for stock cars (default off).\n"
+	"  --amigagrass           Original Amiga grass grip for stock cars (default off).\n"
 	"  --owoot                Enforce One Wheel On/Over Track.\n"
 	"  --fine-tune            Refine driving and gear inputs of a completed replay.\n"
 	"  --fine-tune-gears-only Refine gear timing, preserving every driving input.\n"
@@ -537,7 +537,7 @@ int main(int argc, char **argv)
 			options.owoot = 1;
 			continue;
 		}
-		if (!SDL_strcasecmp(argument, "/amigagrass")) {
+		if (!SDL_strcasecmp(argument, "--amigagrass")) {
 			options.amiga_grass = 1;
 			continue;
 		}
@@ -833,7 +833,7 @@ int main(int argc, char **argv)
 		physics_arguments[physics_count++] = "--owoot";
 	}
 	if (options.amiga_grass) {
-		physics_arguments[physics_count++] = "/amigagrass";
+		physics_arguments[physics_count++] = "--amigagrass";
 	}
 	int source_transmission =
 		options.fine_tune || verify ? replay.game_playertransmission : TRANSMISSION_MANUAL;
@@ -889,7 +889,7 @@ int main(int argc, char **argv)
 			track_name, car, transmission ? "automatic" : "manual",
 			options.powergear ? "on" : "off", options.collision ? "on" : "off",
 			options.left_bias ? "on" : "off", options.dual_way_switching ? "on" : "off",
-			options.chicane_fast_grass ? "on" : "off", options.amiga_grass ? " /amigagrass" : "",
+			options.chicane_fast_grass ? "on" : "off", options.amiga_grass ? " --amigagrass" : "",
 			options.owoot ? " --owoot" : "");
 	fprintf(stderr, "search strategy: %s\n", strategy_name(&options));
 	int search_status;

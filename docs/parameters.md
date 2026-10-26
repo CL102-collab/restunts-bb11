@@ -11,7 +11,7 @@ the preserved assembly executable retain their original interfaces.
 | Original left corner bias | `--lcb:on` / `--lcb:off` | On |
 | Dual-Way Switching | `--dws:on` / `--dws:off` | On |
 | Chicane Fast-Grass | `--cfg:on` / `--cfg:off` | On |
-| Original Amiga grass grip for stock cars | `/amigagrass` | Off |
+| Original Amiga grass grip for stock cars | `--amigagrass` | Off |
 | One Wheel On/Over Track rules | `--owoot` | Off |
 | Skip intro | `--nointro` | Off |
 | Disable music and sound effects | `/ns` | Off (sound on) |
@@ -31,7 +31,7 @@ dual-way track. See [Penalty time](https://wiki.stunts.hu/wiki/Penalty_time) and
 
 **Chicane Fast-Grass** keeps the green areas of chicane elements as fast as
 road. Use `--cfg:off` to give those areas ordinary grass grip and drag while
-keeping the visible road unchanged. `/amigagrass` also applies to those grass
+keeping the visible road unchanged. `--amigagrass` also applies to those grass
 contacts when enabled.
 
 Custom-car surface adhesion activates automatically when the selected car has
@@ -48,7 +48,7 @@ for bounds, compatibility and measurement details.
 DOS16, Amiga, and SDL3 executables accept switches after the executable name:
 
 ```text
-restunts --nointro --pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --fps:on
+restunts --nointro --pg:off --lc:off --lcb:off --dws:off --cfg:off --amigagrass --fps:on
 ```
 
 `--help` / `-h` and `--version` / `-v` exit without opening game data. Use
@@ -61,7 +61,7 @@ TempleOS accepts the same common switches in the fourth argument:
 
 ```c
 Restunts("C:/DATA", FALSE, FALSE,
-    "--pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --fps:on");
+    "--pg:off --lc:off --lcb:off --dws:off --cfg:off --amigagrass --fps:on");
 Restunts("C:/DATA", FALSE, FALSE, "--help");
 ```
 

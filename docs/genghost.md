@@ -58,11 +58,11 @@ All generated replays use manual transmission; there is no transmission option.
 | `--dws:on`, `--dws:off` | Enable original Dual-Way Switching or fix penalties for switching between branches. |
 | `--owoot` | Enforce the game's One Wheel On/Over Track rules. |
 | `--cfg:on`, `--cfg:off` | Chicane Fast-Grass: keep road behavior on green chicane areas, or use ordinary grass grip and drag when off; defaults on. |
-| `/amigagrass` | Use original Amiga grass grip for stock cars; defaults off. |
+| `--amigagrass` | Use original Amiga grass grip for stock cars; defaults off. |
 | `--verify` | Re-simulate a compatible input replay and print its score, without searching or writing a ghost. |
 
 Physics defaults match Restunts: `--pg:on --lc:on --lcb:on --dws:on --cfg:on`, with OWOOT and
-Amiga Grass off. `/amigagrass` applies during generation, worker searches, and
+Amiga Grass off. `--amigagrass` applies during generation, worker searches, and
 verification; the JSON report records it as `physics.amiga_grass`. Use the same
 flag when playing or verifying the generated replay.
 Physics option spelling is case-insensitive, and the last value for an on/off

@@ -5722,7 +5722,7 @@ MemCpy(rs_command_line_command_line_help,
     "Enable/disable original collision behavior.\r\n  --lcb:on|off     Enable/disable the original "
     "left corner bias.\r\n  --dws:on|off     Dual-Way Switching: off fixes branch-switching "
     "penalties.\r\n  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n                   Off "
-    "makes green chicane areas behave as grass.\r\n  /amigagrass      Use original Amiga grass "
+    "makes green chicane areas behave as grass.\r\n  --amigagrass     Use original Amiga grass "
     "grip for stock cars.\r\n  --owoot          Enable One Wheel On/Over Track driving rules.\r\n  "
     "/ns              Start with music and sound effects disabled.\r\n\r\nDefaults: intro and "
     "sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on.\r\nFPS, Amiga grass, and OWOOT "

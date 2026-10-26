@@ -62,7 +62,7 @@ void configure_amiga_grass(legacy_s16 argc, legacy_s8 *argv[])
 {
 	amiga_grass_enabled = 0;
 	for (legacy_s16 index = 1; index < argc; index++) {
-		if (stricmp(argv[index], (const legacy_s8 *)"/amigagrass") == 0) {
+		if (stricmp(argv[index], (const legacy_s8 *)"--amigagrass") == 0) {
 			amiga_grass_enabled = 1;
 		}
 	}

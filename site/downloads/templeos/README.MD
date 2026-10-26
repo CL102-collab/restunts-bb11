@@ -222,7 +222,7 @@ Restunts("C:/Restunts/DATA", TRUE);
 
 To use the original Amiga grass-grip coefficients for stock cars, pass a third
 `TRUE` argument: `Restunts("C:/Restunts/DATA", TRUE, TRUE);`. This is the TempleOS
-equivalent of `/amigagrass`; it defaults to `FALSE` and affects both the player
+equivalent of `--amigagrass`; it defaults to `FALSE` and affects both the player
 and opponent. Custom car IDs retain their own coefficients. Replays do not store
 this option, so use the same setting when replaying a recording.
 
@@ -231,7 +231,7 @@ using the same option names as the command-line builds. For example:
 
 ```c
 Restunts("C:/Restunts/DATA", TRUE, FALSE,
-    "--pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --owoot /ns");
+    "--pg:off --lc:off --lcb:off --dws:off --cfg:off --amigagrass --owoot /ns");
 ```
 
 | Option | Effect |
@@ -242,7 +242,7 @@ Restunts("C:/Restunts/DATA", TRUE, FALSE,
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
 | `--dws:on`, `--dws:off` | Dual-Way Switching: preserve original penalty behavior when on; fix branch-switching penalties when off. |
 | `--cfg:on`, `--cfg:off` | Chicane Fast-Grass: green chicane areas use road behavior when on, ordinary grass grip and drag when off. |
-| `/amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
+| `--amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
 | `--owoot` | Enable One Wheel On/Over Track rules. |
 | `/ns` | Start with music and sound effects disabled. |
 | `--fps:on`, `--fps:off` | Start with the FPS display enabled or disabled; supply once. F11 toggles it during play. |

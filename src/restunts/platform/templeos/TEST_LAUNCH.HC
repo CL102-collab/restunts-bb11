@@ -60,7 +60,7 @@ legacy_void TestLaunchChicane(legacy_u8 fast_grass)
 
 legacy_void TestLaunch()
 {
-  legacy_s8 *text=StrNew("  --pg:off\t--lc:off --lcb:off --dws:off --cfg:off /amigagrass --owoot "
+  legacy_s8 *text=StrNew("  --pg:off\t--lc:off --lcb:off --dws:off --cfg:off --amigagrass --owoot "
                           "/ns --nointro --fps:on ");
   legacy_s8 *legacy_options=StrNew("/ns /nd /h /sPC");
   legacy_s8 *quoted=StrNew("\"--pg:off\" '--lc:off' --lcb:off");

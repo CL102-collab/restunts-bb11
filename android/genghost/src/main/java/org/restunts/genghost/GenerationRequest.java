@@ -81,7 +81,7 @@ public final class GenerationRequest {
         }
         Set<String> options = new HashSet<>();
         for (String flag : physicsFlags) {
-            if (flag == null || !(flag.equals("--owoot") || flag.equals("/amigagrass")
+            if (flag == null || !(flag.equals("--owoot") || flag.equals("--amigagrass")
                     || flag.matches("--(pg|lc|lcb|dws|cfg):(on|off)"))) {
                 throw new IOException("Unknown physics option.");
             }

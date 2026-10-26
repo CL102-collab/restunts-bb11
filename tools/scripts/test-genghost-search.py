@@ -110,7 +110,7 @@ def main():
             assert report["physics"] == {"pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                                          "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                                          "owoot": "--owoot" in flags,
-                                         "amiga_grass": "/amigagrass" in flags,
+                                         "amiga_grass": "--amigagrass" in flags,
                                          "chicane_fast_grass": "--cfg:off" not in flags}
             assert report["total_seconds"] == report["total_frames"] / 20
             verified = verify(path, car, flags)

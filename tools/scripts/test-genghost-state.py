@@ -129,7 +129,7 @@ def main():
                 "pg": "--pg:off" not in flags, "lc": "--lc:off" not in flags,
                 "lcb": "--lcb:off" not in flags, "dws": "--dws:off" not in flags,
                 "owoot": "--owoot" in flags,
-                "amiga_grass": "/amigagrass" in flags,
+                "amiga_grass": "--amigagrass" in flags,
                 "chicane_fast_grass": "--cfg:off" not in flags}
             assert result["globally_optimal"] is False
             assert result["total_seconds"] == result["total_frames"] / 20
@@ -225,8 +225,8 @@ def main():
 
         # Cooperative workers must initialize the same non-default car grip as
         # the coordinator. Check saved inputs and every independent replay state.
-        grass = generate("grass1.RPL", budget=201, flags=("/amigagrass",))
-        grass_parallel = generate("grass2.RPL", budget=201, cores=2, flags=("/amigagrass",))
+        grass = generate("grass1.RPL", budget=201, flags=("--amigagrass",))
+        grass_parallel = generate("grass2.RPL", budget=201, cores=2, flags=("--amigagrass",))
         assert grass_parallel[0] == grass[0] and grass_parallel[2] == grass[2]
         assert grass_parallel[1]["state_task_hash"] == grass[1]["state_task_hash"]
         stock = json.loads(run(["grass2.RPL", "PMIN", "--verify"], expected=2).stdout)

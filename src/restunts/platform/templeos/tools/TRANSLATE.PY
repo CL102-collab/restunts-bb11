@@ -194,7 +194,7 @@ def prepare_sources(folder):
                          '  --dws:on|off     Dual-Way Switching: off fixes branch-switching penalties.\r\n'
                          '  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n'
                          '                   Off makes green chicane areas behave as grass.\r\n'
-                         '  /amigagrass      Use original Amiga grass grip for stock cars.\r\n'
+                         '  --amigagrass     Use original Amiga grass grip for stock cars.\r\n'
                          '  --owoot          Enable One Wheel On/Over Track driving rules.\r\n'
                          '  /ns              Start with music and sound effects disabled.\r\n'
                          '\r\n'

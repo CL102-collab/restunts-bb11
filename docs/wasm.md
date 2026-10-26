@@ -70,7 +70,7 @@ needed. The HTML's location does not determine where the game looks for data.
    Uncheck **Chicane Fast-Grass** to pass `--cfg:off` and give green chicane
    areas ordinary grass grip and drag. OWOOT and Amiga Grass
    start off; Amiga Grass uses the original Amiga grass grip for stock cars
-   (`/amigagrass`). Custom-car surface adhesion is activated by the car resource
+   (`--amigagrass`). Custom-car surface adhesion is activated by the car resource
    capability flag. All settings are remembered for this page, including
    with read-only folder access. Earlier HyperVision checkbox choices are retained
    as Auto when enabled and Off when disabled.

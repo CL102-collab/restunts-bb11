@@ -482,7 +482,7 @@
             args.push(document.getElementById('left-corner-bias').checked ? '--lcb:on' : '--lcb:off');
             args.push(document.getElementById('dual-way-switching').checked ? '--dws:on' : '--dws:off');
             args.push(document.getElementById('chicane-fast-grass').checked ? '--cfg:on' : '--cfg:off');
-            if (document.getElementById('amiga-grass').checked) args.push('/amigagrass');
+            if (document.getElementById('amiga-grass').checked) args.push('--amigagrass');
             if (document.getElementById('owoot').checked) args.push('--owoot');
             try {
                 // Keep the browser request inside this click's user activation.

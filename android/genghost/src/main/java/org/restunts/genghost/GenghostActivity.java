@@ -576,7 +576,7 @@ public final class GenghostActivity extends Activity {
         flags.add(dualWaySwitching.isChecked() ? "--dws:on" : "--dws:off");
         flags.add(chicaneFastGrass.isChecked() ? "--cfg:on" : "--cfg:off");
         if (amigaGrass.isChecked()) {
-            flags.add("/amigagrass");
+            flags.add("--amigagrass");
         }
         if (owoot.isChecked()) {
             flags.add("--owoot");

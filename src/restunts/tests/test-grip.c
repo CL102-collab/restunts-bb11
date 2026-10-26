@@ -407,7 +407,7 @@ static void configure_grass_option(const legacy_s8 *option)
 
 static void run_grass_grip(legacy_u8 enabled, const legacy_s8 car_id[4], legacy_s16 behavior)
 {
-	configure_grass_option(enabled != 0 ? (const legacy_s8 *)"/amigagrass" : NULL);
+	configure_grass_option(enabled != 0 ? (const legacy_s8 *)"--amigagrass" : NULL);
 	apply_amiga_grass(&simd, car_id);
 	run_grip(behavior);
 }
@@ -422,23 +422,23 @@ static void test_amiga_grass_options(void)
 		const legacy_s8 *option;
 		legacy_s16 expected_grass;
 	} cases[] = {{NULL, 256},
-				 {(const legacy_s8 *)"/amigagrass", 30},
-				 {(const legacy_s8 *)"/AMIGAGRASS", 30},
-				 {(const legacy_s8 *)"/AmIgAgRaSs", 30},
+				 {(const legacy_s8 *)"--amigagrass", 30},
+				 {(const legacy_s8 *)"--AMIGAGRASS", 30},
+				 {(const legacy_s8 *)"--AmIgAgRaSs", 30},
 				 {(const legacy_s8 *)"", 256},
 				 {(const legacy_s8 *)"amigagrass", 256},
-				 {(const legacy_s8 *)"--amigagrass", 256},
+				 {(const legacy_s8 *)"/amigagrass", 256},
 				 {(const legacy_s8 *)"-amigagrass", 256},
-				 {(const legacy_s8 *)"/amigagras", 256},
-				 {(const legacy_s8 *)"/amigagrassx", 256},
-				 {(const legacy_s8 *)"/amigagrass ", 256},
-				 {(const legacy_s8 *)" /amigagrass", 256},
-				 {(const legacy_s8 *)"/amigagrass:on", 256},
-				 {(const legacy_s8 *)"/amigagrass:off", 256},
-				 {(const legacy_s8 *)"/amigagrass=1", 256},
+				 {(const legacy_s8 *)"--amigagras", 256},
+				 {(const legacy_s8 *)"--amigagrassx", 256},
+				 {(const legacy_s8 *)"--amigagrass ", 256},
+				 {(const legacy_s8 *)" --amigagrass", 256},
+				 {(const legacy_s8 *)"--amigagrass:on", 256},
+				 {(const legacy_s8 *)"--amigagrass:off", 256},
+				 {(const legacy_s8 *)"--amigagrass=1", 256},
 				 {(const legacy_s8 *)"--lc:on", 256}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
-		configure_grass_option((const legacy_s8 *)"/amigagrass");
+		configure_grass_option((const legacy_s8 *)"--amigagrass");
 		configure_grass_option(cases[index].option);
 		reset_car();
 		apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
@@ -446,18 +446,18 @@ static void test_amiga_grass_options(void)
 			   cases[index].expected_grass);
 	}
 	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--lc:off",
-							  (legacy_s8 *)"/amigagrass", (legacy_s8 *)"/amigagrass:off"};
+							  (legacy_s8 *)"--amigagrass", (legacy_s8 *)"--amigagrass:off"};
 	configure_amiga_grass(sizeof(arguments) / sizeof(arguments[0]), arguments);
 	reset_car();
 	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
 	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 30);
 
-	legacy_s8 *executable_only[] = {(legacy_s8 *)"/amigagrass"};
+	legacy_s8 *executable_only[] = {(legacy_s8 *)"--amigagrass"};
 	configure_amiga_grass(1, executable_only);
 	reset_car();
 	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
 	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 256);
-	configure_grass_option((const legacy_s8 *)"/amigagrass");
+	configure_grass_option((const legacy_s8 *)"--amigagrass");
 	configure_amiga_grass(0, NULL);
 	apply_amiga_grass(&simd, (const legacy_s8 *)"PMIN");
 	assert(simd.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] == 256);
@@ -490,7 +490,7 @@ static void test_amiga_grass_profiles(void)
 					expected.surface_grip[CAR_SURFACE_GRASS - CAR_SURFACE_PAVED] =
 						cases[index].amiga_grass;
 				}
-				configure_grass_option(enabled != 0 ? (const legacy_s8 *)"/amigagrass" : NULL);
+				configure_grass_option(enabled != 0 ? (const legacy_s8 *)"--amigagrass" : NULL);
 				apply_amiga_grass(&simd, car_id);
 				assert(memcmp(&expected, &simd, sizeof(simd)) == 0);
 			}

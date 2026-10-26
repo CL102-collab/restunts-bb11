@@ -97,11 +97,11 @@ public final class LaunchOptionsTest {
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, true),
             "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--control-layout:on",
-            "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "/amigagrass");
+            "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--amigagrass");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true),
             "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:high", "--control-layout:off",
-            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "/amigagrass", "--owoot");
+            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, LaunchOptions.DEFAULT_SOUND,
             LaunchOptions.DEFAULT_SKIP_INTRO),
@@ -118,11 +118,11 @@ public final class LaunchOptionsTest {
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, false, true),
             "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:high", "--control-layout:off",
-            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "/amigagrass", "--owoot", "/ns", "--nointro");
+            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot", "/ns", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, true, false),
             "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--hv:high", "--control-layout:off",
-            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "/amigagrass", "--owoot");
+            "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, false, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
             "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--control-layout:on",

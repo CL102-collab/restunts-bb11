@@ -60,9 +60,9 @@ int main(void)
   assert(captured_count==1 && !strcmp(captured[0],"RESTUNTS"));
   assert(Restunts("C:/DATA",TRUE,TRUE,"")==42);
   assert(captured_count==3);
-  assert(!strcmp(captured[1],"--nointro") && !strcmp(captured[2],"/amigagrass"));
+  assert(!strcmp(captured[1],"--nointro") && !strcmp(captured[2],"--amigagrass"));
   assert(Restunts("C:/DATA",FALSE,FALSE,
-      "--pg:off --lc:off --lcb:off --dws:off --cfg:off /amigagrass --owoot /ns --fps:on --nointro")==42);
+      "--pg:off --lc:off --lcb:off --dws:off --cfg:off --amigagrass --owoot /ns --fps:on --nointro")==42);
   assert(captured_count==11 && !strcmp(captured[4],"--dws:off"));
   assert(!strcmp(captured[5],"--cfg:off") && !strcmp(captured[8],"/ns"));
   assert(!strcmp(captured[9],"--fps:on") && !strcmp(captured[10],"--nointro"));

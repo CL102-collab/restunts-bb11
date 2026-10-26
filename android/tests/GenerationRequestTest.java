@@ -73,7 +73,7 @@ public final class GenerationRequestTest {
 
         for (String flag : new String[] {"--cfg:on", "--cfg:off"}) {
             GenerationRequest chicane = new GenerationRequest(track.getName(), "COUN", 60, 2,
-                "state", GenerationRequest.MODE_GENERATE, new String[] {flag, "/amigagrass", "--owoot"});
+                "state", GenerationRequest.MODE_GENERATE, new String[] {flag, "--amigagrass", "--owoot"});
             assert chicane.validate(game).equals(track);
             List<String> command = chicane.arguments(executable, game, track, output);
             assert command.contains(flag);

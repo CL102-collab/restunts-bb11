@@ -54,7 +54,7 @@ legacy_int main()
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
 	check(!contains(arguments, "/ns") && !contains(arguments, "--nointro") &&
-			  !contains(arguments, "--owoot") && !contains(arguments, "/amigagrass"),
+			  !contains(arguments, "--owoot") && !contains(arguments, "--amigagrass"),
 		  "Optional game switches must not be enabled by default.");
 	for (legacy_int index = 0; index < LAUNCHER_OPTION_COUNT; ++index) {
 		options.enabled[index] = !options.enabled[index];
@@ -73,7 +73,7 @@ legacy_int main()
 									"--dws:off",
 									"--cfg:off",
 									"--owoot",
-									"/amigagrass"};
+									"--amigagrass"};
 	for (const legacy_char *argument : changed) {
 		check(contains(arguments, argument), "Missing changed game argument.");
 	}

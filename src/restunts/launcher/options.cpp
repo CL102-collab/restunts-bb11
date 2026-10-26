@@ -26,7 +26,7 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"left_corner_bias", "Left Corner Bias", "--lcb:on", "--lcb:off", true},
 	{"dual_way_switching", "Dual-Way Switching", "--dws:on", "--dws:off", true},
 	{"chicane_fast_grass", "Chicane Fast-Grass", "--cfg:on", "--cfg:off", true},
-	{"amiga_grass", "Amiga Grass", "/amigagrass", nullptr, false},
+	{"amiga_grass", "Amiga Grass", "--amigagrass", nullptr, false},
 	{"owoot", "OWOOT", "--owoot", nullptr, false}};
 
 const LauncherHyperVision launcher_hypervision_definitions[LAUNCHER_HV_COUNT] = {

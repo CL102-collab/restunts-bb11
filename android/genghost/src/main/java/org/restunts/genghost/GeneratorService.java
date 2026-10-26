@@ -487,7 +487,7 @@ public final class GeneratorService extends Service {
             command.add("--owoot");
         }
         if (physics.optBoolean("amiga_grass", false)) {
-            command.add("/amigagrass");
+            command.add("--amigagrass");
         }
         Process process = nativeProcess(context, command, game).start();
         StringBuilder output = new StringBuilder();

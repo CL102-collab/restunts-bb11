@@ -64,7 +64,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --lcb:on|off     Enable/disable the original left corner bias." COMMAND_LINE_NEWLINE
 	"  --dws:on|off     Enable/disable original Dual-Way Switching." COMMAND_LINE_NEWLINE
 	"  --cfg:on|off     Enable/disable Chicane fast-grass." COMMAND_LINE_NEWLINE
-	"  /amigagrass      Use original Amiga grass grip (stock cars)." COMMAND_LINE_NEWLINE
+	"  --amigagrass     Use original Amiga grass grip (stock cars)." COMMAND_LINE_NEWLINE
 	"  --owoot          Enable One Wheel On/Over Track driving "
 	"rules." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
@@ -95,7 +95,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on; "
 	"--owoot off." COMMAND_LINE_NEWLINE
 	"With --cfg:off, green chicane areas behave as grass." COMMAND_LINE_NEWLINE
-	"Amiga grass grip starts off; enable with /amigagrass." COMMAND_LINE_NEWLINE
+	"Amiga grass grip starts off; enable with --amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE

@@ -134,7 +134,7 @@ public final class LaunchOptions {
         arguments.add(dualWaySwitching ? "--dws:on" : "--dws:off");
         arguments.add(chicaneFastGrass ? "--cfg:on" : "--cfg:off");
         if (amigaGrass) {
-            arguments.add("/amigagrass");
+            arguments.add("--amigagrass");
         }
         if (owoot) {
             arguments.add("--owoot");

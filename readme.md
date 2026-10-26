@@ -511,7 +511,7 @@ explicitly restores it. The switches are available on every port, are
 case-insensitive, and use the last on/off value. **Amiga Grass** also affects
 these green areas when fast-grass is disabled.
 
-Run `restunts.exe /amigagrass` to use original Amiga grass grip for the 11 stock
+Run `restunts.exe --amigagrass` to use original Amiga grass grip for the 11 stock
 cars. This option is off by default and leaves road grip unchanged. Custom car
 IDs retain their authored grass grip. The switch is case-insensitive and can
 be combined with the other physics and startup options. As in the original,

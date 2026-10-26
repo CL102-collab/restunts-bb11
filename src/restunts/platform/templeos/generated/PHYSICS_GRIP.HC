@@ -76,7 +76,7 @@ legacy_void RsConfigureAmigaGrass(legacy_s16 argc,legacy_s8 **argv)
     if(!((temple_index_5984<argc))) {
       break;
     }
-    if((RsInternal1Stricmp(argv[((temple_index_5984))],("/amigagrass")(legacy_s8 *))==0)) {
+    if((RsInternal1Stricmp(argv[((temple_index_5984))],("--amigagrass")(legacy_s8 *))==0)) {
       (rs_physics_grip_amiga_grass_enabled=TempleCastS16(1));
     }
     temple_tmp_5985=&(temple_index_5984);
