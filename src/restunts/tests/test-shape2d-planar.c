@@ -221,6 +221,18 @@ static void draw_clear_case(legacy_u32 scenario)
 	sprite_clear_target((legacy_u8)(scenario * 17));
 }
 
+static void draw_transformed_case(legacy_u32 scenario)
+{
+	reset_planar_bitmap();
+	draw_transform_fixture(scenario);
+}
+
+static void draw_ten_degree_transformed_case(legacy_u32 scenario)
+{
+	reset_planar_bitmap();
+	draw_ten_degree_transform_fixture(scenario);
+}
+
 static void compare_targets(legacy_u32 cases, void (*draw_case)(legacy_u32))
 {
 	legacy_u8 *bitmap = dos_memory_make_pointer(TEST_BITMAP_SEGMENT, 0);
@@ -250,6 +262,8 @@ int main(void)
 	}
 	compare_targets(1280, draw_raw_case);
 	compare_targets(100, draw_clear_case);
+	compare_targets(TEST_TRANSFORM_CASE_COUNT, draw_transformed_case);
+	compare_targets(2U, draw_ten_degree_transformed_case);
 	for (legacy_u32 operation = 0; operation < 4; operation++) {
 		assert(raster_spans[operation] != 0);
 	}

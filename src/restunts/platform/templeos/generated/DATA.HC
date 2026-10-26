@@ -166,6 +166,10 @@ MemSet(&rs_ghost_ghost_line_builder,0,sizeof(rs_ghost_ghost_line_builder));
 legacy_s8 rs_race_resources_skybox_resource_names[5][9];
 MemSet(
     &rs_race_resources_skybox_resource_names,0,sizeof(rs_race_resources_skybox_resource_names));
+CShape2D *rs_dashboard_dashboard_instrument_transforms[3];
+MemSet(&rs_dashboard_dashboard_instrument_transforms,0,
+    sizeof(rs_dashboard_dashboard_instrument_transforms));
+legacy_u8 rs_dashboard_dashboard_instruments_follow_wheel=0;
 legacy_s16 rs_menu_common_menu_animation_counter=0;
 legacy_s16 rs_menu_common_menu_highlight_color=0;
 legacy_s16 menu_idle_counter=0;

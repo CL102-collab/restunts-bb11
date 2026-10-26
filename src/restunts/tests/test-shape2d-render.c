@@ -399,6 +399,196 @@ static void test_parse(void)
 	}
 }
 
+#define TEST_TRANSFORM_SOURCE_PITCH 7U
+#define TEST_TRANSFORM_SOURCE_ROWS 5U
+#define TEST_TRANSFORM_WIDTH 5U
+#define TEST_TRANSFORM_HEIGHT 3U
+#define TEST_TRANSFORM_SOURCE_CENTER_X 2
+#define TEST_TRANSFORM_SOURCE_CENTER_Y 1
+#define TEST_TRANSFORM_CLIP_LEFT 1
+#define TEST_TRANSFORM_CLIP_RIGHT 31
+#define TEST_TRANSFORM_CLIP_TOP 2
+#define TEST_TRANSFORM_CLIP_BOTTOM 23
+#define TEST_TRANSFORM_CASE_COUNT 6U
+#define TEST_TRANSFORM_BACKGROUND 0x5aU
+
+static const struct {
+	legacy_s16 quarter_turn;
+	legacy_s16 target_x, target_y;
+} transform_cases[TEST_TRANSFORM_CASE_COUNT] = {{0, 6, 7},	{1, 6, 7},	 {-1, 6, 7},
+												{0, -1, 2}, {1, 31, 22}, {-1, 1, 2}};
+
+static legacy_u8 transform_source_pixel(legacy_u16 x, legacy_u16 y)
+{
+	return x == 1U && y == 1U ? SHAPE2D_TRANSPARENT_COLOR
+							  : (legacy_u8)(1U + x + y * TEST_TRANSFORM_SOURCE_PITCH);
+}
+
+static void draw_transform_fixture(legacy_u32 scenario)
+{
+	struct SHAPE2D *shape = make_shape(TEST_TRANSFORM_SOURCE_PITCH, TEST_TRANSFORM_SOURCE_ROWS, 0);
+	legacy_u8 *pixels = (legacy_u8 *)shape + SHAPE2D_HEADER_SIZE;
+	memset(pixels, SHAPE2D_TRANSPARENT_COLOR,
+		   TEST_TRANSFORM_SOURCE_PITCH * TEST_TRANSFORM_SOURCE_ROWS);
+	for (legacy_u16 y = 0; y < TEST_TRANSFORM_HEIGHT; y++) {
+		for (legacy_u16 x = 0; x < TEST_TRANSFORM_WIDTH; x++) {
+			pixels[y * TEST_TRANSFORM_SOURCE_PITCH + x] = transform_source_pixel(x, y);
+		}
+	}
+	struct SPRITE source = {0};
+	source.sprite_bitmapptr = shape;
+	source.sprite_pitch = TEST_TRANSFORM_SOURCE_PITCH;
+	struct SHAPE2D_TRANSFORM transform = {0};
+	legacy_s16 direction = transform_cases[scenario].quarter_turn;
+	if (direction == 0) {
+		transform.inverse_xx = (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+		transform.inverse_yy = (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+	} else {
+		transform.inverse_xy = direction * (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+		transform.inverse_yx = -direction * (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+	}
+	transform.source_pivot_x = TEST_TRANSFORM_SOURCE_CENTER_X;
+	transform.source_pivot_y = TEST_TRANSFORM_SOURCE_CENTER_Y;
+	transform.target_pivot_x = transform_cases[scenario].target_x;
+	transform.target_pivot_y = transform_cases[scenario].target_y;
+	transform.source_width = TEST_TRANSFORM_WIDTH;
+	transform.source_height = TEST_TRANSFORM_HEIGHT;
+	transform.left = -(legacy_s16)TEST_TRANSFORM_WIDTH;
+	transform.top = -(legacy_s16)TEST_TRANSFORM_HEIGHT;
+	transform.right = TEST_TRANSFORM_CLIP_RIGHT + TEST_TRANSFORM_WIDTH;
+	transform.bottom = TEST_TRANSFORM_CLIP_BOTTOM + TEST_TRANSFORM_HEIGHT;
+	sprite_set_target_clip_bounds(TEST_TRANSFORM_CLIP_LEFT, TEST_TRANSFORM_CLIP_RIGHT,
+								  TEST_TRANSFORM_CLIP_TOP, TEST_TRANSFORM_CLIP_BOTTOM);
+	sprite_copy_image_transformed(&source, &transform);
+}
+
+static void test_transformed_images(void)
+{
+	/* The expected image scatters source pixels through exact quarter turns.
+	 * It does not duplicate the inverse fixed-point raster used by production. */
+	static legacy_u8 expected[65536];
+	for (legacy_u32 scenario = 0; scenario < TEST_TRANSFORM_CASE_COUNT; scenario++) {
+		reset_bitmap();
+		draw_transform_fixture(scenario);
+		memset(expected, TEST_TRANSFORM_BACKGROUND, sizeof(expected));
+		for (legacy_u16 y = 0; y < TEST_TRANSFORM_HEIGHT; y++) {
+			for (legacy_u16 x = 0; x < TEST_TRANSFORM_WIDTH; x++) {
+				legacy_s16 dx = (legacy_s16)x - TEST_TRANSFORM_SOURCE_CENTER_X;
+				legacy_s16 dy = (legacy_s16)y - TEST_TRANSFORM_SOURCE_CENTER_Y;
+				legacy_s16 direction = transform_cases[scenario].quarter_turn;
+				legacy_s16 target_x = transform_cases[scenario].target_x;
+				legacy_s16 target_y = transform_cases[scenario].target_y;
+				if (direction == 0) {
+					target_x += dx;
+					target_y += dy;
+				} else {
+					target_x -= direction * dy;
+					target_y += direction * dx;
+				}
+				legacy_u8 color = transform_source_pixel(x, y);
+				if (target_x >= TEST_TRANSFORM_CLIP_LEFT && target_x < TEST_TRANSFORM_CLIP_RIGHT &&
+					target_y >= TEST_TRANSFORM_CLIP_TOP && target_y < TEST_TRANSFORM_CLIP_BOTTOM &&
+					color != SHAPE2D_TRANSPARENT_COLOR) {
+					expected[target_y * drawing_sprite.sprite_pitch + target_x] = color;
+				}
+			}
+		}
+		assert(memcmp(expected, dos_memory_make_pointer(TEST_BITMAP_SEGMENT, 0),
+					  sizeof(expected)) == 0);
+	}
+}
+
+#define TEST_TEN_DEGREE_WIDTH 13U
+#define TEST_TEN_DEGREE_HEIGHT 7U
+#define TEST_TEN_DEGREE_PITCH 17U
+#define TEST_TEN_DEGREE_CENTER_X 6
+#define TEST_TEN_DEGREE_CENTER_Y 3
+#define TEST_TEN_DEGREE_TARGET_CENTER 10
+#define TEST_TEN_DEGREE_COSINE 16135
+#define TEST_TEN_DEGREE_INVERSE_SINE 3951
+#define TEST_TEN_DEGREE_ASPECT_SINE 2048
+#define TEST_TEN_DEGREE_RESULT_LEFT 2U
+#define TEST_TEN_DEGREE_RESULT_TOP 5U
+#define TEST_TEN_DEGREE_RESULT_WIDTH 17U
+#define TEST_TEN_DEGREE_RESULT_HEIGHT 11U
+
+/* An independently calculated floating-point reference for the Q14 ten-degree
+ * matrix with vertical aspect 0.72, rounded to the nearest source pixel.
+ * Zero cells denote untouched background; source pixels are numbered 1..91. */
+static const legacy_u8
+	ten_degree_reference[TEST_TEN_DEGREE_RESULT_HEIGHT][TEST_TEN_DEGREE_RESULT_WIDTH] = {
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 14, 15, 3, 4, 5, 6, 7, 8, 9, 10, 0, 0, 0, 0},
+		{0, 0, 27, 28, 29, 17, 18, 19, 20, 21, 21, 22, 23, 11, 12, 13, 0},
+		{0, 0, 40, 41, 42, 30, 31, 32, 33, 34, 35, 36, 37, 25, 26, 0, 0},
+		{0, 0, 53, 54, 55, 43, 44, 45, 46, 47, 48, 49, 50, 38, 39, 0, 0},
+		{0, 0, 66, 67, 55, 56, 57, 58, 59, 60, 61, 62, 50, 51, 52, 0, 0},
+		{0, 79, 80, 81, 69, 70, 71, 71, 72, 73, 74, 75, 63, 64, 65, 0, 0},
+		{0, 0, 0, 0, 82, 83, 84, 85, 86, 87, 88, 89, 77, 78, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 90, 91, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}};
+
+static void draw_ten_degree_transform_fixture(legacy_u32 scenario)
+{
+	struct SHAPE2D *shape = make_shape(TEST_TEN_DEGREE_PITCH, TEST_TEN_DEGREE_HEIGHT, 0);
+	legacy_u8 *pixels = (legacy_u8 *)shape + SHAPE2D_HEADER_SIZE;
+	memset(pixels, SHAPE2D_TRANSPARENT_COLOR, TEST_TEN_DEGREE_PITCH * TEST_TEN_DEGREE_HEIGHT);
+	for (legacy_u16 y = 0; y < TEST_TEN_DEGREE_HEIGHT; y++) {
+		for (legacy_u16 x = 0; x < TEST_TEN_DEGREE_WIDTH; x++) {
+			pixels[y * TEST_TEN_DEGREE_PITCH + x] = (legacy_u8)(1U + x + y * TEST_TEN_DEGREE_WIDTH);
+		}
+	}
+	struct SPRITE source = {0};
+	source.sprite_bitmapptr = shape;
+	source.sprite_pitch = TEST_TEN_DEGREE_PITCH;
+	struct SHAPE2D_TRANSFORM transform = {0};
+	legacy_s16 direction = scenario == 0 ? 1 : -1;
+	transform.inverse_xx = TEST_TEN_DEGREE_COSINE;
+	transform.inverse_xy = direction * TEST_TEN_DEGREE_INVERSE_SINE;
+	transform.inverse_yx = -direction * TEST_TEN_DEGREE_ASPECT_SINE;
+	transform.inverse_yy = TEST_TEN_DEGREE_COSINE;
+	transform.source_pivot_x = TEST_TEN_DEGREE_CENTER_X;
+	transform.source_pivot_y = TEST_TEN_DEGREE_CENTER_Y;
+	transform.target_pivot_x = TEST_TEN_DEGREE_TARGET_CENTER;
+	transform.target_pivot_y = TEST_TEN_DEGREE_TARGET_CENTER;
+	transform.source_width = TEST_TEN_DEGREE_WIDTH;
+	transform.source_height = TEST_TEN_DEGREE_HEIGHT;
+	transform.left = TEST_TEN_DEGREE_RESULT_LEFT;
+	transform.top = TEST_TEN_DEGREE_RESULT_TOP;
+	transform.right = TEST_TEN_DEGREE_RESULT_LEFT + TEST_TEN_DEGREE_RESULT_WIDTH;
+	transform.bottom = TEST_TEN_DEGREE_RESULT_TOP + TEST_TEN_DEGREE_RESULT_HEIGHT;
+	sprite_copy_image_transformed(&source, &transform);
+}
+
+static void test_ten_degree_transformed_images(void)
+{
+	static legacy_u8 expected[65536];
+	for (legacy_u32 scenario = 0; scenario < 2U; scenario++) {
+		reset_bitmap();
+		draw_ten_degree_transform_fixture(scenario);
+		memset(expected, TEST_TRANSFORM_BACKGROUND, sizeof(expected));
+		for (legacy_u16 y = 0; y < TEST_TEN_DEGREE_RESULT_HEIGHT; y++) {
+			for (legacy_u16 x = 0; x < TEST_TEN_DEGREE_RESULT_WIDTH; x++) {
+				legacy_u16 reference_x = scenario == 0 ? x : TEST_TEN_DEGREE_RESULT_WIDTH - 1U - x;
+				legacy_u8 color = ten_degree_reference[y][reference_x];
+				if (color == 0) {
+					continue;
+				}
+				if (scenario != 0) {
+					/* Mirror the source's columns along with the target's columns. */
+					color = (legacy_u8)(color + TEST_TEN_DEGREE_WIDTH - 1U -
+										2U * ((color - 1U) % TEST_TEN_DEGREE_WIDTH));
+				}
+				expected[(y + TEST_TEN_DEGREE_RESULT_TOP) * drawing_sprite.sprite_pitch + x +
+						 TEST_TEN_DEGREE_RESULT_LEFT] = color;
+			}
+		}
+		assert(memcmp(expected, dos_memory_make_pointer(TEST_BITMAP_SEGMENT, 0),
+					  sizeof(expected)) == 0);
+	}
+}
+
 static void check_fingerprint(const char *name, legacy_u32 expected, void (*test)(void))
 {
 	fingerprint = 2166136261UL;
@@ -421,6 +611,8 @@ int main(void)
 	check_fingerprint("font", 0xd9c948eeUL, test_font);
 	check_fingerprint("dissolve", 0x6fa2152dUL, test_dissolve);
 	check_fingerprint("scaled", 0x8c1dc1abUL, test_scaled);
+	test_transformed_images();
+	test_ten_degree_transformed_images();
 	check_fingerprint("rle", 0x45b9c13cUL, test_rle);
 	test_rle_clipped_masks();
 	check_fingerprint("unflip", 0x76403759UL, test_unflip);

@@ -747,6 +747,96 @@ static legacy_u16 shape2d_scaled_anchor(legacy_u16 anchor, legacy_u16 scale)
 	return (legacy_u16)((legacy_u32)product >> SHAPE2D_FIXED_FRACTION_BITS);
 }
 
+#define SHAPE2D_TRANSFORM_HALF (SHAPE2D_TRANSFORM_ONE / 2L)
+/* This domain keeps both Q14 products and their sum within signed 32 bits. */
+#define SHAPE2D_TRANSFORM_COORDINATE_LIMIT ((legacy_s32)(LEGACY_S16_MAX / 4U))
+#define SHAPE2D_TRANSFORM_SEGMENT_BYTES (LEGACY_U16_MAX + 1UL)
+
+static legacy_u8 shape2d_transform_coordinate_valid(legacy_s16 coordinate)
+{
+	return coordinate >= -SHAPE2D_TRANSFORM_COORDINATE_LIMIT &&
+		   coordinate <= SHAPE2D_TRANSFORM_COORDINATE_LIMIT;
+}
+
+void sprite_copy_image_transformed(struct SPRITE far *source,
+								   const struct SHAPE2D_TRANSFORM *transform)
+{
+	legacy_s16 left = transform->left;
+	legacy_s16 top = transform->top;
+	legacy_s16 right = transform->right;
+	legacy_s16 bottom = transform->bottom;
+	if (left < (legacy_s16)drawing_sprite.sprite_raster_left) {
+		left = (legacy_s16)drawing_sprite.sprite_raster_left;
+	}
+	if (top < (legacy_s16)drawing_sprite.sprite_top) {
+		top = (legacy_s16)drawing_sprite.sprite_top;
+	}
+	if (right > (legacy_s16)drawing_sprite.sprite_raster_right) {
+		right = (legacy_s16)drawing_sprite.sprite_raster_right;
+	}
+	if (bottom > (legacy_s16)drawing_sprite.sprite_bottom) {
+		bottom = (legacy_s16)drawing_sprite.sprite_bottom;
+	}
+	if (left >= right || top >= bottom || transform->source_width == 0 ||
+		transform->source_height == 0 || transform->source_width > source->sprite_pitch ||
+		transform->source_height > shape2d_get_height(source->sprite_bitmapptr) ||
+		transform->source_width > SHAPE2D_TRANSFORM_COORDINATE_LIMIT ||
+		transform->source_height > SHAPE2D_TRANSFORM_COORDINATE_LIMIT ||
+		!shape2d_transform_coordinate_valid(left) || !shape2d_transform_coordinate_valid(top) ||
+		!shape2d_transform_coordinate_valid(right) || !shape2d_transform_coordinate_valid(bottom) ||
+		!shape2d_transform_coordinate_valid(transform->source_pivot_x) ||
+		!shape2d_transform_coordinate_valid(transform->source_pivot_y) ||
+		!shape2d_transform_coordinate_valid(transform->target_pivot_x) ||
+		!shape2d_transform_coordinate_valid(transform->target_pivot_y)) {
+		return;
+	}
+	legacy_u32 source_extent = SHAPE2D_HEADER_SIZE +
+							   (legacy_u32)(transform->source_height - 1U) * source->sprite_pitch +
+							   transform->source_width;
+	if (source_extent > SHAPE2D_TRANSFORM_SEGMENT_BYTES) {
+		return;
+	}
+	legacy_u8 far *source_pixels = (legacy_u8 far *)source->sprite_bitmapptr;
+	legacy_u8 far *target_pixels = (legacy_u8 far *)dos_memory_make_pointer(
+		dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr), 0);
+	legacy_s32 delta_x = (legacy_s32)left - transform->target_pivot_x;
+	legacy_s32 delta_y = (legacy_s32)top - transform->target_pivot_y;
+	legacy_s32 row_x = (legacy_s32)transform->source_pivot_x * SHAPE2D_TRANSFORM_ONE +
+					   delta_x * transform->inverse_xx + delta_y * transform->inverse_xy +
+					   SHAPE2D_TRANSFORM_HALF;
+	legacy_s32 row_y = (legacy_s32)transform->source_pivot_y * SHAPE2D_TRANSFORM_ONE +
+					   delta_x * transform->inverse_yx + delta_y * transform->inverse_yy +
+					   SHAPE2D_TRANSFORM_HALF;
+	legacy_s32 source_right = (legacy_s32)transform->source_width * SHAPE2D_TRANSFORM_ONE;
+	legacy_s32 source_bottom = (legacy_s32)transform->source_height * SHAPE2D_TRANSFORM_ONE;
+	for (legacy_s16 y = top; y < bottom; y++) {
+		legacy_u16 destination = LEGACY_U16_WRAP_ADD(
+			shape2d_get_line_offset(dos_memory_pointer_segment(&drawing_sprite), (legacy_u16)y),
+			(legacy_u16)left);
+		legacy_s32 sample_x = row_x;
+		legacy_s32 sample_y = row_y;
+		for (legacy_s16 x = left; x < right; x++) {
+			if (sample_x >= 0 && sample_x < source_right && sample_y >= 0 &&
+				sample_y < source_bottom) {
+				legacy_u16 source_x = (legacy_u16)(sample_x >> SHAPE2D_TRANSFORM_FRACTION_BITS);
+				legacy_u16 source_y = (legacy_u16)(sample_y >> SHAPE2D_TRANSFORM_FRACTION_BITS);
+				legacy_u16 source_offset =
+					(legacy_u16)(SHAPE2D_HEADER_SIZE + (legacy_u32)source_y * source->sprite_pitch +
+								 source_x);
+				legacy_u8 color = source_pixels[source_offset];
+				if (color != SHAPE2D_TRANSPARENT_COLOR) {
+					video_pages_write_pixel(target_pixels, destination, color);
+				}
+			}
+			sample_x += transform->inverse_xx;
+			sample_y += transform->inverse_yx;
+			destination++;
+		}
+		row_x += transform->inverse_xy;
+		row_y += transform->inverse_yy;
+	}
+}
+
 struct SHAPE2D_SCALED_DRAW {
 	legacy_u16 shape_segment;
 	legacy_u16 source;

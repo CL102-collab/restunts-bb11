@@ -73,6 +73,42 @@ enum DASHBOARD_SPEED_COORDINATE_INDEX {
 	DASHBOARD_SPEED_UNITS_Y = 5
 };
 
+#define DASHBOARD_TRANSFORM_DESCRIPTOR_WIDTH 1U
+#define DASHBOARD_TRANSFORM_DESCRIPTOR_HEIGHT 1U
+#define DASHBOARD_WHEEL_STATE_COUNT 3U
+
+static struct SHAPE2D far *dashboard_instrument_transforms[DASHBOARD_WHEEL_STATE_COUNT];
+static legacy_u8 dashboard_instruments_follow_wheel;
+
+static void dashboard_load_instrument_transforms(void)
+{
+	static const legacy_s8 *const transform_ids[DASHBOARD_WHEEL_STATE_COUNT] = {"imt1", 0, "imt3"};
+	dashboard_instruments_follow_wheel = 0;
+	for (legacy_u16 index = 0; index < DASHBOARD_WHEEL_STATE_COUNT; index++) {
+		dashboard_instrument_transforms[index] = 0;
+		if (transform_ids[index] == 0) {
+			continue;
+		}
+		struct SHAPE2D far *shape =
+			(struct SHAPE2D far *)locate_shape_nofatal(stdaresptr, transform_ids[index]);
+		if (shape == 0 || shape2d_get_width(shape) != DASHBOARD_TRANSFORM_DESCRIPTOR_WIDTH ||
+			shape2d_get_height(shape) != DASHBOARD_TRANSFORM_DESCRIPTOR_HEIGHT) {
+			continue;
+		}
+		legacy_s16 xx = LEGACY_S16_FROM_BITS(shape2d_get_anchor_x(shape));
+		legacy_s16 xy = LEGACY_S16_FROM_BITS(shape2d_get_anchor_y(shape));
+		legacy_s16 yx = LEGACY_S16_FROM_BITS(shape2d_get_pos_x(shape));
+		legacy_s16 yy = LEGACY_S16_FROM_BITS(shape2d_get_pos_y(shape));
+		/* Compare the products without subtracting: even malformed coefficients
+		 * cannot overflow while checking for a singular inverse matrix. */
+		if ((legacy_s32)xx * yy == (legacy_s32)xy * yx) {
+			continue;
+		}
+		dashboard_instrument_transforms[index] = shape;
+		dashboard_instruments_follow_wheel = 1;
+	}
+}
+
 static legacy_s16 dashboard_steering_position(legacy_s16 angle)
 {
 	legacy_s16 magnitude = angle < 0 ? LEGACY_S16_WRAP_NEGATE(angle) : angle;
@@ -210,6 +246,7 @@ static void dashboard_load_optional_shapes(void)
 static void dashboard_load(void)
 {
 	dashboard_load_resources();
+	dashboard_load_instrument_transforms();
 	dashboard_create_sprites();
 	dashboard_load_optional_shapes();
 }
@@ -241,6 +278,10 @@ static void dashboard_redraw_static(void)
 
 static void dashboard_unload(void)
 {
+	dashboard_instruments_follow_wheel = 0;
+	for (legacy_u16 index = 0; index < DASHBOARD_WHEEL_STATE_COUNT; index++) {
+		dashboard_instrument_transforms[index] = 0;
+	}
 	if (dashboard_gearbox_sprite != dashboard_instrument_sprite) {
 		sprite_free_wnd(dashboard_gearbox_sprite);
 	}
@@ -406,6 +447,51 @@ static void dashboard_draw_wheel_mask(legacy_u8 wheel_state)
 	}
 }
 
+static legacy_u8 dashboard_copy_transformed_instruments(legacy_u8 wheel_state)
+{
+	if (dashboard_instruments_follow_wheel == 0) {
+		return 0;
+	}
+	struct SHAPE2D far *descriptor = dashboard_instrument_transforms[wheel_state];
+	if (descriptor == 0 && wheel_state != DASHBOARD_WHEEL_STATE_CENTER) {
+		return 0;
+	}
+	struct SHAPE2D far *panel = whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
+	struct SHAPE2D far *wheel = whlshapes[wheel_state];
+	struct SHAPE2D_TRANSFORM transform;
+	transform.inverse_xx = (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+	transform.inverse_xy = 0;
+	transform.inverse_yx = 0;
+	transform.inverse_yy = (legacy_s16)SHAPE2D_TRANSFORM_ONE;
+	if (descriptor != 0) {
+		transform.inverse_xx = LEGACY_S16_FROM_BITS(shape2d_get_anchor_x(descriptor));
+		transform.inverse_xy = LEGACY_S16_FROM_BITS(shape2d_get_anchor_y(descriptor));
+		transform.inverse_yx = LEGACY_S16_FROM_BITS(shape2d_get_pos_x(descriptor));
+		transform.inverse_yy = LEGACY_S16_FROM_BITS(shape2d_get_pos_y(descriptor));
+	}
+	transform.source_width = dashboard_panel_width(panel);
+	transform.source_height = shape2d_get_height(panel);
+	transform.source_pivot_x = LEGACY_S16_FROM_BITS(shape2d_get_anchor_x(panel));
+	transform.source_pivot_y = LEGACY_S16_FROM_BITS(shape2d_get_anchor_y(panel));
+	transform.target_pivot_x = LEGACY_S16_WRAP_ADD(LEGACY_S16_FROM_BITS(shape2d_get_pos_x(panel)),
+												   transform.source_pivot_x);
+	transform.target_pivot_y = LEGACY_S16_WRAP_ADD(LEGACY_S16_FROM_BITS(shape2d_get_pos_y(panel)),
+												   transform.source_pivot_y);
+	legacy_s16 x = LEGACY_S16_FROM_BITS(shape2d_get_pos_x(wheel));
+	legacy_s16 y = LEGACY_S16_FROM_BITS(shape2d_get_pos_y(wheel));
+	legacy_s32 right = (legacy_s32)x + dashboard_panel_width(wheel);
+	legacy_s32 bottom = (legacy_s32)y + shape2d_get_height(wheel);
+	transform.left = x < 0 ? 0 : x;
+	transform.top = y < 0 ? 0 : y;
+	transform.right =
+		right > DASHBOARD_VIEWPORT_WIDTH ? DASHBOARD_VIEWPORT_WIDTH : (legacy_s16)right;
+	transform.bottom =
+		bottom > height_above_replaybar ? height_above_replaybar : (legacy_s16)bottom;
+	dashboard_set_viewport();
+	sprite_copy_image_transformed(dashboard_instrument_sprite, &transform);
+	return 1;
+}
+
 static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 {
 	legacy_u16 dot_index;
@@ -418,6 +504,12 @@ static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 		}
 		if (dashboard_clear_steering_dot(update->buffer_index) != 0) {
 			update->steering_dot_cleared = 1;
+		}
+		if (dashboard_instruments_follow_wheel != 0 && update->wheel_redrawn == 0) {
+			/* Gauge-only changes must also clear the old transformed pixels,
+			 * including positions outside the upright instrument rectangle. */
+			shape2d_rle_copy_position_clipped(whlshapes[update->wheel_state]);
+			update->wheel_redrawn = 1;
 		}
 		dashboard_select_panel_target(dashboard_instrument_sprite,
 									  whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
@@ -448,14 +540,21 @@ static void dashboard_update_instruments(struct DASHBOARD_UPDATE *update)
 					   (legacy_u8)simd_player.revpoints[dot_index],
 					   (legacy_u8)simd_player.revpoints[dot_index + DASHBOARD_POINT_Y_OFFSET],
 					   rpm_color);
-		dashboard_draw_wheel_mask(update->wheel_state);
+		legacy_u8 transformed = dashboard_instruments_follow_wheel != 0 &&
+								(dashboard_instrument_transforms[update->wheel_state] != 0 ||
+								 update->wheel_state == DASHBOARD_WHEEL_STATE_CENTER);
+		if (transformed == 0) {
+			dashboard_draw_wheel_mask(update->wheel_state);
+		}
 		if (video_uses_page_flipping != 0) {
 			sprite_select_mcga_backbuffer();
 		} else {
 			sprite_select_screen_compat();
 		}
-		dashboard_copy_panel(dashboard_instrument_sprite,
-							 whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
+		if (dashboard_copy_transformed_instruments(update->wheel_state) == 0) {
+			dashboard_copy_panel(dashboard_instrument_sprite,
+								 whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
+		}
 	}
 }
 

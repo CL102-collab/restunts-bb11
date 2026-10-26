@@ -278,7 +278,7 @@
     ],
     "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
   },
-  "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. Every rim section uses the same rotation about the hub, preserving the upper bridge's shape while steering. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird.",
+  "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. Masked upper artwork shows the curved cowl and turquoise exterior fender crowns while preserving the live road around them. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
   "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
   "dashboard_reference_images": [
     {
@@ -303,12 +303,16 @@
     },
     {
       "file": "3-1000005912.jpg",
-      "view": "User photograph: continuous shaped steering-wheel rim, circular silver vents, padded carbon sills and turquoise front-fender crowns with upper openings. Vent-pod trim is turquoise as requested."
+      "view": "Earlier user photograph: continuous shaped steering-wheel rim, padded carbon sills and front-fender crowns with upper openings."
+    },
+    {
+      "file": "6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg",
+      "view": "Dashboard layout reference: slim fascia, dark carbon cockpit, empty upright display mount and two dark passenger-side ducts. The user replaces the photo's tan suede with light-grey carbon whose weave runs opposite the rest of the dashboard; exterior fenders retain the requested turquoise finish and the central clock is omitted."
     }
   ],
   "dashboard_decompressed_bytes": {
     "A": {
-      "MCMU": 81991,
+      "MCMU": 83251,
       "DIA3": 146014
     },
     "B": {
@@ -317,21 +321,21 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "MCMU": 36832,
+    "MCMU": 52384,
     "DIA3": 66176
   },
   "dashboard_ram_bytes": {
     "MCMU": {
-      "extracted_resources_bytes": 83999,
-      "prepared_resources_bytes": 36832,
-      "scratch_bitmap_bytes": 2576,
+      "extracted_resources_bytes": 85259,
+      "prepared_resources_bytes": 52384,
+      "scratch_bitmap_bytes": 3792,
       "scratch_dimensions": [
         [
-          88,
-          29
+          99,
+          38
         ]
       ],
-      "resident_arena_bytes": 39408
+      "resident_arena_bytes": 56176
     },
     "DIA3": {
       "extracted_resources_bytes": 148036,
@@ -454,15 +458,15 @@
   "files": {
     "CARMCMU.RES": {
       "bytes": 1012,
-      "sha256": "a866a1bb8c0069c46738fb6c9395737bd77a670d07b06c121c2699cf662900a6"
+      "sha256": "44c0d089ca3c9303d0f218740ab0c84bda2a49090c5f5885df586237e32056b6"
     },
     "STMCMU.3SH": {
       "bytes": 19761,
       "sha256": "37847328bd397e65a1710facd4f00f1be515e734f5b44e57cb93aee821fbd94f"
     },
     "STDAMCMU.VSH": {
-      "bytes": 81991,
-      "sha256": "3941752d6c301132175f0713440fd32b747ad74268ed28d9b8f9342c89b0a2eb"
+      "bytes": 83251,
+      "sha256": "f05ee9f972a8962980c477812bfcb54f45fd33992ffbc457b6f2ff27dad8c3a2"
     },
     "STDBMCMU.VSH": {
       "bytes": 2008,

@@ -130,6 +130,20 @@ void sprite_and_image_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_
 void sprite_putimage_or(struct SHAPE2D far *shape, legacy_u16 a, legacy_u16 b);
 void sprite_or_image_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y);
 void sprite_putimage_transparent(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y);
+/* Inverse affine sampling of a raw sprite. Coordinates are pixels and matrix
+ * coefficients are signed Q14. The source rectangle may be smaller than the
+ * sprite's physical stride; transparent source pixels leave the target alone. */
+#define SHAPE2D_TRANSFORM_FRACTION_BITS 14U
+#define SHAPE2D_TRANSFORM_ONE 16384L
+struct SHAPE2D_TRANSFORM {
+	legacy_s16 inverse_xx, inverse_xy, inverse_yx, inverse_yy;
+	legacy_s16 source_pivot_x, source_pivot_y, target_pivot_x, target_pivot_y;
+	legacy_u16 source_width, source_height;
+	legacy_s16 left, top, right, bottom;
+};
+void sprite_copy_image_transformed(struct SPRITE far *source,
+								   const struct SHAPE2D_TRANSFORM *transform);
+
 void sprite_clear_shape_alt(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y);
 void sprite_clear_shape(struct SHAPE2D far *shape);
 void font_draw_text_opaque(const legacy_s8 *text, legacy_s16 x, legacy_s16 y);

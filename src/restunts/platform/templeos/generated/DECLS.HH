@@ -108,6 +108,7 @@ extern legacy_void RsSpriteAndImageAtAnchor(CShape2D *shape,legacy_s16 x,legacy_
 extern legacy_void RsSpritePutimageOr(CShape2D *shape,legacy_u16 x,legacy_u16 y);
 extern legacy_void RsSpriteOrImageAtAnchor(CShape2D *shape,legacy_s16 x,legacy_s16 y);
 extern legacy_void RsSpritePutimageTransparent(CShape2D *shape,legacy_s16 x,legacy_s16 y);
+extern legacy_void RsSpriteCopyImageTransformed(CSprite *source,CShape2DTransform *transform);
 extern legacy_void RsSpriteClearShapeAlt(CShape2D *shape,legacy_s16 x,legacy_s16 y);
 extern legacy_void RsSpriteClearShape(CShape2D *shape);
 extern legacy_void RsFontDrawTextOpaque(legacy_s8 *text,legacy_s16 x,legacy_s16 y);

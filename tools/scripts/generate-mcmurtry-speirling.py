@@ -383,7 +383,7 @@ def validate(outputs, repository):
             points, triangles, scale, shift, name)
         metadata[name]["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
     budgets = {}
-    for part, required in (("A", set("dash dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox".split())),
+    for part, required in (("A", set("dash dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3".split())),
                            ("B", {"dot ", "dota", "dot1", "dot2", "gnob", "gnab"} |
                             {f"dig{i}" for i in range(10)})):
         payload = outputs[f"STD{part}MCMU.VSH"]
@@ -489,7 +489,7 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Original indexed artwork based on the supplied cockpit photographs and 2024 references: upright LCD, lamp row, a continuous shaped steering rim with textured side grips and contrasting carbon top and bottom bridges, five matching unlabelled fluted knobs, turquoise vent pods, silver circular vents and detailed carbon side panels. Every rim section uses the same rotation about the hub, preserving the upper bridge's shape while steering. The instrument needle is red. A gently bowed carbon cowl and shaded upper lip curve around the wheel. Native masked upper artwork shows that curved edge, turquoise front fender crowns and their top openings while preserving the live road above them. Live instruments remain legible in all three steering positions; no copied photograph pixels. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird.",
+        "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. Masked upper artwork shows the curved cowl and turquoise exterior fender crowns while preserving the live road around them. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -604,17 +604,28 @@ Each wheel's cover triangles follow it with native primitive flag 2, so
 the painter draws the fender after its wheel even at shallow angles.
 The four bounded dark crown openings follow the source mesh and are native
 quadrilateral surfaces within the fenders.
-The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
-the earlier rectangular LCD wheel reference. A continuous shaped steering
-rim joins textured side grips with contrasting carbon top and bottom bridges.
-Every rim section rotates about the same hub, including the upper bridge.
-A native steering dot slides along a horizontal strip above the shaped wheel,
-as on the Pontiac Firebird, showing the steering angle between wheel poses.
-It has five matching blank fluted knobs, a red instrument needle, turquoise
-vent pods, silver circular vents, stitched carbon trim and release hardware. Native
-dast/dasm masks show the gently bowed carbon cowl, raised turquoise front
-fenders and top apertures while preserving the live road above them. The earlier
-wheel reference remains available at:
+The dashboard layout follows the supplied studio interior photograph,
+6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
+fascia, dark carbon surround, empty upright display mount on the left
+and two small dark ducts on the right. It replaces the earlier teal pods and
+four large silver vents. The requested material override replaces the photo's
+tan trim with light grey carbon. Its diagonal weave slopes in the opposite
+direction from the rest of the dashboard. The earlier 1000005914/5913/5912.jpg
+photographs and rectangular LCD wheel reference supply the retained wheel.
+Its continuous shaped rim joins textured grips with contrasting carbon bridges;
+every section rotates about the same hub, together with the complete display,
+live digital speedometer and motor needle. Optional imt1/imt3 Q14 inverse
+transforms turn the composed instrument bitmap; the original game ignores
+these descriptors and keeps its display upright. Five matching blank fluted knobs,
+a red instrument needle, stitched carbon trim and release hardware remain.
+A native steering dot slides along the strip above the wheel, as on the
+Pontiac Firebird, showing the angle between wheel poses. Palette-reduced
+shading, carbon weave, suede and grip grain give the cockpit a photographic
+finish. Repeatable texture follows the wheel as it turns together with the
+live LCD. Brighter wheel carbon and trim, highlighted
+grip edges and a darker column recess keep the wheel distinct. Native
+dast/dasm masks show the curved cowl and turquoise exterior fender crowns
+while preserving the live road around them. The earlier wheel reference:
 https://www.topgear.com/car-reviews/speirling/first-drive
 
 REBUILD

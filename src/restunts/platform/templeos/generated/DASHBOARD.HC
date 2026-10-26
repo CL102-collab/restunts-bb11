@@ -36,59 +36,130 @@ legacy_s32 RsDashboardLegacyS32FromBits(legacy_u32 value)
   return TempleCastS32(temple_tmp_2369);
 }
 
+legacy_s8 *temple_transform_ids_2370[3];
+MemSet(&temple_transform_ids_2370,0,sizeof(temple_transform_ids_2370));
+legacy_void RsDashboardDashboardLoadInstrumentTransforms()
+{
+  legacy_u16 noreg temple_index_2372;
+  CShape2D *temple_shape_2373;
+  legacy_s32 noreg temple_tmp_2374;
+  legacy_s32 noreg temple_tmp_2375;
+  legacy_s16 noreg temple_xx_2376;
+  legacy_s16 noreg temple_xy_2377;
+  legacy_s16 noreg temple_yx_2378;
+  legacy_s16 noreg temple_yy_2379;
+  legacy_u16 *temple_tmp_2380;
+  legacy_u16 noreg temple_tmp_2381;
+  (rs_dashboard_dashboard_instruments_follow_wheel=TempleCastU8(0));
+  temple_index_2372=TempleCastU16(0);
+  while(1) {
+    if(!((temple_index_2372<3))) {
+      break;
+    }
+    (rs_dashboard_dashboard_instrument_transforms[temple_index_2372]=0);
+    if((temple_transform_ids_2370[temple_index_2372]==0)) {
+      goto temple_next_2371;
+    }
+    temple_shape_2373=(RsLocateShapeNofatal(
+        stdaresptr,temple_transform_ids_2370[temple_index_2372]))(CShape2D *);
+    temple_tmp_2374=0;
+    if((temple_shape_2373==0)) {
+      temple_tmp_2374=1;
+    }
+    if(!temple_tmp_2374) {
+      temple_tmp_2374=0;
+      if((RsShape2dGetWidth(temple_shape_2373)!=1)) {
+        temple_tmp_2374=1;
+      }
+    }
+    temple_tmp_2375=0;
+    if(temple_tmp_2374) {
+      temple_tmp_2375=1;
+    }
+    if(!temple_tmp_2375) {
+      temple_tmp_2375=0;
+      if((RsShape2dGetHeight(temple_shape_2373)!=1)) {
+        temple_tmp_2375=1;
+      }
+    }
+    if(temple_tmp_2375) {
+      goto temple_next_2371;
+    }
+    temple_xx_2376=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetAnchorX(temple_shape_2373)))));
+    temple_xy_2377=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetAnchorY(temple_shape_2373)))));
+    temple_yx_2378=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetPosX(temple_shape_2373)))));
+    temple_yy_2379=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetPosY(temple_shape_2373)))));
+    if((TempleCastS32((TempleCastS32(temple_xx_2376)*temple_yy_2379))==
+          TempleCastS32((TempleCastS32(temple_xy_2377)*temple_yx_2378)))) {
+      goto temple_next_2371;
+    }
+    (rs_dashboard_dashboard_instrument_transforms[temple_index_2372]=temple_shape_2373);
+    (rs_dashboard_dashboard_instruments_follow_wheel=TempleCastU8(1));
+  temple_next_2371:;
+    temple_tmp_2380=&(temple_index_2372);
+    temple_tmp_2381=*temple_tmp_2380;
+    *temple_tmp_2380=TempleCastU16((temple_tmp_2381+1));
+    temple_tmp_2381;
+  }
+}
+
 legacy_s16 RsDashboardDashboardSteeringPosition(legacy_s16 angle)
 {
-  legacy_s16 noreg temple_magnitude_2370;
-  legacy_s32 noreg temple_tmp_2371;
-  legacy_u16 noreg temple_bits_2372;
-  legacy_u32 noreg temple_tmp_2373;
-  legacy_u32 noreg temple_tmp_2374;
-  legacy_u32 noreg temple_tmp_2375;
-  legacy_u32 noreg temple_tmp_2376;
-  legacy_s32 noreg temple_tmp_2377;
+  legacy_s16 noreg temple_magnitude_2382;
+  legacy_s32 noreg temple_tmp_2383;
+  legacy_u16 noreg temple_bits_2384;
+  legacy_u32 noreg temple_tmp_2385;
+  legacy_u32 noreg temple_tmp_2386;
+  legacy_u32 noreg temple_tmp_2387;
+  legacy_u32 noreg temple_tmp_2388;
+  legacy_s32 noreg temple_tmp_2389;
   if((angle<0)) {
-    temple_tmp_2371=TempleCastS32(RsDashboardLegacyS16FromBits(
+    temple_tmp_2383=TempleCastS32(RsDashboardLegacyS16FromBits(
         TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(angle))))))));
   } else {
-    temple_tmp_2371=TempleCastS32(angle);
+    temple_tmp_2383=TempleCastS32(angle);
   }
-  temple_magnitude_2370=TempleCastS16(temple_tmp_2371);
-  temple_bits_2372=TempleCastU16(TempleCastU16(temple_magnitude_2370));
+  temple_magnitude_2382=TempleCastS16(temple_tmp_2383);
+  temple_bits_2384=TempleCastU16(TempleCastU16(temple_magnitude_2382));
   if((TempleCastU32((TempleCastU16(3)&31))==0)) {
-    temple_tmp_2376=TempleCastU32(TempleCastU16(temple_bits_2372));
+    temple_tmp_2388=TempleCastU32(TempleCastU16(temple_bits_2384));
   } else {
-    if((TempleCastU32((TempleCastU16(temple_bits_2372)&32768))!=0)) {
+    if((TempleCastU32((TempleCastU16(temple_bits_2384)&32768))!=0)) {
       if((TempleCastU32((TempleCastU16(3)&31))>=16)) {
-        temple_tmp_2373=TempleCastU32(TempleCastU32(65535));
+        temple_tmp_2385=TempleCastU32(TempleCastU32(65535));
       } else {
-        temple_tmp_2373=TempleCastU32(TempleCastU32(
+        temple_tmp_2385=TempleCastU32(TempleCastU32(
             (TempleCastU32(TempleCastS32(
-                (TempleCastU16(temple_bits_2372)>>TempleCastU32((TempleCastU16(3)&31)))))|
+                (TempleCastU16(temple_bits_2384)>>TempleCastU32((TempleCastU16(3)&31)))))|
                 TempleCastU16(TempleCastU32((TempleCastU32(65535)
                     <<TempleCastU32((16-TempleCastU32((TempleCastU16(3)&31))))))))));
       }
-      temple_tmp_2375=TempleCastU32(temple_tmp_2373);
+      temple_tmp_2387=TempleCastU32(temple_tmp_2385);
     } else {
       if((TempleCastU32((TempleCastU16(3)&31))>=16)) {
-        temple_tmp_2374=TempleCastU32(0);
+        temple_tmp_2386=TempleCastU32(0);
       } else {
-        temple_tmp_2374=TempleCastU32(TempleCastU32(TempleCastS32(
-            (TempleCastU16(temple_bits_2372)>>TempleCastU32((TempleCastU16(3)&31))))));
+        temple_tmp_2386=TempleCastU32(TempleCastU32(TempleCastS32(
+            (TempleCastU16(temple_bits_2384)>>TempleCastU32((TempleCastU16(3)&31))))));
       }
-      temple_tmp_2375=TempleCastU32(temple_tmp_2374);
+      temple_tmp_2387=TempleCastU32(temple_tmp_2386);
     }
-    temple_tmp_2376=TempleCastU32(temple_tmp_2375);
+    temple_tmp_2388=TempleCastU32(temple_tmp_2387);
   }
-  (temple_bits_2372=TempleCastU16(TempleCastU16(temple_tmp_2376)));
-  (temple_magnitude_2370=TempleCastS16(
-      RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_bits_2372)))));
+  (temple_bits_2384=TempleCastU16(TempleCastU16(temple_tmp_2388)));
+  (temple_magnitude_2382=TempleCastS16(
+      RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_bits_2384)))));
   if((angle<0)) {
-    temple_tmp_2377=TempleCastS32(RsDashboardLegacyS16FromBits(TempleCastU16(
-        TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(temple_magnitude_2370))))))));
+    temple_tmp_2389=TempleCastS32(RsDashboardLegacyS16FromBits(TempleCastU16(
+        TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(temple_magnitude_2382))))))));
   } else {
-    temple_tmp_2377=TempleCastS32(temple_magnitude_2370);
+    temple_tmp_2389=TempleCastS32(temple_magnitude_2382);
   }
-  return TempleCastS16(temple_tmp_2377);
+  return TempleCastS16(temple_tmp_2389);
 }
 
 legacy_u8 RsDashboardDashboardClearSteeringDot(legacy_u16 buffer_index)
@@ -112,22 +183,22 @@ legacy_void RsDashboardDashboardSetViewport()
 
 legacy_void RsDashboardDashboardLoadResources()
 {
-  legacy_u16 noreg temple_index_2379;
-  legacy_u16 *temple_tmp_2380;
-  legacy_u16 noreg temple_tmp_2381;
-  temple_index_2379=TempleCastU16(0);
+  legacy_u16 noreg temple_index_2391;
+  legacy_u16 *temple_tmp_2392;
+  legacy_u16 noreg temple_tmp_2393;
+  temple_index_2391=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_2379<4))) {
+    if(!((temple_index_2391<4))) {
       break;
     }
-    (dashboard_primary_resource_name[TempleCastU32((temple_index_2379+4))]=
-            TempleCastS8(gameconfig.game_playercarid[temple_index_2379]));
-    (dashboard_secondary_resource_name[TempleCastU32((temple_index_2379+4))]=
-            TempleCastS8(gameconfig.game_playercarid[temple_index_2379]));
-    temple_tmp_2380=&(temple_index_2379);
-    temple_tmp_2381=*temple_tmp_2380;
-    *temple_tmp_2380=TempleCastU16((temple_tmp_2381+1));
-    temple_tmp_2381;
+    (dashboard_primary_resource_name[TempleCastU32((temple_index_2391+4))]=
+            TempleCastS8(gameconfig.game_playercarid[temple_index_2391]));
+    (dashboard_secondary_resource_name[TempleCastU32((temple_index_2391+4))]=
+            TempleCastS8(gameconfig.game_playercarid[temple_index_2391]));
+    temple_tmp_2392=&(temple_index_2391);
+    temple_tmp_2393=*temple_tmp_2392;
+    *temple_tmp_2392=TempleCastU16((temple_tmp_2393+1));
+    temple_tmp_2393;
   }
   (stdaresptr=(RsFileLoadResource(TempleCastS16(FILE_RESOURCE_SHAPE2D_COLLECTION),
       dashboard_primary_resource_name))(legacy_s8 *));
@@ -149,63 +220,63 @@ legacy_u16 RsDashboardDashboardPanelWidth(CShape2D *shape)
 
 legacy_void RsDashboardDashboardCreateSprites()
 {
-  CShape2D *temple_instrument_shape_2382;
-  CShape2D *temple_gearbox_shape_2383;
-  legacy_u16 noreg temple_instrument_width_2384;
-  legacy_u16 noreg temple_instrument_height_2385;
-  legacy_u16 noreg temple_gearbox_width_2386;
-  legacy_u16 noreg temple_gearbox_height_2387;
-  legacy_u16 noreg temple_scratch_width_2388;
-  legacy_u16 noreg temple_scratch_height_2389;
-  legacy_s32 noreg temple_tmp_2390;
-  legacy_s32 noreg temple_tmp_2391;
-  CShape2D *temple_dashboard_shape_2392;
-  temple_instrument_shape_2382=whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
-  temple_gearbox_shape_2383=whlshapes[DASHBOARD_GEARBOX_SHAPE];
-  temple_instrument_width_2384=
-      TempleCastU16(RsDashboardDashboardPanelWidth(temple_instrument_shape_2382));
-  temple_instrument_height_2385=TempleCastU16(RsShape2dGetHeight(temple_instrument_shape_2382));
-  temple_gearbox_width_2386=
-      TempleCastU16(RsDashboardDashboardPanelWidth(temple_gearbox_shape_2383));
-  temple_gearbox_height_2387=TempleCastU16(RsShape2dGetHeight(temple_gearbox_shape_2383));
-  temple_scratch_width_2388=TempleCastU16(temple_instrument_width_2384);
-  temple_scratch_height_2389=TempleCastU16(temple_instrument_height_2385);
-  temple_tmp_2390=0;
-  if((temple_gearbox_width_2386>=temple_instrument_width_2384)) {
-    temple_tmp_2390=1;
+  CShape2D *temple_instrument_shape_2394;
+  CShape2D *temple_gearbox_shape_2395;
+  legacy_u16 noreg temple_instrument_width_2396;
+  legacy_u16 noreg temple_instrument_height_2397;
+  legacy_u16 noreg temple_gearbox_width_2398;
+  legacy_u16 noreg temple_gearbox_height_2399;
+  legacy_u16 noreg temple_scratch_width_2400;
+  legacy_u16 noreg temple_scratch_height_2401;
+  legacy_s32 noreg temple_tmp_2402;
+  legacy_s32 noreg temple_tmp_2403;
+  CShape2D *temple_dashboard_shape_2404;
+  temple_instrument_shape_2394=whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
+  temple_gearbox_shape_2395=whlshapes[DASHBOARD_GEARBOX_SHAPE];
+  temple_instrument_width_2396=
+      TempleCastU16(RsDashboardDashboardPanelWidth(temple_instrument_shape_2394));
+  temple_instrument_height_2397=TempleCastU16(RsShape2dGetHeight(temple_instrument_shape_2394));
+  temple_gearbox_width_2398=
+      TempleCastU16(RsDashboardDashboardPanelWidth(temple_gearbox_shape_2395));
+  temple_gearbox_height_2399=TempleCastU16(RsShape2dGetHeight(temple_gearbox_shape_2395));
+  temple_scratch_width_2400=TempleCastU16(temple_instrument_width_2396);
+  temple_scratch_height_2401=TempleCastU16(temple_instrument_height_2397);
+  temple_tmp_2402=0;
+  if((temple_gearbox_width_2398>=temple_instrument_width_2396)) {
+    temple_tmp_2402=1;
   }
-  if(temple_tmp_2390) {
-    temple_tmp_2390=0;
-    if((temple_gearbox_height_2387>=temple_instrument_height_2385)) {
-      temple_tmp_2390=1;
+  if(temple_tmp_2402) {
+    temple_tmp_2402=0;
+    if((temple_gearbox_height_2399>=temple_instrument_height_2397)) {
+      temple_tmp_2402=1;
     }
   }
-  if(temple_tmp_2390) {
-    (temple_scratch_width_2388=TempleCastU16(temple_gearbox_width_2386));
-    (temple_scratch_height_2389=TempleCastU16(temple_gearbox_height_2387));
+  if(temple_tmp_2402) {
+    (temple_scratch_width_2400=TempleCastU16(temple_gearbox_width_2398));
+    (temple_scratch_height_2401=TempleCastU16(temple_gearbox_height_2399));
   }
-  (dashboard_instrument_sprite=RsSpriteMakeWnd(TempleCastU16(temple_scratch_width_2388),
-      TempleCastU16(temple_scratch_height_2389),TempleCastU16(15)));
-  temple_tmp_2391=0;
-  if((temple_scratch_width_2388>=temple_gearbox_width_2386)) {
-    temple_tmp_2391=1;
+  (dashboard_instrument_sprite=RsSpriteMakeWnd(TempleCastU16(temple_scratch_width_2400),
+      TempleCastU16(temple_scratch_height_2401),TempleCastU16(15)));
+  temple_tmp_2403=0;
+  if((temple_scratch_width_2400>=temple_gearbox_width_2398)) {
+    temple_tmp_2403=1;
   }
-  if(temple_tmp_2391) {
-    temple_tmp_2391=0;
-    if((temple_scratch_height_2389>=temple_gearbox_height_2387)) {
-      temple_tmp_2391=1;
+  if(temple_tmp_2403) {
+    temple_tmp_2403=0;
+    if((temple_scratch_height_2401>=temple_gearbox_height_2399)) {
+      temple_tmp_2403=1;
     }
   }
-  if(temple_tmp_2391) {
+  if(temple_tmp_2403) {
     (dashboard_gearbox_sprite=dashboard_instrument_sprite);
   } else {
-    (dashboard_gearbox_sprite=RsSpriteMakeWnd(TempleCastU16(temple_gearbox_width_2386),
-        TempleCastU16(temple_gearbox_height_2387),TempleCastU16(15)));
+    (dashboard_gearbox_sprite=RsSpriteMakeWnd(TempleCastU16(temple_gearbox_width_2398),
+        TempleCastU16(temple_gearbox_height_2399),TempleCastU16(15)));
   }
-  temple_dashboard_shape_2392=
+  temple_dashboard_shape_2404=
       (RsLocateShapeFatal(stdaresptr,dashboard_background_shape_id))(CShape2D *);
   RsSpriteSelectScreen();
-  (dashbmp_y=TempleCastS16(RsShape2dGetPosY(temple_dashboard_shape_2392)));
+  (dashbmp_y=TempleCastS16(RsShape2dGetPosY(temple_dashboard_shape_2404)));
 }
 
 legacy_void RsDashboardDashboardSelectPanelTarget(CSprite *sprite,CShape2D *shape)
@@ -218,74 +289,74 @@ legacy_void RsDashboardDashboardSelectPanelTarget(CSprite *sprite,CShape2D *shap
 
 legacy_void RsDashboardDashboardCopyPanel(CSprite *sprite,CShape2D *shape)
 {
-  legacy_s16 noreg temple_x_2393;
-  legacy_s16 noreg temple_y_2394;
-  legacy_s16 noreg temple_left_2395;
-  legacy_s32 noreg temple_tmp_2396;
-  legacy_s16 noreg temple_top_2397;
-  legacy_s32 noreg temple_tmp_2398;
-  legacy_s32 noreg temple_right_2399;
-  legacy_s32 noreg temple_bottom_2400;
-  legacy_s32 noreg temple_tmp_2401;
-  temple_x_2393=TempleCastS16(TempleCastS16(RsShape2dGetPosX(shape)));
-  temple_y_2394=TempleCastS16(TempleCastS16(RsShape2dGetPosY(shape)));
-  if((temple_x_2393<0)) {
-    temple_tmp_2396=TempleCastS32(0);
+  legacy_s16 noreg temple_x_2405;
+  legacy_s16 noreg temple_y_2406;
+  legacy_s16 noreg temple_left_2407;
+  legacy_s32 noreg temple_tmp_2408;
+  legacy_s16 noreg temple_top_2409;
+  legacy_s32 noreg temple_tmp_2410;
+  legacy_s32 noreg temple_right_2411;
+  legacy_s32 noreg temple_bottom_2412;
+  legacy_s32 noreg temple_tmp_2413;
+  temple_x_2405=TempleCastS16(TempleCastS16(RsShape2dGetPosX(shape)));
+  temple_y_2406=TempleCastS16(TempleCastS16(RsShape2dGetPosY(shape)));
+  if((temple_x_2405<0)) {
+    temple_tmp_2408=TempleCastS32(0);
   } else {
-    temple_tmp_2396=TempleCastS32(temple_x_2393);
+    temple_tmp_2408=TempleCastS32(temple_x_2405);
   }
-  temple_left_2395=TempleCastS16(temple_tmp_2396);
-  if((temple_y_2394<0)) {
-    temple_tmp_2398=TempleCastS32(0);
+  temple_left_2407=TempleCastS16(temple_tmp_2408);
+  if((temple_y_2406<0)) {
+    temple_tmp_2410=TempleCastS32(0);
   } else {
-    temple_tmp_2398=TempleCastS32(temple_y_2394);
+    temple_tmp_2410=TempleCastS32(temple_y_2406);
   }
-  temple_top_2397=TempleCastS16(temple_tmp_2398);
-  temple_right_2399=TempleCastS32(
-      TempleCastS32((TempleCastS32(temple_x_2393)+RsDashboardDashboardPanelWidth(shape))));
-  temple_bottom_2400=
-      TempleCastS32(TempleCastS32((TempleCastS32(temple_y_2394)+RsShape2dGetHeight(shape))));
-  if((temple_right_2399>320)) {
-    (temple_right_2399=TempleCastS32(320));
+  temple_top_2409=TempleCastS16(temple_tmp_2410);
+  temple_right_2411=TempleCastS32(
+      TempleCastS32((TempleCastS32(temple_x_2405)+RsDashboardDashboardPanelWidth(shape))));
+  temple_bottom_2412=
+      TempleCastS32(TempleCastS32((TempleCastS32(temple_y_2406)+RsShape2dGetHeight(shape))));
+  if((temple_right_2411>320)) {
+    (temple_right_2411=TempleCastS32(320));
   }
-  if((temple_bottom_2400>height_above_replaybar)) {
-    (temple_bottom_2400=TempleCastS32(height_above_replaybar));
+  if((temple_bottom_2412>height_above_replaybar)) {
+    (temple_bottom_2412=TempleCastS32(height_above_replaybar));
   }
-  temple_tmp_2401=0;
-  if((temple_left_2395<temple_right_2399)) {
-    temple_tmp_2401=1;
+  temple_tmp_2413=0;
+  if((temple_left_2407<temple_right_2411)) {
+    temple_tmp_2413=1;
   }
-  if(temple_tmp_2401) {
-    temple_tmp_2401=0;
-    if((temple_top_2397<temple_bottom_2400)) {
-      temple_tmp_2401=1;
+  if(temple_tmp_2413) {
+    temple_tmp_2413=0;
+    if((temple_top_2409<temple_bottom_2412)) {
+      temple_tmp_2413=1;
     }
   }
-  if(temple_tmp_2401) {
-    RsSpriteSetTargetClipBounds(TempleCastU16(temple_left_2395),
-        TempleCastU16(TempleCastU16(temple_right_2399)),TempleCastU16(temple_top_2397),
-        TempleCastU16(TempleCastU16(temple_bottom_2400)));
+  if(temple_tmp_2413) {
+    RsSpriteSetTargetClipBounds(TempleCastU16(temple_left_2407),
+        TempleCastU16(TempleCastU16(temple_right_2411)),TempleCastU16(temple_top_2409),
+        TempleCastU16(TempleCastU16(temple_bottom_2412)));
     RsSpriteCopyImageAt(
-        sprite->sprite_bitmapptr,TempleCastS16(temple_x_2393),TempleCastS16(temple_y_2394));
+        sprite->sprite_bitmapptr,TempleCastS16(temple_x_2405),TempleCastS16(temple_y_2406));
   }
   RsDashboardDashboardSetViewport();
 }
 
 legacy_void RsDashboardDashboardLoadOptionalShapes()
 {
-  CShape2D *temple_shape_2402;
-  temple_shape_2402=(RsLocateShapeNofatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *);
-  if((temple_shape_2402!=0)) {
-    (temple_shape_2402=(RsLocateShapeFatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *));
-    (roofbmpheight=TempleCastS16(RsShape2dGetHeight(temple_shape_2402)));
+  CShape2D *temple_shape_2414;
+  temple_shape_2414=(RsLocateShapeNofatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *);
+  if((temple_shape_2414!=0)) {
+    (temple_shape_2414=(RsLocateShapeFatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *));
+    (roofbmpheight=TempleCastS16(RsShape2dGetHeight(temple_shape_2414)));
   } else {
     (roofbmpheight=TempleCastS16(0));
   }
-  (temple_shape_2402=(RsLocateShapeNofatal(stdaresptr,dashboard_top_shape_id))(CShape2D *));
-  if((temple_shape_2402!=0)) {
-    (dastbmp_y=TempleCastS16(RsShape2dGetPosY(temple_shape_2402)));
-    (dastbmp_y2=TempleCastS16(RsDosMemoryPointerOffset(temple_shape_2402)));
-    (dastseg=TempleCastS16(RsDosMemoryPointerSegment(temple_shape_2402)));
+  (temple_shape_2414=(RsLocateShapeNofatal(stdaresptr,dashboard_top_shape_id))(CShape2D *));
+  if((temple_shape_2414!=0)) {
+    (dastbmp_y=TempleCastS16(RsShape2dGetPosY(temple_shape_2414)));
+    (dastbmp_y2=TempleCastS16(RsDosMemoryPointerOffset(temple_shape_2414)));
+    (dastseg=TempleCastS16(RsDosMemoryPointerSegment(temple_shape_2414)));
     (dasmshapeptr=RsLocateShapeFatal(stdaresptr,dashboard_mask_shape_id));
   } else {
     (dastbmp_y=TempleCastS16(0));
@@ -296,17 +367,18 @@ legacy_void RsDashboardDashboardLoadOptionalShapes()
 legacy_void RsDashboardDashboardLoad()
 {
   RsDashboardDashboardLoadResources();
+  RsDashboardDashboardLoadInstrumentTransforms();
   RsDashboardDashboardCreateSprites();
   RsDashboardDashboardLoadOptionalShapes();
 }
 
 legacy_void RsDashboardDashboardRedrawStatic()
 {
-  CShape2D *temple_shape_2403;
-  legacy_u16 noreg temple_buffer_index_2404;
+  CShape2D *temple_shape_2415;
+  legacy_u16 noreg temple_buffer_index_2416;
   RsMouseDrawOpaqueCheck();
-  temple_shape_2403=(RsLocateShapeNofatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *);
-  if((temple_shape_2403!=0)) {
+  temple_shape_2415=(RsLocateShapeNofatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *);
+  if((temple_shape_2415!=0)) {
     RsShape2dRleCopyAtPosition(
         (RsLocateShapeFatal(stdaresptr,dashboard_roof_shape_id))(CShape2D *));
   }
@@ -314,20 +386,35 @@ legacy_void RsDashboardDashboardRedrawStatic()
       (RsLocateShapeFatal(stdaresptr,dashboard_background_shape_id))(CShape2D *));
   RsShape2dRleCopyPositionClipped(whlshapes[DASHBOARD_WHEEL_CENTER_SHAPE]);
   RsMouseDrawTransparentCheck();
-  temple_buffer_index_2404=TempleCastU16(TempleCastU8(dashboard_buffer_index));
-  (replay_controls_drawn[temple_buffer_index_2404]=TempleCastS8(0));
-  (dashboard_gear_knob_visible_cache[temple_buffer_index_2404]=TempleCastU8(0));
-  (dashboard_steering_dot_y_cache[temple_buffer_index_2404]=TempleCastS16(0));
-  (dashboard_wheel_shape_cache[temple_buffer_index_2404]=TempleCastU8(0));
-  (dashboard_steering_position_cache[temple_buffer_index_2404]=
+  temple_buffer_index_2416=TempleCastU16(TempleCastU8(dashboard_buffer_index));
+  (replay_controls_drawn[temple_buffer_index_2416]=TempleCastS8(0));
+  (dashboard_gear_knob_visible_cache[temple_buffer_index_2416]=TempleCastU8(0));
+  (dashboard_steering_dot_y_cache[temple_buffer_index_2416]=TempleCastS16(0));
+  (dashboard_wheel_shape_cache[temple_buffer_index_2416]=TempleCastU8(0));
+  (dashboard_steering_position_cache[temple_buffer_index_2416]=
           TempleCastS16(TempleCastS32((-(1)))));
-  (dashboard_speed_index_cache[temple_buffer_index_2404]=TempleCastS16(TempleCastS32((-(1)))));
-  (dashboard_rpm_index_cache[temple_buffer_index_2404]=TempleCastS16(TempleCastS32((-(1)))));
+  (dashboard_speed_index_cache[temple_buffer_index_2416]=TempleCastS16(TempleCastS32((-(1)))));
+  (dashboard_rpm_index_cache[temple_buffer_index_2416]=TempleCastS16(TempleCastS32((-(1)))));
   return;
 }
 
 legacy_void RsDashboardDashboardUnload()
 {
+  legacy_u16 noreg temple_index_2418;
+  legacy_u16 *temple_tmp_2419;
+  legacy_u16 noreg temple_tmp_2420;
+  (rs_dashboard_dashboard_instruments_follow_wheel=TempleCastU8(0));
+  temple_index_2418=TempleCastU16(0);
+  while(1) {
+    if(!((temple_index_2418<3))) {
+      break;
+    }
+    (rs_dashboard_dashboard_instrument_transforms[temple_index_2418]=0);
+    temple_tmp_2419=&(temple_index_2418);
+    temple_tmp_2420=*temple_tmp_2419;
+    *temple_tmp_2419=TempleCastU16((temple_tmp_2420+1));
+    temple_tmp_2420;
+  }
   if((dashboard_gearbox_sprite!=dashboard_instrument_sprite)) {
     RsSpriteFreeWnd(dashboard_gearbox_sprite);
   }
@@ -339,57 +426,57 @@ legacy_void RsDashboardDashboardUnload()
 
 legacy_void RsDashboardDashboardRebuildGearboxBackground()
 {
-  CSprite temple_saved_context_2405[2];
-  CShape2D *temple_dashboard_shape_2406;
-  CShape2D *temple_gearbox_shape_2407;
-  RsSpriteSaveContext(temple_saved_context_2405);
+  CSprite temple_saved_context_2421[2];
+  CShape2D *temple_dashboard_shape_2422;
+  CShape2D *temple_gearbox_shape_2423;
+  RsSpriteSaveContext(temple_saved_context_2421);
   RsDashboardDashboardSelectPanelTarget(
       dashboard_gearbox_sprite,whlshapes[DASHBOARD_GEARBOX_SHAPE]);
   RsSpriteClearTarget(TempleCastU8(0));
-  temple_dashboard_shape_2406=
+  temple_dashboard_shape_2422=
       (RsLocateShapeFatal(stdaresptr,dashboard_background_shape_id))(CShape2D *);
-  temple_gearbox_shape_2407=whlshapes[DASHBOARD_GEARBOX_SHAPE];
-  RsShape2dRleCopyClipped(temple_dashboard_shape_2406,
+  temple_gearbox_shape_2423=whlshapes[DASHBOARD_GEARBOX_SHAPE];
+  RsShape2dRleCopyClipped(temple_dashboard_shape_2422,
       TempleCastS16(
           RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(TempleCastS16(RsShape2dGetPosX(temple_dashboard_shape_2406)))-
-                  TempleCastU16(TempleCastS16(RsShape2dGetPosX(temple_gearbox_shape_2407)))))))))),
+              (TempleCastU16(TempleCastS16(RsShape2dGetPosX(temple_dashboard_shape_2422)))-
+                  TempleCastU16(TempleCastS16(RsShape2dGetPosX(temple_gearbox_shape_2423)))))))))),
       TempleCastS16(
           RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(TempleCastS16(RsShape2dGetPosY(temple_dashboard_shape_2406)))-
-                  TempleCastU16(TempleCastS16(RsShape2dGetPosY(temple_gearbox_shape_2407)))))))))));
-  RsSpriteRestoreContext(temple_saved_context_2405);
+              (TempleCastU16(TempleCastS16(RsShape2dGetPosY(temple_dashboard_shape_2422)))-
+                  TempleCastU16(TempleCastS16(RsShape2dGetPosY(temple_gearbox_shape_2423)))))))))));
+  RsSpriteRestoreContext(temple_saved_context_2421);
 }
 
 legacy_void RsDashboardDashboardUpdateGear(legacy_u16 buffer_index)
 {
-  legacy_s32 noreg temple_tmp_2408;
-  legacy_s32 noreg temple_tmp_2409;
-  legacy_s32 noreg temple_tmp_2410;
-  legacy_s32 noreg temple_tmp_2411;
-  legacy_s32 noreg temple_tmp_2412;
-  legacy_s32 noreg temple_tmp_2413;
-  temple_tmp_2408=0;
+  legacy_s32 noreg temple_tmp_2424;
+  legacy_s32 noreg temple_tmp_2425;
+  legacy_s32 noreg temple_tmp_2426;
+  legacy_s32 noreg temple_tmp_2427;
+  legacy_s32 noreg temple_tmp_2428;
+  legacy_s32 noreg temple_tmp_2429;
+  temple_tmp_2424=0;
   if((state.playerstate.car_gear_change_delay==0)) {
-    temple_tmp_2408=1;
+    temple_tmp_2424=1;
   }
-  if(temple_tmp_2408) {
-    temple_tmp_2408=0;
+  if(temple_tmp_2424) {
+    temple_tmp_2424=0;
     if((state.playerstate.car_changing_gear==CAR_GEAR_CHANGE_INACTIVE)) {
-      temple_tmp_2408=1;
+      temple_tmp_2424=1;
     }
   }
-  temple_tmp_2409=0;
-  if(temple_tmp_2408) {
-    temple_tmp_2409=1;
+  temple_tmp_2425=0;
+  if(temple_tmp_2424) {
+    temple_tmp_2425=1;
   }
-  if(temple_tmp_2409) {
-    temple_tmp_2409=0;
+  if(temple_tmp_2425) {
+    temple_tmp_2425=0;
     if((dashboard_gear_knob_visible_cache[buffer_index]!=0)) {
-      temple_tmp_2409=1;
+      temple_tmp_2425=1;
     }
   }
-  if(temple_tmp_2409) {
+  if(temple_tmp_2425) {
     if((video_uses_page_flipping==0)) {
       RsMouseDrawOpaqueCheck();
     }
@@ -397,48 +484,48 @@ legacy_void RsDashboardDashboardUpdateGear(legacy_u16 buffer_index)
     RsDashboardDashboardCopyPanel(dashboard_gearbox_sprite,whlshapes[DASHBOARD_GEARBOX_SHAPE]);
     (dashboard_gear_knob_visible_cache[buffer_index]=TempleCastU8(0));
   } else {
-    temple_tmp_2410=0;
+    temple_tmp_2426=0;
     if((dashboard_gear_knob_visible_cache[buffer_index]!=
           TempleCastU8(state.playerstate.car_changing_gear))) {
-      temple_tmp_2410=1;
+      temple_tmp_2426=1;
     }
-    if(!temple_tmp_2410) {
-      temple_tmp_2410=0;
+    if(!temple_tmp_2426) {
+      temple_tmp_2426=0;
       if((dashboard_gear_knob_x_cache[buffer_index]!=state.playerstate.car_knob_x)) {
-        temple_tmp_2410=1;
+        temple_tmp_2426=1;
       }
     }
-    temple_tmp_2411=0;
-    if(temple_tmp_2410) {
-      temple_tmp_2411=1;
+    temple_tmp_2427=0;
+    if(temple_tmp_2426) {
+      temple_tmp_2427=1;
     }
-    if(!temple_tmp_2411) {
-      temple_tmp_2411=0;
+    if(!temple_tmp_2427) {
+      temple_tmp_2427=0;
       if((dashboard_gear_knob_y_cache[buffer_index]!=state.playerstate.car_knob_y)) {
-        temple_tmp_2411=1;
+        temple_tmp_2427=1;
       }
     }
-    temple_tmp_2413=0;
-    if(temple_tmp_2411) {
-      temple_tmp_2413=1;
+    temple_tmp_2429=0;
+    if(temple_tmp_2427) {
+      temple_tmp_2429=1;
     }
-    if(!temple_tmp_2413) {
-      temple_tmp_2412=0;
+    if(!temple_tmp_2429) {
+      temple_tmp_2428=0;
       if((state.playerstate.car_gear_change_delay!=0)) {
-        temple_tmp_2412=1;
+        temple_tmp_2428=1;
       }
-      if(temple_tmp_2412) {
-        temple_tmp_2412=0;
+      if(temple_tmp_2428) {
+        temple_tmp_2428=0;
         if((dashboard_gear_knob_visible_cache[buffer_index]==0)) {
-          temple_tmp_2412=1;
+          temple_tmp_2428=1;
         }
       }
-      temple_tmp_2413=0;
-      if(temple_tmp_2412) {
-        temple_tmp_2413=1;
+      temple_tmp_2429=0;
+      if(temple_tmp_2428) {
+        temple_tmp_2429=1;
       }
     }
-    if(temple_tmp_2413) {
+    if(temple_tmp_2429) {
       RsDashboardDashboardSelectPanelTarget(
           dashboard_gearbox_sprite,whlshapes[DASHBOARD_GEARBOX_SHAPE]);
       (dashboard_gear_knob_visible_cache[buffer_index]=TempleCastU8(1));
@@ -463,7 +550,7 @@ legacy_void RsDashboardDashboardUpdateGear(legacy_u16 buffer_index)
 
 legacy_void RsDashboardDashboardUpdateWheel(CDashboardUpdate *update)
 {
-  legacy_s32 noreg temple_tmp_2414;
+  legacy_s32 noreg temple_tmp_2430;
   (update->steering_position=TempleCastS16(
       RsDashboardDashboardSteeringPosition(TempleCastS16(state.playerstate.car_steering_angle))));
   (update->wheel_state=TempleCastU8(DASHBOARD_WHEEL_STATE_CENTER));
@@ -474,17 +561,17 @@ legacy_void RsDashboardDashboardUpdateWheel(CDashboardUpdate *update)
       (update->wheel_state=TempleCastU8(DASHBOARD_WHEEL_STATE_RIGHT));
     }
   }
-  temple_tmp_2414=0;
+  temple_tmp_2430=0;
   if((dashboard_wheel_shape_cache[update->buffer_index]!=update->wheel_state)) {
-    temple_tmp_2414=1;
+    temple_tmp_2430=1;
   }
-  if(!temple_tmp_2414) {
-    temple_tmp_2414=0;
+  if(!temple_tmp_2430) {
+    temple_tmp_2430=0;
     if((full_redraw_frames_remaining!=0)) {
-      temple_tmp_2414=1;
+      temple_tmp_2430=1;
     }
   }
-  if(temple_tmp_2414) {
+  if(temple_tmp_2430) {
     if((video_uses_page_flipping==0)) {
       RsMouseDrawOpaqueCheck();
     }
@@ -529,51 +616,51 @@ legacy_void RsDashboardDashboardSelectGauges(CDashboardUpdate *update)
 
 legacy_void RsDashboardDashboardDrawDigitalSpeed(legacy_u16 speed_index)
 {
-  legacy_u16 noreg temple_digit_group_2415;
-  legacy_u16 *temple_tmp_2416;
-  legacy_u16 *temple_tmp_2417;
-  legacy_u8 noreg temple_digit_started_2418;
-  legacy_u16 noreg temple_digit_2419;
-  legacy_s32 noreg temple_tmp_2420;
-  legacy_u16 *temple_tmp_2421;
-  temple_digit_group_2415=TempleCastU16(0);
+  legacy_u16 noreg temple_digit_group_2431;
+  legacy_u16 *temple_tmp_2432;
+  legacy_u16 *temple_tmp_2433;
+  legacy_u8 noreg temple_digit_started_2434;
+  legacy_u16 noreg temple_digit_2435;
+  legacy_s32 noreg temple_tmp_2436;
+  legacy_u16 *temple_tmp_2437;
+  temple_digit_group_2431=TempleCastU16(0);
   if((speed_index>=200)) {
-    (temple_digit_group_2415=TempleCastU16(2));
-    temple_tmp_2416=&(speed_index);
-    ((*temple_tmp_2416)=TempleCastU16(((*temple_tmp_2416)-200)));
+    (temple_digit_group_2431=TempleCastU16(2));
+    temple_tmp_2432=&(speed_index);
+    ((*temple_tmp_2432)=TempleCastU16(((*temple_tmp_2432)-200)));
   } else {
     if((speed_index>=100)) {
-      (temple_digit_group_2415=TempleCastU16(1));
-      temple_tmp_2417=&(speed_index);
-      ((*temple_tmp_2417)=TempleCastU16(((*temple_tmp_2417)-100)));
+      (temple_digit_group_2431=TempleCastU16(1));
+      temple_tmp_2433=&(speed_index);
+      ((*temple_tmp_2433)=TempleCastU16(((*temple_tmp_2433)-100)));
     }
   }
-  temple_digit_started_2418=TempleCastU8(0);
-  if((temple_digit_group_2415!=0)) {
-    RsSpritePutimageOr(digshapes[temple_digit_group_2415],
+  temple_digit_started_2434=TempleCastU8(0);
+  if((temple_digit_group_2431!=0)) {
+    RsSpritePutimageOr(digshapes[temple_digit_group_2431],
         TempleCastU16(TempleCastU8(simd_player.spdpoints[DASHBOARD_SPEED_HUNDREDS_X])),
         TempleCastU16(TempleCastU8(simd_player.spdpoints[DASHBOARD_SPEED_HUNDREDS_Y])));
-    (temple_digit_started_2418=TempleCastU8(1));
+    (temple_digit_started_2434=TempleCastU8(1));
   }
-  temple_digit_2419=TempleCastU16(RsLegacyU16DivOrZero(
+  temple_digit_2435=TempleCastU16(RsLegacyU16DivOrZero(
       TempleCastU16(TempleCastU16(speed_index)),TempleCastU16(TempleCastU16(10))));
-  temple_tmp_2420=0;
-  if((temple_digit_2419!=0)) {
-    temple_tmp_2420=1;
+  temple_tmp_2436=0;
+  if((temple_digit_2435!=0)) {
+    temple_tmp_2436=1;
   }
-  if(!temple_tmp_2420) {
-    temple_tmp_2420=0;
-    if((temple_digit_started_2418!=0)) {
-      temple_tmp_2420=1;
+  if(!temple_tmp_2436) {
+    temple_tmp_2436=0;
+    if((temple_digit_started_2434!=0)) {
+      temple_tmp_2436=1;
     }
   }
-  if(temple_tmp_2420) {
-    RsSpritePutimageOr(digshapes[temple_digit_2419],
+  if(temple_tmp_2436) {
+    RsSpritePutimageOr(digshapes[temple_digit_2435],
         TempleCastU16(TempleCastU8(simd_player.spdpoints[DASHBOARD_SPEED_TENS_X])),
         TempleCastU16(TempleCastU8(simd_player.spdpoints[DASHBOARD_SPEED_TENS_Y])));
-    temple_tmp_2421=&(speed_index);
-    ((*temple_tmp_2421)=
-            TempleCastU16(((*temple_tmp_2421)-TempleCastU32((temple_digit_2419*10)))));
+    temple_tmp_2437=&(speed_index);
+    ((*temple_tmp_2437)=
+            TempleCastU16(((*temple_tmp_2437)-TempleCastU32((temple_digit_2435*10)))));
   }
   RsSpritePutimageOr(digshapes[speed_index],
       TempleCastU16(TempleCastU8(simd_player.spdpoints[DASHBOARD_SPEED_UNITS_X])),
@@ -599,51 +686,171 @@ legacy_void RsDashboardDashboardDrawWheelMask(legacy_u8 wheel_state)
   }
 }
 
+legacy_u8 RsDashboardDashboardCopyTransformedInstruments(legacy_u8 wheel_state)
+{
+  CShape2D *temple_descriptor_2438;
+  legacy_s32 noreg temple_tmp_2439;
+  CShape2D *temple_panel_2440;
+  CShape2D *temple_wheel_2441;
+  CShape2DTransform temple_transform_2442;
+  legacy_s16 noreg temple_x_2443;
+  legacy_s16 noreg temple_y_2444;
+  legacy_s32 noreg temple_right_2445;
+  legacy_s32 noreg temple_bottom_2446;
+  legacy_s32 noreg temple_tmp_2447;
+  legacy_s32 noreg temple_tmp_2448;
+  legacy_s32 noreg temple_tmp_2449;
+  legacy_s32 noreg temple_tmp_2450;
+  if((rs_dashboard_dashboard_instruments_follow_wheel==0)) {
+    return TempleCastU8(0);
+  }
+  temple_descriptor_2438=rs_dashboard_dashboard_instrument_transforms[wheel_state];
+  temple_tmp_2439=0;
+  if((temple_descriptor_2438==0)) {
+    temple_tmp_2439=1;
+  }
+  if(temple_tmp_2439) {
+    temple_tmp_2439=0;
+    if((wheel_state!=DASHBOARD_WHEEL_STATE_CENTER)) {
+      temple_tmp_2439=1;
+    }
+  }
+  if(temple_tmp_2439) {
+    return TempleCastU8(0);
+  }
+  temple_panel_2440=whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE];
+  temple_wheel_2441=whlshapes[wheel_state];
+  (temple_transform_2442.inverse_xx=TempleCastS16(TempleCastS16(16384)));
+  (temple_transform_2442.inverse_xy=TempleCastS16(0));
+  (temple_transform_2442.inverse_yx=TempleCastS16(0));
+  (temple_transform_2442.inverse_yy=TempleCastS16(TempleCastS16(16384)));
+  if((temple_descriptor_2438!=0)) {
+    (temple_transform_2442.inverse_xx=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetAnchorX(temple_descriptor_2438))))));
+    (temple_transform_2442.inverse_xy=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetAnchorY(temple_descriptor_2438))))));
+    (temple_transform_2442.inverse_yx=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetPosX(temple_descriptor_2438))))));
+    (temple_transform_2442.inverse_yy=TempleCastS16(RsDashboardLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(RsShape2dGetPosY(temple_descriptor_2438))))));
+  }
+  (temple_transform_2442.source_width=
+          TempleCastU16(RsDashboardDashboardPanelWidth(temple_panel_2440)));
+  (temple_transform_2442.source_height=TempleCastU16(RsShape2dGetHeight(temple_panel_2440)));
+  (temple_transform_2442.source_pivot_x=TempleCastS16(RsDashboardLegacyS16FromBits(
+      TempleCastU16(TempleCastU16(RsShape2dGetAnchorX(temple_panel_2440))))));
+  (temple_transform_2442.source_pivot_y=TempleCastS16(RsDashboardLegacyS16FromBits(
+      TempleCastU16(TempleCastU16(RsShape2dGetAnchorY(temple_panel_2440))))));
+  (temple_transform_2442.target_pivot_x=TempleCastS16(
+      RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(
+          TempleCastU16(TempleCastS32((TempleCastU16(RsDashboardLegacyS16FromBits(TempleCastU16(
+                                            TempleCastU16(RsShape2dGetPosX(temple_panel_2440)))))+
+              TempleCastU16(temple_transform_2442.source_pivot_x)))))))));
+  (temple_transform_2442.target_pivot_y=TempleCastS16(
+      RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(
+          TempleCastU16(TempleCastS32((TempleCastU16(RsDashboardLegacyS16FromBits(TempleCastU16(
+                                            TempleCastU16(RsShape2dGetPosY(temple_panel_2440)))))+
+              TempleCastU16(temple_transform_2442.source_pivot_y)))))))));
+  temple_x_2443=TempleCastS16(RsDashboardLegacyS16FromBits(
+      TempleCastU16(TempleCastU16(RsShape2dGetPosX(temple_wheel_2441)))));
+  temple_y_2444=TempleCastS16(RsDashboardLegacyS16FromBits(
+      TempleCastU16(TempleCastU16(RsShape2dGetPosY(temple_wheel_2441)))));
+  temple_right_2445=TempleCastS32(TempleCastS32(
+      (TempleCastS32(temple_x_2443)+RsDashboardDashboardPanelWidth(temple_wheel_2441))));
+  temple_bottom_2446=TempleCastS32(
+      TempleCastS32((TempleCastS32(temple_y_2444)+RsShape2dGetHeight(temple_wheel_2441))));
+  if((temple_x_2443<0)) {
+    temple_tmp_2447=TempleCastS32(0);
+  } else {
+    temple_tmp_2447=TempleCastS32(temple_x_2443);
+  }
+  (temple_transform_2442.left=TempleCastS16(temple_tmp_2447));
+  if((temple_y_2444<0)) {
+    temple_tmp_2448=TempleCastS32(0);
+  } else {
+    temple_tmp_2448=TempleCastS32(temple_y_2444);
+  }
+  (temple_transform_2442.top=TempleCastS16(temple_tmp_2448));
+  if((temple_right_2445>320)) {
+    temple_tmp_2449=TempleCastS32(320);
+  } else {
+    temple_tmp_2449=TempleCastS32(TempleCastS16(temple_right_2445));
+  }
+  (temple_transform_2442.right=TempleCastS16(temple_tmp_2449));
+  if((temple_bottom_2446>height_above_replaybar)) {
+    temple_tmp_2450=TempleCastS32(height_above_replaybar);
+  } else {
+    temple_tmp_2450=TempleCastS32(TempleCastS16(temple_bottom_2446));
+  }
+  (temple_transform_2442.bottom=TempleCastS16(temple_tmp_2450));
+  RsDashboardDashboardSetViewport();
+  RsSpriteCopyImageTransformed(dashboard_instrument_sprite,(&(temple_transform_2442)));
+  return TempleCastU8(1);
+}
+
 legacy_void RsDashboardDashboardUpdateInstruments(CDashboardUpdate *update)
 {
-  legacy_u16 noreg temple_dot_index_2422;
-  legacy_s32 noreg temple_tmp_2423;
-  legacy_s32 noreg temple_tmp_2424;
-  legacy_s32 noreg temple_tmp_2425;
-  legacy_u16 noreg temple_needle_colors_2426;
-  legacy_u8 noreg temple_speed_color_2427;
-  legacy_u8 noreg temple_rpm_color_2428;
-  temple_tmp_2423=0;
+  legacy_u16 noreg temple_dot_index_2451;
+  legacy_s32 noreg temple_tmp_2452;
+  legacy_s32 noreg temple_tmp_2453;
+  legacy_s32 noreg temple_tmp_2454;
+  legacy_s32 noreg temple_tmp_2455;
+  legacy_u16 noreg temple_needle_colors_2456;
+  legacy_u8 noreg temple_speed_color_2457;
+  legacy_u8 noreg temple_rpm_color_2458;
+  legacy_u8 noreg temple_transformed_2459;
+  legacy_s32 noreg temple_tmp_2460;
+  legacy_s32 noreg temple_tmp_2461;
+  temple_tmp_2452=0;
   if((update->wheel_redrawn!=0)) {
-    temple_tmp_2423=1;
+    temple_tmp_2452=1;
   }
-  if(!temple_tmp_2423) {
-    temple_tmp_2423=0;
+  if(!temple_tmp_2452) {
+    temple_tmp_2452=0;
     if((full_redraw_frames_remaining!=0)) {
-      temple_tmp_2423=1;
+      temple_tmp_2452=1;
     }
   }
-  temple_tmp_2424=0;
-  if(temple_tmp_2423) {
-    temple_tmp_2424=1;
+  temple_tmp_2453=0;
+  if(temple_tmp_2452) {
+    temple_tmp_2453=1;
   }
-  if(!temple_tmp_2424) {
-    temple_tmp_2424=0;
+  if(!temple_tmp_2453) {
+    temple_tmp_2453=0;
     if((dashboard_speed_index_cache[update->buffer_index]!=TempleCastS16(update->speed_index))) {
-      temple_tmp_2424=1;
+      temple_tmp_2453=1;
     }
   }
-  temple_tmp_2425=0;
-  if(temple_tmp_2424) {
-    temple_tmp_2425=1;
+  temple_tmp_2454=0;
+  if(temple_tmp_2453) {
+    temple_tmp_2454=1;
   }
-  if(!temple_tmp_2425) {
-    temple_tmp_2425=0;
+  if(!temple_tmp_2454) {
+    temple_tmp_2454=0;
     if((dashboard_rpm_index_cache[update->buffer_index]!=TempleCastS16(update->rpm_index))) {
-      temple_tmp_2425=1;
+      temple_tmp_2454=1;
     }
   }
-  if(temple_tmp_2425) {
+  if(temple_tmp_2454) {
     if((video_uses_page_flipping==0)) {
       RsMouseDrawOpaqueCheck();
     }
     if((RsDashboardDashboardClearSteeringDot(TempleCastU16(update->buffer_index))!=0)) {
       (update->steering_dot_cleared=TempleCastU8(1));
+    }
+    temple_tmp_2455=0;
+    if((rs_dashboard_dashboard_instruments_follow_wheel!=0)) {
+      temple_tmp_2455=1;
+    }
+    if(temple_tmp_2455) {
+      temple_tmp_2455=0;
+      if((update->wheel_redrawn==0)) {
+        temple_tmp_2455=1;
+      }
+    }
+    if(temple_tmp_2455) {
+      RsShape2dRleCopyPositionClipped(whlshapes[update->wheel_state]);
+      (update->wheel_redrawn=TempleCastU8(1));
     }
     RsDashboardDashboardSelectPanelTarget(
         dashboard_instrument_sprite,whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
@@ -653,113 +860,138 @@ legacy_void RsDashboardDashboardUpdateInstruments(CDashboardUpdate *update)
             TempleCastS16(TempleCastS16(update->speed_index)));
     (dashboard_rpm_index_cache[update->buffer_index]=
             TempleCastS16(TempleCastS16(update->rpm_index)));
-    temple_needle_colors_2426=TempleCastU16(TempleCastU16(simd_player.reserved_handling_words[4]));
-    temple_speed_color_2427=TempleCastU8(TempleCastU8(temple_needle_colors_2426));
-    temple_rpm_color_2428=
-        TempleCastU8(TempleCastU8(TempleCastS32((temple_needle_colors_2426>>8))));
-    if((temple_rpm_color_2428==0)) {
-      (temple_rpm_color_2428=TempleCastU8(temple_speed_color_2427));
+    temple_needle_colors_2456=TempleCastU16(TempleCastU16(simd_player.reserved_handling_words[4]));
+    temple_speed_color_2457=TempleCastU8(TempleCastU8(temple_needle_colors_2456));
+    temple_rpm_color_2458=
+        TempleCastU8(TempleCastU8(TempleCastS32((temple_needle_colors_2456>>8))));
+    if((temple_rpm_color_2458==0)) {
+      (temple_rpm_color_2458=TempleCastU8(temple_speed_color_2457));
     }
     if((update->gauge_mode==DASHBOARD_GAUGE_DIGITAL)) {
       RsDashboardDashboardDrawDigitalSpeed(TempleCastU16(update->speed_index));
     } else {
       if((update->gauge_mode==DASHBOARD_GAUGE_ANALOG)) {
-        (temple_dot_index_2422=TempleCastU16(TempleCastU32((update->speed_index*2))));
+        (temple_dot_index_2451=TempleCastU16(TempleCastU32((update->speed_index*2))));
         RsPreRenderLine(TempleCastU16(simd_player.spdcenter.px),
             TempleCastU16(simd_player.spdcenter.py),
-            TempleCastU16(TempleCastU8(simd_player.spdpoints[temple_dot_index_2422])),
+            TempleCastU16(TempleCastU8(simd_player.spdpoints[temple_dot_index_2451])),
             TempleCastU16(
-                TempleCastU8(simd_player.spdpoints[TempleCastU32((temple_dot_index_2422+1))])),
-            TempleCastU16(temple_speed_color_2427));
+                TempleCastU8(simd_player.spdpoints[TempleCastU32((temple_dot_index_2451+1))])),
+            TempleCastU16(temple_speed_color_2457));
       }
     }
-    (temple_dot_index_2422=TempleCastU16(TempleCastU32((update->rpm_index*2))));
+    (temple_dot_index_2451=TempleCastU16(TempleCastU32((update->rpm_index*2))));
     RsPreRenderLine(TempleCastU16(simd_player.revcenter.px),
         TempleCastU16(simd_player.revcenter.py),
-        TempleCastU16(TempleCastU8(simd_player.revpoints[temple_dot_index_2422])),
+        TempleCastU16(TempleCastU8(simd_player.revpoints[temple_dot_index_2451])),
         TempleCastU16(
-            TempleCastU8(simd_player.revpoints[TempleCastU32((temple_dot_index_2422+1))])),
-        TempleCastU16(temple_rpm_color_2428));
-    RsDashboardDashboardDrawWheelMask(TempleCastU8(update->wheel_state));
+            TempleCastU8(simd_player.revpoints[TempleCastU32((temple_dot_index_2451+1))])),
+        TempleCastU16(temple_rpm_color_2458));
+    temple_tmp_2461=0;
+    if((rs_dashboard_dashboard_instruments_follow_wheel!=0)) {
+      temple_tmp_2461=1;
+    }
+    if(temple_tmp_2461) {
+      temple_tmp_2460=0;
+      if((rs_dashboard_dashboard_instrument_transforms[update->wheel_state]!=0)) {
+        temple_tmp_2460=1;
+      }
+      if(!temple_tmp_2460) {
+        temple_tmp_2460=0;
+        if((update->wheel_state==DASHBOARD_WHEEL_STATE_CENTER)) {
+          temple_tmp_2460=1;
+        }
+      }
+      temple_tmp_2461=0;
+      if(temple_tmp_2460) {
+        temple_tmp_2461=1;
+      }
+    }
+    temple_transformed_2459=TempleCastU8(temple_tmp_2461);
+    if((temple_transformed_2459==0)) {
+      RsDashboardDashboardDrawWheelMask(TempleCastU8(update->wheel_state));
+    }
     if((video_uses_page_flipping!=0)) {
       RsSpriteSelectMcgaBackbuffer();
     } else {
       RsSpriteSelectScreenCompat();
     }
-    RsDashboardDashboardCopyPanel(
-        dashboard_instrument_sprite,whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
+    if((RsDashboardDashboardCopyTransformedInstruments(TempleCastU8(update->wheel_state))==0)) {
+      RsDashboardDashboardCopyPanel(
+          dashboard_instrument_sprite,whlshapes[DASHBOARD_INSTRUMENT_PANEL_SHAPE]);
+    }
   }
 }
 
 legacy_void RsDashboardDashboardUpdateSteeringDot(CDashboardUpdate *update)
 {
-  legacy_s32 noreg temple_tmp_2429;
-  legacy_s32 noreg temple_tmp_2430;
-  legacy_u8 *temple_steering_dots_2431;
-  legacy_u16 noreg temple_dot_index_2432;
-  legacy_s32 noreg temple_tmp_2433;
-  legacy_s16 noreg temple_dot_x_2434;
-  legacy_s16 noreg temple_dot_y_2435;
-  temple_tmp_2429=0;
+  legacy_s32 noreg temple_tmp_2462;
+  legacy_s32 noreg temple_tmp_2463;
+  legacy_u8 *temple_steering_dots_2464;
+  legacy_u16 noreg temple_dot_index_2465;
+  legacy_s32 noreg temple_tmp_2466;
+  legacy_s16 noreg temple_dot_x_2467;
+  legacy_s16 noreg temple_dot_y_2468;
+  temple_tmp_2462=0;
   if((dashboard_steering_position_cache[update->buffer_index]!=update->steering_position)) {
-    temple_tmp_2429=1;
+    temple_tmp_2462=1;
   }
-  if(!temple_tmp_2429) {
-    temple_tmp_2429=0;
+  if(!temple_tmp_2462) {
+    temple_tmp_2462=0;
     if((full_redraw_frames_remaining!=0)) {
-      temple_tmp_2429=1;
+      temple_tmp_2462=1;
     }
   }
-  temple_tmp_2430=0;
-  if(temple_tmp_2429) {
-    temple_tmp_2430=1;
+  temple_tmp_2463=0;
+  if(temple_tmp_2462) {
+    temple_tmp_2463=1;
   }
-  if(!temple_tmp_2430) {
-    temple_tmp_2430=0;
+  if(!temple_tmp_2463) {
+    temple_tmp_2463=0;
     if((update->steering_dot_cleared!=0)) {
-      temple_tmp_2430=1;
+      temple_tmp_2463=1;
     }
   }
-  if(temple_tmp_2430) {
+  if(temple_tmp_2463) {
     if((video_uses_page_flipping==0)) {
       RsMouseDrawOpaqueCheck();
     }
     RsDashboardDashboardSetViewport();
     RsDashboardDashboardClearSteeringDot(TempleCastU16(update->buffer_index));
-    temple_steering_dots_2431=(simd_player.steeringdots)(legacy_u8 *);
+    temple_steering_dots_2464=(simd_player.steeringdots)(legacy_u8 *);
     if((update->steering_position<0)) {
-      temple_tmp_2433=TempleCastS32(RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(
+      temple_tmp_2466=TempleCastS32(RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(
           TempleCastU16(TempleCastU32((0-TempleCastU16(update->steering_position))))))));
     } else {
-      temple_tmp_2433=TempleCastS32(update->steering_position);
+      temple_tmp_2466=TempleCastS32(update->steering_position);
     }
-    temple_dot_index_2432=TempleCastU16(TempleCastU32((TempleCastU16(temple_tmp_2433)*2)));
-    temple_dot_x_2434=TempleCastS16(temple_steering_dots_2431[temple_dot_index_2432]);
-    temple_dot_y_2435=
-        TempleCastS16(temple_steering_dots_2431[TempleCastU32((temple_dot_index_2432+1))]);
+    temple_dot_index_2465=TempleCastU16(TempleCastU32((TempleCastU16(temple_tmp_2466)*2)));
+    temple_dot_x_2467=TempleCastS16(temple_steering_dots_2464[temple_dot_index_2465]);
+    temple_dot_y_2468=
+        TempleCastS16(temple_steering_dots_2464[TempleCastU32((temple_dot_index_2465+1))]);
     if((update->steering_position<0)) {
-      (temple_dot_x_2434=TempleCastS16(TempleCastU8(TempleCastS32((temple_dot_x_2434-
+      (temple_dot_x_2467=TempleCastS16(TempleCastU8(TempleCastS32((temple_dot_x_2467-
           TempleCastU8(TempleCastS32(
-              (TempleCastU8(TempleCastS32((temple_dot_x_2434-temple_steering_dots_2431[0])))
+              (TempleCastU8(TempleCastS32((temple_dot_x_2467-temple_steering_dots_2464[0])))
                   <<1))))))));
     }
     (dashboard_steering_dot_x_cache[update->buffer_index]=TempleCastS16(
         RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(TempleCastS32((TempleCastU8(temple_dot_x_2434)-
+            TempleCastS32((TempleCastU16(TempleCastS32((TempleCastU8(temple_dot_x_2467)-
                                 RsShape2dGetAnchorX(gnobshapes[DASHBOARD_STEERING_DOT_SHAPE]))))&
                 TempleCastU16(video_x_alignment_mask))))))));
     (dashboard_steering_dot_y_cache[update->buffer_index]=TempleCastS16(
         RsDashboardLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((
-            TempleCastU16(TempleCastU8(temple_dot_y_2435))-
+            TempleCastU16(TempleCastU8(temple_dot_y_2468))-
             TempleCastU16(RsShape2dGetAnchorY(gnobshapes[DASHBOARD_STEERING_DOT_SHAPE]))))))))));
     RsSpriteClearShapeAlt(gnobshapes[TempleCastS32((DASHBOARD_STEERING_DOT_BUFFER_FIRST_SHAPE+
                               TempleCastU8(frame_buffer_index)))],
         TempleCastS16(dashboard_steering_dot_x_cache[update->buffer_index]),
         TempleCastS16(dashboard_steering_dot_y_cache[update->buffer_index]));
     RsSpriteAndImageAtAnchor(gnobshapes[DASHBOARD_STEERING_DOT_BACKGROUND_SHAPE],
-        TempleCastS16(temple_dot_x_2434),TempleCastS16(temple_dot_y_2435));
+        TempleCastS16(temple_dot_x_2467),TempleCastS16(temple_dot_y_2468));
     RsSpriteOrImageAtAnchor(gnobshapes[DASHBOARD_STEERING_DOT_SHAPE],
-        TempleCastS16(temple_dot_x_2434),TempleCastS16(temple_dot_y_2435));
+        TempleCastS16(temple_dot_x_2467),TempleCastS16(temple_dot_y_2468));
     (dashboard_steering_position_cache[update->buffer_index]=
             TempleCastS16(update->steering_position));
   }
@@ -767,14 +999,14 @@ legacy_void RsDashboardDashboardUpdateSteeringDot(CDashboardUpdate *update)
 
 legacy_void RsDashboardDashboardUpdate()
 {
-  CDashboardUpdate temple_update_2436;
-  (temple_update_2436.buffer_index=TempleCastU16(TempleCastU8(dashboard_buffer_index)));
-  (temple_update_2436.steering_dot_cleared=TempleCastU8(0));
-  RsDashboardDashboardUpdateGear(TempleCastU16(temple_update_2436.buffer_index));
-  RsDashboardDashboardUpdateWheel((&(temple_update_2436)));
-  RsDashboardDashboardSelectGauges((&(temple_update_2436)));
-  RsDashboardDashboardUpdateInstruments((&(temple_update_2436)));
-  RsDashboardDashboardUpdateSteeringDot((&(temple_update_2436)));
+  CDashboardUpdate temple_update_2469;
+  (temple_update_2469.buffer_index=TempleCastU16(TempleCastU8(dashboard_buffer_index)));
+  (temple_update_2469.steering_dot_cleared=TempleCastU8(0));
+  RsDashboardDashboardUpdateGear(TempleCastU16(temple_update_2469.buffer_index));
+  RsDashboardDashboardUpdateWheel((&(temple_update_2469)));
+  RsDashboardDashboardSelectGauges((&(temple_update_2469)));
+  RsDashboardDashboardUpdateInstruments((&(temple_update_2469)));
+  RsDashboardDashboardUpdateSteeringDot((&(temple_update_2469)));
   RsMouseDrawTransparentCheck();
 }
 

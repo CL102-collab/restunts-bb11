@@ -14,7 +14,26 @@
 #undef memset
 
 static legacy_u32 trace;
-static struct SHAPE2D shapes[40];
+enum DASHBOARD_TEST_CONSTANTS {
+	TEST_TRANSFORM_LEFT_SHAPE = 40,
+	TEST_TRANSFORM_RIGHT_SHAPE = 41,
+	TEST_SHAPE_COUNT = 42,
+	TEST_PANEL_WIDTH = 12,
+	TEST_GEARBOX_SIZE = 20,
+	TEST_PANEL_HEIGHT = 10,
+	TEST_PANEL_X = 100,
+	TEST_PANEL_Y = 130,
+	TEST_PANEL_PIVOT_X = 6,
+	TEST_PANEL_PIVOT_Y = 5,
+	TEST_WHEEL_X = 90,
+	TEST_WHEEL_Y = 120,
+	TEST_WHEEL_SIZE = 40,
+	TEST_DIGIT_COLOR = 210,
+	TEST_WHEEL_COLOR = 230,
+	TEST_RPM_COLOR = 55,
+	TEST_FULL_STEERING = 88
+};
+static struct SHAPE2D shapes[TEST_SHAPE_COUNT];
 static struct SPRITE sprites[2];
 static legacy_u16 sprite_count;
 static legacy_u16 live_sprite_count;
@@ -22,6 +41,12 @@ static struct SPRITE drawing_context[SPRITE_STATE_COUNT];
 static legacy_s32 capture_pixels;
 static legacy_u8 pixel_buffers[4][320 * 200];
 static legacy_s32 optional_shapes;
+static legacy_u16 optional_instrument_transforms;
+static legacy_s32 capture_live_pixels;
+static legacy_u32 transformed_panel_count;
+static legacy_u32 wheel_draw_count;
+static legacy_u32 wheel_mask_count;
+static struct SHAPE2D_TRANSFORM last_transform;
 static legacy_s8 resources[2];
 static legacy_s32 capture_needle_lines;
 static legacy_u32 needle_line_count;
@@ -54,6 +79,25 @@ static legacy_u8 instrument_pixel(legacy_u16 x, legacy_u16 y)
 {
 	return (legacy_u8)(1 + (x * 11 + y * 7) % 200);
 }
+static legacy_u8 fixture_pixel(struct SHAPE2D *shape, legacy_u16 x, legacy_u16 y)
+{
+	if (shape == &shapes[3]) {
+		if (capture_live_pixels != 0 && x == 0 && y == 0) {
+			return SHAPE2D_TRANSPARENT_COLOR;
+		}
+		return instrument_pixel(x, y);
+	}
+	if (shape == &shapes[30]) {
+		return background_pixel(x, y);
+	}
+	if (capture_live_pixels != 0 && shape >= &shapes[0] && shape <= &shapes[2]) {
+		return (legacy_u8)(TEST_WHEEL_COLOR + shape - shapes);
+	}
+	if (capture_live_pixels != 0 && shape >= &shapes[20] && shape <= &shapes[29]) {
+		return (legacy_u8)(TEST_DIGIT_COLOR + shape - &shapes[20]);
+	}
+	return 251;
+}
 static void draw_pixels(struct SHAPE2D *shape, legacy_s16 x, legacy_s16 y, legacy_s32 raw_bitmap)
 {
 	if (capture_pixels == 0) {
@@ -73,10 +117,8 @@ static void draw_pixels(struct SHAPE2D *shape, legacy_s16 x, legacy_s16 y, legac
 				continue;
 			}
 			pixels[target_y * target->sprite_pitch + target_x] =
-				raw_bitmap			   ? source[row * shape->width + column]
-				: shape == &shapes[3]  ? instrument_pixel(column, row)
-				: shape == &shapes[30] ? background_pixel(column, row)
-									   : 251;
+				raw_bitmap ? source[row * shape->width + column]
+						   : fixture_pixel(shape, column, row);
 		}
 	}
 }
@@ -143,11 +185,18 @@ void shape2d_rle_copy_at_position(struct SHAPE2D *shape)
 }
 void shape2d_rle_copy_position_clipped(struct SHAPE2D *shape)
 {
+	if (capture_live_pixels != 0) {
+		draw_pixels(shape, shape->position_x, shape->position_y, 0);
+		if (shape >= &shapes[0] && shape <= &shapes[2]) {
+			wheel_draw_count++;
+		}
+	}
 	record(11);
 	record(shape_id(shape));
 }
 void shape2d_render_bmp_as_mask(struct SHAPE2D *shape)
 {
+	wheel_mask_count++;
 	record(12);
 	record(shape_id(shape));
 }
@@ -178,6 +227,43 @@ void sprite_copy_image_at(struct SHAPE2D *shape, legacy_s16 x, legacy_s16 y)
 	record((legacy_u16)x);
 	record((legacy_u16)y);
 }
+/* This mock uses exact quarter turns, independently of the production Q14
+ * rasterizer. It exposes dashboard composition and stale-pixel restoration. */
+void sprite_copy_image_transformed(struct SPRITE *source, const struct SHAPE2D_TRANSFORM *transform)
+{
+	assert(capture_live_pixels != 0);
+	assert(source == dashboard_instrument_sprite);
+	assert(source->sprite_bitmapptr->width == TEST_GEARBOX_SIZE);
+	last_transform = *transform;
+	transformed_panel_count++;
+	struct SPRITE *target = &drawing_context[0];
+	legacy_u8 *input = pixels_for_shape(source->sprite_bitmapptr);
+	legacy_u8 *output = pixels_for_shape(target->sprite_bitmapptr);
+	for (legacy_u16 y = 0; y < transform->source_height; y++) {
+		for (legacy_u16 x = 0; x < transform->source_width; x++) {
+			legacy_s16 dx = x - transform->source_pivot_x;
+			legacy_s16 dy = y - transform->source_pivot_y;
+			legacy_s16 tx, ty;
+			if (transform->inverse_xx == SHAPE2D_TRANSFORM_ONE) {
+				tx = transform->target_pivot_x + dx;
+				ty = transform->target_pivot_y + dy;
+			} else if (transform->inverse_xy == -SHAPE2D_TRANSFORM_ONE) {
+				tx = transform->target_pivot_x + dy;
+				ty = transform->target_pivot_y - dx;
+			} else {
+				assert(transform->inverse_xy == SHAPE2D_TRANSFORM_ONE);
+				tx = transform->target_pivot_x - dy;
+				ty = transform->target_pivot_y + dx;
+			}
+			legacy_u8 color = input[y * source->sprite_bitmapptr->width + x];
+			if (tx >= target->sprite_left && tx < target->sprite_right &&
+				ty >= target->sprite_top && ty < target->sprite_bottom &&
+				color != SHAPE2D_TRANSPARENT_COLOR) {
+				output[ty * target->sprite_pitch + tx] = color;
+			}
+		}
+	}
+}
 void sprite_and_image_at_anchor(struct SHAPE2D *shape, legacy_s16 x, legacy_s16 y)
 {
 	record(23);
@@ -201,6 +287,9 @@ void sprite_clear_shape_alt(struct SHAPE2D *shape, legacy_s16 x, legacy_s16 y)
 }
 void sprite_putimage_or(struct SHAPE2D *shape, legacy_u16 x, legacy_u16 y)
 {
+	if (capture_live_pixels != 0) {
+		draw_pixels(shape, x, y, 0);
+	}
 	record(26);
 	record(shape_id(shape));
 	record((legacy_u16)x);
@@ -222,6 +311,14 @@ void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16
 }
 void preRender_line(legacy_u16 x, legacy_u16 y, legacy_u16 x2, legacy_u16 y2, legacy_u16 color)
 {
+	if (capture_live_pixels != 0) {
+		struct SPRITE *target = &drawing_context[0];
+		legacy_u8 *pixels = pixels_for_shape(target->sprite_bitmapptr);
+		assert(x < target->sprite_right && y < target->sprite_bottom);
+		assert(x2 < target->sprite_right && y2 < target->sprite_bottom);
+		pixels[y * target->sprite_pitch + x] = (legacy_u8)color;
+		pixels[y2 * target->sprite_pitch + x2] = (legacy_u8)color;
+	}
 	if (capture_needle_lines != 0) {
 		assert(needle_line_count < 2);
 		struct NEEDLE_LINE *line = &needle_lines[needle_line_count++];
@@ -333,6 +430,16 @@ void locate_many_resources(legacy_s8 *data, const legacy_s8 *names, legacy_s8 **
 legacy_s8 *locate_shape_nofatal(legacy_s8 *data, const legacy_s8 *name)
 {
 	(void)data;
+	if (memcmp(name, "imt1", 4) == 0) {
+		return (optional_instrument_transforms & 1U) != 0
+				   ? (legacy_s8 *)&shapes[TEST_TRANSFORM_LEFT_SHAPE]
+				   : 0;
+	}
+	if (memcmp(name, "imt3", 4) == 0) {
+		return (optional_instrument_transforms & 2U) != 0
+				   ? (legacy_s8 *)&shapes[TEST_TRANSFORM_RIGHT_SHAPE]
+				   : 0;
+	}
 	legacy_u32 index = name == dashboard_roof_shape_id ? 31 : 32;
 	record(39);
 	record(index);
@@ -367,7 +474,8 @@ static void initialize_scenario(legacy_u32 scenario)
 	memset(&simd_player, 0, sizeof(simd_player));
 	memset(sprites, 0, sizeof(sprites));
 	memset(drawing_context, 0, sizeof(drawing_context));
-	for (legacy_u32 i = 0; i < 40; i++) {
+	optional_instrument_transforms = 0;
+	for (legacy_u32 i = 0; i < TEST_SHAPE_COUNT; i++) {
 		shapes[i].width = i + 1;
 		shapes[i].height = i + 2;
 		shapes[i].centre_x = 3;
@@ -581,6 +689,179 @@ static void test_needle_colors(void)
 		}
 	}
 }
+static void initialize_transform_fixture(legacy_u32 mode, legacy_u16 descriptors)
+{
+	initialize_scenario(mode * 6);
+	capture_pixels = 1;
+	capture_live_pixels = 1;
+	optional_instrument_transforms = descriptors;
+	transformed_panel_count = 0;
+	wheel_draw_count = 0;
+	wheel_mask_count = 0;
+	simd_player.spdcenter.py = 0;
+	static const legacy_s8 digit_positions[] = {2, 4, 5, 4, 8, 4};
+	memcpy(simd_player.spdpoints, digit_positions, sizeof(digit_positions));
+	simd_player.revcenter.px = 10;
+	simd_player.revcenter.py = 1;
+	simd_player.revnumpoints = 2;
+	simd_player.revpoints[0] = 11;
+	simd_player.revpoints[1] = 1;
+	simd_player.revpoints[2] = 11;
+	simd_player.revpoints[3] = 2;
+	simd_player.reserved_handling_words[SIMD_NEEDLE_COLORS_INDEX] = TEST_RPM_COLOR;
+	shapes[3].width = TEST_PANEL_WIDTH;
+	shapes[3].height = TEST_PANEL_HEIGHT;
+	shapes[3].position_x = TEST_PANEL_X;
+	shapes[3].position_y = TEST_PANEL_Y;
+	shapes[3].centre_x = TEST_PANEL_PIVOT_X;
+	shapes[3].centre_y = TEST_PANEL_PIVOT_Y;
+	/* Exercise an instrument source sharing a larger gearbox scratch bitmap. */
+	shapes[4].width = shapes[4].height = TEST_GEARBOX_SIZE;
+	for (legacy_u16 index = 0; index < 3; index++) {
+		shapes[index].width = shapes[index].height = TEST_WHEEL_SIZE;
+		shapes[index].position_x = TEST_WHEEL_X;
+		shapes[index].position_y = TEST_WHEEL_Y;
+	}
+	for (legacy_u16 index = 20; index < 30; index++) {
+		shapes[index].width = 2;
+		shapes[index].height = 3;
+	}
+	for (legacy_u16 index = TEST_TRANSFORM_LEFT_SHAPE; index < TEST_SHAPE_COUNT; index++) {
+		shapes[index].width = shapes[index].height = 1;
+		shapes[index].centre_x = 0;
+		shapes[index].centre_y = index == TEST_TRANSFORM_LEFT_SHAPE
+									 ? (legacy_u16)-SHAPE2D_TRANSFORM_ONE
+									 : SHAPE2D_TRANSFORM_ONE;
+		shapes[index].position_x = index == TEST_TRANSFORM_LEFT_SHAPE
+									   ? SHAPE2D_TRANSFORM_ONE
+									   : (legacy_u16)-SHAPE2D_TRANSFORM_ONE;
+		shapes[index].position_y = 0;
+	}
+	shapes[30].position_x = 0;
+	shapes[30].position_y = 100;
+	shapes[30].width = 320;
+	shapes[30].height = 100;
+	shapes[38].width = shapes[39].width = 320;
+	shapes[38].height = shapes[39].height = 200;
+	memset(pixel_buffers, 253, sizeof(pixel_buffers));
+}
+static void assert_transform_panel(legacy_s16 inverse_xy)
+{
+	assert(last_transform.source_width == TEST_PANEL_WIDTH);
+	assert(last_transform.source_height == TEST_PANEL_HEIGHT);
+	assert(last_transform.source_pivot_x == TEST_PANEL_PIVOT_X);
+	assert(last_transform.source_pivot_y == TEST_PANEL_PIVOT_Y);
+	assert(last_transform.target_pivot_x == TEST_PANEL_X + TEST_PANEL_PIVOT_X);
+	assert(last_transform.target_pivot_y == TEST_PANEL_Y + TEST_PANEL_PIVOT_Y);
+	assert(last_transform.left == TEST_WHEEL_X);
+	assert(last_transform.top == TEST_WHEEL_Y);
+	assert(last_transform.right == TEST_WHEEL_X + TEST_WHEEL_SIZE);
+	assert(last_transform.bottom == TEST_WHEEL_Y + TEST_WHEEL_SIZE);
+	assert(last_transform.inverse_xy == inverse_xy);
+	assert(last_transform.inverse_yx == -inverse_xy);
+	assert(last_transform.inverse_xx == (inverse_xy == 0 ? SHAPE2D_TRANSFORM_ONE : 0));
+	assert(last_transform.inverse_yy == last_transform.inverse_xx);
+}
+/* Opt-in displays must follow all wheel poses and refresh their entire source
+ * panel on either gauge change. Repaint the wheel before copying fresh digits
+ * so transparent corners and shorter numbers cannot retain old display pixels. */
+static void test_rotating_instrument_panel(void)
+{
+	for (legacy_u32 mode = 0; mode < 2; mode++) {
+		initialize_transform_fixture(mode, 3);
+		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+		for (legacy_u16 page = 0; page < 2; page++) {
+			dashboard_buffer_index = page;
+			frame_buffer_index = page;
+			if (mode != 0) {
+				sprite_select_mcga_backbuffer();
+			} else {
+				sprite_select_screen();
+			}
+			setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+			state.playerstate.car_steeringAngle = -TEST_FULL_STEERING;
+			state.playerstate.car_rev_speed = 199U << 8;
+			state.playerstate.car_currpm = 0;
+			legacy_u32 before = transformed_panel_count;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 1);
+			assert_transform_panel(-SHAPE2D_TRANSFORM_ONE);
+			legacy_u8 *pixels = pixel_buffers[2 + mode];
+			assert(pixels[133 * 320 + 105] == TEST_DIGIT_COLOR + 9);
+			assert(pixels[141 * 320 + 101] == TEST_WHEEL_COLOR);
+			legacy_u32 wheels = wheel_draw_count;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 1);
+			assert(wheel_draw_count == wheels);
+
+			/* Removing two digits must restore the panel beneath them. */
+			state.playerstate.car_rev_speed = 7U << 8;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 2);
+			assert(wheel_draw_count == ++wheels);
+			assert(pixels[133 * 320 + 105] == TEST_DIGIT_COLOR + 7);
+			assert(pixels[139 * 320 + 105] == instrument_pixel(2, 4));
+			assert(pixels[136 * 320 + 105] == instrument_pixel(5, 4));
+			assert(pixels[130 * 320 + 102] == TEST_RPM_COLOR);
+
+			/* RPM-only changes also rebuild and rotate the live source. */
+			state.playerstate.car_currpm = 128;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 3);
+			assert(wheel_draw_count == ++wheels);
+			assert(pixels[130 * 320 + 102] == instrument_pixel(11, 1));
+			assert(pixels[130 * 320 + 103] == TEST_RPM_COLOR);
+
+			/* A pose change with identical gauges still repositions them. */
+			state.playerstate.car_steeringAngle = TEST_FULL_STEERING;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 4);
+			assert(wheel_draw_count == ++wheels);
+			assert_transform_panel(SHAPE2D_TRANSFORM_ONE);
+			assert(pixels[137 * 320 + 107] == TEST_DIGIT_COLOR + 7);
+			assert(pixels[133 * 320 + 105] == instrument_pixel(4, 6));
+			assert(pixels[135 * 320 + 101] == TEST_WHEEL_COLOR + 2);
+			state.playerstate.car_steeringAngle = 0;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 5);
+			assert(wheel_draw_count == ++wheels);
+			assert_transform_panel(0);
+			assert(pixels[134 * 320 + 108] == TEST_DIGIT_COLOR + 7);
+			assert(wheel_mask_count == 0);
+			full_redraw_frames_remaining = 1;
+			setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+			assert(transformed_panel_count == before + 6);
+			assert(wheel_draw_count == ++wheels);
+			full_redraw_frames_remaining = 0;
+		}
+		/* The transformed output envelope must respect the replay bar. */
+		height_above_replaybar = TEST_PANEL_Y + TEST_PANEL_PIVOT_Y;
+		full_redraw_frames_remaining = 1;
+		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+		assert(last_transform.bottom == height_above_replaybar);
+		assert(drawing_context[0].sprite_bottom == height_above_replaybar);
+		setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+		assert(live_sprite_count == 0);
+		capture_live_pixels = 0;
+		capture_pixels = 0;
+	}
+	/* A missing or malformed direction must retain the fixed-panel path. */
+	for (legacy_u16 descriptors = 0; descriptors <= 3; descriptors++) {
+		initialize_transform_fixture(0, descriptors);
+		shapes[TEST_TRANSFORM_RIGHT_SHAPE].width = 2;
+		setup_car_shapes(DASHBOARD_OPERATION_LOAD);
+		setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
+		state.playerstate.car_steeringAngle = TEST_FULL_STEERING;
+		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+		assert(transformed_panel_count == 0);
+		state.playerstate.car_steeringAngle = -TEST_FULL_STEERING;
+		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
+		assert(transformed_panel_count == ((descriptors & 1U) != 0 ? 1U : 0U));
+		setup_car_shapes(DASHBOARD_OPERATION_UNLOAD);
+		capture_live_pixels = 0;
+		capture_pixels = 0;
+	}
+}
 int main(void)
 {
 	trace = 2166136261UL;
@@ -590,6 +871,7 @@ int main(void)
 	assert(trace == 0x62cfc3d5UL);
 	test_needle_colors();
 	test_dashboard_scratch_pixels();
-	puts("Dashboard snapshots, needle colors, and shared scratch pixels passed.");
+	test_rotating_instrument_panel();
+	puts("Dashboard snapshots, needle colors, scratch pixels, and rotating instruments passed.");
 	return 0;
 }

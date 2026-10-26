@@ -776,6 +776,24 @@ class CSprite
   legacy_u16 sprite_raster_right;
 };
 
+class CShape2DTransform
+{
+  legacy_s16 inverse_xx;
+  legacy_s16 inverse_xy;
+  legacy_s16 inverse_yx;
+  legacy_s16 inverse_yy;
+  legacy_s16 source_pivot_x;
+  legacy_s16 source_pivot_y;
+  legacy_s16 target_pivot_x;
+  legacy_s16 target_pivot_y;
+  legacy_u16 source_width;
+  legacy_u16 source_height;
+  legacy_s16 left;
+  legacy_s16 top;
+  legacy_s16 right;
+  legacy_s16 bottom;
+};
+
 class CFileFindDos
 {
   legacy_s8 path[1024];

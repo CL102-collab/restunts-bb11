@@ -138,30 +138,50 @@ primitives and remain within its 255-vertex and 255-primitive limits.
 | `car2` distant racing | 247 | 241 |
 
 The first eight car vertices are bounds; the following 24 control the four
-animated wheels. The cockpit is original indexed-colour artwork based on
-the supplied `1000005914.jpg`, `1000005913.jpg` and `1000005912.jpg` cockpit
-photographs and the earlier
+animated wheels. The cockpit is original indexed-colour artwork. Its dashboard
+layout follows the supplied
+`6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg` studio photo:
+a slim fascia in a dark carbon surround, an empty upright display mount on
+the left and two small recessed dark ducts on the right. This replaces the
+earlier teal pods and four large silver vents. The requested material override
+replaces the photo's tan trim with light grey carbon. Its diagonal weave slopes
+in the opposite direction from the rest of the dashboard.
+
+The retained wheel follows the supplied `1000005914.jpg`, `1000005913.jpg`
+and `1000005912.jpg` photographs and the earlier
 [wheel reference](https://www.topgear.com/car-reviews/speirling/first-drive).
-It combines an upright LCD and unlit lamp row with a continuous shaped steering
-rim: textured side grips join contrasting carbon top and bottom bridges.
-All rim sections use the same rotation about the wheel hub in each steering
-view, preserving the upper bridge's shape as it turns.
-The five fluted knobs match and have blank interiors. The record-holder
-inscription is removed and the live instrument needle is red. Turquoise vent
-pods, four silver circular vents, stitched padding, carbon trim, seams,
-fasteners and release hardware
-add detail on both sides. Speed and motor instruments update live in all
-three steering positions.
-A native steering dot slides along a horizontal strip above the shaped wheel,
-as on the Pontiac Firebird, showing the steering angle between wheel poses.
+An LCD and unlit lamp row sit within a continuous shaped rim:
+textured side grips join contrasting carbon top and bottom bridges. Every rim
+section rotates about the same hub in each steering view, together with the
+complete display panel, live digital speedometer and motor needle. The five fluted
+knobs match and have blank interiors. The record-holder inscription is removed,
+and the live instrument needle is red. Stitched padding, carbon trim, seams,
+fasteners and release hardware add restrained detail on both sides. Speed and
+motor instruments update live in all three steering positions.
+
+Material shading, irregular carbon weave, suede and grip grain give the
+cockpit the finish of a palette-reduced photograph. The grain is deterministic
+and stays attached to the wheel as it turns, together
+with the live LCD. Brighter wheel carbon and trim, grey grip-edge
+highlights and a darker column recess keep its outline distinct. A native
+steering dot slides along a horizontal strip above the shaped wheel, as on the
+Pontiac Firebird, showing the steering angle between wheel poses.
+
+Optional `imt1` and `imt3` bitmap headers provide inverse Q14 transforms for
+left and right steering. Their anchor X/Y and position X/Y fields hold the
+matrix coefficients in row order; the `ins2` anchor is the source-local wheel
+pivot. Restunts composes the full display, live speed digits and motor needle
+in its scratch bitmap, then samples that bitmap through the selected transform
+inside the wheel sprite's redraw rectangle. The wheel background is restored
+before gauge updates, clearing the previous tilted digits. Dashboards without
+these descriptors keep the existing instrument path. Original Stunts ignores
+the extra descriptors and keeps the McMurtry display upright.
 
 The upper carbon cowl follows a gentle curve around the wheel, with a shaded
-lip instead of a straight horizontal edge. The native `dast`/`dasm` artwork
-and mask pair draws this shallow crown and the raised front fenders, including
-their painted rims and dark top openings. The road remains live above the
-curved edge. These bitmap fenders use the
-default turquoise finish in every exterior paint scheme, as with fixed-colour
-bodywork in stock Stunts dashboards.
+lip. Native `dast`/`dasm` artwork and masks draw this crown and raised front
+fenders with dark top openings. The road remains live around the silhouettes.
+These bitmap fenders retain their turquoise finish in every exterior paint
+scheme, as with fixed-colour bodywork in stock Stunts dashboards.
 
 The fender crowns use four points across each side to round the shoulders.
 Side arch openings follow a ten-unit circle in 30-degree steps around the
@@ -289,16 +309,16 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
-| Extracted STDA + STDB | 83,999 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 36,832 bytes | 66,176 bytes |
-| Shared instrument/gearbox scratch bitmap | 2,576 bytes | 14,128 bytes |
-| Resident arena total including scratch | **39,408 bytes** | **80,304 bytes** |
+| Extracted STDA + STDB | 85,259 bytes | 148,036 bytes |
+| Prepared STDA + STDB in the arena | 52,384 bytes | 66,176 bytes |
+| Shared instrument/gearbox scratch bitmap | 3,792 bytes | 14,128 bytes |
+| Resident arena total including scratch | **56,176 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses
-88×29 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
-the common preallocated window table. MCMU therefore uses about 43% less
-extracted resource memory and 51% less resident dashboard arena memory.
+99×38 pixels, while DIA3 uses 188×75. Sprite definitions and row tables occupy
+the common preallocated window table. MCMU therefore uses about 42% less
+extracted resource memory and 30% less resident dashboard arena memory.
 The same sizes and strict limits are recorded in `MCMU.json` and `READMCMU.TXT`.
 
 The exterior contact sheet renders the encoded showroom and both racing
