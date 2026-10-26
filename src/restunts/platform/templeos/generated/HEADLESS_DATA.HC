@@ -2,38 +2,38 @@
 
 legacy_s8 RsHeadlessDataLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_8264;
+  legacy_s32 noreg temple_tmp_8268;
   if((value<=127)) {
-    temple_tmp_8264=TempleCastS32(TempleCastS8(value));
+    temple_tmp_8268=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_8264=TempleCastS32(TempleCastS8(
+    temple_tmp_8268=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_8264);
+  return TempleCastS8(temple_tmp_8268);
 }
 
 legacy_s16 RsHeadlessDataLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_8265;
+  legacy_s32 noreg temple_tmp_8269;
   if((value<=32767)) {
-    temple_tmp_8265=TempleCastS32(TempleCastS16(value));
+    temple_tmp_8269=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_8265=TempleCastS32(TempleCastS16(
+    temple_tmp_8269=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_8265);
+  return TempleCastS16(temple_tmp_8269);
 }
 
 legacy_s32 RsHeadlessDataLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_8266;
+  legacy_s32 noreg temple_tmp_8270;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_8266=TempleCastS32(TempleCastS32(value));
+    temple_tmp_8270=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_8266=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_8270=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_8266);
+  return TempleCastS32(temple_tmp_8270);
 }
 
 legacy_s16 RsHeadlessDataCameraAdjustCustomDirection(legacy_u16 direction)

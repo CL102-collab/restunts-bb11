@@ -583,7 +583,7 @@ void file_load_shape2d_expand(legacy_u8 far *memchunk, legacy_s8 far *mempages)
 
 	// Skip size.
 	legacy_u8 far *memchunkptr = memchunk + RESOURCE_FILE_COUNT_OFFSET;
-	legacy_u8 far *mempagesptr = mempages + RESOURCE_FILE_COUNT_OFFSET;
+	legacy_u8 far *mempagesptr = (legacy_u8 far *)mempages + RESOURCE_FILE_COUNT_OFFSET;
 
 	// Copy count and ids.
 	legacy_u16 directory_prefix_size = LEGACY_U16_WRAP_ADD(

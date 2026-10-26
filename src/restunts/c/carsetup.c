@@ -183,8 +183,12 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 		return;
 	}
 	legacy_u32 data_size = size - data_start;
-	legacy_u32 starts[CAR_ADHESION_CHUNK_COUNT] = {data_size, data_size};
-	legacy_u32 ends[CAR_ADHESION_CHUNK_COUNT] = {data_size, data_size};
+	legacy_u32 starts[CAR_ADHESION_CHUNK_COUNT];
+	legacy_u32 ends[CAR_ADHESION_CHUNK_COUNT];
+	for (legacy_u16 slot = 0; slot < CAR_ADHESION_CHUNK_COUNT; slot++) {
+		starts[slot] = data_size;
+		ends[slot] = data_size;
+	}
 	legacy_u16 aliases[CAR_ADHESION_CHUNK_COUNT] = {0};
 	legacy_u16 found = 0;
 	for (legacy_u16 index = 0; index < count; index++) {

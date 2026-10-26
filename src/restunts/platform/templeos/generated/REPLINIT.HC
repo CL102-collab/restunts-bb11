@@ -133,9 +133,9 @@ legacy_void RsInitTrackdata()
   (temple_trkptr_734+=240);
   (replay_header_buffer=temple_trkptr_734);
   (temple_trkptr_734+=26);
-  (track_element_map=temple_trkptr_734);
+  (track_element_map=(temple_trkptr_734)(legacy_u8 *));
   (temple_trkptr_734+=901);
-  (track_terrain_map=temple_trkptr_734);
+  (track_terrain_map=(temple_trkptr_734)(legacy_u8 *));
   (temple_trkptr_734+=901);
   (replay_input_buffer=temple_trkptr_734);
   (temple_trkptr_734+=12000);
@@ -143,7 +143,7 @@ legacy_void RsInitTrackdata()
   (temple_trkptr_734+=901);
   (track_route_traversal_flags=temple_trkptr_734);
   (temple_trkptr_734+=901);
-  (roadside_sign_indices_by_tile=temple_trkptr_734);
+  (roadside_sign_indices_by_tile=(temple_trkptr_734)(legacy_u8 *));
   (temple_trkptr_734+=901);
   (track_and_directory_backup=temple_trkptr_734);
   (temple_trkptr_734+=1964);
@@ -151,7 +151,7 @@ legacy_void RsInitTrackdata()
   (temple_trkptr_734+=901);
   (track_route_rows=temple_trkptr_734);
   (temple_trkptr_734+=901);
-  (roadside_sign_shape_indices=temple_trkptr_734);
+  (roadside_sign_shape_indices=(temple_trkptr_734)(legacy_u8 *));
   (temple_trkptr_734+=48);
 }
 

@@ -61,9 +61,9 @@ void init_trackdata(void)
 	trkptr += TRACKDATA_SPRITE_STATE_STACK_SIZE;
 	replay_header_buffer = trkptr;
 	trkptr += TRACKDATA_REPLAY_HEADER_SIZE;
-	track_element_map = trkptr;
+	track_element_map = (legacy_u8 far *)trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
-	track_terrain_map = trkptr;
+	track_terrain_map = (legacy_u8 far *)trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
 	replay_input_buffer = trkptr;
 	trkptr += TRACKDATA_REPLAY_INPUT_BUFFER_SIZE;
@@ -71,7 +71,7 @@ void init_trackdata(void)
 	trkptr += TRACKDATA_MAP_SIZE;
 	track_route_traversal_flags = trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
-	roadside_sign_indices_by_tile = trkptr;
+	roadside_sign_indices_by_tile = (legacy_u8 far *)trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
 	track_and_directory_backup = trkptr;
 	trkptr += TRACKDATA_TRACK_FILE_APPEND_SIZE;
@@ -79,7 +79,7 @@ void init_trackdata(void)
 	trkptr += TRACKDATA_MAP_SIZE;
 	track_route_rows = trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
-	roadside_sign_shape_indices = trkptr;
+	roadside_sign_shape_indices = (legacy_u8 far *)trkptr;
 	trkptr += TRACKDATA_OBJECT_INDEX_SIZE;
 }
 

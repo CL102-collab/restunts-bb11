@@ -1497,6 +1497,8 @@ whitespace and brace rules.
 Their `.cpp` files are included in the formatting checks below.
 
 C sources use the C99 features supported by Open Watcom (`-zastd=c99`).
+Open Watcom requires constant expressions in array initializer lists; assign
+runtime values explicitly or with a loop.
 Declare local variables close to their first use, combining the declaration
 and first assignment when possible. Keep declarations in the enclosing scope
 when values are shared across branches or loops, and preserve initialization
