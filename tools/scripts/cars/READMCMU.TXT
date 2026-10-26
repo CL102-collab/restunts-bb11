@@ -102,6 +102,8 @@ The cockpit combines the supplied 1000005914/5913/5912.jpg photographs with
 the earlier rectangular LCD wheel reference. A continuous shaped steering
 rim joins textured side grips with contrasting carbon top and bottom bridges.
 Every rim section rotates about the same hub, including the upper bridge.
+A native steering dot slides along a horizontal strip above the shaped wheel,
+as on the Pontiac Firebird, showing the steering angle between wheel poses.
 It has five matching blank fluted knobs, a red instrument needle, turquoise
 vent pods, silver circular vents, stitched carbon trim and release hardware. Native
 dast/dasm masks show the gently bowed carbon cowl, raised turquoise front
@@ -115,9 +117,9 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
-Extracted A+B: 83,907 vs 148,036 bytes.
-Prepared A+B: 36,576 vs 66,176 bytes.
-With scratch: 39,152 vs 80,304 bytes.
+Extracted A+B: 83,999 vs 148,036 bytes.
+Prepared A+B: 36,832 vs 66,176 bytes.
+With scratch: 39,408 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.

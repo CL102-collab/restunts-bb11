@@ -39,9 +39,9 @@ Battery capacity and exact Rocket mass were not confirmed; no old 2017 specs
 are substituted. Range, gas capacity, flight and active aero are not simulated.
 
 DASHBOARD MEMORY
-Raw/extracted: STDA 76,547 + STDB 1,916 = 78,463 bytes.
+Raw/extracted: STDA 76,547 + STDB 2,008 = 78,555 bytes.
 DIA3 reference: 146,014 + 2,022 = 148,036 bytes.
-Game-prepared resources: TERR 23,440 vs DIA3 66,176 bytes.
+Game-prepared resources: TERR 23,648 vs DIA3 66,176 bytes.
 TERR instrument scratch is 116x30; DIA3 is 188x75. Both dashboards share their
 instrument/selector scratch. These are expanded/loaded comparisons, not ZIP
 or compressed PVS sizes. The generator rejects either resource over its cap.
@@ -51,6 +51,8 @@ grips, open spokes, paddles, scroll rollers, switches and a broad dark central
 pad. Every part rotates around a fixed hub using the original left/centre/right
 frames. All three frames restore the same background rectangle. Live speed and
 motor readings sit on the centre screen, clear of the larger wheel.
+A native steering dot slides along a horizontal strip above the shaped wheel,
+as on the Pontiac Firebird, showing the steering angle between wheel poses.
 The suede dashboard has a shaped upper silhouette and recessed steering column,
 with vent slats, seams, red door trim and a carbon-fibre console. The optional
 dast/dasm artwork and mask leave scenery visible above the contoured edge.

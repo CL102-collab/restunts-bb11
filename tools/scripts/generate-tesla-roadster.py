@@ -235,7 +235,7 @@ def generate(repository):
                                "https://evwire.com/p/tesla-roadster-deep-dive-videos-hagerty-top-gear-motortrend"]},
         "showroom": {"scale": SHOWROOM_SCALE, "vertical_offset": SHOWROOM_Y_OFFSET,
                      "reference": "Same calibrated car as racing, at the stock 20x display scale."},
-        "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen.",
+        "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird.",
         "dashboard_reference_images": ["1000005072.jpg", "1000005071.jpg",
                                        "1000005951.jpg", "1000005952.jpg", "1000005953.jpg"],
         "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
@@ -301,6 +301,8 @@ grips, open spokes, paddles, scroll rollers, switches and a broad dark central
 pad. Every part rotates around a fixed hub using the original left/centre/right
 frames. All three frames restore the same background rectangle. Live speed and
 motor readings sit on the centre screen, clear of the larger wheel.
+A native steering dot slides along a horizontal strip above the shaped wheel,
+as on the Pontiac Firebird, showing the steering angle between wheel poses.
 The suede dashboard has a shaped upper silhouette and recessed steering column,
 with vent slats, seams, red door trim and a carbon-fibre console. The optional
 dast/dasm artwork and mask leave scenery visible above the contoured edge.

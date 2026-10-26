@@ -148,6 +148,8 @@ pods, four silver circular vents, stitched padding, carbon trim, seams,
 fasteners and release hardware
 add detail on both sides. Speed and motor instruments update live in all
 three steering positions.
+A native steering dot slides along a horizontal strip above the shaped wheel,
+as on the Pontiac Firebird, showing the steering angle between wheel poses.
 
 The upper carbon cowl follows a gentle curve around the wheel, with a shaded
 lip instead of a straight horizontal edge. The native `dast`/`dasm` artwork
@@ -283,10 +285,10 @@ The classic 320×200 native loader and allocator give these dashboard sizes:
 
 | Stage | MCMU | DIA3 |
 | --- | ---: | ---: |
-| Extracted STDA + STDB | 83,907 bytes | 148,036 bytes |
-| Prepared STDA + STDB in the arena | 36,576 bytes | 66,176 bytes |
+| Extracted STDA + STDB | 83,999 bytes | 148,036 bytes |
+| Prepared STDA + STDB in the arena | 36,832 bytes | 66,176 bytes |
 | Shared instrument/gearbox scratch bitmap | 2,576 bytes | 14,128 bytes |
-| Resident arena total including scratch | **39,152 bytes** | **80,304 bytes** |
+| Resident arena total including scratch | **39,408 bytes** | **80,304 bytes** |
 
 The prepared and scratch sizes include the native 16-byte allocation rounding.
 Both dashboards share their instrument and gearbox scratch bitmap: MCMU uses

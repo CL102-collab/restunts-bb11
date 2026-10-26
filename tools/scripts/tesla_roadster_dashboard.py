@@ -6,7 +6,7 @@ The first two values are complete, uncompressed VSH resource containers. Apply
 each ``{offset: bytes}`` patch relative to the beginning of the CAR file's
 ``simd`` resource, after selecting the physics donor. Physics, gear count, and
 motor ratios remain the caller's responsibility. The returned patches configure
-the digital speed display, motor tachometer, and stationary EV selector.
+the digital speed display, motor tachometer, steering dot, and stationary EV selector.
 
 Artwork is drawn directly in the game's indexed palette using the standard
 library. The centre display and steering yoke occupy separate rectangles, so
@@ -30,6 +30,18 @@ DASH_CONTOUR_TOP = 108
 INSTRUMENT_RECT = (194, 138, 116, 30)
 WHEEL_RECT = (12, 132, 172, 68)
 WHEEL_TURN_DEGREES = 10
+STEERING_INDICATOR_CENTER = (96, 135)
+STEERING_DOTS_OFFSET = 0x0EA
+STEERING_POSITION_COUNT = 31
+STEERING_DOT_WIDTH, STEERING_DOT_HEIGHT = 8, 2
+STEERING_DOT_ANCHOR = (2, 1)
+STEERING_DOT_ALIGNMENT = 8
+STEERING_DOT_BUFFER_WIDTH = STEERING_DOT_WIDTH + STEERING_DOT_ALIGNMENT
+STEERING_DOT_COLOR = 41
+STEERING_DOT_ROWS = ("01110000", "11111000")
+STEERING_TRACK_HALF_WIDTH = STEERING_POSITION_COUNT + 2
+STEERING_TRACK_HALF_HEIGHT = 1
+SHAPE_HEADER_SIZE = struct.calcsize("<HHhhHH4B")
 DIGIT_WIDTH, DIGIT_HEIGHT = 8, 12
 DIGIT_POSITIONS = ((8, 8), (18, 8), (28, 8))
 MOTOR_CENTER = (85, 22)
@@ -117,10 +129,57 @@ class Canvas:
                         for row in range(height))
 
 
-def _shape(width, height, pixels, x=0, y=0):
+def _shape(width, height, pixels, x=0, y=0, *, anchor=(0, 0)):
     if len(pixels) != width * height:
         raise ValueError("Bitmap dimensions and pixel count disagree")
-    return struct.pack("<HHhhHH4B", width, height, 0, 0, x, y, 1, 2, 4, 8) + bytes(pixels)
+    return struct.pack("<HHhhHH4B", width, height, *anchor, x, y, 1, 2, 4, 8) + bytes(pixels)
+
+
+def steering_dot_shapes():
+    """Native masked dot and per-page saves, including DOS alignment padding."""
+    pixels = bytes(STEERING_DOT_COLOR if pixel == "1" else BLACK
+                   for row in STEERING_DOT_ROWS for pixel in row)
+    mask = bytes(0 if pixel else TRANSPARENT for pixel in pixels)
+    saved = _shape(STEERING_DOT_BUFFER_WIDTH, STEERING_DOT_HEIGHT,
+                   bytes(STEERING_DOT_BUFFER_WIDTH * STEERING_DOT_HEIGHT))
+    return {
+        "dot ": _shape(STEERING_DOT_WIDTH, STEERING_DOT_HEIGHT, pixels,
+                       anchor=STEERING_DOT_ANCHOR),
+        "dota": _shape(STEERING_DOT_WIDTH, STEERING_DOT_HEIGHT, mask,
+                       anchor=STEERING_DOT_ANCHOR),
+        "dot1": saved,
+        "dot2": saved,
+    }
+
+
+def steering_dot_positions(center, dashboard_top):
+    """Firebird-style horizontal travel; the game mirrors X for left steering."""
+    x, y = center
+    if y - max(STEERING_DOT_ANCHOR[1], STEERING_TRACK_HALF_HEIGHT) < dashboard_top:
+        raise ValueError("Steering indicator overlaps the windshield redraw area")
+    return bytes(value for step in range(STEERING_POSITION_COUNT)
+                 for value in (x + step, y))
+
+
+def _steering_track(canvas, center):
+    x, y = center
+    canvas.rect(x - STEERING_TRACK_HALF_WIDTH, y - STEERING_TRACK_HALF_HEIGHT,
+                x + STEERING_TRACK_HALF_WIDTH, y + STEERING_TRACK_HALF_HEIGHT - 1, BLACK)
+    travel = STEERING_POSITION_COUNT - 1
+    canvas.line((x - travel, y), (x + travel, y), SHADE)
+    for tick in (x - travel, x, x + travel):
+        canvas.line((tick, y - 1), (tick, y + 1), EDGE)
+
+
+def _preview_steering_dot(canvas, center):
+    x, y = center
+    shape = steering_dot_shapes()["dot "]
+    for row in range(STEERING_DOT_HEIGHT):
+        for column in range(STEERING_DOT_WIDTH):
+            color = shape[SHAPE_HEADER_SIZE + row * STEERING_DOT_WIDTH + column]
+            if color:
+                canvas.point(x + column - STEERING_DOT_ANCHOR[0],
+                             y + row - STEERING_DOT_ANCHOR[1], color)
 
 
 def _container(resources):
@@ -236,6 +295,7 @@ def _panel():
     canvas.rect(234, 188, 269, 199, BLACK)
     canvas.line((236, 189), (267, 189), EDGE)
     canvas.line((236, 190), (236, 199), 25)
+    _steering_track(canvas, STEERING_INDICATOR_CENTER)
     return canvas
 
 
@@ -443,8 +503,8 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     a["gbox"] = _shape(1, 1, bytes([CHARCOAL]), 318, 198)
 
     b = dict(maps)
-    for name, color in (("dot ", 0), ("dota", 255), ("dot1", 0),
-                        ("dot2", 0), ("gnob", 0), ("gnab", 255)):
+    b.update(steering_dot_shapes())
+    for name, color in (("gnob", 0), ("gnab", 255)):
         b[name] = _shape(1, 1, bytes([color]))
     for digit in range(10):
         b[f"dig{digit}"] = _shape(DIGIT_WIDTH, DIGIT_HEIGHT, _digit(digit))
@@ -467,7 +527,7 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
                            round(MOTOR_CENTER[1] - 8 * math.sin(angle))))
     patches = {
         0x01E: bytes(26),  # Selector centre line plus all six fixed knob positions.
-        0x0EA: bytes(62),  # The yoke supplies its own steering indication.
+        STEERING_DOTS_OFFSET: steering_dot_positions(STEERING_INDICATOR_CENTER, DASH_TOP),
         0x128: struct.pack("<hhH", 0, 0, 1),  # Centre Y=0 selects digital speed.
         0x12E: speed_points,
         0x1FE: struct.pack("<hhH", *MOTOR_CENTER, 128),
@@ -495,6 +555,7 @@ def write_preview(repo: Path, path: Path, speed=230):
         if pixel != TRANSPARENT:
             canvas.pixels[offset] = pixel
     _wheel(canvas, 0)
+    _preview_steering_dot(canvas, STEERING_INDICATOR_CENTER)
     for digit, (x, y) in zip(f"{speed:03d}", DIGIT_POSITIONS):
         pixels = _digit(int(digit))
         for row in range(DIGIT_HEIGHT):

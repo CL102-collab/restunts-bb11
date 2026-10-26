@@ -24,7 +24,8 @@ import struct
 
 from tesla_roadster_dashboard import (
     Canvas, _container, _digit, _helpers, _palette, _resource_dict, _shape,
-    prepared_stda_size,
+    _preview_steering_dot, _steering_track, prepared_stda_size,
+    steering_dot_positions, steering_dot_shapes, STEERING_DOTS_OFFSET,
 )
 
 
@@ -35,6 +36,7 @@ TOP_OVERLAY_RECT = (0, 103, WIDTH, DASH_TOP - 103)
 INSTRUMENT_RECT = (116, 142, 88, 29)
 WHEEL_RECT = (70, 125, 180, 75)
 WHEEL_TURN_DEGREES = 10
+STEERING_INDICATOR_CENTER = (160, 126)
 WHEEL_CENTER = (160, 163)
 WHEEL_VERTICAL_SCALE = .72
 # One unchanged local shape for every steering state. The full rim uses the
@@ -233,6 +235,7 @@ def _panel():
     canvas.line((264, 195), (308, 190), EDGE)
     canvas.line((130, 197), (190, 197), BLACK, 3)
     _lcd(canvas)
+    _steering_track(canvas, STEERING_INDICATOR_CENTER)
     return canvas
 
 
@@ -387,8 +390,8 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
         primary[name] = _shape(1, 1, bytes([color]))
     primary["gbox"] = _shape(1, 1, bytes([BLACK]), 318, 198)
     secondary = dict(maps)
-    for name, color in (("dot ", 0), ("dota", 255), ("dot1", 0),
-                        ("dot2", 0), ("gnob", 0), ("gnab", 255)):
+    secondary.update(steering_dot_shapes())
+    for name, color in (("gnob", 0), ("gnab", 255)):
         secondary[name] = _shape(1, 1, bytes([color]))
     for number in range(10):
         secondary[f"dig{number}"] = _shape(DIGIT_WIDTH, DIGIT_HEIGHT, _digit(number))
@@ -404,7 +407,7 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
                            round(MOTOR_CENTER[1] - 7 * math.sin(angle))))
     patches = {
         0x01E: bytes(26),
-        0x0EA: bytes(62),
+        STEERING_DOTS_OFFSET: steering_dot_positions(STEERING_INDICATOR_CENTER, DASH_TOP),
         0x128: struct.pack("<hhH", 0, 0, 1),
         0x12E: bytes(value for pair in DIGIT_POSITIONS for value in pair) + bytes(202),
         0x1FE: struct.pack("<hhH", *MOTOR_CENTER, 128),
@@ -430,6 +433,7 @@ def write_preview(repo: Path, path: Path, speed=150):
     canvas.line((159, 108), (159, 122), WHITE)
     overlay = _panel()
     _wheel(overlay, 0)
+    _preview_steering_dot(overlay, STEERING_INDICATOR_CENTER)
     for offset, color in enumerate(overlay.pixels):
         if color != TRANSPARENT:
             canvas.pixels[offset] = color
