@@ -159,9 +159,9 @@ legacy_u16 rs_ghost_ghost_live_frame_rate=0;
 CGhostRacingLineSegment *rs_ghost_ghost_line_segments=0;
 legacy_u32 rs_ghost_ghost_line_capacity=0;
 legacy_u32 rs_ghost_ghost_line_count=0;
-legacy_u32 rs_ghost_ghost_line_heads[900];
+legacy_u32 rs_ghost_ghost_line_heads[(30*30)];
 MemSet(&rs_ghost_ghost_line_heads,0,sizeof(rs_ghost_ghost_line_heads));
-CRsAnonF66041140cbb rs_ghost_ghost_line_builder;
+CRsAnon674c4e381b60 rs_ghost_ghost_line_builder;
 MemSet(&rs_ghost_ghost_line_builder,0,sizeof(rs_ghost_ghost_line_builder));
 legacy_s8 rs_race_resources_skybox_resource_names[5][9];
 MemSet(

@@ -190,6 +190,9 @@
 #define OPPONENT_CAR_WHEEL_SHAPE 127
 #define PLAYER_CAR_HIGH_SHAPE 128
 #define OPPONENT_CAR_HIGH_SHAPE 129
+#define CAR_ADHESION_CHUNK_FLAG (-1+1)
+#define CAR_ADHESION_CHUNK_SETTINGS ((-1+1)+1)
+#define CAR_ADHESION_CHUNK_COUNT (((-1+1)+1)+1)
 #define AUDIO_STATE_DISABLED 0
 #define AUDIO_STATE_ENABLED 1
 #define AUDIO_UPDATE_UNLOCKED 0
@@ -1202,7 +1205,7 @@ class CGhostLinePose
   legacy_u8 has_orientation;
 };
 
-class CRsAnonF66041140cbb
+class CRsAnon674c4e381b60
 {
   CGhostLinePose previous;
   CGhostLinePose sample;
