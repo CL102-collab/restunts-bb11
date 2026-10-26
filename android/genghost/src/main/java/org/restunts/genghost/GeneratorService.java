@@ -1,5 +1,17 @@
 package org.restunts.genghost;
 
+import static org.restunts.genghost.GenerationRequest.BYTE_BITS;
+import static org.restunts.genghost.GenerationRequest.BYTE_MASK;
+import static org.restunts.genghost.GenerationRequest.REPLAY_CAR_BYTES;
+import static org.restunts.genghost.GenerationRequest.REPLAY_CAR_OFFSET;
+import static org.restunts.genghost.GenerationRequest.REPLAY_FRAME_COUNT_OFFSET;
+import static org.restunts.genghost.GenerationRequest.REPLAY_FRAME_MASK;
+import static org.restunts.genghost.GenerationRequest.REPLAY_FRAMES_PER_SECOND;
+import static org.restunts.genghost.GenerationRequest.REPLAY_HEADER_BYTES;
+import static org.restunts.genghost.GenerationRequest.REPLAY_INPUT_OFFSET;
+import static org.restunts.genghost.GenerationRequest.REPLAY_OPPONENT_OFFSET;
+import static org.restunts.genghost.GenerationRequest.REPLAY_RATE_OFFSET;
+
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -43,6 +55,21 @@ public final class GeneratorService extends Service {
     private static final int NOTIFICATION_ID = 1;
     private static final int MAX_LOG = 24000;
     private static final long STOP_GRACE_MS = 15000;
+    private static final int MAX_OUTPUT_BYTES = 65536;
+    private static final int COPY_BUFFER_BYTES = 8192;
+    private static final int REPORT_BUFFER_BYTES = 1024;
+    private static final int PROCESS_COMMAND_BUFFER_BYTES = 4096;
+    private static final int PROCESS_LOG_BUFFER_CHARS = 1024;
+    private static final int MAX_LOG_LINE_CHARS = 4096;
+    private static final int OUTPUT_NAME_ATTEMPTS = 128;
+    private static final int OUTPUT_NAME_RANDOM_CHARS = 7;
+    private static final long VERIFY_TIMEOUT_MS = 30000;
+    private static final long VERIFY_POLL_MS = 50;
+    private static final long READER_JOIN_TIMEOUT_MS = 1000;
+    private static final long HEARTBEAT_INTERVAL_MS = 1000;
+    private static final long REFRESH_POLL_MS = 250;
+    private static final long BACKGROUND_STOP_GRACE_MS = 3000;
+    private static final double REPORT_SECONDS_TOLERANCE = 0.001;
     private static final Object RECOVERY_LOCK = new Object();
     private static volatile GeneratorService active;
     private static volatile State pendingStart;
@@ -245,7 +272,7 @@ public final class GeneratorService extends Service {
     }
 
     private static void retain(Context context, File source, String directory) throws IOException {
-        if (source.length() > 65536) {
+        if (source.length() > MAX_OUTPUT_BYTES) {
             throw new IOException("The generated output is too large.");
         }
         File root = new File(context.getFilesDir(), directory);
@@ -257,12 +284,12 @@ public final class GeneratorService extends Service {
         try {
             try (FileInputStream input = new FileInputStream(source);
                     FileOutputStream output = new FileOutputStream(temporary)) {
-                byte[] buffer = new byte[8192];
+                byte[] buffer = new byte[COPY_BUFFER_BYTES];
                 int count;
                 int total = 0;
                 while ((count = input.read(buffer)) != -1) {
                     total += count;
-                    if (total > 65536) {
+                    if (total > MAX_OUTPUT_BYTES) {
                         throw new IOException("The generated output is too large.");
                     }
                     output.write(buffer, 0, count);
@@ -279,9 +306,10 @@ public final class GeneratorService extends Service {
 
     private String uniqueOutputName(File game) throws IOException {
         File retained = new File(getFilesDir(), "ghost-results");
-        for (int attempt = 0; attempt < 128; attempt++) {
+        for (int attempt = 0; attempt < OUTPUT_NAME_ATTEMPTS; attempt++) {
             // The game's replay chooser accepts DOS 8.3 names only.
-            String name = "g" + UUID.randomUUID().toString().substring(0, 7) + ".rpl";
+            String name = "g" + UUID.randomUUID().toString().substring(0, OUTPUT_NAME_RANDOM_CHARS)
+                + ".rpl";
             if (!outputExists(game, name) && !outputExists(retained, name)) {
                 return name;
             }
@@ -425,7 +453,7 @@ public final class GeneratorService extends Service {
             return "";
         }
         try (FileInputStream input = new FileInputStream("/proc/" + pid + "/stat")) {
-            byte[] bytes = new byte[4096];
+            byte[] bytes = new byte[PROCESS_COMMAND_BUFFER_BYTES];
             int count = input.read(bytes);
             if (count <= 0) {
                 return "";
@@ -495,7 +523,7 @@ public final class GeneratorService extends Service {
         Thread reader = new Thread(() -> {
             try (InputStreamReader input = new InputStreamReader(process.getInputStream(),
                     StandardCharsets.UTF_8)) {
-                char[] buffer = new char[1024];
+                char[] buffer = new char[PROCESS_LOG_BUFFER_CHARS];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     synchronized (output) {
@@ -512,14 +540,14 @@ public final class GeneratorService extends Service {
         reader.setDaemon(true);
         reader.start();
         try {
-            long deadline = SystemClock.elapsedRealtime() + 30000;
+            long deadline = SystemClock.elapsedRealtime() + VERIFY_TIMEOUT_MS;
             while (isAlive(process)) {
                 if (SystemClock.elapsedRealtime() >= deadline) {
                     throw new IOException("Interrupted replay verification exceeded 30 seconds.");
                 }
-                Thread.sleep(50);
+                Thread.sleep(VERIFY_POLL_MS);
             }
-            reader.join(1000);
+            reader.join(READER_JOIN_TIMEOUT_MS);
             if (reader.isAlive() || readFailure.get() != null || process.exitValue() != 0) {
                 throw new IOException("The interrupted replay did not finish during verification.");
             }
@@ -631,7 +659,7 @@ public final class GeneratorService extends Service {
             requestStop("Cancelling generation…");
         }
         publishState(false);
-        main.postDelayed(heartbeat, 1000);
+        main.postDelayed(heartbeat, HEARTBEAT_INTERVAL_MS);
         Thread worker = new Thread(() -> generate(request, serial), "genghost-search");
         worker.start();
         return START_NOT_STICKY;
@@ -727,7 +755,8 @@ public final class GeneratorService extends Service {
             }
             synchronized (stateLock) {
                 state.running = false;
-                state.elapsedSeconds = (SystemClock.elapsedRealtime() - startedElapsed) / 1000;
+                state.elapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(
+                    SystemClock.elapsedRealtime() - startedElapsed);
             }
             workerRunning = false;
             publishState(false);
@@ -758,7 +787,7 @@ public final class GeneratorService extends Service {
         }, "genghost-game-refresh");
         refresh.setDaemon(true);
         refresh.start();
-        while (!done.await(250, TimeUnit.MILLISECONDS)) {
+        while (!done.await(REFRESH_POLL_MS, TimeUnit.MILLISECONDS)) {
             if (cancelled) {
                 refresh.interrupt();
                 checkCancelled();
@@ -787,13 +816,13 @@ public final class GeneratorService extends Service {
         }
         try (InputStreamReader reader = new InputStreamReader(process.getInputStream(),
                 StandardCharsets.UTF_8)) {
-            char[] buffer = new char[1024];
+            char[] buffer = new char[PROCESS_LOG_BUFFER_CHARS];
             StringBuilder pending = new StringBuilder();
             boolean firstLine = true;
             int count;
             while ((count = reader.read(buffer)) != -1) {
                 for (int i = 0; i < count; i++) {
-                    if (buffer[i] == '\n' || pending.length() >= 4096) {
+                    if (buffer[i] == '\n' || pending.length() >= MAX_LOG_LINE_CHARS) {
                         String line = pending.toString();
                         pending.setLength(0);
                         if (firstLine && line.startsWith(PID_PREFIX)) {
@@ -885,10 +914,11 @@ public final class GeneratorService extends Service {
             if (workerRunning) {
                 signalCancellation();
                 synchronized (stateLock) {
-                    state.elapsedSeconds = (SystemClock.elapsedRealtime() - startedElapsed) / 1000;
+                    state.elapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(
+                        SystemClock.elapsedRealtime() - startedElapsed);
                 }
                 publishState(!destroyed);
-                main.postDelayed(this, 1000);
+                main.postDelayed(this, HEARTBEAT_INTERVAL_MS);
             }
         }
     };
@@ -956,7 +986,7 @@ public final class GeneratorService extends Service {
             throw new IOException("The generator did not save a complete replay and report.");
         }
         JSONObject result = readReport(report);
-        byte[] header = new byte[26];
+        byte[] header = new byte[REPLAY_HEADER_BYTES];
         try (FileInputStream input = new FileInputStream(replay)) {
             int total = 0;
             while (total < header.length) {
@@ -967,33 +997,38 @@ public final class GeneratorService extends Service {
                 total += count;
             }
         }
-        int frames = (header[24] & 255) | ((header[25] & 255) << 8);
-        String replayCar = new String(header, 0, 4, StandardCharsets.US_ASCII);
+        int frames = (header[REPLAY_FRAME_COUNT_OFFSET] & BYTE_MASK)
+            | ((header[REPLAY_FRAME_COUNT_OFFSET + 1] & BYTE_MASK) << BYTE_BITS);
+        String replayCar = new String(header, REPLAY_CAR_OFFSET, REPLAY_CAR_BYTES,
+            StandardCharsets.US_ASCII);
         if (!result.getBoolean("finished") || !result.getString("tool").equals("genghost")
                 || !result.getString("car").equalsIgnoreCase(car)
-                || !replayCar.equalsIgnoreCase(car) || (header[22] & 255) != 20
-                || header[23] != 0 || header[6] != 0 || frames == 0
-                || frames != result.getInt("replay_frames") || replay.length() != 1828L + frames
+                || !replayCar.equalsIgnoreCase(car)
+                || (header[REPLAY_RATE_OFFSET] & BYTE_MASK) != REPLAY_FRAMES_PER_SECOND
+                || header[REPLAY_RATE_OFFSET + 1] != 0 || header[REPLAY_OPPONENT_OFFSET] != 0
+                || frames == 0 || frames != result.getInt("replay_frames")
+                || replay.length() != REPLAY_INPUT_OFFSET + frames
                 || result.getInt("finish_frame") <= 0 || result.getInt("finish_frame") > frames
                 || result.getInt("total_frames") != ((result.getInt("finish_frame")
-                    + result.getInt("penalty_frames")) & 65535)
+                    + result.getInt("penalty_frames")) & REPLAY_FRAME_MASK)
                 || Math.abs(result.getDouble("total_seconds")
-                    - result.getInt("total_frames") / 20.0) > 0.001) {
+                    - (double)result.getInt("total_frames") / REPLAY_FRAMES_PER_SECOND)
+                    > REPORT_SECONDS_TOLERANCE) {
             throw new IOException("The replay and its completion report do not match.");
         }
         return result;
     }
 
     private static JSONObject readReport(File report) throws IOException, JSONException {
-        if (!report.isFile() || report.length() > 65536) {
+        if (!report.isFile() || report.length() > MAX_OUTPUT_BYTES) {
             throw new IOException("The generator did not save a complete report.");
         }
         ByteArrayOutputStream text = new ByteArrayOutputStream();
         try (FileInputStream input = new FileInputStream(report)) {
-            byte[] chunk = new byte[1024];
+            byte[] chunk = new byte[REPORT_BUFFER_BYTES];
             int count;
             while ((count = input.read(chunk)) != -1) {
-                if (text.size() + count > 65536) {
+                if (text.size() + count > MAX_OUTPUT_BYTES) {
                     throw new IOException("The generator report is too large.");
                 }
                 text.write(chunk, 0, count);
@@ -1018,7 +1053,7 @@ public final class GeneratorService extends Service {
             }
             stopForeground(true);
             stopSelf();
-        }, 3000);
+        }, BACKGROUND_STOP_GRACE_MS);
     }
 
     @Override

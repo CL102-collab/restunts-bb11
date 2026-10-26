@@ -16,10 +16,27 @@ public final class GenerationRequest {
     public static final int DEFAULT_SECONDS = 1800;
     public static final int DEFAULT_CORES = 1;
     public static final int MAX_CORES = 256;
+    public static final int SECONDS_PER_MINUTE = 60;
+    public static final int MAX_SECONDS = 86400;
+    public static final int MAX_MINUTES = MAX_SECONDS / SECONDS_PER_MINUTE;
     public static final String DEFAULT_STRATEGY = "legacy";
     public static final String MODE_GENERATE = "generate";
     public static final String MODE_FINE_TUNE = "fine-tune";
     public static final String MODE_GEARS_ONLY = "gears-only";
+    static final int REPLAY_HEADER_BYTES = 26;
+    static final int REPLAY_CAR_OFFSET = 0;
+    static final int REPLAY_CAR_BYTES = 4;
+    static final int REPLAY_TRANSMISSION_OFFSET = 5;
+    static final int REPLAY_AUTOMATIC_TRANSMISSION = 1;
+    static final int REPLAY_OPPONENT_OFFSET = 6;
+    static final int REPLAY_RATE_OFFSET = 22;
+    static final int REPLAY_FRAME_COUNT_OFFSET = 24;
+    static final int REPLAY_FRAMES_PER_SECOND = 20;
+    static final int REPLAY_MAX_FRAMES = 12000;
+    static final long REPLAY_INPUT_OFFSET = 1828L;
+    static final int REPLAY_FRAME_MASK = 0xffff;
+    static final int BYTE_MASK = 0xff;
+    static final int BYTE_BITS = 8;
     public final String trackPath;
     public final String car;
     public final int seconds;
@@ -69,7 +86,7 @@ public final class GenerationRequest {
         if (!fineTune && !CarResources.validCode(car)) {
             throw new IOException("Use a four-character car code, such as COUN or DIA3.");
         }
-        if (seconds < 1 || seconds > 86400) {
+        if (seconds < 1 || seconds > MAX_SECONDS) {
             throw new IOException("Choose a search budget between 1 second and 24 hours.");
         }
         if (cores < 0 || cores > MAX_CORES) {
@@ -120,7 +137,7 @@ public final class GenerationRequest {
         if (!fineTune) {
             return car;
         }
-        byte[] header = new byte[26];
+        byte[] header = new byte[REPLAY_HEADER_BYTES];
         try (FileInputStream input = new FileInputStream(track)) {
             int total = 0;
             while (total < header.length) {
@@ -131,12 +148,17 @@ public final class GenerationRequest {
                 total += count;
             }
         }
-        String replayCar = new String(header, 0, 4, StandardCharsets.US_ASCII)
+        String replayCar = new String(header, REPLAY_CAR_OFFSET, REPLAY_CAR_BYTES,
+            StandardCharsets.US_ASCII)
             .toUpperCase(Locale.ROOT);
-        int frames = (header[24] & 255) | ((header[25] & 255) << 8);
-        if (!CarResources.validCode(replayCar) || header[5] < 0 || header[5] > 1
-                || header[6] != 0 || (header[22] & 255) != 20 || header[23] != 0
-                || frames == 0 || frames > 12000 || track.length() != 1828L + frames) {
+        int frames = (header[REPLAY_FRAME_COUNT_OFFSET] & BYTE_MASK)
+            | ((header[REPLAY_FRAME_COUNT_OFFSET + 1] & BYTE_MASK) << BYTE_BITS);
+        if (!CarResources.validCode(replayCar) || header[REPLAY_TRANSMISSION_OFFSET] < 0
+                || header[REPLAY_TRANSMISSION_OFFSET] > REPLAY_AUTOMATIC_TRANSMISSION
+                || header[REPLAY_OPPONENT_OFFSET] != 0
+                || (header[REPLAY_RATE_OFFSET] & BYTE_MASK) != REPLAY_FRAMES_PER_SECOND
+                || header[REPLAY_RATE_OFFSET + 1] != 0 || frames == 0
+                || frames > REPLAY_MAX_FRAMES || track.length() != REPLAY_INPUT_OFFSET + frames) {
             throw new IOException("Fine-tuning requires a complete solo 20 Hz .RPL replay "
                 + "with a valid car code.");
         }

@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.restunts.android.GameDataStorage;
 
 /** A document-folder launcher for the background, headless ghost generator. */
@@ -49,6 +50,21 @@ public final class GenghostActivity extends Activity {
     private static final int REQUEST_FOLDER = 1;
     private static final int REQUEST_EXPORT = 2;
     private static final int REQUEST_NOTIFICATIONS = 3;
+    private static final int PAGE_HORIZONTAL_PADDING_DP = 24;
+    private static final int PAGE_VERTICAL_PADDING_DP = 28;
+    private static final int TEXT_VERTICAL_PADDING_DP = 5;
+    private static final int LABEL_TOP_PADDING_DP = 21;
+    private static final int LABEL_BOTTOM_PADDING_DP = 3;
+    private static final int SPINNER_MINIMUM_HEIGHT_DP = 48;
+    private static final int TITLE_TEXT_SP = 32;
+    private static final int SUBTITLE_TEXT_SP = 19;
+    private static final int BODY_TEXT_SP = 15;
+    private static final int HINT_TEXT_SP = 14;
+    private static final int LABEL_TEXT_SP = 16;
+    private static final int LOG_TEXT_SP = 12;
+    private static final int TITLE_COLOR = Color.rgb(115, 226, 209);
+    private static final int TEXT_COLOR = Color.rgb(219, 228, 235);
+    private static final int COPY_BUFFER_BYTES = 8192;
     private static final String OPTIONS = "genghost_options";
     private static final String[] MODES = {GenerationRequest.MODE_GENERATE,
         GenerationRequest.MODE_FINE_TUNE, GenerationRequest.MODE_GEARS_ONLY};
@@ -117,17 +133,18 @@ public final class GenghostActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundResource(R.color.genghost_background);
-        page.setPadding(dp(24), dp(28), dp(24), dp(28));
+        page.setPadding(dp(PAGE_HORIZONTAL_PADDING_DP), dp(PAGE_VERTICAL_PADDING_DP),
+            dp(PAGE_HORIZONTAL_PADDING_DP), dp(PAGE_VERTICAL_PADDING_DP));
         page.setFitsSystemWindows(true);
-        TextView title = text(page, "Genghost", 32);
+        TextView title = text(page, "Genghost", TITLE_TEXT_SP);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        title.setTextColor(Color.rgb(115, 226, 209));
-        text(page, "Build a faster ghost", 19);
+        title.setTextColor(TITLE_COLOR);
+        text(page, "Build a faster ghost", SUBTITLE_TEXT_SP);
         text(page, "Generate a ghost from a track and car, or fine-tune a completed replay "
-            + "using its recorded car. The search runs in the background.", 15);
+            + "using its recorded car. The search runs in the background.", BODY_TEXT_SP);
 
         label(page, "Game folder");
-        folderStatus = text(page, folderMessage, 15);
+        folderStatus = text(page, folderMessage, BODY_TEXT_SP);
         LinearLayout folderButtons = row(page);
         chooseFolder = button(folderButtons, "Choose folder", view -> chooseGameFolder(), true);
         refreshFolder = button(folderButtons, "Refresh", view -> updateFolder(null), true);
@@ -141,17 +158,19 @@ public final class GenghostActivity extends Activity {
                 ? GenerationRequest.MODE_FINE_TUNE : GenerationRequest.MODE_GENERATE);
         mode.setSelection(Math.max(0, Arrays.asList(MODES).indexOf(rememberedMode)));
         text(page, "Fine-tuning requires a completed .RPL and uses its recorded car. "
-            + "Gears only changes shift timing. All generated replays use manual transmission.", 14);
+            + "Gears only changes shift timing. All generated replays use manual transmission.",
+            HINT_TEXT_SP);
         carLabel = label(page, "Car");
         car = spinner(page, Collections.emptyList());
         label(page, "Search time (minutes)");
         minutes = new EditText(this);
         minutes.setSingleLine(true);
         minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
-        minutes.setText(preferences.getString("minutes", "30"));
+        minutes.setText(preferences.getString("minutes", Integer.toString(
+            GenerationRequest.DEFAULT_SECONDS / GenerationRequest.SECONDS_PER_MINUTE)));
         minutes.setSelectAllOnFocus(true);
         page.addView(minutes, fullWidth());
-        text(page, "The best completed replay is kept as the search improves it.", 14);
+        text(page, "The best completed replay is kept as the search improves it.", HINT_TEXT_SP);
         label(page, "CPU cores");
         cores = new EditText(this);
         cores.setSingleLine(true);
@@ -161,7 +180,7 @@ public final class GenghostActivity extends Activity {
         cores.setSelectAllOnFocus(true);
         page.addView(cores, fullWidth());
         text(page, "1 uses one core; 0 uses all available cores. More cores use more memory "
-            + "and battery.", 14);
+            + "and battery.", HINT_TEXT_SP);
         label(page, "Search method");
         strategy = spinner(page, Arrays.asList(STRATEGY_LABELS));
         strategy.setSelection(Math.max(0, Arrays.asList(STRATEGIES).indexOf(
@@ -179,10 +198,10 @@ public final class GenghostActivity extends Activity {
         owoot = checkbox(drivingRules, "OWOOT", "owoot", false);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         page.addView(drivingRules, fullWidth());
-        text(page, "Use the same driving rules when playing the saved replay.", 14);
+        text(page, "Use the same driving rules when playing the saved replay.", HINT_TEXT_SP);
 
         generate = button(page, "Generate ghost", view -> startGeneration(), false);
-        runStatus = text(page, "Ready to generate a replay.", 16);
+        runStatus = text(page, "Ready to generate a replay.", LABEL_TEXT_SP);
         cancel = button(page, "Stop and keep best replay", view -> {
             GeneratorService.cancel(this);
             refreshState();
@@ -191,9 +210,9 @@ public final class GenghostActivity extends Activity {
         export = button(outputButtons, "Export replay", view -> chooseExport(false), true);
         exportReport = button(outputButtons, "Export report", view -> chooseExport(true), true);
         text(page, "Finished replays and their driving-rule reports are also copied to your "
-            + "game folder.", 14);
+            + "game folder.", HINT_TEXT_SP);
         label(page, "Search log");
-        log = text(page, "", 12);
+        log = text(page, "", LOG_TEXT_SP);
         log.setTypeface(Typeface.MONOSPACE);
         log.setTextIsSelectable(true);
         ScrollView scroll = new ScrollView(this);
@@ -293,16 +312,16 @@ public final class GenghostActivity extends Activity {
         TextView result = new TextView(this);
         result.setText(value);
         result.setTextSize(size);
-        result.setTextColor(Color.rgb(219, 228, 235));
-        result.setPadding(0, dp(5), 0, dp(5));
+        result.setTextColor(TEXT_COLOR);
+        result.setPadding(0, dp(TEXT_VERTICAL_PADDING_DP), 0, dp(TEXT_VERTICAL_PADDING_DP));
         parent.addView(result, fullWidth());
         return result;
     }
 
     private TextView label(LinearLayout parent, String value) {
-        TextView result = text(parent, value, 16);
+        TextView result = text(parent, value, LABEL_TEXT_SP);
         result.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        result.setPadding(0, dp(21), 0, dp(3));
+        result.setPadding(0, dp(LABEL_TOP_PADDING_DP), 0, dp(LABEL_BOTTOM_PADDING_DP));
         return result;
     }
 
@@ -327,7 +346,7 @@ public final class GenghostActivity extends Activity {
 
     private Spinner spinner(LinearLayout parent, List<String> values) {
         Spinner result = new Spinner(this);
-        result.setMinimumHeight(dp(48));
+        result.setMinimumHeight(dp(SPINNER_MINIMUM_HEIGHT_DP));
         setItems(result, values);
         parent.addView(result, fullWidth());
         return result;
@@ -343,7 +362,7 @@ public final class GenghostActivity extends Activity {
     private CheckBox checkbox(LinearLayout parent, String value, String key, boolean fallback) {
         CheckBox result = new CheckBox(this);
         result.setText(value);
-        result.setTextSize(15);
+        result.setTextSize(BODY_TEXT_SP);
         result.setChecked(preferences.getBoolean(key, fallback));
         parent.addView(result, fullWidth());
         return result;
@@ -423,8 +442,11 @@ public final class GenghostActivity extends Activity {
             message = "Ready to generate a replay.";
         }
         if (generation.running) {
-            long elapsed = Math.max(0, (System.currentTimeMillis() - generation.startTimeMillis) / 1000);
-            message += String.format(Locale.ROOT, "\nElapsed %d:%02d", elapsed / 60, elapsed % 60);
+            long elapsed = Math.max(0, TimeUnit.MILLISECONDS.toSeconds(
+                System.currentTimeMillis() - generation.startTimeMillis));
+            message += String.format(Locale.ROOT, "\nElapsed %d:%02d",
+                elapsed / GenerationRequest.SECONDS_PER_MINUTE,
+                elapsed % GenerationRequest.SECONDS_PER_MINUTE);
             message += "\nCPU cores: " + (generation.cores == 0
                 ? "all available" : Integer.toString(generation.cores));
             message += "\n" + STRATEGY_LABELS["state".equals(generation.strategy) ? 1 : 0];
@@ -550,11 +572,11 @@ public final class GenghostActivity extends Activity {
         int searchCores;
         try {
             budget = Integer.parseInt(minutes.getText().toString().trim());
-            if (budget < 1 || budget > 1440) {
+            if (budget < 1 || budget > GenerationRequest.MAX_MINUTES) {
                 throw new NumberFormatException();
             }
         } catch (NumberFormatException error) {
-            minutes.setError("Enter between 1 and 1440 minutes.");
+            minutes.setError("Enter between 1 and " + GenerationRequest.MAX_MINUTES + " minutes.");
             minutes.requestFocus();
             return;
         }
@@ -592,7 +614,8 @@ public final class GenghostActivity extends Activity {
         }
         try {
             GeneratorService.start(this, new GenerationRequest(selected(track),
-                fineTuningSelected() ? "" : selected(car), budget * 60, searchCores,
+                fineTuningSelected() ? "" : selected(car),
+                budget * GenerationRequest.SECONDS_PER_MINUTE, searchCores,
                 STRATEGIES[strategy.getSelectedItemPosition()],
                 MODES[mode.getSelectedItemPosition()], flags.toArray(new String[0])));
             refreshState();
@@ -657,7 +680,7 @@ public final class GenghostActivity extends Activity {
                     if (output == null) {
                         throw new IOException("Cannot write the selected document.");
                     }
-                    byte[] buffer = new byte[8192];
+                    byte[] buffer = new byte[COPY_BUFFER_BYTES];
                     int count;
                     while ((count = input.read(buffer)) != -1) {
                         output.write(buffer, 0, count);
