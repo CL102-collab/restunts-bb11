@@ -278,7 +278,7 @@
     ],
     "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."
   },
-  "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. Masked upper artwork shows the curved cowl and turquoise exterior fender crowns while preserving the live road around them. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
+  "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. A broad bowed dark-carbon roof header and rounded windscreen corners follow the supplied canopy photographs. One pair of pillars sits at the far screen edges around a wide forward windscreen; the high-FOV reference's side windows are omitted as requested. A native opaque roof strip and expanded dast/dasm masks preserve live scenery through the windscreen above the curved cowl and turquoise exterior fender crowns. Grouped horizontal carbon samples keep the native prepared dashboard within the existing DIA3 memory budget. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
   "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
   "dashboard_reference_images": [
     {
@@ -308,11 +308,23 @@
     {
       "file": "6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg",
       "view": "Dashboard layout reference: slim fascia, dark carbon cockpit, empty upright display mount and two dark passenger-side ducts. The user replaces the photo's tan suede with light-grey carbon whose weave runs opposite the rest of the dashboard; exterior fenders retain the requested turquoise finish and the central clock is omitted."
+    },
+    {
+      "file": "5-Speirling-Interior-3083165339.webp",
+      "view": "Canopy shape reference: broad bowed roof header and rounded windscreen corners. The high-FOV photograph's side windows are omitted as requested; one pair of pillars stays at the far screen edges around a wide forward windscreen. The surround uses the requested dark carbon, matching the dashboard; photograph pixels are not redistributed."
+    },
+    {
+      "file": "mcmurtry-speirling.7-614860014.jpg",
+      "view": "Open-canopy reference for the curved carbon roof ring, windscreen pillars and side-window surrounds."
+    },
+    {
+      "file": "OIP-943499069.jpg",
+      "view": "Open-canopy reference for the roof ring, dark side structure and glazing seals."
     }
   ],
   "dashboard_decompressed_bytes": {
     "A": {
-      "MCMU": 83251,
+      "MCMU": 141515,
       "DIA3": 146014
     },
     "B": {
@@ -321,13 +333,13 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "MCMU": 52384,
+    "MCMU": 59472,
     "DIA3": 66176
   },
   "dashboard_ram_bytes": {
     "MCMU": {
-      "extracted_resources_bytes": 85259,
-      "prepared_resources_bytes": 52384,
+      "extracted_resources_bytes": 143523,
+      "prepared_resources_bytes": 59472,
       "scratch_bitmap_bytes": 3792,
       "scratch_dimensions": [
         [
@@ -335,7 +347,7 @@
           38
         ]
       ],
-      "resident_arena_bytes": 56176
+      "resident_arena_bytes": 63264
     },
     "DIA3": {
       "extracted_resources_bytes": 148036,
@@ -465,8 +477,8 @@
       "sha256": "37847328bd397e65a1710facd4f00f1be515e734f5b44e57cb93aee821fbd94f"
     },
     "STDAMCMU.VSH": {
-      "bytes": 83251,
-      "sha256": "f05ee9f972a8962980c477812bfcb54f45fd33992ffbc457b6f2ff27dad8c3a2"
+      "bytes": 141515,
+      "sha256": "738a63854db3b4f2932b3451af0630834df590aa735b5e4c64348d46b973a501"
     },
     "STDBMCMU.VSH": {
       "bytes": 2008,

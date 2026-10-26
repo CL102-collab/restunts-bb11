@@ -9,8 +9,9 @@ Material grain and directional shading give the original pixel artwork a
 palette-reduced photographic finish.
 The live LCD turns with the wheel, including its speed digits and motor needle.
 The five identical, unlabelled fluted controls and
-unlit shift-lamp lenses are artwork, not live telemetry. Optional ``dast`` and
-``dasm`` sprites mask the fender silhouettes onto the road above the dashboard.
+unlit shift-lamp lenses are artwork, not live telemetry. A native ``roof`` strip
+and ``dast``/``dasm`` masks frame the wide forward windscreen with
+the reference cockpit's curved dark-carbon canopy and peripheral pillars.
 
 ``build_dashboards(repo)`` returns two raw VSH containers and SIMD byte patches.
 The patches configure instruments only; the caller supplies vehicle physics.
@@ -26,14 +27,30 @@ import struct
 from tesla_roadster_dashboard import (
     Canvas, _container, _digit, _helpers, _palette, _resource_dict, _shape,
     _preview_steering_dot, _steering_track, prepared_stda_size,
-    steering_dot_positions, steering_dot_shapes, STEERING_DOTS_OFFSET,
+    steering_dot_positions, steering_dot_shapes, SHAPE_HEADER_SIZE, STEERING_DOTS_OFFSET,
 )
 
 
 WIDTH, HEIGHT = 320, 200
 DASH_TOP = 125
 DASH_OPAQUE_TOP = DASH_TOP
-TOP_OVERLAY_RECT = (0, 103, WIDTH, DASH_TOP - 103)
+ROOF_HEIGHT = 24
+ROOF_RECT = (0, 0, WIDTH, ROOF_HEIGHT)
+TOP_OVERLAY_RECT = (0, ROOF_HEIGHT, WIDTH, DASH_TOP - ROOF_HEIGHT)
+CANOPY_ROOF_OUTLINE = (
+    (0, 0), (319, 0), (319, 48), (309, 46), (303, 36), (296, 30),
+    (289, 26), (274, 24), (239, 24), (199, 26), (160, 28),
+    (120, 26), (80, 24), (45, 24), (30, 26), (23, 30),
+    (16, 36), (10, 46), (0, 48),
+)
+# Left-side geometry is reflected about the centre of the indexed image.
+CANOPY_PILLAR = ((0, 24), (23, 30), (18, 43), (15, 61), (13, 87),
+                 (13, 107), (20, 125), (0, 125))
+CANOPY_PILLAR_FOOT = ((0, 115), (15, 113), (24, 125), (0, 125))
+CANOPY_WINDSCREEN_EDGE = ((160, 28), (120, 26), (80, 24), (45, 24),
+                          (30, 26), (23, 30), (18, 43), (15, 61),
+                          (13, 87), (13, 107), (20, 125))
+CANOPY_TEXTURE_SCALE = 3
 INSTRUMENT_RECT = (111, 135, 99, 38)
 WHEEL_RECT = (70, 125, 180, 75)
 WHEEL_TURN_DEGREES = 10
@@ -50,6 +67,7 @@ CONTROL_CENTERS = ((-36, 28), (-19, 35), (0, 31), (23, 32), (37, 28))
 DIGIT_WIDTH, DIGIT_HEIGHT = 8, 12
 DIGIT_POSITIONS = ((11, 18), (21, 18), (31, 18))
 BLACK, CHARCOAL, CARBON, EDGE = 0, 31, 29, 27
+CANOPY_EDGE_SHADOW = CHARCOAL
 WHITE, SILVER, RED = 19, 22, 39
 TRANSPARENT = 255
 FENDER_HIGHLIGHT, FENDER_SIDE = 121, 125
@@ -125,6 +143,9 @@ DASHBOARD_REFERENCES = [
     {"file": "2-1000005913.jpg", "view": "User photograph: prototype LCD and five fluted rotary knobs; user requests all five match the unlabelled second knob."},
     {"file": "3-1000005912.jpg", "view": "Earlier user photograph: continuous shaped steering-wheel rim, padded carbon sills and front-fender crowns with upper openings."},
     {"file": "6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg", "view": "Dashboard layout reference: slim fascia, dark carbon cockpit, empty upright display mount and two dark passenger-side ducts. The user replaces the photo's tan suede with light-grey carbon whose weave runs opposite the rest of the dashboard; exterior fenders retain the requested turquoise finish and the central clock is omitted."},
+    {"file": "5-Speirling-Interior-3083165339.webp", "view": "Canopy shape reference: broad bowed roof header and rounded windscreen corners. The high-FOV photograph's side windows are omitted as requested; one pair of pillars stays at the far screen edges around a wide forward windscreen. The surround uses the requested dark carbon, matching the dashboard; photograph pixels are not redistributed."},
+    {"file": "mcmurtry-speirling.7-614860014.jpg", "view": "Open-canopy reference for the curved carbon roof ring, windscreen pillars and side-window surrounds."},
+    {"file": "OIP-943499069.jpg", "view": "Open-canopy reference for the roof ring, dark side structure and glazing seals."},
 ]
 
 
@@ -299,12 +320,45 @@ def _cowl(canvas):
         canvas.point(x, y + 5, CARBON)
 
 
+def _canopy(canvas):
+    """Broad bowed header and one pillar pair at the forward view's edges.
+
+    The reference supplies the curvature; its high-FOV side windows stay out
+    of this view. The native roof covers the opaque top, and masks preserve
+    one wide live windscreen below it between the peripheral pillars.
+    """
+    def texture_coordinates(x, y):
+        # Grouped horizontal samples retain the weave while allowing native RLE
+        # to fit the larger canopy inside the existing dashboard RAM budget.
+        return x // CANOPY_TEXTURE_SCALE, y
+
+    surround = Canvas(color=TRANSPARENT)
+    seals = Canvas(color=TRANSPARENT)
+    _surface(surround, CANOPY_ROOF_OUTLINE, "carbon", texture_coordinates)
+    for reflected in (False, True):
+        def mirror(points):
+            return [(WIDTH - 1 - x if reflected else x, y) for x, y in points]
+
+        for outline in (CANOPY_PILLAR, CANOPY_PILLAR_FOOT):
+            _surface(surround, mirror(outline), "carbon", texture_coordinates)
+        points = mirror(CANOPY_WINDSCREEN_EDGE)
+        for first, last in zip(points, points[1:]):
+            seals.line(first, last, CANOPY_EDGE_SHADOW)
+    for offset, color in enumerate(surround.pixels):
+        if color != TRANSPARENT:
+            # Rasterized seal lines stay on the carbon surface, preventing
+            # detached outlines or hairline scenery gaps beside the glazing.
+            seal = seals.pixels[offset]
+            canvas.pixels[offset] = color if seal == TRANSPARENT else seal
+
+
 def _panel():
     canvas = Canvas(color=TRANSPARENT)
     _surface(canvas, [(0, DASH_OPAQUE_TOP), (WIDTH - 1, DASH_OPAQUE_TOP),
                        (WIDTH - 1, HEIGHT), (0, HEIGHT)], "suede")
     _fenders(canvas)
     _cowl(canvas)
+    _canopy(canvas)
     _fascia(canvas)
     _display_mount(canvas)
     # The light carbon insert sits above the dark carbon side plinths.
@@ -506,10 +560,12 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     primary["dash"] = _shape(WIDTH, HEIGHT - DASH_TOP,
                               canvas.crop((0, DASH_TOP, WIDTH, HEIGHT - DASH_TOP)),
                               y=DASH_TOP)
+    primary["roof"] = _shape(WIDTH, ROOF_HEIGHT, canvas.crop(ROOF_RECT))
     # A dash's Y is also the native windshield viewport boundary. The existing
-    # optional top/mask pair draws peripheral fenders without clipping all road
-    # rendering at their highest point. AND mask preserves outside pixels; OR
-    # artwork supplies only the opaque exterior silhouette.
+    # roof clips only the opaque top strip. The optional top/mask pair draws
+    # the curved header, peripheral pillars and fenders without clipping road
+    # rendering inside the windscreen. AND preserves glazing; OR supplies carbon
+    # and bodywork silhouettes.
     x, y, width, height = TOP_OVERLAY_RECT
     upper = canvas.crop(TOP_OVERLAY_RECT)
     primary["dast"] = _shape(width, height,

@@ -383,7 +383,7 @@ def validate(outputs, repository):
             points, triangles, scale, shift, name)
         metadata[name]["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
     budgets = {}
-    for part, required in (("A", set("dash dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3".split())),
+    for part, required in (("A", set("dash roof dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3".split())),
                            ("B", {"dot ", "dota", "dot1", "dot2", "gnob", "gnab"} |
                             {f"dig{i}" for i in range(10)})):
         payload = outputs[f"STD{part}MCMU.VSH"]
@@ -397,18 +397,24 @@ def validate(outputs, repository):
             if not width or not height or len(bitmap) != 16 + width * height or bitmap[14] & 0xF0:
                 raise ValueError(f"Invalid dashboard bitmap {name}")
         if part == "A":
+            roof = bitmaps["roof"]
+            roof_width, roof_height, _, _, roof_x, roof_y = struct.unpack_from("<HHhhHH", roof)
+            if (roof_width != dashboard.WIDTH or roof_x != 0 or roof_y != 0 or
+                    not 0 < roof_height < dashboard.DASH_TOP or
+                    dashboard.TRANSPARENT in roof[dashboard.SHAPE_HEADER_SIZE:]):
+                raise ValueError("Canopy roof must be an opaque full-width top strip")
             top, mask = bitmaps["dast"], bitmaps["dasm"]
             if top[:16] != mask[:16]:
-                raise ValueError("Windshield fender artwork and mask are misaligned")
+                raise ValueError("Canopy and fender artwork and mask are misaligned")
             width, height = struct.unpack_from("<HH", top)
             x, y = struct.unpack_from("<HH", top, 8)
-            if (width != 320 or x != 0 or not 0 < y < dashboard.DASH_TOP or
+            if (width != dashboard.WIDTH or x != 0 or y != roof_height or
                     y + height != dashboard.DASH_TOP):
-                raise ValueError("Windshield fender overlay must end at the dashboard edge")
+                raise ValueError("Canopy overlay must join the roof strip to the dashboard edge")
             if set(mask[16:]) != {0, 255}:
-                raise ValueError("Windshield fender mask must contain opaque and clear areas")
+                raise ValueError("Canopy and fender mask must contain opaque and clear areas")
             if any(pixel and clear == 255 for pixel, clear in zip(top[16:], mask[16:])):
-                raise ValueError("Windshield fender artwork would alter the clear road view")
+                raise ValueError("Canopy and fender artwork would alter the clear road view")
         limit = len((repository / f"tools/scripts/cars/STD{part}DIA3.VSH").read_bytes())
         if len(payload) >= limit:
             raise ValueError(f"Dashboard {part} must use less extracted memory than DIA3")
@@ -489,7 +495,7 @@ def generate(repository):
                      "min_alignment_cosine_q14": 8192, "max_alignment_degrees": 60, "surface_mask": 15,
                      "surfaces": ["paved", "dirt", "ice", "grass"],
                      "note": "Restunts surface attachment is a game approximation of fan downforce. No water adhesion. Original Stunts ignores these extra resources."},
-        "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. Masked upper artwork shows the curved cowl and turquoise exterior fender crowns while preserving the live road around them. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
+        "dashboard_note": "Original indexed artwork following the layout of the supplied studio interior photograph: a slim fascia in a dark carbon cockpit, an empty upright display mount on the left and two recessed dark ducts on the right. This replaces the earlier turquoise pods and four large silver vents. The requested material override replaces the photo's tan trim with light grey carbon whose diagonal weave slopes in the opposite direction from the rest of the dashboard. The live LCD, unlit lamp row, continuous shaped steering rim and five matching unlabelled fluted knobs retain the earlier wheel references. The complete display panel, live speed digits, motor needle and every rim section rotate about the same hub. Optional imt1/imt3 Q14 inverse transforms rotate the composed instrument bitmap; the original game ignores these descriptors and keeps the display upright. The instrument needle is red, and a native steering dot slides along a horizontal strip above the wheel as on the Pontiac Firebird. A broad bowed dark-carbon roof header and rounded windscreen corners follow the supplied canopy photographs. One pair of pillars sits at the far screen edges around a wide forward windscreen; the high-FOV reference's side windows are omitted as requested. A native opaque roof strip and expanded dast/dasm masks preserve live scenery through the windscreen above the curved cowl and turquoise exterior fender crowns. Grouped horizontal carbon samples keep the native prepared dashboard within the existing DIA3 memory budget. Palette-reduced material shading, carbon weave, suede and grip grain provide a photographic finish without copied photograph pixels. Texture is deterministic and follows wheel rotation together with the live display. Brighter wheel carbon and trim, muted grip-edge highlights and a darker column recess separate the wheel from the background.",
         "dashboard_reference": "https://www.topgear.com/car-reviews/speirling/first-drive",
         "dashboard_reference_images": dashboard.DASHBOARD_REFERENCES,
         "dashboard_decompressed_bytes": budgets,
@@ -624,8 +630,13 @@ shading, carbon weave, suede and grip grain give the cockpit a photographic
 finish. Repeatable texture follows the wheel as it turns together with the
 live LCD. Brighter wheel carbon and trim, highlighted
 grip edges and a darker column recess keep the wheel distinct. Native
-dast/dasm masks show the curved cowl and turquoise exterior fender crowns
-while preserving the live road around them. The earlier wheel reference:
+roof artwork and dast/dasm masks show a broad bowed dark-carbon header
+and rounded windscreen corners, following 5-Speirling-Interior-3083165339.webp
+and the open-canopy photographs. One pillar pair stays at the far screen
+edges around a wide forward windscreen; the high-FOV reference's side windows
+are omitted as requested. The curved cowl and turquoise fender crowns frame
+live scenery. Grouped horizontal carbon samples retain the existing native
+dashboard memory limit. The earlier wheel reference:
 https://www.topgear.com/car-reviews/speirling/first-drive
 
 REBUILD

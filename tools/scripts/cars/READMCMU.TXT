@@ -120,8 +120,13 @@ shading, carbon weave, suede and grip grain give the cockpit a photographic
 finish. Repeatable texture follows the wheel as it turns together with the
 live LCD. Brighter wheel carbon and trim, highlighted
 grip edges and a darker column recess keep the wheel distinct. Native
-dast/dasm masks show the curved cowl and turquoise exterior fender crowns
-while preserving the live road around them. The earlier wheel reference:
+roof artwork and dast/dasm masks show a broad bowed dark-carbon header
+and rounded windscreen corners, following 5-Speirling-Interior-3083165339.webp
+and the open-canopy photographs. One pillar pair stays at the far screen
+edges around a wide forward windscreen; the high-FOV reference's side windows
+are omitted as requested. The curved cowl and turquoise fender crowns frame
+live scenery. Grouped horizontal carbon samples retain the existing native
+dashboard memory limit. The earlier wheel reference:
 https://www.topgear.com/car-reviews/speirling/first-drive
 
 REBUILD
@@ -130,9 +135,9 @@ python3 tools/scripts/generate-mcmurtry-speirling.py --check --install stunts
 
 The generator validates all model, wheel, bitmap and adhesion resources
 and requires dashboard memory use to stay strictly below DIA3:
-Extracted A+B: 85,259 vs 148,036 bytes.
-Prepared A+B: 52,384 vs 66,176 bytes.
-With scratch: 56,176 vs 80,304 bytes.
+Extracted A+B: 143,523 vs 148,036 bytes.
+Prepared A+B: 59,472 vs 66,176 bytes.
+With scratch: 63,264 vs 80,304 bytes.
 These are classic-mode arena payloads; shared window tables are preallocated.
 See docs/mcmurtry-speirling.md
 for dimensional calibration, source details and validation.
