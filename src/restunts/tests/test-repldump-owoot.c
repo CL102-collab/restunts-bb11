@@ -22,7 +22,7 @@ static const char *expected_name;
 
 legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 {
-	assert(strcmp((const char *)path, expected_name) == 0);
+	assert(strcmp((const legacy_char *)path, expected_name) == 0);
 	assert(create == DOS_FILE_CREATE);
 	open_count++;
 	if (create_fails) {
@@ -54,7 +54,7 @@ legacy_s16 dos_file_close(legacy_u16 handle)
 
 legacy_s16 dos_file_remove(const legacy_s8 *path)
 {
-	assert(strcmp((const char *)path, expected_name) == 0);
+	assert(strcmp((const legacy_char *)path, expected_name) == 0);
 	remove_count++;
 	output_exists = 0;
 	return 0;
@@ -89,11 +89,11 @@ static void test_replay_extensions(void)
 		legacy_s8 name[REPLDUMP_OUTPUT_NAME_SIZE];
 		strcpy(name, names[index]);
 		repldump_strip_replay_extension(name);
-		assert(strcmp((const char *)name, "R0000") == 0);
+		assert(strcmp((const legacy_char *)name, "R0000") == 0);
 	}
 	legacy_s8 name[] = "R0000.rpx";
 	repldump_strip_replay_extension(name);
-	assert(strcmp((const char *)name, "R0000.rpx") == 0);
+	assert(strcmp((const legacy_char *)name, "R0000.rpx") == 0);
 }
 
 static void test_output_names(void)
@@ -105,10 +105,10 @@ static void test_output_names(void)
 	} output;
 	memset(&output, 0xcc, sizeof(output));
 	assert(repldump_output_name(output.name, "12345678", ".owo"));
-	assert(strcmp((const char *)output.name, "12345678.owo") == 0);
+	assert(strcmp((const legacy_char *)output.name, "12345678.owo") == 0);
 	assert(output.before == 0xcc && output.after == 0xcc);
 	assert(repldump_output_name(output.name, "R0000", ".BNI"));
-	assert(strcmp((const char *)output.name, "R0000.BNI") == 0);
+	assert(strcmp((const legacy_char *)output.name, "R0000.BNI") == 0);
 	memset(output.name, 0xcc, sizeof(output.name));
 	assert(!repldump_output_name(output.name, "123456789", ".owo"));
 	for (legacy_u32 index = 0; index < sizeof(output.name); index++) {

@@ -184,14 +184,14 @@ legacy_u32 pixldump_murmur3(const legacy_u8 far *source, legacy_u16 length)
 
 void far *file_load_shape2d_fatal(const legacy_s8 *name)
 {
-	assert(strcmp((const char *)name, "sdmain") == 0);
+	assert(strcmp((const legacy_char *)name, "sdmain") == 0);
 	return palette_resource;
 }
 
 legacy_s8 far *locate_shape_fatal(legacy_s8 far *data, const legacy_s8 *name)
 {
 	assert((void *)data == palette_resource);
-	assert(strcmp((const char *)name, "!pal") == 0);
+	assert(strcmp((const legacy_char *)name, "!pal") == 0);
 	return data;
 }
 

@@ -84,7 +84,7 @@ legacy_s8 far *locate_shape_alt(legacy_s8 far *chunk, const legacy_s8 *id)
 }
 void copy_string(legacy_s8 *destination, legacy_s8 far *source)
 {
-	strcpy((char *)destination, (const char *)source);
+	strcpy((legacy_char *)destination, (const legacy_char *)source);
 }
 struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
 								  legacy_s16 shadow)

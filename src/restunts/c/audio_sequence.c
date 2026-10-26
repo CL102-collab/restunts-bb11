@@ -359,9 +359,10 @@ static void audio_service_sequence_channel(legacy_s16 channel)
 #ifdef RESTUNTS_AMIGA_TRACE
 		if (amiga_trace_sequence &&
 			amiga_trace_sequence_events++ < AMIGA_SEQUENCE_TRACE_EVENT_LIMIT) {
-			printf("Amiga sequence: channel=%d event=%u arg=%u delay=%lu value=%lu\n",
+			printf("Amiga sequence: channel=%d event=%u arg=%u delay=%" LEGACY_PRIu32
+				   " value=%" LEGACY_PRIu32 "\n",
 				   (legacy_int)channel, (legacy_uint)event.command, (legacy_uint)event.argument,
-				   (unsigned long)event.delay, (unsigned long)event.value);
+				   event.delay, event.value);
 			fflush(stdout);
 		}
 #endif

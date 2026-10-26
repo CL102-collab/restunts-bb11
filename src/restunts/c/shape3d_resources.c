@@ -27,7 +27,7 @@ legacy_s16 shape3d_load_all()
 
 	legacy_u32 mmgrofsdiff = mmgr_get_res_ofs_diff_scaled();
 #ifdef RESTUNTS_AMIGA_TRACE
-	printf("Amiga track shapes: %lu bytes free\n", (unsigned long)mmgrofsdiff);
+	printf("Amiga track shapes: %" LEGACY_PRIu32 " bytes free\n", mmgrofsdiff);
 	fflush(stdout);
 #endif
 

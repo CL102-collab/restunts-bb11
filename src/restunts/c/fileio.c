@@ -849,8 +849,10 @@ legacy_u32 file_decomp_rle(legacy_u8 huge *src, legacy_u8 huge *dst, legacy_u16 
 	}
 
 #ifdef RESTUNTS_AMIGA_TRACE
-	fprintf(stdout, "Amiga decompress: RLE length=%lu source=%lu escapes=%u skip=%u\n",
-			(unsigned long)len, (unsigned long)srclen, (legacy_uint)esclen, (legacy_uint)skipseq);
+	fprintf(stdout,
+			"Amiga decompress: RLE length=%" LEGACY_PRIu32 " source=%" LEGACY_PRIu32
+			" escapes=%u skip=%u\n",
+			len, srclen, (legacy_uint)esclen, (legacy_uint)skipseq);
 	fflush(stdout);
 #endif
 	if (!skipseq) {

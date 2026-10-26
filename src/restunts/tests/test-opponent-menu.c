@@ -345,7 +345,7 @@ void *file_load_resfile(const legacy_s8 *filename)
 	/* A wrap failure used to request opp/ rather than the sixth opponent. */
 	if (filename[0] != 'o' || filename[1] != 'p' || filename[2] != 'p' || filename[3] < '1' ||
 		filename[3] > '6' || filename[4] != 0) {
-		fprintf(stderr, "Invalid opponent resource requested: %s\n", (const char *)filename);
+		fprintf(stderr, "Invalid opponent resource requested: %s\n", (const legacy_char *)filename);
 		assert(!"Opponent resource must be opp1 through opp6");
 	}
 	assert(load_count < expected_load_count);

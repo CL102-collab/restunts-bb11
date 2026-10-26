@@ -621,14 +621,14 @@ static legacy_u32 random_calls, timer_reads;
 
 void *file_load_3dres(const legacy_s8 *name)
 {
-	assert(strcmp((const char *)name, "title") == 0);
+	assert(strcmp((const legacy_char *)name, "title") == 0);
 	record_word(20);
 	return title_data;
 }
 void locate_many_resources(legacy_s8 *data, const legacy_s8 *names, legacy_s8 **result)
 {
 	assert(data == title_data);
-	assert(strcmp((const char *)names, "logolog2brav") == 0);
+	assert(strcmp((const legacy_char *)names, "logolog2brav") == 0);
 	record_word(21);
 	for (legacy_u32 index = 0; index < 3; index++) {
 		result[index] = &title_data[index];
@@ -672,7 +672,7 @@ void set_projection(legacy_s16 horizontal, legacy_s16 vertical, legacy_s16 width
 }
 void *file_load_resfile(const legacy_s8 *name)
 {
-	assert(strcmp((const char *)name, "carcoun") == 0);
+	assert(strcmp((const legacy_char *)name, "carcoun") == 0);
 	record_word(27);
 	return title_data;
 }

@@ -410,7 +410,7 @@ void format_frame_as_string(legacy_s8 *destination, legacy_s16 frame_count,
 	trace_pointer(destination);
 	trace_word((legacy_u16)frame_count);
 	trace_word((legacy_u16)include_hundredths);
-	snprintf((char *)destination, 18, "%d", frame_count);
+	snprintf((legacy_char *)destination, 18, "%d", frame_count);
 }
 
 void format_integer(legacy_s8 *destination, legacy_s16 value, legacy_s16 zero_pad, legacy_s16 width)
@@ -420,7 +420,7 @@ void format_integer(legacy_s8 *destination, legacy_s16 value, legacy_s16 zero_pa
 	trace_word((legacy_u16)value);
 	trace_word((legacy_u16)zero_pad);
 	trace_word((legacy_u16)width);
-	snprintf((char *)destination, 18, "%d", value);
+	snprintf((legacy_char *)destination, 18, "%d", value);
 }
 
 legacy_s16 get_kevinrandom(void)

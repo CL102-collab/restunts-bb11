@@ -102,7 +102,7 @@ void far *file_decomp(const legacy_s8 *name, legacy_s16 fatal)
 
 void far *file_load_binary(const legacy_s8 *name, legacy_s16 fatal)
 {
-	assert(strcmp((const char *)name, "TEST.VSH") == 0);
+	assert(strcmp((const legacy_char *)name, "TEST.VSH") == 0);
 	assert(fatal != 0);
 	load_count++;
 	legacy_u8 *resource = mmgr_alloc_resbytes(name, TEST_RESOURCE_BYTES);

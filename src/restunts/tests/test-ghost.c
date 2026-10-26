@@ -70,7 +70,8 @@ static struct TEST_FILE files[TEST_FILE_COUNT];
 legacy_u16 dos_file_open(const legacy_s8 *name, legacy_s16 create)
 {
 	for (legacy_u16 index = 1; index < TEST_FILE_COUNT; index++) {
-		if (files[index].exists && strcmp((char *)files[index].name, (const char *)name) == 0) {
+		if (files[index].exists &&
+			strcmp((legacy_char *)files[index].name, (const legacy_char *)name) == 0) {
 			assert(create == DOS_FILE_OPEN_EXISTING);
 			rewind(files[index].stream);
 			return index;
@@ -81,7 +82,7 @@ legacy_u16 dos_file_open(const legacy_s8 *name, legacy_s16 create)
 	}
 	for (legacy_u16 index = 1; index < TEST_FILE_COUNT; index++) {
 		if (!files[index].exists) {
-			strcpy((char *)files[index].name, (const char *)name);
+			strcpy((legacy_char *)files[index].name, (const legacy_char *)name);
 			files[index].stream = tmpfile();
 			assert(files[index].stream != 0);
 			files[index].exists = 1;
@@ -100,7 +101,8 @@ legacy_s16 dos_file_close(legacy_u16 file)
 legacy_s16 dos_file_remove(const legacy_s8 *name)
 {
 	for (legacy_u16 index = 1; index < TEST_FILE_COUNT; index++) {
-		if (files[index].exists && strcmp((char *)files[index].name, (const char *)name) == 0) {
+		if (files[index].exists &&
+			strcmp((legacy_char *)files[index].name, (const legacy_char *)name) == 0) {
 			fclose(files[index].stream);
 			files[index].exists = 0;
 			return 0;
@@ -139,7 +141,8 @@ legacy_s16 dos_file_error(void)
 const legacy_s8 *dos_file_find_first(const legacy_s8 *name)
 {
 	for (legacy_u16 index = 1; index < TEST_FILE_COUNT; index++) {
-		if (files[index].exists && strcmp((char *)files[index].name, (const char *)name) == 0) {
+		if (files[index].exists &&
+			strcmp((legacy_char *)files[index].name, (const legacy_char *)name) == 0) {
 			return files[index].name;
 		}
 	}
@@ -150,7 +153,7 @@ void file_build_path(const legacy_s8 *directory, const legacy_s8 *name, const le
 					 legacy_s8 *destination)
 {
 	assert(directory == 0 || directory[0] == 0);
-	sprintf((char *)destination, "%s%s", name, extension);
+	sprintf((legacy_char *)destination, "%s%s", name, extension);
 }
 
 void add_exit_handler(void (*handler)(void))
@@ -355,7 +358,7 @@ static void test_selection_is_separate(void)
 	assert(memcmp(gameconfig.game_playercarid, "COUN", REPLAY_CAR_ID_SIZE) == 0);
 	assert(gameconfig.game_playertransmission == TRANSMISSION_AUTOMATIC);
 	assert(gameconfig.game_recordedframes == 17);
-	assert(strcmp((char *)gameconfig.game_trackname, "GHOSTTRK") == 0);
+	assert(strcmp((legacy_char *)gameconfig.game_trackname, "GHOSTTRK") == 0);
 	assert(test_track[42] == (legacy_u8)(42U * 7U));
 	assert(cleanup_handler != 0);
 	ghost_check_track();

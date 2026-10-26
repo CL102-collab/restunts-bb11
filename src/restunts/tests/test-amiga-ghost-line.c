@@ -19,7 +19,7 @@ static void test_scalar_reference(void)
 	};
 	for (legacy_uint i = 0; i < sizeof(factors) / sizeof(*factors); i++) {
 		for (legacy_uint j = 0; j < sizeof(factors) / sizeof(*factors); j++) {
-			long double expected = truncl((long double)factors[i] * factors[j] / scale);
+			legacy_fext expected = truncl((legacy_fext)factors[i] * factors[j] / scale);
 			assert(fabsl(ghost_line_multiply(factors[i], factors[j]) - expected) <= 1);
 		}
 	}
@@ -33,17 +33,17 @@ static void test_scalar_reference(void)
 		for (legacy_uint j = 0; j < sizeof(numerators) / sizeof(*numerators); j++) {
 			for (legacy_int sign = -1; sign <= 1; sign += 2) {
 				ghost_line_scalar numerator = sign * numerators[j];
-				long double expected = truncl((long double)numerator * scale / denominator);
+				legacy_fext expected = truncl((legacy_fext)numerator * scale / denominator);
 				assert(fabsl(ghost_line_divide(numerator, denominator) - expected) <= 1);
 			}
 		}
 	}
 }
 
-static long double vector_length(struct GHOST_LINE_VECTOR vector)
+static legacy_fext vector_length(struct GHOST_LINE_VECTOR vector)
 {
-	return sqrtl((long double)vector.x * vector.x + (long double)vector.y * vector.y +
-				 (long double)vector.z * vector.z);
+	return sqrtl((legacy_fext)vector.x * vector.x + (legacy_fext)vector.y * vector.y +
+				 (legacy_fext)vector.z * vector.z);
 }
 
 static void test_length_reference(void)
@@ -57,8 +57,8 @@ static void test_length_reference(void)
 		{-large, 1, GHOST_LINE_ONE},
 	};
 	for (legacy_uint i = 0; i < sizeof(vectors) / sizeof(*vectors); i++) {
-		long double expected = vector_length(vectors[i]);
-		long double tolerance = expected * 0.0000002L + 1;
+		legacy_fext expected = vector_length(vectors[i]);
+		legacy_fext tolerance = expected * 0.0000002L + 1;
 		assert(fabsl(ghost_line_length(vectors[i]) - expected) <= tolerance);
 	}
 	struct GHOST_LINE_VECTOR zero = {0};
@@ -79,14 +79,14 @@ static void test_extreme_wheel_contacts(void)
 		struct GHOST_LINE_POSE pose = ghost_line_pose(&car);
 		assert(fabsl(vector_length(pose.right) / GHOST_LINE_ONE - 1) < 0.000001L);
 		assert(fabsl(vector_length(pose.up) / GHOST_LINE_ONE - 1) < 0.000001L);
-		long double dot = (long double)pose.right.x * pose.up.x +
-						  (long double)pose.right.y * pose.up.y +
-						  (long double)pose.right.z * pose.up.z;
+		legacy_fext dot = (legacy_fext)pose.right.x * pose.up.x +
+						  (legacy_fext)pose.right.y * pose.up.y +
+						  (legacy_fext)pose.right.z * pose.up.z;
 		assert(fabsl(dot / GHOST_LINE_ONE / GHOST_LINE_ONE) < 0.000001L);
 		struct VECTORLONG edge = ghost_line_edge(&pose, GHOST_LINE_HALF_WIDTH);
-		assert(fabsl(edge.lx - (long double)pose.center.x / GHOST_LINE_ONE) <= 257);
-		assert(fabsl(edge.ly - (long double)pose.center.y / GHOST_LINE_ONE) <= 257);
-		assert(fabsl(edge.lz - (long double)pose.center.z / GHOST_LINE_ONE) <= 257);
+		assert(fabsl(edge.lx - (legacy_fext)pose.center.x / GHOST_LINE_ONE) <= 257);
+		assert(fabsl(edge.ly - (legacy_fext)pose.center.y / GHOST_LINE_ONE) <= 257);
+		assert(fabsl(edge.lz - (legacy_fext)pose.center.z / GHOST_LINE_ONE) <= 257);
 	}
 }
 

@@ -205,20 +205,20 @@ void fatal_error(const legacy_s8 *format, ...)
 legacy_s8 far *locate_text_res(legacy_s8 far *resource, const legacy_s8 *name)
 {
 	assert(resource == gameresptr);
-	if (strcmp((const char *)name, "rpl") == 0) {
+	if (strcmp((const legacy_char *)name, "rpl") == 0) {
 		return (legacy_s8 *)"Replay";
 	}
-	if (strcmp((const char *)name, "dm1") == 0) {
+	if (strcmp((const legacy_char *)name, "dm1") == 0) {
 		return (legacy_s8 *)"Demo";
 	}
-	assert(strcmp((const char *)name, "dm2") == 0);
+	assert(strcmp((const legacy_char *)name, "dm2") == 0);
 	return (legacy_s8 *)"Press a key";
 }
 
 struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
 								  legacy_s16 shadow_color)
 {
-	size_t length = strlen((const char *)text);
+	size_t length = strlen((const legacy_char *)text);
 	assert(text_draw_count < sizeof(text_draws) / sizeof(text_draws[0]));
 	struct TEXT_DRAW *draw = &text_draws[text_draw_count++];
 	assert(length < sizeof(draw->text));
@@ -241,7 +241,7 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 
 legacy_s16 font_centered_text_x(const legacy_s8 *text)
 {
-	return (320 - strlen((const char *)text) * 8) / 2;
+	return (320 - strlen((const legacy_char *)text) * 8) / 2;
 }
 
 void format_frame_as_string(legacy_s8 *destination, legacy_s16 frame_count,
@@ -272,10 +272,10 @@ void sprite_putimage_transparent(struct SHAPE2D far *shape, legacy_s16 x, legacy
 legacy_s8 far *locate_shape_alt(legacy_s8 far *resource, const legacy_s8 *name)
 {
 	assert(resource == gameresptr);
-	if (strcmp((const char *)name, "crak") == 0) {
+	if (strcmp((const legacy_char *)name, "crak") == 0) {
 		return (legacy_s8 far *)crack_lines;
 	}
-	assert(strcmp((const char *)name, "cinf") == 0);
+	assert(strcmp((const legacy_char *)name, "cinf") == 0);
 	return (legacy_s8 far *)crack_info;
 }
 
@@ -521,7 +521,7 @@ static void test_wrapped_replay_filename(void)
 			}
 			reconstructed[copied] = 0;
 			assert(strcmp(reconstructed, filename) == 0);
-			assert(strcmp((const char *)replay_filename, filename) == 0);
+			assert(strcmp((const legacy_char *)replay_filename, filename) == 0);
 			assert(bounds->left == 8 && bounds->right == 313);
 			assert(bounds->top == 3);
 			if (phase == 0) {

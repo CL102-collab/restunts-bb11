@@ -21,7 +21,7 @@ void add_exit_handler(void(far *handler)(void))
 void *file_load_binary_nofatal(const legacy_s8 *filename)
 {
 	hash_word(22);
-	hash_bytes(filename, strlen((const char *)filename));
+	hash_bytes(filename, strlen((const legacy_char *)filename));
 	load_count++;
 	if (load_count == 1) {
 		return driver_variant & 1 ? 0 : memory_bytes + 100;
@@ -31,7 +31,7 @@ void *file_load_binary_nofatal(const legacy_s8 *filename)
 void fatal_error(const legacy_s8 *message, ...)
 {
 	hash_word(23);
-	hash_bytes(message, strlen((const char *)message));
+	hash_bytes(message, strlen((const legacy_char *)message));
 }
 legacy_u8 dos_audio_driver_initialize(void)
 {

@@ -34,7 +34,7 @@ void far *fontnptr = &test_secondary_font;
 
 legacy_u16 file_paras_fatal(const legacy_s8 *filename)
 {
-	assert(strcmp((const char *)filename, "pc15.drv") == 0);
+	assert(strcmp((const legacy_char *)filename, "pc15.drv") == 0);
 	return test_driver_paragraphs;
 }
 
@@ -89,7 +89,7 @@ static void prepare_environment(const char *program_path)
 	static const char variables[] = "PATH=C:\\DOS\0TEMP=C:\\TEMP\0";
 	memcpy(test_environment, variables, sizeof(variables));
 	test_environment[sizeof(variables)] = 1;
-	strcpy((char *)test_environment + sizeof(variables) + 2U, program_path);
+	strcpy((legacy_char *)test_environment + sizeof(variables) + 2U, program_path);
 }
 
 static void assert_context(legacy_u16 expected, legacy_s16 argc, legacy_s8 *argv[])
@@ -198,7 +198,7 @@ static void test_environment_bounds_and_fallback(void)
 	assert_context(0xcc3a, 5, bmp);
 	/* Empty variable lists still have a double NUL before the path count. */
 	test_environment[2] = 1;
-	strcpy((char *)test_environment + 4U, "C:\\PIXLDUMP.EXE");
+	strcpy((legacy_char *)test_environment + 4U, "C:\\PIXLDUMP.EXE");
 	assert_context(0xcc32, 5, bmp);
 }
 

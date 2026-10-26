@@ -114,6 +114,9 @@ typedef unsigned long legacy_u64;
 typedef float legacy_f32;
 typedef double legacy_f64;
 
+/* Preserve the host's extended precision for independent reference calculations. */
+typedef long double legacy_fext;
+
 typedef legacy_s8 legacy_byte_must_be_8_bits[(CHAR_BIT == 8) ? 1 : -1];
 typedef legacy_s8 legacy_s16_must_be_2_bytes[(sizeof(legacy_s16) == 2) ? 1 : -1];
 typedef legacy_s8 legacy_u16_must_be_2_bytes[(sizeof(legacy_u16) == 2) ? 1 : -1];

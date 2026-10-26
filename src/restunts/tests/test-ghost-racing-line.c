@@ -36,7 +36,7 @@ static void write_capture(const legacy_u8 *pixels, legacy_s32 width, legacy_s32 
 	legacy_s8 *resource = file_load_shape2d_fatal("sdmain");
 	const legacy_u8 *palette =
 		(const legacy_u8 *)locate_shape_fatal(resource, "!pal") + SHAPE2D_HEADER_SIZE;
-	fprintf(file, "P6\n%ld %ld\n255\n", (long)width, (long)height);
+	fprintf(file, "P6\n%" LEGACY_PRId32 " %" LEGACY_PRId32 "\n255\n", width, height);
 	for (size_t index = 0; index < (size_t)width * height; index++) {
 		legacy_u8 rgb[3];
 		for (legacy_u16 channel = 0; channel < 3; channel++) {
@@ -95,8 +95,9 @@ static void check_colors(legacy_u16 reference_speed, legacy_s16 mode)
 			}
 		}
 	}
-	printf("Ghost racing line mode %d: %lu green/red pixels, %lu yellow pixels (%ldx%ld)\n", mode,
-		   (unsigned long)colored, (unsigned long)neutral, (long)width, (long)height);
+	printf("Ghost racing line mode %d: %" LEGACY_PRIu32 " green/red pixels, %" LEGACY_PRIu32
+		   " yellow pixels (%" LEGACY_PRId32 "x%" LEGACY_PRId32 ")\n",
+		   mode, colored, neutral, width, height);
 	write_capture(green, width, height, mode, "green");
 	write_capture(red, width, height, mode, "red");
 	write_capture(yellow, width, height, mode, "yellow");

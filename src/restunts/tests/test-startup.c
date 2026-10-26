@@ -416,7 +416,7 @@ void file_build_path(const legacy_s8 *directory, const legacy_s8 *name, const le
 	trace_text(directory);
 	trace_text(name);
 	trace_text(ext);
-	strcpy((char *)destination, "fixture.trk");
+	strcpy((legacy_char *)destination, "fixture.trk");
 }
 void far *file_read_fatal(const legacy_s8 *name, void far *destination)
 {

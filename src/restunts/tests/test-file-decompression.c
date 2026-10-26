@@ -126,10 +126,10 @@ legacy_u16 dos_file_open(const legacy_s8 *name, legacy_s16 create)
 		packed_open_calls++;
 	}
 	file_position = 0;
-	if (resource_file_kind == 1 && strstr((const char *)name, ".res") != 0) {
+	if (resource_file_kind == 1 && strstr((const legacy_char *)name, ".res") != 0) {
 		return 0;
 	}
-	if (resource_file_kind == 2 && strstr((const char *)name, ".pre") != 0) {
+	if (resource_file_kind == 2 && strstr((const legacy_char *)name, ".pre") != 0) {
 		return 0;
 	}
 	return fail_open ? 0 : 1;

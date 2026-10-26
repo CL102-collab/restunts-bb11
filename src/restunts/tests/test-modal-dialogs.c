@@ -68,7 +68,7 @@ void audio_resume(void)
 legacy_s8 far *locate_text_res(legacy_s8 far *resource, const legacy_s8 *name)
 {
 	assert((void far *)resource == mainresptr);
-	assert(strcmp((const char *)name, is_pause != 0 ? "pau" : "der") == 0);
+	assert(strcmp((const legacy_char *)name, is_pause != 0 ? "pau" : "der") == 0);
 	return (legacy_s8 far *)(is_pause != 0 ? "Game paused]Press any key"
 										   : "Disk error]Press any key");
 }
@@ -119,7 +119,7 @@ legacy_u32 slow_timer_wait_ticks(legacy_u32 ticks)
 
 legacy_s16 font_text_width(const legacy_s8 *text)
 {
-	return (legacy_s16)strlen((const char *)text) * 8;
+	return (legacy_s16)strlen((const legacy_char *)text) * 8;
 }
 
 void font_set_colors(legacy_s16 color, legacy_s16 background)

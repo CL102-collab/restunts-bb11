@@ -565,8 +565,9 @@ static void test_failed_pilot_recovery(const struct GENGHOST_OPTIONS *options)
 		assert(genghost_sim_evaluate(result.inputs, result.length, &replayed) == 0);
 		assert(memcmp(&result.race, &replayed, sizeof(replayed)) == 0);
 	}
-	printf("Map-only search expanded %llu failed-pilot sections without human input seeds.\n",
-		   (unsigned long long)result.state_rescue_starts);
+	printf("Map-only search expanded %" LEGACY_PRIu64
+		   " failed-pilot sections without human input seeds.\n",
+		   result.state_rescue_starts);
 }
 
 /* The batch hook exposes actual scheduled work without replacing native
@@ -833,8 +834,9 @@ static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const legacy_
 			assert(refined.state_section_starts && refined.state_section_evaluations);
 		}
 		printf("Fine-tune strategy %d rejects missing/unfinished seeds, retains budget-one inputs, "
-			   "and verifies %u strictly improving incumbent updates over %llu evaluations.\n",
-			   strategy, refinement.saves - 1U, (unsigned long long)refined.evaluations);
+			   "and verifies %u strictly improving incumbent updates over %" LEGACY_PRIu64
+			   " evaluations.\n",
+			   strategy, refinement.saves - 1U, refined.evaluations);
 	}
 }
 
