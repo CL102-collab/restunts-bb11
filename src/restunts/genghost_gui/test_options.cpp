@@ -4,6 +4,7 @@
 #include <wx/init.h>
 #include <algorithm>
 #include <cstddef>
+#include <cerrno>
 #include <cstdio>
 #if defined(__UNIX__)
 #include <unistd.h>
@@ -49,6 +50,27 @@ static void touch(const wxString &path)
 {
 	write_bytes(path, std::vector<legacy_u8>());
 }
+
+#if defined(__UNIX__) || defined(__WXMSW__)
+static legacy_bool create_hard_link(const wxString &source, const wxString &destination)
+{
+#ifdef __WXMSW__
+	const legacy_bool created =
+		CreateHardLinkW(destination.wc_str(), source.wc_str(), nullptr) != 0;
+#else
+	const legacy_bool created = link(source.fn_str(), destination.fn_str()) == 0;
+#ifdef __HAIKU__
+	// BFS does not support hard links; libroot maps B_UNSUPPORTED to EPERM.
+	if (!created && errno == EPERM) {
+		std::fprintf(stdout, "SKIP: hard-link alias check (unsupported by Haiku BFS)\n");
+		return false;
+	}
+#endif
+#endif
+	check(created, "Cannot create hard-link fixture.");
+	return created;
+}
+#endif
 
 static std::vector<legacy_u8> replay()
 {
@@ -167,26 +189,19 @@ legacy_int main()
 #if defined(__UNIX__) || defined(__WXMSW__)
 	options.mode = GENGHOST_MODE_GENERATE;
 	const wxString alias = wxFileName(game, "alias.rpl").GetFullPath();
-#ifdef __WXMSW__
-	check(CreateHardLinkW(alias.wc_str(), input.wc_str(), nullptr) != 0,
-		  "Cannot create hard-link fixture.");
-#else
-	check(link(input.fn_str(), alias.fn_str()) == 0, "Cannot create hard-link fixture.");
-#endif
-	options.output = alias;
-	check(!genghost_validate_options(options).empty(),
-		  "Hard-linked output must preserve the input.");
+	if (create_hard_link(input, alias)) {
+		options.output = alias;
+		check(!genghost_validate_options(options).empty(),
+			  "Hard-linked output must preserve the input.");
+		check(wxRemoveFile(alias), "Cannot remove hard-link fixture.");
+	}
 	options.output = "new replay & result.rpl";
 	const wxString report = wxFileName(game, options.output).GetFullPath() + ".json";
-#ifdef __WXMSW__
-	check(CreateHardLinkW(report.wc_str(), input.wc_str(), nullptr) != 0,
-		  "Cannot create report hard-link fixture.");
-#else
-	check(link(input.fn_str(), report.fn_str()) == 0, "Cannot create report hard-link fixture.");
-#endif
-	check(!genghost_validate_options(options).empty(),
-		  "A report hard link must preserve the input.");
-	check(wxRemoveFile(report), "Cannot remove report fixture.");
+	if (create_hard_link(input, report)) {
+		check(!genghost_validate_options(options).empty(),
+			  "A report hard link must preserve the input.");
+		check(wxRemoveFile(report), "Cannot remove report fixture.");
+	}
 #if defined(__UNIX__)
 	const wxString symbolic = wxFileName(game, "symbolic.rpl").GetFullPath();
 	check(symlink(input.fn_str(), symbolic.fn_str()) == 0, "Cannot create symbolic-link fixture.");
@@ -195,6 +210,11 @@ legacy_int main()
 		  "Symbolic output links must preserve the input.");
 	check(wxRemoveFile(symbolic), "Cannot remove symbolic-link fixture.");
 	options.output = "new replay & result.rpl";
+	check(symlink(input.fn_str(), report.fn_str()) == 0,
+		  "Cannot create report symbolic-link fixture.");
+	check(!genghost_validate_options(options).empty(),
+		  "A report symbolic link must preserve the input.");
+	check(wxRemoveFile(report), "Cannot remove report symbolic-link fixture.");
 #endif
 	options.mode = GENGHOST_MODE_GEARS_ONLY;
 #endif
