@@ -48,6 +48,7 @@ static const char help[] =
 	"  --seed N               Search random seed; default 1.\n"
 	"  --strategy MODE        legacy (default) or state (cooperative state planner).\n"
 	"  --cores N              Parallel search workers (1 default, 0 available cores).\n"
+	"  --stop-file FILE       Stop gracefully when FILE is a nonempty regular file.\n"
 	"  --pg:on|off            Original power gear bug (default on).\n"
 	"  --lc:on|off            Original collision behavior (default on).\n"
 	"  --lcb:on|off           Original left corner bias (default on).\n"
@@ -492,6 +493,8 @@ int main(int argc, char **argv)
 	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1,
 									   1,	   1, 0,  0, GENGHOST_DEFAULT_CHICANE_FAST_GRASS};
 	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
+	const legacy_char *stop_argument = NULL;
+	legacy_char *stop_file = NULL;
 	char car[5] = {0}, track_name[256];
 	int transmission = TRANSMISSION_MANUAL, verify = 0, explicit_seconds = 0, status = 1;
 	unsigned int cores = 1U;
@@ -558,7 +561,7 @@ int main(int argc, char **argv)
 			!strcmp(argument, "--seed") || !strcmp(argument, "--cores") ||
 			!strcmp(argument, "--worker-status") || !strcmp(argument, "--worker-stop") ||
 			!strcmp(argument, "--worker-parent") || !strcmp(argument, "--strategy") ||
-			!strcmp(argument, "--cooperative-worker")) {
+			!strcmp(argument, "--cooperative-worker") || !strcmp(argument, "--stop-file")) {
 			if (++i == argc) {
 				fprintf(stderr, "Missing value for %s\n", argument);
 				goto done;
@@ -567,6 +570,8 @@ int main(int argc, char **argv)
 				data_argument = argv[i];
 			} else if (!strcmp(argument, "--output")) {
 				output_argument = argv[i];
+			} else if (!strcmp(argument, "--stop-file")) {
+				stop_argument = argv[i];
 			} else if (!strcmp(argument, "--worker-status")) {
 				worker_control.status_path = argv[i];
 			} else if (!strcmp(argument, "--worker-stop")) {
@@ -685,6 +690,13 @@ int main(int argc, char **argv)
 	cwd = SDL_GetCurrentDirectory();
 	if (!cwd || !(data_dir = join_path(cwd, data_argument))) {
 		goto done;
+	}
+	if (stop_argument) {
+		stop_file = join_path(cwd, stop_argument);
+		if (!stop_file) {
+			goto done;
+		}
+		genghost_set_stop_file(stop_file);
 	}
 	if (read_source(source, cwd, data_dir, options.fine_tune, &file, &file_length, &source_path)) {
 		fprintf(stderr, "Cannot read %s: %s\n",
@@ -959,6 +971,8 @@ int main(int argc, char **argv)
 	}
 done:
 	genghost_worker_close(&worker_control);
+	genghost_set_stop_file(NULL);
+	free(stop_file);
 	free(file);
 	free(source_path);
 	free(data_dir);

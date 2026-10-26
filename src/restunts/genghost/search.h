@@ -48,6 +48,10 @@ struct GENGHOST_SEARCH_RESULT {
 };
 
 extern volatile sig_atomic_t genghost_interrupted;
+/* The optional path remains owned by the caller. A nonempty regular file
+ * requests the same graceful cancellation as SIGINT, preserving saved ghosts. */
+void genghost_set_stop_file(const legacy_char *path);
+legacy_int genghost_stop_requested(void);
 typedef int (*genghost_save_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
 
 /* Move one existing up/down shift pulse earlier or later, preserving its

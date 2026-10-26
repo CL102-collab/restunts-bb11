@@ -94,7 +94,8 @@ case "$target" in
     macos-universal)
         bash "$script_dir/build-macos.sh" --arch universal --build-dir "$build_dir" \
             --package-dir "$package_dir" --jobs "$jobs" -- -DRESTUNTS_BUILD_TESTS=OFF
-        for binary in bin/restunts bin/restunts-launcher bin/repldump bin/pixldump lib/libnuked-opl2.dylib; do
+        for binary in bin/restunts bin/restunts-launcher bin/genghost bin/genghost-gui \
+            bin/repldump bin/pixldump lib/libnuked-opl2.dylib; do
             lipo "$package_dir/$binary" -verify_arch arm64 x86_64
         done
         ;;

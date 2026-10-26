@@ -121,7 +121,7 @@ def main():
             descriptions[path] = check_elf(path, args.target)
     check_audio_runtime(root, descriptions)
     check_dependency_closure(descriptions)
-    for name in ("restunts", "restunts-launcher", "restunts-gtk-modules",
+    for name in ("restunts", "restunts-launcher", "genghost-gui", "restunts-gtk-modules",
                  "repldump", "pixldump", "genghost"):
         path = root / "usr/bin" / name
         if not path.is_file() or not is_elf(path):

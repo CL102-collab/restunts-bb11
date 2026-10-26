@@ -11,6 +11,7 @@ function(restunts_add_desktop_launcher)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(launcher_directory "${CMAKE_SOURCE_DIR}/src/restunts/launcher")
+    set(genghost_gui_directory "${CMAKE_SOURCE_DIR}/src/restunts/genghost_gui")
     if(RESTUNTS_TARGET_X86 AND NOT RESTUNTS_SSE2)
         add_compile_options(-mno-mmx)
     endif()
@@ -112,14 +113,9 @@ function(restunts_add_desktop_launcher)
     add_executable(restunts-launcher WIN32
         "${launcher_directory}/main.cpp" "${launcher_directory}/options.cpp"
         "${launcher_directory}/game_data.cpp")
-    if(WIN32)
-        target_sources(restunts-launcher PRIVATE "${launcher_directory}/launcher.rc")
-    endif()
-    target_link_libraries(restunts-launcher PRIVATE ${launcher_wx_libraries})
-    target_compile_features(restunts-launcher PRIVATE cxx_std_11)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
-        target_link_libraries(restunts-launcher PRIVATE be)
-    endif()
+    add_executable(genghost-gui WIN32
+        "${genghost_gui_directory}/main.cpp" "${genghost_gui_directory}/options.cpp"
+        "${launcher_directory}/options.cpp" "${launcher_directory}/game_data.cpp")
     if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" OR RESTUNTS_WX_TOOLKIT STREQUAL "qt"
             OR "__WXQT__" IN_LIST wxWidgets_DEFINITIONS)
         if(CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND CMAKE_HAIKU_SECONDARY_ARCH AND NOT Qt5_DIR)
@@ -132,32 +128,42 @@ function(restunts_add_desktop_launcher)
                 NO_DEFAULT_PATH REQUIRED)
         endif()
         find_package(Qt5 REQUIRED COMPONENTS Widgets)
-        target_link_libraries(restunts-launcher PRIVATE Qt5::Widgets)
+        list(APPEND launcher_wx_libraries Qt5::Widgets)
     endif()
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(restunts-launcher PRIVATE -Wall -Wextra -Werror)
-    endif()
-    if(WIN32 AND RESTUNTS_TARGET_X86)
-        set(launcher_xp_subsystem_major 5)
-        set(launcher_xp_subsystem_minor 1)
-        target_link_options(restunts-launcher PRIVATE
-            "-Wl,--major-subsystem-version,${launcher_xp_subsystem_major},--minor-subsystem-version,${launcher_xp_subsystem_minor}")
-        find_package(Python3 REQUIRED COMPONENTS Interpreter)
-        set(checker "${CMAKE_SOURCE_DIR}/tools/launcher-prototype/check_windows.py")
-        set(audit "${CMAKE_CURRENT_BINARY_DIR}/restunts-launcher-audit.json")
-        set(instruction_policy)
-        if(RESTUNTS_SSE2)
-            list(APPEND instruction_policy --allow-simd)
+    foreach(desktop_gui restunts-launcher genghost-gui)
+        if(WIN32)
+            target_sources(${desktop_gui} PRIVATE "${launcher_directory}/launcher.rc")
         endif()
-        set_property(TARGET restunts-launcher APPEND PROPERTY LINK_DEPENDS "${checker}")
-        add_custom_command(TARGET restunts-launcher POST_BUILD
-            BYPRODUCTS "${audit}"
-            COMMAND "${Python3_EXECUTABLE}" "${checker}" "$<TARGET_FILE:restunts-launcher>"
-                --objdump "${CMAKE_OBJDUMP}" --output "${audit}" --quiet ${instruction_policy}
-            VERBATIM)
-        install(FILES "${audit}" DESTINATION share/restunts COMPONENT Runtime)
-    endif()
-    install(TARGETS restunts-launcher RUNTIME DESTINATION bin COMPONENT Runtime)
+        target_link_libraries(${desktop_gui} PRIVATE ${launcher_wx_libraries})
+        target_compile_features(${desktop_gui} PRIVATE cxx_std_11)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+            target_link_libraries(${desktop_gui} PRIVATE be)
+        endif()
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            target_compile_options(${desktop_gui} PRIVATE -Wall -Wextra -Werror)
+        endif()
+        if(WIN32 AND RESTUNTS_TARGET_X86)
+            set(launcher_xp_subsystem_major 5)
+            set(launcher_xp_subsystem_minor 1)
+            target_link_options(${desktop_gui} PRIVATE
+                "-Wl,--major-subsystem-version,${launcher_xp_subsystem_major},--minor-subsystem-version,${launcher_xp_subsystem_minor}")
+            find_package(Python3 REQUIRED COMPONENTS Interpreter)
+            set(checker "${CMAKE_SOURCE_DIR}/tools/launcher-prototype/check_windows.py")
+            set(audit "${CMAKE_CURRENT_BINARY_DIR}/${desktop_gui}-audit.json")
+            set(instruction_policy)
+            if(RESTUNTS_SSE2)
+                list(APPEND instruction_policy --allow-simd)
+            endif()
+            set_property(TARGET ${desktop_gui} APPEND PROPERTY LINK_DEPENDS "${checker}")
+            add_custom_command(TARGET ${desktop_gui} POST_BUILD
+                BYPRODUCTS "${audit}"
+                COMMAND "${Python3_EXECUTABLE}" "${checker}" "$<TARGET_FILE:${desktop_gui}>"
+                    --objdump "${CMAKE_OBJDUMP}" --output "${audit}" --quiet ${instruction_policy}
+                VERBATIM)
+            install(FILES "${audit}" DESTINATION share/restunts COMPONENT Runtime)
+        endif()
+    endforeach()
+    install(TARGETS restunts-launcher genghost-gui RUNTIME DESTINATION bin COMPONENT Runtime)
     if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         install(FILES
             third_party/gcc-runtime/COPYING3.txt
@@ -183,8 +189,17 @@ function(restunts_add_desktop_launcher)
             DESTINATION Restunts.app/Contents COMPONENT Runtime)
         install(PROGRAMS "${launcher_directory}/macos-launcher.sh"
             DESTINATION Restunts.app/Contents/MacOS RENAME restunts-launcher COMPONENT Runtime)
+        set(genghost_bundle_directory "${CMAKE_CURRENT_BINARY_DIR}/Genghost.app/Contents")
+        file(MAKE_DIRECTORY "${genghost_bundle_directory}/MacOS")
+        configure_file("${genghost_gui_directory}/Info.plist.in"
+            "${genghost_bundle_directory}/Info.plist" @ONLY)
+        install(FILES "${genghost_bundle_directory}/Info.plist"
+            DESTINATION Genghost.app/Contents COMPONENT Runtime)
+        install(PROGRAMS "${genghost_gui_directory}/macos-genghost.sh"
+            DESTINATION Genghost.app/Contents/MacOS RENAME genghost-gui COMPONENT Runtime)
     elseif(UNIX AND NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         install(FILES "${launcher_directory}/restunts.desktop"
+            "${genghost_gui_directory}/genghost.desktop"
             DESTINATION share/applications COMPONENT Runtime)
         install(FILES site/assets/favicon.svg DESTINATION share/icons/hicolor/scalable/apps
             RENAME restunts.svg COMPONENT Runtime)
@@ -202,6 +217,16 @@ function(restunts_add_desktop_launcher)
             endif()
             add_test(NAME launcher-${test_suffix} COMMAND test-launcher-${test_suffix})
         endforeach()
+        add_executable(test-genghost-gui-options
+            "${genghost_gui_directory}/test_options.cpp" "${genghost_gui_directory}/options.cpp"
+            "${launcher_directory}/options.cpp")
+        target_link_libraries(test-genghost-gui-options PRIVATE ${launcher_test_wx_libraries})
+        target_compile_definitions(test-genghost-gui-options PRIVATE wxUSE_GUI=0)
+        target_compile_features(test-genghost-gui-options PRIVATE cxx_std_11)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+            target_link_libraries(test-genghost-gui-options PRIVATE be)
+        endif()
+        add_test(NAME genghost-gui-options COMMAND test-genghost-gui-options)
     endif()
 endfunction()
 

@@ -117,7 +117,8 @@ class ReleasePackageTests(unittest.TestCase):
         return output.getvalue()
 
     def runtime_data(self, target, name):
-        if name == "share/restunts/restunts-launcher-audit.json":
+        if name in {f"share/restunts/{executable}-audit.json" for executable in
+                    PACKAGES.WINDOWS_AUDITED_EXECUTABLES}:
             return json.dumps({"passed": True, "problems": [],
                                "sha256": PACKAGES.sha256(FILE_DATA),
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
@@ -149,7 +150,8 @@ class ReleasePackageTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
             if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {
-                    "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.APPIMAGE}:
+                    "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.MACOS_GENGHOST_GUI,
+                    PACKAGES.APPIMAGE}:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
         for name, content in (asset_data or {}).items():
             path = runtime / name
@@ -342,16 +344,21 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertIn("share/docs/restunts/genghost-android.md", files)
                     self.assertNotIn("bin/genghost", files)
                     self.assertNotIn("bin/genghost.exe", files)
+                    self.assertNotIn("bin/genghost-gui", files)
+                    self.assertNotIn("bin/genghost-gui.exe", files)
                 else:
                     generator = "bin/genghost.exe" if target.startswith("windows") else "bin/genghost"
                     self.assertIn(generator, files)
+                    generator_gui = generator.replace("genghost", "genghost-gui")
+                    self.assertIn(generator_gui, files)
+                    self.assertIn(generator_gui, PACKAGES.readme(target, COMMIT).decode("utf-8"))
                     self.assertIn("share/docs/restunts/genghost.md", files)
                     self.assertIn(generator, PACKAGES.readme(target, COMMIT).decode("utf-8"))
 
     def test_desktop_packages_require_genghost_and_its_guide(self):
         files = {name: self.runtime_data("windows-x64", name) for name in PACKAGES.required_files("windows-x64")}
         modes = {name: PACKAGES.FILE_MODE for name in files}
-        for missing in ("bin/genghost.exe", "share/docs/restunts/genghost.md",
+        for missing in ("bin/genghost.exe", "bin/genghost-gui.exe", "share/docs/restunts/genghost.md",
                         *(f"share/licenses/gcc-runtime/{name}" for name in
                           PACKAGES.GCC_RUNTIME_NOTICES)):
             incomplete = files.copy()
@@ -359,19 +366,35 @@ class ReleasePackageTests(unittest.TestCase):
             with self.subTest(missing=missing), self.assertRaisesRegex(ValueError, "missing packaged"):
                 PACKAGES.validate_contents("windows-x64", incomplete, modes)
 
-    def test_windows_launcher_audits_reject_stale_failed_or_wrong_policy_results(self):
-        target = "windows-x86-no-sse2"
-        audit_name = "share/restunts/restunts-launcher-audit.json"
-        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
-        modes = {name: PACKAGES.FILE_MODE for name in files}
-        audit = json.loads(files[audit_name])
-        for replacement in ({"passed": False}, {"problems": ["Vista API"]},
-                            {"sha256": "0" * 64}, {"forbid_simd": False}):
-            changed = {**files, audit_name: json.dumps({**audit, **replacement}).encode()}
-            with self.subTest(replacement=replacement), self.assertRaisesRegex(ValueError, "launcher"):
-                PACKAGES.validate_contents(target, changed, modes)
-        with self.assertRaisesRegex(ValueError, "differs from its compatibility audit"):
-            PACKAGES.validate_contents(target, {**files, "bin/restunts-launcher.exe": b"changed"}, modes)
+    def test_windows_gui_audits_reject_stale_failed_or_wrong_policy_results(self):
+        for target in ("windows-x86", "windows-x86-no-sse2"):
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.FILE_MODE for name in files}
+            for executable in PACKAGES.WINDOWS_AUDITED_EXECUTABLES:
+                audit_name = f"share/restunts/{executable}-audit.json"
+                audit = json.loads(files[audit_name])
+                for replacement in ({"passed": False}, {"problems": ["Vista API"]},
+                                    {"sha256": "0" * 64},
+                                    {"forbid_simd": not target.endswith("-no-sse2")}):
+                    changed = {**files, audit_name: json.dumps({**audit, **replacement}).encode()}
+                    with self.subTest(target=target, executable=executable, replacement=replacement), \
+                            self.assertRaisesRegex(ValueError, executable):
+                        PACKAGES.validate_contents(target, changed, modes)
+                with self.subTest(target=target, executable=executable), \
+                        self.assertRaisesRegex(ValueError, "differs from its compatibility audit"):
+                    PACKAGES.validate_contents(target, {**files, f"bin/{executable}.exe": b"changed"}, modes)
+
+    def test_desktop_generator_entries_and_macos_bundle_are_required(self):
+        for target in PACKAGES.TARGETS:
+            files = PACKAGES.required_files(target)
+            if target.startswith("linux") or target in PACKAGES.BSD_TARGETS:
+                self.assertIn("share/applications/genghost.desktop", files)
+            if target == "macos-universal":
+                self.assertIn(PACKAGES.MACOS_GENGHOST_GUI, files)
+                self.assertIn("Genghost.app/Contents/Info.plist", files)
+                archive = self.create(target)
+                _, modes = PACKAGES.archive_contents(archive)
+                self.assertTrue(modes[PACKAGES.MACOS_GENGHOST_GUI] & stat.S_IXUSR)
 
     def test_elf_archives_reject_wrong_or_missing_elf_architecture(self):
         for target in ELF_TARGETS:

@@ -109,7 +109,11 @@ done
 shopt -s nullglob globstar
 libraries=("$app_dir"/usr/lib/**/*.so "$app_dir"/usr/lib/**/*.so.*)
 (( ${#libraries[@]} > 0 ))
-for binary in "$app_dir"/usr/bin/{restunts,repldump,pixldump,genghost} "${libraries[@]}"; do
+executables=(
+    "$app_dir"/usr/bin/{restunts,restunts-launcher,genghost-gui}
+    "$app_dir"/usr/bin/{repldump,pixldump,genghost,restunts-gtk-modules}
+)
+for binary in "${executables[@]}" "${libraries[@]}"; do
     [[ -f "$binary" ]]
     [[ "$(od -An -tu1 -j4 -N1 "$binary" | tr -d ' ')" == "$elf_class" ]]
     # Only target loading uses bundled libraries. Host tools and the timeout

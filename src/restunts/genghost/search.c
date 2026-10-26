@@ -19,6 +19,32 @@
 
 volatile sig_atomic_t genghost_interrupted;
 
+static const legacy_u64 STOP_FILE_POLL_NS = 100000000ULL;
+static const legacy_char *stop_file_path;
+static legacy_u64 stop_file_next_poll;
+
+void genghost_set_stop_file(const legacy_char *path)
+{
+	stop_file_path = path;
+	stop_file_next_poll = 0;
+}
+
+legacy_int genghost_stop_requested(void)
+{
+	if (!genghost_interrupted && stop_file_path != NULL) {
+		const legacy_u64 now = SDL_GetTicksNS();
+		if (now >= stop_file_next_poll) {
+			stop_file_next_poll = now + STOP_FILE_POLL_NS;
+			SDL_PathInfo info;
+			if (SDL_GetPathInfo(stop_file_path, &info) && info.type == SDL_PATHTYPE_FILE &&
+				info.size != 0) {
+				genghost_interrupted = 1;
+			}
+		}
+	}
+	return genghost_interrupted != 0;
+}
+
 int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t proposal,
 						  unsigned int *first, unsigned int *end)
 {
@@ -172,7 +198,7 @@ static int expired(const struct search_context *context)
 			return 1;
 		}
 	}
-	return genghost_interrupted ||
+	return genghost_stop_requested() ||
 		   (context->options->seconds > 0.0 && elapsed(context) >= context->options->seconds) ||
 		   (context->options->evaluations &&
 			context->result->evaluations >= context->options->evaluations);

@@ -17,6 +17,8 @@ GUEST_TEST = Path(__file__).with_name("test-appimage-guest.sh")
 LINKAGE_PROBE_COMPLETE = 73
 ELF_CLASS_64 = 2
 GUEST_PROBE_TIMEOUT_SECONDS = 30
+GUI_FAILURE_EXIT_CODE = 23
+APPRUN_PROBE_TIMEOUT_SECONDS = 10
 
 
 class AppRunTests(unittest.TestCase):
@@ -34,9 +36,12 @@ import json, os, sys
 print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:],
                   "environment": {key: value for key, value in os.environ.items()
                                   if key.startswith(("PULSE_", "ALSA_", "RESTUNTS_ALSA"))
-                                  or key in ("LD_LIBRARY_PATH", "XLOCALEDIR")}}))
+                                  or key in ("LD_LIBRARY_PATH", "XLOCALEDIR", "PANGO_RC_FILE",
+                                             "GDK_PIXBUF_MODULE_FILE", "FONTCONFIG_PATH",
+                                             "FONTCONFIG_FILE", "LIBTHAI_DICTDIR",
+                                             "GIO_EXTRA_MODULES")}}))
 """
-        for name in ("restunts", "restunts-launcher"):
+        for name in ("restunts", "restunts-launcher", "genghost-gui"):
             path = executable_directory / name
             path.write_text(child)
             path.chmod(0o755)
@@ -80,6 +85,63 @@ print(json.dumps({"program": os.path.basename(sys.argv[0]), "argv": sys.argv[1:]
         self.assertEqual(result["argv"], ["--wait-for-game"])
         self.assertEqual(result["environment"]["PULSE_RUNTIME_PATH"],
                          str(self.runtime / "pulse"))
+        self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
+
+    def test_genghost_selector_opens_gui_without_forwarding_selector(self):
+        result = self.run_app(("--genghost",), LD_LIBRARY_PATH="")
+        self.assertEqual(result["program"], "genghost-gui")
+        self.assertEqual(result["argv"], [])
+        self.assertEqual(result["environment"]["PULSE_RUNTIME_PATH"],
+                         str(self.runtime / "pulse"))
+        self.assertEqual(result["environment"]["LD_LIBRARY_PATH"],
+                         str(self.appdir / "usr/lib"))
+        self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
+
+    def test_genghost_selector_preserves_remaining_gui_arguments(self):
+        arguments = ("--data-dir", "game árvíz & spaces", "--generator",
+                     "/tools/genghost with spaces")
+        result = self.run_app(("--genghost", *arguments))
+        self.assertEqual(result["program"], "genghost-gui")
+        self.assertEqual(result["argv"], list(arguments))
+
+    def test_genghost_selector_is_only_recognized_as_the_first_argument(self):
+        arguments = ("--data-dir", "game with spaces", "--genghost")
+        result = self.run_app(arguments)
+        self.assertEqual(result["program"], "restunts")
+        self.assertEqual(result["argv"], list(arguments))
+
+    def test_genghost_gui_keeps_caches_until_exit_and_propagates_failure(self):
+        gui = self.appdir / "usr/bin/genghost-gui"
+        gui.write_text('''#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+pango = Path(os.environ["PANGO_RC_FILE"])
+pixbuf = Path(os.environ["GDK_PIXBUF_MODULE_FILE"])
+configuration = pango.read_text().splitlines()
+modules = next(line.partition("=")[2] for line in configuration if line.startswith("ModuleFiles="))
+assert Path(modules).is_file() and pixbuf.is_file()
+assert pango.parent == pixbuf.parent
+appdir = Path(sys.argv[0]).parents[2]
+expected = {"FONTCONFIG_PATH": "usr/etc/fonts", "FONTCONFIG_FILE": "usr/etc/fonts/fonts.conf",
+            "LIBTHAI_DICTDIR": "usr/share/libthai", "GIO_EXTRA_MODULES": "usr/lib/gio/modules"}
+for key, suffix in expected.items():
+    assert os.environ[key] == str(appdir / suffix), (key, os.environ[key])
+assert os.environ["LD_LIBRARY_PATH"] == str(appdir / "usr/lib")
+print(json.dumps({"cache": str(pango.parent), "argv": sys.argv[1:], "parent": os.getppid()}))
+sys.exit(int(os.environ["RESTUNTS_TEST_GUI_EXIT"]))
+''')
+        arguments = ["--genghost", "--data-dir", "folder with spaces"]
+        with subprocess.Popen([str(self.appdir / "AppRun"), *arguments],
+                              env=dict(self.environment, LD_LIBRARY_PATH="",
+                                       RESTUNTS_TEST_GUI_EXIT=str(GUI_FAILURE_EXIT_CODE)),
+                              text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            output, errors = process.communicate(timeout=APPRUN_PROBE_TIMEOUT_SECONDS)
+        self.assertEqual(process.returncode, GUI_FAILURE_EXIT_CODE, errors)
+        observed = json.loads(output)
+        self.assertEqual(observed["argv"], arguments[1:])
+        self.assertEqual(observed["parent"], process.pid,
+                         "AppRun must stay alive while the GUI uses its mounted files and caches")
+        self.assertFalse(Path(observed["cache"]).exists())
         self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
 
     def test_game_library_path_preserves_the_callers_search_path(self):
@@ -162,15 +224,22 @@ import os
 with open(os.environ["RESTUNTS_TEST_MODULE_LOG"], "a") as output:
     print(os.environ.get("LD_LIBRARY_PATH"), file=output)
 ''')
-        result = self.run_app(
-            (), LD_LIBRARY_PATH=caller_path,
-            PATH=str(host_tools) + os.pathsep + self.environment["PATH"],
-            RESTUNTS_TEST_CALLER_LIBRARY_PATH=caller_path,
-            RESTUNTS_TEST_HOST_LOG=str(host_log), RESTUNTS_TEST_MODULE_LOG=str(module_log))
-        self.assertEqual(result["environment"]["LD_LIBRARY_PATH"], expected_path)
-        self.assertEqual(module_log.read_text().splitlines(), [expected_path, expected_path])
-        self.assertTrue({"dirname", "mktemp", "rm"}.issubset(host_log.read_text().splitlines()))
-        self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
+        for arguments in ((), ("--genghost",)):
+            with self.subTest(arguments=arguments):
+                host_log.unlink(missing_ok=True)
+                module_log.unlink(missing_ok=True)
+                result = self.run_app(
+                    arguments, LD_LIBRARY_PATH=caller_path,
+                    PATH=str(host_tools) + os.pathsep + self.environment["PATH"],
+                    RESTUNTS_TEST_CALLER_LIBRARY_PATH=caller_path,
+                    RESTUNTS_TEST_HOST_LOG=str(host_log),
+                    RESTUNTS_TEST_MODULE_LOG=str(module_log))
+                self.assertEqual(result["environment"]["LD_LIBRARY_PATH"], expected_path)
+                self.assertEqual(module_log.read_text().splitlines(),
+                                 [expected_path, expected_path])
+                self.assertTrue({"dirname", "mktemp", "rm"}.issubset(
+                    host_log.read_text().splitlines()))
+                self.assertEqual(list(self.root.glob("restunts-gtk.*")), [])
 
     def test_explicit_server_is_preserved(self):
         result = self.run_app(PULSE_SERVER="unix:/chosen/server")
@@ -256,7 +325,8 @@ case "$1" in
     --licenses) echo 'Nuked OPL2 Lite' ;;
 esac
 ''')
-            for name in ("repldump", "pixldump"):
+            for name in ("restunts-launcher", "genghost-gui", "repldump", "pixldump",
+                         "restunts-gtk-modules"):
                 executable(appdir / "usr/bin" / name, "exit 0\n")
             executable(appdir / "usr/bin/genghost", '''
 case "${LD_LIBRARY_PATH-}" in */squashfs-root/usr/lib) ;; *) exit 127 ;; esac

@@ -22,8 +22,10 @@ MANIFEST_VERSION = 1
 README = "README-PACKAGE.txt"
 DOS_EXECUTABLES = ("restunts", "restunto", "repldump", "repldumo", "pixldump", "pixldumo")
 DOS32_EXECUTABLES = ("restunts", "repldump", "pixldump")
-NATIVE_EXECUTABLES = (*DOS32_EXECUTABLES, "genghost", "restunts-launcher")
+NATIVE_EXECUTABLES = (*DOS32_EXECUTABLES, "genghost", "restunts-launcher", "genghost-gui")
 MACOS_LAUNCHER = "Restunts.app/Contents/MacOS/restunts-launcher"
+MACOS_GENGHOST_GUI = "Genghost.app/Contents/MacOS/genghost-gui"
+WINDOWS_AUDITED_EXECUTABLES = ("restunts-launcher", "genghost-gui")
 WINDOWS_GCC_TARGETS = {"windows-x86", "windows-x86-no-sse2", "windows-x64"}
 GCC_RUNTIME_NOTICES = {"COPYING3.txt", "COPYING.RUNTIME.txt",
                        "gcc-mingw-w64-copyright.txt", "README.md"}
@@ -423,10 +425,10 @@ def required_files(target):
     required |= {"share/docs/restunts/launcher.md", "share/licenses/restunts/wxWidgets-LICENSE",
                  "share/licenses/restunts/wxWidgets-LGPL.txt"}
     if target.startswith("linux") or target in BSD_TARGETS:
-        required |= {"share/applications/restunts.desktop",
+        required |= {"share/applications/restunts.desktop", "share/applications/genghost.desktop",
                      "share/icons/hicolor/scalable/apps/restunts.svg"}
     if target.startswith("windows-x86"):
-        required.add("share/restunts/restunts-launcher-audit.json")
+        required |= {f"share/restunts/{name}-audit.json" for name in WINDOWS_AUDITED_EXECUTABLES}
     required |= {"THIRD-PARTY-NOTICES.txt", "share/licenses/restunts/Nuked-OPL2-LICENSE"}
     required |= nuked_source_files()
     if target.startswith("windows"):
@@ -437,7 +439,8 @@ def required_files(target):
             required |= {f"share/licenses/llvm-runtime/{name}" for name in LLVM_RUNTIME_NOTICES}
     elif target == "macos-universal":
         required |= {"lib/libnuked-opl2.dylib", "run-restunts.sh", MACOS_LAUNCHER,
-                     "Restunts.app/Contents/Info.plist"}
+                     "Restunts.app/Contents/Info.plist", MACOS_GENGHOST_GUI,
+                     "Genghost.app/Contents/Info.plist"}
     else:
         required.add("lib/libnuked-opl2.so")
     if target in APPIMAGE_TARGETS:
@@ -445,20 +448,21 @@ def required_files(target):
     return required
 
 
-def validate_windows_launcher_audit(target, files):
+def validate_windows_gui_audits(target, files):
     if not target.startswith("windows-x86"):
         return
-    try:
-        audit = json.loads(files["share/restunts/restunts-launcher-audit.json"])
-    except (ValueError, UnicodeError) as error:
-        raise ValueError(f"Invalid Windows launcher audit: {error}") from error
-    require(isinstance(audit, dict), "Windows launcher audit must be a JSON object")
-    require(audit.get("passed") is True and audit.get("problems") == [],
-            "Windows launcher compatibility audit did not pass")
-    require(audit.get("sha256") == sha256(files["bin/restunts-launcher.exe"]),
-            "Windows launcher differs from its compatibility audit")
-    require(audit.get("forbid_simd") is target.endswith("-no-sse2"),
-            "Windows launcher audit used the wrong instruction policy")
+    for name in WINDOWS_AUDITED_EXECUTABLES:
+        try:
+            audit = json.loads(files[f"share/restunts/{name}-audit.json"])
+        except (ValueError, UnicodeError) as error:
+            raise ValueError(f"Invalid Windows {name} audit: {error}") from error
+        require(isinstance(audit, dict), f"Windows {name} audit must be a JSON object")
+        require(audit.get("passed") is True and audit.get("problems") == [],
+                f"Windows {name} compatibility audit did not pass")
+        require(audit.get("sha256") == sha256(files[f"bin/{name}.exe"]),
+                f"Windows {name} differs from its compatibility audit")
+        require(audit.get("forbid_simd") is target.endswith("-no-sse2"),
+                f"Windows {name} audit used the wrong instruction policy")
 
 
 def validate_contents(target, files, modes):
@@ -475,14 +479,14 @@ def validate_contents(target, files, modes):
         if target.startswith("dos"):
             require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
     validate_custom_car_resources(files)
-    validate_windows_launcher_audit(target, files)
+    validate_windows_gui_audits(target, files)
     if target == "browser":
         require(any(name.startswith("share/restunts/wasm-relink/objects/") for name in files),
                 "Browser package is missing application entry objects for relinking")
     if TARGETS[target] == ".tar.gz":
         executables = {f"bin/{name}" for name in NATIVE_EXECUTABLES}
         if target == "macos-universal":
-            executables |= {"run-restunts.sh", MACOS_LAUNCHER}
+            executables |= {"run-restunts.sh", MACOS_LAUNCHER, MACOS_GENGHOST_GUI}
         if target in APPIMAGE_TARGETS:
             executables.add(APPIMAGE)
         for name in executables:
@@ -557,12 +561,14 @@ def readme(target, commit):
                       "The original game folder must be writable; preferences are per user.",
                       "See share/docs/restunts/launcher.md for desktop dependencies and direct CLI use."]
             generator = "genghost.exe" if target.startswith("windows") else "genghost"
-            lines += [f"Generate ghosts offline with bin/{generator} TRACK.TRK CAR_CODE",
+            generator_gui = "genghost-gui.exe" if target.startswith("windows") else "genghost-gui"
+            lines += [f"Open bin/{generator_gui} to generate ghosts with the desktop interface.",
+                      f"Generate ghosts offline with bin/{generator} TRACK.TRK CAR_CODE",
                       "--data-dir PATH_TO_YOUR_STUNTS_FOLDER. Track input can also be an .RPL file.",
                       "See share/docs/restunts/genghost.md for search options and physics settings."]
     if target == "macos-universal":
         lines += ["macOS 11.0 or newer; Intel and Apple Silicon are in the same binary.",
-                  "Open Restunts.app while keeping the complete package beside it.",
+                  "Open Restunts.app or Genghost.app while keeping the complete package beside it.",
                   "With no arguments, bash run-restunts.sh also opens the startup window.",
                   "For direct CLI use: bash run-restunts.sh --data-dir PATH_TO_YOUR_STUNTS_FOLDER"]
     if target in APPIMAGE_TARGETS:

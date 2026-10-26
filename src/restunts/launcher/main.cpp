@@ -3,6 +3,7 @@
 #include <wx/filename.h>
 #include <wx/scrolwin.h>
 #include <wx/statbox.h>
+#include <wx/statline.h>
 #include <wx/stdpaths.h>
 #include <wx/utils.h>
 #include "options.h"
@@ -20,8 +21,10 @@ static const legacy_char GAME_OPTION[] = "--game";
 static const legacy_char WAIT_FOR_GAME_OPTION[] = "--wait-for-game";
 #ifdef __WXMSW__
 static const legacy_char GAME_FILENAME[] = "restunts.exe";
+static const legacy_char GENGHOST_GUI_FILENAME[] = "genghost-gui.exe";
 #else
 static const legacy_char GAME_FILENAME[] = "restunts";
+static const legacy_char GENGHOST_GUI_FILENAME[] = "genghost-gui";
 #endif
 
 static const legacy_int FIRST_ARGUMENT = 1;
@@ -155,8 +158,15 @@ class LauncherDialog : public wxDialog
 								   "Settings are saved for your user when you start the game.");
 		status_->Wrap(FromDIP(CONTENT_WIDTH));
 		layout->Add(status_, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT, border);
-		layout->Add(CreateSeparatedButtonSizer(wxOK | wxCANCEL), FIXED_LAYOUT, wxEXPAND | wxALL,
+		layout->Add(new wxStaticLine(this), FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxTOP,
 					border);
+		wxBoxSizer *buttons = new wxBoxSizer(wxHORIZONTAL);
+		wxButton *generator = new wxButton(this, wxID_ANY, "&Ghost generator...");
+		generator->SetToolTip("Open the ghost generator and choose its game folder there.");
+		buttons->Add(generator, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		buttons->AddStretchSpacer(GROW_LAYOUT);
+		buttons->Add(CreateButtonSizer(wxOK | wxCANCEL), FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		layout->Add(buttons, FIXED_LAYOUT, wxEXPAND | wxALL, border);
 		wxButton *start = static_cast<wxButton *>(FindWindow(wxID_OK));
 		start->SetLabel("&Start game");
 		start->SetDefault();
@@ -177,12 +187,13 @@ class LauncherDialog : public wxDialog
 		Centre();
 		folder_->SetFocus();
 		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_folder, this);
+		generator->Bind(wxEVT_BUTTON, &LauncherDialog::start_generator, this);
 		Bind(wxEVT_BUTTON, &LauncherDialog::start_game, this, wxID_OK);
 #ifdef __WXQT__
 		Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { Close(); }, wxID_CANCEL);
 		Bind(wxEVT_SHOW, [this](wxShowEvent &event) {
 			// Qt rejection hides modeless dialogs without sending a close event.
-			if (!event.IsShown() && !IsIconized() && !starting_game_) {
+			if (!event.IsShown() && !IsIconized() && !starting_program_) {
 				wxTheApp->ExitMainLoop();
 			}
 			event.Skip();
@@ -273,19 +284,49 @@ class LauncherDialog : public wxDialog
 			set_status(save_error);
 			return;
 		}
-		const std::vector<wxString> arguments = launcher_game_arguments(game_, options_);
+		launch_program(launcher_game_arguments(game_, options_), folder,
+					   "Cannot start the game executable: " + game_);
+	}
+
+	void start_generator(wxCommandEvent &)
+	{
+		wxFileName generator(wxStandardPaths::Get().GetExecutablePath());
+		generator.SetFullName(GENGHOST_GUI_FILENAME);
+		if (!wxFileName::IsFileExecutable(generator.GetFullPath())) {
+			set_status("The ghost generator window is missing or cannot be launched: " +
+					   generator.GetFullPath());
+			return;
+		}
+		std::vector<wxString> arguments = {generator.GetFullPath()};
+		if (!folder_->GetValue().empty()) {
+			wxFileName directory = wxFileName::DirName(folder_->GetValue());
+			if (!directory.MakeAbsolute()) {
+				set_status(
+					"Cannot resolve the game data folder. Choose another folder or clear it.");
+				return;
+			}
+			arguments.push_back(DATA_DIRECTORY_OPTION);
+			arguments.push_back(directory.GetPath());
+		}
+		launch_program(arguments, wxEmptyString,
+					   "Cannot start the ghost generator window: " + generator.GetFullPath());
+	}
+
+	void launch_program(const std::vector<wxString> &arguments, const wxString &working_directory,
+						const wxString &failure_message)
+	{
 		std::vector<const wxChar *> argument_vector;
 		for (const wxString &argument : arguments) {
 			argument_vector.push_back(argument.c_str());
 		}
 		argument_vector.push_back(nullptr);
 		wxExecuteEnv environment;
-		environment.cwd = folder;
+		environment.cwd = working_directory;
 		legacy_s64 process;
 		{
 			wxLogNull quiet;
 #ifdef __WXQT__
-			starting_game_ = true;
+			starting_program_ = true;
 #endif
 			if (wait_for_game_) {
 				Hide();
@@ -293,13 +334,13 @@ class LauncherDialog : public wxDialog
 			process = wxExecute(argument_vector.data(), wait_for_game_ ? wxEXEC_SYNC : wxEXEC_ASYNC,
 								nullptr, &environment);
 #ifdef __WXQT__
-			starting_game_ = false;
+			starting_program_ = false;
 #endif
 		}
 		if (process ==
 			(wait_for_game_ ? SYNCHRONOUS_PROCESS_START_FAILURE : PROCESS_START_FAILURE)) {
 			Show();
-			set_status("Cannot start the game executable: " + game_);
+			set_status(failure_message);
 			return;
 		}
 		if (wait_for_game_) {
@@ -322,7 +363,7 @@ class LauncherDialog : public wxDialog
 	legacy_bool wait_for_game_;
 	legacy_int game_exit_code_ = LAUNCHER_SUCCESS;
 #ifdef __WXQT__
-	legacy_bool starting_game_ = false;
+	legacy_bool starting_program_ = false;
 #endif
 };
 

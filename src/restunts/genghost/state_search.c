@@ -75,7 +75,7 @@ static double state_elapsed(const struct state_search *search)
 static int state_expired(struct state_search *search)
 {
 	search->result->elapsed_seconds = state_elapsed(search);
-	return search->cancelled || genghost_interrupted ||
+	return search->cancelled || genghost_stop_requested() ||
 		   (search->options->seconds > 0.0 &&
 			search->result->elapsed_seconds >= search->options->seconds) ||
 		   (search->options->evaluations &&
@@ -462,7 +462,7 @@ int genghost_state_execute(const void *request, void *response, void *opaque)
 			if (transition) {
 				reply->transition_stop = 1U;
 			}
-			if (event || transition || no_progress > 300U || genghost_interrupted) {
+			if (event || transition || no_progress > 300U || genghost_stop_requested()) {
 				break;
 			}
 		}

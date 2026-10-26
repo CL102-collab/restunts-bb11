@@ -11,6 +11,11 @@ and wxQt with the Haiku Qt platform/style plugins on Haiku. The same C++ source
 implements all seven desktop platforms. Web and Android keep their existing
 startup interfaces; DOS builds do not depend on wxWidgets.
 
+The separate [ghost generator window](genghost.md), `genghost-gui`, uses the same
+toolkit and desktop platform support. It starts the existing sibling `genghost`
+command-line executable. Both windows are included in the Runtime package, with
+separate application-menu entries on Linux and BSD and `Genghost.app` on macOS.
+
 **New MIDI** starts enabled and **HyperVision** starts at **Auto**. **Fullscreen**
 controls the game's initial window state. Selections, including the game folder,
 are saved per user on Start. Cancel leaves saved preferences unchanged. The game
@@ -26,8 +31,12 @@ The setting is remembered with the other startup options.
 Use the launcher from your desktop application menu where installed. macOS
 packages include `Restunts.app`; keep it beside the package's `bin`, `lib` and
 `share` directories. `run-restunts.sh` also opens the window with no arguments.
-The AppImage opens the startup window with no arguments. Passing game arguments
-to the AppImage or calling `bin/restunts` directly retains command-line use:
+The AppImage opens the startup window with no arguments. Use
+`bin/restunts.AppImage --genghost` to open the ghost generator window. Put this
+selector first; any remaining arguments, such as `--data-dir "/path/to/Stunts"`,
+go to that window. The selector is available in newly built images; existing
+released AppImages are unchanged. Passing game arguments to the AppImage or
+calling `bin/restunts` directly retains command-line use:
 
 ```sh
 bin/restunts --data-dir /path/to/Stunts --fullscreen:on
@@ -57,10 +66,12 @@ read and write tracks, replays and other game files in the selected game folder.
 ## Building
 
 CMake enables `RESTUNTS_BUILD_LAUNCHER` by default for Windows, Linux, macOS,
-FreeBSD, OpenBSD, NetBSD and Haiku game builds. A C++11 compiler is required.
+FreeBSD, OpenBSD, NetBSD and Haiku game builds. This option builds both
+`restunts-launcher` and `genghost-gui`. A C++11 compiler is required.
 Except on Haiku, CMake downloads the official wxWidgets 3.2.12 release archive
-and verifies its SHA-256 hash. Only the static core/base libraries are linked,
-with web, media, networking, OpenGL and optional image codecs disabled.
+and verifies its SHA-256 hash. Only the static core/base libraries are linked
+into both windows, with web, media, networking, OpenGL and optional image codecs
+disabled.
 Haiku defaults to the HaikuPorts wxQt 3.2.4 system package, which carries
 platform fixes absent from the upstream archive. Its core/base libraries remain
 system runtime dependencies. The package includes the matching upstream license
@@ -78,8 +89,9 @@ historical distribution baseline and bundles its GUI runtime dependencies.
 
 Windows x86 release builds use Debian 12's GCC/G++ 12 MinGW-w64 win32-threading
 MSVCRT toolchain. GCC 13's win32 C++ runtime imports Vista-only condition-variable
-APIs even when XP macros are set. CMake audits each x86 launcher after linking
-for XP-incompatible imports; no-SSE2 builds additionally reject SIMD instructions.
+APIs even when XP macros are set. CMake audits both x86 GUI executables after
+linking for XP-incompatible imports; no-SSE2 builds additionally reject SIMD
+instructions.
 A failing audit fails the build. Windows x64 and ARM64 retain their existing
 Windows 7 and Windows 10 baselines.
 
@@ -92,13 +104,15 @@ The optional `RESTUNTS_SYSTEM_WX=OFF` wxQt source build on Haiku has not been
 validated and omits the HaikuPorts patches.
 
 For a game/tools-only or headless development build, use
-`-DRESTUNTS_BUILD_LAUNCHER=OFF`. This removes the C++ GUI dependency. Web, Android,
-DOS, Amiga and standalone generator builds exclude the launcher automatically.
+`-DRESTUNTS_BUILD_LAUNCHER=OFF`. This excludes both desktop windows and removes
+the C++ GUI dependency. Web, Android, DOS, Amiga and standalone generator builds
+exclude both windows automatically.
 
-With native regressions enabled, CTest includes `launcher-options` and
-`launcher-game-data`. They test settings/arguments and game-resource validation
-without opening a display. A successful build still needs target-system GUI
-verification for folder selection, DPI scaling, process startup and persistence.
+With native regressions enabled, CTest includes `launcher-options`,
+`launcher-game-data` and `genghost-gui-options`. They test settings, arguments,
+ghost input validation and game-resource validation without opening a display.
+A successful build still needs target-system GUI verification for folder selection,
+DPI scaling, process startup and persistence.
 The production launcher has been exercised on Linux and Windows XP SP3 with
 QEMU's Pentium III CPU model (no SSE2), including native folder selection, process
 arguments, saved preferences and Cancel. macOS, BSD and Haiku runtime validation

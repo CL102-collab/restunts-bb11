@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Stunts Ghost Generator
+Comment=Generate Stunts ghost replays with your original game data
+Exec=genghost-gui
+Icon=restunts
+Categories=Game;SportsGame;
+Terminal=false

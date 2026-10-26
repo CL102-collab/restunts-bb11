@@ -50,9 +50,9 @@ if(CMAKE_SYSTEM_NAME MATCHES "^(Windows|Linux|Darwin|FreeBSD|OpenBSD|NetBSD|Haik
         AND NOT ANDROID AND NOT EMSCRIPTEN AND NOT RESTUNTS_GENGHOST_ONLY)
     set(restunts_launcher_supported ON)
 endif()
-option(RESTUNTS_BUILD_LAUNCHER "Build the native desktop startup window" ${restunts_launcher_supported})
+option(RESTUNTS_BUILD_LAUNCHER "Build the native desktop startup and ghost generator windows" ${restunts_launcher_supported})
 if(RESTUNTS_BUILD_LAUNCHER AND NOT restunts_launcher_supported)
-    message(FATAL_ERROR "The startup window requires a desktop game build")
+    message(FATAL_ERROR "The desktop windows require a desktop game build")
 endif()
 # Enable languages before dependency directories capture their compiler rules.
 if(APPLE)
@@ -648,6 +648,11 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/stunts" "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip"
                 "$<TARGET_FILE:test-genghost-state>")
             set_tests_properties(genghost-fine-tune PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
+            add_test(NAME genghost-stop-file COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stop.py"
+                "$<TARGET_FILE:genghost>" "${CMAKE_SOURCE_DIR}/stunts"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/rpls_golden/replays.zip")
+            set_tests_properties(genghost-stop-file PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 90)
             add_test(NAME genghost-parallel COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-parallel.py"
                 "$<TARGET_FILE:genghost>" "$<TARGET_FILE:repldump>"
@@ -668,7 +673,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                     "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
             endif()
             foreach(restunts_genghost_test genghost-simulation genghost-search
-                    genghost-fine-tune genghost-parallel genghost-state)
+                    genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout
                     "${restunts_genghost_timeout} * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")

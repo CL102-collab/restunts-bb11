@@ -60,6 +60,11 @@ Desktop builds include a [native startup window](docs/launcher.md). Run
 game folder, startup options and Fullscreen setting. macOS packages also include
 `Restunts.app`; AppImages open this window when started without arguments.
 
+Desktop packages also include [a ghost generator window](docs/genghost.md). Run
+`genghost-gui` (`genghost-gui.exe` on Windows), or open `Genghost.app` on macOS,
+to configure and run the included command-line generator. With a newly built
+AppImage, run `restunts.AppImage --genghost` to open this window.
+
 
 The experimental [Amiga 500+ port](docs/amiga.md) builds a native AmigaOS
 executable from the classic DOS game core. See its current performance limits.
@@ -1487,8 +1492,9 @@ and a required braced body for every `if`, `else`, `for`, `while`, and `do`.
 Conventional `else if` chains are allowed. Empty loops also need braces. Keep
 CRLF line endings, as required by `.gitattributes`.
 
-The desktop launcher uses C++11 and follows the same whitespace and brace rules.
-Its `.cpp` files are included in the formatting checks below.
+The desktop launcher and ghost generator window use C++11 and follow the same
+whitespace and brace rules.
+Their `.cpp` files are included in the formatting checks below.
 
 C sources use the C99 features supported by Open Watcom (`-zastd=c99`).
 Declare local variables close to their first use, combining the declaration

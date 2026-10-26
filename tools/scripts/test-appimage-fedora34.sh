@@ -104,7 +104,11 @@ check_info --licenses 'Nuked OPL2 Lite'
 shopt -s nullglob globstar
 libraries=("$app_dir"/usr/lib/**/*.so "$app_dir"/usr/lib/**/*.so.*)
 (( ${#libraries[@]} > 0 )) || { echo "No packaged shared libraries found" >&2; exit 1; }
-for binary in "$app_dir"/usr/bin/{restunts,repldump,pixldump,genghost} "${libraries[@]}"; do
+executables=(
+    "$app_dir"/usr/bin/{restunts,restunts-launcher,genghost-gui}
+    "$app_dir"/usr/bin/{repldump,pixldump,genghost,restunts-gtk-modules}
+)
+for binary in "${executables[@]}" "${libraries[@]}"; do
     [[ -f "$binary" ]] || { echo "Missing packaged executable or library: $binary" >&2; exit 1; }
     if ! linkage=$(ldd "$binary" 2>&1); then
         printf 'Cannot load %s:\n%s\n' "$binary" "$linkage" >&2

@@ -3,10 +3,67 @@
 `genghost` searches for driving inputs and writes a standard Stunts replay that
 Restunts can load for playback or use as a ghost. It is an SDL3 tool built
 alongside `repldump` and `pixldump`: `genghost` on Linux and `genghost.exe`
-on Windows. An [Android app](genghost-android.md) packages the same headless
-generator with track and car controls. The search runs locally without network access,
+on Windows. A native desktop window, `genghost-gui` (`genghost-gui.exe` on Windows), and an
+[Android app](genghost-android.md) provide track and car controls for the same
+headless generator. The search runs locally without network access,
 language models, or an external AI service. Original game resources and the
 selected car's resources must be available in the game data directory.
+
+## Desktop window
+
+Run `bin/genghost-gui`, or open **Stunts Ghost Generator** from the application
+menu where installed. macOS packages also include `Genghost.app`; keep it beside
+the package's `bin`, `lib`, and `share` folders. The window uses the same wxWidgets
+build and native controls as the [Restunts startup window](launcher.md), on
+Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku.
+
+Choose your original Stunts 1.1 game folder, then a track or replay and a car.
+**Refresh** updates the track and installed car lists. **Browse** can also choose
+an input outside the game folder. Choose **Generate replay**, **Fine-tune replay**,
+or **Fine-tune gears only**. Both fine-tuning modes read the car from the replay.
+The original replay is preserved; choose a separate output filename.
+
+Set the search budget in seconds (1800 initially; 0 searches until stopped),
+CPU cores (1 initially; 0 selects all available cores), search method, and driving
+rules. The default output uses the generator's DOS-compatible filename in the
+game folder. An explicit output path can save elsewhere. Existing replay or
+report files require confirmation before replacement.
+
+**Generate ghost** starts the sibling `genghost` executable in a separate process.
+The window stays responsive and displays elapsed time and the search log. The
+generator saves each improved completed replay and its `.rpl.json` driving-rule
+report. **Stop and keep best replay** requests a graceful stop, including for
+parallel searches. Closing the window during a search requests the same stop
+and waits for the generator to finish. **Export replay** and **Export report**
+copy the completed result to another location.
+
+Settings are saved on Start in `genghost.ini`, beside the startup window's
+`launcher.ini`, without changing the game's startup settings. On first use, the
+window uses the startup window's saved game folder when available. Use the same
+driving rules when playing the output replay.
+
+```sh
+bin/genghost-gui --data-dir /path/to/Stunts
+bin/genghost-gui --generator /path/to/genghost --data-dir /path/to/Stunts
+```
+
+For an AppImage built with this GUI, put `--genghost` first to open the window
+with its bundled desktop libraries:
+
+```sh
+bin/restunts.AppImage --genghost
+bin/restunts.AppImage --genghost --data-dir "/path/to/Stunts"
+```
+
+Arguments after `--genghost` go to the GUI. The AppImage stays mounted until the
+window closes and its generator finishes. Without FUSE, extract the image with
+`--appimage-extract`, then run `./squashfs-root/AppRun --genghost`. This selector
+requires a newly built image; existing released AppImages are unchanged.
+
+Keep the GUI and generator from the same build together. Building with
+`RESTUNTS_BUILD_LAUNCHER=OFF` omits both desktop windows and retains the
+command-line tools. The GUI has been built and exercised on Linux; native GUI
+runtime checks on the other supported platforms remain outstanding.
 
 ## Usage
 
@@ -51,6 +108,7 @@ All generated replays use manual transmission; there is no transmission option.
 | `--fine-tune-gears-only` | Refine only upshift and downshift timing in a completed replay, preserving all other controls. Mutually exclusive with `--fine-tune`. |
 | `--seed N` | Pseudorandom search seed; defaults to `1`. |
 | `--cores N` | Number of parallel search workers, from `1` to `256`: `1` by default, `0` for automatic CPU selection. |
+| `--stop-file FILE` | Stop gracefully when this control file is a nonempty regular file. An empty file leaves the search running. Paths resolve from the original working directory; the generator leaves the caller's file intact. |
 | `--evaluations N` | Positive candidate budget; disables the default timer unless `--seconds` is also specified. |
 | `--pg:on`, `--pg:off` | Enable or disable the original power gear arithmetic bug. |
 | `--lc:on`, `--lc:off` | Enable or disable the original collision behavior. |

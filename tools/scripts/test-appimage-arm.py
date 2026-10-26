@@ -171,7 +171,7 @@ def main():
                 return target_environment(environment, values)
 
             binaries = [appdir / "usr/bin" / name for name in
-                        ("restunts", "restunts-launcher", "repldump", "pixldump", "genghost",
+                        ("restunts", "restunts-launcher", "genghost-gui", "repldump", "pixldump", "genghost",
                          "restunts-gtk-modules")]
             shared = sorted(path for path in libraries.rglob("*")
                             if path.is_file() and (path.name.endswith(".so") or ".so." in path.name))

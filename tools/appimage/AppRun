@@ -1,5 +1,5 @@
 #!/bin/sh
-# Keep the caller's working directory and forward every game option verbatim.
+# Keep the caller's working directory and route the desktop windows and game options.
 set -eu
 appdir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # Keep host utilities on the caller's libraries; only packaged programs use ours.
@@ -30,7 +30,14 @@ if [ "${PULSE_SERVER+x}" != x ] && [ "${PULSE_RUNTIME_PATH+x}" != x ] \
     && [ -n "${XDG_RUNTIME_DIR:-}" ] && [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
     export PULSE_RUNTIME_PATH="$XDG_RUNTIME_DIR/pulse"
 fi
-if [ "$#" -eq 0 ]; then
+if [ "$#" -eq 0 ] || [ "${1-}" = "--genghost" ]; then
+    if [ "${1-}" = "--genghost" ]; then
+        gui_program=genghost-gui
+        shift
+    else
+        gui_program=restunts-launcher
+        set -- --wait-for-game
+    fi
     # Module caches contain absolute filenames, so regenerate them for this
     # relocated/extracted AppImage using a helper built with the same SDK.
     umask 077
@@ -46,7 +53,7 @@ if [ "$#" -eq 0 ]; then
     export LIBTHAI_DICTDIR="$appdir/usr/share/libthai"
     export GIO_EXTRA_MODULES="$appdir/usr/lib/gio/modules"
     set +e
-    LD_LIBRARY_PATH="$app_library_path" "$appdir/usr/bin/restunts-launcher" --wait-for-game
+    LD_LIBRARY_PATH="$app_library_path" "$appdir/usr/bin/$gui_program" "$@"
     result=$?
     exit "$result"
 fi

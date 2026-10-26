@@ -72,9 +72,10 @@ and beside the executable before their `cars/` subfolders and the bundled
 resource folder. Any compatible car placed in these folders is discovered
 automatically; duplicate car IDs appear once, with loose files taking priority.
 
-Desktop packages contain the game, physics dumper, renderer dumper, statically
-linked SDL, its license, and the replaceable Nuked OPL2 shared library. The
-exact Nuked source, license, standalone build files and build context are under
+Desktop packages contain the game, its startup window, the command-line ghost
+generator and its GUI, physics dumper, renderer dumper, statically linked SDL,
+its license, and the replaceable Nuked OPL2 shared library. The exact Nuked source,
+license, standalone build files and build context are under
 `share/restunts/nuked-opl2-lite/`. Keep the complete package together.
 
 The Linux AppImage archive also contains `bin/restunts.AppImage`, embedding the
@@ -83,11 +84,19 @@ The ordinary binaries and source kit remain available outside the AppImage.
 CI also uploads each standalone image as an `appimage-<target>` artifact for
 direct download; restore its executable bit with `chmod +x restunts.AppImage`
 after downloading. Release archives retain the complete package and its manifest.
-Run the AppImage with your original game directory:
+With no arguments, the AppImage opens the game startup window. To open the ghost
+generator window, put `--genghost` first. Remaining arguments go to that GUI.
+Game arguments without this selector continue to start the game directly:
 
 ```sh
+bin/restunts.AppImage --genghost
+bin/restunts.AppImage --genghost --data-dir "/path/to/Stunts"
 bin/restunts.AppImage --data-dir /path/to/Stunts
 ```
+
+The `--genghost` selector requires a newly built AppImage; existing released
+images are unchanged. The mounted runtime and desktop module caches remain
+available until the GUI and its search process finish.
 
 AppImages use FUSE to mount their filesystem. Docker containers usually lack
 FUSE, so extract the image first and run its launcher from any working directory:
@@ -95,6 +104,7 @@ FUSE, so extract the image first and run its launcher from any working directory
 ```sh
 /path/to/bin/restunts.AppImage --appimage-extract
 ./squashfs-root/AppRun --data-dir /path/to/Stunts
+./squashfs-root/AppRun --genghost --data-dir "/path/to/Stunts"
 ```
 
 Extraction also allows replacing `squashfs-root/usr/lib/libnuked-opl2.so` with a

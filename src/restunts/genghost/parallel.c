@@ -272,7 +272,7 @@ int genghost_worker_progress(const struct GENGHOST_SEARCH_RESULT *result, void *
 	if (now >= control->next_publish && publish_worker(control, result, WORKER_RUNNING)) {
 		return 1;
 	}
-	return genghost_interrupted || control->failed;
+	return genghost_stop_requested() || control->failed;
 }
 
 int genghost_worker_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
@@ -597,7 +597,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 	for (unsigned int i = 0; i < count; ++i) {
 		/* Starting a large pool is part of the wall-clock budget. Do not launch
 		 * more children after the deadline or a cancellation during startup. */
-		if (genghost_interrupted ||
+		if (genghost_stop_requested() ||
 			(options->seconds > 0.0 &&
 			 (SDL_GetTicksNS() - started) / 1000000000.0 >= options->seconds)) {
 			count = i;
@@ -688,7 +688,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		int improved = 0;
 		uint64_t now = SDL_GetTicksNS();
 		if (!stop_started &&
-			(failed || genghost_interrupted ||
+			(failed || genghost_stop_requested() ||
 			 (options->seconds > 0.0 && (now - started) / 1000000000.0 >= options->seconds))) {
 			stop_started = now;
 			if (write_bytes(stop_path, "stop\n", 5U)) {
@@ -1008,7 +1008,7 @@ static int cooperative_parent_stopped(struct GENGHOST_WORKER_CONTROL *control)
 		fclose(stop);
 		genghost_interrupted = 1;
 	}
-	return genghost_interrupted;
+	return genghost_stop_requested();
 }
 
 static size_t cooperative_packet_limit(size_t request_size, size_t reply_size)
@@ -1145,7 +1145,7 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 
 static int cooperative_stopped(const struct GENGHOST_COOPERATIVE_POOL *pool)
 {
-	return genghost_interrupted ||
+	return genghost_stop_requested() ||
 		   (pool->options->seconds > 0.0 &&
 			(SDL_GetTicksNS() - pool->started) / 1000000000.0 >= pool->options->seconds);
 }
