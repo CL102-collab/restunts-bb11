@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import runpy
 import stat
 import struct
 import subprocess
@@ -28,6 +29,10 @@ RUN_ID = "12345"
 RUN_ATTEMPT = "2"
 FILE_DATA = b"release fixture\n"
 FIXTURE_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
+FIXTURE_TEMPLEOS_DATE = 1
+TEMPLEOS_TOOLS = PACKAGES.ROOT / "src/restunts/platform/templeos/tools"
+TEMPLEOS_FORMAT = runpy.run_path(str(TEMPLEOS_TOOLS / "MAKE_DATA_CD.PY"))
+PORTED_TARGETS = {"templeos", "amiga-m68k"}
 ELF_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
     "haiku-x64": "Haiku x86-64",
@@ -116,7 +121,102 @@ class ReleasePackageTests(unittest.TestCase):
                 apk.writestr(zipfile.ZipInfo(name, FIXTURE_ZIP_TIMESTAMP), content)
         return output.getvalue()
 
+    def templeos_iso_data(self, replacements=None, missing=()):
+        files = {name: source.read_bytes() for name, source in
+                 PACKAGES.templeos_disc_sources().items()}
+        files.update(replacements or {})
+        for name in missing:
+            files.pop(name)
+        root = {}
+        for name, content in sorted(files.items()):
+            directory = root
+            parts = name.split("/")
+            for part in parts[:-1]:
+                directory = directory.setdefault(part, {})
+            directory[parts[-1]] = content
+
+        def entries(directory):
+            return [{"name": name, "children": entries(value)} if isinstance(value, dict)
+                    else {"name": name, "data": value, "date": FIXTURE_TEMPLEOS_DATE}
+                    for name, value in directory.items()]
+
+        return bytes(TEMPLEOS_FORMAT["build_image"](entries(root), []))
+
+    def templeos_checksums(self, files):
+        return "".join(f"{PACKAGES.sha256(content)}  {name}\r\n"
+                       for name, content in sorted(files.items())).encode("ascii")
+
+    def templeos_files(self, replacements=None, missing=()):
+        port = TEMPLEOS_TOOLS.parent
+        files = {
+            PACKAGES.TEMPLEOS_ISO: self.templeos_iso_data(replacements, missing),
+            "README.MD": (PACKAGES.ROOT / "docs/templeos.md").read_bytes(),
+            "BUILD.TXT": b"Restunts stock TempleOS CD\r\nNo original game data is included.\r\n",
+            "CONTENTS.TXT": self.templeos_checksums({name: source.read_bytes() for name, source in
+                                                     PACKAGES.templeos_disc_sources().items()}),
+            "DATA_CD_TOOL/MAKE_DATA_CD.PY": (TEMPLEOS_TOOLS / "MAKE_DATA_CD.PY").read_bytes(),
+            "DATA_CD_TOOL/LEGACY.HH": (port / "LEGACY.HH").read_bytes(),
+            "DATA_CD_TOOL/IMPORT.HC": (port / "package/IMPORT.HC").read_bytes(),
+            "DATA_CD_TOOL/VERIFY.HH": (port / "package/VERIFY.HH").read_bytes(),
+        }
+        files["SHA256SUMS.TXT"] = self.templeos_checksums(files)
+        return files
+
+    def source_archive(self, name, files, special=None):
+        archive = self.root / name
+        if name.lower().endswith(".zip"):
+            with zipfile.ZipFile(archive, "w") as output:
+                for path, content in files.items():
+                    entry = zipfile.ZipInfo(path, FIXTURE_ZIP_TIMESTAMP)
+                    entry.external_attr = (stat.S_IFREG | PACKAGES.FILE_MODE) << 16
+                    output.writestr(entry, content)
+                if special is not None:
+                    path, mode, content = special
+                    entry = zipfile.ZipInfo(path, FIXTURE_ZIP_TIMESTAMP)
+                    entry.external_attr = mode << 16
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        output.writestr(entry, content)
+        else:
+            with tarfile.open(archive, "w:gz") as output:
+                for path in (".", "./cars"):
+                    entry = tarfile.TarInfo(path)
+                    entry.type = tarfile.DIRTYPE
+                    entry.mode = PACKAGES.EXECUTABLE_MODE
+                    output.addfile(entry)
+                for path, content in files.items():
+                    entry = tarfile.TarInfo("./" + path)
+                    entry.size = len(content)
+                    entry.mode = (PACKAGES.EXECUTABLE_MODE if path == "restunts"
+                                  else PACKAGES.FILE_MODE)
+                    output.addfile(entry, io.BytesIO(content))
+                if special is not None:
+                    path, mode, content = special
+                    entry = tarfile.TarInfo(path)
+                    entry.mode = PACKAGES.FILE_MODE
+                    if stat.S_ISLNK(mode):
+                        entry.type = tarfile.SYMTYPE
+                        entry.linkname = "outside"
+                    else:
+                        entry.size = len(content)
+                    output.addfile(entry, io.BytesIO(content))
+        return archive
+
+    def import_package(self, target, archive):
+        arguments = argparse.Namespace(archive=archive, directory=self.output, commit=COMMIT)
+        environment = {"GITHUB_RUN_ID": RUN_ID, "GITHUB_RUN_ATTEMPT": RUN_ATTEMPT}
+        importer = PACKAGES.import_templeos if target == "templeos" else PACKAGES.import_amiga
+        with mock.patch.object(subprocess, "check_output", return_value=COMMIT + "\n"), \
+                mock.patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()):
+            importer(arguments)
+        return self.output / PACKAGES.archive_name(target)
+
     def runtime_data(self, target, name):
+        if target == "templeos":
+            if not hasattr(self, "templeos_runtime"):
+                self.templeos_runtime = self.templeos_files()
+            return self.templeos_runtime.get(name, FILE_DATA)
+        if target == "amiga-m68k" and name == "README.md":
+            return (PACKAGES.ROOT / "docs/amiga.md").read_bytes()
         if name in {f"share/restunts/{executable}-audit.json" for executable in
                     PACKAGES.WINDOWS_AUDITED_EXECUTABLES}:
             return json.dumps({"passed": True, "problems": [],
@@ -150,6 +250,7 @@ class ReleasePackageTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(self.runtime_data(target, name))
             if name in {f"bin/{executable}" for executable in PACKAGES.NATIVE_EXECUTABLES} | {
+                    "restunts",
                     "run-restunts.sh", PACKAGES.MACOS_LAUNCHER, PACKAGES.MACOS_GENGHOST_GUI,
                     PACKAGES.APPIMAGE}:
                 path.chmod(PACKAGES.EXECUTABLE_MODE)
@@ -191,22 +292,26 @@ class ReleasePackageTests(unittest.TestCase):
                         with zipfile.ZipFile(io.BytesIO(files[apk_name])) as apk:
                             collections.append({name: apk.read(name) for name in apk.namelist()})
                     directory = "assets/cars"
+                elif target == "templeos":
+                    contents, _ = PACKAGES.TEMPLEOS["redsea_contents"](files[PACKAGES.TEMPLEOS_ISO])
+                    collections = [contents]
+                    directory = "PORT/CARS"
                 else:
                     collections = [files]
-                    directory = "cars" if target == "dos16" else "bin/cars"
+                    directory = "cars" if target in {"dos16", "amiga-m68k"} else "bin/cars"
                     if target == "browser":
                         directory = "share/restunts/wasm-relink/data/assets/cars"
                 for contents in collections:
                     packaged = {name for name in contents if name.startswith(directory + "/")}
                     self.assertEqual(packaged, PACKAGES.custom_car_files(directory))
                     for name in packaged:
-                        expected = PACKAGES.custom_car_source(name).read_bytes()
+                        expected = (PACKAGES.ROOT / "assets/cars" / Path(name).name).read_bytes()
                         self.assertEqual(contents[name], expected)
                         self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
 
     def test_custom_car_sources_are_required_and_cannot_be_substituted(self):
         for target in PACKAGES.TARGETS:
-            if target in PACKAGES.ANDROID_TARGETS:
+            if target in PACKAGES.ANDROID_TARGETS or target == "templeos":
                 continue
             files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
@@ -253,6 +358,167 @@ class ReleasePackageTests(unittest.TestCase):
         (self.output / "injected.exe").write_bytes(FILE_DATA)
         with self.assertRaisesRegex(ValueError, "injected.exe"):
             PACKAGES.verify_directory(arguments)
+
+    def test_imported_platform_archives_preserve_tested_payloads_and_provenance(self):
+        for target in PORTED_TARGETS:
+            with self.subTest(target=target):
+                if target == "templeos":
+                    original = self.templeos_files()
+                    source_files = {f"{PACKAGES.TEMPLEOS_PREFIX}/{name}": content
+                                    for name, content in original.items()}
+                    source_name = PACKAGES.TEMPLEOS_PREFIX + ".ZIP"
+                    self.assertEqual(PACKAGES.archive_name(target), "restunts-templeos.zip")
+                else:
+                    original = {name: self.runtime_data(target, name) for name in
+                                PACKAGES.required_files(target) - {PACKAGES.README}}
+                    source_files = original
+                    source_name = "restunts-amiga.tar.gz"
+                    self.assertEqual(PACKAGES.archive_name(target), "restunts-amiga-m68k.tar.gz")
+                source = self.source_archive(source_name, source_files)
+                archive = self.import_package(target, source)
+                files, modes = PACKAGES.archive_contents(archive)
+                self.assertEqual(set(files), original.keys() | {PACKAGES.README, PACKAGES.MANIFEST})
+                for name, content in original.items():
+                    self.assertEqual(files[name], content)
+                if target == "amiga-m68k":
+                    self.assertTrue(modes["restunts"] & stat.S_IXUSR)
+                manifest = json.loads(files[PACKAGES.MANIFEST])
+                self.assertEqual(manifest["target"], target)
+                self.assertEqual(manifest["source_commit"], COMMIT)
+                self.assertEqual(manifest["github_run_id"], RUN_ID)
+                self.assertEqual(manifest["github_run_attempt"], RUN_ATTEMPT)
+                PACKAGES.verify_package(archive, target, COMMIT, RUN_ID, RUN_ATTEMPT)
+
+    def test_imported_platforms_reject_missing_and_unexpected_members(self):
+        for target in PORTED_TARGETS:
+            if target == "templeos":
+                original = {f"{PACKAGES.TEMPLEOS_PREFIX}/{name}": content for name, content in
+                            self.templeos_files().items()}
+                archive_name = "source-templeos.zip"
+                extra = f"{PACKAGES.TEMPLEOS_PREFIX}/MISC.RES"
+            else:
+                original = {name: self.runtime_data(target, name) for name in
+                            PACKAGES.required_files(target) - {PACKAGES.README}}
+                archive_name = "source-amiga.tar.gz"
+                extra = "MISC.RES"
+            variants = [(name, {key: content for key, content in original.items() if key != name})
+                        for name in original]
+            variants.append((extra, original | {extra: FILE_DATA}))
+            for name, files in variants:
+                source = self.source_archive(archive_name, files)
+                with self.subTest(target=target, changed=name), self.assertRaises(ValueError):
+                    self.import_package(target, source)
+                self.assertFalse((self.output / PACKAGES.archive_name(target)).exists())
+
+    def test_imported_platforms_reject_duplicate_symlink_and_unsafe_members(self):
+        for target in PORTED_TARGETS:
+            if target == "templeos":
+                original = {f"{PACKAGES.TEMPLEOS_PREFIX}/{name}": content for name, content in
+                            self.templeos_files().items()}
+                archive_name = "source-templeos.zip"
+                existing = f"{PACKAGES.TEMPLEOS_PREFIX}/{PACKAGES.TEMPLEOS_ISO}"
+            else:
+                original = {name: self.runtime_data(target, name) for name in
+                            PACKAGES.required_files(target) - {PACKAGES.README}}
+                archive_name = "source-amiga.tar.gz"
+                existing = "restunts"
+            for name, mode in ((existing, stat.S_IFREG), (existing, stat.S_IFLNK),
+                               ("../outside", stat.S_IFREG), ("/absolute", stat.S_IFREG),
+                               ("folder\\file", stat.S_IFREG)):
+                files = {key: content for key, content in original.items()
+                         if key != existing or mode != stat.S_IFLNK}
+                source = self.source_archive(archive_name, files,
+                                             (name, mode | PACKAGES.FILE_MODE, FILE_DATA))
+                with self.subTest(target=target, name=name, mode=mode), self.assertRaises(ValueError):
+                    self.import_package(target, source)
+                self.assertFalse((self.output / PACKAGES.archive_name(target)).exists())
+
+    def test_amiga_requires_executable_permission_and_the_exact_car_resources(self):
+        target = "amiga-m68k"
+        files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+        modes = {name: PACKAGES.FILE_MODE for name in files}
+        with self.assertRaisesRegex(ValueError, "Missing executable permission: restunts"):
+            PACKAGES.validate_contents(target, files, modes)
+        modes["restunts"] = PACKAGES.EXECUTABLE_MODE
+        PACKAGES.validate_contents(target, files, modes)
+        for name in PACKAGES.custom_car_files("cars"):
+            with self.subTest(replaced=name), \
+                    self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
+                PACKAGES.validate_contents(target, files | {name: FILE_DATA}, modes)
+
+    def test_templeos_package_checksums_and_source_inventories_cannot_be_substituted(self):
+        original = self.templeos_files()
+        PACKAGES.validate_templeos_package(original)
+        for name in original:
+            with self.subTest(missing=name), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package({key: content for key, content in original.items()
+                                                    if key != name})
+        with self.assertRaises(ValueError):
+            PACKAGES.validate_templeos_package(original | {"MISC.RES": FILE_DATA})
+        for name in ("README.MD", "DATA_CD_TOOL/MAKE_DATA_CD.PY", "DATA_CD_TOOL/LEGACY.HH",
+                     "DATA_CD_TOOL/IMPORT.HC", "DATA_CD_TOOL/VERIFY.HH", "CONTENTS.TXT"):
+            changed = original | {name: FILE_DATA}
+            changed["SHA256SUMS.TXT"] = self.templeos_checksums(
+                {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
+            with self.subTest(replaced=name), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package(changed)
+        checksums = original["SHA256SUMS.TXT"]
+        first_line = checksums.splitlines(keepends=True)[0]
+        for content in (FILE_DATA, checksums + first_line, checksums.replace(first_line, b""),
+                        b"0" * len(checksums)):
+            with self.subTest(checksums=content), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package(original | {"SHA256SUMS.TXT": content})
+
+    def test_templeos_disc_rejects_changed_missing_and_additional_nested_files(self):
+        sources = PACKAGES.templeos_disc_sources()
+        changed_names = ("INSTALL.HC", "PORT/CARS/CARTERR.RES", "PORT/LOAD.HC")
+        for name in changed_names:
+            for files in (self.templeos_files({name: FILE_DATA}), self.templeos_files(missing=(name,))):
+                with self.subTest(changed=name), self.assertRaises(ValueError):
+                    PACKAGES.validate_templeos_package(files)
+        for name in ("PORT/CARS/MISC.RES", "PRIVATE.TXT", "PORT/EXTRA.HC"):
+            with self.subTest(extra=name), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package(self.templeos_files({name: FILE_DATA}))
+        name = "PORT/LOAD.HC"
+        changed = self.templeos_files({name: FILE_DATA})
+        contents = {key: source.read_bytes() for key, source in sources.items()} | {name: FILE_DATA}
+        changed["CONTENTS.TXT"] = self.templeos_checksums(contents)
+        changed["SHA256SUMS.TXT"] = self.templeos_checksums(
+            {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
+        with self.assertRaises(ValueError):
+            PACKAGES.validate_templeos_package(changed)
+
+    def test_templeos_disc_rejects_unsafe_duplicates_cycles_and_invalid_extents(self):
+        original = self.templeos_iso_data()
+        sector_bytes = TEMPLEOS_FORMAT["SECTOR_BYTES"]
+        record = PACKAGES.TEMPLEOS["DIRECTORY_RECORD"]
+        boot = TEMPLEOS_FORMAT["REDSEA_OFFSET"] * sector_bytes
+        _, _, root, _, _ = PACKAGES.TEMPLEOS["BOOT_FIELDS"].unpack_from(
+            original, boot + TEMPLEOS_FORMAT["BOOT_FIELDS_OFFSET"])
+        first = (root * sector_bytes +
+                 record.size * PACKAGES.TEMPLEOS["DIRECTORY_METADATA_RECORDS"])
+        second = first + record.size
+        attributes, name, cluster, size, date = record.unpack_from(original, first)
+        root_attributes, root_name, root_cluster, root_size, root_date = record.unpack_from(
+            original, root * sector_bytes)
+        replacements = {
+            "unsafe name": (first, record.pack(attributes, b"../ESCAPE", cluster, size, date)),
+            "duplicate name": (second, original[first:first + record.size]),
+            "invalid extent": (first, record.pack(attributes, name, len(original) // sector_bytes,
+                                                  size, date)),
+            "directory cycle": (first, record.pack(root_attributes, b"LOOP", root_cluster,
+                                                    root_size, root_date)),
+            "noncontiguous file": (first, record.pack(
+                attributes & ~TEMPLEOS_FORMAT["ATTR_CONTIGUOUS"], name, cluster, size, date)),
+        }
+        for case, (offset, replacement) in replacements.items():
+            image = bytearray(original)
+            image[offset:offset + len(replacement)] = replacement
+            with self.subTest(case=case), self.assertRaises(ValueError):
+                PACKAGES.TEMPLEOS["redsea_contents"](image)
+        for image in (FILE_DATA, original[:-1]):
+            with self.subTest(truncated=len(image)), self.assertRaises(ValueError):
+                PACKAGES.TEMPLEOS["redsea_contents"](image)
 
     def test_appimage_archive_retains_complete_runtime_and_rebuild_kit(self):
         for target, architecture in PACKAGES.APPIMAGE_TARGETS.items():
@@ -336,7 +602,7 @@ class ReleasePackageTests(unittest.TestCase):
         for target in PACKAGES.TARGETS:
             with self.subTest(target=target):
                 files = PACKAGES.required_files(target)
-                if target.startswith("dos") or target == "browser":
+                if target.startswith("dos") or target == "browser" or target in PORTED_TARGETS:
                     self.assertFalse(any("genghost" in name for name in files))
                 elif target in PACKAGES.ANDROID_TARGETS:
                     self.assertIn(PACKAGES.ANDROID_GENGHOST_APK, files)
@@ -413,12 +679,12 @@ class ReleasePackageTests(unittest.TestCase):
                             self.assertRaisesRegex(ValueError, "ELF"):
                         PACKAGES.validate_contents(target, {**files, name: content}, modes)
 
-    def test_complete_release_requires_every_elf_archive(self):
+    def test_complete_release_requires_every_elf_and_imported_platform_archive(self):
         for target in PACKAGES.TARGETS:
             self.create(target)
         arguments = argparse.Namespace(directory=self.output, commit=COMMIT, all=True,
                                        run_id=RUN_ID, run_attempt=RUN_ATTEMPT)
-        for target in ELF_TARGETS:
+        for target in ELF_TARGETS.keys() | PORTED_TARGETS:
             archive = self.output / PACKAGES.archive_name(target)
             saved = self.root / archive.name
             archive.rename(saved)

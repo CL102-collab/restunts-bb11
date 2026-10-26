@@ -51,5 +51,7 @@ jobs:
     uses: ./.github/workflows/build-packages.yml
     with:
       dos-artifact: ${{ needs.validate.outputs.exe-artifact }}
+      amiga-artifact: ${{ needs.validate.outputs.amiga-artifact }}
+      templeos-artifact: ${{ needs.validate.outputs.templeos-artifact }}
       attest: false
       android-release: false

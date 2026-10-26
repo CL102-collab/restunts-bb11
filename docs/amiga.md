@@ -55,6 +55,17 @@ also have static original-executable references in the fixture. The original
 executable's title screen was observed running under AROS; its menus and race
 palette changes have not been validated by a live original-game trace.
 
+## Download
+
+**PR validation** and **Release** package the validated 68000 build as
+`restunts-amiga-m68k.tar.gz`. The archive contains `restunts`, the bundled `cars/`
+resources, `restunts.map`, this guide as `README.md`, and the standard package
+README and manifest. It contains no original game data.
+
+**Release** publishes the archive and its SHA-256 sidecar with signed build
+provenance. See [release packages and verification](releases.md) for download
+verification, then follow the run instructions below.
+
 ## Build
 
 Use an `m68k-amigaos-gcc` SDK with AmigaOS headers and libnix. The build explicitly

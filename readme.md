@@ -1609,16 +1609,19 @@ refactors and audit results.
 
 ## CI packages and releases
 
-**PR validation** and **Release** build all 22 distribution packages: 16-bit and
-32-bit DOS; Linux ARMv7, ARM64, x86 with and without SSE2, and x64; Windows ARM64,
-x86 with and without SSE2, and x64; FreeBSD, OpenBSD, and NetBSD x64; NetBSD x86
-with and without SSE2; Haiku x64 and x86; Universal macOS; the offline browser;
-and Android ARMv7 and ARM64 (both Android 5.0+).
+**PR validation** and **Release** build every distribution package: 16-bit and
+32-bit DOS; Linux ARMv7, ARM64, x86 with and without SSE2, and x64, including
+AppImage variants; Windows ARM64, x86 with and without SSE2, and x64; FreeBSD,
+OpenBSD, and NetBSD x64; NetBSD x86 with and without SSE2; Haiku x64 and x86;
+Universal macOS; the offline browser; Android ARMv7 and ARM64 (both Android 5.0+);
+Amiga 68000; and stock TempleOS.
 The reusable **Build release packages** workflow is used by **PR validation** and **Release**.
 
-Packages contain the runtime dependencies and enhanced artwork, but no original
-game data. Desktop, browser and Android packages include the Nuked sources and license;
-DOS uses hardware OPL and omits Nuked. DOS32 also includes CWSDPMI.
+Packages contain the platform's runtime files, but no original game data.
+SDL3 packages include enhanced artwork. SDL3 desktop, browser and Android packages
+include the Nuked sources and license; DOS uses hardware OPL and omits Nuked.
+DOS32 also includes CWSDPMI. Amiga uses Paula audio, and TempleOS uses the PC
+speaker. The TempleOS ZIP includes the installation ISO and private-data import tools.
 
 A release publishes the exact archives downloaded from its build artifacts,
 after verifying their checksums and signed build provenance. Immutable releases

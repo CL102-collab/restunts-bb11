@@ -9,6 +9,14 @@ on:
         description: The six DOS16 executables produced by build-and-validate.
         type: string
         required: true
+      amiga-artifact:
+        description: The Amiga runtime archive produced by build-and-validate.
+        type: string
+        required: true
+      templeos-artifact:
+        description: The stock TempleOS distribution ZIP produced by build-and-validate.
+        type: string
+        required: true
       attest:
         description: Attest package archives and checksums for a release run.
         type: boolean
@@ -533,6 +541,59 @@ jobs:
       - name: Shut down the Haiku VM
         if: always()
         run: python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" stop
+
+      - name: Upload immutable package artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: packages-${{ matrix.target }}
+          path: dist/packages/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Attest the package and its checksum
+        if: inputs.attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-path: dist/packages/*
+
+  validated-ports:
+    name: Package validated ${{ matrix.target }} runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: amiga-m68k
+            format: amiga
+            artifact: ${{ inputs.amiga-artifact }}
+            archive: restunts-amiga-build.tar.gz
+          - target: templeos
+            format: templeos
+            artifact: ${{ inputs.templeos-artifact }}
+            archive: RESTUNTS_STOCK_TEMPLEOS.ZIP
+    env:
+      PACKAGE_FORMAT: ${{ matrix.format }}
+      VALIDATED_ARCHIVE: ${{ matrix.archive }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/validated-port
+
+      - name: Check package integrity validation
+        run: python3 tools/scripts/test-release-packages.py
+
+      - name: Package the already built runtime
+        run: |
+          python3 tools/scripts/release-packages.py "import-$PACKAGE_FORMAT" \
+            --archive "build/validated-port/$VALIDATED_ARCHIVE" \
+            --directory dist/packages --commit "$GITHUB_SHA"
 
       - name: Upload immutable package artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

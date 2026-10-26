@@ -54,9 +54,17 @@ on:
       exe-artifact:
         description: Artifact holding both original dump references and all six executables when requested.
         value: ${{ jobs.build.outputs.exe-artifact }}
+      amiga-artifact:
+        description: Artifact holding the validated Amiga runtime archive.
+        value: ${{ jobs.build-amiga.outputs.package-artifact }}
+      templeos-artifact:
+        description: Artifact holding the validated stock TempleOS distribution ZIP.
+        value: ${{ jobs.build-templeos.outputs.package-artifact }}
 
 env:
   EXE_ARTIFACT: restunts-exes
+  AMIGA_ARTIFACT: restunts-amiga-build
+  TEMPLEOS_ARTIFACT: restunts-templeos-build
 
 jobs:
   formatting:
@@ -457,7 +465,13 @@ jobs:
     needs: [formatting, dumpsrv-tests, host-tests, sanitizers, plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      package-artifact: ${{ steps.names.outputs.value }}
     steps:
+      - name: Publish the artifact name
+        id: names
+        run: echo "value=$AMIGA_ARTIFACT" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -491,7 +505,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: restunts-amiga-build
+          name: ${{ env.AMIGA_ARTIFACT }}
           path: restunts-amiga-build.tar.gz
           if-no-files-found: error
           compression-level: 0
@@ -502,7 +516,13 @@ jobs:
     needs: [formatting, dumpsrv-tests, host-tests, sanitizers, plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      package-artifact: ${{ steps.names.outputs.value }}
     steps:
+      - name: Publish the artifact name
+        id: names
+        run: echo "value=$TEMPLEOS_ARTIFACT" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -588,7 +608,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: restunts-templeos-build
+          name: ${{ env.TEMPLEOS_ARTIFACT }}
           path: build/templeos/RESTUNTS_STOCK_TEMPLEOS.ZIP
           if-no-files-found: error
           compression-level: 0

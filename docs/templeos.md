@@ -23,7 +23,9 @@ already play on TempleOS, see [Update an existing installation](#update-an-exist
 
 ## What to download
 
-Unzip **RESTUNTS_STOCK_TEMPLEOS.ZIP on the host computer**. It contains:
+Download **`restunts-templeos.zip` from a GitHub Release** and unzip it on the
+host computer. PR validation also provides `RESTUNTS_STOCK_TEMPLEOS.ZIP` in the
+`restunts-templeos-build` CI artifact. Both contain the same installation payload:
 
 | File | Purpose |
 | --- | --- |
@@ -33,6 +35,11 @@ Unzip **RESTUNTS_STOCK_TEMPLEOS.ZIP on the host computer**. It contains:
 | `CONTENTS.TXT` | SHA256 checksums of the individual files inside the CD. |
 | `BUILD.TXT` | Build-system ISO fingerprint and package details. |
 | `DATA_CD_TOOL/` | Host Python tool and HolyC importer for your own game data. |
+
+The GitHub Release ZIP also includes `README-PACKAGE.txt` and
+`PACKAGE-MANIFEST.json`, with a separate `restunts-templeos.zip.sha256` download.
+See [release verification](releases.md#verifying-a-download) for checksum and
+signed-provenance checks.
 
 Use the ISO directly as a virtual CD. It is a **data CD**, not a bootable copy of
 TempleOS. Keep booting your existing TempleOS hard disk. The ZIP does not need
@@ -124,7 +131,7 @@ Choose the directory containing `MISC.RES` or `MISC.PRE`, the car/shape resource
 and tracks. The tool copies supported game resources and uppercases their names;
 it does not rename or modify the originals.
 
-Open a host terminal in the extracted `RESTUNTS_STOCK_TEMPLEOS` package folder.
+Open a host terminal in the extracted package folder containing `DATA_CD_TOOL/`.
 On Linux or macOS:
 
 ```sh
@@ -145,8 +152,8 @@ No QEMU, mounting software, or third-party Python library is needed to create
 this private CD. The output path must not already exist.
 
 `STUNTSDATA.ISO` contains **your game data**. Keep it for personal use, outside the
-redistributable package; do not include it when sharing the port. The public
-`RESTUNTS_STOCK_TEMPLEOS.ZIP` is the distribution package.
+redistributable package; do not include it when sharing the port. Share only the
+public `restunts-templeos.zip` or `RESTUNTS_STOCK_TEMPLEOS.ZIP` distribution package.
 
 ## 5. Import the private data CD into TempleOS
 
@@ -379,6 +386,12 @@ The public builder has no game-data input. Its CD has the bundled Tesla and
 McMurtry car resources in `PORT/CARS` and an empty `DATA` directory. The ZIP
 includes the standalone private-data CD tool. The public build does not read
 or package anyone's original game assets.
+
+**PR validation** and **Release** run this builder after the TempleOS VM checks.
+The shared release-packaging workflow preserves this installation payload in
+`restunts-templeos.zip`, adds the standard package manifest and README, and
+produces the archive checksum. **Release** attests and publishes that archive
+alongside the other platform packages.
 
 Official references: [TempleOS downloads](https://templeos.org/Downloads/),
 [mounting and copying files](https://templeos.info/Wb/Doc/Install.DD.HTML), and

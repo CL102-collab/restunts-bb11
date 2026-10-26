@@ -1,13 +1,14 @@
 # Release packages and verification
 
 The **PR validation** and manual **Release** workflows call the same
-`build-packages.yml` workflow. Every successful run produces these 25 archives
-and a SHA-256 sidecar for each archive:
+`build-packages.yml` workflow. Every successful run produces the following
+archives and a SHA-256 sidecar for each archive:
 
 | Archive | Target baseline |
 | --- | --- |
 | `restunts-android-armv7.zip` | 32-bit ARM (`armeabi-v7a`), Android 5.0+; Galaxy S5 SM-G900F |
 | `restunts-android-arm64.zip` | 64-bit ARM (`arm64-v8a`), Android 5.0+; phones and Android TV |
+| `restunts-amiga-m68k.tar.gz` | Motorola 68000, Amiga 500+, Kickstart 2.0+; no FPU or `ixemul.library` |
 | `restunts-dos16.zip` | 16-bit DOS, Open Watcom |
 | `restunts-dos32.zip` | 32-bit DOS, DJGPP/SDL3, bundled CWSDPMI |
 | `restunts-linux-arm32.tar.gz` | ARMv7 hard-float, Debian/Raspbian 12+; Pi 2 and newer |
@@ -33,6 +34,7 @@ and a SHA-256 sidecar for each archive:
 | `restunts-haiku-x86.tar.gz` | 32-bit x86 with SSE2, modern GCC ABI, Haiku R1/beta6 |
 | `restunts-macos-universal.tar.gz` | Intel and Apple Silicon, macOS 11.0+ |
 | `restunts-browser.zip` | Offline HTML/WebAssembly |
+| `restunts-templeos.zip` | Native HolyC port and RedSea installation CD for stock TempleOS 5.03 |
 
 Each Android target builds both the game and Genghost as separate installable
 APKs for its ABI. CI verifies both apps' signatures, SDK levels, native files and
@@ -62,17 +64,18 @@ Packages retain their directory layout so the game can locate those assets.
 
 Every release includes the Tesla Roadster Rocket (`TERR`) and McMurtry Speirling
 PURE (`MCMU`). Only their eight `.RES`, `.3SH` and `.VSH` resources are shipped:
-native packages install them in `bin/cars/`, DOS16 uses `cars/` at the archive
-root, Android bundles them in both APKs, and the browser embeds `/assets/cars/`
-and retains the files in its relinking kit. The original game files remain
-required. Car authoring metadata, readmes and editable models are not packaged.
+SDL3 native packages install them in `bin/cars/`, DOS16 and Amiga keep `cars/`
+beside the executable, Android bundles them in both APKs, and the browser embeds
+`/assets/cars/` and retains the files in its relinking kit. TempleOS includes them
+in `PORT/CARS` on the installation CD. The original game files remain required.
+Car authoring metadata, readmes and editable models are not packaged.
 
 Car discovery and loading search loose files in the selected game-data folder
 and beside the executable before their `cars/` subfolders and the bundled
 resource folder. Any compatible car placed in these folders is discovered
 automatically; duplicate car IDs appear once, with loose files taking priority.
 
-Desktop packages contain the game, its startup window, the command-line ghost
+SDL3 desktop packages contain the game, its startup window, the command-line ghost
 generator and its GUI, physics dumper, renderer dumper, statically linked SDL,
 its license, and the replaceable Nuked OPL2 shared library. The exact Nuked source,
 license, standalone build files and build context are under
@@ -163,6 +166,17 @@ material. Copy the DOS32 executables, CWSDPMI and enhanced artwork directories
 into the writable directory containing your original game files. DOS16 keeps its executables at the archive root; copy them into the original
 game directory, including the `cars/` folder, before running.
 
+The Amiga archive contains the native `restunts` executable, its `cars/` folder,
+linker map and [Amiga guide](amiga.md). It uses Paula audio and needs no SDL or
+Nuked library. Copy the executable and cars together to a writable game directory.
+
+The TempleOS archive contains `RESTUNTS.ISO`, the [installation guide](templeos.md)
+as `README.MD`, and `DATA_CD_TOOL/` for importing your own game files. It retains
+`BUILD.TXT`, `CONTENTS.TXT` and `SHA256SUMS.TXT` from the validated installation
+package. The ISO is a RedSea data CD for an existing stock TempleOS installation.
+The release archive adds `README-PACKAGE.txt` and `PACKAGE-MANIFEST.json` to the
+same installation payload available as the `RESTUNTS_STOCK_TEMPLEOS.ZIP` CI artifact.
+
 Each package also contains `PACKAGE-MANIFEST.json`, recording the source commit,
 build run and hashes of its packaged files. The corresponding `<archive>.sha256`
 file hashes the finished archive. Missing required artwork, runtime libraries,
@@ -178,7 +192,8 @@ Run the **Release** workflow on the source branch/commit you want to release,
 providing a new tag and optional title. Choose `dos`, `sdl3`, or both for replay
 validation. Existing formatting, host and regression checks remain required.
 
-The workflow builds and archives all targets, attests the finished archives,
+The workflow builds and archives all targets, reusing the validated Amiga
+executable and TempleOS installation package. It attests the finished archives
 and uploads them as `packages-<target>` Actions artifacts. The publishing job
 downloads those artifacts from the same run. It verifies the complete target
 set, archive checksums and signed provenance for the expected source commit,

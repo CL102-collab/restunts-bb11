@@ -9,10 +9,12 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import runpy
 import stat
 import struct
 import subprocess
 import tarfile
+import tempfile
 import zipfile
 
 
@@ -32,6 +34,7 @@ GCC_RUNTIME_NOTICES = {"COPYING3.txt", "COPYING.RUNTIME.txt",
 LLVM_RUNTIME_NOTICES = {"libcxx-LICENSE.txt", "libcxxabi-LICENSE.txt", "libunwind-LICENSE.txt",
                         "compiler-rt-LICENSE.txt", "README.md"}
 TARGETS = {
+    "amiga-m68k": ".tar.gz",
     "android-armv7": ".zip",
     "android-arm64": ".zip",
     "dos16": ".zip",
@@ -59,7 +62,14 @@ TARGETS = {
     "windows-x64": ".zip",
     "macos-universal": ".tar.gz",
     "browser": ".zip",
+    "templeos": ".zip",
 }
+TEMPLEOS = runpy.run_path(str(ROOT / "tools/scripts/templeos-package.py"))
+TEMPLEOS_PREFIX = TEMPLEOS["PREFIX"]
+TEMPLEOS_ISO = TEMPLEOS["ISO"]
+TEMPLEOS_PACKAGE_FILES = TEMPLEOS["PACKAGE_FILES"]
+AMIGA_EXECUTABLE = "restunts"
+AMIGA_PACKAGE_FILES = {AMIGA_EXECUTABLE, "restunts.map", "README.md"}
 BSD_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
     "openbsd-x64": "OpenBSD x86-64",
@@ -205,7 +215,7 @@ def checked_path(name):
 
 
 def optional_music_files(target):
-    if target == "dos16" or target in ANDROID_TARGETS:
+    if target in {"dos16", "amiga-m68k", "templeos"} or target in ANDROID_TARGETS:
         return set()
     if target == "browser":
         prefix = "share/restunts/wasm-relink/data/assets"
@@ -372,6 +382,10 @@ def validate_android_genghost_apk(target, content):
 
 def required_files(target):
     required = {README} | optional_music_files(target)
+    if target == "templeos":
+        return required | TEMPLEOS_PACKAGE_FILES
+    if target == "amiga-m68k":
+        return required | AMIGA_PACKAGE_FILES | custom_car_files("cars")
     if target != "dos16":
         required.add("THIRD-PARTY-NOTICES.txt")
         required |= {f"share/licenses/restunts/{name}" for name in SDL_DECODER_LICENSES}
@@ -480,11 +494,17 @@ def validate_contents(target, files, modes):
             require("nuked" not in name.lower(), f"DOS package must omit Nuked: {name}")
     validate_custom_car_resources(files)
     validate_windows_gui_audits(target, files)
+    if target == "templeos":
+        validate_templeos_package({name: content for name, content in files.items() if name != README})
+    if target == "amiga-m68k":
+        require(files["README.md"] == (ROOT / "docs/amiga.md").read_bytes(),
+                "Amiga package guide differs from source")
     if target == "browser":
         require(any(name.startswith("share/restunts/wasm-relink/objects/") for name in files),
                 "Browser package is missing application entry objects for relinking")
     if TARGETS[target] == ".tar.gz":
-        executables = {f"bin/{name}" for name in NATIVE_EXECUTABLES}
+        executables = ({AMIGA_EXECUTABLE} if target == "amiga-m68k" else
+                       {f"bin/{name}" for name in NATIVE_EXECUTABLES})
         if target == "macos-universal":
             executables |= {"run-restunts.sh", MACOS_LAUNCHER, MACOS_GENGHOST_GUI}
         if target in APPIMAGE_TARGETS:
@@ -512,6 +532,18 @@ def readme(target, commit):
     lines = [f"Restunts package: {target}", f"Source commit: {commit}", "",
              "Supply your own original Broderbund Stunts 1.1 game data (12 Feb. 1991).",
              "Original game content is not included. Keep this package's files together.", ""]
+    if target == "templeos":
+        lines += ["Install the HolyC port on stock TempleOS 5.03 using RESTUNTS.ISO.",
+                  "See README.MD for installation, game-data import and launch instructions.",
+                  "The RedSea data CD contains the port sources and bundled custom cars.",
+                  "Use DATA_CD_TOOL/MAKE_DATA_CD.PY to create a separate private game-data CD."]
+        return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+    if target == "amiga-m68k":
+        lines += ["Requires an Amiga 500+ compatible system with a Motorola 68000 CPU or newer.",
+                  "See README.md for hardware requirements, game-data setup and controls.",
+                  "Run restunts from the game directory; keep the bundled cars beside it.",
+                  "restunts.map is the linker map for this executable."]
+        return ("\r\n".join(lines) + "\r\n").encode("utf-8")
     if target in ANDROID_TARGETS:
         minimum = android_minimum_sdk(target)
         version = ANDROID_VERSIONS[minimum]
@@ -670,6 +702,74 @@ def create_package(args):
     print(f"Created and verified {archive}")
 
 
+def templeos_disc_sources():
+    return TEMPLEOS["disc_sources"]()
+
+
+def validate_templeos_package(files):
+    TEMPLEOS["validate_package"](files)
+
+
+def create_imported_package(args, target, files, modes):
+    expected = required_files(target) - {README}
+    require(files.keys() == expected, f"{target}: imported distribution file set differs")
+    validate_contents(target, {**files, README: readme(target, args.commit)},
+                      {**modes, README: FILE_MODE})
+    with tempfile.TemporaryDirectory(prefix=f"restunts-{target}-release-") as temporary:
+        runtime = Path(temporary)
+        for name, content in files.items():
+            destination = runtime / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
+            destination.chmod(modes[name])
+        create_package(argparse.Namespace(target=target, runtime=runtime,
+                                          directory=args.directory, commit=args.commit))
+
+
+def import_templeos(args):
+    files = {}
+    modes = {}
+    prefix = TEMPLEOS_PREFIX + "/"
+    with zipfile.ZipFile(args.archive) as source:
+        for entry in source.infolist():
+            require(entry.filename.startswith(prefix),
+                    f"Unexpected TempleOS ZIP prefix: {entry.filename}")
+            name = entry.filename[len(prefix):]
+            checked_path(name)
+            require(name in TEMPLEOS_PACKAGE_FILES, f"Unexpected TempleOS ZIP member: {name}")
+            require(name not in files, f"Duplicate TempleOS ZIP member: {name}")
+            require(stat.S_ISREG(entry.external_attr >> 16),
+                    f"Unsupported TempleOS ZIP member: {name}")
+            files[name] = source.read(entry)
+            modes[name] = FILE_MODE
+    create_imported_package(args, "templeos", files, modes)
+
+
+def import_amiga(args):
+    files = {}
+    modes = {}
+    directories = set()
+    expected = required_files("amiga-m68k") - {README}
+    allowed_directories = {".", "cars"}
+    with tarfile.open(args.archive, "r:gz") as source:
+        for entry in source:
+            # The validation job's tar uses a conventional leading ./ and
+            # explicit directory records. Keep every other path check strict.
+            name = entry.name[2:] if entry.name.startswith("./") else entry.name
+            if entry.isdir():
+                require(name in allowed_directories and name not in directories,
+                        f"Unexpected or duplicate Amiga directory: {entry.name}")
+                directories.add(name)
+                continue
+            checked_path(name)
+            require(entry.isfile(), f"Unsupported Amiga archive member: {entry.name}")
+            require(name in expected, f"Unexpected Amiga archive member: {name}")
+            require(name not in files, f"Duplicate Amiga archive member: {name}")
+            files[name] = source.extractfile(entry).read()
+            modes[name] = EXECUTABLE_MODE if entry.mode & stat.S_IXUSR else FILE_MODE
+    create_imported_package(args, "amiga-m68k", files, modes)
+
+
 def archive_contents(archive):
     files = {}
     modes = {}
@@ -750,6 +850,12 @@ def main():
     create.add_argument("--runtime", required=True, type=Path)
     create.add_argument("--directory", required=True, type=Path)
     create.add_argument("--commit", required=True)
+    for command, description in (("import-templeos", "Import the validated TempleOS distribution ZIP"),
+                                 ("import-amiga", "Import the validated Amiga runtime archive")):
+        imported = commands.add_parser(command, help=description)
+        imported.add_argument("--archive", required=True, type=Path)
+        imported.add_argument("--directory", required=True, type=Path)
+        imported.add_argument("--commit", required=True)
     verify = commands.add_parser("verify", help="Verify downloaded release artifacts before publishing")
     group = verify.add_mutually_exclusive_group(required=True)
     group.add_argument("--target", choices=TARGETS)
@@ -762,6 +868,10 @@ def main():
     try:
         if args.command == "create":
             create_package(args)
+        elif args.command == "import-templeos":
+            import_templeos(args)
+        elif args.command == "import-amiga":
+            import_amiga(args)
         else:
             verify_directory(args)
     except (OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile, tarfile.TarError) as error:
