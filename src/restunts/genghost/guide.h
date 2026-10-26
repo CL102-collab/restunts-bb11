@@ -12,14 +12,14 @@ struct GENGHOST_GUIDE_POINT {
 	legacy_s16 steering;
 	legacy_u16 speed;
 	legacy_s8 gear, contact;
-	unsigned char input;
+	legacy_u8 input;
 };
 
-void genghost_guide_capture(struct GENGHOST_GUIDE_POINT *point, unsigned char input);
+void genghost_guide_capture(struct GENGHOST_GUIDE_POINT *point, legacy_u8 input);
 /* Re-time recorded controls by pose after a sector edit, and optionally correct
  * steering toward the demonstrated line. The engine state is only read: every
  * accepted lap still consists solely of ordinary input bytes and is revalidated. */
-unsigned char genghost_guide_step(const struct GENGHOST_GUIDE_POINT *points, unsigned int count,
-								  unsigned int *cursor, double correction);
+legacy_u8 genghost_guide_step(const struct GENGHOST_GUIDE_POINT *points, legacy_uint count,
+							  legacy_uint *cursor, legacy_f64 correction);
 
 #endif

@@ -45,18 +45,18 @@ legacy_int genghost_stop_requested(void)
 	return genghost_interrupted != 0;
 }
 
-int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t proposal,
-						  unsigned int *first, unsigned int *end)
+legacy_int genghost_shift_inputs(legacy_u8 *inputs, legacy_uint length, legacy_u64 proposal,
+								 legacy_uint *first, legacy_uint *end)
 {
-	static const int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
-	const unsigned int mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	static const legacy_int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
+	const legacy_uint mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
 	if (!inputs || !length || length > GENGHOST_MAX_FRAMES || !first || !end) {
 		return 0;
 	}
-	unsigned int count = 0U;
-	for (unsigned int frame = 0U; frame < length;) {
-		unsigned int shift = inputs[frame] & mask;
-		unsigned int next = frame + 1U;
+	legacy_uint count = 0U;
+	for (legacy_uint frame = 0U; frame < length;) {
+		legacy_uint shift = inputs[frame] & mask;
+		legacy_uint next = frame + 1U;
 		while (next < length && (inputs[next] & mask) == shift) {
 			++next;
 		}
@@ -68,35 +68,35 @@ int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t p
 	if (!count) {
 		return 0;
 	}
-	unsigned int selected = (unsigned int)(proposal % count);
-	int offset = offsets[(proposal / count) % (sizeof(offsets) / sizeof(offsets[0]))];
-	for (unsigned int frame = 0U; frame < length;) {
-		unsigned int shift = inputs[frame] & mask;
-		unsigned int next = frame + 1U;
+	legacy_uint selected = (legacy_uint)(proposal % count);
+	legacy_int offset = offsets[(proposal / count) % (sizeof(offsets) / sizeof(offsets[0]))];
+	for (legacy_uint frame = 0U; frame < length;) {
+		legacy_uint shift = inputs[frame] & mask;
+		legacy_uint next = frame + 1U;
 		while (next < length && (inputs[next] & mask) == shift) {
 			++next;
 		}
 		if ((shift == INPUT_SHIFT_UP_FLAG || shift == INPUT_SHIFT_DOWN_FLAG) && !selected--) {
-			int moved = (int)frame + offset;
-			int moved_end = (int)next + offset;
-			if (moved < 0 || moved_end > (int)length) {
+			legacy_int moved = (legacy_int)frame + offset;
+			legacy_int moved_end = (legacy_int)next + offset;
+			if (moved < 0 || moved_end > (legacy_int)length) {
 				return 0;
 			}
-			unsigned int left = (unsigned int)moved, right = (unsigned int)moved_end;
-			unsigned int begin = left < frame ? left : frame;
-			unsigned int finish = right > next ? right : next;
+			legacy_uint left = (legacy_uint)moved, right = (legacy_uint)moved_end;
+			legacy_uint begin = left < frame ? left : frame;
+			legacy_uint finish = right > next ? right : next;
 			/* Keep separate pulses separate, including when the destination
 			 * overlaps the original hold. Never jump over another shift. */
-			for (unsigned int i = begin ? begin - 1U : begin; i < length && i <= finish; ++i) {
+			for (legacy_uint i = begin ? begin - 1U : begin; i < length && i <= finish; ++i) {
 				if ((i < frame || i >= next) && (inputs[i] & mask)) {
 					return 0;
 				}
 			}
-			for (unsigned int i = frame; i < next; ++i) {
-				inputs[i] = (unsigned char)(inputs[i] & ~mask);
+			for (legacy_uint i = frame; i < next; ++i) {
+				inputs[i] = (legacy_u8)(inputs[i] & ~mask);
 			}
-			for (unsigned int i = left; i < right; ++i) {
-				inputs[i] = (unsigned char)((inputs[i] & ~mask) | shift);
+			for (legacy_uint i = left; i < right; ++i) {
+				inputs[i] = (legacy_u8)((inputs[i] & ~mask) | shift);
 			}
 			*first = begin;
 			*end = finish;
@@ -109,43 +109,43 @@ int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t p
 
 struct individual {
 	struct GENGHOST_POLICY policy;
-	double fitness;
+	legacy_f64 fitness;
 };
 
 struct route_search {
 	struct individual population[POPULATION];
-	unsigned int population_count;
-	unsigned char *best_inputs;
-	unsigned int length;
-	double fitness;
+	legacy_uint population_count;
+	legacy_u8 *best_inputs;
+	legacy_uint length;
+	legacy_f64 fitness;
 	struct GENGHOST_RESULT race;
 	struct GENGHOST_POLICY best_policy;
-	uint64_t trials;
-	uint64_t revision;
-	int completed_attempt;
-	int demonstration;
-	int ordinary_discovery;
+	legacy_u64 trials;
+	legacy_u64 revision;
+	legacy_int completed_attempt;
+	legacy_int demonstration;
+	legacy_int ordinary_discovery;
 	size_t catalog_cursor;
-	uint64_t catalog_next_trial;
-	int catalog_exhausted;
-	unsigned int catalog_parent_frontier;
+	legacy_u64 catalog_next_trial;
+	legacy_int catalog_exhausted;
+	legacy_uint catalog_parent_frontier;
 	size_t catalog_deferred_cursor;
-	unsigned int catalog_deferred_segment;
-	unsigned int catalog_requeues;
-	int catalog_deferred;
+	legacy_uint catalog_deferred_segment;
+	legacy_uint catalog_requeues;
+	legacy_int catalog_deferred;
 };
 
 struct checkpoint_cache {
 	struct GENGHOST_SNAPSHOT *checkpoints;
 	struct GENGHOST_DRIVER *driver_checkpoints;
-	unsigned int checkpoint_count;
-	unsigned int boundary_count;
-	unsigned short *boundaries;
+	legacy_uint checkpoint_count;
+	legacy_uint boundary_count;
+	legacy_u16 *boundaries;
 	struct GENGHOST_GUIDE_POINT *guide;
-	unsigned int guide_count;
+	legacy_uint guide_count;
 	size_t checkpoint_route;
-	uint64_t checkpoint_trial;
-	int driver_traced;
+	legacy_u64 checkpoint_trial;
+	legacy_int driver_traced;
 };
 
 struct search_context {
@@ -153,22 +153,22 @@ struct search_context {
 	struct checkpoint_cache caches[MAX_SEARCH_FAMILIES];
 	const struct GENGHOST_OPTIONS *options;
 	struct GENGHOST_SEARCH_RESULT *result;
-	uint32_t random;
-	uint64_t started;
-	uint64_t next_progress;
+	legacy_u32 random;
+	legacy_u64 started;
+	legacy_u64 next_progress;
 	genghost_save_function save;
 	void *save_context;
-	int guided_candidate;
-	int portal_family;
-	int tactic_candidate;
-	int corkscrew_cut_available;
-	int catalog_mutations_available;
-	int dualway_family;
-	int dualway_available;
-	int dualway_candidate;
+	legacy_int guided_candidate;
+	legacy_int portal_family;
+	legacy_int tactic_candidate;
+	legacy_int corkscrew_cut_available;
+	legacy_int catalog_mutations_available;
+	legacy_int dualway_family;
+	legacy_int dualway_available;
+	legacy_int dualway_candidate;
 };
 
-static int allocate_cache(struct checkpoint_cache *cache)
+static legacy_int allocate_cache(struct checkpoint_cache *cache)
 {
 	cache->checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->checkpoints));
 	cache->driver_checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->driver_checkpoints));
@@ -185,12 +185,12 @@ static void free_cache(struct checkpoint_cache *cache)
 	free(cache->guide);
 }
 
-static double elapsed(const struct search_context *context)
+static legacy_f64 elapsed(const struct search_context *context)
 {
-	return (double)(SDL_GetTicksNS() - context->started) / 1000000000.0;
+	return (legacy_f64)(SDL_GetTicksNS() - context->started) / (legacy_f64)SDL_NS_PER_SECOND;
 }
 
-static int expired(const struct search_context *context)
+static legacy_int expired(const struct search_context *context)
 {
 	if (context->options->progress) {
 		context->result->elapsed_seconds = elapsed(context);
@@ -204,37 +204,38 @@ static int expired(const struct search_context *context)
 			context->result->evaluations >= context->options->evaluations);
 }
 
-static uint32_t random_word(struct search_context *context)
+static legacy_u32 random_word(struct search_context *context)
 {
-	uint32_t value = context->random;
+	legacy_u32 value = context->random;
 	value ^= value << 13;
 	value ^= value >> 17;
 	value ^= value << 5;
 	return context->random = value;
 }
 
-static double random_signed(struct search_context *context)
+static legacy_f64 random_signed(struct search_context *context)
 {
-	return (double)(random_word(context) & 0xffffffU) / 8388607.5 - 1.0;
+	return (legacy_f64)(random_word(context) & 0xffffffU) / 8388607.5 - 1.0;
 }
 
-static double clamp(double value, double low, double high)
+static legacy_f64 clamp(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 {
 	return value < low ? low : value > high ? high : value;
 }
 
-static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY *policy, int broad)
+static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY *policy,
+						  legacy_int broad)
 {
-	unsigned int first = random_word(context) % GENGHOST_POLICY_SEGMENTS;
-	unsigned int count = broad ? GENGHOST_POLICY_SEGMENTS : 1U + random_word(context) % 4U;
-	for (unsigned int n = 0; n < count; ++n) {
+	legacy_uint first = random_word(context) % GENGHOST_POLICY_SEGMENTS;
+	legacy_uint count = broad ? GENGHOST_POLICY_SEGMENTS : 1U + random_word(context) % 4U;
+	for (legacy_uint n = 0; n < count; ++n) {
 		struct GENGHOST_GENE *gene = &policy->segment[(first + n) % GENGHOST_POLICY_SEGMENTS];
 		if (context->dualway_family && context->dualway_available) {
-			uint32_t gate = random_word(context);
+			legacy_u32 gate = random_word(context);
 			if (gate % 4U == 0U) {
-				uint32_t high = random_word(context);
-				uint32_t low = random_word(context);
-				uint64_t word = ((uint64_t)high << 32U) | low;
+				legacy_u32 high = random_word(context);
+				legacy_u32 low = random_word(context);
+				legacy_u64 word = ((legacy_u64)high << 32U) | low;
 				gene->dualway_choice = genghost_dualway_selector(gate, word);
 			}
 		}
@@ -250,10 +251,10 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
 		}
 		if (!context->options->owoot && random_word(context) % 4U == 0U) {
-			unsigned int choice = random_word(context);
+			legacy_uint choice = random_word(context);
 			gene->shortcut_skip = choice % 5U;
 			if (context->portal_family) {
-				double delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
+				legacy_f64 delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
 				gene->corner_scale = clamp(gene->corner_scale + delta * 0.2, 0.5, 1.8);
 			}
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
@@ -285,13 +286,13 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 static void choose_policy(struct search_context *context, struct route_search *search,
 						  struct GENGHOST_POLICY *policy)
 {
-	int ordinary_fallback = search->ordinary_discovery && !context->result->race.finished &&
-							search->trials >= POPULATION && search->trials < POPULATION * 2U;
+	legacy_int ordinary_fallback = search->ordinary_discovery && !context->result->race.finished &&
+								   search->trials >= POPULATION && search->trials < POPULATION * 2U;
 	if (search->trials < POPULATION || ordinary_fallback) {
-		unsigned int initial = (unsigned int)(search->trials % POPULATION);
-		static const double speeds[POPULATION] = {1.0, 0.75, 0.55, 1.2, 0.9, 1.5};
+		legacy_uint initial = (legacy_uint)(search->trials % POPULATION);
+		static const legacy_f64 speeds[POPULATION] = {1.0, 0.75, 0.55, 1.2, 0.9, 1.5};
 		genghost_policy_default(policy);
-		for (unsigned int i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+		for (legacy_uint i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy->segment[i].speed_scale *= speeds[initial];
 			/* Seed the short horizontal-cork line across driving profiles so
 			 * refinement does not discard it because of a slower later sector.
@@ -323,7 +324,7 @@ static void choose_policy(struct search_context *context, struct route_search *s
 				policy->segment[i].powergear_bias = 1.0;
 			}
 			if (context->portal_family) {
-				static const unsigned int skips[POPULATION] = {1U, 2U, 2U, 1U, 1U, 2U};
+				static const legacy_uint skips[POPULATION] = {1U, 2U, 2U, 1U, 1U, 2U};
 				policy->segment[i].speed_scale = initial % 2U ? 1.5 : 1.2;
 				policy->segment[i].shortcut_skip = skips[initial];
 				policy->segment[i].slide_brake = initial >= 4U ? 1.0 : 0.0;
@@ -333,16 +334,16 @@ static void choose_policy(struct search_context *context, struct route_search *s
 		}
 		return;
 	}
-	unsigned int first = random_word(context) % search->population_count;
-	unsigned int second = random_word(context) % search->population_count;
+	legacy_uint first = random_word(context) % search->population_count;
+	legacy_uint second = random_word(context) % search->population_count;
 	if (search->population[second].fitness > search->population[first].fitness) {
 		first = second;
 	}
 	*policy = search->population[first].policy;
 	if (random_word(context) % 4U == 0U) {
 		second = random_word(context) % search->population_count;
-		unsigned int cut = random_word(context) % GENGHOST_POLICY_SEGMENTS;
-		for (unsigned int i = cut; i < GENGHOST_POLICY_SEGMENTS; ++i) {
+		legacy_uint cut = random_word(context) % GENGHOST_POLICY_SEGMENTS;
+		for (legacy_uint i = cut; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy->segment[i] = search->population[second].policy.segment[i];
 		}
 	}
@@ -350,12 +351,12 @@ static void choose_policy(struct search_context *context, struct route_search *s
 }
 
 static void insert_policy(struct route_search *search, const struct GENGHOST_POLICY *policy,
-						  double fitness)
+						  legacy_f64 fitness)
 {
-	unsigned int slot = search->population_count;
+	legacy_uint slot = search->population_count;
 	if (slot == POPULATION) {
 		slot = 0;
-		for (unsigned int i = 1; i < POPULATION; ++i) {
+		for (legacy_uint i = 1; i < POPULATION; ++i) {
 			if (search->population[i].fitness < search->population[slot].fitness) {
 				slot = i;
 			}
@@ -370,21 +371,20 @@ static void insert_policy(struct route_search *search, const struct GENGHOST_POL
 	search->population[slot].fitness = fitness;
 }
 
-static double candidate_fitness(const struct GENGHOST_ROUTE *route,
-								const struct GENGHOST_DRIVER *driver,
-								const struct GENGHOST_RESULT *race)
+static legacy_f64 candidate_fitness(const struct GENGHOST_ROUTE *route,
+									const struct GENGHOST_DRIVER *driver,
+									const struct GENGHOST_RESULT *race)
 {
 	if (race->finished) {
-		return 1000000000.0 - (double)race->total_frames * 1000.0 - race->finish_frame * 0.01;
+		return 1000000000.0 - (legacy_f64)race->total_frames * 1000.0 - race->finish_frame * 0.01;
 	}
 	return 1000000.0 * clamp(driver->progress / route->length, 0.0, 1.0) - driver->off_route * 2.0 -
 		   race->frames * 0.03 - race->penalty_frames * 10.0;
 }
 
-static int save_candidate(struct search_context *context, unsigned char *inputs,
-						  unsigned int length, const struct GENGHOST_RESULT *race)
+static legacy_int save_candidate(struct search_context *context, legacy_u8 *inputs,
+								 legacy_uint length, const struct GENGHOST_RESULT *race)
 {
-	struct GENGHOST_RESULT verified;
 	if (!race->finished || (context->result->race.finished &&
 							race->total_frames >= context->result->race.total_frames)) {
 		return 0;
@@ -405,13 +405,14 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 		if (length > GENGHOST_MAX_FRAMES) {
 			return -1;
 		}
-		unsigned int tail = GENGHOST_MAX_FRAMES - length;
+		legacy_uint tail = GENGHOST_MAX_FRAMES - length;
 		if (tail > GENGHOST_FRAME_RATE) {
 			tail = GENGHOST_FRAME_RATE;
 		}
 		memset(inputs + length, 0, tail);
 		length += tail;
 	}
+	struct GENGHOST_RESULT verified;
 	if (genghost_sim_evaluate(inputs, length, &verified) || !verified.finished ||
 		verified.total_frames != race->total_frames) {
 		fputs("genghost: candidate failed full replay validation\n", stderr);
@@ -434,29 +435,31 @@ static int save_candidate(struct search_context *context, unsigned char *inputs,
 	context->result->length = length;
 	context->result->race = verified;
 	context->result->elapsed_seconds = elapsed(context);
-	fprintf(stderr, "best %.2fs (driving %.2fs + penalty %.2fs), %llu candidates\n",
-			verified.total_frames / 20.0, verified.finish_frame / 20.0,
-			verified.penalty_frames / 20.0, (unsigned long long)context->result->evaluations);
+	fprintf(stderr, "best %.2fs (driving %.2fs + penalty %.2fs), %" LEGACY_PRIu64 " candidates\n",
+			verified.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+			verified.finish_frame / (legacy_f64)GENGHOST_FRAME_RATE,
+			verified.penalty_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+			(legacy_u64)context->result->evaluations);
 	return context->save(context->result, context->save_context) ? -1 : 0;
 }
 
-static unsigned int run_policy(struct search_context *context, const struct GENGHOST_ROUTE *route,
-							   const struct GENGHOST_POLICY *policy, unsigned char *inputs,
-							   struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
+static legacy_uint run_policy(struct search_context *context, const struct GENGHOST_ROUTE *route,
+							  const struct GENGHOST_POLICY *policy, legacy_u8 *inputs,
+							  struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
-	unsigned int length = 0, last_progress_tick = 0;
-	double furthest = 0.0;
+	legacy_uint length = 0, last_progress_tick = 0;
+	legacy_f64 furthest = 0.0;
 	genghost_sim_reset();
 	genghost_driver_reset(driver);
 	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
-		unsigned char input =
+		legacy_u8 input =
 			genghost_driver_step(route, policy, driver, context->options->powergear,
 								 context->options->collision, context->options->owoot);
 		inputs[length++] = input;
-		int event = genghost_sim_step(input);
+		legacy_int event = genghost_sim_step(input);
 		++context->result->simulated_frames;
 		genghost_driver_observe(route, driver);
 		if (driver->progress > furthest + 8.0) {
@@ -473,7 +476,7 @@ static unsigned int run_policy(struct search_context *context, const struct GENG
 
 static void cache_checkpoints(struct search_context *context, size_t route_index,
 							  const struct GENGHOST_ROUTE *route, const struct route_search *search,
-							  int trace_driver)
+							  legacy_int trace_driver)
 {
 	if (context->cache->checkpoint_count && context->cache->checkpoint_route == route_index &&
 		context->cache->checkpoint_trial == search->revision &&
@@ -486,9 +489,9 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 	context->cache->checkpoint_count = 0;
 	context->cache->boundary_count = 0;
 	context->cache->guide_count = 0;
-	for (unsigned int i = 0; i < search->length; ++i) {
+	for (legacy_uint i = 0; i < search->length; ++i) {
 		if (i && search->best_inputs[i] != search->best_inputs[i - 1U]) {
-			context->cache->boundaries[context->cache->boundary_count++] = (unsigned short)i;
+			context->cache->boundaries[context->cache->boundary_count++] = (legacy_u16)i;
 		}
 		if (i % CHECKPOINT_INTERVAL == 0U) {
 			context->cache->driver_checkpoints[context->cache->checkpoint_count] = driver;
@@ -498,7 +501,7 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 			genghost_guide_capture(&context->cache->guide[context->cache->guide_count++],
 								   search->best_inputs[i]);
 		}
-		int event = genghost_sim_step(search->best_inputs[i]);
+		legacy_int event = genghost_sim_step(search->best_inputs[i]);
 		if (!search->race.finished || trace_driver) {
 			genghost_driver_observe(route, &driver);
 		}
@@ -516,10 +519,11 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
  * instead of setting every policy segment. Queue both lines under the active collision
  * rules after the ordinary warmup, with at least four ordinary attempts between
  * proposals. No finished lap or human demonstration is needed to fund them. */
-static int choose_catalog_policy(struct search_context *context,
-								 const struct GENGHOST_ROUTES *routes, size_t route_index,
-								 struct route_search *search, struct GENGHOST_POLICY *policy,
-								 unsigned int *first_segment, char *error, size_t error_size)
+static legacy_int choose_catalog_policy(struct search_context *context,
+										const struct GENGHOST_ROUTES *routes, size_t route_index,
+										struct route_search *search, struct GENGHOST_POLICY *policy,
+										legacy_uint *first_segment, legacy_char *error,
+										size_t error_size)
 {
 	/* A probe beyond the parent's reached prefix cannot exercise its recipe.
 	 * Retry that deferred tail when the parent reaches it, at most twice; an
@@ -532,9 +536,9 @@ static int choose_catalog_policy(struct search_context *context,
 		search->catalog_deferred = 0;
 		++search->catalog_requeues;
 	}
-	unsigned int warmup = search->ordinary_discovery && !context->result->race.finished
-							  ? POPULATION * 2U
-							  : POPULATION;
+	legacy_uint warmup = search->ordinary_discovery && !context->result->race.finished
+							 ? POPULATION * 2U
+							 : POPULATION;
 	if (context->options->owoot || search->catalog_exhausted || search->trials < warmup ||
 		search->trials < search->catalog_next_trial) {
 		return 0;
@@ -546,7 +550,8 @@ static int choose_catalog_policy(struct search_context *context,
 	}
 	struct GENGHOST_ROUTE effective;
 	const struct GENGHOST_ROUTE *route = &routes->routes[route_index];
-	int changed = genghost_route_policy(routes, route_index, policy, &effective, error, error_size);
+	legacy_int changed =
+		genghost_route_policy(routes, route_index, policy, &effective, error, error_size);
 	if (changed < 0) {
 		return -1;
 	}
@@ -554,7 +559,7 @@ static int choose_catalog_policy(struct search_context *context,
 		route = &effective;
 	}
 	size_t ordinal = 0U;
-	int found = 0;
+	legacy_int found = 0;
 	for (size_t begin = 0U; begin < route->point_count;) {
 		size_t end = begin;
 		while (end + 1U < route->point_count &&
@@ -563,20 +568,19 @@ static int choose_catalog_policy(struct search_context *context,
 		}
 		if (end > begin && genghost_stunt_catalog_model(route->points[begin].physical_model)) {
 			if (ordinal == search->catalog_cursor / 2U) {
-				double start = clamp(route->points[begin].distance - 900.0, 0.0, route->length);
-				unsigned int first =
-					(unsigned int)(start / route->length * GENGHOST_POLICY_SEGMENTS);
-				unsigned int last = (unsigned int)(route->points[end].distance / route->length *
-												   GENGHOST_POLICY_SEGMENTS);
+				legacy_f64 start = clamp(route->points[begin].distance - 900.0, 0.0, route->length);
+				legacy_uint first = (legacy_uint)(start / route->length * GENGHOST_POLICY_SEGMENTS);
+				legacy_uint last = (legacy_uint)(route->points[end].distance / route->length *
+												 GENGHOST_POLICY_SEGMENTS);
 				if (first >= GENGHOST_POLICY_SEGMENTS) {
 					first = GENGHOST_POLICY_SEGMENTS - 1U;
 				}
 				if (last >= GENGHOST_POLICY_SEGMENTS) {
 					last = GENGHOST_POLICY_SEGMENTS - 1U;
 				}
-				unsigned int mode =
+				legacy_uint mode =
 					search->catalog_cursor % 2U ? GENGHOST_STUNT_HUMAN_ALT : GENGHOST_STUNT_HUMAN;
-				for (unsigned int segment = first; segment <= last; ++segment) {
+				for (legacy_uint segment = first; segment <= last; ++segment) {
 					policy->segment[segment].stunt_mode = mode;
 				}
 				*first_segment = first;
@@ -598,32 +602,32 @@ static int choose_catalog_policy(struct search_context *context,
 	return found;
 }
 
-static unsigned int run_catalog_policy(struct search_context *context, size_t route_index,
-									   const struct GENGHOST_ROUTE *route,
-									   const struct route_search *search,
-									   const struct GENGHOST_POLICY *policy,
-									   unsigned int first_segment, unsigned char *inputs,
-									   struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
+static legacy_uint run_catalog_policy(struct search_context *context, size_t route_index,
+									  const struct GENGHOST_ROUTE *route,
+									  const struct route_search *search,
+									  const struct GENGHOST_POLICY *policy,
+									  legacy_uint first_segment, legacy_u8 *inputs,
+									  struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
 	if (!search->best_inputs || !search->length) {
 		return run_policy(context, route, policy, inputs, driver, race);
 	}
 	cache_checkpoints(context, route_index, route, search, 1);
-	unsigned int checkpoint = 0U;
-	for (unsigned int next = 1U; next < context->cache->checkpoint_count; ++next) {
+	legacy_uint checkpoint = 0U;
+	for (legacy_uint next = 1U; next < context->cache->checkpoint_count; ++next) {
 		if (context->cache->driver_checkpoints[next].segment >= first_segment) {
 			break;
 		}
 		checkpoint = next;
 	}
-	unsigned int length = checkpoint * CHECKPOINT_INTERVAL;
+	legacy_uint length = checkpoint * CHECKPOINT_INTERVAL;
 	memcpy(inputs, search->best_inputs, length);
 	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
 	*driver = context->cache->driver_checkpoints[checkpoint];
 	driver->tactic_ticks = 0U;
-	unsigned int last_progress_tick = length;
-	double furthest = driver->progress;
-	int replay_prefix = 1;
+	legacy_uint last_progress_tick = length;
+	legacy_f64 furthest = driver->progress;
+	legacy_int replay_prefix = 1;
 	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
@@ -631,13 +635,13 @@ static unsigned int run_catalog_policy(struct search_context *context, size_t ro
 		if (driver->segment >= first_segment || length >= search->length) {
 			replay_prefix = 0;
 		}
-		unsigned char input =
+		legacy_u8 input =
 			replay_prefix
 				? search->best_inputs[length]
 				: genghost_driver_step(route, policy, driver, context->options->powergear,
 									   context->options->collision, context->options->owoot);
 		inputs[length++] = input;
-		int event = genghost_sim_step(input);
+		legacy_int event = genghost_sim_step(input);
 		++context->result->simulated_frames;
 		genghost_driver_observe(route, driver);
 		if (driver->progress > furthest + 8.0) {
@@ -656,17 +660,17 @@ static unsigned int run_catalog_policy(struct search_context *context, size_t ro
  * corrections and gear changes. Move those boundaries without overwriting the
  * other controls. Small coordinated timing edits preserve far more of an expert
  * line than replacing a random long block of all the inputs. */
-static unsigned int mutate_inputs(struct search_context *context, const struct route_search *search,
-								  unsigned char *inputs, unsigned int *start)
+static legacy_uint mutate_inputs(struct search_context *context, const struct route_search *search,
+								 legacy_u8 *inputs, legacy_uint *start)
 {
-	unsigned int length = search->race.finished ? search->race.finish_frame : search->length;
+	legacy_uint length = search->race.finished ? search->race.finish_frame : search->length;
 	if (length > search->length) {
 		length = search->length;
 	}
 	memcpy(inputs, search->best_inputs, length);
 	*start = random_word(context) % length;
-	unsigned int operation = random_word(context) % 12U;
-	unsigned int boundary =
+	legacy_uint operation = random_word(context) % 12U;
+	legacy_uint boundary =
 		context->cache->boundary_count
 			? context->cache->boundaries[random_word(context) % context->cache->boundary_count]
 			: *start;
@@ -674,24 +678,24 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 		boundary = length - 1U;
 	}
 	if ((operation < 6U || operation == 8U) && boundary > 0U) {
-		static const unsigned int masks[] = {3U, 12U, 48U};
-		static const unsigned int widths[] = {1U, 1U, 2U, 2U, 3U, 4U, 6U, 8U};
-		unsigned int changed = inputs[boundary] ^ inputs[boundary - 1U];
-		unsigned int channel = random_word(context) % 3U;
-		for (unsigned int n = 0; n < 3U && !(changed & masks[channel]); ++n) {
+		static const legacy_uint masks[] = {3U, 12U, 48U};
+		static const legacy_uint widths[] = {1U, 1U, 2U, 2U, 3U, 4U, 6U, 8U};
+		legacy_uint changed = inputs[boundary] ^ inputs[boundary - 1U];
+		legacy_uint channel = random_word(context) % 3U;
+		for (legacy_uint n = 0; n < 3U && !(changed & masks[channel]); ++n) {
 			channel = (channel + 1U) % 3U;
 		}
-		unsigned int mask = masks[channel];
-		unsigned char before = inputs[boundary - 1U] & mask;
-		unsigned char after = inputs[boundary] & mask;
-		unsigned int width = widths[random_word(context) % 8U];
-		int later = random_word(context) % 2U;
+		legacy_uint mask = masks[channel];
+		legacy_u8 before = inputs[boundary - 1U] & mask;
+		legacy_u8 after = inputs[boundary] & mask;
+		legacy_uint width = widths[random_word(context) % 8U];
+		legacy_int later = random_word(context) % 2U;
 		if (mask == 3U && random_word(context) % 4U != 0U) {
 			/* Usually test less braking/coasting, while retaining exploratory
 			 * earlier braking for tighter and faster corner exits. */
 			later = after != 1U;
 		}
-		unsigned int run_end = boundary + 1U;
+		legacy_uint run_end = boundary + 1U;
 		while (run_end < length && (inputs[run_end] & mask) == after) {
 			++run_end;
 		}
@@ -707,9 +711,9 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 			if (!later && width > boundary) {
 				width = boundary;
 			}
-			unsigned char following = inputs[run_end] & mask;
+			legacy_u8 following = inputs[run_end] & mask;
 			if (context->options->fine_tune) {
-				unsigned int available = 0U;
+				legacy_uint available = 0U;
 				while (available < width &&
 					   (later ? (inputs[run_end + available] & mask) == following
 							  : (inputs[boundary - available - 1U] & mask) == before)) {
@@ -717,36 +721,36 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 				}
 				width = available;
 			}
-			unsigned int first = later ? boundary : boundary - width;
-			unsigned int second = later ? run_end : run_end - width;
-			for (unsigned int i = 0; i < width; ++i) {
+			legacy_uint first = later ? boundary : boundary - width;
+			legacy_uint second = later ? run_end : run_end - width;
+			for (legacy_uint i = 0; i < width; ++i) {
 				inputs[first + i] =
-					(unsigned char)((inputs[first + i] & ~mask) | (later ? before : after));
+					(legacy_u8)((inputs[first + i] & ~mask) | (later ? before : after));
 				inputs[second + i] =
-					(unsigned char)((inputs[second + i] & ~mask) | (later ? after : following));
+					(legacy_u8)((inputs[second + i] & ~mask) | (later ? after : following));
 			}
 			*start = first;
 		} else if (later) {
 			if (width > run_end - boundary) {
 				width = run_end - boundary;
 			}
-			for (unsigned int i = boundary; i < boundary + width; ++i) {
-				inputs[i] = (unsigned char)((inputs[i] & ~mask) | before);
+			for (legacy_uint i = boundary; i < boundary + width; ++i) {
+				inputs[i] = (legacy_u8)((inputs[i] & ~mask) | before);
 			}
 			*start = boundary;
 		} else {
-			unsigned int first = boundary;
+			legacy_uint first = boundary;
 			while (first && boundary - first < width && (inputs[first - 1U] & mask) == before) {
 				--first;
 			}
-			for (unsigned int i = first; i < boundary; ++i) {
-				inputs[i] = (unsigned char)((inputs[i] & ~mask) | after);
+			for (legacy_uint i = first; i < boundary; ++i) {
+				inputs[i] = (legacy_u8)((inputs[i] & ~mask) | after);
 			}
 			*start = first;
 		}
 		return length;
 	}
-	unsigned int width = 1U << (random_word(context) % 6U);
+	legacy_uint width = 1U << (random_word(context) % 6U);
 	if (operation == 7U || operation == 11U) {
 		*start = boundary;
 		width = 1U + random_word(context) % 8U;
@@ -767,18 +771,18 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 			}
 			break;
 		case 9: {
-			static const unsigned char steering[] = {0U, 4U, 8U};
-			unsigned char mask = steering[random_word(context) % 3U];
-			for (unsigned int i = *start; i < *start + width; ++i) {
-				inputs[i] = (unsigned char)((inputs[i] & ~12U) | mask);
+			static const legacy_u8 steering[] = {0U, 4U, 8U};
+			legacy_u8 mask = steering[random_word(context) % 3U];
+			for (legacy_uint i = *start; i < *start + width; ++i) {
+				inputs[i] = (legacy_u8)((inputs[i] & ~12U) | mask);
 			}
 			break;
 		}
 		default: {
-			static const unsigned char pedal[] = {1U, 1U, 0U, 2U};
-			unsigned char mask = pedal[random_word(context) % 4U];
-			for (unsigned int i = *start; i < *start + width; ++i) {
-				inputs[i] = (unsigned char)((inputs[i] & ~3U) | mask);
+			static const legacy_u8 pedal[] = {1U, 1U, 0U, 2U};
+			legacy_u8 mask = pedal[random_word(context) % 4U];
+			for (legacy_uint i = *start; i < *start + width; ++i) {
+				inputs[i] = (legacy_u8)((inputs[i] & ~3U) | mask);
 			}
 			break;
 		}
@@ -786,16 +790,16 @@ static unsigned int mutate_inputs(struct search_context *context, const struct r
 	return length;
 }
 
-static unsigned int run_mutation(struct search_context *context, size_t route_index,
-								 const struct GENGHOST_ROUTE *route,
-								 const struct route_search *search, unsigned char *inputs,
-								 struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
+static legacy_uint run_mutation(struct search_context *context, size_t route_index,
+								const struct GENGHOST_ROUTE *route,
+								const struct route_search *search, legacy_u8 *inputs,
+								struct GENGHOST_DRIVER *driver, struct GENGHOST_RESULT *race)
 {
 	cache_checkpoints(context, route_index, route, search, 0);
-	unsigned int start, changed_end;
-	unsigned int length = search->race.finish_frame;
-	int shift = 0;
-	int gears_only = context->options->fine_tune_gears_only;
+	legacy_uint start, changed_end;
+	legacy_uint length = search->race.finish_frame;
+	legacy_int shift = 0;
+	legacy_int gears_only = context->options->fine_tune_gears_only;
 	if (gears_only) {
 		memcpy(inputs, search->best_inputs, search->length);
 		start = changed_end = 0U;
@@ -813,19 +817,19 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 		memcpy(inputs + length, search->best_inputs + length, search->length - length);
 		length = search->length;
 	}
-	unsigned int common = 0, parent_length = context->cache->guide_count;
+	legacy_uint common = 0, parent_length = context->cache->guide_count;
 	while (common < length && common < parent_length &&
 		   inputs[length - common - 1U] == search->best_inputs[parent_length - common - 1U]) {
 		++common;
 	}
 	changed_end = length - common;
-	unsigned int guide_cursor = parent_length - common;
+	legacy_uint guide_cursor = parent_length - common;
 	/* Most attempts retain the exact suffix. A minority re-time its demonstrated
 	 * controls by position, so a faster sector can rejoin the line instead of
 	 * applying every later corner input at the old wall-clock timestamp. */
-	int guided =
+	legacy_int guided =
 		!gears_only && !shift && search->trials % 16U < 2U && common > 16U && changed_end > start;
-	unsigned int limit = guided ? length + 120U : length;
+	legacy_uint limit = guided ? length + 120U : length;
 	if (limit > GENGHOST_MAX_FRAMES) {
 		limit = GENGHOST_MAX_FRAMES;
 	}
@@ -833,13 +837,13 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 	if (guided) {
 		++context->result->guided_evaluations;
 	}
-	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
+	legacy_uint checkpoint = start / CHECKPOINT_INTERVAL;
 	if (checkpoint >= context->cache->checkpoint_count) {
 		checkpoint = 0;
 	}
 	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
 	*driver = context->cache->driver_checkpoints[checkpoint];
-	unsigned int i = checkpoint * CHECKPOINT_INTERVAL;
+	legacy_uint i = checkpoint * CHECKPOINT_INTERVAL;
 	for (; i < limit; ++i) {
 		if (i % 64U == 0U && expired(context)) {
 			break;
@@ -848,7 +852,7 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 			inputs[i] = genghost_guide_step(context->cache->guide, context->cache->guide_count,
 											&guide_cursor, search->trials % 16U ? 0.35 : 0.0);
 		}
-		int event = genghost_sim_step(inputs[i]);
+		legacy_int event = genghost_sim_step(inputs[i]);
 		++context->result->simulated_frames;
 		if (event) {
 			++i;
@@ -859,20 +863,20 @@ static unsigned int run_mutation(struct search_context *context, size_t route_in
 	return i;
 }
 
-static unsigned int repair_suffix(struct search_context *context, size_t route_index,
-								  const struct GENGHOST_ROUTE *route,
-								  const struct route_search *search, struct GENGHOST_POLICY *policy,
-								  unsigned char *inputs, struct GENGHOST_DRIVER *driver,
-								  struct GENGHOST_RESULT *race)
+static legacy_uint repair_suffix(struct search_context *context, size_t route_index,
+								 const struct GENGHOST_ROUTE *route,
+								 const struct route_search *search, struct GENGHOST_POLICY *policy,
+								 legacy_u8 *inputs, struct GENGHOST_DRIVER *driver,
+								 struct GENGHOST_RESULT *race)
 {
 	cache_checkpoints(context, route_index, route, search, 0);
-	unsigned int rollback = 32U << (random_word(context) % 5U);
-	unsigned int start = search->length > rollback ? search->length - rollback : 0U;
-	unsigned int checkpoint = start / CHECKPOINT_INTERVAL;
+	legacy_uint rollback = 32U << (random_word(context) % 5U);
+	legacy_uint start = search->length > rollback ? search->length - rollback : 0U;
+	legacy_uint checkpoint = start / CHECKPOINT_INTERVAL;
 	if (checkpoint >= context->cache->checkpoint_count) {
 		checkpoint = 0;
 	}
-	unsigned int length = checkpoint * CHECKPOINT_INTERVAL;
+	legacy_uint length = checkpoint * CHECKPOINT_INTERVAL;
 	memcpy(inputs, search->best_inputs, length);
 	genghost_sim_restore(&context->cache->checkpoints[checkpoint]);
 	*driver = context->cache->driver_checkpoints[checkpoint];
@@ -881,7 +885,7 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 	/* Retain the successful prefix and search the failing sector with a fresh
 	 * speed/line/shift choice. This builds a lap incrementally instead of
 	 * repeatedly losing earlier hard-won stunt entries. */
-	for (unsigned int n = driver->segment; n < GENGHOST_POLICY_SEGMENTS && n < driver->segment + 3U;
+	for (legacy_uint n = driver->segment; n < GENGHOST_POLICY_SEGMENTS && n < driver->segment + 3U;
 		 ++n) {
 		struct GENGHOST_GENE *gene = &policy->segment[n];
 		gene->speed_scale = clamp(gene->speed_scale + random_signed(context) * 0.5, 0.3, 3.0);
@@ -896,10 +900,10 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			gene->slide_brake = gene->slide_brake > 0.5 ? 0.0 : 1.0;
 		}
 		if (!context->options->owoot && random_word(context) % 3U == 0U) {
-			unsigned int choice = random_word(context);
+			legacy_uint choice = random_word(context);
 			gene->shortcut_skip = choice % 5U;
 			if (context->portal_family) {
-				double delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
+				legacy_f64 delta = ((choice >> 8U) & 255U) / 127.5 - 1.0;
 				gene->corner_scale = clamp(gene->corner_scale + delta * 0.2, 0.5, 1.8);
 			}
 			if (context->portal_family && (choice >> 4U) % 4U == 0U) {
@@ -920,17 +924,17 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 			}
 		}
 	}
-	unsigned int last_progress_tick = length;
-	double furthest = driver->progress;
+	legacy_uint last_progress_tick = length;
+	legacy_f64 furthest = driver->progress;
 	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
-		unsigned char input =
+		legacy_u8 input =
 			genghost_driver_step(route, policy, driver, context->options->powergear,
 								 context->options->collision, context->options->owoot);
 		inputs[length++] = input;
-		int event = genghost_sim_step(input);
+		legacy_int event = genghost_sim_step(input);
 		++context->result->simulated_frames;
 		genghost_driver_observe(route, driver);
 		if (driver->progress > furthest + 8.0) {
@@ -948,18 +952,18 @@ static unsigned int repair_suffix(struct search_context *context, size_t route_i
 /* A fine-tune parent is always the current canonically verified incumbent.
  * Reuse its native checkpoints and real control boundaries, spending no budget
  * on autonomous policy warmup or unrelated route populations. */
-static int refine_seed(struct search_context *context, const struct GENGHOST_ROUTE *route,
-					   struct route_search *parent, unsigned char *inputs)
+static legacy_int refine_seed(struct search_context *context, const struct GENGHOST_ROUTE *route,
+							  struct route_search *parent, legacy_u8 *inputs)
 {
 	while (!expired(context)) {
 		struct GENGHOST_DRIVER driver;
 		struct GENGHOST_RESULT race;
 		context->guided_candidate = 0;
-		unsigned int length = run_mutation(context, 0U, route, parent, inputs, &driver, &race);
+		legacy_uint length = run_mutation(context, 0U, route, parent, inputs, &driver, &race);
 		++parent->trials;
 		++context->result->evaluations;
 		++context->result->input_evaluations;
-		unsigned int previous_total = context->result->race.total_frames;
+		legacy_uint previous_total = context->result->race.total_frames;
 		if (save_candidate(context, inputs, length, &race)) {
 			return -1;
 		}
@@ -970,11 +974,13 @@ static int refine_seed(struct search_context *context, const struct GENGHOST_ROU
 			++parent->revision;
 			context->cache->checkpoint_count = 0U;
 		}
-		uint64_t now = SDL_GetTicksNS();
+		legacy_u64 now = SDL_GetTicksNS();
 		if (now >= context->next_progress) {
-			fprintf(stderr, "fine-tune progress: %llu candidates, best %.2fs, %.1fs\n",
-					(unsigned long long)context->result->evaluations,
-					context->result->race.total_frames / 20.0, elapsed(context));
+			fprintf(stderr,
+					"fine-tune progress: %" LEGACY_PRIu64 " candidates, best %.2fs, %.1fs\n",
+					(legacy_u64)context->result->evaluations,
+					context->result->race.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+					elapsed(context));
 			context->next_progress = now + 5000000000ULL;
 		}
 	}
@@ -984,19 +990,19 @@ static int refine_seed(struct search_context *context, const struct GENGHOST_ROU
 /* Keep whole route sweeps together so each family preserves its own candidate
  * sequence. A new family receives its initial policies before score selection;
  * routes without compatible switching geometry do not delay that warmup. */
-static unsigned int choose_family(const struct GENGHOST_ROUTES *routes,
-								  const struct route_search *searches, unsigned int family_count,
-								  uint64_t round)
+static legacy_uint choose_family(const struct GENGHOST_ROUTES *routes,
+								 const struct route_search *searches, legacy_uint family_count,
+								 legacy_u64 round)
 {
 	if (family_count == 1U) {
 		return 0U;
 	}
-	unsigned int family = round % 3U == 2U;
-	unsigned int pending[MAX_SEARCH_FAMILIES] = {0};
-	int initialized = 1;
-	double best_score = DBL_MAX;
-	unsigned int winner = 0U;
-	for (unsigned int candidate = 0; candidate < family_count; ++candidate) {
+	legacy_uint family = round % 3U == 2U;
+	legacy_uint pending[MAX_SEARCH_FAMILIES] = {0};
+	legacy_int initialized = 1;
+	legacy_f64 best_score = DBL_MAX;
+	legacy_uint winner = 0U;
+	for (legacy_uint candidate = 0; candidate < family_count; ++candidate) {
 		for (size_t index = 0; index < routes->count; ++index) {
 			if (candidate == 2U && !routes->routes[index].dualway_count) {
 				continue;
@@ -1013,8 +1019,8 @@ static unsigned int choose_family(const struct GENGHOST_ROUTES *routes,
 		}
 	}
 	if (family_count > 2U && !initialized) {
-		for (unsigned int offset = 0; offset < family_count; ++offset) {
-			unsigned int candidate = (unsigned int)((round + offset) % family_count);
+		for (legacy_uint offset = 0; offset < family_count; ++offset) {
+			legacy_uint candidate = (legacy_uint)((round + offset) % family_count);
 			if (pending[candidate]) {
 				return candidate;
 			}
@@ -1023,16 +1029,16 @@ static unsigned int choose_family(const struct GENGHOST_ROUTES *routes,
 	if (initialized && best_score < DBL_MAX) {
 		family = winner;
 		if (round % 4U == 3U) {
-			unsigned int offset = 1U + (unsigned int)((round / 4U) % (family_count - 1U));
+			legacy_uint offset = 1U + (legacy_uint)((round / 4U) % (family_count - 1U));
 			family = (winner + offset) % family_count;
 		}
 	}
 	return family;
 }
 
-int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char *seed_inputs,
-					unsigned int seed_length, struct GENGHOST_SEARCH_RESULT *result,
-					genghost_save_function save, void *save_context)
+legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_u8 *seed_inputs,
+						   legacy_uint seed_length, struct GENGHOST_SEARCH_RESULT *result,
+						   genghost_save_function save, void *save_context)
 {
 	struct GENGHOST_OPTIONS normalized = *options;
 	if (normalized.fine_tune_gears_only) {
@@ -1041,12 +1047,12 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 	options = &normalized;
 	struct GENGHOST_ROUTES routes = {0};
 	struct search_context context = {0};
-	char error[256];
-	int status = 0;
-	unsigned int family_count = 1U;
-	uint64_t family_round = 0U;
-	uint32_t family_random[MAX_SEARCH_FAMILIES];
-	unsigned char *inputs = malloc(GENGHOST_MAX_FRAMES);
+	legacy_char error[256];
+	legacy_int status = 0;
+	legacy_uint family_count = 1U;
+	legacy_u64 family_round = 0U;
+	legacy_u32 family_random[MAX_SEARCH_FAMILIES];
+	legacy_u8 *inputs = malloc(GENGHOST_MAX_FRAMES);
 	struct route_search *searches = NULL;
 	memset(result, 0, sizeof(*result));
 	context.cache = &context.caches[0];
@@ -1188,8 +1194,8 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			}
 			family_count = MAX_SEARCH_FAMILIES;
 		}
-		unsigned int family = choose_family(&routes, searches, family_count, family_round++);
-		context.portal_family = (int)family;
+		legacy_uint family = choose_family(&routes, searches, family_count, family_round++);
+		context.portal_family = (legacy_int)family;
 		context.dualway_family = family == 2U;
 		context.cache = &context.caches[family];
 		context.random = family_random[family];
@@ -1212,7 +1218,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				/* Failed cut parents may reach farther than ordinary profiles and
 				 * crowd them out forever. Restart discovery with an independent
 				 * ordinary lineage after funding all initial cut profiles. */
-				uint64_t revision = search->revision + 1U;
+				legacy_u64 revision = search->revision + 1U;
 				free(search->best_inputs);
 				memset(search, 0, sizeof(*search));
 				search->trials = POPULATION;
@@ -1226,15 +1232,16 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 			if (search->ordinary_discovery && !result->race.finished) {
 				context.corkscrew_cut_available = 0;
 			}
-			unsigned int attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
-			for (unsigned int attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
+			legacy_uint attempts = search->race.finished && search->trials >= POPULATION ? 3U : 1U;
+			for (legacy_uint attempt = 0; attempt < attempts && !expired(&context); ++attempt) {
 				struct GENGHOST_POLICY policy;
 				struct GENGHOST_DRIVER driver;
 				struct GENGHOST_RESULT race;
 				context.guided_candidate = 0;
-				unsigned int catalog_first_segment = 0U;
-				int catalog = choose_catalog_policy(&context, &routes, index, search, &policy,
-													&catalog_first_segment, error, sizeof(error));
+				legacy_uint catalog_first_segment = 0U;
+				legacy_int catalog =
+					choose_catalog_policy(&context, &routes, index, search, &policy,
+										  &catalog_first_segment, error, sizeof(error));
 				if (catalog < 0) {
 					fprintf(stderr, "genghost: %s\n", error);
 					status = -1;
@@ -1243,28 +1250,30 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				context.catalog_mutations_available = !options->owoot && result->race.finished &&
 													  search->catalog_exhausted &&
 													  search->catalog_cursor != 0U;
-				int mutation = !catalog && search->best_inputs && search->race.finished &&
-							   search->trials >= POPULATION &&
-							   random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
-				int initial_fallback = search->ordinary_discovery && !result->race.finished &&
-									   search->trials < POPULATION * 2U;
-				int repair = !catalog && search->best_inputs && !search->race.finished &&
-							 !initial_fallback && search->trials >= POPULATION &&
-							 random_word(&context) % 3U != 0U;
+				legacy_int mutation =
+					!catalog && search->best_inputs && search->race.finished &&
+					search->trials >= POPULATION &&
+					random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
+				legacy_int initial_fallback = search->ordinary_discovery &&
+											  !result->race.finished &&
+											  search->trials < POPULATION * 2U;
+				legacy_int repair = !catalog && search->best_inputs && !search->race.finished &&
+									!initial_fallback && search->trials >= POPULATION &&
+									random_word(&context) % 3U != 0U;
 				context.dualway_available = routes.routes[index].dualway_count != 0U;
 				if (!catalog && !mutation && !repair) {
 					choose_policy(&context, search, &policy);
 					if (context.dualway_family && search->trials < POPULATION) {
 						genghost_dualway_seed_policy(&routes, index, &policy,
-													 (unsigned int)search->trials);
+													 (legacy_uint)search->trials);
 					}
 				}
 				struct GENGHOST_ROUTE effective;
 				const struct GENGHOST_ROUTE *route = &routes.routes[index];
 				const struct GENGHOST_POLICY *route_policy =
 					mutation || repair ? &search->best_policy : &policy;
-				int changed_route = genghost_route_policy(&routes, index, route_policy, &effective,
-														  error, sizeof(error));
+				legacy_int changed_route = genghost_route_policy(&routes, index, route_policy,
+																 &effective, error, sizeof(error));
 				if (changed_route < 0) {
 					fprintf(stderr, "genghost: %s\n", error);
 					status = -1;
@@ -1277,7 +1286,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 				if (context.dualway_candidate) {
 					++result->dualway_evaluations;
 				}
-				unsigned int length =
+				legacy_uint length =
 					catalog	   ? run_catalog_policy(&context, search_index, route, search, &policy,
 													catalog_first_segment, inputs, &driver, &race)
 					: mutation ? run_mutation(&context, search_index, route, search, inputs,
@@ -1286,8 +1295,8 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 											 &driver, &race)
 							 : run_policy(&context, route, &policy, inputs, &driver, &race);
 				if (!search->trials) {
-					int attempted = 0;
-					for (unsigned int other = 0; other < family_count; ++other) {
+					legacy_int attempted = 0;
+					for (legacy_uint other = 0; other < family_count; ++other) {
 						attempted |= searches[other * routes.count + index].trials != 0U;
 					}
 					if (!attempted) {
@@ -1320,8 +1329,8 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					++result->policy_evaluations;
 				}
 				if (race.finished && !search->completed_attempt) {
-					int completed = 0;
-					for (unsigned int other = 0; other < family_count; ++other) {
+					legacy_int completed = 0;
+					for (legacy_uint other = 0; other < family_count; ++other) {
 						completed |= searches[other * routes.count + index].completed_attempt;
 					}
 					search->completed_attempt = 1;
@@ -1329,7 +1338,7 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 						++result->routes_finished;
 					}
 				}
-				double fitness = candidate_fitness(route, &driver, &race);
+				legacy_f64 fitness = candidate_fitness(route, &driver, &race);
 				if (changed_route) {
 					genghost_route_release(&effective);
 				}
@@ -1364,12 +1373,13 @@ int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char 
 					status = -1;
 					goto done;
 				}
-				uint64_t now = SDL_GetTicksNS();
+				legacy_u64 now = SDL_GetTicksNS();
 				if (now >= context.next_progress) {
 					fprintf(stderr,
-							"progress: %llu candidates, %zu/%zu routes attempted, %zu completed, "
+							"progress: %" LEGACY_PRIu64
+							" candidates, %zu/%zu routes attempted, %zu completed, "
 							"%.1fs\n",
-							(unsigned long long)result->evaluations, result->routes_attempted,
+							(legacy_u64)result->evaluations, result->routes_attempted,
 							result->routes, result->routes_finished, elapsed(&context));
 					context.next_progress = now + 5000000000ULL;
 				}
@@ -1386,18 +1396,20 @@ done:
 	}
 	free(searches);
 	free(inputs);
-	for (unsigned int family = 0; family < MAX_SEARCH_FAMILIES; ++family) {
+	for (legacy_uint family = 0; family < MAX_SEARCH_FAMILIES; ++family) {
 		free_cache(&context.caches[family]);
 	}
 	genghost_routes_free(&routes);
 	if (family_count > 1U) {
-		fprintf(stderr, "tile family: %llu candidates, %llu verified improvements\n",
-				(unsigned long long)result->tile_evaluations,
-				(unsigned long long)result->tile_improvements);
+		fprintf(stderr,
+				"tile family: %" LEGACY_PRIu64 " candidates, %" LEGACY_PRIu64
+				" verified improvements\n",
+				(legacy_u64)result->tile_evaluations, (legacy_u64)result->tile_improvements);
 	}
-	fprintf(stderr, "stunt tactics: %llu candidates, %llu verified improvements\n",
-			(unsigned long long)result->tactic_evaluations,
-			(unsigned long long)result->tactic_improvements);
+	fprintf(stderr,
+			"stunt tactics: %" LEGACY_PRIu64 " candidates, %" LEGACY_PRIu64
+			" verified improvements\n",
+			(legacy_u64)result->tactic_evaluations, (legacy_u64)result->tactic_improvements);
 	if (status) {
 		return status;
 	}

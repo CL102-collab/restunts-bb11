@@ -30,15 +30,15 @@
 
 #define WORKER_RUNNING 3
 #define POLL_NS 100000000ULL
-#define PUBLISH_NS 1000000000ULL
+#define PUBLISH_NS SDL_NS_PER_SECOND
 #define STOP_GRACE_NS 2000000000ULL
 
 /* Private IPC between identical executables on one machine. No native struct
  * is persisted as a public replay format or accepted from an input replay. */
 struct worker_snapshot {
-	char magic[8];
-	uint64_t sequence;
-	int status;
+	legacy_char magic[8];
+	legacy_u64 sequence;
+	legacy_int status;
 	struct GENGHOST_SEARCH_RESULT result;
 };
 
@@ -48,32 +48,32 @@ struct worker {
 #else
 	SDL_Process *process;
 #endif
-	char *status_path, *log_path;
-	uint64_t sequence;
-	int started, done, exit_status, failed;
+	legacy_char *status_path, *log_path;
+	legacy_u64 sequence;
+	legacy_int started, done, exit_status, failed;
 	struct GENGHOST_SEARCH_RESULT latest;
 };
 
-static uint64_t current_pid(void)
+static legacy_u64 current_pid(void)
 {
 #ifdef _WIN32
 	return GetCurrentProcessId();
 #else
-	return (uint64_t)getpid();
+	return (legacy_u64)getpid();
 #endif
 }
 
-char *genghost_executable_path(const char *argument)
+legacy_char *genghost_executable_path(const legacy_char *argument)
 {
 #ifdef _WIN32
 	WCHAR name[32768];
 	DWORD length = GetModuleFileNameW(NULL, name, (DWORD)SDL_arraysize(name));
 	if (length && length < SDL_arraysize(name)) {
-		return SDL_iconv_string("UTF-8", "UTF-16LE", (const char *)name,
+		return SDL_iconv_string("UTF-8", "UTF-16LE", (const legacy_char *)name,
 								(length + 1U) * sizeof(*name));
 	}
 #else
-	char name[4096];
+	legacy_char name[4096];
 	ssize_t length = readlink("/proc/self/exe", name, sizeof(name) - 1U);
 	if (length > 0 && (size_t)length < sizeof(name) - 1U) {
 		name[length] = 0;
@@ -84,8 +84,8 @@ char *genghost_executable_path(const char *argument)
 	if (argument[0] == '/' || argument[0] == '\\' || strchr(argument, ':')) {
 		return SDL_strdup(argument);
 	}
-	char *directory = SDL_GetCurrentDirectory();
-	char *path = NULL;
+	legacy_char *directory = SDL_GetCurrentDirectory();
+	legacy_char *path = NULL;
 	if (directory) {
 		SDL_asprintf(&path, "%s/%s", directory, argument);
 	}
@@ -93,56 +93,56 @@ char *genghost_executable_path(const char *argument)
 	return path;
 }
 
-unsigned int genghost_available_cores(void)
+legacy_uint genghost_available_cores(void)
 {
-	unsigned int count = (unsigned int)SDL_GetNumLogicalCPUCores();
+	legacy_uint count = (legacy_uint)SDL_GetNumLogicalCPUCores();
 #ifdef _WIN32
 	DWORD_PTR process_mask, system_mask;
 	if (GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask)) {
 		count = 0;
 		while (process_mask) {
-			count += (unsigned int)(process_mask & 1U);
+			count += (legacy_uint)(process_mask & 1U);
 			process_mask >>= 1U;
 		}
 	}
 #elif defined(__linux__) || defined(__ANDROID__)
 	cpu_set_t mask;
 	if (!sched_getaffinity(0, sizeof(mask), &mask)) {
-		count = (unsigned int)CPU_COUNT(&mask);
+		count = (legacy_uint)CPU_COUNT(&mask);
 	}
 	/* Honor common container CPU quotas as well as the process affinity mask.
 	 * Round fractional quotas up so the last partial CPU can still be used. */
 	FILE *quota_file = fopen("/sys/fs/cgroup/cpu.max", "r");
-	unsigned long long quota = 0, period = 0;
+	legacy_u64 quota = 0, period = 0;
 	if (quota_file) {
-		if (fscanf(quota_file, "%llu %llu", &quota, &period) != 2) {
+		if (fscanf(quota_file, "%" LEGACY_PRIu64 " %" LEGACY_PRIu64, &quota, &period) != 2) {
 			quota = period = 0;
 		}
 		fclose(quota_file);
 	} else {
-		long long old_quota = -1;
+		legacy_s64 old_quota = -1;
 		quota_file = fopen("/sys/fs/cgroup/cpu/cpu.cfs_quota_us", "r");
 		if (quota_file) {
-			if (fscanf(quota_file, "%lld", &old_quota) != 1) {
+			if (fscanf(quota_file, "%" LEGACY_PRId64, &old_quota) != 1) {
 				old_quota = -1;
 			}
 			fclose(quota_file);
 		}
 		quota_file = fopen("/sys/fs/cgroup/cpu/cpu.cfs_period_us", "r");
 		if (quota_file) {
-			if (fscanf(quota_file, "%llu", &period) != 1) {
+			if (fscanf(quota_file, "%" LEGACY_PRIu64, &period) != 1) {
 				period = 0;
 			}
 			fclose(quota_file);
 		}
 		if (old_quota > 0) {
-			quota = (unsigned long long)old_quota;
+			quota = (legacy_u64)old_quota;
 		}
 	}
 	if (quota && period) {
-		uint64_t limited = quota / period + (quota % period != 0U);
+		legacy_u64 limited = quota / period + (quota % period != 0U);
 		if (limited < count) {
-			count = (unsigned int)limited;
+			count = (legacy_uint)limited;
 		}
 	}
 #endif
@@ -170,7 +170,7 @@ void genghost_parallel_install_interrupt_handler(void)
 #endif
 }
 
-int genghost_worker_attach(struct GENGHOST_WORKER_CONTROL *control)
+legacy_int genghost_worker_attach(struct GENGHOST_WORKER_CONTROL *control)
 {
 	if (!control->status_path || !control->stop_path || control->parent_pid <= 1U) {
 		return -1;
@@ -188,7 +188,7 @@ int genghost_worker_attach(struct GENGHOST_WORKER_CONTROL *control)
 	}
 #endif
 	/* Recheck after installing PDEATHSIG: the parent can die before prctl. */
-	if ((uint64_t)getppid() != control->parent_pid) {
+	if ((legacy_u64)getppid() != control->parent_pid) {
 		return -1;
 	}
 #endif
@@ -206,19 +206,19 @@ void genghost_worker_close(struct GENGHOST_WORKER_CONTROL *control)
 #endif
 }
 
-static int publish_worker(struct GENGHOST_WORKER_CONTROL *control,
-						  const struct GENGHOST_SEARCH_RESULT *result, int status)
+static legacy_int publish_worker(struct GENGHOST_WORKER_CONTROL *control,
+								 const struct GENGHOST_SEARCH_RESULT *result, legacy_int status)
 {
 	struct worker_snapshot snapshot = {"GGWORK1", ++control->sequence, status, {0}};
 	snapshot.result = *result;
-	char *temporary = NULL;
+	legacy_char *temporary = NULL;
 	SDL_asprintf(&temporary, "%s.tmp", control->status_path);
 	if (!temporary) {
 		control->failed = 1;
 		return -1;
 	}
 	FILE *file = fopen(temporary, "wb");
-	int failed = !file;
+	legacy_int failed = !file;
 	if (file) {
 		failed = fwrite(&snapshot, 1U, sizeof(snapshot), file) != sizeof(snapshot);
 		if (fclose(file)) {
@@ -228,7 +228,7 @@ static int publish_worker(struct GENGHOST_WORKER_CONTROL *control,
 	if (!failed) {
 		/* A reader can momentarily hold the old file open on Windows. */
 		failed = 1;
-		for (unsigned int attempt = 0; attempt < 20U; ++attempt) {
+		for (legacy_uint attempt = 0; attempt < 20U; ++attempt) {
 			if (SDL_RenamePath(temporary, control->status_path)) {
 				failed = 0;
 				break;
@@ -245,10 +245,10 @@ static int publish_worker(struct GENGHOST_WORKER_CONTROL *control,
 	return failed ? -1 : 0;
 }
 
-int genghost_worker_progress(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
+legacy_int genghost_worker_progress(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
 {
 	struct GENGHOST_WORKER_CONTROL *control = opaque;
-	uint64_t now = SDL_GetTicksNS();
+	legacy_u64 now = SDL_GetTicksNS();
 	if (now < control->next_poll) {
 		return control->failed;
 	}
@@ -258,7 +258,7 @@ int genghost_worker_progress(const struct GENGHOST_SEARCH_RESULT *result, void *
 		genghost_interrupted = 1;
 	}
 #else
-	if ((uint64_t)getppid() != control->parent_pid) {
+	if ((legacy_u64)getppid() != control->parent_pid) {
 		genghost_interrupted = 1;
 	}
 #endif
@@ -275,13 +275,13 @@ int genghost_worker_progress(const struct GENGHOST_SEARCH_RESULT *result, void *
 	return genghost_stop_requested() || control->failed;
 }
 
-int genghost_worker_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
+legacy_int genghost_worker_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
 {
 	return publish_worker(opaque, result, WORKER_RUNNING);
 }
 
-int genghost_worker_finish(struct GENGHOST_WORKER_CONTROL *control,
-						   const struct GENGHOST_SEARCH_RESULT *result, int status)
+legacy_int genghost_worker_finish(struct GENGHOST_WORKER_CONTROL *control,
+								  const struct GENGHOST_SEARCH_RESULT *result, legacy_int status)
 {
 	if (control->failed || (status != 0 && status != 2)) {
 		status = 1;
@@ -289,15 +289,15 @@ int genghost_worker_finish(struct GENGHOST_WORKER_CONTROL *control,
 	return publish_worker(control, result, status) ? 1 : status;
 }
 
-static uint32_t worker_seed(uint32_t base, unsigned int index)
+static legacy_u32 worker_seed(legacy_u32 base, legacy_uint index)
 {
 	/* Index zero is exactly the existing search. A bijective integer mix gives
 	 * the other islands distinct nonzero xorshift states, including seed zero. */
-	uint32_t normalized = base ? base : 1U;
+	legacy_u32 normalized = base ? base : 1U;
 	if (!index) {
 		return base;
 	}
-	uint32_t value = normalized + 0x9e3779b9U * index;
+	legacy_u32 value = normalized + 0x9e3779b9U * index;
 	value ^= value >> 16U;
 	value *= 0x7feb352dU;
 	value ^= value >> 15U;
@@ -312,25 +312,26 @@ static uint32_t worker_seed(uint32_t base, unsigned int index)
 	return value;
 }
 
-static int write_bytes(const char *path, const void *bytes, size_t length)
+static legacy_int write_bytes(const legacy_char *path, const void *bytes, size_t length)
 {
 	FILE *file = fopen(path, "wb");
 	if (!file) {
 		return -1;
 	}
-	int failed = fwrite(bytes, 1, length, file) != length;
+	legacy_int failed = fwrite(bytes, 1, length, file) != length;
 	if (fclose(file)) {
 		failed = 1;
 	}
 	return failed ? -1 : 0;
 }
 
-static int start_worker(struct worker *worker, const char *const *arguments, void *job)
+static legacy_int start_worker(struct worker *worker, const legacy_char *const *arguments,
+							   void *job)
 {
 #ifdef __ANDROID__
 	/* SDL uses its dummy process backend on Android. This standalone native
 	 * executable has no Java VM or SDL threads; exec immediately after fork. */
-	int descriptor = open(worker->log_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	legacy_int descriptor = open(worker->log_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (descriptor < 0) {
 		return -1;
 	}
@@ -342,7 +343,7 @@ static int start_worker(struct worker *worker, const char *const *arguments, voi
 			_exit(1);
 		}
 		close(descriptor);
-		execv(arguments[0], (char *const *)arguments);
+		execv(arguments[0], (legacy_char *const *)arguments);
 		_exit(1);
 	}
 	close(descriptor);
@@ -376,7 +377,7 @@ static int start_worker(struct worker *worker, const char *const *arguments, voi
 	DWORD pid = (DWORD)SDL_GetNumberProperty(SDL_GetProcessProperties(worker->process),
 											 SDL_PROP_PROCESS_PID_NUMBER, 0);
 	HANDLE process = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, FALSE, pid);
-	int assigned = process && AssignProcessToJobObject((HANDLE)job, process);
+	legacy_int assigned = process && AssignProcessToJobObject((HANDLE)job, process);
 	if (process) {
 		CloseHandle(process);
 	}
@@ -395,13 +396,13 @@ static int start_worker(struct worker *worker, const char *const *arguments, voi
 	return 0;
 }
 
-static int poll_worker(struct worker *worker)
+static legacy_int poll_worker(struct worker *worker)
 {
 	if (!worker->started || worker->done) {
 		return worker->done;
 	}
 #ifdef __ANDROID__
-	int status;
+	legacy_int status;
 	pid_t got = waitpid(worker->process, &status, WNOHANG);
 	if (got == 0 || (got < 0 && errno == EINTR)) {
 		return 0;
@@ -423,7 +424,7 @@ static void force_worker(struct worker *worker)
 	}
 #ifdef __ANDROID__
 	kill(worker->process, SIGKILL);
-	int status;
+	legacy_int status;
 	while (waitpid(worker->process, &status, 0) < 0 && errno == EINTR) {
 	}
 	worker->exit_status = 1;
@@ -434,17 +435,17 @@ static void force_worker(struct worker *worker)
 	worker->done = 1;
 }
 
-static int read_worker(struct worker *worker, struct GENGHOST_WORKER_STATS *stats)
+static legacy_int read_worker(struct worker *worker, struct GENGHOST_WORKER_STATS *stats)
 {
 	FILE *file = fopen(worker->status_path, "rb");
 	if (!file) {
 		return 0;
 	}
 	struct worker_snapshot snapshot;
-	int valid = fread(&snapshot, 1, sizeof(snapshot), file) == sizeof(snapshot) &&
-				fgetc(file) == EOF && memcmp(snapshot.magic, "GGWORK1", 8U) == 0 &&
-				snapshot.status >= 0 && snapshot.status <= WORKER_RUNNING &&
-				snapshot.result.length <= GENGHOST_MAX_FRAMES;
+	legacy_int valid = fread(&snapshot, 1, sizeof(snapshot), file) == sizeof(snapshot) &&
+					   fgetc(file) == EOF && memcmp(snapshot.magic, "GGWORK1", 8U) == 0 &&
+					   snapshot.status >= 0 && snapshot.status <= WORKER_RUNNING &&
+					   snapshot.result.length <= GENGHOST_MAX_FRAMES;
 	fclose(file);
 	if (!valid) {
 		return -1;
@@ -464,7 +465,7 @@ static int read_worker(struct worker *worker, struct GENGHOST_WORKER_STATS *stat
 }
 
 static void aggregate(struct GENGHOST_SEARCH_RESULT *result, const struct worker *workers,
-					  unsigned int count, uint64_t started)
+					  legacy_uint count, legacy_u64 started)
 {
 	result->evaluations = result->simulated_frames = 0;
 	result->policy_evaluations = result->input_evaluations = 0;
@@ -475,7 +476,7 @@ static void aggregate(struct GENGHOST_SEARCH_RESULT *result, const struct worker
 	result->routes = result->routes_attempted = result->routes_finished = 0;
 	result->seed_finished = 0;
 	result->seed_total_frames = 0;
-	for (unsigned int i = 0; i < count; ++i) {
+	for (legacy_uint i = 0; i < count; ++i) {
 		const struct GENGHOST_SEARCH_RESULT *part = &workers[i].latest;
 #define SUM_FIELD(field) result->field += part->field
 		SUM_FIELD(evaluations);
@@ -500,14 +501,14 @@ static void aggregate(struct GENGHOST_SEARCH_RESULT *result, const struct worker
 		MAX_FIELD(seed_total_frames);
 #undef MAX_FIELD
 	}
-	result->elapsed_seconds = (SDL_GetTicksNS() - started) / 1000000000.0;
+	result->elapsed_seconds = (SDL_GetTicksNS() - started) / (legacy_f64)SDL_NS_PER_SECOND;
 }
 
 static void show_worker_log(const struct worker *worker)
 {
 	FILE *file = fopen(worker->log_path, "rb");
 	if (file) {
-		char log[2049];
+		legacy_char log[2049];
 		size_t size = fread(log, 1, sizeof(log) - 1U, file);
 		log[size] = 0;
 		fputs(log, stderr);
@@ -515,35 +516,36 @@ static void show_worker_log(const struct worker *worker)
 	}
 }
 
-static void show_worker_error(unsigned int index, const struct worker *worker)
+static void show_worker_error(legacy_uint index, const struct worker *worker)
 {
 	fprintf(stderr, "genghost: worker %u failed (exit %d); retained any verified best replay.\n",
 			index, worker->exit_status);
 	show_worker_log(worker);
 }
 
-int genghost_parallel_search(const char *executable, const char *output, const char *data_dir,
-							 const unsigned char *source, size_t source_length, const char *car,
-							 int transmission, unsigned int requested_cores,
-							 const struct GENGHOST_OPTIONS *options,
-							 struct GENGHOST_SEARCH_RESULT *result,
-							 struct GENGHOST_PARALLEL_REPORT *report, genghost_save_function save,
-							 void *save_context)
+legacy_int genghost_parallel_search(const legacy_char *executable, const legacy_char *output,
+									const legacy_char *data_dir, const legacy_u8 *source,
+									size_t source_length, const legacy_char *car,
+									legacy_int transmission, legacy_uint requested_cores,
+									const struct GENGHOST_OPTIONS *options,
+									struct GENGHOST_SEARCH_RESULT *result,
+									struct GENGHOST_PARALLEL_REPORT *report,
+									genghost_save_function save, void *save_context)
 {
 	/* Kept for native callers; generated workers always use manual transmission. */
 	(void)transmission;
-	unsigned int count = requested_cores ? requested_cores : genghost_available_cores();
+	legacy_uint count = requested_cores ? requested_cores : genghost_available_cores();
 	if (options->evaluations && options->evaluations < count) {
-		count = (unsigned int)options->evaluations;
+		count = (legacy_uint)options->evaluations;
 	}
-	unsigned int allocated = count;
+	legacy_uint allocated = count;
 	memset(result, 0, sizeof(*result));
 	memset(report, 0, sizeof(*report));
 	report->cores_requested = requested_cores;
 	report->cores_used = count;
 	report->winner_worker = UINT_MAX;
 	report->winner_seed = options->seed;
-	unsigned int baseline_total_frames = 0U;
+	legacy_uint baseline_total_frames = 0U;
 	if (options->fine_tune) {
 		/* Retain a canonical parent baseline even if cancellation or startup
 		 * overhead prevents every child from publishing its first result. */
@@ -551,7 +553,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			source_length - REPLAY_INPUT_OFFSET > GENGHOST_MAX_FRAMES) {
 			return 1;
 		}
-		result->length = (unsigned int)(source_length - REPLAY_INPUT_OFFSET);
+		result->length = (legacy_uint)(source_length - REPLAY_INPUT_OFFSET);
 		memcpy(result->inputs, source + REPLAY_INPUT_OFFSET, result->length);
 		if (genghost_sim_evaluate(result->inputs, result->length, &result->race) ||
 			!result->race.finished) {
@@ -561,15 +563,15 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		baseline_total_frames = result->seed_total_frames = result->race.total_frames;
 	}
 	struct worker *workers = calloc(count, sizeof(*workers));
-	char *directory = NULL, *input_path = NULL, *stop_path = NULL;
+	legacy_char *directory = NULL, *input_path = NULL, *stop_path = NULL;
 	void *job = NULL;
-	uint64_t started = SDL_GetTicksNS(), stop_started = 0, next_progress = 0;
-	int failed = !workers, directory_created = 0;
+	legacy_u64 started = SDL_GetTicksNS(), stop_started = 0, next_progress = 0;
+	legacy_int failed = !workers, directory_created = 0;
 	if (!workers) {
 		return 1;
 	}
-	SDL_asprintf(&directory, "%s.work-%llu-%llu", output, (unsigned long long)current_pid(),
-				 (unsigned long long)started);
+	SDL_asprintf(&directory, "%s.work-%" LEGACY_PRIu64 "-%" LEGACY_PRIu64, output,
+				 (legacy_u64)current_pid(), (legacy_u64)started);
 	if (!directory || !SDL_CreateDirectory(directory)) {
 		failed = 1;
 		goto cleanup;
@@ -594,12 +596,12 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 #endif
 	fprintf(stderr, "parallel search: %u workers, %s budget; independent seeded islands\n", count,
 			options->evaluations ? "shared candidate" : "wall-clock");
-	for (unsigned int i = 0; i < count; ++i) {
+	for (legacy_uint i = 0; i < count; ++i) {
 		/* Starting a large pool is part of the wall-clock budget. Do not launch
 		 * more children after the deadline or a cancellation during startup. */
 		if (genghost_stop_requested() ||
 			(options->seconds > 0.0 &&
-			 (SDL_GetTicksNS() - started) / 1000000000.0 >= options->seconds)) {
+			 (SDL_GetTicksNS() - started) / (legacy_f64)SDL_NS_PER_SECOND >= options->seconds)) {
 			count = i;
 			report->cores_used = count;
 			break;
@@ -609,8 +611,8 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		stats->seed = worker_seed(options->seed, i);
 		/* Extremely rare hash collisions are resolved without changing earlier
 		 * streams. Repeatedly checking all prior states makes uniqueness exact. */
-		for (unsigned int j = 0; j < i; ++j) {
-			uint32_t previous = report->workers[j].seed ? report->workers[j].seed : 1U;
+		for (legacy_uint j = 0; j < i; ++j) {
+			legacy_u32 previous = report->workers[j].seed ? report->workers[j].seed : 1U;
 			if (!stats->seed || stats->seed == previous) {
 				++stats->seed;
 				j = UINT_MAX;
@@ -627,12 +629,12 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			report->cores_used = count;
 			break;
 		}
-		char seed[16], budget[32], parent[32];
+		legacy_char seed[16], budget[32], parent[32];
 		snprintf(seed, sizeof(seed), "%u", stats->seed);
-		snprintf(budget, sizeof(budget), "%llu", (unsigned long long)stats->budget_evaluations);
-		snprintf(parent, sizeof(parent), "%llu", (unsigned long long)current_pid());
-		const char *arguments[36];
-		unsigned int n = 0;
+		snprintf(budget, sizeof(budget), "%" LEGACY_PRIu64, (legacy_u64)stats->budget_evaluations);
+		snprintf(parent, sizeof(parent), "%" LEGACY_PRIu64, (legacy_u64)current_pid());
+		const legacy_char *arguments[36];
+		legacy_uint n = 0;
 		arguments[n++] = executable;
 		arguments[n++] = "--strategy";
 		arguments[n++] = "legacy";
@@ -684,26 +686,27 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		}
 	}
 	for (;;) {
-		unsigned int active = 0;
-		int improved = 0;
-		uint64_t now = SDL_GetTicksNS();
+		legacy_uint active = 0;
+		legacy_int improved = 0;
+		legacy_u64 now = SDL_GetTicksNS();
 		if (!stop_started &&
 			(failed || genghost_stop_requested() ||
-			 (options->seconds > 0.0 && (now - started) / 1000000000.0 >= options->seconds))) {
+			 (options->seconds > 0.0 &&
+			  (now - started) / (legacy_f64)SDL_NS_PER_SECOND >= options->seconds))) {
 			stop_started = now;
 			if (write_bytes(stop_path, "stop\n", 5U)) {
 				failed = 1;
 			}
 		}
-		for (unsigned int i = 0; i < count; ++i) {
+		for (legacy_uint i = 0; i < count; ++i) {
 			struct worker *worker = &workers[i];
 			struct GENGHOST_WORKER_STATS *stats = &report->workers[i];
 			if (!worker->started || worker->done) {
 				continue;
 			}
 			/* Reap first, then read: a final publication always precedes exit. */
-			int done = poll_worker(worker);
-			int updated = read_worker(worker, stats);
+			legacy_int done = poll_worker(worker);
+			legacy_int updated = read_worker(worker, stats);
 			if (updated < 0) {
 				fprintf(stderr, "genghost: invalid status snapshot from worker %u\n", i);
 				failed = 1;
@@ -759,9 +762,10 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 			}
 		}
 		if (now >= next_progress) {
-			fprintf(stderr, "parallel progress: %llu candidates, %u/%u workers active, %.2fs\n",
-					(unsigned long long)result->evaluations, active, count,
-					result->elapsed_seconds);
+			fprintf(stderr,
+					"parallel progress: %" LEGACY_PRIu64
+					" candidates, %u/%u workers active, %.2fs\n",
+					(legacy_u64)result->evaluations, active, count, result->elapsed_seconds);
 			next_progress = now + 5000000000ULL;
 		}
 		if (!active) {
@@ -770,7 +774,7 @@ int genghost_parallel_search(const char *executable, const char *output, const c
 		SDL_Delay(20U);
 	}
 cleanup:
-	for (unsigned int i = 0; i < allocated; ++i) {
+	for (legacy_uint i = 0; i < allocated; ++i) {
 		struct worker *worker = &workers[i];
 		force_worker(worker);
 #ifndef __ANDROID__
@@ -780,7 +784,7 @@ cleanup:
 #endif
 		if (worker->status_path) {
 			remove(worker->status_path);
-			char *temporary = NULL;
+			legacy_char *temporary = NULL;
 			SDL_asprintf(&temporary, "%s.tmp", worker->status_path);
 			if (temporary) {
 				remove(temporary);
@@ -818,47 +822,47 @@ cleanup:
 #define COOPERATIVE_PACKET_RECORDS 32U
 
 struct cooperative_header {
-	char magic[8];
-	uint64_t sequence;
-	uint64_t size;
-	int status;
+	legacy_char magic[8];
+	legacy_u64 sequence;
+	legacy_u64 size;
+	legacy_int status;
 };
 
 struct cooperative_worker {
 	struct worker process;
-	char *request_path;
-	uint64_t sequence;
+	legacy_char *request_path;
+	legacy_u64 sequence;
 	size_t task_index, task_count, capacity;
 	void *requests, *replies;
-	int busy;
+	legacy_int busy;
 };
 
 struct GENGHOST_COOPERATIVE_POOL {
 	struct cooperative_worker *workers;
-	unsigned int count;
-	char *directory, *input_path, *stop_path;
+	legacy_uint count;
+	legacy_char *directory, *input_path, *stop_path;
 	void *job;
-	uint64_t started, sequence;
+	legacy_u64 started, sequence;
 	size_t request_size, reply_size;
 	const struct GENGHOST_OPTIONS *options;
 	genghost_cooperative_execute execute;
 	void *execute_context;
 	struct GENGHOST_PARALLEL_REPORT *report;
-	int failed, directory_created;
+	legacy_int failed, directory_created;
 };
 
-static int cooperative_publish(const char *path, uint64_t sequence, const void *bytes, size_t size,
-							   int status)
+static legacy_int cooperative_publish(const legacy_char *path, legacy_u64 sequence,
+									  const void *bytes, size_t size, legacy_int status)
 {
 	struct cooperative_header header = {"GGCOOP2", sequence, size, status};
-	char *temporary = NULL;
+	legacy_char *temporary = NULL;
 	SDL_asprintf(&temporary, "%s.tmp", path);
 	if (!temporary) {
 		return -1;
 	}
 	FILE *file = fopen(temporary, "wb");
-	int failed = !file;
-	const char *operation = "open temporary record";
+	legacy_int failed = !file;
+	const legacy_char *operation = "open temporary record";
 	if (file) {
 		operation = "write temporary record";
 		failed = fwrite(&header, 1, sizeof(header), file) != sizeof(header) ||
@@ -871,7 +875,7 @@ static int cooperative_publish(const char *path, uint64_t sequence, const void *
 	if (!failed) {
 		operation = "replace record";
 		failed = 1;
-		for (unsigned int attempt = 0; attempt < 20U; ++attempt) {
+		for (legacy_uint attempt = 0; attempt < 20U; ++attempt) {
 			if (SDL_RenamePath(temporary, path)) {
 				failed = 0;
 				break;
@@ -880,16 +884,17 @@ static int cooperative_publish(const char *path, uint64_t sequence, const void *
 		}
 	}
 	if (failed) {
-		fprintf(
-			stderr, "genghost: cooperative IPC cannot %s %s (sequence %llu, %zu bytes): %s; %s\n",
-			operation, path, (unsigned long long)sequence, size, strerror(errno), SDL_GetError());
+		fprintf(stderr,
+				"genghost: cooperative IPC cannot %s %s (sequence %" LEGACY_PRIu64
+				", %zu bytes): %s; %s\n",
+				operation, path, (legacy_u64)sequence, size, strerror(errno), SDL_GetError());
 		remove(temporary);
 	}
 	SDL_free(temporary);
 	return failed ? -1 : 0;
 }
 
-static FILE *cooperative_open_read(const char *path)
+static FILE *cooperative_open_read(const legacy_char *path)
 {
 #ifdef _WIN32
 	/* CRT fopen does not share deletion. A polling reader can therefore block
@@ -912,7 +917,7 @@ static FILE *cooperative_open_read(const char *path)
 																				   : EIO;
 		return NULL;
 	}
-	int descriptor = _open_osfhandle((intptr_t)handle, _O_RDONLY | _O_BINARY);
+	legacy_int descriptor = _open_osfhandle((intptr_t)handle, _O_RDONLY | _O_BINARY);
 	if (descriptor < 0) {
 		CloseHandle(handle);
 		return NULL;
@@ -927,13 +932,13 @@ static FILE *cooperative_open_read(const char *path)
 #endif
 }
 
-static int cooperative_consume(const char *path)
+static legacy_int cooperative_consume(const legacy_char *path)
 {
 	/* Each direction has exactly one packet in flight. The consumer removes
 	 * it before acknowledging it through the other direction, so the next
 	 * publication targets an empty inbox instead of replacing a polled file.
 	 * This also avoids Windows/Wine replacement denial on busy filesystems. */
-	for (unsigned int attempt = 0U; attempt < 20U; ++attempt) {
+	for (legacy_uint attempt = 0U; attempt < 20U; ++attempt) {
 		if (!remove(path) || errno == ENOENT) {
 			return 0;
 		}
@@ -946,8 +951,8 @@ static int cooperative_consume(const char *path)
 
 /* Consume only the expected response. Stale sequences are ignored; malformed
  * current records and unexpected future records are errors. */
-static int cooperative_read(const char *path, uint64_t sequence, void *bytes, size_t size,
-							int *status)
+static legacy_int cooperative_read(const legacy_char *path, legacy_u64 sequence, void *bytes,
+								   size_t size, legacy_int *status)
 {
 	FILE *file = cooperative_open_read(path);
 	if (!file) {
@@ -967,9 +972,10 @@ static int cooperative_read(const char *path, uint64_t sequence, void *bytes, si
 	}
 	struct cooperative_header header = {0};
 	size_t header_bytes = fread(&header, 1, sizeof(header), file);
-	int valid = header_bytes == sizeof(header) && !memcmp(header.magic, "GGCOOP2", 8U) &&
-				header.size <= COOPERATIVE_MAX_RECORD && header.status >= 0 && header.status <= 2;
-	int result = -1;
+	legacy_int valid = header_bytes == sizeof(header) && !memcmp(header.magic, "GGCOOP2", 8U) &&
+					   header.size <= COOPERATIVE_MAX_RECORD && header.status >= 0 &&
+					   header.status <= 2;
+	legacy_int result = -1;
 	if (valid && header.sequence < sequence) {
 		result = 0;
 	} else if (valid && header.sequence == sequence && header.size == size &&
@@ -982,24 +988,25 @@ static int cooperative_read(const char *path, uint64_t sequence, void *bytes, si
 		return -1;
 	}
 	if (result < 0) {
-		fprintf(stderr,
-				"genghost: cooperative IPC invalid reply %s (header %zu/%zu, sequence %llu/%llu, "
-				"size %llu/%zu, status %d): %s\n",
-				path, header_bytes, sizeof(header), (unsigned long long)header.sequence,
-				(unsigned long long)sequence, (unsigned long long)header.size, size, header.status,
-				strerror(errno));
+		fprintf(
+			stderr,
+			"genghost: cooperative IPC invalid reply %s (header %zu/%zu, sequence %" LEGACY_PRIu64
+			"/%" LEGACY_PRIu64 ", "
+			"size %" LEGACY_PRIu64 "/%zu, status %d): %s\n",
+			path, header_bytes, sizeof(header), (legacy_u64)header.sequence, (legacy_u64)sequence,
+			(legacy_u64)header.size, size, header.status, strerror(errno));
 	}
 	return result;
 }
 
-static int cooperative_parent_stopped(struct GENGHOST_WORKER_CONTROL *control)
+static legacy_int cooperative_parent_stopped(struct GENGHOST_WORKER_CONTROL *control)
 {
 #ifdef _WIN32
 	if (WaitForSingleObject((HANDLE)control->parent_handle, 0) != WAIT_TIMEOUT) {
 		genghost_interrupted = 1;
 	}
 #else
-	if ((uint64_t)getppid() != control->parent_pid) {
+	if ((legacy_u64)getppid() != control->parent_pid) {
 		genghost_interrupted = 1;
 	}
 #endif
@@ -1018,8 +1025,8 @@ static size_t cooperative_packet_limit(size_t request_size, size_t reply_size)
 	return limit < COOPERATIVE_PACKET_RECORDS ? limit : COOPERATIVE_PACKET_RECORDS;
 }
 
-static int cooperative_reserve(void **requests, void **replies, size_t *capacity, size_t count,
-							   size_t request_size, size_t reply_size)
+static legacy_int cooperative_reserve(void **requests, void **replies, size_t *capacity,
+									  size_t count, size_t request_size, size_t reply_size)
 {
 	if (count <= *capacity) {
 		return 0;
@@ -1038,9 +1045,10 @@ static int cooperative_reserve(void **requests, void **replies, size_t *capacity
 	return 0;
 }
 
-int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const char *request_path,
-								size_t request_size, size_t reply_size,
-								genghost_cooperative_execute execute, void *execute_context)
+legacy_int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control,
+									   const legacy_char *request_path, size_t request_size,
+									   size_t reply_size, genghost_cooperative_execute execute,
+									   void *execute_context)
 {
 	if (!control || !request_path || !execute || !request_size || !reply_size ||
 		request_size > COOPERATIVE_MAX_RECORD || reply_size > COOPERATIVE_MAX_RECORD) {
@@ -1048,8 +1056,8 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 	}
 	void *requests = NULL, *replies = NULL;
 	size_t capacity = 0U;
-	int failed = 0;
-	uint64_t sequence = 0;
+	legacy_int failed = 0;
+	legacy_u64 sequence = 0;
 	while (!failed && !cooperative_parent_stopped(control)) {
 		/* One packet contains this worker's deterministic subsequence of a
 		 * complete frontier batch. Cached short macros no longer wait for a
@@ -1071,14 +1079,14 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 		}
 		struct cooperative_header header = {0};
 		size_t header_bytes = fread(&header, 1, sizeof(header), file);
-		int valid =
+		legacy_int valid =
 			header_bytes == sizeof(header) && !memcmp(header.magic, "GGCOOP2", 8U) && header.size &&
 			header.size <= COOPERATIVE_MAX_RECORD && !(header.size % request_size) &&
 			header.size / request_size <= cooperative_packet_limit(request_size, reply_size) &&
 			!header.status;
 		size_t count = valid ? (size_t)(header.size / request_size) : 0U;
 		size_t records_read = 0U;
-		int extra = EOF;
+		legacy_int extra = EOF;
 		if (valid && header.sequence > sequence) {
 			valid = !cooperative_reserve(&requests, &replies, &capacity, count, request_size,
 										 reply_size);
@@ -1091,11 +1099,12 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 		fclose(file);
 		if (!valid) {
 			fprintf(stderr,
-					"genghost: cooperative IPC invalid request %s (header %zu/%zu, sequence %llu, "
-					"size %llu, status %d, records %zu/%zu of %zu, extra %d): %s\n",
-					request_path, header_bytes, sizeof(header), (unsigned long long)header.sequence,
-					(unsigned long long)header.size, header.status, records_read, count,
-					request_size, extra, strerror(errno));
+					"genghost: cooperative IPC invalid request %s (header %zu/%zu, sequence "
+					"%" LEGACY_PRIu64 ", "
+					"size %" LEGACY_PRIu64 ", status %d, records %zu/%zu of %zu, extra %d): %s\n",
+					request_path, header_bytes, sizeof(header), (legacy_u64)header.sequence,
+					(legacy_u64)header.size, header.status, records_read, count, request_size,
+					extra, strerror(errno));
 			failed = 1;
 			break;
 		}
@@ -1109,22 +1118,22 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 		}
 		sequence = header.sequence;
 		memset(replies, 0, count * reply_size);
-		int status = 0;
+		legacy_int status = 0;
 		for (size_t i = 0; i < count; ++i) {
 			if (cooperative_parent_stopped(control)) {
 				status = 2;
 				break;
 			}
-			status = execute((unsigned char *)requests + i * request_size,
-							 (unsigned char *)replies + i * reply_size, execute_context);
+			status = execute((legacy_u8 *)requests + i * request_size,
+							 (legacy_u8 *)replies + i * reply_size, execute_context);
 			if (status < 0 || status > 2) {
 				status = 1;
 			}
 			if (status) {
 				fprintf(stderr,
 						"genghost: cooperative executor returned %d for record %zu/%zu, sequence "
-						"%llu\n",
-						status, i + 1U, count, (unsigned long long)sequence);
+						"%" LEGACY_PRIu64 "\n",
+						status, i + 1U, count, (legacy_u64)sequence);
 				break;
 			}
 		}
@@ -1143,20 +1152,20 @@ int genghost_cooperative_worker(struct GENGHOST_WORKER_CONTROL *control, const c
 	return failed ? 1 : 0;
 }
 
-static int cooperative_stopped(const struct GENGHOST_COOPERATIVE_POOL *pool)
+static legacy_int cooperative_stopped(const struct GENGHOST_COOPERATIVE_POOL *pool)
 {
 	return genghost_stop_requested() ||
 		   (pool->options->seconds > 0.0 &&
-			(SDL_GetTicksNS() - pool->started) / 1000000000.0 >= pool->options->seconds);
+			(SDL_GetTicksNS() - pool->started) / (legacy_f64)SDL_NS_PER_SECOND >=
+				pool->options->seconds);
 }
 
-struct GENGHOST_COOPERATIVE_POOL *
-genghost_cooperative_open(const char *executable, const char *output, const char *data_dir,
-						  const unsigned char *source, size_t source_length, const char *car,
-						  int transmission, unsigned int requested_cores,
-						  const struct GENGHOST_OPTIONS *options, size_t request_size,
-						  size_t reply_size, genghost_cooperative_execute execute,
-						  void *execute_context, struct GENGHOST_PARALLEL_REPORT *report)
+struct GENGHOST_COOPERATIVE_POOL *genghost_cooperative_open(
+	const legacy_char *executable, const legacy_char *output, const legacy_char *data_dir,
+	const legacy_u8 *source, size_t source_length, const legacy_char *car, legacy_int transmission,
+	legacy_uint requested_cores, const struct GENGHOST_OPTIONS *options, size_t request_size,
+	size_t reply_size, genghost_cooperative_execute execute, void *execute_context,
+	struct GENGHOST_PARALLEL_REPORT *report)
 {
 	/* Kept for native callers; generated workers always use manual transmission. */
 	(void)transmission;
@@ -1171,7 +1180,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 	}
 	pool->count = requested_cores ? requested_cores : genghost_available_cores();
 	if (options->evaluations && options->evaluations < pool->count) {
-		pool->count = (unsigned int)options->evaluations;
+		pool->count = (legacy_uint)options->evaluations;
 	}
 	pool->started = SDL_GetTicksNS();
 	pool->options = options;
@@ -1185,7 +1194,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 	report->cores_used = pool->count;
 	report->winner_worker = UINT_MAX;
 	report->winner_seed = options->seed;
-	for (unsigned int i = 0; i < pool->count; ++i) {
+	for (legacy_uint i = 0; i < pool->count; ++i) {
 		report->workers[i].seed = options->seed;
 	}
 	if (pool->count == 1U) {
@@ -1195,8 +1204,8 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		goto fail;
 	}
 	pool->workers = calloc(pool->count, sizeof(*pool->workers));
-	SDL_asprintf(&pool->directory, "%s.coop-%llu-%llu", output, (unsigned long long)current_pid(),
-				 (unsigned long long)pool->started);
+	SDL_asprintf(&pool->directory, "%s.coop-%" LEGACY_PRIu64 "-%" LEGACY_PRIu64, output,
+				 (legacy_u64)current_pid(), (legacy_u64)pool->started);
 	if (!pool->workers || !pool->directory || !SDL_CreateDirectory(pool->directory)) {
 		goto fail;
 	}
@@ -1218,7 +1227,7 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 	}
 #endif
 	fprintf(stderr, "cooperative search: %u workers; shared deterministic frontier\n", pool->count);
-	for (unsigned int i = 0; i < pool->count; ++i) {
+	for (legacy_uint i = 0; i < pool->count; ++i) {
 		/* Startup is charged to the same wall-clock deadline as expansion. */
 		if (cooperative_stopped(pool)) {
 			pool->count = i;
@@ -1232,11 +1241,11 @@ genghost_cooperative_open(const char *executable, const char *output, const char
 		if (!worker->request_path || !worker->process.status_path || !worker->process.log_path) {
 			goto fail;
 		}
-		char seed[16], parent[32];
+		legacy_char seed[16], parent[32];
 		snprintf(seed, sizeof(seed), "%u", options->seed);
-		snprintf(parent, sizeof(parent), "%llu", (unsigned long long)current_pid());
-		const char *arguments[36];
-		unsigned int n = 0;
+		snprintf(parent, sizeof(parent), "%" LEGACY_PRIu64, (legacy_u64)current_pid());
+		const legacy_char *arguments[36];
+		legacy_uint n = 0;
 		arguments[n++] = executable;
 		arguments[n++] = "--strategy";
 		arguments[n++] = "state";
@@ -1289,8 +1298,8 @@ fail:
 	return NULL;
 }
 
-static int cooperative_dispatch(struct GENGHOST_COOPERATIVE_POOL *pool, unsigned int index,
-								size_t task_index, size_t count, const void *requests)
+static legacy_int cooperative_dispatch(struct GENGHOST_COOPERATIVE_POOL *pool, legacy_uint index,
+									   size_t task_index, size_t count, const void *requests)
 {
 	struct cooperative_worker *worker = &pool->workers[index];
 	worker->task_index = task_index;
@@ -1306,9 +1315,8 @@ static int cooperative_dispatch(struct GENGHOST_COOPERATIVE_POOL *pool, unsigned
 	worker->sequence = ++pool->sequence;
 	worker->busy = 1;
 	for (size_t i = 0; i < worker->task_count; ++i) {
-		memcpy((unsigned char *)worker->requests + i * pool->request_size,
-			   (const unsigned char *)requests +
-				   (task_index + i * pool->count) * pool->request_size,
+		memcpy((legacy_u8 *)worker->requests + i * pool->request_size,
+			   (const legacy_u8 *)requests + (task_index + i * pool->count) * pool->request_size,
 			   pool->request_size);
 	}
 	if (cooperative_publish(worker->request_path, worker->sequence, worker->requests,
@@ -1318,8 +1326,8 @@ static int cooperative_dispatch(struct GENGHOST_COOPERATIVE_POOL *pool, unsigned
 	return 0;
 }
 
-int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const void *requests,
-							   void *replies, size_t count)
+legacy_int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const void *requests,
+									  void *replies, size_t count)
 {
 	if (!pool || pool->failed || (count && (!requests || !replies)) ||
 		count > SIZE_MAX / pool->request_size || count > SIZE_MAX / pool->reply_size) {
@@ -1336,10 +1344,10 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 			if (cooperative_stopped(pool)) {
 				return 2;
 			}
-			void *reply = (unsigned char *)replies + i * pool->reply_size;
+			void *reply = (legacy_u8 *)replies + i * pool->reply_size;
 			memset(reply, 0, pool->reply_size);
-			int status = pool->execute((const unsigned char *)requests + i * pool->request_size,
-									   reply, pool->execute_context);
+			legacy_int status = pool->execute((const legacy_u8 *)requests + i * pool->request_size,
+											  reply, pool->execute_context);
 			if (status) {
 				pool->failed = status != 2;
 				pool->report->workers[0].status = status;
@@ -1349,7 +1357,7 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 		pool->report->workers[0].evaluations += count;
 		return 0;
 	}
-	for (unsigned int i = 0; i < pool->count && i < count; ++i) {
+	for (legacy_uint i = 0; i < pool->count && i < count; ++i) {
 		if (cooperative_dispatch(pool, i, i, count, requests)) {
 			pool->failed = 1;
 			return 1;
@@ -1360,14 +1368,14 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 		if (cooperative_stopped(pool)) {
 			return 2;
 		}
-		int advanced = 0;
-		for (unsigned int i = 0; i < pool->count; ++i) {
+		legacy_int advanced = 0;
+		for (legacy_uint i = 0; i < pool->count; ++i) {
 			struct cooperative_worker *worker = &pool->workers[i];
 			if (!worker->busy) {
 				continue;
 			}
-			int status = 0;
-			int received =
+			legacy_int status = 0;
+			legacy_int received =
 				cooperative_read(worker->process.status_path, worker->sequence, worker->replies,
 								 worker->task_count * pool->reply_size, &status);
 			if (received < 0 || (received > 0 && status)) {
@@ -1390,9 +1398,9 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 				continue;
 			}
 			for (size_t n = 0; n < worker->task_count; ++n) {
-				memcpy((unsigned char *)replies +
+				memcpy((legacy_u8 *)replies +
 						   (worker->task_index + n * pool->count) * pool->reply_size,
-					   (unsigned char *)worker->replies + n * pool->reply_size, pool->reply_size);
+					   (legacy_u8 *)worker->replies + n * pool->reply_size, pool->reply_size);
 			}
 			completed += worker->task_count;
 			worker->busy = 0;
@@ -1415,19 +1423,19 @@ int genghost_cooperative_batch(struct GENGHOST_COOPERATIVE_POOL *pool, const voi
 	/* Only complete batches enter the planner or its metrics. Incomplete work
 	 * at cancellation is deliberately excluded from both dispatch and tick
 	 * counters, rather than presenting a partly consumed frontier. */
-	for (unsigned int i = 0; i < pool->count; ++i) {
+	for (legacy_uint i = 0; i < pool->count; ++i) {
 		pool->report->workers[i].evaluations += count / pool->count + (i < count % pool->count);
 	}
 	return 0;
 }
 
-static void cooperative_remove_record(const char *path)
+static void cooperative_remove_record(const legacy_char *path)
 {
 	if (!path) {
 		return;
 	}
 	remove(path);
-	char *temporary = NULL;
+	legacy_char *temporary = NULL;
 	SDL_asprintf(&temporary, "%s.tmp", path);
 	if (temporary) {
 		remove(temporary);
@@ -1443,11 +1451,11 @@ void genghost_cooperative_close(struct GENGHOST_COOPERATIVE_POOL *pool)
 	if (pool->stop_path) {
 		write_bytes(pool->stop_path, "stop\n", 5U);
 	}
-	uint64_t deadline = SDL_GetTicksNS() + STOP_GRACE_NS;
+	legacy_u64 deadline = SDL_GetTicksNS() + STOP_GRACE_NS;
 	if (pool->workers) {
 		for (;;) {
-			unsigned int active = 0;
-			for (unsigned int i = 0; i < pool->count; ++i) {
+			legacy_uint active = 0;
+			for (legacy_uint i = 0; i < pool->count; ++i) {
 				struct worker *worker = &pool->workers[i].process;
 				if (worker->started && !poll_worker(worker)) {
 					++active;
@@ -1458,7 +1466,7 @@ void genghost_cooperative_close(struct GENGHOST_COOPERATIVE_POOL *pool)
 			}
 			SDL_Delay(5U);
 		}
-		for (unsigned int i = 0; i < pool->count; ++i) {
+		for (legacy_uint i = 0; i < pool->count; ++i) {
 			struct cooperative_worker *worker = &pool->workers[i];
 			force_worker(&worker->process);
 #ifndef __ANDROID__

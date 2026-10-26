@@ -26,18 +26,19 @@
 #define RESTUNTS_GIT_HASH "source-archive"
 #endif
 
+#define GENGHOST_DEFAULT_SECONDS 1800.0
 #define GENGHOST_OPTIONAL_PHYSICS_ARGUMENTS 2
 #define GENGHOST_DEFAULT_CHICANE_FAST_GRASS 1
 
 struct output_context {
-	const char *path, *track_name, *car;
+	const legacy_char *path, *track_name, *car;
 	const struct GENGHOST_OPTIONS *options;
-	int transmission;
+	legacy_int transmission;
 	const struct GENGHOST_PARALLEL_REPORT *parallel;
-	unsigned int baseline_total_frames;
+	legacy_uint baseline_total_frames;
 };
 
-static const char help[] =
+static const legacy_char help[] =
 	"genghost - offline, headless Stunts ghost generator\n"
 	"Usage: genghost [--data-dir DIR] TRACK[.TRK|.RPL] CAR [options]\n"
 	"       genghost [--data-dir DIR] REPLAY.RPL [CAR] --fine-tune [options]\n"
@@ -76,7 +77,7 @@ static const char help[] =
 	"It writes a separate *-FT.rpl by default and reports whether the time improved.\n"
 	"A bounded heuristic search cannot guarantee a finish or global optimum.\n";
 
-static const char *strategy_name(const struct GENGHOST_OPTIONS *options)
+static const legacy_char *strategy_name(const struct GENGHOST_OPTIONS *options)
 {
 	return options->strategy == GENGHOST_STRATEGY_STATE ? "state" : "legacy";
 }
@@ -86,11 +87,11 @@ struct cooperative_context {
 	struct GENGHOST_PARALLEL_REPORT *report;
 };
 
-static int cooperative_batch(void *context, const struct GENGHOST_STATE_TASK *tasks,
-							 struct GENGHOST_STATE_REPLY *replies, size_t count)
+static legacy_int cooperative_batch(void *context, const struct GENGHOST_STATE_TASK *tasks,
+									struct GENGHOST_STATE_REPLY *replies, size_t count)
 {
 	struct cooperative_context *shared = context;
-	int status = genghost_cooperative_batch(shared->pool, tasks, replies, count);
+	legacy_int status = genghost_cooperative_batch(shared->pool, tasks, replies, count);
 	if (!status) {
 		for (size_t i = 0; i < count; ++i) {
 			shared->report->workers[i % shared->report->cores_used].simulated_frames +=
@@ -100,28 +101,28 @@ static int cooperative_batch(void *context, const struct GENGHOST_STATE_TASK *ta
 	return status;
 }
 
-static void interrupt_search(int signal_number)
+static void interrupt_search(legacy_int signal_number)
 {
 	(void)signal_number;
 	genghost_interrupted = 1;
 }
 
-static char *join_path(const char *directory, const char *name)
+static legacy_char *join_path(const legacy_char *directory, const legacy_char *name)
 {
-	if (name[0] == '/' || name[0] == '\\' || (isalpha((unsigned char)name[0]) && name[1] == ':')) {
+	if (name[0] == '/' || name[0] == '\\' || (isalpha((legacy_u8)name[0]) && name[1] == ':')) {
 		return SDL_strdup(name);
 	}
 	size_t a = strlen(directory), b = strlen(name);
-	char *result = malloc(a + b + 2U);
+	legacy_char *result = malloc(a + b + 2U);
 	if (result) {
 		snprintf(result, a + b + 2U, "%s/%s", directory, name);
 	}
 	return result;
 }
 
-static const char *base_name(const char *path)
+static const legacy_char *base_name(const legacy_char *path)
 {
-	const char *name = path;
+	const legacy_char *name = path;
 	for (; *path; ++path) {
 		if (*path == '/' || *path == '\\') {
 			name = path + 1;
@@ -130,17 +131,17 @@ static const char *base_name(const char *path)
 	return name;
 }
 
-static char *with_suffix(const char *path, const char *suffix)
+static legacy_char *with_suffix(const legacy_char *path, const legacy_char *suffix)
 {
 	size_t size = strlen(path) + strlen(suffix) + 1U;
-	char *result = malloc(size);
+	legacy_char *result = malloc(size);
 	if (result) {
 		snprintf(result, size, "%s%s", path, suffix);
 	}
 	return result;
 }
 
-static int read_file(const char *path, unsigned char **data, size_t *length)
+static legacy_int read_file(const legacy_char *path, legacy_u8 **data, size_t *length)
 {
 	FILE *file = fopen(path, "rb");
 	if (!file) {
@@ -156,7 +157,7 @@ static int read_file(const char *path, unsigned char **data, size_t *length)
 		fclose(file);
 		return -1;
 	}
-	int failed = fread(*data, 1, *length, file) != *length;
+	legacy_int failed = fread(*data, 1, *length, file) != *length;
 	if (fclose(file)) {
 		failed = 1;
 	}
@@ -168,23 +169,24 @@ static int read_file(const char *path, unsigned char **data, size_t *length)
 	return 0;
 }
 
-static int read_source(const char *source, const char *cwd, const char *data_dir, int replay_only,
-					   unsigned char **data, size_t *length, char **resolved_path)
+static legacy_int read_source(const legacy_char *source, const legacy_char *cwd,
+							  const legacy_char *data_dir, legacy_int replay_only, legacy_u8 **data,
+							  size_t *length, legacy_char **resolved_path)
 {
-	static const char *track_suffixes[] = {"", ".TRK", ".trk", ".RPL", ".rpl"};
-	static const char *replay_suffixes[] = {"", ".RPL", ".rpl"};
-	const char **suffixes = replay_only ? replay_suffixes : track_suffixes;
-	unsigned int suffix_count = replay_only ? sizeof(replay_suffixes) / sizeof(replay_suffixes[0])
-											: sizeof(track_suffixes) / sizeof(track_suffixes[0]);
-	for (unsigned int directory = 0; directory < 2U; ++directory) {
-		for (unsigned int i = 0; i < suffix_count; ++i) {
-			char *name = with_suffix(source, suffixes[i]);
-			char *path = name ? join_path(directory ? data_dir : cwd, name) : NULL;
+	static const legacy_char *track_suffixes[] = {"", ".TRK", ".trk", ".RPL", ".rpl"};
+	static const legacy_char *replay_suffixes[] = {"", ".RPL", ".rpl"};
+	const legacy_char **suffixes = replay_only ? replay_suffixes : track_suffixes;
+	legacy_uint suffix_count = replay_only ? sizeof(replay_suffixes) / sizeof(replay_suffixes[0])
+										   : sizeof(track_suffixes) / sizeof(track_suffixes[0]);
+	for (legacy_uint directory = 0; directory < 2U; ++directory) {
+		for (legacy_uint i = 0; i < suffix_count; ++i) {
+			legacy_char *name = with_suffix(source, suffixes[i]);
+			legacy_char *path = name ? join_path(directory ? data_dir : cwd, name) : NULL;
 			free(name);
 			if (!path) {
 				return -1;
 			}
-			int status = read_file(path, data, length);
+			legacy_int status = read_file(path, data, length);
 			if (!status) {
 				*resolved_path = path;
 				return 0;
@@ -197,7 +199,7 @@ static int read_source(const char *source, const char *cwd, const char *data_dir
 
 /* Compare existing file identities so relative paths, case differences on
  * Windows, symlinks, and hard links cannot overwrite the fine-tuning source. */
-static int same_file(const char *source, const char *destination)
+static legacy_int same_file(const legacy_char *source, const legacy_char *destination)
 {
 #ifdef _WIN32
 	WCHAR *a = (WCHAR *)SDL_iconv_string("UTF-16LE", "UTF-8", source, strlen(source) + 1U);
@@ -214,7 +216,7 @@ static int same_file(const char *source, const char *destination)
 	DWORD error = GetLastError();
 	SDL_free(a);
 	SDL_free(b);
-	int result = -1;
+	legacy_int result = -1;
 	if (first != INVALID_HANDLE_VALUE && second != INVALID_HANDLE_VALUE) {
 		BY_HANDLE_FILE_INFORMATION left, right;
 		if (GetFileInformationByHandle(first, &left) &&
@@ -246,14 +248,14 @@ static int same_file(const char *source, const char *destination)
 #endif
 }
 
-static int parse_integer(const char *text, uint64_t maximum, uint64_t *value)
+static legacy_int parse_integer(const legacy_char *text, legacy_u64 maximum, legacy_u64 *value)
 {
-	char *end;
 	errno = 0;
 	if (!*text || *text == '-') {
 		return -1;
 	}
-	unsigned long long number = strtoull(text, &end, 10);
+	legacy_char *end;
+	legacy_u64 number = strtoull(text, &end, 10);
 	if (errno || *end || number > maximum) {
 		return -1;
 	}
@@ -261,7 +263,8 @@ static int parse_integer(const char *text, uint64_t maximum, uint64_t *value)
 	return 0;
 }
 
-static int physics_option(const char *argument, const char *name, int *value)
+static legacy_int physics_option(const legacy_char *argument, const legacy_char *name,
+								 legacy_int *value)
 {
 	size_t count = strlen(name);
 	if (SDL_strncasecmp(argument, name, count) != 0) {
@@ -277,10 +280,10 @@ static int physics_option(const char *argument, const char *name, int *value)
 	return 1;
 }
 
-static void json_string(FILE *file, const char *text)
+static void json_string(FILE *file, const legacy_char *text)
 {
 	fputc('"', file);
-	for (const unsigned char *p = (const unsigned char *)text; *p; ++p) {
+	for (const legacy_u8 *p = (const legacy_u8 *)text; *p; ++p) {
 		if (*p == '"' || *p == '\\') {
 			fputc('\\', file);
 			fputc(*p, file);
@@ -293,8 +296,8 @@ static void json_string(FILE *file, const char *text)
 	fputc('"', file);
 }
 
-static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *result,
-						const struct output_context *context)
+static legacy_int write_report(const legacy_char *path, const struct GENGHOST_SEARCH_RESULT *result,
+							   const struct output_context *context)
 {
 	FILE *file = fopen(path, "wb");
 	if (!file) {
@@ -313,19 +316,20 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fprintf(file, ",\n  \"fine_tune_gears_only\": %s",
 			context->options->fine_tune_gears_only ? "true" : "false");
 	if (context->options->fine_tune) {
-		unsigned int saved = context->baseline_total_frames - result->race.total_frames;
+		legacy_uint saved = context->baseline_total_frames - result->race.total_frames;
 		fprintf(file,
 				",\n  \"baseline_total_frames\": %u,\n  \"baseline_total_seconds\": %.2f,\n"
 				"  \"improved\": %s,\n  \"saved_frames\": %u,\n  \"saved_seconds\": %.2f",
-				context->baseline_total_frames, context->baseline_total_frames / 20.0,
-				saved ? "true" : "false", saved, saved / 20.0);
+				context->baseline_total_frames,
+				context->baseline_total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+				saved ? "true" : "false", saved, saved / (legacy_f64)GENGHOST_FRAME_RATE);
 	} else {
 		fputs(",\n  \"baseline_total_frames\": null,\n  \"baseline_total_seconds\": null,\n"
 			  "  \"improved\": null,\n  \"saved_frames\": null,\n  \"saved_seconds\": null",
 			  file);
 	}
 	const struct GENGHOST_PARALLEL_REPORT *parallel = context->parallel;
-	int shared = context->options->strategy == GENGHOST_STRATEGY_STATE;
+	legacy_int shared = context->options->strategy == GENGHOST_STRATEGY_STATE;
 	fprintf(file, ",\n  \"cores_requested\": %u,\n  \"cores_used\": %u,\n  \"winner_worker\": ",
 			parallel ? parallel->cores_requested : 1U, parallel ? parallel->cores_used : 1U);
 	if (shared || (parallel && parallel->winner_worker == UINT_MAX)) {
@@ -343,28 +347,29 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 				   : "single_worker",
 		shared && parallel ? "completed_dispatches_excluding_parent_validation"
 						   : "search_candidates");
-	unsigned int worker_count = parallel ? parallel->cores_used : 1U;
-	for (unsigned int i = 0; i < worker_count; ++i) {
+	legacy_uint worker_count = parallel ? parallel->cores_used : 1U;
+	for (legacy_uint i = 0; i < worker_count; ++i) {
 		const struct GENGHOST_WORKER_STATS *worker = parallel ? &parallel->workers[i] : NULL;
 		if (shared && worker) {
 			fprintf(file,
 					"%s\n    {\"index\": %u, \"seed\": %u, \"budget_evaluations\": null, "
-					"\"evaluations\": %llu, \"simulated_frames\": %llu, \"finished\": null, "
+					"\"evaluations\": %" LEGACY_PRIu64 ", \"simulated_frames\": %" LEGACY_PRIu64
+					", \"finished\": null, "
 					"\"total_frames\": null, \"status\": %d}",
-					i ? "," : "", i, worker->seed, (unsigned long long)worker->evaluations,
-					(unsigned long long)worker->simulated_frames, worker->status);
+					i ? "," : "", i, worker->seed, (legacy_u64)worker->evaluations,
+					(legacy_u64)worker->simulated_frames, worker->status);
 			continue;
 		}
 
 		fprintf(file,
-				"%s\n    {\"index\": %u, \"seed\": %u, \"budget_evaluations\": %llu, "
-				"\"evaluations\": %llu, \"simulated_frames\": %llu, \"finished\": %s, "
+				"%s\n    {\"index\": %u, \"seed\": %u, \"budget_evaluations\": %" LEGACY_PRIu64 ", "
+				"\"evaluations\": %" LEGACY_PRIu64 ", \"simulated_frames\": %" LEGACY_PRIu64
+				", \"finished\": %s, "
 				"\"total_frames\": %u, \"status\": %d}",
 				i ? "," : "", i, worker ? worker->seed : context->options->seed,
-				(unsigned long long)(worker ? worker->budget_evaluations
-											: context->options->evaluations),
-				(unsigned long long)(worker ? worker->evaluations : result->evaluations),
-				(unsigned long long)(worker ? worker->simulated_frames : result->simulated_frames),
+				(legacy_u64)(worker ? worker->budget_evaluations : context->options->evaluations),
+				(legacy_u64)(worker ? worker->evaluations : result->evaluations),
+				(legacy_u64)(worker ? worker->simulated_frames : result->simulated_frames),
 				(worker ? worker->finished : result->race.finished) ? "true" : "false",
 				worker ? worker->total_frames : result->race.total_frames,
 				worker ? worker->status : 0);
@@ -372,78 +377,81 @@ static int write_report(const char *path, const struct GENGHOST_SEARCH_RESULT *r
 	fputs("\n  ]", file);
 	fprintf(file,
 			",\n  \"seed_replay_finished\": %s,\n  \"seed_total_frames\": %u,\n"
-			"  \"policy_evaluations\": %llu,\n  \"input_evaluations\": %llu,\n"
-			"  \"guided_evaluations\": %llu,\n  \"guided_improvements\": %llu,\n"
-			"  \"tile_evaluations\": %llu,\n  \"tile_improvements\": %llu",
+			"  \"policy_evaluations\": %" LEGACY_PRIu64
+			",\n  \"input_evaluations\": %" LEGACY_PRIu64 ",\n"
+			"  \"guided_evaluations\": %" LEGACY_PRIu64
+			",\n  \"guided_improvements\": %" LEGACY_PRIu64 ",\n"
+			"  \"tile_evaluations\": %" LEGACY_PRIu64 ",\n  \"tile_improvements\": %" LEGACY_PRIu64
+			"",
 			result->seed_finished ? "true" : "false", result->seed_total_frames,
-			(unsigned long long)result->policy_evaluations,
-			(unsigned long long)result->input_evaluations,
-			(unsigned long long)result->guided_evaluations,
-			(unsigned long long)result->guided_improvements,
-			(unsigned long long)result->tile_evaluations,
-			(unsigned long long)result->tile_improvements);
-	fprintf(file, ",\n  \"tactic_evaluations\": %llu,\n  \"tactic_improvements\": %llu",
-			(unsigned long long)result->tactic_evaluations,
-			(unsigned long long)result->tactic_improvements);
+			(legacy_u64)result->policy_evaluations, (legacy_u64)result->input_evaluations,
+			(legacy_u64)result->guided_evaluations, (legacy_u64)result->guided_improvements,
+			(legacy_u64)result->tile_evaluations, (legacy_u64)result->tile_improvements);
 	fprintf(file,
-			",\n  \"dualway_pairs\": %llu,\n  \"dualway_evaluations\": %llu,\n  "
-			"\"dualway_improvements\": %llu",
-			(unsigned long long)result->dualway_pairs,
-			(unsigned long long)result->dualway_evaluations,
-			(unsigned long long)result->dualway_improvements);
+			",\n  \"tactic_evaluations\": %" LEGACY_PRIu64
+			",\n  \"tactic_improvements\": %" LEGACY_PRIu64,
+			(legacy_u64)result->tactic_evaluations, (legacy_u64)result->tactic_improvements);
 	fprintf(file,
-			",\n  \"state_evaluations\": %llu,\n  \"state_frontier_peak\": %llu,\n"
-			"  \"state_duplicates\": %llu,\n  \"state_pg_evaluations\": %llu,\n"
-			"  \"state_pg_opportunities\": %llu,\n  \"state_macro_evaluations\": %llu,\n"
-			"  \"state_input_evaluations\": %llu,\n  \"state_chicane_evaluations\": %llu,\n"
-			"  \"state_task_hash\": \"%016llx\"",
-			(unsigned long long)result->state_evaluations,
-			(unsigned long long)result->state_frontier_peak,
-			(unsigned long long)result->state_duplicates,
-			(unsigned long long)result->state_pg_evaluations,
-			(unsigned long long)result->state_pg_states,
-			(unsigned long long)result->state_macro_evaluations,
-			(unsigned long long)result->state_input_evaluations,
-			(unsigned long long)result->state_chicane_evaluations,
-			(unsigned long long)result->state_task_hash);
-	fprintf(file, ",\n  \"state_section_starts\": %llu,\n  \"state_section_evaluations\": %llu",
-			(unsigned long long)result->state_section_starts,
-			(unsigned long long)result->state_section_evaluations);
+			",\n  \"dualway_pairs\": %" LEGACY_PRIu64
+			",\n  \"dualway_evaluations\": %" LEGACY_PRIu64 ",\n  "
+			"\"dualway_improvements\": %" LEGACY_PRIu64,
+			(legacy_u64)result->dualway_pairs, (legacy_u64)result->dualway_evaluations,
+			(legacy_u64)result->dualway_improvements);
 	fprintf(file,
-			",\n  \"state_rescue_starts\": %llu,\n  \"state_diversity_preserved\": %llu,\n"
-			"  \"state_transition_stops\": %llu",
-			(unsigned long long)result->state_rescue_starts,
-			(unsigned long long)result->state_diversity_preserved,
-			(unsigned long long)result->state_transition_stops);
-	fprintf(
-		file,
-		",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "
-		"\"dws\": %s, \"chicane_fast_grass\": %s, \"amiga_grass\": %s, \"owoot\": %s},\n"
-		"  \"finished\": true,\n  \"frames_per_second\": 20,\n  \"replay_frames\": %u,\n"
-		"  \"finish_frame\": %u,\n  \"penalty_frames\": %u,\n  \"total_frames\": %u,\n"
-		"  \"total_seconds\": %.2f,\n  \"seed\": %u,\n  \"evaluations\": %llu,\n"
-		"  \"simulated_frames\": %llu,\n  \"route_combinations\": %zu,\n"
-		"  \"routes_attempted\": %zu,\n  \"routes_finished\": %zu,\n"
-		"  \"search_seconds\": %.6f,\n  \"globally_optimal\": false\n}\n",
-		context->transmission ? "auto" : "manual", context->options->powergear ? "true" : "false",
-		context->options->collision ? "true" : "false",
-		context->options->left_bias ? "true" : "false",
-		context->options->dual_way_switching ? "true" : "false",
-		context->options->chicane_fast_grass ? "true" : "false",
-		context->options->amiga_grass ? "true" : "false",
-		context->options->owoot ? "true" : "false", result->length, result->race.finish_frame,
-		result->race.penalty_frames, result->race.total_frames, result->race.total_frames / 20.0,
-		context->options->seed, (unsigned long long)result->evaluations,
-		(unsigned long long)result->simulated_frames, result->routes, result->routes_attempted,
-		result->routes_finished, result->elapsed_seconds);
-	int failed = ferror(file);
+			",\n  \"state_evaluations\": %" LEGACY_PRIu64
+			",\n  \"state_frontier_peak\": %" LEGACY_PRIu64 ",\n"
+			"  \"state_duplicates\": %" LEGACY_PRIu64
+			",\n  \"state_pg_evaluations\": %" LEGACY_PRIu64 ",\n"
+			"  \"state_pg_opportunities\": %" LEGACY_PRIu64
+			",\n  \"state_macro_evaluations\": %" LEGACY_PRIu64 ",\n"
+			"  \"state_input_evaluations\": %" LEGACY_PRIu64
+			",\n  \"state_chicane_evaluations\": %" LEGACY_PRIu64 ",\n"
+			"  \"state_task_hash\": \"%016" LEGACY_PRIx64 "\"",
+			(legacy_u64)result->state_evaluations, (legacy_u64)result->state_frontier_peak,
+			(legacy_u64)result->state_duplicates, (legacy_u64)result->state_pg_evaluations,
+			(legacy_u64)result->state_pg_states, (legacy_u64)result->state_macro_evaluations,
+			(legacy_u64)result->state_input_evaluations,
+			(legacy_u64)result->state_chicane_evaluations, (legacy_u64)result->state_task_hash);
+	fprintf(file,
+			",\n  \"state_section_starts\": %" LEGACY_PRIu64
+			",\n  \"state_section_evaluations\": %" LEGACY_PRIu64,
+			(legacy_u64)result->state_section_starts,
+			(legacy_u64)result->state_section_evaluations);
+	fprintf(file,
+			",\n  \"state_rescue_starts\": %" LEGACY_PRIu64
+			",\n  \"state_diversity_preserved\": %" LEGACY_PRIu64 ",\n"
+			"  \"state_transition_stops\": %" LEGACY_PRIu64,
+			(legacy_u64)result->state_rescue_starts, (legacy_u64)result->state_diversity_preserved,
+			(legacy_u64)result->state_transition_stops);
+	fprintf(file,
+			",\n  \"transmission\": \"%s\",\n  \"physics\": {\"pg\": %s, \"lc\": %s, \"lcb\": %s, "
+			"\"dws\": %s, \"chicane_fast_grass\": %s, \"amiga_grass\": %s, \"owoot\": %s},\n"
+			"  \"finished\": true,\n  \"frames_per_second\": 20,\n  \"replay_frames\": %u,\n"
+			"  \"finish_frame\": %u,\n  \"penalty_frames\": %u,\n  \"total_frames\": %u,\n"
+			"  \"total_seconds\": %.2f,\n  \"seed\": %u,\n  \"evaluations\": %" LEGACY_PRIu64 ",\n"
+			"  \"simulated_frames\": %" LEGACY_PRIu64 ",\n  \"route_combinations\": %zu,\n"
+			"  \"routes_attempted\": %zu,\n  \"routes_finished\": %zu,\n"
+			"  \"search_seconds\": %.6f,\n  \"globally_optimal\": false\n}\n",
+			context->transmission ? "auto" : "manual",
+			context->options->powergear ? "true" : "false",
+			context->options->collision ? "true" : "false",
+			context->options->left_bias ? "true" : "false",
+			context->options->dual_way_switching ? "true" : "false",
+			context->options->chicane_fast_grass ? "true" : "false",
+			context->options->amiga_grass ? "true" : "false",
+			context->options->owoot ? "true" : "false", result->length, result->race.finish_frame,
+			result->race.penalty_frames, result->race.total_frames,
+			result->race.total_frames / (legacy_f64)GENGHOST_FRAME_RATE, context->options->seed,
+			(legacy_u64)result->evaluations, (legacy_u64)result->simulated_frames, result->routes,
+			result->routes_attempted, result->routes_finished, result->elapsed_seconds);
+	legacy_int failed = ferror(file);
 	if (fclose(file)) {
 		failed = 1;
 	}
 	return failed ? -1 : 0;
 }
 
-static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
+static legacy_int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
 {
 	struct output_context *context = opaque;
 	if (context->options->fine_tune &&
@@ -451,12 +459,12 @@ static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque
 		fputs("genghost: refusing a fine-tuning result worse than its verified baseline\n", stderr);
 		return -1;
 	}
-	char suffix[64];
-	snprintf(suffix, sizeof(suffix), ".tmp-%llu", (unsigned long long)SDL_GetTicksNS());
-	char *temporary = with_suffix(context->path, suffix);
-	char *report = with_suffix(context->path, ".json");
-	char *temporary_report = report ? with_suffix(report, suffix) : NULL;
-	int failed = !temporary || !report || !temporary_report;
+	legacy_char suffix[64];
+	snprintf(suffix, sizeof(suffix), ".tmp-%" LEGACY_PRIu64, (legacy_u64)SDL_GetTicksNS());
+	legacy_char *temporary = with_suffix(context->path, suffix);
+	legacy_char *report = with_suffix(context->path, ".json");
+	legacy_char *temporary_report = report ? with_suffix(report, suffix) : NULL;
+	legacy_int failed = !temporary || !report || !temporary_report;
 	if (!failed) {
 		failed = genghost_sim_write_replay(temporary, context->track_name, result->inputs,
 										   result->length) != 0;
@@ -485,26 +493,28 @@ static int save_result(const struct GENGHOST_SEARCH_RESULT *result, void *opaque
 	return failed;
 }
 
-int main(int argc, char **argv)
+legacy_int main(legacy_int argc, legacy_char **argv)
 {
 	const legacy_char *asset_directory = getenv("RESTUNTS_ASSETS_DIR");
 	file_car_set_base(
 		(const legacy_s8 *)(asset_directory != NULL ? asset_directory : SDL_GetBasePath()));
-	struct GENGHOST_OPTIONS options = {1800.0, 0, 1U, 1, 1,
-									   1,	   1, 0,  0, GENGHOST_DEFAULT_CHICANE_FAST_GRASS};
-	const char *source = NULL, *car_argument = NULL, *data_argument = ".", *output_argument = NULL;
+	struct GENGHOST_OPTIONS options = {GENGHOST_DEFAULT_SECONDS,		   0, 1U, 1, 1, 1, 1, 0, 0,
+									   GENGHOST_DEFAULT_CHICANE_FAST_GRASS};
+	const legacy_char *source = NULL, *car_argument = NULL, *data_argument = ".",
+					  *output_argument = NULL;
 	const legacy_char *stop_argument = NULL;
 	legacy_char *stop_file = NULL;
-	char car[5] = {0}, track_name[256];
-	int transmission = TRANSMISSION_MANUAL, verify = 0, explicit_seconds = 0, status = 1;
-	unsigned int cores = 1U;
-	const char *cooperative_request = NULL;
+	legacy_char car[REPLAY_CAR_ID_SIZE + 1U] = {0}, track_name[256];
+	legacy_int transmission = TRANSMISSION_MANUAL, verify = 0, explicit_seconds = 0, status = 1;
+	legacy_uint cores = 1U;
+	const legacy_char *cooperative_request = NULL;
 	struct GENGHOST_WORKER_CONTROL worker_control = {0};
-	char *cwd = NULL, *data_dir = NULL, *output = NULL, *executable = NULL, *source_path = NULL;
+	legacy_char *cwd = NULL, *data_dir = NULL, *output = NULL, *executable = NULL,
+				*source_path = NULL;
 	struct GENGHOST_RESULT baseline = {0};
-	unsigned char *file = NULL;
+	legacy_u8 *file = NULL;
 	size_t file_length = 0;
-	for (int i = 1; i < argc; ++i) {
+	for (legacy_int i = 1; i < argc; ++i) {
 		if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
 			fputs(help, stdout);
 			return 0;
@@ -514,9 +524,9 @@ int main(int argc, char **argv)
 			return 0;
 		}
 	}
-	for (int i = 1; i < argc; ++i) {
-		const char *argument = argv[i];
-		int flag = physics_option(argument, "--pg:", &options.powergear);
+	for (legacy_int i = 1; i < argc; ++i) {
+		const legacy_char *argument = argv[i];
+		legacy_int flag = physics_option(argument, "--pg:", &options.powergear);
 		if (!flag) {
 			flag = physics_option(argument, "--lc:", &options.collision);
 		}
@@ -588,20 +598,20 @@ int main(int argc, char **argv)
 					goto done;
 				}
 			} else {
-				uint64_t value;
-				uint64_t maximum = !strcmp(argument, "--seed")	  ? UINT32_MAX
-								   : !strcmp(argument, "--cores") ? GENGHOST_MAX_CORES
-																  : UINT64_MAX;
+				legacy_u64 value;
+				legacy_u64 maximum = !strcmp(argument, "--seed")	? UINT32_MAX
+									 : !strcmp(argument, "--cores") ? GENGHOST_MAX_CORES
+																	: UINT64_MAX;
 				if (parse_integer(argv[i], maximum, &value)) {
 					fprintf(stderr, "Invalid numeric value for %s: %s\n", argument, argv[i]);
 					goto done;
 				}
 				if (!strcmp(argument, "--cores")) {
-					cores = (unsigned int)value;
+					cores = (legacy_uint)value;
 				} else if (!strcmp(argument, "--worker-parent")) {
 					worker_control.parent_pid = value;
 				} else if (!strcmp(argument, "--seconds")) {
-					options.seconds = (double)value;
+					options.seconds = (legacy_f64)value;
 					explicit_seconds = 1;
 				} else if (!strcmp(argument, "--evaluations")) {
 					if (!value) {
@@ -610,7 +620,7 @@ int main(int argc, char **argv)
 					}
 					options.evaluations = value;
 				} else {
-					options.seed = (uint32_t)value;
+					options.seed = (legacy_u32)value;
 				}
 			}
 		} else if (argument[0] == '-') {
@@ -630,7 +640,7 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	options.fine_tune = options.fine_tune || options.fine_tune_gears_only;
-	const char *fine_tune_option =
+	const legacy_char *fine_tune_option =
 		options.fine_tune_gears_only ? "--fine-tune-gears-only" : "--fine-tune";
 	if (options.fine_tune && verify) {
 		fprintf(stderr, "%s cannot be combined with --verify\n", fine_tune_option);
@@ -654,16 +664,16 @@ int main(int argc, char **argv)
 			fputs("CAR is required for generation and --verify\n", stderr);
 			goto done;
 		}
-		if (strlen(car_argument) != 4U) {
+		if (strlen(car_argument) != REPLAY_CAR_ID_SIZE) {
 			fputs("CAR must have exactly four letters, digits or underscores\n", stderr);
 			goto done;
 		}
-		for (unsigned int i = 0; i < 4U; ++i) {
-			if (!isalnum((unsigned char)car_argument[i]) && car_argument[i] != '_') {
+		for (legacy_uint i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
+			if (!isalnum((legacy_u8)car_argument[i]) && car_argument[i] != '_') {
 				fputs("Invalid CAR code\n", stderr);
 				goto done;
 			}
-			car[i] = (char)toupper((unsigned char)car_argument[i]);
+			car[i] = (legacy_char)toupper((legacy_u8)car_argument[i]);
 		}
 	}
 	if (options.evaluations && !explicit_seconds) {
@@ -703,10 +713,10 @@ int main(int argc, char **argv)
 				options.fine_tune ? "input replay (.RPL)" : "track/replay", source);
 		goto done;
 	}
-	unsigned char *track = file, *seed_inputs = NULL;
-	unsigned int seed_length = 0;
+	legacy_u8 *track = file, *seed_inputs = NULL;
+	legacy_uint seed_length = 0;
 	struct GAMEINFO replay = {0};
-	int is_replay = file_length >= REPLAY_INPUT_OFFSET && file_length != REPLAY_TRACK_SIZE;
+	legacy_int is_replay = file_length >= REPLAY_INPUT_OFFSET && file_length != REPLAY_TRACK_SIZE;
 	if (options.fine_tune && !is_replay) {
 		fprintf(stderr, "%s requires a complete replay (.RPL), not a track-only or invalid file\n",
 				fine_tune_option);
@@ -723,13 +733,13 @@ int main(int argc, char **argv)
 		}
 		track = file + REPLAY_GAMEINFO_SIZE;
 		if (options.fine_tune) {
-			for (unsigned int i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
-				if (!isalnum((unsigned char)replay.game_playercarid[i]) &&
+			for (legacy_uint i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
+				if (!isalnum((legacy_u8)replay.game_playercarid[i]) &&
 					replay.game_playercarid[i] != '_') {
 					fputs("Invalid CAR code in input replay header\n", stderr);
 					goto done;
 				}
-				car[i] = (char)toupper((unsigned char)replay.game_playercarid[i]);
+				car[i] = (legacy_char)toupper((legacy_u8)replay.game_playercarid[i]);
 			}
 		}
 		if ((options.fine_tune || memcmp(replay.game_playercarid, car, 4U) == 0) &&
@@ -766,7 +776,7 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	snprintf(track_name, sizeof(track_name), "%s", base_name(source));
-	char *extension = strrchr(track_name, '.');
+	legacy_char *extension = strrchr(track_name, '.');
 	if (extension) {
 		*extension = 0;
 	}
@@ -776,23 +786,23 @@ int main(int argc, char **argv)
 	if (output_argument) {
 		output = join_path(cwd, output_argument);
 	} else if (options.fine_tune) {
-		char prefix[6] = {0}, default_name[13];
-		for (unsigned int i = 0; i < 5U && track_name[i]; ++i) {
-			unsigned char letter = (unsigned char)toupper((unsigned char)track_name[i]);
+		legacy_char prefix[6] = {0}, default_name[13];
+		for (legacy_uint i = 0; i < 5U && track_name[i]; ++i) {
+			legacy_u8 letter = (legacy_u8)toupper((legacy_u8)track_name[i]);
 			prefix[i] = (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')
-							? (char)letter
+							? (legacy_char)letter
 							: '_';
 		}
 		snprintf(default_name, sizeof(default_name), "%s-FT.rpl", prefix);
 		output = join_path(cwd, default_name);
 	} else {
 		/* The game's replay picker only enumerates DOS 8.3 filenames. */
-		char prefix[4] = {0}, default_name[13];
-		for (unsigned int i = 0; i < 3U && track_name[i]; ++i) {
-			unsigned char letter = (unsigned char)toupper((unsigned char)track_name[i]);
+		legacy_char prefix[4] = {0}, default_name[13];
+		for (legacy_uint i = 0; i < 3U && track_name[i]; ++i) {
+			legacy_u8 letter = (legacy_u8)toupper((legacy_u8)track_name[i]);
 			prefix[i] = '_';
 			if ((letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')) {
-				prefix[i] = (char)letter;
+				prefix[i] = (legacy_char)letter;
 			}
 		}
 		snprintf(default_name, sizeof(default_name), "%s-%s.rpl", prefix, car);
@@ -802,9 +812,9 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	if (options.fine_tune) {
-		char *report_path = with_suffix(output, ".json");
-		int source_output = same_file(source_path, output);
-		int source_report = report_path ? same_file(source_path, report_path) : -1;
+		legacy_char *report_path = with_suffix(output, ".json");
+		legacy_int source_output = same_file(source_path, output);
+		legacy_int source_report = report_path ? same_file(source_path, report_path) : -1;
 		free(report_path);
 		if (source_output != 0 || source_report != 0) {
 			fprintf(stderr, "%s must preserve its input replay; choose a different --output path\n",
@@ -830,14 +840,14 @@ int main(int argc, char **argv)
 		goto done;
 	}
 	atexit(SDL_Quit);
-	char *physics_arguments[] = {"genghost",
-								 options.powergear ? "--pg:on" : "--pg:off",
-								 options.collision ? "--lc:on" : "--lc:off",
-								 options.left_bias ? "--lcb:on" : "--lcb:off",
-								 options.dual_way_switching ? "--dws:on" : "--dws:off",
-								 options.chicane_fast_grass ? "--cfg:on" : "--cfg:off",
-								 NULL,
-								 NULL};
+	legacy_char *physics_arguments[] = {"genghost",
+										options.powergear ? "--pg:on" : "--pg:off",
+										options.collision ? "--lc:on" : "--lc:off",
+										options.left_bias ? "--lcb:on" : "--lcb:off",
+										options.dual_way_switching ? "--dws:on" : "--dws:off",
+										options.chicane_fast_grass ? "--cfg:on" : "--cfg:off",
+										NULL,
+										NULL};
 	legacy_int physics_count =
 		(legacy_int)(sizeof(physics_arguments) / sizeof(*physics_arguments)) -
 		GENGHOST_OPTIONAL_PHYSICS_ARGUMENTS;
@@ -847,7 +857,7 @@ int main(int argc, char **argv)
 	if (options.amiga_grass) {
 		physics_arguments[physics_count++] = "--amigagrass";
 	}
-	int source_transmission =
+	legacy_int source_transmission =
 		options.fine_tune || verify ? replay.game_playertransmission : TRANSMISSION_MANUAL;
 	if (genghost_sim_init(track, car, source_transmission, physics_count, physics_arguments)) {
 		goto done;
@@ -866,8 +876,9 @@ int main(int argc, char **argv)
 		memcpy(replay.game_playercarid, car, REPLAY_CAR_ID_SIZE);
 		replay_gameinfo_encode(file, &replay);
 		fprintf(stderr, "fine-tune baseline: %.2fs (driving %.2fs + penalty %.2fs)\n",
-				baseline.total_frames / 20.0, baseline.finish_frame / 20.0,
-				baseline.penalty_frames / 20.0);
+				baseline.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+				baseline.finish_frame / (legacy_f64)GENGHOST_FRAME_RATE,
+				baseline.penalty_frames / (legacy_f64)GENGHOST_FRAME_RATE);
 	}
 	if (verify) {
 		struct GENGHOST_RESULT race;
@@ -904,7 +915,7 @@ int main(int argc, char **argv)
 			options.chicane_fast_grass ? "on" : "off", options.amiga_grass ? " --amigagrass" : "",
 			options.owoot ? " --owoot" : "");
 	fprintf(stderr, "search strategy: %s\n", strategy_name(&options));
-	int search_status;
+	legacy_int search_status;
 	if (options.strategy == GENGHOST_STRATEGY_STATE && cores != 1U) {
 		struct GENGHOST_STATE_EXECUTOR *executor = genghost_state_executor_create(&options);
 		if (!executor) {
@@ -942,19 +953,24 @@ int main(int argc, char **argv)
 		status = genghost_worker_finish(&worker_control, &result, search_status);
 		goto done;
 	}
-	fprintf(stderr, "%llu candidates, %llu simulated ticks, %.2fs; %zu/%zu routes attempted\n",
-			(unsigned long long)result.evaluations, (unsigned long long)result.simulated_frames,
+	fprintf(stderr,
+			"%" LEGACY_PRIu64 " candidates, %" LEGACY_PRIu64
+			" simulated ticks, %.2fs; %zu/%zu routes attempted\n",
+			(legacy_u64)result.evaluations, (legacy_u64)result.simulated_frames,
 			result.elapsed_seconds, result.routes_attempted, result.routes);
 	if (!search_status) {
 		if (save_result(&result, &context)) {
 			goto done;
 		}
-		printf("Saved %s (%.2fs including penalties)\n", output, result.race.total_frames / 20.0);
+		printf("Saved %s (%.2fs including penalties)\n", output,
+			   result.race.total_frames / (legacy_f64)GENGHOST_FRAME_RATE);
 		if (options.fine_tune) {
-			unsigned int saved = baseline.total_frames - result.race.total_frames;
+			legacy_uint saved = baseline.total_frames - result.race.total_frames;
 			if (saved) {
 				printf("Fine-tuned %.2fs -> %.2fs; saved %.2fs including penalties\n",
-					   baseline.total_frames / 20.0, result.race.total_frames / 20.0, saved / 20.0);
+					   baseline.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+					   result.race.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+					   saved / (legacy_f64)GENGHOST_FRAME_RATE);
 			} else {
 				puts("No faster replay found within the budget; saved the verified baseline.");
 			}

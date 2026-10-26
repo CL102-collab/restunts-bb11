@@ -4,53 +4,63 @@
 #include "search.h"
 #include "maneuvers.h"
 
+enum GENGHOST_STATE_TASK_KIND {
+	GENGHOST_STATE_TASK_MANEUVER = 0,
+	GENGHOST_STATE_TASK_POLICY,
+	GENGHOST_STATE_TASK_INPUT_INTERVAL,
+	GENGHOST_STATE_TASK_REFERENCE
+};
+
 /* Requests contain portable replay inputs, never native pointers. The executor
  * reconstructs a full simulator checkpoint in its own process. */
 struct GENGHOST_STATE_TASK {
-	uint64_t id;
-	uint32_t route_index, route_variant;
-	unsigned int prefix_length, action_index, variation;
+	legacy_u64 id;
+	legacy_u32 route_index, route_variant;
+	legacy_uint prefix_length, action_index, variation;
 	/* 0: maneuver; 1: replay the prefix and continue a complete driving policy;
 	 * 2: change a short input interval and replay the remainder exactly;
 	 * 3: retime the supplied native reference after a maneuver. */
-	unsigned int kind, first, width, replacement;
-	unsigned int reference_length, reference_first;
-	unsigned char prefix[GENGHOST_MAX_FRAMES];
-	unsigned char reference[GENGHOST_MAX_FRAMES];
+	legacy_uint kind, first, width, replacement;
+	legacy_uint reference_length, reference_first;
+	legacy_u8 prefix[GENGHOST_MAX_FRAMES];
+	legacy_u8 reference[GENGHOST_MAX_FRAMES];
 };
 
 struct GENGHOST_STATE_FEATURES {
-	int32_t x, y, z;
-	int heading, pitch, roll, speed, gear, airborne, powergear;
-	int route, confirmed_route, previous_route, route_status, confirmations;
-	unsigned int frames, penalty_frames;
-	double progress, off_route, route_length;
+	legacy_s32 x, y, z;
+	legacy_int heading, pitch, roll, speed, gear, airborne, powergear;
+	legacy_int route, confirmed_route, previous_route, route_status, confirmations;
+	legacy_uint frames, penalty_frames;
+	legacy_f64 progress, off_route, route_length;
 };
 
 struct GENGHOST_STATE_REPLY {
-	uint64_t id, simulated_frames;
-	unsigned int length, available, action_count, action_kind, action_ticks;
-	unsigned int powergear_ticks, switch_count, tile_active, stalled_frames, transition_stop;
+	legacy_u64 id, simulated_frames;
+	legacy_uint length, available, action_count, action_kind, action_ticks;
+	legacy_uint powergear_ticks, switch_count, tile_active, stalled_frames, transition_stop;
 	struct GENGHOST_RESULT race;
 	struct GENGHOST_DRIVER driver;
 	struct GENGHOST_STATE_FEATURES features;
-	unsigned char inputs[GENGHOST_MAX_FRAMES];
+	legacy_u8 inputs[GENGHOST_MAX_FRAMES];
 };
 
 struct GENGHOST_STATE_EXECUTOR;
 struct GENGHOST_STATE_EXECUTOR *genghost_state_executor_create(const struct GENGHOST_OPTIONS *);
 void genghost_state_executor_destroy(struct GENGHOST_STATE_EXECUTOR *);
-int genghost_state_execute(const void *request, void *reply, void *executor);
+legacy_int genghost_state_execute(const void *request, void *reply, void *executor);
 
-typedef int (*genghost_state_batch_function)(void *context, const struct GENGHOST_STATE_TASK *tasks,
-											 struct GENGHOST_STATE_REPLY *replies, size_t count);
+typedef legacy_int (*genghost_state_batch_function)(void *context,
+													const struct GENGHOST_STATE_TASK *tasks,
+													struct GENGHOST_STATE_REPLY *replies,
+													size_t count);
 
 /* The batch callback may use independent native worker processes. Results are
  * consumed in task order, so scheduling/core count does not change fixed-budget
  * search. NULL uses the same executor locally. */
-int genghost_state_search(const struct GENGHOST_OPTIONS *options, const unsigned char *seed_inputs,
-						  unsigned int seed_length, struct GENGHOST_SEARCH_RESULT *result,
-						  genghost_save_function save, void *save_context,
-						  genghost_state_batch_function batch, void *batch_context);
+legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
+								 const legacy_u8 *seed_inputs, legacy_uint seed_length,
+								 struct GENGHOST_SEARCH_RESULT *result, genghost_save_function save,
+								 void *save_context, genghost_state_batch_function batch,
+								 void *batch_context);
 
 #endif

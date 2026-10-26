@@ -7,44 +7,44 @@
 #include "routes.h"
 
 struct GENGHOST_SEARCH_RESULT;
-typedef int (*genghost_progress_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
+typedef legacy_int (*genghost_progress_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
 
 enum GENGHOST_STRATEGY { GENGHOST_STRATEGY_LEGACY = 0, GENGHOST_STRATEGY_STATE = 1 };
 
 struct GENGHOST_OPTIONS {
-	double seconds;
-	uint64_t evaluations;
-	uint32_t seed;
-	int powergear, collision, left_bias, dual_way_switching, owoot, amiga_grass;
+	legacy_f64 seconds;
+	legacy_u64 evaluations;
+	legacy_u32 seed;
+	legacy_int powergear, collision, left_bias, dual_way_switching, owoot, amiga_grass;
 	legacy_int chicane_fast_grass;
 	/* Optional worker heartbeat/cancellation; never runs concurrent physics. */
 	genghost_progress_function progress;
 	void *progress_context;
 	enum GENGHOST_STRATEGY strategy;
 	/* Refine a completed compatible replay; never restart track-only discovery. */
-	int fine_tune;
+	legacy_int fine_tune;
 	/* Restrict fine-tuning to shift buttons; preserve the complete input timeline. */
-	int fine_tune_gears_only;
+	legacy_int fine_tune_gears_only;
 };
 
 struct GENGHOST_SEARCH_RESULT {
-	unsigned char inputs[GENGHOST_MAX_FRAMES];
-	unsigned int length;
+	legacy_u8 inputs[GENGHOST_MAX_FRAMES];
+	legacy_uint length;
 	struct GENGHOST_RESULT race;
-	uint64_t evaluations, simulated_frames;
-	uint64_t policy_evaluations, input_evaluations, guided_evaluations, guided_improvements;
-	uint64_t tile_evaluations, tile_improvements;
-	uint64_t tactic_evaluations, tactic_improvements;
-	uint64_t dualway_pairs, dualway_evaluations, dualway_improvements;
-	uint64_t state_evaluations, state_frontier_peak, state_duplicates, state_task_hash;
-	uint64_t state_pg_evaluations, state_pg_states;
-	uint64_t state_section_evaluations, state_section_starts;
-	uint64_t state_rescue_starts, state_diversity_preserved, state_transition_stops;
-	uint64_t state_macro_evaluations, state_input_evaluations, state_chicane_evaluations;
-	unsigned int seed_total_frames;
-	int seed_finished;
+	legacy_u64 evaluations, simulated_frames;
+	legacy_u64 policy_evaluations, input_evaluations, guided_evaluations, guided_improvements;
+	legacy_u64 tile_evaluations, tile_improvements;
+	legacy_u64 tactic_evaluations, tactic_improvements;
+	legacy_u64 dualway_pairs, dualway_evaluations, dualway_improvements;
+	legacy_u64 state_evaluations, state_frontier_peak, state_duplicates, state_task_hash;
+	legacy_u64 state_pg_evaluations, state_pg_states;
+	legacy_u64 state_section_evaluations, state_section_starts;
+	legacy_u64 state_rescue_starts, state_diversity_preserved, state_transition_stops;
+	legacy_u64 state_macro_evaluations, state_input_evaluations, state_chicane_evaluations;
+	legacy_uint seed_total_frames;
+	legacy_int seed_finished;
 	size_t routes, routes_attempted, routes_finished;
-	double elapsed_seconds;
+	legacy_f64 elapsed_seconds;
 };
 
 extern volatile sig_atomic_t genghost_interrupted;
@@ -52,19 +52,19 @@ extern volatile sig_atomic_t genghost_interrupted;
  * requests the same graceful cancellation as SIGINT, preserving saved ghosts. */
 void genghost_set_stop_file(const legacy_char *path);
 legacy_int genghost_stop_requested(void);
-typedef int (*genghost_save_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
+typedef legacy_int (*genghost_save_function)(const struct GENGHOST_SEARCH_RESULT *, void *);
 
 /* Move one existing up/down shift pulse earlier or later, preserving its
  * duration and every other input channel. Proposals cycle through all pulses
  * at offsets of +/-1, 2, 4, 8, 16 and 32 frames. Reject moves outside the lap
  * or across another pulse. first/end delimit the changed half-open interval. */
-int genghost_shift_inputs(unsigned char *inputs, unsigned int length, uint64_t proposal,
-						  unsigned int *first, unsigned int *end);
+legacy_int genghost_shift_inputs(legacy_u8 *inputs, legacy_uint length, legacy_u64 proposal,
+								 legacy_uint *first, legacy_uint *end);
 
 /* Every candidate uses original player input and the real simulator. The save
  * callback is invoked only after a fresh, complete, successful resimulation. */
-int genghost_search(const struct GENGHOST_OPTIONS *options, const unsigned char *seed_inputs,
-					unsigned int seed_length, struct GENGHOST_SEARCH_RESULT *result,
-					genghost_save_function save, void *save_context);
+legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_u8 *seed_inputs,
+						   legacy_uint seed_length, struct GENGHOST_SEARCH_RESULT *result,
+						   genghost_save_function save, void *save_context);
 
 #endif

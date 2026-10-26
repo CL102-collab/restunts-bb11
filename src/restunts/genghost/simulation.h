@@ -28,38 +28,39 @@ struct GENGHOST_SNAPSHOT {
 };
 
 struct GENGHOST_RESULT {
-	unsigned int frames;
-	unsigned int finish_frame;
-	unsigned int penalty_frames;
-	unsigned int total_frames;
-	int finished;
-	int crashed;
+	legacy_uint frames;
+	legacy_uint finish_frame;
+	legacy_uint penalty_frames;
+	legacy_uint total_frames;
+	legacy_int finished;
+	legacy_int crashed;
 };
 
 /* Read game resources from cwd, like repldump. Call once per process. Returns
  * zero on success, or a track setup/resource error. Car is exactly four bytes;
  * transmission is zero for manual and one for automatic. No rendering occurs. */
-int genghost_sim_init(const unsigned char track[REPLAY_TRACK_SIZE], const char car[4],
-					  int transmission, int argc, char **argv);
+legacy_int genghost_sim_init(const legacy_u8 track[REPLAY_TRACK_SIZE],
+							 const legacy_char car[REPLAY_CAR_ID_SIZE], legacy_int transmission,
+							 legacy_int argc, legacy_char **argv);
 void genghost_sim_capture(struct GENGHOST_SNAPSHOT *snapshot);
 void genghost_sim_restore(const struct GENGHOST_SNAPSHOT *snapshot);
 void genghost_sim_reset(void);
 /* Consume one original 20 Hz input tick. Returns the game's crash/finish event,
  * or -1 at the replay length limit. Read engine `state` for route/speed data. */
-int genghost_sim_step(unsigned char input);
+legacy_int genghost_sim_step(legacy_u8 input);
 void genghost_sim_result(struct GENGHOST_RESULT *result);
 /* Always replays from the canonical initial state; stops on a crash, but retains
  * any post-finish input frames. Returns zero for valid input length. */
-int genghost_sim_evaluate(const unsigned char *inputs, unsigned int length,
-						  struct GENGHOST_RESULT *result);
+legacy_int genghost_sim_evaluate(const legacy_u8 *inputs, legacy_uint length,
+								 struct GENGHOST_RESULT *result);
 /* Validate the source lap in its initialized transmission and materialize native
  * automatic shifts as manual input buttons. On success, inputs and the canonical
  * simulation/configuration are manual, with the original finish and score. */
-int genghost_sim_manual_inputs(unsigned char *inputs, unsigned int length,
-							   struct GENGHOST_RESULT *baseline);
+legacy_int genghost_sim_manual_inputs(legacy_u8 *inputs, legacy_uint length,
+									  struct GENGHOST_RESULT *baseline);
 /* Save original track bytes and standard v1.1 header. Caller must validate the
  * complete input sequence first. Output errors return nonzero. */
-int genghost_sim_write_replay(const char *path, const char *track_name, const unsigned char *inputs,
-							  unsigned int length);
+legacy_int genghost_sim_write_replay(const legacy_char *path, const legacy_char *track_name,
+									 const legacy_u8 *inputs, legacy_uint length);
 
 #endif

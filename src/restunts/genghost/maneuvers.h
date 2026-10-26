@@ -26,16 +26,16 @@ enum GENGHOST_MANEUVER_KIND {
  * approach/exit points and duration before evaluating real replay inputs. */
 struct GENGHOST_MANEUVER {
 	enum GENGHOST_MANEUVER_KIND kind;
-	unsigned int horizon_frames;
-	unsigned int shift_mode;
-	unsigned int hold_throttle;
-	unsigned int road_only;
+	legacy_uint horizon_frames;
+	legacy_uint shift_mode;
+	legacy_uint hold_throttle;
+	legacy_uint road_only;
 	struct GENGHOST_GENE gene;
 	struct GENGHOST_WAYPOINT approach, exit;
-	double feature_begin, feature_end;
-	double approach_speed, exit_speed;
-	double exit_heading_x, exit_heading_z;
-	int physical_model;
+	legacy_f64 feature_begin, feature_end;
+	legacy_f64 approach_speed, exit_speed;
+	legacy_f64 exit_heading_x, exit_heading_z;
+	legacy_int physical_model;
 };
 
 /* Deterministic proposal ordering. Always begins with an unchanged normal
@@ -44,23 +44,24 @@ struct GENGHOST_MANEUVER {
  * power gear forbids its shift proposals. No native
  * state is advanced or written while generating proposals. */
 size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
-						  const struct GENGHOST_POLICY *policy, int powergear, int collision,
-						  int owoot, struct GENGHOST_MANEUVER *actions, size_t capacity);
+						  const struct GENGHOST_POLICY *policy, legacy_int powergear,
+						  legacy_int collision, legacy_int owoot, struct GENGHOST_MANEUVER *actions,
+						  size_t capacity);
 
 /* Observe native state and produce one ordinary 20 Hz input byte. The caller
  * steps genghost_sim_step, scores native penalties and rejects crashes or
  * OWOOT violations using the original simulator. No generated action claims feasibility until
  * that simulation succeeds. elapsed starts at zero for each macro. */
-unsigned char genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
-									 const struct GENGHOST_POLICY *policy,
-									 struct GENGHOST_DRIVER *driver,
-									 const struct GENGHOST_MANEUVER *action, unsigned int elapsed,
-									 int powergear, int collision, int owoot);
-const char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind);
+legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
+								 const struct GENGHOST_POLICY *policy,
+								 struct GENGHOST_DRIVER *driver,
+								 const struct GENGHOST_MANEUVER *action, legacy_uint elapsed,
+								 legacy_int powergear, legacy_int collision, legacy_int owoot);
+const legacy_char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind);
 /* Positive acceleration from the native unsigned negative-force division on
  * the next settled, grounded throttle tick. This is a readiness predicate,
  * not a persistent PG latch or a high-speed approximation. The caller gates
  * it with the active --pg rule. */
-int genghost_maneuver_powergear_ready(void);
+legacy_int genghost_maneuver_powergear_ready(void);
 
 #endif
