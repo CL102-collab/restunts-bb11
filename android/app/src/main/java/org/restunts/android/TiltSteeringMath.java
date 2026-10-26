@@ -7,6 +7,10 @@ public final class TiltSteeringMath {
     public static final double FULL_STEERING_DEGREES = 30.0;
     private static final double MIN_GRAVITY = 1.0;
     private static final double MAX_GRAVITY = 30.0;
+    private static final long NANOSECONDS_PER_SECOND = 1_000_000_000L;
+    private static final long MAX_SAMPLE_AGE_NANOSECONDS = 500_000_000L;
+    private static final double MAX_SAMPLE_GAP_SECONDS =
+        (double)MAX_SAMPLE_AGE_NANOSECONDS / NANOSECONDS_PER_SECOND;
 
     private TiltSteeringMath() {}
 
@@ -48,7 +52,8 @@ public final class TiltSteeringMath {
     }
 
     public static boolean freshSample(long timestamp, long now) {
-        return timestamp > 0 && timestamp <= now && now - timestamp <= 500_000_000L;
+        return timestamp > 0 && timestamp <= now
+            && now - timestamp <= MAX_SAMPLE_AGE_NANOSECONDS;
     }
 
     public static boolean shouldListen(boolean requested, boolean resumed, boolean focused,
@@ -83,8 +88,9 @@ public final class TiltSteeringMath {
                     || (initialized && sampleTimestamp <= timestamp)) {
                 return false;
             }
-            double elapsed = initialized ? (sampleTimestamp - timestamp) / 1_000_000_000.0 : 0.0;
-            if (!initialized || elapsed > 0.5) {
+            double elapsed = initialized
+                ? (double)(sampleTimestamp - timestamp) / NANOSECONDS_PER_SECOND : 0.0;
+            if (!initialized || elapsed > MAX_SAMPLE_GAP_SECONDS) {
                 // The first real pose is steering input, not a new neutral calibration.
                 x = sampleX;
                 y = sampleY;

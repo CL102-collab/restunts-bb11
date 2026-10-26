@@ -12,6 +12,10 @@ import android.os.SystemClock;
 
 /** Owns tilt sensor registration for the visible, resumed game Activity only. */
 public final class TiltSteering implements SensorEventListener {
+    private static final double GRAVITY_FILTER_SECONDS = 0.04;
+    private static final double ACCELEROMETER_FILTER_SECONDS = 0.12;
+    private static final int SENSOR_AXIS_COUNT = 3;
+
     interface Output {
         void setTilt(int axis, boolean enabled);
     }
@@ -94,7 +98,8 @@ public final class TiltSteering implements SensorEventListener {
         if (sensor == null || manager == null) {
             return false;
         }
-        filter = new TiltSteeringMath.GravityFilter(sensor.getType() == Sensor.TYPE_GRAVITY ? 0.04 : 0.12);
+        filter = new TiltSteeringMath.GravityFilter(sensor.getType() == Sensor.TYPE_GRAVITY
+            ? GRAVITY_FILTER_SECONDS : ACCELEROMETER_FILTER_SECONDS);
         rotation = -1;
         activeSensor = sensor;
         startedAt = SystemClock.elapsedRealtimeNanos();
@@ -130,7 +135,7 @@ public final class TiltSteering implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (!listening || !TiltSteeringMath.shouldListen(requested, resumed, focused, destroyed, true)
-                || event.sensor != activeSensor || event.values.length < 3
+                || event.sensor != activeSensor || event.values.length < SENSOR_AXIS_COUNT
                 || event.timestamp < startedAt
                 || !TiltSteeringMath.freshSample(event.timestamp, SystemClock.elapsedRealtimeNanos())) {
             return;
