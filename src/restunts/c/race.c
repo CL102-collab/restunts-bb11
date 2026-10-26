@@ -561,30 +561,6 @@ static void race_draw_frame(void)
 	{
 		update_frame(frame_buffer_index, &rect_windshield);
 	}
-	struct RECTANGLE dashboard_mask_rect;
-	if (dastbmp_y != 0 && dashboard_visible != 0) {
-		if (slow_video_mgmt_copy != 0) {
-			dashboard_mask_rect.left = 0;
-			dashboard_mask_rect.right = RACE_SCREEN_WIDTH;
-			dashboard_mask_rect.top = dastbmp_y;
-			dashboard_mask_rect.bottom = dashbmp_y_copy;
-			if (active_frame_rects != 0) {
-				rect_union(active_frame_rects, &dashboard_mask_rect, active_frame_rects);
-			}
-		}
-
-		if (supersight_enabled != 0 && replaybar_enabled != 0) {
-			/* Custom dashboard tops can extend below the replay toolbar boundary. */
-			sprite_set_target_clip_bounds(0, RACE_SCREEN_WIDTH, 0, height_above_replaybar);
-			shape2d_rle_mask_position_clipped(dasmshapeptr);
-			shape2d_rle_or_position_clipped(
-				(struct SHAPE2D far *)dos_memory_make_pointer(dastseg, dastbmp_y2));
-		} else {
-			shape2d_render_bmp_as_mask(dasmshapeptr);
-			shape2d_rle_or_far_pointer(dastbmp_y2, dastseg);
-		}
-	}
-
 	frame_present(&rect_windshield);
 	frame_fps_present_roof();
 	if (dashboard_visible != 0) {

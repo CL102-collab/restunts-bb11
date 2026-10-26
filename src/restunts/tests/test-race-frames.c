@@ -1,5 +1,6 @@
-/* Full frame-loop endpoint traces captured before extraction cover waiting,
- * live/replay/paused input, exit requests and sequential drawing decisions. */
+/* Frame-loop endpoint traces cover waiting, live/replay/paused input, exit
+ * requests and sequential drawing decisions. Upper-dashboard composition now
+ * belongs to the frame renderer and is covered by test-frame-render. */
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -40,15 +41,12 @@ static struct {
 static struct {
 	legacy_u8 active;
 	legacy_u8 target;
-	legacy_u16 masks[2];
-	legacy_u16 overlays[2];
 	legacy_u16 static_draws;
 	legacy_u16 updates;
 	legacy_u16 diagnostic_draws;
 	legacy_u8 mouse_hidden;
 	legacy_u16 controls;
 	struct RECTANGLE clip;
-	struct SHAPE2D shapes[2];
 } replay_render;
 
 enum REPLAY_TEST_TARGET {
@@ -306,9 +304,8 @@ legacy_s16 frame_display_overlay_active(void)
 struct RECTANGLE *frame_fps_draw_text(void)
 {
 	if (replay_render.active != 0) {
-		/* Custom top artwork and instruments must be composed before the text. */
-		assert(replay_render.masks[0] + replay_render.masks[1] == frames);
-		assert(replay_render.overlays[0] + replay_render.overlays[1] == frames);
+		/* The frame renderer owns the custom top; instruments and diagnostics
+		 * are composed after its completed frame has been presented. */
 		assert(replay_render.updates == frames);
 		assert(replay_render.mouse_hidden != 0);
 		assert(replay_render.target == (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET
@@ -514,9 +511,12 @@ void setup_car_shapes(legacy_s16 operation)
 #endif
 	if (replay_render.active != 0) {
 		if (operation == DASHBOARD_OPERATION_REDRAW_STATIC) {
+			assert(replay_render.updates == frames && replay_render.diagnostic_draws == frames);
 			replay_render.static_draws++;
 		} else {
 			assert(operation == DASHBOARD_OPERATION_UPDATE);
+			assert(frames == replay_render.updates + 1U);
+			assert(replay_render.diagnostic_draws == replay_render.updates);
 			assert(replay_render.target == (video_uses_page_flipping != 0
 												? REPLAY_TEST_PAGE_TARGET
 												: REPLAY_TEST_SCREEN_TARGET));
@@ -583,6 +583,9 @@ void update_frame(legacy_s8 buffer, struct RECTANGLE *rect)
 	if (replay_render.active != 0) {
 		assert(rect == &rect_windshield);
 		assert(rect->bottom == (supersight_enabled != 0 && replaybar_enabled != 0 ? 151 : 165));
+		assert(replay_render.updates == frames && replay_render.diagnostic_draws == frames);
+		assert(replay_render.target == (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET
+																	  : REPLAY_TEST_RENDER_TARGET));
 		frames++;
 		return;
 	}
@@ -620,55 +623,6 @@ void rect_union(struct RECTANGLE *first, struct RECTANGLE *second, struct RECTAN
 	trace(20);
 	trace_rect(first);
 	trace_rect(second);
-}
-static void record_dashboard_mask(legacy_u8 clipped, legacy_u8 overlay)
-{
-	if (replay_render.active == 0) {
-		return;
-	}
-	assert(replay_render.target ==
-		   (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET : REPLAY_TEST_RENDER_TARGET));
-	assert(clipped == (supersight_enabled != 0 && replaybar_enabled != 0));
-	if (clipped != 0) {
-		assert(replay_render.clip.left == 0 && replay_render.clip.right == 320);
-		assert(replay_render.clip.top == 0 && replay_render.clip.bottom == 151);
-	}
-	if (overlay != 0) {
-		replay_render.overlays[clipped]++;
-	} else {
-		replay_render.masks[clipped]++;
-	}
-}
-
-void shape2d_render_bmp_as_mask(struct SHAPE2D far *shape)
-{
-	record_dashboard_mask(0, 0);
-	(void)shape;
-	trace(21);
-}
-void shape2d_rle_or_far_pointer(legacy_u16 offset, legacy_u16 segment)
-{
-	record_dashboard_mask(0, 1);
-	trace(22);
-	trace(offset);
-	trace(segment);
-}
-void shape2d_rle_mask_position_clipped(struct SHAPE2D far *shape)
-{
-	record_dashboard_mask(1, 0);
-	assert(shape == dasmshapeptr);
-	assert(supersight_enabled != 0 && replaybar_enabled != 0);
-}
-void shape2d_rle_or_position_clipped(struct SHAPE2D far *shape)
-{
-	record_dashboard_mask(1, 1);
-	assert(shape == (replay_render.active != 0 ? &replay_render.shapes[1] : NULL));
-	assert(supersight_enabled != 0 && replaybar_enabled != 0);
-}
-void far *dos_memory_make_pointer(legacy_u16 segment, legacy_u16 offset)
-{
-	assert(segment == dastseg && offset == dastbmp_y2);
-	return replay_render.active != 0 ? &replay_render.shapes[1] : NULL;
 }
 void frame_present(struct RECTANGLE *rect)
 {
@@ -861,7 +815,6 @@ static void test_replay_dashboard_rendering(void)
 		dashbmp_y = 165;
 		dastbmp_y = 130;
 		roofbmpheight = 0;
-		dasmshapeptr = &replay_render.shapes[0];
 		viewport_bottom_cache = -1;
 		video_page_count = video_uses_page_flipping != 0 ? 2 : 1;
 		frame_buffer_index = dashboard_buffer_index = 0;
@@ -878,8 +831,6 @@ static void test_replay_dashboard_rendering(void)
 			sprite_select_render_window();
 		}
 		race_draw_frame();
-		assert(replay_render.masks[clipped] == 1 && replay_render.overlays[clipped] == 1);
-		assert(replay_render.masks[!clipped] == 0 && replay_render.overlays[!clipped] == 0);
 		assert(replay_render.static_draws == full_redraw && replay_render.updates == 1);
 		assert(replay_render.diagnostic_draws == 1);
 		assert(replay_render.controls == (full_redraw != 0 && replaybar_enabled != 0));
@@ -965,7 +916,6 @@ static void test_render_scale_transitions(void)
 			dashbmp_y = 165;
 			dastbmp_y = 130;
 			roofbmpheight = 0;
-			dasmshapeptr = &replay_render.shapes[0];
 			viewport_bottom_cache = -1;
 			video_page_count = pages;
 			video_uses_page_flipping = pages > 1;
@@ -1598,7 +1548,9 @@ int main(void)
 #ifdef RACE_FRAMES_RECORD_BASELINE
 	printf("Race frame fingerprint: %08" LEGACY_PRIx32 "\n", trace_hash);
 #else
-	assert(trace_hash == UINT32_C(0xe6335ceb));
+	/* Renderer-owned upper artwork is covered by test-frame-render rather than
+	 * the race controller's endpoint trace. */
+	assert(trace_hash == UINT32_C(0x72a154e7));
 #endif
 	test_driving_hotkey_queue();
 	test_rewind_frame_loop();

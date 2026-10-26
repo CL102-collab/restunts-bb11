@@ -18,6 +18,7 @@
 #include "projection.h"
 #include "skybox.h"
 #include "race_graphics.h"
+#include "platform.h"
 #include "math.h"
 #include "externs.h"
 #include "crash_state.h"
@@ -2730,6 +2731,32 @@ static void frame_draw_cockpit_effects(struct RECTANGLE *cliprect)
 	}
 }
 
+static void frame_draw_dashboard_top(const struct RECTANGLE *cliprect)
+{
+	if (dastbmp_y == 0 || dashboard_visible == 0) {
+		return;
+	}
+	if (slow_video_mgmt_copy != 0) {
+		struct RECTANGLE mask_bounds;
+		mask_bounds.left = 0;
+		mask_bounds.right = FRAME_SCREEN_WIDTH;
+		mask_bounds.top = dastbmp_y;
+		mask_bounds.bottom = dashbmp_y_copy;
+		rect_union(frame_layer_rects, &mask_bounds, frame_layer_rects);
+	}
+	if (supersight_enabled != 0 && replaybar_enabled != 0) {
+		/* Custom tops can extend below the replay toolbar boundary. */
+		sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, 0, height_above_replaybar);
+		shape2d_rle_mask_position_clipped(dasmshapeptr);
+		shape2d_rle_or_position_clipped(
+			(struct SHAPE2D far *)dos_memory_make_pointer(dastseg, dastbmp_y2));
+		sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
+	} else {
+		shape2d_render_bmp_as_mask(dasmshapeptr);
+		shape2d_rle_or_far_pointer(dastbmp_y2, dastseg);
+	}
+}
+
 static void frame_draw_elapsed_time(void)
 {
 	// Show elapsed time
@@ -2834,6 +2861,9 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	shape3d_render_queued_primitives();
 	frame_draw_explosions(cars, cliprect);
 	frame_draw_cockpit_effects(cliprect);
+	/* Cockpit trim covers scene effects, while the timer and race messages
+	 * remain above every custom upper-dashboard silhouette. */
+	frame_draw_dashboard_top(cliprect);
 	frame_draw_elapsed_time();
 	frame_finish(buffer_index, cliprect, skybox_requires_full_redraw, camera.yaw);
 	polyinfo_set_supersight(0);

@@ -27,6 +27,168 @@ static legacy_u8 terrain_map[900];
 static legacy_u8 element_map[900];
 static legacy_u8 sign_map[900];
 
+enum {
+	HUD_TEST_SCREEN_HEIGHT = 200,
+	HUD_TEST_ROOF_HEIGHT = 10,
+	HUD_TEST_DASHBOARD_TOP = 130,
+	HUD_TEST_DASHBOARD_BOTTOM = 165,
+	HUD_TEST_REPLAY_TOP = 151,
+	HUD_TEST_TEXT_LEFT = 100,
+	HUD_TEST_TEXT_RIGHT = 220,
+	HUD_TEST_TEXT_HEIGHT = 8,
+	HUD_TEST_TIMER_WIDTH = 40,
+	HUD_TEST_FONT_SIZE = FRAME_FONT_HEIGHT_OFFSET + 2,
+	HUD_TEST_SCENE_COLOR = 1,
+	HUD_TEST_CARBON_COLOR = 4,
+	HUD_TEST_TIMER_COLOR = 12,
+	HUD_TEST_MESSAGE_COLOR = 15,
+	HUD_TEST_RENDER_MODES = 128,
+	HUD_TEST_ENHANCED_BIT = 1,
+	HUD_TEST_REPLAY_BIT = 2,
+	HUD_TEST_DIRTY_BIT = 4,
+	HUD_TEST_PAGE_BIT = 8,
+	HUD_TEST_HIDDEN_BIT = 16,
+	HUD_TEST_MISSING_TOP_BIT = 32,
+	HUD_TEST_SECOND_BUFFER_BIT = 64,
+	HUD_TEST_SHAPE_OFFSET = SHAPE2D_HEADER_SIZE,
+	HUD_TEST_SHAPE_SEGMENT = 1
+};
+
+static struct {
+	legacy_u8 active;
+	legacy_u16 masks, overlays, clipped_masks, timers, messages;
+	legacy_u8 pixels[HUD_TEST_SCREEN_HEIGHT][FRAME_SCREEN_WIDTH];
+	struct RECTANGLE clip;
+	struct RECTANGLE timer_rect;
+	struct RECTANGLE message_rect;
+	struct SHAPE2D mask, overlay;
+	legacy_u8 font[HUD_TEST_FONT_SIZE];
+} hud_fixture;
+
+static void hud_test_fill(const struct RECTANGLE *rect, legacy_u8 color)
+{
+	for (legacy_s16 y = rect->top; y < rect->bottom; y++) {
+		for (legacy_s16 x = rect->left; x < rect->right; x++) {
+			if (x >= hud_fixture.clip.left && x < hud_fixture.clip.right &&
+				y >= hud_fixture.clip.top && y < hud_fixture.clip.bottom) {
+				hud_fixture.pixels[y][x] = color;
+			}
+		}
+	}
+}
+
+static void hud_test_reset(void)
+{
+	hud_fixture.masks = hud_fixture.overlays = hud_fixture.clipped_masks = 0;
+	hud_fixture.timers = hud_fixture.messages = 0;
+	memset(hud_fixture.pixels, HUD_TEST_SCENE_COLOR, sizeof(hud_fixture.pixels));
+	hud_fixture.clip = (struct RECTANGLE){0, FRAME_SCREEN_WIDTH, 0, HUD_TEST_SCREEN_HEIGHT};
+	hud_fixture.timer_rect = (struct RECTANGLE){
+		FRAME_ELAPSED_TIME_X, FRAME_ELAPSED_TIME_X + HUD_TEST_TIMER_WIDTH,
+		FRAME_ELAPSED_TIME_Y_OFFSET, FRAME_ELAPSED_TIME_Y_OFFSET + HUD_TEST_TEXT_HEIGHT};
+	hud_fixture.message_rect =
+		(struct RECTANGLE){HUD_TEST_TEXT_LEFT, HUD_TEST_TEXT_RIGHT, HUD_TEST_DASHBOARD_TOP,
+						   HUD_TEST_DASHBOARD_TOP + HUD_TEST_TEXT_HEIGHT};
+}
+
+static void hud_test_assert_pixels(const struct RECTANGLE *rect, legacy_u8 color)
+{
+	for (legacy_s16 y = rect->top; y < rect->bottom; y++) {
+		for (legacy_s16 x = rect->left; x < rect->right; x++) {
+			assert(hud_fixture.pixels[y][x] == color);
+		}
+	}
+}
+
+static void hud_test_paint_top(legacy_u8 clipped, legacy_u8 overlay)
+{
+	assert(hud_fixture.active != 0);
+	assert(hud_fixture.timers == 0 && hud_fixture.messages == 0);
+	struct RECTANGLE saved_clip = hud_fixture.clip;
+	if (clipped == 0) {
+		hud_fixture.clip = (struct RECTANGLE){0, FRAME_SCREEN_WIDTH, 0, HUD_TEST_SCREEN_HEIGHT};
+	} else {
+		assert(hud_fixture.clip.bottom == height_above_replaybar);
+		hud_fixture.clipped_masks++;
+	}
+	struct RECTANGLE roof = {0, FRAME_SCREEN_WIDTH, 0, HUD_TEST_ROOF_HEIGHT};
+	struct RECTANGLE dashboard = {0, FRAME_SCREEN_WIDTH, HUD_TEST_DASHBOARD_TOP,
+								  HUD_TEST_DASHBOARD_BOTTOM};
+	legacy_u8 color = overlay != 0 ? HUD_TEST_CARBON_COLOR : 0;
+	hud_test_fill(&roof, color);
+	hud_test_fill(&dashboard, color);
+	hud_fixture.clip = saved_clip;
+	if (overlay != 0) {
+		assert(hud_fixture.masks == 1);
+		hud_fixture.overlays++;
+	} else {
+		assert(hud_fixture.overlays == 0);
+		hud_fixture.masks++;
+	}
+}
+
+void shape2d_render_bmp_as_mask(struct SHAPE2D far *shape)
+{
+	assert(shape == &hud_fixture.mask);
+	hud_test_paint_top(0, 0);
+}
+
+void shape2d_rle_or_far_pointer(legacy_u16 offset, legacy_u16 segment)
+{
+	assert(offset == HUD_TEST_SHAPE_OFFSET && segment == HUD_TEST_SHAPE_SEGMENT);
+	hud_test_paint_top(0, 1);
+}
+
+void shape2d_rle_mask_position_clipped(struct SHAPE2D far *shape)
+{
+	assert(shape == &hud_fixture.mask);
+	hud_test_paint_top(1, 0);
+}
+
+void shape2d_rle_or_position_clipped(struct SHAPE2D far *shape)
+{
+	assert(shape == &hud_fixture.overlay);
+	hud_test_paint_top(1, 1);
+}
+
+void far *dos_memory_make_pointer(legacy_u16 segment, legacy_u16 offset)
+{
+	assert(segment == HUD_TEST_SHAPE_SEGMENT && offset == HUD_TEST_SHAPE_OFFSET);
+	return &hud_fixture.overlay;
+}
+
+void set_fontdefseg(void far *data)
+{
+	assert(hud_fixture.active != 0 && data == hud_fixture.font);
+}
+
+struct RECTANGLE *draw_ingame_text(void)
+{
+	if (hud_fixture.active != 0) {
+		hud_test_fill(&hud_fixture.message_rect, HUD_TEST_MESSAGE_COLOR);
+		hud_fixture.messages++;
+		return &hud_fixture.message_rect;
+	}
+	return &empty_rect;
+}
+
+void format_frame_as_string(legacy_s8 *destination, legacy_s16 frames, legacy_s16 hundredths)
+{
+	assert(hud_fixture.active != 0 && destination == &resID_byte1);
+	assert(frames == elapsed_time1 + elapsed_time2 && hundredths == 0);
+}
+
+struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
+								  legacy_s16 shadow_color)
+{
+	assert(hud_fixture.active != 0 && text == &resID_byte1);
+	assert(x == hud_fixture.timer_rect.left && y == hud_fixture.timer_rect.top);
+	assert(color == dialog_fnt_colour && shadow_color == 0);
+	hud_test_fill(&hud_fixture.timer_rect, HUD_TEST_TIMER_COLOR);
+	hud_fixture.timers++;
+	return &hud_fixture.timer_rect;
+}
+
 static struct CARSTATE ghost_fixture;
 static struct SIMD ghost_simd_fixture;
 static struct GHOST_CAMERA_STATE ghost_camera_fixture;
@@ -172,31 +334,6 @@ legacy_s16 skybox_render(legacy_s16 view_index, struct RECTANGLE *clip, legacy_s
 	return 0;
 }
 
-struct RECTANGLE *draw_ingame_text(void)
-{
-	return &empty_rect;
-}
-
-void format_frame_as_string(legacy_s8 *destination, legacy_s16 frames, legacy_s16 hundredths)
-{
-	(void)destination;
-	(void)frames;
-	(void)hundredths;
-	assert(0);
-}
-
-struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
-								  legacy_s16 shadow_color)
-{
-	(void)text;
-	(void)x;
-	(void)y;
-	(void)color;
-	(void)shadow_color;
-	assert(0);
-	return &empty_rect;
-}
-
 void shape2d_draw_scaled_transparent_clipped(legacy_s16 scale, struct SHAPE2D far *shape,
 											 legacy_s16 x, legacy_s16 y)
 {
@@ -233,7 +370,12 @@ void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16
 								   legacy_u16 bottom)
 {
 	assert(left == 0 && right == FRAME_SCREEN_WIDTH);
-	assert(top == 0 && bottom == 200);
+	if (hud_fixture.active != 0) {
+		assert(top <= bottom && bottom <= HUD_TEST_SCREEN_HEIGHT);
+		hud_fixture.clip = (struct RECTANGLE){left, right, top, bottom};
+	} else {
+		assert(top == 0 && bottom == HUD_TEST_SCREEN_HEIGHT);
+	}
 }
 
 struct RECTANGLE *init_crak(legacy_s16 frame, legacy_s16 top, legacy_s16 height)
@@ -458,6 +600,75 @@ void polyinfo_reset(void)
 	fixed_queue_cost = 0;
 #endif
 	queue_resets++;
+}
+
+static void test_dashboard_top_layers(void)
+{
+	hud_fixture.active = 1;
+	fontdefptr = fontledresptr = hud_fixture.font;
+	video_x_alignment = 1;
+	frame_state = &state;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	roofbmpheight = 0;
+	dashbmp_y_copy = HUD_TEST_DASHBOARD_BOTTOM;
+	dasmshapeptr = &hud_fixture.mask;
+	dastbmp_y2 = HUD_TEST_SHAPE_OFFSET;
+	dastseg = HUD_TEST_SHAPE_SEGMENT;
+	for (legacy_u16 mode = 0; mode < HUD_TEST_RENDER_MODES; mode++) {
+		hud_test_reset();
+		supersight_enabled = (mode & HUD_TEST_ENHANCED_BIT) != 0;
+		replaybar_enabled = (mode & HUD_TEST_REPLAY_BIT) != 0;
+		slow_video_mgmt_copy = (mode & HUD_TEST_DIRTY_BIT) != 0;
+		video_uses_page_flipping = (mode & HUD_TEST_PAGE_BIT) != 0;
+		dashboard_visible = (mode & HUD_TEST_HIDDEN_BIT) == 0;
+		dastbmp_y = (mode & HUD_TEST_MISSING_TOP_BIT) != 0 ? 0 : HUD_TEST_DASHBOARD_TOP;
+		height_above_replaybar =
+			replaybar_enabled != 0 ? HUD_TEST_REPLAY_TOP : HUD_TEST_SCREEN_HEIGHT;
+		game_replay_mode = replaybar_enabled != 0 ? REPLAY_MODE_PLAYBACK : REPLAY_MODE_LIVE;
+		legacy_s8 buffer = (mode & HUD_TEST_SECOND_BUFFER_BIT) != 0;
+		struct RECTANGLE clip = {0, FRAME_SCREEN_WIDTH, 0, height_above_replaybar};
+		frame_begin(buffer);
+		/* An existing scene bound must survive the dashboard union and final copy. */
+		struct RECTANGLE scene = {HUD_TEST_TEXT_LEFT, HUD_TEST_TEXT_RIGHT, HUD_TEST_ROOF_HEIGHT,
+								  HUD_TEST_DASHBOARD_TOP};
+		frame_layer_rects[0] = scene;
+		hud_fixture.clip = clip;
+		frame_draw_dashboard_top(&clip);
+		assert(memcmp(&hud_fixture.clip, &clip, sizeof(clip)) == 0);
+		frame_draw_elapsed_time();
+		frame_finish(buffer, &clip, 0, 0);
+		legacy_u16 draws = dashboard_visible != 0 && dastbmp_y != 0;
+		assert(hud_fixture.masks == draws && hud_fixture.overlays == draws);
+		assert(hud_fixture.clipped_masks ==
+			   (supersight_enabled != 0 && replaybar_enabled != 0 ? draws * 2 : 0));
+		assert(hud_fixture.timers == (replaybar_enabled == 0));
+		assert(hud_fixture.messages == 1);
+		hud_test_assert_pixels(&hud_fixture.message_rect, HUD_TEST_MESSAGE_COLOR);
+		if (replaybar_enabled == 0) {
+			hud_test_assert_pixels(&hud_fixture.timer_rect, HUD_TEST_TIMER_COLOR);
+		}
+		if (draws != 0 && supersight_enabled != 0 && replaybar_enabled != 0) {
+			struct RECTANGLE toolbar = {0, FRAME_SCREEN_WIDTH, HUD_TEST_REPLAY_TOP,
+										HUD_TEST_SCREEN_HEIGHT};
+			hud_test_assert_pixels(&toolbar, HUD_TEST_SCENE_COLOR);
+		}
+		if (slow_video_mgmt_copy != 0) {
+			assert(active_frame_rects == (video_uses_page_flipping != 0 && buffer != 0
+											  ? frame_rects_page1
+											  : frame_rects_page0));
+			assert(active_frame_rects[0].left == (draws != 0 ? 0 : scene.left));
+			assert(active_frame_rects[0].right == (draws != 0 ? FRAME_SCREEN_WIDTH : scene.right));
+			assert(active_frame_rects[0].top == scene.top);
+			assert(active_frame_rects[0].bottom ==
+				   (draws != 0 ? HUD_TEST_DASHBOARD_BOTTOM : hud_fixture.message_rect.bottom));
+			assert(memcmp(active_frame_rects, frame_layer_rects,
+						  sizeof(*active_frame_rects) * FRAME_DIRTY_RECT_COUNT) == 0);
+		}
+	}
+	hud_fixture.active = 0;
+	fontdefptr = fontledresptr = NULL;
+	dashboard_visible = dastbmp_y = replaybar_enabled = slow_video_mgmt_copy = 0;
+	video_uses_page_flipping = supersight_enabled = 0;
 }
 
 static void test_camera_modes(void)
@@ -1455,7 +1666,17 @@ static void test_supersight_car_shadows(void)
 	start_finish_column = -1;
 	detail_level = 1;
 	slow_video_mgmt_copy = 0;
-	game_replay_mode = REPLAY_MODE_PAUSED;
+	game_replay_mode = REPLAY_MODE_LIVE;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	hud_fixture.active = 1;
+	fontdefptr = fontledresptr = hud_fixture.font;
+	dashboard_visible = 1;
+	dastbmp_y = HUD_TEST_DASHBOARD_TOP;
+	dashbmp_y_copy = HUD_TEST_DASHBOARD_BOTTOM;
+	dasmshapeptr = &hud_fixture.mask;
+	dastbmp_y2 = HUD_TEST_SHAPE_OFFSET;
+	dastseg = HUD_TEST_SHAPE_SEGMENT;
+	roofbmpheight = replaybar_enabled = 0;
 	terrainHeight = 0;
 	track_wall_collision_enabled = 0;
 	shadow_frame_active = 1;
@@ -1482,7 +1703,12 @@ static void test_supersight_car_shadows(void)
 			legacy_u16 adaptive_quality = (scenario & 16) != 0 ? FRAME_ADAPTIVE_MAX_QUALITY : 0;
 			frame_adaptive.quality = adaptive_quality;
 			shadow_count = shadow_begin_count = shadow_projection_count = 0;
+			hud_test_reset();
 			update_frame(0, &cliprect);
+			assert(hud_fixture.masks == 1 && hud_fixture.overlays == 1);
+			assert(hud_fixture.timers == 1 && hud_fixture.messages == 1);
+			hud_test_assert_pixels(&hud_fixture.timer_rect, HUD_TEST_TIMER_COLOR);
+			hud_test_assert_pixels(&hud_fixture.message_rect, HUD_TEST_MESSAGE_COLOR);
 			assert(frame_adaptive_active ==
 				   (supersight_enabled != 0 && snapshot != 0 && adaptive_quality != 0));
 			assert(shadow_begin_count == supersight_enabled);
@@ -1515,6 +1741,9 @@ static void test_supersight_car_shadows(void)
 			assert(shadow_count == expected_count);
 		}
 	}
+	hud_fixture.active = 0;
+	fontdefptr = fontledresptr = NULL;
+	dashboard_visible = dastbmp_y = 0;
 	frame_uses_snapshot = 0;
 	frame_adaptive_reset(&frame_adaptive);
 	frame_adaptive_active = 0;
@@ -2453,6 +2682,7 @@ legacy_int main(void)
 #else
 	assert(trace_hash == UINT64_C(0x1f0a24dd55dcfc37));
 #endif
+	test_dashboard_top_layers();
 	test_invalid_multitile_flags();
 	test_ghost_uses_independent_visual_state();
 	test_ghost_camera_modes();

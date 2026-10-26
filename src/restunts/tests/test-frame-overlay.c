@@ -16,6 +16,7 @@
 #include "../c/fatal.h"
 #include "../c/game_input.h"
 #include "../c/dashboard.h"
+#include "../c/race_graphics.h"
 
 #undef strcmp
 #undef memcpy
@@ -47,6 +48,45 @@ struct TEXT_DRAW {
 	legacy_s16 color;
 	legacy_s16 shadow_color;
 };
+
+enum {
+	OPPONENT_TEST_WIDTH = 24,
+	OPPONENT_TEST_HEIGHT = 15,
+	OPPONENT_TEST_LEFT_SHAPE = 3,
+	OPPONENT_TEST_RIGHT_SHAPE = 4,
+	OPPONENT_TEST_SHAPE_COUNT = 2,
+	OPPONENT_TEST_LEFT_X = 68,
+	OPPONENT_TEST_RIGHT_X = 228,
+	OPPONENT_TEST_ICON_Y = 113,
+	OPPONENT_TEST_TEXT_Y = 116,
+	OPPONENT_TEST_FONT_HEIGHT = 8,
+	OPPONENT_TEST_COMPACT_BOTTOM = 125,
+	OPPONENT_TEST_STOCK_BOTTOM = 128,
+	OPPONENT_TEST_TALL_BOTTOM = 151,
+	OPPONENT_TEST_SCREEN_BOTTOM = 200,
+	OPPONENT_TEST_ROOF_HEIGHT = 16,
+	OPPONENT_TEST_TALL_ARROW_HEIGHT = 23,
+	OPPONENT_TEST_TALL_FONT_HEIGHT = 20,
+	OPPONENT_TEST_TEXT_SHADOW_HEIGHT = 1,
+	OPPONENT_TEST_LABEL_X = 108,
+	OPPONENT_TEST_LABEL_RIGHT = 213,
+	OPPONENT_TEST_COMPACT_ICON_Y = 110,
+	OPPONENT_TEST_COMPACT_TEXT_Y = 113,
+	OPPONENT_TEST_TALL_ARROW_Y = 102,
+	OPPONENT_TEST_TALL_ARROW_TEXT_Y = 105,
+	OPPONENT_TEST_TALL_FONT_ICON_Y = 101,
+	OPPONENT_TEST_TALL_FONT_Y = 104,
+	OPPONENT_TEST_HIGH_ROOF = 114,
+	OPPONENT_TEST_HIGH_ROOF_TEXT_Y = 117
+};
+
+static struct SHAPE2D opponent_direction_shapes[OPPONENT_TEST_SHAPE_COUNT];
+static struct {
+	struct SHAPE2D *shape;
+	legacy_s16 x;
+	legacy_s16 y;
+	legacy_u16 count;
+} opponent_icon_draw;
 
 #ifdef RESTUNTS_SDL3
 #define STATUS_TEST_PREFIX "HyperVision: "
@@ -208,6 +248,9 @@ legacy_s8 far *locate_text_res(legacy_s8 far *resource, const legacy_s8 *name)
 	if (strcmp((const legacy_char *)name, "rpl") == 0) {
 		return (legacy_s8 *)"Replay";
 	}
+	if (strcmp((const legacy_char *)name, "opp") == 0) {
+		return (legacy_s8 *)"Opponent Near";
+	}
 	if (strcmp((const legacy_char *)name, "dm1") == 0) {
 		return (legacy_s8 *)"Demo";
 	}
@@ -231,7 +274,7 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 	text_bounds.left = x;
 	text_bounds.right = x + length * 8 + 1;
 	text_bounds.top = y;
-	text_bounds.bottom = y + 9;
+	text_bounds.bottom = y + font_glyph_height + OPPONENT_TEST_TEXT_SHADOW_HEIGHT;
 	if (composition.active != 0) {
 		/* Solid glyph bounds expose any subsequent opaque cockpit overwrite. */
 		composition_fill(&text_bounds, (legacy_u8)color);
@@ -261,12 +304,24 @@ void sprite_putpixel_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 color)
 	assert(0 && "Unexpected ghost pixel");
 }
 
+legacy_u16 shape2d_get_width(const struct SHAPE2D far *shape)
+{
+	return shape->width;
+}
+
+legacy_u16 shape2d_get_height(const struct SHAPE2D far *shape)
+{
+	return shape->height;
+}
+
 void sprite_putimage_transparent(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
 {
-	(void)shape;
-	(void)x;
-	(void)y;
-	assert(0 && "Unexpected route icon");
+	assert(shape == &opponent_direction_shapes[0] || shape == &opponent_direction_shapes[1]);
+	assert(opponent_icon_draw.count == 0);
+	opponent_icon_draw.shape = shape;
+	opponent_icon_draw.x = x;
+	opponent_icon_draw.y = y;
+	opponent_icon_draw.count++;
 }
 
 legacy_s8 far *locate_shape_alt(legacy_s8 far *resource, const legacy_s8 *name)
@@ -423,6 +478,7 @@ static void reset_ingame_text(const char *filename)
 	passed_security = 1;
 	cameramode = CAMERA_MODE_TRACKSIDE;
 	text_draw_count = 0;
+	memset(&opponent_icon_draw, 0, sizeof(opponent_icon_draw));
 	fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	frame_fps_reset();
 	realtime_ticks = 0;
@@ -602,6 +658,93 @@ static void present_frames(legacy_u32 frames, legacy_u32 ticks)
 		realtime_ticks = LEGACY_U32_WRAP_ADD(start, ticks * frame / frames);
 		frame_fps_record_presented();
 	}
+}
+
+static void test_opponent_indicator_fits_viewport(void)
+{
+	static const struct {
+		legacy_s16 top;
+		legacy_s16 bottom;
+		legacy_u16 arrow_height;
+		legacy_s16 font_height;
+		legacy_s16 icon_y;
+		legacy_s16 text_y;
+	} cases[] = {
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_COMPACT_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_COMPACT_ICON_Y, OPPONENT_TEST_COMPACT_TEXT_Y},
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_STOCK_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_ICON_Y, OPPONENT_TEST_TEXT_Y},
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_TALL_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_ICON_Y, OPPONENT_TEST_TEXT_Y},
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_SCREEN_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_ICON_Y, OPPONENT_TEST_TEXT_Y},
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_COMPACT_BOTTOM, OPPONENT_TEST_TALL_ARROW_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_TALL_ARROW_Y, OPPONENT_TEST_TALL_ARROW_TEXT_Y},
+		{OPPONENT_TEST_ROOF_HEIGHT, OPPONENT_TEST_COMPACT_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_TALL_FONT_HEIGHT, OPPONENT_TEST_TALL_FONT_ICON_Y, OPPONENT_TEST_TALL_FONT_Y},
+		{OPPONENT_TEST_HIGH_ROOF, OPPONENT_TEST_SCREEN_BOTTOM, OPPONENT_TEST_HEIGHT,
+		 OPPONENT_TEST_FONT_HEIGHT, OPPONENT_TEST_HIGH_ROOF, OPPONENT_TEST_HIGH_ROOF_TEXT_Y}};
+	static const legacy_u8 indicators[] = {ROUTE_INDICATOR_LEFT, ROUTE_INDICATOR_RIGHT};
+	for (legacy_u16 direction = 0; direction < OPPONENT_TEST_SHAPE_COUNT; direction++) {
+		for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+			reset_ingame_text("");
+			game_replay_mode = REPLAY_MODE_LIVE;
+			cameramode = CAMERA_MODE_COCKPIT;
+			state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+			state.game_opponent_route_indicator = indicators[direction];
+			font_glyph_height = cases[index].font_height;
+			drawing_sprite.sprite_top = cases[index].top;
+			drawing_sprite.sprite_bottom = cases[index].bottom;
+			struct SHAPE2D *shape = &opponent_direction_shapes[direction];
+			shape->width = OPPONENT_TEST_WIDTH;
+			shape->height = cases[index].arrow_height;
+			sdgame2shapes[OPPONENT_TEST_LEFT_SHAPE] = &opponent_direction_shapes[0];
+			sdgame2shapes[OPPONENT_TEST_RIGHT_SHAPE] = &opponent_direction_shapes[1];
+			struct RECTANGLE bounds = *draw_ingame_text();
+			legacy_s16 x = direction == 0 ? OPPONENT_TEST_LEFT_X : OPPONENT_TEST_RIGHT_X;
+			assert(opponent_icon_draw.count == 1 && opponent_icon_draw.shape == shape);
+			assert(opponent_icon_draw.x == x && opponent_icon_draw.y == cases[index].icon_y);
+			assert(opponent_icon_draw.y >= drawing_sprite.sprite_top);
+			assert(opponent_icon_draw.y + shape->height <= drawing_sprite.sprite_bottom);
+			assert(text_draw_count == 1);
+			assert_text(0, "Opponent Near", OPPONENT_TEST_LABEL_X, cases[index].text_y);
+			assert(text_draws[0].y >= drawing_sprite.sprite_top);
+			assert(text_draws[0].y + font_glyph_height + OPPONENT_TEST_TEXT_SHADOW_HEIGHT <=
+				   drawing_sprite.sprite_bottom);
+			assert(bounds.top == cases[index].icon_y);
+			legacy_s16 icon_bottom = cases[index].icon_y + cases[index].arrow_height;
+			legacy_s16 label_bottom =
+				cases[index].text_y + cases[index].font_height + OPPONENT_TEST_TEXT_SHADOW_HEIGHT;
+			assert(bounds.bottom == (icon_bottom > label_bottom ? icon_bottom : label_bottom));
+			assert(bounds.left == (direction == 0 ? OPPONENT_TEST_LEFT_X : OPPONENT_TEST_LABEL_X));
+			assert(bounds.right == (direction == 0 ? OPPONENT_TEST_LABEL_RIGHT
+												   : OPPONENT_TEST_RIGHT_X + OPPONENT_TEST_WIDTH));
+
+			/* The next frame must report no current bounds after the indicator disappears;
+			 * the frame renderer retains the preceding rectangle for cleanup. */
+			state.game_opponent_route_indicator = ROUTE_INDICATOR_NONE;
+			text_draw_count = 0;
+			opponent_icon_draw.count = 0;
+			assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(bounds)) == 0);
+			assert(text_draw_count == 0 && opponent_icon_draw.count == 0);
+		}
+	}
+}
+
+static void test_opponent_indicator_requires_room(void)
+{
+	reset_ingame_text("");
+	game_replay_mode = REPLAY_MODE_LIVE;
+	cameramode = CAMERA_MODE_COCKPIT;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	state.game_opponent_route_indicator = ROUTE_INDICATOR_LEFT;
+	opponent_direction_shapes[0].width = OPPONENT_TEST_WIDTH;
+	opponent_direction_shapes[0].height = OPPONENT_TEST_HEIGHT;
+	sdgame2shapes[OPPONENT_TEST_LEFT_SHAPE] = &opponent_direction_shapes[0];
+	drawing_sprite.sprite_top = OPPONENT_TEST_HIGH_ROOF;
+	drawing_sprite.sprite_bottom = OPPONENT_TEST_COMPACT_BOTTOM;
+	assert(memcmp(draw_ingame_text(), &empty_rect, sizeof(empty_rect)) == 0);
+	assert(text_draw_count == 0 && opponent_icon_draw.count == 0);
 }
 
 static void test_fps_sampling(void)
@@ -1330,6 +1473,8 @@ legacy_int main(void)
 	test_replay_filename_when_paused();
 	test_unnamed_replay_overlay();
 	test_filename_hidden_in_live_race_and_demo();
+	test_opponent_indicator_fits_viewport();
+	test_opponent_indicator_requires_room();
 	test_fps_sampling();
 	test_fps_outside_race();
 	test_fps_idle_expiry();

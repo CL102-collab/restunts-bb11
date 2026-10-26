@@ -115,8 +115,6 @@ extern legacy_void RsFontDrawTextOpaque(legacy_s8 *text,legacy_s16 x,legacy_s16 
 extern legacy_void RsShape2dRleCopyAtPosition(CShape2D *shape);
 extern legacy_void RsShape2dRleCopyClipped(CShape2D *shape,legacy_s16 x,legacy_s16 y);
 extern legacy_void RsShape2dRleCopyPositionClipped(CShape2D *shape);
-extern legacy_void RsShape2dRleMaskPositionClipped(CShape2D *shape);
-extern legacy_void RsShape2dRleOrPositionClipped(CShape2D *shape);
 extern legacy_void RsShape2dRleOrFarPointer(legacy_u16 offset,legacy_u16 segment);
 extern legacy_void RsShape2dRleCopy(CShape2D *shape,legacy_s16 x,legacy_s16 y);
 extern legacy_void RsShape2dRenderBmpAsMask(CShape2D *shape);
