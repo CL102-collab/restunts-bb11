@@ -12,10 +12,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define AMIGA_STACK_BYTES (20UL * 1024UL)
+#define AMIGA_ARGUMENT_DATA_DIRECTORY 1
+#define AMIGA_DATA_DIRECTORY_ARGUMENTS 2
+
 /* libnix swaps to this stack when the CLI stack is smaller. */
-unsigned long __stack = 20480;
+legacy_u32 __stack = AMIGA_STACK_BYTES;
 extern void full_data_initialize(void);
 #ifdef RESTUNTS_AMIGA_SMOKE
+#define AMIGA_SELFTEST_ARENA_PARAGRAPHS 100U
 static legacy_u32 selftest_callbacks;
 extern legacy_s16 roofbmpheight_copy, dashbmp_y_copy;
 extern legacy_s8 replaybar_enabled;
@@ -24,7 +29,7 @@ static void selftest_tick(void)
 {
 	++selftest_callbacks;
 }
-static int selftest_check(int condition, const char *description)
+static legacy_int selftest_check(legacy_int condition, const legacy_char *description)
 {
 	if (!condition) {
 		printf("AMIGA SELFTEST FAIL: %s\n", description);
@@ -33,28 +38,23 @@ static int selftest_check(int condition, const char *description)
 	return condition;
 }
 
-static int amiga_selftest(void)
+static legacy_int amiga_selftest(void)
 {
-	legacy_u8 colors[256 * 3], *pixels;
-	legacy_u16 segment, handle, i;
-	legacy_u16 retrace_states;
-	legacy_u32 before, after, callback_count;
-	legacy_s16 buttons, x, y;
-	char readback[4];
-	int ok = 1;
-	unsigned long starting_chip = AvailMem(MEMF_CHIP);
+	legacy_u32 starting_chip = AvailMem(MEMF_CHIP);
 	puts("AMIGA SELFTEST: memory and 320x200 display");
 	fflush(stdout);
 	dos_timer_setup_interrupt();
 	kb_init_interrupt();
 	/* Bind the same native screen pointers and row tables as the game. */
 	full_data_initialize();
-	segment = dos_memory_allocate(100);
+	legacy_u16 segment = dos_memory_allocate(AMIGA_SELFTEST_ARENA_PARAGRAPHS);
+	legacy_int ok = 1;
 	ok &= selftest_check(segment != 0, "resource arena allocation");
 	if (!ok) {
 		return 1;
 	}
-	pixels = dos_memory_make_pointer(segment, 0);
+	legacy_u8 *pixels = dos_memory_make_pointer(segment, 0);
+	legacy_char readback[4];
 	pixels[0] = 0x5a;
 	ok &= selftest_check(dos_memory_make_pointer(dos_memory_pointer_segment(pixels + 37),
 												 dos_memory_pointer_offset(pixels + 37)) ==
@@ -64,27 +64,29 @@ static int amiga_selftest(void)
 												 dos_memory_pointer_offset(&readback[0])) ==
 							 &readback[0],
 						 "native pointer round trip");
-	printf("AMIGA SELFTEST: arena=%lu, planar buffers=%u, free after display=%lu\n",
-		   (unsigned long)dos_memory_resize(segment, 0xffffU) * 16UL,
-		   (unsigned)amiga_video_buffer_count(), (unsigned long)AvailMem(MEMF_PUBLIC));
+	printf("AMIGA SELFTEST: arena=%" LEGACY_PRIu32
+		   ", planar buffers=%u, free after display=%" LEGACY_PRIu32 "\n",
+		   (legacy_u32)(dos_memory_resize(segment, LEGACY_U16_MAX) * AMIGA_PARAGRAPH_BYTES),
+		   (legacy_uint)amiga_video_buffer_count(), (legacy_u32)AvailMem(MEMF_PUBLIC));
 	fflush(stdout);
 	dos_video_set_mode_13h();
-	for (i = 0; i < 256; ++i) {
+	legacy_u8 colors[AMIGA_DOS_COLORS * AMIGA_RGB_COMPONENTS];
+	for (legacy_u16 i = 0; i < AMIGA_DOS_COLORS; ++i) {
 		colors[i * 3] = (i & 7U) * 9U;
 		colors[i * 3 + 1] = ((i >> 3) & 7U) * 9U;
 		colors[i * 3 + 2] = ((i >> 6) & 3U) * 21U;
 	}
-	dos_video_set_palette(0, 256, colors);
+	dos_video_set_palette(0, AMIGA_DOS_COLORS, colors);
 	sprite_select_mcga_backbuffer();
 	ok &= selftest_check(drawing_sprite.sprite_bitmapptr == screen_sprite.sprite_bitmapptr &&
 							 mcga_backbuffer_sprite == NULL,
 						 "indexed backbuffer reuse");
-	pixels = dos_memory_make_pointer(0xA000U, 0);
-	ok &= selftest_check(dos_memory_pointer_segment(pixels) == 0xA000U &&
+	pixels = dos_memory_make_pointer(AMIGA_VIDEO_SEGMENT, 0);
+	ok &= selftest_check(dos_memory_pointer_segment(pixels) == AMIGA_VIDEO_SEGMENT &&
 							 dos_memory_pointer_offset(pixels) == 0,
 						 "framebuffer segment identity");
-	for (i = 0; i < AMIGA_SCREEN_BYTES; ++i) {
-		pixels[i] = (legacy_u8)((i % 320U) / 10U);
+	for (legacy_u16 i = 0; i < AMIGA_SCREEN_BYTES; ++i) {
+		pixels[i] = (legacy_u8)((i % AMIGA_WIDTH) / 10U);
 	}
 	sprite_present_mcga_backbuffer();
 	/* Change palettes after both pages have been presented: the AROS bitmap
@@ -117,14 +119,15 @@ static int amiga_selftest(void)
 	puts("AMIGA SELFTEST: input and 100 Hz timing");
 	fflush(stdout);
 	amiga_timer_pump();
-	before = amiga_clock_ticks();
-	retrace_states = 0;
+	legacy_u32 before = amiga_clock_ticks();
+	legacy_u16 retrace_states = 0;
 	while (retrace_states != 3U && amiga_clock_ticks() - before < 50U) {
 		retrace_states |= dos_video_get_status() ? 1U : 2U;
 	}
 	ok &= selftest_check(retrace_states == 3U, "beam retrace transitions");
-	ok &= selftest_check(dos_mouse_init(320, 200) != 0, "mouse initialized");
+	ok &= selftest_check(dos_mouse_init(AMIGA_WIDTH, AMIGA_HEIGHT) != 0, "mouse initialized");
 	dos_mouse_set_position(123, 87);
+	legacy_s16 buttons, x, y;
 	dos_mouse_get_state(&buttons, &x, &y);
 	ok &= selftest_check(x == 123 && y == 87, "mouse position");
 	/* Simulate blocking resource work before a race callback is installed. */
@@ -142,11 +145,11 @@ static int amiga_selftest(void)
 						 "timer polling does not redraw the display");
 	ok &= selftest_check(selftest_callbacks >= 10U, "100 Hz timer callbacks");
 	dos_timer_set_callbacks_suspended(1);
-	callback_count = selftest_callbacks;
+	legacy_u32 callback_count = selftest_callbacks;
 	before = dos_timer_get_realtime_counter();
 	while (dos_timer_get_realtime_counter() - before < 5U) {
 	}
-	after = dos_timer_get_realtime_counter();
+	legacy_u32 after = dos_timer_get_realtime_counter();
 	ok &= selftest_check(selftest_callbacks == callback_count && after > before,
 						 "suspended callback clock");
 	dos_timer_set_callbacks_suspended(0);
@@ -158,7 +161,7 @@ static int amiga_selftest(void)
 						 "find existing main menu shapes");
 	ok &= selftest_check(dos_file_find_first((const legacy_s8 *)"SDTITL.PVS") != NULL,
 						 "find existing title shapes");
-	handle = dos_file_open((const legacy_s8 *)"AMIGATST.TMP", DOS_FILE_CREATE);
+	legacy_u16 handle = dos_file_open((const legacy_s8 *)"AMIGATST.TMP", DOS_FILE_CREATE);
 	ok &= selftest_check(handle != 0, "create file");
 	if (handle != 0) {
 		ok &= selftest_check(dos_file_write(handle, "TEST", 4) == 4, "write file");
@@ -172,11 +175,11 @@ static int amiga_selftest(void)
 							 "file search");
 		dos_file_remove((const legacy_s8 *)"AMIGATST.TMP");
 	}
-	printf(
-		"Amiga Chip RAM: before=%lu remaining=%lu; resource arena=%lu bytes; planar buffers=%u\n",
-		starting_chip, (unsigned long)AvailMem(MEMF_CHIP),
-		(unsigned long)dos_memory_resize(segment, 0xffffU) * 16UL,
-		(unsigned)amiga_video_buffer_count());
+	printf("Amiga Chip RAM: before=%" LEGACY_PRIu32 " remaining=%" LEGACY_PRIu32
+		   "; resource arena=%" LEGACY_PRIu32 " bytes; planar buffers=%u\n",
+		   starting_chip, (legacy_u32)AvailMem(MEMF_CHIP),
+		   (legacy_u32)(dos_memory_resize(segment, LEGACY_U16_MAX) * AMIGA_PARAGRAPH_BYTES),
+		   (legacy_uint)amiga_video_buffer_count());
 	if (ok) {
 		puts("AMIGA SELFTEST PASS");
 	}
@@ -184,11 +187,8 @@ static int amiga_selftest(void)
 }
 #endif
 
-int main(int argc, char **argv)
+legacy_int main(legacy_int argc, legacy_char **argv)
 {
-	legacy_s16 info;
-	BPTR data_lock = 0, previous_directory = 0;
-	int result;
 	/* AmigaDOS resolves PROGDIR: beside the executable, even after CurrentDir. */
 	file_car_set_base((const legacy_s8 *)"PROGDIR:");
 	if (atexit(amiga_platform_shutdown) != 0) {
@@ -199,30 +199,39 @@ int main(int argc, char **argv)
 		return amiga_selftest();
 	}
 #endif
-	info = command_line_print_info(argc, (legacy_s8 **)argv);
+	legacy_s16 info = command_line_print_info(argc, (legacy_s8 **)argv);
 	if (info != COMMAND_LINE_CONTINUE) {
 		return info;
 	}
-	if (argc > 1 && strcmp(argv[1], "--data-dir") == 0) {
-		if (argc < 3 || (data_lock = Lock(argv[2], ACCESS_READ)) == 0) {
+	BPTR data_lock = 0, previous_directory = 0;
+	if (argc > AMIGA_ARGUMENT_DATA_DIRECTORY &&
+		strcmp(argv[AMIGA_ARGUMENT_DATA_DIRECTORY], "--data-dir") == 0) {
+		if (argc <= AMIGA_DATA_DIRECTORY_ARGUMENTS ||
+			(data_lock = Lock(argv[AMIGA_DATA_DIRECTORY_ARGUMENTS], ACCESS_READ)) == 0) {
 			fputs("Cannot open --data-dir directory\n", stderr);
 			return 1;
 		}
 		previous_directory = CurrentDir(data_lock);
-		memmove(argv + 1, argv + 3, (argc - 2) * sizeof(*argv));
-		argc -= 2;
+		memmove(argv + AMIGA_ARGUMENT_DATA_DIRECTORY,
+				argv + AMIGA_ARGUMENT_DATA_DIRECTORY + AMIGA_DATA_DIRECTORY_ARGUMENTS,
+				(argc - AMIGA_DATA_DIRECTORY_ARGUMENTS) * sizeof(*argv));
+		argc -= AMIGA_DATA_DIRECTORY_ARGUMENTS;
 	}
-	if (argc > 32767) {
+	if (argc > (legacy_int)LEGACY_S16_MAX) {
 		fputs("Too many arguments\n", stderr);
 		return 1;
 	}
 	full_data_initialize();
+	legacy_s16 result;
 #ifdef RESTUNTS_AMIGA_SMOKE
 	if (argc == 2 && strcmp(argv[1], "--amiga-smoke") == 0) {
 		result = amiga_game_smoke();
-	} else
-#endif
+	} else {
 		result = run_main_menu_loop((legacy_s16)argc, (legacy_s8 **)argv);
+	}
+#else
+	result = run_main_menu_loop((legacy_s16)argc, (legacy_s8 **)argv);
+#endif
 	if (data_lock != 0) {
 		CurrentDir(previous_directory);
 		UnLock(data_lock);

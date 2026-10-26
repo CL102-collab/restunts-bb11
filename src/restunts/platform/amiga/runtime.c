@@ -48,18 +48,17 @@ legacy_s16 dos_write_stdout(const legacy_s8 *text, legacy_u16 length)
 }
 legacy_s16 dos_write_stderr(const legacy_s8 *text, legacy_u16 length)
 {
-	legacy_s16 result;
 #ifdef RESTUNTS_AMIGA_TRACE
 	(void)fwrite(text, 1, length, stdout);
 	fflush(stdout);
 #endif
-	result = fwrite(text, 1, length, stderr) == length ? (legacy_s16)length : -1;
+	legacy_s16 result = fwrite(text, 1, length, stderr) == length ? (legacy_s16)length : -1;
 	fflush(stderr);
 	return result;
 }
 void dos_show_startup_error(const legacy_s8 *message)
 {
-	fputs((const char *)message, stderr);
+	fputs((const legacy_char *)message, stderr);
 }
 void dos_process_exit(legacy_s16 status)
 {

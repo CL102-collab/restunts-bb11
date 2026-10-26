@@ -7,6 +7,18 @@
 #define AMIGA_HEIGHT 200U
 #define AMIGA_DEPTH 5U
 #define AMIGA_COLORS 32U
+#define AMIGA_PALETTE_BANK_COLORS 16U
+#define AMIGA_DOS_COLORS 256U
+#define AMIGA_RGB_COMPONENTS 3U
+#define AMIGA_VGA_COMPONENT_MAX 63
+#define AMIGA_RGB4_COMPONENT_MAX 15
+#define AMIGA_RGB4_RED_SHIFT 8U
+#define AMIGA_RGB4_GREEN_SHIFT 4U
+#define AMIGA_REPLAY_TOP 151U
+#define AMIGA_MILLISECONDS_PER_TICK 10U
+#define AMIGA_PARAGRAPH_BYTES 16UL
+#define AMIGA_PARAGRAPH_SHIFT 4U
+#define AMIGA_VIDEO_SEGMENT 0xA000U
 #define AMIGA_ROW_BYTES 40U
 #define AMIGA_PLANE_BYTES 8000U
 #define AMIGA_SCREEN_BYTES 64000UL
@@ -15,8 +27,8 @@
 struct Window;
 
 struct AMIGA_PALETTE {
-	legacy_u8 rgb[256][3];
-	legacy_u8 map[256];
+	legacy_u8 rgb[AMIGA_DOS_COLORS][AMIGA_RGB_COMPONENTS];
+	legacy_u8 map[AMIGA_DOS_COLORS];
 	legacy_u16 base_colors[AMIGA_COLORS];
 	legacy_u16 colors[AMIGA_COLORS];
 	const legacy_u8 *original_map;
@@ -25,9 +37,9 @@ struct AMIGA_PALETTE {
 	legacy_u8 count, first_register, world;
 };
 
-const legacy_u16 *amiga_palette_original(const char *resource, const char *chunk);
-void amiga_palette_select(struct AMIGA_PALETTE *palette, const char *resource, const char *chunk,
-						  legacy_u8 count, legacy_u8 first_register);
+const legacy_u16 *amiga_palette_original(const legacy_char *resource, const legacy_char *chunk);
+void amiga_palette_select(struct AMIGA_PALETTE *palette, const legacy_char *resource,
+						  const legacy_char *chunk, legacy_u8 count, legacy_u8 first_register);
 void amiga_palette_update(struct AMIGA_PALETTE *palette, legacy_u16 first, legacy_u16 count,
 						  const legacy_u8 *rgb);
 void amiga_chunky_to_planar(const legacy_u8 *pixels, const legacy_u8 *map,
@@ -35,8 +47,8 @@ void amiga_chunky_to_planar(const legacy_u8 *pixels, const legacy_u8 *map,
 void amiga_chunky_to_planar_rows(const legacy_u8 *pixels, const legacy_u8 *map,
 								 legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
 								 legacy_u16 rows);
-void amiga_video_palette_scene(const char *resource, const char *chunk);
-void amiga_video_palette_race(const char *car, legacy_u8 active);
+void amiga_video_palette_scene(const legacy_char *resource, const legacy_char *chunk);
+void amiga_video_palette_race(const legacy_char *car, legacy_u8 active);
 legacy_u16 amiga_video_color(legacy_u16 y, legacy_u8 pixel);
 legacy_u8 *amiga_video_pixels(void);
 legacy_u8 *amiga_video_memory_base(void);

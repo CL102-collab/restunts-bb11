@@ -92,10 +92,12 @@ legacy_s16 dos_startup_select_data_directory(const legacy_s8 *directory)
 		mov failed, 1
 	original_directory_saved:
 	}
-	if (failed)
-	{
+	/* Watcom assembly labels confuse clang-format at the following control statement. */
+	// clang-format off
+	if (failed) {
 		return 0;
 	}
+	// clang-format on
 	startup_directory_selected = 1;
 	if (!dos_select_drive(startup_data_drive) || !dos_change_directory(directory)) {
 		dos_startup_restore_data_directory();

@@ -29,7 +29,7 @@
 #define SMOKE_REPLAY_TICKS 3U
 #define SMOKE_CHECKPOINT_BYTES 22400UL
 
-static legacy_s16 smoke_check(legacy_s16 condition, const char *description)
+static legacy_s16 smoke_check(legacy_s16 condition, const legacy_char *description)
 {
 	if (!condition) {
 		printf("AMIGA SMOKE FAIL: %s\n", description);
@@ -38,7 +38,7 @@ static legacy_s16 smoke_check(legacy_s16 condition, const char *description)
 	return condition;
 }
 
-static void smoke_progress(const char *description)
+static void smoke_progress(const legacy_char *description)
 {
 	printf("AMIGA SMOKE: %s\n", description);
 	fflush(stdout);
@@ -47,7 +47,7 @@ static void smoke_progress(const char *description)
 /* Export the same 12-bit, 32-entry palette and index mapping sent to ECS. */
 static legacy_s16 smoke_write_picture(void)
 {
-	static const char header[] = "P6\n320 200\n255\n";
+	static const legacy_char header[] = "P6\n320 200\n255\n";
 	legacy_u8 row[AMIGA_WIDTH * 3U];
 	const legacy_u8 *pixels = amiga_video_pixels();
 	legacy_u16 output = dos_file_open((const legacy_s8 *)"AMIGASMOKE.PPM", DOS_FILE_CREATE);
@@ -235,19 +235,26 @@ legacy_s16 amiga_game_smoke(void)
 	for (legacy_u32 offset = 0; offset < AMIGA_SCREEN_BYTES; ++offset) {
 		hash = (hash ^ amiga_video_pixels()[offset]) * 16777619UL;
 	}
-	highwater = (legacy_u32)(mmgr_high_water_segment - mmgr_arena_start_segment) * 16UL;
-	capacity = (legacy_u32)(mmgr_arena_end_segment - mmgr_arena_start_segment) * 16UL;
-	printf("Amiga smoke: frame=%u world_colors=%u dashboard_colors=%u checksum=%08lx\n",
-		   (unsigned)(legacy_u16)state.game_frame, (unsigned)world_colors,
-		   (unsigned)dashboard_colors, (unsigned long)hash);
-	printf("Amiga memory: resource_high_water=%lu arena_capacity=%lu free_chip=%lu bytes\n",
-		   (unsigned long)highwater, (unsigned long)capacity, (unsigned long)AvailMem(MEMF_CHIP));
-	printf("Amiga timing: load_ms=%lu render_physics_ms=%lu frames=%u average_ms_per_frame=%lu\n",
-		   (unsigned long)loading_ticks * 10UL, (unsigned long)rendering_ticks * 10UL,
-		   (unsigned)(SMOKE_REPLAY_TICKS + 1U),
-		   (unsigned long)rendering_ticks * 10UL / (SMOKE_REPLAY_TICKS + 1U));
+	highwater =
+		(legacy_u32)(mmgr_high_water_segment - mmgr_arena_start_segment) * AMIGA_PARAGRAPH_BYTES;
+	capacity =
+		(legacy_u32)(mmgr_arena_end_segment - mmgr_arena_start_segment) * AMIGA_PARAGRAPH_BYTES;
+	printf("Amiga smoke: frame=%u world_colors=%u dashboard_colors=%u checksum=%08" LEGACY_PRIx32
+		   "\n",
+		   (legacy_uint)(legacy_u16)state.game_frame, (legacy_uint)world_colors,
+		   (legacy_uint)dashboard_colors, (legacy_u32)hash);
+	printf("Amiga memory: resource_high_water=%" LEGACY_PRIu32 " arena_capacity=%" LEGACY_PRIu32
+		   " free_chip=%" LEGACY_PRIu32 " bytes\n",
+		   (legacy_u32)highwater, (legacy_u32)capacity, (legacy_u32)AvailMem(MEMF_CHIP));
+	printf("Amiga timing: load_ms=%" LEGACY_PRIu32 " render_physics_ms=%" LEGACY_PRIu32
+		   " frames=%u average_ms_per_frame=%" LEGACY_PRIu32 "\n",
+		   (legacy_u32)(loading_ticks * AMIGA_MILLISECONDS_PER_TICK),
+		   (legacy_u32)(rendering_ticks * AMIGA_MILLISECONDS_PER_TICK),
+		   (legacy_uint)(SMOKE_REPLAY_TICKS + 1U),
+		   (legacy_u32)(rendering_ticks * AMIGA_MILLISECONDS_PER_TICK / (SMOKE_REPLAY_TICKS + 1U)));
 	ok &= smoke_check(smoke_write_picture(), "AMIGASMOKE.PPM export failed");
-	printf("Amiga smoke total_ms=%lu\n", (unsigned long)(amiga_clock_ticks() - started) * 10UL);
+	printf("Amiga smoke total_ms=%" LEGACY_PRIu32 "\n",
+		   (legacy_u32)((amiga_clock_ticks() - started) * AMIGA_MILLISECONDS_PER_TICK));
 finished:
 	fflush(stdout);
 	if (cars_ready) {

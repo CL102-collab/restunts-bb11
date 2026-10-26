@@ -31,6 +31,27 @@
 #define ADLIB_OPERATOR_MULTIPLIER 6U
 #define ADLIB_OPERATOR_LEVEL 4U
 #define ADLIB_OPERATOR_WAVEFORM 11U
+#define ADLIB_TRANSPOSE_OFFSET 17U
+#define ADLIB_BEND_RANGE_OFFSET 18U
+#define ADLIB_VELOCITY_ENABLED_OFFSET 21U
+#define ADLIB_MODULATION_CONTROL_OFFSET 22U
+#define ADLIB_EXPRESSION_CONTROL_OFFSET 23U
+#define ADLIB_PARAMETER_CONTROL_OFFSET 24U
+#define ADLIB_LEVEL_CONTROL_OFFSET 25U
+#define ADLIB_ADDITIVE_ENABLED_OFFSET 68U
+#define ADLIB_FEEDBACK_OFFSET 69U
+#define ADLIB_SELECTOR_MODULATOR_MULTIPLIER 0x81U
+#define ADLIB_SELECTOR_CARRIER_MULTIPLIER 0x82U
+#define ADLIB_SELECTOR_MODULATOR_GAIN 0x83U
+#define ADLIB_SELECTOR_CARRIER_GAIN 0x84U
+#define ADLIB_SELECTOR_FEEDBACK 0x85U
+#define ADLIB_CONTROL_MODULATION 1U
+#define ADLIB_CONTROL_VOLUME 7U
+#define ADLIB_CONTROL_EXPRESSION 11U
+#define ADLIB_CONTROL_PARAMETER 12U
+#define PAULA_NTSC_REFRESH_HZ 60U
+#define PAULA_NTSC_CLOCK_HZ 3579545UL
+#define PAULA_PAL_CLOCK_HZ 3546895UL
 #define ADLIB_SELECTOR_PITCH 0x90U
 #define ADLIB_SELECTOR_NOTE 0x91U
 
@@ -170,7 +191,7 @@ static void paula_make_wave(legacy_u16 voice)
 		legacy_s16 sample =
 			paula_operator_sample((legacy_u16)(carrier_phase + phase_offset),
 								  resource[ADLIB_CARRIER + ADLIB_OPERATOR_WAVEFORM]);
-		if (resource[68] != 0) {
+		if (resource[ADLIB_ADDITIVE_ENABLED_OFFSET] != 0) {
 			sample = (sample + mod * state->modulator_gain / 127) / 2;
 		}
 		previous = sample;
@@ -296,22 +317,22 @@ static void paula_control(legacy_u16 voice, legacy_u16 selector, legacy_u16 valu
 	struct PAULA_VOICE *state = &paula_voices[voice];
 	legacy_u8 *destination = NULL;
 	switch (selector) {
-		case 0x81:
+		case ADLIB_SELECTOR_MODULATOR_MULTIPLIER:
 			destination = &state->modulator_multiplier;
 			value = (value >> 3U) & 7U;
 			break;
-		case 0x82:
+		case ADLIB_SELECTOR_CARRIER_MULTIPLIER:
 			destination = &state->carrier_multiplier;
 			value = (value >> 3U) & 7U;
 			break;
-		case 0x83:
+		case ADLIB_SELECTOR_MODULATOR_GAIN:
 			destination = &state->modulator_gain;
 			value &= 127U;
 			break;
-		case 0x84:
+		case ADLIB_SELECTOR_CARRIER_GAIN:
 			state->carrier_gain = (legacy_u8)(value & 127U);
 			break;
-		case 0x85:
+		case ADLIB_SELECTOR_FEEDBACK:
 			destination = &state->feedback;
 			value = (value >> 4U) & 7U;
 			break;
@@ -353,7 +374,8 @@ legacy_u8 dos_audio_driver_initialize(void)
 		paula_port = NULL;
 		return 0;
 	}
-	paula_clock = SysBase->VBlankFrequency == 60 ? 3579545UL : 3546895UL;
+	paula_clock = SysBase->VBlankFrequency == PAULA_NTSC_REFRESH_HZ ? PAULA_NTSC_CLOCK_HZ
+																	: PAULA_PAL_CLOCK_HZ;
 	paula->dmacon = PAULA_DMA_MASK;
 	paula->adkcon = 0x00ffU;
 	paula->intena = PAULA_INTERRUPT_MASK;
@@ -379,12 +401,15 @@ void dos_audio_driver_prepare_context(legacy_s16 driver_channel, struct AUDIO_CO
 	state->carrier_multiplier = bytes[ADLIB_CARRIER + ADLIB_OPERATOR_MULTIPLIER] & 15U;
 	state->modulator_gain = (63U - (bytes[ADLIB_MODULATOR + ADLIB_OPERATOR_LEVEL] & 63U)) * 2U;
 	state->carrier_gain = (63U - (bytes[ADLIB_CARRIER + ADLIB_OPERATOR_LEVEL] & 63U)) * 2U;
-	state->feedback = bytes[69] & 7U;
+	state->feedback = bytes[ADLIB_FEEDBACK_OFFSET] & 7U;
 	state->dirty = 1;
 	if (state->channel) {
-		paula_control((legacy_u16)voice, bytes[22], state->channel->driver_private_state[0]);
-		paula_control((legacy_u16)voice, bytes[23], state->channel->driver_private_state[2]);
-		paula_control((legacy_u16)voice, bytes[24], state->channel->driver_private_state[3]);
+		paula_control((legacy_u16)voice, bytes[ADLIB_MODULATION_CONTROL_OFFSET],
+					  state->channel->driver_private_state[0]);
+		paula_control((legacy_u16)voice, bytes[ADLIB_EXPRESSION_CONTROL_OFFSET],
+					  state->channel->driver_private_state[2]);
+		paula_control((legacy_u16)voice, bytes[ADLIB_PARAMETER_CONTROL_OFFSET],
+					  state->channel->driver_private_state[3]);
 	}
 }
 
@@ -423,13 +448,15 @@ void dos_audio_driver_activate_context(legacy_s16 driver_channel, struct AUDIO_C
 	paula_stop((legacy_u16)voice);
 	state->channel = (struct AUDIO_CHANNEL *)timer;
 	state->note = (legacy_u8)pitch;
-	state->velocity = state->resource[21] ? (legacy_u8)(parameter & 127U) : 127U;
+	state->velocity =
+		state->resource[ADLIB_VELOCITY_ENABLED_OFFSET] ? (legacy_u8)(parameter & 127U) : 127U;
 	if (state->note != AUDIO_NOTE_USE_DRIVER_VALUE) {
 		state->base_pitch = paula_note_pitch(state->note);
 	}
 	state->dirty = 1;
-	paula_apply_pitch((legacy_u16)voice,
-					  (legacy_u16)(state->base_pitch + (legacy_s8)state->resource[17]));
+	paula_apply_pitch(
+		(legacy_u16)voice,
+		(legacy_u16)(state->base_pitch + (legacy_s8)state->resource[ADLIB_TRANSPOSE_OFFSET]));
 	state->active = 1;
 	if (!paula_deferred) {
 		paula->dmacon = DMAF_SETCLR | DMAF_MASTER | (1U << voice);
@@ -451,26 +478,30 @@ void dos_audio_driver_suspend_context(legacy_s16 driver_channel, struct AUDIO_CO
 		return;
 	}
 	legacy_u16 pitch = state->base_pitch;
-	if (bytes[53] == ADLIB_SELECTOR_NOTE) {
+	if (bytes[AUDIO_RESOURCE_SEQUENCE_ENABLED_OFFSET] == ADLIB_SELECTOR_NOTE) {
 		pitch = paula_note_pitch(state->note + context->sequence_value);
 	}
-	if (bytes[40] == ADLIB_SELECTOR_PITCH) {
+	if (bytes[AUDIO_RESOURCE_MODULATION_ENABLED_OFFSET] == ADLIB_SELECTOR_PITCH) {
 		pitch = (legacy_u16)(pitch + context->modulation);
 	}
-	if (bytes[25] == ADLIB_SELECTOR_PITCH) {
+	if (bytes[ADLIB_LEVEL_CONTROL_OFFSET] == ADLIB_SELECTOR_PITCH) {
 		pitch = (legacy_u16)(pitch + context->level);
 	}
 	legacy_s16 bend = state->channel ? LEGACY_S16_FROM_BITS(state->channel->pitch) : 0;
 	if (bend != 0) {
-		legacy_s16 semitones = bend > 0 ? bytes[18] : -(legacy_s16)bytes[18];
+		legacy_s16 semitones =
+			bend > 0 ? bytes[ADLIB_BEND_RANGE_OFFSET] : -(legacy_s16)bytes[ADLIB_BEND_RANGE_OFFSET];
 		legacy_s32 difference = (legacy_s32)paula_bend_target(state->note, semitones) - pitch;
 		legacy_s32 delta = LEGACY_S32_SAR(difference * bend, 13U);
 		pitch = (legacy_u16)(pitch + (bend > 0 ? delta : -delta));
 	}
-	paula_control((legacy_u16)voice, bytes[53], context->sequence_value);
-	paula_control((legacy_u16)voice, bytes[40], (legacy_u16)context->modulation);
-	paula_control((legacy_u16)voice, bytes[25], (legacy_u16)context->level);
-	paula_apply_pitch((legacy_u16)voice, (legacy_u16)(pitch + (legacy_s8)bytes[17]));
+	paula_control((legacy_u16)voice, bytes[AUDIO_RESOURCE_SEQUENCE_ENABLED_OFFSET],
+				  context->sequence_value);
+	paula_control((legacy_u16)voice, bytes[AUDIO_RESOURCE_MODULATION_ENABLED_OFFSET],
+				  (legacy_u16)context->modulation);
+	paula_control((legacy_u16)voice, bytes[ADLIB_LEVEL_CONTROL_OFFSET], (legacy_u16)context->level);
+	paula_apply_pitch((legacy_u16)voice,
+					  (legacy_u16)(pitch + (legacy_s8)bytes[ADLIB_TRANSPOSE_OFFSET]));
 }
 
 void dos_audio_driver_start_context(legacy_s16 driver_channel, struct AUDIO_CONTEXT *context)
@@ -551,14 +582,14 @@ void dos_audio_driver_set_control(legacy_s16 driver_channel, struct AUDIO_CONTEX
 		return;
 	}
 	const legacy_u8 *resource = paula_voices[voice].resource;
-	if (control == 7) {
+	if (control == ADLIB_CONTROL_VOLUME) {
 		dos_audio_set_channel_volume(context->channel, (legacy_s16)value);
-	} else if (control == 1) {
-		paula_control((legacy_u16)voice, resource[22], value);
-	} else if (control == 11) {
-		paula_control((legacy_u16)voice, resource[23], value);
-	} else if (control == 12) {
-		paula_control((legacy_u16)voice, resource[24], value);
+	} else if (control == ADLIB_CONTROL_MODULATION) {
+		paula_control((legacy_u16)voice, resource[ADLIB_MODULATION_CONTROL_OFFSET], value);
+	} else if (control == ADLIB_CONTROL_EXPRESSION) {
+		paula_control((legacy_u16)voice, resource[ADLIB_EXPRESSION_CONTROL_OFFSET], value);
+	} else if (control == ADLIB_CONTROL_PARAMETER) {
+		paula_control((legacy_u16)voice, resource[ADLIB_PARAMETER_CONTROL_OFFSET], value);
 	}
 }
 
@@ -618,7 +649,7 @@ void dos_audio_shutdown(void)
 }
 
 #ifdef RESTUNTS_AMIGA_SMOKE
-static legacy_s16 paula_selftest_check(legacy_s16 condition, const char *message)
+static legacy_s16 paula_selftest_check(legacy_s16 condition, const legacy_char *message)
 {
 	if (!condition) {
 		dos_write_stderr((const legacy_s8 *)message, (legacy_u16)strlen(message));

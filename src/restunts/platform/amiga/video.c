@@ -14,6 +14,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define AMIGA_REPLAY_COPPER_COMMAND_COUNT (2U * AMIGA_PALETTE_BANK_COLORS + 4U)
+#define AMIGA_MINIMUM_ARENA_BYTES (272UL * 1024UL)
+#define AMIGA_MINIMUM_LIBRARY_VERSION 37U
+#define AMIGA_EMPTY_POINTER_BYTES 16U
+#define AMIGA_POINTER_WIDTH 16U
+
+#define AMIGA_CAR_CODE_BYTES 4U
+#define AMIGA_DASHBOARD_PREFIX_BYTES 4U
+#define AMIGA_DASHBOARD_NAME_BYTES (AMIGA_DASHBOARD_PREFIX_BYTES + AMIGA_CAR_CODE_BYTES + 1U)
+
 struct GfxBase *GfxBase;
 struct IntuitionBase *IntuitionBase;
 static struct Screen *screen;
@@ -29,14 +39,13 @@ static legacy_u8 drawing_frame;
 static legacy_u8 auto_refresh = 1;
 static legacy_u16 buffer_count;
 
-static void video_fail(const char *message)
+static void video_fail(const legacy_char *message)
 {
 	fprintf(stderr, "Amiga video: %s\n", message);
 	fflush(stderr);
 #ifdef RESTUNTS_AMIGA_TRACE
-	printf("Amiga video: %s; free public=%lu, largest=%lu\n", message,
-		   (unsigned long)AvailMem(MEMF_PUBLIC),
-		   (unsigned long)AvailMem(MEMF_PUBLIC | MEMF_LARGEST));
+	printf("Amiga video: %s; free public=%" LEGACY_PRIu32 ", largest=%" LEGACY_PRIu32 "\n", message,
+		   (legacy_u32)AvailMem(MEMF_PUBLIC), (legacy_u32)AvailMem(MEMF_PUBLIC | MEMF_LARGEST));
 	fflush(stdout);
 #endif
 	dos_process_exit(1);
@@ -54,7 +63,7 @@ extern legacy_s8 replaybar_enabled;
 
 static legacy_u16 replay_boundary(void)
 {
-	return replaybar_enabled ? 151 : AMIGA_HEIGHT;
+	return replaybar_enabled ? AMIGA_REPLAY_TOP : AMIGA_HEIGHT;
 }
 
 static legacy_u16 palette_boundary(legacy_s16 value)
@@ -99,7 +108,7 @@ static void palette_remove_copper(void)
 
 static void palette_apply(legacy_u8 force)
 {
-	legacy_u16 colors[AMIGA_COLORS], i;
+	legacy_u16 colors[AMIGA_COLORS];
 	legacy_s16 bar = race_palette_active ? replay_boundary() : AMIGA_HEIGHT;
 	struct Custom *custom = (struct Custom *)0xdff000UL;
 	if (screen == NULL) {
@@ -108,14 +117,16 @@ static void palette_apply(legacy_u8 force)
 #ifdef RESTUNTS_AMIGA_TRACE
 	if (force) {
 		printf("Amiga palette apply: race=%u copper=%p bar=%d previous=%d beforeRGB\n",
-			   (unsigned)race_palette_active, (void *)replay_copper, (int)bar, (int)copper_bar);
+			   (legacy_uint)race_palette_active, (void *)replay_copper, (legacy_int)bar,
+			   (legacy_int)copper_bar);
 		fflush(stdout);
 	}
 #endif
 	if (force) {
 		memcpy(colors, palette.colors, sizeof(colors));
 		if (race_palette_active) {
-			memcpy(colors + 16, dashboard_palette.colors, 16 * sizeof(colors[0]));
+			memcpy(colors + AMIGA_PALETTE_BANK_COLORS, dashboard_palette.colors,
+				   AMIGA_PALETTE_BANK_COLORS * sizeof(colors[0]));
 		}
 		LoadRGB4(&screen->ViewPort, colors, AMIGA_COLORS);
 #ifdef RESTUNTS_AMIGA_TRACE
@@ -135,16 +146,18 @@ static void palette_apply(legacy_u8 force)
 	if (replay_copper == NULL) {
 		video_fail("cannot allocate replay palette list");
 	}
-	if (UCopperListInit(replay_copper, 36) == NULL) {
+	if (UCopperListInit(replay_copper, AMIGA_REPLAY_COPPER_COMMAND_COUNT) == NULL) {
 		video_fail("cannot initialize replay palette list");
 	}
 	CWAIT(replay_copper, 0, 0);
-	for (i = 0; i < 16; ++i) {
-		CMOVE(replay_copper, custom->color[16 + i], dashboard_palette.colors[i]);
+	for (legacy_u16 i = 0; i < AMIGA_PALETTE_BANK_COLORS; ++i) {
+		CMOVE(replay_copper, custom->color[AMIGA_PALETTE_BANK_COLORS + i],
+			  dashboard_palette.colors[i]);
 	}
 	CWAIT(replay_copper, bar, 0);
-	for (i = 0; i < 16; ++i) {
-		CMOVE(replay_copper, custom->color[16 + i], replay_palette.colors[i]);
+	for (legacy_u16 i = 0; i < AMIGA_PALETTE_BANK_COLORS; ++i) {
+		CMOVE(replay_copper, custom->color[AMIGA_PALETTE_BANK_COLORS + i],
+			  replay_palette.colors[i]);
 	}
 	CEND(replay_copper);
 	screen->ViewPort.UCopIns = replay_copper;
@@ -153,15 +166,15 @@ static void palette_apply(legacy_u8 force)
 	}
 }
 
-void amiga_video_palette_scene(const char *resource, const char *chunk)
+void amiga_video_palette_scene(const legacy_char *resource, const legacy_char *chunk)
 {
 #ifdef RESTUNTS_AMIGA_TRACE
 	printf("Amiga palette scene: %s %s select\n", resource, chunk);
 	fflush(stdout);
 #endif
 	race_palette_active = 0;
-	amiga_palette_select(&palette, resource, chunk, strcmp(chunk, "!def") == 0 ? 16 : AMIGA_COLORS,
-						 0);
+	amiga_palette_select(&palette, resource, chunk,
+						 strcmp(chunk, "!def") == 0 ? AMIGA_PALETTE_BANK_COLORS : AMIGA_COLORS, 0);
 #ifdef RESTUNTS_AMIGA_TRACE
 	puts("Amiga palette scene: apply");
 	fflush(stdout);
@@ -173,36 +186,40 @@ void amiga_video_palette_scene(const char *resource, const char *chunk)
 #endif
 }
 
-void amiga_video_palette_race(const char *car, legacy_u8 active)
+void amiga_video_palette_race(const legacy_char *car, legacy_u8 active)
 {
-	char resource[9] = "STDB";
+	legacy_char resource[AMIGA_DASHBOARD_NAME_BYTES] = "STDB";
 	if (!active) {
 		amiga_video_palette_scene("SDTITL", "!def");
 		return;
 	}
-	memcpy(resource + 4, car, 4);
+	memcpy(resource + AMIGA_DASHBOARD_PREFIX_BYTES, car, AMIGA_CAR_CODE_BYTES);
 	memcpy(&dashboard_palette, &palette, sizeof(palette));
 	memcpy(&replay_palette, &palette, sizeof(palette));
 	if (amiga_palette_original(resource, "!pal") != NULL) {
-		amiga_palette_select(&dashboard_palette, resource, "!pal", 16, 16);
+		amiga_palette_select(&dashboard_palette, resource, "!pal", AMIGA_PALETTE_BANK_COLORS,
+							 AMIGA_PALETTE_BANK_COLORS);
 	} else {
-		amiga_palette_select(&dashboard_palette, "SDTITL", "!def", 16, 16);
+		amiga_palette_select(&dashboard_palette, "SDTITL", "!def", AMIGA_PALETTE_BANK_COLORS,
+							 AMIGA_PALETTE_BANK_COLORS);
 	}
-	amiga_palette_select(&replay_palette, "SDGAME", "!pal", 16, 16);
-	amiga_palette_select(&palette, "SDTITL", "!def", 16, 0);
+	amiga_palette_select(&replay_palette, "SDGAME", "!pal", AMIGA_PALETTE_BANK_COLORS,
+						 AMIGA_PALETTE_BANK_COLORS);
+	amiga_palette_select(&palette, "SDTITL", "!def", AMIGA_PALETTE_BANK_COLORS, 0);
 	race_palette_active = 1;
 	palette_apply(1);
 }
 
 static void palette_convert(struct BitMap *target)
 {
-	legacy_u16 top = 0, bottom, plane;
+	legacy_u16 top = 0;
 	while (top < AMIGA_HEIGHT) {
 		const struct AMIGA_PALETTE *p = palette_at_row(top);
 		legacy_u8 *planes[AMIGA_DEPTH];
-		for (bottom = top + 1; bottom < AMIGA_HEIGHT && palette_at_row(bottom) == p; ++bottom) {
+		legacy_u16 bottom = top + 1;
+		for (; bottom < AMIGA_HEIGHT && palette_at_row(bottom) == p; ++bottom) {
 		}
-		for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
 			planes[plane] = target->Planes[plane] + (legacy_u32)top * target->BytesPerRow;
 		}
 		amiga_chunky_to_planar_rows(pixels + (legacy_u32)top * AMIGA_WIDTH, p->map, planes,
@@ -242,22 +259,17 @@ struct Window *amiga_video_window(void)
 
 void dos_video_set_mode_13h(void)
 {
-	struct NewScreen settings;
-	struct NewWindow window_settings;
-	struct Library *aros_library;
-	legacy_u8 can_flip;
-	legacy_u16 plane;
-	/* Leave room for the largest stock car/opponent and Alpine scenery. */
-	legacy_u32 minimum_arena = 272UL * 1024UL;
 	if (screen != NULL) {
 		return;
 	}
-	GfxBase = (struct GfxBase *)OpenLibrary("graphics.library", 37);
-	IntuitionBase = (struct IntuitionBase *)OpenLibrary("intuition.library", 37);
+	GfxBase = (struct GfxBase *)OpenLibrary("graphics.library", AMIGA_MINIMUM_LIBRARY_VERSION);
+	IntuitionBase =
+		(struct IntuitionBase *)OpenLibrary("intuition.library", AMIGA_MINIMUM_LIBRARY_VERSION);
 	if (GfxBase == NULL || IntuitionBase == NULL) {
 		video_fail("Kickstart 2.0 or newer is required");
 	}
 	(void)amiga_video_pixels();
+	struct NewScreen settings;
 	memset(&settings, 0, sizeof(settings));
 	settings.Width = AMIGA_WIDTH;
 	settings.Height = AMIGA_HEIGHT;
@@ -272,6 +284,7 @@ void dos_video_set_mode_13h(void)
 	display_bitmap = screen->ViewPort.RasInfo->BitMap;
 	original_bitmap = *display_bitmap;
 	visible_bitmap = &original_bitmap;
+	struct NewWindow window_settings;
 	memset(&window_settings, 0, sizeof(window_settings));
 	window_settings.Width = AMIGA_WIDTH;
 	window_settings.Height = AMIGA_HEIGHT;
@@ -286,35 +299,37 @@ void dos_video_set_mode_13h(void)
 	if (window == NULL) {
 		video_fail("cannot create input window");
 	}
-	empty_pointer = AllocMem(16, MEMF_CHIP | MEMF_CLEAR);
+	empty_pointer = AllocMem(AMIGA_EMPTY_POINTER_BYTES, MEMF_CHIP | MEMF_CLEAR);
 	if (empty_pointer == NULL) {
 		video_fail("cannot allocate mouse pointer");
 	}
-	SetPointer(window, empty_pointer, 1, 16, 0, 0);
+	SetPointer(window, empty_pointer, 1, AMIGA_POINTER_WIDTH, 0, 0);
 	/* First measure the real screen and Intuition allocation cost. Closing a
 	 * boot CLI changes that cost, so a fixed reserve can exhaust Chip RAM. */
 	buffer_count = 1;
 	/* AROS caches a separate chipset bitmap inside its display driver.
 	 * ScrollVPort does not reread public plane pointers there. Use its actual
 	 * visible bitmap; V37 AmigaOS retains the direct Copper flip path below. */
-	aros_library = OpenLibrary("aros.library", 0);
-	can_flip = aros_library == NULL;
+	struct Library *aros_library = OpenLibrary("aros.library", 0);
+	legacy_u8 can_flip = aros_library == NULL;
 	if (aros_library != NULL) {
 		CloseLibrary(aros_library);
 	}
 	if (can_flip &&
-		AvailMem(MEMF_PUBLIC) >=
-			minimum_arena + AMIGA_SYSTEM_HEADROOM + (legacy_u32)AMIGA_PLANE_BYTES * AMIGA_DEPTH &&
-		AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= minimum_arena) {
+		AvailMem(MEMF_PUBLIC) >= AMIGA_MINIMUM_ARENA_BYTES + AMIGA_SYSTEM_HEADROOM +
+									 (legacy_u32)AMIGA_PLANE_BYTES * AMIGA_DEPTH &&
+		AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= AMIGA_MINIMUM_ARENA_BYTES) {
 		InitBitMap(&second_bitmap, AMIGA_DEPTH, AMIGA_WIDTH, AMIGA_HEIGHT);
-		for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		legacy_u16 plane = 0;
+		for (; plane < AMIGA_DEPTH; ++plane) {
 			second_bitmap.Planes[plane] = AllocRaster(AMIGA_WIDTH, AMIGA_HEIGHT);
 			if (second_bitmap.Planes[plane] == NULL) {
 				break;
 			}
 			memset(second_bitmap.Planes[plane], 0, AMIGA_PLANE_BYTES);
 		}
-		if (plane == AMIGA_DEPTH && AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= minimum_arena) {
+		if (plane == AMIGA_DEPTH &&
+			AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= AMIGA_MINIMUM_ARENA_BYTES) {
 			buffer_count = 2;
 		} else {
 			while (plane != 0) {
@@ -330,7 +345,6 @@ void dos_video_set_mode_13h(void)
 
 void amiga_video_present(void)
 {
-	struct BitMap *target;
 	drawing_frame = 0;
 	if (screen == NULL || presenting) {
 		return;
@@ -347,7 +361,7 @@ void amiga_video_present(void)
 		presenting = 0;
 		return;
 	}
-	target = visible_bitmap == &original_bitmap ? &second_bitmap : &original_bitmap;
+	struct BitMap *target = visible_bitmap == &original_bitmap ? &second_bitmap : &original_bitmap;
 	WaitBlit();
 	palette_convert(target);
 	WaitTOF();
@@ -442,14 +456,13 @@ void dos_video_set_mode7(void)
 
 void amiga_video_shutdown(void)
 {
-	legacy_u16 plane;
 	if (window != NULL) {
 		ClearPointer(window);
 		CloseWindow(window);
 		window = NULL;
 	}
 	if (empty_pointer != NULL) {
-		FreeMem(empty_pointer, 16);
+		FreeMem(empty_pointer, AMIGA_EMPTY_POINTER_BYTES);
 		empty_pointer = NULL;
 	}
 	if (screen != NULL) {
@@ -462,7 +475,7 @@ void amiga_video_shutdown(void)
 		screen = NULL;
 		display_bitmap = NULL;
 	}
-	for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+	for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
 		if (second_bitmap.Planes[plane] != NULL) {
 			FreeRaster(second_bitmap.Planes[plane], AMIGA_WIDTH, AMIGA_HEIGHT);
 			second_bitmap.Planes[plane] = NULL;

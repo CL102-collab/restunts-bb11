@@ -100,7 +100,7 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		(const legacy_s8 *)(asset_directory != NULL ? asset_directory : SDL_GetBasePath()));
 #endif
 	/* Accept a resource directory without changing the historical game and
- * dump argument syntax. By default resources are read from the current dir. */
+	 * dump argument syntax. By default resources are read from the current dir. */
 	legacy_int argument_offset = 0;
 	if (argc > SDL3_FIRST_OPTION_INDEX &&
 		strcmp(argv[SDL3_FIRST_OPTION_INDEX], "--data-dir") == 0) {

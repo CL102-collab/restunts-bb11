@@ -11,6 +11,7 @@
 #define FILE_HANDLE_COUNT 20U
 #define FILE_PATH_BYTES 256U
 #define FILE_NAME_BYTES 13U
+#define FILE_FIRST_HANDLE 5U
 static BPTR handles[FILE_HANDLE_COUNT];
 static legacy_s16 last_error;
 static BPTR directory_lock;
@@ -22,8 +23,7 @@ static legacy_char found_name[FILE_NAME_BYTES];
 
 static legacy_u8 convert_path(const legacy_s8 *source, legacy_char *destination)
 {
-	legacy_u16 i;
-	for (i = 0; i < FILE_PATH_BYTES; ++i) {
+	for (legacy_u16 i = 0; i < FILE_PATH_BYTES; ++i) {
 		legacy_char value = (legacy_char)source[i];
 		destination[i] = value == '\\' ? '/' : value;
 		if (value == 0) {
@@ -36,7 +36,7 @@ static legacy_u8 convert_path(const legacy_s8 *source, legacy_char *destination)
 
 static BPTR file_handle(legacy_u16 handle)
 {
-	if (handle < 5U || handle >= FILE_HANDLE_COUNT || handles[handle] == 0) {
+	if (handle < FILE_FIRST_HANDLE || handle >= FILE_HANDLE_COUNT || handles[handle] == 0) {
 		last_error = 1;
 		return 0;
 	}
@@ -46,12 +46,11 @@ static BPTR file_handle(legacy_u16 handle)
 legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 {
 	legacy_char name[FILE_PATH_BYTES];
-	legacy_u16 i;
 	last_error = 0;
 	if (!convert_path(path, name)) {
 		return 0;
 	}
-	for (i = 5; i < FILE_HANDLE_COUNT; ++i) {
+	for (legacy_u16 i = FILE_FIRST_HANDLE; i < FILE_HANDLE_COUNT; ++i) {
 		if (handles[i] == 0) {
 			handles[i] = Open(name, create == DOS_FILE_OPEN_EXISTING ? MODE_OLDFILE : MODE_NEWFILE);
 			if (handles[i] != 0) {
@@ -61,7 +60,8 @@ legacy_u16 dos_file_open(const legacy_s8 *path, legacy_s16 create)
 		}
 	}
 #ifdef RESTUNTS_AMIGA_TRACE
-	printf("Amiga file: cannot open %s (DOS error %ld)\n", name, (long)IoErr());
+	printf("Amiga file: cannot open %s (DOS error %" LEGACY_PRId32 ")\n", name,
+		   (legacy_s32)IoErr());
 	fflush(stdout);
 #endif
 	last_error = 1;
@@ -83,11 +83,10 @@ legacy_s16 dos_file_close(legacy_u16 handle)
 legacy_u16 dos_file_read(legacy_u16 handle, void *destination, legacy_u16 length)
 {
 	BPTR file = file_handle(handle);
-	LONG count;
 	if (file == 0) {
 		return 0;
 	}
-	count = Read(file, destination, length);
+	LONG count = Read(file, destination, length);
 	if (count < 0) {
 		last_error = 1;
 		return 0;
@@ -97,11 +96,10 @@ legacy_u16 dos_file_read(legacy_u16 handle, void *destination, legacy_u16 length
 legacy_u16 dos_file_write(legacy_u16 handle, const void *source, legacy_u16 length)
 {
 	BPTR file = file_handle(handle);
-	LONG count;
 	if (file == 0) {
 		return 0;
 	}
-	count = Write(file, (APTR)source, length);
+	LONG count = Write(file, (APTR)source, length);
 	if (count != length) {
 		last_error = 1;
 	}
@@ -120,11 +118,10 @@ legacy_s16 dos_file_seek(legacy_u16 handle, legacy_s32 offset, legacy_s16 origin
 legacy_s32 dos_file_tell(legacy_u16 handle)
 {
 	BPTR file = file_handle(handle);
-	LONG offset;
 	if (file == 0) {
 		return -1;
 	}
-	offset = Seek(file, 0, OFFSET_CURRENT);
+	LONG offset = Seek(file, 0, OFFSET_CURRENT);
 	if (offset < 0) {
 		last_error = 1;
 	}
@@ -224,7 +221,8 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 	directory_lock = Lock(path, ACCESS_READ);
 	if (directory_lock == 0 || !Examine(directory_lock, &file_info)) {
 #ifdef RESTUNTS_AMIGA_TRACE
-		printf("Amiga file: cannot search %s (DOS error %ld)\n", path, (long)IoErr());
+		printf("Amiga file: cannot search %s (DOS error %" LEGACY_PRId32 ")\n", path,
+			   (legacy_s32)IoErr());
 		fflush(stdout);
 #endif
 		if (directory_lock != 0) {
@@ -235,8 +233,8 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 	}
 	result = dos_file_find_next();
 #ifdef RESTUNTS_AMIGA_TRACE
-	printf("Amiga file: find %s => %s\n", (const char *)query,
-		   result != NULL ? (const char *)result : "no match");
+	printf("Amiga file: find %s => %s\n", (const legacy_char *)query,
+		   result != NULL ? (const legacy_char *)result : "no match");
 	fflush(stdout);
 #endif
 	return result;
@@ -244,8 +242,7 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 
 void amiga_file_shutdown(void)
 {
-	legacy_u16 i;
-	for (i = 5; i < FILE_HANDLE_COUNT; ++i) {
+	for (legacy_u16 i = FILE_FIRST_HANDLE; i < FILE_HANDLE_COUNT; ++i) {
 		if (handles[i] != 0) {
 			Close(handles[i]);
 			handles[i] = 0;

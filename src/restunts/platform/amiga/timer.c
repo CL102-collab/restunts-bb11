@@ -52,17 +52,18 @@ legacy_u32 amiga_clock_ticks(void)
 	}
 	GetSysTime(&now);
 	SubTime(&now, &origin);
-	return (legacy_u32)now.tv_secs * 100UL + now.tv_micro / 10000UL;
+	return (legacy_u32)now.tv_secs * DOS_TIMER_REALTIME_TICKS_PER_SECOND +
+		   now.tv_micro / (1000000UL / DOS_TIMER_REALTIME_TICKS_PER_SECOND);
 }
 
 legacy_u64 presentation_now(void)
 {
-	return (legacy_u64)amiga_clock_ticks() * 10000000ULL;
+	return (legacy_u64)amiga_clock_ticks() *
+		   (PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND);
 }
 
 void amiga_timer_pump(void)
 {
-	legacy_u32 now;
 #ifdef RESTUNTS_AMIGA_TRACE
 	static legacy_u8 reported_slow_batches;
 	legacy_u32 first_tick, callbacks_finished, batch_finished;
@@ -72,7 +73,7 @@ void amiga_timer_pump(void)
 	}
 	dispatching = 1;
 	amiga_audio_begin_update();
-	now = amiga_clock_ticks();
+	legacy_u32 now = amiga_clock_ticks();
 	/* A user-adjusted system clock must not create billions of callbacks. */
 	if (now < last_tick) {
 		last_tick = now;
@@ -81,7 +82,6 @@ void amiga_timer_pump(void)
 	first_tick = last_tick;
 #endif
 	while (now - last_tick >= 1U) {
-		legacy_u16 i;
 		void (*pending[DOS_TIMER_USABLE_CALLBACK_COUNT])(void);
 		++last_tick;
 		++realtime_counter;
@@ -92,7 +92,7 @@ void amiga_timer_pump(void)
 		if (!suspended) {
 			++game_counter;
 			memcpy(pending, callbacks, sizeof(pending));
-			for (i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
+			for (legacy_u16 i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
 				if (pending[i]) {
 					pending[i]();
 				}
@@ -107,10 +107,11 @@ void amiga_timer_pump(void)
 	batch_finished = amiga_clock_ticks();
 	if (reported_slow_batches < 8U && batch_finished - now > 10U) {
 		++reported_slow_batches;
-		printf("Amiga timer: ticks=%lu callbacks_ms=%lu audio_commit_ms=%lu\n",
-			   (unsigned long)(last_tick - first_tick),
-			   (unsigned long)(callbacks_finished - now) * 10UL,
-			   (unsigned long)(batch_finished - callbacks_finished) * 10UL);
+		printf("Amiga timer: ticks=%" LEGACY_PRIu32 " callbacks_ms=%" LEGACY_PRIu32
+			   " audio_commit_ms=%" LEGACY_PRIu32 "\n",
+			   (legacy_u32)(last_tick - first_tick),
+			   (legacy_u32)((callbacks_finished - now) * AMIGA_MILLISECONDS_PER_TICK),
+			   (legacy_u32)((batch_finished - callbacks_finished) * AMIGA_MILLISECONDS_PER_TICK));
 		fflush(stdout);
 	}
 #endif
@@ -135,14 +136,13 @@ void dos_timer_setup_interrupt(void)
 }
 legacy_s16 dos_timer_register_callback(void (*callback)(void))
 {
-	legacy_u16 i;
 	if (callback == NULL) {
 		return DOS_TIMER_CALLBACK_REGISTRATION_FAILED;
 	}
 	/* A callback begins now, not at the last poll before resource loading.
 	 * Deliver the old interval using only the callbacks that existed then. */
 	amiga_timer_pump();
-	for (i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
+	for (legacy_u16 i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
 		if (callbacks[i] == NULL) {
 			callbacks[i] = callback;
 			return DOS_TIMER_CALLBACK_REGISTRATION_SUCCEEDED;
@@ -152,8 +152,7 @@ legacy_s16 dos_timer_register_callback(void (*callback)(void))
 }
 void dos_timer_unregister_callback(void (*callback)(void))
 {
-	legacy_u16 i;
-	for (i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
+	for (legacy_u16 i = 0; i < DOS_TIMER_USABLE_CALLBACK_COUNT; ++i) {
 		if (callbacks[i] == callback) {
 			memmove(callbacks + i, callbacks + i + 1,
 					(DOS_TIMER_USABLE_CALLBACK_COUNT - i - 1U) * sizeof(callbacks[0]));

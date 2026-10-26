@@ -8,11 +8,14 @@
 #include <string.h>
 
 #define KEY_BUFFER_CAPACITY 64U
-static legacy_u8 keys[128];
+#define KEY_RAW_CODE_COUNT 128U
+#define KEY_RELEASE_FLAG LEGACY_U8_SIGN_BIT
+static legacy_u8 keys[KEY_RAW_CODE_COUNT];
 static legacy_u16 key_buffer[KEY_BUFFER_CAPACITY];
 static legacy_u16 key_read, key_count;
-static legacy_s16 mouse_x = 160, mouse_y = 100, mouse_buttons;
-static legacy_s16 mouse_min_x, mouse_min_y, mouse_max_x = 319, mouse_max_y = 199;
+static legacy_s16 mouse_x = AMIGA_WIDTH / 2U, mouse_y = AMIGA_HEIGHT / 2U, mouse_buttons;
+static legacy_s16 mouse_min_x, mouse_min_y, mouse_max_x = AMIGA_WIDTH - 1U,
+											mouse_max_y = AMIGA_HEIGHT - 1U;
 static legacy_u8 joystick_enabled;
 struct MOUSE_TRANSITION {
 	legacy_s16 buttons, x, y;
@@ -56,7 +59,7 @@ static const legacy_u8 dos_kb_keymap5[DOS_KB_ALT_KEYMAP_SIZE] = {
 	204, 205, 43,  207, 208, 209, 210, 211, 0,	 0,	  0,   0,	0,	 0,	  0,   0};
 
 /* Amiga raw keycodes -> IBM XT scan codes used by the shared game. */
-static const legacy_u8 scan_codes[128] = {
+static const legacy_u8 scan_codes[KEY_RAW_CODE_COUNT] = {
 	[0x00] = 41, [0x01] = 2,  [0x02] = 3,  [0x03] = 4,	[0x04] = 5,	 [0x05] = 6,  [0x06] = 7,
 	[0x07] = 8,	 [0x08] = 9,  [0x09] = 10, [0x0a] = 11, [0x0b] = 12, [0x0c] = 13, [0x0d] = 43,
 	[0x0f] = 82, [0x10] = 16, [0x11] = 17, [0x12] = 18, [0x13] = 19, [0x14] = 20, [0x15] = 21,
@@ -81,13 +84,13 @@ static void queue_key(legacy_u16 value)
 
 static void raw_key(legacy_u16 raw, legacy_u16 qualifier)
 {
-	legacy_u8 code = raw & 127U;
+	legacy_u8 code = raw & (KEY_RELEASE_FLAG - 1U);
 	legacy_u8 scan = scan_codes[code];
-	legacy_u16 value;
-	keys[code] = (raw & 128U) == 0;
-	if ((raw & 128U) || scan == 0 || scan >= DOS_KB_PRIMARY_KEYMAP_SIZE) {
+	keys[code] = (raw & KEY_RELEASE_FLAG) == 0;
+	if ((raw & KEY_RELEASE_FLAG) || scan == 0 || scan >= DOS_KB_PRIMARY_KEYMAP_SIZE) {
 		return;
 	}
+	legacy_u16 value;
 	if (qualifier & (IEQUALIFIER_LALT | IEQUALIFIER_RALT)) {
 		value = dos_kb_keymap5[scan];
 	} else if (qualifier & IEQUALIFIER_CONTROL) {
@@ -175,12 +178,11 @@ void kb_exit_handler(void)
 }
 legacy_s16 kb_get_key_state(legacy_s16 key)
 {
-	legacy_u16 i;
 	amiga_platform_poll();
 	if (key <= 0) {
 		return 0;
 	}
-	for (i = 0; i < 128U; ++i) {
+	for (legacy_u16 i = 0; i < KEY_RAW_CODE_COUNT; ++i) {
 		if (scan_codes[i] == key && keys[i]) {
 			return 1;
 		}
@@ -189,12 +191,11 @@ legacy_s16 kb_get_key_state(legacy_s16 key)
 }
 legacy_s16 kb_read_char(void)
 {
-	legacy_u16 value;
 	amiga_platform_pump();
 	if (!key_count) {
 		return 0;
 	}
-	value = key_buffer[key_read];
+	legacy_u16 value = key_buffer[key_read];
 	key_read = (key_read + 1U) % KEY_BUFFER_CAPACITY;
 	--key_count;
 	return LEGACY_S16_FROM_BITS(value);
@@ -237,10 +238,10 @@ legacy_s16 dos_mouse_init(legacy_s16 width, legacy_s16 height)
 }
 void dos_mouse_set_minmax(legacy_s16 min_x, legacy_s16 min_y, legacy_s16 max_x, legacy_s16 max_y)
 {
-	mouse_min_x = clamp(min_x, 0, 319);
-	mouse_min_y = clamp(min_y, 0, 199);
-	mouse_max_x = clamp(max_x, mouse_min_x, 319);
-	mouse_max_y = clamp(max_y, mouse_min_y, 199);
+	mouse_min_x = clamp(min_x, 0, AMIGA_WIDTH - 1U);
+	mouse_min_y = clamp(min_y, 0, AMIGA_HEIGHT - 1U);
+	mouse_max_x = clamp(max_x, mouse_min_x, AMIGA_WIDTH - 1U);
+	mouse_max_y = clamp(max_y, mouse_min_y, AMIGA_HEIGHT - 1U);
 	mouse_x = clamp(mouse_x, mouse_min_x, mouse_max_x);
 	mouse_y = clamp(mouse_y, mouse_min_y, mouse_max_y);
 }

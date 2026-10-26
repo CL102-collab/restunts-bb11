@@ -11,8 +11,8 @@
  * and SDGAME !pal for replay controls; each racing band uses its first 16. */
 
 struct AMIGA_ORIGINAL_PALETTE {
-	const char *resource;
-	const char *chunk;
+	const legacy_char *resource;
+	const legacy_char *chunk;
 	legacy_u16 colors[32];
 };
 
@@ -322,7 +322,7 @@ static const legacy_u8 amiga_dos_reference_palette[256][3] = {
  * choose the lowest index. Different original artwork cannot be reproduced
  * exactly by a single index map; see confidence/pair counts in the fixture. */
 struct AMIGA_ORIGINAL_COLOR_MAP {
-	const char *resource;
+	const legacy_char *resource;
 	legacy_u8 indexes[256];
 };
 
