@@ -94,14 +94,18 @@ The rear fascia has painted shoulders that roll down from the complete
 rear roof cross-section, and a painted lower bumper around a compact
 dark-grey inset. Its lower edge sits one game unit inward, giving the
 inset a shallow recess. It uses the same grey material 19 as the front
-instead of a broad black panel. Four small round red brake lamps form an
-upper and lower pair at each rear corner, placed from the three rear
-photographs supplied by the user. The upper lenses are approximately
-89–98 mm across after native quantization; the lower lenses are about 88 mm.
-Native round primitives simplify them to solid red circles, with brake
-material 45 preserving their brighter appearance under braking. Their
-upper diameter controls reuse existing fender-crown vertices to fit the
-native vertex limit. The canopy rear cap and main wing retain their geometry.
+instead of a broad black panel. Four small circular red rings form an
+upper and lower pair at each rear corner. Their nominal diameter is 10%
+smaller, with dark concentric centres following the user-supplied
+`mcmurtry-speirling-rear-view-900373069.jpg`. The dark inner diameter is
+about 60% of the outer diameter. Nested native round primitives retain
+brake material 45 on the rims, so they brighten while the centres stay
+dark. Whole-unit racing coordinates can round the outer diameters back
+to their previous size; the dark centres still reduce the filled red area.
+Upper controls reuse existing fender-crown vertices. Merged coplanar sill
+triangles and a hidden floor tapered to the existing diffuser entry free
+the four extra controls needed for dark centres within the native vertex
+limit. The canopy rear cap and main wing retain their geometry.
 The rear undertray rises into the lower fascia,
 with shared seams joining its centre ramp and side panels to the body. It
 ends flush with the rear body instead of extending downward beneath the wing.
@@ -117,8 +121,8 @@ cross-sections, wheel centres and part bounds in
 [`mcmurtry_source_profile.json`](../tools/scripts/mcmurtry_source_profile.json).
 The reference GLB is not required for deterministic regeneration.
 `MCMU.obj` and `MCMU.mtl`
-export the adapted low-polygon geometry, with 16-sided discs for the rear
-lamp lenses. See
+export the adapted low-polygon geometry, with 16-segment annular rear
+lenses and dark centres, avoiding overlapping faces. See
 [`THIRD-PARTY-NOTICES.txt`](../THIRD-PARTY-NOTICES.txt) for its attribution
 and modification notice.
 
@@ -313,8 +317,9 @@ shows the earlier plain side panels and the original forward-facing upright
 gills from matching side and front-quarter cameras for the showroom and
 racing models. The current exterior and paint previews include the revised
 ends and rear-facing side gills, with the lower rear matching the darker grey
-underbody, the white front lamp markers removed and four round rear brake
-lamps in vertical pairs. The other comparison sheets retain their earlier
+underbody, the white front lamp markers removed and the earlier solid round
+rear lamps in vertical pairs. The current model uses smaller red rings with
+dark centres. The other comparison sheets retain their earlier
 stages, including any front markers or the earlier two rear point markers.
 These deterministic captures make the visible tyre gap, source-shaped
 silhouette, painted nose and rear curvature, upright side gills, clean canopy,

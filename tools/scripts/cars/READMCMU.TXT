@@ -83,11 +83,13 @@ The minimum side and upper-cover gap is 1 game unit
 The rear has painted rolled shoulders and a lower bumper around a compact
 dark-grey inset, replacing the broad black equipment-bay cap. Its lower
 corners are recessed 1 game unit, giving the painted bands real depth.
-Four small round brake lamps form an upper and lower pair at each rear corner.
-They follow the supplied rear photographs; native round primitives replace
-the old two point markers and retain the game brake-light material.
-The upper lenses are about 89-98 mm across and the lower lenses are 88 mm.
-The editable OBJ represents the lamps as circular lens discs.
+Four small circular red rings form an upper and lower pair at each rear corner.
+Their nominal outer diameter is reduced by 10%, with dark concentric centres
+following mcmurtry-speirling-rear-view-900373069.jpg. Red rims brighten under
+braking while the centres stay dark. Whole-unit racing coordinates can round
+outer diameters back to their previous size. Shared crown controls, merged
+coplanar sill triangles and a tapered hidden floor retain the vertex budget.
+The editable OBJ represents the lamps as annular lenses with dark centres.
 The rear undertray rises into the body fascia with shared floor and tail
 seams, replacing the projecting low flap and central strake. Its exposed
 ramp and corner returns use the same darker grey as the underbody. The main floor

@@ -54,7 +54,6 @@ ARCH_ANGLE_STEP = math.pi / 6
 SIDE_BULGE_Y = 4.0
 SIDE_BULGE_WIDTH = .25
 SIDE_SILL_INSET = 1.0
-FLOOR_INNER_WHEEL_GAP = 1.0
 FRONT_WHEEL_COUNT = 2
 EXTRA_OUTER_STATIONS = (32, 22, -19, -29)
 BODY_SILL_Y = -4.8
@@ -218,6 +217,8 @@ REAR_LAMP_UPPER_Y = 8.33
 REAR_LAMP_LOWER_Y = -1.5
 REAR_LAMP_FACE_OFFSET = .05
 REAR_LAMP_DIAMETER = 2.0
+REAR_LAMP_SIZE_SCALE = .9
+REAR_LAMP_INNER_RATIO = .6
 LAMP_EXPORT_SEGMENTS = 16
 SIDE_DUCT_REAR_Z = 12.0
 SIDE_DUCT_CENTER_Z = 14.0
@@ -408,11 +409,11 @@ def _duct_side(shape, side, outline, front_wheel):
     # The rear skin ends at the recessed centre; the front skin ends at
     # the outer lip. This gives the grey wall a rearward-facing normal,
     # with no old side panel left across the opening.
-    rear_panel = outline[outline.index(front):outline.index(lower) + 1] + [center]
+    # Merge the coplanar sill subdivision to reserve vertices for lamp rings.
+    rear_panel = outline[outline.index(front):outline.index(lower)] + [lip_bottom, center]
     front_panel = outline[outline.index(lip_bottom):] + outline[:outline.index(front) + 1]
     _triangulate_side(shape, side, rear_panel)
     _triangulate_side(shape, side, front_panel)
-    shape.polygon((lower, lip_bottom, center), PAINT_SIDE, facing=(side, 0, 0))
     shape.polygon((lip_bottom, front, center), GREY, facing=(side, 0, 0))
 
 
@@ -450,16 +451,10 @@ def _undertray(shape):
     def mirror(point):
         return -point[0], point[1], point[2]
 
-    # Keep the main floor inside the tyre paths; widen only behind the
-    # rear wheel openings, where it joins the diffuser's outer corners.
-    half_width = (min(abs(x) - WHEEL_HALF_WIDTH for x, _, _ in WHEEL_CENTERS)
-                  - FLOOR_INNER_WHEEL_GAP)
-    flare_z = min(z for _, _, z in WHEEL_CENTERS) - ARCH_RADIUS
-    flare = (half_width, BODY_SILL_Y, flare_z)
-    shape.polygon((mirror(front), mirror(flare), flare, front,
+    # Taper the hidden floor directly to the existing diffuser entry. This
+    # stays inside the tyre paths and saves two controls for hollow lamps.
+    shape.polygon((mirror(front), mirror(entry), entry, front,
                    (0, BODY_SILL_Y, front[2])),
-                  CARBON, facing=(0, -1, 0))
-    shape.polygon((mirror(flare), mirror(shoulder), mirror(entry), entry, shoulder, flare),
                   CARBON, facing=(0, -1, 0))
     # The exposed rear ramp and corner returns match the darker underbody.
     shape.polygon((mirror(entry), entry, exit, mirror(exit)),
@@ -558,6 +553,26 @@ def _nose(shape):
                    end, (-end[0], end[1], end[2])), CARBON, facing=(0, -1, 0))
 
 
+def rear_lamp_centres(side):
+    """Slightly shrink the upper lens around its existing diameter control."""
+    lamp_z = REAR_BODY_Z - REAR_LAMP_FACE_OFFSET
+    crown = _roof_rings(side)[-1][2]
+    upper = tuple(crown[axis] + (value - crown[axis]) * REAR_LAMP_SIZE_SCALE
+                  for axis, value in enumerate(
+                      (side * REAR_LAMP_X, REAR_LAMP_UPPER_Y, lamp_z)))
+    return upper, (side * REAR_LAMP_X, REAR_LAMP_LOWER_Y, lamp_z)
+
+
+def _lamp_ring(shape, center, diameter_point):
+    """Keep native circular lenses with a smaller dark concentric centre."""
+    first, last = shape.point(center), shape.point(diameter_point)
+    inner_diameter = round(math.dist(first, last) * REAR_LAMP_INNER_RATIO)
+    inner_point = tuple(value / shape.scale for value in
+                        (first[0] + inner_diameter, first[1], first[2]))
+    shape.sphere(center, diameter_point, BRAKE_LIGHT)
+    shape.sphere(center, inner_point, BLACK)
+
+
 def _tail(shape):
     # Painted rolled shoulders and a lower bumper frame a small grey inset.
     # The roof and undertray supply the shared outer seams; only the lower
@@ -583,17 +598,17 @@ def _tail(shape):
         a, b, c, d = top[0], top[1], bottom[1], bottom[0]
         shape.polygon((a, b, c), material, facing=(0, 0, -1))
         shape.polygon((a, c, d), material, facing=(0, 0, -1))
-    # Two round lamps per corner follow the supplied rear photographs.
-    # Reusing a crown vertex as the upper diameter control keeps the
-    # detailed cars within their native vertex budget.
+    # Smaller red rings with dark centres follow the rear reference. Reuse
+    # the crown as the upper diameter control to retain the native budget.
     for side in (-1, 1):
-        lamp_z = z - REAR_LAMP_FACE_OFFSET
-        upper = (side * REAR_LAMP_X, REAR_LAMP_UPPER_Y, lamp_z)
-        lower = (side * REAR_LAMP_X, REAR_LAMP_LOWER_Y, lamp_z)
-        diameter_point = (side * (REAR_LAMP_X + REAR_LAMP_DIAMETER),
-                          REAR_LAMP_LOWER_Y, lamp_z)
-        shape.sphere(upper, _roof_rings(side)[-1][2], BRAKE_LIGHT)
-        shape.sphere(lower, diameter_point, BRAKE_LIGHT)
+        crown = _roof_rings(side)[-1][2]
+        upper, lower = rear_lamp_centres(side)
+        diameter = round(REAR_LAMP_DIAMETER * REAR_LAMP_SIZE_SCALE * shape.scale)
+        center = shape.point(lower)
+        diameter_point = tuple(value / shape.scale for value in
+                               (center[0] + side * diameter, center[1], center[2]))
+        _lamp_ring(shape, upper, crown)
+        _lamp_ring(shape, lower, diameter_point)
     # Two measured aerofoil elements and swept endplates. Source mounts
     # sit near the outer shoulders rather than on central swan-neck struts.
     for side in (-1, 1):
@@ -687,6 +702,9 @@ def export_obj(paint=0):
     lines = []
     dots = []
     lookup = {}
+    lamp_inners = {indices[0]: indices[1]
+                   for kind, _, materials, indices in shape.primitives
+                   if kind == SPHERE_PRIMITIVE and materials[paint] == BLACK}
 
     def vertex(point):
         point = tuple(point)
@@ -700,15 +718,31 @@ def export_obj(paint=0):
             continue
         points = [tuple(c * factor for c in shape.vertices[index]) for index in indices]
         if kind == SPHERE_PRIMITIVE:
+            if materials[paint] == BLACK and indices[0] in lamp_inners:
+                continue
             # Native spheres are round screen-facing lenses. Export their
-            # visible rear lens as a disc rather than the diameter control.
+            # visible rear lens, including a true annulus around dark centres.
             center, diameter_point = points
             radius = math.dist(center, diameter_point) / 2
             ring = [vertex((center[0] + radius * math.cos(angle),
                             center[1] + radius * math.sin(angle), center[2]))
                     for angle in (step * math.tau / LAMP_EXPORT_SEGMENTS
                                   for step in range(LAMP_EXPORT_SEGMENTS))]
-            faces.append((materials[paint], list(reversed(ring))))
+            if materials[paint] == BRAKE_LIGHT and indices[0] in lamp_inners:
+                inner_point = tuple(c * factor for c in
+                                    shape.vertices[lamp_inners[indices[0]]])
+                inner_radius = math.dist(center, inner_point) / 2
+                inner = [vertex((center[0] + inner_radius * math.cos(angle),
+                                 center[1] + inner_radius * math.sin(angle), center[2]))
+                         for angle in (step * math.tau / LAMP_EXPORT_SEGMENTS
+                                       for step in range(LAMP_EXPORT_SEGMENTS))]
+                for step in range(LAMP_EXPORT_SEGMENTS):
+                    following = (step + 1) % LAMP_EXPORT_SEGMENTS
+                    faces.append((materials[paint],
+                                  [ring[step], inner[step], inner[following], ring[following]]))
+                faces.append((BLACK, list(reversed(inner))))
+            else:
+                faces.append((materials[paint], list(reversed(ring))))
             continue
         target = dots if kind == POINT_PRIMITIVE else lines if kind == LINE_PRIMITIVE else faces
         target.append((materials[paint], [vertex(p) for p in points]))
