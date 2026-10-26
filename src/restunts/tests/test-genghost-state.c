@@ -21,9 +21,9 @@
 
 /* Transform a fixture point with the native element's cardinal orientation.
  * The collision implementation performs the inverse transform on queries. */
-static struct VECTOR world_point(int rotation, int x, int y, int z)
+static struct VECTOR world_point(legacy_int rotation, legacy_int x, legacy_int y, legacy_int z)
 {
-	int old_x = x;
+	legacy_int old_x = x;
 	switch (rotation & 1023) {
 		case 256:
 			x = z;
@@ -41,11 +41,11 @@ static struct VECTOR world_point(int rotation, int x, int y, int z)
 	return (struct VECTOR){(legacy_s16)(11 * 1024 + x), (legacy_s16)y, (legacy_s16)(10 * 1024 + z)};
 }
 
-static int wheel_on_road(int rotation, int x, int z)
+static legacy_int wheel_on_road(legacy_int rotation, legacy_int x, legacy_int z)
 {
 	struct VECTOR vertices[8];
-	for (unsigned int rim = 0; rim < 2U; ++rim) {
-		for (unsigned int i = 0; i < 4U; ++i) {
+	for (legacy_uint rim = 0; rim < 2U; ++rim) {
+		for (legacy_uint i = 0; i < 4U; ++i) {
 			vertices[rim * 4U + i] = world_point(
 				rotation, x + (rim ? 5 : -5), i == 0U || i == 3U ? 0 : 20, z + (i < 2U ? -5 : 5));
 		}
@@ -58,25 +58,25 @@ static int wheel_on_road(int rotation, int x, int z)
  * stays independent of the surface material assigned to the green interior. */
 static void test_fast_grass(legacy_s16 expected_fast_grass)
 {
-	unsigned char original[REPLAY_TRACK_SIZE];
+	legacy_u8 original[REPLAY_TRACK_SIZE];
 	memcpy(original, track_element_map, sizeof(original));
 	struct GENGHOST_SNAPSHOT before;
 	genghost_sim_capture(&before);
-	unsigned int checked = 0U, models = 0U;
-	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+	legacy_uint checked = 0U, models = 0U;
+	for (legacy_uint tile = 1U; tile < 215U; ++tile) {
 		const struct TRACKOBJECT *object = &trkObjectList[tile];
-		int model = object->ss_physicalModel;
+		legacy_int model = object->ss_physicalModel;
 		if ((model != PHYSICAL_MODEL_CHICANE_RIGHT_LEFT &&
 			 model != PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) ||
 			object->ss_surfaceType != 0 || object->ss_multiTileFlag != 3) {
 			continue;
 		}
 		memset(track_element_map, 0, sizeof(original));
-		track_element_map[terrainrows[10] + 10] = (unsigned char)tile;
+		track_element_map[terrainrows[10] + 10] = (legacy_u8)tile;
 		track_element_map[terrainrows[9] + 10] = TRACK_TILE_CONTINUATION_SOUTH;
 		track_element_map[terrainrows[10] + 11] = TRACK_TILE_CONTINUATION_EAST;
 		track_element_map[terrainrows[9] + 11] = TRACK_TILE_CONTINUATION_SOUTHEAST;
-		int rotation = object->ss_rotY;
+		legacy_int rotation = object->ss_rotY;
 		struct VECTOR grass = world_point(rotation, 0, 0, 500);
 		struct VECTOR road =
 			world_point(rotation, model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT ? -350 : 350, 0, 500);
@@ -103,7 +103,7 @@ static void test_fast_grass(legacy_s16 expected_fast_grass)
 		build_track_object(&ordinary_grass, &ordinary_grass);
 		assert(current_surf_type == CAR_SURFACE_GRASS);
 		++checked;
-		models |= 1U << (unsigned int)(model - PHYSICAL_MODEL_CHICANE_RIGHT_LEFT);
+		models |= 1U << (legacy_uint)(model - PHYSICAL_MODEL_CHICANE_RIGHT_LEFT);
 	}
 	memcpy(track_element_map, original, sizeof(original));
 	genghost_sim_restore(&before);
@@ -113,26 +113,26 @@ static void test_fast_grass(legacy_s16 expected_fast_grass)
 		checked);
 }
 
-static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned int prefix)
+static legacy_uint test_maneuver_rules(const legacy_u8 *inputs, legacy_uint prefix)
 {
 	genghost_sim_reset();
 	struct GENGHOST_ROUTES routes;
-	char error[256];
+	legacy_char error[256];
 	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
 	struct GENGHOST_POLICY policy;
 	genghost_policy_default(&policy);
-	unsigned int proposals = 0U, chicane = 0U;
+	legacy_uint proposals = 0U, chicane = 0U;
 	for (size_t r = 0; r < routes.count; ++r) {
 		struct GENGHOST_DRIVER driver;
 		genghost_sim_reset();
 		genghost_driver_reset(&driver);
-		for (unsigned int i = 0; i < prefix; ++i) {
+		for (legacy_uint i = 0; i < prefix; ++i) {
 			assert(genghost_sim_step(inputs[i]) == 0);
 			genghost_driver_observe(&routes.routes[r], &driver);
 		}
-		for (unsigned int flags = 0; flags < 8U; ++flags) {
-			int pg = (flags & 1U) != 0U, lc = (flags & 2U) != 0U;
-			int owoot = (flags & 4U) != 0U;
+		for (legacy_uint flags = 0; flags < 8U; ++flags) {
+			legacy_int pg = (flags & 1U) != 0U, lc = (flags & 2U) != 0U;
+			legacy_int owoot = (flags & 4U) != 0U;
 			struct GENGHOST_SNAPSHOT before, after;
 			genghost_sim_capture(&before);
 			struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
@@ -140,7 +140,7 @@ static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned in
 											  actions, GENGHOST_MANEUVER_CAPACITY);
 			assert(count > 0U && count <= GENGHOST_MANEUVER_CAPACITY);
 			assert(actions[0].kind == GENGHOST_MANEUVER_FOLLOW);
-			unsigned int landings = 0U;
+			legacy_uint landings = 0U;
 			for (size_t i = 0; i < count; ++i) {
 				const struct GENGHOST_MANEUVER *action = &actions[i];
 				assert(action->horizon_frames > 0U &&
@@ -161,8 +161,8 @@ static unsigned int test_maneuver_rules(const unsigned char *inputs, unsigned in
 					}
 				}
 				struct GENGHOST_DRIVER child = driver;
-				unsigned char input = genghost_maneuver_step(&routes.routes[r], &policy, &child,
-															 action, 0U, pg, lc, owoot);
+				legacy_u8 input = genghost_maneuver_step(&routes.routes[r], &policy, &child, action,
+														 0U, pg, lc, owoot);
 				assert(!(input & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
 				++proposals;
 				chicane += action->kind == GENGHOST_MANEUVER_CHICANE_GRASS;
@@ -193,20 +193,20 @@ static void test_slalom_proposal_geometry(void)
 	legacy_s8 saved_ids[2] = {track_route_element_ids[0], track_route_element_ids[1]};
 	legacy_s8 saved_columns[2] = {track_route_columns[0], track_route_columns[1]};
 	legacy_s8 saved_rows[2] = {track_route_rows[0], track_route_rows[1]};
-	unsigned int checked = 0U, loop_tile = 0U;
-	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+	legacy_uint checked = 0U, loop_tile = 0U;
+	for (legacy_uint tile = 1U; tile < 215U; ++tile) {
 		if (trkObjectList[tile].ss_physicalModel == PHYSICAL_MODEL_LOOP) {
 			loop_tile = tile;
 			break;
 		}
 	}
 	assert(loop_tile != 0U);
-	for (unsigned int tile = 1U; tile < 215U; ++tile) {
+	for (legacy_uint tile = 1U; tile < 215U; ++tile) {
 		const struct TRACKOBJECT *object = &trkObjectList[tile];
 		if (object->ss_physicalModel != PHYSICAL_MODEL_SLALOM || object->ss_surfaceType != 0) {
 			continue;
 		}
-		for (int direction = -1; direction <= 1; direction += 2) {
+		for (legacy_int direction = -1; direction <= 1; direction += 2) {
 			struct GENGHOST_WAYPOINT points[8] = {0};
 			struct GENGHOST_ROUTE route = {0};
 			route.points = points;
@@ -216,10 +216,11 @@ static void test_slalom_proposal_geometry(void)
 			track_route_element_ids[1] = (legacy_s8)tile;
 			track_route_columns[0] = track_route_columns[1] = 10;
 			track_route_rows[0] = track_route_rows[1] = 10;
-			double ox = track_object_base_x(object, 10);
-			double oz = track_object_base_z(object, 10);
+			legacy_f64 ox = track_object_base_x(object, 10);
+			legacy_f64 oz = track_object_base_z(object, 10);
 			for (size_t point = 0; point < 8U; ++point) {
-				int z = point < 4U ? -1500 + (int)point * 300 : -512 + (int)(point - 4U) * 341;
+				legacy_int z = point < 4U ? -1500 + (legacy_int)point * 300
+										  : -512 + (legacy_int)(point - 4U) * 341;
 				struct VECTOR placed = world_point(object->ss_rotY, 0, 0, direction * z);
 				points[point].x = ox + placed.x - 11 * 1024;
 				points[point].z = oz + placed.z - 10 * 1024;
@@ -243,16 +244,16 @@ static void test_slalom_proposal_geometry(void)
 			driver.progress = 600.0;
 			struct GENGHOST_POLICY policy;
 			genghost_policy_default(&policy);
-			for (unsigned int flags = 0U; flags < 8U; ++flags) {
-				int airborne = (flags & 1U) != 0U, collision = (flags & 2U) != 0U;
-				int owoot = (flags & 4U) != 0U;
+			for (legacy_uint flags = 0U; flags < 8U; ++flags) {
+				legacy_int airborne = (flags & 1U) != 0U, collision = (flags & 2U) != 0U;
+				legacy_int owoot = (flags & 4U) != 0U;
 				state.playerstate.car_sumSurfAllWheels = airborne ? CAR_WHEEL_CONTACT_NONE : 4;
 				struct GENGHOST_SNAPSHOT before, after;
 				genghost_sim_capture(&before);
 				struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
 				size_t count = genghost_maneuvers(&route, &driver, &policy, 1, collision, owoot,
 												  actions, GENGHOST_MANEUVER_CAPACITY);
-				unsigned int centers = 0U, jumps = 0U, landings = 0U;
+				legacy_uint centers = 0U, jumps = 0U, landings = 0U;
 				for (size_t i = 0U; i < count; ++i) {
 					const struct GENGHOST_MANEUVER *action = &actions[i];
 					if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER) {
@@ -264,7 +265,7 @@ static void test_slalom_proposal_geometry(void)
 						 * A dedicated center proposal must reach the slalom
 						 * instead of selecting the generic loop/ramp bypass. */
 						struct GENGHOST_WAYPOINT target;
-						double protected_end = 0.0;
+						legacy_f64 protected_end = 0.0;
 						assert(genghost_stunt_target(&route, &driver, &action->gene, 150.0,
 													 collision, &target, &protected_end));
 						assert(target.physical_model == PHYSICAL_MODEL_SLALOM && target.piece == 1);
@@ -272,13 +273,13 @@ static void test_slalom_proposal_geometry(void)
 					}
 					if (action->kind == GENGHOST_MANEUVER_SLALOM_JUMP) {
 						++jumps;
-						double dx = state.playerstate.car_position.lx -
-									(double)state.playerstate.car_previous_position.lx;
-						double dz = state.playerstate.car_position.lz -
-									(double)state.playerstate.car_previous_position.lz;
-						double tx = action->exit.x - state.playerstate.car_position.lx / 64.0;
-						double tz = action->exit.z - state.playerstate.car_position.lz / 64.0;
-						double cross = dx * tz - dz * tx;
+						legacy_f64 dx = state.playerstate.car_position.lx -
+										(legacy_f64)state.playerstate.car_previous_position.lx;
+						legacy_f64 dz = state.playerstate.car_position.lz -
+										(legacy_f64)state.playerstate.car_previous_position.lz;
+						legacy_f64 tx = action->exit.x - state.playerstate.car_position.lx / 64.0;
+						legacy_f64 tz = action->exit.z - state.playerstate.car_position.lz / 64.0;
+						legacy_f64 cross = dx * tz - dz * tx;
 						assert(cross > -0.01 && cross < 0.01);
 						assert(dx * tx + dz * tz > 0.0);
 						assert(action->physical_model == PHYSICAL_MODEL_SLALOM);
@@ -294,7 +295,7 @@ static void test_slalom_proposal_geometry(void)
 			}
 		}
 	}
-	for (unsigned int i = 0U; i < 2U; ++i) {
+	for (legacy_uint i = 0U; i < 2U; ++i) {
 		track_route_element_ids[i] = saved_ids[i];
 		track_route_columns[i] = saved_columns[i];
 		track_route_rows[i] = saved_rows[i];
@@ -310,18 +311,18 @@ static void test_slalom_proposal_geometry(void)
  * from the actual start without editing native state. Both cars and collision
  * settings use exactly the same proposal code, with no car-name dispatch. */
 static void test_slalom_continuation(const struct GENGHOST_OPTIONS *options,
-									 const unsigned char *inputs, unsigned int prefix, int jump)
+									 const legacy_u8 *inputs, legacy_uint prefix, legacy_int jump)
 {
 	assert(!jump || !options->owoot);
 	genghost_sim_reset();
 	struct GENGHOST_ROUTES routes;
-	char error[256];
+	legacy_char error[256];
 	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
 	assert(routes.count > 0U);
 	const struct GENGHOST_ROUTE *route = &routes.routes[0];
 	struct GENGHOST_DRIVER driver;
 	genghost_driver_reset(&driver);
-	for (unsigned int frame = 0U; frame < prefix; ++frame) {
+	for (legacy_uint frame = 0U; frame < prefix; ++frame) {
 		assert(genghost_sim_step(inputs[frame]) == 0);
 		genghost_driver_observe(route, &driver);
 	}
@@ -342,30 +343,29 @@ static void test_slalom_continuation(const struct GENGHOST_OPTIONS *options,
 	}
 	assert(chosen < count);
 	const struct GENGHOST_MANEUVER *action = &actions[chosen];
-	int piece = route->points[driver.waypoint].piece;
+	legacy_int piece = route->points[driver.waypoint].piece;
 	if (action->kind == GENGHOST_MANEUVER_SLALOM_CENTER) {
 		piece = action->approach.piece;
 	} else {
 		piece = action->exit.piece;
 	}
-	const struct TRACKOBJECT *object =
-		&trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	const struct TRACKOBJECT *object = &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
 	assert(object->ss_physicalModel == PHYSICAL_MODEL_SLALOM);
-	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
-	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
+	legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
 	struct VECTOR axis = world_point(object->ss_rotY, 0, 0, 1);
-	double dx = axis.x - 11 * 1024, dz = axis.z - 10 * 1024;
+	legacy_f64 dx = axis.x - 11 * 1024, dz = axis.z - 10 * 1024;
 	if (dx * action->exit_heading_x + dz * action->exit_heading_z < 0.0) {
 		dx = -dx;
 		dz = -dz;
 	}
 	struct GENGHOST_RESULT before, after;
 	genghost_sim_result(&before);
-	unsigned int speed = state.playerstate.car_actual_speed;
-	int cleared = 0;
-	unsigned int ticks = 0U;
+	legacy_uint speed = state.playerstate.car_actual_speed;
+	legacy_int cleared = 0;
+	legacy_uint ticks = 0U;
 	for (; ticks < action->horizon_frames; ++ticks) {
-		unsigned char input =
+		legacy_u8 input =
 			genghost_maneuver_step(route, &policy, &driver, action, ticks, options->powergear,
 								   options->collision, options->owoot);
 		assert(!(input & INPUT_BRAKE_FLAG));
@@ -374,8 +374,8 @@ static void test_slalom_continuation(const struct GENGHOST_OPTIONS *options,
 		genghost_sim_result(&after);
 		assert(!after.crashed && after.penalty_frames == before.penalty_frames);
 		assert(state.playerstate.car_actual_speed + 2U * 256U >= speed);
-		double along = (state.playerstate.car_position.lx / 64.0 - ox) * dx +
-					   (state.playerstate.car_position.lz / 64.0 - oz) * dz;
+		legacy_f64 along = (state.playerstate.car_position.lx / 64.0 - ox) * dx +
+						   (state.playerstate.car_position.lz / 64.0 - oz) * dz;
 		if (along > SLALOM_POLE_FAR_Z + simd_player.collide_points[1].px + 20.0) {
 			cleared = 1;
 			break;
@@ -420,11 +420,11 @@ static void execute_and_compare(const struct GENGHOST_OPTIONS *options,
 	if (actual->transition_stop) {
 		assert(task->kind == 0U && actual->action_ticks >= 4U);
 		assert(genghost_sim_evaluate(actual->inputs, actual->length - 1U, &replayed) == 0);
-		int airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
-		int ready = options->powergear && genghost_maneuver_powergear_ready();
+		legacy_int airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+		legacy_int ready = options->powergear && genghost_maneuver_powergear_ready();
 		assert(genghost_sim_step(actual->inputs[actual->length - 1U]) >= 0);
-		int now_airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
-		int now_ready = options->powergear && genghost_maneuver_powergear_ready();
+		legacy_int now_airborne = state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+		legacy_int now_ready = options->powergear && genghost_maneuver_powergear_ready();
 		assert(airborne != now_airborne || (!ready && now_ready));
 		genghost_sim_result(&replayed);
 	} else {
@@ -435,16 +435,16 @@ static void execute_and_compare(const struct GENGHOST_OPTIONS *options,
 	assert(memcmp(&actual->race, &replayed, sizeof(replayed)) == 0);
 }
 
-static void test_executor(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
-						  unsigned int prefix)
+static void test_executor(const struct GENGHOST_OPTIONS *options, const legacy_u8 *inputs,
+						  legacy_uint prefix)
 {
 	struct GENGHOST_STATE_EXECUTOR *cached = genghost_state_executor_create(options);
 	assert(cached != NULL);
 	struct GENGHOST_STATE_TASK task = {0};
 	task.prefix_length = prefix;
 	memcpy(task.prefix, inputs, prefix);
-	unsigned int transitions = 0U;
-	for (unsigned int trial = 0U; trial < 6U; ++trial) {
+	legacy_uint transitions = 0U;
+	for (legacy_uint trial = 0U; trial < 6U; ++trial) {
 		/* Same length and long common prefix, but a different final steering
 		 * input. A cache keyed by length/progress rather than full inputs fails. */
 		task.id = trial + 1U;
@@ -460,9 +460,8 @@ static void test_executor(const struct GENGHOST_OPTIONS *options, const unsigned
 		   transitions);
 }
 
-static void test_guided_executor(const struct GENGHOST_OPTIONS *options,
-								 const unsigned char *inputs, unsigned int count,
-								 unsigned int prefix)
+static void test_guided_executor(const struct GENGHOST_OPTIONS *options, const legacy_u8 *inputs,
+								 legacy_uint count, legacy_uint prefix)
 {
 	assert(prefix + 1U < count);
 	struct GENGHOST_STATE_EXECUTOR *cached = genghost_state_executor_create(options);
@@ -472,7 +471,7 @@ static void test_guided_executor(const struct GENGHOST_OPTIONS *options,
 	task.prefix_length = prefix;
 	task.reference_first = prefix;
 	task.reference_length = count;
-	for (unsigned int trial = 0U; trial < 5U; ++trial) {
+	for (legacy_uint trial = 0U; trial < 5U; ++trial) {
 		task.id = 100U + trial;
 		task.action_index = trial == 4U ? 1U : 0U;
 		memcpy(task.prefix, inputs, prefix);
@@ -505,17 +504,17 @@ static void test_guided_executor(const struct GENGHOST_OPTIONS *options,
 /* Use the native drivetrain itself as an oracle. A readiness classifier is
  * useful only if its opportunities include real positive unsigned-divide
  * acceleration, not merely a high gear, a launch, or a speed threshold. */
-static void test_powergear(const unsigned char *inputs, unsigned int count)
+static void test_powergear(const legacy_u8 *inputs, legacy_uint count)
 {
 	legacy_s8 *on[] = {(legacy_s8 *)"test", (legacy_s8 *)"--pg:on"};
 	legacy_s8 *off[] = {(legacy_s8 *)"test", (legacy_s8 *)"--pg:off"};
-	unsigned int opportunities = 0U, boosts = 0U, first_boost = GENGHOST_MAX_FRAMES;
+	legacy_uint opportunities = 0U, boosts = 0U, first_boost = GENGHOST_MAX_FRAMES;
 	genghost_sim_reset();
 	configure_powergear_bug(2, on);
-	for (unsigned int frame = 0; frame < count; ++frame) {
+	for (legacy_uint frame = 0; frame < count; ++frame) {
 		struct GENGHOST_SNAPSHOT before, after;
 		genghost_sim_capture(&before);
-		int ready = genghost_maneuver_powergear_ready();
+		legacy_int ready = genghost_maneuver_powergear_ready();
 		genghost_sim_capture(&after);
 		assert(memcmp(&before, &after, sizeof(before)) == 0);
 		if (ready) {
@@ -556,7 +555,7 @@ static void test_failed_pilot_recovery(const struct GENGHOST_OPTIONS *options)
 	/* The recording supplies its map and car only. No human inputs enter the
 	 * search, so a section start before the first finish must come from an
 	 * autonomous pilot that failed later in its run. */
-	int status = genghost_state_search(&bounded, NULL, 0U, &result, NULL, NULL, NULL, NULL);
+	legacy_int status = genghost_state_search(&bounded, NULL, 0U, &result, NULL, NULL, NULL, NULL);
 	assert(status == 0 || status == 2);
 	assert(result.evaluations == bounded.evaluations);
 	assert(!result.seed_finished && !result.seed_total_frames);
@@ -577,28 +576,28 @@ static void test_failed_pilot_recovery(const struct GENGHOST_OPTIONS *options)
 struct fine_tune_observer {
 	struct GENGHOST_STATE_EXECUTOR *executor;
 	struct GENGHOST_SEARCH_RESULT *result;
-	unsigned int initial_total, last_total, saves, batches;
-	const unsigned char *fixed_inputs;
-	unsigned int fixed_length;
-	unsigned int kinds[4];
-	unsigned int reference_lengths[2U * FINE_TUNE_TEST_BUDGET];
-	uint64_t reference_hashes[2U * FINE_TUNE_TEST_BUDGET];
+	legacy_uint initial_total, last_total, saves, batches;
+	const legacy_u8 *fixed_inputs;
+	legacy_uint fixed_length;
+	legacy_uint kinds[4];
+	legacy_uint reference_lengths[2U * FINE_TUNE_TEST_BUDGET];
+	legacy_u64 reference_hashes[2U * FINE_TUNE_TEST_BUDGET];
 };
 
-static uint64_t fine_tune_input_hash(const unsigned char *inputs, unsigned int count)
+static legacy_u64 fine_tune_input_hash(const legacy_u8 *inputs, legacy_uint count)
 {
-	uint64_t hash = UINT64_C(14695981039346656037);
-	for (unsigned int n = 0U; n < count; ++n) {
+	legacy_u64 hash = UINT64_C(14695981039346656037);
+	for (legacy_uint n = 0U; n < count; ++n) {
 		hash = (hash ^ inputs[n]) * UINT64_C(1099511628211);
 	}
 	return hash;
 }
 
-static int fine_tune_known_reference(const struct fine_tune_observer *observer,
-									 const unsigned char *inputs, unsigned int count)
+static legacy_int fine_tune_known_reference(const struct fine_tune_observer *observer,
+											const legacy_u8 *inputs, legacy_uint count)
 {
-	uint64_t hash = fine_tune_input_hash(inputs, count);
-	for (unsigned int n = 0U; n < observer->saves * 2U; ++n) {
+	legacy_u64 hash = fine_tune_input_hash(inputs, count);
+	for (legacy_uint n = 0U; n < observer->saves * 2U; ++n) {
 		if (observer->reference_lengths[n] == count && observer->reference_hashes[n] == hash) {
 			return 1;
 		}
@@ -606,14 +605,14 @@ static int fine_tune_known_reference(const struct fine_tune_observer *observer,
 	return 0;
 }
 
-static int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
+static legacy_int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
 {
 	struct fine_tune_observer *observer = context;
 	struct GENGHOST_RESULT replayed;
 	struct GENGHOST_SNAPSHOT before;
 	if (observer->fixed_inputs) {
 		assert(result->length == observer->fixed_length);
-		for (unsigned int frame = 0U; frame < result->length; ++frame) {
+		for (legacy_uint frame = 0U; frame < result->length; ++frame) {
 			assert((result->inputs[frame] & ~INPUT_ACTION_BUTTON_MASK) ==
 				   (observer->fixed_inputs[frame] & ~INPUT_ACTION_BUTTON_MASK));
 		}
@@ -630,7 +629,7 @@ static int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *con
 	} else {
 		assert(replayed.total_frames == observer->initial_total);
 	}
-	unsigned int slot = observer->saves * 2U;
+	legacy_uint slot = observer->saves * 2U;
 	observer->reference_lengths[slot] = replayed.finish_frame;
 	observer->reference_hashes[slot] = fine_tune_input_hash(result->inputs, replayed.finish_frame);
 	observer->reference_lengths[slot + 1U] = result->length;
@@ -640,8 +639,8 @@ static int fine_tune_save(const struct GENGHOST_SEARCH_RESULT *result, void *con
 	return 0;
 }
 
-static int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *tasks,
-						   struct GENGHOST_STATE_REPLY *replies, size_t count)
+static legacy_int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *tasks,
+								  struct GENGHOST_STATE_REPLY *replies, size_t count)
 {
 	struct fine_tune_observer *observer = context;
 	++observer->batches;
@@ -651,7 +650,7 @@ static int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *task
 		assert(task->kind < 4U && task->kind != 1U);
 		if (observer->fixed_inputs) {
 			assert(task->kind == 2U && task->prefix_length == observer->fixed_length);
-			for (unsigned int frame = 0U; frame < task->prefix_length; ++frame) {
+			for (legacy_uint frame = 0U; frame < task->prefix_length; ++frame) {
 				assert((task->prefix[frame] & ~INPUT_ACTION_BUTTON_MASK) ==
 					   (observer->fixed_inputs[frame] & ~INPUT_ACTION_BUTTON_MASK));
 			}
@@ -675,9 +674,9 @@ static int fine_tune_batch(void *context, const struct GENGHOST_STATE_TASK *task
 	return 0;
 }
 
-static int fine_tune_search(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
-							unsigned int count, struct GENGHOST_SEARCH_RESULT *result,
-							struct fine_tune_observer *observer)
+static legacy_int fine_tune_search(const struct GENGHOST_OPTIONS *options, const legacy_u8 *inputs,
+								   legacy_uint count, struct GENGHOST_SEARCH_RESULT *result,
+								   struct fine_tune_observer *observer)
 {
 	observer->result = result;
 	return options->strategy == GENGHOST_STRATEGY_STATE
@@ -691,52 +690,52 @@ static int fine_tune_search(const struct GENGHOST_OPTIONS *options, const unsign
 static void test_shift_inputs(void)
 {
 	enum { LENGTH = 128 };
-	const unsigned int mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
-	const unsigned int starts[] = {40U, 88U}, widths[] = {3U, 4U};
-	const unsigned int flags[] = {INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_DOWN_FLAG};
-	static const int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
-	unsigned char original[LENGTH + 2U], actual[LENGTH + 2U], expected[LENGTH + 2U];
+	const legacy_uint mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	const legacy_uint starts[] = {40U, 88U}, widths[] = {3U, 4U};
+	const legacy_uint flags[] = {INPUT_SHIFT_UP_FLAG, INPUT_SHIFT_DOWN_FLAG};
+	static const legacy_int offsets[] = {-1, 1, -2, 2, -4, 4, -8, 8, -16, 16, -32, 32};
+	legacy_u8 original[LENGTH + 2U], actual[LENGTH + 2U], expected[LENGTH + 2U];
 	original[0] = 0xA5U;
 	original[LENGTH + 1U] = 0x5AU;
-	for (unsigned int frame = 0U; frame < LENGTH; ++frame) {
-		original[frame + 1U] = (unsigned char)(frame % 16U);
+	for (legacy_uint frame = 0U; frame < LENGTH; ++frame) {
+		original[frame + 1U] = (legacy_u8)(frame % 16U);
 	}
-	for (unsigned int event = 0U; event < 2U; ++event) {
-		for (unsigned int frame = starts[event]; frame < starts[event] + widths[event]; ++frame) {
-			original[frame + 1U] |= (unsigned char)flags[event];
+	for (legacy_uint event = 0U; event < 2U; ++event) {
+		for (legacy_uint frame = starts[event]; frame < starts[event] + widths[event]; ++frame) {
+			original[frame + 1U] |= (legacy_u8)flags[event];
 		}
 	}
-	for (unsigned int proposal = 0U; proposal < 24U; ++proposal) {
-		unsigned int event = proposal % 2U;
-		unsigned int old_start = starts[event];
-		unsigned int new_start = (unsigned int)((int)old_start + offsets[proposal / 2U]);
+	for (legacy_uint proposal = 0U; proposal < 24U; ++proposal) {
+		legacy_uint event = proposal % 2U;
+		legacy_uint old_start = starts[event];
+		legacy_uint new_start = (legacy_uint)((legacy_int)old_start + offsets[proposal / 2U]);
 		memcpy(actual, original, sizeof(actual));
 		memcpy(expected, original, sizeof(expected));
-		for (unsigned int n = 0U; n < widths[event]; ++n) {
-			expected[old_start + n + 1U] &= (unsigned char)~mask;
+		for (legacy_uint n = 0U; n < widths[event]; ++n) {
+			expected[old_start + n + 1U] &= (legacy_u8)~mask;
 		}
-		for (unsigned int n = 0U; n < widths[event]; ++n) {
-			expected[new_start + n + 1U] |= (unsigned char)flags[event];
+		for (legacy_uint n = 0U; n < widths[event]; ++n) {
+			expected[new_start + n + 1U] |= (legacy_u8)flags[event];
 		}
-		unsigned int first = LENGTH, end = 0U;
+		legacy_uint first = LENGTH, end = 0U;
 		assert(genghost_shift_inputs(actual + 1U, LENGTH, proposal, &first, &end) == 1);
 		assert(memcmp(actual, expected, sizeof(actual)) == 0);
 		assert(first <= old_start && first <= new_start && end <= LENGTH);
 		assert(end >= old_start + widths[event] && end >= new_start + widths[event]);
-		for (unsigned int frame = 0U; frame < LENGTH; ++frame) {
+		for (legacy_uint frame = 0U; frame < LENGTH; ++frame) {
 			assert((actual[frame + 1U] & ~mask) == (original[frame + 1U] & ~mask));
 		}
 	}
 
-	unsigned char edges[16], changed[16];
-	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
-		edges[frame] = (unsigned char)(frame % 16U);
+	legacy_u8 edges[16], changed[16];
+	for (legacy_uint frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] = (legacy_u8)(frame % 16U);
 	}
 	edges[0] |= INPUT_SHIFT_UP_FLAG;
 	edges[1] |= INPUT_SHIFT_UP_FLAG;
 	edges[12] |= INPUT_SHIFT_DOWN_FLAG;
 	edges[13] |= INPUT_SHIFT_DOWN_FLAG;
-	unsigned int first = 0U, end = 0U;
+	legacy_uint first = 0U, end = 0U;
 	/* Frame-zero pulses are eligible, while an earlier launch and a later
 	 * pulse beyond the input suffix are rejected without touching controls. */
 	memcpy(changed, edges, sizeof(changed));
@@ -747,14 +746,14 @@ static void test_shift_inputs(void)
 	assert(genghost_shift_inputs(changed, sizeof(changed), 2U, &first, &end) == 1);
 	assert(!(changed[0] & mask) && (changed[1] & mask) == INPUT_SHIFT_UP_FLAG &&
 		   (changed[2] & mask) == INPUT_SHIFT_UP_FLAG && !(changed[3] & mask));
-	for (unsigned int frame = 0U; frame < sizeof(changed); ++frame) {
+	for (legacy_uint frame = 0U; frame < sizeof(changed); ++frame) {
 		assert((changed[frame] & ~mask) == (edges[frame] & ~mask));
 	}
 
 	/* Leave the clear tick separating neighboring shifts intact: merging
 	 * held buttons can suppress a later native gear change. */
-	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
-		edges[frame] &= (unsigned char)~mask;
+	for (legacy_uint frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] &= (legacy_u8)~mask;
 	}
 	edges[4] |= INPUT_SHIFT_UP_FLAG;
 	edges[5] |= INPUT_SHIFT_UP_FLAG;
@@ -769,8 +768,8 @@ static void test_shift_inputs(void)
 	assert(genghost_shift_inputs(changed, sizeof(changed), 10U, &first, &end) == 0);
 	assert(memcmp(changed, edges, sizeof(changed)) == 0);
 
-	for (unsigned int frame = 0U; frame < sizeof(edges); ++frame) {
-		edges[frame] &= (unsigned char)~mask;
+	for (legacy_uint frame = 0U; frame < sizeof(edges); ++frame) {
+		edges[frame] &= (legacy_u8)~mask;
 	}
 	memcpy(changed, edges, sizeof(changed));
 	assert(genghost_shift_inputs(changed, sizeof(changed), 0U, &first, &end) == 0);
@@ -780,22 +779,23 @@ static void test_shift_inputs(void)
 	puts("Shift refinement moves up/down pulses early and late without changing other controls.");
 }
 
-static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const unsigned char *inputs,
-						   unsigned int count)
+static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const legacy_u8 *inputs,
+						   legacy_uint count)
 {
 	struct GENGHOST_RESULT original, unfinished;
 	assert(genghost_sim_evaluate(inputs, count, &original) == 0 && original.finished);
 	assert(genghost_sim_evaluate(inputs, 1U, &unfinished) == 0 && !unfinished.finished);
-	for (int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE; ++strategy) {
+	for (legacy_int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE;
+		 ++strategy) {
 		struct GENGHOST_OPTIONS bounded = *options;
 		bounded.fine_tune = 1;
 		bounded.strategy = (enum GENGHOST_STRATEGY)strategy;
 		bounded.evaluations = 1U;
 		bounded.seconds = 0.0;
 		bounded.seed = 1U;
-		const unsigned char *invalid_inputs[] = {NULL, NULL, inputs, inputs};
-		const unsigned int invalid_lengths[] = {0U, 1U, 0U, 1U};
-		for (unsigned int invalid = 0U; invalid < 4U; ++invalid) {
+		const legacy_u8 *invalid_inputs[] = {NULL, NULL, inputs, inputs};
+		const legacy_uint invalid_lengths[] = {0U, 1U, 0U, 1U};
+		for (legacy_uint invalid = 0U; invalid < 4U; ++invalid) {
 			struct GENGHOST_SEARCH_RESULT result = {0};
 			struct fine_tune_observer observer = {0};
 			assert(fine_tune_search(&bounded, invalid_inputs[invalid], invalid_lengths[invalid],
@@ -840,14 +840,15 @@ static void test_fine_tune(const struct GENGHOST_OPTIONS *options, const unsigne
 
 /* A real automatic lap supplies both upshifts and downshifts. Their manual
  * timing can improve without retiming a single driving input or tail frame. */
-static void test_gears_only_search(const struct GENGHOST_OPTIONS *options,
-								   const unsigned char *inputs, unsigned int count)
+static void test_gears_only_search(const struct GENGHOST_OPTIONS *options, const legacy_u8 *inputs,
+								   legacy_uint count)
 {
-	unsigned char manual[GENGHOST_MAX_FRAMES];
+	legacy_u8 manual[GENGHOST_MAX_FRAMES];
 	memcpy(manual, inputs, count);
 	struct GENGHOST_RESULT baseline;
 	assert(genghost_sim_manual_inputs(manual, count, &baseline) == 0 && baseline.finished);
-	for (int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE; ++strategy) {
+	for (legacy_int strategy = GENGHOST_STRATEGY_LEGACY; strategy <= GENGHOST_STRATEGY_STATE;
+		 ++strategy) {
 		struct GENGHOST_OPTIONS bounded = *options;
 		bounded.fine_tune = bounded.fine_tune_gears_only = 1;
 		bounded.strategy = (enum GENGHOST_STRATEGY)strategy;
@@ -876,7 +877,7 @@ static void test_gears_only_search(const struct GENGHOST_OPTIONS *options,
 	}
 }
 
-static int fine_tune_cancel_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
+static legacy_int fine_tune_cancel_save(const struct GENGHOST_SEARCH_RESULT *result, void *context)
 {
 	const struct GENGHOST_RESULT *original = context;
 	struct GENGHOST_RESULT replayed;
@@ -890,7 +891,7 @@ static int fine_tune_cancel_save(const struct GENGHOST_SEARCH_RESULT *result, vo
 }
 
 static void test_fine_tune_parallel_cancel(const struct GENGHOST_OPTIONS *options,
-										   const unsigned char *recording, size_t size,
+										   const legacy_u8 *recording, size_t size,
 										   const struct GAMEINFO *config)
 {
 	struct GENGHOST_OPTIONS bounded = *options;
@@ -905,14 +906,14 @@ static void test_fine_tune_parallel_cancel(const struct GENGHOST_OPTIONS *option
 		   original.finished);
 	struct GENGHOST_SEARCH_RESULT result = {0};
 	struct GENGHOST_PARALLEL_REPORT report = {0};
-	char car[5] = {0};
+	legacy_char car[5] = {0};
 	memcpy(car, config->game_playercarid, 4U);
 	/* Cancellation before startup must still retain the supplied finished lap.
 	 * A nonexistent executable makes any attempted child launch fail, so a
 	 * successful result with zero worker records proves the launch was skipped. */
 	sig_atomic_t previous_interrupt = genghost_interrupted;
 	genghost_interrupted = 1;
-	int status =
+	legacy_int status =
 		genghost_parallel_search("./must-not-launch-fine-tune-worker", "fine-tune-cancel-test.RPL",
 								 ".", recording, size, car, config->game_playertransmission, 4U,
 								 &bounded, &result, &report, fine_tune_cancel_save, &original);
@@ -927,7 +928,7 @@ static void test_fine_tune_parallel_cancel(const struct GENGHOST_OPTIONS *option
 	assert(report.cores_requested == 4U && report.cores_used == 0U &&
 		   report.winner_worker == UINT_MAX);
 	struct GENGHOST_WORKER_STATS empty = {0};
-	for (unsigned int n = 0U; n < GENGHOST_MAX_CORES; ++n) {
+	for (legacy_uint n = 0U; n < GENGHOST_MAX_CORES; ++n) {
 		assert(memcmp(&report.workers[n], &empty, sizeof(empty)) == 0);
 	}
 	fine_tune_cancel_save(&result, &original);
@@ -938,8 +939,8 @@ static void test_fine_tune_parallel_cancel(const struct GENGHOST_OPTIONS *option
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc >= 3);
-	unsigned char recording[REPLAY_INPUT_OFFSET + GENGHOST_MAX_FRAMES + 1U];
-	FILE *source = fopen((const char *)argv[1], "rb");
+	legacy_u8 recording[REPLAY_INPUT_OFFSET + GENGHOST_MAX_FRAMES + 1U];
+	FILE *source = fopen((const legacy_char *)argv[1], "rb");
 	assert(source != NULL);
 	size_t size = fread(recording, 1, sizeof(recording), source);
 	assert(!ferror(source) && fclose(source) == 0);
@@ -948,18 +949,18 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	replay_gameinfo_decode(&config, recording);
 	assert(config.game_opponenttype == 0);
 	assert(size == REPLAY_INPUT_OFFSET + config.game_recordedframes);
-	unsigned int prefix = (unsigned int)strtoul((const char *)argv[2], NULL, 10);
+	legacy_uint prefix = (legacy_uint)strtoul((const legacy_char *)argv[2], NULL, 10);
 	assert(prefix > 0U && prefix < config.game_recordedframes);
 	assert(genghost_sim_init(recording + REPLAY_GAMEINFO_SIZE,
-							 (const char *)config.game_playercarid, config.game_playertransmission,
-							 argc, (char **)argv) == 0);
+							 (const legacy_char *)config.game_playercarid,
+							 config.game_playertransmission, argc, (legacy_char **)argv) == 0);
 	struct GENGHOST_OPTIONS options = {0};
 	options.powergear = options.collision = options.left_bias = options.dual_way_switching =
 		options.chicane_fast_grass = 1;
-	int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
-	int slalom = 0, fine_tune = 0;
-	for (int i = 3; i < argc; ++i) {
-		const char *flag = (const char *)argv[i];
+	legacy_int expect_chicane = 0, expect_powergear = 0, expect_landing = 0, recovery = 0;
+	legacy_int slalom = 0, fine_tune = 0;
+	for (legacy_int i = 3; i < argc; ++i) {
+		const legacy_char *flag = (const legacy_char *)argv[i];
 		if (strcmp(flag, "--test-fine-tune") == 0) {
 			fine_tune = 1;
 		} else if (strcmp(flag, "--expect-slalom-center") == 0) {
@@ -1008,7 +1009,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		return 0;
 	}
 	test_fast_grass(options.chicane_fast_grass);
-	unsigned int chicane = test_maneuver_rules(recording + REPLAY_INPUT_OFFSET, prefix);
+	legacy_uint chicane = test_maneuver_rules(recording + REPLAY_INPUT_OFFSET, prefix);
 	assert(!expect_chicane || chicane > 0U);
 	assert(!expect_landing || state.playerstate.car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE);
 	test_executor(&options, recording + REPLAY_INPUT_OFFSET, prefix);

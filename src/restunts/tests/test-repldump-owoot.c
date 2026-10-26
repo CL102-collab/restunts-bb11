@@ -187,7 +187,7 @@ static void test_io_failures_remove_verdict(void)
 	assert(open_count == 1 && write_count == 1 && close_count == 1 && remove_count == 2);
 }
 
-static void enable_time_output(const char *name)
+static void enable_time_output(const legacy_char *name)
 {
 	reset_output(name);
 	time_enabled = 1;
@@ -200,7 +200,7 @@ static void enable_time_output(const char *name)
 	expected_write_length = 13;
 }
 
-static void assert_time_result(const char *result)
+static void assert_time_result(const legacy_char *result)
 {
 	legacy_u16 length = (legacy_u16)strlen(result);
 	assert(output_exists && output_length == length);
@@ -212,8 +212,8 @@ static void assert_time_result(const char *result)
 
 static void test_time_option_parser(void)
 {
-	static const char *options[] = {"--time",  "--TiMe",	"time",	   "/time",
-									"--times", "--time:on", "--time ", "--time:off"};
+	static const legacy_char *options[] = {"--time",  "--TiMe",	   "time",	  "/time",
+										   "--times", "--time:on", "--time ", "--time:off"};
 	for (legacy_u16 index = 0; index < sizeof(options) / sizeof(options[0]); index++) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"repldump", (legacy_s8 *)"R0000.rpl",
 								  (legacy_s8 *)options[index]};
@@ -241,7 +241,7 @@ static void test_time_matches_viewer_formatter(void)
 {
 	static const struct {
 		legacy_u16 rate, frames;
-		const char *expected;
+		const legacy_char *expected;
 	} cases[] = {{20, 0, "0:00.00"},	{20, 3660, "3:03.00"}, {20, 3661, "3:03.05"},
 				 {20, 3659, "3:02.95"}, {20, 1199, "0:59.95"}, {20, 1200, "1:00.00"},
 				 {10, 1833, "3:03.30"}, {30, 3599, "1:59.87"}, {20, 65535U, "54:36.75"}};
@@ -267,7 +267,7 @@ static void test_penalty_time_formatter(void)
 {
 	static const struct {
 		legacy_u16 rate, frames;
-		const char *expected;
+		const legacy_char *expected;
 	} cases[] = {{20, 0, "0:00"},	 {20, 600, "0:30"}, {20, 4800, "4:00"}, {20, 1199, "0:59"},
 				 {20, 1200, "1:00"}, {10, 301, "0:30"}, {10, 2400, "4:00"}, {20, 65535U, "54:36"}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {

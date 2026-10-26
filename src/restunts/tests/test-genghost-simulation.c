@@ -22,8 +22,8 @@
 #undef printf
 
 /* The legacy include path shadows the host math header. */
-extern double sqrt(double);
-extern double fabs(double);
+extern legacy_f64 sqrt(legacy_f64);
+extern legacy_f64 fabs(legacy_f64);
 
 /* Nearby samples on a twisting stunt can share position, yaw and pitch while
  * banking in opposite directions. Phase matching must retain the roll. */
@@ -38,7 +38,7 @@ static void test_guide_roll(void)
 	points[1].position.lx = 64;
 	points[1].rotation.z = 128;
 	points[1].input = INPUT_ACCELERATE_FLAG;
-	unsigned int cursor = 0;
+	legacy_uint cursor = 0;
 	assert(genghost_guide_step(points, 2U, &cursor, 0.0) == INPUT_ACCELERATE_FLAG);
 	assert(cursor == 2U);
 	/* Signed angular distance wraps across zero instead of rejecting an
@@ -53,52 +53,53 @@ static void test_guide_roll(void)
 	puts("Guide phase distinguishes banked stunt samples and wrapped roll.");
 }
 
-static double region_cost(double px, double pz, double ax, double az, double bx, double bz)
+static legacy_f64 region_cost(legacy_f64 px, legacy_f64 pz, legacy_f64 ax, legacy_f64 az,
+							  legacy_f64 bx, legacy_f64 bz)
 {
 	return sqrt((px - ax) * (px - ax) + (pz - az) * (pz - az)) +
 		   sqrt((px - bx) * (px - bx) + (pz - bz) * (pz - bz));
 }
 
-static int region_contains(const struct GENGHOST_REGION *region, double x, double z)
+static legacy_int region_contains(const struct GENGHOST_REGION *region, legacy_f64 x, legacy_f64 z)
 {
 	return x >= region->min_x && x <= region->max_x && z >= region->min_z && z <= region->max_z;
 }
 
-static double edge_cost(const struct GENGHOST_REGION *region, unsigned int edge, double t,
-						double ax, double az, double bx, double bz)
+static legacy_f64 edge_cost(const struct GENGHOST_REGION *region, legacy_uint edge, legacy_f64 t,
+							legacy_f64 ax, legacy_f64 az, legacy_f64 bx, legacy_f64 bz)
 {
-	double x = edge < 2U ? (edge ? region->max_x : region->min_x)
-						 : region->min_x + t * (region->max_x - region->min_x);
-	double z = edge < 2U ? region->min_z + t * (region->max_z - region->min_z)
-						 : (edge == 3U ? region->max_z : region->min_z);
+	legacy_f64 x = edge < 2U ? (edge ? region->max_x : region->min_x)
+							 : region->min_x + t * (region->max_x - region->min_x);
+	legacy_f64 z = edge < 2U ? region->min_z + t * (region->max_z - region->min_z)
+							 : (edge == 3U ? region->max_z : region->min_z);
 	return region_cost(x, z, ax, az, bx, bz);
 }
 
 /* Independent numerical oracle: sample every edge densely, then refine the
  * best sample's neighbourhood by convex one-dimensional minimization. This
  * deliberately does not reproduce the planner's clipping or weighted formula. */
-static double region_oracle(const struct GENGHOST_REGION *region, double ax, double az, double bx,
-							double bz)
+static legacy_f64 region_oracle(const struct GENGHOST_REGION *region, legacy_f64 ax, legacy_f64 az,
+								legacy_f64 bx, legacy_f64 bz)
 {
 	if (region_contains(region, ax, az) || region_contains(region, bx, bz)) {
 		return region_cost(ax, az, ax, az, bx, bz);
 	}
-	const unsigned int samples = 512U;
-	double best = DBL_MAX;
-	for (unsigned int edge = 0U; edge < 4U; ++edge) {
-		unsigned int index = 0U;
-		double edge_best = DBL_MAX;
-		for (unsigned int sample = 0U; sample <= samples; ++sample) {
-			double cost = edge_cost(region, edge, (double)sample / samples, ax, az, bx, bz);
+	const legacy_uint samples = 512U;
+	legacy_f64 best = DBL_MAX;
+	for (legacy_uint edge = 0U; edge < 4U; ++edge) {
+		legacy_uint index = 0U;
+		legacy_f64 edge_best = DBL_MAX;
+		for (legacy_uint sample = 0U; sample <= samples; ++sample) {
+			legacy_f64 cost = edge_cost(region, edge, (legacy_f64)sample / samples, ax, az, bx, bz);
 			if (cost < edge_best) {
 				edge_best = cost;
 				index = sample;
 			}
 		}
-		double low = index ? (double)(index - 1U) / samples : 0.0;
-		double high = index < samples ? (double)(index + 1U) / samples : 1.0;
-		for (unsigned int iteration = 0U; iteration < 64U; ++iteration) {
-			double a = low + (high - low) / 3.0, b = high - (high - low) / 3.0;
+		legacy_f64 low = index ? (legacy_f64)(index - 1U) / samples : 0.0;
+		legacy_f64 high = index < samples ? (legacy_f64)(index + 1U) / samples : 1.0;
+		for (legacy_uint iteration = 0U; iteration < 64U; ++iteration) {
+			legacy_f64 a = low + (high - low) / 3.0, b = high - (high - low) / 3.0;
 			if (edge_cost(region, edge, a, ax, az, bx, bz) <
 				edge_cost(region, edge, b, ax, az, bx, bz)) {
 				high = b;
@@ -106,7 +107,7 @@ static double region_oracle(const struct GENGHOST_REGION *region, double ax, dou
 				low = a;
 			}
 		}
-		double refined = edge_cost(region, edge, (low + high) * 0.5, ax, az, bx, bz);
+		legacy_f64 refined = edge_cost(region, edge, (low + high) * 0.5, ax, az, bx, bz);
 		if (refined < edge_best) {
 			edge_best = refined;
 		}
@@ -117,20 +118,21 @@ static double region_oracle(const struct GENGHOST_REGION *region, double ax, dou
 	return best;
 }
 
-static void region_expect(const struct GENGHOST_REGION *region, double ax, double az, double bx,
-						  double bz, double expected_x, double expected_z)
+static void region_expect(const struct GENGHOST_REGION *region, legacy_f64 ax, legacy_f64 az,
+						  legacy_f64 bx, legacy_f64 bz, legacy_f64 expected_x,
+						  legacy_f64 expected_z)
 {
-	double x, z;
+	legacy_f64 x, z;
 	genghost_region_crossing(region, ax, az, bx, bz, &x, &z);
 	assert(fabs(x - expected_x) < 1e-9 && fabs(z - expected_z) < 1e-9);
 	assert(x >= region->min_x - 1e-9 && x <= region->max_x + 1e-9);
 	assert(z >= region->min_z - 1e-9 && z <= region->max_z + 1e-9);
 }
 
-static double region_random(uint32_t *seed)
+static legacy_f64 region_random(legacy_u32 *seed)
 {
 	*seed = *seed * UINT32_C(1664525) + UINT32_C(1013904223);
-	return (double)*seed / 4294967296.0;
+	return (legacy_f64)*seed / 4294967296.0;
 }
 
 static void test_regions(void)
@@ -158,29 +160,29 @@ static void test_regions(void)
 	const struct GENGHOST_REGION point = {3.0, 3.0, 7.0, 7.0};
 	region_expect(&point, 0.0, 0.0, 9.0, 4.0, 3.0, 7.0);
 
-	uint32_t seed = UINT32_C(0x6a09e667);
-	for (unsigned int trial = 0U; trial < 1000U; ++trial) {
+	legacy_u32 seed = UINT32_C(0x6a09e667);
+	for (legacy_uint trial = 0U; trial < 1000U; ++trial) {
 		struct GENGHOST_REGION region;
 		region.min_x = (region_random(&seed) - 0.5) * 61440.0;
 		region.min_z = (region_random(&seed) - 0.5) * 61440.0;
 		region.max_x = region.min_x + (trial % 17U ? 2048.0 * region_random(&seed) : 0.0);
 		region.max_z = region.min_z + (trial % 19U ? 2048.0 * region_random(&seed) : 0.0);
-		double ax = region.min_x + (region_random(&seed) - 0.5) * 8192.0;
-		double az = region.min_z + (region_random(&seed) - 0.5) * 8192.0;
-		double bx = region.max_x + (region_random(&seed) - 0.5) * 8192.0;
-		double bz = region.max_z + (region_random(&seed) - 0.5) * 8192.0;
+		legacy_f64 ax = region.min_x + (region_random(&seed) - 0.5) * 8192.0;
+		legacy_f64 az = region.min_z + (region_random(&seed) - 0.5) * 8192.0;
+		legacy_f64 bx = region.max_x + (region_random(&seed) - 0.5) * 8192.0;
+		legacy_f64 bz = region.max_z + (region_random(&seed) - 0.5) * 8192.0;
 		if (trial % 23U == 0U) {
 			bx = ax;
 		}
 		if (trial % 29U == 0U) {
 			bz = az;
 		}
-		double x, z;
+		legacy_f64 x, z;
 		genghost_region_crossing(&region, ax, az, bx, bz, &x, &z);
 		assert(x >= region.min_x - 1e-8 && x <= region.max_x + 1e-8);
 		assert(z >= region.min_z - 1e-8 && z <= region.max_z + 1e-8);
-		double expected = region_oracle(&region, ax, az, bx, bz);
-		double actual = region_cost(x, z, ax, az, bx, bz);
+		legacy_f64 expected = region_oracle(&region, ax, az, bx, bz);
+		legacy_f64 actual = region_cost(x, z, ax, az, bx, bz);
 		assert(fabs(actual - expected) <= 2e-6);
 		/* A quarter-turn and reflection leave the geometric optimum unchanged.
 		 * Check costs rather than coordinates because a straight crossing has
@@ -202,19 +204,19 @@ static void test_regions(void)
 /* Use a real winning prefix, then isolate its nearest native stunt geometry.
  * This keeps neighboring stunts from masking which proposal the rule gates.
  * No vehicle state, car dimensions, track placement, or physics is fabricated. */
-static void controller_view(const unsigned char *inputs, unsigned int count, unsigned int prefix,
-							int model, int include_exit, struct GENGHOST_ROUTES *set,
+static void controller_view(const legacy_u8 *inputs, legacy_uint count, legacy_uint prefix,
+							legacy_int model, legacy_int include_exit, struct GENGHOST_ROUTES *set,
 							struct GENGHOST_ROUTE *view)
 {
 	assert(prefix < count);
-	for (unsigned int frame = 0; frame < prefix; ++frame) {
+	for (legacy_uint frame = 0; frame < prefix; ++frame) {
 		assert(genghost_sim_step(inputs[frame]) == 0);
 	}
-	char error[256];
+	legacy_char error[256];
 	assert(genghost_routes_build(set, error, sizeof(error)) == 0);
 	const struct GENGHOST_ROUTE *selected = NULL;
 	size_t selected_index = 0U;
-	double nearest = DBL_MAX;
+	legacy_f64 nearest = DBL_MAX;
 	for (size_t r = 0U; r < set->count; ++r) {
 		const struct GENGHOST_ROUTE *route = &set->routes[r];
 		for (size_t i = 0U; i < route->point_count; ++i) {
@@ -222,9 +224,9 @@ static void controller_view(const unsigned char *inputs, unsigned int count, uns
 			if (point->physical_model != model) {
 				continue;
 			}
-			double x = point->x - state.playerstate.car_position.lx / 64.0;
-			double z = point->z - state.playerstate.car_position.lz / 64.0;
-			double distance = x * x + z * z;
+			legacy_f64 x = point->x - state.playerstate.car_position.lx / 64.0;
+			legacy_f64 z = point->z - state.playerstate.car_position.lz / 64.0;
+			legacy_f64 distance = x * x + z * z;
 			if (distance < nearest) {
 				nearest = distance;
 				selected = route;
@@ -233,7 +235,7 @@ static void controller_view(const unsigned char *inputs, unsigned int count, uns
 		}
 	}
 	assert(selected != NULL && nearest < 1024.0 * 1024.0);
-	int piece = selected->points[selected_index].piece;
+	legacy_int piece = selected->points[selected_index].piece;
 	size_t first = selected_index, end = selected_index + 1U;
 	while (first && selected->points[first - 1U].piece == piece) {
 		--first;
@@ -243,7 +245,7 @@ static void controller_view(const unsigned char *inputs, unsigned int count, uns
 	}
 	size_t first_piece = selected->points[first].piece_index;
 	if (include_exit && end < selected->point_count) {
-		int exit_piece = selected->points[end].piece;
+		legacy_int exit_piece = selected->points[end].piece;
 		while (end < selected->point_count && selected->points[end].piece == exit_piece) {
 			++end;
 		}
@@ -263,8 +265,8 @@ static void controller_view(const unsigned char *inputs, unsigned int count, uns
 	view->length = view->points[view->point_count - 1U].distance;
 }
 
-static void test_controller_snapshot(const unsigned char *inputs, unsigned int count,
-									 unsigned int prefix, int model)
+static void test_controller_snapshot(const legacy_u8 *inputs, legacy_uint count, legacy_uint prefix,
+									 legacy_int model)
 {
 	struct GENGHOST_ROUTES set;
 	struct GENGHOST_ROUTE view;
@@ -276,13 +278,13 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 		policy.segment[i].stunt_mode = 1U;
 	}
-	for (int collision = 0; collision <= 1; ++collision) {
+	for (legacy_int collision = 0; collision <= 1; ++collision) {
 		struct GENGHOST_DRIVER driver;
 		genghost_driver_reset(&driver);
 		(void)genghost_driver_step(&view, &policy, &driver, 1, collision, 0);
-		int allowed = collision || model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
-					  model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B;
-		assert(driver.tactic_ticks == (unsigned int)allowed);
+		legacy_int allowed = collision || model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
+							 model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B;
+		assert(driver.tactic_ticks == (legacy_uint)allowed);
 		genghost_sim_capture(&after);
 		assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 	}
@@ -292,13 +294,13 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 		policy.segment[i].stunt_mode = GENGHOST_STUNT_CORKSCREW_CUT;
 	}
-	for (int powergear = 0; powergear <= 1; ++powergear) {
+	for (legacy_int powergear = 0; powergear <= 1; ++powergear) {
 		struct GENGHOST_DRIVER collision_reference;
 		genghost_driver_reset(&collision_reference);
-		unsigned char reference_input =
+		legacy_u8 reference_input =
 			genghost_driver_step(&view, &policy, &collision_reference, powergear, 0, 0);
 		assert(collision_reference.tactic_ticks ==
-			   (unsigned int)(model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT));
+			   (legacy_uint)(model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT));
 		struct GENGHOST_DRIVER legacy_driver;
 		genghost_driver_reset(&legacy_driver);
 		assert(genghost_driver_step(&view, &policy, &legacy_driver, powergear, 1, 0) ==
@@ -312,15 +314,15 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	struct GENGHOST_DRIVER reference;
 	genghost_driver_reset(&reference);
 	genghost_policy_default(&policy);
-	unsigned char expected = genghost_driver_step(&view, &policy, &reference, 1, 1, 1);
-	for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
+	legacy_u8 expected = genghost_driver_step(&view, &policy, &reference, 1, 1, 1);
+	for (legacy_uint mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
 		for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 			policy.segment[i].stunt_mode = mode;
 		}
-		for (int collision = 0; collision <= 1; ++collision) {
+		for (legacy_int collision = 0; collision <= 1; ++collision) {
 			struct GENGHOST_DRIVER driver;
 			genghost_driver_reset(&driver);
-			unsigned char actual = genghost_driver_step(&view, &policy, &driver, 1, collision, 1);
+			legacy_u8 actual = genghost_driver_step(&view, &policy, &driver, 1, collision, 1);
 			if (model == PHYSICAL_MODEL_SLALOM && mode == GENGHOST_STUNT_HUMAN &&
 				genghost_slalom_center_fits()) {
 				assert(driver.tactic_ticks <= 1U);
@@ -345,21 +347,21 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
 	 * suffix and the original car body. Both orientations of the loop and
 	 * slalom passage crash with collision fixes; the UD core stays clear.
 	 * Only this diagnostic comparison changes a rule at a checkpoint. */
-	const unsigned int suffix_length = 32U;
+	const legacy_uint suffix_length = 32U;
 	assert(prefix + suffix_length < count);
 	struct GAMESTATE reference_states[32];
-	for (unsigned int frame = 0U; frame < suffix_length; ++frame) {
+	for (legacy_uint frame = 0U; frame < suffix_length; ++frame) {
 		assert(genghost_sim_step(inputs[prefix + frame]) == 0);
 		reference_states[frame] = state;
 	}
 	genghost_sim_restore(&saved);
 	legacy_s8 *fixed[] = {(legacy_s8 *)"controller-check", (legacy_s8 *)"--lc:off"};
 	configure_legacy_collision(2, fixed);
-	int fixed_crash = 0;
-	int clear_core =
+	legacy_int fixed_crash = 0;
+	legacy_int clear_core =
 		model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A || model == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B;
-	for (unsigned int frame = 0U; frame < suffix_length; ++frame) {
-		int event = genghost_sim_step(inputs[prefix + frame]);
+	for (legacy_uint frame = 0U; frame < suffix_length; ++frame) {
+		legacy_int event = genghost_sim_step(inputs[prefix + frame]);
 		fixed_crash |= event == 1;
 		if (clear_core) {
 			assert(event == 0);
@@ -381,28 +383,27 @@ static void test_controller_snapshot(const unsigned char *inputs, unsigned int c
  * planner's recipe selection. Fixed-collision passages must fit the actual
  * car inside a clear corridor or wholly beyond its solid side wall. */
 static void catalog_clearance(const struct GENGHOST_ROUTE *view,
-							  const struct GENGHOST_WAYPOINT *target, int model)
+							  const struct GENGHOST_WAYPOINT *target, legacy_int model)
 {
 	if (target->piece != view->points[0].piece) {
 		return; /* A launched car can target the following native route piece. */
 	}
-	int piece = view->points[0].piece;
-	const struct TRACKOBJECT *object =
-		&trkObjectList[(unsigned char)track_route_element_ids[piece]];
-	double x = target->x - track_object_base_x(object, (unsigned char)track_route_columns[piece]);
-	double z = target->z - track_object_base_z(object, (unsigned char)track_route_rows[piece]);
-	double local_x = object->ss_rotY == 0	  ? x
-					 : object->ss_rotY == 256 ? -z
-					 : object->ss_rotY == 512 ? -x
-											  : z;
-	double half_width = fabs((double)simd_player.collide_points[0].px);
-	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
-		double width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
+	legacy_int piece = view->points[0].piece;
+	const struct TRACKOBJECT *object = &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
+	legacy_f64 x = target->x - track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
+	legacy_f64 z = target->z - track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
+	legacy_f64 local_x = object->ss_rotY == 0	  ? x
+						 : object->ss_rotY == 256 ? -z
+						 : object->ss_rotY == 512 ? -x
+												  : z;
+	legacy_f64 half_width = fabs((legacy_f64)simd_player.collide_points[0].px);
+	for (legacy_uint wheel = 0U; wheel < 4U; ++wheel) {
+		legacy_f64 width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
 		if (width > half_width) {
 			half_width = width;
 		}
 	}
-	double lateral = fabs(local_x);
+	legacy_f64 lateral = fabs(local_x);
 	if (model == PHYSICAL_MODEL_SLALOM) {
 		/* Native box point 0 stores width; point 1 stores length and radius.
 		 * A narrow car can fit the central opening with collision fixes too. */
@@ -417,7 +418,8 @@ static void catalog_clearance(const struct GENGHOST_ROUTE *view,
 	}
 }
 
-static void test_quarter_turn(double x, double z, int angle, double *rx, double *rz)
+static void test_quarter_turn(legacy_f64 x, legacy_f64 z, legacy_int angle, legacy_f64 *rx,
+							  legacy_f64 *rz)
 {
 	switch ((angle & 1023) / 256) {
 		case 1:
@@ -441,9 +443,9 @@ static void test_quarter_turn(double x, double z, int angle, double *rx, double 
 
 /* Find an aligned native heading independently of the planner's local-angle
  * convention: its forward direction must become positive car-local z. */
-static legacy_s16 slalom_heading(int rotation, double direction)
+static legacy_s16 slalom_heading(legacy_int rotation, legacy_f64 direction)
 {
-	double wx, wz;
+	legacy_f64 wx, wz;
 	test_quarter_turn(0.0, direction * 512.0, rotation, &wx, &wz);
 	struct VECTOR forward = {(legacy_s16)wx, 0, (legacy_s16)wz}, local;
 	for (legacy_s16 heading = 0; heading < 1024; heading += 256) {
@@ -457,10 +459,10 @@ static legacy_s16 slalom_heading(int rotation, double direction)
 	return 0;
 }
 
-static void slalom_position(double ox, double oz, int rotation, double x, double z,
-							legacy_s16 heading)
+static void slalom_position(legacy_f64 ox, legacy_f64 oz, legacy_int rotation, legacy_f64 x,
+							legacy_f64 z, legacy_s16 heading)
 {
-	double wx, wz;
+	legacy_f64 wx, wz;
 	test_quarter_turn(x, z, rotation, &wx, &wz);
 	state.playerstate.car_position.lx = (legacy_s32)((ox + wx) * 64.0);
 	state.playerstate.car_position.lz = (legacy_s32)((oz + wz) * 64.0);
@@ -476,32 +478,32 @@ static void slalom_position(double ox, double oz, int rotation, double x, double
  * the real car dimensions and native slalom endpoints, rotate/reverse the whole
  * setup, and ask for a clear high-speed corridor through both stone footprints.
  * In particular the rear is still beside stone 2 after the spline has ended. */
-static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int model)
+static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, legacy_int model)
 {
 	if (model != PHYSICAL_MODEL_SLALOM) {
 		return;
 	}
-	int piece = view->points[0].piece;
-	struct TRACKOBJECT *object = &trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	legacy_int piece = view->points[0].piece;
+	struct TRACKOBJECT *object = &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
 	struct TRACKOBJECT original_object = *object;
 	struct SIMD original_simd = simd_player;
 	struct GENGHOST_SNAPSHOT saved, positioned, after;
 	genghost_sim_capture(&saved);
-	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
-	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
+	legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
 	size_t last = 0U;
 	while (last + 1U < view->point_count && view->points[last + 1U].piece == piece) {
 		++last;
 	}
-	double ax, az, bx, bz;
+	legacy_f64 ax, az, bx, bz;
 	test_quarter_turn(view->points[0].x - ox, view->points[0].z - oz, -object->ss_rotY, &ax, &az);
 	test_quarter_turn(view->points[last].x - ox, view->points[last].z - oz, -object->ss_rotY, &bx,
 					  &bz);
-	double half_width = fabs((double)simd_player.collide_points[0].px);
-	double half_length = fabs((double)simd_player.collide_points[1].px);
-	for (unsigned int wheel = 0U; wheel < 4U; ++wheel) {
-		double width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
-		double length = fabs(simd_player.wheel_coords[wheel].z / 64.0);
+	legacy_f64 half_width = fabs((legacy_f64)simd_player.collide_points[0].px);
+	legacy_f64 half_length = fabs((legacy_f64)simd_player.collide_points[1].px);
+	for (legacy_uint wheel = 0U; wheel < 4U; ++wheel) {
+		legacy_f64 width = fabs(simd_player.wheel_coords[wheel].x / 64.0);
+		legacy_f64 length = fabs(simd_player.wheel_coords[wheel].z / 64.0);
 		if (width > half_width) {
 			half_width = width;
 		}
@@ -509,15 +511,15 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 			half_length = length;
 		}
 	}
-	for (int rotation = 0; rotation < 1024; rotation += 256) {
+	for (legacy_int rotation = 0; rotation < 1024; rotation += 256) {
 		object->ss_rotY = (legacy_s16)rotation;
-		for (int reverse = 0; reverse <= 1; ++reverse) {
+		for (legacy_int reverse = 0; reverse <= 1; ++reverse) {
 			struct GENGHOST_WAYPOINT points[2] = {view->points[0], view->points[last]};
 			test_quarter_turn(reverse ? bx : ax, reverse ? bz : az, rotation, &points[0].x,
 							  &points[0].z);
 			test_quarter_turn(reverse ? ax : bx, reverse ? az : bz, rotation, &points[1].x,
 							  &points[1].z);
-			for (unsigned int i = 0U; i < 2U; ++i) {
+			for (legacy_uint i = 0U; i < 2U; ++i) {
 				points[i].x += ox;
 				points[i].z += oz;
 				points[i].distance = i * 1024.0;
@@ -526,26 +528,27 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 			route.points = points;
 			route.point_count = 2U;
 			route.length = 1024.0;
-			double direction = (reverse ? az - bz : bz - az) > 0.0 ? 1.0 : -1.0;
+			legacy_f64 direction = (reverse ? az - bz : bz - az) > 0.0 ? 1.0 : -1.0;
 			legacy_s16 heading = slalom_heading(rotation, direction);
 			struct GENGHOST_POLICY policy;
 			struct GENGHOST_DRIVER driver;
 			genghost_policy_default(&policy);
 			genghost_driver_reset(&driver);
 			policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN;
-			for (int collision = 0; collision <= 1; ++collision) {
+			for (legacy_int collision = 0; collision <= 1; ++collision) {
 				assert(genghost_stunt_recipe(model, collision)->kind ==
 					   GENGHOST_RECIPE_SLALOM_CENTER);
 				struct GENGHOST_WAYPOINT target;
-				double protected_end, local_x, local_z;
+				legacy_f64 protected_end, local_x, local_z;
 				if (half_width < SLALOM_POLE_INNER_X - 1.0) {
-					const double positions[] = {-500.0, 0.0, SLALOM_POLE_FAR_Z + half_length - 2.0};
+					const legacy_f64 positions[] = {-500.0, 0.0,
+													SLALOM_POLE_FAR_Z + half_length - 2.0};
 					for (size_t sample = 0U; sample < sizeof(positions) / sizeof(positions[0]);
 						 ++sample) {
 						slalom_position(ox, oz, rotation, 0.0, direction * positions[sample],
 										heading);
 						genghost_sim_capture(&positioned);
-						for (int phase = -1; phase <= 1; ++phase) {
+						for (legacy_int phase = -1; phase <= 1; ++phase) {
 							policy.segment[0].lateral_offset = phase;
 							assert(genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0,
 														 collision, &target, &protected_end));
@@ -565,7 +568,7 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 						}
 						struct GENGHOST_DRIVER road_driver;
 						genghost_driver_reset(&road_driver);
-						unsigned char road_input =
+						legacy_u8 road_input =
 							genghost_driver_step(&route, &policy, &road_driver, 0, collision, 1);
 						assert(road_driver.tactic_ticks == 1U);
 						assert(!(road_input & INPUT_BRAKE_FLAG));
@@ -590,7 +593,7 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 				/* A late transverse approach inside the stunt has no aligned
 				 * clearance yet. Reject the fast-center proposal or retain an
 				 * outside continuation; native search may explore recovery. */
-				for (int side = -1; side <= 1; side += 2) {
+				for (legacy_int side = -1; side <= 1; side += 2) {
 					slalom_position(ox, oz, rotation, side * 80.0, 0.0, heading);
 					genghost_sim_capture(&positioned);
 					if (genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, collision,
@@ -626,10 +629,10 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 			slalom_position(ox, oz, rotation, 0.0, -direction * 750.0, heading);
 			genghost_sim_capture(&positioned);
 			struct GENGHOST_WAYPOINT target;
-			double protected_end;
+			legacy_f64 protected_end;
 			if (genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0, &target,
 									  &protected_end)) {
-				double local_x, local_z;
+				legacy_f64 local_x, local_z;
 				test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
 				assert(fabs(local_x) >= SLALOM_POLE_OUTER_X + simd_player.collide_points[0].px);
 			}
@@ -641,7 +644,7 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
 			genghost_policy_default(&road_policy);
 			genghost_driver_reset(&road_driver);
 			genghost_driver_reset(&center_driver);
-			unsigned char road_input =
+			legacy_u8 road_input =
 				genghost_driver_step(&route, &road_policy, &road_driver, 0, 0, 1);
 			for (size_t segment = 0U; segment < GENGHOST_POLICY_SEGMENTS; ++segment) {
 				road_policy.segment[segment].stunt_mode = GENGHOST_STUNT_HUMAN;
@@ -667,36 +670,36 @@ static void test_slalom_center_guard(const struct GENGHOST_ROUTE *view, int mode
  * rotate the entire local configuration, and reverse the route. A shortcut
  * must not turn through a tunnel/pipe side wall in either direction, or
  * steer a ground-level car onto a solid deck above it. */
-static void test_corridor_guard(const struct GENGHOST_ROUTE *view, int model)
+static void test_corridor_guard(const struct GENGHOST_ROUTE *view, legacy_int model)
 {
 	if (model != PHYSICAL_MODEL_TUNNEL && model != PHYSICAL_MODEL_PIPE_ENTRANCE &&
 		model != PHYSICAL_MODEL_PIPE && model != PHYSICAL_MODEL_SOLID_ROAD) {
 		return;
 	}
-	int piece = view->points[0].piece;
-	struct TRACKOBJECT *object = &trkObjectList[(unsigned char)track_route_element_ids[piece]];
+	legacy_int piece = view->points[0].piece;
+	struct TRACKOBJECT *object = &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
 	struct TRACKOBJECT original_object = *object;
 	struct GENGHOST_SNAPSHOT saved, positioned, after;
 	genghost_sim_capture(&saved);
-	double ox = track_object_base_x(object, (unsigned char)track_route_columns[piece]);
-	double oz = track_object_base_z(object, (unsigned char)track_route_rows[piece]);
+	legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
+	legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
 	size_t last = 0U;
 	while (last + 1U < view->point_count && view->points[last + 1U].piece == piece) {
 		++last;
 	}
-	double ax, az, bx, bz;
+	legacy_f64 ax, az, bx, bz;
 	test_quarter_turn(view->points[0].x - ox, view->points[0].z - oz, -object->ss_rotY, &ax, &az);
 	test_quarter_turn(view->points[last].x - ox, view->points[last].z - oz, -object->ss_rotY, &bx,
 					  &bz);
-	for (int rotation = 0; rotation < 1024; rotation += 256) {
+	for (legacy_int rotation = 0; rotation < 1024; rotation += 256) {
 		object->ss_rotY = (legacy_s16)rotation;
-		for (int reverse = 0; reverse <= 1; ++reverse) {
+		for (legacy_int reverse = 0; reverse <= 1; ++reverse) {
 			struct GENGHOST_WAYPOINT points[2] = {view->points[0], view->points[last]};
 			test_quarter_turn(reverse ? bx : ax, reverse ? bz : az, rotation, &points[0].x,
 							  &points[0].z);
 			test_quarter_turn(reverse ? ax : bx, reverse ? az : bz, rotation, &points[1].x,
 							  &points[1].z);
-			for (unsigned int i = 0U; i < 2U; ++i) {
+			for (legacy_uint i = 0U; i < 2U; ++i) {
 				points[i].x += ox;
 				points[i].z += oz;
 				points[i].distance = i * 1024.0;
@@ -705,8 +708,8 @@ static void test_corridor_guard(const struct GENGHOST_ROUTE *view, int model)
 			route.points = points;
 			route.point_count = 2U;
 			route.length = 1024.0;
-			for (int side = -1; side <= 1; side += 2) {
-				double wx, wz;
+			for (legacy_int side = -1; side <= 1; side += 2) {
+				legacy_f64 wx, wz;
 				test_quarter_turn(side * 400.0, 0.0, rotation, &wx, &wz);
 				state.playerstate.car_position.lx = (legacy_s32)((ox + wx) * 64.0);
 				state.playerstate.car_position.lz = (legacy_s32)((oz + wz) * 64.0);
@@ -721,19 +724,19 @@ static void test_corridor_guard(const struct GENGHOST_ROUTE *view, int model)
 				genghost_driver_reset(&driver);
 				policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN;
 				struct GENGHOST_WAYPOINT target;
-				double protected_end;
-				int planned = genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0,
-													&target, &protected_end);
+				legacy_f64 protected_end;
+				legacy_int planned = genghost_stunt_target(&route, &driver, &policy.segment[0],
+														   400.0, 0, &target, &protected_end);
 				assert(planned == (model == PHYSICAL_MODEL_SOLID_ROAD));
 				if (planned) {
-					double local_x, local_z;
+					legacy_f64 local_x, local_z;
 					test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
 					assert(side * local_x > 120.0 && !target.height_specified);
 				}
 				policy.segment[0].stunt_mode = GENGHOST_STUNT_HUMAN_ALT;
 				assert(genghost_stunt_target(&route, &driver, &policy.segment[0], 400.0, 0, &target,
 											 &protected_end));
-				double local_x, local_z;
+				legacy_f64 local_x, local_z;
 				test_quarter_turn(target.x - ox, target.z - oz, -rotation, &local_x, &local_z);
 				assert(side * local_x > (model == PHYSICAL_MODEL_TUNNEL		  ? 270.0
 										 : model == PHYSICAL_MODEL_SOLID_ROAD ? 120.0
@@ -749,8 +752,8 @@ static void test_corridor_guard(const struct GENGHOST_ROUTE *view, int model)
 	assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 }
 
-static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, unsigned int prefix,
-							   int model)
+static void test_stunt_catalog(const legacy_u8 *inputs, legacy_uint count, legacy_uint prefix,
+							   legacy_int model)
 {
 	struct GENGHOST_ROUTES set;
 	struct GENGHOST_ROUTE view;
@@ -760,12 +763,12 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 	test_corridor_guard(&view, model);
 	test_slalom_center_guard(&view, model);
 	assert(genghost_stunt_catalog_model(model));
-	unsigned int proposals[2] = {0};
-	const double lookaheads[] = {160.0, 400.0, 900.0};
-	for (int collision = 0; collision <= 1; ++collision) {
+	legacy_uint proposals[2] = {0};
+	const legacy_f64 lookaheads[] = {160.0, 400.0, 900.0};
+	for (legacy_int collision = 0; collision <= 1; ++collision) {
 		assert(genghost_stunt_recipe(model, collision) != NULL);
-		for (unsigned int mode = GENGHOST_STUNT_HUMAN; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
-			for (int offset = -2; offset <= 2; offset += 2) {
+		for (legacy_uint mode = GENGHOST_STUNT_HUMAN; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
+			for (legacy_int offset = -2; offset <= 2; offset += 2) {
 				struct GENGHOST_POLICY policy;
 				genghost_policy_default(&policy);
 				for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
@@ -776,8 +779,8 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 				genghost_driver_reset(&driver);
 				for (size_t look = 0U; look < sizeof(lookaheads) / sizeof(lookaheads[0]); ++look) {
 					struct GENGHOST_WAYPOINT target;
-					double protected_end = 0.0;
-					int planned =
+					legacy_f64 protected_end = 0.0;
+					legacy_int planned =
 						genghost_stunt_target(&view, &driver, &policy.segment[0], lookaheads[look],
 											  collision, &target, &protected_end);
 					assert(planned == 0 || planned == 1);
@@ -794,8 +797,7 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 					genghost_sim_capture(&after);
 					assert(memcmp(&saved, &after, sizeof(saved)) == 0);
 				}
-				unsigned char input =
-					genghost_driver_step(&view, &policy, &driver, 1, collision, 0);
+				legacy_u8 input = genghost_driver_step(&view, &policy, &driver, 1, collision, 0);
 				assert(!(input & ~(INPUT_DRIVING_MASK | INPUT_ACTION_BUTTON_MASK)));
 				assert((input & INPUT_PEDAL_MASK) != INPUT_PEDAL_MASK);
 				assert((input & INPUT_STEERING_MASK) != INPUT_STEERING_MASK);
@@ -807,20 +809,20 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
 	assert(proposals[0] && proposals[1]);
 	/* OWOOT suppresses shortcut modes under either collision regime. Only
 	 * a physically narrow slalom center remains available as legal road driving. */
-	for (int powergear = 0; powergear <= 1; ++powergear) {
+	for (legacy_int powergear = 0; powergear <= 1; ++powergear) {
 		struct GENGHOST_POLICY policy;
 		struct GENGHOST_DRIVER reference;
 		genghost_policy_default(&policy);
 		genghost_driver_reset(&reference);
-		unsigned char expected = genghost_driver_step(&view, &policy, &reference, powergear, 0, 1);
-		for (unsigned int mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
+		legacy_u8 expected = genghost_driver_step(&view, &policy, &reference, powergear, 0, 1);
+		for (legacy_uint mode = 1U; mode <= GENGHOST_STUNT_HUMAN_ALT; ++mode) {
 			for (size_t i = 0U; i < GENGHOST_POLICY_SEGMENTS; ++i) {
 				policy.segment[i].stunt_mode = mode;
 			}
-			for (int collision = 0; collision <= 1; ++collision) {
+			for (legacy_int collision = 0; collision <= 1; ++collision) {
 				struct GENGHOST_DRIVER driver;
 				genghost_driver_reset(&driver);
-				unsigned char actual =
+				legacy_u8 actual =
 					genghost_driver_step(&view, &policy, &driver, powergear, collision, 1);
 				if (model == PHYSICAL_MODEL_SLALOM && mode == GENGHOST_STUNT_HUMAN &&
 					genghost_slalom_center_fits()) {
@@ -847,24 +849,24 @@ static void test_stunt_catalog(const unsigned char *inputs, unsigned int count, 
  * choice from the full selector and verify the resulting Cartesian indices. */
 static void test_dualway_selectors(void)
 {
-	const unsigned int counts[] = {4U, 8U, 12U};
+	const legacy_uint counts[] = {4U, 8U, 12U};
 	for (size_t test = 0U; test < sizeof(counts) / sizeof(counts[0]); ++test) {
-		unsigned int total = counts[test];
-		for (uint32_t gate = 4U; gate <= 12U; gate += 4U) {
-			unsigned int visits[12] = {0};
-			for (uint64_t word = 3U; word < 3U + 32U * total; ++word) {
-				uint64_t selected = genghost_dualway_selector(gate, word);
+		legacy_uint total = counts[test];
+		for (legacy_u32 gate = 4U; gate <= 12U; gate += 4U) {
+			legacy_uint visits[12] = {0};
+			for (legacy_u64 word = 3U; word < 3U + 32U * total; ++word) {
+				legacy_u64 selected = genghost_dualway_selector(gate, word);
 				assert(selected >= 3U);
 				++visits[(selected - 3U) % total];
 			}
-			for (unsigned int ordinal = 0U; ordinal < total; ++ordinal) {
+			for (legacy_uint ordinal = 0U; ordinal < total; ++ordinal) {
 				assert(visits[ordinal] == 32U);
 			}
 		}
 	}
-	unsigned int recipes[3] = {0};
-	for (uint64_t word = 0U; word < 12U; ++word) {
-		uint64_t selected = genghost_dualway_selector(0U, word);
+	legacy_uint recipes[3] = {0};
+	for (legacy_u64 word = 0U; word < 12U; ++word) {
+		legacy_u64 selected = genghost_dualway_selector(0U, word);
 		assert(selected < 3U);
 		++recipes[selected];
 	}
@@ -876,15 +878,15 @@ static void test_dualway_selectors(void)
 /* DEFAULT has two long paths with a shared split tile (10/59) and merge
  * footprint (57/127). These are useful counterexamples to treating distinct
  * graph IDs as proof that a private branch tile was visited. */
-static void place_on_piece(int piece)
+static void place_on_piece(legacy_int piece)
 {
 	state.playerstate.car_position.lx =
-		((legacy_s32)(unsigned char)track_route_columns[piece] * 1024 + 512) * 64;
+		((legacy_s32)(legacy_u8)track_route_columns[piece] * 1024 + 512) * 64;
 	state.playerstate.car_position.lz =
-		((legacy_s32)(29 - (unsigned char)track_route_rows[piece]) * 1024 + 512) * 64;
+		((legacy_s32)(29 - (legacy_u8)track_route_rows[piece]) * 1024 + 512) * 64;
 }
 
-static int test_dualway_routes(void)
+static legacy_int test_dualway_routes(void)
 {
 	if (track_pieces_counter != 128 || track_primary_route_links[9] != 10 ||
 		track_alternate_route_links[9] != 59 || track_primary_route_links[127] != 58 ||
@@ -892,18 +894,18 @@ static int test_dualway_routes(void)
 		return 0;
 	}
 	struct GENGHOST_ROUTES set;
-	char error[256];
+	legacy_char error[256];
 	assert(genghost_routes_build(&set, error, sizeof(error)) == 0);
 	assert(set.count == 2U && set.dualway_pairs == 6164U);
 	/* Endpoint recipes depend on private branch ranks, not DEFAULT node IDs.
 	 * Assert their native realization here, including the winner's third-private
 	 * departure to penultimate arrival, and retain old shortest/near profiles. */
-	static const int expected_departures[2][6] = {{11, 35, 11, 12, 13, 13},
-												  {60, 76, 60, 61, 62, 62}};
-	static const int expected_arrivals[2][6] = {{126, 118, 124, 125, 125, 126},
-												{56, 16, 54, 55, 55, 56}};
+	static const legacy_int expected_departures[2][6] = {{11, 35, 11, 12, 13, 13},
+														 {60, 76, 60, 61, 62, 62}};
+	static const legacy_int expected_arrivals[2][6] = {{126, 118, 124, 125, 125, 126},
+													   {56, 16, 54, 55, 55, 56}};
 	for (size_t route_index = 0; route_index < set.count; ++route_index) {
-		for (unsigned int seed = 0U; seed < 6U; ++seed) {
+		for (legacy_uint seed = 0U; seed < 6U; ++seed) {
 			struct GENGHOST_POLICY policy;
 			memset(&policy, 0, sizeof(policy));
 			genghost_policy_default(&policy);
@@ -943,10 +945,10 @@ static int test_dualway_routes(void)
 			--first_finish;
 		}
 		assert(genghost_route_piece_distance(base, 0U) == 0.0);
-		double finish_distance = genghost_route_piece_distance(base, finish);
+		legacy_f64 finish_distance = genghost_route_piece_distance(base, finish);
 		assert(finish_distance > base->length * 0.9);
 		assert(finish_distance == base->points[first_finish].distance);
-		for (uint64_t ordinal = 0U; ordinal < 3082U; ++ordinal) {
+		for (legacy_u64 ordinal = 0U; ordinal < 3082U; ++ordinal) {
 			struct GENGHOST_POLICY policy;
 			genghost_policy_default(&policy);
 			for (size_t i = 0; i < GENGHOST_POLICY_SEGMENTS; ++i) {
@@ -956,8 +958,10 @@ static int test_dualway_routes(void)
 			assert(genghost_route_policy(&set, route_index, &policy, &route, error,
 										 sizeof(error)) == 1);
 			assert(route.switch_count == 1U);
-			int source = route_index ? 60 + (int)(ordinal / 46U) : 11 + (int)(ordinal / 67U);
-			int target = route_index ? 11 + (int)(ordinal % 46U) : 60 + (int)(ordinal % 67U);
+			legacy_int source =
+				route_index ? 60 + (legacy_int)(ordinal / 46U) : 11 + (legacy_int)(ordinal / 67U);
+			legacy_int target =
+				route_index ? 11 + (legacy_int)(ordinal % 46U) : 60 + (legacy_int)(ordinal % 67U);
 			size_t portal = 0U;
 			while (portal < route.piece_count && route.pieces[portal] != source) {
 				++portal;
@@ -983,11 +987,11 @@ static int test_dualway_routes(void)
 	 * Once private A is confirmed, the legacy mode wraps past the finish;
 	 * fixed mode keeps A confirmed and recognizes the other branch as off-route.
 	 * Configuration must survive simulator resets and branch restoration. */
-	for (int switching = 0; switching <= 1; ++switching) {
+	for (legacy_int switching = 0; switching <= 1; ++switching) {
 		legacy_s8 *flags[] = {(legacy_s8 *)"test",
 							  (legacy_s8 *)(switching ? "--dws:on" : "--dws:off")};
 		configure_dual_way_switching(2, flags);
-		for (int confirmed = 9; confirmed <= 11; confirmed += 2) {
+		for (legacy_int confirmed = 9; confirmed <= 11; confirmed += 2) {
 			genghost_sim_reset();
 			state.game_startcol = state.game_startcol2 = -1;
 			state.game_startrow = state.game_startrow2 = -1;
@@ -1011,19 +1015,19 @@ static int test_dualway_routes(void)
 /* Replace only the grounded uphill shift decisions in the fastest ZCT079
  * recording. Matching every native state rejects an early shift that loses
  * speed during the clutch transition and misses the power-gear window. */
-static void test_uphill_powergear(const unsigned char *inputs, unsigned int count)
+static void test_uphill_powergear(const legacy_u8 *inputs, legacy_uint count)
 {
 	assert(count > 300U && count <= GENGHOST_MAX_FRAMES);
-	unsigned char *reference = malloc((size_t)count * GAMESTATE_SERIALIZED_SIZE);
+	legacy_u8 *reference = malloc((size_t)count * GAMESTATE_SERIALIZED_SIZE);
 	assert(reference != NULL);
-	for (unsigned int frame = 0U; frame < count; ++frame) {
+	for (legacy_uint frame = 0U; frame < count; ++frame) {
 		assert(genghost_sim_step(inputs[frame]) >= 0);
 		assert(gamestate_serialize(reference + (size_t)frame * GAMESTATE_SERIALIZED_SIZE, &state) ==
 			   GAMESTATE_SERIALIZED_SIZE);
 	}
 	genghost_sim_reset();
 	struct GENGHOST_ROUTES routes;
-	char error[256];
+	legacy_char error[256];
 	assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
 	assert(routes.count > 0U);
 	struct GENGHOST_POLICY policy;
@@ -1031,12 +1035,12 @@ static void test_uphill_powergear(const unsigned char *inputs, unsigned int coun
 	struct GENGHOST_DRIVER driver;
 	genghost_driver_reset(&driver);
 	struct GENGHOST_SNAPSHOT before, after;
-	unsigned int shifts = 0U;
-	const unsigned int shift_mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
-	for (unsigned int frame = 0U; frame < count; ++frame) {
+	legacy_uint shifts = 0U;
+	const legacy_uint shift_mask = INPUT_SHIFT_UP_FLAG | INPUT_SHIFT_DOWN_FLAG;
+	for (legacy_uint frame = 0U; frame < count; ++frame) {
 		genghost_sim_capture(&before);
 		struct GENGHOST_DRIVER original_driver = driver;
-		unsigned char control = genghost_driver_step(&routes.routes[0], &policy, &driver, 1, 1, 0);
+		legacy_u8 control = genghost_driver_step(&routes.routes[0], &policy, &driver, 1, 1, 0);
 		genghost_sim_capture(&after);
 		assert(memcmp(&before, &after, sizeof(before)) == 0);
 		if (frame == 261U || frame == 266U) {
@@ -1046,26 +1050,26 @@ static void test_uphill_powergear(const unsigned char *inputs, unsigned int coun
 			/* Compare controller flags at the same real state, without changing
 			 * the engine's rules or stepping a counterfactual simulation. */
 			struct GENGHOST_DRIVER fixed_driver = original_driver;
-			unsigned char fixed =
+			legacy_u8 fixed =
 				genghost_driver_step(&routes.routes[0], &policy, &fixed_driver, 0, 1, 0);
 			assert(!(fixed & INPUT_SHIFT_UP_FLAG));
 			struct GENGHOST_DRIVER road_driver = original_driver;
-			unsigned char road =
+			legacy_u8 road =
 				genghost_driver_step(&routes.routes[0], &policy, &road_driver, 1, 1, 1);
 			assert((road & shift_mask) == INPUT_SHIFT_UP_FLAG);
 			genghost_sim_capture(&after);
 			assert(memcmp(&before, &after, sizeof(before)) == 0);
 		}
-		unsigned char input = inputs[frame];
+		legacy_u8 input = inputs[frame];
 		if (frame >= 240U && frame < 300U) {
 			if (control & INPUT_SHIFT_UP_FLAG) {
 				assert(frame == 261U || frame == 266U);
 				++shifts;
 			}
-			input = (unsigned char)((input & ~shift_mask) | (control & shift_mask));
+			input = (legacy_u8)((input & ~shift_mask) | (control & shift_mask));
 		}
 		assert(genghost_sim_step(input) >= 0);
-		unsigned char serialized[GAMESTATE_SERIALIZED_SIZE];
+		legacy_u8 serialized[GAMESTATE_SERIALIZED_SIZE];
 		assert(gamestate_serialize(serialized, &state) == sizeof(serialized));
 		assert(memcmp(serialized, reference + (size_t)frame * GAMESTATE_SERIALIZED_SIZE,
 					  sizeof(serialized)) == 0);
@@ -1087,7 +1091,7 @@ static void test_uphill_powergear(const unsigned char *inputs, unsigned int coun
  * also exercises extraction without importing the source recording's timing. */
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
-	if (argc == 2 && strcmp((const char *)argv[1], "--geometry-only") == 0) {
+	if (argc == 2 && strcmp((const legacy_char *)argv[1], "--geometry-only") == 0) {
 		test_regions();
 		test_dualway_selectors();
 		test_guide_roll();
@@ -1098,8 +1102,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 				"Usage: test-genghost-simulation SOURCE.RPL OUTPUT.RPL [physics options]\n");
 		return 1;
 	}
-	unsigned char recording[REPLAY_INPUT_OFFSET + GENGHOST_MAX_FRAMES + 1];
-	FILE *source = fopen((const char *)argv[1], "rb");
+	legacy_u8 recording[REPLAY_INPUT_OFFSET + GENGHOST_MAX_FRAMES + 1];
+	FILE *source = fopen((const legacy_char *)argv[1], "rb");
 	assert(source != NULL);
 	size_t size = fread(recording, 1, sizeof(recording), source);
 	assert(!ferror(source) && fclose(source) == 0);
@@ -1109,28 +1113,29 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(config.game_opponenttype == 0);
 	assert(config.game_recordedframes <= GENGHOST_MAX_FRAMES);
 	assert(size == REPLAY_INPUT_OFFSET + config.game_recordedframes);
-	unsigned int count = config.game_recordedframes;
-	const unsigned char *inputs = recording + REPLAY_INPUT_OFFSET;
+	legacy_uint count = config.game_recordedframes;
+	const legacy_u8 *inputs = recording + REPLAY_INPUT_OFFSET;
 	assert(genghost_sim_init(recording + REPLAY_GAMEINFO_SIZE,
-							 (const char *)config.game_playercarid, config.game_playertransmission,
-							 argc, (char **)argv) == 0);
+							 (const legacy_char *)config.game_playercarid,
+							 config.game_playertransmission, argc, (legacy_char **)argv) == 0);
 
-	if (argc == 5 && strcmp((const char *)argv[2], "--controller-check") == 0) {
+	if (argc == 5 && strcmp((const legacy_char *)argv[2], "--controller-check") == 0) {
 		test_controller_snapshot(inputs, count,
-								 (unsigned int)strtoul((const char *)argv[3], NULL, 10),
-								 (int)strtol((const char *)argv[4], NULL, 10));
+								 (legacy_uint)strtoul((const legacy_char *)argv[3], NULL, 10),
+								 (legacy_int)strtol((const legacy_char *)argv[4], NULL, 10));
 		return 0;
 	}
-	if (argc == 5 && strcmp((const char *)argv[2], "--catalog-check") == 0) {
-		test_stunt_catalog(inputs, count, (unsigned int)strtoul((const char *)argv[3], NULL, 10),
-						   (int)strtol((const char *)argv[4], NULL, 10));
+	if (argc == 5 && strcmp((const legacy_char *)argv[2], "--catalog-check") == 0) {
+		test_stunt_catalog(inputs, count,
+						   (legacy_uint)strtoul((const legacy_char *)argv[3], NULL, 10),
+						   (legacy_int)strtol((const legacy_char *)argv[4], NULL, 10));
 		return 0;
 	}
-	if (argc == 3 && strcmp((const char *)argv[2], "--uphill-check") == 0) {
+	if (argc == 3 && strcmp((const legacy_char *)argv[2], "--uphill-check") == 0) {
 		test_uphill_powergear(inputs, count);
 		return 0;
 	}
-	if (argc >= 3 && strcmp((const char *)argv[2], "--dualway-check") == 0) {
+	if (argc >= 3 && strcmp((const legacy_char *)argv[2], "--dualway-check") == 0) {
 		assert(test_dualway_routes());
 		return 0;
 	}
@@ -1138,42 +1143,42 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	/* A discarded branch changes collision caches, RNG (on impact), retained
 	 * legacy stack words and penalty state. Restoring must undo all of it. */
 	struct GENGHOST_SNAPSHOT checkpoint, expected, actual;
-	for (unsigned int frame = 0; frame < 137; frame++) {
+	for (legacy_uint frame = 0; frame < 137; frame++) {
 		assert(genghost_sim_step(frame < count ? inputs[frame] : INPUT_ACCELERATE_FLAG) >= 0);
 	}
 	genghost_sim_capture(&checkpoint);
-	for (unsigned int frame = 137; frame < 377; frame++) {
+	for (legacy_uint frame = 137; frame < 377; frame++) {
 		assert(genghost_sim_step(frame < count ? inputs[frame] : INPUT_ACCELERATE_FLAG) >= 0);
 	}
 	genghost_sim_capture(&expected);
 	genghost_sim_restore(&checkpoint);
-	for (unsigned int frame = 0; frame < 911; frame++) {
+	for (legacy_uint frame = 0; frame < 911; frame++) {
 		assert(genghost_sim_step(INPUT_ACCELERATE_FLAG | INPUT_STEER_LEFT_FLAG) >= 0);
 	}
 	genghost_sim_restore(&checkpoint);
-	for (unsigned int frame = 137; frame < 377; frame++) {
+	for (legacy_uint frame = 137; frame < 377; frame++) {
 		assert(genghost_sim_step(frame < count ? inputs[frame] : INPUT_ACCELERATE_FLAG) >= 0);
 	}
 	genghost_sim_capture(&actual);
 	assert(memcmp(&expected, &actual, sizeof(expected)) == 0);
 
-	char track_name[REPLAY_TRACK_NAME_SIZE + 1];
+	legacy_char track_name[REPLAY_TRACK_NAME_SIZE + 1];
 	memcpy(track_name, config.game_trackname, REPLAY_TRACK_NAME_SIZE);
 	track_name[REPLAY_TRACK_NAME_SIZE] = 0;
-	assert(genghost_sim_write_replay((const char *)argv[2], track_name, inputs, count) == 0);
-	char *state_path = malloc(strlen((const char *)argv[2]) + sizeof(".states"));
+	assert(genghost_sim_write_replay((const legacy_char *)argv[2], track_name, inputs, count) == 0);
+	legacy_char *state_path = malloc(strlen((const legacy_char *)argv[2]) + sizeof(".states"));
 	assert(state_path != NULL);
-	sprintf(state_path, "%s.states", (const char *)argv[2]);
+	sprintf(state_path, "%s.states", (const legacy_char *)argv[2]);
 	FILE *output = fopen(state_path, "wb");
 	assert(output != NULL);
 	free(state_path);
 	struct GENGHOST_GUIDE_POINT *guide = calloc(count, sizeof(*guide));
 	assert(guide != NULL);
-	unsigned char serialized[GAMESTATE_SERIALIZED_SIZE];
+	legacy_u8 serialized[GAMESTATE_SERIALIZED_SIZE];
 	LEGACY_WRITE_U16_LE(serialized, count);
 	assert(fwrite(serialized, 1, 2, output) == 2);
 	genghost_sim_reset();
-	for (unsigned int frame = 0; frame < count; frame++) {
+	for (legacy_uint frame = 0; frame < count; frame++) {
 		genghost_guide_capture(&guide[frame], inputs[frame]);
 		assert(genghost_sim_step(inputs[frame]) >= 0);
 		assert(gamestate_serialize(serialized, &state) == sizeof(serialized));
@@ -1182,7 +1187,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(fclose(output) == 0);
 	genghost_sim_capture(&expected);
 	genghost_sim_reset();
-	for (unsigned int frame = 0; frame < count; frame++) {
+	for (legacy_uint frame = 0; frame < count; frame++) {
 		assert(genghost_sim_step(inputs[frame]) >= 0);
 	}
 	genghost_sim_capture(&actual);
@@ -1190,9 +1195,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	/* Following an unmodified demonstrated trajectory must preserve every input
 	 * and the complete final simulator state, including through jumps and slides. */
 	genghost_sim_reset();
-	unsigned int cursor = 0;
-	for (unsigned int frame = 0; frame < count; ++frame) {
-		unsigned char guided = genghost_guide_step(guide, count, &cursor, 0.5);
+	legacy_uint cursor = 0;
+	for (legacy_uint frame = 0; frame < count; ++frame) {
+		legacy_u8 guided = genghost_guide_step(guide, count, &cursor, 0.5);
 		assert(guided == inputs[frame]);
 		assert(cursor == frame + 1U);
 		assert(genghost_sim_step(guided) >= 0);

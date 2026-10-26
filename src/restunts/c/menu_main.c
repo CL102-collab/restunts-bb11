@@ -141,7 +141,7 @@ legacy_s8 run_menu(void)
 			first_loop = 0;
 		}
 		if (key) {
-			fprintf(stdout, "Amiga menu: key=%u\n", (unsigned)key);
+			fprintf(stdout, "Amiga menu: key=%u\n", (legacy_uint)key);
 			fflush(stdout);
 		}
 #endif

@@ -105,7 +105,7 @@ static void test_native_sprite_context(void)
 	assert(drawing_sprite.sprite_left == 123 && screen_sprite.sprite_left == 789);
 }
 
-int main(void)
+legacy_int main(void)
 {
 	test_unaligned_bitmap_header();
 	test_highscore_file_order();

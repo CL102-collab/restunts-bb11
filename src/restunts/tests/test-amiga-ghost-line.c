@@ -17,8 +17,8 @@ static void test_scalar_reference(void)
 		-scale * 131070 - scale / 3, -scale - 1, -scale / 3, 0, scale / 3, scale + 1,
 		scale * 131070 + scale / 3,
 	};
-	for (unsigned i = 0; i < sizeof(factors) / sizeof(*factors); i++) {
-		for (unsigned j = 0; j < sizeof(factors) / sizeof(*factors); j++) {
+	for (legacy_uint i = 0; i < sizeof(factors) / sizeof(*factors); i++) {
+		for (legacy_uint j = 0; j < sizeof(factors) / sizeof(*factors); j++) {
 			long double expected = truncl((long double)factors[i] * factors[j] / scale);
 			assert(fabsl(ghost_line_multiply(factors[i], factors[j]) - expected) <= 1);
 		}
@@ -26,12 +26,12 @@ static void test_scalar_reference(void)
 	/* Every production divisor is a positive length. Large values exercise
 	 * normalization of cross products from extreme signed 16-bit wheel data. */
 	const ghost_line_scalar divisors[] = {1, 2, scale - 1, scale, scale + 1, (1LL << 59) - 1};
-	for (unsigned i = 0; i < sizeof(divisors) / sizeof(*divisors); i++) {
+	for (legacy_uint i = 0; i < sizeof(divisors) / sizeof(*divisors); i++) {
 		ghost_line_scalar denominator = divisors[i];
 		ghost_line_scalar numerators[] = {0, denominator - 1, denominator, denominator + 1,
 										  2 * denominator + 1};
-		for (unsigned j = 0; j < sizeof(numerators) / sizeof(*numerators); j++) {
-			for (int sign = -1; sign <= 1; sign += 2) {
+		for (legacy_uint j = 0; j < sizeof(numerators) / sizeof(*numerators); j++) {
+			for (legacy_int sign = -1; sign <= 1; sign += 2) {
 				ghost_line_scalar numerator = sign * numerators[j];
 				long double expected = truncl((long double)numerator * scale / denominator);
 				assert(fabsl(ghost_line_divide(numerator, denominator) - expected) <= 1);
@@ -56,7 +56,7 @@ static void test_length_reference(void)
 		{large, -large, large},
 		{-large, 1, GHOST_LINE_ONE},
 	};
-	for (unsigned i = 0; i < sizeof(vectors) / sizeof(*vectors); i++) {
+	for (legacy_uint i = 0; i < sizeof(vectors) / sizeof(*vectors); i++) {
 		long double expected = vector_length(vectors[i]);
 		long double tolerance = expected * 0.0000002L + 1;
 		assert(fabsl(ghost_line_length(vectors[i]) - expected) <= tolerance);
@@ -68,9 +68,9 @@ static void test_length_reference(void)
 static void test_extreme_wheel_contacts(void)
 {
 	/* All signs of all twelve wheel coordinates, including degenerate poses. */
-	for (unsigned signs = 0; signs < (1U << 12); signs++) {
+	for (legacy_uint signs = 0; signs < (1U << 12); signs++) {
 		struct CARSTATE car = {0};
-		for (unsigned wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		for (legacy_uint wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 			struct VECTOR *contact = &car.car_wheel_contact_positions[wheel];
 			contact->x = signs & (1U << (wheel * 3)) ? 32767 : -32768;
 			contact->y = signs & (2U << (wheel * 3)) ? 32767 : -32768;
@@ -95,9 +95,9 @@ static void test_coordinate_units_and_rounding(void)
 	const struct VECTOR wheels[] = {{-20, 0, 40}, {20, 0, 40}, {20, 0, -40}, {-20, 0, -40}};
 	/* The first shifted pose lies near the far side of the 30-tile map. */
 	const struct VECTOR translations[] = {{30000, 1000, 20000}, {-30000, -1000, -20000}};
-	for (unsigned index = 0; index < 2; index++) {
+	for (legacy_uint index = 0; index < 2; index++) {
 		struct CARSTATE car = {0};
-		for (unsigned wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		for (legacy_uint wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 			car.car_wheel_contact_positions[wheel].x = wheels[wheel].x + translations[index].x;
 			car.car_wheel_contact_positions[wheel].y = wheels[wheel].y + translations[index].y;
 			car.car_wheel_contact_positions[wheel].z = wheels[wheel].z + translations[index].z;
@@ -117,7 +117,7 @@ static void test_coordinate_units_and_rounding(void)
 	assert(ghost_line_round(-5 * GHOST_LINE_ONE / 2) == -3);
 }
 
-int main(void)
+legacy_int main(void)
 {
 	test_scalar_reference();
 	test_length_reference();

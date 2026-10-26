@@ -1213,7 +1213,8 @@ static void test_startup_controller_vibration_options(void)
 								  (legacy_s8 *)"--fps:invalid"};
 	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
 #else
-	/* Android uses its existing Vibration launcher setting. Other backends have no rumble option. */
+	/* Android uses its existing Vibration launcher setting.
+	 * Other backends have no rumble option. */
 	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--controller-vibration:off",
 							  (legacy_s8 *)"--controller-vibration:on",
 							  (legacy_s8 *)"--controller-vibration:invalid"};

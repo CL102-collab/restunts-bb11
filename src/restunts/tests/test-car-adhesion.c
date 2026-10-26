@@ -626,7 +626,7 @@ static void test_full_moving_loop_facets(void)
 	}
 }
 
-int main(void)
+legacy_int main(void)
 {
 	test_resource_capability();
 	test_resource_settings();

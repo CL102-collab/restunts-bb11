@@ -49,8 +49,12 @@ static struct {
 } ghost_render_cache;
 #endif
 
-#define GHOST_LINE_TILE_COUNT 900U
-#define GHOST_LINE_GRID_SIZE 30
+#define GHOST_LINE_GRID_SIZE TRACK_GRID_SIZE
+#define GHOST_LINE_TILE_COUNT (GHOST_LINE_GRID_SIZE * GHOST_LINE_GRID_SIZE)
+#define GHOST_LINE_WORLD_TILE_SIZE (1L << TRACK_WORLD_TILE_SHIFT)
+#define GHOST_LINE_WHEEL_POSITION_SCALE                                                            \
+	((1L << (TRACK_WORLD_TILE_SHIFT - TRACK_TILE_POSITION_SHIFT)) / CARSTATE_WHEEL_COUNT)
+#define GHOST_LINE_LENGTH_ITERATIONS 8U
 #define GHOST_LINE_NO_SEGMENT ((legacy_u32) - 1)
 #define GHOST_LINE_INITIAL_CAPACITY 1024U
 #define GHOST_LINE_MAX_SEGMENTS 131072UL
@@ -69,6 +73,7 @@ typedef legacy_s64 ghost_line_scalar;
 #define GHOST_LINE_SPACING (800000LL * GHOST_LINE_ONE / 381LL)
 #define GHOST_LINE_NORMALIZATION_MIN ((GHOST_LINE_ONE + 999999LL) / 1000000LL)
 #define GHOST_LINE_SAMPLE_THRESHOLD GHOST_LINE_SPACING
+#define GHOST_LINE_SCALAR_MAX 9223372036854775807LL
 static ghost_line_scalar ghost_line_multiply(ghost_line_scalar first, ghost_line_scalar second)
 {
 	ghost_line_scalar remainder = first % GHOST_LINE_ONE;
@@ -84,7 +89,7 @@ static ghost_line_scalar ghost_line_divide(ghost_line_scalar first, ghost_line_s
 		remainder = -remainder;
 	}
 	ghost_line_scalar fraction;
-	if (remainder <= (9223372036854775807LL / GHOST_LINE_ONE)) {
+	if (remainder <= (GHOST_LINE_SCALAR_MAX / GHOST_LINE_ONE)) {
 		fraction = remainder * GHOST_LINE_ONE / second;
 	} else {
 		fraction = 0;
@@ -206,7 +211,7 @@ static ghost_line_scalar ghost_line_length(struct GHOST_LINE_VECTOR vector)
 	ghost_line_scalar square =
 		ghost_line_multiply(x, x) + ghost_line_multiply(y, y) + ghost_line_multiply(z, z);
 	ghost_line_scalar root = GHOST_LINE_VALUE(2);
-	for (legacy_u16 iteration = 0; iteration < 8U; iteration++) {
+	for (legacy_u16 iteration = 0; iteration < GHOST_LINE_LENGTH_ITERATIONS; iteration++) {
 		root = (root + ghost_line_divide(square, root)) / 2;
 	}
 	return ghost_line_multiply(root, scale);
@@ -241,9 +246,9 @@ static struct GHOST_LINE_POSE ghost_line_pose(const struct CARSTATE *car)
 	const struct VECTOR *wheel = car->car_wheel_contact_positions;
 	/* Wheels are clockwise: front-left, front-right, rear-right, rear-left. */
 	for (legacy_u16 index = 0; index < CARSTATE_WHEEL_COUNT; index++) {
-		pose.center.x += GHOST_LINE_VALUE(wheel[index].x) * 16;
-		pose.center.y += GHOST_LINE_VALUE(wheel[index].y) * 16;
-		pose.center.z += GHOST_LINE_VALUE(wheel[index].z) * 16;
+		pose.center.x += GHOST_LINE_VALUE(wheel[index].x) * GHOST_LINE_WHEEL_POSITION_SCALE;
+		pose.center.y += GHOST_LINE_VALUE(wheel[index].y) * GHOST_LINE_WHEEL_POSITION_SCALE;
+		pose.center.z += GHOST_LINE_VALUE(wheel[index].z) * GHOST_LINE_WHEEL_POSITION_SCALE;
 	}
 	pose.right.x = GHOST_LINE_VALUE((legacy_s32)wheel[1].x + wheel[2].x - wheel[0].x - wheel[3].x);
 	pose.right.y = GHOST_LINE_VALUE((legacy_s32)wheel[1].y + wheel[2].y - wheel[0].y - wheel[3].y);
@@ -310,8 +315,10 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, ghost_line_scal
 {
 	ghost_line_scalar x = (ghost_line_builder.sample.center.x + end->center.x) / 2;
 	ghost_line_scalar z = (ghost_line_builder.sample.center.z + end->center.z) / 2;
-	if (x < 0 || z < 0 || x >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * 65536L) ||
-		z >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * 65536L) || ghost_line_builder.failed) {
+	if (x < 0 || z < 0 ||
+		x >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * GHOST_LINE_WORLD_TILE_SIZE) ||
+		z >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * GHOST_LINE_WORLD_TILE_SIZE) ||
+		ghost_line_builder.failed) {
 		return;
 	}
 #if defined(RESTUNTS_DOS16) || defined(RESTUNTS_AMIGA)
@@ -345,8 +352,9 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, ghost_line_scal
 	}
 	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
 #endif
-	legacy_u16 east = (legacy_u16)(ghost_line_integer(x) / 65536L);
-	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U - (legacy_u16)(ghost_line_integer(z) / 65536L);
+	legacy_u16 east = (legacy_u16)(ghost_line_integer(x) / GHOST_LINE_WORLD_TILE_SIZE);
+	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U -
+					   (legacy_u16)(ghost_line_integer(z) / GHOST_LINE_WORLD_TILE_SIZE);
 	legacy_u16 tile = south * GHOST_LINE_GRID_SIZE + east;
 	segment->start_left = ghost_line_edge(&ghost_line_builder.sample, -GHOST_LINE_HALF_WIDTH);
 	segment->start_right = ghost_line_edge(&ghost_line_builder.sample, GHOST_LINE_HALF_WIDTH);

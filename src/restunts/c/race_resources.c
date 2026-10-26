@@ -257,7 +257,7 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 
 #ifdef RESTUNTS_AMIGA
 	if (load_dashboard_shapes != 0) {
-		amiga_video_palette_race((const char *)gameconfig.game_playercarid, 1);
+		amiga_video_palette_race((const legacy_char *)gameconfig.game_playercarid, 1);
 	}
 #endif
 	followOpponentFlag = 0;
@@ -278,7 +278,7 @@ legacy_s16 setup_player_cars_without_dashboard(void)
 void free_player_cars(void)
 {
 #ifdef RESTUNTS_AMIGA
-	amiga_video_palette_race((const char *)gameconfig.game_playercarid, 0);
+	amiga_video_palette_race((const legacy_char *)gameconfig.game_playercarid, 0);
 #endif
 	if (video_uses_page_flipping == 0) {
 		if (render_window_sprite != 0

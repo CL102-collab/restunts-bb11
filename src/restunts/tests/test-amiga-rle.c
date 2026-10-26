@@ -62,7 +62,7 @@ static void test_wrapped_scan_and_copy(void)
 	source = 0;
 	destination = 1;
 	shape2d_copy_wrapped(SOURCE_SEGMENT, &source, SOURCE_SEGMENT, &destination, 4);
-	for (unsigned index = 0; index < 5; index++) {
+	for (legacy_uint index = 0; index < 5; index++) {
 		assert(source_base[index] == 17);
 	}
 }
@@ -102,7 +102,7 @@ static void test_wrapped_draw(legacy_u8 first)
 	assert(bitmap[4] == 42 && bitmap[5] == 42 && bitmap[6] == 0 && bitmap[7] == 0);
 }
 
-int main(void)
+legacy_int main(void)
 {
 	test_wrapped_scan_and_copy();
 	test_wrapped_draw(1);

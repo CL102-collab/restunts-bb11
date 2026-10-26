@@ -269,7 +269,7 @@ static void test_drawing(SDL_Renderer *renderer)
 	SDL_DestroySurface(image);
 }
 
-int main(void)
+legacy_int main(void)
 {
 	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
 	assert(SDL_Init(SDL_INIT_VIDEO));

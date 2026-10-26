@@ -109,7 +109,7 @@ static void test_branch_and_finish(void)
 	assert(current == 2 && penalty == PENALTY_ROUTE_FINISH_REACHED);
 }
 
-static void configure_switching(const char *option)
+static void configure_switching(const legacy_char *option)
 {
 	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)option};
 	configure_dual_way_switching(option != NULL ? 2 : 1, arguments);
@@ -243,8 +243,8 @@ static void test_fixed_legal_routes(void)
 
 static void test_switching_options(void)
 {
-	static const char *options[] = {NULL,	   "--dws:on", "--DWS:OFF", "--dws:offx",
-									"dws:off", "--dws:",   "--dws:off "};
+	static const legacy_char *options[] = {NULL,	  "--dws:on", "--DWS:OFF", "--dws:offx",
+										   "dws:off", "--dws:",	  "--dws:off "};
 	for (legacy_u16 index = 0; index < sizeof(options) / sizeof(options[0]); index++) {
 		configure_switching(options[index]);
 		reset_dualway_route();

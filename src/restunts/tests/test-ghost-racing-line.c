@@ -21,14 +21,15 @@
 #undef printf
 
 static void write_capture(const legacy_u8 *pixels, legacy_s32 width, legacy_s32 height,
-						  legacy_s16 mode, const char *name)
+						  legacy_s16 mode, const legacy_char *name)
 {
-	const char *directory = getenv("RESTUNTS_TEST_CAPTURE_DIR");
+	const legacy_char *directory = getenv("RESTUNTS_TEST_CAPTURE_DIR");
 	if (directory == NULL) {
 		return;
 	}
-	char filename[1024];
-	int length = snprintf(filename, sizeof(filename), "%s/line-%d-%s.ppm", directory, mode, name);
+	legacy_char filename[1024];
+	legacy_int length =
+		snprintf(filename, sizeof(filename), "%s/line-%d-%s.ppm", directory, mode, name);
 	assert(length > 0 && (size_t)length < sizeof(filename));
 	FILE *file = fopen(filename, "wb");
 	assert(file != NULL);
@@ -156,7 +157,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	rect_windshield = (struct RECTANGLE){0, 320, 0, 200};
 	set_projection(35, 200 / 6, 320, 200);
 	restore_gamestate(0);
-	const char *requested_frame = getenv("RESTUNTS_TEST_PLAYER_FRAME");
+	const legacy_char *requested_frame = getenv("RESTUNTS_TEST_PLAYER_FRAME");
 	legacy_s16 player_frame = requested_frame != NULL ? atoi(requested_frame) : 100;
 	assert(player_frame > 0 && player_frame < gameconfig.game_recordedframes);
 	while (state.game_frame < player_frame) {

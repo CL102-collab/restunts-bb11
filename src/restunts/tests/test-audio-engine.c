@@ -18,7 +18,7 @@ static legacy_u64 trace_hash = UINT64_C(1469598103934665603);
 struct GAMESTATE state;
 legacy_s8 is_in_replay;
 legacy_u8 game_replay_mode;
-static unsigned impact_feedback_count;
+static legacy_uint impact_feedback_count;
 void sdl3_car_impact_feedback(void)
 {
 	impact_feedback_count++;

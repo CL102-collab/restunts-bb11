@@ -161,6 +161,11 @@ void reset_car_capabilities(void)
 
 static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opponent)
 {
+	enum CAR_ADHESION_CHUNK {
+		CAR_ADHESION_CHUNK_FLAG,
+		CAR_ADHESION_CHUNK_SETTINGS,
+		CAR_ADHESION_CHUNK_COUNT
+	};
 	legacy_s16 car_index = is_opponent != 0;
 	reset_car_surface_adhesion(car_index);
 	if (!car_resource) {
@@ -178,11 +183,9 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 		return;
 	}
 	legacy_u32 data_size = size - data_start;
-	legacy_u32 starts[2];
-	legacy_u32 ends[2];
-	starts[0] = starts[1] = data_size;
-	ends[0] = ends[1] = data_size;
-	legacy_u16 aliases[2] = {0, 0};
+	legacy_u32 starts[CAR_ADHESION_CHUNK_COUNT] = {data_size, data_size};
+	legacy_u32 ends[CAR_ADHESION_CHUNK_COUNT] = {data_size, data_size};
+	legacy_u16 aliases[CAR_ADHESION_CHUNK_COUNT] = {0};
 	legacy_u16 found = 0;
 	for (legacy_u16 index = 0; index < count; index++) {
 		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
@@ -194,9 +197,9 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 									 (legacy_u32)index * RESOURCE_FILE_IDENTIFIER_SIZE;
 		legacy_u16 slot;
 		if (name[0] == 'f' && name[1] == 'a' && name[2] == 'n' && name[3] == 'd') {
-			slot = 0;
+			slot = CAR_ADHESION_CHUNK_FLAG;
 		} else if (name[0] == 'a' && name[1] == 'd' && name[2] == 'h' && name[3] == 's') {
-			slot = 1;
+			slot = CAR_ADHESION_CHUNK_SETTINGS;
 		} else {
 			continue;
 		}
@@ -206,13 +209,13 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 		starts[slot] = offset;
 		found |= 1U << slot;
 	}
-	if ((found & 1U) == 0) {
+	if ((found & (1U << CAR_ADHESION_CHUNK_FLAG)) == 0) {
 		return;
 	}
 	for (legacy_u16 index = 0; index < count; index++) {
 		legacy_u32 offset = LEGACY_READ_U32_LE(resource + offsets_start +
 											   (legacy_u32)index * RESOURCE_FILE_OFFSET_SIZE);
-		for (legacy_u16 slot = 0; slot < 2; slot++) {
+		for (legacy_u16 slot = 0; slot < CAR_ADHESION_CHUNK_COUNT; slot++) {
 			if (offset == starts[slot]) {
 				aliases[slot]++;
 			} else if (offset > starts[slot] && offset < ends[slot]) {
@@ -220,18 +223,25 @@ static void setup_car_surface_adhesion(void far *car_resource, legacy_s16 is_opp
 			}
 		}
 	}
-	if (aliases[0] != 1 || ends[0] - starts[0] != 1 || resource[data_start + starts[0]] != 1) {
+	if (aliases[CAR_ADHESION_CHUNK_FLAG] != 1 ||
+		ends[CAR_ADHESION_CHUNK_FLAG] - starts[CAR_ADHESION_CHUNK_FLAG] != CAR_ADHESION_FLAG_SIZE ||
+		resource[data_start + starts[CAR_ADHESION_CHUNK_FLAG]] != CAR_ADHESION_FLAG_ENABLED) {
 		return;
 	}
-	if ((found & 2U) != 0) {
-		if (aliases[1] != 1 || ends[1] - starts[1] != CAR_ADHESION_SETTINGS_SIZE) {
+	if ((found & (1U << CAR_ADHESION_CHUNK_SETTINGS)) != 0) {
+		if (aliases[CAR_ADHESION_CHUNK_SETTINGS] != 1 ||
+			ends[CAR_ADHESION_CHUNK_SETTINGS] - starts[CAR_ADHESION_CHUNK_SETTINGS] !=
+				CAR_ADHESION_SETTINGS_SIZE) {
 			return;
 		}
-		const legacy_u8 huge *settings = resource + data_start + starts[1];
-		legacy_u16 max_distance = LEGACY_READ_U16_LE(settings + 1);
-		legacy_u16 min_alignment = LEGACY_READ_U16_LE(settings + 3);
-		legacy_u8 surface_mask = settings[5];
-		if (settings[0] != CAR_ADHESION_SETTINGS_VERSION ||
+		const legacy_u8 huge *settings =
+			resource + data_start + starts[CAR_ADHESION_CHUNK_SETTINGS];
+		legacy_u16 max_distance =
+			LEGACY_READ_U16_LE(settings + CAR_ADHESION_SETTINGS_DISTANCE_OFFSET);
+		legacy_u16 min_alignment =
+			LEGACY_READ_U16_LE(settings + CAR_ADHESION_SETTINGS_ALIGNMENT_OFFSET);
+		legacy_u8 surface_mask = settings[CAR_ADHESION_SETTINGS_SURFACE_OFFSET];
+		if (settings[CAR_ADHESION_SETTINGS_VERSION_OFFSET] != CAR_ADHESION_SETTINGS_VERSION ||
 			max_distance > CAR_ADHESION_MAX_DISTANCE ||
 			min_alignment > CAR_ADHESION_MAX_ALIGNMENT ||
 			(surface_mask & ~CAR_ADHESION_SURFACE_MASK) != 0) {

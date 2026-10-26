@@ -746,7 +746,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			screen->animation_resource = (legacy_s8 far *)file_load_resource(
 				FILE_RESOURCE_SHAPE2D_COLLECTION, opponent_win_animation_name);
 #ifdef RESTUNTS_AMIGA
-			amiga_video_palette_scene((const char *)opponent_win_animation_name, "!pal");
+			amiga_video_palette_scene((const legacy_char *)opponent_win_animation_name, "!pal");
 #endif
 			screen->animation_sequence =
 				(legacy_u8 far *)locate_shape_alt(screen->opponent_resource, opponent_win_text_id);
@@ -763,7 +763,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			screen->animation_resource = (legacy_s8 far *)file_load_resource(
 				FILE_RESOURCE_SHAPE2D_COLLECTION, opponent_loss_animation_name);
 #ifdef RESTUNTS_AMIGA
-			amiga_video_palette_scene((const char *)opponent_loss_animation_name, "!pal");
+			amiga_video_palette_scene((const legacy_char *)opponent_loss_animation_name, "!pal");
 #endif
 			screen->animation_sequence =
 				(legacy_u8 far *)locate_shape_alt(screen->opponent_resource, opponent_loss_text_id);

@@ -910,8 +910,8 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #ifdef RESTUNTS_AMIGA_TRACE
 		if (++traced_frames <= 8 || (traced_frames % 50) == 0) {
 			fprintf(stdout, "Amiga normal race: frame=%d elapsed=%u mode=%d start=%d\n",
-					(int)state.game_frame, (unsigned)elapsed_time2, (int)game_replay_mode,
-					(int)race_start_sequence_state);
+					(legacy_int)state.game_frame, (legacy_uint)elapsed_time2,
+					(legacy_int)game_replay_mode, (legacy_int)race_start_sequence_state);
 			fflush(stdout);
 		}
 #endif

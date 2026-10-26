@@ -36,6 +36,14 @@
 #define SHAPE2D_FLIP_FLAG_MASK 240
 #define SHAPE2D_FLIP_FLAG_SHIFT 4U
 #define SHAPE2D_FLIP_TYPE_COUNT 3
+#define SHAPE2D_FLIP_TRANSPOSE 1U
+#define SHAPE2D_FLIP_INTERLEAVED_COLUMNS 2U
+#define SHAPE2D_UNFLIP_VISITED_BYTE_SHIFT 3U
+#define SHAPE2D_UNFLIP_VISITED_BIT_MASK (LEGACY_BYTE_BITS - 1U)
+#define SHAPE2D_UNFLIP_WORKSPACE_PARAGRAPH_SHIFT                                                   \
+	(SHAPE2D_UNFLIP_VISITED_BYTE_SHIFT + DOS_PARAGRAPH_SHIFT)
+#define SHAPE2D_UNFLIP_WORKSPACE_PARAGRAPH_PADDING                                                 \
+	((1U << SHAPE2D_UNFLIP_WORKSPACE_PARAGRAPH_SHIFT) - 1U)
 #define SHAPE2D_PATTERN_MASK 15
 #define SHAPE2D_PLANE_ENABLED_FLAG 1
 #define SHAPE2D_PLANAR_PLANE_COUNT 4
@@ -343,11 +351,11 @@ static legacy_u32 shape2d_unflip_source(legacy_u32 destination, legacy_u16 width
 		row = (legacy_u16)(destination / width);
 		column = (legacy_u16)(destination % width);
 	}
-	if (layout == 1) {
+	if (layout == SHAPE2D_FLIP_TRANSPOSE) {
 		return (legacy_u32)column * height + row;
 	}
 	legacy_u16 even_rows = ((legacy_u32)height + 1U) >> 1;
-	if (layout == 2) {
+	if (layout == SHAPE2D_FLIP_INTERLEAVED_COLUMNS) {
 		return (legacy_u32)column * height + (row >> 1) + ((row & 1U) != 0 ? even_rows : 0U);
 	}
 	if ((row & 1U) != 0) {
@@ -367,15 +375,18 @@ static void shape2d_unflip_in_place(legacy_u8 *pixels, legacy_u8 *visited, legac
 		return;
 	}
 	legacy_u32 count = (legacy_u32)width * height;
-	memset(visited, 0, (count + 7U) >> 3);
+	memset(visited, 0,
+		   (count + SHAPE2D_UNFLIP_VISITED_BIT_MASK) >> SHAPE2D_UNFLIP_VISITED_BYTE_SHIFT);
 	for (legacy_u32 start = 0; start < count; start++) {
-		if ((visited[start >> 3] & (1U << (start & 7U))) != 0) {
+		if ((visited[start >> SHAPE2D_UNFLIP_VISITED_BYTE_SHIFT] &
+			 (1U << (start & SHAPE2D_UNFLIP_VISITED_BIT_MASK))) != 0) {
 			continue;
 		}
 		legacy_u8 saved = pixels[start];
 		legacy_u32 destination = start;
 		for (;;) {
-			visited[destination >> 3] |= (legacy_u8)(1U << (destination & 7U));
+			visited[destination >> SHAPE2D_UNFLIP_VISITED_BYTE_SHIFT] |=
+				(legacy_u8)(1U << (destination & SHAPE2D_UNFLIP_VISITED_BIT_MASK));
 			legacy_u32 source = shape2d_unflip_source(destination, width, height, layout);
 			if (source == start) {
 				pixels[destination] = saved;
@@ -407,7 +418,8 @@ static legacy_u16 shape2d_unflip_workspace_pages(legacy_u8 *resource)
 			}
 		}
 	}
-	return (legacy_u16)((largest + 127U) >> 7);
+	return (legacy_u16)((largest + SHAPE2D_UNFLIP_WORKSPACE_PARAGRAPH_PADDING) >>
+						SHAPE2D_UNFLIP_WORKSPACE_PARAGRAPH_SHIFT);
 }
 #else
 static void shape2d_unflip_transpose(legacy_s8 far *membitmapptr, legacy_s8 far *mempages,

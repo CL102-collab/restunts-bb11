@@ -850,7 +850,7 @@ legacy_u32 file_decomp_rle(legacy_u8 huge *src, legacy_u8 huge *dst, legacy_u16 
 
 #ifdef RESTUNTS_AMIGA_TRACE
 	fprintf(stdout, "Amiga decompress: RLE length=%lu source=%lu escapes=%u skip=%u\n",
-			(unsigned long)len, (unsigned long)srclen, (unsigned)esclen, (unsigned)skipseq);
+			(unsigned long)len, (unsigned long)srclen, (legacy_uint)esclen, (legacy_uint)skipseq);
 	fflush(stdout);
 #endif
 	if (!skipseq) {
@@ -1114,7 +1114,7 @@ static void far *file_decomp_internal(const legacy_s8 *filename, legacy_s16 fata
 				while (!err && passes) {
 #ifdef RESTUNTS_AMIGA_TRACE
 					fprintf(stdout, "Amiga decompress: pass begin, remaining=%u codec=%u\n",
-							(unsigned)passes, (unsigned)*src);
+							(legacy_uint)passes, (legacy_uint)*src);
 					fflush(stdout);
 #endif
 					if (file_decomp_pass(src, dst, decompparas, &passlen) == 0) {

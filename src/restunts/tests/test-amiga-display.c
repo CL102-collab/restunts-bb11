@@ -6,7 +6,7 @@
 
 /* Report failures to the redirected Amiga shell output instead of opening
  * libnix's interactive assertion requester during unattended emulator runs. */
-static void display_test_failure(unsigned line)
+static void display_test_failure(legacy_uint line)
 {
 	printf("AMIGA DISPLAY TEST FAIL at line %u\n", line);
 	fflush(stdout);
@@ -208,7 +208,7 @@ static void check_palette(void)
 	assert(palette.colors[12] == 0x7c6 && palette.first_register == 16);
 }
 
-int main(void)
+legacy_int main(void)
 {
 	legacy_u16 pattern;
 	check_palette();

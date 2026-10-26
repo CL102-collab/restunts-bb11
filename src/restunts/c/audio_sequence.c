@@ -3,8 +3,10 @@
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
 static legacy_u8 amiga_trace_sequence;
-static unsigned amiga_trace_sequence_calls;
-static unsigned amiga_trace_sequence_events;
+static legacy_uint amiga_trace_sequence_calls;
+static legacy_uint amiga_trace_sequence_events;
+#define AMIGA_SEQUENCE_TRACE_CALL_LIMIT 2U
+#define AMIGA_SEQUENCE_TRACE_EVENT_LIMIT 32U
 #define AMIGA_SEQUENCE_TRACE(stage)                                                                \
 	do {                                                                                           \
 		if (amiga_trace_sequence) {                                                                \
@@ -355,10 +357,11 @@ static void audio_service_sequence_channel(legacy_s16 channel)
 
 		audio_parse_sequence_event((const legacy_u8 far *)pointer, &event);
 #ifdef RESTUNTS_AMIGA_TRACE
-		if (amiga_trace_sequence && amiga_trace_sequence_events++ < 32U) {
-			printf("Amiga sequence: channel=%d event=%u arg=%u delay=%lu value=%lu\n", (int)channel,
-				   (unsigned)event.command, (unsigned)event.argument, (unsigned long)event.delay,
-				   (unsigned long)event.value);
+		if (amiga_trace_sequence &&
+			amiga_trace_sequence_events++ < AMIGA_SEQUENCE_TRACE_EVENT_LIMIT) {
+			printf("Amiga sequence: channel=%d event=%u arg=%u delay=%lu value=%lu\n",
+				   (legacy_int)channel, (legacy_uint)event.command, (legacy_uint)event.argument,
+				   (unsigned long)event.delay, (unsigned long)event.value);
 			fflush(stdout);
 		}
 #endif
@@ -408,13 +411,13 @@ void audio_sequence_timer(void)
 
 	audio_sequence_timer_active = AUDIO_SEQUENCE_TIMER_ACTIVE;
 #ifdef RESTUNTS_AMIGA_TRACE
-	amiga_trace_sequence =
-		audio_music_active == AUDIO_STATE_ENABLED && amiga_trace_sequence_calls < 2U;
+	amiga_trace_sequence = audio_music_active == AUDIO_STATE_ENABLED &&
+						   amiga_trace_sequence_calls < AMIGA_SEQUENCE_TRACE_CALL_LIMIT;
 	if (amiga_trace_sequence) {
 		amiga_trace_sequence_calls++;
 		amiga_trace_sequence_events = 0;
 		printf("Amiga sequence: tick %u period=%u elapsed=%u\n", amiga_trace_sequence_calls,
-			   (unsigned)audio_sequence_tick_period, (unsigned)audio_sequence_elapsed_ticks);
+			   (legacy_uint)audio_sequence_tick_period, (legacy_uint)audio_sequence_elapsed_ticks);
 		fflush(stdout);
 	}
 #endif
