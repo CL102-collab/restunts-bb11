@@ -39,9 +39,9 @@ Battery capacity and exact Rocket mass were not confirmed; no old 2017 specs
 are substituted. Range, gas capacity, flight and active aero are not simulated.
 
 DASHBOARD MEMORY
-Raw/extracted: STDA 76,547 + STDB 2,008 = 78,555 bytes.
+Raw/extracted: STDA 143,131 + STDB 2,008 = 145,139 bytes.
 DIA3 reference: 146,014 + 2,022 = 148,036 bytes.
-Game-prepared resources: TERR 23,648 vs DIA3 66,176 bytes.
+Game-prepared resources: TERR 25,008 vs DIA3 66,176 bytes.
 TERR instrument scratch is 116x30; DIA3 is 188x75. Both dashboards share their
 instrument/selector scratch. These are expanded/loaded comparisons, not ZIP
 or compressed PVS sizes. The generator rejects either resource over its cap.
@@ -56,6 +56,11 @@ as on the Pontiac Firebird, showing the steering angle between wheel poses.
 The suede dashboard has a shaped upper silhouette and recessed steering column,
 with vent slats, seams, red door trim and a carbon-fibre console. The optional
 dast/dasm artwork and mask leave scenery visible above the contoured edge.
+A thin charcoal roof header follows the Roadster interior references, with
+rounded upper side corners and shading that matches the dashboard. The native
+roof strip covers only the top 8 rows; the same dast/dasm pair shapes its
+lower lip while preserving the open windscreen. No window pillars cross the
+driver's forward view.
 The speedometer uses conventional seven-segment numerals: three horizontal
 bars of equal thickness and four vertical bars, with a single centre bar.
 Exposed vertical ends on 1, 4 and 7 reach the full digit height.

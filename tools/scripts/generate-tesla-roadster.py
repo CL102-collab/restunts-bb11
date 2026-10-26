@@ -12,7 +12,8 @@ import json
 from pathlib import Path
 import struct
 
-from tesla_roadster_dashboard import (INSTRUMENT_RECT, WHEEL_TURN_DEGREES,
+from tesla_roadster_dashboard import (DASH_TOP, INSTRUMENT_RECT, ROOF_HEIGHT,
+                                     SHAPE_HEADER_SIZE, TRANSPARENT, WHEEL_TURN_DEGREES, WIDTH,
                                      build_dashboards, prepared_stda_size)
 from tesla_roadster_model import (BODY_SCALE, SHOWROOM_SCALE, SHOWROOM_Y_OFFSET,
                                   WHEEL_RADIUS, WHEEL_SIZE_MULTIPLIER, build_models)
@@ -163,7 +164,7 @@ def validate(outputs, repository):
             "length": max(p[2] for p in points[8:]) - min(p[2] for p in points[8:]),
         }
     dashboards = [resources(outputs[f"STD{part}TERR.VSH"]) for part in "AB"]
-    required = [set("dash whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox".split()),
+    required = [set("dash roof dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox".split()),
                 {"dot ", "dota", "dot1", "dot2", "gnob", "gnab"} |
                 {f"dig{number}" for number in range(10)}]
     for dashboard, expected in zip(dashboards, required):
@@ -171,6 +172,27 @@ def validate(outputs, repository):
             raise ValueError("Missing dashboard instrument resources")
         for data in dashboard.values():
             validate_bitmap(data)
+    roof = dashboards[0]["roof"]
+    roof_width, roof_height, _, _, roof_x, roof_y = struct.unpack_from("<HHhhHH", roof)
+    if (roof_width != WIDTH or roof_x != 0 or roof_y != 0 or
+            not 0 < roof_height < DASH_TOP or TRANSPARENT in roof[SHAPE_HEADER_SIZE:]):
+        raise ValueError("Cockpit roof must be an opaque full-width top strip")
+    top, mask = (dashboards[0][name] for name in ("dast", "dasm"))
+    if top[:SHAPE_HEADER_SIZE] != mask[:SHAPE_HEADER_SIZE]:
+        raise ValueError("Roof and dashboard artwork and mask are misaligned")
+    width, height, _, _, x, y = struct.unpack_from("<HHhhHH", top)
+    if width != WIDTH or x != 0 or y != roof_height or y + height != DASH_TOP:
+        raise ValueError("Cockpit overlay must join the roof strip to the dashboard edge")
+    if set(mask[SHAPE_HEADER_SIZE:]) != {0, TRANSPARENT}:
+        raise ValueError("Cockpit mask must contain opaque and clear areas")
+    if any(pixel and clear == TRANSPARENT for pixel, clear in
+           zip(top[SHAPE_HEADER_SIZE:], mask[SHAPE_HEADER_SIZE:])):
+        raise ValueError("Cockpit artwork would alter the clear road view")
+    for column in range(width):
+        clear_rows = [row for row in range(height)
+                      if mask[SHAPE_HEADER_SIZE + row * width + column] == TRANSPARENT]
+        if clear_rows and len(clear_rows) != clear_rows[-1] - clear_rows[0] + 1:
+            raise ValueError("Cockpit windscreen must have one clear opening per column")
     budget = {}
     for part in "AB":
         reference = repository / f"tools/scripts/cars/STD{part}DIA3.VSH"
@@ -235,9 +257,11 @@ def generate(repository):
                                "https://evwire.com/p/tesla-roadster-deep-dive-videos-hagerty-top-gear-motortrend"]},
         "showroom": {"scale": SHOWROOM_SCALE, "vertical_offset": SHOWROOM_Y_OFFSET,
                      "reference": "Same calibrated car as racing, at the stock 20x display scale."},
-        "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird.",
+        "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird. A thin charcoal roof header and rounded upper side corners follow the supplied Roadster interior photographs, with dashboard-matched shading and no window pillars across the forward view.",
         "dashboard_reference_images": ["1000005072.jpg", "1000005071.jpg",
-                                       "1000005951.jpg", "1000005952.jpg", "1000005953.jpg"],
+                                       "1000005951.jpg", "1000005952.jpg", "1000005953.jpg",
+                                       "tesla-roadster-interior-92821792129113-2301682466.jpg",
+                                       "tesla-roadster-2026-interior-2687247958.jpg"],
         "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
         "dashboard_steering_degrees": [-WHEEL_TURN_DEGREES, 0, WHEEL_TURN_DEGREES],
         "dashboard_decompressed_bytes": budget,
@@ -306,6 +330,11 @@ as on the Pontiac Firebird, showing the steering angle between wheel poses.
 The suede dashboard has a shaped upper silhouette and recessed steering column,
 with vent slats, seams, red door trim and a carbon-fibre console. The optional
 dast/dasm artwork and mask leave scenery visible above the contoured edge.
+A thin charcoal roof header follows the Roadster interior references, with
+rounded upper side corners and shading that matches the dashboard. The native
+roof strip covers only the top {ROOF_HEIGHT} rows; the same dast/dasm pair shapes its
+lower lip while preserving the open windscreen. No window pillars cross the
+driver's forward view.
 The speedometer uses conventional seven-segment numerals: three horizontal
 bars of equal thickness and four vertical bars, with a single centre bar.
 Exposed vertical ends on 1, 4 and 7 reach the full digit height.

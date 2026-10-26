@@ -84,13 +84,15 @@
     "vertical_offset": 120,
     "reference": "Same calibrated car as racing, at the stock 20x display scale."
   },
-  "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird.",
+  "dashboard_revision": "Larger photo-based rotating wheel with padded silver-edged grips, rollers, switches and paddles; contoured suede dashboard with masked steering-column recess, vents and carbon trim; live seven-segment speed and motor gauge on the rectangular centre screen. A native steering dot slides along a horizontal strip above the shaped wheel, as on the Pontiac Firebird. A thin charcoal roof header and rounded upper side corners follow the supplied Roadster interior photographs, with dashboard-matched shading and no window pillars across the forward view.",
   "dashboard_reference_images": [
     "1000005072.jpg",
     "1000005071.jpg",
     "1000005951.jpg",
     "1000005952.jpg",
-    "1000005953.jpg"
+    "1000005953.jpg",
+    "tesla-roadster-interior-92821792129113-2301682466.jpg",
+    "tesla-roadster-2026-interior-2687247958.jpg"
   ],
   "dashboard_digit_reference": "https://en.wikipedia.org/wiki/Seven-segment_display#Characters",
   "dashboard_steering_degrees": [
@@ -100,7 +102,7 @@
   ],
   "dashboard_decompressed_bytes": {
     "A": {
-      "TERR": 76547,
+      "TERR": 143131,
       "DIA3": 146014
     },
     "B": {
@@ -109,7 +111,7 @@
     }
   },
   "dashboard_game_prepared_bytes": {
-    "TERR": 23648,
+    "TERR": 25008,
     "DIA3": 66176
   },
   "models": {
@@ -183,8 +185,8 @@
       "sha256": "abbbe8a0bcc89f9c6e084e909665e50e0460871ed73c761cfc4603a388f4df2b"
     },
     "STDATERR.VSH": {
-      "bytes": 76547,
-      "sha256": "7c45bb134f29a9009203d00704791161fc9e51586029d9e7ab4a9ab0c060dba4"
+      "bytes": 143131,
+      "sha256": "94a1eca365ce86e74298a0331646143438d7856a014c259ec482bbc8136f50ec"
     },
     "STDBTERR.VSH": {
       "bytes": 2008,

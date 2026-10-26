@@ -13,8 +13,9 @@ library. The centre display and steering yoke occupy separate rectangles, so
 steering never erases live instruments. Required instrument masks and selector
 sprites are valid one-pixel identity operations. ``write_preview`` draws a
 static cockpit illustration; the game draws the actual live speed and RPM.
-The raised dash uses the game's optional ``dast``/``dasm`` AND/OR pair to leave
-scenery visible above its contoured silhouette.
+The native ``roof`` strip and optional ``dast``/``dasm`` AND/OR pair frame the
+windscreen with a thin roof and rounded upper corners, leaving scenery visible
+between the roof lip and the raised dashboard's contoured silhouette.
 """
 
 import argparse
@@ -26,7 +27,12 @@ import struct
 
 WIDTH, HEIGHT = 320, 200
 DASH_TOP = 132
-DASH_CONTOUR_TOP = 108
+ROOF_HEIGHT = 8
+ROOF_RECT = (0, 0, WIDTH, ROOF_HEIGHT)
+TOP_OVERLAY_RECT = (0, ROOF_HEIGHT, WIDTH, DASH_TOP - ROOF_HEIGHT)
+ROOF_INNER_EDGE = ((0, 20), (8, 16), (20, 12), (40, 9), (72, 8),
+                   (247, 8), (279, 9), (299, 12), (311, 16), (319, 20))
+ROOF_EDGE_THICKNESS = 1
 INSTRUMENT_RECT = (194, 138, 116, 30)
 WHEEL_RECT = (12, 132, 172, 68)
 WHEEL_TURN_DEGREES = 10
@@ -207,9 +213,21 @@ def _palette(repo):
 
 
 def _panel():
-    # The padded dash rolls down into the steering-column recess. Pixels above
-    # its outline become a separate AND/OR overlay, leaving the world visible.
     canvas = Canvas(color=TRANSPARENT)
+    # A shallow padded header widens into the upper side corners. The driver's
+    # narrow forward view excludes the high-FOV photographs' window pillars.
+    # Back the entire lip with solid material: separately rounded edge strokes
+    # can skip a row between them at half-pixel crossings.
+    roof_outline = [(x, y + ROOF_EDGE_THICKNESS) for x, y in ROOF_INNER_EDGE]
+    canvas.polygon(roof_outline + [(WIDTH, 0), (0, 0)], CHARCOAL)
+    for first, last in zip(ROOF_INNER_EDGE, ROOF_INNER_EDGE[1:]):
+        canvas.line((first[0], first[1] - ROOF_EDGE_THICKNESS),
+                    (last[0], last[1] - ROOF_EDGE_THICKNESS), SHADE)
+        canvas.line(first, last, EDGE)
+        canvas.line((first[0], first[1] + ROOF_EDGE_THICKNESS),
+                    (last[0], last[1] + ROOF_EDGE_THICKNESS), BLACK)
+    # The padded dash rolls down into the steering-column recess. Pixels above
+    # its outline share the roof lip's AND/OR overlay, leaving the world visible.
     contour = [(0, 124), (14, 120), (34, 117), (56, 115), (79, 114),
                (111, 116), (131, 122), (145, 132), (159, 131),
                (175, 123), (193, 119), (218, 118), (250, 119),
@@ -476,16 +494,16 @@ def build_dashboards(repo: Path) -> tuple[bytes, bytes, dict[int, bytes]]:
     maps = {name: donor_maps[name] for name in ("!cg0", "!eg0")}
     canvas = _panel()
     a = dict(maps)
+    a["roof"] = _shape(WIDTH, ROOF_HEIGHT, canvas.crop(ROOF_RECT))
     a["dash"] = _shape(WIDTH, HEIGHT - DASH_TOP,
                        canvas.crop((0, DASH_TOP, WIDTH, HEIGHT - DASH_TOP)), y=DASH_TOP)
-    top_rect = (0, DASH_CONTOUR_TOP, WIDTH, DASH_TOP - DASH_CONTOUR_TOP)
-    top_pixels = canvas.crop(top_rect)
-    a["dast"] = _shape(WIDTH, top_rect[3],
+    top_pixels = canvas.crop(TOP_OVERLAY_RECT)
+    a["dast"] = _shape(WIDTH, TOP_OVERLAY_RECT[3],
                        bytes(0 if pixel == TRANSPARENT else pixel for pixel in top_pixels),
-                       y=DASH_CONTOUR_TOP)
-    a["dasm"] = _shape(WIDTH, top_rect[3],
+                       y=ROOF_HEIGHT)
+    a["dasm"] = _shape(WIDTH, TOP_OVERLAY_RECT[3],
                        bytes(255 if pixel == TRANSPARENT else 0 for pixel in top_pixels),
-                       y=DASH_CONTOUR_TOP)
+                       y=ROOF_HEIGHT)
     for index, direction in enumerate((-1, 0, 1), 1):
         steering = _panel()
         _wheel(steering, direction)
