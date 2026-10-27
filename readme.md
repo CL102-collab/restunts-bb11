@@ -1,8 +1,38 @@
-# Restunts - The Stunts reverse engineering project
+# Chocolate Stunts
 
-https://wiki.stunts.hu/wiki/Restunts
+Website: https://commonloon102.github.io/restunts-bb11/
 
-Main repository: https://github.com/4d-stunts/restunts
+Vanilla, Chocolate and SDL port for Stunts 1.1 (Brøderbund).
+
+For the vanilla source without any fixes or added features,
+switch to the `vanilla-stunts` branch.  
+It is 16-bit DOS only.
+
+This project is based on Restunts: https://wiki.stunts.hu/wiki/Restunts
+
+Initially forked from this repository: https://github.com/4d-stunts/restunts
+
+## Runnable packages
+Go to the website and find them at the downloads section:  
+https://commonloon102.github.io/restunts-bb11/#downloads
+
+All packages were created by GitHub CI and released as an immutable release directly from the pipeline, so it is guaranteed that the binaries are built directly from the source available on GitHub.
+
+## AI usage
+It's not a secret, AI (GPT-5.6 Sol, GPT-6 Astra, GPT-6.1 Sol) was used for the following:
+- Writing code
+- Reviewing code
+- Manual testing
+- Writing documentation
+- Writing automatic tests
+- Writing the CI pipeline
+- Upscaling some pictures and backgrounds
+- Generating the two new cars (Tesla Roadster Rocket and McMurtry Spéirling PURE)
+
+## How quality is ensured?
+I've collected 7000 replays from the past 25 years and ran them through with the original game and with the newly built one. Every frame of the ~190 hours of gameplay is producing the same pixel output. This check is running for every PR and release pipelines also.
+
+I've also done a huge amount of manual testing myself, to test everything else what was not having automated tests.
 
 ## Repository contents:
 	docs
