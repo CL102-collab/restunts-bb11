@@ -266,21 +266,18 @@ __asm__(".text\n"
 		"rts\n");
 #endif
 
-void amiga_chunky_to_planar_rows(const legacy_u8 *pixels, const legacy_u8 *map,
-								 legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
-								 legacy_u16 rows)
+static void planar_lookup(const legacy_u8 *map)
 {
-	if (rows == 0) {
-		return;
-	}
-	if (rows > AMIGA_HEIGHT) {
-		rows = AMIGA_HEIGHT;
-	}
 	for (legacy_u16 i = 0; i < AMIGA_DOS_COLORS; ++i) {
 		legacy_u32 c = map[i];
 		planar_nibbles[i] = ((c & 1U) << 16) | ((c & 2U) << 11) | ((c & 4U) << 6) |
 							((c & 8U) << 1) | ((c & 16U) >> 4);
 	}
+}
+
+static void chunky_to_planar_rows(const legacy_u8 *pixels, legacy_u8 *planes[AMIGA_DEPTH],
+								  legacy_u16 bytes_per_row, legacy_u16 rows)
+{
 #if defined(__GNUC__) && defined(__mc68000__)
 	amiga_c2p_native(pixels, planar_nibbles, planes, (legacy_u32)bytes_per_row, (legacy_u32)rows);
 #else
@@ -310,6 +307,70 @@ void amiga_chunky_to_planar_rows(const legacy_u8 *pixels, const legacy_u8 *map,
 		}
 	}
 #endif
+}
+
+/* Map logical boundaries with ceil(), matching the first physical row whose
+ * floor(y * 200 / height) source is logical_row. Copper waits must use the
+ * same mapping as the scaled conversion, including the bottom boundary. */
+legacy_u16 amiga_display_row(legacy_u16 logical_row, legacy_u16 height)
+{
+	return ((legacy_u32)logical_row * height + AMIGA_HEIGHT - 1U) / AMIGA_HEIGHT;
+}
+
+void amiga_chunky_to_planar_rows(const legacy_u8 *pixels, const legacy_u8 *map,
+								 legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
+								 legacy_u16 rows)
+{
+	if (rows == 0) {
+		return;
+	}
+	if (rows > AMIGA_HEIGHT) {
+		rows = AMIGA_HEIGHT;
+	}
+	planar_lookup(map);
+	chunky_to_planar_rows(pixels, planes, bytes_per_row, rows);
+}
+
+void amiga_chunky_to_planar_scaled_rows(const legacy_u8 *pixels, const legacy_u8 *map,
+										legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
+										legacy_u16 first_row, legacy_u16 rows, legacy_u16 height)
+{
+	if (rows == 0 || first_row >= AMIGA_HEIGHT || height < AMIGA_HEIGHT ||
+		height > AMIGA_PAL_HEIGHT) {
+		return;
+	}
+	if (rows > AMIGA_HEIGHT - first_row) {
+		rows = AMIGA_HEIGHT - first_row;
+	}
+	planar_lookup(map);
+	legacy_u16 top = amiga_display_row(first_row, height);
+	if (height == AMIGA_HEIGHT) {
+		legacy_u8 *target[AMIGA_DEPTH];
+		for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
+			target[plane] = planes[plane] + (legacy_u32)top * bytes_per_row;
+		}
+		chunky_to_planar_rows(pixels, target, bytes_per_row, rows);
+		return;
+	}
+	for (legacy_u16 y = first_row; y < first_row + rows; ++y) {
+		legacy_u8 *target[AMIGA_DEPTH];
+		legacy_u16 bottom = amiga_display_row(y + 1U, height);
+		for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
+			target[plane] = planes[plane] + (legacy_u32)top * bytes_per_row;
+		}
+		/* Write directly to the final row, even on a visible single buffer.
+		 * Staging 200 packed rows before expansion would expose a compressed
+		 * intermediate image during every menu refresh on AROS/low-memory runs. */
+		chunky_to_planar_rows(pixels, target, bytes_per_row, 1);
+		for (legacy_u16 repeat = top + 1U; repeat < bottom; ++repeat) {
+			for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
+				memcpy(planes[plane] + (legacy_u32)repeat * bytes_per_row, target[plane],
+					   AMIGA_ROW_BYTES);
+			}
+		}
+		pixels += AMIGA_WIDTH;
+		top = bottom;
+	}
 }
 
 void amiga_chunky_to_planar(const legacy_u8 *pixels, const legacy_u8 *map,

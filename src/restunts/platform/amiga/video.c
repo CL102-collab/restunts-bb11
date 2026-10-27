@@ -38,6 +38,7 @@ static legacy_u8 presenting;
 static legacy_u8 drawing_frame;
 static legacy_u8 auto_refresh = 1;
 static legacy_u16 buffer_count;
+static legacy_u16 display_height = AMIGA_NTSC_HEIGHT;
 
 static void video_fail(const legacy_char *message)
 {
@@ -154,7 +155,7 @@ static void palette_apply(legacy_u8 force)
 		CMOVE(replay_copper, custom->color[AMIGA_PALETTE_BANK_COLORS + i],
 			  dashboard_palette.colors[i]);
 	}
-	CWAIT(replay_copper, bar, 0);
+	CWAIT(replay_copper, amiga_display_row(bar, display_height), 0);
 	for (legacy_u16 i = 0; i < AMIGA_PALETTE_BANK_COLORS; ++i) {
 		CMOVE(replay_copper, custom->color[AMIGA_PALETTE_BANK_COLORS + i],
 			  replay_palette.colors[i]);
@@ -220,10 +221,10 @@ static void palette_convert(struct BitMap *target)
 		for (; bottom < AMIGA_HEIGHT && palette_at_row(bottom) == p; ++bottom) {
 		}
 		for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
-			planes[plane] = target->Planes[plane] + (legacy_u32)top * target->BytesPerRow;
+			planes[plane] = target->Planes[plane];
 		}
-		amiga_chunky_to_planar_rows(pixels + (legacy_u32)top * AMIGA_WIDTH, p->map, planes,
-									target->BytesPerRow, bottom - top);
+		amiga_chunky_to_planar_scaled_rows(pixels + (legacy_u32)top * AMIGA_WIDTH, p->map, planes,
+										   target->BytesPerRow, top, bottom - top, display_height);
 		top = bottom;
 	}
 }
@@ -252,6 +253,11 @@ legacy_u16 amiga_video_buffer_count(void)
 	return buffer_count;
 }
 
+legacy_u16 amiga_video_display_height(void)
+{
+	return display_height;
+}
+
 struct Window *amiga_video_window(void)
 {
 	return window;
@@ -269,16 +275,20 @@ void dos_video_set_mode_13h(void)
 		video_fail("Kickstart 2.0 or newer is required");
 	}
 	(void)amiga_video_pixels();
+	/* A 200-line VGA picture fills a 4:3 monitor with tall pixels. PAL lowres
+	 * needs its full 256-line raster for that shape; NTSC uses 200 lines.
+	 * Keep game coordinates and the chunky buffer at 320x200 in both modes. */
+	display_height = (GfxBase->DisplayFlags & PAL) ? AMIGA_PAL_HEIGHT : AMIGA_NTSC_HEIGHT;
 	struct NewScreen settings;
 	memset(&settings, 0, sizeof(settings));
 	settings.Width = AMIGA_WIDTH;
-	settings.Height = AMIGA_HEIGHT;
+	settings.Height = display_height;
 	settings.Depth = AMIGA_DEPTH;
 	settings.BlockPen = 1;
 	settings.Type = CUSTOMSCREEN | SCREENQUIET;
 	screen = OpenScreen(&settings);
 	if (screen == NULL) {
-		video_fail("cannot open 320x200 32-color Chip RAM screen");
+		video_fail("cannot open 4:3 32-color Chip RAM screen");
 	}
 	ShowTitle(screen, FALSE);
 	display_bitmap = screen->ViewPort.RasInfo->BitMap;
@@ -287,7 +297,7 @@ void dos_video_set_mode_13h(void)
 	struct NewWindow window_settings;
 	memset(&window_settings, 0, sizeof(window_settings));
 	window_settings.Width = AMIGA_WIDTH;
-	window_settings.Height = AMIGA_HEIGHT;
+	window_settings.Height = display_height;
 	window_settings.DetailPen = 0;
 	window_settings.BlockPen = 1;
 	window_settings.IDCMPFlags = IDCMP_RAWKEY | IDCMP_MOUSEMOVE | IDCMP_MOUSEBUTTONS |
@@ -317,16 +327,16 @@ void dos_video_set_mode_13h(void)
 	}
 	if (can_flip &&
 		AvailMem(MEMF_PUBLIC) >= AMIGA_MINIMUM_ARENA_BYTES + AMIGA_SYSTEM_HEADROOM +
-									 (legacy_u32)AMIGA_PLANE_BYTES * AMIGA_DEPTH &&
+									 (legacy_u32)AMIGA_ROW_BYTES * display_height * AMIGA_DEPTH &&
 		AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= AMIGA_MINIMUM_ARENA_BYTES) {
-		InitBitMap(&second_bitmap, AMIGA_DEPTH, AMIGA_WIDTH, AMIGA_HEIGHT);
+		InitBitMap(&second_bitmap, AMIGA_DEPTH, AMIGA_WIDTH, display_height);
 		legacy_u16 plane = 0;
 		for (; plane < AMIGA_DEPTH; ++plane) {
-			second_bitmap.Planes[plane] = AllocRaster(AMIGA_WIDTH, AMIGA_HEIGHT);
+			second_bitmap.Planes[plane] = AllocRaster(AMIGA_WIDTH, display_height);
 			if (second_bitmap.Planes[plane] == NULL) {
 				break;
 			}
-			memset(second_bitmap.Planes[plane], 0, AMIGA_PLANE_BYTES);
+			memset(second_bitmap.Planes[plane], 0, (legacy_u32)AMIGA_ROW_BYTES * display_height);
 		}
 		if (plane == AMIGA_DEPTH &&
 			AvailMem(MEMF_PUBLIC | MEMF_LARGEST) >= AMIGA_MINIMUM_ARENA_BYTES) {
@@ -334,7 +344,7 @@ void dos_video_set_mode_13h(void)
 		} else {
 			while (plane != 0) {
 				--plane;
-				FreeRaster(second_bitmap.Planes[plane], AMIGA_WIDTH, AMIGA_HEIGHT);
+				FreeRaster(second_bitmap.Planes[plane], AMIGA_WIDTH, display_height);
 				second_bitmap.Planes[plane] = NULL;
 			}
 		}
@@ -420,8 +430,10 @@ legacy_s16 dos_video_get_status(void)
 	amiga_timer_pump();
 	vertical = (legacy_u16)(((*(volatile UWORD *)0xDFF004UL & 1U) << 8) |
 							(*(volatile UWORD *)0xDFF006UL >> 8));
-	/* The non-interlaced 200-line picture occupies beam lines 44 through243. */
-	return vertical < 44U || vertical >= 244U ? DOS_VIDEO_RETRACE_STATUS_BIT : 0;
+	legacy_u16 top = screen == NULL
+						 ? 44U
+						 : (legacy_u16)(GfxBase->ActiView->DyOffset + screen->ViewPort.DyOffset);
+	return vertical < top || vertical >= top + display_height ? DOS_VIDEO_RETRACE_STATUS_BIT : 0;
 }
 
 legacy_s16 video_get_status(void)
@@ -477,7 +489,7 @@ void amiga_video_shutdown(void)
 	}
 	for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
 		if (second_bitmap.Planes[plane] != NULL) {
-			FreeRaster(second_bitmap.Planes[plane], AMIGA_WIDTH, AMIGA_HEIGHT);
+			FreeRaster(second_bitmap.Planes[plane], AMIGA_WIDTH, display_height);
 			second_bitmap.Planes[plane] = NULL;
 		}
 	}

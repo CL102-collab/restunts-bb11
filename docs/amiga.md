@@ -4,9 +4,12 @@ The native Amiga backend lives in `src/restunts/platform/amiga`, alongside the
 DOS, SDL3 and TempleOS backends. It builds the same classic C game source list
 as the 16-bit DOS executable, with a Motorola 68000 target and no SDL dependency.
 
-The display is 320 × 200, non-interlaced, with five bitplanes and 32 hardware
-color registers selected from the ECS 4,096-color palette. It uses the original
-Amiga release's palette tables and 3D material colors while retaining the DOS
+The game renders at 320 × 200 and displays it at 4:3 with non-square pixels,
+matching the DOS game. The non-interlaced screen uses 320 × 256 on PAL and
+320 × 200 on NTSC, with five bitplanes and 32 hardware color registers selected
+from the ECS 4,096-color palette. PAL output expands the 200 source rows during
+planar conversion; game coordinates and artwork remain 320 × 200. It uses the
+original Amiga release's palette tables and 3D material colors while retaining the DOS
 artwork and game layouts. The game still renders indexed pixels internally,
 then converts completed frames to Amiga planar pixels. On AmigaOS, enough free
 RAM enables two planar buffers to keep conversion off the visible page. AROS
@@ -129,8 +132,9 @@ long rendering or loading operations can delay audible changes.
 
 The target is 1 MB Chip RAM with no Fast RAM. A DOS conventional-memory figure
 does not include the VGA card's memory; this port additionally needs a 64,000-byte
-indexed screen buffer and one or two 40,000-byte planar buffers. Native executable,
-stack, operating-system, and resource allocations also occupy Chip RAM. Close
+indexed screen buffer and one or two planar buffers (51,200 bytes each on PAL,
+40,000 bytes on NTSC). Native executable, stack, operating-system, and resource
+allocations also occupy Chip RAM. Close
 other applications before starting the game.
 
 The indexed screen also serves as the race render buffer. Artwork unflipping
@@ -248,6 +252,12 @@ Use `--mode capture --capture-at 110 --timeout 150` to capture an interactive
 session; capture mode does not count as an automated pass. `--key 80:Return`
 sends a menu key, and `--hold 180:30:Up` holds the accelerator for 30 seconds.
 Optional `-DRESTUNTS_AMIGA_TRACE=ON` enables native startup/resource diagnostics.
+Use `--video-standard ntsc` to test the NTSC display path; PAL is the default.
+The harness presents the full nominal raster at 4:3, correcting FS-UAE's default
+square PAL pixels. Use the `amiga-real-*.png` screenshots to inspect the displayed
+aspect ratio. The `amiga-full-*.png` and `amiga-crop-*.png` files, like
+`AMIGASMOKE.PPM`, store raw pixels and do not encode pixel aspect ratio. A normal drive started from
+the main menu shows the full dashboard without the replay controls.
 
 Scenery capture fixtures preserve the original geometry and terrain. The ramp
 and windmill views relocate the start/finish in DOS `DEFAULT.TRK`; the water view
@@ -299,7 +309,8 @@ AROS in FS-UAE.
 
 The same 68000 executable also passes tests using FS-UAE 3.2.35's A4000/040
 profile with AGA, 2 MiB Chip RAM and 4 MiB motherboard Fast RAM. The game still
-uses its 320 × 200, 32-color display. Select this profile with `--machine a4000`:
+uses its 320 × 200 renderer and 4:3, 32-color display. Select this profile with
+`--machine a4000`:
 
 ```sh
 python3 tools/scripts/run-amiga-platform-test.py \

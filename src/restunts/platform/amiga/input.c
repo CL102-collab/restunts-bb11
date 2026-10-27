@@ -17,6 +17,7 @@ static legacy_s16 mouse_x = AMIGA_WIDTH / 2U, mouse_y = AMIGA_HEIGHT / 2U, mouse
 static legacy_s16 mouse_min_x, mouse_min_y, mouse_max_x = AMIGA_WIDTH - 1U,
 											mouse_max_y = AMIGA_HEIGHT - 1U;
 static legacy_u8 joystick_enabled;
+static legacy_s32 mouse_y_fraction;
 struct MOUSE_TRANSITION {
 	legacy_s16 buttons, x, y;
 };
@@ -149,7 +150,15 @@ void amiga_input_pump(void)
 		} else if (kind == IDCMP_MOUSEMOVE || kind == IDCMP_MOUSEBUTTONS) {
 			if (kind == IDCMP_MOUSEMOVE) {
 				mouse_x = clamp(mouse_x + x, mouse_min_x, mouse_max_x);
-				mouse_y = clamp(mouse_y + y, mouse_min_y, mouse_max_y);
+				/* IDCMP deltas use physical screen rows. Retain fractional motion
+				 * when mapping the taller PAL display back to game coordinates. */
+				legacy_s32 height = amiga_video_display_height();
+				legacy_s32 motion = mouse_y_fraction + (legacy_s32)y * (legacy_s32)AMIGA_HEIGHT;
+				legacy_s32 next_y = mouse_y + motion / height;
+				mouse_y = next_y < mouse_min_y	 ? mouse_min_y
+						  : next_y > mouse_max_y ? mouse_max_y
+												 : (legacy_s16)next_y;
+				mouse_y_fraction = next_y == mouse_y ? motion % height : 0;
 			}
 			if (kind == IDCMP_MOUSEBUTTONS) {
 				if (code == SELECTDOWN) {
@@ -249,6 +258,7 @@ void dos_mouse_set_position(legacy_s16 x, legacy_s16 y)
 {
 	mouse_x = clamp(x, mouse_min_x, mouse_max_x);
 	mouse_y = clamp(y, mouse_min_y, mouse_max_y);
+	mouse_y_fraction = 0;
 }
 void dos_mouse_get_state(legacy_s16 *buttons, legacy_s16 *x, legacy_s16 *y)
 {

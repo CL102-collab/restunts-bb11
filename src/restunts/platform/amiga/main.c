@@ -6,6 +6,8 @@
 #include "../../c/fileio.h"
 #include "../../c/shape2d_internal.h"
 #include <exec/memory.h>
+#include <graphics/gfxbase.h>
+#include <intuition/intuition.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <stdio.h>
@@ -20,6 +22,7 @@
 legacy_u32 __stack = AMIGA_STACK_BYTES;
 extern void full_data_initialize(void);
 #ifdef RESTUNTS_AMIGA_SMOKE
+extern struct GfxBase *GfxBase;
 #define AMIGA_SELFTEST_ARENA_PARAGRAPHS 100U
 static legacy_u32 selftest_callbacks;
 extern legacy_s16 roofbmpheight_copy, dashbmp_y_copy;
@@ -36,6 +39,44 @@ static legacy_int selftest_check(legacy_int condition, const legacy_char *descri
 		fflush(stdout);
 	}
 	return condition;
+}
+
+static legacy_u8 selftest_visible_pixel(const struct BitMap *bitmap, legacy_u16 x, legacy_u16 y)
+{
+	legacy_u8 pixel = 0;
+	for (legacy_u16 plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		legacy_u8 byte = bitmap->Planes[plane][(legacy_u32)y * bitmap->BytesPerRow + (x >> 3)];
+		pixel |= ((byte >> (7U - (x & 7U))) & 1U) << plane;
+	}
+	return pixel;
+}
+
+static legacy_int selftest_scaled_image(const struct BitMap *bitmap, legacy_u16 height)
+{
+	static const legacy_u16 columns[] = {0, 159, 319};
+	for (legacy_u16 y = 0; y < height; ++y) {
+		legacy_u16 source = (legacy_u32)y * AMIGA_HEIGHT / height;
+		for (legacy_u16 column = 0; column < sizeof(columns) / sizeof(columns[0]); ++column) {
+			legacy_u16 x = columns[column];
+			if (selftest_visible_pixel(bitmap, x, y) != ((x / 10U + source) & 15U)) {
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+static legacy_int selftest_visible_row(const struct BitMap *bitmap, const legacy_u8 *pixels,
+									   legacy_u16 height, legacy_u16 y, const legacy_u8 *map)
+{
+	legacy_u16 source = (legacy_u32)y * AMIGA_HEIGHT / height;
+	for (legacy_u16 x = 0; x < AMIGA_WIDTH; ++x) {
+		if (selftest_visible_pixel(bitmap, x, y) !=
+			map[pixels[(legacy_u32)source * AMIGA_WIDTH + x]]) {
+			return 0;
+		}
+	}
+	return 1;
 }
 
 static legacy_int amiga_selftest(void)
@@ -70,6 +111,24 @@ static legacy_int amiga_selftest(void)
 		   (legacy_uint)amiga_video_buffer_count(), (legacy_u32)AvailMem(MEMF_PUBLIC));
 	fflush(stdout);
 	dos_video_set_mode_13h();
+	struct Window *display_window = amiga_video_window();
+	legacy_u16 expected_height =
+		(GfxBase->DisplayFlags & PAL) ? AMIGA_PAL_HEIGHT : AMIGA_NTSC_HEIGHT;
+	ok &= selftest_check(display_window != NULL, "display window initialized");
+	if (!ok) {
+		return 1;
+	}
+	struct Screen *display_screen = display_window->WScreen;
+	struct BitMap *display_bitmap = display_screen->ViewPort.RasInfo->BitMap;
+	ok &= selftest_check(amiga_video_display_height() == expected_height &&
+							 display_window->Height == expected_height &&
+							 display_screen->Height == expected_height &&
+							 display_bitmap->Rows == expected_height &&
+							 display_bitmap->Depth == AMIGA_DEPTH,
+						 "native 4:3 raster geometry");
+	printf("AMIGA SELFTEST: 320x%u %s raster for 320x200 logical image\n",
+		   (legacy_uint)expected_height, expected_height == AMIGA_PAL_HEIGHT ? "PAL" : "NTSC");
+	fflush(stdout);
 	legacy_u8 colors[AMIGA_DOS_COLORS * AMIGA_RGB_COMPONENTS];
 	for (legacy_u16 i = 0; i < AMIGA_DOS_COLORS; ++i) {
 		colors[i * 3] = (i & 7U) * 9U;
@@ -86,7 +145,7 @@ static legacy_int amiga_selftest(void)
 							 dos_memory_pointer_offset(pixels) == 0,
 						 "framebuffer segment identity");
 	for (legacy_u16 i = 0; i < AMIGA_SCREEN_BYTES; ++i) {
-		pixels[i] = (legacy_u8)((i % AMIGA_WIDTH) / 10U);
+		pixels[i] = (legacy_u8)(((i % AMIGA_WIDTH) / 10U + i / AMIGA_WIDTH) & 15U);
 	}
 	sprite_present_mcga_backbuffer();
 	/* Change palettes after both pages have been presented: the AROS bitmap
@@ -94,6 +153,8 @@ static legacy_int amiga_selftest(void)
 	puts("AMIGA SELFTEST: scene palettes and replay Copper");
 	fflush(stdout);
 	amiga_video_present();
+	ok &= selftest_check(selftest_scaled_image(display_bitmap, expected_height),
+						 "visible scaled scanlines after page flips");
 	amiga_video_palette_scene("SDMSEL", "!pal");
 	amiga_video_present();
 	ok &= selftest_check(amiga_video_color(0, 108) == 0x470, "original main palette");
@@ -111,6 +172,19 @@ static legacy_int amiga_selftest(void)
 	amiga_video_present();
 	ok &= selftest_check(amiga_video_color(150, 37) == 0xe82 && amiga_video_color(151, 37) == 0xa00,
 						 "replay palette boundary");
+	struct AMIGA_PALETTE row_palette;
+	memset(&row_palette, 0, sizeof(row_palette));
+	legacy_u16 physical_bar = amiga_display_row(AMIGA_REPLAY_TOP, expected_height);
+	amiga_palette_select(&row_palette, "STDBCOUN", "!pal", AMIGA_PALETTE_BANK_COLORS,
+						 AMIGA_PALETTE_BANK_COLORS);
+	ok &= selftest_check(selftest_visible_row(display_bitmap, pixels, expected_height,
+											  physical_bar - 1U, row_palette.map),
+						 "visible dashboard before scaled replay boundary");
+	amiga_palette_select(&row_palette, "SDGAME", "!pal", AMIGA_PALETTE_BANK_COLORS,
+						 AMIGA_PALETTE_BANK_COLORS);
+	ok &= selftest_check(selftest_visible_row(display_bitmap, pixels, expected_height, physical_bar,
+											  row_palette.map),
+						 "visible replay at scaled boundary");
 	replaybar_enabled = 0;
 	amiga_video_present();
 	ok &= selftest_check(amiga_video_color(151, 37) == 0xe82, "replay palette removal");

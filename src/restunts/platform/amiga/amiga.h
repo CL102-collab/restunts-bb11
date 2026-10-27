@@ -5,6 +5,8 @@
 
 #define AMIGA_WIDTH 320U
 #define AMIGA_HEIGHT 200U
+#define AMIGA_NTSC_HEIGHT 200U
+#define AMIGA_PAL_HEIGHT 256U
 #define AMIGA_DEPTH 5U
 #define AMIGA_COLORS 32U
 #define AMIGA_PALETTE_BANK_COLORS 16U
@@ -47,12 +49,18 @@ void amiga_chunky_to_planar(const legacy_u8 *pixels, const legacy_u8 *map,
 void amiga_chunky_to_planar_rows(const legacy_u8 *pixels, const legacy_u8 *map,
 								 legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
 								 legacy_u16 rows);
+legacy_u16 amiga_display_row(legacy_u16 logical_row, legacy_u16 height);
+/* pixels starts at first_row; planes point to the full physical bitmap. */
+void amiga_chunky_to_planar_scaled_rows(const legacy_u8 *pixels, const legacy_u8 *map,
+										legacy_u8 *planes[AMIGA_DEPTH], legacy_u16 bytes_per_row,
+										legacy_u16 first_row, legacy_u16 rows, legacy_u16 height);
 void amiga_video_palette_scene(const legacy_char *resource, const legacy_char *chunk);
 void amiga_video_palette_race(const legacy_char *car, legacy_u8 active);
 legacy_u16 amiga_video_color(legacy_u16 y, legacy_u8 pixel);
 legacy_u8 *amiga_video_pixels(void);
 legacy_u8 *amiga_video_memory_base(void);
 legacy_u16 amiga_video_buffer_count(void);
+legacy_u16 amiga_video_display_height(void);
 struct Window *amiga_video_window(void);
 void amiga_video_present(void);
 void amiga_video_begin_frame(void);

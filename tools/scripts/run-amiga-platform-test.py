@@ -130,6 +130,7 @@ def main():
     parser.add_argument("--display", help="Use an existing X11 display instead of starting Xvfb")
     parser.add_argument("--kickstart", type=Path, help="Optional user-supplied Kickstart ROM; defaults to bundled AROS")
     parser.add_argument("--machine", choices=("a500plus", "a4000"), default="a500plus", help="A500+ or A4000/040 with 4 MB motherboard Fast RAM")
+    parser.add_argument("--video-standard", choices=("pal", "ntsc"), default="pal", help="Amiga display timing; defaults to PAL")
     parser.add_argument("--chip-memory", type=int, choices=(1024, 2048), help="Chip RAM in KB; defaults to 1024 for A500+, 2048 for A4000")
     parser.add_argument("--keep-cli", action="store_true", help="Keep the boot console open, retaining its shell and window memory")
     parser.add_argument("--mode", choices=("selftest", "smoke", "capture"), default="selftest")
@@ -226,9 +227,19 @@ def main():
         )
     configuration = directory / f"{args.machine}.fs-uae"
     extension_configuration = f"kickstart_ext_file = {extension}\n" if extension else ""
+    ntsc_mode = int(args.video_standard == "ntsc")
+    raster_height = 400 if ntsc_mode else 512
+    raster_top = 46 if ntsc_mode else 36
+    # Present the entire nominal 320x200 NTSC / 320x256 PAL raster at 4:3.
+    # FS-UAE 3.2 otherwise defaults to square PAL pixels. A fixed raster also
+    # preserves blank scanlines in older builds instead of stretching them away.
+    # Inspect the -real PNG for displayed aspect; -full/-crop PNGs are raw pixels.
     configuration.write_text(
         "[fs-uae]\n"
         f"amiga_model = {model}\ncpu = {cpu}\nchip_memory = {args.chip_memory}\n"
+        f"ntsc_mode = {ntsc_mode}\nzoom = auto\n"
+        f"viewport = * * * * => 74 {raster_top} 640 {raster_height}\n"
+        "scale = 1\nstretch = aspect\nforce_aspect = 1.3333333333333333\n"
         f"motherboard_ram = {motherboard_ram}\nfast_memory = 0\nzorro_iii_memory = 0\nslow_memory = 0\n"
         "jit_compiler = 0\n"
         f"kickstart_file = {rom}\n"
@@ -245,7 +256,7 @@ def main():
     xvfb = None
     process = None
     inputs = None
-    print(f"{model} / {cpu} / {chipset} / {args.chip_memory} KB Chip RAM / "
+    print(f"{model} / {cpu} / {chipset} / {args.video_standard.upper()} / {args.chip_memory} KB Chip RAM / "
           f"{motherboard_ram} KB motherboard Fast RAM; artifacts: {directory}", flush=True)
     if is_a4000:
         print("68040 uses FS-UAE's fastest interpreter mode (JIT off); timings are not a 25 MHz hardware benchmark.", flush=True)

@@ -18,7 +18,8 @@ static void display_test_failure(legacy_uint line)
 #define TEST_PITCH 47U
 #define TEST_GUARD 16U
 static legacy_u8 pixels[AMIGA_SCREEN_BYTES];
-static legacy_u8 storage[AMIGA_DEPTH][TEST_GUARD + TEST_PITCH * AMIGA_HEIGHT + TEST_GUARD];
+static legacy_u8 expected[AMIGA_DEPTH][AMIGA_PLANE_BYTES];
+static legacy_u8 storage[AMIGA_DEPTH][TEST_GUARD + TEST_PITCH * AMIGA_PAL_HEIGHT + TEST_GUARD];
 
 static legacy_u32 random_state = 0x12345678UL;
 static legacy_u8 next_byte(void)
@@ -75,7 +76,6 @@ static void check_conversion_rows(void)
 {
 	static const legacy_u16 row_counts[] = {0, 1, 9, 70, 200, 65535U};
 	static const legacy_u16 pitches[] = {AMIGA_ROW_BYTES, TEST_PITCH};
-	static legacy_u8 expected[AMIGA_DEPTH][AMIGA_PLANE_BYTES];
 	legacy_u8 map[256], *planes[AMIGA_DEPTH];
 	legacy_u32 i;
 	legacy_u16 plane, y, x, test, pitch_index;
@@ -208,6 +208,136 @@ static void check_palette(void)
 	assert(palette.colors[12] == 0x7c6 && palette.first_register == 16);
 }
 
+static void reference_scaled_band(const legacy_u8 *map, legacy_u16 first, legacy_u16 rows)
+{
+	legacy_u16 plane, y, x;
+	for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		memset(expected[plane] + (legacy_u32)first * AMIGA_ROW_BYTES, 0,
+			   (legacy_u32)rows * AMIGA_ROW_BYTES);
+	}
+	for (y = first; y < first + rows; ++y) {
+		for (x = 0; x < AMIGA_WIDTH; ++x) {
+			legacy_u8 color = map[pixels[(legacy_u32)y * AMIGA_WIDTH + x]];
+			for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+				if (color & (1U << plane)) {
+					expected[plane][(legacy_u32)y * AMIGA_ROW_BYTES + (x >> 3)] |=
+						(legacy_u8)(1U << (7U - (x & 7U)));
+				}
+			}
+		}
+	}
+}
+
+static void check_scaled_storage(legacy_u16 pitch, legacy_u16 height, legacy_u16 first,
+								 legacy_u16 last)
+{
+	legacy_u16 plane, y, x;
+	legacy_u32 i;
+	for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		legacy_u8 *data = storage[plane] + TEST_GUARD;
+		for (y = 0; y < height; ++y) {
+			legacy_u16 source = (legacy_u32)y * AMIGA_HEIGHT / height;
+			if (source >= first && source < last) {
+				assert(memcmp(data + (legacy_u32)y * pitch,
+							  expected[plane] + (legacy_u32)source * AMIGA_ROW_BYTES,
+							  AMIGA_ROW_BYTES) == 0);
+			} else {
+				for (x = 0; x < AMIGA_ROW_BYTES; ++x) {
+					assert(data[(legacy_u32)y * pitch + x] == 0xa5);
+				}
+			}
+			for (x = AMIGA_ROW_BYTES; x < pitch; ++x) {
+				assert(data[(legacy_u32)y * pitch + x] == 0xa5);
+			}
+		}
+		for (i = 0; i < TEST_GUARD; ++i) {
+			assert(storage[plane][i] == 0xa5);
+		}
+		for (i = TEST_GUARD + (legacy_u32)height * pitch; i < sizeof(storage[plane]); ++i) {
+			assert(storage[plane][i] == 0xa5);
+		}
+	}
+}
+
+static void check_display_scaling(void)
+{
+	static const legacy_u16 heights[] = {AMIGA_NTSC_HEIGHT, AMIGA_PAL_HEIGHT};
+	static const legacy_u16 pitches[] = {AMIGA_ROW_BYTES, TEST_PITCH};
+	static const legacy_u16 ranges[][2] = {{0, 200}, {0, 1},	{1, 1},
+										   {150, 2}, {151, 49}, {199, 65535U}};
+	static const legacy_u16 bands[][2] = {{0, 9}, {9, 121}, {130, 21}, {151, 49}};
+	static const legacy_u16 invalid_heights[] = {0, AMIGA_HEIGHT - 1U, AMIGA_PAL_HEIGHT + 1U,
+												 65535U};
+	legacy_u8 map[AMIGA_DOS_COLORS], *planes[AMIGA_DEPTH];
+	legacy_u16 height_index, pitch_index, plane, row, test, band;
+	legacy_u32 i;
+
+	for (plane = 0; plane < AMIGA_DEPTH; ++plane) {
+		planes[plane] = storage[plane] + TEST_GUARD;
+	}
+	for (i = 0; i < AMIGA_DOS_COLORS; ++i) {
+		map[i] = next_byte() & 31U;
+	}
+	for (i = 0; i < AMIGA_SCREEN_BYTES; ++i) {
+		pixels[i] = next_byte();
+	}
+	reference_scaled_band(map, 0, AMIGA_HEIGHT);
+	assert(amiga_display_row(0, AMIGA_PAL_HEIGHT) == 0);
+	assert(amiga_display_row(1, AMIGA_PAL_HEIGHT) == 2);
+	assert(amiga_display_row(AMIGA_REPLAY_TOP, AMIGA_PAL_HEIGHT) == 194);
+	assert(amiga_display_row(AMIGA_HEIGHT - 1U, AMIGA_PAL_HEIGHT) == 255);
+	assert(amiga_display_row(AMIGA_HEIGHT, AMIGA_PAL_HEIGHT) == AMIGA_PAL_HEIGHT);
+	for (height_index = 0; height_index < sizeof(heights) / sizeof(heights[0]); ++height_index) {
+		legacy_u16 height = heights[height_index];
+		/* The palette switch must occur at the first physical scanline whose
+		 * source row reaches the logical boundary, including end-of-image. */
+		for (row = 0; row <= AMIGA_HEIGHT; ++row) {
+			legacy_u16 boundary = amiga_display_row(row, height);
+			assert(boundary <= height);
+			assert((legacy_u32)boundary * AMIGA_HEIGHT / height >= row);
+			assert(boundary == 0 || (legacy_u32)(boundary - 1U) * AMIGA_HEIGHT / height < row);
+		}
+		for (pitch_index = 0; pitch_index < sizeof(pitches) / sizeof(pitches[0]); ++pitch_index) {
+			legacy_u16 pitch = pitches[pitch_index];
+			for (test = 0; test < sizeof(ranges) / sizeof(ranges[0]); ++test) {
+				legacy_u16 first = ranges[test][0], rows = ranges[test][1];
+				legacy_u16 last = rows > AMIGA_HEIGHT - first ? AMIGA_HEIGHT : first + rows;
+				memset(storage, 0xa5, sizeof(storage));
+				amiga_chunky_to_planar_scaled_rows(pixels + (legacy_u32)first * AMIGA_WIDTH, map,
+												   planes, pitch, first, rows, height);
+				check_scaled_storage(pitch, height, first, last);
+			}
+		}
+	}
+	/* Adjacent scene bands use independent palette maps. This catches source
+	 * offsets or rounding that would shift the dashboard/replay boundary. */
+	for (height_index = 0; height_index < sizeof(heights) / sizeof(heights[0]); ++height_index) {
+		legacy_u16 height = heights[height_index];
+		for (pitch_index = 0; pitch_index < sizeof(pitches) / sizeof(pitches[0]); ++pitch_index) {
+			legacy_u16 pitch = pitches[pitch_index];
+			memset(storage, 0xa5, sizeof(storage));
+			for (band = 0; band < sizeof(bands) / sizeof(bands[0]); ++band) {
+				legacy_u16 first = bands[band][0], rows = bands[band][1];
+				for (i = 0; i < AMIGA_DOS_COLORS; ++i) {
+					map[i] = (i + band * 7U) & 31U;
+				}
+				reference_scaled_band(map, first, rows);
+				amiga_chunky_to_planar_scaled_rows(pixels + (legacy_u32)first * AMIGA_WIDTH, map,
+												   planes, pitch, first, rows, height);
+			}
+			check_scaled_storage(pitch, height, 0, AMIGA_HEIGHT);
+		}
+	}
+	for (test = 0; test < sizeof(invalid_heights) / sizeof(invalid_heights[0]); ++test) {
+		amiga_chunky_to_planar_scaled_rows(NULL, NULL, NULL, TEST_PITCH, 0, AMIGA_HEIGHT,
+										   invalid_heights[test]);
+	}
+	amiga_chunky_to_planar_scaled_rows(NULL, NULL, NULL, TEST_PITCH, 0, 0, AMIGA_PAL_HEIGHT);
+	amiga_chunky_to_planar_scaled_rows(NULL, NULL, NULL, TEST_PITCH, AMIGA_HEIGHT, 1,
+									   AMIGA_PAL_HEIGHT);
+	amiga_chunky_to_planar_scaled_rows(NULL, NULL, NULL, TEST_PITCH, 65535U, 1, AMIGA_PAL_HEIGHT);
+}
+
 legacy_int main(void)
 {
 	legacy_u16 pattern;
@@ -230,6 +360,8 @@ legacy_int main(void)
 #endif
 	check_conversion_rows();
 	puts("Amiga row-range conversion passed");
+	check_display_scaling();
+	puts("Amiga aspect scaling passed");
 	puts("AMIGA DISPLAY TEST PASS");
 	return 0;
 }
