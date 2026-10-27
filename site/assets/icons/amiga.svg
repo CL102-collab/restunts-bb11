@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Amiga</title>
+  <defs>
+    <clipPath id="checkmark">
+      <path d="m4 29 11-8 13 17L51 4l10 7-32 48z"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#checkmark)">
+    <path fill="#e34b56" d="M0 0h64v13H0z"/>
+    <path fill="#f49b42" d="M0 13h64v10H0z"/>
+    <path fill="#f7d64a" d="M0 23h64v10H0z"/>
+    <path fill="#76c65b" d="M0 33h64v10H0z"/>
+    <path fill="#4ea9e1" d="M0 43h64v10H0z"/>
+    <path fill="#9a79cc" d="M0 53h64v11H0z"/>
+  </g>
+</svg>

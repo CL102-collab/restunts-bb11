@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>TempleOS</title>
+  <rect x="2" y="2" width="60" height="60" rx="9" fill="#253c78"/>
+  <path d="M32 9 7 25v4h50v-4z" fill="#f8da71"/>
+  <path d="M32 15 17 24h30z" fill="#253c78"/>
+  <g fill="#fff4d3">
+    <path d="M11 31h8v17h-8zm17 0h8v17h-8zm17 0h8v17h-8z"/>
+    <path d="M8 49h48v5H8zm-3 6h54v4H5z"/>
+  </g>
+</svg>

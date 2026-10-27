@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#1b2531">
-    <meta name="description" content="Know the original Stunts? Catch up on Chocolate Stunts hotkeys, launch options, ghost racing, HyperVision, and browser play.">
+    <meta name="description" content="Know the original Stunts? Catch up on Chocolate Stunts hotkeys, startup options, controllers, touch controls, new cars, and browser and Android play.">
     <title>Quick guide — Chocolate Stunts</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
@@ -28,13 +28,15 @@
             <p class="eyebrow">For returning Stunts drivers</p>
             <h1>The <span>quick guide.</span></h1>
             <p class="intro">Know the original game? Here are the new controls, settings, and extras to try on your next lap.</p>
-            <p>Original physics stay on by default. Desktop and DOS builds start with classic graphics and AdLib music; the browser launcher starts with HyperVision and replacement music enabled. The <a href="templeos/">TempleOS edition</a> renders 3D geometry at 640 &times; 400 in 16 colors and fills the 640 &times; 480 display with the DOS game’s intended 4:3 proportions. It uses PC-speaker audio.</p>
-            <p class="small"><strong>Modern ports</strong> below means SDL3 builds, including browser and DOS32. <strong>Desktop</strong> means Windows, Linux, BSD, and macOS. DOS16 has the exceptions noted below.</p>
+            <p>Original physics stay on by default. The desktop startup window and browser launcher start with HyperVision Auto and replacement music enabled; direct native launches and Android start with classic graphics and AdLib music. The <a href="templeos/">TempleOS edition</a> renders 3D geometry at 640 &times; 400 in 16 colors and fills the 640 &times; 480 display with the DOS game’s intended 4:3 proportions. It uses PC-speaker audio.</p>
+            <p class="small"><strong>Modern ports</strong> below means SDL3 builds, including Android, browser, and DOS32. <strong>Desktop</strong> means Windows, Linux, macOS, BSD, and Haiku. DOS16, Amiga500+, and TempleOS use their native renderers.</p>
             <nav class="guide-nav" aria-label="On this page">
                 <a href="#hotkeys">Hotkeys</a>
-                <a href="#parameters">Launch parameters</a>
+                <a href="#controls">Controllers and touch</a>
+                <a href="#parameters">Startup and parameters</a>
                 <a href="#extras">More additions</a>
                 <a href="#browser">Browser play</a>
+                <a href="#android">Android and TV</a>
                 <a href="#desktop">Desktop tuning</a>
             </nav>
         </header>
@@ -59,7 +61,7 @@
                 </div>
                 <div>
                     <dt><kbd>F12</kbd> — Toggle HyperVision Auto.</dt>
-                    <dd>Modern ports start at full-track, 1280 × 800 rendering and adapt quality to target 60 FPS. Press again to return to classic graphics. From a fixed preset, F12 turns HyperVision off; the next press selects Auto. DOS16 toggles the simpler extended-view SuperSight mode instead.</dd>
+                    <dd>Modern ports start at full-track, 1280 × 800 rendering and adapt quality to target 60 FPS. Press again to return to classic graphics. From a fixed preset, F12 turns HyperVision off; the next press selects Auto. DOS16, Amiga500+, and TempleOS toggle their native SuperSight mode instead.</dd>
                 </div>
                 <div>
                     <dt><kbd>Shift</kbd> + <kbd>F12</kbd> — Choose fixed graphics quality.</dt>
@@ -85,13 +87,41 @@
             <p class="note">Graphics and music choices last for the current session. HyperVision changes presentation without changing physics or replay data. In modern ports, F12 also works in the main menu, track preview, car-selection screens, and opponent screens.</p>
         </section>
 
+        <section class="guide-section" id="controls" aria-labelledby="controls-title">
+            <div class="section-heading">
+                <p class="eyebrow">02 / Pick your controls</p>
+                <h2 id="controls-title">Controllers and touch screens</h2>
+            </div>
+            <dl class="guide-list">
+                <div>
+                    <dt>Plug in a controller — Drive on desktop, web, and Android.</dt>
+                    <dd>Recognized gamepads connect automatically. Use the right stick to steer, accelerate, and brake; the left stick adjusts the F3 camera. A/Cross confirms, B/Circle or either bumper goes back, and Menu/Options opens the race or replay menu. The D-pad navigates menus; while racing, up/down shifts and holding left rewinds. View cycles cameras, Y/Triangle switches the followed car, and X/Square toggles the dashboard. Keyboard controls remain available alongside the controller.</dd>
+                </div>
+                <div>
+                    <dt>Show Control Layout — Play Android or the web version on your phone.</dt>
+                    <dd>Enable this startup option and select Keyboard in the game’s Options. Touch circles steer, accelerate, and brake; Q rewinds, and manual transmission adds shift buttons. ESC goes back; C cycles cameras and T switches the followed car. Tap menu buttons directly, drag the replay timeline to seek, or swipe above its toolbar to move ten seconds. Hiding the circles keeps direct menu and replay touch controls available.</dd>
+                </div>
+                <div>
+                    <dt>Vibration — Feel bumps, scrapes, and crashes.</dt>
+                    <dd>Supported controllers rumble when the player’s impact sounds play. On Android, the startup Vibration option controls phone and controller feedback; other modern ports offer <code>--controller-vibration:off</code> to disable controller feedback.</dd>
+                </div>
+            </dl>
+            <figure class="control-diagram" id="controller-layout">
+                <a href="assets/controls/stunts-xbox-controls-final.png" aria-label="Open the Xbox controller layout at full size">
+                    <img src="assets/controls/stunts-xbox-controls-final.png" alt="Xbox controller layout: the right stick drives, the left stick adjusts the F3 camera, A confirms, B goes back, and the D-pad shifts or rewinds while racing." width="1536" height="1024" loading="lazy" decoding="async">
+                </a>
+                <figcaption>Xbox controller bindings for racing, menus, and replays. Select the picture to view the full-size layout.</figcaption>
+            </figure>
+        </section>
+
         <section class="guide-section" id="parameters" aria-labelledby="parameters-title">
             <div class="section-heading">
-                <p class="eyebrow">02 / Before you start</p>
-                <h2 id="parameters-title">Launch parameters</h2>
+                <p class="eyebrow">03 / Before you start</p>
+                <h2 id="parameters-title">Startup window and launch parameters</h2>
+                <p>On desktop, open <code>restunts-launcher</code> (or the packaged app) to choose your original Stunts 1.1 game folder and startup options. Android and web have their own startup screens. Graphics, music, and driving rules, including Dual-Way Switching and Amiga Grass, are remembered for your next launch.</p>
                 <p>For native builds, add switches after the executable name in a terminal or shortcut. For example: <code>restunts.exe --nointro --hv:auto --ogg:on</code>. On Linux or macOS, use <code>./restunts</code> instead.</p>
             </div>
-            <p class="guide-callout small"><strong>Keep replay settings consistent.</strong> Replays do not store the physics fixes or OWOOT setting. Use the same settings for recording, playback, and ghost racing. The four legacy behaviours below default to <code>on</code>; use <code>off</code> to apply each fix.</p>
+            <p class="guide-callout small"><strong>Keep replay settings consistent.</strong> Replays do not store the physics fixes or OWOOT setting. Use the same settings for recording, playback, and ghost racing. Power Gear, Original Collision Bugs, Left Corner Bias, Dual-Way Switching, and Chicane Fast-Grass default to <code>on</code>; use <code>off</code> to change each behaviour.</p>
             <dl class="guide-list">
                 <div>
                     <dt><code>--nointro</code> — Go straight to the menu.</dt>
@@ -119,15 +149,39 @@
                 </div>
                 <div>
                     <dt><code>--dws:off</code> — Fix Dual-Way Switching penalties.</dt>
-                    <dd>Correct penalty calculation for shortcuts between the branches of a split track. <code>--dws:on</code> preserves the original switching behaviour and is the default. Android and browser launchers expose this as “Dual-Way Switching”.</dd>
+                    <dd>Correct penalty calculation for shortcuts between the branches of a split track. <code>--dws:on</code> preserves the original switching behaviour and is the default. Startup screens expose this as “Dual-Way Switching”.</dd>
+                </div>
+                <div>
+                    <dt><code>--cfg:off</code> — Give chicane grass ordinary grip.</dt>
+                    <dd>Disable Chicane Fast-Grass so the green areas of chicane elements use normal grass grip and drag. The visible road is unchanged. <code>--cfg:on</code> restores the original fast-grass behaviour and is the default.</dd>
+                </div>
+                <div>
+                    <dt><code>--amigagrass</code> — Use original Amiga grass grip.</dt>
+                    <dd>Apply the Amiga version’s grass grip to the 11 stock cars, leaving road grip and custom-car settings unchanged. This is off by default and appears as Amiga Grass in startup screens. It also affects green chicane areas when Chicane Fast-Grass is disabled.</dd>
                 </div>
                 <div>
                     <dt><code>--owoot</code> — Enforce One Wheel On Or Over Track.</dt>
                     <dd>Keep part of at least one tyre on or above the road and follow each stunt’s intended route. Under-road driving and large-corner rumble strips do not count. A single gap tile between connected, aligned ramps or bridges is allowed. A violation crashes the player, including during replay playback. Omit the switch to disable it.</dd>
                 </div>
                 <div>
+                    <dt><code>--fps:on</code> / <code>--fps:off</code> — Set the performance display.</dt>
+                    <dd>Show FPS from startup on every port; modern ports also show render time. The default is off. Supply the option once, then use F11 or Shift+F11 to toggle it while playing.</dd>
+                </div>
+                <div>
+                    <dt><code>--fullscreen:on</code> / <code>--fullscreen:off</code> — Choose the initial desktop window.</dt>
+                    <dd>Start desktop ports in fullscreen or a window; the default is windowed. Supply the option once. Alt+Enter toggles it later. Android, DOS32, browser, and classic ports ignore this flag; the browser startup screen has its own Fullscreen checkbox.</dd>
+                </div>
+                <div>
+                    <dt><code>--control-layout:on</code> / <code>--control-layout:off</code> — Show or hide touch circles.</dt>
+                    <dd>Android and web expose this as Show Control Layout. It starts enabled on Android and on phones and tablets in the browser; a saved choice takes precedence. Direct touch on menus and replay controls remains available with the circles hidden.</dd>
+                </div>
+                <div>
+                    <dt><code>--controller-vibration:on</code> / <code>--controller-vibration:off</code> — Set controller feedback.</dt>
+                    <dd>Enable or disable rumble in modern ports other than Android. It defaults to on; supply the option once. Android uses the startup screen’s Vibration option for both phone and controller feedback.</dd>
+                </div>
+                <div>
                     <dt><code>--data-dir PATH</code> — Choose the game and save folder.</dt>
-                    <dd>In native modern ports, put this first: <code>restunts.exe --data-dir "C:\Games\Stunts" --nointro</code>. It changes where resources are read and saves are written. Without it, the current working directory is used. In the browser, use Choose game folder instead.</dd>
+                    <dd>In DOS16, Amiga, and native modern ports, put this first: <code>restunts.exe --data-dir "C:\Games\Stunts" --nointro</code>. It changes where resources are read and saves are written. Without it, the current working directory is used. Android and browser startup screens use Choose game folder instead.</dd>
                 </div>
                 <div>
                     <dt><code>--help</code> / <code>-h</code> — List supported options.</dt>
@@ -142,16 +196,16 @@
                     <dd>Run on its own in non-DOS modern ports to print the bundled third-party notices and exit.</dd>
                 </div>
                 <div>
-                    <dt><code>repldump RACE.RPL --owoot</code> — Check a recorded run.</dt>
-                    <dd>The separate physics dump tool writes <code>RACE.owo</code> with <code>pass</code> or <code>fail</code>. Passing requires a completed, crash-free run without OWOOT violations. Add the recording’s physics switches after the replay name; when checking batches, also check the tool’s exit code.</dd>
+                    <dt><code>repldump RACE.RPL --owoot --time</code> — Validate a replay and calculate its times.</dt>
+                    <dd>The separate physics dump tool automatically checks OWOOT and writes <code>RACE.owo</code> with <code>pass</code> or <code>fail</code>. Passing requires a completed, crash-free run without OWOOT violations. <code>--time</code> also writes <code>RACE.tim</code>: driving time excluding penalties on the first line, penalty time on the second. Unfinished runs leave the time report empty. Use either flag independently or combine them, add the recording’s physics switches after the replay name, and check the tool’s exit code when processing batches.</dd>
                 </div>
             </dl>
-            <p class="note">The HyperVision, Ogg, physics, and OWOOT options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, <code>--lcb</code>, and <code>--dws</code>, the last supplied value wins. <code>--nointro</code> is case-sensitive. The browser launcher exposes the checkboxes described below.</p>
+            <p class="note">The HyperVision, Ogg, physics, OWOOT, FPS, fullscreen, and controller-vibration options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, <code>--lcb</code>, <code>--dws</code>, and <code>--cfg</code>, the last supplied value wins. <code>--nointro</code> is case-sensitive. <a href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/parameters.md">Full settings and TempleOS launch syntax</a>.</p>
         </section>
 
         <section class="guide-section" id="extras" aria-labelledby="extras-title">
             <div class="section-heading">
-                <p class="eyebrow">03 / More to discover</p>
+                <p class="eyebrow">04 / More to discover</p>
                 <h2 id="extras-title">Beyond the keyboard</h2>
             </div>
             <dl class="guide-list">
@@ -160,8 +214,12 @@
                     <dd>Choose a replay to load its track, then drive in your own selected car and transmission. The silent grille ghost never collides with you, stays synchronized through rewinds and restarts, and stops at its final position. Choose Clock again to clear it; a different track, edited layout, or AI opponent also clears it. Saved replays do not include the ghost.</dd>
                 </div>
                 <div>
+                    <dt>Tesla Roadster Rocket and McMurtry Spéirling PURE — Two new electric cars.</dt>
+                    <dd>Both cars are included with every release package and appear in the usual car-selection screen. Their active downforce holds them against vertical and inverted drivable surfaces, even upside down at zero speed. It activates automatically for these cars, with no launch option needed.</dd>
+                </div>
+                <div>
                     <dt>A bigger garage — Bring up to 120 cars.</dt>
-                    <dd>The original 32-car limit is expanded. Keep your custom car resources in the game folder and select them through the usual car-selection screen.</dd>
+                    <dd>The original 32-car limit is expanded. Keep your custom car resources in the game folder or its <code>cars/</code> subfolder and select them through the usual car-selection screen.</dd>
                 </div>
                 <div>
                     <dt>HyperVision artwork — Sharper views and smoother motion.</dt>
@@ -184,7 +242,7 @@
 
         <section class="guide-section" id="browser" aria-labelledby="browser-title">
             <div class="section-heading">
-                <p class="eyebrow">04 / No installation needed</p>
+                <p class="eyebrow">05 / No installation needed</p>
                 <h2 id="browser-title">Playing in your browser</h2>
             </div>
             <dl class="guide-list">
@@ -193,8 +251,8 @@
                     <dd>Open the <a href="index.html#play">browser player</a>, select your Brøderbund Stunts 1.1 folder (12 February 1991), then choose Start game. Files stay on your device. You can also download <a href="game/restunts.html" download>restunts.html</a> and open it for offline play.</dd>
                 </div>
                 <div>
-                    <dt>Launcher checkboxes — Set graphics, music, and intro.</dt>
-                    <dd>Before starting, “HiperVision” selects <code>--hv:auto</code> and “New MIDI” enables the Ogg recordings; both are checked by default. “Skip intro” selects <code>--nointro</code>. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
+                    <dt>Startup options — Choose graphics, controls, and driving rules.</dt>
+                    <dd>HyperVision offers Off, Auto, Full, High, Medium, and Low; Auto is the browser default. New MIDI starts enabled. Graphics settings also contains Show FPS, Show Control Layout, and Fullscreen. Check Fullscreen before Start game to request it immediately. Driving rules includes Dual-Way Switching and Amiga Grass alongside the other physics choices. Selections are remembered. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
                 </div>
                 <div>
                     <dt>Export / Import — Keep your browser saves.</dt>
@@ -203,9 +261,32 @@
             </dl>
         </section>
 
+        <section class="guide-section" id="android" aria-labelledby="android-title">
+            <div class="section-heading">
+                <p class="eyebrow">06 / Phones and televisions</p>
+                <h2 id="android-title">Playing on Android and Android TV</h2>
+            </div>
+            <dl class="guide-list">
+                <div>
+                    <dt>Android 5 or newer — Choose the APK for your system.</dt>
+                    <dd>Install the 64-bit ARM or 32-bit ARM APK, then use Choose game folder or Import Stunts ZIP to select your own Stunts 1.1 data. Choose startup options before Start game. Touch controls and controllers are supported; Tilt steering is optional on devices with a suitable sensor.</dd>
+                </div>
+                <div>
+                    <dt>Android TV — Use a controller, keyboard, or compatible remote.</dt>
+                    <dd>Use the APK matching your TV’s Android system; some 64-bit TVs run 32-bit Android and need the 32-bit APK. A compatible TV remote navigates menus and drives with the D-pad in Keyboard mode: up accelerates, down brakes, and left/right steer. Extra shortcuts depend on the buttons your TV firmware forwards to the game. If the system folder picker is unavailable, choose Use TV game folder to import a ZIP or use copied game files. Back up this app-owned folder before uninstalling. <a href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/android.md#android-tv">TV setup and remote shortcuts</a>.</dd>
+                </div>
+            </dl>
+            <figure class="control-diagram" id="tv-remote-layout">
+                <a href="assets/controls/stunts-tv-remote-controls-final.png" aria-label="Open the TV remote control layout at full size">
+                    <img src="assets/controls/stunts-tv-remote-controls-final.png" alt="Android TV remote layout: D-pad directions navigate and drive, OK confirms, Back exits, number keys 1–5 control views and rewind, and channel buttons shift gears." width="1536" height="1024" loading="lazy" decoding="async">
+                </a>
+                <figcaption>Android TV remote controls and shortcuts. Color and channel buttons depend on TV firmware support. Select the picture to view the full-size layout.</figcaption>
+            </figure>
+        </section>
+
         <section class="guide-section" id="desktop" aria-labelledby="desktop-title">
             <div class="section-heading">
-                <p class="eyebrow">05 / Optional tuning</p>
+                <p class="eyebrow">07 / Optional tuning</p>
                 <h2 id="desktop-title">Desktop display and performance</h2>
                 <p>These are environment variables for desktop ports. Set them before launching the game; leave them unset to use the defaults.</p>
             </div>

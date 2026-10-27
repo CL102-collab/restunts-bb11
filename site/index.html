@@ -15,6 +15,7 @@
     <header class="site-header wrap">
         <a class="wordmark" href="#" aria-label="Chocolate Stunts home"><span class="flag" aria-hidden="true"></span>Chocolate Stunts</a>
         <nav aria-label="Main navigation">
+            <a href="#whats-new">What’s new</a>
             <a href="#features">Features</a>
             <a href="quick-guide.html">Quick guide</a>
             <a href="#downloads">Downloads</a>
@@ -68,6 +69,28 @@
                     <p><a href="assets/graphics/before.png">Before</a>: 320 × 200, enlarged with nearest-neighbor scaling. <a href="assets/graphics/after.png">After</a>: 1280 × 800 with HyperVision.</p>
                 </figcaption>
             </figure>
+        </section>
+
+        <section class="whats-new wrap" id="whats-new" aria-labelledby="whats-new-title">
+            <div class="section-heading">
+                <p class="eyebrow">Latest release</p>
+                <h2 id="whats-new-title">What’s new</h2>
+            </div>
+            <article class="release-notes" aria-labelledby="release-130-title">
+                <div class="release-heading"><h3 id="release-130-title">v1.3.0</h3><span class="label">RELEASED</span></div>
+                <p>The additions since v1.2.0:</p>
+                <ul>
+                    <li><strong>Tesla Roadster Rocket and McMurtry Speirling PURE</strong>, both with active downforce that holds them upside down even while stationary.</li>
+                    <li>A <strong>desktop startup window</strong> and startup choices including Dual-Way Switching and Amiga Grass.</li>
+                    <li><strong>Linux AppImages</strong> for Ubuntu 10, Fedora 12, Debian 6 or newer on x86, with ARM packages also available.</li>
+                    <li><strong>Android APKs</strong> for Android 5 or newer, in 64-bit and 32-bit ARM versions.</li>
+                    <li>New <strong>Haiku, Amiga500+, and TempleOS ports</strong>.</li>
+                    <li><strong>Controllers</strong> on desktop, web, and Android.</li>
+                    <li><strong>Android TV</strong> support with controllers, keyboards, and compatible remote controls.</li>
+                    <li>A <strong>touch-control overlay</strong> on Android and web, including browser play on phones.</li>
+                    <li><strong>Repldump</strong> options to automatically validate OWOOT and calculate driving and penalty times.</li>
+                </ul>
+            </article>
         </section>
 
         <section class="features wrap" id="features" aria-labelledby="features-title">
@@ -124,7 +147,7 @@
                         <li>Follow loops, corkscrews, slaloms, and other stunts along their intended route.</li>
                         <li>Jump the single off-road tile between connected, aligned ramps or bridges. Arbitrary flights over grass are out.</li>
                         <li>Break a rule and the run ends in a crash. OWOOT is optional and off by default.</li>
-                        <li><strong>Check replays automatically:</strong> <code>repldump RACE.RPL --owoot</code> writes a <code>RACE.owo</code> pass/fail result. A pass requires a completed race without violations or crashes.</li>
+                        <li><strong>Validate replays and calculate penalty time:</strong> <code>repldump RACE.RPL --owoot --time</code> writes an OWOOT pass/fail result and a report of driving and penalty times. A pass requires a completed race without violations or crashes. <a href="quick-guide.html#parameters">Replay-checking options</a>.</li>
                     </ul>
                 </div>
             </article>
@@ -165,259 +188,652 @@
                     <p class="note">HyperVision preserves the original physics and runs in modern ports, including browser and DOS32; DOS16 retains SuperSight with a simpler extended view, without high resolution, interpolation, or the quality presets.</p>
                 </div>
             </article>
+
+            <article class="feature">
+                <div class="feature-title"><span class="section-number">07</span><h3>Turn the world upside down.</h3><p>Two new cars</p></div>
+                <div class="feature-content">
+                    <ul>
+                        <li>The <strong>Tesla Roadster Rocket</strong> and <strong>McMurtry Speirling PURE</strong> join the garage, bundled with every release package.</li>
+                        <li>Both cars have <strong>active downforce</strong>: they can stay attached upside down even at zero speed without falling.</li>
+                        <li>Select either car in the usual car-selection screen. Active downforce works automatically.</li>
+                    </ul>
+                </div>
+            </article>
+
+            <article class="feature">
+                <div class="feature-title"><span class="section-number">08</span><h3>Set up your next lap.</h3><p>The startup window</p></div>
+                <div class="feature-content">
+                    <ul>
+                        <li>Choose your game folder, graphics, music, fullscreen mode, and driving rules before starting. Desktop builds now include a native <strong>startup window</strong>, alongside the web and Android startup screens.</li>
+                        <li><strong>Power Gear</strong> preserves the original power gear and anti-power gear behaviour; turn it off to restore the missing aerodynamic slowdown.</li>
+                        <li><strong>Original Collision Bugs</strong> preserves the original collision behaviour; turn it off to enable the collision fixes.</li>
+                        <li><strong>Left Corner Bias</strong> preserves the original left-turn steering advantage; turn it off for symmetrical steering.</li>
+                        <li><strong>Dual-Way Switching</strong> keeps the original split-track penalty behaviour when enabled; turn it off to apply the fix.</li>
+                        <li><strong>Chicane Fast-Grass</strong> keeps chicane green areas as fast as road. Turn it off, or use <code>--cfg:off</code>, to give them ordinary grass behaviour.</li>
+                        <li><strong>Amiga Grass</strong> gives the stock cars the original Amiga grass grip. Use <code>--amigagrass</code> when launching from the command line.</li>
+                        <li><strong>OWOOT</strong> (One Wheel On Or Over Track) requires part of at least one tyre to stay on or above the road and the car to follow each stunt’s intended route. It is off by default.</li>
+                    </ul>
+                    <p class="note">The <a href="quick-guide.html#parameters">launch-parameter guide</a> covers these settings and the other command-line options.</p>
+                </div>
+            </article>
+
+            <article class="feature">
+                <div class="feature-title"><span class="section-number">09</span><h3>Play your way.</h3><p>Controllers, touch, and TV</p></div>
+                <div class="feature-content">
+                    <ul>
+                        <li><strong>Controller support</strong> on desktop, web, and Android: drive, navigate menus, change cameras, and rewind from your gamepad.</li>
+                        <li>An optional <strong>control overlay on Android and web</strong> puts driving and menu controls on the touch screen, so you can play the web version on your phone.</li>
+                        <li><strong>Android TV</strong> supports controllers, keyboards, and compatible TV remotes for racing, menu navigation, and shortcuts.</li>
+                    </ul>
+                    <p class="note">See the <a href="quick-guide.html#controller-layout">controller layout</a> and the <a href="quick-guide.html#tv-remote-layout">Android TV remote layout</a>.</p>
+                </div>
+            </article>
         </section>
 
         <section class="downloads wrap" id="downloads" aria-labelledby="downloads-title">
             <div class="section-heading">
                 <p class="eyebrow">Pick your platform</p>
-                <h2 id="downloads-title">20 ways to play.</h2>
-                <p>From classic DOS to your browser. Bring your own Brøderbund Stunts 1.1 game files.</p>
+                <h2 id="downloads-title">Find your next starting grid.</h2>
+                <p>From classic DOS and Amiga to desktop, Android, and TV. Bring your own Brøderbund Stunts 1.1 game files.</p>
             </div>
-            <div class="download-notice"><strong>Chocolate Stunts 1.2.0 is available.</strong> Choose your package below, build the new Haiku&reg; edition from source, or view the <a href="https://github.com/CommonLoon102/restunts-bb11/releases/tag/v1.2.0">release notes and checksums</a>.</div>
+            <div class="download-notice"><strong>Chocolate Stunts v1.3.0 is available.</strong> Choose your package below, read <a href="#whats-new">what’s new</a>, or view the <a href="https://github.com/CommonLoon102/restunts-bb11/releases/tag/v1.3.0">release notes and checksums</a>.</div>
+            <p>Choose an operating system, then expand its architecture to see the packages. Linux x86 AppImages support Ubuntu 10, Fedora 12, Debian 6 or newer; ARM requirements are listed separately. Android APKs support Android 5 or newer.</p>
             <p class="badge-key"><span class="bits-example">32</span> / <span class="bits-example">64</span> / <span class="bits-example">16</span> = package bitness <span class="badge-divider">·</span> <span class="no-sse2 legend-badge" aria-hidden="true">SSE2</span> = no SSE2 requirement</p>
-            <div class="package-grid">
-                <a class="package" data-target="browser" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-browser.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/html5.svg" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">HTML5 / Browser</span>
-                        <span class="package-arch">WebAssembly · 32-bit</span>
-                        <span class="package-requirement">Modern desktop browser</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="windows-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-windows-x64.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Windows</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">Windows 7+ · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="windows-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-windows-x86.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Windows</span>
-                        <span class="package-arch">x86 · 32-bit</span>
-                        <span class="package-requirement">Windows XP SP2+ · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="windows-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-windows-x86-no-sse2.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
-                        <span class="no-sse2">SSE2</span><span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Windows</span>
-                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
-                        <span class="package-requirement">Windows XP SP2+</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="windows-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-windows-arm64.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Windows</span>
-                        <span class="package-arch">ARM64 · 64-bit</span>
-                        <span class="package-requirement">Windows 10+</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="linux-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-linux-x64.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Linux</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">Debian 12+ · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="linux-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-linux-x86.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Linux</span>
-                        <span class="package-arch">x86 · 32-bit</span>
-                        <span class="package-requirement">Debian 12+ · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="linux-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-linux-x86-no-sse2.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
-                        <span class="no-sse2">SSE2</span><span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Linux</span>
-                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
-                        <span class="package-requirement">Debian 12+</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="linux-arm32" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-linux-arm32.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Linux</span>
-                        <span class="package-arch">ARMv7 · 32-bit · hard-float</span>
-                        <span class="package-requirement">Debian / Raspbian 12+</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="linux-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-linux-arm64.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Linux</span>
-                        <span class="package-arch">ARM64 · 64-bit</span>
-                        <span class="package-requirement">Debian / Raspbian 12+</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="macos-universal" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-macos-universal.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/apple-silver.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">macOS</span>
-                        <span class="package-arch">Universal · 64-bit</span>
-                        <span class="package-requirement">macOS 11+ · Intel &amp; Apple Silicon</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="haiku-x64" href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/haiku.md">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Haiku</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">Haiku R1/beta6 · SSE2</span>
-                        <span class="package-status">Build from source</span>
-                    </span>
-                </a>
-                <a class="package" data-target="haiku-x86" href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/haiku.md">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">Haiku</span>
-                        <span class="package-arch">x86 · 32-bit</span>
-                        <span class="package-requirement">Haiku R1/beta6 · SSE2</span>
-                        <span class="package-status">Build from source</span>
-                    </span>
-                </a>
-                <a class="package" data-target="freebsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-freebsd-x64.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/freebsd-symbol.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">FreeBSD</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">FreeBSD 14.4 · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="openbsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-openbsd-x64.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/openbsd-gold.svg" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">OpenBSD</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">OpenBSD 7.9 · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="netbsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-netbsd-x64.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/netbsd.png" alt="" width="58" height="58">
-                        <span class="bits">64</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">NetBSD</span>
-                        <span class="package-arch">x86-64 · 64-bit</span>
-                        <span class="package-requirement">NetBSD 10.2 · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="netbsd-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-netbsd-x86.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/netbsd.png" alt="" width="58" height="58">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">NetBSD</span>
-                        <span class="package-arch">x86 · 32-bit</span>
-                        <span class="package-requirement">NetBSD 10.2 · SSE2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="netbsd-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-netbsd-x86-no-sse2.tar.gz">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/netbsd.png" alt="" width="58" height="58">
-                        <span class="no-sse2">SSE2</span><span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">NetBSD</span>
-                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
-                        <span class="package-requirement">NetBSD 10.2</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="dos16" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-dos16.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/dos.png" alt="" width="58" height="58" class="pixel-icon">
-                        <span class="bits">16</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">DOS Classic</span>
-                        <span class="package-arch">x86 · 16-bit</span>
-                        <span class="package-requirement">Original DOS edition</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
-                <a class="package" data-target="dos32" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.2.0/restunts-dos32.zip">
-                    <span class="platform-icon" aria-hidden="true">
-                        <img src="assets/icons/dos.png" alt="" width="58" height="58" class="pixel-icon">
-                        <span class="bits">32</span>
-                    </span>
-                    <span class="package-info">
-                        <span class="package-name">DOS Extended</span>
-                        <span class="package-arch">i386 · 32-bit</span>
-                        <span class="package-requirement">Includes CWSDPMI</span>
-                        <span class="package-status">Download</span>
-                    </span>
-                </a>
+            <div class="download-list">
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">Windows</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                    <span class="bits">64</span>
+                                </span>
+                                <span class="download-group-name">64 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="windows-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-windows-x64.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Windows</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">Windows 7+ · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="windows-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-windows-arm64.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Windows</span>
+                                        <span class="package-arch">ARM64 · 64-bit</span>
+                                        <span class="package-requirement">Windows 10+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                    <span class="bits">32</span>
+                                </span>
+                                <span class="download-group-name">32 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="windows-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-windows-x86.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Windows</span>
+                                        <span class="package-arch">x86 · 32-bit</span>
+                                        <span class="package-requirement">Windows XP SP2+ · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="windows-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-windows-x86-no-sse2.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/windows-xp-color.svg" alt="" width="58" height="58">
+                                        <span class="no-sse2">SSE2</span>
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Windows</span>
+                                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
+                                        <span class="package-requirement">Windows XP SP2+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">Linux</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                    <span class="bits">64</span>
+                                </span>
+                                <span class="download-group-name">64 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="linux-appimage-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-appimage-x64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux AppImage</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">Ubuntu 10+ · Fedora 12+ · Debian 6+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-appimage-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-appimage-arm64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux AppImage</span>
+                                        <span class="package-arch">ARM64 · 64-bit</span>
+                                        <span class="package-requirement">Debian 8+ · 64-bit OS required</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-x64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux archive</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">Debian 12+ · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-arm64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux archive</span>
+                                        <span class="package-arch">ARM64 · 64-bit</span>
+                                        <span class="package-requirement">Debian / Raspbian 12+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                    <span class="bits">32</span>
+                                </span>
+                                <span class="download-group-name">32 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="linux-appimage-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-appimage-x86.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux AppImage</span>
+                                        <span class="package-arch">x86 · 32-bit · SSE2</span>
+                                        <span class="package-requirement">Ubuntu 10+ · Fedora 12+ · Debian 6+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-appimage-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-appimage-x86-no-sse2.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="no-sse2">SSE2</span>
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux AppImage</span>
+                                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
+                                        <span class="package-requirement">Ubuntu 10+ · Fedora 12+ · Debian 6+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-appimage-armv7" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-appimage-armv7.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux AppImage</span>
+                                        <span class="package-arch">ARMv7 · 32-bit · hard-float</span>
+                                        <span class="package-requirement">Raspbian Wheezy+ · Pi 2 or newer</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-x86.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux archive</span>
+                                        <span class="package-arch">x86 · 32-bit</span>
+                                        <span class="package-requirement">Debian 12+ · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-x86-no-sse2.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="no-sse2">SSE2</span>
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux archive</span>
+                                        <span class="package-arch">x86 · 32-bit · no SSE2</span>
+                                        <span class="package-requirement">Debian 12+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                                <a class="package" data-target="linux-arm32" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-linux-arm32.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/linux-tux.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Linux archive</span>
+                                        <span class="package-arch">ARMv7 · 32-bit · hard-float</span>
+                                        <span class="package-requirement">Debian / Raspbian 12+</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/apple-silver.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">MacOS</span>
+                    </summary>
+                    <div class="download-contents">
+                        <a class="package" data-target="macos-universal" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-macos-universal.tar.gz">
+                            <span class="platform-icon" aria-hidden="true">
+                                <img src="assets/icons/apple-silver.svg" alt="" width="58" height="58">
+                                <span class="bits">64</span>
+                            </span>
+                            <span class="package-info">
+                                <span class="package-name">MacOS Universal</span>
+                                <span class="package-arch">Intel &amp; Apple Silicon · 64-bit</span>
+                                <span class="package-requirement">macOS 11+</span>
+                                <span class="package-status">Download</span>
+                            </span>
+                        </a>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/android.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">Android</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/android.svg" alt="" width="58" height="58">
+                                    <span class="bits">64</span>
+                                </span>
+                                <span class="download-group-name">64 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="android-arm64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-android-arm64.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/android.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Android APK</span>
+                                        <span class="package-arch">ARM64 · 64-bit</span>
+                                        <span class="package-requirement">Android 5+ · phones &amp; Android TV</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/android.svg" alt="" width="58" height="58">
+                                    <span class="bits">32</span>
+                                </span>
+                                <span class="download-group-name">32 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="android-armv7" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-android-armv7.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/android.svg" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Android APK</span>
+                                        <span class="package-arch">ARMv7 · 32-bit</span>
+                                        <span class="package-requirement">Android 5+ · phones &amp; Android TV</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img class="pixel-icon" src="assets/icons/dos.png" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">DOS</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img class="pixel-icon" src="assets/icons/dos.png" alt="" width="58" height="58">
+                                    <span class="bits">32</span>
+                                </span>
+                                <span class="download-group-name">32 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="dos32" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-dos32.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img class="pixel-icon" src="assets/icons/dos.png" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">DOS Extended</span>
+                                        <span class="package-arch">i386 · 32-bit</span>
+                                        <span class="package-requirement">Includes CWSDPMI</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img class="pixel-icon" src="assets/icons/dos.png" alt="" width="58" height="58">
+                                    <span class="bits">16</span>
+                                </span>
+                                <span class="download-group-name">16 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="dos16" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-dos16.zip">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img class="pixel-icon" src="assets/icons/dos.png" alt="" width="58" height="58">
+                                        <span class="bits">16</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">DOS Classic</span>
+                                        <span class="package-arch">x86 · 16-bit</span>
+                                        <span class="package-requirement">Original DOS edition</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/freebsd-symbol.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">BSD</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-group">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/freebsd-symbol.svg" alt="" width="58" height="58">
+                                </span>
+                                <span class="download-group-name">FreeBSD</span>
+                            </summary>
+                            <div class="download-contents">
+                                <a class="package" data-target="freebsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-freebsd-x64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/freebsd-symbol.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">FreeBSD</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">FreeBSD 14.4 · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-group">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img src="assets/icons/openbsd-gold.svg" alt="" width="58" height="58">
+                                </span>
+                                <span class="download-group-name">OpenBSD</span>
+                            </summary>
+                            <div class="download-contents">
+                                <a class="package" data-target="openbsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-openbsd-x64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img src="assets/icons/openbsd-gold.svg" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">OpenBSD</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">OpenBSD 7.9 · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-group">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                </span>
+                                <span class="download-group-name">NetBSD</span>
+                            </summary>
+                            <div class="download-contents">
+                                <details class="download-architecture">
+                                    <summary class="download-summary">
+                                        <span class="platform-icon" aria-hidden="true">
+                                            <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                            <span class="bits">64</span>
+                                        </span>
+                                        <span class="download-group-name">64 bit</span>
+                                    </summary>
+                                    <div class="package-grid">
+                                        <a class="package" data-target="netbsd-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-netbsd-x64.tar.gz">
+                                            <span class="platform-icon" aria-hidden="true">
+                                                <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                                <span class="bits">64</span>
+                                            </span>
+                                            <span class="package-info">
+                                                <span class="package-name">NetBSD</span>
+                                                <span class="package-arch">x86-64 · 64-bit</span>
+                                                <span class="package-requirement">NetBSD 10.2 · SSE2</span>
+                                                <span class="package-status">Download</span>
+                                            </span>
+                                        </a>
+                                    </div>
+                                </details>
+                                <details class="download-architecture">
+                                    <summary class="download-summary">
+                                        <span class="platform-icon" aria-hidden="true">
+                                            <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                            <span class="bits">32</span>
+                                        </span>
+                                        <span class="download-group-name">32 bit</span>
+                                    </summary>
+                                    <div class="package-grid">
+                                        <a class="package" data-target="netbsd-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-netbsd-x86.tar.gz">
+                                            <span class="platform-icon" aria-hidden="true">
+                                                <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                                <span class="bits">32</span>
+                                            </span>
+                                            <span class="package-info">
+                                                <span class="package-name">NetBSD</span>
+                                                <span class="package-arch">x86 · 32-bit</span>
+                                                <span class="package-requirement">NetBSD 10.2 · SSE2</span>
+                                                <span class="package-status">Download</span>
+                                            </span>
+                                        </a>
+                                        <a class="package" data-target="netbsd-x86-no-sse2" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-netbsd-x86-no-sse2.tar.gz">
+                                            <span class="platform-icon" aria-hidden="true">
+                                                <img class="pixel-icon" src="assets/icons/netbsd.png" alt="" width="58" height="58">
+                                                <span class="no-sse2">SSE2</span>
+                                                <span class="bits">32</span>
+                                            </span>
+                                            <span class="package-info">
+                                                <span class="package-name">NetBSD</span>
+                                                <span class="package-arch">x86 · 32-bit · no SSE2</span>
+                                                <span class="package-requirement">NetBSD 10.2</span>
+                                                <span class="package-status">Download</span>
+                                            </span>
+                                        </a>
+                                    </div>
+                                </details>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img class="pixel-icon" src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">Haiku</span>
+                    </summary>
+                    <div class="download-contents">
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img class="pixel-icon" src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
+                                    <span class="bits">64</span>
+                                </span>
+                                <span class="download-group-name">64 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="haiku-x64" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-haiku-x64.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img class="pixel-icon" src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
+                                        <span class="bits">64</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Haiku</span>
+                                        <span class="package-arch">x86-64 · 64-bit</span>
+                                        <span class="package-requirement">Haiku R1/beta6 · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                        <details class="download-architecture">
+                            <summary class="download-summary">
+                                <span class="platform-icon" aria-hidden="true">
+                                    <img class="pixel-icon" src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
+                                    <span class="bits">32</span>
+                                </span>
+                                <span class="download-group-name">32 bit</span>
+                            </summary>
+                            <div class="package-grid">
+                                <a class="package" data-target="haiku-x86" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-haiku-x86.tar.gz">
+                                    <span class="platform-icon" aria-hidden="true">
+                                        <img class="pixel-icon" src="assets/icons/haiku-leaf.png" alt="" width="58" height="58">
+                                        <span class="bits">32</span>
+                                    </span>
+                                    <span class="package-info">
+                                        <span class="package-name">Haiku</span>
+                                        <span class="package-arch">x86 · 32-bit</span>
+                                        <span class="package-requirement">Haiku R1/beta6 · modern GCC ABI · SSE2</span>
+                                        <span class="package-status">Download</span>
+                                    </span>
+                                </a>
+                            </div>
+                        </details>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/templeos.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">TempleOS</span>
+                    </summary>
+                    <div class="download-contents">
+                        <a class="package" data-target="templeos" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-templeos.zip">
+                            <span class="platform-icon" aria-hidden="true">
+                                <img src="assets/icons/templeos.svg" alt="" width="58" height="58">
+                                <span class="bits">64</span>
+                            </span>
+                            <span class="package-info">
+                                <span class="package-name">TempleOS</span>
+                                <span class="package-arch">x86-64 · 64-bit</span>
+                                <span class="package-requirement">Stock TempleOS 5.03 · installation CD</span>
+                                <span class="package-status">Download</span>
+                            </span>
+                        </a>
+                    </div>
+                </details>
+                <details class="download-group">
+                    <summary class="download-summary">
+                        <span class="platform-icon" aria-hidden="true">
+                            <img src="assets/icons/amiga.svg" alt="" width="58" height="58">
+                        </span>
+                        <span class="download-group-name">Amiga500+</span>
+                    </summary>
+                    <div class="download-contents">
+                        <a class="package" data-target="amiga-m68k" href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-amiga-m68k.tar.gz">
+                            <span class="platform-icon" aria-hidden="true">
+                                <img src="assets/icons/amiga.svg" alt="" width="58" height="58">
+                                <span class="bits">32</span>
+                            </span>
+                            <span class="package-info">
+                                <span class="package-name">Amiga500+</span>
+                                <span class="package-arch">Motorola 68000 · 32-bit</span>
+                                <span class="package-requirement">Kickstart 2.0+ · no FPU required</span>
+                                <span class="package-status">Download</span>
+                            </span>
+                        </a>
+                    </div>
+                </details>
             </div>
-            <p class="note">The browser badge refers to 32-bit WebAssembly, not your operating system. ARM ports do not use SSE2. macOS Universal includes both Intel and Apple Silicon. Platform icons identify the operating system; the requirements on each card identify the supported version.</p>
+            <p class="note">ARM ports do not use SSE2. MacOS Universal includes both Intel and Apple Silicon. Choose the architecture of your operating system; some Android TV devices need a 32-bit APK even with a 64-bit processor. The <a href="templeos/">TempleOS guide</a> covers installation and screenshots.</p>
         </section>
 
         <section class="play wrap" id="play" aria-labelledby="play-title">
@@ -430,7 +846,7 @@
                 <div class="player-toolbar"><span><span class="flag" aria-hidden="true"></span>Browser edition</span><a href="game/restunts.html" target="_blank" rel="noopener">Open in a new tab</a></div>
                 <div class="player-start" id="player-start">
                     <h3>The track is waiting.</h3>
-                    <p>You’ll need a keyboard and a folder containing your Brøderbund Stunts 1.1 game files.</p>
+                    <p>Bring a folder containing your Brøderbund Stunts 1.1 game files. Play with a keyboard, controller, or the touch-control overlay on your phone.</p>
                     <button class="button primary" id="load-game" type="button" hidden>Load browser game</button>
                     <noscript><p><a class="button primary" href="game/restunts.html">Open browser game</a></p></noscript>
                     <p class="small">Loads on request, so browsing the page stays lightweight.</p>
@@ -438,7 +854,8 @@
                 <p class="player-status" id="player-status" role="status" hidden></p>
                 <iframe id="game-frame" title="Play Chocolate Stunts" data-src="game/restunts.html" allow="fullscreen; autoplay" allowfullscreen hidden></iframe>
             </div>
-            <p class="note">Click inside the game to focus the keyboard. The player includes setup instructions, save controls, and a key reference. Use its Fullscreen button for a larger view. You can also save <a href="game/restunts.html" download>restunts.html</a> for offline play.</p>
+            <p class="note"><a href="https://github.com/CommonLoon102/restunts-bb11/releases/download/v1.3.0/restunts-browser.zip">Download the v1.3.0 offline browser package</a>. See the <a href="quick-guide.html#browser">browser guide</a> for setup and saves.</p>
+            <p class="note">Click or tap inside the game to focus it. Enable the control overlay in the startup screen for touch play, or connect a controller. The player includes setup instructions, save controls, and a key reference. Use its Fullscreen button for a larger view. You can also save <a href="game/restunts.html" download>restunts.html</a> for offline play.</p>
         </section>
     </main>
 

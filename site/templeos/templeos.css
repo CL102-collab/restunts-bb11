@@ -27,8 +27,8 @@
 .temple-section .guide-nav { padding-top: 20px; border-top: 1px solid var(--line); }
 .temple-page .guide-callout p:last-child { margin-bottom: 0; }
 .temple-steps { margin: 32px 0; padding: 0; list-style: none; counter-reset: temple-step; }
-.temple-steps > li { position: relative; padding: 0 0 34px 56px; margin: 0 0 34px; border-bottom: 1px solid var(--line); counter-increment: temple-step; }
-.temple-steps > li:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+.temple-steps > li { position: relative; padding: 0 0 34px 56px; margin: 34px 0; border-bottom: 1px solid var(--line); counter-increment: temple-step; }
+.temple-steps > li:last-child { margin-block: 0; padding-bottom: 0; border-bottom: 0; }
 .temple-steps > li::before { content: counter(temple-step); position: absolute; top: -2px; left: 0; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%; color: var(--accent); font-weight: 750; }
 .temple-steps h3 { font-size: 1.4rem; margin-bottom: 16px; }
 .temple-steps > li > p:last-child { margin-bottom: 0; }

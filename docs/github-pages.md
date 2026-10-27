@@ -1,9 +1,9 @@
 # Chocolate Stunts on GitHub Pages
 
-The landing page lives in `site/`. It presents the game's features, download
-links for released packages, Haiku build instructions, and the browser game
-in a same-origin iframe. Its relative URLs work under a repository path such
-as `/restunts-bb11/`.
+The landing page lives in `site/`. It presents the game's features, release
+notes, grouped package downloads, platform guides, and the browser game in a
+same-origin iframe. Its relative URLs work under a repository path such as
+`/restunts-bb11/`.
 
 The linked `site/quick-guide.html` shares the landing page styling and gives
 returning players a short guide to added hotkeys and launch parameters. Keep
@@ -82,21 +82,42 @@ the Pages builder requires the complete release ZIP, not a standalone HTML file.
 The hosted game is `game/restunts.html`. Its matching, unmodified browser ZIP is
 available as `game/browser-runtime.zip`, with a checksum sidecar. That archive
 includes the dependency notices, licenses, Nuked source, and complete relink kit.
-Keep the archive and notice links with the hosted game. The package cards
-link to released packages independently of this required runtime-materials link.
+Keep the archive and notice links with the hosted game. Release package entries
+are maintained independently of this required runtime-materials link.
 
 ## Update release download links
 
-The released package cards in `site/index.html` link directly to the
-[v1.2.0 release archives](https://github.com/CommonLoon102/restunts-bb11/releases/tag/v1.2.0).
-The two Haiku cards link to build instructions until a release includes
-`restunts-haiku-x64.tar.gz` and `restunts-haiku-x86.tar.gz`. Only link an archive
-after it has been published.
-For a new release, update each card anchor's `href` to its matching archive
-and update the version and release link in the section's notice.
-Match each card's `data-target` to the
-archive names in [the release package list](releases.md); the SSE2 and no-SSE2
-variants are separate archives. Keep the CPU labels and bitness badges intact.
+The published package cards in `site/index.html` link directly to the
+[v1.3.0 release archives](https://github.com/CommonLoon102/restunts-bb11/releases/tag/v1.3.0).
+Available downloads use `a.package` with the matching published asset URL as
+`href` and a **Download** label. Include only published packages and omit empty
+architecture groups. FreeBSD and OpenBSD each show their sole 64-bit package
+card directly under the operating system, without an architecture subgroup;
+keep the card’s bitness badge. NetBSD retains its **64 bit** and **32 bit** groups.
+
+For a new release, verify the published asset inventory before updating each
+available card's `href`. Update the version, release link, and availability in
+the download notice and corresponding What's new entry. Update the offline
+browser-package link in the Play section to that release's `restunts-browser.zip`.
+Keep this release download separate from the local `game/browser-runtime.zip`
+link, which must continue to match the hosted game. Add package cards and their
+architecture groups only when matching assets have been published, using
+`a.package` with the published asset URL as `href` and a **Download** label.
+Remove entries for unavailable packages and any architecture groups left empty.
+
+The download hierarchy uses native `details` and `summary` elements, collapsed
+by default. Keep the operating systems in this order: Windows, Linux, MacOS,
+Android, DOS, BSD, Haiku, TempleOS, Amiga500+. BSD contains FreeBSD, OpenBSD,
+and NetBSD in that order. Where both are available, architecture groups list
+**64 bit** before **32 bit**; DOS lists **32 bit** before **16 bit**. Keep
+operating-system icons in their summaries, and bitness badges on architecture
+summaries and package cards.
+
+Match each card's `data-target` to the archive names in
+[the release package list](releases.md); the SSE2 and no-SSE2 variants remain
+separate packages. Preserve CPU labels, bitness badges, and platform requirements
+when enabling downloads. The browser game and its required runtime-materials
+archive remain together in the Play section.
 
 The website uses plain HTML, CSS, and JavaScript; no npm installation or separate
 frontend compilation is needed. HTML and Markdown use CRLF working-tree line
