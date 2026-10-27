@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="An offline 2D track editor for Chocolate Stunts, with extended terrain and track formats.">
+    <title>Track editor · Chocolate Stunts</title>
+    <link rel="stylesheet" href="track-editor.css">
+    <script defer src="track-editor-model.js"></script>
+    <script defer src="track-editor-resources.js"></script>
+    <script defer src="track-editor.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <a class="brand" href="./" title="Chocolate Stunts"><span class="brand-mark" aria-hidden="true">CS</span><span>CHOCOLATE STUNTS<small>TRACK EDITOR</small></span></a>
+        <div class="document-title"><strong id="document-name">Untitled</strong><span id="document-state">Select your Stunts folder to begin</span></div>
+        <button id="folder-button" class="folder-button" type="button">Choose Stunts folder</button>
+    </header>
+    <main class="editor-layout">
+        <aside class="sidebar" aria-label="Editor controls">
+            <fieldset id="editor-controls" disabled>
+                <div class="file-actions">
+                    <button id="new-track" type="button" title="New track">New</button>
+                    <button id="load-track" type="button" title="Load .cstrk (Ctrl+O)">Open</button>
+                    <button id="save-track" type="button" class="primary" title="Save .cstrk (Ctrl+S)">Save</button>
+                </div>
+                <div class="history-actions"><button id="undo" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button></div>
+                <section class="control-section tools-section" aria-labelledby="tools-heading">
+                    <div class="section-heading"><h2 id="tools-heading">Editing tools</h2><span id="map-size">90 × 90</span></div>
+                    <div class="tool-switch" role="group" aria-label="Editing tool">
+                        <button type="button" data-tool="place" aria-pressed="true" title="Place selected track piece (B)">Build</button>
+                        <button type="button" data-tool="erase" aria-pressed="false" title="Erase track piece (E), or right-click">Erase</button>
+                        <button type="button" data-tool="pan" aria-pressed="false" title="Pan (H), middle-drag, or hold Space">Pan</button>
+                    </div>
+                    <div class="rotation-row"><span>Rotation</span><button type="button" id="rotate-left" title="Rotate counterclockwise (Q)">↶</button><output id="rotation">0°</output><button type="button" id="rotate-right" title="Rotate clockwise (R)">↷</button></div>
+                </section>
+                <section class="control-section terrain-section" aria-labelledby="terrain-heading">
+                    <div class="section-heading"><h2 id="terrain-heading">Terrain</h2><span class="section-tag">GROUND</span></div>
+                    <label class="field-label" for="terrain-surface">Ground surface</label>
+                    <select id="terrain-surface"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3">Water</option></select>
+                    <div class="terrain-tools" role="group" aria-label="Terrain tool">
+                        <button type="button" data-tool="paint" aria-pressed="false" title="Paint the selected ground surface">Paint</button>
+                        <button type="button" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes">Raise</button>
+                        <button type="button" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain">Lower</button>
+                        <button type="button" data-tool="level" aria-pressed="false" title="Level terrain to the selected elevation">Level</button>
+                        <button type="button" class="wide" data-tool="water-corner" aria-pressed="false" title="Half water, half hill corner; use rotation to choose the corner">◩ Water + hill corner</button>
+                    </div>
+                    <label class="level-label" for="terrain-level">Level <output id="level-output">1 / 4</output></label>
+                    <input id="terrain-level" type="range" min="0" max="4" step="1" value="1">
+                    <p class="control-hint">Raise and lower shared corners. Neighbouring slopes adjust together.</p>
+                </section>
+                <section class="control-section track-section" aria-labelledby="track-heading">
+                    <div class="section-heading"><h2 id="track-heading">Track elements</h2><span class="section-tag">ROAD</span></div>
+                    <label class="field-label" for="road-surface">Road / stunt surface</label>
+                    <select id="road-surface"><option value="0">Asphalt</option><option value="1">Dirt</option><option value="2">Ice</option></select>
+                    <label class="field-label" for="piece-group">Element group</label>
+                    <select id="piece-group" aria-controls="piece-palette"></select>
+                    <div id="piece-palette" class="piece-palette" aria-label="Track pieces"></div>
+                    <div id="selected-piece" class="selected-piece">Choose a track element</div>
+                    <p class="control-hint" id="surface-hint">Greyed pieces do not support this road surface.</p>
+                </section>
+                <section class="control-section document-section" aria-label="Track information">
+                    <button type="button" id="notes-button" class="full-button">Track notes <span id="notes-count">0 / 8000</span></button>
+                    <button type="button" id="check-track" class="full-button">Check track</button>
+                    <details class="keyboard-help"><summary>Keyboard shortcuts</summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br><kbd>Space</kbd> + drag to pan · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
+                </section>
+            </fieldset>
+            <div class="sidebar-footer"><span class="format-badge">.cstrk</span><span>Extended tracks · SDL3 builds</span></div>
+        </aside>
+        <section class="workspace" aria-label="Track canvas">
+            <div class="canvas-toolbar">
+                <div class="view-controls"><button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out">−</button><output id="zoom-value">100%</output><button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button><button id="fit-map" type="button" title="Fit entire track">Fit</button></div>
+                <div class="display-options"><label><input id="show-grid" type="checkbox" checked> Grid</label><label><input id="show-heights" type="checkbox"> Heights</label></div>
+                <span class="canvas-mode" id="canvas-mode">TOP VIEW · 2D</span>
+            </div>
+            <div id="canvas-container" class="canvas-container">
+                <canvas id="track-canvas" tabindex="0" aria-label="2D track editing canvas. Use arrow keys to move and Enter to place; use the controls for terrain and elements."></canvas>
+                <div class="map-compass" aria-hidden="true"><span>N</span>↑</div>
+                <div class="minimap-panel"><canvas id="minimap" width="156" height="156" aria-label="Track overview. Click to move the view."></canvas><span id="minimap-caption">90 × 90 tiles</span></div>
+                <div id="canvas-empty" class="canvas-empty"><span class="empty-grid" aria-hidden="true">⊞</span><h1>A bigger canvas for your next stunt.</h1><p>90 × 90 tiles. Four terrain levels.<br>Classic Stunts pieces, with more possibilities.</p></div>
+            </div>
+            <footer class="statusbar"><span id="status" role="status" aria-live="polite">Choose your Stunts folder to start editing.</span><span id="cursor-position">—</span><span id="object-count">0 elements</span></footer>
+        </section>
+    </main>
+    <dialog id="folder-dialog" class="folder-dialog" aria-labelledby="folder-title">
+        <span class="dialog-eyebrow">CHOCOLATE STUNTS TRACK EDITOR</span>
+        <h1 id="folder-title">First, choose your Stunts folder.</h1>
+        <p>The editor uses the original game’s track resources. Select the folder containing your Stunts game files to begin.</p>
+        <p class="privacy-note">Files stay on your device. Nothing is uploaded.</p>
+        <button id="choose-folder" class="primary" type="button">Choose Stunts folder</button>
+        <div id="fallback-folder" hidden><label for="folder-input" class="file-button">Choose Stunts folder</label><input id="folder-input" type="file" webkitdirectory multiple></div>
+        <button id="restore-folder" type="button" hidden>Reconnect previous folder</button>
+        <p id="folder-status" role="status" aria-live="polite">Requires MAIN.RES or MAIN.PRE, TEDIT resources, and SDTEDIT resources.</p>
+        <details id="folder-fallback-help"><summary>Folder picker not available?</summary><p>Use read-only selection instead. Your edited tracks will download as .cstrk files.</p><button id="use-fallback" type="button">Use read-only folder selection</button></details>
+    </dialog>
+    <dialog id="notes-dialog" aria-labelledby="notes-title">
+        <form method="dialog" id="notes-form">
+            <div class="dialog-heading"><h2 id="notes-title">Track notes</h2><button type="button" data-close="notes-dialog" class="icon-button" aria-label="Close notes">×</button></div>
+            <p>Up to 8000 ASCII characters. Tabs and line breaks are supported.</p>
+            <label for="track-notes" class="visually-hidden">Track notes</label>
+            <textarea id="track-notes" rows="15" maxlength="8000" spellcheck="true" placeholder="Describe your track, add driving tips, or leave a message for racers…"></textarea>
+            <div class="notes-meta"><span id="notes-error" role="alert"></span><output id="notes-length">0 / 8000</output></div>
+            <div class="dialog-actions"><button type="button" data-close="notes-dialog">Cancel</button><button type="submit" class="primary" id="apply-notes">Apply notes</button></div>
+        </form>
+    </dialog>
+    <dialog id="new-dialog" aria-labelledby="new-title">
+        <form method="dialog" id="new-form">
+            <div class="dialog-heading"><h2 id="new-title">New track</h2><button type="button" data-close="new-dialog" class="icon-button" aria-label="Cancel new track">×</button></div>
+            <p>Choose a canvas up to 90 × 90 tiles.</p>
+            <label class="field-label" for="new-name">Track name</label><input id="new-name" type="text" maxlength="8" value="Untitled" required>
+            <div class="dimensions"><label for="new-width">Width<input id="new-width" type="number" min="1" max="90" value="90" required></label><span>×</span><label for="new-height">Height<input id="new-height" type="number" min="1" max="90" value="90" required></label></div>
+            <div class="dialog-actions"><button type="button" data-close="new-dialog">Cancel</button><button type="submit" class="primary">Create track</button></div>
+        </form>
+    </dialog>
+    <dialog id="save-dialog" aria-labelledby="save-title">
+        <form method="dialog" id="save-form">
+            <div class="dialog-heading"><h2 id="save-title">Save track</h2><button type="button" data-close="save-dialog" class="icon-button" aria-label="Cancel save">×</button></div>
+            <label class="field-label" for="save-name">Filename</label><div class="filename-field"><input id="save-name" type="text" maxlength="8" required pattern="[^/\\:*?&quot;&lt;&gt;|.]+"><span>.cstrk</span></div>
+            <p>Use 1–8 ASCII characters without spaces, matching game filenames.</p><p id="save-destination"></p><p id="save-error" role="alert"></p>
+            <div class="dialog-actions"><button type="button" data-close="save-dialog">Cancel</button><button type="submit" class="primary" id="confirm-save">Save track</button></div>
+        </form>
+    </dialog>
+    <dialog id="check-dialog" aria-labelledby="check-title"><div class="dialog-heading"><h2 id="check-title">Track check</h2><button type="button" data-close="check-dialog" class="icon-button" aria-label="Close track check">×</button></div><div id="check-results"></div><div class="dialog-actions"><button type="button" data-close="check-dialog" class="primary">Close</button></div></dialog>
+    <input id="track-file-input" class="visually-hidden" type="file" accept=".cstrk">
+    <noscript>This editor requires JavaScript to load local game resources and edit tracks.</noscript>
+</body>
+</html>
