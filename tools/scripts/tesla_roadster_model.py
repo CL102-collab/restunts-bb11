@@ -483,9 +483,6 @@ def _rear(shape: _Shape, simple: bool) -> None:
 
     shape.polygon(((-15.8, 8.8, -34.8), (15.8, 8.8, -34.8),
                    (15.8, 8.5, -36.8), (-15.8, 8.5, -36.8)), PAINT_TOP)
-    for side in (-1, 1):
-        shape.polygon(((side * 15.8, 8.8, -34.8), (side * 15.8, 8.5, -36.8),
-                       (side * 16.0, 4.8, -36.2)), PAINT_EDGE)
 
 
 def _car(scale: int, *, simple: bool = False) -> _Shape:

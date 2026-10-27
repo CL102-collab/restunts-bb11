@@ -116,8 +116,8 @@
   },
   "models": {
     "car0": {
-      "vertices": 252,
-      "primitives": 213,
+      "vertices": 250,
+      "primitives": 211,
       "paint_jobs": 7,
       "visible_dimensions": {
         "width": 900,
@@ -126,8 +126,8 @@
       }
     },
     "car1": {
-      "vertices": 243,
-      "primitives": 213,
+      "vertices": 241,
+      "primitives": 211,
       "paint_jobs": 7,
       "visible_dimensions": {
         "width": 44,
@@ -136,8 +136,8 @@
       }
     },
     "car2": {
-      "vertices": 233,
-      "primitives": 193,
+      "vertices": 231,
+      "primitives": 191,
       "paint_jobs": 7,
       "visible_dimensions": {
         "width": 44,
@@ -181,8 +181,8 @@
       "sha256": "11298059c30247f1f6f67933138e371e9f047673bed1eef67cd12e3f8a22b9c2"
     },
     "STTERR.3SH": {
-      "bytes": 17294,
-      "sha256": "abbbe8a0bcc89f9c6e084e909665e50e0460871ed73c761cfc4603a388f4df2b"
+      "bytes": 17138,
+      "sha256": "40358e07c34d4d1735022c09e66babcda66b2d0316e834cdf94dc44b12bf0452"
     },
     "STDATERR.VSH": {
       "bytes": 143131,
