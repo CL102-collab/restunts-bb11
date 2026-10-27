@@ -1,0 +1,61 @@
+{
+  "$schema": "https://recomp.fyi/schema/v1.json",
+  "game": "Stunts",
+  "wikidata": "Q1758350",
+  "system": "PC (DOS)",
+  "type": [
+    "decomp",
+    "port"
+  ],
+  "original": {
+    "revision": "Brøderbund 1.1 (1991-02-12)"
+  },
+  "project": "Chocolate Stunts",
+  "status": "released",
+  "targets": [
+    "Windows",
+    "Linux",
+    "macOS",
+    "Android",
+    "Browser",
+    "DOS",
+    "FreeBSD",
+    "OpenBSD",
+    "NetBSD",
+    "Haiku",
+    "Amiga",
+    "TempleOS"
+  ],
+  "toolchain": "SDL3",
+  "approach": "Manual and AI-aided reverse engineering of the DOS executable into portable C, with rebuildable original assembly, SDL3 ports and native Amiga and HolyC backends.",
+  "maintainers": [
+    {
+      "name": "CommonLoon102",
+      "link": "https://github.com/CommonLoon102"
+    }
+  ],
+  "links": [
+    {
+      "label": "Website",
+      "url": "https://commonloon102.github.io/restunts-bb11/"
+    },
+    {
+      "label": "GitHub",
+      "url": "https://github.com/CommonLoon102/restunts-bb11"
+    },
+    {
+      "label": "Upstream Restunts",
+      "url": "https://github.com/4d-stunts/restunts"
+    },
+    {
+      "label": "Platform and release guide",
+      "url": "https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/releases.md"
+    }
+  ],
+  "tags": [
+    "racing",
+    "reverse-engineering",
+    "replay-compatible"
+  ],
+  "notes": "Continuation of Restunts with replay-compatible physics, HyperVision rendering, upscaled artwork. All builds require user-supplied Brøderbund Stunts 1.1 game data (12 February 1991). Physics and rendered replay frames are checked against original game code in CI."
+}
