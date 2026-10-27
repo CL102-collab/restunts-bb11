@@ -19,12 +19,8 @@
     "Android",
     "Browser",
     "DOS",
-    "FreeBSD",
-    "OpenBSD",
-    "NetBSD",
     "Haiku",
-    "Amiga",
-    "TempleOS"
+    "FreeBSD"
   ],
   "toolchain": "SDL3",
   "approach": "Manual and AI-aided reverse engineering of the DOS executable into portable C, with rebuildable original assembly, SDL3 ports and native Amiga and HolyC backends.",
@@ -57,5 +53,5 @@
     "reverse-engineering",
     "replay-compatible"
   ],
-  "notes": "Continuation of Restunts with replay-compatible physics, HyperVision rendering, upscaled artwork. All builds require user-supplied Brøderbund Stunts 1.1 game data (12 February 1991). Physics and rendered replay frames are checked against original game code in CI."
+  "notes": "Continuation of Restunts with replay-compatible physics, HyperVision rendering, upscaled artwork. Additional ports which couldn't fit the 8 element limited list: TempleOS, OpenBSD, NetBSD, Amiga. All builds require user-supplied Brøderbund Stunts 1.1 game data (12 February 1991). Physics and rendered replay frames are checked against original game code in CI."
 }
