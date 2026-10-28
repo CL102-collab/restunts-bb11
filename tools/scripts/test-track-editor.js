@@ -103,10 +103,31 @@ test('sloped slaloms and tunnels require two continuous tiles in every sloping d
     }
 });
 test('expanded road surfaces and incompatible stunt surfaces', () => {
-    for (const id of [40, 49, 53, 60, 66, 75, 87, 99, 105, 109, 115]) {
+    for (const id of [40, 49, 53, 60, 66, 75, 85, 87, 99, 105, 109, 115, 117, 121]) {
         for (const surface of [0, 1, 2]) assert.doesNotThrow(() => new model.Document(4, 4).place(id, 0, 0, surface));
     }
     assert.throws(() => new model.Document().place(64, 0, 0, 1), /does not support/);
+});
+test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
+    for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {
+        for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) {
+            const doc = new model.Document(4, 4);
+            doc.place(entry.id, 1, 1, surface, rotation);
+            const loaded = model.decodeCstrk(model.encodeCstrk(doc));
+            assert.equal(loaded.objects[0].surface, surface);
+            assert.deepEqual(loaded.snapshot(), doc.snapshot());
+        }
+    }
+});
+test('scenery accepts every road selection and new placements store the neutral surface', () => {
+    for (const entry of model.catalog.filter(p => p.decoration)) for (const surface of [0, 1, 2]) {
+        const doc = new model.Document(4, 4), placed = doc.place(entry.id, 1, 1, surface);
+        assert.equal(placed.surface, 0);
+        assert.deepEqual(doc.validate(), []);
+        // Surface values already present in a file are accepted and ignored for scenery.
+        placed.surface = surface;
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+    }
 });
 test('strict ASCII notes enforce the 8000-character bound', () => {
     const doc = new model.Document(); doc.setNotes('A'.repeat(8000));
