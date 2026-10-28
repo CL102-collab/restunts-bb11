@@ -3,6 +3,11 @@
 #include "externs.h"
 #include "crash_state.h"
 #include "owoot.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_track.h"
+#include "extended_geometry.h"
+#include "extended_replay_runtime.h"
+#endif
 
 #define CAR_START_LONGITUDINAL_OFFSET 210
 #define CAR_START_LATERAL_OFFSET 36
@@ -56,6 +61,29 @@ static void calculate_car_start_offset(legacy_s16 track_direction, legacy_s16 si
 static void init_car_at_start(struct CARSTATE *carstate, struct SIMD *simd, legacy_s8 transmission,
 							  legacy_s16 column_offset, legacy_s16 row_offset)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		legacy_s32 x = (legacy_s32)start_finish_column * 1024L + 512L + column_offset;
+		legacy_s32 z = ((legacy_s32)extended_track_height() - 1L - start_finish_row) * 1024L +
+					   512L + row_offset;
+		legacy_s32 y = extended_track_elevation(start_finish_column, start_finish_row,
+												512 + column_offset, 512 - row_offset);
+		init_carstate_from_simd(carstate, simd, transmission, x * CAR_WORLD_POSITION_SCALE,
+								y * CAR_WORLD_POSITION_SCALE, z * CAR_WORLD_POSITION_SCALE,
+								LEGACY_S16_WRAP_NEGATE(track_angle));
+		const struct CSTRK_OBJECT *support =
+			extended_track_object_origin_at(start_finish_column, start_finish_row);
+		if (support != NULL) {
+			struct VECTOR rotation, clearance;
+			extended_geometry_initial_pose(support, track_angle, &rotation, &clearance);
+			carstate->car_rotate = rotation;
+			carstate->car_position.lx += (legacy_s32)clearance.x * CAR_WORLD_POSITION_SCALE;
+			carstate->car_position.ly += (legacy_s32)(clearance.y - 8) * CAR_WORLD_POSITION_SCALE;
+			carstate->car_position.lz += (legacy_s32)clearance.z * CAR_WORLD_POSITION_SCALE;
+		}
+		return;
+	}
+#endif
 	init_carstate_from_simd(
 		carstate, simd, transmission,
 		track_coordinate_to_world(track_column_centers[start_finish_column], column_offset),
@@ -170,6 +198,13 @@ static void init_follow_camera_positions(void)
 		multiply_and_scale(cos_fast(angle_with_offset(track_angle, ANGLE_THREE_QUARTER_TURN)),
 						   INITIAL_CAMERA_LATERAL_OFFSET));
 
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		state.game_follow_camera_position[PLAYER_CAR_INDEX].y =
+			extended_track_elevation(start_finish_column, start_finish_row, 512, 512) +
+			INITIAL_CAMERA_HEIGHT;
+	}
+#endif
 	state.game_follow_camera_position[OPPONENT_CAR_INDEX] =
 		state.game_follow_camera_position[PLAYER_CAR_INDEX];
 	state.game_player_camera_previous = state.game_follow_camera_position[PLAYER_CAR_INDEX];
@@ -220,6 +255,11 @@ static void init_race_cars(legacy_s16 initialization_mode)
 
 void init_game_state(legacy_s16 initialization_mode)
 {
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active() && initialization_mode != GAMESTATE_INIT_TIMING_ONLY) {
+		extended_replay_reset_simulation(initialization_mode == GAMESTATE_INIT_RESET_CHECKPOINTS);
+	}
+#endif
 	if (initialization_mode == GAMESTATE_INIT_RESET_CHECKPOINTS) {
 		elapsed_time1 = 0;
 		for (legacy_u16 i = 0; i < GAMESTATE_CHECKPOINT_COUNT; ++i) {
@@ -295,6 +335,12 @@ void init_game_state_with_frame_rate_byte(legacy_u16 frame_rate)
 
 void restore_gamestate(legacy_u16 frame)
 {
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active()) {
+		(void)extended_replay_seek(frame);
+		return;
+	}
+#endif
 	if (frame == 0 && elapsed_time1 == 0 &&
 		cvxptr[0].game_checkpoint_valid == GAMESTATE_CHECKPOINT_INVALID) {
 		init_game_state(GAMESTATE_INIT_NORMAL);

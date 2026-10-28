@@ -25,6 +25,9 @@
 #include "hires.h"
 #include "opponent_animation.h"
 #include "shape2d_internal.h"
+#include "extended_track.h"
+#include "extended_replay_runtime.h"
+#include "extended_race_stats.h"
 #endif
 
 #define HIGHSCORE_READ_RETRY_CANCEL_RESULT 2
@@ -108,6 +111,47 @@ static legacy_u8 ranking_highlight;
 legacy_s16 ranking_entry_order[HIGHSCORE_ENTRY_COUNT];
 
 legacy_s16 get_super_random(void);
+
+static legacy_u32 end_player_finish_time(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		return extended_race_stats.player_finish;
+	}
+#endif
+	return (legacy_u16)gState_total_finish_time;
+}
+
+static legacy_u32 end_opponent_finish_time(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		return extended_race_stats.opponent_finish;
+	}
+#endif
+	return (legacy_u16)gState_opponent_finish_time;
+}
+
+static legacy_u32 end_penalty_time(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		return extended_race_stats.penalty;
+	}
+#endif
+	return (legacy_u16)gState_penalty;
+}
+
+static void end_format_time(legacy_s8 *out, legacy_u32 frame)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		extended_replay_format_runtime_time(out, frame, 1);
+		return;
+	}
+#endif
+	format_frame_as_string(out, (legacy_u16)frame, 1);
+}
 
 struct RECTANGLE *hiscore_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
 									legacy_s16 shadow_color)
@@ -592,17 +636,16 @@ static void end_hiscore_draw_player_time(struct END_SCREEN_STATE *screen)
 	screen->text_y = END_SCREEN_TEXT_START_Y;
 	end_hiscore_set_text(screen->misc_resource, elapsed_time_label_id);
 	legacy_s8 number[HIGHSCORE_FORMAT_BUFFER_SIZE];
-	if (gState_total_finish_time != 0) {
-		format_frame_as_string(number,
-							   LEGACY_S16_WRAP_SUB(gState_total_finish_time, gState_penalty), 1);
+	if (end_player_finish_time() != 0) {
+		end_format_time(number, end_player_finish_time() - end_penalty_time());
 		strcat(&resID_byte1, number);
 		if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_MODIFIED_FLAG) != 0) {
 			end_hiscore_append_text(screen->misc_resource, continued_race_label_id);
 		}
 		end_hiscore_draw_current_text(&screen->text_y);
-		if (gState_penalty != 0) {
+		if (end_penalty_time() != 0) {
 			end_hiscore_set_text(screen->misc_resource, penalty_time_label_id);
-			format_frame_as_string(number, gState_penalty, 1);
+			end_format_time(number, end_penalty_time());
 			strcat(&resID_byte1, number);
 			end_hiscore_draw_current_text(&screen->text_y);
 		}
@@ -617,21 +660,21 @@ static void end_hiscore_draw_opponent_time(struct END_SCREEN_STATE *screen)
 	screen->outcome = END_SCREEN_OUTCOME_NONE;
 	legacy_s8 number[HIGHSCORE_FORMAT_BUFFER_SIZE];
 	if (gameconfig.game_opponenttype != 0) {
-		if (gState_opponent_finish_time == 0) {
+		if (end_opponent_finish_time() == 0) {
 			end_hiscore_set_text(screen->misc_resource, opponent_unfinished_time_label_id);
 			end_hiscore_append_text(screen->misc_resource, opponent_did_not_finish_label_id);
-			if (gState_total_finish_time != 0) {
+			if (end_player_finish_time() != 0) {
 				screen->outcome = END_SCREEN_OUTCOME_LOSS;
 			}
-		} else if (gState_total_finish_time == 0 ||
-				   (legacy_u16)gState_opponent_finish_time < (legacy_u16)gState_total_finish_time) {
+		} else if (end_player_finish_time() == 0 ||
+				   end_opponent_finish_time() < end_player_finish_time()) {
 			end_hiscore_set_text(screen->misc_resource, opponent_win_time_label_id);
-			format_frame_as_string(number, gState_opponent_finish_time, 1);
+			end_format_time(number, end_opponent_finish_time());
 			strcat(&resID_byte1, number);
 			screen->outcome = END_SCREEN_OUTCOME_WIN;
 		} else {
 			end_hiscore_set_text(screen->misc_resource, opponent_loss_time_label_id);
-			format_frame_as_string(number, gState_opponent_finish_time, 1);
+			end_format_time(number, end_opponent_finish_time());
 			strcat(&resID_byte1, number);
 			screen->outcome = END_SCREEN_OUTCOME_LOSS;
 		}
@@ -658,7 +701,12 @@ static void end_hiscore_load_music(struct END_SCREEN_STATE *screen)
 static void end_hiscore_draw_statistics(struct END_SCREEN_STATE *screen)
 {
 	end_hiscore_set_text(screen->misc_resource, average_speed_label_id);
-	legacy_u16 duration = LEGACY_U16_WRAP_ADD(gState_pEndFrame, elapsed_time1);
+	legacy_u32 duration = LEGACY_U16_WRAP_ADD(gState_pEndFrame, elapsed_time1);
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		duration = extended_race_stats.player_end;
+	}
+#endif
 	legacy_u16 average_speed;
 	if (duration != 0) {
 		average_speed = (legacy_u16)(LEGACY_U32_DIV_OR_ZERO((legacy_u32)gState_travDist,
@@ -716,7 +764,7 @@ static void end_hiscore_choose_text_variants(struct END_SCREEN_STATE *screen)
 	random_value = (legacy_s16)get_super_random();
 	if (screen->outcome == END_SCREEN_OUTCOME_WIN) {
 		end_outcome_variant = (legacy_s16)(random_value % END_SCREEN_WIN_VARIANT_COUNT);
-		if (gState_total_finish_time != 0) {
+		if (end_player_finish_time() != 0) {
 			end_outcome_variant =
 				LEGACY_S16_WRAP_ADD(end_outcome_variant, END_SCREEN_FINISHED_VARIANT_OFFSET);
 		}
@@ -753,7 +801,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			end_outcome_variant =
 				(legacy_s16)(LEGACY_U16_WRAP_ADD(get_kevinrandom(), gState_frame) &
 							 END_SCREEN_BINARY_RANDOM_MASK);
-			if (gState_total_finish_time != 0) {
+			if (end_player_finish_time() != 0) {
 				end_outcome_variant =
 					LEGACY_S16_WRAP_ADD(end_outcome_variant, END_SCREEN_FINISHED_VARIANT_OFFSET);
 			}
@@ -783,6 +831,14 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 
 static void end_hiscore_validate_track(struct END_SCREEN_STATE *screen)
 {
+#ifdef RESTUNTS_SDL3
+	/* Legacy .hig files bind to .trk bytes and contain word-sized times.
+	 * Never award an unrelated legacy score for a same-named .cstrk. */
+	if (extended_track_active()) {
+		screen->score_status = -1;
+		return;
+	}
+#endif
 	screen->score_status = 0;
 	file_build_path(track_directory, gameconfig.game_trackname, track_file_extension, g_path_buf);
 	legacy_u8 far *track_resource =

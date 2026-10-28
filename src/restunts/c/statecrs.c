@@ -6,6 +6,10 @@
 #include "race_stats.h"
 #include "car_audio.h"
 #include "audio_control.h"
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#include "extended_replay_runtime.h"
+#include "extended_race_stats.h"
+#endif
 
 #define CAR_CRASH_PARTICLE_KIND_COUNT 2
 #define CAR_CRASH_PARTICLE_LIMIT 18
@@ -211,6 +215,15 @@ static void finish_crash_event(struct CARSTATE *carstate, legacy_s16 crash_event
 	} else {
 		state.game_oEndFrame = state.game_frame;
 	}
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active()) {
+		if (car_index == PLAYER_CAR_INDEX) {
+			extended_replay_clocks.player_end = extended_replay_frame();
+		} else {
+			extended_replay_clocks.opponent_end = extended_replay_frame();
+		}
+	}
+#endif
 	if (state.game_end_event == 0 && car_index == PLAYER_CAR_INDEX) {
 		state.game_end_event = crash_event;
 	}
@@ -227,6 +240,11 @@ static void finish_crash_event(struct CARSTATE *carstate, legacy_s16 crash_event
 		gState_impactSpeed = state.game_impactSpeed;
 		gState_topSpeed = state.game_topSpeed;
 		gState_jumpCount = state.game_jumpCount;
+#ifdef RESTUNTS_SDL3
+		if (extended_replay_is_active()) {
+			extended_race_stats_capture();
+		}
+#endif
 	}
 #endif
 }
@@ -280,6 +298,18 @@ void update_crash_state(legacy_s16 crash_event, legacy_s16 car_index)
 
 		case CRASH_EVENT_FINISH:
 			carstate->car_crashBmpFlag = CRASH_EVENT_FINISH;
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+			if (extended_replay_is_active()) {
+				if (car_index == PLAYER_CAR_INDEX) {
+					uint32_t frame = extended_replay_frame();
+					uint32_t penalty = extended_replay_clocks.penalty;
+					extended_replay_clocks.player_finish =
+						frame > UINT32_MAX - penalty ? UINT32_MAX : frame + penalty;
+				} else {
+					extended_replay_clocks.opponent_finish = extended_replay_frame();
+				}
+			}
+#endif
 			if (car_index == PLAYER_CAR_INDEX) {
 				state.game_total_finish = LEGACY_S16_WRAP_ADD(
 					LEGACY_S16_WRAP_ADD(state.game_frame, state.game_penalty), elapsed_time1);

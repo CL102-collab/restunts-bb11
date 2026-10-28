@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "../c/race.c"
+#include "extended-replay-test-stubs.h"
 #undef printf
 #undef memset
 
@@ -1045,7 +1046,7 @@ static void test_controller_menu_transition(void)
 		controller_menu_request = controller_menu_testing = 1;
 		controller_menu_opens = controller_menu_transitions = controller_analog_reads = 0;
 		struct RACE_REWIND_STATE rewind = {0};
-		legacy_s16 last_frame = -1;
+		legacy_s64 last_frame = -1;
 		legacy_u8 menu_pending = 0;
 		if (modes[index] == REPLAY_MODE_LIVE) {
 			elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;

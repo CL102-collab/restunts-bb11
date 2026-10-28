@@ -327,6 +327,11 @@ run_host_test test-replay-controls legacy.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" "$test_source_dir/math.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay.c
+run_host_test test-cstrk cstrk.c
+run_host_test test-csrpl csrpl.c "$test_source_dir/cstrk.c" \
+    "$test_source_dir/extended_replay.c"
+run_host_test test-extended-replay-runtime extended_replay_runtime.c \
+    "$test_source_dir/extended_replay.c" -DRESTUNTS_SDL3
 run_host_test test-resource-lookup resource.c
 run_host_test test-shape2d-memory shape2d_resources.c \
     "$test_source_dir/memmgr.c" "$test_source_dir/resource.c" "$test_source_dir/shape2d.c" \

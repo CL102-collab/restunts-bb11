@@ -2,6 +2,9 @@
 #define RESTUNTS_TRACK_COLLISION_H
 
 #include "track_types.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_geometry.h"
+#endif
 
 #define ROAD_HALF_WIDTH 120
 #define ELEVATED_DECK_CLEARANCE 390
@@ -31,6 +34,14 @@ extern legacy_s8 track_wall_collision_enabled;
 extern struct TRACK_WALL far *wallptr;
 
 struct TRACK_COLLISION_SNAPSHOT {
+#ifdef RESTUNTS_SDL3
+	/* Dynamic extended planes must survive nested collision/camera queries. */
+	struct PLANE extended_plane;
+	legacy_u8 extended_plane_valid;
+	struct EXTENDED_GEOMETRY_BASIS extended_wall_basis;
+	struct VECTOR extended_wall_origin;
+	legacy_u8 extended_wall_valid;
+#endif
 	legacy_s16 plane_index;
 	struct PLANE far *plane;
 	legacy_s16 wall_index;
@@ -52,6 +63,13 @@ void track_collision_capture(struct TRACK_COLLISION_SNAPSHOT *saved);
 void track_collision_restore(const struct TRACK_COLLISION_SNAPSHOT *saved);
 
 void build_track_object(struct VECTOR *, struct VECTOR *);
+#ifdef RESTUNTS_SDL3
+void build_extended_track_terrain(struct VECTOR *position);
+void track_collision_to_wall_frame(const struct VECTOR *world, struct VECTOR *local);
+void track_collision_wall_vector_to_world(const struct VECTOR *local, struct VECTOR *world);
+int track_extended_portal_height(const struct CSTRK_OBJECT *object, legacy_s16 x, legacy_s16 z,
+								 legacy_s16 *height);
+#endif
 /* Segment queries preserve the currently selected collision state. */
 legacy_s16 track_wall_intersects_segment(struct VECTOR *first, struct VECTOR *second);
 /* Contact fractions use Q14; a segment already inside returns zero. */

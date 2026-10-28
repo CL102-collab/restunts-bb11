@@ -53,7 +53,7 @@ static void reset_frame(void)
 static void test_frame_scheduling(void)
 {
 	reset_frame();
-	legacy_s16 last_frame = -1;
+	legacy_s64 last_frame = -1;
 	assert(race_frame_is_ready(&last_frame) == 1);
 	assert(last_frame == 12);
 	assert(race_frame_is_ready(&last_frame) == 0);
@@ -72,7 +72,7 @@ static void test_frame_catchup(void)
 	reset_frame();
 	elapsed_time2 = 13;
 	mouse_driving_enabled = 1;
-	legacy_s16 last_frame = -1;
+	legacy_s64 last_frame = -1;
 	assert(race_frame_is_ready(&last_frame) == 0);
 	assert(updates == 1);
 	assert(analog_updates == 1);

@@ -20,6 +20,7 @@
 #include "../c/highscore.h"
 #include "../c/menu_common.h"
 #include "../c/externs.h"
+#include "extended-replay-test-stubs.h"
 #include "../c/keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../c/hires.h"

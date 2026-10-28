@@ -41,7 +41,7 @@
         return { id, name: physicalNames[physical] || 'Element ' + id, group: groupFor(id, physical), width, height, mask,
             rotation: a[0] / 256, physical, decoration, legacySurface: a[1],
             surfaces: decoration || [27, 29, 30, 31, 32, 33, 35].includes(physical) ? [0] : [0, 1, 2] };
-    }).filter(a => a.id > 0 && a.id !== 2 && a.id !== 3);
+    }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
     const byId = new Map(catalog.map(a => [a.id, a]));
     function integer(n, min, max, label) { if (!Number.isInteger(n) || n < min || n > max) throw new Error('Invalid ' + label + '.'); return n; }
     function checkNotes(notes) {
@@ -110,7 +110,7 @@
                             if (delta < 0 && value > level + 1) { this.vertices[index] = level + 1; queue.push([nx, ny]); }
                         }
                 }
-                const invalid = this.objects.find(object => !this.matchesPlane(object));
+                const invalid = this.objects.find(object => !this.matchesPlane(object) || !this.hasLongSlope(object));
                 if (invalid) { this.vertices = previous; throw new Error('Terrain would bend element ' + invalid.id + '. Erase or move it first.'); }
                 return target;
             });
@@ -124,6 +124,21 @@
                 if (this.vertices[(object.y + y) * (this.width + 1) + object.x + x] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
             return true;
         }
+        hasLongSlope(object) {
+            const entry = byId.get(object.id);
+            if (!entry || !([8, 9, 10, 11].includes(entry.physical) || (entry.physical >= 16 && entry.physical <= 35)) || (!object.slopeX && !object.slopeY)) return true;
+            const width = object.slopeX ? Math.max(2, object.width) : object.width;
+            const height = object.slopeY ? Math.max(2, object.height) : object.height;
+            for (let oy = object.height - height; oy <= 0; oy++) for (let ox = object.width - width; ox <= 0; ox++) {
+                const left = object.x + ox, top = object.y + oy;
+                if (left < 0 || top < 0 || left + width > this.width || top + height > this.height) continue;
+                let matches = true;
+                for (let y = 0; y <= height; y++) for (let x = 0; x <= width; x++)
+                    if (this.vertices[(top + y) * (this.width + 1) + left + x] !== object.baseHeight + (ox + x) * object.slopeX + (oy + y) * object.slopeY) matches = false;
+                if (matches) return true;
+            }
+            return false;
+        }
         placement(id, x, y, surface = 0, rotation = 0) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
             integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation');
@@ -132,6 +147,7 @@
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
             const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
             if (!this.matchesPlane(object)) throw new Error('The entire element needs a continuous planar slope.');
+            if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
                 throw new Error('This space is occupied. Erase the existing element first.');
@@ -165,6 +181,7 @@
                     if (object.width !== footprint.width || object.height !== footprint.height || object.mask !== footprint.mask) throw new Error('Element footprint does not match its catalog geometry.');
                     if (!entry.surfaces.includes(object.surface)) throw new Error('Element does not support the selected road surface.');
                     if (!this.matchesPlane(object)) throw new Error('Element does not match its terrain plane.');
+                    if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
                     for (const [x, y] of occupied(object)) { const key = y * this.width + x; if (occupiedCells.has(key)) throw new Error('Track elements overlap.'); occupiedCells.add(key); }
                 } catch (error) { errors.push(error.message); }
             }

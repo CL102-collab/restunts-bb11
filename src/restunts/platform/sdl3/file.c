@@ -17,7 +17,7 @@
 #define FILE_HANDLE_COUNT 64U
 #define FILE_FIRST_HANDLE 5U
 #define FILE_PATH_SIZE 1024U
-#define FILE_NAME_SIZE 13U
+#define FILE_NAME_SIZE 15U
 
 #ifdef _WIN32
 #include "file_windows.h"
@@ -406,6 +406,35 @@ legacy_s16 dos_file_remove(const legacy_s8 *path)
 	return 0;
 }
 
+legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destination)
+{
+	legacy_char source[FILE_PATH_SIZE], target[FILE_PATH_SIZE];
+	if (!resolve_path((const legacy_char *)temporary, source) ||
+		!resolve_path((const legacy_char *)destination, target)) {
+		return -1;
+	}
+#ifdef _WIN32
+	WCHAR wide_source[FILE_PATH_SIZE], wide_target[FILE_PATH_SIZE];
+	if (!native_wide_path(source, wide_source) || !native_wide_path(target, wide_target) ||
+		!MoveFileExW(wide_source, wide_target, MOVEFILE_REPLACE_EXISTING)) {
+#else
+	if (rename(source, target) != 0) {
+#endif
+		file_error = 1;
+		return -1;
+	}
+#ifdef __EMSCRIPTEN__
+	if (commit_file(target, 0) != 0) {
+		file_error = 1;
+		return -1;
+	}
+#endif
+#ifdef __ANDROID__
+	android_saved_file_written((const legacy_s8 *)target);
+#endif
+	return 0;
+}
+
 static legacy_s32 wildcard_matches(const legacy_char *pattern, const legacy_char *name)
 {
 	const legacy_char *star = NULL;
@@ -442,6 +471,20 @@ static legacy_int sort_names(const void *left, const void *right)
 	return result != 0 ? result : strcmp(a, b);
 }
 
+static legacy_u16 file_find_name_supported(const legacy_char *name)
+{
+	size_t length = strlen(name);
+	if (length < 13U) {
+		return 1;
+	}
+	/* Extending the suffix must not admit nine/ten-character legacy stems:
+	 * legacy callers still copy those stems into nine-byte GAMEINFO fields. */
+	const legacy_char *extension = strrchr(name, '.');
+	return length < FILE_NAME_SIZE && extension != NULL && extension - name >= 1 &&
+		   extension - name <= 8 &&
+		   (compare_names(extension, ".cstrk") == 0 || compare_names(extension, ".csrpl") == 0);
+}
+
 const legacy_s8 *dos_file_find_next(void)
 {
 	return match_index < match_count ? (const legacy_s8 *)matches[match_index++] : NULL;
@@ -473,7 +516,7 @@ const legacy_s8 *dos_file_find_first(const legacy_s8 *query)
 	}
 	const legacy_char *entry;
 	while ((entry = native_directory_read(directory)) != NULL) {
-		if (entry[0] == '.' || strlen(entry) >= FILE_NAME_SIZE ||
+		if (entry[0] == '.' || !file_find_name_supported(entry) ||
 			!wildcard_matches(pattern, entry)) {
 			continue;
 		}

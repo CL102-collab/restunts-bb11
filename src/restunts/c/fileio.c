@@ -11,6 +11,13 @@
 #include "resource.h"
 #include "ui_dialog.h"
 #include "audio_control.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_file.h"
+#include "extended_track.h"
+#ifndef RESTUNTS_HEADLESS
+#include "extended_replay_runtime.h"
+#endif
+#endif
 
 #ifdef RESTUNTS_HEADLESS
 static const legacy_s8 headless_file_error[] = "File error: %s";
@@ -36,6 +43,11 @@ static const legacy_s8 headless_pack_error[] = "Invalid packed resource: %s";
 #define FILE_IO_PAGE_SIZE 16384
 #define FILE_IO_PAGE_SEGMENT_GAP 1024
 #define DOS_FILENAME_LENGTH 13
+#ifdef RESTUNTS_SDL3
+#define FILE_FIND_NAME_SIZE 15U
+#else
+#define FILE_FIND_NAME_SIZE DOS_FILENAME_LENGTH
+#endif
 #define FILE_FIND_PATH_SIZE FILE_CAR_PATH_SIZE
 #define FILE_COMBINE_PATH_SIZE 80
 #define RESOURCE_NAME_BUFFER_SIZE 80
@@ -392,10 +404,10 @@ const legacy_s8 *file_find(const legacy_s8 *query)
 	}
 
 	// Copy found filename to result path.
-	if (g_find.dirdelim + DOS_FILENAME_LENGTH > g_find.path + sizeof(g_find.path)) {
+	if (g_find.dirdelim + FILE_FIND_NAME_SIZE > g_find.path + sizeof(g_find.path)) {
 		return 0;
 	}
-	memcpy(g_find.dirdelim, found_name, DOS_FILENAME_LENGTH);
+	strcpy(g_find.dirdelim, found_name);
 
 	return g_find.path;
 }
@@ -410,10 +422,10 @@ const legacy_s8 *file_find_next(void)
 	}
 
 	// Copy found filename to result path.
-	if (g_find.dirdelim + DOS_FILENAME_LENGTH > g_find.path + sizeof(g_find.path)) {
+	if (g_find.dirdelim + FILE_FIND_NAME_SIZE > g_find.path + sizeof(g_find.path)) {
 		return 0;
 	}
-	memcpy(g_find.dirdelim, found_name, DOS_FILENAME_LENGTH);
+	strcpy(g_find.dirdelim, found_name);
 
 	return g_find.path;
 }
@@ -1491,6 +1503,28 @@ static void file_set_replay_filename(const legacy_s8 *path)
 
 legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name)
 {
+	return file_load_replay_format(dir, name, ".rpl");
+}
+
+legacy_s16 file_load_replay_format(const legacy_s8 *dir, const legacy_s8 *name,
+								   const legacy_s8 *extension)
+{
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (strcmp(extension, ".csrpl") == 0) {
+		file_build_path(dir, name, extension, g_path_buf);
+		g_is_busy = 1;
+		legacy_s16 result = (legacy_s16)extended_file_load_replay(g_path_buf);
+		if (result == 0) {
+			file_set_replay_filename(g_path_buf);
+		}
+		g_is_busy = 0;
+		return result;
+	}
+	extended_track_unload();
+	extended_replay_runtime_clear();
+#else
+	(void)extension;
+#endif
 	file_build_path(dir, name, ".rpl", g_path_buf);
 
 	g_is_busy = 1;
@@ -1503,6 +1537,17 @@ legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name)
 
 legacy_s16 file_write_replay(const legacy_s8 *filename)
 {
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active()) {
+		g_is_busy = 1;
+		legacy_s16 result = (legacy_s16)extended_file_write_replay(filename);
+		if (result == 0) {
+			file_set_replay_filename(filename);
+		}
+		g_is_busy = 0;
+		return result;
+	}
+#endif
 	replay_gameinfo_encode((legacy_u8 far *)replay_header_buffer, &gameconfig);
 
 	g_is_busy = 1;

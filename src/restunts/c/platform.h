@@ -64,6 +64,8 @@ const legacy_s8 *dos_file_find_next(void);
 
 #ifdef RESTUNTS_SDL3
 void sdl3_car_impact_feedback(void);
+/* Commit a completed sibling temporary file without truncating the destination. */
+legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destination);
 #endif
 
 #ifdef __ANDROID__

@@ -42,6 +42,8 @@
 #undef draw_button
 #undef font_draw_text
 #include "../c/ghost.h"
+#define EXTENDED_TEST_GHOST_SELECTION
+#include "extended-replay-test-stubs.h"
 #define OPPONENT_TEST_BUTTON_COUNT 5U
 #ifdef RESTUNTS_SDL3
 #include "../c/opponent_portrait.h"

@@ -28,6 +28,12 @@
 #if defined(RESTUNTS_SDL3)
 #include "shape3d_hires.h"
 #include "frame_adaptive.h"
+#include "extended_track.h"
+#include "owoot_road.h"
+#include "extended_geometry.h"
+#ifndef RESTUNTS_HEADLESS
+#include "extended_replay_runtime.h"
+#endif
 #endif
 
 /* Presentations read their own immutable pose. Timer callbacks continue to see
@@ -38,7 +44,13 @@ static const struct GHOST_CAMERA_STATE *frame_ghost_camera;
 static legacy_u8 frame_uses_snapshot;
 
 #define TRACK_OBJECT_COUNT 215U
+#if defined(RESTUNTS_SDL3)
+#define FRAME_TRACK_LAST_X (extended_track_width() - 1)
+#define TRACK_GRID_LAST_COORDINATE (extended_track_height() - 1)
+#else
+#define FRAME_TRACK_LAST_X 29
 #define TRACK_GRID_LAST_COORDINATE 29
+#endif
 #define TRACK_WORLD_TILE_SHIFT 16U
 #define FRAME_CAR_WHEEL_COUNT 4
 #define FRAME_LOOKAHEAD_TILE_COUNT 23
@@ -46,7 +58,7 @@ static legacy_u8 frame_uses_snapshot;
 #define FRAME_LOOKAHEAD_DEPTH_TILES 4
 #define FRAME_LOOKAHEAD_WIDTH_TILES 2
 #if defined(RESTUNTS_SDL3)
-#define FRAME_MAXIMUM_TILE_COUNT (TRACK_GRID_SIZE * TRACK_GRID_SIZE)
+#define FRAME_MAXIMUM_TILE_COUNT (90 * 90)
 /* Match the collision height allowances in trackobj.c. */
 #define FRAME_NON_GRASS_HEIGHT_OFFSET 2
 #define FRAME_GRASS_HEIGHT_HASH_SHIFT 8U
@@ -367,8 +379,8 @@ static legacy_u8 frame_adaptive_car_flags(const struct CARSTATE *carstate, const
 	if (first_south < 0) {
 		first_south = 0;
 	}
-	if (last_east > TRACK_GRID_LAST_COORDINATE) {
-		last_east = TRACK_GRID_LAST_COORDINATE;
+	if (last_east > FRAME_TRACK_LAST_X) {
+		last_east = FRAME_TRACK_LAST_X;
 	}
 	if (last_south > TRACK_GRID_LAST_COORDINATE) {
 		last_south = TRACK_GRID_LAST_COORDINATE;
@@ -800,11 +812,10 @@ static legacy_s32 frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTI
 static legacy_s16 frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 east,
 										  legacy_s16 south)
 {
-	if (east < 0 || east > TRACK_GRID_LAST_COORDINATE || south < 0 ||
-		south > TRACK_GRID_LAST_COORDINATE) {
+	if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 || south > TRACK_GRID_LAST_COORDINATE) {
 		return -1;
 	}
-	return tiles->index_by_world_tile[south * TRACK_GRID_SIZE + east];
+	return tiles->index_by_world_tile[south * extended_track_width() + east];
 }
 #endif
 
@@ -831,7 +842,7 @@ static legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const st
 			legacy_s32 south =
 				TRACK_GRID_LAST_COORDINATE -
 				frame_adaptive_world_tile(carstate->car_position.lz, rotated_vector.z);
-			if (east < 0 || east > TRACK_GRID_LAST_COORDINATE || south < 0 ||
+			if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 ||
 				south > TRACK_GRID_LAST_COORDINATE) {
 				continue;
 			}
@@ -1119,6 +1130,16 @@ static const struct FRAME_LOOKAHEAD_TILE *frame_setup_projection(struct FRAME_CA
 static void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,
 								 const struct VECTOR *camera_position, const struct SHAPE3D *shape)
 {
+	if (extended_track_active()) {
+		legacy_s32 reference_x, reference_z;
+		extended_geometry_get_context(&reference_x, &reference_z);
+		legacy_s32 dx = LEGACY_S32_SAR(carstate->car_position.lx, 6U) - reference_x;
+		legacy_s32 dz = LEGACY_S32_SAR(carstate->car_position.lz, 6U) - reference_z;
+		if (dx < -28672L || dx > 28672L || dz < -28672L || dz > 28672L) {
+			return;
+		}
+	}
+
 	if (frame_adaptive_car_flags(carstate, simd) == FRAME_ADAPTIVE_HIDE ||
 		carstate->car_crashBmpFlag == CRASH_EVENT_WATER ||
 		(cameramode == CAMERA_MODE_COCKPIT && carstate == frame_viewed_car_state())) {
@@ -1229,6 +1250,11 @@ static legacy_s16 frame_lookahead_is_covered(const struct FRAME_LOOKAHEAD_TILE *
 static void frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 									 const struct FRAME_TILE *tile, legacy_s16 tile_index)
 {
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active()) {
+		return;
+	}
+#endif
 	if (tile->element != 0) {
 		legacy_s16 multitile_flag = trkObjectList[tile->element].ss_multiTileFlag;
 		if (multitile_flag != FRAME_MULTITILE_NONE) {
@@ -1269,7 +1295,10 @@ static void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct F
 	tile->element = track_element_map[tile->east + trackrows[tile->south]];
 	tile->terrain = track_terrain_map[tile->east + terrainrows[tile->south]];
 
-	frame_resolve_track_tile(tile);
+#if defined(RESTUNTS_SDL3)
+	if (!extended_track_active())
+#endif
+		frame_resolve_track_tile(tile);
 	tiles->terrain[tile_index] = tile->terrain;
 	tiles->detail[tile_index] = tiles->lookahead[tile_index].detail;
 
@@ -1281,6 +1310,11 @@ static void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct F
 
 	tiles->east[tile_index] = tile->east;
 	tiles->south[tile_index] = tile->south;
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active() && tile->element >= 253) {
+		tile->element = 0;
+	}
+#endif
 	tiles->elements[tile_index] = tile->element;
 
 	frame_mark_covered_tiles(tiles, tile, tile_index);
@@ -1297,7 +1331,11 @@ static void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 	legacy_s16 index = 0;
 	memset(tiles->index_by_world_tile, -1, sizeof(tiles->index_by_world_tile));
 	for (legacy_s16 south = 0; south <= TRACK_GRID_LAST_COORDINATE; south++) {
-		for (legacy_s16 east = 0; east <= TRACK_GRID_LAST_COORDINATE; east++) {
+		for (legacy_s16 east = 0; east <= FRAME_TRACK_LAST_X; east++) {
+			if (extended_track_active() &&
+				(abs(east - tiles->camera_east) > 28 || abs(south - tiles->camera_south) > 28)) {
+				continue;
+			}
 			if (frame_adaptive_active != 0 &&
 				frame_adaptive_flags(&frame_adaptive, east, south) == FRAME_ADAPTIVE_HIDE) {
 				continue;
@@ -1314,11 +1352,11 @@ static void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 		legacy_s16 east = tiles->extended_lookahead[index].east + tiles->camera_east;
 		legacy_s16 south = tiles->extended_lookahead[index].south + tiles->camera_south;
 		/* Wrapped signed-byte offsets need the original comparison semantics. */
-		if (east < 0 || east > TRACK_GRID_LAST_COORDINATE || south < 0 ||
+		if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 ||
 			south > TRACK_GRID_LAST_COORDINATE) {
 			tiles->complete_tile_lookup = 0;
 		} else {
-			tiles->index_by_world_tile[south * TRACK_GRID_SIZE + east] = index;
+			tiles->index_by_world_tile[south * extended_track_width() + east] = index;
 		}
 	}
 	tiles->lookahead = tiles->extended_lookahead;
@@ -1373,9 +1411,22 @@ static void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles,
 							   cos_fast(camera->view_heading), sin_fast(camera->view_heading));
 	}
 #endif
-	if (supersight_enabled != 0) {
+	if (supersight_enabled != 0
+#if defined(RESTUNTS_SDL3)
+		|| extended_track_active()
+#endif
+	) {
 		frame_extend_lookahead(tiles, camera);
 	}
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active()) {
+		legacy_s32 x, z;
+		extended_geometry_world_position(&camera->position, &x, &z);
+		tiles->camera_east = (legacy_s8)(x / 1024);
+		tiles->camera_south = (legacy_s8)(extended_track_height() - 1 - z / 1024);
+		frame_extend_lookahead(tiles, camera);
+	}
+#endif
 	if (detail_level != FRAME_DETAIL_FULL) {
 		tiles->player_east = frame_tile_from_world(frame_state->playerstate.car_position.lx);
 		tiles->player_south = frame_south_tile_from_world(frame_state->playerstate.car_position.lz);
@@ -1406,7 +1457,7 @@ static void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles,
 				LEGACY_S8_WRAP_ADD(tiles->lookahead[tile_index].south, tiles->camera_south);
 
 			// Skip if tile is out of bounds
-			if (tile.east >= 0 && tile.east <= TRACK_GRID_LAST_COORDINATE && tile.south >= 0 &&
+			if (tile.east >= 0 && tile.east <= FRAME_TRACK_LAST_X && tile.south >= 0 &&
 				tile.south <= TRACK_GRID_LAST_COORDINATE) {
 				frame_select_track_tile(tiles, &tile, tile_index);
 
@@ -1635,9 +1686,213 @@ static legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
 	return 0;
 }
 
+#ifdef RESTUNTS_SDL3
+/* Extended terrain is drawn from the very same shared corner vertices used
+ * by collision. There are no hidden legacy one-level terrain substitutions. */
+static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
+											  const struct FRAME_CAMERA *camera, legacy_s8 flags)
+{
+	const struct CSTRK_TRACK *track = extended_track_model();
+	unsigned x = tile->east, y = tile->south;
+	size_t stride = track->width + 1U, index = (size_t)y * stride + x;
+	const struct CSTRK_CELL *cell = &track->cells[(size_t)y * track->width + x];
+	legacy_u8 vertex_bytes[24], primitives[13], masks[8] = {255, 255, 255, 255, 255, 255, 255, 255};
+	struct SHAPE3D shape = {4, vertex_bytes, 2, 1, primitives, masks, masks};
+	struct VECTOR vertices[4] = {
+		{-512, (legacy_s16)(track->corner_heights[index] * 450), 512},
+		{512, (legacy_s16)(track->corner_heights[index + 1] * 450), 512},
+		{512, (legacy_s16)(track->corner_heights[index + stride + 1] * 450), -512},
+		{-512, (legacy_s16)(track->corner_heights[index + stride] * 450), -512}};
+	for (unsigned i = 0; i < 4; i++) {
+		shape3d_vertex_write(&shape, i, &vertices[i]);
+	}
+	static const legacy_u8 materials[4] = {101, 28, 25, 100};
+	unsigned material = materials[cell->surface];
+	unsigned nw_diagonal = cell->half_water_corner == CSTRK_WATER_NORTHWEST ||
+						   cell->half_water_corner == CSTRK_WATER_SOUTHEAST;
+	legacy_u8 triangles[2][3] = {{0, 1, 2}, {0, 2, 3}};
+	if (nw_diagonal) {
+		triangles[0][0] = 0;
+		triangles[0][1] = 1;
+		triangles[0][2] = 3;
+		triangles[1][0] = 1;
+		triangles[1][1] = 2;
+		triangles[1][2] = 3;
+	}
+	for (unsigned i = 0; i < 2; i++) {
+		primitives[i * 6] = 3;
+		primitives[i * 6 + 1] = 1;
+		unsigned water = (cell->half_water_corner == CSTRK_WATER_NORTHWEST && i == 0) ||
+						 (cell->half_water_corner == CSTRK_WATER_NORTHEAST && i == 0) ||
+						 (cell->half_water_corner == CSTRK_WATER_SOUTHEAST && i == 1) ||
+						 (cell->half_water_corner == CSTRK_WATER_SOUTHWEST && i == 1);
+		primitives[i * 6 + 2] = water ? 100 : material;
+		for (unsigned v = 0; v < 3; v++) {
+			primitives[i * 6 + 3 + v] = triangles[i][v];
+		}
+	}
+	primitives[12] = 0;
+	struct TRANSFORMEDSHAPE3D instance = {0};
+	instance.pos.x = LEGACY_S16_WRAP_SUB(track_column_centers[x], camera->position.x);
+	instance.pos.y = LEGACY_S16_WRAP_NEGATE(camera->position.y);
+	instance.pos.z = LEGACY_S16_WRAP_SUB(track_row_centers[y], camera->position.z);
+	instance.shapeptr = &shape;
+	instance.rectptr = &frame_sorted_shapes_rect;
+	instance.culling_distance = 2048;
+	instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
+	return (legacy_s16)shape3d_transform_and_queue(&instance) > 0 && supersight_enabled != 0;
+}
+
+static void frame_extended_yaw_to_local(struct VECTOR *point, legacy_s16 yaw)
+{
+	legacy_s16 x = point->x, z = point->z;
+	switch (yaw & ANGLE_MASK) {
+		case ANGLE_QUARTER_TURN:
+			point->x = LEGACY_S16_WRAP_NEGATE(z);
+			point->z = x;
+			break;
+		case ANGLE_HALF_TURN:
+			point->x = LEGACY_S16_WRAP_NEGATE(x);
+			point->z = LEGACY_S16_WRAP_NEGATE(z);
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			point->x = z;
+			point->z = LEGACY_S16_WRAP_NEGATE(x);
+			break;
+	}
+}
+
+/* A tilted model is rigid and therefore projects to a shorter run on the map.
+ * Small separate road strips join its original portals to their cell edges. */
+static legacy_s16 frame_draw_extended_approaches(const struct CSTRK_OBJECT *object,
+												 const struct TRACKOBJECT *definition,
+												 const struct EXTENDED_GEOMETRY_BASIS *basis,
+												 const struct VECTOR *origin,
+												 const struct FRAME_CAMERA *camera, legacy_s8 flags)
+{
+	if ((!object->slope_x && !object->slope_y) || definition->ss_physicalModel >= 64) {
+		return 0;
+	}
+	legacy_s16 half_x = object->width * 512, half_z = object->height * 512;
+	for (unsigned edge = 0; edge < 4; edge++) {
+		legacy_s16 half_length = edge < 2 ? half_z : half_x;
+		for (legacy_s16 at = -half_length; at < half_length; at += 32) {
+			struct VECTOR midpoint = {
+				edge < 2 ? (edge == 0 ? -half_x : half_x) : (legacy_s16)(at + 16), 0,
+				edge < 2 ? (legacy_s16)(at + 16) : (edge == 2 ? -half_z : half_z)};
+			struct VECTOR road_point = midpoint;
+			frame_extended_yaw_to_local(&road_point, definition->ss_rotY);
+			if (!track_road_contains_local_point(definition->ss_physicalModel, &road_point)) {
+				continue;
+			}
+			struct VECTOR local[2] = {{edge < 2 ? midpoint.x : at, 0, edge < 2 ? at : midpoint.z},
+									  {edge < 2 ? midpoint.x : (legacy_s16)(at + 32), 0,
+									   edge < 2 ? (legacy_s16)(at + 32) : midpoint.z}};
+			if (!track_extended_portal_height(object, local[0].x, local[0].z, &local[0].y) ||
+				!track_extended_portal_height(object, local[1].x, local[1].z, &local[1].y)) {
+				continue;
+			}
+			struct VECTOR vertices[4];
+			extended_geometry_forward(basis, &local[0], &vertices[3]);
+			extended_geometry_forward(basis, &local[1], &vertices[2]);
+			for (unsigned v = 0; v < 2; v++) {
+				vertices[v].x = (legacy_s16)(local[v].x + basis->normal_x * local[v].y);
+				vertices[v].y =
+					(legacy_s16)(basis->slope_x * local[v].x + basis->slope_z * local[v].z +
+								 basis->normal_y * local[v].y);
+				vertices[v].z = (legacy_s16)(local[v].z + basis->normal_z * local[v].y);
+			}
+			legacy_u8 bytes[24], primitive[] = {4, 1, 19, 0, 1, 2, 3, 0},
+								 masks[4] = {255, 255, 255, 255};
+			struct SHAPE3D mesh = {4, bytes, 1, 1, primitive, masks, masks};
+			primitive[2] = object->surface == CSTRK_ROAD_DIRT  ? 25
+						   : object->surface == CSTRK_ROAD_ICE ? 28
+															   : 19;
+			for (unsigned v = 0; v < 4; v++) {
+				shape3d_vertex_write(&mesh, v, &vertices[v]);
+			}
+			struct TRANSFORMEDSHAPE3D instance = {0};
+			instance.pos = (struct VECTOR){LEGACY_S16_WRAP_SUB(origin->x, camera->position.x),
+										   LEGACY_S16_WRAP_SUB(origin->y, camera->position.y),
+										   LEGACY_S16_WRAP_SUB(origin->z, camera->position.z)};
+			instance.shapeptr = &mesh;
+			instance.rectptr = &frame_sorted_shapes_rect;
+			instance.culling_distance = 2048;
+			instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
+			if ((legacy_s16)shape3d_transform_and_queue(&instance) > 0 && supersight_enabled != 0) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
+											  const struct FRAME_CAMERA *camera, legacy_s8 flags)
+{
+	const struct CSTRK_TRACK *track = extended_track_model();
+	tile->last_east = tile->east;
+	tile->last_south = tile->south;
+	for (uint32_t i = 0; i < track->object_count; i++) {
+		const struct CSTRK_OBJECT *object = &track->objects[i];
+		if (object->x != tile->east || object->y != tile->south) {
+			continue;
+		}
+		unsigned id = extended_track_object_id(object);
+		if (id >= TRACK_OBJECT_COUNT) {
+			continue;
+		}
+		const struct TRACKOBJECT *definition = &trkObjectList[id];
+		struct EXTENDED_GEOMETRY_BASIS basis;
+		struct VECTOR origin;
+		extended_geometry_object_basis(object, &basis);
+		extended_geometry_object_origin(track, object, &origin);
+		if (frame_draw_extended_approaches(object, definition, &basis, &origin, camera, flags)) {
+			return 1;
+		}
+		for (unsigned overlay = 0; overlay < 2; overlay++) {
+			const struct TRACKOBJECT *render_definition = definition;
+			if (overlay) {
+				if (!definition->ss_ssOvelay) {
+					break;
+				}
+				render_definition = frame_track_object_from_legacy_index(definition->ss_ssOvelay);
+			}
+			const struct SHAPE3D *source =
+				frame_track_shape((struct TRACKOBJECT *)render_definition, tile->detail);
+			struct SHAPE3D mesh;
+			if (!extended_geometry_transform_shape(source, &mesh, &basis,
+												   render_definition->ss_rotY, object->surface,
+												   definition->ss_physicalModel)) {
+				continue;
+			}
+			struct TRANSFORMEDSHAPE3D instance = {0};
+			instance.pos.x = LEGACY_S16_WRAP_SUB(origin.x, camera->position.x);
+			instance.pos.y = LEGACY_S16_WRAP_SUB(origin.y, camera->position.y);
+			instance.pos.z = LEGACY_S16_WRAP_SUB(origin.z, camera->position.z);
+			instance.shapeptr = &mesh;
+			instance.rectptr = &frame_sorted_shapes_rect;
+			instance.culling_distance = 2048;
+			instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
+			legacy_s16 result = shape3d_transform_and_queue(&instance);
+			extended_geometry_free_shape(&mesh);
+			if (result > 0 && supersight_enabled != 0) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+#endif
+
 static legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 									 legacy_s8 redraw_transform_flags)
 {
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active()) {
+		return frame_draw_extended_terrain(tile, camera, redraw_transform_flags);
+	}
+#endif
 	if (supersight_enabled != 0 &&
 		frame_draw_covered_water(tile, camera, redraw_transform_flags) != 0) {
 		return 1;
@@ -1915,6 +2170,56 @@ static void frame_add_start_flag(const struct FRAME_TILE *tile, const struct FRA
 		if ((tile->east == start_finish_column || tile->last_east == start_finish_column) &&
 			(tile->south == start_finish_row || tile->last_south == start_finish_row)) {
 			frame_animate_start_flag();
+#if defined(RESTUNTS_SDL3)
+			if (extended_track_active()) {
+				const struct CSTRK_OBJECT *object =
+					extended_track_object_at(start_finish_column, start_finish_row);
+				if (!object) {
+					return;
+				}
+				struct VECTOR origin, offset, transformed;
+				struct EXTENDED_GEOMETRY_BASIS basis;
+				extended_geometry_object_origin(extended_track_model(), object, &origin);
+				extended_geometry_object_basis(object, &basis);
+				offset = (struct VECTOR){
+					LEGACY_S16_WRAP_ADD(
+						multiply_and_scale(sin_fast(track_angle + ANGLE_QUARTER_TURN),
+										   FRAME_START_FLAG_RADIUS),
+						multiply_and_scale(sin_fast(track_angle + ANGLE_HALF_TURN),
+										   FRAME_START_FLAG_FAR_OFFSET)),
+					0,
+					LEGACY_S16_WRAP_ADD(
+						multiply_and_scale(cos_fast(track_angle + ANGLE_QUARTER_TURN),
+										   FRAME_START_FLAG_RADIUS),
+						multiply_and_scale(cos_fast(track_angle + ANGLE_HALF_TURN),
+										   FRAME_START_FLAG_FAR_OFFSET))};
+				extended_geometry_forward(&basis, &offset, &transformed);
+				unsigned paint =
+					(legacy_u16)start_flag_animation >> FRAME_START_FLAG_ANIMATION_SHIFT;
+				if (paint > FRAME_START_FLAG_MAX_MATERIAL) {
+					paint = FRAME_START_FLAG_MAX_MATERIAL;
+				}
+				struct SHAPE3D mesh;
+				if (extended_geometry_transform_shape(&game3dshapes[FRAME_START_FLAG_SHAPE_INDEX],
+													  &mesh, &basis, track_angle, paint, -1)) {
+					struct TRANSFORMEDSHAPE3D instance = {0};
+					instance.pos = (struct VECTOR){
+						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.x, transformed.x),
+											camera->position.x),
+						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.y, transformed.y),
+											camera->position.y),
+						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.z, transformed.z),
+											camera->position.z)};
+					instance.shapeptr = &mesh;
+					instance.rectptr = &frame_sorted_shapes_rect;
+					instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
+					instance.ts_flags = redraw_transform_flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
+					shape3d_transform_and_queue(&instance);
+					extended_geometry_free_shape(&mesh);
+				}
+				return;
+			}
+#endif
 
 			curtransshape_ptr->pos.x = LEGACY_S16_WRAP_SUB(
 				LEGACY_S16_WRAP_ADD(
@@ -2333,6 +2638,11 @@ frame_add_track_element(struct FRAME_TILE *tile, const struct FRAME_CAMERA *came
 						legacy_s8 animated_material, legacy_s8 *overlay_needs_depth_sort)
 {
 	struct TRACKOBJECT *track_object;
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active()) {
+		return frame_draw_extended_objects(tile, camera, redraw_transform_flags);
+	}
+#endif
 
 	if (tile->element == 0) {
 		tile->last_east = tile->east;
@@ -2467,7 +2777,11 @@ static legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 			tile.detail = FRAME_TILE_DETAIL_FULL + 1;
 		}
 #endif
-		if (frame_draw_fences(&tile, tiles, camera, redraw_transform_flags) != 0 &&
+		if (
+#if defined(RESTUNTS_SDL3)
+			!extended_track_active() &&
+#endif
+			frame_draw_fences(&tile, tiles, camera, redraw_transform_flags) != 0 &&
 			supersight_enabled != 0) {
 			return 1;
 		}
@@ -2762,7 +3076,13 @@ static void frame_draw_elapsed_time(void)
 	// Show elapsed time
 	if (game_replay_mode == REPLAY_MODE_LIVE) {
 		if (frame_state->game_inputmode != GAME_INPUT_MODE_WAITING) {
-			format_frame_as_string(&resID_byte1, elapsed_time1 + elapsed_time2, 0);
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+			if (extended_replay_is_active()) {
+				extended_replay_format_runtime_time(&resID_byte1,
+													extended_replay_clocks.input_frame, 0);
+			} else
+#endif
+				format_frame_as_string(&resID_byte1, elapsed_time1 + elapsed_time2, 0);
 			font_set_fontdef2(fontledresptr);
 			if (slow_video_mgmt_copy != 0) {
 				rect_union(intro_draw_text(&resID_byte1, FRAME_ELAPSED_TIME_X,
@@ -2815,14 +3135,20 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 		frame_supersight_reset();
 	}
 #if defined(RESTUNTS_SDL3)
-	frame_adaptive_active =
-		supersight_enabled != 0 && frame_uses_snapshot != 0 && frame_adaptive.quality != 0;
+	frame_adaptive_active = supersight_enabled != 0 && frame_uses_snapshot != 0 &&
+							frame_adaptive.quality != 0 && !extended_track_active();
 #endif
 	struct FRAME_CAR_RENDER cars[FRAME_EXPLOSION_CAR_COUNT];
 	cars[PLAYER_CAR_INDEX].explosion_visible = 0;
 	cars[OPPONENT_CAR_INDEX].explosion_visible = 0;
 	legacy_s8 redraw_transform_flags = frame_begin(buffer_index);
 	struct FRAME_CAMERA camera;
+#if defined(RESTUNTS_SDL3)
+	if (extended_track_active()) {
+		const struct CARSTATE *viewed = frame_viewed_car_state();
+		extended_geometry_set_context(viewed->car_position.lx, viewed->car_position.lz);
+	}
+#endif
 	frame_setup_camera(&camera);
 	legacy_s8 animated_material = frame_animated_material();
 	struct FRAME_TILE_SELECTION tiles;

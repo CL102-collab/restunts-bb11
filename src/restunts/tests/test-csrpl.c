@@ -102,8 +102,8 @@ static void test_codec(void)
 	}
 	uint8_t *encoded = NULL;
 	size_t size = 0U;
-	assert(csrpl_encode(&metadata, track_bytes, track_size, inputs, metadata.frame_count,
-		&encoded, &size, error, sizeof(error)));
+	assert(csrpl_encode(&metadata, track_bytes, track_size, inputs, metadata.frame_count, &encoded,
+						&size, error, sizeof(error)));
 	assert(size == CSRPL_HEADER_SIZE + track_size + metadata.frame_count);
 	/* The count uses all four bytes and is independent of the host ABI. */
 	assert(encoded[20] == 0xa3U && encoded[21] == 0x86U && encoded[22] == 1U && encoded[23] == 0U);
@@ -138,7 +138,7 @@ static void test_codec(void)
 	uint8_t *sentinel = encoded;
 	size_t sentinel_size = size;
 	assert(!csrpl_encode(&metadata, track_bytes, track_size, inputs, metadata.frame_count - 1U,
-		&sentinel, &sentinel_size, error, sizeof(error)));
+						 &sentinel, &sentinel_size, error, sizeof(error)));
 	assert(sentinel == encoded && sentinel_size == size);
 	size_t output_size = 123U;
 	assert(!csrpl_encoded_size(SIZE_MAX, UINT32_MAX, &output_size));
@@ -149,8 +149,8 @@ static void test_codec(void)
 
 	metadata.frame_count = 0U;
 	metadata.frames_per_second = 10U;
-	assert(csrpl_encode(&metadata, track_bytes, track_size, NULL, 0U,
-		&encoded, &size, error, sizeof(error)));
+	assert(csrpl_encode(&metadata, track_bytes, track_size, NULL, 0U, &encoded, &size, error,
+						sizeof(error)));
 	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	assert(view.metadata.frame_count == 0U);
 	free(encoded);

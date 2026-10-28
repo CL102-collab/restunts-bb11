@@ -19,6 +19,7 @@
 #include "keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/controller_game.h"
+#include "extended_file.h"
 #endif
 
 #define JOYSTICK_BUTTON_MASK 48U
@@ -402,11 +403,19 @@ legacy_u16 run_option_menu(void)
 
 			case 3:
 				prompt = locate_text_res(mainresptr, "rep");
-				if (do_fileselect_dialog(replay_directory, replay_filename_input, ".rpl", prompt) !=
-					0) {
+				if (do_format_fileselect_dialog(replay_directory, replay_filename_input, ".rpl",
+												prompt) != 0) {
 					waitflag = REPLAY_LOAD_WAIT_TICKS;
 					show_waiting();
-					file_load_replay(replay_directory, replay_filename_input);
+					if (file_load_replay_format(replay_directory, replay_filename_input,
+												file_dialog_selected_extension()) != 0) {
+#ifdef RESTUNTS_SDL3
+						show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
+									(void *)extended_file_error(), DIALOG_AUTO_POSITION,
+									DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+#endif
+						break;
+					}
 					menu_active = 1;
 					unload_resource(miscptr);
 #ifdef RESTUNTS_SDL3

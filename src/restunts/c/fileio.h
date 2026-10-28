@@ -87,6 +87,8 @@ void file_load_audiores(const legacy_s8 *songfile, const legacy_s8 *voicefile,
 void far *file_load_3dres(const legacy_s8 *filename);
 
 legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name);
+legacy_s16 file_load_replay_format(const legacy_s8 *dir, const legacy_s8 *name,
+								   const legacy_s8 *extension);
 legacy_s16 file_write_replay(const legacy_s8 *filename);
 
 #ifdef __cplusplus

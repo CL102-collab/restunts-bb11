@@ -21,11 +21,7 @@ enum CSTRK_TERRAIN_SURFACE {
 	CSTRK_TERRAIN_WATER = 3
 };
 
-enum CSTRK_ROAD_SURFACE {
-	CSTRK_ROAD_PAVED = 0,
-	CSTRK_ROAD_DIRT = 1,
-	CSTRK_ROAD_ICE = 2
-};
+enum CSTRK_ROAD_SURFACE { CSTRK_ROAD_PAVED = 0, CSTRK_ROAD_DIRT = 1, CSTRK_ROAD_ICE = 2 };
 
 enum CSTRK_WATER_CORNER {
 	CSTRK_WATER_NONE = 0,
@@ -61,7 +57,7 @@ struct CSTRK_OBJECT {
 struct CSTRK_TRACK {
 	uint16_t width;
 	uint16_t height;
-	uint8_t *corner_heights; /* Row-major (width+1) * (height+1). */
+	uint8_t *corner_heights;  /* Row-major (width+1) * (height+1). */
 	struct CSTRK_CELL *cells; /* Row-major width * height. */
 	struct CSTRK_OBJECT *objects;
 	uint32_t object_count;
@@ -75,18 +71,18 @@ struct CSTRK_TRACK {
  * Encode allocates *data using malloc; its caller must free that allocation. */
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
-int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height,
-				 char *error, size_t error_size);
+int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
+				 size_t error_size);
 int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size);
-int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length,
-					char *error, size_t error_size);
-int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
-					 char *error, size_t error_size);
+int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
+					size_t error_size);
+int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object, char *error,
+					 size_t error_size);
 int cstrk_remove_object(struct CSTRK_TRACK *track, uint32_t index);
-int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size,
-				 char *error, size_t error_size);
-int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track,
-				 char *error, size_t error_size);
+int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, char *error,
+				 size_t error_size);
+int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, char *error,
+				 size_t error_size);
 int cstrk_validate_bytes(const uint8_t *data, size_t size, char *error, size_t error_size);
 
 #endif

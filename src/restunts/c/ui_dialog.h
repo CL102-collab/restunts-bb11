@@ -35,6 +35,11 @@ static inline legacy_u16 show_text_input_dialog(legacy_s16 save_background, void
 
 legacy_s8 do_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename, legacy_s8 *extension,
 							   legacy_s8 far *prompt);
+/* SDL3 track/replay selectors include both legacy and Chocolate formats. The
+ * returned filename remains an eight-character stem; retain its extension too. */
+legacy_s8 do_format_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename,
+									  legacy_s8 *extension, legacy_s8 far *prompt);
+const legacy_s8 *file_dialog_selected_extension(void);
 legacy_s16 do_savefile_dialog(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt);
 void ensure_file_exists(legacy_s16 unused);
 void show_waiting(void);

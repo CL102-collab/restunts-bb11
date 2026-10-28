@@ -283,9 +283,16 @@ static legacy_u8 opponent_menu_activate_selection(struct OPPONENT_MENU_STATE *me
 			legacy_s8 filename[13];
 			filename[0] = 0;
 			check_input();
+#ifdef RESTUNTS_SDL3
+			if (do_format_fileselect_dialog(replay_directory, filename, ".rpl",
+											locate_text_res(mainresptr, "rep")) != 0) {
+				if (ghost_select_replay_format(replay_directory, filename,
+											   file_dialog_selected_extension()) != 0) {
+#else
 			if (do_fileselect_dialog(replay_directory, filename, ".rpl",
 									 locate_text_res(mainresptr, "rep")) != 0) {
 				if (ghost_select_replay(replay_directory, filename) != 0) {
+#endif
 					show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 								"Unable to load ghost replay.]", DIALOG_AUTO_POSITION,
 								DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);

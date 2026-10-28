@@ -18,6 +18,18 @@ https://commonloon102.github.io/restunts-bb11/#downloads
 
 All packages were created by GitHub CI and released as an immutable release directly from the pipeline, so it is guaranteed that the binaries are built directly from the source available on GitHub.
 
+## Extended track editor
+
+The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
+terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
+Select your Stunts folder before editing. The browser launcher links the editor;
+native packages include it under `share/restunts/editor/`.
+
+SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
+counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior
+is preserved. See the [editor guide](docs/track-editor.md),
+[track format](docs/cstrk-format.md), and [replay format](docs/csrpl-format.md).
+
 ## AI usage
 It's not a secret, AI (GPT-5.6 Sol, GPT-6 Astra, GPT-6.1 Sol) was used for the following:
 - Writing code

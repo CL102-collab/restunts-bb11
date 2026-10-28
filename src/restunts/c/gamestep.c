@@ -7,6 +7,9 @@
 #include "crash_state.h"
 #include "state_internal.h"
 #include "phantom_physics.h"
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#include "extended_replay_runtime.h"
+#endif
 
 #define ACTIVE_CAR_COUNT_WITHOUT_OPPONENT 1U
 #define ACTIVE_CAR_COUNT_WITH_OPPONENT 2U
@@ -236,13 +239,26 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 #ifdef RESTUNTS_HEADLESS
 	(void)update_audio;
 #endif
-	legacy_s8 car_input = replay_input_buffer[(legacy_u16)state.game_frame];
+	legacy_s8 car_input;
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active()) {
+		car_input = (legacy_s8)extended_replay_input_at(extended_replay_frame());
+		extended_replay_before_step(store_checkpoints);
+	} else
+#endif
+	{
+		car_input = replay_input_buffer[(legacy_u16)state.game_frame];
+	}
 	if (car_input != INPUT_NONE) {
 		state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
 	}
 
-	if (checkpoint_frame_interval == 0 ||
-		((legacy_u16)state.game_frame % (legacy_u16)checkpoint_frame_interval) == 0) {
+	if (
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+		!extended_replay_is_active() &&
+#endif
+		(checkpoint_frame_interval == 0 ||
+		 ((legacy_u16)state.game_frame % (legacy_u16)checkpoint_frame_interval) == 0)) {
 		get_kevinrandom_seed(state.kevinseed);
 		legacy_u16 checkpoint_index =
 			LEGACY_U16_DIV_OR_ZERO(state.game_frame, checkpoint_frame_interval);
@@ -254,6 +270,11 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 	}
 
 	state.game_frame = LEGACY_S16_WRAP_ADD(state.game_frame, 1);
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	if (extended_replay_is_active()) {
+		extended_replay_after_step();
+	}
+#endif
 	update_race_end_timing();
 
 	if (state.game_inputmode != GAME_INPUT_MODE_WAITING) {

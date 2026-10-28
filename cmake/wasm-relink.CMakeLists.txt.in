@@ -28,3 +28,8 @@ target_link_libraries(restunts PRIVATE restunts_game restunts_webm restunts_sdl 
 include(wasm-link.cmake)
 restunts_configure_wasm(restunts "${CMAKE_CURRENT_SOURCE_DIR}/data"
     "${CMAKE_CURRENT_SOURCE_DIR}/shell.html")
+foreach(editor_file track-editor.html track-editor.css track-editor.js
+        track-editor-model.js track-editor-resources.js)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/editor/${editor_file}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${editor_file}" COPYONLY)
+endforeach()

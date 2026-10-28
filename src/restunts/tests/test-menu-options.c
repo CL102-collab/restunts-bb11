@@ -8,6 +8,7 @@
 #include "../c/fatal.h"
 #include "../c/ui_dialog_internal.h"
 #include "../c/replay_viewer_internal.h"
+#include "extended-replay-test-stubs.h"
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/controller_game.h"
 #define TEST_DRIVING_MODE_COUNT 4U

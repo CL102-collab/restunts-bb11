@@ -7,6 +7,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include "../c/restunts.c"
+#include "extended-replay-test-stubs.h"
 #undef printf
 #undef strlen
 #undef strcmp
@@ -561,6 +562,13 @@ legacy_s16 track_setup(void)
 }
 const legacy_s8 *file_find(const legacy_s8 *query)
 {
+#ifdef RESTUNTS_SDL3
+	/* The new format fallback probes the already-present legacy fixture.
+	 * Keep that admission check outside the historical menu trace. */
+	if (strcmp((const legacy_char *)query, "fixture.trk") == 0) {
+		return query;
+	}
+#endif
 	trace(61);
 	trace_text(query);
 	return menu_scenario & 4 ? 0 : (legacy_s8 *)"tedit.trk";

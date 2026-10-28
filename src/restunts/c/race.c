@@ -9,6 +9,8 @@
 #include "frame_adaptive.h"
 #include "hires.h"
 #include "presentation.h"
+#include "extended_replay_runtime.h"
+#include "extended_track.h"
 #endif
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
@@ -78,22 +80,58 @@ struct RACE_VIEWPORT_CACHE {
 	legacy_u8 supersight;
 };
 
+static legacy_u32 race_current_frame(void)
+{
+#ifdef RESTUNTS_SDL3
+	return extended_replay_frame();
+#else
+	return (legacy_u16)state.game_frame;
+#endif
+}
+
+static legacy_u32 race_input_frame(void)
+{
+#ifdef RESTUNTS_SDL3
+	return extended_replay_input_frame();
+#else
+	return elapsed_time2;
+#endif
+}
+
+static legacy_u32 race_recorded_frames(void)
+{
+#ifdef RESTUNTS_SDL3
+	return extended_replay_recorded_frames();
+#else
+	return gameconfig.game_recordedframes;
+#endif
+}
+
+static void race_set_input_frame(legacy_u32 frame)
+{
+#ifdef RESTUNTS_SDL3
+	extended_replay_set_input_frame(frame);
+#else
+	elapsed_time2 = (legacy_u16)frame;
+#endif
+}
+
 struct RACE_REWIND_STATE {
 	legacy_s16 active;
-	legacy_u16 origin_frame;
+	legacy_u32 origin_frame;
 	legacy_u32 held_ticks;
-	legacy_u32 accumulated;
+	legacy_u64 accumulated;
 };
 
 static void race_rewind_accumulate(struct RACE_REWIND_STATE *rewind, legacy_u32 ticks,
 								   legacy_u32 speed)
 {
-	legacy_u32 limit = (legacy_u32)rewind->origin_frame * RACE_REWIND_UNITS_PER_FRAME;
-	legacy_u32 remaining = limit - rewind->accumulated;
+	legacy_u64 limit = (legacy_u64)rewind->origin_frame * RACE_REWIND_UNITS_PER_FRAME;
+	legacy_u64 remaining = limit - rewind->accumulated;
 	if (ticks > remaining / speed) {
 		rewind->accumulated = limit;
 	} else {
-		rewind->accumulated += ticks * speed;
+		rewind->accumulated += (legacy_u64)ticks * speed;
 	}
 }
 
@@ -107,10 +145,16 @@ static void race_rewind_seek(struct RACE_REWIND_STATE *rewind)
 	rewind->held_ticks += base_ticks;
 	race_rewind_accumulate(rewind, base_ticks, RACE_REWIND_BASE_SPEED);
 	race_rewind_accumulate(rewind, delta - base_ticks, RACE_REWIND_DOUBLE_SPEED);
-	legacy_u16 target =
-		rewind->origin_frame - (legacy_u16)(rewind->accumulated / RACE_REWIND_UNITS_PER_FRAME);
-	if (target != (legacy_u16)state.game_frame) {
+	legacy_u32 target =
+		rewind->origin_frame - (legacy_u32)(rewind->accumulated / RACE_REWIND_UNITS_PER_FRAME);
+	if (target != race_current_frame()) {
 		frame_supersight_reset();
+#ifdef RESTUNTS_SDL3
+		if (extended_replay_is_active()) {
+			(void)extended_replay_seek(target);
+			return;
+		}
+#endif
 		restore_gamestate(target);
 		elapsed_time2 = target;
 		while ((legacy_u16)state.game_frame != target) {
@@ -130,8 +174,15 @@ static void race_rewind_resume(struct RACE_REWIND_STATE *rewind)
 		replay_overflow_acknowledged_word = LEGACY_S16_FROM_BITS(
 			LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
 	}
-	gameconfig.game_recordedframes = (legacy_u16)state.game_frame;
-	elapsed_time2 = (legacy_u16)state.game_frame;
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		(void)extended_replay_branch(extended_replay_frame());
+	} else
+#endif
+	{
+		gameconfig.game_recordedframes = (legacy_u16)state.game_frame;
+		elapsed_time2 = (legacy_u16)state.game_frame;
+	}
 	replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG | REPLAY_RECORDING_MODIFIED_FLAG;
 	replay_playback_speed = REPLAY_PLAYBACK_NORMAL;
 	frame_callback_countdown = (legacy_u8)timer_ticks_per_frame;
@@ -182,8 +233,8 @@ static void race_update_rewind(struct RACE_REWIND_STATE *rewind)
 	/* Freeze both recording and playback before touching the saved timeline.
 	 * Pending timer input beyond the displayed frame is discarded on release. */
 	dos_interrupts_disable();
-	rewind->origin_frame = (legacy_u16)state.game_frame;
-	elapsed_time2 = rewind->origin_frame;
+	rewind->origin_frame = race_current_frame();
+	race_set_input_frame(rewind->origin_frame);
 	game_replay_mode = REPLAY_MODE_PLAYBACK;
 	is_in_replay = 1;
 	race_exit_request = 0;
@@ -199,7 +250,7 @@ static void race_update_rewind(struct RACE_REWIND_STATE *rewind)
 static legacy_u16 race_prepare_mode(void)
 {
 	if (idle_expired == 0) {
-		if (gameconfig.game_recordedframes != 0) {
+		if (race_recorded_frames() != 0) {
 			camera_select_mode(CAMERA_MODE_COCKPIT);
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			is_in_replay = 1;
@@ -222,6 +273,11 @@ static legacy_u16 race_prepare_mode(void)
 
 static void race_initialize_state(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active() && is_in_replay == 0) {
+		extended_replay_runtime_begin();
+	}
+#endif
 	kbormouse = 0;
 	replay_playback_speed = REPLAY_PLAYBACK_NORMAL;
 	race_exit_request = 1;
@@ -269,6 +325,12 @@ static void race_initialize_state(void)
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			start_flag_animation = RACE_REPLAY_RESTORE_WAIT_TICKS;
 			framespersec = gameconfig.game_framespersec;
+#ifdef RESTUNTS_SDL3
+			if (extended_replay_is_active()) {
+				(void)extended_replay_seek(extended_replay_recorded_frames());
+				return;
+			}
+#endif
 			restore_gamestate(0);
 			restore_gamestate(gameconfig.game_recordedframes);
 
@@ -379,9 +441,7 @@ static void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 r
 static legacy_u32 race_ghost_frame(void)
 {
 	/* The truck sequence advances simulation frames before the race clock starts. */
-	return game_replay_mode == REPLAY_MODE_PAUSED
-			   ? 0
-			   : (legacy_u32)(legacy_u16)state.game_frame + elapsed_time1;
+	return game_replay_mode == REPLAY_MODE_PAUSED ? 0 : race_current_frame() + elapsed_time1;
 }
 
 #ifdef RESTUNTS_SDL3
@@ -619,7 +679,8 @@ static void race_present_interpolation(void)
 	/* Extra presentations blend captured states without stepping physics.
 	 * Replay, controls and timer callbacks retain their authoritative cadence. */
 	if (supersight_enabled == 0 || race_presentation.started == 0 ||
-		state.game_frame != elapsed_time2 || state.game_inputmode == GAME_INPUT_MODE_WAITING ||
+		race_current_frame() != race_input_frame() ||
+		state.game_inputmode == GAME_INPUT_MODE_WAITING ||
 		(game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay != 0) || race_exit_request != 0) {
 		return;
 	}
@@ -678,9 +739,9 @@ static legacy_u16 race_handle_exit_request(void)
 	return 0;
 }
 
-static legacy_u16 race_frame_is_ready(legacy_s16 *last_processed_frame)
+static legacy_u16 race_frame_is_ready(legacy_s64 *last_processed_frame)
 {
-	if (state.game_frame != elapsed_time2) {
+	if (race_current_frame() != race_input_frame()) {
 #ifdef RESTUNTS_SDL3
 		if (game_replay_mode == REPLAY_MODE_LIVE) {
 #else
@@ -705,7 +766,7 @@ static legacy_u16 race_frame_is_ready(legacy_s16 *last_processed_frame)
 		}
 		legacy_u16 rate = framespersec > 0 ? (legacy_u16)framespersec : GAME_FRAME_RATE_NORMAL;
 		race_presentation.control_time = now + PRESENTATION_SECOND_NS / rate;
-		*last_processed_frame = state.game_frame;
+		*last_processed_frame = race_current_frame();
 		return 1;
 	}
 	if (supersight_enabled != 0 && game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay == 0) {
@@ -714,7 +775,7 @@ static legacy_u16 race_frame_is_ready(legacy_s16 *last_processed_frame)
 #endif
 	if (wait_for_sample != 0 && race_exit_request == 0 &&
 		state.game_inputmode != GAME_INPUT_MODE_WAITING) {
-		if (*last_processed_frame == state.game_frame) {
+		if (*last_processed_frame == (legacy_s64)race_current_frame()) {
 #ifdef RESTUNTS_SDL3
 			/* Timer callbacks are dispatched on this thread. Yield while waiting
 			 * for the next input sample, then deliver elapsed 100 Hz ticks. */
@@ -723,7 +784,7 @@ static legacy_u16 race_frame_is_ready(legacy_s16 *last_processed_frame)
 #endif
 			return 0;
 		}
-		*last_processed_frame = state.game_frame;
+		*last_processed_frame = race_current_frame();
 	}
 
 	return 1;
@@ -754,7 +815,7 @@ static legacy_s16 race_process_frame_input(void)
 
 #ifdef RESTUNTS_SDL3
 static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
-											  legacy_s16 *last_processed_frame,
+											  legacy_s64 *last_processed_frame,
 											  legacy_u8 *menu_pending)
 {
 	if (sdl3_controller_take_menu_request() != 0) {
@@ -768,7 +829,7 @@ static legacy_s16 race_handle_controller_menu(struct RACE_REWIND_STATE *rewind,
 		*last_processed_frame = -1;
 	}
 	/* Sampled live input must reach physics before switching to replay. */
-	if (game_replay_mode == REPLAY_MODE_LIVE && state.game_frame != elapsed_time2) {
+	if (game_replay_mode == REPLAY_MODE_LIVE && race_current_frame() != race_input_frame()) {
 		return 0;
 	}
 	*menu_pending = 0;
@@ -789,7 +850,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #ifdef RESTUNTS_AMIGA_TRACE
 	legacy_u16 traced_frames = 0;
 #endif
-	legacy_s16 last_processed_frame = -1;
+	legacy_s64 last_processed_frame = -1;
 	struct RACE_REWIND_STATE rewind = {0};
 #ifdef RESTUNTS_SDL3
 	legacy_u8 controller_menu_pending = 0;
@@ -827,7 +888,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #endif
 		if (race_frame_is_ready(&last_processed_frame) == 0) {
 #ifdef RESTUNTS_SDL3
-			if (rewind.active == 0 && state.game_frame == last_processed_frame) {
+			if (rewind.active == 0 && (legacy_s64)race_current_frame() == last_processed_frame) {
 				race_present_interpolation();
 			}
 #endif
@@ -835,9 +896,16 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		}
 		if (state.game_inputmode == GAME_INPUT_MODE_WAITING &&
 			game_replay_mode == REPLAY_MODE_LIVE) {
-			elapsed_time2 = 0;
-			gameconfig.game_recordedframes = 0;
-			state.game_frame = 0;
+#ifdef RESTUNTS_SDL3
+			if (extended_replay_is_active()) {
+				extended_replay_runtime_begin();
+			} else
+#endif
+			{
+				elapsed_time2 = 0;
+				gameconfig.game_recordedframes = 0;
+				state.game_frame = 0;
+			}
 		}
 
 		if (slow_video_mgmt_copy != slow_video_mgmt) {
@@ -923,7 +991,14 @@ static void race_finish_opponent(void)
 			frame_counter++;
 			if (frame_counter == framespersec) {
 				frame_counter = 0;
-				format_frame_as_string(&resID_byte1, state.game_frame + elapsed_time1, 1);
+#ifdef RESTUNTS_SDL3
+				if (extended_replay_is_active()) {
+					extended_replay_format_runtime_time(&resID_byte1, extended_replay_frame(), 1);
+				} else
+#endif
+				{
+					format_frame_as_string(&resID_byte1, state.game_frame + elapsed_time1, 1);
+				}
 				mouse_draw_opaque_check();
 				font_draw_text_opaque(&resID_byte1, font_centered_text_x(&resID_byte1),
 									  opponent_progress_text_position[1]);
@@ -936,7 +1011,11 @@ static void race_finish_opponent(void)
 			if (state.opponentstate.car_crashBmpFlag != CRASH_EVENT_NONE) {
 				break;
 			}
-			if (RACE_FRAME_LIMIT_MULTIPLIER * framespersec == state.game_frame + elapsed_time1) {
+			if (
+#ifdef RESTUNTS_SDL3
+				!extended_replay_is_active() &&
+#endif
+				RACE_FRAME_LIMIT_MULTIPLIER * framespersec == state.game_frame + elapsed_time1) {
 				break;
 			}
 		}
@@ -988,7 +1067,7 @@ void run_game(void)
 	if (race_prepare_mode() == 0) {
 		return;
 	}
-	if (idle_expired == 0 && gameconfig.game_recordedframes == 0 && ghost_prepare_race() != 0) {
+	if (idle_expired == 0 && race_recorded_frames() == 0 && ghost_prepare_race() != 0) {
 		replay_recording_flags = 0;
 		ghost_end_race();
 		show_dialog(DIALOG_TYPE_MESSAGE, DIALOG_NO_BACKGROUND_SAVE,

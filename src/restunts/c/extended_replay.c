@@ -120,7 +120,7 @@ void extended_replay_history_free(struct EXTENDED_REPLAY_HISTORY *history)
 
 /* Index of the first checkpoint strictly later than frame. */
 static uint32_t extended_replay_checkpoint_end(const struct EXTENDED_REPLAY_HISTORY *history,
-												 uint32_t frame)
+											   uint32_t frame)
 {
 	uint32_t low = 0U, high = history->count;
 	while (low < high) {
@@ -168,8 +168,8 @@ int extended_replay_checkpoint_store(struct EXTENDED_REPLAY_HISTORY *history, ui
 			return 0;
 		}
 		struct EXTENDED_REPLAY_CHECKPOINT *checkpoints =
-			(struct EXTENDED_REPLAY_CHECKPOINT *)realloc(
-				history->checkpoints, (size_t)capacity * sizeof(*checkpoints));
+			(struct EXTENDED_REPLAY_CHECKPOINT *)realloc(history->checkpoints,
+														 (size_t)capacity * sizeof(*checkpoints));
 		if (checkpoints == NULL) {
 			free(snapshot);
 			return 0;
@@ -188,7 +188,7 @@ int extended_replay_checkpoint_store(struct EXTENDED_REPLAY_HISTORY *history, ui
 }
 
 const void *extended_replay_checkpoint_find(const struct EXTENDED_REPLAY_HISTORY *history,
-										  uint32_t frame, uint32_t *checkpoint_frame)
+											uint32_t frame, uint32_t *checkpoint_frame)
 {
 	uint32_t end = extended_replay_checkpoint_end(history, frame);
 	if (end == 0U) {
@@ -200,8 +200,7 @@ const void *extended_replay_checkpoint_find(const struct EXTENDED_REPLAY_HISTORY
 	return history->checkpoints[end - 1U].state;
 }
 
-uint32_t extended_replay_timeline_position(uint32_t frame, uint32_t recorded_frames,
-										uint32_t width)
+uint32_t extended_replay_timeline_position(uint32_t frame, uint32_t recorded_frames, uint32_t width)
 {
 	if (recorded_frames == 0U) {
 		return 0U;
@@ -224,7 +223,7 @@ uint32_t extended_replay_rewind_interpolate(uint32_t amount, uint32_t remaining,
 }
 
 int extended_replay_format_time(char *out, size_t size, uint32_t frame, uint16_t fps,
-							   int include_fraction)
+								int include_fraction)
 {
 	if (out == NULL || size == 0U || (fps != 10U && fps != 20U)) {
 		return 0;

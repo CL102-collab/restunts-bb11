@@ -10,12 +10,21 @@ struct GHOST_CAMERA_STATE {
 	struct VECTOR follow_position;
 	struct VECTOR previous_position;
 	legacy_s16 trackside_index;
+#ifdef RESTUNTS_SDL3
+	legacy_u32 frame;
+	legacy_u32 crash_frame;
+#else
 	legacy_s16 frame;
 	legacy_s16 crash_frame;
+#endif
 };
 
 /* Selection never installs the replay as the player's current recording. */
 legacy_s16 ghost_select_replay(const legacy_s8 *directory, const legacy_s8 *name);
+#ifdef RESTUNTS_SDL3
+legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,
+									  const legacy_s8 *extension);
+#endif
 legacy_s16 ghost_is_selected(void);
 void ghost_clear(void);
 void ghost_check_track(void);

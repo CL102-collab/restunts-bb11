@@ -2,6 +2,7 @@
 #include "memmgr.h"
 #include "trackdata_layout.h"
 #include "externs.h"
+#include "extended_track.h"
 
 #define REPLAY_SLOW_CALLBACK_DIVISOR 2U
 #define VIDEO_GEOMETRY_UNIT_SCALE 1
@@ -17,12 +18,20 @@ void init_video_geometry_flags(void)
 
 void init_row_tables(void)
 {
-	for (legacy_s16 i = 0; i < TRACK_GRID_SIZE; i++) {
-		legacy_s16 inverse_row = LEGACY_S16_WRAP_SUB(TRACK_GRID_LAST_INDEX, i);
+	legacy_s16 width = (legacy_s16)extended_track_width();
+	legacy_s16 height = (legacy_s16)extended_track_height();
+	legacy_s16 count = width > height ? width : height;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		count++;
+	}
+#endif
+	for (legacy_s16 i = 0; i < count; i++) {
+		legacy_s16 inverse_row = LEGACY_S16_WRAP_SUB(height - 1, i);
 		legacy_s16 track_position = LEGACY_S16_SHL(inverse_row, TRACK_TILE_POSITION_SHIFT);
 		legacy_s16 terrain_position = LEGACY_S16_SHL(i, TRACK_TILE_POSITION_SHIFT);
-		trackrows[i] = LEGACY_S16_WRAP_MUL(TRACK_GRID_SIZE, inverse_row);
-		terrainrows[i] = LEGACY_S16_WRAP_MUL(TRACK_GRID_SIZE, i);
+		trackrows[i] = LEGACY_S16_WRAP_MUL(width, inverse_row);
+		terrainrows[i] = LEGACY_S16_WRAP_MUL(width, i);
 		track_row_positions[i] = track_position;
 		track_column_positions[i] = terrain_position;
 		track_row_centers[i] = LEGACY_S16_WRAP_ADD(track_position, TRACK_TILE_HALF_SIZE);

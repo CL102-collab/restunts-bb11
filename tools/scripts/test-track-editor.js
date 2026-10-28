@@ -58,6 +58,17 @@ test('rigid diagonal planes allow one level per horizontal and vertical edge', (
     assert.equal(object.slopeX, 1); assert.equal(object.slopeY, 1);
     assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
 });
+test('sloped slaloms and tunnels require two continuous tiles in every sloping direction', () => {
+    for (const id of [66, 115]) {
+        const short = new model.Document(4, 4);
+        for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) short.vertices[y * 5 + x] = x ? 1 : 0;
+        assert.throws(() => short.place(id, 0, 1), /two tiles/);
+        const long = new model.Document(4, 4);
+        for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) long.vertices[y * 5 + x] = Math.min(x, 2);
+        assert.doesNotThrow(() => long.place(id, 0, 1));
+        assert.doesNotThrow(() => long.place(id, 1, 1)); // Support may extend behind the piece.
+    }
+});
 test('expanded road surfaces and incompatible stunt surfaces', () => {
     for (const id of [40, 49, 53, 60, 66, 75, 87, 99, 105, 109, 115]) {
         for (const surface of [0, 1, 2]) assert.doesNotThrow(() => new model.Document(4, 4).place(id, 0, 0, surface));
@@ -81,6 +92,7 @@ test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', (
     const flags = data.slice(); flags[12] = 1; assert.throws(() => model.decodeCstrk(flags), /version/);
     const forged = data.slice(), objectOffset = 32 + doc.vertices.length + doc.cells.length * 2;
     forged[objectOffset + 8] = 15; assert.throws(() => model.decodeCstrk(forged), /catalog geometry|overlap/);
+    const internal = data.slice(); internal[objectOffset] = 182; assert.throws(() => model.decodeCstrk(internal), /Unknown track element/);
 });
 test('RLE byte runs and canonical VLE decode with bounds checks', () => {
     assert.deepEqual(resources.decompress(Uint8Array.from([1, 4, 0, 0, 0, 0, 0, 0, 129, 255, 255, 4, 65])), Uint8Array.from([65, 65, 65, 65]));
