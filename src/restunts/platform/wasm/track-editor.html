@@ -74,8 +74,9 @@
                         </div>
                     </div>
                     <div id="level-options-row" class="terrain-options" hidden>
-                        <div class="terrain-choice-heading level-label"><span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><div class="level-heading-actions"><output id="level-output">1 / 4</output><button type="button" class="ground-level" data-level="0" aria-pressed="false" title="Set elevation to ground level">Ground (0)</button></div></div>
+                        <div class="terrain-choice-heading level-label"><span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><output id="level-output">1 / 4</output></div>
                         <div class="terrain-choices" role="group" aria-label="Terrain elevation">
+                            <button type="button" class="terrain-choice" data-level="0" aria-pressed="false" aria-label="Ground level 0" title="Set elevation to ground level"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">0</span></button>
                             <button type="button" class="terrain-choice" data-level="1" aria-pressed="true" aria-label="Level 1" title="Set elevation to level 1"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">1</span></button>
                             <button type="button" class="terrain-choice" data-level="2" aria-pressed="false" aria-label="Level 2" title="Set elevation to level 2"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">2</span></button>
                             <button type="button" class="terrain-choice" data-level="3" aria-pressed="false" aria-label="Level 3" title="Set elevation to level 3"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">3</span></button>
