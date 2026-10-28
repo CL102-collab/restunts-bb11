@@ -21,11 +21,17 @@ ASCII filename stems.
 
 ## Terrain
 
-Terrain controls are separate from track elements. Paint grass, ice, dirt or
-water at any elevation. Raise and lower shared tile corners from level 0 through
-level 4; adjoining corners adjust to form connected slopes, as in SimCity 2000.
-The Level tool sets corners to the selected height. The water-and-hill-corner
-tool paints one triangular half as water; rotate to choose its corner.
+Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
+Paint shows one selected square preview of the current grass, ice, dirt or water
+surface. Shore shows four square previews combining water with the selected
+grass, dirt or ice; its first corner is selected initially. Click another
+preview or use Q / R to change the Shore corner independently of track pieces.
+
+Level shows square choices for heights 1 through 4, plus Ground (0). These
+choices appear only while Level is selected; click a map tile to set its corners
+to the chosen height. Raise and Lower change shared corners one level per click.
+Adjoining corners adjust to form connected slopes, as in SimCity 2000. Every
+surface can be used at any elevation.
 
 Build a continuous slope before placing a stunt. The complete piece needs a
 single supporting plane over its footprint, including both rows or columns of
@@ -49,15 +55,18 @@ its water-corner arrows in the Terrain section when selected.
 Large turns, banked turns, chicanes and elevated turns claim only their occupied
 cells, leaving their empty cells available for scenery or another fitting piece.
 
-Drag to build or paint. A drag stroke is one undo operation. Notes changes,
-terrain operations and placements also participate in undo and redo. Notes
+Drag to build or paint. Right-button dragging always pans with any tool.
+Click or hold and drag the Navigator minimap to reposition the main view.
+Navigation does not edit the track or add undo steps. A building or painting
+stroke is one undo operation. Notes changes, terrain operations and placements
+also participate in undo and redo. Notes
 support up to 8,000 printable ASCII characters, with tabs and line breaks.
 
 | Action | Shortcut |
 | --- | --- |
 | Place / erase / pan | B / E / H |
 | Rotate | Q / R |
-| Pan temporarily | Space and drag, or middle mouse drag |
+| Pan temporarily | Right or middle mouse drag, or Space and drag |
 | Zoom | Mouse wheel |
 | Move tile cursor / place | Arrow keys / Enter |
 | Undo / redo | Ctrl+Z / Ctrl+Shift+Z |
