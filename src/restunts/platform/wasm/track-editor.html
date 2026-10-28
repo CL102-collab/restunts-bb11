@@ -11,116 +11,134 @@
     <script defer src="track-editor.js"></script>
 </head>
 <body>
+<svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><symbol id="i-track" viewBox="0 0 24 24"><path d="M8 4h8a5 5 0 0 1 5 5v6a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V9a5 5 0 0 1 5-5Z"/><path d="M9 8h6a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2Z"/><path d="M9 3v6m3-6v6"/></symbol><symbol id="i-new" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 14h8m-4-4v8"/></symbol><symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 7h5l2 3h11l-2 10H3Z"/></symbol><symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z"/><path d="M7 3v6h10V3M7 21v-8h10v8m-3-18v4"/></symbol><symbol id="i-undo" viewBox="0 0 24 24"><path d="m9 5-6 6 6 6M3 11h11a7 7 0 0 1 7 7v2"/></symbol><symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 5 6 6-6 6m6-6H10a7 7 0 0 0-7 7v2"/></symbol><symbol id="i-build" viewBox="0 0 24 24"><path d="m14 4 6 6M3 21l8-8m-3-3 6-6a5 5 0 0 1 7 7l-6 6Z"/><path d="m8 10 7 7M3 3l4 4m10 10 4 4"/></symbol><symbol id="i-erase" viewBox="0 0 24 24"><path d="m15 3 6 6a2 2 0 0 1 0 3L11 22H6l-4-4a2 2 0 0 1 0-3L12 3a2 2 0 0 1 3 0ZM8 9l9 9M9 22h13"/></symbol><symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V6a2 2 0 0 1 4 0v6m0-6V4a2 2 0 0 1 4 0v8m0-5a2 2 0 0 1 4 0v8a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-4-6a2 2 0 0 1 3-2l2 2m12-4a2 2 0 0 1 3 2v4"/></symbol><symbol id="i-rotate-left" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol><symbol id="i-rotate-right" viewBox="0 0 24 24"><path d="M21 10a9 9 0 1 0-2 8m2-14v6h-6"/></symbol><symbol id="i-terrain" viewBox="0 0 24 24"><path d="m2 20 7-14 4 7 3-5 6 12ZM6 12l3 2 3-2m2 3 2 1 2-1"/></symbol><symbol id="i-paint" viewBox="0 0 24 24"><path d="m13 3 8 8-10 10a3 3 0 0 1-4 0l-4-4a3 3 0 0 1 0-4ZM5 11l8 8M2 22h12m7-7s-3 3-3 5a3 3 0 0 0 6 0c0-2-3-5-3-5Z"/></symbol><symbol id="i-raise" viewBox="0 0 24 24"><path d="M3 19h18M6 15l6-6 6 6m-6-6v13M8 5l4-3 4 3"/></symbol><symbol id="i-lower" viewBox="0 0 24 24"><path d="M3 19h18M6 6l6 6 6-6m-6 6V2M8 16l4 3 4-3"/></symbol><symbol id="i-level" viewBox="0 0 24 24"><path d="M3 8h18M3 16h18m-9-5v2M6 5V2m-3 3 3 3 3-3m9 14v3m-3-3 3-3 3 3"/></symbol><symbol id="i-shore" viewBox="0 0 24 24"><path d="M3 3h18v18H3ZM3 21 21 3M4 16h4m2-6h4M13 18c2-2 3 2 5 0m-6-4c2-2 3 2 5 0"/></symbol><symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5"/></symbol><symbol id="i-leaf" viewBox="0 0 24 24"><path d="M20 3c0 12-2 17-10 17a7 7 0 0 1-7-7C3 5 8 3 20 3ZM3 22 16 9m-7 7V9m0 7h7"/></symbol><symbol id="i-snow" viewBox="0 0 24 24"><path d="M12 2v20M3 7l18 10M3 17 21 7M9 4l3 3 3-3M9 20l3-3 3 3M3 11l4-1-1-4m12 12-1-4 4-1M3 13l4 1-1 4m12-12-1 4 4 1"/></symbol><symbol id="i-dirt" viewBox="0 0 24 24"><path d="m4 17 4-4 5 2 4-5 4 7M2 21h20"/><circle cx="6" cy="7" r="1"/><circle cx="13" cy="5" r="1"/><circle cx="19" cy="3" r="1"/></symbol><symbol id="i-water" viewBox="0 0 24 24"><path d="M2 6c3-4 7 4 10 0s7 4 10 0M2 12c3-4 7 4 10 0s7 4 10 0M2 18c3-4 7 4 10 0s7 4 10 0"/></symbol><symbol id="i-road" viewBox="0 0 24 24"><path d="m8 2-5 20M16 2l5 20M12 3v3m0 4v4m0 4v3"/></symbol><symbol id="i-stunts" viewBox="0 0 24 24"><path d="M2 20h20M4 20v-8a8 8 0 0 1 16 0v8M8 20v-8a4 4 0 0 1 8 0v8"/></symbol><symbol id="i-banked" viewBox="0 0 24 24"><path d="M3 21V10a7 7 0 0 1 7-7h11M8 21V11a3 3 0 0 1 3-3h10M3 15l5-2M10 3l2 5m4-5 1 5"/></symbol><symbol id="i-branch" viewBox="0 0 24 24"><path d="M10 22V11c0-5-3-5-7-5m11 16V11c0-5 3-5 7-5M3 2v8m18-8v8M12 22v-3"/></symbol><symbol id="i-highway" viewBox="0 0 24 24"><path d="M3 3v18M9 3v18m6-18v18m6-18v18M6 4v3m0 4v3m0 4v3m12-17v3m0 4v3m0 4v3"/></symbol><symbol id="i-elevated" viewBox="0 0 24 24"><path d="M2 10h20M2 6h20M5 10v11m14-11v11M9 10v5m6-5v5M2 21h20M5 15l4-5m10 5-4-5"/></symbol><symbol id="i-corkscrew" viewBox="0 0 24 24"><path d="M3 5c18 0 18 14 0 14M21 5C3 5 3 19 21 19M8 6l-1 3m9 6 1 3M11 8l-2 3m6 2-2 3"/></symbol><symbol id="i-tree" viewBox="0 0 24 24"><path d="m12 2-6 8h3l-6 8h7v4h4v-4h7l-6-8h3Z"/></symbol><symbol id="i-notes" viewBox="0 0 24 24"><path d="M14 3H5v18h14V8ZM14 3v5h5M8 12h8m-8 4h5"/></symbol><symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol><symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol><symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M8 8h8v8H8Z"/></symbol><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18m6-18v18M3 9h18M3 15h18"/></symbol><symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15 9-2 4-4 2 2-4Z"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol><symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M5 9h1m3 0h1m3 0h1m3 0h2M5 12h1m3 0h1m3 0h1m3 0h2M7 16h10"/></symbol><symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol><symbol id="i-map" viewBox="0 0 24 24"><path d="m9 3 6 3 6-3v16l-6 3-6-3-6 3V6ZM9 3v16m6-13v16"/></symbol><symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol></defs></svg>
     <header class="app-header">
-        <a class="brand" href="./" title="Chocolate Stunts"><span class="brand-mark" aria-hidden="true">CS</span><span>CHOCOLATE STUNTS<small>TRACK EDITOR</small></span></a>
-        <div class="document-title"><strong id="document-name">Untitled</strong><span id="document-state">Select your Stunts folder to begin</span></div>
-        <button id="folder-button" class="folder-button" type="button">Choose Stunts folder</button>
+        <a class="brand" href="./" title="Chocolate Stunts"><span class="brand-mark"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-track"></use></svg></span><span>Chocolate Stunts<small>TRACK WORKSHOP</small></span></a>
+        <div class="document-title"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><div><strong id="document-name">Untitled</strong><span id="document-state">Connect your Stunts folder to begin</span></div><span class="format-badge">.cstrk</span></div>
+        <span class="local-badge"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-lock"></use></svg> Local workspace</span>
+        <button id="folder-button" class="folder-button" type="button"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span id="folder-button-label">Connect folder</span></button>
     </header>
     <main class="editor-layout">
         <aside class="sidebar" aria-label="Editor controls">
             <fieldset id="editor-controls" disabled>
+                <div class="sidebar-title"><span class="eyebrow">THE TOOLBOX</span><span id="map-size" class="dimension-badge">90 × 90</span></div>
                 <div class="file-actions">
-                    <button id="new-track" type="button" title="New track">New</button>
-                    <button id="load-track" type="button" title="Load .cstrk (Ctrl+O)">Open</button>
-                    <button id="save-track" type="button" class="primary" title="Save .cstrk (Ctrl+S)">Save</button>
+                    <button id="new-track" type="button" title="New track"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-new"></use></svg><span>New</span></button>
+                    <button id="load-track" type="button" title="Load .cstrk (Ctrl+O)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span>Open</span></button>
+                    <button id="save-track" type="button" class="primary" title="Save .cstrk (Ctrl+S)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-save"></use></svg><span>Save</span></button>
                 </div>
-                <div class="history-actions"><button id="undo" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button></div>
-                <section class="control-section tools-section" aria-labelledby="tools-heading">
-                    <div class="section-heading"><h2 id="tools-heading">Editing tools</h2><span id="map-size">90 × 90</span></div>
+                <section class="control-section tools-section" aria-label="Editing tools">
                     <div class="tool-switch" role="group" aria-label="Editing tool">
-                        <button type="button" data-tool="place" aria-pressed="true" title="Place selected track piece (B)">Build</button>
-                        <button type="button" data-tool="erase" aria-pressed="false" title="Erase track piece (E), or right-click">Erase</button>
-                        <button type="button" data-tool="pan" aria-pressed="false" title="Pan (H), middle-drag, or hold Space">Pan</button>
+                        <button type="button" class="tool-tile" data-tool="place" aria-pressed="true" title="Place selected track piece (B)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-build"></use></svg><span>Build</span><kbd>B</kbd></button>
+                        <button type="button" class="tool-tile" data-tool="erase" aria-pressed="false" title="Erase track piece (E), or right-click"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-erase"></use></svg><span>Erase</span><kbd>E</kbd></button>
+                        <button type="button" class="tool-tile" data-tool="pan" aria-pressed="false" title="Pan (H), middle-drag, or hold Space"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-hand"></use></svg><span>Pan</span><kbd>H</kbd></button>
                     </div>
-                    <div class="rotation-row"><span>Rotation</span><button type="button" id="rotate-left" title="Rotate counterclockwise (Q)">↶</button><output id="rotation">0°</output><button type="button" id="rotate-right" title="Rotate clockwise (R)">↷</button></div>
+                    <div class="rotation-row"><span>Orientation</span><div class="rotation-control"><button type="button" id="rotate-left" title="Rotate counterclockwise (Q)" aria-label="Rotate counterclockwise"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-rotate-left"></use></svg></button><output id="rotation">0°</output><button type="button" id="rotate-right" title="Rotate clockwise (R)" aria-label="Rotate clockwise"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-rotate-right"></use></svg></button></div></div>
+                    <div class="history-actions"><button id="undo" type="button" title="Undo (Ctrl+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-undo"></use></svg><span>Undo</span></button><button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-redo"></use></svg><span>Redo</span></button><span class="history-hint">Ctrl Z / Ctrl ⇧ Z</span></div>
                 </section>
                 <section class="control-section terrain-section" aria-labelledby="terrain-heading">
-                    <div class="section-heading"><h2 id="terrain-heading">Terrain</h2><span class="section-tag">GROUND</span></div>
-                    <label class="field-label" for="terrain-surface">Ground surface</label>
-                    <select id="terrain-surface"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3">Water</option></select>
-                    <div class="terrain-tools" role="group" aria-label="Terrain tool">
-                        <button type="button" data-tool="paint" aria-pressed="false" title="Paint the selected ground surface">Paint</button>
-                        <button type="button" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes">Raise</button>
-                        <button type="button" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain">Lower</button>
-                        <button type="button" data-tool="level" aria-pressed="false" title="Level terrain to the selected elevation">Level</button>
-                        <button type="button" class="wide" data-tool="water-corner" aria-pressed="false" title="Half water, half hill corner; use rotation to choose the corner">◩ Water + hill corner</button>
+                    <div class="section-heading"><span class="section-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg></span><div><h2 id="terrain-heading">Terrain</h2><span>Shape your landscape</span></div><span class="section-index">01</span></div>
+                    <div class="surface-choices ground-surfaces" role="group" aria-label="Ground surface">
+                        <button type="button" class="surface-choice" data-surface-for="terrain-surface" data-value="0" aria-pressed="true" title="Grass ground"><span class="material-preview grass"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-leaf"></use></svg></span><span>Grass</span></button>
+                        <button type="button" class="surface-choice" data-surface-for="terrain-surface" data-value="2" aria-pressed="false" title="Dirt ground"><span class="material-preview dirt"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-dirt"></use></svg></span><span>Dirt</span></button>
+                        <button type="button" class="surface-choice" data-surface-for="terrain-surface" data-value="1" aria-pressed="false" title="Ice ground"><span class="material-preview ice"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-snow"></use></svg></span><span>Ice</span></button>
+                        <button type="button" class="surface-choice" data-surface-for="terrain-surface" data-value="3" aria-pressed="false" title="Water ground"><span class="material-preview water"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-water"></use></svg></span><span>Water</span></button>
                     </div>
-                    <label class="level-label" for="terrain-level">Level <output id="level-output">1 / 4</output></label>
-                    <input id="terrain-level" type="range" min="0" max="4" step="1" value="1">
-                    <p class="control-hint">Raise and lower shared corners. Neighbouring slopes adjust together.</p>
+                    <select id="terrain-surface" hidden tabindex="-1" aria-hidden="true"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3">Water</option></select>
+                    <div class="terrain-tools" role="group" aria-label="Terrain tool">
+                        <button type="button" class="tool-tile" data-tool="paint" aria-pressed="false" title="Paint the selected ground surface"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-paint"></use></svg><span>Paint</span></button>
+                        <button type="button" class="tool-tile" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-raise"></use></svg><span>Raise</span></button>
+                        <button type="button" class="tool-tile" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-lower"></use></svg><span>Lower</span></button>
+                        <button type="button" class="tool-tile" data-tool="level" aria-pressed="false" title="Level terrain to the selected elevation"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-level"></use></svg><span>Level</span></button>
+                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Half water, half hill corner; use rotation to choose the corner"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
+                    </div>
+                    <div class="level-label"><span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><output id="level-output">1 / 4</output></div>
+                    <div class="elevation-steps" role="group" aria-label="Terrain elevation">
+                        <button type="button" data-level="0" aria-pressed="false" title="Set elevation to level 0"><span class="elevation-bars" style="--level:0" aria-hidden="true"></span><span>0</span></button><button type="button" data-level="1" aria-pressed="true" title="Set elevation to level 1"><span class="elevation-bars" style="--level:1" aria-hidden="true"></span><span>1</span></button><button type="button" data-level="2" aria-pressed="false" title="Set elevation to level 2"><span class="elevation-bars" style="--level:2" aria-hidden="true"></span><span>2</span></button><button type="button" data-level="3" aria-pressed="false" title="Set elevation to level 3"><span class="elevation-bars" style="--level:3" aria-hidden="true"></span><span>3</span></button><button type="button" data-level="4" aria-pressed="false" title="Set elevation to level 4"><span class="elevation-bars" style="--level:4" aria-hidden="true"></span><span>4</span></button>
+                    </div>
+                    <input id="terrain-level" type="range" min="0" max="4" step="1" value="1" hidden tabindex="-1" aria-hidden="true">
+                    <p class="control-hint"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-info"></use></svg> Shared corners keep slopes connected.</p>
                 </section>
                 <section class="control-section track-section" aria-labelledby="track-heading">
-                    <div class="section-heading"><h2 id="track-heading">Track elements</h2><span class="section-tag">ROAD</span></div>
-                    <label class="field-label" for="road-surface">Road / stunt surface</label>
-                    <select id="road-surface"><option value="0">Asphalt</option><option value="1">Dirt</option><option value="2">Ice</option></select>
-                    <label class="field-label" for="piece-group">Element group</label>
-                    <select id="piece-group" aria-controls="piece-palette"></select>
+                    <div class="section-heading"><span class="section-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><div><h2 id="track-heading">Track library</h2><span>Make something worth racing</span></div><span class="section-index">02</span></div>
+                    <div class="surface-choices road-surfaces" role="group" aria-label="Road and stunt surface">
+                        <button type="button" class="surface-choice" data-surface-for="road-surface" data-value="0" aria-pressed="true" title="Asphalt road"><span class="material-preview asphalt"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><span>Asphalt</span></button>
+                        <button type="button" class="surface-choice" data-surface-for="road-surface" data-value="1" aria-pressed="false" title="Dirt road"><span class="material-preview dirt"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><span>Dirt</span></button>
+                        <button type="button" class="surface-choice" data-surface-for="road-surface" data-value="2" aria-pressed="false" title="Ice road"><span class="material-preview ice"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><span>Ice</span></button>
+                    </div>
+                    <select id="road-surface" hidden tabindex="-1" aria-hidden="true"><option value="0">Asphalt</option><option value="1">Dirt</option><option value="2">Ice</option></select>
+                    <div id="piece-groups" class="piece-groups" role="group" aria-label="Track element group"></div>
+                    <select id="piece-group" aria-controls="piece-palette" hidden tabindex="-1" aria-hidden="true"></select>
+                    <div class="palette-heading"><span id="active-group-name">Roads</span><span id="palette-count">Choose a group</span></div>
                     <div id="piece-palette" class="piece-palette" aria-label="Track pieces"></div>
-                    <div id="selected-piece" class="selected-piece">Choose a track element</div>
-                    <p class="control-hint" id="surface-hint">Greyed pieces do not support this road surface.</p>
+                    <div class="selection-inspector"><canvas id="selected-preview" width="64" height="64" aria-hidden="true"></canvas><div><span class="selection-label">READY TO BUILD</span><strong id="selected-piece">Choose a track element</strong><span id="selected-piece-meta">Pick a piece from the library</span></div></div>
+                    <p class="control-hint" id="surface-hint">Greyed pieces do not support this surface.</p>
                 </section>
                 <section class="control-section document-section" aria-label="Track information">
-                    <button type="button" id="notes-button" class="full-button">Track notes <span id="notes-count">0 / 8000</span></button>
-                    <button type="button" id="check-track" class="full-button">Check track</button>
-                    <details class="keyboard-help"><summary>Keyboard shortcuts</summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br><kbd>Space</kbd> + drag to pan · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
+                    <button type="button" id="notes-button" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-notes"></use></svg><span>Track notes</span><span id="notes-count" class="action-meta">0 / 8000</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+                    <button type="button" id="check-track" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg><span>Check track</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
+                    <details class="keyboard-help"><summary><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-keyboard"></use></svg><span>Keyboard shortcuts</span></summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br><kbd>Space</kbd> + drag to pan · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
                 </section>
             </fieldset>
-            <div class="sidebar-footer"><span class="format-badge">.cstrk</span><span>Extended tracks · SDL3 builds</span></div>
+            <div class="sidebar-footer"><span class="status-dot"></span><span>Built for the next great track.</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-track"></use></svg></div>
         </aside>
         <section class="workspace" aria-label="Track canvas">
             <div class="canvas-toolbar">
-                <div class="view-controls"><button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out">−</button><output id="zoom-value">100%</output><button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button><button id="fit-map" type="button" title="Fit entire track">Fit</button></div>
-                <div class="display-options"><label><input id="show-grid" type="checkbox" checked> Grid</label><label><input id="show-heights" type="checkbox"> Heights</label></div>
-                <span class="canvas-mode" id="canvas-mode">TOP VIEW · 2D</span>
+                <div class="workspace-label"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Track canvas</span><span class="view-badge">2D</span></div>
+                <div class="display-options"><label class="display-toggle" title="Show tile grid"><input id="show-grid" type="checkbox" checked><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-grid"></use></svg><span>Grid</span></label><label class="display-toggle" title="Show terrain heights"><input id="show-heights" type="checkbox"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg><span>Heights</span></label></div>
+                <div class="toolbar-divider"></div>
+                <div class="view-controls"><button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-minus"></use></svg></button><output id="zoom-value">100%</output><button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-plus"></use></svg></button><button id="fit-map" type="button" title="Fit entire track" aria-label="Fit entire track"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-fit"></use></svg></button></div>
             </div>
             <div id="canvas-container" class="canvas-container">
                 <canvas id="track-canvas" tabindex="0" aria-label="2D track editing canvas. Use arrow keys to move and Enter to place; use the controls for terrain and elements."></canvas>
-                <div class="map-compass" aria-hidden="true"><span>N</span>↑</div>
-                <div class="minimap-panel"><canvas id="minimap" width="156" height="156" aria-label="Track overview. Click to move the view."></canvas><span id="minimap-caption">90 × 90 tiles</span></div>
-                <div id="canvas-empty" class="canvas-empty"><span class="empty-grid" aria-hidden="true">⊞</span><h1>A bigger canvas for your next stunt.</h1><p>90 × 90 tiles. Four terrain levels.<br>Classic Stunts pieces, with more possibilities.</p></div>
+                <div class="canvas-tool-indicator"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-build"></use></svg><span id="canvas-mode">BUILD TRACK · 2D</span></div>
+                <div class="map-compass" aria-hidden="true"><span>N</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-compass"></use></svg></div>
+                <div class="minimap-panel"><div class="minimap-heading"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Navigator</span><span class="status-dot"></span></div><canvas id="minimap" width="156" height="156" aria-label="Track overview. Click to move the view."></canvas><span id="minimap-caption">90 × 90 tiles</span></div>
+                <div id="canvas-empty" class="canvas-empty"><svg class="icon empty-track" aria-hidden="true" focusable="false"><use href="#i-track"></use></svg><span class="eyebrow">YOUR NEXT GREAT TRACK</span><h1>A little imagination.<br>A lot more room.</h1><p>90 × 90 tiles. Four terrain levels.<br>Every corner is a possibility.</p></div>
             </div>
-            <footer class="statusbar"><span id="status" role="status" aria-live="polite">Choose your Stunts folder to start editing.</span><span id="cursor-position">—</span><span id="object-count">0 elements</span></footer>
+            <footer class="statusbar"><span class="status-dot"></span><span id="status" role="status" aria-live="polite">Connect your Stunts folder to start building.</span><span id="cursor-position">—</span><span id="object-count">0 elements</span><span class="status-format">.cstrk</span></footer>
         </section>
     </main>
     <dialog id="folder-dialog" class="folder-dialog" aria-labelledby="folder-title">
-        <span class="dialog-eyebrow">CHOCOLATE STUNTS TRACK EDITOR</span>
-        <h1 id="folder-title">First, choose your Stunts folder.</h1>
-        <p>The editor uses the original game’s track resources. Select the folder containing your Stunts game files to begin.</p>
-        <p class="privacy-note">Files stay on your device. Nothing is uploaded.</p>
-        <button id="choose-folder" class="primary" type="button">Choose Stunts folder</button>
-        <div id="fallback-folder" hidden><label for="folder-input" class="file-button">Choose Stunts folder</label><input id="folder-input" type="file" webkitdirectory multiple></div>
-        <button id="restore-folder" type="button" hidden>Reconnect previous folder</button>
-        <p id="folder-status" role="status" aria-live="polite">Requires MAIN.RES or MAIN.PRE, TEDIT resources, and SDTEDIT resources.</p>
-        <details id="folder-fallback-help"><summary>Folder picker not available?</summary><p>Use read-only selection instead. Your edited tracks will download as .cstrk files.</p><button id="use-fallback" type="button">Use read-only folder selection</button></details>
+        <div class="dialog-art"><span class="dialog-hero-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg></span><span class="art-tile art-tile-a"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg></span><span class="art-tile art-tile-b"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><span class="art-tile art-tile-c"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-tree"></use></svg></span><span class="art-dots" aria-hidden="true"></span></div>
+        <span class="dialog-eyebrow">WELCOME TO THE WORKSHOP</span>
+        <h1 id="folder-title">Your next track<br>starts here.</h1>
+        <p>Connect your Stunts folder to bring the original track pieces into your workshop. Then make them your own.</p>
+        <div class="privacy-note"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-lock"></use></svg><span>Your files stay on your device. Always.</span></div>
+        <button id="choose-folder" class="primary" type="button"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span>Choose Stunts folder</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+        <div id="fallback-folder" hidden><label for="folder-input" class="file-button"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span>Choose Stunts folder</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></label><input id="folder-input" type="file" webkitdirectory multiple></div>
+        <button id="restore-folder" type="button" hidden><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span id="restore-folder-label">Reconnect previous folder</span></button>
+        <p id="folder-status" role="status" aria-live="polite">Requires MAIN, TEDIT, and SDTEDIT game resources.</p>
+        <details id="folder-fallback-help"><summary>Folder picker not available?</summary><p>Use read-only selection instead. Your edited tracks will download as .cstrk files.</p><button id="use-fallback" type="button"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span>Use read-only folder selection</span></button></details>
     </dialog>
     <dialog id="notes-dialog" aria-labelledby="notes-title">
         <form method="dialog" id="notes-form">
-            <div class="dialog-heading"><h2 id="notes-title">Track notes</h2><button type="button" data-close="notes-dialog" class="icon-button" aria-label="Close notes">×</button></div>
+            <div class="dialog-heading"><span class="dialog-heading-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-notes"></use></svg></span><h2 id="notes-title">Track notes</h2><button type="button" data-close="notes-dialog" class="icon-button" aria-label="Close notes"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
             <p>Up to 8000 ASCII characters. Tabs and line breaks are supported.</p>
             <label for="track-notes" class="visually-hidden">Track notes</label>
-            <textarea id="track-notes" rows="15" maxlength="8000" spellcheck="true" placeholder="Describe your track, add driving tips, or leave a message for racers…"></textarea>
+            <textarea id="track-notes" rows="15" maxlength="8000" spellcheck="true" placeholder="The story behind your track, a tip for the perfect lap…"></textarea>
             <div class="notes-meta"><span id="notes-error" role="alert"></span><output id="notes-length">0 / 8000</output></div>
-            <div class="dialog-actions"><button type="button" data-close="notes-dialog">Cancel</button><button type="submit" class="primary" id="apply-notes">Apply notes</button></div>
+            <div class="dialog-actions"><button type="button" data-close="notes-dialog">Cancel</button><button type="submit" class="primary" id="apply-notes"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg><span>Apply notes</span></button></div>
         </form>
     </dialog>
     <dialog id="new-dialog" aria-labelledby="new-title">
         <form method="dialog" id="new-form">
-            <div class="dialog-heading"><h2 id="new-title">New track</h2><button type="button" data-close="new-dialog" class="icon-button" aria-label="Cancel new track">×</button></div>
-            <p>Choose a canvas up to 90 × 90 tiles.</p>
+            <div class="dialog-heading"><span class="dialog-heading-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-new"></use></svg></span><h2 id="new-title">A fresh starting line</h2><button type="button" data-close="new-dialog" class="icon-button" aria-label="Cancel new track"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
+            <p>Give your track a name and choose your canvas. Up to 90 × 90 tiles to make your mark.</p>
             <label class="field-label" for="new-name">Track name</label><input id="new-name" type="text" maxlength="8" value="Untitled" required>
-            <div class="dimensions"><label for="new-width">Width<input id="new-width" type="number" min="1" max="90" value="90" required></label><span>×</span><label for="new-height">Height<input id="new-height" type="number" min="1" max="90" value="90" required></label></div>
-            <div class="dialog-actions"><button type="button" data-close="new-dialog">Cancel</button><button type="submit" class="primary">Create track</button></div>
+            <div class="dimensions"><label for="new-width">Width<input id="new-width" type="number" min="1" max="90" value="90" required></label><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-close"></use></svg><label for="new-height">Height<input id="new-height" type="number" min="1" max="90" value="90" required></label></div>
+            <div class="dialog-actions"><button type="button" data-close="new-dialog">Cancel</button><button type="submit" class="primary"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-plus"></use></svg><span>Create track</span></button></div>
         </form>
     </dialog>
     <dialog id="save-dialog" aria-labelledby="save-title">
         <form method="dialog" id="save-form">
-            <div class="dialog-heading"><h2 id="save-title">Save track</h2><button type="button" data-close="save-dialog" class="icon-button" aria-label="Cancel save">×</button></div>
+            <div class="dialog-heading"><span class="dialog-heading-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-save"></use></svg></span><h2 id="save-title">Keep your creation</h2><button type="button" data-close="save-dialog" class="icon-button" aria-label="Cancel save"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div>
             <label class="field-label" for="save-name">Filename</label><div class="filename-field"><input id="save-name" type="text" maxlength="8" required pattern="[^/\\:*?&quot;&lt;&gt;|.]+"><span>.cstrk</span></div>
             <p>Use 1–8 ASCII characters without spaces, matching game filenames.</p><p id="save-destination"></p><p id="save-error" role="alert"></p>
-            <div class="dialog-actions"><button type="button" data-close="save-dialog">Cancel</button><button type="submit" class="primary" id="confirm-save">Save track</button></div>
+            <div class="dialog-actions"><button type="button" data-close="save-dialog">Cancel</button><button type="submit" class="primary" id="confirm-save"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-save"></use></svg><span>Save track</span></button></div>
         </form>
     </dialog>
-    <dialog id="check-dialog" aria-labelledby="check-title"><div class="dialog-heading"><h2 id="check-title">Track check</h2><button type="button" data-close="check-dialog" class="icon-button" aria-label="Close track check">×</button></div><div id="check-results"></div><div class="dialog-actions"><button type="button" data-close="check-dialog" class="primary">Close</button></div></dialog>
+    <dialog id="check-dialog" aria-labelledby="check-title"><div class="dialog-heading"><span class="dialog-heading-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg></span><h2 id="check-title">Ready for the starting line?</h2><button type="button" data-close="check-dialog" class="icon-button" aria-label="Close track check"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-close"></use></svg></button></div><div id="check-results"></div><div class="dialog-actions"><button type="button" data-close="check-dialog" class="primary"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg><span>Done</span></button></div></dialog>
     <input id="track-file-input" class="visually-hidden" type="file" accept=".cstrk">
     <noscript>This editor requires JavaScript to load local game resources and edit tracks.</noscript>
 </body>
