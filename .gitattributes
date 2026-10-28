@@ -50,6 +50,10 @@ makefile text eol=lf
 # Formats that must never pass through text conversion.
 *.rpl binary
 *.RPL binary
+*.cstrk binary
+*.CSTRK binary
+*.csrpl binary
+*.CSRPL binary
 *.res binary
 *.RES binary
 *.3sh binary

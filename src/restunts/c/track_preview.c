@@ -10,6 +10,7 @@
 #include "externs.h"
 #ifdef RESTUNTS_SDL3
 #include "hires.h"
+#include "extended_track.h"
 #endif
 
 #define TRACK_PREVIEW_HALF_SHIFT 1U
@@ -258,8 +259,86 @@ static void track_preview_draw_cell(legacy_u8 column, legacy_u8 row, const struc
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+/* An overview must show the complete extended map. The original perspective
+ * preview's word coordinates and camera fit only thirty tiles. A surface map
+ * avoids wrapping distant cells and also makes stacked terrain legible. */
+static void track_preview_draw_extended(void)
+{
+	const struct CSTRK_TRACK *track = extended_track_model();
+	int pixel_width = 280, pixel_height = 130;
+	if ((int)track->width * pixel_height > (int)track->height * pixel_width) {
+		pixel_height = pixel_width * track->height / track->width;
+	} else {
+		pixel_width = pixel_height * track->width / track->height;
+	}
+	if (pixel_width < 1) {
+		pixel_width = 1;
+	}
+	if (pixel_height < 1) {
+		pixel_height = 1;
+	}
+	int left = (320 - pixel_width) / 2;
+	int top = 35 + (130 - pixel_height) / 2;
+	sprite_clear_target(0);
+	for (unsigned row = 0; row < track->height; row++) {
+		for (unsigned column = 0; column < track->width; column++) {
+			const struct CSTRK_CELL *cell = &track->cells[row * track->width + column];
+			int x1 = left + (int)column * pixel_width / track->width;
+			int x2 = left + (int)(column + 1U) * pixel_width / track->width;
+			int y1 = top + (int)row * pixel_height / track->height;
+			int y2 = top + (int)(row + 1U) * pixel_height / track->height;
+			unsigned level = track->corner_heights[row * (track->width + 1U) + column];
+			legacy_u8 color = cell->surface == CSTRK_TERRAIN_WATER	? 9
+							  : cell->surface == CSTRK_TERRAIN_ICE	? 11
+							  : cell->surface == CSTRK_TERRAIN_DIRT ? 6
+																	: (level > 1U ? 10 : 2);
+			sprite_fill_rect((legacy_s16)x1, (legacy_s16)y1, (legacy_s16)(x2 - x1),
+							 (legacy_s16)(y2 - y1), color);
+			if (cell->half_water_corner) {
+				for (int y = y1; y < y2; y++) {
+					for (int x = x1; x < x2; x++) {
+						int dx = (x - x1) * 1024 / (x2 - x1), dy = (y - y1) * 1024 / (y2 - y1);
+						int water =
+							cell->half_water_corner == CSTRK_WATER_NORTHWEST   ? dx + dy < 1024
+							: cell->half_water_corner == CSTRK_WATER_NORTHEAST ? dx > dy
+							: cell->half_water_corner == CSTRK_WATER_SOUTHEAST ? dx + dy >= 1024
+																			   : dx <= dy;
+						if (water) {
+							sprite_putpixel_clipped((legacy_s16)x, (legacy_s16)y, 9);
+						}
+					}
+				}
+			}
+			const struct CSTRK_OBJECT *object = extended_track_object_at((int)column, (int)row);
+			if (object) {
+				unsigned id = extended_track_object_id(object);
+				int scenery = trkObjectList[id].ss_trkObjInfoPtr == 0;
+				legacy_u8 road_color = scenery								? 14
+									   : object->surface == CSTRK_ROAD_ICE	? 15
+									   : object->surface == CSTRK_ROAD_DIRT ? 6
+																			: 7;
+				if (trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_START_FINISH) {
+					road_color = 12;
+				}
+				sprite_fill_rect((legacy_s16)x1, (legacy_s16)y1, (legacy_s16)(x2 - x1),
+								 (legacy_s16)(y2 - y1), road_color);
+			}
+		}
+	}
+	sprite_draw_rect_outline((legacy_s16)(left - 1), (legacy_s16)(top - 1),
+							 (legacy_s16)(left + pixel_width), (legacy_s16)(top + pixel_height), 8);
+}
+#endif
+
 void draw_track_preview(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		track_preview_draw_extended();
+		return;
+	}
+#endif
 	struct VECTOR camera;
 	camera.x = (legacy_s16)track_preview_camera_x;
 	camera.y = (legacy_s16)track_preview_camera_y;

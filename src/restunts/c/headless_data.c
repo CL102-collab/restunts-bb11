@@ -71,14 +71,19 @@ struct GAMESTATE far *cvxptr;
 
 legacy_u16 legacy_closed_hihat_offset;
 
-legacy_s16 trackrows[30];
-legacy_s16 terrainrows[30];
-legacy_s16 track_row_positions[30];
-legacy_s16 track_row_centers[30];
-legacy_s16 terrainpos[30];
-legacy_s16 terraincenterpos[30];
-legacy_s16 track_column_positions[30];
-legacy_s16 track_column_centers[30];
+#ifdef RESTUNTS_SDL3
+#define TRACK_POSITION_TABLE_CAPACITY 91
+#else
+#define TRACK_POSITION_TABLE_CAPACITY 30
+#endif
+legacy_s16 trackrows[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 terrainrows[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 track_row_positions[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 track_row_centers[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 terrainpos[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 terraincenterpos[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 track_column_positions[TRACK_POSITION_TABLE_CAPACITY];
+legacy_s16 track_column_centers[TRACK_POSITION_TABLE_CAPACITY];
 
 legacy_s16 far *track_primary_route_links;
 legacy_s16 far *track_alternate_route_links;

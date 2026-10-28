@@ -34,6 +34,36 @@ rebuild after adding, changing, or removing recordings; the resulting HTML and
 relink kit contain the configured files. No recordings are included by default.
 See [music asset instructions](../assets/music/README.md).
 
+## Extended 2D track editor
+
+The browser build also supplies `track-editor.html` with its adjacent CSS and
+JavaScript files. Open it directly, or use **Open the extended 2D track editor**
+on the game page. Keep all five `track-editor*` files together for offline use;
+the game itself remains a standalone `restunts.html`.
+
+Selecting your own Stunts folder is required before editing. The editor reads
+`TEDIT`, `SDTEDIT`, and `SDMAIN` resources from that folder for the original
+palette and artwork, and requires `MAIN.RES` or `MAIN.PRE`. No original artwork
+is included in the editor package. Files stay on your device.
+
+The left controls occupy 20% of the desktop view. Terrain tools are separate
+from track elements; shared corner heights support four elevation levels with
+automatic adjoining slopes. Grass, ice, dirt, water, and the half-water hill
+corner are available. Track pieces use their original groups, with dirt and
+ice selected through the separate road surface control. Incompatible pieces
+are disabled. The canvas supports tracks up to 90 × 90 tiles, zooming, panning,
+and an overview map. Use **Track notes** for up to 8000 ASCII characters.
+Undo and redo include terrain strokes, placements, and notes.
+
+**Open** loads `.cstrk` files; the editor does not import legacy `.trk` files.
+**Save** writes `.cstrk` directly to the selected folder in browsers with
+read/write folder access, or downloads the track on the read-only fallback.
+Use filenames with one to eight ASCII characters, without spaces or dots;
+the extension is added automatically. Keep a downloaded track in the Stunts
+folder to use it in the game, or import it on the browser game's fallback path.
+The game accepts `.cstrk` tracks and `.csrpl` replays on SDL3 builds, including
+WebAssembly; entries in these formats appear blue in its load dialogs.
+
 ## Play from a website or offline
 
 You can open a hosted `restunts.html` directly in your browser; saving a copy
@@ -199,9 +229,11 @@ Background tabs may still be throttled by the browser.
 cmake --install out/sdl3-wasm --prefix out/package-wasm --component Runtime
 ```
 
-The installed HTML runs by itself, but redistribute the complete package to
-include the required dependency notices, licenses, and Nuked OPL2 relinking
-materials. Original game files must be supplied separately by each player.
+The installed game HTML runs by itself. The editor needs its adjacent
+`track-editor.html`, `track-editor.css`, `track-editor.js`,
+`track-editor-model.js`, and `track-editor-resources.js`. Redistribute the
+complete package to include those files, the required dependency notices,
+licenses, and Nuked OPL2 relinking materials. Original game files must be supplied separately by each player.
 Do not copy them into the package.
 
 The browser links Nuked OPL2 Lite statically. The package includes its exact

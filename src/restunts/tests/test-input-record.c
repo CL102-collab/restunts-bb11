@@ -13,6 +13,7 @@
 #endif
 #include INPUT_SOURCE
 #include RECORD_SOURCE
+#include "extended-replay-test-stubs.h"
 #undef memcpy
 #undef strcmp
 #undef strlen

@@ -8,6 +8,7 @@
 #include "crash_state.h"
 #include "car_audio.h"
 #ifdef RESTUNTS_SDL3
+#include "extended_replay_runtime.h"
 #include "../platform/sdl3/touch_game.h"
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -289,7 +290,14 @@ void replay_update_input_tick(legacy_s16 force_neutral_input)
 		input_steering_history_valid[(legacy_u16)elapsed_time2 & INPUT_STEERING_HISTORY_MASK] = 0;
 #endif
 	} else if (game_replay_mode == REPLAY_MODE_PLAYBACK) {
-		if (gameconfig.game_recordedframes > elapsed_time2) {
+#ifdef RESTUNTS_SDL3
+		if (extended_replay_is_active()) {
+			if (extended_replay_advance_input()) {
+				return;
+			}
+		} else
+#endif
+			if (gameconfig.game_recordedframes > elapsed_time2) {
 			elapsed_time2++;
 			return;
 		}
@@ -311,6 +319,15 @@ void replay_update_input_tick(legacy_s16 force_neutral_input)
 #endif
 	}
 
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		if (!extended_replay_record_input((uint8_t)input_flags)) {
+			/* Preserve the complete recording if memory or the format limit is reached. */
+			race_exit_request = 1;
+		}
+		return;
+	}
+#endif
 	legacy_u16 recording_limit = LEGACY_U16_WRAP_MUL(REPLAY_TOTAL_LIMIT_SECONDS, framespersec);
 	legacy_u16 elapsed_total = LEGACY_U16_WRAP_ADD(elapsed_time2, elapsed_time1);
 	if (recording_limit <= elapsed_total) {
@@ -369,7 +386,16 @@ void replay_apply_analog_steering_history(void)
 		}
 	}
 	if (action != 0) {
-		replay_input_buffer[frame] |= action;
+#ifdef RESTUNTS_SDL3
+		if (extended_replay_is_active()) {
+			uint32_t actual_frame = extended_replay_frame();
+			(void)extended_replay_replace_input(
+				actual_frame, (uint8_t)(extended_replay_input_at(actual_frame) | action));
+		} else
+#endif
+		{
+			replay_input_buffer[frame] |= action;
+		}
 	}
 	input_steering_history_valid[history_index] = 0;
 }

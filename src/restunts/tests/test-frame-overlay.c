@@ -17,6 +17,7 @@
 #include "../c/game_input.h"
 #include "../c/dashboard.h"
 #include "../c/race_graphics.h"
+#include "extended-replay-test-stubs.h"
 
 #undef strcmp
 #undef memcpy

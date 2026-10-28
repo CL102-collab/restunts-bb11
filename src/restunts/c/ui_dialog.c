@@ -488,7 +488,19 @@ struct FILE_DIALOG {
 	legacy_s8 previous_scroll;
 	legacy_u8 file_count;
 	legacy_u8 search_again;
+#ifdef RESTUNTS_SDL3
+	legacy_u8 extended[128];
+	legacy_u8 merge_formats;
+	const legacy_s8 *legacy_extension;
+#endif
 };
+
+static legacy_s8 selected_file_extension[7];
+
+const legacy_s8 *file_dialog_selected_extension(void)
+{
+	return selected_file_extension;
+}
 
 static void file_dialog_draw_frame(struct FILE_DIALOG *dialog, const legacy_s8 *directory,
 								   legacy_s8 far *prompt)
@@ -521,12 +533,51 @@ static legacy_u16 file_dialog_edit_directory(struct FILE_DIALOG *dialog, legacy_
 									  DIALOG_INPUT_TIMEOUT);
 }
 
-static void file_dialog_collect_names(struct FILE_DIALOG *dialog, const legacy_s8 *found_path)
+static void file_dialog_append_name(struct FILE_DIALOG *dialog, const legacy_s8 *path,
+									legacy_u8 extended)
 {
-	parse_filepath_separators(dialog->filenames[dialog->file_count++], found_path);
-	while (dialog->file_count < 128U && (found_path = file_find_next_alt()) != 0) {
-		parse_filepath_separators(dialog->filenames[dialog->file_count++], found_path);
+#ifdef RESTUNTS_SDL3
+	if (dialog->merge_formats) {
+		const legacy_s8 *stem = path;
+		for (const legacy_s8 *cursor = path; *cursor != 0; cursor++) {
+			if (*cursor == '/' || *cursor == '\\' || *cursor == ':') {
+				stem = cursor + 1;
+			}
+		}
+		legacy_u16 length = 0;
+		while (stem[length] != 0 && stem[length] != '.') {
+			length++;
+		}
+		/* GAMEINFO retains the original eight-character track-name field. */
+		if (length == 0 || length > 8U || stem[length] != '.') {
+			return;
+		}
+		memcpy(dialog->filenames[dialog->file_count], stem, length);
+		dialog->filenames[dialog->file_count][length] = 0;
+	} else {
+		parse_filepath_separators(dialog->filenames[dialog->file_count], path);
 	}
+	dialog->extended[dialog->file_count] = extended;
+#else
+	(void)extended;
+	parse_filepath_separators(dialog->filenames[dialog->file_count], path);
+#endif
+	dialog->file_count++;
+}
+
+static void file_dialog_collect_names(struct FILE_DIALOG *dialog, const legacy_s8 *found_path,
+									  legacy_u8 extended)
+{
+	do {
+		if (dialog->file_count >= 128U) {
+			break;
+		}
+		file_dialog_append_name(dialog, found_path, extended);
+	} while (dialog->file_count < 128U && (found_path = file_find_next_alt()) != 0);
+}
+
+static void file_dialog_sort_names(struct FILE_DIALOG *dialog)
+{
 	for (legacy_u16 index = 0; index + 1U < dialog->file_count; index++) {
 		for (legacy_u16 compare_index = index + 1U; compare_index < dialog->file_count;
 			 compare_index++) {
@@ -534,6 +585,11 @@ static void file_dialog_collect_names(struct FILE_DIALOG *dialog, const legacy_s
 				strcpy(&resID_byte1, dialog->filenames[index]);
 				strcpy(dialog->filenames[index], dialog->filenames[compare_index]);
 				strcpy(dialog->filenames[compare_index], &resID_byte1);
+#ifdef RESTUNTS_SDL3
+				legacy_u8 format = dialog->extended[index];
+				dialog->extended[index] = dialog->extended[compare_index];
+				dialog->extended[compare_index] = format;
+#endif
 			}
 		}
 	}
@@ -565,6 +621,19 @@ static void file_dialog_draw_rows(struct FILE_DIALOG *dialog)
 		}
 		if (candidate < (legacy_s16)dialog->file_count) {
 			strcpy(&resID_byte1, dialog->filenames[(legacy_u8)candidate]);
+#ifdef RESTUNTS_SDL3
+			if (dialog->merge_formats) {
+				const legacy_s8 *extension = dialog->legacy_extension;
+				if (dialog->extended[(legacy_u8)candidate]) {
+					extension = strcmp(extension, ".trk") == 0 ? ".cstrk" : ".csrpl";
+					/* The original palette's color 1 is blue. Keep the name blue
+					 * when selected, with the usual bright selection background. */
+					font_set_colors(1, candidate == dialog->selected ? dialog_fnt_colour
+																	 : dialog_background_color);
+				}
+				strcat(&resID_byte1, extension);
+			}
+#endif
 			font_draw_text_opaque(&resID_byte1, dialog->positions[2],
 								  dialog->hit_areas[visible_row + 2U].y1);
 		} else if (dialog->file_count == 0) {
@@ -694,6 +763,12 @@ static legacy_s8 file_dialog_choose(struct FILE_DIALOG *dialog, legacy_s8 *direc
 			break;
 		}
 		strcpy(filename, dialog->filenames[(legacy_u8)dialog->selected]);
+#ifdef RESTUNTS_SDL3
+		if (dialog->merge_formats && dialog->extended[(legacy_u8)dialog->selected]) {
+			strcpy(selected_file_extension,
+				   strcmp(dialog->legacy_extension, ".trk") == 0 ? ".cstrk" : ".csrpl");
+		}
+#endif
 		result = 1;
 		break;
 	}
@@ -701,9 +776,21 @@ static legacy_s8 file_dialog_choose(struct FILE_DIALOG *dialog, legacy_s8 *direc
 }
 
 static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *filename,
-										   legacy_s8 *extension, legacy_s8 far *prompt)
+										   legacy_s8 *extension, legacy_s8 far *prompt,
+										   legacy_u8 merge_formats)
 {
 	struct FILE_DIALOG dialog;
+#ifdef RESTUNTS_SDL3
+	dialog.merge_formats =
+		merge_formats && (strcmp(extension, ".trk") == 0 || strcmp(extension, ".rpl") == 0);
+	dialog.legacy_extension = extension;
+#else
+	(void)merge_formats;
+#endif
+	selected_file_extension[0] = 0;
+	if (strlen(extension) < sizeof(selected_file_extension)) {
+		strcpy(selected_file_extension, extension);
+	}
 	legacy_s16 dialog_result = LEGACY_S16_FROM_BITS(show_text_input_dialog(
 		DIALOG_SAVE_BACKGROUND, locate_text_res(mainresptr, file_load_dialog_id),
 		DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, dialog.positions));
@@ -718,7 +805,19 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 		mouse_draw_transparent_check();
 		dialog.file_count = 0;
 		const legacy_s8 *found_path = file_combine_and_find(directory, "*", extension);
-		if (found_path == 0) {
+		if (found_path != 0) {
+			file_dialog_collect_names(&dialog, found_path, 0);
+		}
+#ifdef RESTUNTS_SDL3
+		if (dialog.merge_formats) {
+			found_path = file_combine_and_find(
+				directory, "*", strcmp(extension, ".trk") == 0 ? ".cstrk" : ".csrpl");
+			if (found_path != 0) {
+				file_dialog_collect_names(&dialog, found_path, 1);
+			}
+		}
+#endif
+		if (dialog.file_count == 0) {
 #ifdef __EMSCRIPTEN__
 			/* An invalid path must return to the list before the player chooses
 			 * to edit again, rather than reopening the touch keyboard forever. */
@@ -732,9 +831,8 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 #ifdef __EMSCRIPTEN__
 			}
 #endif
-		} else {
-			file_dialog_collect_names(&dialog, found_path);
 		}
+		file_dialog_sort_names(&dialog);
 		file_dialog_draw_scroll_labels(&dialog);
 		result = file_dialog_choose(&dialog, directory, filename);
 		if (dialog.search_again == 0) {
@@ -752,7 +850,20 @@ legacy_s8 do_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename, legacy
 #ifdef RESTUNTS_SDL3
 	sdl3_input_push_modal();
 #endif
-	legacy_s8 result = do_fileselect_dialog_impl(directory, filename, extension, prompt);
+	legacy_s8 result = do_fileselect_dialog_impl(directory, filename, extension, prompt, 0);
+#ifdef RESTUNTS_SDL3
+	sdl3_input_pop_modal();
+#endif
+	return result;
+}
+
+legacy_s8 do_format_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename,
+									  legacy_s8 *extension, legacy_s8 far *prompt)
+{
+#ifdef RESTUNTS_SDL3
+	sdl3_input_push_modal();
+#endif
+	legacy_s8 result = do_fileselect_dialog_impl(directory, filename, extension, prompt, 1);
 #ifdef RESTUNTS_SDL3
 	sdl3_input_pop_modal();
 #endif

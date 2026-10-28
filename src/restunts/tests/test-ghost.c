@@ -6,6 +6,8 @@
 
 #include "../c/ghost.h"
 #include "../c/externs.h"
+#define EXTENDED_TEST_GHOST_STUBS
+#include "extended-replay-test-stubs.h"
 #include "../c/platform.h"
 #include "../c/residue.h"
 #include "../c/trackdata_layout.h"

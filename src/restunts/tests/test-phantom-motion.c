@@ -10,6 +10,7 @@ legacy_s16 car_working_pitch, car_working_roll, car_working_yaw;
 legacy_u16 framespersec;
 legacy_s16 planindex;
 struct PLANE *planptr;
+struct PLANE *current_planptr;
 
 #define TEST_CORNERING_GRIP 500
 #define TEST_CORNERING_SURFACE_GRIP 256
@@ -198,6 +199,7 @@ static void test_contact_residual_applies_to_wheel(void)
 	struct PLAYER_WHEEL_MOTION motion = {0};
 	mat_rot_y(&plane.plane_rotation, 0);
 	planptr = &plane;
+	current_planptr = &plane;
 	planindex = 0;
 	framespersec = GAME_FRAME_RATE_NORMAL;
 	player_motion_fraction = 21845UL;

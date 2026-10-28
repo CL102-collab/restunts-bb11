@@ -221,10 +221,12 @@ set(common_sources
     replinit.c gameinit.c gamestep.c simd.c carsetup.c trkutil.c trackres.c
     headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
     track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
-    owoot.c owoot_wheels.c owoot_road.c owoot_route.c replay.c stateio.c)
+    owoot.c owoot_wheels.c owoot_road.c owoot_route.c replay.c stateio.c
+    cstrk.c csrpl.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c)
 set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
     intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c
+    extended_file.c extended_replay_runtime.c extended_editor.c extended_race_stats.c extended_ghost.c
     race_resources.c dashboard.c menu_common.c menu_main.c menu_options.c
     menu_track.c menu_track_editor.c menu_opponent.c opponent_portrait.c opponent_animation.c menu_background.c
     menu_car.c audio_engine.c
@@ -314,6 +316,7 @@ set(music_tracks titl slct over vict)
 set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STTERR.3SH
     STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
+    RESTUNTS_EDITOR_DIRECTORY="${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm"
     RESTUNTS_MENU_DIRECTORY="${restunts_asset_directory}/menus"
     RESTUNTS_SKYBOX_DIRECTORY="${restunts_asset_directory}/skyboxes"
     RESTUNTS_OPPONENT_DIRECTORY="${restunts_asset_directory}/opponents"
@@ -468,7 +471,44 @@ if(RESTUNTS_BUILD_LAUNCHER)
     include(cmake/launcher.cmake)
 endif()
 
+install(FILES src/restunts/platform/wasm/track-editor.html
+    src/restunts/platform/wasm/track-editor.css src/restunts/platform/wasm/track-editor.js
+    src/restunts/platform/wasm/track-editor-model.js src/restunts/platform/wasm/track-editor-resources.js
+    DESTINATION share/restunts/editor COMPONENT Runtime)
+install(FILES docs/cstrk-format.md docs/csrpl-format.md docs/track-editor.md
+    DESTINATION share/docs/restunts COMPONENT Runtime)
+
 if(RESTUNTS_BUILD_TESTS)
+    add_executable(test-cstrk ${core}/cstrk.c src/restunts/tests/test-cstrk.c)
+    target_compile_options(test-cstrk PRIVATE -UNDEBUG)
+    add_test(NAME cstrk-format COMMAND test-cstrk)
+    add_executable(test-csrpl ${core}/cstrk.c ${core}/csrpl.c ${core}/extended_replay.c
+        src/restunts/tests/test-csrpl.c)
+    target_compile_options(test-csrpl PRIVATE -UNDEBUG)
+    add_test(NAME csrpl-format COMMAND test-csrpl)
+    add_executable(test-extended-replay-runtime ${core}/extended_replay.c
+        ${core}/extended_replay_runtime.c src/restunts/tests/test-extended-replay-runtime.c)
+    target_compile_definitions(test-extended-replay-runtime PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-replay-runtime PRIVATE -UNDEBUG)
+    add_test(NAME extended-replay-runtime COMMAND test-extended-replay-runtime)
+    add_executable(test-extended-ghost ${core}/extended_ghost.c ${core}/cstrk.c ${core}/csrpl.c
+        src/restunts/tests/test-extended-ghost.c)
+    target_compile_definitions(test-extended-ghost PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-ghost PRIVATE -UNDEBUG)
+    add_test(NAME extended-ghost COMMAND test-extended-ghost)
+    add_executable(test-extended-track ${common_sources} ${core}/headless.c ${platform_common}
+        src/restunts/tests/test-extended-track.c)
+    target_compile_definitions(test-extended-track PRIVATE RESTUNTS_HEADLESS)
+    target_link_libraries(test-extended-track PRIVATE restunts_options)
+    target_compile_options(test-extended-track PRIVATE -UNDEBUG)
+    add_test(NAME extended-track COMMAND test-extended-track)
+    set_tests_properties(extended-track PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/stunts"
+        SKIP_RETURN_CODE 77)
+    find_program(RESTUNTS_NODE_EXECUTABLE NAMES node nodejs)
+    if(RESTUNTS_NODE_EXECUTABLE)
+        add_test(NAME html-track-editor COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor.js")
+    endif()
     # Fixtures include selected implementation files; discard unrelated code
     # and its unresolved references using the target platform's linker syntax.
     set(restunts_test_section_options -ffunction-sections -fdata-sections)
@@ -482,6 +522,20 @@ if(RESTUNTS_BUILD_TESTS)
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
     enable_testing()
+    add_executable(test-extended-file-dialog src/restunts/tests/test-extended-file-dialog.c
+        ${core}/ui_dialog.c ${core}/ui_input.c ${core}/legacy.c ${core}/strlib.c
+        ${core}/resource.c ${platform}/runtime.c)
+    target_compile_definitions(test-extended-file-dialog PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-file-dialog PRIVATE -UNDEBUG -Wno-pointer-sign
+        ${restunts_test_section_options})
+    target_link_options(test-extended-file-dialog PRIVATE ${restunts_test_gc_sections})
+    add_test(NAME extended-file-dialog COMMAND test-extended-file-dialog)
+    add_executable(test-extended-fileio src/restunts/tests/test-extended-fileio.c ${platform}/file.c)
+    target_compile_definitions(test-extended-fileio PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-fileio PRIVATE -UNDEBUG -Wno-pointer-sign
+        ${restunts_test_section_options})
+    target_link_options(test-extended-fileio PRIVATE ${restunts_test_gc_sections})
+    add_test(NAME extended-fileio COMMAND test-extended-fileio)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(test-penalty-routing src/restunts/tests/test-penalty-routing.c
             ${core}/race_route.c ${core}/strlib.c)
@@ -724,6 +778,26 @@ if(RESTUNTS_BUILD_TESTS)
         add_test(NAME sdl3-race-frames COMMAND test-sdl3-race-frames)
     endif()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING AND Python3_Interpreter_FOUND)
+        add_executable(test-extended-render ${platform}/main.c
+            src/restunts/tests/test-extended-render.c)
+        target_compile_definitions(test-extended-render PRIVATE RESTUNTS_PIXLDUMP)
+        target_link_libraries(test-extended-render PRIVATE restunts_game)
+        target_compile_options(test-extended-render PRIVATE -UNDEBUG)
+        add_test(NAME extended-render COMMAND test-extended-render
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts")
+        set_tests_properties(extended-render PROPERTIES
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
+            TIMEOUT 120)
+        add_executable(test-extended-replay-engine ${platform}/main.c
+            src/restunts/tests/test-extended-replay-engine.c)
+        target_compile_definitions(test-extended-replay-engine PRIVATE RESTUNTS_PIXLDUMP)
+        target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
+        target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)
+        add_test(NAME extended-replay-engine COMMAND test-extended-replay-engine
+            --data-dir "${CMAKE_SOURCE_DIR}/stunts")
+        set_tests_properties(extended-replay-engine PROPERTIES
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
+            TIMEOUT 120)
         add_executable(test-render-replay ${platform}/main.c src/restunts/tests/test-render-replay.c)
         target_compile_definitions(test-render-replay PRIVATE RESTUNTS_PIXLDUMP)
         target_link_libraries(test-render-replay PRIVATE restunts_game)
