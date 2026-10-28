@@ -50,6 +50,79 @@ test('terrain reaches four levels and propagates all corner slopes', () => {
     doc.raise(45, 45, -1);
     assert.equal(doc.vertices[45 * 91 + 45], 3);
 });
+test('Level applies each selected surface to the plateau and its generated slopes', () => {
+    for (const surface of [0, 1, 2, 3]) for (const height of [1, 2, 3, 4]) {
+        const doc = new model.Document(12, 12);
+        doc.paint(0, 0, (surface + 1) % 4, 2);
+        const before = doc.snapshot(), history = doc.history.length;
+        doc.level(4, 4, height, surface);
+        assert.deepEqual(doc.tileHeights(4, 4), [height, height, height, height]);
+        for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+            const corners = [y * 13 + x, y * 13 + x + 1, (y + 1) * 13 + x, (y + 1) * 13 + x + 1];
+            const affected = (x === 4 && y === 4) || corners.some(i => doc.vertices[i] !== before.vertices[i]);
+            assert.deepEqual(doc.cells[y * 12 + x], affected ? { surface, halfWaterCorner: 0 } : before.cells[y * 12 + x]);
+        }
+        assert.deepEqual(doc.validate(), []);
+        assert.equal(doc.history.length, history + 1);
+        const after = doc.snapshot();
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+    }
+});
+test('Level recolors an existing height, clears Shore, and supports Ground without losing no-op redo', () => {
+    const doc = new model.Document(8, 8);
+    doc.vertices.fill(3); doc.paint(3, 3, 0, 2);
+    const before = doc.snapshot();
+    doc.level(3, 3, 3, 2);
+    assert.deepEqual(doc.cells[27], { surface: 2, halfWaterCorner: 0 });
+    assert.deepEqual(Array.from(doc.vertices), before.vertices);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    doc.redo(); doc.level(3, 3, 0, 1);
+    assert.deepEqual(doc.tileHeights(3, 3), [0, 0, 0, 0]);
+    assert.deepEqual(doc.cells[27], { surface: 1, halfWaterCorner: 0 });
+    assert.deepEqual(doc.validate(), []);
+    const flat = new model.Document(2, 2);
+    flat.setNotes('future'); flat.undo();
+    flat.level(0, 0, 0, 0);
+    assert.equal(flat.history.length, 0); assert.equal(flat.canRedo, true);
+    flat.level(0, 0, 0, 3);
+    assert.deepEqual(flat.cells[0], { surface: 3, halfWaterCorner: 0 });
+});
+test('Level handles mixed slopes and map edges while Raise and Lower preserve surfaces', () => {
+    for (const [x, y] of [[0, 0], [7, 7], [3, 3]]) for (const height of [0, 2, 4]) {
+        const doc = new model.Document(8, 8);
+        for (let vy = 0; vy <= 8; vy++) for (let vx = 0; vx <= 8; vx++) doc.vertices[vy * 9 + vx] = Math.min(4, vx + vy);
+        doc.level(x, y, height, 1);
+        assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
+        assert.deepEqual(doc.validate(), []);
+        const cells = doc.cells.map(cell => ({ ...cell }));
+        doc.raise(4, 4); doc.raise(4, 4, -1);
+        assert.deepEqual(doc.cells, cells);
+    }
+});
+test('blocked Level leaves heights and surfaces atomic inside and outside a drag', () => {
+    const doc = new model.Document(12, 12);
+    doc.place(4, 3, 3); doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot(), history = doc.history.length;
+    assert.throws(() => doc.level(2, 2, 1, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), before);
+    assert.equal(doc.history.length, history); assert.equal(doc.canRedo, true);
+    doc.beginTransaction('Terrain stroke'); doc.level(8, 8, 1, 1);
+    const earlierTile = doc.snapshot();
+    assert.throws(() => doc.level(2, 2, 1, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), earlierTile);
+    doc.endTransaction(); assert.equal(doc.history.length, history + 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), earlierTile);
+    // The footprint can stay planar while the required extra slope run is lost.
+    const slope = new model.Document(4, 4);
+    for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) slope.vertices[y * 5 + x] = Math.min(x, 2);
+    slope.place(115, 0, 1);
+    const supported = slope.snapshot();
+    assert.throws(() => slope.level(2, 1, 1, 2), /bend/);
+    assert.deepEqual(slope.snapshot(), supported);
+});
 test('one live terrain stroke is one undo operation and undo restores notes', () => {
     const doc = new model.Document(8, 8), before = doc.snapshot();
     doc.beginTransaction('Terrain stroke'); doc.raise(3, 3); doc.raise(3, 3); doc.paint(3, 3, 1, 2); doc.endTransaction();

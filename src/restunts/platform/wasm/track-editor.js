@@ -598,16 +598,7 @@
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
             else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1);
-            else if (tool === 'level') {
-                const level = Number($('terrain-level').value);
-                for (const [x, y] of [[point.x, point.y], [point.x + 1, point.y], [point.x + 1, point.y + 1], [point.x, point.y + 1]]) {
-                    let old = doc.vertices[y * (doc.width + 1) + x];
-                    while (old !== level) {
-                        doc.raise(x, y, level > old ? 1 : -1);
-                        old = doc.vertices[y * (doc.width + 1) + x];
-                    }
-                }
-            }
+            else if (tool === 'level') doc.level(point.x, point.y, Number($('terrain-level').value), Number($('terrain-surface').value));
             scheduleDraw();
         } catch (error) { message(error.message, true); }
     }
@@ -702,7 +693,7 @@
         document.querySelectorAll('[data-piece-direction]').forEach(button => button.addEventListener('click', () => setDirection(Number(button.dataset.pieceDirection))));
         document.querySelectorAll('[data-shore-direction]').forEach(button => button.addEventListener('click', () => setShoreDirection(Number(button.dataset.shoreDirection))));
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
-        $('terrain-surface').addEventListener('change', () => { syncVisualControls(); if (!['paint', 'water-corner'].includes(state.tool)) updateTool('paint'); });
+        $('terrain-surface').addEventListener('change', () => { syncVisualControls(); if (!['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint'); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
         $('piece-group').addEventListener('change', () => { state.group = Number($('piece-group').value); renderPalette(); updateTool('place'); });
         $('undo').addEventListener('click', () => { finishDrag(); state.doc.undo(); refreshDocument(); message('Undid the last edit.'); });

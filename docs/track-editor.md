@@ -30,7 +30,10 @@ preview or use Q / E to change the Shore corner independently of track pieces.
 
 Level shows square choices for heights 1 through 4, plus Ground (0). These
 choices appear only while Level is selected; click a map tile to set its corners
-to the chosen height. Raise and Lower change shared corners one level per click.
+to the chosen height and apply the selected terrain surface to it and any slopes
+created by the height change. Changing the surface keeps Level active. Height
+and material changes undo together; unrelated cells keep their materials.
+Raise and Lower change shared corners one level per click.
 Adjoining corners adjust to form connected slopes, as in SimCity 2000. Every
 surface can be used at any elevation.
 

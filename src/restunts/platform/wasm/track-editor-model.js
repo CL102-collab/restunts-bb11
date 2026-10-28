@@ -135,12 +135,34 @@
             integer(surface, 0, 3, 'terrain surface'); integer(halfWaterCorner, 0, 4, 'water corner');
             return this.transaction('Paint terrain', () => { this.cells[this.cellIndex(x, y)] = { surface, halfWaterCorner }; });
         }
-        matchesPlane(object) {
+        level(x, y, height, surface) {
+            const cell = this.cellIndex(x, y);
+            integer(height, 0, 4, 'terrain level'); integer(surface, 0, 3, 'terrain surface');
+            return this.transaction('Level terrain', () => {
+                const vertices = this.vertices.slice(), affected = new Set([cell]), stride = this.width + 1;
+                for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
+                    // Clamp to the legal slope envelope around the four target corners.
+                    // Staging the whole plateau avoids partial edits if an object blocks it.
+                    const distance = Math.max(x - vx, 0, vx - x - 1) + Math.max(y - vy, 0, vy - y - 1);
+                    const index = vy * stride + vx;
+                    vertices[index] = Math.max(height - distance, Math.min(height + distance, this.vertices[index]));
+                    if (vertices[index] === this.vertices[index]) continue;
+                    for (let cy = Math.max(0, vy - 1); cy <= Math.min(this.height - 1, vy); cy++)
+                        for (let cx = Math.max(0, vx - 1); cx <= Math.min(this.width - 1, vx); cx++) affected.add(cy * this.width + cx);
+                }
+                const invalid = this.objects.find(object => !this.matchesPlane(object, vertices) || !this.hasLongSlope(object, vertices));
+                if (invalid) throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.');
+                const cells = this.cells.slice();
+                for (const index of affected) cells[index] = { surface, halfWaterCorner: 0 };
+                this.vertices = vertices; this.cells = cells;
+            });
+        }
+        matchesPlane(object, vertices = this.vertices) {
             for (let y = 0; y <= object.height; y++) for (let x = 0; x <= object.width; x++)
-                if (this.vertices[(object.y + y) * (this.width + 1) + object.x + x] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
+                if (vertices[(object.y + y) * (this.width + 1) + object.x + x] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
             return true;
         }
-        hasLongSlope(object) {
+        hasLongSlope(object, vertices = this.vertices) {
             const entry = byId.get(object.id);
             if (!entry || !([8, 9, 10, 11].includes(entry.physical) || (entry.physical >= 16 && entry.physical <= 35)) || (!object.slopeX && !object.slopeY)) return true;
             const width = object.slopeX ? Math.max(2, object.width) : object.width;
@@ -150,7 +172,7 @@
                 if (left < 0 || top < 0 || left + width > this.width || top + height > this.height) continue;
                 let matches = true;
                 for (let y = 0; y <= height; y++) for (let x = 0; x <= width; x++)
-                    if (this.vertices[(top + y) * (this.width + 1) + left + x] !== object.baseHeight + (ox + x) * object.slopeX + (oy + y) * object.slopeY) matches = false;
+                    if (vertices[(top + y) * (this.width + 1) + left + x] !== object.baseHeight + (ox + x) * object.slopeX + (oy + y) * object.slopeY) matches = false;
                 if (matches) return true;
             }
             return false;
