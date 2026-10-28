@@ -16,9 +16,9 @@ the right 70%. Use Hide tools / Show tools above the canvas to collapse or reope
 the toolbar while keeping the same zoom and map center. On small screens the
 tools use a wide scrollable drawer below that toggle. The Terrain / Track library
 switch shows one section at a time. Each section remembers its settings; selecting
-Build or an element group opens the track library. New tracks can have any
-dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose dimensions. Names use the game's 1–8 character
-ASCII filename stems.
+Build, Remove or an element group opens the track library. New tracks can have
+any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
+dimensions. Names use the game's 1–8 character ASCII filename stems.
 
 ## Terrain
 
@@ -31,11 +31,13 @@ preview or use Q / E to change the Shore corner independently of track pieces.
 Level shows five square choices, starting with Ground (0), then heights 1
 through 4. These choices appear only while Level is selected; click a map tile
 to set its corners to the chosen height and apply the selected terrain surface
-to it and any slopes created by the height change. Changing the surface keeps Level active. Height
-and material changes undo together; unrelated cells keep their materials.
+to it and any slopes created by the height change. Level supports grass, dirt
+and ice; Water and Level cannot be selected together. Switching between those
+three land surfaces keeps Level active and preserves its height selection.
+Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
-Adjoining corners adjust to form connected slopes, as in SimCity 2000. Every
-surface can be used at any elevation.
+Adjoining corners adjust to form connected slopes, as in SimCity 2000. Paint
+can apply any surface, including water, to terrain at any elevation.
 
 Build a continuous slope before placing a stunt. The complete piece needs a
 single supporting plane over its footprint, including both rows or columns of
