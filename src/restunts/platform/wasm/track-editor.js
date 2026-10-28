@@ -13,6 +13,38 @@
         drag: null, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
+    const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
+    const groupLabels = { 1: 'Roads', 4: 'Stunts', 5: 'Banked', 6: 'Branches', 7: 'Highway', 8: 'Elevated', 9: 'Corkscrews', 10: 'Scenery' };
+    function makeIcon(name) {
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('class', 'icon'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('focusable', 'false');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '#i-' + name); icon.append(use); return icon;
+    }
+    function syncVisualControls() {
+        document.querySelectorAll('[data-surface-for]').forEach(button => {
+            button.setAttribute('aria-pressed', String($(button.dataset.surfaceFor).value === button.dataset.value));
+        });
+        document.querySelectorAll('[data-level]').forEach(button => {
+            button.setAttribute('aria-pressed', String($('terrain-level').value === button.dataset.level));
+        });
+        document.querySelectorAll('[data-group]').forEach(button => {
+            button.setAttribute('aria-pressed', String(Number(button.dataset.group) === state.group));
+        });
+    }
+    function renderSelection() {
+        const selected = state.selected, preview = $('selected-preview'), c = preview.getContext('2d');
+        c.clearRect(0, 0, preview.width, preview.height);
+        if (selected) {
+            c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
+            drawPiece(c, selected, 0, 0, preview.width, preview.height, Number($('road-surface').value), state.rotation, true);
+        }
+        $('selected-piece').textContent = selected ? selected.name : 'No compatible pieces';
+        document.querySelector('.selection-label').textContent = selected ? 'READY TO BUILD' : 'TRY ANOTHER SURFACE';
+        const width = selected && (state.rotation % 2 ? selected.height : selected.width);
+        const height = selected && (state.rotation % 2 ? selected.width : selected.height);
+        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
+    }
 
     function message(text, error = false) {
         $('status').textContent = text;
@@ -59,12 +91,15 @@
         canvas.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
         const labels = { place: 'Build track', erase: 'Erase track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
+        const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
+        document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
         scheduleDraw();
     }
     function rotate(amount) {
         if (!state.ready) return;
         state.rotation = (state.rotation + amount + 4) % 4;
         $('rotation').textContent = state.rotation * 90 + '°';
+        renderSelection();
         scheduleDraw();
     }
     function catalogEntry(id) { return model.catalog.find(p => p.id === id); }
@@ -76,7 +111,7 @@
         container.replaceChildren();
         const entries = groupEntries();
         const roadSurface = Number($('road-surface').value);
-        if (!state.selected || !entries.some(p => p.id === state.selected.id)) state.selected = entries.find(p => p.surfaces.includes(roadSurface)) || entries[0];
+        if (!state.selected || !state.selected.surfaces.includes(roadSurface) || !entries.some(p => p.id === state.selected.id)) state.selected = entries.find(p => p.surfaces.includes(roadSurface)) || null;
         for (const piece of entries) {
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'piece-button';
@@ -93,18 +128,33 @@
             button.addEventListener('click', () => { state.selected = piece; updateTool('place'); renderPalette(); });
             container.append(button);
         }
-        $('selected-piece').textContent = state.selected ? state.selected.name + ' · ' + state.selected.width + ' × ' + state.selected.height + ' tiles' : 'No elements in this group';
+        $('active-group-name').textContent = groupLabels[state.group] || 'Track pieces';
+        $('palette-count').textContent = entries.length + ' pieces';
+        renderSelection();
+        syncVisualControls();
         scheduleDraw();
     }
     function buildGroups() {
         $('piece-group').replaceChildren();
+        $('piece-groups').replaceChildren();
         for (const group of model.groups) {
             // Dirt and ice are surface choices rather than separate palettes.
             if (group.id === 2 || group.id === 3) continue;
+            const name = group.name.replace(/^F\d+\s*[·:—-]?\s*/, '');
             const option = document.createElement('option');
-            option.value = group.id;
-            option.textContent = 'F' + group.id + ' · ' + group.name.replace(/^F\d+\s*[·:—-]?\s*/, '');
+            option.value = group.id; option.textContent = 'F' + group.id + ' · ' + name;
             $('piece-group').append(option);
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'group-choice'; button.dataset.group = group.id;
+            button.title = name + ' (F' + group.id + ')'; button.setAttribute('aria-label', button.title);
+            const label = document.createElement('span'); label.className = 'group-label'; label.textContent = groupLabels[group.id] || name;
+            const key = document.createElement('kbd'); key.textContent = 'F' + group.id;
+            button.append(makeIcon(groupIcons[group.id] || 'road'), label, key);
+            button.addEventListener('click', () => {
+                $('piece-group').value = String(group.id);
+                $('piece-group').dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            $('piece-groups').append(button);
         }
         state.group = Number($('piece-group').value) || 1;
         renderPalette();
@@ -151,7 +201,7 @@
             state.resources = resources; state.files = normalized; state.diskNames = diskNames; state.folder = directory;
             state.iconCache.clear(); state.ready = true;
             $('editor-controls').disabled = false;
-            $('folder-button').textContent = 'Folder: ' + name;
+            $('folder-button-label').textContent = name;
             $('folder-button').title = 'Change Stunts folder (' + (directory ? 'direct saving' : 'read-only selection') + ')';
             $('canvas-empty').hidden = true;
             $('folder-dialog').close();
@@ -326,10 +376,10 @@
         if (canvas.width !== Math.round(view.width * ratio) || canvas.height !== Math.round(view.height * ratio)) {
             canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
         }
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.fillStyle = '#18231b'; ctx.fillRect(0, 0, view.width, view.height);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.fillStyle = '#171c22'; ctx.fillRect(0, 0, view.width, view.height);
         const doc = state.doc, size = baseTile * view.zoom;
         if (!doc) {
-            ctx.strokeStyle = '#71846814'; ctx.lineWidth = 1;
+            ctx.strokeStyle = '#8ca3b214'; ctx.lineWidth = 1;
             for (let x = view.x % size; x < view.width; x += size) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, view.height); ctx.stroke(); }
             for (let y = view.y % size; y < view.height; y += size) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(view.width, y); ctx.stroke(); }
             return;
@@ -347,7 +397,7 @@
             for (let x = x0; x <= x1; x++) { const px = Math.round(view.x + x * size) + .5; ctx.beginPath(); ctx.moveTo(px, view.y + y0 * size); ctx.lineTo(px, view.y + y1 * size); ctx.stroke(); }
             for (let y = y0; y <= y1; y++) { const py = Math.round(view.y + y * size) + .5; ctx.beginPath(); ctx.moveTo(view.x + x0 * size, py); ctx.lineTo(view.x + x1 * size, py); ctx.stroke(); }
         }
-        ctx.strokeStyle = '#a5b58b'; ctx.lineWidth = 1; ctx.strokeRect(view.x - .5, view.y - .5, doc.width * size + 1, doc.height * size + 1);
+        ctx.strokeStyle = '#a5b58b99'; ctx.lineWidth = 1; ctx.strokeRect(view.x - .5, view.y - .5, doc.width * size + 1, doc.height * size + 1);
         if (state.hover && state.tool !== 'pan') drawCursor(size);
         if (size >= 20) drawCoordinates(size, x0, y0, x1, y1);
         drawMinimap();
@@ -481,6 +531,15 @@
     }
 
     function installEvents() {
+        document.querySelectorAll('[data-surface-for]').forEach(button => button.addEventListener('click', () => {
+            const control = $(button.dataset.surfaceFor);
+            control.value = button.dataset.value;
+            control.dispatchEvent(new Event('change', { bubbles: true }));
+        }));
+        document.querySelectorAll('[data-level]').forEach(button => button.addEventListener('click', () => {
+            $('terrain-level').value = button.dataset.level;
+            $('terrain-level').dispatchEvent(new Event('input', { bubbles: true }));
+        }));
         $('choose-folder').addEventListener('click', chooseFolder);
         $('folder-button').addEventListener('click', () => showDialog('folder-dialog'));
         $('use-fallback').addEventListener('click', enableFallback);
@@ -498,8 +557,8 @@
         document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => closeDialog(button.dataset.close)));
         document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => updateTool(button.dataset.tool)));
         $('rotate-left').addEventListener('click', () => rotate(-1)); $('rotate-right').addEventListener('click', () => rotate(1));
-        $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; });
-        $('terrain-surface').addEventListener('change', () => { if (!['paint', 'water-corner'].includes(state.tool)) updateTool('paint'); });
+        $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
+        $('terrain-surface').addEventListener('change', () => { syncVisualControls(); if (!['paint', 'water-corner'].includes(state.tool)) updateTool('paint'); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
         $('piece-group').addEventListener('change', () => { state.group = Number($('piece-group').value); renderPalette(); updateTool('place'); });
         $('undo').addEventListener('click', () => { finishDrag(); state.doc.undo(); refreshDocument(); message('Undid the last edit.'); });
@@ -588,10 +647,11 @@
             $('choose-folder').disabled = true; $('folder-input').disabled = true;
             return;
         }
+        buildGroups(); syncVisualControls();
         if (!window.showDirectoryPicker) enableFallback();
         if (window.showDirectoryPicker) rememberFolder().then(folder => {
             if (!folder || !folder.requestPermission) return;
-            state.remembered = folder; $('restore-folder').hidden = false; $('restore-folder').textContent = 'Reconnect ' + folder.name;
+            state.remembered = folder; $('restore-folder').hidden = false; $('restore-folder-label').textContent = 'Reconnect ' + folder.name;
         }).catch(() => {});
     }
     start();
