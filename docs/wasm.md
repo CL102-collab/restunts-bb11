@@ -46,11 +46,13 @@ Selecting your own Stunts folder is required before editing. The editor reads
 palette and artwork, and requires `MAIN.RES` or `MAIN.PRE`. No original artwork
 is included in the editor package. Files stay on your device.
 
-The left controls occupy 20% of the desktop view. Terrain tools are separate
-from track elements; shared corner heights support four elevation levels with
-automatic adjoining slopes. Grass, ice, dirt, water, and the half-water hill
-corner are available. Track pieces use their original groups, with dirt and
-ice selected through the separate road surface control. Incompatible pieces
+The left controls occupy 20% of the desktop view. A Terrain / Track library
+switch shows one section at a time. Each track shape appears once, with four
+direction arrows updating the palette thumbnails and the variation to place.
+Terrain tools are separate from track elements; shared corner heights support
+four elevation levels with automatic adjoining slopes. Grass, ice, dirt, water,
+and the half-water hill corner are available. Track pieces use their original
+groups, with dirt and ice selected through the separate road surface control. Incompatible pieces
 are disabled. The canvas supports tracks up to 90 × 90 tiles, zooming, panning,
 and an overview map. Use **Track notes** for up to 8000 ASCII characters.
 Undo and redo include terrain strokes, placements, and notes.

@@ -7,6 +7,39 @@ const model = require('../../src/restunts/platform/wasm/track-editor-model.js');
 const resources = require('../../src/restunts/platform/wasm/track-editor-resources.js');
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
+test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 8, 4, 2, 4, 7, 2, 10]);
+    const families = new Set(model.library.map(p => p.group + ':' + p.physical));
+    assert.equal(families.size, model.library.length);
+    for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
+    for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
+    assert.equal(model.library.filter(p => p.name === 'Highway transition').length, 1);
+});
+test('directions select native artwork and rotate remaining symmetric variations', () => {
+    const piece = id => model.catalog.find(p => p.id === id);
+    for (const [id, expected] of [[111, [111, 112, 113, 114]], [1, [1, 180, 179, 181]], [7, [7, 9, 8, 6]]]) {
+        assert.deepEqual([0, 1, 2, 3].map(direction => model.pieceVariant(piece(id), direction).piece.id), expected);
+    }
+    const eastLoop = model.pieceVariant(piece(64), 1);
+    assert.equal(eastLoop.piece.id, 65); assert.equal(eastLoop.rotation, 0);
+    assert.deepEqual(model.rotatedFootprint(eastLoop.piece, eastLoop.rotation), { width: 2, height: 1, mask: 3 });
+    const southLoop = model.pieceVariant(piece(64), 2);
+    assert.equal(southLoop.piece.id, 64); assert.equal(southLoop.rotation, 2);
+    const eastTurn = model.pieceVariant(piece(11), 1);
+    assert.equal(eastTurn.piece.id, 13); assert.equal(eastTurn.rotation, 0);
+    assert.deepEqual(model.rotatedFootprint(eastTurn.piece, eastTurn.rotation), { width: 2, height: 2, mask: 14 });
+});
+test('every library direction preserves the placement footprint and saved track data', () => {
+    for (const entry of model.library) for (let direction = 0; direction < 4; direction++) {
+        const { piece, rotation } = model.pieceVariant(entry, direction);
+        assert.equal((piece.rotation + rotation) % 4, direction);
+        const expected = model.rotatedFootprint(entry, direction);
+        assert.deepEqual(model.rotatedFootprint(piece, rotation), expected);
+        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation);
+        assert.equal(placed.width, expected.width); assert.equal(placed.height, expected.height); assert.equal(placed.mask, expected.mask);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+    }
+});
 test('terrain reaches four levels and propagates all corner slopes', () => {
     const doc = new model.Document();
     for (let i = 0; i < 8; i++) doc.raise(45, 45);

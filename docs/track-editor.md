@@ -12,9 +12,12 @@ other browsers require folder selection and download the resulting files.
 Reconnect a remembered folder when the browser requests permission.
 
 The controls occupy the left 20% of a desktop window and the 2D track occupies
-the right 80%. Smaller screens use a wider scrollable control panel. New tracks
-can have any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog
-to choose dimensions. Names use the game's 1–8 character ASCII filename stems.
+the right 80%. The Terrain / Track library switch below the editing tools shows
+one section at a time. Each section remembers its settings; selecting Build or
+an element group opens the track library. Smaller screens use a wider scrollable
+control panel. New tracks can have any dimensions from 1 by 1 through 90 by 90
+tiles. Use the New dialog to choose dimensions. Names use the game's 1–8 character
+ASCII filename stems.
 
 ## Terrain
 
@@ -38,6 +41,10 @@ elevated roads and banked roads. Pipes, loops and corkscrews retain their origin
 surface restrictions.
 
 Original editor grouping and icons come from the selected game resources.
+Each shape appears once in the library. The four direction arrows update all
+piece thumbnails and select the variation to place; Q / R also change direction.
+Left/right branches and chicanes remain separate shapes. The Shore tool shows
+its water-corner arrows in the Terrain section when selected.
 Large turns, banked turns, chicanes and elevated turns claim only their occupied
 cells, leaving their empty cells available for scenery or another fitting piece.
 
