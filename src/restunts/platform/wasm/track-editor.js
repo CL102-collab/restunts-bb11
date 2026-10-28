@@ -45,12 +45,9 @@
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
         const water = document.querySelector('[data-surface-for="terrain-surface"][data-value="3"]');
-        water.disabled = state.tool === 'water-corner' || state.tool === 'level';
-        water.title = state.tool === 'water-corner' ? 'Shore combines water with grass, dirt or ice'
-            : state.tool === 'level' ? 'Level supports grass, dirt or ice' : 'Water ground';
-        const level = document.querySelector('[data-tool="level"]');
-        level.disabled = surface === 3;
-        level.title = level.disabled ? 'Select grass, dirt or ice to use Level' : 'Set terrain to the selected elevation and ground surface';
+        water.disabled = state.tool === 'water-corner';
+        water.title = water.disabled ? 'Shore combines water with grass, dirt or ice' : 'Water ground';
+        document.querySelector('[data-tool="level"]').disabled = false;
         const paint = $('paint-preview-row').querySelector('button');
         paint.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase();
         paint.setAttribute('aria-label', paint.title);
@@ -151,7 +148,6 @@
     }
     function selectPanel(panel) { updateTool(panel === 'terrain' ? state.terrainTool : 'place'); }
     function updateTool(tool) {
-        if (tool === 'level' && Number($('terrain-surface').value) === 3) return;
         state.tool = tool;
         if (tool === 'water-corner' && Number($('terrain-surface').value) === 3) $('terrain-surface').value = '0';
         if (['paint', 'raise', 'lower', 'level', 'water-corner'].includes(tool)) {
@@ -700,7 +696,7 @@
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => {
             const water = Number($('terrain-surface').value) === 3;
-            if ((water && ['water-corner', 'level'].includes(state.tool)) || !['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint');
+            if ((water && state.tool === 'water-corner') || !['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint');
             else syncVisualControls();
         });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
