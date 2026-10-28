@@ -31,9 +31,9 @@ preview or use Q / E to change the Shore corner independently of track pieces.
 Level shows five square choices, starting with Ground (0), then heights 1
 through 4. These choices appear only while Level is selected; click a map tile
 to set its corners to the chosen height and apply the selected terrain surface
-to it and any slopes created by the height change. Level supports grass, dirt
-and ice; Water and Level cannot be selected together. Switching between those
-three land surfaces keeps Level active and preserves its height selection.
+to it and any slopes created by the height change. Level supports grass, dirt,
+ice and water. Switching between these surfaces keeps Level active and
+preserves its height selection.
 Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
 Adjoining corners adjust to form connected slopes, as in SimCity 2000. Paint
