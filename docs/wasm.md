@@ -54,8 +54,11 @@ four elevation levels with automatic adjoining slopes. Grass, ice, dirt, water,
 and the half-water hill corner are available. Track pieces use their original
 groups, with dirt and ice selected through the separate road surface control. Incompatible pieces
 are disabled. The canvas supports tracks up to 90 × 90 tiles, zooming, panning,
-and an overview map. Use **Track notes** for up to 8000 ASCII characters.
-Undo and redo include terrain strokes, placements, and notes.
+and an overview map. Paint, Shore and Level show square previews below their
+tool row; the Level height choices are only shown for that tool. Right-button
+dragging pans with any tool, and the Navigator minimap supports click-and-drag
+positioning. Use **Track notes** for up to 8000 ASCII characters. Undo and redo
+include terrain strokes, placements, and notes.
 
 **Open** loads `.cstrk` files; the editor does not import legacy `.trk` files.
 **Save** writes `.cstrk` directly to the selected folder in browsers with

@@ -9,8 +9,8 @@
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
-        drag: null, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
+        rotation: 0, shoreDirection: 0, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        drag: null, navigatorDrag: null, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
     const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
@@ -34,6 +34,35 @@
         document.querySelectorAll('[data-piece-direction]').forEach(button => {
             button.setAttribute('aria-pressed', String(Number(button.dataset.pieceDirection) === state.rotation));
         });
+        document.querySelectorAll('[data-shore-direction]').forEach(button => {
+            button.setAttribute('aria-pressed', String(Number(button.dataset.shoreDirection) === state.shoreDirection));
+        });
+        renderTerrainChoices();
+    }
+    function renderTerrainChoices() {
+        const surface = Number($('terrain-surface').value);
+        $('paint-preview-row').hidden = state.tool !== 'paint';
+        $('shore-direction-row').hidden = state.tool !== 'water-corner';
+        $('level-options-row').hidden = state.tool !== 'level';
+        const water = document.querySelector('[data-surface-for="terrain-surface"][data-value="3"]');
+        water.disabled = state.tool === 'water-corner';
+        water.title = water.disabled ? 'Shore combines water with grass, dirt or ice' : 'Water ground';
+        const paint = $('paint-preview-row').querySelector('button');
+        paint.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase();
+        paint.setAttribute('aria-label', paint.title);
+        drawTerrainPreview($('paint-preview'), surface);
+        document.querySelectorAll('[data-shore-direction]').forEach(button => {
+            drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1);
+        });
+        $('level-options-row').querySelectorAll('[data-level] canvas').forEach(preview => {
+            drawTerrainPreview(preview, surface, Number(preview.parentElement.dataset.level));
+        });
+    }
+    function drawTerrainPreview(preview, surface, level = 0, halfWaterCorner = 0) {
+        const c = preview.getContext('2d');
+        c.clearRect(0, 0, preview.width, preview.height);
+        const doc = { width: 1, cells: [{ surface, halfWaterCorner }], tileHeights: () => [level, level, level, level] };
+        drawTerrain(c, doc, 0, 0, 0, 0, preview.width);
     }
     function renderSelection() {
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
@@ -102,21 +131,29 @@
     function selectPanel(panel) { updateTool(panel === 'terrain' ? state.terrainTool : 'place'); }
     function updateTool(tool) {
         state.tool = tool;
+        if (tool === 'water-corner' && Number($('terrain-surface').value) === 3) $('terrain-surface').value = '0';
         if (['paint', 'raise', 'lower', 'level', 'water-corner'].includes(tool)) {
             state.terrainTool = tool;
             showPanel('terrain');
         } else if (tool === 'place') showPanel('track');
-        $('shore-direction-row').hidden = tool !== 'water-corner';
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
-        canvas.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
+        updateCanvasCursor();
         const labels = { place: 'Build track', erase: 'Erase track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
         const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
+        syncVisualControls();
         scheduleDraw();
     }
     function rotate(amount) {
-        setDirection((state.rotation + amount + 4) % 4);
+        if (state.tool === 'water-corner') setShoreDirection((state.shoreDirection + amount + 4) % 4);
+        else setDirection((state.rotation + amount + 4) % 4);
+    }
+    function setShoreDirection(direction) {
+        if (!state.ready) return;
+        state.shoreDirection = direction;
+        syncVisualControls();
+        scheduleDraw();
     }
     function setDirection(direction) {
         if (!state.ready) return;
@@ -447,7 +484,7 @@
             for (let y = y0; y <= y1; y++) { const py = Math.round(view.y + y * size) + .5; ctx.beginPath(); ctx.moveTo(view.x + x0 * size, py); ctx.lineTo(view.x + x1 * size, py); ctx.stroke(); }
         }
         ctx.strokeStyle = '#a5b58b99'; ctx.lineWidth = 1; ctx.strokeRect(view.x - .5, view.y - .5, doc.width * size + 1, doc.height * size + 1);
-        if (state.hover && state.tool !== 'pan') drawCursor(size);
+        if (state.hover && state.tool !== 'pan' && !state.drag?.panning) drawCursor(size);
         if (size >= 20) drawCoordinates(size, x0, y0, x1, y1);
         drawMinimap();
     }
@@ -543,7 +580,7 @@
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
             else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
-            else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.rotation + 1);
+            else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1);
             else if (tool === 'level') {
                 const level = Number($('terrain-level').value);
                 for (const [x, y] of [[point.x, point.y], [point.x + 1, point.y], [point.x + 1, point.y + 1], [point.x, point.y + 1]]) {
@@ -564,7 +601,31 @@
             if (cancel) state.doc.cancelTransaction(); else state.doc.endTransaction();
             refreshDocument();
         }
-        canvas.style.cursor = state.tool === 'pan' ? 'grab' : 'crosshair';
+        if (canvas.hasPointerCapture(drag.id)) canvas.releasePointerCapture(drag.id);
+        updateCanvasCursor();
+        scheduleDraw();
+    }
+    function updateCanvasCursor() {
+        canvas.style.cursor = state.drag?.panning || state.navigatorDrag ? 'grabbing' : state.tool === 'pan' || state.space ? 'grab' : 'crosshair';
+    }
+    function panFromNavigator(event) {
+        const doc = state.doc, rect = minimap.getBoundingClientRect();
+        const px = (event.clientX - rect.left) / rect.width * minimap.width;
+        const py = (event.clientY - rect.top) / rect.height * minimap.height;
+        const scale = Math.min(minimap.width / doc.width, minimap.height / doc.height);
+        const ox = (minimap.width - doc.width * scale) / 2, oy = (minimap.height - doc.height * scale) / 2;
+        const mapX = Math.max(0, Math.min(doc.width, (px - ox) / scale));
+        const mapY = Math.max(0, Math.min(doc.height, (py - oy) / scale));
+        view.x = view.width / 2 - mapX * baseTile * view.zoom;
+        view.y = view.height / 2 - mapY * baseTile * view.zoom;
+        scheduleDraw();
+    }
+    function finishNavigatorDrag() {
+        if (!state.navigatorDrag) return;
+        const drag = state.navigatorDrag; state.navigatorDrag = null;
+        if (minimap.hasPointerCapture(drag.id)) minimap.releasePointerCapture(drag.id);
+        minimap.style.cursor = 'grab';
+        updateCanvasCursor();
     }
     function updateNotesCount() {
         const text = $('track-notes').value;
@@ -621,6 +682,7 @@
             });
         });
         document.querySelectorAll('[data-piece-direction]').forEach(button => button.addEventListener('click', () => setDirection(Number(button.dataset.pieceDirection))));
+        document.querySelectorAll('[data-shore-direction]').forEach(button => button.addEventListener('click', () => setShoreDirection(Number(button.dataset.shoreDirection))));
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => { syncVisualControls(); if (!['paint', 'water-corner'].includes(state.tool)) updateTool('paint'); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
@@ -642,34 +704,56 @@
         canvas.addEventListener('contextmenu', event => event.preventDefault());
         canvas.addEventListener('wheel', event => { event.preventDefault(); const p = pointAt(event); zoom(Math.exp(-event.deltaY * .0015), p.px, p.py); }, { passive: false });
         canvas.addEventListener('pointerdown', event => {
-            if (!state.ready || state.loading) return;
+            if (!state.ready || state.loading || state.drag || state.navigatorDrag || event.button < 0 || event.button > 2) return;
             event.preventDefault(); canvas.focus({ preventScroll: true });
-            const p = pointAt(event), panning = event.button === 1 || state.space || state.tool === 'pan';
-            finishDrag();
-            state.drag = { id: event.pointerId, panning, x: event.clientX, y: event.clientY, visited: new Set(), editing: !panning, tool: event.button === 2 ? 'erase' : state.tool };
+            const p = pointAt(event), panning = event.button !== 0 || state.space || state.tool === 'pan';
+            state.drag = { id: event.pointerId, buttonMask: [1, 4, 2][event.button], panning, x: event.clientX, y: event.clientY, visited: new Set(), editing: !panning, tool: state.tool };
             canvas.setPointerCapture(event.pointerId);
-            if (panning) canvas.style.cursor = 'grabbing';
-            else { state.doc.beginTransaction(state.drag.tool === 'place' ? 'Place track pieces' : 'Edit ' + state.drag.tool); applyAt(p, state.drag.tool); }
+            updateCanvasCursor();
+            if (!panning) { state.doc.beginTransaction(state.drag.tool === 'place' ? 'Place track pieces' : 'Edit ' + state.drag.tool); applyAt(p, state.drag.tool); }
             hoverAt(p);
         });
         canvas.addEventListener('pointermove', event => {
             const drag = state.drag;
+            if (drag && drag.id !== event.pointerId) return;
             if (drag && drag.id === event.pointerId) {
-                if (drag.panning) { view.x += event.clientX - drag.x; view.y += event.clientY - drag.y; drag.x = event.clientX; drag.y = event.clientY; }
+                // A second mouse button changes `buttons` without another pointerdown.
+                // Commit the preceding stroke, then latch into right-button panning.
+                if ((event.buttons & 2) && drag.buttonMask !== 2) {
+                    if (drag.editing) { state.doc.endTransaction(); drag.editing = false; refreshDocument(); }
+                    drag.panning = true; drag.buttonMask = 2;
+                    drag.x = event.clientX; drag.y = event.clientY;
+                    updateCanvasCursor();
+                }
+                if (!(event.buttons & drag.buttonMask)) { finishDrag(); hoverAt(pointAt(event)); return; }
+                if (drag.panning) { view.x += event.clientX - drag.x; view.y += event.clientY - drag.y; }
                 else applyAt(pointAt(event), drag.tool);
+                drag.x = event.clientX; drag.y = event.clientY;
             }
             hoverAt(pointAt(event));
         });
-        canvas.addEventListener('pointerup', () => finishDrag());
-        canvas.addEventListener('pointercancel', () => finishDrag(true));
-        canvas.addEventListener('lostpointercapture', () => finishDrag());
+        canvas.addEventListener('pointerup', event => { if (state.drag?.id === event.pointerId) finishDrag(); });
+        canvas.addEventListener('pointercancel', event => { if (state.drag?.id === event.pointerId) finishDrag(true); });
+        canvas.addEventListener('lostpointercapture', event => { if (state.drag?.id === event.pointerId) finishDrag(); });
         canvas.addEventListener('pointerleave', () => { if (!state.drag) { state.hover = null; scheduleDraw(); } });
         minimap.addEventListener('pointerdown', event => {
-            if (!state.doc) return;
-            const rect = minimap.getBoundingClientRect(), px = (event.clientX - rect.left) / rect.width * minimap.width, py = (event.clientY - rect.top) / rect.height * minimap.height;
-            const scale = Math.min(minimap.width / state.doc.width, minimap.height / state.doc.height), ox = (minimap.width - state.doc.width * scale) / 2, oy = (minimap.height - state.doc.height * scale) / 2;
-            view.x = view.width / 2 - (px - ox) / scale * baseTile * view.zoom; view.y = view.height / 2 - (py - oy) / scale * baseTile * view.zoom; scheduleDraw();
+            if (!state.ready || state.loading || state.drag || state.navigatorDrag || event.button !== 0) return;
+            event.preventDefault();
+            state.navigatorDrag = { id: event.pointerId };
+            state.hover = null;
+            minimap.setPointerCapture(event.pointerId);
+            minimap.style.cursor = 'grabbing'; updateCanvasCursor();
+            panFromNavigator(event);
         });
+        minimap.addEventListener('contextmenu', event => event.preventDefault());
+        minimap.addEventListener('pointermove', event => {
+            if (state.navigatorDrag?.id !== event.pointerId) return;
+            if (!(event.buttons & 1)) { finishNavigatorDrag(); return; }
+            panFromNavigator(event);
+        });
+        for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+            minimap.addEventListener(name, event => { if (state.navigatorDrag?.id === event.pointerId) finishNavigatorDrag(); });
+        }
         document.addEventListener('keydown', event => {
             if (!state.ready || editableTarget(event.target) || document.querySelector('dialog[open]')) return;
             if (event.target.closest('button') && (event.key === 'Enter' || event.code === 'Space')) return;
@@ -677,7 +761,7 @@
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
             else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); finishDrag(); if (key === 'y' || event.shiftKey) state.doc.redo(); else state.doc.undo(); refreshDocument(); }
-            else if (event.code === 'Space') { event.preventDefault(); state.space = true; canvas.style.cursor = 'grab'; }
+            else if (event.code === 'Space') { event.preventDefault(); state.space = true; updateCanvasCursor(); }
             else if (key === 'r' || key === 'q') { event.preventDefault(); rotate(key === 'r' ? 1 : -1); }
             else if (key === 'b') updateTool('place'); else if (key === 'e') updateTool('erase'); else if (key === 'h') updateTool('pan');
             else if (/^F([1-9]|10)$/.test(event.key)) {
@@ -694,10 +778,10 @@
                 hoverAt({ ...state.cursor, cornerX: state.cursor.x, cornerY: state.cursor.y });
             } else if (key === 'enter' || key === 'delete' || key === 'backspace') {
                 event.preventDefault(); state.doc.transaction('Edit tile', () => applyAt({ ...state.cursor, cornerX: state.cursor.x, cornerY: state.cursor.y }, key === 'enter' ? state.tool : 'erase')); refreshDocument();
-            } else if (key === 'escape') { finishDrag(true); state.hover = null; scheduleDraw(); }
+            } else if (key === 'escape') { finishDrag(true); finishNavigatorDrag(); state.hover = null; scheduleDraw(); }
         });
-        document.addEventListener('keyup', event => { if (event.code === 'Space') { state.space = false; canvas.style.cursor = state.tool === 'pan' ? 'grab' : 'crosshair'; } });
-        window.addEventListener('blur', () => { state.space = false; finishDrag(); });
+        document.addEventListener('keyup', event => { if (event.code === 'Space') { state.space = false; updateCanvasCursor(); } });
+        window.addEventListener('blur', () => { state.space = false; finishDrag(); finishNavigatorDrag(); updateCanvasCursor(); });
         window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
         const container = $('canvas-container');
         container.addEventListener('dragover', event => { if (state.ready) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } });
