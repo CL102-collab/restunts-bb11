@@ -10,7 +10,7 @@
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
         rotation: 0, shoreDirection: 0, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
-        drag: null, navigatorDrag: null, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
+        drag: null, navigatorDrag: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
     const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
@@ -118,6 +118,23 @@
         fitMap();
     }
     function canDiscard() { return !state.dirty || window.confirm('Discard the unsaved changes to ' + state.name + '?'); }
+    function setSidebarCollapsed(collapsed) {
+        finishDrag(); finishNavigatorDrag();
+        const sidebar = $('editor-sidebar'), toggle = $('sidebar-toggle');
+        if (collapsed && sidebar.contains(document.activeElement)) toggle.focus();
+        state.sidebarCollapsed = collapsed;
+        state.hover = null;
+        document.body.classList.toggle('sidebar-collapsed', collapsed);
+        sidebar.inert = collapsed;
+        sidebar.setAttribute('aria-hidden', String(collapsed));
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        const label = collapsed ? 'Show tools' : 'Hide tools';
+        $('sidebar-toggle-label').textContent = label;
+        toggle.setAttribute('aria-label', label);
+        toggle.title = label;
+        // Keep the current zoom and map center as the canvas gains or loses space.
+        requestAnimationFrame(resizeCanvas);
+    }
     function showPanel(panel) {
         state.panel = panel;
         $('terrain-panel').hidden = panel !== 'terrain';
@@ -138,7 +155,7 @@
         } else if (tool === 'place') showPanel('track');
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
         updateCanvasCursor();
-        const labels = { place: 'Build track', erase: 'Erase track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
+        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
         const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
@@ -405,8 +422,8 @@
             c.fillStyle = terrainColor(3, Math.min(...h)); c.fill();
             c.strokeStyle = '#94cfdb99'; c.lineWidth = Math.max(1, size / 32); c.beginPath(); c.moveTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.stroke(); c.restore();
         }
-        if (showHeight && size >= 18) {
-            c.fillStyle = '#eff6dbbd'; c.font = Math.max(8, Math.min(12, size * .29)) + 'px ui-monospace, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+        if (showHeight && size >= 36) {
+            c.fillStyle = '#eff6dbbd'; c.font = (2 * Math.max(8, Math.min(12, size * .29))) + 'px ui-monospace, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
             c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
@@ -489,11 +506,11 @@
         drawMinimap();
     }
     function drawCoordinates(size, x0, y0, x1, y1) {
-        ctx.fillStyle = '#d1dfb69c'; ctx.font = '9px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const top = Math.max(3, view.y - 15);
+        ctx.fillStyle = '#d1dfb69c'; ctx.font = '18px ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        const top = Math.max(3, view.y - 26);
         for (let x = x0; x < x1; x++) if (x % 5 === 0) ctx.fillText(x + 1, view.x + (x + .5) * size, top);
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-        const left = Math.max(3, view.x - 22);
+        const left = Math.max(3, view.x - 32);
         for (let y = y0; y < y1; y++) if (y % 5 === 0) ctx.fillText(y + 1, left, view.y + (y + .5) * size);
     }
     function drawCursor(size) {
@@ -668,6 +685,7 @@
             if (files.size) loadFolder(files, null, name);
         });
         $('folder-dialog').addEventListener('cancel', event => { if (!state.ready) event.preventDefault(); });
+        $('sidebar-toggle').addEventListener('click', () => setSidebarCollapsed(!state.sidebarCollapsed));
         document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => closeDialog(button.dataset.close)));
         document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => updateTool(button.dataset.tool)));
         const panelButtons = Array.from(document.querySelectorAll('[data-editor-panel]'));
@@ -761,9 +779,10 @@
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
             else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); finishDrag(); if (key === 'y' || event.shiftKey) state.doc.redo(); else state.doc.undo(); refreshDocument(); }
+            else if (ctrl || event.altKey) return;
             else if (event.code === 'Space') { event.preventDefault(); state.space = true; updateCanvasCursor(); }
-            else if (key === 'r' || key === 'q') { event.preventDefault(); rotate(key === 'r' ? 1 : -1); }
-            else if (key === 'b') updateTool('place'); else if (key === 'e') updateTool('erase'); else if (key === 'h') updateTool('pan');
+            else if (key === 'e' || key === 'q') { event.preventDefault(); rotate(key === 'e' ? 1 : -1); }
+            else if (key === 'b') updateTool('place'); else if (key === 'r') updateTool('erase'); else if (key === 'h') updateTool('pan');
             else if (/^F([1-9]|10)$/.test(event.key)) {
                 const group = Number(event.key.slice(1));
                 if (model.groups.some(g => g.id === group) && group !== 2 && group !== 3) { event.preventDefault(); state.group = group; $('piece-group').value = group; renderPalette(); updateTool('place'); }
