@@ -5,6 +5,10 @@
 #include "track_objects.h"
 #include "track_collision.h"
 #include "trackdata_layout.h"
+#include "extended_track.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_geometry.h"
+#endif
 
 #define OWOOT_POSITION_SCALE 64L
 #define OWOOT_ROUTE_SUBTYPE_MASK 15U
@@ -77,6 +81,11 @@ static struct OWOOT_POINT route_vector(const struct VECTOR *vector)
 	result.x = vector->x;
 	result.y = vector->y;
 	result.z = vector->z;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		extended_geometry_world_position(vector, &result.x, &result.z);
+	}
+#endif
 	return result;
 }
 
@@ -159,6 +168,16 @@ static void route_bounds(legacy_s16 piece, struct OWOOT_BOUNDS *bounds)
 								 : TRACK_TILE_HALF_SIZE;
 	legacy_s32 center_x = track_object_base_x(object, column);
 	legacy_s32 center_z = track_object_base_z(object, row);
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed =
+			extended_track_object_for_id(column, row, (legacy_u8)track_route_element_ids[piece]);
+		if (placed) {
+			center_x = placed->x * 1024L + placed->width * 512L;
+			center_z = extended_track_height() * 1024L - placed->y * 1024L - placed->height * 512L;
+		}
+	}
+#endif
 	bounds->minimum_x = center_x - half_width;
 	bounds->maximum_x = center_x + half_width;
 	bounds->minimum_z = center_z - half_length;
@@ -188,12 +207,22 @@ static legacy_s16 route_has_finite_portal(legacy_s16 piece)
 
 static legacy_s16 route_owns_position(legacy_s16 piece, const struct OWOOT_POINT *position)
 {
-	if (position->x < 0 || position->z < 0 || position->x >= TRACK_GRID_SIZE * OWOOT_TILE_SIZE ||
-		position->z >= TRACK_GRID_SIZE * OWOOT_TILE_SIZE) {
+	if (position->x < 0 || position->z < 0 ||
+		position->x >= extended_track_width() * OWOOT_TILE_SIZE ||
+		position->z >= extended_track_height() * OWOOT_TILE_SIZE) {
 		return 0;
 	}
 	legacy_s16 column = (legacy_s16)(position->x / OWOOT_TILE_SIZE);
-	legacy_s16 row = TRACK_GRID_LAST_INDEX - (legacy_s16)(position->z / OWOOT_TILE_SIZE);
+	legacy_s16 row =
+		(legacy_s16)(extended_track_height() - 1) - (legacy_s16)(position->z / OWOOT_TILE_SIZE);
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed = extended_track_object_at(column, row);
+		return placed && placed->x == (legacy_u8)track_route_columns[piece] &&
+			   placed->y == (legacy_u8)track_route_rows[piece] &&
+			   extended_track_object_id(placed) == (legacy_u8)track_route_element_ids[piece];
+	}
+#endif
 	legacy_u8 tile = track_element_map[trackrows[row] + column];
 	if (tile == TRACK_TILE_CONTINUATION_SOUTHEAST) {
 		row--;
@@ -222,6 +251,203 @@ static legacy_s16 route_tires_occupy_piece(legacy_s16 piece, const struct OWOOT_
 	}
 	return 0;
 }
+
+#ifdef RESTUNTS_SDL3
+static const struct CSTRK_OBJECT *route_extended_object(legacy_s16 piece)
+{
+	return extended_track_object_for_id((legacy_u8)track_route_columns[piece],
+										(legacy_u8)track_route_rows[piece],
+										(legacy_u8)track_route_element_ids[piece]);
+}
+
+static struct OWOOT_POINT route_extended_origin(const struct CSTRK_OBJECT *placed)
+{
+	struct VECTOR wrapped;
+	extended_geometry_object_origin(extended_track_model(), placed, &wrapped);
+	struct OWOOT_POINT origin = {placed->x * 1024L + placed->width * 512L, wrapped.y,
+								 extended_track_height() * 1024L - placed->y * 1024L -
+									 placed->height * 512L};
+	return origin;
+}
+
+static struct OWOOT_POINT route_extended_unplace(const struct OWOOT_POINT *point,
+												 const struct OWOOT_POINT *origin,
+												 const struct EXTENDED_GEOMETRY_BASIS *basis)
+{
+	struct VECTOR delta = {(legacy_s16)(point->x - origin->x), (legacy_s16)(point->y - origin->y),
+						   (legacy_s16)(point->z - origin->z)},
+				  local;
+	extended_geometry_inverse(basis, &delta, &local);
+	struct OWOOT_POINT result = {local.x, local.y, local.z};
+	return result;
+}
+
+static struct OWOOT_POINT route_extended_direction(const struct OWOOT_POINT *direction,
+												   const struct EXTENDED_GEOMETRY_BASIS *basis)
+{
+	struct VECTOR vector = {(legacy_s16)direction->x, (legacy_s16)direction->y,
+							(legacy_s16)direction->z},
+				  result;
+	extended_geometry_forward(basis, &vector, &result);
+	struct OWOOT_POINT placed = {result.x, result.y, result.z};
+	return placed;
+}
+
+static void route_extended_normalize(struct OWOOT_POINT *vector)
+{
+	double square = (double)vector->x * vector->x + (double)vector->y * vector->y +
+					(double)vector->z * vector->z;
+	if (square == 0.0) {
+		return;
+	}
+	double length = square > 1.0 ? square : 1.0;
+	for (unsigned step = 0; step < 20; step++) {
+		length = (length + square / length) * 0.5;
+	}
+	vector->x = (legacy_s32)(vector->x * OWOOT_GATE_SCALE / length);
+	vector->y = (legacy_s32)(vector->y * OWOOT_GATE_SCALE / length);
+	vector->z = (legacy_s32)(vector->z * OWOOT_GATE_SCALE / length);
+}
+
+static void route_extended_place_gate(struct OWOOT_GATE *gate, const struct OWOOT_POINT *origin,
+									  const struct EXTENDED_GEOMETRY_BASIS *basis)
+{
+	gate->center = route_extended_direction(&gate->center, basis);
+	gate->center.x += origin->x;
+	gate->center.y += origin->y;
+	gate->center.z += origin->z;
+	gate->tangent = route_extended_direction(&gate->tangent, basis);
+	gate->edge = route_extended_direction(&gate->edge, basis);
+	gate->normal = route_extended_direction(&gate->normal, basis);
+	route_extended_normalize(&gate->tangent);
+	route_extended_normalize(&gate->edge);
+	route_extended_normalize(&gate->normal);
+}
+
+static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, legacy_s16 count,
+										   struct OWOOT_GATE *gate)
+{
+	const struct CSTRK_OBJECT *placed = route_extended_object(piece);
+	if (!placed) {
+		return 0;
+	}
+	int model = route_object(piece)->ss_physicalModel;
+	legacy_s32 height, half_width;
+	if (model == PHYSICAL_MODEL_TUNNEL) {
+		height = TUNNEL_HEIGHT;
+		half_width = ROAD_HALF_WIDTH;
+	} else if (model == PHYSICAL_MODEL_PIPE || model == PHYSICAL_MODEL_HALF_PIPE) {
+		height = OWOOT_PIPE_HEIGHT;
+		half_width = OWOOT_PIPE_HALF_WIDTH;
+	} else if (model == PHYSICAL_MODEL_PIPE_ENTRANCE) {
+		height = OWOOT_PIPE_ENTRANCE_HEIGHT;
+		half_width = OWOOT_PIPE_ENTRANCE_HALF_WIDTH;
+	} else {
+		return 0;
+	}
+	struct EXTENDED_GEOMETRY_BASIS basis;
+	extended_geometry_object_basis(placed, &basis);
+	struct OWOOT_POINT origin = route_extended_origin(placed);
+	gate->center = route_extended_unplace(&gate->center, &origin, &basis);
+	struct OWOOT_POINT zero = {0, 0, 0};
+	gate->tangent = route_extended_unplace(&gate->tangent, &zero, &basis);
+	gate->tangent.y = 0;
+	if (route_abs(gate->tangent.x) > route_abs(gate->tangent.z)) {
+		gate->tangent.z = 0;
+		gate->center.z = 0;
+	} else {
+		gate->tangent.x = 0;
+		gate->center.x = 0;
+	}
+	route_normalize(&gate->tangent);
+	gate->center.y = model == PHYSICAL_MODEL_TUNNEL ? height / 2 : 0;
+	gate->edge = (struct OWOOT_POINT){gate->tangent.z, 0, -gate->tangent.x};
+	gate->normal = (struct OWOOT_POINT){0, OWOOT_GATE_SCALE, 0};
+	gate->lateral_limit = half_width * OWOOT_GATE_SCALE;
+	gate->normal_limit = height / 2 * OWOOT_GATE_SCALE;
+	gate->kind = model == PHYSICAL_MODEL_TUNNEL ? OWOOT_GATE_TUNNEL : OWOOT_GATE_PIPE;
+	if (model == PHYSICAL_MODEL_PIPE_ENTRANCE) {
+		gate->kind = OWOOT_GATE_ROAD_SURFACE;
+		gate->normal_limit = 0;
+	} else if (index == 0 || index == count - 1) {
+		legacy_s32 sign = index == count - 1 ? 1 : -1;
+		if (gate->tangent.x) {
+			gate->center.x = gate->tangent.x * sign > 0 ? 512 : -512;
+		} else {
+			gate->center.z = gate->tangent.z * sign > 0 ? 512 : -512;
+		}
+	}
+	route_extended_place_gate(gate, &origin, &basis);
+	return 1;
+}
+
+static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 index,
+												struct OWOOT_GATE *gate)
+{
+	const struct CSTRK_OBJECT *placed = route_extended_object(piece);
+	if (!placed) {
+		return 0;
+	}
+	struct EXTENDED_GEOMETRY_BASIS basis;
+	extended_geometry_object_basis(placed, &basis);
+	struct OWOOT_POINT origin = route_extended_origin(placed);
+	struct OWOOT_POINT first = {0, 0, 0}, last = {0, 0, 0};
+	legacy_s32 highest = 0;
+	int count = (legacy_u8)route_info(piece)->route_point_count;
+	if (count < 2) {
+		return 0;
+	}
+	struct VECTOR section[ROUTE_GEOMETRY_POINT_COUNT];
+	for (int point = 0; point < count; point++) {
+		get_track_route_point(piece, section, (legacy_s16)point, 0);
+		struct OWOOT_POINT world = route_vector(&section[0]);
+		struct OWOOT_POINT local = route_extended_unplace(&world, &origin, &basis);
+		if (!point) {
+			first = local;
+			highest = local.y;
+		}
+		if (point == count - 1) {
+			last = local;
+		}
+		if (local.y > highest) {
+			highest = local.y;
+		}
+	}
+	struct OWOOT_POINT axis = {(first.x + last.x) / 2, (first.y + highest) / 2,
+							   (first.z + last.z) / 2};
+	struct OWOOT_POINT local_center = route_extended_unplace(&gate->center, &origin, &basis);
+	struct OWOOT_POINT radial = route_delta(&local_center, &axis);
+	struct OWOOT_POINT zero = {0, 0, 0}, tangent = {0, 0, 0};
+	struct OWOOT_POINT preferred = route_extended_unplace(&gate->tangent, &zero, &basis);
+	if (route_abs(last.x - first.x) > route_abs(last.z - first.z)) {
+		radial.x = 0;
+		tangent.y = -radial.z;
+		tangent.z = radial.y;
+		gate->edge = (struct OWOOT_POINT){OWOOT_GATE_SCALE, 0, 0};
+	} else {
+		radial.z = 0;
+		tangent.x = -radial.y;
+		tangent.y = radial.x;
+		gate->edge = (struct OWOOT_POINT){0, 0, OWOOT_GATE_SCALE};
+	}
+	if (route_dot(&tangent, &preferred) < 0) {
+		tangent.x = -tangent.x;
+		tangent.y = -tangent.y;
+		tangent.z = -tangent.z;
+	}
+	gate->center = axis;
+	gate->tangent = tangent;
+	gate->normal = radial;
+	route_normalize(&gate->tangent);
+	route_normalize(&gate->normal);
+	gate->lateral_limit = OWOOT_TILE_SIZE * OWOOT_GATE_SCALE;
+	gate->normal_limit = 0;
+	gate->kind = OWOOT_GATE_CORKSCREW_PHASE;
+	route_extended_place_gate(gate, &origin, &basis);
+	(void)index;
+	return 1;
+}
+#endif
 
 static legacy_s16 route_tube_gate(legacy_s16 piece, struct OWOOT_GATE *gate)
 {
@@ -297,6 +523,11 @@ static legacy_s16 route_corkscrew_gate(legacy_s16 piece, legacy_s16 index, struc
 		index == 0 || index == count - 1) {
 		return 0;
 	}
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return route_extended_corkscrew_gate(piece, index, gate);
+	}
+#endif
 	struct VECTOR first[ROUTE_GEOMETRY_POINT_COUNT], last[ROUTE_GEOMETRY_POINT_COUNT],
 		section[ROUTE_GEOMETRY_POINT_COUNT];
 	get_track_route_point(piece, first, 0, 0);
@@ -371,7 +602,12 @@ static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *ga
 	first = route_vector(&section[1]);
 	second = route_vector(&section[2]);
 	gate->edge = route_delta(&second, &first);
-	if (route_tube_gate(piece, gate)) {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active() && route_extended_tube_gate(piece, index, count, gate)) {
+		return;
+	}
+#endif
+	if (!extended_track_active() && route_tube_gate(piece, gate)) {
 		if (route_has_finite_portal(piece) && (index == 0 || index == count - 1)) {
 			struct OWOOT_BOUNDS bounds;
 			route_bounds(piece, &bounds);
@@ -400,10 +636,12 @@ static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *ga
 		first = route_vector(&before[0]);
 		second = route_vector(&after[0]);
 		gate->tangent = route_delta(&second, &first);
-		gate->tangent.y = 0;
-		if (route_abs(gate->tangent.x) > route_abs(gate->tangent.z)) {
+		if (!extended_track_active()) {
+			gate->tangent.y = 0;
+		}
+		if (!extended_track_active() && route_abs(gate->tangent.x) > route_abs(gate->tangent.z)) {
 			gate->tangent.z = 0;
-		} else {
+		} else if (!extended_track_active()) {
 			gate->tangent.x = 0;
 		}
 	}
@@ -511,18 +749,31 @@ static legacy_u16 route_portal_slice(const struct OWOOT_GATE *gate, const struct
 		point.x += translation->x - gate->center.x;
 		point.y += translation->y - gate->center.y;
 		point.z += translation->z - gate->center.z;
+		legacy_s32 plane_distance = route_dot(&point, &gate->tangent) - correction;
 		/* Portal planes are vertical and cardinal. Correct their normal
 		 * coordinate to the exact vertex crossing, avoiding Q1024 time
 		 * rounding that otherwise leaves the first vertex before the plane. */
-		if (gate->tangent.x != 0) {
+		if (extended_track_active()) {
+			legacy_s64 length2 = (legacy_s64)gate->tangent.x * gate->tangent.x +
+								 (legacy_s64)gate->tangent.y * gate->tangent.y +
+								 (legacy_s64)gate->tangent.z * gate->tangent.z;
+			if (length2) {
+				point.x -= (legacy_s32)((legacy_s64)correction * gate->tangent.x / length2);
+				point.y -= (legacy_s32)((legacy_s64)correction * gate->tangent.y / length2);
+				point.z -= (legacy_s32)((legacy_s64)correction * gate->tangent.z / length2);
+			}
+		} else if (gate->tangent.x != 0) {
 			point.x -= correction / gate->tangent.x;
 		} else {
 			point.z -= correction / gate->tangent.z;
 		}
 		relative[index].x = (legacy_s16)(route_dot(&point, &gate->edge) / OWOOT_GATE_SCALE);
-		relative[index].y = (legacy_s16)point.y;
+		relative[index].y = extended_track_active()
+								? (legacy_s16)(route_dot(&point, &gate->normal) / OWOOT_GATE_SCALE)
+								: (legacy_s16)point.y;
 		relative[index].z = 0;
-		distances[index] = route_dot(&point, &gate->tangent);
+		distances[index] =
+			extended_track_active() ? plane_distance : route_dot(&point, &gate->tangent);
 		if (distances[index] == 0) {
 			route_slice_add(slice, &length, &relative[index]);
 		}
@@ -694,23 +945,70 @@ static legacy_s16 route_enter(struct CARSTATE *carstate, legacy_s16 piece,
 	return 1;
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_s16 route_extended_slalom_barrier(legacy_s16 piece, const struct CARSTATE *carstate,
+												const struct OWOOT_TIRES *tires,
+												const struct OWOOT_POINT *motion)
+{
+	const struct CSTRK_OBJECT *placed = route_extended_object(piece);
+	if (!placed) {
+		return 0;
+	}
+	struct EXTENDED_GEOMETRY_BASIS basis;
+	struct VECTOR origin, zero = {0, 0, 0}, local_motion;
+	extended_geometry_object_basis(placed, &basis);
+	extended_geometry_object_origin(extended_track_model(), placed, &origin);
+	struct OWOOT_TIRES local;
+	struct VECTOR body[CARSTATE_WHEEL_COUNT];
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		local.counts[wheel] = tires->counts[wheel];
+		for (legacy_u16 point = 0; point < local.counts[wheel]; point++) {
+			struct VECTOR delta = {LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].x, origin.x),
+								   LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].y, origin.y),
+								   LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].z, origin.z)};
+			extended_geometry_inverse(&basis, &delta, &local.vertices[wheel][point]);
+		}
+		struct VECTOR delta = {
+			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].x, origin.x),
+			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].y, origin.y),
+			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].z, origin.z)};
+		extended_geometry_inverse(&basis, &delta, &body[wheel]);
+	}
+	struct VECTOR world_motion = {(legacy_s16)motion->x, (legacy_s16)motion->y,
+								  (legacy_s16)motion->z};
+	extended_geometry_inverse(&basis, &world_motion, &local_motion);
+	return track_slalom_wheel_envelope_crosses_barrier(local.vertices, local.counts, body, &zero,
+													   route_object(piece)->ss_rotY, &local_motion);
+}
+#endif
+
 static legacy_s16 route_advance(struct CARSTATE *carstate, const struct OWOOT_POINT *previous,
 								const struct OWOOT_POINT *current, const struct OWOOT_TIRES *tires)
 {
 	legacy_s16 piece = carstate->car_reserved_route_word1 - 1;
 	const struct TRACKOBJECT *object = route_object(piece);
 	if (object->ss_physicalModel == PHYSICAL_MODEL_SLALOM) {
-		struct VECTOR center, motion;
-		center.x = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
-		center.y = 0;
-		center.z = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
-		motion.x = (legacy_s16)(current->x - previous->x);
-		motion.y = 0;
-		motion.z = (legacy_s16)(current->z - previous->z);
-		if (track_slalom_wheel_envelope_crosses_barrier(tires->vertices, tires->counts,
-														carstate->car_body_corner_positions,
-														&center, object->ss_rotY, &motion)) {
-			return 0;
+#ifdef RESTUNTS_SDL3
+		if (extended_track_active()) {
+			struct OWOOT_POINT motion = route_delta(current, previous);
+			if (route_extended_slalom_barrier(piece, carstate, tires, &motion)) {
+				return 0;
+			}
+		} else
+#endif
+		{
+			struct VECTOR center, motion;
+			center.x = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
+			center.y = 0;
+			center.z = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
+			motion.x = (legacy_s16)(current->x - previous->x);
+			motion.y = 0;
+			motion.z = (legacy_s16)(current->z - previous->z);
+			if (track_slalom_wheel_envelope_crosses_barrier(tires->vertices, tires->counts,
+															carstate->car_body_corner_positions,
+															&center, object->ss_rotY, &motion)) {
+				return 0;
+			}
 		}
 	}
 	legacy_s16 count = route_gate_count(piece);
@@ -749,6 +1047,11 @@ static legacy_s16 route_advance(struct CARSTATE *carstate, const struct OWOOT_PO
 
 legacy_s16 owoot_route_is_valid(struct CARSTATE *carstate, legacy_s16 allowed_jump)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		extended_geometry_set_context(carstate->car_position.lx, carstate->car_position.lz);
+	}
+#endif
 	struct OWOOT_POINT previous = route_position(&carstate->car_previous_position);
 	struct OWOOT_POINT current = route_position(&carstate->car_position);
 	struct OWOOT_TIRES tires;
@@ -849,6 +1152,15 @@ static legacy_s16 jump_on_deck(legacy_s16 piece, const struct OWOOT_POINT *posit
 	legacy_s32 elevation = track_terrain_map[terrainrows[row] + column] == TERRAIN_RAISED_TILE
 							   ? hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]
 							   : 0;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		int actual_column = (int)(position->x / 1024L);
+		int world_row = (int)(position->z / 1024L);
+		elevation = extended_track_elevation(actual_column, extended_track_height() - 1 - world_row,
+											 (int)(position->x - actual_column * 1024L),
+											 (int)(1024L - position->z + world_row * 1024L));
+	}
+#endif
 	/* Only contact on the upper deck can launch an elevated connection. A
 	 * lower overpass crossing, or the low end of a corkscrew, cannot arm it. */
 	return position->y > elevation + ELEVATED_DECK_CLEARANCE;
@@ -877,6 +1189,15 @@ static legacy_s16 jump_endpoint(legacy_s16 piece, legacy_s16 outgoing, struct OW
 	legacy_u8 row = (legacy_u8)track_route_rows[piece];
 	legacy_s32 owner_x = track_object_base_x(object, column);
 	legacy_s32 owner_z = track_object_base_z(object, row);
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		owner_x =
+			column * 1024L +
+			(((legacy_u8)object->ss_multiTileFlag & MULTI_TILE_COLUMN_EDGE_FLAG) ? 1024L : 512L);
+		owner_z = (extended_track_height() - 1 - row) * 1024L +
+				  (((legacy_u8)object->ss_multiTileFlag & MULTI_TILE_ROW_EDGE_FLAG) ? 0L : 512L);
+	}
+#endif
 	if (((legacy_u8)object->ss_multiTileFlag & MULTI_TILE_COLUMN_EDGE_FLAG) != 0) {
 		owner_x -= TRACK_TILE_HALF_SIZE;
 	}
@@ -990,7 +1311,10 @@ static legacy_s16 jump_find_gap(legacy_s16 launch, legacy_s16 reverse, legacy_s1
 {
 	legacy_s16 piece = launch;
 	struct OWOOT_POINT approach = {0, 0, 0};
-	for (legacy_s16 step = 0; step < TRACK_GRID_SIZE; step++) {
+	for (legacy_s16 step = 0;
+		 step < (extended_track_width() > extended_track_height() ? extended_track_width()
+																  : extended_track_height());
+		 step++) {
 		struct OWOOT_POINT direction;
 		legacy_s32 distance;
 		legacy_s16 next = jump_next(piece, reverse, &approach, step == 0, &direction, &distance);
@@ -1115,8 +1439,9 @@ static legacy_s16 jump_wheel_in_gap(const struct CARSTATE *carstate,
 		struct VECTOR points[OWOOT_WHEEL_VERTEX_COUNT];
 		legacy_u16 count = owoot_wheel_footprint(carstate, wheel, points);
 		for (legacy_u16 point = 0; point < count; point++) {
-			legacy_s32 dx = (legacy_s32)points[point].x - source->x;
-			legacy_s32 dz = (legacy_s32)points[point].z - source->z;
+			struct OWOOT_POINT absolute = route_vector(&points[point]);
+			legacy_s32 dx = absolute.x - source->x;
+			legacy_s32 dz = absolute.z - source->z;
 			points[point].z = (legacy_s16)(dx * direction->x + dz * direction->z);
 			points[point].x = (legacy_s16)(dx * direction->z - dz * direction->x);
 		}
@@ -1129,6 +1454,11 @@ static legacy_s16 jump_wheel_in_gap(const struct CARSTATE *carstate,
 
 legacy_s16 owoot_jump_is_valid(struct CARSTATE *carstate)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		extended_geometry_set_context(carstate->car_position.lx, carstate->car_position.lz);
+	}
+#endif
 	struct OWOOT_POINT current = route_position(&carstate->car_position);
 	struct OWOOT_POINT previous = route_position(&carstate->car_previous_position);
 	if (carstate->car_sumSurfAllWheels != 0) {

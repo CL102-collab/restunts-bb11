@@ -64,9 +64,9 @@ static int cstrk_notes_valid(const char *notes, size_t length, char *error, size
 	}
 	for (size_t index = 0; index < length; index++) {
 		unsigned char value = (unsigned char)notes[index];
-		if (value != '\t' && value != '\r' && value != '\n' &&
-			(value < 0x20U || value > 0x7eU)) {
-			return cstrk_fail(error, error_size, "Notes contain a non-text ASCII byte at %zu", index);
+		if (value != '\t' && value != '\r' && value != '\n' && (value < 0x20U || value > 0x7eU)) {
+			return cstrk_fail(error, error_size, "Notes contain a non-text ASCII byte at %zu",
+							  index);
 		}
 	}
 	return 1;
@@ -89,8 +89,8 @@ void cstrk_free(struct CSTRK_TRACK *track)
 	}
 }
 
-int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height,
-				 char *error, size_t error_size)
+int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
+				 size_t error_size)
 {
 	struct CSTRK_TRACK next;
 	if (track == NULL || !cstrk_dimensions(width, height)) {
@@ -112,13 +112,12 @@ int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height,
 	return 1;
 }
 
-static int cstrk_validate_object(const struct CSTRK_TRACK *track,
-								 const struct CSTRK_OBJECT *object, uint32_t index,
-								 uint8_t *occupied, char *error, size_t error_size)
+static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
+								 uint32_t index, uint8_t *occupied, char *error, size_t error_size)
 {
 	if (object->legacy_id == 0U || object->legacy_id > CSTRK_MAX_LEGACY_ID ||
-		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE ||
-		object->width < 1U || object->width > 2U || object->height < 1U || object->height > 2U ||
+		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE || object->width < 1U ||
+		object->width > 2U || object->height < 1U || object->height > 2U ||
 		object->x + object->width > track->width || object->y + object->height > track->height) {
 		return cstrk_fail(error, error_size, "Object %u has an invalid ID, surface or footprint",
 						  (unsigned)index);
@@ -140,7 +139,8 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track,
 			size_t vertex = ((size_t)object->y + row) * (track->width + 1U) + object->x + column;
 			if (expected < 0 || expected > (int)CSTRK_MAX_HEIGHT ||
 				track->corner_heights[vertex] != expected) {
-				return cstrk_fail(error, error_size, "Object %u does not fit a continuous terrain plane",
+				return cstrk_fail(error, error_size,
+								  "Object %u does not fit a continuous terrain plane",
 								  (unsigned)index);
 			}
 		}
@@ -191,12 +191,13 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
 		if (track->cells[index].surface > CSTRK_TERRAIN_WATER ||
 			track->cells[index].half_water_corner > CSTRK_WATER_SOUTHWEST) {
-			return cstrk_fail(error, error_size, "Terrain cell %zu has an unknown surface or water corner",
-							  index);
+			return cstrk_fail(error, error_size,
+							  "Terrain cell %zu has an unknown surface or water corner", index);
 		}
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error, error_size)) {
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
+								   error_size)) {
 			return 0;
 		}
 	}
@@ -207,8 +208,8 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 	return 1;
 }
 
-int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length,
-					char *error, size_t error_size)
+int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
+					size_t error_size)
 {
 	if (track == NULL || !cstrk_notes_valid(notes, length, error, error_size)) {
 		return track == NULL ? cstrk_fail(error, error_size, "Track is required") : 0;
@@ -222,8 +223,8 @@ int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length,
 	return 1;
 }
 
-int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
-					 char *error, size_t error_size)
+int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object, char *error,
+					 size_t error_size)
 {
 	uint8_t occupied[CSTRK_MAX_OBJECTS] = {0};
 	if (object == NULL || !cstrk_validate(track, error, error_size)) {
@@ -233,13 +234,15 @@ int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *objec
 		return cstrk_fail(error, error_size, "Track has no free object capacity");
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error, error_size)) {
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
+								   error_size)) {
 			return 0;
 		}
 	}
 	/* Copy before realloc so an object already in track->objects is safe input. */
 	struct CSTRK_OBJECT next_object = *object;
-	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, error, error_size)) {
+	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, error,
+							   error_size)) {
 		return 0;
 	}
 	struct CSTRK_OBJECT *next = realloc(track->objects, (track->object_count + 1U) * sizeof(*next));
@@ -269,8 +272,8 @@ static size_t cstrk_payload_size(uint16_t width, uint16_t height, uint32_t objec
 		   (size_t)objects * CSTRK_OBJECT_SIZE + notes;
 }
 
-int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size,
-				 char *error, size_t error_size)
+int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, char *error,
+				 size_t error_size)
 {
 	if (data == NULL || size == NULL) {
 		return cstrk_fail(error, error_size, "Encoded data and size destinations are required");
@@ -278,8 +281,8 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size,
 	if (!cstrk_validate(track, error, error_size)) {
 		return 0;
 	}
-	size_t payload = cstrk_payload_size(track->width, track->height, track->object_count,
-									 track->notes_length);
+	size_t payload =
+		cstrk_payload_size(track->width, track->height, track->object_count, track->notes_length);
 	uint8_t *encoded = calloc(CSTRK_HEADER_SIZE + payload, 1U);
 	if (encoded == NULL) {
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
@@ -322,8 +325,8 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size,
 	return 1;
 }
 
-int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track,
-				 char *error, size_t error_size)
+int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, char *error,
+				 size_t error_size)
 {
 	struct CSTRK_TRACK next;
 	if (track == NULL || data == NULL || size < CSTRK_HEADER_SIZE) {
@@ -340,7 +343,8 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track,
 	uint32_t objects = cstrk_read32(data + 24U);
 	if (!cstrk_dimensions(width, height) || notes_length > CSTRK_MAX_NOTES ||
 		objects > (uint32_t)width * height) {
-		return cstrk_fail(error, error_size, "Track dimensions, notes length or object count exceed limits");
+		return cstrk_fail(error, error_size,
+						  "Track dimensions, notes length or object count exceed limits");
 	}
 	size_t payload = cstrk_payload_size(width, height, objects, notes_length);
 	if (cstrk_read32(data + 28U) != payload || size != CSTRK_HEADER_SIZE + payload) {
@@ -370,7 +374,8 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track,
 		struct CSTRK_OBJECT *object = &next.objects[index];
 		if (cstrk_read32(cursor + 12U) != 0U) {
 			cstrk_free(&next);
-			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags", (unsigned)index);
+			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags",
+							  (unsigned)index);
 		}
 		object->legacy_id = cstrk_read16(cursor);
 		object->x = cursor[2];

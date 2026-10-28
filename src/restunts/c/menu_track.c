@@ -21,6 +21,12 @@
 #include "keyboard.h"
 #include "ghost.h"
 #include "frame_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_file.h"
+#include "extended_track.h"
+#include "extended_replay_runtime.h"
+#include "extended_editor.h"
+#endif
 
 #define TRACK_EDITOR_RESOURCE_FILE_INDEX 3
 #define TRACK_MENU_BUTTON_COUNT 3
@@ -66,7 +72,12 @@ static void track_menu_draw_preview(void)
 	waitflag = TRACK_MENU_PREVIEW_WAIT_TICKS;
 	render_window_sprite = sprite_make_wnd(TRACK_MENU_SCREEN_WIDTH, TRACK_MENU_SCREEN_HEIGHT,
 										   TRACK_MENU_TRANSPARENT_COLOR);
-	load_skybox((legacy_s8)track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
+	load_skybox((legacy_s8)
+#ifdef RESTUNTS_SDL3
+					(extended_track_active() ? 0 : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
+#else
+					track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
+#endif
 	shape3d_load_all();
 	set_projection(TRACK_PREVIEW_PROJECTION_SCALE, TRACK_PREVIEW_PROJECTION_SCALE,
 				   TRACK_MENU_SCREEN_WIDTH, TRACK_MENU_SCREEN_HEIGHT);
@@ -81,6 +92,11 @@ static void track_menu_draw_preview(void)
 
 static void track_menu_draw_highscore(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return;
+	}
+#endif
 	legacy_u8 text_offsets[TRACK_MENU_HIGHSCORE_FIELD_COUNT];
 	struct HIGHSCORE_ENTRY far *scores;
 	if (highscore_load_or_create(0) == 0) {
@@ -226,7 +242,13 @@ void run_tracks_menu(legacy_s16 reload_track)
 			show_waiting();
 			waitflag = TRACK_MENU_SETUP_WAIT_TICKS;
 			track_setup();
+#ifdef RESTUNTS_SDL3
+			if (!extended_track_active()) {
+				load_tracks_menu_shapes();
+			}
+#else
 			load_tracks_menu_shapes();
+#endif
 			ghost_check_track();
 			needs_track_setup = 0;
 		}
@@ -245,11 +267,33 @@ void run_tracks_menu(legacy_s16 reload_track)
 
 			if (menu.selected == TRACK_MENU_LOAD_BUTTON) {
 				legacy_s8 far *prompt = locate_text_res(mainresptr, "trk");
-				legacy_s8 chosen = do_fileselect_dialog(track_directory, gameconfig.game_trackname,
-														".trk", prompt);
-				file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
+#ifdef RESTUNTS_SDL3
+				legacy_s8 previous_name[REPLAY_TRACK_NAME_SIZE];
+				memcpy(previous_name, gameconfig.game_trackname, sizeof(previous_name));
+#endif
+				legacy_s8 chosen = do_format_fileselect_dialog(
+					track_directory, gameconfig.game_trackname, ".trk", prompt);
 				if (chosen != 0) {
+					file_build_path(track_directory, gameconfig.game_trackname,
+									file_dialog_selected_extension(), g_path_buf);
+#ifdef RESTUNTS_SDL3
+					if (strcmp(file_dialog_selected_extension(), ".cstrk") == 0) {
+						if (extended_file_load_track(g_path_buf) != 0) {
+							memcpy(gameconfig.game_trackname, previous_name, sizeof(previous_name));
+							show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
+										(void *)extended_file_error(), DIALOG_AUTO_POSITION,
+										DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+							menu.previous = TRACK_MENU_NO_SELECTION;
+							continue;
+						}
+					} else {
+						extended_track_unload();
+						extended_replay_runtime_clear();
+						file_read_fatal(g_path_buf, track_element_map);
+					}
+#else
 					file_read_fatal(g_path_buf, track_element_map);
+#endif
 					track_setup();
 					ghost_check_track();
 					sprite_free_wnd(render_window_sprite);
@@ -261,7 +305,21 @@ void run_tracks_menu(legacy_s16 reload_track)
 
 			sprite_free_wnd(render_window_sprite);
 			if (menu.selected == TRACK_MENU_EDIT_BUTTON) {
+#ifdef RESTUNTS_SDL3
+				if (extended_track_active()) {
+					if (!extended_editor_open()) {
+						show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
+									"Open track-editor.html to edit Chocolate Stunts tracks.]",
+									DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color,
+									0, 0);
+					}
+					needs_track_setup = 0;
+				} else {
+					needs_track_setup = 1;
+				}
+#else
 				needs_track_setup = 1;
+#endif
 			} else {
 				return;
 			}

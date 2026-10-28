@@ -8,6 +8,9 @@
 #include "hires.h"
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
+#include "extended_track.h"
+#include "extended_file.h"
+#include "extended_replay_runtime.h"
 #ifndef __ANDROID__
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -775,9 +778,26 @@ static legacy_s16 main_menu_select_race(legacy_s16 result, legacy_s8 *start_in_r
 	return 1;
 }
 
+#ifdef RESTUNTS_SDL3
+static uint8_t *main_menu_extended_track_backup;
+static size_t main_menu_extended_track_backup_size;
+#endif
+
 static void main_menu_backup_track(void)
 {
 	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
+#ifdef RESTUNTS_SDL3
+	free(main_menu_extended_track_backup);
+	main_menu_extended_track_backup = NULL;
+	main_menu_extended_track_backup_size = 0;
+	if (extended_track_active()) {
+		char error[128];
+		if (!cstrk_encode(extended_track_model(), &main_menu_extended_track_backup,
+						  &main_menu_extended_track_backup_size, error, sizeof(error))) {
+			fatal_error("Cannot retain track: %s", error);
+		}
+	}
+#endif
 	for (legacy_u16 i = 0; i < REPLAY_TRACK_SIZE; i++) {
 		track_and_directory_backup[i] = track_element_map[i];
 	}
@@ -789,10 +809,37 @@ static void main_menu_backup_track(void)
 
 static void main_menu_restore_track(void)
 {
-	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
-	for (legacy_u16 i = 0; i < REPLAY_TRACK_SIZE; i++) {
-		track_element_map[i] = track_and_directory_backup[i];
+#ifdef RESTUNTS_SDL3
+	int was_extended = extended_track_active() || extended_replay_is_active();
+	if (main_menu_extended_track_backup) {
+		gameconfig = gameconfigcopy;
+		char error[128];
+		if (!extended_track_load(main_menu_extended_track_backup,
+								 main_menu_extended_track_backup_size, error, sizeof(error))) {
+			fatal_error("Cannot restore track: %s", error);
+		}
+		free(main_menu_extended_track_backup);
+		main_menu_extended_track_backup = NULL;
+		main_menu_extended_track_backup_size = 0;
+	} else {
+		extended_track_unload();
+		if (was_extended) {
+			gameconfig = gameconfigcopy;
+		} else {
+			_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
+		}
 	}
+	extended_replay_runtime_clear();
+	if (!extended_track_active()) {
+#else
+	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
+#endif
+		for (legacy_u16 i = 0; i < REPLAY_TRACK_SIZE; i++) {
+			track_element_map[i] = track_and_directory_backup[i];
+		}
+#ifdef RESTUNTS_SDL3
+	}
+#endif
 	for (legacy_s16 i = 0; i < TRACK_PATH_STORAGE_SIZE; i++) {
 		track_directory[i] = track_and_directory_backup[i + TRACK_PRIMARY_PATH_OFFSET];
 		replay_directory[i] = track_and_directory_backup[i + TRACK_SECONDARY_PATH_OFFSET];
@@ -833,6 +880,11 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 		replay_recording_flags = 0;
 	} else {
 		gameconfig.game_recordedframes = 0;
+#ifdef RESTUNTS_SDL3
+		if (extended_track_active()) {
+			extended_replay_runtime_begin();
+		}
+#endif
 	}
 
 	while (1) {
@@ -847,6 +899,11 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 			} else if (result == 1) {
 				// drive
 				gameconfig.game_recordedframes = 0;
+#ifdef RESTUNTS_SDL3
+				if (extended_track_active()) {
+					extended_replay_runtime_begin();
+				}
+#endif
 				continue;
 			}
 		}
@@ -873,7 +930,27 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 
 		if (reload_track != 0) {
 			file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
+#ifdef RESTUNTS_SDL3
+			if (file_find(g_path_buf) == 0) {
+				file_build_path(track_directory, gameconfig.game_trackname, ".cstrk", g_path_buf);
+				if (file_find(g_path_buf) != 0) {
+					if (extended_file_load_track(g_path_buf) != 0) {
+						fatal_error("Cannot load track: %s", extended_file_error());
+					}
+				} else {
+					file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
+					extended_track_unload();
+					extended_replay_runtime_clear();
+					file_read_fatal(g_path_buf, track_element_map);
+				}
+			} else {
+				extended_track_unload();
+				extended_replay_runtime_clear();
+				file_read_fatal(g_path_buf, track_element_map);
+			}
+#else
 			file_read_fatal(g_path_buf, track_element_map);
+#endif
 		}
 
 		idle_expired = 0;

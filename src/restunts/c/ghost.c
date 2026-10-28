@@ -14,6 +14,9 @@
 #include "track_objects.h"
 #ifdef RESTUNTS_SDL3
 #include "frame_interpolation.h"
+#include "extended_ghost.h"
+#include "extended_track.h"
+#include "extended_replay_runtime.h"
 #endif
 
 #define GHOST_TEMP_NAME_SIZE 13U
@@ -36,20 +39,33 @@ static legacy_s8 ghost_temp_name[GHOST_TEMP_NAME_SIZE];
 static legacy_s16 ghost_active;
 static legacy_s16 ghost_cleanup_registered;
 static legacy_s16 ghost_pose_valid;
+#ifdef RESTUNTS_SDL3
+static legacy_u32 ghost_pose_frame;
+static struct EXTENDED_GHOST_REPLAY ghost_extended;
+#else
 static legacy_u16 ghost_pose_frame;
+#endif
 static legacy_u32 ghost_live_frame;
 static legacy_u16 ghost_live_frame_rate;
 #ifdef RESTUNTS_SDL3
 static struct {
 	struct GHOST_POSE lower;
 	struct GHOST_POSE upper;
-	legacy_u16 lower_frame;
-	legacy_u16 upper_frame;
+	legacy_u32 lower_frame;
+	legacy_u32 upper_frame;
 	legacy_u8 valid;
 } ghost_render_cache;
 #endif
 
+#ifdef RESTUNTS_SDL3
+#define GHOST_LINE_GRID_SIZE EXTENDED_TRACK_MAX_DIMENSION
+#define GHOST_LINE_MAP_WIDTH extended_track_width()
+#define GHOST_LINE_MAP_HEIGHT extended_track_height()
+#else
 #define GHOST_LINE_GRID_SIZE TRACK_GRID_SIZE
+#define GHOST_LINE_MAP_WIDTH TRACK_GRID_SIZE
+#define GHOST_LINE_MAP_HEIGHT TRACK_GRID_SIZE
+#endif
 #define GHOST_LINE_TILE_COUNT (GHOST_LINE_GRID_SIZE * GHOST_LINE_GRID_SIZE)
 #define GHOST_LINE_WORLD_TILE_SIZE (1L << TRACK_WORLD_TILE_SHIFT)
 #define GHOST_LINE_WHEEL_POSITION_SCALE                                                            \
@@ -316,8 +332,8 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, ghost_line_scal
 	ghost_line_scalar x = (ghost_line_builder.sample.center.x + end->center.x) / 2;
 	ghost_line_scalar z = (ghost_line_builder.sample.center.z + end->center.z) / 2;
 	if (x < 0 || z < 0 ||
-		x >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * GHOST_LINE_WORLD_TILE_SIZE) ||
-		z >= GHOST_LINE_VALUE(GHOST_LINE_GRID_SIZE * GHOST_LINE_WORLD_TILE_SIZE) ||
+		x >= GHOST_LINE_VALUE(GHOST_LINE_MAP_WIDTH * GHOST_LINE_WORLD_TILE_SIZE) ||
+		z >= GHOST_LINE_VALUE(GHOST_LINE_MAP_HEIGHT * GHOST_LINE_WORLD_TILE_SIZE) ||
 		ghost_line_builder.failed) {
 		return;
 	}
@@ -353,7 +369,7 @@ static void ghost_line_append(const struct GHOST_LINE_POSE *end, ghost_line_scal
 	struct GHOST_RACING_LINE_SEGMENT *segment = &ghost_line_segments[ghost_line_count];
 #endif
 	legacy_u16 east = (legacy_u16)(ghost_line_integer(x) / GHOST_LINE_WORLD_TILE_SIZE);
-	legacy_u16 south = GHOST_LINE_GRID_SIZE - 1U -
+	legacy_u16 south = GHOST_LINE_MAP_HEIGHT - 1U -
 					   (legacy_u16)(ghost_line_integer(z) / GHOST_LINE_WORLD_TILE_SIZE);
 	legacy_u16 tile = south * GHOST_LINE_GRID_SIZE + east;
 	segment->start_left = ghost_line_edge(&ghost_line_builder.sample, -GHOST_LINE_HALF_WIDTH);
@@ -468,8 +484,8 @@ static const struct GHOST_RACING_LINE_SEGMENT *ghost_line_at(legacy_u32 index)
 
 const struct GHOST_RACING_LINE_SEGMENT *ghost_racing_line_first(legacy_s16 east, legacy_s16 south)
 {
-	if (!ghost_is_active() || east < 0 || south < 0 || east >= GHOST_LINE_GRID_SIZE ||
-		south >= GHOST_LINE_GRID_SIZE || ghost_line_count == 0) {
+	if (!ghost_is_active() || east < 0 || south < 0 || east >= (legacy_s16)GHOST_LINE_MAP_WIDTH ||
+		south >= (legacy_s16)GHOST_LINE_MAP_HEIGHT || ghost_line_count == 0) {
 		return 0;
 	}
 	legacy_u32 index = ghost_line_heads[south * GHOST_LINE_GRID_SIZE + east];
@@ -520,6 +536,9 @@ void ghost_end_race(void)
 void ghost_clear(void)
 {
 	ghost_end_race();
+#ifdef RESTUNTS_SDL3
+	extended_ghost_free(&ghost_extended);
+#endif
 	if (ghost_file != 0) {
 		(void)dos_file_close(ghost_file);
 		ghost_file = 0;
@@ -555,6 +574,26 @@ const struct GHOST_CAMERA_STATE *ghost_camera_state(void)
 	return ghost_is_active() && ghost_pose_valid ? &ghost_pose.camera : 0;
 }
 
+static legacy_u32 ghost_recorded_frames(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (ghost_extended.bytes) {
+		return ghost_extended.view.metadata.frame_count;
+	}
+#endif
+	return ghost_config.game_recordedframes;
+}
+
+static legacy_u32 ghost_pose_offset(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (ghost_extended.bytes) {
+		return 0;
+	}
+#endif
+	return replay_file_size(ghost_config.game_recordedframes);
+}
+
 static legacy_s16 ghost_previous_camera_coordinate(legacy_s16 previous, legacy_s16 current)
 {
 	legacy_s32 delta = LEGACY_S16_WRAP_SUB(current, previous);
@@ -567,9 +606,8 @@ void ghost_adjust_camera_motion(struct VECTOR *previous, const struct VECTOR *cu
 	if (!ghost_is_active() || !ghost_pose_valid || ghost_live_frame_rate == 0) {
 		return;
 	}
-	if (ghost_pose_frame == 0 ||
-		ghost_live_frame * ghost_config.game_framespersec >
-			(legacy_u32)ghost_config.game_recordedframes * ghost_live_frame_rate) {
+	if (ghost_pose_frame == 0 || (legacy_u64)ghost_live_frame * ghost_config.game_framespersec >
+									 (legacy_u64)ghost_recorded_frames() * ghost_live_frame_rate) {
 		*previous = *current;
 		return;
 	}
@@ -727,6 +765,98 @@ legacy_s16 ghost_select_replay(const legacy_s8 *directory, const legacy_s8 *name
 	return 0;
 }
 
+#ifdef RESTUNTS_SDL3
+legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,
+									  const legacy_s8 *extension)
+{
+	if (strcmp(extension, ".csrpl") != 0) {
+		uint8_t *previous = NULL;
+		size_t previous_size = 0;
+		if (extended_track_active()) {
+			if (!cstrk_encode(extended_track_model(), &previous, &previous_size, NULL, 0)) {
+				return 1;
+			}
+			extended_track_unload();
+		}
+		legacy_s16 result = ghost_select_replay(directory, name);
+		if (result != 0 && previous) {
+			(void)extended_track_load(previous, previous_size, NULL, 0);
+			(void)track_setup();
+		} else if (result == 0) {
+			extended_replay_runtime_clear();
+		}
+		free(previous);
+		return result;
+	}
+	legacy_s8 path[REPLAY_FILENAME_SIZE];
+	if ((directory ? strlen(directory) : 0) + strlen(name) + sizeof(".csrpl/") > sizeof(path)) {
+		return 1;
+	}
+	file_build_path(directory, name, ".csrpl", path);
+	struct EXTENDED_GHOST_REPLAY candidate = {0};
+	struct GAMEINFO config;
+	if (!extended_ghost_read(path, &candidate, &config)) {
+		return 1;
+	}
+	struct GAMEINFO checked = config;
+	checked.game_recordedframes = 0;
+	if (!ghost_valid_config(&checked)) {
+		extended_ghost_free(&candidate);
+		return 1;
+	}
+	legacy_s8 temp_name[GHOST_TEMP_NAME_SIZE];
+	legacy_u16 destination = ghost_create_file(temp_name, 'H');
+	if (!destination) {
+		extended_ghost_free(&candidate);
+		return 1;
+	}
+	uint8_t *previous = NULL;
+	size_t previous_size = 0;
+	legacy_u8 legacy_track[REPLAY_TRACK_SIZE];
+	if (extended_track_active()) {
+		if (!cstrk_encode(extended_track_model(), &previous, &previous_size, NULL, 0)) {
+			dos_file_close(destination);
+			dos_file_remove(temp_name);
+			extended_ghost_free(&candidate);
+			return 1;
+		}
+	} else {
+		memcpy(legacy_track, track_element_map, sizeof(legacy_track));
+	}
+	int loaded = extended_track_load(candidate.view.track_data, candidate.view.track_size, NULL, 0);
+	if (!loaded || track_setup() != 0) {
+		if (loaded) {
+			if (previous) {
+				(void)extended_track_load(previous, previous_size, NULL, 0);
+			} else {
+				extended_track_unload();
+				memcpy(track_element_map, legacy_track, sizeof(legacy_track));
+				init_row_tables();
+			}
+			(void)track_setup();
+		}
+		free(previous);
+		dos_file_close(destination);
+		dos_file_remove(temp_name);
+		extended_ghost_free(&candidate);
+		return 1;
+	}
+	free(previous);
+	ghost_clear();
+	ghost_file = destination;
+	strcpy(ghost_temp_name, temp_name);
+	ghost_extended = candidate;
+	ghost_config = config;
+	extended_replay_runtime_clear();
+	if (!ghost_cleanup_registered) {
+		add_exit_handler(ghost_cleanup);
+		ghost_cleanup_registered = 1;
+	}
+	memcpy(gameconfig.game_trackname, config.game_trackname, REPLAY_TRACK_NAME_SIZE);
+	return 0;
+}
+#endif
+
 void ghost_check_track(void)
 {
 	if (!ghost_is_selected()) {
@@ -738,6 +868,18 @@ void ghost_check_track(void)
 			return;
 		}
 	}
+#ifdef RESTUNTS_SDL3
+	if (ghost_extended.bytes) {
+		if (!extended_ghost_matches_track(&ghost_extended)) {
+			ghost_clear();
+		}
+		return;
+	}
+	if (extended_track_active()) {
+		ghost_clear();
+		return;
+	}
+#endif
 	if (!ghost_seek(ghost_file, REPLAY_GAMEINFO_SIZE)) {
 		ghost_clear();
 		return;
@@ -771,9 +913,19 @@ legacy_s16 ghost_prepare_race(void)
 	if (!ghost_is_selected() || gameconfig.game_opponenttype != 0) {
 		return 0;
 	}
-	if (!ghost_seek(ghost_file, REPLAY_INPUT_OFFSET) ||
-		dos_file_read(ghost_file, replay_input_buffer, ghost_config.game_recordedframes) !=
-			ghost_config.game_recordedframes) {
+#ifdef RESTUNTS_SDL3
+	if (ghost_extended.bytes &&
+		ghost_recorded_frames() > (legacy_u32)LEGACY_S32_MAX / sizeof(struct GHOST_POSE) - 1U) {
+		return 1;
+	}
+	if (!ghost_extended.bytes)
+#endif
+		if (!ghost_seek(ghost_file, REPLAY_INPUT_OFFSET) ||
+			dos_file_read(ghost_file, replay_input_buffer, ghost_config.game_recordedframes) !=
+				ghost_config.game_recordedframes) {
+			return 1;
+		}
+	if (!ghost_seek(ghost_file, (legacy_s32)ghost_pose_offset())) {
 		return 1;
 	}
 	struct GAMEINFO saved_config = gameconfig;
@@ -796,6 +948,14 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_s16 saved_flag_animation = start_flag_animation;
 	legacy_s8 seed[GAMESTATE_RANDOM_SEED_SIZE];
 	get_kevinrandom_seed(seed);
+#ifdef RESTUNTS_SDL3
+	struct EXTENDED_REPLAY_SUSPENDED saved_extended;
+	extended_replay_runtime_suspend(&saved_extended);
+	if (ghost_extended.bytes && !extended_replay_runtime_load(&ghost_extended.view)) {
+		extended_replay_runtime_resume(&saved_extended);
+		return 1;
+	}
+#endif
 	gameconfig = ghost_config;
 	game_replay_mode = REPLAY_MODE_PLAYBACK;
 	/* Direct impact sounds and result totals have separate replay guards. */
@@ -809,7 +969,7 @@ legacy_s16 ghost_prepare_race(void)
 	ghost_simd = simd_player;
 	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
 	legacy_s16 succeeded = 1;
-	for (legacy_u16 frame = 0; frame <= ghost_config.game_recordedframes; frame++) {
+	for (legacy_u32 frame = 0; frame <= ghost_recorded_frames(); frame++) {
 		if (frame != 0) {
 			update_gamestate_silent();
 		}
@@ -818,8 +978,15 @@ legacy_s16 ghost_prepare_race(void)
 		ghost_pose.camera.follow_position = state.game_follow_camera_position[PLAYER_CAR_INDEX];
 		ghost_pose.camera.previous_position = state.game_player_camera_previous;
 		ghost_pose.camera.trackside_index = state.game_trackside_camera_index[PLAYER_CAR_INDEX];
+#ifdef RESTUNTS_SDL3
+		ghost_pose.camera.frame =
+			ghost_extended.bytes ? extended_replay_frame() : (legacy_u16)state.game_frame;
+		ghost_pose.camera.crash_frame = ghost_extended.bytes ? extended_replay_clocks.player_end
+															 : (legacy_u16)state.game_pEndFrame;
+#else
 		ghost_pose.camera.frame = state.game_frame;
 		ghost_pose.camera.crash_frame = state.game_pEndFrame;
+#endif
 		if (dos_file_write(ghost_file, &ghost_pose, sizeof(ghost_pose)) != sizeof(ghost_pose)) {
 			succeeded = 0;
 			break;
@@ -845,6 +1012,9 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_execution_residue = saved_residue;
 	legacy_render_player_headings_active = saved_render_headings;
 	init_kevinrandom(seed);
+#ifdef RESTUNTS_SDL3
+	extended_replay_runtime_resume(&saved_extended);
+#endif
 	if (!succeeded) {
 		ghost_line_clear();
 		return 1;
@@ -860,31 +1030,29 @@ void ghost_update(legacy_u32 frame, legacy_u16 live_frame_rate)
 	if (!ghost_is_active() || live_frame_rate == 0) {
 		return;
 	}
-	legacy_u32 target = (legacy_u32)frame * ghost_config.game_framespersec / live_frame_rate;
-	if (target > ghost_config.game_recordedframes) {
-		target = ghost_config.game_recordedframes;
-	}
+	legacy_u64 scaled_frame = (legacy_u64)frame * ghost_config.game_framespersec / live_frame_rate;
+	legacy_u32 target =
+		scaled_frame > ghost_recorded_frames() ? ghost_recorded_frames() : (legacy_u32)scaled_frame;
 	if (ghost_pose_valid && target == ghost_pose_frame) {
 		ghost_live_frame = frame;
 		ghost_live_frame_rate = live_frame_rate;
 		return;
 	}
-	legacy_u32 offset =
-		replay_file_size(ghost_config.game_recordedframes) + target * sizeof(struct GHOST_POSE);
+	legacy_u32 offset = ghost_pose_offset() + target * sizeof(struct GHOST_POSE);
 	if (!ghost_seek(ghost_file, (legacy_s32)offset) ||
 		dos_file_read(ghost_file, &ghost_pose, sizeof(ghost_pose)) != sizeof(ghost_pose)) {
 		ghost_end_race();
 		return;
 	}
 	ghost_pose.car.car_sound_flags = CAR_SOUND_NONE;
-	ghost_pose_frame = (legacy_u16)target;
+	ghost_pose_frame = target;
 	ghost_pose_valid = 1;
 	ghost_live_frame = frame;
 	ghost_live_frame_rate = live_frame_rate;
 }
 
 #ifdef RESTUNTS_SDL3
-static legacy_s16 ghost_read_render_pose(legacy_u16 frame, struct GHOST_POSE *pose)
+static legacy_s16 ghost_read_render_pose(legacy_u32 frame, struct GHOST_POSE *pose)
 {
 	if (ghost_pose_valid != 0 && ghost_pose_frame == frame) {
 		*pose = ghost_pose;
@@ -900,8 +1068,7 @@ static legacy_s16 ghost_read_render_pose(legacy_u16 frame, struct GHOST_POSE *po
 			return 1;
 		}
 	}
-	legacy_u32 offset = replay_file_size(ghost_config.game_recordedframes) +
-						(legacy_u32)frame * sizeof(struct GHOST_POSE);
+	legacy_u32 offset = ghost_pose_offset() + (legacy_u32)frame * sizeof(struct GHOST_POSE);
 	return ghost_seek(ghost_file, (legacy_s32)offset) &&
 		   dos_file_read(ghost_file, pose, sizeof(*pose)) == sizeof(*pose);
 }
@@ -917,13 +1084,13 @@ legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame
 	legacy_u64 live_time = (legacy_u64)live_frame * FRAME_INTERPOLATION_ONE;
 	live_time = live_time > lag ? live_time - lag : 0;
 	legacy_u64 source_time = live_time * ghost_config.game_framespersec / live_frame_rate;
-	legacy_u64 end_time = (legacy_u64)ghost_config.game_recordedframes * FRAME_INTERPOLATION_ONE;
+	legacy_u64 end_time = (legacy_u64)ghost_recorded_frames() * FRAME_INTERPOLATION_ONE;
 	if (source_time > end_time) {
 		source_time = end_time;
 	}
-	legacy_u16 lower_frame = (legacy_u16)(source_time / FRAME_INTERPOLATION_ONE);
+	legacy_u32 lower_frame = (legacy_u32)(source_time / FRAME_INTERPOLATION_ONE);
 	legacy_u32 fraction = (legacy_u32)(source_time % FRAME_INTERPOLATION_ONE);
-	legacy_u16 upper_frame = lower_frame + (fraction != 0);
+	legacy_u32 upper_frame = lower_frame + (fraction != 0);
 	struct GHOST_POSE lower, upper;
 	if (!ghost_read_render_pose(lower_frame, &lower)) {
 		return 0;

@@ -4,6 +4,30 @@
 #include <string.h>
 
 #include "../c/externs.h"
+#include "extended-replay-test-stubs.h"
+
+#ifdef RESTUNTS_SDL3
+void sprite_fill_rect(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+					  legacy_s16 color)
+{
+	(void)x;
+	(void)y;
+	(void)width;
+	(void)height;
+	(void)color;
+	assert(0);
+}
+void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legacy_s16 y2,
+							  legacy_s16 color)
+{
+	(void)x1;
+	(void)y1;
+	(void)x2;
+	(void)y2;
+	(void)color;
+	assert(0);
+}
+#endif
 #include "../c/frame_internal.h"
 #include "../c/shape2d.h"
 #include "../c/scene_resources.h"

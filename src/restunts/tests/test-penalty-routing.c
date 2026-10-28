@@ -6,6 +6,7 @@
 #include "../c/race_route.h"
 #include "../c/residue.h"
 #include "../c/track_objects.h"
+#include "extended-replay-test-stubs.h"
 
 struct GAMESTATE state;
 legacy_u16 framespersec = 20;

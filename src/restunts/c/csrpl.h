@@ -36,10 +36,10 @@ struct CSRPL_VIEW {
  * encode allocates *out_data with malloc; the caller must free it. An input is
  * one six-bit control sample for each simulation frame, at 10 or 20 Hz. */
 int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size);
-int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out,
-				 char *error, size_t error_size);
+int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char *error,
+				 size_t error_size);
 int csrpl_encode(const struct CSRPL_METADATA *metadata, const uint8_t *track_data,
-				 size_t track_size, const uint8_t *inputs, size_t input_count,
-				 uint8_t **out_data, size_t *out_size, char *error, size_t error_size);
+				 size_t track_size, const uint8_t *inputs, size_t input_count, uint8_t **out_data,
+				 size_t *out_size, char *error, size_t error_size);
 
 #endif

@@ -59,7 +59,7 @@ int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size
 }
 
 static int csrpl_valid_metadata(const struct CSRPL_METADATA *metadata, char *error,
-								 size_t error_size)
+								size_t error_size)
 {
 	if (metadata->frames_per_second != 10U && metadata->frames_per_second != 20U) {
 		return csrpl_fail(error, error_size, "Replay frame rate must be 10 or 20 Hz.");
@@ -71,22 +71,22 @@ static int csrpl_valid_metadata(const struct CSRPL_METADATA *metadata, char *err
 	return 1;
 }
 
-static int csrpl_valid_inputs(const uint8_t *inputs, size_t size, char *error,
-							   size_t error_size)
+static int csrpl_valid_inputs(const uint8_t *inputs, size_t size, char *error, size_t error_size)
 {
 	if (size != 0U && inputs == NULL) {
 		return csrpl_fail(error, error_size, "Missing replay inputs.");
 	}
 	for (size_t index = 0; index < size; index++) {
 		if ((inputs[index] & (uint8_t)~CSRPL_INPUT_MASK) != 0U) {
-			return csrpl_fail(error, error_size, "Replay input contains unsupported control flags.");
+			return csrpl_fail(error, error_size,
+							  "Replay input contains unsupported control flags.");
 		}
 	}
 	return 1;
 }
 
-int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out,
-				 char *error, size_t error_size)
+int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char *error,
+				 size_t error_size)
 {
 	if (data == NULL || out == NULL || size < CSRPL_HEADER_SIZE) {
 		return csrpl_fail(error, error_size, "Truncated replay header.");
@@ -94,8 +94,7 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out,
 	if (memcmp(data, csrpl_signature, sizeof(csrpl_signature)) != 0) {
 		return csrpl_fail(error, error_size, "Not a Chocolate Stunts replay.");
 	}
-	if (csrpl_read16(data + 8U) != CSRPL_VERSION ||
-		csrpl_read16(data + 10U) != CSRPL_HEADER_SIZE) {
+	if (csrpl_read16(data + 8U) != CSRPL_VERSION || csrpl_read16(data + 10U) != CSRPL_HEADER_SIZE) {
 		return csrpl_fail(error, error_size, "Unsupported Chocolate Stunts replay version.");
 	}
 	if (csrpl_read32(data + 12U) != 0U || csrpl_read16(data + 26U) != 0U) {
@@ -122,7 +121,8 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out,
 	size_t expected_size;
 	if (!csrpl_encoded_size(view.track_size, view.metadata.frame_count, &expected_size) ||
 		expected_size != size) {
-		return csrpl_fail(error, error_size, "Replay length does not match its track and frame counts.");
+		return csrpl_fail(error, error_size,
+						  "Replay length does not match its track and frame counts.");
 	}
 	if (!csrpl_valid_metadata(&view.metadata, error, error_size)) {
 		return 0;
@@ -141,8 +141,8 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out,
 }
 
 int csrpl_encode(const struct CSRPL_METADATA *metadata, const uint8_t *track_data,
-				 size_t track_size, const uint8_t *inputs, size_t input_count,
-				 uint8_t **out_data, size_t *out_size, char *error, size_t error_size)
+				 size_t track_size, const uint8_t *inputs, size_t input_count, uint8_t **out_data,
+				 size_t *out_size, char *error, size_t error_size)
 {
 	size_t size;
 	if (metadata == NULL || track_data == NULL || out_data == NULL || out_size == NULL ||

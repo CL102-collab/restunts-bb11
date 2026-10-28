@@ -20,6 +20,19 @@
 #include "../c/highscore.h"
 #include "../c/skybox.h"
 #include "../c/ghost.h"
+#define EXTENDED_TEST_GHOST_SELECTION
+#include "extended-replay-test-stubs.h"
+#ifdef RESTUNTS_SDL3
+void *_memcpy(void *destination, const void *source, legacy_u16 count)
+{
+	legacy_u8 *out = destination;
+	const legacy_u8 *in = source;
+	for (legacy_u16 index = 0; index < count; index++) {
+		out[index] = in[index];
+	}
+	return destination;
+}
+#endif
 #undef sprite_make_wnd
 #undef sprite_free_wnd
 #undef sprite_blit_to_video

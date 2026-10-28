@@ -1,6 +1,9 @@
 #include "externs.h"
 #include "legacy.h"
 #include "math.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_geometry.h"
+#endif
 #include "math_internal.h"
 #include "fatal.h"
 #include "track_collision.h"
@@ -1030,7 +1033,12 @@ void transform_wheel_travel_to_world(void)
 	struct MATRIX inverse_plane_rotation;
 	struct MATRIX plane_rotation;
 	if (planindex_copy != -1) {
+#ifdef RESTUNTS_SDL3
+		plane = planindex_copy >= EXTENDED_GEOMETRY_PLANE_INDEX ? current_planptr
+																: &planptr[planindex_copy];
+#else
 		plane = &planptr[planindex_copy];
+#endif
 		legacy_s16 heading;
 		if (plane->plane_xy == car_initial_pitch && plane->plane_yz == car_initial_roll) {
 			heading = car_initial_yaw;

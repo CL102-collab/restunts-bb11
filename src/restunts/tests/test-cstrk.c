@@ -21,14 +21,16 @@ static struct CSTRK_OBJECT object_at(uint8_t x, uint8_t y)
 
 static void test_wire_layout(void)
 {
-	static const uint8_t expected[] = {
-		'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n', 1, 0, 32, 0, 0, 0, 0, 0,
-		1, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0, 0, 24, 0, 0, 0,
-		0, 0, 0, 0, /* Four shared terrain corners. */
-		2, 4,       /* Dirt, southwest water triangle. */
-		17, 0, 0, 0, 3, 2, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0,
-		'A', '\n'
-	};
+	static const uint8_t
+		expected
+			[] =
+				{
+					'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n', 1, 0, 32, 0, 0,
+					0,	 0,	  0,   1,	0,	 1,	   0,	 2,	   0, 0, 0,	 1, 0,
+					0,	 0,	  24,  0,	0,	 0,	   0,	 0,	   0, 0, /* Four shared terrain corners. */
+					2,	 4, /* Dirt, southwest water triangle. */
+					17,	 0,	  0,   0,	3,	 2,	   1,	 1,	   1, 0, 0,	 0, 0,
+					0,	 0,	  0,   'A', '\n'};
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 1, 1, error, sizeof(error)));
@@ -167,20 +169,13 @@ static void test_invalid_records(void)
 	struct CSTRK_OBJECT object = object_at(0, 0);
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	struct CSTRK_OBJECT invalid[] = {
-		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0},
-		{215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0},
-		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2}
-	};
+		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0}, {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0},
+		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0}, {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0},
+		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0}, {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0},
+		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0}, {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0},
+		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0},
+		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0},
+		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2}};
 	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
 		track.objects[0] = invalid[index];
 		assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -201,8 +196,8 @@ static void test_invalid_records(void)
 	size_t size = 0;
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	uint8_t *old_corners = track.corner_heights;
-	static const size_t offsets[] = {0, 8, 10, 12, 16, 18, 20, 24, 28,
-		32, 41, 42, 49, 53, 54, 55, 56, 57, 58, 59, 60, 61};
+	static const size_t offsets[] = {0,	 8,	 10, 12, 16, 18, 20, 24, 28, 32, 41,
+									 42, 49, 53, 54, 55, 56, 57, 58, 59, 60, 61};
 	for (size_t index = 0; index < sizeof(offsets) / sizeof(offsets[0]); index++) {
 		size_t offset = offsets[index];
 		assert(offset < size);

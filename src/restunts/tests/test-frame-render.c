@@ -6,6 +6,7 @@
 #define subst_hillroad_track frame_test_subst_hillroad_track
 #define transform_wheel_travel_to_world frame_test_transform_wheel_travel
 #include "../c/frame.c"
+#include "extended-replay-test-stubs.h"
 
 #undef printf
 #undef memcpy
@@ -1324,7 +1325,8 @@ static void test_complete_tile_lookup_matches_scans(void)
 {
 	const legacy_s8 camera_tiles[] = {-128, -100, -99, -98, -1, 0, 15, 29, 127};
 	const legacy_s8 coordinates[] = {-1, 0, 14, 29, 30};
-	const legacy_s16 indices[] = {0, 1, FRAME_MAXIMUM_TILE_COUNT / 2, FRAME_MAXIMUM_TILE_COUNT};
+	const legacy_s16 indices[] = {0, 1, TRACK_GRID_SIZE * TRACK_GRID_SIZE / 2,
+								  TRACK_GRID_SIZE * TRACK_GRID_SIZE};
 	struct FRAME_CAMERA camera = {0};
 	struct FRAME_TILE_SELECTION tiles = {0};
 	struct FRAME_TILE_SELECTION reference;
@@ -1808,12 +1810,12 @@ enum {
 	ADAPTIVE_TEST_WHEEL_CROSSING_OFFSET = 2 * ADAPTIVE_TEST_POSITION_SCALE,
 	ADAPTIVE_TEST_CAR_HALF_WIDTH = 17 * ADAPTIVE_TEST_POSITION_SCALE,
 	ADAPTIVE_TEST_CAR_HALF_LENGTH = 29 * ADAPTIVE_TEST_POSITION_SCALE,
-	ADAPTIVE_TEST_EDGE_CAR_EAST = TRACK_GRID_LAST_COORDINATE - 1,
+	/* This fixture exercises the unchanged legacy 30x30 world boundary. */
+	ADAPTIVE_TEST_EDGE_CAR_EAST = 29 - 1,
 	ADAPTIVE_TEST_EDGE_CAR_SOUTH = TRACK_GRID_SIZE * 2 / 3 - 1,
 	ADAPTIVE_TEST_EDGE_CAR_X = ADAPTIVE_TEST_EDGE_CAR_EAST * ADAPTIVE_TEST_WORLD_TILE_SIZE +
 							   ADAPTIVE_TEST_WORLD_TILE_SIZE * 2 / 3,
-	ADAPTIVE_TEST_EDGE_CAR_Z = (TRACK_GRID_LAST_COORDINATE - ADAPTIVE_TEST_EDGE_CAR_SOUTH) *
-								   ADAPTIVE_TEST_WORLD_TILE_SIZE +
+	ADAPTIVE_TEST_EDGE_CAR_Z = (29 - ADAPTIVE_TEST_EDGE_CAR_SOUTH) * ADAPTIVE_TEST_WORLD_TILE_SIZE +
 							   2 * ADAPTIVE_TEST_CAR_HALF_LENGTH / ADAPTIVE_TEST_POSITION_SCALE,
 	ADAPTIVE_TEST_EDGE_CAR_HEADING = ANGLE_HALF_TURN + ANGLE_EIGHTH_TURN / 2,
 	ADAPTIVE_TEST_EDGE_VIEW_HEADING = ANGLE_QUARTER_TURN - ANGLE_EIGHTH_TURN / 3,
@@ -2091,7 +2093,7 @@ static void test_adaptive_selection_before_submission(void)
 	/* Returning to full view restores every world tile, including stale sparse entries. */
 	frame_adaptive.quality = FRAME_ADAPTIVE_FULL_VIEW;
 	frame_select_tiles(&tiles, &camera);
-	assert(tiles.count == FRAME_MAXIMUM_TILE_COUNT);
+	assert(tiles.count == TRACK_GRID_SIZE * TRACK_GRID_SIZE);
 	for (legacy_s16 south = 0; south < TRACK_GRID_SIZE; south++) {
 		for (legacy_s16 east = 0; east < TRACK_GRID_SIZE; east++) {
 			assert(frame_lookup_world_tile(&tiles, east, south) >= 0);

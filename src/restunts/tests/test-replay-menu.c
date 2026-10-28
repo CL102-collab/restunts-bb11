@@ -6,6 +6,7 @@
 #define VIEWER_SOURCE "../c/replay_viewer.c"
 #endif
 #include VIEWER_SOURCE
+#include "extended-replay-test-stubs.h"
 #undef memcpy
 #undef printf
 
@@ -34,6 +35,15 @@ static legacy_u8 supersight_reset_pending;
 static legacy_u32 input_polls, input_exit_poll, fps_expire_poll, fps_expiry_checks;
 legacy_s16 input_combined_flags;
 #ifdef RESTUNTS_SDL3
+legacy_s16 _strcmp(const legacy_s8 *left, const legacy_s8 *right)
+{
+	while (*left != 0 && *left == *right) {
+		left++;
+		right++;
+	}
+	return (legacy_s16)((legacy_u8)*left - (legacy_u8)*right);
+}
+
 #define TEST_SEEK_CHECKPOINT_INTERVAL 60U
 #define TEST_SEEK_RECORDING_FRAMES 1000U
 #define TEST_SEEK_START_FRAME 501U
