@@ -43,7 +43,23 @@
             surfaces: decoration || [27, 29, 30, 31, 32, 33, 35].includes(physical) ? [0] : [0, 1, 2] };
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
     const byId = new Map(catalog.map(a => [a.id, a]));
+    // A family keeps distinct shapes and editor groups, while combining native rotations.
+    const libraryFamilies = new Map();
+    for (const entry of catalog.filter(p => p.legacySurface <= 0)) {
+        const key = entry.group + ':' + entry.physical;
+        if (!libraryFamilies.has(key)) libraryFamilies.set(key, []);
+        libraryFamilies.get(key).push(entry);
+    }
+    const library = Array.from(libraryFamilies.values(), variants => variants.find(p => p.rotation === 0) || variants[0]);
     function integer(n, min, max, label) { if (!Number.isInteger(n) || n < min || n > max) throw new Error('Invalid ' + label + '.'); return n; }
+    function pieceVariant(entry, direction) {
+        integer(direction, 0, 3, 'piece direction');
+        const variants = libraryFamilies.get(entry.group + ':' + entry.physical);
+        // Use original directional artwork when present. Symmetric pieces may have only
+        // one or two native variants; explicit rotation supplies the remaining directions.
+        const piece = variants.find(p => p.rotation === direction) || variants.find(p => p.rotation === 0) || variants[0];
+        return { piece, rotation: (direction - piece.rotation + 4) % 4 };
+    }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
             throw new Error('Notes must contain at most 8000 ASCII characters (text, tabs and line breaks).');
@@ -221,5 +237,5 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, groups, SURFACES, TERRAIN_SURFACES, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

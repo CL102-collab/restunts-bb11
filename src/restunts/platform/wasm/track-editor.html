@@ -33,10 +33,13 @@
                         <button type="button" class="tool-tile" data-tool="erase" aria-pressed="false" title="Erase track piece (E), or right-click"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-erase"></use></svg><span>Erase</span><kbd>E</kbd></button>
                         <button type="button" class="tool-tile" data-tool="pan" aria-pressed="false" title="Pan (H), middle-drag, or hold Space"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-hand"></use></svg><span>Pan</span><kbd>H</kbd></button>
                     </div>
-                    <div class="rotation-row"><span>Orientation</span><div class="rotation-control"><button type="button" id="rotate-left" title="Rotate counterclockwise (Q)" aria-label="Rotate counterclockwise"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-rotate-left"></use></svg></button><output id="rotation">0°</output><button type="button" id="rotate-right" title="Rotate clockwise (R)" aria-label="Rotate clockwise"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-rotate-right"></use></svg></button></div></div>
+                    <div class="editor-section-switch" role="tablist" aria-label="Editor section">
+                        <button type="button" id="terrain-tab" role="tab" data-editor-panel="terrain" aria-controls="terrain-panel" aria-selected="false"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg><span>Terrain</span></button>
+                        <button type="button" id="track-tab" role="tab" data-editor-panel="track" aria-controls="track-panel" aria-selected="true"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-road"></use></svg><span>Track library</span></button>
+                    </div>
                     <div class="history-actions"><button id="undo" type="button" title="Undo (Ctrl+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-undo"></use></svg><span>Undo</span></button><button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-redo"></use></svg><span>Redo</span></button><span class="history-hint">Ctrl Z / Ctrl ⇧ Z</span></div>
                 </section>
-                <section class="control-section terrain-section" aria-labelledby="terrain-heading">
+                <section id="terrain-panel" class="control-section terrain-section" role="tabpanel" aria-labelledby="terrain-tab" hidden>
                     <div class="section-heading"><span class="section-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg></span><div><h2 id="terrain-heading">Terrain</h2><span>Shape your landscape</span></div><span class="section-index">01</span></div>
                     <div class="surface-choices ground-surfaces" role="group" aria-label="Ground surface">
                         <button type="button" class="surface-choice" data-surface-for="terrain-surface" data-value="0" aria-pressed="true" title="Grass ground"><span class="material-preview grass"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-leaf"></use></svg></span><span>Grass</span></button>
@@ -50,7 +53,16 @@
                         <button type="button" class="tool-tile" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-raise"></use></svg><span>Raise</span></button>
                         <button type="button" class="tool-tile" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-lower"></use></svg><span>Lower</span></button>
                         <button type="button" class="tool-tile" data-tool="level" aria-pressed="false" title="Level terrain to the selected elevation"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-level"></use></svg><span>Level</span></button>
-                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Half water, half hill corner; use rotation to choose the corner"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
+                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Use the direction arrows or Q/R to choose the water corner"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
+                    </div>
+                    <div id="shore-direction-row" class="piece-direction-row" hidden>
+                        <div class="piece-direction-label"><span>Water corner</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>R</kbd> to rotate</span></div>
+                        <div class="piece-direction" role="group" aria-label="Water corner">
+                            <button type="button" data-piece-direction="0" aria-pressed="true" aria-label="Northwest" title="Northwest water corner"><svg class="icon direction-northwest" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="1" aria-pressed="false" aria-label="Northeast" title="Northeast water corner"><svg class="icon direction-northeast" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="2" aria-pressed="false" aria-label="Southeast" title="Southeast water corner"><svg class="icon direction-southeast" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="3" aria-pressed="false" aria-label="Southwest" title="Southwest water corner"><svg class="icon direction-southwest" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                        </div>
                     </div>
                     <div class="level-label"><span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><output id="level-output">1 / 4</output></div>
                     <div class="elevation-steps" role="group" aria-label="Terrain elevation">
@@ -59,7 +71,7 @@
                     <input id="terrain-level" type="range" min="0" max="4" step="1" value="1" hidden tabindex="-1" aria-hidden="true">
                     <p class="control-hint"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-info"></use></svg> Shared corners keep slopes connected.</p>
                 </section>
-                <section class="control-section track-section" aria-labelledby="track-heading">
+                <section id="track-panel" class="control-section track-section" role="tabpanel" aria-labelledby="track-tab">
                     <div class="section-heading"><span class="section-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><div><h2 id="track-heading">Track library</h2><span>Make something worth racing</span></div><span class="section-index">02</span></div>
                     <div class="surface-choices road-surfaces" role="group" aria-label="Road and stunt surface">
                         <button type="button" class="surface-choice" data-surface-for="road-surface" data-value="0" aria-pressed="true" title="Asphalt road"><span class="material-preview asphalt"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-road"></use></svg></span><span>Asphalt</span></button>
@@ -70,6 +82,15 @@
                     <div id="piece-groups" class="piece-groups" role="group" aria-label="Track element group"></div>
                     <select id="piece-group" aria-controls="piece-palette" hidden tabindex="-1" aria-hidden="true"></select>
                     <div class="palette-heading"><span id="active-group-name">Roads</span><span id="palette-count">Choose a group</span></div>
+                    <div class="piece-direction-row">
+                        <div class="piece-direction-label"><span>Direction</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>R</kbd> to rotate</span></div>
+                        <div class="piece-direction" role="group" aria-label="Track piece direction">
+                            <button type="button" data-piece-direction="0" aria-pressed="true" aria-label="North" title="North · 0°"><svg class="icon direction-north" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="1" aria-pressed="false" aria-label="East" title="East · 90°"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="2" aria-pressed="false" aria-label="South" title="South · 180°"><svg class="icon direction-south" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                            <button type="button" data-piece-direction="3" aria-pressed="false" aria-label="West" title="West · 270°"><svg class="icon direction-west" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
+                        </div>
+                    </div>
                     <div id="piece-palette" class="piece-palette" aria-label="Track pieces"></div>
                     <div class="selection-inspector"><canvas id="selected-preview" width="64" height="64" aria-hidden="true"></canvas><div><span class="selection-label">READY TO BUILD</span><strong id="selected-piece">Choose a track element</strong><span id="selected-piece-meta">Pick a piece from the library</span></div></div>
                     <p class="control-hint" id="surface-hint">Greyed pieces do not support this surface.</p>
@@ -77,7 +98,7 @@
                 <section class="control-section document-section" aria-label="Track information">
                     <button type="button" id="notes-button" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-notes"></use></svg><span>Track notes</span><span id="notes-count" class="action-meta">0 / 8000</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
                     <button type="button" id="check-track" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg><span>Check track</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
-                    <details class="keyboard-help"><summary><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-keyboard"></use></svg><span>Keyboard shortcuts</span></summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br><kbd>Space</kbd> + drag to pan · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
+                    <details class="keyboard-help"><summary><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-keyboard"></use></svg><span>Keyboard shortcuts</span></summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate piece or Shore corner · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br><kbd>Space</kbd> + drag to pan · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
                 </section>
             </fieldset>
             <div class="sidebar-footer"><span class="status-dot"></span><span>Built for the next great track.</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-track"></use></svg></div>
