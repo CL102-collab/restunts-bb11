@@ -307,12 +307,156 @@ static void test_resource_admission(void)
 	track.objects[0] = object_at(68, 40, 40); /* Full pipe. */
 	track.objects[0].surface = CSTRK_ROAD_ICE;
 	assert(!extended_track_activate(&track, error, sizeof(error)));
-	track.objects[0] = object_at(159, 40, 40); /* Scenery has no road surface variants. */
+	track.objects[0] = object_at(159, 40, 40); /* Stored scenery surface is ignored. */
 	track.objects[0].surface = CSTRK_ROAD_DIRT;
-	assert(!extended_track_activate(&track, error, sizeof(error)));
+	activate(&track);
+	extended_track_unload();
 	track.objects[0] = object_at(200, 40, 40); /* Internal overlay, not a placeable tile. */
 	assert(!extended_track_activate(&track, error, sizeof(error)));
 	cstrk_free(&track);
+}
+
+static void test_corkscrew_surfaces(void)
+{
+	static const unsigned ids[] = {117, 121, 85};
+	static const struct VECTOR contacts[][2] = {{{-512, 0, -512}, {-512, 450, 512}},
+												{{512, 0, -512}, {512, 450, 512}},
+												{{57, 35, -800}, {-57, 35, 800}}};
+	for (unsigned kind = 0; kind < 3; kind++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
+		struct CSTRK_OBJECT object = object_at(ids[kind], 40, 40);
+		object.width = kind == 2 ? 1 : 2;
+		object.height = 2;
+		object.occupied_mask = kind == 2 ? 3 : 15;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		struct PLANE paved_planes[2];
+		legacy_s16 paved_indices[2];
+		for (unsigned surface = 0; surface < 3; surface++) {
+			track.objects[0].surface = (uint8_t)surface;
+			activate(&track);
+			for (unsigned contact = 0; contact < 2; contact++) {
+				struct VECTOR point = object_world(&track, &object, contacts[kind][contact]);
+				(void)sample_world(
+					object.x * 1024 + object.width * 512 + contacts[kind][contact].x, point.y,
+					90 * 1024 - object.y * 1024 - object.height * 512 + contacts[kind][contact].z);
+				assert(current_surf_type == (legacy_s16)(surface + CAR_SURFACE_PAVED));
+				assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+				if (surface == CSTRK_ROAD_PAVED) {
+					paved_planes[contact] = *current_planptr;
+					paved_indices[contact] = planindex;
+				} else {
+					assert(planindex == paved_indices[contact]);
+					assert(memcmp(current_planptr, &paved_planes[contact],
+								  sizeof(*current_planptr)) == 0);
+				}
+			}
+		}
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+}
+
+static void test_scenery_ignores_road_surface(void)
+{
+	static const unsigned ids[] = {151, 152, 153, 154, 155, 159, 163, 167, 171, 175};
+	static const legacy_s16 ground_surfaces[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE,
+												 CAR_SURFACE_DIRT, CAR_SURFACE_WATER};
+	for (unsigned kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
+		struct CSTRK_OBJECT object = object_at(ids[kind], 40, 40);
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		for (unsigned ground = 0; ground < 4; ground++) {
+			track.cells[40U * 90U + 40U].surface = (uint8_t)ground;
+			struct PLANE original_plane;
+			legacy_s16 original_wall = 0;
+			for (unsigned surface = 0; surface < 3; surface++) {
+				track.objects[0].surface = (uint8_t)surface;
+				activate(&track);
+				struct VECTOR point = object_world(&track, &object, (struct VECTOR){0, 80, 0});
+				struct VECTOR next = object_world(&track, &object, (struct VECTOR){400, 80, 0});
+				extended_geometry_set_context((40 * 1024 + 512) * 64,
+											  (90 * 1024 - 40 * 1024 - 512) * 64);
+				build_track_object(&point, &next);
+				assert(current_surf_type == ground_surfaces[ground]);
+				if (surface == CSTRK_ROAD_PAVED) {
+					original_plane = *current_planptr;
+					original_wall = wallindex;
+				} else {
+					assert(memcmp(current_planptr, &original_plane, sizeof(*current_planptr)) == 0);
+					assert(wallindex == original_wall);
+				}
+			}
+		}
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+}
+
+static void test_extended_material_variants(void)
+{
+	legacy_u8 vertices[18] = {0}, masks[24] = {0};
+	static const legacy_u8 original[] = {19, 21, 22, 23, 24, 4};
+	legacy_u8 primitives[37] = {0};
+	for (unsigned face = 0; face < 6; face++) {
+		primitives[face * 6] = 3;
+		primitives[face * 6 + 2] = original[face];
+		primitives[face * 6 + 4] = 1;
+		primitives[face * 6 + 5] = 2;
+	}
+	struct SHAPE3D source = {3, vertices, 6, 1, primitives, masks, masks};
+	struct CSTRK_OBJECT object = object_at(117, 40, 40);
+	struct EXTENDED_GEOMETRY_BASIS basis;
+	extended_geometry_object_basis(&object, &basis);
+	static const legacy_s16 models[] = {PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A,
+										PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B,
+										PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT};
+	for (unsigned kind = 0; kind < 3; kind++) {
+		for (unsigned surface = 0; surface < 3; surface++) {
+			struct SHAPE3D transformed;
+			assert(extended_geometry_transform_shape(&source, &transformed, &basis, 0, surface,
+													 models[kind]));
+			assert(memcmp(transformed.shape3d_vertex_bytes, vertices, sizeof(vertices)) == 0);
+			for (unsigned face = 0; face < 6; face++) {
+				unsigned expected = original[face];
+				if (surface && face < 2) {
+					expected = face ? (surface == 1 ? 27 : 30) : (surface == 1 ? 25 : 28);
+				}
+				if (surface && kind == 2 && face >= 2 && face <= 4) {
+					expected = (surface == 1 ? 25 : 28) + face - 2;
+				}
+				assert(transformed.shape3d_primitives[face * 6 + 2] == expected);
+			}
+			extended_geometry_free_shape(&transformed);
+		}
+	}
+	/* Scenery paint columns and road-looking source colors both stay unchanged. */
+	for (unsigned paints = 1; paints <= 4; paints++) {
+		legacy_u8 scenery_primitives[55] = {0};
+		for (unsigned face = 0; face < 6; face++) {
+			unsigned offset = face * (5 + paints);
+			scenery_primitives[offset] = 3;
+			for (unsigned paint = 0; paint < paints; paint++) {
+				scenery_primitives[offset + 2 + paint] = original[face] + paint;
+			}
+			scenery_primitives[offset + 3 + paints] = 1;
+			scenery_primitives[offset + 4 + paints] = 2;
+		}
+		source.shape3d_numpaints = (legacy_u16)paints;
+		source.shape3d_primitives = scenery_primitives;
+		for (unsigned surface = 0; surface < 3; surface++) {
+			struct SHAPE3D transformed;
+			assert(extended_geometry_transform_shape(&source, &transformed, &basis, 0, surface,
+													 PHYSICAL_MODEL_BARN));
+			for (unsigned face = 0; face < 6; face++) {
+				assert(transformed.shape3d_primitives[face * 6 + 2] == original[face]);
+			}
+			extended_geometry_free_shape(&transformed);
+		}
+	}
 }
 
 static int resource_plane_height(unsigned index, int x, int z)
@@ -642,6 +786,9 @@ int main(void)
 	test_sloped_stunt_and_snapshot();
 	test_half_water_saddle();
 	test_resource_admission();
+	test_corkscrew_surfaces();
+	test_scenery_ignores_road_surface();
+	test_extended_material_variants();
 	test_intrinsic_portal_profiles();
 	test_shared_road_anchor();
 	test_opponent_shortest_branch();

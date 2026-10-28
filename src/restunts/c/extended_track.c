@@ -133,13 +133,10 @@ static int object_footprint_valid(const struct CSTRK_OBJECT *object)
 		return 0;
 	}
 	if (object->surface != CSTRK_ROAD_PAVED &&
-		(original->ss_physicalModel >= 64 || original->ss_physicalModel == PHYSICAL_MODEL_LOOP ||
+		(original->ss_physicalModel == PHYSICAL_MODEL_LOOP ||
 		 original->ss_physicalModel == PHYSICAL_MODEL_PIPE_ENTRANCE ||
 		 original->ss_physicalModel == PHYSICAL_MODEL_PIPE ||
-		 original->ss_physicalModel == PHYSICAL_MODEL_HALF_PIPE ||
-		 original->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A ||
-		 original->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B ||
-		 original->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT)) {
+		 original->ss_physicalModel == PHYSICAL_MODEL_HALF_PIPE)) {
 		return 0;
 	}
 	unsigned flags = (unsigned)(legacy_u8)original->ss_multiTileFlag;

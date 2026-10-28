@@ -395,6 +395,7 @@
         context.putImageData(image, 0, 0); state.iconCache.set(cacheKey, icon); return icon;
     }
     function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false) {
+        if (piece.decoration) surface = 0;
         const icon = originalIcon(piece.id, surface);
         c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(rotation * Math.PI / 2);
         if (icon) {
