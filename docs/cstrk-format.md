@@ -109,10 +109,11 @@ check that each ID's supplied footprint and selected surface are supported by
 their catalog. A serialized mask is not permission to remove collision from
 an inherently occupied part of a catalog object.
 
-Current game admission rejects internal hill/overlay IDs 182–214. Scenery,
-loops, pipes, half pipes and corkscrews accept paved surfaces only; the new
-dirt/ice combinations cover slaloms, tunnels, branches, highways, chicanes,
-elevated roads and banked roads. A tilted large branch, highway or stunt also
+Current game admission rejects internal hill/overlay IDs 182–214. Loops, pipes
+and half pipes accept paved surfaces only. Dirt/ice combinations cover slaloms,
+tunnels, branches, highways, chicanes, elevated roads, banked roads and all
+corkscrews. Scenery accepts all surface values but ignores this field; new
+scenery placements use paved `0`. A tilted large branch, highway or stunt also
 requires a continuous support slope extending at least two tiles along every
 axis on which it rises. This supporting rectangle may extend to either side
 of a one-tile footprint. These catalog rules are checked by the editor and

@@ -148,6 +148,78 @@ static size_t check_rendered_objects(const struct CSTRK_TRACK *track, unsigned c
 	return changed;
 }
 
+static unsigned check_rendered_surfaces(const struct CSTRK_TRACK *track)
+{
+	static const unsigned ids[] = {117U, 121U, 85U, 155U};
+	unsigned frames = 0;
+	for (unsigned index = 0; index < sizeof(ids) / sizeof(ids[0]); index++) {
+		struct CSTRK_OBJECT object = {0};
+		object.legacy_id = (uint16_t)ids[index];
+		object.x = 44;
+		object.y = 40;
+		object.width = index < 2U ? 2U : 1U;
+		object.height = index < 3U ? 2U : 1U;
+		object.occupied_mask = (uint8_t)((1U << (object.width * object.height)) - 1U);
+		object.base_height = (uint8_t)terrain_level(object.x);
+		struct CSTRK_TRACK isolated = *track;
+		isolated.object_count = 1;
+		isolated.objects = &object;
+		position_render_target(44U, 41U);
+		/* Look down onto the driving faces, rather than their unchanged backsides. */
+		custom_camera.distance = 4600;
+		custom_camera.elevation_angle = 192;
+		custom_camera.azimuth_angle = 0;
+		legacy_u32 *pixels[3];
+		size_t sizes[3];
+		for (unsigned surface = 0; surface < 3U; surface++) {
+			object.surface = (uint8_t)surface;
+			activate_render_track(&isolated, 1);
+			pixels[surface] = capture_complete_render(&sizes[surface]);
+			frames++;
+		}
+		activate_render_track(&isolated, 0);
+		size_t empty_size;
+		legacy_u32 *empty = capture_complete_render(&empty_size);
+		assert(empty_size == sizes[0]);
+		size_t visible = 0;
+		for (size_t pixel = 0; pixel < sizes[0]; pixel++) {
+			visible += pixels[0][pixel] != empty[pixel];
+		}
+		free(empty);
+		frames++;
+		if (visible <= 16U) {
+			fprintf(stderr, "Surface fixture %u shows only %zu object pixels\n", ids[index],
+					visible);
+		}
+		assert(visible > 16U);
+		for (unsigned surface = 1; surface < 3U; surface++) {
+			assert(sizes[surface] == sizes[0]);
+			size_t changed = 0;
+			for (size_t pixel = 0; pixel < sizes[0]; pixel++) {
+				changed += pixels[0][pixel] != pixels[surface][pixel];
+			}
+			if (index < 3U) {
+				/* Actual corkscrew artwork must show the selected road material. */
+				if (changed <= 16U) {
+					fprintf(stderr, "Corkscrew %u surface %u changed only %zu pixels\n", ids[index],
+							surface, changed);
+				}
+				assert(changed > 16U);
+			} else {
+				/* Even imported nonzero surface fields must leave scenery unchanged. */
+				assert(changed == 0U);
+			}
+		}
+		if (index < 3U) {
+			assert(memcmp(pixels[1], pixels[2], sizes[0] * sizeof(*pixels[0])) != 0);
+		}
+		for (unsigned surface = 0; surface < 3U; surface++) {
+			free(pixels[surface]);
+		}
+	}
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -180,6 +252,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			   enhanced ? "enhanced" : "original", slope_pixels, edge_pixels);
 		assert(slope_pixels > 16U && edge_pixels > 16U);
 		frames += 4U;
+		frames += check_rendered_surfaces(&track);
 	}
 	extended_track_unload();
 	cstrk_free(&track);

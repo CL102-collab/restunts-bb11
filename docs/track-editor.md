@@ -37,8 +37,9 @@ placed piece are rejected; erase or move that piece first.
 Choose a road surface independently of the element group. Dirt and ice variants
 are not separate palette groups. Incompatible pieces are disabled. The expanded
 surface choices cover slalom, tunnel, large branches, divided highway, chicanes,
-elevated roads and banked roads. Pipes, loops and corkscrews retain their original
-surface restrictions.
+elevated roads, banked roads and all corkscrews. Pipes and loops retain their
+original surface restrictions. Scenery is available with every road surface
+selection and keeps its original appearance.
 
 Original editor grouping and icons come from the selected game resources.
 Each shape appears once in the library. The four direction arrows update all

@@ -1,4 +1,5 @@
 #include "extended_geometry.h"
+#include "trackdata_layout.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -240,6 +241,11 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 	if (source == 0 || source->shape3d_numverts == 0 || source->shape3d_numpaints == 0) {
 		return 0;
 	}
+	/* Scenery has its own paint and animation palette. A road-surface byte in
+	 * an older track must not select a different scenery paint or recolor it. */
+	if (physical_model >= 64) {
+		surface = CSTRK_ROAD_PAVED;
+	}
 	size_t primitive_bytes = 1;
 	const legacy_u8 *primitive = source->shape3d_primitives;
 	for (unsigned i = 0; i < source->shape3d_numprimitives; i++) {
@@ -301,6 +307,11 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 				material = surface == CSTRK_ROAD_DIRT ? 25 : 28;
 			} else if (material == 21) {
 				material = surface == CSTRK_ROAD_DIRT ? 27 : 30;
+			} else if (physical_model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT && material >= 22 &&
+					   material <= 24) {
+				/* The horizontal corkscrew's curved road uses two shaded
+				 * pavement materials and separate lane markings. */
+				material = (surface == CSTRK_ROAD_DIRT ? 25 : 28) + material - 22;
 			} else if ((physical_model == 18 || physical_model == 19 || physical_model == 22) &&
 					   (material == 22 || material == 23)) {
 				material = surface == CSTRK_ROAD_DIRT ? 25 : 28;

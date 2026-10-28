@@ -40,7 +40,7 @@
         const decoration = physical >= 64;
         return { id, name: physicalNames[physical] || 'Element ' + id, group: groupFor(id, physical), width, height, mask,
             rotation: a[0] / 256, physical, decoration, legacySurface: a[1],
-            surfaces: decoration || [27, 29, 30, 31, 32, 33, 35].includes(physical) ? [0] : [0, 1, 2] };
+            surfaces: [27, 29, 30, 31].includes(physical) ? [0] : [0, 1, 2] };
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
     const byId = new Map(catalog.map(a => [a.id, a]));
     // A family keeps distinct shapes and editor groups, while combining native rotations.
@@ -161,7 +161,7 @@
             if (!entry.surfaces.includes(surface)) throw new Error(entry.name + ' does not support ' + SURFACES[surface].toLowerCase() + '.');
             const footprint = rotatedFootprint(entry, rotation);
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
-            const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
+            const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
             if (!this.matchesPlane(object)) throw new Error('The entire element needs a continuous planar slope.');
             if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
