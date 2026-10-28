@@ -9,7 +9,7 @@
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, selected: null, group: 1, hover: null, cursor: { x: 0, y: 0 }, space: false,
+        rotation: 0, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
@@ -31,18 +31,22 @@
         document.querySelectorAll('[data-group]').forEach(button => {
             button.setAttribute('aria-pressed', String(Number(button.dataset.group) === state.group));
         });
+        document.querySelectorAll('[data-piece-direction]').forEach(button => {
+            button.setAttribute('aria-pressed', String(Number(button.dataset.pieceDirection) === state.rotation));
+        });
     }
     function renderSelection() {
-        const selected = state.selected, preview = $('selected-preview'), c = preview.getContext('2d');
+        const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
+        const selected = variant && variant.piece, preview = $('selected-preview'), c = preview.getContext('2d');
         c.clearRect(0, 0, preview.width, preview.height);
         if (selected) {
             c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
-            drawPiece(c, selected, 0, 0, preview.width, preview.height, Number($('road-surface').value), state.rotation, true);
+            drawPiece(c, selected, 0, 0, preview.width, preview.height, Number($('road-surface').value), variant.rotation, true);
         }
         $('selected-piece').textContent = selected ? selected.name : 'No compatible pieces';
         document.querySelector('.selection-label').textContent = selected ? 'READY TO BUILD' : 'TRY ANOTHER SURFACE';
-        const width = selected && (state.rotation % 2 ? selected.height : selected.width);
-        const height = selected && (state.rotation % 2 ? selected.width : selected.height);
+        const width = selected && (variant.rotation % 2 ? selected.height : selected.width);
+        const height = selected && (variant.rotation % 2 ? selected.width : selected.height);
         $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
     }
 
@@ -85,8 +89,24 @@
         fitMap();
     }
     function canDiscard() { return !state.dirty || window.confirm('Discard the unsaved changes to ' + state.name + '?'); }
+    function showPanel(panel) {
+        state.panel = panel;
+        $('terrain-panel').hidden = panel !== 'terrain';
+        $('track-panel').hidden = panel !== 'track';
+        document.querySelectorAll('[data-editor-panel]').forEach(button => {
+            const active = button.dataset.editorPanel === panel;
+            button.setAttribute('aria-selected', String(active));
+            button.tabIndex = active ? 0 : -1;
+        });
+    }
+    function selectPanel(panel) { updateTool(panel === 'terrain' ? state.terrainTool : 'place'); }
     function updateTool(tool) {
         state.tool = tool;
+        if (['paint', 'raise', 'lower', 'level', 'water-corner'].includes(tool)) {
+            state.terrainTool = tool;
+            showPanel('terrain');
+        } else if (tool === 'place') showPanel('track');
+        $('shore-direction-row').hidden = tool !== 'water-corner';
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
         canvas.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
         const labels = { place: 'Build track', erase: 'Erase track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
@@ -96,15 +116,16 @@
         scheduleDraw();
     }
     function rotate(amount) {
+        setDirection((state.rotation + amount + 4) % 4);
+    }
+    function setDirection(direction) {
         if (!state.ready) return;
-        state.rotation = (state.rotation + amount + 4) % 4;
-        $('rotation').textContent = state.rotation * 90 + '°';
-        renderSelection();
-        scheduleDraw();
+        state.rotation = direction;
+        renderPalette();
     }
     function catalogEntry(id) { return model.catalog.find(p => p.id === id); }
     function groupEntries() {
-        return model.catalog.filter(p => Number(p.group) === Number(state.group) && p.legacySurface <= 0);
+        return model.library.filter(p => Number(p.group) === Number(state.group));
     }
     function renderPalette() {
         const container = $('piece-palette');
@@ -113,16 +134,18 @@
         const roadSurface = Number($('road-surface').value);
         if (!state.selected || !state.selected.surfaces.includes(roadSurface) || !entries.some(p => p.id === state.selected.id)) state.selected = entries.find(p => p.surfaces.includes(roadSurface)) || null;
         for (const piece of entries) {
+            const variant = model.pieceVariant(piece, state.rotation);
+            const footprint = model.rotatedFootprint(variant.piece, variant.rotation);
             const button = document.createElement('button');
             button.type = 'button'; button.className = 'piece-button';
             button.disabled = !piece.surfaces.includes(roadSurface);
-            button.title = piece.name + (button.disabled ? ' — unavailable on ' + model.SURFACES[roadSurface] : ' · ' + piece.width + ' × ' + piece.height);
+            button.title = piece.name + (button.disabled ? ' — unavailable on ' + model.SURFACES[roadSurface] : ' · ' + footprint.width + ' × ' + footprint.height);
             button.setAttribute('aria-label', button.title);
             button.setAttribute('aria-pressed', String(state.selected && piece.id === state.selected.id));
             const thumb = document.createElement('canvas'); thumb.width = 64; thumb.height = 64;
             const t = thumb.getContext('2d');
             t.fillStyle = '#365333'; t.fillRect(0, 0, 64, 64);
-            drawPiece(t, piece, 0, 0, 64, 64, roadSurface, 0, true);
+            drawPiece(t, variant.piece, 0, 0, 64, 64, roadSurface, variant.rotation, true);
             const label = document.createElement('span'); label.textContent = piece.name;
             button.append(thumb, label);
             button.addEventListener('click', () => { state.selected = piece; updateTool('place'); renderPalette(); });
@@ -439,14 +462,15 @@
         const h = state.hover, doc = state.doc;
         if (h.x < 0 || h.y < 0 || h.x >= doc.width || h.y >= doc.height) return;
         let width = 1, height = 1, valid = true, preview = null;
+        const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
         if (state.tool === 'place' && state.selected) {
-            try { preview = doc.placement(state.selected.id, h.x, h.y, Number($('road-surface').value), state.rotation); width = preview.width; height = preview.height; }
-            catch (_) { valid = false; width = state.rotation % 2 ? state.selected.height : state.selected.width; height = state.rotation % 2 ? state.selected.width : state.selected.height; }
+            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation); width = preview.width; height = preview.height; }
+            catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
         const left = view.x + h.x * size, top = view.y + h.y * size;
         ctx.fillStyle = valid ? '#e6d69f22' : '#f080703b'; ctx.strokeStyle = valid ? '#ffdf8b' : '#ff9c80'; ctx.lineWidth = 2;
         ctx.fillRect(left, top, width * size, height * size);
-        if (preview && state.selected) { ctx.globalAlpha = .6; drawPiece(ctx, state.selected, left, top, width * size, height * size, Number($('road-surface').value), state.rotation); ctx.globalAlpha = 1; }
+        if (preview && variant) { ctx.globalAlpha = .6; drawPiece(ctx, variant.piece, left, top, width * size, height * size, Number($('road-surface').value), variant.rotation); ctx.globalAlpha = 1; }
         ctx.strokeRect(left + 1, top + 1, width * size - 2, height * size - 2);
         if (state.tool === 'raise' || state.tool === 'lower') {
             const cx = view.x + h.cornerX * size, cy = view.y + h.cornerY * size;
@@ -511,7 +535,10 @@
         if (state.drag && state.drag.visited.has(key)) return;
         if (state.drag) state.drag.visited.add(key);
         try {
-            if (tool === 'place' && state.selected) doc.place(state.selected.id, point.x, point.y, Number($('road-surface').value), state.rotation);
+            if (tool === 'place' && state.selected) {
+                const variant = model.pieceVariant(state.selected, state.rotation);
+                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation);
+            }
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
             else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
@@ -581,7 +608,18 @@
         $('folder-dialog').addEventListener('cancel', event => { if (!state.ready) event.preventDefault(); });
         document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => closeDialog(button.dataset.close)));
         document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => updateTool(button.dataset.tool)));
-        $('rotate-left').addEventListener('click', () => rotate(-1)); $('rotate-right').addEventListener('click', () => rotate(1));
+        const panelButtons = Array.from(document.querySelectorAll('[data-editor-panel]'));
+        panelButtons.forEach(button => {
+            button.addEventListener('click', () => selectPanel(button.dataset.editorPanel));
+            button.addEventListener('keydown', event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault(); event.stopPropagation();
+                const index = event.key === 'Home' ? 0 : event.key === 'End' ? panelButtons.length - 1
+                    : (panelButtons.indexOf(button) + (event.key === 'ArrowRight' ? 1 : -1) + panelButtons.length) % panelButtons.length;
+                panelButtons[index].focus(); selectPanel(panelButtons[index].dataset.editorPanel);
+            });
+        });
+        document.querySelectorAll('[data-piece-direction]').forEach(button => button.addEventListener('click', () => setDirection(Number(button.dataset.pieceDirection))));
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => { syncVisualControls(); if (!['paint', 'water-corner'].includes(state.tool)) updateTool('paint'); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
@@ -633,6 +671,7 @@
         });
         document.addEventListener('keydown', event => {
             if (!state.ready || editableTarget(event.target) || document.querySelector('dialog[open]')) return;
+            if (event.target.closest('button') && (event.key === 'Enter' || event.code === 'Space')) return;
             const ctrl = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
@@ -672,7 +711,7 @@
             $('choose-folder').disabled = true; $('folder-input').disabled = true;
             return;
         }
-        buildGroups(); syncVisualControls();
+        buildGroups(); syncVisualControls(); showPanel(state.panel);
         if (!window.showDirectoryPicker) enableFallback();
         if (window.showDirectoryPicker) rememberFolder().then(folder => {
             if (!folder || !folder.requestPermission) return;
