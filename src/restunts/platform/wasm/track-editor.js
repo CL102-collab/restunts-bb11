@@ -302,16 +302,41 @@
         const surface = cell.surface, average = (h[0] + h[1] + h[2] + h[3]) / 4;
         c.fillStyle = terrainColor(surface, average); c.fillRect(left, top, size + .4, size + .4);
         if (h.some(v => v !== h[0])) {
-            c.beginPath(); c.moveTo(left, top); c.lineTo(left + size, top); c.lineTo(left + size, top + size); c.closePath();
-            c.fillStyle = terrainColor(surface, (h[0] + h[1] + h[2]) / 3, (h[0] - h[2]) * 3); c.fill();
-            c.beginPath(); c.moveTo(left, top); c.lineTo(left + size, top + size); c.lineTo(left, top + size); c.closePath();
-            c.fillStyle = terrainColor(surface, (h[0] + h[2] + h[3]) / 3, (h[0] - h[2]) * 3 - 2); c.fill();
+            const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+            // Match the game's planar triangles, including the half-water shoreline split.
+            const triangles = cell.halfWaterCorner === 1 || cell.halfWaterCorner === 3
+                ? [[0, 1, 3], [1, 2, 3]] : [[0, 1, 2], [0, 2, 3]];
+            for (const [a, b, d] of triangles) {
+                const ab = [corners[b][0] - corners[a][0], corners[b][1] - corners[a][1]];
+                const ad = [corners[d][0] - corners[a][0], corners[d][1] - corners[a][1]];
+                const slopeX = (h[b] - h[a]) * ad[1] - (h[d] - h[a]) * ab[1];
+                const slopeY = ab[0] * (h[d] - h[a]) - ad[0] * (h[b] - h[a]);
+                c.beginPath(); c.moveTo(left + corners[a][0] * size, top + corners[a][1] * size);
+                c.lineTo(left + corners[b][0] * size, top + corners[b][1] * size);
+                c.lineTo(left + corners[d][0] * size, top + corners[d][1] * size); c.closePath();
+                c.fillStyle = terrainColor(surface, average, (slopeX + slopeY) * 3); c.fill();
+            }
             if (size >= 12) {
                 c.strokeStyle = '#deedb930'; c.lineWidth = 1;
-                for (let i = 0; i < 4; i++) if (h[i] !== h[(i + 1) % 4]) {
-                    const corners = [[left, top], [left + size, top], [left + size, top + size], [left, top + size]];
-                    c.beginPath(); c.moveTo(...corners[i]); c.lineTo(left + size / 2, top + size / 2); c.stroke();
+                c.beginPath();
+                // Half-level intersections cannot land on integer-height corners. Adjacent
+                // triangles and tiles therefore join into continuous contours around hills.
+                for (let level = Math.min(...h) + .5; level < Math.max(...h); level++) {
+                    for (const triangle of triangles) {
+                        const crossings = [];
+                        for (let edge = 0; edge < 3; edge++) {
+                            const a = triangle[edge], b = triangle[(edge + 1) % 3];
+                            if ((h[a] < level) === (h[b] < level)) continue;
+                            const t = (level - h[a]) / (h[b] - h[a]);
+                            crossings.push([
+                                left + (corners[a][0] + t * (corners[b][0] - corners[a][0])) * size,
+                                top + (corners[a][1] + t * (corners[b][1] - corners[a][1])) * size
+                            ]);
+                        }
+                        if (crossings.length === 2) { c.moveTo(...crossings[0]); c.lineTo(...crossings[1]); }
+                    }
                 }
+                c.stroke();
             }
         }
         if (cell.halfWaterCorner) {
