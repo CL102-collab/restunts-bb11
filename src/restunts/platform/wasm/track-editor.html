@@ -37,7 +37,10 @@
                         <button type="button" id="terrain-tab" role="tab" data-editor-panel="terrain" aria-controls="terrain-panel" aria-selected="false"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg><span>Terrain</span></button>
                         <button type="button" id="track-tab" role="tab" data-editor-panel="track" aria-controls="track-panel" aria-selected="true"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-road"></use></svg><span>Track library</span></button>
                     </div>
-                    <div class="history-actions"><button id="undo" type="button" title="Undo (Ctrl+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-undo"></use></svg><span>Undo</span></button><button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-redo"></use></svg><span>Redo</span></button><span class="history-hint">Ctrl Z / Ctrl ⇧ Z</span></div>
+                    <div class="history-actions" role="group" aria-label="Undo and redo">
+                        <button id="undo" type="button" title="Undo (Ctrl+Z)" disabled><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-undo"></use></svg><span class="history-copy"><span>Undo</span><kbd class="history-shortcut">Ctrl Z</kbd></span></button>
+                        <button id="redo" type="button" title="Redo (Ctrl+Shift+Z)" disabled><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-redo"></use></svg><span class="history-copy"><span>Redo</span><kbd class="history-shortcut">Ctrl ⇧ Z</kbd></span></button>
+                    </div>
                 </section>
                 <section id="terrain-panel" class="control-section terrain-section" role="tabpanel" aria-labelledby="terrain-tab" hidden>
                     <div class="section-heading"><span class="section-icon"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-terrain"></use></svg></span><div><h2 id="terrain-heading">Terrain</h2><span>Shape your landscape</span></div><span class="section-index">01</span></div>
