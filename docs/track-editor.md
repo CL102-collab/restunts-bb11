@@ -11,12 +11,13 @@ or upload game files. Supported browsers can write tracks into that folder;
 other browsers require folder selection and download the resulting files.
 Reconnect a remembered folder when the browser requests permission.
 
-The controls occupy the left 20% of a desktop window and the 2D track occupies
-the right 80%. The Terrain / Track library switch below the editing tools shows
-one section at a time. Each section remembers its settings; selecting Build or
-an element group opens the track library. Smaller screens use a wider scrollable
-control panel. New tracks can have any dimensions from 1 by 1 through 90 by 90
-tiles. Use the New dialog to choose dimensions. Names use the game's 1–8 character
+The controls occupy the left 30% of a desktop window and the 2D track occupies
+the right 70%. Use Hide tools / Show tools above the canvas to collapse or reopen
+the toolbar while keeping the same zoom and map center. On small screens the
+tools use a wide scrollable drawer below that toggle. The Terrain / Track library
+switch shows one section at a time. Each section remembers its settings; selecting
+Build or an element group opens the track library. New tracks can have any
+dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose dimensions. Names use the game's 1–8 character
 ASCII filename stems.
 
 ## Terrain
@@ -25,7 +26,7 @@ Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
 Paint shows one selected square preview of the current grass, ice, dirt or water
 surface. Shore shows four square previews combining water with the selected
 grass, dirt or ice; its first corner is selected initially. Click another
-preview or use Q / R to change the Shore corner independently of track pieces.
+preview or use Q / E to change the Shore corner independently of track pieces.
 
 Level shows square choices for heights 1 through 4, plus Ground (0). These
 choices appear only while Level is selected; click a map tile to set its corners
@@ -36,7 +37,7 @@ surface can be used at any elevation.
 Build a continuous slope before placing a stunt. The complete piece needs a
 single supporting plane over its footprint, including both rows or columns of
 a two-tile piece. A piece tilts as a whole. Terrain edits that would bend a
-placed piece are rejected; erase or move that piece first.
+placed piece are rejected; remove or move that piece first.
 
 ## Track pieces
 
@@ -49,7 +50,7 @@ selection and keeps its original appearance.
 
 Original editor grouping and icons come from the selected game resources.
 Each shape appears once in the library. The four direction arrows update all
-piece thumbnails and select the variation to place; Q / R also change direction.
+piece thumbnails and select the variation to place; Q / E also change direction.
 Left/right branches and chicanes remain separate shapes. The Shore tool shows
 its water-corner arrows in the Terrain section when selected.
 Large turns, banked turns, chicanes and elevated turns claim only their occupied
@@ -64,8 +65,8 @@ support up to 8,000 printable ASCII characters, with tabs and line breaks.
 
 | Action | Shortcut |
 | --- | --- |
-| Place / erase / pan | B / E / H |
-| Rotate | Q / R |
+| Place / remove / pan | B / R / H |
+| Rotate | Q / E |
 | Pan temporarily | Right or middle mouse drag, or Space and drag |
 | Zoom | Mouse wheel |
 | Move tile cursor / place | Arrow keys / Enter |

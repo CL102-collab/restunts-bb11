@@ -19,7 +19,7 @@
         <button id="folder-button" class="folder-button" type="button"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-folder"></use></svg><span id="folder-button-label">Connect folder</span></button>
     </header>
     <main class="editor-layout">
-        <aside class="sidebar" aria-label="Editor controls">
+        <aside id="editor-sidebar" class="sidebar" aria-label="Editor controls">
             <fieldset id="editor-controls" disabled>
                 <div class="sidebar-title"><span class="eyebrow">THE TOOLBOX</span><span id="map-size" class="dimension-badge">90 × 90</span></div>
                 <div class="file-actions">
@@ -30,7 +30,7 @@
                 <section class="control-section tools-section" aria-label="Editing tools">
                     <div class="tool-switch" role="group" aria-label="Editing tool">
                         <button type="button" class="tool-tile" data-tool="place" aria-pressed="true" title="Place selected track piece (B)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-build"></use></svg><span>Build</span><kbd>B</kbd></button>
-                        <button type="button" class="tool-tile" data-tool="erase" aria-pressed="false" title="Erase track piece (E)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-erase"></use></svg><span>Erase</span><kbd>E</kbd></button>
+                        <button type="button" class="tool-tile" data-tool="erase" aria-pressed="false" title="Remove track piece (R)"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-erase"></use></svg><span>Remove</span><kbd>R</kbd></button>
                         <button type="button" class="tool-tile" data-tool="pan" aria-pressed="false" title="Pan (H), right/middle-drag, or hold Space and drag"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-hand"></use></svg><span>Pan</span><kbd>H</kbd></button>
                     </div>
                     <div class="history-actions" role="group" aria-label="Undo and redo">
@@ -53,7 +53,7 @@
                     <select id="terrain-surface" hidden tabindex="-1" aria-hidden="true"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3">Water</option></select>
                     <div class="terrain-tools" role="group" aria-label="Terrain tool">
                         <button type="button" class="tool-tile" data-tool="paint" aria-pressed="false" title="Paint the selected ground surface"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-paint"></use></svg><span>Paint</span></button>
-                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Choose a water corner below, or use Q/R to rotate"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
+                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Choose a water corner below, or use Q/E to rotate"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
                         <button type="button" class="tool-tile" data-tool="level" aria-pressed="false" title="Level terrain to the selected elevation"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-level"></use></svg><span>Level</span></button>
                         <button type="button" class="tool-tile" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-raise"></use></svg><span>Raise</span></button>
                         <button type="button" class="tool-tile" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-lower"></use></svg><span>Lower</span></button>
@@ -65,7 +65,7 @@
                         </div>
                     </div>
                     <div id="shore-direction-row" class="terrain-options" hidden>
-                        <div class="terrain-choice-heading"><span>Water corner</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>R</kbd> to rotate</span></div>
+                        <div class="terrain-choice-heading"><span>Water corner</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>E</kbd> to rotate</span></div>
                         <div class="terrain-choices" role="group" aria-label="Water corner">
                             <button type="button" class="terrain-choice" data-shore-direction="0" aria-pressed="true" aria-label="Northwest" title="Northwest water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
                             <button type="button" class="terrain-choice" data-shore-direction="1" aria-pressed="false" aria-label="Northeast" title="Northeast water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
@@ -97,7 +97,7 @@
                     <select id="piece-group" aria-controls="piece-palette" hidden tabindex="-1" aria-hidden="true"></select>
                     <div class="palette-heading"><span id="active-group-name">Roads</span><span id="palette-count">Choose a group</span></div>
                     <div class="piece-direction-row">
-                        <div class="piece-direction-label"><span>Direction</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>R</kbd> to rotate</span></div>
+                        <div class="piece-direction-label"><span>Direction</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>E</kbd> to rotate</span></div>
                         <div class="piece-direction" role="group" aria-label="Track piece direction">
                             <button type="button" data-piece-direction="0" aria-pressed="true" aria-label="North" title="North · 0°"><svg class="icon direction-north" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
                             <button type="button" data-piece-direction="1" aria-pressed="false" aria-label="East" title="East · 90°"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow"></use></svg></button>
@@ -112,13 +112,14 @@
                 <section class="control-section document-section" aria-label="Track information">
                     <button type="button" id="notes-button" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-notes"></use></svg><span>Track notes</span><span id="notes-count" class="action-meta">0 / 8000</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
                     <button type="button" id="check-track" class="document-action"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-check"></use></svg><span>Check track</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg></button>
-                    <details class="keyboard-help"><summary><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-keyboard"></use></svg><span>Keyboard shortcuts</span></summary><p><kbd>R</kbd> / <kbd>Q</kbd> rotate piece or Shore corner · <kbd>B</kbd> build · <kbd>E</kbd> erase · <kbd>H</kbd> pan<br>Right/middle drag or <kbd>Space</kbd> + drag to pan<br>Drag the navigator to move the view · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
+                    <details class="keyboard-help"><summary><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-keyboard"></use></svg><span>Keyboard shortcuts</span></summary><p><kbd>Q</kbd> / <kbd>E</kbd> rotate piece or Shore corner · <kbd>B</kbd> build · <kbd>R</kbd> remove · <kbd>H</kbd> pan<br>Right/middle drag or <kbd>Space</kbd> + drag to pan<br>Drag the navigator to move the view · scroll to zoom<br><kbd>F1</kbd>–<kbd>F10</kbd> groups<br><kbd>Ctrl+Z</kbd> undo · <kbd>Ctrl+Shift+Z</kbd> redo<br><kbd>Ctrl+S</kbd> save · <kbd>Ctrl+O</kbd> open<br>Arrow keys move the tile cursor; <kbd>Enter</kbd> builds.</p></details>
                 </section>
             </fieldset>
             <div class="sidebar-footer"><span class="status-dot"></span><span>Built for the next great track.</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-track"></use></svg></div>
         </aside>
         <section class="workspace" aria-label="Track canvas">
             <div class="canvas-toolbar">
+                <button id="sidebar-toggle" type="button" aria-controls="editor-sidebar" aria-expanded="true" title="Hide or show the editor controls"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg><span id="sidebar-toggle-label">Hide tools</span></button>
                 <div class="workspace-label"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Track canvas</span><span class="view-badge">2D</span></div>
                 <div class="display-options"><label class="display-toggle" title="Show tile grid"><input id="show-grid" type="checkbox" checked><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-grid"></use></svg><span>Grid</span></label><label class="display-toggle" title="Show terrain heights"><input id="show-heights" type="checkbox"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg><span>Heights</span></label></div>
                 <div class="toolbar-divider"></div>
