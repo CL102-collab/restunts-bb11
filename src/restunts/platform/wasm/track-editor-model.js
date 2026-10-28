@@ -127,7 +127,7 @@
                         }
                 }
                 const invalid = this.objects.find(object => !this.matchesPlane(object) || !this.hasLongSlope(object));
-                if (invalid) { this.vertices = previous; throw new Error('Terrain would bend element ' + invalid.id + '. Erase or move it first.'); }
+                if (invalid) { this.vertices = previous; throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.'); }
                 return target;
             });
         }
@@ -166,11 +166,11 @@
             if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
-                throw new Error('This space is occupied. Erase the existing element first.');
+                throw new Error('This space is occupied. Remove the existing element first.');
             return object;
         }
         place(id, x, y, surface = 0, rotation = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation); this.objects.push(object); return object; }); }
-        erase(x, y) { return this.transaction('Erase element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
+        erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         validate() {
             const errors = [], occupiedCells = new Set();
