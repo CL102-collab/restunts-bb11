@@ -8,9 +8,10 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 8, 4, 2, 4, 7, 2, 10]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 8, 4, 2, 4, 9, 2, 10]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
-    assert.equal(families.size, model.library.length);
+    assert.equal(families.size + model.SURFACES.length - 1, model.library.length);
+    assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
     assert.equal(model.library.filter(p => p.name === 'Highway transition').length, 1);
@@ -449,6 +450,30 @@ test('all loop and pipe variations preserve dirt and ice through placement, vali
         }
     }
 });
+test('overpass palette variants keep the lower road independent through rotations, history and reload', () => {
+    const variants = model.library.filter(piece => piece.physical === model.OVERPASS_PHYSICAL_MODEL);
+    assert.deepEqual(variants.map(piece => piece.name), ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice']);
+    assert.deepEqual(variants.map(piece => piece.lowerSurface), [0, 1, 2]);
+    assert.equal(new Set(variants.map(piece => piece.key)).size, variants.length);
+    for (const selected of variants) for (const surface of [0, 1, 2]) for (let direction = 0; direction < 4; direction++) {
+        const doc = new model.Document(4, 4), variant = model.pieceVariant(selected, direction);
+        assert.equal(variant.piece.key, selected.key);
+        assert.equal(variant.piece.lowerSurface, selected.lowerSurface);
+        assert.equal(variant.piece.name, selected.name);
+        const placed = doc.place(variant.piece.id, 1, 1, surface, variant.rotation, selected.lowerSurface);
+        assert.equal(placed.surface, surface); assert.equal(placed.lowerSurface, selected.lowerSurface);
+        const expected = doc.snapshot();
+        assert(doc.undo()); assert.equal(doc.objects.length, 0);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), expected);
+        const encoded = model.encodeCstrk(doc), objectOffset = 32 + doc.vertices.length + doc.cells.length * 2;
+        assert.equal(encoded[objectOffset + 12], selected.lowerSurface);
+        assert.deepEqual(Array.from(encoded.subarray(objectOffset + 13, objectOffset + 16)), [0, 0, 0]);
+        assert.deepEqual(model.decodeCstrk(encoded).snapshot(), expected);
+    }
+    assert.throws(() => new model.Document(4, 4).place(4, 1, 1, 0, 0, 1), /Only overpasses/);
+    for (const lowerSurface of [-1, 3, 1.5])
+        assert.throws(() => new model.Document(4, 4).place(101, 1, 1, 0, 0, lowerSurface), /lower road surface/);
+});
 test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
     for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {
         for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) {
@@ -733,7 +758,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 3); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 4); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -751,6 +776,58 @@ test('CSTRK horizons round-trip in the current format without changing terrain o
     }
     doc.horizon = model.HORIZONS.length;
     assert.throws(() => model.encodeCstrk(doc), /horizon/);
+});
+test('v3 tracks upgrade with their original overpass surfaces and reserve the new field until v4', () => {
+    const source = new model.Document(4, 4); source.place(101, 1, 1, 2);
+    const bytes = model.encodeCstrk(source), objectOffset = 32 + source.vertices.length + source.cells.length * 2;
+    new DataView(bytes.buffer).setUint16(8, 3, true);
+    const loaded = model.decodeCstrk(bytes);
+    assert.equal(loaded.version, model.VERSION);
+    assert.equal(loaded.objects[0].surface, 2); assert.equal(loaded.objects[0].lowerSurface, 2);
+    assert.equal(new DataView(model.encodeCstrk(loaded).buffer).getUint16(8, true), model.VERSION);
+    loaded.objects[0].lowerSurface = 1;
+    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(loaded)).snapshot(), loaded.snapshot());
+    loaded.version = 3;
+    assert.throws(() => model.encodeCstrk(loaded), /require.*version v4/);
+    loaded.objects[0].lowerSurface = loaded.objects[0].surface;
+    const legacyExport = model.encodeCstrk(loaded);
+    assert.equal(new DataView(legacyExport.buffer).getUint16(8, true), 3);
+    assert.equal(legacyExport[objectOffset + 12], 0);
+    assert.equal(model.decodeCstrk(legacyExport).objects[0].lowerSurface, loaded.objects[0].surface);
+    loaded.objects[0].lowerSurface = 0;
+    assert.throws(() => model.encodeCstrk(loaded), /require.*version v4/);
+    for (const id of [101, 102]) for (const surface of [0, 1, 2]) {
+        const doc = new model.Document(4, 4); doc.place(id, 1, 1, surface);
+        const legacy = model.encodeCstrk(doc); new DataView(legacy.buffer).setUint16(8, 3, true);
+        const upgraded = model.decodeCstrk(legacy);
+        assert.equal(upgraded.version, model.VERSION);
+        assert.equal(upgraded.objects[0].surface, surface);
+        assert.equal(upgraded.objects[0].lowerSurface, surface);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(upgraded)).snapshot(), upgraded.snapshot());
+        doc.version = 3; doc.objects[0].lowerSurface = surface;
+        const representable = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+        assert.equal(representable[record + 12], 0);
+        assert.equal(model.decodeCstrk(representable).objects[0].lowerSurface, surface);
+    }
+    for (const offset of [12, 13, 14, 15]) {
+        const invalid = bytes.slice(); invalid[objectOffset + offset] = 1;
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    for (const version of [model.VERSION, 15, 101]) {
+        const valid = bytes.slice(); new DataView(valid.buffer).setUint16(8, version, true);
+        valid[objectOffset + 12] = 2;
+        const doc = model.decodeCstrk(valid);
+        assert.equal(doc.version, version); assert.equal(doc.objects[0].lowerSurface, 2);
+        assert.deepEqual(model.encodeCstrk(doc), valid);
+        for (const offset of [13, 14, 15]) {
+            const invalid = valid.slice(); invalid[objectOffset + offset] = 1;
+            assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+        }
+        const invalidSurface = valid.slice(); invalidSurface[objectOffset + 12] = 3;
+        assert.throws(() => model.decodeCstrk(invalidSurface), /lower road surface/);
+        const invalidPiece = valid.slice(); new DataView(invalidPiece.buffer).setUint16(objectOffset, 4, true);
+        assert.throws(() => model.decodeCstrk(invalidPiece), /Only overpasses/);
+    }
 });
 test('CSTRK version metadata preserves compatible newer revisions across loading and editing', () => {
     const doc = new model.Document(4, 4); doc.setHorizon(model.HORIZONS.indexOf('Country'));
@@ -920,3 +997,6 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
         console.log('PASS original local editor resources decode without bundling game data');
     }
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
+// Keep independent overpass preview colors covered by the standard editor suite.
+require('./test-overpass-icons.js');

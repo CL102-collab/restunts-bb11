@@ -1081,6 +1081,93 @@ static legacy_u16 check_elevated_multitile_road(void)
 	return frames;
 }
 
+#define OVERPASS_RENDER_COLUMN 44U
+#define OVERPASS_RENDER_ROW 43U
+#define OVERPASS_RENDER_LEVEL 2U
+#define OVERPASS_RENDER_CAR_CLEARANCE 32U
+
+static legacy_u16 check_overpass_surfaces(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	memset(track.corner_heights, OVERPASS_RENDER_LEVEL,
+		   (size_t)(track.width + 1U) * (track.height + 1U));
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_OVERPASS_FIRST_ID;
+	object.x = OVERPASS_RENDER_COLUMN;
+	object.y = OVERPASS_RENDER_ROW;
+	object.width = object.height = object.occupied_mask = 1;
+	object.base_height = OVERPASS_RENDER_LEVEL;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	legacy_u16 frames = 0;
+	for (legacy_u8 rotation = 0; rotation < SEAM_RENDER_DIRECTION_COUNT; rotation++) {
+		track.objects[0].rotation = rotation;
+		position_render_target(OVERPASS_RENDER_COLUMN, OVERPASS_RENDER_ROW);
+		state.playerstate.car_position.ly =
+			(OVERPASS_RENDER_LEVEL * CSTRK_LEVEL_WORLD_HEIGHT + OVERPASS_RENDER_CAR_CLEARANCE) *
+			GRASS_RENDER_POSITION_SCALE;
+		state.playerstate.car_previous_position = state.playerstate.car_position;
+		state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+		custom_camera.distance = LOOP_RENDER_CAMERA_DISTANCE;
+		custom_camera.elevation_angle = LOOP_RENDER_CAMERA_ELEVATION;
+		custom_camera.azimuth_angle = rotation * ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN;
+		legacy_u32 *pixels[SURFACE_RENDER_COUNT][SURFACE_RENDER_COUNT];
+		size_t size = 0;
+		for (legacy_u8 upper = CSTRK_ROAD_PAVED; upper <= CSTRK_ROAD_ICE; upper++) {
+			for (legacy_u8 lower = CSTRK_ROAD_PAVED; lower <= CSTRK_ROAD_ICE; lower++) {
+				track.objects[0].surface = upper;
+				track.objects[0].lower_surface = lower;
+				activate_render_track(&track, 1);
+				size_t count;
+				pixels[upper][lower] = capture_complete_render(&count);
+				assert(size == 0 || count == size);
+				size = count;
+				frames++;
+			}
+		}
+		/* Changing one road must visibly affect that road with every material
+		 * on the other. The two solid-material changes must occupy disjoint
+		 * pixels, proving that neither selector repaints both roads. */
+		for (legacy_u8 other = CSTRK_ROAD_PAVED; other <= CSTRK_ROAD_ICE; other++) {
+			for (legacy_u8 surface = CSTRK_ROAD_DIRT; surface <= CSTRK_ROAD_ICE; surface++) {
+				size_t upper_changed = 0, lower_changed = 0;
+				for (size_t pixel = 0; pixel < size; pixel++) {
+					upper_changed +=
+						pixels[CSTRK_ROAD_PAVED][other][pixel] != pixels[surface][other][pixel];
+					lower_changed +=
+						pixels[other][CSTRK_ROAD_PAVED][pixel] != pixels[other][surface][pixel];
+				}
+				assert(upper_changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+				assert(lower_changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+			}
+		}
+		size_t upper_changed = 0, lower_changed = 0;
+		for (size_t pixel = 0; pixel < size; pixel++) {
+			legacy_u32 base = pixels[CSTRK_ROAD_DIRT][CSTRK_ROAD_DIRT][pixel];
+			legacy_u8 upper = pixels[CSTRK_ROAD_ICE][CSTRK_ROAD_DIRT][pixel] != base;
+			legacy_u8 lower = pixels[CSTRK_ROAD_DIRT][CSTRK_ROAD_ICE][pixel] != base;
+			assert(!upper || !lower);
+			assert(pixels[CSTRK_ROAD_ICE][CSTRK_ROAD_ICE][pixel] ==
+				   (upper ? pixels[CSTRK_ROAD_ICE][CSTRK_ROAD_DIRT][pixel]
+						  : pixels[CSTRK_ROAD_DIRT][CSTRK_ROAD_ICE][pixel]));
+			upper_changed += upper;
+			lower_changed += lower;
+		}
+		assert(upper_changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+		assert(lower_changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+		for (legacy_u8 upper = CSTRK_ROAD_PAVED; upper <= CSTRK_ROAD_ICE; upper++) {
+			for (legacy_u8 lower = CSTRK_ROAD_PAVED; lower <= CSTRK_ROAD_ICE; lower++) {
+				free(pixels[upper][lower]);
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -1130,6 +1217,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_classic_hill_rendering();
 		frames += check_consecutive_hill_seams();
 		frames += check_elevated_multitile_road();
+		frames += check_overpass_surfaces();
 	}
 	extended_track_unload();
 	cstrk_free(&track);

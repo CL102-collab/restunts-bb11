@@ -90,7 +90,7 @@
         document.querySelector('.selection-label').textContent = selected ? 'READY TO BUILD' : 'TRY ANOTHER SURFACE';
         const width = selected && (variant.rotation % 2 ? selected.height : selected.width);
         const height = selected && (variant.rotation % 2 ? selected.width : selected.height);
-        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
+        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : (selected.physical === model.OVERPASS_PHYSICAL_MODEL ? 'Upper ' : '') + model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
     }
 
     function message(text, error = false) {
@@ -203,7 +203,7 @@
         container.replaceChildren();
         const entries = groupEntries();
         const roadSurface = Number($('road-surface').value);
-        if (!state.selected || !state.selected.surfaces.includes(roadSurface) || !entries.some(p => p.id === state.selected.id)) state.selected = entries.find(p => p.surfaces.includes(roadSurface)) || null;
+        if (!state.selected || !state.selected.surfaces.includes(roadSurface) || !entries.some(p => p.key === state.selected.key)) state.selected = entries.find(p => p.surfaces.includes(roadSurface)) || null;
         for (const piece of entries) {
             const variant = model.pieceVariant(piece, state.rotation);
             const footprint = model.rotatedFootprint(variant.piece, variant.rotation);
@@ -212,7 +212,8 @@
             button.disabled = !piece.surfaces.includes(roadSurface);
             button.title = piece.name + (button.disabled ? ' — unavailable on ' + model.SURFACES[roadSurface] : ' · ' + footprint.width + ' × ' + footprint.height);
             button.setAttribute('aria-label', button.title);
-            button.setAttribute('aria-pressed', String(state.selected && piece.id === state.selected.id));
+            button.dataset.pieceKey = piece.key;
+            button.setAttribute('aria-pressed', String(state.selected && piece.key === state.selected.key));
             const thumb = document.createElement('canvas'); thumb.width = 64; thumb.height = 64;
             const t = thumb.getContext('2d');
             t.fillStyle = '#365333'; t.fillRect(0, 0, 64, 64);
@@ -436,32 +437,22 @@
             c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
-    function originalIcon(id, surface) {
+    function originalIcon(id, surface, lowerSurface) {
         if (!state.resources || !state.resources.palette) return null;
-        const cacheKey = id + ':' + surface;
+        const cacheKey = id + ':' + surface + ':' + lowerSurface;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);
         if (!source) return null;
         const bitmap = window.TrackEditorResources.composeTileBitmap(source);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;
-        for (let i = 0; i < bitmap.pixels.length; i++) {
-            const index = bitmap.pixels[i];
-            let r = palette[index * 3], g = palette[index * 3 + 1], b = palette[index * 3 + 2];
-            // Tint the original neutral road pixels for the independently selected surface.
-            if (surface && Math.max(r, g, b) - Math.min(r, g, b) < 24 && r > 35 && r < 225) {
-                if (surface === 1) { g = r * .72; b = r * .45; }
-                else { b = Math.min(255, r + 55); g = Math.min(255, r + 32); r = Math.min(255, r + 8); }
-            }
-            image.data[i * 4] = r; image.data[i * 4 + 1] = g; image.data[i * 4 + 2] = b;
-            image.data[i * 4 + 3] = bitmap.alpha[i];
-        }
+        image.data.set(window.TrackEditorResources.tintTileBitmap(bitmap, palette, surface, lowerSurface, id));
         context.putImageData(image, 0, 0); state.iconCache.set(cacheKey, icon); return icon;
     }
-    function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false) {
+    function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false, lowerSurface = piece.lowerSurface ?? 0) {
         if (piece.decoration) surface = 0;
         const display = model.pieceDisplayVariant(piece, rotation);
-        const icon = originalIcon(display.piece.id, surface);
+        const icon = originalIcon(display.piece.id, surface, lowerSurface);
         c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(display.rotation * Math.PI / 2);
         if (icon) {
             c.imageSmoothingEnabled = false;
@@ -504,7 +495,7 @@
         for (const object of doc.objects) {
             if (object.x + object.width < x0 || object.y + object.height < y0 || object.x > x1 || object.y > y1) continue;
             const piece = catalogEntry(object.id);
-            if (piece) drawPiece(ctx, piece, view.x + object.x * size, view.y + object.y * size, object.width * size, object.height * size, object.surface, object.rotation);
+            if (piece) drawPiece(ctx, piece, view.x + object.x * size, view.y + object.y * size, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
         }
         if ($('show-grid').checked && size >= 7) {
             ctx.strokeStyle = '#13210f58'; ctx.lineWidth = 1;
@@ -530,7 +521,7 @@
         let width = 1, height = 1, valid = true, preview = null;
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
         if (state.tool === 'place' && state.selected) {
-            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation); width = preview.width; height = preview.height; }
+            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
         const left = view.x + h.x * size, top = view.y + h.y * size;
@@ -603,7 +594,7 @@
         try {
             if (tool === 'place' && state.selected) {
                 const variant = model.pieceVariant(state.selected, state.rotation);
-                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation);
+                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0);
             }
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);

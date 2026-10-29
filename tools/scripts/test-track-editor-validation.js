@@ -18,9 +18,9 @@ function check(name, doc, status) {
 }
 function clearHistory(doc) { doc.history = []; doc.future = []; return doc; }
 function put(doc, ...args) { doc.objects.push(doc.placement(...args)); }
-function replace(doc, x, y, id, rotation = 0, surface = 0) {
+function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0) {
     doc.erase(x, y);
-    if (id) doc.place(id, x, y, surface, rotation);
+    if (id) doc.place(id, x, y, surface, rotation, lowerSurface);
 }
 function rectangle(width = 40, height = 18) {
     const doc = new model.Document(width, height), left = 2, right = width - 4, top = 4, bottom = height - 4;
@@ -41,7 +41,7 @@ function rotate(source) {
         const cell = source.cells[y * source.width + x];
         doc.cells[x * doc.width + source.height - y - 1] = { ...cell, halfWaterCorner: cell.halfWaterCorner ? cell.halfWaterCorner % SHORE_CORNER_COUNT + 1 : 0 };
     }
-    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4);
+    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4, object.lowerSurface ?? 0);
     return clearHistory(doc);
 }
 function chicaneJump(bridge = false, runway = false) {
@@ -152,8 +152,17 @@ for (const entry of model.library.filter(piece => !piece.decoration && piece.phy
     for (let direction = 0; direction < 4; direction++) {
         const doc = rectangle(), { piece, rotation } = model.pieceVariant(entry, direction);
         for (let x = 12; x <= 13; x++) doc.erase(x, 4);
-        doc.place(piece.id, 12, 4, 0, rotation);
+        doc.place(piece.id, 12, 4, 0, rotation, entry.lowerSurface ?? 0);
         check(entry.name + ' direction ' + direction, clearHistory(doc));
+    }
+}
+// Material combinations do not change either route through an overpass.
+for (let direction = 0; direction < 4; direction++) {
+    const reference = rectangle(); replace(reference, 12, 4, 101, direction);
+    const status = validation.validateRoute(reference).status;
+    for (const surface of [0, 1, 2]) for (const lowerSurface of [0, 1, 2]) {
+        const doc = rectangle(); replace(doc, 12, 4, 101, direction, surface, lowerSurface);
+        check('overpass upper ' + surface + ' lower ' + lowerSurface + ' direction ' + direction, clearHistory(doc), status);
     }
 }
 // Sparse large turns retain their route even when another road or scenery

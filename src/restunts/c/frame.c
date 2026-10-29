@@ -2225,10 +2225,13 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 				}
 				render_definition = frame_track_object_from_legacy_index(definition->ss_ssOvelay);
 			}
+			legacy_u8 surface = overlay && definition->ss_physicalModel == PHYSICAL_MODEL_OVERPASS
+									? object->lower_surface
+									: object->surface;
 			const struct SHAPE3D *source =
 				frame_track_shape((struct TRACKOBJECT *)render_definition, tile->detail);
 			if ((object->slope_x || object->slope_y) && native_grass &&
-				(overlay || object->surface < source->shape3d_numpaints)) {
+				(overlay || surface < source->shape3d_numpaints)) {
 				struct TRANSFORMEDSHAPE3D instance = {0};
 				instance.pos = (struct VECTOR){LEGACY_S16_WRAP_SUB(origin.x, camera->position.x),
 											   LEGACY_S16_WRAP_SUB(origin.y, camera->position.y),
@@ -2239,7 +2242,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 				instance.culling_distance = FRAME_SINGLE_TILE_TRANSFORM_DISTANCE;
 				instance.ts_flags =
 					flags | FRAME_TRANSFORM_FLAGS_DEFAULT | render_definition->ss_ignoreZBias;
-				instance.material = overlay ? 0 : object->surface;
+				instance.material = overlay ? 0 : surface;
 				if ((legacy_s16)frame_extended_queue_hill_shape(&instance, edges) > 0 &&
 					supersight_enabled != 0) {
 					return 1;
@@ -2248,7 +2251,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 			}
 			struct SHAPE3D mesh;
 			if (!extended_geometry_transform_shape(source, &mesh, render_definition->ss_rotY,
-												   object->surface, definition->ss_physicalModel)) {
+												   surface, definition->ss_physicalModel)) {
 				continue;
 			}
 			if ((object->slope_x || object->slope_y) && !native_grass) {

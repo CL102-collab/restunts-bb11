@@ -423,13 +423,13 @@ static void test_invalid_records(void)
 	struct CSTRK_OBJECT object = object_at(0, 0);
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	struct CSTRK_OBJECT invalid[] = {
-		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0}, {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0}, {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0}, {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0},
-		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0}, {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2}};
+		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
+		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0, 0},
+		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0, 0},
+		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0},
+		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2, 0}};
 	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
 		track.objects[0] = invalid[index];
 		assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -524,9 +524,154 @@ static void test_maximum_track(void)
 	cstrk_free(&decoded);
 }
 
+#define TEST_OVERPASS_ROTATIONS 4U
+
+static void test_overpass_lower_surfaces(void)
+{
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.legacy_id = CSTRK_OVERPASS_FIRST_ID;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	size_t object_offset = CSTRK_HEADER_SIZE + TEST_TERRAIN_CORNER_COUNT + 2U;
+	size_t lower_offset = object_offset + CSTRK_OBJECT_LOWER_SURFACE_OFFSET;
+	/* Independent wire fixture: byte 5 is the deck and byte 12 is the road
+	 * underneath, without changing the sixteen-byte object record. */
+	static const legacy_u8 expected[] = {101, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 2, 0, 0, 0};
+	track.objects[0].surface = CSTRK_ROAD_DIRT;
+	track.objects[0].lower_surface = CSTRK_ROAD_ICE;
+	legacy_u8 *fixture = NULL;
+	size_t fixture_size = 0;
+	assert(cstrk_encode(&track, &fixture, &fixture_size, error, sizeof(error)));
+	assert(fixture_size == object_offset + sizeof(expected));
+	assert(memcmp(fixture + object_offset, expected, sizeof(expected)) == 0);
+	free(fixture);
+	for (legacy_u16 id = CSTRK_OVERPASS_FIRST_ID; id <= CSTRK_OVERPASS_LAST_ID; id++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_OVERPASS_ROTATIONS; rotation++) {
+			for (legacy_u8 upper = CSTRK_ROAD_PAVED; upper <= CSTRK_ROAD_ICE; upper++) {
+				for (legacy_u8 lower = CSTRK_ROAD_PAVED; lower <= CSTRK_ROAD_ICE; lower++) {
+					track.objects[0].legacy_id = id;
+					track.objects[0].rotation = rotation;
+					track.objects[0].surface = upper;
+					track.objects[0].lower_surface = lower;
+					legacy_u8 *data = NULL;
+					size_t size = 0;
+					assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+					assert(data[object_offset + 5U] == upper && data[lower_offset] == lower);
+					for (size_t offset = CSTRK_OBJECT_LOWER_SURFACE_OFFSET + 1U;
+						 offset < CSTRK_OBJECT_SIZE; offset++) {
+						assert(data[object_offset + offset] == 0);
+					}
+					assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+					assert(decoded.version == CSTRK_VERSION && decoded.object_count == 1);
+					assert(decoded.objects[0].legacy_id == id);
+					assert(decoded.objects[0].rotation == rotation);
+					assert(decoded.objects[0].surface == upper);
+					assert(decoded.objects[0].lower_surface == lower);
+					legacy_u8 *again = NULL;
+					size_t again_size = 0;
+					assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+					assert(again_size == size && memcmp(data, again, size) == 0);
+					free(again);
+					free(data);
+				}
+			}
+		}
+	}
+
+	track.version = TEST_FUTURE_REVISION;
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.version == TEST_FUTURE_REVISION);
+	assert(decoded.objects[0].lower_surface == CSTRK_ROAD_ICE);
+	free(data);
+
+	track.version = CSTRK_VERSION;
+	track.objects[0].lower_surface = CSTRK_ROAD_PAVED;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	/* Revision 3 shared the selected surface across both roads. Loading
+	 * upgrades metadata and records that same lower material explicitly. */
+	LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_MIN_VERSION);
+	for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+		data[object_offset + 5U] = surface;
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION);
+		assert(decoded.objects[0].surface == surface);
+		assert(decoded.objects[0].lower_surface == surface);
+		legacy_u8 *upgraded = NULL;
+		size_t upgraded_size = 0;
+		assert(cstrk_encode(&decoded, &upgraded, &upgraded_size, error, sizeof(error)));
+		assert(upgraded_size == size);
+		assert(LEGACY_READ_U16_LE(upgraded + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
+		assert(upgraded[lower_offset] == surface);
+		free(upgraded);
+	}
+	/* Other v3 objects still have no independent lower road. */
+	LEGACY_WRITE_U16_LE(data + object_offset, 1U);
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.objects[0].surface == CSTRK_ROAD_ICE);
+	assert(decoded.objects[0].lower_surface == CSTRK_ROAD_PAVED);
+	LEGACY_WRITE_U16_LE(data + object_offset, CSTRK_OVERPASS_LAST_ID);
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	legacy_u8 before[sizeof(decoded)];
+	memcpy(before, &decoded, sizeof(decoded));
+	for (size_t offset = CSTRK_OBJECT_LOWER_SURFACE_OFFSET; offset < CSTRK_OBJECT_SIZE; offset++) {
+		data[object_offset + offset] = 1;
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+		data[object_offset + offset] = 0;
+	}
+	LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	for (size_t offset = CSTRK_OBJECT_LOWER_SURFACE_OFFSET + 1U; offset < CSTRK_OBJECT_SIZE;
+		 offset++) {
+		data[object_offset + offset] = 1;
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+		data[object_offset + offset] = 0;
+	}
+	data[lower_offset] = CSTRK_ROAD_ICE + 1U;
+	assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	data[lower_offset] = CSTRK_ROAD_DIRT;
+	LEGACY_WRITE_U16_LE(data + object_offset, 1U);
+	assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	free(data);
+
+	track.objects[0].lower_surface = CSTRK_ROAD_ICE + 1U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0].lower_surface = CSTRK_ROAD_DIRT;
+	track.version = CSTRK_MIN_VERSION;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	/* Explicit legacy exports can represent only equal overpass surfaces.
+	 * They retain revision 3 and leave the old reserved bytes zero. */
+	for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+		track.objects[0].surface = track.objects[0].lower_surface = surface;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_MIN_VERSION);
+		assert(data[lower_offset] == 0);
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION);
+		assert(decoded.objects[0].surface == surface);
+		assert(decoded.objects[0].lower_surface == surface);
+		free(data);
+	}
+	track.objects[0].lower_surface = CSTRK_ROAD_DIRT;
+	track.version = CSTRK_VERSION;
+	track.objects[0].legacy_id = 1;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0].lower_surface = CSTRK_ROAD_PAVED;
+	assert(cstrk_validate(&track, error, sizeof(error)));
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
 int main(void)
 {
 	test_wire_layout();
+	test_overpass_lower_surfaces();
 	test_horizons_and_versions();
 	test_surface_corners();
 	test_original_terrain_profiles();
