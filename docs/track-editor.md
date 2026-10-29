@@ -89,6 +89,12 @@ replay selectors include both legacy and new files; `.cstrk` and `.csrpl` names
 are blue, with extensions displayed to distinguish matching stems. Legacy builds
 retain their original formats.
 
+Before a race, the game checks the route as well as the file format. A rejected
+Chocolate Stunts route shows the reason and, where relevant, its column and row
+using the editor's numbering (starting at 1). Scenery does not connect roads.
+Jumps retain the original game's runway and gap-length requirements; a chicane
+immediately before a takeoff ramp can leave too little runway.
+
 Racing on `.cstrk` records **.csrpl**, which embeds the full track and has a
 32-bit frame count, growable input storage and replay checkpoints. It preserves
 the complete recording beyond ten minutes. Seek, rewind and branching use the

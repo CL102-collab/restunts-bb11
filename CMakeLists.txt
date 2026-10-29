@@ -227,6 +227,7 @@ set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
     intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c
     extended_file.c extended_replay_runtime.c extended_editor.c extended_race_stats.c extended_ghost.c
+    extended_validation.c
     race_resources.c dashboard.c menu_common.c menu_main.c menu_options.c
     menu_track.c menu_track_editor.c menu_opponent.c opponent_portrait.c opponent_animation.c menu_background.c
     menu_car.c audio_engine.c
@@ -482,6 +483,10 @@ if(RESTUNTS_BUILD_TESTS)
     add_executable(test-cstrk ${core}/cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
+    add_executable(test-extended-validation ${core}/extended_validation.c
+        src/restunts/tests/test-extended-validation.c)
+    target_compile_options(test-extended-validation PRIVATE -UNDEBUG)
+    add_test(NAME extended-validation COMMAND test-extended-validation)
     add_executable(test-csrpl ${core}/cstrk.c ${core}/csrpl.c ${core}/extended_replay.c
         src/restunts/tests/test-csrpl.c)
     target_compile_options(test-csrpl PRIVATE -UNDEBUG)
@@ -522,6 +527,14 @@ if(RESTUNTS_BUILD_TESTS)
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
     enable_testing()
+    add_executable(test-extended-race-start src/restunts/tests/test-extended-race-start.c
+        ${core}/extended_validation.c)
+    target_compile_definitions(test-extended-race-start PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-race-start PRIVATE -UNDEBUG
+        ${restunts_test_section_options})
+    target_link_options(test-extended-race-start PRIVATE ${restunts_test_gc_sections})
+    target_link_libraries(test-extended-race-start PRIVATE restunts_options)
+    add_test(NAME extended-race-start COMMAND test-extended-race-start)
     add_executable(test-extended-file-dialog src/restunts/tests/test-extended-file-dialog.c
         ${core}/ui_dialog.c ${core}/ui_input.c ${core}/legacy.c ${core}/strlib.c
         ${core}/resource.c ${platform}/runtime.c)
