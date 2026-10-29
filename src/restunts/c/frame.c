@@ -1687,6 +1687,14 @@ static legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
 }
 
 #ifdef RESTUNTS_SDL3
+enum FRAME_EXTENDED_TERRAIN_MATERIAL {
+	FRAME_EXTENDED_GROUND_GRASS_MATERIAL = 16,
+	FRAME_EXTENDED_ICE_MATERIAL = 28,
+	FRAME_EXTENDED_DIRT_MATERIAL = 25,
+	FRAME_EXTENDED_WATER_MATERIAL = 100,
+	FRAME_EXTENDED_HILL_GRASS_MATERIAL = 101
+};
+
 /* Extended terrain is drawn from the very same shared corner vertices used
  * by collision. There are no hidden legacy one-level terrain substitutions. */
 static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
@@ -1706,8 +1714,9 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 	for (unsigned i = 0; i < 4; i++) {
 		shape3d_vertex_write(&shape, i, &vertices[i]);
 	}
-	static const legacy_u8 materials[4] = {101, 28, 25, 100};
-	unsigned material = materials[cell->surface];
+	static const legacy_u8 materials[] = {FRAME_EXTENDED_GROUND_GRASS_MATERIAL,
+										  FRAME_EXTENDED_ICE_MATERIAL, FRAME_EXTENDED_DIRT_MATERIAL,
+										  FRAME_EXTENDED_WATER_MATERIAL};
 	unsigned nw_diagonal = cell->half_water_corner == CSTRK_WATER_NORTHWEST ||
 						   cell->half_water_corner == CSTRK_WATER_SOUTHEAST;
 	legacy_u8 triangles[2][3] = {{0, 1, 2}, {0, 2, 3}};
@@ -1726,7 +1735,16 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 								(cell->half_water_corner == CSTRK_WATER_NORTHEAST && i == 0) ||
 								(cell->half_water_corner == CSTRK_WATER_SOUTHEAST && i == 1) ||
 								(cell->half_water_corner == CSTRK_WATER_SOUTHWEST && i == 1);
-		primitives[i * 6 + 2] = corner_half ? materials[cell->corner_surface] : material;
+		legacy_u8 surface = corner_half ? cell->corner_surface : cell->surface;
+		legacy_u8 material = materials[surface];
+		/* Flat level-zero grass matches the original ground fill. Classify
+		 * each triangle so a raised corner cannot recolor its flat neighbor. */
+		if (surface == CSTRK_TERRAIN_GRASS &&
+			(vertices[triangles[i][0]].y != 0 || vertices[triangles[i][1]].y != 0 ||
+			 vertices[triangles[i][2]].y != 0)) {
+			material = FRAME_EXTENDED_HILL_GRASS_MATERIAL;
+		}
+		primitives[i * 6 + 2] = material;
 		for (unsigned v = 0; v < 3; v++) {
 			primitives[i * 6 + 3 + v] = triangles[i][v];
 		}
