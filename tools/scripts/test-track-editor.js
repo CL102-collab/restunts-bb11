@@ -427,11 +427,27 @@ test('slaloms and tunnels require flat plateaus instead of being tilted onto hil
         }
     }
 });
-test('expanded road surfaces and incompatible stunt surfaces', () => {
-    for (const id of [40, 49, 53, 60, 66, 75, 85, 87, 99, 105, 109, 115, 117, 121]) {
+test('expanded road surfaces are available across road and stunt families', () => {
+    for (const id of [40, 49, 53, 60, 64, 66, 68, 70, 75, 83, 85, 87, 99, 105, 109, 115, 117, 121]) {
         for (const surface of [0, 1, 2]) assert.doesNotThrow(() => new model.Document(4, 4).place(id, 0, 0, surface));
     }
-    assert.throws(() => new model.Document().place(64, 0, 0, 1), /does not support/);
+});
+test('all loop and pipe variations preserve dirt and ice through placement, validation and reload', () => {
+    const loopAndPipeModels = new Set([27, 29, 30, 31]);
+    const entries = model.catalog.filter(piece => loopAndPipeModels.has(piece.physical));
+    assert.deepEqual(new Set(entries.map(piece => piece.physical)), loopAndPipeModels);
+    for (const entry of entries) {
+        assert.deepEqual(entry.surfaces, [0, 1, 2]);
+        for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) for (const level of [0, 4]) {
+            const doc = new model.Document(4, 4);
+            doc.vertices.fill(level);
+            doc.place(entry.id, 1, 1, surface, rotation);
+            assert.deepEqual(doc.validate(), []);
+            const loaded = model.decodeCstrk(model.encodeCstrk(doc));
+            assert.equal(loaded.objects[0].surface, surface);
+            assert.deepEqual(loaded.snapshot(), doc.snapshot());
+        }
+    }
 });
 test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
     for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {

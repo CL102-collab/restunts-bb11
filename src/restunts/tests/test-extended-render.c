@@ -167,31 +167,43 @@ static size_t check_rendered_objects(const struct CSTRK_TRACK *track, unsigned c
 	return changed;
 }
 
-static unsigned check_rendered_surfaces(const struct CSTRK_TRACK *track)
+#define SURFACE_RENDER_COLUMN 44U
+#define SURFACE_RENDER_ROW 40U
+#define SURFACE_RENDER_TARGET_ROW 41U
+#define SURFACE_RENDER_CAMERA_DISTANCE 4600
+#define SURFACE_RENDER_CAMERA_ELEVATION 192
+#define SURFACE_RENDER_COUNT 3U
+#define SURFACE_RENDER_MIN_CHANGED_PIXELS 16U
+
+static legacy_u16 check_rendered_surfaces(const struct CSTRK_TRACK *track)
 {
-	static const unsigned ids[] = {117U, 121U, 85U, 155U};
-	unsigned frames = 0;
-	for (unsigned index = 0; index < sizeof(ids) / sizeof(ids[0]); index++) {
+	static const struct {
+		legacy_u16 id;
+		legacy_u8 width, height;
+	} pieces[] = {{117U, 2U, 2U}, {121U, 2U, 2U}, {85U, 1U, 2U}, {64U, 1U, 2U},
+				  {70U, 1U, 1U},  {68U, 1U, 1U},  {83U, 1U, 1U}, {155U, 1U, 1U}};
+	legacy_u16 frames = 0;
+	for (legacy_u16 index = 0; index < sizeof(pieces) / sizeof(pieces[0]); index++) {
 		struct CSTRK_OBJECT object = {0};
-		object.legacy_id = (uint16_t)ids[index];
-		object.x = 44;
-		object.y = 40;
-		object.width = index < 2U ? 2U : 1U;
-		object.height = index < 3U ? 2U : 1U;
-		object.occupied_mask = (uint8_t)((1U << (object.width * object.height)) - 1U);
-		object.base_height = (uint8_t)terrain_level(object.x);
+		object.legacy_id = pieces[index].id;
+		object.x = SURFACE_RENDER_COLUMN;
+		object.y = SURFACE_RENDER_ROW;
+		object.width = pieces[index].width;
+		object.height = pieces[index].height;
+		object.occupied_mask = (legacy_u8)((1U << (object.width * object.height)) - 1U);
+		object.base_height = (legacy_u8)terrain_level(object.x);
 		struct CSTRK_TRACK isolated = *track;
 		isolated.object_count = 1;
 		isolated.objects = &object;
-		position_render_target(44U, 41U);
+		position_render_target(SURFACE_RENDER_COLUMN, SURFACE_RENDER_TARGET_ROW);
 		/* Look down onto the driving faces, rather than their unchanged backsides. */
-		custom_camera.distance = 4600;
-		custom_camera.elevation_angle = 192;
+		custom_camera.distance = SURFACE_RENDER_CAMERA_DISTANCE;
+		custom_camera.elevation_angle = SURFACE_RENDER_CAMERA_ELEVATION;
 		custom_camera.azimuth_angle = 0;
-		legacy_u32 *pixels[3];
-		size_t sizes[3];
-		for (unsigned surface = 0; surface < 3U; surface++) {
-			object.surface = (uint8_t)surface;
+		legacy_u32 *pixels[SURFACE_RENDER_COUNT];
+		size_t sizes[SURFACE_RENDER_COUNT];
+		for (legacy_u8 surface = 0; surface < SURFACE_RENDER_COUNT; surface++) {
+			object.surface = (legacy_u8)surface;
 			activate_render_track(&isolated, 1);
 			pixels[surface] = capture_complete_render(&sizes[surface]);
 			frames++;
@@ -206,33 +218,33 @@ static unsigned check_rendered_surfaces(const struct CSTRK_TRACK *track)
 		}
 		free(empty);
 		frames++;
-		if (visible <= 16U) {
-			fprintf(stderr, "Surface fixture %u shows only %zu object pixels\n", ids[index],
+		if (visible <= SURFACE_RENDER_MIN_CHANGED_PIXELS) {
+			fprintf(stderr, "Surface fixture %u shows only %zu object pixels\n", pieces[index].id,
 					visible);
 		}
-		assert(visible > 16U);
-		for (unsigned surface = 1; surface < 3U; surface++) {
+		assert(visible > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+		for (legacy_u8 surface = 1; surface < SURFACE_RENDER_COUNT; surface++) {
 			assert(sizes[surface] == sizes[0]);
 			size_t changed = 0;
 			for (size_t pixel = 0; pixel < sizes[0]; pixel++) {
 				changed += pixels[0][pixel] != pixels[surface][pixel];
 			}
-			if (index < 3U) {
-				/* Actual corkscrew artwork must show the selected road material. */
-				if (changed <= 16U) {
-					fprintf(stderr, "Corkscrew %u surface %u changed only %zu pixels\n", ids[index],
-							surface, changed);
+			if (index + 1U < sizeof(pieces) / sizeof(pieces[0])) {
+				/* Driving faces and overlays must show the selected road material. */
+				if (changed <= SURFACE_RENDER_MIN_CHANGED_PIXELS) {
+					fprintf(stderr, "Road piece %u surface %u changed only %zu pixels\n",
+							pieces[index].id, surface, changed);
 				}
-				assert(changed > 16U);
+				assert(changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
 			} else {
 				/* Even imported nonzero surface fields must leave scenery unchanged. */
 				assert(changed == 0U);
 			}
 		}
-		if (index < 3U) {
+		if (index + 1U < sizeof(pieces) / sizeof(pieces[0])) {
 			assert(memcmp(pixels[1], pixels[2], sizes[0] * sizeof(*pixels[0])) != 0);
 		}
-		for (unsigned surface = 0; surface < 3U; surface++) {
+		for (legacy_u8 surface = 0; surface < SURFACE_RENDER_COUNT; surface++) {
 			free(pixels[surface]);
 		}
 	}

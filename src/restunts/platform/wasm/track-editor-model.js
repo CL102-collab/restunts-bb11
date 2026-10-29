@@ -45,7 +45,7 @@
         const decoration = physical >= 64;
         return { id, name: physicalNames[physical] || 'Element ' + id, group: groupFor(id, physical), width, height, mask,
             rotation: a[0] / 256, physical, decoration, legacySurface: a[1],
-            surfaces: [27, 29, 30, 31].includes(physical) ? [0] : [0, 1, 2] };
+            surfaces: [0, 1, 2] };
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
     const byId = new Map(catalog.map(a => [a.id, a]));
     // A family keeps distinct shapes and editor groups, while combining native rotations.

@@ -84,11 +84,10 @@ are rejected; remove or move that piece first.
 ## Track pieces
 
 Choose a road surface independently of the element group. Dirt and ice variants
-are not separate palette groups. Incompatible pieces are disabled. The expanded
-surface choices cover slalom, tunnel, large branches, divided highway, chicanes,
-elevated roads, banked roads and all corkscrews. Pipes and loops retain their
-original surface restrictions. Scenery is available with every road surface
-selection and keeps its original appearance.
+are not separate palette groups. Every road and stunt piece supports paved,
+dirt and ice, including loops, pipe entrances, pipes, half pipes and all
+corkscrews. Scenery is available with every road surface selection and keeps
+its original appearance.
 
 Original editor grouping and icons come from the selected game resources.
 Each shape appears once in the library. The four direction arrows update all
