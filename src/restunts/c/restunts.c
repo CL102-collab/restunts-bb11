@@ -9,6 +9,7 @@
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
 #include "extended_track.h"
+#include "extended_validation.h"
 #include "extended_file.h"
 #include "extended_replay_runtime.h"
 #ifndef __ANDROID__
@@ -854,6 +855,15 @@ static legacy_s16 main_menu_prepare_track(void)
 		STARTUP_TRACE("menu track complete");
 		//result = setup_track();
 		if (result != 0) {
+#ifdef RESTUNTS_SDL3
+			if (extended_track_active()) {
+				char message[192];
+				extended_track_validation_message(result, track_validation_column,
+												  track_validation_row, message, sizeof(message));
+				show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message,
+							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+			}
+#endif
 			run_tracks_menu(1);
 			return 0;
 		}
