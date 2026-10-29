@@ -133,7 +133,7 @@
         <p>Saves stay in this tab. Export them before closing, then import the saved file before starting next time.
             You can also import tracks and replays.</p>
         <label for="import">Import saves, tracks, or replays</label>
-        <input id="import" type="file" accept=".json,.trk,.cstrk,.rpl,.csrpl,.hig,.cfg" multiple disabled>
+        <input id="import" type="file" accept=".json,.trk,.cstrk,.rpl,.csrpl,.cshig,.hig,.cfg" multiple disabled>
         </div>
         <details>
             <summary>Game log</summary>
@@ -233,8 +233,8 @@
         // Include the shape and compressed audio alternatives used by the native loaders.
         const GAME_EXTENSIONS = new Set(['3sh', 'cfg', 'cod', 'dif', 'drv', 'esh', 'fnt', 'hdr', 'hig',
             'kms', 'lmp', 'p3s', 'pes', 'pkm', 'plb', 'pre', 'psf', 'pvc', 'pvs', 'res', 'rpl',
-            'sfx', 'trk', 'cstrk', 'csrpl', 'vce', 'vsh', 'xvs']);
-        const SAVE_EXTENSIONS = new Set(['cfg', 'hig', 'rpl', 'csrpl', 'trk', 'cstrk']);
+            'sfx', 'trk', 'cstrk', 'csrpl', 'cshig', 'vce', 'vsh', 'xvs']);
+        const SAVE_EXTENSIONS = new Set(['cfg', 'hig', 'cshig', 'rpl', 'csrpl', 'trk', 'cstrk']);
         const TEMP_EXTENSIONS = new Set(['tmp']);
         const MAX_LOG_LINES = 100;
         const DOWNLOAD_RELEASE_DELAY_MS = 1000;
@@ -914,7 +914,7 @@
                 let totalBytes = 0;
                 function addFile(name, bytes) {
                     if (typeof name !== 'string' || !validFilename(name, SAVE_EXTENSIONS)) {
-                        throw new Error('Save names must use a DOS filename with CFG, HIG, RPL, or TRK extension.');
+                        throw new Error('Use a 1-8 character filename with a supported configuration, score, replay, or track extension.');
                     }
                     totalBytes += bytes.length;
                     if (totalBytes > MAX_IMPORT_BYTES) throw new Error('Imported saves exceed 16 MiB.');

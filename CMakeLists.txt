@@ -222,12 +222,12 @@ set(common_sources
     headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
     track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
     owoot.c owoot_wheels.c owoot_road.c owoot_route.c replay.c stateio.c
-    cstrk.c csrpl.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c)
+    cstrk.c csrpl.c cshig.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c)
 set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
     intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c
     extended_file.c extended_replay_runtime.c extended_editor.c extended_race_stats.c extended_ghost.c
-    extended_validation.c
+    extended_validation.c extended_highscore.c
     race_resources.c dashboard.c menu_common.c menu_main.c menu_options.c
     menu_track.c menu_track_editor.c menu_opponent.c opponent_portrait.c opponent_animation.c menu_background.c
     menu_car.c audio_engine.c
@@ -478,13 +478,23 @@ install(FILES src/restunts/platform/wasm/track-editor.html
     src/restunts/platform/wasm/track-editor-route-data.js
     src/restunts/platform/wasm/track-editor-validation.js
     DESTINATION share/restunts/editor COMPONENT Runtime)
-install(FILES docs/cstrk-format.md docs/csrpl-format.md docs/track-editor.md
+install(FILES docs/cstrk-format.md docs/csrpl-format.md docs/cshig-format.md docs/track-editor.md
     DESTINATION share/docs/restunts COMPONENT Runtime)
 
 if(RESTUNTS_BUILD_TESTS)
     add_executable(test-cstrk ${core}/cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
+    add_executable(test-cshig ${core}/cstrk.c ${core}/cshig.c src/restunts/tests/test-cshig.c)
+    target_compile_options(test-cshig PRIVATE -UNDEBUG)
+    add_test(NAME cshig-format COMMAND test-cshig)
+    add_executable(test-extended-highscore src/restunts/tests/test-extended-highscore.c)
+    target_link_libraries(test-extended-highscore PRIVATE restunts_game)
+    target_compile_options(test-extended-highscore PRIVATE -UNDEBUG)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-highscore-test")
+    add_test(NAME extended-highscore COMMAND test-extended-highscore)
+    set_tests_properties(extended-highscore PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-highscore-test")
     add_executable(test-extended-validation ${core}/extended_validation.c
         src/restunts/tests/test-extended-validation.c)
     target_compile_options(test-extended-validation PRIVATE -UNDEBUG)
@@ -538,6 +548,21 @@ if(RESTUNTS_BUILD_TESTS)
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
     enable_testing()
+    if(UNIX AND NOT CMAKE_CROSSCOMPILING)
+        add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
+            ${platform}/file.c)
+        target_compile_definitions(test-sdl3-file-replace PRIVATE RESTUNTS_SDL3 __EMSCRIPTEN__)
+        target_include_directories(test-sdl3-file-replace PRIVATE src/restunts/tests/stubs)
+        target_compile_options(test-sdl3-file-replace PRIVATE -UNDEBUG -Wno-pointer-sign)
+        add_test(NAME browser-file-replace COMMAND test-sdl3-file-replace)
+    endif()
+    add_executable(test-extended-hiscore-ui src/restunts/tests/test-extended-hiscore-ui.c)
+    target_compile_definitions(test-extended-hiscore-ui PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-extended-hiscore-ui PRIVATE -UNDEBUG
+        ${restunts_test_section_options})
+    target_link_options(test-extended-hiscore-ui PRIVATE ${restunts_test_gc_sections})
+    target_link_libraries(test-extended-hiscore-ui PRIVATE restunts_options)
+    add_test(NAME extended-hiscore-ui COMMAND test-extended-hiscore-ui)
     add_executable(test-extended-race-start src/restunts/tests/test-extended-race-start.c
         ${core}/extended_validation.c)
     target_compile_definitions(test-extended-race-start PRIVATE RESTUNTS_SDL3)

@@ -1,3 +1,6 @@
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include <dirent.h>
 #include <errno.h>
 #include <limits.h>
@@ -406,6 +409,93 @@ legacy_s16 dos_file_remove(const legacy_s8 *path)
 	return 0;
 }
 
+legacy_s16 sdl3_file_exists(const legacy_s8 *path)
+{
+	legacy_char resolved[FILE_PATH_SIZE];
+	if (!resolve_path((const legacy_char *)path, resolved)) {
+		return -1;
+	}
+#ifdef _WIN32
+	WCHAR wide[FILE_PATH_SIZE];
+	if (!native_wide_path(resolved, wide)) {
+		return -1;
+	}
+	if (GetFileAttributesW(wide) != INVALID_FILE_ATTRIBUTES) {
+		return 1;
+	}
+	DWORD error = GetLastError();
+	return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND ? 0 : -1;
+#else
+	struct stat info;
+	if (lstat(resolved, &info) == 0) {
+		return 1;
+	}
+	return errno == ENOENT ? 0 : -1;
+#endif
+}
+
+#ifdef __EMSCRIPTEN__
+/* A browser commit can suspend and fail after MEMFS rename has succeeded.
+ * Keep the former entry in a scratch sibling until persistence completes. */
+static legacy_s16 browser_file_replace(const legacy_char *source, const legacy_char *target)
+{
+	if (strcmp(source, target) == 0) {
+		struct stat same;
+		return lstat(source, &same) == 0 && !S_ISDIR(same.st_mode) ? commit_file(target, 0) : -1;
+	}
+	legacy_char backup[FILE_PATH_SIZE] = {0};
+	struct stat info;
+	if (lstat(target, &info) == 0) {
+		if (S_ISDIR(info.st_mode)) {
+			return -1;
+		}
+		const legacy_char *slash = strrchr(target, '/');
+		size_t prefix = slash != NULL ? (size_t)(slash - target) + 1U : 0U;
+		if (prefix + 13U > sizeof(backup)) {
+			return -1;
+		}
+		memcpy(backup, target, prefix);
+		static unsigned serial;
+		int available = 0;
+		for (unsigned attempt = 0; attempt < 65536U; attempt++) {
+			snprintf(backup + prefix, sizeof(backup) - prefix, "_B%06X.tmp", ++serial & 0xffffffU);
+			legacy_s16 exists = sdl3_file_exists((const legacy_s8 *)backup);
+			if (exists < 0) {
+				return -1;
+			}
+			if (!exists) {
+				available = 1;
+				break;
+			}
+		}
+		if (!available || rename(target, backup) != 0) {
+			return -1;
+		}
+	} else if (errno != ENOENT) {
+		return -1;
+	}
+	if (rename(source, target) != 0) {
+		if (backup[0]) {
+			(void)rename(backup, target);
+		}
+		return -1;
+	}
+	if (commit_file(target, 0) != 0) {
+		/* Restore both the old destination and the caller's completed temporary
+		 * file so a failed save can be retried or exported without data loss. */
+		(void)rename(target, source);
+		if (backup[0]) {
+			(void)rename(backup, target);
+		}
+		return -1;
+	}
+	if (backup[0]) {
+		(void)native_file_remove(backup);
+	}
+	return 0;
+}
+#endif
+
 legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destination)
 {
 	legacy_char source[FILE_PATH_SIZE], target[FILE_PATH_SIZE];
@@ -413,7 +503,9 @@ legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destin
 		!resolve_path((const legacy_char *)destination, target)) {
 		return -1;
 	}
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+	if (browser_file_replace(source, target) != 0) {
+#elif defined(_WIN32)
 	WCHAR wide_source[FILE_PATH_SIZE], wide_target[FILE_PATH_SIZE];
 	if (!native_wide_path(source, wide_source) || !native_wide_path(target, wide_target) ||
 		!MoveFileExW(wide_source, wide_target, MOVEFILE_REPLACE_EXISTING)) {
@@ -423,12 +515,6 @@ legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destin
 		file_error = 1;
 		return -1;
 	}
-#ifdef __EMSCRIPTEN__
-	if (commit_file(target, 0) != 0) {
-		file_error = 1;
-		return -1;
-	}
-#endif
 #ifdef __ANDROID__
 	android_saved_file_written((const legacy_s8 *)target);
 #endif
@@ -482,7 +568,8 @@ static legacy_u16 file_find_name_supported(const legacy_char *name)
 	const legacy_char *extension = strrchr(name, '.');
 	return length < FILE_NAME_SIZE && extension != NULL && extension - name >= 1 &&
 		   extension - name <= 8 &&
-		   (compare_names(extension, ".cstrk") == 0 || compare_names(extension, ".csrpl") == 0);
+		   (compare_names(extension, ".cstrk") == 0 || compare_names(extension, ".csrpl") == 0 ||
+			compare_names(extension, ".cshig") == 0);
 }
 
 const legacy_s8 *dos_file_find_next(void)

@@ -11,6 +11,71 @@
 #include "../c/extended_track.h"
 #include "../c/extended_file.h"
 #include "../c/extended_geometry.h"
+#include "../c/extended_highscore.h"
+int extended_highscore_load_or_create(const legacy_s8 *directory, const legacy_s8 *name,
+									  const struct CSTRK_TRACK *track, int create_default)
+{
+	(void)directory;
+	(void)name;
+	(void)track;
+	(void)create_default;
+	assert(0);
+	return 1;
+}
+const struct CSHIG_ENTRY *extended_highscore_entry(unsigned index)
+{
+	(void)index;
+	assert(0);
+	return NULL;
+}
+int extended_highscore_validate_track(const legacy_s8 *directory, const legacy_s8 *name,
+									  const struct CSTRK_TRACK *track)
+{
+	(void)directory;
+	(void)name;
+	(void)track;
+	assert(0);
+	return 1;
+}
+uint64_t extended_highscore_ticks(uint32_t frames, uint16_t fps)
+{
+	(void)frames;
+	(void)fps;
+	assert(0);
+	return CSHIG_EMPTY_TICKS;
+}
+int extended_highscore_qualifies(uint32_t frames, uint16_t fps)
+{
+	(void)frames;
+	(void)fps;
+	assert(0);
+	return 0;
+}
+int extended_highscore_record(const legacy_s8 *directory, const legacy_s8 *name,
+							  const struct CSTRK_TRACK *track, const struct CSHIG_ENTRY *entry,
+							  unsigned *rank)
+{
+	(void)directory;
+	(void)name;
+	(void)track;
+	(void)entry;
+	(void)rank;
+	assert(0);
+	return 1;
+}
+int extended_highscore_format_time(legacy_s8 *out, size_t size, uint64_t ticks)
+{
+	(void)out;
+	(void)size;
+	(void)ticks;
+	assert(0);
+	return 1;
+}
+const legacy_s8 *extended_highscore_error(void)
+{
+	assert(0);
+	return NULL;
+}
 #ifdef EXTENDED_TEST_GHOST_SELECTION
 #include "../c/ghost.h"
 legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,

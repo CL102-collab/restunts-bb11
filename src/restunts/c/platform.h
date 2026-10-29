@@ -66,6 +66,8 @@ const legacy_s8 *dos_file_find_next(void);
 void sdl3_car_impact_feedback(void);
 /* Commit a completed sibling temporary file without truncating the destination. */
 legacy_s16 sdl3_file_replace(const legacy_s8 *temporary, const legacy_s8 *destination);
+/* 1 for any existing directory entry, 0 if absent, -1 if status cannot be read. */
+legacy_s16 sdl3_file_exists(const legacy_s8 *path);
 #endif
 
 #ifdef __ANDROID__

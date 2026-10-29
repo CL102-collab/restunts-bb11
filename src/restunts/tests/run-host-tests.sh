@@ -328,6 +328,11 @@ run_host_test test-replay-controls legacy.c \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay.c
 run_host_test test-cstrk cstrk.c
+run_host_test test-cshig cshig.c "$test_source_dir/cstrk.c"
+run_host_test test-sdl3-file-replace ../platform/sdl3/file.c \
+    -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ -I"$test_script_dir/stubs" -Wno-pointer-sign
+run_host_test test-extended-hiscore-ui legacy.c -DRESTUNTS_SDL3 \
+    -Wno-pointer-sign -Wno-unused-variable
 run_host_test test-extended-validation extended_validation.c
 run_host_test test-extended-race-start extended_validation.c -DRESTUNTS_SDL3 \
     -Wno-pointer-sign -Wno-unused-variable
