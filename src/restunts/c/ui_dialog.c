@@ -38,6 +38,7 @@
 #define FILE_DIALOG_SEPARATOR_WIDTH 171
 #define FILE_DIALOG_LIST_WIDTH 162
 #define FILE_DIALOG_DIRECTORY_MAX_LENGTH 18
+#define FILE_DIALOG_EXTENDED_TEXT_COLOR 4
 #define DIALOG_INPUT_TIMEOUT 30000UL
 #define SECURITY_DIALOG_Y 120U
 #define DIALOG_LINE_BUFFER_CAPACITY 128
@@ -626,10 +627,10 @@ static void file_dialog_draw_rows(struct FILE_DIALOG *dialog)
 				const legacy_s8 *extension = dialog->legacy_extension;
 				if (dialog->extended[(legacy_u8)candidate]) {
 					extension = strcmp(extension, ".trk") == 0 ? ".cstrk" : ".csrpl";
-					/* The original palette's color 1 is blue. Keep the name blue
-					 * when selected, with the usual bright selection background. */
-					font_set_colors(1, candidate == dialog->selected ? dialog_fnt_colour
-																	 : dialog_background_color);
+					/* Keep extended names red when selected, with the usual bright background. */
+					font_set_colors(FILE_DIALOG_EXTENDED_TEXT_COLOR, candidate == dialog->selected
+																		 ? dialog_fnt_colour
+																		 : dialog_background_color);
 				}
 				strcat(&resID_byte1, extension);
 			}
