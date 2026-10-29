@@ -105,6 +105,10 @@ static void position_render_target(unsigned column, unsigned north_row)
 #define RENDER_CAPTURE_OPAQUE_ALPHA UINT32_C(0xff000000)
 #define RENDER_CAPTURE_INDEX_RGB_STEP UINT32_C(0x010101)
 #define RENDER_CAPTURE_VIDEO_SEGMENT 0xA000U
+#define RENDER_CAPTURE_SKY_MARKER LEGACY_U8_MAX
+#define RENDER_CAPTURE_SKY_COLOR UINT32_C(0x01000000)
+
+static legacy_u8 render_capture_mark_sky;
 
 static legacy_u32 *capture_complete_render(size_t *pixel_count)
 {
@@ -122,6 +126,11 @@ static legacy_u32 *capture_complete_render(size_t *pixel_count)
 	legacy_u32 palette[256];
 	for (unsigned index = 0; index < 256; index++) {
 		palette[index] = RENDER_CAPTURE_OPAQUE_ALPHA | index * RENDER_CAPTURE_INDEX_RGB_STEP;
+	}
+	if (render_capture_mark_sky) {
+		// Opaque enhanced highlights can share any RGB value. An alpha marker
+		// keeps indexed background coverage distinct from those overlays.
+		palette[RENDER_CAPTURE_SKY_MARKER] = RENDER_CAPTURE_SKY_COLOR;
 	}
 	hires_copy_framebuffer_argb(legacy, palette, pixels, width * sizeof(*pixels));
 	return pixels;
@@ -598,6 +607,232 @@ static legacy_u16 check_classic_hill_rendering(void)
 	return frames;
 }
 
+#define SEAM_RENDER_FIRST_COLUMN 38U
+#define SEAM_RENDER_CROSS_COLUMN 43U
+#define SEAM_RENDER_STEP_COUNT 2U
+#define SEAM_RENDER_DIRECTION_COUNT 4U
+#define SEAM_RENDER_PROFILE_COUNT 4U
+#define SEAM_RENDER_OUTER_PROFILE 1U
+#define SEAM_RENDER_INNER_PROFILE 2U
+#define SEAM_RENDER_MIXED_PROFILE 3U
+#define SEAM_RENDER_ROAD_VARIANTS 4U
+#define SEAM_RENDER_ROAD_MATERIAL_FIRST 19U
+#define SEAM_RENDER_ROAD_MATERIAL_LAST 30U
+#define SEAM_RENDER_SKY_MARKER RENDER_CAPTURE_SKY_MARKER
+#define SEAM_RENDER_CAMERA_DISTANCE 2400
+#define SEAM_RENDER_CAMERA_ELEVATION 0
+#define SEAM_RENDER_GRASS_MATERIAL_FIRST 101U
+#define SEAM_RENDER_GRASS_MATERIAL_LAST 105U
+#define SEAM_RENDER_HASH_OFFSET UINT64_C(1469598103934665603)
+#define SEAM_RENDER_HASH_PRIME UINT64_C(1099511628211)
+
+static legacy_u8 seam_render_level(legacy_u16 coordinate, legacy_u8 base)
+{
+	return base + (coordinate <= SEAM_RENDER_FIRST_COLUMN ? 0U
+				   : coordinate >= SEAM_RENDER_FIRST_COLUMN + SEAM_RENDER_STEP_COUNT
+					   ? SEAM_RENDER_STEP_COUNT
+					   : coordinate - SEAM_RENDER_FIRST_COLUMN);
+}
+
+static legacy_u8 seam_render_terrain_pixel(legacy_u32 pixel)
+{
+	if (pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+				  (legacy_u32)skybox.ground_color * RENDER_CAPTURE_INDEX_RGB_STEP)) {
+		return 1;
+	}
+	for (legacy_u16 material = SEAM_RENDER_ROAD_MATERIAL_FIRST;
+		 material <= SEAM_RENDER_ROAD_MATERIAL_LAST; material++) {
+		if (pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+					  (legacy_u32)material_clrlist_ptr[material] * RENDER_CAPTURE_INDEX_RGB_STEP)) {
+			return 1;
+		}
+	}
+	for (legacy_u16 material = SEAM_RENDER_GRASS_MATERIAL_FIRST;
+		 material <= SEAM_RENDER_GRASS_MATERIAL_LAST; material++) {
+		if (pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+					  (legacy_u32)material_clrlist_ptr[material] * RENDER_CAPTURE_INDEX_RGB_STEP)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static size_t seam_render_interior_sky(const legacy_u32 *pixels, legacy_s32 width,
+									   legacy_s32 height)
+{
+	legacy_u32 sky = render_capture_mark_sky
+						 ? RENDER_CAPTURE_SKY_COLOR
+						 : RENDER_CAPTURE_OPAQUE_ALPHA |
+							   (legacy_u32)skybox.sky_color * RENDER_CAPTURE_INDEX_RGB_STEP;
+	size_t gaps = 0, terrain_columns = 0;
+	for (legacy_s32 x = 0; x < width; x++) {
+		legacy_s32 first = height, last = 0;
+		for (legacy_s32 y = 0; y < height; y++) {
+			if (seam_render_terrain_pixel(pixels[(size_t)y * width + x])) {
+				if (first == height) {
+					first = y;
+				}
+				last = y;
+			}
+		}
+		terrain_columns += first < last;
+		// The uniform hill field fills every column below its horizon. Sky
+		// between terrain samples exposes a missing join, not open scenery.
+		for (legacy_s32 y = first + 1; y < last; y++) {
+			gaps += pixels[(size_t)y * width + x] == sky;
+		}
+	}
+	assert(terrain_columns > (size_t)width / 2U);
+	return gaps;
+}
+
+static legacy_u16 check_consecutive_hill_seams(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	legacy_u16 frames = 0;
+	legacy_u64 classic_hash = SEAM_RENDER_HASH_OFFSET;
+	legacy_s32 saved_scale = hires_render_scale();
+	for (legacy_u8 base = 0; base + SEAM_RENDER_STEP_COUNT <= CSTRK_MAX_HEIGHT; base++) {
+		for (legacy_u8 direction = 0;
+			 direction < SEAM_RENDER_DIRECTION_COUNT * SEAM_RENDER_PROFILE_COUNT; direction++) {
+			legacy_u8 rotation = direction % SEAM_RENDER_DIRECTION_COUNT;
+			legacy_u8 profile = direction / SEAM_RENDER_DIRECTION_COUNT;
+			for (legacy_u16 y = 0; y <= track.height; y++) {
+				for (legacy_u16 x = 0; x <= track.width; x++) {
+					legacy_u16 u = rotation == 0   ? x
+								   : rotation == 1 ? y
+								   : rotation == 2 ? track.width - x
+												   : track.height - y;
+					legacy_u16 v = rotation == 0   ? y
+								   : rotation == 1 ? track.width - x
+								   : rotation == 2 ? track.height - y
+												   : x;
+					legacy_u8 first = seam_render_level(u, base);
+					legacy_u8 second = seam_render_level(v, base);
+					track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+						profile == SEAM_RENDER_OUTER_PROFILE   ? (first < second ? first : second)
+						: profile == SEAM_RENDER_INNER_PROFILE ? (first > second ? first : second)
+															   : first;
+					if (x < track.width && y < track.height) {
+						struct CSTRK_CELL *cell = &track.cells[(size_t)y * track.width + x];
+						cell->surface = profile == SEAM_RENDER_MIXED_PROFILE ? CSTRK_TERRAIN_DIRT
+																			 : CSTRK_TERRAIN_GRASS;
+						cell->half_water_corner =
+							profile == SEAM_RENDER_MIXED_PROFILE
+								? CSTRK_WATER_NORTHWEST + (x + y) % SEAM_RENDER_DIRECTION_COUNT
+								: CSTRK_WATER_NONE;
+						cell->corner_surface = CSTRK_TERRAIN_ICE;
+					}
+				}
+			}
+			legacy_u8 corner_profile =
+				profile == SEAM_RENDER_OUTER_PROFILE || profile == SEAM_RENDER_INNER_PROFILE;
+			legacy_u16 target = SEAM_RENDER_FIRST_COLUMN + corner_profile;
+			legacy_u16 cross = corner_profile ? target : SEAM_RENDER_CROSS_COLUMN;
+			legacy_u16 column = rotation == 0	? target
+								: rotation == 1 ? track.width - cross - 1U
+								: rotation == 2 ? track.width - target - 1U
+												: cross;
+			legacy_u16 row = rotation == 0	 ? cross
+							 : rotation == 1 ? target
+							 : rotation == 2 ? track.height - cross - 1U
+											 : track.height - target - 1U;
+			position_render_target(column, row);
+			state.playerstate.car_position.ly =
+				((base + (corner_profile ? SEAM_RENDER_STEP_COUNT : 0U)) *
+					 CSTRK_LEVEL_WORLD_HEIGHT +
+				 GRASS_RENDER_CAR_HEIGHT) *
+				GRASS_RENDER_POSITION_SCALE;
+			state.playerstate.car_previous_position = state.playerstate.car_position;
+			/* Retain the camera anchor while hiding its car and shadow. Car paint
+			 * above the horizon must not be mistaken for elevated terrain. */
+			state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+			custom_camera.distance = SEAM_RENDER_CAMERA_DISTANCE;
+			custom_camera.elevation_angle = SEAM_RENDER_CAMERA_ELEVATION;
+			legacy_u8 road_variants =
+				profile == SEAM_RENDER_OUTER_PROFILE || profile == SEAM_RENDER_INNER_PROFILE
+					? 1U
+					: SEAM_RENDER_ROAD_VARIANTS;
+			for (legacy_u8 road = 0; road < road_variants; road++) {
+				track.object_count = 0;
+				if (road) {
+					for (legacy_u8 step = 0; step < SEAM_RENDER_STEP_COUNT; step++) {
+						struct CSTRK_OBJECT object = {0};
+						object.legacy_id = rotation % 2U ? 4U : 5U;
+						object.surface = road - 1U;
+						object.x = column + (rotation == 0 ? step : rotation == 2 ? -step : 0);
+						object.y = row + (rotation == 1 ? step : rotation == 3 ? -step : 0);
+						object.width = object.height = object.occupied_mask = 1;
+						size_t vertex = (size_t)object.y * (track.width + 1U) + object.x;
+						object.base_height = track.corner_heights[vertex];
+						object.slope_x = track.corner_heights[vertex + 1U] - object.base_height;
+						object.slope_y =
+							track.corner_heights[vertex + track.width + 1U] - object.base_height;
+						assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+					}
+				}
+				activate_render_track(&track, road);
+				for (legacy_s32 scale = supersight_enabled ? HIRES_SCALE : 1; scale;
+					 scale = supersight_enabled ? scale / 2 : 0) {
+					if (supersight_enabled) {
+						hires_set_render_scale(scale);
+					}
+					for (legacy_u8 camera = 0; camera < SEAM_RENDER_DIRECTION_COUNT; camera++) {
+						custom_camera.azimuth_angle = camera * ANGLE_QUARTER_TURN;
+						// Ice highlights share the real sky color. Give the background
+						// a distinct marker so visible ice cannot look like a hole.
+						legacy_s16 saved_sky = skybox.sky_color;
+						if (supersight_enabled) {
+							skybox.sky_color = SEAM_RENDER_SKY_MARKER;
+							assert(!seam_render_terrain_pixel(RENDER_CAPTURE_OPAQUE_ALPHA |
+															  SEAM_RENDER_SKY_MARKER *
+																  RENDER_CAPTURE_INDEX_RGB_STEP));
+						}
+						render_capture_mark_sky = supersight_enabled != 0;
+						size_t size;
+						legacy_u32 *pixels = capture_complete_render(&size);
+						legacy_s32 width, height;
+						assert(hires_framebuffer(
+								   dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width,
+								   &height) != NULL);
+						assert(size == (size_t)width * height);
+						size_t gaps = seam_render_interior_sky(pixels, width, height);
+						skybox.sky_color = saved_sky;
+						render_capture_mark_sky = 0;
+						if (supersight_enabled && gaps) {
+							fprintf(stderr,
+									"Consecutive hills base %u direction %u road %u camera %u "
+									"scale %d expose %zu interior sky pixels\n",
+									base, direction, road, camera, scale, gaps);
+						}
+						if (supersight_enabled) {
+							assert(gaps == 0);
+						} else {
+							for (size_t pixel = 0; pixel < size; pixel++) {
+								classic_hash =
+									(classic_hash ^ pixels[pixel]) * SEAM_RENDER_HASH_PRIME;
+							}
+						}
+						free(pixels);
+						frames++;
+					}
+				}
+			}
+		}
+	}
+	hires_set_render_scale(saved_scale);
+	if (!supersight_enabled) {
+		printf("Consecutive hills classic pixel hash: %016" LEGACY_PRIx64 "\n", classic_hash);
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -645,6 +880,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_rendered_shore_materials(&track);
 		frames += check_ground_grass_color();
 		frames += check_classic_hill_rendering();
+		frames += check_consecutive_hill_seams();
 	}
 	extended_track_unload();
 	cstrk_free(&track);
