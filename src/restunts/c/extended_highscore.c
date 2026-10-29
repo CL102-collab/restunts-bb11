@@ -14,6 +14,8 @@
 	(CSTRK_HEADER_SIZE + 91U * 91U + 2U * 90U * 90U + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS +      \
 	 CSTRK_MAX_NOTES)
 #define EXTENDED_HIGHSCORE_MAX_BYTES CSHIG_MAX_FILE_SIZE
+#define EXTENDED_HIGHSCORE_MINUTE_FIELD_WIDTH 2
+#define EXTENDED_HIGHSCORE_TIME_BUFFER_SIZE 32U
 
 enum SCORE_READ_RESULT { SCORE_READ_OK, SCORE_READ_FAILED, SCORE_READ_MISSING };
 
@@ -324,10 +326,12 @@ int extended_highscore_format_time(legacy_s8 *out, size_t size, uint64_t ticks)
 	if (ticks == CSHIG_EMPTY_TICKS) {
 		ticks = 0;
 	}
-	uint64_t seconds = ticks / 20U;
-	char text[32];
-	int length = snprintf(text, sizeof(text), "%" PRIu64 ":%02u.%02u", seconds / 60U,
-						  (unsigned)(seconds % 60U), (unsigned)(ticks % 20U) * 5U);
+	legacy_u64 seconds = ticks / 20U;
+	legacy_s8 text[EXTENDED_HIGHSCORE_TIME_BUFFER_SIZE];
+	legacy_s32 length = snprintf((char *)text, sizeof(text),
+								 "%*" LEGACY_PRIu64 ":%02" LEGACY_PRIu32 ".%02" LEGACY_PRIu32,
+								 EXTENDED_HIGHSCORE_MINUTE_FIELD_WIDTH, seconds / 60U,
+								 (legacy_u32)(seconds % 60U), (legacy_u32)(ticks % 20U) * 5U);
 	if (length < 0 || (size_t)length >= size || (size_t)length >= sizeof(text)) {
 		return 1;
 	}

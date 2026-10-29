@@ -135,17 +135,28 @@ static void test_creation_and_wide_times(struct CSTRK_TRACK *track)
 	check_loaded_score(2U, "Maximum frames", UINT64_C(8589934590));
 
 	legacy_s8 formatted[32];
+	assert(extended_highscore_format_time(formatted, sizeof(formatted), 1U) == 0);
+	assert(strcmp((const char *)formatted, " 0:00.05") == 0);
+	assert(extended_highscore_format_time(formatted, sizeof(formatted), 11999U) == 0);
+	assert(strcmp((const char *)formatted, " 9:59.95") == 0);
+	assert(extended_highscore_format_time(formatted, sizeof(formatted), 12000U) == 0);
+	assert(strcmp((const char *)formatted, "10:00.00") == 0);
 	assert(extended_highscore_format_time(formatted, sizeof(formatted), 70000U) == 0);
 	assert(strcmp((const char *)formatted, "58:20.00") == 0);
 	assert(extended_highscore_format_time(formatted, sizeof(formatted), UINT64_C(8589934590)) == 0);
 	assert(strcmp((const char *)formatted, "7158278:49.50") == 0);
 	assert(extended_highscore_format_time(formatted, sizeof(formatted), UINT64_MAX - 1U) == 0);
-	assert(strlen((const char *)formatted) < sizeof(formatted));
+	assert(strcmp((const char *)formatted, "15372286728091293:00.70") == 0);
 	assert(extended_highscore_format_time(formatted, sizeof(formatted), CSHIG_EMPTY_TICKS) == 0);
-	assert(strcmp((const char *)formatted, "0:00.00") == 0);
+	assert(strcmp((const char *)formatted, " 0:00.00") == 0);
 	strcpy((char *)formatted, "preserved");
-	assert(extended_highscore_format_time(formatted, 3U, 70000U) != 0);
+	assert(extended_highscore_format_time(formatted, strlen(" 0:00.00"), 1U) != 0);
 	assert(strcmp((const char *)formatted, "preserved") == 0);
+	assert(extended_highscore_format_time(formatted, sizeof(" 0:00.00"), 1U) == 0);
+	assert(strcmp((const char *)formatted, " 0:00.05") == 0);
+	assert(extended_highscore_format_time(NULL, sizeof(formatted), 1U) != 0);
+	assert(extended_highscore_format_time(formatted, 0U, 1U) != 0);
+	assert(strcmp((const char *)formatted, " 0:00.05") == 0);
 }
 
 static void test_stale_table_merge(struct CSTRK_TRACK *track)
