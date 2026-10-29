@@ -94,14 +94,48 @@ assert.deepEqual(model.decodeCstrk(model.encodeCstrk(noRunway)).snapshot(), noRu
 for (let direction = 0, doc = rectangle(); direction < 4; direction++, doc = rotate(doc)) check('closed route direction ' + direction, doc, 0);
 for (let direction = 0, doc = chicaneJump(); direction < 4; direction++, doc = rotate(doc)) check('short runway direction ' + direction, doc, 9);
 for (let direction = 0, doc = chicaneJump(true); direction < 4; direction++, doc = rotate(doc)) check('bridged ramps direction ' + direction, doc, 0);
-for (const bridged of [false, true]) {
-    const doc = chicaneJump(bridged);
-    for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++) doc.vertices[y * (doc.width + 1) + x] = Math.max(0, Math.min(4, x - 19));
+const HILL_ROUTE_MAX_LEVEL = 4, HILL_ROUTE_START_COLUMN = 12, HILL_ROUTE_END_COLUMN = 24;
+const HILL_ROUTE_ALIAS_COLUMN = 13, HILL_ROUTE_RETURN_COLUMN = 16, HILL_ROUTE_ROW = 4;
+const HILL_ROUTE_DIRECTION_COUNT = 4, HILL_ROUTE_ROAD_FIRST = 182, HILL_ROUTE_SPAN_FIRST = 194, HILL_ROUTE_SPAN_END = 198;
+function terrainRectangle(heightAtVertex, surface = 0) {
+    const doc = rectangle();
+    for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++)
+        doc.vertices[y * (doc.width + 1) + x] = heightAtVertex(x, y);
     for (const object of doc.objects) {
         const heights = doc.tileHeights(object.x, object.y);
+        object.surface = surface;
         object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
     }
-    check('chicanes tilted through four hill levels, bridge ' + bridged, doc, bridged ? 0 : 9);
+    return clearHistory(doc);
+}
+for (let base = 0; base <= HILL_ROUTE_MAX_LEVEL; base++) {
+    for (let direction = 0, doc = terrainRectangle(() => base); direction < 4; direction++, doc = rotate(doc))
+        check('flat plateau level ' + base + ' direction ' + direction, doc, 0);
+    for (let rise = 1; rise <= HILL_ROUTE_MAX_LEVEL - base; rise++) for (let surface = 0; surface < model.SURFACES.length; surface++) {
+        const hill = terrainRectangle(x => base + Math.max(0, Math.min(rise, x - HILL_ROUTE_START_COLUMN,
+            HILL_ROUTE_END_COLUMN - x)), surface);
+        for (let direction = 0, doc = hill; direction < 4; direction++, doc = rotate(doc)) {
+            const result = check('native hill roads base ' + base + ' rise ' + rise + ' surface ' + surface + ' direction ' + direction, doc, 0);
+            const hillPieces = result.route.filter(piece => piece.id >= HILL_ROUTE_ROAD_FIRST && piece.id < HILL_ROUTE_SPAN_FIRST);
+            assert.equal(hillPieces.length, rise * HILL_ROUTE_DIRECTION_COUNT);
+            assert(hillPieces.every(piece => Math.floor((piece.id - HILL_ROUTE_ROAD_FIRST) / HILL_ROUTE_DIRECTION_COUNT) === surface));
+        }
+    }
+}
+// A ramp pointing away from the high plateau becomes the original flat hill
+// span. Its lower-terrain side meets an elevated deck, not another ground road.
+for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (let surface = 0; surface < model.SURFACES.length; surface++) {
+    for (const alias of [36, 56, 95]) {
+        const span = terrainRectangle(x => base + (x <= HILL_ROUTE_ALIAS_COLUMN ? 1 : 0), surface);
+        replace(span, HILL_ROUTE_ALIAS_COLUMN, HILL_ROUTE_ROW, alias, 0, surface);
+        for (let x = HILL_ROUTE_ALIAS_COLUMN + 1; x < HILL_ROUTE_RETURN_COLUMN; x++)
+            replace(span, x, HILL_ROUTE_ROW, 35, 0, surface);
+        replace(span, HILL_ROUTE_RETURN_COLUMN, HILL_ROUTE_ROW, 37, 0, surface);
+        for (let direction = 0, doc = clearHistory(span); direction < 4; direction++, doc = rotate(doc)) {
+            const result = check('native hill span alias ' + alias + ' base ' + base + ' surface ' + surface + ' direction ' + direction, doc, 0);
+            assert.equal(result.route.filter(piece => piece.id >= HILL_ROUTE_SPAN_FIRST && piece.id < HILL_ROUTE_SPAN_END).length, 1);
+        }
+    }
 }
 const branch = new model.Document(20, 20);
 for (let x = 6; x <= 11; x++) { put(branch, 5, x, 5); put(branch, 5, x, 12); }

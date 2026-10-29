@@ -5,6 +5,9 @@
     const canvas = $('track-canvas'), ctx = canvas.getContext('2d');
     const minimap = $('minimap'), mini = minimap.getContext('2d');
     const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024;
+    const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
+    const terrainPaletteFallbacks = { 2: '#00aa00', 10: '#55ff55', 7: '#aaaaaa' };
+    const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
@@ -374,60 +377,50 @@
         finally { $('confirm-save').disabled = false; }
     }
 
-    function terrainColor(surface, level, shade = 0) {
-        const light = Math.round(30 + level * 4 + shade);
-        if (surface === 1) return 'hsl(192 39% ' + (58 + level * 3 + shade) + '%)';
-        if (surface === 2) return 'hsl(31 34% ' + (35 + level * 4 + shade) + '%)';
-        if (surface === 3) return 'hsl(204 48% ' + (34 + level * 3 + shade) + '%)';
-        return 'hsl(103 25% ' + light + '%)';
+    function terrainPaletteColor(index) {
+        const palette = state.resources?.palette;
+        if (!palette) return terrainPaletteFallbacks[index];
+        const offset = index * 3;
+        return 'rgb(' + palette[offset] + ' ' + palette[offset + 1] + ' ' + palette[offset + 2] + ')';
+    }
+    function terrainColor(surface, level) {
+        if (surface === 1) return 'hsl(192 39% ' + (58 + level * 3) + '%)';
+        if (surface === 2) return 'hsl(31 34% ' + (35 + level * 4) + '%)';
+        if (surface === 3) return 'hsl(204 48% ' + (34 + level * 3) + '%)';
+        return terrainPaletteColor(level > 0 ? terrainGrassPalette.raised : terrainGrassPalette.ground);
     }
     function drawTerrain(c, doc, x, y, left, top, size, showHeight = false) {
         const h = doc.tileHeights(x, y), cell = doc.cells[y * doc.width + x];
-        const surface = cell.surface, average = (h[0] + h[1] + h[2] + h[3]) / 4;
-        c.fillStyle = terrainColor(surface, average); c.fillRect(left, top, size + .4, size + .4);
-        if (h.some(v => v !== h[0])) {
-            const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
-            // Match the game's planar triangles, including the mixed-surface corner split.
-            const triangles = cell.halfWaterCorner === 1 || cell.halfWaterCorner === 3
-                ? [[0, 1, 3], [1, 2, 3]] : [[0, 1, 2], [0, 2, 3]];
-            for (const [a, b, d] of triangles) {
-                const ab = [corners[b][0] - corners[a][0], corners[b][1] - corners[a][1]];
-                const ad = [corners[d][0] - corners[a][0], corners[d][1] - corners[a][1]];
-                const slopeX = (h[b] - h[a]) * ad[1] - (h[d] - h[a]) * ab[1];
-                const slopeY = ab[0] * (h[d] - h[a]) - ad[0] * (h[b] - h[a]);
-                c.beginPath(); c.moveTo(left + corners[a][0] * size, top + corners[a][1] * size);
-                c.lineTo(left + corners[b][0] * size, top + corners[b][1] * size);
-                c.lineTo(left + corners[d][0] * size, top + corners[d][1] * size); c.closePath();
-                c.fillStyle = terrainColor(surface, average, (slopeX + slopeY) * 3); c.fill();
-            }
-            if (size >= 12) {
-                c.strokeStyle = '#deedb930'; c.lineWidth = 1;
+        const display = model.terrainDisplayLayers(h);
+        const path = (points, close = false) => {
+            c.moveTo(left + points[0][0] * size, top + points[0][1] * size);
+            for (const point of points.slice(1)) c.lineTo(left + point[0] * size, top + point[1] * size);
+            if (close) c.closePath();
+        };
+        const drawSurface = surface => {
+            c.fillStyle = terrainColor(surface, display.baseLevel); c.fillRect(left, top, size + .4, size + .4);
+            for (const layer of display.layers) {
                 c.beginPath();
-                // Half-level intersections cannot land on integer-height corners. Adjacent
-                // triangles and tiles therefore join into continuous contours around hills.
-                for (let level = Math.min(...h) + .5; level < Math.max(...h); level++) {
-                    for (const triangle of triangles) {
-                        const crossings = [];
-                        for (let edge = 0; edge < 3; edge++) {
-                            const a = triangle[edge], b = triangle[(edge + 1) % 3];
-                            if ((h[a] < level) === (h[b] < level)) continue;
-                            const t = (level - h[a]) / (h[b] - h[a]);
-                            crossings.push([
-                                left + (corners[a][0] + t * (corners[b][0] - corners[a][0])) * size,
-                                top + (corners[a][1] + t * (corners[b][1] - corners[a][1])) * size
-                            ]);
-                        }
-                        if (crossings.length === 2) { c.moveTo(...crossings[0]); c.lineTo(...crossings[1]); }
-                    }
-                }
-                c.stroke();
+                for (const polygon of layer.polygons) path(polygon, true);
+                c.fillStyle = terrainColor(surface, Math.ceil(layer.level)); c.fill();
             }
+        };
+        drawSurface(cell.surface);
+        if (cell.halfWaterCorner) {
+            const corners = [[0, 0], [1, 0], [1, 1], [0, 1]], corner = cell.halfWaterCorner - 1;
+            c.save(); c.beginPath();
+            path([corners[corner], corners[(corner + 1) % corners.length], corners[(corner + corners.length - 1) % corners.length]], true);
+            c.clip(); drawSurface(cell.cornerSurface ?? model.DEFAULT_CORNER_SURFACE); c.restore();
+        }
+        if (size >= terrainContourMinimumSize && display.layers.length) {
+            c.strokeStyle = terrainPaletteColor(terrainGrassPalette.contour);
+            c.lineWidth = Math.max(1, size / terrainContourReferenceSize); c.beginPath();
+            for (const layer of display.layers) for (const contour of layer.contours) path(contour);
+            c.stroke();
         }
         if (cell.halfWaterCorner) {
             c.save(); c.translate(left + size / 2, top + size / 2); c.rotate((cell.halfWaterCorner - 1) * Math.PI / 2);
-            c.beginPath(); c.moveTo(-size / 2, -size / 2); c.lineTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.closePath();
             const cornerSurface = cell.cornerSurface ?? model.DEFAULT_CORNER_SURFACE;
-            c.fillStyle = terrainColor(cornerSurface, cornerSurface === model.DEFAULT_CORNER_SURFACE ? Math.min(...h) : average); c.fill();
             c.strokeStyle = cornerSurface === model.DEFAULT_CORNER_SURFACE ? '#94cfdb99' : '#d6e5c899'; c.lineWidth = Math.max(1, size / 32); c.beginPath(); c.moveTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.stroke(); c.restore();
         }
         if (showHeight && size >= 36) {

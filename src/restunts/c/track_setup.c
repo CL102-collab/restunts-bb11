@@ -527,6 +527,19 @@ static legacy_s16 track_setup_backtrack(struct TRACK_SETUP_WALK *walk)
 	return TRACK_SETUP_OK;
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_s16 track_setup_extended_base_height(legacy_s8 column, legacy_s8 row)
+{
+	struct CSTRK_TERRAIN_PROFILE profile;
+	if (!cstrk_terrain_profile(extended_track_model(), (legacy_u16)column, (legacy_u16)row,
+							   &profile)) {
+		return 0;
+	}
+	/* Native hill route vectors already include their incline or span height. */
+	return (legacy_s16)(profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT);
+}
+#endif
+
 static void track_setup_place_roadside_sign(struct TRACK_SETUP_WALK *walk, legacy_u8 arrow_code)
 {
 	struct TRACKOBJECT *previous_track_object = &trkObjectList[walk->previous_tile_element];
@@ -561,8 +574,15 @@ static void track_setup_place_roadside_sign(struct TRACK_SETUP_WALK *walk, legac
 			? (walk->orientation ^ TRACK_ORIENTATION_SOUTH)
 			: walk->orientation;
 	roadside_sign_shape_indices[roadside_sign_count] = arrow_code;
-	if (track_terrain_map[terrainrows[walk->previous_row] + walk->previous_column] ==
-		TRACK_TERRAIN_HILL) {
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		camera_vector.y = LEGACY_S16_WRAP_ADD(
+			camera_vector.y,
+			track_setup_extended_base_height(walk->previous_column, walk->previous_row));
+	} else
+#endif
+		if (track_terrain_map[terrainrows[walk->previous_row] + walk->previous_column] ==
+			TRACK_TERRAIN_HILL) {
 		camera_vector.y = LEGACY_S16_WRAP_ADD(camera_vector.y, TRACK_CAMERA_HILL_HEIGHT);
 	}
 	legacy_s16 camera_index = (legacy_s16)roadside_sign_count;
@@ -722,7 +742,7 @@ static void track_setup_place_camera(struct TRACK_SETUP_WALK *walk, legacy_s16 s
 	track_setup_rotate_vector(&camera_vector, walk->orientation);
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		camera_height[camera_index] = extended_track_elevation(walk->column, walk->row, 512, 512);
+		camera_height[camera_index] = track_setup_extended_base_height(walk->column, walk->row);
 	} else
 #endif
 		if (track_terrain_map[terrainrows[walk->row] + walk->column] == 6) {

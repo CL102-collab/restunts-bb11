@@ -1,7 +1,12 @@
 #include "extended_geometry.h"
 #include "trackdata_layout.h"
+#include "track_collision.h"
+#include "gamestate.h"
 #include <stdlib.h>
 #include <string.h>
+
+#define EXTENDED_GEOMETRY_START_CLEARANCE 8
+#define EXTENDED_GEOMETRY_TERMINATOR_BYTES 2U
 
 static legacy_s32 context_x, context_z;
 
@@ -49,27 +54,15 @@ void extended_geometry_world_position(const struct VECTOR *wrapped, legacy_s32 *
 	*z = extended_geometry_unwrap(wrapped->z, context_z);
 }
 
-static void geometry_basis(double slope_x, double slope_z, struct EXTENDED_GEOMETRY_BASIS *basis)
-{
-	basis->slope_x = slope_x;
-	basis->slope_z = slope_z;
-	basis->normal_length = geometry_sqrt(1.0 + slope_x * slope_x + slope_z * slope_z);
-	basis->normal_x = -slope_x / basis->normal_length;
-	basis->normal_y = 1.0 / basis->normal_length;
-	basis->normal_z = -slope_z / basis->normal_length;
-	double x_length = geometry_sqrt(1.0 + slope_x * slope_x);
-	basis->tangent_xx = 1.0 / x_length;
-	basis->tangent_xy = slope_x / x_length;
-	basis->tangent_xz = 0.0;
-	basis->tangent_zx = basis->tangent_xy * basis->normal_z;
-	basis->tangent_zy = -basis->tangent_xx * basis->normal_z;
-	basis->tangent_zz = basis->tangent_xx * basis->normal_y - basis->tangent_xy * basis->normal_x;
-}
-
 void extended_geometry_object_basis(const struct CSTRK_OBJECT *object,
 									struct EXTENDED_GEOMETRY_BASIS *basis)
 {
-	geometry_basis(object->slope_x * (450.0 / 1024.0), -object->slope_y * (450.0 / 1024.0), basis);
+	(void)object;
+	/* Slopes select the original full-tile hill model. They never rotate a
+	 * flat mesh and shorten its horizontal footprint. */
+	memset(basis, 0, sizeof(*basis));
+	basis->normal_y = basis->normal_length = 1.0;
+	basis->tangent_xx = basis->tangent_zz = 1.0;
 }
 
 void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
@@ -78,14 +71,18 @@ void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 	origin->x = LEGACY_S16_FROM_BITS((legacy_u16)(object->x * 1024U + object->width * 512U));
 	origin->z = LEGACY_S16_FROM_BITS(
 		(legacy_u16)(track->height * 1024U - object->y * 1024U - object->height * 512U));
-	origin->y =
-		(legacy_s16)(object->base_height * 450 +
-					 (object->slope_x * object->width + object->slope_y * object->height) * 225);
+	legacy_s16 base_height = object->base_height;
+	if (object->slope_x < 0) {
+		base_height += object->slope_x * object->width;
+	}
+	if (object->slope_y < 0) {
+		base_height += object->slope_y * object->height;
+	}
+	origin->y = base_height * CSTRK_LEVEL_WORLD_HEIGHT;
 }
 
-/* One orthonormal placement rotation applies to an entire object. Mesh and
- * collision use the same axes. Connector approaches, where needed, are separate
- * road geometry: original stunt geometry never stretches to fill map cells. */
+/* World placement translates the original meshes and collision templates.
+ * Orientation within a flat tile remains the native catalog's quarter turn. */
 void extended_geometry_forward(const struct EXTENDED_GEOMETRY_BASIS *basis,
 							   const struct VECTOR *local, struct VECTOR *world)
 {
@@ -175,6 +172,68 @@ void extended_geometry_transform_plane(const struct EXTENDED_GEOMETRY_BASIS *bas
 	geometry_plane_axes(destination, nx, ny, nz, transformed_x, transformed_y, transformed_z);
 }
 
+enum EXTENDED_TERRAIN_PLANE {
+	EXTENDED_TERRAIN_FLAT_PLANE = 0,
+	EXTENDED_TERRAIN_STRAIGHT_PLANE = 3,
+	EXTENDED_TERRAIN_OUTER_PLANE = 4,
+	EXTENDED_TERRAIN_INNER_PLANE = 5
+};
+
+#define EXTENDED_TERRAIN_ORIENTATION_COUNT 4U
+#define EXTENDED_TERRAIN_HALF_TILE (CSTRK_TILE_WORLD_SIZE / 2)
+#define EXTENDED_TERRAIN_CORNER_SPLIT_ANGLE (-ANGLE_EIGHTH_TURN)
+
+static void geometry_native_terrain_plane(const struct CSTRK_TERRAIN_PROFILE *profile, legacy_s16 u,
+										  legacy_s16 v, struct PLANE *plane)
+{
+	legacy_u8 terrain = profile->terrain_id;
+	legacy_u16 index = EXTENDED_TERRAIN_FLAT_PLANE;
+	legacy_s16 height = profile->base_height * CSTRK_LEVEL_WORLD_HEIGHT;
+	if (terrain >= CSTRK_TERRAIN_PROFILE_NORTH) {
+		legacy_u16 orientation =
+			(terrain - CSTRK_TERRAIN_PROFILE_NORTH) % EXTENDED_TERRAIN_ORIENTATION_COUNT;
+		legacy_s16 x = u - EXTENDED_TERRAIN_HALF_TILE;
+		legacy_s16 z = EXTENDED_TERRAIN_HALF_TILE - v;
+		legacy_s16 old_x = x;
+		/* Native hill orientations are 0, three-quarter, half, quarter turns;
+		 * their plane table offsets occur in exactly this terrain ID order. */
+		switch (orientation) {
+			case 1:
+				x = z;
+				z = LEGACY_S16_WRAP_NEGATE(old_x);
+				break;
+			case 2:
+				x = LEGACY_S16_WRAP_NEGATE(x);
+				z = LEGACY_S16_WRAP_NEGATE(z);
+				break;
+			case 3:
+				x = LEGACY_S16_WRAP_NEGATE(z);
+				z = old_x;
+				break;
+		}
+		legacy_s16 side = LEGACY_S16_WRAP_ADD(
+			multiply_and_scale(sin_fast((legacy_u16)EXTENDED_TERRAIN_CORNER_SPLIT_ANGLE), z),
+			multiply_and_scale(cos_fast((legacy_u16)EXTENDED_TERRAIN_CORNER_SPLIT_ANGLE), x));
+		legacy_u16 native_plane = EXTENDED_TERRAIN_FLAT_PLANE;
+		if (terrain <= CSTRK_TERRAIN_PROFILE_EAST) {
+			native_plane = EXTENDED_TERRAIN_STRAIGHT_PLANE;
+		} else if (terrain <= CSTRK_TERRAIN_PROFILE_OUTER_NORTHEAST) {
+			if (side < 0) {
+				native_plane = EXTENDED_TERRAIN_OUTER_PLANE;
+			}
+		} else if (side > 0) {
+			native_plane = EXTENDED_TERRAIN_INNER_PLANE;
+		} else {
+			height += CSTRK_LEVEL_WORLD_HEIGHT;
+		}
+		if (native_plane != EXTENDED_TERRAIN_FLAT_PLANE) {
+			index = native_plane * EXTENDED_TERRAIN_ORIENTATION_COUNT + orientation;
+		}
+	}
+	*plane = planptr[index];
+	plane->plane_origin.y = LEGACY_S16_WRAP_ADD(plane->plane_origin.y, height);
+}
+
 int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_x,
 							  legacy_s32 world_z, struct EXTENDED_TERRAIN_SAMPLE *sample)
 {
@@ -186,42 +245,23 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_
 	legacy_s16 column = (legacy_s16)(world_x / 1024);
 	legacy_s16 row = (legacy_s16)(map_y / 1024);
 	legacy_s16 u = (legacy_s16)(world_x % 1024), v = (legacy_s16)(map_y % 1024);
-	size_t stride = track->width + 1U;
-	size_t corner = (size_t)row * stride + column;
-	legacy_s16 nw = track->corner_heights[corner] * 450;
-	legacy_s16 ne = track->corner_heights[corner + 1] * 450;
-	legacy_s16 sw = track->corner_heights[corner + stride] * 450;
-	legacy_s16 se = track->corner_heights[corner + stride + 1] * 450;
-	const struct CSTRK_CELL *cell = &track->cells[(size_t)row * track->width + column];
-	legacy_s16 dx, dy, intercept = nw;
-	if (cell->half_water_corner == CSTRK_WATER_NORTHWEST ||
-		cell->half_water_corner == CSTRK_WATER_SOUTHEAST) {
-		if (u + v <= 1024) {
-			dx = ne - nw;
-			dy = sw - nw;
-		} else {
-			dx = se - sw;
-			dy = se - ne;
-			intercept = ne + sw - se;
-		}
-	} else if (v <= u) {
-		dx = ne - nw;
-		dy = se - ne;
-	} else {
-		dx = se - sw;
-		dy = sw - nw;
+	struct CSTRK_TERRAIN_PROFILE profile;
+	if (!cstrk_terrain_profile(track, (legacy_u16)column, (legacy_u16)row, &profile) || !planptr) {
+		return 0;
 	}
+	const struct CSTRK_CELL *cell = &track->cells[(size_t)row * track->width + column];
 	sample->column = column;
 	sample->north_row = row;
 	sample->origin.x = LEGACY_S16_FROM_BITS((legacy_u16)(column * 1024 + 512));
 	sample->origin.z = LEGACY_S16_FROM_BITS((legacy_u16)(track->height * 1024 - row * 1024 - 512));
 	sample->origin.y = 0;
-	extended_geometry_make_plane(&sample->plane, dx / 1024.0, -dy / 1024.0,
-								 (legacy_s16)(intercept + (dx + dy) / 2));
-	static const legacy_s16 surface_types[4] = {4, 3, 2, 5};
+	sample->terrain_id = profile.terrain_id;
+	sample->base_height = profile.base_height;
+	geometry_native_terrain_plane(&profile, u, v, &sample->plane);
+	static const legacy_s16 surface_types[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE, CAR_SURFACE_DIRT,
+											   CAR_SURFACE_WATER};
 	sample->surface = surface_types[cell->surface];
-	/* The corner identifies the secondary surface half. Its diagonal is shared
-	 * with the terrain's triangular split, including on elevated surfaces. */
+	/* The material boundary never selects or changes the hill's geometry. */
 	if ((cell->half_water_corner == CSTRK_WATER_NORTHWEST && u + v < 1024) ||
 		(cell->half_water_corner == CSTRK_WATER_NORTHEAST && v < u) ||
 		(cell->half_water_corner == CSTRK_WATER_SOUTHEAST && u + v >= 1024) ||
@@ -246,7 +286,7 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 	if (physical_model >= 64) {
 		surface = CSTRK_ROAD_PAVED;
 	}
-	size_t primitive_bytes = 1;
+	size_t primitive_bytes = EXTENDED_GEOMETRY_TERMINATOR_BYTES;
 	const legacy_u8 *primitive = source->shape3d_primitives;
 	for (unsigned i = 0; i < source->shape3d_numprimitives; i++) {
 		if (primitive[0] >= 16 || counts[primitive[0]] == 0) {
@@ -324,7 +364,8 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 		out += 3U + count;
 		primitive += 2U + source->shape3d_numpaints + count;
 	}
-	*out = 0;
+	out[0] = 0;
+	out[1] = 0;
 	return 1;
 }
 
@@ -337,35 +378,8 @@ void extended_geometry_free_shape(struct SHAPE3D *shape)
 void extended_geometry_initial_pose(const struct CSTRK_OBJECT *object, legacy_s16 track_angle,
 									struct VECTOR *rotation, struct VECTOR *normal_clearance)
 {
-	if (!object->slope_x && !object->slope_y) {
-		*rotation = (struct VECTOR){LEGACY_S16_WRAP_NEGATE(track_angle), 0, 0};
-		*normal_clearance = (struct VECTOR){0, 8, 0};
-		return;
-	}
-	struct EXTENDED_GEOMETRY_BASIS basis;
-	extended_geometry_object_basis(object, &basis);
-	struct MATRIX yaw, combined;
-	mat_rot_y(&yaw, track_angle);
-	struct VECTOR column, transformed;
-	column = (struct VECTOR){yaw.m._11, yaw.m._21, yaw.m._31};
-	extended_geometry_forward(&basis, &column, &transformed);
-	combined.m._11 = transformed.x;
-	combined.m._21 = transformed.y;
-	combined.m._31 = transformed.z;
-	column = (struct VECTOR){yaw.m._12, yaw.m._22, yaw.m._32};
-	extended_geometry_forward(&basis, &column, &transformed);
-	combined.m._12 = transformed.x;
-	combined.m._22 = transformed.y;
-	combined.m._32 = transformed.z;
-	column = (struct VECTOR){yaw.m._13, yaw.m._23, yaw.m._33};
-	extended_geometry_forward(&basis, &column, &transformed);
-	combined.m._13 = transformed.x;
-	combined.m._23 = transformed.y;
-	combined.m._33 = transformed.z;
-	rotation->x = LEGACY_S16_WRAP_NEGATE(polarAngle(combined.m._13, combined.m._33));
-	rotation->y = LEGACY_S16_WRAP_NEGATE(polarAngle(LEGACY_S16_WRAP_NEGATE(combined.m._23),
-													polarRadius2D(combined.m._21, combined.m._22)));
-	rotation->z = LEGACY_S16_WRAP_NEGATE(polarAngle(combined.m._21, combined.m._22));
-	column = (struct VECTOR){0, 8, 0};
-	extended_geometry_forward(&basis, &column, normal_clearance);
+	(void)object;
+	/* Original start/finish pieces require a flat supporting plateau. */
+	*rotation = (struct VECTOR){LEGACY_S16_WRAP_NEGATE(track_angle), 0, 0};
+	*normal_clearance = (struct VECTOR){0, EXTENDED_GEOMETRY_START_CLEARANCE, 0};
 }

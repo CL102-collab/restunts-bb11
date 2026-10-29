@@ -1567,6 +1567,9 @@ int track_extended_portal_height(const struct CSTRK_OBJECT *object, legacy_s16 x
 		if (current_surf_type != CAR_SURFACE_PAVED) {
 			continue;
 		}
+		if (sample.physical_model == PHYSICAL_MODEL_ROAD && (object->slope_x || object->slope_y)) {
+			planindex = TERRAIN_FLAT_PLANE_INDEX;
+		}
 		struct VECTOR point = {x, 0, z};
 		track_object_world_collision(&point, trkObjectList[id].ss_rotY,
 									 sample.wall_orientation_modifier);
@@ -1634,22 +1637,18 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	terrainHeight = origin.y;
 	current_surf_type = (legacy_s8)terrain.surface;
 	track_object_model(&sample);
-	/* Parts of a cell outside the road retain their own terrain material.
-	 * All pieces have one supporting plane across the complete footprint. */
-	if (planindex == 0 && current_surf_type == terrain.surface && wallindex == TRACK_WALL_NONE) {
-		/* Join the rigid portal to its map boundary with a separate support-
-		 * plane approach, rather than stretching the stunt's collision mesh. */
-		struct VECTOR portal = relative;
-		track_rotate_local(&portal, orientation);
-		int near_edge = absolute_word(relative.x) >= object->width * 512 - 160 ||
-						absolute_word(relative.z) >= object->height * 512 - 160;
-		int approach = (object->slope_x || object->slope_y) && near_edge && sample.height < 160 &&
-					   sample.height > -160 &&
-					   track_road_contains_local_point(sample.physical_model, &portal);
+	/* Ground-level portions use the original hill plane across the complete
+	 * tile. The road handler selects only the material, exactly as in the
+	 * original hill-road path; there are no shortened-mesh approach strips. */
+	if (planindex == NO_PLANE_INDEX && wallindex == TRACK_WALL_NONE) {
+		legacy_s8 surface = current_surf_type;
 		extended_select_terrain(&terrain, position);
-		if (approach) {
-			current_surf_type = (legacy_s8)(object->surface + CAR_SURFACE_PAVED);
-		}
+		current_surf_type = surface;
+		terrainHeight = surface == CAR_SURFACE_GRASS
+							? (legacy_s16)(((legacy_u16)(position->x ^ position->z) >>
+											GRASS_HEIGHT_HASH_SHIFT) &
+										   GRASS_HEIGHT_VARIATION_MASK)
+							: NON_GRASS_HEIGHT_OFFSET;
 		return;
 	}
 	track_object_world_collision(position, orientation, sample.wall_orientation_modifier);
@@ -1657,8 +1656,7 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	extended_wall_origin = origin;
 	extended_wall_valid = wallindex != TRACK_WALL_NONE;
 	legacy_s16 source_index = planindex;
-	struct PLANE source = *current_planptr;
-	extended_geometry_transform_plane(&basis, &source, &extended_selected_plane);
+	extended_selected_plane = *current_planptr;
 	current_planptr = &extended_selected_plane;
 	planindex = EXTENDED_GEOMETRY_PLANE_INDEX + source_index;
 }
