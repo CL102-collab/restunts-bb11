@@ -38,7 +38,7 @@ See [music asset instructions](../assets/music/README.md).
 
 The browser build also supplies `track-editor.html` with its adjacent CSS and
 JavaScript files. Open it directly, or use **Open the extended 2D track editor**
-on the game page. Keep all five `track-editor*` files together for offline use;
+on the game page. Keep all seven `track-editor*` files together for offline use;
 the game itself remains a standalone `restunts.html`.
 
 Selecting your own Stunts folder is required before editing. The editor reads
@@ -239,7 +239,8 @@ cmake --install out/sdl3-wasm --prefix out/package-wasm --component Runtime
 
 The installed game HTML runs by itself. The editor needs its adjacent
 `track-editor.html`, `track-editor.css`, `track-editor.js`,
-`track-editor-model.js`, and `track-editor-resources.js`. Redistribute the
+`track-editor-model.js`, `track-editor-resources.js`,
+`track-editor-route-data.js`, and `track-editor-validation.js`. Redistribute the
 complete package to include those files, the required dependency notices,
 licenses, and Nuked OPL2 relinking materials. Original game files must be supplied separately by each player.
 Do not copy them into the package.

@@ -644,12 +644,32 @@
         $('apply-notes').disabled = invalid || text.length > 8000;
     }
     function checkTrack() {
-        const issues = state.doc.validate(), container = $('check-results'); container.replaceChildren();
-        const intro = document.createElement('p'); intro.textContent = 'Checks terrain, piece placement, surfaces, and track data. Route connectivity is checked by the game.'; container.append(intro);
-        if (!issues.length) { const item = document.createElement('div'); item.className = 'check-item'; item.textContent = 'Track data is valid. ' + state.doc.objects.length + ' elements across ' + state.doc.width + ' × ' + state.doc.height + ' tiles.'; container.append(item); }
-        for (const issue of issues) { const item = document.createElement('div'); item.className = 'check-item error'; item.textContent = issue; container.append(item); }
-        const start = state.doc.objects.filter(o => catalogEntry(o.id)?.physical === 0);
-        if (start.length !== 1) { const item = document.createElement('div'); item.className = 'check-item warning'; item.textContent = start.length ? 'The track has more than one start / finish element.' : 'Add a start / finish element before racing.'; container.append(item); }
+        const issues = state.doc.validate(), container = $('check-results');
+        container.replaceChildren();
+        const intro = document.createElement('p');
+        intro.textContent = 'Checks terrain, piece placement, surfaces, and the connected race route, including jump rules.';
+        container.append(intro);
+        function addResult(text, error = false) {
+            const item = document.createElement('div');
+            item.className = 'check-item' + (error ? ' error' : '');
+            item.textContent = text;
+            container.append(item);
+        }
+        if (issues.length) {
+            for (const issue of issues) addResult(issue, true);
+        } else {
+            try {
+                if (!window.TrackEditorValidation || typeof window.TrackEditorValidation.validateRoute !== 'function') {
+                    throw new Error('Race route validation files could not be loaded. Keep all editor files together and reload.');
+                }
+                const route = window.TrackEditorValidation.validateRoute(state.doc);
+                if (route.status === 0) {
+                    addResult('Track data and race route are valid. ' + route.pieces + ' route pieces across ' + state.doc.width + ' × ' + state.doc.height + ' tiles.');
+                } else addResult(route.message, true);
+            } catch (error) {
+                addResult(error?.message || 'The race route could not be checked.', true);
+            }
+        }
         showDialog('check-dialog');
     }
 
