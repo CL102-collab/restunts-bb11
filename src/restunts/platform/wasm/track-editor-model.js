@@ -56,6 +56,11 @@
         libraryFamilies.get(key).push(entry);
     }
     const library = Array.from(libraryFamilies.values(), variants => variants.find(p => p.rotation === 0) || variants[0]);
+    // These physical models admit travel in either direction in the game's route resolver.
+    const HALF_TURN_SYMMETRIC_MODELS = new Set([1, 27, 28, 30, 31, 18, 19, 20, 22, 11, 34, 4, 5, 35]);
+    // Ground-level directional artwork rotates without shifting projected height.
+    const ROTATED_DIRECTIONAL_ARTWORK_MODELS = new Set([0, 2, 3, 6, 7, 8, 9, 10, 29, 23, 24, 25, 26]);
+    const CROSSROAD_PHYSICAL_MODEL = 12, PIECE_DIRECTION_COUNT = 4, PIECE_AXIS_COUNT = 2;
     function integer(n, min, max, label) { if (!Number.isInteger(n) || n < min || n > max) throw new Error('Invalid ' + label + '.'); return n; }
     function pieceVariant(entry, direction) {
         integer(direction, 0, 3, 'piece direction');
@@ -64,6 +69,27 @@
         // one or two native variants; explicit rotation supplies the remaining directions.
         const piece = variants.find(p => p.rotation === direction) || variants.find(p => p.rotation === 0) || variants[0];
         return { piece, rotation: (direction - piece.rotation + 4) % 4 };
+    }
+    function pieceDisplayVariant(entry, rotation = 0) {
+        integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'piece display rotation');
+        const direction = (entry.rotation + rotation) % PIECE_DIRECTION_COUNT;
+        const variants = libraryFamilies.get(entry.group + ':' + entry.physical) || [entry];
+        const piece = variants.find(candidate => candidate.rotation === 0) || variants[0];
+        if (entry.physical === CROSSROAD_PHYSICAL_MODEL) {
+            return { piece, rotation: 0 };
+        }
+        if (!HALF_TURN_SYMMETRIC_MODELS.has(entry.physical)) {
+            if (ROTATED_DIRECTIONAL_ARTWORK_MODELS.has(entry.physical)) {
+                return { piece, rotation: (direction - piece.rotation + PIECE_DIRECTION_COUNT) % PIECE_DIRECTION_COUNT };
+            }
+            // The native direction preserves the screen offset of elevated connectors;
+            // rotating another direction's image would move those connectors.
+            return pieceVariant(entry, direction);
+        }
+        const axis = direction % PIECE_AXIS_COUNT;
+        // A single native image keeps every axis consistent; alternate native images
+        // can have different outlines or even omit a connector at the tile boundary.
+        return { piece, rotation: (axis - piece.rotation % PIECE_AXIS_COUNT + PIECE_AXIS_COUNT) % PIECE_AXIS_COUNT };
     }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
@@ -299,5 +325,5 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));
