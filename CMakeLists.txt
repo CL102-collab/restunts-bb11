@@ -851,6 +851,11 @@ if(RESTUNTS_BUILD_TESTS)
         target_compile_definitions(test-extended-render PRIVATE RESTUNTS_PIXLDUMP)
         target_link_libraries(test-extended-render PRIVATE restunts_game)
         target_compile_options(test-extended-render PRIVATE -UNDEBUG)
+        if(NOT APPLE)
+            target_compile_definitions(test-extended-render PRIVATE RESTUNTS_WRAP_HILL_SHAPES)
+            target_link_options(test-extended-render PRIVATE
+                "LINKER:--wrap=shape3d_transform_and_queue")
+        endif()
         add_test(NAME extended-render COMMAND test-extended-render
             --data-dir "${CMAKE_SOURCE_DIR}/stunts")
         set_tests_properties(extended-render PROPERTIES

@@ -9,6 +9,7 @@
 #include "../c/skybox.h"
 #include "../c/race_graphics.h"
 #include "../c/trackdata_layout.h"
+#include "../c/shape3d_internal.h"
 
 static unsigned terrain_level(unsigned column)
 {
@@ -607,6 +608,115 @@ static legacy_u16 check_classic_hill_rendering(void)
 	return frames;
 }
 
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+#define SEAM_RENDER_PAVED_MATERIAL 19U
+#define SEAM_RENDER_DIRT_MATERIAL 25U
+#define SEAM_RENDER_ICE_MATERIAL 28U
+
+static legacy_u8 seam_capture_hill_shapes;
+static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
+
+/* Inspect the actual temporary road mesh submitted by the frame renderer.
+ * The classic path goes through the same wrapper without any assertions. */
+static void seam_check_submitted_road(const struct SHAPE3D *shape)
+{
+	const legacy_u8 *primitive = shape->shape3d_primitives;
+	struct VECTOR origin = {0};
+	legacy_s64 nx = 0, ny = 0, nz = 0;
+	legacy_s32 span = 0, rise = 0;
+	legacy_u8 road_parent = 0, parent_checked = 0;
+	for (legacy_u16 index = 0; index < shape->shape3d_numprimitives; index++) {
+		legacy_u16 count = primitive[0];
+		if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST || count > SHAPE3D_PRIMITIVE_POLYGON_LAST) {
+			break;
+		}
+		const legacy_u8 *indices =
+			primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape->shape3d_numpaints;
+		if ((primitive[1] & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) == 0) {
+			legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+			road_parent = material == SEAM_RENDER_PAVED_MATERIAL ||
+						  material == SEAM_RENDER_DIRT_MATERIAL ||
+						  material == SEAM_RENDER_ICE_MATERIAL;
+			parent_checked = 0;
+			nx = ny = nz = 0;
+			if (road_parent) {
+				struct VECTOR first, last;
+				shape3d_vertex_read(shape, indices[0], &origin);
+				legacy_s16 minimum_x = origin.x, maximum_x = origin.x;
+				legacy_s16 minimum_y = origin.y, maximum_y = origin.y;
+				legacy_s16 minimum_z = origin.z, maximum_z = origin.z;
+				for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+					struct VECTOR point;
+					shape3d_vertex_read(shape, indices[vertex], &point);
+					if (point.x < minimum_x) {
+						minimum_x = point.x;
+					}
+					if (point.x > maximum_x) {
+						maximum_x = point.x;
+					}
+					if (point.y < minimum_y) {
+						minimum_y = point.y;
+					}
+					if (point.y > maximum_y) {
+						maximum_y = point.y;
+					}
+					if (point.z < minimum_z) {
+						minimum_z = point.z;
+					}
+					if (point.z > maximum_z) {
+						maximum_z = point.z;
+					}
+				}
+				for (legacy_u16 vertex = 1; vertex + 1U < count && ny == 0; vertex++) {
+					shape3d_vertex_read(shape, indices[vertex], &first);
+					shape3d_vertex_read(shape, indices[vertex + 1U], &last);
+					legacy_s32 ax = first.x - origin.x, ay = first.y - origin.y,
+							   az = first.z - origin.z;
+					legacy_s32 bx = last.x - origin.x, by = last.y - origin.y,
+							   bz = last.z - origin.z;
+					nx = (legacy_s64)ay * bz - (legacy_s64)az * by;
+					ny = (legacy_s64)az * bx - (legacy_s64)ax * bz;
+					nz = (legacy_s64)ax * by - (legacy_s64)ay * bx;
+				}
+				span = nx != 0 ? maximum_x - minimum_x : maximum_z - minimum_z;
+				rise = maximum_y - minimum_y;
+			}
+		} else if (road_parent && ny != 0 && (nx != 0 || nz != 0)) {
+			if (!parent_checked) {
+				assert(span == CSTRK_TILE_WORLD_SIZE);
+				assert(rise == CSTRK_LEVEL_WORLD_HEIGHT);
+				seam_captured_road_parents++;
+				parent_checked = 1;
+			}
+			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+				struct VECTOR point;
+				shape3d_vertex_read(shape, indices[vertex], &point);
+				legacy_s64 distance = nx * (point.x - origin.x) + ny * (point.y - origin.y) +
+									  nz * (point.z - origin.z);
+				if (distance < 0) {
+					distance = -distance;
+				}
+				legacy_s64 vertical = ny < 0 ? -ny : ny;
+				/* Integer resource vertices may round by half a world unit,
+				 * but painted dashes must not sag below their road plane. */
+				assert(distance * 2 <= vertical);
+				seam_captured_marking_vertices++;
+			}
+		}
+		primitive = indices + count;
+	}
+}
+
+legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
+legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+{
+	if (seam_capture_hill_shapes) {
+		seam_check_submitted_road(instance->shapeptr);
+	}
+	return __real_shape3d_transform_and_queue(instance);
+}
+#endif
+
 #define SEAM_RENDER_FIRST_COLUMN 38U
 #define SEAM_RENDER_CROSS_COLUMN 43U
 #define SEAM_RENDER_STEP_COUNT 2U
@@ -793,8 +903,19 @@ static legacy_u16 check_consecutive_hill_seams(void)
 																  RENDER_CAPTURE_INDEX_RGB_STEP));
 						}
 						render_capture_mark_sky = supersight_enabled != 0;
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+						seam_capture_hill_shapes = supersight_enabled && road != 0;
+						seam_captured_road_parents = seam_captured_marking_vertices = 0;
+#endif
 						size_t size;
 						legacy_u32 *pixels = capture_complete_render(&size);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+						if (seam_capture_hill_shapes) {
+							assert(seam_captured_road_parents != 0);
+							assert(seam_captured_marking_vertices != 0);
+						}
+						seam_capture_hill_shapes = 0;
+#endif
 						legacy_s32 width, height;
 						assert(hires_framebuffer(
 								   dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width,
