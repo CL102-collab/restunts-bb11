@@ -1,10 +1,10 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v5**, supported
+SDL3 WebAssembly build. The current file-format revision is **v4**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
-through nine hill levels, independent terrain and road surfaces, track objects,
+through four hill levels, independent terrain and road surfaces, track objects,
 a horizon choice, and up to 8,000 ASCII text bytes of notes. One hill level
 retains the original game's 450 geometry-unit height; horizontal tile size
 remains 1,024 units.
@@ -20,15 +20,13 @@ All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: an unsigned 16-bit integer. The
 minimum supported revision is v3; older extended-track revisions are rejected.
-New tracks are created with revision v5. Revisions v3 and v4 permit terrain
-heights only through level 4 and upgrade to v5 in memory after validation. Revision
-v3's shared overpass surface becomes both upper and lower road materials;
-v4's independent selections are retained. Subsequent saves use v5 without
-changing the track's appearance or grip.
+New tracks are created with revision v4. Revision v3 tracks upgrade to v4 in
+memory, preserving their shared overpass surface as both upper and lower road
+materials, so subsequent saves use v4 without changing their appearance or grip.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
-v15 or v101 is newer than a reader supporting v5. Its revision alone does not
+v15 or v101 is newer than a reader supporting v4. Its revision alone does not
 make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
@@ -40,7 +38,7 @@ The header occupies exactly 32 bytes:
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 3–65,535; current revision `5` |
+| 8 | 2 | Numeric format revision, 3–65,535; current revision `4` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -84,8 +82,8 @@ Coordinates use a top-left origin: x increases rightwards and y downwards.
 All arrays are row-major. Corner `(x,y)` has index `y*(width+1)+x`; cell `(x,y)`
 has index `y*width+x`. Cells share their terrain corners, preventing cracks.
 
-Each corner height is an integer from 0 through 9 (0 through 4 in v3/v4).
-Every cell uses one of the original game's thirteen terrain profiles: flat ground, four straight inclines,
+Each corner height is an integer from 0 through 4. Every cell uses one of the
+original game's thirteen terrain profiles: flat ground, four straight inclines,
 four outer corners with one high corner, or four inner corners with one low
 corner. The highest and lowest corners of a cell differ by at most one level.
 Alternating high and low corners and two-level diagonal slopes are invalid.
@@ -139,7 +137,7 @@ to Water. The field is ignored when the direction is zero.
 | 6 | 1 | Footprint width in map axes, 1–2 |
 | 7 | 1 | Footprint height in map axes, 1–2 |
 | 8 | 1 | Occupied-cell bitmask, nonzero |
-| 9 | 1 | Support height at the anchor's top-left terrain corner, 0–9 (0–4 in v3/v4) |
+| 9 | 1 | Support height at the anchor's top-left terrain corner, 0–4 |
 | 10 | 1 | Signed slope in x, −1, 0, or +1 |
 | 11 | 1 | Signed slope in y, −1, 0, or +1 |
 | 12 | 1 | Lower overpass road surface: paved `0`, dirt `1`, ice `2` (v4+) |
@@ -149,14 +147,13 @@ The ordinary road surface selects the upper road on an overpass. The independent
 lower surface selects its road underneath. Only overpass IDs 101 and 102 may
 store a nonzero lower surface; all other objects require paved `0` in that field.
 Revision v3 reserves all four bytes at offsets 12–15 as zero. The reader rejects
-nonzero reserved bytes in every revision and upgrades accepted v3/v4 tracks to v5.
+nonzero reserved bytes in either revision and upgrades accepted v3 tracks to v4.
 A v3 overpass inherits its lower material from its ordinary surface because the
-older renderer and collision model used that selection for both roads. New v4+
+older renderer and collision model used that selection for both roads. New v4
 overpasses default the lower surface to paved independently of the upper road.
-Future revisions retain their numeric metadata and use the known v5 layout.
+Future revisions retain their numeric metadata and use the known v4 layout.
 An explicit in-memory v3 export requires equal upper and lower overpass
 surfaces and writes zero at byte 12, preserving the original shared-surface format.
-Explicit v3/v4 exports reject terrain or support heights above level 4.
 
 Rotation is additional to the rotation already represented by the original tile
 ID; zero preserves that catalog tile's orientation. Footprint dimensions and
@@ -171,8 +168,8 @@ its footprint rectangle. At most one object may claim each cell.
 The support metadata at local terrain corner `(dx,dy)` is
 `base_height + slope_x*dx + slope_y*dy`. Every corner throughout the footprint
 rectangle, including corners around unclaimed cells, must exactly equal this
-plane and remain within 0–9 (0–4 in v3/v4). Ordinary pieces require a flat
-footprint at one constant elevation. Inclines accept only one-tile pieces approved by the
+plane and remain within 0–4. Ordinary pieces require a flat footprint at one
+constant elevation. Inclines accept only one-tile pieces approved by the
 original hill-road substitution table: an aligned straight road or a compatible
 ramp variant. A sloped record therefore has exactly one nonzero slope axis.
 Hill-corner terrain accepts no track objects, as in the original editor.

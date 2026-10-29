@@ -8,7 +8,6 @@
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
     const terrainPaletteFallbacks = { 2: '#00aa00', 10: '#55ff55', 7: '#aaaaaa' };
     const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64;
-    const terrainHeightOutlineColor = '#172129', terrainHeightOutlineWidth = 3;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
@@ -435,10 +434,7 @@
         }
         if (showHeight && size >= 36) {
             c.fillStyle = '#eff6dbbd'; c.font = (2 * Math.max(8, Math.min(12, size * .29))) + 'px ui-monospace, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
-            const label = h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h);
-            c.strokeStyle = terrainHeightOutlineColor; c.lineWidth = terrainHeightOutlineWidth;
-            c.strokeText(label, left + size / 2, top + size / 2);
-            c.fillText(label, left + size / 2, top + size / 2);
+            c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
     function originalIcon(id, surface, lowerSurface) {
@@ -727,7 +723,7 @@
             if (!state.ready) return;
             finishDrag(); state.lowerSurface = Number(button.dataset.lowerSurface); updateTool('paint');
         }));
-        $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / ' + model.MAX_HEIGHT; syncVisualControls(); });
+        $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => {
             finishDrag(); state.lowerSurface = null;
             if (!['water-corner', 'level'].includes(state.tool)) updateTool('paint');
@@ -848,7 +844,6 @@
             return;
         }
         $('editor-version').textContent = 'v' + model.VERSION;
-        $('terrain-level').max = model.MAX_HEIGHT;
         for (const [value, name] of model.HORIZONS.entries()) {
             const option = document.createElement('option'); option.value = String(value); option.textContent = name; $('track-horizon').append(option);
         }

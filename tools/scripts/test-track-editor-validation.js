@@ -92,10 +92,7 @@ assert.deepEqual(model.decodeCstrk(model.encodeCstrk(noRunway)).snapshot(), noRu
 for (let direction = 0, doc = rectangle(); direction < 4; direction++, doc = rotate(doc)) check('closed route direction ' + direction, doc, 0);
 for (let direction = 0, doc = chicaneJump(); direction < 4; direction++, doc = rotate(doc)) check('short runway direction ' + direction, doc, 9);
 for (let direction = 0, doc = chicaneJump(true); direction < 4; direction++, doc = rotate(doc)) check('bridged ramps direction ' + direction, doc, 0);
-const HILL_ROUTE_MAX_LEVEL = model.MAX_HEIGHT, HILL_ROUTE_START_COLUMN = 12;
-const HILL_ROUTE_END_COLUMN = HILL_ROUTE_START_COLUMN + HILL_ROUTE_MAX_LEVEL * 2;
-const LEGACY_HILL_ROUTE_MAX_LEVEL = 4;
-assert(Number.isInteger(HILL_ROUTE_MAX_LEVEL));
+const HILL_ROUTE_MAX_LEVEL = 4, HILL_ROUTE_START_COLUMN = 12, HILL_ROUTE_END_COLUMN = 24;
 const HILL_ROUTE_ALIAS_COLUMN = 13, HILL_ROUTE_RETURN_COLUMN = 16, HILL_ROUTE_ROW = 4;
 const HILL_ROUTE_DIRECTION_COUNT = 4, HILL_ROUTE_ROAD_FIRST = 182, HILL_ROUTE_SPAN_FIRST = 194, HILL_ROUTE_SPAN_END = 198;
 function terrainRectangle(heightAtVertex, surface = 0) {
@@ -108,14 +105,6 @@ function terrainRectangle(heightAtVertex, surface = 0) {
         object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
     }
     return clearHistory(doc);
-}
-// Accepted legacy tracks retain their route when upgraded to the current format.
-for (const version of [3, 4]) {
-    const legacy = terrainRectangle(() => LEGACY_HILL_ROUTE_MAX_LEVEL);
-    legacy.version = version;
-    const upgraded = model.decodeCstrk(model.encodeCstrk(legacy));
-    assert.equal(upgraded.version, model.VERSION);
-    check('v' + version + ' level ' + LEGACY_HILL_ROUTE_MAX_LEVEL + ' plateau upgrades to current format', clearHistory(upgraded), 0);
 }
 for (let base = 0; base <= HILL_ROUTE_MAX_LEVEL; base++) {
     for (let direction = 0, doc = terrainRectangle(() => base); direction < 4; direction++, doc = rotate(doc))

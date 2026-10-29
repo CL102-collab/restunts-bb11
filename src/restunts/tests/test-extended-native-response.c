@@ -77,17 +77,15 @@ void update_crash_state(legacy_s16 event, legacy_s16 car_index)
 	assert(0 && "A stationary contact must not crash the fixture car");
 }
 
-static struct PLAYER_WHEEL_MOTION wall_response(legacy_int extended, legacy_s16 orientation,
-												legacy_u8 level)
+static struct PLAYER_WHEEL_MOTION wall_response(legacy_int extended, legacy_s16 orientation)
 {
 	fixture_extended = extended;
 	struct CARSTATE car = {0};
 	struct PLAYER_WHEEL_MOTION motion = {0};
 	motion.travel = TEST_WHEEL_TRAVEL;
 	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
-		legacy_s16 world_height = level * CSTRK_LEVEL_WORLD_HEIGHT + TEST_WHEEL_HEIGHT;
-		car.car_wheel_contact_positions[wheel].y = world_height;
-		motion.previous[wheel].ly = world_height * OWOOT_POSITION_SCALE;
+		car.car_wheel_contact_positions[wheel].y = TEST_WHEEL_HEIGHT;
+		motion.previous[wheel].ly = TEST_WHEEL_HEIGHT * OWOOT_POSITION_SCALE;
 		motion.current[wheel] = motion.previous[wheel];
 		motion.current[wheel].lx = TEST_WHEEL_DISPLACEMENT * OWOOT_POSITION_SCALE;
 		motion.current[wheel].lz = TEST_WHEEL_DISPLACEMENT * OWOOT_POSITION_SCALE;
@@ -111,20 +109,13 @@ static void test_native_wall_response(void)
 	legacy_int has_vertical_response = 0;
 	for (legacy_u16 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
 		legacy_s16 orientation = rotation * ANGLE_QUARTER_TURN;
-		struct PLAYER_WHEEL_MOTION ground = wall_response(0, orientation, 0);
-		for (legacy_u8 level = 0; level < TEST_BASE_LEVEL_COUNT; level++) {
-			struct PLAYER_WHEEL_MOTION original = wall_response(0, orientation, level);
-			struct PLAYER_WHEEL_MOTION extended = wall_response(1, orientation, level);
-			legacy_s32 height_offset = level * CSTRK_LEVEL_WORLD_HEIGHT * OWOOT_POSITION_SCALE;
-			for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
-				assert(original.current[wheel].lx == extended.current[wheel].lx);
-				assert(original.current[wheel].ly == extended.current[wheel].ly);
-				assert(original.current[wheel].lz == extended.current[wheel].lz);
-				assert(original.current[wheel].lx == ground.current[wheel].lx);
-				assert(original.current[wheel].ly - height_offset == ground.current[wheel].ly);
-				assert(original.current[wheel].lz == ground.current[wheel].lz);
-				has_vertical_response |= original.current[wheel].ly != original.previous[wheel].ly;
-			}
+		struct PLAYER_WHEEL_MOTION original = wall_response(0, orientation);
+		struct PLAYER_WHEEL_MOTION extended = wall_response(1, orientation);
+		for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+			assert(original.current[wheel].lx == extended.current[wheel].lx);
+			assert(original.current[wheel].ly == extended.current[wheel].ly);
+			assert(original.current[wheel].lz == extended.current[wheel].lz);
+			has_vertical_response |= original.current[wheel].ly != original.previous[wheel].ly;
 		}
 	}
 	/* A yaw-only response would flatten this contact while the car is tilted. */
