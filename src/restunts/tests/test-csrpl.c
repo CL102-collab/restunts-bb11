@@ -203,9 +203,6 @@ static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
 	legacy_char error[TEST_REPLAY_ERROR_CAPACITY];
 	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
 	track.version = track_version;
-	legacy_u8 base_height =
-		track_version < CSTRK_NINE_LEVEL_VERSION ? CSTRK_LEGACY_MAX_HEIGHT : CSTRK_MAX_HEIGHT;
-	memset(track.corner_heights, base_height, (size_t)(track.width + 1U) * (track.height + 1U));
 	legacy_u8 expected_lower =
 		track_version < CSTRK_LOWER_SURFACE_VERSION ? CSTRK_ROAD_DIRT : CSTRK_ROAD_ICE;
 	struct CSTRK_OBJECT object = {0};
@@ -213,7 +210,6 @@ static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
 	object.width = object.height = object.occupied_mask = 1;
 	object.surface = CSTRK_ROAD_DIRT;
 	object.lower_surface = expected_lower;
-	object.base_height = base_height;
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	legacy_u8 *track_data = NULL;
 	size_t track_size = 0;
@@ -235,11 +231,6 @@ static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
 	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
 	assert(embedded.version == CSTRK_VERSION && embedded.object_count == 1U);
 	assert(embedded.objects[0].surface == CSTRK_ROAD_DIRT);
-	assert(embedded.objects[0].base_height == base_height);
-	for (size_t vertex = 0; vertex < (size_t)(embedded.width + 1U) * (embedded.height + 1U);
-		 vertex++) {
-		assert(embedded.corner_heights[vertex] == base_height);
-	}
 	/* A v3 overpass used its one selected material for both roads. */
 	assert(embedded.objects[0].lower_surface == expected_lower);
 	/* Resaving keeps the lower road choice and the recording's revision. */
@@ -257,8 +248,8 @@ static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
 
 static void test_recorded_versions(void)
 {
-	static const legacy_u16 track_versions[] = {CSTRK_MIN_VERSION, CSTRK_LOWER_SURFACE_VERSION,
-												CSTRK_VERSION, TEST_FUTURE_TRACK_VERSION};
+	static const legacy_u16 track_versions[] = {CSTRK_MIN_VERSION, CSTRK_VERSION,
+												TEST_FUTURE_TRACK_VERSION};
 	static const legacy_u16 replay_versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U, 15U, 101U,
 												 LEGACY_U16_MAX};
 	static const legacy_u8 inputs[] = {1U, 2U};
@@ -405,7 +396,6 @@ int main(void)
 	test_large_timeline();
 	test_recorded_versions();
 	test_overpass_surfaces_in_replay(CSTRK_MIN_VERSION);
-	test_overpass_surfaces_in_replay(CSTRK_LOWER_SURFACE_VERSION);
 	test_overpass_surfaces_in_replay(CSTRK_VERSION);
 	test_recorded_driving_rules();
 	/* Replay storage preserves wire revisions while decoding upgrades old tracks. */
