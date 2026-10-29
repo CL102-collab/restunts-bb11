@@ -548,15 +548,6 @@ static legacy_s16 resolve_wheel_wall_collision(struct CARSTATE *carstate,
 	struct VECTOR previous_wall = carstate->car_wheel_contact_positions[wheel_index];
 	struct VECTOR current_wall;
 	physics_position_to_vector(&current_wall, current_wheel_position);
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		struct VECTOR transformed;
-		track_collision_to_wall_frame(&previous_wall, &transformed);
-		previous_wall = transformed;
-		track_collision_to_wall_frame(&current_wall, &transformed);
-		current_wall = transformed;
-	}
-#endif
 	struct VECTOR previous_relative;
 	previous_relative.x = LEGACY_S16_WRAP_SUB(previous_wall.x, wallStartX);
 	previous_relative.y = 0;
@@ -604,15 +595,6 @@ static legacy_s16 resolve_wheel_wall_collision(struct CARSTATE *carstate,
 												   wall_heading, MATRIX_ROTATION_ORDER_ZXY);
 	struct VECTOR response;
 	mat_mul_vector(&push, response_rotation, &response);
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		struct MATRIX yaw;
-		struct VECTOR local_response;
-		mat_rot_y(&yaw, wall_heading);
-		mat_mul_vector(&push, &yaw, &local_response);
-		track_collision_wall_vector_to_world(&local_response, &response);
-	}
-#endif
 	apply_wall_impact(carstate, wall_heading, car_index);
 	reposition_wheels_at_wall(motion, retained_travel, &response);
 	return 1;
@@ -1483,19 +1465,17 @@ static legacy_s16 overlaps_start_finish_pole(struct SIMD *simd, struct VECTOR *c
 		const struct CSTRK_OBJECT *object =
 			extended_track_object_at(start_finish_column, start_finish_row);
 		if (object) {
-			struct EXTENDED_GEOMETRY_BASIS basis;
-			struct VECTOR origin, local, transformed, rotation, clearance;
+			struct VECTOR origin;
 			extended_geometry_object_origin(extended_track_model(), object, &origin);
-			extended_geometry_object_basis(object, &basis);
-			local = (struct VECTOR){
-				multiply_and_scale(sin_fast(angle), PLAYER_PHYSICS_START_FINISH_POLE_OFFSET), 0,
-				multiply_and_scale(cos_fast(angle), PLAYER_PHYSICS_START_FINISH_POLE_OFFSET)};
-			extended_geometry_forward(&basis, &local, &transformed);
-			obstacle_pose[0] = (struct VECTOR){LEGACY_S16_WRAP_ADD(origin.x, transformed.x),
-											   LEGACY_S16_WRAP_ADD(origin.y, transformed.y),
-											   LEGACY_S16_WRAP_ADD(origin.z, transformed.z)};
-			extended_geometry_initial_pose(object, 0, &rotation, &clearance);
-			obstacle_pose[1] = (struct VECTOR){rotation.z, rotation.y, rotation.x};
+			obstacle_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX] = (struct VECTOR){
+				LEGACY_S16_WRAP_ADD(
+					origin.x,
+					multiply_and_scale(sin_fast(angle), PLAYER_PHYSICS_START_FINISH_POLE_OFFSET)),
+				origin.y,
+				LEGACY_S16_WRAP_ADD(
+					origin.z,
+					multiply_and_scale(cos_fast(angle), PLAYER_PHYSICS_START_FINISH_POLE_OFFSET))};
+			obstacle_pose[PLAYER_PHYSICS_POSE_ROTATION_INDEX] = (struct VECTOR){0, 0, 0};
 		}
 	}
 #endif

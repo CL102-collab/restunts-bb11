@@ -22,10 +22,9 @@ than writing C structures.
 | 28 | 4 | Reserved, zero |
 
 The gameplay identity is a complete valid CSTRK file with its revision normalized
-to v1, its cosmetic horizon reset to Desert, and its notes removed: notes length
-is zero, notes bytes are absent, and payload size is adjusted. The identity's
-revision remains v1 even when the track writer promotes a mixed-surface track
-to v2, preserving existing score files across writer updates.
+to the current track revision v3, its cosmetic horizon reset to Desert, and
+its notes removed: notes length is zero, notes bytes are absent, and payload
+size is adjusted. Older extended-track revisions are unsupported.
 Its 16-byte serialized object records are sorted in ascending bytewise order;
 all other terrain and object data are retained exactly. Therefore changes to
 revision metadata, notes, horizon, or object ordering keep the same scores.

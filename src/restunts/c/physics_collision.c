@@ -547,16 +547,12 @@ legacy_s16 get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 		const struct VECTOR *points;
 		legacy_u16 count = collision_model_points((legacy_u8)id, &points);
 		struct VECTOR origin;
-		struct EXTENDED_GEOMETRY_BASIS basis;
 		extended_geometry_object_origin(extended_track_model(), object, &origin);
-		extended_geometry_object_basis(object, &basis);
 		transform_collision_points(points, output, count, trkObjectList[id].ss_rotY, 0, 0, 0);
 		for (unsigned i = 0; i < count; i++) {
-			struct VECTOR transformed;
-			extended_geometry_forward(&basis, &output[i], &transformed);
-			output[i].x = LEGACY_S16_WRAP_ADD(transformed.x, origin.x);
-			output[i].y = LEGACY_S16_WRAP_ADD(transformed.y, origin.y);
-			output[i].z = LEGACY_S16_WRAP_ADD(transformed.z, origin.z);
+			output[i].x = LEGACY_S16_WRAP_ADD(output[i].x, origin.x);
+			output[i].y = LEGACY_S16_WRAP_ADD(output[i].y, origin.y);
+			output[i].z = LEGACY_S16_WRAP_ADD(output[i].z, origin.z);
 		}
 		return count;
 	}

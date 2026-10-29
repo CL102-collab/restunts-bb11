@@ -271,57 +271,19 @@ static struct OWOOT_POINT route_extended_origin(const struct CSTRK_OBJECT *place
 }
 
 static struct OWOOT_POINT route_extended_unplace(const struct OWOOT_POINT *point,
-												 const struct OWOOT_POINT *origin,
-												 const struct EXTENDED_GEOMETRY_BASIS *basis)
+												 const struct OWOOT_POINT *origin)
 {
-	struct VECTOR delta = {(legacy_s16)(point->x - origin->x), (legacy_s16)(point->y - origin->y),
-						   (legacy_s16)(point->z - origin->z)},
-				  local;
-	extended_geometry_inverse(basis, &delta, &local);
-	struct OWOOT_POINT result = {local.x, local.y, local.z};
+	struct OWOOT_POINT result = {(legacy_s16)(point->x - origin->x),
+								 (legacy_s16)(point->y - origin->y),
+								 (legacy_s16)(point->z - origin->z)};
 	return result;
 }
 
-static struct OWOOT_POINT route_extended_direction(const struct OWOOT_POINT *direction,
-												   const struct EXTENDED_GEOMETRY_BASIS *basis)
+static void route_extended_place_gate(struct OWOOT_GATE *gate, const struct OWOOT_POINT *origin)
 {
-	struct VECTOR vector = {(legacy_s16)direction->x, (legacy_s16)direction->y,
-							(legacy_s16)direction->z},
-				  result;
-	extended_geometry_forward(basis, &vector, &result);
-	struct OWOOT_POINT placed = {result.x, result.y, result.z};
-	return placed;
-}
-
-static void route_extended_normalize(struct OWOOT_POINT *vector)
-{
-	double square = (double)vector->x * vector->x + (double)vector->y * vector->y +
-					(double)vector->z * vector->z;
-	if (square == 0.0) {
-		return;
-	}
-	double length = square > 1.0 ? square : 1.0;
-	for (unsigned step = 0; step < 20; step++) {
-		length = (length + square / length) * 0.5;
-	}
-	vector->x = (legacy_s32)(vector->x * OWOOT_GATE_SCALE / length);
-	vector->y = (legacy_s32)(vector->y * OWOOT_GATE_SCALE / length);
-	vector->z = (legacy_s32)(vector->z * OWOOT_GATE_SCALE / length);
-}
-
-static void route_extended_place_gate(struct OWOOT_GATE *gate, const struct OWOOT_POINT *origin,
-									  const struct EXTENDED_GEOMETRY_BASIS *basis)
-{
-	gate->center = route_extended_direction(&gate->center, basis);
 	gate->center.x += origin->x;
 	gate->center.y += origin->y;
 	gate->center.z += origin->z;
-	gate->tangent = route_extended_direction(&gate->tangent, basis);
-	gate->edge = route_extended_direction(&gate->edge, basis);
-	gate->normal = route_extended_direction(&gate->normal, basis);
-	route_extended_normalize(&gate->tangent);
-	route_extended_normalize(&gate->edge);
-	route_extended_normalize(&gate->normal);
 }
 
 static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, legacy_s16 count,
@@ -345,12 +307,10 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 	} else {
 		return 0;
 	}
-	struct EXTENDED_GEOMETRY_BASIS basis;
-	extended_geometry_object_basis(placed, &basis);
 	struct OWOOT_POINT origin = route_extended_origin(placed);
-	gate->center = route_extended_unplace(&gate->center, &origin, &basis);
+	gate->center = route_extended_unplace(&gate->center, &origin);
 	struct OWOOT_POINT zero = {0, 0, 0};
-	gate->tangent = route_extended_unplace(&gate->tangent, &zero, &basis);
+	gate->tangent = route_extended_unplace(&gate->tangent, &zero);
 	gate->tangent.y = 0;
 	if (route_abs(gate->tangent.x) > route_abs(gate->tangent.z)) {
 		gate->tangent.z = 0;
@@ -377,7 +337,7 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 			gate->center.z = gate->tangent.z * sign > 0 ? 512 : -512;
 		}
 	}
-	route_extended_place_gate(gate, &origin, &basis);
+	route_extended_place_gate(gate, &origin);
 	return 1;
 }
 
@@ -388,8 +348,6 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	if (!placed) {
 		return 0;
 	}
-	struct EXTENDED_GEOMETRY_BASIS basis;
-	extended_geometry_object_basis(placed, &basis);
 	struct OWOOT_POINT origin = route_extended_origin(placed);
 	struct OWOOT_POINT first = {0, 0, 0}, last = {0, 0, 0};
 	legacy_s32 highest = 0;
@@ -401,7 +359,7 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	for (int point = 0; point < count; point++) {
 		get_track_route_point(piece, section, (legacy_s16)point, 0);
 		struct OWOOT_POINT world = route_vector(&section[0]);
-		struct OWOOT_POINT local = route_extended_unplace(&world, &origin, &basis);
+		struct OWOOT_POINT local = route_extended_unplace(&world, &origin);
 		if (!point) {
 			first = local;
 			highest = local.y;
@@ -415,10 +373,10 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	}
 	struct OWOOT_POINT axis = {(first.x + last.x) / 2, (first.y + highest) / 2,
 							   (first.z + last.z) / 2};
-	struct OWOOT_POINT local_center = route_extended_unplace(&gate->center, &origin, &basis);
+	struct OWOOT_POINT local_center = route_extended_unplace(&gate->center, &origin);
 	struct OWOOT_POINT radial = route_delta(&local_center, &axis);
 	struct OWOOT_POINT zero = {0, 0, 0}, tangent = {0, 0, 0};
-	struct OWOOT_POINT preferred = route_extended_unplace(&gate->tangent, &zero, &basis);
+	struct OWOOT_POINT preferred = route_extended_unplace(&gate->tangent, &zero);
 	if (route_abs(last.x - first.x) > route_abs(last.z - first.z)) {
 		radial.x = 0;
 		tangent.y = -radial.z;
@@ -443,7 +401,7 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	gate->lateral_limit = OWOOT_TILE_SIZE * OWOOT_GATE_SCALE;
 	gate->normal_limit = 0;
 	gate->kind = OWOOT_GATE_CORKSCREW_PHASE;
-	route_extended_place_gate(gate, &origin, &basis);
+	route_extended_place_gate(gate, &origin);
 	(void)index;
 	return 1;
 }
@@ -954,29 +912,25 @@ static legacy_s16 route_extended_slalom_barrier(legacy_s16 piece, const struct C
 	if (!placed) {
 		return 0;
 	}
-	struct EXTENDED_GEOMETRY_BASIS basis;
 	struct VECTOR origin, zero = {0, 0, 0}, local_motion;
-	extended_geometry_object_basis(placed, &basis);
 	extended_geometry_object_origin(extended_track_model(), placed, &origin);
 	struct OWOOT_TIRES local;
 	struct VECTOR body[CARSTATE_WHEEL_COUNT];
 	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 		local.counts[wheel] = tires->counts[wheel];
 		for (legacy_u16 point = 0; point < local.counts[wheel]; point++) {
-			struct VECTOR delta = {LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].x, origin.x),
-								   LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].y, origin.y),
-								   LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].z, origin.z)};
-			extended_geometry_inverse(&basis, &delta, &local.vertices[wheel][point]);
+			local.vertices[wheel][point] =
+				(struct VECTOR){LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].x, origin.x),
+								LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].y, origin.y),
+								LEGACY_S16_WRAP_SUB(tires->vertices[wheel][point].z, origin.z)};
 		}
-		struct VECTOR delta = {
+		body[wheel] = (struct VECTOR){
 			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].x, origin.x),
 			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].y, origin.y),
 			LEGACY_S16_WRAP_SUB(carstate->car_body_corner_positions[wheel].z, origin.z)};
-		extended_geometry_inverse(&basis, &delta, &body[wheel]);
 	}
-	struct VECTOR world_motion = {(legacy_s16)motion->x, (legacy_s16)motion->y,
-								  (legacy_s16)motion->z};
-	extended_geometry_inverse(&basis, &world_motion, &local_motion);
+	local_motion =
+		(struct VECTOR){(legacy_s16)motion->x, (legacy_s16)motion->y, (legacy_s16)motion->z};
 	return track_slalom_wheel_envelope_crosses_barrier(local.vertices, local.counts, body, &zero,
 													   route_object(piece)->ss_rotY, &local_motion);
 }

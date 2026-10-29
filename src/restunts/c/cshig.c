@@ -89,15 +89,17 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	if (track == NULL) {
 		return cshig_fail(error, error_size, "A track is required for its highscore table");
 	}
-	if (track->version == 0U) {
-		return cshig_fail(error, error_size, "Track revision must be positive");
+	if (track->version < CSTRK_MIN_VERSION) {
+		return cshig_fail(error, error_size,
+						  "Unsupported track version %u; minimum supported version is %u",
+						  (legacy_uint)track->version, CSTRK_MIN_VERSION);
 	}
 	if (track->horizon >= CSTRK_HORIZON_COUNT) {
 		return cshig_fail(error, error_size, "Track horizon is out of range");
 	}
 	struct CSTRK_TRACK gameplay = *track;
 	/* Revision metadata and scenery do not change the course or its existing scores. */
-	gameplay.version = CSTRK_INITIAL_VERSION;
+	gameplay.version = CSTRK_VERSION;
 	gameplay.horizon = CSTRK_HORIZON_DEFAULT;
 	gameplay.notes_length = 0;
 	gameplay.notes[0] = '\0';
@@ -106,8 +108,6 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	if (!cstrk_encode(&gameplay, &encoded, &encoded_size, error, error_size)) {
 		return 0;
 	}
-	/* Keep score identities stable when the writer upgrades terrain revisions. */
-	cshig_write16(encoded + CSTRK_VERSION_OFFSET, CSTRK_INITIAL_VERSION);
 	size_t objects_offset = CSTRK_HEADER_SIZE +
 							((size_t)track->width + 1U) * ((size_t)track->height + 1U) +
 							(size_t)track->width * track->height * 2U;

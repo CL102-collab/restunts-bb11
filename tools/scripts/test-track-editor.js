@@ -233,6 +233,10 @@ test('hill display corners turn through right angles consistently at every orien
     const rotatePoint = ([x, y]) => [1 - y, x];
     for (let base = 0; base < maximumLevel; base++) for (let mask = 1; mask < profileCount - 1; mask++) {
         const heights = Array.from({ length: cornerCount }, (_, corner) => base + !!(mask & (1 << corner)));
+        if (!model.terrainProfile(heights)) {
+            assert.throws(() => model.terrainDisplayLayers(heights), /terrain display profile/);
+            continue;
+        }
         const before = heights.slice(), display = model.terrainDisplayLayers(heights);
         assert.equal(display.baseLevel, base); assert.equal(display.layers.length, 1);
         const layer = display.layers[0];
@@ -273,12 +277,7 @@ test('neighboring hill display contours join without changing terrain or saved d
     }
     assert.deepEqual(doc.snapshot(), before); assert.deepEqual(model.encodeCstrk(doc), saved);
 });
-test('hill display supports existing saddles and diagonal planes without material-dependent geometry', () => {
-    const saddle = model.terrainDisplayLayers([1, 0, 1, 0]);
-    assert.equal(saddle.layers.length, 1);
-    assert.equal(saddle.layers[0].polygons.length, 2); assert.equal(saddle.layers[0].contours.length, 2);
-    const diagonal = model.terrainDisplayLayers([0, 1, 2, 1]);
-    assert.deepEqual(diagonal.layers.map(layer => layer.level), [.5, 1.5]);
+test('hill display rejects unsupported profiles and keeps geometry independent of materials', () => {
     const doc = new model.Document(2, 2);
     doc.raise(1, 1);
     const expected = model.terrainDisplayLayers(doc.tileHeights(0, 0));
@@ -289,7 +288,8 @@ test('hill display supports existing saddles and diagonal planes without materia
     const heights = [1, 0, 0, 0], first = model.terrainDisplayLayers(heights);
     first.layers[0].polygons[0][0][0] = 99;
     assert.deepEqual(model.terrainDisplayLayers(heights).layers[0].polygons[0][0], [0, 0]);
-    for (const invalid of [null, [], [0, 0, 0], [0, 0, 0, 5], [0, .5, 0, 0]])
+    for (const invalid of [null, [], [0, 0, 0], [0, 0, 0, 5], [0, .5, 0, 0],
+        [1, 0, 1, 0], [0, 1, 0, 1], [0, 1, 2, 1], [0, 0, 2, 2]])
         assert.throws(() => model.terrainDisplayLayers(invalid), /terrain display/);
 });
 test('Level applies each selected surface to the plateau and its generated slopes', () => {
@@ -402,7 +402,7 @@ test('large elements require a flat plateau across their entire footprint', () =
     assert.throws(() => doc.place(11, 0, 2, 2), /original hill/);
     assert.throws(() => doc.place(11, 3, 4), /original hill/);
 });
-test('unsupported diagonal planes and saddles are rejected when opening old tracks', () => {
+test('unsupported diagonal planes and saddles are rejected when opening tracks', () => {
     const doc = new model.Document(2, 2);
     const encoded = model.encodeCstrk(doc), headerSize = 32;
     for (let y = 0; y <= 2; y++) for (let x = 0; x <= 2; x++) doc.vertices[y * 3 + x] = x + y;
@@ -490,13 +490,13 @@ test('Shore paints every distinct material pair and corner with exact storage an
         for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
             if (surface === secondary) continue;
             for (let direction = 1; direction <= 4; direction++) {
-                const doc = new model.Document(2, 2); doc.version = 1; doc.setNotes('Mixed surfaces');
+                const doc = new model.Document(2, 2); doc.setNotes('Mixed surfaces');
                 const before = doc.snapshot();
                 doc.paint(0, 0, surface, direction, secondary);
                 const expected = { surface, halfWaterCorner: direction };
                 if (secondary !== water) expected.cornerSurface = secondary;
                 assert.deepEqual(doc.cells[0], expected);
-                assert.equal(doc.version, secondary === water ? 1 : model.VERSION);
+                assert.equal(doc.version, model.VERSION);
                 const after = doc.snapshot(), encoded = model.encodeCstrk(doc);
                 const cornerByte = headerSize + doc.vertices.length + 1;
                 assert.equal(encoded[cornerByte], direction | ((secondary ^ water) << cornerSurfaceShift));
@@ -516,10 +516,10 @@ test('Shore paints every distinct material pair and corner with exact storage an
         }
     }
 });
-test('Shore rejects matching or invalid materials atomically and preserves legacy Water corners', () => {
+test('Shore rejects matching or invalid materials atomically and in stored tracks', () => {
     const water = model.DEFAULT_CORNER_SURFACE;
     const headerSize = 32;
-    const doc = new model.Document(2, 2); doc.version = 1;
+    const doc = new model.Document(2, 2);
     doc.setNotes('future'); doc.undo();
     const before = doc.snapshot();
     for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
@@ -530,27 +530,29 @@ test('Shore rejects matching or invalid materials atomically and preserves legac
         assert.throws(() => doc.paint(0, 0, 0, 1, invalid), /corner surface/);
         assert.deepEqual(doc.snapshot(), before); assert.equal(doc.canRedo, true);
     }
-    for (let direction = 0; direction <= 4; direction++) {
-        // Historical files could contain Water beside Water; keep their bytes valid.
-        doc.cells[0] = { surface: water, halfWaterCorner: direction };
+    for (let direction = 1; direction <= 4; direction++) {
+        for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+            doc.cells[0] = { surface, halfWaterCorner: direction, cornerSurface: surface };
+            assert.throws(() => model.encodeCstrk(doc), /terrain/);
+        }
+        doc.cells[0] = { surface: 0, halfWaterCorner: direction };
         const encoded = model.encodeCstrk(doc), cornerByte = headerSize + doc.vertices.length + 1;
-        assert.equal(encoded[cornerByte], direction); assert.equal(encoded[8], 1);
+        assert.equal(encoded[cornerByte], direction); assert.equal(encoded[8], model.VERSION);
         assert.deepEqual(model.encodeCstrk(model.decodeCstrk(encoded)), encoded);
+        const matching = encoded.slice(); matching[cornerByte - 1] = water;
+        assert.throws(() => model.decodeCstrk(matching), /terrain/);
         for (const badCorner of [5, 8, 32, 255]) {
             const corrupt = encoded.slice(); corrupt[cornerByte] = badCorner;
             assert.throws(() => model.decodeCstrk(corrupt), /terrain/);
         }
     }
-    doc.cells[0] = { surface: water, halfWaterCorner: 1, cornerSurface: 0 };
-    const promoted = model.encodeCstrk(doc);
-    assert.equal(promoted[8], model.VERSION); assert.equal(doc.version, 1);
-    doc.cells[0] = { surface: 1, halfWaterCorner: 1, cornerSurface: 1 };
+    doc.cells[0] = { surface: water, halfWaterCorner: 1 };
     assert.throws(() => model.encodeCstrk(doc), /terrain/);
 });
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 2); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 3); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -584,6 +586,17 @@ test('CSTRK version metadata preserves compatible newer revisions across loading
         const saved = model.encodeCstrk(loaded);
         assert.equal(new DataView(saved.buffer).getUint16(8, true), version);
         assert.equal(model.decodeCstrk(saved).notes, loaded.notes);
+        loaded.paint(0, 0, 0, 1, 1);
+        assert.equal(loaded.version, version);
+        const painted = model.encodeCstrk(loaded);
+        assert.equal(new DataView(painted.buffer).getUint16(8, true), version);
+        assert.deepEqual(model.decodeCstrk(painted).snapshot(), loaded.snapshot());
+    }
+    for (const version of [1, 2]) {
+        const bytes = original.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(bytes), /Unsupported older.*version v[12]/);
+        doc.version = version;
+        assert.throws(() => model.encodeCstrk(doc), /Unsupported older.*version v[12]/);
     }
     const zeroVersion = original.slice(); new DataView(zeroVersion.buffer).setUint16(8, 0, true);
     assert.throws(() => model.decodeCstrk(zeroVersion), /version/);

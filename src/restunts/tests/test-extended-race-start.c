@@ -193,7 +193,6 @@ static void check_idle_editor_gate(int available)
 
 int main(void)
 {
-	check_success(1, CSTRK_INITIAL_VERSION);
 	check_success(1, CSTRK_VERSION);
 	check_success(0, CSTRK_VERSION);
 	check_extended_failure();

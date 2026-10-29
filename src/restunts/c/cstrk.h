@@ -6,9 +6,8 @@
 #include <stdint.h>
 #include "legacy.h"
 
-#define CSTRK_INITIAL_VERSION 1U
-#define CSTRK_SURFACE_CORNERS_VERSION 2U
-#define CSTRK_VERSION CSTRK_SURFACE_CORNERS_VERSION
+#define CSTRK_VERSION 3U
+#define CSTRK_MIN_VERSION CSTRK_VERSION
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -116,10 +115,9 @@ struct CSTRK_TRACK {
  * Mutating operations preserve the destination on failure. All int results
  * are 1 for success and 0 for failure. An optional error buffer receives text.
  * Encode allocates *data using malloc; its caller must free that allocation.
- * Version is positive revision metadata. Decode validates the known layout even
- * for newer revisions; the UI warns when version exceeds CSTRK_VERSION. Encode
- * promotes the stored revision to at least CSTRK_SURFACE_CORNERS_VERSION when
- * an active corner uses a secondary material other than water. */
+ * Revisions below CSTRK_MIN_VERSION are unsupported. Decode validates the known
+ * layout even for newer revisions; the UI warns when version exceeds CSTRK_VERSION.
+ * Encode preserves the supported revision stored in the track. */
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
