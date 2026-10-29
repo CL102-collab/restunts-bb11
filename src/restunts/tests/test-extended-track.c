@@ -270,6 +270,63 @@ static void test_half_water_saddle(void)
 	cstrk_free(&track);
 }
 
+#define SHORE_TEST_COLUMN 64U
+#define SHORE_TEST_ROW 64U
+#define SHORE_TEST_TILE_SIZE 1024U
+#define SHORE_TEST_NEAR 128U
+#define SHORE_TEST_FAR 896U
+#define SHORE_TEST_CORNER_COUNT 4U
+#define SHORE_TEST_OPPOSITE_OFFSET 2U
+#define SHORE_TEST_HALF_COUNT 2U
+#define SHORE_TEST_HEIGHT_TOLERANCE 2
+
+static void test_shore_materials(void)
+{
+	static const legacy_s16 surface_types[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE, CAR_SURFACE_DIRT,
+											   CAR_SURFACE_WATER};
+	static const legacy_s16 probes[SHORE_TEST_CORNER_COUNT][2] = {
+		{SHORE_TEST_NEAR, SHORE_TEST_NEAR},
+		{SHORE_TEST_FAR, SHORE_TEST_NEAR},
+		{SHORE_TEST_FAR, SHORE_TEST_FAR},
+		{SHORE_TEST_NEAR, SHORE_TEST_FAR}};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	struct CSTRK_CELL *cell = &track.cells[SHORE_TEST_ROW * track.width + SHORE_TEST_COLUMN];
+	for (legacy_u8 primary = CSTRK_TERRAIN_GRASS; primary <= CSTRK_TERRAIN_WATER; primary++) {
+		for (legacy_u8 secondary = CSTRK_TERRAIN_GRASS; secondary <= CSTRK_TERRAIN_WATER;
+			 secondary++) {
+			if (primary == secondary) {
+				continue;
+			}
+			cell->surface = primary;
+			cell->corner_surface = secondary;
+			for (legacy_u8 corner = CSTRK_WATER_NORTHWEST; corner <= CSTRK_WATER_SOUTHWEST;
+				 corner++) {
+				cell->half_water_corner = corner;
+				activate(&track);
+				legacy_u8 selected = corner - CSTRK_WATER_NORTHWEST;
+				legacy_u8 opposite =
+					(selected + SHORE_TEST_OPPOSITE_OFFSET) % SHORE_TEST_CORNER_COUNT;
+				legacy_u8 indices[SHORE_TEST_HALF_COUNT];
+				indices[0] = selected;
+				indices[1] = opposite;
+				for (legacy_u8 half = 0; half < sizeof(indices) / sizeof(indices[0]); half++) {
+					legacy_s32 world_x =
+						SHORE_TEST_COLUMN * SHORE_TEST_TILE_SIZE + probes[indices[half]][0];
+					legacy_s32 world_z = (track.height - SHORE_TEST_ROW) * SHORE_TEST_TILE_SIZE -
+										 probes[indices[half]][1];
+					struct VECTOR point = sample_world(world_x, 0, world_z);
+					assert(current_surf_type == surface_types[half == 0 ? secondary : primary]);
+					assert(abs(selected_height(&point)) <= SHORE_TEST_HEIGHT_TOLERANCE);
+				}
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
 static void test_resource_admission(void)
 {
 	struct CSTRK_TRACK track;
@@ -785,6 +842,7 @@ int main(void)
 	test_world_coordinates_and_surfaces();
 	test_sloped_stunt_and_snapshot();
 	test_half_water_saddle();
+	test_shore_materials();
 	test_resource_admission();
 	test_corkscrew_surfaces();
 	test_scenery_ignores_road_surface();

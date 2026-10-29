@@ -220,13 +220,13 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_
 								 (legacy_s16)(intercept + (dx + dy) / 2));
 	static const legacy_s16 surface_types[4] = {4, 3, 2, 5};
 	sample->surface = surface_types[cell->surface];
-	/* The corner names identify the water half. Its diagonal is shared with
-	 * the terrain's triangular split, including on elevated water surfaces. */
+	/* The corner identifies the secondary surface half. Its diagonal is shared
+	 * with the terrain's triangular split, including on elevated surfaces. */
 	if ((cell->half_water_corner == CSTRK_WATER_NORTHWEST && u + v < 1024) ||
 		(cell->half_water_corner == CSTRK_WATER_NORTHEAST && v < u) ||
 		(cell->half_water_corner == CSTRK_WATER_SOUTHEAST && u + v >= 1024) ||
 		(cell->half_water_corner == CSTRK_WATER_SOUTHWEST && v >= u)) {
-		sample->surface = 5;
+		sample->surface = surface_types[cell->corner_surface];
 	}
 	return 1;
 }

@@ -54,9 +54,11 @@ A Terrain / Track library switch shows one section at a time. Each track shape
 appears once, with four direction arrows updating the palette thumbnails and
 the variation to place.
 Terrain tools are separate from track elements; shared corner heights support
-four elevation levels with automatic adjoining slopes. Grass, ice, dirt, water,
-and the half-water hill corner are available. Track pieces use their original
-groups, with dirt and ice selected through the separate road surface control. Incompatible pieces
+four elevation levels with automatic adjoining slopes. Shore combines any two
+different materials from grass, ice, dirt, and water. Its second material row
+excludes the selected primary material and appears above the four corner
+previews. Track pieces use their original groups, with dirt and ice selected
+through the separate road surface control. Incompatible pieces
 are disabled. The canvas supports tracks up to 90 × 90 tiles, zooming, panning,
 and an overview map. Paint, Shore and Level show square previews below their
 tool row; the Level height choices are only shown for that tool. Right-button

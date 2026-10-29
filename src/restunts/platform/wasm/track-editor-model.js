@@ -8,7 +8,9 @@
     const SURFACES = ['Paved', 'Dirt', 'Ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 1, CSTRK_MIN_VERSION = 1, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 2, CSTRK_MIN_VERSION = 1, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const DEFAULT_CORNER_SURFACE = 3, CSTRK_MIXED_SURFACE_VERSION = 2;
+    const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
     const MAGIC = [67, 83, 84, 82, 75, 26, 13, 10];
     const groups = [{ id: 1, name: 'F1 · Roads' }, { id: 4, name: 'F4 · Stunts' }, { id: 5, name: 'F5 · Banked roads' },
@@ -134,9 +136,19 @@
                 return target;
             });
         }
-        paint(x, y, surface, halfWaterCorner = 0) {
-            integer(surface, 0, 3, 'terrain surface'); integer(halfWaterCorner, 0, 4, 'water corner');
-            return this.transaction('Paint terrain', () => { this.cells[this.cellIndex(x, y)] = { surface, halfWaterCorner }; });
+        paint(x, y, surface, halfWaterCorner = 0, cornerSurface = DEFAULT_CORNER_SURFACE) {
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            integer(halfWaterCorner, 0, 4, 'surface corner');
+            integer(cornerSurface, 0, TERRAIN_SURFACES.length - 1, 'corner surface');
+            if (halfWaterCorner && surface === cornerSurface) throw new Error('Choose different surfaces for a corner.');
+            return this.transaction('Paint terrain', () => {
+                const cell = { surface, halfWaterCorner };
+                if (halfWaterCorner && cornerSurface !== DEFAULT_CORNER_SURFACE) {
+                    cell.cornerSurface = cornerSurface;
+                    this.version = Math.max(this.version, CSTRK_MIXED_SURFACE_VERSION);
+                }
+                this.cells[this.cellIndex(x, y)] = cell;
+            });
         }
         level(x, y, height, surface) {
             const cell = this.cellIndex(x, y);
@@ -208,7 +220,13 @@
                 if (x < this.width && Math.abs(level - this.vertices[y * (this.width + 1) + x + 1]) > 1) errors.push('Terrain rises more than one level per edge.');
                 if (y < this.height && Math.abs(level - this.vertices[(y + 1) * (this.width + 1) + x]) > 1) errors.push('Terrain rises more than one level per edge.');
             }
-            for (const cell of this.cells) if (!Number.isInteger(cell.surface) || cell.surface < 0 || cell.surface > 3 || !Number.isInteger(cell.halfWaterCorner) || cell.halfWaterCorner < 0 || cell.halfWaterCorner > 4) errors.push('Invalid terrain surface.');
+            for (const cell of this.cells) {
+                const cornerSurface = !cell.halfWaterCorner || cell.cornerSurface === undefined ? DEFAULT_CORNER_SURFACE : cell.cornerSurface;
+                if (!Number.isInteger(cell.surface) || cell.surface < 0 || cell.surface >= TERRAIN_SURFACES.length ||
+                    !Number.isInteger(cell.halfWaterCorner) || cell.halfWaterCorner < 0 || cell.halfWaterCorner > 4 ||
+                    !Number.isInteger(cornerSurface) || cornerSurface < 0 || cornerSurface >= TERRAIN_SURFACES.length ||
+                    (cell.halfWaterCorner && cornerSurface === cell.surface && cornerSurface !== DEFAULT_CORNER_SURFACE)) errors.push('Invalid terrain surface.');
+            }
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
                 try {
@@ -234,11 +252,17 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         const payload = doc.vertices.length + doc.cells.length * 2 + doc.objects.length * 16 + doc.notes.length;
         const a = new Uint8Array(CSTRK_HEADER_SIZE + payload), v = new DataView(a.buffer); a.set(MAGIC);
-        v.setUint16(8, doc.version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
+        const mixedCorners = doc.cells.some(cell => cell.halfWaterCorner && cell.cornerSurface !== undefined && cell.cornerSurface !== DEFAULT_CORNER_SURFACE);
+        const version = mixedCorners ? Math.max(doc.version, CSTRK_MIXED_SURFACE_VERSION) : doc.version;
+        v.setUint16(8, version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
         v.setUint32(CSTRK_HORIZON_OFFSET, doc.horizon, true); v.setUint16(16, doc.width, true); v.setUint16(18, doc.height, true);
         v.setUint32(20, doc.notes.length, true); v.setUint32(24, doc.objects.length, true); v.setUint32(28, payload, true);
         let p = CSTRK_HEADER_SIZE; a.set(doc.vertices, p); p += doc.vertices.length;
-        for (const cell of doc.cells) { a[p++] = cell.surface; a[p++] = cell.halfWaterCorner; }
+        for (const cell of doc.cells) {
+            const cornerSurface = cell.cornerSurface === undefined ? DEFAULT_CORNER_SURFACE : cell.cornerSurface;
+            a[p++] = cell.surface;
+            a[p++] = cell.halfWaterCorner ? cell.halfWaterCorner | ((cornerSurface ^ DEFAULT_CORNER_SURFACE) << CSTRK_CORNER_SURFACE_SHIFT) : 0;
+        }
         for (const o of doc.objects) {
             v.setUint16(p, o.id, true); a.set([o.x, o.y, o.rotation, o.surface, o.width, o.height, o.mask, o.baseHeight], p + 2);
             v.setInt8(p + 10, o.slopeX); v.setInt8(p + 11, o.slopeY); p += 16;
@@ -259,7 +283,14 @@
         if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
         doc.horizon = horizon; doc.version = version;
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
-        for (const cell of doc.cells) { cell.surface = a[p++]; cell.halfWaterCorner = a[p++]; }
+        for (const cell of doc.cells) {
+            cell.surface = a[p++];
+            const encoded = a[p++], direction = encoded & CSTRK_CORNER_DIRECTION_MASK;
+            if ((encoded & ~CSTRK_CORNER_ENCODING_MASK) || (!direction && encoded)) throw new Error('Invalid terrain corner encoding.');
+            cell.halfWaterCorner = direction;
+            const cornerSurface = (encoded >> CSTRK_CORNER_SURFACE_SHIFT) ^ DEFAULT_CORNER_SURFACE;
+            if (direction && cornerSurface !== DEFAULT_CORNER_SURFACE) cell.cornerSurface = cornerSurface;
+        }
         for (let i = 0; i < count; i++, p += 16) {
             if (v.getUint32(p + 12, true)) throw new Error('Unsupported element flags.');
             doc.objects.push({ id: v.getUint16(p, true), x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface: a[p + 5], width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) });
@@ -268,5 +299,5 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

@@ -27,16 +27,21 @@ older tracks open with Desert selected.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
 great track." Tracks store their version in the file header, and saving keeps
-the loaded version. Opening a newer version shows an OK-only warning before
+the loaded version, promoting v1 tracks to v2 when a non-water corner material
+is added. Opening a newer version shows an OK-only warning before
 loading it; features from newer editors may not work correctly.
 
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
 Paint shows one selected square preview of the current grass, ice, dirt or water
-surface. Shore shows four square previews combining water with the selected
-grass, dirt or ice; its first corner is selected initially. Click another
-preview or use Q / E to change the Shore corner independently of track pieces.
+surface. Select that primary surface, then choose Shore to show a second material
+row above the four corner previews. The second row contains only the other three
+surfaces, so any two different materials can meet at a corner, including Water
+as the primary surface. The first corner is selected initially. Click another
+preview or use Q / E to change the corner independently of track pieces.
+Non-water corner materials use revision v2; existing v1 water corners remain
+compatible. Mixed material strokes and their revision changes support undo and redo.
 
 Level shows five square choices, starting with Ground (0), then heights 1
 through 4. These choices appear only while Level is selected; click a map tile
