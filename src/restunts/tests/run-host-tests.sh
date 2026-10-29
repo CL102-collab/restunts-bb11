@@ -149,7 +149,7 @@ run_host_test test-startup math.c -DRESTUNTS_AMIGA "$test_source_dir/trackobj.c"
     "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 "$test_source_dir/trackobj.c" \
-    "$test_source_dir/carsetup.c" \
+    "$test_source_dir/carsetup.c" "$test_source_dir/extended_validation.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
@@ -157,7 +157,7 @@ run_host_test test-startup math.c -DRESTUNTS_SDL3 "$test_source_dir/trackobj.c" 
     "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ "$test_source_dir/trackobj.c" \
-    "$test_source_dir/carsetup.c" \
+    "$test_source_dir/carsetup.c" "$test_source_dir/extended_validation.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
@@ -165,7 +165,7 @@ run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ "$test_source_di
     "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ "$test_source_dir/trackobj.c" \
-    "$test_source_dir/carsetup.c" \
+    "$test_source_dir/carsetup.c" "$test_source_dir/extended_validation.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
@@ -173,7 +173,7 @@ run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ "$test_source
     "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__DJGPP__ "$test_source_dir/trackobj.c" \
-    "$test_source_dir/carsetup.c" \
+    "$test_source_dir/carsetup.c" "$test_source_dir/extended_validation.c" \
     "$test_source_dir/frame_adaptive.c" "$test_source_dir/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
@@ -328,6 +328,9 @@ run_host_test test-replay-controls legacy.c \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay.c
 run_host_test test-cstrk cstrk.c
+run_host_test test-extended-validation extended_validation.c
+run_host_test test-extended-race-start extended_validation.c -DRESTUNTS_SDL3 \
+    -Wno-pointer-sign -Wno-unused-variable
 run_host_test test-csrpl csrpl.c "$test_source_dir/cstrk.c" \
     "$test_source_dir/extended_replay.c"
 run_host_test test-extended-replay-runtime extended_replay_runtime.c \
