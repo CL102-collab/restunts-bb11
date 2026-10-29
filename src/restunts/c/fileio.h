@@ -89,6 +89,11 @@ void far *file_load_3dres(const legacy_s8 *filename);
 legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name);
 legacy_s16 file_load_replay_format(const legacy_s8 *dir, const legacy_s8 *name,
 								   const legacy_s8 *extension);
+#ifdef RESTUNTS_SDL3
+/* Warn once at user-selected replay/ghost load boundaries, never during simulation. */
+void file_warn_replay_version(legacy_u16 version);
+void file_warn_replay_driving_rules(legacy_u16 recorded);
+#endif
 legacy_s16 file_write_replay(const legacy_s8 *filename);
 
 #ifdef __cplusplus

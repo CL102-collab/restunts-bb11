@@ -13,6 +13,7 @@
 #include "audio_control.h"
 #ifdef RESTUNTS_SDL3
 #include "extended_file.h"
+#include "driving_rules.h"
 #include "extended_track.h"
 #ifndef RESTUNTS_HEADLESS
 #include "extended_replay_runtime.h"
@@ -45,6 +46,8 @@ static const legacy_s8 headless_pack_error[] = "Invalid packed resource: %s";
 #define DOS_FILENAME_LENGTH 13
 #ifdef RESTUNTS_SDL3
 #define FILE_FIND_NAME_SIZE 15U
+#define FILE_REPLAY_VERSION_WARNING_SIZE 224U
+#define FILE_REPLAY_RULES_WARNING_SIZE 512U
 #else
 #define FILE_FIND_NAME_SIZE DOS_FILENAME_LENGTH
 #endif
@@ -1501,6 +1504,54 @@ static void file_set_replay_filename(const legacy_s8 *path)
 	replay_filename[length] = 0;
 }
 
+#ifdef RESTUNTS_SDL3
+void file_warn_replay_version(legacy_u16 version)
+{
+#ifndef RESTUNTS_HEADLESS
+	if (version <= CSRPL_VERSION) {
+		return;
+	}
+	legacy_s8 message[FILE_REPLAY_VERSION_WARNING_SIZE];
+	snprintf((legacy_char *)message, sizeof(message),
+			 "Replay recorded with revision v%" LEGACY_PRIu32 " is newer.]"
+			 "Game records revision v%" LEGACY_PRIu32 ".]"
+			 "Physics may differ; playback may desync.]"
+			 "Press OK to continue playback.]}[ OK ]",
+			 (legacy_u32)version, (legacy_u32)CSRPL_VERSION);
+	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
+				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+#else
+	(void)version;
+#endif
+}
+
+void file_warn_replay_driving_rules(legacy_u16 recorded)
+{
+#ifndef RESTUNTS_HEADLESS
+	if (recorded == driving_rules_current()) {
+		return;
+	}
+	legacy_s8 message[FILE_REPLAY_RULES_WARNING_SIZE];
+	snprintf((legacy_char *)message, sizeof(message),
+			 "Replay uses different driving rules.]Playback may desync.]Recorded rules:]"
+			 "Power Gear: %s]Original Collision Bugs: %s]Left Corner Bias: %s]"
+			 "Dual-Way Switching: %s]Chicane Fast-Grass: %s]Amiga Grass: %s]OWOOT: %s]"
+			 "Press OK to continue playback.]}[ OK ]",
+			 recorded & DRIVING_RULE_POWER_GEAR ? "On" : "Off",
+			 recorded & DRIVING_RULE_LEGACY_COLLISION ? "On" : "Off",
+			 recorded & DRIVING_RULE_LEFT_CORNER_BIAS ? "On" : "Off",
+			 recorded & DRIVING_RULE_DUAL_WAY_SWITCHING ? "On" : "Off",
+			 recorded & DRIVING_RULE_CHICANE_FAST_GRASS ? "On" : "Off",
+			 recorded & DRIVING_RULE_AMIGA_GRASS ? "On" : "Off",
+			 recorded & DRIVING_RULE_OWOOT ? "On" : "Off");
+	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
+				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+#else
+	(void)recorded;
+#endif
+}
+#endif
+
 legacy_s16 file_load_replay(const legacy_s8 *dir, const legacy_s8 *name)
 {
 	return file_load_replay_format(dir, name, ".rpl");
@@ -1518,6 +1569,10 @@ legacy_s16 file_load_replay_format(const legacy_s8 *dir, const legacy_s8 *name,
 			file_set_replay_filename(g_path_buf);
 		}
 		g_is_busy = 0;
+		if (result == 0) {
+			file_warn_replay_version(extended_replay_version());
+			file_warn_replay_driving_rules(extended_replay_driving_rules());
+		}
 		return result;
 	}
 	extended_track_unload();

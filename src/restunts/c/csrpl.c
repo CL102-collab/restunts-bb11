@@ -61,6 +61,12 @@ int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size
 static int csrpl_valid_metadata(const struct CSRPL_METADATA *metadata, char *error,
 								size_t error_size)
 {
+	if (metadata->version < CSRPL_MIN_VERSION) {
+		return csrpl_fail(error, error_size, "Unsupported Chocolate Stunts replay version.");
+	}
+	if ((metadata->driving_rules & (legacy_u16)~DRIVING_RULE_KNOWN_MASK) != 0U) {
+		return csrpl_fail(error, error_size, "Replay driving rules contain unsupported flags.");
+	}
 	if (metadata->frames_per_second != 10U && metadata->frames_per_second != 20U) {
 		return csrpl_fail(error, error_size, "Replay frame rate must be 10 or 20 Hz.");
 	}
@@ -94,11 +100,12 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char 
 	if (memcmp(data, csrpl_signature, sizeof(csrpl_signature)) != 0) {
 		return csrpl_fail(error, error_size, "Not a Chocolate Stunts replay.");
 	}
-	if (csrpl_read16(data + 8U) != CSRPL_VERSION || csrpl_read16(data + 10U) != CSRPL_HEADER_SIZE) {
+	legacy_u16 version = csrpl_read16(data + CSRPL_VERSION_OFFSET);
+	if (version < CSRPL_MIN_VERSION || csrpl_read16(data + 10U) != CSRPL_HEADER_SIZE) {
 		return csrpl_fail(error, error_size, "Unsupported Chocolate Stunts replay version.");
 	}
-	if (csrpl_read32(data + 12U) != 0U || csrpl_read16(data + 26U) != 0U) {
-		return csrpl_fail(error, error_size, "Unsupported replay flags or reserved fields.");
+	if (csrpl_read32(data + 12U) != 0U) {
+		return csrpl_fail(error, error_size, "Unsupported replay flags.");
 	}
 	for (size_t index = 50U; index < CSRPL_HEADER_SIZE; index++) {
 		if (data[index] != 0U) {
@@ -107,9 +114,11 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char 
 	}
 	struct CSRPL_VIEW view;
 	memset(&view, 0, sizeof(view));
+	view.metadata.version = version;
 	view.track_size = csrpl_read32(data + 16U);
 	view.metadata.frame_count = csrpl_read32(data + 20U);
 	view.metadata.frames_per_second = csrpl_read16(data + 24U);
+	view.metadata.driving_rules = csrpl_read16(data + CSRPL_DRIVING_RULES_OFFSET);
 	memcpy(view.metadata.player_car_id, data + 28U, CSRPL_CAR_ID_SIZE);
 	view.metadata.player_material = data[32];
 	view.metadata.player_transmission = data[33];
@@ -162,11 +171,12 @@ int csrpl_encode(const struct CSRPL_METADATA *metadata, const uint8_t *track_dat
 		return csrpl_fail(error, error_size, "Not enough memory for replay.");
 	}
 	memcpy(data, csrpl_signature, sizeof(csrpl_signature));
-	csrpl_write16(data + 8U, CSRPL_VERSION);
+	csrpl_write16(data + CSRPL_VERSION_OFFSET, metadata->version);
 	csrpl_write16(data + 10U, CSRPL_HEADER_SIZE);
 	csrpl_write32(data + 16U, (uint32_t)track_size);
 	csrpl_write32(data + 20U, metadata->frame_count);
 	csrpl_write16(data + 24U, metadata->frames_per_second);
+	csrpl_write16(data + CSRPL_DRIVING_RULES_OFFSET, metadata->driving_rules);
 	memcpy(data + 28U, metadata->player_car_id, CSRPL_CAR_ID_SIZE);
 	data[32] = metadata->player_material;
 	data[33] = metadata->player_transmission;

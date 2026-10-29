@@ -408,6 +408,11 @@ enum CHICANE_FAST_GRASS_MODE { CHICANE_FAST_GRASS_OFF = 0, CHICANE_FAST_GRASS_ON
 
 static legacy_s16 chicane_fast_grass_enabled = CHICANE_FAST_GRASS_ON;
 
+legacy_u16 chicane_fast_grass_is_enabled(void)
+{
+	return chicane_fast_grass_enabled != 0;
+}
+
 void configure_chicane_fast_grass(legacy_s16 argc, legacy_s8 *argv[])
 {
 	static const legacy_s8 off_option[] = "--cfg:off";
