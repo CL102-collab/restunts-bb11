@@ -23,20 +23,18 @@ static struct CSTRK_OBJECT object_at(uint8_t x, uint8_t y)
 
 static void test_wire_layout(void)
 {
-	static const uint8_t
-		expected
-			[] =
-				{
-					'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n', 1, 0, 32, 0, 0,
-					0,	 0,	  0,   1,	0,	 1,	   0,	 2,	   0, 0, 0,	 1, 0,
-					0,	 0,	  24,  0,	0,	 0,	   0,	 0,	   0, 0, /* Four shared terrain corners. */
-					2,	 4, /* Dirt, southwest water triangle. */
-					17,	 0,	  0,   0,	3,	 2,	   1,	 1,	   1, 0, 0,	 0, 0,
-					0,	 0,	  0,   'A', '\n'};
+	static const uint8_t expected[] = {
+		'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n', CSTRK_VERSION,
+		0,	 32,  0,   0,	0,	 0,	   0,	 1,	   0,
+		1,	 0,	  2,   0,	0,	 0,	   1,	 0,	   0,
+		0,	 24,  0,   0,	0,	 0,	   0,	 0,	   0, /* Four shared terrain corners. */
+		2,	 4,										  /* Dirt, southwest water triangle. */
+		17,	 0,	  0,   0,	3,	 2,	   1,	 1,	   1,
+		0,	 0,	  0,   0,	0,	 0,	   0,	 'A',  '\n'};
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 1, 1, error, sizeof(error)));
-	track.version = CSTRK_INITIAL_VERSION;
+	track.version = CSTRK_VERSION;
 	track.cells[0].surface = CSTRK_TERRAIN_DIRT;
 	track.cells[0].half_water_corner = CSTRK_WATER_SOUTHWEST;
 	struct CSTRK_OBJECT object = object_at(0, 0);
@@ -72,8 +70,7 @@ static void test_horizons_and_versions(void)
 	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
 	assert(track.version == CSTRK_VERSION && track.horizon == CSTRK_HORIZON_DEFAULT);
 	static const legacy_char notes[] = "Keep these track notes.\n";
-	static const legacy_u16 versions[] = {CSTRK_INITIAL_VERSION, CSTRK_VERSION, 15U, 101U,
-										  LEGACY_U16_MAX};
+	static const legacy_u16 versions[] = {CSTRK_VERSION, 15U, TEST_FUTURE_REVISION, LEGACY_U16_MAX};
 	assert(cstrk_set_notes(&track, notes, sizeof(notes) - 1U, error, sizeof(error)));
 	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
 		track.version = versions[index];
@@ -106,9 +103,12 @@ static void test_horizons_and_versions(void)
 			data[CSTRK_HORIZON_OFFSET + 1U] = 0;
 			assert(!cstrk_decode(data, size - 1U, &decoded, error, sizeof(error)));
 			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
-			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, 0U);
-			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
-			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			for (legacy_u16 version = 0; version < CSTRK_MIN_VERSION; version++) {
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+				assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(strstr(error, "Unsupported track version") != NULL);
+				assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			}
 			free(data);
 		}
 	}
@@ -118,10 +118,13 @@ static void test_horizons_and_versions(void)
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	legacy_u8 *original_output = data;
 	size_t original_size = size;
-	decoded.version = 0;
-	assert(!cstrk_validate(&decoded, error, sizeof(error)));
-	assert(!cstrk_encode(&decoded, &data, &size, error, sizeof(error)));
-	assert(data == original_output && size == original_size);
+	for (legacy_u16 version = 0; version < CSTRK_MIN_VERSION; version++) {
+		decoded.version = version;
+		assert(!cstrk_validate(&decoded, error, sizeof(error)));
+		assert(!cstrk_encode(&decoded, &data, &size, error, sizeof(error)));
+		assert(strstr(error, "Unsupported track version") != NULL);
+		assert(data == original_output && size == original_size);
+	}
 	decoded.version = CSTRK_VERSION;
 	decoded.horizon = CSTRK_HORIZON_COUNT;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
@@ -148,7 +151,7 @@ static void test_surface_corners(void)
 			}
 			for (legacy_u8 corner = CSTRK_WATER_NORTHWEST; corner <= CSTRK_WATER_SOUTHWEST;
 				 corner++) {
-				track.version = CSTRK_INITIAL_VERSION;
+				track.version = CSTRK_VERSION;
 				track.cells[0].surface = surface;
 				track.cells[0].corner_surface = other;
 				track.cells[0].half_water_corner = corner;
@@ -158,10 +161,7 @@ static void test_surface_corners(void)
 				assert(data[cell_offset] == surface);
 				assert(data[cell_offset + 1U] ==
 					   (corner | ((other ^ CSTRK_TERRAIN_WATER) << CSTRK_CORNER_SURFACE_SHIFT)));
-				legacy_u16 expected_version = other == CSTRK_TERRAIN_WATER
-												  ? CSTRK_INITIAL_VERSION
-												  : CSTRK_SURFACE_CORNERS_VERSION;
-				assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == expected_version);
+				assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
 				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 				assert(decoded.cells[0].surface == surface);
 				assert(decoded.cells[0].corner_surface == other);
@@ -176,28 +176,17 @@ static void test_surface_corners(void)
 		}
 	}
 
-	/* The old codec admitted Water/Water corners, so keep those files readable. */
-	track.version = CSTRK_INITIAL_VERSION;
-	track.cells[0].surface = CSTRK_TERRAIN_WATER;
-	track.cells[0].corner_surface = CSTRK_TERRAIN_WATER;
-	track.cells[0].half_water_corner = CSTRK_WATER_NORTHWEST;
-	assert(cstrk_validate(&track, error, sizeof(error)));
-	legacy_u8 *legacy = NULL;
-	size_t legacy_size = 0;
-	assert(cstrk_encode(&track, &legacy, &legacy_size, error, sizeof(error)));
-	assert(legacy[cell_offset + 1U] == CSTRK_WATER_NORTHWEST);
-	assert(LEGACY_READ_U16_LE(legacy + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
-	assert(cstrk_decode(legacy, legacy_size, &decoded, error, sizeof(error)));
-	assert(decoded.cells[0].corner_surface == CSTRK_TERRAIN_WATER);
-	free(legacy);
-
 	track.version = TEST_FUTURE_REVISION;
+	track.cells[0].surface = CSTRK_TERRAIN_WATER;
 	track.cells[0].corner_surface = CSTRK_TERRAIN_ICE;
-	assert(cstrk_encode(&track, &legacy, &legacy_size, error, sizeof(error)));
-	assert(LEGACY_READ_U16_LE(legacy + CSTRK_VERSION_OFFSET) == TEST_FUTURE_REVISION);
-	free(legacy);
-	track.version = CSTRK_INITIAL_VERSION;
-	for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface < CSTRK_TERRAIN_WATER; surface++) {
+	track.cells[0].half_water_corner = CSTRK_WATER_NORTHWEST;
+	legacy_u8 *future = NULL;
+	size_t future_size = 0;
+	assert(cstrk_encode(&track, &future, &future_size, error, sizeof(error)));
+	assert(LEGACY_READ_U16_LE(future + CSTRK_VERSION_OFFSET) == TEST_FUTURE_REVISION);
+	free(future);
+	track.version = CSTRK_VERSION;
+	for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface <= CSTRK_TERRAIN_WATER; surface++) {
 		track.cells[0].surface = surface;
 		track.cells[0].corner_surface = surface;
 		assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -212,7 +201,7 @@ static void test_surface_corners(void)
 	size_t size = 0;
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	assert(data[cell_offset + 1U] == CSTRK_WATER_NONE);
-	assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
 	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 	assert(decoded.cells[0].corner_surface == CSTRK_TERRAIN_WATER);
 	legacy_u8 before[sizeof(decoded)];
@@ -511,6 +500,9 @@ static void test_maximum_track(void)
 			track.objects[index].rotation = (uint8_t)(index % 4U);
 			track.cells[index].surface = (uint8_t)(index % 4U);
 			track.cells[index].half_water_corner = (uint8_t)(index % 5U);
+			track.cells[index].corner_surface = track.cells[index].surface == CSTRK_TERRAIN_WATER
+													? CSTRK_TERRAIN_GRASS
+													: CSTRK_TERRAIN_WATER;
 		}
 	}
 	memset(track.notes, '~', CSTRK_MAX_NOTES);

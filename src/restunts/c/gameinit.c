@@ -5,7 +5,6 @@
 #include "owoot.h"
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
-#include "extended_geometry.h"
 #include "extended_replay_runtime.h"
 #endif
 
@@ -71,16 +70,6 @@ static void init_car_at_start(struct CARSTATE *carstate, struct SIMD *simd, lega
 		init_carstate_from_simd(carstate, simd, transmission, x * CAR_WORLD_POSITION_SCALE,
 								y * CAR_WORLD_POSITION_SCALE, z * CAR_WORLD_POSITION_SCALE,
 								LEGACY_S16_WRAP_NEGATE(track_angle));
-		const struct CSTRK_OBJECT *support =
-			extended_track_object_origin_at(start_finish_column, start_finish_row);
-		if (support != NULL) {
-			struct VECTOR rotation, clearance;
-			extended_geometry_initial_pose(support, track_angle, &rotation, &clearance);
-			carstate->car_rotate = rotation;
-			carstate->car_position.lx += (legacy_s32)clearance.x * CAR_WORLD_POSITION_SCALE;
-			carstate->car_position.ly += (legacy_s32)(clearance.y - 8) * CAR_WORLD_POSITION_SCALE;
-			carstate->car_position.lz += (legacy_s32)clearance.z * CAR_WORLD_POSITION_SCALE;
-		}
 		return;
 	}
 #endif

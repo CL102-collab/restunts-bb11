@@ -2003,9 +2003,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 		const struct CSTRK_CELL *cell = &track->cells[(size_t)object->y * track->width + object->x];
 		legacy_u8 native_grass =
 			cell->surface == CSTRK_TERRAIN_GRASS && cell->half_water_corner == CSTRK_WATER_NONE;
-		struct EXTENDED_GEOMETRY_BASIS basis;
 		struct VECTOR origin;
-		extended_geometry_object_basis(object, &basis);
 		extended_geometry_object_origin(track, object, &origin);
 		legacy_u8 hill_overlay = (object->slope_x || object->slope_y) && definition->ss_ssOvelay;
 		for (legacy_u8 part = 0; part < 2U; part++) {
@@ -2039,9 +2037,8 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 				continue;
 			}
 			struct SHAPE3D mesh;
-			if (!extended_geometry_transform_shape(source, &mesh, &basis,
-												   render_definition->ss_rotY, object->surface,
-												   definition->ss_physicalModel)) {
+			if (!extended_geometry_transform_shape(source, &mesh, render_definition->ss_rotY,
+												   object->surface, definition->ss_physicalModel)) {
 				continue;
 			}
 			if ((object->slope_x || object->slope_y) && !native_grass) {
@@ -2362,10 +2359,8 @@ static void frame_add_start_flag(const struct FRAME_TILE *tile, const struct FRA
 				if (!object) {
 					return;
 				}
-				struct VECTOR origin, offset, transformed;
-				struct EXTENDED_GEOMETRY_BASIS basis;
+				struct VECTOR origin, offset;
 				extended_geometry_object_origin(extended_track_model(), object, &origin);
-				extended_geometry_object_basis(object, &basis);
 				offset = (struct VECTOR){
 					LEGACY_S16_WRAP_ADD(
 						multiply_and_scale(sin_fast(track_angle + ANGLE_QUARTER_TURN),
@@ -2378,7 +2373,6 @@ static void frame_add_start_flag(const struct FRAME_TILE *tile, const struct FRA
 										   FRAME_START_FLAG_RADIUS),
 						multiply_and_scale(cos_fast(track_angle + ANGLE_HALF_TURN),
 										   FRAME_START_FLAG_FAR_OFFSET))};
-				extended_geometry_forward(&basis, &offset, &transformed);
 				unsigned paint =
 					(legacy_u16)start_flag_animation >> FRAME_START_FLAG_ANIMATION_SHIFT;
 				if (paint > FRAME_START_FLAG_MAX_MATERIAL) {
@@ -2386,15 +2380,15 @@ static void frame_add_start_flag(const struct FRAME_TILE *tile, const struct FRA
 				}
 				struct SHAPE3D mesh;
 				if (extended_geometry_transform_shape(&game3dshapes[FRAME_START_FLAG_SHAPE_INDEX],
-													  &mesh, &basis, track_angle, paint, -1)) {
+													  &mesh, track_angle, paint, -1)) {
 					struct TRANSFORMEDSHAPE3D instance = {0};
-					instance.pos = (struct VECTOR){
-						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.x, transformed.x),
-											camera->position.x),
-						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.y, transformed.y),
-											camera->position.y),
-						LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.z, transformed.z),
-											camera->position.z)};
+					instance.pos =
+						(struct VECTOR){LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.x, offset.x),
+															camera->position.x),
+										LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.y, offset.y),
+															camera->position.y),
+										LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_ADD(origin.z, offset.z),
+															camera->position.z)};
 					instance.shapeptr = &mesh;
 					instance.rectptr = &frame_sorted_shapes_rect;
 					instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;

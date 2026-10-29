@@ -5,28 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define EXTENDED_GEOMETRY_START_CLEARANCE 8
 #define EXTENDED_GEOMETRY_TERMINATOR_BYTES 2U
 
 static legacy_s32 context_x, context_z;
-
-static double geometry_sqrt(double value)
-{
-	if (value <= 0.0) {
-		return 0.0;
-	}
-	double root = value > 1.0 ? value : 1.0;
-	for (unsigned int iteration = 0; iteration < 16; iteration++) {
-		root = (root + value / root) * 0.5;
-	}
-	return root;
-}
-
-static legacy_s16 geometry_word(double value)
-{
-	legacy_s32 rounded = (legacy_s32)(value < 0.0 ? value - 0.5 : value + 0.5);
-	return LEGACY_S16_FROM_BITS((legacy_u16)rounded);
-}
 
 legacy_s32 extended_geometry_unwrap(legacy_s16 coordinate, legacy_s32 reference)
 {
@@ -54,17 +35,6 @@ void extended_geometry_world_position(const struct VECTOR *wrapped, legacy_s32 *
 	*z = extended_geometry_unwrap(wrapped->z, context_z);
 }
 
-void extended_geometry_object_basis(const struct CSTRK_OBJECT *object,
-									struct EXTENDED_GEOMETRY_BASIS *basis)
-{
-	(void)object;
-	/* Slopes select the original full-tile hill model. They never rotate a
-	 * flat mesh and shorten its horizontal footprint. */
-	memset(basis, 0, sizeof(*basis));
-	basis->normal_y = basis->normal_length = 1.0;
-	basis->tangent_xx = basis->tangent_zz = 1.0;
-}
-
 void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 									 const struct CSTRK_OBJECT *object, struct VECTOR *origin)
 {
@@ -79,97 +49,6 @@ void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 		base_height += object->slope_y * object->height;
 	}
 	origin->y = base_height * CSTRK_LEVEL_WORLD_HEIGHT;
-}
-
-/* World placement translates the original meshes and collision templates.
- * Orientation within a flat tile remains the native catalog's quarter turn. */
-void extended_geometry_forward(const struct EXTENDED_GEOMETRY_BASIS *basis,
-							   const struct VECTOR *local, struct VECTOR *world)
-{
-	world->x = geometry_word(basis->tangent_xx * local->x + basis->normal_x * local->y +
-							 basis->tangent_zx * local->z);
-	world->y = geometry_word(basis->tangent_xy * local->x + basis->normal_y * local->y +
-							 basis->tangent_zy * local->z);
-	world->z = geometry_word(basis->tangent_xz * local->x + basis->normal_z * local->y +
-							 basis->tangent_zz * local->z);
-}
-
-void extended_geometry_inverse(const struct EXTENDED_GEOMETRY_BASIS *basis,
-							   const struct VECTOR *world, struct VECTOR *local)
-{
-	local->x = geometry_word(basis->tangent_xx * world->x + basis->tangent_xy * world->y +
-							 basis->tangent_xz * world->z);
-	local->y = geometry_word(basis->normal_x * world->x + basis->normal_y * world->y +
-							 basis->normal_z * world->z);
-	local->z = geometry_word(basis->tangent_zx * world->x + basis->tangent_zy * world->y +
-							 basis->tangent_zz * world->z);
-}
-
-static void geometry_normalize(double *x, double *y, double *z)
-{
-	double length = geometry_sqrt(*x * *x + *y * *y + *z * *z);
-	if (length == 0.0) {
-		*x = 0.0;
-		*y = 1.0;
-		*z = 0.0;
-		return;
-	}
-	*x /= length;
-	*y /= length;
-	*z /= length;
-}
-
-static void geometry_plane_axes(struct PLANE *plane, double nx, double ny, double nz, double tx,
-								double ty, double tz)
-{
-	geometry_normalize(&nx, &ny, &nz);
-	double projection = tx * nx + ty * ny + tz * nz;
-	tx -= projection * nx;
-	ty -= projection * ny;
-	tz -= projection * nz;
-	geometry_normalize(&tx, &ty, &tz);
-	double zx = ty * nz - tz * ny;
-	double zy = tz * nx - tx * nz;
-	double zz = tx * ny - ty * nx;
-	plane->plane_normal = (struct VECTOR){geometry_word(nx * 8192.0), geometry_word(ny * 8192.0),
-										  geometry_word(nz * 8192.0)};
-	plane->plane_rotation.m._11 = geometry_word(tx * 16384.0);
-	plane->plane_rotation.m._21 = geometry_word(ty * 16384.0);
-	plane->plane_rotation.m._31 = geometry_word(tz * 16384.0);
-	plane->plane_rotation.m._12 = geometry_word(nx * 16384.0);
-	plane->plane_rotation.m._22 = geometry_word(ny * 16384.0);
-	plane->plane_rotation.m._32 = geometry_word(nz * 16384.0);
-	plane->plane_rotation.m._13 = geometry_word(zx * 16384.0);
-	plane->plane_rotation.m._23 = geometry_word(zy * 16384.0);
-	plane->plane_rotation.m._33 = geometry_word(zz * 16384.0);
-	plane->plane_yz = polarAngle(plane->plane_normal.z, plane->plane_normal.y);
-	plane->plane_xy = polarAngle(plane->plane_normal.x, plane->plane_normal.y);
-}
-
-void extended_geometry_make_plane(struct PLANE *plane, double slope_x, double slope_z,
-								  legacy_s16 height)
-{
-	plane->plane_origin = (struct VECTOR){0, height, 0};
-	geometry_plane_axes(plane, -slope_x, 1.0, -slope_z, 1.0, slope_x, 0.0);
-}
-
-void extended_geometry_transform_plane(const struct EXTENDED_GEOMETRY_BASIS *basis,
-									   const struct PLANE *source, struct PLANE *destination)
-{
-	*destination = *source;
-	extended_geometry_forward(basis, &source->plane_origin, &destination->plane_origin);
-	/* For a rigid orthonormal rotation, vectors and covectors use the same matrix. */
-	double x = source->plane_normal.x, y = source->plane_normal.y, z = source->plane_normal.z;
-	double nx = basis->tangent_xx * x + basis->normal_x * y + basis->tangent_zx * z;
-	double ny = basis->tangent_xy * x + basis->normal_y * y + basis->tangent_zy * z;
-	double nz = basis->tangent_xz * x + basis->normal_z * y + basis->tangent_zz * z;
-	double tx = source->plane_rotation.m._11;
-	double ty = source->plane_rotation.m._21;
-	double tz = source->plane_rotation.m._31;
-	double transformed_x = basis->tangent_xx * tx + basis->normal_x * ty + basis->tangent_zx * tz;
-	double transformed_y = basis->tangent_xy * tx + basis->normal_y * ty + basis->tangent_zy * tz;
-	double transformed_z = basis->tangent_xz * tx + basis->normal_z * ty + basis->tangent_zz * tz;
-	geometry_plane_axes(destination, nx, ny, nz, transformed_x, transformed_y, transformed_z);
 }
 
 enum EXTENDED_TERRAIN_PLANE {
@@ -272,17 +151,16 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_
 }
 
 int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE3D *destination,
-									  const struct EXTENDED_GEOMETRY_BASIS *basis,
-									  legacy_s16 orientation, unsigned int surface,
+									  legacy_s16 orientation, legacy_u16 surface,
 									  legacy_s16 physical_model)
 {
-	static const unsigned char counts[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6, 3, 0, 0};
+	static const legacy_u8 counts[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6, 3, 0, 0};
 	memset(destination, 0, sizeof(*destination));
 	if (source == 0 || source->shape3d_numverts == 0 || source->shape3d_numpaints == 0) {
 		return 0;
 	}
-	/* Scenery has its own paint and animation palette. A road-surface byte in
-	 * an older track must not select a different scenery paint or recolor it. */
+	/* Scenery keeps its own paint and animation palette regardless of the
+	 * selected road surface. */
 	if (physical_model >= 64) {
 		surface = CSTRK_ROAD_PAVED;
 	}
@@ -310,7 +188,7 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 	memset(destination->shape3d_visibility_masks, 255, mask_bytes);
 	memset(destination->shape3d_front_facing_masks, 0, mask_bytes);
 	for (unsigned i = 0; i < source->shape3d_numverts; i++) {
-		struct VECTOR local, rotated, transformed;
+		struct VECTOR local, rotated;
 		const legacy_u8 *vertex = source->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
 		local.x = LEGACY_READ_S16_LE(vertex);
 		local.y = LEGACY_READ_S16_LE(vertex + 2);
@@ -330,11 +208,10 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 				rotated.z = local.x;
 				break;
 		}
-		extended_geometry_forward(basis, &rotated, &transformed);
 		legacy_u8 *out_vertex = destination->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
-		LEGACY_WRITE_U16_LE(out_vertex, (legacy_u16)transformed.x);
-		LEGACY_WRITE_U16_LE(out_vertex + 2, (legacy_u16)transformed.y);
-		LEGACY_WRITE_U16_LE(out_vertex + 4, (legacy_u16)transformed.z);
+		LEGACY_WRITE_U16_LE(out_vertex, (legacy_u16)rotated.x);
+		LEGACY_WRITE_U16_LE(out_vertex + 2, (legacy_u16)rotated.y);
+		LEGACY_WRITE_U16_LE(out_vertex + 4, (legacy_u16)rotated.z);
 	}
 	primitive = source->shape3d_primitives;
 	legacy_u8 *out = destination->shape3d_primitives;
@@ -373,13 +250,4 @@ void extended_geometry_free_shape(struct SHAPE3D *shape)
 {
 	free(shape->shape3d_vertex_bytes);
 	memset(shape, 0, sizeof(*shape));
-}
-
-void extended_geometry_initial_pose(const struct CSTRK_OBJECT *object, legacy_s16 track_angle,
-									struct VECTOR *rotation, struct VECTOR *normal_clearance)
-{
-	(void)object;
-	/* Original start/finish pieces require a flat supporting plateau. */
-	*rotation = (struct VECTOR){LEGACY_S16_WRAP_NEGATE(track_angle), 0, 0};
-	*normal_clearance = (struct VECTOR){0, EXTENDED_GEOMETRY_START_CLEARANCE, 0};
 }

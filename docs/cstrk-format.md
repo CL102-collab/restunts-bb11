@@ -1,7 +1,7 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v2**, supported
+SDL3 WebAssembly build. The current file-format revision is **v3**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
@@ -18,28 +18,25 @@ the legacy replay track section.
 
 All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
-data. The revision is numeric metadata: a positive unsigned 16-bit integer.
-Files with a revision higher than the reader supports show a compatibility
-warning and are loaded on a best-effort basis using the known layout. A file
-marked v15 or v101 is newer than a reader supporting v2. Its revision alone
-does not make loading fail, and its numeric revision is retained when saving.
+data. The revision is numeric metadata: an unsigned 16-bit integer. The
+minimum supported revision is v3; older extended-track revisions are rejected.
+New tracks are created with revision v3.
+
+Files with a revision higher than the reader supports show an OK-only warning
+and are loaded on a best-effort basis using the known layout. A file marked
+v15 or v101 is newer than a reader supporting v3. Its revision alone does not
+make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
-records, notes, and exact payload lengths. Invalid structures remain errors;
-revision zero is invalid. New tracks are created with the current revision, v2.
-Existing v1 tracks that satisfy the terrain and placement rules remain readable
-and retain their revision when their corners use only water. Saving a corner
-with another secondary material raises the stored revision to at least v2;
-newer revision numbers are retained. Header
-and payload sizes stay unchanged. Desert and legacy water corners retain their
-original values, so existing v1 files keep the same bytes when re-encoded.
+records, notes, and exact payload lengths. Invalid structures remain errors.
+The header and payload layout below applies to every accepted revision.
 
 The header occupies exactly 32 bytes:
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 1–65,535; current revision `2` |
+| 8 | 2 | Numeric format revision, 3–65,535; current revision `3` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -111,21 +108,19 @@ The second byte contains:
 | 3–4 | Secondary surface code: water `0`, dirt `1`, ice `2`, grass `3` |
 | 5–7 | Reserved, `0` |
 
-The secondary surface code is the terrain surface ID XOR `3`. This keeps
-legacy water-corner bytes `1`–`4` unchanged. A zero direction requires the
-entire packed byte to be zero; unused secondary material data is not stored.
+The secondary surface code is the terrain surface ID XOR `3`. A zero
+direction requires the entire packed byte to be zero; unused secondary material
+data is not stored.
 Unknown directions and reserved bits are rejected.
 
 The chosen corner triangle uses the secondary material; the other triangle
 uses the primary material. Shore supports every pair of different materials,
-including Water as the primary material, in all four directions. Non-water
-same-material corners are invalid. Existing Water/Water corners remain
-readable because the original format admitted them, although the editor
-creates only different-material pairs. Surface is independent of elevation,
+including Water as the primary material, in all four directions. Same-material
+corners are invalid. Surface is independent of elevation,
 so every material combination can also appear on slopes and above ground.
 
-The C model retains the legacy `half_water_corner` name for the direction and
-adds `corner_surface` for the secondary material. New cells default that field
+The C model uses `half_water_corner` for the direction and `corner_surface`
+for the secondary material. New cells default that field
 to Water. The field is ignored when the direction is zero.
 
 ## Objects and original hill placement
@@ -153,7 +148,7 @@ footprint must be zero. For a 2×2 footprint, mask `7` claims its top-left,
 top-right and bottom-left cells, leaving bottom-right available for another
 object such as a decoration. Only claimed cells participate in overlap checks.
 Every object must fit completely inside the map, including unclaimed cells in
-its footprint rectangle. Version 1 permits at most one claimed object per cell.
+its footprint rectangle. At most one object may claim each cell.
 
 The support metadata at local terrain corner `(dx,dy)` is
 `base_height + slope_x*dx + slope_y*dy`. Every corner throughout the footprint
@@ -184,8 +179,8 @@ corkscrews. Scenery accepts all surface values but ignores this field; new
 scenery placements use paved `0`. Turns, branches, highways, stunts and scenery
 require flat ground throughout their footprint. These catalog rules are checked
 by the editor and game in addition to the storage codec's structural validation.
-Older files containing free-form saddles, two-level diagonal cells or unsupported
-tilted pieces are rejected instead of silently changing their terrain.
+Free-form saddles, two-level diagonal cells and unsupported tilted pieces
+are invalid.
 
 ## Notes
 
@@ -211,7 +206,7 @@ belong to the SDL3 extended-track integration.
 
 The standalone test `src/restunts/tests/test-cstrk.c` covers an independently
 specified binary fixture, every truncation of that fixture, malformed headers
-and objects, all horizon choices, current and future numeric revisions, all
-12 material pairs in four corner directions, legacy byte compatibility, sparse
+and objects, all horizon choices, current and future numeric revisions, rejection
+of obsolete revisions, all 12 material pairs in four corner directions, sparse
 overlays, positive and negative slopes, ASCII limits, transactional failure,
 and the maximum-size 90×90 map.

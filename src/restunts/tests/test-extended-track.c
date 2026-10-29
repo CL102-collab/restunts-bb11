@@ -67,15 +67,12 @@ static int selected_height(const struct VECTOR *point)
 static struct VECTOR object_world(const struct CSTRK_TRACK *track,
 								  const struct CSTRK_OBJECT *object, struct VECTOR local)
 {
-	struct EXTENDED_GEOMETRY_BASIS basis;
-	struct VECTOR origin, transformed;
-	extended_geometry_object_basis(object, &basis);
+	struct VECTOR origin;
 	extended_geometry_object_origin(track, object, &origin);
-	extended_geometry_forward(&basis, &local, &transformed);
-	transformed.x = LEGACY_S16_WRAP_ADD(transformed.x, origin.x);
-	transformed.y = LEGACY_S16_WRAP_ADD(transformed.y, origin.y);
-	transformed.z = LEGACY_S16_WRAP_ADD(transformed.z, origin.z);
-	return transformed;
+	local.x = LEGACY_S16_WRAP_ADD(local.x, origin.x);
+	local.y = LEGACY_S16_WRAP_ADD(local.y, origin.y);
+	local.z = LEGACY_S16_WRAP_ADD(local.z, origin.z);
+	return local;
 }
 
 static int wheel_overlaps(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
@@ -158,25 +155,43 @@ static void test_world_coordinates_and_surfaces(void)
 	cstrk_free(&track);
 }
 
-static void test_object_geometry_is_unrotated(void)
+static void test_native_mesh_rotations(void)
 {
-	static const struct VECTOR samples[] = {
-		{1024, 0, 0}, {0, 1024, 0}, {0, 0, 1024}, {732, -151, -511}, {-1000, 450, 115}};
-	for (legacy_s8 x = -1; x <= 1; x++) {
-		for (legacy_s8 y = -1; y <= 1; y++) {
-			struct CSTRK_OBJECT object = object_at(4, 41, 50);
-			object.slope_x = x;
-			object.slope_y = y;
-			struct EXTENDED_GEOMETRY_BASIS basis;
-			extended_geometry_object_basis(&object, &basis);
-			for (size_t index = 0; index < sizeof(samples) / sizeof(samples[0]); index++) {
-				struct VECTOR transformed, recovered;
-				extended_geometry_forward(&basis, &samples[index], &transformed);
-				extended_geometry_inverse(&basis, &transformed, &recovered);
-				assert(memcmp(&transformed, &samples[index], sizeof(transformed)) == 0);
-				assert(memcmp(&recovered, &samples[index], sizeof(recovered)) == 0);
-			}
+	enum { VERTEX_COUNT = 3, ORIENTATION_COUNT = 4 };
+	static const struct VECTOR expected[ORIENTATION_COUNT][VERTEX_COUNT] = {
+		{{512, 0, -512}, {257, 450, -389}, {-1000, -37, 115}},
+		{{-512, 0, -512}, {-389, 450, -257}, {115, -37, 1000}},
+		{{-512, 0, 512}, {-257, 450, 389}, {1000, -37, -115}},
+		{{512, 0, 512}, {389, 450, 257}, {-115, -37, -1000}}};
+	static const legacy_s16 orientations[ORIENTATION_COUNT] = {
+		0, ANGLE_QUARTER_TURN, ANGLE_HALF_TURN, ANGLE_THREE_QUARTER_TURN};
+	legacy_u8 vertices[VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	legacy_u8 primitives[] = {3, 0, 19, 0, 1, 2, 0, 0};
+	legacy_u8 masks[sizeof(legacy_u32)] = {0};
+	for (legacy_u16 vertex = 0; vertex < VERTEX_COUNT; vertex++) {
+		legacy_u8 *bytes = vertices + vertex * SHAPE3D_VERTEX_SIZE;
+		LEGACY_WRITE_U16_LE(bytes, (legacy_u16)expected[0][vertex].x);
+		LEGACY_WRITE_U16_LE(bytes + sizeof(legacy_s16), (legacy_u16)expected[0][vertex].y);
+		LEGACY_WRITE_U16_LE(bytes + sizeof(legacy_s16) * 2U, (legacy_u16)expected[0][vertex].z);
+	}
+	legacy_u8 original_vertices[sizeof(vertices)];
+	memcpy(original_vertices, vertices, sizeof(vertices));
+	struct SHAPE3D source = {VERTEX_COUNT, vertices, 1, 1, primitives, masks, masks};
+	for (legacy_u16 direction = 0; direction < ORIENTATION_COUNT; direction++) {
+		struct SHAPE3D transformed;
+		assert(extended_geometry_transform_shape(&source, &transformed, orientations[direction],
+												 CSTRK_ROAD_PAVED, PHYSICAL_MODEL_ROAD));
+		for (legacy_u16 vertex = 0; vertex < VERTEX_COUNT; vertex++) {
+			const legacy_u8 *bytes =
+				transformed.shape3d_vertex_bytes + vertex * SHAPE3D_VERTEX_SIZE;
+			assert(LEGACY_READ_S16_LE(bytes) == expected[direction][vertex].x);
+			assert(LEGACY_READ_S16_LE(bytes + sizeof(legacy_s16)) == expected[direction][vertex].y);
+			assert(LEGACY_READ_S16_LE(bytes + sizeof(legacy_s16) * 2U) ==
+				   expected[direction][vertex].z);
 		}
+		assert(memcmp(transformed.shape3d_primitives, primitives, sizeof(primitives)) == 0);
+		assert(memcmp(vertices, original_vertices, sizeof(vertices)) == 0);
+		extended_geometry_free_shape(&transformed);
 	}
 }
 
@@ -687,17 +702,14 @@ static void test_extended_material_variants(void)
 		primitives[face * 6 + 5] = 2;
 	}
 	struct SHAPE3D source = {3, vertices, 6, 1, primitives, masks, masks};
-	struct CSTRK_OBJECT object = object_at(117, 40, 40);
-	struct EXTENDED_GEOMETRY_BASIS basis;
-	extended_geometry_object_basis(&object, &basis);
 	static const legacy_s16 models[] = {PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A,
 										PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B,
 										PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT};
 	for (unsigned kind = 0; kind < 3; kind++) {
 		for (unsigned surface = 0; surface < 3; surface++) {
 			struct SHAPE3D transformed;
-			assert(extended_geometry_transform_shape(&source, &transformed, &basis, 0, surface,
-													 models[kind]));
+			assert(
+				extended_geometry_transform_shape(&source, &transformed, 0, surface, models[kind]));
 			assert(memcmp(transformed.shape3d_vertex_bytes, vertices, sizeof(vertices)) == 0);
 			for (unsigned face = 0; face < 6; face++) {
 				unsigned expected = original[face];
@@ -728,50 +740,13 @@ static void test_extended_material_variants(void)
 		source.shape3d_primitives = scenery_primitives;
 		for (unsigned surface = 0; surface < 3; surface++) {
 			struct SHAPE3D transformed;
-			assert(extended_geometry_transform_shape(&source, &transformed, &basis, 0, surface,
+			assert(extended_geometry_transform_shape(&source, &transformed, 0, surface,
 													 PHYSICAL_MODEL_BARN));
 			for (unsigned face = 0; face < 6; face++) {
 				assert(transformed.shape3d_primitives[face * 6 + 2] == original[face]);
 			}
 			extended_geometry_free_shape(&transformed);
 		}
-	}
-}
-
-static int resource_plane_height(unsigned index, int x, int z)
-{
-	const struct PLANE *plane = &planptr[index];
-	assert(plane->plane_normal.y != 0);
-	return plane->plane_origin.y -
-		   (int)(((int64_t)plane->plane_normal.x * (x - plane->plane_origin.x) +
-				  (int64_t)plane->plane_normal.z * (z - plane->plane_origin.z)) /
-				 plane->plane_normal.y);
-}
-
-static void test_intrinsic_portal_profiles(void)
-{
-	static const unsigned ids[] = {34, 49, 38};
-	static const unsigned planes[] = {8, 24, 12};
-	for (unsigned model = 0; model < 3; model++) {
-		struct CSTRK_TRACK track;
-		cstrk_init(&track);
-		assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
-		struct CSTRK_OBJECT object = object_at(ids[model], 40, 40);
-		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
-		activate(&track);
-		const struct CSTRK_OBJECT *placed = extended_track_object_origin_at(40, 40);
-		for (int x = -100; x <= 100; x += 100) {
-			for (int z = -512; z <= 512; z += 1024) {
-				legacy_s16 height;
-				assert(track_extended_portal_height(placed, (legacy_s16)x, (legacy_s16)z, &height));
-				assert(height == resource_plane_height(planes[model], x, z));
-				if (model == 0) {
-					assert(height == 450);
-				}
-			}
-		}
-		extended_track_unload();
-		cstrk_free(&track);
 	}
 }
 
@@ -1060,7 +1035,7 @@ int main(void)
 	legacy_u8 *legacy_elements = track_element_map;
 	legacy_u8 *legacy_terrain = track_terrain_map;
 	legacy_s16 *legacy_links = track_primary_route_links;
-	test_object_geometry_is_unrotated();
+	test_native_mesh_rotations();
 	test_world_coordinates_and_surfaces();
 	test_raised_stunt_and_snapshot();
 	test_nonclassic_terrain_is_rejected();
@@ -1072,7 +1047,6 @@ int main(void)
 	test_corkscrew_surfaces();
 	test_scenery_ignores_road_surface();
 	test_extended_material_variants();
-	test_intrinsic_portal_profiles();
 	test_shared_road_anchor();
 	test_opponent_shortest_branch();
 	test_sparse_catalog_footprints();

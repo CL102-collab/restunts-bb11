@@ -694,9 +694,7 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
 			column, row, (legacy_u8)track_route_element_ids[track_index]);
 		if (object) {
-			struct EXTENDED_GEOMETRY_BASIS basis;
-			struct VECTOR origin, transformed;
-			extended_geometry_object_basis(object, &basis);
+			struct VECTOR origin;
 			extended_geometry_object_origin(extended_track_model(), object, &origin);
 			if (first_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 				first_point->y = 0;
@@ -704,14 +702,12 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 			if (second_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 				second_point->y = 0;
 			}
-			extended_geometry_forward(&basis, first_point, &transformed);
-			first_point->x = LEGACY_S16_WRAP_ADD(origin.x, transformed.x);
-			first_point->y = LEGACY_S16_WRAP_ADD(origin.y, transformed.y);
-			first_point->z = LEGACY_S16_WRAP_ADD(origin.z, transformed.z);
-			extended_geometry_forward(&basis, second_point, &transformed);
-			second_point->x = LEGACY_S16_WRAP_ADD(origin.x, transformed.x);
-			second_point->y = LEGACY_S16_WRAP_ADD(origin.y, transformed.y);
-			second_point->z = LEGACY_S16_WRAP_ADD(origin.z, transformed.z);
+			first_point->x = LEGACY_S16_WRAP_ADD(origin.x, first_point->x);
+			first_point->y = LEGACY_S16_WRAP_ADD(origin.y, first_point->y);
+			first_point->z = LEGACY_S16_WRAP_ADD(origin.z, first_point->z);
+			second_point->x = LEGACY_S16_WRAP_ADD(origin.x, second_point->x);
+			second_point->y = LEGACY_S16_WRAP_ADD(origin.y, second_point->y);
+			second_point->z = LEGACY_S16_WRAP_ADD(origin.z, second_point->z);
 			goto store_points;
 		}
 	}

@@ -73,8 +73,8 @@ static void test_identity(void)
 		assert(table.entries[index].player_name[0] == 0U);
 	}
 	assert(cshig_matches_track(&table, &track));
-	assert(LEGACY_READ_U16_LE(table.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
-	/* Cosmetic horizon changes retain the original version-1 score identity. */
+	assert(LEGACY_READ_U16_LE(table.track_data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
+	/* Cosmetic horizons and revision metadata do not change score identity. */
 	for (legacy_u8 horizon = CSTRK_HORIZON_DESERT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
 		track.horizon = horizon;
 		assert(cshig_matches_track(&table, &track));
@@ -83,9 +83,8 @@ static void test_identity(void)
 		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
 	}
 	track.horizon = CSTRK_HORIZON_DEFAULT;
-	static const legacy_u16 revisions[] = {CSTRK_INITIAL_VERSION, CSTRK_VERSION,
-										   TEST_SHORT_FUTURE_REVISION, TEST_FUTURE_REVISION,
-										   LEGACY_U16_MAX};
+	static const legacy_u16 revisions[] = {CSTRK_VERSION, TEST_SHORT_FUTURE_REVISION,
+										   TEST_FUTURE_REVISION, LEGACY_U16_MAX};
 	for (legacy_u16 index = 0; index < sizeof(revisions) / sizeof(revisions[0]); index++) {
 		track.version = revisions[index];
 		assert(cshig_matches_track(&table, &track));
@@ -106,7 +105,7 @@ static void test_identity(void)
 	cstrk_init(&canonical);
 	assert(cstrk_decode(table.track_data, table.track_size, &canonical, NULL, 0));
 	assert(canonical.notes_length == 0U);
-	assert(canonical.version == CSTRK_INITIAL_VERSION);
+	assert(canonical.version == CSTRK_VERSION);
 	assert(canonical.horizon == CSTRK_HORIZON_DEFAULT);
 	cstrk_free(&canonical);
 	track.cells[2].surface = CSTRK_TERRAIN_ICE;
@@ -129,10 +128,12 @@ static void test_identity(void)
 	assert(before_bytes);
 	memcpy(before_bytes, table.track_data, table.track_size);
 	struct CSHIG_TABLE before = table;
-	track.version = 0;
-	assert(!cshig_create(&table, &track, NULL, 0));
-	assert(!cshig_matches_track(&table, &track));
-	assert_preserved(&table, &before, before_bytes);
+	for (legacy_u16 version = 0; version < CSTRK_MIN_VERSION; version++) {
+		track.version = version;
+		assert(!cshig_create(&table, &track, NULL, 0));
+		assert(!cshig_matches_track(&table, &track));
+		assert_preserved(&table, &before, before_bytes);
+	}
 	track.version = CSTRK_VERSION;
 	track.horizon = CSTRK_HORIZON_COUNT;
 	assert(!cshig_create(&table, &track, NULL, 0));
@@ -163,12 +164,12 @@ static void test_surface_corner_identity(void)
 	cshig_init(&mixed);
 	cshig_init(&decoded);
 	assert(cshig_create(&water, &track, NULL, 0));
-	assert(LEGACY_READ_U16_LE(water.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(LEGACY_READ_U16_LE(water.track_data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
 	cell->corner_surface = CSTRK_TERRAIN_ICE;
 	assert(!cshig_matches_track(&water, &track));
 	assert(cshig_create(&mixed, &track, NULL, 0));
 	assert(cshig_validate(&mixed, NULL, 0));
-	assert(LEGACY_READ_U16_LE(mixed.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(LEGACY_READ_U16_LE(mixed.track_data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
 	assert(cshig_matches_track(&mixed, &track));
 	cell->corner_surface = CSTRK_TERRAIN_DIRT;
 	assert(!cshig_matches_track(&mixed, &track));
@@ -176,7 +177,7 @@ static void test_surface_corner_identity(void)
 	struct CSTRK_TRACK canonical;
 	cstrk_init(&canonical);
 	assert(cstrk_decode(mixed.track_data, mixed.track_size, &canonical, NULL, 0));
-	assert(canonical.version == CSTRK_INITIAL_VERSION);
+	assert(canonical.version == CSTRK_VERSION);
 	assert(canonical.cells[1].half_water_corner == cell->half_water_corner);
 	assert(canonical.cells[1].corner_surface == CSTRK_TERRAIN_ICE);
 	cstrk_free(&canonical);
@@ -295,6 +296,12 @@ static void test_codec_and_corruption(void)
 	for (unsigned index = 0; index < sizeof(offsets) / sizeof(offsets[0]); index++) {
 		memcpy(corrupt, data, size);
 		corrupt[offsets[index]] ^= 4U;
+		assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
+		assert_preserved(&decoded, &before, identity);
+	}
+	for (legacy_u16 version = 0; version < CSTRK_MIN_VERSION; version++) {
+		memcpy(corrupt, data, size);
+		LEGACY_WRITE_U16_LE(corrupt + CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET, version);
 		assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
 		assert_preserved(&decoded, &before, identity);
 	}

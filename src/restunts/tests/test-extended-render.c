@@ -51,6 +51,7 @@ static void make_render_track(struct CSTRK_TRACK *track)
 		}
 	}
 	track->cells[43U * track->width + 41U].half_water_corner = CSTRK_WATER_NORTHWEST;
+	track->cells[43U * track->width + 41U].corner_surface = CSTRK_TERRAIN_GRASS;
 	/* Each one-level incline uses the original full-width hill road or
 	 * ramp-to-span substitution. Ordinary stunts remain on flat plateaus. */
 	add_render_piece(track, 5U, 39U, 40U, 1U, 1U, 1U, CSTRK_ROAD_ICE);

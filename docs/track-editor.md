@@ -22,14 +22,15 @@ dimensions. Names use the game's 1–8 character ASCII filename stems.
 
 Use **Horizon**, above **Track notes**, to choose Desert, Tropical, Alpine, City,
 or Country, matching the original editor. The choice is saved in the track and
-used in the game and its track preview. Horizon changes support undo and redo;
-older tracks open with Desert selected.
+used in the game and its track preview. Horizon changes support undo and redo.
+New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." Tracks store their version in the file header, and saving keeps
-the loaded version, promoting v1 tracks to v2 when a non-water corner material
-is added. Opening a newer version shows an OK-only warning before
-loading it; features from newer editors may not work correctly.
+great track." The current version is v3, which is also the minimum supported
+track revision. Older extended tracks cannot be opened. Tracks store their
+version in the file header, and saving keeps the loaded version. Opening a
+newer version shows an OK-only warning before loading it; features from newer
+editors may not work correctly.
 
 ## Terrain
 
@@ -40,8 +41,7 @@ row above the four corner previews. The second row contains only the other three
 surfaces, so any two different materials can meet at a corner, including Water
 as the primary surface. The first corner is selected initially. Click another
 preview or use Q / E to change the corner independently of track pieces.
-Non-water corner materials use revision v2; existing v1 water corners remain
-compatible. Mixed material strokes and their revision changes support undo and redo.
+Mixed material strokes support undo and redo.
 
 Level shows five square choices, starting with Ground (0), then heights 1
 through 4. These choices appear only while Level is selected; click a map tile

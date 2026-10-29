@@ -8,8 +8,8 @@
     const SURFACES = ['Paved', 'Dirt', 'Ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 2, CSTRK_MIN_VERSION = 1, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
-    const DEFAULT_CORNER_SURFACE = 3, CSTRK_MIXED_SURFACE_VERSION = 2;
+    const VERSION = 3, CSTRK_MIN_VERSION = VERSION, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
     const MAGIC = [67, 83, 84, 82, 75, 26, 13, 10];
@@ -62,6 +62,11 @@
     const ROTATED_DIRECTIONAL_ARTWORK_MODELS = new Set([0, 2, 3, 6, 7, 8, 9, 10, 29, 23, 24, 25, 26]);
     const CROSSROAD_PHYSICAL_MODEL = 12, PIECE_DIRECTION_COUNT = 4, PIECE_AXIS_COUNT = 2;
     function integer(n, min, max, label) { if (!Number.isInteger(n) || n < min || n > max) throw new Error('Invalid ' + label + '.'); return n; }
+    function checkVersion(version) {
+        if (Number.isInteger(version) && version > 0 && version < CSTRK_MIN_VERSION)
+            throw new Error('Unsupported older Chocolate Stunts track version v' + version + '.');
+        return integer(version, CSTRK_MIN_VERSION, CSTRK_MAX_VERSION, 'track version');
+    }
     function pieceVariant(entry, direction) {
         integer(direction, 0, 3, 'piece direction');
         const variants = libraryFamilies.get(entry.group + ':' + entry.physical);
@@ -161,42 +166,40 @@
         }
     }
     function terrainDisplayLayers(heights) {
-        if (!heights || heights.length !== TERRAIN_DISPLAY_CORNER_COUNT) throw new Error('Invalid terrain display corners.');
-        const h = Array.from(heights, height => integer(height, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'terrain display height'));
+        const profile = terrainProfile(heights);
+        if (!profile) throw new Error('Invalid terrain display profile.');
+        const h = Array.from(heights), baseLevel = profile.baseLevel;
+        if (h.every(height => height === baseLevel)) return { baseLevel, layers: [] };
         const corners = TERRAIN_DISPLAY_CORNERS.map(point => point.slice());
-        const baseLevel = Math.min(...h), topLevel = Math.max(...h), layers = [];
         const next = corner => (corner + 1) % TERRAIN_DISPLAY_CORNER_COUNT;
         const previous = corner => (corner + TERRAIN_DISPLAY_CORNER_COUNT - 1) % TERRAIN_DISPLAY_CORNER_COUNT;
-        for (let level = baseLevel + TERRAIN_DISPLAY_HALF_LEVEL; level < topLevel; level++) {
-            const high = h.map(height => height > level), raised = [];
-            const crossings = corners.map((point, corner) => {
-                const following = next(corner);
-                if (high[corner] === high[following]) return null;
-                const fraction = (level - h[corner]) / (h[following] - h[corner]);
-                return point.map((coordinate, axis) => coordinate + fraction * (corners[following][axis] - coordinate));
-            });
-            high.forEach((value, corner) => { if (value) raised.push(corner); });
-            const polygons = [], contours = [];
-            function cornerRegion(corner, isolatedHigh) {
-                const before = crossings[previous(corner)], after = crossings[corner];
-                // Turning through this interior point makes every corner a rotated L,
-                // independent of the mesh's triangle diagonal or the painted materials.
-                const horizontal = corners[corner][1] === corners[next(corner)][1];
-                const elbow = horizontal ? [after[0], before[1]] : [before[0], after[1]];
-                if (isolatedHigh) polygons.push([corners[corner], after, elbow, before]);
-                else polygons.push([after, corners[next(corner)], corners[next(next(corner))], corners[previous(corner)], before, elbow]);
-                contours.push([after, elbow, before]);
-            }
-            if (raised.length === 1) cornerRegion(raised[0], true);
-            else if (raised.length === TERRAIN_DISPLAY_CORNER_COUNT - 1) cornerRegion(high.indexOf(false), false);
-            else if (high[next(raised[0])] || high[previous(raised[0])]) {
-                const first = raised.find(corner => !high[previous(corner)]), last = next(first);
-                polygons.push([crossings[previous(first)], corners[first], corners[last], crossings[last]]);
-                contours.push([crossings[last], crossings[previous(first)]]);
-            } else for (const corner of raised) cornerRegion(corner, true);
-            layers.push({ level, polygons, contours });
+        const level = baseLevel + TERRAIN_DISPLAY_HALF_LEVEL;
+        const high = h.map(height => height > level), raised = [];
+        const crossings = corners.map((point, corner) => {
+            const following = next(corner);
+            if (high[corner] === high[following]) return null;
+            return point.map((coordinate, axis) => (coordinate + corners[following][axis]) * TERRAIN_DISPLAY_HALF_LEVEL);
+        });
+        high.forEach((value, corner) => { if (value) raised.push(corner); });
+        const polygons = [], contours = [];
+        function cornerRegion(corner, isolatedHigh) {
+            const before = crossings[previous(corner)], after = crossings[corner];
+            // Turning through this interior point makes every corner a rotated L,
+            // independent of the mesh's triangle diagonal or the painted materials.
+            const horizontal = corners[corner][1] === corners[next(corner)][1];
+            const elbow = horizontal ? [after[0], before[1]] : [before[0], after[1]];
+            if (isolatedHigh) polygons.push([corners[corner], after, elbow, before]);
+            else polygons.push([after, corners[next(corner)], corners[next(next(corner))], corners[previous(corner)], before, elbow]);
+            contours.push([after, elbow, before]);
         }
-        return { baseLevel, layers };
+        if (raised.length === 1) cornerRegion(raised[0], true);
+        else if (raised.length === TERRAIN_DISPLAY_CORNER_COUNT - 1) cornerRegion(high.indexOf(false), false);
+        else {
+            const first = raised.find(corner => !high[previous(corner)]), last = next(first);
+            polygons.push([crossings[previous(first)], corners[first], corners[last], crossings[last]]);
+            contours.push([crossings[last], crossings[previous(first)]]);
+        }
+        return { baseLevel, layers: [{ level, polygons, contours }] };
     }
     class Document {
         constructor(width = 90, height = 90) {
@@ -247,10 +250,7 @@
             if (halfWaterCorner && surface === cornerSurface) throw new Error('Choose different surfaces for a corner.');
             return this.transaction('Paint terrain', () => {
                 const cell = { surface, halfWaterCorner };
-                if (halfWaterCorner && cornerSurface !== DEFAULT_CORNER_SURFACE) {
-                    cell.cornerSurface = cornerSurface;
-                    this.version = Math.max(this.version, CSTRK_MIXED_SURFACE_VERSION);
-                }
+                if (halfWaterCorner && cornerSurface !== DEFAULT_CORNER_SURFACE) cell.cornerSurface = cornerSurface;
                 this.cells[this.cellIndex(x, y)] = cell;
             });
         }
@@ -319,7 +319,7 @@
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
         validate() {
             const errors = [], occupiedCells = new Set();
-            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); integer(this.version, CSTRK_MIN_VERSION, CSTRK_MAX_VERSION, 'track version'); } catch (error) { errors.push(error.message); }
+            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
             for (let y = 0; y <= this.height; y++) for (let x = 0; x <= this.width; x++) {
                 const level = this.vertices[y * (this.width + 1) + x];
@@ -334,7 +334,7 @@
                 if (!Number.isInteger(cell.surface) || cell.surface < 0 || cell.surface >= TERRAIN_SURFACES.length ||
                     !Number.isInteger(cell.halfWaterCorner) || cell.halfWaterCorner < 0 || cell.halfWaterCorner > 4 ||
                     !Number.isInteger(cornerSurface) || cornerSurface < 0 || cornerSurface >= TERRAIN_SURFACES.length ||
-                    (cell.halfWaterCorner && cornerSurface === cell.surface && cornerSurface !== DEFAULT_CORNER_SURFACE)) errors.push('Invalid terrain surface.');
+                    (cell.halfWaterCorner && cornerSurface === cell.surface)) errors.push('Invalid terrain surface.');
             }
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
@@ -360,9 +360,7 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         const payload = doc.vertices.length + doc.cells.length * 2 + doc.objects.length * 16 + doc.notes.length;
         const a = new Uint8Array(CSTRK_HEADER_SIZE + payload), v = new DataView(a.buffer); a.set(MAGIC);
-        const mixedCorners = doc.cells.some(cell => cell.halfWaterCorner && cell.cornerSurface !== undefined && cell.cornerSurface !== DEFAULT_CORNER_SURFACE);
-        const version = mixedCorners ? Math.max(doc.version, CSTRK_MIXED_SURFACE_VERSION) : doc.version;
-        v.setUint16(8, version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
+        v.setUint16(8, doc.version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
         v.setUint32(CSTRK_HORIZON_OFFSET, doc.horizon, true); v.setUint16(16, doc.width, true); v.setUint16(18, doc.height, true);
         v.setUint32(20, doc.notes.length, true); v.setUint32(24, doc.objects.length, true); v.setUint32(28, payload, true);
         let p = CSTRK_HEADER_SIZE; a.set(doc.vertices, p); p += doc.vertices.length;
@@ -383,7 +381,7 @@
         if (a.length < CSTRK_HEADER_SIZE || !MAGIC.every((n, i) => a[i] === n)) throw new Error('This is not a Chocolate Stunts track.');
         const v = new DataView(a.buffer, a.byteOffset, a.byteLength);
         const version = v.getUint16(8, true), horizon = v.getUint32(CSTRK_HORIZON_OFFSET, true);
-        integer(version, CSTRK_MIN_VERSION, CSTRK_MAX_VERSION, 'track version');
+        checkVersion(version);
         if (v.getUint16(10, true) !== CSTRK_HEADER_SIZE) throw new Error('Unsupported Chocolate Stunts track header size.');
         integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon');
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);

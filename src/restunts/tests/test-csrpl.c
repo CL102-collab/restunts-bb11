@@ -145,6 +145,13 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 		assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 		encoded[offset] ^= 1U;
 	}
+	for (legacy_u16 old_version = 0; old_version < CSTRK_MIN_VERSION; old_version++) {
+		LEGACY_WRITE_U16_LE(encoded + CSRPL_HEADER_SIZE + CSTRK_VERSION_OFFSET, old_version);
+		assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+		assert(strstr(error, "Unsupported track version") != NULL);
+		assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+	}
+	LEGACY_WRITE_U16_LE(encoded + CSRPL_HEADER_SIZE + CSTRK_VERSION_OFFSET, version);
 	encoded[CSRPL_HEADER_SIZE] ^= 1U;
 	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	encoded[CSRPL_HEADER_SIZE] ^= 1U;
@@ -157,6 +164,14 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	assert(!csrpl_encode(&metadata, track_bytes, track_size, inputs, metadata.frame_count - 1U,
 						 &sentinel, &sentinel_size, error, sizeof(error)));
 	assert(sentinel == encoded && sentinel_size == size);
+	for (legacy_u16 old_version = 0; old_version < CSTRK_MIN_VERSION; old_version++) {
+		LEGACY_WRITE_U16_LE(track_bytes + CSTRK_VERSION_OFFSET, old_version);
+		assert(!csrpl_encode(&metadata, track_bytes, track_size, inputs, metadata.frame_count,
+							 &sentinel, &sentinel_size, error, sizeof(error)));
+		assert(strstr(error, "Unsupported track version") != NULL);
+		assert(sentinel == encoded && sentinel_size == size);
+	}
+	LEGACY_WRITE_U16_LE(track_bytes + CSTRK_VERSION_OFFSET, version);
 	size_t output_size = 123U;
 	assert(!csrpl_encoded_size(SIZE_MAX, UINT32_MAX, &output_size));
 	assert(output_size == 123U);
@@ -180,7 +195,7 @@ int main(void)
 	test_recording_and_seek_storage();
 	test_large_timeline();
 	/* Replay storage preserves both current and future track metadata. */
-	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_INITIAL_VERSION, CSTRK_TERRAIN_WATER);
+	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_WATER);
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_DIRT);
 	test_codec(CSTRK_HORIZON_COUNTRY, TEST_FUTURE_TRACK_VERSION, CSTRK_TERRAIN_ICE);
 	return 0;

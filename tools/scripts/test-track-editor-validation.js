@@ -6,7 +6,7 @@ const { spawnSync } = require('node:child_process');
 const model = require('../../src/restunts/platform/wasm/track-editor-model.js');
 const validation = require('../../src/restunts/platform/wasm/track-editor-validation.js');
 const fixtures = [];
-const INITIAL_TRACK_VERSION = 1, SHORE_CORNER_COUNT = 4;
+const SHORE_CORNER_COUNT = 4;
 function check(name, doc, status) {
     assert.deepEqual(doc.validate(), [], name + ': storage validation');
     const before = doc.snapshot(), result = validation.validateRoute(doc);
@@ -57,8 +57,6 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
-const legacyTrack = rectangle(); legacyTrack.version = INITIAL_TRACK_VERSION;
-check('legacy v1 track retains the route', legacyTrack, 0);
 for (let primary = 0; primary < model.TERRAIN_SURFACES.length; primary++) {
     for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
         if (primary === secondary) continue;

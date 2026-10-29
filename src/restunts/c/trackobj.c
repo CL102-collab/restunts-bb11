@@ -1475,35 +1475,6 @@ static legacy_s16 track_object_sample(struct TRACK_OBJECT_SAMPLE *sample,
 
 #ifdef RESTUNTS_SDL3
 static struct PLANE extended_selected_plane;
-static struct EXTENDED_GEOMETRY_BASIS extended_wall_basis;
-static struct VECTOR extended_wall_origin;
-static legacy_u8 extended_wall_valid;
-
-void track_collision_to_wall_frame(const struct VECTOR *world, struct VECTOR *local)
-{
-	*local = *world;
-	if (!extended_wall_valid) {
-		return;
-	}
-	struct VECTOR relative = {LEGACY_S16_WRAP_SUB(world->x, extended_wall_origin.x),
-							  LEGACY_S16_WRAP_SUB(world->y, extended_wall_origin.y),
-							  LEGACY_S16_WRAP_SUB(world->z, extended_wall_origin.z)};
-	struct VECTOR transformed;
-	extended_geometry_inverse(&extended_wall_basis, &relative, &transformed);
-	local->x = LEGACY_S16_WRAP_ADD(transformed.x, extended_wall_origin.x);
-	local->y = LEGACY_S16_WRAP_ADD(transformed.y, extended_wall_origin.y);
-	local->z = LEGACY_S16_WRAP_ADD(transformed.z, extended_wall_origin.z);
-}
-
-void track_collision_wall_vector_to_world(const struct VECTOR *local, struct VECTOR *world)
-{
-	if (extended_wall_valid) {
-		extended_geometry_forward(&extended_wall_basis, local, world);
-	} else {
-		*world = *local;
-	}
-}
-
 static void extended_select_terrain(const struct EXTENDED_TERRAIN_SAMPLE *terrain,
 									const struct VECTOR *position)
 {
@@ -1513,7 +1484,6 @@ static void extended_select_terrain(const struct EXTENDED_TERRAIN_SAMPLE *terrai
 						? (legacy_s16)(((legacy_u16)(position->x ^ position->z) >> 8U) & 1U)
 						: 2;
 	current_surf_type = (legacy_s8)terrain->surface;
-	extended_wall_valid = 0;
 	extended_selected_plane = terrain->plane;
 	current_planptr = &extended_selected_plane;
 	planindex = EXTENDED_GEOMETRY_PLANE_INDEX;
@@ -1529,61 +1499,6 @@ void build_extended_track_terrain(struct VECTOR *position)
 		wallindex = TRACK_WALL_NONE;
 		track_wall_collision_enabled = 1;
 	}
-}
-
-/* The collision catalog supplies the intrinsic portal profile, including
- * elevated decks and banking. Probe in the original un-tilted model frame. */
-int track_extended_portal_height(const struct CSTRK_OBJECT *object, legacy_s16 x, legacy_s16 z,
-								 legacy_s16 *height)
-{
-	unsigned id = extended_track_object_id(object);
-	if (id >= 215) {
-		return 0;
-	}
-	struct TRACK_COLLISION_SNAPSHOT saved;
-	track_collision_capture(&saved);
-	struct VECTOR local = {x, 0, z};
-	track_rotate_local(&local, trkObjectList[id].ss_rotY);
-	int found = 0;
-	for (unsigned pass = 0; pass < 2 && !found; pass++) {
-		struct TRACK_OBJECT_SAMPLE sample;
-		sample.position = sample.next_position = local;
-		sample.height = sample.next_height = pass == 0 ? 600 : 0;
-		sample.absolute_x = absolute_word(local.x);
-		sample.absolute_z = absolute_word(local.z);
-		sample.physical_model = trkObjectList[id].ss_physicalModel;
-		if (sample.physical_model == PHYSICAL_MODEL_START_FINISH) {
-			sample.physical_model = PHYSICAL_MODEL_ROAD;
-		}
-		sample.surface_type = CAR_SURFACE_PAVED;
-		sample.wall_orientation_modifier = 0;
-		planindex = 0;
-		wallindex = -1;
-		terrainHeight = 0;
-		elem_xCenter = elem_zCenter = 0;
-		current_surf_type = CAR_SURFACE_GRASS;
-		track_wall_collision_enabled = 1;
-		track_object_model(&sample);
-		if (current_surf_type != CAR_SURFACE_PAVED) {
-			continue;
-		}
-		if (sample.physical_model == PHYSICAL_MODEL_ROAD && (object->slope_x || object->slope_y)) {
-			planindex = TERRAIN_FLAT_PLANE_INDEX;
-		}
-		struct VECTOR point = {x, 0, z};
-		track_object_world_collision(&point, trkObjectList[id].ss_rotY,
-									 sample.wall_orientation_modifier);
-		const struct PLANE *plane = current_planptr;
-		if (plane->plane_normal.y == 0) {
-			continue;
-		}
-		legacy_s32 numerator = (legacy_s32)plane->plane_normal.x * (x - plane->plane_origin.x) +
-							   (legacy_s32)plane->plane_normal.z * (z - plane->plane_origin.z);
-		*height = (legacy_s16)(plane->plane_origin.y - numerator / plane->plane_normal.y);
-		found = 1;
-	}
-	track_collision_restore(&saved);
-	return found;
 }
 
 static void build_extended_track_object(struct VECTOR *position, struct VECTOR *next)
@@ -1607,18 +1522,14 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 		return;
 	}
 	const struct TRACKOBJECT *definition = &trkObjectList[id];
-	struct VECTOR origin, relative, next_relative, local, next_local;
-	struct EXTENDED_GEOMETRY_BASIS basis;
+	struct VECTOR origin, local, next_local;
 	extended_geometry_object_origin(track, object, &origin);
-	extended_geometry_object_basis(object, &basis);
-	relative.x = LEGACY_S16_WRAP_SUB(position->x, origin.x);
-	relative.y = LEGACY_S16_WRAP_SUB(position->y, origin.y);
-	relative.z = LEGACY_S16_WRAP_SUB(position->z, origin.z);
-	next_relative.x = LEGACY_S16_WRAP_SUB(next->x, origin.x);
-	next_relative.y = LEGACY_S16_WRAP_SUB(next->y, origin.y);
-	next_relative.z = LEGACY_S16_WRAP_SUB(next->z, origin.z);
-	extended_geometry_inverse(&basis, &relative, &local);
-	extended_geometry_inverse(&basis, &next_relative, &next_local);
+	local.x = LEGACY_S16_WRAP_SUB(position->x, origin.x);
+	local.y = LEGACY_S16_WRAP_SUB(position->y, origin.y);
+	local.z = LEGACY_S16_WRAP_SUB(position->z, origin.z);
+	next_local.x = LEGACY_S16_WRAP_SUB(next->x, origin.x);
+	next_local.y = LEGACY_S16_WRAP_SUB(next->y, origin.y);
+	next_local.z = LEGACY_S16_WRAP_SUB(next->z, origin.z);
 	legacy_s16 orientation = definition->ss_rotY;
 	track_rotate_local(&local, orientation);
 	track_rotate_local(&next_local, orientation);
@@ -1652,9 +1563,6 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 		return;
 	}
 	track_object_world_collision(position, orientation, sample.wall_orientation_modifier);
-	extended_wall_basis = basis;
-	extended_wall_origin = origin;
-	extended_wall_valid = wallindex != TRACK_WALL_NONE;
 	legacy_s16 source_index = planindex;
 	extended_selected_plane = *current_planptr;
 	current_planptr = &extended_selected_plane;
@@ -1664,9 +1572,6 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 
 void build_track_object(struct VECTOR *world_position, struct VECTOR *next_world_position)
 {
-#ifdef RESTUNTS_SDL3
-	extended_wall_valid = 0;
-#endif
 	planindex = NO_PLANE_INDEX;
 	wallindex = TRACK_WALL_NONE;
 	wallHeight = TRACK_WALL_DEFAULT_HEIGHT;
@@ -1720,9 +1625,6 @@ void track_collision_capture(struct TRACK_COLLISION_SNAPSHOT *saved)
 	if (saved->extended_plane_valid) {
 		saved->extended_plane = *current_planptr;
 	}
-	saved->extended_wall_basis = extended_wall_basis;
-	saved->extended_wall_origin = extended_wall_origin;
-	saved->extended_wall_valid = extended_wall_valid;
 #endif
 	saved->wall_index = wallindex;
 	saved->wall_height = wallHeight;
@@ -1743,9 +1645,6 @@ void track_collision_restore(const struct TRACK_COLLISION_SNAPSHOT *saved)
 	planindex = saved->plane_index;
 	current_planptr = saved->plane;
 #ifdef RESTUNTS_SDL3
-	extended_wall_basis = saved->extended_wall_basis;
-	extended_wall_origin = saved->extended_wall_origin;
-	extended_wall_valid = saved->extended_wall_valid;
 	if (saved->extended_plane_valid) {
 		extended_selected_plane = saved->extended_plane;
 		current_planptr = &extended_selected_plane;
@@ -1803,11 +1702,6 @@ static legacy_s16 selected_wall_contains_point(struct VECTOR *point, struct MATR
 	legacy_s16 offset_z =
 		(legacy_s16)((legacy_s32)rotation->m._33 * WALL_CONTACT_PROBE_DISTANCE / TRIG_FIXED_ONE);
 	struct VECTOR probe = {offset_x, 0, offset_z};
-#ifdef RESTUNTS_SDL3
-	struct VECTOR transformed_probe;
-	track_collision_wall_vector_to_world(&probe, &transformed_probe);
-	probe = transformed_probe;
-#endif
 	struct VECTOR first = *point;
 	struct VECTOR second = *point;
 	first.x = LEGACY_S16_WRAP_ADD(first.x, probe.x);
@@ -1834,19 +1728,14 @@ static legacy_s16 selected_wall_intersects_segment(struct VECTOR *first, struct 
 	struct MATRIX rotation;
 	mat_rot_y(&rotation,
 			  LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_NEGATE(wallOrientation), ANGLE_QUARTER_TURN));
-	struct VECTOR wall_first = *first, wall_second = *second;
-#ifdef RESTUNTS_SDL3
-	track_collision_to_wall_frame(first, &wall_first);
-	track_collision_to_wall_frame(second, &wall_second);
-#endif
 	struct VECTOR relative;
-	relative.x = LEGACY_S16_WRAP_SUB(wall_first.x, wallStartX);
+	relative.x = LEGACY_S16_WRAP_SUB(first->x, wallStartX);
 	relative.y = 0;
-	relative.z = LEGACY_S16_WRAP_SUB(wall_first.z, wallStartZ);
+	relative.z = LEGACY_S16_WRAP_SUB(first->z, wallStartZ);
 	struct VECTOR start;
 	mat_mul_vector(&relative, &rotation, &start);
-	relative.x = LEGACY_S16_WRAP_SUB(wall_second.x, wallStartX);
-	relative.z = LEGACY_S16_WRAP_SUB(wall_second.z, wallStartZ);
+	relative.x = LEGACY_S16_WRAP_SUB(second->x, wallStartX);
+	relative.z = LEGACY_S16_WRAP_SUB(second->z, wallStartZ);
 	struct VECTOR end;
 	mat_mul_vector(&relative, &rotation, &end);
 	/* Endpoint touches belong to the existing wheel collision response. This
@@ -1988,16 +1877,14 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 		if (id >= 215 || trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM) {
 			continue;
 		}
-		struct VECTOR origin, relative_first, relative_second, local_first, local_second;
-		struct EXTENDED_GEOMETRY_BASIS basis;
+		struct VECTOR origin, local_first, local_second;
 		extended_geometry_object_origin(track, object, &origin);
-		extended_geometry_object_basis(object, &basis);
-		relative_first = (struct VECTOR){LEGACY_S16_WRAP_SUB(first->x, origin.x),
-										 LEGACY_S16_WRAP_SUB(first->y, origin.y),
-										 LEGACY_S16_WRAP_SUB(first->z, origin.z)};
-		relative_second = (struct VECTOR){LEGACY_S16_WRAP_SUB(second->x, origin.x),
-										  LEGACY_S16_WRAP_SUB(second->y, origin.y),
-										  LEGACY_S16_WRAP_SUB(second->z, origin.z)};
+		local_first = (struct VECTOR){LEGACY_S16_WRAP_SUB(first->x, origin.x),
+									  LEGACY_S16_WRAP_SUB(first->y, origin.y),
+									  LEGACY_S16_WRAP_SUB(first->z, origin.z)};
+		local_second = (struct VECTOR){LEGACY_S16_WRAP_SUB(second->x, origin.x),
+									   LEGACY_S16_WRAP_SUB(second->y, origin.y),
+									   LEGACY_S16_WRAP_SUB(second->z, origin.z)};
 		/* Exclude another 65536-unit page with identical wrapped coordinates. */
 		legacy_s32 absolute_x, absolute_z;
 		extended_geometry_world_position(first, &absolute_x, &absolute_z);
@@ -2007,8 +1894,6 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 			absolute_z - center_z < -3072 || absolute_z - center_z > 3072) {
 			continue;
 		}
-		extended_geometry_inverse(&basis, &relative_first, &local_first);
-		extended_geometry_inverse(&basis, &relative_second, &local_second);
 		track_rotate_local(&local_first, trkObjectList[id].ss_rotY);
 		track_rotate_local(&local_second, trkObjectList[id].ss_rotY);
 		for (unsigned box = 0; box < box_count; box++) {
