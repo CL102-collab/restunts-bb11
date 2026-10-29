@@ -56,6 +56,9 @@ static void assert_preserved(const struct CSHIG_TABLE *table, const struct CSHIG
 	assert(memcmp(table->track_data, track_bytes, table->track_size) == 0);
 }
 
+#define TEST_FUTURE_REVISION 101U
+#define TEST_SHORT_FUTURE_REVISION 15U
+
 static void test_identity(void)
 {
 	struct CSTRK_TRACK track;
@@ -79,6 +82,16 @@ static void test_identity(void)
 		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
 	}
 	track.horizon = CSTRK_HORIZON_DEFAULT;
+	static const legacy_u16 revisions[] = {CSTRK_VERSION, TEST_SHORT_FUTURE_REVISION,
+										   TEST_FUTURE_REVISION, LEGACY_U16_MAX};
+	for (legacy_u16 index = 0; index < sizeof(revisions) / sizeof(revisions[0]); index++) {
+		track.version = revisions[index];
+		assert(cshig_matches_track(&table, &track));
+		assert(cshig_create(&other, &track, NULL, 0));
+		assert(other.track_size == table.track_size);
+		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
+	}
+	track.version = CSTRK_VERSION;
 	assert(cstrk_set_notes(&track, "new notes\n", 10U, NULL, 0));
 	struct CSTRK_OBJECT temporary = track.objects[0];
 	track.objects[0] = track.objects[2];
@@ -91,6 +104,7 @@ static void test_identity(void)
 	cstrk_init(&canonical);
 	assert(cstrk_decode(table.track_data, table.track_size, &canonical, NULL, 0));
 	assert(canonical.notes_length == 0U);
+	assert(canonical.version == CSTRK_VERSION);
 	assert(canonical.horizon == CSTRK_HORIZON_DEFAULT);
 	cstrk_free(&canonical);
 	track.cells[2].surface = CSTRK_TERRAIN_ICE;
@@ -113,6 +127,11 @@ static void test_identity(void)
 	assert(before_bytes);
 	memcpy(before_bytes, table.track_data, table.track_size);
 	struct CSHIG_TABLE before = table;
+	track.version = 0;
+	assert(!cshig_create(&table, &track, NULL, 0));
+	assert(!cshig_matches_track(&table, &track));
+	assert_preserved(&table, &before, before_bytes);
+	track.version = CSTRK_VERSION;
 	track.horizon = CSTRK_HORIZON_COUNT;
 	assert(!cshig_create(&table, &track, NULL, 0));
 	assert(!cshig_matches_track(&table, &track));
@@ -234,8 +253,13 @@ static void test_codec_and_corruption(void)
 		assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
 		assert_preserved(&decoded, &before, identity);
 	}
-	/* A nondefault horizon is not canonical in a gameplay identity. */
+	/* Cosmetic metadata is normalized rather than retained in a gameplay identity. */
 	memcpy(corrupt, data, size);
+	corrupt[CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET] = TEST_FUTURE_REVISION;
+	assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
+	assert_preserved(&decoded, &before, identity);
+	memcpy(corrupt, data, size);
+	corrupt[CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET] = CSTRK_VERSION;
 	corrupt[CSHIG_HEADER_SIZE + CSTRK_HORIZON_OFFSET] = CSTRK_HORIZON_TROPICAL;
 	assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
 	assert_preserved(&decoded, &before, identity);

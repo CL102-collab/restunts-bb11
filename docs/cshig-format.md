@@ -21,23 +21,25 @@ than writing C structures.
 | 24 | 4 | Payload size: track size + 406 |
 | 28 | 4 | Reserved, zero |
 
-The gameplay identity is a complete valid CSTRK v1 file with its cosmetic
-horizon reset to Desert and its notes removed: notes length is zero, notes
-bytes are absent, and payload size is adjusted. Its 16-byte serialized object
-records are sorted in ascending bytewise order; all other terrain and object
-data are retained exactly. Therefore changes to notes, horizon, or object
-ordering keep the same scores. Changes to dimensions, terrain heights, terrain
-surfaces, water corners, or any object record produce a different identity.
-Track filenames are not part of this identity. The codec compares the canonical
-bytes directly, without relying on a hash collision assumption. Semantically
-equivalent but differently encoded object directions are still different
-identities.
+The gameplay identity is a complete valid CSTRK file with its revision normalized
+to v1, its cosmetic horizon reset to Desert, and its notes removed: notes length
+is zero, notes bytes are absent, and payload size is adjusted.
+Its 16-byte serialized object records are sorted in ascending bytewise order;
+all other terrain and object data are retained exactly. Therefore changes to
+revision metadata, notes, horizon, or object ordering keep the same scores.
+Changes to dimensions, terrain heights, terrain surfaces, water corners, or any
+object record produce a different identity. Track filenames are not part of this
+identity. The codec compares the canonical bytes directly, without relying on a
+hash collision
+assumption. Semantically equivalent but differently encoded object directions
+are still different identities.
 
 Decoders validate the embedded CSTRK and require it to already have this
-canonical representation. They reject embedded notes, nondefault horizons,
-unsorted object records, unsupported versions or flags, nonzero reserved fields,
-malformed records, inconsistent lengths, truncation, and trailing data. Identity
-data is at most 154,113 bytes, making the complete file at most 154,551 bytes.
+canonical representation. They reject noncanonical revisions, embedded notes,
+nondefault horizons, unsorted object records, invalid metadata, nonzero reserved
+fields, malformed records, inconsistent lengths, truncation, and trailing data.
+Identity data is at most 154,113 bytes, making the complete file at most 154,551
+bytes.
 
 | Record offset | Bytes | Meaning |
 | --- | --- | --- |

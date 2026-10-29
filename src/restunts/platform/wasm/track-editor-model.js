@@ -8,7 +8,7 @@
     const SURFACES = ['Paved', 'Dirt', 'Ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const CSTRK_VERSION = 1, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 1, CSTRK_MIN_VERSION = 1, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
     const MAGIC = [67, 83, 84, 82, 75, 26, 13, 10];
     const groups = [{ id: 1, name: 'F1 · Roads' }, { id: 4, name: 'F4 · Stunts' }, { id: 5, name: 'F5 · Banked roads' },
@@ -88,12 +88,12 @@
             this.width = integer(width, 1, 90, 'track width'); this.height = integer(height, 1, 90, 'track height');
             this.vertices = new Uint8Array((width + 1) * (height + 1));
             this.cells = Array.from({ length: width * height }, () => ({ surface: 0, halfWaterCorner: 0 }));
-            this.objects = []; this.notes = ''; this.horizon = DEFAULT_HORIZON; this.history = []; this.future = []; this.pending = null;
+            this.objects = []; this.notes = ''; this.horizon = DEFAULT_HORIZON; this.version = VERSION; this.history = []; this.future = []; this.pending = null;
         }
         get canUndo() { return this.history.length > 0; }
         get canRedo() { return this.future.length > 0; }
-        snapshot() { return { width: this.width, height: this.height, vertices: Array.from(this.vertices), cells: this.cells.map(a => ({ ...a })), objects: this.objects.map(a => ({ ...a })), notes: this.notes, horizon: this.horizon }; }
-        restore(state) { this.width = state.width; this.height = state.height; this.vertices = Uint8Array.from(state.vertices); this.cells = state.cells.map(a => ({ ...a })); this.objects = state.objects.map(a => ({ ...a })); this.notes = state.notes; this.horizon = state.horizon; }
+        snapshot() { return { width: this.width, height: this.height, vertices: Array.from(this.vertices), cells: this.cells.map(a => ({ ...a })), objects: this.objects.map(a => ({ ...a })), notes: this.notes, horizon: this.horizon, version: this.version }; }
+        restore(state) { this.width = state.width; this.height = state.height; this.vertices = Uint8Array.from(state.vertices); this.cells = state.cells.map(a => ({ ...a })); this.objects = state.objects.map(a => ({ ...a })); this.notes = state.notes; this.horizon = state.horizon; this.version = state.version; }
         beginTransaction(label = 'Edit') { if (this.pending) throw new Error('An editor transaction is already active.'); this.pending = { label, before: this.snapshot() }; }
         endTransaction() {
             if (!this.pending) return false;
@@ -200,7 +200,7 @@
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
         validate() {
             const errors = [], occupiedCells = new Set();
-            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); } catch (error) { errors.push(error.message); }
+            try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); integer(this.version, CSTRK_MIN_VERSION, CSTRK_MAX_VERSION, 'track version'); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
             for (let y = 0; y <= this.height; y++) for (let x = 0; x <= this.width; x++) {
                 const level = this.vertices[y * (this.width + 1) + x];
@@ -234,7 +234,7 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         const payload = doc.vertices.length + doc.cells.length * 2 + doc.objects.length * 16 + doc.notes.length;
         const a = new Uint8Array(CSTRK_HEADER_SIZE + payload), v = new DataView(a.buffer); a.set(MAGIC);
-        v.setUint16(8, CSTRK_VERSION, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
+        v.setUint16(8, doc.version, true); v.setUint16(10, CSTRK_HEADER_SIZE, true);
         v.setUint32(CSTRK_HORIZON_OFFSET, doc.horizon, true); v.setUint16(16, doc.width, true); v.setUint16(18, doc.height, true);
         v.setUint32(20, doc.notes.length, true); v.setUint32(24, doc.objects.length, true); v.setUint32(28, payload, true);
         let p = CSTRK_HEADER_SIZE; a.set(doc.vertices, p); p += doc.vertices.length;
@@ -250,14 +250,14 @@
         const a = input instanceof Uint8Array ? input : new Uint8Array(input);
         if (a.length < CSTRK_HEADER_SIZE || !MAGIC.every((n, i) => a[i] === n)) throw new Error('This is not a Chocolate Stunts track.');
         const v = new DataView(a.buffer, a.byteOffset, a.byteLength);
-        const horizon = v.getUint32(CSTRK_HORIZON_OFFSET, true);
-        if (v.getUint16(8, true) !== CSTRK_VERSION || v.getUint16(10, true) !== CSTRK_HEADER_SIZE)
-            throw new Error('Unsupported Chocolate Stunts track version.');
+        const version = v.getUint16(8, true), horizon = v.getUint32(CSTRK_HORIZON_OFFSET, true);
+        integer(version, CSTRK_MIN_VERSION, CSTRK_MAX_VERSION, 'track version');
+        if (v.getUint16(10, true) !== CSTRK_HEADER_SIZE) throw new Error('Unsupported Chocolate Stunts track header size.');
         integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon');
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);
         const doc = new Document(width, height), expected = doc.vertices.length + doc.cells.length * 2 + count * 16 + notesLength;
         if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
-        doc.horizon = horizon;
+        doc.horizon = horizon; doc.version = version;
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
         for (const cell of doc.cells) { cell.surface = a[p++]; cell.halfWaterCorner = a[p++]; }
         for (let i = 0; i < count; i++, p += 16) {
@@ -268,5 +268,5 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

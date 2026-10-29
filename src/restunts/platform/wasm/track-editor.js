@@ -94,7 +94,7 @@
     function editableTarget(target) { return target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName); }
     function signature() {
         if (!state.doc) return '';
-        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon]);
+        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.version]);
     }
     function refreshDocument() {
         if (!state.doc) return;
@@ -328,6 +328,7 @@
         if (!canDiscard()) return;
         try {
             const doc = model.decodeCstrk(new Uint8Array(await file.arrayBuffer()));
+            if (doc.version > model.VERSION) window.alert('This track uses .cstrk v' + doc.version + ', which is newer than this editor (v' + model.VERSION + '). The track will be opened, but correct behavior is not guaranteed.');
             setDocument(doc, file.name.replace(/\.cstrk$/i, ''));
             message('Opened ' + file.name + '.');
         } catch (error) { message('Could not open track: ' + error.message, true); }
@@ -833,6 +834,7 @@
             $('choose-folder').disabled = true; $('folder-input').disabled = true;
             return;
         }
+        $('editor-version').textContent = 'v' + model.VERSION;
         for (const [value, name] of model.HORIZONS.entries()) {
             const option = document.createElement('option'); option.value = String(value); option.textContent = name; $('track-horizon').append(option);
         }

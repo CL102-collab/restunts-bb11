@@ -234,11 +234,12 @@ test('horizons are validated edits with undo, redo, and no-op history preservati
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
+    assert.equal(model.VERSION, 1); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
         const bytes = model.encodeCstrk(doc), view = new DataView(bytes.buffer);
-        assert.equal(view.getUint16(8, true), 1);
+        assert.equal(view.getUint16(8, true), model.VERSION);
         assert.equal(view.getUint32(12, true), horizon);
         assert.equal(bytes.length, original.length);
         assert.deepEqual(bytes.subarray(32), original.subarray(32));
@@ -251,6 +252,30 @@ test('CSTRK horizons round-trip in the current format without changing terrain o
     }
     doc.horizon = model.HORIZONS.length;
     assert.throws(() => model.encodeCstrk(doc), /horizon/);
+});
+test('CSTRK version metadata preserves compatible newer revisions across loading and editing', () => {
+    const doc = new model.Document(4, 4); doc.setHorizon(model.HORIZONS.indexOf('Country'));
+    const original = model.encodeCstrk(doc);
+    for (const version of [model.VERSION, 15, 101, 0xffff]) {
+        const bytes = original.slice(); new DataView(bytes.buffer).setUint16(8, version, true);
+        const loaded = model.decodeCstrk(bytes);
+        assert.equal(loaded.version, version); assert.equal(loaded.horizon, doc.horizon);
+        assert.deepEqual(model.encodeCstrk(loaded), bytes);
+        loaded.setNotes('Saved with version ' + version);
+        assert(loaded.undo()); assert.equal(loaded.version, version);
+        assert.deepEqual(model.encodeCstrk(loaded), bytes);
+        assert(loaded.redo()); assert.equal(loaded.version, version);
+        const saved = model.encodeCstrk(loaded);
+        assert.equal(new DataView(saved.buffer).getUint16(8, true), version);
+        assert.equal(model.decodeCstrk(saved).notes, loaded.notes);
+    }
+    const zeroVersion = original.slice(); new DataView(zeroVersion.buffer).setUint16(8, 0, true);
+    assert.throws(() => model.decodeCstrk(zeroVersion), /version/);
+    for (const invalid of [0, -1, 1.5, 0x10000]) {
+        doc.version = invalid; assert.throws(() => model.encodeCstrk(doc), /version/);
+    }
+    const wrongHeader = original.slice(); new DataView(wrongHeader.buffer).setUint16(10, 33, true);
+    assert.throws(() => model.decodeCstrk(wrongHeader), /header size/);
 });
 test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', () => {
     const doc = new model.Document(); doc.raise(60, 60); doc.paint(59, 59, 2, 3);

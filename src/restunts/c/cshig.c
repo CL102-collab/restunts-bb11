@@ -89,11 +89,15 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	if (track == NULL) {
 		return cshig_fail(error, error_size, "A track is required for its highscore table");
 	}
+	if (track->version == 0U) {
+		return cshig_fail(error, error_size, "Track revision must be positive");
+	}
 	if (track->horizon >= CSTRK_HORIZON_COUNT) {
 		return cshig_fail(error, error_size, "Track horizon is out of range");
 	}
 	struct CSTRK_TRACK gameplay = *track;
-	/* Scenery does not change the course or invalidate its existing scores. */
+	/* Revision metadata and scenery do not change the course or its existing scores. */
+	gameplay.version = CSTRK_VERSION;
 	gameplay.horizon = CSTRK_HORIZON_DEFAULT;
 	gameplay.notes_length = 0;
 	gameplay.notes[0] = '\0';

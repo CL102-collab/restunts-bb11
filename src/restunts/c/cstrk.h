@@ -68,6 +68,7 @@ struct CSTRK_OBJECT {
 };
 
 struct CSTRK_TRACK {
+	legacy_u16 version;
 	uint16_t width;
 	uint16_t height;
 	legacy_u8 horizon;
@@ -82,7 +83,9 @@ struct CSTRK_TRACK {
 /* Initialize once before create/decode; free may be called repeatedly.
  * Mutating operations preserve the destination on failure. All int results
  * are 1 for success and 0 for failure. An optional error buffer receives text.
- * Encode allocates *data using malloc; its caller must free that allocation. */
+ * Encode allocates *data using malloc; its caller must free that allocation.
+ * Version is positive revision metadata. Decode validates the known layout even
+ * for newer revisions; the UI warns when version exceeds CSTRK_VERSION. */
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
