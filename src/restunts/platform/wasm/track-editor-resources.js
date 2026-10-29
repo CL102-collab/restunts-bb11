@@ -7,6 +7,9 @@
     'use strict';
     const MAX_RESOURCE = 16 * 1024 * 1024;
     const EDITOR_TILE_SIZE = 16, EDITOR_TILE_INTERIOR = EDITOR_TILE_SIZE - 1;
+    const OVERPASS_VERTICAL_ICON = 101, OVERPASS_HORIZONTAL_ICON = 102;
+    const ROAD_SURFACE_DIRT = 1, ROAD_SURFACE_ICE = 2;
+    const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
     function read24(a, p) { return a[p] | (a[p + 1] << 8) | (a[p + 2] << 16); }
@@ -172,6 +175,26 @@
         }
         return { width, height, pixels, alpha };
     }
+    function tintTileBitmap(bitmap, palette, surface = 0, lowerSurface = 0, overpassId = 0) {
+        const rgba = new Uint8ClampedArray(bitmap.pixels.length * 4);
+        for (let i = 0; i < bitmap.pixels.length; i++) {
+            const index = bitmap.pixels[i];
+            let r = palette[index * 3], g = palette[index * 3 + 1], b = palette[index * 3 + 2];
+            // The native overpass artwork offsets its raised deck toward the top/left.
+            // The visible lower road continues from the right/bottom half of the tile.
+            const lowerRoad = overpassId === OVERPASS_VERTICAL_ICON && i % bitmap.width >= bitmap.width / 2 ||
+                overpassId === OVERPASS_HORIZONTAL_ICON && Math.floor(i / bitmap.width) >= bitmap.height / 2;
+            const paint = lowerRoad ? lowerSurface : surface;
+            if (paint && Math.max(r, g, b) - Math.min(r, g, b) < ROAD_TINT_NEUTRAL_RANGE &&
+                r > ROAD_TINT_MIN_SHADE && r < ROAD_TINT_MAX_SHADE) {
+                if (paint === ROAD_SURFACE_DIRT) { g = r * .72; b = r * .45; }
+                else if (paint === ROAD_SURFACE_ICE) { b = Math.min(255, r + 55); g = Math.min(255, r + 32); r = Math.min(255, r + 8); }
+            }
+            rgba[i * 4] = r; rgba[i * 4 + 1] = g; rgba[i * 4 + 2] = b;
+            rgba[i * 4 + 3] = bitmap.alpha[i];
+        }
+        return rgba;
+    }
     async function load(files) {
         const normalized = new Map();
         for (const [name, value] of files) normalized.set(name.toLowerCase(), value);
@@ -208,5 +231,5 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap };
+    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap, tintTileBitmap };
 }));

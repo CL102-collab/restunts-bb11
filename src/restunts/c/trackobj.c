@@ -1544,7 +1544,11 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	sample.height = local.y;
 	sample.next_height = next_local.y;
 	sample.physical_model = definition->ss_physicalModel;
-	sample.surface_type = (legacy_s16)(object->surface + CAR_SURFACE_PAVED);
+	legacy_u8 surface = object->surface;
+	if (sample.physical_model == PHYSICAL_MODEL_OVERPASS && local.y <= ELEVATED_DECK_CLEARANCE) {
+		surface = object->lower_surface;
+	}
+	sample.surface_type = (legacy_s16)(surface + CAR_SURFACE_PAVED);
 	sample.absolute_x = absolute_word(local.x);
 	sample.absolute_z = absolute_word(local.z);
 	sample.wall_orientation_modifier = 0;

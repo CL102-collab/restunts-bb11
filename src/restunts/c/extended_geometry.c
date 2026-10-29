@@ -242,15 +242,15 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 						physical_model == PHYSICAL_MODEL_LOOP ||
 						physical_model == PHYSICAL_MODEL_PIPE_ENTRANCE ||
 						physical_model == PHYSICAL_MODEL_PIPE ||
-						physical_model == PHYSICAL_MODEL_HALF_PIPE) &&
+						physical_model == PHYSICAL_MODEL_HALF_PIPE ||
+						physical_model == PHYSICAL_MODEL_OVERPASS) &&
 					   material >= EXTENDED_MATERIAL_SHADED_PAVED &&
 					   material <= EXTENDED_MATERIAL_SHADED_MARKING) {
 				/* Curved driving faces use a shaded road pair and separate
 				 * markings. Their structural framing retains its own paint. */
 				material = road_material + material - EXTENDED_MATERIAL_SHADED_PAVED;
 			} else if ((physical_model == PHYSICAL_MODEL_ELEVATED_ROAD ||
-						physical_model == PHYSICAL_MODEL_ELEVATED_SPAN ||
-						physical_model == PHYSICAL_MODEL_OVERPASS) &&
+						physical_model == PHYSICAL_MODEL_ELEVATED_SPAN) &&
 					   material >= EXTENDED_MATERIAL_SHADED_PAVED &&
 					   material < EXTENDED_MATERIAL_SHADED_MARKING) {
 				material = road_material;

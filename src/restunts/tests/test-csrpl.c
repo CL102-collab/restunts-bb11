@@ -8,6 +8,7 @@
 #include "../c/extended_replay.h"
 
 #define TEST_FUTURE_TRACK_VERSION 101U
+#define TEST_REPLAY_ERROR_CAPACITY 128U
 
 static void test_recording_and_seek_storage(void)
 {
@@ -130,7 +131,7 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	cstrk_init(&embedded);
 	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
 	assert(embedded.horizon == horizon);
-	assert(embedded.version == version);
+	assert(embedded.version == (version < CSTRK_VERSION ? CSTRK_VERSION : version));
 	assert(embedded.cells[0].surface == CSTRK_TERRAIN_GRASS);
 	assert(embedded.cells[0].half_water_corner == CSTRK_WATER_SOUTHEAST);
 	assert(embedded.cells[0].corner_surface == corner_surface);
@@ -195,9 +196,60 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	cstrk_free(&track);
 }
 
+static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[TEST_REPLAY_ERROR_CAPACITY];
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	track.version = track_version;
+	legacy_u8 expected_lower =
+		track_version < CSTRK_LOWER_SURFACE_VERSION ? CSTRK_ROAD_DIRT : CSTRK_ROAD_ICE;
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_OVERPASS_FIRST_ID;
+	object.width = object.height = object.occupied_mask = 1;
+	object.surface = CSTRK_ROAD_DIRT;
+	object.lower_surface = expected_lower;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	legacy_u8 *track_data = NULL;
+	size_t track_size = 0;
+	assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
+	static const legacy_u8 inputs[] = {1U, 2U};
+	struct CSRPL_METADATA metadata = {0};
+	metadata.version = CSRPL_VERSION;
+	metadata.frames_per_second = 20U;
+	metadata.frame_count = sizeof(inputs);
+	legacy_u8 *encoded = NULL;
+	size_t size = 0;
+	assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded, &size,
+						error, sizeof(error)));
+	struct CSRPL_VIEW view;
+	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(view.metadata.version == CSRPL_VERSION);
+	struct CSTRK_TRACK embedded;
+	cstrk_init(&embedded);
+	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
+	assert(embedded.version == CSTRK_VERSION && embedded.object_count == 1U);
+	assert(embedded.objects[0].surface == CSTRK_ROAD_DIRT);
+	/* A v3 overpass used its one selected material for both roads. */
+	assert(embedded.objects[0].lower_surface == expected_lower);
+	/* Resaving keeps the lower road choice and the recording's revision. */
+	legacy_u8 *saved = NULL;
+	size_t saved_size = 0;
+	assert(csrpl_encode(&view.metadata, view.track_data, view.track_size, view.inputs,
+						view.metadata.frame_count, &saved, &saved_size, error, sizeof(error)));
+	assert(saved_size == size && memcmp(saved, encoded, size) == 0);
+	free(saved);
+	free(encoded);
+	free(track_data);
+	cstrk_free(&embedded);
+	cstrk_free(&track);
+}
+
 static void test_recorded_versions(void)
 {
-	static const legacy_u16 track_versions[] = {CSTRK_VERSION, TEST_FUTURE_TRACK_VERSION};
+	static const legacy_u16 track_versions[] = {CSTRK_MIN_VERSION, CSTRK_VERSION,
+												TEST_FUTURE_TRACK_VERSION};
 	static const legacy_u16 replay_versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U, 15U, 101U,
 												 LEGACY_U16_MAX};
 	static const legacy_u8 inputs[] = {1U, 2U};
@@ -343,8 +395,11 @@ int main(void)
 	test_recording_and_seek_storage();
 	test_large_timeline();
 	test_recorded_versions();
+	test_overpass_surfaces_in_replay(CSTRK_MIN_VERSION);
+	test_overpass_surfaces_in_replay(CSTRK_VERSION);
 	test_recorded_driving_rules();
-	/* Replay storage preserves both current and future track metadata. */
+	/* Replay storage preserves wire revisions while decoding upgrades old tracks. */
+	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_MIN_VERSION, CSTRK_TERRAIN_WATER);
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_WATER);
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_DIRT);
 	test_codec(CSTRK_HORIZON_COUNTRY, TEST_FUTURE_TRACK_VERSION, CSTRK_TERRAIN_ICE);

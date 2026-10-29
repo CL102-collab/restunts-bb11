@@ -766,6 +766,123 @@ static void test_loop_and_pipe_surfaces(void)
 	}
 }
 
+#define OVERPASS_SURFACE_OBJECT_ID CSTRK_OVERPASS_FIRST_ID
+#define OVERPASS_SURFACE_COLUMN 40U
+#define OVERPASS_SURFACE_ROW 40U
+#define OVERPASS_SURFACE_OTHER_OBJECT_ID 4U
+#define OVERPASS_SURFACE_ROTATIONS 4U
+#define OVERPASS_SURFACE_PROBE_OFFSET (CSTRK_TILE_WORLD_SIZE / 4)
+#define OVERPASS_SURFACE_HEIGHT_TOLERANCE 2
+
+enum OVERPASS_SURFACE_CONTACT {
+	OVERPASS_SURFACE_LOWER_CENTRE,
+	OVERPASS_SURFACE_LOWER_LEFT,
+	OVERPASS_SURFACE_LOWER_RIGHT,
+	OVERPASS_SURFACE_UPPER_CENTRE,
+	OVERPASS_SURFACE_UPPER_REAR,
+	OVERPASS_SURFACE_UPPER_FRONT,
+	OVERPASS_SURFACE_LOWER_CLEARANCE,
+	OVERPASS_SURFACE_UPPER_CLEARANCE,
+	OVERPASS_SURFACE_CONTACT_COUNT
+};
+
+static void test_overpass_independent_surfaces(void)
+{
+	static const struct VECTOR contacts[OVERPASS_SURFACE_CONTACT_COUNT] = {
+		{0, 0, 0},
+		{-OVERPASS_SURFACE_PROBE_OFFSET, 0, 0},
+		{OVERPASS_SURFACE_PROBE_OFFSET, 0, 0},
+		{0, CSTRK_LEVEL_WORLD_HEIGHT, 0},
+		{0, CSTRK_LEVEL_WORLD_HEIGHT, -OVERPASS_SURFACE_PROBE_OFFSET},
+		{0, CSTRK_LEVEL_WORLD_HEIGHT, OVERPASS_SURFACE_PROBE_OFFSET},
+		{0, ELEVATED_DECK_CLEARANCE, 0},
+		{0, ELEVATED_DECK_CLEARANCE + 1, 0}};
+	for (legacy_u8 base = 0; base <= CSTRK_MAX_HEIGHT; base++) {
+		for (legacy_u8 rotation = 0; rotation < OVERPASS_SURFACE_ROTATIONS; rotation++) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+								sizeof(error)));
+			memset(track.corner_heights, base, (size_t)(track.width + 1U) * (track.height + 1U));
+			struct CSTRK_OBJECT object = object_at(OVERPASS_SURFACE_OBJECT_ID,
+												   OVERPASS_SURFACE_COLUMN, OVERPASS_SURFACE_ROW);
+			object.base_height = base;
+			object.rotation = rotation;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			struct PLANE paved_planes[OVERPASS_SURFACE_CONTACT_COUNT];
+			legacy_s16 paved_indices[OVERPASS_SURFACE_CONTACT_COUNT];
+			for (legacy_u8 upper = CSTRK_ROAD_PAVED; upper <= CSTRK_ROAD_ICE; upper++) {
+				for (legacy_u8 lower = CSTRK_ROAD_PAVED; lower <= CSTRK_ROAD_ICE; lower++) {
+					track.objects[0].surface = upper;
+					track.objects[0].lower_surface = lower;
+					legacy_u8 *bytes;
+					size_t byte_count;
+					assert(cstrk_encode(&track, &bytes, &byte_count, error, sizeof(error)));
+					struct CSTRK_TRACK loaded;
+					cstrk_init(&loaded);
+					assert(cstrk_decode(bytes, byte_count, &loaded, error, sizeof(error)));
+					free(bytes);
+					assert(loaded.objects[0].surface == upper);
+					assert(loaded.objects[0].lower_surface == lower);
+					assert(loaded.objects[0].rotation == rotation);
+					activate(&loaded);
+					for (legacy_u8 contact = 0; contact < OVERPASS_SURFACE_CONTACT_COUNT;
+						 contact++) {
+						struct VECTOR point =
+							sample_curved_surface(&loaded, &object, contacts[contact]);
+						legacy_u8 lower_contact = contact < OVERPASS_SURFACE_UPPER_CENTRE ||
+												  contact == OVERPASS_SURFACE_LOWER_CLEARANCE;
+						assert(current_surf_type ==
+							   (legacy_s16)(CAR_SURFACE_PAVED + (lower_contact ? lower : upper)));
+						if (lower_contact) {
+							assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
+						} else {
+							assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+						}
+						legacy_s32 expected_height =
+							(base + !lower_contact) * CSTRK_LEVEL_WORLD_HEIGHT;
+						legacy_s32 height_difference = selected_height(&point) - expected_height;
+						assert(height_difference >= -OVERPASS_SURFACE_HEIGHT_TOLERANCE &&
+							   height_difference <= OVERPASS_SURFACE_HEIGHT_TOLERANCE);
+						if (upper == CSTRK_ROAD_PAVED && lower == CSTRK_ROAD_PAVED) {
+							paved_planes[contact] = *current_planptr;
+							paved_indices[contact] = planindex;
+						} else {
+							assert(planindex == paved_indices[contact]);
+							assert(memcmp(current_planptr, &paved_planes[contact],
+										  sizeof(*current_planptr)) == 0);
+						}
+					}
+					/* The visible lower road crosses the upper one. Its surface
+					 * selection must not turn nearby grass into another road. */
+					(void)sample_curved_surface(
+						&loaded, &object, (struct VECTOR){0, 0, OVERPASS_SURFACE_PROBE_OFFSET});
+					assert(current_surf_type == CAR_SURFACE_GRASS);
+					extended_track_unload();
+					cstrk_free(&loaded);
+				}
+			}
+			cstrk_free(&track);
+		}
+	}
+
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	struct CSTRK_OBJECT object =
+		object_at(OVERPASS_SURFACE_OTHER_OBJECT_ID, OVERPASS_SURFACE_COLUMN, OVERPASS_SURFACE_ROW);
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	track.objects[0].lower_surface = CSTRK_ROAD_DIRT;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	assert(!extended_track_activate(&track, error, sizeof(error)));
+	track.objects[0] =
+		object_at(OVERPASS_SURFACE_OBJECT_ID, OVERPASS_SURFACE_COLUMN, OVERPASS_SURFACE_ROW);
+	track.objects[0].lower_surface = CSTRK_ROAD_ICE + 1U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	assert(!extended_track_activate(&track, error, sizeof(error)));
+	cstrk_free(&track);
+}
+
 static void test_scenery_ignores_road_surface(void)
 {
 	static const unsigned ids[] = {151, 152, 153, 154, 155, 159, 163, 167, 171, 175};
@@ -1175,6 +1292,7 @@ int main(void)
 	test_resource_admission();
 	test_corkscrew_surfaces();
 	test_loop_and_pipe_surfaces();
+	test_overpass_independent_surfaces();
 	test_scenery_ignores_road_surface();
 	test_extended_material_variants();
 	test_shared_road_anchor();
