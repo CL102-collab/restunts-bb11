@@ -99,6 +99,9 @@ static void position_render_target(unsigned column, unsigned north_row)
 	custom_camera.azimuth_angle = 416;
 }
 
+#define RENDER_CAPTURE_OPAQUE_ALPHA UINT32_C(0xff000000)
+#define RENDER_CAPTURE_INDEX_RGB_STEP UINT32_C(0x010101)
+
 static legacy_u32 *capture_complete_render(size_t *pixel_count)
 {
 	full_redraw_frames_remaining = 1;
@@ -114,7 +117,7 @@ static legacy_u32 *capture_complete_render(size_t *pixel_count)
 	 * companion sample. The indexed-only capture omits enhanced overlays. */
 	legacy_u32 palette[256];
 	for (unsigned index = 0; index < 256; index++) {
-		palette[index] = UINT32_C(0xff000000) | index * UINT32_C(0x010101);
+		palette[index] = RENDER_CAPTURE_OPAQUE_ALPHA | index * RENDER_CAPTURE_INDEX_RGB_STEP;
 	}
 	hires_copy_framebuffer_argb(legacy, palette, pixels, width * sizeof(*pixels));
 	return pixels;
@@ -274,6 +277,71 @@ static legacy_u16 check_rendered_shore_materials(struct CSTRK_TRACK *track)
 	return frames;
 }
 
+#define GRASS_RENDER_CAR_HEIGHT 16L
+#define GRASS_RENDER_POSITION_SCALE 64L
+#define GRASS_RENDER_VARIANT_COUNT 3U
+#define GRASS_RENDER_ERROR_CAPACITY 192U
+
+static legacy_u16 check_ground_grass_color(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	for (size_t index = 0; index < (size_t)track.width * track.height; index++) {
+		track.cells[index].surface = CSTRK_TERRAIN_WATER;
+	}
+	position_render_target(SHORE_RENDER_COLUMN, SHORE_RENDER_ROW);
+	state.playerstate.car_position.ly = GRASS_RENDER_CAR_HEIGHT * GRASS_RENDER_POSITION_SCALE;
+	state.playerstate.car_previous_position = state.playerstate.car_position;
+	custom_camera.distance = SHORE_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = SHORE_RENDER_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = 0;
+	activate_render_track(&track, 0);
+	size_t water_size;
+	legacy_u32 *water = capture_complete_render(&water_size);
+	/* This is the original flat-ground fill loaded from the game resources,
+	 * rather than a second copy of the extended renderer's material choice. */
+	legacy_u32 original_grass = RENDER_CAPTURE_OPAQUE_ALPHA |
+								(legacy_u32)skybox.ground_color * RENDER_CAPTURE_INDEX_RGB_STEP;
+	struct CSTRK_CELL *cell = &track.cells[SHORE_RENDER_ROW * track.width + SHORE_RENDER_COLUMN];
+	legacy_u16 frames = 1;
+	for (legacy_u8 variant = 0; variant < GRASS_RENDER_VARIANT_COUNT; variant++) {
+		cell->surface = variant == 0 ? CSTRK_TERRAIN_GRASS : CSTRK_TERRAIN_WATER;
+		cell->half_water_corner = variant == 0 ? CSTRK_WATER_NONE : CSTRK_WATER_NORTHWEST;
+		cell->corner_surface = CSTRK_TERRAIN_GRASS;
+		if (variant == GRASS_RENDER_VARIANT_COUNT - 1U) {
+			/* The northwest half remains at ground level even when the other
+			 * triangle rises. Its color must depend on its own vertices. */
+			size_t southeast =
+				(SHORE_RENDER_ROW + 1U) * (track.width + 1U) + SHORE_RENDER_COLUMN + 1U;
+			track.corner_heights[southeast] = 1;
+		}
+		activate_render_track(&track, 0);
+		size_t grass_size;
+		legacy_u32 *grass = capture_complete_render(&grass_size);
+		assert(grass_size == water_size);
+		size_t original_color_pixels = 0;
+		for (size_t pixel = 0; pixel < grass_size; pixel++) {
+			if (grass[pixel] != water[pixel] && grass[pixel] == original_grass) {
+				original_color_pixels++;
+			}
+		}
+		if (original_color_pixels <= SHORE_RENDER_MIN_CHANGED_PIXELS) {
+			fprintf(stderr, "Ground grass variant %u shows only %zu pixels of original color %u\n",
+					variant, original_color_pixels, (legacy_u16)skybox.ground_color);
+		}
+		assert(original_color_pixels > SHORE_RENDER_MIN_CHANGED_PIXELS);
+		free(grass);
+		frames++;
+	}
+	free(water);
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -319,6 +387,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += 4U;
 		frames += check_rendered_surfaces(&track);
 		frames += check_rendered_shore_materials(&track);
+		frames += check_ground_grass_color();
 	}
 	extended_track_unload();
 	cstrk_free(&track);
