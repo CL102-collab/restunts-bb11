@@ -475,7 +475,8 @@ static void replay_reload_changed_resources(const struct GAMEINFO *saved_config,
 {
 	legacy_u8 current_track;
 #ifdef RESTUNTS_SDL3
-	current_track = extended_track_active() ? 0U : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
+	current_track = extended_track_active() ? extended_track_model()->horizon
+											: track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #else
 	current_track = track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #endif
@@ -527,7 +528,8 @@ static void replay_load_recording(void)
 	struct GAMEINFO saved_config = gameconfig;
 	legacy_u8 saved_track;
 #ifdef RESTUNTS_SDL3
-	saved_track = extended_track_active() ? 0U : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
+	saved_track = extended_track_active() ? extended_track_model()->horizon
+										  : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #else
 	saved_track = track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #endif

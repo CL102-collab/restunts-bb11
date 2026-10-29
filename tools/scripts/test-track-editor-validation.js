@@ -55,6 +55,11 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
+for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
+    const doc = rectangle();
+    doc.setHorizon(horizon);
+    check(model.HORIZONS[horizon] + ' horizon retains the route', clearHistory(doc), 0);
+}
 const missing = rectangle(); replace(missing, 25, 4, 0); check('disconnected road', clearHistory(missing), 7);
 const starts = rectangle(); starts.place(1, 1, 1); check('multiple start elements', clearHistory(starts), 3);
 const mismatch = rectangle(); replace(mismatch, 25, 4, 35); check('ground road meets elevated deck', clearHistory(mismatch), 4);

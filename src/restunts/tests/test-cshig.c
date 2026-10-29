@@ -70,6 +70,15 @@ static void test_identity(void)
 		assert(table.entries[index].player_name[0] == 0U);
 	}
 	assert(cshig_matches_track(&table, &track));
+	/* Cosmetic horizon changes retain the original version-1 score identity. */
+	for (legacy_u8 horizon = CSTRK_HORIZON_DESERT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
+		track.horizon = horizon;
+		assert(cshig_matches_track(&table, &track));
+		assert(cshig_create(&other, &track, NULL, 0));
+		assert(other.track_size == table.track_size);
+		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
+	}
+	track.horizon = CSTRK_HORIZON_DEFAULT;
 	assert(cstrk_set_notes(&track, "new notes\n", 10U, NULL, 0));
 	struct CSTRK_OBJECT temporary = track.objects[0];
 	track.objects[0] = track.objects[2];
@@ -82,6 +91,7 @@ static void test_identity(void)
 	cstrk_init(&canonical);
 	assert(cstrk_decode(table.track_data, table.track_size, &canonical, NULL, 0));
 	assert(canonical.notes_length == 0U);
+	assert(canonical.horizon == CSTRK_HORIZON_DEFAULT);
 	cstrk_free(&canonical);
 	track.cells[2].surface = CSTRK_TERRAIN_ICE;
 	assert(!cshig_matches_track(&table, &track));
@@ -103,6 +113,11 @@ static void test_identity(void)
 	assert(before_bytes);
 	memcpy(before_bytes, table.track_data, table.track_size);
 	struct CSHIG_TABLE before = table;
+	track.horizon = CSTRK_HORIZON_COUNT;
+	assert(!cshig_create(&table, &track, NULL, 0));
+	assert(!cshig_matches_track(&table, &track));
+	assert_preserved(&table, &before, before_bytes);
+	track.horizon = CSTRK_HORIZON_DEFAULT;
 	track.width = 0;
 	assert(!cshig_create(&table, &track, NULL, 0));
 	assert_preserved(&table, &before, before_bytes);
@@ -219,6 +234,11 @@ static void test_codec_and_corruption(void)
 		assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
 		assert_preserved(&decoded, &before, identity);
 	}
+	/* A nondefault horizon is not canonical in a gameplay identity. */
+	memcpy(corrupt, data, size);
+	corrupt[CSHIG_HEADER_SIZE + CSTRK_HORIZON_OFFSET] = CSTRK_HORIZON_TROPICAL;
+	assert(!cshig_decode(corrupt, size, &decoded, error, sizeof(error)));
+	assert_preserved(&decoded, &before, identity);
 	memcpy(corrupt, data, size);
 	corrupt[size] = 0U;
 	assert(!cshig_decode(corrupt, size + 1U, &decoded, error, sizeof(error)));

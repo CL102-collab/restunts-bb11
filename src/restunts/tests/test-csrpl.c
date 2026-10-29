@@ -75,12 +75,13 @@ static void test_large_timeline(void)
 	assert(!extended_replay_format_time(text, sizeof(text), 100U, 0U, 1));
 }
 
-static void test_codec(void)
+static void test_codec(legacy_u8 horizon)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	char error[128];
 	assert(cstrk_create(&track, 90U, 90U, error, sizeof(error)));
+	track.horizon = horizon;
 	assert(cstrk_set_notes(&track, "embedded track", 14U, error, sizeof(error)));
 	uint8_t *track_bytes = NULL;
 	size_t track_size = 0U;
@@ -114,6 +115,12 @@ static void test_codec(void)
 	assert(view.metadata.player_material == 129U);
 	assert(memcmp(view.track_data, track_bytes, track_size) == 0);
 	assert(memcmp(view.inputs, inputs, metadata.frame_count) == 0);
+	struct CSTRK_TRACK embedded;
+	cstrk_init(&embedded);
+	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
+	assert(embedded.horizon == horizon);
+	assert(strcmp(embedded.notes, track.notes) == 0);
+	cstrk_free(&embedded);
 	struct CSRPL_VIEW unchanged = view;
 	for (size_t short_size = 0U; short_size < CSRPL_HEADER_SIZE; short_size++) {
 		assert(!csrpl_decode(encoded, short_size, &view, error, sizeof(error)));
@@ -162,6 +169,8 @@ int main(void)
 {
 	test_recording_and_seek_storage();
 	test_large_timeline();
-	test_codec();
+	/* Replay storage retains the selected horizon alongside the track notes. */
+	test_codec(CSTRK_HORIZON_DEFAULT);
+	test_codec(CSTRK_HORIZON_COUNTRY);
 	return 0;
 }

@@ -4,8 +4,11 @@
 /* SDL3 extended-track storage. This module has no game-state or resource dependency. */
 #include <stddef.h>
 #include <stdint.h>
+#include "legacy.h"
 
 #define CSTRK_VERSION 1U
+#define CSTRK_VERSION_OFFSET 8U
+#define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
 #define CSTRK_OBJECT_SIZE 16U
 #define CSTRK_MAX_DIMENSION 90U
@@ -13,6 +16,16 @@
 #define CSTRK_MAX_NOTES 8000U
 #define CSTRK_MAX_OBJECTS (CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION)
 #define CSTRK_MAX_LEGACY_ID 214U
+#define CSTRK_HORIZON_COUNT 5U
+#define CSTRK_HORIZON_DEFAULT CSTRK_HORIZON_DESERT
+
+enum CSTRK_HORIZON {
+	CSTRK_HORIZON_DESERT = 0,
+	CSTRK_HORIZON_TROPICAL = 1,
+	CSTRK_HORIZON_ALPINE = 2,
+	CSTRK_HORIZON_CITY = 3,
+	CSTRK_HORIZON_COUNTRY = 4
+};
 
 enum CSTRK_TERRAIN_SURFACE {
 	CSTRK_TERRAIN_GRASS = 0,
@@ -57,6 +70,7 @@ struct CSTRK_OBJECT {
 struct CSTRK_TRACK {
 	uint16_t width;
 	uint16_t height;
+	legacy_u8 horizon;
 	uint8_t *corner_heights;  /* Row-major (width+1) * (height+1). */
 	struct CSTRK_CELL *cells; /* Row-major width * height. */
 	struct CSTRK_OBJECT *objects;

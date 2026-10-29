@@ -94,7 +94,7 @@
     function editableTarget(target) { return target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName); }
     function signature() {
         if (!state.doc) return '';
-        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes]);
+        return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon]);
     }
     function refreshDocument() {
         if (!state.doc) return;
@@ -104,6 +104,7 @@
         $('map-size').textContent = state.doc.width + ' × ' + state.doc.height;
         $('minimap-caption').textContent = state.doc.width + ' × ' + state.doc.height + ' tiles';
         $('object-count').textContent = state.doc.objects.length + (state.doc.objects.length === 1 ? ' element' : ' elements');
+        $('track-horizon').value = String(state.doc.horizon);
         $('notes-count').textContent = state.doc.notes.length + ' / 8000';
         $('undo').disabled = !state.doc.canUndo;
         $('redo').disabled = !state.doc.canRedo;
@@ -728,6 +729,7 @@
         $('load-track').addEventListener('click', () => $('track-file-input').click());
         $('track-file-input').addEventListener('change', event => { loadTrack(event.target.files[0]); event.target.value = ''; });
         $('save-track').addEventListener('click', openSave); $('save-form').addEventListener('submit', saveTrack);
+        $('track-horizon').addEventListener('change', () => { finishDrag(); state.doc.setHorizon(Number($('track-horizon').value)); refreshDocument(); message('Horizon set to ' + model.HORIZONS[state.doc.horizon] + '.'); });
         $('notes-button').addEventListener('click', () => { $('track-notes').value = state.doc.notes; updateNotesCount(); showDialog('notes-dialog'); });
         $('track-notes').addEventListener('input', updateNotesCount);
         $('notes-form').addEventListener('submit', event => { event.preventDefault(); try { state.doc.setNotes($('track-notes').value); refreshDocument(); closeDialog('notes-dialog'); message('Updated track notes.'); } catch (error) { $('notes-error').textContent = error.message; } });
@@ -830,6 +832,9 @@
             folderMessage('Editor files could not be loaded. Keep the HTML, CSS, and JavaScript editor files together.');
             $('choose-folder').disabled = true; $('folder-input').disabled = true;
             return;
+        }
+        for (const [value, name] of model.HORIZONS.entries()) {
+            const option = document.createElement('option'); option.value = String(value); option.textContent = name; $('track-horizon').append(option);
         }
         buildGroups(); syncVisualControls(); showPanel(state.panel);
         if (!window.showDirectoryPicker) enableFallback();

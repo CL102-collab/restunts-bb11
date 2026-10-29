@@ -20,6 +20,11 @@ Build, Remove or an element group opens the track library. New tracks can have
 any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
 dimensions. Names use the game's 1–8 character ASCII filename stems.
 
+Use **Horizon**, above **Track notes**, to choose Desert, Tropical, Alpine, City,
+or Country, matching the original editor. The choice is saved in the track and
+used in the game and its track preview. Horizon changes support undo and redo;
+older tracks open with Desert selected.
+
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
