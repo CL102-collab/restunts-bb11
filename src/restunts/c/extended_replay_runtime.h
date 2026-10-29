@@ -21,6 +21,8 @@ extern struct EXTENDED_REPLAY_CLOCKS extended_replay_clocks;
  * GAMESTATE and globals, then resumes after restoring those globals. */
 struct EXTENDED_REPLAY_SUSPENDED {
 	int active;
+	legacy_u16 version;
+	legacy_u16 driving_rules;
 	struct EXTENDED_REPLAY_CLOCKS clocks;
 	struct EXTENDED_REPLAY_BUFFER recording;
 	struct EXTENDED_REPLAY_HISTORY history;
@@ -29,6 +31,10 @@ void extended_replay_runtime_suspend(struct EXTENDED_REPLAY_SUSPENDED *saved);
 void extended_replay_runtime_resume(struct EXTENDED_REPLAY_SUSPENDED *saved);
 
 int extended_replay_is_active(void);
+/* Retained recording revision; zero when no extended replay owner is active. */
+legacy_u16 extended_replay_version(void);
+/* Retained recording settings; loading never changes configured driving rules. */
+legacy_u16 extended_replay_driving_rules(void);
 void extended_replay_runtime_begin(void);
 void extended_replay_runtime_clear(void);
 int extended_replay_runtime_load(const struct CSRPL_VIEW *view);

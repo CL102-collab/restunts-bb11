@@ -95,6 +95,9 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 
 	struct CSRPL_METADATA metadata;
 	memset(&metadata, 0, sizeof(metadata));
+	metadata.version = CSRPL_VERSION;
+	metadata.driving_rules =
+		DRIVING_RULE_POWER_GEAR | DRIVING_RULE_LEFT_CORNER_BIAS | DRIVING_RULE_OWOOT;
 	memcpy(metadata.player_car_id, "P962", 4U);
 	metadata.player_material = 129U;
 	metadata.player_transmission = 1U;
@@ -117,6 +120,8 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	struct CSRPL_VIEW view;
 	memset(&view, 0, sizeof(view));
 	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(view.metadata.version == metadata.version);
+	assert(view.metadata.driving_rules == metadata.driving_rules);
 	assert(view.metadata.frame_count == metadata.frame_count);
 	assert(view.metadata.player_material == 129U);
 	assert(memcmp(view.track_data, track_bytes, track_size) == 0);
@@ -138,7 +143,7 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	}
 	assert(!csrpl_decode(encoded, size - 1U, &view, error, sizeof(error)));
 	assert(!csrpl_decode(encoded, size + 1U, &view, error, sizeof(error)));
-	const size_t corrupt_offsets[] = {0U, 8U, 10U, 12U, 26U, 50U};
+	const size_t corrupt_offsets[] = {0U, 10U, 12U, 50U};
 	for (size_t index = 0U; index < sizeof(corrupt_offsets) / sizeof(corrupt_offsets[0]); index++) {
 		size_t offset = corrupt_offsets[index];
 		encoded[offset] ^= 1U;
@@ -190,10 +195,155 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	cstrk_free(&track);
 }
 
+static void test_recorded_versions(void)
+{
+	static const legacy_u16 track_versions[] = {CSTRK_VERSION, TEST_FUTURE_TRACK_VERSION};
+	static const legacy_u16 replay_versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U, 15U, 101U,
+												 LEGACY_U16_MAX};
+	static const legacy_u8 inputs[] = {1U, 2U};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	char error[128];
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	for (size_t track_index = 0; track_index < sizeof(track_versions) / sizeof(track_versions[0]);
+		 track_index++) {
+		track.version = track_versions[track_index];
+		legacy_u8 *track_data = NULL;
+		size_t track_size = 0;
+		assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
+		for (size_t index = 0; index < sizeof(replay_versions) / sizeof(replay_versions[0]);
+			 index++) {
+			struct CSRPL_METADATA metadata = {0};
+			metadata.version = replay_versions[index];
+			metadata.frames_per_second = 20U;
+			metadata.frame_count = sizeof(inputs);
+			legacy_u8 *encoded = NULL;
+			size_t size = 0;
+			assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded,
+								&size, error, sizeof(error)));
+			assert(LEGACY_READ_U16_LE(encoded + CSRPL_VERSION_OFFSET) == metadata.version);
+			struct CSRPL_VIEW view;
+			memset(&view, 0, sizeof(view));
+			assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+			assert(view.metadata.version == metadata.version);
+			assert(LEGACY_READ_U16_LE(view.track_data + CSTRK_VERSION_OFFSET) == track.version);
+			assert(view.track_size == track_size &&
+				   memcmp(view.track_data, track_data, track_size) == 0);
+			assert(view.metadata.frame_count == sizeof(inputs));
+			assert(memcmp(view.inputs, inputs, sizeof(inputs)) == 0);
+			/* Saving a decoded replay preserves its own revision even when the
+			 * embedded track or the running game's revision is different. */
+			legacy_u8 *saved = NULL;
+			size_t saved_size = 0;
+			assert(csrpl_encode(&view.metadata, view.track_data, view.track_size, view.inputs,
+								view.metadata.frame_count, &saved, &saved_size, error,
+								sizeof(error)));
+			assert(saved_size == size && memcmp(saved, encoded, size) == 0);
+			free(saved);
+			struct CSRPL_VIEW unchanged = view;
+			/* Every revision older than the running game is unsupported. */
+			for (legacy_u16 version = 0; version < CSRPL_VERSION; version++) {
+				LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, version);
+				assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+				assert(strstr(error, "Unsupported Chocolate Stunts replay version") != NULL);
+				assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+				metadata.version = version;
+				legacy_u8 *sentinel = encoded;
+				size_t sentinel_size = size;
+				assert(!csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs),
+									 &sentinel, &sentinel_size, error, sizeof(error)));
+				assert(strstr(error, "Unsupported Chocolate Stunts replay version") != NULL);
+				assert(sentinel == encoded && sentinel_size == size);
+			}
+			LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, replay_versions[index]);
+			/* Accepting an unfamiliar revision never relaxes structural checks. */
+			encoded[12] = 1U;
+			assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+			assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+			encoded[12] = 0;
+			assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+			assert(view.metadata.version == replay_versions[index]);
+			free(encoded);
+		}
+		free(track_data);
+	}
+	cstrk_free(&track);
+}
+
+static void test_recorded_driving_rules(void)
+{
+	static const legacy_u16 versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U};
+	static const legacy_u8 inputs[] = {1U, 2U};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[128];
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	legacy_u8 *track_data = NULL;
+	size_t track_size = 0;
+	assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
+	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
+		for (legacy_u16 rules = 0; rules <= DRIVING_RULE_KNOWN_MASK; rules++) {
+			struct CSRPL_METADATA metadata = {0};
+			metadata.version = versions[index];
+			metadata.driving_rules = rules;
+			metadata.frames_per_second = 20U;
+			metadata.frame_count = sizeof(inputs);
+			legacy_u8 *encoded = NULL;
+			size_t size = 0;
+			assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded,
+								&size, error, sizeof(error)));
+			assert(LEGACY_READ_U16_LE(encoded + CSRPL_DRIVING_RULES_OFFSET) == rules);
+			struct CSRPL_VIEW view;
+			memset(&view, 0, sizeof(view));
+			assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+			assert(view.metadata.version == metadata.version);
+			assert(view.metadata.driving_rules == rules);
+			assert(view.track_size == track_size &&
+				   memcmp(view.track_data, track_data, track_size) == 0);
+			assert(view.metadata.frame_count == sizeof(inputs));
+			assert(memcmp(view.inputs, inputs, sizeof(inputs)) == 0);
+			/* All-off is a real recorded rule set, not an absent-field default. */
+			legacy_u8 *saved = NULL;
+			size_t saved_size = 0;
+			assert(csrpl_encode(&view.metadata, view.track_data, view.track_size, view.inputs,
+								view.metadata.frame_count, &saved, &saved_size, error,
+								sizeof(error)));
+			assert(saved_size == size && memcmp(saved, encoded, size) == 0);
+			free(saved);
+			if (rules == DRIVING_RULE_KNOWN_MASK) {
+				struct CSRPL_VIEW unchanged = view;
+				for (legacy_u16 flag = DRIVING_RULE_KNOWN_MASK + 1U; flag != 0U;
+					 flag = (legacy_u16)(flag << 1U)) {
+					metadata.driving_rules = rules | flag;
+					LEGACY_WRITE_U16_LE(encoded + CSRPL_DRIVING_RULES_OFFSET,
+										metadata.driving_rules);
+					assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+					assert(strstr(error, "driving rules") != NULL);
+					assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+					legacy_u8 *sentinel = encoded;
+					size_t sentinel_size = size;
+					assert(!csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs),
+										 &sentinel, &sentinel_size, error, sizeof(error)));
+					assert(strstr(error, "driving rules") != NULL);
+					assert(sentinel == encoded && sentinel_size == size);
+				}
+				LEGACY_WRITE_U16_LE(encoded + CSRPL_DRIVING_RULES_OFFSET, rules);
+				assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+				assert(view.metadata.driving_rules == rules);
+			}
+			free(encoded);
+		}
+	}
+	free(track_data);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	test_recording_and_seek_storage();
 	test_large_timeline();
+	test_recorded_versions();
+	test_recorded_driving_rules();
 	/* Replay storage preserves both current and future track metadata. */
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_WATER);
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION, CSTRK_TERRAIN_DIRT);

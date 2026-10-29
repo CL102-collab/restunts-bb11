@@ -4,6 +4,7 @@
 #include "legacy.h"
 
 void configure_dual_way_switching(legacy_s16 argc, legacy_s8 *argv[]);
+legacy_u16 dual_way_switching_is_enabled(void);
 legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count);
 void update_penalty_display(void);
 void update_player_route_penalty(void);

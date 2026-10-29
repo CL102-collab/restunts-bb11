@@ -20,6 +20,8 @@
 #include "../c/extended_track.h"
 #include "../c/extended_replay_runtime.h"
 #include "../c/extended_file.h"
+#include "../c/driving_rules.h"
+#include "../c/car_speed.h"
 
 #undef memcpy
 #undef printf
@@ -38,6 +40,8 @@
 #define ENGINE_TEST_POSITION_SCALE 64L
 #define ENGINE_TEST_INITIAL_BODY_HEIGHT 8L
 #define ENGINE_TEST_ERROR_CAPACITY 192U
+#define ENGINE_TEST_FUTURE_REPLAY_VERSION 101U
+#define ENGINE_TEST_FUTURE_TRACK_VERSION 15U
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -114,6 +118,86 @@ static void create_track(legacy_int raised_start)
 	assert(track_setup() == 0);
 	assert(start_finish_column == ENGINE_TEST_LEFT_COLUMN && start_finish_row == start_row);
 	cstrk_free(&track);
+}
+
+static void test_recording_version_roundtrips(size_t size)
+{
+	static const legacy_u16 versions[] = {CSRPL_VERSION, ENGINE_TEST_FUTURE_REPLAY_VERSION,
+										  LEGACY_U16_MAX};
+	static const legacy_u16 recorded_rules[] = {0U, DRIVING_RULE_KNOWN_MASK,
+												DRIVING_RULE_POWER_GEAR};
+	legacy_u16 original_rules = driving_rules_current();
+	legacy_s8 *arguments[] = {
+		(legacy_s8 *)"restunts",
+		(legacy_s8 *)(original_rules & DRIVING_RULE_POWER_GEAR ? "--pg:off" : "--pg:on")};
+	configure_powergear_bug(2, arguments);
+	legacy_u16 current_rules = driving_rules_current();
+	assert(current_rules == (original_rules ^ DRIVING_RULE_POWER_GEAR));
+	FILE *original = fopen(replay_path, "rb");
+	assert(original);
+	legacy_u8 *bytes = malloc(size);
+	assert(bytes && fread(bytes, 1U, size, original) == size);
+	assert(fclose(original) == 0);
+	/* Embedded track metadata is independent of the recording's revision. */
+	LEGACY_WRITE_U16_LE(bytes + CSRPL_HEADER_SIZE + CSTRK_VERSION_OFFSET,
+						ENGINE_TEST_FUTURE_TRACK_VERSION);
+	const struct GAMEINFO prior_config = gameconfig;
+	const struct GAMESTATE prior_state = state;
+	const struct EXTENDED_REPLAY_CLOCKS prior_clocks = extended_replay_clocks;
+	const legacy_u8 *prior_inputs = extended_replay_inputs();
+	const struct CSTRK_TRACK *prior_track = extended_track_model();
+	legacy_u16 prior_version = extended_replay_version();
+	legacy_u16 prior_rules = extended_replay_driving_rules();
+	legacy_u32 prior_frames = extended_replay_recorded_frames();
+	for (legacy_u16 old_version = 0; old_version < CSRPL_MIN_VERSION; old_version++) {
+		LEGACY_WRITE_U16_LE(bytes + CSRPL_VERSION_OFFSET, old_version);
+		FILE *candidate = fopen(invalid_path, "wb");
+		assert(candidate && fwrite(bytes, 1U, size, candidate) == size);
+		assert(fclose(candidate) == 0);
+		assert(extended_file_load_replay((const legacy_s8 *)invalid_path) != 0);
+		assert(extended_replay_version() == prior_version);
+		assert(extended_replay_driving_rules() == prior_rules);
+		assert(driving_rules_current() == current_rules);
+		assert(extended_replay_inputs() == prior_inputs);
+		assert(extended_replay_recorded_frames() == prior_frames);
+		assert(extended_track_model() == prior_track);
+		assert(memcmp(&gameconfig, &prior_config, sizeof(gameconfig)) == 0);
+		assert(memcmp(&state, &prior_state, sizeof(state)) == 0);
+		assert(memcmp(&extended_replay_clocks, &prior_clocks, sizeof(prior_clocks)) == 0);
+	}
+	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
+		LEGACY_WRITE_U16_LE(bytes + CSRPL_VERSION_OFFSET, versions[index]);
+		LEGACY_WRITE_U16_LE(bytes + CSRPL_DRIVING_RULES_OFFSET, recorded_rules[index]);
+		FILE *candidate = fopen(invalid_path, "wb");
+		assert(candidate && fwrite(bytes, 1U, size, candidate) == size);
+		assert(fclose(candidate) == 0);
+		assert(extended_file_load_replay((const legacy_s8 *)invalid_path) == 0);
+		assert(extended_replay_version() == versions[index]);
+		assert(extended_replay_driving_rules() == recorded_rules[index]);
+		assert(driving_rules_current() == current_rules);
+		assert(extended_track_model()->version == ENGINE_TEST_FUTURE_TRACK_VERSION);
+		assert(extended_file_write_replay((const legacy_s8 *)invalid_path) == 0);
+		FILE *resaved = fopen(invalid_path, "rb");
+		assert(resaved);
+		legacy_u8 *saved_bytes = malloc(size);
+		assert(saved_bytes && fread(saved_bytes, 1U, size, resaved) == size);
+		assert(fgetc(resaved) == EOF && fclose(resaved) == 0);
+		assert(memcmp(saved_bytes, bytes, size) == 0);
+		struct CSRPL_VIEW decoded;
+		legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+		assert(csrpl_decode(saved_bytes, size, &decoded, error, sizeof(error)));
+		assert(decoded.metadata.version == versions[index]);
+		assert(decoded.metadata.driving_rules == recorded_rules[index]);
+		free(saved_bytes);
+	}
+	free(bytes);
+	extended_replay_runtime_begin();
+	assert(extended_replay_driving_rules() == current_rules);
+	arguments[1] = (legacy_s8 *)(original_rules & DRIVING_RULE_POWER_GEAR ? "--pg:on" : "--pg:off");
+	configure_powergear_bug(2, arguments);
+	assert(driving_rules_current() == original_rules);
+	/* Recording settings stay frozen after the configured flags change. */
+	assert(extended_replay_driving_rules() == current_rules);
 }
 
 static void assert_same_simulation(const struct GAMESTATE *expected, const legacy_s8 *seed)
@@ -237,8 +321,16 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(fseek(saved, 0L, SEEK_SET) == 0);
 	uint8_t *bytes = malloc((size_t)saved_size);
 	assert(bytes && fread(bytes, 1U, (size_t)saved_size, saved) == (size_t)saved_size);
+	assert(LEGACY_READ_U16_LE(bytes + CSRPL_VERSION_OFFSET) == CSRPL_VERSION);
+	assert(LEGACY_READ_U16_LE(bytes + CSRPL_DRIVING_RULES_OFFSET) == driving_rules_current());
+	legacy_u16 recorded_driving_rules = extended_replay_driving_rules();
+	assert(recorded_driving_rules == driving_rules_current());
+	assert(extended_replay_version() == CSRPL_VERSION);
 	assert(fclose(saved) == 0);
 	/* An invalid load must preserve the currently usable track and recording. */
+	LEGACY_WRITE_U16_LE(bytes + CSRPL_VERSION_OFFSET, ENGINE_TEST_FUTURE_REPLAY_VERSION);
+	LEGACY_WRITE_U16_LE(bytes + CSRPL_DRIVING_RULES_OFFSET,
+						recorded_driving_rules ^ DRIVING_RULE_KNOWN_MASK);
 	bytes[20] ^= 1U;
 	FILE *invalid = fopen(invalid_path, "wb");
 	assert(invalid && fwrite(bytes, 1U, (size_t)saved_size, invalid) == (size_t)saved_size);
@@ -246,6 +338,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(file_load_replay_format((const legacy_s8 *)temporary_directory, "BAD", ".csrpl") != 0);
 	assert(extended_replay_frame() == ENGINE_TEST_FRAMES);
 	assert(extended_replay_recorded_frames() == ENGINE_TEST_FRAMES);
+	assert(extended_replay_version() == CSRPL_VERSION);
+	assert(extended_replay_driving_rules() == recorded_driving_rules);
 	assert_same_simulation(&expected, expected_seed);
 	/* This container is structurally valid. Admission fails only after the
 	 * candidate replay has allocated its input history, exercising rollback. */
@@ -266,6 +360,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(memcmp(&gameconfig, &prior_config, sizeof(gameconfig)) == 0);
 	assert(memcmp(&extended_replay_clocks, &prior_clocks, sizeof(prior_clocks)) == 0);
 	assert(extended_replay_inputs() == prior_inputs);
+	assert(extended_replay_driving_rules() == recorded_driving_rules);
+	assert(extended_replay_version() == CSRPL_VERSION);
 	assert(extended_track_model() == prior_track);
 	uint8_t *rollback_track = NULL;
 	size_t rollback_size = 0U;
@@ -278,6 +374,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	assert(file_load_replay_format((const legacy_s8 *)temporary_directory, "LONG", ".csrpl") == 0);
+	assert(extended_replay_version() == CSRPL_VERSION);
 	assert(extended_replay_recorded_frames() == ENGINE_TEST_FRAMES);
 	assert(extended_track_width() == 90 && extended_track_height() == 90);
 	uint8_t *track_after = NULL;
@@ -321,6 +418,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(state.playerstate.car_position.ly == raised_start_height);
 	assert(extended_replay_seek(ENGINE_TEST_HILL_REPLAY_FRAMES));
 	assert_same_simulation(&hill_expected, hill_seed);
+	test_recording_version_roundtrips((size_t)saved_size);
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

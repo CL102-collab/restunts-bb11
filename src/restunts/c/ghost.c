@@ -853,6 +853,8 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 		ghost_cleanup_registered = 1;
 	}
 	memcpy(gameconfig.game_trackname, config.game_trackname, REPLAY_TRACK_NAME_SIZE);
+	file_warn_replay_version(ghost_extended.view.metadata.version);
+	file_warn_replay_driving_rules(ghost_extended.view.metadata.driving_rules);
 	return 0;
 }
 #endif

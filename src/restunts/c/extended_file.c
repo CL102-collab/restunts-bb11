@@ -158,6 +158,8 @@ int extended_file_write_replay(const legacy_s8 *path)
 	}
 	struct CSRPL_METADATA metadata;
 	memset(&metadata, 0, sizeof(metadata));
+	metadata.version = extended_replay_version();
+	metadata.driving_rules = extended_replay_driving_rules();
 	memcpy(metadata.player_car_id, gameconfig.game_playercarid, REPLAY_CAR_ID_SIZE);
 	metadata.player_material = gameconfig.game_playermaterial;
 	metadata.player_transmission = gameconfig.game_playertransmission;

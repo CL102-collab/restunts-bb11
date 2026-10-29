@@ -148,6 +148,11 @@ the complete recording beyond ten minutes. Seek, rewind and branching use the
 full frame count. The practical recording limit is available memory and the
 platform's file I/O capacity; the current file adapter supports files below
 2 GiB. Original `.trk` recording behavior and `.rpl` files remain unchanged.
+Each replay records its own revision, which also advances for physics changes,
+and the seven driving rules enabled or disabled when recording began. Older
+replay revisions are rejected; newer revisions show a warning before playback.
+A driving-rule mismatch shows a separate warning listing all recorded rules.
+The current game instance keeps its startup settings.
 See [the replay format](csrpl-format.md) for details.
 
 Completed eligible races on `.cstrk` save their seven best times in a matching

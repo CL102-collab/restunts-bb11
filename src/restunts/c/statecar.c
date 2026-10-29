@@ -55,6 +55,11 @@ enum CAR_GEAR_SHIFT_DIRECTION {
 
 static legacy_s16 powergear_bug_enabled = 1;
 
+legacy_u16 powergear_bug_is_enabled(void)
+{
+	return powergear_bug_enabled != 0;
+}
+
 void configure_powergear_bug(legacy_s16 argc, legacy_s8 *argv[])
 {
 	static const legacy_s8 off_option[] = "--pg:off";

@@ -3,6 +3,7 @@
 #include "externs.h"
 #include "crash_state.h"
 #include "game_input.h"
+#include "driving_rules.h"
 
 #include <string.h>
 
@@ -14,6 +15,8 @@ struct EXTENDED_RUNTIME_CHECKPOINT {
 };
 
 static int extended_active;
+static legacy_u16 extended_version;
+static legacy_u16 extended_driving_rules;
 static struct EXTENDED_REPLAY_BUFFER extended_recording;
 static struct EXTENDED_REPLAY_HISTORY extended_history = {
 	NULL, sizeof(struct EXTENDED_RUNTIME_CHECKPOINT), 0U, 0U};
@@ -35,13 +38,27 @@ int extended_replay_is_active(void)
 	return extended_active;
 }
 
+legacy_u16 extended_replay_version(void)
+{
+	return extended_version;
+}
+
+legacy_u16 extended_replay_driving_rules(void)
+{
+	return extended_driving_rules;
+}
+
 void extended_replay_runtime_suspend(struct EXTENDED_REPLAY_SUSPENDED *saved)
 {
 	saved->active = extended_active;
+	saved->version = extended_version;
+	saved->driving_rules = extended_driving_rules;
 	saved->clocks = extended_replay_clocks;
 	saved->recording = extended_recording;
 	saved->history = extended_history;
 	extended_active = 0;
+	extended_version = 0;
+	extended_driving_rules = 0;
 	extended_replay_init(&extended_recording);
 	extended_replay_history_init(&extended_history, sizeof(struct EXTENDED_RUNTIME_CHECKPOINT));
 	memset(&extended_replay_clocks, 0, sizeof(extended_replay_clocks));
@@ -51,6 +68,8 @@ void extended_replay_runtime_resume(struct EXTENDED_REPLAY_SUSPENDED *saved)
 {
 	extended_replay_runtime_clear();
 	extended_active = saved->active;
+	extended_version = saved->version;
+	extended_driving_rules = saved->driving_rules;
 	extended_replay_clocks = saved->clocks;
 	extended_recording = saved->recording;
 	extended_history = saved->history;
@@ -63,6 +82,8 @@ void extended_replay_runtime_resume(struct EXTENDED_REPLAY_SUSPENDED *saved)
 void extended_replay_runtime_begin(void)
 {
 	extended_active = 1;
+	extended_version = CSRPL_VERSION;
+	extended_driving_rules = driving_rules_current();
 	extended_replay_free(&extended_recording);
 	extended_replay_history_free(&extended_history);
 	memset(&extended_replay_clocks, 0, sizeof(extended_replay_clocks));
@@ -72,6 +93,8 @@ void extended_replay_runtime_begin(void)
 void extended_replay_runtime_clear(void)
 {
 	extended_active = 0;
+	extended_version = 0;
+	extended_driving_rules = 0;
 	extended_replay_free(&extended_recording);
 	extended_replay_history_free(&extended_history);
 	memset(&extended_replay_clocks, 0, sizeof(extended_replay_clocks));
@@ -79,11 +102,14 @@ void extended_replay_runtime_clear(void)
 
 int extended_replay_runtime_load(const struct CSRPL_VIEW *view)
 {
-	if (view == NULL ||
+	if (view == NULL || view->metadata.version < CSRPL_MIN_VERSION ||
+		(view->metadata.driving_rules & (legacy_u16)~DRIVING_RULE_KNOWN_MASK) != 0U ||
 		!extended_replay_assign(&extended_recording, view->inputs, view->metadata.frame_count)) {
 		return 0;
 	}
 	extended_active = 1;
+	extended_version = view->metadata.version;
+	extended_driving_rules = view->metadata.driving_rules;
 	extended_replay_history_free(&extended_history);
 	memset(&extended_replay_clocks, 0, sizeof(extended_replay_clocks));
 	extended_replay_sync_legacy();
