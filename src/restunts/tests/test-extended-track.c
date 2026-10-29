@@ -594,13 +594,12 @@ static void test_resource_admission(void)
 	loop.occupied_mask = 3;
 	loop.surface = CSTRK_ROAD_DIRT;
 	assert(cstrk_add_object(&track, &loop, error, sizeof(error)));
-	assert(!extended_track_activate(&track, error, sizeof(error)));
-	track.objects[0].surface = CSTRK_ROAD_PAVED;
 	activate(&track);
 	extended_track_unload();
 	track.objects[0] = object_at(68, 40, 40); /* Full pipe. */
 	track.objects[0].surface = CSTRK_ROAD_ICE;
-	assert(!extended_track_activate(&track, error, sizeof(error)));
+	activate(&track);
+	extended_track_unload();
 	track.objects[0] = object_at(159, 40, 40); /* Stored scenery surface is ignored. */
 	track.objects[0].surface = CSTRK_ROAD_DIRT;
 	activate(&track);
@@ -652,6 +651,121 @@ static void test_corkscrew_surfaces(void)
 	}
 }
 
+#define CURVED_SURFACE_COLUMN 40U
+#define CURVED_SURFACE_ROW 40U
+#define CURVED_SURFACE_LEVEL 2U
+#define CURVED_SURFACE_ROTATIONS 4U
+#define CURVED_SURFACE_CONTACTS 3U
+#define CURVED_SURFACE_LONG_SIDE 2U
+#define CURVED_SURFACE_LOOP_ID 64U
+#define CURVED_SURFACE_ENTRANCE_ID 70U
+#define CURVED_SURFACE_PIPE_ID 68U
+#define CURVED_SURFACE_HALF_PIPE_ID 83U
+#define CURVED_SURFACE_OFF_ROAD_X 450
+
+static struct VECTOR sample_curved_surface(const struct CSTRK_TRACK *track,
+										   const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	const struct CSTRK_OBJECT *active = extended_track_object_at(object->x, object->y);
+	legacy_u16 id = (legacy_u16)extended_track_object_id(active);
+	legacy_s16 x = local.x, z = local.z;
+	switch (trkObjectList[id].ss_rotY & ANGLE_MASK) {
+		case ANGLE_QUARTER_TURN:
+			local.x = z;
+			local.z = LEGACY_S16_WRAP_NEGATE(x);
+			break;
+		case ANGLE_HALF_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(x);
+			local.z = LEGACY_S16_WRAP_NEGATE(z);
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(z);
+			local.z = x;
+			break;
+	}
+	return sample_world(object->x * CSTRK_TILE_WORLD_SIZE +
+							object->width * (CSTRK_TILE_WORLD_SIZE / 2U) + local.x,
+						object->base_height * CSTRK_LEVEL_WORLD_HEIGHT + local.y,
+						(track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
+							object->height * (CSTRK_TILE_WORLD_SIZE / 2U) + local.z);
+}
+
+static void test_loop_and_pipe_surfaces(void)
+{
+	static const legacy_u16 ids[] = {CURVED_SURFACE_LOOP_ID, CURVED_SURFACE_ENTRANCE_ID,
+									 CURVED_SURFACE_PIPE_ID, CURVED_SURFACE_HALF_PIPE_ID};
+	/* These native local points cover flat approach pavement, an inclined
+	 * driving face, and an upper/outer face rather than only the tile centre. */
+	static const struct VECTOR contacts[][CURVED_SURFACE_CONTACTS] = {
+		{{0, 0, 800}, {-200, 200, 300}, {-200, 900, 64}},
+		{{0, 0, 0}, {57, 35, 150}, {110, 100, 150}},
+		{{0, 0, 0}, {57, 35, 150}, {0, 250, 150}},
+		{{0, 0, 0}, {57, 35, 150}, {110, 100, 150}}};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < CURVED_SURFACE_ROTATIONS; rotation++) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+								sizeof(error)));
+			memset(track.corner_heights, CURVED_SURFACE_LEVEL,
+				   (size_t)(track.width + 1U) * (track.height + 1U));
+			struct CSTRK_OBJECT object =
+				object_at(ids[kind], CURVED_SURFACE_COLUMN, CURVED_SURFACE_ROW);
+			object.base_height = CURVED_SURFACE_LEVEL;
+			object.rotation = rotation;
+			if (kind == 0) {
+				object.width = (rotation & 1U) ? CURVED_SURFACE_LONG_SIDE : 1U;
+				object.height = (rotation & 1U) ? 1U : CURVED_SURFACE_LONG_SIDE;
+				object.occupied_mask = (1U << (object.width * object.height)) - 1U;
+			}
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			struct PLANE paved_planes[CURVED_SURFACE_CONTACTS];
+			legacy_s16 paved_indices[CURVED_SURFACE_CONTACTS];
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				track.objects[0].surface = surface;
+				legacy_u8 *bytes;
+				size_t byte_count;
+				assert(cstrk_encode(&track, &bytes, &byte_count, error, sizeof(error)));
+				struct CSTRK_TRACK loaded;
+				cstrk_init(&loaded);
+				assert(cstrk_decode(bytes, byte_count, &loaded, error, sizeof(error)));
+				free(bytes);
+				assert(loaded.object_count == 1);
+				assert(loaded.objects[0].legacy_id == ids[kind]);
+				assert(loaded.objects[0].rotation == rotation);
+				assert(loaded.objects[0].surface == surface);
+				activate(&loaded);
+				for (legacy_u8 contact = 0; contact < CURVED_SURFACE_CONTACTS; contact++) {
+					(void)sample_curved_surface(&loaded, &object, contacts[kind][contact]);
+					assert(current_surf_type == (legacy_s16)(CAR_SURFACE_PAVED + surface));
+					assert(planindex >= EXTENDED_GEOMETRY_PLANE_INDEX);
+					if (contact != 0 || kind != 0) {
+						assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+					}
+					if (contact == 1) {
+						assert(current_planptr->plane_normal.x != 0 ||
+							   current_planptr->plane_normal.z != 0);
+					}
+					if (surface == CSTRK_ROAD_PAVED) {
+						paved_planes[contact] = *current_planptr;
+						paved_indices[contact] = planindex;
+					} else {
+						assert(planindex == paved_indices[contact]);
+						assert(memcmp(current_planptr, &paved_planes[contact],
+									  sizeof(*current_planptr)) == 0);
+					}
+				}
+				(void)sample_curved_surface(&loaded, &object,
+											(struct VECTOR){CURVED_SURFACE_OFF_ROAD_X, 0, 0});
+				assert(current_surf_type == CAR_SURFACE_GRASS);
+				extended_track_unload();
+				cstrk_free(&loaded);
+			}
+			cstrk_free(&track);
+		}
+	}
+}
+
 static void test_scenery_ignores_road_surface(void)
 {
 	static const unsigned ids[] = {151, 152, 153, 154, 155, 159, 163, 167, 171, 175};
@@ -692,31 +806,43 @@ static void test_scenery_ignores_road_surface(void)
 
 static void test_extended_material_variants(void)
 {
-	legacy_u8 vertices[18] = {0}, masks[24] = {0};
-	static const legacy_u8 original[] = {19, 21, 22, 23, 24, 4};
-	legacy_u8 primitives[37] = {0};
-	for (unsigned face = 0; face < 6; face++) {
+	enum {
+		MATERIAL_VERTEX_COUNT = 3,
+		MATERIAL_FACE_COUNT = 9,
+		MATERIAL_PRIMITIVE_BYTES = 6,
+		MATERIAL_MAX_PAINTS = 4
+	};
+	legacy_u8 vertices[MATERIAL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE] = {0};
+	legacy_u8 masks[MATERIAL_FACE_COUNT * SHAPE3D_VISIBILITY_MASK_SIZE] = {0};
+	static const legacy_u8 original[] = {19, 21, 22, 23, 24, 4, 31, 32, 33};
+	legacy_u8 primitives[MATERIAL_FACE_COUNT * MATERIAL_PRIMITIVE_BYTES + 1U] = {0};
+	for (legacy_u8 face = 0; face < MATERIAL_FACE_COUNT; face++) {
 		primitives[face * 6] = 3;
 		primitives[face * 6 + 2] = original[face];
 		primitives[face * 6 + 4] = 1;
 		primitives[face * 6 + 5] = 2;
 	}
-	struct SHAPE3D source = {3, vertices, 6, 1, primitives, masks, masks};
+	struct SHAPE3D source = {
+		MATERIAL_VERTEX_COUNT, vertices, MATERIAL_FACE_COUNT, 1, primitives, masks, masks};
 	static const legacy_s16 models[] = {PHYSICAL_MODEL_CORKSCREW_UP_DOWN_A,
 										PHYSICAL_MODEL_CORKSCREW_UP_DOWN_B,
-										PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT};
-	for (unsigned kind = 0; kind < 3; kind++) {
-		for (unsigned surface = 0; surface < 3; surface++) {
+										PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT,
+										PHYSICAL_MODEL_LOOP,
+										PHYSICAL_MODEL_PIPE_ENTRANCE,
+										PHYSICAL_MODEL_PIPE,
+										PHYSICAL_MODEL_HALF_PIPE};
+	for (legacy_u8 kind = 0; kind < sizeof(models) / sizeof(models[0]); kind++) {
+		for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 			struct SHAPE3D transformed;
 			assert(
 				extended_geometry_transform_shape(&source, &transformed, 0, surface, models[kind]));
 			assert(memcmp(transformed.shape3d_vertex_bytes, vertices, sizeof(vertices)) == 0);
-			for (unsigned face = 0; face < 6; face++) {
-				unsigned expected = original[face];
+			for (legacy_u8 face = 0; face < MATERIAL_FACE_COUNT; face++) {
+				legacy_u8 expected = original[face];
 				if (surface && face < 2) {
 					expected = face ? (surface == 1 ? 27 : 30) : (surface == 1 ? 25 : 28);
 				}
-				if (surface && kind == 2 && face >= 2 && face <= 4) {
+				if (surface && kind >= 2 && face >= 2 && face <= 4) {
 					expected = (surface == 1 ? 25 : 28) + face - 2;
 				}
 				assert(transformed.shape3d_primitives[face * 6 + 2] == expected);
@@ -725,12 +851,15 @@ static void test_extended_material_variants(void)
 		}
 	}
 	/* Scenery paint columns and road-looking source colors both stay unchanged. */
-	for (unsigned paints = 1; paints <= 4; paints++) {
-		legacy_u8 scenery_primitives[55] = {0};
-		for (unsigned face = 0; face < 6; face++) {
-			unsigned offset = face * (5 + paints);
+	for (legacy_u8 paints = 1; paints <= MATERIAL_MAX_PAINTS; paints++) {
+		legacy_u8
+			scenery_primitives[MATERIAL_FACE_COUNT * (SHAPE3D_PRIMITIVE_HEADER_SIZE +
+													  MATERIAL_MAX_PAINTS + MATERIAL_VERTEX_COUNT) +
+							   1U] = {0};
+		for (legacy_u8 face = 0; face < MATERIAL_FACE_COUNT; face++) {
+			legacy_u16 offset = face * (5 + paints);
 			scenery_primitives[offset] = 3;
-			for (unsigned paint = 0; paint < paints; paint++) {
+			for (legacy_u8 paint = 0; paint < paints; paint++) {
 				scenery_primitives[offset + 2 + paint] = original[face] + paint;
 			}
 			scenery_primitives[offset + 3 + paints] = 1;
@@ -738,11 +867,11 @@ static void test_extended_material_variants(void)
 		}
 		source.shape3d_numpaints = (legacy_u16)paints;
 		source.shape3d_primitives = scenery_primitives;
-		for (unsigned surface = 0; surface < 3; surface++) {
+		for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
 			struct SHAPE3D transformed;
 			assert(extended_geometry_transform_shape(&source, &transformed, 0, surface,
 													 PHYSICAL_MODEL_BARN));
-			for (unsigned face = 0; face < 6; face++) {
+			for (legacy_u8 face = 0; face < MATERIAL_FACE_COUNT; face++) {
 				assert(transformed.shape3d_primitives[face * 6 + 2] == original[face]);
 			}
 			extended_geometry_free_shape(&transformed);
@@ -1045,6 +1174,7 @@ int main(void)
 	test_shore_materials();
 	test_resource_admission();
 	test_corkscrew_surfaces();
+	test_loop_and_pipe_surfaces();
 	test_scenery_ignores_road_surface();
 	test_extended_material_variants();
 	test_shared_road_anchor();

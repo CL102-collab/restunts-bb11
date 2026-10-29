@@ -172,15 +172,14 @@ their catalog. A serialized mask is not permission to remove collision from
 an inherently occupied part of a catalog object.
 
 Serialized internal hill/overlay IDs 182–214 are rejected by game admission;
-the runtime resolves approved hill pieces to these models internally. Loops,
-pipes and half pipes accept paved surfaces only. Dirt/ice combinations cover slaloms,
-tunnels, branches, highways, chicanes, elevated roads, banked roads and all
-corkscrews. Scenery accepts all surface values but ignores this field; new
-scenery placements use paved `0`. Turns, branches, highways, stunts and scenery
-require flat ground throughout their footprint. These catalog rules are checked
-by the editor and game in addition to the storage codec's structural validation.
-Free-form saddles, two-level diagonal cells and unsupported tilted pieces
-are invalid.
+the runtime resolves approved hill pieces to these models internally. All road
+and stunt pieces accept paved, dirt and ice surfaces, including loops, pipe
+entrances, pipes and half pipes. Scenery accepts all surface values but ignores
+this field; new scenery placements use paved `0`. Turns, branches, highways,
+stunts and scenery require flat ground throughout their footprint. These catalog
+rules are checked by the editor and game in addition to the storage codec's
+structural validation. Free-form saddles, two-level diagonal cells and unsupported
+tilted pieces are invalid.
 
 ## Notes
 
