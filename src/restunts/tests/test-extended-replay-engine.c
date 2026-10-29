@@ -26,6 +26,18 @@
 #undef strlen
 
 #define ENGINE_TEST_FRAMES 70001U
+#define ENGINE_TEST_HILL_REPLAY_FRAMES 120U
+#define ENGINE_TEST_LEFT_COLUMN 40U
+#define ENGINE_TEST_RIGHT_COLUMN 46U
+#define ENGINE_TEST_TOP_ROW 40U
+#define ENGINE_TEST_BOTTOM_ROW 48U
+#define ENGINE_TEST_FLAT_START_ROW 43U
+#define ENGINE_TEST_RAISED_START_ROW 47U
+#define ENGINE_TEST_FIRST_SLOPE_ROW 43U
+#define ENGINE_TEST_LAST_SLOPE_ROW 47U
+#define ENGINE_TEST_POSITION_SCALE 64L
+#define ENGINE_TEST_INITIAL_BODY_HEIGHT 8L
+#define ENGINE_TEST_ERROR_CAPACITY 192U
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -55,39 +67,44 @@ static void add_piece(struct CSTRK_TRACK *track, unsigned id, unsigned x, unsign
 	assert(cstrk_add_object(track, &object, error, sizeof(error)));
 }
 
-static unsigned grade_height(unsigned row)
+static legacy_u8 grade_height(legacy_u16 row)
 {
-	return row <= 43U ? 0U : row >= 47U ? 4U : row - 43U;
+	return row <= ENGINE_TEST_FIRST_SLOPE_ROW  ? 0U
+		   : row >= ENGINE_TEST_LAST_SLOPE_ROW ? CSTRK_MAX_HEIGHT
+											   : row - ENGINE_TEST_FIRST_SLOPE_ROW;
 }
 
-static void create_track(int sloped_start)
+static void create_track(legacy_int raised_start)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
-	char error[192];
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
 	assert(cstrk_create(&track, 90U, 90U, error, sizeof(error)));
 	assert(cstrk_set_notes(&track, "Long replay integration fixture", 31U, error, sizeof(error)));
-	add_piece(&track, 6U, 40U, 40U);
-	add_piece(&track, 7U, 46U, 40U);
-	add_piece(&track, 8U, 40U, 46U);
-	add_piece(&track, 9U, 46U, 46U);
-	for (unsigned coordinate = 41U; coordinate < 46U; coordinate++) {
-		add_piece(&track, 5U, coordinate, 40U);
-		add_piece(&track, 5U, coordinate, 46U);
-		add_piece(&track, coordinate == 43U ? 1U : 4U, 40U, coordinate);
-		add_piece(&track, 4U, 46U, coordinate);
+	legacy_u16 start_row = raised_start ? ENGINE_TEST_RAISED_START_ROW : ENGINE_TEST_FLAT_START_ROW;
+	add_piece(&track, 6U, ENGINE_TEST_LEFT_COLUMN, ENGINE_TEST_TOP_ROW);
+	add_piece(&track, 7U, ENGINE_TEST_RIGHT_COLUMN, ENGINE_TEST_TOP_ROW);
+	add_piece(&track, 8U, ENGINE_TEST_LEFT_COLUMN, ENGINE_TEST_BOTTOM_ROW);
+	add_piece(&track, 9U, ENGINE_TEST_RIGHT_COLUMN, ENGINE_TEST_BOTTOM_ROW);
+	for (legacy_u16 column = ENGINE_TEST_LEFT_COLUMN + 1U; column < ENGINE_TEST_RIGHT_COLUMN;
+		 column++) {
+		add_piece(&track, 5U, column, ENGINE_TEST_TOP_ROW);
+		add_piece(&track, 5U, column, ENGINE_TEST_BOTTOM_ROW);
 	}
-	if (sloped_start) {
-		for (unsigned row = 0U; row <= track.height; row++) {
-			for (unsigned column = 0U; column <= track.width; column++) {
-				track.corner_heights[row * (track.width + 1U) + column] =
-					(uint8_t)grade_height(row);
+	for (legacy_u16 row = ENGINE_TEST_TOP_ROW + 1U; row < ENGINE_TEST_BOTTOM_ROW; row++) {
+		add_piece(&track, row == start_row ? 1U : 4U, ENGINE_TEST_LEFT_COLUMN, row);
+		add_piece(&track, 4U, ENGINE_TEST_RIGHT_COLUMN, row);
+	}
+	if (raised_start) {
+		for (legacy_u16 row = 0U; row <= track.height; row++) {
+			for (legacy_u16 column = 0U; column <= track.width; column++) {
+				track.corner_heights[row * (track.width + 1U) + column] = grade_height(row);
 			}
 		}
-		for (uint32_t index = 0U; index < track.object_count; index++) {
+		for (legacy_u32 index = 0U; index < track.object_count; index++) {
 			struct CSTRK_OBJECT *object = &track.objects[index];
-			object->base_height = (uint8_t)grade_height(object->y);
-			object->slope_y = (int8_t)(grade_height(object->y + 1U) - object->base_height);
+			object->base_height = grade_height(object->y);
+			object->slope_y = (legacy_s8)(grade_height(object->y + 1U) - object->base_height);
 		}
 	}
 	if (!extended_track_activate(&track, error, sizeof(error))) {
@@ -95,7 +112,7 @@ static void create_track(int sloped_start)
 		assert(0);
 	}
 	assert(track_setup() == 0);
-	assert(start_finish_column == 40U && start_finish_row == 43U);
+	assert(start_finish_column == ENGINE_TEST_LEFT_COLUMN && start_finish_row == start_row);
 	cstrk_free(&track);
 }
 
@@ -286,12 +303,24 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	create_track(1);
 	extended_replay_runtime_begin();
 	initialize_simulation();
-	assert(state.playerstate.car_rotate.y != 0 || state.playerstate.car_rotate.z != 0);
-	for (unsigned frame = 0U; frame < 20U; frame++) {
-		assert(extended_replay_record_input(INPUT_BRAKE_FLAG));
+	legacy_s32 raised_start_height =
+		(CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT + ENGINE_TEST_INITIAL_BODY_HEIGHT) *
+		ENGINE_TEST_POSITION_SCALE;
+	assert(state.playerstate.car_rotate.y == 0 && state.playerstate.car_rotate.z == 0);
+	assert(state.playerstate.car_position.ly == raised_start_height);
+	for (legacy_u16 frame = 0U; frame < ENGINE_TEST_HILL_REPLAY_FRAMES; frame++) {
+		assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
 		update_gamestate();
 		assert(state.playerstate.car_crashBmpFlag == CRASH_EVENT_NONE);
 	}
+	assert(state.playerstate.car_position.ly < raised_start_height);
+	struct GAMESTATE hill_expected = state;
+	legacy_s8 hill_seed[GAMESTATE_RANDOM_SEED_SIZE];
+	get_kevinrandom_seed(hill_seed);
+	assert(extended_replay_seek(0U));
+	assert(state.playerstate.car_position.ly == raised_start_height);
+	assert(extended_replay_seek(ENGINE_TEST_HILL_REPLAY_FRAMES));
+	assert_same_simulation(&hill_expected, hill_seed);
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

@@ -56,6 +56,74 @@ static int cstrk_dimensions(uint16_t width, uint16_t height)
 		   height <= CSTRK_MAX_DIMENSION;
 }
 
+#define CSTRK_TERRAIN_CORNER_COUNT 4U
+#define CSTRK_TERRAIN_PROFILE_MASK_COUNT (1U << CSTRK_TERRAIN_CORNER_COUNT)
+#define CSTRK_TERRAIN_PROFILE_INVALID LEGACY_U8_MAX
+
+legacy_int cstrk_terrain_profile(const struct CSTRK_TRACK *track, legacy_u16 x, legacy_u16 y,
+								 struct CSTRK_TERRAIN_PROFILE *profile)
+{
+	static const legacy_u8 terrain_ids[CSTRK_TERRAIN_PROFILE_MASK_COUNT] = {
+		CSTRK_TERRAIN_PROFILE_FLAT,
+		CSTRK_TERRAIN_PROFILE_OUTER_NORTHWEST,
+		CSTRK_TERRAIN_PROFILE_OUTER_NORTHEAST,
+		CSTRK_TERRAIN_PROFILE_NORTH,
+		CSTRK_TERRAIN_PROFILE_OUTER_SOUTHEAST,
+		CSTRK_TERRAIN_PROFILE_INVALID,
+		CSTRK_TERRAIN_PROFILE_EAST,
+		CSTRK_TERRAIN_PROFILE_INNER_SOUTHWEST,
+		CSTRK_TERRAIN_PROFILE_OUTER_SOUTHWEST,
+		CSTRK_TERRAIN_PROFILE_WEST,
+		CSTRK_TERRAIN_PROFILE_INVALID,
+		CSTRK_TERRAIN_PROFILE_INNER_SOUTHEAST,
+		CSTRK_TERRAIN_PROFILE_SOUTH,
+		CSTRK_TERRAIN_PROFILE_INNER_NORTHEAST,
+		CSTRK_TERRAIN_PROFILE_INNER_NORTHWEST,
+		CSTRK_TERRAIN_PROFILE_INVALID};
+	if (track == NULL || track->corner_heights == NULL ||
+		!cstrk_dimensions(track->width, track->height) || x >= track->width || y >= track->height) {
+		return 0;
+	}
+	size_t stride = track->width + 1U, vertex = (size_t)y * stride + x;
+	legacy_u8 heights[CSTRK_TERRAIN_CORNER_COUNT] = {
+		track->corner_heights[vertex], track->corner_heights[vertex + 1U],
+		track->corner_heights[vertex + stride + 1U], track->corner_heights[vertex + stride]};
+	legacy_u8 minimum = CSTRK_MAX_HEIGHT, maximum = 0;
+	for (legacy_u8 corner = 0; corner < CSTRK_TERRAIN_CORNER_COUNT; corner++) {
+		if (heights[corner] > CSTRK_MAX_HEIGHT) {
+			return 0;
+		}
+		if (heights[corner] < minimum) {
+			minimum = heights[corner];
+		}
+		if (heights[corner] > maximum) {
+			maximum = heights[corner];
+		}
+	}
+	if (maximum - minimum > 1) {
+		return 0;
+	}
+	legacy_u8 mask = 0;
+	for (legacy_u8 corner = 0; corner < CSTRK_TERRAIN_CORNER_COUNT; corner++) {
+		if (heights[corner] > minimum) {
+			mask |= (legacy_u8)(1U << corner);
+		}
+	}
+	legacy_u8 id = terrain_ids[mask];
+	if (id == CSTRK_TERRAIN_PROFILE_INVALID) {
+		return 0;
+	}
+	if (mask == 0 && minimum != 0) {
+		id = CSTRK_TERRAIN_PROFILE_RAISED;
+	}
+	if (profile != NULL) {
+		profile->terrain_id = id;
+		profile->base_height = minimum;
+		profile->high_mask = mask;
+	}
+	return 1;
+}
+
 static int cstrk_notes_valid(const char *notes, size_t length, char *error, size_t error_size)
 {
 	if (length > CSTRK_MAX_NOTES || (length != 0U && notes == NULL)) {
@@ -136,6 +204,13 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 		return cstrk_fail(error, error_size, "Object %u has an invalid support plane",
 						  (unsigned)index);
 	}
+	if ((object->slope_x != 0 || object->slope_y != 0) &&
+		(object->width != 1U || object->height != 1U ||
+		 (object->slope_x != 0 && object->slope_y != 0))) {
+		return cstrk_fail(error, error_size,
+						  "Object %u requires a flat plateau or one original hill slope",
+						  (legacy_uint)index);
+	}
 	for (unsigned row = 0; row <= object->height; row++) {
 		for (unsigned column = 0; column <= object->width; column++) {
 			int expected = (int)object->base_height + object->slope_x * (int)column +
@@ -199,6 +274,11 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		}
 	}
 	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
+		if (!cstrk_terrain_profile(track, (legacy_u16)(index % track->width),
+								   (legacy_u16)(index / track->width), NULL)) {
+			return cstrk_fail(error, error_size,
+							  "Terrain cell %zu does not match an original hill profile", index);
+		}
 		const struct CSTRK_CELL *cell = &track->cells[index];
 		if (cell->surface > CSTRK_TERRAIN_WATER ||
 			cell->half_water_corner > CSTRK_WATER_SOUTHWEST ||

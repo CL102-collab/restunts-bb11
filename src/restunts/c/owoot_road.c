@@ -555,6 +555,9 @@ static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertice
 	if (model < 0 || model > PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 		return 0;
 	}
+	if (model == PHYSICAL_MODEL_ROAD && (placed->slope_x || placed->slope_y)) {
+		model = OWOOT_HILL_ROAD_MODEL;
+	}
 	struct EXTENDED_GEOMETRY_BASIS basis;
 	struct VECTOR origin, local[OWOOT_WHEEL_VERTEX_MAX];
 	extended_geometry_object_origin(extended_track_model(), placed, &origin);

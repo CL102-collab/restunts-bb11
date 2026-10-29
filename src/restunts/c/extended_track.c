@@ -7,6 +7,7 @@
 #include "externs.h"
 #include "track_objects.h"
 #include "trackdata_layout.h"
+#include "extended_geometry.h"
 
 struct EXTENDED_TRACK_BINDINGS {
 	legacy_s16 *primary;
@@ -225,44 +226,27 @@ static int resolve_object_id(const struct CSTRK_OBJECT *object)
 	return -1;
 }
 
-static int object_has_slope_run(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
-								int model)
+static legacy_s16 object_hill_id(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
+								 legacy_s16 id)
 {
-	if ((!object->slope_x && !object->slope_y) ||
-		!((model >= 8 && model <= 11) || (model >= 16 && model <= 35))) {
-		return 1;
+	if (!object->slope_x && !object->slope_y) {
+		return id;
 	}
-	int width = object->width, height = object->height;
-	if (object->slope_x && width < 2) {
-		width = 2;
+	struct CSTRK_TERRAIN_PROFILE profile;
+	if (!cstrk_terrain_profile(track, object->x, object->y, &profile) ||
+		profile.terrain_id < CSTRK_TERRAIN_PROFILE_NORTH ||
+		profile.terrain_id > CSTRK_TERRAIN_PROFILE_EAST) {
+		return -1;
 	}
-	if (object->slope_y && height < 2) {
-		height = 2;
+	const struct TRACKOBJECT *definition = &trkObjectList[id];
+	if (definition->ss_physicalModel == PHYSICAL_MODEL_ROAD) {
+		/* Surface is independent of the stored legacy road spelling. */
+		static const legacy_u8 roads[][2] = {{4, 5}, {14, 15}, {24, 25}};
+		legacy_u16 axis = ((legacy_u16)definition->ss_rotY / ANGLE_QUARTER_TURN) & 1U;
+		id = roads[object->surface][axis];
 	}
-	for (int top = object->y - (height - object->height); top <= object->y; top++) {
-		for (int left = object->x - (width - object->width); left <= object->x; left++) {
-			if (left < 0 || top < 0 || left + width > track->width ||
-				top + height > track->height) {
-				continue;
-			}
-			int valid = 1;
-			for (int y = 0; y <= height && valid; y++) {
-				for (int x = 0; x <= width; x++) {
-					int expected = object->base_height + object->slope_x * (left + x - object->x) +
-								   object->slope_y * (top + y - object->y);
-					if (track->corner_heights[(top + y) * (track->width + 1) + left + x] !=
-						expected) {
-						valid = 0;
-						break;
-					}
-				}
-			}
-			if (valid) {
-				return 1;
-			}
-		}
-	}
-	return 0;
+	legacy_u8 hill_id = subst_hillroad_track(profile.terrain_id, (legacy_u8)id);
+	return hill_id ? hill_id : -1;
 }
 
 static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRACK_STORAGE *target,
@@ -277,7 +261,7 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 	memset(target->signs, 255, sizeof(target->signs));
 	for (uint32_t index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
-		int id = resolve_object_id(object);
+		legacy_s16 id = (legacy_s16)resolve_object_id(object);
 		if (id < 0) {
 			if (error && error_size) {
 				snprintf(error, error_size, "Unsupported track element %u rotation or footprint",
@@ -285,12 +269,12 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 			}
 			return 0;
 		}
-		if (!object_has_slope_run(track, object, trkObjectList[id].ss_physicalModel)) {
+		id = object_hill_id(track, object, id);
+		if (id < 0) {
 			if (error && error_size) {
-				snprintf(
-					error, error_size,
-					"Track element %u needs two continuous slope tiles in each sloped direction",
-					object->legacy_id);
+				snprintf(error, error_size,
+						 "Track element %u is not compatible with the original hill slope",
+						 object->legacy_id);
 			}
 			return 0;
 		}
@@ -338,9 +322,9 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 			}
 		}
 	}
-	/* Terrain's complete shape/surface is read from corner data by the extended
- * geometry adapter. Neutral legacy terrain suppresses original hill-road
- * substitutions, which would discard the new stunt/surface combinations. */
+	/* Native hill-road IDs are resolved above. The extended adapter reads
+	 * terrain profiles and their absolute base heights from the shared grid,
+	 * so the legacy map stays neutral instead of substituting these IDs twice. */
 	return 1;
 }
 
@@ -437,36 +421,42 @@ legacy_s16 extended_track_elevation(int column, int row, int local_x, int local_
 		row >= current_track.height) {
 		return 0;
 	}
-	unsigned stride = current_track.width + 1U;
-	unsigned base = (unsigned)row * stride + (unsigned)column;
-	int a = current_track.corner_heights[base] * 450;
-	int b = current_track.corner_heights[base + 1U] * 450;
-	int c = current_track.corner_heights[base + stride] * 450;
-	int d = current_track.corner_heights[base + stride + 1U] * 450;
+	struct CSTRK_TERRAIN_PROFILE profile;
+	if (!cstrk_terrain_profile(&current_track, (legacy_u16)column, (legacy_u16)row, &profile)) {
+		return 0;
+	}
+	if (profile.terrain_id == CSTRK_TERRAIN_PROFILE_FLAT ||
+		profile.terrain_id == CSTRK_TERRAIN_PROFILE_RAISED) {
+		/* Starting positions on plateaus are queried before collision resources
+		 * are necessarily loaded. Their absolute height needs no plane template. */
+		return profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT;
+	}
 	if (local_x < 0) {
 		local_x = 0;
-	}
-	if (local_x > 1024) {
-		local_x = 1024;
+	} else if (local_x > CSTRK_TILE_WORLD_SIZE) {
+		local_x = CSTRK_TILE_WORLD_SIZE;
 	}
 	if (local_y < 0) {
 		local_y = 0;
+	} else if (local_y > CSTRK_TILE_WORLD_SIZE) {
+		local_y = CSTRK_TILE_WORLD_SIZE;
 	}
-	if (local_y > 1024) {
-		local_y = 1024;
+	/* Boundary samples belong to this cell, including the far map edge. */
+	legacy_s32 world_x = (legacy_s32)column * CSTRK_TILE_WORLD_SIZE + local_x;
+	legacy_s32 world_z = (legacy_s32)(current_track.height - row) * CSTRK_TILE_WORLD_SIZE - local_y;
+	legacy_s32 sample_x = world_x - (local_x == CSTRK_TILE_WORLD_SIZE);
+	legacy_s32 sample_z = world_z + (local_y == CSTRK_TILE_WORLD_SIZE) - (local_y == 0);
+	struct EXTENDED_TERRAIN_SAMPLE sample;
+	if (!extended_geometry_terrain(&current_track, sample_x, sample_z, &sample)) {
+		return 0;
 	}
-	/* Mixed-material corner triangles choose their shared diagonal. */
-	legacy_u8 corner = current_track.cells[row * current_track.width + column].half_water_corner;
-	if (corner == CSTRK_WATER_NORTHWEST || corner == CSTRK_WATER_SOUTHEAST) {
-		if (local_x + local_y <= 1024) {
-			return (legacy_s16)(a + ((b - a) * local_x + (c - a) * local_y) / 1024);
-		}
-		return (legacy_s16)(b + c - d + ((d - c) * local_x + (d - b) * local_y) / 1024);
-	}
-	/* Match two planar triangles, rather than a bilinear saddle. */
-	if (local_x >= local_y) {
-		return (legacy_s16)(a + ((b - a) * local_x + (d - b) * local_y) / 1024);
-	}
-	return (legacy_s16)(a + ((d - c) * local_x + (c - a) * local_y) / 1024);
+	const struct PLANE *plane = &sample.plane;
+	legacy_s32 x =
+		LEGACY_S16_WRAP_SUB((legacy_s16)world_x, sample.origin.x) - plane->plane_origin.x;
+	legacy_s32 z =
+		LEGACY_S16_WRAP_SUB((legacy_s16)world_z, sample.origin.z) - plane->plane_origin.z;
+	return (legacy_s16)(plane->plane_origin.y - ((legacy_s64)plane->plane_normal.x * x +
+												 (legacy_s64)plane->plane_normal.z * z) /
+													plane->plane_normal.y);
 }
 #endif

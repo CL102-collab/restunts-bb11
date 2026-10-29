@@ -27,9 +27,10 @@ does not make loading fail, and its numeric revision is retained when saving.
 Best-effort loading still validates header size, horizon, dimensions, object
 records, notes, and exact payload lengths. Invalid structures remain errors;
 revision zero is invalid. New tracks are created with the current revision, v2.
-Existing v1 tracks remain readable and retain their revision when their corners
-use only water. Saving a corner with another secondary material raises the
-stored revision to at least v2; newer revision numbers are retained. Header
+Existing v1 tracks that satisfy the terrain and placement rules remain readable
+and retain their revision when their corners use only water. Saving a corner
+with another secondary material raises the stored revision to at least v2;
+newer revision numbers are retained. Header
 and payload sizes stay unchanged. Desert and legacy water corners retain their
 original values, so existing v1 files keep the same bytes when re-encoded.
 
@@ -82,11 +83,18 @@ Coordinates use a top-left origin: x increases rightwards and y downwards.
 All arrays are row-major. Corner `(x,y)` has index `y*(width+1)+x`; cell `(x,y)`
 has index `y*width+x`. Cells share their terrain corners, preventing cracks.
 
-Each corner height is an integer from 0 through 4. Horizontally and vertically
-adjacent vertices may differ by at most one level. Terrain editing can propagate
-height adjustments to neighboring vertices to preserve this condition, in the
-style of SimCity 2000. A terrain cell may be nonplanar; an object footprint must
-be supported by one consistent plane.
+Each corner height is an integer from 0 through 4. Every cell uses one of the
+original game's thirteen terrain profiles: flat ground, four straight inclines,
+four outer corners with one high corner, or four inner corners with one low
+corner. The highest and lowest corners of a cell differ by at most one level.
+Alternating high and low corners and two-level diagonal slopes are invalid.
+Terrain edits propagate neighboring heights to preserve these profiles.
+
+One level rises 450 world units across a 1,024-unit tile, retaining the original
+straight incline of about 23.7 degrees and the steepest corner incline of about
+31.9 degrees. Higher hills translate the same profiles upward; they do not change
+the slope angle. Rendering and collision select the same original profile,
+independently of the painted surface or Shore direction.
 
 Each two-byte terrain cell contains:
 
@@ -120,7 +128,7 @@ The C model retains the legacy `half_water_corner` name for the direction and
 adds `corner_surface` for the secondary material. New cells default that field
 to Water. The field is ignored when the direction is zero.
 
-## Objects and rigid support planes
+## Objects and original hill placement
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
@@ -147,13 +155,20 @@ object such as a decoration. Only claimed cells participate in overlap checks.
 Every object must fit completely inside the map, including unclaimed cells in
 its footprint rectangle. Version 1 permits at most one claimed object per cell.
 
-The support plane at local terrain corner `(dx,dy)` is
+The support metadata at local terrain corner `(dx,dy)` is
 `base_height + slope_x*dx + slope_y*dy`. Every corner throughout the footprint
 rectangle, including corners around unclaimed cells, must exactly equal this
-plane and remain within 0–4. Thus a two-tile slope can rise two full levels.
-Placed pieces tilt as a whole with this plane; they do not deform to fit uneven
-terrain. Intrinsic geometry such as banking or an elevated road's deck is in
-addition to its terrain support plane.
+plane and remain within 0–4. Ordinary pieces require a flat footprint at one
+constant elevation. Inclines accept only one-tile pieces approved by the
+original hill-road substitution table: an aligned straight road or a compatible
+ramp variant. A sloped record therefore has exactly one nonzero slope axis.
+Hill-corner terrain accepts no track objects, as in the original editor.
+
+The game substitutes the original full-tile hill-road or flat hill-span model,
+including its collision and route data, at the terrain's lower base elevation.
+It does not rotate a flat model onto the incline or add connector strips.
+Intrinsic banking, elevated decks, loops and other stunt geometry retain their
+original shapes on flat plateaus at any supported elevation.
 
 The codec validates IDs, fields, bounds, terrain support, and occupied-cell
 overlap without loading the game's assets. Resource-aware consumers must also
@@ -161,15 +176,16 @@ check that each ID's supplied footprint and selected surface are supported by
 their catalog. A serialized mask is not permission to remove collision from
 an inherently occupied part of a catalog object.
 
-Current game admission rejects internal hill/overlay IDs 182–214. Loops, pipes
-and half pipes accept paved surfaces only. Dirt/ice combinations cover slaloms,
+Serialized internal hill/overlay IDs 182–214 are rejected by game admission;
+the runtime resolves approved hill pieces to these models internally. Loops,
+pipes and half pipes accept paved surfaces only. Dirt/ice combinations cover slaloms,
 tunnels, branches, highways, chicanes, elevated roads, banked roads and all
 corkscrews. Scenery accepts all surface values but ignores this field; new
-scenery placements use paved `0`. A tilted large branch, highway or stunt also
-requires a continuous support slope extending at least two tiles along every
-axis on which it rises. This supporting rectangle may extend to either side
-of a one-tile footprint. These catalog rules are checked by the editor and
-game in addition to the storage codec's structural validation.
+scenery placements use paved `0`. Turns, branches, highways, stunts and scenery
+require flat ground throughout their footprint. These catalog rules are checked
+by the editor and game in addition to the storage codec's structural validation.
+Older files containing free-form saddles, two-level diagonal cells or unsupported
+tilted pieces are rejected instead of silently changing their terrain.
 
 ## Notes
 

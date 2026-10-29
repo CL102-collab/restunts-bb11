@@ -236,31 +236,116 @@ static void test_surface_corners(void)
 	cstrk_free(&decoded);
 }
 
-static void test_slopes_and_unused_cells(void)
+#define TEST_TERRAIN_CORNER_COUNT 4U
+#define TEST_TERRAIN_PROFILE_MASK_COUNT (1U << TEST_TERRAIN_CORNER_COUNT)
+
+static void set_terrain_corners(struct CSTRK_TRACK *track,
+								const legacy_u8 heights[TEST_TERRAIN_CORNER_COUNT])
+{
+	track->corner_heights[0] = heights[0];
+	track->corner_heights[1] = heights[1];
+	track->corner_heights[3] = heights[2];
+	track->corner_heights[2] = heights[3];
+}
+
+static void test_original_terrain_profiles(void)
+{
+	static const legacy_u8 expected_ids[TEST_TERRAIN_PROFILE_MASK_COUNT] = {
+		0, 11, 14, 7, 13, LEGACY_U8_MAX, 10, 18, 12, 8, LEGACY_U8_MAX, 15, 9, 16, 17, 6};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+		for (legacy_u8 mask = 1; mask < TEST_TERRAIN_PROFILE_MASK_COUNT - 1U; mask++) {
+			legacy_u8 heights[TEST_TERRAIN_CORNER_COUNT];
+			for (legacy_u8 corner = 0; corner < TEST_TERRAIN_CORNER_COUNT; corner++) {
+				heights[corner] = base + ((mask >> corner) & 1U);
+			}
+			set_terrain_corners(&track, heights);
+			struct CSTRK_TERRAIN_PROFILE profile = {LEGACY_U8_MAX, LEGACY_U8_MAX, LEGACY_U8_MAX};
+			struct CSTRK_TERRAIN_PROFILE before = profile;
+			if (expected_ids[mask] == LEGACY_U8_MAX) {
+				assert(!cstrk_terrain_profile(&track, 0, 0, &profile));
+				assert(memcmp(&profile, &before, sizeof(profile)) == 0);
+				assert(!cstrk_validate(&track, error, sizeof(error)));
+				continue;
+			}
+			assert(cstrk_terrain_profile(&track, 0, 0, &profile));
+			assert(profile.terrain_id == expected_ids[mask]);
+			assert(profile.base_height == base && profile.high_mask == mask);
+			assert(cstrk_validate(&track, error, sizeof(error)));
+			legacy_u8 *data = NULL;
+			size_t size = 0;
+			assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+			assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(cstrk_terrain_profile(&decoded, 0, 0, &before));
+			assert(memcmp(&profile, &before, sizeof(profile)) == 0);
+			for (legacy_u8 corner = CSTRK_WATER_NONE; corner <= CSTRK_WATER_SOUTHWEST; corner++) {
+				track.cells[0].half_water_corner = corner;
+				assert(cstrk_terrain_profile(&track, 0, 0, &before));
+				assert(memcmp(&profile, &before, sizeof(profile)) == 0);
+			}
+			free(data);
+		}
+	}
+	for (legacy_u8 level = 0; level <= CSTRK_MAX_HEIGHT; level++) {
+		memset(track.corner_heights, level, TEST_TERRAIN_CORNER_COUNT);
+		struct CSTRK_TERRAIN_PROFILE profile;
+		assert(cstrk_terrain_profile(&track, 0, 0, &profile));
+		assert(profile.terrain_id ==
+			   (level == 0 ? CSTRK_TERRAIN_PROFILE_FLAT : CSTRK_TERRAIN_PROFILE_RAISED));
+		assert(profile.base_height == level && profile.high_mask == 0);
+		assert(cstrk_validate(&track, error, sizeof(error)));
+	}
+	static const legacy_u8 invalid[][TEST_TERRAIN_CORNER_COUNT] = {
+		{0, 1, 2, 1}, {2, 1, 0, 1}, {0, 2, 2, 0}, {0, 0, 0, CSTRK_MAX_HEIGHT + 1U}};
+	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
+		set_terrain_corners(&track, invalid[index]);
+		assert(!cstrk_terrain_profile(&track, 0, 0, NULL));
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+	}
+	memset(track.corner_heights, 0, TEST_TERRAIN_CORNER_COUNT);
+	assert(cstrk_terrain_profile(&track, 0, 0, NULL));
+	assert(!cstrk_terrain_profile(&track, track.width, 0, NULL));
+	assert(!cstrk_terrain_profile(&track, 0, track.height, NULL));
+	assert(!cstrk_terrain_profile(NULL, 0, 0, NULL));
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	legacy_u8 *saved_corners = decoded.corner_heights;
+	/* Reject a known-layout track whose four corners encode a diagonal ramp,
+	 * preserving the last valid document on a failed load. */
+	data[CSTRK_HEADER_SIZE + 1U] = 1;
+	data[CSTRK_HEADER_SIZE + 2U] = 1;
+	data[CSTRK_HEADER_SIZE + 3U] = 2;
+	assert(!cstrk_validate_bytes(data, size, error, sizeof(error)));
+	assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.corner_heights == saved_corners && decoded.corner_heights[3] == 0);
+	free(data);
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
+static void test_plateaus_and_hill_slopes(void)
 {
 	struct CSTRK_TRACK track;
 	struct CSTRK_TRACK decoded;
 	cstrk_init(&track);
 	cstrk_init(&decoded);
 	assert(cstrk_create(&track, 2, 2, error, sizeof(error)));
-	for (unsigned row = 0; row < 3U; row++) {
-		for (unsigned column = 0; column < 3U; column++) {
-			track.corner_heights[row * 3U + column] = (uint8_t)(row + column);
-		}
-	}
+	memset(track.corner_heights, CSTRK_MAX_HEIGHT, 9U);
 	struct CSTRK_OBJECT corner = object_at(0, 0);
 	corner.legacy_id = 10;
 	corner.width = 2;
 	corner.height = 2;
 	corner.occupied_mask = 7;
-	corner.slope_x = 1;
-	corner.slope_y = 1;
+	corner.base_height = CSTRK_MAX_HEIGHT;
 	assert(cstrk_add_object(&track, &corner, error, sizeof(error)));
 	struct CSTRK_OBJECT decoration = object_at(1, 1);
 	decoration.legacy_id = 126;
-	decoration.base_height = 2;
-	decoration.slope_x = 1;
-	decoration.slope_y = 1;
+	decoration.base_height = CSTRK_MAX_HEIGHT;
 	assert(cstrk_add_object(&track, &decoration, error, sizeof(error)));
 	assert(!cstrk_add_object(&track, &decoration, error, sizeof(error)));
 	assert(track.object_count == 2U);
@@ -270,7 +355,7 @@ static void test_slopes_and_unused_cells(void)
 	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 	assert(decoded.object_count == 2U);
 	assert(decoded.objects[0].occupied_mask == 7U);
-	assert(decoded.objects[1].base_height == 2U);
+	assert(decoded.objects[1].base_height == CSTRK_MAX_HEIGHT);
 	assert(decoded.corner_heights[8] == 4U);
 	uint8_t *second = NULL;
 	size_t second_size = 0;
@@ -282,7 +367,7 @@ static void test_slopes_and_unused_cells(void)
 	assert(cstrk_validate(&decoded, error, sizeof(error)));
 	decoded.objects[0].slope_x = -1;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
-	decoded.objects[0].slope_x = 1;
+	decoded.objects[0].slope_x = 0;
 	decoded.corner_heights[8] = 3;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
 	free(data);
@@ -299,11 +384,15 @@ static void test_slopes_and_unused_cells(void)
 		}
 	}
 	corner = object_at(0, 0);
-	corner.width = 2;
-	corner.occupied_mask = 3;
+	corner.legacy_id = 5;
 	corner.base_height = 2;
 	corner.slope_x = -1;
 	assert(cstrk_add_object(&track, &corner, error, sizeof(error)));
+	struct CSTRK_OBJECT wide = corner;
+	wide.width = 2;
+	wide.occupied_mask = 3;
+	assert(!cstrk_add_object(&track, &wide, error, sizeof(error)));
+	assert(track.object_count == 1U);
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	cstrk_init(&decoded);
 	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
@@ -448,7 +537,8 @@ int main(void)
 	test_wire_layout();
 	test_horizons_and_versions();
 	test_surface_corners();
-	test_slopes_and_unused_cells();
+	test_original_terrain_profiles();
+	test_plateaus_and_hill_slopes();
 	test_notes();
 	test_invalid_records();
 	test_maximum_track();

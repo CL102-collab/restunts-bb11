@@ -18,6 +18,7 @@ struct EXTENDED_GEOMETRY_BASIS {
 struct EXTENDED_TERRAIN_SAMPLE {
 	legacy_s16 column, north_row;
 	legacy_s16 surface;
+	legacy_u8 terrain_id, base_height;
 	struct VECTOR origin;
 	struct PLANE plane;
 };
@@ -46,8 +47,7 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 									  legacy_s16 orientation, unsigned int surface,
 									  legacy_s16 physical_model);
 void extended_geometry_free_shape(struct SHAPE3D *shape);
-/* Rotation uses CARSTATE's yaw/pitch/roll order; clearance is eight graphical
- * units along the supporting plane normal. Flat terrain returns legacy pose. */
+/* Original start/finish placement is flat at every plateau level. */
 void extended_geometry_initial_pose(const struct CSTRK_OBJECT *object, legacy_s16 track_angle,
 									struct VECTOR *rotation, struct VECTOR *normal_clearance);
 

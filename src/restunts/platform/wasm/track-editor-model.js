@@ -111,6 +111,93 @@
             if (object.mask & (1 << (y * object.width + x))) cells.push([object.x + x, object.y + y]);
         return cells;
     }
+    const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
+    const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
+    const CLASSIC_TERRAIN_BY_MASK = [0, 11, 14, 7, 13, -1, 10, 18, 12, 8, -1, 15, 9, 16, 17, 6];
+    const CLASSIC_FLAT_GROUND = 0, CLASSIC_RAISED_GROUND = 6;
+    const CLASSIC_FIRST_SLOPE = 7, CLASSIC_LAST_SLOPE = 10;
+    const CLASSIC_HILL_ROADS = [[4, 39, 59, 98], [5, 36, 56, 95], [4, 38, 58, 97], [5, 37, 57, 96]];
+    const CLASSIC_ROAD_PHYSICAL_MODEL = 1, CLASSIC_VERTICAL_ROAD = 4, CLASSIC_HORIZONTAL_ROAD = 5;
+    const CLASSIC_PLACEMENT_ERROR = 'This element needs flat ground or an aligned original hill road.';
+    function terrainProfile(heights) {
+        if (!heights || heights.length !== TERRAIN_DISPLAY_CORNER_COUNT ||
+            Array.from(heights).some(height => !Number.isInteger(height) || height < 0 || height > TERRAIN_DISPLAY_MAX_HEIGHT)) return null;
+        const baseLevel = Math.min(...heights), topLevel = Math.max(...heights);
+        if (baseLevel === topLevel) return { terrain: baseLevel ? CLASSIC_RAISED_GROUND : CLASSIC_FLAT_GROUND, baseLevel };
+        if (topLevel - baseLevel !== 1) return null;
+        const mask = Array.from(heights).reduce((bits, height, corner) => bits | ((height - baseLevel) << corner), 0);
+        const terrain = CLASSIC_TERRAIN_BY_MASK[mask];
+        return terrain < 0 ? null : { terrain, baseLevel };
+    }
+    function normalizeTerrain(vertices, width, height, direction) {
+        const stride = width + 1, queue = Array.from({ length: vertices.length }, (_, index) => index);
+        let cursor = 0;
+        for (;;) {
+            while (cursor < queue.length) {
+                const index = queue[cursor++], x = index % stride, y = Math.floor(index / stride), level = vertices[index];
+                for (let ny = Math.max(0, y - 1); ny <= Math.min(height, y + 1); ny++) {
+                    for (let nx = Math.max(0, x - 1); nx <= Math.min(width, x + 1); nx++) {
+                        const neighbor = ny * stride + nx, value = vertices[neighbor];
+                        if (direction > 0 ? value < level - 1 : value > level + 1) {
+                            vertices[neighbor] = level - direction; queue.push(neighbor);
+                        }
+                    }
+                }
+            }
+            const adjustments = new Set();
+            for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+                const first = y * stride + x, indices = [first, first + 1, first + stride + 1, first + stride];
+                const heights = indices.map(index => vertices[index]), low = Math.min(...heights), high = Math.max(...heights);
+                if (high - low !== 1 || heights[0] !== heights[2] || heights[1] !== heights[3] || heights[0] === heights[1]) continue;
+                // A saddle has no original hill tile. Merge the two diagonally touching
+                // heights symmetrically, in the same monotone direction as the edit.
+                for (const index of indices) if (vertices[index] === (direction > 0 ? low : high)) adjustments.add(index);
+            }
+            if (!adjustments.size) return;
+            // Resolve every saddle from the same snapshot, so iteration order cannot
+            // make rotated versions of the same edit choose different hill corners.
+            for (const index of adjustments) { vertices[index] += direction; queue.push(index); }
+        }
+    }
+    function terrainDisplayLayers(heights) {
+        if (!heights || heights.length !== TERRAIN_DISPLAY_CORNER_COUNT) throw new Error('Invalid terrain display corners.');
+        const h = Array.from(heights, height => integer(height, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'terrain display height'));
+        const corners = TERRAIN_DISPLAY_CORNERS.map(point => point.slice());
+        const baseLevel = Math.min(...h), topLevel = Math.max(...h), layers = [];
+        const next = corner => (corner + 1) % TERRAIN_DISPLAY_CORNER_COUNT;
+        const previous = corner => (corner + TERRAIN_DISPLAY_CORNER_COUNT - 1) % TERRAIN_DISPLAY_CORNER_COUNT;
+        for (let level = baseLevel + TERRAIN_DISPLAY_HALF_LEVEL; level < topLevel; level++) {
+            const high = h.map(height => height > level), raised = [];
+            const crossings = corners.map((point, corner) => {
+                const following = next(corner);
+                if (high[corner] === high[following]) return null;
+                const fraction = (level - h[corner]) / (h[following] - h[corner]);
+                return point.map((coordinate, axis) => coordinate + fraction * (corners[following][axis] - coordinate));
+            });
+            high.forEach((value, corner) => { if (value) raised.push(corner); });
+            const polygons = [], contours = [];
+            function cornerRegion(corner, isolatedHigh) {
+                const before = crossings[previous(corner)], after = crossings[corner];
+                // Turning through this interior point makes every corner a rotated L,
+                // independent of the mesh's triangle diagonal or the painted materials.
+                const horizontal = corners[corner][1] === corners[next(corner)][1];
+                const elbow = horizontal ? [after[0], before[1]] : [before[0], after[1]];
+                if (isolatedHigh) polygons.push([corners[corner], after, elbow, before]);
+                else polygons.push([after, corners[next(corner)], corners[next(next(corner))], corners[previous(corner)], before, elbow]);
+                contours.push([after, elbow, before]);
+            }
+            if (raised.length === 1) cornerRegion(raised[0], true);
+            else if (raised.length === TERRAIN_DISPLAY_CORNER_COUNT - 1) cornerRegion(high.indexOf(false), false);
+            else if (high[next(raised[0])] || high[previous(raised[0])]) {
+                const first = raised.find(corner => !high[previous(corner)]), last = next(first);
+                polygons.push([crossings[previous(first)], corners[first], corners[last], crossings[last]]);
+                contours.push([crossings[last], crossings[previous(first)]]);
+            } else for (const corner of raised) cornerRegion(corner, true);
+            layers.push({ level, polygons, contours });
+        }
+        return { baseLevel, layers };
+    }
     class Document {
         constructor(width = 90, height = 90) {
             this.width = integer(width, 1, 90, 'track width'); this.height = integer(height, 1, 90, 'track height');
@@ -144,21 +231,12 @@
         raise(x, y, delta = 1) {
             integer(delta, -1, 1, 'terrain change');
             return this.transaction(delta > 0 ? 'Raise terrain' : 'Lower terrain', () => {
-                const p = this.vertexIndex(x, y), previous = this.vertices.slice(), target = Math.max(0, Math.min(4, this.vertices[p] + delta));
-                this.vertices[p] = target;
-                const queue = [[x, y]];
-                for (let q = 0; q < queue.length; q++) {
-                    const [cx, cy] = queue[q], level = this.vertices[cy * (this.width + 1) + cx];
-                    for (let ny = Math.max(0, cy - 1); ny <= Math.min(this.height, cy + 1); ny++)
-                        for (let nx = Math.max(0, cx - 1); nx <= Math.min(this.width, cx + 1); nx++) {
-                            if (Math.abs(nx - cx) + Math.abs(ny - cy) !== 1) continue;
-                            const index = ny * (this.width + 1) + nx, value = this.vertices[index];
-                            if (delta > 0 && value < level - 1) { this.vertices[index] = level - 1; queue.push([nx, ny]); }
-                            if (delta < 0 && value > level + 1) { this.vertices[index] = level + 1; queue.push([nx, ny]); }
-                        }
-                }
-                const invalid = this.objects.find(object => !this.matchesPlane(object) || !this.hasLongSlope(object));
-                if (invalid) { this.vertices = previous; throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.'); }
+                const p = this.vertexIndex(x, y), vertices = this.vertices.slice(), target = Math.max(0, Math.min(TERRAIN_DISPLAY_MAX_HEIGHT, this.vertices[p] + delta));
+                if (target === this.vertices[p]) return target;
+                vertices[p] = target; normalizeTerrain(vertices, this.width, this.height, delta);
+                const invalid = this.objects.find(object => !this.supportsTerrain(object, vertices));
+                if (invalid) throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.');
+                this.vertices = vertices;
                 return target;
             });
         }
@@ -184,14 +262,19 @@
                 for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
                     // Clamp to the legal slope envelope around the four target corners.
                     // Staging the whole plateau avoids partial edits if an object blocks it.
-                    const distance = Math.max(x - vx, 0, vx - x - 1) + Math.max(y - vy, 0, vy - y - 1);
+                    const distance = Math.max(x - vx, 0, vx - x - 1, y - vy, vy - y - 1);
                     const index = vy * stride + vx;
                     vertices[index] = Math.max(height - distance, Math.min(height + distance, this.vertices[index]));
+                }
+                const direction = height >= Math.max(...this.tileHeights(x, y)) ? 1 : -1;
+                normalizeTerrain(vertices, this.width, this.height, direction);
+                for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
+                    const index = vy * stride + vx;
                     if (vertices[index] === this.vertices[index]) continue;
                     for (let cy = Math.max(0, vy - 1); cy <= Math.min(this.height - 1, vy); cy++)
                         for (let cx = Math.max(0, vx - 1); cx <= Math.min(this.width - 1, vx); cx++) affected.add(cy * this.width + cx);
                 }
-                const invalid = this.objects.find(object => !this.matchesPlane(object, vertices) || !this.hasLongSlope(object, vertices));
+                const invalid = this.objects.find(object => !this.supportsTerrain(object, vertices));
                 if (invalid) throw new Error('Terrain would bend element ' + invalid.id + '. Remove or move it first.');
                 const cells = this.cells.slice();
                 for (const index of affected) cells[index] = { surface, halfWaterCorner: 0 };
@@ -203,20 +286,19 @@
                 if (vertices[(object.y + y) * (this.width + 1) + object.x + x] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
             return true;
         }
-        hasLongSlope(object, vertices = this.vertices) {
+        supportsTerrain(object, vertices = this.vertices) {
+            if (!this.matchesPlane(object, vertices)) return false;
+            if (!object.slopeX && !object.slopeY) return true;
             const entry = byId.get(object.id);
-            if (!entry || !([8, 9, 10, 11].includes(entry.physical) || (entry.physical >= 16 && entry.physical <= 35)) || (!object.slopeX && !object.slopeY)) return true;
-            const width = object.slopeX ? Math.max(2, object.width) : object.width;
-            const height = object.slopeY ? Math.max(2, object.height) : object.height;
-            for (let oy = object.height - height; oy <= 0; oy++) for (let ox = object.width - width; ox <= 0; ox++) {
-                const left = object.x + ox, top = object.y + oy;
-                if (left < 0 || top < 0 || left + width > this.width || top + height > this.height) continue;
-                let matches = true;
-                for (let y = 0; y <= height; y++) for (let x = 0; x <= width; x++)
-                    if (vertices[(top + y) * (this.width + 1) + left + x] !== object.baseHeight + (ox + x) * object.slopeX + (oy + y) * object.slopeY) matches = false;
-                if (matches) return true;
-            }
-            return false;
+            if (!entry || object.width !== 1 || object.height !== 1) return false;
+            const first = object.y * (this.width + 1) + object.x, stride = this.width + 1;
+            const profile = terrainProfile([vertices[first], vertices[first + 1], vertices[first + stride + 1], vertices[first + stride]]);
+            if (!profile || profile.terrain < CLASSIC_FIRST_SLOPE || profile.terrain > CLASSIC_LAST_SLOPE) return false;
+            const direction = (entry.rotation + object.rotation) % PIECE_DIRECTION_COUNT;
+            const native = entry.physical === CLASSIC_ROAD_PHYSICAL_MODEL
+                ? (direction % PIECE_AXIS_COUNT ? CLASSIC_HORIZONTAL_ROAD : CLASSIC_VERTICAL_ROAD)
+                : pieceVariant(entry, direction).piece.id;
+            return CLASSIC_HILL_ROADS[profile.terrain - CLASSIC_FIRST_SLOPE].includes(native);
         }
         placement(id, x, y, surface = 0, rotation = 0) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
@@ -225,8 +307,7 @@
             const footprint = rotatedFootprint(entry, rotation);
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
             const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
-            if (!this.matchesPlane(object)) throw new Error('The entire element needs a continuous planar slope.');
-            if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
+            if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
                 throw new Error('This space is occupied. Remove the existing element first.');
@@ -246,6 +327,8 @@
                 if (x < this.width && Math.abs(level - this.vertices[y * (this.width + 1) + x + 1]) > 1) errors.push('Terrain rises more than one level per edge.');
                 if (y < this.height && Math.abs(level - this.vertices[(y + 1) * (this.width + 1) + x]) > 1) errors.push('Terrain rises more than one level per edge.');
             }
+            for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++)
+                if (!terrainProfile(this.tileHeights(x, y))) errors.push('Terrain must use original flat, slope, or hill-corner profiles.');
             for (const cell of this.cells) {
                 const cornerSurface = !cell.halfWaterCorner || cell.cornerSurface === undefined ? DEFAULT_CORNER_SURFACE : cell.cornerSurface;
                 if (!Number.isInteger(cell.surface) || cell.surface < 0 || cell.surface >= TERRAIN_SURFACES.length ||
@@ -266,8 +349,7 @@
                     const footprint = rotatedFootprint(entry, object.rotation);
                     if (object.width !== footprint.width || object.height !== footprint.height || object.mask !== footprint.mask) throw new Error('Element footprint does not match its catalog geometry.');
                     if (!entry.surfaces.includes(object.surface)) throw new Error('Element does not support the selected road surface.');
-                    if (!this.matchesPlane(object)) throw new Error('Element does not match its terrain plane.');
-                    if (!this.hasLongSlope(object)) throw new Error('This stunt needs a continuous slope at least two tiles long in each sloping direction.');
+                    if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
                     for (const [x, y] of occupied(object)) { const key = y * this.width + x; if (occupiedCells.has(key)) throw new Error('Track elements overlap.'); occupiedCells.add(key); }
                 } catch (error) { errors.push(error.message); }
             }
@@ -325,5 +407,5 @@
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

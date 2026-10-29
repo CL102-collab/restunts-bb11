@@ -207,6 +207,34 @@ static void test_hidden_primitive_children(void)
 	check_point(polyinfo, 0, 211, 151);
 }
 
+#define TEST_HIDDEN_TERMINATOR_STREAM_BYTES 16U
+
+static void test_hidden_primitive_stops_at_terminator(void)
+{
+	static const struct {
+		legacy_u8 records[TEST_HIDDEN_TERMINATOR_STREAM_BYTES];
+		legacy_u8 primitive_count;
+	} cases[] = {{{1, 1, 7, 3, /* Last independent point is behind the near plane. */
+				   0,		   /* A primitive stream ends with one zero type byte. */
+				   SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG, 0, 1, 1, 9, 1, 0},
+				  1},
+				 {{1, 1, 7, 3,										/* Hidden independent point. */
+				   1, SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG, 8, 7, /* Hidden attached child. */
+				   0, SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG, 0, 1, 1, 9, 1, 0},
+				  2}};
+
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		reset_scene();
+		shape.shape3d_numprimitives = cases[index].primitive_count;
+		/* Bytes after the single-byte terminator are unrelated storage. Their
+		 * apparent attached flag must not advance to the poisoned visible point. */
+		memcpy(primitives, cases[index].records, sizeof(cases[index].records));
+		assert(shape3d_transform_and_queue(&instance) == LEGACY_U16_MAX);
+		assert(polyinfonumpolys == 0);
+		assert(polyinfoptrnext == 0);
+	}
+}
+
 static void test_depth_order_and_attached_primitive(void)
 {
 	static const legacy_u8 records[] = {
@@ -499,6 +527,7 @@ int main(void)
 	test_sphere_bounds_preserve_original_coordinate_write();
 	test_shared_clipped_vertices();
 	test_hidden_primitive_children();
+	test_hidden_primitive_stops_at_terminator();
 	test_depth_order_and_attached_primitive();
 	test_clipped_depth_signedness();
 	test_backface_and_material_override();

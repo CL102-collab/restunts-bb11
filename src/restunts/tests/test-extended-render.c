@@ -8,6 +8,7 @@
 #include "../c/extended_track.h"
 #include "../c/skybox.h"
 #include "../c/race_graphics.h"
+#include "../c/trackdata_layout.h"
 
 static unsigned terrain_level(unsigned column)
 {
@@ -50,10 +51,11 @@ static void make_render_track(struct CSTRK_TRACK *track)
 		}
 	}
 	track->cells[43U * track->width + 41U].half_water_corner = CSTRK_WATER_NORTHWEST;
-	/* The slope runs through all four levels; these rigid stunt meshes need
-	 * the complete two-tile approach on both the ground and collision paths. */
-	add_render_piece(track, 66U, 39U, 40U, 1U, 1U, 1U, CSTRK_ROAD_ICE);
-	add_render_piece(track, 64U, 40U, 42U, 1U, 2U, 3U, CSTRK_ROAD_PAVED);
+	/* Each one-level incline uses the original full-width hill road or
+	 * ramp-to-span substitution. Ordinary stunts remain on flat plateaus. */
+	add_render_piece(track, 5U, 39U, 40U, 1U, 1U, 1U, CSTRK_ROAD_ICE);
+	add_render_piece(track, 5U, 40U, 42U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+	add_render_piece(track, 37U, 41U, 44U, 1U, 1U, 1U, CSTRK_ROAD_DIRT);
 	add_render_piece(track, 53U, 42U, 40U, 2U, 2U, 11U, CSTRK_ROAD_DIRT);
 	add_render_piece(track, 151U, 42U, 41U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
 	add_render_piece(track, 60U, 45U, 40U, 2U, 2U, 6U, CSTRK_ROAD_ICE);
@@ -101,12 +103,13 @@ static void position_render_target(unsigned column, unsigned north_row)
 
 #define RENDER_CAPTURE_OPAQUE_ALPHA UINT32_C(0xff000000)
 #define RENDER_CAPTURE_INDEX_RGB_STEP UINT32_C(0x010101)
+#define RENDER_CAPTURE_VIDEO_SEGMENT 0xA000U
 
 static legacy_u32 *capture_complete_render(size_t *pixel_count)
 {
 	full_redraw_frames_remaining = 1;
 	render_and_check(&state);
-	legacy_u8 *legacy = dos_memory_make_pointer(0xA000U, 0);
+	legacy_u8 *legacy = dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0);
 	legacy_s32 width, height;
 	assert(hires_framebuffer(legacy, &width, &height) != NULL);
 	assert(width >= 320 && height >= 200);
@@ -342,6 +345,258 @@ static legacy_u16 check_ground_grass_color(void)
 	return frames;
 }
 
+#define CLASSIC_RENDER_COLUMN 15U
+#define CLASSIC_RENDER_ROW 15U
+#define CLASSIC_RENDER_CORNER_COUNT 4U
+#define CLASSIC_RENDER_PROFILE_COUNT (1U << CLASSIC_RENDER_CORNER_COUNT)
+#define CLASSIC_RENDER_INCLINE_VARIANTS 5U
+#define CLASSIC_RENDER_RAMP_VARIANT 4U
+#define CLASSIC_RENDER_ROAD_SURFACE_STEP 10U
+#define CLASSIC_RENDER_SLOPE_MATERIAL_FIRST 102U
+#define CLASSIC_RENDER_SLOPE_MATERIAL_LAST 105U
+#define CLASSIC_RENDER_LOGICAL_WIDTH 320U
+#define CLASSIC_RENDER_TRANSLATED_EDGE_PIXELS 2
+#define CLASSIC_RENDER_TERRAIN_PAINTS 7U
+#define CLASSIC_RENDER_SOLID_PAINTS 3U
+#define CLASSIC_RENDER_PAVED_MATERIAL 19U
+#define CLASSIC_RENDER_MARKING_MATERIAL 21U
+#define CLASSIC_RENDER_SADDLE_NW_SE 5U
+#define CLASSIC_RENDER_SADDLE_NE_SW 10U
+#define CLASSIC_RENDER_CAMERA_ELEVATION 192
+#define CLASSIC_RENDER_POSITION_SCALE 64L
+#define CLASSIC_RENDER_CAR_CLEARANCE 16L
+
+static void position_classic_render_target(legacy_u8 level)
+{
+	struct CARSTATE *car = &state.playerstate;
+	car->car_position.lx =
+		(CLASSIC_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2U) *
+		CLASSIC_RENDER_POSITION_SCALE;
+	car->car_position.lz = ((TRACK_GRID_SIZE - 1U - CLASSIC_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE +
+							CSTRK_TILE_WORLD_SIZE / 2U) *
+						   CLASSIC_RENDER_POSITION_SCALE;
+	car->car_position.ly = (level * CSTRK_LEVEL_WORLD_HEIGHT + CLASSIC_RENDER_CAR_CLEARANCE) *
+						   CLASSIC_RENDER_POSITION_SCALE;
+	car->car_previous_position = car->car_position;
+	car->car_rotate = (struct VECTOR){0, 0, 0};
+	car->car_crashBmpFlag = CRASH_EVENT_NONE;
+	state.game_particles_active = 0;
+	custom_camera.distance = SHORE_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = CLASSIC_RENDER_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = 0;
+}
+
+static legacy_u16 check_classic_hill_rendering(void)
+{
+	extended_track_unload();
+	legacy_u8 saved_elements[TRACKDATA_MAP_SIZE], saved_terrain[TRACKDATA_MAP_SIZE];
+	memcpy(saved_elements, track_element_map, sizeof(saved_elements));
+	memcpy(saved_terrain, track_terrain_map, sizeof(saved_terrain));
+	legacy_u16 frames = 0;
+	for (legacy_u8 mask = 0; mask < CLASSIC_RENDER_PROFILE_COUNT; mask++) {
+		if (mask == CLASSIC_RENDER_SADDLE_NW_SE || mask == CLASSIC_RENDER_SADDLE_NE_SW) {
+			continue;
+		}
+		struct CSTRK_TRACK track;
+		legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+		cstrk_init(&track);
+		assert(cstrk_create(&track, TRACK_GRID_SIZE, TRACK_GRID_SIZE, error, sizeof(error)));
+		track.horizon = CSTRK_HORIZON_COUNTRY;
+		size_t corner = CLASSIC_RENDER_ROW * (track.width + 1U) + CLASSIC_RENDER_COLUMN;
+		static const legacy_u8 dx[] = {0, 1, 1, 0}, dy[] = {0, 0, 1, 1};
+		for (legacy_u8 index = 0; index < CLASSIC_RENDER_CORNER_COUNT; index++) {
+			track.corner_heights[corner + dy[index] * (track.width + 1U) + dx[index]] =
+				(mask >> index) & 1U;
+		}
+		memset(track_element_map, 0, sizeof(saved_elements));
+		memset(track_terrain_map, 0, sizeof(saved_terrain));
+		for (legacy_u16 y = 0; y < track.height; y++) {
+			for (legacy_u16 x = 0; x < track.width; x++) {
+				struct CSTRK_TERRAIN_PROFILE profile;
+				assert(cstrk_terrain_profile(&track, x, y, &profile));
+				track_terrain_map[terrainrows[y] + x] = profile.terrain_id;
+			}
+		}
+		struct CSTRK_TERRAIN_PROFILE central;
+		assert(cstrk_terrain_profile(&track, CLASSIC_RENDER_COLUMN, CLASSIC_RENDER_ROW, &central));
+		legacy_u8 incline =
+			central.terrain_id >= HILL_TERRAIN_FIRST && central.terrain_id < HILL_TERRAIN_END;
+		for (legacy_u8 variant = 0; variant < (incline ? CLASSIC_RENDER_INCLINE_VARIANTS : 1U);
+			 variant++) {
+			track.object_count = 0;
+			legacy_u8 original_id = 0;
+			if (variant != 0) {
+				static const legacy_u8 road_ids[] = {4, 5, 4, 5};
+				static const legacy_u8 ramp_ids[] = {39, 36, 38, 37};
+				legacy_u8 direction = central.terrain_id - HILL_TERRAIN_FIRST;
+				struct CSTRK_OBJECT object = {0};
+				object.legacy_id = variant == CLASSIC_RENDER_RAMP_VARIANT ? ramp_ids[direction]
+																		  : road_ids[direction];
+				object.surface =
+					variant == CLASSIC_RENDER_RAMP_VARIANT ? CSTRK_ROAD_PAVED : variant - 1U;
+				object.x = CLASSIC_RENDER_COLUMN;
+				object.y = CLASSIC_RENDER_ROW;
+				object.width = object.height = object.occupied_mask = 1;
+				object.base_height = track.corner_heights[corner];
+				object.slope_x = track.corner_heights[corner + 1U] - object.base_height;
+				object.slope_y =
+					track.corner_heights[corner + track.width + 1U] - object.base_height;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				original_id = (legacy_u8)object.legacy_id;
+				if (variant != CLASSIC_RENDER_RAMP_VARIANT) {
+					original_id += object.surface * CLASSIC_RENDER_ROAD_SURFACE_STEP;
+				}
+			}
+			track_element_map[trackrows[CLASSIC_RENDER_ROW] + CLASSIC_RENDER_COLUMN] = original_id;
+			position_classic_render_target(0);
+			size_t original_size, extended_size;
+			legacy_u32 *original = capture_complete_render(&original_size);
+			assert(extended_track_activate(&track, error, sizeof(error)));
+			legacy_u32 *extended = capture_complete_render(&extended_size);
+			assert(original_size == extended_size);
+			size_t differences = 0;
+			for (size_t pixel = 0; pixel < original_size; pixel++) {
+				differences += original[pixel] != extended[pixel];
+			}
+			printf("Original hill profile %u, piece %u: %zu of %zu pixels differ\n", mask,
+				   original_id, differences, original_size);
+			/* Exact native meshes, submission order, and paints retain the
+			 * original silhouette and markings in both rasterizers. */
+			assert(differences == 0);
+			if (variant == 1U || variant == CLASSIC_RENDER_RAMP_VARIANT) {
+				struct CSTRK_CELL *cell =
+					&track.cells[CLASSIC_RENDER_ROW * track.width + CLASSIC_RENDER_COLUMN];
+				struct CSTRK_CELL saved = *cell;
+				for (legacy_u8 paint = 0; paint < CLASSIC_RENDER_TERRAIN_PAINTS; paint++) {
+					cell->surface = paint < CLASSIC_RENDER_SOLID_PAINTS ? paint + CSTRK_TERRAIN_ICE
+																		: CSTRK_TERRAIN_GRASS;
+					cell->half_water_corner =
+						paint < CLASSIC_RENDER_SOLID_PAINTS
+							? CSTRK_WATER_NONE
+							: paint - CLASSIC_RENDER_SOLID_PAINTS + CSTRK_WATER_NORTHWEST;
+					cell->corner_surface = CSTRK_TERRAIN_DIRT;
+					assert(extended_track_activate(&track, error, sizeof(error)));
+					size_t painted_size;
+					legacy_u32 *painted = capture_complete_render(&painted_size);
+					assert(painted_size == original_size);
+					legacy_u32 gray =
+						RENDER_CAPTURE_OPAQUE_ALPHA |
+						(legacy_u32)material_clrlist_ptr[CLASSIC_RENDER_PAVED_MATERIAL] *
+							RENDER_CAPTURE_INDEX_RGB_STEP;
+					legacy_u32 white =
+						RENDER_CAPTURE_OPAQUE_ALPHA |
+						(legacy_u32)material_clrlist_ptr[CLASSIC_RENDER_MARKING_MATERIAL] *
+							RENDER_CAPTURE_INDEX_RGB_STEP;
+					size_t missing_road = 0;
+					for (size_t pixel = 0; pixel < original_size; pixel++) {
+						if (original[pixel] == gray || original[pixel] == white) {
+							missing_road += painted[pixel] != original[pixel];
+						}
+					}
+					if (missing_road) {
+						fprintf(stderr,
+								"Hill profile %u piece %u terrain paint %u loses %zu road pixels\n",
+								mask, original_id, paint, missing_road);
+					}
+					assert(missing_road == 0);
+					free(painted);
+					extended_track_unload();
+					frames++;
+				}
+				*cell = saved;
+			}
+			free(extended);
+			extended_track_unload();
+			/* Higher native floors replace the original skybox's low-ground
+			 * fill. Authored 513/514-unit edge overlaps can change their boundary
+			 * shade by two logical pixels; every retained slope interior must
+			 * still match the translated original exactly. */
+			for (legacy_u8 base = 1; base < CSTRK_MAX_HEIGHT; base++) {
+				for (size_t vertex = 0; vertex < (size_t)(track.width + 1U) * (track.height + 1U);
+					 vertex++) {
+					track.corner_heights[vertex]++;
+				}
+				if (track.object_count) {
+					track.objects[0].base_height++;
+				}
+				position_classic_render_target(base);
+				assert(extended_track_activate(&track, error, sizeof(error)));
+				size_t raised_size;
+				legacy_u32 *raised = capture_complete_render(&raised_size);
+				assert(raised_size == original_size);
+				legacy_s32 width, height;
+				assert(hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
+										 &width, &height));
+				legacy_u16 edge = (legacy_u16)(width / CLASSIC_RENDER_LOGICAL_WIDTH);
+				size_t protected_pixels = 0, changed_pixels = 0;
+				for (size_t pixel = 0; pixel < original_size; pixel++) {
+					size_t x = pixel % width, y = pixel / width;
+					if (x < edge || x + edge >= (size_t)width || y < edge ||
+						y + edge >= (size_t)height || original[pixel - edge] != original[pixel] ||
+						original[pixel + edge] != original[pixel] ||
+						original[pixel - edge * width] != original[pixel] ||
+						original[pixel + edge * width] != original[pixel] ||
+						original[pixel - edge * width - edge] != original[pixel] ||
+						original[pixel - edge * width + edge] != original[pixel] ||
+						original[pixel + edge * width - edge] != original[pixel] ||
+						original[pixel + edge * width + edge] != original[pixel]) {
+						continue;
+					}
+					legacy_u8 protected = 0;
+					for (legacy_u16 material = CLASSIC_RENDER_SLOPE_MATERIAL_FIRST;
+						 material <= CLASSIC_RENDER_SLOPE_MATERIAL_LAST; material++) {
+						legacy_u32 color = RENDER_CAPTURE_OPAQUE_ALPHA |
+										   (legacy_u32)material_clrlist_ptr[material] *
+											   RENDER_CAPTURE_INDEX_RGB_STEP;
+						protected |= original[pixel] == color;
+					}
+					if (protected) {
+						protected_pixels++;
+						if (raised[pixel] != original[pixel]) {
+							legacy_u8 native_edge = 0;
+							legacy_s16 reach = edge * CLASSIC_RENDER_TRANSLATED_EDGE_PIXELS;
+							for (legacy_s16 dy = -reach; dy <= reach && !native_edge; dy++) {
+								for (legacy_s16 dx = -reach; dx <= reach && !native_edge; dx++) {
+									legacy_s32 nx = (legacy_s32)x + dx, ny = (legacy_s32)y + dy;
+									if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+										continue;
+									}
+									size_t nearby = (size_t)ny * width + nx;
+									native_edge = original[nearby] == original[pixel] &&
+												  raised[nearby] == original[pixel];
+								}
+							}
+							changed_pixels += !native_edge;
+						}
+					}
+				}
+				if (changed_pixels) {
+					fprintf(stderr,
+							"Raised hill profile %u piece %u base %u changes %zu/%zu native slope "
+							"pixels\n",
+							mask, original_id, base, changed_pixels, protected_pixels);
+				}
+				assert(changed_pixels == 0);
+				free(raised);
+				extended_track_unload();
+				frames++;
+			}
+			for (size_t vertex = 0; vertex < (size_t)(track.width + 1U) * (track.height + 1U);
+				 vertex++) {
+				track.corner_heights[vertex] -= CSTRK_MAX_HEIGHT - 1U;
+			}
+
+			free(original);
+			extended_track_unload();
+			frames += 2U;
+		}
+		cstrk_free(&track);
+	}
+	memcpy(track_element_map, saved_elements, sizeof(saved_elements));
+	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -388,10 +643,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_rendered_surfaces(&track);
 		frames += check_rendered_shore_materials(&track);
 		frames += check_ground_grass_color();
+		frames += check_classic_hill_rendering();
 	}
 	extended_track_unload();
 	cstrk_free(&track);
-	printf("Extended 90x90 four-level terrain and rigid object meshes rendered in %u frames.\n",
+	printf("Extended 90x90 four-level terrain and native hill meshes rendered in %u frames.\n",
 		   frames);
 	call_exitlist();
 	return 0;

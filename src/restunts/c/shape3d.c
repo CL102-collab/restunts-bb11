@@ -1363,7 +1363,8 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 				return 1;
 			}
 		} else if ((primitive_flags & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) == 0) {
-			while ((transshapeprimitives[1] & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) != 0) {
+			while (transshapeprimitives[0] != 0 &&
+				   (transshapeprimitives[1] & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) != 0) {
 				transshapeprimitives +=
 					primidxcounttab[transshapeprimitives[0]] + transshapenumpaints + 2;
 #if defined(RESTUNTS_SDL3)
