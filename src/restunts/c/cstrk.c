@@ -208,7 +208,9 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 		return cstrk_fail(error, error_size, "Object %u has an invalid occupancy mask",
 						  (unsigned)index);
 	}
-	if (object->base_height > CSTRK_MAX_HEIGHT || object->slope_x < -1 || object->slope_x > 1 ||
+	legacy_u8 max_height =
+		track->version < CSTRK_NINE_LEVEL_VERSION ? CSTRK_LEGACY_MAX_HEIGHT : CSTRK_MAX_HEIGHT;
+	if (object->base_height > max_height || object->slope_x < -1 || object->slope_x > 1 ||
 		object->slope_y < -1 || object->slope_y > 1) {
 		return cstrk_fail(error, error_size, "Object %u has an invalid support plane",
 						  (unsigned)index);
@@ -225,7 +227,7 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 			int expected = (int)object->base_height + object->slope_x * (int)column +
 						   object->slope_y * (int)row;
 			size_t vertex = ((size_t)object->y + row) * (track->width + 1U) + object->x + column;
-			if (expected < 0 || expected > (int)CSTRK_MAX_HEIGHT ||
+			if (expected < 0 || expected > (int)max_height ||
 				track->corner_heights[vertex] != expected) {
 				return cstrk_fail(error, error_size,
 								  "Object %u does not fit a continuous terrain plane",
@@ -268,13 +270,15 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		(track->object_count != 0U && track->objects == NULL)) {
 		return cstrk_fail(error, error_size, "Track has too many objects or no object storage");
 	}
+	legacy_u8 max_height =
+		track->version < CSTRK_NINE_LEVEL_VERSION ? CSTRK_LEGACY_MAX_HEIGHT : CSTRK_MAX_HEIGHT;
 	for (unsigned row = 0; row <= track->height; row++) {
 		for (unsigned column = 0; column <= track->width; column++) {
 			size_t vertex = (size_t)row * (track->width + 1U) + column;
 			int height = track->corner_heights[vertex];
-			if (height > (int)CSTRK_MAX_HEIGHT) {
+			if (height > (int)max_height) {
 				return cstrk_fail(error, error_size, "Terrain vertex %zu exceeds height %u", vertex,
-								  CSTRK_MAX_HEIGHT);
+								  (legacy_uint)max_height);
 			}
 			if (column > 0U && abs(height - track->corner_heights[vertex - 1U]) > 1) {
 				return cstrk_fail(error, error_size, "Terrain has an unsupported horizontal cliff");
@@ -474,7 +478,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	if (!cstrk_create(&next, width, height, error, error_size)) {
 		return 0;
 	}
-	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
+	next.version = version;
 	next.horizon = (legacy_u8)horizon;
 	const uint8_t *cursor = data + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)width + 1U) * ((size_t)height + 1U);
@@ -538,6 +542,9 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		cstrk_free(&next);
 		return 0;
 	}
+	/* Validate legacy height limits using the wire revision before upgrading
+	 * metadata, so malformed old files cannot acquire the new height range. */
+	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
 	cstrk_free(track);
 	*track = next;
 	cstrk_success(error, error_size);

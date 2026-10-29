@@ -99,10 +99,12 @@ static void test_world_coordinates_and_surfaces(void)
 	static const unsigned coordinates[] = {0, 1, 31, 32, 63, 64, 88, 89};
 	static const int surfaces[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE, CAR_SURFACE_DIRT,
 								   CAR_SURFACE_WATER};
+	const legacy_s16 plateau_height = CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT;
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
-	memset(track.corner_heights, 4, 91U * 91U);
+	memset(track.corner_heights, CSTRK_MAX_HEIGHT,
+		   (size_t)(track.width + 1U) * (track.height + 1U));
 	for (unsigned row = 0; row < 8; row++) {
 		for (unsigned column = 0; column < 8; column++) {
 			track.cells[coordinates[row] * 90U + coordinates[column]].surface =
@@ -111,7 +113,7 @@ static void test_world_coordinates_and_surfaces(void)
 	}
 	track.cells[70U * 90U + 70U].half_water_corner = CSTRK_WATER_NORTHWEST;
 	struct CSTRK_OBJECT road = object_at(4, 89, 89);
-	road.base_height = 4;
+	road.base_height = CSTRK_MAX_HEIGHT;
 	road.surface = CSTRK_ROAD_ICE;
 	assert(cstrk_add_object(&track, &road, error, sizeof(error)));
 	activate(&track);
@@ -127,23 +129,23 @@ static void test_world_coordinates_and_surfaces(void)
 		for (unsigned column = 0; column < 8; column++) {
 			int32_t x = (int32_t)coordinates[column] * 1024 + 128;
 			int32_t z = 90 * 1024 - (int32_t)coordinates[row] * 1024 - 128;
-			struct VECTOR point = sample_world(x, 1800, z);
+			struct VECTOR point = sample_world(x, plateau_height, z);
 			int32_t recovered_x, recovered_z;
 			extended_geometry_world_position(&point, &recovered_x, &recovered_z);
 			assert(recovered_x == x && recovered_z == z);
 			assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
-			assert(abs(selected_height(&point) - 1800) <= 2);
+			assert(abs(selected_height(&point) - plateau_height) <= 2);
 			/* Road only covers its center strip, so these off-center
 			 * terrain probes retain the independent terrain surface. */
 			assert(current_surf_type == surfaces[(row + column) % 4U]);
 		}
 	}
-	struct VECTOR point = sample_world(89 * 1024 + 512, 1800, 512);
+	struct VECTOR point = sample_world(89 * 1024 + 512, plateau_height, 512);
 	assert(current_surf_type == CAR_SURFACE_ICE);
-	assert(abs(selected_height(&point) - 1800) <= 2);
-	(void)sample_world(70 * 1024 + 100, 1800, 90 * 1024 - 70 * 1024 - 100);
+	assert(abs(selected_height(&point) - plateau_height) <= 2);
+	(void)sample_world(70 * 1024 + 100, plateau_height, 90 * 1024 - 70 * 1024 - 100);
 	assert(current_surf_type == CAR_SURFACE_WATER);
-	(void)sample_world(70 * 1024 + 900, 1800, 90 * 1024 - 70 * 1024 - 900);
+	(void)sample_world(70 * 1024 + 900, plateau_height, 90 * 1024 - 70 * 1024 - 900);
 	assert(current_surf_type == CAR_SURFACE_GRASS);
 	assert(extended_track_object_at(89, 89) != NULL);
 	assert(extended_track_object_at(90, 89) == NULL);
@@ -653,7 +655,7 @@ static void test_corkscrew_surfaces(void)
 
 #define CURVED_SURFACE_COLUMN 40U
 #define CURVED_SURFACE_ROW 40U
-#define CURVED_SURFACE_LEVEL 2U
+#define CURVED_SURFACE_LEVEL CSTRK_MAX_HEIGHT
 #define CURVED_SURFACE_ROTATIONS 4U
 #define CURVED_SURFACE_CONTACTS 3U
 #define CURVED_SURFACE_LONG_SIDE 2U
