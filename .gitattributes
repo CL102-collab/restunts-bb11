@@ -54,6 +54,8 @@ makefile text eol=lf
 *.CSTRK binary
 *.csrpl binary
 *.CSRPL binary
+*.cshig binary
+*.CSHIG binary
 *.res binary
 *.RES binary
 *.3sh binary

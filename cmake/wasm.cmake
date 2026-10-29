@@ -53,7 +53,7 @@ foreach(editor_file track-editor.html track-editor.css track-editor.js
 endforeach()
 install(FILES ${restunts_editor_files} DESTINATION . COMPONENT Runtime)
 install(TARGETS restunts RUNTIME DESTINATION . COMPONENT Runtime)
-install(FILES docs/wasm.md docs/track-editor.md docs/cstrk-format.md docs/csrpl-format.md
+install(FILES docs/wasm.md docs/track-editor.md docs/cstrk-format.md docs/csrpl-format.md docs/cshig-format.md
     THIRD-PARTY-NOTICES.txt DESTINATION . COMPONENT Runtime)
 install(FILES third_party/nuked-opl2-lite/LICENSE
     DESTINATION share/licenses/restunts RENAME Nuked-OPL2-LICENSE COMPONENT Runtime)
