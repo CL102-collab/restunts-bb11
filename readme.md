@@ -20,13 +20,14 @@ All packages were created by GitHub CI and released as an immutable release dire
 
 ## Extended track editor
 
-The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
-terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
+The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with terrain
+heights from 0 through 9, independent terrain and road surfaces, ASCII notes,
+and undo/redo.
 Select your Stunts folder before editing. The browser launcher links the editor;
 native packages include it under `share/restunts/editor/`. The current `.cstrk`
-revision is v4. Revision v3 tracks open as v4 while preserving their overpass
-road materials; revisions below v3 are unsupported. Newer revisions show a warning
-and load using the known format.
+revision is v5. Revision v3 and v4 tracks open as v5 while preserving their
+terrain and road materials; revisions below v3 are unsupported. Newer revisions
+show a warning and load using the known format.
 
 Hills retain the original game's straight inclines and inner and outer corners
 at every elevation. Only the original hill-compatible roads and ramp variants

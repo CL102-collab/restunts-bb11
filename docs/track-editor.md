@@ -26,10 +26,10 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v4. Revision v3 tracks also open and are
-upgraded to v4 while preserving their original overpass road materials.
-Revisions below v3 cannot be opened. Tracks store their version in the file header; saving keeps
-the version after any upgrade. Opening a newer version shows an OK-only warning
+great track." The current version is v5. Revision v3 and v4 tracks also open
+and are upgraded to v5 while preserving their original terrain and road materials.
+Revisions below v3 cannot be opened. Tracks store their version in the file
+header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
 
 ## Terrain
@@ -59,14 +59,14 @@ Click the regular Paint tile preview or a primary surface to paint whole tiles
 again. Lower surface strokes support undo and redo and save in the existing
 track format.
 
-Level shows five square choices, starting with Ground (0), then heights 1
-through 4. These choices appear only while Level is selected; click a map tile
+Level shows ten square choices, starting with Ground (0), then heights 1
+through 9. These choices appear only while Level is selected; click a map tile
 to set its corners to the chosen height and apply the selected terrain surface
 to it and any slopes created by the height change. Level supports grass, dirt,
 ice and water. Switching between these surfaces keeps Level active and
 preserves its height selection.
 Height and material changes undo together; unrelated cells keep their materials.
-Raise and Lower change shared corners one level per click.
+Raise and Lower change shared corners one level per click, from 0 through 9.
 Adjoining corners adjust to retain the original game's flat tiles, straight
 inclines, and inner and outer hill corners. Each tile spans at most one level;
 alternating high/low corners and two-level diagonal slopes are not supported.

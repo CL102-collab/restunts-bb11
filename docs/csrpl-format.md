@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v4**. The revision identifies the track-format and
+recordings currently use **v5**. The revision identifies the track-format and
 physics behavior of the game that recorded the inputs; it is separate from the
 revision stored in the embedded track.
 
@@ -20,7 +20,7 @@ ghost, and resaving an existing replay retain its original recorded revision;
 a fresh recording uses the current game revision.
 
 Replay revisions older than the running game's current replay revision are
-unsupported and rejected before activation, including existing v1–v3 recordings.
+unsupported and rejected before activation, including existing v1–v4 recordings.
 The game does not emulate older physics. Increasing either the track revision
 or the physics revision also raises the minimum replay revision.
 
@@ -38,7 +38,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 4–65,535; current and minimum revision `4` |
+| 8 | 2 | Recorded replay revision, 5–65,535; current and minimum revision `5` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

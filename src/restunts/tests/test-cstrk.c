@@ -345,7 +345,7 @@ static void test_plateaus_and_hill_slopes(void)
 	assert(decoded.object_count == 2U);
 	assert(decoded.objects[0].occupied_mask == 7U);
 	assert(decoded.objects[1].base_height == CSTRK_MAX_HEIGHT);
-	assert(decoded.corner_heights[8] == 4U);
+	assert(decoded.corner_heights[8] == CSTRK_MAX_HEIGHT);
 	uint8_t *second = NULL;
 	size_t second_size = 0;
 	assert(cstrk_encode(&decoded, &second, &second_size, error, sizeof(error)));
@@ -357,7 +357,7 @@ static void test_plateaus_and_hill_slopes(void)
 	decoded.objects[0].slope_x = -1;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
 	decoded.objects[0].slope_x = 0;
-	decoded.corner_heights[8] = 3;
+	decoded.corner_heights[8] = CSTRK_MAX_HEIGHT - 1U;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
 	free(data);
 	free(second);
@@ -422,14 +422,19 @@ static void test_invalid_records(void)
 	assert(cstrk_create(&track, 2, 2, error, sizeof(error)));
 	struct CSTRK_OBJECT object = object_at(0, 0);
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
-	struct CSTRK_OBJECT invalid[] = {
-		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0, 0},
-		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2, 0}};
+	struct CSTRK_OBJECT invalid[] = {{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0, 0},
+									 {1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, CSTRK_MAX_HEIGHT + 1U, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2, 0}};
 	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
 		track.objects[0] = invalid[index];
 		assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -441,7 +446,7 @@ static void test_invalid_records(void)
 	track.cells[0].half_water_corner = 5;
 	assert(!cstrk_validate(&track, error, sizeof(error)));
 	track.cells[0].half_water_corner = 0;
-	track.corner_heights[8] = 5;
+	track.corner_heights[8] = CSTRK_MAX_HEIGHT + 1U;
 	assert(!cstrk_validate(&track, error, sizeof(error)));
 	track.corner_heights[8] = 2;
 	assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -487,7 +492,7 @@ static void test_maximum_track(void)
 	cstrk_init(&track);
 	cstrk_init(&decoded);
 	assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
-	memset(track.corner_heights, 4, 91U * 91U);
+	memset(track.corner_heights, CSTRK_MAX_HEIGHT, 91U * 91U);
 	track.object_count = 90U * 90U;
 	track.objects = calloc(track.object_count, sizeof(*track.objects));
 	assert(track.objects != NULL);
@@ -495,7 +500,7 @@ static void test_maximum_track(void)
 		for (unsigned column = 0; column < 90U; column++) {
 			unsigned index = row * 90U + column;
 			track.objects[index] = object_at((uint8_t)column, (uint8_t)row);
-			track.objects[index].base_height = 4;
+			track.objects[index].base_height = CSTRK_MAX_HEIGHT;
 			track.objects[index].surface = (uint8_t)(index % 3U);
 			track.objects[index].rotation = (uint8_t)(index % 4U);
 			track.cells[index].surface = (uint8_t)(index % 4U);
@@ -515,10 +520,105 @@ static void test_maximum_track(void)
 	assert(decoded.width == 90U && decoded.height == 90U);
 	assert(decoded.object_count == 8100U && decoded.notes_length == 8000U);
 	assert(decoded.objects[8099].x == 89U && decoded.objects[8099].y == 89U);
-	assert(decoded.corner_heights[8280] == 4U);
+	assert(decoded.corner_heights[8280] == CSTRK_MAX_HEIGHT);
 	assert(decoded.notes[8000] == '\0');
 	track.object_count++;
 	assert(!cstrk_validate(&track, error, sizeof(error)));
+	free(data);
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
+static void test_nine_level_boundaries(void)
+{
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	memset(track.corner_heights, CSTRK_MAX_HEIGHT, TEST_TERRAIN_CORNER_COUNT);
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.base_height = CSTRK_MAX_HEIGHT;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.objects[0].base_height == CSTRK_MAX_HEIGHT);
+	assert(decoded.corner_heights[0] == CSTRK_MAX_HEIGHT);
+	struct CSTRK_TERRAIN_PROFILE profile;
+	assert(cstrk_terrain_profile(&decoded, 0, 0, &profile));
+	assert(profile.terrain_id == CSTRK_TERRAIN_PROFILE_RAISED);
+	assert(profile.base_height == CSTRK_MAX_HEIGHT);
+	legacy_u8 *saved_corners = decoded.corner_heights;
+	size_t object_offset = CSTRK_HEADER_SIZE + TEST_TERRAIN_CORNER_COUNT + 2U;
+	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_NINE_LEVEL_VERSION; version++) {
+		/* A legacy label cannot make a level-nine payload acceptable. Validate
+		 * the original revision before upgrading successfully loaded metadata. */
+		LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(strstr(error, "exceeds height") != NULL);
+		assert(decoded.corner_heights == saved_corners);
+	}
+	LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	data[CSTRK_HEADER_SIZE] = CSTRK_MAX_HEIGHT + 1U;
+	assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	data[CSTRK_HEADER_SIZE] = CSTRK_MAX_HEIGHT;
+	data[object_offset + 9U] = CSTRK_MAX_HEIGHT + 1U;
+	assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	free(data);
+
+	/* An eight-to-nine incline keeps the original single-level slope. */
+	static const legacy_u8 slope[] = {CSTRK_MAX_HEIGHT - 1U, CSTRK_MAX_HEIGHT, CSTRK_MAX_HEIGHT,
+									  CSTRK_MAX_HEIGHT - 1U};
+	set_terrain_corners(&track, slope);
+	track.objects[0].legacy_id = 5U;
+	track.objects[0].base_height = CSTRK_MAX_HEIGHT - 1U;
+	track.objects[0].slope_x = 1;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.objects[0].base_height == CSTRK_MAX_HEIGHT - 1U);
+	assert(decoded.objects[0].slope_x == 1);
+	assert(cstrk_terrain_profile(&decoded, 0, 0, &profile));
+	assert(profile.base_height == CSTRK_MAX_HEIGHT - 1U);
+	assert(profile.terrain_id == CSTRK_TERRAIN_PROFILE_EAST);
+	free(data);
+	track.objects[0].slope_x++;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0].slope_x = 1;
+	track.corner_heights[0]--;
+	track.corner_heights[2]--;
+	assert(!cstrk_terrain_profile(&track, 0, 0, NULL));
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+
+	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_NINE_LEVEL_VERSION; version++) {
+		track.version = version;
+		memset(track.corner_heights, CSTRK_LEGACY_MAX_HEIGHT, TEST_TERRAIN_CORNER_COUNT);
+		track.objects[0].base_height = CSTRK_LEGACY_MAX_HEIGHT;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == version);
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION);
+		assert(decoded.objects[0].base_height == CSTRK_LEGACY_MAX_HEIGHT);
+		data[object_offset + 9U] = CSTRK_LEGACY_MAX_HEIGHT + 1U;
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(strstr(error, "invalid support plane") != NULL);
+		data[object_offset + 9U] = CSTRK_LEGACY_MAX_HEIGHT;
+		legacy_u8 *saved_data = data;
+		size_t saved_size = size;
+		memset(track.corner_heights, CSTRK_LEGACY_MAX_HEIGHT + 1U, TEST_TERRAIN_CORNER_COUNT);
+		track.objects[0].base_height = CSTRK_LEGACY_MAX_HEIGHT + 1U;
+		assert(!cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(data == saved_data && size == saved_size);
+		free(data);
+	}
+	track.version = TEST_FUTURE_REVISION;
+	memset(track.corner_heights, CSTRK_MAX_HEIGHT, TEST_TERRAIN_CORNER_COUNT);
+	track.objects[0].base_height = CSTRK_MAX_HEIGHT;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.version == TEST_FUTURE_REVISION);
+	assert(decoded.objects[0].base_height == CSTRK_MAX_HEIGHT);
 	free(data);
 	cstrk_free(&track);
 	cstrk_free(&decoded);
@@ -672,6 +772,7 @@ int main(void)
 {
 	test_wire_layout();
 	test_overpass_lower_surfaces();
+	test_nine_level_boundaries();
 	test_horizons_and_versions();
 	test_surface_corners();
 	test_original_terrain_profiles();

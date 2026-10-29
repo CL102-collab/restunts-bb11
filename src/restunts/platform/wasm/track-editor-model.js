@@ -10,7 +10,9 @@
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 4, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 5, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const MAX_HEIGHT = 9, LEGACY_MAX_HEIGHT = 4, NINE_LEVEL_VERSION = 5;
+    const maximumHeight = version => version < NINE_LEVEL_VERSION ? LEGACY_MAX_HEIGHT : MAX_HEIGHT;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -128,7 +130,7 @@
     }
     const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
-    const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
+    const TERRAIN_DISPLAY_HALF_LEVEL = .5;
     const CLASSIC_TERRAIN_BY_MASK = [0, 11, 14, 7, 13, -1, 10, 18, 12, 8, -1, 15, 9, 16, 17, 6];
     const CLASSIC_FLAT_GROUND = 0, CLASSIC_RAISED_GROUND = 6;
     const CLASSIC_FIRST_SLOPE = 7, CLASSIC_LAST_SLOPE = 10;
@@ -137,7 +139,7 @@
     const CLASSIC_PLACEMENT_ERROR = 'This element needs flat ground or an aligned original hill road.';
     function terrainProfile(heights) {
         if (!heights || heights.length !== TERRAIN_DISPLAY_CORNER_COUNT ||
-            Array.from(heights).some(height => !Number.isInteger(height) || height < 0 || height > TERRAIN_DISPLAY_MAX_HEIGHT)) return null;
+            Array.from(heights).some(height => !Number.isInteger(height) || height < 0 || height > MAX_HEIGHT)) return null;
         const baseLevel = Math.min(...heights), topLevel = Math.max(...heights);
         if (baseLevel === topLevel) return { terrain: baseLevel ? CLASSIC_RAISED_GROUND : CLASSIC_FLAT_GROUND, baseLevel };
         if (topLevel - baseLevel !== 1) return null;
@@ -244,7 +246,7 @@
         raise(x, y, delta = 1) {
             integer(delta, -1, 1, 'terrain change');
             return this.transaction(delta > 0 ? 'Raise terrain' : 'Lower terrain', () => {
-                const p = this.vertexIndex(x, y), vertices = this.vertices.slice(), target = Math.max(0, Math.min(TERRAIN_DISPLAY_MAX_HEIGHT, this.vertices[p] + delta));
+                const p = this.vertexIndex(x, y), vertices = this.vertices.slice(), target = Math.max(0, Math.min(maximumHeight(this.version), this.vertices[p] + delta));
                 if (target === this.vertices[p]) return target;
                 vertices[p] = target; normalizeTerrain(vertices, this.width, this.height, delta);
                 const invalid = this.objects.find(object => !this.supportsTerrain(object, vertices));
@@ -292,7 +294,7 @@
         }
         level(x, y, height, surface) {
             const cell = this.cellIndex(x, y);
-            integer(height, 0, 4, 'terrain level'); integer(surface, 0, 3, 'terrain surface');
+            integer(height, 0, maximumHeight(this.version), 'terrain level'); integer(surface, 0, 3, 'terrain surface');
             return this.transaction('Level terrain', () => {
                 const vertices = this.vertices.slice(), affected = new Set([cell]), stride = this.width + 1;
                 for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
@@ -356,12 +358,12 @@
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
         validate() {
-            const errors = [], occupiedCells = new Set();
+            const errors = [], occupiedCells = new Set(), maxHeight = maximumHeight(this.version);
             try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
             for (let y = 0; y <= this.height; y++) for (let x = 0; x <= this.width; x++) {
                 const level = this.vertices[y * (this.width + 1) + x];
-                if (level > 4) errors.push('Terrain exceeds four levels.');
+                if (!Number.isInteger(level) || level < 0 || level > maxHeight) errors.push('Terrain height must be an integer from 0 through ' + maxHeight + '.');
                 if (x < this.width && Math.abs(level - this.vertices[y * (this.width + 1) + x + 1]) > 1) errors.push('Terrain rises more than one level per edge.');
                 if (y < this.height && Math.abs(level - this.vertices[(y + 1) * (this.width + 1) + x]) > 1) errors.push('Terrain rises more than one level per edge.');
             }
@@ -381,7 +383,7 @@
                     integer(object.width, 1, 2, 'element width'); integer(object.height, 1, 2, 'element height');
                     integer(object.mask, 1, (1 << (object.width * object.height)) - 1, 'element footprint');
                     integer(object.rotation, 0, 3, 'element rotation'); integer(object.surface, 0, 2, 'element surface');
-                    integer(object.baseHeight, 0, 4, 'element height'); integer(object.slopeX, -1, 1, 'element slope'); integer(object.slopeY, -1, 1, 'element slope');
+                    integer(object.baseHeight, 0, maxHeight, 'element height'); integer(object.slopeX, -1, 1, 'element slope'); integer(object.slopeY, -1, 1, 'element slope');
                     const entry = byId.get(object.id);
                     if (!entry) throw new Error('Unknown track element.');
                     const lowerSurface = object.lowerSurface ?? 0;
@@ -429,7 +431,7 @@
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);
         const doc = new Document(width, height), expected = doc.vertices.length + doc.cells.length * 2 + count * 16 + notesLength;
         if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
-        doc.horizon = horizon; doc.version = Math.max(version, VERSION);
+        doc.horizon = horizon; doc.version = version;
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
         for (const cell of doc.cells) {
             cell.surface = a[p++];
@@ -447,7 +449,8 @@
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
+        doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, MAX_HEIGHT, OVERPASS_PHYSICAL_MODEL, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

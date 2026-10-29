@@ -1729,7 +1729,11 @@ enum FRAME_EXTENDED_HILL_EDGE {
 	FRAME_EXTENDED_HILL_NORTH = 1U,
 	FRAME_EXTENDED_HILL_EAST = 2U,
 	FRAME_EXTENDED_HILL_SOUTH = 4U,
-	FRAME_EXTENDED_HILL_WEST = 8U
+	FRAME_EXTENDED_HILL_WEST = 8U,
+	FRAME_EXTENDED_HILL_NORTHWEST = 16U,
+	FRAME_EXTENDED_HILL_NORTHEAST = 32U,
+	FRAME_EXTENDED_HILL_SOUTHEAST = 64U,
+	FRAME_EXTENDED_HILL_SOUTHWEST = 128U
 };
 
 static legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 x,
@@ -1759,14 +1763,54 @@ static legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, lega
 			edges |= neighbors[index].edge;
 		}
 	}
+	/* A grid corner is shared by four tiles. Include the diagonal hill so
+	 * every copy of a joined corner reaches the same point, even when the
+	 * two side neighbors have the current tile's base height. */
+	static const struct {
+		legacy_s8 dx, dy;
+		legacy_u8 sides, corner;
+	} corners[] = {
+		{-1, -1, FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_WEST,
+		 FRAME_EXTENDED_HILL_NORTHWEST},
+		{1, -1, FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_EAST,
+		 FRAME_EXTENDED_HILL_NORTHEAST},
+		{1, 1, FRAME_EXTENDED_HILL_SOUTH | FRAME_EXTENDED_HILL_EAST, FRAME_EXTENDED_HILL_SOUTHEAST},
+		{-1, 1, FRAME_EXTENDED_HILL_SOUTH | FRAME_EXTENDED_HILL_WEST,
+		 FRAME_EXTENDED_HILL_SOUTHWEST}};
+	for (legacy_u8 index = 0; index < sizeof(corners) / sizeof(corners[0]); index++) {
+		legacy_s16 nx = x + corners[index].dx, ny = y + corners[index].dy;
+		struct CSTRK_TERRAIN_PROFILE neighbor;
+		if ((edges & corners[index].sides) ||
+			(nx >= 0 && ny >= 0 && nx < track->width && ny < track->height &&
+			 cstrk_terrain_profile(track, (legacy_u16)nx, (legacy_u16)ny, &neighbor) &&
+			 neighbor.terrain_id >= CSTRK_TERRAIN_PROFILE_NORTH &&
+			 neighbor.base_height != profile.base_height)) {
+			edges |= corners[index].corner;
+		}
+	}
 	return edges;
 }
 
 /* Native hills overlap a tile by two units. At consecutive elevations that
  * overlap separates the two slope planes vertically. HyperVision joins both
- * sides at the shared grid edge; plateau joins retain their authored overlap. */
+ * sides at shared grid edges and corners; isolated hills keep their overlap. */
 static void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edges)
 {
+	legacy_s32 x = point->x < 0 ? -(legacy_s32)point->x : point->x;
+	legacy_s32 z = point->z < 0 ? -(legacy_s32)point->z : point->z;
+	if (x >= FRAME_EXTENDED_TERRAIN_HALF_TILE && x <= FRAME_EXTENDED_HILL_AUTHORED_EDGE &&
+		z >= FRAME_EXTENDED_TERRAIN_HALF_TILE && z <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		legacy_u8 corner =
+			point->z > 0
+				? (point->x < 0 ? FRAME_EXTENDED_HILL_NORTHWEST : FRAME_EXTENDED_HILL_NORTHEAST)
+				: (point->x < 0 ? FRAME_EXTENDED_HILL_SOUTHWEST : FRAME_EXTENDED_HILL_SOUTHEAST);
+		if (edges & corner) {
+			point->x =
+				point->x < 0 ? -FRAME_EXTENDED_TERRAIN_HALF_TILE : FRAME_EXTENDED_TERRAIN_HALF_TILE;
+			point->z =
+				point->z < 0 ? -FRAME_EXTENDED_TERRAIN_HALF_TILE : FRAME_EXTENDED_TERRAIN_HALF_TILE;
+		}
+	}
 	if ((edges & FRAME_EXTENDED_HILL_EAST) && point->x > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
 		point->x <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
 		point->x = FRAME_EXTENDED_TERRAIN_HALF_TILE;
@@ -2093,12 +2137,14 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 		!(profile.base_height == 0 && cell->surface == CSTRK_TERRAIN_GRASS &&
 		  cell->half_water_corner == CSTRK_WATER_NONE)) {
 		/* Only the low half of an outer corner needs a supporting fill.
-		 * A full quad beneath a slope can overpaint it in the classic painter. */
+		 * A full quad beneath a slope can overpaint it in the classic painter.
+		 * Its diagonal must share the native slope's authored endpoints and
+		 * seam adjustment; a grid-sized fill would leave a thin gap. */
+		legacy_s16 extent = profile.terrain_id != CSTRK_TERRAIN_PROFILE_FLAT && edges != 0
+								? FRAME_EXTENDED_HILL_AUTHORED_EDGE
+								: FRAME_EXTENDED_TERRAIN_HALF_TILE;
 		const struct VECTOR flat[] = {
-			{-FRAME_EXTENDED_TERRAIN_HALF_TILE, 0, FRAME_EXTENDED_TERRAIN_HALF_TILE},
-			{FRAME_EXTENDED_TERRAIN_HALF_TILE, 0, FRAME_EXTENDED_TERRAIN_HALF_TILE},
-			{FRAME_EXTENDED_TERRAIN_HALF_TILE, 0, -FRAME_EXTENDED_TERRAIN_HALF_TILE},
-			{-FRAME_EXTENDED_TERRAIN_HALF_TILE, 0, -FRAME_EXTENDED_TERRAIN_HALF_TILE}};
+			{-extent, 0, extent}, {extent, 0, extent}, {extent, 0, -extent}, {-extent, 0, -extent}};
 		struct VECTOR low_half[3];
 		const struct VECTOR *points = flat;
 		legacy_u16 count = sizeof(flat) / sizeof(flat[0]);
@@ -2110,6 +2156,7 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 			count = sizeof(low_half) / sizeof(low_half[0]);
 			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 				low_half[vertex] = flat[(high_corner + vertex + 1U) % 4U];
+				frame_extended_join_hill_vertex(&low_half[vertex], edges);
 			}
 			points = low_half;
 		}
