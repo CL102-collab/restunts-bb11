@@ -3142,59 +3142,86 @@ static legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 	/* A deferred overlay can carry over until a depth-sorted track shape. */
 	legacy_s8 overlay_needs_depth_sort = 0;
 
-	/* Submit the selected shapes in tile order. Classic lookahead is arranged
-	 * back to front; HyperVision's stable grid order needs no depth sorting. */
-	struct FRAME_TILE tile;
-	for (legacy_s16 tile_index = tiles->first; tile_index < tiles->count; tile_index++) {
-		if (tiles->markers[tile_index] != FRAME_TILE_DRAW_MARKER) {
-			continue;
-		}
-		tile.east = tiles->east[tile_index];
-		tile.south = tiles->south[tile_index];
-		tile.element = tiles->elements[tile_index];
-		tile.terrain = tiles->terrain[tile_index];
-		tile.detail = supersight_enabled != 0
-						  ? tiles->lookahead[tile_index].detail >= tiles->detail_threshold
-						  : tiles->detail[tile_index];
-		tile.depth_mask = 0;
+	/* A multi-tile road overlay is submitted from its anchor. In HyperVision,
+	 * finish flat extended ground first so a later tile's coplanar ground
+	 * cannot cover that road. Hills keep their authored overlap order, and
+	 * classic retains its back-to-front tile order. */
 #if defined(RESTUNTS_SDL3)
-		tile.adaptive_flags = frame_adaptive_active != 0 ? frame_adaptive_tile_flags(&tile) : 0;
-		if (tile.adaptive_flags == FRAME_ADAPTIVE_HIDE) {
-			continue;
-		}
-		if ((tile.adaptive_flags & FRAME_ADAPTIVE_LOW_GEOMETRY) != 0) {
-			tile.detail = FRAME_TILE_DETAIL_FULL + 1;
-		}
+	enum { FRAME_TILE_GROUND_PASS, FRAME_TILE_OBJECT_PASS };
+	legacy_s16 first_pass = supersight_enabled != 0 && extended_track_active()
+								? FRAME_TILE_GROUND_PASS
+								: FRAME_TILE_OBJECT_PASS;
+	for (legacy_s16 pass = first_pass; pass <= FRAME_TILE_OBJECT_PASS; pass++) {
 #endif
-		if (
+		struct FRAME_TILE tile;
+		for (legacy_s16 tile_index = tiles->first; tile_index < tiles->count; tile_index++) {
+			if (tiles->markers[tile_index] != FRAME_TILE_DRAW_MARKER) {
+				continue;
+			}
+			tile.east = tiles->east[tile_index];
+			tile.south = tiles->south[tile_index];
+			tile.element = tiles->elements[tile_index];
+			tile.terrain = tiles->terrain[tile_index];
+			tile.detail = supersight_enabled != 0
+							  ? tiles->lookahead[tile_index].detail >= tiles->detail_threshold
+							  : tiles->detail[tile_index];
+			tile.depth_mask = 0;
 #if defined(RESTUNTS_SDL3)
-			!extended_track_active() &&
+			tile.adaptive_flags = frame_adaptive_active != 0 ? frame_adaptive_tile_flags(&tile) : 0;
+			if (tile.adaptive_flags == FRAME_ADAPTIVE_HIDE) {
+				continue;
+			}
+			if ((tile.adaptive_flags & FRAME_ADAPTIVE_LOW_GEOMETRY) != 0) {
+				tile.detail = FRAME_TILE_DETAIL_FULL + 1;
+			}
 #endif
-			frame_draw_fences(&tile, tiles, camera, redraw_transform_flags) != 0 &&
-			supersight_enabled != 0) {
-			return 1;
+			if (
+#if defined(RESTUNTS_SDL3)
+				!extended_track_active() &&
+#endif
+				frame_draw_fences(&tile, tiles, camera, redraw_transform_flags) != 0 &&
+				supersight_enabled != 0) {
+				return 1;
+			}
+
+#if defined(RESTUNTS_SDL3)
+			struct CSTRK_TERRAIN_PROFILE ground_profile;
+			legacy_u8 ground_first =
+				first_pass == FRAME_TILE_GROUND_PASS &&
+				cstrk_terrain_profile(extended_track_model(), (legacy_u16)tile.east,
+									  (legacy_u16)tile.south, &ground_profile) &&
+				ground_profile.terrain_id < CSTRK_TERRAIN_PROFILE_NORTH;
+			if ((pass == FRAME_TILE_GROUND_PASS) == ground_first) {
+#endif
+				if (frame_draw_terrain(&tile, camera, redraw_transform_flags) != 0) {
+					return 1;
+				}
+#if defined(RESTUNTS_SDL3)
+			}
+			if (pass == FRAME_TILE_GROUND_PASS) {
+				continue;
+			}
+#endif
+
+			transformedshape_counter = 0;
+			curtransshape_ptr = currenttransshape;
+			if (frame_add_track_element(&tile, camera, cars, redraw_transform_flags,
+										animated_material, &overlay_needs_depth_sort) != 0) {
+				return 1;
+			}
+
+			frame_add_tile_cars(&tile, camera, cars, redraw_transform_flags);
+
+			frame_add_start_flag(&tile, camera, redraw_transform_flags);
+
+			if (frame_draw_sorted_shapes(cars, &tile, camera, redraw_transform_flags) != 0 &&
+				supersight_enabled != 0) {
+				return 1;
+			}
 		}
-
-		if (frame_draw_terrain(&tile, camera, redraw_transform_flags) != 0) {
-			return 1;
-		}
-
-		transformedshape_counter = 0;
-		curtransshape_ptr = currenttransshape;
-		if (frame_add_track_element(&tile, camera, cars, redraw_transform_flags, animated_material,
-									&overlay_needs_depth_sort) != 0) {
-			return 1;
-		}
-
-		frame_add_tile_cars(&tile, camera, cars, redraw_transform_flags);
-
-		frame_add_start_flag(&tile, camera, redraw_transform_flags);
-
-		if (frame_draw_sorted_shapes(cars, &tile, camera, redraw_transform_flags) != 0 &&
-			supersight_enabled != 0) {
-			return 1;
-		}
+#if defined(RESTUNTS_SDL3)
 	}
+#endif
 	return 0;
 }
 

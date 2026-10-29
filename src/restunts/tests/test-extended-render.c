@@ -954,6 +954,121 @@ static legacy_u16 check_consecutive_hill_seams(void)
 	return frames;
 }
 
+#define LOOP_RENDER_COLUMN 44U
+#define LOOP_RENDER_ROW 43U
+#define LOOP_RENDER_CAMERA_DISTANCE 2700
+#define LOOP_RENDER_CAMERA_ELEVATION 96
+#define LOOP_RENDER_ASPHALT_MATERIAL CLASSIC_RENDER_PAVED_MATERIAL
+#define LOOP_RENDER_OBJECT_ID 65U
+#define LOOP_RENDER_LONG_SIDE_CELLS 2U
+#define LOOP_RENDER_CAMERA_COUNT 2U
+#define LOOP_RENDER_CAR_CLEARANCE 32U
+#define LOOP_RENDER_MIN_ASPHALT_PIXELS 500U
+
+static legacy_u16 check_elevated_multitile_road(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	legacy_u64 classic_hash = SEAM_RENDER_HASH_OFFSET;
+	legacy_u16 frames = 0;
+	for (legacy_u8 rotation = 0; rotation < SEAM_RENDER_DIRECTION_COUNT; rotation++) {
+		struct CSTRK_OBJECT object = {0};
+		object.legacy_id = LOOP_RENDER_OBJECT_ID;
+		object.rotation = rotation;
+		object.x = LOOP_RENDER_COLUMN;
+		object.y = LOOP_RENDER_ROW;
+		object.width = (rotation & 1U) ? 1U : LOOP_RENDER_LONG_SIDE_CELLS;
+		object.height = (rotation & 1U) ? LOOP_RENDER_LONG_SIDE_CELLS : 1U;
+		object.occupied_mask = (1U << (object.width * object.height)) - 1U;
+		memset(track.corner_heights, 0, (size_t)(track.width + 1U) * (track.height + 1U));
+		track.object_count = 0;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		for (legacy_u8 camera = 0; camera < LOOP_RENDER_CAMERA_COUNT; camera++) {
+			legacy_u32 *ground = NULL;
+			size_t ground_size = 0;
+			for (legacy_u8 base = 0; base <= CSTRK_MAX_HEIGHT; base++) {
+				memset(track.corner_heights, base,
+					   (size_t)(track.width + 1U) * (track.height + 1U));
+				track.objects[0].base_height = base;
+				activate_render_track(&track, 1);
+				position_render_target(LOOP_RENDER_COLUMN, LOOP_RENDER_ROW);
+				struct CARSTATE *car = &state.playerstate;
+				car->car_position.lx = (LOOP_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE +
+										object.width * (CSTRK_TILE_WORLD_SIZE / 2U)) *
+									   GRASS_RENDER_POSITION_SCALE;
+				car->car_position.lz = ((track.height - LOOP_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
+										object.height * (CSTRK_TILE_WORLD_SIZE / 2U)) *
+									   GRASS_RENDER_POSITION_SCALE;
+				car->car_position.ly =
+					(base * CSTRK_LEVEL_WORLD_HEIGHT + LOOP_RENDER_CAR_CLEARANCE) *
+					GRASS_RENDER_POSITION_SCALE;
+				car->car_previous_position = car->car_position;
+				car->car_crashBmpFlag = CRASH_EVENT_WATER;
+				custom_camera.distance = LOOP_RENDER_CAMERA_DISTANCE;
+				custom_camera.elevation_angle = LOOP_RENDER_CAMERA_ELEVATION;
+				custom_camera.azimuth_angle = (rotation * ANGLE_QUARTER_TURN + ANGLE_HALF_TURN +
+											   ANGLE_EIGHTH_TURN + camera * ANGLE_QUARTER_TURN) &
+											  ANGLE_MASK;
+				size_t size;
+				legacy_u32 *pixels = capture_complete_render(&size);
+				if (base == 0) {
+					ground = pixels;
+					ground_size = size;
+				} else if (supersight_enabled) {
+					assert(size == ground_size);
+					legacy_s32 width, height;
+					assert(hires_framebuffer(
+						dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width, &height));
+					legacy_u32 asphalt =
+						RENDER_CAPTURE_OPAQUE_ALPHA |
+						(legacy_u32)material_clrlist_ptr[LOOP_RENDER_ASPHALT_MATERIAL] *
+							RENDER_CAPTURE_INDEX_RGB_STEP;
+					size_t protected = 0, covered = 0;
+					/* Translating an identical loop and camera by a whole level must
+					 * preserve its asphalt. Interior pixels avoid rasterized edges. */
+					for (legacy_s32 y = 1; y + 1 < height; y++) {
+						for (legacy_s32 x = 1; x + 1 < width; x++) {
+							size_t pixel = (size_t)y * width + x;
+							if (ground[pixel] == asphalt && ground[pixel - 1U] == asphalt &&
+								ground[pixel + 1U] == asphalt && ground[pixel - width] == asphalt &&
+								ground[pixel + width] == asphalt) {
+								protected++;
+								covered += pixels[pixel] != asphalt;
+							}
+						}
+					}
+					assert(protected > LOOP_RENDER_MIN_ASPHALT_PIXELS);
+					if (covered) {
+						fprintf(stderr,
+								"Elevated loop rotation %u camera %u level %u covers %zu/%zu "
+								"asphalt pixels\n",
+								rotation, camera, base, covered, protected);
+					}
+					assert(covered == 0);
+				}
+				if (!supersight_enabled) {
+					for (size_t pixel = 0; pixel < size; pixel++) {
+						classic_hash = (classic_hash ^ pixels[pixel]) * SEAM_RENDER_HASH_PRIME;
+					}
+				}
+				if (base) {
+					free(pixels);
+				}
+				frames++;
+			}
+			free(ground);
+		}
+	}
+	if (!supersight_enabled) {
+		printf("Elevated loops classic pixel hash: %016" LEGACY_PRIx64 "\n", classic_hash);
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -1002,6 +1117,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_ground_grass_color();
 		frames += check_classic_hill_rendering();
 		frames += check_consecutive_hill_seams();
+		frames += check_elevated_multitile_road();
 	}
 	extended_track_unload();
 	cstrk_free(&track);
