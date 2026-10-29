@@ -93,16 +93,21 @@
                         </div>
                     </div>
                     <div id="level-options-row" class="terrain-options" hidden>
-                        <div class="terrain-choice-heading level-label"><span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><output id="level-output">1 / 4</output></div>
+                        <div class="terrain-choice-heading level-label"><span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg> Elevation</span><output id="level-output">1 / 9</output></div>
                         <div class="terrain-choices" role="group" aria-label="Terrain elevation">
                             <button type="button" class="terrain-choice" data-level="0" aria-pressed="false" aria-label="Ground level 0" title="Set elevation to ground level"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">0</span></button>
                             <button type="button" class="terrain-choice" data-level="1" aria-pressed="true" aria-label="Level 1" title="Set elevation to level 1"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">1</span></button>
                             <button type="button" class="terrain-choice" data-level="2" aria-pressed="false" aria-label="Level 2" title="Set elevation to level 2"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">2</span></button>
                             <button type="button" class="terrain-choice" data-level="3" aria-pressed="false" aria-label="Level 3" title="Set elevation to level 3"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">3</span></button>
                             <button type="button" class="terrain-choice" data-level="4" aria-pressed="false" aria-label="Level 4" title="Set elevation to level 4"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">4</span></button>
+                            <button type="button" class="terrain-choice" data-level="5" aria-pressed="false" aria-label="Level 5" title="Set elevation to level 5"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">5</span></button>
+                            <button type="button" class="terrain-choice" data-level="6" aria-pressed="false" aria-label="Level 6" title="Set elevation to level 6"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">6</span></button>
+                            <button type="button" class="terrain-choice" data-level="7" aria-pressed="false" aria-label="Level 7" title="Set elevation to level 7"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">7</span></button>
+                            <button type="button" class="terrain-choice" data-level="8" aria-pressed="false" aria-label="Level 8" title="Set elevation to level 8"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">8</span></button>
+                            <button type="button" class="terrain-choice" data-level="9" aria-pressed="false" aria-label="Level 9" title="Set elevation to level 9"><canvas width="64" height="64" aria-hidden="true"></canvas><span class="terrain-level-badge" aria-hidden="true">9</span></button>
                         </div>
                     </div>
-                    <input id="terrain-level" type="range" min="0" max="4" step="1" value="1" hidden tabindex="-1" aria-hidden="true">
+                    <input id="terrain-level" type="range" min="0" max="9" step="1" value="1" hidden tabindex="-1" aria-hidden="true">
                     <p class="control-hint"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-info"></use></svg> Shared corners keep slopes connected.</p>
                 </section>
                 <section id="track-panel" class="control-section track-section" role="tabpanel" aria-labelledby="track-tab">
@@ -152,7 +157,7 @@
                 <div class="canvas-tool-indicator"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-build"></use></svg><span id="canvas-mode">BUILD TRACK · 2D</span></div>
                 <div class="map-compass" aria-hidden="true"><span>N</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-compass"></use></svg></div>
                 <div class="minimap-panel"><div class="minimap-heading"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Navigator</span><span class="status-dot"></span></div><canvas id="minimap" width="156" height="156" aria-label="Track overview. Click or drag to move the view."></canvas><span id="minimap-caption">90 × 90 tiles</span></div>
-                <div id="canvas-empty" class="canvas-empty"><span class="eyebrow">YOUR NEXT GREAT TRACK</span><h1>A little imagination.<br>A lot more room.</h1><p>90 × 90 tiles. Four terrain levels.<br>Every corner is a possibility.</p></div>
+                <div id="canvas-empty" class="canvas-empty"><span class="eyebrow">YOUR NEXT GREAT TRACK</span><h1>A little imagination.<br>A lot more room.</h1><p>90 × 90 tiles. Terrain levels 0–9.<br>Every corner is a possibility.</p></div>
             </div>
             <footer class="statusbar"><span class="status-dot"></span><span id="status" role="status" aria-live="polite">Connect your Stunts folder to start building.</span><span id="cursor-position">—</span><span id="object-count">0 elements</span><span class="status-format">.cstrk</span></footer>
         </section>
