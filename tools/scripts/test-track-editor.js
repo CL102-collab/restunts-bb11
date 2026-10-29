@@ -207,6 +207,51 @@ test('strict ASCII notes enforce the 8000-character bound', () => {
     assert.throws(() => doc.setNotes('A'.repeat(8001)), /8000/);
     for (const invalid of ['café', '\u0000', '\u007f', 'track 🏁']) assert.throws(() => doc.setNotes(invalid), /ASCII/);
 });
+test('horizons are validated edits with undo, redo, and no-op history preservation', () => {
+    const doc = new model.Document(4, 4);
+    assert.equal(doc.horizon, 0);
+    assert.deepEqual(model.HORIZONS, ['Desert', 'Tropical', 'Alpine', 'City', 'Country']);
+    doc.setNotes('Keep these notes');
+    const original = doc.snapshot();
+    for (let horizon = 1; horizon < model.HORIZONS.length; horizon++) {
+        doc.setHorizon(horizon);
+        assert.equal(doc.horizon, horizon);
+        assert.equal(doc.notes, original.notes);
+        assert.equal(doc.history.at(-1).label, 'Change horizon');
+    }
+    for (let horizon = model.HORIZONS.length - 2; horizon >= 0; horizon--) {
+        assert(doc.undo()); assert.equal(doc.horizon, horizon);
+    }
+    assert.deepEqual(doc.snapshot(), original);
+    doc.setHorizon(doc.horizon);
+    assert.equal(doc.canRedo, true);
+    assert(doc.redo()); assert.equal(doc.horizon, 1);
+    const before = doc.snapshot(), history = doc.history.length;
+    for (const invalid of [-1, model.HORIZONS.length, 1.5, '2', null])
+        assert.throws(() => doc.setHorizon(invalid), /horizon/);
+    assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+});
+test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
+    const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
+    const original = model.encodeCstrk(doc);
+    assert.equal(model.decodeCstrk(original).horizon, 0);
+    for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
+        doc.setHorizon(horizon);
+        const bytes = model.encodeCstrk(doc), view = new DataView(bytes.buffer);
+        assert.equal(view.getUint16(8, true), 1);
+        assert.equal(view.getUint32(12, true), horizon);
+        assert.equal(bytes.length, original.length);
+        assert.deepEqual(bytes.subarray(32), original.subarray(32));
+        assert.deepEqual(model.decodeCstrk(bytes).snapshot(), doc.snapshot());
+    }
+    const invalidHorizon = original.slice(), header = new DataView(invalidHorizon.buffer);
+    for (const invalid of [model.HORIZONS.length, 256, 0xffffffff]) {
+        header.setUint32(12, invalid, true);
+        assert.throws(() => model.decodeCstrk(invalidHorizon), /horizon/);
+    }
+    doc.horizon = model.HORIZONS.length;
+    assert.throws(() => model.encodeCstrk(doc), /horizon/);
+});
 test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', () => {
     const doc = new model.Document(); doc.raise(60, 60); doc.paint(59, 59, 2, 3);
     doc.place(11, 0, 0, 1); doc.place(151, 0, 1); doc.setNotes('Chocolate Stunts\r\nASCII\tmetadata');
@@ -216,7 +261,7 @@ test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', (
     assert.throws(() => model.decodeCstrk(data.subarray(0, data.length - 1)), /truncated/);
     assert.throws(() => model.decodeCstrk(Uint8Array.from([...data, 0])), /truncated/);
     const invalid = data.slice(); invalid[32] = 5; assert.throws(() => model.decodeCstrk(invalid), /four levels|one level/);
-    const flags = data.slice(); flags[12] = 1; assert.throws(() => model.decodeCstrk(flags), /version/);
+    const horizon = data.slice(); horizon[12] = model.HORIZONS.length; assert.throws(() => model.decodeCstrk(horizon), /horizon/);
     const forged = data.slice(), objectOffset = 32 + doc.vertices.length + doc.cells.length * 2;
     forged[objectOffset + 8] = 15; assert.throws(() => model.decodeCstrk(forged), /catalog geometry|overlap/);
     const internal = data.slice(); internal[objectOffset] = 182; assert.throws(() => model.decodeCstrk(internal), /Unknown track element/);

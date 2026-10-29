@@ -235,7 +235,7 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 	AMIGA_RACE_TRACE("skybox");
 	load_skybox(
 #ifdef RESTUNTS_SDL3
-		extended_track_active() ? 0 :
+		extended_track_active() ? extended_track_model()->horizon :
 #endif
 								track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
 	AMIGA_RACE_TRACE("track 3D geometry");
