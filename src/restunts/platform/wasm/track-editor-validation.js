@@ -1,9 +1,9 @@
 /* Race-route checks mirror the SDL3 CSTRK path in track_setup.c. This checker
  * does not change the document or prevent saving unfinished tracks. */
 (function (root, factory) {
-    if (typeof module === 'object' && module.exports) module.exports = factory(require('./track-editor-route-data.js'));
-    else root.TrackEditorValidation = factory(root.TrackEditorRouteData);
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (data) {
+    if (typeof module === 'object' && module.exports) module.exports = factory(require('./track-editor-route-data.js'), require('./track-editor-model.js'));
+    else root.TrackEditorValidation = factory(root.TrackEditorRouteData, root.TrackEditorModel);
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (data, model) {
     'use strict';
     const CAPACITY = 16201;
     const STATUS = { OK: 0, NO_START_FINISH: 1, INTERNAL_ERROR: 2, MANY_START_FINISH: 3,
@@ -17,6 +17,11 @@
         [1, -1, 0], [-1, 1, 3], [1, 1, 1], [2, 0, 1], [2, 1, 1],
         [1, 1, 2], [0, 2, 2], [1, 2, 2]];
     const SYMMETRIC = new Set([1, 27, 28, 30, 31, 18, 19, 20, 22, 11, 34, 4, 5, 35]);
+    const FLAT_TERRAIN = 0, RAISED_TERRAIN = 6;
+    const HILL_TERRAIN_FIRST = 7, HILL_TERRAIN_END = 11, HILL_ROAD_FIRST = 182, HILL_SPAN_FIRST = 194;
+    const HILL_DIRECTION_COUNT = 4, HILL_DIRECT_VARIANT_COUNT = 3;
+    const HILL_PIECES = [[4, 14, 24, 39, 59, 98], [5, 15, 25, 36, 56, 95],
+        [4, 14, 24, 38, 58, 97], [5, 15, 25, 37, 57, 96]];
     const CAUSES = ['', 'No start / finish element.', 'The route could not be compiled.',
         'More than one start / finish.', 'Track pieces do not connect.',
         'A track piece faces the wrong way.', 'This track has too many elements.',
@@ -34,7 +39,7 @@
         return (CAUSES[status] || 'Track validation error ' + status + '.') + location + ' ' +
             (HINTS[status] || 'Check the track and try again.');
     }
-    function resolveId(object) {
+    function resolveOrientation(object) {
         const original = data.objects[object.id];
         if (!original || object.id < 1 || object.id >= 182) return -1;
         if (!object.rotation) return object.id;
@@ -49,6 +54,19 @@
         }
         if (original.routeIndex === null && object.width === 1 && object.height === 1) return object.id;
         return -1;
+    }
+    function resolveId(doc, object) {
+        const id = resolveOrientation(object);
+        if (id < 0) return id;
+        const profile = model.terrainProfile(doc.tileHeights(object.x, object.y));
+        if (!profile) return -1;
+        if (profile.terrain === FLAT_TERRAIN || profile.terrain === RAISED_TERRAIN) return id;
+        if (profile.terrain < HILL_TERRAIN_FIRST || profile.terrain >= HILL_TERRAIN_END) return -1;
+        const direction = profile.terrain - HILL_TERRAIN_FIRST;
+        const variant = HILL_PIECES[direction].indexOf(id);
+        if (variant < 0) return -1;
+        return variant < HILL_DIRECT_VARIANT_COUNT ? HILL_ROAD_FIRST + direction + object.surface * HILL_DIRECTION_COUNT :
+            HILL_SPAN_FIRST + direction;
     }
     function validateRoute(doc) {
         if (!data || !data.objects || !data.blocks) throw new Error('Editor route data could not be loaded.');
@@ -66,7 +84,7 @@
             return { status, column, row, pieces: route.length, route, message: message(status, column, row, route.length) };
         }
         for (const object of doc.objects) {
-            const id = resolveId(object);
+            const id = resolveId(doc, object);
             if (id < 0) return result(STATUS.INTERNAL_ERROR, object.x, object.y);
             const entry = { object, id };
             for (let y = 0; y < object.height; y++) for (let x = 0; x < object.width; x++)

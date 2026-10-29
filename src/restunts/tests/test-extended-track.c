@@ -121,6 +121,11 @@ static void test_world_coordinates_and_surfaces(void)
 	assert(extended_track_width() == 90 && extended_track_height() == 90);
 	assert(trackrows[0] == 89 * 90 && trackrows[89] == 0);
 	assert(terrainrows[89] == 89 * 90);
+	struct PLANE *saved_planes = planptr;
+	planptr = NULL;
+	assert(extended_track_elevation(0, 0, CSTRK_TILE_WORLD_SIZE / 2, CSTRK_TILE_WORLD_SIZE / 2) ==
+		   CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT);
+	planptr = saved_planes;
 	for (unsigned row = 0; row < 8; row++) {
 		for (unsigned column = 0; column < 8; column++) {
 			int32_t x = (int32_t)coordinates[column] * 1024 + 128;
@@ -153,85 +158,55 @@ static void test_world_coordinates_and_surfaces(void)
 	cstrk_free(&track);
 }
 
-static int64_t length_squared(const struct VECTOR *vector)
+static void test_object_geometry_is_unrotated(void)
 {
-	return (int64_t)vector->x * vector->x + (int64_t)vector->y * vector->y +
-		   (int64_t)vector->z * vector->z;
-}
-
-static void test_rigid_transform(void)
-{
-	for (int x = -1; x <= 1; x++) {
-		for (int y = -1; y <= 1; y++) {
-			struct CSTRK_OBJECT object = object_at(66, 41, 50);
-			object.slope_x = (int8_t)x;
-			object.slope_y = (int8_t)y;
+	static const struct VECTOR samples[] = {
+		{1024, 0, 0}, {0, 1024, 0}, {0, 0, 1024}, {732, -151, -511}, {-1000, 450, 115}};
+	for (legacy_s8 x = -1; x <= 1; x++) {
+		for (legacy_s8 y = -1; y <= 1; y++) {
+			struct CSTRK_OBJECT object = object_at(4, 41, 50);
+			object.slope_x = x;
+			object.slope_y = y;
 			struct EXTENDED_GEOMETRY_BASIS basis;
 			extended_geometry_object_basis(&object, &basis);
-			static const struct VECTOR samples[] = {
-				{1024, 0, 0}, {0, 1024, 0}, {0, 0, 1024}, {732, -151, -511}, {-1000, 450, 115}};
-			struct VECTOR axes[3];
-			for (unsigned index = 0; index < sizeof(samples) / sizeof(samples[0]); index++) {
+			for (size_t index = 0; index < sizeof(samples) / sizeof(samples[0]); index++) {
 				struct VECTOR transformed, recovered;
 				extended_geometry_forward(&basis, &samples[index], &transformed);
 				extended_geometry_inverse(&basis, &transformed, &recovered);
-				assert(llabs(length_squared(&transformed) - length_squared(&samples[index])) <
-					   4096);
-				assert(abs(recovered.x - samples[index].x) <= 1);
-				assert(abs(recovered.y - samples[index].y) <= 1);
-				assert(abs(recovered.z - samples[index].z) <= 1);
-				if (index < 3U) {
-					axes[index] = transformed;
-				}
-			}
-			for (unsigned first = 0; first < 3; first++) {
-				for (unsigned second = first + 1; second < 3; second++) {
-					int64_t dot = (int64_t)axes[first].x * axes[second].x +
-								  (int64_t)axes[first].y * axes[second].y +
-								  (int64_t)axes[first].z * axes[second].z;
-					assert(llabs(dot) < 2048);
-				}
+				assert(memcmp(&transformed, &samples[index], sizeof(transformed)) == 0);
+				assert(memcmp(&recovered, &samples[index], sizeof(recovered)) == 0);
 			}
 		}
 	}
 }
 
-static void test_sloped_stunt_and_snapshot(void)
+static void test_raised_stunt_and_snapshot(void)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
-	for (unsigned row = 0; row <= 90U; row++) {
-		for (unsigned column = 0; column <= 90U; column++) {
-			int height = (int)column - 40;
-			track.corner_heights[row * 91U + column] = (uint8_t)(height < 0	  ? 0
-																 : height > 4 ? 4
-																			  : height);
-		}
-	}
+	memset(track.corner_heights, 2, 91U * 91U);
 	struct CSTRK_OBJECT tunnel = object_at(66, 41, 50);
-	tunnel.base_height = 1;
-	tunnel.slope_x = 1;
+	tunnel.base_height = 2;
 	tunnel.surface = CSTRK_ROAD_DIRT;
 	assert(cstrk_add_object(&track, &tunnel, error, sizeof(error)));
 	activate(&track);
-	struct VECTOR point = sample_world(41 * 1024 + 512, 675, 90 * 1024 - 50 * 1024 - 512);
+	struct VECTOR point = sample_world(41 * 1024 + 512, 900, 90 * 1024 - 50 * 1024 - 512);
 	assert(current_surf_type == CAR_SURFACE_DIRT);
 	assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
-	assert(abs(selected_height(&point) - 675) <= 2);
-	assert(current_planptr->plane_normal.x < 0);
+	assert(abs(selected_height(&point) - 900) <= 2);
+	assert(current_planptr->plane_normal.x == 0);
 	assert(current_planptr->plane_normal.y > 0);
 	struct TRACK_COLLISION_SNAPSHOT saved;
 	track_collision_capture(&saved);
 	struct PLANE original_plane = *current_planptr;
-	(void)sample_world(89 * 1024 + 512, 1800, 512);
-	assert(current_planptr->plane_normal.x == 0);
+	(void)sample_world(89 * 1024 + 512, 900, 512);
 	track_collision_restore(&saved);
 	assert(memcmp(current_planptr, &original_plane, sizeof(original_plane)) == 0);
 	assert(current_surf_type == CAR_SURFACE_DIRT);
 	assert(wheel_overlaps(&track, &tunnel, 0, 0));
 	assert(!wheel_overlaps(&track, &tunnel, 400, 0));
-	/* The mesh and its side wall share one rigid transform. */
+	/* A raised plateau translates both the original mesh and its side wall. */
 	struct VECTOR inside = object_world(&track, &tunnel, (struct VECTOR){100, 80, 0});
 	struct VECTOR outside = object_world(&track, &tunnel, (struct VECTOR){140, 80, 0});
 	assert(track_wall_intersects_segment(&inside, &outside));
@@ -242,7 +217,7 @@ static void test_sloped_stunt_and_snapshot(void)
 	cstrk_free(&track);
 }
 
-static void test_half_water_saddle(void)
+static void test_nonclassic_terrain_is_rejected(void)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
@@ -250,24 +225,272 @@ static void test_half_water_saddle(void)
 	size_t northwest = 64U * 91U + 64U;
 	track.corner_heights[northwest + 1U] = 1;
 	track.corner_heights[northwest + 91U] = 1;
-	static const unsigned corners[] = {CSTRK_WATER_NONE, CSTRK_WATER_NORTHWEST,
-									   CSTRK_WATER_NORTHEAST, CSTRK_WATER_SOUTHEAST,
-									   CSTRK_WATER_SOUTHWEST};
-	for (unsigned corner = 0; corner < 5; corner++) {
-		track.cells[64U * 90U + 64U].half_water_corner = (uint8_t)corners[corner];
-		activate(&track);
-		for (int point = 256; point <= 768; point += 256) {
-			int height = (corner == CSTRK_WATER_NORTHWEST || corner == CSTRK_WATER_SOUTHEAST)
-							 ? (point == 512 ? 450 : 225)
-							 : 0;
-			assert(extended_track_elevation(64, 64, point, point) == height);
-			struct VECTOR world =
-				sample_world(64 * 1024 + point, height, 90 * 1024 - 64 * 1024 - point);
-			assert(abs(selected_height(&world) - height) <= 3);
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	assert(!extended_track_activate(&track, error, sizeof(error)));
+	track.corner_heights[northwest + 92U] = 2;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	assert(!extended_track_activate(&track, error, sizeof(error)));
+	cstrk_free(&track);
+}
+
+#define HILL_TEST_DIMENSION 8U
+#define HILL_TEST_COLUMN 3U
+#define HILL_TEST_ROW 3U
+#define HILL_TEST_NATIVE_COLUMN 10U
+#define HILL_TEST_NATIVE_ROW 10U
+#define HILL_TEST_SAMPLE_COUNT 5U
+#define HILL_TEST_TERRAIN_PROBE_HEIGHT 900
+#define HILL_TEST_SPAN_PROBE_HEIGHT 466
+#define HILL_TEST_ROAD_CENTER_HEIGHT (CSTRK_LEVEL_WORLD_HEIGHT / 2)
+#define HILL_TEST_GRASS_HEIGHT_HASH_SHIFT 8U
+#define HILL_TEST_NON_GRASS_HEIGHT_OFFSET 2
+
+static const legacy_u8 hill_test_masks[] = {0, 0, 0, 0, 0, 0,  15, 3,  9, 12,
+											6, 1, 8, 4, 2, 11, 13, 14, 7};
+static const legacy_s16 hill_test_positions[HILL_TEST_SAMPLE_COUNT] = {128, 256, 512, 768, 896};
+
+struct NATIVE_HILL_CONTACT {
+	struct PLANE plane;
+	legacy_s16 height, surface, bias;
+	legacy_s16 wall, wall_height, wall_orientation, wall_x, wall_z;
+};
+
+static legacy_s16 hill_contact_bias(const struct VECTOR *point, legacy_s16 surface)
+{
+	if (surface == CAR_SURFACE_GRASS) {
+		return (
+			legacy_s16)(((legacy_u16)(point->x ^ point->z) >> HILL_TEST_GRASS_HEIGHT_HASH_SHIFT) &
+						1U);
+	}
+	return HILL_TEST_NON_GRASS_HEIGHT_OFFSET;
+}
+
+static void make_hill_test_track(struct CSTRK_TRACK *track, legacy_u8 terrain, legacy_u8 base)
+{
+	cstrk_init(track);
+	assert(cstrk_create(track, HILL_TEST_DIMENSION, HILL_TEST_DIMENSION, error, sizeof(error)));
+	size_t stride = track->width + 1U;
+	memset(track->corner_heights, base, stride * (track->height + 1U));
+	size_t northwest = HILL_TEST_ROW * stride + HILL_TEST_COLUMN;
+	const size_t corners[] = {northwest, northwest + 1U, northwest + stride + 1U,
+							  northwest + stride};
+	for (legacy_u8 corner = 0; corner < 4U; corner++) {
+		track->corner_heights[corners[corner]] += (hill_test_masks[terrain] >> corner) & 1U;
+	}
+	assert(cstrk_validate(track, error, sizeof(error)));
+}
+
+static void capture_native_hill(
+	legacy_u8 terrain, legacy_u8 element, legacy_s16 height,
+	struct NATIVE_HILL_CONTACT contacts[HILL_TEST_SAMPLE_COUNT][HILL_TEST_SAMPLE_COUNT])
+{
+	assert(!extended_track_active());
+	memset(track_element_map, 0, TRACKDATA_MAP_SIZE);
+	memset(track_terrain_map, 0, TRACKDATA_MAP_SIZE);
+	track_element_map[terrainrows[HILL_TEST_NATIVE_ROW] + HILL_TEST_NATIVE_COLUMN] = element;
+	track_terrain_map[trackrows[HILL_TEST_NATIVE_ROW] + HILL_TEST_NATIVE_COLUMN] = terrain;
+	for (legacy_u8 y = 0; y < HILL_TEST_SAMPLE_COUNT; y++) {
+		for (legacy_u8 x = 0; x < HILL_TEST_SAMPLE_COUNT; x++) {
+			struct VECTOR point = sample_world(
+				HILL_TEST_NATIVE_COLUMN * CSTRK_TILE_WORLD_SIZE + hill_test_positions[x], height,
+				(HILL_TEST_NATIVE_ROW + 1U) * CSTRK_TILE_WORLD_SIZE - hill_test_positions[y]);
+			struct NATIVE_HILL_CONTACT *contact = &contacts[y][x];
+			contact->plane = *current_planptr;
+			contact->height = (legacy_s16)selected_height(&point);
+			contact->surface = current_surf_type;
+			contact->bias = hill_contact_bias(&point, current_surf_type);
+			contact->wall = wallindex;
+			contact->wall_height = wallHeight;
+			contact->wall_orientation = wallOrientation;
+			contact->wall_x = LEGACY_S16_WRAP_SUB(wallStartX, elem_xCenter);
+			contact->wall_z = LEGACY_S16_WRAP_SUB(wallStartZ, elem_zCenter);
 		}
 	}
-	extended_track_unload();
-	cstrk_free(&track);
+}
+
+static void check_native_hill_contact(const struct NATIVE_HILL_CONTACT *original,
+									  const struct VECTOR *point, legacy_u8 base,
+									  legacy_s16 surface)
+{
+	assert(current_surf_type == surface);
+	assert(memcmp(&current_planptr->plane_normal, &original->plane.plane_normal,
+				  sizeof(current_planptr->plane_normal)) == 0);
+	assert(memcmp(&current_planptr->plane_rotation, &original->plane.plane_rotation,
+				  sizeof(current_planptr->plane_rotation)) == 0);
+	assert(current_planptr->plane_yz == original->plane.plane_yz);
+	assert(current_planptr->plane_xy == original->plane.plane_xy);
+	legacy_s32 expected = original->height - original->bias + base * CSTRK_LEVEL_WORLD_HEIGHT +
+						  hill_contact_bias(point, surface);
+	assert(selected_height(point) == expected);
+	assert(wallindex == original->wall);
+	assert(wallHeight == original->wall_height);
+	if (wallindex >= 0) {
+		assert(wallOrientation == original->wall_orientation);
+		assert(LEGACY_S16_WRAP_SUB(wallStartX, elem_xCenter) == original->wall_x);
+		assert(LEGACY_S16_WRAP_SUB(wallStartZ, elem_zCenter) == original->wall_z);
+	}
+}
+
+static void test_original_hill_terrain(void)
+{
+	static const legacy_u8 terrains[] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
+	legacy_u8 saved_elements[TRACKDATA_MAP_SIZE], saved_terrain[TRACKDATA_MAP_SIZE];
+	memcpy(saved_elements, track_element_map, sizeof(saved_elements));
+	memcpy(saved_terrain, track_terrain_map, sizeof(saved_terrain));
+	for (size_t kind = 0; kind < sizeof(terrains) / sizeof(terrains[0]); kind++) {
+		legacy_u8 terrain = terrains[kind];
+		struct NATIVE_HILL_CONTACT original[HILL_TEST_SAMPLE_COUNT][HILL_TEST_SAMPLE_COUNT];
+		capture_native_hill(terrain, 0, HILL_TEST_TERRAIN_PROBE_HEIGHT, original);
+		legacy_u8 last_base = terrain == 0 ? CSTRK_MAX_HEIGHT : CSTRK_MAX_HEIGHT - 1U;
+		for (legacy_u8 base = 0; base <= last_base; base++) {
+			struct CSTRK_TRACK track;
+			make_hill_test_track(&track, terrain, base);
+			activate(&track);
+			for (legacy_u8 y = 0; y < HILL_TEST_SAMPLE_COUNT; y++) {
+				for (legacy_u8 x = 0; x < HILL_TEST_SAMPLE_COUNT; x++) {
+					struct VECTOR point = sample_world(
+						HILL_TEST_COLUMN * CSTRK_TILE_WORLD_SIZE + hill_test_positions[x],
+						base * CSTRK_LEVEL_WORLD_HEIGHT + HILL_TEST_TERRAIN_PROBE_HEIGHT,
+						(HILL_TEST_DIMENSION - HILL_TEST_ROW) * CSTRK_TILE_WORLD_SIZE -
+							hill_test_positions[y]);
+					check_native_hill_contact(&original[y][x], &point, base, CAR_SURFACE_GRASS);
+					assert(extended_track_elevation(HILL_TEST_COLUMN, HILL_TEST_ROW,
+													hill_test_positions[x],
+													hill_test_positions[y]) ==
+						   original[y][x].height - original[y][x].bias +
+							   base * CSTRK_LEVEL_WORLD_HEIGHT);
+				}
+			}
+			extended_track_unload();
+			cstrk_free(&track);
+		}
+	}
+	memcpy(track_element_map, saved_elements, sizeof(saved_elements));
+	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
+}
+
+static void test_original_hill_roads(void)
+{
+	static const legacy_u8 roads[4][6] = {{4, 14, 24, 39, 59, 98},
+										  {5, 15, 25, 36, 56, 95},
+										  {4, 14, 24, 38, 58, 97},
+										  {5, 15, 25, 37, 57, 96}};
+	legacy_u8 saved_elements[TRACKDATA_MAP_SIZE], saved_terrain[TRACKDATA_MAP_SIZE];
+	memcpy(saved_elements, track_element_map, sizeof(saved_elements));
+	memcpy(saved_terrain, track_terrain_map, sizeof(saved_terrain));
+	for (legacy_u8 direction = 0; direction < 4U; direction++) {
+		legacy_u8 terrain = HILL_TERRAIN_FIRST + direction;
+		for (legacy_u8 variant = 0; variant < 6U; variant++) {
+			legacy_u8 surface = variant < 3U ? variant : CSTRK_ROAD_PAVED;
+			legacy_s16 height =
+				variant < 3U ? HILL_TEST_TERRAIN_PROBE_HEIGHT : HILL_TEST_SPAN_PROBE_HEIGHT;
+			struct NATIVE_HILL_CONTACT original[HILL_TEST_SAMPLE_COUNT][HILL_TEST_SAMPLE_COUNT];
+			capture_native_hill(terrain, roads[direction][variant], height, original);
+			for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+				struct CSTRK_TRACK track;
+				make_hill_test_track(&track, terrain, base);
+				struct CSTRK_OBJECT object =
+					object_at(roads[direction][variant], HILL_TEST_COLUMN, HILL_TEST_ROW);
+				size_t northwest = HILL_TEST_ROW * (track.width + 1U) + HILL_TEST_COLUMN;
+				object.base_height = track.corner_heights[northwest];
+				object.slope_x = track.corner_heights[northwest + 1U] - object.base_height;
+				object.slope_y =
+					track.corner_heights[northwest + track.width + 1U] - object.base_height;
+				object.surface = surface;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				assert(extended_track_object_id(
+						   extended_track_object_at(HILL_TEST_COLUMN, HILL_TEST_ROW)) ==
+					   subst_hillroad_track(terrain, roads[direction][variant]));
+				if (variant < 3U) {
+					/* OWOOT contacts must follow the native inclined road, rather
+					 * than the flat model originally stored in the editor cell. */
+					assert(wheel_overlaps(&track, &object, 0, HILL_TEST_ROAD_CENTER_HEIGHT));
+					assert(!wheel_overlaps(&track, &object, 0, 0));
+				}
+				for (legacy_u8 y = 0; y < HILL_TEST_SAMPLE_COUNT; y++) {
+					for (legacy_u8 x = 0; x < HILL_TEST_SAMPLE_COUNT; x++) {
+						struct VECTOR point = sample_world(
+							HILL_TEST_COLUMN * CSTRK_TILE_WORLD_SIZE + hill_test_positions[x],
+							base * CSTRK_LEVEL_WORLD_HEIGHT + height,
+							(HILL_TEST_DIMENSION - HILL_TEST_ROW) * CSTRK_TILE_WORLD_SIZE -
+								hill_test_positions[y]);
+						check_native_hill_contact(&original[y][x], &point, base,
+												  original[y][x].surface);
+					}
+				}
+				/* Rotating an otherwise valid hill piece away from its incline
+				 * must fail rather than silently tilting the original model. */
+				track.objects[0].rotation = 1;
+				assert(!extended_track_activate(&track, error, sizeof(error)));
+				extended_track_unload();
+				cstrk_free(&track);
+			}
+		}
+	}
+	memcpy(track_element_map, saved_elements, sizeof(saved_elements));
+	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
+}
+
+static void test_hill_shore_geometry(void)
+{
+	static const legacy_u8 terrains[] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
+	static const legacy_s16 materials[] = {CAR_SURFACE_GRASS, CAR_SURFACE_ICE, CAR_SURFACE_DIRT,
+										   CAR_SURFACE_WATER};
+	legacy_u8 saved_elements[TRACKDATA_MAP_SIZE], saved_terrain[TRACKDATA_MAP_SIZE];
+	memcpy(saved_elements, track_element_map, sizeof(saved_elements));
+	memcpy(saved_terrain, track_terrain_map, sizeof(saved_terrain));
+	for (size_t kind = 0; kind < sizeof(terrains) / sizeof(terrains[0]); kind++) {
+		legacy_u8 terrain = terrains[kind];
+		struct NATIVE_HILL_CONTACT original[HILL_TEST_SAMPLE_COUNT][HILL_TEST_SAMPLE_COUNT];
+		capture_native_hill(terrain, 0, HILL_TEST_TERRAIN_PROBE_HEIGHT, original);
+		for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+			struct CSTRK_TRACK track;
+			make_hill_test_track(&track, terrain, base);
+			struct CSTRK_CELL *cell = &track.cells[HILL_TEST_ROW * track.width + HILL_TEST_COLUMN];
+			for (legacy_u8 primary = CSTRK_TERRAIN_GRASS; primary <= CSTRK_TERRAIN_WATER;
+				 primary++) {
+				for (legacy_u8 secondary = CSTRK_TERRAIN_GRASS; secondary <= CSTRK_TERRAIN_WATER;
+					 secondary++) {
+					if (primary == secondary) {
+						continue;
+					}
+					cell->surface = primary;
+					cell->corner_surface = secondary;
+					for (legacy_u8 corner = CSTRK_WATER_NORTHWEST; corner <= CSTRK_WATER_SOUTHWEST;
+						 corner++) {
+						cell->half_water_corner = corner;
+						activate(&track);
+						for (legacy_u8 y = 0; y < HILL_TEST_SAMPLE_COUNT; y++) {
+							for (legacy_u8 x = 0; x < HILL_TEST_SAMPLE_COUNT; x++) {
+								legacy_s16 u = hill_test_positions[x], v = hill_test_positions[y];
+								legacy_u8 secondary_half =
+									(corner == CSTRK_WATER_NORTHWEST &&
+									 u + v < CSTRK_TILE_WORLD_SIZE) ||
+									(corner == CSTRK_WATER_NORTHEAST && v < u) ||
+									(corner == CSTRK_WATER_SOUTHEAST &&
+									 u + v >= CSTRK_TILE_WORLD_SIZE) ||
+									(corner == CSTRK_WATER_SOUTHWEST && v >= u);
+								struct VECTOR point = sample_world(
+									HILL_TEST_COLUMN * CSTRK_TILE_WORLD_SIZE + u,
+									base * CSTRK_LEVEL_WORLD_HEIGHT +
+										HILL_TEST_TERRAIN_PROBE_HEIGHT,
+									(HILL_TEST_DIMENSION - HILL_TEST_ROW) * CSTRK_TILE_WORLD_SIZE -
+										v);
+								check_native_hill_contact(
+									&original[y][x], &point, base,
+									materials[secondary_half ? secondary : primary]);
+							}
+						}
+						extended_track_unload();
+					}
+				}
+			}
+			cstrk_free(&track);
+		}
+	}
+	memcpy(track_element_map, saved_elements, sizeof(saved_elements));
+	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
 }
 
 #define SHORE_TEST_COLUMN 64U
@@ -340,15 +563,14 @@ static void test_resource_admission(void)
 	struct CSTRK_OBJECT tunnel = object_at(66, 40, 40);
 	tunnel.slope_x = 1;
 	assert(cstrk_add_object(&track, &tunnel, error, sizeof(error)));
-	/* One isolated incline is too short to support a tilted stunt. */
+	/* The original editor never permits a tunnel on a hill incline. */
 	assert(!extended_track_activate(&track, error, sizeof(error)));
 	for (unsigned row = 0; row <= 90; row++) {
 		for (unsigned column = 42; column <= 90; column++) {
 			track.corner_heights[row * 91U + column] = 2;
 		}
 	}
-	activate(&track);
-	extended_track_unload();
+	assert(!extended_track_activate(&track, error, sizeof(error)));
 	cstrk_free(&track);
 
 	assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
@@ -838,10 +1060,13 @@ int main(void)
 	legacy_u8 *legacy_elements = track_element_map;
 	legacy_u8 *legacy_terrain = track_terrain_map;
 	legacy_s16 *legacy_links = track_primary_route_links;
-	test_rigid_transform();
+	test_object_geometry_is_unrotated();
 	test_world_coordinates_and_surfaces();
-	test_sloped_stunt_and_snapshot();
-	test_half_water_saddle();
+	test_raised_stunt_and_snapshot();
+	test_nonclassic_terrain_is_rejected();
+	test_original_hill_terrain();
+	test_original_hill_roads();
+	test_hill_shore_geometry();
 	test_shore_materials();
 	test_resource_admission();
 	test_corkscrew_surfaces();
@@ -856,6 +1081,7 @@ int main(void)
 	assert(track_element_map == legacy_elements && track_terrain_map == legacy_terrain);
 	assert(track_primary_route_links == legacy_links);
 	assert(trackrows[0] == 29 * 30 && trackrows[29] == 0);
-	puts("Extended 90x90 terrain, surfaces, rigid stunts, sparse overlays and long routes passed.");
+	puts("Extended 90x90 terrain, original hills, surfaces, sparse overlays and long routes "
+		 "passed.");
 	return 0;
 }

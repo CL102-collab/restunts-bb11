@@ -51,13 +51,19 @@ ice and water. Switching between these surfaces keeps Level active and
 preserves its height selection.
 Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
-Adjoining corners adjust to form connected slopes, as in SimCity 2000. Paint
-can apply any surface, including water, to terrain at any elevation.
+Adjoining corners adjust to retain the original game's flat tiles, straight
+inclines, and inner and outer hill corners. Each tile spans at most one level;
+alternating high/low corners and two-level diagonal slopes are not supported.
+The same 450-unit rise over a 1,024-unit tile is used at every elevation, so
+higher hills keep the original slope angles. Paint can apply any surface,
+including water, to terrain at any elevation without changing its shape.
 
-Build a continuous slope before placing a stunt. The complete piece needs a
-single supporting plane over its footprint, including both rows or columns of
-a two-tile piece. A piece tilts as a whole. Terrain edits that would bend a
-placed piece are rejected; remove or move that piece first.
+On an incline, place an aligned straight road or one of the original compatible
+ramp variants. The game uses the original hill-road or flat hill-span model;
+it does not tilt an ordinary track piece. Turns, stunts, scenery and multi-tile
+pieces need a flat plateau across their entire footprint. Hill-corner tiles
+accept no track pieces. Terrain edits that would invalidate an existing piece
+are rejected; remove or move that piece first.
 
 ## Track pieces
 

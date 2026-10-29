@@ -23,6 +23,32 @@
 #define CSTRK_CORNER_DIRECTION_MASK 7U
 #define CSTRK_CORNER_SURFACE_SHIFT 3U
 #define CSTRK_CORNER_SURFACE_MASK 3U
+#define CSTRK_TILE_WORLD_SIZE 1024
+#define CSTRK_LEVEL_WORLD_HEIGHT 450
+
+/* Corner bits are ordered clockwise from northwest, matching the wire grid. */
+enum CSTRK_TERRAIN_PROFILE_ID {
+	CSTRK_TERRAIN_PROFILE_FLAT = 0,
+	CSTRK_TERRAIN_PROFILE_RAISED = 6,
+	CSTRK_TERRAIN_PROFILE_NORTH = 7,
+	CSTRK_TERRAIN_PROFILE_WEST = 8,
+	CSTRK_TERRAIN_PROFILE_SOUTH = 9,
+	CSTRK_TERRAIN_PROFILE_EAST = 10,
+	CSTRK_TERRAIN_PROFILE_OUTER_NORTHWEST = 11,
+	CSTRK_TERRAIN_PROFILE_OUTER_SOUTHWEST = 12,
+	CSTRK_TERRAIN_PROFILE_OUTER_SOUTHEAST = 13,
+	CSTRK_TERRAIN_PROFILE_OUTER_NORTHEAST = 14,
+	CSTRK_TERRAIN_PROFILE_INNER_SOUTHEAST = 15,
+	CSTRK_TERRAIN_PROFILE_INNER_NORTHEAST = 16,
+	CSTRK_TERRAIN_PROFILE_INNER_NORTHWEST = 17,
+	CSTRK_TERRAIN_PROFILE_INNER_SOUTHWEST = 18
+};
+
+struct CSTRK_TERRAIN_PROFILE {
+	legacy_u8 terrain_id;
+	legacy_u8 base_height;
+	legacy_u8 high_mask;
+};
 
 enum CSTRK_HORIZON {
 	CSTRK_HORIZON_DESERT = 0,
@@ -99,6 +125,11 @@ void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
 				 size_t error_size);
 int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size);
+/* Classify an original flat, straight slope, or inner/outer hill corner at any
+ * supported base level. Returns zero for cliffs, saddles and diagonal ramps.
+ * A non-NULL profile receives the original terrain ID and its minimum level. */
+legacy_int cstrk_terrain_profile(const struct CSTRK_TRACK *track, legacy_u16 x, legacy_u16 y,
+								 struct CSTRK_TERRAIN_PROFILE *profile);
 int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
 					size_t error_size);
 int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object, char *error,

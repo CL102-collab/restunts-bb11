@@ -25,6 +25,10 @@ terrain levels, independent terrain and road surfaces, ASCII notes, and undo/red
 Select your Stunts folder before editing. The browser launcher links the editor;
 native packages include it under `share/restunts/editor/`.
 
+Hills retain the original game's straight inclines and inner and outer corners
+at every elevation. Only the original hill-compatible roads and ramp variants
+can be placed on inclines; other track pieces require a flat plateau.
+
 SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
 counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior
 is preserved. See the [editor guide](docs/track-editor.md),

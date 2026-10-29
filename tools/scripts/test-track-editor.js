@@ -119,10 +119,178 @@ test('terrain reaches four levels and propagates all corner slopes', () => {
     for (let i = 0; i < 8; i++) doc.raise(45, 45);
     assert.equal(doc.vertices[45 * 91 + 45], 4);
     assert.equal(doc.vertices[45 * 91 + 44], 3);
-    assert.equal(doc.vertices[43 * 91 + 43], 0);
+    assert.equal(doc.vertices[43 * 91 + 43], 2);
     assert.deepEqual(doc.validate(), []);
     doc.raise(45, 45, -1);
     assert.equal(doc.vertices[45 * 91 + 45], 3);
+});
+test('original hill profiles preserve native slope and corner classifications at every level', () => {
+    const profiles = [[7, [1, 1, 0, 0]], [8, [1, 0, 0, 1]], [9, [0, 0, 1, 1]], [10, [0, 1, 1, 0]],
+        [11, [1, 0, 0, 0]], [12, [0, 0, 0, 1]], [13, [0, 0, 1, 0]], [14, [0, 1, 0, 0]],
+        [15, [1, 1, 0, 1]], [16, [1, 0, 1, 1]], [17, [0, 1, 1, 1]], [18, [1, 1, 1, 0]]];
+    const maximumLevel = 4, expected = new Map();
+    for (let base = 0; base < maximumLevel; base++) for (const [terrain, heights] of profiles) {
+        const translated = heights.map(height => height + base);
+        expected.set(translated.join(','), { terrain, baseLevel: base });
+    }
+    for (let level = 0; level <= maximumLevel; level++)
+        expected.set([level, level, level, level].join(','), { terrain: level ? 6 : 0, baseLevel: level });
+    for (let nw = 0; nw <= maximumLevel; nw++) for (let ne = 0; ne <= maximumLevel; ne++) {
+        for (let se = 0; se <= maximumLevel; se++) for (let sw = 0; sw <= maximumLevel; sw++) {
+            const heights = [nw, ne, se, sw], profile = expected.get(heights.join(',')) || null;
+            assert.deepEqual(model.terrainProfile(heights), profile);
+            const doc = new model.Document(1, 1); doc.vertices.set([nw, ne, sw, se]);
+            if (profile) assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+            else assert.throws(() => model.encodeCstrk(doc), /Terrain/);
+        }
+    }
+    assert.equal(expected.size, 53);
+    for (const invalid of [null, [], [0, 0, 0], [0, .5, 0, 0], [0, 0, 0, 5]]) assert.equal(model.terrainProfile(invalid), null);
+});
+test('terrain edits produce only original profiles and resolve diagonal islands symmetrically', () => {
+    const doc = new model.Document(8, 8);
+    const assertProfiles = () => {
+        for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++)
+            assert(model.terrainProfile(doc.tileHeights(x, y)), 'every tile has an original hill profile');
+        assert.deepEqual(doc.validate(), []);
+    };
+    doc.raise(3, 3); doc.raise(4, 4); assertProfiles();
+    assert.deepEqual(doc.tileHeights(3, 3), [1, 1, 1, 1]);
+    doc.raise(3, 4, -1); doc.raise(4, 3, -1); assertProfiles();
+    assert.deepEqual(doc.tileHeights(3, 3), [0, 0, 0, 0]);
+    for (const height of [4, 0, 3, 1, 2]) {
+        doc.level(3, 3, height, 0); assertProfiles();
+        assert.deepEqual(doc.tileHeights(3, 3), [height, height, height, height]);
+    }
+    const randomMultiplier = 1664525, randomIncrement = 1013904223;
+    let random = 19;
+    for (let edit = 0; edit < 100; edit++) {
+        random = (Math.imul(random, randomMultiplier) + randomIncrement) >>> 0;
+        const x = random % (doc.width + 1), y = (random >>> 8) % (doc.height + 1);
+        doc.raise(x, y, random & 1 ? 1 : -1); assertProfiles();
+    }
+});
+test('hill placement matches original aligned road and ramp rules in every direction and level', () => {
+    const maximumLevel = 4, tileCount = 4, target = 1;
+    for (let base = 0; base < maximumLevel; base++) for (let terrain = 7; terrain <= 10; terrain++) {
+        const doc = new model.Document(tileCount, tileCount);
+        for (let y = 0; y <= tileCount; y++) for (let x = 0; x <= tileCount; x++) {
+            const raised = terrain === 7 ? y <= target : terrain === 8 ? x <= target : terrain === 9 ? y > target : x > target;
+            doc.vertices[y * (tileCount + 1) + x] = base + raised;
+        }
+        assert.equal(model.terrainProfile(doc.tileHeights(target, target)).terrain, terrain);
+        for (const entry of model.catalog) for (let rotation = 0; rotation < 4; rotation++) {
+            const direction = (entry.rotation + rotation) % 4;
+            const alignedRoad = entry.physical === 1 && direction % 2 === (terrain === 7 || terrain === 9 ? 0 : 1);
+            const matchingRamp = (entry.physical === 16 || entry.physical === 17) && direction === [2, 1, 0, 3][terrain - 7];
+            for (const surface of entry.surfaces) {
+                if (alignedRoad || matchingRamp) {
+                    const object = doc.place(entry.id, target, target, surface, rotation);
+                    assert.deepEqual(doc.validate(), []);
+                    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+                    assert.equal(object.baseHeight, doc.tileHeights(target, target)[0]);
+                    doc.objects = [];
+                } else assert.throws(() => doc.place(entry.id, target, target, surface, rotation), /original hill/);
+            }
+        }
+    }
+    for (const heights of [[1, 0, 0, 0], [0, 1, 1, 1]]) {
+        const doc = new model.Document(1, 1); doc.vertices.set([heights[0], heights[1], heights[3], heights[2]]);
+        for (const id of [4, 38, 66, 151]) assert.throws(() => doc.place(id, 0, 0), /original hill/);
+    }
+});
+test('original hill propagation is identical when the entire edit sequence is rotated', () => {
+    const width = 8, stride = width + 1, edits = 100;
+    const first = new model.Document(width, width), rotated = new model.Document(width, width);
+    const randomMultiplier = 1664525, randomIncrement = 1013904223;
+    let random = 41;
+    for (let edit = 0; edit < edits; edit++) {
+        random = (Math.imul(random, randomMultiplier) + randomIncrement) >>> 0;
+        if (edit % 3) {
+            const x = random % stride, y = (random >>> 8) % stride, delta = random & 1 ? 1 : -1;
+            first.raise(x, y, delta); rotated.raise(width - y, x, delta);
+        } else {
+            const x = random % width, y = (random >>> 8) % width, level = (random >>> 16) % 5;
+            first.level(x, y, level, 0); rotated.level(width - 1 - y, x, level, 0);
+        }
+        for (let y = 0; y <= width; y++) for (let x = 0; x <= width; x++)
+            assert.equal(first.vertices[y * stride + x], rotated.vertices[x * stride + width - y]);
+    }
+});
+test('hill display corners turn through right angles consistently at every orientation and level', () => {
+    const cornerCount = 4, profileCount = 1 << cornerCount, maximumLevel = 4;
+    const pointKey = point => JSON.stringify(point.map(value => Number(value.toFixed(12))));
+    function pathKey(points, closed) {
+        const keys = points.map(pointKey), variants = [];
+        for (const ordered of [keys, keys.slice().reverse()]) {
+            for (let start = 0; start < (closed ? ordered.length : 1); start++)
+                variants.push(ordered.slice(start).concat(ordered.slice(0, start)).join(';'));
+        }
+        return variants.sort()[0];
+    }
+    const shapeKey = layer => ({ polygons: layer.polygons.map(points => pathKey(points, true)).sort(),
+        contours: layer.contours.map(points => pathKey(points, false)).sort() });
+    const rotatePoint = ([x, y]) => [1 - y, x];
+    for (let base = 0; base < maximumLevel; base++) for (let mask = 1; mask < profileCount - 1; mask++) {
+        const heights = Array.from({ length: cornerCount }, (_, corner) => base + !!(mask & (1 << corner)));
+        const before = heights.slice(), display = model.terrainDisplayLayers(heights);
+        assert.equal(display.baseLevel, base); assert.equal(display.layers.length, 1);
+        const layer = display.layers[0];
+        assert.equal(layer.level, base + .5);
+        const highCorners = heights.filter(height => height > base).length;
+        for (const points of layer.polygons) for (const point of points)
+            assert(point.every(coordinate => coordinate >= 0 && coordinate <= 1));
+        if (highCorners === 1 || highCorners === cornerCount - 1) {
+            assert.equal(layer.contours.length, 1);
+            const [first, elbow, last] = layer.contours[0];
+            assert.equal(layer.contours[0].length, 3);
+            const firstHorizontal = first[1] === elbow[1], lastHorizontal = last[1] === elbow[1];
+            assert(firstHorizontal !== lastHorizontal, 'a corner contains one horizontal and one vertical segment');
+            assert(firstHorizontal ? first[0] !== elbow[0] && last[0] === elbow[0] : first[0] === elbow[0] && last[0] !== elbow[0]);
+        }
+        const rotated = model.terrainDisplayLayers([heights[3], heights[0], heights[1], heights[2]]);
+        assert.deepEqual(shapeKey(rotated.layers[0]), shapeKey({ polygons: layer.polygons.map(points => points.map(rotatePoint)),
+            contours: layer.contours.map(points => points.map(rotatePoint)) }));
+        assert.deepEqual(heights, before);
+    }
+    assert.deepEqual(model.terrainDisplayLayers([1, 0, 0, 0]).layers[0].contours,
+        [[[.5, 0], [.5, .5], [0, .5]]]);
+    for (let level = 0; level <= maximumLevel; level++)
+        assert.deepEqual(model.terrainDisplayLayers(new Uint8Array(cornerCount).fill(level)), { baseLevel: level, layers: [] });
+});
+test('neighboring hill display contours join without changing terrain or saved data', () => {
+    const doc = new model.Document(8, 8);
+    doc.level(3, 3, 4, 0); doc.paint(2, 2, 0, 2, 1);
+    const before = doc.snapshot(), saved = model.encodeCstrk(doc);
+    function crossings(x, y, axis, boundary) {
+        return model.terrainDisplayLayers(doc.tileHeights(x, y)).layers.flatMap(layer => layer.contours.flatMap(points =>
+            [points[0], points[points.length - 1]].filter(point => point[axis] === boundary)
+                .map(point => JSON.stringify([layer.level, point[1 - axis]])))).sort();
+    }
+    for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+        if (x + 1 < doc.width) assert.deepEqual(crossings(x, y, 0, 1), crossings(x + 1, y, 0, 0));
+        if (y + 1 < doc.height) assert.deepEqual(crossings(x, y, 1, 1), crossings(x, y + 1, 1, 0));
+    }
+    assert.deepEqual(doc.snapshot(), before); assert.deepEqual(model.encodeCstrk(doc), saved);
+});
+test('hill display supports existing saddles and diagonal planes without material-dependent geometry', () => {
+    const saddle = model.terrainDisplayLayers([1, 0, 1, 0]);
+    assert.equal(saddle.layers.length, 1);
+    assert.equal(saddle.layers[0].polygons.length, 2); assert.equal(saddle.layers[0].contours.length, 2);
+    const diagonal = model.terrainDisplayLayers([0, 1, 2, 1]);
+    assert.deepEqual(diagonal.layers.map(layer => layer.level), [.5, 1.5]);
+    const doc = new model.Document(2, 2);
+    doc.raise(1, 1);
+    const expected = model.terrainDisplayLayers(doc.tileHeights(0, 0));
+    for (let direction = 1; direction <= 4; direction++) {
+        doc.paint(0, 0, 0, direction, 1);
+        assert.deepEqual(model.terrainDisplayLayers(doc.tileHeights(0, 0)), expected);
+    }
+    const heights = [1, 0, 0, 0], first = model.terrainDisplayLayers(heights);
+    first.layers[0].polygons[0][0][0] = 99;
+    assert.deepEqual(model.terrainDisplayLayers(heights).layers[0].polygons[0][0], [0, 0]);
+    for (const invalid of [null, [], [0, 0, 0], [0, 0, 0, 5], [0, .5, 0, 0]])
+        assert.throws(() => model.terrainDisplayLayers(invalid), /terrain display/);
 });
 test('Level applies each selected surface to the plateau and its generated slopes', () => {
     for (const surface of [0, 1, 2, 3]) for (const height of [1, 2, 3, 4]) {
@@ -166,7 +334,7 @@ test('Level recolors an existing height, clears Shore, and supports Ground witho
 test('Level handles mixed slopes and map edges while Raise and Lower preserve surfaces', () => {
     for (const [x, y] of [[0, 0], [7, 7], [3, 3]]) for (const height of [0, 2, 4]) {
         const doc = new model.Document(8, 8);
-        for (let vy = 0; vy <= 8; vy++) for (let vx = 0; vx <= 8; vx++) doc.vertices[vy * 9 + vx] = Math.min(4, vx + vy);
+        for (let vy = 0; vy <= 8; vy++) for (let vx = 0; vx <= 8; vx++) doc.vertices[vy * 9 + vx] = Math.min(4, Math.max(vx, vy));
         doc.level(x, y, height, 1);
         assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
         assert.deepEqual(doc.validate(), []);
@@ -189,10 +357,10 @@ test('blocked Level leaves heights and surfaces atomic inside and outside a drag
     doc.endTransaction(); assert.equal(doc.history.length, history + 1);
     assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
     assert(doc.redo()); assert.deepEqual(doc.snapshot(), earlierTile);
-    // The footprint can stay planar while the required extra slope run is lost.
+    // Changing the slope beneath an existing native hill road is also atomic.
     const slope = new model.Document(4, 4);
     for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) slope.vertices[y * 5 + x] = Math.min(x, 2);
-    slope.place(115, 0, 1);
+    slope.place(5, 1, 1);
     const supported = slope.snapshot();
     assert.throws(() => slope.level(2, 1, 1, 2), /bend/);
     assert.deepEqual(slope.snapshot(), supported);
@@ -223,30 +391,40 @@ test('decorations use empty corner cells of large turns, banked turns, chicanes 
         }
     }
 });
-test('large elements require one rigid plane across their entire footprint', () => {
+test('large elements require a flat plateau across their entire footprint', () => {
     const doc = new model.Document(8, 8);
-    // A two-tile slope reaches the second hill level in the east direction.
-    for (let y = 0; y <= 8; y++) for (let x = 0; x <= 8; x++) doc.vertices[y * 9 + x] = Math.min(x, 4);
-    const object = doc.place(11, 0, 2, 2); assert.equal(object.slopeX, 1); assert.equal(object.slopeY, 0);
-    assert.throws(() => doc.place(11, 3, 4), /planar/);
+    doc.vertices.fill(2);
+    const object = doc.place(11, 0, 2, 2); assert.equal(object.baseHeight, 2);
+    assert.equal(object.slopeX, 0); assert.equal(object.slopeY, 0);
     assert.deepEqual(doc.validate(), []);
+    doc.objects = [];
+    for (let y = 0; y <= 8; y++) for (let x = 0; x <= 8; x++) doc.vertices[y * 9 + x] = Math.min(x, 4);
+    assert.throws(() => doc.place(11, 0, 2, 2), /original hill/);
+    assert.throws(() => doc.place(11, 3, 4), /original hill/);
 });
-test('rigid diagonal planes allow one level per horizontal and vertical edge', () => {
+test('unsupported diagonal planes and saddles are rejected when opening old tracks', () => {
     const doc = new model.Document(2, 2);
+    const encoded = model.encodeCstrk(doc), headerSize = 32;
     for (let y = 0; y <= 2; y++) for (let x = 0; x <= 2; x++) doc.vertices[y * 3 + x] = x + y;
-    const object = doc.place(11, 0, 0);
-    assert.equal(object.slopeX, 1); assert.equal(object.slopeY, 1);
-    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+    assert.throws(() => doc.place(4, 0, 0), /original hill/);
+    assert.throws(() => model.encodeCstrk(doc), /original/);
+    encoded.set(doc.vertices, headerSize);
+    assert.throws(() => model.decodeCstrk(encoded), /original/);
+    doc.vertices.fill(0); doc.vertices[1] = doc.vertices[3] = 1;
+    assert.throws(() => model.encodeCstrk(doc), /original/);
 });
-test('sloped slaloms and tunnels require two continuous tiles in every sloping direction', () => {
+test('slaloms and tunnels require flat plateaus instead of being tilted onto hills', () => {
     for (const id of [66, 115]) {
         const short = new model.Document(4, 4);
         for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) short.vertices[y * 5 + x] = x ? 1 : 0;
-        assert.throws(() => short.place(id, 0, 1), /two tiles/);
+        assert.throws(() => short.place(id, 0, 1), /original hill/);
         const long = new model.Document(4, 4);
         for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) long.vertices[y * 5 + x] = Math.min(x, 2);
-        assert.doesNotThrow(() => long.place(id, 0, 1));
-        assert.doesNotThrow(() => long.place(id, 1, 1)); // Support may extend behind the piece.
+        assert.throws(() => long.place(id, 0, 1), /original hill/);
+        assert.throws(() => long.place(id, 1, 1), /original hill/);
+        for (let level = 0; level <= 4; level++) {
+            long.vertices.fill(level); assert.doesNotThrow(() => long.place(id, 0, 1)); long.objects = [];
+        }
     }
 });
 test('expanded road surfaces and incompatible stunt surfaces', () => {
