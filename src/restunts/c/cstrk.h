@@ -6,7 +6,9 @@
 #include <stdint.h>
 #include "legacy.h"
 
-#define CSTRK_VERSION 1U
+#define CSTRK_INITIAL_VERSION 1U
+#define CSTRK_SURFACE_CORNERS_VERSION 2U
+#define CSTRK_VERSION CSTRK_SURFACE_CORNERS_VERSION
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -18,6 +20,9 @@
 #define CSTRK_MAX_LEGACY_ID 214U
 #define CSTRK_HORIZON_COUNT 5U
 #define CSTRK_HORIZON_DEFAULT CSTRK_HORIZON_DESERT
+#define CSTRK_CORNER_DIRECTION_MASK 7U
+#define CSTRK_CORNER_SURFACE_SHIFT 3U
+#define CSTRK_CORNER_SURFACE_MASK 3U
 
 enum CSTRK_HORIZON {
 	CSTRK_HORIZON_DESERT = 0,
@@ -46,7 +51,8 @@ enum CSTRK_WATER_CORNER {
 
 struct CSTRK_CELL {
 	uint8_t surface;
-	uint8_t half_water_corner;
+	uint8_t half_water_corner; /* Legacy name for the mixed-material corner direction. */
+	legacy_u8 corner_surface;  /* Material in that corner; ignored when there is no corner. */
 };
 
 /* Width, height and occupied_mask describe map-axis cells after rotation.
@@ -85,7 +91,9 @@ struct CSTRK_TRACK {
  * are 1 for success and 0 for failure. An optional error buffer receives text.
  * Encode allocates *data using malloc; its caller must free that allocation.
  * Version is positive revision metadata. Decode validates the known layout even
- * for newer revisions; the UI warns when version exceeds CSTRK_VERSION. */
+ * for newer revisions; the UI warns when version exceeds CSTRK_VERSION. Encode
+ * promotes the stored revision to at least CSTRK_SURFACE_CORNERS_VERSION when
+ * an active corner uses a secondary material other than water. */
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,

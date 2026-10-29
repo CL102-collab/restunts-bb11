@@ -6,6 +6,7 @@ const { spawnSync } = require('node:child_process');
 const model = require('../../src/restunts/platform/wasm/track-editor-model.js');
 const validation = require('../../src/restunts/platform/wasm/track-editor-validation.js');
 const fixtures = [];
+const INITIAL_TRACK_VERSION = 1, SHORE_CORNER_COUNT = 4;
 function check(name, doc, status) {
     assert.deepEqual(doc.validate(), [], name + ': storage validation');
     const before = doc.snapshot(), result = validation.validateRoute(doc);
@@ -33,11 +34,12 @@ function rectangle(width = 40, height = 18) {
 }
 function rotate(source) {
     const doc = new model.Document(source.height, source.width);
+    doc.horizon = source.horizon; doc.version = source.version;
     for (let y = 0; y <= source.height; y++) for (let x = 0; x <= source.width; x++)
         doc.vertices[x * (doc.width + 1) + source.height - y] = source.vertices[y * (source.width + 1) + x];
     for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
         const cell = source.cells[y * source.width + x];
-        doc.cells[x * doc.width + source.height - y - 1] = { surface: cell.surface, halfWaterCorner: cell.halfWaterCorner ? cell.halfWaterCorner % 4 + 1 : 0 };
+        doc.cells[x * doc.width + source.height - y - 1] = { ...cell, halfWaterCorner: cell.halfWaterCorner ? cell.halfWaterCorner % SHORE_CORNER_COUNT + 1 : 0 };
     }
     for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4);
     return clearHistory(doc);
@@ -55,6 +57,18 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
+const legacyTrack = rectangle(); legacyTrack.version = INITIAL_TRACK_VERSION;
+check('legacy v1 track retains the route', legacyTrack, 0);
+for (let primary = 0; primary < model.TERRAIN_SURFACES.length; primary++) {
+    for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
+        if (primary === secondary) continue;
+        for (let corner = 1; corner <= SHORE_CORNER_COUNT; corner++) {
+            const doc = rectangle(); doc.paint(0, 0, primary, corner, secondary);
+            check(model.TERRAIN_SURFACES[primary] + '/' + model.TERRAIN_SURFACES[secondary] +
+                ' corner ' + corner + ' retains the route', clearHistory(doc), 0);
+        }
+    }
+}
 for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
     const doc = rectangle();
     doc.setHorizon(horizon);

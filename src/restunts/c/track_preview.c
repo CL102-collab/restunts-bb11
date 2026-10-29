@@ -263,6 +263,27 @@ static void track_preview_draw_cell(legacy_u8 column, legacy_u8 row, const struc
 /* An overview must show the complete extended map. The original perspective
  * preview's word coordinates and camera fit only thirty tiles. A surface map
  * avoids wrapping distant cells and also makes stacked terrain legible. */
+enum TRACK_PREVIEW_EXTENDED_COLOR {
+	TRACK_PREVIEW_EXTENDED_GRASS_COLOR = 2,
+	TRACK_PREVIEW_EXTENDED_HIGH_GRASS_COLOR = 10,
+	TRACK_PREVIEW_EXTENDED_ICE_COLOR = 11,
+	TRACK_PREVIEW_EXTENDED_DIRT_COLOR = 6,
+	TRACK_PREVIEW_EXTENDED_WATER_COLOR = 9
+};
+
+#define TRACK_PREVIEW_EXTENDED_RAISED_GRASS_LEVEL 1U
+
+static legacy_u8 track_preview_extended_surface_color(legacy_u8 surface, legacy_u8 level)
+{
+	static const legacy_u8 colors[] = {
+		TRACK_PREVIEW_EXTENDED_GRASS_COLOR, TRACK_PREVIEW_EXTENDED_ICE_COLOR,
+		TRACK_PREVIEW_EXTENDED_DIRT_COLOR, TRACK_PREVIEW_EXTENDED_WATER_COLOR};
+	if (surface == CSTRK_TERRAIN_GRASS && level > TRACK_PREVIEW_EXTENDED_RAISED_GRASS_LEVEL) {
+		return TRACK_PREVIEW_EXTENDED_HIGH_GRASS_COLOR;
+	}
+	return colors[surface];
+}
+
 static void track_preview_draw_extended(void)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
@@ -289,23 +310,22 @@ static void track_preview_draw_extended(void)
 			int y1 = top + (int)row * pixel_height / track->height;
 			int y2 = top + (int)(row + 1U) * pixel_height / track->height;
 			unsigned level = track->corner_heights[row * (track->width + 1U) + column];
-			legacy_u8 color = cell->surface == CSTRK_TERRAIN_WATER	? 9
-							  : cell->surface == CSTRK_TERRAIN_ICE	? 11
-							  : cell->surface == CSTRK_TERRAIN_DIRT ? 6
-																	: (level > 1U ? 10 : 2);
+			legacy_u8 color = track_preview_extended_surface_color(cell->surface, (legacy_u8)level);
 			sprite_fill_rect((legacy_s16)x1, (legacy_s16)y1, (legacy_s16)(x2 - x1),
 							 (legacy_s16)(y2 - y1), color);
 			if (cell->half_water_corner) {
 				for (int y = y1; y < y2; y++) {
 					for (int x = x1; x < x2; x++) {
 						int dx = (x - x1) * 1024 / (x2 - x1), dy = (y - y1) * 1024 / (y2 - y1);
-						int water =
+						legacy_u8 corner_half =
 							cell->half_water_corner == CSTRK_WATER_NORTHWEST   ? dx + dy < 1024
 							: cell->half_water_corner == CSTRK_WATER_NORTHEAST ? dx > dy
 							: cell->half_water_corner == CSTRK_WATER_SOUTHEAST ? dx + dy >= 1024
 																			   : dx <= dy;
-						if (water) {
-							sprite_putpixel_clipped((legacy_s16)x, (legacy_s16)y, 9);
+						if (corner_half) {
+							sprite_putpixel_clipped((legacy_s16)x, (legacy_s16)y,
+													track_preview_extended_surface_color(
+														cell->corner_surface, (legacy_u8)level));
 						}
 					}
 				}

@@ -22,6 +22,10 @@
         use.setAttribute('href', '#i-' + name); icon.append(use); return icon;
     }
     function syncVisualControls() {
+        const primarySurface = Number($('terrain-surface').value);
+        if (Number($('shore-surface').value) === primarySurface) {
+            $('shore-surface').value = String(primarySurface === model.DEFAULT_CORNER_SURFACE ? 0 : model.DEFAULT_CORNER_SURFACE);
+        }
         document.querySelectorAll('[data-surface-for]').forEach(button => {
             button.setAttribute('aria-pressed', String($(button.dataset.surfaceFor).value === button.dataset.value));
         });
@@ -44,25 +48,26 @@
         $('paint-preview-row').hidden = state.tool !== 'paint';
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
-        const water = document.querySelector('[data-surface-for="terrain-surface"][data-value="3"]');
-        water.disabled = state.tool === 'water-corner';
-        water.title = water.disabled ? 'Shore combines water with grass, dirt or ice' : 'Water ground';
+        const cornerSurface = Number($('shore-surface').value);
+        document.querySelectorAll('[data-surface-for="shore-surface"]').forEach(button => {
+            button.hidden = Number(button.dataset.value) === surface;
+        });
         document.querySelector('[data-tool="level"]').disabled = false;
         const paint = $('paint-preview-row').querySelector('button');
         paint.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase();
         paint.setAttribute('aria-label', paint.title);
         drawTerrainPreview($('paint-preview'), surface);
         document.querySelectorAll('[data-shore-direction]').forEach(button => {
-            drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1);
+            drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1, cornerSurface);
         });
         $('level-options-row').querySelectorAll('[data-level] canvas').forEach(preview => {
             drawTerrainPreview(preview, surface, Number(preview.parentElement.dataset.level));
         });
     }
-    function drawTerrainPreview(preview, surface, level = 0, halfWaterCorner = 0) {
+    function drawTerrainPreview(preview, surface, level = 0, halfWaterCorner = 0, cornerSurface = model.DEFAULT_CORNER_SURFACE) {
         const c = preview.getContext('2d');
         c.clearRect(0, 0, preview.width, preview.height);
-        const doc = { width: 1, cells: [{ surface, halfWaterCorner }], tileHeights: () => [level, level, level, level] };
+        const doc = { width: 1, cells: [{ surface, halfWaterCorner, cornerSurface }], tileHeights: () => [level, level, level, level] };
         drawTerrain(c, doc, 0, 0, 0, 0, preview.width);
     }
     function renderSelection() {
@@ -150,14 +155,13 @@
     function selectPanel(panel) { updateTool(panel === 'terrain' ? state.terrainTool : 'place'); }
     function updateTool(tool) {
         state.tool = tool;
-        if (tool === 'water-corner' && Number($('terrain-surface').value) === 3) $('terrain-surface').value = '0';
         if (['paint', 'raise', 'lower', 'level', 'water-corner'].includes(tool)) {
             state.terrainTool = tool;
             showPanel('terrain');
         } else if (tool === 'place' || tool === 'erase') showPanel('track');
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
         updateCanvasCursor();
-        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Water + hill corner' };
+        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
         const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
@@ -383,7 +387,7 @@
         c.fillStyle = terrainColor(surface, average); c.fillRect(left, top, size + .4, size + .4);
         if (h.some(v => v !== h[0])) {
             const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
-            // Match the game's planar triangles, including the half-water shoreline split.
+            // Match the game's planar triangles, including the mixed-surface corner split.
             const triangles = cell.halfWaterCorner === 1 || cell.halfWaterCorner === 3
                 ? [[0, 1, 3], [1, 2, 3]] : [[0, 1, 2], [0, 2, 3]];
             for (const [a, b, d] of triangles) {
@@ -422,8 +426,9 @@
         if (cell.halfWaterCorner) {
             c.save(); c.translate(left + size / 2, top + size / 2); c.rotate((cell.halfWaterCorner - 1) * Math.PI / 2);
             c.beginPath(); c.moveTo(-size / 2, -size / 2); c.lineTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.closePath();
-            c.fillStyle = terrainColor(3, Math.min(...h)); c.fill();
-            c.strokeStyle = '#94cfdb99'; c.lineWidth = Math.max(1, size / 32); c.beginPath(); c.moveTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.stroke(); c.restore();
+            const cornerSurface = cell.cornerSurface ?? model.DEFAULT_CORNER_SURFACE;
+            c.fillStyle = terrainColor(cornerSurface, cornerSurface === model.DEFAULT_CORNER_SURFACE ? Math.min(...h) : average); c.fill();
+            c.strokeStyle = cornerSurface === model.DEFAULT_CORNER_SURFACE ? '#94cfdb99' : '#d6e5c899'; c.lineWidth = Math.max(1, size / 32); c.beginPath(); c.moveTo(size / 2, -size / 2); c.lineTo(-size / 2, size / 2); c.stroke(); c.restore();
         }
         if (showHeight && size >= 36) {
             c.fillStyle = '#eff6dbbd'; c.font = (2 * Math.max(8, Math.min(12, size * .29))) + 'px ui-monospace, monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -600,7 +605,7 @@
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
             else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
-            else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1);
+            else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
             else if (tool === 'level') doc.level(point.x, point.y, Number($('terrain-level').value), Number($('terrain-surface').value));
             scheduleDraw();
         } catch (error) { message(error.message, true); }
@@ -717,10 +722,10 @@
         document.querySelectorAll('[data-shore-direction]').forEach(button => button.addEventListener('click', () => setShoreDirection(Number(button.dataset.shoreDirection))));
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => {
-            const water = Number($('terrain-surface').value) === 3;
-            if ((water && state.tool === 'water-corner') || !['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint');
+            if (!['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint');
             else syncVisualControls();
         });
+        $('shore-surface').addEventListener('change', () => { finishDrag(); syncVisualControls(); scheduleDraw(); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
         $('piece-group').addEventListener('change', () => { state.group = Number($('piece-group').value); renderPalette(); updateTool('place'); });
         $('undo').addEventListener('click', () => { finishDrag(); state.doc.undo(); refreshDocument(); message('Undid the last edit.'); });

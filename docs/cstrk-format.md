@@ -1,7 +1,7 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v1**, supported
+SDL3 WebAssembly build. The current file-format revision is **v2**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
@@ -21,21 +21,24 @@ There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: a positive unsigned 16-bit integer.
 Files with a revision higher than the reader supports show a compatibility
 warning and are loaded on a best-effort basis using the known layout. A file
-marked v15 or v101 is newer than a reader supporting v1. Its revision alone
+marked v15 or v101 is newer than a reader supporting v2. Its revision alone
 does not make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
 records, notes, and exact payload lengths. Invalid structures remain errors;
-revision zero is invalid. New tracks are created with the current revision, v1.
-The horizon field is present in this v1 layout, and Desert remains zero so
-existing v1 tracks retain the same bytes.
+revision zero is invalid. New tracks are created with the current revision, v2.
+Existing v1 tracks remain readable and retain their revision when their corners
+use only water. Saving a corner with another secondary material raises the
+stored revision to at least v2; newer revision numbers are retained. Header
+and payload sizes stay unchanged. Desert and legacy water corners retain their
+original values, so existing v1 files keep the same bytes when re-encoded.
 
 The header occupies exactly 32 bytes:
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 1–65,535; current revision `1` |
+| 8 | 2 | Numeric format revision, 1–65,535; current revision `2` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -89,13 +92,33 @@ Each two-byte terrain cell contains:
 
 | Byte | Meaning |
 | --- | --- |
-| 0 | Surface: grass `0`, ice `1`, dirt `2`, water `3` |
-| 1 | Half-water corner: none `0`, northwest `1`, northeast `2`, southeast `3`, southwest `4` |
+| 0 | Primary surface: grass `0`, ice `1`, dirt `2`, water `3` |
+| 1 | Packed corner direction and secondary surface, described below |
 
-The half-water value identifies the water triangle at that corner; the other
-triangle uses the selected terrain surface. It supports water adjoining a hill
-corner. Surface is independent of elevation, so water, ice and dirt are also
-representable above the base level.
+The second byte contains:
+
+| Bits | Meaning |
+| --- | --- |
+| 0–2 | Corner: none `0`, northwest `1`, northeast `2`, southeast `3`, southwest `4` |
+| 3–4 | Secondary surface code: water `0`, dirt `1`, ice `2`, grass `3` |
+| 5–7 | Reserved, `0` |
+
+The secondary surface code is the terrain surface ID XOR `3`. This keeps
+legacy water-corner bytes `1`–`4` unchanged. A zero direction requires the
+entire packed byte to be zero; unused secondary material data is not stored.
+Unknown directions and reserved bits are rejected.
+
+The chosen corner triangle uses the secondary material; the other triangle
+uses the primary material. Shore supports every pair of different materials,
+including Water as the primary material, in all four directions. Non-water
+same-material corners are invalid. Existing Water/Water corners remain
+readable because the original format admitted them, although the editor
+creates only different-material pairs. Surface is independent of elevation,
+so every material combination can also appear on slopes and above ground.
+
+The C model retains the legacy `half_water_corner` name for the direction and
+adds `corner_surface` for the secondary material. New cells default that field
+to Water. The field is ignored when the direction is zero.
 
 ## Objects and rigid support planes
 
@@ -172,6 +195,7 @@ belong to the SDL3 extended-track integration.
 
 The standalone test `src/restunts/tests/test-cstrk.c` covers an independently
 specified binary fixture, every truncation of that fixture, malformed headers
-and objects, all horizon choices, current and future numeric revisions, sparse overlays,
-positive and negative slopes, ASCII limits, transactional failure, and the
-maximum-size 90×90 map.
+and objects, all horizon choices, current and future numeric revisions, all
+12 material pairs in four corner directions, legacy byte compatibility, sparse
+overlays, positive and negative slopes, ASCII limits, transactional failure,
+and the maximum-size 90×90 map.

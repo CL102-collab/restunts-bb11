@@ -222,6 +222,58 @@ static unsigned check_rendered_surfaces(const struct CSTRK_TRACK *track)
 	return frames;
 }
 
+#define SHORE_RENDER_COLUMN 44U
+#define SHORE_RENDER_ROW 42U
+#define SHORE_RENDER_CAMERA_DISTANCE 2400
+#define SHORE_RENDER_CAMERA_ELEVATION 192
+#define SHORE_RENDER_MIN_CHANGED_PIXELS 16U
+#define SHORE_RENDER_SECONDARY_COUNT 3U
+
+static legacy_u16 check_rendered_shore_materials(struct CSTRK_TRACK *track)
+{
+	struct CSTRK_CELL *cell = &track->cells[SHORE_RENDER_ROW * track->width + SHORE_RENDER_COLUMN];
+	struct CSTRK_CELL saved_cell = *cell;
+	position_render_target(SHORE_RENDER_COLUMN, SHORE_RENDER_ROW);
+	custom_camera.distance = SHORE_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = SHORE_RENDER_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = 0;
+	legacy_u16 frames = 0;
+	for (legacy_u8 primary = CSTRK_TERRAIN_GRASS; primary <= CSTRK_TERRAIN_WATER; primary++) {
+		cell->surface = primary;
+		for (legacy_u8 corner = CSTRK_WATER_NORTHWEST; corner <= CSTRK_WATER_SOUTHWEST; corner++) {
+			cell->half_water_corner = corner;
+			legacy_u32 *pixels[SHORE_RENDER_SECONDARY_COUNT];
+			size_t sizes[SHORE_RENDER_SECONDARY_COUNT];
+			legacy_u8 count = 0;
+			for (legacy_u8 secondary = CSTRK_TERRAIN_GRASS; secondary <= CSTRK_TERRAIN_WATER;
+				 secondary++) {
+				if (primary == secondary) {
+					continue;
+				}
+				cell->corner_surface = secondary;
+				activate_render_track(track, 0);
+				pixels[count] = capture_complete_render(&sizes[count]);
+				count++;
+				frames++;
+			}
+			assert(count == SHORE_RENDER_SECONDARY_COUNT);
+			for (legacy_u8 variant = 1; variant < count; variant++) {
+				assert(sizes[variant] == sizes[0]);
+				size_t changed = 0;
+				for (size_t pixel = 0; pixel < sizes[0]; pixel++) {
+					changed += pixels[0][pixel] != pixels[variant][pixel];
+				}
+				assert(changed > SHORE_RENDER_MIN_CHANGED_PIXELS);
+			}
+			for (legacy_u8 variant = 0; variant < count; variant++) {
+				free(pixels[variant]);
+			}
+		}
+	}
+	*cell = saved_cell;
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -266,6 +318,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		assert(slope_pixels > 16U && edge_pixels > 16U);
 		frames += 4U;
 		frames += check_rendered_surfaces(&track);
+		frames += check_rendered_shore_materials(&track);
 	}
 	extended_track_unload();
 	cstrk_free(&track);

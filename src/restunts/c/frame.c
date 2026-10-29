@@ -1722,11 +1722,11 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 	for (unsigned i = 0; i < 2; i++) {
 		primitives[i * 6] = 3;
 		primitives[i * 6 + 1] = 1;
-		unsigned water = (cell->half_water_corner == CSTRK_WATER_NORTHWEST && i == 0) ||
-						 (cell->half_water_corner == CSTRK_WATER_NORTHEAST && i == 0) ||
-						 (cell->half_water_corner == CSTRK_WATER_SOUTHEAST && i == 1) ||
-						 (cell->half_water_corner == CSTRK_WATER_SOUTHWEST && i == 1);
-		primitives[i * 6 + 2] = water ? 100 : material;
+		legacy_u8 corner_half = (cell->half_water_corner == CSTRK_WATER_NORTHWEST && i == 0) ||
+								(cell->half_water_corner == CSTRK_WATER_NORTHEAST && i == 0) ||
+								(cell->half_water_corner == CSTRK_WATER_SOUTHEAST && i == 1) ||
+								(cell->half_water_corner == CSTRK_WATER_SOUTHWEST && i == 1);
+		primitives[i * 6 + 2] = corner_half ? materials[cell->corner_surface] : material;
 		for (unsigned v = 0; v < 3; v++) {
 			primitives[i * 6 + 3 + v] = triangles[i][v];
 		}

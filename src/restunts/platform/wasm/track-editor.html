@@ -55,7 +55,7 @@
                     <select id="terrain-surface" hidden tabindex="-1" aria-hidden="true"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3">Water</option></select>
                     <div class="terrain-tools" role="group" aria-label="Terrain tool">
                         <button type="button" class="tool-tile" data-tool="paint" aria-pressed="false" title="Paint the selected ground surface"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-paint"></use></svg><span>Paint</span></button>
-                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Choose a water corner below, or use Q/E to rotate"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
+                        <button type="button" class="tool-tile" data-tool="water-corner" aria-pressed="false" title="Choose a surface corner below, or use Q/E to rotate"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-shore"></use></svg><span>Shore</span></button>
                         <button type="button" class="tool-tile" data-tool="level" aria-pressed="false" title="Set terrain to the selected elevation and ground surface"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-level"></use></svg><span>Level</span></button>
                         <button type="button" class="tool-tile" data-tool="raise" aria-pressed="false" title="Raise a corner and build adjoining slopes"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-raise"></use></svg><span>Raise</span></button>
                         <button type="button" class="tool-tile" data-tool="lower" aria-pressed="false" title="Lower a corner and adjoining terrain"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-lower"></use></svg><span>Lower</span></button>
@@ -67,12 +67,19 @@
                         </div>
                     </div>
                     <div id="shore-direction-row" class="terrain-options" hidden>
-                        <div class="terrain-choice-heading"><span>Water corner</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>E</kbd> to rotate</span></div>
-                        <div class="terrain-choices" role="group" aria-label="Water corner">
-                            <button type="button" class="terrain-choice" data-shore-direction="0" aria-pressed="true" aria-label="Northwest" title="Northwest water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
-                            <button type="button" class="terrain-choice" data-shore-direction="1" aria-pressed="false" aria-label="Northeast" title="Northeast water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
-                            <button type="button" class="terrain-choice" data-shore-direction="2" aria-pressed="false" aria-label="Southeast" title="Southeast water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
-                            <button type="button" class="terrain-choice" data-shore-direction="3" aria-pressed="false" aria-label="Southwest" title="Southwest water corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
+                        <div class="surface-choices ground-surfaces shore-surfaces" role="group" aria-label="Corner surface">
+                            <button type="button" class="surface-choice" data-surface-for="shore-surface" data-value="0" aria-pressed="false" title="Grass corner"><span class="material-preview grass"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-leaf"></use></svg></span><span>Grass</span></button>
+                            <button type="button" class="surface-choice" data-surface-for="shore-surface" data-value="2" aria-pressed="false" title="Dirt corner"><span class="material-preview dirt"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-dirt"></use></svg></span><span>Dirt</span></button>
+                            <button type="button" class="surface-choice" data-surface-for="shore-surface" data-value="1" aria-pressed="false" title="Ice corner"><span class="material-preview ice"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-snow"></use></svg></span><span>Ice</span></button>
+                            <button type="button" class="surface-choice" data-surface-for="shore-surface" data-value="3" aria-pressed="true" title="Water corner"><span class="material-preview water"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-water"></use></svg></span><span>Water</span></button>
+                        </div>
+                        <select id="shore-surface" hidden tabindex="-1" aria-hidden="true"><option value="0">Grass</option><option value="2">Dirt</option><option value="1">Ice</option><option value="3" selected>Water</option></select>
+                        <div class="terrain-choice-heading"><span>Surface corner</span><span class="direction-hint"><kbd>Q</kbd> / <kbd>E</kbd> to rotate</span></div>
+                        <div class="terrain-choices" role="group" aria-label="Surface corner">
+                            <button type="button" class="terrain-choice" data-shore-direction="0" aria-pressed="true" aria-label="Northwest" title="Northwest surface corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
+                            <button type="button" class="terrain-choice" data-shore-direction="1" aria-pressed="false" aria-label="Northeast" title="Northeast surface corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
+                            <button type="button" class="terrain-choice" data-shore-direction="2" aria-pressed="false" aria-label="Southeast" title="Southeast surface corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
+                            <button type="button" class="terrain-choice" data-shore-direction="3" aria-pressed="false" aria-label="Southwest" title="Southwest surface corner"><canvas width="64" height="64" aria-hidden="true"></canvas></button>
                         </div>
                     </div>
                     <div id="level-options-row" class="terrain-options" hidden>

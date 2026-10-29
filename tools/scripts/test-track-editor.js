@@ -53,7 +53,7 @@ test('terrain reaches four levels and propagates all corner slopes', () => {
 test('Level applies each selected surface to the plateau and its generated slopes', () => {
     for (const surface of [0, 1, 2, 3]) for (const height of [1, 2, 3, 4]) {
         const doc = new model.Document(12, 12);
-        doc.paint(0, 0, (surface + 1) % 4, 2);
+        doc.paint(0, 0, (surface + 1) % 4, 2, (surface + 1) % 4 === model.DEFAULT_CORNER_SURFACE ? 0 : model.DEFAULT_CORNER_SURFACE);
         const before = doc.snapshot(), history = doc.history.length;
         doc.level(4, 4, height, surface);
         assert.deepEqual(doc.tileHeights(4, 4), [height, height, height, height]);
@@ -231,10 +231,74 @@ test('horizons are validated edits with undo, redo, and no-op history preservati
         assert.throws(() => doc.setHorizon(invalid), /horizon/);
     assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
 });
+test('Shore paints every distinct material pair and corner with exact storage and undo/redo', () => {
+    const water = model.DEFAULT_CORNER_SURFACE;
+    const headerSize = 32, cornerSurfaceShift = 3;
+    for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+        for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
+            if (surface === secondary) continue;
+            for (let direction = 1; direction <= 4; direction++) {
+                const doc = new model.Document(2, 2); doc.version = 1; doc.setNotes('Mixed surfaces');
+                const before = doc.snapshot();
+                doc.paint(0, 0, surface, direction, secondary);
+                const expected = { surface, halfWaterCorner: direction };
+                if (secondary !== water) expected.cornerSurface = secondary;
+                assert.deepEqual(doc.cells[0], expected);
+                assert.equal(doc.version, secondary === water ? 1 : model.VERSION);
+                const after = doc.snapshot(), encoded = model.encodeCstrk(doc);
+                const cornerByte = headerSize + doc.vertices.length + 1;
+                assert.equal(encoded[cornerByte], direction | ((secondary ^ water) << cornerSurfaceShift));
+                assert.deepEqual(model.decodeCstrk(encoded).snapshot(), after);
+                assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+                assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+                doc.paint(0, 0, surface);
+                assert.deepEqual(doc.cells[0], { surface, halfWaterCorner: 0 });
+                doc.cells[0].cornerSurface = model.TERRAIN_SURFACES.length;
+                const cleared = model.encodeCstrk(doc);
+                assert.equal(cleared[cornerByte], 0);
+                assert.deepEqual(model.decodeCstrk(cleared).cells[0], { surface, halfWaterCorner: 0 });
+                assert(doc.undo()); assert.deepEqual(doc.cells[0], expected);
+                doc.level(0, 0, 1, surface);
+                assert.deepEqual(doc.cells[0], { surface, halfWaterCorner: 0 });
+            }
+        }
+    }
+});
+test('Shore rejects matching or invalid materials atomically and preserves legacy Water corners', () => {
+    const water = model.DEFAULT_CORNER_SURFACE;
+    const headerSize = 32;
+    const doc = new model.Document(2, 2); doc.version = 1;
+    doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot();
+    for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+        assert.throws(() => doc.paint(0, 0, surface, 1, surface), /different surfaces/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.canRedo, true);
+    }
+    for (const invalid of [-1, model.TERRAIN_SURFACES.length, 1.5, null]) {
+        assert.throws(() => doc.paint(0, 0, 0, 1, invalid), /corner surface/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.canRedo, true);
+    }
+    for (let direction = 0; direction <= 4; direction++) {
+        // Historical files could contain Water beside Water; keep their bytes valid.
+        doc.cells[0] = { surface: water, halfWaterCorner: direction };
+        const encoded = model.encodeCstrk(doc), cornerByte = headerSize + doc.vertices.length + 1;
+        assert.equal(encoded[cornerByte], direction); assert.equal(encoded[8], 1);
+        assert.deepEqual(model.encodeCstrk(model.decodeCstrk(encoded)), encoded);
+        for (const badCorner of [5, 8, 32, 255]) {
+            const corrupt = encoded.slice(); corrupt[cornerByte] = badCorner;
+            assert.throws(() => model.decodeCstrk(corrupt), /terrain/);
+        }
+    }
+    doc.cells[0] = { surface: water, halfWaterCorner: 1, cornerSurface: 0 };
+    const promoted = model.encodeCstrk(doc);
+    assert.equal(promoted[8], model.VERSION); assert.equal(doc.version, 1);
+    doc.cells[0] = { surface: 1, halfWaterCorner: 1, cornerSurface: 1 };
+    assert.throws(() => model.encodeCstrk(doc), /terrain/);
+});
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 1); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 2); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -282,7 +346,7 @@ test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', (
     doc.place(11, 0, 0, 1); doc.place(151, 0, 1); doc.setNotes('Chocolate Stunts\r\nASCII\tmetadata');
     const data = model.encodeCstrk(doc), loaded = model.decodeCstrk(data);
     assert.deepEqual(loaded.snapshot(), doc.snapshot()); assert.equal(loaded.canUndo, false);
-    assert.equal(data[8], 1); assert.equal(data[16], 90); assert.equal(new DataView(data.buffer).getUint32(28, true), data.length - 32);
+    assert.equal(data[8], model.VERSION); assert.equal(data[16], 90); assert.equal(new DataView(data.buffer).getUint32(28, true), data.length - 32);
     assert.throws(() => model.decodeCstrk(data.subarray(0, data.length - 1)), /truncated/);
     assert.throws(() => model.decodeCstrk(Uint8Array.from([...data, 0])), /truncated/);
     const invalid = data.slice(); invalid[32] = 5; assert.throws(() => model.decodeCstrk(invalid), /four levels|one level/);
