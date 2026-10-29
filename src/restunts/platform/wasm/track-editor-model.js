@@ -6,9 +6,11 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
     const SURFACES = ['Paved', 'Dirt', 'Ice'];
+    const OVERPASS_PHYSICAL_MODEL = 22, OVERPASS_SURFACE_VERSION = 4;
+    const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 3, CSTRK_MIN_VERSION = VERSION, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 4, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -55,7 +57,15 @@
         if (!libraryFamilies.has(key)) libraryFamilies.set(key, []);
         libraryFamilies.get(key).push(entry);
     }
-    const library = Array.from(libraryFamilies.values(), variants => variants.find(p => p.rotation === 0) || variants[0]);
+    const library = Array.from(libraryFamilies.values(), variants => variants.find(p => p.rotation === 0) || variants[0]).flatMap(piece =>
+        piece.physical === OVERPASS_PHYSICAL_MODEL
+            ? OVERPASS_NAMES.map((name, lowerSurface) => ({ ...piece, name, lowerSurface, key: 'overpass:' + lowerSurface }))
+            : [{ ...piece, key: 'piece:' + piece.id }]);
+    function withPaletteVariant(piece, selected) {
+        return selected.physical === OVERPASS_PHYSICAL_MODEL && selected.lowerSurface !== undefined
+            ? { ...piece, name: selected.name, lowerSurface: selected.lowerSurface, key: selected.key } : piece;
+    }
+
     // These physical models admit travel in either direction in the game's route resolver.
     const HALF_TURN_SYMMETRIC_MODELS = new Set([1, 27, 28, 30, 31, 18, 19, 20, 22, 11, 34, 4, 5, 35]);
     // Ground-level directional artwork rotates without shifting projected height.
@@ -73,7 +83,7 @@
         // Use original directional artwork when present. Symmetric pieces may have only
         // one or two native variants; explicit rotation supplies the remaining directions.
         const piece = variants.find(p => p.rotation === direction) || variants.find(p => p.rotation === 0) || variants[0];
-        return { piece, rotation: (direction - piece.rotation + 4) % 4 };
+        return { piece: withPaletteVariant(piece, entry), rotation: (direction - piece.rotation + 4) % 4 };
     }
     function pieceDisplayVariant(entry, rotation = 0) {
         integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'piece display rotation');
@@ -326,20 +336,22 @@
                 : pieceVariant(entry, direction).piece.id;
             return CLASSIC_HILL_ROADS[profile.terrain - CLASSIC_FIRST_SLOPE].includes(native);
         }
-        placement(id, x, y, surface = 0, rotation = 0) {
+        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
-            integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation');
+            integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation'); integer(lowerSurface, 0, 2, 'lower road surface');
+            if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
+            if (this.version < OVERPASS_SURFACE_VERSION && entry.physical === OVERPASS_PHYSICAL_MODEL && lowerSurface !== surface) throw new Error('Independent overpass road surfaces require Chocolate Stunts track version v4.');
             if (!entry.surfaces.includes(surface)) throw new Error(entry.name + ' does not support ' + SURFACES[surface].toLowerCase() + '.');
             const footprint = rotatedFootprint(entry, rotation);
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
-            const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
+            const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, lowerSurface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
                 throw new Error('This space is occupied. Remove the existing element first.');
             return object;
         }
-        place(id, x, y, surface = 0, rotation = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation); this.objects.push(object); return object; }); }
+        place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface); this.objects.push(object); return object; }); }
         erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
@@ -372,6 +384,10 @@
                     integer(object.baseHeight, 0, 4, 'element height'); integer(object.slopeX, -1, 1, 'element slope'); integer(object.slopeY, -1, 1, 'element slope');
                     const entry = byId.get(object.id);
                     if (!entry) throw new Error('Unknown track element.');
+                    const lowerSurface = object.lowerSurface ?? 0;
+                    integer(lowerSurface, 0, 2, 'lower road surface');
+                    if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
+                    if (this.version < OVERPASS_SURFACE_VERSION && entry.physical === OVERPASS_PHYSICAL_MODEL && lowerSurface !== object.surface) throw new Error('Independent overpass road surfaces require Chocolate Stunts track version v4.');
                     const footprint = rotatedFootprint(entry, object.rotation);
                     if (object.width !== footprint.width || object.height !== footprint.height || object.mask !== footprint.mask) throw new Error('Element footprint does not match its catalog geometry.');
                     if (!entry.surfaces.includes(object.surface)) throw new Error('Element does not support the selected road surface.');
@@ -397,7 +413,7 @@
         }
         for (const o of doc.objects) {
             v.setUint16(p, o.id, true); a.set([o.x, o.y, o.rotation, o.surface, o.width, o.height, o.mask, o.baseHeight], p + 2);
-            v.setInt8(p + 10, o.slopeX); v.setInt8(p + 11, o.slopeY); p += 16;
+            v.setInt8(p + 10, o.slopeX); v.setInt8(p + 11, o.slopeY); a[p + 12] = doc.version < OVERPASS_SURFACE_VERSION ? 0 : o.lowerSurface ?? 0; p += 16;
         }
         for (let i = 0; i < doc.notes.length; i++) a[p++] = doc.notes.charCodeAt(i);
         return a;
@@ -413,7 +429,7 @@
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);
         const doc = new Document(width, height), expected = doc.vertices.length + doc.cells.length * 2 + count * 16 + notesLength;
         if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
-        doc.horizon = horizon; doc.version = version;
+        doc.horizon = horizon; doc.version = Math.max(version, VERSION);
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
         for (const cell of doc.cells) {
             cell.surface = a[p++];
@@ -424,12 +440,14 @@
             if (direction && cornerSurface !== DEFAULT_CORNER_SURFACE) cell.cornerSurface = cornerSurface;
         }
         for (let i = 0; i < count; i++, p += 16) {
-            if (v.getUint32(p + 12, true)) throw new Error('Unsupported element flags.');
-            doc.objects.push({ id: v.getUint16(p, true), x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface: a[p + 5], width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) });
+            if ((version < OVERPASS_SURFACE_VERSION && a[p + 12]) || a[p + 13] || a[p + 14] || a[p + 15]) throw new Error('Unsupported element flags.');
+            const id = v.getUint16(p, true), surface = a[p + 5];
+            const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
+            doc.objects.push({ id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) });
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
 }));

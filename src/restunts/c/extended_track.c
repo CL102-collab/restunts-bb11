@@ -130,7 +130,8 @@ static int object_footprint_valid(const struct CSTRK_OBJECT *object)
 		return 0; /* Runtime-only hill/overlay shapes. */
 	}
 	const struct TRACKOBJECT *original = &trkObjectList[object->legacy_id];
-	if (original->ss_physicalModel < 0) {
+	if (original->ss_physicalModel < 0 || (object->lower_surface != CSTRK_ROAD_PAVED &&
+										   original->ss_physicalModel != PHYSICAL_MODEL_OVERPASS)) {
 		return 0;
 	}
 	unsigned flags = (unsigned)(legacy_u8)original->ss_multiTileFlag;

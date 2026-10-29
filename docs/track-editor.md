@@ -26,11 +26,11 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v3, which is also the minimum supported
-track revision. Older extended tracks cannot be opened. Tracks store their
-version in the file header, and saving keeps the loaded version. Opening a
-newer version shows an OK-only warning before loading it; features from newer
-editors may not work correctly.
+great track." The current version is v4. Revision v3 tracks also open and are
+upgraded to v4 while preserving their original overpass road materials.
+Revisions below v3 cannot be opened. Tracks store their version in the file header; saving keeps
+the version after any upgrade. Opening a newer version shows an OK-only warning
+before loading it; features from newer editors may not work correctly.
 
 ## Terrain
 
@@ -89,9 +89,16 @@ dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
 
+The **Elevated** group offers **Overpass over asphalt**, **Overpass over dirt**
+and **Overpass over ice**. These choices set the road below the bridge. The
+**Paved / Dirt / Ice** road selector sets the upper deck independently, allowing
+all nine combinations. Both roads rotate together, and their separate materials
+are shown in the palette, placement preview and saved track.
+
 Original editor grouping and icons come from the selected game resources.
-Each shape appears once in the library. The four direction arrows update all
-piece thumbnails and select the variation to place; Q / E also change direction.
+Native rotations share one library entry; overpasses have three lower-road
+choices. The four direction arrows update all piece thumbnails and select the
+variation to place; Q / E also change direction.
 Left/right branches and chicanes remain separate shapes. The Shore tool shows
 its surface corner choices in the Terrain section when selected.
 Large turns, banked turns, chicanes and elevated turns claim only their occupied

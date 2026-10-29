@@ -6,12 +6,16 @@
 #include <stdint.h>
 #include "legacy.h"
 
-#define CSTRK_VERSION 3U
-#define CSTRK_MIN_VERSION CSTRK_VERSION
+#define CSTRK_VERSION 4U
+#define CSTRK_MIN_VERSION 3U
+#define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
 #define CSTRK_OBJECT_SIZE 16U
+#define CSTRK_OBJECT_LOWER_SURFACE_OFFSET 12U
+#define CSTRK_OVERPASS_FIRST_ID 101U
+#define CSTRK_OVERPASS_LAST_ID 102U
 #define CSTRK_MAX_DIMENSION 90U
 #define CSTRK_MAX_HEIGHT 4U
 #define CSTRK_MAX_NOTES 8000U
@@ -96,6 +100,7 @@ struct CSTRK_OBJECT {
 	uint8_t base_height;
 	int8_t slope_x;
 	int8_t slope_y;
+	legacy_u8 lower_surface; /* Overpass road underneath; paved for every other object. */
 };
 
 struct CSTRK_TRACK {
@@ -117,7 +122,8 @@ struct CSTRK_TRACK {
  * Encode allocates *data using malloc; its caller must free that allocation.
  * Revisions below CSTRK_MIN_VERSION are unsupported. Decode validates the known
  * layout even for newer revisions; the UI warns when version exceeds CSTRK_VERSION.
- * Encode preserves the supported revision stored in the track. */
+ * Revision 3 tracks upgrade to the current revision when decoded; future
+ * revisions retain their numeric metadata. Encode preserves the stored revision. */
 void cstrk_init(struct CSTRK_TRACK *track);
 void cstrk_free(struct CSTRK_TRACK *track);
 int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, char *error,
