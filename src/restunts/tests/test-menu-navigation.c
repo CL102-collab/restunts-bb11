@@ -304,6 +304,14 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 	static struct RECTANGLE rectangle;
 	return &rectangle;
 }
+#ifdef RESTUNTS_SDL3
+legacy_s16 font_text_width(const legacy_s8 *text)
+{
+	(void)text;
+	assert(!"Legacy menu fixture must not measure an extended score");
+	return 0;
+}
+#endif
 legacy_s16 font_centered_text_x(const legacy_s8 *text)
 {
 	trace_word(2012);

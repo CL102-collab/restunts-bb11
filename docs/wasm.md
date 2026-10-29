@@ -40,6 +40,8 @@ The browser build also supplies `track-editor.html` with its adjacent CSS and
 JavaScript files. Open it directly, or use **Open the extended 2D track editor**
 on the game page. Keep all seven `track-editor*` files together for offline use;
 the game itself remains a standalone `restunts.html`.
+Scores on extended tracks save as `.cshig`; folder saves and save-bundle
+import/export include these tables alongside `.csrpl` replays.
 
 Selecting your own Stunts folder is required before editing. The editor reads
 `TEDIT`, `SDTEDIT`, and `SDMAIN` resources from that folder for the original

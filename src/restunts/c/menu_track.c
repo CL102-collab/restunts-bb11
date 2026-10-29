@@ -24,6 +24,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_file.h"
 #include "extended_track.h"
+#include "extended_highscore.h"
 #include "extended_replay_runtime.h"
 #include "extended_editor.h"
 #endif
@@ -92,17 +93,24 @@ static void track_menu_draw_preview(void)
 
 static void track_menu_draw_highscore(void)
 {
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		return;
-	}
-#endif
 	legacy_u8 text_offsets[TRACK_MENU_HIGHSCORE_FIELD_COUNT];
-	struct HIGHSCORE_ENTRY far *scores;
 	if (highscore_load_or_create(0) == 0) {
-		scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
-		legacy_u16 score = highscore_entry_time(&scores[ranking_entry_order[0]]);
-		if (score != HIGHSCORE_UNSET_TIME) {
+		legacy_u8 has_score;
+#ifdef RESTUNTS_SDL3
+		if (extended_track_active()) {
+			const struct CSHIG_ENTRY *score =
+				extended_highscore_entry((unsigned)ranking_entry_order[0]);
+			has_score = score != 0 && score->ticks != CSHIG_EMPTY_TICKS;
+		} else {
+#endif
+			struct HIGHSCORE_ENTRY far *scores =
+				(struct HIGHSCORE_ENTRY far *)track_highscore_table;
+			legacy_u16 score = highscore_entry_time(&scores[ranking_entry_order[0]]);
+			has_score = score != HIGHSCORE_UNSET_TIME;
+#ifdef RESTUNTS_SDL3
+		}
+#endif
+		if (has_score) {
 			copy_string(&resID_byte1, locate_text_res(mainresptr, "hs0"));
 			intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1),
 							TRACK_MENU_HIGHSCORE_LABEL_Y, dialog_fnt_colour, 0);
@@ -115,8 +123,17 @@ static void track_menu_draw_highscore(void)
 						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
 			font_draw_text(&resID_byte1 + text_offsets[2], TRACK_MENU_HIGHSCORE_OPPONENT_X,
 						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
-			font_draw_text(&resID_byte1 + text_offsets[3], TRACK_MENU_HIGHSCORE_TIME_X,
-						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
+			legacy_s16 time_x = TRACK_MENU_HIGHSCORE_TIME_X;
+#ifdef RESTUNTS_SDL3
+			if (extended_track_active()) {
+				legacy_s16 right_aligned = (legacy_s16)(TRACK_MENU_SCREEN_WIDTH - 1U) -
+										   font_text_width(&resID_byte1 + text_offsets[3]);
+				if (right_aligned < time_x) {
+					time_x = right_aligned;
+				}
+			}
+#endif
+			font_draw_text(&resID_byte1 + text_offsets[3], time_x, TRACK_MENU_HIGHSCORE_ENTRY_Y);
 			font_set_fontdef();
 		}
 	}

@@ -42,18 +42,31 @@ int main(void)
 		"ExtendedFileIo/12345678.CSTRK", "ExtendedFileIo/12345678.TRK",
 		"ExtendedFileIo/12345678.CSRPL", "ExtendedFileIo/12345678.RPL",
 		"ExtendedFileIo/MiXeD.CsTrK",	 "ExtendedFileIo/MiXeD.CsRpL",
+		"ExtendedFileIo/12345678.CSHIG", "ExtendedFileIo/MiXeD.CsHiG",
 		"ExtendedFileIo/123456789.TRK",	 "ExtendedFileIo/123456789.RPL"};
 	for (size_t index = 0; index < sizeof(paths) / sizeof(paths[0]); index++) {
 		create_file(paths[index]);
 	}
 	static const char *const tracks[] = {"12345678.CSTRK", "MiXeD.CsTrK"};
 	static const char *const replays[] = {"12345678.CSRPL", "MiXeD.CsRpL"};
+	static const char *const scores[] = {"12345678.CSHIG", "MiXeD.CsHiG"};
 	static const char *const old_track[] = {"12345678.TRK"};
 	static const char *const old_replay[] = {"12345678.RPL"};
 	expect_matches("extendedfileio/*.cstrk", tracks, 2);
 	expect_matches("EXTENDEDFILEIO\\*.csrpl", replays, 2);
+	expect_matches("ExtendedFileIo/*.cshig", scores, 2);
 	expect_matches("ExtendedFileIo/*.trk", old_track, 1);
 	expect_matches("ExtendedFileIo/*.rpl", old_replay, 1);
+	assert(sdl3_file_exists("extendedfileio/12345678.cshig") == 1);
+	assert(sdl3_file_exists("ExtendedFileIo/missing.cshig") == 0);
+	assert(sdl3_file_exists("ExtendedFileIo") == 1);
+	assert(sdl3_file_exists("ExtendedFileIo/12345678.CSHIG/invalid.cshig") == -1);
+#ifndef _WIN32
+	assert(symlink("missing.cshig", "ExtendedFileIo/DANGLING.CSHIG") == 0);
+	assert(sdl3_file_exists("extendedfileio/dangling.cshig") == 1);
+	assert(dos_file_open("ExtendedFileIo/DANGLING.CSHIG", DOS_FILE_OPEN_EXISTING) == 0);
+	assert(remove("ExtendedFileIo/DANGLING.CSHIG") == 0);
+#endif
 	/* A completed sibling file replaces the destination in one operation. */
 	FILE *temporary = fopen("ExtendedFileIo/_CTEST.tmp", "wb");
 	assert(temporary != NULL);

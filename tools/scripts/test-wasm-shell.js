@@ -309,6 +309,7 @@ async function installLoadingFixture(page, specs, direct = true) {
             calls: { metadata: [], content: [] },
             automatic: { metadata: false, content: false },
             diskWrites: [],
+            diskRemovals: [],
             statuses: [],
             async gate(phase, path, operation) {
                 this.calls[phase].push(path);
@@ -384,6 +385,7 @@ async function installLoadingFixture(page, specs, direct = true) {
                 };
             }
         });
+        fixture.root.removeEntry = async name => { fixture.diskRemovals.push(name); };
     }, { specs, direct });
 }
 
@@ -651,6 +653,106 @@ async function exerciseFallbackLoading(browser, url, temporary) {
         assert.match(actual.mode, /read-only/);
     } finally {
         await context.close();
+    }
+}
+
+async function exerciseExtendedHighscoreSaving(browser, url, temporary) {
+    const scoreBytes = [0, 255, 1, 128, 13, 10];
+    const specs = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'MiXeD.CsHiG', 'MiXeD.HIG']
+        .map(path => ({ path, bytes: [1, 2, 3] }));
+    const direct = await browser.newContext();
+    await direct.addInitScript(() => { window.showDirectoryPicker = async () => window.testLoadingFixture.root; });
+    try {
+        const page = await direct.newPage();
+        await page.goto(url);
+        await ready(page);
+        await installLoadingFixture(page, specs);
+        await page.evaluate(() => {
+            testLoadingFixture.automatic.metadata = true;
+            testLoadingFixture.automatic.content = true;
+        });
+        await page.locator('#open-folder').click();
+        await page.waitForFunction(() => !document.getElementById('start').disabled);
+        const result = await page.evaluate(async bytes => {
+            const imported = Array.from(fixtureFiles.keys());
+            const savedBaseline = Array.from(baseline.keys());
+            Module.FS.writeFile('/stunts/mixed.cshig', Uint8Array.from(bytes));
+            await Module.persistFile('/stunts/mixed.cshig', false);
+            Module.FS.writeFile('/stunts/NEW.CSHIG', Uint8Array.from(bytes));
+            await Module.persistFile('/stunts/NEW.CSHIG', false);
+            const writesBeforeScratch = testLoadingFixture.diskWrites.length;
+            Module.FS.writeFile('/stunts/_C000001.tmp', Uint8Array.from(bytes));
+            const scratchNeedsPersistence = Module.persistFileNeeded('/stunts/_C000001.tmp');
+            await Module.persistFile('/stunts/_C000001.tmp', false);
+            Module.FS.unlink('/stunts/_C000001.tmp');
+            await Module.persistFile('/stunts/_C000001.tmp', true);
+            Module.FS.unlink('/stunts/mixed.cshig');
+            await Module.persistFile('/stunts/mixed.cshig', true);
+            Module.FS.unlink('/stunts/NEW.CSHIG');
+            await Module.persistFile('/stunts/NEW.CSHIG', true);
+            return { imported, savedBaseline, scratchNeedsPersistence,
+                writesBeforeScratch, writes: testLoadingFixture.diskWrites,
+                removals: testLoadingFixture.diskRemovals,
+                legacyScore: Array.from(Module.FS.readFile('/stunts/mixed.hig')) };
+        }, scoreBytes);
+        assert.ok(result.imported.includes('/stunts/mixed.cshig'), 'Folder imports must include CSHIG files');
+        assert.ok(result.savedBaseline.includes('mixed.cshig'), 'CSHIG files must join the export baseline');
+        assert.deepEqual(result.writes, [
+            { name: 'MiXeD.CsHiG', bytes: scoreBytes }, { name: 'NEW.CSHIG', bytes: scoreBytes }
+        ], 'Extended tables must persist to the original mixed-case name or a new uppercase name');
+        assert.equal(result.writesBeforeScratch, result.writes.length);
+        assert.equal(result.scratchNeedsPersistence, false, 'Atomic-save temporary files must remain in MEMFS');
+        assert.deepEqual(result.removals, ['MiXeD.CsHiG', 'NEW.CSHIG']);
+        assert.deepEqual(result.legacyScore, [1, 2, 3], 'A matching legacy HIG file must remain unchanged');
+    } finally {
+        await direct.close();
+    }
+
+    const directory = path.join(temporary, 'extended-highscore-files');
+    await fs.mkdir(directory);
+    await Promise.all(specs.map(spec => fs.writeFile(path.join(directory, spec.path), Buffer.from(spec.bytes))));
+    const readOnly = await browser.newContext();
+    await readOnly.addInitScript(() => { window.showDirectoryPicker = undefined; });
+    try {
+        const page = await readOnly.newPage();
+        await page.goto(url);
+        await ready(page);
+        await loadFixture(page, directory);
+        assert.ok((await page.locator('#import').getAttribute('accept')).includes('.cshig'));
+        async function exportedFiles() {
+            const downloading = page.waitForEvent('download');
+            await page.locator('#export').click();
+            const download = await downloading;
+            const saved = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+            assert.equal(saved.format, 'restunts-saves');
+            assert.equal(saved.version, 1);
+            return saved.files;
+        }
+        assert.deepEqual(await exportedFiles(), [], 'Unchanged imported extended tables must not be exported');
+        await page.locator('#import').setInputFiles([
+            { name: 'MIXED.CSHIG', mimeType: 'application/octet-stream', buffer: Buffer.from(scoreBytes) },
+            { name: 'NEW.CsHiG', mimeType: 'application/octet-stream', buffer: Buffer.from([4, 5, 6]) }
+        ]);
+        await page.waitForFunction(() => document.getElementById('import').value === '' &&
+            !document.getElementById('import').disabled);
+        assert.equal(await page.locator('#status').textContent(), 'Imported 2 file(s). Ready to start.');
+        await page.locator('#import').setInputFiles({
+            name: 'extended-saves.json', mimeType: 'application/json',
+            buffer: Buffer.from(JSON.stringify({ format: 'restunts-saves', version: 1,
+                files: [{ name: 'BUNDLE.CSHIG', data: Buffer.from([7, 8, 9]).toString('base64') }] }))
+        });
+        await page.waitForFunction(() => document.getElementById('import').value === '' &&
+            !document.getElementById('import').disabled);
+        assert.equal(await page.locator('#status').textContent(), 'Imported 1 file(s). Ready to start.');
+        await page.evaluate(() => Module.FS.writeFile('/stunts/_C000001.tmp', Uint8Array.from([42])));
+        const files = await exportedFiles();
+        assert.equal(files.length, 3);
+        assert.deepEqual(new Map(files.map(file => [file.name.toLowerCase(), [...Buffer.from(file.data, 'base64')]])),
+            new Map([['mixed.cshig', scoreBytes], ['new.cshig', [4, 5, 6]], ['bundle.cshig', [7, 8, 9]]]),
+        'Read-only exports must contain new and changed CSHIG files without legacy or temporary files');
+        assert.deepEqual(await page.evaluate(() => Array.from(Module.FS.readFile('/stunts/mixed.hig'))), [1, 2, 3]);
+    } finally {
+        await readOnly.close();
     }
 }
 
@@ -1016,7 +1118,8 @@ async function main() {
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining');
+        await exerciseExtendedHighscoreSaving(browser, url, temporary);
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

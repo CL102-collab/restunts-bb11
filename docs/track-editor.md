@@ -113,6 +113,13 @@ platform's file I/O capacity; the current file adapter supports files below
 2 GiB. Original `.trk` recording behavior and `.rpl` files remain unchanged.
 See [the replay format](csrpl-format.md) for details.
 
-The original `.hig` table stores legacy track bytes and 16-bit times. New-format
-tracks do not write scores to an unrelated legacy high-score table. Full race
-times and penalties remain available on the evaluation screen and in replays.
+Completed eligible races on `.cstrk` save their seven best times in a matching
+**.cshig** file beside the track. The table supports long races and includes
+penalties. The track selector displays its best score. Original `.trk` tracks
+continue to use `.hig`.
+
+Scores belong to the terrain and placed pieces of that track revision. Editing
+notes or changing the order of stored objects preserves the table; changing
+the course starts an empty table, saved when its first qualifying result is
+entered. If the track file changes during a race, the game refuses to award a
+score against that different course. See [the score format](cshig-format.md).
