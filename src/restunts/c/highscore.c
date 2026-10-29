@@ -191,6 +191,24 @@ void far *highscore_read_with_retry(legacy_s16 operation, const legacy_s8 *filen
 	return 0;
 }
 
+static void highscore_make_empty_entry(struct HIGHSCORE_ENTRY *record)
+{
+	legacy_u8 *record_bytes = (legacy_u8 *)record;
+	for (legacy_u16 offset = 0; offset < HIGHSCORE_COMBINED_NAME_TEXT_BYTES; offset++) {
+		record_bytes[offset] = '.';
+	}
+	record_bytes[HIGHSCORE_COMBINED_NAME_TEXT_BYTES] = 0;
+	record->car_flag = 0;
+	record->opponent[0] = '.';
+	record->opponent[1] = '.';
+	record->opponent[2] = '/';
+	for (legacy_u16 offset = 3U; offset < HIGHSCORE_OPPONENT_TEXT_BYTES; offset++) {
+		record->opponent[offset] = '.';
+	}
+	record->opponent[HIGHSCORE_OPPONENT_TEXT_BYTES] = 0;
+	highscore_entry_set_time(record, HIGHSCORE_EMPTY_TIME);
+}
+
 legacy_s16 highscore_load_or_create(legacy_s16 create_default)
 {
 	ranking_highlight = HIGHSCORE_NO_HIGHLIGHT;
@@ -216,20 +234,7 @@ legacy_s16 highscore_load_or_create(legacy_s16 create_default)
 	}
 
 	struct HIGHSCORE_ENTRY record;
-	legacy_u8 *record_bytes = (legacy_u8 *)&record;
-	for (legacy_u16 offset = 0; offset < HIGHSCORE_COMBINED_NAME_TEXT_BYTES; offset++) {
-		record_bytes[offset] = '.';
-	}
-	record_bytes[HIGHSCORE_COMBINED_NAME_TEXT_BYTES] = 0;
-	record.car_flag = 0;
-	record.opponent[0] = '.';
-	record.opponent[1] = '.';
-	record.opponent[2] = '/';
-	for (legacy_u16 offset = 3U; offset < HIGHSCORE_OPPONENT_TEXT_BYTES; offset++) {
-		record.opponent[offset] = '.';
-	}
-	record.opponent[HIGHSCORE_OPPONENT_TEXT_BYTES] = 0;
-	highscore_entry_set_time(&record, HIGHSCORE_EMPTY_TIME);
+	highscore_make_empty_entry(&record);
 	struct HIGHSCORE_ENTRY far *scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
 	for (legacy_u16 entry = 0; entry < HIGHSCORE_ENTRY_COUNT; entry++) {
 		scores[entry] = record;
@@ -251,38 +256,52 @@ void highscore_save_sorted(void)
 	g_is_busy = 0;
 }
 
+static legacy_u16 highscore_format_fields(const legacy_s8 *player_name, const legacy_s8 *car_name,
+										  const legacy_s8 *opponent, legacy_u8 car_flag,
+										  legacy_u8 *text_offsets)
+{
+	text_offsets[0] = 0;
+	strcpy(&resID_byte1, player_name);
+	legacy_u16 output_offset = (legacy_u16)strlen(&resID_byte1) + 1U;
+	text_offsets[1] = (legacy_u8)output_offset;
+	strcpy(&resID_byte1 + output_offset, car_name);
+	output_offset =
+		LEGACY_U16_WRAP_ADD(output_offset, (legacy_u16)strlen(&resID_byte1 + output_offset) + 1U);
+	text_offsets[2] = (legacy_u8)output_offset;
+
+	legacy_s8 *output = &resID_byte1 + output_offset;
+	*output = 0;
+	if (car_flag == 1) {
+		strcat(output, "(");
+	}
+	strcat(output, opponent);
+	if (car_flag == 1) {
+		strcat(output, ")");
+	}
+	output_offset = LEGACY_U16_WRAP_ADD(output_offset, (legacy_u16)strlen(output) + 1U);
+
+	return output_offset;
+}
+
 #ifdef RESTUNTS_SDL3
 static void print_extended_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
 {
 	const struct CSHIG_ENTRY *score =
 		extended_highscore_entry((unsigned)ranking_entry_order[entry]);
-	struct CSHIG_ENTRY empty = {0};
-	if (score == 0) {
-		empty.player_name[0] = '.';
-		empty.car_name[0] = '.';
-		empty.opponent[0] = '.';
-		empty.ticks = CSHIG_EMPTY_TICKS;
-		score = &empty;
+	legacy_u16 output_offset;
+	if (score == 0 || score->ticks == CSHIG_EMPTY_TICKS) {
+		struct HIGHSCORE_ENTRY empty;
+		highscore_make_empty_entry(&empty);
+		output_offset = highscore_format_fields(empty.player_name, empty.car_name, empty.opponent,
+												empty.car_flag, text_offsets);
+	} else {
+		output_offset = highscore_format_fields(
+			(const legacy_s8 *)score->player_name, (const legacy_s8 *)score->car_name,
+			(const legacy_s8 *)score->opponent, score->car_flag, text_offsets);
 	}
-	text_offsets[0] = 0;
-	strcpy(&resID_byte1, (const legacy_s8 *)score->player_name);
-	legacy_u16 output_offset = (legacy_u16)strlen(&resID_byte1) + 1U;
-	text_offsets[1] = (legacy_u8)output_offset;
-	strcpy(&resID_byte1 + output_offset, (const legacy_s8 *)score->car_name);
-	output_offset += (legacy_u16)strlen(&resID_byte1 + output_offset) + 1U;
-	text_offsets[2] = (legacy_u8)output_offset;
-	legacy_s8 *output = &resID_byte1 + output_offset;
-	*output = 0;
-	if (score->car_flag == 1) {
-		strcat(output, "(");
-	}
-	strcat(output, (const legacy_s8 *)score->opponent);
-	if (score->car_flag == 1) {
-		strcat(output, ")");
-	}
-	output_offset += (legacy_u16)strlen(output) + 1U;
 	legacy_s8 formatted_time[32] = {0};
-	(void)extended_highscore_format_time(formatted_time, sizeof(formatted_time), score->ticks);
+	(void)extended_highscore_format_time(formatted_time, sizeof(formatted_time),
+										 score != 0 ? score->ticks : CSHIG_EMPTY_TICKS);
 	text_offsets[3] = (legacy_u8)output_offset;
 	strcpy(&resID_byte1 + output_offset, formatted_time);
 }
@@ -299,25 +318,8 @@ void print_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
 	struct HIGHSCORE_ENTRY far *scores = (struct HIGHSCORE_ENTRY far *)track_highscore_table;
 	struct HIGHSCORE_ENTRY record = scores[ranking_entry_order[entry]];
 
-	text_offsets[0] = 0;
-	strcpy(&resID_byte1, record.player_name);
-	legacy_u16 output_offset = (legacy_u16)strlen(&resID_byte1) + 1U;
-	text_offsets[1] = (legacy_u8)output_offset;
-	strcpy(&resID_byte1 + output_offset, record.car_name);
-	output_offset =
-		LEGACY_U16_WRAP_ADD(output_offset, (legacy_u16)strlen(&resID_byte1 + output_offset) + 1U);
-	text_offsets[2] = (legacy_u8)output_offset;
-
-	legacy_s8 *output = &resID_byte1 + output_offset;
-	*output = 0;
-	if (record.car_flag == 1) {
-		strcat(output, "(");
-	}
-	strcat(output, record.opponent);
-	if (record.car_flag == 1) {
-		strcat(output, ")");
-	}
-	output_offset = LEGACY_U16_WRAP_ADD(output_offset, (legacy_u16)strlen(output) + 1U);
+	legacy_u16 output_offset = highscore_format_fields(
+		record.player_name, record.car_name, record.opponent, record.car_flag, text_offsets);
 
 	legacy_s16 saved_frame_rate = framespersec;
 	framespersec = GAME_FRAME_RATE_NORMAL;
@@ -332,6 +334,13 @@ void print_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
 void highscore_draw_table(void)
 {
 	sprite_select_render_window();
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		/* Sorted rows replace the previous table; transparent glyphs cannot erase it. */
+		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
+					button_bottom_color, button_fill_color, 0);
+	}
+#endif
 	copy_string(&resID_byte1, locate_text_res(mainresptr, "hs1"));
 	strcat(&resID_byte1, " '");
 	strcat(&resID_byte1, gameconfig.game_trackname);

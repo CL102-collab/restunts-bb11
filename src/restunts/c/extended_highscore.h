@@ -28,7 +28,8 @@ int extended_highscore_record(const legacy_s8 *directory, const legacy_s8 *name,
 							  unsigned *rank);
 
 /* Formats normalized 20 Hz ticks as minutes:ss.hh; zero on success.
- * The output buffer stays unchanged on failure. Empty entries show 0:00.00. */
+ * Minutes are space-padded to at least two characters, matching legacy scores.
+ * The output buffer stays unchanged on failure. Empty entries show " 0:00.00". */
 int extended_highscore_format_time(legacy_s8 *out, size_t size, uint64_t ticks);
 const legacy_s8 *extended_highscore_error(void);
 
