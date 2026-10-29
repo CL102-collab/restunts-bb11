@@ -6,6 +6,7 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
     const MAX_RESOURCE = 16 * 1024 * 1024;
+    const EDITOR_TILE_SIZE = 16, EDITOR_TILE_INTERIOR = EDITOR_TILE_SIZE - 1;
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
     function read24(a, p) { return a[p] | (a[p + 1] << 8) | (a[p + 2] << 16); }
@@ -144,6 +145,33 @@
         }
         return { width, height: h, pixels };
     }
+    function composeTileBitmap(bitmap) {
+        const mask = bitmap && bitmap.mask;
+        if (!mask || !Number.isInteger(mask.width) || !Number.isInteger(mask.height) ||
+            mask.width < EDITOR_TILE_SIZE || mask.height < EDITOR_TILE_SIZE ||
+            mask.width % EDITOR_TILE_SIZE || mask.height % EDITOR_TILE_SIZE ||
+            !mask.pixels || mask.pixels.length !== mask.width * mask.height ||
+            !Number.isInteger(bitmap.width) || !Number.isInteger(bitmap.height) ||
+            bitmap.width < 1 || bitmap.height < 1 || !bitmap.pixels ||
+            bitmap.pixels.length !== bitmap.width * bitmap.height) fail('Invalid editor tile artwork.');
+        const width = mask.width / EDITOR_TILE_SIZE * EDITOR_TILE_INTERIOR;
+        const height = mask.height / EDITOR_TILE_SIZE * EDITOR_TILE_INTERIOR;
+        const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
+        for (let y = 0; y < height; y++) {
+            // Native icons reserve each tile's left column and bottom row for the editor grid.
+            const sourceY = Math.floor(y / EDITOR_TILE_INTERIOR) * EDITOR_TILE_SIZE + y % EDITOR_TILE_INTERIOR;
+            for (let x = 0; x < width; x++) {
+                const sourceX = Math.floor(x / EDITOR_TILE_INTERIOR) * EDITOR_TILE_SIZE + x % EDITOR_TILE_INTERIOR + 1;
+                const pixel = sourceX < bitmap.width && sourceY < bitmap.height
+                    ? bitmap.pixels[sourceY * bitmap.width + sourceX] : 0;
+                const index = y * width + x;
+                pixels[index] = pixel;
+                // The full AND mask includes opaque black pixels beyond the cropped OR image.
+                alpha[index] = pixel !== 0 || mask.pixels[sourceY * mask.width + sourceX] === 0 ? 255 : 0;
+            }
+        }
+        return { width, height, pixels, alpha };
+    }
     async function load(files) {
         const normalized = new Map();
         for (const [name, value] of files) normalized.set(name.toLowerCase(), value);
@@ -180,5 +208,5 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, decompress, resourceDirectory, decodeShape };
+    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap };
 }));

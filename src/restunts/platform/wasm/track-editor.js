@@ -439,12 +439,13 @@
         if (!state.resources || !state.resources.palette) return null;
         const cacheKey = id + ':' + surface;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
-        const bitmap = state.resources.icons.get(id);
-        if (!bitmap) return null;
+        const source = state.resources.icons.get(id);
+        if (!source) return null;
+        const bitmap = window.TrackEditorResources.composeTileBitmap(source);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;
         for (let i = 0; i < bitmap.pixels.length; i++) {
-            const index = bitmap.pixels[i], mask = bitmap.mask && bitmap.mask.pixels[i];
+            const index = bitmap.pixels[i];
             let r = palette[index * 3], g = palette[index * 3 + 1], b = palette[index * 3 + 2];
             // Tint the original neutral road pixels for the independently selected surface.
             if (surface && Math.max(r, g, b) - Math.min(r, g, b) < 24 && r > 35 && r < 225) {
@@ -452,17 +453,18 @@
                 else { b = Math.min(255, r + 55); g = Math.min(255, r + 32); r = Math.min(255, r + 8); }
             }
             image.data[i * 4] = r; image.data[i * 4 + 1] = g; image.data[i * 4 + 2] = b;
-            image.data[i * 4 + 3] = mask && index === 0 ? 0 : 255;
+            image.data[i * 4 + 3] = bitmap.alpha[i];
         }
         context.putImageData(image, 0, 0); state.iconCache.set(cacheKey, icon); return icon;
     }
     function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false) {
         if (piece.decoration) surface = 0;
-        const icon = originalIcon(piece.id, surface);
-        c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(rotation * Math.PI / 2);
+        const display = model.pieceDisplayVariant(piece, rotation);
+        const icon = originalIcon(display.piece.id, surface);
+        c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(display.rotation * Math.PI / 2);
         if (icon) {
             c.imageSmoothingEnabled = false;
-            const rotated = rotation % 2, w = rotated ? height : width, h = rotated ? width : height;
+            const rotated = display.rotation % 2, w = rotated ? height : width, h = rotated ? width : height;
             c.drawImage(icon, -w / 2, -h / 2, w, h);
         } else {
             // Only used while artwork is not loaded; the editor remains locked then.
