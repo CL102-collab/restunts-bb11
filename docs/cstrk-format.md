@@ -1,7 +1,8 @@
 # Chocolate Stunts track format
 
-`.cstrk` version 1 is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. DOS, Amiga and TempleOS builds continue to use `.trk`.
+`.cstrk` is the extended track format for SDL3 builds, including the
+SDL3 WebAssembly build. The current file-format revision is **v1**, supported
+by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
 a horizon choice, and up to 8,000 ASCII text bytes of notes. One hill level
@@ -17,17 +18,24 @@ the legacy replay track section.
 
 All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
-data. Readers reject unknown versions, header sizes, horizon values, reserved
-fields, and payload lengths. The horizon occupies the former zero flags field
-in this version 1 layout; Desert remains zero so existing tracks retain the
-same bytes.
+data. The revision is numeric metadata: a positive unsigned 16-bit integer.
+Files with a revision higher than the reader supports show a compatibility
+warning and are loaded on a best-effort basis using the known layout. A file
+marked v15 or v101 is newer than a reader supporting v1. Its revision alone
+does not make loading fail, and its numeric revision is retained when saving.
+
+Best-effort loading still validates header size, horizon, dimensions, object
+records, notes, and exact payload lengths. Invalid structures remain errors;
+revision zero is invalid. New tracks are created with the current revision, v1.
+The horizon field is present in this v1 layout, and Desert remains zero so
+existing v1 tracks retain the same bytes.
 
 The header occupies exactly 32 bytes:
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Version, `1` |
+| 8 | 2 | Numeric format revision, 1–65,535; current revision `1` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -59,9 +67,11 @@ The horizon uses the original game's scenery choices:
 | 3 | City |
 | 4 | Country |
 
-New tracks default to Desert. Values outside this range and nonzero upper
-bytes are rejected. The selected horizon is retained in embedded replay tracks.
-Horizon changes preserve the track's highscore table.
+New tracks default to Desert. Every valid revision may select any of these
+horizons. Values outside this range and nonzero upper bytes are rejected.
+The selected horizon and revision are retained in embedded replay tracks.
+Horizon changes and revision metadata changes preserve the track's highscore
+table.
 
 ## Terrain
 
@@ -162,6 +172,6 @@ belong to the SDL3 extended-track integration.
 
 The standalone test `src/restunts/tests/test-cstrk.c` covers an independently
 specified binary fixture, every truncation of that fixture, malformed headers
-and objects, all horizon choices, sparse overlays,
+and objects, all horizon choices, current and future numeric revisions, sparse overlays,
 positive and negative slopes, ASCII limits, transactional failure, and the
 maximum-size 90×90 map.

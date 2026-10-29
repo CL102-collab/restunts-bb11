@@ -60,47 +60,53 @@ static void test_wire_layout(void)
 	cstrk_free(&track);
 }
 
-static void test_horizons(void)
+static void test_horizons_and_versions(void)
 {
 	struct CSTRK_TRACK track, decoded;
 	cstrk_init(&track);
 	cstrk_init(&decoded);
+	assert(track.version == CSTRK_VERSION && decoded.version == CSTRK_VERSION);
 	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
-	assert(track.horizon == CSTRK_HORIZON_DEFAULT);
+	assert(track.version == CSTRK_VERSION && track.horizon == CSTRK_HORIZON_DEFAULT);
 	static const legacy_char notes[] = "Keep these track notes.\n";
+	static const legacy_u16 versions[] = {CSTRK_VERSION, 2U, 15U, 101U, LEGACY_U16_MAX};
 	assert(cstrk_set_notes(&track, notes, sizeof(notes) - 1U, error, sizeof(error)));
-	for (legacy_u8 horizon = CSTRK_HORIZON_DEFAULT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
-		track.horizon = horizon;
-		legacy_u8 *data = NULL;
-		size_t size = 0;
-		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
-		assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_VERSION);
-		assert(data[CSTRK_HORIZON_OFFSET] == horizon);
-		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
-		assert(decoded.horizon == horizon);
-		assert(decoded.notes_length == sizeof(notes) - 1U && strcmp(decoded.notes, notes) == 0);
-		legacy_u8 *encoded = NULL;
-		size_t encoded_size = 0;
-		assert(cstrk_encode(&decoded, &encoded, &encoded_size, error, sizeof(error)));
-		assert(encoded_size == size && memcmp(encoded, data, size) == 0);
-		free(encoded);
+	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
+		track.version = versions[index];
+		for (legacy_u8 horizon = CSTRK_HORIZON_DEFAULT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
+			track.horizon = horizon;
+			legacy_u8 *data = NULL;
+			size_t size = 0;
+			assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+			assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == track.version);
+			assert(data[CSTRK_HORIZON_OFFSET] == horizon);
+			assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.version == track.version && decoded.horizon == horizon);
+			assert(decoded.notes_length == sizeof(notes) - 1U && strcmp(decoded.notes, notes) == 0);
+			legacy_u8 *encoded = NULL;
+			size_t encoded_size = 0;
+			assert(cstrk_encode(&decoded, &encoded, &encoded_size, error, sizeof(error)));
+			assert(encoded_size == size && memcmp(encoded, data, size) == 0);
+			free(encoded);
 
-		legacy_u8 before[sizeof(decoded)];
-		memcpy(before, &decoded, sizeof(decoded));
-		data[CSTRK_HORIZON_OFFSET] = CSTRK_HORIZON_COUNT;
-		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
-		assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
-		data[CSTRK_HORIZON_OFFSET] = horizon;
-		data[CSTRK_HORIZON_OFFSET + 1U] = 1U;
-		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
-		assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
-		data[CSTRK_HORIZON_OFFSET + 1U] = 0;
-		assert(!cstrk_decode(data, size - 1U, &decoded, error, sizeof(error)));
-		assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
-		LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_VERSION + 1U);
-		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
-		assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
-		free(data);
+			/* Future metadata still requires a structurally valid known payload. */
+			legacy_u8 before[sizeof(decoded)];
+			memcpy(before, &decoded, sizeof(decoded));
+			data[CSTRK_HORIZON_OFFSET] = CSTRK_HORIZON_COUNT;
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			data[CSTRK_HORIZON_OFFSET] = horizon;
+			data[CSTRK_HORIZON_OFFSET + 1U] = 1U;
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			data[CSTRK_HORIZON_OFFSET + 1U] = 0;
+			assert(!cstrk_decode(data, size - 1U, &decoded, error, sizeof(error)));
+			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, 0U);
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(memcmp(&decoded, before, sizeof(decoded)) == 0);
+			free(data);
+		}
 	}
 
 	legacy_u8 *data = NULL;
@@ -108,6 +114,11 @@ static void test_horizons(void)
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	legacy_u8 *original_output = data;
 	size_t original_size = size;
+	decoded.version = 0;
+	assert(!cstrk_validate(&decoded, error, sizeof(error)));
+	assert(!cstrk_encode(&decoded, &data, &size, error, sizeof(error)));
+	assert(data == original_output && size == original_size);
+	decoded.version = CSTRK_VERSION;
 	decoded.horizon = CSTRK_HORIZON_COUNT;
 	assert(!cstrk_validate(&decoded, error, sizeof(error)));
 	assert(!cstrk_encode(&decoded, &data, &size, error, sizeof(error)));
@@ -115,6 +126,7 @@ static void test_horizons(void)
 	free(data);
 	cstrk_free(&track);
 	cstrk_free(&decoded);
+	assert(track.version == CSTRK_VERSION && decoded.version == CSTRK_VERSION);
 }
 
 static void test_slopes_and_unused_cells(void)
@@ -253,8 +265,8 @@ static void test_invalid_records(void)
 	size_t size = 0;
 	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 	uint8_t *old_corners = track.corner_heights;
-	static const size_t offsets[] = {0,	 8,	 10, 12, 16, 18, 20, 24, 28, 32, 41,
-									 42, 49, 53, 54, 55, 56, 57, 58, 59, 60, 61};
+	static const size_t offsets[] = {0,	 10, 12, 16, 18, 20, 24, 28, 32, 41, 42,
+									 49, 53, 54, 55, 56, 57, 58, 59, 60, 61};
 	for (size_t index = 0; index < sizeof(offsets) / sizeof(offsets[0]); index++) {
 		size_t offset = offsets[index];
 		assert(offset < size);
@@ -327,7 +339,7 @@ static void test_maximum_track(void)
 int main(void)
 {
 	test_wire_layout();
-	test_horizons();
+	test_horizons_and_versions();
 	test_slopes_and_unused_cells();
 	test_notes();
 	test_invalid_records();

@@ -7,6 +7,8 @@
 #include "../c/cstrk.h"
 #include "../c/extended_replay.h"
 
+#define TEST_FUTURE_TRACK_VERSION 101U
+
 static void test_recording_and_seek_storage(void)
 {
 	struct EXTENDED_REPLAY_BUFFER buffer;
@@ -75,13 +77,14 @@ static void test_large_timeline(void)
 	assert(!extended_replay_format_time(text, sizeof(text), 100U, 0U, 1));
 }
 
-static void test_codec(legacy_u8 horizon)
+static void test_codec(legacy_u8 horizon, legacy_u16 version)
 {
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	char error[128];
 	assert(cstrk_create(&track, 90U, 90U, error, sizeof(error)));
 	track.horizon = horizon;
+	track.version = version;
 	assert(cstrk_set_notes(&track, "embedded track", 14U, error, sizeof(error)));
 	uint8_t *track_bytes = NULL;
 	size_t track_size = 0U;
@@ -119,6 +122,7 @@ static void test_codec(legacy_u8 horizon)
 	cstrk_init(&embedded);
 	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
 	assert(embedded.horizon == horizon);
+	assert(embedded.version == version);
 	assert(strcmp(embedded.notes, track.notes) == 0);
 	cstrk_free(&embedded);
 	struct CSRPL_VIEW unchanged = view;
@@ -169,8 +173,8 @@ int main(void)
 {
 	test_recording_and_seek_storage();
 	test_large_timeline();
-	/* Replay storage retains the selected horizon alongside the track notes. */
-	test_codec(CSTRK_HORIZON_DEFAULT);
-	test_codec(CSTRK_HORIZON_COUNTRY);
+	/* Replay storage preserves both current and future track metadata. */
+	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_VERSION);
+	test_codec(CSTRK_HORIZON_COUNTRY, TEST_FUTURE_TRACK_VERSION);
 	return 0;
 }
