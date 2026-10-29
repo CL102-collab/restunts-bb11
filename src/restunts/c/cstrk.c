@@ -247,8 +247,10 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		track->corner_heights == NULL || track->cells == NULL) {
 		return cstrk_fail(error, error_size, "Track terrain or dimensions are invalid");
 	}
-	if (track->version == 0U) {
-		return cstrk_fail(error, error_size, "Track version must be positive");
+	if (track->version < CSTRK_MIN_VERSION) {
+		return cstrk_fail(error, error_size,
+						  "Unsupported track version %u; minimum supported version is %u",
+						  (legacy_uint)track->version, CSTRK_MIN_VERSION);
 	}
 	if (track->horizon >= CSTRK_HORIZON_COUNT) {
 		return cstrk_fail(error, error_size, "Track has an unknown horizon");
@@ -284,8 +286,7 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 			cell->half_water_corner > CSTRK_WATER_SOUTHWEST ||
 			(cell->half_water_corner != CSTRK_WATER_NONE &&
 			 (cell->corner_surface > CSTRK_TERRAIN_WATER ||
-			  (cell->corner_surface == cell->surface &&
-			   cell->corner_surface != CSTRK_TERRAIN_WATER)))) {
+			  cell->corner_surface == cell->surface))) {
 			return cstrk_fail(error, error_size, "Terrain cell %zu has an invalid surface corner",
 							  index);
 		}
@@ -383,16 +384,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
 	}
 	memcpy(encoded, cstrk_magic, sizeof(cstrk_magic));
-	legacy_u16 version = track->version;
-	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
-		const struct CSTRK_CELL *cell = &track->cells[index];
-		if (cell->half_water_corner != CSTRK_WATER_NONE &&
-			cell->corner_surface != CSTRK_TERRAIN_WATER &&
-			version < CSTRK_SURFACE_CORNERS_VERSION) {
-			version = CSTRK_SURFACE_CORNERS_VERSION;
-		}
-	}
-	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, version);
+	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, track->version);
 	cstrk_write32(encoded + CSTRK_HORIZON_OFFSET, track->horizon);
 	cstrk_write16(encoded + 10U, CSTRK_HEADER_SIZE);
 	cstrk_write16(encoded + 16U, track->width);
@@ -445,10 +437,14 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	}
 	legacy_u16 version = cstrk_read16(data + CSTRK_VERSION_OFFSET);
 	legacy_u32 horizon = cstrk_read32(data + CSTRK_HORIZON_OFFSET);
-	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 || version == 0U ||
+	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 ||
 		cstrk_read16(data + 10U) != CSTRK_HEADER_SIZE || horizon >= CSTRK_HORIZON_COUNT) {
+		return cstrk_fail(error, error_size, "Unknown track magic, header size or horizon");
+	}
+	if (version < CSTRK_MIN_VERSION) {
 		return cstrk_fail(error, error_size,
-						  "Unknown track magic, version, header size or horizon");
+						  "Unsupported track version %u; minimum supported version is %u",
+						  (legacy_uint)version, CSTRK_MIN_VERSION);
 	}
 	uint16_t width = cstrk_read16(data + 16U);
 	uint16_t height = cstrk_read16(data + 18U);

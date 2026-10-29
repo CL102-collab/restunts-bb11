@@ -558,15 +558,12 @@ static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertice
 	if (model == PHYSICAL_MODEL_ROAD && (placed->slope_x || placed->slope_y)) {
 		model = OWOOT_HILL_ROAD_MODEL;
 	}
-	struct EXTENDED_GEOMETRY_BASIS basis;
 	struct VECTOR origin, local[OWOOT_WHEEL_VERTEX_MAX];
 	extended_geometry_object_origin(extended_track_model(), placed, &origin);
-	extended_geometry_object_basis(placed, &basis);
 	for (legacy_u16 index = 0; index < ring_count * OWOOT_WHEEL_RIM_COUNT; index++) {
-		struct VECTOR delta = {LEGACY_S16_WRAP_SUB(vertices[index].x, origin.x),
-							   LEGACY_S16_WRAP_SUB(vertices[index].y, origin.y),
-							   LEGACY_S16_WRAP_SUB(vertices[index].z, origin.z)};
-		extended_geometry_inverse(&basis, &delta, &local[index]);
+		local[index] = (struct VECTOR){LEGACY_S16_WRAP_SUB(vertices[index].x, origin.x),
+									   LEGACY_S16_WRAP_SUB(vertices[index].y, origin.y),
+									   LEGACY_S16_WRAP_SUB(vertices[index].z, origin.z)};
 		legacy_s16 x = local[index].x, z = local[index].z;
 		switch ((legacy_u16)object->ss_rotY) {
 			case ANGLE_QUARTER_TURN:

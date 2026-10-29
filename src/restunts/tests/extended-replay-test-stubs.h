@@ -341,13 +341,6 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 x, leg
 	assert(0);
 	return 0;
 }
-void extended_geometry_object_basis(const struct CSTRK_OBJECT *object,
-									struct EXTENDED_GEOMETRY_BASIS *basis)
-{
-	(void)object;
-	(void)basis;
-	assert(0);
-}
 void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 									 const struct CSTRK_OBJECT *object, struct VECTOR *origin)
 {
@@ -356,37 +349,12 @@ void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 	(void)origin;
 	assert(0);
 }
-void extended_geometry_forward(const struct EXTENDED_GEOMETRY_BASIS *basis,
-							   const struct VECTOR *local, struct VECTOR *world)
-{
-	(void)basis;
-	(void)local;
-	(void)world;
-	assert(0);
-}
-void extended_geometry_inverse(const struct EXTENDED_GEOMETRY_BASIS *basis,
-							   const struct VECTOR *world, struct VECTOR *local)
-{
-	(void)basis;
-	(void)world;
-	(void)local;
-	assert(0);
-}
-void extended_geometry_transform_plane(const struct EXTENDED_GEOMETRY_BASIS *basis,
-									   const struct PLANE *source, struct PLANE *destination)
-{
-	(void)basis;
-	(void)source;
-	(void)destination;
-	assert(0);
-}
 int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE3D *destination,
-									  const struct EXTENDED_GEOMETRY_BASIS *basis,
-									  legacy_s16 orientation, unsigned surface, legacy_s16 physical)
+									  legacy_s16 orientation, legacy_u16 surface,
+									  legacy_s16 physical)
 {
 	(void)source;
 	(void)destination;
-	(void)basis;
 	(void)orientation;
 	(void)surface;
 	(void)physical;
