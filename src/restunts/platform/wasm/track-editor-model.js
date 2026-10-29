@@ -118,7 +118,7 @@
     }
     const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
-    const TERRAIN_GROUND_LEVEL = 0, TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
+    const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
     const CLASSIC_TERRAIN_BY_MASK = [0, 11, 14, 7, 13, -1, 10, 18, 12, 8, -1, 15, 9, 16, 17, 6];
     const CLASSIC_FLAT_GROUND = 0, CLASSIC_RAISED_GROUND = 6;
     const CLASSIC_FIRST_SLOPE = 7, CLASSIC_LAST_SLOPE = 10;
@@ -258,8 +258,7 @@
             integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
             const index = this.cellIndex(x, y), heights = this.tileHeights(x, y), profile = terrainProfile(heights);
             if (!profile) throw new Error('Invalid terrain profile.');
-            if (profile.baseLevel !== TERRAIN_GROUND_LEVEL) return false;
-            const cell = this.cells[index], raised = heights.map((height, corner) => height > TERRAIN_GROUND_LEVEL ? corner : -1).filter(corner => corner >= 0);
+            const cell = this.cells[index], raised = heights.map((height, corner) => height > profile.baseLevel ? corner : -1).filter(corner => corner >= 0);
             let next = { surface, halfWaterCorner: 0 };
             if (raised.length) {
                 // Only an outer hill corner has a flat low triangle. Its slope,

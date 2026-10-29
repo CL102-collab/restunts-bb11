@@ -45,11 +45,14 @@ Mixed material strokes support undo and redo.
 
 Paint also shows a **Lower surface** section with **Grass, Dirt, Ice, Water**
 choices, in that order. Each icon shows the selected material below a neutral,
-locked hill. Choose one to paint flat ground at level 0 without changing the
-hill surface or any heights. On an outer hill corner it finds the low flat
-triangle automatically, preserving any grass, dirt, ice or water on the hill.
-You can drag over different hill materials and orientations in one stroke.
-Straight inclines, inner corners and terrain above ground level stay as they are.
+locked hill. Choose one to paint the lower flat part of a tile at any elevation
+without changing the hill surface or any heights. On an outer hill corner it
+finds the low flat triangle automatically, preserving any grass, dirt, ice or
+water on the hill. The same rule applies to 0–1, 1–2, 2–3 and 3–4 hill levels.
+Entirely flat tiles are painted in full at any elevation, including level 4.
+You can drag over different hill materials, orientations and elevations in one
+stroke. Straight inclines and inner corners have no lower flat part and stay
+as they are.
 If an existing material boundary crosses the hill, Lower surface leaves that
 tile unchanged and explains that it cannot preserve both hill materials.
 Click the regular Paint tile preview or a primary surface to paint whole tiles
