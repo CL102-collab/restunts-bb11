@@ -221,7 +221,7 @@ set(common_sources
     replinit.c gameinit.c gamestep.c simd.c carsetup.c trkutil.c trackres.c
     headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
     track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
-    owoot.c owoot_wheels.c owoot_road.c owoot_route.c replay.c stateio.c
+    owoot.c owoot_wheels.c owoot_road.c owoot_route.c driving_rules.c replay.c stateio.c
     cstrk.c csrpl.c cshig.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c)
 set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
@@ -571,6 +571,23 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_options(test-extended-race-start PRIVATE ${restunts_test_gc_sections})
     target_link_libraries(test-extended-race-start PRIVATE restunts_options)
     add_test(NAME extended-race-start COMMAND test-extended-race-start)
+    add_executable(test-driving-rules src/restunts/tests/test-driving-rules.c
+        ${core}/driving_rules.c ${core}/statecar.c ${core}/physics_collision.c
+        ${core}/physics_grip.c ${core}/race_route.c ${core}/trackobj.c ${core}/owoot.c
+        ${core}/strlib.c)
+    target_compile_options(test-driving-rules PRIVATE -UNDEBUG -Wno-pointer-sign
+        -Wno-sign-compare -Wno-missing-braces ${restunts_test_section_options})
+    target_link_options(test-driving-rules PRIVATE ${restunts_test_gc_sections})
+    target_link_libraries(test-driving-rules PRIVATE restunts_options)
+    add_test(NAME driving-rules COMMAND test-driving-rules)
+    add_executable(test-replay-version-warning src/restunts/tests/test-replay-version-warning.c
+        ${core}/fileio.c ${core}/strlib.c)
+    target_compile_definitions(test-replay-version-warning PRIVATE RESTUNTS_SDL3)
+    target_compile_options(test-replay-version-warning PRIVATE -UNDEBUG -Wno-pointer-sign
+        ${restunts_test_section_options})
+    target_link_options(test-replay-version-warning PRIVATE ${restunts_test_gc_sections})
+    target_link_libraries(test-replay-version-warning PRIVATE restunts_options)
+    add_test(NAME replay-version-warning COMMAND test-replay-version-warning)
     add_executable(test-extended-file-dialog src/restunts/tests/test-extended-file-dialog.c
         ${core}/ui_dialog.c ${core}/ui_input.c ${core}/legacy.c ${core}/strlib.c
         ${core}/resource.c ${platform}/runtime.c)

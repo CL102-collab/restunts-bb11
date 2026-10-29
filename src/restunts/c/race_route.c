@@ -61,6 +61,11 @@ enum ROUTE_HEIGHT_REFERENCE {
 
 static legacy_s16 dual_way_switching_enabled = 1;
 
+legacy_u16 dual_way_switching_is_enabled(void)
+{
+	return dual_way_switching_enabled != 0;
+}
+
 void configure_dual_way_switching(legacy_s16 argc, legacy_s8 *argv[])
 {
 	static const legacy_s8 off_option[] = "--dws:off";

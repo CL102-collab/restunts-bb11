@@ -86,6 +86,16 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 }
 #endif
 #ifdef EXTENDED_TEST_GHOST_STUBS
+void file_warn_replay_version(legacy_u16 version)
+{
+	(void)version;
+	assert(!"Unexpected extended replay warning in a legacy ghost fixture");
+}
+void file_warn_replay_driving_rules(legacy_u16 recorded)
+{
+	(void)recorded;
+	assert(!"Unexpected extended replay rules warning in a legacy ghost fixture");
+}
 #include "../c/extended_ghost.h"
 void extended_ghost_free(struct EXTENDED_GHOST_REPLAY *replay)
 {
@@ -115,6 +125,14 @@ void extended_race_stats_capture(void)
 	assert(0);
 }
 int extended_replay_is_active(void)
+{
+	return 0;
+}
+legacy_u16 extended_replay_version(void)
+{
+	return 0;
+}
+legacy_u16 extended_replay_driving_rules(void)
 {
 	return 0;
 }

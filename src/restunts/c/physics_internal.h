@@ -41,11 +41,15 @@ legacy_s16 sweep_track_wall_span(struct VECTORLONG *previous_first,
 								 struct VECTORLONG *current_second, legacy_s16 *fraction);
 
 void configure_left_corner_bias(legacy_s16 argc, legacy_s8 *argv[]);
+legacy_u16 left_corner_bias_is_enabled(void);
 void configure_chicane_fast_grass(legacy_s16 argc, legacy_s8 *argv[]);
+legacy_u16 chicane_fast_grass_is_enabled(void);
 void configure_amiga_grass(legacy_s16 argc, legacy_s8 *argv[]);
+legacy_u16 amiga_grass_is_enabled(void);
 void apply_amiga_grass(struct SIMD *simd, const legacy_s8 car_id[4]);
 legacy_s16 scale_cornering_angle(legacy_s16 angle, legacy_u8 shift);
 void configure_legacy_collision(legacy_s16 argc, legacy_s8 *argv[]);
+legacy_u16 legacy_collision_is_enabled(void);
 /* Validate a body sign-change crash between reusable track plane templates. */
 legacy_s16 body_plane_crossing_is_collision(struct VECTOR *previous, struct VECTOR *current);
 legacy_s16 damp_collision_angle(legacy_s16 angle);

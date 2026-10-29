@@ -57,6 +57,9 @@ int main(void)
 	size_t track_size;
 	assert(cstrk_encode(&current, &track, &track_size, NULL, 0));
 	struct CSRPL_METADATA metadata = {0};
+	metadata.version = CSRPL_VERSION;
+	metadata.driving_rules =
+		DRIVING_RULE_POWER_GEAR | DRIVING_RULE_LEFT_CORNER_BIAS | DRIVING_RULE_OWOOT;
 	memcpy(metadata.player_car_id, "P962", 4);
 	memcpy(metadata.track_name, "LONGTEST", 8);
 	metadata.frame_count = 70001;
@@ -74,6 +77,8 @@ int main(void)
 	struct EXTENDED_GHOST_REPLAY selected = {0};
 	struct GAMEINFO config;
 	assert(extended_ghost_read((const legacy_s8 *)"long.csrpl", &selected, &config));
+	assert(selected.view.metadata.version == CSRPL_VERSION);
+	assert(selected.view.metadata.driving_rules == metadata.driving_rules);
 	assert(selected.view.metadata.frame_count == 70001);
 	assert(selected.view.inputs[70000] == 5);
 	assert(memcmp(config.game_playercarid, "P962", 4) == 0);

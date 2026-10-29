@@ -336,6 +336,15 @@ run_host_test test-extended-hiscore-ui legacy.c -DRESTUNTS_SDL3 \
 run_host_test test-extended-validation extended_validation.c
 run_host_test test-extended-race-start extended_validation.c -DRESTUNTS_SDL3 \
     -Wno-pointer-sign -Wno-unused-variable
+run_host_test test-replay-version-warning fileio.c "$test_source_dir/strlib.c" \
+    -DRESTUNTS_SDL3 -Wno-pointer-sign
+run_host_test test-replay-version-warning fileio.c "$test_source_dir/strlib.c" \
+    -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -Wno-pointer-sign
+run_host_test test-driving-rules driving_rules.c \
+    "$test_source_dir/statecar.c" "$test_source_dir/physics_collision.c" \
+    "$test_source_dir/physics_grip.c" "$test_source_dir/race_route.c" \
+    "$test_source_dir/trackobj.c" "$test_source_dir/owoot.c" "$test_source_dir/strlib.c" \
+    -Wno-pointer-sign -Wno-sign-compare -Wno-missing-braces
 run_host_test test-csrpl csrpl.c "$test_source_dir/cstrk.c" \
     "$test_source_dir/extended_replay.c"
 run_host_test test-extended-replay-runtime extended_replay_runtime.c \

@@ -37,6 +37,11 @@ enum LEFT_CORNER_BIAS_MODE { LEFT_CORNER_BIAS_OFF = 0, LEFT_CORNER_BIAS_ON = 1 }
 
 static legacy_s16 left_corner_bias_enabled = LEFT_CORNER_BIAS_ON;
 
+legacy_u16 left_corner_bias_is_enabled(void)
+{
+	return left_corner_bias_enabled != 0;
+}
+
 void configure_left_corner_bias(legacy_s16 argc, legacy_s8 *argv[])
 {
 	static const legacy_s8 off_option[] = "--lcb:off";
@@ -57,6 +62,11 @@ static const legacy_s8 amiga_grass_car_ids[][5] = {"ANSX", "AUDI", "COUN", "FGTO
 												   "LM02", "P962", "PC04", "PMIN", "VETT"};
 static const legacy_s16 amiga_grass_values[] = {128, 200, 128, 128, 40, 210, 230, 30, 180, 30, 128};
 static legacy_s16 amiga_grass_enabled;
+
+legacy_u16 amiga_grass_is_enabled(void)
+{
+	return amiga_grass_enabled != 0;
+}
 
 void configure_amiga_grass(legacy_s16 argc, legacy_s8 *argv[])
 {

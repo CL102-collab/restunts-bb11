@@ -18,6 +18,11 @@
 
 static legacy_s16 legacy_collision_enabled = 1;
 
+legacy_u16 legacy_collision_is_enabled(void)
+{
+	return legacy_collision_enabled != 0;
+}
+
 void configure_legacy_collision(legacy_s16 argc, legacy_s8 *argv[])
 {
 	static const legacy_s8 off_option[] = "--lc:off";
