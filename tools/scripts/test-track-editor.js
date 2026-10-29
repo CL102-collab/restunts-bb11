@@ -516,30 +516,33 @@ test('Shore paints every distinct material pair and corner with exact storage an
         }
     }
 });
-test('lower surface paints every material on flat ground and preserves all uniform hill materials', () => {
-    const water = model.DEFAULT_CORNER_SURFACE, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+test('lower surface paints every flat elevation and preserves uniform hills through all four transitions', () => {
+    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
-        for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
-            const flat = new model.Document(1, 1); flat.paint(0, 0, surface);
+        for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) for (let base = 0; base <= maximumLevel; base++) {
+            const flat = new model.Document(1, 1); flat.vertices.fill(base); flat.paint(0, 0, surface);
             const original = flat.snapshot(), history = flat.history.length;
             assert.equal(flat.paintLowerSurface(0, 0, target), surface !== target);
             assert.deepEqual(flat.cells[0], { surface: target, halfWaterCorner: 0 });
+            assert.deepEqual(Array.from(flat.vertices), original.vertices);
             assert.equal(flat.history.length, history + (surface !== target));
             if (surface !== target) { assert(flat.undo()); assert.deepEqual(flat.snapshot(), original); assert(flat.redo()); }
             for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
                 if (secondary === surface) continue;
                 for (let direction = 1; direction <= corners.length; direction++) {
-                    const mixed = new model.Document(1, 1); mixed.paint(0, 0, surface, direction, secondary);
+                    const mixed = new model.Document(1, 1); mixed.vertices.fill(base); mixed.paint(0, 0, surface, direction, secondary);
                     const before = mixed.snapshot();
                     assert.equal(mixed.paintLowerSurface(0, 0, target), true);
                     assert.deepEqual(mixed.cells[0], { surface: target, halfWaterCorner: 0 });
+                    assert.deepEqual(Array.from(mixed.vertices), before.vertices);
                     assert.deepEqual(model.decodeCstrk(model.encodeCstrk(mixed)).snapshot(), mixed.snapshot());
                     assert(mixed.undo()); assert.deepEqual(mixed.snapshot(), before);
                 }
             }
+            if (base === maximumLevel) continue;
             for (let high = 0; high < corners.length; high++) {
                 const doc = new model.Document(1, 1), [x, y] = corners[high];
-                doc.raise(x, y); doc.paint(0, 0, surface);
+                doc.vertices.fill(base); doc.raise(x, y); doc.paint(0, 0, surface);
                 const before = doc.snapshot(), steps = doc.history.length;
                 assert.equal(doc.paintLowerSurface(0, 0, target), surface !== target);
                 const expected = surface === target ? { surface, halfWaterCorner: 0 }
@@ -559,16 +562,16 @@ test('lower surface paints every material on flat ground and preserves all unifo
         }
     }
 });
-test('lower surface preserves hill paint in either aligned mixed-surface representation', () => {
-    const water = model.DEFAULT_CORNER_SURFACE, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
-    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
+test('lower surface preserves both aligned hill representations at every transition', () => {
+    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
         for (let high = 0; high < corners.length; high++) {
             const low = (high + 2) % corners.length, [x, y] = corners[high];
             for (let hill = 0; hill < model.TERRAIN_SURFACES.length; hill++) {
                 for (let ground = 0; ground < model.TERRAIN_SURFACES.length; ground++) {
                     if (hill === ground) continue;
                     for (const secondaryHill of [false, true]) {
-                        const doc = new model.Document(1, 1); doc.raise(x, y);
+                        const doc = new model.Document(1, 1); doc.vertices.fill(base); doc.raise(x, y);
                         doc.paint(0, 0, secondaryHill ? ground : hill, (secondaryHill ? high : low) + 1, secondaryHill ? hill : ground);
                         doc.setNotes('future'); doc.undo();
                         const before = doc.snapshot(), history = doc.history.length;
@@ -593,14 +596,14 @@ test('lower surface preserves hill paint in either aligned mixed-surface represe
     }
 });
 test('lower surface rejects crossing hill materials atomically rather than repainting either material', () => {
-    const corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
-    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
+    const maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
         for (let high = 0; high < corners.length; high++) for (const offset of [1, 3]) {
             for (let primary = 0; primary < model.TERRAIN_SURFACES.length; primary++) {
                 for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
                     if (primary === secondary) continue;
                     const doc = new model.Document(1, 1), [x, y] = corners[high];
-                    doc.raise(x, y); doc.paint(0, 0, primary, (high + offset) % corners.length + 1, secondary);
+                    doc.vertices.fill(base); doc.raise(x, y); doc.paint(0, 0, primary, (high + offset) % corners.length + 1, secondary);
                     doc.setNotes('future'); doc.undo();
                     const before = doc.snapshot(), history = doc.history.length, saved = model.encodeCstrk(doc);
                     assert.throws(() => doc.paintLowerSurface(0, 0, target), /cannot preserve both hill materials/);
@@ -617,7 +620,7 @@ test('lower surface validates materials and skips unsupported terrain without co
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
         for (let base = 0; base <= maximumLevel; base++) for (let mask = 0; mask < profileCount - 1; mask++) {
             const heights = Array.from({ length: cornerCount }, (_, corner) => base + !!(mask & (1 << corner)));
-            if (!model.terrainProfile(heights) || (!base && (mask === 0 || heights.filter(Boolean).length === 1))) continue;
+            if (!model.terrainProfile(heights) || (mask === 0 || heights.filter(height => height > base).length === 1)) continue;
             const doc = new model.Document(1, 1);
             doc.vertices.set([heights[0], heights[1], heights[3], heights[2]]);
             doc.paint(0, 0, 2, 2, 1); doc.setNotes('future'); doc.undo();
@@ -627,25 +630,28 @@ test('lower surface validates materials and skips unsupported terrain without co
             assert.equal(doc.canRedo, true); assert.equal(doc.pending, null);
             assert.deepEqual(model.encodeCstrk(doc), saved);
         }
-        const flat = new model.Document(1, 1); flat.paintLowerSurface(0, 0, target);
-        flat.setNotes('future'); flat.undo();
-        const before = flat.snapshot(), history = flat.history.length;
-        assert.equal(flat.paintLowerSurface(0, 0, target), false);
-        assert.deepEqual(flat.snapshot(), before); assert.equal(flat.history.length, history);
-        assert.equal(flat.canRedo, true);
-        for (const [x, y] of [[-1, 0], [0, -1], [1, 0], [0, 1]]) assert.throws(() => flat.paintLowerSurface(x, y, target), /tile/);
-        for (const invalid of [-1, model.TERRAIN_SURFACES.length, 1.5, null, undefined, '2', NaN]) {
-            assert.throws(() => flat.paintLowerSurface(0, 0, invalid), /terrain surface/);
-            flat.vertices.fill(1);
-            assert.throws(() => flat.paintLowerSurface(0, 0, invalid), /terrain surface/);
-            flat.vertices.fill(0);
+        for (let level = 0; level <= maximumLevel; level++) {
+            const flat = new model.Document(1, 1); flat.vertices.fill(level); flat.paintLowerSurface(0, 0, target);
+            flat.setNotes('future'); flat.undo();
+            const before = flat.snapshot(), history = flat.history.length;
+            assert.equal(flat.paintLowerSurface(0, 0, target), false);
+            assert.deepEqual(flat.snapshot(), before); assert.equal(flat.history.length, history);
+            assert.equal(flat.canRedo, true);
+            for (const [x, y] of [[-1, 0], [0, -1], [1, 0], [0, 1]]) assert.throws(() => flat.paintLowerSurface(x, y, target), /tile/);
+            for (const invalid of [-1, model.TERRAIN_SURFACES.length, 1.5, null, undefined, '2', NaN]) {
+                assert.throws(() => flat.paintLowerSurface(0, 0, invalid), /terrain surface/);
+                flat.vertices.fill(maximumLevel);
+                assert.throws(() => flat.paintLowerSurface(0, 0, invalid), /terrain surface/);
+                flat.vertices.fill(level);
+            }
+            assert.deepEqual(flat.snapshot(), before); assert.equal(flat.canRedo, true);
         }
-        assert.deepEqual(flat.snapshot(), before); assert.equal(flat.canRedo, true);
     }
 });
 test('lower surface drag edits undo together and preserve terrain geometry and track objects', () => {
-    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
-        const doc = new model.Document(4, 4); doc.raise(2, 2); doc.place(4, 0, 0);
+    const maximumLevel = 4;
+    for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
+        const doc = new model.Document(4, 4); doc.vertices.fill(base); doc.raise(2, 2); doc.place(4, 0, 0);
         const originalSurface = (target + 1) % model.TERRAIN_SURFACES.length;
         for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) doc.paint(x, y, originalSurface);
         doc.setNotes('Keep the hills and roads'); doc.setHorizon(2);
