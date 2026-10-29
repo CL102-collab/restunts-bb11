@@ -89,11 +89,21 @@ replay selectors include both legacy and new files; `.cstrk` and `.csrpl` names
 are blue, with extensions displayed to distinguish matching stems. Legacy builds
 retain their original formats.
 
-Before a race, the game checks the route as well as the file format. A rejected
-Chocolate Stunts route shows the reason and, where relevant, its column and row
-using the editor's numbering (starting at 1). Scenery does not connect roads.
-Jumps retain the original game's runway and gap-length requirements; a chicane
-immediately before a takeoff ramp can leave too little runway.
+Use **Check track** to check terrain, placement, surfaces and the race route.
+The editor walks the route using the game's connection, branch and jump rules.
+Errors identify the column and row using the editor's numbering (starting at 1).
+A valid result confirms the data and route; it does not predict whether a car
+can physically complete every jump. Unfinished tracks can still be saved.
+The SDL3 game also checks the route before a race and displays any failure.
+
+Scenery does not connect roads. Jumps retain the original game's runway and
+gap-length requirements. Its runway counter requires two qualifying pieces,
+including the takeoff ramp, before a gap. A chicane resets that counter, so a
+chicane followed immediately by a ramp can leave too little runway. This is a
+layout check; it does not measure the car's speed or change driving physics.
+The browser's route tables are generated from the same catalog as the game;
+regenerate them with `python3 tools/scripts/generate-editor-route-data.py` if
+that catalog changes.
 
 Racing on `.cstrk` records **.csrpl**, which embeds the full track and has a
 32-bit frame count, growable input storage and replay checkpoints. It preserves

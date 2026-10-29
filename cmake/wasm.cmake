@@ -45,7 +45,8 @@ restunts_configure_wasm(restunts "${restunts_web_assets}" "${restunts_web_shell}
 # buildless set of adjacent files and reads original artwork from the game folder.
 set(restunts_editor_files)
 foreach(editor_file track-editor.html track-editor.css track-editor.js
-        track-editor-model.js track-editor-resources.js)
+        track-editor-model.js track-editor-resources.js
+        track-editor-route-data.js track-editor-validation.js)
     set(editor_source "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/${editor_file}")
     list(APPEND restunts_editor_files "${editor_source}")
     configure_file("${editor_source}" "${CMAKE_CURRENT_BINARY_DIR}/${editor_file}" COPYONLY)
