@@ -97,7 +97,7 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	}
 	struct CSTRK_TRACK gameplay = *track;
 	/* Revision metadata and scenery do not change the course or its existing scores. */
-	gameplay.version = CSTRK_VERSION;
+	gameplay.version = CSTRK_INITIAL_VERSION;
 	gameplay.horizon = CSTRK_HORIZON_DEFAULT;
 	gameplay.notes_length = 0;
 	gameplay.notes[0] = '\0';
@@ -106,6 +106,8 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	if (!cstrk_encode(&gameplay, &encoded, &encoded_size, error, error_size)) {
 		return 0;
 	}
+	/* Keep score identities stable when the writer upgrades terrain revisions. */
+	cshig_write16(encoded + CSTRK_VERSION_OFFSET, CSTRK_INITIAL_VERSION);
 	size_t objects_offset = CSTRK_HEADER_SIZE +
 							((size_t)track->width + 1U) * ((size_t)track->height + 1U) +
 							(size_t)track->width * track->height * 2U;

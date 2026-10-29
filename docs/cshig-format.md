@@ -23,15 +23,16 @@ than writing C structures.
 
 The gameplay identity is a complete valid CSTRK file with its revision normalized
 to v1, its cosmetic horizon reset to Desert, and its notes removed: notes length
-is zero, notes bytes are absent, and payload size is adjusted.
+is zero, notes bytes are absent, and payload size is adjusted. The identity's
+revision remains v1 even when the track writer promotes a mixed-surface track
+to v2, preserving existing score files across writer updates.
 Its 16-byte serialized object records are sorted in ascending bytewise order;
 all other terrain and object data are retained exactly. Therefore changes to
 revision metadata, notes, horizon, or object ordering keep the same scores.
-Changes to dimensions, terrain heights, terrain surfaces, water corners, or any
-object record produce a different identity. Track filenames are not part of this
+Changes to dimensions, terrain heights, either material in a surface corner,
+corner direction, or any object record produce a different identity. Track filenames are not part of this
 identity. The codec compares the canonical bytes directly, without relying on a
-hash collision
-assumption. Semantically equivalent but differently encoded object directions
+hash collision assumption. Semantically equivalent but differently encoded object directions
 are still different identities.
 
 Decoders validate the embedded CSTRK and require it to already have this

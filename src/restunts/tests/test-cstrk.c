@@ -5,6 +5,8 @@
 
 #include "../c/cstrk.h"
 
+#define TEST_FUTURE_REVISION 101U
+
 static char error[256];
 
 static struct CSTRK_OBJECT object_at(uint8_t x, uint8_t y)
@@ -34,6 +36,7 @@ static void test_wire_layout(void)
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	assert(cstrk_create(&track, 1, 1, error, sizeof(error)));
+	track.version = CSTRK_INITIAL_VERSION;
 	track.cells[0].surface = CSTRK_TERRAIN_DIRT;
 	track.cells[0].half_water_corner = CSTRK_WATER_SOUTHWEST;
 	struct CSTRK_OBJECT object = object_at(0, 0);
@@ -69,7 +72,8 @@ static void test_horizons_and_versions(void)
 	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
 	assert(track.version == CSTRK_VERSION && track.horizon == CSTRK_HORIZON_DEFAULT);
 	static const legacy_char notes[] = "Keep these track notes.\n";
-	static const legacy_u16 versions[] = {CSTRK_VERSION, 2U, 15U, 101U, LEGACY_U16_MAX};
+	static const legacy_u16 versions[] = {CSTRK_INITIAL_VERSION, CSTRK_VERSION, 15U, 101U,
+										  LEGACY_U16_MAX};
 	assert(cstrk_set_notes(&track, notes, sizeof(notes) - 1U, error, sizeof(error)));
 	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
 		track.version = versions[index];
@@ -127,6 +131,109 @@ static void test_horizons_and_versions(void)
 	cstrk_free(&track);
 	cstrk_free(&decoded);
 	assert(track.version == CSTRK_VERSION && decoded.version == CSTRK_VERSION);
+}
+
+static void test_surface_corners(void)
+{
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	assert(track.cells[0].corner_surface == CSTRK_TERRAIN_WATER);
+	size_t cell_offset = CSTRK_HEADER_SIZE + (track.width + 1U) * (track.height + 1U);
+	for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface <= CSTRK_TERRAIN_WATER; surface++) {
+		for (legacy_u8 other = CSTRK_TERRAIN_GRASS; other <= CSTRK_TERRAIN_WATER; other++) {
+			if (surface == other) {
+				continue;
+			}
+			for (legacy_u8 corner = CSTRK_WATER_NORTHWEST; corner <= CSTRK_WATER_SOUTHWEST;
+				 corner++) {
+				track.version = CSTRK_INITIAL_VERSION;
+				track.cells[0].surface = surface;
+				track.cells[0].corner_surface = other;
+				track.cells[0].half_water_corner = corner;
+				legacy_u8 *data = NULL;
+				size_t size = 0;
+				assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+				assert(data[cell_offset] == surface);
+				assert(data[cell_offset + 1U] ==
+					   (corner | ((other ^ CSTRK_TERRAIN_WATER) << CSTRK_CORNER_SURFACE_SHIFT)));
+				legacy_u16 expected_version = other == CSTRK_TERRAIN_WATER
+												  ? CSTRK_INITIAL_VERSION
+												  : CSTRK_SURFACE_CORNERS_VERSION;
+				assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == expected_version);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.cells[0].surface == surface);
+				assert(decoded.cells[0].corner_surface == other);
+				assert(decoded.cells[0].half_water_corner == corner);
+				legacy_u8 *again = NULL;
+				size_t again_size = 0;
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(again, data, size) == 0);
+				free(again);
+				free(data);
+			}
+		}
+	}
+
+	/* The old codec admitted Water/Water corners, so keep those files readable. */
+	track.version = CSTRK_INITIAL_VERSION;
+	track.cells[0].surface = CSTRK_TERRAIN_WATER;
+	track.cells[0].corner_surface = CSTRK_TERRAIN_WATER;
+	track.cells[0].half_water_corner = CSTRK_WATER_NORTHWEST;
+	assert(cstrk_validate(&track, error, sizeof(error)));
+	legacy_u8 *legacy = NULL;
+	size_t legacy_size = 0;
+	assert(cstrk_encode(&track, &legacy, &legacy_size, error, sizeof(error)));
+	assert(legacy[cell_offset + 1U] == CSTRK_WATER_NORTHWEST);
+	assert(LEGACY_READ_U16_LE(legacy + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(cstrk_decode(legacy, legacy_size, &decoded, error, sizeof(error)));
+	assert(decoded.cells[0].corner_surface == CSTRK_TERRAIN_WATER);
+	free(legacy);
+
+	track.version = TEST_FUTURE_REVISION;
+	track.cells[0].corner_surface = CSTRK_TERRAIN_ICE;
+	assert(cstrk_encode(&track, &legacy, &legacy_size, error, sizeof(error)));
+	assert(LEGACY_READ_U16_LE(legacy + CSTRK_VERSION_OFFSET) == TEST_FUTURE_REVISION);
+	free(legacy);
+	track.version = CSTRK_INITIAL_VERSION;
+	for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface < CSTRK_TERRAIN_WATER; surface++) {
+		track.cells[0].surface = surface;
+		track.cells[0].corner_surface = surface;
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+	}
+	track.cells[0].surface = CSTRK_TERRAIN_GRASS;
+	track.cells[0].corner_surface = LEGACY_U8_MAX;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+
+	/* Inactive secondary material data cannot change the serialized course. */
+	track.cells[0].half_water_corner = CSTRK_WATER_NONE;
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(data[cell_offset + 1U] == CSTRK_WATER_NONE);
+	assert(LEGACY_READ_U16_LE(data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.cells[0].corner_surface == CSTRK_TERRAIN_WATER);
+	legacy_u8 before[sizeof(decoded)];
+	memcpy(before, &decoded, sizeof(decoded));
+	static const legacy_u8 invalid_corners[] = {
+		CSTRK_WATER_SOUTHWEST + 1U,
+		CSTRK_WATER_SOUTHWEST + 2U,
+		CSTRK_CORNER_DIRECTION_MASK,
+		1U << CSTRK_CORNER_SURFACE_SHIFT,
+		(CSTRK_CORNER_SURFACE_MASK + 1U) << CSTRK_CORNER_SURFACE_SHIFT,
+		LEGACY_U8_MAX,
+		CSTRK_WATER_NORTHWEST |
+			((CSTRK_TERRAIN_GRASS ^ CSTRK_TERRAIN_WATER) << CSTRK_CORNER_SURFACE_SHIFT)};
+	for (size_t index = 0; index < sizeof(invalid_corners) / sizeof(invalid_corners[0]); index++) {
+		data[cell_offset + 1U] = invalid_corners[index];
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+	}
+	free(data);
+	cstrk_free(&track);
+	cstrk_free(&decoded);
 }
 
 static void test_slopes_and_unused_cells(void)
@@ -340,6 +447,7 @@ int main(void)
 {
 	test_wire_layout();
 	test_horizons_and_versions();
+	test_surface_corners();
 	test_slopes_and_unused_cells();
 	test_notes();
 	test_invalid_records();

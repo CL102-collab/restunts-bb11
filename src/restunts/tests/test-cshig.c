@@ -73,6 +73,7 @@ static void test_identity(void)
 		assert(table.entries[index].player_name[0] == 0U);
 	}
 	assert(cshig_matches_track(&table, &track));
+	assert(LEGACY_READ_U16_LE(table.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
 	/* Cosmetic horizon changes retain the original version-1 score identity. */
 	for (legacy_u8 horizon = CSTRK_HORIZON_DESERT; horizon < CSTRK_HORIZON_COUNT; horizon++) {
 		track.horizon = horizon;
@@ -82,8 +83,9 @@ static void test_identity(void)
 		assert(memcmp(other.track_data, table.track_data, table.track_size) == 0);
 	}
 	track.horizon = CSTRK_HORIZON_DEFAULT;
-	static const legacy_u16 revisions[] = {CSTRK_VERSION, TEST_SHORT_FUTURE_REVISION,
-										   TEST_FUTURE_REVISION, LEGACY_U16_MAX};
+	static const legacy_u16 revisions[] = {CSTRK_INITIAL_VERSION, CSTRK_VERSION,
+										   TEST_SHORT_FUTURE_REVISION, TEST_FUTURE_REVISION,
+										   LEGACY_U16_MAX};
 	for (legacy_u16 index = 0; index < sizeof(revisions) / sizeof(revisions[0]); index++) {
 		track.version = revisions[index];
 		assert(cshig_matches_track(&table, &track));
@@ -104,7 +106,7 @@ static void test_identity(void)
 	cstrk_init(&canonical);
 	assert(cstrk_decode(table.track_data, table.track_size, &canonical, NULL, 0));
 	assert(canonical.notes_length == 0U);
-	assert(canonical.version == CSTRK_VERSION);
+	assert(canonical.version == CSTRK_INITIAL_VERSION);
 	assert(canonical.horizon == CSTRK_HORIZON_DEFAULT);
 	cstrk_free(&canonical);
 	track.cells[2].surface = CSTRK_TERRAIN_ICE;
@@ -145,6 +147,49 @@ static void test_identity(void)
 	cshig_free(&table);
 	cshig_free(&table);
 	cshig_free(&other);
+	cstrk_free(&track);
+}
+
+static void test_surface_corner_identity(void)
+{
+	struct CSTRK_TRACK track;
+	make_track(&track);
+	struct CSTRK_CELL *cell = &track.cells[1];
+	cell->surface = CSTRK_TERRAIN_GRASS;
+	cell->half_water_corner = CSTRK_WATER_SOUTHEAST;
+	cell->corner_surface = CSTRK_TERRAIN_WATER;
+	struct CSHIG_TABLE water, mixed, decoded;
+	cshig_init(&water);
+	cshig_init(&mixed);
+	cshig_init(&decoded);
+	assert(cshig_create(&water, &track, NULL, 0));
+	assert(LEGACY_READ_U16_LE(water.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	cell->corner_surface = CSTRK_TERRAIN_ICE;
+	assert(!cshig_matches_track(&water, &track));
+	assert(cshig_create(&mixed, &track, NULL, 0));
+	assert(cshig_validate(&mixed, NULL, 0));
+	assert(LEGACY_READ_U16_LE(mixed.track_data + CSTRK_VERSION_OFFSET) == CSTRK_INITIAL_VERSION);
+	assert(cshig_matches_track(&mixed, &track));
+	cell->corner_surface = CSTRK_TERRAIN_DIRT;
+	assert(!cshig_matches_track(&mixed, &track));
+	cell->corner_surface = CSTRK_TERRAIN_ICE;
+	struct CSTRK_TRACK canonical;
+	cstrk_init(&canonical);
+	assert(cstrk_decode(mixed.track_data, mixed.track_size, &canonical, NULL, 0));
+	assert(canonical.version == CSTRK_INITIAL_VERSION);
+	assert(canonical.cells[1].half_water_corner == cell->half_water_corner);
+	assert(canonical.cells[1].corner_surface == CSTRK_TERRAIN_ICE);
+	cstrk_free(&canonical);
+	legacy_u8 *encoded = NULL;
+	size_t size = 0;
+	assert(cshig_encode(&mixed, &encoded, &size, NULL, 0));
+	assert(cshig_decode(encoded, size, &decoded, NULL, 0));
+	assert(cshig_matches_track(&decoded, &track));
+	assert(memcmp(decoded.track_data, mixed.track_data, mixed.track_size) == 0);
+	free(encoded);
+	cshig_free(&water);
+	cshig_free(&mixed);
+	cshig_free(&decoded);
 	cstrk_free(&track);
 }
 
@@ -403,6 +448,7 @@ static void test_text_and_tick_boundaries(void)
 int main(void)
 {
 	test_identity();
+	test_surface_corner_identity();
 	test_ranking_and_time();
 	test_codec_and_corruption();
 	test_maximum_track();

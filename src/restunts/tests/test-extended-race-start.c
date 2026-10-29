@@ -131,9 +131,10 @@ static void reset_fixture(int extended, legacy_s16 result, legacy_s8 idle)
 	captured_warning[0] = '\0';
 }
 
-static void check_success(int extended)
+static void check_success(int extended, legacy_u16 revision)
 {
 	reset_fixture(extended, TRACK_SETUP_OK, 0);
+	fixture_track.version = revision;
 	assert(main_menu_prepare_track() == 1);
 	assert(setup_calls == 1 && dialog_calls == 0 && menu_calls == 0);
 	assert(file_find_calls == 0 && video_status_calls != 0);
@@ -192,8 +193,9 @@ static void check_idle_editor_gate(int available)
 
 int main(void)
 {
-	check_success(1);
-	check_success(0);
+	check_success(1, CSTRK_INITIAL_VERSION);
+	check_success(1, CSTRK_VERSION);
+	check_success(0, CSTRK_VERSION);
 	check_extended_failure();
 	check_legacy_failure();
 	check_newer_revision(TEST_NEXT_REVISION, TRACK_SETUP_OK);

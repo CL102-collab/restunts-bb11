@@ -107,6 +107,9 @@ int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, cha
 		cstrk_free(&next);
 		return cstrk_fail(error, error_size, "Cannot allocate track terrain");
 	}
+	for (size_t index = 0; index < (size_t)width * height; index++) {
+		next.cells[index].corner_surface = CSTRK_TERRAIN_WATER;
+	}
 	cstrk_free(track);
 	*track = next;
 	cstrk_success(error, error_size);
@@ -196,10 +199,15 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		}
 	}
 	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
-		if (track->cells[index].surface > CSTRK_TERRAIN_WATER ||
-			track->cells[index].half_water_corner > CSTRK_WATER_SOUTHWEST) {
-			return cstrk_fail(error, error_size,
-							  "Terrain cell %zu has an unknown surface or water corner", index);
+		const struct CSTRK_CELL *cell = &track->cells[index];
+		if (cell->surface > CSTRK_TERRAIN_WATER ||
+			cell->half_water_corner > CSTRK_WATER_SOUTHWEST ||
+			(cell->half_water_corner != CSTRK_WATER_NONE &&
+			 (cell->corner_surface > CSTRK_TERRAIN_WATER ||
+			  (cell->corner_surface == cell->surface &&
+			   cell->corner_surface != CSTRK_TERRAIN_WATER)))) {
+			return cstrk_fail(error, error_size, "Terrain cell %zu has an invalid surface corner",
+							  index);
 		}
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
@@ -295,7 +303,16 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
 	}
 	memcpy(encoded, cstrk_magic, sizeof(cstrk_magic));
-	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, track->version);
+	legacy_u16 version = track->version;
+	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
+		const struct CSTRK_CELL *cell = &track->cells[index];
+		if (cell->half_water_corner != CSTRK_WATER_NONE &&
+			cell->corner_surface != CSTRK_TERRAIN_WATER &&
+			version < CSTRK_SURFACE_CORNERS_VERSION) {
+			version = CSTRK_SURFACE_CORNERS_VERSION;
+		}
+	}
+	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, version);
 	cstrk_write32(encoded + CSTRK_HORIZON_OFFSET, track->horizon);
 	cstrk_write16(encoded + 10U, CSTRK_HEADER_SIZE);
 	cstrk_write16(encoded + 16U, track->width);
@@ -308,8 +325,14 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 	memcpy(cursor, track->corner_heights, corners);
 	cursor += corners;
 	for (size_t index = 0; index < (size_t)track->width * track->height; index++) {
-		*cursor++ = track->cells[index].surface;
-		*cursor++ = track->cells[index].half_water_corner;
+		const struct CSTRK_CELL *cell = &track->cells[index];
+		*cursor++ = cell->surface;
+		legacy_u8 corner = cell->half_water_corner;
+		if (corner != CSTRK_WATER_NONE) {
+			corner |= (legacy_u8)((cell->corner_surface ^ CSTRK_TERRAIN_WATER)
+								  << CSTRK_CORNER_SURFACE_SHIFT);
+		}
+		*cursor++ = corner;
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
@@ -372,7 +395,19 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	cursor += corners;
 	for (size_t index = 0; index < (size_t)width * height; index++) {
 		next.cells[index].surface = *cursor++;
-		next.cells[index].half_water_corner = *cursor++;
+		legacy_u8 corner = *cursor++;
+		legacy_u8 direction = corner & CSTRK_CORNER_DIRECTION_MASK;
+		legacy_u8 known_bits =
+			CSTRK_CORNER_DIRECTION_MASK | (CSTRK_CORNER_SURFACE_MASK << CSTRK_CORNER_SURFACE_SHIFT);
+		if ((corner & (legacy_u8)~known_bits) != 0 ||
+			(direction == CSTRK_WATER_NONE && corner != CSTRK_WATER_NONE)) {
+			cstrk_free(&next);
+			return cstrk_fail(error, error_size, "Terrain cell %zu has invalid corner bits", index);
+		}
+		next.cells[index].half_water_corner = direction;
+		next.cells[index].corner_surface =
+			((corner >> CSTRK_CORNER_SURFACE_SHIFT) & CSTRK_CORNER_SURFACE_MASK) ^
+			CSTRK_TERRAIN_WATER;
 	}
 	if (objects != 0U) {
 		next.objects = calloc(objects, sizeof(*next.objects));

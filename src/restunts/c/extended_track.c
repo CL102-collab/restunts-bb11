@@ -455,9 +455,9 @@ legacy_s16 extended_track_elevation(int column, int row, int local_x, int local_
 	if (local_y > 1024) {
 		local_y = 1024;
 	}
-	/* Half-water corner triangles choose their shoreline diagonal. */
-	unsigned water = current_track.cells[row * current_track.width + column].half_water_corner;
-	if (water == CSTRK_WATER_NORTHWEST || water == CSTRK_WATER_SOUTHEAST) {
+	/* Mixed-material corner triangles choose their shared diagonal. */
+	legacy_u8 corner = current_track.cells[row * current_track.width + column].half_water_corner;
+	if (corner == CSTRK_WATER_NORTHWEST || corner == CSTRK_WATER_SOUTHEAST) {
 		if (local_x + local_y <= 1024) {
 			return (legacy_s16)(a + ((b - a) * local_x + (c - a) * local_y) / 1024);
 		}
