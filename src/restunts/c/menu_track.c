@@ -75,7 +75,8 @@ static void track_menu_draw_preview(void)
 										   TRACK_MENU_TRANSPARENT_COLOR);
 	load_skybox((legacy_s8)
 #ifdef RESTUNTS_SDL3
-					(extended_track_active() ? 0 : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
+					(extended_track_active() ? extended_track_model()->horizon
+											 : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
 #else
 					track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
 #endif

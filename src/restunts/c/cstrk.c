@@ -168,6 +168,9 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		track->corner_heights == NULL || track->cells == NULL) {
 		return cstrk_fail(error, error_size, "Track terrain or dimensions are invalid");
 	}
+	if (track->horizon >= CSTRK_HORIZON_COUNT) {
+		return cstrk_fail(error, error_size, "Track has an unknown horizon");
+	}
 	if (track->object_count > (uint32_t)track->width * track->height ||
 		(track->object_count != 0U && track->objects == NULL)) {
 		return cstrk_fail(error, error_size, "Track has too many objects or no object storage");
@@ -288,7 +291,8 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
 	}
 	memcpy(encoded, cstrk_magic, sizeof(cstrk_magic));
-	cstrk_write16(encoded + 8U, CSTRK_VERSION);
+	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	cstrk_write32(encoded + CSTRK_HORIZON_OFFSET, track->horizon);
 	cstrk_write16(encoded + 10U, CSTRK_HEADER_SIZE);
 	cstrk_write16(encoded + 16U, track->width);
 	cstrk_write16(encoded + 18U, track->height);
@@ -332,10 +336,12 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	if (track == NULL || data == NULL || size < CSTRK_HEADER_SIZE) {
 		return cstrk_fail(error, error_size, "Track header is missing or truncated");
 	}
-	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 ||
-		cstrk_read16(data + 8U) != CSTRK_VERSION || cstrk_read16(data + 10U) != CSTRK_HEADER_SIZE ||
-		cstrk_read32(data + 12U) != 0U) {
-		return cstrk_fail(error, error_size, "Unknown track magic, version, header size or flags");
+	legacy_u16 version = cstrk_read16(data + CSTRK_VERSION_OFFSET);
+	legacy_u32 horizon = cstrk_read32(data + CSTRK_HORIZON_OFFSET);
+	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 || version != CSTRK_VERSION ||
+		cstrk_read16(data + 10U) != CSTRK_HEADER_SIZE || horizon >= CSTRK_HORIZON_COUNT) {
+		return cstrk_fail(error, error_size,
+						  "Unknown track magic, version, header size or horizon");
 	}
 	uint16_t width = cstrk_read16(data + 16U);
 	uint16_t height = cstrk_read16(data + 18U);
@@ -354,6 +360,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	if (!cstrk_create(&next, width, height, error, error_size)) {
 		return 0;
 	}
+	next.horizon = (legacy_u8)horizon;
 	const uint8_t *cursor = data + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)width + 1U) * ((size_t)height + 1U);
 	memcpy(next.corner_heights, cursor, corners);

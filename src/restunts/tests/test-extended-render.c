@@ -6,6 +6,8 @@
 
 #include "../c/cstrk.h"
 #include "../c/extended_track.h"
+#include "../c/skybox.h"
+#include "../c/race_graphics.h"
 
 static unsigned terrain_level(unsigned column)
 {
@@ -238,6 +240,17 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	gameconfig.game_opponenttype = 0;
 	struct CSTRK_TRACK track;
 	make_render_track(&track);
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	activate_render_track(&track, 1);
+	/* The inherited fixture loads replay overlays but omits dashboard sprites.
+	 * Release the overlays explicitly and skip the unavailable dashboard cleanup. */
+	mmgr_free(sdgameresptr);
+	legacy_s8 saved_idle_expired = idle_expired;
+	idle_expired = 1;
+	free_player_cars();
+	idle_expired = saved_idle_expired;
+	assert(setup_player_cars_without_dashboard() == 0);
+	assert(skybox_resources_loaded != 0 && loaded_skybox_index == CSTRK_HORIZON_COUNTRY);
 	visual_clock_ticks = dos_timer_get_realtime_counter();
 	visual_clock_frozen = 1;
 	unsigned frames = 0;
