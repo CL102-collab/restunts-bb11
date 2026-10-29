@@ -475,6 +475,8 @@ endif()
 install(FILES src/restunts/platform/wasm/track-editor.html
     src/restunts/platform/wasm/track-editor.css src/restunts/platform/wasm/track-editor.js
     src/restunts/platform/wasm/track-editor-model.js src/restunts/platform/wasm/track-editor-resources.js
+    src/restunts/platform/wasm/track-editor-route-data.js
+    src/restunts/platform/wasm/track-editor-validation.js
     DESTINATION share/restunts/editor COMPONENT Runtime)
 install(FILES docs/cstrk-format.md docs/csrpl-format.md docs/track-editor.md
     DESTINATION share/docs/restunts COMPONENT Runtime)
@@ -513,6 +515,15 @@ if(RESTUNTS_BUILD_TESTS)
     if(RESTUNTS_NODE_EXECUTABLE)
         add_test(NAME html-track-editor COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor.js")
+        add_test(NAME html-track-validation COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-validation.js")
+        if(NOT CMAKE_CROSSCOMPILING)
+            add_executable(editor-route-oracle src/restunts/tests/editor-route-oracle.c)
+            target_link_libraries(editor-route-oracle PRIVATE restunts_game)
+            add_test(NAME html-track-validation-native COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-validation.js"
+                "$<TARGET_FILE:editor-route-oracle>")
+        endif()
     endif()
     # Fixtures include selected implementation files; discard unrelated code
     # and its unresolved references using the target platform's linker syntax.
@@ -614,6 +625,8 @@ if(RESTUNTS_BUILD_TESTS)
             bash ${CMAKE_SOURCE_DIR}/src/restunts/tests/run-host-tests.sh)
         find_package(Python3 COMPONENTS Interpreter QUIET)
         if(Python3_Interpreter_FOUND)
+            add_test(NAME html-track-route-data COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-route-data.py" --check)
             add_test(NAME opl-trace-renderer COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-opl-trace.py")
             add_test(NAME skybox-assets COMMAND "${Python3_EXECUTABLE}"
