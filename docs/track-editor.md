@@ -25,6 +25,11 @@ or Country, matching the original editor. The choice is saved in the track and
 used in the game and its track preview. Horizon changes support undo and redo;
 older tracks open with Desert selected.
 
+The footer shows the editor's current `.cstrk` version after "Built for the next
+great track." Tracks store their version in the file header, and saving keeps
+the loaded version. Opening a newer version shows an OK-only warning before
+loading it; features from newer editors may not work correctly.
+
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.

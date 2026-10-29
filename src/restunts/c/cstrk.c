@@ -76,6 +76,7 @@ void cstrk_init(struct CSTRK_TRACK *track)
 {
 	if (track != NULL) {
 		memset(track, 0, sizeof(*track));
+		track->version = CSTRK_VERSION;
 	}
 }
 
@@ -167,6 +168,9 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 	if (track == NULL || !cstrk_dimensions(track->width, track->height) ||
 		track->corner_heights == NULL || track->cells == NULL) {
 		return cstrk_fail(error, error_size, "Track terrain or dimensions are invalid");
+	}
+	if (track->version == 0U) {
+		return cstrk_fail(error, error_size, "Track version must be positive");
 	}
 	if (track->horizon >= CSTRK_HORIZON_COUNT) {
 		return cstrk_fail(error, error_size, "Track has an unknown horizon");
@@ -291,7 +295,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		return cstrk_fail(error, error_size, "Cannot allocate encoded track");
 	}
 	memcpy(encoded, cstrk_magic, sizeof(cstrk_magic));
-	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	cstrk_write16(encoded + CSTRK_VERSION_OFFSET, track->version);
 	cstrk_write32(encoded + CSTRK_HORIZON_OFFSET, track->horizon);
 	cstrk_write16(encoded + 10U, CSTRK_HEADER_SIZE);
 	cstrk_write16(encoded + 16U, track->width);
@@ -338,7 +342,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	}
 	legacy_u16 version = cstrk_read16(data + CSTRK_VERSION_OFFSET);
 	legacy_u32 horizon = cstrk_read32(data + CSTRK_HORIZON_OFFSET);
-	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 || version != CSTRK_VERSION ||
+	if (memcmp(data, cstrk_magic, sizeof(cstrk_magic)) != 0 || version == 0U ||
 		cstrk_read16(data + 10U) != CSTRK_HEADER_SIZE || horizon >= CSTRK_HORIZON_COUNT) {
 		return cstrk_fail(error, error_size,
 						  "Unknown track magic, version, header size or horizon");
@@ -360,6 +364,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	if (!cstrk_create(&next, width, height, error, error_size)) {
 		return 0;
 	}
+	next.version = version;
 	next.horizon = (legacy_u8)horizon;
 	const uint8_t *cursor = data + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)width + 1U) * ((size_t)height + 1U);

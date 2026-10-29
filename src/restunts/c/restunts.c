@@ -103,6 +103,7 @@
 #define STARTUP_CAR_POSITION_Y (-840)
 #define STARTUP_CAR_POSITION_Z 2880
 
+#define TRACK_VERSION_WARNING_SIZE 192U
 #define TRACK_PATH_STORAGE_SIZE 81
 #define TRACK_PRIMARY_PATH_OFFSET REPLAY_TRACK_SIZE
 #define TRACK_SECONDARY_PATH_OFFSET (REPLAY_TRACK_SIZE + TRACK_PATH_STORAGE_SIZE)
@@ -847,10 +848,34 @@ static void main_menu_restore_track(void)
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+static void main_menu_warn_track_version(void)
+{
+	if (!extended_track_active()) {
+		return;
+	}
+	const struct CSTRK_TRACK *track = extended_track_model();
+	if (track->version <= CSTRK_VERSION) {
+		return;
+	}
+	legacy_s8 message[TRACK_VERSION_WARNING_SIZE];
+	snprintf((legacy_char *)message, sizeof(message),
+			 "Track revision v%" LEGACY_PRIu32 " is newer.]"
+			 "Game supports revision v%" LEGACY_PRIu32 ".]"
+			 "The track may not work correctly.]Press OK to continue racing.]}[ OK ]",
+			 (legacy_u32)track->version, (legacy_u32)CSTRK_VERSION);
+	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
+				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+}
+#endif
+
 static legacy_s16 main_menu_prepare_track(void)
 {
 	STARTUP_TRACE("menu track begin");
 	if (idle_expired == 0) {
+#ifdef RESTUNTS_SDL3
+		main_menu_warn_track_version();
+#endif
 		legacy_s16 result = track_setup();
 		STARTUP_TRACE("menu track complete");
 		//result = setup_track();

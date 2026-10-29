@@ -60,6 +60,13 @@ for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
     doc.setHorizon(horizon);
     check(model.HORIZONS[horizon] + ' horizon retains the route', clearHistory(doc), 0);
 }
+const futureTrackVersions = [15, 101];
+for (const version of futureTrackVersions) {
+    const doc = rectangle();
+    doc.version = version;
+    doc.setHorizon(model.HORIZONS.indexOf('Country'));
+    check('future version ' + version + ' with a chosen horizon retains the route', clearHistory(doc), 0);
+}
 const missing = rectangle(); replace(missing, 25, 4, 0); check('disconnected road', clearHistory(missing), 7);
 const starts = rectangle(); starts.place(1, 1, 1); check('multiple start elements', clearHistory(starts), 3);
 const mismatch = rectangle(); replace(mismatch, 25, 4, 35); check('ground road meets elevated deck', clearHistory(mismatch), 4);
