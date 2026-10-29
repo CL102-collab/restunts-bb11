@@ -72,7 +72,7 @@ Use filenames with one to eight ASCII characters, without spaces or dots;
 the extension is added automatically. Keep a downloaded track in the Stunts
 folder to use it in the game, or import it on the browser game's fallback path.
 The game accepts `.cstrk` tracks and `.csrpl` replays on SDL3 builds, including
-WebAssembly; entries in these formats appear blue in its load dialogs.
+WebAssembly; entries in these formats appear red in its load dialogs.
 
 ## Play from a website or offline
 

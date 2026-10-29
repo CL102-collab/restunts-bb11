@@ -96,7 +96,7 @@ See [the track format](cstrk-format.md) for the versioned binary layout.
 
 SDL3 builds, including the browser build, support the new formats. Track and
 replay selectors include both legacy and new files; `.cstrk` and `.csrpl` names
-are blue, with extensions displayed to distinguish matching stems. Legacy builds
+are red, with extensions displayed to distinguish matching stems. Legacy builds
 retain their original formats.
 
 Use **Check track** to check terrain, placement, surfaces and the race route.

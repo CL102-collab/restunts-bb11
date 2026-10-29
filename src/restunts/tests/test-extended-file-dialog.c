@@ -14,6 +14,8 @@
 #undef font_draw_text_opaque
 #undef input_checking
 
+#define TEST_EXTENDED_FILE_RED_COLOR 4
+
 static const legacy_s8 *const *legacy_paths;
 static const legacy_s8 *const *extended_paths;
 static const legacy_s8 *const *active_paths;
@@ -154,10 +156,10 @@ static void test_tracks_keep_identical_stems_and_full_names(void)
 	assert((strcmp(drawn[2].text, "TWIN.trk") == 0 && strcmp(drawn[3].text, "TWIN.cstrk") == 0) ||
 		   (strcmp(drawn[3].text, "TWIN.trk") == 0 && strcmp(drawn[2].text, "TWIN.cstrk") == 0));
 	assert(strcmp(drawn[4].text, "ZZZZZZZZ.trk") == 0);
-	assert(saw_color("TWIN.cstrk", 1, dialog_background_color));
-	assert(saw_color("TWIN.cstrk", 1, dialog_fnt_colour));
+	assert(saw_color("TWIN.cstrk", TEST_EXTENDED_FILE_RED_COLOR, dialog_background_color));
+	assert(saw_color("TWIN.cstrk", TEST_EXTENDED_FILE_RED_COLOR, dialog_fnt_colour));
 	assert(saw_color("TWIN.trk", dialog_fnt_colour, dialog_background_color));
-	assert(saw_color("BETATEST.cstrk", 1, dialog_background_color));
+	assert(saw_color("BETATEST.cstrk", TEST_EXTENDED_FILE_RED_COLOR, dialog_background_color));
 
 	/* Moving back to the legacy file of the same name resets its format. */
 	configure_selector(".trk", ".cstrk", old_files, new_files);
@@ -166,16 +168,16 @@ static void test_tracks_keep_identical_stems_and_full_names(void)
 	select_name("BETATEST", ".cstrk");
 }
 
-static void test_replays_keep_identical_stems_and_blue_selection(void)
+static void test_replays_keep_identical_stems_and_red_selection(void)
 {
 	static const legacy_s8 *const old_files[] = {"SAME.RPL", "OLD.RPL", NULL};
 	static const legacy_s8 *const new_files[] = {"SAME.CSRPL", "12345678.CSRPL", NULL};
 	configure_selector(".rpl", ".csrpl", old_files, new_files);
 	select_name("SAME", ".csrpl");
 	assert(strcmp(drawn[0].text, "12345678.csrpl") == 0);
-	assert(saw_color("12345678.csrpl", 1, dialog_fnt_colour));
-	assert(saw_color("SAME.csrpl", 1, dialog_background_color));
-	assert(saw_color("SAME.csrpl", 1, dialog_fnt_colour));
+	assert(saw_color("12345678.csrpl", TEST_EXTENDED_FILE_RED_COLOR, dialog_fnt_colour));
+	assert(saw_color("SAME.csrpl", TEST_EXTENDED_FILE_RED_COLOR, dialog_background_color));
+	assert(saw_color("SAME.csrpl", TEST_EXTENDED_FILE_RED_COLOR, dialog_fnt_colour));
 	assert(saw_color("SAME.rpl", dialog_fnt_colour, dialog_background_color));
 	configure_selector(".rpl", ".csrpl", old_files, new_files);
 	select_name("SAME", ".rpl");
@@ -197,9 +199,9 @@ static void test_cancel_leaves_name_and_drops_previous_suffix(void)
 int main(void)
 {
 	test_tracks_keep_identical_stems_and_full_names();
-	test_replays_keep_identical_stems_and_blue_selection();
+	test_replays_keep_identical_stems_and_red_selection();
 	test_cancel_leaves_name_and_drops_previous_suffix();
 	puts("Extended track/replay selectors retain formats, identical stems, "
-		 "full names and blue rows.");
+		 "full names and red rows.");
 	return 0;
 }
