@@ -42,6 +42,15 @@
 #define ENGINE_TEST_ERROR_CAPACITY 192U
 #define ENGINE_TEST_FUTURE_REPLAY_VERSION 101U
 #define ENGINE_TEST_FUTURE_TRACK_VERSION 15U
+#define ENGINE_TEST_SLOPE_ROTATIONS 4U
+#define ENGINE_TEST_SLOPE_SURFACES 3U
+#define ENGINE_TEST_SLOPE_DRIVING_FRAMES 200U
+#define ENGINE_TEST_SLOPE_MINIMUM_SAMPLES 20U
+#define ENGINE_TEST_SLOPE_MAXIMUM_PITCH_STEP 1
+#define ENGINE_TEST_SLOPE_START_ROW (ENGINE_TEST_FIRST_SLOPE_ROW - 1U)
+#define ENGINE_TEST_SLOPE_MINIMUM_PROGRESS CSTRK_TILE_WORLD_SIZE
+#define ENGINE_TEST_SLOPE_MAXIMUM_PROGRESS (3L * CSTRK_TILE_WORLD_SIZE)
+#define ENGINE_TEST_SLOPE_END_PROGRESS ((legacy_s32)CSTRK_MAX_HEIGHT * CSTRK_TILE_WORLD_SIZE)
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -241,6 +250,157 @@ static void initialize_simulation(void)
 	race_exit_request = 0;
 }
 
+/* Rotate the complete four-level climb, including its entry and exit flats.
+ * Keeping the fixture beyond the signed-word boundary also exercises the
+ * extended world's wrapped collision coordinates in every direction. */
+static void create_rotated_slope_track(legacy_u8 rotation, legacy_u8 surface)
+{
+	create_track(1);
+	const struct CSTRK_TRACK *source = extended_track_model();
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_create(&track, source->width, source->height, error, sizeof(error)));
+	for (legacy_u16 row = 0; row <= source->height; row++) {
+		for (legacy_u16 column = 0; column <= source->width; column++) {
+			legacy_u16 x = column, y = row;
+			for (legacy_u8 turn = 0; turn < rotation; turn++) {
+				legacy_u16 previous_x = x;
+				x = source->width - y;
+				y = previous_x;
+			}
+			track.corner_heights[y * (track.width + 1U) + x] =
+				source->corner_heights[row * (source->width + 1U) + column];
+		}
+	}
+	for (legacy_u32 index = 0; index < source->object_count; index++) {
+		struct CSTRK_OBJECT object = source->objects[index];
+		for (legacy_u8 turn = 0; turn < rotation; turn++) {
+			legacy_u8 previous_x = object.x;
+			object.x = source->width - 1U - object.y;
+			object.y = previous_x;
+		}
+		object.rotation = (object.rotation + rotation) % ENGINE_TEST_SLOPE_ROTATIONS;
+		object.surface = surface;
+		legacy_u32 corner = object.y * (track.width + 1U) + object.x;
+		object.base_height = track.corner_heights[corner];
+		object.slope_x = track.corner_heights[corner + 1U] - object.base_height;
+		object.slope_y = track.corner_heights[corner + track.width + 1U] - object.base_height;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	}
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == 0);
+	cstrk_free(&track);
+}
+
+static legacy_s32 slope_driving_progress(const struct CARSTATE *car, legacy_u8 rotation)
+{
+	legacy_s32 x = car->car_position.lx / ENGINE_TEST_POSITION_SCALE;
+	legacy_s32 z = car->car_position.lz / ENGINE_TEST_POSITION_SCALE;
+	legacy_s32 size = extended_track_width() * CSTRK_TILE_WORLD_SIZE;
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_s32 previous_x = x;
+		x = size - z;
+		z = previous_x;
+	}
+	return (extended_track_height() - ENGINE_TEST_FIRST_SLOPE_ROW) * CSTRK_TILE_WORLD_SIZE - z;
+}
+
+static void initialize_slope_driver(legacy_u8 rotation, legacy_u8 uphill)
+{
+	extended_replay_runtime_begin();
+	initialize_simulation();
+	if (!uphill) {
+		return;
+	}
+	legacy_s32 x = ENGINE_TEST_LEFT_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 z = (extended_track_height() - ENGINE_TEST_SLOPE_START_ROW) * CSTRK_TILE_WORLD_SIZE -
+				   CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 size = extended_track_width() * CSTRK_TILE_WORLD_SIZE;
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_s32 previous_x = x;
+		x = z;
+		z = size - previous_x;
+	}
+	init_carstate_from_simd(&state.playerstate, &simd_player, TRANSMISSION_AUTOMATIC,
+							x * ENGINE_TEST_POSITION_SCALE, 0, z * ENGINE_TEST_POSITION_SCALE,
+							(state.playerstate.car_rotate.x + ANGLE_HALF_TURN) & ANGLE_MASK);
+}
+
+static void test_smooth_consecutive_slopes(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	legacy_u16 original_rate = gameconfig.game_framespersec;
+	for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+		gameconfig.game_framespersec = rates[rate];
+		legacy_s16 maximum_pitch_step =
+			ENGINE_TEST_SLOPE_MAXIMUM_PITCH_STEP * GAME_FRAME_RATE_NORMAL / rates[rate];
+		for (legacy_u8 surface = 0; surface < ENGINE_TEST_SLOPE_SURFACES; surface++) {
+			for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
+				for (legacy_u8 uphill = 0; uphill <= 1U; uphill++) {
+					create_rotated_slope_track(rotation, surface);
+					initialize_slope_driver(rotation, uphill);
+					legacy_u16 samples = 0;
+					legacy_s16 previous_pitch = 0;
+					legacy_u8 exited_slope = 0;
+					legacy_u8 crest_airborne = 0;
+					for (legacy_u16 frame = 0; frame < ENGINE_TEST_SLOPE_DRIVING_FRAMES *
+														   rates[rate] / GAME_FRAME_RATE_NORMAL;
+						 frame++) {
+						assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
+						update_gamestate();
+						const struct CARSTATE *car = &state.playerstate;
+						assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+						legacy_s32 progress = slope_driving_progress(car, rotation);
+						if ((uphill && progress > ENGINE_TEST_SLOPE_END_PROGRESS) ||
+							(!uphill && progress < 0)) {
+							exited_slope = 1;
+						}
+						if (uphill && progress > ENGINE_TEST_SLOPE_END_PROGRESS &&
+							car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE) {
+							crest_airborne = 1;
+						}
+
+						if (progress < ENGINE_TEST_SLOPE_MINIMUM_PROGRESS ||
+							progress > ENGINE_TEST_SLOPE_MAXIMUM_PROGRESS) {
+							continue;
+						}
+						/* Entry/exit slope changes legitimately pitch the car. Inside this
+						 * uninterrupted grade, a tile boundary must not add a suspension kick.
+						 * One angle unit per 20 Hz tick permits fixed-point pose quantization. */
+						if (samples != 0) {
+							legacy_s16 pitch_step = car->car_rotate.y - previous_pitch;
+							if (pitch_step < -maximum_pitch_step ||
+								pitch_step > maximum_pitch_step) {
+								fprintf(stderr,
+										"Slope pitch step %d at rate %u, surface %u, rotation %u, "
+										"uphill %u, frame %u, progress %d\n",
+										pitch_step, rates[rate], surface, rotation, uphill, frame,
+										progress);
+							}
+
+							assert(pitch_step >= -maximum_pitch_step &&
+								   pitch_step <= maximum_pitch_step);
+						}
+						for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+							assert(car->car_surfaceWhl[wheel] == surface + CAR_SURFACE_PAVED);
+						}
+						previous_pitch = car->car_rotate.y;
+						samples++;
+					}
+					assert(samples >= ENGINE_TEST_SLOPE_MINIMUM_SAMPLES);
+					assert(exited_slope);
+					assert(!uphill || crest_airborne);
+				}
+			}
+		}
+	}
+	gameconfig.game_framespersec = original_rate;
+	framespersec = original_rate;
+	extended_replay_runtime_clear();
+	extended_track_unload();
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -419,6 +579,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(extended_replay_seek(ENGINE_TEST_HILL_REPLAY_FRAMES));
 	assert_same_simulation(&hill_expected, hill_seed);
 	test_recording_version_roundtrips((size_t)saved_size);
+	test_smooth_consecutive_slopes();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

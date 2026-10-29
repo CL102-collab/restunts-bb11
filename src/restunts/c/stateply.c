@@ -37,6 +37,8 @@ enum PLAYER_PHYSICS_POSE_VECTOR_INDEX {
 
 #define PLAYER_PHYSICS_COLLISION_POINT_CAPACITY 32
 #define PLAYER_PHYSICS_POSITION_SCALE_SHIFT 6U
+#define PLAYER_PHYSICS_POSITION_SCALE (1L << PLAYER_PHYSICS_POSITION_SCALE_SHIFT)
+#define PLAYER_PHYSICS_PLANE_NORMAL_SCALE (TRIG_FIXED_ONE / 2)
 #define PLAYER_PHYSICS_TRACK_COORDINATE_SHIFT 10U
 #define PLAYER_PHYSICS_LOW_RATE_TRAVEL_DIVISOR 7680U
 #define PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR 15360U
@@ -600,8 +602,65 @@ static legacy_s16 resolve_wheel_wall_collision(struct CARSTATE *carstate,
 	return 1;
 }
 
+#ifdef RESTUNTS_SDL3
+struct PLAYER_GROUND_CONTACT {
+	legacy_s32 height;
+	legacy_s16 distance;
+};
+
+static legacy_s32 ground_plane_coordinate(legacy_s32 position, legacy_s16 origin)
+{
+	legacy_s32 whole = LEGACY_S16_WRAP_SUB(position_to_word(position), origin);
+	legacy_s32 fraction = (legacy_s32)((legacy_u32)position & (PLAYER_PHYSICS_POSITION_SCALE - 1));
+	return whole * PLAYER_PHYSICS_POSITION_SCALE + fraction;
+}
+
+static legacy_s16 extended_ground_contact(const struct VECTORLONG *position,
+										  struct PLAYER_GROUND_CONTACT *contact)
+{
+	if (!extended_track_active() || planindex != EXTENDED_GEOMETRY_PLANE_INDEX ||
+		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+		return 0;
+	}
+	const struct PLANE *plane = current_planptr;
+	const struct VECTOR *normal = &plane->plane_normal;
+	if (normal->y <= 0 || (normal->x == 0 && normal->z == 0)) {
+		return 0;
+	}
+	/* Native slope rotations and normals differ slightly. Whole-unit wheel
+	 * coordinates also turn a continuous incline into steps. Resolve hillside
+	 * contacts against one plane using the wheel's original 1/64-unit position. */
+	legacy_s32 x = ground_plane_coordinate(
+		position->lx, LEGACY_S16_WRAP_ADD(elem_xCenter, plane->plane_origin.x));
+	legacy_s32 z = ground_plane_coordinate(
+		position->lz, LEGACY_S16_WRAP_ADD(elem_zCenter, plane->plane_origin.z));
+	legacy_s32 origin_y =
+		((legacy_s32)terrainHeight + plane->plane_origin.y) * PLAYER_PHYSICS_POSITION_SCALE;
+	legacy_s64 horizontal = (legacy_s64)x * normal->x + (legacy_s64)z * normal->z;
+	legacy_s64 rise = -horizontal;
+	legacy_s64 height = rise / normal->y;
+	/* Round the surface upward by at most one position unit so a corrected
+	 * wheel never remains just below the plane. */
+	if (rise > 0 && rise % normal->y != 0) {
+		height++;
+	}
+	contact->height = origin_y + (legacy_s32)height;
+	legacy_s64 distance = horizontal + ((legacy_s64)position->ly - origin_y) * normal->y;
+	contact->distance = (legacy_s16)(distance / (PLAYER_PHYSICS_PLANE_NORMAL_SCALE *
+												 PLAYER_PHYSICS_POSITION_SCALE));
+	return 1;
+}
+#endif
+
 static void measure_wheel_plane_distance(struct VECTORLONG *position)
 {
+#ifdef RESTUNTS_SDL3
+	struct PLAYER_GROUND_CONTACT contact;
+	if (extended_ground_contact(position, &contact)) {
+		nextPosAndNormalIP = contact.distance;
+		return;
+	}
+#endif
 	struct VECTOR wheel;
 
 	physics_position_to_vector(&wheel, position);
@@ -797,7 +856,7 @@ static void use_ground_plane_for_wheel(struct VECTORLONG *position)
 		struct VECTOR wheel;
 		physics_position_to_vector(&wheel, position);
 		build_extended_track_terrain(&wheel);
-		nextPosAndNormalIP = plane_signed_distance(planindex, wheel.x, wheel.y, wheel.z);
+		measure_wheel_plane_distance(position);
 		return;
 	}
 #endif
@@ -939,6 +998,12 @@ static legacy_s16 inherited_wheel_plane_distance(struct VECTORLONG *position)
 	struct VECTOR previous;
 	physics_position_to_vector(&previous, position);
 	legacy_s16 distance = plane_signed_distance(planindex, previous.x, previous.y, previous.z);
+#ifdef RESTUNTS_SDL3
+	struct PLAYER_GROUND_CONTACT contact;
+	if (extended_ground_contact(position, &contact)) {
+		distance = contact.distance;
+	}
+#endif
 	if (distance >= 0 || player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
 		return distance;
 	}
@@ -1006,8 +1071,25 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 		}
 		/* Suspension uses the distance before penetration correction. */
 		motion->contact_distances[wheel_index] = nextPosAndNormalIP;
-		resolved = nextPosAndNormalIP >= 0 ||
-				   correct_wheel_plane_penetration(carstate, motion, wheel_index, car_index);
+#ifdef RESTUNTS_SDL3
+		struct PLAYER_GROUND_CONTACT contact;
+		struct PLAYER_GROUND_CONTACT previous_contact;
+		if (extended_ground_contact(&motion->current[wheel_index], &contact) &&
+			extended_ground_contact(&motion->previous[wheel_index], &previous_contact) &&
+			previous_contact.distance <= 0) {
+			/* Correct sub-unit penetration too, without pulling an airborne
+			 * wheel down onto an incline or changing its horizontal travel.
+			 * New impacts retain the original split between air and road travel. */
+			if (motion->current[wheel_index].ly < contact.height) {
+				motion->current[wheel_index].ly = contact.height;
+			}
+			resolved = 1;
+		} else
+#endif
+		{
+			resolved = nextPosAndNormalIP >= 0 ||
+					   correct_wheel_plane_penetration(carstate, motion, wheel_index, car_index);
+		}
 		if (player_motion_fraction != 0 && resolved) {
 			relax_wheel_plane_residual(motion, wheel_index, initial_distance);
 		}
