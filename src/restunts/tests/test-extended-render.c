@@ -1221,9 +1221,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	}
 	extended_track_unload();
 	cstrk_free(&track);
-	printf(
-		"Extended 90x90 terrain through level %u and native hill meshes rendered in %u frames.\n",
-		CSTRK_MAX_HEIGHT, frames);
+	printf("Extended 90x90 four-level terrain and native hill meshes rendered in %u frames.\n",
+		   frames);
 	call_exitlist();
 	return 0;
 }

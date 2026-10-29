@@ -115,22 +115,21 @@ test('every library direction preserves the placement footprint and saved track 
         assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
     }
 });
-test('terrain reaches level nine, clamps another raise and propagates all corner slopes', () => {
+test('terrain reaches four levels and propagates all corner slopes', () => {
     const doc = new model.Document();
-    for (let i = 0; i <= model.MAX_HEIGHT; i++) doc.raise(45, 45);
-    assert.equal(model.MAX_HEIGHT, 9);
-    assert.equal(doc.vertices[45 * 91 + 45], model.MAX_HEIGHT);
-    assert.equal(doc.vertices[45 * 91 + 44], model.MAX_HEIGHT - 1);
-    assert.equal(doc.vertices[43 * 91 + 43], model.MAX_HEIGHT - 2);
+    for (let i = 0; i < 8; i++) doc.raise(45, 45);
+    assert.equal(doc.vertices[45 * 91 + 45], 4);
+    assert.equal(doc.vertices[45 * 91 + 44], 3);
+    assert.equal(doc.vertices[43 * 91 + 43], 2);
     assert.deepEqual(doc.validate(), []);
     doc.raise(45, 45, -1);
-    assert.equal(doc.vertices[45 * 91 + 45], model.MAX_HEIGHT - 1);
+    assert.equal(doc.vertices[45 * 91 + 45], 3);
 });
 test('original hill profiles preserve native slope and corner classifications at every level', () => {
     const profiles = [[7, [1, 1, 0, 0]], [8, [1, 0, 0, 1]], [9, [0, 0, 1, 1]], [10, [0, 1, 1, 0]],
         [11, [1, 0, 0, 0]], [12, [0, 0, 0, 1]], [13, [0, 0, 1, 0]], [14, [0, 1, 0, 0]],
         [15, [1, 1, 0, 1]], [16, [1, 0, 1, 1]], [17, [0, 1, 1, 1]], [18, [1, 1, 1, 0]]];
-    const maximumLevel = model.MAX_HEIGHT, expected = new Map();
+    const maximumLevel = 4, expected = new Map();
     for (let base = 0; base < maximumLevel; base++) for (const [terrain, heights] of profiles) {
         const translated = heights.map(height => height + base);
         expected.set(translated.join(','), { terrain, baseLevel: base });
@@ -146,8 +145,8 @@ test('original hill profiles preserve native slope and corner classifications at
             else assert.throws(() => model.encodeCstrk(doc), /Terrain/);
         }
     }
-    assert.equal(expected.size, profiles.length * maximumLevel + maximumLevel + 1);
-    for (const invalid of [null, [], [0, 0, 0], [0, .5, 0, 0], [0, 0, 0, model.MAX_HEIGHT + 1]]) assert.equal(model.terrainProfile(invalid), null);
+    assert.equal(expected.size, 53);
+    for (const invalid of [null, [], [0, 0, 0], [0, .5, 0, 0], [0, 0, 0, 5]]) assert.equal(model.terrainProfile(invalid), null);
 });
 test('terrain edits produce only original profiles and resolve diagonal islands symmetrically', () => {
     const doc = new model.Document(8, 8);
@@ -160,7 +159,7 @@ test('terrain edits produce only original profiles and resolve diagonal islands 
     assert.deepEqual(doc.tileHeights(3, 3), [1, 1, 1, 1]);
     doc.raise(3, 4, -1); doc.raise(4, 3, -1); assertProfiles();
     assert.deepEqual(doc.tileHeights(3, 3), [0, 0, 0, 0]);
-    for (const height of [model.MAX_HEIGHT, 0, model.MAX_HEIGHT - 1, 1, 2]) {
+    for (const height of [4, 0, 3, 1, 2]) {
         doc.level(3, 3, height, 0); assertProfiles();
         assert.deepEqual(doc.tileHeights(3, 3), [height, height, height, height]);
     }
@@ -173,7 +172,7 @@ test('terrain edits produce only original profiles and resolve diagonal islands 
     }
 });
 test('hill placement matches original aligned road and ramp rules in every direction and level', () => {
-    const maximumLevel = model.MAX_HEIGHT, tileCount = 4, target = 1;
+    const maximumLevel = 4, tileCount = 4, target = 1;
     for (let base = 0; base < maximumLevel; base++) for (let terrain = 7; terrain <= 10; terrain++) {
         const doc = new model.Document(tileCount, tileCount);
         for (let y = 0; y <= tileCount; y++) for (let x = 0; x <= tileCount; x++) {
@@ -212,7 +211,7 @@ test('original hill propagation is identical when the entire edit sequence is ro
             const x = random % stride, y = (random >>> 8) % stride, delta = random & 1 ? 1 : -1;
             first.raise(x, y, delta); rotated.raise(width - y, x, delta);
         } else {
-            const x = random % width, y = (random >>> 8) % width, level = (random >>> 16) % (model.MAX_HEIGHT + 1);
+            const x = random % width, y = (random >>> 8) % width, level = (random >>> 16) % 5;
             first.level(x, y, level, 0); rotated.level(width - 1 - y, x, level, 0);
         }
         for (let y = 0; y <= width; y++) for (let x = 0; x <= width; x++)
@@ -220,7 +219,7 @@ test('original hill propagation is identical when the entire edit sequence is ro
     }
 });
 test('hill display corners turn through right angles consistently at every orientation and level', () => {
-    const cornerCount = 4, profileCount = 1 << cornerCount, maximumLevel = model.MAX_HEIGHT;
+    const cornerCount = 4, profileCount = 1 << cornerCount, maximumLevel = 4;
     const pointKey = point => JSON.stringify(point.map(value => Number(value.toFixed(12))));
     function pathKey(points, closed) {
         const keys = points.map(pointKey), variants = [];
@@ -295,7 +294,7 @@ test('hill display rejects unsupported profiles and keeps geometry independent o
         assert.throws(() => model.terrainDisplayLayers(invalid), /terrain display/);
 });
 test('Level applies each selected surface to the plateau and its generated slopes', () => {
-    for (const surface of [0, 1, 2, 3]) for (let height = 1; height <= model.MAX_HEIGHT; height++) {
+    for (const surface of [0, 1, 2, 3]) for (const height of [1, 2, 3, 4]) {
         const doc = new model.Document(12, 12);
         doc.paint(0, 0, (surface + 1) % 4, 2, (surface + 1) % 4 === model.DEFAULT_CORNER_SURFACE ? 0 : model.DEFAULT_CORNER_SURFACE);
         const before = doc.snapshot(), history = doc.history.length;
@@ -334,7 +333,7 @@ test('Level recolors an existing height, clears Shore, and supports Ground witho
     assert.deepEqual(flat.cells[0], { surface: 3, halfWaterCorner: 0 });
 });
 test('Level handles mixed slopes and map edges while Raise and Lower preserve surfaces', () => {
-    for (const [x, y] of [[0, 0], [7, 7], [3, 3]]) for (const height of [0, 4, model.MAX_HEIGHT]) {
+    for (const [x, y] of [[0, 0], [7, 7], [3, 3]]) for (const height of [0, 2, 4]) {
         const doc = new model.Document(8, 8);
         for (let vy = 0; vy <= 8; vy++) for (let vx = 0; vx <= 8; vx++) doc.vertices[vy * 9 + vx] = Math.min(4, Math.max(vx, vy));
         doc.level(x, y, height, 1);
@@ -424,7 +423,7 @@ test('slaloms and tunnels require flat plateaus instead of being tilted onto hil
         for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) long.vertices[y * 5 + x] = Math.min(x, 2);
         assert.throws(() => long.place(id, 0, 1), /original hill/);
         assert.throws(() => long.place(id, 1, 1), /original hill/);
-        for (let level = 0; level <= model.MAX_HEIGHT; level++) {
+        for (let level = 0; level <= 4; level++) {
             long.vertices.fill(level); assert.doesNotThrow(() => long.place(id, 0, 1)); long.objects = [];
         }
     }
@@ -440,7 +439,7 @@ test('all loop and pipe variations preserve dirt and ice through placement, vali
     assert.deepEqual(new Set(entries.map(piece => piece.physical)), loopAndPipeModels);
     for (const entry of entries) {
         assert.deepEqual(entry.surfaces, [0, 1, 2]);
-        for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) for (const level of [0, model.MAX_HEIGHT]) {
+        for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) for (const level of [0, 4]) {
             const doc = new model.Document(4, 4);
             doc.vertices.fill(level);
             doc.place(entry.id, 1, 1, surface, rotation);
@@ -558,8 +557,8 @@ test('Shore paints every distinct material pair and corner with exact storage an
         }
     }
 });
-test('lower surface paints every flat elevation and preserves uniform hills through every elevation transition', () => {
-    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = model.MAX_HEIGHT, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+test('lower surface paints every flat elevation and preserves uniform hills through all four transitions', () => {
+    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
         for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) for (let base = 0; base <= maximumLevel; base++) {
             const flat = new model.Document(1, 1); flat.vertices.fill(base); flat.paint(0, 0, surface);
@@ -605,7 +604,7 @@ test('lower surface paints every flat elevation and preserves uniform hills thro
     }
 });
 test('lower surface preserves both aligned hill representations at every transition', () => {
-    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = model.MAX_HEIGHT, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
         for (let high = 0; high < corners.length; high++) {
             const low = (high + 2) % corners.length, [x, y] = corners[high];
@@ -638,7 +637,7 @@ test('lower surface preserves both aligned hill representations at every transit
     }
 });
 test('lower surface rejects crossing hill materials atomically rather than repainting either material', () => {
-    const maximumLevel = model.MAX_HEIGHT, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
         for (let high = 0; high < corners.length; high++) for (const offset of [1, 3]) {
             for (let primary = 0; primary < model.TERRAIN_SURFACES.length; primary++) {
@@ -658,7 +657,7 @@ test('lower surface rejects crossing hill materials atomically rather than repai
     }
 });
 test('lower surface validates materials and skips unsupported terrain without consuming redo', () => {
-    const maximumLevel = model.MAX_HEIGHT, cornerCount = 4, profileCount = 1 << cornerCount;
+    const maximumLevel = 4, cornerCount = 4, profileCount = 1 << cornerCount;
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
         for (let base = 0; base <= maximumLevel; base++) for (let mask = 0; mask < profileCount - 1; mask++) {
             const heights = Array.from({ length: cornerCount }, (_, corner) => base + !!(mask & (1 << corner)));
@@ -691,7 +690,7 @@ test('lower surface validates materials and skips unsupported terrain without co
     }
 });
 test('lower surface drag edits undo together and preserve terrain geometry and track objects', () => {
-    const maximumLevel = model.MAX_HEIGHT;
+    const maximumLevel = 4;
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) for (let base = 0; base < maximumLevel; base++) {
         const doc = new model.Document(4, 4); doc.vertices.fill(base); doc.raise(2, 2); doc.place(4, 0, 0);
         const originalSurface = (target + 1) % model.TERRAIN_SURFACES.length;
@@ -759,7 +758,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 5); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 4); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -830,39 +829,6 @@ test('v3 tracks upgrade with their original overpass surfaces and reserve the ne
         assert.throws(() => model.decodeCstrk(invalidPiece), /Only overpasses/);
     }
 });
-test('v5 stores nine-level plateaus and hills while legacy revisions retain their four-level bounds', () => {
-    const plateau = new model.Document(4, 4); plateau.vertices.fill(model.MAX_HEIGHT);
-    const object = plateau.place(65, 1, 1, 2);
-    assert.equal(object.baseHeight, model.MAX_HEIGHT);
-    assert.deepEqual(plateau.validate(), []);
-    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(plateau)).snapshot(), plateau.snapshot());
-    const hill = new model.Document(4, 4);
-    for (let y = 0; y <= hill.height; y++) for (let x = 0; x <= hill.width; x++)
-        hill.vertices[y * (hill.width + 1) + x] = x <= 1 ? model.MAX_HEIGHT - 1 : model.MAX_HEIGHT;
-    const road = hill.place(5, 1, 1, 1);
-    assert.equal(road.baseHeight, model.MAX_HEIGHT - 1); assert.equal(road.slopeX, 1);
-    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(hill)).snapshot(), hill.snapshot());
-    for (const version of [3, 4]) {
-        const legacy = new model.Document(4, 4); legacy.vertices.fill(4);
-        legacy.place(101, 1, 1, 2, 0, version === 3 ? 2 : 1); legacy.version = version;
-        const encoded = model.encodeCstrk(legacy), upgraded = model.decodeCstrk(encoded);
-        assert.equal(upgraded.version, model.VERSION);
-        assert.equal(upgraded.objects[0].lowerSurface, version === 3 ? 2 : 1);
-        assert(upgraded.vertices.every(height => height === 4));
-        upgraded.version = version; upgraded.vertices.fill(5); upgraded.objects[0].baseHeight = 5;
-        assert.throws(() => model.encodeCstrk(upgraded), /Terrain height|element height/);
-        const forged = encoded.slice(); forged.fill(5, 32, 32 + legacy.vertices.length);
-        assert.throws(() => model.decodeCstrk(forged), /Terrain height/);
-    }
-    for (const invalid of [-1, model.MAX_HEIGHT + 1, 1.5, NaN]) {
-        const doc = new model.Document(1, 1), before = doc.snapshot();
-        assert.throws(() => doc.level(0, 0, invalid, 0), /terrain level/);
-        assert.deepEqual(doc.snapshot(), before);
-        doc.vertices = Array(4).fill(invalid);
-        assert.throws(() => model.encodeCstrk(doc), /Terrain height/);
-        assert.equal(model.terrainProfile(Array(4).fill(invalid)), null);
-    }
-});
 test('CSTRK version metadata preserves compatible newer revisions across loading and editing', () => {
     const doc = new model.Document(4, 4); doc.setHorizon(model.HORIZONS.indexOf('Country'));
     const original = model.encodeCstrk(doc);
@@ -906,7 +872,7 @@ test('CSTRK round-trip preserves 90x90 terrain, surfaces, overlaps and notes', (
     assert.equal(data[8], model.VERSION); assert.equal(data[16], 90); assert.equal(new DataView(data.buffer).getUint32(28, true), data.length - 32);
     assert.throws(() => model.decodeCstrk(data.subarray(0, data.length - 1)), /truncated/);
     assert.throws(() => model.decodeCstrk(Uint8Array.from([...data, 0])), /truncated/);
-    const invalid = data.slice(); invalid[32] = model.MAX_HEIGHT + 1; assert.throws(() => model.decodeCstrk(invalid), /Terrain height|one level/);
+    const invalid = data.slice(); invalid[32] = 5; assert.throws(() => model.decodeCstrk(invalid), /four levels|one level/);
     const horizon = data.slice(); horizon[12] = model.HORIZONS.length; assert.throws(() => model.decodeCstrk(horizon), /horizon/);
     const forged = data.slice(), objectOffset = 32 + doc.vertices.length + doc.cells.length * 2;
     forged[objectOffset + 8] = 15; assert.throws(() => model.decodeCstrk(forged), /catalog geometry|overlap/);
