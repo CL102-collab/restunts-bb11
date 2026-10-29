@@ -1698,6 +1698,9 @@ enum FRAME_EXTENDED_TERRAIN_MATERIAL {
 };
 
 #define FRAME_EXTENDED_TERRAIN_HALF_TILE (CSTRK_TILE_WORLD_SIZE / 2)
+#define FRAME_EXTENDED_HILL_EDGE_OVERLAP 2
+#define FRAME_EXTENDED_HILL_AUTHORED_EDGE                                                          \
+	(FRAME_EXTENDED_TERRAIN_HALF_TILE + FRAME_EXTENDED_HILL_EDGE_OVERLAP)
 #define FRAME_EXTENDED_TERRAIN_ALWAYS_VISIBLE 1U
 #define FRAME_EXTENDED_OUTER_CORNER_FIRST 11U
 #define FRAME_EXTENDED_OUTER_CORNER_LAST 14U
@@ -1719,6 +1722,91 @@ static void frame_extended_rotate_vertex(struct VECTOR *point, legacy_s16 yaw)
 			point->z = x;
 			break;
 	}
+}
+
+enum FRAME_EXTENDED_HILL_EDGE {
+	FRAME_EXTENDED_HILL_NORTH = 1U,
+	FRAME_EXTENDED_HILL_EAST = 2U,
+	FRAME_EXTENDED_HILL_SOUTH = 4U,
+	FRAME_EXTENDED_HILL_WEST = 8U
+};
+
+static legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 x,
+										   legacy_s16 y)
+{
+	struct CSTRK_TERRAIN_PROFILE profile;
+	if (supersight_enabled == 0 ||
+		!cstrk_terrain_profile(track, (legacy_u16)x, (legacy_u16)y, &profile) ||
+		profile.terrain_id < CSTRK_TERRAIN_PROFILE_NORTH) {
+		return 0;
+	}
+	static const struct {
+		legacy_s8 dx, dy;
+		legacy_u8 edge;
+	} neighbors[] = {{0, -1, FRAME_EXTENDED_HILL_NORTH},
+					 {1, 0, FRAME_EXTENDED_HILL_EAST},
+					 {0, 1, FRAME_EXTENDED_HILL_SOUTH},
+					 {-1, 0, FRAME_EXTENDED_HILL_WEST}};
+	legacy_u8 edges = 0;
+	for (legacy_u8 index = 0; index < sizeof(neighbors) / sizeof(neighbors[0]); index++) {
+		legacy_s16 nx = x + neighbors[index].dx, ny = y + neighbors[index].dy;
+		struct CSTRK_TERRAIN_PROFILE neighbor;
+		if (nx >= 0 && ny >= 0 && nx < track->width && ny < track->height &&
+			cstrk_terrain_profile(track, (legacy_u16)nx, (legacy_u16)ny, &neighbor) &&
+			neighbor.terrain_id >= CSTRK_TERRAIN_PROFILE_NORTH &&
+			neighbor.base_height != profile.base_height) {
+			edges |= neighbors[index].edge;
+		}
+	}
+	return edges;
+}
+
+/* Native hills overlap a tile by two units. At consecutive elevations that
+ * overlap separates the two slope planes vertically. HyperVision joins both
+ * sides at the shared grid edge; plateau joins retain their authored overlap. */
+static void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edges)
+{
+	if ((edges & FRAME_EXTENDED_HILL_EAST) && point->x > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->x <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->x = FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_WEST) && point->x < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->x >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->x = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_NORTH) && point->z > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->z <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->z = FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_SOUTH) && point->z < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->z >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->z = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+}
+
+static legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance,
+												  legacy_u8 edges)
+{
+	const struct SHAPE3D *source = instance->shapeptr;
+	if (edges == 0 || source->shape3d_numverts > LEGACY_U8_MAX) {
+		return shape3d_transform_and_queue(instance);
+	}
+	struct TRANSFORMEDSHAPE3D adjusted = *instance;
+	/* Resource vertex counts occupy one byte. Queueing copies transformed
+	 * vertices, so the original resource and every classic frame stay intact. */
+	legacy_u8 vertices[LEGACY_U8_MAX * SHAPE3D_VERTEX_SIZE];
+	struct SHAPE3D mesh = *source;
+	mesh.shape3d_vertex_bytes = vertices;
+	for (legacy_u16 index = 0; index < source->shape3d_numverts; index++) {
+		struct VECTOR point;
+		shape3d_vertex_read(source, index, &point);
+		frame_extended_rotate_vertex(&point, instance->rotvec.z);
+		frame_extended_join_hill_vertex(&point, edges);
+		frame_extended_rotate_vertex(&point, LEGACY_S16_WRAP_NEGATE(instance->rotvec.z));
+		shape3d_vertex_write(&mesh, index, &point);
+	}
+	adjusted.shapeptr = &mesh;
+	return shape3d_transform_and_queue(&adjusted);
 }
 
 static legacy_s32 frame_extended_shore_distance(const struct VECTOR *point, legacy_u8 corner)
@@ -1871,6 +1959,7 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 		return 0;
 	}
 	const struct CSTRK_CELL *cell = &track->cells[(size_t)tile->south * track->width + tile->east];
+	legacy_u8 edges = frame_extended_hill_edges(track, tile->east, tile->south);
 	struct VECTOR position = {
 		LEGACY_S16_WRAP_SUB(track_column_centers[tile->east], camera->position.x),
 		LEGACY_S16_WRAP_SUB((legacy_s16)(profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT),
@@ -1932,7 +2021,8 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 		instance.rotvec.z = definition->ss_rotY;
 		instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
 		instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT;
-		return (legacy_s16)shape3d_transform_and_queue(&instance) > 0 && supersight_enabled != 0;
+		return (legacy_s16)frame_extended_queue_hill_shape(&instance, edges) > 0 &&
+			   supersight_enabled != 0;
 	}
 	const legacy_u8 *primitive = source->shape3d_primitives;
 	for (legacy_u16 index = 0; index < source->shape3d_numprimitives; index++) {
@@ -1945,6 +2035,7 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 			shape3d_vertex_read(source, primitive[2U + source->shape3d_numpaints + vertex],
 								&points[vertex]);
 			frame_extended_rotate_vertex(&points[vertex], definition->ss_rotY);
+			frame_extended_join_hill_vertex(&points[vertex], edges);
 		}
 		if (frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2], cell,
 												 &position, flags)) {
@@ -2005,6 +2096,9 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 			cell->surface == CSTRK_TERRAIN_GRASS && cell->half_water_corner == CSTRK_WATER_NONE;
 		struct VECTOR origin;
 		extended_geometry_object_origin(track, object, &origin);
+		legacy_u8 edges = (object->slope_x || object->slope_y)
+							  ? frame_extended_hill_edges(track, object->x, object->y)
+							  : 0;
 		legacy_u8 hill_overlay = (object->slope_x || object->slope_y) && definition->ss_ssOvelay;
 		for (legacy_u8 part = 0; part < 2U; part++) {
 			legacy_u8 overlay = hill_overlay ? part == 0 : part;
@@ -2030,7 +2124,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 				instance.ts_flags =
 					flags | FRAME_TRANSFORM_FLAGS_DEFAULT | render_definition->ss_ignoreZBias;
 				instance.material = overlay ? 0 : object->surface;
-				if ((legacy_s16)shape3d_transform_and_queue(&instance) > 0 &&
+				if ((legacy_s16)frame_extended_queue_hill_shape(&instance, edges) > 0 &&
 					supersight_enabled != 0) {
 					return 1;
 				}
@@ -2056,7 +2150,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 			instance.rectptr = &frame_sorted_shapes_rect;
 			instance.culling_distance = 2048;
 			instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
-			legacy_s16 result = shape3d_transform_and_queue(&instance);
+			legacy_s16 result = frame_extended_queue_hill_shape(&instance, edges);
 			extended_geometry_free_shape(&mesh);
 			if (result > 0 && supersight_enabled != 0) {
 				return 1;
