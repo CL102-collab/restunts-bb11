@@ -43,6 +43,19 @@ as the primary surface. The first corner is selected initially. Click another
 preview or use Q / E to change the corner independently of track pieces.
 Mixed material strokes support undo and redo.
 
+Paint also shows a **Lower surface** section with **Grass, Dirt, Ice, Water**
+choices, in that order. Each icon shows the selected material below a neutral,
+locked hill. Choose one to paint flat ground at level 0 without changing the
+hill surface or any heights. On an outer hill corner it finds the low flat
+triangle automatically, preserving any grass, dirt, ice or water on the hill.
+You can drag over different hill materials and orientations in one stroke.
+Straight inclines, inner corners and terrain above ground level stay as they are.
+If an existing material boundary crosses the hill, Lower surface leaves that
+tile unchanged and explains that it cannot preserve both hill materials.
+Click the regular Paint tile preview or a primary surface to paint whole tiles
+again. Lower surface strokes support undo and redo and save in the existing
+track format.
+
 Level shows five square choices, starting with Ground (0), then heights 1
 through 4. These choices appear only while Level is selected; click a map tile
 to set its corners to the chosen height and apply the selected terrain surface
@@ -78,7 +91,7 @@ Original editor grouping and icons come from the selected game resources.
 Each shape appears once in the library. The four direction arrows update all
 piece thumbnails and select the variation to place; Q / E also change direction.
 Left/right branches and chicanes remain separate shapes. The Shore tool shows
-its water-corner arrows in the Terrain section when selected.
+its surface corner choices in the Terrain section when selected.
 Large turns, banked turns, chicanes and elevated turns claim only their occupied
 cells, leaving their empty cells available for scenery or another fitting piece.
 

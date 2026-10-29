@@ -12,7 +12,7 @@
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, shoreDirection: 0, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        rotation: 0, shoreDirection: 0, lowerSurface: null, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, navigatorDrag: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
@@ -44,11 +44,15 @@
         document.querySelectorAll('[data-shore-direction]').forEach(button => {
             button.setAttribute('aria-pressed', String(Number(button.dataset.shoreDirection) === state.shoreDirection));
         });
+        document.querySelectorAll('[data-lower-surface]').forEach(button => {
+            button.setAttribute('aria-pressed', String(Number(button.dataset.lowerSurface) === state.lowerSurface));
+        });
         renderTerrainChoices();
     }
     function renderTerrainChoices() {
         const surface = Number($('terrain-surface').value);
         $('paint-preview-row').hidden = state.tool !== 'paint';
+        $('lower-surface-row').hidden = state.tool !== 'paint';
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
         const cornerSurface = Number($('shore-surface').value);
@@ -59,6 +63,7 @@
         const paint = $('paint-preview-row').querySelector('button');
         paint.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase();
         paint.setAttribute('aria-label', paint.title);
+        paint.setAttribute('aria-pressed', String(state.lowerSurface === null));
         drawTerrainPreview($('paint-preview'), surface);
         document.querySelectorAll('[data-shore-direction]').forEach(button => {
             drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1, cornerSurface);
@@ -164,22 +169,25 @@
         } else if (tool === 'place' || tool === 'erase') showPanel('track');
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
         updateCanvasCursor();
-        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
+        const lowerPainting = tool === 'paint' && state.lowerSurface !== null;
+        const lowerMaterial = lowerPainting ? model.TERRAIN_SURFACES[state.lowerSurface].toLowerCase() : '';
+        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: lowerPainting ? 'Lower ' + lowerMaterial + ' surface' : 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
-        const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
+        const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: lowerPainting ? 'lower-' + lowerMaterial : 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
         syncVisualControls();
         scheduleDraw();
     }
     function rotate(amount) {
+        if (state.tool === 'paint' && state.lowerSurface !== null) return;
         if (state.tool === 'water-corner') setShoreDirection((state.shoreDirection + amount + 4) % 4);
         else setDirection((state.rotation + amount + 4) % 4);
     }
     function setShoreDirection(direction) {
         if (!state.ready) return;
+        finishDrag();
         state.shoreDirection = direction;
-        syncVisualControls();
-        scheduleDraw();
+        updateTool('water-corner');
     }
     function setDirection(direction) {
         if (!state.ready) return;
@@ -599,6 +607,7 @@
             }
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
+            else if (tool === 'paint' && state.lowerSurface !== null) doc.paintLowerSurface(point.x, point.y, state.lowerSurface);
             else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
             else if (tool === 'level') doc.level(point.x, point.y, Number($('terrain-level').value), Number($('terrain-surface').value));
@@ -715,9 +724,18 @@
         });
         document.querySelectorAll('[data-piece-direction]').forEach(button => button.addEventListener('click', () => setDirection(Number(button.dataset.pieceDirection))));
         document.querySelectorAll('[data-shore-direction]').forEach(button => button.addEventListener('click', () => setShoreDirection(Number(button.dataset.shoreDirection))));
+        $('paint-preview-row').querySelector('button').addEventListener('click', () => {
+            if (!state.ready) return;
+            finishDrag(); state.lowerSurface = null; updateTool('paint');
+        });
+        document.querySelectorAll('[data-lower-surface]').forEach(button => button.addEventListener('click', () => {
+            if (!state.ready) return;
+            finishDrag(); state.lowerSurface = Number(button.dataset.lowerSurface); updateTool('paint');
+        }));
         $('terrain-level').addEventListener('input', () => { $('level-output').textContent = $('terrain-level').value + ' / 4'; syncVisualControls(); });
         $('terrain-surface').addEventListener('change', () => {
-            if (!['paint', 'water-corner', 'level'].includes(state.tool)) updateTool('paint');
+            finishDrag(); state.lowerSurface = null;
+            if (!['water-corner', 'level'].includes(state.tool)) updateTool('paint');
             else syncVisualControls();
         });
         $('shore-surface').addEventListener('change', () => { finishDrag(); syncVisualControls(); scheduleDraw(); });

@@ -118,7 +118,7 @@
     }
     const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
-    const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
+    const TERRAIN_GROUND_LEVEL = 0, TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
     const CLASSIC_TERRAIN_BY_MASK = [0, 11, 14, 7, 13, -1, 10, 18, 12, 8, -1, 15, 9, 16, 17, 6];
     const CLASSIC_FLAT_GROUND = 0, CLASSIC_RAISED_GROUND = 6;
     const CLASSIC_FIRST_SLOPE = 7, CLASSIC_LAST_SLOPE = 10;
@@ -253,6 +253,33 @@
                 if (halfWaterCorner && cornerSurface !== DEFAULT_CORNER_SURFACE) cell.cornerSurface = cornerSurface;
                 this.cells[this.cellIndex(x, y)] = cell;
             });
+        }
+        paintLowerSurface(x, y, surface) {
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            const index = this.cellIndex(x, y), heights = this.tileHeights(x, y), profile = terrainProfile(heights);
+            if (!profile) throw new Error('Invalid terrain profile.');
+            if (profile.baseLevel !== TERRAIN_GROUND_LEVEL) return false;
+            const cell = this.cells[index], raised = heights.map((height, corner) => height > TERRAIN_GROUND_LEVEL ? corner : -1).filter(corner => corner >= 0);
+            let next = { surface, halfWaterCorner: 0 };
+            if (raised.length) {
+                // Only an outer hill corner has a flat low triangle. Its slope,
+                // and every straight or inner hill profile, must retain its paint.
+                if (raised.length !== 1) return false;
+                const high = raised[0], low = (high + TERRAIN_DISPLAY_CORNER_COUNT / 2) % TERRAIN_DISPLAY_CORNER_COUNT;
+                let hillSurface = cell.surface, lowSurface = cell.surface;
+                if (cell.halfWaterCorner) {
+                    const direction = cell.halfWaterCorner - 1, secondary = cell.cornerSurface ?? DEFAULT_CORNER_SURFACE;
+                    if (direction === high) hillSurface = secondary;
+                    else if (direction === low) lowSurface = secondary;
+                    else throw new Error('This hill has a mixed surface. Lower surface cannot preserve both hill materials.');
+                }
+                if (lowSurface === surface) return false;
+                if (hillSurface !== surface) {
+                    next = { surface: hillSurface, halfWaterCorner: low + 1 };
+                    if (surface !== DEFAULT_CORNER_SURFACE) next.cornerSurface = surface;
+                }
+            } else if (cell.surface === surface && !cell.halfWaterCorner) return false;
+            return this.transaction('Paint lower surface', () => { this.cells[index] = next; return true; });
         }
         level(x, y, height, surface) {
             const cell = this.cellIndex(x, y);

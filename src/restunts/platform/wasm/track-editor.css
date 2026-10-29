@@ -100,6 +100,11 @@ fieldset:disabled { opacity: .3; }
 .terrain-choice-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px 8px; margin-bottom: 7px; color: #98a2aa; font-size: 20px; }
 .terrain-choices { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-width: 344px; }
 .terrain-choice { position: relative; display: block; min-width: 0; width: 100%; aspect-ratio: 1; padding: 3px; overflow: hidden; border-radius: 7px; border: 1px solid #a4bc8d28; background: #141c18; }
+.terrain-choice > .icon { display: block; width: 100%; height: 100%; border-radius: 3px; }
+.terrain-choice-hint { margin: 8px 0 0; color: #a6b9c4; font-size: 18px; line-height: 1.4; }
+.lower-surface-choice { display: flex; flex-direction: column; gap: 5px; aspect-ratio: auto; padding-bottom: 6px; color: #aebcc4; font-size: 18px; }
+.lower-surface-choice > .icon { aspect-ratio: 1; height: auto; }
+.lower-surface-choice[aria-pressed="true"] { color: #d7e5ce; }
 .terrain-choice canvas { display: block; width: 100%; height: 100%; border-radius: 3px; image-rendering: pixelated; }
 .terrain-choice[aria-pressed="true"], .terrain-choice[aria-pressed="true"]:hover { border-color: #b8d996; background: #34452b; box-shadow: 0 0 0 1px #b8d99645; }
 .terrain-choice[aria-pressed="true"]::after { content: "\2713"; position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 14px; height: 14px; color: #1b2a13; background: #c8e5a9; border-radius: 3px; font-size: 22px; font-weight: 800; line-height: 1; box-shadow: 0 1px 3px #0006; }
