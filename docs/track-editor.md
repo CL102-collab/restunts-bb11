@@ -30,10 +30,10 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v5. Revision v3 and v4 tracks also open and
-are upgraded to v5 while preserving their original overpass road materials.
-Revisions below v3 cannot be opened. Tracks store their version in the file header; saving keeps
-the version after any upgrade. Opening a newer version shows an OK-only warning
+great track." The current version is v6. Revision v3, v4 and v5 tracks also open
+and are upgraded to v6 while preserving their original overpass road materials.
+Revisions below v3 cannot be opened. Tracks store their version in the file
+header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
 
 ## Terrain
@@ -78,18 +78,23 @@ The same 450-unit rise over a 1,024-unit tile is used at every elevation, so
 higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
-On an incline, place an aligned straight road, tunnel or slalom, or one of the
-original compatible ramp variants. Tunnels and slaloms follow a straight incline
-in either direction, with paved, dirt or ice roads at any elevation. Their
-rendering and collision follow the slope, including consecutive hill levels.
-Sloped tunnels and slaloms require `.cstrk` v5; original `.trk` placement rules
-remain unchanged. Roads and ramps retain their original hill-road or flat
-hill-span models. Turns, other stunts, scenery and multi-tile pieces need a flat
-plateau beneath their occupied cells. The empty corners of chicanes, big turns,
-banked turns and elevated turns can contain hill corners on both sides of the
-road. The road's supporting corners must stay at the same height. Hill-corner
-tiles themselves accept no track pieces. Terrain edits that would invalidate
-an existing piece are rejected; remove or move that piece first.
+On a straight incline, place any track piece or scenery in any direction.
+Multi-tile elements, including big turns, work when every occupied tile follows
+one continuous straight slope with the same direction and grade. The piece's
+rendering, collision and route geometry follow that plane; banked roads, elevated
+decks, loops and other stunts retain their own shape above the incline. A piece
+cannot span a change in slope direction or a flat-to-slope transition.
+
+These generalized placements require `.cstrk` v6. Aligned roads and compatible
+ramps keep their original hill-road or hill-span models. The aligned tunnels and
+slaloms supported by v5 retain their slope behavior. Original `.trk` placement
+and driving behavior remain unchanged.
+
+Hill-corner tiles under occupied cells still accept no track pieces. The empty
+corners of chicanes, big turns, banked turns, elevated turns and large branches
+can contain hill corners beside a flat road; the road's supporting vertices must
+stay on its support plane. Terrain edits that would invalidate an existing piece
+are rejected; remove or move that piece first.
 
 ## Track pieces
 

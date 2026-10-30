@@ -154,6 +154,17 @@ for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (let surface = 0; su
         }
     }
 }
+// The corners and vertical return road lie crosswise on the same straight
+// hillside as the original aligned hill roads along the top and bottom edges.
+const GENERAL_ROUTE_SLOPE_FIRST_COLUMN = 35, GENERAL_ROUTE_SLOPE_RISE = 2;
+for (const grade of [-1, 1]) {
+    const doc = terrainRectangle(x => {
+        const rise = Math.max(0, Math.min(GENERAL_ROUTE_SLOPE_RISE, x - GENERAL_ROUTE_SLOPE_FIRST_COLUMN));
+        return grade > 0 ? rise : GENERAL_ROUTE_SLOPE_RISE - rise;
+    });
+    for (let direction = 0, current = doc; direction < HILL_ROUTE_DIRECTION_COUNT; direction++, current = rotate(current))
+        check('connected crosswise roads and sharp turns slope ' + grade + ' direction ' + direction, current, 0);
+}
 const branch = new model.Document(20, 20);
 for (let x = 6; x <= 11; x++) { put(branch, 5, x, 5); put(branch, 5, x, 12); }
 for (let y = 6; y <= 11; y++) { put(branch, 4, 5, y); put(branch, 4, 12, y); }
@@ -223,6 +234,38 @@ for (const entry of model.library.filter(piece => SPARSE_HILL_MODELS.has(piece.p
         }
         const loaded = model.decodeCstrk(model.encodeCstrk(doc));
         check(entry.name + ' hill corners ' + delta + ' direction ' + direction, clearHistory(loaded), 0);
+    }
+}
+
+// Exercise actual connected multi-tile geometry on a two-level hillside,
+// including roads independently sharing both unclaimed corner cells.
+const GENERAL_BIG_TURN_FIRST_COLUMN = 40, GENERAL_BIG_TURN_RISE = 2;
+for (const grade of [-1, 1]) {
+    const doc = new model.Document(sparse.width, sparse.height);
+    for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++) {
+        const rise = Math.max(0, Math.min(GENERAL_BIG_TURN_RISE, x - GENERAL_BIG_TURN_FIRST_COLUMN));
+        doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : GENERAL_BIG_TURN_RISE - rise;
+    }
+    for (const object of sparse.objects)
+        put(doc, object.id, object.x, object.y, object.surface, object.rotation, object.lowerSurface ?? 0);
+    for (let direction = 0, current = clearHistory(doc); direction < HILL_ROUTE_DIRECTION_COUNT; direction++, current = rotate(current))
+        check('connected large turn on straight slope ' + grade + ' direction ' + direction, current, 0);
+}
+// Admission happens before the native route walk. Every library family and
+// orientation must load on all four slope directions, including scenery.
+const GENERAL_SLOPE_MAP_SIZE = 4, GENERAL_SLOPE_ORIGIN = 1;
+const GENERAL_SLOPE_DIRECTIONS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+for (const entry of model.library) for (let direction = 0; direction < GENERAL_SLOPE_DIRECTIONS.length; direction++) {
+    const { piece, rotation } = model.pieceVariant(entry, direction), footprint = model.rotatedFootprint(piece, rotation);
+    for (const [slopeX, slopeY] of GENERAL_SLOPE_DIRECTIONS) {
+        const doc = new model.Document(GENERAL_SLOPE_MAP_SIZE, GENERAL_SLOPE_MAP_SIZE);
+        const span = slopeX ? footprint.width : footprint.height, grade = slopeX || slopeY;
+        for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++) {
+            const rise = Math.max(0, Math.min(span, (slopeX ? x : y) - GENERAL_SLOPE_ORIGIN));
+            doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : span - rise;
+        }
+        put(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0);
+        check(entry.name + ' straight slope ' + slopeX + ',' + slopeY + ' direction ' + direction, doc);
     }
 }
 

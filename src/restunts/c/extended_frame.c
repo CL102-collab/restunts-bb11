@@ -35,7 +35,7 @@ enum FRAME_EXTENDED_TERRAIN_MATERIAL {
 #define FRAME_EXTENDED_OUTER_CORNER_LAST 14U
 #define FRAME_EXTENDED_TERRAIN_CORNER_COUNT 4U
 #define FRAME_EXTENDED_OBJECT_PART_COUNT 2U
-#define FRAME_EXTENDED_TERRAIN_STRIP_COUNT 2U
+#define FRAME_EXTENDED_GROUND_FRAGMENT_MAX 256U
 
 static void frame_extended_rotate_vertex(struct VECTOR *point, legacy_s16 yaw)
 {
@@ -220,7 +220,7 @@ static void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edge
 	}
 }
 
-static legacy_u8 frame_extended_stunt_grade_edges(const struct CSTRK_OBJECT *object)
+static legacy_u8 frame_extended_grade_edges(const struct CSTRK_OBJECT *object)
 {
 	return object->slope_x ? FRAME_EXTENDED_HILL_EAST | FRAME_EXTENDED_HILL_WEST
 						   : FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_SOUTH;
@@ -510,7 +510,8 @@ struct FRAME_EXTENDED_TERRAIN {
 	const struct CSTRK_CELL *cell;
 	const struct CSTRK_OBJECT *object;
 	struct VECTOR position;
-	legacy_u8 edges, sloped_stunt;
+	legacy_u8 edges, graded;
+	legacy_s16 column, row;
 	legacy_s8 flags;
 };
 
@@ -564,46 +565,181 @@ frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terra
 												terrain->cell, &terrain->position, terrain->flags);
 }
 
-static legacy_s16 frame_extended_paint_terrain_strip(const struct VECTOR *points, legacy_u16 count,
-													 const legacy_u8 *primitive, legacy_u8 side,
-													 const struct FRAME_EXTENDED_TERRAIN *terrain)
+struct FRAME_EXTENDED_GROUND_FRAGMENT {
+	struct VECTOR points[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+};
+
+static legacy_s64 frame_extended_ground_side(const struct VECTOR *a, const struct VECTOR *b,
+											 const struct VECTOR *point)
 {
-	struct VECTOR strip[SHAPE3D_POLYGON_MAX_VERTICES];
-	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
-		strip[vertex] = points[vertex];
-		legacy_s16 across = terrain->object->slope_x ? strip[vertex].z : strip[vertex].x;
-		if (!side && across > -ROAD_HALF_WIDTH) {
-			across = -ROAD_HALF_WIDTH;
-		} else if (side && across < ROAD_HALF_WIDTH) {
-			across = ROAD_HALF_WIDTH;
-		}
-		if (terrain->object->slope_x) {
-			strip[vertex].z = across;
-		} else {
-			strip[vertex].x = across;
-		}
-	}
-	return frame_extended_paint_terrain_polygon(strip, count, primitive[1], primitive[2],
-												terrain->cell, &terrain->position, terrain->flags);
+	return (legacy_s64)(b->x - a->x) * (point->z - a->z) -
+		   (legacy_s64)(b->z - a->z) * (point->x - a->x);
 }
 
+static legacy_u16 frame_extended_clip_ground(const struct VECTOR *points, legacy_u16 count,
+											 struct VECTOR *output, const struct VECTOR *a,
+											 const struct VECTOR *b, legacy_s16 orientation)
+{
+	if (!count) {
+		return 0;
+	}
+	legacy_u16 written = 0;
+	struct VECTOR previous = points[count - 1U];
+	legacy_s64 previous_side = frame_extended_ground_side(a, b, &previous) * orientation;
+	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+		struct VECTOR current = points[vertex];
+		legacy_s64 side = frame_extended_ground_side(a, b, &current) * orientation;
+		if ((side >= 0) != (previous_side >= 0)) {
+			legacy_s64 divisor = previous_side - side;
+			struct VECTOR crossing = {(legacy_s16)(((legacy_s64)current.x * previous_side -
+													(legacy_s64)previous.x * side) /
+												   divisor),
+									  (legacy_s16)(((legacy_s64)current.y * previous_side -
+													(legacy_s64)previous.y * side) /
+												   divisor),
+									  (legacy_s16)(((legacy_s64)current.z * previous_side -
+													(legacy_s64)previous.z * side) /
+												   divisor)};
+			frame_extended_append_terrain_vertex(output, &written, &crossing);
+		}
+		if (side >= 0) {
+			frame_extended_append_terrain_vertex(output, &written, &current);
+		}
+		previous = current;
+		previous_side = side;
+	}
+	if (written > 1U && memcmp(&output[0], &output[written - 1U], sizeof(output[0])) == 0) {
+		written--;
+	}
+	return written;
+}
+
+static legacy_s16
+frame_extended_append_ground_fragments(struct FRAME_EXTENDED_GROUND_FRAGMENT *fragments,
+									   legacy_u16 *written, const struct VECTOR *points,
+									   legacy_u16 count)
+{
+	for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
+		if (!frame_extended_ground_side(&points[0], &points[vertex], &points[vertex + 1U])) {
+			continue;
+		}
+		if (*written == FRAME_EXTENDED_GROUND_FRAGMENT_MAX) {
+			return 0;
+		}
+		fragments[*written].points[0] = points[0];
+		fragments[*written].points[1] = points[vertex];
+		fragments[*written].points[2] = points[vertex + 1U];
+		(*written)++;
+	}
+	return 1;
+}
+
+/* Remove only ground-height driving faces. The same authored road triangles
+ * define flat turns, branches, straight roads and stunt approaches; elevated
+ * faces and scenery leave the supporting terrain intact. */
 static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points, legacy_u16 count,
 													const legacy_u8 *primitive,
 													const struct FRAME_EXTENDED_TERRAIN *terrain)
 {
-	if (!terrain->sloped_stunt) {
+	if (!terrain->graded) {
 		return frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
 													terrain->cell, &terrain->position,
 													terrain->flags);
 	}
-	/* Pavement owns the road footprint. Keep coplanar terrain on both sides,
-	 * including Shore paint, rather than beneath independently rounded roads. */
-	for (legacy_u8 side = 0; side < FRAME_EXTENDED_TERRAIN_STRIP_COUNT; side++) {
-		if (frame_extended_paint_terrain_strip(points, count, primitive, side, terrain)) {
-			return 1;
+	struct FRAME_EXTENDED_GROUND_FRAGMENT *memory =
+		malloc(2U * FRAME_EXTENDED_GROUND_FRAGMENT_MAX * sizeof(*memory));
+	if (!memory) {
+		return frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
+													terrain->cell, &terrain->position,
+													terrain->flags);
+	}
+	struct FRAME_EXTENDED_GROUND_FRAGMENT *current = memory;
+	struct FRAME_EXTENDED_GROUND_FRAGMENT *next = memory + FRAME_EXTENDED_GROUND_FRAGMENT_MAX;
+	legacy_u16 remaining = 0;
+	frame_extended_append_ground_fragments(current, &remaining, points, count);
+	const struct CSTRK_OBJECT *objects[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 object_count = extended_track_objects_in_cell(terrain->column, terrain->row, objects,
+															 EXTENDED_TRACK_CELL_OBJECT_MAX);
+	legacy_s16 complete = 1;
+	for (legacy_u16 object_index = 0; object_index < object_count && complete; object_index++) {
+		const struct CSTRK_OBJECT *object = objects[object_index];
+		if (!extended_geometry_uses_grade(object)) {
+			continue;
+		}
+		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
+		legacy_u16 triangle_count = track_road_triangle_count(definition->ss_physicalModel);
+		for (legacy_u16 triangle_index = 0; triangle_index < triangle_count && remaining;
+			 triangle_index++) {
+			struct VECTOR triangle[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+			track_road_triangle(definition->ss_physicalModel, triangle_index, triangle);
+			if (triangle[0].y || triangle[1].y || triangle[2].y) {
+				continue;
+			}
+			for (legacy_u16 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
+				frame_extended_rotate_vertex(&triangle[vertex], definition->ss_rotY);
+				triangle[vertex].x +=
+					((legacy_s16)object->x - terrain->column) * CSTRK_TILE_WORLD_SIZE +
+					(object->width - 1U) * FRAME_EXTENDED_TERRAIN_HALF_TILE;
+				triangle[vertex].z +=
+					(terrain->row - (legacy_s16)object->y) * CSTRK_TILE_WORLD_SIZE -
+					(object->height - 1U) * FRAME_EXTENDED_TERRAIN_HALF_TILE;
+			}
+			legacy_s64 winding =
+				frame_extended_ground_side(&triangle[0], &triangle[1], &triangle[2]);
+			if (!winding) {
+				continue;
+			}
+			legacy_s16 orientation = winding > 0 ? 1 : -1;
+			legacy_u16 written = 0;
+			for (legacy_u16 fragment = 0; fragment < remaining && complete; fragment++) {
+				struct VECTOR inside[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
+				legacy_u16 inside_count = OWOOT_ROAD_TRIANGLE_VERTEX_COUNT;
+				memcpy(inside, current[fragment].points, sizeof(current[fragment].points));
+				for (legacy_u16 edge = 0; edge < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT && inside_count;
+					 edge++) {
+					struct VECTOR outside[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
+					struct VECTOR clipped[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
+					const struct VECTOR *a = &triangle[edge];
+					const struct VECTOR *b =
+						&triangle[(edge + 1U) % OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+					legacy_u16 outside_count = frame_extended_clip_ground(
+						inside, inside_count, outside, a, b, -orientation);
+					if (!frame_extended_append_ground_fragments(next, &written, outside,
+																outside_count)) {
+						complete = 0;
+						break;
+					}
+					inside_count = frame_extended_clip_ground(inside, inside_count, clipped, a, b,
+															  orientation);
+					memcpy(inside, clipped, inside_count * sizeof(inside[0]));
+				}
+			}
+			if (!complete) {
+				break;
+			}
+			struct FRAME_EXTENDED_GROUND_FRAGMENT *swap = current;
+			current = next;
+			next = swap;
+			remaining = written;
 		}
 	}
-	return 0;
+	legacy_s16 result = 0;
+	if (complete) {
+		for (legacy_u16 fragment = 0; fragment < remaining; fragment++) {
+			if (frame_extended_paint_terrain_polygon(
+					current[fragment].points, OWOOT_ROAD_TRIANGLE_VERTEX_COUNT, primitive[1],
+					primitive[2], terrain->cell, &terrain->position, terrain->flags)) {
+				result = 1;
+				break;
+			}
+		}
+	} else {
+		result =
+			frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
+												 terrain->cell, &terrain->position, terrain->flags);
+	}
+	free(memory);
+	return result;
 }
 
 static legacy_s16 frame_extended_draw_terrain_mesh(const struct FRAME_EXTENDED_TERRAIN *terrain,
@@ -612,7 +748,7 @@ static legacy_s16 frame_extended_draw_terrain_mesh(const struct FRAME_EXTENDED_T
 	const struct TRACKOBJECT *definition = &terrain_scene_objects[terrain->profile.terrain_id];
 	const struct SHAPE3D *source =
 		supersight_enabled != 0 ? frame_track_shape(definition, detail) : definition->ss_shapePtr;
-	if (!terrain->sloped_stunt && frame_extended_native_grass(terrain->cell)) {
+	if (!terrain->graded && frame_extended_native_grass(terrain->cell)) {
 		struct TRANSFORMEDSHAPE3D instance = {0};
 		instance.pos = terrain->position;
 		instance.shapeptr = (struct SHAPE3D *)source;
@@ -663,15 +799,21 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 		LEGACY_S16_WRAP_SUB((legacy_s16)(terrain.profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT),
 							camera->position.y),
 		LEGACY_S16_WRAP_SUB(track_row_centers[tile->south], camera->position.z)};
+	terrain.column = tile->east;
+	terrain.row = tile->south;
 	terrain.object = extended_track_object_at(tile->east, tile->south);
-	terrain.sloped_stunt = extended_geometry_sloped_stunt(terrain.object);
-	terrain.flags = flags;
-	if (terrain.sloped_stunt) {
-		/* The ground and stunt use the same grid-sized incline; native overscan
-		 * would otherwise cover the low half of its road. */
-		terrain.edges |= frame_extended_stunt_grade_edges(terrain.object);
+	terrain.graded = 0;
+	const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 candidate_count = extended_track_objects_in_cell(tile->east, tile->south, candidates,
+																EXTENDED_TRACK_CELL_OBJECT_MAX);
+	for (legacy_u16 candidate = 0; candidate < candidate_count; candidate++) {
+		if (extended_geometry_uses_grade(candidates[candidate])) {
+			terrain.graded = 1;
+			terrain.edges |= frame_extended_grade_edges(candidates[candidate]);
+		}
 	}
-	if (frame_extended_object_sloped(terrain.object) && !terrain.sloped_stunt &&
+	terrain.flags = flags;
+	if (frame_extended_object_sloped(terrain.object) && !terrain.graded &&
 		frame_extended_native_grass(terrain.cell)) {
 		/* Native hill roads and spans already include their supporting grass. */
 		return 0;
@@ -718,7 +860,7 @@ struct FRAME_EXTENDED_OBJECT {
 	const struct CSTRK_OBJECT *object;
 	const struct TRACKOBJECT *definition;
 	struct VECTOR position;
-	legacy_u8 native_grass, sloped_stunt, edges;
+	legacy_u8 native_grass, graded, edges;
 	legacy_s8 detail, flags;
 };
 
@@ -742,7 +884,14 @@ static void frame_extended_apply_object_grade(struct SHAPE3D *mesh,
 	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
 		struct VECTOR point;
 		shape3d_vertex_read(mesh, vertex, &point);
-		frame_extended_join_hill_vertex(&point, frame_extended_stunt_grade_edges(object));
+		legacy_s16 *along = object->slope_x ? &point.x : &point.z;
+		legacy_s16 half_span =
+			(object->slope_x ? object->width : object->height) * FRAME_EXTENDED_TERRAIN_HALF_TILE;
+		if (*along > half_span && *along <= half_span + FRAME_EXTENDED_HILL_EDGE_OVERLAP) {
+			*along = half_span;
+		} else if (*along < -half_span && *along >= -half_span - FRAME_EXTENDED_HILL_EDGE_OVERLAP) {
+			*along = -half_span;
+		}
 		point.y =
 			LEGACY_S16_WRAP_ADD(point.y, extended_geometry_object_grade(object, point.x, point.z));
 		shape3d_vertex_write(mesh, vertex, &point);
@@ -758,7 +907,7 @@ static legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OB
 										   object->definition->ss_physicalModel)) {
 		return 0;
 	}
-	if (object->sloped_stunt) {
+	if (object->graded) {
 		frame_extended_apply_object_grade(&mesh, object->object);
 	} else if (frame_extended_object_sloped(object->object) && !object->native_grass) {
 		frame_extended_remove_hill_grass(&mesh);
@@ -781,8 +930,8 @@ static legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OB
 							? object->object->lower_surface
 							: object->object->surface;
 	const struct SHAPE3D *source = frame_track_shape(definition, object->detail);
-	if (frame_extended_object_sloped(object->object) && !object->sloped_stunt &&
-		object->native_grass && (overlay || surface < source->shape3d_numpaints)) {
+	if (frame_extended_object_sloped(object->object) && !object->graded && object->native_grass &&
+		(overlay || surface < source->shape3d_numpaints)) {
 		struct TRANSFORMEDSHAPE3D instance =
 			frame_extended_object_instance(object, (struct SHAPE3D *)source);
 		instance.rotvec.z = definition->ss_rotY;
@@ -805,19 +954,19 @@ static legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	object.definition = definition;
 	const struct CSTRK_CELL *cell = &track->cells[(size_t)model->y * track->width + model->x];
 	object.native_grass = frame_extended_native_grass(cell);
-	object.sloped_stunt = extended_geometry_sloped_stunt(model);
+	object.graded = extended_geometry_uses_grade(model);
 	struct VECTOR origin;
 	extended_geometry_object_origin(track, model, &origin);
 	object.position = (struct VECTOR){LEGACY_S16_WRAP_SUB(origin.x, camera->position.x),
 									  LEGACY_S16_WRAP_SUB(origin.y, camera->position.y),
 									  LEGACY_S16_WRAP_SUB(origin.z, camera->position.z)};
-	object.edges = frame_extended_object_sloped(model) && !object.sloped_stunt
+	object.edges = frame_extended_object_sloped(model) && !object.graded
 					   ? frame_extended_hill_edges(track, model->x, model->y)
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
 	legacy_u8 hill_overlay =
-		frame_extended_object_sloped(model) && !object.sloped_stunt && definition->ss_ssOvelay;
+		frame_extended_object_sloped(model) && !object.graded && definition->ss_ssOvelay;
 	for (legacy_u8 part = 0; part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {
 		legacy_u8 overlay = hill_overlay ? part == 0 : part;
 		const struct TRACKOBJECT *render_definition = definition;

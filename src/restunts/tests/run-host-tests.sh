@@ -497,6 +497,7 @@ run_host_test test-owoot-road legacy.c
 run_host_test test-owoot-route owoot_route.c "$test_source_dir/owoot_road.c"
 run_host_test test-extended-native-response physics_collision.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/extended_geometry.c" \
+    "$test_source_dir/trkutil.c" \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -Wno-pointer-sign -Wno-missing-field-initializers
 

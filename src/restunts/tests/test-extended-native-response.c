@@ -13,6 +13,11 @@ enum {
 	TEST_OBJECT_ID = 1,
 	TEST_OBJECT_COUNT = 215,
 	TEST_POINT_COUNT = 13,
+	TEST_ROUTE_VECTOR_COUNT = 3,
+	TEST_TUNNEL_PORTAL_COUNT = 2,
+	TEST_GATE_SLOPE_COMPONENT =
+		(CSTRK_LEVEL_WORLD_HEIGHT * OWOOT_GATE_SCALE + CSTRK_TILE_WORLD_SIZE / 2) /
+		CSTRK_TILE_WORLD_SIZE,
 	TEST_ROTATION_COUNT = 4,
 	TEST_BASE_LEVEL_COUNT = CSTRK_MAX_HEIGHT + 1,
 	TEST_FIRST_POINT_X = -300,
@@ -28,7 +33,7 @@ enum {
 
 struct TRACKOBJECT trkObjectList[TEST_OBJECT_COUNT];
 
-static legacy_int fixture_extended;
+static legacy_int fixture_extended, fixture_lane_edges;
 static struct CSTRK_TRACK fixture_track;
 static struct CSTRK_OBJECT fixture_object;
 static struct TRKOBJINFO fixture_info;
@@ -64,9 +69,26 @@ legacy_s16 get_track_route_point(legacy_s16 piece, struct VECTOR *output, legacy
 {
 	assert(piece == 0 && index >= 0 && index < TEST_POINT_COUNT);
 	(void)speed;
-	for (legacy_u16 point = 0; point < ROUTE_GEOMETRY_POINT_COUNT; point++) {
+	for (legacy_u16 point = 0; point < TEST_ROUTE_VECTOR_COUNT; point++) {
 		output[point] = fixture_sections[index];
+		if (fixture_lane_edges && point) {
+			legacy_s16 lateral = point == 1U ? -ROAD_HALF_WIDTH : ROAD_HALF_WIDTH;
+			legacy_s16 dx = 0, dz = 0;
+			if (trkObjectList[TEST_OBJECT_ID].ss_rotY == ANGLE_QUARTER_TURN) {
+				dz = lateral;
+			} else {
+				dx = lateral;
+			}
+			output[point].x += dx;
+			output[point].z += dz;
+			legacy_s32 rise = (fixture_object.slope_x * dx - fixture_object.slope_y * dz) *
+							  CSTRK_LEVEL_WORLD_HEIGHT;
+			rise += rise < 0 ? -CSTRK_TILE_WORLD_SIZE / 2 : CSTRK_TILE_WORLD_SIZE / 2;
+			output[point].y += (legacy_s16)(rise / CSTRK_TILE_WORLD_SIZE);
+		}
 	}
+	/* The last storage slot carries only the route flag, not a spatial vector. */
+	output[TEST_ROUTE_VECTOR_COUNT].x = 0;
 	return index == TEST_POINT_COUNT - 1;
 }
 
@@ -192,43 +214,70 @@ static void test_native_corkscrew_gates(void)
 static void test_sloped_tunnel_portals(void)
 {
 	static const legacy_s8 slopes[TEST_ROTATION_COUNT][2] = {{0, -1}, {-1, 0}, {0, 1}, {1, 0}};
-	fixture_extended = 1;
-	fixture_track.height = TRACK_GRID_SIZE;
+	fixture_extended = fixture_lane_edges = 1;
+	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
+	fixture_track.version = CSTRK_VERSION;
+	fixture_object.legacy_id = TEST_OBJECT_ID;
 	fixture_object.x = 0;
 	fixture_object.y = TRACK_GRID_LAST_INDEX;
 	fixture_object.width = fixture_object.height = 1;
+	fixture_info.route_point_count = TEST_TUNNEL_PORTAL_COUNT;
 	track_route_element_ids = fixture_elements;
 	track_route_columns = fixture_columns;
 	track_route_rows = fixture_rows;
+	track_route_traversal_flags = fixture_flags;
 	trkObjectList[TEST_OBJECT_ID].ss_physicalModel = PHYSICAL_MODEL_TUNNEL;
+	trkObjectList[TEST_OBJECT_ID].ss_trkObjInfoPtr = &fixture_info;
 	for (legacy_u8 direction = 0; direction < TEST_ROTATION_COUNT; direction++) {
-		fixture_object.legacy_id = direction & 1U ? CSTRK_TUNNEL_LAST_ID : CSTRK_TUNNEL_FIRST_ID;
-		fixture_object.slope_x = slopes[direction][0];
-		fixture_object.slope_y = slopes[direction][1];
-		for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
-			fixture_object.base_height = base + (direction < TEST_ROTATION_COUNT / 2U);
-			for (legacy_s16 portal = 0; portal < 2; portal++) {
+		legacy_u8 along_x = direction & 1U;
+		trkObjectList[TEST_OBJECT_ID].ss_rotY = along_x ? ANGLE_QUARTER_TURN : 0;
+		for (legacy_u8 crosswise = 0; crosswise < TEST_TUNNEL_PORTAL_COUNT; crosswise++) {
+			legacy_u8 slope_direction = (direction + crosswise) % TEST_ROTATION_COUNT;
+			fixture_object.slope_x = slopes[slope_direction][0];
+			fixture_object.slope_y = slopes[slope_direction][1];
+			for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+				fixture_object.base_height =
+					base + (fixture_object.slope_x < 0 || fixture_object.slope_y < 0);
 				struct VECTOR origin;
 				extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
-				struct OWOOT_GATE gate = {0};
-				gate.center = route_vector(&origin);
-				gate.tangent = direction & 1U ? (struct OWOOT_POINT){CSTRK_TILE_WORLD_SIZE, 0, 0}
-											  : (struct OWOOT_POINT){0, 0, CSTRK_TILE_WORLD_SIZE};
-				assert(route_extended_tube_gate(0, portal, 2, &gate));
-				legacy_s16 floor = fixture_object.base_height;
-				if ((direction & 1U) && portal) {
-					floor += fixture_object.slope_x;
-				} else if (!(direction & 1U) && !portal) {
-					floor += fixture_object.slope_y;
+				extended_geometry_set_context(origin.x * OWOOT_POSITION_SCALE,
+											  origin.z * OWOOT_POSITION_SCALE);
+				for (legacy_s16 portal = 0; portal < TEST_TUNNEL_PORTAL_COUNT; portal++) {
+					legacy_s16 coordinate =
+						portal ? CSTRK_TILE_WORLD_SIZE / 2 : -CSTRK_TILE_WORLD_SIZE / 2;
+					legacy_s16 local_x = along_x ? coordinate : 0;
+					legacy_s16 local_z = along_x ? 0 : coordinate;
+					legacy_s32 floor =
+						fixture_object.base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+						(fixture_object.slope_x * (CSTRK_TILE_WORLD_SIZE / 2 + local_x) +
+						 fixture_object.slope_y * (CSTRK_TILE_WORLD_SIZE / 2 - local_z)) *
+							CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+					fixture_sections[portal] =
+						(struct VECTOR){origin.x + local_x, (legacy_s16)floor, origin.z + local_z};
 				}
-				assert(gate.center.y == floor * CSTRK_LEVEL_WORLD_HEIGHT + TUNNEL_HEIGHT / 2);
-				assert(gate.kind == OWOOT_GATE_TUNNEL);
-				assert(gate.tangent.y == 0 && gate.normal.x == 0 && gate.normal.z == 0);
-				assert(gate.normal.y == OWOOT_GATE_SCALE);
-				assert(gate.normal_limit == TUNNEL_HEIGHT / 2 * OWOOT_GATE_SCALE);
+				for (legacy_s16 portal = 0; portal < TEST_TUNNEL_PORTAL_COUNT; portal++) {
+					struct OWOOT_GATE gate = {0};
+					route_gate(0, portal, &gate);
+					assert(gate.center.x == fixture_sections[portal].x);
+					assert(gate.center.z == fixture_sections[portal].z);
+					assert(gate.center.y == fixture_sections[portal].y + TUNNEL_HEIGHT / 2);
+					assert(gate.kind == OWOOT_GATE_TUNNEL);
+					assert(gate.tangent.x == (along_x ? OWOOT_GATE_SCALE : 0));
+					assert(gate.tangent.y == 0);
+					assert(gate.tangent.z == (along_x ? 0 : OWOOT_GATE_SCALE));
+					assert(gate.edge.x == (along_x ? 0 : OWOOT_GATE_SCALE));
+					assert(gate.edge.y == 0);
+					assert(gate.edge.z == (along_x ? -OWOOT_GATE_SCALE : 0));
+					assert(gate.normal.x == -fixture_object.slope_x * TEST_GATE_SLOPE_COMPONENT);
+					assert(gate.normal.y == OWOOT_GATE_SCALE);
+					assert(gate.normal.z == fixture_object.slope_y * TEST_GATE_SLOPE_COMPONENT);
+					assert(gate.lateral_limit == ROAD_HALF_WIDTH * OWOOT_GATE_SCALE);
+					assert(gate.normal_limit == TUNNEL_HEIGHT / 2 * OWOOT_GATE_SCALE);
+				}
 			}
 		}
 	}
+	fixture_lane_edges = 0;
 }
 
 legacy_int main(void)

@@ -7,6 +7,9 @@
 #include "opponent.h"
 #include "externs.h"
 #include "extended_track.h"
+#ifdef RESTUNTS_SDL3
+#include "extended_geometry.h"
+#endif
 
 #define TRACK_GRID_SIZE 30
 #define TRACK_GRID_LAST_INDEX 29
@@ -528,8 +531,17 @@ static legacy_s16 track_setup_backtrack(struct TRACK_SETUP_WALK *walk)
 }
 
 #ifdef RESTUNTS_SDL3
-static legacy_s16 track_setup_extended_base_height(legacy_s8 column, legacy_s8 row)
+static legacy_s16 track_setup_extended_base_height(legacy_s8 column, legacy_s8 row, legacy_u8 id,
+												   const struct VECTOR *local)
 {
+	const struct CSTRK_OBJECT *object =
+		extended_track_object_for_id((legacy_u8)column, (legacy_u8)row, id);
+	if (object) {
+		struct VECTOR origin;
+		extended_geometry_object_origin(extended_track_model(), object, &origin);
+		return LEGACY_S16_WRAP_ADD(origin.y,
+								   extended_geometry_object_grade(object, local->x, local->z));
+	}
 	struct CSTRK_TERRAIN_PROFILE profile;
 	if (!cstrk_terrain_profile(extended_track_model(), (legacy_u16)column, (legacy_u16)row,
 							   &profile)) {
@@ -578,7 +590,8 @@ static void track_setup_place_roadside_sign(struct TRACK_SETUP_WALK *walk, legac
 	if (extended_track_active()) {
 		camera_vector.y = LEGACY_S16_WRAP_ADD(
 			camera_vector.y,
-			track_setup_extended_base_height(walk->previous_column, walk->previous_row));
+			track_setup_extended_base_height(walk->previous_column, walk->previous_row,
+											 walk->previous_tile_element, &camera_vector));
 	} else
 #endif
 		if (track_terrain_map[terrainrows[walk->previous_row] + walk->previous_column] ==
@@ -742,7 +755,8 @@ static void track_setup_place_camera(struct TRACK_SETUP_WALK *walk, legacy_s16 s
 	track_setup_rotate_vector(&camera_vector, walk->orientation);
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		camera_height[camera_index] = track_setup_extended_base_height(walk->column, walk->row);
+		camera_height[camera_index] = track_setup_extended_base_height(
+			walk->column, walk->row, walk->tile_element, &camera_vector);
 	} else
 #endif
 		if (track_terrain_map[terrainrows[walk->row] + walk->column] == 6) {

@@ -1,11 +1,14 @@
 #include "extended_geometry.h"
 #include "trackdata_layout.h"
 #include "track_collision.h"
+#include "track_objects.h"
 #include "gamestate.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define EXTENDED_GEOMETRY_TERMINATOR_BYTES 2U
+#define EXTENDED_GEOMETRY_CATALOG_END 182U
+#define EXTENDED_GEOMETRY_AXIS_COUNT 2U
 
 enum EXTENDED_GEOMETRY_ROAD_MATERIAL {
 	EXTENDED_MATERIAL_PAVED = 19,
@@ -62,19 +65,64 @@ void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 	origin->y = base_height * CSTRK_LEVEL_WORLD_HEIGHT;
 }
 
-legacy_s16 extended_geometry_sloped_stunt(const struct CSTRK_OBJECT *object)
+legacy_s16 extended_geometry_native_hill_id(const struct CSTRK_OBJECT *object,
+											legacy_s16 resolved_id)
 {
-	return object && (object->slope_x || object->slope_y) &&
-		   ((object->legacy_id >= CSTRK_TUNNEL_FIRST_ID &&
-			 object->legacy_id <= CSTRK_TUNNEL_LAST_ID) ||
-			(object->legacy_id >= CSTRK_SLALOM_FIRST_ID &&
-			 object->legacy_id <= CSTRK_SLALOM_LAST_ID));
+	if (!object || (!object->slope_x && !object->slope_y) || (object->slope_x && object->slope_y) ||
+		object->width != 1U || object->height != 1U || resolved_id <= 0 ||
+		(legacy_u16)resolved_id >= EXTENDED_GEOMETRY_CATALOG_END) {
+		return 0;
+	}
+	legacy_u8 terrain;
+	if (object->slope_x) {
+		terrain = object->slope_x > 0 ? CSTRK_TERRAIN_PROFILE_EAST : CSTRK_TERRAIN_PROFILE_WEST;
+	} else {
+		terrain = object->slope_y > 0 ? CSTRK_TERRAIN_PROFILE_SOUTH : CSTRK_TERRAIN_PROFILE_NORTH;
+	}
+	if (trkObjectList[resolved_id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
+		static const legacy_u8 roads[][EXTENDED_GEOMETRY_AXIS_COUNT] = {
+			{4U, 5U}, {14U, 15U}, {24U, 25U}};
+		if (object->surface > CSTRK_ROAD_ICE) {
+			return 0;
+		}
+		legacy_u16 axis = ((legacy_u16)trkObjectList[resolved_id].ss_rotY / ANGLE_QUARTER_TURN) %
+						  EXTENDED_GEOMETRY_AXIS_COUNT;
+		resolved_id = roads[object->surface][axis];
+	}
+	return subst_hillroad_track(terrain, (legacy_u8)resolved_id);
+}
+
+legacy_s16 extended_geometry_uses_grade(const struct CSTRK_OBJECT *object)
+{
+	if (!object || (!object->slope_x && !object->slope_y)) {
+		return 0;
+	}
+	if (object->width != 1U || object->height != 1U || object->legacy_id == 0U ||
+		object->legacy_id >= EXTENDED_GEOMETRY_CATALOG_END) {
+		return 1;
+	}
+	const struct TRACKOBJECT *original = &trkObjectList[object->legacy_id];
+	if (original->ss_physicalModel != PHYSICAL_MODEL_ROAD &&
+		original->ss_physicalModel != PHYSICAL_MODEL_RAMP &&
+		original->ss_physicalModel != PHYSICAL_MODEL_SOLID_RAMP) {
+		return 1;
+	}
+	legacy_u16 angle =
+		((legacy_u16)original->ss_rotY + object->rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+	for (legacy_u16 id = 1U; id < EXTENDED_GEOMETRY_CATALOG_END; id++) {
+		const struct TRACKOBJECT *candidate = &trkObjectList[id];
+		if (candidate->ss_physicalModel == original->ss_physicalModel &&
+			((legacy_u16)candidate->ss_rotY & ANGLE_MASK) == angle) {
+			return extended_geometry_native_hill_id(object, (legacy_s16)id) == 0;
+		}
+	}
+	return 1;
 }
 
 legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
 										  legacy_s16 local_z)
 {
-	if (!extended_geometry_sloped_stunt(object)) {
+	if (!extended_geometry_uses_grade(object)) {
 		return 0;
 	}
 	legacy_s32 x = object->width * (CSTRK_TILE_WORLD_SIZE / 2) + (legacy_s32)local_x;
@@ -89,6 +137,59 @@ legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, leg
 	legacy_s32 rounding = CSTRK_TILE_WORLD_SIZE / 2;
 	rise += rise < 0 ? -rounding : rounding;
 	return (legacy_s16)(rise / CSTRK_TILE_WORLD_SIZE);
+}
+
+/* Directions carry no translation from the object's lowest support corner. */
+static legacy_s16 geometry_grade_delta(const struct CSTRK_OBJECT *object, legacy_s16 x,
+									   legacy_s16 z)
+{
+	legacy_s32 rise = ((legacy_s32)object->slope_x * x - (legacy_s32)object->slope_y * z) *
+					  CSTRK_LEVEL_WORLD_HEIGHT;
+	rise += rise < 0 ? -(CSTRK_TILE_WORLD_SIZE / 2) : CSTRK_TILE_WORLD_SIZE / 2;
+	return (legacy_s16)(rise / CSTRK_TILE_WORLD_SIZE);
+}
+
+void extended_geometry_grade_vector(const struct CSTRK_OBJECT *object, struct VECTOR *direction)
+{
+	if (extended_geometry_uses_grade(object)) {
+		direction->y = LEGACY_S16_WRAP_ADD(
+			direction->y, geometry_grade_delta(object, direction->x, direction->z));
+	}
+}
+
+void extended_geometry_grade_normal(const struct CSTRK_OBJECT *object, struct VECTOR *normal)
+{
+	if (extended_geometry_uses_grade(object)) {
+		normal->x = LEGACY_S16_WRAP_SUB(normal->x, geometry_grade_delta(object, normal->y, 0));
+		normal->z = LEGACY_S16_WRAP_SUB(normal->z, geometry_grade_delta(object, 0, normal->y));
+	}
+}
+
+void extended_geometry_grade_plane(const struct CSTRK_OBJECT *object, struct PLANE *plane)
+{
+	if (!extended_geometry_uses_grade(object)) {
+		return;
+	}
+	legacy_s16 source_length = polarRadius3D(&plane->plane_normal);
+	plane->plane_origin.y = LEGACY_S16_WRAP_ADD(
+		plane->plane_origin.y,
+		extended_geometry_object_grade(object, plane->plane_origin.x, plane->plane_origin.z));
+	extended_geometry_grade_normal(object, &plane->plane_normal);
+	legacy_s16 length = polarRadius3D(&plane->plane_normal);
+	if (source_length > 0 && length > 0) {
+		plane->plane_normal.x =
+			(legacy_s16)((legacy_s32)plane->plane_normal.x * source_length / length);
+		plane->plane_normal.y =
+			(legacy_s16)((legacy_s32)plane->plane_normal.y * source_length / length);
+		plane->plane_normal.z =
+			(legacy_s16)((legacy_s32)plane->plane_normal.z * source_length / length);
+	}
+	/* A plane frame maps its local up axis to the transformed normal. */
+	legacy_s16 across = polarRadius2D(plane->plane_normal.y, plane->plane_normal.z);
+	plane->plane_yz = -polarAngle(plane->plane_normal.x, across);
+	plane->plane_xy = polarAngle(plane->plane_normal.z, plane->plane_normal.y);
+	plane->plane_rotation =
+		*mat_rot_zxy(plane->plane_yz, plane->plane_xy, 0, MATRIX_ROTATION_ORDER_ZXY);
 }
 
 enum EXTENDED_TERRAIN_PLANE {

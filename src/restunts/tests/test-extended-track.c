@@ -435,8 +435,8 @@ static void test_original_hill_roads(void)
 												  original[y][x].surface);
 					}
 				}
-				/* Rotating an otherwise valid hill piece away from its incline
-				 * must fail rather than silently tilting the original model. */
+				/* Old formats do not acquire generalized crosswise placements. */
+				track.version = CSTRK_SLOPED_STUNT_VERSION;
 				track.objects[0].rotation = 1;
 				assert(!extended_track_activate(&track, error, sizeof(error)));
 				extended_track_unload();
@@ -579,7 +579,8 @@ static void test_resource_admission(void)
 	struct CSTRK_OBJECT tunnel = object_at(66, 40, 40);
 	tunnel.slope_x = 1;
 	assert(cstrk_add_object(&track, &tunnel, error, sizeof(error)));
-	/* A tunnel crossing the incline still cannot bank across the hillside. */
+	/* Earlier formats reject a tunnel crossing the incline. */
+	track.version = CSTRK_SLOPED_STUNT_VERSION;
 	assert(!extended_track_activate(&track, error, sizeof(error)));
 	for (unsigned row = 0; row <= 90; row++) {
 		for (unsigned column = 42; column <= 90; column++) {
@@ -700,6 +701,7 @@ static struct VECTOR sample_curved_surface(const struct CSTRK_TRACK *track,
 #define SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT 20
 #define SLOPED_STUNT_TEST_ABOVE_BARRIER_HEIGHT 80
 #define SLOPED_STUNT_TEST_BELOW_GROUND_HEIGHT (-20)
+#define SLOPED_STUNT_PLANE_ROUNDING_TOLERANCE 1
 
 static struct VECTOR sloped_stunt_world(const struct CSTRK_TRACK *track,
 										const struct CSTRK_OBJECT *object, struct VECTOR local)
@@ -763,7 +765,7 @@ static void test_sloped_tunnels_and_slaloms(void)
 						track.corner_heights[corner + track.width + 1U] - object.base_height;
 					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 					activate(&track);
-					assert(extended_geometry_sloped_stunt(&object));
+					assert(extended_geometry_uses_grade(&object));
 					assert(sloped_stunt_wheel_overlaps(&track, &object, 0));
 					assert(!sloped_stunt_wheel_overlaps(&track, &object,
 														SLOPED_STUNT_TEST_BELOW_GROUND_HEIGHT));
@@ -775,11 +777,17 @@ static void test_sloped_tunnels_and_slaloms(void)
 						(void)sample_world(point.x, point.y, point.z);
 						assert(current_surf_type == surface + CAR_SURFACE_PAVED);
 						assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
-						legacy_s16 expected = extended_track_elevation(
-							object.x, object.y, point.x - object.x * CSTRK_TILE_WORLD_SIZE,
-							(track.height - object.y) * CSTRK_TILE_WORLD_SIZE - point.z);
-						assert(selected_height(&point) ==
-							   expected + HILL_TEST_NON_GRASS_HEIGHT_OFFSET);
+						struct VECTOR origin;
+						extended_geometry_object_origin(&track, &object, &origin);
+						legacy_s16 expected = origin.y +
+											  extended_geometry_object_grade(
+												  &object, LEGACY_S16_WRAP_SUB(point.x, origin.x),
+												  LEGACY_S16_WRAP_SUB(point.z, origin.z)) +
+											  HILL_TEST_NON_GRASS_HEIGHT_OFFSET;
+						/* Normal normalization and integer plane projection can differ
+						 * by one unit from the independently rounded vertex height. */
+						assert(abs(selected_height(&point) - expected) <=
+							   SLOPED_STUNT_PLANE_ROUNDING_TOLERANCE);
 						if (kind == 0) {
 							struct VECTOR floor_normal = current_planptr->plane_normal;
 							legacy_s16 floor_height = (legacy_s16)selected_height(&point);
@@ -789,7 +797,18 @@ static void test_sloped_tunnels_and_slaloms(void)
 												along});
 							(void)sample_world(point.x, point.y, point.z);
 							assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
-							assert(selected_height(&point) == floor_height + TUNNEL_HEIGHT);
+							if (selected_height(&point) != floor_height + TUNNEL_HEIGHT) {
+								fprintf(stderr,
+										"Tunnel roof direction %u base %u surface %u: %d vs %d\n",
+										direction, base, surface, selected_height(&point),
+										floor_height + TUNNEL_HEIGHT);
+								fprintf(stderr, "Floor normal %d,%d,%d roof normal %d,%d,%d\n",
+										floor_normal.x, floor_normal.y, floor_normal.z,
+										current_planptr->plane_normal.x,
+										current_planptr->plane_normal.y,
+										current_planptr->plane_normal.z);
+								assert(0);
+							}
 							assert(memcmp(&floor_normal, &current_planptr->plane_normal,
 										  sizeof(floor_normal)) == 0);
 							struct VECTOR inside = sloped_stunt_world(
@@ -838,6 +857,7 @@ static void test_sloped_tunnels_and_slaloms(void)
 						}
 						assert(maximum - minimum > SLOPED_STUNT_TEST_WALL_PROBE_HEIGHT);
 					}
+					track.version = CSTRK_SLOPED_STUNT_VERSION;
 					track.objects[0].rotation = (object.rotation + 1U) % 4U;
 					assert(!extended_track_activate(&track, error, sizeof(error)));
 					extended_track_unload();
@@ -1571,6 +1591,244 @@ static void test_sparse_corner_collision(void)
 	}
 }
 
+#define GENERAL_SLOPE_CATALOG_LIMIT 182U
+#define GENERAL_SLOPE_UNUSED_FIRST_ID 2U
+#define GENERAL_SLOPE_UNUSED_LAST_ID 3U
+#define GENERAL_SLOPE_DIRECTION_COUNT 4U
+#define GENERAL_SLOPE_BASE_HEIGHT 2U
+#define GENERAL_SLOPE_HEIGHT_TOLERANCE 4
+#define GENERAL_SLOPE_WHEEL_HALF_WIDTH 8
+#define GENERAL_SLOPE_WHEEL_HALF_HEIGHT 8
+#define GENERAL_SLOPE_WHEEL_RING_COUNT 4U
+#define GENERAL_SLOPE_ROUTE_VECTOR_COUNT 3U
+#define GENERAL_SLOPE_ROUTE_FIRST_EDGE 1U
+#define GENERAL_SLOPE_ROUTE_SECOND_EDGE 2U
+
+static const legacy_s8 general_slope_directions[GENERAL_SLOPE_DIRECTION_COUNT][2] = {
+	{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+
+static struct CSTRK_OBJECT general_slope_object(legacy_u16 id, legacy_u8 rotation)
+{
+	struct CSTRK_OBJECT object = object_at(id, 0, 0);
+	legacy_u8 flags = (legacy_u8)trkObjectList[id].ss_multiTileFlag;
+	object.width = 1U + ((flags & 2U) != 0U);
+	object.height = 1U + ((flags & 1U) != 0U);
+	object.occupied_mask = (1U << (object.width * object.height)) - 1U;
+	legacy_s16 model = trkObjectList[id].ss_physicalModel;
+	if (model == PHYSICAL_MODEL_LARGE_CORNER || model == PHYSICAL_MODEL_BANKED_CORNER ||
+		model == PHYSICAL_MODEL_ELEVATED_CORNER || model == PHYSICAL_MODEL_LARGE_SPLIT_A ||
+		model == PHYSICAL_MODEL_LARGE_SPLIT_B || model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT ||
+		model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) {
+		object.occupied_mask = sparse_mask_for_id(id);
+	}
+	for (legacy_u8 step = 0; step < rotation; step++) {
+		legacy_u8 mask = 0;
+		for (legacy_u8 y = 0; y < object.height; y++) {
+			for (legacy_u8 x = 0; x < object.width; x++) {
+				if (object.occupied_mask & (1U << (y * object.width + x))) {
+					mask |= 1U << (x * object.height + object.height - 1U - y);
+				}
+			}
+		}
+		legacy_u8 width = object.width;
+		object.width = object.height;
+		object.height = width;
+		object.occupied_mask = mask;
+	}
+	object.rotation = rotation;
+	return object;
+}
+
+static void general_slope_terrain(struct CSTRK_TRACK *track, struct CSTRK_OBJECT *object,
+								  legacy_u8 direction)
+{
+	object->base_height = GENERAL_SLOPE_BASE_HEIGHT;
+	object->slope_x = general_slope_directions[direction][0];
+	object->slope_y = general_slope_directions[direction][1];
+	for (legacy_u8 y = 0; y <= track->height; y++) {
+		for (legacy_u8 x = 0; x <= track->width; x++) {
+			track->corner_heights[y * (track->width + 1U) + x] =
+				object->base_height + object->slope_x * x + object->slope_y * y;
+		}
+	}
+}
+
+static void test_every_element_on_straight_slopes(void)
+{
+	for (legacy_u16 id = 1; id < GENERAL_SLOPE_CATALOG_LIMIT; id++) {
+		if (id >= GENERAL_SLOPE_UNUSED_FIRST_ID && id <= GENERAL_SLOPE_UNUSED_LAST_ID) {
+			continue;
+		}
+		for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 direction = 0; direction < GENERAL_SLOPE_DIRECTION_COUNT; direction++) {
+				struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+				object.surface = (id + rotation + direction) % 3U;
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+				general_slope_terrain(&track, &object, direction);
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				if (!extended_track_activate(&track, error, sizeof(error))) {
+					fprintf(stderr, "Slope admission ID %u rotation %u direction %u: %s\n", id,
+							rotation, direction, error);
+					assert(0);
+				}
+				const struct CSTRK_OBJECT *active = &extended_track_model()->objects[0];
+				assert(extended_track_object_id(active) != 0U);
+				extended_track_unload();
+				cstrk_free(&track);
+			}
+		}
+	}
+}
+
+static struct VECTOR general_slope_world(const struct CSTRK_TRACK *track,
+										 const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	const struct CSTRK_OBJECT *active = &extended_track_model()->objects[0];
+	legacy_u16 id = (legacy_u16)extended_track_object_id(active);
+	legacy_s16 x = local.x, z = local.z;
+	switch ((legacy_u16)trkObjectList[id].ss_rotY & ANGLE_MASK) {
+		case ANGLE_QUARTER_TURN:
+			local.x = z;
+			local.z = LEGACY_S16_WRAP_NEGATE(x);
+			break;
+		case ANGLE_HALF_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(x);
+			local.z = LEGACY_S16_WRAP_NEGATE(z);
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(z);
+			local.z = x;
+			break;
+	}
+	local.y =
+		LEGACY_S16_WRAP_ADD(local.y, extended_geometry_object_grade(object, local.x, local.z));
+	return object_world(track, object, local);
+}
+
+static void general_slope_route_vectors(struct VECTOR output[ROUTE_GEOMETRY_POINT_COUNT])
+{
+	const struct CSTRK_OBJECT *active = &extended_track_model()->objects[0];
+	track_pieces_counter = 1;
+	track_route_columns[0] = active->x;
+	track_route_rows[0] = active->y;
+	track_route_element_ids[0] = (legacy_s8)extended_track_object_id(active);
+	track_route_traversal_flags[0] = 0;
+	(void)get_track_route_point(0, output, 0, NULL);
+}
+
+static void general_slope_wheel(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
+								struct VECTOR local)
+{
+	static const legacy_s16 offsets[GENERAL_SLOPE_WHEEL_RING_COUNT][2] = {
+		{-GENERAL_SLOPE_WHEEL_HALF_WIDTH, -GENERAL_SLOPE_WHEEL_HALF_WIDTH},
+		{GENERAL_SLOPE_WHEEL_HALF_WIDTH, -GENERAL_SLOPE_WHEEL_HALF_WIDTH},
+		{GENERAL_SLOPE_WHEEL_HALF_WIDTH, GENERAL_SLOPE_WHEEL_HALF_WIDTH},
+		{-GENERAL_SLOPE_WHEEL_HALF_WIDTH, GENERAL_SLOPE_WHEEL_HALF_WIDTH}};
+	struct VECTOR vertices[GENERAL_SLOPE_WHEEL_RING_COUNT * 2U];
+	for (legacy_u8 ring = 0; ring < 2U; ring++) {
+		for (legacy_u8 point = 0; point < GENERAL_SLOPE_WHEEL_RING_COUNT; point++) {
+			struct VECTOR vertex = local;
+			vertex.x += offsets[point][0];
+			vertex.z += offsets[point][1];
+			vertex.y += ring ? GENERAL_SLOPE_WHEEL_HALF_HEIGHT : -GENERAL_SLOPE_WHEEL_HALF_HEIGHT;
+			vertices[ring * GENERAL_SLOPE_WHEEL_RING_COUNT + point] =
+				general_slope_world(track, object, vertex);
+		}
+	}
+	assert(track_road_overlaps_wheel(vertices, GENERAL_SLOPE_WHEEL_RING_COUNT, 0));
+}
+
+static void test_general_slope_collision_and_routes(void)
+{
+	static const legacy_u16 ids[] = {11U, 53U, 106U, 64U, 68U, 101U, 159U};
+	static const struct VECTOR probes[] = {{40, 0, 40},		 {40, 0, 40},	{40, 450, 40},
+										   {-200, 200, 300}, {57, 35, 150}, {0, 450, 0},
+										   {0, 80, 0}};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+			struct CSTRK_OBJECT object = general_slope_object(ids[kind], rotation);
+			object.surface = (kind + rotation) % 3U;
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			activate(&track);
+			struct VECTOR point = general_slope_world(&track, &object, probes[kind]);
+			(void)sample_world(point.x, point.y, point.z);
+			legacy_s16 surface = current_surf_type;
+			legacy_s16 wall = wallindex;
+			legacy_s16 height = (legacy_s16)selected_height(&point);
+			struct VECTOR flat_origin;
+			extended_geometry_object_origin(&track, &object, &flat_origin);
+			struct VECTOR baseline[ROUTE_GEOMETRY_POINT_COUNT];
+			legacy_s16 road = trkObjectList[ids[kind]].ss_trkObjInfoPtr != NULL;
+			if (road) {
+				general_slope_route_vectors(baseline);
+			}
+			extended_track_unload();
+			for (legacy_u8 direction = 0; direction < GENERAL_SLOPE_DIRECTION_COUNT; direction++) {
+				general_slope_terrain(&track, &object, direction);
+				track.objects[0] = object;
+				activate(&track);
+				point = general_slope_world(&track, &object, probes[kind]);
+				(void)sample_world(point.x, point.y, point.z);
+				assert(current_surf_type == surface);
+				assert(wallindex == wall);
+				struct VECTOR origin;
+				extended_geometry_object_origin(&track, &object, &origin);
+				legacy_s16 grade =
+					extended_geometry_object_grade(&object, LEGACY_S16_WRAP_SUB(point.x, origin.x),
+												   LEGACY_S16_WRAP_SUB(point.z, origin.z));
+				legacy_s16 expected_height = height + origin.y + grade;
+				if (abs(selected_height(&point) - expected_height) >
+					GENERAL_SLOPE_HEIGHT_TOLERANCE) {
+					fprintf(stderr, "Slope collision ID %u rotation %u direction %u: %d vs %d\n",
+							ids[kind], rotation, direction, selected_height(&point),
+							expected_height);
+					assert(0);
+				}
+				if (road) {
+					struct VECTOR transformed[ROUTE_GEOMETRY_POINT_COUNT];
+					general_slope_route_vectors(transformed);
+					for (legacy_u8 vertex = 0; vertex < GENERAL_SLOPE_ROUTE_VECTOR_COUNT;
+						 vertex++) {
+						legacy_s16 x = LEGACY_S16_WRAP_SUB(baseline[vertex].x, flat_origin.x);
+						legacy_s16 z = LEGACY_S16_WRAP_SUB(baseline[vertex].z, flat_origin.z);
+						legacy_s16 expected = baseline[vertex].y + origin.y +
+											  extended_geometry_object_grade(&object, x, z);
+						if (vertex == 0) {
+							/* The route center averages the rounded edge heights. */
+							expected = (transformed[GENERAL_SLOPE_ROUTE_FIRST_EDGE].y +
+										transformed[GENERAL_SLOPE_ROUTE_SECOND_EDGE].y) /
+									   2;
+						}
+						assert(transformed[vertex].x == baseline[vertex].x);
+						assert(transformed[vertex].z == baseline[vertex].z);
+						if (transformed[vertex].y != expected) {
+							fprintf(
+								stderr,
+								"Slope route ID %u rotation %u direction %u vertex %u: %d vs %d\n",
+								ids[kind], rotation, direction, vertex, transformed[vertex].y,
+								expected);
+							assert(0);
+						}
+					}
+				}
+				/* Mesh and collision road agree at the approach of each piece. */
+				if (kind < 3U || ids[kind] == 101U) {
+					struct VECTOR tire = probes[kind];
+					tire.y = height;
+					general_slope_wheel(&track, &object, tire);
+				}
+				extended_track_unload();
+			}
+			cstrk_free(&track);
+		}
+	}
+}
+
 struct PATH_CELL {
 	uint8_t x, y;
 };
@@ -1698,6 +1956,8 @@ int main(void)
 	test_native_mesh_rotations();
 	test_world_coordinates_and_surfaces();
 	test_raised_stunt_and_snapshot();
+	test_every_element_on_straight_slopes();
+	test_general_slope_collision_and_routes();
 	test_nonclassic_terrain_is_rejected();
 	test_original_hill_terrain();
 	test_original_hill_roads();

@@ -14,7 +14,6 @@
 #define OWOOT_HILL_ROAD_MODEL 36U
 #define OWOOT_ROAD_TILE_OVERHANG 8
 #define OWOOT_SLALOM_BARRIER_VERTEX_COUNT 4U
-#define OWOOT_ROAD_TRIANGLE_VERTEX_COUNT 3U
 
 struct OWOOT_ROAD_TRIANGLE {
 	struct VECTOR vertex[3];
@@ -35,6 +34,32 @@ struct OWOOT_PROJECTED_POINT {
  * integer operations on 8086 as well as native host compilers. */
 
 #include "owoot_road_data.h"
+
+#ifdef RESTUNTS_SDL3
+legacy_u16 track_road_triangle_count(legacy_s16 physical_model)
+{
+	if (physical_model < 0 ||
+		(legacy_u16)physical_model >= sizeof(owoot_road_models) / sizeof(owoot_road_models[0])) {
+		return 0;
+	}
+	return owoot_road_models[physical_model].triangle_count;
+}
+
+legacy_s16 track_road_triangle(legacy_s16 physical_model, legacy_u16 index,
+							   struct VECTOR vertices[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT])
+{
+	if (!vertices || index >= track_road_triangle_count(physical_model)) {
+		return 0;
+	}
+	const struct OWOOT_ROAD_MODEL *geometry = &owoot_road_models[physical_model];
+	const struct OWOOT_ROAD_TRIANGLE far *triangle =
+		&owoot_road_triangles[geometry->first_triangle + index];
+	for (legacy_u8 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
+		vertices[vertex] = triangle->vertex[vertex];
+	}
+	return 1;
+}
+#endif
 
 static legacy_s64 road_cross(const struct OWOOT_PROJECTED_POINT *a,
 							 const struct OWOOT_PROJECTED_POINT *b,
@@ -551,7 +576,8 @@ static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT 
 	if (model < 0 || model > PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 		return 0;
 	}
-	if (model == PHYSICAL_MODEL_ROAD && (placed->slope_x || placed->slope_y)) {
+	if (model == PHYSICAL_MODEL_ROAD && (placed->slope_x || placed->slope_y) &&
+		!extended_geometry_uses_grade(placed)) {
 		model = OWOOT_HILL_ROAD_MODEL;
 	}
 	struct VECTOR origin, local[OWOOT_WHEEL_VERTEX_MAX];
@@ -560,7 +586,7 @@ static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT 
 		local[index] = (struct VECTOR){LEGACY_S16_WRAP_SUB(vertices[index].x, origin.x),
 									   LEGACY_S16_WRAP_SUB(vertices[index].y, origin.y),
 									   LEGACY_S16_WRAP_SUB(vertices[index].z, origin.z)};
-		if (extended_geometry_sloped_stunt(placed)) {
+		if (extended_geometry_uses_grade(placed)) {
 			local[index].y = LEGACY_S16_WRAP_SUB(
 				local[index].y,
 				extended_geometry_object_grade(placed, local[index].x, local[index].z));

@@ -171,34 +171,84 @@ test('terrain edits produce only original profiles and resolve diagonal islands 
         doc.raise(x, y, random & 1 ? 1 : -1); assertProfiles();
     }
 });
-test('hill placement admits aligned roads, ramps, tunnels and slaloms in every direction and level', () => {
-    const maximumLevel = 4, tileCount = 4, target = 1;
-    for (let base = 0; base < maximumLevel; base++) for (let terrain = 7; terrain <= 10; terrain++) {
-        const doc = new model.Document(tileCount, tileCount);
-        for (let y = 0; y <= tileCount; y++) for (let x = 0; x <= tileCount; x++) {
-            const raised = terrain === 7 ? y <= target : terrain === 8 ? x <= target : terrain === 9 ? y > target : x > target;
-            doc.vertices[y * (tileCount + 1) + x] = base + raised;
+const SLOPE_TEST_SIZE = 4, SLOPE_TEST_ORIGIN = 1, SLOPE_MAX_LEVEL = 4;
+const SLOPE_DIRECTIONS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+const SLOPE_PLACEMENT_ERROR = /flat ground|straight slope|original hill|support plane/;
+function slopeDocument(footprint, slopeX, slopeY, low = 0) {
+    const doc = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
+    const span = slopeX ? footprint.width : footprint.height, grade = slopeX || slopeY;
+    for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++) {
+        const distance = (slopeX ? x : y) - SLOPE_TEST_ORIGIN;
+        const rise = Math.max(0, Math.min(span, distance));
+        doc.vertices[y * (doc.width + 1) + x] = low + (grade > 0 ? rise : span - rise);
+    }
+    return doc;
+}
+test('every library family fits straight slopes in every element and slope direction', () => {
+    for (const entry of model.library) for (let direction = 0; direction < SLOPE_DIRECTIONS.length; direction++) {
+        const { piece, rotation } = model.pieceVariant(entry, direction), footprint = model.rotatedFootprint(piece, rotation);
+        for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) for (const surface of model.SURFACES.keys()) {
+            const doc = slopeDocument(footprint, slopeX, slopeY), before = doc.snapshot();
+            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0);
+            assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
+            assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
+            assert.equal(object.baseHeight, slopeX + slopeY > 0 ? 0 : slopeX ? footprint.width : footprint.height);
+            assert.deepEqual(doc.validate(), [], entry.name);
+            const placed = doc.snapshot();
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), placed);
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+            assert.throws(() => doc.raise(SLOPE_TEST_ORIGIN + 1, SLOPE_TEST_ORIGIN + 1), /bend/);
+            assert.deepEqual(doc.snapshot(), placed, 'a rejected support change is atomic');
         }
-        assert.equal(model.terrainProfile(doc.tileHeights(target, target)).terrain, terrain);
-        for (const entry of model.catalog) for (let rotation = 0; rotation < 4; rotation++) {
-            const direction = (entry.rotation + rotation) % 4;
-            const alignedRoad = entry.physical === 1 && direction % 2 === (terrain === 7 || terrain === 9 ? 0 : 1);
-            const alignedStunt = [28, 34].includes(entry.physical) && direction % 2 === (terrain === 7 || terrain === 9 ? 0 : 1);
-            const matchingRamp = (entry.physical === 16 || entry.physical === 17) && direction === [2, 1, 0, 3][terrain - 7];
-            for (const surface of entry.surfaces) {
-                if (alignedRoad || alignedStunt || matchingRamp) {
-                    const object = doc.place(entry.id, target, target, surface, rotation);
-                    assert.deepEqual(doc.validate(), []);
-                    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
-                    assert.equal(object.baseHeight, doc.tileHeights(target, target)[0]);
-                    doc.objects = [];
-                } else assert.throws(() => doc.place(entry.id, target, target, surface, rotation), /original hill/);
+    }
+});
+test('straight slope support reaches each legal elevation without changing a multi-tile grade', () => {
+    for (const id of [1, 11, 53, 60, 64, 87, 106, 151]) for (let rotation = 0; rotation < SLOPE_DIRECTIONS.length; rotation++) {
+        const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, rotation);
+        for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) {
+            const span = slopeX ? footprint.width : footprint.height;
+            for (let low = 0; low <= SLOPE_MAX_LEVEL - span; low++) {
+                const doc = slopeDocument(footprint, slopeX, slopeY, low);
+                const object = doc.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, 1, rotation);
+                assert.equal(object.baseHeight, low + (slopeX + slopeY < 0 ? span : 0));
+                assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
+                assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
             }
         }
     }
+});
+test('claimed cells still reject hill corners and discontinuous or changing slope planes', () => {
     for (const heights of [[1, 0, 0, 0], [0, 1, 1, 1]]) {
         const doc = new model.Document(1, 1); doc.vertices.set([heights[0], heights[1], heights[3], heights[2]]);
-        for (const id of [4, 38, 66, 151]) assert.throws(() => doc.place(id, 0, 0), /original hill/);
+        for (const id of [1, 4, 7, 38, 66, 151]) assert.throws(() => doc.place(id, 0, 0), SLOPE_PLACEMENT_ERROR);
+    }
+    for (const heightAtVertex of [(x, y) => Math.max(x, y), x => Math.abs(x - 2), x => Math.min(x, 2)]) {
+        const doc = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
+        for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++)
+            doc.vertices[y * (doc.width + 1) + x] = heightAtVertex(x, y);
+        assert.deepEqual(doc.validate(), [], 'the terrain is valid before placing a rigid piece');
+        assert.throws(() => doc.place(11, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN), SLOPE_PLACEMENT_ERROR);
+    }
+});
+test('new slope placements require v6 while supported older tracks upgrade before editing', () => {
+    const examples = [[1, 1, 0], [7, 1, 0], [11, 1, 0], [53, 0, -1], [66, 1, 0], [87, -1, 0], [151, 0, 1]];
+    for (const [id, slopeX, slopeY] of examples) {
+        const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, 0);
+        const source = slopeDocument(footprint, slopeX, slopeY), placed = source.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
+        const encoded = model.encodeCstrk(source);
+        for (const version of [3, 4, 5]) {
+            const invalid = encoded.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+            assert.throws(() => model.decodeCstrk(invalid), /version v6/, entry.name);
+            source.version = version; source.objects = [placed];
+            assert.throws(() => model.encodeCstrk(source), /version v6/, entry.name);
+            source.objects = [];
+            assert.throws(() => source.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN), /version v6/, entry.name);
+            const loaded = model.decodeCstrk(model.encodeCstrk(source));
+            assert.equal(loaded.version, model.VERSION);
+            loaded.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(loaded)).snapshot(), loaded.snapshot());
+        }
     }
 });
 test('original hill propagation is identical when the entire edit sequence is rotated', () => {
@@ -459,7 +509,7 @@ test('loading former turn and branch masks releases only their newly reusable co
         }
     }
 });
-test('large elements require level support throughout their occupied cells', () => {
+test('large elements accept continuous straight support and reject a change of grade', () => {
     const doc = new model.Document(8, 8);
     doc.vertices.fill(2);
     const object = doc.place(11, 0, 2, 2); assert.equal(object.baseHeight, 2);
@@ -467,14 +517,16 @@ test('large elements require level support throughout their occupied cells', () 
     assert.deepEqual(doc.validate(), []);
     doc.objects = [];
     for (let y = 0; y <= 8; y++) for (let x = 0; x <= 8; x++) doc.vertices[y * 9 + x] = Math.min(x, 4);
-    assert.throws(() => doc.place(11, 0, 2, 2), /original hill/);
-    assert.throws(() => doc.place(11, 3, 4), /original hill/);
+    const inclined = doc.place(11, 0, 2, 2);
+    assert.equal(inclined.baseHeight, 0); assert.equal(inclined.slopeX, 1); assert.equal(inclined.slopeY, 0);
+    doc.objects = [];
+    assert.throws(() => doc.place(11, 3, 4), SLOPE_PLACEMENT_ERROR);
 });
 test('unsupported diagonal planes and saddles are rejected when opening tracks', () => {
     const doc = new model.Document(2, 2);
     const encoded = model.encodeCstrk(doc), headerSize = 32;
     for (let y = 0; y <= 2; y++) for (let x = 0; x <= 2; x++) doc.vertices[y * 3 + x] = x + y;
-    assert.throws(() => doc.place(4, 0, 0), /original hill/);
+    assert.throws(() => doc.place(4, 0, 0), SLOPE_PLACEMENT_ERROR);
     assert.throws(() => model.encodeCstrk(doc), /original/);
     encoded.set(doc.vertices, headerSize);
     assert.throws(() => model.decodeCstrk(encoded), /original/);
@@ -869,7 +921,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 5); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 6); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);

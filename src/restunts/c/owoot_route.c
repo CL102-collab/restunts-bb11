@@ -13,6 +13,7 @@
 #define OWOOT_POSITION_SCALE 64L
 #define OWOOT_ROUTE_SUBTYPE_MASK 15U
 #define OWOOT_ROUTE_REVERSE_FLAG 16U
+#define OWOOT_ROUTE_VECTOR_COUNT 3U
 #define OWOOT_GATE_SCALE 256L
 #define OWOOT_FRACTION_BITS 10U
 #define OWOOT_FRACTION_SCALE (1L << OWOOT_FRACTION_BITS)
@@ -287,6 +288,32 @@ static legacy_s16 route_tires_occupy_piece(legacy_s16 piece, const struct OWOOT_
 	return 0;
 }
 
+/* Gate construction uses the authored geometry. Its plane constraints are
+ * transformed together after the intrinsic tube, loop or corkscrew shape. */
+static void route_geometry_points(legacy_s16 piece, struct VECTOR *output, legacy_s16 index,
+								  legacy_s8 *optional_speed)
+{
+	get_track_route_point(piece, output, index, optional_speed);
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
+			(legacy_u8)track_route_element_ids[piece]);
+		if (extended_geometry_uses_grade(placed)) {
+			struct VECTOR origin;
+			extended_geometry_object_origin(extended_track_model(), placed, &origin);
+			/* The fourth storage slot contains a flag, not a route vector. */
+			for (legacy_u16 point = 0; point < OWOOT_ROUTE_VECTOR_COUNT; point++) {
+				output[point].y = LEGACY_S16_WRAP_SUB(
+					output[point].y, extended_geometry_object_grade(
+										 placed, LEGACY_S16_WRAP_SUB(output[point].x, origin.x),
+										 LEGACY_S16_WRAP_SUB(output[point].z, origin.z)));
+			}
+		}
+	}
+#endif
+}
+
 #ifdef RESTUNTS_SDL3
 static const struct CSTRK_OBJECT *route_extended_object(legacy_s16 piece)
 {
@@ -372,10 +399,6 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 			gate->center.z = gate->tangent.z * sign > 0 ? 512 : -512;
 		}
 	}
-	if (extended_geometry_sloped_stunt(placed)) {
-		gate->center.y += extended_geometry_object_grade(placed, (legacy_s16)gate->center.x,
-														 (legacy_s16)gate->center.z);
-	}
 	route_extended_place_gate(gate, &origin);
 	return 1;
 }
@@ -396,7 +419,7 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	}
 	struct VECTOR section[ROUTE_GEOMETRY_POINT_COUNT];
 	for (int point = 0; point < count; point++) {
-		get_track_route_point(piece, section, (legacy_s16)point, 0);
+		route_geometry_points(piece, section, (legacy_s16)point, 0);
 		struct OWOOT_POINT world = route_vector(&section[0]);
 		struct OWOOT_POINT local = route_extended_unplace(&world, &origin);
 		if (!point) {
@@ -527,11 +550,11 @@ static legacy_s16 route_corkscrew_gate(legacy_s16 piece, legacy_s16 index, struc
 #endif
 	struct VECTOR first[ROUTE_GEOMETRY_POINT_COUNT], last[ROUTE_GEOMETRY_POINT_COUNT],
 		section[ROUTE_GEOMETRY_POINT_COUNT];
-	get_track_route_point(piece, first, 0, 0);
-	get_track_route_point(piece, last, count - 1, 0);
+	route_geometry_points(piece, first, 0, 0);
+	route_geometry_points(piece, last, count - 1, 0);
 	legacy_s32 highest = first[0].y;
 	for (legacy_s16 point = 1; point < count; point++) {
-		get_track_route_point(piece, section, point, 0);
+		route_geometry_points(piece, section, point, 0);
 		if (section[0].y > highest) {
 			highest = section[0].y;
 		}
@@ -575,7 +598,7 @@ static legacy_s16 route_corkscrew_gate(legacy_s16 piece, legacy_s16 index, struc
 /* Use the existing edge vectors, including their reverse paths and world
  * rotations. The guidance cursor is intentionally not used: it can recover
  * directly to a later point after a shortcut. */
-static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *gate)
+static void route_authored_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *gate)
 {
 	struct VECTOR section[ROUTE_GEOMETRY_POINT_COUNT], before[ROUTE_GEOMETRY_POINT_COUNT],
 		after[ROUTE_GEOMETRY_POINT_COUNT];
@@ -587,9 +610,9 @@ static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *ga
 		 * The AI's narrow middle lane is not a separate physical obstacle. */
 		index *= count - 1;
 	}
-	get_track_route_point(piece, section, index, 0);
-	get_track_route_point(piece, before, index == 0 ? index : index - 1, 0);
-	get_track_route_point(piece, after, index + 1 == count ? index : index + 1, 0);
+	route_geometry_points(piece, section, index, 0);
+	route_geometry_points(piece, before, index == 0 ? index : index - 1, 0);
+	route_geometry_points(piece, after, index + 1 == count ? index : index + 1, 0);
 	gate->kind = section[0].y != ROUTE_POINT_HEIGHT_UNSPECIFIED ? OWOOT_GATE_ROAD_SURFACE
 																: OWOOT_GATE_FLAT_LANE;
 	gate->center = route_vector(&section[0]);
@@ -628,8 +651,8 @@ static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *ga
 		/* Entry and exit are flat fans perpendicular to the cylinder axis;
 		 * the adjacent AI point already starts to spiral. Its rising tangent
 		 * would move the entry plane backward for an airborne approach. */
-		get_track_route_point(piece, before, 0, 0);
-		get_track_route_point(piece, after, count - 1, 0);
+		route_geometry_points(piece, before, 0, 0);
+		route_geometry_points(piece, after, count - 1, 0);
 		first = route_vector(&before[0]);
 		second = route_vector(&after[0]);
 		gate->tangent = route_delta(&second, &first);
@@ -671,6 +694,33 @@ static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *ga
 		 * vectors describe only its preferred narrow line through that fan. */
 		gate->lateral_limit = ROAD_HALF_WIDTH * (route_abs(gate->edge.x) + route_abs(gate->edge.z));
 	}
+}
+
+static void route_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT_GATE *gate)
+{
+	route_authored_gate(piece, index, gate);
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed = route_extended_object(piece);
+		if (extended_geometry_uses_grade(placed)) {
+			struct OWOOT_POINT origin = route_extended_origin(placed);
+			gate->center.y +=
+				extended_geometry_object_grade(placed, (legacy_s16)(gate->center.x - origin.x),
+											   (legacy_s16)(gate->center.z - origin.z));
+			struct OWOOT_POINT *constraints[] = {&gate->tangent, &gate->edge, &gate->normal};
+			for (legacy_u16 constraint = 0;
+				 constraint < sizeof(constraints) / sizeof(constraints[0]); constraint++) {
+				struct VECTOR normal = {(legacy_s16)constraints[constraint]->x,
+										(legacy_s16)constraints[constraint]->y,
+										(legacy_s16)constraints[constraint]->z};
+				extended_geometry_grade_normal(placed, &normal);
+				constraints[constraint]->x = normal.x;
+				constraints[constraint]->y = normal.y;
+				constraints[constraint]->z = normal.z;
+			}
+		}
+	}
+#endif
 }
 
 static legacy_s32 route_gate_distance(const struct OWOOT_GATE *gate,
