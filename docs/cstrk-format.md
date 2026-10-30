@@ -167,17 +167,24 @@ top-right and bottom-left cells, leaving bottom-right available for another
 object such as a decoration. Only claimed cells participate in overlap checks.
 Every object must fit completely inside the map, including unclaimed cells in
 its footprint rectangle. At most one object may claim each cell.
+Big turns, banked turns and elevated turns claim their two opposite road cells,
+leaving both inside and outside corners available. Chicanes also claim two
+opposite cells. Large branches left and right claim three cells, leaving their
+inside corner available. The game also accepts former three-cell turn masks and
+full four-cell branch masks; the editor updates these masks when opening a track.
 
 The support metadata at local terrain corner `(dx,dy)` is
-`base_height + slope_x*dx + slope_y*dy`. Every corner throughout the footprint
-rectangle, including corners around unclaimed cells, must exactly equal this
-plane and remain within 0–4. Ordinary pieces require a flat footprint at one
-constant elevation. Inclines accept one-tile pieces approved by the original
+`base_height + slope_x*dx + slope_y*dy`. Every corner touching a claimed cell
+must exactly equal this plane and remain within 0–4. A corner belonging only to
+unclaimed cells may differ, allowing raised or lowered hill corners beside a
+flat road. The base height describes the support plane even when the footprint's
+top-left corner is unclaimed and has a different terrain height. Ordinary pieces
+require flat support at one constant elevation. Inclines accept one-tile pieces approved by the original
 hill-road substitution table: an aligned straight road or a compatible ramp
 variant. Revision v5 also accepts tunnels (IDs 66 and 67) and slaloms (IDs 115
 and 116) on the same straight inclines when their road direction follows the
-slope. A sloped record has exactly one nonzero slope axis. Hill-corner terrain
-and crosswise stunt placements remain invalid. An explicit v3 or v4 export
+slope. A sloped record has exactly one nonzero slope axis. Claimed cells on
+hill-corner terrain and crosswise stunt placements remain invalid. An explicit v3 or v4 export
 rejects sloped tunnels and slaloms.
 
 For original hill-road pieces, the game substitutes the original full-tile
@@ -200,7 +207,7 @@ the runtime resolves approved hill pieces to these models internally. All road
 and stunt pieces accept paved, dirt and ice surfaces, including loops, pipe
 entrances, pipes and half pipes. Scenery accepts all surface values but ignores
 this field; new scenery placements use paved `0`. Turns, branches, highways,
-other stunts and scenery require flat ground throughout their footprint. These
+other stunts and scenery require flat ground beneath their claimed cells. These
 catalog rules are checked by the editor and game in addition to the storage codec's
 structural validation. Free-form saddles, two-level diagonal cells and unsupported
 tilted pieces are invalid.

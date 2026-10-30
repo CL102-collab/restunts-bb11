@@ -28,7 +28,7 @@ test('directions select native artwork and rotate remaining symmetric variations
     assert.equal(southLoop.piece.id, 64); assert.equal(southLoop.rotation, 2);
     const eastTurn = model.pieceVariant(piece(11), 1);
     assert.equal(eastTurn.piece.id, 13); assert.equal(eastTurn.rotation, 0);
-    assert.deepEqual(model.rotatedFootprint(eastTurn.piece, eastTurn.rotation), { width: 2, height: 2, mask: 14 });
+    assert.deepEqual(model.rotatedFootprint(eastTurn.piece, eastTurn.rotation), { width: 2, height: 2, mask: 6 });
 });
 test('symmetric pieces share canonical artwork without changing saved placement', () => {
     const symmetricExamples = [4, 64, 66, 68, 83, 34, 103, 99, 101, 109, 115, 61, 60, 85];
@@ -380,20 +380,86 @@ test('failed edits roll back atomically, including cancelled drag strokes', () =
     assert.throws(() => doc.raise(3, 3), /bend/); assert.deepEqual(doc.snapshot(), before);
     doc.beginTransaction(); doc.paint(0, 0, 2); doc.cancelTransaction(); assert.deepEqual(doc.snapshot(), before);
 });
-test('decorations use empty corner cells of large turns, banked turns, chicanes and elevated turns', () => {
-    for (const id of [10, 11, 12, 13, 52, 53, 54, 55, 60, 61, 62, 63, 105, 106, 107, 108]) {
-        for (let rotation = 0; rotation < 4; rotation++) {
-            const doc = new model.Document(4, 4), object = doc.place(id, 1, 1, 0, rotation);
-            const occupied = new Set(model.occupied(object).map(([x, y]) => y * 4 + x));
-            for (let y = 1; y <= 2; y++) for (let x = 1; x <= 2; x++) {
-                if (occupied.has(y * 4 + x)) assert.throws(() => doc.place(151, x, y), /occupied/);
-                else doc.place(151, x, y);
-            }
+const SPARSE_TURN_MODELS = new Set([3, 4, 5, 21, 26]);
+const SPARSE_BRANCH_MODELS = new Set([8, 9]);
+const SPARSE_TILE_COUNT = 2, SPARSE_TILE_ORIGIN = 1, SPARSE_TEST_MAP_SIZE = 4;
+function freeCornerCells(footprint) {
+    const cells = [];
+    for (let y = 0; y < footprint.height; y++) for (let x = 0; x < footprint.width; x++)
+        if (!(footprint.mask & (1 << (y * footprint.width + x)))) cells.push([x, y]);
+    return cells;
+}
+function freeCornerVertex([x, y], origin = SPARSE_TILE_ORIGIN) {
+    return [origin + x * SPARSE_TILE_COUNT, origin + y * SPARSE_TILE_COUNT];
+}
+test('turns, chicanes and large branches share free corners with roads in either placement order', () => {
+    const entries = model.catalog.filter(entry => SPARSE_TURN_MODELS.has(entry.physical) || SPARSE_BRANCH_MODELS.has(entry.physical));
+    for (const entry of entries) for (let rotation = 0; rotation < 4; rotation++) {
+        const footprint = model.rotatedFootprint(entry, rotation), free = freeCornerCells(footprint);
+        assert.equal(free.length, SPARSE_BRANCH_MODELS.has(entry.physical) ? 1 : 2, entry.name);
+        for (const roadFirst of [false, true]) {
+            const doc = new model.Document(SPARSE_TEST_MAP_SIZE, SPARSE_TEST_MAP_SIZE);
+            const placeRoads = () => free.forEach(([x, y]) => doc.place(4, SPARSE_TILE_ORIGIN + x, SPARSE_TILE_ORIGIN + y));
+            if (roadFirst) placeRoads();
+            const object = doc.place(entry.id, SPARSE_TILE_ORIGIN, SPARSE_TILE_ORIGIN, 2, rotation);
+            if (!roadFirst) placeRoads();
+            for (const [x, y] of model.occupied(object)) assert.throws(() => doc.place(151, x, y), /occupied/);
             assert.deepEqual(doc.validate(), []);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
         }
     }
 });
-test('large elements require a flat plateau across their entire footprint', () => {
+test('both free turn corners support raised and lowered hill corners at every elevation', () => {
+    const maximumLevel = 4, entries = model.catalog.filter(entry => SPARSE_TURN_MODELS.has(entry.physical) && entry.legacySurface === 0);
+    for (const entry of entries) for (let rotation = 0; rotation < 4; rotation++) {
+        const footprint = model.rotatedFootprint(entry, rotation), free = freeCornerCells(footprint);
+        for (let base = 0; base <= maximumLevel; base++) for (const delta of [-1, 1]) {
+            if (base + delta < 0 || base + delta > maximumLevel) continue;
+            const doc = new model.Document(SPARSE_TEST_MAP_SIZE, SPARSE_TEST_MAP_SIZE);
+            doc.vertices.fill(base);
+            const object = doc.place(entry.id, SPARSE_TILE_ORIGIN, SPARSE_TILE_ORIGIN, 1, rotation);
+            const before = doc.snapshot();
+            doc.beginTransaction('Hill corners');
+            for (const cell of free) doc.raise(...freeCornerVertex(cell), delta);
+            doc.endTransaction();
+            assert.equal(object.baseHeight, base); assert.equal(object.slopeX, 0); assert.equal(object.slopeY, 0);
+            const after = doc.snapshot();
+            for (const [x, y] of free) {
+                const profile = model.terrainProfile(doc.tileHeights(SPARSE_TILE_ORIGIN + x, SPARSE_TILE_ORIGIN + y));
+                assert(profile.terrain >= 11, entry.name + ': free cell is a hill corner');
+            }
+            assert.deepEqual(doc.validate(), []);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+            const fresh = new model.Document(SPARSE_TEST_MAP_SIZE, SPARSE_TEST_MAP_SIZE);
+            fresh.vertices.set(doc.vertices);
+            assert.equal(fresh.place(entry.id, SPARSE_TILE_ORIGIN, SPARSE_TILE_ORIGIN, 1, rotation).baseHeight, base);
+            assert.deepEqual(fresh.validate(), []);
+            assert.throws(() => doc.raise(SPARSE_TILE_ORIGIN + 1, SPARSE_TILE_ORIGIN + 1, delta), /bend/);
+            assert.deepEqual(doc.snapshot(), after, 'a rejected road deformation is atomic');
+        }
+    }
+});
+test('loading former turn and branch masks releases only their newly reusable corners', () => {
+    const formerTurnMasks = [11, 14, 13, 7], headerSize = 32, objectMaskOffset = 8;
+    for (const entry of model.catalog.filter(piece => [3, 8, 9, 21, 26].includes(piece.physical))) {
+        for (let rotation = 0; rotation < 4; rotation++) {
+            const doc = new model.Document(SPARSE_TEST_MAP_SIZE, SPARSE_TEST_MAP_SIZE);
+            const object = doc.place(entry.id, SPARSE_TILE_ORIGIN, SPARSE_TILE_ORIGIN, 0, rotation);
+            const bytes = model.encodeCstrk(doc), offset = headerSize + doc.vertices.length + 2 * doc.cells.length + objectMaskOffset;
+            const former = SPARSE_BRANCH_MODELS.has(entry.physical) ? 15 : formerTurnMasks[entry.rotation];
+            bytes[offset] = model.rotatedFootprint({ ...entry, mask: former }, rotation).mask;
+            const loaded = model.decodeCstrk(bytes);
+            assert.deepEqual(loaded.snapshot(), doc.snapshot());
+            for (const [x, y] of freeCornerCells(object)) loaded.place(4, object.x + x, object.y + y);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(loaded)).snapshot(), loaded.snapshot());
+            const invalid = bytes.slice(); invalid[offset] = 1;
+            assert.throws(() => model.decodeCstrk(invalid), /footprint/);
+        }
+    }
+});
+test('large elements require level support throughout their occupied cells', () => {
     const doc = new model.Document(8, 8);
     doc.vertices.fill(2);
     const object = doc.place(11, 0, 2, 2); assert.equal(object.baseHeight, 2);

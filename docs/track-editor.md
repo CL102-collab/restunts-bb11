@@ -85,9 +85,11 @@ rendering and collision follow the slope, including consecutive hill levels.
 Sloped tunnels and slaloms require `.cstrk` v5; original `.trk` placement rules
 remain unchanged. Roads and ramps retain their original hill-road or flat
 hill-span models. Turns, other stunts, scenery and multi-tile pieces need a flat
-plateau across their entire footprint. Hill-corner tiles
-accept no track pieces. Terrain edits that would invalidate an existing piece
-are rejected; remove or move that piece first.
+plateau beneath their occupied cells. The empty corners of chicanes, big turns,
+banked turns and elevated turns can contain hill corners on both sides of the
+road. The road's supporting corners must stay at the same height. Hill-corner
+tiles themselves accept no track pieces. Terrain edits that would invalidate
+an existing piece are rejected; remove or move that piece first.
 
 ## Track pieces
 
@@ -109,8 +111,11 @@ choices. The four direction arrows update all piece thumbnails and select the
 variation to place; Q / E also change direction.
 Left/right branches and chicanes remain separate shapes. The Shore tool shows
 its surface corner choices in the Terrain section when selected.
-Large turns, banked turns, chicanes and elevated turns claim only their occupied
-cells, leaving their empty cells available for scenery or another fitting piece.
+Big turns, banked turns and elevated turns leave both their inside and outside
+corner cells available for scenery or another fitting track piece. Chicanes also
+leave two opposite corner cells available. Large branches left and right leave
+their empty inside corner available. These placement rules apply to extended
+`.cstrk` tracks; original `.trk` rules remain unchanged.
 
 Drag to build or paint. Right-button dragging always pans with any tool.
 Click or hold and drag the Navigator minimap to reposition the main view.

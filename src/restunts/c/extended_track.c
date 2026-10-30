@@ -124,7 +124,12 @@ void extended_track_unload(void)
 /* Every road rotation has an original resource spelling. Match its model and
  * shape, keeping handed pieces distinct. Symmetric straights and scenery can
  * reuse the opposite spelling, since their route and shape are unchanged. */
-static int object_footprint_valid(const struct CSTRK_OBJECT *object)
+#define EXTENDED_FOOTPRINT_DIRECTION_COUNT 4U
+#define EXTENDED_FOOTPRINT_FULL_SQUARE_MASK 15U
+#define EXTENDED_FOOTPRINT_NORTHWEST_SOUTHEAST_MASK 9U
+#define EXTENDED_FOOTPRINT_NORTHEAST_SOUTHWEST_MASK 6U
+
+static legacy_int object_footprint_valid(const struct CSTRK_OBJECT *object)
 {
 	if (object->legacy_id >= 182U) {
 		return 0; /* Runtime-only hill/overlay shapes. */
@@ -134,35 +139,57 @@ static int object_footprint_valid(const struct CSTRK_OBJECT *object)
 										   original->ss_physicalModel != PHYSICAL_MODEL_OVERPASS)) {
 		return 0;
 	}
-	unsigned flags = (unsigned)(legacy_u8)original->ss_multiTileFlag;
-	unsigned width = 1U + ((flags & 2U) != 0U);
-	unsigned height = 1U + ((flags & 1U) != 0U);
-	unsigned mask = (1U << (width * height)) - 1U;
-	int model = original->ss_physicalModel;
-	unsigned angle = (unsigned)(legacy_u16)original->ss_rotY & 1023U;
+	legacy_uint flags = (legacy_u8)original->ss_multiTileFlag;
+	legacy_uint width = 1U + ((flags & 2U) != 0U);
+	legacy_uint height = 1U + ((flags & 1U) != 0U);
+	legacy_uint mask = (1U << (width * height)) - 1U;
+	legacy_uint previous_mask = mask;
+	legacy_s16 model = original->ss_physicalModel;
+	legacy_uint direction =
+		((legacy_u16)original->ss_rotY / ANGLE_QUARTER_TURN) % EXTENDED_FOOTPRINT_DIRECTION_COUNT;
+	static const legacy_u8 corner_masks[EXTENDED_FOOTPRINT_DIRECTION_COUNT] = {11U, 14U, 13U, 7U};
 	if (model == PHYSICAL_MODEL_LARGE_CORNER || model == PHYSICAL_MODEL_BANKED_CORNER ||
 		model == PHYSICAL_MODEL_ELEVATED_CORNER) {
-		static const unsigned masks_by_angle[4] = {11U, 14U, 13U, 7U};
-		mask = masks_by_angle[angle / 256U];
+		mask = direction % 2U ? EXTENDED_FOOTPRINT_NORTHEAST_SOUTHWEST_MASK
+							  : EXTENDED_FOOTPRINT_NORTHWEST_SOUTHEAST_MASK;
+		previous_mask = corner_masks[direction];
+	} else if (model == PHYSICAL_MODEL_LARGE_SPLIT_A) {
+		mask = corner_masks[direction];
+		previous_mask = EXTENDED_FOOTPRINT_FULL_SQUARE_MASK;
+	} else if (model == PHYSICAL_MODEL_LARGE_SPLIT_B) {
+		mask = corner_masks[(direction + EXTENDED_FOOTPRINT_DIRECTION_COUNT - 1U) %
+							EXTENDED_FOOTPRINT_DIRECTION_COUNT];
+		previous_mask = EXTENDED_FOOTPRINT_FULL_SQUARE_MASK;
 	} else if (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT ||
 			   model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) {
-		mask = (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) == (angle == 0U) ? 6U : 9U;
+		mask = (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) == (direction == 0U)
+				   ? EXTENDED_FOOTPRINT_NORTHEAST_SOUTHWEST_MASK
+				   : EXTENDED_FOOTPRINT_NORTHWEST_SOUTHEAST_MASK;
+		previous_mask = mask;
 	}
-	for (unsigned rotation = 0; rotation < object->rotation; rotation++) {
-		unsigned next_mask = 0;
-		for (unsigned y = 0; y < height; y++) {
-			for (unsigned x = 0; x < width; x++) {
-				if (mask & (1U << (y * width + x))) {
-					next_mask |= 1U << (x * height + height - 1U - y);
+	for (legacy_u8 rotation = 0; rotation < object->rotation; rotation++) {
+		legacy_uint next_mask = 0, next_previous = 0;
+		for (legacy_uint y = 0; y < height; y++) {
+			for (legacy_uint x = 0; x < width; x++) {
+				legacy_uint bit = 1U << (y * width + x);
+				legacy_uint rotated_bit = 1U << (x * height + height - 1U - y);
+				if (mask & bit) {
+					next_mask |= rotated_bit;
+				}
+				if (previous_mask & bit) {
+					next_previous |= rotated_bit;
 				}
 			}
 		}
 		mask = next_mask;
-		unsigned temporary = width;
+		previous_mask = next_previous;
+		legacy_uint temporary = width;
 		width = height;
 		height = temporary;
 	}
-	return width == object->width && height == object->height && mask == object->occupied_mask;
+	/* Older tracks keep their conservative claimed cells when played. */
+	return width == object->width && height == object->height &&
+		   (mask == object->occupied_mask || previous_mask == object->occupied_mask);
 }
 
 static int resolve_object_id(const struct CSTRK_OBJECT *object)
@@ -372,6 +399,30 @@ const struct CSTRK_OBJECT *extended_track_object_at(int column, int row)
 	}
 	int32_t index = storage->occupied[row * current_track.width + column];
 	return index < 0 ? NULL : &current_track.objects[index];
+}
+
+legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
+										  const struct CSTRK_OBJECT **objects, legacy_u16 capacity)
+{
+	if (!storage || !objects || column < 0 || row < 0 || column >= current_track.width ||
+		row >= current_track.height) {
+		return 0;
+	}
+	legacy_u16 count = 0;
+	/* At most four origins can cover a cell with one- or two-cell pieces. */
+	for (legacy_s16 y = row > 0 ? row - 1 : row; y <= row; y++) {
+		for (legacy_s16 x = column > 0 ? column - 1 : column; x <= column; x++) {
+			for (legacy_s32 index = storage->origin_heads[y * current_track.width + x]; index >= 0;
+				 index = storage->origin_next[index]) {
+				const struct CSTRK_OBJECT *object = &current_track.objects[index];
+				if (column < object->x + object->width && row < object->y + object->height &&
+					count < capacity) {
+					objects[count++] = object;
+				}
+			}
+		}
+	}
+	return count;
 }
 
 const struct CSTRK_OBJECT *extended_track_object_origin_at(int column, int row)

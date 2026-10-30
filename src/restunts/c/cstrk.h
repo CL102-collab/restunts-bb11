@@ -91,7 +91,8 @@ struct CSTRK_CELL {
 
 /* Width, height and occupied_mask describe map-axis cells after rotation.
  * Bit (row * width + column) claims that cell. Unclaimed cells remain usable.
- * Terrain support is the rigid plane base_height + slope_x*x + slope_y*y.
+ * Vertices touching claimed cells lie on the rigid support plane
+ * base_height + slope_x*x + slope_y*y; other vertices may form hills.
  * Legacy IDs refer to the original game catalog; resource admission is separate. */
 struct CSTRK_OBJECT {
 	uint16_t legacy_id;

@@ -59,6 +59,7 @@
     function resolveId(doc, object) {
         const id = resolveOrientation(object);
         if (id < 0) return id;
+        if (!object.slopeX && !object.slopeY) return id;
         const profile = model.terrainProfile(doc.tileHeights(object.x, object.y));
         if (!profile) return -1;
         if (profile.terrain === FLAT_TERRAIN || profile.terrain === RAISED_TERRAIN) return id;

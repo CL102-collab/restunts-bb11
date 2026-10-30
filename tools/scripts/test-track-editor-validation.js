@@ -194,8 +194,37 @@ for (let x = 38; x <= 39; x++) sparse.place(5, x, 41);
 for (let y = 38; y <= 40; y++) sparse.place(y === 39 ? 1 : 4, 37, y);
 sparse.place(4, 41, 38); sparse.place(4, 41, 39);
 check('sparse large turn baseline', clearHistory(sparse), 0);
-sparse.place(4, 40, 40); check('road shares a sparse turn anchor', clearHistory(sparse), 0);
+// Raised and lowered terrain in both free corners must not change the
+// connected turn's route, including a hill at its unclaimed origin vertex.
+for (const delta of [-1, 1]) {
+    const hill = model.decodeCstrk(model.encodeCstrk(sparse)), supportLevel = 2;
+    hill.vertices.fill(supportLevel);
+    for (const object of hill.objects) object.baseHeight = supportLevel;
+    const turn = hill.objects[0];
+    for (let y = 0; y < turn.height; y++) for (let x = 0; x < turn.width; x++) {
+        if (!(turn.mask & (1 << (y * turn.width + x)))) hill.raise(turn.x + x * turn.width, turn.y + y * turn.height, delta);
+    }
+    for (let direction = 0, doc = clearHistory(hill); direction < 4; direction++, doc = rotate(doc))
+        check('connected sparse turn hill corners ' + delta + ' direction ' + direction, doc, 0);
+}
+sparse.place(4, 40, 40); sparse.place(4, 41, 41);
+check('roads share both sparse turn corner cells', clearHistory(sparse), 0);
 for (let direction = 0, doc = sparse; direction < 4; direction++, doc = rotate(doc)) check('sparse shared anchor direction ' + direction, doc, 0);
+
+// Even disconnected stunts are admitted before the native route walk. Cover
+// every affected family with hills in both free cells and each orientation.
+const SPARSE_HILL_MODELS = new Set([3, 4, 5, 21, 26]);
+for (const entry of model.library.filter(piece => SPARSE_HILL_MODELS.has(piece.physical))) {
+    for (let direction = 0; direction < 4; direction++) for (const delta of [-1, 1]) {
+        const doc = terrainRectangle(() => 2), { piece, rotation } = model.pieceVariant(entry, direction);
+        const object = doc.place(piece.id, 15, 8, 0, rotation);
+        for (let y = 0; y < object.height; y++) for (let x = 0; x < object.width; x++) {
+            if (!(object.mask & (1 << (y * object.width + x)))) doc.raise(object.x + x * object.width, object.y + y * object.height, delta);
+        }
+        const loaded = model.decodeCstrk(model.encodeCstrk(doc));
+        check(entry.name + ' hill corners ' + delta + ' direction ' + direction, clearHistory(loaded), 0);
+    }
+}
 
 // Deterministic mixtures exercise deferred branches, unmatched entries and
 // early-error precedence without treating disconnected scenery as road.
