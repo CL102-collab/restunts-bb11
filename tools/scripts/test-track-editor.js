@@ -112,7 +112,7 @@ test('display variants preserve absolute direction and projected connector posit
 test('every library direction preserves the placement footprint and saved track data', () => {
     for (const entry of model.library) for (let direction = 0; direction < 4; direction++) {
         const { piece, rotation } = model.pieceVariant(entry, direction);
-        assert.equal((piece.rotation + rotation) % 4, direction);
+        assert.equal((piece.rotation + rotation) % 4, entry.rollRamp ? (direction + 2) % 4 : direction);
         const expected = model.rotatedFootprint(entry, direction);
         assert.deepEqual(model.rotatedFootprint(piece, rotation), expected);
         const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
@@ -769,7 +769,7 @@ test('barrel roll ramps retain all launch directions, footprints and history aft
         const variant = model.pieceVariant(selected, direction);
         const display = model.pieceDisplayVariant(variant.piece, variant.rotation);
         assert.equal(variant.piece.rollRamp, 1); assert.equal(display.piece.rollRamp, 1);
-        assert.equal((display.piece.rotation + display.rotation) % 4, direction);
+        assert.equal((display.piece.rotation + display.rotation) % 4, (direction + 2) % 4);
         assert.equal(display.piece.name, selected.name);
         assert.equal(model.pieceVariant(ordinary, direction).piece.rollRamp, undefined);
         const doc = new model.Document(4, 4); doc.vertices.fill(level);
@@ -828,14 +828,83 @@ test('barrel roll ramp artwork distinguishes the concrete entry, grille and laun
         const rotated = x * horizontal.width + vertical.height - 1 - y;
         assert.equal(vertical.pixels[index], horizontal.pixels[rotated]);
         assert.equal(vertical.alpha[index], horizontal.alpha[rotated]);
-        grilleHoles += y < 15 && x > 3 && x < 11 && !vertical.alpha[index];
-        concrete += y >= 15 && x > 3 && x < 11 && !!vertical.alpha[index];
+        grilleHoles += y >= 15 && x > 3 && x < 11 && !vertical.alpha[index];
+        concrete += y < 15 && x > 3 && x < 11 && !!vertical.alpha[index];
         reversed += vertical.pixels[index] !== vertical.pixels[vertical.pixels.length - 1 - index] ||
             vertical.alpha[index] !== vertical.alpha[vertical.alpha.length - 1 - index];
     }
     assert(grilleHoles > 0 && concrete > 0 && reversed > 0);
     for (const [id, tunnel, flag] of [[85, 0, 2], [85, 1, 1], [115, 0, 1]])
         assert.throws(() => resources.composePieceTileBitmap(new Map(), id, tunnel, flag), /barrel roll ramp artwork/);
+});
+test('barrel ramp arrows and entry tiles match native travel in every saved orientation', () => {
+    const TILE_PIXELS = 15, YELLOW = 14, BLACK = 0;
+    // Native yaw zero launches toward map south, then west, north and east.
+    // These vectors describe route travel, independently of icon composition.
+    const launchDirections = [[0, 1], [-1, 0], [0, -1], [1, 0]];
+    function rotateClockwise(bitmap) {
+        const result = { width: bitmap.height, height: bitmap.width,
+            pixels: new Uint8Array(bitmap.pixels.length), alpha: new Uint8Array(bitmap.alpha.length) };
+        for (let y = 0; y < bitmap.height; y++) for (let x = 0; x < bitmap.width; x++) {
+            const from = y * bitmap.width + x;
+            const to = x * result.width + bitmap.height - 1 - y;
+            result.pixels[to] = bitmap.pixels[from]; result.alpha[to] = bitmap.alpha[from];
+        }
+        return result;
+    }
+    function displayedBitmap(object) {
+        const entry = { ...model.catalog.find(piece => piece.id === object.id), rollRamp: object.rollRamp };
+        const display = model.pieceDisplayVariant(entry, object.rotation);
+        let bitmap = resources.composePieceTileBitmap(new Map(), display.piece.id, 0, 1);
+        for (let turn = 0; turn < display.rotation; turn++) bitmap = rotateClockwise(bitmap);
+        return bitmap;
+    }
+    for (const id of [85, 86]) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(4, 4);
+        // placement() is also used by the live placement preview.
+        const preview = doc.placement(id, 1, 1, 0, rotation, 0, 0, 1);
+        doc.place(id, 1, 1, 0, rotation, 0, 0, 1);
+        const loaded = model.decodeCstrk(model.encodeCstrk(doc)).objects[0];
+        assert.deepEqual(loaded, preview);
+        const bitmap = displayedBitmap(loaded);
+        assert.deepEqual(bitmap, displayedBitmap(preview));
+        assert.equal(bitmap.width, loaded.width * TILE_PIXELS);
+        assert.equal(bitmap.height, loaded.height * TILE_PIXELS);
+        const nativeYaw = ((id === 86 ? 1 : 0) + rotation) % launchDirections.length;
+        const [dx, dy] = launchDirections[nativeYaw], length = TILE_PIXELS * 2;
+        const startX = (bitmap.width - 1 - dx * (length - 1)) / 2;
+        const startY = (bitmap.height - 1 - dy * (length - 1)) / 2;
+        function pixel(along, across = 0) {
+            const x = startX + dx * along + dy * across;
+            const y = startY + dy * along - dx * across;
+            return y * bitmap.width + x;
+        }
+        // Tail, forward-pointing tip and wings must face the physical lip.
+        for (const [along, across] of [[0, 0], [4, 0], [2, -2], [2, 2]])
+            assert.equal(bitmap.pixels[pixel(along, across)], YELLOW, id + ':' + rotation + ': entry arrow');
+        for (const across of [-2, 2]) assert.notEqual(bitmap.pixels[pixel(6, across)], YELLOW);
+        let holes = 0, blackGrille = 0, asphaltDashes = 0, grilleDashes = 0;
+        for (let along = 5; along < length - 1; along++) for (let across = -2; across <= 2; across++) {
+            const index = pixel(along, across);
+            if (along < TILE_PIXELS) {
+                assert.equal(bitmap.alpha[index], 255, id + ':' + rotation + ': solid approach');
+                asphaltDashes += bitmap.pixels[index] === YELLOW;
+            } else {
+                holes += !bitmap.alpha[index];
+                blackGrille += bitmap.alpha[index] && bitmap.pixels[index] === BLACK;
+                grilleDashes += bitmap.pixels[index] === YELLOW;
+            }
+        }
+        assert(holes > 0 && blackGrille > 0 && asphaltDashes > 0 && grilleDashes > 0);
+    }
+    const selected = model.library.find(piece => piece.rollRamp);
+    const cardinalDirections = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    for (let direction = 0; direction < cardinalDirections.length; direction++) {
+        const variant = model.pieceVariant(selected, direction);
+        const nativeYaw = ((variant.piece.id === 86 ? 1 : 0) + variant.rotation) % launchDirections.length;
+        assert.deepEqual(launchDirections[nativeYaw], cardinalDirections[direction],
+            'North/East/South/West controls must select actual launch travel');
+    }
 });
 test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
     for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {

@@ -108,7 +108,8 @@ vm.runInContext(`
     ramp.place(launch.piece.id, 1, 1, 1, launch.rotation, 0, 0, launch.piece.rollRamp);
     const rampReloaded = model.decodeCstrk(model.encodeCstrk(ramp));
     const rampDisplay = model.pieceDisplayVariant({ ...model.catalog.find(piece => piece.id === rampReloaded.objects[0].id), rollRamp: 1 }, rampReloaded.objects[0].rotation);
-    if (rampReloaded.version !== 8 || rampReloaded.objects[0].rollRamp !== 1 || rampDisplay.rotation !== 3) {
+    // West travel is native yaw 1: the concrete entry is on the right.
+    if (rampReloaded.version !== 8 || rampReloaded.objects[0].rollRamp !== 1 || rampDisplay.piece.id !== 85 || rampDisplay.rotation !== 1) {
         throw new Error('Embedded codec lost the barrel roll launch direction');
     }
     const rampIcon = TrackEditorResources.composePieceTileBitmap(new Map(), 85, 0, 1);

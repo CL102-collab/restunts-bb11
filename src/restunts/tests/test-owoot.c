@@ -135,6 +135,25 @@ static void test_switch_and_enforcement(void)
 	assert(crashes == 1);
 }
 
+static void test_failed_stunt_cannot_use_road_fallback(void)
+{
+	reset_player();
+	set_mode("--owoot");
+	/* Ordinary road contact remains valid after an ordinary jump ends. */
+	road_wheel = 0;
+	expected_contact_mask = 1;
+	state.playerstate.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	owoot_update_player(&state.playerstate, PLAYER_CAR_INDEX);
+	assert(crashes == 0 && road_queries == 1 && route_queries == 1);
+	/* An incomplete stunt at that same paved landing is a mandatory failure,
+	 * even if its compiled route and every ordinary road check would pass. */
+	road_queries = route_queries = jump_queries = 0;
+	jump_valid = OWOOT_JUMP_FAILED;
+	owoot_update_player(&state.playerstate, PLAYER_CAR_INDEX);
+	assert(crashes == 1 && jump_queries == 1);
+	assert(road_queries == 0 && route_queries == 0);
+}
+
 static void load_test_wheels(void)
 {
 	legacy_u8 shape[SHAPE3D_HEADER_SIZE + 32 * SHAPE3D_VERTEX_SIZE] = {0};
@@ -238,6 +257,7 @@ int main(void)
 	test_steering_control_rounding();
 	test_owoot_options();
 	test_switch_and_enforcement();
+	test_failed_stunt_cannot_use_road_fallback();
 	puts("OWOOT mode and wheel tests passed");
 	return 0;
 }

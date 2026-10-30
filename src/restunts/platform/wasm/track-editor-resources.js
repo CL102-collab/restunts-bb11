@@ -13,7 +13,8 @@
     const ROLL_RAMP_VERTICAL_ICON = 85, ROLL_RAMP_HORIZONTAL_ICON = 86, ROLL_RAMP_TILE_COUNT = 2;
     const ROLL_RAMP_HALF_WIDTH = 4, ROLL_RAMP_LIP_HALF_WIDTH = 2, ROLL_RAMP_GRID_STEP = 3;
     const ROLL_RAMP_SUPPORT_WIDTH = 2, ROLL_RAMP_SUPPORT_DEPTH = 3;
-    const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, direction: 14 };
+    const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
+    const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
@@ -183,28 +184,28 @@
     function composeRollRampBitmap(id) {
         const width = EDITOR_TILE_INTERIOR, height = width * ROLL_RAMP_TILE_COUNT;
         const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
-        const center = Math.floor(width / 2), lipRow = ROLL_RAMP_SUPPORT_DEPTH;
+        const center = Math.floor(width / 2), lipRow = height - ROLL_RAMP_SUPPORT_DEPTH - 1;
         function pixel(x, y, color) {
             if (x < 0 || x >= width || y < 0 || y >= height) return;
             const index = y * width + x;
             pixels[index] = color; alpha[index] = 255;
         }
-        // The native vertical family enters from the bottom. Keep a solid
-        // concrete approach in that tile and open grille in the launch tile.
+        // Native yaw zero enters at +z (north on the map) and launches south.
+        // Keep the concrete entry above the grille so artwork and routing agree.
         for (let y = 0; y < height; y++) {
-            const concrete = y >= EDITOR_TILE_INTERIOR;
+            const concrete = y < EDITOR_TILE_INTERIOR;
             const half = concrete ? ROLL_RAMP_HALF_WIDTH : ROLL_RAMP_LIP_HALF_WIDTH +
-                Math.floor(y * (ROLL_RAMP_HALF_WIDTH - ROLL_RAMP_LIP_HALF_WIDTH) / (EDITOR_TILE_INTERIOR - 1));
+                Math.floor((height - 1 - y) * (ROLL_RAMP_HALF_WIDTH - ROLL_RAMP_LIP_HALF_WIDTH) / (EDITOR_TILE_INTERIOR - 1));
             for (let x = center - half; x <= center + half; x++) {
                 const edge = x === center - half || x === center + half;
                 if (concrete || edge || x % ROLL_RAMP_GRID_STEP === 0 || y % ROLL_RAMP_GRID_STEP === 0)
                     pixel(x, y, edge ? (x < center ? ROLL_RAMP_COLORS.shade : ROLL_RAMP_COLORS.edge)
-                        : concrete ? ROLL_RAMP_COLORS.concrete : ROLL_RAMP_COLORS.shade);
+                        : concrete ? ROLL_RAMP_COLORS.concrete : ROLL_RAMP_COLORS.grille);
             }
         }
         // Small concrete supports sit beside the elevated grille. Its holes
         // remain transparent so the launch tile is visibly different.
-        for (const y of [lipRow, EDITOR_TILE_INTERIOR - ROLL_RAMP_SUPPORT_DEPTH - 1]) {
+        for (const y of [EDITOR_TILE_INTERIOR + ROLL_RAMP_SUPPORT_DEPTH, lipRow]) {
             for (const x of [0, width - ROLL_RAMP_SUPPORT_WIDTH]) {
                 for (let dy = 0; dy < ROLL_RAMP_SUPPORT_DEPTH; dy++)
                     for (let dx = 0; dx < ROLL_RAMP_SUPPORT_WIDTH; dx++)
@@ -215,12 +216,14 @@
         // asymmetric stunt distinguishable after a half-turn.
         for (let dx = -ROLL_RAMP_LIP_HALF_WIDTH; dx <= ROLL_RAMP_LIP_HALF_WIDTH; dx++)
             pixel(center + dx, lipRow - dx, ROLL_RAMP_COLORS.direction);
-        const arrowTip = height - ROLL_RAMP_HALF_WIDTH - 1;
+        for (let y = 0; y < height; y++)
+            if (y % ROLL_RAMP_DASH_PERIOD < ROLL_RAMP_DASH_LENGTH) pixel(center, y, ROLL_RAMP_COLORS.direction);
+        const arrowTip = ROLL_RAMP_HALF_WIDTH;
         for (let offset = 0; offset <= ROLL_RAMP_LIP_HALF_WIDTH; offset++) {
-            pixel(center - offset, arrowTip + offset, ROLL_RAMP_COLORS.direction);
-            pixel(center + offset, arrowTip + offset, ROLL_RAMP_COLORS.direction);
+            pixel(center - offset, arrowTip - offset, ROLL_RAMP_COLORS.direction);
+            pixel(center + offset, arrowTip - offset, ROLL_RAMP_COLORS.direction);
         }
-        for (let y = arrowTip; y < height; y++) pixel(center, y, ROLL_RAMP_COLORS.direction);
+        for (let y = 0; y <= arrowTip; y++) pixel(center, y, ROLL_RAMP_COLORS.direction);
         if (id === ROLL_RAMP_VERTICAL_ICON) return { width, height, pixels, alpha };
         const rotated = new Uint8Array(pixels.length), rotatedAlpha = new Uint8Array(alpha.length);
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {

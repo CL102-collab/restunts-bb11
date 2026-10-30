@@ -454,6 +454,46 @@ static void test_ghost_override_is_per_instance(void)
 	assert(polyinfoptr[polygon_record_offsets[1] + 4U] == RENDER_PRIMITIVE_POLYGON);
 }
 
+#define TEST_YELLOW_GRILLE_MATERIAL 24U
+#define TEST_ASPHALT_MATERIAL 19U
+#define TEST_QUEUED_MATERIAL_OFFSET 2U
+#define TEST_QUEUED_TYPE_OFFSET 4U
+
+static void test_black_grille_override_selects_only_instance_grille_polygons(void)
+{
+	reset_scene();
+	static const legacy_u8 source[] = {
+		3, 1, SHAPE3D_STOCK_GRILLE_MATERIAL, 0, 1, 2, 3, 1, TEST_YELLOW_GRILLE_MATERIAL,   0, 1, 2,
+		3, 1, TEST_ASPHALT_MATERIAL,		 0, 1, 2, 2, 1, SHAPE3D_STOCK_GRILLE_MATERIAL, 0, 1, 0,
+		0};
+	static const legacy_u8 materials[] = {SHAPE3D_STOCK_GRILLE_MATERIAL,
+										  TEST_YELLOW_GRILLE_MATERIAL, TEST_ASPHALT_MATERIAL,
+										  SHAPE3D_STOCK_GRILLE_MATERIAL};
+	static const legacy_u8 types[] = {RENDER_PRIMITIVE_POLYGON, RENDER_PRIMITIVE_POLYGON,
+									  RENDER_PRIMITIVE_POLYGON, RENDER_PRIMITIVE_LINE};
+	memcpy(primitives, source, sizeof(source));
+	instance.ts_flags |= SHAPE3D_BLACK_GRILLE_FLAG;
+	assert(shape3d_transform_and_queue(&instance) == 0);
+	assert(polyinfonumpolys == sizeof(materials));
+	for (legacy_u16 index = 0; index < sizeof(materials); index++) {
+		const legacy_u8 *record = polyinfoptr + polygon_record_offsets[index];
+		assert(record[TEST_QUEUED_MATERIAL_OFFSET] == materials[index]);
+		assert(record[TEST_QUEUED_TYPE_OFFSET] ==
+			   (types[index] | (index == 0 ? RENDER_PRIMITIVE_BLACK_GRILLE_FLAG : 0)));
+	}
+	/* The next ordinary instance of the same source retains its original
+	 * stock grille, yellow marking and asphalt material selections. */
+	instance.ts_flags &= ~SHAPE3D_BLACK_GRILLE_FLAG;
+	assert(shape3d_transform_and_queue(&instance) == 0);
+	assert(polyinfonumpolys == 2U * sizeof(materials));
+	for (legacy_u16 index = 0; index < sizeof(materials); index++) {
+		const legacy_u8 *record = polyinfoptr + polygon_record_offsets[sizeof(materials) + index];
+		assert(record[TEST_QUEUED_MATERIAL_OFFSET] == materials[index]);
+		assert(record[TEST_QUEUED_TYPE_OFFSET] == types[index]);
+	}
+	assert(memcmp(primitives, source, sizeof(source)) == 0);
+}
+
 #define TEST_VISIBILITY_DEPTH 100
 #define TEST_VISIBILITY_FORWARD_SCALE 4096
 #define TEST_VISIBILITY_OFFSCREEN_X 30000
@@ -535,6 +575,7 @@ int main(void)
 	test_supersight_queue_limits();
 	test_supersight_clipped_record_boundary();
 	test_ghost_override_is_per_instance();
+	test_black_grille_override_selects_only_instance_grille_polygons();
 	test_visibility_masks_after_bounds();
 	return 0;
 }

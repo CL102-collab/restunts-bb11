@@ -10,7 +10,7 @@
     const SLALOM_PHYSICAL_MODEL = 34, TUNNEL_SLALOM_VERSION = 7;
     const TUNNEL_SLALOM_NAME = 'Tunnel with slalom';
     const TUNNEL_SLALOM_VERSION_ERROR = 'Tunnel with slalom requires Chocolate Stunts track version v7.';
-    const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8;
+    const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8, ROLL_RAMP_DIRECTION_OFFSET = 2;
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
@@ -98,10 +98,13 @@
     function pieceVariant(entry, direction) {
         integer(direction, 0, 3, 'piece direction');
         const variants = libraryFamilies.get(entry.group + ':' + entry.physical);
+        // Cardinal controls describe travel. The native roll ramp's yaw zero
+        // travels south, opposite the editor's north-facing zero direction.
+        const orientation = entry.rollRamp ? (direction + ROLL_RAMP_DIRECTION_OFFSET) % PIECE_DIRECTION_COUNT : direction;
         // Use original directional artwork when present. Symmetric pieces may have only
         // one or two native variants; explicit rotation supplies the remaining directions.
-        const piece = variants.find(p => p.rotation === direction) || variants.find(p => p.rotation === 0) || variants[0];
-        return { piece: withPaletteVariant(piece, entry), rotation: (direction - piece.rotation + 4) % 4 };
+        const piece = variants.find(p => p.rotation === orientation) || variants.find(p => p.rotation === 0) || variants[0];
+        return { piece: withPaletteVariant(piece, entry), rotation: (orientation - piece.rotation + PIECE_DIRECTION_COUNT) % PIECE_DIRECTION_COUNT };
     }
     function pieceDisplayVariant(entry, rotation = 0) {
         integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'piece display rotation');

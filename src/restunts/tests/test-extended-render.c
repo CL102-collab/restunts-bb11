@@ -25,6 +25,7 @@
 #define ROLL_RAMP_RENDER_PRECISE_TOLERANCE .00000001
 #define ROLL_RAMP_RENDER_TERRAIN_COUNT 4U
 #define ROLL_RAMP_RENDER_MIN_PIXELS 64U
+#define ROLL_RAMP_RENDER_MASKED_PAINT 1U
 
 #define COMBINED_STUNT_RENDER_PART_COUNT 3U
 #define COMBINED_STUNT_RENDER_VARIANT_COUNT 3U
@@ -906,6 +907,7 @@ static void check_roll_ramp_submission(const struct TRANSFORMEDSHAPE3D *instance
 	assert(mesh->shape3d_numverts == roll_ramp_capture_source.shape3d_numverts);
 	assert(mesh->shape3d_numprimitives == roll_ramp_capture_source.shape3d_numprimitives);
 	assert(instance->rotvec.z == 0);
+	assert(instance->ts_flags & SHAPE3D_BLACK_GRILLE_FLAG);
 	struct VECTOR origin;
 	extended_geometry_object_origin(extended_track_model(), object, &origin);
 	assert(memcmp(&instance->pos, &origin, sizeof(origin)) == 0);
@@ -3257,8 +3259,60 @@ static legacy_u16 check_combined_stunt_rendering(void)
 	return frames;
 }
 
+static void check_roll_ramp_stock_materials(void)
+{
+	const struct SHAPE3D *corkscrew = trkObjectList[CSTRK_ROLL_RAMP_FIRST_ID].ss_shapePtr;
+	assert(corkscrew != NULL);
+	legacy_u16 grille = 0, grille_markings = 0;
+	const legacy_u8 *primitive = corkscrew->shape3d_primitives;
+	for (legacy_u16 face = 0; face < corkscrew->shape3d_numprimitives; face++) {
+		legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+		grille += material == ROLL_RAMP_GRILLE_MATERIAL;
+		grille_markings += material == ROLL_RAMP_GRILLE_MARKING_MATERIAL;
+		primitive += SHAPE3D_PRIMITIVE_HEADER_SIZE + corkscrew->shape3d_numpaints + primitive[0];
+	}
+	assert(grille > 0 && grille_markings > 0);
+	assert(material_patlist_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] == ROLL_RAMP_RENDER_MASKED_PAINT);
+	assert(material_patlist2_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] ==
+		   material_patlist2_ptr_cpy[ROLL_RAMP_GRILLE_MARKING_MATERIAL]);
+	assert(material_clrlist_ptr_cpy[ROLL_RAMP_MARKING_MATERIAL] ==
+		   material_clrlist_ptr_cpy[ROLL_RAMP_GRILLE_MARKING_MATERIAL]);
+	/* Compare authored dash size/count with the ordinary stock straight. */
+	const struct SHAPE3D *road = trkObjectList[4U].ss_shapePtr;
+	assert(road != NULL);
+	legacy_u16 markings = 0;
+	primitive = road->shape3d_primitives;
+	for (legacy_u16 face = 0; face < road->shape3d_numprimitives; face++) {
+		if (primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_MARKING_MATERIAL) {
+			assert(primitive[0] == 4U);
+			struct VECTOR first;
+			shape3d_vertex_read(
+				road, primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + road->shape3d_numpaints], &first);
+			legacy_s16 minimum_x = first.x, maximum_x = first.x;
+			legacy_s16 minimum_z = first.z, maximum_z = first.z;
+			for (legacy_u16 corner = 0; corner < primitive[0]; corner++) {
+				struct VECTOR point;
+				shape3d_vertex_read(
+					road,
+					primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + road->shape3d_numpaints + corner],
+					&point);
+				minimum_x = point.x < minimum_x ? point.x : minimum_x;
+				maximum_x = point.x > maximum_x ? point.x : maximum_x;
+				minimum_z = point.z < minimum_z ? point.z : minimum_z;
+				maximum_z = point.z > maximum_z ? point.z : maximum_z;
+			}
+			assert(maximum_x - minimum_x == 2 * ROLL_RAMP_MARKING_HALF_WIDTH);
+			assert(maximum_z - minimum_z == ROLL_RAMP_MARKING_LENGTH);
+			markings++;
+		}
+		primitive += SHAPE3D_PRIMITIVE_HEADER_SIZE + road->shape3d_numpaints + primitive[0];
+	}
+	assert(markings == ROLL_RAMP_MARKINGS_PER_TILE);
+}
+
 static void check_roll_ramp_mesh_geometry(void)
 {
+	check_roll_ramp_stock_materials();
 	struct VECTOR entry, lip, normal;
 	roll_ramp_sample(0, 0, &entry, &normal);
 	assert(entry.x == 0 && entry.y == 0 && entry.z == ROLL_RAMP_HALF_LENGTH);
@@ -3272,7 +3326,7 @@ static void check_roll_ramp_mesh_geometry(void)
 	assert(roll_ramp_create_mesh(&mesh, CSTRK_ROAD_PAVED));
 	assert(mesh.shape3d_numverts <= LEGACY_U8_MAX);
 	const legacy_u8 *primitive = mesh.shape3d_primitives;
-	legacy_u16 concrete = 0, grille = 0;
+	legacy_u16 concrete = 0, grille = 0, paved_markings = 0, grille_markings = 0;
 	for (legacy_u16 triangle = 0; triangle < roll_ramp_road_triangle_count(); triangle++) {
 		struct VECTOR points[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
 		assert(roll_ramp_road_triangle(triangle, points));
@@ -3293,11 +3347,41 @@ static void check_roll_ramp_mesh_geometry(void)
 	}
 	for (legacy_u16 face = roll_ramp_road_triangle_count(); face < mesh.shape3d_numprimitives;
 		 face++) {
-		concrete += primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_CONCRETE_MATERIAL ||
-					primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_CONCRETE_LIGHT_MATERIAL;
+		legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+		concrete += material == ROLL_RAMP_CONCRETE_MATERIAL ||
+					material == ROLL_RAMP_CONCRETE_LIGHT_MATERIAL;
+		if (material == ROLL_RAMP_MARKING_MATERIAL ||
+			material == ROLL_RAMP_GRILLE_MARKING_MATERIAL) {
+			assert(primitive[0] == 4U);
+			legacy_s16 first_z = 0;
+			for (legacy_u16 corner = 0; corner < primitive[0]; corner++) {
+				struct VECTOR point, road;
+				shape3d_vertex_read(&mesh, primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + corner],
+									&point);
+				if (corner == 0) {
+					first_z = point.z;
+				}
+				legacy_s16 along = ROLL_RAMP_HALF_LENGTH - point.z;
+				assert(along >= 0 && along <= ROLL_RAMP_LENGTH);
+				assert(material == (along < CSTRK_TILE_WORLD_SIZE
+										? ROLL_RAMP_MARKING_MATERIAL
+										: ROLL_RAMP_GRILLE_MARKING_MATERIAL));
+				legacy_s16 lateral = corner == 0 || corner == 3 ? -ROLL_RAMP_MARKING_HALF_WIDTH
+																: ROLL_RAMP_MARKING_HALF_WIDTH;
+				roll_ramp_sample(along, lateral, &road, NULL);
+				assert(point.x == road.x && point.y == road.y + ROLL_RAMP_MARKING_CLEARANCE);
+				if (corner >= 2U) {
+					assert(first_z - point.z == ROLL_RAMP_MARKING_LENGTH);
+				}
+			}
+			paved_markings += material == ROLL_RAMP_MARKING_MATERIAL;
+			grille_markings += material == ROLL_RAMP_GRILLE_MARKING_MATERIAL;
+		}
 		primitive += SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + primitive[0];
 	}
 	assert(grille == ROLL_RAMP_ROAD_TRIANGLE_COUNT / 2U && concrete > 0);
+	assert(paved_markings == ROLL_RAMP_MARKINGS_PER_TILE);
+	assert(grille_markings == ROLL_RAMP_MARKINGS_PER_TILE);
 	assert(material_patlist_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] != 0);
 	assert(material_patlist2_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] != 0);
 	for (legacy_u16 index = 0; index < roll_ramp_support_box_count(); index++) {
@@ -3428,11 +3512,22 @@ static legacy_u16 check_roll_ramp_pixels(void)
 	activate_render_track(&track, 0);
 	legacy_u32 *empty = capture_complete_render(&empty_size);
 	assert(ramp_size == empty_size);
-	size_t changed = 0;
+	size_t changed = 0, black = 0, yellow = 0;
+	legacy_u32 marking = RENDER_CAPTURE_OPAQUE_ALPHA |
+						 (legacy_u32)material_clrlist_ptr_cpy[ROLL_RAMP_MARKING_MATERIAL] *
+							 RENDER_CAPTURE_INDEX_RGB_STEP;
 	for (size_t pixel = 0; pixel < ramp_size; pixel++) {
-		changed += ramp[pixel] != empty[pixel];
+		if (ramp[pixel] != empty[pixel]) {
+			changed++;
+			black += ramp[pixel] == RENDER_CAPTURE_OPAQUE_ALPHA;
+			yellow += ramp[pixel] == marking;
+		}
 	}
 	assert(changed > ROLL_RAMP_RENDER_MIN_PIXELS);
+	/* The authored native grille material is dark grey. Only this instance
+	 * must render truly black, while the solid and masked dashes stay yellow. */
+	assert(black > ROLL_RAMP_RENDER_MIN_PIXELS);
+	assert(yellow >= ROLL_RAMP_MARKING_COUNT);
 	free(ramp);
 	free(empty);
 	extended_track_unload();

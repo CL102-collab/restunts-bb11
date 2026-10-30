@@ -11,17 +11,21 @@
 #define ROLL_RAMP_BOTTOM_VERTEX_FIRST (ROLL_RAMP_ROAD_VERTEX_FIRST + 2U * ROLL_RAMP_SECTION_COUNT)
 #define ROLL_RAMP_BOX_VERTEX_FIRST                                                                 \
 	(ROLL_RAMP_BOTTOM_VERTEX_FIRST + 2U * (ROLL_RAMP_CONCRETE_SEGMENTS + 1U))
-#define ROLL_RAMP_VERTEX_COUNT                                                                     \
+#define ROLL_RAMP_MARKING_VERTEX_FIRST                                                             \
 	(ROLL_RAMP_BOX_VERTEX_FIRST + ROLL_RAMP_SUPPORT_BOX_COUNT * ROLL_RAMP_BOUNDING_VERTICES)
+#define ROLL_RAMP_MARKING_VERTEX_COUNT 4U
+#define ROLL_RAMP_VERTEX_COUNT                                                                     \
+	(ROLL_RAMP_MARKING_VERTEX_FIRST + ROLL_RAMP_MARKING_COUNT * ROLL_RAMP_MARKING_VERTEX_COUNT)
 #define ROLL_RAMP_BOX_FACE_COUNT 6U
 #define ROLL_RAMP_STRUCTURAL_FACE_COUNT                                                            \
 	(2U * ROLL_RAMP_CONCRETE_SEGMENTS + 2U + ROLL_RAMP_SUPPORT_BOX_COUNT * ROLL_RAMP_BOX_FACE_COUNT)
-#define ROLL_RAMP_FACE_COUNT (ROLL_RAMP_ROAD_TRIANGLE_COUNT + ROLL_RAMP_STRUCTURAL_FACE_COUNT)
+#define ROLL_RAMP_FACE_COUNT                                                                       \
+	(ROLL_RAMP_ROAD_TRIANGLE_COUNT + ROLL_RAMP_STRUCTURAL_FACE_COUNT + ROLL_RAMP_MARKING_COUNT)
 #define ROLL_RAMP_TRIANGLE_BYTES 6U
 #define ROLL_RAMP_QUAD_BYTES 7U
 #define ROLL_RAMP_PRIMITIVE_BYTES                                                                  \
 	(ROLL_RAMP_ROAD_TRIANGLE_COUNT * ROLL_RAMP_TRIANGLE_BYTES +                                    \
-	 ROLL_RAMP_STRUCTURAL_FACE_COUNT * ROLL_RAMP_QUAD_BYTES + 2U)
+	 (ROLL_RAMP_STRUCTURAL_FACE_COUNT + ROLL_RAMP_MARKING_COUNT) * ROLL_RAMP_QUAD_BYTES + 2U)
 #define ROLL_RAMP_ALWAYS_VISIBLE 1U
 #define ROLL_RAMP_NORMAL_SCALE (TRIG_FIXED_ONE / 2)
 #define ROLL_RAMP_FULL_TURN_RADIANS 6.28318530717958647693
@@ -318,6 +322,34 @@ legacy_s16 roll_ramp_create_mesh(struct SHAPE3D *mesh, legacy_u8 surface)
 													   : ROLL_RAMP_CONCRETE_MATERIAL,
 											 corners);
 		}
+	}
+	/* Match the stock road's six narrow, 85-unit yellow dashes per tile. The
+	 * grille uses its own masked yellow paint, sharing the road's stock mask.
+	 * Lift the strips above the small center ridges in the triangulated twist;
+	 * this artwork never changes the finite collision triangles. */
+	for (legacy_u16 dash = 0; dash < ROLL_RAMP_MARKING_COUNT; dash++) {
+		legacy_s16 start = (dash / ROLL_RAMP_MARKINGS_PER_TILE) * CSTRK_TILE_WORLD_SIZE +
+						   (dash % ROLL_RAMP_MARKINGS_PER_TILE) * CSTRK_TILE_WORLD_SIZE /
+							   ROLL_RAMP_MARKINGS_PER_TILE;
+		legacy_u8 first =
+			(legacy_u8)(ROLL_RAMP_MARKING_VERTEX_FIRST + dash * ROLL_RAMP_MARKING_VERTEX_COUNT);
+		for (legacy_u16 corner = 0; corner < ROLL_RAMP_MARKING_VERTEX_COUNT; corner++) {
+			legacy_s16 distance = start + (corner >= 2U ? ROLL_RAMP_MARKING_LENGTH : 0);
+			legacy_s16 lateral =
+				corner & 1U ? ROLL_RAMP_MARKING_HALF_WIDTH : -ROLL_RAMP_MARKING_HALF_WIDTH;
+			struct VECTOR point;
+			roll_ramp_sample(distance, lateral, &point, NULL);
+			point.y += ROLL_RAMP_MARKING_CLEARANCE;
+			roll_ramp_write_vertex(mesh, first + corner, &point);
+		}
+		legacy_u8 indices[ROLL_RAMP_MARKING_VERTEX_COUNT];
+		indices[0] = first;
+		indices[1] = first + 1U;
+		indices[2] = first + 3U;
+		indices[3] = first + 2U;
+		legacy_u8 material = dash < ROLL_RAMP_MARKINGS_PER_TILE ? ROLL_RAMP_MARKING_MATERIAL
+																: ROLL_RAMP_GRILLE_MARKING_MATERIAL;
+		primitive = roll_ramp_write_face(primitive, 4, material, indices);
 	}
 	primitive[0] = primitive[1] = 0;
 	return 1;

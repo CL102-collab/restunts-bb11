@@ -792,6 +792,10 @@ static void render_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 color,
 		paint.material.color = second_color;
 		paint.material.alternate = color;
 	}
+	if ((type & RENDER_PRIMITIVE_BLACK_GRILLE_FLAG) != 0U) {
+		type &= ~RENDER_PRIMITIVE_BLACK_GRILLE_FLAG;
+		paint.material.color = 0;
+	}
 	if ((type & RENDER_PRIMITIVE_GHOST_FLAG) != 0) {
 		type &= ~RENDER_PRIMITIVE_GHOST_FLAG;
 		paint.material.color = 0;
