@@ -1084,9 +1084,9 @@ static void test_ghost_camera_modes(void)
 	followOpponentFlag = 0;
 }
 
-/* Speculative collision or water flags must not start irreversible effects.
+/* Snapshot collision or water flags must not start irreversible effects.
  * Confirmed events must still be visible on every intervening presentation. */
-static void test_prediction_uses_authoritative_events(void)
+static void test_snapshot_uses_authoritative_events(void)
 {
 	struct FRAME_LOOKAHEAD_TILE lookahead = {11, 9, 0};
 	struct FRAME_TILE_SELECTION tiles = {0};
@@ -1107,8 +1107,8 @@ static void test_prediction_uses_authoritative_events(void)
 	for (legacy_s16 viewed = 0; viewed < 3; viewed++) {
 		for (legacy_s16 real_event = CRASH_EVENT_NONE; real_event <= CRASH_EVENT_WATER;
 			 real_event++) {
-			for (legacy_s16 phantom_event = CRASH_EVENT_NONE; phantom_event <= CRASH_EVENT_WATER;
-				 phantom_event++) {
+			for (legacy_s16 snapshot_event = CRASH_EVENT_NONE; snapshot_event <= CRASH_EVENT_WATER;
+				 snapshot_event++) {
 				memset(&state, 0, sizeof(state));
 				memset(&ghost_fixture, 0, sizeof(ghost_fixture));
 				state.game_frame = 2000;
@@ -1129,20 +1129,20 @@ static void test_prediction_uses_authoritative_events(void)
 				struct GAMESTATE real_state = state;
 				struct CARSTATE real_ghost = ghost_fixture;
 				struct GHOST_CAMERA_STATE real_ghost_camera = ghost_camera_fixture;
-				struct GAMESTATE phantom = state;
-				struct CARSTATE phantom_ghost = ghost_fixture;
-				struct GHOST_CAMERA_STATE phantom_ghost_camera = ghost_camera_fixture;
-				phantom.game_pEndFrame = phantom.game_oEndFrame = 1999;
-				phantom_ghost_camera.frame = 999;
-				phantom_ghost_camera.crash_frame = 119;
-				struct CARSTATE *phantom_car = viewed == 0	 ? &phantom.playerstate
-											   : viewed == 1 ? &phantom.opponentstate
-															 : &phantom_ghost;
-				phantom_car->car_crashBmpFlag = phantom_event;
-				phantom_car->car_position.lx = 11L * 65536L;
-				struct GAMESTATE presentation = phantom;
-				struct CARSTATE presentation_ghost = phantom_ghost;
-				struct GHOST_CAMERA_STATE presentation_ghost_camera = phantom_ghost_camera;
+				struct GAMESTATE snapshot_state = state;
+				struct CARSTATE snapshot_ghost = ghost_fixture;
+				struct GHOST_CAMERA_STATE snapshot_ghost_camera = ghost_camera_fixture;
+				snapshot_state.game_pEndFrame = snapshot_state.game_oEndFrame = 1999;
+				snapshot_ghost_camera.frame = 999;
+				snapshot_ghost_camera.crash_frame = 119;
+				struct CARSTATE *snapshot_car = viewed == 0	  ? &snapshot_state.playerstate
+												: viewed == 1 ? &snapshot_state.opponentstate
+															  : &snapshot_ghost;
+				snapshot_car->car_crashBmpFlag = snapshot_event;
+				snapshot_car->car_position.lx = 11L * 65536L;
+				struct GAMESTATE presentation = snapshot_state;
+				struct CARSTATE presentation_ghost = snapshot_ghost;
+				struct GHOST_CAMERA_STATE presentation_ghost_camera = snapshot_ghost_camera;
 				frame_preserve_authoritative_events(&presentation, &presentation_ghost,
 													&presentation_ghost_camera);
 				frame_state = &presentation;
@@ -1172,7 +1172,7 @@ static void test_prediction_uses_authoritative_events(void)
 					frame_add_tile_cars(&tile, &camera, cars, 0);
 					assert(transformedshape_counter == 1);
 					assert(currenttransshape[0].pos.x ==
-						   position_to_word(phantom_car->car_position.lx));
+						   position_to_word(snapshot_car->car_position.lx));
 					legacy_s8 expected_flags = real_event == CRASH_EVENT_COLLISION
 												   ? FRAME_TRANSFORM_FLAGS_CLIPPED
 												   : FRAME_TRANSFORM_FLAGS_DEFAULT;
@@ -1188,10 +1188,11 @@ static void test_prediction_uses_authoritative_events(void)
 				assert(memcmp(&ghost_fixture, &real_ghost, sizeof(ghost_fixture)) == 0);
 				assert(memcmp(&ghost_camera_fixture, &real_ghost_camera,
 							  sizeof(ghost_camera_fixture)) == 0);
-				assert(phantom_car->car_crashBmpFlag == phantom_event);
-				assert(phantom.game_pEndFrame == 1999 && phantom.game_oEndFrame == 1999);
-				assert(phantom_ghost_camera.frame == 999 &&
-					   phantom_ghost_camera.crash_frame == 119);
+				assert(snapshot_car->car_crashBmpFlag == snapshot_event);
+				assert(snapshot_state.game_pEndFrame == 1999 &&
+					   snapshot_state.game_oEndFrame == 1999);
+				assert(snapshot_ghost_camera.frame == 999 &&
+					   snapshot_ghost_camera.crash_frame == 119);
 				frame_uses_snapshot = 0;
 				frame_state = &state;
 				frame_ghost = 0;
@@ -2699,7 +2700,7 @@ legacy_int main(void)
 	test_invalid_multitile_flags();
 	test_ghost_uses_independent_visual_state();
 	test_ghost_camera_modes();
-	test_prediction_uses_authoritative_events();
+	test_snapshot_uses_authoritative_events();
 	test_supersight_selection();
 	test_supersight_capacity_retries();
 #if defined(RESTUNTS_SDL3)

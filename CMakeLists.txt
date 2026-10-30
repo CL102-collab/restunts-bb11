@@ -233,7 +233,7 @@ set(game_sources
     menu_car.c audio_engine.c
     audio_resources.c audio_car.c audio_sequence.c shape3d.c shape3d_resources.c
     shape3d_car.c shape3d_prerender.c shape3d_lines.c shape2d.c shape2d_blit.c
-    video_pages.c hires.c hypervision.c render_workers.c frame_interpolation.c phantom_physics.c shape3d_hires.c shape2d_resources.c heapsort.c frame.c frame_adaptive.c skybox.c skybox_hires.c frame_overlay.c
+    video_pages.c hires.c hypervision.c render_workers.c frame_interpolation.c shape3d_hires.c shape2d_resources.c heapsort.c frame.c frame_adaptive.c skybox.c skybox_hires.c frame_overlay.c
     intro_render.c track_preview.c full_data.c full_strings.c full_tables.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")

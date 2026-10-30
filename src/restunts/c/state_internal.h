@@ -5,6 +5,7 @@
 
 struct CARSTATE;
 struct SIMD;
+struct GAMESTATE;
 
 enum GRIP_BEHAVIOR { GRIP_BEHAVIOR_OPPONENT = 0, GRIP_BEHAVIOR_PLAYER = 1 };
 
@@ -24,5 +25,8 @@ void update_player_state(struct CARSTATE *playerstate, struct SIMD *playersimd,
 						 legacy_s16 car_index);
 
 void update_player_steering_input(legacy_s8 steering_input);
+void update_player_steering_fraction(struct CARSTATE *carstate, legacy_s8 steering_input,
+									 legacy_u32 fraction20);
+void update_follow_cameras_fraction(struct GAMESTATE *branch, legacy_u32 fraction20);
 
 #endif

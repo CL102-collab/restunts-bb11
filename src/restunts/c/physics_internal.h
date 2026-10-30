@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_PHYSICS_INTERNAL_H
 #define RESTUNTS_PHYSICS_INTERNAL_H
 
-#include "math.h"
+#include "gamestate.h"
 
 struct CARSTATE;
 struct SIMD;
@@ -28,6 +28,11 @@ extern struct VECTOR slalom_collision_points[];
 #define PHYSICS_HEIGHT_ONLY_PLANE_COUNT 4
 #define PHYSICS_PLANE_CONTACT_TOLERANCE 12
 #define PHYSICS_UNDERSIDE_CLEARANCE 24
+
+/* Q16 time in units of one 20 Hz physics tick. */
+#define PHYSICS_FRACTION_ONE 65536UL
+#define PHYSICS_LOW_RATE_TICK_FRACTION                                                             \
+	(PHYSICS_FRACTION_ONE * GAME_FRAME_RATE_NORMAL / GAME_FRAME_RATE_LOW)
 
 legacy_s16 sweep_track_underside(struct VECTOR *previous, struct VECTOR *current,
 								 legacy_s16 *fraction);
@@ -66,6 +71,8 @@ legacy_s16 wheel_pair_delta(legacy_s16 first, legacy_s16 second, legacy_s16 thir
 legacy_s16 get_track_collision_points(legacy_s16 column, legacy_s16 row, struct VECTOR *output);
 legacy_s16 update_wheel_suspension(struct CARSTATE *carstate, legacy_s16 contact_delta,
 								   legacy_s16 wheel_index);
+legacy_s16 update_wheel_suspension_fraction(struct CARSTATE *carstate, legacy_s16 contact_delta,
+											legacy_s16 wheel_index, legacy_u32 fraction20);
 legacy_s16 resolve_car_collision_speeds(struct CARSTATE *first_state,
 										struct CARSTATE *second_state);
 legacy_s16 car_collision_boxes_overlap(struct POINT2D *first_collision_points,

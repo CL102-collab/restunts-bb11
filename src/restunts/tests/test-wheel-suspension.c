@@ -3,7 +3,6 @@
 #include <string.h>
 
 #include "../c/physics_internal.h"
-#include "../c/phantom_physics.h"
 #include "../c/gamestate.h"
 
 static void test_suspension_boundaries(void)

@@ -2984,32 +2984,3 @@ legacy_void RsUpdatePlayerState(CCarState *carstate,CSimd *simd,CCarState *other
     RsOwootUpdatePlayer(carstate,TempleCastS16(car_index));
   }
 }
-
-legacy_void RsUpdatePlayerStateFraction(
-    CGameState *branch,legacy_s16 car_index,legacy_u32 fraction20)
-{
-  legacy_u32 noreg temple_saved_fraction_6726;
-  CGameState *temple_saved_state_6727;
-  legacy_u32 noreg temple_tmp_6728;
-  if((fraction20==TempleCastU32(0))) {
-    return;
-  }
-  temple_saved_fraction_6726=TempleCastU32(rs_stateply_player_motion_fraction);
-  temple_saved_state_6727=rs_stateply_player_motion_state;
-  if((fraction20>65536)) {
-    temple_tmp_6728=TempleCastU32(65536);
-  } else {
-    temple_tmp_6728=TempleCastU32(fraction20);
-  }
-  (rs_stateply_player_motion_fraction=TempleCastU32(temple_tmp_6728));
-  (rs_stateply_player_motion_state=branch);
-  if((car_index==PLAYER_CAR_INDEX)) {
-    RsUpdatePlayerState((&(branch->playerstate)),(&(simd_player)),(&(branch->opponentstate)),
-        (&(simd_opponent)),TempleCastS16(car_index));
-  } else {
-    RsUpdatePlayerState((&(branch->opponentstate)),(&(simd_opponent)),(&(branch->playerstate)),
-        (&(simd_player)),TempleCastS16(car_index));
-  }
-  (rs_stateply_player_motion_fraction=TempleCastU32(temple_saved_fraction_6726));
-  (rs_stateply_player_motion_state=temple_saved_state_6727);
-}
