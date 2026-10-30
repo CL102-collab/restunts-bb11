@@ -227,7 +227,7 @@
     function startPaste() {
         if (!state.ready || state.loading || !state.clipboard?.objects.length) return;
         updateTool('paste');
-        message('Move the copied block over the track, then click to paste. Flip the whole block with the buttons; Escape cancels.');
+        message('Move the copied block over the track, then click to paste. Q/E rotates the whole block; the flip buttons mirror it. Escape cancels.');
     }
     function flipSelection(axis) {
         if (!state.ready || state.loading || !state.clipboard?.objects.length) return;
@@ -255,6 +255,16 @@
         message(redo ? 'Redid the last edit.' : 'Undid the last edit.');
     }
     function rotate(amount) {
+        if (state.tool === 'paste') {
+            if (!state.clipboard?.objects.length) return;
+            finishDrag();
+            try {
+                state.clipboard = model.rotateClipboard(state.clipboard, amount);
+                message('Copied block rotated ' + (amount > 0 ? 'clockwise' : 'counterclockwise') + '.');
+                scheduleDraw();
+            } catch (error) { message(error.message, true); }
+            return;
+        }
         if (state.tool === 'paint' && state.lowerSurface !== null) return;
         if (state.tool === 'water-corner') setShoreDirection((state.shoreDirection + amount + 4) % 4);
         else setDirection((state.rotation + amount + 4) % 4);
