@@ -230,16 +230,26 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 						  "Object %u requires track version v%u for sloped tunnels and slaloms",
 						  (legacy_uint)index, CSTRK_SLOPED_STUNT_VERSION);
 	}
-	for (unsigned row = 0; row <= object->height; row++) {
-		for (unsigned column = 0; column <= object->width; column++) {
-			int expected = (int)object->base_height + object->slope_x * (int)column +
-						   object->slope_y * (int)row;
-			size_t vertex = ((size_t)object->y + row) * (track->width + 1U) + object->x + column;
-			if (expected < 0 || expected > (int)CSTRK_MAX_HEIGHT ||
-				track->corner_heights[vertex] != expected) {
-				return cstrk_fail(error, error_size,
-								  "Object %u does not fit a continuous terrain plane",
-								  (unsigned)index);
+	/* Only corners touching a claimed cell support the piece. The far corner
+	 * of an unclaimed cell can form a hill without bending the road. */
+	for (legacy_u8 row = 0; row < object->height; row++) {
+		for (legacy_u8 column = 0; column < object->width; column++) {
+			if (!(object->occupied_mask & (1U << (row * object->width + column)))) {
+				continue;
+			}
+			for (legacy_u8 dy = 0; dy <= 1U; dy++) {
+				for (legacy_u8 dx = 0; dx <= 1U; dx++) {
+					legacy_s16 expected = object->base_height + object->slope_x * (column + dx) +
+										  object->slope_y * (row + dy);
+					size_t vertex = ((size_t)object->y + row + dy) * (track->width + 1U) +
+									object->x + column + dx;
+					if (expected < 0 || expected > (legacy_s16)CSTRK_MAX_HEIGHT ||
+						track->corner_heights[vertex] != expected) {
+						return cstrk_fail(error, error_size,
+										  "Object %u does not fit a continuous terrain plane",
+										  (legacy_uint)index);
+					}
+				}
 			}
 		}
 	}

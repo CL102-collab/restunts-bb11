@@ -540,18 +540,14 @@ static legacy_s16 road_triangle_overlaps_wheel(const struct OWOOT_ROAD_TRIANGLE 
 }
 
 #ifdef RESTUNTS_SDL3
-static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertices,
-													legacy_u16 ring_count, int column,
-													int world_row, legacy_s16 contact_tolerance)
+static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT *placed,
+													  const struct VECTOR *vertices,
+													  legacy_u16 ring_count,
+													  legacy_s16 contact_tolerance)
 {
-	const struct CSTRK_OBJECT *placed =
-		extended_track_object_at(column, extended_track_height() - 1 - world_row);
-	if (!placed) {
-		return 0;
-	}
-	unsigned id = extended_track_object_id(placed);
+	legacy_u32 id = extended_track_object_id(placed);
 	const struct TRACKOBJECT *object = &trkObjectList[id];
-	int model = object->ss_physicalModel;
+	legacy_s16 model = object->ss_physicalModel;
 	if (model < 0 || model > PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 		return 0;
 	}
@@ -589,6 +585,24 @@ static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertice
 	for (legacy_u16 index = 0; index < geometry->triangle_count; index++) {
 		if (road_triangle_overlaps_wheel(&owoot_road_triangles[geometry->first_triangle + index],
 										 local, ring_count, contact_tolerance)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertices,
+													legacy_u16 ring_count, legacy_s16 column,
+													legacy_s16 world_row,
+													legacy_s16 contact_tolerance)
+{
+	const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 count =
+		extended_track_objects_in_cell(column, extended_track_height() - 1 - world_row, candidates,
+									   EXTENDED_TRACK_CELL_OBJECT_MAX);
+	for (legacy_u16 index = 0; index < count; index++) {
+		if (road_extended_object_overlaps_wheel(candidates[index], vertices, ring_count,
+												contact_tolerance)) {
 			return 1;
 		}
 	}

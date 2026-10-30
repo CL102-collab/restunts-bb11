@@ -1506,6 +1506,63 @@ void build_extended_track_terrain(struct VECTOR *position)
 	}
 }
 
+/* Sparse occupancy frees editor cells, while the authored road and guardrails
+ * can still cross a small part of their corners. Resolve that geometry before
+ * falling back to the independently placed piece that owns the cell. */
+static legacy_s16 extended_object_road_at(const struct CSTRK_TRACK *track,
+										  const struct CSTRK_OBJECT *object,
+										  const struct VECTOR *position)
+{
+	legacy_u32 id = extended_track_object_id(object);
+	const struct TRACKOBJECT *definition = &trkObjectList[id];
+	struct VECTOR origin, local;
+	extended_geometry_object_origin(track, object, &origin);
+	local.x = LEGACY_S16_WRAP_SUB(position->x, origin.x);
+	local.y = LEGACY_S16_WRAP_SUB(position->y, origin.y);
+	local.z = LEGACY_S16_WRAP_SUB(position->z, origin.z);
+	track_rotate_local(&local, definition->ss_rotY);
+	legacy_s16 model = definition->ss_physicalModel;
+	if (model == PHYSICAL_MODEL_LARGE_CORNER) {
+		return track_radius_in_band(LEGACY_S16_WRAP_ADD(local.x, TRACK_ARC_CENTER_OFFSET),
+									LEGACY_S16_WRAP_ADD(local.z, TRACK_ARC_CENTER_OFFSET),
+									LARGE_CORNER_INNER_RADIUS, LARGE_CORNER_OUTER_RADIUS);
+	}
+	if (model == PHYSICAL_MODEL_BANKED_CORNER) {
+		legacy_s16 radius = track_arc_radius(&local);
+		return radius > -BANKED_CORNER_INNER_OFFSET && radius < BANKED_CORNER_OUTER_OFFSET;
+	}
+	if (model == PHYSICAL_MODEL_ELEVATED_CORNER) {
+		legacy_s16 radius = track_arc_radius(&local);
+		return local.y > ELEVATED_DECK_CLEARANCE && radius > -ELEVATED_CORNER_OUTER_OFFSET &&
+			   radius < ELEVATED_CORNER_OUTER_OFFSET;
+	}
+	return track_road_contains_local_point(model, &local);
+}
+
+static const struct CSTRK_OBJECT *
+extended_collision_object(const struct CSTRK_TRACK *track,
+						  const struct EXTENDED_TERRAIN_SAMPLE *terrain,
+						  const struct VECTOR *position)
+{
+	const struct CSTRK_OBJECT *owner =
+		extended_track_object_at(terrain->column, terrain->north_row);
+	const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 count = extended_track_objects_in_cell(terrain->column, terrain->north_row,
+													  candidates, EXTENDED_TRACK_CELL_OBJECT_MAX);
+	if (owner && (count == 1 || extended_object_road_at(track, owner, position))) {
+		return owner;
+	}
+	for (legacy_u16 index = 0; index < count; index++) {
+		const struct CSTRK_OBJECT *candidate = candidates[index];
+		legacy_u16 full_mask = (1U << (candidate->width * candidate->height)) - 1U;
+		if (candidate != owner && candidate->occupied_mask != full_mask &&
+			extended_object_road_at(track, candidate, position)) {
+			return candidate;
+		}
+	}
+	return owner;
+}
+
 static void build_extended_track_object(struct VECTOR *position, struct VECTOR *next)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
@@ -1516,7 +1573,7 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 		current_planptr = &planptr[0];
 		return;
 	}
-	const struct CSTRK_OBJECT *object = extended_track_object_at(terrain.column, terrain.north_row);
+	const struct CSTRK_OBJECT *object = extended_collision_object(track, &terrain, position);
 	if (object == 0) {
 		extended_select_terrain(&terrain, position);
 		return;

@@ -217,10 +217,45 @@ static legacy_s16 route_owns_position(legacy_s16 piece, const struct OWOOT_POINT
 		(legacy_s16)(extended_track_height() - 1) - (legacy_s16)(position->z / OWOOT_TILE_SIZE);
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		const struct CSTRK_OBJECT *placed = extended_track_object_at(column, row);
-		return placed && placed->x == (legacy_u8)track_route_columns[piece] &&
-			   placed->y == (legacy_u8)track_route_rows[piece] &&
-			   extended_track_object_id(placed) == (legacy_u8)track_route_element_ids[piece];
+		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
+			(legacy_u8)track_route_element_ids[piece]);
+		if (!placed || column < placed->x || row < placed->y ||
+			column >= placed->x + placed->width || row >= placed->y + placed->height) {
+			return 0;
+		}
+		if (extended_track_object_at(column, row) == placed) {
+			return 1;
+		}
+		legacy_u16 full_mask = (1U << (placed->width * placed->height)) - 1U;
+		if (placed->occupied_mask == full_mask) {
+			return 0;
+		}
+		/* The small road arc in a free corner still belongs to this route.
+		 * Another piece placed in the rest of that cell keeps its own gates. */
+		struct VECTOR local = {
+			(legacy_s16)(position->x - placed->x * CSTRK_TILE_WORLD_SIZE -
+						 placed->width * (CSTRK_TILE_WORLD_SIZE / 2)),
+			0,
+			(legacy_s16)(position->z -
+						 (extended_track_height() - placed->y) * CSTRK_TILE_WORLD_SIZE +
+						 placed->height * (CSTRK_TILE_WORLD_SIZE / 2))};
+		legacy_s16 x = local.x, z = local.z;
+		switch ((legacy_u16)route_object(piece)->ss_rotY) {
+			case ANGLE_QUARTER_TURN:
+				local.x = -z;
+				local.z = x;
+				break;
+			case ANGLE_HALF_TURN:
+				local.x = -x;
+				local.z = -z;
+				break;
+			case ANGLE_THREE_QUARTER_TURN:
+				local.x = z;
+				local.z = -x;
+				break;
+		}
+		return track_road_contains_local_point(route_object(piece)->ss_physicalModel, &local);
 	}
 #endif
 	legacy_u8 tile = track_element_map[trackrows[row] + column];

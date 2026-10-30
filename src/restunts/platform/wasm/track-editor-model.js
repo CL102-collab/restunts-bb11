@@ -15,6 +15,10 @@
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
     const MAGIC = [67, 83, 84, 82, 75, 26, 13, 10];
+    const CORNER_PHYSICAL_MODELS = new Set([3, 21, 26]);
+    const LARGE_BRANCH_LEFT_MODEL = 8, LARGE_BRANCH_RIGHT_MODEL = 9;
+    const CORNER_MASKS = [9, 6, 9, 6], FORMER_CORNER_MASKS = [11, 14, 13, 7];
+    const LARGE_BRANCH_RIGHT_MASKS = [7, 11, 14, 13];
     const groups = [{ id: 1, name: 'F1 · Roads' }, { id: 4, name: 'F4 · Stunts' }, { id: 5, name: 'F5 · Banked roads' },
         { id: 6, name: 'F6 · Large branches' }, { id: 7, name: 'F7 · Highway & chicanes' },
         { id: 8, name: 'F8 · Elevated roads' }, { id: 9, name: 'F9 · Corkscrews' }, { id: 10, name: 'F10 · Scenery' }];
@@ -41,7 +45,9 @@
     const catalog = LEGACY.map((a, id) => {
         const width = (a[2] & 2) ? 2 : 1, height = (a[2] & 1) ? 2 : 1, physical = a[3];
         let mask = (1 << (width * height)) - 1;
-        if ([3, 21, 26].includes(physical)) mask = ({ 0: 11, 256: 14, 512: 13, 768: 7 })[a[0]];
+        if (CORNER_PHYSICAL_MODELS.has(physical)) mask = CORNER_MASKS[a[0] / 256];
+        if (physical === LARGE_BRANCH_LEFT_MODEL) mask = FORMER_CORNER_MASKS[a[0] / 256];
+        if (physical === LARGE_BRANCH_RIGHT_MODEL) mask = LARGE_BRANCH_RIGHT_MASKS[a[0] / 256];
         if (id === 60 || id === 61) mask = 6;
         if (id === 62 || id === 63) mask = 9;
         const decoration = physical >= 64;
@@ -321,8 +327,12 @@
             });
         }
         matchesPlane(object, vertices = this.vertices) {
-            for (let y = 0; y <= object.height; y++) for (let x = 0; x <= object.width; x++)
-                if (vertices[(object.y + y) * (this.width + 1) + object.x + x] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
+            for (const [cx, cy] of occupied(object)) {
+                for (let dy = 0; dy <= 1; dy++) for (let dx = 0; dx <= 1; dx++) {
+                    const x = cx - object.x + dx, y = cy - object.y + dy;
+                    if (vertices[(cy + dy) * (this.width + 1) + cx + dx] !== object.baseHeight + x * object.slopeX + y * object.slopeY) return false;
+                }
+            }
             return true;
         }
         supportsTerrain(object, vertices = this.vertices) {
@@ -350,6 +360,11 @@
             const footprint = rotatedFootprint(entry, rotation);
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
             const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, lowerSurface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
+            if (object.width > 1 || object.height > 1) {
+                const [cx, cy] = occupied(object)[0];
+                object.baseHeight = this.vertices[cy * (this.width + 1) + cx];
+                object.slopeX = object.slopeY = 0;
+            }
             if ((object.slopeX || object.slopeY) && SLOPED_STUNT_PHYSICAL_MODELS.has(entry.physical) && this.version < SLOPED_STUNT_VERSION) throw new Error(SLOPED_STUNT_VERSION_ERROR);
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
@@ -450,7 +465,19 @@
             if ((version < OVERPASS_SURFACE_VERSION && a[p + 12]) || a[p + 13] || a[p + 14] || a[p + 15]) throw new Error('Unsupported element flags.');
             const id = v.getUint16(p, true), surface = a[p + 5];
             const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
-            doc.objects.push({ id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) });
+            const object = { id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) };
+            const entry = byId.get(id);
+            if (entry && (CORNER_PHYSICAL_MODELS.has(entry.physical) ||
+                entry.physical === LARGE_BRANCH_LEFT_MODEL || entry.physical === LARGE_BRANCH_RIGHT_MODEL)) {
+                const formerMask = CORNER_PHYSICAL_MODELS.has(entry.physical)
+                    ? FORMER_CORNER_MASKS[entry.rotation] : (1 << (entry.width * entry.height)) - 1;
+                const former = rotatedFootprint({ ...entry, mask: formerMask }, object.rotation);
+                if (object.width === former.width && object.height === former.height && object.mask === former.mask) {
+                    if (!doc.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
+                    object.mask = rotatedFootprint(entry, object.rotation).mask;
+                }
+            }
+            doc.objects.push(object);
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
