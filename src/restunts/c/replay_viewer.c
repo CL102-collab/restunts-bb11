@@ -725,27 +725,36 @@ static legacy_s32 replay_scrub_advance(legacy_s32 accumulated, legacy_u16 *delta
 }
 
 #ifdef RESTUNTS_SDL3
-static void replay_extended_scrub(int direction)
+static void replay_extended_scrub(legacy_s16 direction)
 {
-	(void)replay_scrub_begin(direction > 0 ? REPLAY_CONTROL_FAST_FORWARD : REPLAY_CONTROL_REWIND);
-	uint32_t origin = extended_replay_input_frame();
-	uint32_t limit = direction > 0 ? extended_replay_recorded_frames() - origin : origin;
-	uint64_t accumulated = 0U, held = 0U;
-	uint32_t target = origin;
-	int menu_requested = 0;
+	legacy_u64 accumulated =
+		replay_scrub_begin(direction > 0 ? REPLAY_CONTROL_FAST_FORWARD : REPLAY_CONTROL_REWIND);
+	legacy_u32 origin = extended_replay_input_frame();
+	legacy_u32 limit = direction > 0 ? extended_replay_recorded_frames() - origin : origin;
+	legacy_u64 maximum = (legacy_u64)limit * REPLAY_SCRUB_FIXED_SCALE;
+	if (accumulated > maximum) {
+		accumulated = maximum;
+	}
+	legacy_u32 amount = (legacy_u32)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
+	legacy_u32 target = direction > 0 ? origin + amount : origin - amount;
+	legacy_u8 menu_requested = 0;
 	while (((legacy_u8)input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0U) {
 		if (sdl3_controller_take_menu_request() != 0) {
 			menu_requested = 1;
 			break;
 		}
-		uint32_t delta = timer_get_delta_alt();
-		held += delta;
-		uint64_t speed = held > 1000U ? 6U : 3U;
-		accumulated += (uint64_t)delta * speed;
-		if (accumulated > (uint64_t)limit * REPLAY_SCRUB_FIXED_SCALE) {
-			accumulated = (uint64_t)limit * REPLAY_SCRUB_FIXED_SCALE;
+		/* Match classic toolbar acceleration without narrowing long CSRPL distances. */
+		legacy_u64 speed =
+			accumulated / REPLAY_SCRUB_ACCELERATION_DIVISOR + REPLAY_SCRUB_INITIAL_SPEED;
+		if (speed > REPLAY_SCRUB_MAX_SPEED) {
+			speed = REPLAY_SCRUB_MAX_SPEED;
 		}
-		uint32_t amount = (uint32_t)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
+		legacy_u32 delta = timer_get_delta_alt();
+		accumulated += (legacy_u64)delta * speed;
+		if (accumulated > maximum) {
+			accumulated = maximum;
+		}
+		amount = (legacy_u32)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
 		target = direction > 0 ? origin + amount : origin - amount;
 		replay_controls_draw(extended_replay_frame(), target);
 		input_do_checking((legacy_s16)(delta > LEGACY_S16_MAX ? LEGACY_S16_MAX : delta));

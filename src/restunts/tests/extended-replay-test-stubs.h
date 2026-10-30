@@ -1,8 +1,9 @@
 #ifndef RESTUNTS_EXTENDED_REPLAY_TEST_STUBS_H
 #define RESTUNTS_EXTENDED_REPLAY_TEST_STUBS_H
 
-/* Legacy behavior fixtures deliberately keep the extended runtime inactive.
- * Actual extended storage/clock/rewind behavior has separate integration tests. */
+/* Legacy behavior fixtures keep the extended runtime inactive unless a viewer
+ * fixture supplies its own runtime with EXTENDED_TEST_REPLAY_RUNTIME. Actual
+ * extended storage/clock/rewind behavior has separate integration tests. */
 #include "../c/externs.h"
 #include "../c/fileio.h"
 #include "../c/ui_dialog.h"
@@ -124,10 +125,12 @@ void extended_race_stats_capture(void)
 {
 	assert(0);
 }
+#ifndef EXTENDED_TEST_REPLAY_RUNTIME
 int extended_replay_is_active(void)
 {
 	return 0;
 }
+#endif
 legacy_u16 extended_replay_version(void)
 {
 	return 0;
@@ -150,6 +153,7 @@ int extended_replay_runtime_load(const struct CSRPL_VIEW *view)
 	assert(0);
 	return 0;
 }
+#ifndef EXTENDED_TEST_REPLAY_RUNTIME
 uint32_t extended_replay_frame(void)
 {
 	return (legacy_u16)state.game_frame;
@@ -162,6 +166,7 @@ uint32_t extended_replay_recorded_frames(void)
 {
 	return gameconfig.game_recordedframes;
 }
+#endif
 void extended_replay_set_input_frame(uint32_t frame)
 {
 	elapsed_time2 = (legacy_u16)frame;
@@ -210,18 +215,21 @@ void extended_replay_after_step(void)
 {
 	assert(0);
 }
+#ifndef EXTENDED_TEST_REPLAY_RUNTIME
 int extended_replay_seek(uint32_t frame)
 {
 	(void)frame;
 	assert(0);
 	return 0;
 }
+#endif
 int extended_replay_branch(uint32_t frame)
 {
 	(void)frame;
 	assert(0);
 	return 0;
 }
+#ifndef EXTENDED_TEST_REPLAY_RUNTIME
 void extended_replay_format_runtime_time(legacy_s8 *out, uint32_t frame, int fraction)
 {
 	(void)out;
@@ -229,6 +237,7 @@ void extended_replay_format_runtime_time(legacy_s8 *out, uint32_t frame, int fra
 	(void)fraction;
 	assert(0);
 }
+#endif
 uint32_t extended_replay_timeline_position(uint32_t frame, uint32_t count, uint32_t width)
 {
 	return count ? (uint32_t)((uint64_t)frame * width / count) : 0U;

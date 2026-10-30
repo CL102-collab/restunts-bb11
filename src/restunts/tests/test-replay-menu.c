@@ -6,6 +6,7 @@
 #define VIEWER_SOURCE "../c/replay_viewer.c"
 #endif
 #include VIEWER_SOURCE
+#define EXTENDED_TEST_REPLAY_RUNTIME
 #include "extended-replay-test-stubs.h"
 #undef memcpy
 #undef printf
@@ -51,6 +52,64 @@ static legacy_u8 controller_menu_request, controller_scrub_testing;
 static legacy_u16 controller_scrub_polls;
 static struct RECTANGLE controller_scrub_text_bounds;
 
+#define TEST_SCRUB_PREVIEW_CAPACITY 200U
+#define TEST_SCRUB_SHORT_HOLD 1U
+#define TEST_SCRUB_ONE_SECOND_HOLD 100U
+#define TEST_SCRUB_TWO_SECOND_HOLD 200U
+#define TEST_SCRUB_ORIGIN 5000U
+#define TEST_SCRUB_LENGTH (TEST_SCRUB_ORIGIN * 2U)
+#define TEST_SCRUB_LARGE_ORIGIN (LEGACY_U16_MAX + TEST_SCRUB_ORIGIN)
+#define TEST_SCRUB_LARGE_DELTA 10000U
+#define TEST_SCRUB_LARGE_HOLD 40U
+/* First poll moves 1501 frames; the remaining polls hit the 100-speed cap. */
+#define TEST_SCRUB_LARGE_DISTANCE 1951501U
+#define TEST_SCRUB_OVERSIZED_HOLD 2U
+static legacy_u8 toolbar_scrub_testing, toolbar_extended_active, toolbar_compare_preview;
+static legacy_u8 toolbar_interrupt_menu;
+static legacy_u32 toolbar_frame, toolbar_length, toolbar_target;
+static legacy_u32 toolbar_hold_polls, toolbar_release_poll, toolbar_seek_calls, toolbar_delta;
+static legacy_u32 toolbar_preview_frame, toolbar_classic_previews[TEST_SCRUB_PREVIEW_CAPACITY];
+
+legacy_int extended_replay_is_active(void)
+{
+	return toolbar_extended_active;
+}
+
+legacy_u32 extended_replay_frame(void)
+{
+	return toolbar_extended_active != 0 ? toolbar_frame : (legacy_u16)state.game_frame;
+}
+
+legacy_u32 extended_replay_input_frame(void)
+{
+	return toolbar_extended_active != 0 ? toolbar_frame : elapsed_time2;
+}
+
+legacy_u32 extended_replay_recorded_frames(void)
+{
+	return toolbar_extended_active != 0 ? toolbar_length : gameconfig.game_recordedframes;
+}
+
+legacy_int extended_replay_seek(legacy_u32 frame)
+{
+	assert(toolbar_scrub_testing != 0 && toolbar_extended_active != 0);
+	assert((input_combined_flags & INPUT_ACTION_BUTTON_MASK) == 0 || toolbar_interrupt_menu != 0);
+	assert(toolbar_hold_polls == toolbar_release_poll);
+	assert(supersight_reset_pending != 0 && toolbar_seek_calls == 0);
+	supersight_reset_pending = 0;
+	toolbar_target = toolbar_frame = frame;
+	toolbar_seek_calls++;
+	return 1;
+}
+
+void extended_replay_format_runtime_time(legacy_s8 *out, legacy_u32 frame, legacy_int fraction)
+{
+	assert(toolbar_extended_active != 0 && fraction == REPLAY_TIME_INCLUDE_FRACTION);
+	toolbar_preview_frame = frame;
+	out[0] = '0';
+	out[1] = 0;
+}
+
 void copy_string(legacy_s8 *destination, legacy_s8 far *source)
 {
 	while ((*destination++ = *source++) != 0) {
@@ -71,7 +130,7 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 	(void)y;
 	(void)color;
 	(void)shadow_color;
-	assert(controller_scrub_testing != 0);
+	assert(controller_scrub_testing != 0 || toolbar_scrub_testing != 0);
 	return &controller_scrub_text_bounds;
 }
 
@@ -80,7 +139,7 @@ void rect_union(struct RECTANGLE *first, struct RECTANGLE *second, struct RECTAN
 	(void)first;
 	(void)second;
 	(void)result;
-	assert(controller_scrub_testing != 0);
+	assert(controller_scrub_testing != 0 || toolbar_scrub_testing != 0);
 }
 
 legacy_u8 sdl3_controller_take_menu_request(void)
@@ -166,6 +225,11 @@ legacy_s16 kb_get_key_state(legacy_s16 scancode)
 
 legacy_u32 timer_get_delta_alt(void)
 {
+#ifdef RESTUNTS_SDL3
+	if (toolbar_scrub_testing != 0) {
+		return toolbar_delta;
+	}
+#endif
 	return 1;
 }
 
@@ -176,6 +240,33 @@ void sprite_select_screen(void)
 legacy_s16 input_do_checking(legacy_s16 delta)
 {
 #ifdef RESTUNTS_SDL3
+	if (toolbar_scrub_testing != 0) {
+		if (toolbar_interrupt_menu != 0 && toolbar_seek_calls != 0) {
+			assert(delta == REPLAY_INPUT_SETTLE_DELTA);
+			return 0;
+		}
+		if ((input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0) {
+			assert(toolbar_seek_calls == 0 && touch_seek_restores == 0);
+			assert(toolbar_hold_polls < toolbar_release_poll);
+			if (toolbar_compare_preview != 0) {
+				assert(toolbar_hold_polls < TEST_SCRUB_PREVIEW_CAPACITY);
+				if (toolbar_extended_active != 0) {
+					assert(toolbar_preview_frame == toolbar_classic_previews[toolbar_hold_polls]);
+				} else {
+					toolbar_classic_previews[toolbar_hold_polls] = toolbar_preview_frame;
+				}
+			}
+			toolbar_hold_polls++;
+			if (toolbar_hold_polls == toolbar_release_poll) {
+				if (toolbar_interrupt_menu != 0) {
+					controller_menu_request = 1;
+				} else {
+					input_combined_flags = 0;
+				}
+			}
+		}
+		return 0;
+	}
 	if (controller_scrub_testing != 0) {
 		assert((input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0);
 		controller_scrub_polls++;
@@ -289,6 +380,11 @@ void format_frame_as_string(legacy_s8 *text, legacy_s16 frame, legacy_s16 fracti
 	event(4);
 	hash_word(frame);
 	hash_word(fraction);
+#ifdef RESTUNTS_SDL3
+	if (toolbar_scrub_testing != 0) {
+		toolbar_preview_frame = (legacy_u16)frame;
+	}
+#endif
 	text[0] = '0';
 	text[1] = 0;
 }
@@ -821,6 +917,116 @@ static void test_replay_refresh_restore(void)
 #endif
 
 #ifdef RESTUNTS_SDL3
+static legacy_u32 run_toolbar_scrub(legacy_u8 extended, legacy_s16 direction, legacy_u32 origin,
+									legacy_u32 length, legacy_u32 held_polls, legacy_u32 delta,
+									legacy_u8 compare_preview)
+{
+	reset_viewer();
+	toolbar_scrub_testing = touch_seek_testing = 1;
+	toolbar_extended_active = extended;
+	toolbar_compare_preview = compare_preview;
+	toolbar_frame = origin;
+	toolbar_length = length;
+	toolbar_hold_polls = toolbar_seek_calls = touch_seek_restores = touch_seek_updates = 0;
+	toolbar_release_poll = held_polls;
+	toolbar_delta = delta;
+	toolbar_target = origin;
+	toolbar_preview_frame = origin;
+	game_replay_mode = REPLAY_MODE_PLAYBACK;
+	gameconfig.game_recordedframes = (legacy_u16)length;
+	elapsed_time2 = (legacy_u16)origin;
+	state.game_frame = LEGACY_S16_FROM_BITS((legacy_u16)origin);
+	input_combined_flags = held_polls != 0 ? INPUT_SECONDARY_ACTION_FLAG : 0;
+	controller_menu_request = 0;
+	menu_action = 0;
+	if (direction > 0) {
+		replay_fast_forward();
+	} else {
+		replay_rewind();
+	}
+	assert(toolbar_hold_polls == held_polls);
+	assert(replay_control_active[REPLAY_CONTROL_PAUSE] != 0 && is_in_replay != 0);
+	legacy_u32 target = extended != 0 ? toolbar_target : elapsed_time2;
+	if (extended != 0) {
+		assert(toolbar_seek_calls == 1 && toolbar_frame == target);
+		assert(toolbar_preview_frame == target);
+	} else {
+		assert((legacy_u16)state.game_frame == target);
+	}
+	assert(controller_menu_request == 0);
+	assert(dialog_count == (toolbar_interrupt_menu != 0 ? 1U : 0U));
+	toolbar_scrub_testing = toolbar_extended_active = touch_seek_testing = toolbar_interrupt_menu =
+		0;
+	return target;
+}
+
+static void test_toolbar_scrub_acceleration(void)
+{
+	static const legacy_u32 holds[] = {TEST_SCRUB_SHORT_HOLD, TEST_SCRUB_ONE_SECOND_HOLD,
+									   TEST_SCRUB_TWO_SECOND_HOLD};
+	static const legacy_s16 directions[] = {-1, 1};
+	for (legacy_u32 direction = 0; direction < sizeof(directions) / sizeof(directions[0]);
+		 direction++) {
+		legacy_u32 previous_distance = 0;
+		for (legacy_u32 hold = 0; hold < sizeof(holds) / sizeof(holds[0]); hold++) {
+			legacy_u32 classic = run_toolbar_scrub(0, directions[direction], TEST_SCRUB_ORIGIN,
+												   TEST_SCRUB_LENGTH, holds[hold], 1U, 1);
+			legacy_u32 extended = run_toolbar_scrub(1, directions[direction], TEST_SCRUB_ORIGIN,
+													TEST_SCRUB_LENGTH, holds[hold], 1U, 1);
+			assert(extended == classic);
+			legacy_u32 distance = directions[direction] > 0 ? extended - TEST_SCRUB_ORIGIN
+															: TEST_SCRUB_ORIGIN - extended;
+			assert(distance > previous_distance);
+			previous_distance = distance;
+		}
+		legacy_u32 classic = run_toolbar_scrub(0, directions[direction], TEST_SCRUB_ORIGIN,
+											   TEST_SCRUB_LENGTH, 0U, 1U, 0);
+		assert(run_toolbar_scrub(1, directions[direction], TEST_SCRUB_ORIGIN, TEST_SCRUB_LENGTH, 0U,
+								 1U, 0) == classic);
+	}
+}
+
+static void test_extended_toolbar_scrub_limits(void)
+{
+	assert(run_toolbar_scrub(1, -1, 0U, TEST_SCRUB_LENGTH, TEST_SCRUB_TWO_SECOND_HOLD, 1U, 0) ==
+		   0U);
+	assert(run_toolbar_scrub(1, 1, TEST_SCRUB_LENGTH, TEST_SCRUB_LENGTH, TEST_SCRUB_TWO_SECOND_HOLD,
+							 1U, 0) == TEST_SCRUB_LENGTH);
+	assert(run_toolbar_scrub(1, -1, TEST_SCRUB_SHORT_HOLD, TEST_SCRUB_LENGTH,
+							 TEST_SCRUB_TWO_SECOND_HOLD, 1U, 0) == 0U);
+	assert(run_toolbar_scrub(1, 1, TEST_SCRUB_LENGTH - TEST_SCRUB_SHORT_HOLD, TEST_SCRUB_LENGTH,
+							 TEST_SCRUB_TWO_SECOND_HOLD, 1U, 0) == TEST_SCRUB_LENGTH);
+	legacy_u32 classic = run_toolbar_scrub(0, 1, TEST_SCRUB_ORIGIN, TEST_SCRUB_LENGTH,
+										   TEST_SCRUB_TWO_SECOND_HOLD, 1U, 1);
+	legacy_u32 offset = classic - TEST_SCRUB_ORIGIN;
+	assert(run_toolbar_scrub(1, 1, TEST_SCRUB_LARGE_ORIGIN, LEGACY_U32_MAX,
+							 TEST_SCRUB_TWO_SECOND_HOLD, 1U,
+							 0) == TEST_SCRUB_LARGE_ORIGIN + offset);
+	assert(run_toolbar_scrub(1, -1, LEGACY_U32_MAX, LEGACY_U32_MAX, TEST_SCRUB_TWO_SECOND_HOLD, 1U,
+							 0) == LEGACY_U32_MAX - offset);
+	assert(run_toolbar_scrub(1, 1, TEST_SCRUB_LARGE_ORIGIN, LEGACY_U32_MAX, TEST_SCRUB_LARGE_HOLD,
+							 TEST_SCRUB_LARGE_DELTA,
+							 0) == TEST_SCRUB_LARGE_ORIGIN + TEST_SCRUB_LARGE_DISTANCE);
+	assert(run_toolbar_scrub(1, 1, 0U, LEGACY_U32_MAX, TEST_SCRUB_OVERSIZED_HOLD, LEGACY_U32_MAX,
+							 0) == LEGACY_U32_MAX);
+	assert(run_toolbar_scrub(1, -1, LEGACY_U32_MAX, LEGACY_U32_MAX, TEST_SCRUB_OVERSIZED_HOLD,
+							 LEGACY_U32_MAX, 0) == 0U);
+}
+
+static void test_extended_toolbar_menu_interrupt(void)
+{
+	static const legacy_s16 directions[] = {-1, 1};
+	for (legacy_u32 direction = 0; direction < sizeof(directions) / sizeof(directions[0]);
+		 direction++) {
+		legacy_u32 classic =
+			run_toolbar_scrub(0, directions[direction], TEST_SCRUB_ORIGIN, TEST_SCRUB_LENGTH,
+							  TEST_SCRUB_TWO_SECOND_HOLD, 1U, 1);
+		toolbar_interrupt_menu = 1;
+		assert(run_toolbar_scrub(1, directions[direction], TEST_SCRUB_ORIGIN, TEST_SCRUB_LENGTH,
+								 TEST_SCRUB_TWO_SECOND_HOLD, 1U, 1) == classic);
+	}
+}
+
 static void test_controller_pause_menu(void)
 {
 	reset_viewer();
@@ -922,6 +1128,9 @@ legacy_int main(void)
 	test_touch_seek_reconstruction();
 	test_controller_pause_menu();
 	test_controller_menu_during_scrub();
+	test_toolbar_scrub_acceleration();
+	test_extended_toolbar_scrub_limits();
+	test_extended_toolbar_menu_interrupt();
 #endif
 #ifdef REPLAY_MENU_BASELINE
 	printf("%08" LEGACY_PRIx32 " %08" LEGACY_PRIx32 "\n", menu, draw);
