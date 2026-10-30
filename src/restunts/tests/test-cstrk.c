@@ -391,6 +391,52 @@ static void test_plateaus_and_hill_slopes(void)
 	cstrk_free(&decoded);
 }
 
+#define TEST_SPARSE_FOOTPRINT_SIZE 2U
+#define TEST_SPARSE_TERRAIN_STRIDE (TEST_SPARSE_FOOTPRINT_SIZE + 1U)
+#define TEST_SPARSE_TERRAIN_VERTICES (TEST_SPARSE_TERRAIN_STRIDE * TEST_SPARSE_TERRAIN_STRIDE)
+#define TEST_SPARSE_BASE_HEIGHT 2U
+
+static void test_sparse_terrain_support(void)
+{
+	static const legacy_u8 masks[] = {6U, 9U, 7U, 11U, 13U, 14U};
+	for (legacy_u8 variant = 0; variant < sizeof(masks) / sizeof(masks[0]); variant++) {
+		for (legacy_s8 change = -1; change <= 1; change += 2) {
+			struct CSTRK_TRACK track, decoded;
+			cstrk_init(&track);
+			cstrk_init(&decoded);
+			assert(cstrk_create(&track, TEST_SPARSE_FOOTPRINT_SIZE, TEST_SPARSE_FOOTPRINT_SIZE,
+								error, sizeof(error)));
+			memset(track.corner_heights, TEST_SPARSE_BASE_HEIGHT, TEST_SPARSE_TERRAIN_VERTICES);
+			struct CSTRK_OBJECT object = object_at(0, 0);
+			object.width = object.height = TEST_SPARSE_FOOTPRINT_SIZE;
+			object.occupied_mask = masks[variant];
+			object.base_height = TEST_SPARSE_BASE_HEIGHT;
+			for (legacy_u8 cell = 0; cell < TEST_SPARSE_FOOTPRINT_SIZE * TEST_SPARSE_FOOTPRINT_SIZE;
+				 cell++) {
+				if (!(object.occupied_mask & (1U << cell))) {
+					legacy_u8 x = (cell % TEST_SPARSE_FOOTPRINT_SIZE) * TEST_SPARSE_FOOTPRINT_SIZE;
+					legacy_u8 y = (cell / TEST_SPARSE_FOOTPRINT_SIZE) * TEST_SPARSE_FOOTPRINT_SIZE;
+					track.corner_heights[y * TEST_SPARSE_TERRAIN_STRIDE + x] += change;
+				}
+			}
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			legacy_u8 *data = NULL;
+			size_t size = 0;
+			assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+			assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.objects[0].occupied_mask == object.occupied_mask);
+			assert(memcmp(decoded.corner_heights, track.corner_heights,
+						  TEST_SPARSE_TERRAIN_VERTICES) == 0);
+			/* The central vertex supports every diagonal road arrangement. */
+			decoded.corner_heights[TEST_SPARSE_TERRAIN_STRIDE + 1U] += change;
+			assert(!cstrk_validate(&decoded, error, sizeof(error)));
+			free(data);
+			cstrk_free(&track);
+			cstrk_free(&decoded);
+		}
+	}
+}
+
 #define TEST_SLOPED_STUNT_DIRECTIONS 4U
 #define TEST_SLOPED_STUNT_REVERSES 2U
 #define TEST_SLOPED_STUNT_HALF_TURN 2U
@@ -798,6 +844,7 @@ int main(void)
 	test_surface_corners();
 	test_original_terrain_profiles();
 	test_plateaus_and_hill_slopes();
+	test_sparse_terrain_support();
 	test_sloped_stunt_versions();
 	test_notes();
 	test_invalid_records();

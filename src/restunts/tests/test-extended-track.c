@@ -17,6 +17,7 @@
 #include "../c/trackdata_layout.h"
 #include "../c/physics_internal.h"
 #include "../c/owoot_road.h"
+#include "../c/owoot_route.h"
 
 #undef memcpy
 #undef printf
@@ -1177,7 +1178,7 @@ static void test_shared_road_anchor(void)
 	assert(cstrk_create(&track, 90, 90, error, sizeof(error)));
 	struct CSTRK_OBJECT turn = object_at(13, 40, 40);
 	turn.width = turn.height = 2;
-	turn.occupied_mask = 14;
+	turn.occupied_mask = 6;
 	assert(cstrk_add_object(&track, &turn, error, sizeof(error)));
 	add_tile(&track, 6, 37, 37);
 	add_tile(&track, 7, 41, 37);
@@ -1311,6 +1312,262 @@ static void test_sparse_catalog_footprints(void)
 		assert(extended_track_object_id(extended_track_object_origin_at(87, 87)) != 0U);
 		extended_track_unload();
 		cstrk_free(&track);
+	}
+}
+
+#define TEST_SPARSE_CELL_COUNT 4U
+#define TEST_SPARSE_SIDE_LENGTH 2U
+#define TEST_SPARSE_BASE_HEIGHT 2U
+#define TEST_SPARSE_ORIGIN 40U
+
+static legacy_u8 sparse_mask_for_id(legacy_u16 id)
+{
+	static const legacy_u8 turns[] = {9U, 6U, 9U, 6U};
+	static const legacy_u8 left_branches[] = {11U, 14U, 13U, 7U};
+	static const legacy_u8 right_branches[] = {7U, 11U, 14U, 13U};
+	legacy_u16 direction = (legacy_u16)trkObjectList[id].ss_rotY / ANGLE_QUARTER_TURN;
+	legacy_s16 model = trkObjectList[id].ss_physicalModel;
+	if (model == PHYSICAL_MODEL_LARGE_SPLIT_A) {
+		return left_branches[direction];
+	}
+	if (model == PHYSICAL_MODEL_LARGE_SPLIT_B) {
+		return right_branches[direction];
+	}
+	if (model == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT || model == PHYSICAL_MODEL_CHICANE_RIGHT_LEFT) {
+		return id <= 61U ? 6U : 9U;
+	}
+	return turns[direction];
+}
+
+static legacy_u8 rotate_sparse_mask(legacy_u8 mask)
+{
+	legacy_u8 result = 0;
+	for (legacy_u8 cell = 0; cell < TEST_SPARSE_CELL_COUNT; cell++) {
+		if (mask & (1U << cell)) {
+			legacy_u8 x = cell % TEST_SPARSE_SIDE_LENGTH, y = cell / TEST_SPARSE_SIDE_LENGTH;
+			result |=
+				(legacy_u8)(1U << (x * TEST_SPARSE_SIDE_LENGTH + TEST_SPARSE_SIDE_LENGTH - 1U - y));
+		}
+	}
+	return result;
+}
+
+static void test_sparse_corner_terrain(void)
+{
+	static const legacy_u16 ids[] = {10U, 11U, 12U, 13U, 20U, 21U, 22U,	 23U,  30U,	 31U, 32U,
+									 33U, 52U, 53U, 54U, 55U, 60U, 61U,	 62U,  63U,	 87U, 88U,
+									 89U, 90U, 91U, 92U, 93U, 94U, 105U, 106U, 107U, 108U};
+	for (legacy_u16 variant = 0; variant < sizeof(ids) / sizeof(ids[0]); variant++) {
+		legacy_u8 mask = sparse_mask_for_id(ids[variant]);
+		for (legacy_u8 rotation = 0; rotation < TEST_SPARSE_SIDE_LENGTH * TEST_SPARSE_SIDE_LENGTH;
+			 rotation++, mask = rotate_sparse_mask(mask)) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+								sizeof(error)));
+			memset(track.corner_heights, TEST_SPARSE_BASE_HEIGHT,
+				   (track.width + 1U) * (track.height + 1U));
+			struct CSTRK_OBJECT object =
+				object_at(ids[variant], TEST_SPARSE_ORIGIN, TEST_SPARSE_ORIGIN);
+			object.width = object.height = TEST_SPARSE_SIDE_LENGTH;
+			object.occupied_mask = mask;
+			object.rotation = rotation;
+			object.base_height = TEST_SPARSE_BASE_HEIGHT;
+			for (legacy_u8 cell = 0; cell < TEST_SPARSE_CELL_COUNT; cell++) {
+				if (!(mask & (1U << cell))) {
+					legacy_u16 x =
+						object.x + (cell % TEST_SPARSE_SIDE_LENGTH) * TEST_SPARSE_SIDE_LENGTH;
+					legacy_u16 y =
+						object.y + (cell / TEST_SPARSE_SIDE_LENGTH) * TEST_SPARSE_SIDE_LENGTH;
+					/* Exercise both raised and lowered free hill corners together. */
+					track.corner_heights[y * (track.width + 1U) + x] += cell % 2U ? 1 : -1;
+				}
+			}
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			activate(&track);
+			assert(extended_track_object_id(extended_track_object_origin_at(object.x, object.y)) !=
+				   0U);
+			for (legacy_u8 cell = 0; cell < TEST_SPARSE_CELL_COUNT; cell++) {
+				legacy_u16 x = object.x + cell % TEST_SPARSE_SIDE_LENGTH;
+				legacy_u16 y = object.y + cell / TEST_SPARSE_SIDE_LENGTH;
+				const struct CSTRK_OBJECT *occupied = extended_track_object_at(x, y);
+				assert((occupied != NULL) == ((mask & (1U << cell)) != 0U));
+				const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
+				assert(extended_track_objects_in_cell(x, y, candidates,
+													  EXTENDED_TRACK_CELL_OBJECT_MAX) == 1U);
+				assert(candidates[0]->legacy_id == object.legacy_id);
+			}
+			extended_track_unload();
+			/* Changing a shared support vertex must still be rejected. */
+			track.corner_heights[(object.y + 1U) * (track.width + 1U) + object.x + 1U]++;
+			assert(!extended_track_activate(&track, error, sizeof(error)));
+			cstrk_free(&track);
+		}
+	}
+	/* Original full-square branch records remain admissible. */
+	for (legacy_u16 id = 87U; id <= 94U; id++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, TEST_SPARSE_SIDE_LENGTH, TEST_SPARSE_SIDE_LENGTH, error,
+							sizeof(error)));
+		struct CSTRK_OBJECT object = object_at(id, 0, 0);
+		object.width = object.height = TEST_SPARSE_SIDE_LENGTH;
+		object.occupied_mask = (1U << TEST_SPARSE_CELL_COUNT) - 1U;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		activate(&track);
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+}
+
+#define TEST_SPARSE_ARC_COORDINATE 40
+#define TEST_SPARSE_ARC_OUTSIDE_COORDINATE 900
+#define TEST_SPARSE_WHEEL_RADIUS 4
+#define TEST_SPARSE_WHEEL_HEIGHT 64
+#define TEST_SPARSE_GUARD_COORDINATE 140
+#define TEST_SPARSE_WHEEL_RING_COUNT 4U
+
+#define TEST_SPARSE_DIRECTION_COUNT 4U
+
+static struct VECTOR sparse_corner_rotate(struct VECTOR local, legacy_u8 rotation)
+{
+	for (legacy_u8 direction = 0; direction < rotation; direction++) {
+		legacy_s16 x = local.x;
+		local.x = local.z;
+		local.z = LEGACY_S16_WRAP_NEGATE(x);
+	}
+	return local;
+}
+
+static struct VECTOR sparse_corner_sample(const struct CSTRK_TRACK *track,
+										  const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	local = sparse_corner_rotate(local, object->rotation);
+	return sample_world(object->x * CSTRK_TILE_WORLD_SIZE +
+							object->width * (CSTRK_TILE_WORLD_SIZE / 2U) + local.x,
+						object->base_height * CSTRK_LEVEL_WORLD_HEIGHT + local.y,
+						(track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
+							object->height * (CSTRK_TILE_WORLD_SIZE / 2U) + local.z);
+}
+
+static void sparse_corner_wheel(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
+								legacy_s16 height)
+{
+	static const legacy_s16 offsets[TEST_SPARSE_WHEEL_RING_COUNT][2] = {
+		{-TEST_SPARSE_WHEEL_RADIUS, -TEST_SPARSE_WHEEL_RADIUS},
+		{TEST_SPARSE_WHEEL_RADIUS, -TEST_SPARSE_WHEEL_RADIUS},
+		{TEST_SPARSE_WHEEL_RADIUS, TEST_SPARSE_WHEEL_RADIUS},
+		{-TEST_SPARSE_WHEEL_RADIUS, TEST_SPARSE_WHEEL_RADIUS}};
+	struct VECTOR vertices[TEST_SPARSE_WHEEL_RING_COUNT * 2U];
+	for (legacy_u8 ring = 0; ring < 2U; ring++) {
+		for (legacy_u8 index = 0; index < TEST_SPARSE_WHEEL_RING_COUNT; index++) {
+			struct VECTOR local = {0};
+			local.x = TEST_SPARSE_ARC_COORDINATE + offsets[index][0];
+			local.z = TEST_SPARSE_ARC_COORDINATE + offsets[index][1];
+			local.y = height + (ring ? TEST_SPARSE_WHEEL_HEIGHT : -TEST_SPARSE_WHEEL_HEIGHT);
+			local = sparse_corner_rotate(local, object->rotation);
+			vertices[ring * TEST_SPARSE_WHEEL_RING_COUNT + index] =
+				object_world(track, object, local);
+		}
+	}
+	assert(track_road_overlaps_wheel(vertices, TEST_SPARSE_WHEEL_RING_COUNT, 0));
+}
+
+static legacy_s16 sparse_corner_route_valid(const struct CSTRK_TRACK *track,
+											const struct CSTRK_OBJECT *object, struct VECTOR local,
+											legacy_s16 allowed_jump)
+{
+	local = sparse_corner_rotate(local, object->rotation);
+	struct CARSTATE car = {0};
+	car.car_position.lx =
+		(object->x * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE + local.x) * 64;
+	car.car_position.ly = local.y * 64;
+	car.car_position.lz =
+		((track->height - object->y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE + local.z) *
+		64;
+	car.car_previous_position = car.car_position;
+	return owoot_route_is_valid(&car, allowed_jump);
+}
+
+static void test_sparse_corner_collision(void)
+{
+	static const legacy_u16 ids[] = {11U, 53U, 106U};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		legacy_u8 mask = sparse_mask_for_id(ids[kind]);
+		for (legacy_u8 rotation = 0; rotation < TEST_SPARSE_DIRECTION_COUNT;
+			 rotation++, mask = rotate_sparse_mask(mask)) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+								sizeof(error)));
+			struct CSTRK_OBJECT object =
+				object_at(ids[kind], TEST_SPARSE_ORIGIN, TEST_SPARSE_ORIGIN);
+			object.width = object.height = TEST_SPARSE_SIDE_LENGTH;
+			object.occupied_mask = mask;
+			object.rotation = rotation;
+			object.surface = CSTRK_ROAD_DIRT;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			struct VECTOR road_center = sparse_corner_rotate(
+				(struct VECTOR){CSTRK_TILE_WORLD_SIZE / 2, 0, CSTRK_TILE_WORLD_SIZE / 2}, rotation);
+			struct CSTRK_OBJECT road = object_at(
+				4, object.x + (CSTRK_TILE_WORLD_SIZE + road_center.x) / CSTRK_TILE_WORLD_SIZE,
+				object.y + (CSTRK_TILE_WORLD_SIZE - road_center.z) / CSTRK_TILE_WORLD_SIZE);
+			road.surface = CSTRK_ROAD_ICE;
+			road.rotation = rotation;
+			assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+			activate(&track);
+			struct VECTOR local = {TEST_SPARSE_ARC_COORDINATE, 0, TEST_SPARSE_ARC_COORDINATE};
+			if (trkObjectList[object.legacy_id].ss_physicalModel ==
+				PHYSICAL_MODEL_ELEVATED_CORNER) {
+				local.y = CSTRK_LEVEL_WORLD_HEIGHT;
+			}
+			struct VECTOR point = sparse_corner_sample(&track, &object, local);
+			assert(current_surf_type == CAR_SURFACE_DIRT);
+			legacy_s16 height = (legacy_s16)selected_height(&point);
+			sparse_corner_wheel(&track, &object, height);
+			(void)sparse_corner_sample(
+				&track, &object,
+				(struct VECTOR){CSTRK_TILE_WORLD_SIZE / 2, 0, CSTRK_TILE_WORLD_SIZE / 2});
+			assert(current_surf_type == CAR_SURFACE_ICE);
+			if (trkObjectList[object.legacy_id].ss_physicalModel == PHYSICAL_MODEL_BANKED_CORNER) {
+				(void)sparse_corner_sample(&track, &object,
+										   (struct VECTOR){TEST_SPARSE_GUARD_COORDINATE, height,
+														   TEST_SPARSE_GUARD_COORDINATE});
+				assert(wallindex >= 0);
+				track_pieces_counter = 1;
+				track_route_element_ids[0] =
+					(legacy_s8)extended_track_object_id(&extended_track_model()->objects[0]);
+				track_route_columns[0] = (legacy_s8)object.x;
+				track_route_rows[0] = (legacy_s8)object.y;
+				track_route_traversal_flags[0] = 0;
+				track_primary_route_links[0] = track_alternate_route_links[0] = -1;
+				/* The real arc in a free corner still requires ordered entry. */
+				assert(!sparse_corner_route_valid(&track, &object, local, 0));
+				assert(sparse_corner_route_valid(&track, &object, local, 1));
+				assert(sparse_corner_route_valid(
+					&track, &object,
+					(struct VECTOR){CSTRK_TILE_WORLD_SIZE / 2, 0, CSTRK_TILE_WORLD_SIZE / 2}, 0));
+			}
+			extended_track_unload();
+			assert(cstrk_remove_object(&track, 1));
+			struct VECTOR outer = sparse_corner_rotate(
+				(struct VECTOR){CSTRK_TILE_WORLD_SIZE, 0, CSTRK_TILE_WORLD_SIZE}, rotation);
+			legacy_u16 hill_x =
+				object.x + (CSTRK_TILE_WORLD_SIZE + outer.x) / CSTRK_TILE_WORLD_SIZE;
+			legacy_u16 hill_y =
+				object.y + (CSTRK_TILE_WORLD_SIZE - outer.z) / CSTRK_TILE_WORLD_SIZE;
+			track.corner_heights[hill_y * (track.width + 1U) + hill_x] = 1;
+			activate(&track);
+			(void)sparse_corner_sample(&track, &object, local);
+			assert(current_surf_type == CAR_SURFACE_DIRT);
+			point = sparse_corner_sample(&track, &object,
+										 (struct VECTOR){TEST_SPARSE_ARC_OUTSIDE_COORDINATE, 0,
+														 TEST_SPARSE_ARC_OUTSIDE_COORDINATE});
+			assert(current_surf_type == CAR_SURFACE_GRASS);
+			assert(selected_height(&point) > 0);
+			extended_track_unload();
+			cstrk_free(&track);
+		}
 	}
 }
 
@@ -1456,6 +1713,8 @@ int main(void)
 	test_shared_road_anchor();
 	test_opponent_shortest_branch();
 	test_sparse_catalog_footprints();
+	test_sparse_corner_terrain();
+	test_sparse_corner_collision();
 	test_long_route();
 	assert(!extended_track_active() && extended_track_width() == 30);
 	assert(track_element_map == legacy_elements && track_terrain_map == legacy_terrain);
