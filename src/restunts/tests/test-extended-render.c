@@ -19,6 +19,12 @@
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U
 #define STUNT_RENDER_AUTHORED_OVERSCAN 2
+#define COMBINED_STUNT_RENDER_PART_COUNT 3U
+#define COMBINED_STUNT_RENDER_VARIANT_COUNT 3U
+#define COMBINED_STUNT_RENDER_COMBINED_VARIANT 2U
+#define COMBINED_STUNT_RENDER_SLOPE_COUNT 2U
+#define COMBINED_STUNT_RENDER_ROUNDING_TOLERANCE .5
+#define COMBINED_STUNT_RENDER_PRECISE_TOLERANCE .00000001
 
 static unsigned terrain_level(unsigned column)
 {
@@ -952,6 +958,85 @@ static void plant_check_submission(const struct TRANSFORMEDSHAPE3D *instance,
 	plant_capture_calls++;
 }
 
+static legacy_u8 combined_stunt_capture_active, combined_stunt_capture_parts;
+static legacy_u8 combined_stunt_capture_calls, combined_stunt_capture_precise;
+static struct CSTRK_OBJECT combined_stunt_capture_object;
+static struct SHAPE3D combined_stunt_capture_meshes[COMBINED_STUNT_RENDER_PART_COUNT];
+static struct VECTOR combined_stunt_capture_position;
+
+static void combined_stunt_check_submission(const struct TRANSFORMEDSHAPE3D *instance,
+											const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	const struct SHAPE3D *mesh = instance->shapeptr;
+	legacy_u8 matched = COMBINED_STUNT_RENDER_PART_COUNT;
+	for (legacy_u8 part = 0; part < COMBINED_STUNT_RENDER_PART_COUNT; part++) {
+		const struct SHAPE3D *source = &combined_stunt_capture_meshes[part];
+		if (source->shape3d_numverts != mesh->shape3d_numverts ||
+			source->shape3d_numprimitives != mesh->shape3d_numprimitives) {
+			continue;
+		}
+		assert(source->shape3d_numpaints == 1 && mesh->shape3d_numpaints == 1);
+		const legacy_u8 *primitive = source->shape3d_primitives;
+		size_t bytes = 0;
+		for (legacy_u16 face = 0; face < source->shape3d_numprimitives; face++) {
+			legacy_u16 count = primitive[0];
+			assert(count >= SHAPE3D_PRIMITIVE_POINT && count <= SHAPE3D_PRIMITIVE_POLYGON_LAST);
+			size_t size = SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + count;
+			bytes += size;
+			primitive += size;
+		}
+		if (memcmp(source->shape3d_primitives, mesh->shape3d_primitives, bytes) == 0) {
+			matched = part;
+			break;
+		}
+	}
+	assert(matched < COMBINED_STUNT_RENDER_PART_COUNT);
+	assert((combined_stunt_capture_parts & (1U << matched)) == 0);
+	combined_stunt_capture_parts |= 1U << matched;
+	assert(instance->rotvec.x == 0 && instance->rotvec.y == 0 && instance->rotvec.z == 0);
+	if (combined_stunt_capture_calls) {
+		assert(memcmp(&combined_stunt_capture_position, &instance->pos, sizeof(instance->pos)) ==
+			   0);
+	} else {
+		combined_stunt_capture_position = instance->pos;
+	}
+	const struct CSTRK_OBJECT *object = &combined_stunt_capture_object;
+	const struct SHAPE3D *source = &combined_stunt_capture_meshes[matched];
+	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
+		struct VECTOR authored, packed;
+		shape3d_vertex_read(source, vertex, &authored);
+		shape3d_vertex_read(mesh, vertex, &packed);
+		legacy_s16 *along = object->slope_x ? &authored.x : &authored.z;
+		if (object->slope_x || object->slope_y) {
+			legacy_s16 half = CSTRK_TILE_WORLD_SIZE / 2;
+			if (*along > half && *along <= half + STUNT_RENDER_AUTHORED_OVERSCAN) {
+				*along = half;
+			} else if (*along < -half && *along >= -half - STUNT_RENDER_AUTHORED_OVERSCAN) {
+				*along = -half;
+			}
+		}
+		assert(packed.x == authored.x && packed.z == authored.z);
+		/* All three authored parts must retain their height above the same
+		 * world support plane, including the roof and the two barriers. */
+		legacy_f64 ground = object->base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+							(object->slope_x * (CSTRK_TILE_WORLD_SIZE / 2 + (legacy_f64)packed.x) +
+							 object->slope_y * (CSTRK_TILE_WORLD_SIZE / 2 - (legacy_f64)packed.z)) *
+								CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+		legacy_f64 expected = authored.y + ground - instance->pos.y;
+		legacy_f64 error = packed.y - expected;
+		assert(error >= -COMBINED_STUNT_RENDER_ROUNDING_TOLERANCE &&
+			   error <= COMBINED_STUNT_RENDER_ROUNDING_TOLERANCE);
+		if (vertices) {
+			assert(vertices[vertex].x == packed.x && vertices[vertex].z == packed.z);
+			error = vertices[vertex].y - expected;
+			assert(error >= -COMBINED_STUNT_RENDER_PRECISE_TOLERANCE &&
+				   error <= COMBINED_STUNT_RENDER_PRECISE_TOLERANCE);
+		}
+	}
+	combined_stunt_capture_calls++;
+	combined_stunt_capture_precise += vertices != NULL;
+}
+
 static legacy_u8 stunt_capture_active, stunt_capture_parts, stunt_capture_details;
 static legacy_u8 slope_occlusion_hide_terrain;
 static legacy_u8 terrain_coverage_capture;
@@ -1378,6 +1463,10 @@ static void capture_terrain_coverage(const struct TRANSFORMEDSHAPE3D *instance,
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (combined_stunt_capture_active) {
+		combined_stunt_check_submission(instance, NULL);
+		return 0;
+	}
 	if (plant_capture_active) {
 		plant_check_submission(instance, NULL);
 		return 0;
@@ -1466,6 +1555,10 @@ static void inject_generated_bounds_polygon(void)
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (combined_stunt_capture_active) {
+		combined_stunt_check_submission(instance, vertices);
+		return 0;
+	}
 	if (plant_capture_active) {
 		plant_check_submission(instance, vertices);
 		return 0;
@@ -2925,6 +3018,170 @@ static void check_upright_sloped_plants(void)
 }
 #endif
 
+static void combined_stunt_render_terrain(struct CSTRK_TRACK *track, legacy_s8 slope_x,
+										  legacy_s8 slope_y, legacy_u8 base)
+{
+	for (legacy_u16 y = 0; y <= track->height; y++) {
+		for (legacy_u16 x = 0; x <= track->width; x++) {
+			legacy_u8 raised = slope_x > 0	 ? x > STUNT_RENDER_COLUMN
+							   : slope_x < 0 ? x <= STUNT_RENDER_COLUMN
+							   : slope_y > 0 ? y > STUNT_RENDER_ROW
+							   : slope_y < 0 ? y <= STUNT_RENDER_ROW
+											 : 0;
+			track->corner_heights[(size_t)y * (track->width + 1U) + x] = base + raised;
+		}
+	}
+}
+
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+static void prepare_combined_stunt_capture(const struct CSTRK_OBJECT *object, legacy_u8 detail)
+{
+	const struct TRACKOBJECT *slalom = &trkObjectList[extended_track_object_id(object)];
+	struct TRACKOBJECT tunnel = trkObjectList[CSTRK_TUNNEL_FIRST_ID];
+	struct TRACKOBJECT floor = *frame_track_object_from_legacy_index(tunnel.ss_ssOvelay);
+	tunnel.ss_rotY = floor.ss_rotY = slalom->ss_rotY;
+	if (!floor.ss_loShapePtr) {
+		floor.ss_loShapePtr = floor.ss_shapePtr;
+	}
+	const struct TRACKOBJECT *parts[COMBINED_STUNT_RENDER_PART_COUNT] = {&tunnel, slalom, &floor};
+	for (legacy_u8 part = 0; part < COMBINED_STUNT_RENDER_PART_COUNT; part++) {
+		const struct SHAPE3D *source =
+			detail ? parts[part]->ss_loShapePtr : parts[part]->ss_shapePtr;
+		assert(source != NULL);
+		assert(extended_geometry_transform_shape(source, &combined_stunt_capture_meshes[part],
+												 slalom->ss_rotY, object->surface,
+												 PHYSICAL_MODEL_SLALOM));
+	}
+	combined_stunt_capture_object = *object;
+	combined_stunt_capture_parts = combined_stunt_capture_calls = combined_stunt_capture_precise =
+		0;
+}
+
+static void check_combined_stunt_meshes(void)
+{
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	const struct FRAME_CAMERA camera = {0};
+	legacy_u16 cases = 0;
+	for (legacy_u8 rotation = 0; rotation < SEAM_RENDER_DIRECTION_COUNT; rotation++) {
+		legacy_u8 base = rotation & 1U ? CSTRK_MAX_HEIGHT - 1U : 0;
+		for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
+			combined_stunt_render_terrain(&track, slopes[slope][0], slopes[slope][1], base);
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				struct CSTRK_OBJECT object = {0};
+				object.legacy_id = CSTRK_SLALOM_FIRST_ID;
+				object.x = STUNT_RENDER_COLUMN;
+				object.y = STUNT_RENDER_ROW;
+				object.rotation = rotation;
+				object.surface = surface;
+				object.width = object.height = object.occupied_mask = 1;
+				object.tunnel_slalom = 1;
+				object.slope_x = slopes[slope][0];
+				object.slope_y = slopes[slope][1];
+				object.base_height = base + (object.slope_x < 0 || object.slope_y < 0);
+				track.object_count = 0;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate_render_track(&track, 1);
+				const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+				for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+					prepare_combined_stunt_capture(placed, detail);
+					struct FRAME_TILE tile = {0};
+					tile.east = STUNT_RENDER_COLUMN;
+					tile.south = STUNT_RENDER_ROW;
+					tile.detail = detail;
+					combined_stunt_capture_active = 1;
+					assert(!extended_frame_draw_objects(&tile, &camera, 0));
+					combined_stunt_capture_active = 0;
+					assert(combined_stunt_capture_parts ==
+						   (1U << COMBINED_STUNT_RENDER_PART_COUNT) - 1U);
+					assert(combined_stunt_capture_calls == COMBINED_STUNT_RENDER_PART_COUNT);
+					assert(combined_stunt_capture_precise ==
+						   (supersight_enabled && slope ? COMBINED_STUNT_RENDER_PART_COUNT : 0));
+					for (legacy_u8 part = 0; part < COMBINED_STUNT_RENDER_PART_COUNT; part++) {
+						extended_geometry_free_shape(&combined_stunt_capture_meshes[part]);
+					}
+					cases++;
+				}
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	printf("Tunnel with slalom: %u three-part submissions in %s mode.\n", cases,
+		   supersight_enabled ? "HyperVision" : "classic");
+}
+#endif
+
+static legacy_u16 check_combined_stunt_rendering(void)
+{
+	struct GAMESTATE saved = state;
+	legacy_s8 saved_detail = detail_level;
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	legacy_u16 frames = 0;
+	for (legacy_u8 sloped = 0; sloped < COMBINED_STUNT_RENDER_SLOPE_COUNT; sloped++) {
+		combined_stunt_render_terrain(&track, sloped, 0, 0);
+		position_render_target(STUNT_RENDER_COLUMN, STUNT_RENDER_ROW);
+		state.playerstate.car_position.ly =
+			(sloped * (CSTRK_LEVEL_WORLD_HEIGHT / 2) + STUNT_RENDER_CAR_CLEARANCE) *
+			GRASS_RENDER_POSITION_SCALE;
+		state.playerstate.car_previous_position = state.playerstate.car_position;
+		state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+		custom_camera.distance = CSTRK_TILE_WORLD_SIZE;
+		custom_camera.elevation_angle = 0;
+		custom_camera.azimuth_angle = 0;
+		for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+			detail_level = detail ? STUNT_RENDER_LOW_DETAIL : 0;
+			legacy_u32 *pixels[COMBINED_STUNT_RENDER_VARIANT_COUNT];
+			size_t sizes[COMBINED_STUNT_RENDER_VARIANT_COUNT];
+			for (legacy_u8 variant = 0; variant < COMBINED_STUNT_RENDER_VARIANT_COUNT; variant++) {
+				struct CSTRK_OBJECT object = {0};
+				object.legacy_id = variant ? CSTRK_SLALOM_FIRST_ID : CSTRK_TUNNEL_FIRST_ID;
+				object.x = STUNT_RENDER_COLUMN;
+				object.y = STUNT_RENDER_ROW;
+				object.width = object.height = object.occupied_mask = 1;
+				object.slope_x = sloped;
+				object.tunnel_slalom = variant == COMBINED_STUNT_RENDER_COMBINED_VARIANT;
+				track.object_count = 0;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate_render_track(&track, 1);
+				pixels[variant] = capture_complete_render(&sizes[variant]);
+				frames++;
+			}
+			for (legacy_u8 variant = 0; variant < COMBINED_STUNT_RENDER_COMBINED_VARIANT;
+				 variant++) {
+				assert(sizes[variant] == sizes[COMBINED_STUNT_RENDER_COMBINED_VARIANT]);
+				size_t changed = 0;
+				for (size_t pixel = 0; pixel < sizes[variant]; pixel++) {
+					changed += pixels[variant][pixel] !=
+							   pixels[COMBINED_STUNT_RENDER_COMBINED_VARIANT][pixel];
+				}
+				if (changed <= SURFACE_RENDER_MIN_CHANGED_PIXELS) {
+					fprintf(stderr,
+							"Tunnel with slalom pixels mode %d slope %u detail %u baseline %u "
+							"changed %zu\n",
+							supersight_enabled, sloped, detail, variant, changed);
+				}
+				assert(changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+			}
+			for (legacy_u8 variant = 0; variant < COMBINED_STUNT_RENDER_VARIANT_COUNT; variant++) {
+				free(pixels[variant]);
+			}
+		}
+	}
+	state = saved;
+	detail_level = saved_detail;
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 #define HIGHWAY_RENDER_ID 111U
 #define HIGHWAY_RENDER_REVERSED_ID 113U
 #define HIGHWAY_RENDER_BASE_HEIGHT 2
@@ -3127,7 +3384,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_overpass_surfaces();
 		frames += check_sloped_stunt_rendering();
 		frames += check_general_sloped_rendering();
+		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
+		check_combined_stunt_meshes();
 		check_upright_sloped_plants();
 #endif
 		frames += check_sloped_road_occlusion();

@@ -93,6 +93,15 @@ vm.runInContext(`
     if (JSON.stringify(model.encodeCstrk(loaded)) !== JSON.stringify(model.encodeCstrk(doc))) {
         throw new Error('Embedded codec changed the saved track');
     }
+    const combined = model.library.find(piece => piece.tunnelSlalom);
+    if (!combined || combined.name !== 'Tunnel with slalom') throw new Error('Combined stunt missing from palette');
+    const stunt = new model.Document(4, 4);
+    const variant = model.pieceVariant(combined, 1);
+    stunt.place(variant.piece.id, 1, 1, 2, variant.rotation, 0, variant.piece.tunnelSlalom);
+    const reopened = model.decodeCstrk(model.encodeCstrk(stunt));
+    if (reopened.version !== 7 || reopened.objects[0].tunnelSlalom !== 1 || reopened.objects[0].surface !== 2) {
+        throw new Error('Embedded codec lost the combined stunt');
+    }
     for (const id of [109, 111, 154]) {
         const slope = new model.Document(4, 4);
         for (let y = 0; y <= slope.height; y++) for (let x = 0; x <= slope.width; x++) {

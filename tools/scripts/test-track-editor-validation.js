@@ -24,9 +24,9 @@ function putImported(doc, ...args) {
     object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
     doc.objects.push(object);
 }
-function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0) {
+function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0, tunnelSlalom = 0) {
     doc.erase(x, y);
-    if (id) doc.place(id, x, y, surface, rotation, lowerSurface);
+    if (id) doc.place(id, x, y, surface, rotation, lowerSurface, tunnelSlalom);
 }
 function rectangle(width = 40, height = 18) {
     const doc = new model.Document(width, height), left = 2, right = width - 4, top = 4, bottom = height - 4;
@@ -47,7 +47,7 @@ function rotate(source) {
         const cell = source.cells[y * source.width + x];
         doc.cells[x * doc.width + source.height - y - 1] = { ...cell, halfWaterCorner: cell.halfWaterCorner ? cell.halfWaterCorner % SHORE_CORNER_COUNT + 1 : 0 };
     }
-    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4, object.lowerSurface ?? 0);
+    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0);
     return clearHistory(doc);
 }
 function chicaneJump(bridge = false, runway = false) {
@@ -131,14 +131,14 @@ for (let base = 0; base <= HILL_ROUTE_MAX_LEVEL; base++) {
 const SLOPED_STUNT_MODELS = new Set([28, 34]);
 const SLOPED_STUNT_VARIANTS = [[66, 1], [66, 3], [67, 0], [67, 2], [115, 1], [115, 3], [116, 0], [116, 2]];
 for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (const surface of [0, 1, 2]) {
-    for (const [id, rotation] of SLOPED_STUNT_VARIANTS) {
+    for (const [id, rotation] of SLOPED_STUNT_VARIANTS) for (const tunnelSlalom of id === 115 || id === 116 ? [0, 1] : [0]) {
         const rise = Math.min(2, HILL_ROUTE_MAX_LEVEL - base);
         const hill = terrainRectangle(x => base + Math.max(0, Math.min(rise, x - HILL_ROUTE_START_COLUMN,
             HILL_ROUTE_END_COLUMN - x)), surface);
         for (const y of [HILL_ROUTE_ROW, hill.height - 4]) for (const x of [HILL_ROUTE_START_COLUMN, HILL_ROUTE_END_COLUMN - 1])
-            replace(hill, x, y, id, rotation, surface);
+            replace(hill, x, y, id, rotation, surface, 0, tunnelSlalom);
         for (let direction = 0, doc = clearHistory(hill); direction < 4; direction++, doc = rotate(doc)) {
-            const result = check('sloped stunt ' + id + ' rotation ' + rotation + ' base ' + base +
+            const result = check('sloped stunt ' + id + ' tunnel ' + tunnelSlalom + ' rotation ' + rotation + ' base ' + base +
                 ' surface ' + surface + ' direction ' + direction, doc, 0);
             assert.equal(result.route.filter(piece => SLOPED_STUNT_MODELS.has(model.catalog.find(entry => entry.id === piece.id)?.physical)).length, 4);
             assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
@@ -188,7 +188,7 @@ for (const entry of model.library.filter(piece => !piece.decoration && piece.phy
     for (let direction = 0; direction < 4; direction++) {
         const doc = rectangle(), { piece, rotation } = model.pieceVariant(entry, direction);
         for (let x = 12; x <= 13; x++) doc.erase(x, 4);
-        doc.place(piece.id, 12, 4, 0, rotation, entry.lowerSurface ?? 0);
+        doc.place(piece.id, 12, 4, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
         check(entry.name + ' direction ' + direction, clearHistory(doc));
     }
 }
@@ -253,7 +253,7 @@ for (const grade of [-1, 1]) {
         doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : GENERAL_BIG_TURN_RISE - rise;
     }
     for (const object of sparse.objects)
-        put(doc, object.id, object.x, object.y, object.surface, object.rotation, object.lowerSurface ?? 0);
+        put(doc, object.id, object.x, object.y, object.surface, object.rotation, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0);
     for (let direction = 0, current = clearHistory(doc); direction < HILL_ROUTE_DIRECTION_COUNT; direction++, current = rotate(current))
         check('connected large turn on straight slope ' + grade + ' direction ' + direction, current, 0);
 }
@@ -271,7 +271,7 @@ for (const entry of model.library) for (let direction = 0; direction < GENERAL_S
             const rise = Math.max(0, Math.min(span, (slopeX ? x : y) - GENERAL_SLOPE_ORIGIN));
             doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : span - rise;
         }
-        putImported(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0);
+        putImported(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
         check(entry.name + ' straight slope ' + slopeX + ',' + slopeY + ' direction ' + direction, doc);
     }
 }
@@ -310,7 +310,8 @@ for (const filename of process.argv.slice(3)) check('uploaded ' + filename, clea
 if (process.argv[2]) {
     const input = fixtures.map(({ doc }) => Buffer.from(model.encodeCstrk(doc)).toString('hex')).join('\n') + '\n';
     const native = spawnSync(process.argv[2], [], { input, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-    assert.equal(native.status, 0, native.stderr);
+    assert.ifError(native.error);
+    assert.equal(native.status, 0, native.stderr || 'Native route oracle status: ' + native.status + ', signal: ' + native.signal);
     const results = native.stdout.trim().split('\n').map(line => JSON.parse(line));
     assert.equal(results.length, fixtures.length, 'native oracle response count');
     for (let i = 0; i < fixtures.length; i++) {
