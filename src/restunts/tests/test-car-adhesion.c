@@ -409,7 +409,7 @@ static void test_stopped_inverted_and_vertical_contacts(void)
 {
 	static const legacy_s16 rolls[] = {ANGLE_HALF_TURN, ANGLE_QUARTER_TURN};
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
-	static const legacy_u32 fractions[] = {0, 21845UL, PHANTOM_PHYSICS_ONE};
+	static const legacy_u32 fractions[] = {0, 21845UL, PHYSICS_FRACTION_ONE};
 	for (legacy_u16 orientation = 0; orientation < 2; orientation++) {
 		for (legacy_u16 rate = 0; rate < 2; rate++) {
 			for (legacy_u16 fraction = 0; fraction < 3; fraction++) {

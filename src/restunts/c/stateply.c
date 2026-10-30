@@ -1,7 +1,6 @@
 #include "legacy.h"
 #include "math.h"
 #include "physics_internal.h"
-#include "phantom_physics.h"
 #include "residue.h"
 #include "state_internal.h"
 #include "crash_state.h"
@@ -81,13 +80,13 @@ static struct GAMESTATE *player_motion_state = &state;
 
 static legacy_s16 scale_player_fraction(legacy_s16 value, legacy_u32 fraction)
 {
-	if (fraction == PHANTOM_PHYSICS_ONE) {
+	if (fraction == PHYSICS_FRACTION_ONE) {
 		return value;
 	}
 	legacy_s32 product = (legacy_s32)value * (legacy_s32)fraction;
-	legacy_s32 rounding = (legacy_s32)(PHANTOM_PHYSICS_ONE / 2);
+	legacy_s32 rounding = (legacy_s32)(PHYSICS_FRACTION_ONE / 2);
 	product += product < 0 ? -rounding : rounding;
-	return (legacy_s16)(product / (legacy_s32)PHANTOM_PHYSICS_ONE);
+	return (legacy_s16)(product / (legacy_s32)PHYSICS_FRACTION_ONE);
 }
 
 static legacy_s16 scale_player_motion(legacy_s16 value)
@@ -1674,25 +1673,4 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 	if (player_motion_fraction == 0) {
 		owoot_update_player(carstate, car_index);
 	}
-}
-
-void update_player_state_fraction(struct GAMESTATE *branch, legacy_s16 car_index,
-								  legacy_u32 fraction20)
-{
-	if (fraction20 == 0) {
-		return;
-	}
-	legacy_u32 saved_fraction = player_motion_fraction;
-	struct GAMESTATE *saved_state = player_motion_state;
-	player_motion_fraction = fraction20 > PHANTOM_PHYSICS_ONE ? PHANTOM_PHYSICS_ONE : fraction20;
-	player_motion_state = branch;
-	if (car_index == PLAYER_CAR_INDEX) {
-		update_player_state(&branch->playerstate, &simd_player, &branch->opponentstate,
-							&simd_opponent, car_index);
-	} else {
-		update_player_state(&branch->opponentstate, &simd_opponent, &branch->playerstate,
-							&simd_player, car_index);
-	}
-	player_motion_fraction = saved_fraction;
-	player_motion_state = saved_state;
 }

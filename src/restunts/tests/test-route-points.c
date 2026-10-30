@@ -4,7 +4,7 @@
 
 #include "../c/externs.h"
 #include "../c/state_internal.h"
-#include "../c/phantom_physics.h"
+#include "../c/physics_internal.h"
 #include "../c/track_objects.h"
 
 struct GAMESTATE state;
@@ -197,25 +197,25 @@ static void test_fractional_steering(void)
 	framespersec = GAME_FRAME_RATE_NORMAL;
 
 	/* Half ticks accumulate on the private car while the real car stays intact. */
-	update_player_steering_fraction(&car, 1, PHANTOM_PHYSICS_ONE / 2);
+	update_player_steering_fraction(&car, 1, PHYSICS_FRACTION_ONE / 2);
 	assert(car.car_steeringAngle == 30);
-	update_player_steering_fraction(&car, 1, PHANTOM_PHYSICS_ONE / 2);
+	update_player_steering_fraction(&car, 1, PHYSICS_FRACTION_ONE / 2);
 	assert(car.car_steeringAngle == 60);
 	car.car_steeringAngle = 0;
-	update_player_steering_fraction(&car, 2, PHANTOM_PHYSICS_ONE / 2);
+	update_player_steering_fraction(&car, 2, PHYSICS_FRACTION_ONE / 2);
 	assert(car.car_steeringAngle == -30);
 
 	/* A 20 Hz duration is half of the 10 Hz steering response. */
 	framespersec = GAME_FRAME_RATE_LOW;
 	car.car_steeringAngle = 0;
-	update_player_steering_fraction(&car, 1, PHANTOM_PHYSICS_ONE);
+	update_player_steering_fraction(&car, 1, PHYSICS_FRACTION_ONE);
 	assert(car.car_steeringAngle == 30);
 
 	/* Centering must use the private car's speed, not the stopped real car. */
 	framespersec = GAME_FRAME_RATE_NORMAL;
 	car.car_actual_speed = 1024;
 	car.car_steeringAngle = 100;
-	update_player_steering_fraction(&car, 0, PHANTOM_PHYSICS_ONE / 2);
+	update_player_steering_fraction(&car, 0, PHYSICS_FRACTION_ONE / 2);
 	assert(car.car_steeringAngle == 60);
 	car.car_steeringAngle = 3;
 	struct CARSTATE before = car;
