@@ -1608,14 +1608,17 @@ static legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	object.detail = tile->detail;
 	object.flags = flags;
 	if (model->roll_ramp) {
+		object.flags |= SHAPE3D_BLACK_GRILLE_FLAG;
 		struct SHAPE3D source;
 		if (!roll_ramp_create_mesh(&source, model->surface)) {
 			return 0;
 		}
 		struct TRACKOBJECT launch = *definition;
 		launch.ss_rotY = roll_ramp_orientation(model);
+		/* The generated mesh already selects its approach surface. Keep its
+		 * grille and yellow markings out of the native corkscrew repaint map. */
 		legacy_s16 result =
-			frame_extended_draw_object_mesh(&object, &launch, &source, model->surface);
+			frame_extended_draw_object_mesh(&object, &launch, &source, CSTRK_ROAD_PAVED);
 		roll_ramp_free_mesh(&source);
 		return result;
 	}

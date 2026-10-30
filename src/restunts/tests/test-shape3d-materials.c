@@ -134,6 +134,41 @@ static void test_original_material_table_boundaries(void)
 	}
 }
 
+#define TEST_YELLOW_GRILLE_MATERIAL 24U
+#define TEST_STOCK_GRILLE_PATTERN 0x77ddU
+
+static void test_black_grille_keeps_stock_materials_and_holes(void)
+{
+	material_clrlist_ptr_cpy = material_color_list;
+	material_clrlist2_ptr_cpy = material_color_list;
+	material_patlist_ptr_cpy = material_pattern_list;
+	material_patlist2_ptr_cpy = material_pattern2_list;
+	legacy_u16 stock_color = (legacy_u16)material_color_list[SHAPE3D_STOCK_GRILLE_MATERIAL];
+	legacy_u16 yellow_color = (legacy_u16)material_color_list[TEST_YELLOW_GRILLE_MATERIAL];
+	assert(stock_color != 0 && yellow_color != 0);
+	render_material(SHAPE3D_STOCK_GRILLE_MATERIAL, RENDER_PRIMITIVE_POLYGON);
+	assert(draw_calls == 1 && drawn_colors[0] == stock_color);
+	assert(drawn_pattern == TEST_STOCK_GRILLE_PATTERN);
+	render_material(SHAPE3D_STOCK_GRILLE_MATERIAL,
+					RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_BLACK_GRILLE_FLAG);
+	assert(draw_calls == 1 && drawn_colors[0] == 0);
+	assert(drawn_pattern == TEST_STOCK_GRILLE_PATTERN);
+	/* An override is carried by its own queued polygon, never a material-table
+	 * mutation that could recolor a stock corkscrew or its yellow markings. */
+	render_material(TEST_YELLOW_GRILLE_MATERIAL, RENDER_PRIMITIVE_POLYGON);
+	assert(draw_calls == 1 && drawn_colors[0] == yellow_color);
+	assert(drawn_pattern == TEST_STOCK_GRILLE_PATTERN);
+	render_material(SHAPE3D_STOCK_GRILLE_MATERIAL, RENDER_PRIMITIVE_POLYGON);
+	assert(draw_calls == 1 && drawn_colors[0] == stock_color);
+	assert(drawn_pattern == TEST_STOCK_GRILLE_PATTERN);
+	render_material(SHAPE3D_STOCK_GRILLE_MATERIAL, RENDER_PRIMITIVE_POLYGON |
+													   RENDER_PRIMITIVE_BLACK_GRILLE_FLAG |
+													   RENDER_PRIMITIVE_GHOST_FLAG);
+	assert(draw_calls == 1 && drawn_colors[0] == PRERENDER_GHOST_COLOR);
+	assert(material_color_list[SHAPE3D_STOCK_GRILLE_MATERIAL] == stock_color);
+	assert(material_color_list[TEST_YELLOW_GRILLE_MATERIAL] == yellow_color);
+}
+
 static void test_replacement_material_tables(void)
 {
 	legacy_s16 colors[256] = {0};
@@ -165,6 +200,7 @@ static void test_replacement_material_tables(void)
 legacy_int main(void)
 {
 	test_original_material_table_boundaries();
+	test_black_grille_keeps_stock_materials_and_holes();
 	test_replacement_material_tables();
 	return 0;
 }

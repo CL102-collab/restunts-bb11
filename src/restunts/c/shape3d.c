@@ -1077,6 +1077,11 @@ static legacy_u16 shape3d_insert_primitive(legacy_u8 primitive_type, legacy_u16 
 	} else {
 		transshapepolyinfo[POLYINFO_MATERIAL_OFFSET] = transprimitivepaintjob;
 	}
+	if ((transshapeflags & SHAPE3D_BLACK_GRILLE_FLAG) != 0U &&
+		primitive_type == RENDER_PRIMITIVE_POLYGON &&
+		transshapepolyinfo[POLYINFO_MATERIAL_OFFSET] == SHAPE3D_STOCK_GRILLE_MATERIAL) {
+		transshapepolyinfo[POLYINFO_TYPE_OFFSET] |= RENDER_PRIMITIVE_BLACK_GRILLE_FLAG;
+	}
 	legacy_u16 depth = shape3d_average_depth(depth_sum, transshapenumvertscopy);
 	polyinfo_write_word(transshapepolyinfo, 0U, depth);
 	legacy_u16 sort_by_depth;
@@ -1258,6 +1263,10 @@ static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *ins
 			legacy_u16 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + transshapematerial];
 			if (material == BACKLIGHT_PAINT_DEFAULT) {
 				material = backlights_paint_override;
+			}
+			if ((transshapeflags & SHAPE3D_BLACK_GRILLE_FLAG) != 0U &&
+				type == RENDER_PRIMITIVE_POLYGON && material == SHAPE3D_STOCK_GRILLE_MATERIAL) {
+				type |= RENDER_PRIMITIVE_BLACK_GRILLE_FLAG;
 			}
 			if ((transshapeflags & SHAPE3D_GHOST_FLAG) != 0) {
 				type |= RENDER_PRIMITIVE_GHOST_FLAG;
@@ -1942,7 +1951,7 @@ static legacy_u16 shape3d_material_value(const legacy_s16 *table, legacy_u16 ind
  * must not become an input to either car's physics. */
 static void shape3d_render_ghost(const legacy_u8 far *record, struct POINT2D *points)
 {
-	legacy_u16 primitive_type = record[POLYINFO_TYPE_OFFSET] & ~RENDER_PRIMITIVE_GHOST_FLAG;
+	legacy_u16 primitive_type = record[POLYINFO_TYPE_OFFSET] & ~RENDER_PRIMITIVE_VISUAL_FLAGS;
 	if (primitive_type == RENDER_PRIMITIVE_POLYGON) {
 		legacy_u16 material = record[POLYINFO_MATERIAL_OFFSET];
 		legacy_u16 pattern_type = shape3d_material_value(material_patlist_ptr_cpy, material);
@@ -2001,7 +2010,7 @@ static void shape3d_render_hires_primitive(legacy_u32 index,
 										   const struct HYPERVISION_SCENE_PRIMITIVE *primitive)
 {
 	legacy_u16 material = primitive->material;
-	legacy_u16 type = primitive->type & ~RENDER_PRIMITIVE_GHOST_FLAG;
+	legacy_u16 type = primitive->type & ~RENDER_PRIMITIVE_VISUAL_FLAGS;
 	legacy_u16 pattern_type = SHAPE3D_PATTERN_SOLID;
 	legacy_u16 pattern = 0;
 	legacy_u16 color = shape3d_material_value(material_clrlist_ptr_cpy, material);
@@ -2058,7 +2067,11 @@ void shape3d_render_queued_primitives(void)
 		}
 		legacy_u16 material_type = record[POLYINFO_MATERIAL_OFFSET];
 		legacy_u16 material_color = shape3d_material_value(material_clrlist_ptr_cpy, material_type);
-		legacy_u16 primitive_type = record[POLYINFO_TYPE_OFFSET];
+		legacy_u16 primitive_type = record[POLYINFO_TYPE_OFFSET] & ~RENDER_PRIMITIVE_VISUAL_FLAGS;
+		if ((record[POLYINFO_TYPE_OFFSET] & RENDER_PRIMITIVE_BLACK_GRILLE_FLAG) != 0U &&
+			primitive_type == RENDER_PRIMITIVE_POLYGON) {
+			material_color = 0;
+		}
 
 		if (primitive_type == RENDER_PRIMITIVE_POLYGON) {
 			legacy_u16 vertex_count = record[POLYINFO_VERTEX_COUNT_OFFSET];

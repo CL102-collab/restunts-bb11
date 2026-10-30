@@ -8,7 +8,7 @@
 
 /* Track revisions always advance the replay revision. Increment the physics
  * revision independently when simulation changes affect replay compatibility. */
-#define CSRPL_PHYSICS_REVISION 2U
+#define CSRPL_PHYSICS_REVISION 3U
 #define CSRPL_VERSION (CSTRK_VERSION + CSRPL_PHYSICS_REVISION)
 #define CSRPL_MIN_VERSION CSRPL_VERSION
 #define CSRPL_VERSION_OFFSET 8U
