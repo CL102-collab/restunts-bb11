@@ -337,6 +337,10 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 			gate->center.z = gate->tangent.z * sign > 0 ? 512 : -512;
 		}
 	}
+	if (extended_geometry_sloped_stunt(placed)) {
+		gate->center.y += extended_geometry_object_grade(placed, (legacy_s16)gate->center.x,
+														 (legacy_s16)gate->center.z);
+	}
 	route_extended_place_gate(gate, &origin);
 	return 1;
 }

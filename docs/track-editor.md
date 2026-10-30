@@ -26,8 +26,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v4. Revision v3 tracks also open and are
-upgraded to v4 while preserving their original overpass road materials.
+great track." The current version is v5. Revision v3 and v4 tracks also open and
+are upgraded to v5 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file header; saving keeps
 the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -74,10 +74,14 @@ The same 450-unit rise over a 1,024-unit tile is used at every elevation, so
 higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
-On an incline, place an aligned straight road or one of the original compatible
-ramp variants. The game uses the original hill-road or flat hill-span model;
-it does not tilt an ordinary track piece. Turns, stunts, scenery and multi-tile
-pieces need a flat plateau across their entire footprint. Hill-corner tiles
+On an incline, place an aligned straight road, tunnel or slalom, or one of the
+original compatible ramp variants. Tunnels and slaloms follow a straight incline
+in either direction, with paved, dirt or ice roads at any elevation. Their
+rendering and collision follow the slope, including consecutive hill levels.
+Sloped tunnels and slaloms require `.cstrk` v5; original `.trk` placement rules
+remain unchanged. Roads and ramps retain their original hill-road or flat
+hill-span models. Turns, other stunts, scenery and multi-tile pieces need a flat
+plateau across their entire footprint. Hill-corner tiles
 accept no track pieces. Terrain edits that would invalidate an existing piece
 are rejected; remove or move that piece first.
 

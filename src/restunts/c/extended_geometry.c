@@ -62,6 +62,35 @@ void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 	origin->y = base_height * CSTRK_LEVEL_WORLD_HEIGHT;
 }
 
+legacy_s16 extended_geometry_sloped_stunt(const struct CSTRK_OBJECT *object)
+{
+	return object && (object->slope_x || object->slope_y) &&
+		   ((object->legacy_id >= CSTRK_TUNNEL_FIRST_ID &&
+			 object->legacy_id <= CSTRK_TUNNEL_LAST_ID) ||
+			(object->legacy_id >= CSTRK_SLALOM_FIRST_ID &&
+			 object->legacy_id <= CSTRK_SLALOM_LAST_ID));
+}
+
+legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+										  legacy_s16 local_z)
+{
+	if (!extended_geometry_sloped_stunt(object)) {
+		return 0;
+	}
+	legacy_s32 x = object->width * (CSTRK_TILE_WORLD_SIZE / 2) + (legacy_s32)local_x;
+	legacy_s32 y = object->height * (CSTRK_TILE_WORLD_SIZE / 2) - (legacy_s32)local_z;
+	if (object->slope_x < 0) {
+		x -= object->width * CSTRK_TILE_WORLD_SIZE;
+	}
+	if (object->slope_y < 0) {
+		y -= object->height * CSTRK_TILE_WORLD_SIZE;
+	}
+	legacy_s32 rise = (object->slope_x * x + object->slope_y * y) * CSTRK_LEVEL_WORLD_HEIGHT;
+	legacy_s32 rounding = CSTRK_TILE_WORLD_SIZE / 2;
+	rise += rise < 0 ? -rounding : rounding;
+	return (legacy_s16)(rise / CSTRK_TILE_WORLD_SIZE);
+}
+
 enum EXTENDED_TERRAIN_PLANE {
 	EXTENDED_TERRAIN_FLAT_PLANE = 0,
 	EXTENDED_TERRAIN_STRAIGHT_PLANE = 3,

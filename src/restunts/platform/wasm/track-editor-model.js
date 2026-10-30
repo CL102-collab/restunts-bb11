@@ -10,7 +10,7 @@
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 4, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 5, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -134,7 +134,10 @@
     const CLASSIC_FIRST_SLOPE = 7, CLASSIC_LAST_SLOPE = 10;
     const CLASSIC_HILL_ROADS = [[4, 39, 59, 98], [5, 36, 56, 95], [4, 38, 58, 97], [5, 37, 57, 96]];
     const CLASSIC_ROAD_PHYSICAL_MODEL = 1, CLASSIC_VERTICAL_ROAD = 4, CLASSIC_HORIZONTAL_ROAD = 5;
-    const CLASSIC_PLACEMENT_ERROR = 'This element needs flat ground or an aligned original hill road.';
+    const SLOPED_STUNT_PHYSICAL_MODELS = new Set([28, 34]);
+    const SLOPED_STUNT_VERSION = 5;
+    const SLOPED_STUNT_VERSION_ERROR = 'Sloped tunnels and slaloms require Chocolate Stunts track version v5.';
+    const CLASSIC_PLACEMENT_ERROR = 'This element needs flat ground or an aligned original hill road, tunnel, or slalom.';
     function terrainProfile(heights) {
         if (!heights || heights.length !== TERRAIN_DISPLAY_CORNER_COUNT ||
             Array.from(heights).some(height => !Number.isInteger(height) || height < 0 || height > TERRAIN_DISPLAY_MAX_HEIGHT)) return null;
@@ -331,6 +334,8 @@
             const profile = terrainProfile([vertices[first], vertices[first + 1], vertices[first + stride + 1], vertices[first + stride]]);
             if (!profile || profile.terrain < CLASSIC_FIRST_SLOPE || profile.terrain > CLASSIC_LAST_SLOPE) return false;
             const direction = (entry.rotation + object.rotation) % PIECE_DIRECTION_COUNT;
+            if (SLOPED_STUNT_PHYSICAL_MODELS.has(entry.physical))
+                return this.version >= SLOPED_STUNT_VERSION && direction % PIECE_AXIS_COUNT === (profile.terrain - CLASSIC_FIRST_SLOPE) % PIECE_AXIS_COUNT;
             const native = entry.physical === CLASSIC_ROAD_PHYSICAL_MODEL
                 ? (direction % PIECE_AXIS_COUNT ? CLASSIC_HORIZONTAL_ROAD : CLASSIC_VERTICAL_ROAD)
                 : pieceVariant(entry, direction).piece.id;
@@ -345,6 +350,7 @@
             const footprint = rotatedFootprint(entry, rotation);
             integer(x, 0, this.width - footprint.width, 'element column'); integer(y, 0, this.height - footprint.height, 'element row');
             const h = this.tileHeights(x, y), object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, lowerSurface, ...footprint, baseHeight: h[0], slopeX: h[1] - h[0], slopeY: h[3] - h[0] };
+            if ((object.slopeX || object.slopeY) && SLOPED_STUNT_PHYSICAL_MODELS.has(entry.physical) && this.version < SLOPED_STUNT_VERSION) throw new Error(SLOPED_STUNT_VERSION_ERROR);
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
@@ -391,6 +397,7 @@
                     const footprint = rotatedFootprint(entry, object.rotation);
                     if (object.width !== footprint.width || object.height !== footprint.height || object.mask !== footprint.mask) throw new Error('Element footprint does not match its catalog geometry.');
                     if (!entry.surfaces.includes(object.surface)) throw new Error('Element does not support the selected road surface.');
+                    if ((object.slopeX || object.slopeY) && SLOPED_STUNT_PHYSICAL_MODELS.has(entry.physical) && this.version < SLOPED_STUNT_VERSION) throw new Error(SLOPED_STUNT_VERSION_ERROR);
                     if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
                     for (const [x, y] of occupied(object)) { const key = y * this.width + x; if (occupiedCells.has(key)) throw new Error('Track elements overlap.'); occupiedCells.add(key); }
                 } catch (error) { errors.push(error.message); }
@@ -429,7 +436,7 @@
         const width = v.getUint16(16, true), height = v.getUint16(18, true), notesLength = v.getUint32(20, true), count = v.getUint32(24, true), payload = v.getUint32(28, true);
         const doc = new Document(width, height), expected = doc.vertices.length + doc.cells.length * 2 + count * 16 + notesLength;
         if (notesLength > 8000 || count > 8100 || payload !== expected || a.length !== CSTRK_HEADER_SIZE + expected) throw new Error('Invalid or truncated Chocolate Stunts track.');
-        doc.horizon = horizon; doc.version = Math.max(version, VERSION);
+        doc.horizon = horizon; doc.version = version;
         let p = CSTRK_HEADER_SIZE; doc.vertices.set(a.subarray(p, p + doc.vertices.length)); p += doc.vertices.length;
         for (const cell of doc.cells) {
             cell.surface = a[p++];
@@ -447,6 +454,7 @@
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
         const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
+        doc.version = Math.max(version, VERSION);
         return doc;
     }
     return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };

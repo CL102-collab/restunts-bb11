@@ -220,6 +220,16 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 						  "Object %u requires a flat plateau or one original hill slope",
 						  (legacy_uint)index);
 	}
+	legacy_u8 sloped_stunt =
+		(object->slope_x != 0 || object->slope_y != 0) &&
+		((object->legacy_id >= CSTRK_TUNNEL_FIRST_ID &&
+		  object->legacy_id <= CSTRK_TUNNEL_LAST_ID) ||
+		 (object->legacy_id >= CSTRK_SLALOM_FIRST_ID && object->legacy_id <= CSTRK_SLALOM_LAST_ID));
+	if (sloped_stunt && track->version < CSTRK_SLOPED_STUNT_VERSION) {
+		return cstrk_fail(error, error_size,
+						  "Object %u requires track version v%u for sloped tunnels and slaloms",
+						  (legacy_uint)index, CSTRK_SLOPED_STUNT_VERSION);
+	}
 	for (unsigned row = 0; row <= object->height; row++) {
 		for (unsigned column = 0; column <= object->width; column++) {
 			int expected = (int)object->base_height + object->slope_x * (int)column +
@@ -474,7 +484,8 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	if (!cstrk_create(&next, width, height, error, error_size)) {
 		return 0;
 	}
-	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
+	/* Validate revision-specific object semantics before upgrading metadata. */
+	next.version = version;
 	next.horizon = (legacy_u8)horizon;
 	const uint8_t *cursor = data + CSTRK_HEADER_SIZE;
 	size_t corners = ((size_t)width + 1U) * ((size_t)height + 1U);
@@ -538,6 +549,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		cstrk_free(&next);
 		return 0;
 	}
+	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
 	cstrk_free(track);
 	*track = next;
 	cstrk_success(error, error_size);

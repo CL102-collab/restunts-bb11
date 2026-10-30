@@ -702,6 +702,12 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 			if (second_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 				second_point->y = 0;
 			}
+			first_point->y = LEGACY_S16_WRAP_ADD(
+				first_point->y,
+				extended_geometry_object_grade(object, first_point->x, first_point->z));
+			second_point->y = LEGACY_S16_WRAP_ADD(
+				second_point->y,
+				extended_geometry_object_grade(object, second_point->x, second_point->z));
 			first_point->x = LEGACY_S16_WRAP_ADD(origin.x, first_point->x);
 			first_point->y = LEGACY_S16_WRAP_ADD(origin.y, first_point->y);
 			first_point->z = LEGACY_S16_WRAP_ADD(origin.z, first_point->z);

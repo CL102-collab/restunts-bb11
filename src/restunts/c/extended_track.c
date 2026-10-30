@@ -233,6 +233,10 @@ static legacy_s16 object_hill_id(const struct CSTRK_TRACK *track, const struct C
 		return -1;
 	}
 	const struct TRACKOBJECT *definition = &trkObjectList[id];
+	if (extended_geometry_sloped_stunt(object)) {
+		legacy_u16 axis = ((legacy_u16)definition->ss_rotY / ANGLE_QUARTER_TURN) & 1U;
+		return axis == (object->slope_x != 0) ? id : -1;
+	}
 	if (definition->ss_physicalModel == PHYSICAL_MODEL_ROAD) {
 		/* Surface is independent of the stored legacy road spelling. */
 		static const legacy_u8 roads[][2] = {{4, 5}, {14, 15}, {24, 25}};

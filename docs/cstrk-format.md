@@ -1,7 +1,7 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v4**, supported
+SDL3 WebAssembly build. The current file-format revision is **v5**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
@@ -20,13 +20,15 @@ All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: an unsigned 16-bit integer. The
 minimum supported revision is v3; older extended-track revisions are rejected.
-New tracks are created with revision v4. Revision v3 tracks upgrade to v4 in
-memory, preserving their shared overpass surface as both upper and lower road
-materials, so subsequent saves use v4 without changing their appearance or grip.
+New tracks are created with revision v5. Valid v3 and v4 tracks upgrade to v5
+in memory. Revision v3 tracks preserve their shared overpass surface as both
+upper and lower road materials, so subsequent saves retain their appearance and
+grip. Sloped tunnels and slaloms require v5; the reader rejects these placements
+in a v3 or v4 file before upgrading its revision.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
-v15 or v101 is newer than a reader supporting v4. Its revision alone does not
+v15 or v101 is newer than a reader supporting v5. Its revision alone does not
 make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
@@ -38,7 +40,7 @@ The header occupies exactly 32 bytes:
 | Offset | Size | Meaning |
 | --- | --- | --- |
 | 0 | 8 | Magic: `43 53 54 52 4b 1a 0d 0a` (`CSTRK`, SUB, CR, LF) |
-| 8 | 2 | Numeric format revision, 3–65,535; current revision `4` |
+| 8 | 2 | Numeric format revision, 3–65,535; current revision `5` |
 | 10 | 2 | Header size, `32` |
 | 12 | 4 | Horizon, `0`–`4` |
 | 16 | 2 | Width in tiles, 1–90 |
@@ -125,7 +127,7 @@ The C model uses `half_water_corner` for the direction and `corner_surface`
 for the secondary material. New cells default that field
 to Water. The field is ignored when the direction is zero.
 
-## Objects and original hill placement
+## Objects and hill placement
 
 | Offset | Size | Meaning |
 | --- | --- | --- |
@@ -147,11 +149,12 @@ The ordinary road surface selects the upper road on an overpass. The independent
 lower surface selects its road underneath. Only overpass IDs 101 and 102 may
 store a nonzero lower surface; all other objects require paved `0` in that field.
 Revision v3 reserves all four bytes at offsets 12–15 as zero. The reader rejects
-nonzero reserved bytes in either revision and upgrades accepted v3 tracks to v4.
+nonzero reserved bytes and upgrades accepted v3 and v4 tracks to v5.
 A v3 overpass inherits its lower material from its ordinary surface because the
-older renderer and collision model used that selection for both roads. New v4
-overpasses default the lower surface to paved independently of the upper road.
-Future revisions retain their numeric metadata and use the known v4 layout.
+older renderer and collision model used that selection for both roads. Since v4,
+new overpasses default the lower surface to paved independently of the upper road.
+Revision v5 retains the v4 header and object layout. Future revisions retain
+their numeric metadata and use this known layout.
 An explicit in-memory v3 export requires equal upper and lower overpass
 surfaces and writes zero at byte 12, preserving the original shared-surface format.
 
@@ -169,14 +172,20 @@ The support metadata at local terrain corner `(dx,dy)` is
 `base_height + slope_x*dx + slope_y*dy`. Every corner throughout the footprint
 rectangle, including corners around unclaimed cells, must exactly equal this
 plane and remain within 0–4. Ordinary pieces require a flat footprint at one
-constant elevation. Inclines accept only one-tile pieces approved by the
-original hill-road substitution table: an aligned straight road or a compatible
-ramp variant. A sloped record therefore has exactly one nonzero slope axis.
-Hill-corner terrain accepts no track objects, as in the original editor.
+constant elevation. Inclines accept one-tile pieces approved by the original
+hill-road substitution table: an aligned straight road or a compatible ramp
+variant. Revision v5 also accepts tunnels (IDs 66 and 67) and slaloms (IDs 115
+and 116) on the same straight inclines when their road direction follows the
+slope. A sloped record has exactly one nonzero slope axis. Hill-corner terrain
+and crosswise stunt placements remain invalid. An explicit v3 or v4 export
+rejects sloped tunnels and slaloms.
 
-The game substitutes the original full-tile hill-road or flat hill-span model,
-including its collision and route data, at the terrain's lower base elevation.
-It does not rotate a flat model onto the incline or add connector strips.
+For original hill-road pieces, the game substitutes the original full-tile
+hill-road or flat hill-span model, including its collision and route data, at
+the terrain's lower base elevation. Sloped tunnels and slaloms retain their
+catalog IDs and use the existing support-plane fields to follow the incline;
+no additional object fields are stored. Their roads, tunnel roofs and walls,
+and slalom barriers follow that plane in rendering, collision and route data.
 Intrinsic banking, elevated decks, loops and other stunt geometry retain their
 original shapes on flat plateaus at any supported elevation.
 
@@ -191,8 +200,8 @@ the runtime resolves approved hill pieces to these models internally. All road
 and stunt pieces accept paved, dirt and ice surfaces, including loops, pipe
 entrances, pipes and half pipes. Scenery accepts all surface values but ignores
 this field; new scenery placements use paved `0`. Turns, branches, highways,
-stunts and scenery require flat ground throughout their footprint. These catalog
-rules are checked by the editor and game in addition to the storage codec's
+other stunts and scenery require flat ground throughout their footprint. These
+catalog rules are checked by the editor and game in addition to the storage codec's
 structural validation. Free-form saddles, two-level diagonal cells and unsupported
 tilted pieces are invalid.
 
@@ -222,5 +231,5 @@ The standalone test `src/restunts/tests/test-cstrk.c` covers an independently
 specified binary fixture, every truncation of that fixture, malformed headers
 and objects, all horizon choices, current and future numeric revisions, rejection
 of obsolete revisions, all 12 material pairs in four corner directions, sparse
-overlays, positive and negative slopes, ASCII limits, transactional failure,
-and the maximum-size 90×90 map.
+overlays, positive and negative slopes, versioned sloped-stunt placement, ASCII
+limits, transactional failure, and the maximum-size 90×90 map.

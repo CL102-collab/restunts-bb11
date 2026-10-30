@@ -120,6 +120,25 @@ for (let base = 0; base <= HILL_ROUTE_MAX_LEVEL; base++) {
         }
     }
 }
+// Sloped tunnels and slaloms keep their native stunt routes while their floor
+// follows the same incline as neighboring hill roads, including both grades.
+const SLOPED_STUNT_MODELS = new Set([28, 34]);
+const SLOPED_STUNT_VARIANTS = [[66, 1], [66, 3], [67, 0], [67, 2], [115, 1], [115, 3], [116, 0], [116, 2]];
+for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (const surface of [0, 1, 2]) {
+    for (const [id, rotation] of SLOPED_STUNT_VARIANTS) {
+        const rise = Math.min(2, HILL_ROUTE_MAX_LEVEL - base);
+        const hill = terrainRectangle(x => base + Math.max(0, Math.min(rise, x - HILL_ROUTE_START_COLUMN,
+            HILL_ROUTE_END_COLUMN - x)), surface);
+        for (const y of [HILL_ROUTE_ROW, hill.height - 4]) for (const x of [HILL_ROUTE_START_COLUMN, HILL_ROUTE_END_COLUMN - 1])
+            replace(hill, x, y, id, rotation, surface);
+        for (let direction = 0, doc = clearHistory(hill); direction < 4; direction++, doc = rotate(doc)) {
+            const result = check('sloped stunt ' + id + ' rotation ' + rotation + ' base ' + base +
+                ' surface ' + surface + ' direction ' + direction, doc, 0);
+            assert.equal(result.route.filter(piece => SLOPED_STUNT_MODELS.has(model.catalog.find(entry => entry.id === piece.id)?.physical)).length, 4);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+        }
+    }
+}
 // A ramp pointing away from the high plateau becomes the original flat hill
 // span. Its lower-terrain side meets an elevated deck, not another ground road.
 for (let base = 0; base < HILL_ROUTE_MAX_LEVEL; base++) for (let surface = 0; surface < model.SURFACES.length; surface++) {
