@@ -24,6 +24,20 @@ Build, Remove or an element group opens the track library. New tracks can have
 any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
 dimensions. Names use the game's 1–8 character ASCII filename stems.
 
+Below Build, Remove and Pan, choose **Select** and drag with the left mouse
+button to mark a rectangle. The selection expands to include whole multi-tile
+pieces. **Copy** keeps the originals; **Cut** removes them in one undo step.
+The clipboard preserves track pieces, road materials, variants and spacing.
+Terrain heights and ground paint stay at their existing locations.
+
+Choose **Paste** to preview the complete block under the pointer, then click
+to place it. **Flip horizontally** and **Flip vertically** reflect the whole
+preview, including its arrangement and piece directions. Existing mirrored
+piece variants are used where available; one-handed stunts retain their kind.
+Pasting requires free space and compatible destination terrain. Each paste
+is one undo step, and the clipboard stays available for repeated placement.
+Use Ctrl/Cmd+C, X or V for copy, cut or paste, and Escape to cancel a preview.
+
 Use **Horizon**, above **Track notes**, to choose Desert, Tropical, Alpine, City,
 or Country, matching the original editor. The choice is saved in the track and
 used in the game and its track preview. Horizon changes support undo and redo.

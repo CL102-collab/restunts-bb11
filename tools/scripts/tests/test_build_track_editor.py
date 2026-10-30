@@ -25,10 +25,13 @@ class BundleContents(HTMLParser):
         self.styles = []
         self.current = None
         self.canvas_seen = False
+        self.buttons = {}
         self.feed(source)
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
+        if tag == "button" and "id" in attributes:
+            self.buttons[attributes["id"]] = attributes
         if "src" in attributes or (tag == "link" and "href" in attributes):
             self.resource_references.append(attributes)
         if tag == "canvas":
@@ -63,6 +66,23 @@ class BuildTrackEditorTests(unittest.TestCase):
             filename = f"track-editor-{name}.js" if name else "track-editor.js"
             expected = (EDITOR.SOURCE_DIRECTORY / filename).read_text(encoding="utf-8")
             self.assertEqual(script.strip(), expected.strip())
+
+    def test_selection_clipboard_controls_are_embedded_below_build_remove_and_pan(self):
+        source = EDITOR.build_editor()
+        contents = BundleContents(source)
+        controls = ("select-area", "copy-selection", "cut-selection", "paste-selection",
+                    "flip-selection-horizontal", "flip-selection-vertical")
+        for identifier in controls:
+            self.assertIn(identifier, contents.buttons)
+            self.assertEqual(contents.buttons[identifier]["type"], "button")
+            self.assertGreater(source.index(f'id="{identifier}"'), source.index('data-tool="pan"'))
+            self.assertLess(source.index(f'id="{identifier}"'), source.index('id="undo"'))
+        self.assertEqual(contents.buttons["select-area"]["data-tool"], "select")
+        self.assertEqual(contents.buttons["paste-selection"]["data-tool"], "paste")
+        self.assertIn('class="clipboard-actions"', source)
+        self.assertIn('class="clipboard-flips"', source)
+        self.assertIn('aria-label="Area selection and clipboard"', source)
+        self.assertIn('aria-label="Flip copied block"', source)
 
     def test_command_writes_only_the_requested_html_with_stable_crlf(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -114,6 +134,32 @@ vm.runInContext(`
     }
     const rampIcon = TrackEditorResources.composePieceTileBitmap(new Map(), 85, 0, 1);
     if (rampIcon.width !== 15 || rampIcon.height !== 30) throw new Error('Embedded ramp artwork is invalid');
+    const block = new model.Document(12, 10);
+    block.place(4, 2, 2, 1);
+    block.place(115, 4, 2, 2, 0, 0, 1);
+    block.place(85, 6, 2, 0, 0, 0, 0, 1);
+    block.history = []; block.future = [];
+    const beforeCut = JSON.stringify(block.snapshot());
+    const copied = block.copyRegion({ x: 1, y: 1, width: 7, height: 4 });
+    const flipped = model.flipClipboard(copied, 'horizontal');
+    const cut = block.cutRegion({ x: 1, y: 1, width: 7, height: 4 });
+    if (block.objects.length || block.history.length !== 1 || !Object.isFrozen(cut.objects)) {
+        throw new Error('Embedded clipboard cut is not one atomic edit');
+    }
+    const preview = block.pastePreview(flipped, 2, 5);
+    if (block.objects.length || preview[0].x !== 7 || preview[1].x !== 5 || preview[2].x !== 3) {
+        throw new Error('Embedded block reflection or paste preview is invalid');
+    }
+    block.pasteRegion(flipped, 2, 5);
+    const pastedBlock = model.decodeCstrk(model.encodeCstrk(block));
+    if (pastedBlock.objects.length !== 3 || pastedBlock.objects[1].tunnelSlalom !== 1 ||
+        pastedBlock.objects[2].rollRamp !== 1 || pastedBlock.objects[0].surface !== 1) {
+        throw new Error('Embedded clipboard lost copied materials or custom stunt flags');
+    }
+    if (!block.undo() || block.objects.length || !block.undo() ||
+        JSON.stringify(block.snapshot()) !== beforeCut) {
+        throw new Error('Embedded clipboard cut/paste cannot be independently undone');
+    }
     for (const id of [109, 111, 154]) {
         const slope = new model.Document(4, 4);
         for (let y = 0; y <= slope.height; y++) for (let x = 0; x <= slope.width; x++) {

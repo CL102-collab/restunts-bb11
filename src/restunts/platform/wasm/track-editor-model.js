@@ -159,6 +159,95 @@
             if (object.mask & (1 << (y * object.width + x))) cells.push([object.x + x, object.y + y]);
         return cells;
     }
+    const MIRROR_COUNTERPARTS = new Map([[4, 5], [5, 4], [6, 7], [7, 6], [8, 9], [9, 8],
+        [23, 24], [24, 23], [32, 33], [33, 32]]);
+    const MIRROR_CORNER_MODELS = new Set([2, 3, 21, 26]);
+    const BANKED_ROAD_PHYSICAL_MODEL = 25;
+    function quarterTurns(rotation) { return (rotation % PIECE_DIRECTION_COUNT + PIECE_DIRECTION_COUNT) % PIECE_DIRECTION_COUNT; }
+    function selectionObjects(doc, rectangle) {
+        if (!rectangle || typeof rectangle !== 'object') throw new Error('Select a rectangular track area first.');
+        let { x, y, width, height } = rectangle;
+        integer(width, 1, doc.width, 'selection width'); integer(height, 1, doc.height, 'selection height');
+        integer(x, 0, doc.width - width, 'selection column'); integer(y, 0, doc.height - height, 'selection row');
+        const selected = new Set();
+        // Expanding a partial multi-tile selection can reach another element.
+        // Continue until every piece intersecting the visible rectangle is whole.
+        for (let changed = true; changed;) {
+            changed = false;
+            for (const object of doc.objects) {
+                if (selected.has(object) || !occupied(object).some(([cx, cy]) => cx >= x && cy >= y && cx < x + width && cy < y + height)) continue;
+                selected.add(object);
+                const right = Math.max(x + width, object.x + object.width), bottom = Math.max(y + height, object.y + object.height);
+                const left = Math.min(x, object.x), top = Math.min(y, object.y);
+                if (left !== x || top !== y || right !== x + width || bottom !== y + height) changed = true;
+                x = left; y = top; width = right - left; height = bottom - top;
+            }
+        }
+        return { x, y, width, height, objects: doc.objects.filter(object => selected.has(object)) };
+    }
+    function freezeClipboard(width, height, objects) {
+        return Object.freeze({ width, height, objects: Object.freeze(objects.map(object => Object.freeze({ ...object }))) });
+    }
+    function clipboardFromSelection(selection) {
+        return freezeClipboard(selection.width, selection.height, selection.objects.map(object =>
+            ({ ...object, x: object.x - selection.x, y: object.y - selection.y })));
+    }
+    function checkClipboard(clipboard) {
+        if (!clipboard || typeof clipboard !== 'object') throw new Error('Copy or cut track elements before pasting.');
+        integer(clipboard.width, 1, 90, 'clipboard width'); integer(clipboard.height, 1, 90, 'clipboard height');
+        if (!Array.isArray(clipboard.objects) || !clipboard.objects.length || clipboard.objects.length > 8100)
+            throw new Error('The clipboard contains no usable track elements.');
+        for (const object of clipboard.objects) {
+            const entry = object && byId.get(object.id);
+            if (!entry) throw new Error('Unknown clipboard track element.');
+            integer(object.rotation, 0, PIECE_DIRECTION_COUNT - 1, 'clipboard rotation');
+            const footprint = rotatedFootprint(entry, object.rotation);
+            if (object.width !== footprint.width || object.height !== footprint.height || object.mask !== footprint.mask)
+                throw new Error('Clipboard footprint does not match its track element.');
+            integer(object.x, 0, clipboard.width - object.width, 'clipboard column');
+            integer(object.y, 0, clipboard.height - object.height, 'clipboard row');
+            integer(object.surface, 0, SURFACES.length - 1, 'clipboard road surface');
+            integer(object.lowerSurface ?? 0, 0, SURFACES.length - 1, 'clipboard lower road surface');
+            integer(object.baseHeight, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'clipboard height');
+            integer(object.slopeX, -1, 1, 'clipboard slope'); integer(object.slopeY, -1, 1, 'clipboard slope');
+            checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, VERSION);
+            checkRollRamp(entry, object.rollRamp ?? 0, VERSION);
+        }
+    }
+    function flipClipboard(clipboard, axis) {
+        checkClipboard(clipboard);
+        if (axis !== 'horizontal' && axis !== 'vertical') throw new Error('Choose a horizontal or vertical flip.');
+        const horizontal = axis === 'horizontal';
+        const objects = clipboard.objects.map(object => {
+            const entry = byId.get(object.id), physical = MIRROR_COUNTERPARTS.get(entry.physical) ?? entry.physical;
+            const counterpart = physical === entry.physical ? entry : catalog.find(candidate => candidate.physical === physical &&
+                candidate.group === entry.group && candidate.legacySurface === entry.legacySurface && candidate.rotation === entry.rotation);
+            if (!counterpart) throw new Error('This track element has no compatible flipped variant.');
+            // Reflect the whole layout and each piece's direction together.
+            // Native left/right partners preserve chicanes, branches, banking
+            // and corkscrew geometry; one-handed stunts retain their own kind.
+            const offset = MIRROR_CORNER_MODELS.has(entry.physical) ? 3 : entry.physical === BANKED_ROAD_PHYSICAL_MODEL ? 2 : 0;
+            const rotation = quarterTurns(offset + (horizontal ? 0 : PIECE_AXIS_COUNT) - entry.rotation - object.rotation - counterpart.rotation);
+            const footprint = rotatedFootprint(counterpart, rotation);
+            let mask = 0;
+            for (let y = 0; y < object.height; y++) for (let x = 0; x < object.width; x++)
+                if (object.mask & (1 << (y * object.width + x))) mask |= 1 << ((horizontal ? y : object.height - 1 - y) * object.width + (horizontal ? object.width - 1 - x : x));
+            if (footprint.width !== object.width || footprint.height !== object.height || footprint.mask !== mask)
+                throw new Error('This track element cannot be flipped within its footprint.');
+            const mirrored = { ...object, id: counterpart.id, rotation, ...footprint };
+            if (horizontal) {
+                mirrored.x = clipboard.width - object.x - object.width;
+                mirrored.baseHeight += object.width * object.slopeX;
+                mirrored.slopeX = object.slopeX ? -object.slopeX : 0;
+            } else {
+                mirrored.y = clipboard.height - object.y - object.height;
+                mirrored.baseHeight += object.height * object.slopeY;
+                mirrored.slopeY = object.slopeY ? -object.slopeY : 0;
+            }
+            return mirrored;
+        });
+        return freezeClipboard(clipboard.width, clipboard.height, objects);
+    }
     const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
     const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
@@ -391,7 +480,7 @@
             const required = requiredSlopeVersion(object, entry, profile);
             return this.version >= required;
         }
-        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0) {
+        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, allowExistingSlope = false) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
             checkTunnelSlalom(entry, tunnelSlalom, this.version);
             checkRollRamp(entry, rollRamp, this.version);
@@ -413,7 +502,7 @@
             }
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             // Restrict new editor builds without changing file validation or removal.
-            if ((object.slopeX || object.slopeY) && (EDITOR_LEVEL_GROUND_PHYSICAL_MODELS.has(entry.physical) ||
+            if (!allowExistingSlope && (object.slopeX || object.slopeY) && (EDITOR_LEVEL_GROUND_PHYSICAL_MODELS.has(entry.physical) ||
                 (entry.decoration && !EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS.has(entry.physical))))
                 throw new Error(entry.name + ' can only be built on level ground in the editor.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
@@ -423,6 +512,52 @@
         }
         place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp); this.objects.push(object); return object; }); }
         erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
+        selection(rectangle) {
+            const selected = selectionObjects(this, rectangle);
+            return { ...selected, objects: selected.objects.map(object => ({ ...object })) };
+        }
+        copyRegion(rectangle) { return clipboardFromSelection(selectionObjects(this, rectangle)); }
+        cutRegion(rectangle) {
+            const selected = selectionObjects(this, rectangle), clipboard = clipboardFromSelection(selected);
+            const removed = new Set(selected.objects);
+            return this.transaction('Cut track elements', () => {
+                this.objects = this.objects.filter(object => !removed.has(object));
+                return clipboard;
+            });
+        }
+        pastePreview(clipboard, x, y) {
+            checkClipboard(clipboard);
+            integer(x, 0, this.width - 1, 'paste column'); integer(y, 0, this.height - 1, 'paste row');
+            if (x + clipboard.width > this.width || y + clipboard.height > this.height)
+                throw new Error('The copied area extends beyond the track.');
+            // Validate staged elements against the destination terrain without
+            // editing the real document or scanning it once for every element.
+            const target = Object.create(this); target.objects = [];
+            const taken = new Set(this.objects.flatMap(object => occupied(object).map(([cx, cy]) => cy * this.width + cx)));
+            const result = [];
+            for (const source of clipboard.objects) {
+                const object = target.placement(source.id, x + source.x, y + source.y, source.surface, source.rotation,
+                    source.lowerSurface ?? 0, source.tunnelSlalom ?? 0, source.rollRamp ?? 0, true);
+                // Imported scenery may retain an explicit road selection even
+                // though new palette placement defaults it to paved.
+                object.surface = source.surface;
+                for (const [cx, cy] of occupied(object)) {
+                    const cell = cy * this.width + cx;
+                    if (taken.has(cell)) throw new Error('This space is occupied. Remove the existing element first.');
+                    taken.add(cell);
+                }
+                result.push(object);
+            }
+            if (this.objects.length + result.length > 8100) throw new Error('Too many track elements.');
+            return result;
+        }
+        pasteRegion(clipboard, x, y) {
+            const objects = this.pastePreview(clipboard, x, y);
+            return this.transaction('Paste track elements', () => {
+                this.objects.push(...objects);
+                return objects;
+            });
+        }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
         validate() {
@@ -546,5 +681,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard };
 }));
