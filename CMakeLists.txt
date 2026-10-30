@@ -317,7 +317,7 @@ set(music_tracks titl slct over vict)
 set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STTERR.3SH
     STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
-    RESTUNTS_EDITOR_DIRECTORY="${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm"
+    RESTUNTS_EDITOR_DIRECTORY="${CMAKE_CURRENT_BINARY_DIR}"
     RESTUNTS_MENU_DIRECTORY="${restunts_asset_directory}/menus"
     RESTUNTS_SKYBOX_DIRECTORY="${restunts_asset_directory}/skyboxes"
     RESTUNTS_OPPONENT_DIRECTORY="${restunts_asset_directory}/opponents"
@@ -394,8 +394,10 @@ if(NOT RESTUNTS_SYSTEM_SDL AND NOT EMSCRIPTEN)
     endforeach()
 endif()
 
+include(cmake/track-editor.cmake)
+
 if(ANDROID)
-    # Gradle packages native libraries and app assets; install source and licenses only.
+    # Gradle packages native libraries and app assets; install the editor, source and licenses.
     install(FILES docs/android.md DESTINATION share/docs/restunts COMPONENT Runtime)
     return()
 endif()
@@ -471,15 +473,6 @@ endif()
 if(RESTUNTS_BUILD_LAUNCHER)
     include(cmake/launcher.cmake)
 endif()
-
-install(FILES src/restunts/platform/wasm/track-editor.html
-    src/restunts/platform/wasm/track-editor.css src/restunts/platform/wasm/track-editor.js
-    src/restunts/platform/wasm/track-editor-model.js src/restunts/platform/wasm/track-editor-resources.js
-    src/restunts/platform/wasm/track-editor-route-data.js
-    src/restunts/platform/wasm/track-editor-validation.js
-    DESTINATION share/restunts/editor COMPONENT Runtime)
-install(FILES docs/cstrk-format.md docs/csrpl-format.md docs/cshig-format.md docs/track-editor.md
-    DESTINATION share/docs/restunts COMPONENT Runtime)
 
 if(RESTUNTS_BUILD_TESTS)
     add_executable(test-cstrk ${core}/cstrk.c src/restunts/tests/test-cstrk.c)

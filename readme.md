@@ -22,8 +22,11 @@ All packages were created by GitHub CI and released as an immutable release dire
 
 The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
 terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
-Select your Stunts folder before editing. The browser launcher links the editor;
-native packages include it under `share/restunts/editor/`. The current `.cstrk`
+Select your Stunts folder before editing. Every SDL3 package includes the
+standalone `tracked.html` editor: beside the browser game, or at
+`share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
+and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
+needed. The browser launcher also links the editor. The current `.cstrk`
 revision is v5. Revision v3 and v4 tracks open as v5 while preserving their overpass
 road materials; revisions below v3 are unsupported. Newer revisions show a warning
 and load using the known format.
@@ -751,7 +754,8 @@ configuration options, so include any custom options you want to retain.
 | Windows x64 | GCC inside WSL2 | Native MSYS2 UCRT64 for x64; MinGW-w64 inside WSL2 for x86 | Build on a Mac | Native DJGPP in MSYS2, or DJGPP inside WSL2 |
 | macOS Apple Silicon or Intel | Use a Linux environment | Use a Windows or Linux environment | Apple Clang and macOS SDK; arm64, x86_64, or universal | Use a documented Linux or Windows environment |
 
-CMake 3.25 or newer, Ninja, Git, and the selected compiler must be on `PATH`.
+CMake 3.25 or newer, Ninja, Git, Python 3.9 or newer, and the selected compiler
+must be on `PATH`. Python bundles the standalone track editor.
 CMake downloads and verifies the pinned SDL3 source automatically, so the
 first configure needs network access. SDL3 is linked statically by default;
 no separate SDL installation is required. Desktop builds also produce the

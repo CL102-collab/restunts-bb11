@@ -327,7 +327,7 @@ void run_tracks_menu(legacy_s16 reload_track)
 				if (extended_track_active()) {
 					if (!extended_editor_open()) {
 						show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-									"Open track-editor.html to edit Chocolate Stunts tracks.]",
+									"Open tracked.html to edit Chocolate Stunts tracks.]",
 									DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color,
 									0, 0);
 					}

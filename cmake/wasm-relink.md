@@ -18,6 +18,10 @@ cmake --build build --parallel
 
 Open `build/restunts.html` directly in a browser. The relink step embeds all
 enhanced artwork again and needs neither a web server nor the original game source.
+When the original package layout is retained, configuration also copies the
+standalone `tracked.html` editor beside the rebuilt game. If you move this relink
+directory separately, copy the packaged `tracked.html` beside `build/restunts.html`
+to use the game page's editor link.
 Changes to the public ABI require recompiling the application from its source.
 The compiler options and SDK version must remain compatible with the supplied
 objects; the original build's toolchain information is included alongside them.

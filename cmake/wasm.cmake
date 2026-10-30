@@ -41,17 +41,6 @@ endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/wasm-link.cmake")
 restunts_configure_wasm(restunts "${restunts_web_assets}" "${restunts_web_shell}")
-# The game remains one offline HTML file. Its optional editor is a small,
-# buildless set of adjacent files and reads original artwork from the game folder.
-set(restunts_editor_files)
-foreach(editor_file track-editor.html track-editor.css track-editor.js
-        track-editor-model.js track-editor-resources.js
-        track-editor-route-data.js track-editor-validation.js)
-    set(editor_source "${CMAKE_SOURCE_DIR}/src/restunts/platform/wasm/${editor_file}")
-    list(APPEND restunts_editor_files "${editor_source}")
-    configure_file("${editor_source}" "${CMAKE_CURRENT_BINARY_DIR}/${editor_file}" COPYONLY)
-endforeach()
-install(FILES ${restunts_editor_files} DESTINATION . COMPONENT Runtime)
 install(TARGETS restunts RUNTIME DESTINATION . COMPONENT Runtime)
 install(FILES docs/wasm.md docs/track-editor.md docs/cstrk-format.md docs/csrpl-format.md docs/cshig-format.md
     THIRD-PARTY-NOTICES.txt DESTINATION . COMPONENT Runtime)
@@ -75,8 +64,6 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/CMakeLists.txt"
     cmake/wasm-link.cmake cmake/wasm-relink.md "${restunts_web_shell}"
     "${CMAKE_CURRENT_BINARY_DIR}/nuked-build-info.txt"
     DESTINATION ${restunts_relink_directory} COMPONENT Runtime)
-install(FILES ${restunts_editor_files}
-    DESTINATION ${restunts_relink_directory}/editor COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:restunts_game>"
     DESTINATION ${restunts_relink_directory}/lib RENAME librestunts_game.a COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:restunts_webm>"
