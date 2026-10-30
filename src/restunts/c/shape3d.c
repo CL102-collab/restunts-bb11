@@ -1128,7 +1128,11 @@ static legacy_s32 hypervision_bounds_are_clipped(const struct SHAPE3D *shape,
 	legacy_u8 common_clip_flags = SHAPE3D_ALL_RECT_CLIP_FLAGS;
 	legacy_s32 any_front = 0;
 	legacy_s32 any_behind = 0;
-	for (legacy_u16 index = 0; index < SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT; index++) {
+	/* Generated fractional meshes have no resource bounding-box prefix. Include
+	 * all their vertices, since a visible corner can follow eight clipped ones. */
+	legacy_u16 bounds_count = context->source_vertices != NULL ? shape->shape3d_numverts
+															   : SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT;
+	for (legacy_u16 index = 0; index < bounds_count; index++) {
 		shape3d_cache_vertex(shape, context, index);
 		if (context->vertex_clip_flags[index] != 0) {
 			any_behind = 1;

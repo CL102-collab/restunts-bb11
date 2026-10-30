@@ -7,11 +7,14 @@
 #include "../c/cstrk.h"
 #include "../c/extended_track.h"
 #include "../c/extended_geometry.h"
+#include "../c/extended_frame.h"
+#include "../c/frame_render_internal.h"
 #include "../c/skybox.h"
 #include "../c/race_graphics.h"
 #include "../c/trackdata_layout.h"
 #include "../c/shape3d_internal.h"
 #include "../c/shape3d_hires.h"
+#include "../c/projection.h"
 
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U
@@ -872,6 +875,44 @@ static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 
 static legacy_u8 stunt_capture_active, stunt_capture_parts, stunt_capture_details;
 static legacy_u8 slope_occlusion_hide_terrain;
+static legacy_u8 terrain_coverage_capture;
+static legacy_f64 terrain_coverage_area;
+#define TERRAIN_EDGE_ENDPOINT_COUNT 2U
+static legacy_u8 terrain_edge_capture;
+static legacy_u16 terrain_flat_count, terrain_base_count;
+static struct SHAPE3D_HIRES_VECTOR terrain_flat_vertices[SHAPE3D_PRIMITIVE_POLYGON_FIRST];
+static struct SHAPE3D_HIRES_VECTOR terrain_base_vertices[TERRAIN_EDGE_ENDPOINT_COUNT];
+
+#define GENERATED_BOUNDS_PREFIX_COUNT 8U
+#define GENERATED_BOUNDS_MATERIAL 101U
+#define GENERATED_BOUNDS_ALWAYS_VISIBLE 1U
+#define GENERATED_BOUNDS_MIN_VISIBLE_PIXELS 100U
+#define GENERATED_BOUNDS_TARGET_TILE 15U
+#define GENERATED_BOUNDS_ROAD_OFFSET 3U
+
+enum GENERATED_BOUNDS_MODE {
+	GENERATED_BOUNDS_DISABLED,
+	GENERATED_BOUNDS_EMPTY,
+	GENERATED_BOUNDS_TRIANGLES,
+	GENERATED_BOUNDS_POLYGON
+};
+static legacy_u8 generated_bounds_mode, generated_bounds_count, generated_bounds_injected;
+static void inject_generated_bounds_polygon(void);
+
+static legacy_u8 generated_bounds_skip_scene(void)
+{
+	if (!generated_bounds_mode) {
+		return 0;
+	}
+	if (!generated_bounds_injected) {
+		generated_bounds_injected = 1;
+		if (generated_bounds_mode != GENERATED_BOUNDS_EMPTY) {
+			inject_generated_bounds_polygon();
+		}
+	}
+	return 1;
+}
+
 static legacy_u8 native_slope_capture_active, native_slope_capture_parts;
 static legacy_u16 native_slope_capture_markings;
 static const struct TRACKOBJECT *native_slope_capture_definitions[STUNT_RENDER_PART_COUNT];
@@ -1178,9 +1219,93 @@ static legacy_u8 render_capture_skip_shape(struct TRANSFORMEDSHAPE3D *instance)
 	return 0;
 }
 
+/* Measure the submitted terrain rather than pixels hidden behind a floating
+ * road. Area in XZ is invariant under the terrain's quarter-turn yaw. */
+static void capture_terrain_coverage(const struct TRANSFORMEDSHAPE3D *instance,
+									 const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	const struct SHAPE3D *shape = instance->shapeptr;
+	const legacy_u8 *primitive = shape->shape3d_primitives;
+	for (legacy_u16 face = 0; face < shape->shape3d_numprimitives; face++) {
+		legacy_u16 count = primitive[0];
+		if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST || count > SHAPE3D_POLYGON_MAX_VERTICES) {
+			break;
+		}
+		const legacy_u8 *indices =
+			primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape->shape3d_numpaints;
+		struct SHAPE3D_HIRES_VECTOR points[SHAPE3D_POLYGON_MAX_VERTICES];
+		legacy_f64 minimum = 0, maximum = 0;
+		for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+			struct SHAPE3D_HIRES_VECTOR point;
+			if (vertices) {
+				point = vertices[indices[vertex]];
+			} else {
+				struct VECTOR packed;
+				shape3d_vertex_read(shape, indices[vertex], &packed);
+				point = (struct SHAPE3D_HIRES_VECTOR){packed.x, packed.y, packed.z};
+			}
+			legacy_f64 previous_x = point.x;
+			switch (instance->rotvec.z & ANGLE_MASK) {
+				case ANGLE_QUARTER_TURN:
+					point.x = point.z;
+					point.z = -previous_x;
+					break;
+				case ANGLE_HALF_TURN:
+					point.x = -point.x;
+					point.z = -point.z;
+					break;
+				case ANGLE_THREE_QUARTER_TURN:
+					point.x = -point.z;
+					point.z = previous_x;
+					break;
+			}
+			point.x += instance->pos.x;
+			point.y += instance->pos.y;
+			point.z += instance->pos.z;
+			points[vertex] = point;
+			if (!vertex || point.y < minimum) {
+				minimum = point.y;
+			}
+			if (!vertex || point.y > maximum) {
+				maximum = point.y;
+			}
+		}
+		legacy_f64 area = 0;
+		for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+			const struct SHAPE3D_HIRES_VECTOR *a = &points[vertex];
+			const struct SHAPE3D_HIRES_VECTOR *b = &points[(vertex + 1U) % count];
+			area += a->x * b->z - b->x * a->z;
+		}
+		terrain_coverage_area += area < 0 ? -area : area;
+		if (terrain_edge_capture) {
+			if (minimum == maximum) {
+				assert(count == SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+				assert(!terrain_flat_count);
+				memcpy(terrain_flat_vertices, points, sizeof(terrain_flat_vertices));
+				terrain_flat_count = count;
+			} else {
+				for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+					if (points[vertex].y == minimum) {
+						assert(terrain_base_count < TERRAIN_EDGE_ENDPOINT_COUNT);
+						terrain_base_vertices[terrain_base_count++] = points[vertex];
+					}
+				}
+			}
+		}
+		primitive = indices + count;
+	}
+}
+
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (terrain_coverage_capture) {
+		capture_terrain_coverage(instance, NULL);
+		return 0;
+	}
+	if (generated_bounds_skip_scene()) {
+		return 0;
+	}
 	if (render_capture_skip_shape(instance)) {
 		return 0;
 	}
@@ -1189,9 +1314,82 @@ legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instanc
 
 legacy_u16 __real_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices);
+static void queue_generated_bounds_face(const struct SHAPE3D_HIRES_VECTOR *vertices,
+										legacy_u16 count)
+{
+	legacy_u8 bytes[SHAPE3D_POLYGON_MAX_VERTICES * SHAPE3D_VERTEX_SIZE];
+	legacy_u8 primitive[SHAPE3D_POLYGON_MAX_VERTICES + 5U] = {0};
+	legacy_u8 masks[SHAPE3D_VISIBILITY_MASK_SIZE] = {255, 255, 255, 255};
+	legacy_u8 front[SHAPE3D_VISIBILITY_MASK_SIZE] = {0};
+	struct SHAPE3D shape = {count, bytes, 1, 1, primitive, masks, front};
+	primitive[0] = (legacy_u8)count;
+	primitive[1] = GENERATED_BOUNDS_ALWAYS_VISIBLE;
+	primitive[2] = GENERATED_BOUNDS_MATERIAL;
+	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+		struct VECTOR fallback = {(legacy_s16)vertices[vertex].x, (legacy_s16)vertices[vertex].y,
+								  (legacy_s16)vertices[vertex].z};
+		shape3d_vertex_write(&shape, vertex, &fallback);
+		primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + vertex] = (legacy_u8)vertex;
+	}
+	struct TRANSFORMEDSHAPE3D instance = {0};
+	instance.shapeptr = &shape;
+	instance.rectptr = &frame_sorted_shapes_rect;
+	instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
+	instance.ts_flags = FRAME_TRANSFORM_FLAGS_DEFAULT | SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
+	(void)__real_shape3d_hires_transform_and_queue(&instance, vertices);
+}
+
+static void inject_generated_bounds_polygon(void)
+{
+	/* A clipped terrain remainder can list eight invisible boundary vertices
+	 * before its visible corner. These are polygon corners, not a resource's
+	 * eight enclosing box corners. Keep a fractional displacement as well. */
+	static const struct SHAPE3D_HIRES_VECTOR view[SHAPE3D_POLYGON_MAX_VERTICES] = {
+		{-2000.125, -100, 1000}, {-2300.125, -93, 1000}, {-2500.125, -67, 1000},
+		{-2600.125, -27, 1000},	 {-2600.125, 27, 1000},	 {-2500.125, 67, 1000},
+		{-2300.125, 93, 1000},	 {-2000.125, 100, 1000}, {300.125, 100, 1000},
+		{300.125, -100, 1000}};
+	struct SHAPE3D_HIRES_VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
+	for (legacy_u16 vertex = 0; vertex < generated_bounds_count; vertex++) {
+		if (vertex < GENERATED_BOUNDS_PREFIX_COUNT) {
+			assert(shape3d_hires_clip_flags(&view[vertex]) & SHAPE3D_RECT_CLIP_LEFT);
+		} else {
+			assert(shape3d_hires_clip_flags(&view[vertex]) == 0);
+		}
+		/* Transform the camera-space fixture back to camera-relative world
+		 * coordinates. Both polygon and triangle reference use this same map. */
+		vertices[vertex] = (struct SHAPE3D_HIRES_VECTOR){
+			(view[vertex].x * mat_temp.m._11 + view[vertex].y * mat_temp.m._21 +
+			 view[vertex].z * mat_temp.m._31) /
+				TRIG_FIXED_ONE,
+			(view[vertex].x * mat_temp.m._12 + view[vertex].y * mat_temp.m._22 +
+			 view[vertex].z * mat_temp.m._32) /
+				TRIG_FIXED_ONE,
+			(view[vertex].x * mat_temp.m._13 + view[vertex].y * mat_temp.m._23 +
+			 view[vertex].z * mat_temp.m._33) /
+				TRIG_FIXED_ONE};
+	}
+	if (generated_bounds_mode == GENERATED_BOUNDS_TRIANGLES) {
+		for (legacy_u16 vertex = 1; vertex + 1U < generated_bounds_count; vertex++) {
+			const struct SHAPE3D_HIRES_VECTOR triangle[] = {vertices[0], vertices[vertex],
+															vertices[vertex + 1U]};
+			queue_generated_bounds_face(triangle, SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+		}
+	} else {
+		queue_generated_bounds_face(vertices, generated_bounds_count);
+	}
+}
+
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (terrain_coverage_capture) {
+		capture_terrain_coverage(instance, vertices);
+		return 0;
+	}
+	if (generated_bounds_skip_scene()) {
+		return 0;
+	}
 	if (render_capture_skip_shape(instance)) {
 		return 0;
 	}
@@ -2167,6 +2365,228 @@ static legacy_u16 check_sloped_road_occlusion(void)
 #endif
 }
 
+#define CORNER_FILL_MAP_SIZE 30U
+#define CORNER_FILL_ANCHOR 10U
+#define CORNER_FILL_FOOTPRINT 2U
+#define CORNER_FILL_HEIGHT 2U
+#define CORNER_FILL_ROTATIONS 4U
+#define CORNER_FILL_DETAIL_COUNT 2U
+#define CORNER_FILL_BASE_LEVELS (CSTRK_MAX_HEIGHT - CORNER_FILL_HEIGHT + 1U)
+#define CORNER_FILL_ROAD 11U
+/* Doubled area can change by at most perimeter * two-unit authored overhang. */
+#define CORNER_FILL_AREA_TOLERANCE (8.0 * STUNT_RENDER_AUTHORED_OVERSCAN * CSTRK_TILE_WORLD_SIZE)
+
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+static void corner_fill_rotate(legacy_u16 *x, legacy_u16 *y, legacy_u16 extent, legacy_u8 rotation)
+{
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_u16 previous_x = *x;
+		*x = extent - *y;
+		*y = previous_x;
+	}
+}
+
+static legacy_f64 capture_corner_terrain(const struct CSTRK_TRACK *track, legacy_u16 x,
+										 legacy_u16 y, legacy_u8 detail)
+{
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(extended_track_activate(track, error, sizeof(error)));
+	struct FRAME_TILE tile = {0};
+	tile.east = (legacy_s8)x;
+	tile.south = (legacy_s8)y;
+	tile.detail = (legacy_s8)detail;
+	const struct FRAME_CAMERA camera = {0};
+	terrain_coverage_area = 0;
+	terrain_coverage_capture = 1;
+	assert(extended_frame_draw_terrain(&tile, &camera, 0) == 0);
+	terrain_coverage_capture = 0;
+	return terrain_coverage_area;
+}
+#endif
+
+static legacy_u16 check_terrain_below_graded_turn(void)
+{
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	if (!supersight_enabled) {
+		return 0;
+	}
+	/* The occupied diagonal follows a straight eastward slope. Its free NE
+	 * corner falls below that plane, making an outer hill corner. The road's
+	 * projected footprint must not erase either of the lower terrain faces. */
+	for (legacy_u8 base = 0; base < CORNER_FILL_BASE_LEVELS; base++) {
+		for (legacy_u8 rotation = 0; rotation < CORNER_FILL_ROTATIONS; rotation++) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+			assert(cstrk_create(&track, CORNER_FILL_MAP_SIZE, CORNER_FILL_MAP_SIZE, error,
+								sizeof(error)));
+			for (legacy_u16 y = 0; y <= track.height; y++) {
+				for (legacy_u16 x = 0; x <= track.width; x++) {
+					legacy_s16 height = (legacy_s16)x - (legacy_s16)CORNER_FILL_ANCHOR;
+					if (height < 0) {
+						height = 0;
+					} else if (height > (legacy_s16)CORNER_FILL_HEIGHT) {
+						height = CORNER_FILL_HEIGHT;
+					}
+					if (y <= CORNER_FILL_ANCHOR && height > 1) {
+						height = 1;
+					}
+					legacy_u16 rx = x, ry = y;
+					corner_fill_rotate(&rx, &ry, CORNER_FILL_MAP_SIZE, rotation);
+					track.corner_heights[(size_t)ry * (track.width + 1U) + rx] =
+						(legacy_u8)(height + base);
+				}
+			}
+			struct CSTRK_OBJECT road = {0};
+			road.legacy_id = CORNER_FILL_ROAD;
+			legacy_u16 x = CORNER_FILL_ANCHOR, y = CORNER_FILL_ANCHOR;
+			corner_fill_rotate(&x, &y, CORNER_FILL_MAP_SIZE - CORNER_FILL_FOOTPRINT, rotation);
+			road.x = (legacy_u8)x;
+			road.y = (legacy_u8)y;
+			road.rotation = rotation;
+			road.surface = CSTRK_ROAD_ICE;
+			road.width = road.height = CORNER_FILL_FOOTPRINT;
+			road.occupied_mask = rotation & 1U ? 6U : 9U;
+			road.base_height = base + (rotation < CORNER_FILL_HEIGHT ? 0U : CORNER_FILL_HEIGHT);
+			static const legacy_s8 slopes[][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+			road.slope_x = slopes[rotation][0];
+			road.slope_y = slopes[rotation][1];
+			assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+			x = CORNER_FILL_ANCHOR + 1U;
+			y = CORNER_FILL_ANCHOR;
+			corner_fill_rotate(&x, &y, CORNER_FILL_MAP_SIZE - 1U, rotation);
+			struct CSTRK_TRACK bare = track;
+			bare.object_count = 0;
+			for (legacy_u8 detail = 0; detail < CORNER_FILL_DETAIL_COUNT; detail++) {
+				terrain_edge_capture = 1;
+				terrain_flat_count = terrain_base_count = 0;
+				legacy_f64 reference = capture_corner_terrain(&bare, x, y, detail);
+				terrain_edge_capture = 0;
+				assert(terrain_flat_count == SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+				assert(terrain_base_count == TERRAIN_EDGE_ENDPOINT_COUNT);
+				/* The authored hill diagonal overhangs the grid by two units.
+				 * Its low supporting triangle must share both exact endpoints. */
+				for (legacy_u16 endpoint = 0; endpoint < terrain_base_count; endpoint++) {
+					legacy_u8 shared = 0;
+					for (legacy_u16 vertex = 0; vertex < terrain_flat_count; vertex++) {
+						const struct SHAPE3D_HIRES_VECTOR *a = &terrain_base_vertices[endpoint];
+						const struct SHAPE3D_HIRES_VECTOR *b = &terrain_flat_vertices[vertex];
+						shared |= a->x == b->x && a->y == b->y && a->z == b->z;
+					}
+					assert(shared);
+				}
+				legacy_f64 actual = capture_corner_terrain(&track, x, y, detail);
+				assert(reference >= 2.0 * CSTRK_TILE_WORLD_SIZE * CSTRK_TILE_WORLD_SIZE);
+				legacy_f64 missing = reference - actual;
+				if (missing > CORNER_FILL_AREA_TOLERANCE) {
+					fprintf(stderr,
+							"Graded turn rotation %u base %u detail %u removes %.0f doubled "
+							"terrain area\n",
+							rotation, base, detail, missing);
+				}
+				assert(missing <= CORNER_FILL_AREA_TOLERANCE);
+			}
+			extended_track_unload();
+			cstrk_free(&track);
+		}
+	}
+#endif
+	return 0;
+}
+
+static legacy_u16 check_generated_terrain_bounds(void)
+{
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	if (!supersight_enabled) {
+		return 0;
+	}
+	struct GAMESTATE saved_state = state;
+	legacy_s8 saved_camera = cameramode;
+	legacy_s32 saved_scale = hires_render_scale();
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(cstrk_create(&track, CORNER_FILL_MAP_SIZE, CORNER_FILL_MAP_SIZE, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	struct CSTRK_OBJECT marker = {0};
+	marker.legacy_id = 4;
+	marker.x = GENERATED_BOUNDS_TARGET_TILE;
+	marker.y = GENERATED_BOUNDS_TARGET_TILE - GENERATED_BOUNDS_ROAD_OFFSET;
+	marker.width = marker.height = marker.occupied_mask = 1;
+	assert(cstrk_add_object(&track, &marker, error, sizeof(error)));
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	struct CARSTATE *car = &state.playerstate;
+	car->car_position.lx =
+		(GENERATED_BOUNDS_TARGET_TILE * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2U) *
+		GRASS_RENDER_POSITION_SCALE;
+	car->car_position.lz =
+		((track.height - GENERATED_BOUNDS_TARGET_TILE - 1U) * CSTRK_TILE_WORLD_SIZE +
+		 CSTRK_TILE_WORLD_SIZE / 2U) *
+		GRASS_RENDER_POSITION_SCALE;
+	car->car_position.ly = 0;
+	car->car_previous_position = car->car_position;
+	car->car_rotate = (struct VECTOR){0, 0, 0};
+	car->car_crashBmpFlag = CRASH_EVENT_WATER;
+	state.game_particles_active = 0;
+	cameramode = CAMERA_MODE_COCKPIT;
+	legacy_u32 grass =
+		RENDER_CAPTURE_OPAQUE_ALPHA |
+		(legacy_u32)material_clrlist_ptr[GENERATED_BOUNDS_MATERIAL] * RENDER_CAPTURE_INDEX_RGB_STEP;
+	legacy_u16 frames = 0;
+	for (legacy_s32 scale = HIRES_SCALE; scale; scale /= 2) {
+		hires_set_render_scale(scale);
+		for (generated_bounds_count = SHAPE3D_POLYGON_MAX_VERTICES - 1U;
+			 generated_bounds_count <= SHAPE3D_POLYGON_MAX_VERTICES; generated_bounds_count++) {
+			size_t sizes[GENERATED_BOUNDS_POLYGON + 1U];
+			legacy_u32 *pixels[GENERATED_BOUNDS_POLYGON + 1U] = {0};
+			for (legacy_u8 mode = GENERATED_BOUNDS_EMPTY; mode <= GENERATED_BOUNDS_POLYGON;
+				 mode++) {
+				generated_bounds_mode = mode;
+				generated_bounds_injected = 0;
+				pixels[mode] = capture_complete_render(&sizes[mode]);
+				assert(generated_bounds_injected);
+				assert(sizes[mode] == sizes[GENERATED_BOUNDS_EMPTY]);
+				frames++;
+			}
+			legacy_s32 width = hires_render_width(), height = hires_render_height();
+			size_t visible = 0, missing = 0;
+			for (legacy_s32 y = 1; y + 1 < height; y++) {
+				for (legacy_s32 x = 1; x + 1 < width; x++) {
+					size_t pixel = (size_t)y * width + x;
+					const legacy_u32 *reference = pixels[GENERATED_BOUNDS_TRIANGLES];
+					if (reference[pixel] == grass && reference[pixel - 1U] == grass &&
+						reference[pixel + 1U] == grass && reference[pixel - width] == grass &&
+						reference[pixel + width] == grass &&
+						pixels[GENERATED_BOUNDS_EMPTY][pixel] != grass) {
+						visible++;
+						missing += pixels[GENERATED_BOUNDS_POLYGON][pixel] != grass;
+					}
+				}
+			}
+			if (missing || visible < GENERATED_BOUNDS_MIN_VISIBLE_PIXELS) {
+				fprintf(stderr, "Generated %u-gon scale %d loses %zu/%zu visible pixels\n",
+						generated_bounds_count, scale, missing, visible);
+			}
+			assert(visible >= GENERATED_BOUNDS_MIN_VISIBLE_PIXELS);
+			assert(missing == 0);
+			for (legacy_u8 mode = GENERATED_BOUNDS_EMPTY; mode <= GENERATED_BOUNDS_POLYGON;
+				 mode++) {
+				free(pixels[mode]);
+			}
+		}
+	}
+	generated_bounds_mode = GENERATED_BOUNDS_DISABLED;
+	hires_set_render_scale(saved_scale);
+	cameramode = saved_camera;
+	state = saved_state;
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+#else
+	return 0;
+#endif
+}
+
 #define NATIVE_SLOPE_RENDER_COLUMN 0U
 #define NATIVE_SLOPE_RENDER_ROW 15U
 #define NATIVE_SLOPE_RENDER_REVERSE 2U
@@ -2539,6 +2959,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_sloped_stunt_rendering();
 		frames += check_general_sloped_rendering();
 		frames += check_sloped_road_occlusion();
+		frames += check_terrain_below_graded_turn();
+		frames += check_generated_terrain_bounds();
 		frames += check_reversed_native_slope_rendering();
 	}
 	extended_track_unload();
