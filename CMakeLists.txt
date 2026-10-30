@@ -227,7 +227,7 @@ set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
     intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c
     extended_file.c extended_replay_runtime.c extended_editor.c extended_race_stats.c extended_ghost.c
-    extended_validation.c extended_highscore.c
+    extended_validation.c extended_highscore.c extended_frame.c
     race_resources.c dashboard.c menu_common.c menu_main.c menu_options.c
     menu_track.c menu_track_editor.c menu_opponent.c opponent_portrait.c opponent_animation.c menu_background.c
     menu_car.c audio_engine.c
