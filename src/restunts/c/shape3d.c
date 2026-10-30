@@ -426,6 +426,7 @@ struct SHAPE3D_TRANSFORM_CONTEXT {
 	struct VECTOR object_translation;
 	struct SHAPE3D_HIRES_VECTOR view_origin;
 	struct SHAPE3D_HIRES_VECTOR hires_vertices[SHAPE3D_VERTEX_CAPACITY];
+	const struct SHAPE3D_HIRES_VECTOR *source_vertices;
 	legacy_u32 shadow_surfaces[SHAPE3D_SHADOW_PRIMITIVE_CAPACITY];
 	legacy_u32 shadow_surface_count;
 #endif
@@ -451,10 +452,18 @@ static void shape3d_hires_rotate(const struct SHAPE3D_HIRES_VECTOR *source,
 static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
 										   struct SHAPE3D_TRANSFORM_CONTEXT *context)
 {
-	struct VECTOR vertex;
-	shape3d_vertex_read(shape, index, &vertex);
+	struct SHAPE3D_HIRES_VECTOR source;
+	if (context->source_vertices != NULL) {
+		source = context->source_vertices[index];
+	} else {
+		struct VECTOR vertex;
+		shape3d_vertex_read(shape, index, &vertex);
+		source = (struct SHAPE3D_HIRES_VECTOR){vertex.x, vertex.y, vertex.z};
+	}
 	legacy_f64 scale = shape_half_scale != 0 ? 0.5 : 1.0;
-	struct SHAPE3D_HIRES_VECTOR source = {vertex.x * scale, vertex.y * scale, vertex.z * scale};
+	source.x *= scale;
+	source.y *= scale;
+	source.z *= scale;
 	struct SHAPE3D_HIRES_VECTOR world;
 	shape3d_hires_rotate(&source, &context->object_to_world_rotation, &world);
 	struct SHAPE3D_HIRES_VECTOR *view = &context->hires_vertices[index];
@@ -498,6 +507,7 @@ static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
 												 instance->rotvec.z, MATRIX_ROTATION_ORDER_ZXY);
 #if defined(RESTUNTS_SDL3)
 	context->shadow_surface_count = 0;
+	context->source_vertices = NULL;
 	context->object_to_world_rotation = *object_rotation;
 	context->object_translation = instance->pos;
 #endif
@@ -1171,7 +1181,8 @@ static legacy_s32 hypervision_primitive_vertices(const struct SHAPE3D *shape,
 	return any_front != 0 && (any_behind != 0 || common_clip_flags == 0);
 }
 
-static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
+												  const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	const struct SHAPE3D *shape = instance->shapeptr;
 	transshapenumverts = shape->shape3d_numverts;
@@ -1180,6 +1191,7 @@ static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *ins
 	}
 	struct SHAPE3D_TRANSFORM_CONTEXT context;
 	shape3d_prepare_instance(instance, &context);
+	context.source_vertices = vertices;
 	legacy_s32 bounds_clipped = hypervision_bounds_are_clipped(shape, &context);
 	shape3d_collect_shadow_polygons(instance, &context);
 	if (bounds_clipped != 0) {
@@ -1257,13 +1269,19 @@ static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *ins
 	}
 	return hypervision_scene_count != initial_count ? 0 : (legacy_u16)-1;
 }
+
+legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
+											 const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	return hypervision_transform_and_queue(instance, vertices);
+}
 #endif
 
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		return hypervision_transform_and_queue(instance);
+		return hypervision_transform_and_queue(instance, NULL);
 	}
 #endif
 	if (polygon_buffer_full != 0) {
