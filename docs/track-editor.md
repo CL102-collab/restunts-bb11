@@ -32,8 +32,11 @@ Terrain heights and ground paint stay at their existing locations.
 
 Choose **Paste** to preview the complete block under the pointer, then click
 to place it. **Flip horizontally** and **Flip vertically** reflect the whole
-preview, including its arrangement and piece directions. Existing mirrored
-piece variants are used where available; one-handed stunts retain their kind.
+preview, including its arrangement and piece directions. While Paste is active,
+**Q** rotates the whole block 90 degrees counterclockwise and **E** rotates it
+90 degrees clockwise. Positions, directions and the block outline rotate
+together; four turns restore the original block. Existing mirrored piece
+variants are used where available; one-handed stunts retain their kind.
 Pasting requires free space and compatible destination terrain. Each paste
 is one undo step, and the clipboard stays available for repeated placement.
 Use Ctrl/Cmd+C, X or V for copy, cut or paste, and Escape to cancel a preview.

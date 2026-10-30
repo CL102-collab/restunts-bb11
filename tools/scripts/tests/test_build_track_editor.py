@@ -142,15 +142,21 @@ vm.runInContext(`
     const beforeCut = JSON.stringify(block.snapshot());
     const copied = block.copyRegion({ x: 1, y: 1, width: 7, height: 4 });
     const flipped = model.flipClipboard(copied, 'horizontal');
+    if (typeof model.rotateClipboard !== 'function') throw new Error('Embedded clipboard rotation is missing');
+    const rotated = model.rotateClipboard(flipped, 1);
+    if (rotated.width !== 4 || rotated.height !== 7 || JSON.stringify(model.rotateClipboard(rotated, -1)) !== JSON.stringify(flipped)) {
+        throw new Error('Embedded clipboard rotation lost its bounds or inverse');
+    }
     const cut = block.cutRegion({ x: 1, y: 1, width: 7, height: 4 });
     if (block.objects.length || block.history.length !== 1 || !Object.isFrozen(cut.objects)) {
         throw new Error('Embedded clipboard cut is not one atomic edit');
     }
-    const preview = block.pastePreview(flipped, 2, 5);
-    if (block.objects.length || preview[0].x !== 7 || preview[1].x !== 5 || preview[2].x !== 3) {
-        throw new Error('Embedded block reflection or paste preview is invalid');
+    const preview = block.pastePreview(rotated, 2, 1);
+    if (block.objects.length || preview[0].x !== 4 || preview[0].y !== 6 ||
+        preview[1].x !== 4 || preview[1].y !== 4 || preview[2].x !== 3 || preview[2].y !== 2) {
+        throw new Error('Embedded block rotation or paste preview is invalid');
     }
-    block.pasteRegion(flipped, 2, 5);
+    block.pasteRegion(rotated, 2, 1);
     const pastedBlock = model.decodeCstrk(model.encodeCstrk(block));
     if (pastedBlock.objects.length !== 3 || pastedBlock.objects[1].tunnelSlalom !== 1 ||
         pastedBlock.objects[2].rollRamp !== 1 || pastedBlock.objects[0].surface !== 1) {

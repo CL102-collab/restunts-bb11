@@ -329,6 +329,101 @@ test('two whole-block flips restore every native object and stored rotation exac
         assert.equal(JSON.stringify(clip), before);
     }
 });
+test('whole-block quarter turns rotate the layout, directions and paste preview together', () => {
+    const doc = new model.Document(6, 5);
+    doc.place(101, 1, 1, 2, 0, 1);
+    doc.place(115, 1, 2, 1, 0, 0, 1);
+    doc.place(85, 3, 1, 0, 0, 0, 0, 1);
+    doc.history = []; doc.future = [];
+    const before = doc.snapshot(), clip = doc.copyRegion({ x: 1, y: 1, width: 3, height: 2 });
+    const saved = JSON.stringify(clip), clockwise = model.rotateClipboard(clip, 1), counterclockwise = model.rotateClipboard(clip, -1);
+    assert.deepEqual([clockwise.width, clockwise.height], [2, 3]);
+    assert.deepEqual([counterclockwise.width, counterclockwise.height], [2, 3]);
+    assert.deepEqual(clockwise.objects.map(object => [object.id, object.x, object.y, object.rotation, object.width, object.height]),
+        [[101, 1, 0, 1, 1, 1], [115, 0, 0, 1, 1, 1], [85, 0, 2, 1, 2, 1]]);
+    assert.deepEqual(counterclockwise.objects.map(object => [object.id, object.x, object.y, object.rotation, object.width, object.height]),
+        [[101, 0, 2, 3, 1, 1], [115, 1, 2, 3, 1, 1], [85, 0, 0, 3, 2, 1]]);
+    for (const rotated of [clockwise, counterclockwise]) {
+        assert(Object.isFrozen(rotated)); assert(Object.isFrozen(rotated.objects));
+        assert(rotated.objects.every(object => Object.isFrozen(object)));
+        assert.equal(rotated.objects[0].surface, 2); assert.equal(rotated.objects[0].lowerSurface, 1);
+        assert.equal(rotated.objects[1].surface, 1); assert.equal(rotated.objects[1].tunnelSlalom, 1);
+        assert.equal(rotated.objects[2].rollRamp, 1);
+    }
+    assert.deepEqual(model.flipClipboard(clockwise, 'horizontal'),
+        model.rotateClipboard(model.flipClipboard(clip, 'vertical'), 1));
+    assert.notDeepEqual(model.flipClipboard(clockwise, 'horizontal'),
+        model.rotateClipboard(model.flipClipboard(clip, 'horizontal'), 1), 'rotation and reflection must compose in the requested order');
+    assert.equal(JSON.stringify(clip), saved); assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, 0);
+    const target = new model.Document(8, 8), empty = target.snapshot();
+    const preview = target.pastePreview(clockwise, 4, 3);
+    assert.deepEqual(target.snapshot(), empty); assert.equal(target.history.length, 0);
+    assert.deepEqual(target.pasteRegion(clockwise, 4, 3), preview);
+    const pasted = target.snapshot();
+    assert.equal(target.history.length, 1); assert.deepEqual(target.validate(), []);
+    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(target)).snapshot(), pasted);
+    assert(target.undo()); assert.deepEqual(target.snapshot(), empty);
+    assert(target.redo()); assert.deepEqual(target.snapshot(), pasted);
+});
+test('clipboard rotations preserve every native footprint and restore exact objects after a full turn', () => {
+    for (const entry of model.catalog) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(8, 8); doc.place(entry.id, 3, 3, 2, rotation);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 6, height: 5 }), before = JSON.stringify(clip);
+        for (const amount of [1, -1]) {
+            const rotated = model.rotateClipboard(clip, amount), object = rotated.objects[0];
+            assert.deepEqual([rotated.width, rotated.height], [clip.height, clip.width]);
+            assert.equal(object.id, entry.id, 'quarter turns retain the native piece family');
+            assert.equal(object.rotation, (rotation + amount + 4) % 4);
+            const cells = model.occupied(clip.objects[0]).map(([x, y]) => amount === 1
+                ? [clip.height - 1 - y, x] : [y, clip.width - 1 - x]).map(cell => cell.join(',')).sort();
+            assert.deepEqual(model.occupied(object).map(cell => cell.join(',')).sort(), cells,
+                entry.id + ': ' + rotation + ': quarter turn must rotate sparse occupied cells');
+            assert.deepEqual(model.rotateClipboard(rotated, -amount), clip);
+        }
+        let fullTurn = clip;
+        for (let turn = 0; turn < 4; turn++) fullTurn = model.rotateClipboard(fullTurn, 1);
+        assert.deepEqual(fullTurn, clip); assert.equal(JSON.stringify(clip), before);
+    }
+    for (const id of [85, 86]) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(6, 6); doc.place(id, 2, 2, 0, rotation, 0, 0, 1);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 4, height: 4 });
+        for (const amount of [1, -1]) {
+            const object = model.rotateClipboard(clip, amount).objects[0];
+            assert.equal(object.id, id); assert.equal(object.rotation, (rotation + amount + 4) % 4);
+            assert.equal(object.rollRamp, 1);
+        }
+    }
+});
+test('clipboard rotation preserves graded planes and rejects invalid requests without mutation', () => {
+    for (const descending of [false, true]) {
+        const doc = new model.Document(8, 6);
+        for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++)
+            doc.vertices[y * 9 + x] = descending ? Math.max(0, 4 - y) : Math.min(x, 4);
+        doc.place(64, 2, 1, 2); doc.place(5, 3, 3, 1);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 4, height: 4 }), before = JSON.stringify(clip);
+        for (const amount of [1, -1]) {
+            const rotated = model.rotateClipboard(clip, amount);
+            for (let index = 0; index < clip.objects.length; index++) {
+                const source = clip.objects[index], target = rotated.objects[index];
+                for (const x of [0, source.width]) for (const y of [0, source.height]) {
+                    const [u, v] = amount === 1 ? [source.height - y, x] : [y, source.width - x];
+                    assert.equal(target.baseHeight + u * target.slopeX + v * target.slopeY,
+                        source.baseHeight + x * source.slopeX + y * source.slopeY,
+                        'each rotated terrain-plane corner keeps its original height');
+                }
+            }
+            assert.deepEqual(model.rotateClipboard(rotated, -amount), clip);
+        }
+        for (const amount of [undefined, null, '1', NaN, Infinity, -Infinity, .5, Number.MAX_SAFE_INTEGER + 1])
+            assert.throws(() => model.rotateClipboard(clip, amount));
+        assert.throws(() => model.rotateClipboard(null, 1));
+        assert.deepEqual(model.rotateClipboard(clip, 0), clip);
+        assert.deepEqual(model.rotateClipboard(clip, 4), clip);
+        assert.deepEqual(model.rotateClipboard(clip, 5), model.rotateClipboard(clip, 1));
+        assert.deepEqual(model.rotateClipboard(clip, -5), model.rotateClipboard(clip, -1));
+        assert.equal(JSON.stringify(clip), before);
+    }
+});
 test('whole-track reflections preserve a connected route through opposite chicanes', () => {
     const validation = require('../../src/restunts/platform/wasm/track-editor-validation.js');
     const doc = new model.Document(24, 16), left = 2, right = 20, top = 2, bottom = 13;
