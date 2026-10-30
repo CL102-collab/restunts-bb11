@@ -20,7 +20,7 @@ TEMPLEOS_DOWNLOAD_FILES = ("RESTUNTS.ISO", "RESTUNTS_STOCK_TEMPLEOS.ZIP", "READM
 TEMPLEOS_CHECKSUM_FILE = "SHA256SUMS.TXT"
 ASSET_SUFFIXES = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico",
                   ".woff", ".woff2", ".txt", ".md", ".html"}
-HOSTED_GAME_FILES = ("restunts.html", "THIRD-PARTY-NOTICES.txt",
+HOSTED_GAME_FILES = ("restunts.html", "tracked.html", "THIRD-PARTY-NOTICES.txt",
                      "share/licenses/restunts/SDL-LICENSE.txt",
                      "share/licenses/restunts/Nuked-OPL2-LICENSE")
 DOWNLOAD_NAME = "browser-runtime.zip"

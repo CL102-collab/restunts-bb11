@@ -217,6 +217,11 @@ class ReleasePackageTests(unittest.TestCase):
             return self.templeos_runtime.get(name, FILE_DATA)
         if target == "amiga-m68k" and name == "README.md":
             return (PACKAGES.ROOT / "docs/amiga.md").read_bytes()
+        if target in PACKAGES.SDL3_TARGETS and name == PACKAGES.track_editor_path(target):
+            if not hasattr(type(self), "editor_data"):
+                builder = runpy.run_path(str(SCRIPT.with_name("build-track-editor.py")))
+                type(self).editor_data = builder["build_editor"]().replace("\n", "\r\n").encode("utf-8")
+            return type(self).editor_data
         if name in {f"share/restunts/{executable}-audit.json" for executable in
                     PACKAGES.WINDOWS_AUDITED_EXECUTABLES}:
             return json.dumps({"passed": True, "problems": [],
@@ -280,6 +285,41 @@ class ReleasePackageTests(unittest.TestCase):
         files, modes = PACKAGES.archive_contents(self.output / PACKAGES.archive_name("linux-x64"))
         self.assertTrue(modes["bin/restunts"] & stat.S_IXUSR)
         self.assertEqual(files["bin/restunts"], FILE_DATA)
+
+    def test_every_sdl3_archive_contains_one_standalone_track_editor(self):
+        for target in PACKAGES.TARGETS:
+            if target in PORTED_TARGETS | {"dos16"}:
+                self.assertFalse(any(name.endswith("tracked.html")
+                                     for name in PACKAGES.required_files(target)))
+                continue
+            with self.subTest(target=target):
+                editor = ("tracked.html" if target == "browser" else
+                          "share/restunts/editor/tracked.html")
+                archive = self.create(target)
+                files, _ = PACKAGES.archive_contents(archive)
+                self.assertEqual(files[editor], self.editor_data)
+                self.assertEqual([name for name in files if Path(name).name == "tracked.html"],
+                                 [editor])
+                self.assertFalse(any(Path(name).name.startswith("track-editor") and
+                                     name.endswith((".html", ".css", ".js")) for name in files))
+                self.assertIn(editor, files[PACKAGES.README].decode("utf-8"))
+
+    def test_missing_editor_and_editor_sidecars_are_rejected_for_every_sdl3_target(self):
+        extras = ("track-editor.html", "track-editor.css", "track-editor.js",
+                  "share/restunts/editor/track-editor-model.js",
+                  "share/restunts/wasm-relink/tracked.html")
+        for target in PACKAGES.TARGETS.keys() - PORTED_TARGETS - {"dos16"}:
+            files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
+            modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
+            editor = PACKAGES.track_editor_path(target)
+            with self.subTest(target=target, missing=editor), \
+                    self.assertRaisesRegex(ValueError, "missing packaged files"):
+                PACKAGES.validate_contents(target, {name: data for name, data in files.items()
+                                                   if name != editor}, modes)
+            for extra in extras:
+                with self.subTest(target=target, extra=extra), \
+                        self.assertRaisesRegex(ValueError, "Unexpected package file"):
+                    PACKAGES.validate_contents(target, {**files, extra: FILE_DATA}, modes)
 
     def test_custom_cars_survive_every_archive_and_both_android_apks(self):
         for target in PACKAGES.TARGETS:
