@@ -873,6 +873,85 @@ static legacy_u8 fence_check_submitted_shape(const struct TRANSFORMEDSHAPE3D *in
 static legacy_u8 seam_capture_hill_shapes;
 static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 
+#define PLANT_RENDER_PALM_ID 151U
+#define PLANT_RENDER_CACTUS_ID 152U
+#define PLANT_RENDER_PINE_ID 153U
+#define PLANT_RENDER_DIRECTION_COUNT 4U
+#define PLANT_RENDER_SLOPE_COUNT 5U
+#define PLANT_RENDER_ROUNDING_TOLERANCE .5
+#define PLANT_RENDER_PRECISE_TOLERANCE .00000001
+
+static legacy_u8 plant_capture_active, plant_capture_calls, plant_capture_precise;
+static struct CSTRK_OBJECT plant_capture_object;
+static struct SHAPE3D plant_capture_source;
+static legacy_f64 plant_capture_lift;
+
+/* Check the renderer submission: rigid upper geometry, roots on the terrain,
+ * and a trunk at least as tall as its flat-ground model on the uphill side. */
+static void plant_check_vertices(const struct TRANSFORMEDSHAPE3D *instance,
+								 const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	const struct SHAPE3D *mesh = instance->shapeptr;
+	assert(mesh->shape3d_numverts == plant_capture_source.shape3d_numverts);
+	assert(instance->rotvec.z == 0);
+	legacy_u8 sloped = plant_capture_object.slope_x || plant_capture_object.slope_y;
+	legacy_u8 upright = supersight_enabled && sloped;
+	legacy_u16 roots = 0, upper = 0;
+	legacy_f64 tolerance =
+		vertices ? PLANT_RENDER_PRECISE_TOLERANCE : PLANT_RENDER_ROUNDING_TOLERANCE;
+	legacy_f64 lift = 0;
+	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
+		struct VECTOR source, packed;
+		shape3d_vertex_read(&plant_capture_source, vertex, &source);
+		shape3d_vertex_read(mesh, vertex, &packed);
+		legacy_f64 x = vertices ? vertices[vertex].x : packed.x;
+		legacy_f64 y = vertices ? vertices[vertex].y : packed.y;
+		legacy_f64 z = vertices ? vertices[vertex].z : packed.z;
+		assert(x == source.x && z == source.z);
+		/* This is the supporting plane in absolute world height, independent
+		 * of the render transform's lowest-corner origin. */
+		legacy_f64 ground = plant_capture_object.base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+							(plant_capture_object.slope_x * (CSTRK_TILE_WORLD_SIZE / 2 + x) +
+							 plant_capture_object.slope_y * (CSTRK_TILE_WORLD_SIZE / 2 - z)) *
+								CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+		legacy_f64 relative_ground = ground - instance->pos.y;
+		if (upright && source.y > 0) {
+			legacy_f64 offset = y - source.y;
+			if (!upper) {
+				lift = offset;
+			}
+			assert(offset >= lift - tolerance && offset <= lift + tolerance);
+			assert(y - relative_ground >= source.y - tolerance);
+			upper++;
+		} else {
+			legacy_f64 error = y - source.y - relative_ground;
+			assert(error >= -tolerance && error <= tolerance);
+			roots += source.y == 0;
+		}
+		if (vertices) {
+			legacy_f64 error = y - packed.y;
+			assert(error >= -PLANT_RENDER_ROUNDING_TOLERANCE &&
+				   error <= PLANT_RENDER_ROUNDING_TOLERANCE);
+		}
+	}
+	assert(roots > 0);
+	if (upright) {
+		assert(upper > 0);
+		plant_capture_lift = lift;
+	}
+}
+
+static void plant_check_submission(const struct TRANSFORMEDSHAPE3D *instance,
+								   const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	plant_check_vertices(instance, NULL);
+	if (vertices) {
+		plant_check_vertices(instance, vertices);
+	}
+	plant_capture_precise = vertices != NULL;
+	plant_capture_calls++;
+}
+
 static legacy_u8 stunt_capture_active, stunt_capture_parts, stunt_capture_details;
 static legacy_u8 slope_occlusion_hide_terrain;
 static legacy_u8 terrain_coverage_capture;
@@ -1299,6 +1378,10 @@ static void capture_terrain_coverage(const struct TRANSFORMEDSHAPE3D *instance,
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (plant_capture_active) {
+		plant_check_submission(instance, NULL);
+		return 0;
+	}
 	if (terrain_coverage_capture) {
 		capture_terrain_coverage(instance, NULL);
 		return 0;
@@ -1383,6 +1466,10 @@ static void inject_generated_bounds_polygon(void)
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (plant_capture_active) {
+		plant_check_submission(instance, vertices);
+		return 0;
+	}
 	if (terrain_coverage_capture) {
 		capture_terrain_coverage(instance, vertices);
 		return 0;
@@ -2756,6 +2843,88 @@ static legacy_u16 check_general_sloped_rendering(void)
 	return frames;
 }
 
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+static void check_upright_sloped_plants(void)
+{
+	static const legacy_u16 ids[] = {PLANT_RENDER_PALM_ID, PLANT_RENDER_CACTUS_ID,
+									 PLANT_RENDER_PINE_ID};
+	static const legacy_s8 slopes[PLANT_RENDER_SLOPE_COUNT][2] = {
+		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	static const legacy_u8 bases[] = {0, CSTRK_MAX_HEIGHT - 1U};
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	const struct FRAME_CAMERA camera = {0};
+	legacy_u16 submissions = 0;
+	for (legacy_u16 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < PLANT_RENDER_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 slope = 0; slope < PLANT_RENDER_SLOPE_COUNT; slope++) {
+				for (legacy_u8 base = 0; base < sizeof(bases) / sizeof(bases[0]); base++) {
+					legacy_s8 slope_x = slopes[slope][0], slope_y = slopes[slope][1];
+					for (legacy_u16 y = 0; y <= track.height; y++) {
+						for (legacy_u16 x = 0; x <= track.width; x++) {
+							legacy_u8 raised = slope_x > 0	 ? x > STUNT_RENDER_COLUMN
+											   : slope_x < 0 ? x <= STUNT_RENDER_COLUMN
+											   : slope_y > 0 ? y > STUNT_RENDER_ROW
+											   : slope_y < 0 ? y <= STUNT_RENDER_ROW
+															 : 0;
+							track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+								bases[base] + raised;
+						}
+					}
+					struct CSTRK_OBJECT object = {0};
+					object.legacy_id = ids[kind];
+					object.x = STUNT_RENDER_COLUMN;
+					object.y = STUNT_RENDER_ROW;
+					object.rotation = rotation;
+					object.width = object.height = object.occupied_mask = 1;
+					object.base_height = bases[base] + (slope_x < 0 || slope_y < 0);
+					object.slope_x = slope_x;
+					object.slope_y = slope_y;
+					track.object_count = 0;
+					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+					activate_render_track(&track, 1);
+					const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+					const struct TRACKOBJECT *definition =
+						&trkObjectList[extended_track_object_id(placed)];
+					legacy_f64 lifts[STUNT_RENDER_DETAIL_COUNT] = {0};
+					for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+						const struct SHAPE3D *source = detail && definition->ss_loShapePtr
+														   ? definition->ss_loShapePtr
+														   : definition->ss_shapePtr;
+						assert(extended_geometry_transform_shape(
+							source, &plant_capture_source, definition->ss_rotY, CSTRK_ROAD_PAVED,
+							definition->ss_physicalModel));
+						plant_capture_object = *placed;
+						plant_capture_calls = plant_capture_precise = 0;
+						plant_capture_lift = 0;
+						struct FRAME_TILE tile = {0};
+						tile.east = STUNT_RENDER_COLUMN;
+						tile.south = STUNT_RENDER_ROW;
+						tile.detail = detail;
+						plant_capture_active = 1;
+						assert(!extended_frame_draw_objects(&tile, &camera, 0));
+						plant_capture_active = 0;
+						assert(plant_capture_calls == 1);
+						assert(plant_capture_precise == (supersight_enabled && slope != 0));
+						lifts[detail] = plant_capture_lift;
+						extended_geometry_free_shape(&plant_capture_source);
+						submissions++;
+					}
+					/* A detail switch must not shift the canopy's elevation. */
+					assert(lifts[0] == lifts[1]);
+				}
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	printf("Upright plant geometry: %u submissions in %s mode.\n", submissions,
+		   supersight_enabled ? "HyperVision" : "classic");
+}
+#endif
+
 #define HIGHWAY_RENDER_ID 111U
 #define HIGHWAY_RENDER_REVERSED_ID 113U
 #define HIGHWAY_RENDER_BASE_HEIGHT 2
@@ -2958,6 +3127,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_overpass_surfaces();
 		frames += check_sloped_stunt_rendering();
 		frames += check_general_sloped_rendering();
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+		check_upright_sloped_plants();
+#endif
 		frames += check_sloped_road_occlusion();
 		frames += check_terrain_below_graded_turn();
 		frames += check_generated_terrain_bounds();

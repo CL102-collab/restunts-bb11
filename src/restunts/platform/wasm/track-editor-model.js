@@ -31,7 +31,7 @@
         23: 'Bank entrance', 24: 'Bank exit', 25: 'Banked road', 26: 'Banked turn', 27: 'Loop', 28: 'Tunnel',
         29: 'Pipe entrance', 30: 'Pipe', 31: 'Half pipe', 32: 'Corkscrew up', 33: 'Corkscrew down',
         34: 'Slalom', 35: 'Horizontal corkscrew', 65: 'Barn', 66: 'Gas station', 67: 'Joe’s', 68: 'Office',
-        69: 'Windmill', 70: 'Ship', 71: 'Palm tree', 72: 'Cactus', 73: 'Tennis court', 74: 'Tree', 64: 'Scenery' };
+        69: 'Windmill', 70: 'Ship', 71: 'Pine tree', 72: 'Cactus', 73: 'Tennis court', 74: 'Palm tree', 64: 'Scenery' };
     function groupFor(id, physical) {
         if (id >= 151 && id <= 178) return 10;
         if (id >= 117 && id <= 124) return 9;
@@ -148,6 +148,7 @@
     const GENERAL_SLOPE_VERSION_ERROR = 'This sloped element requires Chocolate Stunts track version v6.';
     const CLASSIC_PLACEMENT_ERROR = 'This element needs level ground or one continuous straight original hill slope beneath its occupied cells.';
     const EDITOR_LEVEL_GROUND_PHYSICAL_MODELS = new Set([10, 11]);
+    const EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS = new Set([71, 72, 74]);
     function requiredSlopeVersion(object, entry, profile) {
         if (!object.slopeX && !object.slopeY) return CSTRK_MIN_VERSION;
         if (object.width === 1 && object.height === 1) {
@@ -381,7 +382,8 @@
             }
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
             // Restrict new editor builds without changing file validation or removal.
-            if ((object.slopeX || object.slopeY) && (entry.decoration || EDITOR_LEVEL_GROUND_PHYSICAL_MODELS.has(entry.physical)))
+            if ((object.slopeX || object.slopeY) && (EDITOR_LEVEL_GROUND_PHYSICAL_MODELS.has(entry.physical) ||
+                (entry.decoration && !EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS.has(entry.physical))))
                 throw new Error(entry.name + ' can only be built on level ground in the editor.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
