@@ -271,7 +271,7 @@ static void assert_camera_at_frame(legacy_s16 frame)
 	assert(camera->previous_position.y == 199 + frame);
 	assert(camera->previous_position.z == 299 + frame);
 	assert(camera->trackside_index == frame % 8);
-	assert(camera->frame == frame);
+	assert((legacy_s64)camera->frame == frame);
 	assert(camera->crash_frame == (frame >= 2 ? 2 : 0));
 }
 
