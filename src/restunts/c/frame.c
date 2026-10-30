@@ -1760,7 +1760,7 @@ static legacy_s16 frame_extended_border_index(legacy_s16 coordinate, legacy_u16 
 	if (coordinate == 0) {
 		return FRAME_FENCE_EDGE_LOW;
 	}
-	if (coordinate == dimension - 1U) {
+	if (coordinate == dimension - 1) {
 		return FRAME_FENCE_EDGE_HIGH;
 	}
 	return FRAME_FENCE_EDGE_INTERIOR;
@@ -1836,8 +1836,8 @@ static legacy_s16 frame_draw_extended_fences(const struct FRAME_TILE *tile,
 	 * original corner lookup cannot represent. Queue each boundary once. */
 	legacy_u8 sides[FRAME_EXTENDED_FENCE_SIDE_COUNT];
 	sides[FRAME_EXTENDED_FENCE_NORTH] = tile->south == 0;
-	sides[FRAME_EXTENDED_FENCE_EAST] = tile->east == track->width - 1U;
-	sides[FRAME_EXTENDED_FENCE_SOUTH] = tile->south == track->height - 1U;
+	sides[FRAME_EXTENDED_FENCE_EAST] = tile->east == track->width - 1;
+	sides[FRAME_EXTENDED_FENCE_SOUTH] = tile->south == track->height - 1;
 	sides[FRAME_EXTENDED_FENCE_WEST] = tile->east == 0;
 	for (legacy_u16 side = 0; side < FRAME_EXTENDED_FENCE_SIDE_COUNT; side++) {
 		if (sides[side] &&
