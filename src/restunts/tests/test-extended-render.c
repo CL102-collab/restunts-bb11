@@ -172,6 +172,93 @@ static size_t check_rendered_objects(const struct CSTRK_TRACK *track, unsigned c
 	return changed;
 }
 
+#define BACKGROUND_RENDER_POSITION_SCALE 64L
+#define BACKGROUND_RENDER_CAR_CLEARANCE 16L
+#define BACKGROUND_RENDER_FULL_DETAIL 0
+#define BACKGROUND_RENDER_CLOUDLESS_DETAIL 1
+#define BACKGROUND_RENDER_ROAD_ID 4U
+#define BACKGROUND_RENDER_ROAD_DISTANCE 3U
+#define BACKGROUND_RENDER_ERROR_CAPACITY 192U
+
+static legacy_u16 check_extended_background_altitude(void)
+{
+	static const struct VECTOR rotations[] = {
+		{0, 0, 0},
+		{ANGLE_QUARTER_TURN, -ANGLE_FULL_TURN / 64, ANGLE_FULL_TURN / 32},
+		{ANGLE_THREE_QUARTER_TURN, ANGLE_FULL_TURN / 64, -ANGLE_FULL_TURN / 32}};
+	struct GAMESTATE saved = state;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	struct CSTRK_TRACK track;
+	legacy_char error[BACKGROUND_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	cameramode = CAMERA_MODE_COCKPIT;
+	struct CARSTATE *car = &state.playerstate;
+	car->car_position.lx = (track.width / 2U * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2U) *
+						   BACKGROUND_RENDER_POSITION_SCALE;
+	car->car_position.lz = car->car_position.lx;
+	car->car_crashBmpFlag = CRASH_EVENT_NONE;
+	state.game_particles_active = 0;
+	legacy_u16 frames = 0;
+	for (size_t view = 0; view < sizeof(rotations) / sizeof(rotations[0]); view++) {
+		car->car_rotate = rotations[view];
+		car->car_position.ly = BACKGROUND_RENDER_CAR_CLEARANCE * BACKGROUND_RENDER_POSITION_SCALE;
+		car->car_previous_position = car->car_position;
+		detail_level = BACKGROUND_RENDER_FULL_DETAIL;
+		size_t low_size, high_size, cloudless_size;
+		legacy_u32 *low = capture_complete_render(&low_size);
+		car->car_position.ly +=
+			CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT * BACKGROUND_RENDER_POSITION_SCALE;
+		car->car_previous_position = car->car_position;
+		legacy_u32 *high = capture_complete_render(&high_size);
+		assert(high_size == low_size);
+		/* The empty grass field leaves only the distant background visible.
+		 * Changing eye altitude must move neither its horizon nor its clouds. */
+		assert(memcmp(low, high, low_size * sizeof(*low)) == 0);
+		detail_level = BACKGROUND_RENDER_CLOUDLESS_DETAIL;
+		legacy_u32 *cloudless = capture_complete_render(&cloudless_size);
+		assert(cloudless_size == high_size);
+		/* Prove the equality above actually includes visible cloud geometry. */
+		assert(memcmp(high, cloudless, high_size * sizeof(*high)) != 0);
+		free(cloudless);
+		free(high);
+		free(low);
+		frames += 3U;
+	}
+	struct CSTRK_OBJECT road = {0};
+	road.legacy_id = BACKGROUND_RENDER_ROAD_ID;
+	road.x = track.width / 2U;
+	road.y = track.height / 2U - BACKGROUND_RENDER_ROAD_DISTANCE;
+	road.width = road.height = road.occupied_mask = 1;
+	assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	car->car_rotate = rotations[0];
+	detail_level = BACKGROUND_RENDER_FULL_DETAIL;
+	car->car_position.ly = BACKGROUND_RENDER_CAR_CLEARANCE * BACKGROUND_RENDER_POSITION_SCALE;
+	car->car_previous_position = car->car_position;
+	size_t low_size, high_size;
+	legacy_u32 *low = capture_complete_render(&low_size);
+	car->car_position.ly +=
+		CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT * BACKGROUND_RENDER_POSITION_SCALE;
+	car->car_previous_position = car->car_position;
+	legacy_u32 *high = capture_complete_render(&high_size);
+	assert(low_size == high_size);
+	/* Only the background ignores altitude; the road still uses the real eye position. */
+	assert(memcmp(low, high, low_size * sizeof(*low)) != 0);
+	free(high);
+	free(low);
+	frames += 2U;
+	state = saved;
+	cameramode = saved_camera;
+	detail_level = saved_detail;
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 #define SURFACE_RENDER_COLUMN 44U
 #define SURFACE_RENDER_ROW 40U
 #define SURFACE_RENDER_TARGET_ROW 41U
@@ -1510,6 +1597,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			   enhanced ? "enhanced" : "original", slope_pixels, edge_pixels);
 		assert(slope_pixels > 16U && edge_pixels > 16U);
 		frames += 4U;
+		frames += check_extended_background_altitude();
 		frames += check_rendered_surfaces(&track);
 		frames += check_rendered_shore_materials(&track);
 		frames += check_ground_grass_color();

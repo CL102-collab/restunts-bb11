@@ -1157,6 +1157,19 @@ static void frame_add_car_shadow(const struct CARSTATE *carstate, const struct S
 }
 #endif
 
+/* Extended scenery can extend beyond the original finite background shell.
+ * Keep the horizon and clouds at infinity while world geometry retains the
+ * real camera height. Legacy tracks preserve their original altitude shift. */
+static legacy_s16 frame_background_camera_height(const struct FRAME_CAMERA *camera)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return 0;
+	}
+#endif
+	return camera->position.y;
+}
+
 static void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_flags)
 {
 	// Draw the eight cloud shapes at full detail.
@@ -1181,8 +1194,8 @@ static void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_tran
 				cloud_angle > FRAME_DISTANT_SHAPE_MAX_ANGLE) {
 				mat_rot_y(&cloud_heading_rotation, cloud_angle);
 				offset_vector.x = 0;
-				offset_vector.y =
-					LEGACY_S16_WRAP_SUB(FRAME_DISTANT_SHAPE_HEIGHT, camera->position.y);
+				offset_vector.y = LEGACY_S16_WRAP_SUB(FRAME_DISTANT_SHAPE_HEIGHT,
+													  frame_background_camera_height(camera));
 				offset_vector.z = FRAME_DISTANT_SHAPE_DISTANCE;
 				mat_mul_vector(&offset_vector, &cloud_heading_rotation, &rotated_position);
 				rotated_position.z = FRAME_DISTANT_SHAPE_DISTANCE;
@@ -3653,7 +3666,7 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 
 	legacy_s16 skybox_requires_full_redraw =
 		skybox_render(buffer_index, cliprect, camera.skybox_parameter, &camera.pitch_roll_rotation,
-					  camera.roll, camera.yaw, camera.position.y);
+					  camera.roll, camera.yaw, frame_background_camera_height(&camera));
 	sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
 	shape3d_render_queued_primitives();
 	frame_draw_explosions(cars, cliprect);
