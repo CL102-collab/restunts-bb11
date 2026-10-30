@@ -769,6 +769,65 @@ static void test_materials_and_rounded_primitives(void)
 	assert(count_color(13) != 0);
 }
 
+#define TEST_STOCK_GRILLE_COLOR 28U
+#define TEST_STOCK_GRILLE_PATTERN 0x77ddU
+
+static void test_black_grille_preserves_stock_pixel_coverage(void)
+{
+	const struct SHAPE3D_HIRES_VECTOR rectangle[] = {
+		{-50, -50, 200}, {50, -50, 200}, {50, 50, 200}, {-50, 50, 200}};
+	static legacy_u8 reference[HIRES_WIDTH * HIRES_HEIGHT];
+	reset_target();
+	queue(RENDER_PRIMITIVE_POLYGON, 4, rectangle);
+	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, TEST_STOCK_GRILLE_COLOR, 0, 0,
+						 HIRES_PAINT_PATTERN, TEST_STOCK_GRILLE_PATTERN);
+	hires_end();
+	legacy_u32 covered = count_color(TEST_STOCK_GRILLE_COLOR);
+	assert(covered > 0);
+	memcpy(reference, pixels(), sizeof(reference));
+
+	reset_target();
+	queue(RENDER_PRIMITIVE_POLYGON, 4, rectangle);
+	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_BLACK_GRILLE_FLAG,
+						 TEST_STOCK_GRILLE_COLOR, 0, 0, HIRES_PAINT_PATTERN,
+						 TEST_STOCK_GRILLE_PATTERN);
+	hires_end();
+	assert(count_color(0) == covered);
+	assert(count_color(TEST_STOCK_GRILLE_COLOR) == 0);
+	const legacy_u8 *image = pixels();
+	for (legacy_u32 index = 0; index < sizeof(reference); index++) {
+		/* Exact coverage, including every transparent hole, remains native;
+		 * only the covered stock gray pixels change to palette black. */
+		legacy_u8 expected = reference[index] == TEST_STOCK_GRILLE_COLOR ? 0 : reference[index];
+		assert(image[index] == expected);
+	}
+
+	reset_target();
+	queue(RENDER_PRIMITIVE_POLYGON, 4, rectangle);
+	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, TEST_STOCK_GRILLE_COLOR, 0, 0,
+						 HIRES_PAINT_PATTERN, TEST_STOCK_GRILLE_PATTERN);
+	hires_end();
+	assert(memcmp(reference, pixels(), sizeof(reference)) == 0);
+
+	/* A ghost keeps its own grille mask even if an instance also requests
+	 * the black stock-grille override. */
+	reset_target();
+	queue(RENDER_PRIMITIVE_POLYGON, 4, rectangle);
+	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_GHOST_FLAG,
+						 TEST_STOCK_GRILLE_COLOR, 0, 0, HIRES_PAINT_PATTERN,
+						 TEST_STOCK_GRILLE_PATTERN);
+	hires_end();
+	memcpy(reference, pixels(), sizeof(reference));
+	reset_target();
+	queue(RENDER_PRIMITIVE_POLYGON, 4, rectangle);
+	shape3d_hires_render(
+		0,
+		RENDER_PRIMITIVE_POLYGON | RENDER_PRIMITIVE_GHOST_FLAG | RENDER_PRIMITIVE_BLACK_GRILLE_FLAG,
+		TEST_STOCK_GRILLE_COLOR, 0, 0, HIRES_PAINT_PATTERN, TEST_STOCK_GRILLE_PATTERN);
+	hires_end();
+	assert(memcmp(reference, pixels(), sizeof(reference)) == 0);
+}
+
 #define TEST_ROUND_REFERENCE_POINTS 64U
 #define TEST_ROUND_OUTLINE_ERROR 0.25
 #define TEST_ROUND_PHASE (3.0 / 8.0)
@@ -3317,6 +3376,7 @@ legacy_int main(void)
 	test_line_stroke_clipping();
 	test_line_stroke_occlusion();
 	test_materials_and_rounded_primitives();
+	test_black_grille_preserves_stock_pixel_coverage();
 	test_roundness_preserves_near_and_bounds_small_shapes();
 	test_roundness_matches_worker_bands();
 	test_disabled_and_reset();

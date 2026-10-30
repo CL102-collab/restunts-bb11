@@ -120,14 +120,17 @@ surface, flat ground and straight inclines. These combined elements require
 `.cstrk` v7 and remain distinct from ordinary tunnels and slaloms after saving.
 
 **Barrel roll ramp** is a directional, two-tile launch stunt in **Stunts**.
-The first tile is a solid concrete approach. The elevated second tile uses a
-grille deck and concrete supports; its banked launch lip starts the car rolling
-around its front-to-rear axis. The car completes the roll freely in the air
-after leaving the ramp. Point the entry arrow along the approach. Start near
-100 mph on level paved terrain and leave a clear landing straight beyond the
-lip; the car, speed and terrain affect the roll and landing. Route checks allow
+The first tile has an asphalt road on a solid concrete approach. Yellow dashed
+center lines continue across the elevated second tile, whose black grille uses
+the stock stunt pattern and concrete supports. Its banked launch lip starts the
+car rolling around its front-to-rear axis. The car completes the roll freely in
+the air after leaving the ramp. The editor arrow points from the concrete
+approach toward the grille launch. Start near 100 mph on level paved terrain
+and leave a clear landing straight beyond the lip; the car, speed and terrain affect the roll and landing. Route checks allow
 up to six empty cells before a ground-level landing road. Barrel roll ramps
-require `.cstrk` v8.
+require `.cstrk` v8. With OWOOT enabled, the car must pass sideways, inverted,
+the opposite side and back upright in order while airborne before landing; an
+incomplete roll fails even when the tires reach the receiving road.
 
 The **Elevated** group offers **Overpass over asphalt**, **Overpass over dirt**
 and **Overpass over ice**. These choices set the road below the bridge. The

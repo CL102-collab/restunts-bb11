@@ -27,6 +27,10 @@ void owoot_update_player(struct CARSTATE *car, legacy_s16 car_index)
 	/* Both checks advance state even while a wheel is over road, so leaving a
 	 * ramp cannot grant an exemption after an unrelated later jump. */
 	legacy_s16 allowed_jump = owoot_jump_is_valid(car);
+	if (allowed_jump == OWOOT_JUMP_FAILED) {
+		update_crash_state(CRASH_EVENT_COLLISION, PLAYER_CAR_INDEX);
+		return;
+	}
 	legacy_s16 follows_route = owoot_route_is_valid(car, allowed_jump);
 	if (follows_route && allowed_jump) {
 		return;

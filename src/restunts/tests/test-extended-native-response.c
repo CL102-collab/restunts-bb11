@@ -130,6 +130,27 @@ legacy_s16 get_track_route_point(legacy_s16 piece, struct VECTOR *output, legacy
 	return index == TEST_POINT_COUNT - 1;
 }
 
+legacy_s16 extended_track_elevation(legacy_int column, legacy_int row, legacy_int local_x,
+									legacy_int local_y)
+{
+	(void)column;
+	(void)row;
+	(void)local_x;
+	(void)local_y;
+	assert(0 && "Custom jump checks must not borrow ordinary ramp elevation");
+	return 0;
+}
+
+legacy_u16 owoot_wheel_footprint(const struct CARSTATE *car, legacy_u16 wheel,
+								 struct VECTOR output[OWOOT_WHEEL_VERTEX_COUNT])
+{
+	(void)car;
+	(void)wheel;
+	(void)output;
+	assert(0 && "Custom jump checks must not borrow an ordinary jump footprint");
+	return 0;
+}
+
 void update_crash_state(legacy_s16 event, legacy_s16 car_index)
 {
 	(void)event;
@@ -322,22 +343,31 @@ static void test_sloped_tunnel_portals(legacy_u8 tunnel_slalom)
 	fixture_lane_edges = 0;
 }
 
-static void test_roll_launch_corridor(void)
+enum {
+	TEST_ROLL_COLUMN = 5,
+	TEST_ROLL_RAMP_ROW = 5,
+	TEST_ROLL_FIRST_RECEIVER_ROW = 10,
+	TEST_ROLL_CONTACT_BEFORE_LIP = 40,
+	TEST_ROLL_AIRBORNE_DISTANCE = 2 * CSTRK_TILE_WORLD_SIZE,
+	TEST_ROLL_SIDE_ESCAPE = TRACK_TILE_HALF_SIZE + 1,
+	TEST_ROLL_UPRIGHT_TOLERANCE = ANGLE_FULL_TURN / 64,
+	TEST_ROLL_FIRST_TIRE_TILT = ANGLE_FULL_TURN * 50L / 360L,
+	TEST_ROLL_SKIPPED_OFFSET = ANGLE_QUARTER_TURN / 8
+};
+
+static legacy_s32 roll_fixture_lip_z(void)
 {
-	enum {
-		COLUMN = 5,
-		RAMP_ROW = 5,
-		FIRST_RECEIVER_ROW = 10,
-		CONTACT_BEFORE_LIP = 40,
-		AIRBORNE_DISTANCE = 2 * CSTRK_TILE_WORLD_SIZE,
-		SIDE_ESCAPE = TRACK_TILE_HALF_SIZE + 1
-	};
+	return (TRACK_GRID_SIZE - TEST_ROLL_RAMP_ROW - 2) * CSTRK_TILE_WORLD_SIZE;
+}
+
+static struct CARSTATE roll_fixture_car(void)
+{
 	fixture_extended = 1;
 	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
 	memset(&fixture_object, 0, sizeof(fixture_object));
 	fixture_object.legacy_id = CSTRK_ROLL_RAMP_FIRST_ID;
-	fixture_object.x = COLUMN;
-	fixture_object.y = RAMP_ROW;
+	fixture_object.x = TEST_ROLL_COLUMN;
+	fixture_object.y = TEST_ROLL_RAMP_ROW;
 	fixture_object.width = 1;
 	fixture_object.height = 2;
 	fixture_object.occupied_mask = 3;
@@ -353,27 +383,26 @@ static void test_roll_launch_corridor(void)
 	track_route_traversal_flags = fixture_flags;
 	track_pieces_counter = TEST_ROLL_ROUTE_COUNT;
 	fixture_elements[0] = TEST_OBJECT_ID;
-	fixture_columns[0] = COLUMN;
-	fixture_rows[0] = RAMP_ROW;
+	fixture_columns[0] = TEST_ROLL_COLUMN;
+	fixture_rows[0] = TEST_ROLL_RAMP_ROW;
 	for (legacy_u16 index = 0; index < TEST_ROLL_ROUTE_COUNT; index++) {
 		primary[index] = index + 1U < TEST_ROLL_ROUTE_COUNT ? index + 1 : TRACK_ROUTE_LINK_NONE;
 		alternate[index] = TRACK_ROUTE_LINK_NONE;
 		if (index) {
 			fixture_receivers[index - 1U] = (struct CSTRK_OBJECT){0};
-			fixture_receivers[index - 1U].x = COLUMN;
-			fixture_receivers[index - 1U].y = FIRST_RECEIVER_ROW + index - 1U;
+			fixture_receivers[index - 1U].x = TEST_ROLL_COLUMN;
+			fixture_receivers[index - 1U].y = TEST_ROLL_FIRST_RECEIVER_ROW + index - 1U;
 			fixture_receivers[index - 1U].width = fixture_receivers[index - 1U].height = 1;
 			fixture_elements[index] = TEST_OBJECT_ID + index;
-			fixture_columns[index] = COLUMN;
-			fixture_rows[index] = FIRST_RECEIVER_ROW + index - 1U;
+			fixture_columns[index] = TEST_ROLL_COLUMN;
+			fixture_rows[index] = TEST_ROLL_FIRST_RECEIVER_ROW + index - 1U;
 			trkObjectList[TEST_OBJECT_ID + index].ss_physicalModel = PHYSICAL_MODEL_ROAD;
 			trkObjectList[TEST_OBJECT_ID + index].ss_multiTileFlag = 0;
 		}
 	}
 	struct VECTOR origin, contact, normal;
 	extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
-	legacy_s32 lip_z = (TRACK_GRID_SIZE - RAMP_ROW - fixture_object.height) * CSTRK_TILE_WORLD_SIZE;
-	roll_ramp_sample(ROLL_RAMP_LENGTH - CONTACT_BEFORE_LIP, 0, &contact, &normal);
+	roll_ramp_sample(ROLL_RAMP_LENGTH - TEST_ROLL_CONTACT_BEFORE_LIP, 0, &contact, &normal);
 	contact.x += origin.x;
 	contact.y += origin.y;
 	contact.z += origin.z;
@@ -381,39 +410,200 @@ static void test_roll_launch_corridor(void)
 	car.car_position.lx = origin.x * OWOOT_POSITION_SCALE;
 	car.car_position.ly =
 		(roll_ramp_center_height(ROLL_RAMP_LENGTH) + TEST_WHEEL_HEIGHT) * OWOOT_POSITION_SCALE;
-	car.car_position.lz = (lip_z - CONTACT_BEFORE_LIP) * OWOOT_POSITION_SCALE;
+	car.car_position.lz =
+		(roll_fixture_lip_z() - TEST_ROLL_CONTACT_BEFORE_LIP) * OWOOT_POSITION_SCALE;
 	car.car_previous_position = car.car_position;
-	car.car_previous_position.lz += CONTACT_BEFORE_LIP * OWOOT_POSITION_SCALE;
-	assert(roll_jump_is_valid(&car) == -1); /* Flying over a ramp cannot arm it. */
+	car.car_previous_position.lz += TEST_ROLL_CONTACT_BEFORE_LIP * OWOOT_POSITION_SCALE;
+	car.car_rotate.x = ANGLE_HALF_TURN;
+	car.car_rotate.z = roll_ramp_bank_angle(ROLL_RAMP_LENGTH - TEST_ROLL_CONTACT_BEFORE_LIP);
+	car.car_wheel_contact_positions[0] = contact;
+	return car;
+}
+
+static void roll_fixture_arm(struct CARSTATE *car)
+{
+	car->car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+	car->car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	assert(owoot_jump_is_valid(car) == 1);
+	assert(car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 1);
+}
+
+static legacy_s16 roll_fixture_air(struct CARSTATE *car, legacy_s16 angle)
+{
+	car->car_sumSurfAllWheels = CAR_WHEEL_CONTACT_NONE;
+	car->car_sumSurfFrontWheels = car->car_sumSurfRearWheels = CAR_WHEEL_CONTACT_NONE;
+	memset(car->car_surfaceWhl, CAR_WHEEL_CONTACT_NONE, sizeof(car->car_surfaceWhl));
+	car->car_previous_position = car->car_position;
+	car->car_position.lz =
+		(roll_fixture_lip_z() - TEST_ROLL_AIRBORNE_DISTANCE) * OWOOT_POSITION_SCALE;
+	car->car_rotate.z = angle;
+	return owoot_jump_is_valid(car);
+}
+
+static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
+{
+	car->car_previous_position = car->car_position;
+	struct VECTOR origin;
+	extended_geometry_object_origin(&fixture_track, &fixture_receivers[0], &origin);
+	car->car_position.ly = (origin.y + extended_geometry_object_grade(&fixture_receivers[0], 0, 0) +
+							TEST_WHEEL_HEIGHT) *
+						   OWOOT_POSITION_SCALE;
+	car->car_position.lz =
+		((TRACK_GRID_SIZE - TEST_ROLL_FIRST_RECEIVER_ROW) * CSTRK_TILE_WORLD_SIZE -
+		 TRACK_TILE_HALF_SIZE) *
+		OWOOT_POSITION_SCALE;
+	car->car_rotate.z = angle;
+	car->car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+	car->car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	return owoot_jump_is_valid(car);
+}
+
+static void test_roll_launch_corridor(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	assert(owoot_jump_is_valid(&car) == 0); /* Flying over a ramp cannot arm it. */
 	car.car_sumSurfAllWheels = CAR_SURFACE_ICE;
 	car.car_surfaceWhl[0] = CAR_SURFACE_ICE;
-	car.car_wheel_contact_positions[0] = contact;
+	legacy_s16 contact_height = car.car_wheel_contact_positions[0].y;
 	car.car_wheel_contact_positions[0].y = 0;
-	assert(roll_jump_is_valid(&car) == -1); /* Ice below the grille is not ramp contact. */
-	car.car_wheel_contact_positions[0] = contact;
-	assert(roll_jump_is_valid(&car) == 1);
-	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 1);
-	car.car_sumSurfAllWheels = 0;
-	car.car_surfaceWhl[0] = 0;
-	car.car_position.lz = (lip_z - AIRBORNE_DISTANCE) * OWOOT_POSITION_SCALE;
-	car.car_previous_position.lz = car.car_position.lz + OWOOT_POSITION_SCALE;
-	assert(roll_jump_is_valid(&car) == 1);
+	assert(owoot_jump_is_valid(&car) == 0); /* Ice below the grille is not ramp contact. */
+	car.car_wheel_contact_positions[0].y = contact_height;
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
 	/* The first receiving tile need not be the exact touchdown tile. */
-	car.car_position.lz =
-		(TRACK_GRID_SIZE - FIRST_RECEIVER_ROW - 1) * CSTRK_TILE_WORLD_SIZE * OWOOT_POSITION_SCALE;
+	car.car_position.lz = (TRACK_GRID_SIZE - TEST_ROLL_FIRST_RECEIVER_ROW - 1) *
+						  CSTRK_TILE_WORLD_SIZE * OWOOT_POSITION_SCALE;
 	car.car_previous_position.lz = car.car_position.lz + OWOOT_POSITION_SCALE;
-	assert(roll_jump_is_valid(&car) == 1);
+	assert(owoot_jump_is_valid(&car) == 1);
 	struct CARSTATE escaped = car;
-	escaped.car_position.lx += SIDE_ESCAPE * OWOOT_POSITION_SCALE;
-	assert(roll_jump_is_valid(&escaped) == 0);
+	escaped.car_position.lx += TEST_ROLL_SIDE_ESCAPE * OWOOT_POSITION_SCALE;
+	assert(owoot_jump_is_valid(&escaped) == OWOOT_JUMP_FAILED);
 	assert(escaped.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
 	escaped = car;
 	escaped.car_previous_position.lz = escaped.car_position.lz - OWOOT_POSITION_SCALE;
-	assert(roll_jump_is_valid(&escaped) == 0);
-	car.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
-	car.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
-	assert(roll_jump_is_valid(&car) == -1);
+	assert(owoot_jump_is_valid(&escaped) == OWOOT_JUMP_FAILED);
+}
+
+static void test_roll_completion_and_checkpoint_state(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	struct CARSTATE checkpoint = car;
+	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, 0) == 1);
+	struct CARSTATE tilted = car;
+	assert(roll_fixture_land(&tilted, TEST_CAR_ROLL) == 0);
+	/* The first tire may touch while the completed roll still leans, then
+	 * suspension settles the wheels-down car onto its receiving road. */
+	tilted = car;
+	assert(roll_fixture_land(&tilted, TEST_ROLL_FIRST_TIRE_TILT) == 0);
+	tilted = car;
+	assert(roll_fixture_land(&tilted, ANGLE_QUARTER_TURN) == OWOOT_JUMP_FAILED);
+	tilted = car;
+	assert(roll_fixture_land(&tilted, ANGLE_HALF_TURN) == OWOOT_JUMP_FAILED);
+	tilted = car;
+	tilted.car_rotate.y = ANGLE_HALF_TURN;
+	assert(roll_fixture_land(&tilted, 0) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&car, 0) == 0);
 	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	/* Validation progress belongs to the copied car, rather than a global
+	 * phase that could be lost or borrowed during replay seeking. */
+	struct CARSTATE other = roll_fixture_car();
+	roll_fixture_arm(&other);
+	assert(roll_fixture_land(&other, 0) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_air(&checkpoint, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&checkpoint, 0) == 1);
+	assert(roll_fixture_land(&checkpoint, 0) == 0);
+	assert(memcmp(&car, &checkpoint, sizeof(car)) == 0);
+	/* A completed attempt cannot lend its progress to the next approach. */
+	struct CARSTATE retry = roll_fixture_car();
+	memcpy(retry.car_reserved_wheel_state, car.car_reserved_wheel_state,
+		   sizeof(retry.car_reserved_wheel_state));
+	roll_fixture_arm(&retry);
+	assert(roll_fixture_air(&retry, retry.car_rotate.z) == 1);
+	assert(roll_fixture_land(&retry, 0) == OWOOT_JUMP_FAILED);
+	/* Lower-rate updates may cross each milestone between samples. The
+	 * final airborne pose is within the same upright tolerance as physics. */
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	const legacy_s16 skipped[] = {ANGLE_QUARTER_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								  ANGLE_HALF_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								  ANGLE_THREE_QUARTER_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								  ANGLE_FULL_TURN - TEST_ROLL_UPRIGHT_TOLERANCE / 2};
+	for (legacy_u16 sample = 0; sample < sizeof(skipped) / sizeof(skipped[0]); sample++) {
+		assert(roll_fixture_air(&car, skipped[sample]) == 1);
+	}
+	assert(roll_fixture_land(&car, 0) == 0);
+}
+
+static void test_roll_completion_on_cross_slope(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	fixture_object.slope_x = 1;
+	for (legacy_u16 receiver = 0; receiver < TEST_ROLL_RECEIVER_COUNT; receiver++) {
+		fixture_receivers[receiver].slope_x = 1;
+	}
+	/* Facing south on an eastward rise rolls the ground-normal heading
+	 * through atan(450/1024), independently of the validator's conversion. */
+	legacy_s16 baseline = polarAngle(CSTRK_LEVEL_WORLD_HEIGHT, CSTRK_TILE_WORLD_SIZE);
+	car.car_rotate.z += baseline;
+	car.car_position.ly += CSTRK_LEVEL_WORLD_HEIGHT / 2 * OWOOT_POSITION_SCALE;
+	car.car_wheel_contact_positions[0].y += CSTRK_LEVEL_WORLD_HEIGHT / 2;
+	roll_fixture_arm(&car);
+	const legacy_s16 poses[] = {ANGLE_QUARTER_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								ANGLE_HALF_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								ANGLE_THREE_QUARTER_TURN + TEST_ROLL_SKIPPED_OFFSET,
+								ANGLE_FULL_TURN - TEST_ROLL_UPRIGHT_TOLERANCE / 2};
+	for (legacy_u16 sample = 0; sample < sizeof(poses) / sizeof(poses[0]); sample++) {
+		legacy_s16 angle = (poses[sample] + baseline) & ANGLE_MASK;
+		assert(roll_fixture_air(&car, angle) == 1);
+	}
+	assert(roll_fixture_land(&car, baseline) == 0);
+}
+
+static void test_roll_shortcuts_are_rejected(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, car.car_rotate.z) == 1);
+	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
+	/* Returning upright by unwinding cannot stand in for a full rotation,
+	 * even after both side-on poses and the inverted pose were observed. */
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == OWOOT_JUMP_FAILED);
+	/* A single ambiguous half-turn sample cannot establish its direction. */
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == OWOOT_JUMP_FAILED);
+	/* The final upright transition must happen with every tire unsupported. */
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
+	/* Supported poses never advance completion. */
+	car = roll_fixture_car();
+	roll_fixture_arm(&car);
+	for (legacy_s16 angle = ANGLE_QUARTER_TURN; angle <= ANGLE_FULL_TURN;
+		 angle += ANGLE_QUARTER_TURN) {
+		car.car_rotate.z = angle & ANGLE_MASK;
+		assert(owoot_jump_is_valid(&car) == 1);
+	}
+	assert(roll_fixture_air(&car, 0) == 1);
+	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
 }
 
 legacy_int main(void)
@@ -423,5 +613,8 @@ legacy_int main(void)
 	test_sloped_tunnel_portals(0);
 	test_sloped_tunnel_portals(1);
 	test_roll_launch_corridor();
+	test_roll_completion_and_checkpoint_state();
+	test_roll_completion_on_cross_slope();
+	test_roll_shortcuts_are_rejected();
 	return 0;
 }

@@ -514,9 +514,12 @@ static legacy_s32 roll_driver_progress(const struct CARSTATE *car, legacy_u8 rot
 static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 {
 	legacy_u16 saved_rate = gameconfig.game_framespersec;
+	legacy_s16 saved_owoot = owoot_enabled;
+	owoot_enabled = 1;
 	gameconfig.game_framespersec = rate;
 	create_roll_ramp_track(rotation, CSTRK_TERRAIN_GRASS);
 	initialize_roll_driver(rotation, ENGINE_ROLL_TARGET_SPEED, ENGINE_ROLL_APPROACH_ROW);
+	assert(extended_replay_driving_rules() & DRIVING_RULE_OWOOT);
 	struct CARSTATE *car = &state.playerstate;
 	legacy_s16 previous_roll = car->car_rotate.z;
 	legacy_s32 total_roll = 0, maximum_air_roll = 0;
@@ -532,6 +535,7 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 							  : INPUT_NONE;
 		assert(extended_replay_record_input(input));
 		update_gamestate();
+		assert(owoot_enabled && state.game_inputmode == GAME_INPUT_MODE_ACTIVE);
 		legacy_s16 delta =
 			(legacy_s16)(((legacy_u16)(car->car_rotate.z - previous_roll + ANGLE_HALF_TURN) &
 						  ANGLE_MASK) -
@@ -588,10 +592,12 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 	assert(extended_replay_seek(final_frame));
 	assert_same_simulation(&expected, expected_seed);
 	printf(
-		"Roll ramp: %u Hz rotation %u completes a free-air roll and upright landing at 100 mph.\n",
+		"Roll ramp: %u Hz rotation %u passes OWOOT with a free-air roll and upright landing at 100 "
+		"mph.\n",
 		rate, rotation);
 	gameconfig.game_framespersec = saved_rate;
 	framespersec = saved_rate;
+	owoot_enabled = saved_owoot;
 	extended_replay_runtime_clear();
 	extended_track_unload();
 }

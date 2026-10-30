@@ -37,6 +37,9 @@ enum SHAPE3D_PRIMITIVE_TYPE {
 #define SHAPE3D_BACKGROUND_FLAG 32U
 /* Cars and their wheels never receive the simple ground shadow. */
 #define SHAPE3D_NO_SHADOW_RECEIVE_FLAG 64U
+/* Generated grille instances retain the stock mask while painting it black. */
+#define SHAPE3D_BLACK_GRILLE_FLAG 128U
+#define SHAPE3D_STOCK_GRILLE_MATERIAL 22U
 
 enum BACKLIGHT_PAINT {
 	BACKLIGHT_PAINT_DEFAULT = 45,
