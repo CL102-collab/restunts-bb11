@@ -966,8 +966,7 @@ static void test_tunnel_slalom_roundtrip(void)
 						assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 						assert(data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] == 1U);
 						assert(data[object_offset + CSTRK_OBJECT_LOWER_SURFACE_OFFSET] == 0U);
-						assert(LEGACY_READ_U16_LE(data + object_offset +
-												  CSTRK_OBJECT_RESERVED_OFFSET) == 0U);
+						assert(data[object_offset + CSTRK_OBJECT_RESERVED_OFFSET] == 0U);
 						assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 						assert(decoded.version == track.version && decoded.object_count == 1U);
 						assert(decoded.objects[0].legacy_id == id);
@@ -1058,12 +1057,95 @@ static void test_tunnel_slalom_invalid_records(void)
 	cstrk_free(&decoded);
 }
 
+static void test_roll_ramp_records(void)
+{
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 4U, 4U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = {0};
+	object.roll_ramp = 1;
+	object.occupied_mask = CSTRK_ROLL_RAMP_OCCUPIED_MASK;
+	object.base_height = 2;
+	track.objects = calloc(1U, sizeof(*track.objects));
+	assert(track.objects);
+	track.object_count = 1U;
+	const size_t object_offset = CSTRK_HEADER_SIZE + (track.width + 1U) * (track.height + 1U) +
+								 2U * track.width * track.height;
+	for (legacy_u16 id = CSTRK_ROLL_RAMP_FIRST_ID; id <= CSTRK_ROLL_RAMP_LAST_ID; id++) {
+		object.legacy_id = id;
+		for (legacy_u8 rotation = 0; rotation < TEST_OVERPASS_ROTATIONS; rotation++) {
+			object.rotation = rotation;
+			legacy_u8 horizontal =
+				(id - CSTRK_ROLL_RAMP_FIRST_ID + rotation) % CSTRK_ROLL_RAMP_TILE_COUNT;
+			object.width = horizontal ? CSTRK_ROLL_RAMP_TILE_COUNT : 1U;
+			object.height = horizontal ? 1U : CSTRK_ROLL_RAMP_TILE_COUNT;
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				object.surface = surface;
+				for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
+					object.slope_x = slopes[slope][0];
+					object.slope_y = slopes[slope][1];
+					for (legacy_u16 y = 0; y <= track.height; y++) {
+						for (legacy_u16 x = 0; x <= track.width; x++) {
+							legacy_s16 level =
+								object.base_height + object.slope_x * x + object.slope_y * y;
+							track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+								level < 0 ? 0
+								: level > (legacy_s16)CSTRK_MAX_HEIGHT
+									? (legacy_s16)CSTRK_MAX_HEIGHT
+									: level;
+						}
+					}
+					track.objects[0] = object;
+					legacy_u8 *data = NULL, *again = NULL;
+					size_t size = 0, again_size = 0;
+					assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+					assert(data[object_offset + CSTRK_OBJECT_ROLL_RAMP_OFFSET] == 1U);
+					assert(data[object_offset + CSTRK_OBJECT_RESERVED_OFFSET] == 0U);
+					assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+					assert(decoded.objects[0].roll_ramp == 1U);
+					assert(decoded.objects[0].legacy_id == id);
+					assert(decoded.objects[0].rotation == rotation);
+					assert(decoded.objects[0].width == object.width);
+					assert(decoded.objects[0].height == object.height);
+					assert(decoded.objects[0].surface == surface);
+					assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+					assert(again_size == size && memcmp(data, again, size) == 0);
+					for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_ROLL_RAMP_VERSION;
+						 version++) {
+						LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+						assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+					}
+					free(again);
+					free(data);
+				}
+			}
+		}
+	}
+	track.objects[0] = object;
+	track.objects[0].legacy_id = CSTRK_SLALOM_FIRST_ID;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+	track.objects[0].roll_ramp = 2;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+	track.objects[0].occupied_mask = 1;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+	track.version = CSTRK_ROLL_RAMP_VERSION - 1U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	cstrk_free(&decoded);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	test_wire_layout();
 	test_overpass_lower_surfaces();
 	test_tunnel_slalom_roundtrip();
 	test_tunnel_slalom_invalid_records();
+	test_roll_ramp_records();
 	test_horizons_and_versions();
 	test_surface_corners();
 	test_original_terrain_profiles();

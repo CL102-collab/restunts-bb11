@@ -544,6 +544,11 @@ legacy_s16 get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 		if (!object) {
 			return 0;
 		}
+		/* The generated launch ramp supplies its own finite concrete supports;
+		 * its backing corkscrew ID must not introduce invisible native posts. */
+		if (object->roll_ramp) {
+			return 0;
+		}
 		unsigned id = extended_track_object_id(object);
 		if (id >= 215) {
 			return 0;

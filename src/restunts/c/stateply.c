@@ -13,6 +13,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 #endif
 
 #define PLAYER_PHYSICS_WHEEL_COUNT 4
@@ -214,6 +215,229 @@ static void initialize_working_car_pose(struct CARSTATE *carstate)
 	car_working_yaw = carstate->car_rotate.x;
 	car_initial_yaw = carstate->car_rotate.x;
 }
+
+#ifdef RESTUNTS_SDL3
+/* These serialized words were reserved for contact bookkeeping. Keep the
+ * legacy car image unchanged while retaining launch momentum across seeks. */
+enum PLAYER_ROLL_MOTION_WORD {
+	PLAYER_ROLL_VELOCITY,
+	PLAYER_ROLL_FRACTION,
+	PLAYER_ROLL_PHASE,
+	PLAYER_ROLL_LAST_SUPPORTED_ANGLE,
+	PLAYER_ROLL_WORD_COUNT
+};
+
+enum PLAYER_ROLL_MOTION_PHASE { PLAYER_ROLL_IDLE, PLAYER_ROLL_SUPPORTED, PLAYER_ROLL_AIRBORNE };
+
+#define PLAYER_ROLL_VELOCITY_SCALE 256L
+#define PLAYER_ROLL_RATE_FILTER_TICKS 8L
+#define PLAYER_ROLL_REAR_WHEEL_MASK (3U << PLAYER_PHYSICS_FRONT_WHEEL_COUNT)
+
+static legacy_u32 player_roll_tick_fraction(void)
+{
+	if (player_motion_fraction) {
+		return player_motion_fraction;
+	}
+	return framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION
+											   : PHYSICS_FRACTION_ONE;
+}
+
+static legacy_s16 player_roll_angle_delta(legacy_s16 first, legacy_s16 second)
+{
+	return (legacy_s16)(((legacy_u16)(first - second + ANGLE_HALF_TURN) & ANGLE_MASK) -
+						ANGLE_HALF_TURN);
+}
+
+static legacy_u8 player_roll_motion_active(const struct CARSTATE *carstate)
+{
+	legacy_s16 phase = carstate->car_reserved_contact_state[PLAYER_ROLL_PHASE];
+	return phase == PLAYER_ROLL_SUPPORTED || phase == PLAYER_ROLL_AIRBORNE;
+}
+
+static void clear_player_roll_motion(struct CARSTATE *carstate)
+{
+	if (extended_track_active() && player_roll_motion_active(carstate)) {
+		for (legacy_u8 word = 0; word < PLAYER_ROLL_WORD_COUNT; word++) {
+			carstate->car_reserved_contact_state[word] = 0;
+		}
+	}
+}
+
+static void prepare_player_roll_motion(struct CARSTATE *carstate)
+{
+	if (!extended_track_active() || !player_roll_motion_active(carstate)) {
+		return;
+	}
+	if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE ||
+		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+		clear_player_roll_motion(carstate);
+		return;
+	}
+	if (carstate->car_reserved_contact_state[PLAYER_ROLL_PHASE] != PLAYER_ROLL_AIRBORNE) {
+		return;
+	}
+	legacy_s64 displacement =
+		(legacy_s64)carstate->car_reserved_contact_state[PLAYER_ROLL_VELOCITY] *
+		(legacy_s64)player_roll_tick_fraction() / (legacy_s64)PHYSICS_FRACTION_ONE;
+	displacement += carstate->car_reserved_contact_state[PLAYER_ROLL_FRACTION];
+	legacy_s16 angle = (legacy_s16)(displacement / PLAYER_ROLL_VELOCITY_SCALE);
+	carstate->car_reserved_contact_state[PLAYER_ROLL_FRACTION] =
+		(legacy_s16)(displacement % PLAYER_ROLL_VELOCITY_SCALE);
+	car_working_roll = LEGACY_S16_WRAP_ADD(car_working_roll, angle);
+}
+
+static struct VECTOR player_roll_contact_normal(const struct CSTRK_OBJECT *object, legacy_s32 x,
+												legacy_s32 z)
+{
+	struct VECTOR relative = {
+		(legacy_s16)(x - object->x * CSTRK_TILE_WORLD_SIZE -
+					 object->width * CSTRK_TILE_WORLD_SIZE / 2),
+		0,
+		(legacy_s16)(z - (extended_track_height() - object->y) * CSTRK_TILE_WORLD_SIZE +
+					 object->height * CSTRK_TILE_WORLD_SIZE / 2)};
+	legacy_s16 orientation = roll_ramp_orientation(object);
+	struct MATRIX rotation;
+	struct VECTOR local, point, normal, world;
+	mat_rot_y(&rotation, LEGACY_S16_WRAP_NEGATE(orientation));
+	mat_mul_vector(&relative, &rotation, &local);
+	legacy_s16 distance = ROLL_RAMP_HALF_LENGTH - local.z;
+	legacy_s16 cosine = cos_fast(roll_ramp_bank_angle(distance));
+	legacy_s16 lateral = cosine ? (legacy_s16)((legacy_s32)local.x * TRIG_FIXED_ONE / cosine) : 0;
+	/* The finite collision query proves contact. Sample the shared smooth
+	 * support normal there so tessellation seams cannot change launch torque. */
+	roll_ramp_sample(distance, lateral, &point, &normal);
+	mat_rot_y(&rotation, orientation);
+	mat_mul_vector(&normal, &rotation, &world);
+	extended_geometry_grade_normal(object, &world);
+	return world;
+}
+
+static legacy_u8 player_roll_ramp_contact(const struct CARSTATE *carstate, legacy_s16 *bank)
+{
+	legacy_u8 mask = 0, rear_count = 0;
+	legacy_s32 normal_x = 0, normal_y = 0, normal_z = 0;
+	for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		if (carstate->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+			carstate->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+			continue;
+		}
+		legacy_s32 x, z;
+		extended_geometry_world_position(&carstate->car_wheel_contact_positions[wheel], &x, &z);
+		if (x < 0 || z < 0) {
+			continue;
+		}
+		const struct CSTRK_OBJECT *object = extended_track_object_at(
+			(legacy_int)(x / CSTRK_TILE_WORLD_SIZE),
+			extended_track_height() - 1 - (legacy_int)(z / CSTRK_TILE_WORLD_SIZE));
+		if (object && object->roll_ramp) {
+			/* Terrain below the open grille can share its dirt/ice contact code.
+			 * Require the generated finite road plane at this wheel. */
+			struct TRACK_COLLISION_SNAPSHOT saved;
+			track_collision_capture(&saved);
+			struct VECTOR point = carstate->car_wheel_contact_positions[wheel];
+			build_track_object(&point, &point);
+			legacy_s16 distance = plane_signed_distance(planindex, point.x, point.y, point.z);
+			legacy_u8 supported = planindex > EXTENDED_GEOMETRY_PLANE_INDEX &&
+								  distance >= -PHYSICS_PLANE_CONTACT_TOLERANCE &&
+								  distance <= PHYSICS_PLANE_CONTACT_TOLERANCE;
+			if (supported) {
+				mask |= 1U << wheel;
+				if (wheel >= PLAYER_PHYSICS_FRONT_WHEEL_COUNT) {
+					struct VECTOR normal = player_roll_contact_normal(object, x, z);
+					normal_x += normal.x;
+					normal_y += normal.y;
+					normal_z += normal.z;
+					rear_count++;
+				}
+			}
+			track_collision_restore(&saved);
+		}
+	}
+	*bank = 0;
+	if (rear_count) {
+		/* Keep one consistent axle as the front and rear leave in turn.
+		 * Express its actual support normal in the unrolled heading frame. */
+		struct VECTOR normal = {(legacy_s16)(normal_x / rear_count),
+								(legacy_s16)(normal_y / rear_count),
+								(legacy_s16)(normal_z / rear_count)};
+		struct VECTOR heading, level;
+		struct MATRIX rotation;
+		mat_rot_y(&rotation, car_working_yaw);
+		mat_mul_vector(&normal, &rotation, &heading);
+		mat_rot_x(&rotation, car_working_pitch);
+		mat_mul_vector(&heading, &rotation, &level);
+		*bank = polarAngle(level.x, level.y);
+	}
+	return mask;
+}
+
+static legacy_s16 player_roll_filter_rate(legacy_s16 previous, legacy_s64 measured)
+{
+	legacy_u32 remaining = player_roll_tick_fraction();
+	while (remaining) {
+		legacy_u32 step = remaining > PHYSICS_FRACTION_ONE ? PHYSICS_FRACTION_ONE : remaining;
+		legacy_s64 change = (measured - previous) * (legacy_s64)step;
+		change /= PLAYER_ROLL_RATE_FILTER_TICKS * (legacy_s64)PHYSICS_FRACTION_ONE;
+		previous += (legacy_s16)change;
+		remaining -= step;
+	}
+	return previous;
+}
+
+static void finish_player_roll_motion(struct CARSTATE *carstate)
+{
+	if (!extended_track_active() || player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+		return;
+	}
+	if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
+		clear_player_roll_motion(carstate);
+		return;
+	}
+	legacy_s16 *roll = carstate->car_reserved_contact_state;
+	legacy_s16 bank;
+	legacy_u8 contact_mask = player_roll_ramp_contact(carstate, &bank);
+	if (contact_mask) {
+		legacy_u8 first_supported = roll[PLAYER_ROLL_PHASE] != PLAYER_ROLL_SUPPORTED;
+		if (first_supported) {
+			roll[PLAYER_ROLL_LAST_SUPPORTED_ANGLE] = bank;
+			roll[PLAYER_ROLL_VELOCITY] = 0;
+			roll[PLAYER_ROLL_FRACTION] = 0;
+		}
+		legacy_s16 delta = player_roll_angle_delta(bank, roll[PLAYER_ROLL_LAST_SUPPORTED_ANGLE]);
+		legacy_s64 velocity = (legacy_s64)delta * PLAYER_ROLL_VELOCITY_SCALE *
+							  (legacy_s64)PHYSICS_FRACTION_ONE /
+							  (legacy_s64)player_roll_tick_fraction();
+		legacy_s32 maximum = LEGACY_S16_MAX;
+		if (velocity > maximum) {
+			velocity = maximum;
+		} else if (velocity < -maximum) {
+			velocity = -maximum;
+		}
+		/* Contact normals impart the rate independently of the suspension's
+		 * quantized pose corrections. Filter in physical 20 Hz time units. */
+		if ((contact_mask & PLAYER_ROLL_REAR_WHEEL_MASK) == PLAYER_ROLL_REAR_WHEEL_MASK) {
+			roll[PLAYER_ROLL_VELOCITY] =
+				player_roll_filter_rate(roll[PLAYER_ROLL_VELOCITY], velocity);
+			roll[PLAYER_ROLL_LAST_SUPPORTED_ANGLE] = bank;
+		}
+		roll[PLAYER_ROLL_PHASE] = PLAYER_ROLL_SUPPORTED;
+	} else if (carstate->car_sumSurfFrontWheels || carstate->car_sumSurfRearWheels) {
+		clear_player_roll_motion(carstate);
+	} else if (roll[PLAYER_ROLL_PHASE] == PLAYER_ROLL_SUPPORTED) {
+		roll[PLAYER_ROLL_PHASE] = PLAYER_ROLL_AIRBORNE;
+		/* Gravity moves the airborne rigid body as a whole. Keep the mean
+		 * launch velocity without counting old per-wheel impulses twice. */
+		legacy_s32 total = 0;
+		for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+			total += carstate->car_wheel_vertical_speed[wheel];
+		}
+		legacy_s16 mean = (legacy_s16)(total / PLAYER_PHYSICS_WHEEL_COUNT);
+		for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+			carstate->car_wheel_vertical_speed[wheel] = mean;
+		}
+	}
+}
+#endif
 
 /* The original zero-speed crash transition reused opponent wheel coordinates
  * as headings. Keep that compatibility detail separate from normal motion. */
@@ -671,12 +895,22 @@ static void measure_wheel_plane_distance(struct VECTORLONG *position)
 static void apply_wheel_gravity(struct CARSTATE *carstate, struct VECTORLONG *position,
 								legacy_s16 wheel_index)
 {
+	legacy_s16 gravity = wheel_gravity_steps[wheel_index];
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active() &&
+		carstate->car_reserved_contact_state[PLAYER_ROLL_PHASE] == PLAYER_ROLL_AIRBORNE) {
+		legacy_s32 total = 0;
+		for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+			total += wheel_gravity_steps[wheel];
+		}
+		gravity = (legacy_s16)(total / PLAYER_PHYSICS_WHEEL_COUNT);
+	}
+#endif
 	legacy_s16 step_count =
 		framespersec == GAME_FRAME_RATE_LOW && player_motion_fraction == 0 ? 2 : 1;
 	for (legacy_s16 step = 0; step < step_count; step++) {
-		carstate->car_wheel_vertical_speed[wheel_index] =
-			LEGACY_S16_WRAP_ADD(carstate->car_wheel_vertical_speed[wheel_index],
-								scale_player_motion(wheel_gravity_steps[wheel_index]));
+		carstate->car_wheel_vertical_speed[wheel_index] = LEGACY_S16_WRAP_ADD(
+			carstate->car_wheel_vertical_speed[wheel_index], scale_player_motion(gravity));
 		position->ly = LEGACY_S32_WRAP_SUB_S16(
 			position->ly, scale_player_motion(carstate->car_wheel_vertical_speed[wheel_index]));
 	}
@@ -1649,23 +1883,51 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 	if (extended_track_active()) {
 		extended_geometry_set_context(carstate->car_position.lx, carstate->car_position.lz);
 	}
+	prepare_player_roll_motion(carstate);
 #endif
 	struct PLAYER_WHEEL_MOTION motion;
 	prepare_wheel_motion(carstate, simd, &motion, car_index);
 	resolve_wheel_contacts(carstate, &motion, car_index);
+#ifdef RESTUNTS_SDL3
+	legacy_s16 roll_motion[PLAYER_ROLL_WORD_COUNT];
+	legacy_u8 retain_roll_motion = extended_track_active() && player_roll_motion_active(carstate);
+	if (retain_roll_motion) {
+		for (legacy_u8 word = 0; word < PLAYER_ROLL_WORD_COUNT; word++) {
+			roll_motion[word] = carstate->car_reserved_contact_state[word];
+		}
+	}
+#endif
 	apply_wheel_suspension(carstate, &motion);
+#ifdef RESTUNTS_SDL3
+	if (retain_roll_motion) {
+		for (legacy_u8 word = 0; word < PLAYER_ROLL_WORD_COUNT; word++) {
+			carstate->car_reserved_contact_state[word] = roll_motion[word];
+		}
+	}
+#endif
 	derive_car_pose_from_wheels(&motion);
 	sum_front_and_rear_wheel_surfaces(carstate);
+#ifdef RESTUNTS_SDL3
+	finish_player_roll_motion(carstate);
+#endif
 
 	struct VECTOR car_pose[PLAYER_PHYSICS_POSE_VECTOR_COUNT];
 	if (player_motion_state->game_inputmode != GAME_INPUT_MODE_INTRO) {
 		play_car_impact_sounds(carstate, car_index);
 		check_car_body_planes(carstate, simd, car_index);
+#ifdef RESTUNTS_SDL3
+		if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
+			clear_player_roll_motion(carstate);
+		}
+#endif
 		update_car_surface_contact(carstate, car_index);
 		prepare_car_collision_pose(car_pose);
 		if (handle_other_car_collision(carstate, simd, other_carstate, other_simd, car_pose,
 									   car_index) ||
 			handle_scenery_collisions(carstate, simd, car_pose, car_index)) {
+#ifdef RESTUNTS_SDL3
+			clear_player_roll_motion(carstate);
+#endif
 			return;
 		}
 	}

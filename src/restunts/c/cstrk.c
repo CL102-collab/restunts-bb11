@@ -262,6 +262,28 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 						  "Object %u requires track version v%u for tunnel with slalom",
 						  (legacy_uint)index, CSTRK_TUNNEL_SLALOM_VERSION);
 	}
+	if (object->roll_ramp > 1U ||
+		(object->roll_ramp && (object->legacy_id < CSTRK_ROLL_RAMP_FIRST_ID ||
+							   object->legacy_id > CSTRK_ROLL_RAMP_LAST_ID))) {
+		return cstrk_fail(error, error_size, "Object %u has an invalid barrel roll ramp modifier",
+						  (legacy_uint)index);
+	}
+	if (object->roll_ramp) {
+		if (track->version < CSTRK_ROLL_RAMP_VERSION) {
+			return cstrk_fail(error, error_size,
+							  "Object %u requires track version v%u for the barrel roll ramp",
+							  (legacy_uint)index, CSTRK_ROLL_RAMP_VERSION);
+		}
+		legacy_u8 horizontal = (object->legacy_id - CSTRK_ROLL_RAMP_FIRST_ID + object->rotation) %
+							   CSTRK_ORIGINAL_AXIS_COUNT;
+		if (object->width != (horizontal ? CSTRK_ROLL_RAMP_TILE_COUNT : 1U) ||
+			object->height != (horizontal ? 1U : CSTRK_ROLL_RAMP_TILE_COUNT) ||
+			object->occupied_mask != CSTRK_ROLL_RAMP_OCCUPIED_MASK) {
+			return cstrk_fail(error, error_size,
+							  "Object %u has an invalid barrel roll ramp footprint",
+							  (legacy_uint)index);
+		}
+	}
 	legacy_u8 overpass =
 		object->legacy_id >= CSTRK_OVERPASS_FIRST_ID && object->legacy_id <= CSTRK_OVERPASS_LAST_ID;
 	if (object->lower_surface > CSTRK_ROAD_ICE ||
@@ -513,6 +535,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET] =
 			track->version < CSTRK_LOWER_SURFACE_VERSION ? 0 : object->lower_surface;
 		cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = object->tunnel_slalom;
+		cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET] = object->roll_ramp;
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(cursor, track->notes, track->notes_length);
@@ -592,7 +615,8 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		struct CSTRK_OBJECT *object = &next.objects[index];
 		if ((version < CSTRK_LOWER_SURFACE_VERSION && cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET]) ||
 			(version < CSTRK_TUNNEL_SLALOM_VERSION && cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET]) ||
-			cstrk_read16(cursor + CSTRK_OBJECT_RESERVED_OFFSET) != 0U) {
+			(version < CSTRK_ROLL_RAMP_VERSION && cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET]) ||
+			cursor[CSTRK_OBJECT_RESERVED_OFFSET] != 0U) {
 			cstrk_free(&next);
 			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags",
 							  (unsigned)index);
@@ -614,6 +638,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 									? object->surface
 									: cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET];
 		object->tunnel_slalom = cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET];
+		object->roll_ramp = cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET];
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(next.notes, cursor, notes_length);

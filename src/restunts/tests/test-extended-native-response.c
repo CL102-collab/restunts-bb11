@@ -5,6 +5,7 @@
 
 #include "../c/stateply.c"
 #include "../c/owoot_route.c"
+#include "../c/owoot_road.c"
 #include "../c/trackdata_layout.h"
 
 #undef memcpy
@@ -36,15 +37,24 @@ struct TRACKOBJECT trkObjectList[TEST_OBJECT_COUNT];
 static legacy_int fixture_extended, fixture_lane_edges;
 static struct CSTRK_TRACK fixture_track;
 static struct CSTRK_OBJECT fixture_object;
+#define TEST_ROLL_RECEIVER_COUNT 3U
+#define TEST_ROLL_ROUTE_COUNT (TEST_ROLL_RECEIVER_COUNT + 1U)
+static struct CSTRK_OBJECT fixture_receivers[TEST_ROLL_RECEIVER_COUNT];
 static struct TRKOBJINFO fixture_info;
 static struct VECTOR fixture_sections[TEST_POINT_COUNT];
-static legacy_s8 fixture_elements[] = {TEST_OBJECT_ID};
-static legacy_s8 fixture_columns[] = {0}, fixture_rows[] = {TRACK_GRID_LAST_INDEX};
-static legacy_s8 fixture_flags[] = {0};
+static legacy_s8 fixture_elements[TEST_ROLL_ROUTE_COUNT] = {TEST_OBJECT_ID};
+static legacy_s8 fixture_columns[TEST_ROLL_ROUTE_COUNT] = {0};
+static legacy_s8 fixture_rows[TEST_ROLL_ROUTE_COUNT] = {TRACK_GRID_LAST_INDEX};
+static legacy_s8 fixture_flags[TEST_ROLL_ROUTE_COUNT] = {0};
 
 legacy_int extended_track_active(void)
 {
 	return fixture_extended;
+}
+
+legacy_int extended_track_width(void)
+{
+	return fixture_track.width;
 }
 
 legacy_int extended_track_height(void)
@@ -60,8 +70,36 @@ const struct CSTRK_TRACK *extended_track_model(void)
 const struct CSTRK_OBJECT *extended_track_object_for_id(legacy_int column, legacy_int row,
 														legacy_uint id)
 {
-	assert(column == fixture_object.x && row == fixture_object.y && id == TEST_OBJECT_ID);
-	return &fixture_object;
+	if (id == TEST_OBJECT_ID) {
+		assert(column == fixture_object.x && row == fixture_object.y);
+		return &fixture_object;
+	}
+	assert(id > TEST_OBJECT_ID && id <= TEST_ROLL_ROUTE_COUNT);
+	const struct CSTRK_OBJECT *object = &fixture_receivers[id - TEST_OBJECT_ID - 1U];
+	assert(column == object->x && row == object->y);
+	return object;
+}
+
+const struct CSTRK_OBJECT *extended_track_object_at(legacy_int column, legacy_int row)
+{
+	if (column == fixture_object.x && row >= fixture_object.y &&
+		row < fixture_object.y + fixture_object.height) {
+		return &fixture_object;
+	}
+	for (legacy_u16 index = 0; index < TEST_ROLL_RECEIVER_COUNT; index++) {
+		if (column == fixture_receivers[index].x && row == fixture_receivers[index].y) {
+			return &fixture_receivers[index];
+		}
+	}
+	return NULL;
+}
+
+const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16 row, legacy_u16 id)
+{
+	(void)column;
+	(void)row;
+	assert(id < TEST_OBJECT_COUNT);
+	return trkObjectList[id].ss_trkObjInfoPtr;
 }
 
 legacy_s16 get_track_route_point(legacy_s16 piece, struct VECTOR *output, legacy_s16 index,
@@ -284,11 +322,106 @@ static void test_sloped_tunnel_portals(legacy_u8 tunnel_slalom)
 	fixture_lane_edges = 0;
 }
 
+static void test_roll_launch_corridor(void)
+{
+	enum {
+		COLUMN = 5,
+		RAMP_ROW = 5,
+		FIRST_RECEIVER_ROW = 10,
+		CONTACT_BEFORE_LIP = 40,
+		AIRBORNE_DISTANCE = 2 * CSTRK_TILE_WORLD_SIZE,
+		SIDE_ESCAPE = TRACK_TILE_HALF_SIZE + 1
+	};
+	fixture_extended = 1;
+	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
+	memset(&fixture_object, 0, sizeof(fixture_object));
+	fixture_object.legacy_id = CSTRK_ROLL_RAMP_FIRST_ID;
+	fixture_object.x = COLUMN;
+	fixture_object.y = RAMP_ROW;
+	fixture_object.width = 1;
+	fixture_object.height = 2;
+	fixture_object.occupied_mask = 3;
+	fixture_object.roll_ramp = 1;
+	trkObjectList[TEST_OBJECT_ID].ss_physicalModel = PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT;
+	trkObjectList[TEST_OBJECT_ID].ss_multiTileFlag = MULTI_TILE_ROW_EDGE_FLAG;
+	static legacy_s16 primary[TEST_ROLL_ROUTE_COUNT], alternate[TEST_ROLL_ROUTE_COUNT];
+	track_primary_route_links = primary;
+	track_alternate_route_links = alternate;
+	track_route_element_ids = fixture_elements;
+	track_route_columns = fixture_columns;
+	track_route_rows = fixture_rows;
+	track_route_traversal_flags = fixture_flags;
+	track_pieces_counter = TEST_ROLL_ROUTE_COUNT;
+	fixture_elements[0] = TEST_OBJECT_ID;
+	fixture_columns[0] = COLUMN;
+	fixture_rows[0] = RAMP_ROW;
+	for (legacy_u16 index = 0; index < TEST_ROLL_ROUTE_COUNT; index++) {
+		primary[index] = index + 1U < TEST_ROLL_ROUTE_COUNT ? index + 1 : TRACK_ROUTE_LINK_NONE;
+		alternate[index] = TRACK_ROUTE_LINK_NONE;
+		if (index) {
+			fixture_receivers[index - 1U] = (struct CSTRK_OBJECT){0};
+			fixture_receivers[index - 1U].x = COLUMN;
+			fixture_receivers[index - 1U].y = FIRST_RECEIVER_ROW + index - 1U;
+			fixture_receivers[index - 1U].width = fixture_receivers[index - 1U].height = 1;
+			fixture_elements[index] = TEST_OBJECT_ID + index;
+			fixture_columns[index] = COLUMN;
+			fixture_rows[index] = FIRST_RECEIVER_ROW + index - 1U;
+			trkObjectList[TEST_OBJECT_ID + index].ss_physicalModel = PHYSICAL_MODEL_ROAD;
+			trkObjectList[TEST_OBJECT_ID + index].ss_multiTileFlag = 0;
+		}
+	}
+	struct VECTOR origin, contact, normal;
+	extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
+	legacy_s32 lip_z = (TRACK_GRID_SIZE - RAMP_ROW - fixture_object.height) * CSTRK_TILE_WORLD_SIZE;
+	roll_ramp_sample(ROLL_RAMP_LENGTH - CONTACT_BEFORE_LIP, 0, &contact, &normal);
+	contact.x += origin.x;
+	contact.y += origin.y;
+	contact.z += origin.z;
+	struct CARSTATE car = {0};
+	car.car_position.lx = origin.x * OWOOT_POSITION_SCALE;
+	car.car_position.ly =
+		(roll_ramp_center_height(ROLL_RAMP_LENGTH) + TEST_WHEEL_HEIGHT) * OWOOT_POSITION_SCALE;
+	car.car_position.lz = (lip_z - CONTACT_BEFORE_LIP) * OWOOT_POSITION_SCALE;
+	car.car_previous_position = car.car_position;
+	car.car_previous_position.lz += CONTACT_BEFORE_LIP * OWOOT_POSITION_SCALE;
+	assert(roll_jump_is_valid(&car) == -1); /* Flying over a ramp cannot arm it. */
+	car.car_sumSurfAllWheels = CAR_SURFACE_ICE;
+	car.car_surfaceWhl[0] = CAR_SURFACE_ICE;
+	car.car_wheel_contact_positions[0] = contact;
+	car.car_wheel_contact_positions[0].y = 0;
+	assert(roll_jump_is_valid(&car) == -1); /* Ice below the grille is not ramp contact. */
+	car.car_wheel_contact_positions[0] = contact;
+	assert(roll_jump_is_valid(&car) == 1);
+	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 1);
+	car.car_sumSurfAllWheels = 0;
+	car.car_surfaceWhl[0] = 0;
+	car.car_position.lz = (lip_z - AIRBORNE_DISTANCE) * OWOOT_POSITION_SCALE;
+	car.car_previous_position.lz = car.car_position.lz + OWOOT_POSITION_SCALE;
+	assert(roll_jump_is_valid(&car) == 1);
+	/* The first receiving tile need not be the exact touchdown tile. */
+	car.car_position.lz =
+		(TRACK_GRID_SIZE - FIRST_RECEIVER_ROW - 1) * CSTRK_TILE_WORLD_SIZE * OWOOT_POSITION_SCALE;
+	car.car_previous_position.lz = car.car_position.lz + OWOOT_POSITION_SCALE;
+	assert(roll_jump_is_valid(&car) == 1);
+	struct CARSTATE escaped = car;
+	escaped.car_position.lx += SIDE_ESCAPE * OWOOT_POSITION_SCALE;
+	assert(roll_jump_is_valid(&escaped) == 0);
+	assert(escaped.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	escaped = car;
+	escaped.car_previous_position.lz = escaped.car_position.lz - OWOOT_POSITION_SCALE;
+	assert(roll_jump_is_valid(&escaped) == 0);
+	car.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+	car.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	assert(roll_jump_is_valid(&car) == -1);
+	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+}
+
 legacy_int main(void)
 {
 	test_native_wall_response();
 	test_native_corkscrew_gates();
 	test_sloped_tunnel_portals(0);
 	test_sloped_tunnel_portals(1);
+	test_roll_launch_corridor();
 	return 0;
 }

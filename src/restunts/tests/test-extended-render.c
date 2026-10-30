@@ -15,10 +15,17 @@
 #include "../c/shape3d_internal.h"
 #include "../c/shape3d_hires.h"
 #include "../c/projection.h"
+#include "../c/roll_ramp.h"
+#include "../c/owoot_road.h"
 
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U
 #define STUNT_RENDER_AUTHORED_OVERSCAN 2
+
+#define ROLL_RAMP_RENDER_PRECISE_TOLERANCE .00000001
+#define ROLL_RAMP_RENDER_TERRAIN_COUNT 4U
+#define ROLL_RAMP_RENDER_MIN_PIXELS 64U
+
 #define COMBINED_STUNT_RENDER_PART_COUNT 3U
 #define COMBINED_STUNT_RENDER_VARIANT_COUNT 3U
 #define COMBINED_STUNT_RENDER_COMBINED_VARIANT 2U
@@ -887,6 +894,66 @@ static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 #define PLANT_RENDER_ROUNDING_TOLERANCE .5
 #define PLANT_RENDER_PRECISE_TOLERANCE .00000001
 
+static legacy_u8 roll_ramp_capture_active, roll_ramp_capture_calls;
+static struct CSTRK_OBJECT roll_ramp_capture_object;
+static struct SHAPE3D roll_ramp_capture_source;
+
+static void check_roll_ramp_submission(const struct TRANSFORMEDSHAPE3D *instance,
+									   const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	const struct CSTRK_OBJECT *object = &roll_ramp_capture_object;
+	const struct SHAPE3D *mesh = instance->shapeptr;
+	assert(mesh->shape3d_numverts == roll_ramp_capture_source.shape3d_numverts);
+	assert(mesh->shape3d_numprimitives == roll_ramp_capture_source.shape3d_numprimitives);
+	assert(instance->rotvec.z == 0);
+	struct VECTOR origin;
+	extended_geometry_object_origin(extended_track_model(), object, &origin);
+	assert(memcmp(&instance->pos, &origin, sizeof(origin)) == 0);
+	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
+		struct VECTOR source, packed;
+		shape3d_vertex_read(&roll_ramp_capture_source, vertex, &source);
+		shape3d_vertex_read(mesh, vertex, &packed);
+		legacy_s16 x = source.x, z = source.z;
+		switch (roll_ramp_orientation(object)) {
+			case ANGLE_QUARTER_TURN:
+				source.x = z;
+				source.z = -x;
+				break;
+			case ANGLE_HALF_TURN:
+				source.x = -x;
+				source.z = -z;
+				break;
+			case ANGLE_THREE_QUARTER_TURN:
+				source.x = -z;
+				source.z = x;
+				break;
+		}
+		legacy_f64 grade = ((legacy_f64)object->slope_x *
+								(object->width * (CSTRK_TILE_WORLD_SIZE / 2) + source.x) +
+							(legacy_f64)object->slope_y *
+								(object->height * (CSTRK_TILE_WORLD_SIZE / 2) - source.z)) *
+						   CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+		assert(packed.x == source.x && packed.z == source.z);
+		legacy_f64 rounding = packed.y - source.y - grade;
+		assert(rounding >= -.5 && rounding <= .5);
+		if (vertices) {
+			assert(vertices[vertex].x == source.x && vertices[vertex].z == source.z);
+			legacy_f64 error = vertices[vertex].y - source.y - grade;
+			assert(error >= -ROLL_RAMP_RENDER_PRECISE_TOLERANCE &&
+				   error <= ROLL_RAMP_RENDER_PRECISE_TOLERANCE);
+		}
+	}
+	const legacy_u8 *actual = mesh->shape3d_primitives;
+	const legacy_u8 *expected = roll_ramp_capture_source.shape3d_primitives;
+	for (legacy_u16 face = 0; face < mesh->shape3d_numprimitives; face++) {
+		legacy_u16 bytes = SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + expected[0];
+		assert(memcmp(actual, expected, bytes) == 0);
+		actual += bytes;
+		expected += bytes;
+	}
+	roll_ramp_capture_calls++;
+}
+
 static legacy_u8 plant_capture_active, plant_capture_calls, plant_capture_precise;
 static struct CSTRK_OBJECT plant_capture_object;
 static struct SHAPE3D plant_capture_source;
@@ -1463,6 +1530,10 @@ static void capture_terrain_coverage(const struct TRANSFORMEDSHAPE3D *instance,
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (roll_ramp_capture_active) {
+		check_roll_ramp_submission(instance, NULL);
+		return 0;
+	}
 	if (combined_stunt_capture_active) {
 		combined_stunt_check_submission(instance, NULL);
 		return 0;
@@ -1555,6 +1626,10 @@ static void inject_generated_bounds_polygon(void)
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (roll_ramp_capture_active) {
+		check_roll_ramp_submission(instance, vertices);
+		return 0;
+	}
 	if (combined_stunt_capture_active) {
 		combined_stunt_check_submission(instance, vertices);
 		return 0;
@@ -3182,6 +3257,189 @@ static legacy_u16 check_combined_stunt_rendering(void)
 	return frames;
 }
 
+static void check_roll_ramp_mesh_geometry(void)
+{
+	struct VECTOR entry, lip, normal;
+	roll_ramp_sample(0, 0, &entry, &normal);
+	assert(entry.x == 0 && entry.y == 0 && entry.z == ROLL_RAMP_HALF_LENGTH);
+	assert(normal.x == 0 && normal.y > 0 && normal.z == 0);
+	roll_ramp_sample(ROLL_RAMP_LENGTH, 0, &lip, &normal);
+	assert(lip.x == 0 && lip.z == -ROLL_RAMP_HALF_LENGTH);
+	assert(lip.y > ROLL_RAMP_RISE_PER_TILE && normal.x < 0 && normal.y > 0);
+	assert(roll_ramp_bank_angle(ROLL_RAMP_LENGTH) == ROLL_RAMP_LIP_BANK);
+	assert(roll_ramp_bank_angle(ROLL_RAMP_LENGTH - ROLL_RAMP_ENTRY_EASE) < ROLL_RAMP_LIP_BANK);
+	struct SHAPE3D mesh;
+	assert(roll_ramp_create_mesh(&mesh, CSTRK_ROAD_PAVED));
+	assert(mesh.shape3d_numverts <= LEGACY_U8_MAX);
+	const legacy_u8 *primitive = mesh.shape3d_primitives;
+	legacy_u16 concrete = 0, grille = 0;
+	for (legacy_u16 triangle = 0; triangle < roll_ramp_road_triangle_count(); triangle++) {
+		struct VECTOR points[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+		assert(roll_ramp_road_triangle(triangle, points));
+		assert(primitive[0] == OWOOT_ROAD_TRIANGLE_VERTEX_COUNT);
+		for (legacy_u16 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
+			struct VECTOR actual;
+			shape3d_vertex_read(&mesh, primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + vertex],
+								&actual);
+			assert(memcmp(&actual, &points[vertex], sizeof(actual)) == 0);
+			assert(actual.z >= -ROLL_RAMP_HALF_LENGTH && actual.z <= ROLL_RAMP_HALF_LENGTH);
+		}
+		legacy_s32 normal_y =
+			(legacy_s32)(points[1].z - points[0].z) * (points[2].x - points[0].x) -
+			(legacy_s32)(points[1].x - points[0].x) * (points[2].z - points[0].z);
+		assert(normal_y > 0);
+		grille += primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_GRILLE_MATERIAL;
+		primitive += SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + primitive[0];
+	}
+	for (legacy_u16 face = roll_ramp_road_triangle_count(); face < mesh.shape3d_numprimitives;
+		 face++) {
+		concrete += primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_CONCRETE_MATERIAL ||
+					primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == ROLL_RAMP_CONCRETE_LIGHT_MATERIAL;
+		primitive += SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + primitive[0];
+	}
+	assert(grille == ROLL_RAMP_ROAD_TRIANGLE_COUNT / 2U && concrete > 0);
+	assert(material_patlist_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] != 0);
+	assert(material_patlist2_ptr_cpy[ROLL_RAMP_GRILLE_MATERIAL] != 0);
+	for (legacy_u16 index = 0; index < roll_ramp_support_box_count(); index++) {
+		struct ROLL_RAMP_BOX box;
+		assert(roll_ramp_support_box(index, &box));
+		assert(box.minimum.z >= -ROLL_RAMP_HALF_LENGTH && box.maximum.z <= 0);
+		assert(box.minimum.y >= 0 && box.maximum.y > box.minimum.y);
+		if (box.minimum.x < 0 && box.maximum.x > 0) {
+			legacy_f64 lowest = ROLL_RAMP_LENGTH;
+			for (legacy_u16 triangle = ROLL_RAMP_ROAD_TRIANGLE_COUNT / 2U + 1U;
+				 triangle < ROLL_RAMP_ROAD_TRIANGLE_COUNT; triangle += 2U) {
+				struct VECTOR points[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+				assert(roll_ramp_road_triangle(triangle, points));
+				/* Vertices zero and two are the actual low edge of each
+				 * grille segment, independent of the continuous sampler. */
+				const struct VECTOR *first = &points[0], *second = &points[2];
+				legacy_s16 start = first->z < box.maximum.z ? first->z : box.maximum.z;
+				legacy_s16 end = second->z > box.minimum.z ? second->z : box.minimum.z;
+				if (start < end) {
+					continue;
+				}
+				for (legacy_u16 side = 0; side < 2U; side++) {
+					legacy_s16 z = side ? end : start;
+					legacy_f64 height = first->y + (legacy_f64)(second->y - first->y) *
+													   (z - first->z) / (second->z - first->z);
+					if (height < lowest) {
+						lowest = height;
+					}
+				}
+			}
+			assert(box.maximum.y <= lowest);
+			assert(lowest - box.maximum.y < 1);
+		}
+	}
+	roll_ramp_free_mesh(&mesh);
+	assert(mesh.shape3d_vertex_bytes == NULL);
+}
+
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+static void check_roll_ramp_submissions(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	const struct FRAME_CAMERA camera = {0};
+	legacy_u16 submissions = 0;
+	for (legacy_u8 rotation = 0; rotation < SEAM_RENDER_DIRECTION_COUNT; rotation++) {
+		for (legacy_u8 terrain = 0; terrain < ROLL_RAMP_RENDER_TERRAIN_COUNT; terrain++) {
+			struct CSTRK_OBJECT object = {0};
+			object.legacy_id = CSTRK_ROLL_RAMP_FIRST_ID;
+			object.x = STUNT_RENDER_COLUMN;
+			object.y = STUNT_RENDER_ROW;
+			object.rotation = rotation;
+			object.width = rotation % 2U ? 2U : 1U;
+			object.height = rotation % 2U ? 1U : 2U;
+			object.occupied_mask = 3;
+			object.roll_ramp = 1;
+			object.base_height = terrain == 1U ? 2U : 0;
+			object.slope_x = terrain == 2U;
+			object.slope_y = terrain == 3U;
+			for (legacy_u16 y = 0; y <= track.height; y++) {
+				for (legacy_u16 x = 0; x <= track.width; x++) {
+					legacy_s16 along =
+						object.slope_x ? (legacy_s16)x - object.x : (legacy_s16)y - object.y;
+					legacy_s16 span = object.slope_x ? object.width : object.height;
+					legacy_s16 rise = along < 0 ? 0 : along > span ? span : along;
+					track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+						object.base_height + ((object.slope_x || object.slope_y) ? rise : 0);
+				}
+			}
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				object.surface = surface;
+				track.object_count = 0;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate_render_track(&track, 1);
+				roll_ramp_capture_object = *extended_track_object_origin_at(object.x, object.y);
+				assert(roll_ramp_create_mesh(&roll_ramp_capture_source, surface));
+				for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+					struct FRAME_TILE tile = {0};
+					tile.east = object.x;
+					tile.south = object.y;
+					tile.detail = detail;
+					roll_ramp_capture_calls = 0;
+					roll_ramp_capture_active = 1;
+					assert(!extended_frame_draw_objects(&tile, &camera, 0));
+					roll_ramp_capture_active = 0;
+					assert(roll_ramp_capture_calls == 1);
+					submissions++;
+				}
+				roll_ramp_free_mesh(&roll_ramp_capture_source);
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	printf("Roll ramp geometry: %u submissions in %s mode.\n", submissions,
+		   supersight_enabled ? "HyperVision" : "classic");
+}
+#endif
+
+static legacy_u16 check_roll_ramp_pixels(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_ROLL_RAMP_FIRST_ID;
+	object.x = STUNT_RENDER_COLUMN;
+	object.y = STUNT_RENDER_ROW;
+	object.width = 1;
+	object.height = 2;
+	object.occupied_mask = 3;
+	object.roll_ramp = 1;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	position_render_target(STUNT_RENDER_COLUMN, STUNT_RENDER_ROW);
+	state.playerstate.car_position.ly = STUNT_RENDER_CAR_CLEARANCE * GRASS_RENDER_POSITION_SCALE;
+	state.playerstate.car_previous_position = state.playerstate.car_position;
+	state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+	custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = STUNT_RENDER_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN;
+	activate_render_track(&track, 1);
+	size_t ramp_size, empty_size;
+	legacy_u32 *ramp = capture_complete_render(&ramp_size);
+	activate_render_track(&track, 0);
+	legacy_u32 *empty = capture_complete_render(&empty_size);
+	assert(ramp_size == empty_size);
+	size_t changed = 0;
+	for (size_t pixel = 0; pixel < ramp_size; pixel++) {
+		changed += ramp[pixel] != empty[pixel];
+	}
+	assert(changed > ROLL_RAMP_RENDER_MIN_PIXELS);
+	free(ramp);
+	free(empty);
+	extended_track_unload();
+	cstrk_free(&track);
+	return 2;
+}
+
 #define HIGHWAY_RENDER_ID 111U
 #define HIGHWAY_RENDER_REVERSED_ID 113U
 #define HIGHWAY_RENDER_BASE_HEIGHT 2
@@ -3384,10 +3642,13 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_overpass_surfaces();
 		frames += check_sloped_stunt_rendering();
 		frames += check_general_sloped_rendering();
+		check_roll_ramp_mesh_geometry();
+		frames += check_roll_ramp_pixels();
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 		check_combined_stunt_meshes();
 		check_upright_sloped_plants();
+		check_roll_ramp_submissions();
 #endif
 		frames += check_sloped_road_occlusion();
 		frames += check_terrain_below_graded_turn();
