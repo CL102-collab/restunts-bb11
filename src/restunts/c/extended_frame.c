@@ -623,8 +623,33 @@ static legacy_u8 frame_extended_object_sloped(const struct CSTRK_OBJECT *object)
 	return object && (object->slope_x || object->slope_y);
 }
 
+static void frame_extended_join_low_half(struct VECTOR *points, legacy_u16 count,
+										 const struct FRAME_EXTENDED_TERRAIN *terrain,
+										 legacy_s8 detail)
+{
+	const struct TRACKOBJECT *definition = &terrain_scene_objects[terrain->profile.terrain_id];
+	const struct SHAPE3D *source = frame_track_shape(definition, detail);
+	const legacy_u8 *primitive = source->shape3d_primitives;
+	for (legacy_u16 vertex = 0; vertex < primitive[0]; vertex++) {
+		struct VECTOR point;
+		shape3d_vertex_read(source, primitive[2U + source->shape3d_numpaints + vertex], &point);
+		frame_extended_rotate_vertex(&point, definition->ss_rotY);
+		frame_extended_join_hill_vertex(&point, terrain->edges);
+		if (point.y != 0) {
+			continue;
+		}
+		for (legacy_u16 corner = 0; corner < count; corner++) {
+			if ((points[corner].x < 0) == (point.x < 0) &&
+				(points[corner].z < 0) == (point.z < 0)) {
+				points[corner] = point;
+			}
+		}
+	}
+}
+
 static legacy_s16
-frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terrain)
+frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terrain,
+									  legacy_s8 detail)
 {
 	const struct CSTRK_TERRAIN_PROFILE *profile = &terrain->profile;
 	if (profile->terrain_id != 0 && (profile->terrain_id < FRAME_EXTENDED_OUTER_CORNER_FIRST ||
@@ -653,6 +678,11 @@ frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terra
 		for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 			low_half[vertex] =
 				flat[(high_corner + vertex + 1U) % FRAME_EXTENDED_TERRAIN_CORNER_COUNT];
+		}
+		if (supersight_enabled) {
+			/* The authored hill's diagonal can overhang the grid by two units.
+			 * Share its exact endpoints instead of leaving a crack above this fill. */
+			frame_extended_join_low_half(low_half, count, terrain, detail);
 		}
 		points = low_half;
 	}
@@ -1011,6 +1041,32 @@ frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRA
 	return 1;
 }
 
+/* Free footprint corners and neighboring cells can lie below a road's support
+ * plane. Its projected footprint must not remove that lower terrain. Match each
+ * face separately so the compatible part of an inner hill corner can still be
+ * cut, allowing the native mesh's small authored edge overlap. */
+static legacy_u8 frame_extended_terrain_matches_grade(const struct VECTOR *points, legacy_u16 count,
+													  const struct FRAME_EXTENDED_TERRAIN *terrain,
+													  const struct CSTRK_OBJECT *object)
+{
+	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+		legacy_s32 x = ((legacy_s16)terrain->column - object->x) * CSTRK_TILE_WORLD_SIZE +
+					   FRAME_EXTENDED_TERRAIN_HALF_TILE + points[vertex].x;
+		legacy_s32 y = ((legacy_s16)terrain->row - object->y) * CSTRK_TILE_WORLD_SIZE +
+					   FRAME_EXTENDED_TERRAIN_HALF_TILE - points[vertex].z;
+		legacy_f64 road_height = object->base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+								 (legacy_f64)(object->slope_x * x + object->slope_y * y) *
+									 CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+		legacy_f64 difference = terrain->profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+								points[vertex].y - road_height;
+		if (difference < -FRAME_EXTENDED_HILL_EDGE_OVERLAP ||
+			difference > FRAME_EXTENDED_HILL_EDGE_OVERLAP) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 static legacy_s16
 frame_extended_paint_precise_terrain_face(const struct VECTOR *source, legacy_u16 count,
 										  const legacy_u8 *primitive,
@@ -1034,7 +1090,8 @@ frame_extended_paint_precise_terrain_face(const struct VECTOR *source, legacy_u1
 	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
 		 object_index++) {
 		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
-		if (!frame_extended_uses_grade(object)) {
+		if (!frame_extended_uses_grade(object) ||
+			!frame_extended_terrain_matches_grade(source, count, terrain, object)) {
 			continue;
 		}
 		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
@@ -1313,7 +1370,7 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 		/* Native hill roads and spans already include their supporting grass. */
 		return 0;
 	}
-	if (frame_extended_draw_supporting_ground(&terrain)) {
+	if (frame_extended_draw_supporting_ground(&terrain, tile->detail)) {
 		return 1;
 	}
 	if (terrain.profile.terrain_id == 0) {
