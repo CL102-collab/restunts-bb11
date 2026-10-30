@@ -879,13 +879,14 @@ static void stunt_check_supporting_ground(const struct TRANSFORMEDSHAPE3D *insta
 {
 	const struct SHAPE3D *shape = instance->shapeptr;
 	const legacy_u8 *primitive = shape->shape3d_primitives;
-	if (shape->shape3d_numprimitives != 1 || primitive[0] != 4) {
+	if (shape->shape3d_numprimitives != 1 || primitive[0] < SHAPE3D_PRIMITIVE_POLYGON_FIRST ||
+		primitive[0] > SHAPE3D_POLYGON_MAX_VERTICES) {
 		return;
 	}
 	const legacy_u8 *indices = primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape->shape3d_numpaints;
 	legacy_s16 minimum = CSTRK_TILE_WORLD_SIZE, maximum = -CSTRK_TILE_WORLD_SIZE;
 	legacy_s16 cross_minimum = minimum, cross_maximum = maximum;
-	for (legacy_u8 vertex = 0; vertex < 4; vertex++) {
+	for (legacy_u8 vertex = 0; vertex < primitive[0]; vertex++) {
 		struct VECTOR point;
 		shape3d_vertex_read(shape, indices[vertex], &point);
 		legacy_s16 old_x = point.x;
@@ -909,8 +910,8 @@ static void stunt_check_supporting_ground(const struct TRANSFORMEDSHAPE3D *insta
 			CSTRK_LEVEL_WORLD_HEIGHT / 2 +
 			(stunt_capture_object.slope_x * point.x - stunt_capture_object.slope_y * point.z) *
 				CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
-		if ((along != -CSTRK_TILE_WORLD_SIZE / 2 && along != CSTRK_TILE_WORLD_SIZE / 2) ||
-			point.y != expected_height) {
+		if (along < -CSTRK_TILE_WORLD_SIZE / 2 || along > CSTRK_TILE_WORLD_SIZE / 2 ||
+			abs(point.y - expected_height) > 1) {
 			return;
 		}
 		if (along < minimum) {
@@ -926,11 +927,11 @@ static void stunt_check_supporting_ground(const struct TRANSFORMEDSHAPE3D *insta
 			cross_maximum = across;
 		}
 	}
-	if (maximum - minimum == CSTRK_TILE_WORLD_SIZE) {
-		if (cross_maximum == -ROAD_HALF_WIDTH && cross_minimum <= -CSTRK_TILE_WORLD_SIZE / 2) {
+	if (maximum > minimum) {
+		if (cross_maximum <= -ROAD_HALF_WIDTH && cross_minimum <= -CSTRK_TILE_WORLD_SIZE / 2) {
 			stunt_capture_ground |= 1U;
 			stunt_capture_ground_position = instance->pos;
-		} else if (cross_minimum == ROAD_HALF_WIDTH && cross_maximum >= CSTRK_TILE_WORLD_SIZE / 2) {
+		} else if (cross_minimum >= ROAD_HALF_WIDTH && cross_maximum >= CSTRK_TILE_WORLD_SIZE / 2) {
 			stunt_capture_ground |= 2U;
 			stunt_capture_ground_position = instance->pos;
 		}
@@ -1538,6 +1539,9 @@ static void prepare_stunt_capture(const struct CSTRK_OBJECT *object)
 	stunt_capture_object = *object;
 	const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
 	for (legacy_u8 part = 0; part < STUNT_RENDER_PART_COUNT; part++) {
+		if (part && !definition->ss_ssOvelay) {
+			break;
+		}
 		const struct TRACKOBJECT *render_definition =
 			part ? frame_track_object_from_legacy_index(definition->ss_ssOvelay) : definition;
 		const struct SHAPE3D *sources[STUNT_RENDER_DETAIL_COUNT] = {
@@ -1546,19 +1550,23 @@ static void prepare_stunt_capture(const struct CSTRK_OBJECT *object)
 												: render_definition->ss_shapePtr};
 		for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
 			struct SHAPE3D *mesh = &stunt_capture_meshes[part][detail];
+			legacy_u8 surface = part && definition->ss_physicalModel == PHYSICAL_MODEL_OVERPASS
+									? object->lower_surface
+									: object->surface;
 			assert(extended_geometry_transform_shape(sources[detail], mesh,
-													 render_definition->ss_rotY, object->surface,
+													 render_definition->ss_rotY, surface,
 													 definition->ss_physicalModel));
 			for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
 				struct VECTOR point;
 				shape3d_vertex_read(mesh, vertex, &point);
 				legacy_s16 along = object->slope_x ? point.x : point.z;
-				if (along < -CSTRK_TILE_WORLD_SIZE / 2 &&
-					along >= -CSTRK_TILE_WORLD_SIZE / 2 - STUNT_RENDER_AUTHORED_OVERSCAN) {
-					along = -CSTRK_TILE_WORLD_SIZE / 2;
-				} else if (along > CSTRK_TILE_WORLD_SIZE / 2 &&
-						   along <= CSTRK_TILE_WORLD_SIZE / 2 + STUNT_RENDER_AUTHORED_OVERSCAN) {
-					along = CSTRK_TILE_WORLD_SIZE / 2;
+				legacy_s16 half_span = (object->slope_x ? object->width : object->height) *
+									   (CSTRK_TILE_WORLD_SIZE / 2);
+				if (along < -half_span && along >= -half_span - STUNT_RENDER_AUTHORED_OVERSCAN) {
+					along = -half_span;
+				} else if (along > half_span &&
+						   along <= half_span + STUNT_RENDER_AUTHORED_OVERSCAN) {
+					along = half_span;
 				}
 				if (object->slope_x) {
 					point.x = along;
@@ -1567,8 +1575,15 @@ static void prepare_stunt_capture(const struct CSTRK_OBJECT *object)
 				}
 				/* One aligned tile climbs 450 units over 1024 world units. Its
 				 * roof and barriers must retain every authored vertical offset. */
-				legacy_s32 distance = CSTRK_TILE_WORLD_SIZE / 2 + object->slope_x * point.x -
-									  object->slope_y * point.z;
+				legacy_s32 distance =
+					object->slope_x * (object->width * (CSTRK_TILE_WORLD_SIZE / 2) + point.x) +
+					object->slope_y * (object->height * (CSTRK_TILE_WORLD_SIZE / 2) - point.z);
+				if (object->slope_x < 0) {
+					distance -= object->slope_x * object->width * CSTRK_TILE_WORLD_SIZE;
+				}
+				if (object->slope_y < 0) {
+					distance -= object->slope_y * object->height * CSTRK_TILE_WORLD_SIZE;
+				}
 				legacy_s32 rise = distance * CSTRK_LEVEL_WORLD_HEIGHT;
 				point.y += (legacy_s16)((rise + (rise < 0 ? -CSTRK_TILE_WORLD_SIZE / 2
 														  : CSTRK_TILE_WORLD_SIZE / 2)) /
@@ -1735,7 +1750,9 @@ static legacy_u16 check_extended_fences(void)
 			for (legacy_u16 x = 0; x <= track.width; x++) {
 				legacy_u16 level = x > y ? x : y;
 				track.corner_heights[y * (track.width + 1U) + x] =
-					size == 3U || level > CSTRK_MAX_HEIGHT ? CSTRK_MAX_HEIGHT : level;
+					size == 3U || level > (legacy_s16)CSTRK_MAX_HEIGHT
+						? (legacy_s16)CSTRK_MAX_HEIGHT
+						: level;
 			}
 		}
 		if (size == 3U) {
@@ -1804,6 +1821,92 @@ static legacy_u16 check_extended_fences(void)
 }
 #endif
 
+#define GENERIC_RENDER_SLOPE_ORIGIN STUNT_RENDER_COLUMN
+#define GENERIC_RENDER_HALF_TURN_COUNT 2U
+
+static legacy_u16 check_general_sloped_rendering(void)
+{
+	static const struct {
+		legacy_u16 id;
+		legacy_u8 width, height, mask;
+	} cases[] = {{7U, 1U, 1U, 1U},	{11U, 2U, 2U, 9U}, {53U, 2U, 2U, 9U},  {106U, 2U, 2U, 9U},
+				 {64U, 1U, 2U, 3U}, {68U, 1U, 1U, 1U}, {101U, 1U, 1U, 1U}, {159U, 1U, 1U, 1U},
+				 {38U, 1U, 1U, 1U}, {66U, 1U, 1U, 1U}, {115U, 1U, 1U, 1U}};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	legacy_u16 frames = 0;
+	for (legacy_u16 kind = 0; kind < sizeof(cases) / sizeof(cases[0]); kind++) {
+		for (legacy_u8 direction = 0; direction < GENERIC_RENDER_HALF_TURN_COUNT; direction++) {
+			legacy_s8 grade = direction ? -1 : 1;
+			for (legacy_u16 y = 0; y <= track.height; y++) {
+				for (legacy_u16 x = 0; x <= track.width; x++) {
+					legacy_s16 level = 2 + grade * ((legacy_s16)x - GENERIC_RENDER_SLOPE_ORIGIN);
+					track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+						level < 0							   ? 0
+						: level > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_s16)CSTRK_MAX_HEIGHT
+															   : level;
+					if (x < track.width && y < track.height) {
+						track.cells[(size_t)y * track.width + x].surface = CSTRK_TERRAIN_DIRT;
+					}
+				}
+			}
+			struct CSTRK_OBJECT object = {0};
+			object.legacy_id = cases[kind].id;
+			object.x = STUNT_RENDER_COLUMN;
+			object.y = STUNT_RENDER_ROW;
+			object.rotation = direction * GENERIC_RENDER_HALF_TURN_COUNT;
+			object.width = cases[kind].width;
+			object.height = cases[kind].height;
+			object.occupied_mask = cases[kind].mask;
+			object.slope_x = grade;
+			object.base_height = 2;
+			track.object_count = 0;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			activate_render_track(&track, 1);
+			const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+			assert(placed && extended_geometry_uses_grade(placed));
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+			prepare_stunt_capture(placed);
+			stunt_capture_parts = stunt_capture_details = stunt_capture_ground = 0;
+			stunt_capture_active = 1;
+#endif
+			position_render_target(STUNT_RENDER_COLUMN, STUNT_RENDER_ROW);
+			state.playerstate.car_position.ly =
+				(2 * CSTRK_LEVEL_WORLD_HEIGHT + STUNT_RENDER_CAR_CLEARANCE) *
+				GRASS_RENDER_POSITION_SCALE;
+			state.playerstate.car_previous_position = state.playerstate.car_position;
+			state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+			custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+			custom_camera.elevation_angle = STUNT_RENDER_CAMERA_ELEVATION;
+			custom_camera.azimuth_angle =
+				ANGLE_EIGHTH_TURN + direction * GENERIC_RENDER_HALF_TURN_COUNT * ANGLE_QUARTER_TURN;
+			size_t size;
+			legacy_u32 *pixels = capture_complete_render(&size);
+			assert(size > 0);
+			free(pixels);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+			stunt_capture_active = 0;
+			const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(placed)];
+			legacy_u8 expected =
+				definition->ss_ssOvelay ? (1U << STUNT_RENDER_PART_COUNT) - 1U : 1U;
+			if (stunt_capture_parts != expected) {
+				fprintf(stderr, "General slope render ID %u grade %d parts %u expected %u\n",
+						object.legacy_id, grade, stunt_capture_parts, expected);
+			}
+			assert(stunt_capture_parts == expected);
+			release_stunt_capture();
+#endif
+			frames++;
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -1859,6 +1962,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_elevated_multitile_road();
 		frames += check_overpass_surfaces();
 		frames += check_sloped_stunt_rendering();
+		frames += check_general_sloped_rendering();
 	}
 	extended_track_unload();
 	cstrk_free(&track);

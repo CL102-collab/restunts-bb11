@@ -184,6 +184,63 @@ int cstrk_create(struct CSTRK_TRACK *track, uint16_t width, uint16_t height, cha
 	return 1;
 }
 
+#define CSTRK_ORIGINAL_AXIS_COUNT 2U
+#define CSTRK_ORIGINAL_DIRECTION_COUNT 4U
+/* Catalog spellings admitted before generic slopes. These tables only protect
+ * older file revisions; current rendering and collision do not select by ID. */
+static const legacy_u16 cstrk_original_road_groups[] = {4U, 14U, 24U};
+static const legacy_u16 cstrk_original_ramp_groups[] = {36U, 56U, 95U};
+static const legacy_u8 cstrk_original_ramp_rotations[CSTRK_ORIGINAL_DIRECTION_COUNT] = {1U, 3U, 0U,
+																						2U};
+
+legacy_u16 cstrk_object_slope_version(const struct CSTRK_OBJECT *object)
+{
+	if (!object || (!object->slope_x && !object->slope_y)) {
+		return CSTRK_MIN_VERSION;
+	}
+	if (object->width != 1U || object->height != 1U || (object->slope_x && object->slope_y)) {
+		return CSTRK_GENERIC_SLOPE_VERSION;
+	}
+	for (legacy_u8 group = 0;
+		 group < sizeof(cstrk_original_road_groups) / sizeof(cstrk_original_road_groups[0]);
+		 group++) {
+		legacy_u16 offset = object->legacy_id - cstrk_original_road_groups[group];
+		if (offset < CSTRK_ORIGINAL_AXIS_COUNT &&
+			(offset + object->rotation) % CSTRK_ORIGINAL_AXIS_COUNT == (object->slope_x != 0)) {
+			return CSTRK_MIN_VERSION;
+		}
+	}
+	for (legacy_u8 group = 0;
+		 group < sizeof(cstrk_original_ramp_groups) / sizeof(cstrk_original_ramp_groups[0]);
+		 group++) {
+		legacy_u16 offset = object->legacy_id - cstrk_original_ramp_groups[group];
+		if (offset < CSTRK_ORIGINAL_DIRECTION_COUNT) {
+			legacy_u8 direction =
+				object->slope_x ? (object->slope_x < 0 ? 1U : 3U) : (object->slope_y < 0 ? 0U : 2U);
+			legacy_u8 required_rotation =
+				(CSTRK_ORIGINAL_AXIS_COUNT + CSTRK_ORIGINAL_DIRECTION_COUNT - direction) %
+				CSTRK_ORIGINAL_DIRECTION_COUNT;
+			if ((cstrk_original_ramp_rotations[offset] + object->rotation) %
+					CSTRK_ORIGINAL_DIRECTION_COUNT ==
+				required_rotation) {
+				return CSTRK_MIN_VERSION;
+			}
+		}
+	}
+	/* V5 added aligned tunnels and slaloms without changing their IDs. */
+	legacy_u16 first =
+		object->legacy_id >= CSTRK_TUNNEL_FIRST_ID && object->legacy_id <= CSTRK_TUNNEL_LAST_ID
+			? CSTRK_TUNNEL_FIRST_ID
+			: CSTRK_SLALOM_FIRST_ID;
+	if ((first == CSTRK_TUNNEL_FIRST_ID || (object->legacy_id >= CSTRK_SLALOM_FIRST_ID &&
+											object->legacy_id <= CSTRK_SLALOM_LAST_ID)) &&
+		(object->legacy_id - first + object->rotation) % CSTRK_ORIGINAL_AXIS_COUNT ==
+			(object->slope_x != 0)) {
+		return CSTRK_SLOPED_STUNT_VERSION;
+	}
+	return CSTRK_GENERIC_SLOPE_VERSION;
+}
+
 static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
 								 uint32_t index, uint8_t *occupied, char *error, size_t error_size)
 {
@@ -213,22 +270,16 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 		return cstrk_fail(error, error_size, "Object %u has an invalid support plane",
 						  (unsigned)index);
 	}
-	if ((object->slope_x != 0 || object->slope_y != 0) &&
-		(object->width != 1U || object->height != 1U ||
-		 (object->slope_x != 0 && object->slope_y != 0))) {
+	if (object->slope_x != 0 && object->slope_y != 0) {
 		return cstrk_fail(error, error_size,
-						  "Object %u requires a flat plateau or one original hill slope",
+						  "Object %u requires one continuous straight hill slope",
 						  (legacy_uint)index);
 	}
-	legacy_u8 sloped_stunt =
-		(object->slope_x != 0 || object->slope_y != 0) &&
-		((object->legacy_id >= CSTRK_TUNNEL_FIRST_ID &&
-		  object->legacy_id <= CSTRK_TUNNEL_LAST_ID) ||
-		 (object->legacy_id >= CSTRK_SLALOM_FIRST_ID && object->legacy_id <= CSTRK_SLALOM_LAST_ID));
-	if (sloped_stunt && track->version < CSTRK_SLOPED_STUNT_VERSION) {
+	legacy_u16 slope_version = cstrk_object_slope_version(object);
+	if (track->version < slope_version) {
 		return cstrk_fail(error, error_size,
-						  "Object %u requires track version v%u for sloped tunnels and slaloms",
-						  (legacy_uint)index, CSTRK_SLOPED_STUNT_VERSION);
+						  "Object %u requires track version v%u for this sloped placement",
+						  (legacy_uint)index, slope_version);
 	}
 	/* Only corners touching a claimed cell support the piece. The far corner
 	 * of an unclaimed cell can form a hill without bending the road. */

@@ -6,6 +6,14 @@
 
 #define OWOOT_WHEEL_RING_MAX OWOOT_WHEEL_RING_COUNT
 #define OWOOT_WHEEL_VERTEX_MAX OWOOT_WHEEL_VERTEX_COUNT
+#define OWOOT_ROAD_TRIANGLE_VERTEX_COUNT 3U
+
+#ifdef RESTUNTS_SDL3
+/* Read the authored road triangles without exposing the generated table. */
+legacy_u16 track_road_triangle_count(legacy_s16 physical_model);
+legacy_s16 track_road_triangle(legacy_s16 physical_model, legacy_u16 index,
+							   struct VECTOR vertices[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT]);
+#endif
 
 /* Test the rendered road footprint in an element's local XZ coordinates.
  * Height is ignored; triangle edges are part of the footprint. */

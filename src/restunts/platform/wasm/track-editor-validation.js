@@ -20,7 +20,6 @@
     const FLAT_TERRAIN = 0, RAISED_TERRAIN = 6;
     const HILL_TERRAIN_FIRST = 7, HILL_TERRAIN_END = 11, HILL_ROAD_FIRST = 182, HILL_SPAN_FIRST = 194;
     const HILL_DIRECTION_COUNT = 4, HILL_DIRECT_VARIANT_COUNT = 3;
-    const SLOPED_STUNT_PHYSICAL_MODELS = new Set([28, 34]);
     const HILL_PIECES = [[4, 14, 24, 39, 59, 98], [5, 15, 25, 36, 56, 95],
         [4, 14, 24, 38, 58, 97], [5, 15, 25, 37, 57, 96]];
     const CAUSES = ['', 'No start / finish element.', 'The route could not be compiled.',
@@ -60,14 +59,14 @@
         const id = resolveOrientation(object);
         if (id < 0) return id;
         if (!object.slopeX && !object.slopeY) return id;
+        if (object.width > 1 || object.height > 1) return doc.supportsTerrain(object) ? id : -1;
         const profile = model.terrainProfile(doc.tileHeights(object.x, object.y));
         if (!profile) return -1;
         if (profile.terrain === FLAT_TERRAIN || profile.terrain === RAISED_TERRAIN) return id;
         if (profile.terrain < HILL_TERRAIN_FIRST || profile.terrain >= HILL_TERRAIN_END) return -1;
-        if (SLOPED_STUNT_PHYSICAL_MODELS.has(data.objects[id].physical)) return doc.supportsTerrain(object) ? id : -1;
         const direction = profile.terrain - HILL_TERRAIN_FIRST;
         const variant = HILL_PIECES[direction].indexOf(id);
-        if (variant < 0) return -1;
+        if (variant < 0) return doc.supportsTerrain(object) ? id : -1;
         return variant < HILL_DIRECT_VARIANT_COUNT ? HILL_ROAD_FIRST + direction + object.surface * HILL_DIRECTION_COUNT :
             HILL_SPAN_FIRST + direction;
     }

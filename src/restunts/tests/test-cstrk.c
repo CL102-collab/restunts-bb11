@@ -391,6 +391,63 @@ static void test_plateaus_and_hill_slopes(void)
 	cstrk_free(&decoded);
 }
 
+#define TEST_GENERAL_SLOPE_SIZE 2U
+#define TEST_GENERAL_SLOPE_STRIDE (TEST_GENERAL_SLOPE_SIZE + 1U)
+#define TEST_GENERAL_SLOPE_BASE 2U
+#define TEST_GENERAL_SLOPE_DIRECTION_COUNT 4U
+
+static void test_multi_tile_straight_slopes(void)
+{
+	static const legacy_s8 slopes[TEST_GENERAL_SLOPE_DIRECTION_COUNT][2] = {
+		{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	for (legacy_u8 direction = 0; direction < TEST_GENERAL_SLOPE_DIRECTION_COUNT; direction++) {
+		struct CSTRK_TRACK track, decoded;
+		cstrk_init(&track);
+		cstrk_init(&decoded);
+		assert(cstrk_create(&track, TEST_GENERAL_SLOPE_SIZE, TEST_GENERAL_SLOPE_SIZE, error,
+							sizeof(error)));
+		for (legacy_u8 y = 0; y <= track.height; y++) {
+			for (legacy_u8 x = 0; x <= track.width; x++) {
+				track.corner_heights[y * TEST_GENERAL_SLOPE_STRIDE + x] =
+					TEST_GENERAL_SLOPE_BASE + slopes[direction][0] * x + slopes[direction][1] * y;
+			}
+		}
+		struct CSTRK_OBJECT object = object_at(0, 0);
+		object.legacy_id = 11U;
+		object.width = object.height = TEST_GENERAL_SLOPE_SIZE;
+		object.occupied_mask = 9U;
+		object.base_height = TEST_GENERAL_SLOPE_BASE;
+		object.slope_x = slopes[direction][0];
+		object.slope_y = slopes[direction][1];
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		legacy_u8 *data = NULL;
+		size_t size = 0;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION);
+		assert(decoded.objects[0].slope_x == object.slope_x);
+		assert(decoded.objects[0].slope_y == object.slope_y);
+		assert(memcmp(decoded.corner_heights, track.corner_heights,
+					  TEST_GENERAL_SLOPE_STRIDE * TEST_GENERAL_SLOPE_STRIDE) == 0);
+		for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_GENERIC_SLOPE_VERSION;
+			 version++) {
+			track.version = version;
+			assert(!cstrk_validate(&track, error, sizeof(error)));
+			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.version == CSTRK_VERSION && decoded.object_count == 1U);
+		}
+		track.version = CSTRK_VERSION;
+		/* Shared road vertices cannot acquire a hill corner or a different grade. */
+		track.corner_heights[TEST_GENERAL_SLOPE_STRIDE + 1U] +=
+			direction < TEST_GENERAL_SLOPE_SIZE ? -1 : 1;
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+		free(data);
+		cstrk_free(&track);
+		cstrk_free(&decoded);
+	}
+}
+
 #define TEST_SPARSE_FOOTPRINT_SIZE 2U
 #define TEST_SPARSE_TERRAIN_STRIDE (TEST_SPARSE_FOOTPRINT_SIZE + 1U)
 #define TEST_SPARSE_TERRAIN_VERTICES (TEST_SPARSE_TERRAIN_STRIDE * TEST_SPARSE_TERRAIN_STRIDE)
@@ -503,7 +560,7 @@ static void test_sloped_stunt_versions(void)
 							 version < CSTRK_SLOPED_STUNT_VERSION; version++) {
 							LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
 							assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
-							assert(strstr(error, "sloped tunnels and slaloms") != NULL);
+							assert(strstr(error, "version") != NULL);
 							assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
 							track.version = version;
 							assert(!cstrk_encode(&track, &data, &size, error, sizeof(error)));
@@ -550,6 +607,39 @@ static void test_sloped_stunt_versions(void)
 	}
 	cstrk_free(&track);
 	cstrk_free(&decoded);
+}
+
+static void test_older_revisions_reject_generalized_single_tile_slopes(void)
+{
+	static const legacy_u16 ids[] = {1U, 4U, 7U, 49U, 66U, 115U, 159U};
+	static const legacy_u8 heights[TEST_TERRAIN_CORNER_COUNT] = {0U, 1U, 1U, 0U};
+	for (legacy_u8 index = 0; index < sizeof(ids) / sizeof(ids[0]); index++) {
+		struct CSTRK_TRACK track, decoded;
+		cstrk_init(&track);
+		cstrk_init(&decoded);
+		assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+		set_terrain_corners(&track, heights);
+		struct CSTRK_OBJECT object = object_at(0, 0);
+		object.legacy_id = ids[index];
+		object.slope_x = 1;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		legacy_u8 *data = NULL;
+		size_t size = 0;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		legacy_u8 *original_corners = decoded.corner_heights;
+		for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_GENERIC_SLOPE_VERSION;
+			 version++) {
+			track.version = version;
+			assert(!cstrk_validate(&track, error, sizeof(error)));
+			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.corner_heights == original_corners && decoded.object_count == 1U);
+		}
+		free(data);
+		cstrk_free(&track);
+		cstrk_free(&decoded);
+	}
 }
 
 static void test_notes(void)
@@ -844,8 +934,10 @@ int main(void)
 	test_surface_corners();
 	test_original_terrain_profiles();
 	test_plateaus_and_hill_slopes();
+	test_multi_tile_straight_slopes();
 	test_sparse_terrain_support();
 	test_sloped_stunt_versions();
+	test_older_revisions_reject_generalized_single_tile_slopes();
 	test_notes();
 	test_invalid_records();
 	test_maximum_track();
