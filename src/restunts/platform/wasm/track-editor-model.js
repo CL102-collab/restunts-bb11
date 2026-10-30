@@ -147,6 +147,7 @@
     const SLOPED_STUNT_VERSION_ERROR = 'Sloped tunnels and slaloms require Chocolate Stunts track version v5.';
     const GENERAL_SLOPE_VERSION_ERROR = 'This sloped element requires Chocolate Stunts track version v6.';
     const CLASSIC_PLACEMENT_ERROR = 'This element needs level ground or one continuous straight original hill slope beneath its occupied cells.';
+    const EDITOR_LEVEL_GROUND_PHYSICAL_MODELS = new Set([10, 11]);
     function requiredSlopeVersion(object, entry, profile) {
         if (!object.slopeX && !object.slopeY) return CSTRK_MIN_VERSION;
         if (object.width === 1 && object.height === 1) {
@@ -379,6 +380,9 @@
                 if (this.version < required) throw new Error(required === SLOPED_STUNT_VERSION ? SLOPED_STUNT_VERSION_ERROR : GENERAL_SLOPE_VERSION_ERROR);
             }
             if (!this.supportsTerrain(object)) throw new Error(CLASSIC_PLACEMENT_ERROR);
+            // Restrict new editor builds without changing file validation or removal.
+            if ((object.slopeX || object.slopeY) && (entry.decoration || EDITOR_LEVEL_GROUND_PHYSICAL_MODELS.has(entry.physical)))
+                throw new Error(entry.name + ' can only be built on level ground in the editor.');
             const cells = new Set(occupied(object).map(([cx, cy]) => cy * this.width + cx));
             for (const existing of this.objects) if (occupied(existing).some(([cx, cy]) => cells.has(cy * this.width + cx)))
                 throw new Error('This space is occupied. Remove the existing element first.');

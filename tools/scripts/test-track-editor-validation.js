@@ -18,6 +18,12 @@ function check(name, doc, status) {
 }
 function clearHistory(doc) { doc.history = []; doc.future = []; return doc; }
 function put(doc, ...args) { doc.objects.push(doc.placement(...args)); }
+function putImported(doc, ...args) {
+    const flat = new model.Document(doc.width, doc.height), object = flat.place(...args);
+    const heights = doc.tileHeights(object.x, object.y);
+    object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
+    doc.objects.push(object);
+}
 function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0) {
     doc.erase(x, y);
     if (id) doc.place(id, x, y, surface, rotation, lowerSurface);
@@ -252,7 +258,8 @@ for (const grade of [-1, 1]) {
         check('connected large turn on straight slope ' + grade + ' direction ' + direction, current, 0);
 }
 // Admission happens before the native route walk. Every library family and
-// orientation must load on all four slope directions, including scenery.
+// orientation must load on all four slope directions, including scenery and
+// highways that the editor no longer permits users to build on slopes.
 const GENERAL_SLOPE_MAP_SIZE = 4, GENERAL_SLOPE_ORIGIN = 1;
 const GENERAL_SLOPE_DIRECTIONS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 for (const entry of model.library) for (let direction = 0; direction < GENERAL_SLOPE_DIRECTIONS.length; direction++) {
@@ -264,7 +271,7 @@ for (const entry of model.library) for (let direction = 0; direction < GENERAL_S
             const rise = Math.max(0, Math.min(span, (slopeX ? x : y) - GENERAL_SLOPE_ORIGIN));
             doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : span - rise;
         }
-        put(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0);
+        putImported(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0);
         check(entry.name + ' straight slope ' + slopeX + ',' + slopeY + ' direction ' + direction, doc);
     }
 }
