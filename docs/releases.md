@@ -149,8 +149,11 @@ Container tests use AppImage extraction so they do not require FUSE. Original
 game data is downloaded separately for testing and is never included in a package. Compatibility failures block both
 PR validation and release publication.
 
-The browser package contains the single playable `restunts.html`, notices,
-licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
+Every SDL3 archive includes the single offline `tracked.html` track editor,
+with styles and JavaScript embedded. Native packages, including DOS32 and Android
+ZIPs, install it at `share/restunts/editor/tracked.html`; open it in a browser.
+The browser package puts it beside the playable `restunts.html` and also includes
+notices, licenses, and `share/restunts/wasm-relink/`. The relinking kit contains Nuked's
 source and the object/archive files needed to rebuild the HTML with a modified
 library. Only the HTML is needed to play; distribute the complete archive.
 

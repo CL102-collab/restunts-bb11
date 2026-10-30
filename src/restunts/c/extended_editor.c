@@ -7,7 +7,7 @@
 
 // clang-format off
 EM_JS(int, extended_editor_open, (void), {
-	const editor = window.open(new URL('track-editor.html', window.location.href).href, '_blank');
+	const editor = window.open(new URL('tracked.html', window.location.href).href, '_blank');
 	if (editor === null) {
 		return 0;
 	}
@@ -52,13 +52,13 @@ int extended_editor_open(void)
 	char path[2048];
 	const char *base = SDL_GetBasePath();
 	if (base &&
-		SDL_snprintf(path, sizeof(path), "%s../share/restunts/editor/track-editor.html", base) <
+		SDL_snprintf(path, sizeof(path), "%s../share/restunts/editor/tracked.html", base) <
 			(int)sizeof(path) &&
 		extended_editor_open_path(path)) {
 		return 1;
 	}
 #ifdef RESTUNTS_EDITOR_DIRECTORY
-	if (SDL_snprintf(path, sizeof(path), "%s/track-editor.html", RESTUNTS_EDITOR_DIRECTORY) <
+	if (SDL_snprintf(path, sizeof(path), "%s/tracked.html", RESTUNTS_EDITOR_DIRECTORY) <
 			(int)sizeof(path) &&
 		extended_editor_open_path(path)) {
 		return 1;

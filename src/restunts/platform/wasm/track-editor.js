@@ -662,7 +662,7 @@
         } else {
             try {
                 if (!window.TrackEditorValidation || typeof window.TrackEditorValidation.validateRoute !== 'function') {
-                    throw new Error('Race route validation files could not be loaded. Keep all editor files together and reload.');
+                    throw new Error('Race route validation could not be loaded. Reopen or re-download the track editor.');
                 }
                 const route = window.TrackEditorValidation.validateRoute(state.doc);
                 if (route.status === 0) {
@@ -839,7 +839,7 @@
         installEvents(); resizeCanvas(); showDialog('folder-dialog');
         model = window.TrackEditorModel;
         if (!model || !window.TrackEditorResources) {
-            folderMessage('Editor files could not be loaded. Keep the HTML, CSS, and JavaScript editor files together.');
+            folderMessage('Editor could not be loaded. Reopen or re-download the track editor.');
             $('choose-folder').disabled = true; $('folder-input').disabled = true;
             return;
         }

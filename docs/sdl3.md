@@ -9,7 +9,8 @@ under `src/restunts/platform/dos/`.
 ## Dependencies and supported build targets
 
 CMake 3.25+, a C99 GCC-compatible compiler and a C++11 compiler for the desktop launcher, a build
-tool, Git, and network access are required. CMake fetches and verifies SDL3 upstream commit
+tool, Git, Python 3.9+ to bundle the track editor, and network access are required.
+CMake fetches and verifies SDL3 upstream commit
 [`015489c672f24feed28c2aa2cdd6176df95329f3`](https://github.com/libsdl-org/SDL/tree/015489c672f24feed28c2aa2cdd6176df95329f3).
 That revision includes SDL's DOS backend and the gameport/Sound Blaster timing fix
 used by the [reference DOS port](https://github.com/murphy666/stuntsengine/pull/3).
@@ -591,7 +592,11 @@ controllers, or sound hardware have been exercised.
 CI archives contain an installed package: executables in `bin/`, Nuked's shared
 library in `lib/` on Linux/BSD/Haiku/macOS or `bin/` on Windows, dependency license notices, and
 the exact Nuked source and rebuild instructions. DOS packages omit Nuked and
-DOS32 includes CWSDPMI. The browser archive retains its Nuked relinking kit.
+DOS32 includes CWSDPMI. Every SDL3 package also includes the single offline
+`tracked.html` track editor: native packages, including DOS32 and Android ZIPs,
+put it at `share/restunts/editor/tracked.html`; browser packages put it beside
+`restunts.html`. Open the editor in a browser. Its styles and scripts are embedded.
+The browser archive retains its Nuked relinking kit.
 The manual **Release** workflow publishes the exact build archives after
 validation and provenance checks. See [release verification](releases.md).
 

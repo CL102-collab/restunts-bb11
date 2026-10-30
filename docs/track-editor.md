@@ -1,9 +1,13 @@
 # Chocolate Stunts HTML track editor
 
-Open `track-editor.html` beside the browser game, or follow **Track editor** in
-the browser launcher. Native packages install it in `share/restunts/editor/`;
-the Edit button opens it for a selected Chocolate Stunts track. From a source
-checkout, open `src/restunts/platform/wasm/track-editor.html`.
+Open `tracked.html` beside the browser game, or follow **Track editor** in
+the browser launcher. Every native SDL3 package, including 32-bit DOS and the
+Android ZIPs, includes `share/restunts/editor/tracked.html`. Open that file in
+a browser; the editor is a single offline HTML file with its styles and scripts
+embedded. From a source checkout, open
+`src/restunts/platform/wasm/track-editor.html`
+with its adjacent CSS and JavaScript sources. The game's **Edit** button opens
+the HTML editor when an extended track is selected.
 
 Select your Stunts folder before editing. The editor reads the original local
 MAIN, TEDIT and SDTEDIT resources for its palette and icons. It does not bundle

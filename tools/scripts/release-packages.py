@@ -64,6 +64,9 @@ TARGETS = {
     "browser": ".zip",
     "templeos": ".zip",
 }
+SDL3_TARGETS = set(TARGETS) - {"dos16", "amiga-m68k", "templeos"}
+TRACK_EDITOR = "tracked.html"
+TRACK_EDITOR_DOCUMENTS = ("cstrk-format.md", "csrpl-format.md", "cshig-format.md", "track-editor.md")
 TEMPLEOS = runpy.run_path(str(ROOT / "tools/scripts/templeos-package.py"))
 TEMPLEOS_PREFIX = TEMPLEOS["PREFIX"]
 TEMPLEOS_ISO = TEMPLEOS["ISO"]
@@ -179,6 +182,10 @@ def sha256(data):
 
 def archive_name(target):
     return f"restunts-{target}{TARGETS[target]}"
+
+
+def track_editor_path(target):
+    return TRACK_EDITOR if target == "browser" else f"share/restunts/editor/{TRACK_EDITOR}"
 
 
 def custom_car_source(name):
@@ -382,6 +389,10 @@ def validate_android_genghost_apk(target, content):
 
 def required_files(target):
     required = {README} | optional_music_files(target)
+    if target in SDL3_TARGETS:
+        required.add(track_editor_path(target))
+        document_directory = "" if target == "browser" else "share/docs/restunts/"
+        required |= {f"{document_directory}{name}" for name in TRACK_EDITOR_DOCUMENTS}
     if target == "templeos":
         return required | TEMPLEOS_PACKAGE_FILES
     if target == "amiga-m68k":
@@ -544,6 +555,9 @@ def readme(target, commit):
                   "Run restunts from the game directory; keep the bundled cars beside it.",
                   "restunts.map is the linker map for this executable."]
         return ("\r\n".join(lines) + "\r\n").encode("utf-8")
+    if target in SDL3_TARGETS:
+        lines += [f"Open {track_editor_path(target)} in a modern browser to edit tracks offline.",
+                  "The track editor is self-contained; no server or extra editor files are needed."]
     if target in ANDROID_TARGETS:
         minimum = android_minimum_sdk(target)
         version = ANDROID_VERSIONS[minimum]
