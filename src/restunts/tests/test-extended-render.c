@@ -717,6 +717,155 @@ static legacy_u16 check_classic_hill_rendering(void)
 #define SEAM_RENDER_DIRT_MATERIAL 25U
 #define SEAM_RENDER_ICE_MATERIAL 28U
 
+#define FENCE_RENDER_SIDE_COUNT 4U
+#define FENCE_RENDER_MODEL_COUNT 2U
+#define FENCE_RENDER_DETAIL_COUNT 2U
+#define FENCE_RENDER_STRAIGHT_CODE 214U
+#define FENCE_RENDER_POSITION_SCALE 64L
+#define FENCE_RENDER_CAMERA_CLEARANCE (2 * CSTRK_TILE_WORLD_SIZE)
+#define FENCE_RENDER_CAR_CLEARANCE 16
+#define FENCE_RENDER_CORNER_OBJECT_ID 53U
+#define FENCE_RENDER_CORNER_OBJECT_MASK 11U
+#define FENCE_RENDER_CAPTURE 1U
+#define FENCE_RENDER_HIDE 2U
+
+static legacy_u8 fence_capture_mode;
+static const struct CSTRK_TRACK *fence_capture_track;
+static const struct SHAPE3D
+	*fence_capture_models[FENCE_RENDER_MODEL_COUNT][FENCE_RENDER_DETAIL_COUNT];
+static struct VECTORLONG fence_capture_camera;
+static legacy_u8 fence_capture_seen[FENCE_RENDER_SIDE_COUNT][CSTRK_MAX_DIMENSION];
+
+static struct VECTOR fence_rotate_point(struct VECTOR point, legacy_u8 rotation)
+{
+	legacy_s16 x = point.x;
+	switch (rotation) {
+		case 1:
+			point.x = point.z;
+			point.z = -x;
+			break;
+		case 2:
+			point.x = -point.x;
+			point.z = -point.z;
+			break;
+		case 3:
+			point.x = -point.z;
+			point.z = x;
+			break;
+	}
+	return point;
+}
+
+static legacy_u8 fence_matches_model(const struct SHAPE3D *shape, const struct SHAPE3D *source)
+{
+	if (!source || shape->shape3d_numverts != source->shape3d_numverts ||
+		shape->shape3d_numprimitives != source->shape3d_numprimitives ||
+		shape->shape3d_numpaints != source->shape3d_numpaints) {
+		return 0;
+	}
+	const legacy_u8 *actual = shape->shape3d_primitives, *expected = source->shape3d_primitives;
+	for (legacy_u16 primitive = 0; primitive < source->shape3d_numprimitives; primitive++) {
+		size_t size = SHAPE3D_PRIMITIVE_HEADER_SIZE + source->shape3d_numpaints + expected[0];
+		if (memcmp(actual, expected, size) != 0) {
+			return 0;
+		}
+		actual += size;
+		expected += size;
+	}
+	return 1;
+}
+
+static legacy_s32 fence_expected_edge_height(legacy_s32 x, legacy_s32 z)
+{
+	const struct CSTRK_TRACK *track = fence_capture_track;
+	legacy_s32 stride = track->width + 1U;
+	legacy_s32 along, count, first, step;
+	if (x == 0 || x == track->width * CSTRK_TILE_WORLD_SIZE) {
+		along = track->height * CSTRK_TILE_WORLD_SIZE - z;
+		count = track->height;
+		first = x == 0 ? 0 : track->width;
+		step = stride;
+	} else {
+		assert(z == 0 || z == track->height * CSTRK_TILE_WORLD_SIZE);
+		along = x;
+		count = track->width;
+		first = z == 0 ? track->height * stride : 0;
+		step = 1;
+	}
+	legacy_s32 cell = along / CSTRK_TILE_WORLD_SIZE;
+	if (cell == count) {
+		cell--;
+	}
+	legacy_s32 fraction = along - cell * CSTRK_TILE_WORLD_SIZE;
+	legacy_s32 height =
+		track->corner_heights[first + cell * step] * (CSTRK_TILE_WORLD_SIZE - fraction) +
+		track->corner_heights[first + (cell + 1) * step] * fraction;
+	return height * CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+}
+
+static legacy_u8 fence_check_submitted_shape(const struct TRANSFORMEDSHAPE3D *instance)
+{
+	const struct SHAPE3D *shape = instance->shapeptr;
+	const struct CSTRK_TRACK *track = fence_capture_track;
+	for (legacy_u8 model = 0; model < FENCE_RENDER_MODEL_COUNT; model++) {
+		for (legacy_u8 detail = 0; detail < FENCE_RENDER_DETAIL_COUNT; detail++) {
+			const struct SHAPE3D *source = fence_capture_models[model][detail];
+			if (!fence_matches_model(shape, source)) {
+				continue;
+			}
+			if (fence_capture_mode == FENCE_RENDER_HIDE) {
+				return 1;
+			}
+			legacy_u8 rotation = 0;
+			for (; rotation < FENCE_RENDER_SIDE_COUNT; rotation++) {
+				legacy_u8 matching = 1;
+				for (legacy_u16 vertex = 0; vertex < shape->shape3d_numverts; vertex++) {
+					struct VECTOR point, expected;
+					shape3d_vertex_read(shape, vertex, &point);
+					shape3d_vertex_read(source, vertex, &expected);
+					expected = fence_rotate_point(expected, rotation);
+					matching &= point.x == expected.x && point.z == expected.z;
+				}
+				if (matching) {
+					break;
+				}
+			}
+			assert(rotation < FENCE_RENDER_SIDE_COUNT);
+			assert(instance->rotvec.x == 0 && instance->rotvec.y == 0 && instance->rotvec.z == 0);
+			legacy_s32 origin_x = instance->pos.x + fence_capture_camera.lx;
+			legacy_s32 origin_z = instance->pos.z + fence_capture_camera.lz;
+			legacy_s32 column = origin_x / CSTRK_TILE_WORLD_SIZE;
+			legacy_s32 row = track->height - 1 - origin_z / CSTRK_TILE_WORLD_SIZE;
+			assert(column >= 0 && column < track->width && row >= 0 && row < track->height);
+			for (legacy_u8 arm = 0; arm <= model; arm++) {
+				legacy_u8 side = (rotation + arm) % FENCE_RENDER_SIDE_COUNT;
+				assert(side == 0   ? row == 0
+					   : side == 1 ? column == (legacy_s32)track->width - 1
+					   : side == 2 ? row == (legacy_s32)track->height - 1
+								   : column == 0);
+				legacy_s32 segment = (side & 1U) ? row : column;
+				assert(++fence_capture_seen[side][segment] == 1);
+			}
+			legacy_u16 checked = 0;
+			for (legacy_u16 vertex = 0; vertex < shape->shape3d_numverts; vertex++) {
+				struct VECTOR point, expected;
+				shape3d_vertex_read(shape, vertex, &point);
+				shape3d_vertex_read(source, vertex, &expected);
+				legacy_s32 x = origin_x + point.x, z = origin_z + point.z;
+				if (x == 0 || x == track->width * CSTRK_TILE_WORLD_SIZE || z == 0 ||
+					z == track->height * CSTRK_TILE_WORLD_SIZE) {
+					assert(point.y + instance->pos.y + fence_capture_camera.ly ==
+						   expected.y + fence_expected_edge_height(x, z));
+					checked++;
+				}
+			}
+			assert(checked > 0);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static legacy_u8 seam_capture_hill_shapes;
 static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 
@@ -922,6 +1071,10 @@ static void seam_check_submitted_road(const struct SHAPE3D *shape)
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (fence_capture_mode && fence_check_submitted_shape(instance) &&
+		fence_capture_mode == FENCE_RENDER_HIDE) {
+		return 0;
+	}
 	if (seam_capture_hill_shapes) {
 		seam_check_submitted_road(instance->shapeptr);
 	}
@@ -1554,6 +1707,103 @@ static legacy_u16 check_sloped_stunt_rendering(void)
 	return frames;
 }
 
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+static legacy_u16 check_extended_fences(void)
+{
+	static const legacy_u16 sizes[][2] = {{1, 1}, {1, 7}, {9, 1}, {12, 8}, {90, 70}};
+	static const legacy_u8 views[][2] = {{0, 0}, {2, 0}, {2, 2}, {0, 2},
+										 {1, 0}, {2, 1}, {1, 2}, {0, 1}};
+	struct GAMESTATE saved_state = state;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	cameramode = CAMERA_MODE_FOLLOW;
+	detail_level = 0;
+	for (legacy_u8 model = 0; model < FENCE_RENDER_MODEL_COUNT; model++) {
+		const struct TRACKOBJECT *object =
+			frame_track_object_from_legacy_index(FENCE_RENDER_STRAIGHT_CODE + model);
+		fence_capture_models[model][0] = object->ss_shapePtr;
+		fence_capture_models[model][1] = object->ss_loShapePtr;
+	}
+	legacy_u16 frames = 0;
+	for (size_t size = 0; size < sizeof(sizes) / sizeof(sizes[0]); size++) {
+		struct CSTRK_TRACK track;
+		legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+		cstrk_init(&track);
+		assert(cstrk_create(&track, sizes[size][0], sizes[size][1], error, sizeof(error)));
+		track.horizon = CSTRK_HORIZON_COUNTRY;
+		for (legacy_u16 y = 0; y <= track.height; y++) {
+			for (legacy_u16 x = 0; x <= track.width; x++) {
+				legacy_u16 level = x > y ? x : y;
+				track.corner_heights[y * (track.width + 1U) + x] =
+					size == 3U || level > CSTRK_MAX_HEIGHT ? CSTRK_MAX_HEIGHT : level;
+			}
+		}
+		if (size == 3U) {
+			/* A corner object covers several perimeter cells, including continuations. */
+			struct CSTRK_OBJECT object = {0};
+			object.legacy_id = FENCE_RENDER_CORNER_OBJECT_ID;
+			object.x = track.width - 2U;
+			object.y = track.height - 2U;
+			object.width = object.height = 2U;
+			object.occupied_mask = FENCE_RENDER_CORNER_OBJECT_MASK;
+			object.base_height = CSTRK_MAX_HEIGHT;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		}
+		assert(extended_track_activate(&track, error, sizeof(error)));
+		fence_capture_track = &track;
+		for (size_t view = 0; view < sizeof(views) / sizeof(views[0]); view++) {
+			legacy_u16 column = views[view][0] * (track.width - 1U) / 2U;
+			legacy_u16 row = views[view][1] * (track.height - 1U) / 2U;
+			fence_capture_camera.lx = column * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+			fence_capture_camera.lz =
+				(track.height - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+			fence_capture_camera.ly =
+				CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT + FENCE_RENDER_CAMERA_CLEARANCE;
+			state.game_follow_camera_position[0] =
+				(struct VECTOR){LEGACY_S16_FROM_BITS((legacy_u16)fence_capture_camera.lx),
+								(legacy_s16)fence_capture_camera.ly,
+								LEGACY_S16_FROM_BITS((legacy_u16)fence_capture_camera.lz)};
+			struct CARSTATE *car = &state.playerstate;
+			car->car_position =
+				(struct VECTORLONG){fence_capture_camera.lx * FENCE_RENDER_POSITION_SCALE,
+									FENCE_RENDER_CAR_CLEARANCE * FENCE_RENDER_POSITION_SCALE,
+									fence_capture_camera.lz * FENCE_RENDER_POSITION_SCALE};
+			car->car_previous_position = car->car_position;
+			car->car_rotate = (struct VECTOR){0};
+			car->car_crashBmpFlag = CRASH_EVENT_NONE;
+			state.game_particles_active = 0;
+			memset(fence_capture_seen, 0, sizeof(fence_capture_seen));
+			fence_capture_mode = FENCE_RENDER_CAPTURE;
+			size_t pixel_count;
+			legacy_u32 *visible = capture_complete_render(&pixel_count);
+			assert(row != 0 || fence_capture_seen[0][column] == 1);
+			assert(column != track.width - 1U || fence_capture_seen[1][row] == 1);
+			assert(row != track.height - 1U || fence_capture_seen[2][column] == 1);
+			assert(column != 0 || fence_capture_seen[3][row] == 1);
+			if (size == 3U && view == 0) {
+				fence_capture_mode = FENCE_RENDER_HIDE;
+				size_t hidden_count;
+				legacy_u32 *hidden = capture_complete_render(&hidden_count);
+				assert(pixel_count == hidden_count);
+				/* Suppress only the matched fence meshes; real pixels must disappear. */
+				assert(memcmp(visible, hidden, pixel_count * sizeof(*visible)) != 0);
+				free(hidden);
+				frames++;
+			}
+			fence_capture_mode = 0;
+			free(visible);
+			frames++;
+		}
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+	state = saved_state;
+	cameramode = saved_camera;
+	detail_level = saved_detail;
+	return frames;
+}
+#endif
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -1598,6 +1848,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		assert(slope_pixels > 16U && edge_pixels > 16U);
 		frames += 4U;
 		frames += check_extended_background_altitude();
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+		frames += check_extended_fences();
+#endif
 		frames += check_rendered_surfaces(&track);
 		frames += check_rendered_shore_materials(&track);
 		frames += check_ground_grass_color();

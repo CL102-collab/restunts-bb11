@@ -1745,6 +1745,110 @@ enum FRAME_EXTENDED_HILL_EDGE {
 	FRAME_EXTENDED_HILL_WEST = 8U
 };
 
+enum FRAME_EXTENDED_FENCE_SIDE {
+	FRAME_EXTENDED_FENCE_NORTH,
+	FRAME_EXTENDED_FENCE_EAST,
+	FRAME_EXTENDED_FENCE_SOUTH,
+	FRAME_EXTENDED_FENCE_WEST,
+	FRAME_EXTENDED_FENCE_SIDE_COUNT
+};
+
+#define FRAME_EXTENDED_FENCE_STRAIGHT_INDEX_STEP 2U
+
+static legacy_s16 frame_extended_border_index(legacy_s16 coordinate, legacy_u16 dimension)
+{
+	if (coordinate == 0) {
+		return FRAME_FENCE_EDGE_LOW;
+	}
+	if (coordinate == dimension - 1U) {
+		return FRAME_FENCE_EDGE_HIGH;
+	}
+	return FRAME_FENCE_EDGE_INTERIOR;
+}
+
+/* The original fence posts sit on tile edges. Interpolate shared terrain
+ * corners so adjacent spans meet and each post keeps its original height. */
+static legacy_s16 frame_extended_fence_height(const struct CSTRK_TRACK *track,
+											  const struct FRAME_TILE *tile,
+											  const struct VECTOR *point)
+{
+	legacy_u32 stride = track->width + 1U;
+	legacy_u32 corner = (legacy_u32)tile->south * stride + tile->east;
+	const legacy_u8 *heights = &track->corner_heights[corner];
+	legacy_s32 u = (legacy_s32)point->x + FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	legacy_s32 v = FRAME_EXTENDED_TERRAIN_HALF_TILE - (legacy_s32)point->z;
+	legacy_s32 north = heights[0] * (CSTRK_TILE_WORLD_SIZE - u) + heights[1] * u;
+	legacy_s32 south = heights[stride] * (CSTRK_TILE_WORLD_SIZE - u) + heights[stride + 1U] * u;
+	legacy_s64 height = ((legacy_s64)north * (CSTRK_TILE_WORLD_SIZE - v) + (legacy_s64)south * v) *
+						CSTRK_LEVEL_WORLD_HEIGHT;
+	return (legacy_s16)(height / ((legacy_s64)CSTRK_TILE_WORLD_SIZE * CSTRK_TILE_WORLD_SIZE));
+}
+
+static legacy_s16 frame_draw_extended_fence_span(const struct FRAME_TILE *tile,
+												 const struct FRAME_CAMERA *camera,
+												 legacy_s8 redraw_transform_flags,
+												 legacy_u16 fence_index)
+{
+	const struct TRACKOBJECT *object =
+		frame_track_object_from_legacy_index(fence_TrkObjCodes[fence_index]);
+	const struct SHAPE3D *source = frame_track_shape(object, tile->detail);
+	struct SHAPE3D mesh;
+	if (!extended_geometry_transform_shape(source, &mesh, fence_rotations[fence_index],
+										   CSTRK_ROAD_PAVED, FRAME_SCENERY_PHYSICAL_MODEL_FIRST)) {
+		return 0;
+	}
+	const struct CSTRK_TRACK *track = extended_track_model();
+	for (legacy_u16 index = 0; index < mesh.shape3d_numverts; index++) {
+		struct VECTOR point;
+		shape3d_vertex_read(&mesh, index, &point);
+		point.y = LEGACY_S16_WRAP_ADD(point.y, frame_extended_fence_height(track, tile, &point));
+		shape3d_vertex_write(&mesh, index, &point);
+	}
+	struct TRANSFORMEDSHAPE3D instance = {0};
+	frame_prepare_flat_track_shape(&instance, tile->east, tile->south, &camera->position,
+								   redraw_transform_flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT, 0);
+	instance.shapeptr = &mesh;
+	legacy_s16 exhausted = (legacy_s16)shape3d_transform_and_queue(&instance) > 0;
+	extended_geometry_free_shape(&mesh);
+	return exhausted;
+}
+
+static legacy_s16 frame_draw_extended_fences(const struct FRAME_TILE *tile,
+											 const struct FRAME_TILE_SELECTION *tiles,
+											 const struct FRAME_CAMERA *camera,
+											 legacy_s8 redraw_transform_flags)
+{
+	if (detail_level != FRAME_DETAIL_FULL &&
+		(tile->east != tiles->player_east || tile->south != tiles->player_south)) {
+		return 0;
+	}
+	const struct CSTRK_TRACK *track = extended_track_model();
+	if (track->width > 1U && track->height > 1U) {
+		legacy_s16 east = frame_extended_border_index(tile->east, track->width);
+		legacy_s16 south = frame_extended_border_index(tile->south, track->height);
+		legacy_s16 fence_index = fence_by_edge[east][south];
+		return fence_index == FRAME_FENCE_NONE
+				   ? 0
+				   : frame_draw_extended_fence_span(tile, camera, redraw_transform_flags,
+													(legacy_u16)fence_index);
+	}
+	/* A one-cell-wide map needs opposite sides in the same cell, which the
+	 * original corner lookup cannot represent. Queue each boundary once. */
+	legacy_u8 sides[FRAME_EXTENDED_FENCE_SIDE_COUNT];
+	sides[FRAME_EXTENDED_FENCE_NORTH] = tile->south == 0;
+	sides[FRAME_EXTENDED_FENCE_EAST] = tile->east == track->width - 1U;
+	sides[FRAME_EXTENDED_FENCE_SOUTH] = tile->south == track->height - 1U;
+	sides[FRAME_EXTENDED_FENCE_WEST] = tile->east == 0;
+	for (legacy_u16 side = 0; side < FRAME_EXTENDED_FENCE_SIDE_COUNT; side++) {
+		if (sides[side] &&
+			frame_draw_extended_fence_span(tile, camera, redraw_transform_flags,
+										   side * FRAME_EXTENDED_FENCE_STRAIGHT_INDEX_STEP)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 x,
 										   legacy_s16 y)
 {
@@ -3268,6 +3372,13 @@ static legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 			}
 			if (pass == FRAME_TILE_GROUND_PASS) {
 				continue;
+			}
+			/* Extended selection keeps every cell, including multi-tile roads'
+			 * covered cells. Submit its boundary once, after supporting terrain. */
+			if (extended_track_active() &&
+				frame_draw_extended_fences(&tile, tiles, camera, redraw_transform_flags) != 0 &&
+				supersight_enabled != 0) {
+				return 1;
 			}
 #endif
 
