@@ -93,7 +93,7 @@ vm.runInContext(`
     if (JSON.stringify(model.encodeCstrk(loaded)) !== JSON.stringify(model.encodeCstrk(doc))) {
         throw new Error('Embedded codec changed the saved track');
     }
-    for (const id of [109, 111, 151]) {
+    for (const id of [109, 111, 154]) {
         const slope = new model.Document(4, 4);
         for (let y = 0; y <= slope.height; y++) for (let x = 0; x <= slope.width; x++) {
             slope.vertices[y * (slope.width + 1) + x] = Math.min(x, 2);

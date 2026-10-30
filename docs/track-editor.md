@@ -78,8 +78,9 @@ The same 450-unit rise over a 1,024-unit tile is used at every elevation, so
 higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
-On a straight incline, place track pieces in any direction. The editor requires
-level ground for divided highways, highway transitions and all scenery; raised
+On a straight incline, place track pieces in any direction. Palm tree, Cactus
+and Pine tree scenery also accepts straight inclines. The editor requires level
+ground for divided highways, highway transitions and other scenery; raised
 flat ground is allowed. Existing files containing these elements on slopes still
 open, validate, save and play normally. Use Remove to delete those elements in
 the editor.
@@ -89,6 +90,10 @@ one continuous straight slope with the same direction and grade. The piece's
 rendering, collision and route geometry follow that plane; banked roads, elevated
 decks, loops and other stunts retain their own shape above the incline. A piece
 cannot span a change in slope direction or a flat-to-slope transition.
+
+With HyperVision, Palm tree, Cactus and Pine tree stay upright on inclines.
+Their trunks extend down to meet the terrain while the foliage and branches
+keep their original shape.
 
 These generalized placements require `.cstrk` v6. Aligned roads and compatible
 ramps keep their original hill-road or hill-span models. The aligned tunnels and

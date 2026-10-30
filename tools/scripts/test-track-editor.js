@@ -15,6 +15,11 @@ test('library combines rotated alternatives while preserving distinct shapes and
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
     assert.equal(model.library.filter(p => p.name === 'Highway transition').length, 1);
+    for (const [id, physical, name] of [[151, 74, 'Palm tree'], [152, 72, 'Cactus'], [153, 71, 'Pine tree']]) {
+        const entry = model.catalog.find(piece => piece.id === id);
+        assert.equal(entry.physical, physical); assert.equal(entry.name, name);
+        assert.equal(model.library.find(piece => piece.id === id).name, name);
+    }
 });
 test('directions select native artwork and rotate remaining symmetric variations', () => {
     const piece = id => model.catalog.find(p => p.id === id);
@@ -175,7 +180,7 @@ const SLOPE_TEST_SIZE = 4, SLOPE_TEST_ORIGIN = 1, SLOPE_MAX_LEVEL = 4;
 const SLOPE_DIRECTIONS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 const SLOPE_PLACEMENT_ERROR = /flat ground|straight slope|original hill|support plane/;
 const EDITOR_LEVEL_ONLY_IDS = new Set([109, 110, 111, 112, 113, 114,
-    ...Array.from({ length: 28 }, (_, index) => 151 + index)]);
+    ...Array.from({ length: 25 }, (_, index) => 154 + index)]);
 const EDITOR_LEVEL_ONLY_ERROR = /can only be built on level ground in the editor/;
 function slopeDocument(footprint, slopeX, slopeY, low = 0) {
     const doc = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
@@ -265,7 +270,7 @@ test('level-only editor pieces remain flat-buildable, importable and removable o
     }
 });
 test('stored slope support reaches each legal elevation without changing a multi-tile grade', () => {
-    for (const id of [1, 11, 53, 60, 64, 87, 106, 151]) for (let rotation = 0; rotation < SLOPE_DIRECTIONS.length; rotation++) {
+    for (const id of [1, 11, 53, 60, 64, 87, 106, 151, 152, 153]) for (let rotation = 0; rotation < SLOPE_DIRECTIONS.length; rotation++) {
         const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, rotation);
         for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) {
             const span = slopeX ? footprint.width : footprint.height;
@@ -283,7 +288,7 @@ test('stored slope support reaches each legal elevation without changing a multi
 test('claimed cells still reject hill corners and discontinuous or changing slope planes', () => {
     for (const heights of [[1, 0, 0, 0], [0, 1, 1, 1]]) {
         const doc = new model.Document(1, 1); doc.vertices.set([heights[0], heights[1], heights[3], heights[2]]);
-        for (const id of [1, 4, 7, 38, 66, 151]) assert.throws(() => doc.place(id, 0, 0), SLOPE_PLACEMENT_ERROR);
+        for (const id of [1, 4, 7, 38, 66, 151, 152, 153]) assert.throws(() => doc.place(id, 0, 0), SLOPE_PLACEMENT_ERROR);
     }
     for (const heightAtVertex of [(x, y) => Math.max(x, y), x => Math.abs(x - 2), x => Math.min(x, 2)]) {
         const doc = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
@@ -294,7 +299,8 @@ test('claimed cells still reject hill corners and discontinuous or changing slop
     }
 });
 test('new slope placements require v6 while supported older tracks upgrade before editing', () => {
-    const examples = [[1, 1, 0], [7, 1, 0], [11, 1, 0], [53, 0, -1], [66, 1, 0], [87, -1, 0], [151, 0, 1]];
+    const examples = [[1, 1, 0], [7, 1, 0], [11, 1, 0], [53, 0, -1], [66, 1, 0], [87, -1, 0],
+        [151, 0, 1], [152, 0, 1], [153, 0, 1]];
     for (const [id, slopeX, slopeY] of examples) {
         const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, 0);
         const source = slopeDocument(footprint, slopeX, slopeY);
