@@ -863,26 +863,18 @@ class CFullAudioEngineDefinition
   legacy_s8 *resource_ids[10];
 };
 
+class CSimdReader
+{
+  legacy_u8 *source;
+  legacy_u16 offset;
+};
+
 class CLegacyExecutionResidue
 {
   legacy_s16 wheel_plane_angles[4];
   legacy_s16 wheel_angle_stack_words[4];
   legacy_s16 grip_stack_words[4];
   legacy_s16 penalty_route_word;
-};
-
-class CPhantomPhysics
-{
-  CGameState state;
-  CLegacyExecutionResidue residue;
-  legacy_u32 elapsed20;
-  legacy_s8 input_flags;
-};
-
-class CSimdReader
-{
-  legacy_u8 *source;
-  legacy_u16 offset;
 };
 
 class CCustomCamera

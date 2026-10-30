@@ -13,7 +13,7 @@
 #include "../c/car_speed.h"
 #include "../c/state_internal.h"
 #include "../c/owoot.h"
-#include "../c/phantom_physics.h"
+#include "../c/physics_internal.h"
 
 extern void update_follow_cameras(void);
 
@@ -404,7 +404,7 @@ static void test_fractional_follow_cameras(void)
 	branch.game_trackside_camera_index[0] = 2;
 	branch.game_trackside_camera_index[1] = 3;
 
-	update_follow_cameras_fraction(&branch, PHANTOM_PHYSICS_ONE / 2);
+	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
 	assert(branch.game_follow_camera_position[0].y == 15);
 	assert(branch.game_follow_camera_position[0].z == 60);
 	assert(branch.game_follow_camera_position[1].y == 15);
@@ -415,10 +415,10 @@ static void test_fractional_follow_cameras(void)
 	/* A landing changes the camera target during the disposable branch. */
 	branch.playerstate.car_position.ly = 400L * 64;
 	branch.game_follow_camera_position[0].y = 500;
-	update_follow_cameras_fraction(&branch, PHANTOM_PHYSICS_ONE / 2);
+	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
 	assert(branch.game_follow_camera_position[0].y == 515);
 	branch.playerstate.car_position.ly = 0;
-	update_follow_cameras_fraction(&branch, PHANTOM_PHYSICS_ONE / 2);
+	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
 	assert(branch.game_follow_camera_position[0].y == 500);
 	assert(branch.game_player_camera_previous.y == 515);
 
@@ -427,7 +427,7 @@ static void test_fractional_follow_cameras(void)
 	framespersec = GAME_FRAME_RATE_LOW;
 	branch.game_follow_camera_position[0] = (struct VECTOR){0, 0, 0};
 	struct VECTOR opponent_position = branch.game_follow_camera_position[1];
-	update_follow_cameras_fraction(&branch, PHANTOM_PHYSICS_ONE);
+	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE);
 	assert(branch.game_follow_camera_position[0].y == 15);
 	assert(branch.game_follow_camera_position[0].z == 120);
 	assert(memcmp(&branch.game_follow_camera_position[1], &opponent_position,
@@ -438,7 +438,7 @@ static void test_fractional_follow_cameras(void)
 	assert(memcmp(&state, &real_state, sizeof(state)) == 0);
 
 	/* A camera already following a car must cover its small displacement
-	 * each phantom, not lag behind and catch up abruptly at every real tick. */
+	 * during each fractional step. */
 	for (legacy_u16 rate = GAME_FRAME_RATE_LOW; rate <= GAME_FRAME_RATE_NORMAL; rate += 10) {
 		framespersec = rate;
 		memset(&branch, 0, sizeof(branch));
@@ -448,7 +448,7 @@ static void test_fractional_follow_cameras(void)
 		for (legacy_s16 step = 1; step <= 60 / rate; step++) {
 			branch.playerstate.car_position.lz += 15L * 64;
 			branch.playerstate.car_position.ly += 2L * 64;
-			update_follow_cameras_fraction(&branch, PHANTOM_PHYSICS_ONE / 3);
+			update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 3);
 			assert(branch.game_follow_camera_position[0].z == 15 * step);
 			assert(branch.game_follow_camera_position[0].y == 270 + 2 * step);
 		}

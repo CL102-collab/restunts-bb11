@@ -4,7 +4,7 @@
 
 #include "../c/externs.h"
 #include "../c/car_speed.h"
-#include "../c/phantom_physics.h"
+#include "../c/physics_internal.h"
 #include "../c/game_input.h"
 
 #undef printf
@@ -379,10 +379,10 @@ static void test_fractional_held_pedals(void)
 		update_car_speed_fraction(INPUT_ACCELERATE_FLAG | INPUT_SHIFT_UP_FLAG, PLAYER_CAR_INDEX,
 								  &car, &simd, 0);
 		assert(memcmp(&car, &before, sizeof(car)) == 0);
-		for (legacy_u16 phantom = 1; phantom <= 2; phantom++) {
+		for (legacy_u16 fractional_step = 1; fractional_step <= 2; fractional_step++) {
 			update_car_speed_fraction(INPUT_ACCELERATE_FLAG | INPUT_SHIFT_UP_FLAG, PLAYER_CAR_INDEX,
 									  &car, &simd, 21845UL);
-			assert(car.car_actual_speed == 16000 + 5 * phantom);
+			assert(car.car_actual_speed == 16000 + 5 * fractional_step);
 			assert(car.car_rev_speed == car.car_actual_speed);
 			assert(car.car_is_accelerating == CAR_PEDAL_PRESSED);
 			assert(car.car_current_gear == before.car_current_gear);
@@ -418,11 +418,11 @@ static void test_fractional_held_pedals(void)
 		assert(state.game_topSpeed == 0);
 
 		/* On landing, wheel and road speeds synchronize as one contact
-		 * constraint. Later phantoms must not overshoot that shared speed. */
+		 * constraint. Later fractional steps must not overshoot that shared speed. */
 		reset_car();
 		framespersec = rates[rate];
 		car.car_rev_speed = 10000;
-		for (legacy_u16 phantom = 0; phantom < 2; phantom++) {
+		for (legacy_u16 fractional_step = 0; fractional_step < 2; fractional_step++) {
 			update_car_speed_fraction(INPUT_NONE, PLAYER_CAR_INDEX, &car, &simd, 21845UL);
 			assert(car.car_actual_speed == 13000);
 			assert(car.car_rev_speed == 13000);
@@ -432,7 +432,7 @@ static void test_fractional_held_pedals(void)
 }
 #endif
 
-static legacy_u32 authoritative_speed_fingerprint(legacy_s16 include_phantoms)
+static legacy_u32 authoritative_speed_fingerprint(legacy_s16 include_fractional_steps)
 {
 	static const legacy_s16 masses[] = {15, 25, 32, 55};
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
@@ -442,7 +442,7 @@ static legacy_u32 authoritative_speed_fingerprint(legacy_s16 include_phantoms)
 	legacy_u32 hash = 2166136261UL;
 	configure_powergear_option("--pg:on");
 #ifdef PHYSICS_RECORD_BASELINE
-	(void)include_phantoms;
+	(void)include_fractional_steps;
 #endif
 	for (legacy_u16 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
 		for (legacy_u16 mass = 0; mass < sizeof(masses) / sizeof(masses[0]); mass++) {
@@ -457,11 +457,13 @@ static legacy_u32 authoritative_speed_fingerprint(legacy_s16 include_phantoms)
 					car.car_sumSurfRearWheels = tick % 7 < 2 ? 0 : 2;
 					car.car_sumSurfAllWheels = car.car_sumSurfRearWheels * 2;
 #ifndef PHYSICS_RECORD_BASELINE
-					if (include_phantoms != 0) {
-						struct CARSTATE phantom = car;
+					if (include_fractional_steps != 0) {
+						struct CARSTATE fractional_car = car;
 						struct GAMESTATE saved_state = state;
-						update_car_speed_fraction(input, car_index, &phantom, &simd, 21845UL);
-						update_car_speed_fraction(input, car_index, &phantom, &simd, 21846UL);
+						update_car_speed_fraction(input, car_index, &fractional_car, &simd,
+												  21845UL);
+						update_car_speed_fraction(input, car_index, &fractional_car, &simd,
+												  21846UL);
 						assert(memcmp(&state, &saved_state, sizeof(state)) == 0);
 					}
 #endif

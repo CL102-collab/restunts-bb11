@@ -90,7 +90,7 @@ static void test_original_cornering_bias(void)
 static void test_symmetric_cornering(void)
 {
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
-	static const legacy_u32 fractions[] = {0, PHANTOM_PHYSICS_ONE / 3, PHANTOM_PHYSICS_ONE};
+	static const legacy_u32 fractions[] = {0, PHYSICS_FRACTION_ONE / 3, PHYSICS_FRACTION_ONE};
 	static const legacy_u16 speeds[] = {0, 4096U, 12800U, TEST_CORNERING_SPEED, 40000U};
 	configure_cornering((legacy_s8 *)"--lcb:off");
 	for (legacy_u16 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
@@ -138,7 +138,7 @@ static void test_inherited_contact_reconciliation(void)
 	/* Existing compression relaxes with time; extra penetration is removed now. */
 	assert(retained_wheel_plane_residual(-12, -30, 0) == -12);
 	assert(retained_wheel_plane_residual(-12, -30, 21845UL) == -8);
-	assert(retained_wheel_plane_residual(-12, -30, PHANTOM_PHYSICS_ONE) == 0);
+	assert(retained_wheel_plane_residual(-12, -30, PHYSICS_FRACTION_ONE) == 0);
 	assert(retained_wheel_plane_residual(-12, -2, 21845UL) == -2);
 
 	for (legacy_s16 previous = -384; previous <= 32; previous++) {
@@ -159,7 +159,7 @@ static void test_inherited_contact_reconciliation(void)
 
 static void test_fractional_inverted_attachment(void)
 {
-	static const legacy_u32 fractions[] = {0, 1, 21845UL, PHANTOM_PHYSICS_ONE};
+	static const legacy_u32 fractions[] = {0, 1, 21845UL, PHYSICS_FRACTION_ONE};
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
 	static const legacy_s16 expected[2][4] = {{192, 0, 64, 192}, {192, 0, 32, 96}};
 	for (legacy_u16 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
@@ -227,6 +227,6 @@ legacy_int main(void)
 	test_inherited_contact_reconciliation();
 	test_fractional_inverted_attachment();
 	test_contact_residual_applies_to_wheel();
-	puts("phantom motion regression tests passed");
+	puts("fractional motion regression tests passed");
 	return 0;
 }

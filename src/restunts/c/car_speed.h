@@ -12,5 +12,7 @@ legacy_u16 powergear_bug_is_enabled(void);
 
 void update_car_speed(legacy_s8 input, legacy_s16 car_index, struct CARSTATE *carstate,
 					  struct SIMD *simd);
+void update_car_speed_fraction(legacy_s8 input_flags, legacy_s16 car_index,
+							   struct CARSTATE *carstate, struct SIMD *simd, legacy_u32 fraction20);
 
 #endif
