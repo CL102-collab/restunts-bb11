@@ -27,9 +27,13 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v6. Revision v3 through v5 tracks open as v6 while preserving their
-overpass road materials; revisions below v3 are unsupported. Newer revisions show a warning
-and load using the known format.
+revision is v7. Revision v3 through v6 tracks open as v7 while preserving their
+overpass road materials; revisions below v3 are unsupported. Newer revisions
+show a warning and load using the known format.
+
+The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
+with slalom barriers as one piece. It supports paved, dirt and ice roads,
+rotations, and straight inclines.
 
 Hills retain the original game's straight inclines and inner and outer corners
 at every elevation. Every track piece and scenery object can be placed on a

@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v8**. The revision identifies the track-format and
+recordings currently use **v9**. The revision identifies the track-format and
 physics behavior of the game that recorded the inputs; it is separate from the
 revision stored in the embedded track.
 
@@ -14,19 +14,20 @@ Increasing the track revision automatically advances the replay revision.
 Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v6 and physics revision is 2. Physics revision 1 corrected wheel
+revision is v7 and physics revision is 2. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
 corrects opposite-direction hill-road classification and body contacts on graded
-track pieces in replay v8. A new recording uses the running game's replay
+track pieces in replay v8. Replay v9 adds the Tunnel with slalom element
+introduced by track v7. A new recording uses the running game's replay
 revision, including when its track was loaded with a different track revision.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
 
 Replay revisions older than the running game's current replay revision are
-unsupported and rejected before activation, including existing v1–v7 recordings.
+unsupported and rejected before activation, including existing v1–v8 recordings.
 The game does not emulate older physics. Increasing either the track revision
 or the physics revision also raises the minimum replay revision.
 
@@ -44,7 +45,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 8–65,535; current and minimum revision `8` |
+| 8 | 2 | Recorded replay revision, 9–65,535; current and minimum revision `9` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

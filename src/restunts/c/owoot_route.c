@@ -132,6 +132,22 @@ static const struct TRACKOBJECT *route_object(legacy_s16 piece)
 	return &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
 }
 
+static legacy_s16 route_is_tunnel(legacy_s16 piece)
+{
+	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_TUNNEL) {
+		return 1;
+	}
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
+			(legacy_u8)track_route_element_ids[piece]);
+		return placed && placed->tunnel_slalom;
+	}
+#endif
+	return 0;
+}
+
 static const struct TRKOBJINFO *route_info(legacy_s16 piece)
 {
 	const struct TRACKOBJECT *object = route_object(piece);
@@ -202,7 +218,7 @@ static legacy_s16 route_requires_gates(legacy_s16 piece)
 static legacy_s16 route_has_finite_portal(legacy_s16 piece)
 {
 	legacy_s16 model = route_object(piece)->ss_physicalModel;
-	return model == PHYSICAL_MODEL_TUNNEL || model == PHYSICAL_MODEL_PIPE ||
+	return route_is_tunnel(piece) || model == PHYSICAL_MODEL_PIPE ||
 		   model == PHYSICAL_MODEL_HALF_PIPE;
 }
 
@@ -355,7 +371,8 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 	if (!placed) {
 		return 0;
 	}
-	int model = route_object(piece)->ss_physicalModel;
+	legacy_s16 model =
+		placed->tunnel_slalom ? PHYSICAL_MODEL_TUNNEL : route_object(piece)->ss_physicalModel;
 	legacy_s32 height, half_width;
 	if (model == PHYSICAL_MODEL_TUNNEL) {
 		height = TUNNEL_HEIGHT;

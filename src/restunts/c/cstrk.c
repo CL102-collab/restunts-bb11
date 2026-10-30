@@ -251,6 +251,17 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 		return cstrk_fail(error, error_size, "Object %u has an invalid ID, surface or footprint",
 						  (unsigned)index);
 	}
+	if (object->tunnel_slalom > 1U ||
+		(object->tunnel_slalom &&
+		 (object->legacy_id < CSTRK_SLALOM_FIRST_ID || object->legacy_id > CSTRK_SLALOM_LAST_ID))) {
+		return cstrk_fail(error, error_size, "Object %u has an invalid tunnel with slalom modifier",
+						  (legacy_uint)index);
+	}
+	if (object->tunnel_slalom && track->version < CSTRK_TUNNEL_SLALOM_VERSION) {
+		return cstrk_fail(error, error_size,
+						  "Object %u requires track version v%u for tunnel with slalom",
+						  (legacy_uint)index, CSTRK_TUNNEL_SLALOM_VERSION);
+	}
 	legacy_u8 overpass =
 		object->legacy_id >= CSTRK_OVERPASS_FIRST_ID && object->legacy_id <= CSTRK_OVERPASS_LAST_ID;
 	if (object->lower_surface > CSTRK_ROAD_ICE ||
@@ -501,6 +512,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 		cursor[11] = (uint8_t)object->slope_y;
 		cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET] =
 			track->version < CSTRK_LOWER_SURFACE_VERSION ? 0 : object->lower_surface;
+		cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = object->tunnel_slalom;
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(cursor, track->notes, track->notes_length);
@@ -578,9 +590,9 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	next.object_count = objects;
 	for (uint32_t index = 0; index < objects; index++) {
 		struct CSTRK_OBJECT *object = &next.objects[index];
-		legacy_u32 flags = cstrk_read32(cursor + CSTRK_OBJECT_LOWER_SURFACE_OFFSET);
-		if ((version < CSTRK_LOWER_SURFACE_VERSION ? flags : flags & ~(legacy_u32)LEGACY_U8_MAX) !=
-			0U) {
+		if ((version < CSTRK_LOWER_SURFACE_VERSION && cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET]) ||
+			(version < CSTRK_TUNNEL_SLALOM_VERSION && cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET]) ||
+			cstrk_read16(cursor + CSTRK_OBJECT_RESERVED_OFFSET) != 0U) {
 			cstrk_free(&next);
 			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags",
 							  (unsigned)index);
@@ -601,6 +613,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 										object->legacy_id <= CSTRK_OVERPASS_LAST_ID
 									? object->surface
 									: cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET];
+		object->tunnel_slalom = cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET];
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(next.notes, cursor, notes_length);

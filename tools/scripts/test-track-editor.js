@@ -8,9 +8,9 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 8, 4, 2, 4, 9, 2, 10]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 9, 4, 2, 4, 9, 2, 10]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
-    assert.equal(families.size + model.SURFACES.length - 1, model.library.length);
+    assert.equal(families.size + model.SURFACES.length, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
@@ -213,7 +213,7 @@ test('buildable library families fit straight slopes in every element and slope 
                 assert.deepEqual(doc.snapshot(), before);
                 continue;
             }
-            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0);
+            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
             assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
             assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
             assert.equal(object.baseHeight, slopeX + slopeY > 0 ? 0 : slopeX ? footprint.width : footprint.height);
@@ -710,6 +710,55 @@ test('overpass palette variants keep the lower road independent through rotation
     for (const lowerSurface of [-1, 3, 1.5])
         assert.throws(() => new model.Document(4, 4).place(101, 1, 1, 0, 0, lowerSurface), /lower road surface/);
 });
+test('tunnel with slalom remains distinct through direction, placement, history and reload', () => {
+    const selected = model.library.find(piece => piece.tunnelSlalom);
+    const ordinary = model.library.find(piece => piece.physical === model.SLALOM_PHYSICAL_MODEL && !piece.tunnelSlalom);
+    assert(selected && ordinary);
+    assert.equal(selected.name, 'Tunnel with slalom'); assert.equal(selected.group, 4);
+    assert.notEqual(selected.key, ordinary.key);
+    for (const direction of [0, 1, 2, 3]) for (const surface of model.SURFACES.keys()) for (const level of [0, 4]) {
+        const variant = model.pieceVariant(selected, direction);
+        const display = model.pieceDisplayVariant(variant.piece, variant.rotation);
+        assert.equal(variant.piece.tunnelSlalom, 1); assert.equal(display.piece.tunnelSlalom, 1);
+        assert.equal(display.piece.name, selected.name);
+        assert.equal(model.pieceVariant(ordinary, direction).piece.tunnelSlalom, undefined);
+        const doc = new model.Document(4, 4); doc.vertices.fill(level);
+        const before = doc.snapshot();
+        const object = doc.place(variant.piece.id, 1, 1, surface, variant.rotation, 0, variant.piece.tunnelSlalom);
+        assert.equal(object.tunnelSlalom, 1); assert.equal(object.surface, surface);
+        const placed = doc.snapshot(), bytes = model.encodeCstrk(doc);
+        const record = 32 + doc.vertices.length + doc.cells.length * 2;
+        assert.equal(bytes[record + 13], 1);
+        assert.deepEqual(Array.from(bytes.subarray(record + 14, record + 16)), [0, 0]);
+        assert.deepEqual(model.decodeCstrk(bytes).snapshot(), placed);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+    }
+});
+test('tunnel with slalom flags require v7 and only apply to slalom objects', () => {
+    const doc = new model.Document(4, 4); doc.place(115, 1, 1, 0, 0, 0, 1);
+    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+    for (const version of [3, 4, 5, 6]) {
+        doc.version = version;
+        assert.throws(() => model.encodeCstrk(doc), /version v7/);
+        assert.throws(() => doc.placement(115, 2, 2, 0, 0, 0, 1), /version v7/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    doc.version = model.VERSION;
+    for (const id of [4, 66, 101, 151]) {
+        assert.throws(() => doc.placement(id, 2, 2, 0, 0, 0, 1), /only slalom/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(record, id, true);
+        assert.throws(() => model.decodeCstrk(invalid), /only slalom/);
+    }
+    for (const flag of [-1, 2, 1.5, true]) assert.throws(() => doc.placement(115, 2, 2, 0, 0, 0, flag), /flag/);
+    for (const offset of [13, 14, 15]) {
+        const invalid = bytes.slice(); invalid[record + offset] = 2;
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    doc.objects[0].tunnelSlalom = 2;
+    assert.throws(() => model.encodeCstrk(doc), /flag/);
+});
 test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
     for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {
         for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) {
@@ -994,7 +1043,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 6); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 7); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -1152,6 +1201,32 @@ test('multi-tile artwork removes internal grid separators without breaking the r
     assert.throws(() => resources.composeTileBitmap({ ...bitmap, mask: { ...bitmap.mask, width: 15 } }), /artwork/);
     assert.throws(() => resources.composeTileBitmap({ ...bitmap, pixels: new Uint8Array(1) }), /artwork/);
 });
+test('tunnel with slalom artwork preserves the tunnel shell and adds only barrier foreground', () => {
+    const nativeSize = 16, roadColor = 8, wallColor = 7, barrierColor = 15;
+    function bitmap(kind) {
+        const pixels = new Uint8Array(nativeSize * nativeSize), mask = new Uint8Array(pixels.length);
+        mask.fill(255);
+        function paint(x, y, color) { pixels[y * nativeSize + x + 1] = color; }
+        for (let y = 0; y < nativeSize - 1; y++) {
+            for (let x = 5; x <= 9; x++) paint(x, y, roadColor);
+            if (kind === 'tunnel') { paint(3, y, wallColor); paint(11, y, wallColor); }
+        }
+        if (kind === 'slalom') for (let x = 5; x <= 7; x++) paint(x, 4, barrierColor);
+        return { width: nativeSize, height: nativeSize, pixels,
+            mask: { width: nativeSize, height: nativeSize, pixels: mask } };
+    }
+    const icons = new Map([[4, bitmap('road')], [5, bitmap('road')], [66, bitmap('tunnel')],
+        [67, bitmap('tunnel')], [115, bitmap('slalom')], [116, bitmap('slalom')]]);
+    for (const id of [115, 116]) {
+        const combined = resources.composePieceTileBitmap(icons, id, 1);
+        const at = (x, y) => combined.pixels[y * combined.width + x];
+        assert.equal(at(3, 4), wallColor); assert.equal(at(11, 4), wallColor);
+        assert.equal(at(6, 4), barrierColor); assert.equal(at(8, 4), roadColor);
+        assert.equal(combined.alpha[4 * combined.width], 0);
+        assert.deepEqual(resources.composePieceTileBitmap(icons, id, 0), resources.composeTileBitmap(icons.get(id)));
+    }
+    assert.throws(() => resources.composePieceTileBitmap(icons, 4, 1), /Invalid tunnel/);
+});
 test('RLE byte runs and canonical VLE decode with bounds checks', () => {
     assert.deepEqual(resources.decompress(Uint8Array.from([1, 4, 0, 0, 0, 0, 0, 0, 129, 255, 255, 4, 65])), Uint8Array.from([65, 65, 65, 65]));
     assert.deepEqual(resources.decompress(Uint8Array.from([2, 4, 0, 0, 1, 2, 65, 66, 0b01100000])), Uint8Array.from([65, 66, 66, 65]));
@@ -1175,6 +1250,19 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
             const tile = resources.composeTileBitmap(decoded.icons.get(entry.id));
             assert.equal(tile.width, entry.width * 15); assert.equal(tile.height, entry.height * 15);
             assert.equal(tile.alpha.length, tile.pixels.length);
+        }
+        for (const [id, tunnelId] of [[115, 66], [116, 67]]) {
+            const combined = resources.composePieceTileBitmap(decoded.icons, id, 1);
+            const slalom = resources.composeTileBitmap(decoded.icons.get(id));
+            const tunnel = resources.composeTileBitmap(decoded.icons.get(tunnelId));
+            let walls = 0, barriers = 0;
+            for (let index = 0; index < combined.pixels.length; index++) {
+                walls += combined.alpha[index] && combined.pixels[index] === tunnel.pixels[index] &&
+                    combined.pixels[index] !== slalom.pixels[index];
+                barriers += combined.alpha[index] && combined.pixels[index] === slalom.pixels[index] &&
+                    combined.pixels[index] !== tunnel.pixels[index];
+            }
+            assert(walls > 0 && barriers > 0, 'combined native icon includes both stunt parts');
         }
         const road = resources.composeTileBitmap(decoded.icons.get(4));
         assert.deepEqual(Array.from(road.alpha.slice(0, road.width)), Array.from(road.alpha.slice(-road.width)));

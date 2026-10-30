@@ -1624,7 +1624,18 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	elem_zCenter = origin.z;
 	terrainHeight = origin.y;
 	current_surf_type = (legacy_s8)terrain.surface;
-	track_object_model(&sample);
+	if (object->tunnel_slalom) {
+		/* The shared slalom route keeps its finite barriers and steering line.
+		 * Select the tunnel shell first so a pole cannot replace its roof or
+		 * outside wall with a road-level collision plane. */
+		track_object_tunnel(&sample);
+		if (sample.height < TUNNEL_HEIGHT && sample.next_height < TUNNEL_HEIGHT &&
+			wallindex == TRACK_WALL_NONE) {
+			track_object_slalom(&sample);
+		}
+	} else {
+		track_object_model(&sample);
+	}
 	/* Graded driving floors use the same authored flat plane as elevated
 	 * decks and roofs. Applying one transform keeps their relative heights
 	 * and normals exact; terrain outside the piece retains its native plane. */

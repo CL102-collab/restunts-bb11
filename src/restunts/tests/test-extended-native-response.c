@@ -211,13 +211,14 @@ static void test_native_corkscrew_gates(void)
 	}
 }
 
-static void test_sloped_tunnel_portals(void)
+static void test_sloped_tunnel_portals(legacy_u8 tunnel_slalom)
 {
 	static const legacy_s8 slopes[TEST_ROTATION_COUNT][2] = {{0, -1}, {-1, 0}, {0, 1}, {1, 0}};
 	fixture_extended = fixture_lane_edges = 1;
 	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
 	fixture_track.version = CSTRK_VERSION;
 	fixture_object.legacy_id = TEST_OBJECT_ID;
+	fixture_object.tunnel_slalom = tunnel_slalom;
 	fixture_object.x = 0;
 	fixture_object.y = TRACK_GRID_LAST_INDEX;
 	fixture_object.width = fixture_object.height = 1;
@@ -226,8 +227,11 @@ static void test_sloped_tunnel_portals(void)
 	track_route_columns = fixture_columns;
 	track_route_rows = fixture_rows;
 	track_route_traversal_flags = fixture_flags;
-	trkObjectList[TEST_OBJECT_ID].ss_physicalModel = PHYSICAL_MODEL_TUNNEL;
+	trkObjectList[TEST_OBJECT_ID].ss_physicalModel =
+		tunnel_slalom ? PHYSICAL_MODEL_SLALOM : PHYSICAL_MODEL_TUNNEL;
 	trkObjectList[TEST_OBJECT_ID].ss_trkObjInfoPtr = &fixture_info;
+	assert(route_has_finite_portal(0));
+	assert(route_gate_count(0) == TEST_TUNNEL_PORTAL_COUNT);
 	for (legacy_u8 direction = 0; direction < TEST_ROTATION_COUNT; direction++) {
 		legacy_u8 along_x = direction & 1U;
 		trkObjectList[TEST_OBJECT_ID].ss_rotY = along_x ? ANGLE_QUARTER_TURN : 0;
@@ -284,6 +288,7 @@ legacy_int main(void)
 {
 	test_native_wall_response();
 	test_native_corkscrew_gates();
-	test_sloped_tunnel_portals();
+	test_sloped_tunnel_portals(0);
+	test_sloped_tunnel_portals(1);
 	return 0;
 }

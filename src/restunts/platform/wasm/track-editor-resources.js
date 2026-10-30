@@ -9,6 +9,7 @@
     const EDITOR_TILE_SIZE = 16, EDITOR_TILE_INTERIOR = EDITOR_TILE_SIZE - 1;
     const OVERPASS_VERTICAL_ICON = 101, OVERPASS_HORIZONTAL_ICON = 102;
     const ROAD_SURFACE_DIRT = 1, ROAD_SURFACE_ICE = 2;
+    const TUNNEL_SLALOM_ICONS = new Map([[115, { tunnel: 66, road: 4 }], [116, { tunnel: 67, road: 5 }]]);
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
@@ -175,6 +176,28 @@
         }
         return { width, height, pixels, alpha };
     }
+    function composePieceTileBitmap(icons, id, tunnelSlalom = 0) {
+        const slalom = composeTileBitmap(icons.get(id));
+        if (!tunnelSlalom) return slalom;
+        const parts = TUNNEL_SLALOM_ICONS.get(id);
+        if (tunnelSlalom !== 1 || !parts) fail('Invalid tunnel with slalom artwork.');
+        const tunnel = composeTileBitmap(icons.get(parts.tunnel));
+        const road = composeTileBitmap(icons.get(parts.road));
+        if (slalom.width !== tunnel.width || slalom.height !== tunnel.height ||
+            road.width !== tunnel.width || road.height !== tunnel.height) fail('Incompatible stunt artwork.');
+        const combined = { width: tunnel.width, height: tunnel.height,
+            pixels: tunnel.pixels.slice(), alpha: tunnel.alpha.slice() };
+        // Keep the tunnel shell and add only the slalom barriers; its opaque
+        // road background would otherwise cover the walls of the tunnel.
+        for (let index = 0; index < slalom.pixels.length; index++) {
+            if (slalom.alpha[index] && (slalom.pixels[index] !== road.pixels[index] ||
+                slalom.alpha[index] !== road.alpha[index])) {
+                combined.pixels[index] = slalom.pixels[index];
+                combined.alpha[index] = slalom.alpha[index];
+            }
+        }
+        return combined;
+    }
     function tintTileBitmap(bitmap, palette, surface = 0, lowerSurface = 0, overpassId = 0) {
         const rgba = new Uint8ClampedArray(bitmap.pixels.length * 4);
         for (let i = 0; i < bitmap.pixels.length; i++) {
@@ -231,5 +254,5 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap, tintTileBitmap };
+    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap };
 }));
