@@ -27,14 +27,16 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v5. Revision v3 and v4 tracks open as v5 while preserving their overpass
-road materials; revisions below v3 are unsupported. Newer revisions show a warning
+revision is v6. Revision v3 through v5 tracks open as v6 while preserving their
+overpass road materials; revisions below v3 are unsupported. Newer revisions show a warning
 and load using the known format.
 
 Hills retain the original game's straight inclines and inner and outer corners
-at every elevation. Aligned straight roads, tunnels, slaloms, and the original
-compatible ramp variants can be placed on straight inclines. Other track pieces
-require a flat plateau. Sloped tunnels and slaloms are exclusive to `.cstrk` tracks.
+at every elevation. Every track piece and scenery object can be placed on a
+straight incline in any direction. Multi-tile pieces require one continuous
+slope beneath their occupied cells; hill corners and changes of grade cannot
+support a piece. A shared geometry transform makes roads, stunt shapes and
+scenery follow the slope. These placement rules apply only to `.cstrk` tracks.
 
 SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
 counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior

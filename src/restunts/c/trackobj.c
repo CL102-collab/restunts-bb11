@@ -1520,6 +1520,10 @@ static legacy_s16 extended_object_road_at(const struct CSTRK_TRACK *track,
 	local.x = LEGACY_S16_WRAP_SUB(position->x, origin.x);
 	local.y = LEGACY_S16_WRAP_SUB(position->y, origin.y);
 	local.z = LEGACY_S16_WRAP_SUB(position->z, origin.z);
+	if (extended_geometry_uses_grade(object)) {
+		local.y =
+			LEGACY_S16_WRAP_SUB(local.y, extended_geometry_object_grade(object, local.x, local.z));
+	}
 	track_rotate_local(&local, definition->ss_rotY);
 	legacy_s16 model = definition->ss_physicalModel;
 	if (model == PHYSICAL_MODEL_LARGE_CORNER) {
@@ -1592,8 +1596,8 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	next_local.x = LEGACY_S16_WRAP_SUB(next->x, origin.x);
 	next_local.y = LEGACY_S16_WRAP_SUB(next->y, origin.y);
 	next_local.z = LEGACY_S16_WRAP_SUB(next->z, origin.z);
-	legacy_s16 sloped_stunt = extended_geometry_sloped_stunt(object);
-	if (sloped_stunt) {
+	legacy_s16 graded = extended_geometry_uses_grade(object);
+	if (graded) {
 		local.y =
 			LEGACY_S16_WRAP_SUB(local.y, extended_geometry_object_grade(object, local.x, local.z));
 		next_local.y = LEGACY_S16_WRAP_SUB(
@@ -1621,43 +1625,11 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	terrainHeight = origin.y;
 	current_surf_type = (legacy_s8)terrain.surface;
 	track_object_model(&sample);
-	if (sloped_stunt) {
-		legacy_s8 selected_surface = current_surf_type;
-		legacy_s16 roof = planindex == TUNNEL_ROOF_PLANE_INDEX;
-		if (wallindex != TRACK_WALL_NONE) {
-			/* Transform the original vertical wall while retaining a valid
-			 * plane template; the ground plane below replaces it afterward. */
-			planindex = TERRAIN_FLAT_PLANE_INDEX;
-			track_object_world_collision(position, orientation, sample.wall_orientation_modifier);
-		}
-		extended_select_terrain(&terrain, position);
-		current_surf_type = selected_surface;
-		terrainHeight = selected_surface == CAR_SURFACE_GRASS
-							? (legacy_s16)(((legacy_u16)(position->x ^ position->z) >>
-											GRASS_HEIGHT_HASH_SHIFT) &
-										   GRASS_HEIGHT_VARIATION_MASK)
-							: NON_GRASS_HEIGHT_OFFSET;
-		if (roof) {
-			/* The roof is the same incline as the floor, one tunnel-height
-			 * above it. Its separate index retains body/underside handling. */
-			extended_selected_plane.plane_origin.y =
-				LEGACY_S16_WRAP_ADD(extended_selected_plane.plane_origin.y, TUNNEL_HEIGHT);
-			planindex += TUNNEL_ROOF_PLANE_INDEX * PLANE_ORIENTATION_COUNT;
-		} else if (wallindex != TRACK_WALL_NONE) {
-			/* Wall limits use plane-normal distance, while the sheared shell
-			 * retains its original vertical clearance above the incline. */
-			const legacy_s32 normal_scale = TRIG_FIXED_ONE / 2;
-			wallHeight = (legacy_s16)((legacy_s32)wallHeight * current_planptr->plane_normal.y /
-									  normal_scale);
-			elRdWallRelated = (legacy_s16)(-(legacy_s32)terrainHeight *
-										   current_planptr->plane_normal.y / normal_scale);
-		}
-		return;
-	}
-	/* Ground-level portions use the original hill plane across the complete
-	 * tile. The road handler selects only the material, exactly as in the
-	 * original hill-road path; there are no shortened-mesh approach strips. */
-	if (planindex == NO_PLANE_INDEX && wallindex == TRACK_WALL_NONE) {
+	/* Graded driving floors use the same authored flat plane as elevated
+	 * decks and roofs. Applying one transform keeps their relative heights
+	 * and normals exact; terrain outside the piece retains its native plane. */
+	if (planindex == NO_PLANE_INDEX && wallindex == TRACK_WALL_NONE &&
+		(!graded || current_surf_type != sample.surface_type)) {
 		legacy_s8 surface = current_surf_type;
 		extended_select_terrain(&terrain, position);
 		current_surf_type = surface;
@@ -1671,6 +1643,21 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	track_object_world_collision(position, orientation, sample.wall_orientation_modifier);
 	legacy_s16 source_index = planindex;
 	extended_selected_plane = *current_planptr;
+	if (graded) {
+		legacy_s16 original_vertical_normal = extended_selected_plane.plane_normal.y;
+		extended_geometry_grade_plane(object, &extended_selected_plane);
+		if (wallindex != TRACK_WALL_NONE && original_vertical_normal != 0) {
+			/* Wall bounds are signed distances to the selected driving plane.
+			 * The inverse-transpose normal changes their distance scale while
+			 * the sheared wall keeps its original vertical clearance. */
+			wallHeight =
+				(legacy_s16)((legacy_s32)wallHeight * extended_selected_plane.plane_normal.y /
+							 original_vertical_normal);
+			elRdWallRelated =
+				(legacy_s16)((legacy_s32)elRdWallRelated * extended_selected_plane.plane_normal.y /
+							 original_vertical_normal);
+		}
+	}
 	current_planptr = &extended_selected_plane;
 	planindex = EXTENDED_GEOMETRY_PLANE_INDEX + source_index;
 }
@@ -1991,7 +1978,7 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 		local_second = (struct VECTOR){LEGACY_S16_WRAP_SUB(second->x, origin.x),
 									   LEGACY_S16_WRAP_SUB(second->y, origin.y),
 									   LEGACY_S16_WRAP_SUB(second->z, origin.z)};
-		if (extended_geometry_sloped_stunt(object)) {
+		if (extended_geometry_uses_grade(object)) {
 			local_first.y = LEGACY_S16_WRAP_SUB(
 				local_first.y,
 				extended_geometry_object_grade(object, local_first.x, local_first.z));

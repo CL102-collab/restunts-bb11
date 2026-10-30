@@ -253,25 +253,11 @@ static legacy_s16 object_hill_id(const struct CSTRK_TRACK *track, const struct C
 	if (!object->slope_x && !object->slope_y) {
 		return id;
 	}
-	struct CSTRK_TERRAIN_PROFILE profile;
-	if (!cstrk_terrain_profile(track, object->x, object->y, &profile) ||
-		profile.terrain_id < CSTRK_TERRAIN_PROFILE_NORTH ||
-		profile.terrain_id > CSTRK_TERRAIN_PROFILE_EAST) {
-		return -1;
+	legacy_s16 native = extended_geometry_native_hill_id(object, id);
+	if (native) {
+		return native;
 	}
-	const struct TRACKOBJECT *definition = &trkObjectList[id];
-	if (extended_geometry_sloped_stunt(object)) {
-		legacy_u16 axis = ((legacy_u16)definition->ss_rotY / ANGLE_QUARTER_TURN) & 1U;
-		return axis == (object->slope_x != 0) ? id : -1;
-	}
-	if (definition->ss_physicalModel == PHYSICAL_MODEL_ROAD) {
-		/* Surface is independent of the stored legacy road spelling. */
-		static const legacy_u8 roads[][2] = {{4, 5}, {14, 15}, {24, 25}};
-		legacy_u16 axis = ((legacy_u16)definition->ss_rotY / ANGLE_QUARTER_TURN) & 1U;
-		id = roads[object->surface][axis];
-	}
-	legacy_u8 hill_id = subst_hillroad_track(profile.terrain_id, (legacy_u8)id);
-	return hill_id ? hill_id : -1;
+	return track->version >= cstrk_object_slope_version(object) ? id : -1;
 }
 
 static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRACK_STORAGE *target,
