@@ -578,7 +578,7 @@ static void test_resource_admission(void)
 	struct CSTRK_OBJECT tunnel = object_at(66, 40, 40);
 	tunnel.slope_x = 1;
 	assert(cstrk_add_object(&track, &tunnel, error, sizeof(error)));
-	/* The original editor never permits a tunnel on a hill incline. */
+	/* A tunnel crossing the incline still cannot bank across the hillside. */
 	assert(!extended_track_activate(&track, error, sizeof(error)));
 	for (unsigned row = 0; row <= 90; row++) {
 		for (unsigned column = 42; column <= 90; column++) {
@@ -688,6 +688,163 @@ static struct VECTOR sample_curved_surface(const struct CSTRK_TRACK *track,
 						object->base_height * CSTRK_LEVEL_WORLD_HEIGHT + local.y,
 						(track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
 							object->height * (CSTRK_TILE_WORLD_SIZE / 2U) + local.z);
+}
+
+#define SLOPED_STUNT_TEST_TUNNEL_ID 66U
+#define SLOPED_STUNT_TEST_SLALOM_ID 115U
+#define SLOPED_STUNT_TEST_SAMPLE_HEIGHT 8
+#define SLOPED_STUNT_TEST_LONGITUDINAL_OFFSET 350
+#define SLOPED_STUNT_TEST_WALL_PROBE_HEIGHT 80
+#define SLOPED_STUNT_TEST_ABOVE_ROOF_HEIGHT 200
+#define SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT 20
+#define SLOPED_STUNT_TEST_ABOVE_BARRIER_HEIGHT 80
+#define SLOPED_STUNT_TEST_BELOW_GROUND_HEIGHT (-20)
+
+static struct VECTOR sloped_stunt_world(const struct CSTRK_TRACK *track,
+										const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	const struct CSTRK_OBJECT *active = extended_track_object_at(object->x, object->y);
+	legacy_u16 id = (legacy_u16)extended_track_object_id(active);
+	legacy_s16 x = local.x, z = local.z;
+	switch (trkObjectList[id].ss_rotY & ANGLE_MASK) {
+		case ANGLE_QUARTER_TURN:
+			local.x = z;
+			local.z = LEGACY_S16_WRAP_NEGATE(x);
+			break;
+		case ANGLE_HALF_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(x);
+			local.z = LEGACY_S16_WRAP_NEGATE(z);
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(z);
+			local.z = x;
+			break;
+	}
+	local.y =
+		LEGACY_S16_WRAP_ADD(local.y, extended_geometry_object_grade(object, local.x, local.z));
+	return object_world(track, object, local);
+}
+
+static legacy_s16 sloped_stunt_wheel_overlaps(const struct CSTRK_TRACK *track,
+											  const struct CSTRK_OBJECT *object, legacy_s16 height)
+{
+	static const struct VECTOR offsets[] = {{-8, -4, -8}, {8, -4, -8}, {8, -4, 8}, {-8, -4, 8},
+											{-8, 4, -8},  {8, 4, -8},  {8, 4, 8},  {-8, 4, 8}};
+	struct VECTOR vertices[sizeof(offsets) / sizeof(offsets[0])];
+	for (legacy_u16 index = 0; index < sizeof(offsets) / sizeof(offsets[0]); index++) {
+		struct VECTOR local = offsets[index];
+		local.y += height;
+		vertices[index] = sloped_stunt_world(track, object, local);
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(track, object, &origin);
+	extended_geometry_set_context(origin.x * 64L, origin.z * 64L);
+	return track_road_overlaps_wheel(vertices, 4, 0);
+}
+
+static void test_sloped_tunnels_and_slaloms(void)
+{
+	static const legacy_u16 ids[] = {SLOPED_STUNT_TEST_TUNNEL_ID, SLOPED_STUNT_TEST_SLALOM_ID};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 direction = 0; direction < 4U; direction++) {
+			for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+				for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+					struct CSTRK_TRACK track;
+					make_hill_test_track(&track, HILL_TERRAIN_FIRST + direction, base);
+					struct CSTRK_OBJECT object =
+						object_at(ids[kind], HILL_TEST_COLUMN, HILL_TEST_ROW);
+					legacy_u32 corner = object.y * (track.width + 1U) + object.x;
+					object.rotation = direction;
+					object.surface = surface;
+					object.base_height = track.corner_heights[corner];
+					object.slope_x = track.corner_heights[corner + 1U] - object.base_height;
+					object.slope_y =
+						track.corner_heights[corner + track.width + 1U] - object.base_height;
+					assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+					activate(&track);
+					assert(extended_geometry_sloped_stunt(&object));
+					assert(sloped_stunt_wheel_overlaps(&track, &object, 0));
+					assert(!sloped_stunt_wheel_overlaps(&track, &object,
+														SLOPED_STUNT_TEST_BELOW_GROUND_HEIGHT));
+					for (legacy_s16 side = -1; side <= 1; side += 2) {
+						legacy_s16 along = side * SLOPED_STUNT_TEST_LONGITUDINAL_OFFSET;
+						struct VECTOR point = sloped_stunt_world(
+							&track, &object,
+							(struct VECTOR){0, SLOPED_STUNT_TEST_SAMPLE_HEIGHT, along});
+						(void)sample_world(point.x, point.y, point.z);
+						assert(current_surf_type == surface + CAR_SURFACE_PAVED);
+						assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
+						legacy_s16 expected = extended_track_elevation(
+							object.x, object.y, point.x - object.x * CSTRK_TILE_WORLD_SIZE,
+							(track.height - object.y) * CSTRK_TILE_WORLD_SIZE - point.z);
+						assert(selected_height(&point) ==
+							   expected + HILL_TEST_NON_GRASS_HEIGHT_OFFSET);
+						if (kind == 0) {
+							struct VECTOR floor_normal = current_planptr->plane_normal;
+							legacy_s16 floor_height = (legacy_s16)selected_height(&point);
+							point = sloped_stunt_world(
+								&track, &object,
+								(struct VECTOR){0, TUNNEL_HEIGHT + SLOPED_STUNT_TEST_SAMPLE_HEIGHT,
+												along});
+							(void)sample_world(point.x, point.y, point.z);
+							assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+							assert(selected_height(&point) == floor_height + TUNNEL_HEIGHT);
+							assert(memcmp(&floor_normal, &current_planptr->plane_normal,
+										  sizeof(floor_normal)) == 0);
+							struct VECTOR inside = sloped_stunt_world(
+								&track, &object,
+								(struct VECTOR){100, SLOPED_STUNT_TEST_WALL_PROBE_HEIGHT, along});
+							struct VECTOR outside = sloped_stunt_world(
+								&track, &object,
+								(struct VECTOR){140, SLOPED_STUNT_TEST_WALL_PROBE_HEIGHT, along});
+							assert(track_wall_intersects_segment(&inside, &outside));
+							inside = sloped_stunt_world(
+								&track, &object,
+								(struct VECTOR){100, SLOPED_STUNT_TEST_ABOVE_ROOF_HEIGHT, along});
+							outside = sloped_stunt_world(
+								&track, &object,
+								(struct VECTOR){140, SLOPED_STUNT_TEST_ABOVE_ROOF_HEIGHT, along});
+							assert(!track_wall_intersects_segment(&inside, &outside));
+						}
+					}
+					if (kind == 1) {
+						static const legacy_s16 heights[] = {SLOPED_STUNT_TEST_BARRIER_PROBE_HEIGHT,
+															 SLOPED_STUNT_TEST_ABOVE_BARRIER_HEIGHT,
+															 SLOPED_STUNT_TEST_BELOW_GROUND_HEIGHT};
+						for (legacy_u8 probe = 0; probe < sizeof(heights) / sizeof(heights[0]);
+							 probe++) {
+							struct VECTOR first = sloped_stunt_world(
+								&track, &object, (struct VECTOR){50, heights[probe], -300});
+							struct VECTOR second = sloped_stunt_world(
+								&track, &object, (struct VECTOR){50, heights[probe], -210});
+							legacy_s16 fraction;
+							assert(track_solid_obstacle_contact(&first, &second, &fraction) ==
+								   (probe == 0));
+						}
+						struct VECTOR collision_points[8];
+						legacy_s16 count =
+							get_track_collision_points(object.x, object.y, collision_points);
+						assert(count > 0 && (legacy_u16)count <= sizeof(collision_points) /
+																	 sizeof(collision_points[0]));
+						legacy_s16 minimum = collision_points[0].y, maximum = minimum;
+						for (legacy_s16 point = 1; point < count; point++) {
+							if (collision_points[point].y < minimum) {
+								minimum = collision_points[point].y;
+							}
+							if (collision_points[point].y > maximum) {
+								maximum = collision_points[point].y;
+							}
+						}
+						assert(maximum - minimum > SLOPED_STUNT_TEST_WALL_PROBE_HEIGHT);
+					}
+					track.objects[0].rotation = (object.rotation + 1U) % 4U;
+					assert(!extended_track_activate(&track, error, sizeof(error)));
+					extended_track_unload();
+					cstrk_free(&track);
+				}
+			}
+		}
+	}
 }
 
 static void test_loop_and_pipe_surfaces(void)
@@ -1287,6 +1444,7 @@ int main(void)
 	test_nonclassic_terrain_is_rejected();
 	test_original_hill_terrain();
 	test_original_hill_roads();
+	test_sloped_tunnels_and_slaloms();
 	test_hill_shore_geometry();
 	test_shore_materials();
 	test_resource_admission();

@@ -25,6 +25,10 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_
 							  legacy_s32 world_z, struct EXTENDED_TERRAIN_SAMPLE *sample);
 void extended_geometry_object_origin(const struct CSTRK_TRACK *track,
 									 const struct CSTRK_OBJECT *object, struct VECTOR *origin);
+legacy_s16 extended_geometry_sloped_stunt(const struct CSTRK_OBJECT *object);
+/* Height above the object's lowest support corner, in world-oriented local axes. */
+legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+										  legacy_s16 local_z);
 /* Temporary quarter-turned mesh with its selected paint. Submit synchronously, then free. */
 int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE3D *destination,
 									  legacy_s16 orientation, legacy_u16 surface,

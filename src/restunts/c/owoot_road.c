@@ -564,6 +564,11 @@ static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertice
 		local[index] = (struct VECTOR){LEGACY_S16_WRAP_SUB(vertices[index].x, origin.x),
 									   LEGACY_S16_WRAP_SUB(vertices[index].y, origin.y),
 									   LEGACY_S16_WRAP_SUB(vertices[index].z, origin.z)};
+		if (extended_geometry_sloped_stunt(placed)) {
+			local[index].y = LEGACY_S16_WRAP_SUB(
+				local[index].y,
+				extended_geometry_object_grade(placed, local[index].x, local[index].z));
+		}
 		legacy_s16 x = local[index].x, z = local[index].z;
 		switch ((legacy_u16)object->ss_rotY) {
 			case ANGLE_QUARTER_TURN:

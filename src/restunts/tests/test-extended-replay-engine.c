@@ -22,6 +22,7 @@
 #include "../c/extended_file.h"
 #include "../c/driving_rules.h"
 #include "../c/car_speed.h"
+#include "../c/physics_internal.h"
 
 #undef memcpy
 #undef printf
@@ -51,6 +52,12 @@
 #define ENGINE_TEST_SLOPE_MINIMUM_PROGRESS CSTRK_TILE_WORLD_SIZE
 #define ENGINE_TEST_SLOPE_MAXIMUM_PROGRESS (3L * CSTRK_TILE_WORLD_SIZE)
 #define ENGINE_TEST_SLOPE_END_PROGRESS ((legacy_s32)CSTRK_MAX_HEIGHT * CSTRK_TILE_WORLD_SIZE)
+#define ENGINE_TEST_SLOPE_STUNT_NONE 0U
+#define ENGINE_TEST_SLOPE_IMPACT_PROGRESS (2L * CSTRK_TILE_WORLD_SIZE)
+#define ENGINE_TEST_SLALOM_LATERAL_OFFSET ((SLALOM_POLE_INNER_X + SLALOM_POLE_OUTER_X) / 2)
+#define ENGINE_TEST_SLALOM_DRIVING_FRAMES (2U * ENGINE_TEST_SLOPE_DRIVING_FRAMES)
+#define ENGINE_TEST_SLALOM_APPROACH_SPEED 4096U
+#define ENGINE_TEST_WALL_SOUND_FLAG 16U
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -253,7 +260,8 @@ static void initialize_simulation(void)
 /* Rotate the complete four-level climb, including its entry and exit flats.
  * Keeping the fixture beyond the signed-word boundary also exercises the
  * extended world's wrapped collision coordinates in every direction. */
-static void create_rotated_slope_track(legacy_u8 rotation, legacy_u8 surface)
+static void create_rotated_slope_track(legacy_u8 rotation, legacy_u8 surface,
+									   legacy_u16 slope_stunt)
 {
 	create_track(1);
 	const struct CSTRK_TRACK *source = extended_track_model();
@@ -275,6 +283,9 @@ static void create_rotated_slope_track(legacy_u8 rotation, legacy_u8 surface)
 	}
 	for (legacy_u32 index = 0; index < source->object_count; index++) {
 		struct CSTRK_OBJECT object = source->objects[index];
+		if (slope_stunt != ENGINE_TEST_SLOPE_STUNT_NONE && (object.slope_x || object.slope_y)) {
+			object.legacy_id = slope_stunt;
+		}
 		for (legacy_u8 turn = 0; turn < rotation; turn++) {
 			legacy_u8 previous_x = object.x;
 			object.x = source->width - 1U - object.y;
@@ -327,7 +338,7 @@ static void initialize_slope_driver(legacy_u8 rotation, legacy_u8 uphill)
 							(state.playerstate.car_rotate.x + ANGLE_HALF_TURN) & ANGLE_MASK);
 }
 
-static void test_smooth_consecutive_slopes(void)
+static void test_smooth_consecutive_slopes(legacy_u16 slope_stunt)
 {
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
 	legacy_u16 original_rate = gameconfig.game_framespersec;
@@ -338,7 +349,7 @@ static void test_smooth_consecutive_slopes(void)
 		for (legacy_u8 surface = 0; surface < ENGINE_TEST_SLOPE_SURFACES; surface++) {
 			for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
 				for (legacy_u8 uphill = 0; uphill <= 1U; uphill++) {
-					create_rotated_slope_track(rotation, surface);
+					create_rotated_slope_track(rotation, surface, slope_stunt);
 					initialize_slope_driver(rotation, uphill);
 					legacy_u16 samples = 0;
 					legacy_s16 previous_pitch = 0;
@@ -395,6 +406,93 @@ static void test_smooth_consecutive_slopes(void)
 			}
 		}
 	}
+	gameconfig.game_framespersec = original_rate;
+	framespersec = original_rate;
+	extended_replay_runtime_clear();
+	extended_track_unload();
+}
+
+static void test_sloped_slalom_impacts(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	legacy_u16 original_rate = gameconfig.game_framespersec;
+	legacy_u16 original_collision = legacy_collision_is_enabled();
+	for (legacy_u8 legacy_collision = 0; legacy_collision <= 1U; legacy_collision++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"restunts",
+								  (legacy_s8 *)(legacy_collision ? "--lc:on" : "--lc:off")};
+		configure_legacy_collision((legacy_s16)(sizeof(arguments) / sizeof(arguments[0])),
+								   arguments);
+		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+			gameconfig.game_framespersec = rates[rate];
+			for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
+				for (legacy_u8 uphill = 0; uphill <= 1U; uphill++) {
+					create_rotated_slope_track(rotation, CSTRK_ROAD_PAVED, CSTRK_SLALOM_FIRST_ID);
+					initialize_slope_driver(rotation, uphill);
+					/* The stock P962 fits between the center-line barrier edges. Aim
+					 * its center at one barrier so an unsteered pass must hit it. */
+					struct CARSTATE *driver = &state.playerstate;
+					legacy_s32 x = driver->car_position.lx / ENGINE_TEST_POSITION_SCALE;
+					legacy_s32 z = driver->car_position.lz / ENGINE_TEST_POSITION_SCALE;
+					legacy_s32 size = extended_track_width() * CSTRK_TILE_WORLD_SIZE;
+					for (legacy_u8 turn = 0; turn < rotation; turn++) {
+						legacy_s32 previous_x = x;
+						x = size - z;
+						z = previous_x;
+					}
+					x = ENGINE_TEST_LEFT_COLUMN * CSTRK_TILE_WORLD_SIZE +
+						CSTRK_TILE_WORLD_SIZE / 2 + ENGINE_TEST_SLALOM_LATERAL_OFFSET;
+					for (legacy_u8 turn = 0; turn < rotation; turn++) {
+						legacy_s32 previous_x = x;
+						x = z;
+						z = size - previous_x;
+					}
+					init_carstate_from_simd(driver, &simd_player, TRANSMISSION_AUTOMATIC,
+											x * ENGINE_TEST_POSITION_SCALE,
+											driver->car_position.ly -
+												ENGINE_TEST_INITIAL_BODY_HEIGHT *
+													ENGINE_TEST_POSITION_SCALE,
+											z * ENGINE_TEST_POSITION_SCALE, driver->car_rotate.x);
+					legacy_u8 hit = 0;
+					for (legacy_u16 frame = 0; frame < ENGINE_TEST_SLALOM_DRIVING_FRAMES *
+														   rates[rate] / GAME_FRAME_RATE_NORMAL;
+						 frame++) {
+						/* Keep the approach slower than the thin barrier's depth per tick;
+						 * intentional legacy collision bugs can skip it at racing speed. */
+						driver->car_actual_speed = ENGINE_TEST_SLALOM_APPROACH_SPEED;
+						driver->car_rev_speed = ENGINE_TEST_SLALOM_APPROACH_SPEED;
+						assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
+						update_gamestate();
+						const struct CARSTATE *car = &state.playerstate;
+						legacy_s32 progress = slope_driving_progress(car, rotation);
+						if (car->car_crashBmpFlag != CRASH_EVENT_NONE ||
+							(car->car_sound_flags & ENGINE_TEST_WALL_SOUND_FLAG) != 0) {
+							/* Allow the natural jump from the downhill entry plateau. Once
+							 * grounded, the car must hit barriers at the hillside elevation. */
+							assert(progress > 0 && progress < ENGINE_TEST_SLOPE_END_PROGRESS);
+							assert(uphill ? progress < ENGINE_TEST_SLOPE_IMPACT_PROGRESS
+										  : progress > ENGINE_TEST_SLOPE_IMPACT_PROGRESS);
+							hit = 1;
+							break;
+						}
+						if ((uphill && progress > ENGINE_TEST_SLOPE_IMPACT_PROGRESS) ||
+							(!uphill && progress < ENGINE_TEST_SLOPE_IMPACT_PROGRESS)) {
+							break;
+						}
+					}
+					if (!hit) {
+						fprintf(stderr,
+								"Missed sloped slalom at rate %u, rotation %u, uphill %u, "
+								"legacy collision %u\n",
+								rates[rate], rotation, uphill, legacy_collision);
+					}
+					assert(hit);
+				}
+			}
+		}
+	}
+	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts",
+							  (legacy_s8 *)(original_collision ? "--lc:on" : "--lc:off")};
+	configure_legacy_collision((legacy_s16)(sizeof(arguments) / sizeof(arguments[0])), arguments);
 	gameconfig.game_framespersec = original_rate;
 	framespersec = original_rate;
 	extended_replay_runtime_clear();
@@ -579,7 +677,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	assert(extended_replay_seek(ENGINE_TEST_HILL_REPLAY_FRAMES));
 	assert_same_simulation(&hill_expected, hill_seed);
 	test_recording_version_roundtrips((size_t)saved_size);
-	test_smooth_consecutive_slopes();
+	test_smooth_consecutive_slopes(ENGINE_TEST_SLOPE_STUNT_NONE);
+	test_smooth_consecutive_slopes(CSTRK_TUNNEL_FIRST_ID);
+	test_sloped_slalom_impacts();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

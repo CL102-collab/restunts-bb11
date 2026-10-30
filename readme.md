@@ -24,13 +24,14 @@ The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
 terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
 Select your Stunts folder before editing. The browser launcher links the editor;
 native packages include it under `share/restunts/editor/`. The current `.cstrk`
-revision is v4. Revision v3 tracks open as v4 while preserving their overpass
+revision is v5. Revision v3 and v4 tracks open as v5 while preserving their overpass
 road materials; revisions below v3 are unsupported. Newer revisions show a warning
 and load using the known format.
 
 Hills retain the original game's straight inclines and inner and outer corners
-at every elevation. Only the original hill-compatible roads and ramp variants
-can be placed on inclines; other track pieces require a flat plateau.
+at every elevation. Aligned straight roads, tunnels, slaloms, and the original
+compatible ramp variants can be placed on straight inclines. Other track pieces
+require a flat plateau. Sloped tunnels and slaloms are exclusive to `.cstrk` tracks.
 
 SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
 counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior

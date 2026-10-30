@@ -391,6 +391,121 @@ static void test_plateaus_and_hill_slopes(void)
 	cstrk_free(&decoded);
 }
 
+#define TEST_SLOPED_STUNT_DIRECTIONS 4U
+#define TEST_SLOPED_STUNT_REVERSES 2U
+#define TEST_SLOPED_STUNT_HALF_TURN 2U
+
+static void test_sloped_stunt_versions(void)
+{
+	static const legacy_u16 ids[] = {CSTRK_TUNNEL_FIRST_ID, CSTRK_TUNNEL_LAST_ID,
+									 CSTRK_SLALOM_FIRST_ID, CSTRK_SLALOM_LAST_ID};
+	static const legacy_u8 masks[TEST_SLOPED_STUNT_DIRECTIONS] = {3U, 9U, 12U, 6U};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	for (size_t id_index = 0; id_index < sizeof(ids) / sizeof(ids[0]); id_index++) {
+		for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+			for (legacy_u8 direction = 0; direction < TEST_SLOPED_STUNT_DIRECTIONS; direction++) {
+				legacy_u8 heights[TEST_TERRAIN_CORNER_COUNT];
+				for (legacy_u8 corner = 0; corner < TEST_TERRAIN_CORNER_COUNT; corner++) {
+					heights[corner] = base + ((masks[direction] >> corner) & 1U);
+				}
+				set_terrain_corners(&track, heights);
+				for (legacy_u8 reverse = 0; reverse < TEST_SLOPED_STUNT_REVERSES; reverse++) {
+					for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE;
+						 surface++) {
+						struct CSTRK_OBJECT object = object_at(0, 0);
+						object.legacy_id = ids[id_index];
+						object.base_height = heights[0];
+						object.slope_x = heights[1] - heights[0];
+						object.slope_y = heights[3] - heights[0];
+						object.rotation =
+							((object.slope_x != 0) ^ (object.legacy_id == CSTRK_TUNNEL_LAST_ID ||
+													  object.legacy_id == CSTRK_SLALOM_LAST_ID)) +
+							reverse * TEST_SLOPED_STUNT_HALF_TURN;
+						object.surface = surface;
+						if (track.object_count == 0) {
+							assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+						} else {
+							track.objects[0] = object;
+						}
+						legacy_u8 *data = NULL;
+						size_t size = 0;
+						assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+						assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+						assert(decoded.version == CSTRK_VERSION && decoded.object_count == 1);
+						assert(decoded.objects[0].legacy_id == object.legacy_id);
+						assert(decoded.objects[0].rotation == object.rotation);
+						assert(decoded.objects[0].surface == object.surface);
+						assert(decoded.objects[0].base_height == object.base_height);
+						assert(decoded.objects[0].slope_x == object.slope_x);
+						assert(decoded.objects[0].slope_y == object.slope_y);
+						legacy_u8 *again = NULL;
+						size_t again_size = 0;
+						assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+						assert(again_size == size && memcmp(again, data, size) == 0);
+						free(again);
+
+						/* Old revisions cannot acquire the new placement merely by having
+						 * their metadata upgraded. A failed import/export is transactional. */
+						legacy_u8 before[sizeof(decoded)];
+						memcpy(before, &decoded, sizeof(decoded));
+						legacy_u8 *original_data = data;
+						size_t original_size = size;
+						for (legacy_u16 version = CSTRK_MIN_VERSION;
+							 version < CSTRK_SLOPED_STUNT_VERSION; version++) {
+							LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+							assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+							assert(strstr(error, "sloped tunnels and slaloms") != NULL);
+							assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+							track.version = version;
+							assert(!cstrk_encode(&track, &data, &size, error, sizeof(error)));
+							assert(data == original_data && size == original_size);
+						}
+						track.version = CSTRK_VERSION;
+						free(data);
+					}
+				}
+			}
+		}
+	}
+	track.version = TEST_FUTURE_REVISION;
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.version == TEST_FUTURE_REVISION);
+	free(data);
+
+	/* Flat stunt pieces and existing hill roads remain valid in both old
+	 * revisions, and are upgraded only after their original rules pass. */
+	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_SLOPED_STUNT_VERSION; version++) {
+		track.version = version;
+		for (size_t index = 0; index < sizeof(ids) / sizeof(ids[0]); index++) {
+			memset(track.corner_heights, CSTRK_MAX_HEIGHT, TEST_TERRAIN_CORNER_COUNT);
+			track.objects[0].legacy_id = ids[index];
+			track.objects[0].base_height = CSTRK_MAX_HEIGHT;
+			track.objects[0].slope_x = track.objects[0].slope_y = 0;
+			assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+			assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.version == CSTRK_VERSION && decoded.objects[0].legacy_id == ids[index]);
+			free(data);
+		}
+		static const legacy_u8 road_heights[TEST_TERRAIN_CORNER_COUNT] = {0, 1, 1, 0};
+		set_terrain_corners(&track, road_heights);
+		track.objects[0].legacy_id = 5U;
+		track.objects[0].base_height = 0;
+		track.objects[0].slope_x = 1;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION && decoded.objects[0].slope_x == 1);
+		free(data);
+	}
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
 static void test_notes(void)
 {
 	struct CSTRK_TRACK track;
@@ -547,6 +662,13 @@ static void test_overpass_lower_surfaces(void)
 	assert(cstrk_encode(&track, &fixture, &fixture_size, error, sizeof(error)));
 	assert(fixture_size == object_offset + sizeof(expected));
 	assert(memcmp(fixture + object_offset, expected, sizeof(expected)) == 0);
+	/* Revision 4 already stores independent surfaces; upgrading its metadata
+	 * must preserve both materials rather than applying the v3 shared rule. */
+	LEGACY_WRITE_U16_LE(fixture + CSTRK_VERSION_OFFSET, CSTRK_LOWER_SURFACE_VERSION);
+	assert(cstrk_decode(fixture, fixture_size, &decoded, error, sizeof(error)));
+	assert(decoded.version == CSTRK_VERSION);
+	assert(decoded.objects[0].surface == CSTRK_ROAD_DIRT);
+	assert(decoded.objects[0].lower_surface == CSTRK_ROAD_ICE);
 	free(fixture);
 	for (legacy_u16 id = CSTRK_OVERPASS_FIRST_ID; id <= CSTRK_OVERPASS_LAST_ID; id++) {
 		for (legacy_u8 rotation = 0; rotation < TEST_OVERPASS_ROTATIONS; rotation++) {
@@ -676,6 +798,7 @@ int main(void)
 	test_surface_corners();
 	test_original_terrain_profiles();
 	test_plateaus_and_hill_slopes();
+	test_sloped_stunt_versions();
 	test_notes();
 	test_invalid_records();
 	test_maximum_track();
