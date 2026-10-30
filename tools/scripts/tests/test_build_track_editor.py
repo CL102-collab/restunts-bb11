@@ -90,8 +90,26 @@ vm.runInContext(`
     doc.setNotes('An offline track');
     doc.place(1, 3, 3, 0, 0);
     const loaded = model.decodeCstrk(model.encodeCstrk(doc));
-    if (JSON.stringify(loaded.snapshot()) !== JSON.stringify(doc.snapshot())) {
+    if (JSON.stringify(model.encodeCstrk(loaded)) !== JSON.stringify(model.encodeCstrk(doc))) {
         throw new Error('Embedded codec changed the saved track');
+    }
+    for (const id of [109, 111, 151]) {
+        const slope = new model.Document(4, 4);
+        for (let y = 0; y <= slope.height; y++) for (let x = 0; x <= slope.width; x++) {
+            slope.vertices[y * (slope.width + 1) + x] = Math.min(x, 2);
+        }
+        const object = new model.Document(4, 4).place(id, 1, 1);
+        slope.objects.push({ ...object, baseHeight: 1, slopeX: 1 });
+        const imported = model.decodeCstrk(model.encodeCstrk(slope));
+        if (imported.validate().length) throw new Error('Imported slope placement is invalid');
+        let blocked = false;
+        try { imported.placement(id, 1, 2); }
+        catch (error) { blocked = /level ground.*editor/.test(error.message); }
+        if (!blocked) throw new Error('Embedded editor allows restricted slope placement');
+        if (!imported.erase(1, 1) || imported.objects.length || !imported.undo()) {
+            throw new Error('Imported slope placement cannot be removed and restored');
+        }
+        model.decodeCstrk(model.encodeCstrk(imported));
     }
     if (!TrackEditorResources || !TrackEditorRouteData || !TrackEditorValidation) {
         throw new Error('A browser module is missing');

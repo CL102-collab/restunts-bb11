@@ -174,6 +174,9 @@ test('terrain edits produce only original profiles and resolve diagonal islands 
 const SLOPE_TEST_SIZE = 4, SLOPE_TEST_ORIGIN = 1, SLOPE_MAX_LEVEL = 4;
 const SLOPE_DIRECTIONS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 const SLOPE_PLACEMENT_ERROR = /flat ground|straight slope|original hill|support plane/;
+const EDITOR_LEVEL_ONLY_IDS = new Set([109, 110, 111, 112, 113, 114,
+    ...Array.from({ length: 28 }, (_, index) => 151 + index)]);
+const EDITOR_LEVEL_ONLY_ERROR = /can only be built on level ground in the editor/;
 function slopeDocument(footprint, slopeX, slopeY, low = 0) {
     const doc = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
     const span = slopeX ? footprint.width : footprint.height, grade = slopeX || slopeY;
@@ -184,11 +187,27 @@ function slopeDocument(footprint, slopeX, slopeY, low = 0) {
     }
     return doc;
 }
-test('every library family fits straight slopes in every element and slope direction', () => {
+// Model file admission remains broader than the editor's build controls. Start
+// from a legal flat record, then supply the support metadata stored in a file.
+function importSlopePiece(doc, id, surface = 0, rotation = 0, lowerSurface = 0) {
+    const flat = new model.Document(doc.width, doc.height);
+    const object = flat.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, lowerSurface);
+    const heights = doc.tileHeights(object.x, object.y);
+    object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
+    doc.objects.push(object);
+    return object;
+}
+test('buildable library families fit straight slopes in every element and slope direction', () => {
     for (const entry of model.library) for (let direction = 0; direction < SLOPE_DIRECTIONS.length; direction++) {
         const { piece, rotation } = model.pieceVariant(entry, direction), footprint = model.rotatedFootprint(piece, rotation);
         for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) for (const surface of model.SURFACES.keys()) {
             const doc = slopeDocument(footprint, slopeX, slopeY), before = doc.snapshot();
+            if (EDITOR_LEVEL_ONLY_IDS.has(piece.id)) {
+                assert.throws(() => doc.placement(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation), EDITOR_LEVEL_ONLY_ERROR);
+                assert.throws(() => doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation), EDITOR_LEVEL_ONLY_ERROR);
+                assert.deepEqual(doc.snapshot(), before);
+                continue;
+            }
             const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0);
             assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
             assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
@@ -203,14 +222,57 @@ test('every library family fits straight slopes in every element and slope direc
         }
     }
 });
-test('straight slope support reaches each legal elevation without changing a multi-tile grade', () => {
+test('level-only editor pieces remain flat-buildable, importable and removable on slopes', () => {
+    const entries = model.catalog.filter(piece => EDITOR_LEVEL_ONLY_IDS.has(piece.id));
+    assert.equal(entries.length, EDITOR_LEVEL_ONLY_IDS.size);
+    for (const entry of entries) for (let rotation = 0; rotation < SLOPE_DIRECTIONS.length; rotation++) {
+        const footprint = model.rotatedFootprint(entry, rotation);
+        for (const surface of model.SURFACES.keys()) {
+            for (let level = 0; level <= SLOPE_MAX_LEVEL; level++) {
+                const flat = new model.Document(SLOPE_TEST_SIZE, SLOPE_TEST_SIZE);
+                flat.vertices.fill(level);
+                const object = flat.place(entry.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation);
+                assert.equal(object.baseHeight, level);
+                assert.equal(object.slopeX, 0); assert.equal(object.slopeY, 0);
+                assert.deepEqual(flat.validate(), []);
+            }
+            for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) {
+                const doc = slopeDocument(footprint, slopeX, slopeY);
+                doc.setNotes('Retain redo'); doc.undo();
+                const before = doc.snapshot(), history = doc.history.length, future = doc.future.length;
+                assert.throws(() => doc.placement(entry.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation), EDITOR_LEVEL_ONLY_ERROR);
+                assert.throws(() => doc.place(entry.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation), EDITOR_LEVEL_ONLY_ERROR);
+                assert.deepEqual(doc.snapshot(), before);
+                assert.equal(doc.history.length, history); assert.equal(doc.future.length, future);
+                const imported = importSlopePiece(doc, entry.id, surface, rotation);
+                imported.surface = surface; // Existing scenery may retain a non-neutral road selection.
+                assert.equal(imported.slopeX, slopeX); assert.equal(imported.slopeY, slopeY);
+                assert.deepEqual(doc.validate(), []);
+                const bytes = model.encodeCstrk(doc), loaded = model.decodeCstrk(bytes), original = loaded.snapshot();
+                assert.deepEqual(original, doc.snapshot());
+                assert.deepEqual(model.encodeCstrk(loaded), bytes);
+                assert.deepEqual(loaded.validate(), []);
+                assert(loaded.erase(SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN));
+                assert.equal(loaded.objects.length, 0); assert.deepEqual(loaded.validate(), []);
+                const removed = loaded.snapshot();
+                assert(loaded.undo()); assert.deepEqual(loaded.snapshot(), original);
+                assert.deepEqual(model.encodeCstrk(loaded), bytes);
+                assert(loaded.redo()); assert.deepEqual(loaded.snapshot(), removed);
+                assert.throws(() => loaded.place(entry.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation), EDITOR_LEVEL_ONLY_ERROR);
+                assert.deepEqual(loaded.snapshot(), removed);
+            }
+        }
+    }
+});
+test('stored slope support reaches each legal elevation without changing a multi-tile grade', () => {
     for (const id of [1, 11, 53, 60, 64, 87, 106, 151]) for (let rotation = 0; rotation < SLOPE_DIRECTIONS.length; rotation++) {
         const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, rotation);
         for (const [slopeX, slopeY] of SLOPE_DIRECTIONS) {
             const span = slopeX ? footprint.width : footprint.height;
             for (let low = 0; low <= SLOPE_MAX_LEVEL - span; low++) {
                 const doc = slopeDocument(footprint, slopeX, slopeY, low);
-                const object = doc.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, 1, rotation);
+                const object = EDITOR_LEVEL_ONLY_IDS.has(id) ? importSlopePiece(doc, id, 1, rotation)
+                    : doc.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, 1, rotation);
                 assert.equal(object.baseHeight, low + (slopeX + slopeY < 0 ? span : 0));
                 assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
                 assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
@@ -235,7 +297,9 @@ test('new slope placements require v6 while supported older tracks upgrade befor
     const examples = [[1, 1, 0], [7, 1, 0], [11, 1, 0], [53, 0, -1], [66, 1, 0], [87, -1, 0], [151, 0, 1]];
     for (const [id, slopeX, slopeY] of examples) {
         const entry = model.catalog.find(piece => piece.id === id), footprint = model.rotatedFootprint(entry, 0);
-        const source = slopeDocument(footprint, slopeX, slopeY), placed = source.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
+        const source = slopeDocument(footprint, slopeX, slopeY);
+        const placed = EDITOR_LEVEL_ONLY_IDS.has(id) ? importSlopePiece(source, id)
+            : source.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
         const encoded = model.encodeCstrk(source);
         for (const version of [3, 4, 5]) {
             const invalid = encoded.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
@@ -246,7 +310,10 @@ test('new slope placements require v6 while supported older tracks upgrade befor
             assert.throws(() => source.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN), /version v6/, entry.name);
             const loaded = model.decodeCstrk(model.encodeCstrk(source));
             assert.equal(loaded.version, model.VERSION);
-            loaded.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
+            if (EDITOR_LEVEL_ONLY_IDS.has(id)) {
+                assert.throws(() => loaded.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN), EDITOR_LEVEL_ONLY_ERROR);
+                importSlopePiece(loaded, id);
+            } else loaded.place(id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN);
             assert.deepEqual(model.decodeCstrk(model.encodeCstrk(loaded)).snapshot(), loaded.snapshot());
         }
     }

@@ -78,7 +78,12 @@ The same 450-unit rise over a 1,024-unit tile is used at every elevation, so
 higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
-On a straight incline, place any track piece or scenery in any direction.
+On a straight incline, place track pieces in any direction. The editor requires
+level ground for divided highways, highway transitions and all scenery; raised
+flat ground is allowed. Existing files containing these elements on slopes still
+open, validate, save and play normally. Use Remove to delete those elements in
+the editor.
+
 Multi-tile elements, including big turns, work when every occupied tile follows
 one continuous straight slope with the same direction and grade. The piece's
 rendering, collision and route geometry follow that plane; banked roads, elevated
