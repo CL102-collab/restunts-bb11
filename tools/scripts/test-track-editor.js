@@ -120,6 +120,238 @@ test('every library direction preserves the placement footprint and saved track 
         assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
     }
 });
+// Selection uses complete occupied objects; sparse footprint holes remain free.
+function clipboardFixture() {
+    const doc = new model.Document(16, 10);
+    doc.place(101, 2, 2, 2, 0, 1);
+    doc.place(115, 4, 2, 1, 0, 0, 1);
+    doc.place(85, 6, 2, 0, 0, 0, 0, 1);
+    doc.place(5, 10, 4);
+    doc.history = []; doc.future = [];
+    return doc;
+}
+function terrainSnapshot(doc) {
+    return { vertices: Array.from(doc.vertices), cells: doc.cells.map(cell => ({ ...cell })) };
+}
+test('rectangular selection expands complete sparse and neighboring multi-tile objects', () => {
+    const doc = new model.Document(10, 8);
+    doc.place(10, 2, 2); // Only NE and SW cells of this big turn are occupied.
+    doc.place(5, 2, 2); // Its free NW corner can contain an independent road.
+    doc.place(64, 3, 3); // Its free SE corner starts a two-tile loop.
+    doc.place(4, 8, 7);
+    const before = doc.snapshot(), history = doc.history.length;
+    const selected = doc.selection({ x: 3, y: 2, width: 1, height: 1 });
+    assert.deepEqual({ x: selected.x, y: selected.y, width: selected.width, height: selected.height },
+        { x: 2, y: 2, width: 2, height: 3 });
+    assert.deepEqual(selected.objects.map(object => object.id).sort((a, b) => a - b), [5, 10, 64]);
+    assert.notEqual(selected.objects[0], doc.objects[0], 'selection objects are detached from the document');
+    assert.deepEqual(doc.snapshot(), before);
+    assert.equal(doc.history.length, history);
+    const emptyCorner = new model.Document(6, 6); emptyCorner.place(10, 2, 2);
+    assert.equal(emptyCorner.selection({ x: 2, y: 2, width: 1, height: 1 }).objects.length, 0);
+    assert.equal(doc.selection({ x: 8, y: 7, width: 1, height: 1 }).objects[0].id, 4);
+    assert.equal(doc.selection({ x: 9, y: 7, width: 1, height: 1 }).objects.length, 0);
+    assert.throws(() => doc.selection({ x: 9, y: 7, width: 2, height: 1 }));
+    assert.throws(() => doc.selection({ x: 1, y: 1, width: 0, height: 1 }));
+    assert.deepEqual(doc.snapshot(), before);
+});
+test('copy retains rectangular blank spacing, materials and stunt variants without editing', () => {
+    const doc = clipboardFixture(), before = doc.snapshot();
+    const clip = doc.copyRegion({ x: 1, y: 1, width: 11, height: 5 });
+    assert.equal(clip.width, 11); assert.equal(clip.height, 5);
+    assert.deepEqual(clip.objects.map(object => [object.id, object.x, object.y]),
+        [[101, 1, 1], [115, 3, 1], [85, 5, 1], [5, 9, 3]]);
+    assert.equal(clip.objects[0].surface, 2); assert.equal(clip.objects[0].lowerSurface, 1);
+    assert.equal(clip.objects[1].tunnelSlalom, 1); assert.equal(clip.objects[2].rollRamp, 1);
+    assert(Object.isFrozen(clip)); assert(Object.isFrozen(clip.objects));
+    assert(clip.objects.every(object => Object.isFrozen(object)));
+    assert.throws(() => { clip.objects[0].x = 9; }, TypeError);
+    assert.throws(() => { clip.objects.push({}); }, TypeError);
+    assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, 0);
+    doc.objects[0].surface = 0;
+    assert.equal(clip.objects[0].surface, 2, 'clipboard must outlive later source edits');
+    const target = new model.Document(20, 12), terrain = terrainSnapshot(target), targetBefore = target.snapshot();
+    const preview = target.pastePreview(clip, 3, 4);
+    assert.deepEqual(preview.map(object => [object.id, object.x, object.y]),
+        [[101, 4, 5], [115, 6, 5], [85, 8, 5], [5, 12, 7]]);
+    assert.deepEqual(target.snapshot(), targetBefore); assert.equal(target.history.length, 0);
+    const placed = target.pasteRegion(clip, 3, 4);
+    assert.deepEqual(placed, preview); assert.equal(target.history.length, 1);
+    assert.deepEqual(terrainSnapshot(target), terrain);
+    assert.deepEqual(model.decodeCstrk(model.encodeCstrk(target)).snapshot(), target.snapshot());
+});
+test('cut and each repeated paste are atomic undo steps and never change terrain', () => {
+    const doc = clipboardFixture(), before = doc.snapshot(), terrain = terrainSnapshot(doc);
+    const clip = doc.cutRegion({ x: 1, y: 1, width: 7, height: 4 });
+    assert.equal(clip.objects.length, 3); assert.equal(doc.objects.length, 1);
+    assert.equal(doc.history.length, 1); assert.deepEqual(terrainSnapshot(doc), terrain);
+    const cut = doc.snapshot();
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), cut);
+    const target = new model.Document(24, 12), empty = target.snapshot();
+    target.pasteRegion(clip, 0, 0); const once = target.snapshot();
+    target.pasteRegion(clip, 10, 5); const twice = target.snapshot();
+    assert.equal(target.history.length, 2); assert.equal(target.objects.length, 6);
+    assert(target.undo()); assert.deepEqual(target.snapshot(), once);
+    assert(target.undo()); assert.deepEqual(target.snapshot(), empty);
+    assert(target.redo()); assert(target.redo()); assert.deepEqual(target.snapshot(), twice);
+    const blank = new model.Document(3, 3), blankBefore = blank.snapshot();
+    assert.equal(blank.cutRegion({ x: 0, y: 0, width: 3, height: 3 }).objects.length, 0);
+    assert.deepEqual(blank.snapshot(), blankBefore); assert.equal(blank.history.length, 0);
+});
+test('paste validation is atomic for bounds, occupied cells and incompatible terrain', () => {
+    const source = new model.Document(4, 2); source.place(4, 0, 0); source.place(4, 2, 0);
+    const clip = source.copyRegion({ x: 0, y: 0, width: 4, height: 2 });
+    const target = new model.Document(12, 8); target.place(5, 6, 3); target.history = [];
+    const before = target.snapshot();
+    for (const [x, y] of [[4, 3], [10, 3], [-1, 0], [1, 7]]) {
+        assert.throws(() => target.pastePreview(clip, x, y));
+        assert.throws(() => target.pasteRegion(clip, x, y));
+        assert.deepEqual(target.snapshot(), before);
+        assert.equal(target.history.length, 0); assert.equal(target.pending, null);
+    }
+    const bumpy = new model.Document(12, 8);
+    bumpy.vertices[3 * 13 + 7] = 1; // The second road would sit on an outer hill corner.
+    const bumpyBefore = bumpy.snapshot();
+    assert.throws(() => bumpy.pastePreview(clip, 4, 3));
+    assert.throws(() => bumpy.pasteRegion(clip, 4, 3));
+    assert.deepEqual(bumpy.snapshot(), bumpyBefore); assert.equal(bumpy.history.length, 0);
+    const padded = new model.Document(4, 2); padded.place(4, 0, 0);
+    const paddedClip = padded.copyRegion({ x: 0, y: 0, width: 4, height: 2 });
+    assert.throws(() => target.pasteRegion(paddedClip, 9, 0), 'blank trailing spacing still belongs to the selection');
+});
+test('paste adapts every element to destination terrain without copying source landscape', () => {
+    const source = new model.Document(4, 2); source.place(4, 0, 0, 1); source.place(4, 2, 0, 2);
+    source.paint(0, 0, 3);
+    const clip = source.copyRegion({ x: 0, y: 0, width: 3, height: 1 });
+    const target = new model.Document(8, 6);
+    for (let y = 0; y <= target.height; y++) for (let x = 0; x <= target.width; x++)
+        target.vertices[y * 9 + x] = Math.min(x, 4);
+    const before = terrainSnapshot(target), clipBefore = JSON.stringify(clip);
+    const preview = target.pastePreview(clip, 1, 2);
+    assert.deepEqual(preview.map(object => [object.baseHeight, object.slopeX, object.slopeY, object.surface]),
+        [[1, 1, 0, 1], [3, 1, 0, 2]]);
+    target.pasteRegion(clip, 1, 2);
+    assert.deepEqual(terrainSnapshot(target), before);
+    assert.equal(JSON.stringify(clip), clipBefore);
+    assert.deepEqual(target.validate(), []);
+    const imported = new model.Document(8, 6);
+    imported.vertices.set(target.vertices);
+    const scenery = new model.Document(8, 6).place(154, 1, 1);
+    imported.objects.push({ ...scenery, baseHeight: 1, slopeX: 1 });
+    assert.deepEqual(imported.validate(), []);
+    const sceneryClip = imported.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
+    assert.throws(() => target.placement(154, 2, 4), /level ground/);
+    assert.equal(target.pastePreview(sceneryClip, 2, 4)[0].baseHeight, 2,
+        'a valid imported slope placement remains movable through the clipboard');
+});
+test('whole-block flips move objects and blank spacing without mutating source or clipboard', () => {
+    const doc = clipboardFixture(), before = doc.snapshot();
+    const clip = doc.copyRegion({ x: 1, y: 1, width: 11, height: 5 }), saved = JSON.stringify(clip);
+    const horizontal = model.flipClipboard(clip, 'horizontal');
+    const vertical = model.flipClipboard(clip, 'vertical');
+    assert.notEqual(horizontal, clip); assert.notEqual(vertical, clip);
+    assert.deepEqual(horizontal.objects.map(object => [object.x, object.y]), [[9, 1], [7, 1], [5, 1], [1, 3]]);
+    assert.deepEqual(vertical.objects.map(object => [object.x, object.y]), [[1, 3], [3, 3], [5, 2], [9, 1]]);
+    for (const flipped of [horizontal, vertical]) {
+        assert.equal(flipped.width, clip.width); assert.equal(flipped.height, clip.height);
+        assert(Object.isFrozen(flipped)); assert(flipped.objects.every(object => Object.isFrozen(object)));
+        assert.equal(flipped.objects[0].lowerSurface, 1);
+        assert.equal(flipped.objects[1].tunnelSlalom, 1); assert.equal(flipped.objects[2].rollRamp, 1);
+        const target = new model.Document(20, 12);
+        target.pasteRegion(flipped, 2, 2);
+        assert.deepEqual(target.validate(), []);
+    }
+    assert.equal(JSON.stringify(clip), saved); assert.deepEqual(doc.snapshot(), before);
+});
+test('block flips reflect stock handed pieces and the barrel launch direction', () => {
+    // Expectations follow the native road connectors and bank entry/exit types.
+    // Compare physical kind and absolute yaw so native and stored rotations are equivalent.
+    const examples = [
+        [7, 2, 3, 2, 1], [11, 3, 3, 3, 1], [106, 21, 3, 21, 1], [53, 26, 3, 26, 1],
+        [44, 24, 0, 24, 2], [40, 23, 0, 23, 2], [49, 25, 2, 25, 0],
+        [75, 7, 0, 7, 2], [87, 9, 0, 9, 2], [117, 33, 0, 33, 2], [121, 32, 0, 32, 2],
+        [60, 4, 0, 4, 0], [1, 0, 0, 0, 2], [38, 16, 0, 16, 2],
+        [70, 29, 0, 29, 2], [111, 10, 0, 10, 2]
+    ];
+    for (const [id, horizontalKind, horizontalYaw, verticalKind, verticalYaw] of examples) {
+        const doc = new model.Document(8, 8); doc.place(id, 3, 3, 1);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 6, height: 6 });
+        for (const [axis, kind, yaw] of [['horizontal', horizontalKind, horizontalYaw], ['vertical', verticalKind, verticalYaw]]) {
+            const flipped = model.flipClipboard(clip, axis), object = flipped.objects[0];
+            const entry = model.catalog.find(piece => piece.id === object.id);
+            assert.equal(entry.physical, kind, id + ': ' + axis + ' changes native handedness');
+            const actualYaw = (entry.rotation + object.rotation) % 4;
+            assert.equal(entry.physical === 4 || entry.physical === 5 ? actualYaw % 2 : actualYaw,
+                yaw, id + ': ' + axis + ' reflects road connectors and banking');
+            assert.equal(object.surface, 1);
+            assert.equal(entry.group, model.catalog.find(piece => piece.id === id).group);
+        }
+    }
+    for (const id of [38, 58]) {
+        const doc = new model.Document(6, 6); doc.place(id, 2, 2);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 4, height: 4 });
+        for (const axis of ['horizontal', 'vertical']) {
+            const mirrored = model.flipClipboard(clip, axis).objects[0];
+            const family = id === 38 ? [36, 37, 38, 39] : [56, 57, 58, 59];
+            assert(family.includes(mirrored.id), 'same physical ramp model must retain its construction family');
+        }
+    }
+    const xDirection = [0, -1, 0, 1], yDirection = [1, 0, -1, 0];
+    for (const id of [85, 86]) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(8, 8); doc.place(id, 3, 3, 0, rotation, 0, 0, 1);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 6, height: 6 });
+        const before = (model.catalog.find(piece => piece.id === id).rotation + rotation) % 4;
+        for (const axis of ['horizontal', 'vertical']) {
+            const object = model.flipClipboard(clip, axis).objects[0];
+            const after = (model.catalog.find(piece => piece.id === object.id).rotation + object.rotation) % 4;
+            assert.equal(xDirection[after], axis === 'horizontal' ? -xDirection[before] || 0 : xDirection[before]);
+            assert.equal(yDirection[after], axis === 'vertical' ? -yDirection[before] || 0 : yDirection[before]);
+            assert.equal(object.rollRamp, 1);
+        }
+    }
+});
+test('two whole-block flips restore every native object and stored rotation exactly', () => {
+    for (const entry of model.catalog) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(8, 8); doc.place(entry.id, 3, 3, 2, rotation);
+        const clip = doc.copyRegion({ x: 1, y: 1, width: 6, height: 6 }), before = JSON.stringify(clip);
+        for (const axis of ['horizontal', 'vertical']) {
+            const once = model.flipClipboard(clip, axis);
+            assert.deepEqual(model.flipClipboard(once, axis), clip, entry.id + ': ' + rotation + ' ' + axis);
+            const source = clip.objects[0], reflected = once.objects[0];
+            const cells = model.occupied(source).map(([x, y]) => [
+                axis === 'horizontal' ? clip.width - 1 - x : x,
+                axis === 'vertical' ? clip.height - 1 - y : y
+            ]).map(cell => cell.join(',')).sort();
+            assert.deepEqual(model.occupied(reflected).map(cell => cell.join(',')).sort(), cells,
+                entry.id + ': mirrored occupancy must include the same free corners');
+        }
+        assert.equal(JSON.stringify(clip), before);
+    }
+});
+test('whole-track reflections preserve a connected route through opposite chicanes', () => {
+    const validation = require('../../src/restunts/platform/wasm/track-editor-validation.js');
+    const doc = new model.Document(24, 16), left = 2, right = 20, top = 2, bottom = 13;
+    for (const [id, x, y] of [[6, left, top], [7, right, top], [8, left, bottom], [9, right, bottom]])
+        doc.place(id, x, y);
+    for (let x = left + 1; x < right; x++) { doc.place(5, x, top); doc.place(5, x, bottom); }
+    for (let y = top + 1; y < bottom; y++) {
+        doc.place(y === 8 ? 1 : 4, left, y);
+        if (y < 4 || y >= 8) doc.place(4, right, y);
+    }
+    doc.place(60, right - 1, 4); doc.place(62, right - 1, 6);
+    const original = validation.validateRoute(doc);
+    assert.equal(original.status, 0, original.message);
+    const clip = doc.copyRegion({ x: 0, y: 0, width: doc.width, height: doc.height });
+    for (const axes of [['horizontal'], ['vertical'], ['horizontal', 'vertical']]) {
+        const reflected = axes.reduce((value, axis) => model.flipClipboard(value, axis), clip);
+        const target = new model.Document(doc.width, doc.height);
+        target.pasteRegion(reflected, 0, 0);
+        const actual = validation.validateRoute(model.decodeCstrk(model.encodeCstrk(target)));
+        assert.equal(actual.status, 0, axes.join('/') + ': ' + actual.message);
+        assert.equal(actual.pieces, original.pieces);
+    }
+});
 test('terrain reaches four levels and propagates all corner slopes', () => {
     const doc = new model.Document();
     for (let i = 0; i < 8; i++) doc.raise(45, 45);

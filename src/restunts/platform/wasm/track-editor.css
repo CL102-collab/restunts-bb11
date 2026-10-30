@@ -59,8 +59,16 @@ fieldset:disabled { opacity: .3; }
 .tool-switch .tool-tile { min-height: 56px; }
 .tool-switch .tool-tile > .icon { width: 22px; height: 22px; stroke-width: 1.5; }
 .tool-tile kbd { position: absolute; top: 5px; right: 6px; padding: 0; background: none; border: 0; font-size: 14px; color: #6e7782; }
-.tool-switch button[aria-pressed="true"] { background: #f0bb6b; color: #342716; border-color: #ffd498; font-weight: 700; box-shadow: inset 0 1px #fff4, 0 3px 13px #f0bb6b17; }
+.tool-switch button[aria-pressed="true"], .clipboard-actions button[aria-pressed="true"] { background: #f0bb6b; color: #342716; border-color: #ffd498; font-weight: 700; box-shadow: inset 0 1px #fff4, 0 3px 13px #f0bb6b17; }
 .tool-switch button[aria-pressed="true"] kbd { color: #806137; }
+.clipboard-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.clipboard-actions .tool-tile { min-height: 58px; padding: 8px 3px; font-size: 18px; }
+.clipboard-actions .tool-tile > span { max-width: 100%; overflow-wrap: anywhere; }
+.clipboard-actions .icon { width: 19px; height: 19px; }
+.clipboard-actions button[aria-pressed="true"] kbd { color: #806137; }
+.clipboard-flips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.clipboard-flips button { min-width: 0; min-height: 48px; padding: 8px 5px; gap: 6px; font-size: 18px; }
+.clipboard-flips button span { min-width: 0; overflow-wrap: anywhere; }
 .editor-section-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .editor-section-switch button { min-width: 0; min-height: 54px; padding: 10px 8px; gap: 10px; font-size: 26px; font-weight: 650; color: #aeb9c5; background: #ffffff04; border-color: #ffffff0b; border-radius: 8px; }
 .editor-section-switch button .icon { width: 24px; height: 24px; flex-shrink: 0; }
@@ -397,4 +405,14 @@ dialog h1, dialog h2, dialog p, dialog button { overflow-wrap: anywhere; }
     .dialog-art::before { max-width: calc(100% - 44px); }
     .art-tile-c { display: none; }
     .art-tile-b { left: min(188px, 70%); top: 45px; }
+}
+
+@media (min-width: 751px) and (max-width: 1050px) {
+    .clipboard-actions .tool-tile { font-size: 13px; padding-left: 1px; padding-right: 1px; }
+    .clipboard-actions .tool-tile > span { white-space: nowrap; overflow-wrap: normal; }
+    .clipboard-actions .tool-tile kbd { display: none; }
+}
+@media (max-width: 1050px) {
+    .clipboard-flips button { flex-direction: column; gap: 3px; min-height: 68px; padding: 6px 2px; font-size: 13px; }
+    .clipboard-flips button span { max-width: 100%; overflow-wrap: normal; word-break: normal; }
 }

@@ -13,7 +13,7 @@
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
         rotation: 0, shoreDirection: 0, lowerSurface: null, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
-        drag: null, navigatorDrag: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
+        drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
     const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
@@ -110,6 +110,7 @@
         return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.version]);
     }
     function refreshDocument() {
+        state.clipboardPreview = null;
         if (!state.doc) return;
         state.dirty = signature() !== state.saved;
         $('document-name').textContent = state.name + (state.dirty ? ' •' : '');
@@ -121,9 +122,12 @@
         $('notes-count').textContent = state.doc.notes.length + ' / 8000';
         $('undo').disabled = !state.doc.canUndo;
         $('redo').disabled = !state.doc.canRedo;
+        updateClipboardControls();
         scheduleDraw();
     }
     function setDocument(doc, name, clean = true) {
+        finishDrag(true); finishNavigatorDrag();
+        state.selection = null;
         state.doc = doc;
         state.name = name || 'Untitled';
         state.saved = clean ? signature() : '';
@@ -162,21 +166,93 @@
     }
     function selectPanel(panel) { updateTool(panel === 'terrain' ? state.terrainTool : 'place'); }
     function updateTool(tool) {
+        if (tool === 'paste' && !state.clipboard?.objects.length) return;
+        finishDrag();
         state.tool = tool;
         if (['paint', 'raise', 'lower', 'level', 'water-corner'].includes(tool)) {
             state.terrainTool = tool;
             showPanel('terrain');
-        } else if (tool === 'place' || tool === 'erase') showPanel('track');
+        } else if (['place', 'erase', 'select', 'paste'].includes(tool)) showPanel('track');
         document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === tool)));
         updateCanvasCursor();
         const lowerPainting = tool === 'paint' && state.lowerSurface !== null;
         const lowerMaterial = lowerPainting ? model.TERRAIN_SURFACES[state.lowerSurface].toLowerCase() : '';
-        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', paint: lowerPainting ? 'Lower ' + lowerMaterial + ' surface' : 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
+        const labels = { place: 'Build track', erase: 'Remove track', pan: 'Pan view', select: 'Select track area', paste: 'Paste track area', paint: lowerPainting ? 'Lower ' + lowerMaterial + ' surface' : 'Paint terrain', raise: 'Raise terrain corner', lower: 'Lower terrain corner', level: 'Level terrain', 'water-corner': 'Mixed surface corner' };
         $('canvas-mode').textContent = labels[tool].toUpperCase() + ' · 2D';
-        const glyphs = { place: 'build', erase: 'erase', pan: 'hand', paint: lowerPainting ? 'lower-' + lowerMaterial : 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
+        const glyphs = { place: 'build', erase: 'erase', pan: 'hand', select: 'select', paste: 'paste', paint: lowerPainting ? 'lower-' + lowerMaterial : 'paint', raise: 'raise', lower: 'lower', level: 'level', 'water-corner': 'shore' };
         document.querySelector('.canvas-tool-indicator use').setAttribute('href', '#i-' + glyphs[tool]);
         syncVisualControls();
+        updateClipboardControls();
         scheduleDraw();
+    }
+    function updateClipboardControls() {
+        const hasSelection = Boolean(state.selection?.objects.length);
+        const hasClipboard = Boolean(state.clipboard?.objects.length);
+        $('copy-selection').disabled = !hasSelection;
+        $('cut-selection').disabled = !hasSelection;
+        $('paste-selection').disabled = !hasClipboard;
+        $('flip-selection-horizontal').disabled = !hasClipboard;
+        $('flip-selection-vertical').disabled = !hasClipboard;
+    }
+    function selectionAt(first, last) {
+        const clampX = x => Math.max(0, Math.min(state.doc.width - 1, x));
+        const clampY = y => Math.max(0, Math.min(state.doc.height - 1, y));
+        const x1 = clampX(first.x), y1 = clampY(first.y), x2 = clampX(last.x), y2 = clampY(last.y);
+        return state.doc.selection({ x: Math.min(x1, x2), y: Math.min(y1, y2), width: Math.abs(x2 - x1) + 1, height: Math.abs(y2 - y1) + 1 });
+    }
+    function updateAreaSelection(point) {
+        state.selection = selectionAt(state.drag.anchor, point);
+        updateClipboardControls();
+        scheduleDraw();
+    }
+    function describeSelection() {
+        const selection = state.selection;
+        if (!selection) return;
+        const count = selection.objects.length;
+        message('Selected ' + count + (count === 1 ? ' element' : ' elements') + ' · ' + selection.width + ' × ' + selection.height + ' tiles. ' + (count ? 'Choose Copy or Cut.' : 'Drag over track elements to copy them.'));
+    }
+    function copySelection(cut = false) {
+        if (!state.ready || state.loading || !state.selection) return;
+        finishDrag();
+        try {
+            const clipboard = cut ? state.doc.cutRegion(state.selection) : state.doc.copyRegion(state.selection);
+            if (!clipboard.objects.length) return;
+            state.clipboard = clipboard;
+            if (cut) state.selection = null;
+            refreshDocument();
+            const count = clipboard.objects.length;
+            message((cut ? 'Cut ' : 'Copied ') + count + (count === 1 ? ' element' : ' elements') + '. Choose Paste, then click the track to place the block.');
+        } catch (error) { message(error.message, true); }
+    }
+    function startPaste() {
+        if (!state.ready || state.loading || !state.clipboard?.objects.length) return;
+        updateTool('paste');
+        message('Move the copied block over the track, then click to paste. Flip the whole block with the buttons; Escape cancels.');
+    }
+    function flipSelection(axis) {
+        if (!state.ready || state.loading || !state.clipboard?.objects.length) return;
+        finishDrag();
+        try {
+            state.clipboard = model.flipClipboard(state.clipboard, axis);
+            message('Copied block flipped ' + (axis === 'horizontal' ? 'horizontally' : 'vertically') + '.');
+            updateClipboardControls(); scheduleDraw();
+        } catch (error) { message(error.message, true); }
+    }
+    function pasteAt(point) {
+        if (!state.clipboard?.objects.length) return;
+        try {
+            const objects = state.doc.pasteRegion(state.clipboard, point.x, point.y);
+            state.selection = null;
+            refreshDocument();
+            message('Pasted ' + objects.length + (objects.length === 1 ? ' element' : ' elements') + '. Click elsewhere to paste again, or press Escape to stop.');
+        } catch (error) { message(error.message, true); }
+    }
+    function historyEdit(redo = false) {
+        finishDrag();
+        state.selection = null;
+        if (redo) state.doc.redo(); else state.doc.undo();
+        refreshDocument();
+        message(redo ? 'Redid the last edit.' : 'Undid the last edit.');
     }
     function rotate(amount) {
         if (state.tool === 'paint' && state.lowerSurface !== null) return;
@@ -494,8 +570,7 @@
         for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) drawTerrain(ctx, doc, x, y, view.x + x * size, view.y + y * size, size, $('show-heights').checked);
         for (const object of doc.objects) {
             if (object.x + object.width < x0 || object.y + object.height < y0 || object.x > x1 || object.y > y1) continue;
-            const piece = catalogEntry(object.id);
-            if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0 }, view.x + object.x * size, view.y + object.y * size, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
+            drawTrackObject(object, size);
         }
         if ($('show-grid').checked && size >= 7) {
             ctx.strokeStyle = '#13210f58'; ctx.lineWidth = 1;
@@ -503,6 +578,7 @@
             for (let y = y0; y <= y1; y++) { const py = Math.round(view.y + y * size) + .5; ctx.beginPath(); ctx.moveTo(view.x + x0 * size, py); ctx.lineTo(view.x + x1 * size, py); ctx.stroke(); }
         }
         ctx.strokeStyle = '#a5b58b99'; ctx.lineWidth = 1; ctx.strokeRect(view.x - .5, view.y - .5, doc.width * size + 1, doc.height * size + 1);
+        if (state.selection) drawAreaSelection(size);
         if (state.hover && state.tool !== 'pan' && !state.drag?.panning) drawCursor(size);
         if (size >= 20) drawCoordinates(size, x0, y0, x1, y1);
         drawMinimap();
@@ -515,8 +591,47 @@
         const left = Math.max(3, view.x - 32);
         for (let y = y0; y < y1; y++) if (y % 5 === 0) ctx.fillText(y + 1, left, view.y + (y + .5) * size);
     }
+    function drawTrackObject(object, size) {
+        const left = view.x + object.x * size, top = view.y + object.y * size;
+        if (left + object.width * size < 0 || top + object.height * size < 0 || left > view.width || top > view.height) return;
+        const piece = catalogEntry(object.id);
+        if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0 }, left, top, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
+    }
+    function drawAreaSelection(size) {
+        const area = state.selection, left = view.x + area.x * size, top = view.y + area.y * size;
+        ctx.save();
+        ctx.fillStyle = '#9dcbe62b'; ctx.strokeStyle = '#b6e1ff'; ctx.lineWidth = 2;
+        ctx.fillRect(left, top, area.width * size, area.height * size);
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(left + 1, top + 1, area.width * size - 2, area.height * size - 2);
+        ctx.restore();
+    }
+    function drawPastePreview(size) {
+        if (!state.clipboard?.objects.length) return;
+        const h = state.hover, clipboard = state.clipboard;
+        let preview = state.clipboardPreview;
+        if (!preview || preview.doc !== state.doc || preview.clipboard !== clipboard || preview.x !== h.x || preview.y !== h.y) {
+            let valid = true, objects;
+            try { objects = state.doc.pastePreview(clipboard, h.x, h.y); }
+            catch (_) { valid = false; objects = clipboard.objects.map(object => ({ ...object, x: object.x + h.x, y: object.y + h.y })); }
+            preview = { doc: state.doc, clipboard, x: h.x, y: h.y, valid, objects };
+            state.clipboardPreview = preview;
+        }
+        const { valid, objects } = preview;
+        const left = view.x + h.x * size, top = view.y + h.y * size;
+        ctx.save();
+        ctx.fillStyle = valid ? '#e6d69f22' : '#f080703b'; ctx.strokeStyle = valid ? '#ffdf8b' : '#ff9c80'; ctx.lineWidth = 2;
+        ctx.fillRect(left, top, clipboard.width * size, clipboard.height * size);
+        ctx.globalAlpha = .65;
+        for (const object of objects) drawTrackObject(object, size);
+        ctx.globalAlpha = 1;
+        ctx.strokeRect(left + 1, top + 1, clipboard.width * size - 2, clipboard.height * size - 2);
+        ctx.restore();
+    }
     function drawCursor(size) {
         const h = state.hover, doc = state.doc;
+        if (state.tool === 'select') return;
+        if (state.tool === 'paste') { drawPastePreview(size); return; }
         if (h.x < 0 || h.y < 0 || h.x >= doc.width || h.y >= doc.height) return;
         let width = 1, height = 1, valid = true, preview = null;
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
@@ -592,6 +707,8 @@
         if (state.drag && state.drag.visited.has(key)) return;
         if (state.drag) state.drag.visited.add(key);
         try {
+            state.selection = null;
+            updateClipboardControls();
             if (tool === 'place' && state.selected) {
                 const variant = model.pieceVariant(state.selected, state.rotation);
                 doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0);
@@ -608,6 +725,11 @@
     function finishDrag(cancel = false) {
         if (!state.drag) return;
         const drag = state.drag; state.drag = null;
+        if (drag.selecting) {
+            if (cancel) state.selection = drag.previousSelection;
+            else describeSelection();
+            updateClipboardControls();
+        }
         if (drag.editing) {
             if (cancel) state.doc.cancelTransaction(); else state.doc.endTransaction();
             refreshDocument();
@@ -701,7 +823,13 @@
         $('folder-dialog').addEventListener('cancel', event => { if (!state.ready) event.preventDefault(); });
         $('sidebar-toggle').addEventListener('click', () => setSidebarCollapsed(!state.sidebarCollapsed));
         document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => closeDialog(button.dataset.close)));
-        document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => updateTool(button.dataset.tool)));
+        document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => {
+            if (button.dataset.tool === 'paste') startPaste(); else updateTool(button.dataset.tool);
+        }));
+        $('copy-selection').addEventListener('click', () => copySelection());
+        $('cut-selection').addEventListener('click', () => copySelection(true));
+        $('flip-selection-horizontal').addEventListener('click', () => flipSelection('horizontal'));
+        $('flip-selection-vertical').addEventListener('click', () => flipSelection('vertical'));
         const panelButtons = Array.from(document.querySelectorAll('[data-editor-panel]'));
         panelButtons.forEach(button => {
             button.addEventListener('click', () => selectPanel(button.dataset.editorPanel));
@@ -732,8 +860,8 @@
         $('shore-surface').addEventListener('change', () => { finishDrag(); syncVisualControls(); scheduleDraw(); });
         $('road-surface').addEventListener('change', () => { renderPalette(); updateTool('place'); });
         $('piece-group').addEventListener('change', () => { state.group = Number($('piece-group').value); renderPalette(); updateTool('place'); });
-        $('undo').addEventListener('click', () => { finishDrag(); state.doc.undo(); refreshDocument(); message('Undid the last edit.'); });
-        $('redo').addEventListener('click', () => { finishDrag(); state.doc.redo(); refreshDocument(); message('Redid the last edit.'); });
+        $('undo').addEventListener('click', () => historyEdit());
+        $('redo').addEventListener('click', () => historyEdit(true));
         $('new-track').addEventListener('click', () => { if (canDiscard()) { showDialog('new-dialog'); $('new-name').select(); } });
         $('new-form').addEventListener('submit', event => { event.preventDefault(); try { const doc = new model.Document(Number($('new-width').value), Number($('new-height').value)); setDocument(doc, $('new-name').value.trim() || 'Untitled'); closeDialog('new-dialog'); message('New track ready.'); } catch (error) { message(error.message, true); } });
         $('load-track').addEventListener('click', () => $('track-file-input').click());
@@ -753,10 +881,15 @@
             if (!state.ready || state.loading || state.drag || state.navigatorDrag || event.button < 0 || event.button > 2) return;
             event.preventDefault(); canvas.focus({ preventScroll: true });
             const p = pointAt(event), panning = event.button !== 0 || state.space || state.tool === 'pan';
-            state.drag = { id: event.pointerId, buttonMask: [1, 4, 2][event.button], panning, x: event.clientX, y: event.clientY, visited: new Set(), editing: !panning, tool: state.tool };
+            const selecting = !panning && state.tool === 'select', pasting = !panning && state.tool === 'paste';
+            if (selecting && (p.x < 0 || p.y < 0 || p.x >= state.doc.width || p.y >= state.doc.height)) return;
+            state.drag = { id: event.pointerId, buttonMask: [1, 4, 2][event.button], panning, selecting, pasting, anchor: p, previousSelection: state.selection,
+                x: event.clientX, y: event.clientY, visited: new Set(), editing: !panning && !selecting && !pasting, tool: state.tool };
             canvas.setPointerCapture(event.pointerId);
             updateCanvasCursor();
-            if (!panning) { state.doc.beginTransaction(state.drag.tool === 'place' ? 'Place track pieces' : 'Edit ' + state.drag.tool); applyAt(p, state.drag.tool); }
+            if (selecting) updateAreaSelection(p);
+            else if (pasting) pasteAt(p);
+            else if (!panning) { state.doc.beginTransaction(state.drag.tool === 'place' ? 'Place track pieces' : 'Edit ' + state.drag.tool); applyAt(p, state.drag.tool); }
             hoverAt(p);
         });
         canvas.addEventListener('pointermove', event => {
@@ -767,18 +900,24 @@
                 // Commit the preceding stroke, then latch into right-button panning.
                 if ((event.buttons & 2) && drag.buttonMask !== 2) {
                     if (drag.editing) { state.doc.endTransaction(); drag.editing = false; refreshDocument(); }
+                    if (drag.selecting) { state.selection = drag.previousSelection; drag.selecting = false; updateClipboardControls(); }
                     drag.panning = true; drag.buttonMask = 2;
                     drag.x = event.clientX; drag.y = event.clientY;
                     updateCanvasCursor();
                 }
                 if (!(event.buttons & drag.buttonMask)) { finishDrag(); hoverAt(pointAt(event)); return; }
                 if (drag.panning) { view.x += event.clientX - drag.x; view.y += event.clientY - drag.y; }
-                else applyAt(pointAt(event), drag.tool);
+                else if (drag.selecting) updateAreaSelection(pointAt(event));
+                else if (!drag.pasting) applyAt(pointAt(event), drag.tool);
                 drag.x = event.clientX; drag.y = event.clientY;
             }
             hoverAt(pointAt(event));
         });
-        canvas.addEventListener('pointerup', event => { if (state.drag?.id === event.pointerId) finishDrag(); });
+        canvas.addEventListener('pointerup', event => {
+            if (state.drag?.id !== event.pointerId) return;
+            if (state.drag.selecting) updateAreaSelection(pointAt(event));
+            finishDrag();
+        });
         canvas.addEventListener('pointercancel', event => { if (state.drag?.id === event.pointerId) finishDrag(true); });
         canvas.addEventListener('lostpointercapture', event => { if (state.drag?.id === event.pointerId) finishDrag(); });
         canvas.addEventListener('pointerleave', () => { if (!state.drag) { state.hover = null; scheduleDraw(); } });
@@ -801,16 +940,18 @@
             minimap.addEventListener(name, event => { if (state.navigatorDrag?.id === event.pointerId) finishNavigatorDrag(); });
         }
         document.addEventListener('keydown', event => {
-            if (!state.ready || editableTarget(event.target) || document.querySelector('dialog[open]')) return;
+            if (!state.ready || state.loading || editableTarget(event.target) || document.querySelector('dialog[open]')) return;
             if (event.target.closest('button') && (event.key === 'Enter' || event.code === 'Space')) return;
             const ctrl = event.ctrlKey || event.metaKey, key = event.key.toLowerCase();
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
-            else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); finishDrag(); if (key === 'y' || event.shiftKey) state.doc.redo(); else state.doc.undo(); refreshDocument(); }
+            else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); historyEdit(key === 'y' || event.shiftKey); }
+            else if (ctrl && (key === 'c' || key === 'x') && state.selection?.objects.length) { event.preventDefault(); copySelection(key === 'x'); }
+            else if (ctrl && key === 'v' && state.clipboard?.objects.length) { event.preventDefault(); startPaste(); }
             else if (ctrl || event.altKey) return;
             else if (event.code === 'Space') { event.preventDefault(); state.space = true; updateCanvasCursor(); }
             else if (key === 'e' || key === 'q') { event.preventDefault(); rotate(key === 'e' ? 1 : -1); }
-            else if (key === 'b') updateTool('place'); else if (key === 'r') updateTool('erase'); else if (key === 'h') updateTool('pan');
+            else if (key === 'b') updateTool('place'); else if (key === 'r') updateTool('erase'); else if (key === 'h') updateTool('pan'); else if (key === 's') updateTool('select');
             else if (/^F([1-9]|10)$/.test(event.key)) {
                 const group = Number(event.key.slice(1));
                 if (model.groups.some(g => g.id === group) && group !== 2 && group !== 3) { event.preventDefault(); state.group = group; $('piece-group').value = group; renderPalette(); updateTool('place'); }
@@ -824,8 +965,18 @@
                 if (y < 0 || y + size > view.height) view.y = view.height / 2 - (state.cursor.y + .5) * size;
                 hoverAt({ ...state.cursor, cornerX: state.cursor.x, cornerY: state.cursor.y });
             } else if (key === 'enter' || key === 'delete' || key === 'backspace') {
-                event.preventDefault(); state.doc.transaction('Edit tile', () => applyAt({ ...state.cursor, cornerX: state.cursor.x, cornerY: state.cursor.y }, key === 'enter' ? state.tool : 'erase')); refreshDocument();
-            } else if (key === 'escape') { finishDrag(true); finishNavigatorDrag(); state.hover = null; scheduleDraw(); }
+                event.preventDefault();
+                const point = { ...state.cursor, cornerX: state.cursor.x, cornerY: state.cursor.y };
+                if (key === 'enter' && state.tool === 'paste') pasteAt(point);
+                else if (key === 'enter' && state.tool === 'select') { state.selection = state.doc.selection({ x: point.x, y: point.y, width: 1, height: 1 }); updateClipboardControls(); describeSelection(); scheduleDraw(); }
+                else { state.doc.transaction('Edit tile', () => applyAt(point, key === 'enter' ? state.tool : 'erase')); refreshDocument(); }
+            } else if (key === 'escape') {
+                const wasSelecting = state.drag?.selecting;
+                finishDrag(true); finishNavigatorDrag();
+                if (state.tool === 'paste') updateTool('select');
+                else if (state.tool === 'select' && !wasSelecting) state.selection = null;
+                state.hover = null; updateClipboardControls(); scheduleDraw();
+            }
         });
         document.addEventListener('keyup', event => { if (event.code === 'Space') { state.space = false; updateCanvasCursor(); } });
         window.addEventListener('blur', () => { state.space = false; finishDrag(); finishNavigatorDrag(); updateCanvasCursor(); });
