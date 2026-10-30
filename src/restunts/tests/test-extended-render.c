@@ -11,6 +11,7 @@
 #include "../c/race_graphics.h"
 #include "../c/trackdata_layout.h"
 #include "../c/shape3d_internal.h"
+#include "../c/shape3d_hires.h"
 
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U
@@ -1116,11 +1117,10 @@ static legacy_u8 native_slope_marking_vertex(const struct SHAPE3D *shape, legacy
 	return 0;
 }
 
-legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
-legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+static legacy_u8 render_capture_skip_shape(struct TRANSFORMEDSHAPE3D *instance)
 {
 	if (slope_occlusion_hide_terrain && slope_occlusion_is_terrain(instance->shapeptr)) {
-		return 0;
+		return 1;
 	}
 	if (native_slope_capture_active) {
 		for (legacy_u8 part = 0; part < STUNT_RENDER_PART_COUNT; part++) {
@@ -1166,7 +1166,7 @@ legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instanc
 	}
 	if (fence_capture_mode && fence_check_submitted_shape(instance) &&
 		fence_capture_mode == FENCE_RENDER_HIDE) {
-		return 0;
+		return 1;
 	}
 	if (seam_capture_hill_shapes) {
 		seam_check_submitted_road(instance->shapeptr);
@@ -1175,7 +1175,27 @@ legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instanc
 		stunt_check_supporting_ground(instance);
 		stunt_check_submitted_shape(instance);
 	}
+	return 0;
+}
+
+legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
+legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+{
+	if (render_capture_skip_shape(instance)) {
+		return 0;
+	}
 	return __real_shape3d_transform_and_queue(instance);
+}
+
+legacy_u16 __real_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
+													const struct SHAPE3D_HIRES_VECTOR *vertices);
+legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
+													const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	if (render_capture_skip_shape(instance)) {
+		return 0;
+	}
+	return __real_shape3d_hires_transform_and_queue(instance, vertices);
 }
 #endif
 
@@ -1918,6 +1938,26 @@ static legacy_u16 check_extended_fences(void)
 #define SLOPE_OCCLUSION_MIN_ROAD_PIXELS 100U
 #define SLOPE_OCCLUSION_CAMERA_COUNT 4U
 #define SLOPE_OCCLUSION_PLATEAU_COLUMN 10
+#define SLOPE_OCCLUSION_GRAZING_DISTANCE_TILES 2U
+#define SLOPE_OCCLUSION_MIN_GRAZING_ROAD_PIXELS 50U
+
+/* Fence colors can also be road paints. The bare reference must specifically
+ * contain grass, so patterned fence cutouts cannot count as interior ground. */
+static legacy_u8 slope_occlusion_grass_pixel(legacy_u32 pixel)
+{
+	for (legacy_u16 material = SLOPE_OCCLUSION_HILL_MATERIAL_FIRST;
+		 material <= SLOPE_OCCLUSION_HILL_MATERIAL_LAST; material++) {
+		if (pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+					  (legacy_u32)material_clrlist_ptr[material] * RENDER_CAPTURE_INDEX_RGB_STEP)) {
+			return 1;
+		}
+	}
+	return pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+					 (legacy_u32)skybox.ground_color * RENDER_CAPTURE_INDEX_RGB_STEP) ||
+		   pixel == (RENDER_CAPTURE_OPAQUE_ALPHA |
+					 (legacy_u32)material_clrlist_ptr[SLOPE_OCCLUSION_GROUND_MATERIAL] *
+						 RENDER_CAPTURE_INDEX_RGB_STEP);
+}
 
 static legacy_u16 check_sloped_road_occlusion(void)
 {
@@ -1960,6 +2000,7 @@ static legacy_u16 check_sloped_road_occlusion(void)
 		}
 	}
 	legacy_s32 saved_scale = hires_render_scale();
+	legacy_s8 saved_camera = cameramode;
 	legacy_u16 frames = 0;
 	for (legacy_u8 kind = 0; kind < sizeof(cases) / sizeof(cases[0]); kind++) {
 		struct CSTRK_OBJECT road = {0};
@@ -1984,7 +2025,8 @@ static legacy_u16 check_sloped_road_occlusion(void)
 			if (supersight_enabled) {
 				hires_set_render_scale(scale);
 			}
-			for (legacy_u8 camera = 0; camera < SLOPE_OCCLUSION_CAMERA_COUNT; camera++) {
+			legacy_u8 camera_count = SLOPE_OCCLUSION_CAMERA_COUNT + (supersight_enabled != 0);
+			for (legacy_u8 camera = 0; camera < camera_count; camera++) {
 				struct CARSTATE *car = &state.playerstate;
 				car->car_rotate = (struct VECTOR){0, 0, 0};
 				state.game_particles_active = 0;
@@ -2001,6 +2043,28 @@ static legacy_u16 check_sloped_road_occlusion(void)
 				custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
 				custom_camera.elevation_angle = SLOPE_OCCLUSION_CAMERA_ELEVATION;
 				custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN + camera * ANGLE_QUARTER_TURN;
+				cameramode = CAMERA_MODE_CUSTOM;
+				legacy_u16 minimum_road_pixels = SLOPE_OCCLUSION_MIN_ROAD_PIXELS;
+				if (camera == SLOPE_OCCLUSION_CAMERA_COUNT) {
+					/* A low view across the hillside exposes fractional cracks that
+					 * the overhead road-occlusion views can hide. */
+					cameramode = CAMERA_MODE_COCKPIT;
+					car->car_position.lx =
+						(SLOPE_OCCLUSION_PLATEAU_COLUMN + SLOPE_OCCLUSION_GRAZING_DISTANCE_TILES) *
+						CSTRK_TILE_WORLD_SIZE * GRASS_RENDER_POSITION_SCALE;
+					car->car_position.ly = 0;
+					car->car_position.lz = ((track.height - road.y - 1U) * CSTRK_TILE_WORLD_SIZE +
+											CSTRK_TILE_WORLD_SIZE / 2U) *
+										   GRASS_RENDER_POSITION_SCALE;
+					car->car_previous_position = car->car_position;
+					car->car_rotate = (struct VECTOR){ANGLE_QUARTER_TURN, 0, 0};
+					minimum_road_pixels = SLOPE_OCCLUSION_MIN_GRAZING_ROAD_PIXELS;
+				}
+				legacy_s16 saved_sky = skybox.sky_color;
+				if (supersight_enabled) {
+					skybox.sky_color = SEAM_RENDER_SKY_MARKER;
+					render_capture_mark_sky = 1;
+				}
 				size_t reference_size, actual_size;
 				slope_occlusion_hide_terrain = 1;
 				legacy_u32 *reference = capture_complete_render(&reference_size);
@@ -2010,6 +2074,47 @@ static legacy_u16 check_sloped_road_occlusion(void)
 				legacy_s32 width, height;
 				assert(hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
 										 &width, &height));
+				if (supersight_enabled) {
+					struct CSTRK_TRACK bare = track;
+					bare.object_count = 0;
+					assert(extended_track_activate(&bare, error, sizeof(error)));
+					size_t ground_size;
+					legacy_u32 *ground = capture_complete_render(&ground_size);
+					assert(ground_size == actual_size);
+					assert(extended_track_activate(&track, error, sizeof(error)));
+					size_t gaps = 0;
+					for (legacy_s32 y = 1; y + 1 < height; y++) {
+						for (legacy_s32 x = 1; x + 1 < width; x++) {
+							size_t pixel = (size_t)y * width + x;
+							/* A one-pixel interior margin excludes the open map and
+							 * hill silhouettes. A distinct sky marker distinguishes
+							 * gaps from enhanced highlights sharing the sky's RGB. */
+							if (actual[pixel] == RENDER_CAPTURE_SKY_COLOR &&
+								slope_occlusion_grass_pixel(ground[pixel]) &&
+								slope_occlusion_grass_pixel(ground[pixel - 1U]) &&
+								slope_occlusion_grass_pixel(ground[pixel + 1U]) &&
+								slope_occlusion_grass_pixel(ground[pixel - width]) &&
+								slope_occlusion_grass_pixel(ground[pixel + width]) &&
+								slope_occlusion_grass_pixel(ground[pixel - width - 1U]) &&
+								slope_occlusion_grass_pixel(ground[pixel - width + 1U]) &&
+								slope_occlusion_grass_pixel(ground[pixel + width - 1U]) &&
+								slope_occlusion_grass_pixel(ground[pixel + width + 1U])) {
+								gaps++;
+							}
+						}
+					}
+					if (gaps) {
+						fprintf(
+							stderr,
+							"Sloped road %u camera %u scale %d exposes %zu interior sky pixels\n",
+							road.legacy_id, camera, scale, gaps);
+					}
+					assert(gaps == 0);
+					free(ground);
+					frames++;
+				}
+				skybox.sky_color = saved_sky;
+				render_capture_mark_sky = 0;
 				legacy_u32 asphalt =
 					RENDER_CAPTURE_OPAQUE_ALPHA |
 					(legacy_u32)material_clrlist_ptr[CLASSIC_RENDER_PAVED_MATERIAL] *
@@ -2027,12 +2132,12 @@ static legacy_u16 check_sloped_road_occlusion(void)
 						}
 					}
 				}
-				if ((supersight_enabled && covered) || visible < SLOPE_OCCLUSION_MIN_ROAD_PIXELS) {
+				if ((supersight_enabled && covered) || visible < minimum_road_pixels) {
 					fprintf(stderr,
 							"Sloped road %u camera %u mode %d has %zu/%zu covered asphalt pixels\n",
 							road.legacy_id, camera, supersight_enabled, covered, visible);
 				}
-				assert(visible >= SLOPE_OCCLUSION_MIN_ROAD_PIXELS);
+				assert(visible >= minimum_road_pixels);
 				if (supersight_enabled) {
 					assert(covered == 0);
 				} else {
@@ -2053,6 +2158,7 @@ static legacy_u16 check_sloped_road_occlusion(void)
 		}
 	}
 	hires_set_render_scale(saved_scale);
+	cameramode = saved_camera;
 	extended_track_unload();
 	cstrk_free(&track);
 	return frames;

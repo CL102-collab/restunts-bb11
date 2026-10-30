@@ -847,7 +847,8 @@ if(RESTUNTS_BUILD_TESTS)
         if(NOT APPLE)
             target_compile_definitions(test-extended-render PRIVATE RESTUNTS_WRAP_HILL_SHAPES)
             target_link_options(test-extended-render PRIVATE
-                "LINKER:--wrap=shape3d_transform_and_queue")
+                "LINKER:--wrap=shape3d_transform_and_queue"
+                "LINKER:--wrap=shape3d_hires_transform_and_queue")
         endif()
         add_test(NAME extended-render COMMAND test-extended-render
             --data-dir "${CMAKE_SOURCE_DIR}/stunts")

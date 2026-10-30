@@ -19,6 +19,12 @@ struct SHAPE3D_HIRES_POINT {
 	legacy_f64 inverse_z;
 };
 
+struct TRANSFORMEDSHAPE3D;
+/* Queue HyperVision geometry without quantizing generated local vertices into
+ * a legacy shape resource. Vertices are copied during this call. */
+legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
+											 const struct SHAPE3D_HIRES_VECTOR *vertices);
+
 void shape3d_hires_project(const struct SHAPE3D_HIRES_VECTOR *vector,
 						   struct SHAPE3D_HIRES_POINT *point);
 legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector);
