@@ -8,6 +8,8 @@
 #include "extended_track.h"
 #ifdef RESTUNTS_SDL3
 #include "extended_geometry.h"
+#include "roll_ramp.h"
+#include "physics_internal.h"
 #endif
 
 #define OWOOT_POSITION_SCALE 64L
@@ -132,6 +134,21 @@ static const struct TRACKOBJECT *route_object(legacy_s16 piece)
 	return &trkObjectList[(legacy_u8)track_route_element_ids[piece]];
 }
 
+static legacy_s16 route_is_roll_ramp(legacy_s16 piece)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
+			(legacy_u8)track_route_element_ids[piece]);
+		return placed && placed->roll_ramp;
+	}
+#else
+	(void)piece;
+#endif
+	return 0;
+}
+
 static legacy_s16 route_is_tunnel(legacy_s16 piece)
 {
 	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_TUNNEL) {
@@ -151,11 +168,18 @@ static legacy_s16 route_is_tunnel(legacy_s16 piece)
 static const struct TRKOBJINFO *route_info(legacy_s16 piece)
 {
 	const struct TRACKOBJECT *object = route_object(piece);
-	if (object->ss_trkObjInfoPtr == 0) {
+	const struct TRKOBJINFO *blocks = object->ss_trkObjInfoPtr;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		blocks = extended_track_route_info((legacy_u8)track_route_columns[piece],
+										   (legacy_u8)track_route_rows[piece],
+										   (legacy_u8)track_route_element_ids[piece]);
+	}
+#endif
+	if (blocks == 0) {
 		return 0;
 	}
-	return &object->ss_trkObjInfoPtr[(legacy_u8)track_route_traversal_flags[piece] &
-									 OWOOT_ROUTE_SUBTYPE_MASK];
+	return &blocks[(legacy_u8)track_route_traversal_flags[piece] & OWOOT_ROUTE_SUBTYPE_MASK];
 }
 
 static legacy_s16 route_gate_count(legacy_s16 piece)
@@ -163,7 +187,8 @@ static legacy_s16 route_gate_count(legacy_s16 piece)
 	/* The entry/exit fans join the spiral over a range of angular phases.
 	 * Require both sides and its crown, rather than the AI's intermediate
 	 * subdivisions of those continuously drivable surfaces. */
-	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT &&
+		!route_is_roll_ramp(piece)) {
 		return OWOOT_CORKSCREW_GATE_COUNT;
 	}
 	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_SLALOM) {
@@ -557,7 +582,7 @@ static legacy_s16 route_corkscrew_gate(legacy_s16 piece, legacy_s16 index, struc
 {
 	legacy_s16 count = (legacy_u8)route_info(piece)->route_point_count;
 	if (route_object(piece)->ss_physicalModel != PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT ||
-		index == 0 || index == count - 1) {
+		route_is_roll_ramp(piece) || index == 0 || index == count - 1) {
 		return 0;
 	}
 #ifdef RESTUNTS_SDL3
@@ -620,7 +645,8 @@ static void route_authored_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT
 	struct VECTOR section[ROUTE_GEOMETRY_POINT_COUNT], before[ROUTE_GEOMETRY_POINT_COUNT],
 		after[ROUTE_GEOMETRY_POINT_COUNT];
 	legacy_s16 count = (legacy_u8)route_info(piece)->route_point_count;
-	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT &&
+		!route_is_roll_ramp(piece)) {
 		index = index * (count - 1) / (OWOOT_CORKSCREW_GATE_COUNT - 1);
 	} else if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_SLALOM) {
 		/* Actual barrier clearance below enforces the S-shaped traversal.
@@ -664,7 +690,8 @@ static void route_authored_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT
 	if (route_corkscrew_gate(piece, index, gate)) {
 		return;
 	}
-	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT &&
+		!route_is_roll_ramp(piece)) {
 		/* Entry and exit are flat fans perpendicular to the cylinder axis;
 		 * the adjacent AI point already starts to spiral. Its rising tangent
 		 * would move the entry plane backward for an airborne approach. */
@@ -706,7 +733,7 @@ static void route_authored_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT
 	route_normalize(&gate->edge);
 	gate->lateral_limit = route_abs(route_dot(&edge, &gate->edge)) / 2;
 	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT &&
-		(index == 0 || index == count - 1)) {
+		!route_is_roll_ramp(piece) && (index == 0 || index == count - 1)) {
 		/* The real approach/exit fans out to a full road. The AI's endpoint
 		 * vectors describe only its preferred narrow line through that fan. */
 		gate->lateral_limit = ROAD_HALF_WIDTH * (route_abs(gate->edge.x) + route_abs(gate->edge.z));
@@ -1000,7 +1027,7 @@ static legacy_s16 route_enter(struct CARSTATE *carstate, legacy_s16 piece,
 			direction = -1;
 		}
 	}
-	if (direction == 0) {
+	if (direction == 0 || (route_is_roll_ramp(piece) && direction < 0)) {
 		return 0;
 	}
 	carstate->car_reserved_route_word1 = piece + 1;
@@ -1512,11 +1539,180 @@ static legacy_s16 jump_wheel_in_gap(const struct CARSTATE *carstate,
 	return 0;
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_s16 roll_jump_touches_ramp(const struct CSTRK_OBJECT *placed,
+										 const struct OWOOT_POINT *contact)
+{
+	struct OWOOT_POINT origin = route_extended_origin(placed);
+	struct VECTOR local = {(legacy_s16)(contact->x - origin.x), (legacy_s16)(contact->y - origin.y),
+						   (legacy_s16)(contact->z - origin.z)};
+	local.y =
+		LEGACY_S16_WRAP_SUB(local.y, extended_geometry_object_grade(placed, local.x, local.z));
+	legacy_s16 x = local.x, z = local.z;
+	switch (roll_ramp_orientation(placed)) {
+		case ANGLE_QUARTER_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(z);
+			local.z = x;
+			break;
+		case ANGLE_HALF_TURN:
+			local.x = LEGACY_S16_WRAP_NEGATE(x);
+			local.z = LEGACY_S16_WRAP_NEGATE(z);
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			local.x = z;
+			local.z = LEGACY_S16_WRAP_NEGATE(x);
+			break;
+	}
+	legacy_s16 along = ROLL_RAMP_HALF_LENGTH - local.z;
+	if (along < CSTRK_TILE_WORLD_SIZE || along > ROLL_RAMP_LENGTH) {
+		return 0;
+	}
+	legacy_s16 cosine = cos_fast(roll_ramp_bank_angle(along));
+	if (cosine <= 0) {
+		return 0;
+	}
+	legacy_s32 lateral = (legacy_s32)local.x * TRIG_FIXED_ONE / cosine;
+	if (lateral < -ROLL_RAMP_HALF_WIDTH || lateral > ROLL_RAMP_HALF_WIDTH) {
+		return 0;
+	}
+	struct VECTOR surface, normal;
+	roll_ramp_sample(along, (legacy_s16)lateral, &surface, &normal);
+	legacy_s32 distance =
+		((legacy_s32)local.x - surface.x) * normal.x + ((legacy_s32)local.y - surface.y) * normal.y;
+	return route_abs(distance) <=
+		   (legacy_s32)PHYSICS_PLANE_CONTACT_TOLERANCE * polarRadius3D(&normal);
+}
+
+/* A roll launch has a longer, explicitly compiled landing corridor. Arming
+ * requires actual tire contact with that ramp; merely flying above it cannot
+ * enable this exception. Every other jump retains the native one-cell rule. */
+static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
+{
+	legacy_s16 source = carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] - 1;
+	const struct CSTRK_OBJECT *placed =
+		source >= 0 && source < track_pieces_counter ? route_extended_object(source) : NULL;
+	if (!placed || !placed->roll_ramp) {
+		source = -1;
+		if (carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE &&
+			jump_has_road_contact(carstate)) {
+			for (legacy_s16 piece = 0; piece < track_pieces_counter; piece++) {
+				if (!route_is_roll_ramp(piece)) {
+					continue;
+				}
+				const struct CSTRK_OBJECT *candidate = route_extended_object(piece);
+				for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+					if (carstate->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+						carstate->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+						continue;
+					}
+					struct OWOOT_POINT contact =
+						route_vector(&carstate->car_wheel_contact_positions[wheel]);
+					if (route_owns_position(piece, &contact) &&
+						roll_jump_touches_ramp(candidate, &contact)) {
+						source = piece;
+						placed = candidate;
+						break;
+					}
+				}
+				if (source >= 0) {
+					break;
+				}
+			}
+		}
+		if (source < 0) {
+			return -1;
+		}
+		legacy_s16 target = track_primary_route_links[source];
+		if (target < 0 || target >= track_pieces_counter) {
+			return 0;
+		}
+		carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] = source + 1;
+		carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_TARGET] = target + 1;
+		carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_LAUNCH] = source + 1;
+	}
+	legacy_s16 target = carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_TARGET] - 1;
+	if (target < 0 || target >= track_pieces_counter) {
+		jump_clear(carstate);
+		return 0;
+	}
+	static const legacy_s8 forward_x[] = {0, -1, 0, 1};
+	static const legacy_s8 forward_z[] = {-1, 0, 1, 0};
+	legacy_u16 direction = (legacy_u16)roll_ramp_orientation(placed) / ANGLE_QUARTER_TURN;
+	legacy_s32 dx = forward_x[direction], dz = forward_z[direction];
+	struct OWOOT_POINT origin = route_extended_origin(placed);
+	struct OWOOT_POINT lip = {origin.x + dx * ROLL_RAMP_HALF_LENGTH, 0,
+							  origin.z + dz * ROLL_RAMP_HALF_LENGTH};
+	struct OWOOT_BOUNDS landing;
+	route_bounds(target, &landing);
+	legacy_s32 center_x = (landing.minimum_x + landing.maximum_x) / 2;
+	legacy_s32 center_z = (landing.minimum_z + landing.maximum_z) / 2;
+	legacy_s32 distance = (center_x - lip.x) * dx + (center_z - lip.z) * dz;
+	legacy_s32 lateral = (center_x - lip.x) * dz - (center_z - lip.z) * dx;
+	if (lateral != 0 || distance < TRACK_TILE_HALF_SIZE ||
+		distance > (ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE) {
+		jump_clear(carstate);
+		return 0;
+	}
+	struct OWOOT_POINT current = route_position(&carstate->car_position);
+	struct OWOOT_POINT previous = route_position(&carstate->car_previous_position);
+	legacy_s16 on_landing = route_contains(&landing, &current);
+	legacy_s16 receiver = target;
+	/* The first receiving road can begin before touchdown. Follow only its
+	 * compiled straight runout, bounded by the roll launch's flight budget. */
+	for (legacy_u16 step = 0; step < ROLL_RAMP_JUMP_MAX_EMPTY_TILES; step++) {
+		legacy_s16 next = track_primary_route_links[receiver];
+		if (next < 0 || next >= track_pieces_counter || next == source ||
+			route_object(next)->ss_physicalModel != PHYSICAL_MODEL_ROAD) {
+			break;
+		}
+		struct OWOOT_BOUNDS runout;
+		route_bounds(next, &runout);
+		legacy_s32 next_x = (runout.minimum_x + runout.maximum_x) / 2;
+		legacy_s32 next_z = (runout.minimum_z + runout.maximum_z) / 2;
+		legacy_s32 next_distance = (next_x - lip.x) * dx + (next_z - lip.z) * dz;
+		if ((next_x - lip.x) * dz - (next_z - lip.z) * dx != 0 || next_distance <= distance ||
+			next_distance - distance > OWOOT_TILE_SIZE ||
+			next_distance > (ROLL_RAMP_JUMP_MAX_EMPTY_TILES + 1L) * OWOOT_TILE_SIZE) {
+			break;
+		}
+		distance = next_distance;
+		on_landing |= route_contains(&runout, &current);
+		receiver = next;
+	}
+	legacy_s32 along = (current.x - lip.x) * dx + (current.z - lip.z) * dz;
+	lateral = (current.x - lip.x) * dz - (current.z - lip.z) * dx;
+	if ((current.x - previous.x) * dx + (current.z - previous.z) * dz < 0 ||
+		route_abs(lateral) > OWOOT_GAP_HALF_WIDTH || along > distance + TRACK_TILE_HALF_SIZE) {
+		jump_clear(carstate);
+		return 0;
+	}
+	if (carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
+		if (!jump_has_road_contact(carstate)) {
+			jump_clear(carstate);
+			return 0;
+		}
+		if (on_landing) {
+			jump_clear(carstate);
+			return -1;
+		}
+	}
+	return along >= -ROLL_RAMP_HALF_WIDTH;
+}
+#endif
+
 legacy_s16 owoot_jump_is_valid(struct CARSTATE *carstate)
 {
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
 		extended_geometry_set_context(carstate->car_position.lx, carstate->car_position.lz);
+	}
+#endif
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		legacy_s16 roll_jump = roll_jump_is_valid(carstate);
+		if (roll_jump >= 0) {
+			return roll_jump;
+		}
 	}
 #endif
 	struct OWOOT_POINT current = route_position(&carstate->car_position);

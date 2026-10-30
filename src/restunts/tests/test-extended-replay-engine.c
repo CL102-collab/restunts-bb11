@@ -25,6 +25,7 @@
 #include "../c/car_resources.h"
 #include "../c/owoot.h"
 #include "../c/physics_internal.h"
+#include "../c/roll_ramp.h"
 
 #undef memcpy
 #undef printf
@@ -410,6 +411,207 @@ static void test_smooth_consecutive_slopes(legacy_u16 slope_stunt)
 	}
 	gameconfig.game_framespersec = original_rate;
 	framespersec = original_rate;
+	extended_replay_runtime_clear();
+	extended_track_unload();
+}
+
+#define ENGINE_ROLL_RAMP_ROW 43U
+#define ENGINE_ROLL_APPROACH_ROW 41U
+#define ENGINE_ROLL_TOP_ROW 38U
+#define ENGINE_ROLL_BOTTOM_ROW 55U
+#define ENGINE_ROLL_LANDING_ROW 48U
+#define ENGINE_ROLL_TARGET_SPEED (100U * 256U)
+#define ENGINE_ROLL_APPROACH_GEAR 4U
+#define ENGINE_ROLL_MAXIMUM_FRAMES 360U
+#define ENGINE_ROLL_UPRIGHT_TOLERANCE (ANGLE_FULL_TURN / 64)
+
+static void create_roll_ramp_track(legacy_u8 rotation, legacy_u8 ground_surface)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	for (legacy_u32 cell = 0; cell < (legacy_u32)track.width * track.height; cell++) {
+		track.cells[cell].surface = ground_surface;
+	}
+	add_piece(&track, 6U, ENGINE_TEST_LEFT_COLUMN, ENGINE_ROLL_TOP_ROW);
+	add_piece(&track, 7U, ENGINE_TEST_RIGHT_COLUMN, ENGINE_ROLL_TOP_ROW);
+	add_piece(&track, 8U, ENGINE_TEST_LEFT_COLUMN, ENGINE_ROLL_BOTTOM_ROW);
+	add_piece(&track, 9U, ENGINE_TEST_RIGHT_COLUMN, ENGINE_ROLL_BOTTOM_ROW);
+	for (legacy_u16 x = ENGINE_TEST_LEFT_COLUMN + 1U; x < ENGINE_TEST_RIGHT_COLUMN; x++) {
+		add_piece(&track, 5U, x, ENGINE_ROLL_TOP_ROW);
+		add_piece(&track, 5U, x, ENGINE_ROLL_BOTTOM_ROW);
+	}
+	for (legacy_u16 y = ENGINE_ROLL_TOP_ROW + 1U; y < ENGINE_ROLL_BOTTOM_ROW; y++) {
+		add_piece(&track, 4U, ENGINE_TEST_RIGHT_COLUMN, y);
+		if (y < ENGINE_ROLL_RAMP_ROW || y >= ENGINE_ROLL_LANDING_ROW) {
+			add_piece(&track, y == ENGINE_ROLL_APPROACH_ROW - 1U ? 179U : 4U,
+					  ENGINE_TEST_LEFT_COLUMN, y);
+		}
+	}
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_ROLL_RAMP_FIRST_ID;
+	object.x = ENGINE_TEST_LEFT_COLUMN;
+	object.y = ENGINE_ROLL_RAMP_ROW;
+	object.width = 1;
+	object.height = 2;
+	object.occupied_mask = 3;
+	object.roll_ramp = 1;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	for (legacy_u32 index = 0; index < track.object_count; index++) {
+		struct CSTRK_OBJECT *piece = &track.objects[index];
+		for (legacy_u8 turn = 0; turn < rotation; turn++) {
+			legacy_u8 previous_x = piece->x, previous_width = piece->width;
+			piece->x = track.width - piece->y - piece->height;
+			piece->y = previous_x;
+			piece->width = piece->height;
+			piece->height = previous_width;
+		}
+		piece->rotation = (piece->rotation + rotation) % ENGINE_TEST_SLOPE_ROTATIONS;
+	}
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == 0);
+	cstrk_free(&track);
+}
+
+static void initialize_roll_driver(legacy_u8 rotation, legacy_u16 speed, legacy_u16 row)
+{
+	extended_replay_runtime_begin();
+	initialize_simulation();
+	legacy_s32 x = ENGINE_TEST_LEFT_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 z =
+		(extended_track_height() - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 size = extended_track_width() * CSTRK_TILE_WORLD_SIZE;
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_s32 previous_x = x;
+		x = z;
+		z = size - previous_x;
+	}
+	init_carstate_from_simd(&state.playerstate, &simd_player, TRANSMISSION_AUTOMATIC,
+							x * ENGINE_TEST_POSITION_SCALE, 0, z * ENGINE_TEST_POSITION_SCALE,
+							(ANGLE_HALF_TURN - rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK);
+	struct CARSTATE *car = &state.playerstate;
+	car->car_actual_speed = car->car_rev_speed = speed;
+	car->car_lastspeed = speed;
+	car->car_current_gear = ENGINE_ROLL_APPROACH_GEAR;
+	car->car_gearratio = simd_player.gear_ratios[ENGINE_ROLL_APPROACH_GEAR];
+	car->car_gearratioshr8 = car->car_gearratio >> LEGACY_BYTE_BITS;
+}
+
+static legacy_s32 roll_driver_progress(const struct CARSTATE *car, legacy_u8 rotation)
+{
+	legacy_s32 x = car->car_position.lx / ENGINE_TEST_POSITION_SCALE;
+	legacy_s32 z = car->car_position.lz / ENGINE_TEST_POSITION_SCALE;
+	legacy_s32 size = extended_track_width() * CSTRK_TILE_WORLD_SIZE;
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_s32 previous_x = x;
+		x = size - z;
+		z = previous_x;
+	}
+	return (extended_track_height() - ENGINE_ROLL_RAMP_ROW) * CSTRK_TILE_WORLD_SIZE - z;
+}
+
+static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
+{
+	legacy_u16 saved_rate = gameconfig.game_framespersec;
+	gameconfig.game_framespersec = rate;
+	create_roll_ramp_track(rotation, CSTRK_TERRAIN_GRASS);
+	initialize_roll_driver(rotation, ENGINE_ROLL_TARGET_SPEED, ENGINE_ROLL_APPROACH_ROW);
+	struct CARSTATE *car = &state.playerstate;
+	legacy_s16 previous_roll = car->car_rotate.z;
+	legacy_s32 total_roll = 0, maximum_air_roll = 0;
+	legacy_u8 launched = 0, landed = 0, side = 0, inverted = 0, upright_in_air = 0;
+	legacy_u16 landing_frame = 0;
+	legacy_u32 airborne_frame = 0;
+	struct GAMESTATE airborne_state;
+	legacy_s8 airborne_seed[GAMESTATE_RANDOM_SEED_SIZE];
+	for (legacy_u16 frame = 0; frame < ENGINE_ROLL_MAXIMUM_FRAMES * rate / GAME_FRAME_RATE_NORMAL;
+		 frame++) {
+		legacy_u8 input = frame == 0 || car->car_actual_speed < ENGINE_ROLL_TARGET_SPEED
+							  ? INPUT_ACCELERATE_FLAG
+							  : INPUT_NONE;
+		assert(extended_replay_record_input(input));
+		update_gamestate();
+		legacy_s16 delta =
+			(legacy_s16)(((legacy_u16)(car->car_rotate.z - previous_roll + ANGLE_HALF_TURN) &
+						  ANGLE_MASK) -
+						 ANGLE_HALF_TURN);
+		total_roll += delta;
+		previous_roll = car->car_rotate.z;
+		if (car->car_crashBmpFlag != CRASH_EVENT_NONE) {
+			fprintf(stderr, "Roll ramp flight rate %u rotation %u crashes at frame %u, roll %d\n",
+					rate, rotation, frame, (legacy_int)total_roll);
+		}
+		assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+		if (roll_driver_progress(car, rotation) >= ROLL_RAMP_LENGTH &&
+			car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE) {
+			launched = 1;
+			side |= total_roll >= ANGLE_QUARTER_TURN;
+			inverted |= total_roll >= ANGLE_HALF_TURN;
+			upright_in_air |= total_roll >= ANGLE_FULL_TURN - ENGINE_ROLL_UPRIGHT_TOLERANCE;
+			if (total_roll > maximum_air_roll) {
+				maximum_air_roll = total_roll;
+			}
+			if (!airborne_frame && inverted) {
+				airborne_frame = extended_replay_frame();
+				airborne_state = state;
+				get_kevinrandom_seed(airborne_seed);
+			}
+		} else if (launched && car->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
+			if (!landed) {
+				landed = 1;
+				landing_frame = frame;
+			}
+			if (frame >= landing_frame + rate) {
+				break;
+			}
+		}
+	}
+	if (!upright_in_air) {
+		fprintf(stderr, "Roll ramp rate %u rotation %u reaches only %d angle units\n", rate,
+				rotation, (legacy_int)maximum_air_roll);
+	}
+	assert(launched && landed && side && inverted && upright_in_air);
+	assert(total_roll >= ANGLE_FULL_TURN - ENGINE_ROLL_UPRIGHT_TOLERANCE &&
+		   total_roll <= ANGLE_FULL_TURN + ENGINE_ROLL_UPRIGHT_TOLERANCE);
+	assert(car->car_rotate.y >= -ENGINE_ROLL_UPRIGHT_TOLERANCE &&
+		   car->car_rotate.y <= ENGINE_ROLL_UPRIGHT_TOLERANCE);
+	for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		assert(car->car_surfaceWhl[wheel] == CAR_SURFACE_PAVED);
+	}
+	struct GAMESTATE expected = state;
+	legacy_s8 expected_seed[GAMESTATE_RANDOM_SEED_SIZE];
+	get_kevinrandom_seed(expected_seed);
+	legacy_u32 final_frame = extended_replay_frame();
+	assert(airborne_frame > 0 && extended_replay_seek(airborne_frame));
+	assert_same_simulation(&airborne_state, airborne_seed);
+	assert(extended_replay_seek(final_frame));
+	assert_same_simulation(&expected, expected_seed);
+	printf(
+		"Roll ramp: %u Hz rotation %u completes a free-air roll and upright landing at 100 mph.\n",
+		rate, rotation);
+	gameconfig.game_framespersec = saved_rate;
+	framespersec = saved_rate;
+	extended_replay_runtime_clear();
+	extended_track_unload();
+}
+
+static void test_terrain_below_roll_ramp_does_not_arm(void)
+{
+	static const legacy_u8 surfaces[] = {CSTRK_TERRAIN_DIRT, CSTRK_TERRAIN_ICE};
+	for (legacy_u8 surface = 0; surface < sizeof(surfaces) / sizeof(surfaces[0]); surface++) {
+		create_roll_ramp_track(0, surfaces[surface]);
+		initialize_roll_driver(0, 0, ENGINE_ROLL_RAMP_ROW + 1U);
+		for (legacy_u8 frame = 0; frame < 3U; frame++) {
+			assert(extended_replay_record_input(INPUT_BRAKE_FLAG));
+			update_gamestate();
+			assert(state.playerstate.car_crashBmpFlag == CRASH_EVENT_NONE);
+			assert(state.playerstate.car_rotate.z == 0);
+			for (legacy_u8 word = 0; word < CARSTATE_WHEEL_COUNT; word++) {
+				assert(state.playerstate.car_reserved_contact_state[word] == 0);
+			}
+		}
+	}
 	extended_replay_runtime_clear();
 	extended_track_unload();
 }
@@ -874,6 +1076,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_sloped_slalom_impacts();
 	test_mini_half_pipe_on_straight_slope();
 	test_recorded_half_pipe_body_collision();
+	for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
+		test_roll_ramp_flight(GAME_FRAME_RATE_NORMAL, rotation);
+		test_roll_ramp_flight(GAME_FRAME_RATE_LOW, rotation);
+	}
+	test_terrain_below_roll_ramp_does_not_arm();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

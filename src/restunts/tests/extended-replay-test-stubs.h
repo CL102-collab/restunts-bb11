@@ -12,6 +12,7 @@
 #include "../c/extended_track.h"
 #include "../c/extended_file.h"
 #include "../c/extended_geometry.h"
+#include "../c/track_objects.h"
 #include "../c/extended_highscore.h"
 int extended_highscore_load_or_create(const legacy_s8 *directory, const legacy_s8 *name,
 									  const struct CSTRK_TRACK *track, int create_default)
@@ -284,6 +285,13 @@ const struct CSTRK_OBJECT *extended_track_object_origin_at(int x, int y)
 	assert(0);
 	return NULL;
 }
+const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16 row, legacy_u16 id)
+{
+	(void)column;
+	(void)row;
+	return trkObjectList[id].ss_trkObjInfoPtr;
+}
+
 unsigned extended_track_object_id(const struct CSTRK_OBJECT *object)
 {
 	(void)object;

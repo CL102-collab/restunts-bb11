@@ -20,6 +20,9 @@
     const FLAT_TERRAIN = 0, RAISED_TERRAIN = 6;
     const HILL_TERRAIN_FIRST = 7, HILL_TERRAIN_END = 11, HILL_ROAD_FIRST = 182, HILL_SPAN_FIRST = 194;
     const HILL_DIRECTION_COUNT = 4, HILL_DIRECT_VARIANT_COUNT = 3;
+    const ROLL_RAMP_LAUNCH_CONNECTION = 6, ROLL_RAMP_JUMP_MAX_EMPTY_TILES = 6;
+    const ORDINARY_JUMP_CONNECTION = 1, ORDINARY_JUMP_MAX_EMPTY_TILES = 2;
+    const ROLL_RAMP_ENTRIES = [1, 8, 11, 4], ROLL_RAMP_EXITS = [11, 4, 1, 8];
     const HILL_PIECES = [[4, 14, 24, 39, 59, 98], [5, 15, 25, 36, 56, 95],
         [4, 14, 24, 38, 58, 97], [5, 15, 25, 37, 57, 96]];
     const CAUSES = ['', 'No start / finish element.', 'The route could not be compiled.',
@@ -125,19 +128,32 @@
                 previousSubtype: walk.previousSubtype, previousConnection: walk.previousConnection });
             return STATUS.OK;
         }
-        function matchBlocks() {
+        function rollRampDirection(object) {
+            return (data.objects[object.id].rotation + object.rotation) & 3;
+        }
+        function routeBlocks() {
+            const entry = occupied[walk.y * width + walk.x];
+            if (entry?.object.rollRamp) {
+                const direction = rollRampDirection(entry.object);
+                return [{ count: 1, entry: ROLL_RAMP_ENTRIES[direction], exit: ROLL_RAMP_EXITS[direction],
+                    entryType: 0, exitType: ROLL_RAMP_LAUNCH_CONNECTION, sign: 0 }];
+            }
             const offset = data.objects[walk.id].routeIndex;
-            if (offset === null) return STATUS.OK;
-            const count = data.blocks[offset].count & 255;
+            return offset === null ? [] : data.blocks.slice(offset, offset + (data.blocks[offset].count & 255));
+        }
+        function matchBlocks() {
+            const blocks = routeBlocks();
+            const incoming = walk.previousCode === ROLL_RAMP_LAUNCH_CONNECTION ? 0 : walk.previousCode;
             let selected = -1;
-            for (let index = 0; index < count; index++) {
-                const block = data.blocks[offset + index];
+            for (let index = 0; index < blocks.length; index++) {
+                const block = blocks[index];
                 walk.connection = -1;
                 if ((block.entry & 255) === walk.entry) {
-                    if ((block.entryType & 255) !== walk.previousCode) return STATUS.ELEMENT_MISMATCH;
+                    if ((block.entryType & 255) !== incoming) return STATUS.ELEMENT_MISMATCH;
                     walk.connection = 0;
                 } else if ((block.exit & 255) === walk.entry) {
-                    if ((block.exitType & 255) !== walk.previousCode) return STATUS.ELEMENT_MISMATCH;
+                    if (block.exitType === ROLL_RAMP_LAUNCH_CONNECTION) return STATUS.WRONG_WAY;
+                    if ((block.exitType & 255) !== incoming) return STATUS.ELEMENT_MISMATCH;
                     walk.connection = 1;
                 }
                 revisit(index);
@@ -165,10 +181,19 @@
             walk.runway = (walk.runway + 1) & 255;
             walk.jump = (walk.jump + 1) & 255;
             const distance = walk.jump + 1;
-            if (walk.direction === 0) { walk.x = walk.previousX; walk.y = walk.previousY - distance; }
-            else if (walk.direction === 1) { walk.y = walk.previousY; walk.x = walk.previousX + distance; }
-            else if (walk.direction === 2) { walk.x = walk.previousX; walk.y = walk.previousY + distance; }
-            else if (walk.direction === 3) { walk.y = walk.previousY; walk.x = walk.previousX - distance; }
+            let baseX = walk.previousX, baseY = walk.previousY;
+            if (walk.previousCode === ROLL_RAMP_LAUNCH_CONNECTION) {
+                const source = occupied[baseY * width + baseX]?.object;
+                if (source?.rollRamp) {
+                    const direction = rollRampDirection(source);
+                    if (direction === 0) baseY += source.height - 1;
+                    else if (direction === 3) baseX += source.width - 1;
+                }
+            }
+            if (walk.direction === 0) { walk.x = baseX; walk.y = baseY - distance; }
+            else if (walk.direction === 1) { walk.y = baseY; walk.x = baseX + distance; }
+            else if (walk.direction === 2) { walk.x = baseX; walk.y = baseY + distance; }
+            else if (walk.direction === 3) { walk.y = baseY; walk.x = baseX - distance; }
             return STATUS.OK;
         }
         function appendPiece() {
@@ -179,7 +204,7 @@
             const visit = key(walk.subtype, walk.connection);
             if (!firstVisit.has(visit)) firstVisit.set(visit, route.length);
             route.push({ id: walk.id, x: walk.x, y: walk.y, flags: ((walk.connection << 4) + walk.subtype) & 255, primary: -1, alternate: -1 });
-            const block = data.blocks[data.objects[walk.id].routeIndex + walk.subtype];
+            const block = routeBlocks()[walk.subtype];
             walk.runway = block.sign === 0 ? (walk.runway + 1) & 255 : 0;
             if (route.length === CAPACITY) return STATUS.MANY_ELEMENTS;
             walk.entry = (walk.connection === 1 ? block.entry : block.exit) & 255;
@@ -196,18 +221,21 @@
         // the same piece/branch limits as the game rather than a heuristic cutoff.
         for (;;) {
             walk.matches = 0;
+            const maximumJump = walk.previousCode === ROLL_RAMP_LAUNCH_CONNECTION
+                ? ROLL_RAMP_JUMP_MAX_EMPTY_TILES : ORDINARY_JUMP_MAX_EMPTY_TILES;
             let backtrack = walk.x < 0 || walk.y < 0 || walk.x >= width || walk.y >= height;
             if (!backtrack) {
                 const status = resolvePiece(); if (status) return result(status);
                 if (!walk.matches) {
-                    if (walk.previousCode !== 1 || walk.jump >= 2) backtrack = true;
+                    if ((walk.previousCode !== ORDINARY_JUMP_CONNECTION && walk.previousCode !== ROLL_RAMP_LAUNCH_CONNECTION) ||
+                        walk.jump >= maximumJump) backtrack = true;
                     else { const status = jump(); if (status) return result(status); continue; }
                 }
             }
             if (backtrack) {
                 if (!branches.length) return walk.closed ? result(STATUS.OK, start.x, start.y) : result(STATUS.NO_PATH);
                 Object.assign(walk, branches.pop());
-                if (walk.jump > 1) return result(STATUS.LONG_JUMP);
+                if (walk.jump >= maximumJump) return result(STATUS.LONG_JUMP);
             }
             const status = appendPiece(); if (status) return result(status);
         }
