@@ -22,6 +22,8 @@
 #include "../c/extended_file.h"
 #include "../c/driving_rules.h"
 #include "../c/car_speed.h"
+#include "../c/car_resources.h"
+#include "../c/owoot.h"
 #include "../c/physics_internal.h"
 
 #undef memcpy
@@ -499,6 +501,196 @@ static void test_sloped_slalom_impacts(void)
 	extended_track_unload();
 }
 
+#define ENGINE_PIPE_MAP_SIZE 30U
+#define ENGINE_PIPE_LEFT_COLUMN 6U
+#define ENGINE_PIPE_RIGHT_COLUMN 12U
+#define ENGINE_PIPE_TOP_ROW 12U
+#define ENGINE_PIPE_BOTTOM_ROW 18U
+#define ENGINE_PIPE_START_ROW 17U
+#define ENGINE_PIPE_APPROACH_ROW 16U
+#define ENGINE_PIPE_ENTRANCE_ROW 15U
+#define ENGINE_PIPE_CENTER_ROW 14U
+#define ENGINE_PIPE_EXIT_ROW 13U
+#define ENGINE_PIPE_HALF_PIPE_ID 83U
+#define ENGINE_PIPE_ENTRANCE_ID 70U
+#define ENGINE_PIPE_EXIT_ID 71U
+#define ENGINE_PIPE_CLEAR_LATERAL_OFFSET (-80)
+#define ENGINE_PIPE_APPROACH_SPEED 4096U
+#define ENGINE_PIPE_TEST_FRAMES 200U
+#define ENGINE_PIPE_MAXIMUM_ROLL ANGLE_QUARTER_TURN
+
+static legacy_u8 pipe_test_height(legacy_u16 row)
+{
+	return row <= ENGINE_PIPE_EXIT_ROW		 ? ENGINE_PIPE_APPROACH_ROW - ENGINE_PIPE_EXIT_ROW
+		   : row >= ENGINE_PIPE_APPROACH_ROW ? 0U
+											 : ENGINE_PIPE_APPROACH_ROW - row;
+}
+
+static void create_half_pipe_test_track(legacy_u8 graded)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_create(&track, ENGINE_PIPE_MAP_SIZE, ENGINE_PIPE_MAP_SIZE, error, sizeof(error)));
+	add_piece(&track, 6U, ENGINE_PIPE_LEFT_COLUMN, ENGINE_PIPE_TOP_ROW);
+	add_piece(&track, 7U, ENGINE_PIPE_RIGHT_COLUMN, ENGINE_PIPE_TOP_ROW);
+	add_piece(&track, 8U, ENGINE_PIPE_LEFT_COLUMN, ENGINE_PIPE_BOTTOM_ROW);
+	add_piece(&track, 9U, ENGINE_PIPE_RIGHT_COLUMN, ENGINE_PIPE_BOTTOM_ROW);
+	for (legacy_u16 x = ENGINE_PIPE_LEFT_COLUMN + 1U; x < ENGINE_PIPE_RIGHT_COLUMN; x++) {
+		add_piece(&track, 5U, x, ENGINE_PIPE_TOP_ROW);
+		add_piece(&track, 5U, x, ENGINE_PIPE_BOTTOM_ROW);
+	}
+	for (legacy_u16 row = ENGINE_PIPE_TOP_ROW + 1U; row < ENGINE_PIPE_BOTTOM_ROW; row++) {
+		legacy_u16 id = row == ENGINE_PIPE_START_ROW	  ? 1U
+						: row == ENGINE_PIPE_ENTRANCE_ROW ? ENGINE_PIPE_ENTRANCE_ID
+						: row == ENGINE_PIPE_CENTER_ROW	  ? ENGINE_PIPE_HALF_PIPE_ID
+						: row == ENGINE_PIPE_EXIT_ROW	  ? ENGINE_PIPE_EXIT_ID
+														  : 4U;
+		add_piece(&track, id, ENGINE_PIPE_LEFT_COLUMN, row);
+		add_piece(&track, 4U, ENGINE_PIPE_RIGHT_COLUMN, row);
+	}
+	if (graded) {
+		for (legacy_u16 row = 0; row <= track.height; row++) {
+			for (legacy_u16 column = 0; column <= track.width; column++) {
+				track.corner_heights[row * (track.width + 1U) + column] = pipe_test_height(row);
+			}
+		}
+		for (legacy_u32 index = 0; index < track.object_count; index++) {
+			struct CSTRK_OBJECT *object = &track.objects[index];
+			object->base_height = pipe_test_height(object->y);
+			object->slope_y = pipe_test_height(object->y + 1U) - object->base_height;
+		}
+	}
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == 0);
+	cstrk_free(&track);
+}
+
+static void test_mini_half_pipe_on_straight_slope(void)
+{
+	legacy_s8 original_car[CSRPL_CAR_ID_SIZE];
+	memcpy(original_car, gameconfig.game_playercarid, sizeof(original_car));
+	ghost_free_simulation_resources();
+	memcpy(gameconfig.game_playercarid, "PMIN", sizeof(original_car));
+	ghost_load_simulation_resources();
+	legacy_s16 original_owoot = owoot_enabled;
+	legacy_u8 original_adhesion = car_surface_adhesion[PLAYER_CAR_INDEX];
+	owoot_enabled = 0;
+	car_surface_adhesion[PLAYER_CAR_INDEX] = 0;
+	legacy_u16 original_rate = gameconfig.game_framespersec;
+	gameconfig.game_framespersec = GAME_FRAME_RATE_NORMAL;
+	for (legacy_u8 graded = 0; graded <= 1U; graded++) {
+		for (legacy_u8 center_line = 0; center_line <= 1U; center_line++) {
+			create_half_pipe_test_track(graded);
+			extended_replay_runtime_begin();
+			initialize_simulation();
+			legacy_s32 x = ENGINE_PIPE_LEFT_COLUMN * CSTRK_TILE_WORLD_SIZE +
+						   CSTRK_TILE_WORLD_SIZE / 2 +
+						   (center_line ? 0 : ENGINE_PIPE_CLEAR_LATERAL_OFFSET);
+			legacy_s32 z =
+				(ENGINE_PIPE_MAP_SIZE - ENGINE_PIPE_APPROACH_ROW) * CSTRK_TILE_WORLD_SIZE -
+				CSTRK_TILE_WORLD_SIZE / 2;
+			init_carstate_from_simd(&state.playerstate, &simd_player, TRANSMISSION_AUTOMATIC,
+									x * ENGINE_TEST_POSITION_SCALE, 0,
+									z * ENGINE_TEST_POSITION_SCALE, 0);
+			state.playerstate.car_actual_speed = ENGINE_PIPE_APPROACH_SPEED;
+			state.playerstate.car_rev_speed = ENGINE_PIPE_APPROACH_SPEED;
+			legacy_u8 passed = 0, hit = 0;
+			for (legacy_u16 frame = 0; frame < ENGINE_PIPE_TEST_FRAMES; frame++) {
+				assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
+				update_gamestate();
+				const struct CARSTATE *car = &state.playerstate;
+				if (car->car_crashBmpFlag != CRASH_EVENT_NONE) {
+					assert(center_line);
+					legacy_s32 row =
+						ENGINE_PIPE_MAP_SIZE - 1U -
+						car->car_position.lz / (ENGINE_TEST_POSITION_SCALE * CSTRK_TILE_WORLD_SIZE);
+					assert(row == ENGINE_PIPE_CENTER_ROW);
+					hit = 1;
+					break;
+				}
+				assert(car->car_rotate.z > -ENGINE_PIPE_MAXIMUM_ROLL &&
+					   car->car_rotate.z < ENGINE_PIPE_MAXIMUM_ROLL);
+				if (car->car_position.lz >= (ENGINE_PIPE_MAP_SIZE - ENGINE_PIPE_EXIT_ROW) *
+												CSTRK_TILE_WORLD_SIZE *
+												ENGINE_TEST_POSITION_SCALE) {
+					passed = 1;
+					break;
+				}
+			}
+			/* The original half-pipe has a central lip. Its side route must remain
+			 * driveable upright, and its central wall must remain solid on a hill. */
+			assert(center_line ? hit && !passed : passed && !hit);
+		}
+	}
+	owoot_enabled = original_owoot;
+	car_surface_adhesion[PLAYER_CAR_INDEX] = original_adhesion;
+	gameconfig.game_framespersec = original_rate;
+	framespersec = original_rate;
+	ghost_free_simulation_resources();
+	memcpy(gameconfig.game_playercarid, original_car, sizeof(original_car));
+	ghost_load_simulation_resources();
+}
+
+#define ENGINE_HALF_PIPE_REPLAY_VERSION 7U
+#define ENGINE_HALF_PIPE_REPLAY_FRAMES 1178U
+#define ENGINE_HALF_PIPE_REPLAY_CRASH_FRAME 1097U
+
+static void test_recorded_half_pipe_body_collision(void)
+{
+	FILE *fixture = fopen(RESTUNTS_HALF_PIPE_REPLAY_FIXTURE, "rb");
+	assert(fixture != NULL);
+	assert(fseek(fixture, 0, SEEK_END) == 0);
+	legacy_s32 length = (legacy_s32)ftell(fixture);
+	assert(length > (legacy_s32)CSRPL_HEADER_SIZE);
+	assert(fseek(fixture, 0, SEEK_SET) == 0);
+	legacy_u8 *bytes = malloc((size_t)length);
+	assert(bytes != NULL);
+	assert(fread(bytes, 1U, (size_t)length, fixture) == (size_t)length);
+	assert(fclose(fixture) == 0);
+	assert(LEGACY_READ_U16_LE(bytes + CSRPL_VERSION_OFFSET) == ENGINE_HALF_PIPE_REPLAY_VERSION);
+	/* Keep the recorded fixture unchanged. Only its in-memory admission header
+	 * advances; the embedded track and every original input remain identical. */
+	LEGACY_WRITE_U16_LE(bytes + CSRPL_VERSION_OFFSET, CSRPL_VERSION);
+	struct CSRPL_VIEW view;
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(csrpl_decode(bytes, (size_t)length, &view, error, sizeof(error)));
+	assert(view.metadata.frame_count == ENGINE_HALF_PIPE_REPLAY_FRAMES);
+	assert(view.metadata.frames_per_second == GAME_FRAME_RATE_NORMAL);
+	assert(memcmp(view.metadata.player_car_id, "PMIN", CSRPL_CAR_ID_SIZE) == 0);
+	assert(view.metadata.driving_rules == driving_rules_current());
+	struct GAMEINFO original_config = gameconfig;
+	ghost_free_simulation_resources();
+	memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
+	memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
+	memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
+	gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+	gameconfig.game_playermaterial = view.metadata.player_material;
+	gameconfig.game_playertransmission = view.metadata.player_transmission;
+	gameconfig.game_opponenttype = view.metadata.opponent_type;
+	gameconfig.game_opponentmaterial = view.metadata.opponent_material;
+	gameconfig.game_opponenttransmission = view.metadata.opponent_transmission;
+	gameconfig.game_framespersec = view.metadata.frames_per_second;
+	assert(extended_track_load(view.track_data, view.track_size, error, sizeof(error)));
+	assert(track_setup() == 0);
+	ghost_load_simulation_resources();
+	assert(extended_replay_runtime_load(&view));
+	free(bytes);
+	initialize_simulation();
+	for (legacy_u32 frame = 0; frame < ENGINE_HALF_PIPE_REPLAY_FRAMES; frame++) {
+		update_gamestate();
+		assert(state.playerstate.car_crashBmpFlag == CRASH_EVENT_NONE);
+		if (frame == ENGINE_HALF_PIPE_REPLAY_CRASH_FRAME) {
+			assert(state.playerstate.car_actual_speed > 0);
+		}
+	}
+	assert(extended_replay_frame() == ENGINE_HALF_PIPE_REPLAY_FRAMES);
+	assert(state.playerstate.car_crashBmpFlag == CRASH_EVENT_NONE);
+	ghost_free_simulation_resources();
+	gameconfig = original_config;
+	ghost_load_simulation_resources();
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -680,6 +872,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_smooth_consecutive_slopes(ENGINE_TEST_SLOPE_STUNT_NONE);
 	test_smooth_consecutive_slopes(CSTRK_TUNNEL_FIRST_ID);
 	test_sloped_slalom_impacts();
+	test_mini_half_pipe_on_straight_slope();
+	test_recorded_half_pipe_body_collision();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "
