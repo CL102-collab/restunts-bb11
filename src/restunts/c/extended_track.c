@@ -8,6 +8,7 @@
 #include "track_objects.h"
 #include "trackdata_layout.h"
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 
 struct EXTENDED_TRACK_BINDINGS {
 	legacy_s16 *primary;
@@ -44,6 +45,47 @@ static struct CSTRK_TRACK current_track;
 static struct EXTENDED_TRACK_STORAGE *storage;
 static struct EXTENDED_TRACK_BINDINGS legacy_bindings;
 static int bound;
+
+#define EXTENDED_ROLL_DIRECTION_COUNT 4U
+#define EXTENDED_ROLL_ROUTE_CAMERA_VECTORS 3U
+static struct TRKOBJINFO roll_route_info[EXTENDED_ROLL_DIRECTION_COUNT];
+static struct VECTOR
+	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U + EXTENDED_ROLL_ROUTE_CAMERA_VECTORS];
+
+static void prepare_roll_route_info(void)
+{
+	static const legacy_s8 entries[EXTENDED_ROLL_DIRECTION_COUNT] = {1, 8, 11, 4};
+	static const legacy_s8 exits[EXTENDED_ROLL_DIRECTION_COUNT] = {11, 4, 1, 8};
+	const struct TRKOBJINFO *original = trkObjectList[CSTRK_ROLL_RAMP_FIRST_ID].ss_trkObjInfoPtr;
+	for (legacy_u16 index = 0; index < ROLL_RAMP_ROUTE_POINT_COUNT; index++) {
+		legacy_s16 distance =
+			(legacy_s16)((legacy_s32)index * ROLL_RAMP_LENGTH / (ROLL_RAMP_ROUTE_POINT_COUNT - 1U));
+		struct VECTOR normal;
+		roll_ramp_sample(distance, -ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U], &normal);
+		roll_ramp_sample(distance, ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U + 1U],
+						 &normal);
+	}
+	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U] =
+		(struct VECTOR){0, ROLL_RAMP_RISE_PER_TILE, 0};
+	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U + 1U] =
+		(struct VECTOR){0, 0, ROLL_RAMP_HALF_LENGTH};
+	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U + 2U] =
+		(struct VECTOR){0, 0, -ROLL_RAMP_HALF_LENGTH};
+	for (legacy_u16 direction = 0; direction < EXTENDED_ROLL_DIRECTION_COUNT; direction++) {
+		roll_route_info[direction] = *original;
+		roll_route_info[direction].si_noOfBlocks = 1;
+		roll_route_info[direction].si_entryPoint = entries[direction];
+		roll_route_info[direction].si_exitPoint = exits[direction];
+		roll_route_info[direction].si_entryType = 0;
+		roll_route_info[direction].si_exitType = ROLL_RAMP_LAUNCH_CONNECTION;
+		roll_route_info[direction].route_point_count = ROLL_RAMP_ROUTE_POINT_COUNT;
+		roll_route_info[direction].route_orientation = direction * ANGLE_QUARTER_TURN;
+		roll_route_info[direction].route_vectors = roll_route_vectors;
+		roll_route_info[direction].reverse_path_offset_low = 0;
+		roll_route_info[direction].reverse_path_offset_high = 0;
+		roll_route_info[direction].roadside_sign_type = 0;
+	}
+}
 
 int extended_track_active(void)
 {
@@ -270,8 +312,13 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 		target->origin_heads[cell] = -1;
 	}
 	memset(target->signs, 255, sizeof(target->signs));
+	legacy_u8 roll_info_prepared = 0;
 	for (uint32_t index = 0; index < track->object_count; index++) {
 		const struct CSTRK_OBJECT *object = &track->objects[index];
+		if (object->roll_ramp && !roll_info_prepared) {
+			prepare_roll_route_info();
+			roll_info_prepared = 1;
+		}
 		legacy_s16 id = (legacy_s16)resolve_object_id(object);
 		if (id < 0) {
 			if (error && error_size) {
@@ -434,6 +481,17 @@ const struct CSTRK_OBJECT *extended_track_object_for_id(int column, int row, uns
 		}
 	}
 	return NULL;
+}
+
+const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16 row, legacy_u16 id)
+{
+	const struct CSTRK_OBJECT *object = extended_track_object_for_id(column, row, id);
+	if (object && object->roll_ramp) {
+		return &roll_route_info[(legacy_u16)roll_ramp_orientation(object) / ANGLE_QUARTER_TURN];
+	}
+	return id < sizeof(trkObjectList) / sizeof(trkObjectList[0])
+			   ? trkObjectList[id].ss_trkObjInfoPtr
+			   : NULL;
 }
 
 unsigned extended_track_object_id(const struct CSTRK_OBJECT *object)

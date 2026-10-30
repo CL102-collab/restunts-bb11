@@ -437,13 +437,13 @@
             c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
-    function originalIcon(id, surface, lowerSurface, tunnelSlalom) {
+    function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp) {
         if (!state.resources || !state.resources.palette) return null;
-        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom;
+        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);
         if (!source) return null;
-        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom);
+        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;
         image.data.set(window.TrackEditorResources.tintTileBitmap(bitmap, palette, surface, lowerSurface, id));
@@ -452,7 +452,7 @@
     function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false, lowerSurface = piece.lowerSurface ?? 0) {
         if (piece.decoration) surface = 0;
         const display = model.pieceDisplayVariant(piece, rotation);
-        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0);
+        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0, piece.rollRamp ?? 0);
         c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(display.rotation * Math.PI / 2);
         if (icon) {
             c.imageSmoothingEnabled = false;
@@ -495,7 +495,7 @@
         for (const object of doc.objects) {
             if (object.x + object.width < x0 || object.y + object.height < y0 || object.x > x1 || object.y > y1) continue;
             const piece = catalogEntry(object.id);
-            if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0 }, view.x + object.x * size, view.y + object.y * size, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
+            if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0 }, view.x + object.x * size, view.y + object.y * size, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
         }
         if ($('show-grid').checked && size >= 7) {
             ctx.strokeStyle = '#13210f58'; ctx.lineWidth = 1;
@@ -521,7 +521,7 @@
         let width = 1, height = 1, valid = true, preview = null;
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
         if (state.tool === 'place' && state.selected) {
-            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0); width = preview.width; height = preview.height; }
+            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
         const left = view.x + h.x * size, top = view.y + h.y * size;
@@ -594,7 +594,7 @@
         try {
             if (tool === 'place' && state.selected) {
                 const variant = model.pieceVariant(state.selected, state.rotation);
-                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0);
+                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0);
             }
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);

@@ -11,6 +11,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 #endif
 
 #define TRACK_ARC_CENTER_OFFSET 1024
@@ -1567,6 +1568,119 @@ extended_collision_object(const struct CSTRK_TRACK *track,
 	return owner;
 }
 
+#define ROLL_RAMP_COLLISION_NORMAL_SCALE (TRIG_FIXED_ONE / 2)
+#define ROLL_RAMP_GRILLE_CONTACT_DEPTH 16
+
+static legacy_s64 roll_ramp_triangle_side(const struct VECTOR *a, const struct VECTOR *b,
+										  const struct VECTOR *point)
+{
+	return (legacy_s64)(b->x - a->x) * (point->z - a->z) -
+		   (legacy_s64)(b->z - a->z) * (point->x - a->x);
+}
+
+static legacy_s16 roll_ramp_triangle_contains(const struct VECTOR triangle[3],
+											  const struct VECTOR *point)
+{
+	legacy_u8 negative = 0, positive = 0;
+	for (legacy_u8 edge = 0; edge < 3U; edge++) {
+		legacy_s64 side =
+			roll_ramp_triangle_side(&triangle[edge], &triangle[(edge + 1U) % 3U], point);
+		negative |= side < 0;
+		positive |= side > 0;
+	}
+	return !(negative && positive);
+}
+
+static void roll_ramp_triangle_plane(const struct VECTOR triangle[3], struct PLANE *plane)
+{
+	const struct VECTOR *a = &triangle[0], *b = &triangle[1], *c = &triangle[2];
+	legacy_s32 normal[3] = {
+		(legacy_s32)(b->y - a->y) * (c->z - a->z) - (legacy_s32)(b->z - a->z) * (c->y - a->y),
+		(legacy_s32)(b->z - a->z) * (c->x - a->x) - (legacy_s32)(b->x - a->x) * (c->z - a->z),
+		(legacy_s32)(b->x - a->x) * (c->y - a->y) - (legacy_s32)(b->y - a->y) * (c->x - a->x)};
+	if (normal[1] < 0) {
+		for (legacy_u8 axis = 0; axis < 3U; axis++) {
+			normal[axis] = -normal[axis];
+		}
+	}
+	legacy_s32 maximum = 0;
+	for (legacy_u8 axis = 0; axis < 3U; axis++) {
+		legacy_s32 magnitude = normal[axis] < 0 ? -normal[axis] : normal[axis];
+		if (magnitude > maximum) {
+			maximum = magnitude;
+		}
+	}
+	while (maximum > ROLL_RAMP_COLLISION_NORMAL_SCALE) {
+		for (legacy_u8 axis = 0; axis < 3U; axis++) {
+			normal[axis] /= 2;
+		}
+		maximum /= 2;
+	}
+	plane->plane_origin = *a;
+	plane->plane_normal =
+		(struct VECTOR){(legacy_s16)normal[0], (legacy_s16)normal[1], (legacy_s16)normal[2]};
+	legacy_s16 length = polarRadius3D(&plane->plane_normal);
+	if (length > 0) {
+		plane->plane_normal.x = (legacy_s16)(normal[0] * ROLL_RAMP_COLLISION_NORMAL_SCALE / length);
+		plane->plane_normal.y = (legacy_s16)(normal[1] * ROLL_RAMP_COLLISION_NORMAL_SCALE / length);
+		plane->plane_normal.z = (legacy_s16)(normal[2] * ROLL_RAMP_COLLISION_NORMAL_SCALE / length);
+	}
+	legacy_s16 across = polarRadius2D(plane->plane_normal.y, plane->plane_normal.z);
+	plane->plane_yz = -polarAngle(plane->plane_normal.x, across);
+	plane->plane_xy = polarAngle(plane->plane_normal.z, plane->plane_normal.y);
+	struct MATRIX roll, pitch;
+	mat_rot_z(&roll, plane->plane_yz);
+	mat_rot_x(&pitch, plane->plane_xy);
+	mat_multiply(&roll, &pitch, &plane->plane_rotation);
+}
+
+static legacy_s16 extended_select_roll_ramp(const struct CSTRK_OBJECT *object,
+											const struct VECTOR *origin,
+											const struct VECTOR *position)
+{
+	struct VECTOR relative = {LEGACY_S16_WRAP_SUB(position->x, origin->x),
+							  LEGACY_S16_WRAP_SUB(position->y, origin->y),
+							  LEGACY_S16_WRAP_SUB(position->z, origin->z)};
+	legacy_s16 orientation = roll_ramp_orientation(object);
+	legacy_s16 inverse = LEGACY_S16_WRAP_NEGATE(orientation) & ANGLE_MASK;
+	for (legacy_u16 index = 0; index < roll_ramp_road_triangle_count(); index++) {
+		struct VECTOR triangle[3];
+		roll_ramp_road_triangle(index, triangle);
+		for (legacy_u8 vertex = 0; vertex < 3U; vertex++) {
+			track_rotate_local(&triangle[vertex], inverse);
+			triangle[vertex].y = LEGACY_S16_WRAP_ADD(
+				triangle[vertex].y,
+				extended_geometry_object_grade(object, triangle[vertex].x, triangle[vertex].z));
+		}
+		if (!roll_ramp_triangle_contains(triangle, &relative)) {
+			continue;
+		}
+		struct PLANE plane;
+		roll_ramp_triangle_plane(triangle, &plane);
+		legacy_s64 distance =
+			(legacy_s64)(relative.x - plane.plane_origin.x) * plane.plane_normal.x +
+			(legacy_s64)(relative.y - plane.plane_origin.y) * plane.plane_normal.y +
+			(legacy_s64)(relative.z - plane.plane_origin.z) * plane.plane_normal.z;
+		/* The second tile is an elevated strip, not a solid wedge. A car
+		 * underneath it retains contact with the independent terrain. */
+		if (index >= roll_ramp_road_triangle_count() / 2U &&
+			distance <
+				-(legacy_s64)ROLL_RAMP_GRILLE_CONTACT_DEPTH * ROLL_RAMP_COLLISION_NORMAL_SCALE) {
+			return 0;
+		}
+		extended_selected_plane = plane;
+		current_planptr = &extended_selected_plane;
+		planindex = EXTENDED_GEOMETRY_PLANE_INDEX + 1U + index;
+		elem_xCenter = origin->x;
+		elem_zCenter = origin->z;
+		terrainHeight = origin->y;
+		current_surf_type = (legacy_s8)(object->surface + CAR_SURFACE_PAVED);
+		track_wall_collision_enabled = 0;
+		return 1;
+	}
+	return 0;
+}
+
 static void build_extended_track_object(struct VECTOR *position, struct VECTOR *next)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
@@ -1590,6 +1704,12 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 	const struct TRACKOBJECT *definition = &trkObjectList[id];
 	struct VECTOR origin, local, next_local;
 	extended_geometry_object_origin(track, object, &origin);
+	if (object->roll_ramp) {
+		if (!extended_select_roll_ramp(object, &origin, position)) {
+			extended_select_terrain(&terrain, position);
+		}
+		return;
+	}
 	local.x = LEGACY_S16_WRAP_SUB(position->x, origin.x);
 	local.y = LEGACY_S16_WRAP_SUB(position->y, origin.y);
 	local.z = LEGACY_S16_WRAP_SUB(position->z, origin.z);
@@ -1968,6 +2088,103 @@ static void solid_world_bounds(struct TRACK_SOLID_BOX *world, const struct TRACK
 }
 
 #ifdef RESTUNTS_SDL3
+static legacy_s16 roll_ramp_clip_solid(legacy_s64 first, legacy_s64 second, legacy_s16 *entry,
+									   legacy_s16 *exit)
+{
+	if (first >= 0 && second >= 0) {
+		return 0;
+	}
+	if (first <= 0 && second <= 0) {
+		return 1;
+	}
+	legacy_s16 crossing = (legacy_s16)(first * TRIG_FIXED_ONE / (first - second));
+	if (first >= 0) {
+		if (crossing > *entry) {
+			*entry = crossing;
+		}
+	} else if (crossing < *exit) {
+		*exit = crossing;
+	}
+	return *entry < *exit;
+}
+
+static legacy_s16 roll_ramp_clip_solid_cap(legacy_s64 first, legacy_s64 second, legacy_u8 shared,
+										   legacy_s16 *entry, legacy_s16 *exit)
+{
+	/* Adjacent concrete segments share a face. A sweep along that face still
+	 * enters their union, while the outside faces retain strict clipping. */
+	if (shared && first == 0 && second == 0) {
+		return 1;
+	}
+	return roll_ramp_clip_solid(first, second, entry, exit);
+}
+
+static legacy_s16 roll_ramp_wedge_contact(const struct VECTOR *first, const struct VECTOR *second,
+										  legacy_s16 *fraction)
+{
+	const legacy_s16 span = ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT;
+	legacy_s16 hit = 0, earliest = TRIG_FIXED_ONE;
+	/* Each concrete segment is the same linear top used by the road mesh.
+	 * Clip the motion against its finite convex volume instead of extending
+	 * that top plane below the open grille or beyond the launch edge. */
+	for (legacy_u16 segment = 0; segment < ROLL_RAMP_SEGMENT_COUNT / 2U; segment++) {
+		legacy_s16 start = segment * span, end = start + span;
+		legacy_s16 height = roll_ramp_center_height(start);
+		legacy_s16 rise = roll_ramp_center_height(end) - height;
+		legacy_s16 entry = 0, exit = TRIG_FIXED_ONE;
+		if (!roll_ramp_clip_solid(-ROLL_RAMP_HALF_WIDTH - (legacy_s32)first->x,
+								  -ROLL_RAMP_HALF_WIDTH - (legacy_s32)second->x, &entry, &exit) ||
+			!roll_ramp_clip_solid((legacy_s32)first->x - ROLL_RAMP_HALF_WIDTH,
+								  (legacy_s32)second->x - ROLL_RAMP_HALF_WIDTH, &entry, &exit) ||
+			!roll_ramp_clip_solid(-(legacy_s32)first->y, -(legacy_s32)second->y, &entry, &exit) ||
+			!roll_ramp_clip_solid_cap(ROLL_RAMP_HALF_LENGTH - end - (legacy_s32)first->z,
+									  ROLL_RAMP_HALF_LENGTH - end - (legacy_s32)second->z,
+									  end < CSTRK_TILE_WORLD_SIZE, &entry, &exit) ||
+			!roll_ramp_clip_solid_cap((legacy_s32)first->z - ROLL_RAMP_HALF_LENGTH + start,
+									  (legacy_s32)second->z - ROLL_RAMP_HALF_LENGTH + start,
+									  start > 0, &entry, &exit) ||
+			!roll_ramp_clip_solid(((legacy_s64)first->y - height) * span -
+									  (legacy_s64)rise * (ROLL_RAMP_HALF_LENGTH - first->z - start),
+								  ((legacy_s64)second->y - height) * span -
+									  (legacy_s64)rise *
+										  (ROLL_RAMP_HALF_LENGTH - second->z - start),
+								  &entry, &exit)) {
+			continue;
+		}
+		if (!hit || entry < earliest) {
+			earliest = entry;
+		}
+		hit = 1;
+	}
+	if (hit) {
+		*fraction = earliest;
+	}
+	return hit;
+}
+
+static legacy_s16 roll_ramp_solid_contact(const struct VECTOR *first, const struct VECTOR *second,
+										  legacy_s16 *fraction)
+{
+	legacy_s16 earliest = TRIG_FIXED_ONE;
+	legacy_s16 hit = roll_ramp_wedge_contact(first, second, &earliest);
+	for (legacy_u16 index = 0; index < roll_ramp_support_box_count(); index++) {
+		struct ROLL_RAMP_BOX support;
+		roll_ramp_support_box(index, &support);
+		struct TRACK_SOLID_BOX box = {support.minimum, support.maximum};
+		legacy_s16 contact;
+		if (solid_box_contact(first, second, &box, &contact)) {
+			if (!hit || contact < earliest) {
+				earliest = contact;
+			}
+			hit = 1;
+		}
+	}
+	if (hit) {
+		*fraction = earliest;
+	}
+	return hit;
+}
+
 static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct VECTOR *second,
 												  legacy_s16 *fraction,
 												  const struct TRACK_SOLID_BOX *boxes,
@@ -1978,7 +2195,8 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 	for (uint32_t i = 0; i < track->object_count; i++) {
 		const struct CSTRK_OBJECT *object = &track->objects[i];
 		unsigned id = extended_track_object_id(object);
-		if (id >= 215 || trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM) {
+		if (id >= sizeof(trkObjectList) / sizeof(trkObjectList[0]) ||
+			(!object->roll_ramp && trkObjectList[id].ss_physicalModel != PHYSICAL_MODEL_SLALOM)) {
 			continue;
 		}
 		struct VECTOR origin, local_first, local_second;
@@ -2006,8 +2224,20 @@ static legacy_s16 extended_solid_obstacle_contact(struct VECTOR *first, struct V
 			absolute_z - center_z < -3072 || absolute_z - center_z > 3072) {
 			continue;
 		}
-		track_rotate_local(&local_first, trkObjectList[id].ss_rotY);
-		track_rotate_local(&local_second, trkObjectList[id].ss_rotY);
+		legacy_s16 orientation =
+			object->roll_ramp ? roll_ramp_orientation(object) : trkObjectList[id].ss_rotY;
+		track_rotate_local(&local_first, orientation);
+		track_rotate_local(&local_second, orientation);
+		if (object->roll_ramp) {
+			legacy_s16 contact;
+			if (roll_ramp_solid_contact(&local_first, &local_second, &contact)) {
+				if (!hit || contact < earliest) {
+					earliest = contact;
+				}
+				hit = 1;
+			}
+			continue;
+		}
 		for (unsigned box = 0; box < box_count; box++) {
 			legacy_s16 contact;
 			if (solid_box_contact(&local_first, &local_second, &boxes[box], &contact)) {

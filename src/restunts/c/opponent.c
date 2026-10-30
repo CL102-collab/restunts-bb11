@@ -772,11 +772,18 @@ legacy_s16 get_track_route_point(legacy_s16 track_index_arg, struct VECTOR *outp
 	legacy_u8 connection_status =
 		(legacy_u8)track_route_traversal_flags[track_index] & TRACK_ROUTE_REVERSED_FLAG;
 	struct TRACKOBJECT *track_object = &trkObjectList[tile_element];
-	struct TRKOBJINFO *track_info;
-	if (track_object->ss_trkObjInfoPtr == 0) {
+	const struct TRKOBJINFO *track_info;
+	const struct TRKOBJINFO *blocks = track_object->ss_trkObjInfoPtr;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		blocks = extended_track_route_info((legacy_u8)track_route_columns[track_index],
+										   (legacy_u8)track_route_rows[track_index], tile_element);
+	}
+#endif
+	if (blocks == 0) {
 		track_info = &legacy_null_track_info;
 	} else {
-		track_info = &track_object->ss_trkObjInfoPtr[track_subtype];
+		track_info = &blocks[track_subtype];
 	}
 	legacy_u8 route_point_count = (legacy_u8)track_info->route_point_count;
 	legacy_u8 route_index = (legacy_u8)route_index_arg;

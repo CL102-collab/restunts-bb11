@@ -6,6 +6,7 @@
 #include "extended_track.h"
 #ifdef RESTUNTS_SDL3
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 #endif
 
 #define OWOOT_ROAD_CONTACT_TOLERANCE 12
@@ -592,7 +593,9 @@ static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT 
 				extended_geometry_object_grade(placed, local[index].x, local[index].z));
 		}
 		legacy_s16 x = local[index].x, z = local[index].z;
-		switch ((legacy_u16)object->ss_rotY) {
+		legacy_s16 orientation =
+			placed->roll_ramp ? roll_ramp_orientation(placed) : object->ss_rotY;
+		switch ((legacy_u16)orientation) {
 			case ANGLE_QUARTER_TURN:
 				local[index].x = -z;
 				local[index].z = x;
@@ -606,6 +609,16 @@ static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT 
 				local[index].z = -x;
 				break;
 		}
+	}
+	if (placed->roll_ramp) {
+		for (legacy_u16 index = 0; index < roll_ramp_road_triangle_count(); index++) {
+			struct OWOOT_ROAD_TRIANGLE triangle;
+			roll_ramp_road_triangle(index, triangle.vertex);
+			if (road_triangle_overlaps_wheel(&triangle, local, ring_count, contact_tolerance)) {
+				return 1;
+			}
+		}
+		return 0;
 	}
 	const struct OWOOT_ROAD_MODEL *geometry = &owoot_road_models[model];
 	for (legacy_u16 index = 0; index < geometry->triangle_count; index++) {

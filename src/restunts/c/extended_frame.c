@@ -10,6 +10,7 @@
 #include "track_collision.h"
 #include "scene_resources.h"
 #include "owoot_road.h"
+#include "roll_ramp.h"
 #include "externs.h"
 #ifndef RESTUNTS_HEADLESS
 #include "extended_replay_runtime.h"
@@ -1090,7 +1091,7 @@ frame_extended_paint_precise_terrain_face(const struct VECTOR *source, legacy_u1
 	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
 		 object_index++) {
 		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
-		if (!frame_extended_uses_grade(object) ||
+		if (object->roll_ramp || !frame_extended_uses_grade(object) ||
 			!frame_extended_terrain_matches_grade(source, count, terrain, object)) {
 			continue;
 		}
@@ -1212,7 +1213,7 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
 		 object_index++) {
 		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
-		if (!frame_extended_uses_grade(object)) {
+		if (object->roll_ramp || !frame_extended_uses_grade(object)) {
 			continue;
 		}
 		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
@@ -1606,6 +1607,18 @@ static legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (model->roll_ramp) {
+		struct SHAPE3D source;
+		if (!roll_ramp_create_mesh(&source, model->surface)) {
+			return 0;
+		}
+		struct TRACKOBJECT launch = *definition;
+		launch.ss_rotY = roll_ramp_orientation(model);
+		legacy_s16 result =
+			frame_extended_draw_object_mesh(&object, &launch, &source, model->surface);
+		roll_ramp_free_mesh(&source);
+		return result;
+	}
 	if (model->tunnel_slalom) {
 		/* Reuse the tunnel shell and shaded floor, adding only the slalom's
 		 * barriers. Its ordinary road overlay would duplicate the floor. */

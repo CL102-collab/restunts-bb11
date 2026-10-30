@@ -18,6 +18,7 @@
 #include "../c/physics_internal.h"
 #include "../c/owoot_road.h"
 #include "../c/owoot_route.h"
+#include "../c/roll_ramp.h"
 
 #undef memcpy
 #undef printf
@@ -2116,6 +2117,204 @@ static void test_long_route(void)
 	cstrk_free(&track);
 }
 
+#define TEST_ROLL_RAMP_COLUMN 44U
+#define TEST_ROLL_RAMP_ROW 43U
+#define TEST_ROLL_RAMP_ROTATION_COUNT 4U
+#define TEST_ROLL_RAMP_SLOPE_COUNT 5U
+#define TEST_ROLL_RAMP_HEIGHT_TOLERANCE 3
+#define TEST_ROLL_RAMP_OUTSIDE_OFFSET 32
+#define TEST_ROLL_RAMP_VERTICAL_OFFSET 64
+#define TEST_ROLL_RAMP_WHEEL_HALF_WIDTH 4
+#define TEST_ROLL_RAMP_WHEEL_HALF_HEIGHT 2
+
+static struct VECTOR roll_ramp_test_world(const struct CSTRK_TRACK *track,
+										  const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	legacy_s16 x = local.x, z = local.z;
+	switch (roll_ramp_orientation(object)) {
+		case ANGLE_QUARTER_TURN:
+			local.x = z;
+			local.z = -x;
+			break;
+		case ANGLE_HALF_TURN:
+			local.x = -x;
+			local.z = -z;
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			local.x = -z;
+			local.z = x;
+			break;
+	}
+	local.y =
+		LEGACY_S16_WRAP_ADD(local.y, extended_geometry_object_grade(object, local.x, local.z));
+	return object_world(track, object, local);
+}
+
+static struct VECTOR roll_ramp_test_select(const struct CSTRK_TRACK *track,
+										   const struct CSTRK_OBJECT *object, struct VECTOR local)
+{
+	struct VECTOR point = roll_ramp_test_world(track, object, local);
+	extended_geometry_set_context(
+		(object->x * CSTRK_TILE_WORLD_SIZE + object->width * CSTRK_TILE_WORLD_SIZE / 2) * 64L,
+		(track->height * CSTRK_TILE_WORLD_SIZE - object->y * CSTRK_TILE_WORLD_SIZE -
+		 object->height * CSTRK_TILE_WORLD_SIZE / 2) *
+			64L);
+	build_track_object(&point, &point);
+	return point;
+}
+
+static legacy_s16 roll_ramp_test_wheel(const struct CSTRK_TRACK *track,
+									   const struct CSTRK_OBJECT *object, struct VECTOR center)
+{
+	static const legacy_s16 corners[4][2] = {
+		{-TEST_ROLL_RAMP_WHEEL_HALF_WIDTH, -TEST_ROLL_RAMP_WHEEL_HALF_WIDTH},
+		{TEST_ROLL_RAMP_WHEEL_HALF_WIDTH, -TEST_ROLL_RAMP_WHEEL_HALF_WIDTH},
+		{TEST_ROLL_RAMP_WHEEL_HALF_WIDTH, TEST_ROLL_RAMP_WHEEL_HALF_WIDTH},
+		{-TEST_ROLL_RAMP_WHEEL_HALF_WIDTH, TEST_ROLL_RAMP_WHEEL_HALF_WIDTH}};
+	struct VECTOR vertices[8];
+	for (legacy_u8 rim = 0; rim < 2U; rim++) {
+		for (legacy_u8 corner = 0; corner < 4U; corner++) {
+			struct VECTOR local = {center.x + corners[corner][0],
+								   center.y + (rim ? TEST_ROLL_RAMP_WHEEL_HALF_HEIGHT
+												   : -TEST_ROLL_RAMP_WHEEL_HALF_HEIGHT),
+								   center.z + corners[corner][1]};
+			vertices[rim * 4U + corner] = roll_ramp_test_world(track, object, local);
+		}
+	}
+	return track_road_overlaps_wheel(vertices, 4U, 0);
+}
+
+static void test_roll_ramp_collision(void)
+{
+	static const legacy_s8 slopes[TEST_ROLL_RAMP_SLOPE_COUNT][2] = {
+		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	for (legacy_u8 rotation = 0; rotation < TEST_ROLL_RAMP_ROTATION_COUNT; rotation++) {
+		for (legacy_u8 slope = 0; slope < TEST_ROLL_RAMP_SLOPE_COUNT; slope++) {
+			struct CSTRK_OBJECT object =
+				object_at(CSTRK_ROLL_RAMP_FIRST_ID, TEST_ROLL_RAMP_COLUMN, TEST_ROLL_RAMP_ROW);
+			object.roll_ramp = 1;
+			object.rotation = rotation;
+			object.width = rotation & 1U ? 2U : 1U;
+			object.height = rotation & 1U ? 1U : 2U;
+			object.occupied_mask = 3;
+			object.slope_x = slopes[slope][0];
+			object.slope_y = slopes[slope][1];
+			object.base_height = object.slope_x < 0	  ? object.width
+								 : object.slope_y < 0 ? object.height
+													  : 0;
+			for (legacy_u16 y = 0; y <= track.height; y++) {
+				for (legacy_u16 x = 0; x <= track.width; x++) {
+					legacy_s16 level = object.base_height +
+									   object.slope_x * ((legacy_s16)x - object.x) +
+									   object.slope_y * ((legacy_s16)y - object.y);
+					track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+						level < 0							   ? 0
+						: level > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_s16)CSTRK_MAX_HEIGHT
+															   : level;
+				}
+			}
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				object.surface = surface;
+				track.object_count = 0;
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				for (legacy_u16 index = 0; index < roll_ramp_road_triangle_count(); index++) {
+					struct VECTOR triangle[3];
+					assert(roll_ramp_road_triangle(index, triangle));
+					struct VECTOR center = {(triangle[0].x + triangle[1].x + triangle[2].x) / 3,
+											(triangle[0].y + triangle[1].y + triangle[2].y) / 3,
+											(triangle[0].z + triangle[1].z + triangle[2].z) / 3};
+					struct VECTOR point = roll_ramp_test_select(&track, &object, center);
+					assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+					assert(current_surf_type == CAR_SURFACE_PAVED + surface);
+					assert(wallindex < 0);
+					assert(abs(selected_height(&point) - point.y) <=
+						   TEST_ROLL_RAMP_HEIGHT_TOLERANCE);
+					assert(roll_ramp_test_wheel(&track, &object, center));
+				}
+				struct VECTOR lip;
+				roll_ramp_sample(ROLL_RAMP_LENGTH, 0, &lip, NULL);
+				lip.z -= TEST_ROLL_RAMP_OUTSIDE_OFFSET;
+				assert(!roll_ramp_test_wheel(&track, &object, lip));
+				(void)roll_ramp_test_select(&track, &object, lip);
+				assert(current_surf_type == CAR_SURFACE_GRASS);
+				struct VECTOR below;
+				roll_ramp_sample(ROLL_RAMP_LENGTH - CSTRK_TILE_WORLD_SIZE / 4, 0, &below, NULL);
+				below.y -= TEST_ROLL_RAMP_VERTICAL_OFFSET;
+				assert(!roll_ramp_test_wheel(&track, &object, below));
+				(void)roll_ramp_test_select(&track, &object, below);
+				assert(current_surf_type == CAR_SURFACE_GRASS);
+				struct VECTOR outside;
+				roll_ramp_sample(ROLL_RAMP_LENGTH - CSTRK_TILE_WORLD_SIZE / 4,
+								 ROLL_RAMP_HALF_WIDTH + TEST_ROLL_RAMP_OUTSIDE_OFFSET, &outside,
+								 NULL);
+				assert(!roll_ramp_test_wheel(&track, &object, outside));
+				extended_track_unload();
+			}
+		}
+	}
+	cstrk_free(&track);
+}
+
+static void test_roll_ramp_solids(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	for (legacy_u8 rotation = 0; rotation < TEST_ROLL_RAMP_ROTATION_COUNT; rotation++) {
+		struct CSTRK_OBJECT object =
+			object_at(CSTRK_ROLL_RAMP_FIRST_ID, TEST_ROLL_RAMP_COLUMN, TEST_ROLL_RAMP_ROW);
+		object.roll_ramp = 1;
+		object.rotation = rotation;
+		object.width = rotation & 1U ? 2U : 1U;
+		object.height = rotation & 1U ? 1U : 2U;
+		object.occupied_mask = 3;
+		track.object_count = 0;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		activate(&track);
+		(void)roll_ramp_test_select(&track, &object, (struct VECTOR){0, 0, 0});
+		for (legacy_u16 index = 0; index < roll_ramp_support_box_count(); index++) {
+			struct ROLL_RAMP_BOX box;
+			assert(roll_ramp_support_box(index, &box));
+			legacy_s16 y = (box.minimum.y + box.maximum.y) / 2;
+			legacy_s16 z = (box.minimum.z + box.maximum.z) / 2;
+			struct VECTOR first = roll_ramp_test_world(
+				&track, &object,
+				(struct VECTOR){box.minimum.x - TEST_ROLL_RAMP_OUTSIDE_OFFSET, y, z});
+			struct VECTOR second = roll_ramp_test_world(
+				&track, &object,
+				(struct VECTOR){box.maximum.x + TEST_ROLL_RAMP_OUTSIDE_OFFSET, y, z});
+			legacy_s16 fraction = -1;
+			assert(track_solid_obstacle_contact(&first, &second, &fraction));
+			assert(fraction >= 0 && fraction < TRIG_FIXED_ONE);
+		}
+		/* Check every internal section seam as well as its neighboring interior.
+		 * A segmented solid must not leave collision cracks between volumes. */
+		const legacy_s16 step = ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT / 2;
+		for (legacy_s16 distance = step; distance < CSTRK_TILE_WORLD_SIZE; distance += step) {
+			legacy_s16 height = roll_ramp_center_height(distance);
+			struct VECTOR first = roll_ramp_test_world(
+				&track, &object,
+				(struct VECTOR){-ROLL_RAMP_HALF_WIDTH - TEST_ROLL_RAMP_OUTSIDE_OFFSET, height / 2,
+								ROLL_RAMP_HALF_LENGTH - distance});
+			struct VECTOR second = roll_ramp_test_world(
+				&track, &object,
+				(struct VECTOR){ROLL_RAMP_HALF_WIDTH + TEST_ROLL_RAMP_OUTSIDE_OFFSET, height / 2,
+								ROLL_RAMP_HALF_LENGTH - distance});
+			legacy_s16 fraction;
+			assert(track_solid_obstacle_contact(&first, &second, &fraction));
+			first.y += height + TEST_ROLL_RAMP_VERTICAL_OFFSET;
+			second.y += height + TEST_ROLL_RAMP_VERTICAL_OFFSET;
+			assert(!track_solid_obstacle_contact(&first, &second, &fraction));
+		}
+		extended_track_unload();
+	}
+	cstrk_free(&track);
+}
+
 int main(void)
 {
 	FILE *resource = fopen("GAME.PRE", "rb");
@@ -2148,6 +2347,8 @@ int main(void)
 	test_rotated_roads_keep_native_hill_geometry();
 	test_sloped_tunnels_and_slaloms();
 	test_flat_tunnel_slalom();
+	test_roll_ramp_collision();
+	test_roll_ramp_solids();
 	test_hill_shore_geometry();
 	test_shore_materials();
 	test_resource_admission();

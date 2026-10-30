@@ -222,7 +222,8 @@ set(common_sources
     headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
     track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
     owoot.c owoot_wheels.c owoot_road.c owoot_route.c driving_rules.c replay.c stateio.c
-    cstrk.c csrpl.c cshig.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c)
+    cstrk.c csrpl.c cshig.c extended_replay.c extended_track.c extended_geometry.c extended_opponent.c
+    roll_ramp.c)
 set(game_sources
     restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
     intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c

@@ -30,8 +30,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v7. Revision v3 through v6 tracks also open
-and are upgraded to v7 while preserving their original overpass road materials.
+great track." The current version is v8. Revision v3 through v7 tracks also open
+and are upgraded to v8 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -118,6 +118,16 @@ The **Stunts** group includes **Tunnel with slalom**, combining the tunnel shell
 and slalom barriers in one tile. It supports all four directions, every road
 surface, flat ground and straight inclines. These combined elements require
 `.cstrk` v7 and remain distinct from ordinary tunnels and slaloms after saving.
+
+**Barrel roll ramp** is a directional, two-tile launch stunt in **Stunts**.
+The first tile is a solid concrete approach. The elevated second tile uses a
+grille deck and concrete supports; its banked launch lip starts the car rolling
+around its front-to-rear axis. The car completes the roll freely in the air
+after leaving the ramp. Point the entry arrow along the approach. Start near
+100 mph on level paved terrain and leave a clear landing straight beyond the
+lip; the car, speed and terrain affect the roll and landing. Route checks allow
+up to six empty cells before a ground-level landing road. Barrel roll ramps
+require `.cstrk` v8.
 
 The **Elevated** group offers **Overpass over asphalt**, **Overpass over dirt**
 and **Overpass over ice**. These choices set the road below the bridge. The

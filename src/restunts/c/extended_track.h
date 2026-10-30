@@ -27,6 +27,10 @@ legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
 										  const struct CSTRK_OBJECT **objects, legacy_u16 capacity);
 const struct CSTRK_OBJECT *extended_track_object_for_id(int column, int row, unsigned id);
 unsigned extended_track_object_id(const struct CSTRK_OBJECT *object);
+/* Modifier-aware route metadata; ordinary pieces retain their native blocks. */
+struct TRKOBJINFO;
+const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16 row,
+												   legacy_u16 id);
 /* Graphical height at a map cell's fractional point, measured in 1/1024 tile. */
 legacy_s16 extended_track_elevation(int column, int row, int local_x, int local_y);
 /* Called after init_trackdata has installed the ordinary pointers. */

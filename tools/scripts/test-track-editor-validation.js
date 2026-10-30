@@ -24,9 +24,9 @@ function putImported(doc, ...args) {
     object.baseHeight = heights[0]; object.slopeX = heights[1] - heights[0]; object.slopeY = heights[3] - heights[0];
     doc.objects.push(object);
 }
-function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0, tunnelSlalom = 0) {
+function replace(doc, x, y, id, rotation = 0, surface = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0) {
     doc.erase(x, y);
-    if (id) doc.place(id, x, y, surface, rotation, lowerSurface, tunnelSlalom);
+    if (id) doc.place(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp);
 }
 function rectangle(width = 40, height = 18) {
     const doc = new model.Document(width, height), left = 2, right = width - 4, top = 4, bottom = height - 4;
@@ -47,7 +47,7 @@ function rotate(source) {
         const cell = source.cells[y * source.width + x];
         doc.cells[x * doc.width + source.height - y - 1] = { ...cell, halfWaterCorner: cell.halfWaterCorner ? cell.halfWaterCorner % SHORE_CORNER_COUNT + 1 : 0 };
     }
-    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0);
+    for (const object of source.objects) put(doc, object.id, source.height - object.y - object.height, object.x, object.surface, (object.rotation + 1) % 4, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0, object.rollRamp ?? 0);
     return clearHistory(doc);
 }
 function chicaneJump(bridge = false, runway = false) {
@@ -98,6 +98,28 @@ assert.deepEqual(model.decodeCstrk(model.encodeCstrk(noRunway)).snapshot(), noRu
 for (let direction = 0, doc = rectangle(); direction < 4; direction++, doc = rotate(doc)) check('closed route direction ' + direction, doc, 0);
 for (let direction = 0, doc = chicaneJump(); direction < 4; direction++, doc = rotate(doc)) check('short runway direction ' + direction, doc, 9);
 for (let direction = 0, doc = chicaneJump(true); direction < 4; direction++, doc = rotate(doc)) check('bridged ramps direction ' + direction, doc, 0);
+const ROLL_RAMP_ROUTE_COLUMN = 20, ROLL_RAMP_ROUTE_ROW = 4, ROLL_RAMP_MAX_GAP = 6;
+function rollRampJump(gap, surface = 0, reverse = false) {
+    const doc = rectangle(50);
+    for (let x = ROLL_RAMP_ROUTE_COLUMN - gap; x <= ROLL_RAMP_ROUTE_COLUMN + 1; x++)
+        doc.erase(x, ROLL_RAMP_ROUTE_ROW);
+    // The top side travels west: the concrete entry is the eastern tile.
+    doc.place(86, ROLL_RAMP_ROUTE_COLUMN, ROLL_RAMP_ROUTE_ROW, surface, reverse ? 2 : 0, 0, 0, 1);
+    return clearHistory(doc);
+}
+for (let gap = 1; gap <= ROLL_RAMP_MAX_GAP; gap++) for (const surface of model.SURFACES.keys()) {
+    for (let direction = 0, doc = rollRampJump(gap, surface); direction < 4; direction++, doc = rotate(doc)) {
+        const result = check('barrel roll flight gap ' + gap + ' surface ' + surface + ' direction ' + direction, doc, 0);
+        assert.equal(result.route.filter(piece => piece.id === 85 || piece.id === 86).length, 1);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+    }
+}
+for (let direction = 0, doc = rollRampJump(2, 0, true); direction < 4; direction++, doc = rotate(doc))
+    check('barrel roll launch cannot be driven backward direction ' + direction, doc, validation.STATUS.WRONG_WAY);
+for (let direction = 0, doc = rollRampJump(ROLL_RAMP_MAX_GAP + 1); direction < 4; direction++, doc = rotate(doc)) {
+    const result = check('barrel roll flight beyond the landing limit direction ' + direction, doc);
+    assert.notEqual(result.status, validation.STATUS.OK);
+}
 const HILL_ROUTE_MAX_LEVEL = 4, HILL_ROUTE_START_COLUMN = 12, HILL_ROUTE_END_COLUMN = 24;
 const HILL_ROUTE_ALIAS_COLUMN = 13, HILL_ROUTE_RETURN_COLUMN = 16, HILL_ROUTE_ROW = 4;
 const HILL_ROUTE_DIRECTION_COUNT = 4, HILL_ROUTE_ROAD_FIRST = 182, HILL_ROUTE_SPAN_FIRST = 194, HILL_ROUTE_SPAN_END = 198;
@@ -188,7 +210,7 @@ for (const entry of model.library.filter(piece => !piece.decoration && piece.phy
     for (let direction = 0; direction < 4; direction++) {
         const doc = rectangle(), { piece, rotation } = model.pieceVariant(entry, direction);
         for (let x = 12; x <= 13; x++) doc.erase(x, 4);
-        doc.place(piece.id, 12, 4, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
+        doc.place(piece.id, 12, 4, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
         check(entry.name + ' direction ' + direction, clearHistory(doc));
     }
 }
@@ -253,7 +275,7 @@ for (const grade of [-1, 1]) {
         doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : GENERAL_BIG_TURN_RISE - rise;
     }
     for (const object of sparse.objects)
-        put(doc, object.id, object.x, object.y, object.surface, object.rotation, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0);
+        put(doc, object.id, object.x, object.y, object.surface, object.rotation, object.lowerSurface ?? 0, object.tunnelSlalom ?? 0, object.rollRamp ?? 0);
     for (let direction = 0, current = clearHistory(doc); direction < HILL_ROUTE_DIRECTION_COUNT; direction++, current = rotate(current))
         check('connected large turn on straight slope ' + grade + ' direction ' + direction, current, 0);
 }
@@ -271,7 +293,7 @@ for (const entry of model.library) for (let direction = 0; direction < GENERAL_S
             const rise = Math.max(0, Math.min(span, (slopeX ? x : y) - GENERAL_SLOPE_ORIGIN));
             doc.vertices[y * (doc.width + 1) + x] = grade > 0 ? rise : span - rise;
         }
-        putImported(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
+        putImported(doc, piece.id, GENERAL_SLOPE_ORIGIN, GENERAL_SLOPE_ORIGIN, 1, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
         check(entry.name + ' straight slope ' + slopeX + ',' + slopeY + ' direction ' + direction, doc);
     }
 }

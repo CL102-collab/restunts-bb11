@@ -8,9 +8,9 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 9, 4, 2, 4, 9, 2, 10]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 10]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
-    assert.equal(families.size + model.SURFACES.length, model.library.length);
+    assert.equal(families.size + model.SURFACES.length + 1, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
@@ -115,7 +115,7 @@ test('every library direction preserves the placement footprint and saved track 
         assert.equal((piece.rotation + rotation) % 4, direction);
         const expected = model.rotatedFootprint(entry, direction);
         assert.deepEqual(model.rotatedFootprint(piece, rotation), expected);
-        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation);
+        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
         assert.equal(placed.width, expected.width); assert.equal(placed.height, expected.height); assert.equal(placed.mask, expected.mask);
         assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
     }
@@ -213,7 +213,7 @@ test('buildable library families fit straight slopes in every element and slope 
                 assert.deepEqual(doc.snapshot(), before);
                 continue;
             }
-            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0);
+            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
             assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
             assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
             assert.equal(object.baseHeight, slopeX + slopeY > 0 ? 0 : slopeX ? footprint.width : footprint.height);
@@ -759,6 +759,84 @@ test('tunnel with slalom flags require v7 and only apply to slalom objects', () 
     doc.objects[0].tunnelSlalom = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
 });
+test('barrel roll ramps retain all launch directions, footprints and history after reload', () => {
+    const selected = model.library.find(piece => piece.rollRamp);
+    const ordinary = model.library.find(piece => piece.physical === model.ROLL_RAMP_PHYSICAL_MODEL && !piece.rollRamp);
+    assert(selected && ordinary);
+    assert.equal(selected.name, 'Barrel roll ramp'); assert.equal(selected.group, 4);
+    assert.notEqual(selected.key, ordinary.key);
+    for (const direction of [0, 1, 2, 3]) for (const surface of model.SURFACES.keys()) for (const level of [0, 4]) {
+        const variant = model.pieceVariant(selected, direction);
+        const display = model.pieceDisplayVariant(variant.piece, variant.rotation);
+        assert.equal(variant.piece.rollRamp, 1); assert.equal(display.piece.rollRamp, 1);
+        assert.equal((display.piece.rotation + display.rotation) % 4, direction);
+        assert.equal(display.piece.name, selected.name);
+        assert.equal(model.pieceVariant(ordinary, direction).piece.rollRamp, undefined);
+        const doc = new model.Document(4, 4); doc.vertices.fill(level);
+        const before = doc.snapshot();
+        const object = doc.place(variant.piece.id, 1, 1, surface, variant.rotation, 0, 0, variant.piece.rollRamp);
+        assert.equal(object.rollRamp, 1); assert.equal(object.surface, surface);
+        assert.equal(object.width, direction % 2 ? 2 : 1);
+        assert.equal(object.height, direction % 2 ? 1 : 2);
+        assert.equal(object.mask, 3);
+        const placed = doc.snapshot(), bytes = model.encodeCstrk(doc);
+        const record = 32 + doc.vertices.length + doc.cells.length * 2;
+        assert.equal(bytes[record + 14], 1); assert.equal(bytes[record + 15], 0);
+        assert.deepEqual(model.decodeCstrk(bytes).snapshot(), placed);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+    }
+});
+test('barrel roll ramps require v8 and reject invalid variants without editing the document', () => {
+    const doc = new model.Document(4, 4); doc.place(85, 1, 1, 0, 0, 0, 0, 1);
+    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+    for (let version = 3; version < model.ROLL_RAMP_VERSION; version++) {
+        doc.version = version;
+        assert.throws(() => model.encodeCstrk(doc), /version v8/);
+        assert.throws(() => doc.placement(85, 0, 0, 0, 0, 0, 0, 1), /version v8/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    doc.version = model.VERSION;
+    for (const id of [4, 64, 66, 101, 115, 151]) {
+        assert.throws(() => doc.placement(id, 0, 0, 0, 0, 0, 0, 1), /only horizontal corkscrew/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(record, id, true);
+        assert.throws(() => model.decodeCstrk(invalid), /only horizontal corkscrew/);
+    }
+    const before = doc.snapshot(), history = doc.history.length;
+    for (const flag of [-1, 2, 1.5, true]) {
+        assert.throws(() => doc.place(85, 0, 0, 0, 0, 0, 0, flag), /flag/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+    }
+    for (const offset of [14, 15]) {
+        const invalid = bytes.slice(); invalid[record + offset] = 2;
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    const both = bytes.slice(); both[record + 13] = 1;
+    assert.throws(() => model.decodeCstrk(both), /only slalom/);
+    doc.objects[0].rollRamp = 2;
+    assert.throws(() => model.encodeCstrk(doc), /flag/);
+});
+test('barrel roll ramp artwork distinguishes the concrete entry, grille and launch direction', () => {
+    const vertical = resources.composePieceTileBitmap(new Map(), 85, 0, 1);
+    const horizontal = resources.composePieceTileBitmap(new Map(), 86, 0, 1);
+    assert.equal(vertical.width, 15); assert.equal(vertical.height, 30);
+    assert.equal(horizontal.width, 30); assert.equal(horizontal.height, 15);
+    let grilleHoles = 0, concrete = 0, reversed = 0;
+    for (let y = 0; y < vertical.height; y++) for (let x = 0; x < vertical.width; x++) {
+        const index = y * vertical.width + x;
+        const rotated = x * horizontal.width + vertical.height - 1 - y;
+        assert.equal(vertical.pixels[index], horizontal.pixels[rotated]);
+        assert.equal(vertical.alpha[index], horizontal.alpha[rotated]);
+        grilleHoles += y < 15 && x > 3 && x < 11 && !vertical.alpha[index];
+        concrete += y >= 15 && x > 3 && x < 11 && !!vertical.alpha[index];
+        reversed += vertical.pixels[index] !== vertical.pixels[vertical.pixels.length - 1 - index] ||
+            vertical.alpha[index] !== vertical.alpha[vertical.alpha.length - 1 - index];
+    }
+    assert(grilleHoles > 0 && concrete > 0 && reversed > 0);
+    for (const [id, tunnel, flag] of [[85, 0, 2], [85, 1, 1], [115, 0, 1]])
+        assert.throws(() => resources.composePieceTileBitmap(new Map(), id, tunnel, flag), /barrel roll ramp artwork/);
+});
 test('all corkscrew variations preserve dirt and ice surfaces through save and reload', () => {
     for (const entry of model.catalog.filter(p => [32, 33, 35].includes(p.physical))) {
         for (const surface of [1, 2]) for (let rotation = 0; rotation < 4; rotation++) {
@@ -1043,7 +1121,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 7); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 8); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);

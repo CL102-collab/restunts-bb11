@@ -246,21 +246,31 @@ static void test_overpass_surfaces_in_replay(legacy_u16 track_version)
 	cstrk_free(&track);
 }
 
-static void test_tunnel_slalom_in_replay(void)
+static void test_custom_stunt_in_replay(legacy_u8 roll_ramp)
 {
 	struct CSTRK_TRACK track, embedded;
 	cstrk_init(&track);
 	cstrk_init(&embedded);
 	legacy_char error[TEST_REPLAY_ERROR_CAPACITY];
-	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
-	track.corner_heights[1] = track.corner_heights[3] = 1;
+	assert(cstrk_create(&track, roll_ramp ? CSTRK_ROLL_RAMP_TILE_COUNT : 1U, 1U, error,
+						sizeof(error)));
+	for (legacy_u16 y = 0; y <= track.height; y++) {
+		for (legacy_u16 x = 0; x <= track.width; x++) {
+			track.corner_heights[(size_t)y * (track.width + 1U) + x] = (legacy_u8)x;
+		}
+	}
 	struct CSTRK_OBJECT object = {0};
-	object.legacy_id = CSTRK_SLALOM_FIRST_ID;
+	object.legacy_id = roll_ramp ? CSTRK_ROLL_RAMP_FIRST_ID : CSTRK_SLALOM_FIRST_ID;
 	object.width = object.height = object.occupied_mask = 1;
+	if (roll_ramp) {
+		object.width = CSTRK_ROLL_RAMP_TILE_COUNT;
+		object.occupied_mask = CSTRK_ROLL_RAMP_OCCUPIED_MASK;
+	}
 	object.rotation = 1;
 	object.surface = CSTRK_ROAD_ICE;
 	object.slope_x = 1;
-	object.tunnel_slalom = 1;
+	object.tunnel_slalom = !roll_ramp;
+	object.roll_ramp = roll_ramp;
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 	legacy_u8 *track_data = NULL, *encoded = NULL;
 	size_t track_size = 0, size = 0;
@@ -276,13 +286,14 @@ static void test_tunnel_slalom_in_replay(void)
 	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	assert(cstrk_decode(view.track_data, view.track_size, &embedded, error, sizeof(error)));
 	assert(embedded.object_count == 1U);
-	assert(embedded.objects[0].tunnel_slalom == 1U);
+	assert(embedded.objects[0].tunnel_slalom == object.tunnel_slalom);
+	assert(embedded.objects[0].roll_ramp == object.roll_ramp);
 	assert(embedded.objects[0].legacy_id == object.legacy_id);
 	assert(embedded.objects[0].rotation == object.rotation);
 	assert(embedded.objects[0].surface == object.surface);
 	assert(embedded.objects[0].slope_x == object.slope_x);
 	LEGACY_WRITE_U16_LE(encoded + CSRPL_HEADER_SIZE + CSTRK_VERSION_OFFSET,
-						CSTRK_TUNNEL_SLALOM_VERSION - 1U);
+						(roll_ramp ? CSTRK_ROLL_RAMP_VERSION : CSTRK_TUNNEL_SLALOM_VERSION) - 1U);
 	assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 	free(encoded);
 	free(track_data);
@@ -441,7 +452,8 @@ int main(void)
 	test_recorded_versions();
 	test_overpass_surfaces_in_replay(CSTRK_MIN_VERSION);
 	test_overpass_surfaces_in_replay(CSTRK_VERSION);
-	test_tunnel_slalom_in_replay();
+	test_custom_stunt_in_replay(0);
+	test_custom_stunt_in_replay(1);
 	test_recorded_driving_rules();
 	/* Replay storage preserves wire revisions while decoding upgrades old tracks. */
 	test_codec(CSTRK_HORIZON_DEFAULT, CSTRK_MIN_VERSION, CSTRK_TERRAIN_WATER);

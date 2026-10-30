@@ -9,6 +9,7 @@
 #include "extended_track.h"
 #ifdef RESTUNTS_SDL3
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 #endif
 
 #define TRACK_GRID_SIZE 30
@@ -377,25 +378,76 @@ static legacy_s16 track_setup_push_branch(struct TRACK_SETUP_WALK *walk, legacy_
 	return TRACK_SETUP_OK;
 }
 
+static const struct TRKOBJINFO *track_setup_info(legacy_s16 column, legacy_s16 row, legacy_u16 id)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return extended_track_route_info(column, row, id);
+	}
+#else
+	(void)column;
+	(void)row;
+#endif
+	return trkObjectList[id].ss_trkObjInfoPtr;
+}
+
+static legacy_u8 track_setup_jump_limit(const struct TRACK_SETUP_WALK *walk)
+{
+#ifdef RESTUNTS_SDL3
+	if (walk->previous_connection_code == ROLL_RAMP_LAUNCH_CONNECTION && extended_track_active()) {
+		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
+			walk->previous_column, walk->previous_row, walk->previous_tile_element);
+		if (object && object->roll_ramp) {
+			return ROLL_RAMP_JUMP_MAX_EMPTY_TILES;
+		}
+	}
+#else
+	(void)walk;
+#endif
+	return TRACK_JUMP_MAX_EMPTY_TILES;
+}
+
 static legacy_s16 track_setup_match_blocks(struct TRACK_SETUP_WALK *walk)
 {
-	struct TRACKOBJECT *track_object = &trkObjectList[walk->tile_element];
-	struct TRKOBJINFO *track_info = track_object->ss_trkObjInfoPtr;
+	const struct TRKOBJINFO *track_info =
+		track_setup_info(walk->column, walk->row, walk->tile_element);
 	legacy_s8 selected_connection_status = TRACK_TRAVERSAL_UNMATCHED;
-	struct TRKOBJINFO *current_info;
+	const struct TRKOBJINFO *current_info;
 	if (track_info != 0) {
 		for (legacy_u16 block_index = 0; block_index < (legacy_u8)track_info->si_noOfBlocks;
 			 block_index++) {
 			current_info = &track_info[block_index];
 			walk->connection_status = TRACK_TRAVERSAL_UNMATCHED;
 			if ((legacy_u8)current_info->si_entryPoint == walk->tile_entry_point) {
-				if ((legacy_u8)current_info->si_entryType != walk->previous_connection_code) {
+				legacy_u8 previous_code = walk->previous_connection_code;
+#ifdef RESTUNTS_SDL3
+				if (previous_code == ROLL_RAMP_LAUNCH_CONNECTION) {
+					previous_code = 0;
+				}
+#endif
+				if ((legacy_u8)current_info->si_entryType != previous_code) {
 					return track_setup_error(walk->branches, TRACK_SETUP_ELEMENT_MISMATCH,
 											 walk->column, walk->row);
 				}
 				walk->connection_status = TRACK_TRAVERSAL_FORWARD;
 			} else if ((legacy_u8)current_info->si_exitPoint == walk->tile_entry_point) {
-				if ((legacy_u8)current_info->si_exitType != walk->previous_connection_code) {
+#ifdef RESTUNTS_SDL3
+				const struct CSTRK_OBJECT *object =
+					extended_track_active()
+						? extended_track_object_for_id(walk->column, walk->row, walk->tile_element)
+						: NULL;
+				if (object && object->roll_ramp) {
+					return track_setup_error(walk->branches, TRACK_SETUP_WRONG_WAY, walk->column,
+											 walk->row);
+				}
+#endif
+				legacy_u8 previous_code = walk->previous_connection_code;
+#ifdef RESTUNTS_SDL3
+				if (previous_code == ROLL_RAMP_LAUNCH_CONNECTION) {
+					previous_code = 0;
+				}
+#endif
+				if ((legacy_u8)current_info->si_exitType != previous_code) {
 					return track_setup_error(walk->branches, TRACK_SETUP_ELEMENT_MISMATCH,
 											 walk->column, walk->row);
 				}
@@ -490,19 +542,32 @@ static legacy_s16 track_setup_jump(struct TRACK_SETUP_WALK *walk)
 	}
 	walk->runway_length = LEGACY_U8_WRAP_ADD(walk->runway_length, 1U);
 	walk->jump_length = LEGACY_U8_WRAP_ADD(walk->jump_length, 1U);
+	legacy_s8 source_column = walk->previous_column, source_row = walk->previous_row;
+#ifdef RESTUNTS_SDL3
+	if (walk->previous_connection_code == ROLL_RAMP_LAUNCH_CONNECTION && extended_track_active()) {
+		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
+			walk->previous_column, walk->previous_row, walk->previous_tile_element);
+		if (object && object->roll_ramp) {
+			if (walk->orientation == TRACK_ORIENTATION_SOUTH) {
+				source_row = (legacy_s8)(object->y + object->height - 1U);
+			} else if (walk->orientation == TRACK_ORIENTATION_EAST) {
+				source_column = (legacy_s8)(object->x + object->width - 1U);
+			}
+		}
+	}
+#endif
 	if (walk->orientation == TRACK_ORIENTATION_NORTH) {
-		walk->column = walk->previous_column;
-		walk->row = track_setup_add_s8(walk->previous_row, -(legacy_s16)walk->jump_length - 1);
+		walk->column = source_column;
+		walk->row = track_setup_add_s8(source_row, -(legacy_s16)walk->jump_length - 1);
 	} else if (walk->orientation == TRACK_ORIENTATION_EAST) {
-		walk->row = walk->previous_row;
-		walk->column = track_setup_add_s8(walk->previous_column, (legacy_s16)walk->jump_length + 1);
+		walk->row = source_row;
+		walk->column = track_setup_add_s8(source_column, (legacy_s16)walk->jump_length + 1);
 	} else if (walk->orientation == TRACK_ORIENTATION_SOUTH) {
-		walk->column = walk->previous_column;
-		walk->row = track_setup_add_s8(walk->previous_row, (legacy_s16)walk->jump_length + 1);
+		walk->column = source_column;
+		walk->row = track_setup_add_s8(source_row, (legacy_s16)walk->jump_length + 1);
 	} else if (walk->orientation == TRACK_ORIENTATION_WEST) {
-		walk->row = walk->previous_row;
-		walk->column =
-			track_setup_add_s8(walk->previous_column, -(legacy_s16)walk->jump_length - 1);
+		walk->row = source_row;
+		walk->column = track_setup_add_s8(source_column, -(legacy_s16)walk->jump_length - 1);
 	}
 	return TRACK_SETUP_OK;
 }
@@ -524,7 +589,7 @@ static legacy_s16 track_setup_backtrack(struct TRACK_SETUP_WALK *walk)
 	walk->previous_tile_element = branch->previous_tile_element;
 	walk->previous_subtype = branch->previous_subtype;
 	walk->previous_connection_status = branch->previous_connection_status;
-	if (walk->jump_length > TRACK_JUMP_BACKTRACK_LENGTH_LIMIT) {
+	if (walk->jump_length > track_setup_jump_limit(walk) - 1U) {
 		return track_setup_error(walk->branches, TRACK_SETUP_LONG_JUMP, walk->column, walk->row);
 	}
 	return TRACK_SETUP_OK;
@@ -555,8 +620,9 @@ static legacy_s16 track_setup_extended_base_height(legacy_s8 column, legacy_s8 r
 static void track_setup_place_roadside_sign(struct TRACK_SETUP_WALK *walk, legacy_u8 arrow_code)
 {
 	struct TRACKOBJECT *previous_track_object = &trkObjectList[walk->previous_tile_element];
-	struct TRKOBJINFO *previous_info =
-		&previous_track_object->ss_trkObjInfoPtr[walk->previous_subtype];
+	const struct TRKOBJINFO *previous_info =
+		&track_setup_info(walk->previous_column, walk->previous_row,
+						  walk->previous_tile_element)[walk->previous_subtype];
 	legacy_u16 opponent_path_offset =
 		(legacy_u16)((legacy_u8)previous_info->reverse_path_offset_low |
 					 LEGACY_U16_SHL((legacy_u8)previous_info->reverse_path_offset_high, 8U));
@@ -611,7 +677,7 @@ static void track_setup_place_roadside_sign(struct TRACK_SETUP_WALK *walk, legac
 }
 
 static void track_setup_roadside_sign(struct TRACK_SETUP_WALK *walk,
-									  struct TRKOBJINFO *current_info)
+									  const struct TRKOBJINFO *current_info)
 {
 	legacy_u8 arrow_code = (legacy_u8)current_info->roadside_sign_type;
 	if (arrow_code == TRACK_ARROW_NONE) {
@@ -642,8 +708,9 @@ static legacy_s16 track_setup_append_piece(struct TRACK_SETUP_WALK *walk)
 		walk->subtype));
 	track_route_element_ids[track_pieces_counter] = walk->tile_element;
 
-	struct TRKOBJINFO *track_info = trkObjectList[walk->tile_element].ss_trkObjInfoPtr;
-	struct TRKOBJINFO *current_info = &track_info[walk->subtype];
+	const struct TRKOBJINFO *track_info =
+		track_setup_info(walk->column, walk->row, walk->tile_element);
+	const struct TRKOBJINFO *current_info = &track_info[walk->subtype];
 	track_setup_roadside_sign(walk, current_info);
 
 	track_pieces_counter = LEGACY_S16_WRAP_ADD(track_pieces_counter, 1);
@@ -695,8 +762,12 @@ static legacy_s16 track_setup_walk(struct TRACK_SETUP_WALK *walk)
 				return status;
 			}
 			if (walk->match_count == 0) {
-				if (walk->previous_connection_code != TRACK_JUMP_CONNECTION_CODE ||
-					walk->jump_length >= TRACK_JUMP_MAX_EMPTY_TILES) {
+				if ((walk->previous_connection_code != TRACK_JUMP_CONNECTION_CODE
+#ifdef RESTUNTS_SDL3
+					 && walk->previous_connection_code != ROLL_RAMP_LAUNCH_CONNECTION
+#endif
+					 ) ||
+					walk->jump_length >= track_setup_jump_limit(walk)) {
 					walk->backtrack_required = 1;
 				} else {
 					status = track_setup_jump(walk);
@@ -739,7 +810,8 @@ static void track_setup_place_camera(struct TRACK_SETUP_WALK *walk, legacy_s16 s
 			? TRACK_TRAVERSAL_REVERSE
 			: TRACK_TRAVERSAL_FORWARD;
 	struct TRACKOBJECT *track_object = &trkObjectList[walk->tile_element];
-	struct TRKOBJINFO *current_info = &track_object->ss_trkObjInfoPtr[walk->subtype];
+	const struct TRKOBJINFO *current_info =
+		&track_setup_info(walk->column, walk->row, walk->tile_element)[walk->subtype];
 	legacy_u16 opponent_path_offset =
 		(legacy_u16)((legacy_u8)current_info->reverse_path_offset_low |
 					 LEGACY_U16_SHL((legacy_u8)current_info->reverse_path_offset_high, 8U));

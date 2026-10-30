@@ -99,9 +99,20 @@ vm.runInContext(`
     const variant = model.pieceVariant(combined, 1);
     stunt.place(variant.piece.id, 1, 1, 2, variant.rotation, 0, variant.piece.tunnelSlalom);
     const reopened = model.decodeCstrk(model.encodeCstrk(stunt));
-    if (reopened.version !== 7 || reopened.objects[0].tunnelSlalom !== 1 || reopened.objects[0].surface !== 2) {
+    if (reopened.version !== model.VERSION || reopened.objects[0].tunnelSlalom !== 1 || reopened.objects[0].surface !== 2) {
         throw new Error('Embedded codec lost the combined stunt');
     }
+    const roll = model.library.find(piece => piece.rollRamp);
+    if (!roll || roll.name !== 'Barrel roll ramp') throw new Error('Barrel roll ramp missing from palette');
+    const ramp = new model.Document(4, 4), launch = model.pieceVariant(roll, 3);
+    ramp.place(launch.piece.id, 1, 1, 1, launch.rotation, 0, 0, launch.piece.rollRamp);
+    const rampReloaded = model.decodeCstrk(model.encodeCstrk(ramp));
+    const rampDisplay = model.pieceDisplayVariant({ ...model.catalog.find(piece => piece.id === rampReloaded.objects[0].id), rollRamp: 1 }, rampReloaded.objects[0].rotation);
+    if (rampReloaded.version !== 8 || rampReloaded.objects[0].rollRamp !== 1 || rampDisplay.rotation !== 3) {
+        throw new Error('Embedded codec lost the barrel roll launch direction');
+    }
+    const rampIcon = TrackEditorResources.composePieceTileBitmap(new Map(), 85, 0, 1);
+    if (rampIcon.width !== 15 || rampIcon.height !== 30) throw new Error('Embedded ramp artwork is invalid');
     for (const id of [109, 111, 154]) {
         const slope = new model.Document(4, 4);
         for (let y = 0; y <= slope.height; y++) for (let x = 0; x <= slope.width; x++) {
