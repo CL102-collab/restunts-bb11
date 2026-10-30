@@ -33,6 +33,9 @@ legacy_s16 extended_geometry_uses_grade(const struct CSTRK_OBJECT *object);
 /* Height above the object's lowest support corner, in world-oriented local axes. */
 legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
 										  legacy_s16 local_z);
+/* Raw support height without selecting native or generic geometry. */
+legacy_s16 extended_geometry_support_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+										   legacy_s16 local_z);
 /* Apply the grade's linear part to a direction or inverse transpose to a normal.
  * The normal helper preserves scale; callers may normalize after transforming. */
 void extended_geometry_grade_vector(const struct CSTRK_OBJECT *object, struct VECTOR *direction);

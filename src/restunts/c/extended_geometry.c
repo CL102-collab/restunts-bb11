@@ -3,12 +3,16 @@
 #include "track_collision.h"
 #include "track_objects.h"
 #include "gamestate.h"
+#include "game_input.h"
 #include <stdlib.h>
 #include <string.h>
 
 #define EXTENDED_GEOMETRY_TERMINATOR_BYTES 2U
 #define EXTENDED_GEOMETRY_CATALOG_END 182U
 #define EXTENDED_GEOMETRY_AXIS_COUNT 2U
+
+static const legacy_u8 geometry_original_roads[][EXTENDED_GEOMETRY_AXIS_COUNT] = {
+	{4U, 5U}, {14U, 15U}, {24U, 25U}};
 
 enum EXTENDED_GEOMETRY_ROAD_MATERIAL {
 	EXTENDED_MATERIAL_PAVED = 19,
@@ -80,14 +84,12 @@ legacy_s16 extended_geometry_native_hill_id(const struct CSTRK_OBJECT *object,
 		terrain = object->slope_y > 0 ? CSTRK_TERRAIN_PROFILE_SOUTH : CSTRK_TERRAIN_PROFILE_NORTH;
 	}
 	if (trkObjectList[resolved_id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
-		static const legacy_u8 roads[][EXTENDED_GEOMETRY_AXIS_COUNT] = {
-			{4U, 5U}, {14U, 15U}, {24U, 25U}};
 		if (object->surface > CSTRK_ROAD_ICE) {
 			return 0;
 		}
 		legacy_u16 axis = ((legacy_u16)trkObjectList[resolved_id].ss_rotY / ANGLE_QUARTER_TURN) %
 						  EXTENDED_GEOMETRY_AXIS_COUNT;
-		resolved_id = roads[object->surface][axis];
+		resolved_id = geometry_original_roads[object->surface][axis];
 	}
 	return subst_hillroad_track(terrain, (legacy_u8)resolved_id);
 }
@@ -109,6 +111,13 @@ legacy_s16 extended_geometry_uses_grade(const struct CSTRK_OBJECT *object)
 	}
 	legacy_u16 angle =
 		((legacy_u16)original->ss_rotY + object->rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+	if (original->ss_physicalModel == PHYSICAL_MODEL_ROAD) {
+		/* Straight roads have only two native catalog directions. Their opposite
+		 * rotations resolve to the same axis before the native hill substitution. */
+		legacy_u16 axis = (angle / ANGLE_QUARTER_TURN) % EXTENDED_GEOMETRY_AXIS_COUNT;
+		return extended_geometry_native_hill_id(
+				   object, geometry_original_roads[CSTRK_ROAD_PAVED][axis]) == 0;
+	}
 	for (legacy_u16 id = 1U; id < EXTENDED_GEOMETRY_CATALOG_END; id++) {
 		const struct TRACKOBJECT *candidate = &trkObjectList[id];
 		if (candidate->ss_physicalModel == original->ss_physicalModel &&
@@ -122,9 +131,14 @@ legacy_s16 extended_geometry_uses_grade(const struct CSTRK_OBJECT *object)
 legacy_s16 extended_geometry_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
 										  legacy_s16 local_z)
 {
-	if (!extended_geometry_uses_grade(object)) {
-		return 0;
-	}
+	return extended_geometry_uses_grade(object)
+			   ? extended_geometry_support_grade(object, local_x, local_z)
+			   : 0;
+}
+
+legacy_s16 extended_geometry_support_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+										   legacy_s16 local_z)
+{
 	legacy_s32 x = object->width * (CSTRK_TILE_WORLD_SIZE / 2) + (legacy_s32)local_x;
 	legacy_s32 y = object->height * (CSTRK_TILE_WORLD_SIZE / 2) - (legacy_s32)local_z;
 	if (object->slope_x < 0) {
@@ -188,8 +202,13 @@ void extended_geometry_grade_plane(const struct CSTRK_OBJECT *object, struct PLA
 	legacy_s16 across = polarRadius2D(plane->plane_normal.y, plane->plane_normal.z);
 	plane->plane_yz = -polarAngle(plane->plane_normal.x, across);
 	plane->plane_xy = polarAngle(plane->plane_normal.z, plane->plane_normal.y);
-	plane->plane_rotation =
-		*mat_rot_zxy(plane->plane_yz, plane->plane_xy, 0, MATRIX_ROTATION_ORDER_ZXY);
+	/* Collision callers can retain mat_rot_zxy's shared car rotation while
+	 * looking up several body corners. Build this independent plane frame
+	 * without replacing that scratch matrix during a nested track query. */
+	struct MATRIX roll, pitch;
+	mat_rot_z(&roll, plane->plane_yz);
+	mat_rot_x(&pitch, plane->plane_xy);
+	mat_multiply(&roll, &pitch, &plane->plane_rotation);
 }
 
 enum EXTENDED_TERRAIN_PLANE {
@@ -291,6 +310,15 @@ int extended_geometry_terrain(const struct CSTRK_TRACK *track, legacy_s32 world_
 	return 1;
 }
 
+static legacy_u8 geometry_hypervision_materials_enabled(void)
+{
+#ifdef RESTUNTS_HEADLESS
+	return 0;
+#else
+	return supersight_enabled != 0;
+#endif
+}
+
 int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE3D *destination,
 									  legacy_s16 orientation, legacy_u16 surface,
 									  legacy_s16 physical_model)
@@ -360,7 +388,11 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 		unsigned count = counts[primitive[0]];
 		unsigned paint = surface < source->shape3d_numpaints ? surface : 0;
 		legacy_u8 material = primitive[2U + paint];
-		if (surface != CSTRK_ROAD_PAVED && source->shape3d_numpaints < 3) {
+		/* Paint columns can animate a sign while every road face stays paved.
+		 * HyperVision remaps these unchanged faces while retaining native variants. */
+		if (surface != CSTRK_ROAD_PAVED &&
+			(source->shape3d_numpaints <= CSTRK_ROAD_ICE ||
+			 (geometry_hypervision_materials_enabled() && material == primitive[2U]))) {
 			legacy_u8 road_material =
 				surface == CSTRK_ROAD_DIRT ? EXTENDED_MATERIAL_DIRT : EXTENDED_MATERIAL_ICE;
 			if (material == EXTENDED_MATERIAL_PAVED) {

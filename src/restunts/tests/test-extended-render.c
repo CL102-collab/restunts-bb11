@@ -870,6 +870,10 @@ static legacy_u8 seam_capture_hill_shapes;
 static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 
 static legacy_u8 stunt_capture_active, stunt_capture_parts, stunt_capture_details;
+static legacy_u8 slope_occlusion_hide_terrain;
+static legacy_u8 native_slope_capture_active, native_slope_capture_parts;
+static legacy_u16 native_slope_capture_markings;
+static const struct TRACKOBJECT *native_slope_capture_definitions[STUNT_RENDER_PART_COUNT];
 static struct SHAPE3D stunt_capture_meshes[STUNT_RENDER_PART_COUNT][STUNT_RENDER_DETAIL_COUNT];
 static struct CSTRK_OBJECT stunt_capture_object;
 static legacy_u8 stunt_capture_ground;
@@ -1069,9 +1073,97 @@ static void seam_check_submitted_road(const struct SHAPE3D *shape)
 	}
 }
 
+#define SLOPE_OCCLUSION_GROUND_MATERIAL 16U
+#define SLOPE_OCCLUSION_HILL_MATERIAL_FIRST 101U
+#define SLOPE_OCCLUSION_HILL_MATERIAL_LAST 105U
+
+static legacy_u8 slope_occlusion_is_terrain(const struct SHAPE3D *shape)
+{
+	if (shape->shape3d_numprimitives != 1U) {
+		return 0;
+	}
+	const legacy_u8 *primitive = shape->shape3d_primitives;
+	if (primitive[0] < SHAPE3D_PRIMITIVE_POLYGON_FIRST ||
+		primitive[0] > SHAPE3D_POLYGON_MAX_VERTICES) {
+		return 0;
+	}
+	legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+	return material == SLOPE_OCCLUSION_GROUND_MATERIAL ||
+		   (material >= SLOPE_OCCLUSION_HILL_MATERIAL_FIRST &&
+			material <= SLOPE_OCCLUSION_HILL_MATERIAL_LAST);
+}
+
+static legacy_u8 native_slope_marking_vertex(const struct SHAPE3D *shape, legacy_u16 vertex)
+{
+	const legacy_u8 *primitive = shape->shape3d_primitives;
+	for (legacy_u16 face = 0; face < shape->shape3d_numprimitives; face++) {
+		legacy_u16 count = primitive[0];
+		if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST || count > SHAPE3D_PRIMITIVE_POLYGON_LAST) {
+			break;
+		}
+		const legacy_u8 *indices =
+			primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape->shape3d_numpaints;
+		if ((primitive[1] & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) &&
+			primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] == CLASSIC_RENDER_MARKING_MATERIAL) {
+			for (legacy_u16 point = 0; point < count; point++) {
+				if (indices[point] == vertex) {
+					return 1;
+				}
+			}
+		}
+		primitive = indices + count;
+	}
+	return 0;
+}
+
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
+	if (slope_occlusion_hide_terrain && slope_occlusion_is_terrain(instance->shapeptr)) {
+		return 0;
+	}
+	if (native_slope_capture_active) {
+		for (legacy_u8 part = 0; part < STUNT_RENDER_PART_COUNT; part++) {
+			const struct TRACKOBJECT *definition = native_slope_capture_definitions[part];
+			if (!definition) {
+				continue;
+			}
+			const struct SHAPE3D *sources[] = {definition->ss_shapePtr, definition->ss_loShapePtr};
+			for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+				const struct SHAPE3D *source = sources[detail];
+				const struct SHAPE3D *actual = instance->shapeptr;
+				if (!source || actual->shape3d_primitives != source->shape3d_primitives ||
+					actual->shape3d_numverts != source->shape3d_numverts) {
+					continue;
+				}
+				assert(instance->rotvec.z == definition->ss_rotY);
+				for (legacy_u16 vertex = 0; vertex < source->shape3d_numverts; vertex++) {
+					struct VECTOR target, point;
+					shape3d_vertex_read(source, vertex, &target);
+					shape3d_vertex_read(actual, vertex, &point);
+					assert(abs(point.x - target.x) <= STUNT_RENDER_AUTHORED_OVERSCAN);
+					assert(abs(point.z - target.z) <= STUNT_RENDER_AUTHORED_OVERSCAN);
+					if (native_slope_marking_vertex(source, vertex)) {
+						struct MATRIX yaw;
+						struct VECTOR world;
+						mat_rot_y(&yaw, definition->ss_rotY);
+						mat_mul_vector(&point, &yaw, &world);
+						/* This north-facing native slope rises exactly one level
+						 * over its grid span. Dashes are draped onto that plane,
+						 * correcting known errors in their authored Y values. */
+						legacy_s32 height =
+							(world.z + CSTRK_TILE_WORLD_SIZE / 2) * CSTRK_LEVEL_WORLD_HEIGHT;
+						legacy_s32 error = world.y * CSTRK_TILE_WORLD_SIZE - height;
+						assert(abs(error) * 2 <= CSTRK_TILE_WORLD_SIZE);
+						native_slope_capture_markings++;
+					} else {
+						assert(point.y == target.y);
+					}
+				}
+				native_slope_capture_parts |= 1U << part;
+			}
+		}
+	}
 	if (fence_capture_mode && fence_check_submitted_shape(instance) &&
 		fence_capture_mode == FENCE_RENDER_HIDE) {
 		return 0;
@@ -1821,6 +1913,237 @@ static legacy_u16 check_extended_fences(void)
 }
 #endif
 
+#define SLOPE_OCCLUSION_MAP_SIZE 30U
+#define SLOPE_OCCLUSION_CAMERA_ELEVATION 192
+#define SLOPE_OCCLUSION_MIN_ROAD_PIXELS 100U
+#define SLOPE_OCCLUSION_CAMERA_COUNT 4U
+#define SLOPE_OCCLUSION_PLATEAU_COLUMN 10
+
+static legacy_u16 check_sloped_road_occlusion(void)
+{
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	/* Match the user's slope.cstrk: a native NW big turn with a gas station
+	 * at its free origin, and a quarter-turned chicane sharing an office. */
+	static const struct {
+		legacy_u16 road, scenery;
+		legacy_u8 x, y, rotation, base;
+		legacy_u64 classic_hash[SLOPE_OCCLUSION_CAMERA_COUNT];
+	} cases[] = {{10U,
+				  157U,
+				  7U,
+				  0U,
+				  0U,
+				  3U,
+				  {UINT64_C(0xcc118d2116fe0482), UINT64_C(0x1db1a46355253bf2),
+				   UINT64_C(0x9f43712c643b5fd3), UINT64_C(0x809724c1d4d470dc)}},
+				 {62U,
+				  165U,
+				  8U,
+				  9U,
+				  3U,
+				  2U,
+				  {UINT64_C(0xaede942db316e74e), UINT64_C(0xd9421d370c475a6f),
+				   UINT64_C(0xe952dafd425530a1), UINT64_C(0xfcceeaaf6f139a60)}}};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(cstrk_create(&track, SLOPE_OCCLUSION_MAP_SIZE, SLOPE_OCCLUSION_MAP_SIZE, error,
+						sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	for (legacy_u16 y = 0; y <= track.height; y++) {
+		for (legacy_u16 x = 0; x <= track.width; x++) {
+			legacy_s16 height = SLOPE_OCCLUSION_PLATEAU_COLUMN - (legacy_s16)x;
+			track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+				height < 0								? 0
+				: height > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_s16)CSTRK_MAX_HEIGHT
+														: height;
+		}
+	}
+	legacy_s32 saved_scale = hires_render_scale();
+	legacy_u16 frames = 0;
+	for (legacy_u8 kind = 0; kind < sizeof(cases) / sizeof(cases[0]); kind++) {
+		struct CSTRK_OBJECT road = {0};
+		road.legacy_id = cases[kind].road;
+		road.x = cases[kind].x;
+		road.y = cases[kind].y;
+		road.rotation = cases[kind].rotation;
+		road.width = road.height = 2;
+		road.occupied_mask = 6;
+		road.base_height = cases[kind].base;
+		road.slope_x = -1;
+		struct CSTRK_OBJECT scenery = road;
+		scenery.legacy_id = cases[kind].scenery;
+		scenery.rotation = 0;
+		scenery.width = scenery.height = scenery.occupied_mask = 1;
+		track.object_count = 0;
+		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+		assert(cstrk_add_object(&track, &scenery, error, sizeof(error)));
+		assert(extended_track_activate(&track, error, sizeof(error)));
+		for (legacy_s32 scale = supersight_enabled ? HIRES_SCALE : HIRES_MINIMUM_SCALE; scale;
+			 scale = supersight_enabled ? scale / 2 : 0) {
+			if (supersight_enabled) {
+				hires_set_render_scale(scale);
+			}
+			for (legacy_u8 camera = 0; camera < SLOPE_OCCLUSION_CAMERA_COUNT; camera++) {
+				struct CARSTATE *car = &state.playerstate;
+				car->car_rotate = (struct VECTOR){0, 0, 0};
+				state.game_particles_active = 0;
+				car->car_position.lx = (road.x * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE) *
+									   GRASS_RENDER_POSITION_SCALE;
+				car->car_position.lz =
+					((track.height - road.y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE) *
+					GRASS_RENDER_POSITION_SCALE;
+				car->car_position.ly = ((road.base_height - 1U) * CSTRK_LEVEL_WORLD_HEIGHT +
+										STUNT_RENDER_CAR_CLEARANCE) *
+									   GRASS_RENDER_POSITION_SCALE;
+				car->car_previous_position = car->car_position;
+				car->car_crashBmpFlag = CRASH_EVENT_WATER;
+				custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+				custom_camera.elevation_angle = SLOPE_OCCLUSION_CAMERA_ELEVATION;
+				custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN + camera * ANGLE_QUARTER_TURN;
+				size_t reference_size, actual_size;
+				slope_occlusion_hide_terrain = 1;
+				legacy_u32 *reference = capture_complete_render(&reference_size);
+				slope_occlusion_hide_terrain = 0;
+				legacy_u32 *actual = capture_complete_render(&actual_size);
+				assert(actual_size == reference_size);
+				legacy_s32 width, height;
+				assert(hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
+										 &width, &height));
+				legacy_u32 asphalt =
+					RENDER_CAPTURE_OPAQUE_ALPHA |
+					(legacy_u32)material_clrlist_ptr[CLASSIC_RENDER_PAVED_MATERIAL] *
+						RENDER_CAPTURE_INDEX_RGB_STEP;
+				size_t visible = 0, covered = 0;
+				for (legacy_s32 y = 1; y + 1 < height; y++) {
+					for (legacy_s32 x = 1; x + 1 < width; x++) {
+						size_t pixel = (size_t)y * width + x;
+						if (reference[pixel] == asphalt && reference[pixel - 1U] == asphalt &&
+							reference[pixel + 1U] == asphalt &&
+							reference[pixel - width] == asphalt &&
+							reference[pixel + width] == asphalt) {
+							visible++;
+							covered += actual[pixel] != asphalt;
+						}
+					}
+				}
+				if ((supersight_enabled && covered) || visible < SLOPE_OCCLUSION_MIN_ROAD_PIXELS) {
+					fprintf(stderr,
+							"Sloped road %u camera %u mode %d has %zu/%zu covered asphalt pixels\n",
+							road.legacy_id, camera, supersight_enabled, covered, visible);
+				}
+				assert(visible >= SLOPE_OCCLUSION_MIN_ROAD_PIXELS);
+				if (supersight_enabled) {
+					assert(covered == 0);
+				} else {
+					legacy_u64 hash = SEAM_RENDER_HASH_OFFSET;
+					for (size_t pixel = 0; pixel < actual_size; pixel++) {
+						hash = (hash ^ actual[pixel]) * SEAM_RENDER_HASH_PRIME;
+					}
+					/* Independently captured from committed renderer 677be9c5. */
+					assert(hash == cases[kind].classic_hash[camera]);
+					printf("Sloped road classic ID %u camera %u hash %016" LEGACY_PRIx64
+						   " covered %zu/%zu\n",
+						   road.legacy_id, camera, hash, covered, visible);
+				}
+				free(reference);
+				free(actual);
+				frames += 2;
+			}
+		}
+	}
+	hires_set_render_scale(saved_scale);
+	extended_track_unload();
+	cstrk_free(&track);
+	return frames;
+#else
+	return 0;
+#endif
+}
+
+#define NATIVE_SLOPE_RENDER_COLUMN 0U
+#define NATIVE_SLOPE_RENDER_ROW 15U
+#define NATIVE_SLOPE_RENDER_REVERSE 2U
+#define NATIVE_SLOPE_RENDER_BASE 1U
+
+static legacy_u16 check_reversed_native_slope_rendering(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(cstrk_create(&track, SLOPE_OCCLUSION_MAP_SIZE, SLOPE_OCCLUSION_MAP_SIZE, error,
+						sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	for (legacy_u16 y = 0; y <= track.height; y++) {
+		legacy_s16 height = NATIVE_SLOPE_RENDER_ROW + NATIVE_SLOPE_RENDER_BASE - (legacy_s16)y;
+		for (legacy_u16 x = 0; x <= track.width; x++) {
+			track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+				height < 0								? 0
+				: height > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_s16)CSTRK_MAX_HEIGHT
+														: height;
+		}
+	}
+	struct CSTRK_OBJECT road = {0};
+	road.legacy_id = 4;
+	road.x = NATIVE_SLOPE_RENDER_COLUMN;
+	road.y = NATIVE_SLOPE_RENDER_ROW;
+	road.rotation = NATIVE_SLOPE_RENDER_REVERSE;
+	road.width = road.height = road.occupied_mask = 1;
+	road.base_height = NATIVE_SLOPE_RENDER_BASE;
+	road.slope_y = -1;
+	assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+	const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(placed)];
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	native_slope_capture_definitions[0] = definition;
+	native_slope_capture_definitions[1] =
+		definition->ss_ssOvelay ? frame_track_object_from_legacy_index(definition->ss_ssOvelay)
+								: NULL;
+	native_slope_capture_active = supersight_enabled != 0;
+	native_slope_capture_parts = 0;
+	native_slope_capture_markings = 0;
+#endif
+	struct CARSTATE *car = &state.playerstate;
+	car->car_position.lx =
+		(road.x * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2U) * GRASS_RENDER_POSITION_SCALE;
+	car->car_position.lz =
+		((track.height - road.y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2U) *
+		GRASS_RENDER_POSITION_SCALE;
+	car->car_position.ly =
+		(CSTRK_LEVEL_WORLD_HEIGHT / 2U + STUNT_RENDER_CAR_CLEARANCE) * GRASS_RENDER_POSITION_SCALE;
+	car->car_previous_position = car->car_position;
+	car->car_rotate = (struct VECTOR){0, 0, 0};
+	car->car_crashBmpFlag = CRASH_EVENT_WATER;
+	state.game_particles_active = 0;
+	custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = SLOPE_OCCLUSION_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN;
+	size_t size;
+	legacy_u32 *pixels = capture_complete_render(&size);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	native_slope_capture_active = 0;
+	if (supersight_enabled) {
+		legacy_u8 expected = definition->ss_ssOvelay ? (1U << STUNT_RENDER_PART_COUNT) - 1U : 1U;
+		assert(native_slope_capture_parts == expected);
+		assert(native_slope_capture_markings > 0);
+	}
+#endif
+	if (!supersight_enabled) {
+		legacy_u64 hash = SEAM_RENDER_HASH_OFFSET;
+		for (size_t pixel = 0; pixel < size; pixel++) {
+			hash = (hash ^ pixels[pixel]) * SEAM_RENDER_HASH_PRIME;
+		}
+		/* Captured independently with committed renderer 677be9c5. */
+		assert(hash == UINT64_C(0xa17912631402ffef));
+		printf("Reversed native road classic pixel hash: %016" LEGACY_PRIx64 "\n", hash);
+	}
+	free(pixels);
+	extended_track_unload();
+	cstrk_free(&track);
+	return 1;
+}
+
 #define GENERIC_RENDER_SLOPE_ORIGIN STUNT_RENDER_COLUMN
 #define GENERIC_RENDER_HALF_TURN_COUNT 2U
 
@@ -1907,6 +2230,151 @@ static legacy_u16 check_general_sloped_rendering(void)
 	return frames;
 }
 
+#define HIGHWAY_RENDER_ID 111U
+#define HIGHWAY_RENDER_REVERSED_ID 113U
+#define HIGHWAY_RENDER_BASE_HEIGHT 2
+#define HIGHWAY_RENDER_ASPHALT_MATERIAL 19U
+#define HIGHWAY_RENDER_MARKING_MATERIAL 21U
+#define HIGHWAY_RENDER_GRADE_COUNT 3U
+
+static void check_highway_transition_paints(void)
+{
+	static const legacy_u8 road_materials[SURFACE_RENDER_COUNT] = {19U, 25U, 28U};
+	static const legacy_u8 marking_materials[SURFACE_RENDER_COUNT] = {21U, 27U, 30U};
+	const struct TRACKOBJECT *definition = &trkObjectList[HIGHWAY_RENDER_ID];
+	const struct SHAPE3D *sources[STUNT_RENDER_DETAIL_COUNT] = {
+		definition->ss_shapePtr,
+		definition->ss_loShapePtr ? definition->ss_loShapePtr : definition->ss_shapePtr};
+	for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+		const struct SHAPE3D *source = sources[detail];
+		assert(source != NULL && source->shape3d_numpaints > CSTRK_ROAD_ICE);
+		for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+			struct SHAPE3D transformed;
+			assert(extended_geometry_transform_shape(source, &transformed, 0, surface,
+													 PHYSICAL_MODEL_HIGHWAY_ENTRANCE));
+			assert(transformed.shape3d_numpaints == 1U);
+			const legacy_u8 *original = source->shape3d_primitives;
+			const legacy_u8 *painted = transformed.shape3d_primitives;
+			legacy_u16 roads = 0, structures = 0, animated = 0;
+			for (legacy_u16 face = 0; face < source->shape3d_numprimitives; face++) {
+				legacy_u8 count = original[0];
+				assert(count >= SHAPE3D_PRIMITIVE_POLYGON_FIRST &&
+					   count <= SHAPE3D_PRIMITIVE_POLYGON_LAST);
+				legacy_u8 material = original[SHAPE3D_PRIMITIVE_HEADER_SIZE];
+				legacy_u8 expected = original[SHAPE3D_PRIMITIVE_HEADER_SIZE + surface];
+				if (material == HIGHWAY_RENDER_ASPHALT_MATERIAL ||
+					material == HIGHWAY_RENDER_MARKING_MATERIAL) {
+					/* The real gwro/zgwr road has four identical paint columns.
+					 * The varying columns belong to the sign, not road surfaces. */
+					for (legacy_u16 paint = 0; paint < source->shape3d_numpaints; paint++) {
+						assert(original[SHAPE3D_PRIMITIVE_HEADER_SIZE + paint] == material);
+					}
+					if (supersight_enabled != 0) {
+						expected = material == HIGHWAY_RENDER_ASPHALT_MATERIAL
+									   ? road_materials[surface]
+									   : marking_materials[surface];
+					}
+					roads++;
+				} else {
+					structures++;
+					for (legacy_u16 paint = 1; paint < source->shape3d_numpaints; paint++) {
+						animated += original[SHAPE3D_PRIMITIVE_HEADER_SIZE + paint] != material;
+					}
+				}
+				assert(painted[0] == original[0] && painted[1] == original[1]);
+				assert(painted[SHAPE3D_PRIMITIVE_HEADER_SIZE] == expected);
+				assert(memcmp(painted + SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U,
+							  original + SHAPE3D_PRIMITIVE_HEADER_SIZE + source->shape3d_numpaints,
+							  count) == 0);
+				original += SHAPE3D_PRIMITIVE_HEADER_SIZE + source->shape3d_numpaints + count;
+				painted += SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + count;
+			}
+			assert(roads != 0U && structures != 0U && animated != 0U);
+			extended_geometry_free_shape(&transformed);
+		}
+	}
+}
+
+static legacy_u16 check_highway_transition_surfaces(void)
+{
+	static const legacy_s8 grades[HIGHWAY_RENDER_GRADE_COUNT] = {0, -1, 1};
+	struct GAMESTATE saved = state;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	struct CSTRK_OBJECT object = {0};
+	object.x = SURFACE_RENDER_COLUMN;
+	object.y = SURFACE_RENDER_ROW;
+	object.width = object.height = object.occupied_mask = 1;
+	object.base_height = HIGHWAY_RENDER_BASE_HEIGHT;
+	track.objects = &object;
+	track.object_count = 1;
+	legacy_u16 frames = 0;
+	for (legacy_u8 grade = 0; grade < HIGHWAY_RENDER_GRADE_COUNT; grade++) {
+		object.legacy_id = grades[grade] < 0 ? HIGHWAY_RENDER_REVERSED_ID : HIGHWAY_RENDER_ID;
+		object.slope_y = grades[grade];
+		for (legacy_u16 y = 0; y <= track.height; y++) {
+			legacy_s16 level =
+				HIGHWAY_RENDER_BASE_HEIGHT + grades[grade] * ((legacy_s16)y - SURFACE_RENDER_ROW);
+			legacy_u8 height = level < 0							  ? 0
+							   : level > (legacy_s16)CSTRK_MAX_HEIGHT ? CSTRK_MAX_HEIGHT
+																	  : (legacy_u8)level;
+			for (legacy_u16 x = 0; x <= track.width; x++) {
+				track.corner_heights[(size_t)y * (track.width + 1U) + x] = height;
+			}
+		}
+		for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
+			detail_level = detail ? STUNT_RENDER_LOW_DETAIL : 0;
+			legacy_u32 *pixels[SURFACE_RENDER_COUNT];
+			size_t sizes[SURFACE_RENDER_COUNT];
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				object.surface = surface;
+				activate_render_track(&track, 1);
+				if (grade == 0 && detail == 0 && surface == CSTRK_ROAD_PAVED) {
+					check_highway_transition_paints();
+				}
+				position_render_target(SURFACE_RENDER_COLUMN, SURFACE_RENDER_ROW);
+				state.playerstate.car_position.ly =
+					(HIGHWAY_RENDER_BASE_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT +
+					 STUNT_RENDER_CAR_CLEARANCE) *
+					GRASS_RENDER_POSITION_SCALE;
+				state.playerstate.car_previous_position = state.playerstate.car_position;
+				state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+				custom_camera.distance = SURFACE_RENDER_CAMERA_DISTANCE;
+				custom_camera.elevation_angle = SURFACE_RENDER_CAMERA_ELEVATION;
+				custom_camera.azimuth_angle = 0;
+				pixels[surface] = capture_complete_render(&sizes[surface]);
+				frames++;
+			}
+			for (legacy_u8 surface = CSTRK_ROAD_DIRT; surface <= CSTRK_ROAD_ICE; surface++) {
+				assert(sizes[surface] == sizes[CSTRK_ROAD_PAVED]);
+				if (supersight_enabled != 0) {
+					size_t changed = 0;
+					for (size_t pixel = 0; pixel < sizes[surface]; pixel++) {
+						changed += pixels[surface][pixel] != pixels[CSTRK_ROAD_PAVED][pixel];
+					}
+					assert(changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
+				}
+			}
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				free(pixels[surface]);
+			}
+		}
+	}
+	state = saved;
+	cameramode = saved_camera;
+	detail_level = saved_detail;
+	extended_track_unload();
+	track.objects = NULL;
+	track.object_count = 0;
+	cstrk_free(&track);
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -1955,6 +2423,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_extended_fences();
 #endif
 		frames += check_rendered_surfaces(&track);
+		frames += check_highway_transition_surfaces();
 		frames += check_rendered_shore_materials(&track);
 		frames += check_ground_grass_color();
 		frames += check_classic_hill_rendering();
@@ -1963,6 +2432,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_overpass_surfaces();
 		frames += check_sloped_stunt_rendering();
 		frames += check_general_sloped_rendering();
+		frames += check_sloped_road_occlusion();
+		frames += check_reversed_native_slope_rendering();
 	}
 	extended_track_unload();
 	cstrk_free(&track);

@@ -448,6 +448,61 @@ static void test_original_hill_roads(void)
 	memcpy(track_terrain_map, saved_terrain, sizeof(saved_terrain));
 }
 
+#define NATIVE_HILL_ROAD_AXIS_COUNT 2U
+#define NATIVE_HILL_ROAD_DIRECTION_COUNT (ANGLE_FULL_TURN / ANGLE_QUARTER_TURN)
+
+static void test_rotated_roads_keep_native_hill_geometry(void)
+{
+	static const legacy_u8 roads[][NATIVE_HILL_ROAD_AXIS_COUNT] = {
+		{4U, 5U}, {14U, 15U}, {24U, 25U}};
+	for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+		for (legacy_u8 variant = 0; variant < sizeof(roads) / sizeof(roads[0]); variant++) {
+			for (legacy_u8 spelling_axis = 0; spelling_axis < NATIVE_HILL_ROAD_AXIS_COUNT;
+				 spelling_axis++) {
+				for (legacy_u8 rotation = 0; rotation < NATIVE_HILL_ROAD_DIRECTION_COUNT;
+					 rotation++) {
+					for (legacy_u8 direction = 0; direction < NATIVE_HILL_ROAD_DIRECTION_COUNT;
+						 direction++) {
+						struct CSTRK_TRACK track;
+						legacy_u8 terrain = HILL_TERRAIN_FIRST + direction;
+						make_hill_test_track(&track, terrain, 1U);
+						struct CSTRK_OBJECT object = object_at(roads[variant][spelling_axis],
+															   HILL_TEST_COLUMN, HILL_TEST_ROW);
+						size_t first = HILL_TEST_ROW * (track.width + 1U) + HILL_TEST_COLUMN;
+						object.base_height = track.corner_heights[first];
+						object.slope_x = track.corner_heights[first + 1U] - object.base_height;
+						object.slope_y =
+							track.corner_heights[first + track.width + 1U] - object.base_height;
+						object.surface = surface;
+						object.rotation = rotation;
+						legacy_u8 axis = (spelling_axis + rotation) % NATIVE_HILL_ROAD_AXIS_COUNT;
+						legacy_u8 aligned = axis == (object.slope_x != 0);
+						assert(extended_geometry_uses_grade(&object) == !aligned);
+						assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+						activate(&track);
+						const struct CSTRK_OBJECT *active =
+							extended_track_object_at(object.x, object.y);
+						assert(active != NULL);
+						if (aligned) {
+							assert(extended_track_object_id(active) ==
+								   subst_hillroad_track(terrain, roads[surface][axis]));
+							assert(extended_geometry_object_grade(active, 0, 0) == 0);
+						} else {
+							assert(
+								trkObjectList[extended_track_object_id(active)].ss_physicalModel ==
+								PHYSICAL_MODEL_ROAD);
+							assert(extended_geometry_object_grade(active, 0, 0) ==
+								   HILL_TEST_ROAD_CENTER_HEIGHT);
+						}
+						extended_track_unload();
+						cstrk_free(&track);
+					}
+				}
+			}
+		}
+	}
+}
+
 static void test_hill_shore_geometry(void)
 {
 	static const legacy_u8 terrains[] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
@@ -1707,6 +1762,47 @@ static struct VECTOR general_slope_world(const struct CSTRK_TRACK *track,
 	return object_world(track, object, local);
 }
 
+#define GRADED_SCRATCH_HALF_PIPE_ID 83U
+#define GRADED_SCRATCH_CORKSCREW_ID 85U
+#define GRADED_SCRATCH_CAR_ROLL 215
+#define GRADED_SCRATCH_CAR_PITCH (-62)
+#define GRADED_SCRATCH_CAR_YAW (-3)
+
+static void test_graded_queries_preserve_shared_rotation(void)
+{
+	static const legacy_u16 ids[] = {GRADED_SCRATCH_HALF_PIPE_ID, GRADED_SCRATCH_CORKSCREW_ID};
+	static const struct VECTOR probes[] = {{100, 110, 0}, {-100, 110, 600}};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 direction = 0; direction < GENERAL_SLOPE_DIRECTION_COUNT; direction++) {
+				struct CSTRK_OBJECT object = general_slope_object(ids[kind], rotation);
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+				general_slope_terrain(&track, &object, direction);
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				struct VECTOR point = general_slope_world(&track, &object, probes[kind]);
+				struct MATRIX *retained =
+					mat_rot_zxy(GRADED_SCRATCH_CAR_ROLL, GRADED_SCRATCH_CAR_PITCH,
+								GRADED_SCRATCH_CAR_YAW, MATRIX_ROTATION_ORDER_ZXY);
+				struct MATRIX expected = *retained;
+				struct VECTOR up = {0, TRIG_FIXED_ONE, 0}, before, after;
+				mat_mul_vector(&up, retained, &before);
+				(void)sample_world(point.x, point.y, point.z);
+				assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+				/* The body checks retain this rotation across all four corners.
+				 * Looking up the first track plane must not rotate later corners. */
+				assert(memcmp(retained, &expected, sizeof(expected)) == 0);
+				mat_mul_vector(&up, retained, &after);
+				assert(memcmp(&before, &after, sizeof(before)) == 0);
+				extended_track_unload();
+				cstrk_free(&track);
+			}
+		}
+	}
+}
+
 static void general_slope_route_vectors(struct VECTOR output[ROUTE_GEOMETRY_POINT_COUNT])
 {
 	const struct CSTRK_OBJECT *active = &extended_track_model()->objects[0];
@@ -1958,9 +2054,11 @@ int main(void)
 	test_raised_stunt_and_snapshot();
 	test_every_element_on_straight_slopes();
 	test_general_slope_collision_and_routes();
+	test_graded_queries_preserve_shared_rotation();
 	test_nonclassic_terrain_is_rejected();
 	test_original_hill_terrain();
 	test_original_hill_roads();
+	test_rotated_roads_keep_native_hill_geometry();
 	test_sloped_tunnels_and_slaloms();
 	test_hill_shore_geometry();
 	test_shore_materials();

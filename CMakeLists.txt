@@ -856,7 +856,9 @@ if(RESTUNTS_BUILD_TESTS)
             TIMEOUT 120)
         add_executable(test-extended-replay-engine ${platform}/main.c
             src/restunts/tests/test-extended-replay-engine.c)
-        target_compile_definitions(test-extended-replay-engine PRIVATE RESTUNTS_PIXLDUMP)
+        target_compile_definitions(test-extended-replay-engine PRIVATE
+            RESTUNTS_PIXLDUMP
+            RESTUNTS_HALF_PIPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/half-pipe-uphill.csrpl")
         target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
         target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)
         add_test(NAME extended-replay-engine COMMAND test-extended-replay-engine
