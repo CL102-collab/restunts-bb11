@@ -19,6 +19,8 @@ static const legacy_char LAUNCHER_APP_NAME[] = "Restunts";
 static const legacy_char DATA_DIRECTORY_OPTION[] = "--data-dir";
 static const legacy_char GAME_OPTION[] = "--game";
 static const legacy_char WAIT_FOR_GAME_OPTION[] = "--wait-for-game";
+static const legacy_char TRACK_EDITOR_FILENAME[] = "tracked.html";
+static const legacy_char TRACK_EDITOR_DIRECTORY[] = "../share/restunts/editor/";
 #ifdef __WXMSW__
 static const legacy_char GAME_FILENAME[] = "restunts.exe";
 static const legacy_char GENGHOST_GUI_FILENAME[] = "genghost-gui.exe";
@@ -164,6 +166,9 @@ class LauncherDialog : public wxDialog
 		wxButton *generator = new wxButton(this, wxID_ANY, "&Ghost generator...");
 		generator->SetToolTip("Open the ghost generator and choose its game folder there.");
 		buttons->Add(generator, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
+		wxButton *editor = new wxButton(this, wxID_ANY, "&Track Editor...");
+		editor->SetToolTip("Open the track editor in your default browser.");
+		buttons->Add(editor, FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL | wxRIGHT, spacing);
 		buttons->AddStretchSpacer(GROW_LAYOUT);
 		buttons->Add(CreateButtonSizer(wxOK | wxCANCEL), FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		layout->Add(buttons, FIXED_LAYOUT, wxEXPAND | wxALL, border);
@@ -188,6 +193,7 @@ class LauncherDialog : public wxDialog
 		folder_->SetFocus();
 		browse->Bind(wxEVT_BUTTON, &LauncherDialog::browse_folder, this);
 		generator->Bind(wxEVT_BUTTON, &LauncherDialog::start_generator, this);
+		editor->Bind(wxEVT_BUTTON, &LauncherDialog::open_track_editor, this);
 		Bind(wxEVT_BUTTON, &LauncherDialog::start_game, this, wxID_OK);
 #ifdef __WXQT__
 		Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { Close(); }, wxID_CANCEL);
@@ -286,6 +292,35 @@ class LauncherDialog : public wxDialog
 		}
 		launch_program(launcher_game_arguments(game_, options_), folder,
 					   "Cannot start the game executable: " + game_);
+	}
+
+	void open_track_editor(wxCommandEvent &)
+	{
+		const wxFileName launcher(wxStandardPaths::Get().GetExecutablePath());
+		wxFileName editor(launcher.GetPathWithSep() + TRACK_EDITOR_DIRECTORY +
+						  TRACK_EDITOR_FILENAME);
+		if (!editor.FileExists()) {
+			editor.Assign(launcher.GetPath(), TRACK_EDITOR_FILENAME);
+		}
+		if (!editor.Normalize(wxPATH_NORM_DOTS | wxPATH_NORM_ABSOLUTE) || !editor.FileExists()) {
+			set_status("The track editor is missing. Keep the complete runtime package together.");
+			return;
+		}
+		legacy_bool opened;
+		{
+			wxLogNull quiet;
+#ifdef __WXQT__
+			opened = wxLaunchDefaultApplication(editor.GetFullPath());
+#else
+			opened = wxLaunchDefaultBrowser(wxFileName::FileNameToURL(editor));
+#endif
+		}
+		if (!opened) {
+			set_status("Cannot open the track editor in your default browser: " +
+					   editor.GetFullPath());
+			return;
+		}
+		set_status("Track editor opened in your default browser. Choose your game folder there.");
 	}
 
 	void start_generator(wxCommandEvent &)
