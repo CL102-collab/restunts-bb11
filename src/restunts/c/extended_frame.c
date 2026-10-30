@@ -1606,6 +1606,24 @@ static legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (model->tunnel_slalom) {
+		/* Reuse the tunnel shell and shaded floor, adding only the slalom's
+		 * barriers. Its ordinary road overlay would duplicate the floor. */
+		struct TRACKOBJECT tunnel = trkObjectList[CSTRK_TUNNEL_FIRST_ID];
+		struct TRACKOBJECT floor = *frame_track_object_from_legacy_index(tunnel.ss_ssOvelay);
+		tunnel.ss_rotY = definition->ss_rotY;
+		floor.ss_rotY = definition->ss_rotY;
+		/* The interior floor has no authored low-detail alternative. */
+		if (!floor.ss_loShapePtr) {
+			floor.ss_loShapePtr = floor.ss_shapePtr;
+		}
+		if (frame_extended_draw_object_part(&object, &tunnel, 0) ||
+			frame_extended_draw_object_part(&object, definition, 0) ||
+			frame_extended_draw_object_part(&object, &floor, 1)) {
+			return 1;
+		}
+		return 0;
+	}
 	legacy_u8 hill_overlay =
 		frame_extended_object_sloped(model) && !object.graded && definition->ss_ssOvelay;
 	for (legacy_u8 part = 0; part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {

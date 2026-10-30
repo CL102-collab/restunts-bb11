@@ -30,8 +30,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v6. Revision v3, v4 and v5 tracks also open
-and are upgraded to v6 while preserving their original overpass road materials.
+great track." The current version is v7. Revision v3 through v6 tracks also open
+and are upgraded to v7 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -113,6 +113,11 @@ are not separate palette groups. Every road and stunt piece supports paved,
 dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
+
+The **Stunts** group includes **Tunnel with slalom**, combining the tunnel shell
+and slalom barriers in one tile. It supports all four directions, every road
+surface, flat ground and straight inclines. These combined elements require
+`.cstrk` v7 and remain distinct from ordinary tunnels and slaloms after saving.
 
 The **Elevated** group offers **Overpass over asphalt**, **Overpass over dirt**
 and **Overpass over ice**. These choices set the road below the bridge. The

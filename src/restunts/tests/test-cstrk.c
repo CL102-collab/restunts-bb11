@@ -926,10 +926,144 @@ static void test_overpass_lower_surfaces(void)
 	cstrk_free(&decoded);
 }
 
+#define TEST_TUNNEL_SLALOM_ROTATIONS 4U
+#define TEST_TUNNEL_SLALOM_SLOPES 5U
+
+static void test_tunnel_slalom_roundtrip(void)
+{
+	static const legacy_u16 versions[] = {CSTRK_VERSION, TEST_FUTURE_REVISION};
+	static const legacy_s8 slopes[TEST_TUNNEL_SLALOM_SLOPES][2] = {
+		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.legacy_id = CSTRK_SLALOM_FIRST_ID;
+	object.tunnel_slalom = 1U;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	size_t object_offset = CSTRK_HEADER_SIZE + TEST_TERRAIN_CORNER_COUNT + 2U;
+	for (legacy_u8 revision = 0; revision < sizeof(versions) / sizeof(versions[0]); revision++) {
+		track.version = versions[revision];
+		for (legacy_u16 id = CSTRK_SLALOM_FIRST_ID; id <= CSTRK_SLALOM_LAST_ID; id++) {
+			for (legacy_u8 rotation = 0; rotation < TEST_TUNNEL_SLALOM_ROTATIONS; rotation++) {
+				for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+					for (legacy_u8 slope = 0; slope < TEST_TUNNEL_SLALOM_SLOPES; slope++) {
+						object.legacy_id = id;
+						object.rotation = rotation;
+						object.surface = surface;
+						object.slope_x = slopes[slope][0];
+						object.slope_y = slopes[slope][1];
+						object.base_height = object.slope_x < 0 || object.slope_y < 0;
+						legacy_u8 heights[TEST_TERRAIN_CORNER_COUNT] = {
+							object.base_height, object.base_height + object.slope_x,
+							object.base_height + object.slope_x + object.slope_y,
+							object.base_height + object.slope_y};
+						set_terrain_corners(&track, heights);
+						track.objects[0] = object;
+						legacy_u8 *data = NULL, *again = NULL;
+						size_t size = 0, again_size = 0;
+						assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+						assert(data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] == 1U);
+						assert(data[object_offset + CSTRK_OBJECT_LOWER_SURFACE_OFFSET] == 0U);
+						assert(LEGACY_READ_U16_LE(data + object_offset +
+												  CSTRK_OBJECT_RESERVED_OFFSET) == 0U);
+						assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+						assert(decoded.version == track.version && decoded.object_count == 1U);
+						assert(decoded.objects[0].legacy_id == id);
+						assert(decoded.objects[0].rotation == rotation);
+						assert(decoded.objects[0].surface == surface);
+						assert(decoded.objects[0].tunnel_slalom == 1U);
+						assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+						assert(again_size == size && memcmp(data, again, size) == 0);
+						free(again);
+						free(data);
+					}
+				}
+			}
+		}
+	}
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
+static void test_tunnel_slalom_invalid_records(void)
+{
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.legacy_id = CSTRK_SLALOM_FIRST_ID;
+	object.tunnel_slalom = 1U;
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	size_t object_offset = CSTRK_HEADER_SIZE + TEST_TERRAIN_CORNER_COUNT + 2U;
+	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_TUNNEL_SLALOM_VERSION; version++) {
+		track.version = version;
+		legacy_u8 *unchanged = data;
+		size_t unchanged_size = size;
+		assert(!cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		assert(strstr(error, "requires track version") != NULL);
+		assert(data == unchanged && size == unchanged_size);
+		LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+		legacy_u8 before[sizeof(decoded)];
+		memcpy(before, &decoded, sizeof(decoded));
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+		/* Ordinary slaloms from each supported older revision remain valid. */
+		data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = 0U;
+		assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(decoded.version == CSTRK_VERSION && decoded.objects[0].tunnel_slalom == 0U);
+		data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = 1U;
+	}
+	track.version = CSTRK_VERSION;
+	LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_VERSION);
+	legacy_u8 before[sizeof(decoded)];
+	memcpy(before, &decoded, sizeof(decoded));
+	for (legacy_u16 id = 1U; id <= CSTRK_MAX_LEGACY_ID; id++) {
+		if (id >= CSTRK_SLALOM_FIRST_ID && id <= CSTRK_SLALOM_LAST_ID) {
+			continue;
+		}
+		track.objects[0].legacy_id = id;
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+		LEGACY_WRITE_U16_LE(data + object_offset, id);
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+	}
+	track.objects[0].legacy_id = CSTRK_SLALOM_FIRST_ID;
+	LEGACY_WRITE_U16_LE(data + object_offset, CSTRK_SLALOM_FIRST_ID);
+	static const legacy_u8 invalid_values[] = {2U, LEGACY_U8_MAX};
+	for (legacy_u8 index = 0; index < sizeof(invalid_values) / sizeof(invalid_values[0]); index++) {
+		track.objects[0].tunnel_slalom = invalid_values[index];
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+		data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = invalid_values[index];
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+	}
+	track.objects[0].tunnel_slalom = 1U;
+	data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = 1U;
+	for (legacy_u8 offset = CSTRK_OBJECT_RESERVED_OFFSET; offset < CSTRK_OBJECT_SIZE; offset++) {
+		data[object_offset + offset] = 1U;
+		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
+		data[object_offset + offset] = 0U;
+	}
+	assert(cstrk_validate_bytes(data, size, error, sizeof(error)));
+	free(data);
+	cstrk_free(&track);
+	cstrk_free(&decoded);
+}
+
 int main(void)
 {
 	test_wire_layout();
 	test_overpass_lower_surfaces();
+	test_tunnel_slalom_roundtrip();
+	test_tunnel_slalom_invalid_records();
 	test_horizons_and_versions();
 	test_surface_corners();
 	test_original_terrain_profiles();

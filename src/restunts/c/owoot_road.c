@@ -572,7 +572,7 @@ static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT 
 {
 	legacy_u32 id = extended_track_object_id(placed);
 	const struct TRACKOBJECT *object = &trkObjectList[id];
-	legacy_s16 model = object->ss_physicalModel;
+	legacy_s16 model = placed->tunnel_slalom ? PHYSICAL_MODEL_TUNNEL : object->ss_physicalModel;
 	if (model < 0 || model > PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 		return 0;
 	}
