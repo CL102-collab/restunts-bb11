@@ -35,7 +35,14 @@ enum FRAME_EXTENDED_TERRAIN_MATERIAL {
 #define FRAME_EXTENDED_OUTER_CORNER_LAST 14U
 #define FRAME_EXTENDED_TERRAIN_CORNER_COUNT 4U
 #define FRAME_EXTENDED_OBJECT_PART_COUNT 2U
-#define FRAME_EXTENDED_GROUND_FRAGMENT_MAX 256U
+#define FRAME_EXTENDED_GROUND_FRAGMENT_INITIAL_CAPACITY 16U
+#define FRAME_EXTENDED_CLASSIC_GROUND_FRAGMENT_MAX 256U
+#define FRAME_EXTENDED_TERRAIN_NEIGHBOR_COUNT 9U
+#define FRAME_EXTENDED_TERRAIN_OBJECT_MAX                                                          \
+	(FRAME_EXTENDED_TERRAIN_NEIGHBOR_COUNT * EXTENDED_TRACK_CELL_OBJECT_MAX)
+#define FRAME_EXTENDED_ROAD_OVERSCAN 8
+#define FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX                                                   \
+	(SHAPE3D_POLYGON_MAX_VERTICES + OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)
 
 static void frame_extended_rotate_vertex(struct VECTOR *point, legacy_s16 yaw)
 {
@@ -509,11 +516,87 @@ struct FRAME_EXTENDED_TERRAIN {
 	struct CSTRK_TERRAIN_PROFILE profile;
 	const struct CSTRK_CELL *cell;
 	const struct CSTRK_OBJECT *object;
+	const struct CSTRK_OBJECT *objects[FRAME_EXTENDED_TERRAIN_OBJECT_MAX];
+	legacy_u16 object_count;
 	struct VECTOR position;
 	legacy_u8 edges, graded;
 	legacy_s16 column, row;
 	legacy_s8 flags;
 };
+
+/* The corrected native-road classification belongs to HyperVision rendering.
+ * Classic frames retain their historical treatment of the two road directions
+ * which have no separate catalog spelling. Physics uses the common predicate. */
+static legacy_u8 frame_extended_uses_grade(const struct CSTRK_OBJECT *object)
+{
+	if (!supersight_enabled && object && (object->slope_x || object->slope_y) &&
+		object->width == 1U && object->height == 1U &&
+		trkObjectList[object->legacy_id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
+		legacy_u16 angle = ((legacy_u16)trkObjectList[object->legacy_id].ss_rotY +
+							object->rotation * ANGLE_QUARTER_TURN) &
+						   ANGLE_MASK;
+		if (angle & ANGLE_HALF_TURN) {
+			return 1;
+		}
+	}
+	return extended_geometry_uses_grade(object);
+}
+
+static legacy_s16 frame_extended_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+											  legacy_s16 local_z)
+{
+	if (supersight_enabled) {
+		return extended_geometry_object_grade(object, local_x, local_z);
+	}
+	return frame_extended_uses_grade(object)
+			   ? extended_geometry_support_grade(object, local_x, local_z)
+			   : 0;
+}
+
+static void frame_extended_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain)
+{
+	terrain->object_count = extended_track_objects_in_cell(
+		terrain->column, terrain->row, terrain->objects, EXTENDED_TRACK_CELL_OBJECT_MAX);
+	if (!supersight_enabled) {
+		return;
+	}
+	/* Authored roads overhang their grid rectangle by a few world units.
+	 * Cut those faces from neighboring terrain too, using the same bounded
+	 * origin lookup rather than scanning every object in the track. */
+	legacy_s32 left = terrain->column * CSTRK_TILE_WORLD_SIZE;
+	legacy_s32 north = terrain->row * CSTRK_TILE_WORLD_SIZE;
+	for (legacy_s16 row = terrain->row - 1; row <= terrain->row + 1; row++) {
+		for (legacy_s16 column = terrain->column - 1; column <= terrain->column + 1; column++) {
+			if (column == terrain->column && row == terrain->row) {
+				continue;
+			}
+			const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
+			legacy_u16 count = extended_track_objects_in_cell(column, row, candidates,
+															  EXTENDED_TRACK_CELL_OBJECT_MAX);
+			for (legacy_u16 candidate = 0; candidate < count; candidate++) {
+				const struct CSTRK_OBJECT *object = candidates[candidate];
+				legacy_s32 object_left = object->x * CSTRK_TILE_WORLD_SIZE;
+				legacy_s32 object_north = object->y * CSTRK_TILE_WORLD_SIZE;
+				if (left >= object_left + object->width * CSTRK_TILE_WORLD_SIZE +
+								FRAME_EXTENDED_ROAD_OVERSCAN ||
+					left + CSTRK_TILE_WORLD_SIZE <= object_left - FRAME_EXTENDED_ROAD_OVERSCAN ||
+					north >= object_north + object->height * CSTRK_TILE_WORLD_SIZE +
+								 FRAME_EXTENDED_ROAD_OVERSCAN ||
+					north + CSTRK_TILE_WORLD_SIZE <= object_north - FRAME_EXTENDED_ROAD_OVERSCAN) {
+					continue;
+				}
+				legacy_u16 existing = 0;
+				while (existing < terrain->object_count && terrain->objects[existing] != object) {
+					existing++;
+				}
+				if (existing == terrain->object_count &&
+					terrain->object_count < FRAME_EXTENDED_TERRAIN_OBJECT_MAX) {
+					terrain->objects[terrain->object_count++] = object;
+				}
+			}
+		}
+	}
+}
 
 static legacy_u8 frame_extended_native_grass(const struct CSTRK_CELL *cell)
 {
@@ -566,7 +649,8 @@ frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terra
 }
 
 struct FRAME_EXTENDED_GROUND_FRAGMENT {
-	struct VECTOR points[OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
+	legacy_u16 count;
+	struct VECTOR points[SHAPE3D_POLYGON_MAX_VERTICES];
 };
 
 static legacy_s64 frame_extended_ground_side(const struct VECTOR *a, const struct VECTOR *b,
@@ -615,22 +699,57 @@ static legacy_u16 frame_extended_clip_ground(const struct VECTOR *points, legacy
 }
 
 static legacy_s16
-frame_extended_append_ground_fragments(struct FRAME_EXTENDED_GROUND_FRAGMENT *fragments,
-									   legacy_u16 *written, const struct VECTOR *points,
-									   legacy_u16 count)
+frame_extended_append_ground_fragments(struct FRAME_EXTENDED_GROUND_FRAGMENT **fragments,
+									   legacy_u16 *written, legacy_u16 *capacity,
+									   const struct VECTOR *points, legacy_u16 count)
 {
-	for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
-		if (!frame_extended_ground_side(&points[0], &points[vertex], &points[vertex + 1U])) {
-			continue;
+	if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST) {
+		return 1;
+	}
+	if (count > SHAPE3D_POLYGON_MAX_VERTICES ||
+		(!supersight_enabled && count > OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)) {
+		for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
+			struct VECTOR triangle[] = {points[0], points[vertex], points[vertex + 1U]};
+			if (!frame_extended_append_ground_fragments(fragments, written, capacity, triangle,
+														OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)) {
+				return 0;
+			}
 		}
-		if (*written == FRAME_EXTENDED_GROUND_FRAGMENT_MAX) {
+		return 1;
+	}
+	legacy_s64 area = 0;
+	for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
+		area += frame_extended_ground_side(&points[0], &points[vertex], &points[vertex + 1U]);
+	}
+	if (!area) {
+		return 1;
+	}
+	if (!supersight_enabled && *written == FRAME_EXTENDED_CLASSIC_GROUND_FRAGMENT_MAX) {
+		return 0;
+	}
+	if (*written == *capacity) {
+		if (*capacity == LEGACY_U16_MAX) {
 			return 0;
 		}
-		fragments[*written].points[0] = points[0];
-		fragments[*written].points[1] = points[vertex];
-		fragments[*written].points[2] = points[vertex + 1U];
-		(*written)++;
+		legacy_u32 next_capacity = *capacity ? (legacy_u32)*capacity * 2U
+											 : FRAME_EXTENDED_GROUND_FRAGMENT_INITIAL_CAPACITY;
+		if (next_capacity > LEGACY_U16_MAX) {
+			next_capacity = LEGACY_U16_MAX;
+		}
+		struct FRAME_EXTENDED_GROUND_FRAGMENT *grown =
+			realloc(*fragments, next_capacity * sizeof(**fragments));
+		if (!grown) {
+			return 0;
+		}
+		*fragments = grown;
+		*capacity = (legacy_u16)next_capacity;
 	}
+	/* HyperVision keeps convex remainders intact until final submission.
+	 * Premature fan triangulation cuts new internal edges repeatedly on curves.
+	 * The classic path retains its original triangulation and fragment budget. */
+	(*fragments)[*written].count = count;
+	memcpy((*fragments)[*written].points, points, count * sizeof(points[0]));
+	(*written)++;
 	return 1;
 }
 
@@ -646,24 +765,20 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 													terrain->cell, &terrain->position,
 													terrain->flags);
 	}
-	struct FRAME_EXTENDED_GROUND_FRAGMENT *memory =
-		malloc(2U * FRAME_EXTENDED_GROUND_FRAGMENT_MAX * sizeof(*memory));
-	if (!memory) {
+	struct FRAME_EXTENDED_GROUND_FRAGMENT *current = NULL, *next = NULL;
+	legacy_u16 remaining = 0, current_capacity = 0, next_capacity = 0;
+	if (!frame_extended_append_ground_fragments(&current, &remaining, &current_capacity, points,
+												count)) {
+		free(current);
 		return frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
 													terrain->cell, &terrain->position,
 													terrain->flags);
 	}
-	struct FRAME_EXTENDED_GROUND_FRAGMENT *current = memory;
-	struct FRAME_EXTENDED_GROUND_FRAGMENT *next = memory + FRAME_EXTENDED_GROUND_FRAGMENT_MAX;
-	legacy_u16 remaining = 0;
-	frame_extended_append_ground_fragments(current, &remaining, points, count);
-	const struct CSTRK_OBJECT *objects[EXTENDED_TRACK_CELL_OBJECT_MAX];
-	legacy_u16 object_count = extended_track_objects_in_cell(terrain->column, terrain->row, objects,
-															 EXTENDED_TRACK_CELL_OBJECT_MAX);
 	legacy_s16 complete = 1;
-	for (legacy_u16 object_index = 0; object_index < object_count && complete; object_index++) {
-		const struct CSTRK_OBJECT *object = objects[object_index];
-		if (!extended_geometry_uses_grade(object)) {
+	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
+		 object_index++) {
+		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
+		if (!frame_extended_uses_grade(object)) {
 			continue;
 		}
 		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
@@ -692,20 +807,20 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 			legacy_s16 orientation = winding > 0 ? 1 : -1;
 			legacy_u16 written = 0;
 			for (legacy_u16 fragment = 0; fragment < remaining && complete; fragment++) {
-				struct VECTOR inside[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
-				legacy_u16 inside_count = OWOOT_ROAD_TRIANGLE_VERTEX_COUNT;
-				memcpy(inside, current[fragment].points, sizeof(current[fragment].points));
+				struct VECTOR inside[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
+				legacy_u16 inside_count = current[fragment].count;
+				memcpy(inside, current[fragment].points, inside_count * sizeof(inside[0]));
 				for (legacy_u16 edge = 0; edge < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT && inside_count;
 					 edge++) {
-					struct VECTOR outside[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
-					struct VECTOR clipped[SHAPE3D_POLYGON_MAX_VERTICES + 1U];
+					struct VECTOR outside[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
+					struct VECTOR clipped[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
 					const struct VECTOR *a = &triangle[edge];
 					const struct VECTOR *b =
 						&triangle[(edge + 1U) % OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
 					legacy_u16 outside_count = frame_extended_clip_ground(
 						inside, inside_count, outside, a, b, -orientation);
-					if (!frame_extended_append_ground_fragments(next, &written, outside,
-																outside_count)) {
+					if (!frame_extended_append_ground_fragments(&next, &written, &next_capacity,
+																outside, outside_count)) {
 						complete = 0;
 						break;
 					}
@@ -720,6 +835,9 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 			struct FRAME_EXTENDED_GROUND_FRAGMENT *swap = current;
 			current = next;
 			next = swap;
+			legacy_u16 swap_capacity = current_capacity;
+			current_capacity = next_capacity;
+			next_capacity = swap_capacity;
 			remaining = written;
 		}
 	}
@@ -727,8 +845,8 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 	if (complete) {
 		for (legacy_u16 fragment = 0; fragment < remaining; fragment++) {
 			if (frame_extended_paint_terrain_polygon(
-					current[fragment].points, OWOOT_ROAD_TRIANGLE_VERTEX_COUNT, primitive[1],
-					primitive[2], terrain->cell, &terrain->position, terrain->flags)) {
+					current[fragment].points, current[fragment].count, primitive[1], primitive[2],
+					terrain->cell, &terrain->position, terrain->flags)) {
 				result = 1;
 				break;
 			}
@@ -738,7 +856,8 @@ static legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points,
 			frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
 												 terrain->cell, &terrain->position, terrain->flags);
 	}
-	free(memory);
+	free(current);
+	free(next);
 	return result;
 }
 
@@ -803,17 +922,16 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 	terrain.row = tile->south;
 	terrain.object = extended_track_object_at(tile->east, tile->south);
 	terrain.graded = 0;
-	const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
-	legacy_u16 candidate_count = extended_track_objects_in_cell(tile->east, tile->south, candidates,
-																EXTENDED_TRACK_CELL_OBJECT_MAX);
-	for (legacy_u16 candidate = 0; candidate < candidate_count; candidate++) {
-		if (extended_geometry_uses_grade(candidates[candidate])) {
+	frame_extended_collect_terrain_objects(&terrain);
+	for (legacy_u16 candidate = 0; candidate < terrain.object_count; candidate++) {
+		if (frame_extended_uses_grade(terrain.objects[candidate])) {
 			terrain.graded = 1;
-			terrain.edges |= frame_extended_grade_edges(candidates[candidate]);
+			terrain.edges |= frame_extended_grade_edges(terrain.objects[candidate]);
 		}
 	}
 	terrain.flags = flags;
-	if (frame_extended_object_sloped(terrain.object) && !terrain.graded &&
+	if (frame_extended_object_sloped(terrain.object) &&
+		(!terrain.graded || (supersight_enabled && !frame_extended_uses_grade(terrain.object))) &&
 		frame_extended_native_grass(terrain.cell)) {
 		/* Native hill roads and spans already include their supporting grass. */
 		return 0;
@@ -893,7 +1011,7 @@ static void frame_extended_apply_object_grade(struct SHAPE3D *mesh,
 			*along = -half_span;
 		}
 		point.y =
-			LEGACY_S16_WRAP_ADD(point.y, extended_geometry_object_grade(object, point.x, point.z));
+			LEGACY_S16_WRAP_ADD(point.y, frame_extended_object_grade(object, point.x, point.z));
 		shape3d_vertex_write(mesh, vertex, &point);
 	}
 }
@@ -954,7 +1072,7 @@ static legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	object.definition = definition;
 	const struct CSTRK_CELL *cell = &track->cells[(size_t)model->y * track->width + model->x];
 	object.native_grass = frame_extended_native_grass(cell);
-	object.graded = extended_geometry_uses_grade(model);
+	object.graded = frame_extended_uses_grade(model);
 	struct VECTOR origin;
 	extended_geometry_object_origin(track, model, &origin);
 	object.position = (struct VECTOR){LEGACY_S16_WRAP_SUB(origin.x, camera->position.x),
