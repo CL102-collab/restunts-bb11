@@ -248,6 +248,27 @@
         });
         return freezeClipboard(clipboard.width, clipboard.height, objects);
     }
+    function rotateClipboard(clipboard, amount) {
+        checkClipboard(clipboard);
+        if (!Number.isSafeInteger(amount)) throw new Error('Choose a whole number of quarter turns.');
+        let rotated = freezeClipboard(clipboard.width, clipboard.height, clipboard.objects);
+        for (let turn = 0, count = quarterTurns(amount); turn < count; turn++) {
+            const objects = rotated.objects.map(object => {
+                const rotation = quarterTurns(object.rotation + 1);
+                const footprint = rotatedFootprint(byId.get(object.id), rotation);
+                const expected = rotatedFootprint(object, 1);
+                if (footprint.width !== expected.width || footprint.height !== expected.height || footprint.mask !== expected.mask)
+                    throw new Error('This track element cannot be rotated within its footprint.');
+                // Turn the whole rectangle clockwise, including each native
+                // orientation and the support plane relative to its new origin.
+                return { ...object, x: rotated.height - object.y - object.height, y: object.x,
+                    rotation, ...footprint, baseHeight: object.baseHeight + object.height * object.slopeY,
+                    slopeX: object.slopeY ? -object.slopeY : 0, slopeY: object.slopeX };
+            });
+            rotated = freezeClipboard(rotated.height, rotated.width, objects);
+        }
+        return rotated;
+    }
     const TERRAIN_DISPLAY_CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
     const TERRAIN_DISPLAY_CORNER_COUNT = TERRAIN_DISPLAY_CORNERS.length;
     const TERRAIN_DISPLAY_MAX_HEIGHT = 4, TERRAIN_DISPLAY_HALF_LEVEL = .5;
@@ -681,5 +702,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));
