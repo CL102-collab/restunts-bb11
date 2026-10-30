@@ -1785,6 +1785,12 @@ static void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edge
 	}
 }
 
+static legacy_u8 frame_extended_stunt_grade_edges(const struct CSTRK_OBJECT *object)
+{
+	return object->slope_x ? FRAME_EXTENDED_HILL_EAST | FRAME_EXTENDED_HILL_WEST
+						   : FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_SOUTH;
+}
+
 /* Attached markings are layers of the preceding face. Native hill dashes
  * have independently rounded (and occasionally incorrect) heights, visible as
  * dips in HyperVision. Drape them onto their corrected road instead of retaining
@@ -1898,7 +1904,7 @@ static legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *ins
 	legacy_u8 grade_edges = frame_extended_road_grade_edges(source, instance->rotvec.z, edges);
 	struct TRANSFORMEDSHAPE3D adjusted = *instance;
 	/* Resource vertex counts occupy one byte. Queueing copies transformed
-	 * vertices, so the original resource and every classic frame stay intact. */
+	 * vertices, so the original resource remains intact. */
 	legacy_u8 vertices[LEGACY_U8_MAX * SHAPE3D_VERTEX_SIZE];
 	struct SHAPE3D mesh = *source;
 	mesh.shape3d_vertex_bytes = vertices;
@@ -2082,8 +2088,14 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 							camera->position.y),
 		LEGACY_S16_WRAP_SUB(track_row_centers[tile->south], camera->position.z)};
 	const struct CSTRK_OBJECT *object = extended_track_object_at(tile->east, tile->south);
-	if (object && (object->slope_x || object->slope_y) && cell->surface == CSTRK_TERRAIN_GRASS &&
-		cell->half_water_corner == CSTRK_WATER_NONE) {
+	legacy_u8 sloped_stunt = extended_geometry_sloped_stunt(object);
+	if (sloped_stunt) {
+		/* The supporting ground and the sheared stunt use the same grid-sized
+		 * incline. Native two-unit overscan would cover the road's low half. */
+		edges |= frame_extended_stunt_grade_edges(object);
+	}
+	if (object && (object->slope_x || object->slope_y) && !sloped_stunt &&
+		cell->surface == CSTRK_TERRAIN_GRASS && cell->half_water_corner == CSTRK_WATER_NONE) {
 		/* Native hill roads include their grass sides; native spans include
 		 * the original hill overlay. Submit these complete resources once. */
 		return 0;
@@ -2128,7 +2140,8 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 	const struct SHAPE3D *source =
 		supersight_enabled != 0 ? frame_track_shape((struct TRACKOBJECT *)definition, tile->detail)
 								: definition->ss_shapePtr;
-	if (cell->surface == CSTRK_TERRAIN_GRASS && cell->half_water_corner == CSTRK_WATER_NONE) {
+	if (!sloped_stunt && cell->surface == CSTRK_TERRAIN_GRASS &&
+		cell->half_water_corner == CSTRK_WATER_NONE) {
 		struct TRANSFORMEDSHAPE3D instance = {0};
 		instance.pos = position;
 		instance.shapeptr = (struct SHAPE3D *)source;
@@ -2153,8 +2166,33 @@ static legacy_s16 frame_draw_extended_terrain(const struct FRAME_TILE *tile,
 			frame_extended_rotate_vertex(&points[vertex], definition->ss_rotY);
 			frame_extended_join_hill_vertex(&points[vertex], edges);
 		}
-		if (frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2], cell,
-												 &position, flags)) {
+		if (sloped_stunt) {
+			/* As with native hill roads, pavement owns the road footprint.
+			 * Coplanar ground beneath it would compete with independently rounded
+			 * road triangles. Keep the terrain on both sides, including Shore paint. */
+			for (legacy_u8 side = 0; side < 2U; side++) {
+				struct VECTOR strip[SHAPE3D_POLYGON_MAX_VERTICES];
+				for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+					strip[vertex] = points[vertex];
+					legacy_s16 across = object->slope_x ? strip[vertex].z : strip[vertex].x;
+					if (!side && across > -ROAD_HALF_WIDTH) {
+						across = -ROAD_HALF_WIDTH;
+					} else if (side && across < ROAD_HALF_WIDTH) {
+						across = ROAD_HALF_WIDTH;
+					}
+					if (object->slope_x) {
+						strip[vertex].z = across;
+					} else {
+						strip[vertex].x = across;
+					}
+				}
+				if (frame_extended_paint_terrain_polygon(strip, count, primitive[1], primitive[2],
+														 cell, &position, flags)) {
+					return 1;
+				}
+			}
+		} else if (frame_extended_paint_terrain_polygon(points, count, primitive[1], primitive[2],
+														cell, &position, flags)) {
 			return 1;
 		}
 		primitive += 2U + source->shape3d_numpaints + count;
@@ -2210,12 +2248,14 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 		const struct CSTRK_CELL *cell = &track->cells[(size_t)object->y * track->width + object->x];
 		legacy_u8 native_grass =
 			cell->surface == CSTRK_TERRAIN_GRASS && cell->half_water_corner == CSTRK_WATER_NONE;
+		legacy_u8 sloped_stunt = extended_geometry_sloped_stunt(object);
 		struct VECTOR origin;
 		extended_geometry_object_origin(track, object, &origin);
-		legacy_u8 edges = (object->slope_x || object->slope_y)
+		legacy_u8 edges = (object->slope_x || object->slope_y) && !sloped_stunt
 							  ? frame_extended_hill_edges(track, object->x, object->y)
 							  : 0;
-		legacy_u8 hill_overlay = (object->slope_x || object->slope_y) && definition->ss_ssOvelay;
+		legacy_u8 hill_overlay =
+			(object->slope_x || object->slope_y) && !sloped_stunt && definition->ss_ssOvelay;
 		for (legacy_u8 part = 0; part < 2U; part++) {
 			legacy_u8 overlay = hill_overlay ? part == 0 : part;
 			const struct TRACKOBJECT *render_definition = definition;
@@ -2230,7 +2270,7 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 									: object->surface;
 			const struct SHAPE3D *source =
 				frame_track_shape((struct TRACKOBJECT *)render_definition, tile->detail);
-			if ((object->slope_x || object->slope_y) && native_grass &&
+			if ((object->slope_x || object->slope_y) && !sloped_stunt && native_grass &&
 				(overlay || surface < source->shape3d_numpaints)) {
 				struct TRANSFORMEDSHAPE3D instance = {0};
 				instance.pos = (struct VECTOR){LEGACY_S16_WRAP_SUB(origin.x, camera->position.x),
@@ -2254,7 +2294,19 @@ static legacy_s16 frame_draw_extended_objects(struct FRAME_TILE *tile,
 												   surface, definition->ss_physicalModel)) {
 				continue;
 			}
-			if ((object->slope_x || object->slope_y) && !native_grass) {
+			if (sloped_stunt) {
+				/* Raise the complete structure and its road overlay along the
+				 * incline, retaining the authored height above the road. */
+				for (legacy_u16 vertex = 0; vertex < mesh.shape3d_numverts; vertex++) {
+					struct VECTOR point;
+					shape3d_vertex_read(&mesh, vertex, &point);
+					frame_extended_join_hill_vertex(&point,
+													frame_extended_stunt_grade_edges(object));
+					point.y = LEGACY_S16_WRAP_ADD(
+						point.y, extended_geometry_object_grade(object, point.x, point.z));
+					shape3d_vertex_write(&mesh, vertex, &point);
+				}
+			} else if ((object->slope_x || object->slope_y) && !native_grass) {
 				frame_extended_remove_hill_grass(&mesh);
 			}
 			if (!mesh.shape3d_numprimitives) {

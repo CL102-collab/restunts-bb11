@@ -171,7 +171,7 @@ test('terrain edits produce only original profiles and resolve diagonal islands 
         doc.raise(x, y, random & 1 ? 1 : -1); assertProfiles();
     }
 });
-test('hill placement matches original aligned road and ramp rules in every direction and level', () => {
+test('hill placement admits aligned roads, ramps, tunnels and slaloms in every direction and level', () => {
     const maximumLevel = 4, tileCount = 4, target = 1;
     for (let base = 0; base < maximumLevel; base++) for (let terrain = 7; terrain <= 10; terrain++) {
         const doc = new model.Document(tileCount, tileCount);
@@ -183,9 +183,10 @@ test('hill placement matches original aligned road and ramp rules in every direc
         for (const entry of model.catalog) for (let rotation = 0; rotation < 4; rotation++) {
             const direction = (entry.rotation + rotation) % 4;
             const alignedRoad = entry.physical === 1 && direction % 2 === (terrain === 7 || terrain === 9 ? 0 : 1);
+            const alignedStunt = [28, 34].includes(entry.physical) && direction % 2 === (terrain === 7 || terrain === 9 ? 0 : 1);
             const matchingRamp = (entry.physical === 16 || entry.physical === 17) && direction === [2, 1, 0, 3][terrain - 7];
             for (const surface of entry.surfaces) {
-                if (alignedRoad || matchingRamp) {
+                if (alignedRoad || alignedStunt || matchingRamp) {
                     const object = doc.place(entry.id, target, target, surface, rotation);
                     assert.deepEqual(doc.validate(), []);
                     assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
@@ -414,17 +415,61 @@ test('unsupported diagonal planes and saddles are rejected when opening tracks',
     doc.vertices.fill(0); doc.vertices[1] = doc.vertices[3] = 1;
     assert.throws(() => model.encodeCstrk(doc), /original/);
 });
-test('slaloms and tunnels require flat plateaus instead of being tilted onto hills', () => {
-    for (const id of [66, 115]) {
-        const short = new model.Document(4, 4);
-        for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) short.vertices[y * 5 + x] = x ? 1 : 0;
-        assert.throws(() => short.place(id, 0, 1), /original hill/);
-        const long = new model.Document(4, 4);
-        for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++) long.vertices[y * 5 + x] = Math.min(x, 2);
-        assert.throws(() => long.place(id, 0, 1), /original hill/);
-        assert.throws(() => long.place(id, 1, 1), /original hill/);
+test('tunnels and slaloms preserve aligned consecutive slopes through undo and save/load', () => {
+    for (const id of [66, 67, 115, 116]) {
+        const entry = model.catalog.find(piece => piece.id === id);
+        for (const surface of [0, 1, 2]) for (let rotation = 0; rotation < 4; rotation++) {
+            const direction = (entry.rotation + rotation) % 4;
+            const doc = new model.Document(4, 4);
+            for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++)
+                doc.vertices[y * 5 + x] = direction % 2 ? x : y;
+            const before = doc.snapshot();
+            const object = doc.place(id, 1, 1, surface, rotation), placed = doc.snapshot();
+            assert.equal(object.baseHeight, 1);
+            assert.equal(object.slopeX, direction % 2 ? 1 : 0);
+            assert.equal(object.slopeY, direction % 2 ? 0 : 1);
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+            const encoded = model.encodeCstrk(doc), record = 32 + doc.vertices.length + 2 * doc.cells.length;
+            assert.equal(new DataView(encoded.buffer).getUint16(record, true), id, 'store the original stunt ID');
+            assert.deepEqual(model.decodeCstrk(encoded).snapshot(), placed);
+            assert.throws(() => doc.raise(1, 1), /bend/);
+            assert.deepEqual(doc.snapshot(), placed, 'rejected terrain changes preserve the stunt');
+            const second = direction % 2 ? [2, 1] : [1, 2];
+            doc.place(id, ...second, surface, rotation);
+            assert.deepEqual(doc.validate(), []);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
+        }
+        const flat = new model.Document(4, 4);
         for (let level = 0; level <= 4; level++) {
-            long.vertices.fill(level); assert.doesNotThrow(() => long.place(id, 0, 1)); long.objects = [];
+            flat.vertices.fill(level); assert.doesNotThrow(() => flat.place(id, 0, 1)); flat.objects = [];
+        }
+    }
+});
+test('sloped stunts require v5 while valid v3 and v4 tracks upgrade before new placements', () => {
+    for (const id of [66, 67, 115, 116]) {
+        const entry = model.catalog.find(piece => piece.id === id);
+        const source = new model.Document(4, 4);
+        for (let y = 0; y <= 4; y++) for (let x = 0; x <= 4; x++)
+            source.vertices[y * 5 + x] = entry.rotation % 2 ? Math.min(x, 2) : Math.min(y, 2);
+        const placed = source.place(id, 1, 1);
+        const encoded = model.encodeCstrk(source);
+        for (const version of [3, 4]) {
+            const invalid = encoded.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+            assert.throws(() => model.decodeCstrk(invalid), /require.*version v5/);
+            source.version = version;
+            source.objects = [placed];
+            assert.throws(() => model.encodeCstrk(source), /require.*version v5/);
+            source.objects = [];
+            assert.throws(() => source.place(id, 1, 1), /require.*version v5/);
+            const legacy = model.encodeCstrk(source), upgraded = model.decodeCstrk(legacy);
+            assert.equal(upgraded.version, model.VERSION);
+            upgraded.place(id, 1, 1);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(upgraded)).snapshot(), upgraded.snapshot());
+        }
+        for (const version of [3, 4]) {
+            const flat = new model.Document(4, 4); flat.version = version; flat.place(id, 1, 1);
+            assert.equal(model.decodeCstrk(model.encodeCstrk(flat)).objects[0].id, id);
         }
     }
 });
@@ -758,7 +803,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 4); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 5); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);

@@ -189,9 +189,52 @@ static void test_native_corkscrew_gates(void)
 	}
 }
 
+static void test_sloped_tunnel_portals(void)
+{
+	static const legacy_s8 slopes[TEST_ROTATION_COUNT][2] = {{0, -1}, {-1, 0}, {0, 1}, {1, 0}};
+	fixture_extended = 1;
+	fixture_track.height = TRACK_GRID_SIZE;
+	fixture_object.x = 0;
+	fixture_object.y = TRACK_GRID_LAST_INDEX;
+	fixture_object.width = fixture_object.height = 1;
+	track_route_element_ids = fixture_elements;
+	track_route_columns = fixture_columns;
+	track_route_rows = fixture_rows;
+	trkObjectList[TEST_OBJECT_ID].ss_physicalModel = PHYSICAL_MODEL_TUNNEL;
+	for (legacy_u8 direction = 0; direction < TEST_ROTATION_COUNT; direction++) {
+		fixture_object.legacy_id = direction & 1U ? CSTRK_TUNNEL_LAST_ID : CSTRK_TUNNEL_FIRST_ID;
+		fixture_object.slope_x = slopes[direction][0];
+		fixture_object.slope_y = slopes[direction][1];
+		for (legacy_u8 base = 0; base < CSTRK_MAX_HEIGHT; base++) {
+			fixture_object.base_height = base + (direction < TEST_ROTATION_COUNT / 2U);
+			for (legacy_s16 portal = 0; portal < 2; portal++) {
+				struct VECTOR origin;
+				extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
+				struct OWOOT_GATE gate = {0};
+				gate.center = route_vector(&origin);
+				gate.tangent = direction & 1U ? (struct OWOOT_POINT){CSTRK_TILE_WORLD_SIZE, 0, 0}
+											  : (struct OWOOT_POINT){0, 0, CSTRK_TILE_WORLD_SIZE};
+				assert(route_extended_tube_gate(0, portal, 2, &gate));
+				legacy_s16 floor = fixture_object.base_height;
+				if ((direction & 1U) && portal) {
+					floor += fixture_object.slope_x;
+				} else if (!(direction & 1U) && !portal) {
+					floor += fixture_object.slope_y;
+				}
+				assert(gate.center.y == floor * CSTRK_LEVEL_WORLD_HEIGHT + TUNNEL_HEIGHT / 2);
+				assert(gate.kind == OWOOT_GATE_TUNNEL);
+				assert(gate.tangent.y == 0 && gate.normal.x == 0 && gate.normal.z == 0);
+				assert(gate.normal.y == OWOOT_GATE_SCALE);
+				assert(gate.normal_limit == TUNNEL_HEIGHT / 2 * OWOOT_GATE_SCALE);
+			}
+		}
+	}
+}
+
 legacy_int main(void)
 {
 	test_native_wall_response();
 	test_native_corkscrew_gates();
+	test_sloped_tunnel_portals();
 	return 0;
 }
