@@ -206,6 +206,17 @@ static legacy_s16 fixed_queue_cost;
 legacy_u16 frame_callback_count;
 legacy_s8 *lookahead_tiles_tables[8];
 
+legacy_int cstrk_terrain_profile(const struct CSTRK_TRACK *track, legacy_u16 x, legacy_u16 y,
+								 struct CSTRK_TERRAIN_PROFILE *profile)
+{
+	(void)track;
+	(void)x;
+	(void)y;
+	(void)profile;
+	assert(0 && "Classic frame fixtures must not query extended terrain");
+	return 0;
+}
+
 enum { ADAPTIVE_TEST_CAPTURE_COUNT = 16 };
 static legacy_s16 adaptive_capture_enabled;
 static legacy_s16 adaptive_captured_count;

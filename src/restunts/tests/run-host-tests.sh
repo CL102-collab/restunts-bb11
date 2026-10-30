@@ -196,7 +196,7 @@ run_host_test test-frame-render math.c \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers "$test_uninitialized_flag" \
     -Wno-missing-braces
 run_host_test test-frame-render math.c -DRESTUNTS_SDL3 \
-    "$test_source_dir/frame_adaptive.c" \
+    "$test_source_dir/frame_adaptive.c" "$test_source_dir/extended_frame.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/heapsort.c" "$test_source_dir/trkutil.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers "$test_uninitialized_flag" \
