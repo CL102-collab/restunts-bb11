@@ -33,15 +33,6 @@ struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
 #endif
 
 #if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset)
-{
-	curtransshape_ptr->pos.x = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.x, offset->x);
-	curtransshape_ptr->pos.y = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.y, offset->y);
-	curtransshape_ptr->pos.z = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.z, offset->z);
-}
-#endif
-
-#if defined(RESTUNTS_SDL3)
 void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,
 						  const struct VECTOR *camera_position, const struct SHAPE3D *shape)
 {
@@ -65,17 +56,19 @@ void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *si
 }
 #endif
 
-legacy_s16 frame_hires_low_car_model(const struct TRACKOBJECT *track_object, legacy_s8 tile_detail)
+void frame_hires_override_car_detail(const struct TRACKOBJECT *track_object, legacy_s8 tile_detail,
+									 legacy_s16 *low_detail)
 {
 #if !defined(RESTUNTS_SDL3)
 	(void)track_object;
 #endif
-	return (tile_detail != FRAME_TILE_DETAIL_FULL ||
-			(supersight_enabled == 0 && detail_level >= FRAME_CAR_LOW_DETAIL_FIRST))
+	if (supersight_enabled != 0) {
+		*low_detail = tile_detail != FRAME_TILE_DETAIL_FULL
 #if defined(RESTUNTS_SDL3)
-		   && (supersight_enabled == 0 || track_object->ss_loShapePtr != 0)
+					  && track_object->ss_loShapePtr != 0
 #endif
-		;
+			;
+	}
 }
 
 #if defined(RESTUNTS_SDL3)
@@ -94,7 +87,6 @@ legacy_s16 frame_hires_prepare_car(const struct CARSTATE *carstate, legacy_s8 de
 		}
 		*tile_detail = adaptive_flags == FRAME_ADAPTIVE_LOW_GEOMETRY;
 	}
-	*render_offset = (struct VECTOR){0, 0, 0};
 	if (supersight_enabled != 0) {
 		*flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
 		*render_offset = frame_car_render_offset(carstate, wheel_shape);

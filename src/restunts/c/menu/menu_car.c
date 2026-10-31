@@ -116,6 +116,7 @@ struct CAR_MENU_STATE {
 	legacy_u16 opponent_type;
 #ifdef RESTUNTS_SDL3
 	struct HIRES_SHOWROOM hires;
+	legacy_u64 prepared_render_ns;
 #endif
 };
 
@@ -188,6 +189,7 @@ static void car_menu_initialize(struct CAR_MENU_STATE *menu)
 	menu->rotation = 0;
 #ifdef RESTUNTS_SDL3
 	hires_showroom_initialize(&menu->hires);
+	menu->prepared_render_ns = 0;
 #endif
 	menu->selected = CAR_MENU_DONE_BUTTON;
 	menu_reset_animation_timers();
@@ -333,7 +335,7 @@ static void car_menu_prepare_preview(struct CAR_MENU_STATE *menu)
 	if (menu->render_phase == CAR_RENDER_IDLE_PHASE ||
 		menu->render_phase == CAR_RENDER_START_PHASE) {
 #ifdef RESTUNTS_SDL3
-		hires_showroom_prepare_begin(&menu->hires);
+		legacy_u64 prepare_started = presentation_now();
 #endif
 		legacy_s16 car_position_angle = (legacy_s16)polarAngle(carmenu_carpos.y, carmenu_carpos.z);
 		menu->current_rect = slow_video_mgmt_copy != 0 ? empty_rect : carmenu_cliprect;
@@ -367,7 +369,9 @@ static void car_menu_prepare_preview(struct CAR_MENU_STATE *menu)
 #endif
 		}
 #ifdef RESTUNTS_SDL3
-		hires_showroom_prepare_end(&menu->hires);
+		/* Preview preparation contributes to render timing in both display modes.
+		 * Exclude input handling and the wait before deferred rasterization. */
+		menu->prepared_render_ns = presentation_now() - prepare_started;
 #endif
 	}
 }
@@ -379,7 +383,14 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 		menu->render_phase = CAR_RENDER_IDLE_PHASE;
 		menu->car_ready = 1;
 #ifdef RESTUNTS_SDL3
-		hires_showroom_render_begin(&menu->hires, menu->blit_mode == MENU_BLIT_MODE_REFRESH);
+		legacy_u8 complete_frame = menu->blit_mode == MENU_BLIT_MODE_REFRESH;
+		if (complete_frame != 0) {
+			/* Geometry is already queued at the current scale. Keep that scale and
+			 * leave the initial dissolve free to present each of its phases. */
+			sdl3_video_begin_track_frame(0);
+			sdl3_video_add_render_work(menu->prepared_render_ns);
+		}
+		menu->prepared_render_ns = 0;
 #endif
 		sprite_select_render_window();
 		sprite_set_target_clip_bounds(menu->union_rect.left, menu->union_rect.right,
@@ -436,7 +447,9 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 		mouse_draw_transparent_check();
 		frame_fps_record_presented();
 #ifdef RESTUNTS_SDL3
-		hires_showroom_render_end(&menu->hires);
+		if (complete_frame != 0) {
+			sdl3_video_end_frame();
+		}
 #endif
 		menu->previous_car_index = menu->car_index;
 	}

@@ -52,7 +52,7 @@ void hires_track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, 
 	}
 }
 
-static legacy_s16 hires_track_preview_batch_scene(void)
+legacy_s16 hires_track_preview_batch_scene(void)
 {
 #ifdef RESTUNTS_SDL3
 	return hires_enabled();
@@ -61,16 +61,9 @@ static legacy_s16 hires_track_preview_batch_scene(void)
 #endif
 }
 
-void hires_track_preview_flush_tile(void)
+void hires_track_preview_flush_scene(legacy_s16 batch_scene)
 {
-	if (!hires_track_preview_batch_scene()) {
-		shape3d_render_queued_primitives();
-	}
-}
-
-void hires_track_preview_flush_scene(void)
-{
-	if (hires_track_preview_batch_scene()) {
+	if (batch_scene != 0) {
 		shape3d_render_queued_primitives();
 	}
 }

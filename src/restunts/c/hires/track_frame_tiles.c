@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-legacy_s16 extended_frame_first_tile_pass(void)
+void extended_frame_first_tile_pass(legacy_s16 *first_pass)
 {
-	return supersight_enabled != 0 && extended_track_active() ? FRAME_TILE_GROUND_PASS
-															  : FRAME_TILE_OBJECT_PASS;
+	if (supersight_enabled != 0 && extended_track_active()) {
+		*first_pass = FRAME_TILE_GROUND_PASS;
+	}
 }
 
 legacy_s32 extended_frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
@@ -65,12 +66,9 @@ void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 	tiles->lookahead = tiles->extended_lookahead;
 }
 
-legacy_s16 extended_frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
-											 const struct FRAME_TILE *tile, legacy_s16 tile_index)
+legacy_s16 hires_track_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
+										  const struct FRAME_TILE *tile, legacy_s16 tile_index)
 {
-	if (extended_track_active()) {
-		return 1;
-	}
 	if (tile->element != 0) {
 		legacy_s16 multitile_flag = trkObjectList[tile->element].ss_multiTileFlag;
 		if (multitile_flag != FRAME_MULTITILE_NONE) {
@@ -96,23 +94,12 @@ legacy_s16 extended_frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 	return 0;
 }
 
-void extended_frame_position_tiles(struct FRAME_TILE_SELECTION *tiles,
-								   const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
+void hires_track_position_tiles(struct FRAME_TILE_SELECTION *tiles,
+								const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
 {
-	if (extended_track_active()) {
-		extended_frame_position_camera_tiles(tiles, camera);
-		if (supersight_enabled != 0) {
-			extended_frame_extend_lookahead(tiles, camera, adaptive);
-		}
+	if (supersight_enabled != 0) {
+		extended_frame_extend_lookahead(tiles, camera, adaptive);
 	}
-}
-
-legacy_s16 extended_frame_front_fences(const struct FRAME_TILE *tile,
-									   const struct FRAME_TILE_SELECTION *tiles,
-									   const struct FRAME_CAMERA *camera, legacy_s8 flags)
-{
-	return extended_track_active() && extended_frame_draw_fences(tile, tiles, camera, flags) != 0 &&
-		   supersight_enabled != 0;
 }
 
 #endif

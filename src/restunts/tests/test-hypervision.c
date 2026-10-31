@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,7 +63,7 @@ static const legacy_u8 *end_frame(void)
 	(void)hypervision_end(&target, 0);
 	hires_end();
 	legacy_s32 width, height;
-	const legacy_u8 *pixels = hires_framebuffer(screen, &width, &height);
+	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	assert(pixels != NULL && width == target.width && height == target.height);
 	return pixels;
 }

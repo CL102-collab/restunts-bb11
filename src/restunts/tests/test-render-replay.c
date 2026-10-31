@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -277,7 +278,7 @@ static legacy_u8 *capture_snapshot_pixels(const struct GAMESTATE *snapshot, size
 	legacy_s32 width;
 	legacy_s32 height;
 	const legacy_u8 *pixels =
-		hires_framebuffer(dos_memory_make_pointer(0xA000U, 0), &width, &height);
+		video_framebuffer(dos_memory_make_pointer(0xA000U, 0), &width, &height);
 	assert(pixels != NULL);
 	*size = (size_t)width * height;
 	legacy_u8 *copy = malloc(*size);

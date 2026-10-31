@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <float.h>
 #include <stdio.h>
@@ -33,7 +34,7 @@ static const legacy_u8 *pixels(void)
 {
 	legacy_s32 width;
 	legacy_s32 height;
-	const legacy_u8 *result = hires_framebuffer(screen, &width, &height);
+	const legacy_u8 *result = video_framebuffer(screen, &width, &height);
 	assert(width == hires_render_width() && height == hires_render_height());
 	return result;
 }

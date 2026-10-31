@@ -59,16 +59,8 @@ legacy_u8 frame_adaptive_tile_flags(const struct FRAME_TILE *tile);
 #endif
 
 #if defined(RESTUNTS_SDL3)
-struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 detail);
-#endif
-
-#if defined(RESTUNTS_SDL3)
 struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
 									  const struct SHAPE3D *wheel_shape);
-#endif
-
-#if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset);
 #endif
 
 #if defined(RESTUNTS_SDL3)
@@ -101,25 +93,15 @@ legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
 
 legacy_s16 frame_hires_enabled(void);
 
-legacy_s16 frame_hires_sort_depth(void);
+legacy_s16 frame_hires_uses_screen_depth(void);
 
-legacy_s16 frame_hires_attached_particles(void);
+legacy_s16 frame_hires_adaptive_enabled(void);
 
 legacy_s16 frame_hires_cell_hidden(legacy_s16 east, legacy_s16 south);
 
-struct SHAPE3D *frame_hires_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail);
-
-legacy_s16 frame_hires_dynamic_shape(const struct TRACKOBJECT *track_object,
-									 const struct VECTOR *camera_position);
-
-legacy_s16 frame_hires_wheel_tile(const struct CARSTATE *carstate, const struct VECTOR *rotated,
-								  legacy_s8 *tile_east, legacy_s8 *tile_south);
-
-legacy_s16 frame_hires_prepare_tile(struct FRAME_TILE *tile,
-									const struct FRAME_TILE_SELECTION *tiles,
-									legacy_s16 tile_index);
-
-legacy_s16 frame_hires_low_car_model(const struct TRACKOBJECT *track_object, legacy_s8 tile_detail);
+legacy_s16 frame_hires_tile_detail(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 tile_index,
+								   legacy_s8 *detail);
+legacy_s16 frame_hires_prepare_tile(struct FRAME_TILE *tile);
 
 legacy_s16 frame_hires_prepare_car(const struct CARSTATE *carstate, legacy_s8 debris_owner,
 								   const struct SHAPE3D *wheel_shape, legacy_s8 *tile_detail,
@@ -127,22 +109,14 @@ legacy_s16 frame_hires_prepare_car(const struct CARSTATE *carstate, legacy_s8 de
 
 void frame_hires_car_flags(legacy_s8 flags);
 
-legacy_s16 frame_hires_omit_tile(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 tile_index,
-								 legacy_s8 detail_threshold);
-
 void frame_hires_prepare_tiles(struct FRAME_TILE_SELECTION *tiles,
 							   const struct FRAME_CAMERA *camera);
-
-void frame_hires_position_tiles(struct FRAME_TILE_SELECTION *tiles,
-								const struct FRAME_CAMERA *camera);
 
 legacy_s16 frame_hires_draw_covered_water(const struct FRAME_TILE *tile,
 										  const struct FRAME_CAMERA *camera,
 										  legacy_s8 redraw_transform_flags);
 
 void frame_hires_begin(void);
-
-void frame_hires_end(void);
 
 void frame_hires_prepare_ground(const struct FRAME_CAMERA *camera);
 
@@ -152,10 +126,17 @@ legacy_s16 frame_hires_draw_scene(struct FRAME_TILE_SELECTION *tiles, struct FRA
 
 legacy_s16 frame_hires_dashboard_top(const struct RECTANGLE *cliprect);
 
-legacy_s16 frame_hires_exhausted(legacy_s16 result);
-legacy_s16 frame_hires_racing_line_flags(legacy_s8 redraw_transform_flags);
-
-legacy_u16 frame_hires_prepare_text(void);
-legacy_u16 frame_hires_filename_reserved(legacy_s16 y, legacy_u16 reserved);
+void frame_hires_override_car_detail(const struct TRACKOBJECT *track_object, legacy_s8 tile_detail,
+									 legacy_s16 *low_detail);
+void frame_hires_racing_line_flags(legacy_u8 *flags);
+#if defined(RESTUNTS_SDL3)
+void frame_hires_override_track_shape(const struct TRACKOBJECT *object, struct SHAPE3D **shape);
+void frame_hires_override_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail,
+										struct SHAPE3D **shape);
+legacy_s16 frame_hires_dynamic_shape(const struct TRACKOBJECT *track_object,
+									 const struct VECTOR *camera_position, struct SHAPE3D **shape);
+legacy_s16 frame_hires_wheel_tile(const struct CARSTATE *carstate, const struct VECTOR *rotated,
+								  legacy_s8 *tile_east, legacy_s8 *tile_south, legacy_s16 *visible);
+#endif
 
 #endif

@@ -480,7 +480,10 @@ static legacy_u16 shape3d_legacy_record_index(polyinfo_index record_index)
 #if (defined(RESTUNTS_SDL3))
 legacy_u32 shape3d_queued_primitive_count(void)
 {
-	return shape3d_hires_scene_count();
+	if (hires_enabled()) {
+		return shape3d_hires_scene_count();
+	}
+	return polyinfonumpolys;
 }
 #endif
 
@@ -491,6 +494,7 @@ void shape3d_render_queued_primitives(void)
 #endif
 #if defined(RESTUNTS_SDL3)
 	if (shape3d_hires_render_scene()) {
+		polyinfo_reset();
 		return;
 	}
 #endif

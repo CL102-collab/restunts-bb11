@@ -286,16 +286,18 @@ extern legacy_void RsUpdatePenaltyDisplay();
 extern legacy_void RsUpdatePlayerRoutePenalty();
 extern legacy_void RsUpdatePlayerRouteGuidance(legacy_s8 previous_route_status);
 extern legacy_void RsFrameSupersightReset();
-extern legacy_void RsFrameFpsReset();
 extern legacy_void RsFrameSupersightShowStatus(legacy_s8 *name);
 extern legacy_s16 RsFrameStatusOverlayActive();
 extern legacy_s16 RsFrameStatusExpireIdle();
 extern CRectangle *RsFrameStatusDrawText();
+extern legacy_void RsFrameFpsReset();
 extern legacy_s16 RsFrameDisplayOverlayActive();
 extern legacy_s16 RsFrameFpsExpireIdle();
 extern legacy_void RsFrameFpsRecordPresented();
 extern legacy_void RsFrameFpsPresentRoof();
 extern CRectangle *RsFrameFpsDrawText();
+extern legacy_u16 RsFrameFpsPrepareText();
+extern legacy_u16 RsFrameFpsFilenameReserved(legacy_s16 y,legacy_u16 reserved);
 extern CRectangle *RsDrawIngameText();
 extern CRectangle *RsInitCrak(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
 extern CRectangle *RsDoSinking(legacy_s16 frame,legacy_s16 top,legacy_s16 height);
@@ -349,6 +351,7 @@ extern legacy_u32 RsRaceRecordedFrames();
 extern legacy_void RsRaceUpdateRewind(CRaceRewindState *rewind);
 extern legacy_u32 RsRaceGhostFrame();
 extern legacy_void RsRaceDrawFrame();
+extern legacy_void RsRaceSelectRenderTarget();
 extern legacy_void RsGhostLineClear();
 extern legacy_void RsGhostLineFinish();
 extern legacy_void RsGhostLineRecord(CCarState *car);
@@ -385,8 +388,6 @@ extern legacy_s16 RsAudioEffectChannelIdle(legacy_s16 channel);
 extern legacy_void RsAudioRequestContextFade(legacy_s16 index);
 extern legacy_void RsAudioFadeOut(legacy_s16 delay_ticks);
 extern legacy_void RsAudioSequenceTimer();
-extern legacy_u16 RsShape3dHiresPolyinfoSize();
-extern legacy_void RsShape3dHiresSetQueueMode(legacy_u8 enabled);
 extern legacy_s8 RsIsFacingCamera(CPoint2D *pts);
 extern legacy_u16 RsShape3dPreparePrimitiveVertices(
     CShape3D *shape,CShape3DTransformContext *context,legacy_u16 *any_vertex_behind);
@@ -407,26 +408,23 @@ extern legacy_void RsFrameDrawSupersight(CFrameTileSelection *tiles,CFrameCamera
     CFrameCarRender *cars,legacy_s8 buffer_index,legacy_s8 redraw_transform_flags,
     legacy_s8 animated_material);
 extern legacy_s16 RsFrameSupersightFirstAttempt(CFrameTileSelection *tiles,CFrameCamera *camera);
-extern legacy_s16 RsFrameHiresSortDepth();
-extern legacy_s16 RsFrameHiresPrepareTile(
-    CFrameTile *tile,CFrameTileSelection *tiles,legacy_s16 tile_index);
-extern legacy_s16 RsFrameHiresLowCarModel(CTrackObject *track_object,legacy_s8 tile_detail);
-extern legacy_s16 RsFrameHiresOmitTile(
-    CFrameTileSelection *tiles,legacy_s16 tile_index,legacy_s8 detail_threshold);
+extern legacy_s16 RsFrameHiresEnabled();
+extern legacy_s16 RsFrameHiresUsesScreenDepth();
+extern legacy_s16 RsFrameHiresTileDetail(
+    CFrameTileSelection *tiles,legacy_s16 tile_index,legacy_s8 *detail);
+extern legacy_s16 RsFrameHiresPrepareTile(CFrameTile *tile);
 extern legacy_void RsFrameHiresPrepareTiles(CFrameTileSelection *tiles,CFrameCamera *camera);
 extern legacy_s16 RsFrameHiresDrawCoveredWater(
     CFrameTile *tile,CFrameCamera *camera,legacy_s8 redraw_transform_flags);
 extern legacy_void RsFrameHiresBegin();
-extern legacy_void RsFrameHiresEnd();
 extern legacy_void RsFrameHiresPrepareGround(CFrameCamera *camera);
 extern legacy_s16 RsFrameHiresDrawScene(CFrameTileSelection *tiles,CFrameCamera *camera,
     CFrameCarRender *cars,legacy_s8 buffer_index,legacy_s8 redraw_transform_flags,
     legacy_s8 animated_material);
 extern legacy_s16 RsFrameHiresDashboardTop(CRectangle *cliprect);
-extern legacy_s16 RsFrameHiresExhausted(legacy_s16 result);
-extern legacy_s16 RsFrameHiresRacingLineFlags(legacy_s8 redraw_transform_flags);
-extern legacy_u16 RsFrameHiresPrepareText();
-extern legacy_u16 RsFrameHiresFilenameReserved(legacy_s16 y,legacy_u16 reserved);
+extern legacy_void RsFrameHiresOverrideCarDetail(
+    CTrackObject *track_object,legacy_s8 tile_detail,legacy_s16 *low_detail);
+extern legacy_void RsFrameHiresRacingLineFlags(legacy_u8 *flags);
 extern CCarState *RsFrameSecondCarState();
 extern CCarState *RsFrameViewedCarState();
 extern CGhostCameraState *RsFrameViewedGhostCamera();
@@ -449,8 +447,8 @@ extern legacy_void RsFrameDrawClassic(CFrameTileSelection *tiles,CFrameCamera *c
 extern legacy_void RsHiresTrackPreviewDrawCoveredWater(legacy_u8 track,legacy_u8 terrain,
     legacy_u8 column,legacy_u8 row,CVector *camera,CTransformedShape3D *transformed,
     legacy_u8 *draw_terrain);
-extern legacy_void RsHiresTrackPreviewFlushTile();
-extern legacy_void RsHiresTrackPreviewFlushScene();
+extern legacy_s16 RsHiresTrackPreviewBatchScene();
+extern legacy_void RsHiresTrackPreviewFlushScene(legacy_s16 batch_scene);
 extern legacy_s16 RsExtendedRaceRouteAlternate(legacy_s16 legacy_track);
 extern legacy_s16 RsExtendedRaceRouteSentinelBounds(legacy_s16 piece,legacy_u8 *minimum_row,
     legacy_u8 *maximum_row,legacy_u8 *minimum_column,legacy_u8 *maximum_column);

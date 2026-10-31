@@ -495,11 +495,11 @@ void hires_forget_range(const void *base, legacy_u32 size)
 
 const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
 {
-	*width = hires_state.enabled ? hires_state.render_width : HIRES_LOGICAL_WIDTH;
-	*height = hires_state.enabled ? hires_state.render_height : HIRES_LOGICAL_HEIGHT;
 	if (!hires_state.enabled) {
-		return legacy;
+		return NULL;
 	}
+	*width = hires_state.render_width;
+	*height = hires_state.render_height;
 	if (hires_state.framebuffer == NULL) {
 		hires_state.framebuffer =
 			hires_allocate(hires_state.render_width * hires_state.render_height);
@@ -587,16 +587,10 @@ static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palett
 void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 								 legacy_u32 *destination, legacy_s32 pitch)
 {
-	if (hires_state.enabled) {
-		hires_compose_argb(legacy, palette, hires_find(legacy), destination, pitch);
+	if (!hires_state.enabled) {
 		return;
 	}
-	for (legacy_s32 row = 0; row < HIRES_LOGICAL_HEIGHT; row++) {
-		legacy_u32 *output = (legacy_u32 *)((legacy_u8 *)destination + row * pitch);
-		for (legacy_s32 column = 0; column < HIRES_LOGICAL_WIDTH; column++) {
-			output[column] = palette[legacy[row * HIRES_LOGICAL_WIDTH + column]];
-		}
-	}
+	hires_compose_argb(legacy, palette, hires_find(legacy), destination, pitch);
 }
 
 const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette)

@@ -214,3 +214,88 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 		}
 	}
 }
+
+legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *object,
+										   const struct TRACKOBJECT *definition,
+										   const struct SHAPE3D *source, legacy_u8 surface)
+{
+	struct SHAPE3D mesh;
+	if (!extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
+										   object->definition->ss_physicalModel)) {
+		return 0;
+	}
+	struct VECTOR anchor;
+	const struct VECTOR *upright_anchor =
+		hires_track_object_anchor(object, definition, source, &anchor);
+	if (object->graded) {
+		frame_extended_apply_object_grade(&mesh, object->object, upright_anchor);
+	} else if (frame_extended_object_sloped(object->object) && !object->native_grass) {
+		frame_extended_remove_hill_grass(&mesh);
+	}
+	if (!mesh.shape3d_numprimitives) {
+		extended_geometry_free_shape(&mesh);
+		return 0;
+	}
+	struct TRANSFORMEDSHAPE3D instance = frame_extended_object_instance(object, &mesh);
+	legacy_s16 result;
+	if (!hires_track_queue_object(&instance, object, source, upright_anchor, &result)) {
+		result = frame_extended_queue_hill_shape(&instance, object->edges);
+	}
+	extended_geometry_free_shape(&mesh);
+	return hires_track_queue_exhausted(result);
+}
+
+legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OBJECT *object,
+										   const struct TRACKOBJECT *definition, legacy_u8 overlay)
+{
+	legacy_u8 surface = overlay && object->definition->ss_physicalModel == PHYSICAL_MODEL_OVERPASS
+							? object->object->lower_surface
+							: object->object->surface;
+	const struct SHAPE3D *source = frame_track_shape(definition, object->detail);
+	if (frame_extended_object_sloped(object->object) && !object->graded && object->native_grass &&
+		(overlay || surface < source->shape3d_numpaints)) {
+		struct TRANSFORMEDSHAPE3D instance =
+			frame_extended_object_instance(object, (struct SHAPE3D *)source);
+		instance.rotvec.z = definition->ss_rotY;
+		instance.ts_flags |= definition->ss_ignoreZBias;
+		instance.material = overlay ? 0 : surface;
+		return hires_track_queue_exhausted(
+			(legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges));
+	}
+	return frame_extended_draw_object_mesh(object, definition, source, surface);
+}
+
+void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edges)
+{
+	if ((edges & FRAME_EXTENDED_HILL_EAST) && point->x > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->x <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->x = FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_WEST) && point->x < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->x >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->x = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_NORTH) && point->z > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->z <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->z = FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+	if ((edges & FRAME_EXTENDED_HILL_SOUTH) && point->z < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
+		point->z >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
+		point->z = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
+	}
+}
+
+legacy_u8 frame_extended_grade_edges(const struct CSTRK_OBJECT *object)
+{
+	return object->slope_x ? FRAME_EXTENDED_HILL_EAST | FRAME_EXTENDED_HILL_WEST
+						   : FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_SOUTH;
+}
+
+legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, legacy_u8 edges)
+{
+	legacy_u16 result;
+	if (hires_track_queue_hill_shape(instance, edges, &result)) {
+		return result;
+	}
+	return shape3d_transform_and_queue(instance);
+}

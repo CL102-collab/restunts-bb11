@@ -166,6 +166,7 @@ extern polyinfo_index queued_ghost_primitives;
 extern polyinfo_index polyinfo_primitive_capacity;
 
 #if (defined(RESTUNTS_SDL3))
+/* Reserve shared primitive and record storage for either rasterizer. */
 void polyinfo_reserve(void);
 #endif
 legacy_u16 polyinfo_read_word(const legacy_u8 far *record, legacy_u16 word_index);

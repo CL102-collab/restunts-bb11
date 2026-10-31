@@ -25,7 +25,7 @@ void frame_add_roadside_sign(const struct FRAME_TILE *tile, const struct FRAME_C
 			curtransshape_ptr->pos.z = LEGACY_S16_WRAP_SUB(
 				roadside_sign_positions[breakable_object_index].z, camera->position.z);
 #if defined(RESTUNTS_SDL3)
-			curtransshape_ptr->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
+			curtransshape_ptr->shapeptr = frame_terrain_shape(track_object, tile->detail);
 #else
 			curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
 #endif
@@ -39,7 +39,7 @@ void frame_add_roadside_sign(const struct FRAME_TILE *tile, const struct FRAME_C
 			transformed_shape_add_for_sort(0, 0);
 		} else if (frame_state->game_particles_active != 0
 #if defined(RESTUNTS_SDL3)
-				   && frame_hires_attached_particles()
+				   && !frame_hires_adaptive_enabled()
 #endif
 		) {
 			for (legacy_s16 particle_index = 0; particle_index < FRAME_DEBRIS_SLOT_COUNT;
@@ -295,7 +295,8 @@ legacy_s16 frame_draw_racing_line(const struct FRAME_TILE *tile, const struct FR
 	instance.shapeptr = &shape;
 	instance.rectptr = &frame_sorted_shapes_rect;
 	instance.pos = frame_racing_line_origin(tile, camera);
-	instance.ts_flags = frame_hires_racing_line_flags(redraw_transform_flags);
+	instance.ts_flags = redraw_transform_flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
+	frame_hires_racing_line_flags(&instance.ts_flags);
 	instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
 	struct VECTOR origin;
 	origin.x = LEGACY_S16_WRAP_ADD(instance.pos.x, camera->position.x);
@@ -363,7 +364,7 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 {
 	legacy_s16 racing_line_pending = frame_has_racing_line(tile);
 	legacy_s16 racing_line_depth = 0;
-	legacy_s16 depth_sort_racing_line = frame_hires_sort_depth();
+	legacy_s16 depth_sort_racing_line = !frame_hires_uses_screen_depth();
 	if (racing_line_pending != 0 && depth_sort_racing_line != 0) {
 		struct VECTOR origin = frame_racing_line_origin(tile, camera);
 		struct VECTOR view;
@@ -374,7 +375,7 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 	}
 	if (transformedshape_counter != 0) {
 		if (transformedshape_counter >= FRAME_SORT_MINIMUM_SHAPE_COUNT &&
-			frame_hires_sort_depth()) {
+			!frame_hires_uses_screen_depth()) {
 			heapsort_by_order(transformedshape_counter, transformedshape_zarray,
 							  transformedshape_indices);
 		}
@@ -468,8 +469,8 @@ legacy_s16 frame_add_track_element(struct FRAME_TILE *tile, const struct FRAME_C
 	} else {
 		track_object = &trkObjectList[tile->element];
 		frame_position_track_element(tile, camera, track_object);
-		if (frame_hires_exhausted(
-				frame_draw_hill_fill(tile, track_object, redraw_transform_flags))) {
+		if (frame_draw_hill_fill(tile, track_object, redraw_transform_flags) != 0 &&
+			frame_hires_enabled()) {
 			return 1;
 		}
 
@@ -571,8 +572,14 @@ legacy_s16 frame_prepare_draw_tile(struct FRAME_TILE *tile,
 	tile->south = tiles->south[tile_index];
 	tile->element = tiles->elements[tile_index];
 	tile->terrain = tiles->terrain[tile_index];
+	if (!frame_hires_tile_detail(tiles, tile_index, &tile->detail)) {
+		tile->detail = tiles->detail[tile_index];
+	}
 	tile->depth_mask = 0;
-	return frame_hires_prepare_tile(tile, tiles, tile_index);
+#if defined(RESTUNTS_SDL3)
+	tile->adaptive_flags = 0;
+#endif
+	return frame_hires_prepare_tile(tile);
 }
 
 legacy_s16 frame_draw_tile_background(struct FRAME_TILE *tile,
@@ -585,7 +592,8 @@ legacy_s16 frame_draw_tile_background(struct FRAME_TILE *tile,
 #if defined(RESTUNTS_SDL3)
 		extended_frame_uses_legacy_tiles() &&
 #endif
-		frame_hires_exhausted(frame_draw_fences(tile, tiles, camera, redraw_transform_flags))) {
+		frame_draw_fences(tile, tiles, camera, redraw_transform_flags) != 0 &&
+		frame_hires_enabled()) {
 		return 1;
 	}
 #if defined(RESTUNTS_SDL3)
@@ -622,6 +630,6 @@ legacy_s16 frame_draw_tile_objects(struct FRAME_TILE *tile,
 	}
 	frame_add_tile_cars(tile, camera, cars, redraw_transform_flags);
 	frame_add_start_flag(tile, camera, redraw_transform_flags);
-	return frame_hires_exhausted(
-		frame_draw_sorted_shapes(cars, tile, camera, redraw_transform_flags));
+	return frame_draw_sorted_shapes(cars, tile, camera, redraw_transform_flags) != 0 &&
+		   frame_hires_enabled();
 }

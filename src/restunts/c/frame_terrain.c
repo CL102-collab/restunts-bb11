@@ -128,7 +128,7 @@ legacy_s16 frame_draw_elevated_corners(struct FRAME_TILE *tile, const struct FRA
 		if (tile->terrain != 0) {
 			track_object = &terrain_scene_objects[tile->terrain];
 #if defined(RESTUNTS_SDL3)
-			currenttransshape->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
+			currenttransshape->shapeptr = frame_terrain_shape(track_object, tile->detail);
 #else
 			currenttransshape->shapeptr = track_object->ss_shapePtr;
 #endif
@@ -168,8 +168,8 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 		// Special treatment of elevated corners
 		if (tile->element >= FRAME_ELEVATED_CORNER_FIRST &&
 			tile->element <= FRAME_ELEVATED_CORNER_LAST) {
-			if (frame_hires_exhausted(
-					frame_draw_elevated_corners(tile, camera, redraw_transform_flags))) {
+			if (frame_draw_elevated_corners(tile, camera, redraw_transform_flags) != 0 &&
+				frame_hires_enabled()) {
 				return 1;
 			}
 
@@ -192,7 +192,7 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 	if (tile->terrain != 0) {
 		track_object = &terrain_scene_objects[tile->terrain];
 #if defined(RESTUNTS_SDL3)
-		currenttransshape->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
+		currenttransshape->shapeptr = frame_terrain_shape(track_object, tile->detail);
 #else
 		currenttransshape->shapeptr = track_object->ss_shapePtr;
 #endif
@@ -322,4 +322,25 @@ legacy_s16 frame_prepare_overlay(const struct FRAME_TILE *tile,
 	}
 
 	return 0;
+}
+
+#if defined(RESTUNTS_SDL3)
+struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 detail)
+{
+	struct SHAPE3D *shape =
+		detail != FRAME_TILE_DETAIL_FULL ? object->ss_loShapePtr : object->ss_shapePtr;
+	frame_hires_override_track_shape(object, &shape);
+	return shape;
+}
+#endif
+
+struct SHAPE3D *frame_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail)
+{
+	struct SHAPE3D *shape = object->ss_shapePtr;
+#if defined(RESTUNTS_SDL3)
+	frame_hires_override_terrain_shape(object, detail, &shape);
+#else
+	(void)detail;
+#endif
+	return shape;
 }

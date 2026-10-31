@@ -147,3 +147,13 @@ legacy_void RsRaceDrawFrame()
   }
   RsFrameFpsRecordPresented();
 }
+
+legacy_void RsRaceSelectRenderTarget()
+{
+  if((video_uses_page_flipping!=0)) {
+    RsSpriteSelectMcgaBackbuffer();
+    (dashboard_buffer_index=TempleCastS8(frame_buffer_index));
+  } else {
+    RsSpriteSelectRenderWindow();
+  }
+}

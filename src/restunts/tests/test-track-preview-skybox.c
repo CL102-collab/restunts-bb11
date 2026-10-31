@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -85,7 +86,7 @@ static void prepare_sprite(struct SPRITE *sprite, legacy_u8 *rows, legacy_u16 se
 static void assert_frame(legacy_s32 enhanced)
 {
 	legacy_s32 width, height;
-	const legacy_u8 *pixels = hires_framebuffer(screen, &width, &height);
+	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	legacy_s32 scale = enhanced ? hires_render_scale() : HIRES_MINIMUM_SCALE;
 	legacy_s32 source_step = HIRES_SCALE / scale;
 	assert(width == 320 * scale && height == 200 * scale);
@@ -195,7 +196,7 @@ static void test_populated_preview(legacy_s32 scale)
 	sprite_clear_target(0);
 	sprite_putimage(preview.sprite_bitmapptr);
 	legacy_s32 width, height;
-	const legacy_u8 *pixels = hires_framebuffer(screen, &width, &height);
+	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	assert(width == HIRES_WIDTH / HIRES_SCALE * scale &&
 		   height == HIRES_HEIGHT / HIRES_SCALE * scale);
 	/* Distinct cells must both survive the batch. The farther panel is queued

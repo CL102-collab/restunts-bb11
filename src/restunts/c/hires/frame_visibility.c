@@ -109,37 +109,26 @@ legacy_u8 frame_adaptive_tile_flags(const struct FRAME_TILE *tile)
 }
 #endif
 
-#if defined(RESTUNTS_SDL3)
-struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 detail)
-{
-	/* A missing alternative must never turn a detail reduction into removal. */
-	return detail != FRAME_TILE_DETAIL_FULL &&
-				   (supersight_enabled == 0 || object->ss_loShapePtr != 0)
-			   ? object->ss_loShapePtr
-			   : object->ss_shapePtr;
-}
-#endif
-
 legacy_s16 frame_hires_enabled(void)
 {
 	return supersight_enabled != 0;
 }
 
-legacy_s16 frame_hires_sort_depth(void)
+legacy_s16 frame_hires_uses_screen_depth(void)
 {
 #if defined(RESTUNTS_SDL3)
-	return supersight_enabled == 0;
+	return supersight_enabled != 0;
 #else
-	return 1;
+	return 0;
 #endif
 }
 
-legacy_s16 frame_hires_attached_particles(void)
+legacy_s16 frame_hires_adaptive_enabled(void)
 {
 #if defined(RESTUNTS_SDL3)
-	return frame_adaptive_active == 0;
+	return frame_adaptive_active != 0;
 #else
-	return 1;
+	return 0;
 #endif
 }
 
@@ -150,71 +139,84 @@ legacy_s16 frame_hires_cell_hidden(legacy_s16 east, legacy_s16 south)
 		   frame_adaptive_flags(&frame_adaptive, east, south) == FRAME_ADAPTIVE_HIDE;
 }
 
-struct SHAPE3D *frame_hires_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail)
+void frame_hires_override_track_shape(const struct TRACKOBJECT *object, struct SHAPE3D **shape)
 {
-	return supersight_enabled != 0 ? frame_track_shape(object, detail) : object->ss_shapePtr;
+	if (supersight_enabled != 0 && *shape == 0) {
+		/* Enhanced detail reductions must not remove a mesh with no alternative. */
+		*shape = object->ss_shapePtr;
+	}
+}
+
+void frame_hires_override_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail,
+										struct SHAPE3D **shape)
+{
+	if (supersight_enabled != 0) {
+		*shape = frame_track_shape(object, detail);
+	}
 }
 
 legacy_s16 frame_hires_dynamic_shape(const struct TRACKOBJECT *track_object,
-									 const struct VECTOR *camera_position)
+									 const struct VECTOR *camera_position, struct SHAPE3D **shape)
 {
 	legacy_u8 adaptive_flags =
 		frame_adaptive_position_flags(&curtransshape_ptr->pos, camera_position);
 	if (adaptive_flags == FRAME_ADAPTIVE_HIDE) {
 		return 0;
 	}
-	curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
 	if (adaptive_flags == FRAME_ADAPTIVE_LOW_GEOMETRY && track_object->ss_loShapePtr != 0) {
-		curtransshape_ptr->shapeptr = track_object->ss_loShapePtr;
+		*shape = track_object->ss_loShapePtr;
 	}
 	return 1;
 }
 
 legacy_s16 frame_hires_wheel_tile(const struct CARSTATE *carstate, const struct VECTOR *rotated,
-								  legacy_s8 *tile_east, legacy_s8 *tile_south)
+								  legacy_s8 *tile_east, legacy_s8 *tile_south, legacy_s16 *visible)
 {
-	if (frame_adaptive_active != 0) {
-		legacy_s32 east = frame_adaptive_world_tile(carstate->car_position.lx, rotated->x);
-		legacy_s32 south = TRACK_GRID_LAST_COORDINATE -
-						   frame_adaptive_world_tile(carstate->car_position.lz, rotated->z);
-		if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 ||
-			south > TRACK_GRID_LAST_COORDINATE) {
-			return 0;
-		}
+	if (frame_adaptive_active == 0) {
+		return 0;
+	}
+	legacy_s32 east = frame_adaptive_world_tile(carstate->car_position.lx, rotated->x);
+	legacy_s32 south = TRACK_GRID_LAST_COORDINATE -
+					   frame_adaptive_world_tile(carstate->car_position.lz, rotated->z);
+	*visible = east >= 0 && east <= FRAME_TRACK_LAST_X && south >= 0 &&
+			   south <= TRACK_GRID_LAST_COORDINATE;
+	if (*visible) {
 		*tile_east = east;
 		*tile_south = south;
-	} else {
-		*tile_east = frame_tile_from_world_offset(carstate->car_position.lx, rotated->x);
-		*tile_south = frame_south_tile_from_world_offset(carstate->car_position.lz, rotated->z);
 	}
 	return 1;
 }
 #endif
 
-legacy_s16 frame_hires_prepare_tile(struct FRAME_TILE *tile,
-									const struct FRAME_TILE_SELECTION *tiles, legacy_s16 tile_index)
+legacy_s16 frame_hires_tile_detail(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 tile_index,
+								   legacy_s8 *detail)
 {
-	tile->detail = supersight_enabled != 0
-					   ? tiles->lookahead[tile_index].detail >= tiles->detail_threshold
-					   : tiles->detail[tile_index];
+	if (supersight_enabled == 0) {
+		return 0;
+	}
+	*detail = tiles->lookahead[tile_index].detail >= tiles->detail_threshold;
+	return 1;
+}
+
+legacy_s16 frame_hires_prepare_tile(struct FRAME_TILE *tile)
+{
 #if defined(RESTUNTS_SDL3)
-	tile->adaptive_flags = frame_adaptive_active != 0 ? frame_adaptive_tile_flags(tile) : 0;
+	if (frame_adaptive_active != 0) {
+		tile->adaptive_flags = frame_adaptive_tile_flags(tile);
+	}
 	if (tile->adaptive_flags == FRAME_ADAPTIVE_HIDE) {
 		return 0;
 	}
 	if ((tile->adaptive_flags & FRAME_ADAPTIVE_LOW_GEOMETRY) != 0) {
 		tile->detail = FRAME_TILE_DETAIL_FULL + 1;
 	}
+#else
+	(void)tile;
 #endif
 	return 1;
 }
 
-legacy_s16 frame_hires_exhausted(legacy_s16 result)
+void frame_hires_racing_line_flags(legacy_u8 *flags)
 {
-	return result != 0 && supersight_enabled != 0;
-}
-
-legacy_s16 frame_hires_racing_line_flags(legacy_s8 redraw_transform_flags)
-{
-	return redraw_transform_flags | FRAME_TRANSFORM_FLAGS_DEFAULT | SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
+	*flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
 }

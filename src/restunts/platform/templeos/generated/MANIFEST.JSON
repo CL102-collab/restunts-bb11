@@ -130,6 +130,8 @@
     "hires_shape3d_render",
     "hires_highscore_animation",
     "hires_skybox_scene",
+    "frame_context",
+    "frame_fps",
     "command_line",
     "headless_data",
     "headless_trackdata",
@@ -161,7 +163,7 @@
     "stateio",
     "memory"
   ],
-  "functions": 2329,
+  "functions": 2341,
   "classes": 109,
   "external": [
     "RsDosAudioBindChannelContext",

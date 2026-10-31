@@ -2,6 +2,7 @@
 #define RESTUNTS_HIRES_H
 
 #include "../legacy.h"
+#include "../video_framebuffer.h"
 
 /* Maximum raster size and authored artwork scale. Active dimensions may be smaller. */
 #define HIRES_SCALE 4
@@ -109,7 +110,8 @@ void hires_argb_pixel(legacy_s32 x, legacy_s32 y, legacy_u32 color);
 legacy_s32 hires_shadow_begin(void);
 void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity);
 const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette);
-/* Compose at the current output resolution directly into caller-owned rows.
+/* Compose the enhanced output directly into caller-owned rows.
+ * Disabled rendering leaves the destination untouched.
  * Pitch is in bytes; each row must be aligned for legacy_u32 and hold a full row. */
 void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 								 legacy_u32 *destination, legacy_s32 pitch);
@@ -124,6 +126,7 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 				  legacy_s16 operation, const legacy_u8 *palette);
 void hires_forget(const void *base);
 void hires_forget_range(const void *base, legacy_u32 size);
+/* Return enhanced samples, or NULL without changing dimensions when disabled. */
 const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height);
 legacy_u32 hires_generation(void);
 void hires_shutdown(void);

@@ -91,8 +91,17 @@ extern void (*imagefunc)(legacy_u16, legacy_u16, legacy_u16, legacy_u16, legacy_
 extern legacy_u8 *sphere_radius_rows[];
 
 #define POLYINFO_LEGACY_PRIMITIVE_CAPACITY 400U
+/* Fixed renderer work areas also provide the initial enhanced queue. */
+#define POLYINFO_STORAGE_PRIMITIVE_CAPACITY 592U
+#define POLYINFO_STORAGE_DATA_SIZE 13312U
 
-#if !defined(RESTUNTS_SDL3)
+#if defined(RESTUNTS_SDL3)
+typedef legacy_u32 polyinfo_index;
+typedef legacy_s32 polyinfo_link;
+typedef legacy_u32 polyinfo_offset;
+extern polyinfo_link *polygon_next_index;
+extern polyinfo_offset *polygon_record_offsets;
+#else
 typedef legacy_u16 polyinfo_index;
 typedef legacy_s16 polyinfo_link;
 typedef legacy_u16 polyinfo_offset;

@@ -207,12 +207,6 @@ legacy_s16 frame_supersight_first_attempt(const struct FRAME_TILE_SELECTION *til
 }
 #endif
 
-legacy_s16 frame_hires_omit_tile(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 tile_index,
-								 legacy_s8 detail_threshold)
-{
-	return supersight_enabled == 0 && tiles->lookahead[tile_index].detail > detail_threshold;
-}
-
 void frame_hires_prepare_tiles(struct FRAME_TILE_SELECTION *tiles,
 							   const struct FRAME_CAMERA *camera)
 {
@@ -226,11 +220,3 @@ void frame_hires_prepare_tiles(struct FRAME_TILE_SELECTION *tiles,
 		frame_extend_lookahead(tiles, camera);
 	}
 }
-
-#if defined(RESTUNTS_SDL3)
-void frame_hires_position_tiles(struct FRAME_TILE_SELECTION *tiles,
-								const struct FRAME_CAMERA *camera)
-{
-	extended_frame_position_tiles(tiles, camera, frame_adaptive_active);
-}
-#endif
