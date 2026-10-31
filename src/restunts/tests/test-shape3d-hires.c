@@ -1526,6 +1526,59 @@ static void test_far_primitive_depth_visibility(void)
 	}
 }
 
+static void test_precise_scene_origin(void)
+{
+	static legacy_u8 reference[HIRES_WIDTH * HIRES_HEIGHT];
+	const struct VECTOR panel[] = {
+		{-1000, -500, 0}, {-1000, 500, 0}, {1000, 500, 0}, {1000, -500, 0}};
+	const struct VECTOR position = {18000, -8000, 18000};
+	const legacy_u8 primitive[] = {4, 0, 0, 0, 1, 2, 3, 0, 0};
+	const legacy_s16 distant_scale = 16;
+	for (legacy_s16 precise = 0; precise < 2; precise++) {
+		for (legacy_s16 pass = 0; pass < 3; pass++) {
+			legacy_s16 scale = pass == 1 ? distant_scale : 1;
+			struct VECTOR packed[SDL_arraysize(panel)];
+			struct SHAPE3D_HIRES_VECTOR vertices[SDL_arraysize(panel)];
+			for (legacy_u16 vertex = 0; vertex < SDL_arraysize(panel); vertex++) {
+				packed[vertex] = (struct VECTOR){panel[vertex].x * scale, panel[vertex].y * scale,
+												 panel[vertex].z * scale};
+				vertices[vertex] = (struct SHAPE3D_HIRES_VECTOR){(panel[vertex].x + 0.125) * scale,
+																 (panel[vertex].y + 0.25) * scale,
+																 (panel[vertex].z + 0.5) * scale};
+			}
+			prepare_scene(packed, SDL_arraysize(panel), primitive, sizeof(primitive), 1);
+			struct RECTANGLE clip = {0, 320, 0, 200};
+			select_cliprect_rotate(0, 0, -ANGLE_QUARTER_TURN / 2, &clip, 0);
+			scene_instance.ts_flags = 8;
+			scene_instance.pos = position;
+			if (pass == 1) {
+				/* Every precise origin component exceeds a full 16-bit word. A
+				 * diagonal view also verifies that the offset precedes rotation. */
+				scene_instance.pos = (struct VECTOR){100, 100, 100};
+				struct SHAPE3D_HIRES_VECTOR origin = {
+					(legacy_f64)position.x * scale - scene_instance.pos.x,
+					(legacy_f64)position.y * scale - scene_instance.pos.y,
+					(legacy_f64)position.z * scale - scene_instance.pos.z};
+				shape3d_hires_set_origin(&origin);
+			} else {
+				shape3d_hires_set_origin(NULL);
+			}
+			assert((precise ? shape3d_hires_transform_and_queue(&scene_instance, vertices)
+							: shape3d_transform_and_queue(&scene_instance)) == 0);
+			assert(shape3d_queued_primitive_count() == 1);
+			shape3d_render_queued_primitives();
+			assert(count_color(7) != 0);
+			if (pass == 0) {
+				memcpy(reference, pixels(), sizeof(reference));
+			} else {
+				/* Moving the same scene farther away with matching geometry must
+				 * preserve its pixels; resetting restores the original near view. */
+				assert(memcmp(reference, pixels(), sizeof(reference)) == 0);
+			}
+		}
+	}
+}
+
 static void test_body_panel_occludes_wheel(void)
 {
 	const struct VECTOR model[] = {
@@ -3395,6 +3448,7 @@ legacy_int main(void)
 	test_separate_shapes_preserve_ghost_holes();
 	test_background_shapes_do_not_occlude_scene();
 	test_far_diagonal_geometry();
+	test_precise_scene_origin();
 	test_far_primitive_depth_visibility();
 	test_hypervision_full_scene_queue();
 	test_body_panel_occludes_wheel();

@@ -166,6 +166,7 @@ struct HYPERVISION_SCENE_PRIMITIVE {
 static struct HYPERVISION_SCENE_PRIMITIVE *hypervision_scene;
 static legacy_u32 hypervision_scene_count;
 static legacy_u32 hypervision_scene_capacity;
+static struct SHAPE3D_HIRES_VECTOR hypervision_origin;
 
 static void *polyinfo_allocate(size_t count, size_t size)
 {
@@ -423,7 +424,7 @@ struct SHAPE3D_TRANSFORM_CONTEXT {
 	struct POINT2D projected_vertices[SHAPE3D_VERTEX_CAPACITY];
 #if defined(RESTUNTS_SDL3)
 	struct MATRIX object_to_world_rotation;
-	struct VECTOR object_translation;
+	struct SHAPE3D_HIRES_VECTOR object_translation;
 	struct SHAPE3D_HIRES_VECTOR view_origin;
 	struct SHAPE3D_HIRES_VECTOR hires_vertices[SHAPE3D_VERTEX_CAPACITY];
 	const struct SHAPE3D_HIRES_VECTOR *source_vertices;
@@ -509,21 +510,21 @@ static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
 	context->shadow_surface_count = 0;
 	context->source_vertices = NULL;
 	context->object_to_world_rotation = *object_rotation;
-	context->object_translation = instance->pos;
+	context->object_translation = (struct SHAPE3D_HIRES_VECTOR){
+		instance->pos.x + hypervision_origin.x, instance->pos.y + hypervision_origin.y,
+		instance->pos.z + hypervision_origin.z};
 #endif
 	if ((transshapeflags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		mat_multiply(object_rotation, &mat_temp, &context->object_to_view_rotation);
 		context->view_translation = instance->pos;
 #if defined(RESTUNTS_SDL3)
-		context->view_origin =
-			(struct SHAPE3D_HIRES_VECTOR){instance->pos.x, instance->pos.y, instance->pos.z};
+		context->view_origin = context->object_translation;
 #endif
 		return;
 	}
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		struct SHAPE3D_HIRES_VECTOR origin = {instance->pos.x, instance->pos.y, instance->pos.z};
-		shape3d_hires_rotate(&origin, &mat_temp, &context->view_origin);
+		shape3d_hires_rotate(&context->object_translation, &mat_temp, &context->view_origin);
 	} else
 #endif
 	{
@@ -565,7 +566,13 @@ static void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
 	forward_vector.z = SHAPE3D_FORWARD_VECTOR_SCALE;
 	struct VECTOR view_direction;
 	mat_mul_vector(&forward_vector, &inverse_view_rotation, &view_direction);
-	if (view_direction.y <= 0 || instance->pos.y >= 0) {
+	legacy_s32 above_camera = instance->pos.y >= 0;
+#if defined(RESTUNTS_SDL3)
+	if (hires_enabled()) {
+		above_camera = context->object_translation.y >= 0;
+	}
+#endif
+	if (view_direction.y <= 0 || above_camera) {
 		shape_view_direction_sector = vector_direction_sector(&view_direction);
 		context->visibility_mask = invpow2tbl[shape_view_direction_sector];
 		context->front_facing_mask = invpow2tbl[shape_view_direction_sector];
@@ -1287,6 +1294,11 @@ legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 											 const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	return hypervision_transform_and_queue(instance, vertices);
+}
+
+void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
+{
+	hypervision_origin = origin != NULL ? *origin : (struct SHAPE3D_HIRES_VECTOR){0};
 }
 #endif
 

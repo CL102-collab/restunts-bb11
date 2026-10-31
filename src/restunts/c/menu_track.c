@@ -27,6 +27,7 @@
 #include "extended_highscore.h"
 #include "extended_replay_runtime.h"
 #include "extended_editor.h"
+#include "hires.h"
 #endif
 
 #define TRACK_EDITOR_RESOURCE_FILE_INDEX 3
@@ -54,6 +55,11 @@
 #define TRACK_MENU_BUTTON_Y 172
 #define TRACK_MENU_BUTTON_WIDTH 94
 #define TRACK_MENU_BUTTON_HEIGHT 24
+#define TRACK_MENU_PREVIEW_TOP 40U
+#define TRACK_MENU_PREVIEW_BOTTOM 166U
+#define TRACK_MENU_PREVIEW_FRAMES_PER_SECOND 25UL
+#define TRACK_MENU_PREVIEW_FRAME_TICKS                                                             \
+	(DOS_TIMER_REALTIME_TICKS_PER_SECOND / TRACK_MENU_PREVIEW_FRAMES_PER_SECOND)
 
 enum TRACK_MENU_BUTTON {
 	TRACK_MENU_LOAD_BUTTON = 0,
@@ -65,9 +71,32 @@ struct TRACK_MENU_STATE {
 	legacy_u8 selected;
 	legacy_u8 previous;
 	legacy_u8 blit_mode;
+#ifdef RESTUNTS_SDL3
+	legacy_u8 preview_live;
+	legacy_u32 preview_tick;
+#endif
 };
 
-static void track_menu_draw_preview(void)
+static void track_menu_release_preview(struct TRACK_MENU_STATE *menu)
+{
+#ifdef RESTUNTS_SDL3
+	if (menu->preview_live != 0) {
+		shape3d_free_all();
+		unload_skybox();
+		menu->preview_live = 0;
+	}
+#else
+	(void)menu;
+#endif
+}
+
+static void track_menu_free_background(struct TRACK_MENU_STATE *menu)
+{
+	track_menu_release_preview(menu);
+	sprite_free_wnd(render_window_sprite);
+}
+
+static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 {
 	show_waiting();
 	waitflag = TRACK_MENU_PREVIEW_WAIT_TICKS;
@@ -88,6 +117,15 @@ static void track_menu_draw_preview(void)
 	sprite_clear_target((legacy_u8)skybox.ground_color);
 	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
 	draw_track_preview();
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active() && hires_enabled()) {
+		menu->preview_live = 1;
+		menu->preview_tick = dos_timer_get_realtime_counter();
+		return;
+	}
+#else
+	(void)menu;
+#endif
 	shape3d_free_all();
 	unload_skybox();
 }
@@ -157,9 +195,9 @@ static void track_menu_draw_buttons(void)
 	unload_resource(text_resource);
 }
 
-static void track_menu_draw_background(void)
+static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
 {
-	track_menu_draw_preview();
+	track_menu_draw_preview(menu);
 	sprite_select_render_window();
 	strcpy(&resID_byte1, "'");
 	strcat(&resID_byte1, gameconfig.game_trackname);
@@ -176,12 +214,40 @@ static void track_menu_draw_background(void)
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+static void track_menu_animate_preview(struct TRACK_MENU_STATE *menu)
+{
+	if (menu->preview_live == 0) {
+		return;
+	}
+	legacy_u32 tick = dos_timer_get_realtime_counter();
+	if (tick - menu->preview_tick < TRACK_MENU_PREVIEW_FRAME_TICKS) {
+		return;
+	}
+	menu->preview_tick = tick;
+	/* Preserve the title, scores and highlighted button outside the overview. */
+	mouse_draw_opaque_check();
+	sprite_select_render_window();
+	draw_track_preview();
+	if (frame_status_overlay_active() != 0) {
+		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
+		frame_status_draw_text();
+	}
+	sprite_select_screen_compat();
+	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, TRACK_MENU_PREVIEW_TOP,
+								  TRACK_MENU_PREVIEW_BOTTOM);
+	sprite_putimage(render_window_sprite->sprite_bitmapptr);
+	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
+	mouse_draw_transparent_check();
+}
+#endif
+
 static legacy_u16 track_menu_poll_input(struct TRACK_MENU_STATE *menu)
 {
 	if (frame_status_expire_idle() != 0) {
 		mouse_draw_opaque_check();
-		sprite_free_wnd(render_window_sprite);
-		track_menu_draw_background();
+		track_menu_free_background(menu);
+		track_menu_draw_background(menu);
 		menu->previous = TRACK_MENU_NO_SELECTION;
 		mouse_draw_transparent_check();
 	}
@@ -193,6 +259,9 @@ static legacy_u16 track_menu_poll_input(struct TRACK_MENU_STATE *menu)
 		menu_reset_animation_timers();
 	}
 
+#ifdef RESTUNTS_SDL3
+	track_menu_animate_preview(menu);
+#endif
 	legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
 		menu->selected, trackmenu_buttons, menu_highlight_second_color, menu_highlight_first_color);
 	menu_update_idle_counter(elapsed, TRACK_MENU_IDLE_LIMIT_TICKS);
@@ -217,8 +286,8 @@ static legacy_u8 track_menu_activate_key(struct TRACK_MENU_STATE *menu, legacy_u
 	) {
 		mouse_draw_opaque_check();
 		handle_ingame_kb_shortcuts(LEGACY_S16_FROM_BITS(key));
-		sprite_free_wnd(render_window_sprite);
-		track_menu_draw_background();
+		track_menu_free_background(menu);
+		track_menu_draw_background(menu);
 		menu->previous = TRACK_MENU_NO_SELECTION;
 		mouse_draw_transparent_check();
 		return 0;
@@ -274,7 +343,10 @@ void run_tracks_menu(legacy_s16 reload_track)
 		menu.selected = 0;
 		menu.previous = TRACK_MENU_NO_SELECTION;
 		menu.blit_mode = MENU_BLIT_MODE_INITIAL;
-		track_menu_draw_background();
+#ifdef RESTUNTS_SDL3
+		menu.preview_live = 0;
+#endif
+		track_menu_draw_background(&menu);
 
 		for (;;) {
 			legacy_u16 key = track_menu_poll_input(&menu);
@@ -286,6 +358,8 @@ void run_tracks_menu(legacy_s16 reload_track)
 			if (menu.selected == TRACK_MENU_LOAD_BUTTON) {
 				legacy_s8 far *prompt = locate_text_res(mainresptr, "trk");
 #ifdef RESTUNTS_SDL3
+				legacy_u8 animated_preview = menu.preview_live;
+				track_menu_release_preview(&menu);
 				legacy_s8 previous_name[REPLAY_TRACK_NAME_SIZE];
 				memcpy(previous_name, gameconfig.game_trackname, sizeof(previous_name));
 #endif
@@ -301,6 +375,10 @@ void run_tracks_menu(legacy_s16 reload_track)
 							show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 										(void *)extended_file_error(), DIALOG_AUTO_POSITION,
 										DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
+							if (animated_preview != 0) {
+								track_menu_free_background(&menu);
+								track_menu_draw_background(&menu);
+							}
 							menu.previous = TRACK_MENU_NO_SELECTION;
 							continue;
 						}
@@ -314,14 +392,20 @@ void run_tracks_menu(legacy_s16 reload_track)
 #endif
 					track_setup();
 					ghost_check_track();
-					sprite_free_wnd(render_window_sprite);
+					track_menu_free_background(&menu);
 					break;
 				}
+#ifdef RESTUNTS_SDL3
+				if (animated_preview != 0) {
+					track_menu_free_background(&menu);
+					track_menu_draw_background(&menu);
+				}
+#endif
 				menu.previous = TRACK_MENU_NO_SELECTION;
 				continue;
 			}
 
-			sprite_free_wnd(render_window_sprite);
+			track_menu_free_background(&menu);
 			if (menu.selected == TRACK_MENU_EDIT_BUTTON) {
 #ifdef RESTUNTS_SDL3
 				if (extended_track_active()) {
