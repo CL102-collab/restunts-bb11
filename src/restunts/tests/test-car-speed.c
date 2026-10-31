@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/car_speed.h"
+#include "../c/car/car_speed.h"
 #include "../c/physics_internal.h"
 #include "../c/game_input.h"
 

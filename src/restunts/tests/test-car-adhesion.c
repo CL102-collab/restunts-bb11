@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../c/carsetup.c"
+#include "../c/car/carsetup.c"
 #include "../c/stateply.c"
-#include "../c/trackdata_layout.h"
-#include "../c/track_objects.h"
+#include "../c/track/trackdata_layout.h"
+#include "../c/track/track_objects.h"
 
 #undef memcpy
 #undef printf

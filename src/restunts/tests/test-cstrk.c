@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/cstrk.h"
+#include "../c/extended/cstrk.h"
 
 #define TEST_FUTURE_REVISION 101U
 

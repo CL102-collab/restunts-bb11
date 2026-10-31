@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/race_route.h"
+#include "../c/race/race_route.h"
 #include "../c/residue.h"
-#include "../c/track_objects.h"
+#include "../c/track/track_objects.h"
 #include "extended-replay-test-stubs.h"
 
 struct GAMESTATE state;

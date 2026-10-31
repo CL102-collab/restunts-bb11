@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/cshig.h"
+#include "../c/extended/cshig.h"
 
 static void write32(uint8_t *data, uint32_t value)
 {

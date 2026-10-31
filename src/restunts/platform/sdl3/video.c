@@ -3,8 +3,8 @@
 #include "soft_keyboard.h"
 #include "../../c/platform.h"
 #include "../../c/fatal.h"
-#include "../../c/hires.h"
-#include "../../c/frame_adaptive.h"
+#include "../../c/hires/hires.h"
+#include "../../c/hires/frame_adaptive.h"
 #include "../../c/frame_internal.h"
 #include <string.h>
 #include <stdio.h>

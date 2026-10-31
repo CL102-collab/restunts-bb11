@@ -4,12 +4,12 @@
 
 #include "../c/externs.h"
 #include "../c/game_input.h"
-#include "../c/car_speed.h"
+#include "../c/car/car_speed.h"
 #include "../c/crash_state.h"
 #include "../c/physics_internal.h"
 #include "../c/state_internal.h"
 #include "../c/residue.h"
-#include "../c/track_objects.h"
+#include "../c/track/track_objects.h"
 
 #undef memcpy
 

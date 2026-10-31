@@ -4,8 +4,8 @@
 #include <ctype.h>
 #include <SDL3/SDL.h>
 #include "extended_source.h"
-#include "../c/cstrk.h"
-#include "../c/csrpl.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/csrpl.h"
 
 #define GENGHOST_FORMAT_SIGNATURE_SIZE 8U
 #define GENGHOST_MAX_TRACK_SIZE                                                                    \

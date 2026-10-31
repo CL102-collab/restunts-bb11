@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../c/extended_replay_runtime.h"
+#include "../c/extended/extended_replay_runtime.h"
 #include "../c/externs.h"
 #undef memcpy
 

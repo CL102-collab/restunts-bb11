@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #ifndef VIEWER_SOURCE
-#define VIEWER_SOURCE "../c/replay_viewer.c"
+#define VIEWER_SOURCE "../c/replay/replay_viewer.c"
 #endif
 #include VIEWER_SOURCE
 #define EXTENDED_TEST_REPLAY_RUNTIME

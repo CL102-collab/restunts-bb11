@@ -5,8 +5,8 @@
 
 #include "../c/externs.h"
 #include "../c/frame_internal.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 #include "../c/skybox.h"
 #include "../c/projection.h"
 

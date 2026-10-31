@@ -2,8 +2,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include "../c/race.c"
-#include "../c/replay_record.c"
+#include "../c/race/race.c"
+#include "../c/replay/replay_record.c"
 #undef memcpy
 
 static legacy_s8 recorded_inputs[12000], original_inputs[12000];

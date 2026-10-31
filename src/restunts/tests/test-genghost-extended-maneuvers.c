@@ -5,12 +5,12 @@
 #include "../genghost/maneuvers.h"
 #include "../genghost/simulation.h"
 #include "../c/externs.h"
-#include "../c/cstrk.h"
+#include "../c/extended/cstrk.h"
 #include "../c/game_input.h"
 #include "../c/memmgr.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
-#include "../c/track_collision.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
+#include "../c/track/track_collision.h"
 
 #undef memcpy
 #undef printf

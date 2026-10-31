@@ -3,7 +3,7 @@
 #include "math.h"
 #include "math_internal.h"
 #include "fatal.h"
-#include "track_collision.h"
+#include "track/track_collision.h"
 #include "wheel_transform.h"
 #include "projection.h"
 

@@ -1,7 +1,7 @@
 /* Regression fingerprints captured from the original audio routines before extraction. */
 #include "audio-test-support.h"
 #ifndef AUDIO_SEQUENCE_SOURCE
-#define AUDIO_SEQUENCE_SOURCE "../c/audio_sequence.c"
+#define AUDIO_SEQUENCE_SOURCE "../c/audio/audio_sequence.c"
 #endif
 #include AUDIO_SEQUENCE_SOURCE
 legacy_s16 audio_start_note(struct AUDIO_CHANNEL *channel, legacy_u16 value, legacy_u32 duration,

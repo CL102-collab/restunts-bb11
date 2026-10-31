@@ -5,8 +5,8 @@
 
 #include "../c/externs.h"
 #include "../c/memmgr.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 #undef memcpy
 

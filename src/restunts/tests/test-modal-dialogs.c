@@ -5,10 +5,10 @@
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/ui_text.h"
-#include "../c/ui_dialog_internal.h"
-#include "../c/ui_dialog.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/ui/ui_text.h"
+#include "../c/ui/ui_dialog_internal.h"
+#include "../c/ui/ui_dialog.h"
 
 #undef printf
 #undef strcmp

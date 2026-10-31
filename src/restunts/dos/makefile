@@ -43,7 +43,7 @@ all: $(OBJDIR) $(OBJ_FILES) $(MAKEFILE_LIST)
 $(OBJDIR):
 	$(call MKDIR,$@)
 
-$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h ../c/*/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) $(CFLAGS) -i=../c -fo=$@ $<
 
 clean:

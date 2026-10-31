@@ -6,8 +6,8 @@
 #include "music.h"
 #include <string.h>
 #include <stdio.h>
-#include "../../c/audio.h"
-#include "../../c/audio_internal.h"
+#include "../../c/audio/audio.h"
+#include "../../c/audio/audio_internal.h"
 #include "../../c/platform.h"
 #include "../../c/timing.h"
 #include "../../c/resource_bytes.h"

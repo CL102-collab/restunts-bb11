@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../c/extended_ghost.h"
-#include "../c/extended_track.h"
+#include "../c/extended/extended_ghost.h"
+#include "../c/extended/extended_track.h"
 #include "../c/platform.h"
 
 static FILE *source;

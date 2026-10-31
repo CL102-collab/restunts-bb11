@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/cstrk.h"
+#include "../c/extended/cstrk.h"
 #include "../c/restunts.c"
 #undef printf
 #undef strlen

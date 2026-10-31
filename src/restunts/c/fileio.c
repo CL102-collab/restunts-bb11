@@ -1,4 +1,4 @@
-#include "extended_fileio.h"
+#include "extended/extended_fileio.h"
 #include <stddef.h>
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA_TRACE)
 #include <stdio.h>
@@ -7,11 +7,11 @@
 #include "fileio.h"
 #include "memmgr.h"
 #include "platform.h"
-#include "shape2d.h"
+#include "shape2d/shape2d.h"
 #include "fatal.h"
 #include "resource.h"
-#include "ui_dialog.h"
-#include "audio_control.h"
+#include "ui/ui_dialog.h"
+#include "audio/audio_control.h"
 #ifdef RESTUNTS_SDL3
 #include "driving_rules.h"
 #ifndef RESTUNTS_HEADLESS

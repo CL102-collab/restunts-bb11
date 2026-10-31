@@ -1,7 +1,7 @@
 #include <assert.h>
 
 #include "../c/externs.h"
-#include "../c/shape3d.h"
+#include "../c/shape3d/shape3d.h"
 
 #define TEST_VERTEX_INDEX 1U
 #define TEST_VERTEX_STORAGE_PREFIX_SIZE 1U

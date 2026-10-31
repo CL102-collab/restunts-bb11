@@ -29,24 +29,24 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 }
 #endif
 #include "../c/frame_internal.h"
-#include "../c/shape2d.h"
+#include "../c/shape2d/shape2d.h"
 #include "../c/scene_resources.h"
 #include "../c/skybox.h"
 #include "../c/projection.h"
-#include "../c/menu_internal.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/menu/menu_internal.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/platform.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/game_input.h"
 #include "../c/video_frame.h"
-#include "../c/shape3d.h"
+#include "../c/shape3d/shape3d.h"
 #include "../c/keyboard.h"
 #ifdef RESTUNTS_SDL3
-#include "../c/hires.h"
-#include "../c/extended_frame.h"
-#include "../c/shape3d_hires.h"
+#include "../c/hires/hires.h"
+#include "../c/extended/extended_frame.h"
+#include "../c/hires/shape3d_hires.h"
 #endif
 
 #undef strcmp

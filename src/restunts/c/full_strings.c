@@ -1,9 +1,9 @@
 #include "externs.h"
-#include "menu_internal.h"
-#include "car_model.h"
+#include "menu/menu_internal.h"
+#include "car/car_model.h"
 #include "scene_resources.h"
-#include "ui_dialog_internal.h"
-#include "replay_viewer_internal.h"
+#include "ui/ui_dialog_internal.h"
+#include "replay/replay_viewer_internal.h"
 
 /* Exact resource identifiers and messages formerly stored in dseg.asm. */
 

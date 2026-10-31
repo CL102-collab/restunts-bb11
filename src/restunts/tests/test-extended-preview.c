@@ -2,19 +2,19 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/extended_track.h"
-#include "../c/extended_frame.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/extended_frame.h"
 #include "../c/frame_internal.h"
 #include "../c/game_input.h"
-#include "../c/hires.h"
-#include "../c/menu_internal.h"
+#include "../c/hires/hires.h"
+#include "../c/menu/menu_internal.h"
 #include "../c/platform.h"
 #include "../c/projection.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d_hires.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/hires/shape3d_hires.h"
 #include "../c/skybox.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 #define PREVIEW_TEST_OBJECT_CAPACITY 8U
 #define PREVIEW_TEST_SPIN_TICKS 4000U

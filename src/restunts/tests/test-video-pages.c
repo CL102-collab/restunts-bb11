@@ -5,8 +5,8 @@
 
 #include "../c/externs.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 #include "../c/video_pages.h"
 
 #define TEST_PAGE_PIXELS 65536UL

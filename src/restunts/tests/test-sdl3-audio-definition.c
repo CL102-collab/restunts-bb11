@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../c/audio_engine.c"
-#include "../c/audio_resources.c"
+#include "../c/audio/audio_engine.c"
+#include "../c/audio/audio_resources.c"
 
 struct AUDIO_CHANNEL audio_channels[AUDIO_CHANNEL_COUNT];
 

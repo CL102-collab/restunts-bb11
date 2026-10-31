@@ -1,7 +1,7 @@
 #include "externs.h"
-#include "shape3d.h"
-#include "track_types.h"
-#include "track_objects.h"
+#include "shape3d/shape3d.h"
+#include "track/track_types.h"
+#include "track/track_objects.h"
 #include "scene_resources.h"
 
 /* The original table points into four adjacent shape banks.  The full C port

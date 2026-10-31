@@ -65,9 +65,9 @@
 #endif
 
 #include "math.h"
-#include "track_types.h"
+#include "track/track_types.h"
 
-#include "replay.h"
+#include "replay/replay.h"
 #include "gamestate.h"
 
 #pragma pack(push, 1)

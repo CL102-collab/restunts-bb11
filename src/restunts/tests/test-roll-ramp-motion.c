@@ -4,7 +4,7 @@
 
 #include "../c/stateply.c"
 #undef PLAYER_PHYSICS_WHEEL_COUNT
-#include "../c/extended_stateply.c"
+#include "../c/extended/extended_stateply.c"
 
 static legacy_u8 fixture_extended = 1;
 static legacy_u8 fixture_road_contact = 1;

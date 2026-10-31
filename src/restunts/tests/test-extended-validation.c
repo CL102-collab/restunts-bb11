@@ -2,8 +2,8 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/extended_validation.h"
-#include "../c/track_objects.h"
+#include "../c/extended/extended_validation.h"
+#include "../c/track/track_objects.h"
 
 static void assert_dialog_lines(const char *message)
 {

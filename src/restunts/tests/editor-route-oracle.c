@@ -5,11 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/cstrk.h"
-#include "../c/extended_track.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/extended_track.h"
 #include "../c/externs.h"
 #include "../c/memmgr.h"
-#include "../c/track_objects.h"
+#include "../c/track/track_objects.h"
 
 #undef printf
 #undef strlen

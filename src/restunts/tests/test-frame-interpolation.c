@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
-#include "../c/frame_interpolation.h"
+#include "../c/hires/frame_interpolation.h"
 #include "../c/crash_state.h"
 
 static void test_motion_and_isolation(void)

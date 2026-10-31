@@ -114,6 +114,12 @@ I've also done a huge amount of manual testing myself, to test everything else w
 		driving inputs and writes a replay for use as a ghost.
 
 
+The C core groups related sources and headers under `audio`, `car`, `menu`,
+`opponent`, `owoot`, `race`, `replay`, `shape2d`, `shape3d`, `track` and `ui`.
+The `extended` folder contains the core extended-format implementation and its
+codec headers. The `hires` folder contains high-resolution rendering, adaptive
+rendering, frame interpolation and the render worker pool.
+
 CSTRK/CSRPL implementation lives in C/C++ files whose names start with
 `extended_`. Original engine and generator files delegate format-specific work
 through these modules while retaining generic legacy behavior. Public codec

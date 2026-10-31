@@ -2,7 +2,7 @@
 #include <string.h>
 
 /* Exercise the frame scheduler and viewport policy without a DOS display. */
-#include "../c/race.c"
+#include "../c/race/race.c"
 
 legacy_u8 supersight_enabled;
 static legacy_u32 projection_updates;

@@ -4,10 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <SDL3/SDL.h>
-#include "../c/hires.h"
+#include "../c/hires/hires.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/opponent_portrait.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/opponent/opponent_portrait.h"
 
 static legacy_u8 rows[400];
 static legacy_u8 original_bytes[SHAPE2D_HEADER_SIZE + 80 * 83];

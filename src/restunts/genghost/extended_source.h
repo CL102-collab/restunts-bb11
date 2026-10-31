@@ -2,7 +2,7 @@
 #define RESTUNTS_GENGHOST_EXTENDED_SOURCE_H
 
 #include "search.h"
-#include "../c/csrpl.h"
+#include "../c/extended/csrpl.h"
 
 #define GENGHOST_SOURCE_TRACK_NAME_SIZE 256U
 

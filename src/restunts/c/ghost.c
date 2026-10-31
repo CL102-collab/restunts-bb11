@@ -1,21 +1,21 @@
 #include "ghost_internal.h"
-#include "extended_ghost_runtime.h"
+#include "extended/extended_ghost_runtime.h"
 #include "ghost.h"
 #ifndef RESTUNTS_DOS16
 #include <stdlib.h>
 #endif
-#include "opponent.h"
+#include "opponent/opponent.h"
 #include "camera.h"
 #include "externs.h"
 #include "fatal.h"
 #include "fileio.h"
 #include "platform.h"
-#include "race_resources.h"
+#include "race/race_resources.h"
 #include "residue.h"
-#include "trackdata_layout.h"
-#include "track_objects.h"
+#include "track/trackdata_layout.h"
+#include "track/track_objects.h"
 #ifdef RESTUNTS_SDL3
-#include "frame_interpolation.h"
+#include "hires/frame_interpolation.h"
 #endif
 
 #define GHOST_TEMP_NAME_DIGITS 6U

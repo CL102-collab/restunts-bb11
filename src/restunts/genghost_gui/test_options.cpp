@@ -15,7 +15,7 @@
 #endif
 #include "options.h"
 extern "C" {
-#include "../c/csrpl.h"
+#include "../c/extended/csrpl.h"
 }
 #include "../genghost/simulation.h"
 

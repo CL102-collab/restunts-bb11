@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 #include "../c/externs.h"
-#include "../c/car_model.h"
+#include "../c/car/car_model.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/scene_resources.h"

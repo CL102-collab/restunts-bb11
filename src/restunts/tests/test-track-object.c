@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/track_collision.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/physics_internal.h"
 
 extern legacy_s8 corkFlag;

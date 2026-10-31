@@ -9,7 +9,7 @@
 #include "../c/memmgr.h"
 #include "../c/platform.h"
 #include "../c/resource.h"
-#include "../c/shape2d.h"
+#include "../c/shape2d/shape2d.h"
 
 #define TEST_PARAGRAPH_BYTES 16U
 #define TEST_ARENA_START 4096U

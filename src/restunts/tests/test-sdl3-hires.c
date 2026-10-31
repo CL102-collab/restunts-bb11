@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../c/hires.h"
-#include "../c/render_workers.h"
+#include "../c/hires/hires.h"
+#include "../c/hires/render_workers.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 
 #define TEST_WIDTH 320
 #define TEST_HEIGHT 200

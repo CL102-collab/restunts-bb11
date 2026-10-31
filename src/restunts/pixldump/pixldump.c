@@ -3,23 +3,23 @@
 #include <fileio.h>
 #include <memmgr.h>
 #include <platform.h>
-#include <shape2d.h>
-#include <shape3d.h>
-#include <trackdata_layout.h>
+#include <shape2d/shape2d.h>
+#include <shape3d/shape3d.h>
+#include <track/trackdata_layout.h>
 
 #include "murmur3.h"
 #ifndef RESTUNTS_ORIGINAL
 #include "legacy_context.h"
 #endif
 #include "../c/fatal.h"
-#include "../c/race_resources.h"
+#include "../c/race/race_resources.h"
 #include "../c/residue.h"
-#include "../c/shape3d.h"
+#include "../c/shape3d/shape3d.h"
 #include "../c/keyboard.h"
 #include "../c/game_input.h"
-#include "../c/track_objects.h"
+#include "../c/track/track_objects.h"
 #include "../c/camera.h"
-#include "../c/audio_control.h"
+#include "../c/audio/audio_control.h"
 #ifdef RESTUNTS_ORIGINAL
 #include "../platform/dos/dump_timer.h"
 #endif

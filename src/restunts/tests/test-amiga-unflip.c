@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../c/shape2d_resources.c"
+#include "../c/shape2d/shape2d_resources.c"
 
 #define MAX_PIXELS 64000U
 #define RESOURCE_PREFIX (14U + SHAPE2D_HEADER_SIZE)

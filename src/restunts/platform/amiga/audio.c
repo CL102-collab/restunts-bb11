@@ -12,8 +12,8 @@
 #include <proto/exec.h>
 #include <string.h>
 #include "amiga.h"
-#include "../../c/audio.h"
-#include "../../c/audio_internal.h"
+#include "../../c/audio/audio.h"
+#include "../../c/audio/audio_internal.h"
 #include "../../c/platform.h"
 #include "../../c/resource_bytes.h"
 #include "../../c/timing.h"

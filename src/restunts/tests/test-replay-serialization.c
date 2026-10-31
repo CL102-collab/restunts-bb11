@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../c/replay.h"
+#include "../c/replay/replay.h"
 
 #define TEST_CAR_ID_SIZE 4U
 #define TEST_TRACK_NAME_SIZE 9U

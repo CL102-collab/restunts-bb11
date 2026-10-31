@@ -3,7 +3,7 @@
 #include "platform.h"
 #include "fatal.h"
 #if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
-#include "hires.h"
+#include "hires/hires.h"
 #endif
 
 #define MMGR_RESOURCE_SENTINEL_INDEX 49

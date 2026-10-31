@@ -10,9 +10,9 @@
 #include "extended-replay-test-stubs.h"
 #include "../c/platform.h"
 #include "../c/residue.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/trackdata_layout.h"
 #ifdef RESTUNTS_SDL3
-#include "../c/frame_interpolation.h"
+#include "../c/hires/frame_interpolation.h"
 #include "../c/crash_state.h"
 #endif
 

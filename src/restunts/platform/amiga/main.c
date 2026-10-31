@@ -4,7 +4,7 @@
 #include "../../c/restunts.h"
 #include "../../c/command_line.h"
 #include "../../c/fileio.h"
-#include "../../c/shape2d_internal.h"
+#include "../../c/shape2d/shape2d_internal.h"
 #include <exec/memory.h>
 #include <graphics/gfxbase.h>
 #include <intuition/intuition.h>

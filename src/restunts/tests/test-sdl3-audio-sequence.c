@@ -5,8 +5,8 @@
 #include <string.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
-#include "../c/audio_control.h"
-#include "../c/audio_internal.h"
+#include "../c/audio/audio_control.h"
+#include "../c/audio/audio_internal.h"
 #include "../c/platform.h"
 #include "../platform/sdl3/sdl3.h"
 #include "../platform/sdl3/music.h"

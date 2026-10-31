@@ -1,5 +1,5 @@
 #include "extended_guide.h"
-#include "../c/extended_track.h"
+#include "../c/extended/extended_track.h"
 
 #define GUIDE_EXTENDED_POSITION_SCALE 64.0
 #define GUIDE_EXTENDED_COORDINATE_LIMIT 32767.0

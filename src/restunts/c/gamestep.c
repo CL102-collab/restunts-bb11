@@ -1,13 +1,13 @@
 #include "restunts.h"
 #include "game_input.h"
-#include "track_objects.h"
-#include "opponent.h"
-#include "car_audio.h"
+#include "track/track_objects.h"
+#include "opponent/opponent.h"
+#include "car/car_audio.h"
 #include "externs.h"
 #include "crash_state.h"
 #include "state_internal.h"
 #include "physics_internal.h"
-#include "extended_gamestep.h"
+#include "extended/extended_gamestep.h"
 
 #define ACTIVE_CAR_COUNT_WITHOUT_OPPONENT 1U
 #define ACTIVE_CAR_COUNT_WITH_OPPONENT 2U

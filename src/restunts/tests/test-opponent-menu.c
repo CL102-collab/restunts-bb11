@@ -46,8 +46,8 @@
 #include "extended-replay-test-stubs.h"
 #define OPPONENT_TEST_BUTTON_COUNT 5U
 #ifdef RESTUNTS_SDL3
-#include "../c/opponent_portrait.h"
-#include "../c/shape2d_internal.h"
+#include "../c/opponent/opponent_portrait.h"
+#include "../c/shape2d/shape2d_internal.h"
 static legacy_u32 portrait_draws, enhanced_portrait_draws, portrait_unloads;
 static legacy_u32 background_draws, enhanced_background_draws, background_unloads;
 static legacy_u32 background_overlay_draws;

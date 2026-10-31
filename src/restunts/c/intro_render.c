@@ -3,12 +3,12 @@
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
 #endif
-#include "shape2d.h"
-#include "shape3d.h"
+#include "shape2d/shape2d.h"
+#include "shape3d/shape3d.h"
 #include "game_input.h"
-#include "track_objects.h"
+#include "track/track_objects.h"
 #include "video_frame.h"
-#include "opponent.h"
+#include "opponent/opponent.h"
 #include "projection.h"
 #include "externs.h"
 #include "fileio.h"

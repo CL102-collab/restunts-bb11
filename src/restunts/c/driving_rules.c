@@ -1,8 +1,8 @@
 #include "driving_rules.h"
-#include "car_speed.h"
+#include "car/car_speed.h"
 #include "physics_internal.h"
-#include "race_route.h"
-#include "owoot.h"
+#include "race/race_route.h"
+#include "owoot/owoot.h"
 
 legacy_u16 driving_rules_current(void)
 {

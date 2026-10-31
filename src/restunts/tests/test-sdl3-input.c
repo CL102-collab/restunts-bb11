@@ -13,8 +13,8 @@
 #include "../c/platform.h"
 #include "../c/keyboard.h"
 #include "../c/game_input.h"
-#include "../c/hires.h"
-#include "../c/frame_adaptive.h"
+#include "../c/hires/hires.h"
+#include "../c/hires/frame_adaptive.h"
 #include "../c/video_frame.h"
 #include "../c/presentation.h"
 

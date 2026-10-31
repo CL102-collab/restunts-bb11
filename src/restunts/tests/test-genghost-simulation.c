@@ -11,10 +11,10 @@
 #include "../c/externs.h"
 #include "../c/game_input.h"
 #include "../c/state_internal.h"
-#include "../c/race_route.h"
-#include "../c/trackdata_layout.h"
-#include "../c/track_objects.h"
-#include "../c/track_collision.h"
+#include "../c/race/race_route.h"
+#include "../c/track/trackdata_layout.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/track_collision.h"
 #include "../c/physics_internal.h"
 
 #undef memcpy

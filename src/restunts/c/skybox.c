@@ -1,10 +1,10 @@
 #include "frame_internal.h"
-#include "shape2d.h"
+#include "shape2d/shape2d.h"
 #include "skybox.h"
 #include "externs.h"
 #ifdef RESTUNTS_SDL3
-#include "skybox_hires.h"
-#include "shape2d_internal.h"
+#include "hires/skybox_hires.h"
+#include "shape2d/shape2d_internal.h"
 #endif
 
 #define SKYBOX_SCREEN_RIGHT 319

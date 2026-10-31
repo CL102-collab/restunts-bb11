@@ -3,11 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d_internal.h"
 
 /* Include the parser to check the same wrapped copy used for its headers and
  * literal runs, including overlap that must not become a bulk memcpy. */
-#include "../c/shape2d_resources.c"
+#include "../c/shape2d/shape2d_resources.c"
 
 #define SOURCE_SEGMENT 0x2000U
 #define BITMAP_SEGMENT 0x4000U

@@ -4,10 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <SDL3/SDL.h>
-#include "../c/hires.h"
+#include "../c/hires/hires.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/menu_background.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/menu/menu_background.h"
 
 #define TEST_WIDTH 320
 #define TEST_HEIGHT 200

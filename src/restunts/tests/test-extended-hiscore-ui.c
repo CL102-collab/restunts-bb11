@@ -5,10 +5,10 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/extended_replay_runtime.h"
+#include "../c/extended/extended_replay_runtime.h"
 #include "../c/highscore.c"
-#include "../c/menu_track.c"
-#include "../c/extended_highscore.h"
+#include "../c/menu/menu_track.c"
+#include "../c/extended/extended_highscore.h"
 #undef printf
 #undef strlen
 #undef strcmp
