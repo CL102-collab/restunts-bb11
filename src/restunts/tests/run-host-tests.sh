@@ -225,6 +225,11 @@ run_host_test test-intro-preview intro_render.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
+run_host_test test-extended-preview track_preview.c \
+    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/headless_trackdata.c" "$test_source_dir/math.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
+    -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-end-hiscore highscore.c \
     "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
     "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \

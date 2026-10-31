@@ -24,6 +24,9 @@ struct TRANSFORMEDSHAPE3D;
  * a legacy shape resource. Vertices are copied during this call. */
 legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 											 const struct SHAPE3D_HIRES_VECTOR *vertices);
+/* Add a precise camera-relative world offset to subsequent instance positions.
+ * Pretransformed positions use view coordinates instead. NULL resets to zero. */
+void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin);
 
 void shape3d_hires_project(const struct SHAPE3D_HIRES_VECTOR *vector,
 						   struct SHAPE3D_HIRES_POINT *point);

@@ -8,6 +8,7 @@
 #define sprite_make_wnd car_fixture_sprite_make_wnd
 #define sprite_free_wnd car_fixture_sprite_free_wnd
 #define sprite_blit_to_video car_fixture_sprite_blit_to_video
+#define sprite_putimage car_fixture_sprite_putimage
 #define draw_button car_fixture_draw_button
 #define menu_animate_button_highlight car_fixture_menu_animate_button_highlight
 #include "test-car-menu.c"
@@ -21,7 +22,19 @@
 #include "../c/skybox.h"
 #include "../c/ghost.h"
 #define EXTENDED_TEST_GHOST_SELECTION
+#ifdef RESTUNTS_SDL3
+#define extended_track_active inactive_extended_track_active
+#define extended_track_model inactive_extended_track_model
+#define extended_highscore_entry inactive_extended_highscore_entry
+#define extended_editor_open inactive_extended_editor_open
+#endif
 #include "extended-replay-test-stubs.h"
+#ifdef RESTUNTS_SDL3
+#undef extended_track_active
+#undef extended_track_model
+#undef extended_highscore_entry
+#undef extended_editor_open
+#endif
 #ifdef RESTUNTS_SDL3
 void *_memcpy(void *destination, const void *source, legacy_u16 count)
 {
@@ -36,6 +49,7 @@ void *_memcpy(void *destination, const void *source, legacy_u16 count)
 #undef sprite_make_wnd
 #undef sprite_free_wnd
 #undef sprite_blit_to_video
+#undef sprite_putimage
 #undef draw_button
 #undef menu_animate_button_highlight
 #ifdef RESTUNTS_SDL3
@@ -43,11 +57,52 @@ void *_memcpy(void *destination, const void *source, legacy_u16 count)
 #endif
 
 static legacy_u8 track_toggle_test, track_window_live, track_skybox_live, track_shapes_live;
+static legacy_u8 track_animation_test;
+static legacy_u32 track_partial_presentations, track_shape_loads, track_shape_releases;
 static legacy_u8 track_initial_supersight, track_expiry_test, track_shortcut_supersight;
 static legacy_u32 track_window_allocations, track_window_releases, track_presentations;
 static legacy_u32 track_preview_draws, track_title_draws, track_button_draws;
 static legacy_u32 track_highscore_draws, track_highscore_entries, track_setup_calls;
 static const legacy_s16 track_expected_selection[] = {0, 1, 1, 1, 2};
+
+#ifdef RESTUNTS_SDL3
+static legacy_u8 track_extended_fixture;
+static struct CSTRK_TRACK track_fixture_model;
+
+int extended_track_active(void)
+{
+	return track_extended_fixture;
+}
+
+const struct CSTRK_TRACK *extended_track_model(void)
+{
+	assert(track_extended_fixture != 0);
+	return &track_fixture_model;
+}
+
+const struct CSHIG_ENTRY *extended_highscore_entry(unsigned index)
+{
+	(void)index;
+	assert(!"Animated menu fixture does not load highscore entries");
+	return NULL;
+}
+
+int extended_editor_open(void)
+{
+	assert(track_animation_test != 0 && track_shapes_live == 0 && track_skybox_live == 0);
+	return 1;
+}
+
+legacy_s32 hires_enabled(void)
+{
+	return supersight_enabled;
+}
+
+legacy_u32 dos_timer_get_realtime_counter(void)
+{
+	return frame_index * 4U;
+}
+#endif
 
 #ifdef RESTUNTS_SDL3
 void menu_background_draw(const struct SPRITE *target, const struct SHAPE2D *original,
@@ -79,7 +134,7 @@ void opponent_portrait_unload(void)
 
 struct SPRITE *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u16 color)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_window_live == 0);
 		track_window_live = 1;
 		track_window_allocations++;
@@ -89,7 +144,7 @@ struct SPRITE *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u16 c
 
 void sprite_free_wnd(struct SPRITE *window)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(window == render_window_sprite && track_window_live != 0);
 		assert(track_skybox_live == 0 && track_shapes_live == 0);
 		track_window_live = 0;
@@ -111,14 +166,31 @@ legacy_s16 sprite_blit_to_video(struct SPRITE *sprite, legacy_s16 mode)
 		assert(track_button_draws == track_preview_draws * 3U);
 		track_presentations++;
 	}
+	if (track_animation_test != 0) {
+		assert(track_window_live != 0 && track_title_draws == track_highscore_draws);
+		assert(track_button_draws == track_title_draws * 3U);
+		track_presentations++;
+	}
 	return car_fixture_sprite_blit_to_video(sprite, mode);
+}
+
+void sprite_putimage(struct SHAPE2D *shape)
+{
+	if (track_animation_test != 0) {
+		assert(shape == render_window_sprite->sprite_bitmapptr && display_target == 0);
+		assert(track_shapes_live != 0 && track_skybox_live != 0);
+		assert(display_clip.left == 0 && display_clip.right == 320);
+		assert(display_clip.top == 40 && display_clip.bottom == 166);
+		track_partial_presentations++;
+	}
+	car_fixture_sprite_putimage(shape);
 }
 
 void draw_button(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
 				 legacy_s16 top_color, legacy_s16 bottom_color, legacy_s16 fill_color,
 				 legacy_s16 font_color)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		track_button_draws++;
 	}
 	car_fixture_draw_button(text, x, y, width, height, top_color, bottom_color, fill_color,
@@ -128,6 +200,10 @@ void draw_button(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 width, 
 legacy_s16 menu_animate_button_highlight(legacy_s16 item_index, const struct BUTTON_AREA *buttons,
 										 legacy_s16 second_color, legacy_s16 first_color)
 {
+	if (track_animation_test != 0) {
+		assert(display_clip.left == 0 && display_clip.right == 320);
+		assert(display_clip.top == 0 && display_clip.bottom == 200);
+	}
 	if (track_toggle_test != 0) {
 		assert(frame_index <
 			   sizeof(track_expected_selection) / sizeof(track_expected_selection[0]));
@@ -292,7 +368,8 @@ legacy_s8 *locate_shape_alt(legacy_s8 *resource, const legacy_s8 *name)
 struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
 								  legacy_s16 flag)
 {
-	if (track_toggle_test != 0 && _strcmp(text, (legacy_s8 *)"'DEFAULT'") == 0) {
+	if ((track_toggle_test != 0 || track_animation_test != 0) &&
+		_strcmp(text, (legacy_s8 *)"'DEFAULT'") == 0) {
 		track_title_draws++;
 	}
 	trace_word(2011);
@@ -336,7 +413,7 @@ void load_tracks_menu_shapes(void)
 }
 void load_skybox(legacy_s8 index)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_window_live != 0 && track_skybox_live == 0);
 		track_skybox_live = 1;
 	}
@@ -345,7 +422,7 @@ void load_skybox(legacy_s8 index)
 }
 void unload_skybox(void)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_skybox_live != 0 && track_shapes_live == 0);
 		track_skybox_live = 0;
 	}
@@ -353,37 +430,43 @@ void unload_skybox(void)
 }
 legacy_s16 shape3d_load_all(void)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_skybox_live != 0 && track_shapes_live == 0);
 		track_shapes_live = 1;
+		track_shape_loads++;
 	}
 	trace_word(2017);
 	return 0;
 }
 void shape3d_free_all(void)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_shapes_live != 0);
 		track_shapes_live = 0;
+		track_shape_releases++;
 	}
 	trace_word(2018);
 }
 void draw_track_preview(void)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		assert(track_window_live != 0 && track_skybox_live != 0 && track_shapes_live != 0);
+	}
+	if (track_toggle_test != 0) {
 		legacy_u8 expected =
 			track_expiry_test != 0
 				? (track_preview_draws == 0 ? track_initial_supersight : track_shortcut_supersight)
 				: (track_initial_supersight ^ (track_preview_draws % 2U));
 		assert(supersight_enabled == expected);
+	}
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		track_preview_draws++;
 	}
 	trace_word(2019);
 }
 legacy_s16 highscore_load_or_create(legacy_s16 create)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		track_highscore_draws++;
 	}
 	trace_word(2020);
@@ -395,7 +478,7 @@ legacy_s16 highscore_load_or_create(legacy_s16 create)
 }
 void print_highscore_entry(legacy_s16 entry, legacy_u8 *offsets)
 {
-	if (track_toggle_test != 0) {
+	if (track_toggle_test != 0 || track_animation_test != 0) {
 		track_highscore_entries++;
 	}
 	trace_word(2021);
@@ -652,6 +735,74 @@ static void test_track_supersight_toggle(void)
 	}
 }
 
+#ifdef RESTUNTS_SDL3
+static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping)
+{
+	reset_menu_case(0, 1);
+	video_uses_page_flipping = page_flipping;
+	track_extended_fixture = 1;
+	supersight_enabled = action != 4;
+	display_status_active = display_status_expire_pending = 0;
+	track_window_live = track_skybox_live = track_shapes_live = 0;
+	track_window_allocations = track_window_releases = track_presentations = 0;
+	track_preview_draws = track_title_draws = track_button_draws = 0;
+	track_highscore_draws = track_highscore_entries = track_setup_calls = 0;
+	track_shape_loads = track_shape_releases = track_partial_presentations = 0;
+	for (legacy_u32 index = 0; index < 6; index++) {
+		menu_keys[index] = 0;
+		menu_hits[index] = -1;
+	}
+	menu_keys[2] = KEY_ESCAPE;
+	if (action == 1) {
+		/* Cancel a file dialog while retaining a valid animated background. */
+		menu_keys[0] = KEY_ENTER;
+	} else if (action == 2) {
+		/* Opening the editor must release its scene before handing control over. */
+		menu_keys[0] = KEY_RIGHT;
+		menu_keys[1] = KEY_ENTER;
+		menu_keys[2] = 0;
+		menu_keys[3] = KEY_ESCAPE;
+	} else if (action == 3) {
+		menu_keys[1] = KEY_F12;
+		menu_keys[2] = 0;
+		menu_keys[3] = KEY_SHIFT_F12;
+		menu_keys[5] = KEY_ESCAPE;
+	}
+	track_animation_test = 1;
+	run_tracks_menu(0);
+	track_animation_test = 0;
+	track_extended_fixture = 0;
+	assert(track_window_live == 0 && track_skybox_live == 0 && track_shapes_live == 0);
+	assert(track_shape_loads == track_shape_releases);
+	assert(track_window_allocations == track_window_releases);
+	assert(track_highscore_draws == track_title_draws);
+	assert(track_button_draws == track_title_draws * 3U);
+	assert(track_preview_draws == track_title_draws + track_partial_presentations);
+	assert(track_setup_calls == 0 && ghost_track_checks == 0);
+	if (action == 0) {
+		assert(track_title_draws == 1 && track_partial_presentations == 2);
+	} else if (action == 1) {
+		assert(track_title_draws == 2 && track_partial_presentations == 1);
+	} else if (action == 2) {
+		assert(track_title_draws == 2 && track_partial_presentations == 2);
+	} else if (action == 3) {
+		assert(track_title_draws == 3 && track_partial_presentations == 2);
+	} else {
+		assert(track_title_draws == 1 && track_partial_presentations == 0);
+	}
+	assert(track_shape_loads == track_title_draws);
+}
+
+static void test_track_animation(void)
+{
+	for (legacy_u8 page_flipping = 0; page_flipping < 2; page_flipping++) {
+		for (legacy_u8 action = 0; action < 5; action++) {
+			test_track_animation_case(action, page_flipping);
+		}
+	}
+}
+#endif
+
 int main(void)
 {
 	test_opponent_navigation();
@@ -659,6 +810,9 @@ int main(void)
 	assert(trace_hash == UINT64_C(0xf466790d466a90a8));
 	test_ghost_track_changes();
 	test_track_supersight_toggle();
+#ifdef RESTUNTS_SDL3
+	test_track_animation();
+#endif
 	printf("test-menu-navigation: passed\n");
 	return 0;
 }

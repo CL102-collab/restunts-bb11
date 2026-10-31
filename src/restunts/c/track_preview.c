@@ -11,6 +11,10 @@
 #ifdef RESTUNTS_SDL3
 #include "hires.h"
 #include "extended_track.h"
+#include "extended_frame.h"
+#include "shape3d_hires.h"
+#include "platform.h"
+#include "projection.h"
 #endif
 
 #define TRACK_PREVIEW_HALF_SHIFT 1U
@@ -260,9 +264,7 @@ static void track_preview_draw_cell(legacy_u8 column, legacy_u8 row, const struc
 }
 
 #ifdef RESTUNTS_SDL3
-/* An overview must show the complete extended map. The original perspective
- * preview's word coordinates and camera fit only thirty tiles. A surface map
- * avoids wrapping distant cells and also makes stacked terrain legible. */
+/* Keep the original surface map for the classic renderer. */
 enum TRACK_PREVIEW_EXTENDED_COLOR {
 	TRACK_PREVIEW_EXTENDED_GRASS_COLOR = 2,
 	TRACK_PREVIEW_EXTENDED_HIGH_GRASS_COLOR = 10,
@@ -272,6 +274,101 @@ enum TRACK_PREVIEW_EXTENDED_COLOR {
 };
 
 #define TRACK_PREVIEW_EXTENDED_RAISED_GRASS_LEVEL 1U
+#define TRACK_PREVIEW_EXTENDED_TOP 40
+#define TRACK_PREVIEW_EXTENDED_BOTTOM 166
+#define TRACK_PREVIEW_EXTENDED_FOV 40
+#define TRACK_PREVIEW_EXTENDED_ORBIT_SECONDS 40UL
+#define TRACK_PREVIEW_EXTENDED_ORBIT_TICKS                                                         \
+	(TRACK_PREVIEW_EXTENDED_ORBIT_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
+/* Normalize the largest map diagonal into the legacy radius helper's range. */
+#define TRACK_PREVIEW_EXTENDED_RADIUS_SCALE 8
+/* Fit the complete map inside the shorter preview viewport at every heading. */
+#define TRACK_PREVIEW_EXTENDED_CAMERA_DISTANCE 2.5
+
+static struct SHAPE3D_HIRES_VECTOR track_preview_extended_center(const struct CSTRK_TRACK *track)
+{
+	struct SHAPE3D_HIRES_VECTOR center = {0};
+	legacy_u32 count = 0;
+	for (legacy_s16 row = 0; row < track->height; row++) {
+		for (legacy_s16 column = 0; column < track->width; column++) {
+			const struct CSTRK_OBJECT *object = extended_track_object_at(column, row);
+			if (!object || !trkObjectList[extended_track_object_id(object)].ss_trkObjInfoPtr) {
+				continue;
+			}
+			/* Occupancy includes each claimed road/stunt tile once, including
+			 * multi-tile pieces, and excludes scenery and unused footprint cells. */
+			center.x += column * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+			center.z += (track->height - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+			center.y += extended_track_elevation(column, row, CSTRK_TILE_WORLD_SIZE / 2,
+												 CSTRK_TILE_WORLD_SIZE / 2);
+			count++;
+		}
+	}
+	if (count) {
+		center.x /= count;
+		center.y /= count;
+		center.z /= count;
+	} else {
+		center.x = track->width * CSTRK_TILE_WORLD_SIZE / 2;
+		center.z = track->height * CSTRK_TILE_WORLD_SIZE / 2;
+	}
+	return center;
+}
+
+static void track_preview_draw_extended_3d(void)
+{
+	const struct CSTRK_TRACK *track = extended_track_model();
+	struct SHAPE3D_HIRES_VECTOR camera = track_preview_extended_center(track);
+	legacy_f64 extent_x = track->width * CSTRK_TILE_WORLD_SIZE - camera.x;
+	legacy_f64 extent_z = track->height * CSTRK_TILE_WORLD_SIZE - camera.z;
+	if (extent_x < camera.x) {
+		extent_x = camera.x;
+	}
+	if (extent_z < camera.z) {
+		extent_z = camera.z;
+	}
+	legacy_f64 radius =
+		polarRadius2D((legacy_s16)(extent_x / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE),
+					  (legacy_s16)(extent_z / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE)) *
+			TRACK_PREVIEW_EXTENDED_RADIUS_SCALE +
+		CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT + CSTRK_TILE_WORLD_SIZE;
+	legacy_f64 distance = radius * TRACK_PREVIEW_EXTENDED_CAMERA_DISTANCE;
+	legacy_f64 horizontal = distance * cos_fast(ANGLE_EIGHTH_TURN) / TRIG_FIXED_ONE;
+	legacy_u16 heading =
+		(legacy_u16)((dos_timer_get_realtime_counter() % TRACK_PREVIEW_EXTENDED_ORBIT_TICKS) *
+					 ANGLE_FULL_TURN / TRACK_PREVIEW_EXTENDED_ORBIT_TICKS);
+	camera.x += horizontal * sin_fast(heading) / TRIG_FIXED_ONE;
+	camera.y += distance * sin_fast(ANGLE_EIGHTH_TURN) / TRIG_FIXED_ONE;
+	camera.z -= horizontal * cos_fast(heading) / TRIG_FIXED_ONE;
+
+	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
+								  TRACK_PREVIEW_EXTENDED_BOTTOM);
+	sprite_clear_target((legacy_u8)skybox.ground_color);
+	set_projection(TRACK_PREVIEW_EXTENDED_FOV, TRACK_PREVIEW_EXTENDED_FOV,
+				   TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_SCREEN_HEIGHT);
+	projection_set_origin(0, (TRACK_PREVIEW_EXTENDED_TOP + TRACK_PREVIEW_EXTENDED_BOTTOM -
+							  TRACK_PREVIEW_SCREEN_HEIGHT) /
+								 2);
+	struct RECTANGLE clip = {0, TRACK_PREVIEW_SCREEN_WIDTH - 1, TRACK_PREVIEW_EXTENDED_TOP,
+							 TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
+	select_cliprect_rotate(0, -ANGLE_EIGHTH_TURN, (legacy_s16)heading, &clip, 0);
+	for (legacy_s16 row = 0; row < track->height; row++) {
+		for (legacy_s16 column = 0; column < track->width; column++) {
+			/* Existing meshes use a tile-local wrapped camera. Restore its full
+			 * world position here before HyperVision rotates precise vertices. */
+			struct SHAPE3D_HIRES_VECTOR origin = {
+				column * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2 - camera.x, -camera.y,
+				(track->height - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2 -
+					camera.z};
+			shape3d_hires_set_origin(&origin);
+			extended_frame_draw_preview_tile(column, row);
+		}
+	}
+	shape3d_hires_set_origin(NULL);
+	shape3d_render_queued_primitives();
+	projection_set_origin(0, 0);
+	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0, TRACK_PREVIEW_SCREEN_HEIGHT);
+}
 
 static legacy_u8 track_preview_extended_surface_color(legacy_u8 surface, legacy_u8 level)
 {
@@ -355,7 +452,11 @@ void draw_track_preview(void)
 {
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		track_preview_draw_extended();
+		if (hires_enabled()) {
+			track_preview_draw_extended_3d();
+		} else {
+			track_preview_draw_extended();
+		}
 		return;
 	}
 #endif

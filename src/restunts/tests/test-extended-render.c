@@ -17,6 +17,7 @@
 #include "../c/projection.h"
 #include "../c/roll_ramp.h"
 #include "../c/owoot_road.h"
+#include "../c/menu_internal.h"
 
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U
@@ -3680,6 +3681,125 @@ static legacy_u16 check_highway_transition_surfaces(void)
 	return frames;
 }
 
+#define OVERVIEW_RENDER_WIDTH 320
+#define OVERVIEW_RENDER_HEIGHT 200
+#define OVERVIEW_RENDER_TOP 40
+#define OVERVIEW_RENDER_BOTTOM 166
+#define OVERVIEW_RENDER_MARKER 13U
+#define OVERVIEW_RENDER_QUARTER_ORBIT 1000UL
+#define OVERVIEW_RENDER_MIN_PIXELS 8U
+#define OVERVIEW_RENDER_LEFT_REGION 140
+#define OVERVIEW_RENDER_RIGHT_REGION 180
+
+static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, legacy_s32 *height)
+{
+	sprite_select_screen_compat();
+	sprite_set_target_clip_bounds(0, OVERVIEW_RENDER_WIDTH, 0, OVERVIEW_RENDER_HEIGHT);
+	sprite_clear_target(OVERVIEW_RENDER_MARKER);
+	struct GAMESTATE saved = state;
+	struct GAMEINFO saved_config = gameconfig;
+	legacy_s8 seed_before[GAMESTATE_RANDOM_SEED_SIZE], seed_after[GAMESTATE_RANDOM_SEED_SIZE];
+	get_kevinrandom_seed(seed_before);
+	visual_clock_ticks = ticks;
+	draw_track_preview();
+	get_kevinrandom_seed(seed_after);
+	assert(memcmp(&saved, &state, sizeof(state)) == 0);
+	assert(memcmp(&saved_config, &gameconfig, sizeof(gameconfig)) == 0);
+	assert(memcmp(seed_before, seed_after, sizeof(seed_before)) == 0);
+	const legacy_u8 *pixels =
+		hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), width, height);
+	assert(pixels != NULL);
+	legacy_u8 *copy = malloc((size_t)*width * *height);
+	assert(copy != NULL);
+	memcpy(copy, pixels, (size_t)*width * *height);
+	if (hires_enabled()) {
+		legacy_s32 scale = hires_render_scale();
+		for (legacy_s32 y = 0; y < *height; y++) {
+			if (y >= OVERVIEW_RENDER_TOP * scale && y < OVERVIEW_RENDER_BOTTOM * scale) {
+				continue;
+			}
+			for (legacy_s32 x = 0; x < *width; x++) {
+				assert(copy[(size_t)y * *width + x] == OVERVIEW_RENDER_MARKER);
+			}
+		}
+	}
+	return copy;
+}
+
+static legacy_u16 check_extended_track_overview(void)
+{
+	assert(hires_enabled());
+	legacy_u32 saved_ticks = visual_clock_ticks;
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[192];
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	/* Symmetric road groups keep both the empty map and occupied map aimed at
+	 * the same center. Their raster separation detects aliased far-edge origins. */
+	struct CSTRK_OBJECT road = {0};
+	road.legacy_id = 4U;
+	road.width = road.height = road.occupied_mask = 1U;
+	for (legacy_u16 row = 40; row < 50; row++) {
+		road.y = (legacy_u8)row;
+		road.x = 0;
+		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+		road.x = CSTRK_MAX_DIMENSION - 1U;
+		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+	}
+	activate_render_track(&track, 1);
+	legacy_s32 width, height, empty_width, empty_height;
+	legacy_u8 *roads = capture_track_overview(0, &width, &height);
+	activate_render_track(&track, 0);
+	legacy_u8 *empty = capture_track_overview(0, &empty_width, &empty_height);
+	assert(width == empty_width && height == empty_height);
+	legacy_s32 scale = hires_render_scale();
+	legacy_u32 left = 0, right = 0;
+	for (legacy_s32 y = OVERVIEW_RENDER_TOP * scale; y < OVERVIEW_RENDER_BOTTOM * scale; y++) {
+		for (legacy_s32 x = 0; x < width; x++) {
+			if (roads[(size_t)y * width + x] != empty[(size_t)y * width + x]) {
+				left += x < OVERVIEW_RENDER_LEFT_REGION * scale;
+				right += x > OVERVIEW_RENDER_RIGHT_REGION * scale;
+			}
+		}
+	}
+	assert(left > OVERVIEW_RENDER_MIN_PIXELS && right > OVERVIEW_RENDER_MIN_PIXELS);
+	free(roads);
+	free(empty);
+	cstrk_free(&track);
+	assert(cstrk_create(&track, 12U, 6U, error, sizeof(error)));
+	add_render_piece(&track, 4U, 0U, 2U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+	add_render_piece(&track, 4U, 1U, 2U, 1U, 1U, 1U, CSTRK_ROAD_DIRT);
+	add_render_piece(&track, 11U, 4U, 2U, 2U, 2U, 11U, CSTRK_ROAD_ICE);
+	add_render_piece(&track, 85U, 8U, 2U, 1U, 2U, 3U, CSTRK_ROAD_PAVED);
+	add_render_piece(&track, 67U, 11U, 2U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	legacy_u8 *first = capture_track_overview(0, &width, &height);
+	legacy_u8 *rotated =
+		capture_track_overview(OVERVIEW_RENDER_QUARTER_ORBIT, &empty_width, &empty_height);
+	assert(width == empty_width && height == empty_height);
+	legacy_u32 changed = 0;
+	for (size_t pixel = 0; pixel < (size_t)width * height; pixel++) {
+		changed += first[pixel] != rotated[pixel];
+	}
+	assert(changed > OVERVIEW_RENDER_MIN_PIXELS);
+	free(first);
+	free(rotated);
+	assert(handle_ingame_kb_shortcuts(KEY_F12));
+	assert(!hires_enabled());
+	first = capture_track_overview(0, &width, &height);
+	rotated = capture_track_overview(OVERVIEW_RENDER_QUARTER_ORBIT, &empty_width, &empty_height);
+	assert(width == empty_width && height == empty_height);
+	assert(memcmp(first, rotated, (size_t)width * height) == 0);
+	free(first);
+	free(rotated);
+	assert(handle_ingame_kb_shortcuts(KEY_F12));
+	assert(hires_enabled());
+	visual_clock_ticks = saved_ticks;
+	extended_track_unload();
+	cstrk_free(&track);
+	return 6;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -3750,6 +3870,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_generated_terrain_bounds();
 		frames += check_reversed_native_slope_rendering();
 	}
+	frames += check_extended_track_overview();
 	extended_track_unload();
 	cstrk_free(&track);
 	printf("Extended 90x90 four-level terrain and native hill meshes rendered in %u frames.\n",

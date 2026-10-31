@@ -10,4 +10,6 @@ extern legacy_u16 projection_focal_length_x;
 extern legacy_u16 projection_focal_length_y;
 extern struct RECTANGLE select_rect_rc;
 
+void projection_set_origin(legacy_u16 x, legacy_u16 y);
+
 #endif

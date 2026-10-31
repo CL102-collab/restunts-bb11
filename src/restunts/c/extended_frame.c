@@ -1680,6 +1680,34 @@ legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRA
 	return 0;
 }
 
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
+{
+	struct FRAME_TILE tile = {0};
+	tile.east = (legacy_s8)column;
+	tile.south = (legacy_s8)row;
+	tile.detail = FRAME_TILE_DETAIL_FULL;
+	struct FRAME_CAMERA camera = {0};
+	camera.position.x = track_column_centers[column];
+	camera.position.z = track_row_centers[row];
+	extended_frame_draw_terrain(&tile, &camera, 0);
+
+	/* Look up nearby origins instead of scanning the entire object list for
+	 * every overview cell. Free footprint corners can have another owner. */
+	const struct CSTRK_TRACK *track = extended_track_model();
+	const struct CSTRK_OBJECT *objects[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 count =
+		extended_track_objects_in_cell(column, row, objects, EXTENDED_TRACK_CELL_OBJECT_MAX);
+	for (legacy_u16 index = 0; index < count; index++) {
+		const struct CSTRK_OBJECT *object = objects[index];
+		if (object->x == column && object->y == row) {
+			legacy_u32 id = extended_track_object_id(object);
+			if (id < TRACK_OBJECT_COUNT) {
+				frame_extended_draw_object(track, object, &trkObjectList[id], &tile, &camera, 0);
+			}
+		}
+	}
+}
+
 legacy_s16 extended_frame_add_start_flag(const struct FRAME_CAMERA *camera,
 										 legacy_s8 redraw_transform_flags)
 {
