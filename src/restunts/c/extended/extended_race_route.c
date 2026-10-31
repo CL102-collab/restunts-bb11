@@ -1,6 +1,7 @@
 #include "extended_race_route.h"
 #include "../externs.h"
 #include "../track/track_objects.h"
+#include "../track/trackdata_layout.h"
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended_replay_runtime.h"
 #endif
@@ -86,4 +87,30 @@ void extended_race_route_add_penalty(legacy_s16 skipped, legacy_u16 rate, legacy
 	(void)rate;
 	(void)seconds;
 #endif
+}
+
+legacy_s16 extended_race_route_player_row(legacy_s16 fallback)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return LEGACY_S8_FROM_BITS(LEGACY_U8_WRAP_SUB(
+			(legacy_u8)(extended_track_height() - 1),
+			(legacy_u8)((legacy_u32)state.playerstate.car_position.lz >> TRACK_WORLD_TILE_SHIFT)));
+	}
+#endif
+	return fallback;
+}
+
+legacy_s16 extended_race_route_outside(legacy_s16 column, legacy_s16 row, legacy_s16 fallback)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return column < 0 || column >= extended_track_width() || row < 0 ||
+			   row >= extended_track_height();
+	}
+#else
+	(void)column;
+	(void)row;
+#endif
+	return fallback;
 }

@@ -35,6 +35,7 @@
 #include "shape3d/shape3d_internal.h"
 #include "owoot/owoot_road.h"
 #include "extended/extended_frame.h"
+#include "extended/extended_frame_layout.h"
 #endif
 
 extern const struct GAMESTATE *frame_state;

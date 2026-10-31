@@ -84,7 +84,7 @@ extended_companions() {
 small_source_companions() {
     case "$1" in
         frame.c) printf '%s\n' frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c ;;
-        extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c hires/track_frame_precise.c ;;
+        extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c extended/extended_frame_precise.c ;;
         shape3d.c) printf '%s\n' shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
         shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
@@ -113,12 +113,12 @@ small_source_companions() {
 
 hires_source_companions() {
     case "$1" in
-        extended_frame.c) printf '%s\n' hires/track_frame_tiles.c ;;
-        extended_frame_objects.c) printf '%s\n' hires/track_frame_hills.c hires/track_frame_objects.c ;;
-        extended_frame_terrain.c) printf '%s\n' hires/track_frame_terrain.c hires/track_frame_ground.c hires/track_frame_precise.c ;;
+        extended_frame.c) printf '%s\n' extended/extended_frame_tiles.c ;;
+        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c ;;
+        extended_frame_terrain.c) printf '%s\n' extended/extended_frame_render_terrain.c extended/extended_frame_render_ground.c extended/extended_frame_precise.c ;;
         extended_geometry.c) printf '%s\n' hires/track_geometry.c ;;
         extended_menu_runtime.c) printf '%s\n' hires/track_preview_mode.c ;;
-        extended_track_preview.c) printf '%s\n' hires/track_preview_track.c ;;
+        extended_track_preview.c) printf '%s\n' extended/extended_track_preview_hires.c ;;
         frame.c) printf '%s\n' hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c ;;
         frame_camera.c) printf '%s\n' hires/frame_snapshot.c ;;
         frame_car.c) printf '%s\n' hires/frame_visibility.c hires/frame_car_render.c ;;
@@ -142,7 +142,7 @@ hires_source_companions() {
         shape3d_render.c) printf '%s\n' hires/shape3d_render.c ;;
         skybox.c) printf '%s\n' hires/skybox_scene.c ;;
         startup.c) printf '%s\n' hires/settings_startup.c ;;
-        track_frame_tiles.c) printf '%s\n' numlib.c ;;
+        extended_frame_tiles.c) printf '%s\n' numlib.c ;;
         track_preview.c) printf '%s\n' hires/track_preview_scene.c ;;
     esac
 }
@@ -161,11 +161,30 @@ generic_render_companions() {
     esac
 }
 
+extended_folder_companions() {
+    case "$1" in
+        extended_frame.c) printf '%s\n' extended/extended_frame_tiles.c ;;
+        extended_frame_layout.c)
+            if [[ " ${2:-} " == *" -DRESTUNTS_SDL3 "* ]]; then
+                printf '%s\n' extended/extended_frame.c extended/extended_frame_tiles.c
+            fi
+            ;;
+        extended_frame_objects.c) printf '%s\n' extended/extended_frame_hills.c extended/extended_frame_render_objects.c ;;
+        extended_frame_terrain.c) printf '%s\n' extended/extended_frame_render_terrain.c extended/extended_frame_render_ground.c extended/extended_frame_precise.c ;;
+        extended_track_preview.c) printf '%s\n' extended/extended_track_preview_hires.c ;;
+        frame_car.c) printf '%s\n' extended/extended_frame_layout.c ;;
+        frame_integration.c) printf '%s\n' extended/extended_frame_layout.c ;;
+        frame_tiles.c) printf '%s\n' extended/extended_frame_layout.c ;;
+        math.c) printf '%s\n' extended/extended_math.c ;;
+    esac
+}
+
 source_companions() {
     extended_companions "$1" "$2"
     small_source_companions "$1"
     hires_source_companions "$1"
     generic_render_companions "$1"
+    extended_folder_companions "$1" "$2"
 }
 
 run_host_test() {

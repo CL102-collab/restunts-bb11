@@ -239,7 +239,8 @@ set(common_sources
     extended/extended_gamestep.c
     extended/extended_trkutil.c extended/extended_fileio.c extended/extended_owoot_route.c
     extended/extended_owoot_gates.c
-    extended/extended_owoot_jump.c extended/extended_owoot_road.c hires/track_geometry.c)
+    extended/extended_owoot_jump.c extended/extended_owoot_road.c hires/track_geometry.c
+    extended/extended_math.c)
 set(game_sources
     restunts.c startup.c command_line.c fatal.c timing.c game_input.c game_input_shortcuts.c
     ui/ui_text.c ui/ui_input.c ui/ui_dialog.c ui/ui_file_dialog.c ui/ui_disk_dialog.c intro.c
@@ -268,15 +269,16 @@ set(game_sources
     frame_terrain.c frame_objects.c hires/frame_adaptive.c skybox.c hires/skybox_hires.c
     frame_overlay.c intro_render.c track/track_preview.c full_data.c full_strings.c full_tables.c
     hires/settings_startup.c hires/settings_input.c hires/race_view.c hires/race_presentation.c
-    hires/ghost_render.c hires/track_frame_tiles.c hires/track_frame_hills.c
-    hires/track_frame_objects.c hires/track_frame_terrain.c hires/track_frame_ground.c
-    hires/track_frame_precise.c hires/track_preview_track.c hires/track_preview_mode.c
+    hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
+    extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c extended/extended_frame_render_ground.c
+    extended/extended_frame_precise.c extended/extended_track_preview_hires.c hires/track_preview_mode.c
     hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c
     hires/frame_car_render.c hires/frame_supersight.c hires/frame_terrain.c hires/frame_particles.c
     hires/frame_overlay.c hires/intro_presentation.c hires/track_preview_scene.c
     hires/opponent_portrait_artwork.c hires/opponent_animation_artwork.c hires/menu_artwork.c
     hires/showroom.c hires/shape3d_pipeline.c hires/shape3d_queue.c hires/shape3d_render.c
-    hires/highscore_animation.c hires/skybox_scene.c video_framebuffer.c frame_fps.c frame_context.c)
+    hires/highscore_animation.c hires/skybox_scene.c video_framebuffer.c frame_fps.c frame_context.c
+    extended/extended_frame_layout.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")
 set(platform_common ${platform}/memory.c ${platform}/file.c ${platform}/runtime.c

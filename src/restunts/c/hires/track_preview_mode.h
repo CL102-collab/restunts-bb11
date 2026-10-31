@@ -3,7 +3,7 @@
 
 #include "../legacy.h"
 #ifdef RESTUNTS_SDL3
-legacy_s16 hires_track_preview_live(legacy_s16 track_active);
+legacy_s16 hires_track_preview_live(void);
 #endif
 
 #endif

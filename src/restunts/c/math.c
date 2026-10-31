@@ -6,6 +6,7 @@
 #include "track/track_collision.h"
 #include "wheel_transform.h"
 #include "projection.h"
+#include "extended/extended_math.h"
 
 legacy_s16 sign_word(legacy_s16 value)
 {
@@ -686,8 +687,7 @@ void transform_wheel_travel_to_world(void)
 	struct MATRIX plane_rotation;
 	if (planindex_copy != -1) {
 #ifdef RESTUNTS_SDL3
-		plane = planindex_copy >= EXTENDED_GEOMETRY_PLANE_INDEX ? current_planptr
-																: &planptr[planindex_copy];
+		plane = extended_math_selected_plane(planindex_copy);
 #else
 		plane = &planptr[planindex_copy];
 #endif

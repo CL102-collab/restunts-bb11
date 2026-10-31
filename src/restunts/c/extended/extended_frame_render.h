@@ -1,7 +1,7 @@
-#ifndef RESTUNTS_HIRES_TRACK_FRAME_H
-#define RESTUNTS_HIRES_TRACK_FRAME_H
+#ifndef RESTUNTS_EXTENDED_FRAME_RENDER_H
+#define RESTUNTS_EXTENDED_FRAME_RENDER_H
 
-#include "../extended/extended_frame.h"
+#include "extended_frame.h"
 #include "../shape3d/shape3d.h"
 
 struct CSTRK_TRACK;
@@ -10,8 +10,8 @@ struct CSTRK_CELL;
 struct TRACKOBJECT;
 struct FRAME_EXTENDED_TERRAIN;
 struct FRAME_EXTENDED_OBJECT;
-#include "shape3d_hires.h"
-#include "frame_adaptive.h"
+#include "../hires/shape3d_hires.h"
+#include "../hires/frame_adaptive.h"
 
 #if defined(RESTUNTS_SDL3)
 

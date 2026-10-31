@@ -2,7 +2,7 @@
 
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
-#include "../hires/track_preview_track.h"
+#include "extended_track_preview_hires.h"
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
 #include "../track/track_objects.h"
@@ -102,7 +102,7 @@ legacy_s16 extended_track_preview_draw(void)
 	if (!extended_track_active()) {
 		return 0;
 	}
-	if (!hires_track_preview_draw()) {
+	if (!extended_track_preview_hires_draw()) {
 		track_preview_draw_extended();
 	}
 	return 1;
