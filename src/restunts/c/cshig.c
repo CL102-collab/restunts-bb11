@@ -83,8 +83,8 @@ static int cshig_compare_objects(const void *left, const void *right)
 	return memcmp(left, right, CSTRK_OBJECT_SIZE);
 }
 
-static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size,
-								 char *error, size_t error_size)
+static int cshig_canonical_track(const struct CSTRK_TRACK *track, legacy_u16 version,
+								 uint8_t **data, size_t *size, char *error, size_t error_size)
 {
 	if (track == NULL) {
 		return cshig_fail(error, error_size, "A track is required for its highscore table");
@@ -99,7 +99,7 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	}
 	struct CSTRK_TRACK gameplay = *track;
 	/* Revision metadata and scenery do not change the course or its existing scores. */
-	gameplay.version = CSTRK_VERSION;
+	gameplay.version = version;
 	gameplay.horizon = CSTRK_HORIZON_DEFAULT;
 	gameplay.notes_length = 0;
 	gameplay.notes[0] = '\0';
@@ -120,7 +120,8 @@ static int cshig_canonical_track(const struct CSTRK_TRACK *track, uint8_t **data
 	return 1;
 }
 
-static int cshig_canonical_bytes(const uint8_t *data, size_t size, char *error, size_t error_size)
+static int cshig_canonical_bytes(const uint8_t *data, size_t size, uint8_t **normalized,
+								 char *error, size_t error_size)
 {
 	if (data == NULL || size < CSTRK_HEADER_SIZE || size > CSHIG_MAX_TRACK_SIZE) {
 		return cshig_fail(error, error_size, "Highscore track identity has an invalid size");
@@ -132,15 +133,39 @@ static int cshig_canonical_bytes(const uint8_t *data, size_t size, char *error, 
 	}
 	uint8_t *canonical = NULL;
 	size_t canonical_size = 0;
-	int valid = cshig_canonical_track(&track, &canonical, &canonical_size, error, error_size);
+	legacy_u16 version =
+		normalized != NULL ? cshig_read16(data + CSTRK_VERSION_OFFSET) : CSTRK_VERSION;
+	if (version > CSTRK_VERSION) {
+		version = CSTRK_VERSION;
+	}
+	/* Older tables were canonical under their writer's track revision. Validate
+	 * those exact bytes first, including that revision's implicit defaults. */
+	int valid =
+		cshig_canonical_track(&track, version, &canonical, &canonical_size, error, error_size);
+	if (!valid) {
+		cstrk_free(&track);
+		return 0;
+	}
+	int same = canonical_size == size && memcmp(data, canonical, size) == 0;
+	if (!same) {
+		free(canonical);
+		cstrk_free(&track);
+		return cshig_fail(error, error_size, "Highscore track identity is not canonical");
+	}
+	if (normalized != NULL && version != CSTRK_VERSION) {
+		free(canonical);
+		canonical = NULL;
+		valid = cshig_canonical_track(&track, CSTRK_VERSION, &canonical, &canonical_size, error,
+									  error_size);
+	}
 	cstrk_free(&track);
 	if (!valid) {
 		return 0;
 	}
-	int same = canonical_size == size && memcmp(data, canonical, size) == 0;
-	free(canonical);
-	if (!same) {
-		return cshig_fail(error, error_size, "Highscore track identity is not canonical");
+	if (normalized != NULL) {
+		*normalized = canonical;
+	} else {
+		free(canonical);
 	}
 	return 1;
 }
@@ -200,7 +225,8 @@ int cshig_create(struct CSHIG_TABLE *table, const struct CSTRK_TRACK *track, cha
 	}
 	struct CSHIG_TABLE next;
 	cshig_init(&next);
-	if (!cshig_canonical_track(track, &next.track_data, &next.track_size, error, error_size)) {
+	if (!cshig_canonical_track(track, CSTRK_VERSION, &next.track_data, &next.track_size, error,
+							   error_size)) {
 		return 0;
 	}
 	cshig_free(table);
@@ -212,7 +238,7 @@ int cshig_create(struct CSHIG_TABLE *table, const struct CSTRK_TRACK *track, cha
 int cshig_validate(const struct CSHIG_TABLE *table, char *error, size_t error_size)
 {
 	if (!cshig_entries_valid(table, error, error_size) ||
-		!cshig_canonical_bytes(table->track_data, table->track_size, error, error_size)) {
+		!cshig_canonical_bytes(table->track_data, table->track_size, NULL, error, error_size)) {
 		return 0;
 	}
 	cshig_success(error, error_size);
@@ -238,16 +264,12 @@ int cshig_decode(const uint8_t *data, size_t size, struct CSHIG_TABLE *table, ch
 		size != CSHIG_HEADER_SIZE + track_size + records_size) {
 		return cshig_fail(error, error_size, "Highscore payload length does not match its header");
 	}
-	if (!cshig_canonical_bytes(data + CSHIG_HEADER_SIZE, track_size, error, error_size)) {
-		return 0;
-	}
 	struct CSHIG_TABLE next;
 	cshig_init(&next);
-	next.track_data = malloc(track_size);
-	if (next.track_data == NULL) {
-		return cshig_fail(error, error_size, "Cannot allocate highscore track identity");
+	if (!cshig_canonical_bytes(data + CSHIG_HEADER_SIZE, track_size, &next.track_data, error,
+							   error_size)) {
+		return 0;
 	}
-	memcpy(next.track_data, data + CSHIG_HEADER_SIZE, track_size);
 	next.track_size = track_size;
 	const uint8_t *record = data + CSHIG_HEADER_SIZE + track_size;
 	for (unsigned index = 0; index < CSHIG_ENTRY_COUNT; index++, record += CSHIG_ENTRY_SIZE) {
@@ -313,7 +335,7 @@ int cshig_matches_track(const struct CSHIG_TABLE *table, const struct CSTRK_TRAC
 	}
 	uint8_t *canonical = NULL;
 	size_t size = 0;
-	if (!cshig_canonical_track(track, &canonical, &size, NULL, 0)) {
+	if (!cshig_canonical_track(track, CSTRK_VERSION, &canonical, &size, NULL, 0)) {
 		return 0;
 	}
 	int same = size == table->track_size && memcmp(canonical, table->track_data, size) == 0;

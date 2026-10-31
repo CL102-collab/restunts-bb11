@@ -194,6 +194,60 @@ static void test_surface_corner_identity(void)
 	cstrk_free(&track);
 }
 
+static void test_prior_track_revisions(void)
+{
+	struct CSTRK_TRACK track;
+	make_track(&track);
+	track.objects[0].legacy_id = CSTRK_OVERPASS_FIRST_ID;
+	track.objects[0].surface = CSTRK_ROAD_ICE;
+	track.objects[0].lower_surface = CSTRK_ROAD_ICE;
+	struct CSHIG_TABLE table, decoded;
+	cshig_init(&table);
+	cshig_init(&decoded);
+	assert(cshig_create(&table, &track, NULL, 0));
+	struct CSHIG_ENTRY score = entry("Preserved player", 1234U);
+	assert(cshig_insert(&table, &score, NULL, 0));
+	legacy_u8 *current = NULL;
+	size_t size = 0;
+	assert(cshig_encode(&table, &current, &size, NULL, 0));
+	legacy_u8 *prior = malloc(size);
+	assert(prior != NULL);
+	for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_VERSION; version++) {
+		memcpy(prior, current, size);
+		LEGACY_WRITE_U16_LE(prior + CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET, version);
+		if (version < CSTRK_LOWER_SURFACE_VERSION) {
+			/* v3 stored the shared overpass material implicitly. Migration must
+			 * preserve the ice road instead of treating its reserved byte as paved. */
+			size_t objects_offset = CSHIG_HEADER_SIZE + CSTRK_HEADER_SIZE +
+									((size_t)track.width + 1U) * ((size_t)track.height + 1U) +
+									(size_t)track.width * track.height * 2U;
+			for (legacy_u32 object = 0; object < track.object_count; object++) {
+				prior[objects_offset + object * CSTRK_OBJECT_SIZE +
+					  CSTRK_OBJECT_LOWER_SURFACE_OFFSET] = 0;
+			}
+		}
+		assert(cshig_decode(prior, size, &decoded, NULL, 0));
+		assert(memcmp(decoded.entries, table.entries, sizeof(table.entries)) == 0);
+		assert(cshig_matches_track(&decoded, &track));
+		assert(cshig_validate(&decoded, NULL, 0));
+		legacy_u8 *upgraded = NULL;
+		size_t upgraded_size = 0;
+		assert(cshig_encode(&decoded, &upgraded, &upgraded_size, NULL, 0));
+		assert(upgraded_size == size && memcmp(upgraded, current, size) == 0);
+		free(upgraded);
+		/* Migration must retain the original canonical validation, including
+		 * cosmetic fields that were never stored in score identities. */
+		prior[CSHIG_HEADER_SIZE + CSTRK_HORIZON_OFFSET] = CSTRK_HORIZON_TROPICAL;
+		assert(!cshig_decode(prior, size, &decoded, NULL, 0));
+		assert(memcmp(decoded.entries, table.entries, sizeof(table.entries)) == 0);
+	}
+	free(prior);
+	free(current);
+	cshig_free(&table);
+	cshig_free(&decoded);
+	cstrk_free(&track);
+}
+
 static void test_ranking_and_time(void)
 {
 	uint64_t normalized = 123U;
@@ -456,6 +510,7 @@ int main(void)
 {
 	test_identity();
 	test_surface_corner_identity();
+	test_prior_track_revisions();
 	test_ranking_and_time();
 	test_codec_and_corruption();
 	test_maximum_track();

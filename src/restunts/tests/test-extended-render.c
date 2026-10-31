@@ -3688,8 +3688,11 @@ static legacy_u16 check_highway_transition_surfaces(void)
 #define OVERVIEW_RENDER_MARKER 13U
 #define OVERVIEW_RENDER_QUARTER_ORBIT 1000UL
 #define OVERVIEW_RENDER_MIN_PIXELS 8U
-#define OVERVIEW_RENDER_LEFT_REGION 140
-#define OVERVIEW_RENDER_RIGHT_REGION 180
+#define OVERVIEW_RENDER_MIN_ROAD_PIXELS 128U
+#define OVERVIEW_RENDER_ROAD_FIRST_COLUMN 78U
+#define OVERVIEW_RENDER_ROAD_LAST_COLUMN 82U
+#define OVERVIEW_RENDER_ROAD_FIRST_ROW 28U
+#define OVERVIEW_RENDER_ROAD_LAST_ROW 61U
 
 static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, legacy_s32 *height)
 {
@@ -3734,17 +3737,19 @@ static legacy_u16 check_extended_track_overview(void)
 	cstrk_init(&track);
 	legacy_char error[192];
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
-	/* Symmetric road groups keep both the empty map and occupied map aimed at
-	 * the same center. Their raster separation detects aliased far-edge origins. */
+	/* Nearby roads surround a drone whose X position exceeds a full unsigned
+	 * word. The empty flat map has the same background at either target. */
 	struct CSTRK_OBJECT road = {0};
 	road.legacy_id = 4U;
 	road.width = road.height = road.occupied_mask = 1U;
-	for (legacy_u16 row = 40; row < 50; row++) {
+	for (legacy_u16 row = OVERVIEW_RENDER_ROAD_FIRST_ROW; row <= OVERVIEW_RENDER_ROAD_LAST_ROW;
+		 row++) {
 		road.y = (legacy_u8)row;
-		road.x = 0;
-		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
-		road.x = CSTRK_MAX_DIMENSION - 1U;
-		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+		for (legacy_u16 column = OVERVIEW_RENDER_ROAD_FIRST_COLUMN;
+			 column <= OVERVIEW_RENDER_ROAD_LAST_COLUMN; column++) {
+			road.x = (legacy_u8)column;
+			assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+		}
 	}
 	activate_render_track(&track, 1);
 	legacy_s32 width, height, empty_width, empty_height;
@@ -3752,32 +3757,30 @@ static legacy_u16 check_extended_track_overview(void)
 	activate_render_track(&track, 0);
 	legacy_u8 *empty = capture_track_overview(0, &empty_width, &empty_height);
 	assert(width == empty_width && height == empty_height);
-	legacy_s32 scale = hires_render_scale();
-	legacy_u32 left = 0, right = 0;
-	for (legacy_s32 y = OVERVIEW_RENDER_TOP * scale; y < OVERVIEW_RENDER_BOTTOM * scale; y++) {
-		for (legacy_s32 x = 0; x < width; x++) {
-			if (roads[(size_t)y * width + x] != empty[(size_t)y * width + x]) {
-				left += x < OVERVIEW_RENDER_LEFT_REGION * scale;
-				right += x > OVERVIEW_RENDER_RIGHT_REGION * scale;
-			}
-		}
+	legacy_u32 changed = 0;
+	for (size_t pixel = 0; pixel < (size_t)width * height; pixel++) {
+		changed += roads[pixel] != empty[pixel];
 	}
-	assert(left > OVERVIEW_RENDER_MIN_PIXELS && right > OVERVIEW_RENDER_MIN_PIXELS);
+	assert(changed > OVERVIEW_RENDER_MIN_ROAD_PIXELS);
 	free(roads);
 	free(empty);
 	cstrk_free(&track);
-	assert(cstrk_create(&track, 12U, 6U, error, sizeof(error)));
-	add_render_piece(&track, 4U, 0U, 2U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
-	add_render_piece(&track, 4U, 1U, 2U, 1U, 1U, 1U, CSTRK_ROAD_DIRT);
-	add_render_piece(&track, 11U, 4U, 2U, 2U, 2U, 11U, CSTRK_ROAD_ICE);
-	add_render_piece(&track, 85U, 8U, 2U, 1U, 2U, 3U, CSTRK_ROAD_PAVED);
-	add_render_piece(&track, 67U, 11U, 2U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+	assert(cstrk_create(&track, 30U, 18U, error, sizeof(error)));
+	for (legacy_u16 column = 5U; column < 25U; column++) {
+		if (column != 8U && column != 9U && column != 18U && column != 22U) {
+			add_render_piece(&track, 4U, column, 3U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+		}
+		add_render_piece(&track, 4U, column, 14U, 1U, 1U, 1U, CSTRK_ROAD_DIRT);
+	}
+	add_render_piece(&track, 11U, 8U, 3U, 2U, 2U, 11U, CSTRK_ROAD_ICE);
+	add_render_piece(&track, 85U, 18U, 2U, 1U, 2U, 3U, CSTRK_ROAD_PAVED);
+	add_render_piece(&track, 67U, 22U, 3U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
 	assert(extended_track_activate(&track, error, sizeof(error)));
 	legacy_u8 *first = capture_track_overview(0, &width, &height);
 	legacy_u8 *rotated =
 		capture_track_overview(OVERVIEW_RENDER_QUARTER_ORBIT, &empty_width, &empty_height);
 	assert(width == empty_width && height == empty_height);
-	legacy_u32 changed = 0;
+	changed = 0;
 	for (size_t pixel = 0; pixel < (size_t)width * height; pixel++) {
 		changed += first[pixel] != rotated[pixel];
 	}

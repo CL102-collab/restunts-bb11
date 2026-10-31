@@ -277,13 +277,11 @@ enum TRACK_PREVIEW_EXTENDED_COLOR {
 #define TRACK_PREVIEW_EXTENDED_TOP 40
 #define TRACK_PREVIEW_EXTENDED_BOTTOM 166
 #define TRACK_PREVIEW_EXTENDED_FOV 40
-#define TRACK_PREVIEW_EXTENDED_ORBIT_SECONDS 40UL
-#define TRACK_PREVIEW_EXTENDED_ORBIT_TICKS                                                         \
-	(TRACK_PREVIEW_EXTENDED_ORBIT_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
-/* Normalize the largest map diagonal into the legacy radius helper's range. */
-#define TRACK_PREVIEW_EXTENDED_RADIUS_SCALE 8
-/* Fit the complete map inside the shorter preview viewport at every heading. */
-#define TRACK_PREVIEW_EXTENDED_CAMERA_DISTANCE 2.5
+#define TRACK_PREVIEW_EXTENDED_SPIN_SECONDS 40UL
+#define TRACK_PREVIEW_EXTENDED_SPIN_TICKS                                                          \
+	(TRACK_PREVIEW_EXTENDED_SPIN_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
+#define TRACK_PREVIEW_EXTENDED_DRONE_LEVELS 6
+#define TRACK_PREVIEW_EXTENDED_DRONE_PITCH (ANGLE_EIGHTH_TURN / 4)
 
 static struct SHAPE3D_HIRES_VECTOR track_preview_extended_center(const struct CSTRK_TRACK *track)
 {
@@ -319,39 +317,30 @@ static void track_preview_draw_extended_3d(void)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
 	struct SHAPE3D_HIRES_VECTOR camera = track_preview_extended_center(track);
-	legacy_f64 extent_x = track->width * CSTRK_TILE_WORLD_SIZE - camera.x;
-	legacy_f64 extent_z = track->height * CSTRK_TILE_WORLD_SIZE - camera.z;
-	if (extent_x < camera.x) {
-		extent_x = camera.x;
-	}
-	if (extent_z < camera.z) {
-		extent_z = camera.z;
-	}
-	legacy_f64 radius =
-		polarRadius2D((legacy_s16)(extent_x / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE),
-					  (legacy_s16)(extent_z / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE)) *
-			TRACK_PREVIEW_EXTENDED_RADIUS_SCALE +
-		CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT + CSTRK_TILE_WORLD_SIZE;
-	legacy_f64 distance = radius * TRACK_PREVIEW_EXTENDED_CAMERA_DISTANCE;
-	legacy_f64 horizontal = distance * cos_fast(ANGLE_EIGHTH_TURN) / TRIG_FIXED_ONE;
 	legacy_u16 heading =
-		(legacy_u16)((dos_timer_get_realtime_counter() % TRACK_PREVIEW_EXTENDED_ORBIT_TICKS) *
-					 ANGLE_FULL_TURN / TRACK_PREVIEW_EXTENDED_ORBIT_TICKS);
-	camera.x += horizontal * sin_fast(heading) / TRIG_FIXED_ONE;
-	camera.y += distance * sin_fast(ANGLE_EIGHTH_TURN) / TRIG_FIXED_ONE;
-	camera.z -= horizontal * cos_fast(heading) / TRIG_FIXED_ONE;
+		(legacy_u16)((dos_timer_get_realtime_counter() % TRACK_PREVIEW_EXTENDED_SPIN_TICKS) *
+					 ANGLE_FULL_TURN / TRACK_PREVIEW_EXTENDED_SPIN_TICKS);
+	/* Hover directly above the equally weighted tile center and turn in place.
+	 * Map dimensions must not pull this view farther away from the road. */
+	camera.y += TRACK_PREVIEW_EXTENDED_DRONE_LEVELS * CSTRK_LEVEL_WORLD_HEIGHT;
 
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
-								  TRACK_PREVIEW_EXTENDED_BOTTOM);
-	sprite_clear_target((legacy_u8)skybox.ground_color);
 	set_projection(TRACK_PREVIEW_EXTENDED_FOV, TRACK_PREVIEW_EXTENDED_FOV,
 				   TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_SCREEN_HEIGHT);
 	projection_set_origin(0, (TRACK_PREVIEW_EXTENDED_TOP + TRACK_PREVIEW_EXTENDED_BOTTOM -
 							  TRACK_PREVIEW_SCREEN_HEIGHT) /
 								 2);
+	legacy_s16 horizon = (legacy_s16)projection_center_y -
+						 (legacy_s16)((legacy_s32)projection_focal_length_y *
+									  sin_fast(TRACK_PREVIEW_EXTENDED_DRONE_PITCH) /
+									  cos_fast(TRACK_PREVIEW_EXTENDED_DRONE_PITCH));
+	struct RECTANGLE viewport = {0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
+								 TRACK_PREVIEW_EXTENDED_BOTTOM};
+	skybox_render_level_rect(&viewport, (legacy_s16)heading, horizon);
+	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
+								  TRACK_PREVIEW_EXTENDED_BOTTOM);
 	struct RECTANGLE clip = {0, TRACK_PREVIEW_SCREEN_WIDTH - 1, TRACK_PREVIEW_EXTENDED_TOP,
 							 TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
-	select_cliprect_rotate(0, -ANGLE_EIGHTH_TURN, (legacy_s16)heading, &clip, 0);
+	select_cliprect_rotate(0, -TRACK_PREVIEW_EXTENDED_DRONE_PITCH, (legacy_s16)heading, &clip, 0);
 	for (legacy_s16 row = 0; row < track->height; row++) {
 		for (legacy_s16 column = 0; column < track->width; column++) {
 			/* Existing meshes use a tile-local wrapped camera. Restore its full

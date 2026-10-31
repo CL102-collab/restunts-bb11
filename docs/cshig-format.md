@@ -22,9 +22,9 @@ than writing C structures.
 | 28 | 4 | Reserved, zero |
 
 The gameplay identity is a complete valid CSTRK file with its revision normalized
-to the current track revision v3, its cosmetic horizon reset to Desert, and
+to the current track revision, its cosmetic horizon reset to Desert, and
 its notes removed: notes length is zero, notes bytes are absent, and payload
-size is adjusted. Older extended-track revisions are unsupported.
+size is adjusted. Track revisions before v3 are unsupported.
 Its 16-byte serialized object records are sorted in ascending bytewise order;
 all other terrain and object data are retained exactly. Therefore changes to
 revision metadata, notes, horizon, or object ordering keep the same scores.
@@ -34,8 +34,12 @@ identity. The codec compares the canonical bytes directly, without relying on a
 hash collision assumption. Semantically equivalent but differently encoded object directions
 are still different identities.
 
-Decoders validate the embedded CSTRK and require it to already have this
-canonical representation. They reject noncanonical revisions, embedded notes,
+Decoders validate the embedded CSTRK and require it to already have the
+canonical representation of a supported track revision. Existing tables written
+with older revisions (v3 and later) remain readable: their identity is normalized
+to the current revision in memory without changing any score rows. Reading does
+not rewrite the file; the next saved score writes the current identity.
+Decoders reject unsupported revisions, embedded notes,
 nondefault horizons, unsorted object records, invalid metadata, nonzero reserved
 fields, malformed records, inconsistent lengths, truncation, and trailing data.
 Identity data is at most 154,113 bytes, making the complete file at most 154,551
