@@ -22,7 +22,6 @@
 #define CALLBACK_SOUND_HELP_KEY 19
 #define CALLBACK_DOS_HELP_ALT_KEY 24
 
-#define STARTUP_HYPERVISION_PREFIX "--hv:"
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
 	!defined(__DJGPP__)

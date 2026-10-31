@@ -16,7 +16,7 @@
 #include "track/trackdata_layout.h"
 #include "track/track_objects.h"
 #ifdef RESTUNTS_SDL3
-#include "hires/frame_interpolation.h"
+#include "hires/ghost_render.h"
 #endif
 
 #define GHOST_TEMP_NAME_DIGITS 6U
@@ -24,11 +24,6 @@
 #define GHOST_TEMP_NAME_CANDIDATE_COUNT 1000000UL
 #define GHOST_REPLAY_PATH_OVERHEAD (sizeof(".rpl") + sizeof("/") - 1U)
 #define GHOST_COPY_BUFFER_SIZE 256U
-
-struct GHOST_POSE {
-	struct CARSTATE car;
-	struct GHOST_CAMERA_STATE camera;
-};
 
 struct GAMEINFO ghost_config;
 static struct GHOST_POSE ghost_pose;
@@ -46,15 +41,6 @@ static legacy_u16 ghost_pose_frame;
 #endif
 static legacy_u32 ghost_live_frame;
 static legacy_u16 ghost_live_frame_rate;
-#ifdef RESTUNTS_SDL3
-static struct {
-	struct GHOST_POSE lower;
-	struct GHOST_POSE upper;
-	legacy_u32 lower_frame;
-	legacy_u32 upper_frame;
-	legacy_u8 valid;
-} ghost_render_cache;
-#endif
 
 legacy_s16 ghost_seek(legacy_u16 file, legacy_s32 offset)
 {
@@ -71,7 +57,7 @@ void ghost_end_race(void)
 	ghost_active = 0;
 	ghost_pose_valid = 0;
 #ifdef RESTUNTS_SDL3
-	ghost_render_cache.valid = 0;
+	ghost_render_reset();
 #endif
 	ghost_line_clear();
 }
@@ -117,7 +103,7 @@ const struct GHOST_CAMERA_STATE *ghost_camera_state(void)
 	return ghost_is_active() && ghost_pose_valid ? &ghost_pose.camera : 0;
 }
 
-static legacy_u32 ghost_recorded_frames(void)
+legacy_u32 ghost_recorded_frames(void)
 {
 #ifdef RESTUNTS_SDL3
 	return extended_ghost_runtime_recorded_frames(ghost_config.game_recordedframes);
@@ -489,92 +475,19 @@ void ghost_update(legacy_u32 frame, legacy_u16 live_frame_rate)
 }
 
 #ifdef RESTUNTS_SDL3
-static legacy_s16 ghost_read_render_pose(legacy_u32 frame, struct GHOST_POSE *pose)
+legacy_s16 ghost_copy_live_pose(legacy_u32 frame, struct GHOST_POSE *pose)
 {
 	if (ghost_pose_valid != 0 && ghost_pose_frame == frame) {
 		*pose = ghost_pose;
 		return 1;
 	}
-	if (ghost_render_cache.valid != 0) {
-		if (ghost_render_cache.lower_frame == frame) {
-			*pose = ghost_render_cache.lower;
-			return 1;
-		}
-		if (ghost_render_cache.upper_frame == frame) {
-			*pose = ghost_render_cache.upper;
-			return 1;
-		}
-	}
+	return 0;
+}
+
+legacy_s16 ghost_read_pose(legacy_u32 frame, struct GHOST_POSE *pose)
+{
 	legacy_u32 offset = ghost_pose_offset() + (legacy_u32)frame * sizeof(struct GHOST_POSE);
 	return ghost_seek(ghost_file, (legacy_s32)offset) &&
 		   dos_file_read(ghost_file, pose, sizeof(*pose)) == sizeof(*pose);
-}
-
-legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
-									legacy_u32 lag, struct CARSTATE *car,
-									struct GHOST_CAMERA_STATE *camera)
-{
-	if (!ghost_is_active() || !ghost_pose_valid || live_frame_rate == 0 || car == 0 ||
-		camera == 0) {
-		return 0;
-	}
-	legacy_u64 live_time = (legacy_u64)live_frame * FRAME_INTERPOLATION_ONE;
-	live_time = live_time > lag ? live_time - lag : 0;
-	legacy_u64 source_time = live_time * ghost_config.game_framespersec / live_frame_rate;
-	legacy_u64 end_time = (legacy_u64)ghost_recorded_frames() * FRAME_INTERPOLATION_ONE;
-	if (source_time > end_time) {
-		source_time = end_time;
-	}
-	legacy_u32 lower_frame = (legacy_u32)(source_time / FRAME_INTERPOLATION_ONE);
-	legacy_u32 fraction = (legacy_u32)(source_time % FRAME_INTERPOLATION_ONE);
-	legacy_u32 upper_frame = lower_frame + (fraction != 0);
-	struct GHOST_POSE lower, upper;
-	if (!ghost_read_render_pose(lower_frame, &lower)) {
-		return 0;
-	}
-	if (lower_frame == upper_frame) {
-		upper = lower;
-	} else if (!ghost_read_render_pose(upper_frame, &upper)) {
-		return 0;
-	}
-	/* Commit a complete bracket only. Failed reads leave the authoritative pose
-	 * and the caller's output untouched, so presentation can fall back safely. */
-	ghost_render_cache.lower = lower;
-	ghost_render_cache.upper = upper;
-	ghost_render_cache.lower_frame = lower_frame;
-	ghost_render_cache.upper_frame = upper_frame;
-	ghost_render_cache.valid = 1;
-	if (lower.car.car_crashBmpFlag != upper.car.car_crashBmpFlag ||
-		upper.car.car_crashBmpFlag != ghost_pose.car.car_crashBmpFlag) {
-		/* A known future impact must not move the rendered car before the live
-		 * ghost confirms it. A newly confirmed impact snaps body and camera together. */
-		*car = ghost_pose.car;
-		*camera = ghost_pose.camera;
-	} else {
-		struct CARSTATE blended;
-		frame_interpolate_car(&blended, &upper.car, &lower.car, fraction);
-		*car = ghost_pose.car;
-		car->car_position = blended.car_position;
-		car->car_rotate = blended.car_rotate;
-		car->car_steeringAngle = blended.car_steeringAngle;
-		for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
-			car->car_suspension_deflection[wheel] = blended.car_suspension_deflection[wheel];
-		}
-		*camera = ghost_pose.camera;
-		if (lower.camera.trackside_index == upper.camera.trackside_index &&
-			upper.camera.trackside_index == ghost_pose.camera.trackside_index) {
-			frame_interpolate_vector(&camera->follow_position, &upper.camera.follow_position,
-									 &lower.camera.follow_position, fraction);
-			frame_interpolate_vector(&camera->previous_position, &upper.camera.previous_position,
-									 &lower.camera.previous_position, fraction);
-		}
-	}
-	car->car_sound_flags = CAR_SOUND_NONE;
-	/* Cached future poses supply geometry only; visible events keep their
-	 * authoritative timing, including the ghost-view elapsed/crash overlay. */
-	car->car_crashBmpFlag = ghost_pose.car.car_crashBmpFlag;
-	camera->frame = ghost_pose.camera.frame;
-	camera->crash_frame = ghost_pose.camera.crash_frame;
-	return 1;
 }
 #endif

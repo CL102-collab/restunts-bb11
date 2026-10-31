@@ -155,7 +155,7 @@ static void test_replay_viewport_toggle(void)
 	static const legacy_s16 dashboard_tops[] = {140, 151, 165, 180};
 	for (legacy_u16 index = 0; index < sizeof(dashboard_tops) / sizeof(dashboard_tops[0]);
 		 index++) {
-		struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 		game_replay_mode = REPLAY_MODE_PLAYBACK;
 		game_replay_mode_copy = RACE_REPLAY_MODE_UNINITIALIZED;
 		idle_expired = followOpponentFlag = 0;
@@ -176,7 +176,7 @@ static void test_replay_viewport_toggle(void)
 			assert(rect_windshield.bottom == expected_bottom);
 			assert(height_above_replaybar == 151);
 			assert(dashboard_visible == 1 && replaybar_enabled == 1);
-			assert(cache.supersight == supersight_enabled);
+			assert(cache.hires.supersight == supersight_enabled);
 			assert(full_redraw_frames_remaining == (pass == 0 || dashbmp_y > 151 ? 2 : 0));
 		}
 		assert(projection_updates == (dashbmp_y > 151 ? 3 : 1));

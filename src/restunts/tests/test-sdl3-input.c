@@ -16,7 +16,7 @@
 #include "../c/hires/hires.h"
 #include "../c/hires/frame_adaptive.h"
 #include "../c/video_frame.h"
-#include "../c/presentation.h"
+#include "../c/hires/presentation.h"
 
 legacy_s32 sdl3_batch_mode;
 static legacy_u8 framebuffer[65536];

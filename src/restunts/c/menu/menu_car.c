@@ -23,11 +23,7 @@
 #include "../keyboard.h"
 #include "../frame_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "../presentation.h"
-#include "../hires/shape3d_hires.h"
-#include "../opponent/opponent_portrait.h"
-#include "menu_background.h"
-#include "../shape2d/shape2d_internal.h"
+#include "../hires/showroom.h"
 #endif
 
 #define GAME_RESOURCE_FILE_INDEX 2
@@ -50,11 +46,6 @@
 #define CAR_MENU_PROJECTION_X_SCALE 36
 #define CAR_MENU_PROJECTION_Y_SCALE 17
 #define CAR_MENU_PROJECTION_HEIGHT 100
-#define CAR_MENU_MODEL_SCALE 20
-/* Low light from the left casts toward the rear-right of the painted podium. */
-#define CAR_MENU_SHADOW_HEADING ANGLE_EIGHTH_TURN
-/* Cotangent of the showroom light's 30-degree elevation. */
-#define CAR_MENU_SHADOW_COTANGENT 1.732051
 #define CAR_MENU_TRANSFORM_DISTANCE 30000U
 #define CAR_MENU_CLIPPED_TRANSFORM_FLAG 8U
 #define CAR_MENU_BACKGROUND_Y 103
@@ -124,13 +115,7 @@ struct CAR_MENU_STATE {
 	legacy_s8 *transmission;
 	legacy_u16 opponent_type;
 #ifdef RESTUNTS_SDL3
-	struct VECTOR shadow_position;
-	struct PRESENTATION_CLOCK presentation_clock;
-	legacy_u64 rotation_time;
-	legacy_u64 prepared_render_ns;
-	legacy_u64 input_time;
-	legacy_s16 input_delta;
-	legacy_u8 portrait_dirty, background_dirty;
+	struct HIRES_SHOWROOM hires;
 #endif
 };
 
@@ -202,13 +187,7 @@ static void car_menu_initialize(struct CAR_MENU_STATE *menu)
 	menu->previous_car_index = CAR_MENU_NO_SELECTION;
 	menu->rotation = 0;
 #ifdef RESTUNTS_SDL3
-	menu->rotation_time = presentation_now();
-	menu->prepared_render_ns = 0;
-	menu->input_time = menu->rotation_time;
-	menu->input_delta = 0;
-	menu->portrait_dirty = 0;
-	menu->background_dirty = 0;
-	presentation_reset(&menu->presentation_clock, menu->rotation_time);
+	hires_showroom_initialize(&menu->hires);
 #endif
 	menu->selected = CAR_MENU_DONE_BUTTON;
 	menu_reset_animation_timers();
@@ -287,9 +266,7 @@ static void car_menu_load_car(struct CAR_MENU_STATE *menu)
 	menu->car_resource = (legacy_s8 far *)file_load_resfile(car_resource_name);
 	setup_aero_trackdata(menu->car_resource, 0);
 #ifdef RESTUNTS_SDL3
-	menu->shadow_position = menu->transformed.pos;
-	menu->shadow_position.y = LEGACY_S16_WRAP_ADD(
-		menu->shadow_position.y, shape3d_car_ground_height(menu->transformed.shapeptr));
+	hires_showroom_load_car(&menu->hires, &menu->transformed);
 #endif
 
 	sprite_select_render_window_and_clear();
@@ -331,8 +308,7 @@ static void car_menu_load_car(struct CAR_MENU_STATE *menu)
 	(void)timer_get_delta_alt();
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
-	menu->rotation_time = presentation_now();
-	presentation_reset(&menu->presentation_clock, menu->rotation_time);
+	hires_showroom_reset_clock(&menu->hires);
 #endif
 	menu->previous_selected = CAR_MENU_NO_SELECTION;
 	menu->previous_rect.left = 0;
@@ -348,47 +324,22 @@ static void car_menu_prepare_preview(struct CAR_MENU_STATE *menu)
 	menu->rotation = LEGACY_S16_WRAP_ADD(menu->rotation, menu->rotation_delta);
 	legacy_s16 visual_rotation = menu->rotation;
 #ifdef RESTUNTS_SDL3
-	if (supersight_enabled != 0) {
-		legacy_u64 now = presentation_now();
-		if (!presentation_due(&menu->presentation_clock, now) &&
-			menu->render_phase != CAR_RENDER_START_PHASE) {
-			return;
-		}
-		/* The preview turns at one angle unit per 100 Hz timer tick. Continue
-		 * that known motion without reading another input or changing its timer. */
-		visual_rotation =
-			LEGACY_S16_WRAP_ADD(menu->rotation, (legacy_u16)((now - menu->rotation_time) *
-															 DOS_TIMER_REALTIME_TICKS_PER_SECOND /
-															 PRESENTATION_SECOND_NS));
+	if (!hires_showroom_visual_rotation(&menu->hires, menu->rotation,
+										menu->render_phase == CAR_RENDER_START_PHASE,
+										&visual_rotation)) {
+		return;
 	}
 #endif
 	if (menu->render_phase == CAR_RENDER_IDLE_PHASE ||
 		menu->render_phase == CAR_RENDER_START_PHASE) {
 #ifdef RESTUNTS_SDL3
-		legacy_u64 prepare_started = presentation_now();
+		hires_showroom_prepare_begin(&menu->hires);
 #endif
 		legacy_s16 car_position_angle = (legacy_s16)polarAngle(carmenu_carpos.y, carmenu_carpos.z);
 		menu->current_rect = slow_video_mgmt_copy != 0 ? empty_rect : carmenu_cliprect;
 		select_cliprect_rotate(0, car_position_angle, 0, &carmenu_cliprect, 0);
 #ifdef RESTUNTS_SDL3
-		/* The car0 showroom model is authored at twenty times the racing scale. */
-		shape3d_hires_set_model_scale(CAR_MENU_MODEL_SCALE);
-		menu->transformed.ts_flags &= ~SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
-		if (supersight_enabled != 0) {
-			const struct VECTOR camera = {LEGACY_S16_WRAP_NEGATE(menu->shadow_position.x),
-										  LEGACY_S16_WRAP_NEGATE(menu->shadow_position.y),
-										  LEGACY_S16_WRAP_NEGATE(menu->shadow_position.z)};
-			shape3d_hires_shadows_begin(&camera);
-			shape3d_hires_set_shadow_light(CAR_MENU_SHADOW_HEADING, CAR_MENU_SHADOW_COTANGENT);
-			shape3d_hires_shadow_car(
-				&menu->shadow_position, visual_rotation,
-				LEGACY_S16_WRAP_MUL(simd_player.collide_points[0].px, CAR_MENU_MODEL_SCALE),
-				LEGACY_S16_WRAP_MUL(simd_player.collide_points[1].px, CAR_MENU_MODEL_SCALE));
-			shape3d_hires_shadow_projected_model(
-				menu->transformed.shapeptr,
-				LEGACY_S16_WRAP_SUB(menu->shadow_position.y, menu->transformed.pos.y));
-			menu->transformed.ts_flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
-		}
+		hires_showroom_shadows(&menu->hires, &menu->transformed, visual_rotation);
 #endif
 		if ((legacy_s8)(legacy_u8)*menu->material >=
 			(legacy_s8)(legacy_u8)game3dshapes[PLAYER_CAR_LOW_SHAPE].shape3d_numpaints) {
@@ -398,11 +349,7 @@ static void car_menu_prepare_preview(struct CAR_MENU_STATE *menu)
 		menu->transformed.material = (legacy_u8)*menu->material;
 		shape3d_transform_and_queue(&menu->transformed);
 #ifdef RESTUNTS_SDL3
-		if (supersight_enabled != 0) {
-			/* Restore and copy the floor beyond the car's own dirty bounds, including
-			 * the previous shadow when the preview rotates or F12 turns it off. */
-			menu->current_rect = carmenu_cliprect;
-		}
+		hires_showroom_car_bounds(&menu->current_rect);
 #endif
 		car_menu_redraw_cliprect.bottom = menu->previous_car_index == menu->car_index
 											  ? CAR_MENU_CAR_CLIP_BOTTOM
@@ -410,26 +357,17 @@ static void car_menu_prepare_preview(struct CAR_MENU_STATE *menu)
 		(void)rect_intersect(&menu->current_rect, &car_menu_redraw_cliprect);
 		rect_union(&menu->current_rect, &menu->previous_rect, &menu->union_rect);
 #ifdef RESTUNTS_SDL3
-		if (menu->background_dirty != 0) {
-			/* Mode/scale changes discard companion pixels. Restore the complete
-			 * showroom, including the wall outside the rotating car's bounds. */
-			struct RECTANGLE background_rect = {0, CAR_MENU_SCREEN_WIDTH, 0, CAR_MENU_BACKGROUND_Y};
-			rect_union(&menu->union_rect, &background_rect, &menu->union_rect);
-		}
+		hires_showroom_background_bounds(&menu->hires, &menu->union_rect);
 #endif
 		if (menu->render_phase != CAR_RENDER_START_PHASE) {
 			menu->render_phase = CAR_RENDER_DRAW_PHASE;
 			menu->render_deferred = 1;
 #ifdef RESTUNTS_SDL3
-			if (supersight_enabled != 0) {
-				menu->render_deferred = 0;
-			}
+			hires_showroom_defer_render(&menu->render_deferred);
 #endif
 		}
 #ifdef RESTUNTS_SDL3
-		/* Classic previews can defer rasterization until another iteration.
-		 * Carry preparation work, but exclude input and waiting between them. */
-		menu->prepared_render_ns = presentation_now() - prepare_started;
+		hires_showroom_prepare_end(&menu->hires);
 #endif
 	}
 }
@@ -441,14 +379,7 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 		menu->render_phase = CAR_RENDER_IDLE_PHASE;
 		menu->car_ready = 1;
 #ifdef RESTUNTS_SDL3
-		legacy_u8 complete_frame = menu->blit_mode == MENU_BLIT_MODE_REFRESH;
-		if (complete_frame != 0) {
-			/* Geometry is already queued at the current scale. Keep that scale and
-			 * leave the initial dissolve free to present each of its phases. */
-			sdl3_video_begin_track_frame(0);
-			sdl3_video_add_render_work(menu->prepared_render_ns);
-		}
-		menu->prepared_render_ns = 0;
+		hires_showroom_render_begin(&menu->hires, menu->blit_mode == MENU_BLIT_MODE_REFRESH);
 #endif
 		sprite_select_render_window();
 		sprite_set_target_clip_bounds(menu->union_rect.left, menu->union_rect.right,
@@ -457,8 +388,7 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 			menu->selector_resource, car_preview_top_shape_id);
 		sprite_putimage(background);
 #ifdef RESTUNTS_SDL3
-		menu_background_draw(&drawing_sprite, background, MENU_BACKGROUND_SHOWROOM);
-		menu->background_dirty = 0;
+		hires_showroom_background(&menu->hires, background);
 #endif
 		shape3d_render_queued_primitives();
 		sprite_select_render_window();
@@ -475,7 +405,7 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 
 		legacy_u8 redraw_portrait = menu->previous_car_index != menu->car_index;
 #ifdef RESTUNTS_SDL3
-		redraw_portrait |= menu->portrait_dirty;
+		redraw_portrait = hires_showroom_redraw_portrait(&menu->hires, redraw_portrait);
 #endif
 		if (menu->opponent_type != CAR_MENU_PLAYER_MODE && redraw_portrait != 0) {
 			sprite_select_render_window();
@@ -489,18 +419,7 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 									 CAR_MENU_OPPONENT_PANEL_X, 0);
 			}
 #ifdef RESTUNTS_SDL3
-			struct SHAPE2D *portrait_shape = (struct SHAPE2D *)oppresources[menu->opponent_type];
-			opponent_portrait_draw_at(&drawing_sprite, portrait_shape,
-									  (legacy_u8)menu->opponent_type, CAR_MENU_OPPONENT_PANEL_X, 0);
-			if (menu->portrait_dirty != 0) {
-				/* Normal preview copies stop before the opponent panel. */
-				struct RECTANGLE portrait_rect = {CAR_MENU_OPPONENT_PANEL_X,
-												  CAR_MENU_OPPONENT_PANEL_X +
-													  shape2d_get_width(portrait_shape),
-												  0, shape2d_get_height(portrait_shape)};
-				rect_union(&menu->union_rect, &portrait_rect, &menu->union_rect);
-				menu->portrait_dirty = 0;
-			}
+			hires_showroom_portrait(&menu->hires, menu->opponent_type, &menu->union_rect);
 #endif
 		}
 
@@ -517,9 +436,7 @@ static void car_menu_render_preview(struct CAR_MENU_STATE *menu)
 		mouse_draw_transparent_check();
 		frame_fps_record_presented();
 #ifdef RESTUNTS_SDL3
-		if (complete_frame != 0) {
-			sdl3_video_end_frame();
-		}
+		hires_showroom_render_end(&menu->hires);
 #endif
 		menu->previous_car_index = menu->car_index;
 	}
@@ -553,22 +470,14 @@ static legacy_u16 car_menu_read_input(struct CAR_MENU_STATE *menu)
 	menu->rotation_delta = (legacy_s16)menu_animate_button_highlight(
 		menu->selected, carmenu_buttons, menu_highlight_second_color, menu_highlight_first_color);
 #ifdef RESTUNTS_SDL3
-	menu->rotation_time = presentation_now();
+	hires_showroom_record_rotation(&menu->hires);
 #endif
 	menu_update_idle_counter((legacy_u16)menu->rotation_delta, CAR_MENU_IDLE_LIMIT_TICKS);
 	legacy_s16 input_delta = menu->rotation_delta;
 #ifdef RESTUNTS_SDL3
-	if (supersight_enabled != 0) {
-		menu->input_delta = LEGACY_S16_WRAP_ADD(menu->input_delta, menu->rotation_delta);
-		/* Render deadlines do not create additional device samples. */
-		if (menu->rotation_time - menu->input_time <
-			PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND) {
-			return 0;
-		}
-		input_delta = menu->input_delta;
+	if (!hires_showroom_input(&menu->hires, menu->rotation_delta, &input_delta)) {
+		return 0;
 	}
-	menu->input_delta = 0;
-	menu->input_time = menu->rotation_time;
 #endif
 	legacy_u16 input = (legacy_u16)input_checking(input_delta);
 	legacy_s16 mouse_hit = (legacy_s16)mouse_multi_hittest(CAR_MENU_BUTTON_COUNT, carmenu_buttons);
@@ -630,13 +539,7 @@ static legacy_s16 car_menu_handle_input(struct CAR_MENU_STATE *menu, legacy_u16 
 	) {
 		handle_ingame_kb_shortcuts(LEGACY_S16_FROM_BITS(input));
 #ifdef RESTUNTS_SDL3
-		if (input != (legacy_u16)KEY_F11) {
-			menu->background_dirty = 1;
-			if (menu->opponent_type != CAR_MENU_PLAYER_MODE) {
-				menu->portrait_dirty = 1;
-			}
-		}
-		presentation_reset(&menu->presentation_clock, presentation_now());
+		hires_showroom_shortcut(&menu->hires, input, menu->opponent_type != CAR_MENU_PLAYER_MODE);
 #endif
 		menu->render_phase = CAR_RENDER_START_PHASE;
 		return 0;
@@ -667,7 +570,7 @@ static legacy_s16 car_menu_handle_input(struct CAR_MENU_STATE *menu, legacy_u16 
 static void car_menu_release(struct CAR_MENU_STATE *menu, legacy_s8 *car_id)
 {
 #ifdef RESTUNTS_SDL3
-	menu_background_unload();
+	hires_showroom_release();
 #endif
 	sprite_free_wnd(render_window_sprite);
 	unload_resource(menu->car_resource);

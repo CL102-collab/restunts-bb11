@@ -59,7 +59,6 @@ struct SPRITE far *mouse_medium_sprite;
 struct SPRITE far *mouse_background_sprite;
 legacy_s8 mouse_background_dirty;
 static legacy_s8 mouse_transparent_mode;
-legacy_u8 supersight_enabled;
 legacy_u8 fps_display_enabled;
 static legacy_s16 input_elapsed_frames;
 

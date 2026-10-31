@@ -2,38 +2,38 @@
 
 legacy_s8 RsAudioEngineLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_2979;
+  legacy_s32 noreg temple_tmp_3053;
   if((value<=127)) {
-    temple_tmp_2979=TempleCastS32(TempleCastS8(value));
+    temple_tmp_3053=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_2979=TempleCastS32(TempleCastS8(
+    temple_tmp_3053=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_2979);
+  return TempleCastS8(temple_tmp_3053);
 }
 
 legacy_s16 RsAudioEngineLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_2980;
+  legacy_s32 noreg temple_tmp_3054;
   if((value<=32767)) {
-    temple_tmp_2980=TempleCastS32(TempleCastS16(value));
+    temple_tmp_3054=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_2980=TempleCastS32(TempleCastS16(
+    temple_tmp_3054=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_2980);
+  return TempleCastS16(temple_tmp_3054);
 }
 
 legacy_s32 RsAudioEngineLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_2981;
+  legacy_s32 noreg temple_tmp_3055;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_2981=TempleCastS32(TempleCastS32(value));
+    temple_tmp_3055=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_2981=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_3055=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_2981);
+  return TempleCastS32(temple_tmp_3055);
 }
 
 legacy_u8 *RsAudioReadFarPointer(legacy_u8 *source)
@@ -47,24 +47,24 @@ legacy_u8 *RsAudioReadFarPointer(legacy_u8 *source)
 
 legacy_void RsAudioWriteFarPointer(legacy_u8 *destination,legacy_u8 *value)
 {
-  legacy_u16 noreg temple_legacy_write_u16_value__2983;
-  legacy_u16 noreg temple_legacy_write_u16_value__2985;
+  legacy_u16 noreg temple_legacy_write_u16_value__3057;
+  legacy_u16 noreg temple_legacy_write_u16_value__3059;
   while(1) {
-    temple_legacy_write_u16_value__2983=
+    temple_legacy_write_u16_value__3057=
         TempleCastU16(TempleCastU16(RsDosMemoryPointerOffset(value)));
-    (destination[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__2983)));
+    (destination[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3057)));
     (destination[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__2983>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3057>>8)))));
     if(!(0)) {
       break;
     }
   }
   while(1) {
-    temple_legacy_write_u16_value__2985=
+    temple_legacy_write_u16_value__3059=
         TempleCastU16(TempleCastU16(RsDosMemoryPointerSegment(value)));
-    ((destination+2)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__2985)));
+    ((destination+2)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3059)));
     ((destination+2)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__2985>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3059>>8)))));
     if(!(0)) {
       break;
     }
@@ -73,19 +73,19 @@ legacy_void RsAudioWriteFarPointer(legacy_u8 *destination,legacy_u8 *value)
 
 legacy_void RsAudioAddDriverTimer()
 {
-  legacy_u16 noreg temple_index_2987;
-  legacy_u16 *temple_tmp_2988;
-  legacy_u16 noreg temple_tmp_2989;
-  temple_index_2987=TempleCastU16(0);
+  legacy_u16 noreg temple_index_3061;
+  legacy_u16 *temple_tmp_3062;
+  legacy_u16 noreg temple_tmp_3063;
+  temple_index_3061=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_2987<25))) {
+    if(!((temple_index_3061<25))) {
       break;
     }
-    (audio_timers[temple_index_2987].active=TempleCastU8(0));
-    temple_tmp_2988=&(temple_index_2987);
-    temple_tmp_2989=*temple_tmp_2988;
-    *temple_tmp_2988=TempleCastU16((temple_tmp_2989+1));
-    temple_tmp_2989;
+    (audio_timers[temple_index_3061].active=TempleCastU8(0));
+    temple_tmp_3062=&(temple_index_3061);
+    temple_tmp_3063=*temple_tmp_3062;
+    *temple_tmp_3062=TempleCastU16((temple_tmp_3063+1));
+    temple_tmp_3063;
   }
   (rs_audio_engine_audio_driver_timer_rate=TempleCastU16(22));
   RsTimerRegCallback(&RsAudioDriverTimer);
@@ -93,24 +93,24 @@ legacy_void RsAudioAddDriverTimer()
 
 legacy_void RsAudioRemoveDriverTimer()
 {
-  legacy_u16 noreg temple_index_2991;
-  legacy_s16 noreg temple_channel_2992;
-  legacy_u16 *temple_tmp_2993;
-  legacy_u16 noreg temple_tmp_2994;
-  temple_index_2991=TempleCastU16(0);
+  legacy_u16 noreg temple_index_3065;
+  legacy_s16 noreg temple_channel_3066;
+  legacy_u16 *temple_tmp_3067;
+  legacy_u16 noreg temple_tmp_3068;
+  temple_index_3065=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_2991<25))) {
+    if(!((temple_index_3065<25))) {
       break;
     }
-    if((audio_timers[temple_index_2991].active==1)) {
-      temple_channel_2992=TempleCastS16(audio_timers[temple_index_2991].channel);
-      RsAudioReleaseEffectChannel(TempleCastS16(temple_channel_2992));
+    if((audio_timers[temple_index_3065].active==1)) {
+      temple_channel_3066=TempleCastS16(audio_timers[temple_index_3065].channel);
+      RsAudioReleaseEffectChannel(TempleCastS16(temple_channel_3066));
     }
-    (audio_timers[temple_index_2991].active=TempleCastU8(0));
-    temple_tmp_2993=&(temple_index_2991);
-    temple_tmp_2994=*temple_tmp_2993;
-    *temple_tmp_2993=TempleCastU16((temple_tmp_2994+1));
-    temple_tmp_2994;
+    (audio_timers[temple_index_3065].active=TempleCastU8(0));
+    temple_tmp_3067=&(temple_index_3065);
+    temple_tmp_3068=*temple_tmp_3067;
+    *temple_tmp_3067=TempleCastU16((temple_tmp_3068+1));
+    temple_tmp_3068;
   }
   RsTimerRemoveCallback(&RsAudioDriverTimer);
 }
@@ -118,259 +118,259 @@ legacy_void RsAudioRemoveDriverTimer()
 legacy_void RsAudioEngineAudioCopyEngineDefinition(
     CAudioEngineDefinition *engine_definition,legacy_u8 *source_pointer)
 {
-  CFullAudioEngineDefinition *temple_source_2995;
-  legacy_u16 noreg temple_index_2997;
-  legacy_u16 *temple_tmp_2998;
-  legacy_u16 noreg temple_tmp_2999;
-  legacy_u16 noreg temple_index_3001;
-  legacy_u16 *temple_tmp_3002;
-  legacy_u16 noreg temple_tmp_3003;
-  temple_source_2995=source_pointer;
-  (engine_definition->sample_count=TempleCastU16(temple_source_2995->sample_count));
-  temple_index_2997=TempleCastU16(0);
+  CFullAudioEngineDefinition *temple_source_3069;
+  legacy_u16 noreg temple_index_3071;
+  legacy_u16 *temple_tmp_3072;
+  legacy_u16 noreg temple_tmp_3073;
+  legacy_u16 noreg temple_index_3075;
+  legacy_u16 *temple_tmp_3076;
+  legacy_u16 noreg temple_tmp_3077;
+  temple_source_3069=source_pointer;
+  (engine_definition->sample_count=TempleCastU16(temple_source_3069->sample_count));
+  temple_index_3071=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_2997<4))) {
+    if(!((temple_index_3071<4))) {
       break;
     }
-    (engine_definition->reserved_parameters[temple_index_2997]=
-            TempleCastU8(temple_source_2995->reserved_parameters[temple_index_2997]));
-    temple_tmp_2998=&(temple_index_2997);
-    temple_tmp_2999=*temple_tmp_2998;
-    *temple_tmp_2998=TempleCastU16((temple_tmp_2999+1));
-    (*temple_tmp_2998);
+    (engine_definition->reserved_parameters[temple_index_3071]=
+            TempleCastU8(temple_source_3069->reserved_parameters[temple_index_3071]));
+    temple_tmp_3072=&(temple_index_3071);
+    temple_tmp_3073=*temple_tmp_3072;
+    *temple_tmp_3072=TempleCastU16((temple_tmp_3073+1));
+    (*temple_tmp_3072);
   }
-  (engine_definition->initialized=TempleCastU8(temple_source_2995->initialized));
+  (engine_definition->initialized=TempleCastU8(temple_source_3069->initialized));
   (engine_definition->reserved_initialization_byte=
-          TempleCastU8(temple_source_2995->reserved_initialization_byte));
-  temple_index_3001=TempleCastU16(0);
+          TempleCastU8(temple_source_3069->reserved_initialization_byte));
+  temple_index_3075=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_3001<10))) {
+    if(!((temple_index_3075<10))) {
       break;
     }
-    RsAudioWriteFarPointer(((&(engine_definition->resources[temple_index_3001])))(legacy_u8 *),
-        temple_source_2995->resource_ids[temple_index_3001]);
-    temple_tmp_3002=&(temple_index_3001);
-    temple_tmp_3003=*temple_tmp_3002;
-    *temple_tmp_3002=TempleCastU16((temple_tmp_3003+1));
-    (*temple_tmp_3002);
+    RsAudioWriteFarPointer(((&(engine_definition->resources[temple_index_3075])))(legacy_u8 *),
+        temple_source_3069->resource_ids[temple_index_3075]);
+    temple_tmp_3076=&(temple_index_3075);
+    temple_tmp_3077=*temple_tmp_3076;
+    *temple_tmp_3076=TempleCastU16((temple_tmp_3077+1));
+    (*temple_tmp_3076);
   }
 }
 
 legacy_void RsAudioEngineAudioResolveEngineDefinition(CAudioEngineDefinition *engine_definition,
     legacy_u8 *shape_resources,legacy_u8 *audio_resources)
 {
-  legacy_u8 *temple_resource_3004;
-  legacy_u16 noreg temple_resource_index_3006;
-  legacy_u16 *temple_tmp_3007;
-  legacy_u16 noreg temple_tmp_3008;
+  legacy_u8 *temple_resource_3078;
+  legacy_u16 noreg temple_resource_index_3080;
+  legacy_u16 *temple_tmp_3081;
+  legacy_u16 noreg temple_tmp_3082;
   if((engine_definition->initialized==0)) {
-    temple_resource_3004=RsLocateShapeFatal((shape_resources)(legacy_s8 *),
+    temple_resource_3078=RsLocateShapeFatal((shape_resources)(legacy_s8 *),
         RsPadId((RsAudioReadFarPointer(((&(engine_definition->resources[0])))(legacy_u8 *)))(
             legacy_s8 *)));
     RsAudioWriteFarPointer(
-        ((&(engine_definition->resources[0])))(legacy_u8 *),temple_resource_3004);
-    temple_resource_index_3006=TempleCastU16(2);
+        ((&(engine_definition->resources[0])))(legacy_u8 *),temple_resource_3078);
+    temple_resource_index_3080=TempleCastU16(2);
     while(1) {
-      if(!((temple_resource_index_3006<10))) {
+      if(!((temple_resource_index_3080<10))) {
         break;
       }
-      (temple_resource_3004=RsInitAudioResources(audio_resources,shape_resources,
+      (temple_resource_3078=RsInitAudioResources(audio_resources,shape_resources,
           RsPadId((RsAudioReadFarPointer(
-              ((&(engine_definition->resources[temple_resource_index_3006])))(legacy_u8 *)))(
+              ((&(engine_definition->resources[temple_resource_index_3080])))(legacy_u8 *)))(
               legacy_s8 *))));
       RsAudioWriteFarPointer(
-          ((&(engine_definition->resources[temple_resource_index_3006])))(legacy_u8 *),
-          temple_resource_3004);
-      temple_tmp_3007=&(temple_resource_index_3006);
-      temple_tmp_3008=*temple_tmp_3007;
-      *temple_tmp_3007=TempleCastU16((temple_tmp_3008+1));
-      temple_tmp_3008;
+          ((&(engine_definition->resources[temple_resource_index_3080])))(legacy_u8 *),
+          temple_resource_3078);
+      temple_tmp_3081=&(temple_resource_index_3080);
+      temple_tmp_3082=*temple_tmp_3081;
+      *temple_tmp_3081=TempleCastU16((temple_tmp_3082+1));
+      temple_tmp_3082;
     }
     (engine_definition->initialized=TempleCastU8(1));
   }
 }
 
-legacy_s8 temple_exhausted_handles_message_3013[30];
-MemSet(&temple_exhausted_handles_message_3013,0,sizeof(temple_exhausted_handles_message_3013));
+legacy_s8 temple_exhausted_handles_message_3087[30];
+MemSet(&temple_exhausted_handles_message_3087,0,sizeof(temple_exhausted_handles_message_3087));
 legacy_s16 RsAudioInitEngine(legacy_s16 unused_type,legacy_u8 *source_pointer,
     legacy_u8 *shape_resources,legacy_u8 *audio_resources)
 {
-  legacy_u16 noreg temple_index_3009;
-  legacy_u16 *temple_tmp_3011;
-  legacy_u16 noreg temple_tmp_3012;
-  CAudioTimer *temple_timer_3014;
-  CAudioEngineDefinition *temple_engine_definition_3015;
-  legacy_s16 noreg temple_channel_3016;
-  legacy_u8 *temple_definition_3017;
-  legacy_u16 noreg temple_divisor_3018;
-  legacy_u16 noreg temple_rate_3019;
+  legacy_u16 noreg temple_index_3083;
+  legacy_u16 *temple_tmp_3085;
+  legacy_u16 noreg temple_tmp_3086;
+  CAudioTimer *temple_timer_3088;
+  CAudioEngineDefinition *temple_engine_definition_3089;
+  legacy_s16 noreg temple_channel_3090;
+  legacy_u8 *temple_definition_3091;
+  legacy_u16 noreg temple_divisor_3092;
+  legacy_u16 noreg temple_rate_3093;
   unused_type;
-  (temple_index_3009=TempleCastU16(0));
+  (temple_index_3083=TempleCastU16(0));
   while(1) {
-    if(!((temple_index_3009<25))) {
+    if(!((temple_index_3083<25))) {
       break;
     }
-    if((audio_timers[temple_index_3009].active==0)) {
+    if((audio_timers[temple_index_3083].active==0)) {
       break;
     }
-    temple_tmp_3011=&(temple_index_3009);
-    temple_tmp_3012=*temple_tmp_3011;
-    *temple_tmp_3011=TempleCastU16((temple_tmp_3012+1));
-    temple_tmp_3012;
+    temple_tmp_3085=&(temple_index_3083);
+    temple_tmp_3086=*temple_tmp_3085;
+    *temple_tmp_3085=TempleCastU16((temple_tmp_3086+1));
+    temple_tmp_3086;
   }
-  if((temple_index_3009==25)) {
-    RsFatalError(temple_exhausted_handles_message_3013);
+  if((temple_index_3083==25)) {
+    RsFatalError(temple_exhausted_handles_message_3087);
     return TempleCastS16(TempleCastS32((-(1))));
   }
-  temple_timer_3014=(&(audio_timers[temple_index_3009]));
-  temple_engine_definition_3015=(&(temple_timer_3014->definition));
-  RsAudioEngineAudioCopyEngineDefinition(temple_engine_definition_3015,source_pointer);
+  temple_timer_3088=(&(audio_timers[temple_index_3083]));
+  temple_engine_definition_3089=(&(temple_timer_3088->definition));
+  RsAudioEngineAudioCopyEngineDefinition(temple_engine_definition_3089,source_pointer);
   RsAudioEngineAudioResolveEngineDefinition(
-      temple_engine_definition_3015,shape_resources,audio_resources);
-  temple_channel_3016=TempleCastS16(
+      temple_engine_definition_3089,shape_resources,audio_resources);
+  temple_channel_3090=TempleCastS16(
       RsAudioReserveEffectChannel(TempleCastS16(TempleCastS32((-(1)))),TempleCastU8(127)));
-  (temple_timer_3014->channel=TempleCastS16(temple_channel_3016));
-  (temple_timer_3014->engine_active=TempleCastU8(0));
-  (temple_timer_3014->current_volume=TempleCastU16(0));
-  (temple_timer_3014->current_pitch=TempleCastU32(0));
-  (temple_timer_3014->target_volume=TempleCastU8(0));
-  temple_definition_3017=(RsAudioReadFarPointer(
-      ((&(temple_engine_definition_3015->resources[0])))(legacy_u8 *)))(legacy_u8 *);
-  temple_divisor_3018=TempleCastU16(temple_definition_3017[14]);
-  temple_rate_3019=TempleCastU16(RsLegacyU16DivOrZero(
-      TempleCastU16(TempleCastU16(temple_engine_definition_3015->sample_count)),
-      TempleCastU16(TempleCastU16(temple_divisor_3018))));
-  (temple_rate_3019=TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_rate_3019)+
+  (temple_timer_3088->channel=TempleCastS16(temple_channel_3090));
+  (temple_timer_3088->engine_active=TempleCastU8(0));
+  (temple_timer_3088->current_volume=TempleCastU16(0));
+  (temple_timer_3088->current_pitch=TempleCastU32(0));
+  (temple_timer_3088->target_volume=TempleCastU8(0));
+  temple_definition_3091=(RsAudioReadFarPointer(
+      ((&(temple_engine_definition_3089->resources[0])))(legacy_u8 *)))(legacy_u8 *);
+  temple_divisor_3092=TempleCastU16(temple_definition_3091[14]);
+  temple_rate_3093=TempleCastU16(RsLegacyU16DivOrZero(
+      TempleCastU16(TempleCastU16(temple_engine_definition_3089->sample_count)),
+      TempleCastU16(TempleCastU16(temple_divisor_3092))));
+  (temple_rate_3093=TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_rate_3093)+
       TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3017[15])<<4)))))))));
-  (temple_timer_3014->target_pitch=TempleCastU16(temple_rate_3019));
-  (temple_timer_3014->last_volume=TempleCastU8(255));
-  (temple_timer_3014->last_pitch=TempleCastU16(65535));
-  (temple_timer_3014->engine_context=TempleCastS16(TempleCastS32((-(1)))));
-  (temple_timer_3014->effect_channel=TempleCastS16(TempleCastS32((-(1)))));
-  (temple_timer_3014->secondary_effect_channel=TempleCastS16(TempleCastS32((-(1)))));
-  (temple_timer_3014->sample_count=TempleCastU16(temple_engine_definition_3015->sample_count));
-  (temple_timer_3014->parameters_changed=TempleCastU8(0));
-  (temple_timer_3014->restart_engine=TempleCastU8(0));
-  (temple_timer_3014->active=TempleCastU8(1));
-  return TempleCastS16(TempleCastS16(temple_index_3009));
+          TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3091[15])<<4)))))))));
+  (temple_timer_3088->target_pitch=TempleCastU16(temple_rate_3093));
+  (temple_timer_3088->last_volume=TempleCastU8(255));
+  (temple_timer_3088->last_pitch=TempleCastU16(65535));
+  (temple_timer_3088->engine_context=TempleCastS16(TempleCastS32((-(1)))));
+  (temple_timer_3088->effect_channel=TempleCastS16(TempleCastS32((-(1)))));
+  (temple_timer_3088->secondary_effect_channel=TempleCastS16(TempleCastS32((-(1)))));
+  (temple_timer_3088->sample_count=TempleCastU16(temple_engine_definition_3089->sample_count));
+  (temple_timer_3088->parameters_changed=TempleCastU8(0));
+  (temple_timer_3088->restart_engine=TempleCastU8(0));
+  (temple_timer_3088->active=TempleCastU8(1));
+  return TempleCastS16(TempleCastS16(temple_index_3083));
 }
 
 legacy_void RsAudioStartEngine(legacy_s16 index)
 {
-  CAudioTimer *temple_timer_3020;
-  legacy_s32 noreg temple_tmp_3021;
-  legacy_s16 noreg temple_handle_3022;
-  CAudioEngineDefinition *temple_engine_definition_3023;
-  legacy_u16 noreg temple_sample_count_3024;
-  legacy_u8 *temple_definition_3025;
-  legacy_u16 noreg temple_divisor_3026;
-  legacy_u16 noreg temple_value_3027;
-  legacy_s16 noreg temple_channel_3028;
-  temple_timer_3020=(&(audio_timers[index]));
-  temple_tmp_3021=0;
-  if((temple_timer_3020->active!=1)) {
-    temple_tmp_3021=1;
+  CAudioTimer *temple_timer_3094;
+  legacy_s32 noreg temple_tmp_3095;
+  legacy_s16 noreg temple_handle_3096;
+  CAudioEngineDefinition *temple_engine_definition_3097;
+  legacy_u16 noreg temple_sample_count_3098;
+  legacy_u8 *temple_definition_3099;
+  legacy_u16 noreg temple_divisor_3100;
+  legacy_u16 noreg temple_value_3101;
+  legacy_s16 noreg temple_channel_3102;
+  temple_timer_3094=(&(audio_timers[index]));
+  temple_tmp_3095=0;
+  if((temple_timer_3094->active!=1)) {
+    temple_tmp_3095=1;
   }
-  if(!temple_tmp_3021) {
-    temple_tmp_3021=0;
-    if((temple_timer_3020->engine_active!=0)) {
-      temple_tmp_3021=1;
+  if(!temple_tmp_3095) {
+    temple_tmp_3095=0;
+    if((temple_timer_3094->engine_active!=0)) {
+      temple_tmp_3095=1;
     }
   }
-  if(temple_tmp_3021) {
+  if(temple_tmp_3095) {
     return;
   }
-  temple_handle_3022=TempleCastS16(temple_timer_3020->channel);
-  temple_engine_definition_3023=(&(temple_timer_3020->definition));
-  RsDosAudioBindChannelContext(TempleCastS16(temple_handle_3022),
-      RsAudioReadFarPointer(((&(temple_engine_definition_3023->resources[0])))(legacy_u8 *)));
-  temple_sample_count_3024=TempleCastU16(temple_engine_definition_3023->sample_count);
-  temple_definition_3025=(RsAudioReadFarPointer(
-      ((&(temple_engine_definition_3023->resources[0])))(legacy_u8 *)))(legacy_u8 *);
-  temple_divisor_3026=TempleCastU16(temple_definition_3025[14]);
-  temple_value_3027=
-      TempleCastU16(RsLegacyU16DivOrZero(TempleCastU16(TempleCastU16(temple_sample_count_3024)),
-          TempleCastU16(TempleCastU16(temple_divisor_3026))));
-  (temple_value_3027=TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_value_3027)+
+  temple_handle_3096=TempleCastS16(temple_timer_3094->channel);
+  temple_engine_definition_3097=(&(temple_timer_3094->definition));
+  RsDosAudioBindChannelContext(TempleCastS16(temple_handle_3096),
+      RsAudioReadFarPointer(((&(temple_engine_definition_3097->resources[0])))(legacy_u8 *)));
+  temple_sample_count_3098=TempleCastU16(temple_engine_definition_3097->sample_count);
+  temple_definition_3099=(RsAudioReadFarPointer(
+      ((&(temple_engine_definition_3097->resources[0])))(legacy_u8 *)))(legacy_u8 *);
+  temple_divisor_3100=TempleCastU16(temple_definition_3099[14]);
+  temple_value_3101=
+      TempleCastU16(RsLegacyU16DivOrZero(TempleCastU16(TempleCastU16(temple_sample_count_3098)),
+          TempleCastU16(TempleCastU16(temple_divisor_3100))));
+  (temple_value_3101=TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_value_3101)+
       TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3025[15])<<4)))))))));
-  (temple_timer_3020->target_pitch=TempleCastU16(temple_value_3027));
-  temple_channel_3028=TempleCastS16(
-      RsAudioStartSample(TempleCastU16(temple_value_3027),TempleCastS16(temple_handle_3022)));
-  (temple_timer_3020->engine_context=TempleCastS16(temple_channel_3028));
-  (temple_timer_3020->engine_active=TempleCastU8(1));
-  (temple_timer_3020->parameters_changed=TempleCastU8(1));
-  RsDosAudioSetChannelVolume(TempleCastS16(temple_handle_3022),TempleCastS16(0));
+          TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3099[15])<<4)))))))));
+  (temple_timer_3094->target_pitch=TempleCastU16(temple_value_3101));
+  temple_channel_3102=TempleCastS16(
+      RsAudioStartSample(TempleCastU16(temple_value_3101),TempleCastS16(temple_handle_3096)));
+  (temple_timer_3094->engine_context=TempleCastS16(temple_channel_3102));
+  (temple_timer_3094->engine_active=TempleCastU8(1));
+  (temple_timer_3094->parameters_changed=TempleCastU8(1));
+  RsDosAudioSetChannelVolume(TempleCastS16(temple_handle_3096),TempleCastS16(0));
 }
 
 legacy_void RsAudioUpdateEngineSpatial(legacy_s16 index,legacy_s16 base_value,legacy_s16 first_x,
     legacy_s16 first_y,legacy_s16 first_z,legacy_s16 second_x,legacy_s16 second_y,
     legacy_s16 second_z,legacy_s16 interval)
 {
-  CAudioTimer *temple_timer_3029;
-  legacy_u16 noreg temple_second_distance_3030;
-  legacy_u16 noreg temple_first_distance_3031;
-  legacy_u16 noreg temple_distance_delta_3032;
-  legacy_u16 noreg temple_quotient_3033;
-  legacy_u16 noreg temple_scaled_delta_3034;
-  legacy_u16 noreg temple_volume_3035;
-  CAudioEngineDefinition *temple_engine_definition_3036;
-  legacy_u8 *temple_definition_3037;
-  legacy_u16 noreg temple_divisor_3038;
-  legacy_u16 noreg temple_base_rate_3039;
-  legacy_u16 noreg temple_denominator_3040;
-  temple_timer_3029=(&(audio_timers[index]));
-  temple_second_distance_3030=TempleCastU16(TempleCastU16(RsPolarRadius2D(
+  CAudioTimer *temple_timer_3103;
+  legacy_u16 noreg temple_second_distance_3104;
+  legacy_u16 noreg temple_first_distance_3105;
+  legacy_u16 noreg temple_distance_delta_3106;
+  legacy_u16 noreg temple_quotient_3107;
+  legacy_u16 noreg temple_scaled_delta_3108;
+  legacy_u16 noreg temple_volume_3109;
+  CAudioEngineDefinition *temple_engine_definition_3110;
+  legacy_u8 *temple_definition_3111;
+  legacy_u16 noreg temple_divisor_3112;
+  legacy_u16 noreg temple_base_rate_3113;
+  legacy_u16 noreg temple_denominator_3114;
+  temple_timer_3103=(&(audio_timers[index]));
+  temple_second_distance_3104=TempleCastU16(TempleCastU16(RsPolarRadius2D(
       TempleCastS16(RsPolarRadius2D(TempleCastS16(second_x),TempleCastS16(second_z))),
       TempleCastS16(second_y))));
-  if((RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_second_distance_3030)))>
+  if((RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_second_distance_3104)))>
         6000)) {
-    (temple_timer_3029->target_volume=TempleCastU8(0));
+    (temple_timer_3103->target_volume=TempleCastU8(0));
     return;
   }
-  temple_first_distance_3031=TempleCastU16(TempleCastU16(RsPolarRadius2D(
+  temple_first_distance_3105=TempleCastU16(TempleCastU16(RsPolarRadius2D(
       TempleCastS16(RsPolarRadius2D(TempleCastS16(first_x),TempleCastS16(first_z))),
       TempleCastS16(first_y))));
-  temple_distance_delta_3032=TempleCastU16(TempleCastU16(TempleCastS32(
-      (TempleCastU16(temple_first_distance_3031)-TempleCastU16(temple_second_distance_3030)))));
-  temple_quotient_3033=TempleCastU16(RsLegacyU16DivOrZero(
+  temple_distance_delta_3106=TempleCastU16(TempleCastU16(TempleCastS32(
+      (TempleCastU16(temple_first_distance_3105)-TempleCastU16(temple_second_distance_3104)))));
+  temple_quotient_3107=TempleCastU16(RsLegacyU16DivOrZero(
       TempleCastU16(TempleCastU16(100)),TempleCastU16(TempleCastU16(TempleCastU16(interval)))));
-  temple_scaled_delta_3034=TempleCastU16(
-      TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(temple_quotient_3033))*
-          TempleCastU32(TempleCastU16(temple_distance_delta_3032))))));
-  (temple_quotient_3033=TempleCastU16(TempleCastU16(RsLegacyU32DivOrZero(
+  temple_scaled_delta_3108=TempleCastU16(
+      TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(temple_quotient_3107))*
+          TempleCastU32(TempleCastU16(temple_distance_delta_3106))))));
+  (temple_quotient_3107=TempleCastU16(TempleCastU16(RsLegacyU32DivOrZero(
       TempleCastU32(TempleCastU32(TempleCastU32(
-          TempleCastU32((TempleCastU32(127)*TempleCastU32(temple_second_distance_3030)))))),
+          TempleCastU32((TempleCastU32(127)*TempleCastU32(temple_second_distance_3104)))))),
       TempleCastU32(TempleCastU32(6000))))));
-  temple_volume_3035=TempleCastU16(
-      TempleCastU16(TempleCastS32((TempleCastU16(127)-TempleCastU16(temple_quotient_3033)))));
-  if((RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_scaled_delta_3034)))>0)) {
-    (temple_volume_3035=
-            TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_volume_3035)-
-                TempleCastU16(TempleCastS32((temple_volume_3035>>4))))))));
+  temple_volume_3109=TempleCastU16(
+      TempleCastU16(TempleCastS32((TempleCastU16(127)-TempleCastU16(temple_quotient_3107)))));
+  if((RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_scaled_delta_3108)))>0)) {
+    (temple_volume_3109=
+            TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_volume_3109)-
+                TempleCastU16(TempleCastS32((temple_volume_3109>>4))))))));
   }
-  temple_engine_definition_3036=(&(temple_timer_3029->definition));
-  temple_definition_3037=(RsAudioReadFarPointer(
-      ((&(temple_engine_definition_3036->resources[0])))(legacy_u8 *)))(legacy_u8 *);
-  temple_divisor_3038=TempleCastU16(temple_definition_3037[14]);
-  temple_base_rate_3039=
+  temple_engine_definition_3110=(&(temple_timer_3103->definition));
+  temple_definition_3111=(RsAudioReadFarPointer(
+      ((&(temple_engine_definition_3110->resources[0])))(legacy_u8 *)))(legacy_u8 *);
+  temple_divisor_3112=TempleCastU16(temple_definition_3111[14]);
+  temple_base_rate_3113=
       TempleCastU16(RsLegacyU16DivOrZero(TempleCastU16(TempleCastU16(TempleCastU16(base_value))),
-          TempleCastU16(TempleCastU16(temple_divisor_3038))));
-  (temple_base_rate_3039=TempleCastU16(
-      TempleCastU16(TempleCastS32((TempleCastU16(temple_base_rate_3039)+
+          TempleCastU16(TempleCastU16(temple_divisor_3112))));
+  (temple_base_rate_3113=TempleCastU16(
+      TempleCastU16(TempleCastS32((TempleCastU16(temple_base_rate_3113)+
           TempleCastU16(
-              TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3037[15])<<4)))))))));
-  temple_denominator_3040=TempleCastU16(TempleCastU16(
-      TempleCastS32((TempleCastU16(6000)-TempleCastU16(temple_scaled_delta_3034)))));
-  if((temple_denominator_3040!=0)) {
-    (temple_base_rate_3039=TempleCastU16(TempleCastU16(
+              TempleCastU16(TempleCastS32((TempleCastU16(temple_definition_3111[15])<<4)))))))));
+  temple_denominator_3114=TempleCastU16(TempleCastU16(
+      TempleCastS32((TempleCastU16(6000)-TempleCastU16(temple_scaled_delta_3108)))));
+  if((temple_denominator_3114!=0)) {
+    (temple_base_rate_3113=TempleCastU16(TempleCastU16(
         RsLegacyU32DivOrZero(TempleCastU32(TempleCastU32(TempleCastU32(TempleCastU32(
-                                  (TempleCastU32(6000)*TempleCastU32(temple_base_rate_3039)))))),
-            TempleCastU32(TempleCastU32(temple_denominator_3040))))));
-    (temple_timer_3029->target_pitch=TempleCastU16(temple_base_rate_3039));
+                                  (TempleCastU32(6000)*TempleCastU32(temple_base_rate_3113)))))),
+            TempleCastU32(TempleCastU32(temple_denominator_3114))))));
+    (temple_timer_3103->target_pitch=TempleCastU16(temple_base_rate_3113));
   }
-  (temple_timer_3029->target_volume=TempleCastU8(TempleCastU8(temple_volume_3035)));
+  (temple_timer_3103->target_volume=TempleCastU8(TempleCastU8(temple_volume_3109)));
 }
 
 legacy_void RsAudioApplyCarStateSample(legacy_u8 *sample,legacy_s16 interval)
@@ -427,102 +427,102 @@ legacy_void RsAudioApplyCarStateSample(legacy_u8 *sample,legacy_s16 interval)
 
 legacy_void RsAudioEngineAudioUpdateTimerVolume(CAudioTimer *timer)
 {
-  legacy_u16 noreg temple_volume_accumulator_3041;
-  legacy_u16 *temple_tmp_3042;
-  legacy_u8 noreg temple_volume_3043;
-  legacy_s32 noreg temple_tmp_3044;
-  legacy_s16 noreg temple_channel_3045;
-  legacy_u8 noreg temple_secondary_volume_3046;
-  legacy_s32 noreg temple_tmp_3047;
-  temple_volume_accumulator_3041=TempleCastU16(TempleCastU16(TempleCastS32(
+  legacy_u16 noreg temple_volume_accumulator_3115;
+  legacy_u16 *temple_tmp_3116;
+  legacy_u8 noreg temple_volume_3117;
+  legacy_s32 noreg temple_tmp_3118;
+  legacy_s16 noreg temple_channel_3119;
+  legacy_u8 noreg temple_secondary_volume_3120;
+  legacy_s32 noreg temple_tmp_3121;
+  temple_volume_accumulator_3115=TempleCastU16(TempleCastU16(TempleCastS32(
       (TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(timer->target_volume)<<4))))+
           TempleCastU16(
               TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(timer->current_volume))*
                   TempleCastU32(TempleCastU16(7))))))))));
-  temple_tmp_3042=&(temple_volume_accumulator_3041);
-  ((*temple_tmp_3042)=TempleCastU16(((*temple_tmp_3042)>>3)));
-  (timer->current_volume=TempleCastU16(temple_volume_accumulator_3041));
-  temple_volume_3043=
-      TempleCastU8(TempleCastU8(TempleCastS32((temple_volume_accumulator_3041>>4))));
-  temple_tmp_3044=0;
-  if((temple_volume_3043!=timer->last_volume)) {
-    temple_tmp_3044=1;
+  temple_tmp_3116=&(temple_volume_accumulator_3115);
+  ((*temple_tmp_3116)=TempleCastU16(((*temple_tmp_3116)>>3)));
+  (timer->current_volume=TempleCastU16(temple_volume_accumulator_3115));
+  temple_volume_3117=
+      TempleCastU8(TempleCastU8(TempleCastS32((temple_volume_accumulator_3115>>4))));
+  temple_tmp_3118=0;
+  if((temple_volume_3117!=timer->last_volume)) {
+    temple_tmp_3118=1;
   }
-  if(!temple_tmp_3044) {
-    temple_tmp_3044=0;
+  if(!temple_tmp_3118) {
+    temple_tmp_3118=0;
     if((timer->parameters_changed!=0)) {
-      temple_tmp_3044=1;
+      temple_tmp_3118=1;
     }
   }
-  if(temple_tmp_3044) {
-    temple_channel_3045=TempleCastS16(timer->channel);
+  if(temple_tmp_3118) {
+    temple_channel_3119=TempleCastS16(timer->channel);
     RsDosAudioSetChannelVolume(
-        TempleCastS16(temple_channel_3045),TempleCastS16(temple_volume_3043));
-    if((temple_volume_3043>=10)) {
-      temple_tmp_3047=TempleCastS32(TempleCastU8(TempleCastU32((temple_volume_3043-10))));
+        TempleCastS16(temple_channel_3119),TempleCastS16(temple_volume_3117));
+    if((temple_volume_3117>=10)) {
+      temple_tmp_3121=TempleCastS32(TempleCastU8(TempleCastU32((temple_volume_3117-10))));
     } else {
-      temple_tmp_3047=TempleCastS32(0);
+      temple_tmp_3121=TempleCastS32(0);
     }
-    temple_secondary_volume_3046=TempleCastU8(temple_tmp_3047);
-    (temple_channel_3045=TempleCastS16(timer->effect_channel));
-    if((temple_channel_3045!=TempleCastS32((-(1))))) {
+    temple_secondary_volume_3120=TempleCastU8(temple_tmp_3121);
+    (temple_channel_3119=TempleCastS16(timer->effect_channel));
+    if((temple_channel_3119!=TempleCastS32((-(1))))) {
       RsDosAudioSetChannelVolume(
-          TempleCastS16(temple_channel_3045),TempleCastS16(temple_secondary_volume_3046));
+          TempleCastS16(temple_channel_3119),TempleCastS16(temple_secondary_volume_3120));
     }
-    (temple_channel_3045=TempleCastS16(timer->secondary_effect_channel));
-    if((temple_channel_3045!=TempleCastS32((-(1))))) {
+    (temple_channel_3119=TempleCastS16(timer->secondary_effect_channel));
+    if((temple_channel_3119!=TempleCastS32((-(1))))) {
       RsDosAudioSetChannelVolume(
-          TempleCastS16(temple_channel_3045),TempleCastS16(temple_secondary_volume_3046));
+          TempleCastS16(temple_channel_3119),TempleCastS16(temple_secondary_volume_3120));
     }
-    (timer->last_volume=TempleCastU8(temple_volume_3043));
+    (timer->last_volume=TempleCastU8(temple_volume_3117));
   }
 }
 
 legacy_void RsAudioEngineAudioUpdateTimerPitch(CAudioTimer *timer)
 {
-  legacy_u32 noreg temple_accumulator_3048;
-  legacy_u32 *temple_tmp_3049;
-  legacy_u16 noreg temple_pitch_3050;
-  legacy_s32 noreg temple_tmp_3051;
-  legacy_s16 noreg temple_channel_3052;
-  temple_accumulator_3048=TempleCastU32(timer->current_pitch);
-  (temple_accumulator_3048=
-          TempleCastU32(TempleCastU32((TempleCastU32((temple_accumulator_3048*7))+
+  legacy_u32 noreg temple_accumulator_3122;
+  legacy_u32 *temple_tmp_3123;
+  legacy_u16 noreg temple_pitch_3124;
+  legacy_s32 noreg temple_tmp_3125;
+  legacy_s16 noreg temple_channel_3126;
+  temple_accumulator_3122=TempleCastU32(timer->current_pitch);
+  (temple_accumulator_3122=
+          TempleCastU32(TempleCastU32((TempleCastU32((temple_accumulator_3122*7))+
               TempleCastU32((TempleCastU32(timer->target_pitch)<<4))))));
-  temple_tmp_3049=&(temple_accumulator_3048);
-  ((*temple_tmp_3049)=TempleCastU32(((*temple_tmp_3049)>>3)));
-  (timer->current_pitch=TempleCastU32(temple_accumulator_3048));
-  temple_pitch_3050=TempleCastU16(TempleCastU16(TempleCastU32((temple_accumulator_3048>>4))));
-  temple_tmp_3051=0;
-  if((temple_pitch_3050!=timer->last_pitch)) {
-    temple_tmp_3051=1;
+  temple_tmp_3123=&(temple_accumulator_3122);
+  ((*temple_tmp_3123)=TempleCastU32(((*temple_tmp_3123)>>3)));
+  (timer->current_pitch=TempleCastU32(temple_accumulator_3122));
+  temple_pitch_3124=TempleCastU16(TempleCastU16(TempleCastU32((temple_accumulator_3122>>4))));
+  temple_tmp_3125=0;
+  if((temple_pitch_3124!=timer->last_pitch)) {
+    temple_tmp_3125=1;
   }
-  if(!temple_tmp_3051) {
-    temple_tmp_3051=0;
+  if(!temple_tmp_3125) {
+    temple_tmp_3125=0;
     if((timer->parameters_changed!=0)) {
-      temple_tmp_3051=1;
+      temple_tmp_3125=1;
     }
   }
-  if(temple_tmp_3051) {
-    temple_channel_3052=TempleCastS16(timer->engine_context);
-    if((temple_channel_3052!=TempleCastS32((-(1))))) {
+  if(temple_tmp_3125) {
+    temple_channel_3126=TempleCastS16(timer->engine_context);
+    if((temple_channel_3126!=TempleCastS32((-(1))))) {
       RsDosAudioSetContextPitch(
-          TempleCastS16(temple_channel_3052),TempleCastS16(temple_pitch_3050));
-      (timer->last_pitch=TempleCastU16(temple_pitch_3050));
+          TempleCastS16(temple_channel_3126),TempleCastS16(temple_pitch_3124));
+      (timer->last_pitch=TempleCastU16(temple_pitch_3124));
     }
   }
 }
 
 legacy_void RsAudioEngineAudioRestartTimerEngine(CAudioTimer *timer,legacy_u16 index)
 {
-  legacy_s16 noreg temple_channel_3053;
+  legacy_s16 noreg temple_channel_3127;
   if((timer->restart_engine!=0)) {
-    temple_channel_3053=TempleCastS16(timer->effect_channel);
+    temple_channel_3127=TempleCastS16(timer->effect_channel);
     if((timer->engine_active!=0)) {
-      RsAudioStopEffectChannel(TempleCastS16(temple_channel_3053));
+      RsAudioStopEffectChannel(TempleCastS16(temple_channel_3127));
       (timer->restart_engine=TempleCastU8(0));
     } else {
-      if((RsAudioEffectChannelIdle(TempleCastS16(temple_channel_3053))!=0)) {
+      if((RsAudioEffectChannelIdle(TempleCastS16(temple_channel_3127))!=0)) {
         RsAudioStartEngine(TempleCastS16(index));
         (timer->restart_engine=TempleCastU8(0));
       }
@@ -532,1640 +532,61 @@ legacy_void RsAudioEngineAudioRestartTimerEngine(CAudioTimer *timer,legacy_u16 i
 
 legacy_void RsAudioDriverTimer()
 {
-  legacy_s32 noreg temple_tmp_3054;
-  CAudioTimer *temple_timer_3055;
-  legacy_u16 noreg temple_index_3057;
-  legacy_s32 noreg temple_tmp_3058;
-  legacy_u16 *temple_tmp_3059;
-  legacy_u16 noreg temple_tmp_3060;
+  legacy_s32 noreg temple_tmp_3128;
+  CAudioTimer *temple_timer_3129;
+  legacy_u16 noreg temple_index_3131;
+  legacy_s32 noreg temple_tmp_3132;
+  legacy_u16 *temple_tmp_3133;
+  legacy_u16 noreg temple_tmp_3134;
   if((RsDosDataStackSegmentsMatch()==0)) {
     return;
   }
   (rs_audio_engine_audio_driver_timer_divider=TempleCastS16(
       RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
           (TempleCastU16(rs_audio_engine_audio_driver_timer_divider)+TempleCastU16(1)))))))));
-  temple_tmp_3054=0;
+  temple_tmp_3128=0;
   if((rs_audio_engine_audio_driver_timer_divider<2)) {
-    temple_tmp_3054=1;
+    temple_tmp_3128=1;
   }
-  if(temple_tmp_3054) {
-    temple_tmp_3054=0;
+  if(temple_tmp_3128) {
+    temple_tmp_3128=0;
     if((dos_audio_uses_direct_channels!=0)) {
-      temple_tmp_3054=1;
+      temple_tmp_3128=1;
     }
   }
-  if(temple_tmp_3054) {
+  if(temple_tmp_3128) {
     return;
   }
-  temple_index_3057=TempleCastU16(0);
+  temple_index_3131=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_3057<25))) {
+    if(!((temple_index_3131<25))) {
       break;
     }
-    (temple_timer_3055=(&(audio_timers[temple_index_3057])));
-    temple_tmp_3058=0;
-    if((temple_timer_3055->active==0)) {
-      temple_tmp_3058=1;
+    (temple_timer_3129=(&(audio_timers[temple_index_3131])));
+    temple_tmp_3132=0;
+    if((temple_timer_3129->active==0)) {
+      temple_tmp_3132=1;
     }
-    if(!temple_tmp_3058) {
-      temple_tmp_3058=0;
+    if(!temple_tmp_3132) {
+      temple_tmp_3132=0;
       if((audio_effects_enabled==AUDIO_STATE_DISABLED)) {
-        temple_tmp_3058=1;
+        temple_tmp_3132=1;
       }
     }
-    if(temple_tmp_3058) {
-      goto temple_next_3056;
+    if(temple_tmp_3132) {
+      goto temple_next_3130;
     }
-    RsAudioEngineAudioUpdateTimerVolume(temple_timer_3055);
-    RsAudioEngineAudioUpdateTimerPitch(temple_timer_3055);
-    (temple_timer_3055->parameters_changed=TempleCastU8(0));
-    RsAudioEngineAudioRestartTimerEngine(temple_timer_3055,TempleCastU16(temple_index_3057));
-  temple_next_3056:;
-    temple_tmp_3059=&(temple_index_3057);
-    temple_tmp_3060=*temple_tmp_3059;
-    *temple_tmp_3059=TempleCastU16((temple_tmp_3060+1));
-    temple_tmp_3060;
+    RsAudioEngineAudioUpdateTimerVolume(temple_timer_3129);
+    RsAudioEngineAudioUpdateTimerPitch(temple_timer_3129);
+    (temple_timer_3129->parameters_changed=TempleCastU8(0));
+    RsAudioEngineAudioRestartTimerEngine(temple_timer_3129,TempleCastU16(temple_index_3131));
+  temple_next_3130:;
+    temple_tmp_3133=&(temple_index_3131);
+    temple_tmp_3134=*temple_tmp_3133;
+    *temple_tmp_3133=TempleCastU16((temple_tmp_3134+1));
+    temple_tmp_3134;
   }
   if((rs_audio_engine_audio_driver_timer_divider>=2)) {
     (rs_audio_engine_audio_driver_timer_divider=TempleCastS16(0));
-  }
-}
-
-legacy_void RsAudioUnload()
-{
-  RsAudioFadeOut(TempleCastS16(2));
-  RsMmgrFree(songfileptr);
-  RsMmgrFree(voicefileptr);
-  (is_audioloaded=TempleCastS8(0));
-}
-
-legacy_void RsAudioEnableMusic()
-{
-  (audio_music_enabled=TempleCastS8(AUDIO_STATE_ENABLED));
-}
-
-legacy_void RsAudioDisableMusic()
-{
-  (audio_music_enabled=TempleCastS8(AUDIO_STATE_DISABLED));
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-  if((audio_music_channel_count!=0)) {
-    RsAudioReleaseChannelRange(TempleCastS16(0),
-        TempleCastS16(TempleCastU32((TempleCastU16(audio_music_channel_count)-1))));
-  }
-  RsAudioUpdateDriverContexts();
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-}
-
-legacy_s16 RsAudioToggleMusic()
-{
-  if((audio_music_enabled==AUDIO_STATE_ENABLED)) {
-    RsAudioDisableMusic();
-    return TempleCastS16(0);
-  }
-  RsAudioEnableMusic();
-  return TempleCastS16(1);
-}
-
-legacy_s16 RsAudioEffectRangeIdle()
-{
-  legacy_s32 noreg temple_tmp_3061;
-  legacy_u16 noreg temple_channel_3063;
-  legacy_u16 *temple_tmp_3064;
-  legacy_u16 noreg temple_tmp_3065;
-  temple_tmp_3061=0;
-  if((audio_suspended==AUDIO_STATE_ENABLED)) {
-    temple_tmp_3061=1;
-  }
-  if(!temple_tmp_3061) {
-    temple_tmp_3061=0;
-    if((audio_music_enabled==AUDIO_STATE_DISABLED)) {
-      temple_tmp_3061=1;
-    }
-  }
-  if(temple_tmp_3061) {
-    return TempleCastS16(1);
-  }
-  temple_channel_3063=TempleCastU16(0);
-  while(1) {
-    if(!((temple_channel_3063<TempleCastU16(audio_music_channel_count)))) {
-      break;
-    }
-    if((TempleCastS32((audio_channels[TempleCastU32((temple_channel_3063+16))].cursor.offset|
-            audio_channels[TempleCastU32((temple_channel_3063+16))].cursor.segment))!=0)) {
-      return TempleCastS16(0);
-    }
-    temple_tmp_3064=&(temple_channel_3063);
-    temple_tmp_3065=*temple_tmp_3064;
-    *temple_tmp_3064=TempleCastU16((temple_tmp_3065+1));
-    temple_tmp_3065;
-  }
-  return TempleCastS16(1);
-}
-
-legacy_void RsAudioStopMusic()
-{
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-  (audio_music_active=TempleCastU8(AUDIO_STATE_DISABLED));
-  RsAudioReleaseChannelRange(TempleCastS16(0),TempleCastS16(15));
-  RsAudioInitChannelRange(TempleCastS16(0),TempleCastS16(15),0,TempleCastU16(0),
-      TempleCastU16(audio_music_rate),TempleCastU8(0));
-  (audio_music_channel_count=TempleCastU8(0));
-  RsAudioUpdateDriverContexts();
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-}
-
-legacy_void RsAudioEnableEffects()
-{
-  legacy_s16 noreg temple_channel_3067;
-  legacy_s16 *temple_tmp_3068;
-  legacy_s16 noreg temple_tmp_3069;
-  if((audio_effects_enabled==AUDIO_STATE_ENABLED)) {
-    return;
-  }
-  temple_channel_3067=TempleCastS16(16);
-  while(1) {
-    if(!((TempleCastU16(temple_channel_3067)<=23))) {
-      break;
-    }
-    RsDosAudioSetChannelVolume(TempleCastS16(temple_channel_3067),
-        TempleCastS16(rs_audio_engine_audio_effect_channel_volumes[temple_channel_3067]));
-    temple_tmp_3068=&(temple_channel_3067);
-    temple_tmp_3069=*temple_tmp_3068;
-    *temple_tmp_3068=TempleCastS16((temple_tmp_3069+1));
-    temple_tmp_3069;
-  }
-  (audio_effects_enabled=TempleCastS8(AUDIO_STATE_ENABLED));
-}
-
-legacy_void RsAudioDisableEffects()
-{
-  legacy_s16 noreg temple_channel_3071;
-  legacy_s16 *temple_tmp_3072;
-  legacy_s16 noreg temple_tmp_3073;
-  if((audio_effects_enabled==AUDIO_STATE_DISABLED)) {
-    return;
-  }
-  temple_channel_3071=TempleCastS16(16);
-  while(1) {
-    if(!((TempleCastU16(temple_channel_3071)<=23))) {
-      break;
-    }
-    (rs_audio_engine_audio_effect_channel_volumes[temple_channel_3071]=TempleCastU8(
-        audio_sfx_channels[TempleCastU32((TempleCastU32(temple_channel_3071)-16))].volume));
-    RsDosAudioSetChannelVolume(TempleCastS16(temple_channel_3071),TempleCastS16(0));
-    temple_tmp_3072=&(temple_channel_3071);
-    temple_tmp_3073=*temple_tmp_3072;
-    *temple_tmp_3072=TempleCastS16((temple_tmp_3073+1));
-    temple_tmp_3073;
-  }
-  (audio_effects_enabled=TempleCastS8(AUDIO_STATE_DISABLED));
-}
-
-legacy_s16 RsAudioToggleEffects()
-{
-  if((audio_effects_enabled==AUDIO_STATE_ENABLED)) {
-    RsAudioDisableEffects();
-    return TempleCastS16(0);
-  }
-  RsAudioEnableEffects();
-  return TempleCastS16(1);
-}
-
-legacy_s16 RsAudioEffectChannelIdle(legacy_s16 channel)
-{
-  legacy_s32 noreg temple_tmp_3074;
-  legacy_s32 noreg temple_tmp_3075;
-  temple_tmp_3074=0;
-  if((audio_effects_enabled==AUDIO_STATE_DISABLED)) {
-    temple_tmp_3074=1;
-  }
-  if(!temple_tmp_3074) {
-    temple_tmp_3074=0;
-    if((TempleCastU16(channel)<16)) {
-      temple_tmp_3074=1;
-    }
-  }
-  temple_tmp_3075=0;
-  if(temple_tmp_3074) {
-    temple_tmp_3075=1;
-  }
-  if(!temple_tmp_3075) {
-    temple_tmp_3075=0;
-    if((TempleCastU16(channel)>23)) {
-      temple_tmp_3075=1;
-    }
-  }
-  if(temple_tmp_3075) {
-    return TempleCastS16(1);
-  }
-  return TempleCastS16((TempleCastS32((audio_channels[channel].cursor.offset|
-                            audio_channels[channel].cursor.segment))==0));
-}
-
-legacy_void RsAudioSetFinishCallback(legacy_s16 channel,legacy_u8 *value)
-{
-  RsAudioWriteFarPointer(((&(audio_channels[channel].finish_callback)))(legacy_u8 *),value);
-}
-
-legacy_void RsAudioInitChannelRange(legacy_s16 first_channel,legacy_s16 last_channel,
-    legacy_u8 *resource,legacy_u16 resource_data_offset,legacy_u16 rate,legacy_u8 priority)
-{
-  legacy_s16 noreg temple_channel_3076;
-  legacy_s16 noreg temple_last_3077;
-  legacy_u16 noreg temple_resource_offset_3078;
-  legacy_u16 noreg temple_resource_segment_3079;
-  CAudioChannel *temple_chunk_3080;
-  legacy_u8 *temple_resource_data_3082;
-  legacy_u32 noreg temple_pointer_value_3083;
-  legacy_u16 noreg temple_pointer_offset_3084;
-  legacy_u16 noreg temple_pointer_segment_3085;
-  legacy_u16 noreg temple_legacy_write_u16_value__3087;
-  legacy_u16 noreg temple_legacy_write_u16_value__3089;
-  legacy_u16 noreg temple_legacy_write_u16_value__3091;
-  legacy_u16 noreg temple_legacy_write_u16_value__3093;
-  legacy_u16 noreg temple_legacy_write_u16_value__3095;
-  legacy_u16 noreg temple_legacy_write_u16_value__3097;
-  temple_channel_3076=TempleCastS16(TempleCastS16(first_channel));
-  temple_last_3077=TempleCastS16(TempleCastS16(last_channel));
-  if((temple_channel_3076>temple_last_3077)) {
-    return;
-  }
-  temple_resource_offset_3078=TempleCastU16(TempleCastU16(RsDosMemoryPointerOffset(resource)));
-  temple_resource_segment_3079=TempleCastU16(TempleCastU16(RsDosMemoryPointerSegment(resource)));
-  while(1) {
-    (temple_chunk_3080=(&(audio_channels[temple_channel_3076])));
-    (temple_chunk_3080->finish_callback.offset=TempleCastU16(0));
-    (temple_chunk_3080->finish_callback.segment=TempleCastU16(0));
-    (temple_chunk_3080->note_velocity=TempleCastU8(127));
-    (temple_chunk_3080->channel=TempleCastU8(TempleCastU8(temple_channel_3076)));
-    (temple_chunk_3080->note_limit=TempleCastU8(15));
-    (rs_audio_engine_audio_channel_values[TempleCastU16(temple_channel_3076)]=TempleCastU8(0));
-    (rs_audio_engine_audio_channel_notes[TempleCastU16(temple_channel_3076)]=TempleCastU8(0));
-    (temple_chunk_3080->stack_depth=TempleCastU8(0));
-    (temple_chunk_3080->call_depth=TempleCastU8(0));
-    (temple_chunk_3080->priority=TempleCastU8(priority));
-    (temple_chunk_3080->active_notes=TempleCastU8(0));
-    (temple_chunk_3080->delay=TempleCastU32(0));
-    (temple_chunk_3080->reserved_delay_byte=TempleCastU8(0));
-    (temple_chunk_3080->resource.segment=TempleCastU16(0));
-    (temple_chunk_3080->resource.offset=TempleCastU16(0));
-    (temple_chunk_3080->volume=TempleCastU8(TempleCastU8(rate)));
-    (temple_chunk_3080->sustain=TempleCastU8(0));
-    (temple_chunk_3080->pitch=TempleCastU16(0));
-    (temple_chunk_3080->driver_private_state[0]=TempleCastU8(0));
-    (temple_chunk_3080->driver_private_state[1]=TempleCastU8(0));
-    (temple_chunk_3080->driver_private_state[2]=TempleCastU8(0));
-    (temple_chunk_3080->driver_private_state[3]=TempleCastU8(0));
-    (temple_chunk_3080->driver_channel=TempleCastU8(255));
-    if((resource!=0)) {
-      temple_resource_data_3082=(RsDosMemoryMakePointer(
-          TempleCastU16(temple_resource_segment_3079),
-          TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_resource_offset_3078)+
-              TempleCastU16(resource_data_offset)))))))(legacy_u8 *);
-      temple_pointer_value_3083=TempleCastU32(RsResourceReadU32le(temple_resource_data_3082));
-      temple_pointer_offset_3084=TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(TempleCastU16(temple_pointer_value_3083))+TempleCastU16(4)))));
-      temple_pointer_segment_3085=
-          TempleCastU16(TempleCastU16(TempleCastU32((temple_pointer_value_3083>>16))));
-      while(1) {
-        temple_legacy_write_u16_value__3087=
-            TempleCastU16(TempleCastU16(temple_pointer_offset_3084));
-        (((&(temple_chunk_3080->call_stack[0].offset)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3087)));
-        (((&(temple_chunk_3080->call_stack[0].offset)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3087>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-      while(1) {
-        temple_legacy_write_u16_value__3089=
-            TempleCastU16(TempleCastU16(temple_pointer_segment_3085));
-        (((&(temple_chunk_3080->call_stack[0].segment)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3089)));
-        (((&(temple_chunk_3080->call_stack[0].segment)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3089>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-      (temple_pointer_value_3083=TempleCastU32(RsResourceReadU32le(temple_resource_data_3082)));
-      (temple_pointer_offset_3084=TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(TempleCastU16(temple_pointer_value_3083))+TempleCastU16(4))))));
-      (temple_pointer_segment_3085=
-              TempleCastU16(TempleCastU16(TempleCastU32((temple_pointer_value_3083>>16)))));
-      while(1) {
-        temple_legacy_write_u16_value__3091=
-            TempleCastU16(TempleCastU16(temple_pointer_offset_3084));
-        (((&(temple_chunk_3080->cursor.offset)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3091)));
-        (((&(temple_chunk_3080->cursor.offset)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3091>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-      while(1) {
-        temple_legacy_write_u16_value__3093=
-            TempleCastU16(TempleCastU16(temple_pointer_segment_3085));
-        (((&(temple_chunk_3080->cursor.segment)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3093)));
-        (((&(temple_chunk_3080->cursor.segment)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3093>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-      (resource_data_offset=TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(resource_data_offset)+TempleCastU16(5))))));
-      while(1) {
-        temple_legacy_write_u16_value__3095=TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(temple_resource_offset_3078)+TempleCastU16(7))))));
-        (((&(temple_chunk_3080->instruments.offset)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3095)));
-        (((&(temple_chunk_3080->instruments.offset)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3095>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-      while(1) {
-        temple_legacy_write_u16_value__3097=
-            TempleCastU16(TempleCastU16(temple_resource_segment_3079));
-        (((&(temple_chunk_3080->instruments.segment)))(legacy_u8 *)[0]=
-                TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__3097)));
-        (((&(temple_chunk_3080->instruments.segment)))(legacy_u8 *)[1]=TempleCastU8(
-            TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__3097>>8)))));
-        if(!(0)) {
-          break;
-        }
-      }
-    } else {
-      (temple_chunk_3080->cursor.offset=TempleCastU16(0));
-      (temple_chunk_3080->cursor.segment=TempleCastU16(0));
-    }
-    (temple_channel_3076=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(
-        TempleCastU16(TempleCastS32((TempleCastU16(temple_channel_3076)+TempleCastU16(1)))))))));
-    if(!((temple_channel_3076<=temple_last_3077))) {
-      break;
-    }
-  }
-}
-
-legacy_void RsAudioEngineAudioClearDriverContext(CAudioContext *context)
-{
-  (context->channel=TempleCastU8(255));
-  (context->state=TempleCastU8(0));
-  (context->priority=TempleCastU8(0));
-  (context->resource.offset=TempleCastU16(0));
-  (context->resource.segment=TempleCastU16(0));
-}
-
-legacy_void RsAudioResetChannels()
-{
-  CAudioContext *temple_context_3098;
-  legacy_u16 noreg temple_context_index_3100;
-  legacy_u16 *temple_tmp_3101;
-  legacy_u16 noreg temple_tmp_3102;
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-  RsAudioInitChannelRange(TempleCastS16(0),TempleCastS16(23),0,TempleCastU16(0),
-      TempleCastU16(127),TempleCastU8(0));
-  temple_context_3098=dos_audio_contexts;
-  temple_context_index_3100=TempleCastU16(0);
-  while(1) {
-    if(!((temple_context_index_3100<dos_audio_context_count))) {
-      break;
-    }
-    RsDosAudioDriverReleaseChannel(TempleCastS16(TempleCastS16(temple_context_index_3100)));
-    RsAudioEngineAudioClearDriverContext(temple_context_3098);
-    (temple_context_3098->driver_channel=TempleCastU8(255));
-    (temple_context_3098++);
-    temple_tmp_3101=&(temple_context_index_3100);
-    temple_tmp_3102=*temple_tmp_3101;
-    *temple_tmp_3101=TempleCastU16((temple_tmp_3102+1));
-    temple_tmp_3102;
-  }
-  RsDosAudioDriverReset();
-  RsDosAudioDriverStart();
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-}
-
-legacy_void RsAudioReleaseChannelRange(legacy_s16 first_channel,legacy_s16 last_channel)
-{
-  legacy_s16 noreg temple_channel_3103;
-  CAudioChannel *temple_chunk_3104;
-  CAudioContext *temple_context_3105;
-  legacy_u16 noreg temple_context_index_3107;
-  legacy_u16 noreg temple_channel_bits_3108;
-  legacy_s32 noreg temple_tmp_3109;
-  legacy_u16 *temple_tmp_3110;
-  legacy_u16 noreg temple_tmp_3111;
-  legacy_u16 noreg temple_context_index_3114;
-  legacy_u16 *temple_tmp_3115;
-  legacy_u16 noreg temple_tmp_3116;
-  if((dos_audio_uses_direct_channels==0)) {
-    (temple_context_3105=dos_audio_contexts);
-    temple_context_index_3107=TempleCastU16(0);
-    while(1) {
-      if(!((temple_context_index_3107<dos_audio_context_count))) {
-        break;
-      }
-      temple_channel_bits_3108=TempleCastU16(temple_context_3105->channel);
-      temple_tmp_3109=0;
-      if((temple_channel_bits_3108>=TempleCastU16(first_channel))) {
-        temple_tmp_3109=1;
-      }
-      if(temple_tmp_3109) {
-        temple_tmp_3109=0;
-        if((temple_channel_bits_3108<=TempleCastU16(last_channel))) {
-          temple_tmp_3109=1;
-        }
-      }
-      if(temple_tmp_3109) {
-        RsDosAudioDriverReleaseChannel(TempleCastS16(TempleCastS16(temple_context_index_3107)));
-        RsAudioEngineAudioClearDriverContext(temple_context_3105);
-      }
-      (temple_context_3105++);
-      temple_tmp_3110=&(temple_context_index_3107);
-      temple_tmp_3111=*temple_tmp_3110;
-      *temple_tmp_3110=TempleCastU16((temple_tmp_3111+1));
-      temple_tmp_3111;
-    }
-  } else {
-    (temple_channel_3103=TempleCastS16(first_channel));
-    while(1) {
-      if(!((temple_channel_3103<=last_channel))) {
-        break;
-      }
-      (temple_chunk_3104=(&(audio_channels[temple_channel_3103])));
-      if((temple_chunk_3104->driver_channel<16)) {
-        RsDosAudioDriverReleaseChannel(TempleCastS16(temple_chunk_3104->driver_channel));
-      }
-      (temple_context_3105=dos_audio_contexts);
-      temple_context_index_3114=TempleCastU16(0);
-      while(1) {
-        if(!((temple_context_index_3114<16))) {
-          break;
-        }
-        if((TempleCastU16(temple_context_3105->channel)==TempleCastU16(temple_channel_3103))) {
-          RsAudioEngineAudioClearDriverContext(temple_context_3105);
-        }
-        (temple_context_3105++);
-        temple_tmp_3115=&(temple_context_index_3114);
-        temple_tmp_3116=*temple_tmp_3115;
-        *temple_tmp_3115=TempleCastU16((temple_tmp_3116+1));
-        temple_tmp_3116;
-      }
-      (temple_channel_3103=TempleCastS16(
-          RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_channel_3103)+TempleCastU16(1)))))))));
-    }
-  }
-  (temple_channel_3103=TempleCastS16(first_channel));
-  while(1) {
-    if(!((temple_channel_3103<=last_channel))) {
-      break;
-    }
-    (temple_chunk_3104=(&(audio_channels[temple_channel_3103])));
-    (temple_chunk_3104->active_notes=TempleCastU8(0));
-    (temple_channel_3103=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(
-        TempleCastU16(TempleCastS32((TempleCastU16(temple_channel_3103)+TempleCastU16(1)))))))));
-  }
-}
-
-legacy_u8 temple_percussion_resource_indices_3120[16];
-MemSet(
-    &temple_percussion_resource_indices_3120,0,sizeof(temple_percussion_resource_indices_3120));
-legacy_u8 *RsAudioEngineAudioSelectSampleResource(legacy_u8 *original_resource,legacy_u8 note)
-{
-  legacy_u8 *temple_resources_3118[7];
-  legacy_u16 noreg temple_note_index_3119;
-  if((original_resource==0)) {
-    return 0;
-  }
-  if(((original_resource)(legacy_u8 *)[5]!=5)) {
-    return original_resource;
-  }
-  (temple_resources_3118[0]=audio_bass_drum_resource);
-  (temple_resources_3118[1]=audio_snare_resource);
-  (temple_resources_3118[2]=audio_tom_resource);
-  (temple_resources_3118[3]=audio_ride_resource);
-  (temple_resources_3118[4]=audio_crash_resource);
-  (temple_resources_3118[5]=audio_closed_hihat_resource);
-  (temple_resources_3118[6]=audio_open_hihat_resource);
-  temple_note_index_3119=
-      TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(note)-TempleCastU16(24)))));
-  if((temple_note_index_3119>=16)) {
-    return audio_tom_resource;
-  }
-  return temple_resources_3118[temple_percussion_resource_indices_3120[temple_note_index_3119]];
-}
-
-legacy_u8 RsAudioEngineAudioContextMatchesResource(CAudioContext *context,CAudioChannel *timer,
-    legacy_u16 resource_mask,legacy_u16 context_index,legacy_s16 restrict_to_timer)
-{
-  legacy_u16 noreg temple_context_mask_3121;
-  legacy_s32 noreg temple_tmp_3122;
-  legacy_s32 noreg temple_tmp_3123;
-  legacy_s32 noreg temple_tmp_3124;
-  if((dos_audio_uses_direct_channels==0)) {
-    if((context_index<16)) {
-      temple_tmp_3122=TempleCastS32(TempleCastU16(TempleCastU32((1<<context_index))));
-    } else {
-      temple_tmp_3122=TempleCastS32(0);
-    }
-    temple_context_mask_3121=TempleCastU16(temple_tmp_3122);
-    temple_tmp_3124=0;
-    if((TempleCastS32((resource_mask&temple_context_mask_3121))==0)) {
-      temple_tmp_3124=1;
-    }
-    if(!temple_tmp_3124) {
-      temple_tmp_3123=0;
-      if((restrict_to_timer!=0)) {
-        temple_tmp_3123=1;
-      }
-      if(temple_tmp_3123) {
-        temple_tmp_3123=0;
-        if((timer->channel!=context->channel)) {
-          temple_tmp_3123=1;
-        }
-      }
-      temple_tmp_3124=0;
-      if(temple_tmp_3123) {
-        temple_tmp_3124=1;
-      }
-    }
-    if(temple_tmp_3124) {
-      return TempleCastU8(0);
-    }
-  }
-  return TempleCastU8(1);
-}
-
-legacy_void RsAudioEngineAudioConsiderOlderContext(
-    CAudioContext *context,legacy_u16 context_index,CAudioContextSelection *selection)
-{
-  legacy_u32 noreg temple_age_3125;
-  legacy_s32 noreg temple_tmp_3126;
-  legacy_s32 noreg temple_tmp_3127;
-  temple_age_3125=TempleCastU32(context->age);
-  temple_tmp_3126=0;
-  if((context->state==AUDIO_CONTEXT_STATE_PLAYING)) {
-    temple_tmp_3126=1;
-  }
-  if(temple_tmp_3126) {
-    temple_tmp_3126=0;
-    if((temple_age_3125>selection->oldest_state1_age)) {
-      temple_tmp_3126=1;
-    }
-  }
-  if(temple_tmp_3126) {
-    (selection->oldest_state1_age=TempleCastU32(temple_age_3125));
-    (selection->oldest_state1=TempleCastS16(TempleCastS16(context_index)));
-  }
-  temple_tmp_3127=0;
-  if((context->state==AUDIO_CONTEXT_STATE_RELEASING)) {
-    temple_tmp_3127=1;
-  }
-  if(temple_tmp_3127) {
-    temple_tmp_3127=0;
-    if((temple_age_3125>selection->oldest_state2_age)) {
-      temple_tmp_3127=1;
-    }
-  }
-  if(temple_tmp_3127) {
-    (selection->oldest_state2_age=TempleCastU32(temple_age_3125));
-    (selection->oldest_state2=TempleCastS16(TempleCastS16(context_index)));
-  }
-}
-
-legacy_void RsAudioEngineAudioReclaimDriverContext(
-    legacy_s16 selected,CAudioChannel *timer,legacy_s16 restrict_to_timer)
-{
-  CAudioContext *temple_context_3128;
-  CAudioChannel *temple_old_timer_3129;
-  legacy_s32 noreg temple_tmp_3130;
-  legacy_u8 *temple_tmp_3131;
-  legacy_u8 noreg temple_tmp_3132;
-  legacy_u8 *temple_tmp_3133;
-  legacy_u8 noreg temple_tmp_3134;
-  temple_context_3128=(&(dos_audio_contexts[selected]));
-  temple_tmp_3130=0;
-  if((dos_audio_uses_direct_channels==0)) {
-    temple_tmp_3130=1;
-  }
-  if(temple_tmp_3130) {
-    temple_tmp_3130=0;
-    if((restrict_to_timer==0)) {
-      temple_tmp_3130=1;
-    }
-  }
-  if(temple_tmp_3130) {
-    (temple_old_timer_3129=(&(audio_channels[temple_context_3128->channel])));
-    if((temple_old_timer_3129!=timer)) {
-      temple_tmp_3131=&(temple_old_timer_3129->active_notes);
-      temple_tmp_3132=*temple_tmp_3131;
-      *temple_tmp_3131=TempleCastU8((temple_tmp_3132-1));
-      temple_tmp_3132;
-      temple_tmp_3133=&(timer->active_notes);
-      temple_tmp_3134=*temple_tmp_3133;
-      *temple_tmp_3133=TempleCastU8((temple_tmp_3134+1));
-      temple_tmp_3134;
-    }
-  }
-  RsDosAudioDriverStartContext(
-      TempleCastS16(temple_context_3128->driver_channel),temple_context_3128);
-  RsDosAudioDriverEndContext(
-      TempleCastS16(temple_context_3128->driver_channel),temple_context_3128);
-}
-
-legacy_s16 RsAudioEngineAudioFindDriverContext(legacy_u8 *resource,CAudioChannel *timer)
-{
-  legacy_u16 noreg temple_resource_mask_3135;
-  CAudioContextSelection temple_selection_3136;
-  legacy_s16 noreg temple_restrict_to_timer_3137;
-  legacy_u16 noreg temple_context_count_3138;
-  CAudioContext *temple_context_3139;
-  legacy_u16 noreg temple_context_index_3141;
-  legacy_u8 *temple_tmp_3142;
-  legacy_u8 noreg temple_tmp_3143;
-  legacy_s32 noreg temple_tmp_3144;
-  legacy_u16 *temple_tmp_3145;
-  legacy_u16 noreg temple_tmp_3146;
-  legacy_s16 noreg temple_selected_3147;
-  legacy_s32 noreg temple_tmp_3148;
-  temple_resource_mask_3135=TempleCastU16(RsResourceReadU16le((resource+12)));
-  if((temple_resource_mask_3135==0)) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  (temple_selection_3136.oldest_state1=TempleCastS16(TempleCastS32((-(1)))));
-  (temple_selection_3136.oldest_state2=TempleCastS16(TempleCastS32((-(1)))));
-  (temple_selection_3136.oldest_state1_age=TempleCastU32(0));
-  (temple_selection_3136.oldest_state2_age=TempleCastU32(0));
-  if((dos_audio_uses_direct_channels!=0)) {
-    (temple_context_count_3138=TempleCastU16(16));
-    (temple_restrict_to_timer_3137=TempleCastS16(0));
-  } else {
-    (temple_context_count_3138=TempleCastU16(dos_audio_context_count));
-    (temple_restrict_to_timer_3137=TempleCastS16((timer->active_notes>=timer->note_limit)));
-  }
-  temple_context_3139=dos_audio_contexts;
-  temple_context_index_3141=TempleCastU16(0);
-  while(1) {
-    if(!((temple_context_index_3141<temple_context_count_3138))) {
-      break;
-    }
-    if((RsAudioEngineAudioContextMatchesResource(temple_context_3139,timer,
-            TempleCastU16(temple_resource_mask_3135),TempleCastU16(temple_context_index_3141),
-            TempleCastS16(temple_restrict_to_timer_3137))==0)) {
-      (temple_context_3139++);
-      goto temple_next_3140;
-    }
-    if((temple_context_3139->state==AUDIO_CONTEXT_STATE_FREE)) {
-      if((dos_audio_uses_direct_channels==0)) {
-        temple_tmp_3142=&(timer->active_notes);
-        temple_tmp_3143=*temple_tmp_3142;
-        *temple_tmp_3142=TempleCastU8((temple_tmp_3143+1));
-        temple_tmp_3143;
-      }
-      return TempleCastS16(TempleCastS16(temple_context_index_3141));
-    }
-    temple_tmp_3144=0;
-    if((dos_audio_uses_direct_channels==0)) {
-      temple_tmp_3144=1;
-    }
-    if(temple_tmp_3144) {
-      temple_tmp_3144=0;
-      if((timer->priority<temple_context_3139->priority)) {
-        temple_tmp_3144=1;
-      }
-    }
-    if(temple_tmp_3144) {
-      (temple_context_3139++);
-      goto temple_next_3140;
-    }
-    RsAudioEngineAudioConsiderOlderContext(
-        temple_context_3139,TempleCastU16(temple_context_index_3141),(&(temple_selection_3136)));
-    (temple_context_3139++);
-  temple_next_3140:;
-    temple_tmp_3145=&(temple_context_index_3141);
-    temple_tmp_3146=*temple_tmp_3145;
-    *temple_tmp_3145=TempleCastU16((temple_tmp_3146+1));
-    temple_tmp_3146;
-  }
-  if((temple_selection_3136.oldest_state2!=TempleCastS32((-(1))))) {
-    temple_tmp_3148=TempleCastS32(temple_selection_3136.oldest_state2);
-  } else {
-    temple_tmp_3148=TempleCastS32(temple_selection_3136.oldest_state1);
-  }
-  temple_selected_3147=TempleCastS16(temple_tmp_3148);
-  if((temple_selected_3147==TempleCastS32((-(1))))) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  RsAudioEngineAudioReclaimDriverContext(
-      TempleCastS16(temple_selected_3147),timer,TempleCastS16(temple_restrict_to_timer_3137));
-  return TempleCastS16(temple_selected_3147);
-}
-
-legacy_s16 RsAudioStartNote(CAudioChannel *timer,legacy_u16 value,legacy_u32 duration,
-    legacy_u8 note,legacy_u16 parameter,legacy_s16 handle)
-{
-  legacy_u8 *temple_resource_3149;
-  legacy_s16 noreg temple_context_index_3150;
-  CAudioContext *temple_context_3151;
-  legacy_s32 noreg temple_tmp_3152;
-  legacy_s16 noreg temple_driver_channel_3153;
-  legacy_s32 noreg temple_tmp_3154;
-  legacy_s16 noreg temple_pitch_3155;
-  temple_resource_3149=(RsAudioReadFarPointer(((&(timer->resource)))(legacy_u8 *)))(legacy_u8 *);
-  (temple_resource_3149=(RsAudioEngineAudioSelectSampleResource(
-      temple_resource_3149,TempleCastU8(note)))(legacy_u8 *));
-  if((temple_resource_3149==0)) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  temple_context_index_3150=
-      TempleCastS16(RsAudioEngineAudioFindDriverContext(temple_resource_3149,timer));
-  if((temple_context_index_3150==TempleCastS32((-(1))))) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  temple_context_3151=(&(dos_audio_contexts[temple_context_index_3150]));
-  temple_tmp_3152=0;
-  if((TempleCastU16(TempleCastS32((
-          TempleCastU16(TempleCastU8(((&(temple_context_3151->resource.offset)))(legacy_u8 *)[0]))|
-          TempleCastS32((TempleCastU16(TempleCastU8(
-                            ((&(temple_context_3151->resource.offset)))(legacy_u8 *)[1]))
-              <<8)))))!=RsDosMemoryPointerOffset(temple_resource_3149))) {
-    temple_tmp_3152=1;
-  }
-  if(!temple_tmp_3152) {
-    temple_tmp_3152=0;
-    if((TempleCastU16(
-            TempleCastS32((TempleCastU16(TempleCastU8(
-                              ((&(temple_context_3151->resource.segment)))(legacy_u8 *)[0]))|
-                TempleCastS32((TempleCastU16(TempleCastU8(
-                                  ((&(temple_context_3151->resource.segment)))(legacy_u8 *)[1]))
-                    <<8)))))!=RsDosMemoryPointerSegment(temple_resource_3149))) {
-      temple_tmp_3152=1;
-    }
-  }
-  if(temple_tmp_3152) {
-    RsAudioWriteFarPointer(((&(temple_context_3151->resource)))(legacy_u8 *),temple_resource_3149);
-    if((dos_audio_uses_direct_channels==0)) {
-      RsDosAudioDriverPrepareContext(TempleCastS16(temple_context_index_3150),temple_context_3151,
-          (timer)(legacy_u8 *),temple_resource_3149);
-    }
-  }
-  (temple_context_3151->channel=TempleCastU8(TempleCastU8(handle)));
-  (temple_context_3151->state=TempleCastU8(AUDIO_CONTEXT_STATE_PLAYING));
-  (temple_context_3151->priority=TempleCastU8(timer->priority));
-  (temple_context_3151->age=TempleCastU32(0));
-  (temple_context_3151->fade_out_flag=TempleCastU32(
-      TempleCastU32(TempleCastU32((TempleCastU32(duration)-TempleCastU32(1))))));
-  (temple_context_3151->level=TempleCastS16(RsAudioEngineLegacyS16FromBits(
-      TempleCastU16(TempleCastU16(RsResourceReadU16le((temple_resource_3149+28)))))));
-  (temple_context_3151->envelope_state=TempleCastU8(AUDIO_ENVELOPE_STATE_ATTACK));
-  (temple_context_3151->modulation_delay=
-          TempleCastU16(RsResourceReadU16le((temple_resource_3149+42))));
-  (temple_context_3151->modulation_count=
-          TempleCastU16(RsResourceReadU16le((temple_resource_3149+44))));
-  (temple_context_3151->modulation=TempleCastS16(0));
-  (temple_context_3151->sequence_delay=
-          TempleCastU16(RsResourceReadU16le((temple_resource_3149+54))));
-  (temple_context_3151->sequence_count=
-          TempleCastU16(RsResourceReadU16le((temple_resource_3149+56))));
-  (temple_context_3151->sequence_value=TempleCastU8(0));
-  (temple_context_3151->modulation_step=
-          TempleCastU16(RsResourceReadU16le((temple_resource_3149+48))));
-  (temple_context_3151->modulation_direction=TempleCastU8(temple_resource_3149[52]));
-  (temple_context_3151->modulation_tick=TempleCastU8(0));
-  (temple_context_3151->sequence_tick=TempleCastU8(0));
-  (temple_context_3151->sequence_index=TempleCastU8(0));
-  (temple_context_3151->timer_offset=TempleCastU16(RsDosMemoryPointerOffset(timer)));
-  if((dos_audio_uses_direct_channels==0)) {
-    temple_tmp_3154=TempleCastS32(temple_context_index_3150);
-  } else {
-    temple_tmp_3154=TempleCastS32(timer->driver_channel);
-  }
-  temple_driver_channel_3153=TempleCastS16(temple_tmp_3154);
-  (temple_context_3151->driver_channel=TempleCastU8(TempleCastU8(temple_driver_channel_3153)));
-  if((note==255)) {
-    RsDosAudioDriverSetContextValue(
-        TempleCastS16(temple_driver_channel_3153),temple_context_3151,TempleCastU16(value));
-    if((dos_audio_uses_direct_channels!=0)) {
-      (note=TempleCastU8(60));
-    }
-  }
-  temple_pitch_3155=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(
-      TempleCastU16(TempleCastS32((TempleCastU16(TempleCastS8(temple_resource_3149[16]))+
-          TempleCastU16(TempleCastS8(note)))))))));
-  RsDosAudioDriverActivateContext(TempleCastS16(temple_driver_channel_3153),temple_context_3151,
-      (timer)(legacy_u8 *),TempleCastS16(temple_pitch_3155),TempleCastU16(parameter),
-      temple_resource_3149);
-  (rs_audio_engine_audio_channel_notes[TempleCastU16(handle)]=TempleCastU8(note));
-  return TempleCastS16(temple_context_index_3150);
-}
-
-legacy_s16 RsAudioStartSample(legacy_u16 value,legacy_s16 handle)
-{
-  CAudioChannel *temple_timer_3156;
-  temple_timer_3156=(&(audio_channels[handle]));
-  return TempleCastS16(RsAudioStartNote(temple_timer_3156,TempleCastU16(value),
-      TempleCastU32(4294967264),TempleCastU8(255),TempleCastU16(0),TempleCastS16(handle)));
-}
-
-legacy_void RsAudioAdvanceDriverContext(CAudioContext *context)
-{
-  legacy_u32 noreg temple_value_3157;
-  CAudioChannel *temple_chunk_3158;
-  legacy_s32 noreg temple_tmp_3159;
-  (context->age=TempleCastU32(
-      TempleCastU32(TempleCastU32((TempleCastU32(context->age)+TempleCastU32(1))))));
-  temple_value_3157=TempleCastU32(context->fade_out_flag);
-  if((temple_value_3157!=TempleCastU32(0))) {
-    (context->fade_out_flag=TempleCastU32(
-        TempleCastU32(TempleCastU32((TempleCastU32(temple_value_3157)-TempleCastU32(1))))));
-    return;
-  }
-  RsDosAudioDriverStartContext(TempleCastS16(context->driver_channel),context);
-  (context->state=TempleCastU8(AUDIO_CONTEXT_STATE_RELEASING));
-  temple_chunk_3158=(&(audio_channels[context->channel]));
-  if((temple_chunk_3158->sustain!=0)) {
-    temple_tmp_3159=TempleCastS32(AUDIO_ENVELOPE_STATE_SUSTAIN);
-  } else {
-    temple_tmp_3159=TempleCastS32(AUDIO_ENVELOPE_STATE_RELEASE);
-  }
-  (context->envelope_state=TempleCastU8(temple_tmp_3159));
-}
-
-legacy_u16 RsAudioEngineAudioAbsoluteWord(legacy_s16 value)
-{
-  if((value<0)) {
-    return TempleCastU16(TempleCastU16(RsAudioEngineLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(value)))))))));
-  }
-  return TempleCastU16(TempleCastU16(value));
-}
-
-legacy_void RsAudioEngineAudioUpdateContextEnvelope(CAudioContext *context,legacy_u8 *resource)
-{
-  legacy_s16 noreg temple_level_3160;
-  legacy_u16 noreg temple_value_3161;
-  legacy_s32 noreg temple_tmp_3162;
-  legacy_s32 noreg temple_tmp_3163;
-  CAudioChannel *temple_chunk_3164;
-  legacy_u8 *temple_tmp_3165;
-  legacy_u8 noreg temple_tmp_3166;
-  if((context->envelope_state==AUDIO_ENVELOPE_STATE_ATTACK)) {
-    (temple_level_3160=TempleCastS16(RsAudioEngineLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(context->level)+
-            TempleCastU16(RsAudioEngineLegacyS16FromBits(
-                TempleCastU16(TempleCastU16(RsResourceReadU16le((resource+32))))))))))))));
-    (context->level=TempleCastS16(temple_level_3160));
-    (temple_value_3161=TempleCastU16(RsResourceReadU16le((resource+30))));
-    if((temple_level_3160>=
-          RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_3161))))) {
-      (context->level=TempleCastS16(
-          RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_3161)))));
-      if((RsAudioEngineLegacyS16FromBits(
-              TempleCastU16(TempleCastU16(RsResourceReadU16le((resource+36)))))>=
-            RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_3161))))) {
-        temple_tmp_3162=TempleCastS32(AUDIO_ENVELOPE_STATE_SUSTAIN);
-      } else {
-        temple_tmp_3162=TempleCastS32(AUDIO_ENVELOPE_STATE_DECAY);
-      }
-      (context->envelope_state=TempleCastU8(temple_tmp_3162));
-    }
-  }
-  if((context->envelope_state==AUDIO_ENVELOPE_STATE_DECAY)) {
-    (temple_level_3160=TempleCastS16(RsAudioEngineLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(context->level)-
-            TempleCastU16(RsAudioEngineLegacyS16FromBits(
-                TempleCastU16(TempleCastU16(RsResourceReadU16le((resource+34))))))))))))));
-    (context->level=TempleCastS16(temple_level_3160));
-    (temple_value_3161=TempleCastU16(RsResourceReadU16le((resource+36))));
-    if((temple_level_3160<=
-          RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_3161))))) {
-      (context->envelope_state=TempleCastU8(AUDIO_ENVELOPE_STATE_SUSTAIN));
-      (context->level=TempleCastS16(
-          RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_3161)))));
-    }
-  }
-  temple_tmp_3163=0;
-  if((context->envelope_state==AUDIO_ENVELOPE_STATE_SUSTAIN)) {
-    temple_tmp_3163=1;
-  }
-  if(temple_tmp_3163) {
-    temple_tmp_3163=0;
-    if((RsResourceReadU16le((resource+36))==0)) {
-      temple_tmp_3163=1;
-    }
-  }
-  if(temple_tmp_3163) {
-    (context->envelope_state=TempleCastU8(AUDIO_ENVELOPE_STATE_RELEASE));
-  }
-  if((context->envelope_state==AUDIO_ENVELOPE_STATE_RELEASE)) {
-    (temple_level_3160=TempleCastS16(RsAudioEngineLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(context->level)-
-            TempleCastU16(RsAudioEngineLegacyS16FromBits(
-                TempleCastU16(TempleCastU16(RsResourceReadU16le((resource+38))))))))))))));
-    (context->level=TempleCastS16(temple_level_3160));
-    if((temple_level_3160<=0)) {
-      (context->level=TempleCastS16(0));
-      (context->envelope_state=TempleCastU8(AUDIO_ENVELOPE_STATE_IDLE));
-      (context->state=TempleCastU8(AUDIO_CONTEXT_STATE_FREE));
-      (temple_chunk_3164=(&(audio_channels[context->channel])));
-      temple_tmp_3165=&(temple_chunk_3164->active_notes);
-      temple_tmp_3166=*temple_tmp_3165;
-      *temple_tmp_3165=TempleCastU8((temple_tmp_3166-1));
-      temple_tmp_3166;
-      RsDosAudioDriverEndContext(TempleCastS16(context->driver_channel),context);
-      (rs_audio_engine_audio_channel_notes[context->channel]=TempleCastU8(0));
-    }
-  }
-}
-
-legacy_void RsAudioEngineAudioUpdateContextModulation(CAudioContext *context,legacy_u8 *resource)
-{
-  legacy_u16 noreg temple_value_3167;
-  legacy_u8 *temple_tmp_3168;
-  legacy_u8 noreg temple_tmp_3169;
-  legacy_s16 noreg temple_modulation_3170;
-  legacy_u16 noreg temple_magnitude_3171;
-  legacy_u16 noreg temple_threshold_3172;
-  legacy_s32 noreg temple_tmp_3173;
-  legacy_s32 noreg temple_tmp_3174;
-  if((resource[40]!=0)) {
-    temple_value_3167=TempleCastU16(context->modulation_delay);
-    if((temple_value_3167!=0)) {
-      (context->modulation_delay=TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_value_3167)-TempleCastU16(1))))));
-    } else {
-      (temple_value_3167=TempleCastU16(context->modulation_count));
-      if((temple_value_3167!=0)) {
-        if((temple_value_3167!=32767)) {
-          (context->modulation_count=TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_value_3167)-TempleCastU16(1))))));
-        }
-        if((context->modulation_tick!=0)) {
-          temple_tmp_3168=&(context->modulation_tick);
-          temple_tmp_3169=*temple_tmp_3168;
-          *temple_tmp_3168=TempleCastU8((temple_tmp_3169-1));
-          temple_tmp_3169;
-        } else {
-          (context->modulation_tick=TempleCastU8(resource[41]));
-          temple_modulation_3170=TempleCastS16(context->modulation);
-          if((context->modulation_direction==AUDIO_MODULATION_DIRECTION_DECREASE)) {
-            (temple_modulation_3170=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(
-                TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_modulation_3170)-
-                    TempleCastU16(context->modulation_step)))))))));
-          } else {
-            (temple_modulation_3170=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(
-                TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_modulation_3170)+
-                    TempleCastU16(context->modulation_step)))))))));
-          }
-          (context->modulation=TempleCastS16(temple_modulation_3170));
-          temple_magnitude_3171=
-              TempleCastU16(RsAudioEngineAudioAbsoluteWord(TempleCastS16(temple_modulation_3170)));
-          temple_threshold_3172=TempleCastU16(RsResourceReadU16le((resource+46)));
-          if((temple_magnitude_3171>=temple_threshold_3172)) {
-            temple_tmp_3173=0;
-            if((context->modulation_direction==AUDIO_MODULATION_DIRECTION_DECREASE)) {
-              temple_tmp_3173=1;
-            }
-            if(temple_tmp_3173) {
-              temple_tmp_3173=0;
-              if((TempleCastU32((resource[52]&1))!=TempleCastU32(0))) {
-                temple_tmp_3173=1;
-              }
-            }
-            if(temple_tmp_3173) {
-              (context->modulation_direction=TempleCastU8(AUDIO_MODULATION_DIRECTION_INCREASE));
-            } else {
-              temple_tmp_3174=0;
-              if((context->modulation_direction!=AUDIO_MODULATION_DIRECTION_DECREASE)) {
-                temple_tmp_3174=1;
-              }
-              if(temple_tmp_3174) {
-                temple_tmp_3174=0;
-                if((TempleCastU32((resource[52]&2))!=TempleCastU32(0))) {
-                  temple_tmp_3174=1;
-                }
-              }
-              if(temple_tmp_3174) {
-                (context->modulation_direction=TempleCastU8(AUDIO_MODULATION_DIRECTION_DECREASE));
-              } else {
-                (context->modulation=TempleCastS16(0));
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-legacy_void RsAudioEngineAudioUpdateContextSequence(CAudioContext *context,legacy_u8 *resource)
-{
-  legacy_u16 noreg temple_value_3175;
-  legacy_u8 *temple_tmp_3176;
-  legacy_u8 noreg temple_tmp_3177;
-  legacy_u8 noreg temple_sequence_index_3178;
-  legacy_u8 *temple_tmp_3179;
-  legacy_u8 noreg temple_tmp_3180;
-  if((resource[53]!=0)) {
-    temple_value_3175=TempleCastU16(context->sequence_delay);
-    if((temple_value_3175!=0)) {
-      (context->sequence_delay=TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_value_3175)-TempleCastU16(1))))));
-    } else {
-      (temple_value_3175=TempleCastU16(context->sequence_count));
-      if((temple_value_3175!=0)) {
-        (context->sequence_count=TempleCastU16(
-            TempleCastU16(TempleCastS32((TempleCastU16(temple_value_3175)-TempleCastU16(1))))));
-        if((context->sequence_tick!=0)) {
-          temple_tmp_3176=&(context->sequence_tick);
-          temple_tmp_3177=*temple_tmp_3176;
-          *temple_tmp_3176=TempleCastU8((temple_tmp_3177-1));
-          temple_tmp_3177;
-        } else {
-          (context->sequence_tick=TempleCastU8(resource[58]));
-          temple_tmp_3179=&(context->sequence_index);
-          temple_tmp_3180=*temple_tmp_3179;
-          *temple_tmp_3179=TempleCastU8((temple_tmp_3180+1));
-          temple_sequence_index_3178=TempleCastU8(temple_tmp_3180);
-          (context->sequence_value=TempleCastU8(
-              resource[TempleCastU32((59+TempleCastU32((temple_sequence_index_3178&7))))]));
-        }
-      }
-    }
-  }
-}
-
-legacy_void RsAudioUpdateDriverContexts()
-{
-  CAudioContext *temple_context_3181;
-  legacy_u16 noreg temple_context_index_3183;
-  legacy_u8 *temple_resource_3184;
-  legacy_u16 *temple_tmp_3185;
-  legacy_u16 noreg temple_tmp_3186;
-  temple_context_3181=dos_audio_contexts;
-  temple_context_index_3183=TempleCastU16(0);
-  while(1) {
-    if(!((temple_context_index_3183<dos_audio_context_count))) {
-      break;
-    }
-    if((temple_context_3181->state==AUDIO_CONTEXT_STATE_FREE)) {
-      (temple_context_3181++);
-      goto temple_next_3182;
-    }
-    if((temple_context_3181->channel>15)) {
-      RsAudioAdvanceDriverContext(temple_context_3181);
-    }
-    temple_resource_3184=
-        (RsAudioReadFarPointer(((&(temple_context_3181->resource)))(legacy_u8 *)))(legacy_u8 *);
-    RsAudioEngineAudioUpdateContextEnvelope(temple_context_3181,temple_resource_3184);
-    RsAudioEngineAudioUpdateContextModulation(temple_context_3181,temple_resource_3184);
-    RsAudioEngineAudioUpdateContextSequence(temple_context_3181,temple_resource_3184);
-    RsDosAudioDriverSuspendContext(TempleCastS16(temple_context_3181->driver_channel),
-        temple_context_3181,TempleCastU16(temple_context_3181->timer_offset),
-        temple_resource_3184);
-    (temple_context_3181++);
-  temple_next_3182:;
-    temple_tmp_3185=&(temple_context_index_3183);
-    temple_tmp_3186=*temple_tmp_3185;
-    *temple_tmp_3185=TempleCastU16((temple_tmp_3186+1));
-    temple_tmp_3186;
-  }
-  RsDosAudioDriverSuspendAll(dos_audio_contexts);
-}
-
-legacy_void RsAudioSuspend()
-{
-  CAudioChannel *temple_chunk_3187;
-  legacy_u16 noreg temple_channel_3189;
-  legacy_s32 noreg temple_tmp_3190;
-  legacy_u16 *temple_tmp_3191;
-  legacy_u16 noreg temple_tmp_3192;
-  CAudioContext *temple_context_3193;
-  legacy_u16 noreg temple_context_index_3195;
-  legacy_u16 *temple_tmp_3196;
-  legacy_u16 noreg temple_tmp_3197;
-  (audio_suspended=TempleCastU8(AUDIO_STATE_ENABLED));
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-  if((dos_audio_uses_direct_channels!=0)) {
-    (dos_audio_master_volume=TempleCastU8(0));
-    RsDosAudioDriverSetMasterState(TempleCastS16(4),(dos_audio_master_state)(legacy_u8 *));
-    (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-    return;
-  }
-  temple_chunk_3187=audio_channels;
-  temple_channel_3189=TempleCastU16(0);
-  while(1) {
-    if(!((temple_channel_3189<24))) {
-      break;
-    }
-    temple_tmp_3190=0;
-    if((audio_effects_enabled==AUDIO_STATE_ENABLED)) {
-      temple_tmp_3190=1;
-    }
-    if(!temple_tmp_3190) {
-      temple_tmp_3190=0;
-      if((temple_channel_3189<16)) {
-        temple_tmp_3190=1;
-      }
-    }
-    if(temple_tmp_3190) {
-      (rs_audio_engine_audio_saved_channel_volumes[temple_channel_3189]=
-              TempleCastU8(temple_chunk_3187->volume));
-      RsDosAudioSetChannelVolume(
-          TempleCastS16(TempleCastS16(temple_channel_3189)),TempleCastS16(0));
-    }
-    (temple_chunk_3187++);
-    temple_tmp_3191=&(temple_channel_3189);
-    temple_tmp_3192=*temple_tmp_3191;
-    *temple_tmp_3191=TempleCastU16((temple_tmp_3192+1));
-    temple_tmp_3192;
-  }
-  temple_context_3193=dos_audio_contexts;
-  temple_context_index_3195=TempleCastU16(0);
-  while(1) {
-    if(!((temple_context_index_3195<16))) {
-      break;
-    }
-    RsDosAudioDriverSuspendContext(TempleCastS16(temple_context_3193->driver_channel),
-        temple_context_3193,TempleCastU16(temple_context_3193->timer_offset),
-        RsAudioReadFarPointer(((&(temple_context_3193->resource)))(legacy_u8 *)));
-    (temple_context_3193++);
-    temple_tmp_3196=&(temple_context_index_3195);
-    temple_tmp_3197=*temple_tmp_3196;
-    *temple_tmp_3196=TempleCastU16((temple_tmp_3197+1));
-    temple_tmp_3197;
-  }
-  RsDosAudioDriverSuspendAll(dos_audio_contexts);
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-}
-
-legacy_void RsAudioResume()
-{
-  legacy_u16 noreg temple_channel_3199;
-  legacy_s32 noreg temple_tmp_3200;
-  legacy_u16 *temple_tmp_3201;
-  legacy_u16 noreg temple_tmp_3202;
-  (audio_suspended=TempleCastU8(AUDIO_STATE_ENABLED));
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-  if((dos_audio_uses_direct_channels!=0)) {
-    (dos_audio_master_volume=TempleCastU8(100));
-    RsDosAudioDriverSetMasterState(TempleCastS16(4),(dos_audio_master_state)(legacy_u8 *));
-  } else {
-    temple_channel_3199=TempleCastU16(0);
-    while(1) {
-      if(!((temple_channel_3199<24))) {
-        break;
-      }
-      temple_tmp_3200=0;
-      if((audio_effects_enabled==AUDIO_STATE_ENABLED)) {
-        temple_tmp_3200=1;
-      }
-      if(!temple_tmp_3200) {
-        temple_tmp_3200=0;
-        if((temple_channel_3199<16)) {
-          temple_tmp_3200=1;
-        }
-      }
-      if(temple_tmp_3200) {
-        RsDosAudioSetChannelVolume(TempleCastS16(TempleCastS16(temple_channel_3199)),
-            TempleCastS16(rs_audio_engine_audio_saved_channel_volumes[temple_channel_3199]));
-      }
-      temple_tmp_3201=&(temple_channel_3199);
-      temple_tmp_3202=*temple_tmp_3201;
-      *temple_tmp_3201=TempleCastU16((temple_tmp_3202+1));
-      temple_tmp_3202;
-    }
-  }
-  (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-  (audio_suspended=TempleCastU8(AUDIO_STATE_DISABLED));
-}
-
-legacy_s16 RsAudioEngineAudioFindFreeSfxChannel()
-{
-  legacy_s16 noreg temple_candidate_3204;
-  legacy_s32 noreg temple_tmp_3205;
-  legacy_s16 *temple_tmp_3206;
-  legacy_s16 noreg temple_tmp_3207;
-  temple_candidate_3204=TempleCastS16(16);
-  while(1) {
-    if(!((TempleCastU16(temple_candidate_3204)<=23))) {
-      break;
-    }
-    temple_tmp_3205=0;
-    if((TempleCastS32(
-            (audio_sfx_channels[TempleCastU32((TempleCastU32(temple_candidate_3204)-16))]
-                    .cursor.offset|
-                audio_sfx_channels[TempleCastU32((TempleCastU32(temple_candidate_3204)-16))]
-                    .cursor.segment))==0)) {
-      temple_tmp_3205=1;
-    }
-    if(temple_tmp_3205) {
-      temple_tmp_3205=0;
-      if((audio_channel_reserved[temple_candidate_3204]==0)) {
-        temple_tmp_3205=1;
-      }
-    }
-    if(temple_tmp_3205) {
-      return TempleCastS16(temple_candidate_3204);
-    }
-    temple_tmp_3206=&(temple_candidate_3204);
-    temple_tmp_3207=*temple_tmp_3206;
-    *temple_tmp_3206=TempleCastS16((temple_tmp_3207+1));
-    temple_tmp_3207;
-  }
-  return TempleCastS16(TempleCastS32((-(1))));
-}
-
-legacy_s16 RsAudioPlayEffectAtRate(
-    legacy_u8 *resource,legacy_s16 channel,legacy_u8 priority,legacy_u16 rate)
-{
-  legacy_u8 *temple_bytes_3208;
-  legacy_s32 noreg temple_tmp_3209;
-  legacy_s32 noreg temple_tmp_3210;
-  legacy_u16 noreg temple_scaled_rate_3211;
-  legacy_u8 noreg temple_lowest_priority_3212;
-  legacy_s16 noreg temple_replacement_3213;
-  legacy_s16 noreg temple_candidate_3215;
-  legacy_s32 noreg temple_tmp_3216;
-  legacy_s16 *temple_tmp_3217;
-  legacy_s16 noreg temple_tmp_3218;
-  legacy_s32 noreg temple_tmp_3219;
-  legacy_u16 noreg temple_resource_data_offset_3220;
-  temple_bytes_3208=(resource)(legacy_u8 *);
-  temple_tmp_3209=0;
-  if((audio_effects_enabled==AUDIO_STATE_DISABLED)) {
-    temple_tmp_3209=1;
-  }
-  if(!temple_tmp_3209) {
-    temple_tmp_3209=0;
-    if((resource==0)) {
-      temple_tmp_3209=1;
-    }
-  }
-  temple_tmp_3210=0;
-  if(temple_tmp_3209) {
-    temple_tmp_3210=1;
-  }
-  if(!temple_tmp_3210) {
-    temple_tmp_3210=0;
-    if((temple_bytes_3208[5]!=AUDIO_RESOURCE_TYPE_EFFECT)) {
-      temple_tmp_3210=1;
-    }
-  }
-  if(temple_tmp_3210) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  if((audio_effect_rate!=0)) {
-    temple_scaled_rate_3211=
-        TempleCastU16(TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(rate))*128))));
-    (rate=TempleCastU16(TempleCastU16(TempleCastS32(
-        (TempleCastU16(RsLegacyU16DivOrZero(TempleCastU16(TempleCastU16(temple_scaled_rate_3211)),
-              TempleCastU16(TempleCastU16(TempleCastU16(audio_effect_rate)))))-
-            TempleCastU16(1))))));
-  } else {
-    (rate=TempleCastU16(0));
-  }
-  if((channel==TempleCastS32((-(1))))) {
-    (channel=TempleCastS16(RsAudioEngineAudioFindFreeSfxChannel()));
-  }
-  if((channel==TempleCastS32((-(1))))) {
-    temple_lowest_priority_3212=TempleCastU8(255);
-    temple_replacement_3213=TempleCastS16(TempleCastS32((-(1))));
-    temple_candidate_3215=TempleCastS16(16);
-    while(1) {
-      if(!((TempleCastU16(temple_candidate_3215)<=23))) {
-        break;
-      }
-      temple_tmp_3216=0;
-      if((audio_channel_reserved[temple_candidate_3215]==0)) {
-        temple_tmp_3216=1;
-      }
-      if(temple_tmp_3216) {
-        temple_tmp_3216=0;
-        if((audio_channels[temple_candidate_3215].priority<=temple_lowest_priority_3212)) {
-          temple_tmp_3216=1;
-        }
-      }
-      if(temple_tmp_3216) {
-        (temple_lowest_priority_3212=TempleCastU8(audio_channels[temple_candidate_3215].priority));
-        (temple_replacement_3213=TempleCastS16(temple_candidate_3215));
-      }
-      temple_tmp_3217=&(temple_candidate_3215);
-      temple_tmp_3218=*temple_tmp_3217;
-      *temple_tmp_3217=TempleCastS16((temple_tmp_3218+1));
-      temple_tmp_3218;
-    }
-    temple_tmp_3219=0;
-    if((temple_replacement_3213!=TempleCastS32((-(1))))) {
-      temple_tmp_3219=1;
-    }
-    if(temple_tmp_3219) {
-      temple_tmp_3219=0;
-      if((temple_lowest_priority_3212<=priority)) {
-        temple_tmp_3219=1;
-      }
-    }
-    if(temple_tmp_3219) {
-      RsAudioStopEffectChannel(TempleCastS16(temple_replacement_3213));
-      (channel=TempleCastS16(temple_replacement_3213));
-    }
-  }
-  if((channel==TempleCastS32((-(1))))) {
-    return TempleCastS16(TempleCastS32((-(1))));
-  }
-  temple_resource_data_offset_3220=
-      TempleCastU16(TempleCastU32((TempleCastU32((TempleCastU16(temple_bytes_3208[6])*4))+8)));
-  RsAudioInitChannelRange(TempleCastS16(channel),TempleCastS16(channel),resource,
-      TempleCastU16(temple_resource_data_offset_3220),TempleCastU16(rate),TempleCastU8(priority));
-  return TempleCastS16(channel);
-}
-
-legacy_s16 RsAudioPlayEffect(legacy_u8 *resource,legacy_s16 channel,legacy_u8 priority)
-{
-  return TempleCastS16(RsAudioPlayEffectAtRate(resource,TempleCastS16(channel),
-      TempleCastU8(priority),TempleCastU16(TempleCastU16(audio_effect_rate))));
-}
-
-legacy_s16 RsAudioPlayDefaultEffect(legacy_u8 *resource)
-{
-  return TempleCastS16(
-      RsAudioPlayEffect(resource,TempleCastS16(TempleCastS32((-(1)))),TempleCastU8(64)));
-}
-
-legacy_s16 RsAudioReserveEffectChannel(legacy_s16 channel,legacy_u8 priority)
-{
-  if((channel==TempleCastS32((-(1))))) {
-    (channel=TempleCastS16(RsAudioEngineAudioFindFreeSfxChannel()));
-  }
-  if((channel!=TempleCastS32((-(1))))) {
-    (audio_channel_reserved[channel]=TempleCastU8(1));
-    (audio_channels[channel].priority=TempleCastU8(priority));
-  }
-  return TempleCastS16(channel);
-}
-
-legacy_void RsAudioStopEffectChannel(legacy_s16 channel)
-{
-  legacy_s32 noreg temple_tmp_3221;
-  temple_tmp_3221=0;
-  if((TempleCastU16(channel)<16)) {
-    temple_tmp_3221=1;
-  }
-  if(!temple_tmp_3221) {
-    temple_tmp_3221=0;
-    if((TempleCastU16(channel)>23)) {
-      temple_tmp_3221=1;
-    }
-  }
-  if(temple_tmp_3221) {
-    return;
-  }
-  (audio_channels[channel].cursor.offset=TempleCastU16(0));
-  (audio_channels[channel].cursor.segment=TempleCastU16(0));
-  RsAudioReleaseChannelRange(TempleCastS16(channel),TempleCastS16(channel));
-  RsAudioInitChannelRange(TempleCastS16(channel),TempleCastS16(channel),0,TempleCastU16(0),
-      TempleCastU16(audio_effect_rate),TempleCastU8(0));
-}
-
-legacy_void RsAudioStopSkidSound(legacy_s16 index)
-{
-  legacy_s16 noreg temple_channel_3222;
-  temple_channel_3222=TempleCastS16(audio_timers[index].secondary_effect_channel);
-  RsAudioStopEffectChannel(TempleCastS16(temple_channel_3222));
-  (audio_timers[index].secondary_effect_channel=TempleCastS16(TempleCastS32((-(1)))));
-}
-
-legacy_s16 RsAudioTimerEffectIdle(legacy_s16 index)
-{
-  legacy_s16 noreg temple_channel_3223;
-  temple_channel_3223=TempleCastS16(audio_timers[index].effect_channel);
-  if((temple_channel_3223<0)) {
-    return TempleCastS16(1);
-  }
-  return TempleCastS16(RsAudioEffectChannelIdle(TempleCastS16(temple_channel_3223)));
-}
-
-legacy_void RsAudioStopEngine(legacy_s16 index)
-{
-  legacy_s32 noreg temple_tmp_3224;
-  legacy_s16 noreg temple_channel_3225;
-  temple_tmp_3224=0;
-  if((audio_timers[index].active!=1)) {
-    temple_tmp_3224=1;
-  }
-  if(!temple_tmp_3224) {
-    temple_tmp_3224=0;
-    if((audio_timers[index].engine_active!=1)) {
-      temple_tmp_3224=1;
-    }
-  }
-  if(temple_tmp_3224) {
-    return;
-  }
-  temple_channel_3225=TempleCastS16(audio_timers[index].engine_context);
-  RsAudioRequestContextFade(TempleCastS16(temple_channel_3225));
-  (audio_timers[index].engine_context=TempleCastS16(TempleCastS32((-(1)))));
-  (audio_timers[index].engine_active=TempleCastU8(0));
-  (audio_timers[index].parameters_changed=TempleCastU8(1));
-}
-
-legacy_s16 RsAudioEngineAudioStartTimerResource(
-    CAudioTimer *timer,legacy_u16 resource_index,legacy_u8 priority)
-{
-  legacy_u16 noreg temple_rate_3226;
-  legacy_u8 *temple_resource_3227;
-  temple_rate_3226=TempleCastU16(TempleCastS32((timer->current_volume>>4)));
-  temple_resource_3227=
-      RsAudioReadFarPointer(((&(timer->definition.resources[resource_index])))(legacy_u8 *));
-  return TempleCastS16(
-      RsAudioPlayEffectAtRate(temple_resource_3227,TempleCastS16(TempleCastS32((-(1)))),
-          TempleCastU8(priority),TempleCastU16(temple_rate_3226)));
-}
-
-legacy_s16 RsAudioEngineAudioStartIndexedEvent(
-    legacy_s16 index,legacy_u16 resource_index,legacy_u8 priority)
-{
-  CAudioTimer *temple_timer_3228;
-  legacy_s16 noreg temple_channel_3229;
-  temple_timer_3228=(&(audio_timers[index]));
-  temple_channel_3229=TempleCastS16(RsAudioEngineAudioStartTimerResource(
-      temple_timer_3228,TempleCastU16(resource_index),TempleCastU8(priority)));
-  (temple_timer_3228->effect_channel=TempleCastS16(temple_channel_3229));
-  (temple_timer_3228->parameters_changed=TempleCastU8(1));
-  return TempleCastS16(temple_channel_3229);
-}
-
-legacy_void RsAudioPlayEngineStart(legacy_s16 index)
-{
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(2),TempleCastU8(64));
-  (audio_timers[index].restart_engine=TempleCastU8(1));
-}
-
-legacy_void RsAudioEngineAudioStartImpactEvent(
-    legacy_s16 index,legacy_u16 resource_index,legacy_u8 priority)
-{
-  if((RsAudioEngineAudioStartIndexedEvent(
-          TempleCastS16(index),TempleCastU16(resource_index),TempleCastU8(priority))<0)) {
-    return;
-  }
-}
-
-legacy_void RsAudioPlayBump(legacy_s16 index)
-{
-  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(8),TempleCastU8(64));
-}
-
-legacy_void RsAudioPlayScrape(legacy_s16 index)
-{
-  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(9),TempleCastU8(64));
-}
-
-legacy_void RsAudioPlayCrashAndStopEngine(legacy_s16 index)
-{
-  RsAudioEngineAudioStartImpactEvent(TempleCastS16(index),TempleCastU16(5),TempleCastU8(100));
-  RsAudioStopEngine(TempleCastS16(index));
-}
-
-legacy_void RsAudioPlayEngineStop(legacy_s16 index)
-{
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(3),TempleCastU8(64));
-  RsAudioStopEngine(TempleCastS16(index));
-}
-
-legacy_void RsAudioPlayEngineFailure(legacy_s16 index)
-{
-  RsAudioEngineAudioStartIndexedEvent(TempleCastS16(index),TempleCastU16(4),TempleCastU8(64));
-  RsAudioStopEngine(TempleCastS16(index));
-}
-
-legacy_void RsAudioEngineAudioStartSecondaryEvent(legacy_s16 index,legacy_u16 resource_index)
-{
-  CAudioTimer *temple_timer_3230;
-  legacy_s16 noreg temple_channel_3231;
-  temple_timer_3230=(&(audio_timers[index]));
-  temple_channel_3231=TempleCastS16(temple_timer_3230->secondary_effect_channel);
-  if((temple_channel_3231!=TempleCastS32((-(1))))) {
-    RsAudioStopEffectChannel(TempleCastS16(temple_channel_3231));
-  }
-  (temple_channel_3231=TempleCastS16(RsAudioEngineAudioStartTimerResource(
-      temple_timer_3230,TempleCastU16(resource_index),TempleCastU8(64))));
-  (temple_timer_3230->secondary_effect_channel=TempleCastS16(temple_channel_3231));
-  (temple_timer_3230->parameters_changed=TempleCastU8(1));
-}
-
-legacy_void RsAudioPlayPavedSkid(legacy_s16 index)
-{
-  RsAudioEngineAudioStartSecondaryEvent(TempleCastS16(index),TempleCastU16(6));
-}
-
-legacy_void RsAudioPlayOffroadSkid(legacy_s16 index)
-{
-  RsAudioEngineAudioStartSecondaryEvent(TempleCastS16(index),TempleCastU16(7));
-}
-
-legacy_void RsAudioReleaseEffectChannel(legacy_s16 channel)
-{
-  if((channel>TempleCastS32((-(1))))) {
-    (audio_channel_reserved[channel]=TempleCastU8(0));
-    RsAudioStopEffectChannel(TempleCastS16(channel));
-  }
-}
-
-legacy_void RsAudioRequestContextFade(legacy_s16 index)
-{
-  (dos_audio_contexts[index].fade_out_flag=TempleCastU32(1));
-}
-
-legacy_s16 RsAudioSetMusicChannelVolume(legacy_s16 value)
-{
-  legacy_s16 noreg temple_channel_3232;
-  legacy_s16 *temple_tmp_3234;
-  legacy_s16 noreg temple_tmp_3235;
-  (temple_channel_3232=TempleCastS16(0));
-  while(1) {
-    if(!((temple_channel_3232<TempleCastU16(audio_music_channel_count)))) {
-      break;
-    }
-    RsDosAudioSetChannelVolume(TempleCastS16(temple_channel_3232),TempleCastS16(value));
-    temple_tmp_3234=&(temple_channel_3232);
-    temple_tmp_3235=*temple_tmp_3234;
-    *temple_tmp_3234=TempleCastS16((temple_tmp_3235+1));
-    temple_tmp_3235;
-  }
-  return TempleCastS16(temple_channel_3232);
-}
-
-legacy_void RsAudioFadeOut(legacy_s16 delay_ticks)
-{
-  legacy_u32 noreg temple_delay_3236;
-  legacy_u8 noreg temple_uses_direct_channels_3237;
-  legacy_s16 noreg temple_volume_3238;
-  legacy_u32 noreg temple_tmp_3239;
-  temple_delay_3236=TempleCastU32(TempleCastU32(TempleCastS32(delay_ticks)));
-  temple_uses_direct_channels_3237=TempleCastU8(dos_audio_uses_direct_channels);
-  if((temple_uses_direct_channels_3237!=0)) {
-    temple_tmp_3239=TempleCastU32(100);
-  } else {
-    temple_tmp_3239=TempleCastU32(audio_music_rate);
-  }
-  temple_volume_3238=TempleCastS16(temple_tmp_3239);
-  while(1) {
-    if(!((temple_volume_3238>0))) {
-      break;
-    }
-    (audio_update_lock=TempleCastS16(AUDIO_UPDATE_LOCKED));
-    if((temple_uses_direct_channels_3237!=0)) {
-      (dos_audio_master_volume=TempleCastU8(TempleCastU8(temple_volume_3238)));
-      RsDosAudioDriverSetMasterState(TempleCastS16(4),(dos_audio_master_state)(legacy_u8 *));
-    } else {
-      RsAudioSetMusicChannelVolume(TempleCastS16(temple_volume_3238));
-    }
-    (audio_update_lock=TempleCastS16(AUDIO_UPDATE_UNLOCKED));
-    RsTimerSetDeadline(TempleCastU32(temple_delay_3236));
-    RsTimerWaitForDeadline();
-    (temple_volume_3238=TempleCastS16(RsAudioEngineLegacyS16FromBits(TempleCastU16(TempleCastU16(
-        TempleCastU16(TempleCastS32((TempleCastU16(temple_volume_3238)-TempleCastU16(2)))))))));
-  }
-  RsAudioStopMusic();
-  if((dos_audio_uses_direct_channels!=0)) {
-    RsTimerSetDeadline(TempleCastU32(50));
-    RsTimerWaitForDeadline();
-    (dos_audio_master_volume=TempleCastU8(100));
-    RsDosAudioDriverSetMasterState(TempleCastS16(4),(dos_audio_master_state)(legacy_u8 *));
-  }
-}
-
-legacy_s16 RsAudioSetMusicVolume(legacy_s16 value)
-{
-  (audio_music_rate=TempleCastU8(TempleCastU8(value)));
-  return TempleCastS16(RsAudioSetMusicChannelVolume(TempleCastS16(value)));
-}
-
-legacy_u16 RsAudioGetChannelValue(legacy_s16 channel)
-{
-  return TempleCastU16(TempleCastU16(rs_audio_engine_audio_channel_values[TempleCastU16(channel)]));
-}
-
-legacy_u16 RsAudioGetChannelNote(legacy_s16 channel)
-{
-  return TempleCastU16(TempleCastU16(rs_audio_engine_audio_channel_notes[TempleCastU16(channel)]));
-}
-
-legacy_void RsAudioPlayCarEvents(legacy_u8 flags,legacy_s16 channel)
-{
-  if((audio_car_state_ready==0)) {
-    return;
-  }
-  if((TempleCastU32((flags&16))!=TempleCastU32(0))) {
-    RsAudioPlayScrape(TempleCastS16(channel));
-  }
-  if((TempleCastU32((flags&32))!=TempleCastU32(0))) {
-    RsAudioPlayBump(TempleCastS16(channel));
   }
 }

@@ -4,6 +4,7 @@
 #include "externs.h"
 #ifdef RESTUNTS_SDL3
 #include "hires/skybox_hires.h"
+#include "hires/skybox_scene.h"
 #include "shape2d/shape2d_internal.h"
 #endif
 
@@ -461,18 +462,8 @@ legacy_s16 skybox_render(legacy_s16 view_index, struct RECTANGLE *clip, legacy_s
 	legacy_s16 full_redraw =
 		skybox_render_legacy(view_index, clip, direction, rotation, roll, angle, camera_y);
 #ifdef RESTUNTS_SDL3
-	struct SPRITE target = drawing_sprite;
-	target.sprite_raster_left = clip->left;
-	target.sprite_raster_right = clip->right;
-	target.sprite_top = clip->top;
-	target.sprite_bottom = clip->bottom;
-	if (skybox_hires_render(&target, &skybox, skyboxes, loaded_skybox_index, rotation, direction,
-							angle, camera_y, detail_level)) {
-		/* Presentation must copy all companion pixels, including transitions
-		 * back from inverted views to the legacy dirty-rectangle path. */
-		rect_skybox = *clip;
-		return 1;
-	}
-#endif
+	return skybox_hires_render_scene(clip, rotation, direction, angle, camera_y, full_redraw);
+#else
 	return full_redraw;
+#endif
 }

@@ -2,16 +2,6 @@
 
 const struct GAMESTATE *frame_state = &state;
 
-const struct CARSTATE *frame_ghost;
-
-const struct GHOST_CAMERA_STATE *frame_ghost_camera;
-
-legacy_u8 frame_uses_snapshot;
-
-#if defined(RESTUNTS_SDL3)
-legacy_u8 frame_adaptive_active;
-#endif
-
 /*
  * In the original dseg, terrain_scene_objects immediately follows trkObjectList.
  * Some track objects store overlay indices into that combined legacy table,
@@ -28,10 +18,7 @@ struct TRACKOBJECT *frame_track_object_from_legacy_index(legacy_u8 index)
 void transformed_shape_add_for_sort(legacy_s16 z_adjust, legacy_s16 type)
 {
 	legacy_s16 index = LEGACY_S8_FROM_BITS((legacy_u8)transformedshape_counter);
-#if defined(RESTUNTS_SDL3)
-	if (supersight_enabled == 0)
-#endif
-	{
+	if (frame_hires_sort_depth()) {
 		struct VECTOR transformed_position;
 		mat_mul_vector(&curtransshape_ptr->pos, &mat_temp, &transformed_position);
 		transformedshape_zarray[index] = LEGACY_S16_WRAP_ADD(transformed_position.z, z_adjust);
@@ -207,17 +194,6 @@ void frame_present(struct RECTANGLE *cliprect)
 	}
 }
 
-#if defined(RESTUNTS_SDL3)
-struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 detail)
-{
-	/* A missing alternative must never turn a detail reduction into removal. */
-	return detail != FRAME_TILE_DETAIL_FULL &&
-				   (supersight_enabled == 0 || object->ss_loShapePtr != 0)
-			   ? object->ss_loShapePtr
-			   : object->ss_shapePtr;
-}
-#endif
-
 legacy_s8 frame_begin(legacy_s8 buffer_index)
 {
 	if (video_uses_page_flipping == 0 || buffer_index == 0) {
@@ -358,14 +334,7 @@ void frame_draw_dashboard_top(const struct RECTANGLE *cliprect)
 		mask_bounds.bottom = dashbmp_y_copy;
 		rect_union(frame_layer_rects, &mask_bounds, frame_layer_rects);
 	}
-	if (supersight_enabled != 0 && replaybar_enabled != 0) {
-		/* Custom tops can extend below the replay toolbar boundary. */
-		sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, 0, height_above_replaybar);
-		shape2d_rle_mask_position_clipped(dasmshapeptr);
-		shape2d_rle_or_position_clipped(
-			(struct SHAPE2D far *)dos_memory_make_pointer(dastseg, dastbmp_y2));
-		sprite_set_target_clip_bounds(0, FRAME_SCREEN_WIDTH, cliprect->top, cliprect->bottom);
-	} else {
+	if (!frame_hires_dashboard_top(cliprect)) {
 		shape2d_render_bmp_as_mask(dasmshapeptr);
 		shape2d_rle_or_far_pointer(dastbmp_y2, dastseg);
 	}
@@ -424,20 +393,7 @@ void frame_finish(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 
 void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 {
-	/* Ghost guidance adds many small polygons. Native queue growth keeps those
-	 * from consuming the classic scene's fixed budget before nearer cars/roads. */
-	polyinfo_set_supersight(supersight_enabled
-#if defined(RESTUNTS_SDL3)
-							|| ghost_is_active()
-#endif
-	);
-	if (supersight_enabled == 0) {
-		frame_supersight_reset();
-	}
-#if defined(RESTUNTS_SDL3)
-	frame_adaptive_active = supersight_enabled != 0 && frame_uses_snapshot != 0 &&
-							frame_adaptive.quality != 0 && extended_frame_uses_legacy_tiles();
-#endif
+	frame_hires_begin();
 	struct FRAME_CAR_RENDER cars[FRAME_EXPLOSION_CAR_COUNT];
 	cars[PLAYER_CAR_INDEX].explosion_visible = 0;
 	cars[OPPONENT_CAR_INDEX].explosion_visible = 0;
@@ -452,22 +408,9 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	tiles.lookahead = frame_setup_projection(&camera, cliprect);
 	frame_draw_clouds(&camera, redraw_transform_flags);
 	frame_select_tiles(&tiles, &camera);
-#if defined(RESTUNTS_SDL3)
-	if (supersight_enabled != 0) {
-		shape3d_hires_ground_begin(&camera.position);
-		shape3d_hires_shadows_begin(&camera.position);
-		frame_add_car_shadow(&frame_state->playerstate, &simd_player, &camera.position,
-							 &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
-		if (gameconfig.game_opponenttype != 0) {
-			frame_add_car_shadow(&frame_state->opponentstate, &simd_opponent, &camera.position,
-								 &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
-		}
-	}
-#endif
-	if (supersight_enabled != 0) {
-		frame_draw_supersight(&tiles, &camera, cars, buffer_index, redraw_transform_flags,
-							  animated_material);
-	} else {
+	frame_hires_prepare_ground(&camera);
+	if (!frame_hires_draw_scene(&tiles, &camera, cars, buffer_index, redraw_transform_flags,
+								animated_material)) {
 #if defined(RESTUNTS_SDL3)
 		frame_place_cars(&tiles, cars);
 		frame_draw_tiles(&tiles, &camera, cars, redraw_transform_flags, animated_material);
@@ -489,80 +432,5 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	frame_draw_dashboard_top(cliprect);
 	frame_draw_elapsed_time();
 	frame_finish(buffer_index, cliprect, skybox_requires_full_redraw, camera.yaw);
-	polyinfo_set_supersight(0);
-}
-
-/* A visual snapshot may lag behind physics. Damage, sinking and disappearing
- * cars still follow the authoritative events, including their original timing. */
-void frame_preserve_authoritative_events(struct GAMESTATE *presentation, struct CARSTATE *ghost,
-										 struct GHOST_CAMERA_STATE *ghost_camera)
-{
-	presentation->playerstate.car_crashBmpFlag = state.playerstate.car_crashBmpFlag;
-	presentation->opponentstate.car_crashBmpFlag = state.opponentstate.car_crashBmpFlag;
-	presentation->game_pEndFrame = state.game_pEndFrame;
-	presentation->game_oEndFrame = state.game_oEndFrame;
-	if (ghost != 0) {
-		const struct CARSTATE *confirmed_ghost = ghost_car_state();
-		ghost->car_crashBmpFlag =
-			confirmed_ghost != 0 ? confirmed_ghost->car_crashBmpFlag : CRASH_EVENT_NONE;
-	}
-	if (ghost_camera != 0) {
-		const struct GHOST_CAMERA_STATE *confirmed_camera = ghost_camera_state();
-		if (confirmed_camera != 0) {
-			ghost_camera->frame = confirmed_camera->frame;
-			ghost_camera->crash_frame = confirmed_camera->crash_frame;
-		}
-	}
-}
-
-void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
-						   const struct GAMESTATE *render_state,
-						   const struct CARSTATE *render_ghost,
-						   const struct GHOST_CAMERA_STATE *render_ghost_camera)
-{
-	/* External-camera clearance borrows the collision and wheel-travel scratch.
-	 * Extra presentations must not leave their visual geometry for physics. */
-	struct TRACK_COLLISION_SNAPSHOT saved_collision;
-	track_collision_capture(&saved_collision);
-	legacy_s16 saved_plane = planindex_copy;
-	legacy_s16 saved_heading = wheel_heading_offset;
-	legacy_s16 saved_pitch = car_initial_pitch;
-	legacy_s16 saved_roll = car_initial_roll;
-	legacy_s16 saved_yaw = car_initial_yaw;
-	struct VECTOR saved_forward_travel = wheel_forward_travel;
-	struct VECTOR saved_world_travel = wheel_world_travel;
-	struct LEGACY_EXECUTION_RESIDUE saved_residue = legacy_execution_residue;
-	legacy_s16 saved_render_headings = legacy_render_player_headings_active;
-
-	struct GAMESTATE presentation = *render_state;
-	struct CARSTATE ghost;
-	struct GHOST_CAMERA_STATE ghost_camera;
-	if (render_ghost != 0) {
-		ghost = *render_ghost;
-	}
-	if (render_ghost_camera != 0) {
-		ghost_camera = *render_ghost_camera;
-	}
-	frame_preserve_authoritative_events(&presentation, render_ghost != 0 ? &ghost : 0,
-										render_ghost_camera != 0 ? &ghost_camera : 0);
-	frame_state = &presentation;
-	frame_ghost = render_ghost != 0 ? &ghost : 0;
-	frame_ghost_camera = render_ghost_camera != 0 ? &ghost_camera : 0;
-	frame_uses_snapshot = 1;
-	update_frame(buffer_index, cliprect);
-	frame_uses_snapshot = 0;
-	frame_state = &state;
-	frame_ghost = 0;
-	frame_ghost_camera = 0;
-
-	track_collision_restore(&saved_collision);
-	planindex_copy = saved_plane;
-	wheel_heading_offset = saved_heading;
-	car_initial_pitch = saved_pitch;
-	car_initial_roll = saved_roll;
-	car_initial_yaw = saved_yaw;
-	wheel_forward_travel = saved_forward_travel;
-	wheel_world_travel = saved_world_travel;
-	legacy_execution_residue = saved_residue;
-	legacy_render_player_headings_active = saved_render_headings;
+	frame_hires_end();
 }

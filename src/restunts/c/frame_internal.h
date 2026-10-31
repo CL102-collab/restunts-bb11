@@ -76,30 +76,9 @@ struct GAMESTATE;
 struct CARSTATE;
 struct GHOST_CAMERA_STATE;
 
-/* Render a visual snapshot without changing the simulation or its retained scratch. */
-void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
-						   const struct GAMESTATE *render_state,
-						   const struct CARSTATE *render_ghost,
-						   const struct GHOST_CAMERA_STATE *render_ghost_camera);
+#include "hires/frame_snapshot.h"
+#include "hires/frame_overlay.h"
 
-void frame_supersight_reset(void);
-void frame_fps_reset(void);
-#ifdef RESTUNTS_SDL3
-/* Completed rendering only, excluding simulation, pacing, and display synchronization.
- * Reset when changing renderer so the rolling history describes the selected backend. */
-void frame_render_timing_record(legacy_u64 elapsed_ns);
-void frame_render_timing_reset(void);
-#endif
-void frame_supersight_show_status(const legacy_s8 *name);
-/* Static menus retain mode-change notices without drawing or sampling F11 diagnostics. */
-legacy_s16 frame_status_overlay_active(void);
-legacy_s16 frame_status_expire_idle(void);
-struct RECTANGLE *frame_status_draw_text(void);
-legacy_s16 frame_display_overlay_active(void);
-legacy_s16 frame_fps_expire_idle(void);
-void frame_fps_record_presented(void);
-void frame_fps_present_roof(void);
-struct RECTANGLE *frame_fps_draw_text(void);
 /* Prepare diagnostic redraw bounds before dashboard composition; paint it with
  * frame_fps_draw_text after the dashboard is complete. */
 struct RECTANGLE *draw_ingame_text(void);
