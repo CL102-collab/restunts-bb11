@@ -143,6 +143,18 @@
 #define GAMESTATE_CHECKPOINT_VALID 1
 #define FRAME_FPS_DISPLAY_OFF (-1+1)
 #define FRAME_FPS_DISPLAY_ON ((-1+1)+1)
+#define TRACK_SETUP_OK 0
+#define TRACK_SETUP_NO_START_FINISH 1
+#define TRACK_SETUP_INTERNAL_ERROR 2
+#define TRACK_SETUP_MANY_START_FINISH 3
+#define TRACK_SETUP_ELEMENT_MISMATCH 4
+#define TRACK_SETUP_WRONG_WAY 5
+#define TRACK_SETUP_MANY_ELEMENTS 6
+#define TRACK_SETUP_NO_PATH 7
+#define TRACK_SETUP_MANY_PATHS 8
+#define TRACK_SETUP_NO_RUNWAY 9
+#define TRACK_SETUP_LONG_JUMP 10
+#define TRACK_SETUP_TERRAIN_MISMATCH 11
 #define OPPONENT_ENGINE_LEGACY_TYPE 32
 #define PLAYER_ENGINE_LEGACY_TYPE 33
 #define GRIP_BEHAVIOR_OPPONENT 0
@@ -346,14 +358,16 @@
 #define SHAPE3D_PATTERN_TWO_COLOR 2
 #define PRERENDER_EDGE_CLIPPED_MODE 0
 #define PRERENDER_EDGE_UNCLIPPED_MODE 1
+#define FRAME_FENCE_EDGE_LOW 0
+#define FRAME_FENCE_EDGE_HIGH 1
+#define FRAME_FENCE_EDGE_INTERIOR 2
+#define FRAME_TILE_GROUND_PASS (-1+1)
+#define FRAME_TILE_OBJECT_PASS ((-1+1)+1)
 #define FRAME_TILE_DRAW_MARKER 0
 #define FRAME_TILE_MULTITILE_COVERED_MARKER 1
 #define FRAME_TILE_UNAVAILABLE_MARKER 2
 #define FRAME_PLAYER_SORT_ID 2
 #define FRAME_OPPONENT_SORT_ID 3
-#define FRAME_FENCE_EDGE_LOW 0
-#define FRAME_FENCE_EDGE_HIGH 1
-#define FRAME_FENCE_EDGE_INTERIOR 2
 #define FRAME_CORNER_NORTHWEST 0
 #define FRAME_CORNER_NORTHEAST 1
 #define FRAME_CORNER_SOUTHWEST 2
@@ -398,17 +412,6 @@
 #define TRACK_TRAVERSAL_REVERSE 1
 #define TRACK_SEAM_SCAN_COLUMNS 0
 #define TRACK_SEAM_SCAN_ROWS 1
-#define TRACK_SETUP_OK 0
-#define TRACK_SETUP_NO_START_FINISH 1
-#define TRACK_SETUP_INTERNAL_ERROR 2
-#define TRACK_SETUP_MANY_START_FINISH 3
-#define TRACK_SETUP_ELEMENT_MISMATCH 4
-#define TRACK_SETUP_MANY_ELEMENTS 6
-#define TRACK_SETUP_NO_PATH 7
-#define TRACK_SETUP_MANY_PATHS 8
-#define TRACK_SETUP_NO_RUNWAY 9
-#define TRACK_SETUP_LONG_JUMP 10
-#define TRACK_SETUP_TERRAIN_MISMATCH 11
 #define PLAYER_PHYSICS_FRONT_WHEEL_FIRST 0
 #define PLAYER_PHYSICS_FRONT_WHEEL_SECOND 1
 #define PLAYER_PHYSICS_REAR_WHEEL_FIRST 2
@@ -470,6 +473,9 @@
 #define TRACK_PIPE_LEFT_INNER (((((-1+1)+1)+1)+1)+1)
 #define TRACK_PIPE_RIGHT_OUTER ((((((-1+1)+1)+1)+1)+1)+1)
 #define TRACK_PIPE_RIGHT_INNER (((((((-1+1)+1)+1)+1)+1)+1)+1)
+#define COMMAND_LINE_CONTINUE (-(1))
+#define COMMAND_LINE_SUCCESS 0
+#define COMMAND_LINE_FAILURE 1
 #define OWOOT_SCRATCH_ROUTE_DIRECTION (-1+1)
 #define OWOOT_SCRATCH_JUMP_SOURCE ((-1+1)+1)
 #define OWOOT_SCRATCH_JUMP_TARGET (((-1+1)+1)+1)
@@ -479,9 +485,6 @@
 #define OWOOT_GATE_TUNNEL (((-1+1)+1)+1)
 #define OWOOT_GATE_CORKSCREW_PHASE ((((-1+1)+1)+1)+1)
 #define OWOOT_GATE_PIPE (((((-1+1)+1)+1)+1)+1)
-#define COMMAND_LINE_CONTINUE (-(1))
-#define COMMAND_LINE_SUCCESS 0
-#define COMMAND_LINE_FAILURE 1
 
 extern class CShape3D;
 class CRectangle
@@ -1087,6 +1090,19 @@ class CReadLineState
   legacy_s16 first_key;
 };
 
+class CFileDialog
+{
+  legacy_s16 positions[40];
+  CButtonArea hit_areas[10];
+  legacy_s8 filenames[128][13];
+  legacy_s8 selected;
+  legacy_s8 scroll;
+  legacy_s8 previous_selected;
+  legacy_s8 previous_scroll;
+  legacy_u8 file_count;
+  legacy_u8 search_again;
+};
+
 class CDialogContent
 {
   legacy_s8 line_buffer[128];
@@ -1102,19 +1118,6 @@ class CDialogContent
   legacy_u16 line_length;
   legacy_u8 choice_count;
   legacy_u8 placeholder_index;
-};
-
-class CFileDialog
-{
-  legacy_s16 positions[40];
-  CButtonArea hit_areas[10];
-  legacy_s8 filenames[128][13];
-  legacy_s8 selected;
-  legacy_s8 scroll;
-  legacy_s8 previous_selected;
-  legacy_s8 previous_scroll;
-  legacy_u8 file_count;
-  legacy_u8 search_again;
 };
 
 class CHighscoreEntry
@@ -1160,19 +1163,24 @@ class CEndScreenState
   legacy_s16 text_y;
 };
 
+class CRaceHiresViewport
+{
+  legacy_u8 supersight;
+};
+
 class CRaceViewportCache
 {
   legacy_s16 roof_height;
   legacy_s16 dashboard_bottom;
-  legacy_u8 supersight;
+  CRaceHiresViewport hires;
 };
 
 class CRaceRewindState
 {
   legacy_s16 active;
-  legacy_u16 origin_frame;
+  legacy_u32 origin_frame;
   legacy_u32 held_ticks;
-  legacy_u32 accumulated;
+  legacy_u64 accumulated;
 };
 
 class CGhostPose
@@ -1197,7 +1205,7 @@ class CGhostLinePose
   legacy_u8 has_orientation;
 };
 
-class CRsAnon674c4e381b60
+class CRsAnonB755155759f1
 {
   CGhostLinePose previous;
   CGhostLinePose sample;
@@ -1479,13 +1487,6 @@ class CFrameLookaheadTile
   legacy_s8 detail;
 };
 
-class CFrameSupersightTile
-{
-  legacy_s8 width;
-  legacy_s8 depth;
-  legacy_s8 priority;
-};
-
 class CFrameCamera
 {
   CVector position;
@@ -1516,15 +1517,6 @@ class CFrameTileSelection
   legacy_u8 terrain[110];
 };
 
-class CFrameCarRender
-{
-  legacy_s8 east;
-  legacy_s8 south;
-  legacy_s16 depth_adjustment;
-  CRectangle crash_rect;
-  legacy_s8 explosion_visible;
-};
-
 class CFrameTile
 {
   legacy_s8 east;
@@ -1537,6 +1529,22 @@ class CFrameTile
   legacy_s16 height;
   legacy_s16 depth_mask;
   CVector position;
+};
+
+class CFrameSupersightTile
+{
+  legacy_s8 width;
+  legacy_s8 depth;
+  legacy_s8 priority;
+};
+
+class CFrameCarRender
+{
+  legacy_s8 east;
+  legacy_s8 south;
+  legacy_s16 depth_adjustment;
+  CRectangle crash_rect;
+  legacy_s8 explosion_visible;
 };
 
 class CIntroView
@@ -1587,6 +1595,7 @@ class CPenaltyRouteSearch
 
 class CPenaltyRouteBounds
 {
+  legacy_s16 piece;
   legacy_u8 minimum_column;
   legacy_u8 maximum_column;
   legacy_u8 minimum_row;
@@ -1618,13 +1627,6 @@ class CTrackSetupBranch
   legacy_s16 previous_piece;
 };
 
-class CTrackSetupStep
-{
-  legacy_s16 column;
-  legacy_s16 row;
-  legacy_s16 orientation;
-};
-
 class CTrackSetupWalk
 {
   CTrackSetupBranch *branches;
@@ -1651,6 +1653,13 @@ class CTrackSetupWalk
   legacy_u8 path_closed;
   legacy_u8 match_count;
   legacy_u8 backtrack_required;
+};
+
+class CTrackSetupStep
+{
+  legacy_s16 column;
+  legacy_s16 row;
+  legacy_s16 orientation;
 };
 
 class CPlayerWheelMotion
@@ -1697,16 +1706,16 @@ class CTrackObjectSample
   legacy_s16 wall_orientation_modifier;
 };
 
-class CTrackObjectHandler
-{
-  legacy_s16 physical_model;
-  legacy_u8 *handle;
-};
-
 class CTrackSolidBox
 {
   CVector minimum;
   CVector maximum;
+};
+
+class CTrackObjectHandler
+{
+  legacy_s16 physical_model;
+  legacy_u8 *handle;
 };
 
 class CTrackContactRatio
@@ -1736,6 +1745,12 @@ class COwootProjectedPoint
 {
   legacy_s32 x;
   legacy_s32 z;
+};
+
+class CPresentationClock
+{
+  legacy_u64 origin;
+  legacy_u64 next_frame;
 };
 
 class COwootPoint

@@ -1,6 +1,6 @@
 #include "amiga.h"
 #include "../../c/platform.h"
-#include "../../c/presentation.h"
+#include "../../c/hires/presentation.h"
 #include <devices/timer.h>
 #include <proto/exec.h>
 #include <proto/timer.h>

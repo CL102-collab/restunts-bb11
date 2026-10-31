@@ -11,6 +11,7 @@
 #include "../c/frame_tiles.c"
 #include "../c/frame_terrain.c"
 #include "../c/frame_objects.c"
+#include "../c/hires/frame_snapshot.c"
 #include "extended-replay-test-stubs.h"
 
 #undef printf
@@ -21,7 +22,7 @@
 #include "../c/extended/extended_frame.c"
 #include "../c/extended/extended_frame_objects.c"
 #include "../c/extended/extended_frame_terrain.c"
-#include "../c/extended/extended_frame_precise.c"
+#include "../c/hires/track_frame_precise.c"
 #endif
 
 struct TRACKOBJECT trkObjectList[215];

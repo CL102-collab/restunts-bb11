@@ -7,10 +7,6 @@
 #include "../../platform/sdl3/sdl3.h"
 #include "../../platform/sdl3/touch_game.h"
 #include "../../platform/sdl3/controller_game.h"
-#include "../hires/frame_interpolation.h"
-#include "../hires/frame_adaptive.h"
-#include "../hires/hires.h"
-#include "../presentation.h"
 #include "../extended/extended_replay_runtime.h"
 #endif
 #ifdef RESTUNTS_AMIGA

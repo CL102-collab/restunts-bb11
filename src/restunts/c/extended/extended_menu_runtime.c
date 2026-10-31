@@ -7,7 +7,7 @@
 #include "../fileio.h"
 #include "../fatal.h"
 #include "../ui/ui_dialog.h"
-#include "../hires/hires.h"
+#include "../hires/track_preview_mode.h"
 #include "../platform.h"
 #include "extended_track.h"
 #include "extended_validation.h"
@@ -114,7 +114,7 @@ legacy_u8 extended_menu_horizon(legacy_u8 fallback)
 }
 legacy_s16 extended_menu_live_preview(void)
 {
-	return extended_track_active() && hires_enabled();
+	return hires_track_preview_live(extended_track_active());
 }
 legacy_s16 extended_menu_load_selected_track(const legacy_s8 *extension, const legacy_s8 *path,
 											 const legacy_s8 *previous_name)

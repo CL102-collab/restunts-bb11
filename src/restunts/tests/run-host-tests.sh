@@ -84,7 +84,7 @@ extended_companions() {
 small_source_companions() {
     case "$1" in
         frame.c) printf '%s\n' frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c ;;
-        extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c extended/extended_frame_precise.c ;;
+        extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c hires/track_frame_precise.c ;;
         shape3d.c) printf '%s\n' shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
         shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
@@ -111,9 +111,46 @@ small_source_companions() {
     esac
 }
 
+hires_source_companions() {
+    case "$1" in
+        extended_frame.c) printf '%s\n' hires/track_frame_tiles.c ;;
+        extended_frame_objects.c) printf '%s\n' hires/track_frame_hills.c hires/track_frame_objects.c ;;
+        extended_frame_terrain.c) printf '%s\n' hires/track_frame_terrain.c hires/track_frame_ground.c hires/track_frame_precise.c ;;
+        extended_geometry.c) printf '%s\n' hires/track_geometry.c ;;
+        extended_menu_runtime.c) printf '%s\n' hires/track_preview_mode.c ;;
+        extended_track_preview.c) printf '%s\n' hires/track_preview_track.c ;;
+        frame.c) printf '%s\n' hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c ;;
+        frame_camera.c) printf '%s\n' hires/frame_snapshot.c ;;
+        frame_car.c) printf '%s\n' hires/frame_visibility.c hires/frame_car_render.c ;;
+        frame_objects.c) printf '%s\n' hires/frame_particles.c ;;
+        frame_overlay.c) printf '%s\n' hires/frame_overlay.c ;;
+        frame_terrain.c) printf '%s\n' hires/frame_terrain.c ;;
+        frame_tiles.c) printf '%s\n' hires/frame_visibility.c hires/frame_supersight.c ;;
+        game_input.c) printf '%s\n' hires/settings_input.c ;;
+        game_input_shortcuts.c) printf '%s\n' hires/settings_input.c ;;
+        ghost.c) printf '%s\n' hires/ghost_render.c ;;
+        highscore_results.c) printf '%s\n' hires/highscore_animation.c ;;
+        intro_render.c) printf '%s\n' hires/intro_presentation.c ;;
+        menu_background.c) printf '%s\n' hires/menu_artwork.c ;;
+        menu_car.c) printf '%s\n' hires/showroom.c ;;
+        opponent_animation.c) printf '%s\n' hires/opponent_animation_artwork.c ;;
+        opponent_portrait.c) printf '%s\n' hires/opponent_portrait_artwork.c ;;
+        race.c) printf '%s\n' hires/race_view.c hires/race_presentation.c ;;
+        race_presentation.c) printf '%s\n' hires/race_presentation.c ;;
+        shape3d.c) printf '%s\n' hires/shape3d_pipeline.c ;;
+        shape3d_queue.c) printf '%s\n' hires/shape3d_queue.c ;;
+        shape3d_render.c) printf '%s\n' hires/shape3d_render.c ;;
+        skybox.c) printf '%s\n' hires/skybox_scene.c ;;
+        startup.c) printf '%s\n' hires/settings_startup.c ;;
+        track_frame_tiles.c) printf '%s\n' numlib.c ;;
+        track_preview.c) printf '%s\n' hires/track_preview_scene.c ;;
+    esac
+}
+
 source_companions() {
     extended_companions "$1" "$2"
     small_source_companions "$1"
+    hires_source_companions "$1"
 }
 
 run_host_test() {

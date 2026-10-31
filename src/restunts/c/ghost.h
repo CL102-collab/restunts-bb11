@@ -61,14 +61,8 @@ const struct GHOST_RACING_LINE_SEGMENT *
 ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment);
 legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed);
 
-#ifdef RESTUNTS_SDL3
-/* Sample cached recorded poses at (live_frame - lag / 65536) / live_frame_rate.
- * This presentation-only read never advances physics or changes the live ghost.
- * Failure leaves both outputs untouched. Start/end times clamp to the replay. */
-legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
-									legacy_u32 lag, struct CARSTATE *car,
-									struct GHOST_CAMERA_STATE *camera);
-#endif
+#include "hires/ghost_render.h"
+
 /* Convert recorded listener movement to one live audio tick, without file I/O. */
 void ghost_adjust_camera_motion(struct VECTOR *previous, const struct VECTOR *current);
 const struct SIMD *ghost_car_simd(void);

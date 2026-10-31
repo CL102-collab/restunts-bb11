@@ -7,10 +7,6 @@
 #include "../../platform/sdl3/sdl3.h"
 #include "../../platform/sdl3/touch_game.h"
 #include "../../platform/sdl3/controller_game.h"
-#include "../hires/frame_interpolation.h"
-#include "../hires/frame_adaptive.h"
-#include "../hires/hires.h"
-#include "../presentation.h"
 #include "../extended/extended_replay_runtime.h"
 #endif
 #ifdef RESTUNTS_AMIGA
@@ -212,9 +208,7 @@ void race_update_dashboard_layout(legacy_s16 rewind_active)
 		dashboard_visible = 1;
 		roofbmpheight_copy = roofbmpheight;
 		dashbmp_y_copy = dashbmp_y;
-		if (supersight_enabled != 0 && dashbmp_y_copy > height_above_replaybar) {
-			dashbmp_y_copy = height_above_replaybar;
-		}
+		race_hires_clip_dashboard();
 	}
 }
 
@@ -222,8 +216,9 @@ void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_a
 {
 	if (game_replay_mode != game_replay_mode_copy || dashb_toggle != dashb_toggle_copy ||
 		replaybar_toggle != replaybar_toggle_copy || is_in_replay != is_in_replay_copy ||
-		followOpponentFlag != followOpponentFlag_copy || cache->supersight != supersight_enabled) {
-		cache->supersight = supersight_enabled;
+		followOpponentFlag != followOpponentFlag_copy ||
+		race_hires_viewport_changed(&cache->hires) != 0) {
+		race_hires_cache_viewport(&cache->hires);
 		race_update_dashboard_layout(rewind_active);
 		if (cache->roof_height != roofbmpheight_copy || dashbmp_y_copy != viewport_bottom_cache ||
 			cache->dashboard_bottom != height_above_replaybar) {
@@ -306,21 +301,9 @@ static legacy_u16 race_frame_is_ready(legacy_s64 *last_processed_frame)
 
 	legacy_s16 wait_for_sample = game_replay_mode == REPLAY_MODE_LIVE;
 #ifdef RESTUNTS_SDL3
-	if (supersight_enabled != 0 && (game_replay_mode == REPLAY_MODE_PAUSED ||
-									state.game_inputmode == GAME_INPUT_MODE_WAITING)) {
-		legacy_u64 now = presentation_now();
-		if (now < race_presentation.control_time) {
-			sdl3_platform_delay(RACE_CONTROL_POLL_DELAY_MS);
-			sdl3_platform_pump();
-			return 0;
-		}
-		legacy_u16 rate = framespersec > 0 ? (legacy_u16)framespersec : GAME_FRAME_RATE_NORMAL;
-		race_presentation.control_time = now + PRESENTATION_SECOND_NS / rate;
-		*last_processed_frame = race_current_frame();
-		return 1;
-	}
-	if (supersight_enabled != 0 && game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay == 0) {
-		wait_for_sample = 1;
+	legacy_u16 presentation_ready;
+	if (race_presentation_poll(last_processed_frame, &wait_for_sample, &presentation_ready) != 0) {
+		return presentation_ready;
 	}
 #endif
 	if (wait_for_sample != 0 && race_exit_request == 0 &&
@@ -408,8 +391,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 	frame_supersight_reset();
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
-	race_presentation = (struct RACE_PRESENTATION){0};
-	presentation_reset(&race_presentation.clock, presentation_now());
+	race_presentation_initialize();
 #endif
 
 	while (1) {
@@ -480,17 +462,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			AMIGA_NORMAL_RACE_TRACE("viewport complete");
 		}
 #ifdef RESTUNTS_SDL3
-		race_presentation_capture();
-		if (supersight_enabled == 0 || rewind.active != 0 ||
-			(game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay != 0) ||
-			presentation_due(&race_presentation.clock, presentation_now()) != 0) {
-			if (supersight_enabled != 0) {
-				race_draw_visual();
-			} else {
-				race_draw_frame();
-			}
-			race_presentation.started = 1;
-		}
+		race_presentation_draw(rewind.active);
 #else
 		if (state.game_frame == 0) {
 			AMIGA_NORMAL_RACE_TRACE("draw begin");
@@ -590,10 +562,7 @@ static void race_release_resources(void)
 	remove_frame_callback();
 	free_player_cars();
 #ifdef RESTUNTS_SDL3
-	/* Auto restores menu resolution; a manually locked scale stays selected. */
-	hires_set_render_scale(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO
-							   ? HIRES_SCALE
-							   : frame_adaptive_render_scale(&frame_adaptive));
+	race_presentation_finish();
 #endif
 }
 
@@ -605,7 +574,7 @@ void run_game(void)
 	struct RACE_VIEWPORT_CACHE cache;
 	cache.roof_height = -1;
 	cache.dashboard_bottom = -1;
-	cache.supersight = supersight_enabled;
+	race_hires_cache_viewport(&cache.hires);
 	viewport_bottom_cache = -1;
 	run_game_random = LEGACY_S16_SHL(get_kevinrandom(), RACE_RANDOM_VALUE_SHIFT);
 	replaybar_toggle = 1;

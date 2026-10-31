@@ -55,7 +55,7 @@ RACE_MEMORY_OBJECTS = $(PLATFORM_ASM_DIR)/dosbss.obj $(filter-out $(FULL_GAME_DI
 .PHONY: race-memory
 race-memory: $(RACE_MEMORY_OUTFILE)
 
-$(OBJDIR)/test-race-memory.obj: test-race-memory.c ../c/restunts.c ../c/startup.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-race-memory.obj: test-race-memory.c ../c/restunts.c ../c/startup.c ../c/hires/settings_startup.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(RACE_MEMORY_OUTFILE): $(RACE_MEMORY_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
@@ -72,7 +72,7 @@ GHOST_LINE_OBJECTS = $(filter-out $(FULL_GAME_DIR)/ghost.obj $(FULL_GAME_DIR)/gh
 .PHONY: ghost-racing-line
 ghost-racing-line: $(GHOST_LINE_OUTFILE)
 
-$(OBJDIR)/test-ghost-racing-line-dos.obj: test-ghost-racing-line-dos.c ../c/restunts.c ../c/startup.c ../c/ghost.c ../c/ghost_line.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-ghost-racing-line-dos.obj: test-ghost-racing-line-dos.c ../c/restunts.c ../c/startup.c ../c/hires/settings_startup.c ../c/ghost.c ../c/hires/ghost_render.c ../c/ghost_line.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -fpc -zls -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(GHOST_LINE_OUTFILE): $(GHOST_LINE_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
@@ -89,7 +89,7 @@ DRIVING_OPTIONS_OBJECTS = $(filter-out $(FULL_GAME_DIR)/stateply.obj $(FULL_GAME
 .PHONY: driving-options
 driving-options: $(DRIVING_OPTIONS_OUTFILE)
 
-$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/startup.c ../c/stateply.c ../c/stateply_motion.c ../c/stateply_contact.c ../c/state.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/startup.c ../c/hires/settings_startup.c ../c/stateply.c ../c/stateply_motion.c ../c/stateply_contact.c ../c/state.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(DRIVING_OPTIONS_OUTFILE): $(DRIVING_OPTIONS_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
