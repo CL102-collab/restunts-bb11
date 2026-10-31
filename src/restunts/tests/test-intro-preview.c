@@ -45,6 +45,8 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 #include "../c/keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../c/hires.h"
+#include "../c/extended_frame.h"
+#include "../c/shape3d_hires.h"
 #endif
 
 #undef strcmp
@@ -66,6 +68,32 @@ static legacy_u8 hires_active;
 legacy_s32 hires_enabled(void)
 {
 	return hires_active;
+}
+
+void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
+{
+	(void)origin;
+	assert(!"Unexpected extended preview in a legacy track fixture");
+}
+
+void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
+{
+	(void)column;
+	(void)row;
+	assert(!"Unexpected extended preview in a legacy track fixture");
+}
+
+void projection_set_origin(legacy_u16 x, legacy_u16 y)
+{
+	(void)x;
+	(void)y;
+	assert(!"Unexpected extended preview in a legacy track fixture");
+}
+
+legacy_u32 dos_timer_get_realtime_counter(void)
+{
+	assert(!"Unexpected extended preview in a legacy track fixture");
+	return 0;
 }
 #endif
 
