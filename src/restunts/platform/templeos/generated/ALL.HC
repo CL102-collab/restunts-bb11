@@ -133,6 +133,8 @@
 #include "generated/HIRES_SKYBOX_SCENE.HC"
 #include "generated/FRAME_CONTEXT.HC"
 #include "generated/FRAME_FPS.HC"
+#include "generated/EXTENDED_MATH.HC"
+#include "generated/EXTENDED_FRAME_LAYOUT.HC"
 #include "generated/COMMAND_LINE.HC"
 #include "generated/HEADLESS_DATA.HC"
 #include "generated/HEADLESS_TRACKDATA.HC"

@@ -343,8 +343,9 @@ legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
 	search.column = LEGACY_S8_FROM_BITS(
 		(legacy_u8)((legacy_u32)state.playerstate.car_position.lx >> TRACK_WORLD_TILE_SHIFT));
 	search.row = LEGACY_S8_FROM_BITS(LEGACY_U8_WRAP_SUB(
-		(legacy_u8)(extended_track_height() - 1),
+		TRACK_GRID_LAST_COORDINATE,
 		(legacy_u8)((legacy_u32)state.playerstate.car_position.lz >> TRACK_WORLD_TILE_SHIFT)));
+	search.row = extended_race_route_player_row(search.row);
 	if ((search.column == state.game_startcol || search.column == state.game_startcol2) &&
 		(search.row == state.game_startrow || search.row == state.game_startrow2)) {
 		if (extended_race_route_current_matches(*current_track, search.column, search.row)) {
@@ -352,8 +353,10 @@ legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
 			return PENALTY_NOT_DETECTED;
 		}
 	}
-	if (search.column < 0 || search.column >= extended_track_width() || search.row < 0 ||
-		search.row >= extended_track_height()) {
+	legacy_s16 outside = search.column < 0 || search.column > TRACK_GRID_LAST_COORDINATE ||
+						 search.row < 0 || search.row > TRACK_GRID_LAST_COORDINATE;
+	outside = extended_race_route_outside(search.column, search.row, outside);
+	if (outside != 0) {
 		*penalty_count = PENALTY_ROUTE_OUTSIDE_TRACK;
 		return PENALTY_DETECTED;
 	}

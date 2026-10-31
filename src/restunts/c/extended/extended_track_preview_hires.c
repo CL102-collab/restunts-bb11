@@ -1,11 +1,11 @@
-#include "track_preview_track.h"
+#include "extended_track_preview_hires.h"
 #ifdef RESTUNTS_SDL3
-#include "../extended/extended_track.h"
-#include "../extended/extended_frame.h"
-#include "hires.h"
+#include "extended_track.h"
+#include "extended_frame.h"
+#include "../hires/hires.h"
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
-#include "shape3d_hires.h"
+#include "../hires/shape3d_hires.h"
 #include "../track/track_objects.h"
 #include "../track/trackdata_layout.h"
 #include "../skybox.h"
@@ -212,7 +212,7 @@ static void track_preview_draw_extended_3d(void)
 	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0, TRACK_PREVIEW_SCREEN_HEIGHT);
 }
 
-legacy_s16 hires_track_preview_draw(void)
+legacy_s16 extended_track_preview_hires_draw(void)
 {
 	if (!hires_enabled()) {
 		return 0;

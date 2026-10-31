@@ -114,7 +114,7 @@ legacy_u8 extended_menu_horizon(legacy_u8 fallback)
 }
 legacy_s16 extended_menu_live_preview(void)
 {
-	return hires_track_preview_live(extended_track_active());
+	return extended_track_active() && hires_track_preview_live();
 }
 legacy_s16 extended_menu_load_selected_track(const legacy_s8 *extension, const legacy_s8 *path,
 											 const legacy_s8 *previous_name)

@@ -184,15 +184,9 @@ legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const struct SI
 				frame_south_tile_from_world_offset(carstate->car_position.lz, rotated_vector.z);
 		}
 #if defined(RESTUNTS_SDL3)
-		if (frame_has_complete_tile_lookup(tiles)) {
-			legacy_s16 tile_index = frame_lookup_world_tile(tiles, tile_east, tile_south);
-			if (tile_index > best_tile_index &&
-				tiles->markers[tile_index] != FRAME_TILE_UNAVAILABLE_MARKER) {
-				*result_tile_east = tile_east;
-				*result_tile_south = tile_south;
-				best_tile_index = tile_index;
-				matched_wheel = wheel;
-			}
+		if (extended_frame_find_indexed_wheel(tiles, tile_east, tile_south, wheel, &best_tile_index,
+											  &matched_wheel, result_tile_east,
+											  result_tile_south)) {
 			continue;
 		}
 #endif

@@ -2,38 +2,38 @@
 
 legacy_s8 RsExtendedTrkutilLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_8033;
+  legacy_s32 noreg temple_tmp_8040;
   if((value<=127)) {
-    temple_tmp_8033=TempleCastS32(TempleCastS8(value));
+    temple_tmp_8040=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_8033=TempleCastS32(TempleCastS8(
+    temple_tmp_8040=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_8033);
+  return TempleCastS8(temple_tmp_8040);
 }
 
 legacy_s16 RsExtendedTrkutilLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_8034;
+  legacy_s32 noreg temple_tmp_8041;
   if((value<=32767)) {
-    temple_tmp_8034=TempleCastS32(TempleCastS16(value));
+    temple_tmp_8041=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_8034=TempleCastS32(TempleCastS16(
+    temple_tmp_8041=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_8034);
+  return TempleCastS16(temple_tmp_8041);
 }
 
 legacy_s32 RsExtendedTrkutilLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_8035;
+  legacy_s32 noreg temple_tmp_8042;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_8035=TempleCastS32(TempleCastS32(value));
+    temple_tmp_8042=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_8035=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_8042=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_8035);
+  return TempleCastS32(temple_tmp_8042);
 }
 
 legacy_s16 RsExtendedTrkutilRowPosition(legacy_u16 row,legacy_s16 *position)
@@ -52,15 +52,15 @@ legacy_s16 RsExtendedTrkutilColumnPosition(legacy_u16 column,legacy_s16 *positio
 
 legacy_s16 RsExtendedTrkutilRowTableCount(legacy_s16 width,legacy_s16 height)
 {
-  legacy_s16 noreg temple_count_8036;
-  legacy_s32 noreg temple_tmp_8037;
+  legacy_s16 noreg temple_count_8043;
+  legacy_s32 noreg temple_tmp_8044;
   if((width>height)) {
-    temple_tmp_8037=TempleCastS32(width);
+    temple_tmp_8044=TempleCastS32(width);
   } else {
-    temple_tmp_8037=TempleCastS32(height);
+    temple_tmp_8044=TempleCastS32(height);
   }
-  temple_count_8036=TempleCastS16(temple_tmp_8037);
-  return TempleCastS16(temple_count_8036);
+  temple_count_8043=TempleCastS16(temple_tmp_8044);
+  return TempleCastS16(temple_count_8043);
 }
 
 legacy_u8 RsExtendedTrkutilHorizon(legacy_u8 legacy_horizon)
