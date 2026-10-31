@@ -12,9 +12,8 @@
 #include "resource.h"
 #include "owoot.h"
 #include "physics_internal.h"
-#ifdef RESTUNTS_SDL3
-#include "extended_track.h"
 #include "extended_opponent.h"
+#ifdef RESTUNTS_SDL3
 #include "fatal.h"
 #endif
 
@@ -333,16 +332,9 @@ void load_opponent_data(void)
 {
 	legacy_u8 far *speed_data;
 	void far *resource = load_opponent_speed_data(&speed_data);
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		int success = extended_opponent_build_route(speed_data);
-		mmgr_release(resource);
-		if (!success) {
-			fatal_error((const legacy_s8 *)"Unable to build extended opponent route");
-		}
+	if (extended_opponent_load_route(speed_data, resource)) {
 		return;
 	}
-#endif
 
 	legacy_u32 best_distance = OPPONENT_ROUTE_DISTANCE_LIMIT;
 	legacy_u32 pending_distance[OPPONENT_ROUTE_DISTANCE_CAPACITY];

@@ -1,3 +1,4 @@
+#include "extended_menu_runtime.h"
 #include <stddef.h>
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
@@ -8,10 +9,6 @@
 #include "hires.h"
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
-#include "extended_track.h"
-#include "extended_validation.h"
-#include "extended_file.h"
-#include "extended_replay_runtime.h"
 #ifndef __ANDROID__
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -103,7 +100,6 @@
 #define STARTUP_CAR_POSITION_Y (-840)
 #define STARTUP_CAR_POSITION_Z 2880
 
-#define TRACK_VERSION_WARNING_SIZE 192U
 #define TRACK_PATH_STORAGE_SIZE 81
 #define TRACK_PRIMARY_PATH_OFFSET REPLAY_TRACK_SIZE
 #define TRACK_SECONDARY_PATH_OFFSET (REPLAY_TRACK_SIZE + TRACK_PATH_STORAGE_SIZE)
@@ -780,25 +776,11 @@ static legacy_s16 main_menu_select_race(legacy_s16 result, legacy_s8 *start_in_r
 	return 1;
 }
 
-#ifdef RESTUNTS_SDL3
-static uint8_t *main_menu_extended_track_backup;
-static size_t main_menu_extended_track_backup_size;
-#endif
-
 static void main_menu_backup_track(void)
 {
 	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
 #ifdef RESTUNTS_SDL3
-	free(main_menu_extended_track_backup);
-	main_menu_extended_track_backup = NULL;
-	main_menu_extended_track_backup_size = 0;
-	if (extended_track_active()) {
-		char error[128];
-		if (!cstrk_encode(extended_track_model(), &main_menu_extended_track_backup,
-						  &main_menu_extended_track_backup_size, error, sizeof(error))) {
-			fatal_error("Cannot retain track: %s", error);
-		}
-	}
+	extended_menu_backup_track();
 #endif
 	for (legacy_u16 i = 0; i < REPLAY_TRACK_SIZE; i++) {
 		track_and_directory_backup[i] = track_element_map[i];
@@ -812,27 +794,7 @@ static void main_menu_backup_track(void)
 static void main_menu_restore_track(void)
 {
 #ifdef RESTUNTS_SDL3
-	int was_extended = extended_track_active() || extended_replay_is_active();
-	if (main_menu_extended_track_backup) {
-		gameconfig = gameconfigcopy;
-		char error[128];
-		if (!extended_track_load(main_menu_extended_track_backup,
-								 main_menu_extended_track_backup_size, error, sizeof(error))) {
-			fatal_error("Cannot restore track: %s", error);
-		}
-		free(main_menu_extended_track_backup);
-		main_menu_extended_track_backup = NULL;
-		main_menu_extended_track_backup_size = 0;
-	} else {
-		extended_track_unload();
-		if (was_extended) {
-			gameconfig = gameconfigcopy;
-		} else {
-			_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
-		}
-	}
-	extended_replay_runtime_clear();
-	if (!extended_track_active()) {
+	if (extended_menu_restore_track()) {
 #else
 	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));
 #endif
@@ -848,46 +810,19 @@ static void main_menu_restore_track(void)
 	}
 }
 
-#ifdef RESTUNTS_SDL3
-static void main_menu_warn_track_version(void)
-{
-	if (!extended_track_active()) {
-		return;
-	}
-	const struct CSTRK_TRACK *track = extended_track_model();
-	if (track->version <= CSTRK_VERSION) {
-		return;
-	}
-	legacy_s8 message[TRACK_VERSION_WARNING_SIZE];
-	snprintf((legacy_char *)message, sizeof(message),
-			 "Track revision v%" LEGACY_PRIu32 " is newer.]"
-			 "Game supports revision v%" LEGACY_PRIu32 ".]"
-			 "The track may not work correctly.]Press OK to continue racing.]}[ OK ]",
-			 (legacy_u32)track->version, (legacy_u32)CSTRK_VERSION);
-	show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
-}
-#endif
-
 static legacy_s16 main_menu_prepare_track(void)
 {
 	STARTUP_TRACE("menu track begin");
 	if (idle_expired == 0) {
 #ifdef RESTUNTS_SDL3
-		main_menu_warn_track_version();
+		extended_menu_warn_track_version();
 #endif
 		legacy_s16 result = track_setup();
 		STARTUP_TRACE("menu track complete");
 		//result = setup_track();
 		if (result != 0) {
 #ifdef RESTUNTS_SDL3
-			if (extended_track_active()) {
-				char message[192];
-				extended_track_validation_message(result, track_validation_column,
-												  track_validation_row, message, sizeof(message));
-				show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message,
-							DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
-			}
+			extended_menu_validation_error(result, track_validation_column, track_validation_row);
 #endif
 			run_tracks_menu(1);
 			return 0;
@@ -916,9 +851,7 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 	} else {
 		gameconfig.game_recordedframes = 0;
 #ifdef RESTUNTS_SDL3
-		if (extended_track_active()) {
-			extended_replay_runtime_begin();
-		}
+		extended_menu_begin_track_recording();
 #endif
 	}
 
@@ -935,9 +868,7 @@ static void main_menu_run_race(legacy_s8 start_in_replay)
 				// drive
 				gameconfig.game_recordedframes = 0;
 #ifdef RESTUNTS_SDL3
-				if (extended_track_active()) {
-					extended_replay_runtime_begin();
-				}
+				extended_menu_begin_track_recording();
 #endif
 				continue;
 			}
@@ -966,23 +897,7 @@ legacy_s16 run_main_menu_loop(legacy_s16 argc, legacy_s8 *argv[])
 		if (reload_track != 0) {
 			file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
 #ifdef RESTUNTS_SDL3
-			if (file_find(g_path_buf) == 0) {
-				file_build_path(track_directory, gameconfig.game_trackname, ".cstrk", g_path_buf);
-				if (file_find(g_path_buf) != 0) {
-					if (extended_file_load_track(g_path_buf) != 0) {
-						fatal_error("Cannot load track: %s", extended_file_error());
-					}
-				} else {
-					file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
-					extended_track_unload();
-					extended_replay_runtime_clear();
-					file_read_fatal(g_path_buf, track_element_map);
-				}
-			} else {
-				extended_track_unload();
-				extended_replay_runtime_clear();
-				file_read_fatal(g_path_buf, track_element_map);
-			}
+			extended_menu_load_startup_track();
 #else
 			file_read_fatal(g_path_buf, track_element_map);
 #endif

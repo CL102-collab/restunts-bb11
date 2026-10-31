@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "../c/cstrk.h"
 #include "../c/restunts.c"
 #undef printf
 #undef strlen
@@ -20,6 +21,7 @@ legacy_s8 random_wait_legacy_bytes[1];
 static legacy_s16 setup_result;
 static int extended_active;
 static int editor_available;
+#define TEST_TRACK_WARNING_CAPACITY 192U
 #define TEST_FUTURE_REVISION 101U
 #define TEST_SHORT_FUTURE_REVISION 15U
 #define TEST_NEXT_REVISION (CSTRK_VERSION + 1U)
@@ -32,7 +34,7 @@ static unsigned menu_calls;
 static unsigned file_find_calls;
 static unsigned video_status_calls;
 static char captured_message[192];
-static legacy_s8 captured_warning[TRACK_VERSION_WARNING_SIZE];
+static legacy_s8 captured_warning[TEST_TRACK_WARNING_CAPACITY];
 
 legacy_s16 track_setup(void)
 {
@@ -158,7 +160,7 @@ static void check_newer_revision(legacy_u16 revision, legacy_s16 result)
 	assert(setup_calls == 1 && warning_calls == 1);
 	assert(dialog_calls == (result == TRACK_SETUP_OK ? 1U : 2U));
 	assert(menu_calls == (result == TRACK_SETUP_OK ? 0U : 1U));
-	legacy_s8 expected[TRACK_VERSION_WARNING_SIZE];
+	legacy_s8 expected[TEST_TRACK_WARNING_CAPACITY];
 	snprintf((legacy_char *)expected, sizeof(expected), "Track revision v%" LEGACY_PRIu32,
 			 (legacy_u32)revision);
 	assert(strstr((const legacy_char *)captured_warning, (const legacy_char *)expected) != NULL);

@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "../../c/platform.h"
+#include "../../c/extended_file_dialog.h"
 #if defined(__ANDROID__) && !defined(RESTUNTS_HEADLESS)
 #include <jni.h>
 #include <SDL3/SDL.h>
@@ -559,17 +560,7 @@ static legacy_int sort_names(const void *left, const void *right)
 
 static legacy_u16 file_find_name_supported(const legacy_char *name)
 {
-	size_t length = strlen(name);
-	if (length < 13U) {
-		return 1;
-	}
-	/* Extending the suffix must not admit nine/ten-character legacy stems:
-	 * legacy callers still copy those stems into nine-byte GAMEINFO fields. */
-	const legacy_char *extension = strrchr(name, '.');
-	return length < FILE_NAME_SIZE && extension != NULL && extension - name >= 1 &&
-		   extension - name <= 8 &&
-		   (compare_names(extension, ".cstrk") == 0 || compare_names(extension, ".csrpl") == 0 ||
-			compare_names(extension, ".cshig") == 0);
+	return extended_file_name_supported(name, FILE_NAME_SIZE);
 }
 
 const legacy_s8 *dos_file_find_next(void)

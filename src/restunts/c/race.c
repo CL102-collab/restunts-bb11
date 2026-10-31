@@ -1,3 +1,4 @@
+#include "extended_replay_ui.h"
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
 #endif
@@ -10,7 +11,6 @@
 #include "hires.h"
 #include "presentation.h"
 #include "extended_replay_runtime.h"
-#include "extended_track.h"
 #endif
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
@@ -150,8 +150,7 @@ static void race_rewind_seek(struct RACE_REWIND_STATE *rewind)
 	if (target != race_current_frame()) {
 		frame_supersight_reset();
 #ifdef RESTUNTS_SDL3
-		if (extended_replay_is_active()) {
-			(void)extended_replay_seek(target);
+		if (extended_replay_ui_seek(target)) {
 			return;
 		}
 #endif
@@ -175,9 +174,7 @@ static void race_rewind_resume(struct RACE_REWIND_STATE *rewind)
 			LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
 	}
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		(void)extended_replay_branch(extended_replay_frame());
-	} else
+	if (!extended_replay_ui_branch())
 #endif
 	{
 		gameconfig.game_recordedframes = (legacy_u16)state.game_frame;
@@ -274,9 +271,7 @@ static legacy_u16 race_prepare_mode(void)
 static void race_initialize_state(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active() && is_in_replay == 0) {
-		extended_replay_runtime_begin();
-	}
+	extended_replay_ui_begin_live_track();
 #endif
 	kbormouse = 0;
 	replay_playback_speed = REPLAY_PLAYBACK_NORMAL;
@@ -326,8 +321,7 @@ static void race_initialize_state(void)
 			start_flag_animation = RACE_REPLAY_RESTORE_WAIT_TICKS;
 			framespersec = gameconfig.game_framespersec;
 #ifdef RESTUNTS_SDL3
-			if (extended_replay_is_active()) {
-				(void)extended_replay_seek(extended_replay_recorded_frames());
+			if (extended_replay_ui_seek_end()) {
 				return;
 			}
 #endif
@@ -897,9 +891,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		if (state.game_inputmode == GAME_INPUT_MODE_WAITING &&
 			game_replay_mode == REPLAY_MODE_LIVE) {
 #ifdef RESTUNTS_SDL3
-			if (extended_replay_is_active()) {
-				extended_replay_runtime_begin();
-			} else
+			if (!extended_replay_ui_restart())
 #endif
 			{
 				elapsed_time2 = 0;
@@ -992,9 +984,7 @@ static void race_finish_opponent(void)
 			if (frame_counter == framespersec) {
 				frame_counter = 0;
 #ifdef RESTUNTS_SDL3
-				if (extended_replay_is_active()) {
-					extended_replay_format_runtime_time(&resID_byte1, extended_replay_frame(), 1);
-				} else
+				if (!extended_replay_ui_format_current_time(&resID_byte1))
 #endif
 				{
 					format_frame_as_string(&resID_byte1, state.game_frame + elapsed_time1, 1);
@@ -1013,7 +1003,7 @@ static void race_finish_opponent(void)
 			}
 			if (
 #ifdef RESTUNTS_SDL3
-				!extended_replay_is_active() &&
+				extended_replay_ui_uses_legacy_limit() &&
 #endif
 				RACE_FRAME_LIMIT_MULTIPLIER * framespersec == state.game_frame + elapsed_time1) {
 				break;

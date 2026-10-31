@@ -1,3 +1,5 @@
+#include "ghost_internal.h"
+#include "extended_ghost_runtime.h"
 #include "ghost.h"
 #ifndef RESTUNTS_DOS16
 #include <stdlib.h>
@@ -14,12 +16,8 @@
 #include "track_objects.h"
 #ifdef RESTUNTS_SDL3
 #include "frame_interpolation.h"
-#include "extended_ghost.h"
-#include "extended_track.h"
-#include "extended_replay_runtime.h"
 #endif
 
-#define GHOST_TEMP_NAME_SIZE 13U
 #define GHOST_TEMP_NAME_DIGITS 6U
 #define GHOST_TEMP_NAME_DIGIT_OFFSET 2U
 #define GHOST_TEMP_NAME_CANDIDATE_COUNT 1000000UL
@@ -31,17 +29,17 @@ struct GHOST_POSE {
 	struct GHOST_CAMERA_STATE camera;
 };
 
-static struct GAMEINFO ghost_config;
+struct GAMEINFO ghost_config;
 static struct GHOST_POSE ghost_pose;
 static struct SIMD ghost_simd;
-static legacy_u16 ghost_file;
-static legacy_s8 ghost_temp_name[GHOST_TEMP_NAME_SIZE];
+legacy_u16 ghost_file;
+legacy_s8 ghost_temp_name[GHOST_TEMP_NAME_SIZE];
 static legacy_s16 ghost_active;
-static legacy_s16 ghost_cleanup_registered;
+legacy_s16 ghost_cleanup_registered;
 static legacy_s16 ghost_pose_valid;
 #ifdef RESTUNTS_SDL3
 static legacy_u32 ghost_pose_frame;
-static struct EXTENDED_GHOST_REPLAY ghost_extended;
+
 #else
 static legacy_u16 ghost_pose_frame;
 #endif
@@ -58,9 +56,9 @@ static struct {
 #endif
 
 #ifdef RESTUNTS_SDL3
-#define GHOST_LINE_GRID_SIZE EXTENDED_TRACK_MAX_DIMENSION
-#define GHOST_LINE_MAP_WIDTH extended_track_width()
-#define GHOST_LINE_MAP_HEIGHT extended_track_height()
+#define GHOST_LINE_GRID_SIZE EXTENDED_GHOST_LINE_GRID_SIZE
+#define GHOST_LINE_MAP_WIDTH extended_ghost_runtime_line_width()
+#define GHOST_LINE_MAP_HEIGHT extended_ghost_runtime_line_height()
 #else
 #define GHOST_LINE_GRID_SIZE TRACK_GRID_SIZE
 #define GHOST_LINE_MAP_WIDTH TRACK_GRID_SIZE
@@ -168,7 +166,7 @@ static legacy_s8 ghost_line_temp_name[GHOST_TEMP_NAME_SIZE];
 static struct GHOST_RACING_LINE_SEGMENT ghost_line_cached;
 static legacy_u32 ghost_line_cached_index = GHOST_LINE_NO_SEGMENT;
 static legacy_s16 ghost_seek(legacy_u16 file, legacy_s32 offset);
-static legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind);
+legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind);
 #else
 static struct GHOST_RACING_LINE_SEGMENT *ghost_line_segments;
 static legacy_u32 ghost_line_capacity;
@@ -537,7 +535,7 @@ void ghost_clear(void)
 {
 	ghost_end_race();
 #ifdef RESTUNTS_SDL3
-	extended_ghost_free(&ghost_extended);
+	extended_ghost_runtime_clear();
 #endif
 	if (ghost_file != 0) {
 		(void)dos_file_close(ghost_file);
@@ -549,7 +547,7 @@ void ghost_clear(void)
 	}
 }
 
-static void far ghost_cleanup(void)
+void far ghost_cleanup(void)
 {
 	ghost_clear();
 }
@@ -577,21 +575,19 @@ const struct GHOST_CAMERA_STATE *ghost_camera_state(void)
 static legacy_u32 ghost_recorded_frames(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (ghost_extended.bytes) {
-		return ghost_extended.view.metadata.frame_count;
-	}
-#endif
+	return extended_ghost_runtime_recorded_frames(ghost_config.game_recordedframes);
+#else
 	return ghost_config.game_recordedframes;
+#endif
 }
 
 static legacy_u32 ghost_pose_offset(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (ghost_extended.bytes) {
-		return 0;
-	}
-#endif
+	return extended_ghost_runtime_pose_offset(replay_file_size(ghost_config.game_recordedframes));
+#else
 	return replay_file_size(ghost_config.game_recordedframes);
+#endif
 }
 
 static legacy_s16 ghost_previous_camera_coordinate(legacy_s16 previous, legacy_s16 current)
@@ -633,7 +629,7 @@ const legacy_s8 *ghost_car_id(void)
 
 /* The DOS create API truncates existing files, so only use an unused private
  * name. No persistent arena allocation may pin the opponent menu's resources. */
-static legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind)
+legacy_u16 ghost_create_file(legacy_s8 *name, legacy_s8 kind)
 {
 	for (legacy_u32 candidate = 0; candidate < GHOST_TEMP_NAME_CANDIDATE_COUNT; candidate++) {
 		legacy_u32 digits = candidate;
@@ -664,7 +660,7 @@ static legacy_s16 ghost_valid_car_id(const legacy_s8 *id)
 	return 1;
 }
 
-static legacy_s16 ghost_valid_config(const struct GAMEINFO *config)
+legacy_s16 ghost_valid_config(const struct GAMEINFO *config)
 {
 	if (config->game_framespersec != GAME_FRAME_RATE_LOW &&
 		config->game_framespersec != GAME_FRAME_RATE_NORMAL) {
@@ -765,100 +761,6 @@ legacy_s16 ghost_select_replay(const legacy_s8 *directory, const legacy_s8 *name
 	return 0;
 }
 
-#ifdef RESTUNTS_SDL3
-legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,
-									  const legacy_s8 *extension)
-{
-	if (strcmp(extension, ".csrpl") != 0) {
-		uint8_t *previous = NULL;
-		size_t previous_size = 0;
-		if (extended_track_active()) {
-			if (!cstrk_encode(extended_track_model(), &previous, &previous_size, NULL, 0)) {
-				return 1;
-			}
-			extended_track_unload();
-		}
-		legacy_s16 result = ghost_select_replay(directory, name);
-		if (result != 0 && previous) {
-			(void)extended_track_load(previous, previous_size, NULL, 0);
-			(void)track_setup();
-		} else if (result == 0) {
-			extended_replay_runtime_clear();
-		}
-		free(previous);
-		return result;
-	}
-	legacy_s8 path[REPLAY_FILENAME_SIZE];
-	if ((directory ? strlen(directory) : 0) + strlen(name) + sizeof(".csrpl/") > sizeof(path)) {
-		return 1;
-	}
-	file_build_path(directory, name, ".csrpl", path);
-	struct EXTENDED_GHOST_REPLAY candidate = {0};
-	struct GAMEINFO config;
-	if (!extended_ghost_read(path, &candidate, &config)) {
-		return 1;
-	}
-	struct GAMEINFO checked = config;
-	checked.game_recordedframes = 0;
-	if (!ghost_valid_config(&checked)) {
-		extended_ghost_free(&candidate);
-		return 1;
-	}
-	legacy_s8 temp_name[GHOST_TEMP_NAME_SIZE];
-	legacy_u16 destination = ghost_create_file(temp_name, 'H');
-	if (!destination) {
-		extended_ghost_free(&candidate);
-		return 1;
-	}
-	uint8_t *previous = NULL;
-	size_t previous_size = 0;
-	legacy_u8 legacy_track[REPLAY_TRACK_SIZE];
-	if (extended_track_active()) {
-		if (!cstrk_encode(extended_track_model(), &previous, &previous_size, NULL, 0)) {
-			dos_file_close(destination);
-			dos_file_remove(temp_name);
-			extended_ghost_free(&candidate);
-			return 1;
-		}
-	} else {
-		memcpy(legacy_track, track_element_map, sizeof(legacy_track));
-	}
-	int loaded = extended_track_load(candidate.view.track_data, candidate.view.track_size, NULL, 0);
-	if (!loaded || track_setup() != 0) {
-		if (loaded) {
-			if (previous) {
-				(void)extended_track_load(previous, previous_size, NULL, 0);
-			} else {
-				extended_track_unload();
-				memcpy(track_element_map, legacy_track, sizeof(legacy_track));
-				init_row_tables();
-			}
-			(void)track_setup();
-		}
-		free(previous);
-		dos_file_close(destination);
-		dos_file_remove(temp_name);
-		extended_ghost_free(&candidate);
-		return 1;
-	}
-	free(previous);
-	ghost_clear();
-	ghost_file = destination;
-	strcpy(ghost_temp_name, temp_name);
-	ghost_extended = candidate;
-	ghost_config = config;
-	extended_replay_runtime_clear();
-	if (!ghost_cleanup_registered) {
-		add_exit_handler(ghost_cleanup);
-		ghost_cleanup_registered = 1;
-	}
-	memcpy(gameconfig.game_trackname, config.game_trackname, REPLAY_TRACK_NAME_SIZE);
-	file_warn_replay_version(ghost_extended.view.metadata.version);
-	file_warn_replay_driving_rules(ghost_extended.view.metadata.driving_rules);
-	return 0;
-}
-#endif
-
 void ghost_check_track(void)
 {
 	if (!ghost_is_selected()) {
@@ -871,14 +773,7 @@ void ghost_check_track(void)
 		}
 	}
 #ifdef RESTUNTS_SDL3
-	if (ghost_extended.bytes) {
-		if (!extended_ghost_matches_track(&ghost_extended)) {
-			ghost_clear();
-		}
-		return;
-	}
-	if (extended_track_active()) {
-		ghost_clear();
+	if (extended_ghost_runtime_check_track()) {
 		return;
 	}
 #endif
@@ -916,17 +811,18 @@ legacy_s16 ghost_prepare_race(void)
 		return 0;
 	}
 #ifdef RESTUNTS_SDL3
-	if (ghost_extended.bytes &&
-		ghost_recorded_frames() > (legacy_u32)LEGACY_S32_MAX / sizeof(struct GHOST_POSE) - 1U) {
-		return 1;
-	}
-	if (!ghost_extended.bytes)
+	legacy_s16 failure;
+	if (extended_ghost_runtime_prepare_inputs(sizeof(struct GHOST_POSE), &failure)) {
+		if (failure) {
+			return 1;
+		}
+	} else
 #endif
 		if (!ghost_seek(ghost_file, REPLAY_INPUT_OFFSET) ||
 			dos_file_read(ghost_file, replay_input_buffer, ghost_config.game_recordedframes) !=
 				ghost_config.game_recordedframes) {
-			return 1;
-		}
+		return 1;
+	}
 	if (!ghost_seek(ghost_file, (legacy_s32)ghost_pose_offset())) {
 		return 1;
 	}
@@ -951,10 +847,7 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_s8 seed[GAMESTATE_RANDOM_SEED_SIZE];
 	get_kevinrandom_seed(seed);
 #ifdef RESTUNTS_SDL3
-	struct EXTENDED_REPLAY_SUSPENDED saved_extended;
-	extended_replay_runtime_suspend(&saved_extended);
-	if (ghost_extended.bytes && !extended_replay_runtime_load(&ghost_extended.view)) {
-		extended_replay_runtime_resume(&saved_extended);
+	if (!extended_ghost_runtime_begin()) {
 		return 1;
 	}
 #endif
@@ -981,10 +874,7 @@ legacy_s16 ghost_prepare_race(void)
 		ghost_pose.camera.previous_position = state.game_player_camera_previous;
 		ghost_pose.camera.trackside_index = state.game_trackside_camera_index[PLAYER_CAR_INDEX];
 #ifdef RESTUNTS_SDL3
-		ghost_pose.camera.frame =
-			ghost_extended.bytes ? extended_replay_frame() : (legacy_u16)state.game_frame;
-		ghost_pose.camera.crash_frame = ghost_extended.bytes ? extended_replay_clocks.player_end
-															 : (legacy_u16)state.game_pEndFrame;
+		extended_ghost_runtime_camera(&ghost_pose.camera);
 #else
 		ghost_pose.camera.frame = state.game_frame;
 		ghost_pose.camera.crash_frame = state.game_pEndFrame;
@@ -1015,7 +905,7 @@ legacy_s16 ghost_prepare_race(void)
 	legacy_render_player_headings_active = saved_render_headings;
 	init_kevinrandom(seed);
 #ifdef RESTUNTS_SDL3
-	extended_replay_runtime_resume(&saved_extended);
+	extended_ghost_runtime_end();
 #endif
 	if (!succeeded) {
 		ghost_line_clear();

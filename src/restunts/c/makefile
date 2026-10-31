@@ -25,6 +25,13 @@ ifeq ($(TARGET),dosfull)
   DOS_STARTUP_OBJ = $(OBJDIR)/dosstart.obj
 endif
 
+# Keep extracted format-aware hooks with their classic entry points. Most
+# become no-ops on DOS; the shared OWOOT traversal engine also serves legacy tracks.
+C_FILES += extended_gameinit.c extended_gamestep.c extended_trkutil.c extended_race_route.c extended_track_setup.c extended_trackobj.c extended_stateply.c extended_physics_collision.c extended_statecrs.c extended_owoot_route.c extended_owoot_road.c extended_opponent.c extended_fileio.c
+ifeq ($(TARGET),dosfull)
+  C_FILES += extended_menu_runtime.c extended_highscore_ui.c extended_ui_dialog.c extended_replay_ui.c extended_ghost_runtime.c
+endif
+
 OBJ_FILES = $(addprefix $(OBJDIR)/, $(C_FILES:.c=.obj)) $(DOS_STARTUP_OBJ)
 C_HEADERS = $(wildcard *.h)
 GIT_REVISION_HEADER = $(OBJDIR)/git_revision.h

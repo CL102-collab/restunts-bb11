@@ -173,14 +173,14 @@ static void test_clipped_volume(void)
 	origin_x = 0;
 	origin_z = 0;
 	box(-2, 2, -30, -13, -2, 2);
-	assert(!road_triangle_overlaps_wheel(&triangle, tire, 4, OWOOT_ROAD_CONTACT_TOLERANCE));
+	assert(!owoot_road_triangle_overlaps_wheel(&triangle, tire, 4, OWOOT_ROAD_CONTACT_TOLERANCE));
 	box(-2, 2, -30, 5, -2, 2);
-	assert(road_triangle_overlaps_wheel(&triangle, tire, 4, OWOOT_ROAD_CONTACT_TOLERANCE));
+	assert(owoot_road_triangle_overlaps_wheel(&triangle, tire, 4, OWOOT_ROAD_CONTACT_TOLERANCE));
 	/* A narrow road entirely inside the projected tire exercises triangle
 	 * containment, rather than only sampling wheel vertices and edges. */
 	struct OWOOT_ROAD_TRIANGLE small = {{{-1, 0, -1}, {1, 0, -1}, {0, 0, 1}}};
 	box(-20, 20, 0, 20, -20, 20);
-	assert(road_triangle_overlaps_wheel(&small, tire, 4, 0));
+	assert(owoot_road_triangle_overlaps_wheel(&small, tire, 4, 0));
 }
 
 static void test_closed_pipe_aperture(void)

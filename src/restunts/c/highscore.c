@@ -1,3 +1,4 @@
+#include "extended_highscore_ui.h"
 #include "fileio.h"
 #include "legacy.h"
 #include "memmgr.h"
@@ -25,10 +26,6 @@
 #include "hires.h"
 #include "opponent_animation.h"
 #include "shape2d_internal.h"
-#include "extended_track.h"
-#include "extended_highscore.h"
-#include "extended_replay_runtime.h"
-#include "extended_race_stats.h"
 #endif
 
 #define HIGHSCORE_READ_RETRY_CANCEL_RESULT 2
@@ -108,7 +105,7 @@ enum END_SCREEN_OUTCOME {
 	END_SCREEN_OUTCOME_NONE = 2
 };
 
-static legacy_u8 ranking_highlight;
+legacy_u8 ranking_highlight;
 legacy_s16 ranking_entry_order[HIGHSCORE_ENTRY_COUNT];
 
 legacy_s16 get_super_random(void);
@@ -116,38 +113,34 @@ legacy_s16 get_super_random(void);
 static legacy_u32 end_player_finish_time(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		return extended_race_stats.player_finish;
-	}
-#endif
+	return extended_highscore_player_finish((legacy_u16)gState_total_finish_time);
+#else
 	return (legacy_u16)gState_total_finish_time;
+#endif
 }
 
 static legacy_u32 end_opponent_finish_time(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		return extended_race_stats.opponent_finish;
-	}
-#endif
+	return extended_highscore_opponent_finish((legacy_u16)gState_opponent_finish_time);
+#else
 	return (legacy_u16)gState_opponent_finish_time;
+#endif
 }
 
 static legacy_u32 end_penalty_time(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		return extended_race_stats.penalty;
-	}
-#endif
+	return extended_highscore_penalty((legacy_u16)gState_penalty);
+#else
 	return (legacy_u16)gState_penalty;
+#endif
 }
 
 static void end_format_time(legacy_s8 *out, legacy_u32 frame)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		extended_replay_format_runtime_time(out, frame, 1);
+	if (extended_highscore_format_runtime_time(out, frame)) {
 		return;
 	}
 #endif
@@ -191,7 +184,7 @@ void far *highscore_read_with_retry(legacy_s16 operation, const legacy_s8 *filen
 	return 0;
 }
 
-static void highscore_make_empty_entry(struct HIGHSCORE_ENTRY *record)
+void highscore_make_empty_entry(struct HIGHSCORE_ENTRY *record)
 {
 	legacy_u8 *record_bytes = (legacy_u8 *)record;
 	for (legacy_u16 offset = 0; offset < HIGHSCORE_COMBINED_NAME_TEXT_BYTES; offset++) {
@@ -216,11 +209,8 @@ legacy_s16 highscore_load_or_create(legacy_s16 create_default)
 		ranking_entry_order[entry] = entry;
 	}
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		g_is_busy = 1;
-		legacy_s16 result = (legacy_s16)extended_highscore_load_or_create(
-			track_directory, gameconfig.game_trackname, extended_track_model(), create_default);
-		g_is_busy = 0;
+	legacy_s16 result;
+	if (extended_highscore_load_current(create_default, &result)) {
 		return result;
 	}
 #endif
@@ -256,9 +246,9 @@ void highscore_save_sorted(void)
 	g_is_busy = 0;
 }
 
-static legacy_u16 highscore_format_fields(const legacy_s8 *player_name, const legacy_s8 *car_name,
-										  const legacy_s8 *opponent, legacy_u8 car_flag,
-										  legacy_u8 *text_offsets)
+legacy_u16 highscore_format_fields(const legacy_s8 *player_name, const legacy_s8 *car_name,
+								   const legacy_s8 *opponent, legacy_u8 car_flag,
+								   legacy_u8 *text_offsets)
 {
 	text_offsets[0] = 0;
 	strcpy(&resID_byte1, player_name);
@@ -283,35 +273,10 @@ static legacy_u16 highscore_format_fields(const legacy_s8 *player_name, const le
 	return output_offset;
 }
 
-#ifdef RESTUNTS_SDL3
-static void print_extended_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
-{
-	const struct CSHIG_ENTRY *score =
-		extended_highscore_entry((unsigned)ranking_entry_order[entry]);
-	legacy_u16 output_offset;
-	if (score == 0 || score->ticks == CSHIG_EMPTY_TICKS) {
-		struct HIGHSCORE_ENTRY empty;
-		highscore_make_empty_entry(&empty);
-		output_offset = highscore_format_fields(empty.player_name, empty.car_name, empty.opponent,
-												empty.car_flag, text_offsets);
-	} else {
-		output_offset = highscore_format_fields(
-			(const legacy_s8 *)score->player_name, (const legacy_s8 *)score->car_name,
-			(const legacy_s8 *)score->opponent, score->car_flag, text_offsets);
-	}
-	legacy_s8 formatted_time[32] = {0};
-	(void)extended_highscore_format_time(formatted_time, sizeof(formatted_time),
-										 score != 0 ? score->ticks : CSHIG_EMPTY_TICKS);
-	text_offsets[3] = (legacy_u8)output_offset;
-	strcpy(&resID_byte1 + output_offset, formatted_time);
-}
-#endif
-
 void print_highscore_entry(legacy_s16 entry, legacy_u8 *text_offsets)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		print_extended_highscore_entry(entry, text_offsets);
+	if (extended_highscore_print_entry(entry, text_offsets)) {
 		return;
 	}
 #endif
@@ -335,11 +300,7 @@ void highscore_draw_table(void)
 {
 	sprite_select_render_window();
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		/* Sorted rows replace the previous table; transparent glyphs cannot erase it. */
-		draw_button(0, 0, 0, END_SCREEN_WIDTH, END_SCREEN_TOP_HEIGHT, button_top_color,
-					button_bottom_color, button_fill_color, 0);
-	}
+	extended_highscore_clear_table();
 #endif
 	copy_string(&resID_byte1, locate_text_res(mainresptr, "hs1"));
 	strcat(&resID_byte1, " '");
@@ -378,13 +339,8 @@ void highscore_draw_table(void)
 		font_draw_text(&resID_byte1 + text_offsets[2], HIGHSCORE_OPPONENT_COLUMN_X, row);
 		legacy_s16 time_x = HIGHSCORE_TIME_COLUMN_X;
 #ifdef RESTUNTS_SDL3
-		if (extended_track_active()) {
-			legacy_s16 right_aligned = (legacy_s16)(END_SCREEN_WIDTH - 1U) -
-									   font_text_width(&resID_byte1 + text_offsets[3]);
-			if (right_aligned < time_x) {
-				time_x = right_aligned;
-			}
-		}
+		time_x =
+			extended_highscore_time_x(&resID_byte1 + text_offsets[3], time_x, END_SCREEN_WIDTH);
 #endif
 		font_draw_text(&resID_byte1 + text_offsets[3], time_x, row);
 	}
@@ -454,122 +410,6 @@ void enter_hiscore(legacy_s16 frame_count, void far *prompt, legacy_u8 car_flag)
 	highscore_save_sorted();
 	highscore_draw_table();
 }
-
-#ifdef RESTUNTS_SDL3
-static void extended_hiscore_copy_text(uint8_t *destination, size_t capacity,
-									   const legacy_s8 *source)
-{
-	for (size_t i = 0; i < capacity; i++) {
-		destination[i] = 0;
-	}
-	for (size_t i = 0; i + 1U < capacity && source[i] != 0; i++) {
-		destination[i] = (uint8_t)source[i];
-	}
-}
-
-static void extended_hiscore_show_error(void)
-{
-	const legacy_s8 *source = extended_highscore_error();
-	if (source == 0 || source[0] == 0) {
-		source = "The high score could not be saved.";
-	}
-	legacy_s8 message[256];
-	size_t used = 0, line_start = 0, last_space = sizeof(message);
-	while (*source != 0 && used + 2U < sizeof(message)) {
-		legacy_u8 character = (legacy_u8)*source++;
-		if (character == ']' || character == '}' || character == '\n' || character == '\r') {
-			if (used != line_start) {
-				message[used++] = ']';
-			}
-			line_start = used;
-			last_space = sizeof(message);
-			continue;
-		}
-		if (character < 32U || character > 126U) {
-			character = '?';
-		}
-		if (character == ' ' && used == line_start) {
-			continue;
-		}
-		message[used++] = (legacy_s8)character;
-		if (character == ' ') {
-			last_space = used - 1U;
-		}
-		if (used - line_start >= 35U) {
-			if (last_space > line_start && last_space < used) {
-				message[last_space] = ']';
-				line_start = last_space + 1U;
-			} else {
-				message[used++] = ']';
-				line_start = used;
-			}
-			last_space = sizeof(message);
-		}
-	}
-	if (used == 0 || message[used - 1U] != ']') {
-		message[used++] = ']';
-	}
-	message[used] = 0;
-	show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND, message, DIALOG_AUTO_POSITION,
-				DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
-}
-
-static void enter_extended_hiscore(legacy_u32 frames, void far *prompt, legacy_u8 car_flag)
-{
-	ranking_highlight = HIGHSCORE_NO_HIGHLIGHT;
-	if (frames == 0 ||
-		((legacy_u8)replay_recording_flags & REPLAY_RECORDING_HIGHSCORE_INELIGIBLE_FLAGS) != 0 ||
-		!extended_highscore_qualifies(frames, (legacy_u16)framespersec)) {
-		highscore_draw_table();
-		return;
-	}
-	if (extended_highscore_validate_track(track_directory, gameconfig.game_trackname,
-										  extended_track_model()) != 0) {
-		extended_hiscore_show_error();
-		highscore_draw_table();
-		return;
-	}
-
-	struct CSHIG_ENTRY record = {0};
-	extended_hiscore_copy_text(record.car_name, sizeof(record.car_name), gnam_string);
-	record.car_flag = car_flag;
-	if (gameconfig.game_opponenttype != 0) {
-		extended_hiscore_copy_text(record.opponent, sizeof(record.opponent),
-								   opponent_highscore_name);
-		record.opponent[2] = '/';
-		extended_hiscore_copy_text(record.opponent + 3U, sizeof(record.opponent) - 3U, gsna_string);
-	} else {
-		record.opponent[0] = ' ';
-	}
-	record.ticks = extended_highscore_ticks(frames, (legacy_u16)framespersec);
-
-	/* Do not insert a nameless row or write the table while the prompt is open. */
-	sprite_select_render_window();
-	highscore_draw_table();
-	sprite_blit_to_video(render_window_sprite, -1);
-	legacy_s16 positions[2];
-	show_text_input_dialog(DIALOG_NO_BACKGROUND_SAVE, prompt, DIALOG_AUTO_POSITION,
-						   DIALOG_AUTO_POSITION, dialog_border_color, positions);
-	check_input();
-	call_read_line(highscore_player_name_input, HIGHSCORE_NAME_MAX_CHARACTERS, positions[0],
-				   positions[1], HIGHSCORE_NAME_INPUT_TIMEOUT);
-	extended_hiscore_copy_text(record.player_name, sizeof(record.player_name),
-							   highscore_player_name_input);
-	unsigned rank;
-	g_is_busy = 1;
-	int result = extended_highscore_record(track_directory, gameconfig.game_trackname,
-										   extended_track_model(), &record, &rank);
-	g_is_busy = 0;
-	if (result != 0) {
-		extended_hiscore_show_error();
-	} else if (rank < HIGHSCORE_ENTRY_COUNT) {
-		ranking_highlight = (legacy_u8)rank;
-	}
-	sprite_select_render_window();
-	highscore_draw_table();
-	sprite_blit_to_video(render_window_sprite, -1);
-}
-#endif
 
 static void end_hiscore_set_text(legacy_s8 far *resource, legacy_s8 *text_id)
 {
@@ -896,9 +736,7 @@ static void end_hiscore_draw_statistics(struct END_SCREEN_STATE *screen)
 	end_hiscore_set_text(screen->misc_resource, average_speed_label_id);
 	legacy_u32 duration = LEGACY_U16_WRAP_ADD(gState_pEndFrame, elapsed_time1);
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		duration = extended_race_stats.player_end;
-	}
+	duration = extended_highscore_duration(duration);
 #endif
 	legacy_u16 average_speed;
 	if (duration != 0) {
@@ -1025,12 +863,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 static void end_hiscore_validate_track(struct END_SCREEN_STATE *screen)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		screen->score_status =
-			extended_highscore_validate_track(track_directory, gameconfig.game_trackname,
-											  extended_track_model()) != 0
-				? -1
-				: 0;
+	if (extended_highscore_validate_current(&screen->score_status)) {
 		return;
 	}
 #endif
@@ -1071,16 +904,7 @@ static void end_hiscore_check_score(struct END_SCREEN_STATE *screen)
 	}
 	screen->finish_time = 0;
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		legacy_u32 finish = end_player_finish_time();
-		if (screen->score_status == 0 && finish != 0) {
-			screen->finish_time = finish;
-			if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_HIGHSCORE_INELIGIBLE_FLAGS) ==
-					0 &&
-				extended_highscore_qualifies(finish, (legacy_u16)framespersec)) {
-				screen->score_status = 1;
-			}
-		}
+	if (extended_highscore_check_current(&screen->score_status, &screen->finish_time)) {
 		return;
 	}
 #endif
@@ -1101,8 +925,7 @@ static void end_hiscore_enter_score(struct END_SCREEN_STATE *screen, void far *p
 									legacy_u8 car_flag)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		enter_extended_hiscore(screen->finish_time, prompt, car_flag);
+	if (extended_highscore_enter_current(screen->finish_time, prompt, car_flag)) {
 		return;
 	}
 #endif

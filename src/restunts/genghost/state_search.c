@@ -3,6 +3,7 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 #include "state_search.h"
+#include "extended_state_search.h"
 #include "guide.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
@@ -12,7 +13,6 @@
 #define STATE_BEAM_WIDTH 40U
 #define STATE_CACHE_COUNT 64U
 #define STATE_BATCH_COUNT 96U
-#define STATE_PILOT_PROFILES 8U
 #define STATE_SECTION_WIDTH 10U
 #define STATE_SECTION_COUNT 256U
 #define STATE_RESCUE_COUNT 8U
@@ -126,62 +126,7 @@ void genghost_state_executor_destroy(struct GENGHOST_STATE_EXECUTOR *executor)
 static void state_policy(struct GENGHOST_POLICY *policy, const struct GENGHOST_ROUTE *route,
 						 legacy_uint variant, legacy_uint profile)
 {
-	legacy_uint barrel_count = genghost_barrel_seed_count(route);
-	legacy_uint barrel_index = profile;
-	legacy_int barrel_seed = profile < barrel_count;
-	profile = barrel_seed ? 0U : profile - barrel_count;
-	static const legacy_f64 speed[STATE_PILOT_PROFILES] = {1.0, 0.75, 0.55, 1.2,
-														   0.9, 1.5,  0.85, 1.05};
-	genghost_policy_default(policy);
-	if (barrel_seed) {
-		genghost_barrel_seed_policy(route, policy, barrel_index);
-	}
-	for (legacy_uint n = 0; n < GENGHOST_POLICY_SEGMENTS; ++n) {
-		struct GENGHOST_GENE *gene = &policy->segment[n];
-		gene->line_mode = variant != 0U;
-		gene->dualway_choice = variant == 2U   ? 1U
-							   : variant == 3U ? 2U
-							   : variant >= 8U ? 3U + (legacy_u64)variant - 8U
-											   : 0U;
-		/* Later mixed proposals combine independently selected branch pairs. */
-		if (variant & UINT32_C(0x80000000)) {
-			legacy_u64 choice =
-				((legacy_u64)variant << 32U) ^ ((legacy_u64)n * UINT64_C(0x9e3779b97f4a7c15));
-			choice ^= choice >> 30U;
-			choice *= UINT64_C(0xbf58476d1ce4e5b9);
-			choice ^= choice >> 27U;
-			choice *= UINT64_C(0x94d049bb133111eb);
-			gene->dualway_choice = 3U + ((choice ^ (choice >> 31U)) % (UINT64_MAX - 3U));
-		}
-		if (!barrel_seed) {
-			gene->speed_scale = speed[profile % STATE_PILOT_PROFILES];
-			gene->stunt_mode = profile == 6U   ? GENGHOST_STUNT_HUMAN
-							   : profile == 7U ? GENGHOST_STUNT_HUMAN_ALT
-											   : GENGHOST_STUNT_CORKSCREW_CUT;
-		}
-		if (profile == 3U || profile == 5U) {
-			gene->slide_brake = 0.0;
-		}
-		if (profile == 4U) {
-			gene->lateral_offset = -0.35;
-		}
-		if (profile == 5U) {
-			gene->powergear_bias = 1.0;
-		}
-		if (profile >= STATE_PILOT_PROFILES) {
-			legacy_u32 word = (profile * UINT32_C(2654435761)) ^ (n * UINT32_C(2246822519));
-			word ^= word >> 16U;
-			word *= UINT32_C(3266489917);
-			word ^= word >> 13U;
-			gene->speed_scale *= 0.70 + (word & 255U) / 425.0;
-			gene->lookahead_scale = 0.75 + ((word >> 8U) & 255U) / 510.0;
-			gene->lateral_offset = (((word >> 16U) & 255U) - 127.5) / 200.0;
-			gene->shift_rpm_scale = 0.80 + ((word >> 24U) & 255U) / 1275.0;
-			gene->powergear_bias = word & 1U ? 1.0 : 0.5;
-			gene->stunt_mode =
-				(word >> 2U) % 4U == 0U ? GENGHOST_STUNT_HUMAN : GENGHOST_STUNT_CORKSCREW_CUT;
-		}
-	}
+	extended_genghost_state_policy(policy, route, variant, profile);
 }
 
 static legacy_uint restore_prefix(struct GENGHOST_STATE_EXECUTOR *executor,
@@ -1357,7 +1302,8 @@ static legacy_int scout_routes(struct state_search *search)
 		legacy_uint ordinal = search->scout_cursor++;
 		task_root(search, &search->tasks[n], ordinal % search->root_count);
 		search->tasks[n].kind = GENGHOST_STATE_TASK_POLICY;
-		search->tasks[n].action_index = STATE_PILOT_PROFILES + ordinal / search->root_count;
+		search->tasks[n].action_index =
+			GENGHOST_STATE_PILOT_PROFILES + ordinal / search->root_count;
 	}
 	return state_dispatch(search, count, NULL, NULL);
 }
@@ -1449,10 +1395,10 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 	/* Whole-route controllers provide a verified incumbent and scout failures.
 	 * Their prefixes are reusable, while the beam also starts at the grid so
 	 * preparatory shifts/launches are not constrained to the scout's strategy. */
-	legacy_uint pilot_count = STATE_PILOT_PROFILES;
+	legacy_uint pilot_count = GENGHOST_STATE_PILOT_PROFILES;
 	for (size_t route = 0; route < search.executor->routes.count; ++route) {
-		legacy_uint count = STATE_PILOT_PROFILES +
-							genghost_barrel_seed_count(&search.executor->routes.routes[route]);
+		legacy_uint count =
+			extended_genghost_state_pilot_count(&search.executor->routes.routes[route]);
 		if (count > pilot_count) {
 			pilot_count = count;
 		}
@@ -1468,7 +1414,7 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 				legacy_uint root = first + (legacy_uint)n;
 				const struct GENGHOST_ROUTE *route =
 					&search.executor->routes.routes[root / variants];
-				if (profile >= STATE_PILOT_PROFILES + genghost_barrel_seed_count(route)) {
+				if (!extended_genghost_state_profile_available(route, profile)) {
 					continue;
 				}
 				task_root(&search, &search.tasks[used], root);

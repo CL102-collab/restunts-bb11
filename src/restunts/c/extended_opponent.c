@@ -1,11 +1,15 @@
 #include "extended_opponent.h"
+#include "externs.h"
+#include "extended_track.h"
+#include "memmgr.h"
+#include "trackdata_layout.h"
+#include "fatal.h"
 
 #ifdef RESTUNTS_SDL3
 #include <stdint.h>
 #include <stdlib.h>
-#include "extended_track.h"
-#include "externs.h"
 #include "track_objects.h"
+#include "extended_geometry.h"
 
 struct EXTENDED_ROUTE_VERTEX {
 	uint32_t distance;
@@ -176,3 +180,127 @@ int extended_opponent_build_route(const legacy_u8 costs[256])
 	return 1;
 }
 #endif
+
+#define EXTENDED_OPPONENT_AVERAGE_SHIFT 1U
+#define EXTENDED_OPPONENT_PASSING_PAGE_RANGE (4096L * 64L)
+#define EXTENDED_OPPONENT_LOWER_OVERPASS_SUBTYPE 1U
+legacy_s16 extended_opponent_average(legacy_s16 first, legacy_s16 second, legacy_s16 *average)
+{
+	if (extended_track_active()) {
+		*average = LEGACY_S16_WRAP_ADD(first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first),
+															 EXTENDED_OPPONENT_AVERAGE_SHIFT));
+		return 1;
+	}
+	return 0;
+}
+legacy_s16 extended_opponent_passing_allowed(void)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		legacy_s32 dx = state.playerstate.car_position.lx - state.opponentstate.car_position.lx;
+		legacy_s32 dz = state.playerstate.car_position.lz - state.opponentstate.car_position.lz;
+		/* Cars a 65536-unit page apart must not share a passing lane. */
+		return dx <= EXTENDED_OPPONENT_PASSING_PAGE_RANGE &&
+			   dx >= -EXTENDED_OPPONENT_PASSING_PAGE_RANGE &&
+			   dz <= EXTENDED_OPPONENT_PASSING_PAGE_RANGE &&
+			   dz >= -EXTENDED_OPPONENT_PASSING_PAGE_RANGE;
+	}
+#endif
+	return 1;
+}
+legacy_s16 extended_opponent_place_points(legacy_s16 track_index, struct VECTOR *first,
+										  struct VECTOR *second)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[track_index], (legacy_u8)track_route_rows[track_index],
+			(legacy_u8)track_route_element_ids[track_index]);
+		if (object) {
+			struct VECTOR origin;
+			extended_geometry_object_origin(extended_track_model(), object, &origin);
+			if (first->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+				first->y = 0;
+			}
+			if (second->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+				second->y = 0;
+			}
+			first->y = LEGACY_S16_WRAP_ADD(
+				first->y, extended_geometry_object_grade(object, first->x, first->z));
+			second->y = LEGACY_S16_WRAP_ADD(
+				second->y, extended_geometry_object_grade(object, second->x, second->z));
+			first->x = LEGACY_S16_WRAP_ADD(origin.x, first->x);
+			first->y = LEGACY_S16_WRAP_ADD(origin.y, first->y);
+			first->z = LEGACY_S16_WRAP_ADD(origin.z, first->z);
+			second->x = LEGACY_S16_WRAP_ADD(origin.x, second->x);
+			second->y = LEGACY_S16_WRAP_ADD(origin.y, second->y);
+			second->z = LEGACY_S16_WRAP_ADD(origin.z, second->z);
+			return 1;
+		}
+	}
+#else
+	(void)track_index;
+	(void)first;
+	(void)second;
+#endif
+	return 0;
+}
+const struct TRKOBJINFO *extended_opponent_route_info(legacy_s16 track_index, legacy_u16 id,
+													  const struct TRKOBJINFO *legacy_info)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		return extended_track_route_info((legacy_u8)track_route_columns[track_index],
+										 (legacy_u8)track_route_rows[track_index], id);
+	}
+#else
+	(void)track_index;
+	(void)id;
+#endif
+	return legacy_info;
+}
+void extended_opponent_route_speed(legacy_s16 track_index, legacy_u16 id, legacy_u8 subtype,
+								   const struct TRKOBJINFO *info, const struct TRACKOBJECT *object,
+								   legacy_s8 *speed, EXTENDED_OPPONENT_SPEED_LOOKUP lookup)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active() && speed) {
+		const struct CSTRK_OBJECT *placed =
+			extended_track_object_for_id((legacy_u8)track_route_columns[track_index],
+										 (legacy_u8)track_route_rows[track_index], id);
+		if (placed) {
+			legacy_u8 surface = placed->surface;
+			if (object->ss_physicalModel == PHYSICAL_MODEL_OVERPASS &&
+				subtype == EXTENDED_OPPONENT_LOWER_OVERPASS_SUBTYPE) {
+				surface = placed->lower_surface;
+			}
+			*speed = LEGACY_S8_FROM_BITS(lookup((legacy_u8)info->opponent_speed_code + surface));
+		}
+	}
+#else
+	(void)track_index;
+	(void)id;
+	(void)subtype;
+	(void)info;
+	(void)object;
+	(void)speed;
+	(void)lookup;
+#endif
+}
+legacy_s16 extended_opponent_load_route(const legacy_u8 *costs, void far *resource)
+{
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		legacy_s16 success = (legacy_s16)extended_opponent_build_route(costs);
+		mmgr_release(resource);
+		if (!success) {
+			fatal_error((const legacy_s8 *)"Unable to build extended opponent route");
+		}
+		return 1;
+	}
+#else
+	(void)costs;
+	(void)resource;
+#endif
+	return 0;
+}
