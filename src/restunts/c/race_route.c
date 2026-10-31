@@ -6,7 +6,7 @@
 #include "crash_state.h"
 #include "race_stats.h"
 #include "extended_track.h"
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended_replay_runtime.h"
 #endif
 
@@ -469,7 +469,7 @@ void update_player_route_penalty(void)
 				show_penalty_counter = LEGACY_S8_FROM_BITS(
 					(legacy_u8)LEGACY_U16_SHL(framespersec, PENALTY_DISPLAY_DURATION_SHIFT));
 				state.game_penalty = LEGACY_S16_WRAP_ADD(state.game_penalty, penalty_time);
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 				if (extended_replay_is_active()) {
 					uint32_t added = (uint32_t)skipped_route_count * framespersec *
 									 PENALTY_SECONDS_PER_SKIPPED_ROUTE;

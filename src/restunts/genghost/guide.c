@@ -3,6 +3,7 @@
 #include "routes.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
+#include "../c/extended_track.h"
 
 extern legacy_f64 fabs(legacy_f64);
 
@@ -80,6 +81,12 @@ legacy_u8 genghost_guide_step(const struct GENGHOST_GUIDE_POINT *points, legacy_
 			0,
 			(legacy_s16)bounded(((legacy_f64)point->position.lz - car->car_position.lz) / 64.0,
 								-32767.0, 32767.0)};
+		if (extended_track_active()) {
+			/* Grade transforms tilt the road's local axes. Include measured height
+			 * error when projecting a correction into that tilted car frame. */
+			error.y = (legacy_s16)bounded(
+				((legacy_f64)point->position.ly - car->car_position.ly) / 64.0, -32767.0, 32767.0);
+		}
 		struct VECTOR local, forward = {0, 0, 1024}, heading, heading_local;
 		struct MATRIX reference = *mat_rot_zxy(-point->rotation.z, -point->rotation.y,
 											   -point->rotation.x, MATRIX_ROTATION_ORDER_ZXY);

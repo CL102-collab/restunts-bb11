@@ -81,7 +81,7 @@ public final class GenghostActivity extends Activity {
     private static boolean catalogReady;
     private static boolean exporting;
     private static String folderMessage = "Choose your Stunts 1.1 game folder. It should contain "
-        + "the original game data, cars, and your .TRK or .RPL files.";
+        + "the original game data, cars, and your .TRK, .CSTRK, .RPL or .CSRPL files.";
     private SharedPreferences preferences;
     private TextView folderStatus;
     private TextView runStatus;
@@ -157,7 +157,7 @@ public final class GenghostActivity extends Activity {
             preferences.getBoolean("fine_tune", false)
                 ? GenerationRequest.MODE_FINE_TUNE : GenerationRequest.MODE_GENERATE);
         mode.setSelection(Math.max(0, Arrays.asList(MODES).indexOf(rememberedMode)));
-        text(page, "Fine-tuning requires a completed .RPL and uses its recorded car. "
+        text(page, "Fine-tuning requires a completed .RPL or .CSRPL and uses its recorded car. "
             + "Gears only changes shift timing. All generated replays use manual transmission.",
             HINT_TEXT_SP);
         carLabel = label(page, "Car");
@@ -225,6 +225,7 @@ public final class GenghostActivity extends Activity {
         track.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                applyReplayRules();
                 refreshState();
             }
 
@@ -491,7 +492,8 @@ public final class GenghostActivity extends Activity {
                 collectTracks(root, file, result, depth + 1);
             } else {
                 String name = file.getName().toLowerCase(Locale.ROOT);
-                if (name.endsWith(".trk") || name.endsWith(".rpl")) {
+                if (name.endsWith(".trk") || name.endsWith(".rpl")
+                        || name.endsWith(".cstrk") || name.endsWith(".csrpl")) {
                     result.add(file.getCanonicalPath().substring(base.length()));
                 }
             }
@@ -532,7 +534,7 @@ public final class GenghostActivity extends Activity {
                 cars = CarResources.available(game, context.getFilesDir());
                 message = tracks.size() + " tracks / replays · " + cars.size() + " cars";
                 if (tracks.isEmpty()) {
-                    message += "\nAdd .TRK or .RPL files to your game folder, then tap Refresh.";
+                    message += "\nAdd .TRK, .CSTRK, .RPL or .CSRPL files to your game folder, then tap Refresh.";
                 }
                 if (cars.isEmpty()) {
                     message += "\nNo car resources found. Select the folder with your Stunts game data.";
@@ -558,14 +560,38 @@ public final class GenghostActivity extends Activity {
         });
     }
 
+    private void applyReplayRules() {
+        String input = selected(track);
+        if (!input.toLowerCase(Locale.ROOT).endsWith(".csrpl")) {
+            return;
+        }
+        try {
+            File game = new File(getFilesDir(), "game").getCanonicalFile();
+            File replay = new File(game, input).getCanonicalFile();
+            if (!replay.getPath().startsWith(game.getPath() + File.separator)) {
+                return;
+            }
+            int rules = GenerationRequest.readReplay(replay).rules;
+            powerGear.setChecked((rules & GenerationRequest.RULE_POWER_GEAR) != 0);
+            collision.setChecked((rules & GenerationRequest.RULE_COLLISION) != 0);
+            leftBias.setChecked((rules & GenerationRequest.RULE_LEFT_BIAS) != 0);
+            dualWaySwitching.setChecked((rules & GenerationRequest.RULE_DUAL_WAY) != 0);
+            chicaneFastGrass.setChecked((rules & GenerationRequest.RULE_CHICANE_GRASS) != 0);
+            amigaGrass.setChecked((rules & GenerationRequest.RULE_AMIGA_GRASS) != 0);
+            owoot.setChecked((rules & GenerationRequest.RULE_OWOOT) != 0);
+        } catch (IOException invalid) {
+            // The request validation reports an invalid replay when generation starts.
+        }
+    }
+
     private boolean fineTuningSelected() {
         return mode.getSelectedItemPosition() > 0;
     }
 
     private void startGeneration() {
-        if (fineTuningSelected()
-                && !selected(track).toLowerCase(Locale.ROOT).endsWith(".rpl")) {
-            showError("Fine-tuning requires a completed .RPL replay.");
+        String inputName = selected(track).toLowerCase(Locale.ROOT);
+        if (fineTuningSelected() && !inputName.endsWith(".rpl") && !inputName.endsWith(".csrpl")) {
+            showError("Fine-tuning requires a completed .RPL or .CSRPL replay.");
             return;
         }
         int budget;
@@ -597,12 +623,8 @@ public final class GenghostActivity extends Activity {
         flags.add(leftBias.isChecked() ? "--lcb:on" : "--lcb:off");
         flags.add(dualWaySwitching.isChecked() ? "--dws:on" : "--dws:off");
         flags.add(chicaneFastGrass.isChecked() ? "--cfg:on" : "--cfg:off");
-        if (amigaGrass.isChecked()) {
-            flags.add("--amigagrass");
-        }
-        if (owoot.isChecked()) {
-            flags.add("--owoot");
-        }
+        flags.add(amigaGrass.isChecked() ? "--amigagrass:on" : "--amigagrass:off");
+        flags.add(owoot.isChecked() ? "--owoot:on" : "--owoot:off");
         saveOptions();
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)

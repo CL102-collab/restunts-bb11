@@ -6,9 +6,11 @@
 #include "race_stats.h"
 #include "car_audio.h"
 #include "audio_control.h"
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended_replay_runtime.h"
+#ifndef RESTUNTS_HEADLESS
 #include "extended_race_stats.h"
+#endif
 #endif
 
 #define CAR_CRASH_PARTICLE_KIND_COUNT 2
@@ -215,7 +217,7 @@ static void finish_crash_event(struct CARSTATE *carstate, legacy_s16 crash_event
 	} else {
 		state.game_oEndFrame = state.game_frame;
 	}
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 	if (extended_replay_is_active()) {
 		if (car_index == PLAYER_CAR_INDEX) {
 			extended_replay_clocks.player_end = extended_replay_frame();
@@ -298,7 +300,7 @@ void update_crash_state(legacy_s16 crash_event, legacy_s16 car_index)
 
 		case CRASH_EVENT_FINISH:
 			carstate->car_crashBmpFlag = CRASH_EVENT_FINISH;
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 			if (extended_replay_is_active()) {
 				if (car_index == PLAYER_CAR_INDEX) {
 					uint32_t frame = extended_replay_frame();

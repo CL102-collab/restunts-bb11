@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "simulation.h"
@@ -14,6 +15,9 @@
 #include "../c/crash_state.h"
 #include "../c/trackdata_layout.h"
 #include "../c/game_input.h"
+#include "../c/extended_track.h"
+#include "../c/extended_geometry.h"
+#include "../c/driving_rules.h"
 
 #undef memcpy
 #undef strlen
@@ -30,6 +34,47 @@ extern legacy_s16 cached_wheel_heading;
 static struct GENGHOST_SNAPSHOT initial_snapshot;
 static legacy_u8 original_track[REPLAY_TRACK_SIZE];
 static legacy_int initialized;
+static legacy_u16 selected_frame_rate = GENGHOST_FRAME_RATE;
+static struct CSRPL_METADATA replay_metadata;
+static legacy_int has_replay_metadata;
+static legacy_u8 *original_extended_track;
+static size_t original_extended_track_size;
+
+#define GENGHOST_ERROR_CAPACITY 256U
+#define GENGHOST_WORLD_POSITION_SCALE 64L
+#define GENGHOST_INPUT_MASK CSRPL_INPUT_MASK
+
+void genghost_sim_set_frame_rate(legacy_u16 rate)
+{
+	if (!initialized && (rate == GAME_FRAME_RATE_LOW || rate == GAME_FRAME_RATE_NORMAL)) {
+		selected_frame_rate = rate;
+	}
+}
+
+void genghost_sim_set_replay_metadata(const struct CSRPL_METADATA *metadata)
+{
+	has_replay_metadata = metadata != NULL;
+	if (metadata) {
+		replay_metadata = *metadata;
+	} else {
+		memset(&replay_metadata, 0, sizeof(replay_metadata));
+	}
+}
+
+legacy_uint genghost_sim_frame(void)
+{
+	return extended_replay_is_active() ? extended_replay_frame() : (legacy_u16)state.game_frame;
+}
+
+legacy_uint genghost_sim_frame_limit(void)
+{
+	return extended_track_active() ? GENGHOST_MAX_FRAMES : GENGHOST_LEGACY_MAX_FRAMES;
+}
+
+legacy_u16 genghost_sim_frame_rate(void)
+{
+	return initialized ? gameconfig.game_framespersec : selected_frame_rate;
+}
 
 void genghost_sim_capture(struct GENGHOST_SNAPSHOT *saved)
 {
@@ -38,6 +83,10 @@ void genghost_sim_capture(struct GENGHOST_SNAPSHOT *saved)
 	memset(saved, 0, sizeof(*saved));
 	saved->state = state;
 	saved->residue = legacy_execution_residue;
+	saved->clocks = extended_replay_clocks;
+	if (extended_track_active()) {
+		extended_geometry_get_context(&saved->context_x, &saved->context_z);
+	}
 	track_collision_capture(&saved->collision);
 	get_kevinrandom_seed(saved->random_seed);
 	saved->position = (struct VECTORLONG){car_working_x, car_working_y, car_working_z};
@@ -70,6 +119,11 @@ void genghost_sim_restore(const struct GENGHOST_SNAPSHOT *saved)
 {
 	state = saved->state;
 	legacy_execution_residue = saved->residue;
+	extended_replay_clocks = saved->clocks;
+	if (extended_track_active()) {
+		extended_geometry_set_context(saved->context_x * GENGHOST_WORLD_POSITION_SCALE,
+									  saved->context_z * GENGHOST_WORLD_POSITION_SCALE);
+	}
 	track_collision_restore(&saved->collision);
 	init_kevinrandom(saved->random_seed);
 	car_working_x = saved->position.lx;
@@ -108,6 +162,13 @@ legacy_int genghost_sim_init(const legacy_u8 track[REPLAY_TRACK_SIZE],
 							 const legacy_char car[REPLAY_CAR_ID_SIZE], legacy_int transmission,
 							 legacy_int argc, legacy_char **argv)
 {
+	return genghost_sim_init_track(track, REPLAY_TRACK_SIZE, car, transmission, argc, argv);
+}
+
+legacy_int genghost_sim_init_track(const legacy_u8 *track, legacy_uint track_size,
+								   const legacy_char car[REPLAY_CAR_ID_SIZE],
+								   legacy_int transmission, legacy_int argc, legacy_char **argv)
+{
 	if (initialized || track == NULL || car == NULL || argc < 0 ||
 		argc > (legacy_int)LEGACY_S16_MAX ||
 		(transmission != TRANSMISSION_AUTOMATIC && transmission != TRANSMISSION_MANUAL)) {
@@ -125,19 +186,47 @@ legacy_int genghost_sim_init(const legacy_u8 track[REPLAY_TRACK_SIZE],
 	reset_race_loop_state();
 	init_kevinrandom((const legacy_s8 *)"kevin");
 
-	memcpy(original_track, track, REPLAY_TRACK_SIZE);
-	memcpy(track_element_map, track, REPLAY_TRACK_SIZE);
+	static const legacy_u8 track_magic[] = {'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n'};
+	legacy_int extended =
+		track_size >= sizeof(track_magic) && memcmp(track, track_magic, sizeof(track_magic)) == 0;
+	if (extended) {
+		legacy_char error[GENGHOST_ERROR_CAPACITY];
+		if (!extended_track_load(track, track_size, error, sizeof(error)) ||
+			!cstrk_encode(extended_track_model(), &original_extended_track,
+						  &original_extended_track_size, error, sizeof(error))) {
+			fprintf(stderr, "Cannot simulate extended track: %s\n", error);
+			return -1;
+		}
+	} else {
+		if (track_size != REPLAY_TRACK_SIZE) {
+			return -1;
+		}
+		memcpy(original_track, track, REPLAY_TRACK_SIZE);
+		memcpy(track_element_map, track, REPLAY_TRACK_SIZE);
+	}
 	memset(&gameconfig, 0, sizeof(gameconfig));
 	memcpy(gameconfig.game_playercarid, car, REPLAY_CAR_ID_SIZE);
 	gameconfig.game_playertransmission = (legacy_s8)transmission;
 	gameconfig.game_opponentcarid[0] = -1;
-	gameconfig.game_framespersec = GENGHOST_FRAME_RATE;
+	gameconfig.game_framespersec = selected_frame_rate;
+	if (has_replay_metadata) {
+		gameconfig.game_playermaterial = replay_metadata.player_material;
+		gameconfig.game_opponenttype = replay_metadata.opponent_type;
+		if (gameconfig.game_opponenttype) {
+			memcpy(gameconfig.game_opponentcarid, replay_metadata.opponent_car_id,
+				   REPLAY_CAR_ID_SIZE);
+		}
+		gameconfig.game_opponentmaterial = replay_metadata.opponent_material;
+		gameconfig.game_opponenttransmission = replay_metadata.opponent_transmission;
+	}
 	gameconfigcopy = gameconfig;
-	memcpy(track_and_directory_backup, track_element_map, TRACKDATA_LINK_TABLE_SIZE);
-	memcpy(track_and_directory_backup + TRACKDATA_LINK_TABLE_SIZE, track_directory,
-		   TRACKDATA_CHECKPOINT_DATA_SIZE);
-	memcpy(track_and_directory_backup + TRACKDATA_CHECKPOINT_SECOND_OFFSET, replay_directory,
-		   TRACKDATA_CHECKPOINT_DATA_SIZE);
+	if (!extended) {
+		memcpy(track_and_directory_backup, track_element_map, TRACKDATA_LINK_TABLE_SIZE);
+		memcpy(track_and_directory_backup + TRACKDATA_LINK_TABLE_SIZE, track_directory,
+			   TRACKDATA_CHECKPOINT_DATA_SIZE);
+		memcpy(track_and_directory_backup + TRACKDATA_CHECKPOINT_SECOND_OFFSET, replay_directory,
+			   TRACKDATA_CHECKPOINT_DATA_SIZE);
+	}
 
 	legacy_int setup_result = track_setup();
 	if (setup_result != 0) {
@@ -166,9 +255,12 @@ legacy_int genghost_sim_init(const legacy_u8 track[REPLAY_TRACK_SIZE],
 	recording_limit_warning_requested = 0;
 	dashb_toggle = 0;
 	start_flag_animation = 500;
-	framespersec = GENGHOST_FRAME_RATE;
+	framespersec = selected_frame_rate;
+	if (extended) {
+		extended_replay_runtime_begin();
+	}
 	restore_gamestate(0);
-	memset(replay_input_buffer, 0, GENGHOST_MAX_FRAMES);
+	memset(replay_input_buffer, 0, GENGHOST_LEGACY_MAX_FRAMES);
 	genghost_sim_capture(&initial_snapshot);
 	initialized = 1;
 	return 0;
@@ -181,10 +273,18 @@ void genghost_sim_reset(void)
 
 legacy_int genghost_sim_step(legacy_u8 input)
 {
-	if (!initialized || (legacy_uint)(legacy_u16)state.game_frame >= GENGHOST_MAX_FRAMES) {
+	if (!initialized || genghost_sim_frame() >= genghost_sim_frame_limit()) {
 		return -1;
 	}
-	replay_input_buffer[(legacy_u16)state.game_frame] = (legacy_s8)(input & 63U);
+	input &= GENGHOST_INPUT_MASK;
+	if (extended_replay_is_active()) {
+		extended_replay_set_input_frame(genghost_sim_frame());
+		if (!extended_replay_record_input(input)) {
+			return -1;
+		}
+	} else {
+		replay_input_buffer[(legacy_u16)state.game_frame] = (legacy_s8)input;
+	}
 	/* Silent keeps the original full tick, penalty checks, collision bugs and
 	 * OWOOT enforcement. It only suppresses audio and checkpoint writes. */
 	update_gamestate_silent();
@@ -193,22 +293,28 @@ legacy_int genghost_sim_step(legacy_u8 input)
 
 void genghost_sim_result(struct GENGHOST_RESULT *result)
 {
-	result->frames = (legacy_u16)state.game_frame;
-	result->finish_frame = (legacy_u16)state.game_pEndFrame;
-	result->total_frames = (legacy_u16)state.game_total_finish;
+	result->frames = genghost_sim_frame();
+	result->finish_frame = extended_replay_is_active() ? extended_replay_clocks.player_end
+													   : (legacy_u16)state.game_pEndFrame;
+	result->total_frames = extended_replay_is_active() ? extended_replay_clocks.player_finish
+													   : (legacy_u16)state.game_total_finish;
 	result->finished = state.playerstate.car_crashBmpFlag == CRASH_EVENT_FINISH;
 	/* Route tracking continues while a finished car brakes through the replay
 	 * tail. Only the penalty latched into the native finish time counts. */
 	result->penalty_frames =
 		result->finished ? (legacy_u16)(result->total_frames - result->finish_frame - elapsed_time1)
 						 : (legacy_u16)state.game_penalty;
+	if (extended_replay_is_active()) {
+		result->penalty_frames = result->finished ? result->total_frames - result->finish_frame
+												  : extended_replay_clocks.penalty;
+	}
 	result->crashed = state.playerstate.car_crashBmpFlag != CRASH_EVENT_NONE && !result->finished;
 }
 
 legacy_int genghost_sim_evaluate(const legacy_u8 *inputs, legacy_uint length,
 								 struct GENGHOST_RESULT *result)
 {
-	if (!initialized || inputs == NULL || result == NULL || length > GENGHOST_MAX_FRAMES) {
+	if (!initialized || inputs == NULL || result == NULL || length > genghost_sim_frame_limit()) {
 		return -1;
 	}
 	genghost_sim_reset();
@@ -233,7 +339,7 @@ static void set_transmission(legacy_int transmission)
 legacy_int genghost_sim_manual_inputs(legacy_u8 *inputs, legacy_uint length,
 									  struct GENGHOST_RESULT *baseline)
 {
-	if (!initialized || inputs == NULL || baseline == NULL || length > GENGHOST_MAX_FRAMES) {
+	if (!initialized || inputs == NULL || baseline == NULL || length > genghost_sim_frame_limit()) {
 		return -1;
 	}
 	legacy_int transmission = initial_snapshot.state.playerstate.car_transmission;
@@ -316,8 +422,48 @@ legacy_int genghost_sim_write_replay(const legacy_char *path, const legacy_char 
 									 const legacy_u8 *inputs, legacy_uint length)
 {
 	if (!initialized || path == NULL || track_name == NULL || inputs == NULL ||
-		length > GENGHOST_MAX_FRAMES) {
+		length > genghost_sim_frame_limit()) {
 		return -1;
+	}
+	if (extended_track_active()) {
+		struct CSRPL_METADATA metadata = replay_metadata;
+		metadata.version = has_replay_metadata ? replay_metadata.version : CSRPL_VERSION;
+		metadata.driving_rules = driving_rules_current();
+		memcpy(metadata.player_car_id, gameconfig.game_playercarid, CSRPL_CAR_ID_SIZE);
+		metadata.player_material = gameconfig.game_playermaterial;
+		metadata.player_transmission = gameconfig.game_playertransmission;
+		metadata.opponent_type = gameconfig.game_opponenttype;
+		memcpy(metadata.opponent_car_id, gameconfig.game_opponentcarid, CSRPL_CAR_ID_SIZE);
+		metadata.opponent_material = gameconfig.game_opponentmaterial;
+		metadata.opponent_transmission = gameconfig.game_opponenttransmission;
+		memset(metadata.track_name, 0, sizeof(metadata.track_name));
+		size_t name_length = strlen(track_name);
+		if (name_length >= sizeof(metadata.track_name)) {
+			name_length = sizeof(metadata.track_name) - 1U;
+		}
+		memcpy(metadata.track_name, track_name, name_length);
+		metadata.frames_per_second = gameconfig.game_framespersec;
+		metadata.frame_count = length;
+		legacy_u8 *bytes = NULL;
+		size_t size = 0;
+		legacy_char error[GENGHOST_ERROR_CAPACITY];
+		if (!csrpl_encode(&metadata, original_extended_track, original_extended_track_size, inputs,
+						  length, &bytes, &size, error, sizeof(error))) {
+			fprintf(stderr, "Cannot encode extended ghost: %s\n", error);
+			return -1;
+		}
+		FILE *output = fopen(path, "wb");
+		if (!output) {
+			perror(path);
+			free(bytes);
+			return -1;
+		}
+		legacy_int failed = fwrite(bytes, 1, size, output) != size;
+		if (fclose(output)) {
+			failed = 1;
+		}
+		free(bytes);
+		return failed ? -1 : 0;
 	}
 	struct GAMEINFO config = gameconfig;
 	memset(config.game_trackname, 0, sizeof(config.game_trackname));

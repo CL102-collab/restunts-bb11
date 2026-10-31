@@ -7,7 +7,7 @@
 #include "crash_state.h"
 #include "state_internal.h"
 #include "physics_internal.h"
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 #include "extended_replay_runtime.h"
 #endif
 
@@ -240,7 +240,7 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 	(void)update_audio;
 #endif
 	legacy_s8 car_input;
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 	if (extended_replay_is_active()) {
 		car_input = (legacy_s8)extended_replay_input_at(extended_replay_frame());
 		extended_replay_before_step(store_checkpoints);
@@ -254,7 +254,7 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 	}
 
 	if (
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 		!extended_replay_is_active() &&
 #endif
 		(checkpoint_frame_interval == 0 ||
@@ -270,7 +270,7 @@ static void update_gamestate_impl(legacy_s16 caller_si, legacy_s16 update_audio,
 	}
 
 	state.game_frame = LEGACY_S16_WRAP_ADD(state.game_frame, 1);
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 	if (extended_replay_is_active()) {
 		extended_replay_after_step();
 	}

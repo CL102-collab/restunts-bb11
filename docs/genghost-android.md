@@ -15,7 +15,7 @@ your game folder or go in its `cars/` subfolder; Refresh discovers all three loc
 1. Install the Genghost APK matching your Android ARM architecture and open
    **Genghost**.
 2. Choose a folder containing your original game resources, car resources,
-   and `.TRK` or `.RPL` files. Grant the requested folder access. The app
+   and `.TRK`, `.RPL`, `.CSTRK` or `.CSRPL` files. Grant the requested folder access. The app
    stages the files in private storage for the native engine.
 3. Select the track/replay and Search mode, then choose the search time (30 minutes
    by default), CPU core count, search method, and physics options.
@@ -24,7 +24,7 @@ your game folder or go in its `cars/` subfolder; Refresh discovers all three loc
    states with a shared search across the selected cores. The app remembers
    your selection.
    Choose **Generate replay** and select a car to search from a track or replay.
-   For a completed `.RPL`, choose **Fine-tune replay** to refine all driving
+   For a completed `.RPL` or `.CSRPL`, choose **Fine-tune replay** to refine all driving
    inputs, or **Fine-tune gears only** to optimize shift timing while preserving
    throttle, braking, steering, and the complete input timeline. The single mode
    selector makes these choices mutually exclusive. Both fine-tuning modes use
@@ -32,13 +32,13 @@ your game folder or go in its `cars/` subfolder; Refresh discovers all three loc
    All generated replays use manual transmission. Fine-tuning converts
    an automatic replay's shifts before optimizing earlier and later
    upshifts and downshifts. The engine verifies the replay under your selected
-   driving rules before refinement. Fine-tuning is unavailable for `.TRK` files.
+   driving rules before refinement. Fine-tuning is unavailable for track-only `.TRK` and `.CSTRK` files.
    The app saves a separate replay and reports any time saved; if no faster replay
    is found, it keeps the original time.
 4. Start the search. Progress appears in the app and an ongoing notification.
    You can leave the interface while the foreground service works. Cancel
    asks the generator to preserve its best completed replay.
-5. Export the resulting `.RPL` and its JSON report. Completed files are also
+5. Export the resulting `.RPL` or `.CSRPL` and its JSON report. Completed files are also
    published to the selected game folder when its storage provider allows it.
 
 The **Driving rules** checkboxes stay together in a vertical stack, one per
@@ -86,6 +86,12 @@ Install the updated APK over the previous build to keep the selected folder
 and settings. It uses the same application ID and debug signing certificate.
 A physical Galaxy S5 is still needed to confirm the device-specific artifacts
 are gone; native engine tests do not validate screen rendering.
+
+CSTRK tracks produce CSRPL replays containing the full track. CSRPL selection
+restores its recorded rules, car and 10/20 Hz timing; changes to the rule controls
+are passed explicitly to the generator. Extended searches support up to 120,000
+inputs and the same slopes and stunt modifiers as the desktop tool. See
+[extended tracks and stunts](genghost.md#extended-tracks-and-stunts).
 
 ## Build
 

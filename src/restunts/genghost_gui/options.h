@@ -52,6 +52,8 @@ wxString genghost_scan_catalog(const wxString &folder, const wxString &assets,
 wxString genghost_resolved_input(const GenghostOptions &options);
 wxString genghost_resolved_car(const GenghostOptions &options);
 wxString genghost_default_output(const GenghostOptions &options);
+/* Load a selected CSRPL's recorded rules before the user adjusts its checkboxes. */
+legacy_bool genghost_apply_replay_physics(GenghostOptions &options);
 wxString genghost_validate_options(const GenghostOptions &options);
 std::vector<wxString> genghost_arguments(const wxString &executable,
 										 const GenghostOptions &options);

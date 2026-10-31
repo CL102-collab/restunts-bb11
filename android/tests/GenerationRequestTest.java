@@ -38,6 +38,46 @@ public final class GenerationRequestTest {
         return value;
     }
 
+    private static void putWord(byte[] bytes, int offset, int value) {
+        bytes[offset] = (byte)value;
+        bytes[offset + 1] = (byte)(value >> 8);
+    }
+
+    private static void putDword(byte[] bytes, int offset, int value) {
+        putWord(bytes, offset, value);
+        putWord(bytes, offset + 2, value >> 16);
+    }
+
+    private static byte[] extendedTrack() {
+        byte[] value = new byte[38];
+        byte[] magic = {'C', 'S', 'T', 'R', 'K', 26, '\r', '\n'};
+        System.arraycopy(magic, 0, value, 0, magic.length);
+        putWord(value, 8, 8);
+        putWord(value, 10, 32);
+        putWord(value, 16, 1);
+        putWord(value, 18, 1);
+        putDword(value, 28, 6);
+        return value;
+    }
+
+    private static byte[] extendedReplay(int version, int rate, int frames) {
+        byte[] track = extendedTrack();
+        byte[] value = new byte[64 + track.length + frames];
+        byte[] magic = {'C', 'S', 'R', 'P', 'L', '\r', '\n', 26};
+        System.arraycopy(magic, 0, value, 0, magic.length);
+        putWord(value, 8, version);
+        putWord(value, 10, 64);
+        putDword(value, 16, track.length);
+        putDword(value, 20, frames);
+        putWord(value, 24, rate);
+        putWord(value, 26, GenerationRequest.RULE_OWOOT);
+        byte[] car = {'_', 'C', 'S', 'T'};
+        System.arraycopy(car, 0, value, 28, car.length);
+        value[33] = 1;
+        System.arraycopy(track, 0, value, 64, track.length);
+        return value;
+    }
+
     public static void main(String[] arguments) throws IOException {
         File game = new File(arguments[0]).getCanonicalFile();
         File source = new File(game, "source.RPL");
@@ -127,6 +167,53 @@ public final class GenerationRequestTest {
         Files.write(outside.toPath(), replay());
         rejected(() -> request(outside.getAbsolutePath(), "COUN", GenerationRequest.MODE_FINE_TUNE)
             .validate(game));
+        File extendedTrack = new File(game, "wide.CSTRK");
+        File extendedReplay = new File(game, "wide.CSRPL");
+        Files.write(extendedTrack.toPath(), extendedTrack());
+        assert request(extendedTrack.getName(), "COUN", GenerationRequest.MODE_GENERATE)
+            .validate(game).equals(extendedTrack);
+        assert GenerationRequest.outputExtension(extendedTrack).equals(".csrpl");
+        assert GenerationRequest.outputExtension(source).equals(".rpl");
+        for (int version : new int[] {11, 101}) {
+            for (int rate : new int[] {10, 20}) {
+                Files.write(extendedReplay.toPath(), extendedReplay(version, rate, 70001));
+                for (String mode : new String[] {GenerationRequest.MODE_FINE_TUNE,
+                        GenerationRequest.MODE_GEARS_ONLY}) {
+                    GenerationRequest value = request(extendedReplay.getName(), "COUN", mode);
+                    assert value.validate(game).equals(extendedReplay);
+                    assert value.resolvedCar(extendedReplay).equals("_CST");
+                }
+                GenerationRequest.ReplayInfo info = GenerationRequest.readReplay(extendedReplay);
+                assert info.extended && info.frames == 70001 && info.rate == rate;
+                assert info.rules == GenerationRequest.RULE_OWOOT;
+                assert request(extendedReplay.getName(), "COUN", GenerationRequest.MODE_GENERATE)
+                    .validate(game).equals(extendedReplay);
+            }
+        }
+        for (int offset : new int[] {10, 12, 16, 24, 26, 33, 34, 40, 50, 64, 80}) {
+            byte[] invalid = extendedReplay(11, 20, 4);
+            invalid[offset] = (byte)255;
+            Files.write(extendedReplay.toPath(), invalid);
+            rejected(() -> request(extendedReplay.getName(), "COUN", GenerationRequest.MODE_FINE_TUNE)
+                .validate(game));
+        }
+        byte[] invalidInput = extendedReplay(11, 20, 4);
+        invalidInput[invalidInput.length - 1] = 64;
+        Files.write(extendedReplay.toPath(), invalidInput);
+        rejected(() -> GenerationRequest.readReplay(extendedReplay));
+        Files.write(extendedReplay.toPath(), extendedReplay(10, 20, 4));
+        rejected(() -> GenerationRequest.readReplay(extendedReplay));
+        Files.write(extendedReplay.toPath(), extendedReplay(11, 20,
+            GenerationRequest.EXTENDED_REPLAY_MAX_FRAMES + 1));
+        rejected(() -> GenerationRequest.readReplay(extendedReplay));
+        Files.write(extendedTrack.toPath(), new byte[38]);
+        rejected(() -> request(extendedTrack.getName(), "COUN", GenerationRequest.MODE_GENERATE)
+            .validate(game));
+        for (String flag : new String[] {"--owoot:off", "--amigagrass:off"}) {
+            GenerationRequest explicitOff = new GenerationRequest(track.getName(), "COUN", 60, 2,
+                "state", GenerationRequest.MODE_GENERATE, new String[] {flag});
+            assert explicitOff.validate(game).equals(track);
+        }
         System.out.println("GenerationRequestTest passed: exclusive modes, replay car, validation, and arguments");
     }
 }

@@ -10,6 +10,7 @@
 #define GENGHOST_STUNT_HUMAN 6U
 #define GENGHOST_STUNT_HUMAN_ALT 7U
 #define GENGHOST_STUNT_SLALOM_CENTER 8U
+#define GENGHOST_STUNT_BARREL 9U
 
 /* Coordinates are the game's world units (1024 per tile); speeds are mph.
  * Offset is a fraction of the center-to-edge vector: +/-1 is a road edge.
@@ -45,6 +46,8 @@ struct GENGHOST_WAYPOINT {
 	size_t piece_index;
 	legacy_int physical_model;
 	legacy_int height_specified;
+	legacy_int surface;
+	legacy_u8 roll_ramp, tunnel_slalom;
 };
 
 struct GENGHOST_REGION {
@@ -90,6 +93,9 @@ struct GENGHOST_DRIVER {
 	legacy_uint ticks;
 	/* Actual frames driven toward a stunt proposal, not gene presence. */
 	legacy_uint tactic_ticks;
+	/* Current protected roll-ramp approach/contact/flight phase; zero otherwise. */
+	legacy_uint barrel_active;
+	size_t barrel_waypoint;
 };
 
 /* Enumerate every simple directed route from start/finish back to itself.
@@ -107,6 +113,12 @@ legacy_int genghost_route_policy(const struct GENGHOST_ROUTES *set, size_t index
 /* Choose stay/short/near recipes independently of the arbitrary pair selector.
  * The caller already used the low two gate bits to decide whether to mutate. */
 legacy_u64 genghost_dualway_selector(legacy_u32 gate, legacy_u64 selector);
+/* Full world placement of a route piece; includes extended dimensions, rotation,
+ * and elevations. Heights are measured at the supplied absolute world point. */
+void genghost_route_piece_frame(legacy_int piece, legacy_f64 *x, legacy_f64 *z,
+								legacy_s16 *orientation);
+legacy_f64 genghost_route_piece_height(legacy_int piece, legacy_f64 x, legacy_f64 z);
+void genghost_route_target_height(struct GENGHOST_WAYPOINT *target);
 /* Distance of a particular route occurrence, including the repeated finish. */
 legacy_f64 genghost_route_piece_distance(const struct GENGHOST_ROUTE *route, size_t piece_index);
 /* Seed early private departures and late private arrivals for each branch,
@@ -116,6 +128,10 @@ void genghost_dualway_seed_policy(const struct GENGHOST_ROUTES *set, size_t inde
 void genghost_route_release(struct GENGHOST_ROUTE *route);
 void genghost_routes_free(struct GENGHOST_ROUTES *routes);
 void genghost_policy_default(struct GENGHOST_POLICY *policy);
+/* Deterministic fine speed proposals fund roll approaches before random mutation. */
+legacy_uint genghost_barrel_seed_count(const struct GENGHOST_ROUTE *route);
+void genghost_barrel_seed_policy(const struct GENGHOST_ROUTE *route, struct GENGHOST_POLICY *policy,
+								 legacy_uint seed);
 void genghost_driver_reset(struct GENGHOST_DRIVER *driver);
 void genghost_driver_observe(const struct GENGHOST_ROUTE *route, struct GENGHOST_DRIVER *driver);
 /* Every supported stunt has an explicit recipe for original/fixed collisions.

@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #if defined(__UNIX__)
 #include <unistd.h>
 #endif
@@ -13,11 +14,20 @@
 #include <windows.h>
 #endif
 #include "options.h"
+extern "C" {
+#include "../c/csrpl.h"
+}
 #include "../genghost/simulation.h"
 
 static const legacy_int TEST_SUCCESS = 0;
 static const legacy_int TEST_FAILURE = 1;
 static const legacy_uint TEST_REPLAY_FRAMES = 4U;
+static const legacy_uint TEST_EXTENDED_DIMENSION = 2U;
+static const legacy_uint TEST_EXTENDED_LONG_FRAMES = 70001U;
+static const legacy_u16 TEST_FUTURE_VERSION = 101U;
+static const legacy_u16 TEST_SLOW_FRAME_RATE = 10U;
+static const legacy_uint TEST_EXTENDED_OPPONENT_OFFSET = 34U;
+static const legacy_uint TEST_AUTOMATIC_TRANSMISSION = 1U;
 static const legacy_uint TEST_PLAYER_GEAR = 0U;
 static const legacy_uint TEST_OPPONENT_TYPE = 1U;
 static const legacy_uint ARGUMENT_INPUT_INDEX = 3U;
@@ -85,6 +95,44 @@ static std::vector<legacy_u8> replay()
 	return bytes;
 }
 
+static std::vector<legacy_u8> extended_track()
+{
+	CSTRK_TRACK track;
+	cstrk_init(&track);
+	check(cstrk_create(&track, TEST_EXTENDED_DIMENSION, TEST_EXTENDED_DIMENSION, nullptr, 0) != 0,
+		  "Cannot create extended track fixture.");
+	legacy_u8 *data = nullptr;
+	size_t size = 0;
+	check(cstrk_encode(&track, &data, &size, nullptr, 0) != 0,
+		  "Cannot encode extended track fixture.");
+	std::vector<legacy_u8> result(data, data + size);
+	std::free(data);
+	cstrk_free(&track);
+	return result;
+}
+
+static std::vector<legacy_u8> extended_replay(legacy_u16 version, legacy_u16 rate,
+											  legacy_uint frames)
+{
+	const std::vector<legacy_u8> track = extended_track();
+	CSRPL_METADATA metadata = {};
+	metadata.version = version;
+	metadata.frames_per_second = rate;
+	metadata.frame_count = frames;
+	metadata.player_transmission = TEST_AUTOMATIC_TRANSMISSION;
+	metadata.driving_rules = DRIVING_RULE_OWOOT | DRIVING_RULE_AMIGA_GRASS;
+	std::copy_n("P962", CSRPL_CAR_ID_SIZE, metadata.player_car_id);
+	const std::vector<legacy_u8> inputs(frames);
+	legacy_u8 *data = nullptr;
+	size_t size = 0;
+	check(csrpl_encode(&metadata, track.data(), track.size(), inputs.data(), inputs.size(), &data,
+					   &size, nullptr, 0) != 0,
+		  "Cannot encode extended replay fixture.");
+	std::vector<legacy_u8> result(data, data + size);
+	std::free(data);
+	return result;
+}
+
 legacy_int main()
 {
 	wxInitializer initialize;
@@ -106,6 +154,11 @@ legacy_int main()
 	const wxString input = wxFileName(game, "Winner.rPl").GetFullPath();
 	write_bytes(track, std::vector<legacy_u8>(REPLAY_TRACK_SIZE));
 	write_bytes(input, replay());
+	const wxString extended = wxFileName(game, "Extended.CsTrK").GetFullPath();
+	const wxString extended_input = wxFileName(game, "Wide.CsRpL").GetFullPath();
+	write_bytes(extended, extended_track());
+	write_bytes(extended_input,
+				extended_replay(CSRPL_VERSION, GENGHOST_FRAME_RATE, TEST_REPLAY_FRAMES));
 	touch(wxFileName(game, "CarCoun.pRe").GetFullPath());
 	touch(wxFileName(game_cars, "cardia3.res").GetFullPath());
 	touch(wxFileName(assets_cars, "CARCOUN.RES").GetFullPath());
@@ -117,7 +170,7 @@ legacy_int main()
 		  "Cannot create directory exclusion fixture.");
 	GenghostCatalog catalog;
 	check(genghost_scan_catalog(game, assets, catalog).empty(), "Cannot scan game catalog.");
-	check(catalog.inputs == std::vector<wxString>({track, input}),
+	check(catalog.inputs == std::vector<wxString>({track, extended, extended_input, input}),
 		  "Catalog must sort actual track/replay files and handle mixed-case extensions.");
 	check(catalog.cars == std::vector<wxString>({"COUN", "DIA3", "PMIN"}),
 		  "Cars must include loose, custom and bundled resources with valid deduplicated codes.");
@@ -246,6 +299,68 @@ legacy_int main()
 	options.output = "new replay & result.rpl";
 	check(genghost_validate_options(options).empty(),
 		  "Valid fine-tune options must remain accepted.");
+
+	std::vector<legacy_u8> too_long_legacy = replay();
+	too_long_legacy.resize(REPLAY_INPUT_OFFSET + GENGHOST_LEGACY_MAX_FRAMES + 1U);
+	LEGACY_WRITE_U16_LE(too_long_legacy.data() + offsetof(GAMEINFO, game_recordedframes),
+						GENGHOST_LEGACY_MAX_FRAMES + 1U);
+	write_bytes(input, too_long_legacy);
+	check(!genghost_validate_options(options).empty(),
+		  "The extended search capacity must not relax legacy replay limits.");
+	write_bytes(input, replay());
+
+	GenghostOptions extended_options = options;
+	extended_options.mode = GENGHOST_MODE_GENERATE;
+	extended_options.input = extended;
+	extended_options.output = "extended.csrpl";
+	check(genghost_validate_options(extended_options).empty(),
+		  "CSTRK generation must be accepted.");
+	check(wxFileName(genghost_default_output(extended_options)).GetExt() == "csrpl",
+		  "Extended tracks must default to CSRPL output.");
+	extended_options.output = "extended.rpl";
+	check(!genghost_validate_options(extended_options).empty(),
+		  "Extended output must retain the CSRPL extension.");
+	extended_options.output = "extended.csrpl";
+	extended_options.input = extended_input;
+	extended_options.mode = GENGHOST_MODE_FINE_TUNE;
+	static const legacy_u16 extended_rates[] = {TEST_SLOW_FRAME_RATE, GENGHOST_FRAME_RATE};
+	static const legacy_u16 extended_versions[] = {CSRPL_VERSION, TEST_FUTURE_VERSION};
+	for (legacy_u16 version : extended_versions) {
+		for (legacy_u16 rate : extended_rates) {
+			write_bytes(extended_input, extended_replay(version, rate, TEST_EXTENDED_LONG_FRAMES));
+			check(genghost_validate_options(extended_options).empty(),
+				  "Current and future CSRPL replays must support long counts and both rates.");
+			check(genghost_resolved_car(extended_options) == "P962",
+				  "CSRPL fine-tuning must use its recorded car.");
+		}
+	}
+	check(genghost_apply_replay_physics(extended_options) &&
+			  extended_options.physics[PHYSICS_AMIGA_INDEX] &&
+			  extended_options.physics[PHYSICS_OWOOT_INDEX] && !extended_options.physics[0],
+		  "CSRPL selection must load its recorded driving rules.");
+	extended_options.physics[PHYSICS_OWOOT_INDEX] = false;
+	extended_options.physics[PHYSICS_AMIGA_INDEX] = false;
+	const std::vector<wxString> extended_arguments =
+		genghost_arguments(executable, extended_options);
+	check(contains(extended_arguments, "--owoot:off") &&
+			  contains(extended_arguments, "--amigagrass:off"),
+		  "Unchecked rules must explicitly override recorded CSRPL flags.");
+	std::vector<legacy_u8> bad_extended =
+		extended_replay(CSRPL_VERSION, GENGHOST_FRAME_RATE, TEST_REPLAY_FRAMES);
+	bad_extended.pop_back();
+	write_bytes(extended_input, bad_extended);
+	check(!genghost_validate_options(extended_options).empty(),
+		  "A truncated CSRPL must be rejected before starting a search.");
+	bad_extended = extended_replay(CSRPL_VERSION, GENGHOST_FRAME_RATE, TEST_REPLAY_FRAMES);
+	bad_extended[TEST_EXTENDED_OPPONENT_OFFSET] = TEST_OPPONENT_TYPE;
+	write_bytes(extended_input, bad_extended);
+	check(!genghost_validate_options(extended_options).empty(),
+		  "CSRPL fine-tuning must reject opponent races.");
+	write_bytes(extended, std::vector<legacy_u8>(CSTRK_HEADER_SIZE));
+	extended_options.mode = GENGHOST_MODE_GENERATE;
+	extended_options.input = extended;
+	check(!genghost_validate_options(extended_options).empty(),
+		  "Malformed CSTRK input must be rejected before starting a search.");
 
 	const wxString settings = wxFileName(directory, "genghost.ini").GetFullPath();
 	check(genghost_save_options(settings, options).empty(), "Could not save generator settings.");
