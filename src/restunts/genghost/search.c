@@ -4,6 +4,8 @@
 #include <float.h>
 #include <SDL3/SDL.h>
 #include "search.h"
+#include "extended_routes.h"
+#include "extended_search.h"
 #include "guide.h"
 #include "../c/externs.h"
 #include "../c/crash_state.h"
@@ -286,10 +288,7 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 static void choose_policy(struct search_context *context, struct route_search *search,
 						  const struct GENGHOST_ROUTE *route, struct GENGHOST_POLICY *policy)
 {
-	if (search->trials < genghost_barrel_seed_count(route)) {
-		/* Tire-contact timing makes neighboring launch speeds physically distinct.
-		 * Fund these complete pilots before repairing a failed coarse parent. */
-		genghost_barrel_seed_policy(route, policy, (legacy_uint)search->trials);
+	if (extended_genghost_search_seed_policy(route, search->trials, policy)) {
 		return;
 	}
 	legacy_int ordinary_fallback = search->ordinary_discovery && !context->result->race.finished &&
@@ -1211,7 +1210,8 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 			}
 			context.corkscrew_cut_available = 0;
 			for (size_t point = 0; point < routes.routes[index].point_count; ++point) {
-				if (!options->owoot && !routes.routes[index].points[point].roll_ramp &&
+				if (!options->owoot &&
+					extended_genghost_native_cut_allowed(&routes.routes[index].points[point]) &&
 					routes.routes[index].points[point].physical_model ==
 						PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 					context.corkscrew_cut_available = 1;
@@ -1246,13 +1246,13 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 				struct GENGHOST_RESULT race;
 				context.guided_candidate = 0;
 				legacy_uint catalog_first_segment = 0U;
-				legacy_int barrel_seed =
-					search->trials < genghost_barrel_seed_count(&routes.routes[index]);
+				legacy_int native_proposals = extended_genghost_search_native_proposals(
+					&routes.routes[index], search->trials);
 				legacy_int catalog =
-					barrel_seed
-						? 0
-						: choose_catalog_policy(&context, &routes, index, search, &policy,
-												&catalog_first_segment, error, sizeof(error));
+					native_proposals
+						? choose_catalog_policy(&context, &routes, index, search, &policy,
+												&catalog_first_segment, error, sizeof(error))
+						: 0;
 				if (catalog < 0) {
 					fprintf(stderr, "genghost: %s\n", error);
 					status = -1;
@@ -1262,13 +1262,13 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 													  search->catalog_exhausted &&
 													  search->catalog_cursor != 0U;
 				legacy_int mutation =
-					!barrel_seed && !catalog && search->best_inputs && search->race.finished &&
+					native_proposals && !catalog && search->best_inputs && search->race.finished &&
 					search->trials >= POPULATION &&
 					random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
 				legacy_int initial_fallback = search->ordinary_discovery &&
 											  !result->race.finished &&
 											  search->trials < POPULATION * 2U;
-				legacy_int repair = !barrel_seed && !catalog && search->best_inputs &&
+				legacy_int repair = native_proposals && !catalog && search->best_inputs &&
 									!search->race.finished && !initial_fallback &&
 									search->trials >= POPULATION &&
 									random_word(&context) % 3U != 0U;

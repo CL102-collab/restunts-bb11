@@ -21,8 +21,7 @@
 #include "state_search.h"
 #include "../platform/sdl3/sdl3.h"
 #include "../c/fileio.h"
-#include "../c/cstrk.h"
-#include "../c/csrpl.h"
+#include "extended_source.h"
 
 #ifndef RESTUNTS_GIT_HASH
 #define RESTUNTS_GIT_HASH "source-archive"
@@ -31,18 +30,6 @@
 #define GENGHOST_DEFAULT_SECONDS 1800.0
 #define GENGHOST_OPTIONAL_PHYSICS_ARGUMENTS 2
 #define GENGHOST_DEFAULT_CHICANE_FAST_GRASS 1
-#define GENGHOST_FORMAT_SIGNATURE_SIZE 8U
-#define GENGHOST_MAX_TRACK_SIZE                                                                    \
-	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
-	 2U * CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS +      \
-	 CSTRK_MAX_NOTES)
-#define GENGHOST_MAX_SOURCE_SIZE (CSRPL_HEADER_SIZE + GENGHOST_MAX_TRACK_SIZE + GENGHOST_MAX_FRAMES)
-#define GENGHOST_SOURCE_ERROR_SIZE 256U
-
-static const legacy_u8 cstrk_signature[GENGHOST_FORMAT_SIGNATURE_SIZE] = {'C', 'S', 'T',  'R',
-																		  'K', 26U, '\r', '\n'};
-static const legacy_u8 csrpl_signature[GENGHOST_FORMAT_SIGNATURE_SIZE] = {'C', 'S',	 'R',  'P',
-																		  'L', '\r', '\n', 26U};
 
 struct output_context {
 	const legacy_char *path, *track_name, *car;
@@ -124,103 +111,6 @@ static void interrupt_search(legacy_int signal_number)
 {
 	(void)signal_number;
 	genghost_interrupted = 1;
-}
-
-static legacy_char *join_path(const legacy_char *directory, const legacy_char *name)
-{
-	if (name[0] == '/' || name[0] == '\\' || (isalpha((legacy_u8)name[0]) && name[1] == ':')) {
-		return SDL_strdup(name);
-	}
-	size_t a = strlen(directory), b = strlen(name);
-	legacy_char *result = malloc(a + b + 2U);
-	if (result) {
-		snprintf(result, a + b + 2U, "%s/%s", directory, name);
-	}
-	return result;
-}
-
-static const legacy_char *base_name(const legacy_char *path)
-{
-	const legacy_char *name = path;
-	for (; *path; ++path) {
-		if (*path == '/' || *path == '\\') {
-			name = path + 1;
-		}
-	}
-	return name;
-}
-
-static legacy_char *with_suffix(const legacy_char *path, const legacy_char *suffix)
-{
-	size_t size = strlen(path) + strlen(suffix) + 1U;
-	legacy_char *result = malloc(size);
-	if (result) {
-		snprintf(result, size, "%s%s", path, suffix);
-	}
-	return result;
-}
-
-static legacy_int read_file(const legacy_char *path, legacy_u8 **data, size_t *length)
-{
-	FILE *file = fopen(path, "rb");
-	if (!file) {
-		return -1;
-	}
-	if (fseek(file, 0, SEEK_END)) {
-		fclose(file);
-		return -1;
-	}
-	legacy_s64 file_size = ftell(file);
-	if (file_size < 0 || (legacy_u64)file_size > GENGHOST_MAX_SOURCE_SIZE ||
-		fseek(file, 0, SEEK_SET)) {
-		fclose(file);
-		return -1;
-	}
-	*length = (size_t)file_size;
-	*data = malloc(*length + 1U);
-	if (!*data) {
-		fclose(file);
-		return -1;
-	}
-	legacy_int failed = fread(*data, 1, *length, file) != *length;
-	if (fclose(file)) {
-		failed = 1;
-	}
-	if (failed) {
-		free(*data);
-		*data = NULL;
-		return -1;
-	}
-	return 0;
-}
-
-static legacy_int read_source(const legacy_char *source, const legacy_char *cwd,
-							  const legacy_char *data_dir, legacy_int replay_only, legacy_u8 **data,
-							  size_t *length, legacy_char **resolved_path)
-{
-	static const legacy_char *track_suffixes[] = {"",		".CSTRK", ".cstrk", ".TRK", ".trk",
-												  ".CSRPL", ".csrpl", ".RPL",	".rpl"};
-	static const legacy_char *replay_suffixes[] = {"", ".CSRPL", ".csrpl", ".RPL", ".rpl"};
-	const legacy_char **suffixes = replay_only ? replay_suffixes : track_suffixes;
-	legacy_uint suffix_count = replay_only ? sizeof(replay_suffixes) / sizeof(replay_suffixes[0])
-										   : sizeof(track_suffixes) / sizeof(track_suffixes[0]);
-	for (legacy_uint directory = 0; directory < 2U; ++directory) {
-		for (legacy_uint i = 0; i < suffix_count; ++i) {
-			legacy_char *name = with_suffix(source, suffixes[i]);
-			legacy_char *path = name ? join_path(directory ? data_dir : cwd, name) : NULL;
-			free(name);
-			if (!path) {
-				return -1;
-			}
-			legacy_int status = read_file(path, data, length);
-			if (!status) {
-				*resolved_path = path;
-				return 0;
-			}
-			free(path);
-		}
-	}
-	return -1;
 }
 
 /* Compare existing file identities so relative paths, case differences on
@@ -308,42 +198,6 @@ static legacy_int physics_option(const legacy_char *argument, const legacy_char 
 
 /* A recording is self-contained: unspecified switches inherit its rules,
  * while an explicit command-line choice keeps its existing meaning. */
-static void replay_driving_rules(struct GENGHOST_OPTIONS *options, legacy_u16 recorded,
-								 legacy_u16 explicit_rules)
-{
-	if (!(explicit_rules & DRIVING_RULE_POWER_GEAR)) {
-		options->powergear = (recorded & DRIVING_RULE_POWER_GEAR) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_LEGACY_COLLISION)) {
-		options->collision = (recorded & DRIVING_RULE_LEGACY_COLLISION) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_LEFT_CORNER_BIAS)) {
-		options->left_bias = (recorded & DRIVING_RULE_LEFT_CORNER_BIAS) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_DUAL_WAY_SWITCHING)) {
-		options->dual_way_switching = (recorded & DRIVING_RULE_DUAL_WAY_SWITCHING) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_CHICANE_FAST_GRASS)) {
-		options->chicane_fast_grass = (recorded & DRIVING_RULE_CHICANE_FAST_GRASS) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_AMIGA_GRASS)) {
-		options->amiga_grass = (recorded & DRIVING_RULE_AMIGA_GRASS) != 0;
-	}
-	if (!(explicit_rules & DRIVING_RULE_OWOOT)) {
-		options->owoot = (recorded & DRIVING_RULE_OWOOT) != 0;
-	}
-}
-
-static legacy_u16 selected_driving_rules(const struct GENGHOST_OPTIONS *options)
-{
-	return (options->powergear ? DRIVING_RULE_POWER_GEAR : 0U) |
-		   (options->collision ? DRIVING_RULE_LEGACY_COLLISION : 0U) |
-		   (options->left_bias ? DRIVING_RULE_LEFT_CORNER_BIAS : 0U) |
-		   (options->dual_way_switching ? DRIVING_RULE_DUAL_WAY_SWITCHING : 0U) |
-		   (options->chicane_fast_grass ? DRIVING_RULE_CHICANE_FAST_GRASS : 0U) |
-		   (options->amiga_grass ? DRIVING_RULE_AMIGA_GRASS : 0U) |
-		   (options->owoot ? DRIVING_RULE_OWOOT : 0U);
-}
 
 static void json_string(FILE *file, const legacy_char *text)
 {
@@ -526,9 +380,9 @@ static legacy_int save_result(const struct GENGHOST_SEARCH_RESULT *result, void 
 	}
 	legacy_char suffix[64];
 	snprintf(suffix, sizeof(suffix), ".tmp-%" LEGACY_PRIu64, (legacy_u64)SDL_GetTicksNS());
-	legacy_char *temporary = with_suffix(context->path, suffix);
-	legacy_char *report = with_suffix(context->path, ".json");
-	legacy_char *temporary_report = report ? with_suffix(report, suffix) : NULL;
+	legacy_char *temporary = extended_source_with_suffix(context->path, suffix);
+	legacy_char *report = extended_source_with_suffix(context->path, ".json");
+	legacy_char *temporary_report = report ? extended_source_with_suffix(report, suffix) : NULL;
 	legacy_int failed = !temporary || !report || !temporary_report;
 	if (!failed) {
 		failed = genghost_sim_write_replay(temporary, context->track_name, result->inputs,
@@ -569,7 +423,7 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 					  *output_argument = NULL;
 	const legacy_char *stop_argument = NULL;
 	legacy_char *stop_file = NULL;
-	legacy_char car[REPLAY_CAR_ID_SIZE + 1U] = {0}, track_name[256];
+	legacy_char car[REPLAY_CAR_ID_SIZE + 1U] = {0}, track_name[GENGHOST_SOURCE_TRACK_NAME_SIZE];
 	legacy_int transmission = TRANSMISSION_MANUAL, verify = 0, explicit_seconds = 0, status = 1;
 	legacy_uint cores = 1U;
 	legacy_u16 simulation_rate = GENGHOST_FRAME_RATE;
@@ -624,17 +478,17 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 			goto done;
 		}
 		if (flag) {
-			explicit_rules |= selected_rule;
+			extended_source_record_override(&explicit_rules, selected_rule);
 			continue;
 		}
 		if (!SDL_strcasecmp(argument, "--owoot")) {
 			options.owoot = 1;
-			explicit_rules |= DRIVING_RULE_OWOOT;
+			extended_source_record_override(&explicit_rules, DRIVING_RULE_OWOOT);
 			continue;
 		}
 		if (!SDL_strcasecmp(argument, "--amigagrass")) {
 			options.amiga_grass = 1;
-			explicit_rules |= DRIVING_RULE_AMIGA_GRASS;
+			extended_source_record_override(&explicit_rules, DRIVING_RULE_AMIGA_GRASS);
 			continue;
 		}
 		if (!strcmp(argument, "--fine-tune")) {
@@ -781,142 +635,32 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		goto done;
 	}
 	cwd = SDL_GetCurrentDirectory();
-	if (!cwd || !(data_dir = join_path(cwd, data_argument))) {
+	if (!cwd || !(data_dir = extended_source_join_path(cwd, data_argument))) {
 		goto done;
 	}
 	if (stop_argument) {
-		stop_file = join_path(cwd, stop_argument);
+		stop_file = extended_source_join_path(cwd, stop_argument);
 		if (!stop_file) {
 			goto done;
 		}
 		genghost_set_stop_file(stop_file);
 	}
-	if (read_source(source, cwd, data_dir, options.fine_tune, &file, &file_length, &source_path)) {
+	if (extended_source_read(source, cwd, data_dir, options.fine_tune, &file, &file_length,
+							 &source_path)) {
 		fprintf(stderr, "Cannot read %s: %s\n",
 				options.fine_tune ? "input replay (.RPL or .CSRPL)" : "track/replay", source);
 		goto done;
 	}
-	legacy_u8 *track = file, *source_inputs = NULL, *seed_inputs = NULL;
-	legacy_uint track_length = (legacy_uint)file_length, seed_length = 0, source_frames = 0;
-	struct GAMEINFO replay = {0};
-	struct CSRPL_VIEW extended_replay = {0};
-	legacy_int extended = 0, is_replay = 0;
-	legacy_char source_error[GENGHOST_SOURCE_ERROR_SIZE];
-	if (file_length >= sizeof(csrpl_signature) &&
-		memcmp(file, csrpl_signature, sizeof(csrpl_signature)) == 0) {
-		if (!csrpl_decode(file, file_length, &extended_replay, source_error,
-						  sizeof(source_error))) {
-			fprintf(stderr, "Invalid CSRPL replay: %s\n", source_error);
-			goto done;
-		}
-		const struct CSRPL_METADATA *metadata = &extended_replay.metadata;
-		if (metadata->frame_count > GENGHOST_MAX_FRAMES) {
-			fprintf(stderr, "Replay exceeds the generator's %u-frame limit\n", GENGHOST_MAX_FRAMES);
-			goto done;
-		}
-		extended = is_replay = 1;
-		track = file + (extended_replay.track_data - file);
-		track_length = (legacy_uint)extended_replay.track_size;
-		source_inputs = file + (extended_replay.inputs - file);
-		source_frames = metadata->frame_count;
-		memcpy(replay.game_playercarid, metadata->player_car_id, REPLAY_CAR_ID_SIZE);
-		replay.game_playermaterial = metadata->player_material;
-		replay.game_playertransmission = metadata->player_transmission;
-		replay.game_opponenttype = metadata->opponent_type;
-		replay.game_framespersec = metadata->frames_per_second;
-		memcpy(replay.game_trackname, metadata->track_name, REPLAY_TRACK_NAME_SIZE);
-		replay_driving_rules(&options, metadata->driving_rules, explicit_rules);
-		if (metadata->driving_rules != selected_driving_rules(&options)) {
-			fputs("Using explicitly overridden CSRPL driving rules for this simulation\n", stderr);
-		}
-		if (metadata->version > CSRPL_VERSION) {
-			fprintf(stderr,
-					"CSRPL version %u is newer than supported version %u; using known layout\n",
-					metadata->version, CSRPL_VERSION);
-		}
-	} else if (file_length >= sizeof(cstrk_signature) &&
-			   memcmp(file, cstrk_signature, sizeof(cstrk_signature)) == 0) {
-		if (!cstrk_validate_bytes(file, file_length, source_error, sizeof(source_error))) {
-			fprintf(stderr, "Invalid CSTRK track: %s\n", source_error);
-			goto done;
-		}
-		extended = 1;
-	} else if (file_length != REPLAY_TRACK_SIZE && file_length >= REPLAY_INPUT_OFFSET) {
-		replay_gameinfo_decode(&replay, file);
-		if ((replay.game_framespersec != GAME_FRAME_RATE_LOW &&
-			 replay.game_framespersec != GENGHOST_FRAME_RATE) ||
-			replay.game_recordedframes > GENGHOST_LEGACY_MAX_FRAMES ||
-			replay_file_size(replay.game_recordedframes) != file_length ||
-			replay.game_playertransmission < 0 || replay.game_playertransmission > 1) {
-			fputs("Invalid or unsupported replay; expected a complete Stunts 1.1 RPL\n", stderr);
-			goto done;
-		}
-		is_replay = 1;
-		track = file + REPLAY_GAMEINFO_SIZE;
-		track_length = REPLAY_TRACK_SIZE;
-		source_inputs = file + REPLAY_INPUT_OFFSET;
-		source_frames = replay.game_recordedframes;
-	} else if (file_length != REPLAY_TRACK_SIZE) {
-		fputs("Invalid track/replay; expected TRK, RPL, CSTRK or CSRPL data\n", stderr);
+	struct GENGHOST_SOURCE input = {0};
+	if (extended_source_decode(&input, file, file_length, &options, explicit_rules, verify,
+							   car_argument, car, fine_tune_option)) {
 		goto done;
 	}
-	if (options.fine_tune && !is_replay) {
-		fprintf(stderr, "%s requires a complete replay (.RPL or .CSRPL), not a track-only file\n",
-				fine_tune_option);
-		goto done;
-	}
-	if (is_replay) {
-		if (extended) {
-			/* Preserve the source timing even when an automatic/opponent replay
-			 * supplies only its track rather than compatible driving inputs. */
-			simulation_rate = replay.game_framespersec;
-		}
-		if (options.fine_tune && !extended && replay.game_framespersec != GENGHOST_FRAME_RATE) {
-			fputs("Legacy fine-tuning requires a 20 Hz RPL replay\n", stderr);
-			goto done;
-		}
-		if (options.fine_tune || (verify && !car_argument)) {
-			for (legacy_uint i = 0; i < REPLAY_CAR_ID_SIZE; ++i) {
-				if (!isalnum((legacy_u8)replay.game_playercarid[i]) &&
-					replay.game_playercarid[i] != '_') {
-					fputs("Invalid CAR code in input replay header\n", stderr);
-					goto done;
-				}
-				car[i] = (legacy_char)toupper((legacy_u8)replay.game_playercarid[i]);
-			}
-		}
-		if ((options.fine_tune || verify || replay.game_opponenttype == 0) &&
-			(options.fine_tune || memcmp(replay.game_playercarid, car, REPLAY_CAR_ID_SIZE) == 0)) {
-			if (options.fine_tune || verify ||
-				replay.game_playertransmission == TRANSMISSION_MANUAL) {
-				seed_inputs = source_inputs;
-				seed_length = source_frames;
-				simulation_rate = replay.game_framespersec;
-			}
-		}
-	}
-	if (options.fine_tune && (!seed_inputs || !seed_length)) {
-		fprintf(stderr, "%s requires a nonempty replay\n", fine_tune_option);
-		goto done;
-	}
-	if (options.fine_tune && replay.game_playertransmission == TRANSMISSION_AUTOMATIC) {
-		fprintf(stderr, "%s preserves automatic seed shifts as manual inputs\n", fine_tune_option);
-	}
-	if (options.fine_tune && replay.game_opponenttype != 0) {
-		fprintf(stderr, "%s requires a solo replay; opponent collisions change the simulation\n",
-				fine_tune_option);
-		goto done;
-	}
-	if (verify && (!seed_inputs || !seed_length)) {
-		fputs("--verify requires a nonempty replay with matching car\n", stderr);
-		goto done;
-	}
-	if (verify && replay.game_opponenttype != 0 && !extended) {
-		fputs("--verify requires a solo legacy replay; opponent metadata is supported in CSRPL\n",
-			  stderr);
-		goto done;
-	}
-	snprintf(track_name, sizeof(track_name), "%s", base_name(source));
+	legacy_u8 *track = input.track, *seed_inputs = input.seed_inputs;
+	legacy_uint track_length = input.track_length, seed_length = input.seed_length;
+	struct GAMEINFO replay = input.replay;
+	simulation_rate = input.frame_rate;
+	snprintf(track_name, sizeof(track_name), "%s", extended_source_base_name(source));
 	legacy_char *extension = strrchr(track_name, '.');
 	if (extension) {
 		*extension = 0;
@@ -925,48 +669,18 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		strcpy(track_name, "TRACK");
 	}
 	if (output_argument) {
-		output = join_path(cwd, output_argument);
-	} else if (extended) {
-		legacy_char default_name[sizeof(track_name) + REPLAY_CAR_ID_SIZE + sizeof("-FT.csrpl")];
-		if (options.fine_tune) {
-			snprintf(default_name, sizeof(default_name), "%s-FT.csrpl", track_name);
-		} else {
-			snprintf(default_name, sizeof(default_name), "%s-%s.csrpl", track_name, car);
-		}
-		output = join_path(cwd, default_name);
-	} else if (options.fine_tune) {
-		legacy_char prefix[6] = {0}, default_name[13];
-		for (legacy_uint i = 0; i < 5U && track_name[i]; ++i) {
-			legacy_u8 letter = (legacy_u8)toupper((legacy_u8)track_name[i]);
-			prefix[i] = (letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')
-							? (legacy_char)letter
-							: '_';
-		}
-		snprintf(default_name, sizeof(default_name), "%s-FT.rpl", prefix);
-		output = join_path(cwd, default_name);
+		output = extended_source_join_path(cwd, output_argument);
 	} else {
-		/* The game's replay picker only enumerates DOS 8.3 filenames. */
-		legacy_char prefix[4] = {0}, default_name[13];
-		for (legacy_uint i = 0; i < 3U && track_name[i]; ++i) {
-			legacy_u8 letter = (legacy_u8)toupper((legacy_u8)track_name[i]);
-			prefix[i] = '_';
-			if ((letter >= 'A' && letter <= 'Z') || (letter >= '0' && letter <= '9')) {
-				prefix[i] = (legacy_char)letter;
-			}
-		}
-		snprintf(default_name, sizeof(default_name), "%s-%s.rpl", prefix, car);
-		output = join_path(cwd, default_name);
+		output = extended_source_default_output(&input, cwd, track_name, car, options.fine_tune);
 	}
 	if (!output) {
 		goto done;
 	}
-	const legacy_char *output_extension = strrchr(base_name(output), '.');
-	if (extended && (!output_extension || SDL_strcasecmp(output_extension, ".csrpl") != 0)) {
-		fputs("CSTRK ghosts require an output filename ending in .csrpl\n", stderr);
+	if (extended_source_validate_output(&input, output)) {
 		goto done;
 	}
 	if (options.fine_tune) {
-		legacy_char *report_path = with_suffix(output, ".json");
+		legacy_char *report_path = extended_source_with_suffix(output, ".json");
 		legacy_int source_output = same_file(source_path, output);
 		legacy_int source_report = report_path ? same_file(source_path, report_path) : -1;
 		free(report_path);
@@ -1014,19 +728,7 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 	legacy_int source_transmission =
 		options.fine_tune || verify ? replay.game_playertransmission : TRANSMISSION_MANUAL;
 	genghost_sim_set_frame_rate(simulation_rate);
-	if (extended && is_replay) {
-		struct CSRPL_METADATA metadata = extended_replay.metadata;
-		metadata.frames_per_second = simulation_rate;
-		if (!verify && !options.fine_tune) {
-			/* Generation uses the embedded track for a solo ghost; existing
-			 * opponent-dependent inputs are not a compatible search seed. */
-			metadata.opponent_type = 0;
-			/* New inputs use this engine's physics, even when the track came
-			 * from a recording made by a newer engine. */
-			metadata.version = CSRPL_VERSION;
-		}
-		genghost_sim_set_replay_metadata(&metadata);
-	}
+	extended_source_configure(&input, verify, options.fine_tune);
 	if (genghost_sim_init_track(track, track_length, car, source_transmission, physics_count,
 								physics_arguments)) {
 		goto done;
@@ -1041,30 +743,12 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 		}
 		/* Parallel workers must receive the same converted manual seed as the
 		 * parent, including its header, rather than the untouched source file. */
-		replay.game_playertransmission = TRANSMISSION_MANUAL;
-		memcpy(replay.game_playercarid, car, REPLAY_CAR_ID_SIZE);
-		if (extended) {
-			struct CSRPL_METADATA metadata = extended_replay.metadata;
-			metadata.player_transmission = TRANSMISSION_MANUAL;
-			metadata.driving_rules = selected_driving_rules(&options);
-			memcpy(metadata.player_car_id, car, REPLAY_CAR_ID_SIZE);
-			legacy_u8 *manual_file = NULL;
-			size_t manual_length = 0;
-			if (!csrpl_encode(&metadata, track, track_length, seed_inputs, seed_length,
-							  &manual_file, &manual_length, source_error, sizeof(source_error))) {
-				fprintf(stderr, "Cannot materialize manual CSRPL seed: %s\n", source_error);
-				goto done;
-			}
-			free(file);
-			file = manual_file;
-			file_length = manual_length;
-			if (!csrpl_decode(file, file_length, &extended_replay, source_error,
-							  sizeof(source_error))) {
-				goto done;
-			}
-			seed_inputs = file + (extended_replay.inputs - file);
-		} else {
-			replay_gameinfo_encode(file, &replay);
+		legacy_int materialized = extended_source_materialize_manual(&input, &options, car);
+		file = input.file;
+		file_length = input.file_length;
+		seed_inputs = input.seed_inputs;
+		if (materialized) {
+			goto done;
 		}
 		fprintf(stderr, "fine-tune baseline: %.2fs (driving %.2fs + penalty %.2fs)\n",
 				baseline.total_frames / (legacy_f64)simulation_rate,

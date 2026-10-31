@@ -1,3 +1,5 @@
+#include "extended_highscore_ui.h"
+#include "extended_menu_runtime.h"
 #include "fileio.h"
 #include "legacy.h"
 #include "memmgr.h"
@@ -22,11 +24,6 @@
 #include "ghost.h"
 #include "frame_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "extended_file.h"
-#include "extended_track.h"
-#include "extended_highscore.h"
-#include "extended_replay_runtime.h"
-#include "extended_editor.h"
 #include "hires.h"
 #endif
 
@@ -107,8 +104,7 @@ static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 										   TRACK_MENU_TRANSPARENT_COLOR);
 	load_skybox((legacy_s8)
 #ifdef RESTUNTS_SDL3
-					(extended_track_active() ? extended_track_model()->horizon
-											 : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
+					extended_menu_horizon(track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
 #else
 					track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
 #endif
@@ -121,7 +117,7 @@ static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
 	draw_track_preview();
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active() && hires_enabled()) {
+	if (extended_menu_live_preview()) {
 		menu->preview_live = 1;
 		menu->preview_tick = dos_timer_get_realtime_counter();
 		return;
@@ -151,13 +147,7 @@ static void track_menu_draw_highscore_fields(const legacy_s8 *text, const legacy
 				   TRACK_MENU_HIGHSCORE_ENTRY_Y);
 	legacy_s16 time_x = TRACK_MENU_HIGHSCORE_TIME_X;
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		legacy_s16 right_aligned =
-			(legacy_s16)(TRACK_MENU_SCREEN_WIDTH - 1U) - font_text_width(text + text_offsets[3]);
-		if (right_aligned < time_x) {
-			time_x = right_aligned;
-		}
-	}
+	time_x = extended_highscore_time_x(text + text_offsets[3], time_x, TRACK_MENU_SCREEN_WIDTH);
 #endif
 	font_draw_text(text + text_offsets[3], time_x, TRACK_MENU_HIGHSCORE_ENTRY_Y);
 }
@@ -175,11 +165,7 @@ static void track_menu_draw_highscore(struct TRACK_MENU_STATE *menu)
 	if (highscore_load_or_create(0) == 0) {
 		legacy_u8 has_score;
 #ifdef RESTUNTS_SDL3
-		if (extended_track_active()) {
-			const struct CSHIG_ENTRY *score =
-				extended_highscore_entry((unsigned)ranking_entry_order[0]);
-			has_score = score != 0 && score->ticks != CSHIG_EMPTY_TICKS;
-		} else {
+		if (!extended_highscore_has_first_entry(&has_score)) {
 #endif
 			struct HIGHSCORE_ENTRY far *scores =
 				(struct HIGHSCORE_ENTRY far *)track_highscore_table;
@@ -370,7 +356,7 @@ void run_tracks_menu(legacy_s16 reload_track)
 			waitflag = TRACK_MENU_SETUP_WAIT_TICKS;
 			track_setup();
 #ifdef RESTUNTS_SDL3
-			if (!extended_track_active()) {
+			if (extended_menu_needs_legacy_shapes()) {
 				load_tracks_menu_shapes();
 			}
 #else
@@ -409,23 +395,14 @@ void run_tracks_menu(legacy_s16 reload_track)
 					file_build_path(track_directory, gameconfig.game_trackname,
 									file_dialog_selected_extension(), g_path_buf);
 #ifdef RESTUNTS_SDL3
-					if (strcmp(file_dialog_selected_extension(), ".cstrk") == 0) {
-						if (extended_file_load_track(g_path_buf) != 0) {
-							memcpy(gameconfig.game_trackname, previous_name, sizeof(previous_name));
-							show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-										(void *)extended_file_error(), DIALOG_AUTO_POSITION,
-										DIALOG_AUTO_POSITION, dialog_border_color, 0, 0);
-							if (animated_preview != 0) {
-								track_menu_free_background(&menu);
-								track_menu_draw_background(&menu);
-							}
-							menu.previous = TRACK_MENU_NO_SELECTION;
-							continue;
+					if (!extended_menu_load_selected_track(file_dialog_selected_extension(),
+														   g_path_buf, previous_name)) {
+						if (animated_preview != 0) {
+							track_menu_free_background(&menu);
+							track_menu_draw_background(&menu);
 						}
-					} else {
-						extended_track_unload();
-						extended_replay_runtime_clear();
-						file_read_fatal(g_path_buf, track_element_map);
+						menu.previous = TRACK_MENU_NO_SELECTION;
+						continue;
 					}
 #else
 					file_read_fatal(g_path_buf, track_element_map);
@@ -448,17 +425,7 @@ void run_tracks_menu(legacy_s16 reload_track)
 			track_menu_free_background(&menu);
 			if (menu.selected == TRACK_MENU_EDIT_BUTTON) {
 #ifdef RESTUNTS_SDL3
-				if (extended_track_active()) {
-					if (!extended_editor_open()) {
-						show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-									"Open tracked.html to edit Chocolate Stunts tracks.]",
-									DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION, dialog_border_color,
-									0, 0);
-					}
-					needs_track_setup = 0;
-				} else {
-					needs_track_setup = 1;
-				}
+				needs_track_setup = extended_menu_open_editor();
 #else
 				needs_track_setup = 1;
 #endif

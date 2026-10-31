@@ -30,7 +30,6 @@
 #include "shape3d_hires.h"
 #include "shape3d_internal.h"
 #include "frame_adaptive.h"
-#include "extended_track.h"
 #include "owoot_road.h"
 #include "extended_frame.h"
 #endif
@@ -50,8 +49,8 @@ struct FRAME_CAR_RENDER {
 };
 
 #if defined(RESTUNTS_SDL3)
-#define FRAME_TRACK_LAST_X (extended_track_width() - 1)
-#define TRACK_GRID_LAST_COORDINATE (extended_track_height() - 1)
+#define FRAME_TRACK_LAST_X extended_frame_last_x()
+#define TRACK_GRID_LAST_COORDINATE extended_frame_last_y()
 #else
 #define FRAME_TRACK_LAST_X 29
 #define TRACK_GRID_LAST_COORDINATE 29
@@ -741,16 +740,13 @@ struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 de
 
 static legacy_s32 frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
 {
-	return tiles->complete_tile_lookup && tiles->lookahead == tiles->extended_lookahead;
+	return extended_frame_has_complete_tile_lookup(tiles);
 }
 
 static legacy_s16 frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 east,
 										  legacy_s16 south)
 {
-	if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 || south > TRACK_GRID_LAST_COORDINATE) {
-		return -1;
-	}
-	return tiles->index_by_world_tile[south * extended_track_width() + east];
+	return extended_frame_lookup_world_tile(tiles, east, south);
 }
 #endif
 
@@ -1192,31 +1188,14 @@ static void frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 									 const struct FRAME_TILE *tile, legacy_s16 tile_index)
 {
 #if defined(RESTUNTS_SDL3)
-	if (extended_track_active()) {
+	if (extended_frame_mark_covered_tiles(tiles, tile, tile_index)) {
 		return;
 	}
 #endif
 	if (tile->element != 0) {
 		legacy_s16 multitile_flag = trkObjectList[tile->element].ss_multiTileFlag;
 		if (multitile_flag != FRAME_MULTITILE_NONE) {
-#if defined(RESTUNTS_SDL3)
-			if (frame_has_complete_tile_lookup(tiles)) {
-				if (multitile_flag < FRAME_MULTITILE_ROW || multitile_flag > FRAME_MULTITILE_BOTH) {
-					return;
-				}
-				legacy_s16 last_east = tile->east + (multitile_flag != FRAME_MULTITILE_ROW);
-				legacy_s16 last_south = tile->south + (multitile_flag != FRAME_MULTITILE_COLUMN);
-				for (legacy_s16 south = tile->south; south <= last_south; south++) {
-					for (legacy_s16 east = tile->east; east <= last_east; east++) {
-						legacy_s16 covered_index = frame_lookup_world_tile(tiles, east, south);
-						if (covered_index >= 0 && covered_index < tile_index) {
-							tiles->markers[covered_index] = FRAME_TILE_MULTITILE_COVERED_MARKER;
-						}
-					}
-				}
-				return;
-			}
-#endif
+
 			/* Recalculate after resolving filler tiles. Lower indices are visited later. */
 			legacy_s8 east_offset = LEGACY_S8_WRAP_SUB(tile->east, tiles->camera_east);
 			legacy_s8 south_offset = LEGACY_S8_WRAP_SUB(tile->south, tiles->camera_south);
@@ -1237,7 +1216,7 @@ static void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct F
 	tile->terrain = track_terrain_map[tile->east + terrainrows[tile->south]];
 
 #if defined(RESTUNTS_SDL3)
-	if (!extended_track_active())
+	if (extended_frame_uses_legacy_tiles())
 #endif
 		frame_resolve_track_tile(tile);
 	tiles->terrain[tile_index] = tile->terrain;
@@ -1252,9 +1231,7 @@ static void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct F
 	tiles->east[tile_index] = tile->east;
 	tiles->south[tile_index] = tile->south;
 #if defined(RESTUNTS_SDL3)
-	if (extended_track_active() && tile->element >= 253) {
-		tile->element = 0;
-	}
+	tile->element = extended_frame_legacy_element(tile->element);
 #endif
 	tiles->elements[tile_index] = tile->element;
 
@@ -1265,42 +1242,7 @@ static void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct F
 static void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 								   const struct FRAME_CAMERA *camera)
 {
-	(void)camera;
-	/* HyperVision uses screen depth, so enumerate each world tile once in
-	 * stable grid order. Continuations still resolve to their complete object;
-	 * the lookup identifies the same submission tile for its cars and wheels. */
-	legacy_s16 index = 0;
-	memset(tiles->index_by_world_tile, -1, sizeof(tiles->index_by_world_tile));
-	for (legacy_s16 south = 0; south <= TRACK_GRID_LAST_COORDINATE; south++) {
-		for (legacy_s16 east = 0; east <= FRAME_TRACK_LAST_X; east++) {
-			if (extended_track_active() &&
-				(abs(east - tiles->camera_east) > 28 || abs(south - tiles->camera_south) > 28)) {
-				continue;
-			}
-			if (frame_adaptive_active != 0 &&
-				frame_adaptive_flags(&frame_adaptive, east, south) == FRAME_ADAPTIVE_HIDE) {
-				continue;
-			}
-			struct FRAME_LOOKAHEAD_TILE *tile = &tiles->extended_lookahead[index++];
-			tile->east = east - tiles->camera_east;
-			tile->south = south - tiles->camera_south;
-			tile->detail = FRAME_TILE_DETAIL_FULL;
-		}
-	}
-	tiles->count = index;
-	tiles->complete_tile_lookup = 1;
-	for (index = 0; index < tiles->count; index++) {
-		legacy_s16 east = tiles->extended_lookahead[index].east + tiles->camera_east;
-		legacy_s16 south = tiles->extended_lookahead[index].south + tiles->camera_south;
-		/* Wrapped signed-byte offsets need the original comparison semantics. */
-		if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 ||
-			south > TRACK_GRID_LAST_COORDINATE) {
-			tiles->complete_tile_lookup = 0;
-		} else {
-			tiles->index_by_world_tile[south * extended_track_width() + east] = index;
-		}
-	}
-	tiles->lookahead = tiles->extended_lookahead;
+	extended_frame_extend_lookahead(tiles, camera, frame_adaptive_active);
 }
 #else
 static void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
@@ -1374,14 +1316,7 @@ static void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles,
 		frame_extend_lookahead(tiles, camera);
 	}
 #if defined(RESTUNTS_SDL3)
-	if (extended_track_active()) {
-		extended_frame_position_camera_tiles(tiles, camera);
-		/* The classic painter must retain the original far-to-near tile
-		 * order. Row-major enumeration is only safe with HyperVision depth. */
-		if (supersight_enabled != 0) {
-			frame_extend_lookahead(tiles, camera);
-		}
-	}
+	extended_frame_position_tiles(tiles, camera, frame_adaptive_active);
 #endif
 	if (detail_level != FRAME_DETAIL_FULL) {
 		tiles->player_east = frame_tile_from_world(frame_state->playerstate.car_position.lx);
@@ -1630,8 +1565,9 @@ static legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME
 									 legacy_s8 redraw_transform_flags)
 {
 #if defined(RESTUNTS_SDL3)
-	if (extended_track_active()) {
-		return extended_frame_draw_terrain(tile, camera, redraw_transform_flags);
+	legacy_s16 result;
+	if (extended_frame_try_draw_terrain(tile, camera, redraw_transform_flags, &result)) {
+		return result;
 	}
 #endif
 	if (supersight_enabled != 0 &&
@@ -2348,8 +2284,9 @@ frame_add_track_element(struct FRAME_TILE *tile, const struct FRAME_CAMERA *came
 {
 	struct TRACKOBJECT *track_object;
 #if defined(RESTUNTS_SDL3)
-	if (extended_track_active()) {
-		return extended_frame_draw_objects(tile, camera, redraw_transform_flags);
+	legacy_s16 result;
+	if (extended_frame_try_draw_objects(tile, camera, redraw_transform_flags, &result)) {
+		return result;
 	}
 #endif
 
@@ -2487,7 +2424,7 @@ static legacy_s16 frame_draw_tile_background(struct FRAME_TILE *tile,
 {
 	if (
 #if defined(RESTUNTS_SDL3)
-		!extended_track_active() &&
+		extended_frame_uses_legacy_tiles() &&
 #endif
 		frame_draw_fences(tile, tiles, camera, redraw_transform_flags) != 0 &&
 		supersight_enabled != 0) {
@@ -2513,9 +2450,7 @@ frame_draw_tile_objects(struct FRAME_TILE *tile, const struct FRAME_TILE_SELECTI
 #if defined(RESTUNTS_SDL3)
 	/* Covered extended cells remain selected; submit their boundary once,
 	 * after the terrain that supports it. */
-	if (extended_track_active() &&
-		extended_frame_draw_fences(tile, tiles, camera, redraw_transform_flags) != 0 &&
-		supersight_enabled != 0) {
+	if (extended_frame_front_fences(tile, tiles, camera, redraw_transform_flags)) {
 		return 1;
 	}
 #else
@@ -2898,7 +2833,7 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	}
 #if defined(RESTUNTS_SDL3)
 	frame_adaptive_active = supersight_enabled != 0 && frame_uses_snapshot != 0 &&
-							frame_adaptive.quality != 0 && !extended_track_active();
+							frame_adaptive.quality != 0 && extended_frame_uses_legacy_tiles();
 #endif
 	struct FRAME_CAR_RENDER cars[FRAME_EXPLOSION_CAR_COUNT];
 	cars[PLAYER_CAR_INDEX].explosion_visible = 0;

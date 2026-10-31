@@ -3,6 +3,7 @@
 #include "trackdata_layout.h"
 #include "externs.h"
 #include "extended_track.h"
+#include "extended_trkutil.h"
 
 #define REPLAY_SLOW_CALLBACK_DIVISOR 2U
 #define VIDEO_GEOMETRY_UNIT_SCALE 1
@@ -20,12 +21,7 @@ void init_row_tables(void)
 {
 	legacy_s16 width = (legacy_s16)extended_track_width();
 	legacy_s16 height = (legacy_s16)extended_track_height();
-	legacy_s16 count = width > height ? width : height;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		count++;
-	}
-#endif
+	legacy_s16 count = extended_trkutil_row_table_count(width, height);
 	for (legacy_s16 i = 0; i < count; i++) {
 		legacy_s16 inverse_row = LEGACY_S16_WRAP_SUB(height - 1, i);
 		legacy_s16 track_position = LEGACY_S16_SHL(inverse_row, TRACK_TILE_POSITION_SHIFT);

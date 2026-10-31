@@ -7,7 +7,8 @@
 #include "../c/track_objects.h"
 #include "../c/track_collision.h"
 #include "../c/trackdata_layout.h"
-#include "../c/extended_track.h"
+#include "extended_maneuvers.h"
+#include "maneuvers_internal.h"
 
 #undef memcpy
 
@@ -21,8 +22,6 @@ extern legacy_f64 fmax(legacy_f64, legacy_f64);
 
 #define MANEUVER_ANGLE_SCALE (ANGLE_FULL_TURN / 6.28318530717958647693)
 #define MANEUVER_MPH_TRAVEL (11.0 / 30.0)
-#define MANEUVER_BARREL_HORIZON 160U
-#define MANEUVER_BARREL_APPROACH_SPEED 100.0
 
 static legacy_f64 bounded(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 {
@@ -32,9 +31,13 @@ static legacy_f64 bounded(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 const legacy_char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind)
 {
 	static const legacy_char *const names[] = {
-		"follow",		   "accelerate",		 "brake",	   "tile touch", "stunt",
-		"stunt alternate", "chicane fast grass", "launch",	   "power gear", "landing",
-		"slalom center",   "slalom jump",		 "barrel roll"};
+		"follow",		   "accelerate",		 "brake",  "tile touch", "stunt",
+		"stunt alternate", "chicane fast grass", "launch", "power gear", "landing",
+		"slalom center",   "slalom jump"};
+	const legacy_char *extended_name = extended_genghost_maneuver_name(kind);
+	if (extended_name) {
+		return extended_name;
+	}
 	return (legacy_uint)kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "unknown";
 }
 
@@ -86,8 +89,9 @@ static legacy_int can_launch(legacy_int model)
 		   (model >= PHYSICAL_MODEL_ELEVATED_ROAD && model <= PHYSICAL_MODEL_OVERPASS);
 }
 
-static size_t feature_ahead(const struct GENGHOST_ROUTE *route,
-							const struct GENGHOST_DRIVER *driver, size_t begin, size_t *end)
+size_t genghost_maneuver_feature_ahead(const struct GENGHOST_ROUTE *route,
+									   const struct GENGHOST_DRIVER *driver, size_t begin,
+									   size_t *end)
 {
 	while (begin < route->point_count && begin &&
 		   route->points[begin - 1U].piece_index == route->points[begin].piece_index) {
@@ -214,18 +218,18 @@ static void straight_chicane(struct GENGHOST_MANEUVER *action, legacy_uint varia
 	}
 }
 
-static void add_action(struct GENGHOST_MANEUVER *actions, size_t *count, size_t capacity,
-					   const struct GENGHOST_MANEUVER *action)
+void genghost_maneuver_add_action(struct GENGHOST_MANEUVER *actions, size_t *count, size_t capacity,
+								  const struct GENGHOST_MANEUVER *action)
 {
 	if (*count < capacity) {
 		actions[(*count)++] = *action;
 	}
 }
 
-static struct GENGHOST_MANEUVER feature_action(const struct GENGHOST_MANEUVER *ordinary,
-											   const struct GENGHOST_ROUTE *route,
-											   const struct GENGHOST_DRIVER *driver, size_t begin,
-											   size_t end)
+struct GENGHOST_MANEUVER genghost_maneuver_feature_action(const struct GENGHOST_MANEUVER *ordinary,
+														  const struct GENGHOST_ROUTE *route,
+														  const struct GENGHOST_DRIVER *driver,
+														  size_t begin, size_t end)
 {
 	struct GENGHOST_MANEUVER feature = *ordinary;
 	feature.approach = route->points[begin];
@@ -259,9 +263,7 @@ static struct GENGHOST_MANEUVER feature_action(const struct GENGHOST_MANEUVER *o
 static legacy_int slalom_flight(struct GENGHOST_MANEUVER *action)
 {
 	legacy_int piece = action->approach.piece;
-	/* The combined stunt has a roof: an ordinary slalom's over-stone flight
-	 * proposal cannot infer clearance through that shell. */
-	if (action->approach.tunnel_slalom) {
+	if (!extended_genghost_slalom_flight_allowed(action)) {
 		return 0;
 	}
 	const struct CARSTATE *car = &state.playerstate;
@@ -317,7 +319,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	}
 	const struct CARSTATE *car = &state.playerstate;
 	size_t count = 0U, end = 0U;
-	size_t begin = feature_ahead(route, driver, driver->waypoint, &end);
+	size_t begin = genghost_maneuver_feature_ahead(route, driver, driver->waypoint, &end);
 	struct GENGHOST_MANEUVER ordinary;
 	memset(&ordinary, 0, sizeof(ordinary));
 	ordinary.kind = GENGHOST_MANEUVER_FOLLOW;
@@ -327,19 +329,19 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	ordinary.feature_begin = ordinary.feature_end = driver->progress;
 	ordinary.physical_model = route->points[driver->waypoint].physical_model;
 	ordinary.approach_speed = ordinary.exit_speed = ordinary.approach.speed;
-	add_action(actions, &count, capacity, &ordinary);
+	genghost_maneuver_add_action(actions, &count, capacity, &ordinary);
 	struct GENGHOST_MANEUVER action = ordinary;
 	action.kind = GENGHOST_MANEUVER_ACCELERATE;
 	action.gene.speed_scale *= 1.20;
 	action.gene.corner_scale *= 1.12;
 	action.gene.slide_brake = 0.0;
-	add_action(actions, &count, capacity, &action);
+	genghost_maneuver_add_action(actions, &count, capacity, &action);
 	action = ordinary;
 	action.kind = GENGHOST_MANEUVER_BRAKE;
 	action.horizon_frames = 12U;
 	action.gene.speed_scale *= 0.72;
 	action.gene.corner_scale *= 0.78;
-	add_action(actions, &count, capacity, &action);
+	genghost_maneuver_add_action(actions, &count, capacity, &action);
 	size_t crest;
 	legacy_int ascent = uphill_ahead(route, driver, &crest);
 	legacy_int feature_launch =
@@ -365,7 +367,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 			action.gene.shift_rpm_scale = schedule == 0U ? 0.86 : 1.0;
 			action.exit = route->points[crest];
 			action.feature_end = action.exit.distance;
-			add_action(actions, &count, capacity, &action);
+			genghost_maneuver_add_action(actions, &count, capacity, &action);
 		}
 	}
 	/* Reserve narrow center guidance and a real-flight continuation before
@@ -375,47 +377,25 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	for (legacy_uint number = 0U; number < 2U && slalom_begin < route->point_count; ++number) {
 		if (route->points[slalom_begin].physical_model == PHYSICAL_MODEL_SLALOM &&
 			(!owoot || genghost_slalom_center_fits())) {
-			action = feature_action(&ordinary, route, driver, slalom_begin, slalom_end);
+			action = genghost_maneuver_feature_action(&ordinary, route, driver, slalom_begin,
+													  slalom_end);
 			action.kind = GENGHOST_MANEUVER_SLALOM_CENTER;
 			action.road_only = 1U;
 			action.gene.stunt_mode = GENGHOST_STUNT_SLALOM_CENTER;
 			action.gene.lateral_offset = 0.0;
 			action.gene.speed_scale = 1.5;
-			add_action(actions, &count, capacity, &action);
+			genghost_maneuver_add_action(actions, &count, capacity, &action);
 			if (!owoot && car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE &&
 				car->car_actual_speed > 0U && slalom_flight(&action)) {
 				action.kind = GENGHOST_MANEUVER_SLALOM_JUMP;
 				action.road_only = 0U;
-				add_action(actions, &count, capacity, &action);
+				genghost_maneuver_add_action(actions, &count, capacity, &action);
 			}
 		}
-		slalom_begin = feature_ahead(route, driver, slalom_end + 1U, &slalom_end);
+		slalom_begin = genghost_maneuver_feature_ahead(route, driver, slalom_end + 1U, &slalom_end);
 	}
-	/* A barrel launch is a directional road followed by real unsupported
-	 * flight. Keep its centered approach distinct from the stock corkscrew
-	 * bypass/launch recipes, including while OWOOT requires the full roll. */
-	size_t roll_begin = begin, roll_end = end;
-	for (legacy_uint number = 0U; number < 2U && roll_begin < route->point_count; ++number) {
-		if (route->points[roll_begin].roll_ramp) {
-			static const legacy_f64 scales[] = {1.0, 0.85, 1.15};
-			for (legacy_uint variant = 0U; variant < sizeof(scales) / sizeof(scales[0]);
-				 ++variant) {
-				action = feature_action(&ordinary, route, driver, roll_begin, roll_end);
-				action.kind = GENGHOST_MANEUVER_BARREL_ROLL;
-				action.horizon_frames = MANEUVER_BARREL_HORIZON;
-				action.road_only = 1U;
-				action.gene.stunt_mode = GENGHOST_STUNT_BARREL;
-				action.gene.lateral_offset = 0.0;
-				action.gene.speed_scale = scales[variant];
-				action.gene.corner_scale = 1.0;
-				action.gene.powergear_bias = 0.0;
-				action.approach_speed = MANEUVER_BARREL_APPROACH_SPEED * scales[variant];
-				action.exit_speed = action.approach_speed;
-				add_action(actions, &count, capacity, &action);
-			}
-		}
-		roll_begin = feature_ahead(route, driver, roll_end + 1U, &roll_end);
-	}
+	extended_genghost_add_barrel_maneuvers(route, driver, &ordinary, begin, end, actions, &count,
+										   capacity);
 	if (owoot) {
 		return count;
 	}
@@ -431,7 +411,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 		action.gene.stunt_mode = 0U;
 		action.gene.slide_brake = 0.0;
 		action.gene.lookahead_scale = i > 1U ? 1.4 : 1.0;
-		add_action(actions, &count, capacity, &action);
+		genghost_maneuver_add_action(actions, &count, capacity, &action);
 	}
 	/* Reserve landing diversity before optional nearby stunt alternatives can
 	 * consume the bounded action array. Every airborne expansion retains all
@@ -444,7 +424,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 			action.exit = landing_ahead(route, driver->waypoint, 1U + variant * 2U);
 			action.exit_speed = 250.0;
 			action.gene.powergear_bias = powergear ? 1.0 : 0.0;
-			add_action(actions, &count, capacity, &action);
+			genghost_maneuver_add_action(actions, &count, capacity, &action);
 		}
 	}
 	/* A bypassed piece can still be nearest to the spline. Offer the next
@@ -452,9 +432,10 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	 * behind a stunt the car is deliberately avoiding. */
 	for (legacy_uint feature_number = 0U;
 		 feature_number < 2U && begin < route->point_count && count < capacity; ++feature_number) {
-		struct GENGHOST_MANEUVER feature = feature_action(&ordinary, route, driver, begin, end);
-		if (feature.approach.roll_ramp) {
-			begin = feature_ahead(route, driver, end + 1U, &end);
+		struct GENGHOST_MANEUVER feature =
+			genghost_maneuver_feature_action(&ordinary, route, driver, begin, end);
+		if (extended_genghost_maneuver_skip_feature(&feature)) {
+			begin = genghost_maneuver_feature_ahead(route, driver, end + 1U, &end);
 			continue;
 		}
 		for (legacy_uint variant = 0U; variant < 4U; ++variant) {
@@ -463,7 +444,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 				variant % 2U ? GENGHOST_MANEUVER_STUNT_ALTERNATE : GENGHOST_MANEUVER_STUNT;
 			action.gene.stunt_mode = variant % 2U ? GENGHOST_STUNT_HUMAN_ALT : GENGHOST_STUNT_HUMAN;
 			action.gene.lateral_offset = variant < 2U ? 0.0 : 0.6;
-			add_action(actions, &count, capacity, &action);
+			genghost_maneuver_add_action(actions, &count, capacity, &action);
 		}
 		if (is_chicane(feature.physical_model)) {
 			for (legacy_uint variant = 0U; variant < 3U; ++variant) {
@@ -475,7 +456,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 					action.hold_throttle = 1U;
 					straight_chicane(&action, variant);
 				}
-				add_action(actions, &count, capacity, &action);
+				genghost_maneuver_add_action(actions, &count, capacity, &action);
 			}
 		}
 		if (can_launch(feature.physical_model)) {
@@ -492,7 +473,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 				action.gene.speed_scale = 1.5;
 				action.gene.powergear_bias = powergear ? 1.0 : 0.0;
 				action.exit = landing_ahead(route, end, 1U + variant * 2U);
-				add_action(actions, &count, capacity, &action);
+				genghost_maneuver_add_action(actions, &count, capacity, &action);
 			}
 			if (powergear && genghost_powergear_kind()) {
 				/* The same approach has several deliberate gear schedules. A
@@ -508,11 +489,11 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 					action.gene.stunt_mode = schedule == 2U ? 4U : 0U;
 					action.gene.shift_rpm_scale = schedule == 0U ? 0.86 : 1.0;
 					action.exit = landing_ahead(route, end, 2U);
-					add_action(actions, &count, capacity, &action);
+					genghost_maneuver_add_action(actions, &count, capacity, &action);
 				}
 			}
 		}
-		begin = feature_ahead(route, driver, end + 1U, &end);
+		begin = genghost_maneuver_feature_ahead(route, driver, end + 1U, &end);
 	}
 
 	return count;
@@ -533,9 +514,7 @@ static legacy_u8 toward_target(const struct GENGHOST_WAYPOINT *target, legacy_f6
 	const struct CARSTATE *car = &state.playerstate;
 	struct VECTOR delta = {
 		(legacy_s16)bounded(target->x - car->car_position.lx / 64.0, -32767.0, 32767.0),
-		extended_track_active() && target->height_specified
-			? (legacy_s16)bounded(target->y - car->car_position.ly / 64.0, -32767.0, 32767.0)
-			: 0,
+		extended_genghost_maneuver_target_height(target, car),
 		(legacy_s16)bounded(target->z - car->car_position.lz / 64.0, -32767.0, 32767.0)};
 	struct VECTOR local;
 	struct MATRIX *rotation = mat_rot_zxy(car->car_rotate.z, car->car_rotate.y, car->car_rotate.x,
@@ -641,7 +620,7 @@ legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 		}
 	}
 	legacy_u8 input = genghost_driver_step(route, &local, driver, powergear, collision, owoot);
-	if (driver->barrel_active || action->kind == GENGHOST_MANEUVER_BARREL_ROLL ||
+	if (extended_genghost_maneuver_preserves_inputs(driver, action) ||
 		(owoot && action->kind != GENGHOST_MANEUVER_POWERGEAR)) {
 		return input;
 	}

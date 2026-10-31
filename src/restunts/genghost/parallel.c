@@ -8,7 +8,7 @@
 #include <limits.h>
 #include <SDL3/SDL.h>
 #include "parallel.h"
-#include "../c/csrpl.h"
+#include "extended_parallel.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -313,58 +313,6 @@ static legacy_u32 worker_seed(legacy_u32 base, legacy_uint index)
 	return value;
 }
 
-static const legacy_u8 source_track_signature[] = {'C', 'S', 'T', 'R', 'K', 26U, '\r', '\n'};
-static const legacy_u8 source_replay_signature[] = {'C', 'S', 'R', 'P', 'L', '\r', '\n', 26U};
-
-static legacy_int source_is_csrpl(const legacy_u8 *source, size_t size)
-{
-	return source && size >= sizeof(source_replay_signature) &&
-		   !memcmp(source, source_replay_signature, sizeof(source_replay_signature));
-}
-
-static const legacy_char *source_extension(const legacy_u8 *source, size_t size)
-{
-	if (source_is_csrpl(source, size)) {
-		return "csrpl";
-	}
-	if (source && size >= sizeof(source_track_signature) &&
-		!memcmp(source, source_track_signature, sizeof(source_track_signature))) {
-		return "cstrk";
-	}
-	return size == REPLAY_TRACK_SIZE ? "trk" : "rpl";
-}
-
-/* The input history follows the complete embedded track in CSRPL. The parent
- * and every worker must evaluate the same seed, including long recordings. */
-static legacy_int source_replay_inputs(const legacy_u8 *source, size_t size,
-									   const legacy_u8 **inputs, legacy_uint *length)
-{
-	if (source_is_csrpl(source, size)) {
-		struct CSRPL_VIEW replay;
-		if (!csrpl_decode(source, size, &replay, NULL, 0) || !replay.metadata.frame_count ||
-			replay.metadata.frame_count > genghost_sim_frame_limit() ||
-			replay.metadata.frames_per_second != genghost_sim_frame_rate()) {
-			return -1;
-		}
-		*inputs = replay.inputs;
-		*length = replay.metadata.frame_count;
-		return 0;
-	}
-	if (!source || size <= REPLAY_INPUT_OFFSET) {
-		return -1;
-	}
-	struct GAMEINFO replay;
-	replay_gameinfo_decode(&replay, source);
-	if (replay_file_size(replay.game_recordedframes) != size || !replay.game_recordedframes ||
-		replay.game_recordedframes > genghost_sim_frame_limit() ||
-		replay.game_framespersec != genghost_sim_frame_rate()) {
-		return -1;
-	}
-	*inputs = source + REPLAY_INPUT_OFFSET;
-	*length = replay.game_recordedframes;
-	return 0;
-}
-
 static legacy_int write_bytes(const legacy_char *path, const void *bytes, size_t length)
 {
 	FILE *file = fopen(path, "wb");
@@ -603,7 +551,8 @@ legacy_int genghost_parallel_search(const legacy_char *executable, const legacy_
 		/* Retain a canonical parent baseline even if cancellation or startup
 		 * overhead prevents every child from publishing its first result. */
 		const legacy_u8 *inputs;
-		if (source_replay_inputs(source, source_length, &inputs, &result->length)) {
+		if (extended_parallel_source_replay_inputs(source, source_length, &inputs,
+												   &result->length)) {
 			return 1;
 		}
 		memcpy(result->inputs, inputs, result->length);
@@ -629,7 +578,8 @@ legacy_int genghost_parallel_search(const legacy_char *executable, const legacy_
 		goto cleanup;
 	}
 	directory_created = 1;
-	SDL_asprintf(&input_path, "%s/source.%s", directory, source_extension(source, source_length));
+	SDL_asprintf(&input_path, "%s/source.%s", directory,
+				 extended_parallel_source_extension(source, source_length));
 	SDL_asprintf(&stop_path, "%s/stop", directory);
 	if (!input_path || !stop_path || write_bytes(input_path, source, source_length)) {
 		failed = 1;
@@ -1258,7 +1208,7 @@ struct GENGHOST_COOPERATIVE_POOL *genghost_cooperative_open(
 	}
 	pool->directory_created = 1;
 	SDL_asprintf(&pool->input_path, "%s/source.%s", pool->directory,
-				 source_extension(source, source_length));
+				 extended_parallel_source_extension(source, source_length));
 	SDL_asprintf(&pool->stop_path, "%s/stop", pool->directory);
 	if (!pool->input_path || !pool->stop_path ||
 		write_bytes(pool->input_path, source, source_length)) {

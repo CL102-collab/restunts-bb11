@@ -4,3 +4,6 @@ RESTUNTS_OBJ_FILES = fileio.obj legacy.obj resource.obj math.obj memmgr.obj strl
                      frame.obj skybox.obj frame_overlay.obj intro_render.obj track_preview.obj state.obj race_route.obj physics_grip.obj opponent.obj track_setup.obj stateply.obj physics_collision.obj statecrs.obj \
                      statecar.obj trackobj.obj owoot.obj owoot_wheels.obj owoot_road.obj owoot_route.obj replay.obj
 RESTUNTS_OBJ_FILES += command_line.obj dosstart.obj headless_data.obj headless_trackdata.obj full_data.obj full_strings.obj full_tables.obj
+
+# Shared traversal and extracted hooks retain the same classic/DOS behavior.
+RESTUNTS_OBJ_FILES += extended_gameinit.obj extended_gamestep.obj extended_trkutil.obj extended_race_route.obj extended_track_setup.obj extended_trackobj.obj extended_stateply.obj extended_physics_collision.obj extended_statecrs.obj extended_owoot_route.obj extended_owoot_road.obj extended_opponent.obj extended_fileio.obj extended_menu_runtime.obj extended_highscore_ui.obj extended_ui_dialog.obj extended_replay_ui.obj extended_ghost_runtime.obj

@@ -1,9 +1,6 @@
 #include "externs.h"
 #include "legacy.h"
 #include "math.h"
-#ifdef RESTUNTS_SDL3
-#include "extended_geometry.h"
-#endif
 #include "math_internal.h"
 #include "fatal.h"
 #include "track_collision.h"

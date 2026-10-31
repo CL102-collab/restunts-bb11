@@ -10,10 +10,32 @@
 #include <windows.h>
 #endif
 #include "options.h"
-extern "C" {
-#include "../c/csrpl.h"
-}
+#include "extended_options.h"
+#include "options_internal.h"
 #include "../genghost/simulation.h"
+
+static legacy_bool genghost_gui_valid_car(const wxString &car)
+{
+	if (car.length() != REPLAY_CAR_ID_SIZE) {
+		return false;
+	}
+	for (const wxUniChar letter : car) {
+		if (!((letter >= 'A' && letter <= 'Z') || (letter >= 'a' && letter <= 'z') ||
+			  (letter >= '0' && letter <= '9') || letter == '_')) {
+			return false;
+		}
+	}
+	return true;
+}
+
+wxString genghost_gui_header_car(const legacy_u8 *header)
+{
+	wxString car;
+	for (legacy_uint index = 0; index < REPLAY_CAR_ID_SIZE; ++index) {
+		car += wxUniChar(header[index]);
+	}
+	return genghost_gui_valid_car(car) ? car.Upper() : wxString();
+}
 
 namespace
 {
@@ -38,52 +60,6 @@ static const legacy_uint FINE_TUNE_PREFIX_LENGTH = 5U;
 static const legacy_uint CAR_PREFIX_LENGTH = sizeof(CAR_PREFIX) - 1U;
 static const legacy_uint REPLAY_SLOW_FRAME_RATE = 10U;
 static const legacy_uint TRANSMISSION_AUTOMATIC = 1U;
-static const size_t EXTENDED_TRACK_MAX_BYTES =
-	CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +
-	CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION * 2U + CSTRK_MAX_OBJECTS * CSTRK_OBJECT_SIZE +
-	CSTRK_MAX_NOTES;
-static const size_t EXTENDED_REPLAY_MAX_BYTES =
-	CSRPL_HEADER_SIZE + EXTENDED_TRACK_MAX_BYTES + GENGHOST_MAX_FRAMES;
-
-static legacy_bool extended_input(const wxString &path)
-{
-	const wxString extension = wxFileName(path).GetExt().Upper();
-	return extension == "CSTRK" || extension == "CSRPL";
-}
-
-static legacy_bool read_extended(const wxString &path, std::vector<legacy_u8> &bytes)
-{
-	wxLogNull silence;
-	wxFFile file(path, "rb");
-	if (!file.IsOpened() || file.Length() <= 0 ||
-		static_cast<legacy_u64>(file.Length()) > EXTENDED_REPLAY_MAX_BYTES) {
-		return false;
-	}
-	bytes.resize(static_cast<size_t>(file.Length()));
-	return file.Read(bytes.data(), bytes.size()) == bytes.size();
-}
-
-static legacy_bool read_extended_replay(const wxString &path, std::vector<legacy_u8> &bytes,
-										CSRPL_VIEW &view)
-{
-	return read_extended(path, bytes) &&
-		   csrpl_decode(bytes.data(), bytes.size(), &view, nullptr, 0) &&
-		   view.metadata.frame_count <= GENGHOST_MAX_FRAMES;
-}
-
-static legacy_bool valid_car(const wxString &car)
-{
-	if (car.length() != REPLAY_CAR_ID_SIZE) {
-		return false;
-	}
-	for (const wxUniChar letter : car) {
-		if (!((letter >= 'A' && letter <= 'Z') || (letter >= 'a' && letter <= 'z') ||
-			  (letter >= '0' && letter <= '9') || letter == '_')) {
-			return false;
-		}
-	}
-	return true;
-}
 
 static wxString absolute_path(const wxString &path, const wxString &folder)
 {
@@ -152,26 +128,9 @@ static legacy_u16 header_word(const legacy_u8 *header, legacy_uint offset)
 	return LEGACY_READ_U16_LE(header + offset);
 }
 
-static wxString header_car(const legacy_u8 *header)
-{
-	wxString car;
-	for (legacy_uint index = 0; index < REPLAY_CAR_ID_SIZE; ++index) {
-		car += wxUniChar(header[index]);
-	}
-	return valid_car(car) ? car.Upper() : wxString();
-}
-
 static legacy_bool valid_replay(const wxString &path, legacy_bool fine_tune)
 {
-	if (wxFileName(path).GetExt().CmpNoCase("csrpl") == 0) {
-		std::vector<legacy_u8> bytes;
-		CSRPL_VIEW view;
-		if (!read_extended_replay(path, bytes, view)) {
-			return false;
-		}
-		return !fine_tune || (view.metadata.frame_count != 0 && view.metadata.opponent_type == 0 &&
-							  !header_car(view.metadata.player_car_id).empty());
-	}
+
 	legacy_u8 header[REPLAY_GAMEINFO_SIZE];
 	if (!read_header(path, header)) {
 		return false;
@@ -184,9 +143,9 @@ static legacy_bool valid_replay(const wxString &path, legacy_bool fine_tune)
 		(rate != REPLAY_SLOW_FRAME_RATE && rate != GENGHOST_FRAME_RATE)) {
 		return false;
 	}
-	return !fine_tune ||
-		   (frames != 0 && rate == GENGHOST_FRAME_RATE &&
-			header[offsetof(GAMEINFO, game_opponenttype)] == 0 && !header_car(header).empty());
+	return !fine_tune || (frames != 0 && rate == GENGHOST_FRAME_RATE &&
+						  header[offsetof(GAMEINFO, game_opponenttype)] == 0 &&
+						  !genghost_gui_header_car(header).empty());
 }
 
 static legacy_int read_number(wxFileConfig &config, const legacy_char *key, legacy_int initial,
@@ -228,14 +187,14 @@ static wxString collect_directory(const wxString &path, legacy_bool required,
 		const wxFileName file(path, name);
 		const wxString extension = file.GetExt().Upper();
 		if (inputs != nullptr && (extension == "TRK" || extension == "RPL" ||
-								  extension == "CSTRK" || extension == "CSRPL")) {
+								  extended_genghost_input(file.GetFullPath()))) {
 			inputs->push_back(absolute_path(file.GetFullPath(), wxEmptyString));
 		}
 		const wxString stem = file.GetName().Upper();
 		if ((extension == "RES" || extension == "PRE") && stem.StartsWith(CAR_PREFIX) &&
 			stem.length() == CAR_PREFIX_LENGTH + REPLAY_CAR_ID_SIZE) {
 			const wxString car = stem.Mid(CAR_PREFIX_LENGTH);
-			if (valid_car(car)) {
+			if (genghost_gui_valid_car(car)) {
 				cars.insert(car);
 			}
 		}
@@ -374,41 +333,20 @@ wxString genghost_resolved_input(const GenghostOptions &options)
 wxString genghost_resolved_car(const GenghostOptions &options)
 {
 	if (options.mode == GENGHOST_MODE_GENERATE) {
-		return valid_car(options.car) ? options.car.Upper() : wxString();
+		return genghost_gui_valid_car(options.car) ? options.car.Upper() : wxString();
 	}
 	const wxString path = genghost_resolved_input(options);
-	if (wxFileName(path).GetExt().CmpNoCase("csrpl") == 0) {
-		std::vector<legacy_u8> bytes;
-		CSRPL_VIEW view;
-		return read_extended_replay(path, bytes, view) ? header_car(view.metadata.player_car_id)
-													   : wxString();
+	wxString car;
+	if (extended_genghost_replay_car(path, car)) {
+		return car;
 	}
 	legacy_u8 header[REPLAY_GAMEINFO_SIZE];
-	return read_header(path, header) ? header_car(header) : wxString();
+	return read_header(path, header) ? genghost_gui_header_car(header) : wxString();
 }
 
 legacy_bool genghost_apply_replay_physics(GenghostOptions &options)
 {
-	const wxString input = genghost_resolved_input(options);
-	if (wxFileName(input).GetExt().CmpNoCase("csrpl") != 0) {
-		return false;
-	}
-	std::vector<legacy_u8> bytes;
-	CSRPL_VIEW view;
-	if (!read_extended_replay(input, bytes, view)) {
-		return false;
-	}
-	static const legacy_u16 rules[GENGHOST_PHYSICS_COUNT] = {DRIVING_RULE_POWER_GEAR,
-															 DRIVING_RULE_LEGACY_COLLISION,
-															 DRIVING_RULE_LEFT_CORNER_BIAS,
-															 DRIVING_RULE_DUAL_WAY_SWITCHING,
-															 DRIVING_RULE_CHICANE_FAST_GRASS,
-															 DRIVING_RULE_AMIGA_GRASS,
-															 DRIVING_RULE_OWOOT};
-	for (legacy_uint index = 0; index < GENGHOST_PHYSICS_COUNT; index++) {
-		options.physics[index] = (view.metadata.driving_rules & rules[index]) != 0;
-	}
-	return true;
+	return extended_genghost_apply_replay_physics(options);
 }
 
 wxString genghost_default_output(const GenghostOptions &options)
@@ -425,7 +363,7 @@ wxString genghost_default_output(const GenghostOptions &options)
 	if (prefix.empty()) {
 		prefix = wxString("TRACK").Left(maximum);
 	}
-	const wxString extension = extended_input(options.input) ? ".csrpl" : ".rpl";
+	const wxString extension = "." + extended_genghost_output_extension(options.input);
 	const wxString suffix = fine_tune ? "-FT" + extension : "-" + options.car.Upper() + extension;
 	return absolute_path(prefix + suffix, options.folder);
 }
@@ -448,36 +386,32 @@ wxString genghost_validate_options(const GenghostOptions &options)
 		return "Choose a readable game folder.";
 	}
 	const legacy_bool fine_tune = options.mode != GENGHOST_MODE_GENERATE;
-	if (!fine_tune && !valid_car(options.car)) {
+	if (!fine_tune && !genghost_gui_valid_car(options.car)) {
 		return "Choose a four-character car code, such as COUN or DIA3.";
 	}
 	const wxString input = genghost_resolved_input(options);
 	if (input.empty() || !wxFileName::IsFileReadable(input)) {
 		return "Choose a readable track or replay.";
 	}
-	const wxString extension = wxFileName(input).GetExt().Upper();
-	if (fine_tune) {
-		if ((extension != "RPL" && extension != "CSRPL") || !valid_replay(input, true)) {
-			return "Fine-tuning requires a complete solo .CSRPL or 20 Hz .RPL replay with a valid "
-				   "car code.";
-		}
-	} else {
-		legacy_bool valid = false;
-		if (extension == "TRK") {
+	legacy_bool valid = false;
+	if (!extended_genghost_validate_input(input, fine_tune, valid)) {
+		const wxString extension = wxFileName(input).GetExt().Upper();
+		if (fine_tune) {
+			valid = extension == "RPL" && valid_replay(input, true);
+		} else if (extension == "TRK") {
 			valid = wxFileName::GetSize(input) == REPLAY_TRACK_SIZE;
-		} else if (extension == "RPL" || extension == "CSRPL") {
+		} else if (extension == "RPL") {
 			valid = valid_replay(input, false);
-		} else if (extension == "CSTRK") {
-			std::vector<legacy_u8> bytes;
-			valid = read_extended(input, bytes) &&
-					cstrk_validate_bytes(bytes.data(), bytes.size(), nullptr, 0);
-		}
-		if (!valid) {
-			return "Choose a complete .TRK/.CSTRK track or .RPL/.CSRPL replay.";
 		}
 	}
+	if (!valid) {
+		return fine_tune ? "Fine-tuning requires a complete solo .CSRPL or 20 Hz .RPL replay with "
+						   "a valid "
+						   "car code."
+						 : "Choose a complete .TRK/.CSTRK track or .RPL/.CSRPL replay.";
+	}
 	const wxString output = output_path(options);
-	const wxString expected_extension = extended_input(input) ? "csrpl" : "rpl";
+	const wxString expected_extension = extended_genghost_output_extension(input);
 	if (output.empty() || wxFileName(output).GetExt().CmpNoCase(expected_extension) != 0) {
 		return "Choose an output replay filename ending in ." + expected_extension + ".";
 	}
