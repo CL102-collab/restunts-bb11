@@ -4,6 +4,7 @@
  * and retains its code/data footprint, including the menu and intro paths. */
 #define run_main_menu_loop race_memory_original_main_menu_loop
 #include "../c/restunts.c"
+#include "../c/startup.c"
 #undef run_main_menu_loop
 
 #include "frame_internal.h"

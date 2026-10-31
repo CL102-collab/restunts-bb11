@@ -32,7 +32,7 @@ class CleanupTests(unittest.TestCase):
             result = subprocess.run([
                 "gcc", "-fsyntax-only", "-Wno-implicit-function-declaration",
                 "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS",
-                str(sources / "shape2d/shape2d_blit.c"),
+                str(sources / "shape2d/shape2d_window.c"),
             ], text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 

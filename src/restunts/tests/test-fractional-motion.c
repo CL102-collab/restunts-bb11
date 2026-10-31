@@ -2,7 +2,10 @@
 #include <stdio.h>
 
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 #include "../c/math.c"
+#include "../c/math_rectangles.c"
 
 struct GAMESTATE state;
 struct MATRIX car_to_world_rotation;

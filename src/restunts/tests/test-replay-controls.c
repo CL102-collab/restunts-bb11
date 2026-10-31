@@ -1,5 +1,8 @@
 #include <assert.h>
 #include "../c/replay/replay_viewer.c"
+#include "../c/replay/replay_toolbar.c"
+#include "../c/replay/replay_menu.c"
+#include "../c/replay/replay_scrub.c"
 #include "extended-replay-test-stubs.h"
 
 static legacy_u16 pressed_key;

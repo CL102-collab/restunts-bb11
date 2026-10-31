@@ -40,4 +40,9 @@ legacy_u8 far *shape2d_line_pointer(const struct SPRITE far *sprite, legacy_u16 
 #define shape2d_line_base(sprite) dos_memory_pointer_offset((sprite)->sprite_lineofs)
 #endif
 
+/* Shared rectangle clipping for primitive fills and transformed image writes. */
+legacy_s16 shape2d_clip_rectangle(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+								  legacy_s16 *clipped_x, legacy_s16 *clipped_y,
+								  legacy_s16 *clipped_width, legacy_s16 *clipped_height);
+
 #endif

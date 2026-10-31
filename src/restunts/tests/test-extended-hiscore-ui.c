@@ -7,6 +7,8 @@
 #include <string.h>
 #include "../c/extended/extended_replay_runtime.h"
 #include "../c/highscore.c"
+#include "../c/highscore_results.c"
+#include "../c/highscore_results_text.c"
 #include "../c/menu/menu_track.c"
 #include "../c/extended/extended_highscore.h"
 #undef printf

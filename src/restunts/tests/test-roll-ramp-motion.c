@@ -3,6 +3,8 @@
 #include <string.h>
 
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 #undef PLAYER_PHYSICS_WHEEL_COUNT
 #include "../c/extended/extended_stateply.c"
 

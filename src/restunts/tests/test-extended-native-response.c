@@ -4,10 +4,14 @@
 #include <string.h>
 
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 #undef PLAYER_PHYSICS_WHEEL_COUNT
 #include "../c/extended/extended_stateply.c"
 #include "../c/owoot/owoot_route.c"
 #include "../c/extended/extended_owoot_route.c"
+#include "../c/extended/extended_owoot_gates.c"
+#include "../c/extended/extended_owoot_jump.c"
 #include "../c/owoot/owoot_road.c"
 #include "../c/track/trackdata_layout.h"
 

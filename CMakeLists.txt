@@ -218,45 +218,61 @@ endif()
 set(core src/restunts/c)
 set(platform src/restunts/platform/sdl3)
 set(common_sources
-    fileio.c legacy.c resource.c math.c memmgr.c strlib.c numlib.c kevinrnd.c
+    fileio.c file_car.c file_decomp.c legacy.c resource.c math.c math_rectangles.c memmgr.c strlib.c
+    numlib.c kevinrnd.c
     replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c
     headless_data.c headless_trackdata.c state.c race/race_route.c physics_grip.c
     opponent/opponent.c
-    track/track_setup.c stateply.c physics_collision.c statecrs.c statecar.c track/trackobj.c
+    track/track_setup.c stateply.c stateply_motion.c stateply_contact.c physics_collision.c
+    physics_suspension.c statecrs.c statecar.c track/trackobj.c track/trackobj_road.c
+    track/trackobj_stunts.c track/trackobj_queries.c
     owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c driving_rules.c
     replay/replay.c stateio.c
     extended/extended_cstrk.c extended/extended_csrpl.c extended/extended_cshig.c
     extended/extended_replay.c extended/extended_track.c
     extended/extended_geometry.c extended/extended_opponent.c
     extended/extended_roll_ramp.c
-    extended/extended_trackobj.c extended/extended_stateply.c extended/extended_physics_collision.c
+    extended/extended_trackobj.c extended/extended_trackobj_solids.c extended/extended_stateply.c
+    extended/extended_physics_collision.c
     extended/extended_statecrs.c
     extended/extended_track_setup.c extended/extended_race_route.c extended/extended_gameinit.c
     extended/extended_gamestep.c
     extended/extended_trkutil.c extended/extended_fileio.c extended/extended_owoot_route.c
+    extended/extended_owoot_gates.c extended/extended_owoot_jump.c
     extended/extended_owoot_road.c)
 set(game_sources
-    restunts.c command_line.c fatal.c timing.c game_input.c ui/ui_text.c ui/ui_input.c
-    ui/ui_dialog.c
-    intro.c highscore.c replay/replay_record.c replay/replay_viewer.c race/race.c ghost.c
+    restunts.c startup.c command_line.c fatal.c timing.c game_input.c game_input_shortcuts.c
+    ui/ui_text.c ui/ui_input.c
+    ui/ui_dialog.c ui/ui_file_dialog.c ui/ui_disk_dialog.c
+    intro.c highscore.c highscore_results.c highscore_results_text.c replay/replay_record.c
+    replay/replay_viewer.c replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c
+    race/race.c race/race_rewind.c race/race_presentation.c ghost.c ghost_line.c
     extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
     extended/extended_race_stats.c
     extended/extended_ghost.c
     extended/extended_validation.c extended/extended_highscore.c extended/extended_frame.c
+    extended/extended_frame_objects.c extended/extended_frame_terrain.c
+    extended/extended_frame_precise.c
     extended/extended_track_preview.c
     extended/extended_menu_runtime.c extended/extended_highscore_ui.c extended/extended_ui_dialog.c
     extended/extended_replay_ui.c
     extended/extended_ghost_runtime.c
     race/race_resources.c dashboard.c menu/menu_common.c menu/menu_main.c menu/menu_options.c
-    menu/menu_track.c menu/menu_track_editor.c menu/menu_opponent.c opponent/opponent_portrait.c
+    menu/menu_track.c menu/menu_track_editor.c menu/menu_track_editor_map.c
+    menu/menu_track_editor_render.c menu/menu_track_editor_input.c menu/menu_opponent.c
+    opponent/opponent_portrait.c
     opponent/opponent_animation.c menu/menu_background.c
-    menu/menu_car.c audio/audio_engine.c
+    menu/menu_car.c audio/audio_engine.c audio/audio_channels.c audio/audio_context.c
     audio/audio_resources.c audio/audio_car.c audio/audio_sequence.c shape3d/shape3d.c
+    shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c
     shape3d/shape3d_resources.c
-    shape3d/shape3d_car.c shape3d/shape3d_prerender.c shape3d/shape3d_lines.c shape2d/shape2d.c
-    shape2d/shape2d_blit.c
-    video_pages.c hires/hires.c hires/hypervision.c hires/render_workers.c
-    hires/frame_interpolation.c hires/shape3d_hires.c shape2d/shape2d_resources.c heapsort.c frame.c
+    shape3d/shape3d_car.c shape3d/shape3d_prerender.c shape3d/shape3d_polygon.c
+    shape3d/shape3d_lines.c shape3d/shape3d_line_setup.c shape2d/shape2d.c shape2d/shape2d_image.c
+    shape2d/shape2d_blit.c shape2d/shape2d_window.c
+    video_pages.c hires/hires.c hires/hires_raster.c hires/hypervision.c hires/render_workers.c
+    hires/frame_interpolation.c hires/shape3d_hires.c hires/shape3d_hires_draw.c
+    hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c shape2d/shape2d_resources.c
+    heapsort.c frame.c frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c
     hires/frame_adaptive.c skybox.c hires/skybox_hires.c frame_overlay.c
     intro_render.c track/track_preview.c full_data.c full_strings.c full_tables.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
@@ -603,9 +619,13 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-race-start COMMAND test-extended-race-start)
     add_executable(test-driving-rules src/restunts/tests/test-driving-rules.c
         ${core}/driving_rules.c ${core}/statecar.c ${core}/physics_collision.c
+        ${core}/physics_suspension.c
         ${core}/extended/extended_physics_collision.c ${core}/extended/extended_statecrs.c
         ${core}/extended/extended_race_route.c ${core}/extended/extended_trackobj.c
+        ${core}/extended/extended_trackobj_solids.c
         ${core}/physics_grip.c ${core}/race/race_route.c ${core}/track/trackobj.c
+        ${core}/track/trackobj_road.c ${core}/track/trackobj_stunts.c
+        ${core}/track/trackobj_queries.c
         ${core}/owoot/owoot.c
         ${core}/strlib.c)
     target_compile_options(test-driving-rules PRIVATE -UNDEBUG -Wno-pointer-sign
@@ -614,7 +634,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-driving-rules PRIVATE restunts_options)
     add_test(NAME driving-rules COMMAND test-driving-rules)
     add_executable(test-replay-version-warning src/restunts/tests/test-replay-version-warning.c
-        ${core}/fileio.c ${core}/extended/extended_fileio.c ${core}/strlib.c)
+        ${core}/fileio.c ${core}/file_car.c ${core}/file_decomp.c ${core}/extended/extended_fileio.c
+        ${core}/strlib.c)
     target_compile_definitions(test-replay-version-warning PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-replay-version-warning PRIVATE -UNDEBUG -Wno-pointer-sign
         ${restunts_test_section_options})
@@ -622,7 +643,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-replay-version-warning PRIVATE restunts_options)
     add_test(NAME replay-version-warning COMMAND test-replay-version-warning)
     add_executable(test-extended-file-dialog src/restunts/tests/test-extended-file-dialog.c
-        ${core}/ui/ui_dialog.c ${core}/extended/extended_ui_dialog.c ${core}/ui/ui_input.c
+        ${core}/ui/ui_dialog.c ${core}/ui/ui_file_dialog.c ${core}/ui/ui_disk_dialog.c
+        ${core}/extended/extended_ui_dialog.c ${core}/ui/ui_input.c
         ${core}/legacy.c
         ${core}/strlib.c
         ${core}/resource.c ${platform}/runtime.c)
@@ -982,7 +1004,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-shape3d-hires PRIVATE -UNDEBUG)
     add_test(NAME shape3d-hires COMMAND test-shape3d-hires)
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
-        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
+        ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-skybox-hires PRIVATE restunts_options)
     target_compile_options(test-skybox-hires PRIVATE -UNDEBUG)
@@ -998,7 +1021,8 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(track-preview-skybox PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/track-preview-test")
     add_executable(test-opponent-portrait src/restunts/tests/test-opponent-portrait.c
-        ${core}/opponent/opponent_portrait.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${core}/opponent/opponent_portrait.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
+        ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-opponent-portrait PRIVATE restunts_options)
     target_compile_options(test-opponent-portrait PRIVATE -UNDEBUG)
@@ -1016,7 +1040,8 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(opponent-animation PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-animation-test")
     add_executable(test-menu-background src/restunts/tests/test-menu-background.c
-        ${core}/menu/menu_background.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${core}/menu/menu_background.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
+        ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-menu-background PRIVATE restunts_options)
     target_compile_options(test-menu-background PRIVATE -UNDEBUG)
@@ -1025,6 +1050,7 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(menu-background PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
     add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires/hires.c
+        ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c ${platform}/memory.c)
     target_link_libraries(test-sdl3-hires PRIVATE restunts_options)
     target_compile_options(test-sdl3-hires PRIVATE -UNDEBUG)

@@ -9,14 +9,14 @@ else
   $(error Unsupported C target: $(TARGET))
 endif
 
-C_FILES = fileio.c legacy.c resource.c math.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c restunts.c fatal.c timing.c game_input.c ui/ui_text.c ui/ui_input.c ui/ui_dialog.c intro.c highscore.c replay/replay_record.c replay/replay_viewer.c race/race.c ghost.c race/race_resources.c dashboard.c menu/menu_common.c menu/menu_main.c menu/menu_options.c menu/menu_track.c menu/menu_track_editor.c menu/menu_opponent.c menu/menu_car.c audio/audio_engine.c audio/audio_resources.c audio/audio_car.c audio/audio_sequence.c shape3d/shape3d.c shape3d/shape3d_resources.c shape3d/shape3d_car.c shape3d/shape3d_prerender.c shape3d/shape3d_lines.c shape2d/shape2d.c shape2d/shape2d_blit.c shape2d/shape2d_resources.c heapsort.c \
-		  frame.c skybox.c frame_overlay.c intro_render.c track/track_preview.c state.c race/race_route.c physics_grip.c opponent/opponent.c track/track_setup.c stateply.c physics_collision.c statecrs.c statecar.c track/trackobj.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c
+C_FILES = fileio.c file_car.c file_decomp.c legacy.c resource.c math.c math_rectangles.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c restunts.c startup.c fatal.c timing.c game_input.c game_input_shortcuts.c ui/ui_text.c ui/ui_input.c ui/ui_dialog.c ui/ui_file_dialog.c ui/ui_disk_dialog.c intro.c highscore.c highscore_results.c highscore_results_text.c replay/replay_record.c replay/replay_viewer.c replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c race/race.c race/race_rewind.c race/race_presentation.c ghost.c ghost_line.c race/race_resources.c dashboard.c menu/menu_common.c menu/menu_main.c menu/menu_options.c menu/menu_track.c menu/menu_track_editor.c menu/menu_track_editor_map.c menu/menu_track_editor_render.c menu/menu_track_editor_input.c menu/menu_opponent.c menu/menu_car.c audio/audio_engine.c audio/audio_channels.c audio/audio_context.c audio/audio_resources.c audio/audio_car.c audio/audio_sequence.c shape3d/shape3d.c shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c shape3d/shape3d_resources.c shape3d/shape3d_car.c shape3d/shape3d_prerender.c shape3d/shape3d_polygon.c shape3d/shape3d_lines.c shape3d/shape3d_line_setup.c shape2d/shape2d.c shape2d/shape2d_image.c shape2d/shape2d_blit.c shape2d/shape2d_window.c shape2d/shape2d_resources.c heapsort.c \
+		  frame.c frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c skybox.c frame_overlay.c intro_render.c track/track_preview.c state.c race/race_route.c physics_grip.c opponent/opponent.c track/track_setup.c stateply.c stateply_motion.c stateply_contact.c physics_collision.c physics_suspension.c statecrs.c statecar.c track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c
 
 DOS_STARTUP_OBJ =
 
 ifeq ($(TARGET),dosheadless)
-  C_FILES = fileio.c legacy.c resource.c math.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c headless.c \
-			headless_data.c headless_trackdata.c state.c race/race_route.c physics_grip.c opponent/opponent.c track/track_setup.c stateply.c physics_collision.c statecrs.c statecar.c track/trackobj.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c
+  C_FILES = fileio.c file_car.c file_decomp.c legacy.c resource.c math.c math_rectangles.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c headless.c \
+			headless_data.c headless_trackdata.c state.c race/race_route.c physics_grip.c opponent/opponent.c track/track_setup.c stateply.c stateply_motion.c stateply_contact.c physics_collision.c physics_suspension.c statecrs.c statecar.c track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c
   DOS_STARTUP_OBJ = $(OBJDIR)/dosstart.obj
 endif
 
@@ -27,7 +27,7 @@ endif
 
 # Keep extracted format-aware hooks with their classic entry points. Most
 # become no-ops on DOS; the shared OWOOT traversal engine also serves legacy tracks.
-C_FILES += extended/extended_gameinit.c extended/extended_gamestep.c extended/extended_trkutil.c extended/extended_race_route.c extended/extended_track_setup.c extended/extended_trackobj.c extended/extended_stateply.c extended/extended_physics_collision.c extended/extended_statecrs.c extended/extended_owoot_route.c extended/extended_owoot_road.c extended/extended_opponent.c extended/extended_fileio.c
+C_FILES += extended/extended_gameinit.c extended/extended_gamestep.c extended/extended_trkutil.c extended/extended_race_route.c extended/extended_track_setup.c extended/extended_trackobj.c extended/extended_trackobj_solids.c extended/extended_stateply.c extended/extended_physics_collision.c extended/extended_statecrs.c extended/extended_owoot_route.c extended/extended_owoot_gates.c extended/extended_owoot_jump.c extended/extended_owoot_road.c extended/extended_opponent.c extended/extended_fileio.c
 ifeq ($(TARGET),dosfull)
   C_FILES += extended/extended_menu_runtime.c extended/extended_highscore_ui.c extended/extended_ui_dialog.c extended/extended_replay_ui.c extended/extended_ghost_runtime.c
 endif
@@ -69,7 +69,7 @@ $(OBJDIR)/menu/menu_options.obj $(OBJDIR)/command_line.obj: CFLAGS += -fi=$(GIT_
 
 # Ghost guidance uses floating-point geometry; the custom DOS startup does not
 # initialize an 8087 or the CRT's floating-point formatting support.
-$(OBJDIR)/ghost.obj: CFLAGS += -fpc -zls
+$(OBJDIR)/ghost.obj $(OBJDIR)/ghost_line.obj: CFLAGS += -fpc -zls
 
 .SECONDEXPANSION:
 $(OBJDIR)/%.obj: %.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $$(@D)
