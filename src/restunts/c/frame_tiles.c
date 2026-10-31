@@ -143,7 +143,7 @@ void frame_select_lookahead_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAM
 void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_CAMERA *camera)
 {
 #if defined(RESTUNTS_SDL3)
-	tiles->complete_tile_lookup = 0;
+	extended_frame_begin_tile_selection(tiles);
 #endif
 	tiles->count = FRAME_LOOKAHEAD_TILE_COUNT;
 	tiles->first = 0;

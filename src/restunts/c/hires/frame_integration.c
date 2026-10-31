@@ -6,8 +6,9 @@ void frame_hires_begin(void)
 		frame_supersight_reset();
 	}
 #if defined(RESTUNTS_SDL3)
-	frame_adaptive_active = supersight_enabled != 0 && frame_snapshot_active() &&
-							frame_adaptive.quality != 0 && extended_frame_uses_legacy_tiles();
+	frame_adaptive_active =
+		supersight_enabled != 0 && frame_snapshot_active() && frame_adaptive.quality != 0;
+	extended_frame_adaptive_policy(&frame_adaptive_active);
 #endif
 }
 

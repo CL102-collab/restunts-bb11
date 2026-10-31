@@ -132,6 +132,8 @@
     "hires_skybox_scene",
     "frame_context",
     "frame_fps",
+    "extended_math",
+    "extended_frame_layout",
     "command_line",
     "headless_data",
     "headless_trackdata",
@@ -163,7 +165,7 @@
     "stateio",
     "memory"
   ],
-  "functions": 2341,
+  "functions": 2349,
   "classes": 109,
   "external": [
     "RsDosAudioBindChannelContext",

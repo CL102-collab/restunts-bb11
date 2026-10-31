@@ -2,38 +2,38 @@
 
 legacy_s8 RsHiresRacePresentationLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7714;
+  legacy_s32 noreg temple_tmp_7715;
   if((value<=127)) {
-    temple_tmp_7714=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7715=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7714=TempleCastS32(TempleCastS8(
+    temple_tmp_7715=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7714);
+  return TempleCastS8(temple_tmp_7715);
 }
 
 legacy_s16 RsHiresRacePresentationLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7715;
+  legacy_s32 noreg temple_tmp_7716;
   if((value<=32767)) {
-    temple_tmp_7715=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7716=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7715=TempleCastS32(TempleCastS16(
+    temple_tmp_7716=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7715);
+  return TempleCastS16(temple_tmp_7716);
 }
 
 legacy_s32 RsHiresRacePresentationLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7716;
+  legacy_s32 noreg temple_tmp_7717;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7716=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7717=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7716=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7717=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7716);
+  return TempleCastS32(temple_tmp_7717);
 }
 
 legacy_void RsHiresRacePresentationPresentationReset(CPresentationClock *clock,legacy_u64 now)
@@ -44,11 +44,11 @@ legacy_void RsHiresRacePresentationPresentationReset(CPresentationClock *clock,l
 
 legacy_s16 RsHiresRacePresentationPresentationDue(CPresentationClock *clock,legacy_u64 now)
 {
-  legacy_u64 temple_elapsed_7717;
-  temple_elapsed_7717=(now-clock->origin);
-  if(((temple_elapsed_7717*60)<(clock->next_frame*1000000000))) {
+  legacy_u64 temple_elapsed_7718;
+  temple_elapsed_7718=(now-clock->origin);
+  if(((temple_elapsed_7718*60)<(clock->next_frame*1000000000))) {
     return TempleCastS16(0);
   }
-  (clock->next_frame=(TempleDivideU64((temple_elapsed_7717*60),1000000000)+1));
+  (clock->next_frame=(TempleDivideU64((temple_elapsed_7718*60),1000000000)+1));
   return TempleCastS16(1);
 }

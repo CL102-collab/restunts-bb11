@@ -135,7 +135,8 @@ add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${core}/physics_grip.c" "${core}/race/race_route.c" "${core}/full_data.c"
     "${core}/extended/extended_physics_collision.c" "${core}/extended/extended_race_route.c"
     "${core}/extended/extended_menu_runtime.c" "${core}/hires/track_preview_mode.c"
-    "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c")
+    "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c"
+    "${core}/extended/extended_math.c")
 configure_amiga_diagnostic(test-amiga-startup)
 
 # Exercise dual-way route confirmation and committed penalty times on 68000.
@@ -157,6 +158,7 @@ add_executable(test-amiga-car-adhesion EXCLUDE_FROM_ALL
     "${core}/physics_grip.c" "${core}/extended/extended_physics_collision.c"
     "${core}/extended/extended_trackobj.c" "${core}/extended/extended_trackobj_solids.c" "${core}/extended/extended_owoot_road.c"
     "${core}/extended/extended_opponent.c" "${core}/extended/extended_trkutil.c"
-    "${core}/extended/extended_stateply.c")
+    "${core}/extended/extended_stateply.c"
+    "${core}/extended/extended_math.c")
 configure_amiga_diagnostic(test-amiga-car-adhesion)
 target_compile_definitions(test-amiga-car-adhesion PRIVATE RESTUNTS_HEADLESS)

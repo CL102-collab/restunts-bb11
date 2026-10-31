@@ -450,6 +450,9 @@ extern legacy_void RsHiresTrackPreviewDrawCoveredWater(legacy_u8 track,legacy_u8
 extern legacy_s16 RsHiresTrackPreviewBatchScene();
 extern legacy_void RsHiresTrackPreviewFlushScene(legacy_s16 batch_scene);
 extern legacy_s16 RsExtendedRaceRouteAlternate(legacy_s16 legacy_track);
+extern legacy_s16 RsExtendedRaceRoutePlayerRow(legacy_s16 fallback);
+extern legacy_s16 RsExtendedRaceRouteOutside(
+    legacy_s16 column,legacy_s16 row,legacy_s16 fallback);
 extern legacy_s16 RsExtendedRaceRouteSentinelBounds(legacy_s16 piece,legacy_u8 *minimum_row,
     legacy_u8 *maximum_row,legacy_u8 *minimum_column,legacy_u8 *maximum_column);
 extern legacy_s16 RsExtendedRaceRouteContains(legacy_s16 column,legacy_s16 row,legacy_s16 piece,

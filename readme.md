@@ -116,21 +116,17 @@ I've also done a huge amount of manual testing myself, to test everything else w
 
 The C core groups related sources and headers under `audio`, `car`, `menu`,
 `opponent`, `owoot`, `race`, `replay`, `shape2d`, `shape3d`, `track` and `ui`.
-The `extended` folder contains the core extended-format implementation and its
-codec headers. The `hires` folder owns high-resolution rendering, adaptive
-visibility, presentation and interpolation, enhanced artwork, settings, and the
-render worker pool. Original engine modules retain generic behavior and invoke
-these implementations. Enhanced CSTRK rendering also lives under `hires`, using
-file names based on their rendering responsibility. Shared diagnostics, palette
-conversion, and classic rendering logic stay outside `hires`; feature modules
-provide enhanced operations and overrides.
+The `extended` folder owns CSTRK/CSRPL logic and its codec headers, including
+rendering that depends on decoded track or replay data. The `hires` folder owns
+format-independent high-resolution rendering, adaptive visibility, presentation,
+interpolation, enhanced artwork, settings, and the render worker pool. Shared
+diagnostics, palette conversion, and classic rendering logic stay outside `hires`.
 
-CSTRK/CSRPL loading, physics, replay, and route implementations live in C/C++
-files whose names start with `extended_`. Original engine and generator files
-delegate format-specific work through these modules while retaining generic
-legacy behavior. Public codec headers keep their existing names and APIs. The shared format-aware OWOOT and
-generator route engines also live in `extended_` modules so both track formats
-continue to use the same traversal algorithms.
+Core CSTRK/CSRPL implementations live only under `src/restunts/c/extended` in
+files whose names start with `extended_`. Other core files delegate format work
+through those modules. Public codec headers keep their existing names and APIs.
+The shared format-aware OWOOT and generator route engines also live in
+`extended_` modules so both track formats use the same traversal algorithms.
 
 ## Running the game
 

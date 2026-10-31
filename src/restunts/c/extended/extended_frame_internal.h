@@ -103,7 +103,7 @@ struct FRAME_EXTENDED_OBJECT {
 #define FRAME_EXTENDED_LOOKAHEAD_RADIUS 28
 #define FRAME_EXTENDED_LEGACY_ELEMENT_LIMIT 253
 
-#include "../hires/track_frame.h"
+#include "extended_frame_render.h"
 
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
 											 const struct CSTRK_OBJECT *object);
