@@ -26,6 +26,7 @@
 #include "../c/owoot.h"
 #include "../c/physics_internal.h"
 #include "../c/roll_ramp.h"
+#include "../c/opponent.h"
 
 #undef memcpy
 #undef printf
@@ -61,6 +62,10 @@
 #define ENGINE_TEST_SLALOM_DRIVING_FRAMES (2U * ENGINE_TEST_SLOPE_DRIVING_FRAMES)
 #define ENGINE_TEST_SLALOM_APPROACH_SPEED 4096U
 #define ENGINE_TEST_WALL_SOUND_FLAG 16U
+#define ENGINE_OPPONENT_MAXIMUM_SECONDS 120U
+#define ENGINE_OPPONENT_PARK_TILE 10L
+
+enum ENGINE_OPPONENT_TERRAIN { ENGINE_OPPONENT_FLAT, ENGINE_OPPONENT_RAISED };
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -258,6 +263,59 @@ static void initialize_simulation(void)
 	is_in_replay = 1;
 	idle_expired = 0;
 	race_exit_request = 0;
+}
+
+/* Exercise the real AI steering, speed control and physics on the wide map,
+ * with the human car parked clear of the circuit so it cannot block a lap. */
+static void test_extended_opponent_laps(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	const struct GAMEINFO saved_config = gameconfig;
+	ghost_free_simulation_resources();
+	memcpy(gameconfig.game_playercarid, "COUN", CSRPL_CAR_ID_SIZE);
+	memcpy(gameconfig.game_opponentcarid, "COUN", CSRPL_CAR_ID_SIZE);
+	gameconfig.game_playertransmission = TRANSMISSION_AUTOMATIC;
+	gameconfig.game_opponenttransmission = TRANSMISSION_AUTOMATIC;
+	for (legacy_u8 terrain = ENGINE_OPPONENT_FLAT; terrain <= ENGINE_OPPONENT_RAISED; terrain++) {
+		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+			gameconfig.game_framespersec = rates[rate];
+			for (legacy_u8 opponent = OPPONENT_FIRST; opponent <= OPPONENT_LAST; opponent++) {
+				gameconfig.game_opponenttype = opponent;
+				create_track(terrain == ENGINE_OPPONENT_RAISED);
+				ghost_load_simulation_resources();
+				extended_replay_runtime_begin();
+				initialize_simulation();
+				state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+				state.playerstate.car_position.lx =
+					ENGINE_OPPONENT_PARK_TILE * CSTRK_TILE_WORLD_SIZE * ENGINE_TEST_POSITION_SCALE;
+				state.playerstate.car_position.lz = state.playerstate.car_position.lx;
+				state.playerstate.car_position.ly =
+					ENGINE_TEST_INITIAL_BODY_HEIGHT * ENGINE_TEST_POSITION_SCALE;
+				state.playerstate.car_previous_position = state.playerstate.car_position;
+				legacy_u16 frame = 0;
+				while (frame < ENGINE_OPPONENT_MAXIMUM_SECONDS * rates[rate] &&
+					   state.opponentstate.car_crashBmpFlag == CRASH_EVENT_NONE) {
+					assert(extended_replay_record_input(INPUT_NONE));
+					update_gamestate();
+					frame++;
+				}
+				if (state.opponentstate.car_crashBmpFlag != CRASH_EVENT_FINISH) {
+					fprintf(stderr, "Opponent %u terrain %u at %u Hz: event %u after %u frames\n",
+							opponent, terrain, rates[rate], state.opponentstate.car_crashBmpFlag,
+							frame);
+				}
+				assert(state.opponentstate.car_crashBmpFlag == CRASH_EVENT_FINISH);
+				assert(state.opponentstate.car_lap_count > 0);
+				extended_replay_runtime_clear();
+				ghost_free_simulation_resources();
+				extended_track_unload();
+			}
+		}
+	}
+	gameconfig = saved_config;
+	framespersec = gameconfig.game_framespersec;
+	ghost_load_simulation_resources();
+	puts("Extended opponents: all six finish flat and four-level circuits at 10 and 20 Hz.");
 }
 
 /* Rotate the complete four-level climb, including its entry and exit flats.
@@ -1087,6 +1145,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		test_roll_ramp_flight(GAME_FRAME_RATE_LOW, rotation);
 	}
 	test_terrain_below_roll_ramp_does_not_arm();
+	test_extended_opponent_laps();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

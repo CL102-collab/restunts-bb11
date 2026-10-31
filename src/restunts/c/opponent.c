@@ -52,6 +52,7 @@
 #define OPPONENT_AVERAGE_SHIFT 1U
 
 #define TRACK_ROUTE_SUBTYPE_MASK 15U
+#define TRACK_ROUTE_OVERPASS_LOWER_SUBTYPE 1U
 #define TRACK_ROUTE_REVERSED_FLAG 16U
 #define TRACK_ROUTE_FLAG_OFFSET 18U
 #define TRACK_ROUTE_VECTORS_PER_SEGMENT 2U
@@ -804,8 +805,13 @@ legacy_s16 get_track_route_point(legacy_s16 track_index_arg, struct VECTOR *outp
 			extended_track_object_for_id((legacy_u8)track_route_columns[track_index],
 										 (legacy_u8)track_route_rows[track_index], tile_element);
 		if (placed) {
+			legacy_u8 surface = placed->surface;
+			if (track_object->ss_physicalModel == PHYSICAL_MODEL_OVERPASS &&
+				track_subtype == TRACK_ROUTE_OVERPASS_LOWER_SUBTYPE) {
+				surface = placed->lower_surface;
+			}
 			*optional_speed = LEGACY_S8_FROM_BITS(
-				opponent_speed_at((legacy_u8)track_info->opponent_speed_code + placed->surface));
+				opponent_speed_at((legacy_u8)track_info->opponent_speed_code + surface));
 		}
 	}
 #endif

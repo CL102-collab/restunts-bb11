@@ -16,6 +16,7 @@
 #include "../c/track_objects.h"
 #include "../c/trackdata_layout.h"
 #include "../c/physics_internal.h"
+#include "../c/car_speed.h"
 #include "../c/owoot_road.h"
 #include "../c/owoot_route.h"
 #include "../c/roll_ramp.h"
@@ -1796,6 +1797,82 @@ static void general_slope_terrain(struct CSTRK_TRACK *track, struct CSTRK_OBJECT
 	}
 }
 
+#define OVERPASS_OPPONENT_ROUTE_COUNT 2U
+#define OVERPASS_OPPONENT_LOWER_ROUTE 1U
+#define OVERPASS_OPPONENT_REVERSED_ROUTE 16U
+#define OVERPASS_OPPONENT_RESULT_CAPACITY 4U
+
+static void test_overpass_opponent_speeds(void)
+{
+	static const legacy_u8 expected_speeds[] = {120U, 90U, 45U};
+	legacy_u8 saved_speeds[OPPONENT_SPEED_COUNT];
+	memcpy(saved_speeds, oppnentSped, sizeof(saved_speeds));
+	memcpy(oppnentSped, expected_speeds, sizeof(expected_speeds));
+	for (legacy_u16 id = CSTRK_OVERPASS_FIRST_ID; id <= CSTRK_OVERPASS_LAST_ID; id++) {
+		for (legacy_u8 rotation = 0; rotation < OVERPASS_SURFACE_ROTATIONS; rotation++) {
+			for (legacy_u8 grade = 0; grade <= GENERAL_SLOPE_DIRECTION_COUNT; grade++) {
+				struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+				if (grade < GENERAL_SLOPE_DIRECTION_COUNT) {
+					general_slope_terrain(&track, &object, grade);
+				} else {
+					object.base_height = GENERAL_SLOPE_BASE_HEIGHT;
+					memset(track.corner_heights, object.base_height,
+						   (size_t)(track.width + 1U) * (track.height + 1U));
+				}
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				for (legacy_u8 upper = CSTRK_ROAD_PAVED; upper <= CSTRK_ROAD_ICE; upper++) {
+					for (legacy_u8 lower = CSTRK_ROAD_PAVED; lower <= CSTRK_ROAD_ICE; lower++) {
+						track.objects[0].surface = upper;
+						track.objects[0].lower_surface = lower;
+						activate(&track);
+						const struct CSTRK_OBJECT *placed =
+							extended_track_object_at(object.x, object.y);
+						assert(placed != NULL);
+						legacy_u16 resolved = extended_track_object_id(placed);
+						track_route_element_ids[0] = (legacy_s8)resolved;
+						track_route_columns[0] = (legacy_s8)object.x;
+						track_route_rows[0] = (legacy_s8)object.y;
+						const struct TRKOBJINFO *routes =
+							extended_track_route_info(object.x, object.y, resolved);
+						assert(routes != NULL);
+						for (legacy_u8 subtype = 0; subtype < OVERPASS_OPPONENT_ROUTE_COUNT;
+							 subtype++) {
+							/* Both native overpass paths use the straight-road speed family. */
+							assert(routes[subtype].opponent_speed_code == 0);
+							legacy_u8 material =
+								subtype == OVERPASS_OPPONENT_LOWER_ROUTE ? lower : upper;
+							for (legacy_u8 reversed = 0; reversed <= 1U; reversed++) {
+								track_route_traversal_flags[0] =
+									(legacy_s8)(subtype |
+												(reversed ? OVERPASS_OPPONENT_REVERSED_ROUTE : 0));
+								for (legacy_u8 point = 0;
+									 point < (legacy_u8)routes[subtype].route_point_count;
+									 point++) {
+									struct VECTOR result[OVERPASS_OPPONENT_RESULT_CAPACITY];
+									struct VECTOR without_speed[OVERPASS_OPPONENT_RESULT_CAPACITY];
+									memset(result, 0, sizeof(result));
+									memset(without_speed, 0, sizeof(without_speed));
+									legacy_s8 speed;
+									get_track_route_point(0, result, point, &speed);
+									assert((legacy_u8)speed == expected_speeds[material]);
+									get_track_route_point(0, without_speed, point, NULL);
+									assert(memcmp(result, without_speed, sizeof(result)) == 0);
+								}
+							}
+						}
+						extended_track_unload();
+					}
+				}
+				cstrk_free(&track);
+			}
+		}
+	}
+	memcpy(oppnentSped, saved_speeds, sizeof(saved_speeds));
+}
+
 static void test_every_element_on_straight_slopes(void)
 {
 	for (legacy_u16 id = 1; id < GENERAL_SLOPE_CATALOG_LIMIT; id++) {
@@ -2355,6 +2432,7 @@ int main(void)
 	test_corkscrew_surfaces();
 	test_loop_and_pipe_surfaces();
 	test_overpass_independent_surfaces();
+	test_overpass_opponent_speeds();
 	test_scenery_ignores_road_surface();
 	test_extended_material_variants();
 	test_shared_road_anchor();
