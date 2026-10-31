@@ -540,13 +540,13 @@ static void check_extended_print_and_preview(void)
 	print_highscore_entry(0, offsets);
 	assert(strcmp((char *)resID_buffer + offsets[3], "116:40.10") == 0);
 	assert(framespersec == GAME_FRAME_RATE_NORMAL);
-	track_menu_draw_highscore();
+	track_menu_draw_highscore(NULL);
 	assert(preview_labels == 1 && preview_fields == 4);
 	assert(strcmp(preview_time, "116:40.10") == 0);
 	assert(preview_time_x == TRACK_MENU_HIGHSCORE_TIME_X);
 	fixture_scores[0].ticks = CSHIG_EMPTY_TICKS;
 	preview_labels = preview_fields = 0;
-	track_menu_draw_highscore();
+	track_menu_draw_highscore(NULL);
 	assert(preview_labels == 0 && preview_fields == 0);
 }
 
@@ -585,7 +585,7 @@ static void check_normal_time_alignment(void)
 	highscore_draw_table();
 	assert(strcmp(table_time, " 0:15.00") == 0);
 	assert(table_time_x == HIGHSCORE_TIME_COLUMN_X);
-	track_menu_draw_highscore();
+	track_menu_draw_highscore(NULL);
 	assert(strcmp(preview_time, table_time) == 0);
 	assert(preview_time_x == TRACK_MENU_HIGHSCORE_TIME_X);
 }
@@ -630,7 +630,7 @@ static void check_long_time_alignment(void)
 	assert(strcmp(table_time, (const char *)expected) == 0);
 	assert(table_time_x < HIGHSCORE_TIME_COLUMN_X);
 	assert(table_time_x + font_text_width((const legacy_s8 *)table_time) <= 319);
-	track_menu_draw_highscore();
+	track_menu_draw_highscore(NULL);
 	assert(preview_labels == 1 && preview_fields == HIGHSCORE_TEXT_FIELD_COUNT);
 	assert(strcmp(preview_time, (const char *)expected) == 0);
 	assert(preview_time_x < TRACK_MENU_HIGHSCORE_TIME_X);
@@ -648,7 +648,7 @@ static void check_legacy_eligibility(void)
 	highscore_entry_set_time(&legacy_scores[0], 650U);
 	highscore_draw_table();
 	assert(table_time_x == HIGHSCORE_TIME_COLUMN_X && strcmp(table_time, "650") == 0);
-	track_menu_draw_highscore();
+	track_menu_draw_highscore(NULL);
 	assert(preview_time_x == TRACK_MENU_HIGHSCORE_TIME_X && strcmp(preview_time, "650") == 0);
 }
 
