@@ -257,7 +257,19 @@ legacy_int genghost_sim_init_track(const legacy_u8 *track, legacy_uint track_siz
 	start_flag_animation = 500;
 	framespersec = selected_frame_rate;
 	if (extended) {
-		extended_replay_runtime_begin();
+		if (has_replay_metadata) {
+			/* Verify and refine with the source revision's collision behavior.
+			 * Input samples are populated by step(), not borrowed from this view. */
+			struct CSRPL_VIEW replay = {0};
+			replay.metadata = replay_metadata;
+			replay.metadata.frame_count = 0;
+			replay.metadata.driving_rules = driving_rules_current();
+			if (!extended_replay_runtime_load(&replay)) {
+				return -1;
+			}
+		} else {
+			extended_replay_runtime_begin();
+		}
 	}
 	restore_gamestate(0);
 	memset(replay_input_buffer, 0, GENGHOST_LEGACY_MAX_FRAMES);

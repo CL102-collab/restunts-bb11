@@ -183,10 +183,10 @@ also require the complete airborne roll and a valid upright landing.
 
 A physically valid route does not guarantee a particular car can complete it.
 The gap, grade, grip, collision settings and search budget affect the result.
-The barrel regression uses original collision behavior (`--lc:on`). Tested
-`--lc:off` approaches crash in native physics before completing the ramp, so
-successful barrel generation with those fixed-collision settings remains
-unverified.
+Replay v12 retains fractional positions through fixed-collision solid checks
+and exact mesh-road contact. Barrel regressions cover both `--lc:on` and
+`--lc:off`. Existing v11 recordings retain their original collision decisions
+when verified or fine-tuned; fresh generation upgrades them to v12 physics.
 The extended regression checks fresh ghosts on wide tracks, a large track file,
 sloped combined stunts and all barrel-ramp orientations, then independently
 replays the saved CSRPL. It also checks 70,001-frame restore, fine-tuning and

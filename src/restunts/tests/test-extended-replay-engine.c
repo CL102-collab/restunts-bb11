@@ -18,6 +18,7 @@
 #include "../c/crash_state.h"
 #include "../c/cstrk.h"
 #include "../c/extended_track.h"
+#include "../c/extended_geometry.h"
 #include "../c/extended_replay_runtime.h"
 #include "../c/extended_file.h"
 #include "../c/driving_rules.h"
@@ -146,10 +147,10 @@ static void create_track(legacy_int raised_start)
 
 static void test_recording_version_roundtrips(size_t size)
 {
-	static const legacy_u16 versions[] = {CSRPL_VERSION, ENGINE_TEST_FUTURE_REPLAY_VERSION,
-										  LEGACY_U16_MAX};
+	static const legacy_u16 versions[] = {CSRPL_MIN_VERSION, CSRPL_VERSION,
+										  ENGINE_TEST_FUTURE_REPLAY_VERSION, LEGACY_U16_MAX};
 	static const legacy_u16 recorded_rules[] = {0U, DRIVING_RULE_KNOWN_MASK,
-												DRIVING_RULE_POWER_GEAR};
+												DRIVING_RULE_POWER_GEAR, DRIVING_RULE_OWOOT};
 	legacy_u16 original_rules = driving_rules_current();
 	legacy_s8 *arguments[] = {
 		(legacy_s8 *)"restunts",
@@ -479,9 +480,19 @@ static void test_smooth_consecutive_slopes(legacy_u16 slope_stunt)
 #define ENGINE_ROLL_BOTTOM_ROW 55U
 #define ENGINE_ROLL_LANDING_ROW 48U
 #define ENGINE_ROLL_TARGET_SPEED (100U * 256U)
+#define ENGINE_ROLL_FIXED_TARGET_SPEED (102U * 256U)
 #define ENGINE_ROLL_APPROACH_GEAR 4U
 #define ENGINE_ROLL_MAXIMUM_FRAMES 360U
 #define ENGINE_ROLL_UPRIGHT_TOLERANCE (ANGLE_FULL_TURN / 64)
+#define ENGINE_ROLL_ENTRY_SPEED (50U * 256U)
+#define ENGINE_ROLL_ENTRY_PROGRESS (CSTRK_TILE_WORLD_SIZE / 2)
+#define ENGINE_ROLL_GRADE_FIRST_ROW (ENGINE_ROLL_RAMP_ROW - 1U)
+#define ENGINE_ROLL_GRADE_LAST_ROW (ENGINE_ROLL_GRADE_FIRST_ROW + CSTRK_MAX_HEIGHT)
+#define ENGINE_ROLL_DEEP_MIN_OFFSET 15
+#define ENGINE_ROLL_DEEP_MAX_OFFSET 16
+#define ENGINE_ROLL_GRILLE_CONTACT_DEPTH 16
+#define ENGINE_ROLL_GRILLE_CAPTURE_PROGRESS                                                        \
+	((legacy_s32)(CSTRK_TILE_WORLD_SIZE + ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT))
 
 static void create_roll_ramp_track(legacy_u8 rotation, legacy_u8 ground_surface)
 {
@@ -545,8 +556,12 @@ static void initialize_roll_driver(legacy_u8 rotation, legacy_u16 speed, legacy_
 		x = z;
 		z = size - previous_x;
 	}
+	legacy_s32 elevation = extended_track_elevation(
+		x / CSTRK_TILE_WORLD_SIZE, extended_track_height() - 1 - z / CSTRK_TILE_WORLD_SIZE,
+		x % CSTRK_TILE_WORLD_SIZE, CSTRK_TILE_WORLD_SIZE - z % CSTRK_TILE_WORLD_SIZE);
 	init_carstate_from_simd(&state.playerstate, &simd_player, TRANSMISSION_AUTOMATIC,
-							x * ENGINE_TEST_POSITION_SCALE, 0, z * ENGINE_TEST_POSITION_SCALE,
+							x * ENGINE_TEST_POSITION_SCALE, elevation * ENGINE_TEST_POSITION_SCALE,
+							z * ENGINE_TEST_POSITION_SCALE,
 							(ANGLE_HALF_TURN - rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK);
 	struct CARSTATE *car = &state.playerstate;
 	car->car_actual_speed = car->car_rev_speed = speed;
@@ -569,31 +584,50 @@ static legacy_s32 roll_driver_progress(const struct CARSTATE *car, legacy_u8 rot
 	return (extended_track_height() - ENGINE_ROLL_RAMP_ROW) * CSTRK_TILE_WORLD_SIZE - z;
 }
 
-static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
+static void configure_roll_test_rules(legacy_u8 collision, legacy_u8 owoot)
+{
+	legacy_s8 *collision_arguments[] = {(legacy_s8 *)"restunts",
+										(legacy_s8 *)(collision ? "--lc:on" : "--lc:off")};
+	configure_legacy_collision(
+		(legacy_s16)(sizeof(collision_arguments) / sizeof(collision_arguments[0])),
+		collision_arguments);
+	legacy_s8 *owoot_arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--owoot"};
+	configure_owoot(owoot ? (legacy_s16)(sizeof(owoot_arguments) / sizeof(owoot_arguments[0])) : 1,
+					owoot_arguments);
+}
+
+static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation, legacy_u8 collision,
+								  legacy_u8 owoot)
 {
 	legacy_u16 saved_rate = gameconfig.game_framespersec;
-	legacy_s16 saved_owoot = owoot_enabled;
-	owoot_enabled = 1;
+	legacy_u8 saved_collision = (legacy_u8)legacy_collision_is_enabled();
+	legacy_u8 saved_owoot = (legacy_u8)owoot_enabled;
+	configure_roll_test_rules(collision, owoot);
+	/* Precise wheel contacts slightly change the ramp response and the viable
+	 * launch speed. Each mode uses one profile across every orientation/rate. */
+	legacy_u16 target_speed = collision ? ENGINE_ROLL_TARGET_SPEED : ENGINE_ROLL_FIXED_TARGET_SPEED;
 	gameconfig.game_framespersec = rate;
 	create_roll_ramp_track(rotation, CSTRK_TERRAIN_GRASS);
-	initialize_roll_driver(rotation, ENGINE_ROLL_TARGET_SPEED, ENGINE_ROLL_APPROACH_ROW);
-	assert(extended_replay_driving_rules() & DRIVING_RULE_OWOOT);
+	initialize_roll_driver(rotation, target_speed, ENGINE_ROLL_APPROACH_ROW);
+	assert(((extended_replay_driving_rules() & DRIVING_RULE_OWOOT) != 0) == owoot);
+	assert(((extended_replay_driving_rules() & DRIVING_RULE_LEGACY_COLLISION) != 0) == collision);
 	struct CARSTATE *car = &state.playerstate;
 	legacy_s16 previous_roll = car->car_rotate.z;
 	legacy_s32 total_roll = 0, maximum_air_roll = 0;
-	legacy_u8 launched = 0, landed = 0, side = 0, inverted = 0, upright_in_air = 0;
+	legacy_u8 launched = 0, landed = 0, side = 0, inverted = 0, opposite_side = 0;
+	legacy_u8 upright_in_air = 0;
 	legacy_u16 landing_frame = 0;
 	legacy_u32 airborne_frame = 0;
 	struct GAMESTATE airborne_state;
 	legacy_s8 airborne_seed[GAMESTATE_RANDOM_SEED_SIZE];
 	for (legacy_u16 frame = 0; frame < ENGINE_ROLL_MAXIMUM_FRAMES * rate / GAME_FRAME_RATE_NORMAL;
 		 frame++) {
-		legacy_u8 input = frame == 0 || car->car_actual_speed < ENGINE_ROLL_TARGET_SPEED
-							  ? INPUT_ACCELERATE_FLAG
-							  : INPUT_NONE;
+		legacy_u8 input =
+			frame == 0 || car->car_actual_speed < target_speed ? INPUT_ACCELERATE_FLAG : INPUT_NONE;
 		assert(extended_replay_record_input(input));
 		update_gamestate();
-		assert(owoot_enabled && state.game_inputmode == GAME_INPUT_MODE_ACTIVE);
+		assert(owoot_enabled == owoot && legacy_collision_is_enabled() == collision);
+		assert(state.game_inputmode == GAME_INPUT_MODE_ACTIVE);
 		legacy_s16 delta =
 			(legacy_s16)(((legacy_u16)(car->car_rotate.z - previous_roll + ANGLE_HALF_TURN) &
 						  ANGLE_MASK) -
@@ -601,8 +635,10 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 		total_roll += delta;
 		previous_roll = car->car_rotate.z;
 		if (car->car_crashBmpFlag != CRASH_EVENT_NONE) {
-			fprintf(stderr, "Roll ramp flight rate %u rotation %u crashes at frame %u, roll %d\n",
-					rate, rotation, frame, (legacy_int)total_roll);
+			fprintf(
+				stderr,
+				"Roll ramp %u Hz rotation %u collision %u OWOOT %u crashes at frame %u, roll %d\n",
+				rate, rotation, collision, owoot, frame, (legacy_int)total_roll);
 		}
 		assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
 		if (roll_driver_progress(car, rotation) >= ROLL_RAMP_LENGTH &&
@@ -610,6 +646,7 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 			launched = 1;
 			side |= total_roll >= ANGLE_QUARTER_TURN;
 			inverted |= total_roll >= ANGLE_HALF_TURN;
+			opposite_side |= total_roll >= ANGLE_THREE_QUARTER_TURN;
 			upright_in_air |= total_roll >= ANGLE_FULL_TURN - ENGINE_ROLL_UPRIGHT_TOLERANCE;
 			if (total_roll > maximum_air_roll) {
 				maximum_air_roll = total_roll;
@@ -633,7 +670,7 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 		fprintf(stderr, "Roll ramp rate %u rotation %u reaches only %d angle units\n", rate,
 				rotation, (legacy_int)maximum_air_roll);
 	}
-	assert(launched && landed && side && inverted && upright_in_air);
+	assert(launched && landed && side && inverted && opposite_side && upright_in_air);
 	assert(total_roll >= ANGLE_FULL_TURN - ENGINE_ROLL_UPRIGHT_TOLERANCE &&
 		   total_roll <= ANGLE_FULL_TURN + ENGINE_ROLL_UPRIGHT_TOLERANCE);
 	assert(car->car_rotate.y >= -ENGINE_ROLL_UPRIGHT_TOLERANCE &&
@@ -649,15 +686,181 @@ static void test_roll_ramp_flight(legacy_u16 rate, legacy_u8 rotation)
 	assert_same_simulation(&airborne_state, airborne_seed);
 	assert(extended_replay_seek(final_frame));
 	assert_same_simulation(&expected, expected_seed);
-	printf(
-		"Roll ramp: %u Hz rotation %u passes OWOOT with a free-air roll and upright landing at 100 "
-		"mph.\n",
-		rate, rotation);
+	printf("Roll ramp: %u Hz rotation %u collision %u OWOOT %u completes a free-air roll and "
+		   "upright landing at %u mph.\n",
+		   rate, rotation, collision, owoot, (legacy_uint)(target_speed >> LEGACY_BYTE_BITS));
 	gameconfig.game_framespersec = saved_rate;
 	framespersec = saved_rate;
-	owoot_enabled = saved_owoot;
+	configure_roll_test_rules(saved_collision, saved_owoot);
 	extended_replay_runtime_clear();
 	extended_track_unload();
+}
+
+static legacy_u8 roll_entry_support_height(legacy_u16 row, legacy_s8 grade)
+{
+	if (grade == 0) {
+		return 0;
+	}
+	legacy_u8 height = row <= ENGINE_ROLL_GRADE_FIRST_ROW  ? 0
+					   : row >= ENGINE_ROLL_GRADE_LAST_ROW ? CSTRK_MAX_HEIGHT
+														   : row - ENGINE_ROLL_GRADE_FIRST_ROW;
+	return grade < 0 ? CSTRK_MAX_HEIGHT - height : height;
+}
+
+static void create_roll_entry_track(legacy_u8 rotation, legacy_u8 surface, legacy_s8 grade)
+{
+	create_roll_ramp_track(rotation, CSTRK_TERRAIN_GRASS);
+	const struct CSTRK_TRACK *source = extended_track_model();
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_create(&track, source->width, source->height, error, sizeof(error)));
+	for (legacy_u16 row = 0; row <= source->height; row++) {
+		for (legacy_u16 column = 0; column <= source->width; column++) {
+			legacy_u16 x = column, y = row;
+			for (legacy_u8 turn = 0; turn < rotation; turn++) {
+				legacy_u16 previous_x = x;
+				x = source->width - y;
+				y = previous_x;
+			}
+			track.corner_heights[y * (track.width + 1U) + x] =
+				roll_entry_support_height(row, grade);
+		}
+	}
+	for (legacy_u32 index = 0; index < source->object_count; index++) {
+		struct CSTRK_OBJECT object = source->objects[index];
+		object.surface = surface;
+		legacy_u32 corner = object.y * (track.width + 1U) + object.x;
+		object.base_height = track.corner_heights[corner];
+		object.slope_x = track.corner_heights[corner + 1U] - object.base_height;
+		object.slope_y = track.corner_heights[corner + track.width + 1U] - object.base_height;
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	}
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == 0);
+	cstrk_free(&track);
+}
+
+/* A moderate-speed entry isolates false solid contacts from the different
+ * launch speeds required for a complete roll on each grade and road material. */
+static void test_roll_ramp_entries(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	static const legacy_s8 grades[] = {-1, 0, 1};
+	static const legacy_u8 collisions[] = {1U, 0U};
+	legacy_u16 saved_rate = gameconfig.game_framespersec;
+	legacy_u8 saved_collision = (legacy_u8)legacy_collision_is_enabled();
+	legacy_u8 saved_owoot = (legacy_u8)owoot_enabled;
+	for (legacy_u8 collision = 0; collision < sizeof(collisions) / sizeof(collisions[0]);
+		 collision++) {
+		configure_roll_test_rules(collisions[collision], 0);
+		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+			gameconfig.game_framespersec = rates[rate];
+			for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
+				for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+					for (legacy_u8 grade = 0; grade < sizeof(grades) / sizeof(grades[0]); grade++) {
+						create_roll_entry_track(rotation, surface, grades[grade]);
+						initialize_roll_driver(rotation, ENGINE_ROLL_ENTRY_SPEED,
+											   ENGINE_ROLL_APPROACH_ROW);
+						struct CARSTATE *car = &state.playerstate;
+						for (legacy_u16 frame = 0;
+							 frame < ENGINE_ROLL_MAXIMUM_FRAMES * rates[rate] /
+										 GAME_FRAME_RATE_NORMAL &&
+							 roll_driver_progress(car, rotation) < ENGINE_ROLL_ENTRY_PROGRESS;
+							 frame++) {
+							legacy_u8 input =
+								frame == 0 || car->car_actual_speed < ENGINE_ROLL_ENTRY_SPEED
+									? INPUT_ACCELERATE_FLAG
+									: INPUT_NONE;
+							assert(extended_replay_record_input(input));
+							update_gamestate();
+							if (car->car_crashBmpFlag != CRASH_EVENT_NONE) {
+								fprintf(stderr,
+										"Roll entry %u Hz rotation %u collision %u surface %u "
+										"grade %d crashes at frame %u\n",
+										rates[rate], rotation, collisions[collision], surface,
+										grades[grade], frame);
+							}
+							assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+						}
+						assert(roll_driver_progress(car, rotation) >= ENGINE_ROLL_ENTRY_PROGRESS);
+						for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+							assert(car->car_surfaceWhl[wheel] == CAR_SURFACE_PAVED + surface);
+						}
+						extended_replay_runtime_clear();
+						extended_track_unload();
+					}
+				}
+			}
+		}
+	}
+	gameconfig.game_framespersec = saved_rate;
+	framespersec = saved_rate;
+	configure_roll_test_rules(saved_collision, saved_owoot);
+	puts("Roll ramp entries: all materials, grades, orientations and frame rates preserve road "
+		 "contact.");
+}
+
+/* A genuinely below-plane wheel must retain the native underside response.
+ * Only sub-unit mesh residuals may bypass that response and snap to the road. */
+static void test_deep_contact_below_roll_grille(void)
+{
+	legacy_u16 saved_rate = gameconfig.game_framespersec;
+	legacy_u8 saved_collision = (legacy_u8)legacy_collision_is_enabled();
+	legacy_u8 saved_owoot = (legacy_u8)owoot_enabled;
+	gameconfig.game_framespersec = GAME_FRAME_RATE_NORMAL;
+	for (legacy_s16 depth = ENGINE_ROLL_DEEP_MIN_OFFSET; depth <= ENGINE_ROLL_DEEP_MAX_OFFSET;
+		 depth++) {
+		configure_roll_test_rules(1, 0);
+		create_roll_ramp_track(0, CSTRK_TERRAIN_GRASS);
+		initialize_roll_driver(0, ENGINE_ROLL_TARGET_SPEED, ENGINE_ROLL_APPROACH_ROW);
+		struct CARSTATE *car = &state.playerstate;
+		for (legacy_u16 frame = 0;
+			 frame < ENGINE_ROLL_MAXIMUM_FRAMES &&
+			 roll_driver_progress(car, 0) < ENGINE_ROLL_GRILLE_CAPTURE_PROGRESS;
+			 frame++) {
+			assert(extended_replay_record_input(frame == 0 || car->car_actual_speed <
+																  ENGINE_ROLL_TARGET_SPEED
+													? INPUT_ACCELERATE_FLAG
+													: INPUT_NONE));
+			update_gamestate();
+			assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+		}
+		assert(roll_driver_progress(car, 0) >= ENGINE_ROLL_GRILLE_CAPTURE_PROGRESS);
+		assert(car->car_sumSurfAllWheels == CARSTATE_WHEEL_COUNT);
+		assert(extended_replay_version() == CSRPL_VERSION);
+		car->car_position.ly -= depth * ENGINE_TEST_POSITION_SCALE;
+		car->car_previous_position.ly -= depth * ENGINE_TEST_POSITION_SCALE;
+		car->car_actual_speed = car->car_rev_speed = car->car_lastspeed = CAR_SPEED_STOPPED;
+		for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+			car->car_wheel_contact_positions[wheel].y =
+				LEGACY_S16_WRAP_SUB(car->car_wheel_contact_positions[wheel].y, depth);
+			car->car_wheel_vertical_speed[wheel] = 0;
+			struct VECTOR point = car->car_wheel_contact_positions[wheel];
+			extended_geometry_set_context(car->car_position.lx, car->car_position.lz);
+			build_track_object(&point, &point);
+			assert(planindex > EXTENDED_GEOMETRY_PLANE_INDEX);
+			legacy_u16 triangle = (legacy_u16)(planindex - EXTENDED_GEOMETRY_PLANE_INDEX - 1);
+			assert(triangle >= roll_ramp_road_triangle_count() / 2U);
+			assert(triangle < roll_ramp_road_triangle_count());
+			legacy_s16 distance = plane_signed_distance(planindex, point.x, point.y, point.z);
+			assert(distance < -PHYSICS_PLANE_CONTACT_TOLERANCE);
+			assert(distance >= -ENGINE_ROLL_GRILLE_CONTACT_DEPTH);
+		}
+		configure_roll_test_rules(0, 0);
+		legacy_s32 lowered_height = car->car_position.ly;
+		assert(extended_replay_record_input(INPUT_NONE));
+		update_gamestate();
+		assert(legacy_collision_is_enabled() == 0 && owoot_enabled == 0);
+		assert(car->car_crashBmpFlag == CRASH_EVENT_COLLISION);
+		assert(car->car_position.ly <= lowered_height);
+		extended_replay_runtime_clear();
+		extended_track_unload();
+	}
+	gameconfig.game_framespersec = saved_rate;
+	framespersec = saved_rate;
+	configure_roll_test_rules(saved_collision, saved_owoot);
+	puts("Roll grille: deep below-plane wheels retain underside collision without road snapping.");
 }
 
 static void test_terrain_below_roll_ramp_does_not_arm(void)
@@ -1140,10 +1343,21 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_sloped_slalom_impacts();
 	test_mini_half_pipe_on_straight_slope();
 	test_recorded_half_pipe_body_collision();
-	for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
-		test_roll_ramp_flight(GAME_FRAME_RATE_NORMAL, rotation);
-		test_roll_ramp_flight(GAME_FRAME_RATE_LOW, rotation);
+	static const legacy_u8 collision_modes[] = {1U, 0U};
+	static const legacy_u8 owoot_modes[] = {0U, 1U};
+	for (legacy_u8 collision = 0; collision < sizeof(collision_modes) / sizeof(collision_modes[0]);
+		 collision++) {
+		for (legacy_u8 owoot = 0; owoot < sizeof(owoot_modes) / sizeof(owoot_modes[0]); owoot++) {
+			for (legacy_u8 rotation = 0; rotation < ENGINE_TEST_SLOPE_ROTATIONS; rotation++) {
+				test_roll_ramp_flight(GAME_FRAME_RATE_NORMAL, rotation, collision_modes[collision],
+									  owoot_modes[owoot]);
+				test_roll_ramp_flight(GAME_FRAME_RATE_LOW, rotation, collision_modes[collision],
+									  owoot_modes[owoot]);
+			}
+		}
 	}
+	test_roll_ramp_entries();
+	test_deep_contact_below_roll_grille();
 	test_terrain_below_roll_ramp_does_not_arm();
 	test_extended_opponent_laps();
 	extended_replay_runtime_clear();
