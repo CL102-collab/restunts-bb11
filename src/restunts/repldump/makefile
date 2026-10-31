@@ -6,10 +6,10 @@ ifeq (,$(filter $(TARGET),headless original))
   $(error Unsupported repldump target: $(TARGET))
 endif
 
-RESTUNTS_OBJ_FILES = fileio.obj legacy.obj resource.obj math.obj memmgr.obj strlib.obj numlib.obj \
+RESTUNTS_OBJ_FILES = fileio.obj file_car.obj file_decomp.obj legacy.obj resource.obj math.obj math_rectangles.obj memmgr.obj strlib.obj numlib.obj \
                      kevinrnd.obj replinit.obj gameinit.obj gamestep.obj \
-                     simd.obj car/carsetup.obj trkutil.obj track/trackres.obj headless.obj dosstart.obj headless_data.obj headless_trackdata.obj state.obj race/race_route.obj physics_grip.obj opponent/opponent.obj track/track_setup.obj stateply.obj physics_collision.obj \
-                     statecrs.obj statecar.obj track/trackobj.obj owoot/owoot.obj owoot/owoot_wheels.obj owoot/owoot_road.obj owoot/owoot_route.obj replay/replay.obj stateio.obj
+                     simd.obj car/carsetup.obj trkutil.obj track/trackres.obj headless.obj dosstart.obj headless_data.obj headless_trackdata.obj state.obj race/race_route.obj physics_grip.obj opponent/opponent.obj track/track_setup.obj stateply.obj stateply_motion.obj stateply_contact.obj physics_collision.obj physics_suspension.obj \
+                     statecrs.obj statecar.obj track/trackobj.obj track/trackobj_road.obj track/trackobj_stunts.obj track/trackobj_queries.obj owoot/owoot.obj owoot/owoot_wheels.obj owoot/owoot_road.obj owoot/owoot_route.obj replay/replay.obj stateio.obj
 RESTUNTS_OBJ_FILES += $(RESTUNTS_EXTENDED_COMMON_OBJ_FILES)
 
 PLATFORM_DIR = ../platform/dos/build/watcom/$(CONFIG)

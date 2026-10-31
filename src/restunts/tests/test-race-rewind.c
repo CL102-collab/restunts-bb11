@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 #include "../c/race/race.c"
+#include "../c/race/race_rewind.c"
+#include "../c/race/race_presentation.c"
 #include "../c/replay/replay_record.c"
 #undef memcpy
 

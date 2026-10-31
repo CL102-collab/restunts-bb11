@@ -2,6 +2,9 @@
 #include <string.h>
 
 #include "../c/menu/menu_track_editor.c"
+#include "../c/menu/menu_track_editor_map.c"
+#include "../c/menu/menu_track_editor_render.c"
+#include "../c/menu/menu_track_editor_input.c"
 
 static legacy_u8 element_tiles[TRACKDATA_MAP_SIZE];
 static legacy_u8 terrain_tiles[TRACKDATA_MAP_SIZE];

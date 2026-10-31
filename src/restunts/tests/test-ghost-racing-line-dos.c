@@ -1,10 +1,12 @@
 /* Retain the complete game's startup and memory footprint, as RACEMEM does. */
 #define run_main_menu_loop ghost_line_original_main_menu_loop
 #include "../c/restunts.c"
+#include "../c/startup.c"
 #undef run_main_menu_loop
 
 /* Also exercise a synthetic route larger than any 16-bit allocation. */
 #include "../c/ghost.c"
+#include "../c/ghost_line.c"
 
 #include "frame_internal.h"
 #include "ghost.h"

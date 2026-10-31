@@ -7,11 +7,15 @@
 #endif
 #ifndef INPUT_SOURCE
 #define INPUT_SOURCE "../c/game_input.c"
+#define TEST_SPLIT_INPUT_SOURCE
 #endif
 #ifndef RECORD_SOURCE
 #define RECORD_SOURCE "../c/replay/replay_record.c"
 #endif
 #include INPUT_SOURCE
+#ifdef TEST_SPLIT_INPUT_SOURCE
+#include "../c/game_input_shortcuts.c"
+#endif
 #include RECORD_SOURCE
 #include "extended-replay-test-stubs.h"
 #undef memcpy

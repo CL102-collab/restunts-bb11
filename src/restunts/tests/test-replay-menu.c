@@ -4,8 +4,14 @@
 #include <string.h>
 #ifndef VIEWER_SOURCE
 #define VIEWER_SOURCE "../c/replay/replay_viewer.c"
+#define TEST_SPLIT_VIEWER_SOURCE
 #endif
 #include VIEWER_SOURCE
+#ifdef TEST_SPLIT_VIEWER_SOURCE
+#include "../c/replay/replay_toolbar.c"
+#include "../c/replay/replay_menu.c"
+#include "../c/replay/replay_scrub.c"
+#endif
 #define EXTENDED_TEST_REPLAY_RUNTIME
 #include "extended-replay-test-stubs.h"
 #undef memcpy

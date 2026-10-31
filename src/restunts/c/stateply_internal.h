@@ -1,0 +1,116 @@
+#ifndef RESTUNTS_STATEPLY_INTERNAL_H
+#define RESTUNTS_STATEPLY_INTERNAL_H
+
+#include "physics_internal.h"
+#include "state_internal.h"
+
+#define PLAYER_PHYSICS_WHEEL_COUNT 4
+#define PLAYER_PHYSICS_FRONT_WHEEL_COUNT 2
+#define PLAYER_PHYSICS_FRONT_WHEEL_HEADING_SHIFT 2U
+
+enum PLAYER_PHYSICS_WHEEL_INDEX {
+	PLAYER_PHYSICS_FRONT_WHEEL_FIRST = 0,
+	PLAYER_PHYSICS_FRONT_WHEEL_SECOND = 1,
+	PLAYER_PHYSICS_REAR_WHEEL_FIRST = 2,
+	PLAYER_PHYSICS_REAR_WHEEL_SECOND = 3
+};
+
+#define PLAYER_PHYSICS_WHEEL_CENTROID_SHIFT 2U
+#define PLAYER_PHYSICS_POSE_VECTOR_COUNT 2
+
+enum PLAYER_PHYSICS_POSE_VECTOR_INDEX {
+	PLAYER_PHYSICS_POSE_POSITION_INDEX = 0,
+	PLAYER_PHYSICS_POSE_ROTATION_INDEX = 1
+};
+
+#define PLAYER_PHYSICS_COLLISION_POINT_CAPACITY 32
+#define PLAYER_PHYSICS_POSITION_SCALE_SHIFT 6U
+#define PLAYER_PHYSICS_POSITION_SCALE (1L << PLAYER_PHYSICS_POSITION_SCALE_SHIFT)
+#define PLAYER_PHYSICS_TRACK_COORDINATE_SHIFT 10U
+#define PLAYER_PHYSICS_LOW_RATE_TRAVEL_DIVISOR 7680U
+#define PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR 15360U
+#define PLAYER_PHYSICS_LOW_SPEED_LIMIT 7680U
+#define PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT 384
+#define PLAYER_PHYSICS_UP_VECTOR_LENGTH 30000
+#define PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT 192
+#define PLAYER_PHYSICS_PSEUDO_GRAVITY_LENGTH 130
+#define PLAYER_PHYSICS_WALL_PUSH_DISTANCE 768
+#define PLAYER_PHYSICS_WALL_SPEED_ANGLE_MULTIPLIER 70
+#define PLAYER_PHYSICS_WALL_SPEED_BIAS 100
+#define PLAYER_PHYSICS_WALL_SPEED_SHIFT 8U
+#define PLAYER_PHYSICS_WALL_SOUND_FLAG 16U
+#define PLAYER_PHYSICS_SUSPENSION_SOUND_FLAG 32U
+#define PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT PHYSICS_PLANE_CONTACT_TOLERANCE
+#define PLAYER_PHYSICS_INVERTED_CONTACT_DISTANCE_LIMIT PHYSICS_UNDERSIDE_CLEARANCE
+#define PLAYER_PHYSICS_PLANE_PENETRATION_BIAS 6
+#define PLAYER_PHYSICS_PLANE_RETRACE_DISTANCE 64
+#define PLAYER_PHYSICS_SUSPENSION_SOUND_THRESHOLD 250
+#define PLAYER_PHYSICS_SUSPENSION_CRASH_THRESHOLD 23275
+#define PLAYER_PHYSICS_WORLD_MIN_POSITION 3840L
+#define PLAYER_PHYSICS_WORLD_MAX_POSITION 1962239L
+#define PLAYER_PHYSICS_WORLD_MAX_EXCLUSIVE 1962240L
+#define PLAYER_PHYSICS_TRACK_GRID_LAST_COORDINATE 29
+#define PLAYER_PHYSICS_TRACK_GRID_SIZE 30
+#define PLAYER_PHYSICS_START_FINISH_POLE_OFFSET 126
+#define PLAYER_PHYSICS_COLLISION_RETRY_LIMIT 5
+#define PLAYER_PHYSICS_RESIDUE_MATRIX_FIRST_VALUE 4U
+#define PLAYER_PHYSICS_ROTATION_DEADBAND 2
+#define PLAYER_PHYSICS_PLANE_INDEX_NONE (-1)
+#define PLAYER_PHYSICS_GROUND_PLANE_INDEX 0
+#define PLAYER_PHYSICS_WALL_INDEX_NONE (-1)
+#define PLAYER_PHYSICS_ROADSIDE_SIGN_INDEX_NONE (-1)
+#define PLAYER_PHYSICS_OBJECT_PARTICLE_KIND_OFFSET 2
+
+/* A zero fraction leaves every authoritative 10/20 Hz operation unchanged.
+ * Only the synchronous renderer wrapper installs a shorter 20 Hz time step. */
+/* Per-tick wheel geometry shared by contact correction and suspension. */
+struct PLAYER_WHEEL_MOTION {
+	struct VECTORLONG current[PLAYER_PHYSICS_WHEEL_COUNT];
+	struct VECTORLONG previous[PLAYER_PHYSICS_WHEEL_COUNT];
+	legacy_s16 headings[PLAYER_PHYSICS_WHEEL_COUNT];
+	legacy_s16 contact_distances[PLAYER_PHYSICS_WHEEL_COUNT];
+	legacy_s16 travel;
+	legacy_s16 inverted_adjustment;
+	legacy_u8 surface_adhesion;
+	legacy_s16 car_index;
+	struct VECTOR inverted_offset;
+};
+
+extern legacy_u32 player_motion_fraction;
+extern struct GAMESTATE *player_motion_state;
+
+legacy_s16 scale_player_fraction(legacy_s16 value, legacy_u32 fraction);
+
+legacy_s16 scale_player_motion(legacy_s16 value);
+
+legacy_u32 player_tick_fraction(void);
+
+void player_motion_crash(legacy_s16 crash_event, legacy_s16 car_index);
+
+void physics_position_to_vector(struct VECTOR *destination, const struct VECTORLONG *source);
+
+void physics_position_offset(struct VECTORLONG *destination, const struct VECTORLONG *source,
+							 const struct VECTOR *offset);
+
+void physics_position_pull_back(struct VECTORLONG *position, const struct VECTOR *offset);
+
+legacy_s16 scaled_vector_separation(struct VECTOR *first, struct VECTOR *second,
+									struct VECTOR *intersection, struct VECTOR *delta);
+
+void initialize_working_car_pose(struct CARSTATE *carstate);
+
+void prepare_wheel_motion(struct CARSTATE *carstate, struct SIMD *simd,
+						  struct PLAYER_WHEEL_MOTION *motion, legacy_s16 car_index);
+
+void apply_wheel_suspension(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTION *motion);
+
+void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion);
+
+void sum_front_and_rear_wheel_surfaces(struct CARSTATE *carstate);
+
+void commit_working_car_pose(struct CARSTATE *carstate);
+
+void resolve_wheel_contacts(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTION *motion,
+							legacy_s16 car_index);
+
+#endif
