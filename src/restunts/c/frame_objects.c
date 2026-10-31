@@ -25,9 +25,7 @@ void frame_add_roadside_sign(const struct FRAME_TILE *tile, const struct FRAME_C
 			curtransshape_ptr->pos.z = LEGACY_S16_WRAP_SUB(
 				roadside_sign_positions[breakable_object_index].z, camera->position.z);
 #if defined(RESTUNTS_SDL3)
-			curtransshape_ptr->shapeptr = supersight_enabled != 0
-											  ? frame_track_shape(track_object, tile->detail)
-											  : track_object->ss_shapePtr;
+			curtransshape_ptr->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
 #else
 			curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
 #endif
@@ -41,7 +39,7 @@ void frame_add_roadside_sign(const struct FRAME_TILE *tile, const struct FRAME_C
 			transformed_shape_add_for_sort(0, 0);
 		} else if (frame_state->game_particles_active != 0
 #if defined(RESTUNTS_SDL3)
-				   && frame_adaptive_active == 0
+				   && frame_hires_attached_particles()
 #endif
 		) {
 			for (legacy_s16 particle_index = 0; particle_index < FRAME_DEBRIS_SLOT_COUNT;
@@ -297,8 +295,7 @@ legacy_s16 frame_draw_racing_line(const struct FRAME_TILE *tile, const struct FR
 	instance.shapeptr = &shape;
 	instance.rectptr = &frame_sorted_shapes_rect;
 	instance.pos = frame_racing_line_origin(tile, camera);
-	instance.ts_flags =
-		redraw_transform_flags | FRAME_TRANSFORM_FLAGS_DEFAULT | SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
+	instance.ts_flags = frame_hires_racing_line_flags(redraw_transform_flags);
 	instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
 	struct VECTOR origin;
 	origin.x = LEGACY_S16_WRAP_ADD(instance.pos.x, camera->position.x);
@@ -366,10 +363,7 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 {
 	legacy_s16 racing_line_pending = frame_has_racing_line(tile);
 	legacy_s16 racing_line_depth = 0;
-	legacy_s16 depth_sort_racing_line = 1;
-#if defined(RESTUNTS_SDL3)
-	depth_sort_racing_line = supersight_enabled == 0;
-#endif
+	legacy_s16 depth_sort_racing_line = frame_hires_sort_depth();
 	if (racing_line_pending != 0 && depth_sort_racing_line != 0) {
 		struct VECTOR origin = frame_racing_line_origin(tile, camera);
 		struct VECTOR view;
@@ -379,11 +373,8 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 		racing_line_depth = LEGACY_S16_WRAP_SUB(view.z, 1);
 	}
 	if (transformedshape_counter != 0) {
-		if (transformedshape_counter >= FRAME_SORT_MINIMUM_SHAPE_COUNT
-#if defined(RESTUNTS_SDL3)
-			&& supersight_enabled == 0
-#endif
-		) {
+		if (transformedshape_counter >= FRAME_SORT_MINIMUM_SHAPE_COUNT &&
+			frame_hires_sort_depth()) {
 			heapsort_by_order(transformedshape_counter, transformedshape_zarray,
 							  transformedshape_indices);
 		}
@@ -416,76 +407,6 @@ legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct 
 	}
 	return 0;
 }
-
-#if defined(RESTUNTS_SDL3)
-legacy_s16 frame_draw_adaptive_particles(const struct FRAME_CAMERA *camera,
-										 struct FRAME_CAR_RENDER *cars,
-										 legacy_s8 redraw_transform_flags)
-{
-	if (frame_adaptive_active == 0 || frame_state->game_particles_active == 0) {
-		return 0;
-	}
-	/* Debris can cross the mask boundary independently of its hidden owner.
-	 * Gather the active slots once; their complete group fits the existing
-	 * transformed-shape array and uses the normal depth-sorted submission. */
-	struct VECTOR car_offsets[GAME_CAR_COUNT];
-	legacy_u8 offset_ready[GAME_CAR_COUNT] = {0};
-	transformedshape_counter = 0;
-	curtransshape_ptr = currenttransshape;
-	for (legacy_s16 index = 0; index < FRAME_DEBRIS_SLOT_COUNT; index++) {
-		if (frame_state->game_particle_forward_speed[index] == 0) {
-			continue;
-		}
-		legacy_s16 owner = frame_state->game_particle_owner[index];
-		legacy_s16 flags = redraw_transform_flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT;
-		legacy_s16 material = 0;
-		if (owner == PLAYER_CAR_INDEX || owner == OPPONENT_CAR_INDEX) {
-			/* Ghosts have no physical debris and do not use opponent particles. */
-			if (owner == OPPONENT_CAR_INDEX && gameconfig.game_opponenttype == 0) {
-				continue;
-			}
-			const struct CARSTATE *carstate =
-				owner == PLAYER_CAR_INDEX ? &frame_state->playerstate : &frame_state->opponentstate;
-			curtransshape_ptr->pos.x = frame_relative_position_sum(
-				frame_state->game_particle_x[index], carstate->car_position.lx, camera->position.x);
-			curtransshape_ptr->pos.y = frame_relative_position_sum(
-				frame_state->game_particle_y[index], carstate->car_position.ly, camera->position.y);
-			curtransshape_ptr->pos.z = frame_relative_position_sum(
-				frame_state->game_particle_z[index], carstate->car_position.lz, camera->position.z);
-			if (offset_ready[owner] == 0) {
-				const struct SHAPE3D *wheel_shape =
-					&game3dshapes[owner == PLAYER_CAR_INDEX ? PLAYER_CAR_WHEEL_SHAPE
-															: OPPONENT_CAR_WHEEL_SHAPE];
-				car_offsets[owner] = frame_car_render_offset(carstate, wheel_shape);
-				offset_ready[owner] = 1;
-			}
-			frame_offset_car_shape(&car_offsets[owner]);
-			flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
-			material = owner == PLAYER_CAR_INDEX ? gameconfig.game_playermaterial
-												 : gameconfig.game_opponentmaterial;
-		} else {
-			legacy_s16 sign = owner - FRAME_CHECKPOINT_OWNER_OFFSET;
-			if (sign < 0 || sign >= (legacy_s16)GAMESTATE_BREAKABLE_OBJECT_COUNT ||
-				frame_state->game_object_destroyed[sign] == 0) {
-				continue;
-			}
-			curtransshape_ptr->pos.x =
-				frame_relative_track_position(frame_state->game_particle_x[index],
-											  roadside_sign_positions[sign].x, camera->position.x);
-			curtransshape_ptr->pos.y =
-				frame_relative_track_position(frame_state->game_particle_y[index],
-											  roadside_sign_positions[sign].y, camera->position.y);
-			curtransshape_ptr->pos.z =
-				frame_relative_track_position(frame_state->game_particle_z[index],
-											  roadside_sign_positions[sign].z, camera->position.z);
-		}
-		struct TRACKOBJECT *object =
-			&particle_scene_objects[frame_state->game_particle_shape_index[index]];
-		frame_add_dynamic_shape(object, index, flags, material, 0, &camera->position);
-	}
-	return frame_draw_sorted_shapes(cars, 0, 0, 0);
-}
-#endif
 
 void frame_position_track_element(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 								  const struct TRACKOBJECT *track_object)
@@ -547,8 +468,8 @@ legacy_s16 frame_add_track_element(struct FRAME_TILE *tile, const struct FRAME_C
 	} else {
 		track_object = &trkObjectList[tile->element];
 		frame_position_track_element(tile, camera, track_object);
-		if (frame_draw_hill_fill(tile, track_object, redraw_transform_flags) != 0 &&
-			supersight_enabled != 0) {
+		if (frame_hires_exhausted(
+				frame_draw_hill_fill(tile, track_object, redraw_transform_flags))) {
 			return 1;
 		}
 
@@ -650,20 +571,8 @@ legacy_s16 frame_prepare_draw_tile(struct FRAME_TILE *tile,
 	tile->south = tiles->south[tile_index];
 	tile->element = tiles->elements[tile_index];
 	tile->terrain = tiles->terrain[tile_index];
-	tile->detail = supersight_enabled != 0
-					   ? tiles->lookahead[tile_index].detail >= tiles->detail_threshold
-					   : tiles->detail[tile_index];
 	tile->depth_mask = 0;
-#if defined(RESTUNTS_SDL3)
-	tile->adaptive_flags = frame_adaptive_active != 0 ? frame_adaptive_tile_flags(tile) : 0;
-	if (tile->adaptive_flags == FRAME_ADAPTIVE_HIDE) {
-		return 0;
-	}
-	if ((tile->adaptive_flags & FRAME_ADAPTIVE_LOW_GEOMETRY) != 0) {
-		tile->detail = FRAME_TILE_DETAIL_FULL + 1;
-	}
-#endif
-	return 1;
+	return frame_hires_prepare_tile(tile, tiles, tile_index);
 }
 
 legacy_s16 frame_draw_tile_background(struct FRAME_TILE *tile,
@@ -676,8 +585,7 @@ legacy_s16 frame_draw_tile_background(struct FRAME_TILE *tile,
 #if defined(RESTUNTS_SDL3)
 		extended_frame_uses_legacy_tiles() &&
 #endif
-		frame_draw_fences(tile, tiles, camera, redraw_transform_flags) != 0 &&
-		supersight_enabled != 0) {
+		frame_hires_exhausted(frame_draw_fences(tile, tiles, camera, redraw_transform_flags))) {
 		return 1;
 	}
 #if defined(RESTUNTS_SDL3)
@@ -714,6 +622,6 @@ legacy_s16 frame_draw_tile_objects(struct FRAME_TILE *tile,
 	}
 	frame_add_tile_cars(tile, camera, cars, redraw_transform_flags);
 	frame_add_start_flag(tile, camera, redraw_transform_flags);
-	return frame_draw_sorted_shapes(cars, tile, camera, redraw_transform_flags) != 0 &&
-		   supersight_enabled != 0;
+	return frame_hires_exhausted(
+		frame_draw_sorted_shapes(cars, tile, camera, redraw_transform_flags));
 }

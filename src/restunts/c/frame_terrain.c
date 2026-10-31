@@ -62,9 +62,7 @@ legacy_s16 frame_draw_fences(const struct FRAME_TILE *tile,
 
 			if (fence_index != FRAME_FENCE_NONE) {
 #if defined(RESTUNTS_SDL3)
-				if (frame_adaptive_active != 0 &&
-					frame_adaptive_flags(&frame_adaptive, tile_to_draw_east_offset,
-										 tile_to_draw_south_offset) == FRAME_ADAPTIVE_HIDE) {
+				if (frame_hires_cell_hidden(tile_to_draw_east_offset, tile_to_draw_south_offset)) {
 					continue;
 				}
 #endif
@@ -123,18 +121,14 @@ legacy_s16 frame_draw_elevated_corners(struct FRAME_TILE *tile, const struct FRA
 		}
 		tile->terrain = track_terrain_map[tile->last_east + terrainrows[tile->last_south]];
 #if defined(RESTUNTS_SDL3)
-		if (frame_adaptive_active != 0 &&
-			frame_adaptive_flags(&frame_adaptive, tile->last_east, tile->last_south) ==
-				FRAME_ADAPTIVE_HIDE) {
+		if (frame_hires_cell_hidden(tile->last_east, tile->last_south)) {
 			continue;
 		}
 #endif
 		if (tile->terrain != 0) {
 			track_object = &terrain_scene_objects[tile->terrain];
 #if defined(RESTUNTS_SDL3)
-			currenttransshape->shapeptr = supersight_enabled != 0
-											  ? frame_track_shape(track_object, tile->detail)
-											  : track_object->ss_shapePtr;
+			currenttransshape->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
 #else
 			currenttransshape->shapeptr = track_object->ss_shapePtr;
 #endif
@@ -153,49 +147,6 @@ legacy_s16 frame_draw_elevated_corners(struct FRAME_TILE *tile, const struct FRA
 
 /* Multi-tile selection suppresses continuation cells, but physics still samples
  * their own terrain. Restore water beneath the complete visible track object. */
-legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
-									const struct FRAME_CAMERA *camera,
-									legacy_s8 redraw_transform_flags)
-{
-	if (tile->element == 0 ||
-		(tile->element >= FRAME_ELEVATED_CORNER_FIRST &&
-		 tile->element <= FRAME_ELEVATED_CORNER_LAST && tile->terrain != TERRAIN_RAISED_TILE)) {
-		/* Elevated corners already draw every cell's terrain. */
-		return 0;
-	}
-	legacy_s16 footprint = trkObjectList[tile->element].ss_multiTileFlag;
-	if (footprint < FRAME_MULTITILE_ROW || footprint > FRAME_MULTITILE_BOTH) {
-		return 0;
-	}
-	legacy_s16 last_east = tile->east + (footprint != FRAME_MULTITILE_ROW);
-	legacy_s16 last_south = tile->south + (footprint != FRAME_MULTITILE_COLUMN);
-	for (legacy_s16 south = tile->south; south <= last_south && south < TRACK_GRID_SIZE; south++) {
-		for (legacy_s16 east = tile->east; east <= last_east && east < TRACK_GRID_SIZE; east++) {
-			if (east == tile->east && south == tile->south) {
-				continue;
-			}
-			legacy_u8 terrain = track_terrain_map[east + terrainrows[south]];
-			if (terrain < FRAME_WATER_TERRAIN_FIRST || terrain > FRAME_WATER_TERRAIN_LAST) {
-				continue;
-			}
-			struct TRACKOBJECT *object = &terrain_scene_objects[terrain];
-#if defined(RESTUNTS_SDL3)
-			currenttransshape->shapeptr = frame_track_shape(object, tile->detail);
-#else
-			currenttransshape->shapeptr = object->ss_shapePtr;
-#endif
-			frame_prepare_flat_track_shape(
-				currenttransshape, east, south, &camera->position,
-				(legacy_s16)(redraw_transform_flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT),
-				object->ss_rotY);
-			legacy_s16 transform_result = shape3d_transform_and_queue(currenttransshape);
-			if (transform_result > 0) {
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
 
 legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 							  legacy_s8 redraw_transform_flags)
@@ -206,8 +157,7 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 		return result;
 	}
 #endif
-	if (supersight_enabled != 0 &&
-		frame_draw_covered_water(tile, camera, redraw_transform_flags) != 0) {
+	if (frame_hires_draw_covered_water(tile, camera, redraw_transform_flags)) {
 		return 1;
 	}
 
@@ -218,8 +168,8 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 		// Special treatment of elevated corners
 		if (tile->element >= FRAME_ELEVATED_CORNER_FIRST &&
 			tile->element <= FRAME_ELEVATED_CORNER_LAST) {
-			if (frame_draw_elevated_corners(tile, camera, redraw_transform_flags) != 0 &&
-				supersight_enabled != 0) {
+			if (frame_hires_exhausted(
+					frame_draw_elevated_corners(tile, camera, redraw_transform_flags))) {
 				return 1;
 			}
 
@@ -242,9 +192,7 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 	if (tile->terrain != 0) {
 		track_object = &terrain_scene_objects[tile->terrain];
 #if defined(RESTUNTS_SDL3)
-		currenttransshape->shapeptr = supersight_enabled != 0
-										  ? frame_track_shape(track_object, tile->detail)
-										  : track_object->ss_shapePtr;
+		currenttransshape->shapeptr = frame_hires_terrain_shape(track_object, tile->detail);
 #else
 		currenttransshape->shapeptr = track_object->ss_shapePtr;
 #endif

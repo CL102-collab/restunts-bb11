@@ -1,4 +1,7 @@
-#include "extended_frame_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../extended/extended_frame_internal.h"
+#include <stdlib.h>
+#include <string.h>
 
 #if defined(RESTUNTS_SDL3)
 void frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output, legacy_u16 *count,
@@ -356,4 +359,34 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
 	free(next);
 	return result;
 }
+#endif
+
+#if defined(RESTUNTS_SDL3)
+/* Free footprint corners and neighboring cells can lie below a road's support
+ * plane. Its projected footprint must not remove that lower terrain. Match each
+ * face separately so the compatible part of an inner hill corner can still be
+ * cut, allowing the native mesh's small authored edge overlap. */
+legacy_u8 frame_extended_terrain_matches_grade(const struct VECTOR *points, legacy_u16 count,
+											   const struct FRAME_EXTENDED_TERRAIN *terrain,
+											   const struct CSTRK_OBJECT *object)
+{
+	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+		legacy_s32 x = ((legacy_s16)terrain->column - object->x) * CSTRK_TILE_WORLD_SIZE +
+					   FRAME_EXTENDED_TERRAIN_HALF_TILE + points[vertex].x;
+		legacy_s32 y = ((legacy_s16)terrain->row - object->y) * CSTRK_TILE_WORLD_SIZE +
+					   FRAME_EXTENDED_TERRAIN_HALF_TILE - points[vertex].z;
+		legacy_f64 road_height = object->base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+								 (legacy_f64)(object->slope_x * x + object->slope_y * y) *
+									 CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+		legacy_f64 difference = terrain->profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+								points[vertex].y - road_height;
+		if (difference < -FRAME_EXTENDED_HILL_EDGE_OVERLAP ||
+			difference > FRAME_EXTENDED_HILL_EDGE_OVERLAP) {
+			return 0;
+		}
+	}
+	return 1;
+}
+#endif
+
 #endif

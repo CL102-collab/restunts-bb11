@@ -4,13 +4,12 @@
 #include <stddef.h>
 #include "shape3d_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "../hires/shape3d_hires.h"
+#include "../hires/shape3d_pipeline.h"
 #endif
 #define WHEEL_INNER_RADIUS_SCALE 9472U
 #define SHAPE3D_VERTEX_CAPACITY 255U
 #define SHAPE3D_VERTEX_FLAG_CAPACITY 256U
 #define SHAPE3D_VERTEX_UNTRANSFORMED LEGACY_U8_MAX
-#define SHAPE3D_SHADOW_PRIMITIVE_CAPACITY (LEGACY_U8_MAX + 1U)
 #define SHAPE3D_FORWARD_VECTOR_SCALE 4096
 #define SHAPE3D_NEAR_CLIP_Z 12
 #define SHAPE3D_USE_BOUNDING_RECT_FLAG 8U
@@ -31,8 +30,6 @@
 #define POLYINFO_LEGACY_LAST_VALID_OFFSET 10354U
 #define POLYINFO_MAX_RENDER_POINTS 15U
 #define POLYINFO_MAX_RECORD_SIZE (6U + 4U * POLYINFO_MAX_RENDER_POINTS)
-#define POLYINFO_SUPERSIGHT_LAST_VALID_OFFSET                                                      \
-	(POLYINFO_SUPERSIGHT_DATA_SIZE - POLYINFO_MAX_RECORD_SIZE)
 #define PROJECTION_EXTENT_SCALE 2048L
 #define PROJECTION_EXTENT_DIVISOR 360L
 #define PROJECTION_VIEW_VECTOR_LENGTH 10000
@@ -50,10 +47,6 @@
 #define shape3d_adjust_geometry_bounds rect_adjust_from_point
 #endif
 
-#if (defined(RESTUNTS_SDL3))
-#define SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT 8U
-#define SHAPE3D_SHADOW_PRIMITIVE_FLAGS_OFFSET 1U
-#endif
 #define SHAPE3D_LEGACY_SOLID_POLYGON_RETURN_IP 4895U
 #define SHAPE3D_LEGACY_PATTERNED_POLYGON_RETURN_IP 4936U
 #define SHAPE3D_LEGACY_TWO_COLOR_POLYGON_RETURN_IP 5089U
@@ -85,24 +78,11 @@ struct SHAPE3D_TRANSFORM_CONTEXT {
 	struct VECTOR view_vertices[SHAPE3D_VERTEX_CAPACITY];
 	struct POINT2D projected_vertices[SHAPE3D_VERTEX_CAPACITY];
 #if defined(RESTUNTS_SDL3)
-	struct MATRIX object_to_world_rotation;
-	struct SHAPE3D_HIRES_VECTOR object_translation;
-	struct SHAPE3D_HIRES_VECTOR view_origin;
-	struct SHAPE3D_HIRES_VECTOR hires_vertices[SHAPE3D_VERTEX_CAPACITY];
-	const struct SHAPE3D_HIRES_VECTOR *source_vertices;
-	legacy_u32 shadow_surfaces[SHAPE3D_SHADOW_PRIMITIVE_CAPACITY];
-	legacy_u32 shadow_surface_count;
+	struct SHAPE3D_HIRES_TRANSFORM_CONTEXT hires;
 #endif
 	legacy_s32 visibility_mask;
 	legacy_s32 front_facing_mask;
 };
-
-#if (defined(RESTUNTS_SDL3))
-struct HYPERVISION_SCENE_PRIMITIVE {
-	legacy_u16 material;
-	legacy_u8 type;
-};
-#endif
 
 enum SHAPE3D_PATTERN_TYPE {
 	SHAPE3D_PATTERN_SOLID = 0,
@@ -184,10 +164,6 @@ extern legacy_s32 direction_sector_cosine_copy;
 
 extern polyinfo_index queued_ghost_primitives;
 extern polyinfo_index polyinfo_primitive_capacity;
-#ifdef RESTUNTS_SDL3
-extern struct HYPERVISION_SCENE_PRIMITIVE *hypervision_scene;
-extern legacy_u32 hypervision_scene_count;
-#endif
 
 #if (defined(RESTUNTS_SDL3))
 void polyinfo_reserve(void);
@@ -231,9 +207,11 @@ legacy_u16 shape3d_prepare_primitive(struct SHAPE3D_TRANSFORM_CONTEXT *context,
 									 legacy_s32 *depth_sum);
 legacy_u16 shape3d_insert_primitive(legacy_u8 primitive_type, legacy_u16 primitive_flags,
 									legacy_s32 depth_sum);
-#if (defined(RESTUNTS_SDL3))
-void hypervision_scene_reserve(void);
-#endif
+void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
+							  struct SHAPE3D_TRANSFORM_CONTEXT *context);
+void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
+								struct SHAPE3D_TRANSFORM_CONTEXT *context);
+extern polyinfo_offset polyinfo_last_valid_offset;
 legacy_u16 shape3d_material_value(const legacy_s16 *table, legacy_u16 index);
 
 #endif

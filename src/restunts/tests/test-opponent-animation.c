@@ -56,6 +56,7 @@ static legacy_u64 animation_test_ticks(void)
 #define asset_path_base test_asset_path_base
 #undef RESTUNTS_OPPONENT_DIRECTORY
 #define RESTUNTS_OPPONENT_DIRECTORY "source"
+#include "../c/hires/opponent_animation_artwork.c"
 #include "../c/opponent/opponent_animation.c"
 #undef SDL_GetTicksNS
 #undef asset_path_base

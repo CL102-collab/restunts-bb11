@@ -8,6 +8,7 @@
 #include "../c/race/race.c"
 #include "../c/race/race_rewind.c"
 #include "../c/race/race_presentation.c"
+#include "../c/hires/race_presentation.c"
 #include "extended-replay-test-stubs.h"
 #undef printf
 #undef memset
@@ -810,7 +811,7 @@ static void test_replay_dashboard_rendering(void)
 		replaybar_toggle = (mode >> 1) & 1;
 		video_uses_page_flipping = (mode >> 2) & 1;
 		legacy_u8 full_redraw = (mode >> 3) & 1;
-		struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 		game_replay_mode = REPLAY_MODE_PLAYBACK;
 		game_replay_mode_copy = RACE_REPLAY_MODE_UNINITIALIZED;
 		idle_expired = followOpponentFlag = is_in_replay = 0;
@@ -849,7 +850,7 @@ static void test_replay_dashboard_rendering(void)
 
 static void test_rewind_frame_loop(void)
 {
-	struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+	struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 	memset(&state, 0, sizeof(state));
 	memset(&gameconfig, 0, sizeof(gameconfig));
 	scripted_rewind = 1;
@@ -911,7 +912,7 @@ static void test_render_scale_transitions(void)
 			supersight_enabled = stages[stage].supersight;
 			frame_adaptive.quality = stages[stage].quality;
 			legacy_u8 changed = test_render_scale != stages[stage].scale;
-			struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+			struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			game_replay_mode_copy = RACE_REPLAY_MODE_UNINITIALIZED;
 			idle_expired = followOpponentFlag = is_in_replay = 0;
@@ -1080,7 +1081,7 @@ static void test_hotkeys_during_frame_waits(void)
 		for (legacy_u16 mode = 0; mode < 2; mode++) {
 			for (legacy_u16 timing = TEST_HOTKEY_BETWEEN_SAMPLES; timing < TEST_HOTKEY_TIMING_COUNT;
 				 timing++) {
-				struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+				struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 				legacy_u16 rate = rates[rate_index];
 				prepare_presentation_test(rate, mode);
 				memset(&hotkey_script, 0, sizeof(hotkey_script));
@@ -1119,7 +1120,7 @@ static void test_hotkey_exit_during_catchup(void)
 {
 	for (legacy_u16 request = TEST_HOTKEY_OPEN_REPLAY; request <= REPLAY_EXIT_REQUESTED;
 		 request++) {
-		struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 		prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
 		scheduled_time = TEST_HOTKEY_CATCHUP_FRAMES * PRESENTATION_SECOND_NS / framespersec;
 		elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;
@@ -1181,7 +1182,7 @@ static void test_presentation_rate(void)
 	for (legacy_u16 rate = 10; rate <= 20; rate += 10) {
 		struct GAMESTATE baseline;
 		for (legacy_u16 mode = 0; mode < 3; mode++) {
-			struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+			struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 			prepare_presentation_test(rate, mode);
 			race_run_frames(&cache);
 			assert(scheduled_physics == rate);
@@ -1210,7 +1211,7 @@ static void test_replay_presentation_rate(void)
 										REPLAY_PLAYBACK_FAST};
 	for (legacy_u16 rate = 10; rate <= 20; rate += 10) {
 		for (legacy_u16 speed = 0; speed < 3; speed++) {
-			struct RACE_VIEWPORT_CACHE cache = {-1, -1, 0};
+			struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 			prepare_presentation_test(rate, 1);
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			replay_playback_speed = speeds[speed];
@@ -1500,7 +1501,7 @@ int main(void)
 		memset(&rect_windshield, 0, sizeof(rect_windshield));
 		memset(&dirty_rect, 0, sizeof(dirty_rect));
 		cache.roof_height = cache.dashboard_bottom = -1;
-		cache.supersight = 0;
+		cache.hires.supersight = 0;
 		frames = keys = 0;
 		state.game_frame = 10;
 		elapsed_time2 = (scenario & 1) ? 11 : 10;

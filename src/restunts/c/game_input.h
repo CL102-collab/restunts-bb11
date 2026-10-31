@@ -2,6 +2,7 @@
 #define RESTUNTS_GAME_INPUT_H
 
 #include "legacy.h"
+#include "hires/settings.h"
 
 #define INPUT_NONE 0U
 #define INPUT_ACCELERATE_FLAG 1U
@@ -60,7 +61,6 @@ legacy_s16 input_repeat_check(legacy_s16 duration);
 void mouse_minmax_position(legacy_s16 inset);
 
 extern legacy_s16 input_combined_flags;
-extern legacy_u8 supersight_enabled;
 /* Preserve the session byte and existing nonzero visibility checks. */
 enum FRAME_FPS_DISPLAY_MODE {
 	FRAME_FPS_DISPLAY_OFF,

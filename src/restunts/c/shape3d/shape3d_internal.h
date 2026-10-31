@@ -2,6 +2,7 @@
 #define RESTUNTS_SHAPE3D_INTERNAL_H
 
 #include "shape3d.h"
+#include "../hires/shape3d_queue.h"
 
 /* Queued renderer categories, distinct from shape resource primitive types.
  * Their numeric values are stored in the byte-sized polyinfo type field. */
@@ -90,18 +91,8 @@ extern void (*imagefunc)(legacy_u16, legacy_u16, legacy_u16, legacy_u16, legacy_
 extern legacy_u8 *sphere_radius_rows[];
 
 #define POLYINFO_LEGACY_PRIMITIVE_CAPACITY 400U
-#define POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY 592U
-#define POLYINFO_SUPERSIGHT_DATA_SIZE 13312U
 
-/* Native SuperSight queues grow with the visible scene. DOS retains its
- * original near-memory arrays and 16-bit record offsets. */
-#if defined(RESTUNTS_SDL3)
-typedef legacy_u32 polyinfo_index;
-typedef legacy_s32 polyinfo_link;
-typedef legacy_u32 polyinfo_offset;
-extern polyinfo_link *polygon_next_index;
-extern polyinfo_offset *polygon_record_offsets;
-#else
+#if !defined(RESTUNTS_SDL3)
 typedef legacy_u16 polyinfo_index;
 typedef legacy_s16 polyinfo_link;
 typedef legacy_u16 polyinfo_offset;

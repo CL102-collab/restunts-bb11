@@ -70,10 +70,6 @@ static legacy_u16 shape3d_legacy_record_index(polyinfo_index record_index);
 #if (defined(RESTUNTS_SDL3))
 legacy_u32 shape3d_queued_primitive_count(void);
 #endif
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_render_hires_primitive(legacy_u32 index,
-										   const struct HYPERVISION_SCENE_PRIMITIVE *primitive);
-#endif
 void shape3d_render_queued_primitives(void);
 
 legacy_s8 is_facing_camera(struct POINT2D far *pts)
@@ -192,7 +188,7 @@ legacy_u16 select_cliprect_rotate(legacy_s16 angZ, legacy_s16 angX, legacy_s16 a
 	select_rect_rc = *cliprect;
 	shape_half_scale = half_scale;
 #if defined(RESTUNTS_SDL3)
-	shape3d_hires_set_model_scale(half_scale != 0 ? 0.5 : 1);
+	shape3d_hires_set_half_scale(half_scale);
 #endif
 	struct MATRIX *inverse_view_rotation =
 		mat_rot_zxy(-angZ, -angX, -angY, MATRIX_ROTATION_ORDER_ZXY);
@@ -484,35 +480,7 @@ static legacy_u16 shape3d_legacy_record_index(polyinfo_index record_index)
 #if (defined(RESTUNTS_SDL3))
 legacy_u32 shape3d_queued_primitive_count(void)
 {
-	return hires_enabled() ? hypervision_scene_count : polyinfonumpolys;
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_render_hires_primitive(legacy_u32 index,
-										   const struct HYPERVISION_SCENE_PRIMITIVE *primitive)
-{
-	legacy_u16 material = primitive->material;
-	legacy_u16 type = primitive->type & ~RENDER_PRIMITIVE_VISUAL_FLAGS;
-	legacy_u16 pattern_type = SHAPE3D_PATTERN_SOLID;
-	legacy_u16 pattern = 0;
-	legacy_u16 color = shape3d_material_value(material_clrlist_ptr_cpy, material);
-	legacy_u16 second_color = 0;
-	legacy_u16 third_color = 0;
-	if (type == RENDER_PRIMITIVE_POLYGON) {
-		pattern_type = shape3d_material_value(material_patlist_ptr_cpy, material);
-		pattern = shape3d_material_value(material_patlist2_ptr_cpy, material);
-		if (pattern_type > SHAPE3D_PATTERN_TWO_COLOR ||
-			(pattern_type == SHAPE3D_PATTERN_MASKED && pattern == 0U)) {
-			return;
-		}
-		second_color = shape3d_material_value(material_clrlist2_ptr_cpy, material);
-	} else if (type == RENDER_PRIMITIVE_WHEEL) {
-		second_color = shape3d_material_value(material_clrlist_ptr_cpy, material + 1U);
-		third_color = shape3d_material_value(material_clrlist_ptr_cpy, material + 2U);
-	}
-	shape3d_hires_render(index, primitive->type, color, second_color, third_color, pattern_type,
-						 pattern);
+	return shape3d_hires_scene_count();
 }
 #endif
 
@@ -522,17 +490,7 @@ void shape3d_render_queued_primitives(void)
 	TempleRasterNative(1);
 #endif
 #if defined(RESTUNTS_SDL3)
-	if (hires_begin(&drawing_sprite) != 0) {
-		/* Enhanced presentation has its own depth rasterizer. Drawing the
-		 * original 320x200 polygons as well only repeats the complete scene. */
-		shape3d_hires_batch_begin();
-		for (legacy_u32 index = 0; index < hypervision_scene_count; index++) {
-			shape3d_render_hires_primitive(index, &hypervision_scene[index]);
-		}
-		shape3d_hires_batch_end();
-		shape3d_hires_draw_shadows();
-		hires_end();
-		polyinfo_reset();
+	if (shape3d_hires_render_scene()) {
 		return;
 	}
 #endif

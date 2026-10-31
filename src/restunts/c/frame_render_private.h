@@ -29,19 +29,15 @@
 #include "crash_state.h"
 #include "ghost.h"
 #include "residue.h"
+#include "hires/frame_render.h"
 
 #if defined(RESTUNTS_SDL3)
-#include "hires/shape3d_hires.h"
 #include "shape3d/shape3d_internal.h"
-#include "hires/frame_adaptive.h"
 #include "owoot/owoot_road.h"
 #include "extended/extended_frame.h"
 #endif
 
 extern const struct GAMESTATE *frame_state;
-extern const struct CARSTATE *frame_ghost;
-extern const struct GHOST_CAMERA_STATE *frame_ghost_camera;
-extern legacy_u8 frame_uses_snapshot;
 
 struct FRAME_CAR_RENDER {
 	legacy_s8 east, south;
@@ -62,16 +58,6 @@ struct FRAME_CAR_RENDER {
 #define FRAME_LOOKAHEAD_TILE_COUNT 23
 #define FRAME_LOOKAHEAD_DEPTH_TILES 4
 #define FRAME_LOOKAHEAD_WIDTH_TILES 2
-#if defined(RESTUNTS_SDL3)
-
-#define FRAME_NON_GRASS_HEIGHT_OFFSET 2
-#define FRAME_GRASS_HEIGHT_HASH_SHIFT 8U
-#define FRAME_GRASS_HEIGHT_VARIATION_MASK 1U
-#endif
-#define FRAME_SUPERSIGHT_DISCARD_BATCH 20
-#define FRAME_SUPERSIGHT_MINIMUM_TILES 4
-#define FRAME_SUPERSIGHT_PROBE_INTERVAL 16
-#define FRAME_SUPERSIGHT_VIEW_KEY_COUNT 20
 #define FRAME_CAR_UP_VECTOR_LENGTH 30000
 #define FRAME_CAR_NEAR_SORT_ADJUSTMENT 2048
 #define FRAME_CAR_TRANSFORM_DISTANCE 300
@@ -163,21 +149,6 @@ enum FRAME_START_FLAG_VERTEX_INDEX {
 	FRAME_START_FLAG_VERTEX_RIGHT_FAR = 3
 };
 
-#if defined(RESTUNTS_SDL3)
-extern legacy_u8 frame_adaptive_active;
-#endif
-
-#if !defined(RESTUNTS_SDL3)
-
-struct FRAME_SUPERSIGHT_TILE {
-	legacy_s8 width, depth, priority;
-};
-
-extern const struct FRAME_SUPERSIGHT_TILE supersight_tiles[FRAME_SUPERSIGHT_TILE_COUNT];
-
-extern const legacy_s8 supersight_detail_thresholds[];
-#endif
-
 extern const legacy_s8 fence_by_edge[FRAME_FENCE_EDGE_CLASS_COUNT][FRAME_FENCE_EDGE_CLASS_COUNT];
 
 #if defined(RESTUNTS_SDL3)
@@ -198,17 +169,6 @@ extern legacy_u8 frame_racing_line_submitted;
 
 #endif
 
-#if defined(RESTUNTS_SDL3)
-
-#else
-
-extern legacy_s16 supersight_attempt_hint;
-extern legacy_u8 supersight_probe_frames;
-extern legacy_u8 supersight_view_valid;
-extern legacy_s16 supersight_previous_view[FRAME_SUPERSIGHT_VIEW_KEY_COUNT];
-
-#endif
-
 struct TRACKOBJECT *frame_track_object_from_legacy_index(legacy_u8 index);
 void transformed_shape_add_for_sort(legacy_s16 z_adjust, legacy_s16 type);
 legacy_s16 frame_relative_position(legacy_s32 position, legacy_s16 camera_position);
@@ -221,15 +181,6 @@ legacy_s8 frame_south_tile_from_world(legacy_s32 position);
 legacy_s8 frame_tile_from_world_offset(legacy_s32 position, legacy_s16 offset);
 legacy_s8 frame_south_tile_from_world_offset(legacy_s32 position, legacy_s16 offset);
 legacy_s16 frame_car_z_adjust(const legacy_s8 *wheel_surfaces, struct MATRIX *rotation);
-#if defined(RESTUNTS_SDL3)
-legacy_s32 frame_adaptive_world_tile(legacy_s32 position, legacy_s16 offset);
-#endif
-#if defined(RESTUNTS_SDL3)
-legacy_u8 frame_adaptive_position_flags(const struct VECTOR *relative, const struct VECTOR *camera);
-#endif
-#if defined(RESTUNTS_SDL3)
-legacy_u8 frame_adaptive_car_flags(const struct CARSTATE *carstate, const struct SIMD *simd);
-#endif
 void frame_add_dynamic_shape(struct TRACKOBJECT *track_object, legacy_s16 state_index,
 							 legacy_s16 flags, legacy_s16 material, legacy_s16 z_adjust,
 							 const struct VECTOR *camera_position);
@@ -241,13 +192,6 @@ void font_set_fontdef2(void far *data);
 void font_set_fontdef(void);
 void frame_mark_changed_rects(void);
 void frame_present(struct RECTANGLE *cliprect);
-#if defined(RESTUNTS_SDL3)
-struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
-									  const struct SHAPE3D *wheel_shape);
-#endif
-#if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset);
-#endif
 void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
 							 const struct CARSTATE *carstate, struct SHAPE3D *wheel_shape,
 							 legacy_s16 *wheel_angles, struct VECTOR *wheel_vectors,
@@ -262,12 +206,6 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 				   legacy_s16 material, legacy_s16 z_adjust);
 legacy_s16 frame_border_index(legacy_s8 offset);
 struct MATRIX *frame_car_rotation(legacy_s16 rot_x, legacy_s16 rot_y, legacy_s16 rot_z);
-#if defined(RESTUNTS_SDL3)
-legacy_u8 frame_adaptive_tile_flags(const struct FRAME_TILE *tile);
-#endif
-#if defined(RESTUNTS_SDL3)
-struct SHAPE3D *frame_track_shape(const struct TRACKOBJECT *object, legacy_s8 detail);
-#endif
 #if defined(RESTUNTS_SDL3)
 legacy_s32 frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles);
 #endif
@@ -290,10 +228,6 @@ void frame_setup_camera(struct FRAME_CAMERA *camera);
 legacy_s8 frame_animated_material(void);
 const struct FRAME_LOOKAHEAD_TILE *frame_setup_projection(struct FRAME_CAMERA *camera,
 														  struct RECTANGLE *cliprect);
-#if defined(RESTUNTS_SDL3)
-void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,
-						  const struct VECTOR *camera_position, const struct SHAPE3D *shape);
-#endif
 legacy_s16 frame_background_camera_height(const struct FRAME_CAMERA *camera);
 void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_flags);
 void frame_resolve_track_tile(struct FRAME_TILE *tile);
@@ -304,12 +238,6 @@ void frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles, const struct F
 							  legacy_s16 tile_index);
 void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAME_TILE *tile,
 							 legacy_s16 tile_index);
-#if defined(RESTUNTS_SDL3)
-void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_CAMERA *camera);
-#endif
-#if !(defined(RESTUNTS_SDL3))
-void frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_CAMERA *camera);
-#endif
 void frame_select_lookahead_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAME_TILE *tile,
 								 legacy_s16 tile_index, legacy_s8 detail_threshold);
 void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_CAMERA *camera);
@@ -319,9 +247,6 @@ legacy_s16 frame_draw_fences(const struct FRAME_TILE *tile,
 							 const struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_flags);
 legacy_s16 frame_draw_elevated_corners(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 									   legacy_s8 redraw_transform_flags);
-legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
-									const struct FRAME_CAMERA *camera,
-									legacy_s8 redraw_transform_flags);
 legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 							  legacy_s8 redraw_transform_flags);
 legacy_s16 frame_draw_hill_fill(const struct FRAME_TILE *tile,
@@ -353,11 +278,6 @@ void frame_mark_collision_explosion(struct FRAME_CAR_RENDER *cars, legacy_s16 sh
 legacy_s16 frame_draw_sorted_shapes(struct FRAME_CAR_RENDER *cars, const struct FRAME_TILE *tile,
 									const struct FRAME_CAMERA *camera,
 									legacy_s8 redraw_transform_flags);
-#if defined(RESTUNTS_SDL3)
-legacy_s16 frame_draw_adaptive_particles(const struct FRAME_CAMERA *camera,
-										 struct FRAME_CAR_RENDER *cars,
-										 legacy_s8 redraw_transform_flags);
-#endif
 void frame_position_track_element(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 								  const struct TRACKOBJECT *track_object);
 void frame_track_sort_state(struct FRAME_TILE *tile, struct FRAME_CAR_RENDER *cars,
@@ -383,30 +303,10 @@ legacy_s16 frame_draw_tile_objects(struct FRAME_TILE *tile,
 legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 							const struct FRAME_CAMERA *camera, struct FRAME_CAR_RENDER *cars,
 							legacy_s8 redraw_transform_flags, legacy_s8 animated_material);
-#if defined(RESTUNTS_SDL3)
-void frame_supersight_reset(void);
-#endif
-#if defined(RESTUNTS_SDL3)
-void frame_draw_supersight(struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAMERA *camera,
-						   struct FRAME_CAR_RENDER *cars, legacy_s8 buffer_index,
-						   legacy_s8 redraw_transform_flags, legacy_s8 animated_material);
-#endif
 #if !(defined(RESTUNTS_SDL3))
 void frame_draw_classic(const struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAMERA *camera,
 						struct FRAME_CAR_RENDER *cars, legacy_s8 buffer_index,
 						legacy_s8 redraw_transform_flags, legacy_s8 animated_material);
-#endif
-#if !(defined(RESTUNTS_SDL3))
-void frame_supersight_reset(void);
-#endif
-#if !(defined(RESTUNTS_SDL3))
-legacy_s16 frame_supersight_first_attempt(const struct FRAME_TILE_SELECTION *tiles,
-										  const struct FRAME_CAMERA *camera);
-#endif
-#if !(defined(RESTUNTS_SDL3))
-void frame_draw_supersight(struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAMERA *camera,
-						   struct FRAME_CAR_RENDER *cars, legacy_s8 buffer_index,
-						   legacy_s8 redraw_transform_flags, legacy_s8 animated_material);
 #endif
 void frame_draw_explosions(struct FRAME_CAR_RENDER *cars, struct RECTANGLE *cliprect);
 void frame_draw_cockpit_effects(struct RECTANGLE *cliprect);
@@ -415,11 +315,5 @@ void frame_draw_elapsed_time(void);
 void frame_finish(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 				  legacy_s16 skybox_requires_full_redraw, legacy_s16 camera_yaw);
 void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect);
-void frame_preserve_authoritative_events(struct GAMESTATE *presentation, struct CARSTATE *ghost,
-										 struct GHOST_CAMERA_STATE *ghost_camera);
-void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
-						   const struct GAMESTATE *render_state,
-						   const struct CARSTATE *render_ghost,
-						   const struct GHOST_CAMERA_STATE *render_ghost_camera);
 
 #endif

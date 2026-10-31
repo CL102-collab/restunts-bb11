@@ -45,6 +45,9 @@ extern legacy_void RsSpriteSetTargetClipBounds(
 extern legacy_s8 *RsInternal1Strcpy(legacy_s8 *destination,legacy_s8 *source);
 extern legacy_s8 *RsInternal1Strcat(legacy_s8 *destination,legacy_s8 *source);
 extern legacy_u16 RsInternal1Strlen(legacy_s8 *string);
+extern legacy_u16 RsFileOpenResource(legacy_s8 *filename);
+extern legacy_u8 *RsFileDecompNofatal(legacy_s8 *filename);
+extern legacy_s16 RsFileLoadReplayFormat(legacy_s8 *dir,legacy_s8 *name,legacy_s8 *extension);
 extern legacy_u16 RsResourceTextEquals(
     legacy_u8 *resource,legacy_u32 length,legacy_s8 *name,legacy_s8 *expected);
 extern legacy_u8 *RsMmgrAllocPages(legacy_s8 *name,legacy_u16 paragraphs);
@@ -150,6 +153,11 @@ extern legacy_s16 RsAudioToggleMusic();
 extern legacy_s16 RsAudioToggleEffects();
 extern legacy_void RsAudioAddDriverTimer();
 extern legacy_void RsAudioRemoveDriverTimer();
+extern legacy_u16 RsFileCarResolve(legacy_s8 *filename,legacy_s8 *path);
+extern legacy_u8 *RsFileAllocTailPages(
+    legacy_s8 *filename,legacy_u16 paragraphs,legacy_u16 tail_bytes);
+extern legacy_u8 *RsFileDecompInternal(
+    legacy_s8 *filename,legacy_s16 fatal,legacy_u16 tail_bytes);
 extern legacy_void RsTrackCollisionCapture(CTrackCollisionSnapshot *saved);
 extern legacy_void RsTrackCollisionRestore(CTrackCollisionSnapshot *saved);
 extern legacy_void RsBuildTrackObject(CVector *world_position,CVector *next_world_position);
@@ -160,6 +168,11 @@ extern legacy_s16 RsTrackSurfaceContainsPoint(CVector *point);
 extern legacy_s16 RsSweepTrackSurfaceCandidates(
     CVector *previous,CVector *current,legacy_u8 *test,legacy_s16 *fraction);
 extern legacy_void RsTrackCollisionResourcesDecode(legacy_u8 *plane_source,legacy_u8 *wall_source);
+extern legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv);
+extern legacy_s16 RsExtendedTrkutilRowPosition(legacy_u16 row,legacy_s16 *position);
+extern legacy_s16 RsExtendedTrkutilColumnPosition(legacy_u16 column,legacy_s16 *position);
+extern legacy_s16 RsExtendedTrkutilRowTableCount(legacy_s16 width,legacy_s16 height);
+extern legacy_u8 RsExtendedTrkutilHorizon(legacy_u8 legacy_horizon);
 extern legacy_void RsOpponentRouteAdvance(legacy_s16 route_point);
 extern legacy_void RsUpdateOpponentTick();
 extern legacy_void RsUpdateCrashState(legacy_s16 crash_event,legacy_s16 car_index);
@@ -167,6 +180,12 @@ extern legacy_void RsConfigureOwoot(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsOwootReadWheelShape(legacy_u8 *shape);
 extern legacy_u16 RsOwootWheelFootprint(CCarState *car,legacy_u16 wheel,CVector *output);
 extern legacy_void RsOwootUpdatePlayer(CCarState *car,legacy_s16 car_index);
+extern legacy_s16 RsExtendedGameinitCarStart(CCarState *carstate,CSimd *simd,
+    legacy_s8 transmission,legacy_s16 column_offset,legacy_s16 row_offset);
+extern legacy_void RsExtendedGameinitFollowCamera(legacy_s16 initial_height);
+extern legacy_void RsExtendedGameinitReset(legacy_s16 initialization_mode);
+extern legacy_s16 RsExtendedGameinitRestore(legacy_u16 frame);
+extern legacy_void RsHiresSettingsSelectDisplay(legacy_s16 key);
 extern legacy_void RsKbRegCallback(legacy_s16 code,legacy_u8 *callback);
 extern legacy_s16 RsKbParseKey(legacy_s16 code);
 extern legacy_void RsLoadPalandcursor();
@@ -174,7 +193,6 @@ extern legacy_void RsMouseDrawOpaqueCheck();
 extern legacy_s16 RsGetKbOrJoyFlags();
 extern legacy_s16 RsInputDoChecking(legacy_s16 frame_delta);
 extern legacy_void RsCheckInput();
-extern legacy_void RsMouseMinmaxPosition(legacy_s16 inset);
 extern legacy_void RsInitPlantrak();
 extern legacy_s16 RsTrackSetup();
 extern legacy_void RsAudioApplyCarStateSample(legacy_u8 *sample,legacy_s16 interval);
@@ -218,6 +236,9 @@ extern legacy_s16 RsResolveCarCollisionSpeeds(CCarState *first_state,CCarState *
 extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
     CVector *first_world_coordinates,CPoint2D *second_collision_points,
     CVector *second_world_coordinates);
+extern legacy_s16 RsExtendedGamestepInput(legacy_s8 *input,legacy_s16 store_checkpoints);
+extern legacy_s16 RsExtendedGamestepLegacyCheckpoints();
+extern legacy_void RsExtendedGamestepAfterStep();
 extern legacy_s16 RsSetupPlayerCars();
 extern legacy_void RsFreePlayerCars();
 extern legacy_void RsGhostLoadSimulationResources();
@@ -236,7 +257,6 @@ extern legacy_void RsSetProjection(legacy_s16 horizontal_fov_degrees,
 extern legacy_u16 RsSelectCliprectRotate(legacy_s16 ang_z,legacy_s16 ang_x,legacy_s16 ang_y,
     CRectangle *cliprect,legacy_s16 half_scale);
 extern legacy_void RsInitPolyinfo();
-extern legacy_void RsPolyinfoReset();
 extern legacy_void RsShape3dRenderQueuedPrimitives();
 extern legacy_u16 RsLinePrepareClipped(
     legacy_u16 start_x,legacy_u16 start_y,legacy_u16 end_x,legacy_u16 end_y,legacy_u16 *line);
@@ -249,6 +269,17 @@ extern legacy_void RsDrawBeveledBorder(legacy_s16 x,legacy_s16 y,legacy_s16 widt
     legacy_s16 bottom_outer_color,legacy_s16 bottom_inner_color);
 extern legacy_void RsDrawThreeColorBeveledBorder(legacy_s16 x,legacy_s16 y,legacy_s16 width,
     legacy_s16 height,legacy_s16 outer_color,legacy_s16 inner_color,legacy_s16 opposite_color);
+extern legacy_s16 RsExtendedOpponentAverage(
+    legacy_s16 first,legacy_s16 second,legacy_s16 *average);
+extern legacy_s16 RsExtendedOpponentPassingAllowed();
+extern legacy_s16 RsExtendedOpponentPlacePoints(
+    legacy_s16 track_index,CVector *first,CVector *second);
+extern CTrkObjInfo *RsExtendedOpponentRouteInfo(
+    legacy_s16 track_index,legacy_u16 id,CTrkObjInfo *legacy_info);
+extern legacy_void RsExtendedOpponentRouteSpeed(legacy_s16 track_index,legacy_u16 id,
+    legacy_u8 subtype,CTrkObjInfo *info,CTrackObject *object,legacy_s8 *speed,
+    legacy_u8 *lookup);
+extern legacy_s16 RsExtendedOpponentLoadRoute(legacy_u8 *costs,legacy_u8 *resource);
 extern legacy_void RsSetupCarShapes(legacy_s16 operation);
 extern legacy_void RsConfigureDualWaySwitching(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_void RsUpdatePenaltyDisplay();
@@ -275,7 +306,6 @@ extern legacy_void RsGhostClear();
 extern legacy_void RsGhostCheckTrack();
 extern legacy_s16 RsGhostPrepareRace();
 extern legacy_void RsGhostEndRace();
-extern legacy_s16 RsGhostIsActive();
 extern legacy_void RsGhostUpdate(legacy_u32 frame,legacy_u16 live_frame_rate);
 extern CCarState *RsGhostCarState();
 extern legacy_void RsAudioAllocateCarStateRecords();
@@ -298,10 +328,46 @@ extern legacy_void RsDrawButton(legacy_s8 *text,legacy_s16 x,legacy_s16 y,legacy
 extern legacy_void RsMenuResetAnimationTimers();
 extern legacy_s16 RsMenuAnimateButtonHighlight(
     legacy_s16 item_index,CButtonArea *buttons,legacy_s16 second_color,legacy_s16 first_color);
+extern legacy_void RsEndFormatTime(legacy_s8 *out,legacy_u32 frame);
+extern legacy_void RsEndHiscoreSetText(legacy_s8 *resource,legacy_s8 *text_id);
+extern legacy_void RsEndHiscoreAppendText(legacy_s8 *resource,legacy_s8 *text_id);
+extern legacy_void RsEndHiscoreDrawCurrentText(legacy_s16 *y);
+extern legacy_void RsEndHiscoreDrawOpponentText(
+    legacy_s8 *opponent_resource,legacy_u8 outcome,legacy_u8 text_prefix,legacy_s16 animation_x);
+extern legacy_void RsReplayControlsDraw(legacy_u32 recorded_frame,legacy_u32 current_frame);
+extern legacy_void RsReplayControlsSelect(legacy_u8 selection);
+extern legacy_void RsReplayPauseMenu();
+extern legacy_u32 RsReplayCurrentFrame();
+extern legacy_void RsReplayFastForward();
+extern legacy_void RsReplayRewind();
+extern legacy_void RsRaceHiresClipDashboard();
+extern legacy_s16 RsRaceHiresViewportChanged(CRaceHiresViewport *cache);
+extern legacy_void RsRaceHiresCacheViewport(CRaceHiresViewport *cache);
+extern legacy_u32 RsRaceCurrentFrame();
+extern legacy_u32 RsRaceInputFrame();
+extern legacy_u32 RsRaceRecordedFrames();
+extern legacy_void RsRaceUpdateRewind(CRaceRewindState *rewind);
+extern legacy_u32 RsRaceGhostFrame();
+extern legacy_void RsRaceDrawFrame();
+extern legacy_void RsGhostLineClear();
+extern legacy_void RsGhostLineFinish();
+extern legacy_void RsGhostLineRecord(CCarState *car);
 extern legacy_s16 RsSkyboxRender(legacy_s16 view_index,CRectangle *clip,legacy_s16 direction,
     CMatrix *rotation,legacy_s16 roll,legacy_s16 angle,legacy_s16 camera_y);
-extern legacy_u16 RsMenuTrackEditorTrackMenuPreviousRow(legacy_u16 row);
-extern legacy_u8 RsMenuTrackEditorTrackEditorMapTile(legacy_u8 column,legacy_u8 row);
+extern legacy_u8 RsTrackEditorMapTile(legacy_u8 column,legacy_u8 row);
+extern legacy_s16 RsTrackEditorRemoveInvalidTerrainTiles();
+extern legacy_u8 RsTrackEditorPaletteTile(legacy_u8 page,legacy_u8 row,legacy_u8 column);
+extern legacy_void RsTrackEditorShowMessage(legacy_s8 *text_resource,legacy_s8 *resource_id);
+extern legacy_void RsTrackEditorDrawWindow(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorUpdatePalette(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorRedraw(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorPositionCursor(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorDrawTileLabel(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorReportValidation(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorWaitForInput(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorAdvancePathAnimation(CTrackEditorSession *editor);
+extern legacy_void RsTrackEditorHandleKey(CTrackEditorSession *editor);
+extern legacy_u16 RsMenuTrackEditorMapTrackMenuPreviousRow(legacy_u16 row);
 extern legacy_u8 *RsAudioReadFarPointer(legacy_u8 *source);
 extern legacy_void RsAudioWriteFarPointer(legacy_u8 *destination,legacy_u8 *value);
 extern legacy_s8 *RsPadId(legacy_s8 *source);
@@ -319,9 +385,17 @@ extern legacy_s16 RsAudioEffectChannelIdle(legacy_s16 channel);
 extern legacy_void RsAudioRequestContextFade(legacy_s16 index);
 extern legacy_void RsAudioFadeOut(legacy_s16 delay_ticks);
 extern legacy_void RsAudioSequenceTimer();
+extern legacy_u16 RsShape3dHiresPolyinfoSize();
+extern legacy_void RsShape3dHiresSetQueueMode(legacy_u8 enabled);
 extern legacy_s8 RsIsFacingCamera(CPoint2D *pts);
-extern legacy_u16 RsPolygonInsertNewest(legacy_u16 depth,legacy_u16 sort_by_depth);
-extern legacy_void RsShape3dShape3dRetainLegacyViewRotation(
+extern legacy_u16 RsShape3dPreparePrimitiveVertices(
+    CShape3D *shape,CShape3DTransformContext *context,legacy_u16 *any_vertex_behind);
+extern legacy_u16 RsShape3dPreparePrimitive(CShape3DTransformContext *context,
+    legacy_u8 primitive_type,legacy_u16 any_vertex_behind,legacy_u16 primitive_flags,
+    legacy_u8 *front_facing_masks,legacy_s32 *depth_sum);
+extern legacy_u16 RsShape3dInsertPrimitive(
+    legacy_u8 primitive_type,legacy_u16 primitive_flags,legacy_s32 depth_sum);
+extern legacy_void RsShape3dRenderShape3dRetainLegacyViewRotation(
     legacy_s16 ang_z,legacy_s16 ang_x,legacy_s16 ang_y);
 extern legacy_void RsGeneratePolyEdges(
     legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 clipping_mode);
@@ -329,9 +403,105 @@ extern legacy_void RsPolygonMergeSecondEdge(legacy_u16 *line_setup,legacy_u16 ch
     legacy_u16 needs_clipping,legacy_s16 *edge_tables);
 extern legacy_u16 RsLinePrepare(legacy_u16 start_x,legacy_u16 start_y,legacy_u16 end_x,
     legacy_u16 end_y,legacy_u16 *line,legacy_u16 skip_clipping);
+extern legacy_void RsFrameDrawSupersight(CFrameTileSelection *tiles,CFrameCamera *camera,
+    CFrameCarRender *cars,legacy_s8 buffer_index,legacy_s8 redraw_transform_flags,
+    legacy_s8 animated_material);
+extern legacy_s16 RsFrameSupersightFirstAttempt(CFrameTileSelection *tiles,CFrameCamera *camera);
+extern legacy_s16 RsFrameHiresSortDepth();
+extern legacy_s16 RsFrameHiresPrepareTile(
+    CFrameTile *tile,CFrameTileSelection *tiles,legacy_s16 tile_index);
+extern legacy_s16 RsFrameHiresLowCarModel(CTrackObject *track_object,legacy_s8 tile_detail);
+extern legacy_s16 RsFrameHiresOmitTile(
+    CFrameTileSelection *tiles,legacy_s16 tile_index,legacy_s8 detail_threshold);
+extern legacy_void RsFrameHiresPrepareTiles(CFrameTileSelection *tiles,CFrameCamera *camera);
+extern legacy_s16 RsFrameHiresDrawCoveredWater(
+    CFrameTile *tile,CFrameCamera *camera,legacy_s8 redraw_transform_flags);
+extern legacy_void RsFrameHiresBegin();
+extern legacy_void RsFrameHiresEnd();
+extern legacy_void RsFrameHiresPrepareGround(CFrameCamera *camera);
+extern legacy_s16 RsFrameHiresDrawScene(CFrameTileSelection *tiles,CFrameCamera *camera,
+    CFrameCarRender *cars,legacy_s8 buffer_index,legacy_s8 redraw_transform_flags,
+    legacy_s8 animated_material);
+extern legacy_s16 RsFrameHiresDashboardTop(CRectangle *cliprect);
+extern legacy_s16 RsFrameHiresExhausted(legacy_s16 result);
+extern legacy_s16 RsFrameHiresRacingLineFlags(legacy_s8 redraw_transform_flags);
+extern legacy_u16 RsFrameHiresPrepareText();
+extern legacy_u16 RsFrameHiresFilenameReserved(legacy_s16 y,legacy_u16 reserved);
+extern CCarState *RsFrameSecondCarState();
+extern CCarState *RsFrameViewedCarState();
+extern CGhostCameraState *RsFrameViewedGhostCamera();
+extern legacy_void RsFrameSetupCamera(CFrameCamera *camera);
+extern CFrameLookaheadTile *RsFrameSetupProjection(CFrameCamera *camera,CRectangle *cliprect);
+extern legacy_s16 RsFrameBackgroundCameraHeight(CFrameCamera *camera);
+extern legacy_void RsFrameDrawClouds(CFrameCamera *camera,legacy_s8 redraw_transform_flags);
+extern legacy_void RsFrameSelectTiles(CFrameTileSelection *tiles,CFrameCamera *camera);
+extern legacy_s16 RsFrameRetryWithoutRacingLine();
+extern legacy_s16 RsFramePrepareDrawTile(
+    CFrameTile *tile,CFrameTileSelection *tiles,legacy_s16 tile_index);
+extern legacy_s16 RsFrameDrawTileBackground(CFrameTile *tile,CFrameTileSelection *tiles,
+    CFrameCamera *camera,legacy_s8 redraw_transform_flags,legacy_s16 first_pass,legacy_s16 pass);
+extern legacy_s16 RsFrameDrawTileObjects(CFrameTile *tile,CFrameTileSelection *tiles,
+    CFrameCamera *camera,CFrameCarRender *cars,legacy_s8 redraw_transform_flags,
+    legacy_s8 animated_material,legacy_s8 *overlay_needs_depth_sort);
+extern legacy_void RsFrameDrawClassic(CFrameTileSelection *tiles,CFrameCamera *camera,
+    CFrameCarRender *cars,legacy_s8 buffer_index,legacy_s8 redraw_transform_flags,
+    legacy_s8 animated_material);
+extern legacy_void RsHiresTrackPreviewDrawCoveredWater(legacy_u8 track,legacy_u8 terrain,
+    legacy_u8 column,legacy_u8 row,CVector *camera,CTransformedShape3D *transformed,
+    legacy_u8 *draw_terrain);
+extern legacy_void RsHiresTrackPreviewFlushTile();
+extern legacy_void RsHiresTrackPreviewFlushScene();
+extern legacy_s16 RsExtendedRaceRouteAlternate(legacy_s16 legacy_track);
+extern legacy_s16 RsExtendedRaceRouteSentinelBounds(legacy_s16 piece,legacy_u8 *minimum_row,
+    legacy_u8 *maximum_row,legacy_u8 *minimum_column,legacy_u8 *maximum_column);
+extern legacy_s16 RsExtendedRaceRouteContains(legacy_s16 column,legacy_s16 row,legacy_s16 piece,
+    legacy_u8 owner_column,legacy_u8 owner_row,legacy_s16 *contains);
+extern legacy_s16 RsExtendedRaceRouteCurrentMatches(
+    legacy_s16 piece,legacy_s16 column,legacy_s16 row);
+extern legacy_void RsExtendedRaceRouteAddPenalty(
+    legacy_s16 skipped,legacy_u16 rate,legacy_u16 seconds);
 extern CVector *RsHeadlessTrackVectorFromLegacyOffset(legacy_u16 offset);
+extern legacy_s16 RsExtendedTrackSetupTerrainValidated();
+extern legacy_s16 RsExtendedTrackSetupLegacyElements();
+extern legacy_void RsExtendedTrackSetupStartElement(CTrackSetupWalk *walk);
+extern legacy_s16 RsExtendedTrackSetupPieceMatches(legacy_u8 existing,legacy_u8 current);
+extern legacy_u16 RsExtendedTrackSetupBranchLimit();
+extern legacy_u16 RsExtendedTrackSetupCellCount();
+extern CTrkObjInfo *RsExtendedTrackSetupInfo(legacy_s16 column,legacy_s16 row,legacy_u16 id);
+extern legacy_u8 RsExtendedTrackSetupJumpLimit(CTrackSetupWalk *walk,legacy_u8 legacy_limit);
+extern legacy_u8 RsExtendedTrackSetupConnectionCode(legacy_u8 code);
+extern legacy_s16 RsExtendedTrackSetupReversible(CTrackSetupWalk *walk);
+extern legacy_s16 RsExtendedTrackSetupResolvePiece(CTrackSetupWalk *walk,legacy_s16 *status);
+extern legacy_void RsExtendedTrackSetupJumpSource(
+    CTrackSetupWalk *walk,legacy_s8 *column,legacy_s8 *row);
+extern legacy_s16 RsExtendedTrackSetupRoadsideHeight(CTrackSetupWalk *walk,CVector *vector);
+extern legacy_s16 RsExtendedTrackSetupCameraHeight(
+    CTrackSetupWalk *walk,CVector *vector,legacy_s16 *height);
+extern legacy_s16 RsExtendedTrackSetupJumpConnection(legacy_u8 code);
+extern legacy_void RsPlayerMotionCrash(legacy_s16 crash_event,legacy_s16 car_index);
+extern legacy_void RsPhysicsPositionToVector(CVector *destination,CVectorLong *source);
+extern legacy_void RsInitializeWorkingCarPose(CCarState *carstate);
+extern legacy_void RsPrepareWheelMotion(
+    CCarState *carstate,CSimd *simd,CPlayerWheelMotion *motion,legacy_s16 car_index);
+extern legacy_void RsApplyWheelSuspension(CCarState *carstate,CPlayerWheelMotion *motion);
+extern legacy_void RsDeriveCarPoseFromWheels(CPlayerWheelMotion *motion);
+extern legacy_void RsSumFrontAndRearWheelSurfaces(CCarState *carstate);
+extern legacy_void RsCommitWorkingCarPose(CCarState *carstate);
+extern legacy_void RsResolveWheelContacts(
+    CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 car_index);
+extern legacy_void RsTrackRotateLocal(CVector *position,legacy_s16 orientation);
 extern legacy_s16 RsTrackRoadContainsLocalPoint(legacy_s16 physical_model,CVector *position);
 extern legacy_s16 RsTrackRoadOverlapsWheel(
     CVector *vertices,legacy_u16 ring_count,legacy_s16 road_contact);
+extern legacy_void RsTrackObjectTileCenter(
+    legacy_u8 track_tile,legacy_s16 row_index,legacy_s16 column_index);
 extern legacy_s16 RsOwootRouteIsValid(CCarState *carstate,legacy_s16 allowed_jump);
 extern legacy_s16 RsOwootJumpIsValid(CCarState *carstate);
+extern legacy_s16 RsExtendedOwootRouteIsValid(CCarState *carstate,legacy_s16 allowed_jump);
+extern legacy_s16 RsExtendedOwootJumpIsValid(CCarState *carstate);
+extern legacy_void RsRouteGate(legacy_s16 piece,legacy_s16 index,COwootGate *gate);
+extern legacy_s32 RsRouteGateDistance(COwootGate *gate,COwootPoint *position);
+extern legacy_s16 RsRouteSweptGate(COwootGate *gate,COwootTires *tires,COwootPoint *previous,
+    COwootPoint *current,legacy_s16 direction,legacy_s16 minimum_fraction);
+extern legacy_s16 RsRoutePreviousTireBefore(
+    COwootGate *gate,COwootTires *tires,COwootPoint *motion,legacy_s16 direction);

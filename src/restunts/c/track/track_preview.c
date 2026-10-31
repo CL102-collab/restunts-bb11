@@ -1,4 +1,5 @@
 #include "../frame_internal.h"
+#include "../hires/track_preview.h"
 #include "../game_input.h"
 #include "trackdata_layout.h"
 #include "../shape2d/shape2d.h"
@@ -9,7 +10,6 @@
 #include "../skybox.h"
 #include "../externs.h"
 #ifdef RESTUNTS_SDL3
-#include "../hires/hires.h"
 #include "../extended/extended_track_preview.h"
 #endif
 
@@ -20,8 +20,6 @@
 #define TRACK_PREVIEW_TRANSFORM_DISTANCE 1024
 #define TRACK_PREVIEW_GRID_SIZE 30U
 #define TRACK_PREVIEW_PLACEHOLDER_MINIMUM 253U
-#define TRACK_PREVIEW_WATER_TERRAIN_FIRST 1U
-#define TRACK_PREVIEW_WATER_TERRAIN_LAST 5U
 #define TRACK_PREVIEW_HILL_ROAD_TERRAIN_FIRST 7U
 #define TRACK_PREVIEW_HILL_ROAD_TERRAIN_END 11U
 #define TRACK_PREVIEW_BRIDGE_FIRST 105U
@@ -122,40 +120,6 @@ static void track_preview_draw_bridge_terrain(legacy_u8 column, legacy_u8 row,
 
 /* Queue covered water with its owner so later continuation cells cannot paint
  * over the road after the owner's primitives have been flushed. */
-static void track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, legacy_u8 column,
-											 legacy_u8 row, const struct VECTOR *camera,
-											 struct TRANSFORMEDSHAPE3D *transformed)
-{
-	if (track == 0 || (track >= TRACK_PREVIEW_BRIDGE_FIRST && track <= TRACK_PREVIEW_BRIDGE_LAST &&
-					   terrain != TERRAIN_RAISED_TILE)) {
-		/* Elevated corners already draw every cell's terrain. */
-		return;
-	}
-	legacy_u8 footprint = trkObjectList[track].ss_multiTileFlag;
-	if (footprint < MULTI_TILE_ROW_EDGE_FLAG ||
-		footprint > (MULTI_TILE_ROW_EDGE_FLAG | MULTI_TILE_COLUMN_EDGE_FLAG)) {
-		return;
-	}
-	legacy_u8 last_column = column + ((footprint & MULTI_TILE_COLUMN_EDGE_FLAG) != 0);
-	legacy_u8 last_row = row + ((footprint & MULTI_TILE_ROW_EDGE_FLAG) != 0);
-	for (legacy_u8 adjacent_row = row;
-		 adjacent_row <= last_row && adjacent_row < TRACK_PREVIEW_GRID_SIZE; adjacent_row++) {
-		for (legacy_u8 adjacent_column = column;
-			 adjacent_column <= last_column && adjacent_column < TRACK_PREVIEW_GRID_SIZE;
-			 adjacent_column++) {
-			if (adjacent_column == column && adjacent_row == row) {
-				continue;
-			}
-			legacy_u8 covered_terrain =
-				track_terrain_map[LEGACY_U16_WRAP_ADD(terrainrows[adjacent_row], adjacent_column)];
-			if (covered_terrain >= TRACK_PREVIEW_WATER_TERRAIN_FIRST &&
-				covered_terrain <= TRACK_PREVIEW_WATER_TERRAIN_LAST) {
-				track_preview_draw_terrain(covered_terrain, adjacent_column, adjacent_row, 0,
-										   camera->x, camera->y, camera->z, 0, transformed);
-			}
-		}
-	}
-}
 
 static void track_preview_draw_hill_base(const struct TRACKOBJECT *track_object,
 										 const struct VECTOR *position,
@@ -237,9 +201,8 @@ static void track_preview_draw_cell(legacy_u8 column, legacy_u8 row, const struc
 		terrain = 0;
 	}
 
-	if (supersight_enabled != 0) {
-		track_preview_draw_covered_water(track, terrain, column, row, camera, transformed);
-	}
+	hires_track_preview_draw_covered_water(track, terrain, column, row, camera, transformed,
+										   track_preview_draw_terrain);
 
 	legacy_s16 terrain_height = 0;
 	if (terrain == TERRAIN_RAISED_TILE) {
@@ -275,23 +238,11 @@ void draw_track_preview(void)
 	transformed.rotvec.x = 0;
 	transformed.rotvec.y = 0;
 	transformed.culling_distance = TRACK_PREVIEW_TRANSFORM_DISTANCE;
-	legacy_s32 batch_scene = 0;
-#ifdef RESTUNTS_SDL3
-	batch_scene = hires_enabled();
-#endif
-	/* HyperVision resolves the whole scene by depth. Starting a full-screen
-	 * raster for every tile repeatedly clears its depth buffer and starves
-	 * music playback while the preview is built. Keep per-tile flushing for
-	 * the classic renderer, whose fixed queue and painter order require it. */
 	for (legacy_u8 row = 0; row < TRACK_PREVIEW_GRID_SIZE; row++) {
 		for (legacy_u8 column = 0; column < TRACK_PREVIEW_GRID_SIZE; column++) {
 			track_preview_draw_cell(column, row, &camera, &transformed);
-			if (!batch_scene) {
-				shape3d_render_queued_primitives();
-			}
+			hires_track_preview_flush_tile();
 		}
 	}
-	if (batch_scene) {
-		shape3d_render_queued_primitives();
-	}
+	hires_track_preview_flush_scene();
 }

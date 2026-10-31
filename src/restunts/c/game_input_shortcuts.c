@@ -12,13 +12,11 @@
 #include "externs.h"
 #include "ghost.h"
 #include "frame_internal.h"
+#include "hires/settings.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
 #endif
 #ifdef RESTUNTS_SDL3
-#include "hires/hires.h"
-#include "hires/frame_adaptive.h"
-#include "hires/skybox_hires.h"
 #include "../platform/sdl3/controller_game.h"
 #endif
 
@@ -46,35 +44,6 @@ static legacy_s8 custom_camera_original_dashboard;
 
 static legacy_u8 h_key_toggle;
 
-#ifdef RESTUNTS_SDL3
-static void input_select_supersight(legacy_s16 key)
-{
-	static const legacy_s8 *preset_names[] = {"Auto", "Full", "High", "Medium", "Low"};
-	legacy_u8 was_enabled = supersight_enabled;
-	if (key == KEY_SHIFT_F12) {
-		legacy_u16 preset =
-			supersight_enabled != 0 ? frame_adaptive.preset : FRAME_ADAPTIVE_PRESET_AUTO;
-		preset = preset >= FRAME_ADAPTIVE_PRESET_LOW ? FRAME_ADAPTIVE_PRESET_FULL : preset + 1U;
-		frame_adaptive_set_preset(&frame_adaptive, (enum FRAME_ADAPTIVE_PRESET)preset);
-		supersight_enabled = 1;
-	} else {
-		supersight_enabled ^= 1U;
-		frame_adaptive_set_preset(&frame_adaptive, FRAME_ADAPTIVE_PRESET_AUTO);
-	}
-	if (was_enabled != supersight_enabled) {
-		frame_render_timing_reset();
-		hires_set_enabled(supersight_enabled);
-	}
-	if (supersight_enabled != 0) {
-		hires_set_render_scale(frame_adaptive_render_scale(&frame_adaptive));
-	}
-	frame_supersight_reset();
-	frame_supersight_show_status(supersight_enabled != 0 ? preset_names[frame_adaptive.preset]
-														 : (const legacy_s8 *)"Off");
-	full_redraw_frames_remaining = (legacy_s8)video_page_count;
-}
-#endif
-
 static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 {
 	switch (key) {
@@ -88,17 +57,10 @@ static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 
 #ifdef RESTUNTS_SDL3
 		case KEY_SHIFT_F12:
-		case KEY_F12:
-			input_select_supersight(key);
-			return 1;
-#else
-		case KEY_F12:
-			supersight_enabled ^= 1U;
-			frame_supersight_reset();
-			frame_supersight_show_status(supersight_enabled != 0 ? "On" : "Off");
-			full_redraw_frames_remaining = (legacy_s8)video_page_count;
-			return 1;
 #endif
+		case KEY_F12:
+			hires_settings_select_display(key);
+			return 1;
 
 		case 'D':
 		case 'd':

@@ -1,4 +1,7 @@
 #include "highscore_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "hires/highscore_animation.h"
+#endif
 
 static legacy_u32 end_player_finish_time(void)
 {
@@ -84,40 +87,6 @@ static void end_hiscore_update_animation(
 										 animation_y, animation_sprite, draw_direct_copy);
 	}
 }
-
-#ifdef RESTUNTS_SDL3
-static void end_hiscore_update_external_animation(struct END_SCREEN_STATE *screen)
-{
-	if (screen->outcome == END_SCREEN_OUTCOME_NONE || !hires_enabled()) {
-		screen->external_animation_drawn = 0;
-		return;
-	}
-	sprite_select_screen_compat();
-	mouse_draw_opaque_check();
-	legacy_u8 drawn =
-		opponent_animation_draw(&drawing_sprite, screen->animation_x, screen->animation_y,
-								screen->animation_width, screen->animation_height) != 0;
-	mouse_draw_transparent_check();
-	if (screen->external_animation_drawn != 0 && drawn == 0) {
-		/* A later decode error must retire the old full-color frame immediately. */
-		end_hiscore_draw_animation_frame(screen->animation_resource, screen->animation_sequence,
-										 screen->animation_frame, screen->animation_x,
-										 screen->animation_y, screen->animation_sprite, 0);
-	}
-	screen->external_animation_drawn = drawn;
-}
-#endif
-
-#ifdef RESTUNTS_SDL3
-static legacy_u8 end_hiscore_handle_display_input(legacy_u16 input)
-{
-	if (input != (legacy_u16)KEY_F12 && input != (legacy_u16)KEY_SHIFT_F12) {
-		return 0;
-	}
-	(void)handle_ingame_kb_shortcuts(LEGACY_S16_FROM_BITS(input));
-	return 1;
-}
-#endif
 
 static void end_hiscore_initialize(struct END_SCREEN_STATE *screen)
 {
@@ -292,7 +261,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 	screen->animation_sequence = 0;
 	screen->text_prefix = 0;
 #ifdef RESTUNTS_SDL3
-	screen->external_animation_drawn = 0;
+	hires_highscore_reset_animation(screen);
 #endif
 	if (screen->opponent_active != 0) {
 		if (((legacy_u8)replay_recording_flags & REPLAY_RECORDING_RESTARTABLE_FLAG) == 0) {
@@ -331,10 +300,7 @@ static void end_hiscore_prepare_animation(struct END_SCREEN_STATE *screen)
 			screen->text_prefix = 'd';
 		}
 #ifdef RESTUNTS_SDL3
-		if (screen->outcome != END_SCREEN_OUTCOME_NONE) {
-			opponent_animation_load(screen->opponent_active,
-									screen->outcome == END_SCREEN_OUTCOME_WIN);
-		}
+		hires_highscore_load_animation(screen);
 #endif
 	}
 }
@@ -436,13 +402,7 @@ static void end_hiscore_show_opponent(struct END_SCREEN_STATE *screen)
 					 screen->animation_x, screen->animation_y);
 	screen->previous_animation_frame = screen->animation_frame;
 #ifdef RESTUNTS_SDL3
-	screen->animation_width = animation_width;
-	screen->animation_height = animation_height;
-	if (screen->outcome != END_SCREEN_OUTCOME_NONE) {
-		screen->external_animation_drawn =
-			opponent_animation_draw(&drawing_sprite, screen->animation_x, screen->animation_y,
-									animation_width, animation_height) != 0;
-	}
+	hires_highscore_show_animation(screen, animation_width, animation_height);
 #endif
 	font_set_colors(0, 0);
 	end_hiscore_draw_opponent_text(screen->opponent_resource, screen->outcome, screen->text_prefix,
@@ -481,11 +441,11 @@ static void end_hiscore_enter_opponent_score(struct END_SCREEN_STATE *screen)
 									 screen->animation_sequence, screen->animation_x,
 									 screen->animation_y, screen->animation_sprite, 0);
 #ifdef RESTUNTS_SDL3
-		end_hiscore_update_external_animation(screen);
+		hires_highscore_update_animation(screen, end_hiscore_draw_animation_frame);
 #endif
 		legacy_u16 input = (legacy_u16)input_checking((legacy_s16)text_resource_count);
 #ifdef RESTUNTS_SDL3
-		if (end_hiscore_handle_display_input(input)) {
+		if (hires_highscore_display_input(input)) {
 			continue;
 		}
 #endif
@@ -648,7 +608,7 @@ static legacy_s16 end_hiscore_navigate_menu(struct END_SCREEN_STATE *screen, leg
 static legacy_s16 end_hiscore_handle_menu_input(struct END_SCREEN_STATE *screen, legacy_u16 input)
 {
 #ifdef RESTUNTS_SDL3
-	if (end_hiscore_handle_display_input(input)) {
+	if (hires_highscore_display_input(input)) {
 		return 0;
 	}
 #endif
@@ -686,7 +646,7 @@ static legacy_s16 end_hiscore_run_menu(struct END_SCREEN_STATE *screen)
 										 screen->animation_x, screen->animation_y,
 										 screen->animation_sprite, 1);
 #ifdef RESTUNTS_SDL3
-			end_hiscore_update_external_animation(screen);
+			hires_highscore_update_animation(screen, end_hiscore_draw_animation_frame);
 #endif
 		}
 		legacy_u16 input = (legacy_u16)input_checking(delta);

@@ -25,10 +25,6 @@
 
 #include "shape3d_pipeline_internal.h"
 
-#ifdef RESTUNTS_SDL3
-static struct SHAPE3D_HIRES_VECTOR hypervision_origin;
-#endif
-
 void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct VECTOR *destination);
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source);
 #if (defined(RESTUNTS_TEMPLEOS))
@@ -52,48 +48,15 @@ void shape3d_adjust_geometry_bounds(struct POINT2D *point, struct RECTANGLE *rec
 static void shape3d_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
 									 legacy_s16 half_scale, struct MATRIX *matrix,
 									 struct VECTOR *translation, struct VECTOR *transformed);
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_hires_rotate(const struct SHAPE3D_HIRES_VECTOR *source,
-								 const struct MATRIX *matrix, struct SHAPE3D_HIRES_VECTOR *result);
-#endif
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
-										   struct SHAPE3D_TRANSFORM_CONTEXT *context);
-#endif
-static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
-									 struct SHAPE3D_TRANSFORM_CONTEXT *context);
-static void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
-									   struct SHAPE3D_TRANSFORM_CONTEXT *context);
+void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
+							  struct SHAPE3D_TRANSFORM_CONTEXT *context);
+void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
+								struct SHAPE3D_TRANSFORM_CONTEXT *context);
 void shape3d_cache_vertex(const struct SHAPE3D *shape, struct SHAPE3D_TRANSFORM_CONTEXT *context,
 						  legacy_u16 index);
 legacy_u8 shape3d_vertex_rect_flags(struct SHAPE3D_TRANSFORM_CONTEXT *context, legacy_u16 index);
 static legacy_u16 shape3d_bounds_are_clipped(struct TRANSFORMEDSHAPE3D *instance,
 											 struct SHAPE3D_TRANSFORM_CONTEXT *context);
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_collect_shadow_polygons(const struct TRANSFORMEDSHAPE3D *instance,
-											struct SHAPE3D_TRANSFORM_CONTEXT *context);
-#endif
-#if (defined(RESTUNTS_SDL3))
-static legacy_s32 hypervision_bounds_are_clipped(const struct SHAPE3D *shape,
-												 struct SHAPE3D_TRANSFORM_CONTEXT *context);
-#endif
-#if (defined(RESTUNTS_SDL3))
-static legacy_s32 hypervision_primitive_vertices(const struct SHAPE3D *shape,
-												 struct SHAPE3D_TRANSFORM_CONTEXT *context,
-												 const legacy_u8 *indices, legacy_u16 count,
-												 legacy_u8 type);
-#endif
-#if (defined(RESTUNTS_SDL3))
-static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
-												  const struct SHAPE3D_HIRES_VECTOR *vertices);
-#endif
-#if (defined(RESTUNTS_SDL3))
-legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
-											 const struct SHAPE3D_HIRES_VECTOR *vertices);
-#endif
-#if (defined(RESTUNTS_SDL3))
-void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin);
-#endif
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 
 void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct VECTOR *destination)
@@ -198,60 +161,8 @@ static void shape3d_transform_vertex(const struct SHAPE3D *shape, legacy_u16 ind
 	transformed->z = LEGACY_S16_WRAP_ADD(transformed->z, translation->z);
 }
 
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_hires_rotate(const struct SHAPE3D_HIRES_VECTOR *source,
-								 const struct MATRIX *matrix, struct SHAPE3D_HIRES_VECTOR *result)
-{
-	result->x =
-		(source->x * matrix->m._11 + source->y * matrix->m._12 + source->z * matrix->m._13) /
-		TRIG_FIXED_ONE;
-	result->y =
-		(source->x * matrix->m._21 + source->y * matrix->m._22 + source->z * matrix->m._23) /
-		TRIG_FIXED_ONE;
-	result->z =
-		(source->x * matrix->m._31 + source->y * matrix->m._32 + source->z * matrix->m._33) /
-		TRIG_FIXED_ONE;
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
-										   struct SHAPE3D_TRANSFORM_CONTEXT *context)
-{
-	struct SHAPE3D_HIRES_VECTOR source;
-	if (context->source_vertices != NULL) {
-		source = context->source_vertices[index];
-	} else {
-		struct VECTOR vertex;
-		shape3d_vertex_read(shape, index, &vertex);
-		source = (struct SHAPE3D_HIRES_VECTOR){vertex.x, vertex.y, vertex.z};
-	}
-	legacy_f64 scale = shape_half_scale != 0 ? 0.5 : 1.0;
-	source.x *= scale;
-	source.y *= scale;
-	source.z *= scale;
-	struct SHAPE3D_HIRES_VECTOR world;
-	shape3d_hires_rotate(&source, &context->object_to_world_rotation, &world);
-	struct SHAPE3D_HIRES_VECTOR *view = &context->hires_vertices[index];
-	if ((transshapeflags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
-		shape3d_hires_rotate(&world, &mat_temp, view);
-		view->x += context->object_translation.x;
-		view->y += context->object_translation.y;
-		view->z += context->object_translation.z;
-	} else {
-		/* Adjacent shapes can express one world vertex using different local
-		 * coordinates. Combine position before the camera transform so both
-		 * reach exactly the same screen position, without per-shape rounding. */
-		world.x += context->object_translation.x;
-		world.y += context->object_translation.y;
-		world.z += context->object_translation.z;
-		shape3d_hires_rotate(&world, &mat_temp, view);
-	}
-}
-#endif
-
-static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
-									 struct SHAPE3D_TRANSFORM_CONTEXT *context)
+void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
+							  struct SHAPE3D_TRANSFORM_CONTEXT *context)
 {
 	transshapeprimitives = instance->shapeptr->shape3d_primitives;
 	transshapenumpaints = instance->shapeptr->shape3d_numpaints;
@@ -272,24 +183,19 @@ static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
 	struct MATRIX *object_rotation = mat_rot_zxy(instance->rotvec.x, instance->rotvec.y,
 												 instance->rotvec.z, MATRIX_ROTATION_ORDER_ZXY);
 #if defined(RESTUNTS_SDL3)
-	context->shadow_surface_count = 0;
-	context->source_vertices = NULL;
-	context->object_to_world_rotation = *object_rotation;
-	context->object_translation = (struct SHAPE3D_HIRES_VECTOR){
-		instance->pos.x + hypervision_origin.x, instance->pos.y + hypervision_origin.y,
-		instance->pos.z + hypervision_origin.z};
+	shape3d_hires_prepare_instance(instance, context, object_rotation);
 #endif
 	if ((transshapeflags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		mat_multiply(object_rotation, &mat_temp, &context->object_to_view_rotation);
 		context->view_translation = instance->pos;
 #if defined(RESTUNTS_SDL3)
-		context->view_origin = context->object_translation;
+		shape3d_hires_prepare_pretransformed(context);
 #endif
 		return;
 	}
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		shape3d_hires_rotate(&context->object_translation, &mat_temp, &context->view_origin);
+		shape3d_hires_prepare_view_translation(context);
 	} else
 #endif
 	{
@@ -298,17 +204,15 @@ static void shape3d_prepare_instance(struct TRANSFORMEDSHAPE3D *instance,
 	mat_multiply(object_rotation, &mat_temp, &context->object_to_view_rotation);
 }
 
-static void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
-									   struct SHAPE3D_TRANSFORM_CONTEXT *context)
+void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
+								struct SHAPE3D_TRANSFORM_CONTEXT *context)
 {
 	if ((transshapeflags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		return;
 	}
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		legacy_f64 reach = (legacy_f64)instance->culling_distance * 2;
-		if (context->view_origin.x > -reach && context->view_origin.x < reach &&
-			context->view_origin.z > -reach && context->view_origin.z < reach) {
+		if (shape3d_hires_visibility_reach(instance, context)) {
 			return;
 		}
 	} else
@@ -332,7 +236,7 @@ static void shape3d_prepare_visibility(struct TRANSFORMEDSHAPE3D *instance,
 	legacy_s32 above_camera = instance->pos.y >= 0;
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		above_camera = context->object_translation.y >= 0;
+		above_camera = shape3d_hires_above_camera(context);
 	}
 #endif
 	if (view_direction.y <= 0 || above_camera) {
@@ -347,8 +251,7 @@ void shape3d_cache_vertex(const struct SHAPE3D *shape, struct SHAPE3D_TRANSFORM_
 {
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		shape3d_hires_transform_vertex(shape, index, context);
-		context->vertex_clip_flags[index] = context->hires_vertices[index].z < SHAPE3D_NEAR_CLIP_Z;
+		shape3d_hires_cache_vertex(shape, context, index);
 		return;
 	}
 #endif
@@ -368,7 +271,7 @@ legacy_u8 shape3d_vertex_rect_flags(struct SHAPE3D_TRANSFORM_CONTEXT *context, l
 {
 #if defined(RESTUNTS_SDL3)
 	if (hires_enabled()) {
-		return shape3d_hires_clip_flags(&context->hires_vertices[index]);
+		return shape3d_hires_vertex_rect_flags(context, index);
 	}
 #endif
 	return (legacy_u8)shape3d_geometry_clip_flags(&context->projected_vertices[index]);
@@ -416,251 +319,6 @@ static legacy_u16 shape3d_bounds_are_clipped(struct TRANSFORMEDSHAPE3D *instance
 											   absolute_word(context->view_translation.x));
 }
 
-#if (defined(RESTUNTS_SDL3))
-static void shape3d_collect_shadow_polygons(const struct TRANSFORMEDSHAPE3D *instance,
-											struct SHAPE3D_TRANSFORM_CONTEXT *context)
-{
-	if (!shape3d_hires_shadows_active() || !hires_enabled() ||
-		hires_render_scale() == HIRES_MINIMUM_SCALE ||
-		(transshapeflags &
-		 (SHAPE3D_NO_SHADOW_RECEIVE_FLAG | SHAPE3D_GHOST_FLAG | SHAPE3D_BACKGROUND_FLAG)) != 0) {
-		return;
-	}
-	const struct SHAPE3D *shape = instance->shapeptr;
-	legacy_u32 bounds_count = transshapenumverts < SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT
-								  ? transshapenumverts
-								  : SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT;
-	/* The camera bounds test can stop early or use only four flat corners. */
-	for (legacy_u32 vertex = 0; vertex < bounds_count; vertex++) {
-		if (context->vertex_clip_flags[vertex] == SHAPE3D_VERTEX_UNTRANSFORMED) {
-			shape3d_cache_vertex(shape, context, (legacy_u16)vertex);
-		}
-	}
-	if (!shape3d_hires_shadow_overlap(context->hires_vertices, bounds_count)) {
-		return;
-	}
-	/* Shadow blockers retain their geometry even when camera visibility rejects them. */
-	const legacy_u8 *primitive = shape->shape3d_primitives;
-	while (primitive[0] != 0 && context->shadow_surface_count < SHAPE3D_SHADOW_PRIMITIVE_CAPACITY) {
-		legacy_u32 surface = 0;
-		legacy_u32 count = primidxcounttab[primitive[0]];
-		const legacy_u8 *indices = primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + transshapenumpaints;
-		if (primtypetab[primitive[0]] == RENDER_PRIMITIVE_POLYGON &&
-			count <= SHAPE3D_POLYGON_MAX_VERTICES &&
-			(primitive[SHAPE3D_SHADOW_PRIMITIVE_FLAGS_OFFSET] &
-			 SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) == 0) {
-			legacy_u16 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + transshapematerial];
-			legacy_u16 pattern_type = shape3d_material_value(material_patlist_ptr_cpy, material);
-			if (pattern_type <= SHAPE3D_PATTERN_TWO_COLOR &&
-				(pattern_type != SHAPE3D_PATTERN_MASKED ||
-				 shape3d_material_value(material_patlist2_ptr_cpy, material) != 0U)) {
-				struct SHAPE3D_HIRES_VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
-				legacy_u32 vertex;
-				for (vertex = 0; vertex < count; vertex++) {
-					legacy_u16 index = indices[vertex];
-					if (index >= transshapenumverts) {
-						break;
-					}
-					if (context->vertex_clip_flags[index] == SHAPE3D_VERTEX_UNTRANSFORMED) {
-						shape3d_cache_vertex(shape, context, index);
-					}
-					vertices[vertex] = context->hires_vertices[index];
-				}
-				if (vertex == count) {
-					surface = shape3d_hires_shadow_polygon(vertices, count,
-														   pattern_type == SHAPE3D_PATTERN_MASKED);
-				}
-			}
-		}
-		context->shadow_surfaces[context->shadow_surface_count++] = surface;
-		primitive = indices + count;
-	}
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-static legacy_s32 hypervision_bounds_are_clipped(const struct SHAPE3D *shape,
-												 struct SHAPE3D_TRANSFORM_CONTEXT *context)
-{
-	/* Resource models begin with eight enclosing box corners. Tiny shapes can
-	 * consist only of a sphere center/radius or wheel axes, which do not bound
-	 * their coverage; let their projected primitive extents handle rejection. */
-	if (shape->shape3d_numverts <= SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT) {
-		return 0;
-	}
-	legacy_u8 common_clip_flags = SHAPE3D_ALL_RECT_CLIP_FLAGS;
-	legacy_s32 any_front = 0;
-	legacy_s32 any_behind = 0;
-	/* Generated fractional meshes have no resource bounding-box prefix. Include
-	 * all their vertices, since a visible corner can follow eight clipped ones. */
-	legacy_u16 bounds_count = context->source_vertices != NULL ? shape->shape3d_numverts
-															   : SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT;
-	for (legacy_u16 index = 0; index < bounds_count; index++) {
-		shape3d_cache_vertex(shape, context, index);
-		if (context->vertex_clip_flags[index] != 0) {
-			any_behind = 1;
-		} else {
-			any_front = 1;
-			common_clip_flags &= shape3d_hires_clip_flags(&context->hires_vertices[index]);
-			if (common_clip_flags == 0) {
-				return 0;
-			}
-		}
-	}
-	/* A box crossing the near plane may expand into the view after clipping,
-	 * even when every already-projected corner lies on one side of it. */
-	return !any_front || (!any_behind && common_clip_flags != 0);
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-static legacy_s32 hypervision_primitive_vertices(const struct SHAPE3D *shape,
-												 struct SHAPE3D_TRANSFORM_CONTEXT *context,
-												 const legacy_u8 *indices, legacy_u16 count,
-												 legacy_u8 type)
-{
-	legacy_u8 common_clip_flags = SHAPE3D_ALL_RECT_CLIP_FLAGS;
-	legacy_s32 any_front = 0;
-	legacy_s32 any_behind = 0;
-	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
-		legacy_u16 index = indices[vertex];
-		if (index >= shape->shape3d_numverts) {
-			return 0;
-		}
-		if (context->vertex_clip_flags[index] == SHAPE3D_VERTEX_UNTRANSFORMED) {
-			shape3d_cache_vertex(shape, context, index);
-		}
-		if (context->vertex_clip_flags[index] != 0) {
-			any_behind = 1;
-		} else {
-			any_front = 1;
-			if (common_clip_flags != 0) {
-				common_clip_flags &= shape3d_hires_clip_flags(&context->hires_vertices[index]);
-			}
-		}
-	}
-	/* Polygon and line adapters clip intersections; round primitives need
-	 * their complete defining axes in front of the near plane. */
-	if (any_behind != 0 && type != RENDER_PRIMITIVE_POLYGON && type != RENDER_PRIMITIVE_LINE) {
-		return 0;
-	}
-	if (type == RENDER_PRIMITIVE_SPHERE || type == RENDER_PRIMITIVE_WHEEL) {
-		return any_front;
-	}
-	return any_front != 0 && (any_behind != 0 || common_clip_flags == 0);
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-static legacy_u16 hypervision_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
-												  const struct SHAPE3D_HIRES_VECTOR *vertices)
-{
-	const struct SHAPE3D *shape = instance->shapeptr;
-	transshapenumverts = shape->shape3d_numverts;
-	if (transshapenumverts > SHAPE3D_VERTEX_CAPACITY) {
-		return 1;
-	}
-	struct SHAPE3D_TRANSFORM_CONTEXT context;
-	shape3d_prepare_instance(instance, &context);
-	context.source_vertices = vertices;
-	legacy_s32 bounds_clipped = hypervision_bounds_are_clipped(shape, &context);
-	shape3d_collect_shadow_polygons(instance, &context);
-	if (bounds_clipped != 0) {
-		return (legacy_u16)-1;
-	}
-	shape3d_prepare_visibility(instance, &context);
-	legacy_s32 depth_mode = (transshapeflags & SHAPE3D_BACKGROUND_FLAG) != 0
-								? SHAPE3D_HIRES_DEPTH_BACKGROUND
-								: SHAPE3D_HIRES_DEPTH_SORTED;
-	shape3d_hires_begin_shape(hypervision_scene_count, depth_mode);
-	shape3d_hires_set_shadow_receiver(
-		(transshapeflags & (SHAPE3D_NO_SHADOW_RECEIVE_FLAG | SHAPE3D_GHOST_FLAG)) == 0);
-	const legacy_u8 *primitive = shape->shape3d_primitives;
-	legacy_u32 initial_count = hypervision_scene_count;
-	legacy_s32 parent_visible = 1;
-	for (legacy_u16 primitive_index = 0; primitive_index < shape->shape3d_numprimitives;
-		 primitive_index++) {
-		legacy_u8 resource_type = primitive[0];
-		if (resource_type == SHAPE3D_PRIMITIVE_EMPTY ||
-			resource_type >= SHAPE3D_PRIMITIVE_TYPE_COUNT) {
-			break;
-		}
-		legacy_u16 count = primidxcounttab[resource_type];
-		legacy_u8 type = primtypetab[resource_type];
-		legacy_u16 flags = primitive[1];
-		const legacy_u8 *indices = primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + transshapenumpaints;
-		legacy_s32 attached = (flags & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) != 0;
-		legacy_s32 visible =
-			type != RENDER_PRIMITIVE_UNSUPPORTED && count != 0 && (!attached || parent_visible) &&
-			(LEGACY_READ_U32_LE(shape->shape3d_visibility_masks +
-								(size_t)primitive_index * SHAPE3D_VISIBILITY_MASK_SIZE) &
-			 (legacy_u32)context.visibility_mask) != 0 &&
-			hypervision_primitive_vertices(shape, &context, indices, count, type);
-		if (visible != 0) {
-			shape3d_hires_queue(hypervision_scene_count, type, count, indices,
-								context.hires_vertices, flags);
-			if (type == RENDER_PRIMITIVE_POLYGON) {
-				legacy_s32 cull_backface =
-					(flags & SHAPE3D_PRIMITIVE_ALWAYS_VISIBLE_FLAG) == 0 &&
-					((legacy_u32)context.front_facing_mask &
-					 LEGACY_READ_U32_LE(shape->shape3d_front_facing_masks +
-										(size_t)primitive_index * SHAPE3D_VISIBILITY_MASK_SIZE)) ==
-						0;
-				visible = shape3d_hires_polygon_visible(hypervision_scene_count, cull_backface);
-			} else if (type == RENDER_PRIMITIVE_SPHERE || type == RENDER_PRIMITIVE_WHEEL) {
-				struct RECTANGLE bounds = {HIRES_WIDTH / HIRES_SCALE, 0, HIRES_HEIGHT / HIRES_SCALE,
-										   0};
-				shape3d_hires_update_bounds(hypervision_scene_count, type, &bounds);
-				visible = bounds.left < bounds.right && bounds.top < bounds.bottom;
-			}
-		}
-		if (visible != 0) {
-			if (primitive_index < context.shadow_surface_count) {
-				shape3d_hires_set_shadow_surface(hypervision_scene_count,
-												 context.shadow_surfaces[primitive_index]);
-			}
-			if ((transshapeflags & SHAPE3D_USE_BOUNDING_RECT_FLAG) != 0) {
-				shape3d_hires_update_bounds(hypervision_scene_count, type, transshaperectptr);
-			}
-			legacy_u16 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE + transshapematerial];
-			if (material == BACKLIGHT_PAINT_DEFAULT) {
-				material = backlights_paint_override;
-			}
-			if ((transshapeflags & SHAPE3D_BLACK_GRILLE_FLAG) != 0U &&
-				type == RENDER_PRIMITIVE_POLYGON && material == SHAPE3D_STOCK_GRILLE_MATERIAL) {
-				type |= RENDER_PRIMITIVE_BLACK_GRILLE_FLAG;
-			}
-			if ((transshapeflags & SHAPE3D_GHOST_FLAG) != 0) {
-				type |= RENDER_PRIMITIVE_GHOST_FLAG;
-			}
-			hypervision_scene_reserve();
-			hypervision_scene[hypervision_scene_count++] =
-				(struct HYPERVISION_SCENE_PRIMITIVE){material, type};
-		}
-		if (!attached) {
-			parent_visible = visible;
-		}
-		primitive = indices + count;
-	}
-	return hypervision_scene_count != initial_count ? 0 : (legacy_u16)-1;
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
-											 const struct SHAPE3D_HIRES_VECTOR *vertices)
-{
-	return hypervision_transform_and_queue(instance, vertices);
-}
-#endif
-
-#if (defined(RESTUNTS_SDL3))
-void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
-{
-	hypervision_origin = origin != NULL ? *origin : (struct SHAPE3D_HIRES_VECTOR){0};
-}
-#endif
-
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 {
 #if defined(RESTUNTS_SDL3)
@@ -697,16 +355,7 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 	shape3d_prepare_visibility(instance, &context);
 	transshapeprimitives = instance->shapeptr->shape3d_primitives;
 #if defined(RESTUNTS_SDL3)
-	legacy_u32 shadow_primitive = 0;
-	legacy_s32 depth_mode = SHAPE3D_HIRES_DEPTH_SORTED;
-	if ((transshapeflags & SHAPE3D_BACKGROUND_FLAG) != 0) {
-		depth_mode = SHAPE3D_HIRES_DEPTH_BACKGROUND;
-	} else if ((transshapeflags & SHAPE3D_NO_DEPTH_SORT_FLAG) != 0) {
-		depth_mode = SHAPE3D_HIRES_DEPTH_ORDERED;
-	}
-	shape3d_hires_begin_shape(polyinfonumpolys, depth_mode);
-	shape3d_hires_set_shadow_receiver(
-		(transshapeflags & (SHAPE3D_NO_SHADOW_RECEIVE_FLAG | SHAPE3D_GHOST_FLAG)) == 0);
+	shape3d_hires_begin_legacy_shape(&context);
 #endif
 
 	legacy_s32 depth_sum;
@@ -732,30 +381,20 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 												   &any_vertex_behind) != 0) {
 #if defined(RESTUNTS_SDL3)
 				/* Visibility must use the same fractional projection as rasterization. */
-				shape3d_hires_queue(polyinfonumpolys, primitive_type, transshapenumvertscopy,
-									transshapeprimitives, context.hires_vertices, primitive_flags);
+				shape3d_hires_queue_legacy_primitive(&context, primitive_type, primitive_flags);
 #endif
 				primitive_visible =
 					shape3d_prepare_primitive(&context, primitive_type, any_vertex_behind,
 											  primitive_flags, front_facing_masks, &depth_sum);
 #if defined(RESTUNTS_SDL3)
-				if (primitive_visible != 0) {
-					if (shadow_primitive < context.shadow_surface_count) {
-						shape3d_hires_set_shadow_surface(polyinfonumpolys,
-														 context.shadow_surfaces[shadow_primitive]);
-					}
-					if ((transshapeflags & SHAPE3D_USE_BOUNDING_RECT_FLAG) != 0) {
-						shape3d_hires_update_bounds(polyinfonumpolys, primitive_type,
-													transshaperectptr);
-					}
-				}
+				shape3d_hires_finish_legacy_primitive(&context, primitive_type, primitive_visible);
 #endif
 			}
 		}
 
 		transshapeprimitives = transshapeprimptr;
 #if defined(RESTUNTS_SDL3)
-		shadow_primitive++;
+		shape3d_hires_next_legacy_primitive(&context);
 #endif
 		visibility_masks += 4U;
 		front_facing_masks += 4U;
@@ -770,7 +409,7 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
 				transshapeprimitives +=
 					primidxcounttab[transshapeprimitives[0]] + transshapenumpaints + 2;
 #if defined(RESTUNTS_SDL3)
-				shadow_primitive++;
+				shape3d_hires_next_legacy_primitive(&context);
 #endif
 				visibility_masks += 4U;
 				front_facing_masks += 4U;

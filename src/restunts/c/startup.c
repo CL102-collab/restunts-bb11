@@ -2,11 +2,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "hires/frame_adaptive.h"
-#include "hires/hires.h"
+#include "hires/settings.h"
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__
@@ -93,46 +89,6 @@ static void startup_select_audio_driver(const legacy_s8 *argument)
 	}
 }
 
-#ifdef RESTUNTS_SDL3
-static void startup_parse_hypervision(const legacy_s8 *argument, struct STARTUP_OPTIONS *options)
-{
-	const legacy_s8 *prefix = STARTUP_HYPERVISION_PREFIX;
-	const legacy_s8 *value = argument;
-	while (*prefix != 0 && tolower((legacy_u8)*value) == *prefix) {
-		prefix++;
-		value++;
-	}
-	if (*prefix != 0) {
-		return;
-	}
-	if (options->hypervision_specified != 0) {
-		fprintf(stderr, "Only one HyperVision preset may be specified (--hv:).\n");
-		dos_process_exit(EXIT_FAILURE);
-		return;
-	}
-	static const struct {
-		const legacy_s8 *name;
-		enum FRAME_ADAPTIVE_PRESET preset;
-	} presets[] = {{"auto", FRAME_ADAPTIVE_PRESET_AUTO},
-				   {"full", FRAME_ADAPTIVE_PRESET_FULL},
-				   {"high", FRAME_ADAPTIVE_PRESET_HIGH},
-				   {"medium", FRAME_ADAPTIVE_PRESET_MEDIUM},
-				   {"low", FRAME_ADAPTIVE_PRESET_LOW}};
-	for (legacy_u16 index = 0; index < sizeof(presets) / sizeof(presets[0]); index++) {
-		if (stricmp(value, presets[index].name) == 0) {
-			options->hypervision_preset = presets[index].preset;
-			options->hypervision_specified = 1;
-			return;
-		}
-	}
-	fprintf(stderr,
-			"Invalid HyperVision preset '%s'; use --hv:auto, --hv:full, --hv:high, "
-			"--hv:medium or --hv:low.\n",
-			argument);
-	dos_process_exit(EXIT_FAILURE);
-}
-#endif
-
 static void startup_option_error_text(const legacy_s8 *text)
 {
 	dos_write_stderr(text, strlen(text));
@@ -197,8 +153,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
 #ifdef RESTUNTS_SDL3
-	options->hypervision_preset = FRAME_ADAPTIVE_PRESET_AUTO;
-	options->hypervision_specified = 0;
+	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
@@ -216,7 +171,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #endif
 	for (legacy_u16 i = 1; argc > i; ++i) {
 #ifdef RESTUNTS_SDL3
-		startup_parse_hypervision(argv[i], options);
+		hires_settings_parse_startup(argv[i], options);
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
@@ -367,13 +322,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 #if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
 	sdl3_touch_set_layout_visible(startup_options.control_layout_enabled);
 #endif
-	if (startup_options.hypervision_specified != 0) {
-		frame_adaptive_set_preset(&frame_adaptive,
-								  (enum FRAME_ADAPTIVE_PRESET)startup_options.hypervision_preset);
-		supersight_enabled = 1;
-		hires_set_enabled(supersight_enabled);
-		hires_set_render_scale(frame_adaptive_render_scale(&frame_adaptive));
-	}
+	hires_settings_apply_startup(&startup_options);
 #endif
 
 	// Unused "/nd" switch. Maybe used when loading other video drivers?

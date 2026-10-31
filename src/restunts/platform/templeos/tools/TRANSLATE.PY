@@ -1351,9 +1351,11 @@ def translate(cpp):
         for name, text in FAKE_HEADERS.items():
             (headers / name).write_text(text)
         for source_name in source_names() + ["memory"]:
-            # Source paths follow the C folder layout; generated HolyC modules
-            # and static-symbol prefixes retain their existing flat names.
-            module = Path(source_name).name
+            # Keep existing module names stable. Enhanced companions can share
+            # their basename with classic sources, so include their folder in
+            # the generated module name and static-symbol prefix.
+            module = (source_name.replace("/", "_") if source_name.startswith("hires/")
+                      else Path(source_name).name)
             if module == "dosstart":
                 continue
             source = sources / (source_name + ".c") if module != "memory" else tmp / "src/restunts/platform/sdl3/memory.c"

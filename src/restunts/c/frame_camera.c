@@ -9,24 +9,11 @@ struct MATRIX *frame_car_rotation(legacy_s16 rot_x, legacy_s16 rot_y, legacy_s16
 
 /* Ghosts share the opponent drawing and camera slot without adding a
  * simulated car, collision body or sound source. */
-const struct CARSTATE *frame_second_car_state(void)
-{
-	return gameconfig.game_opponenttype != 0
-			   ? &frame_state->opponentstate
-			   : (frame_uses_snapshot != 0 ? frame_ghost : ghost_car_state());
-}
 
 const struct CARSTATE *frame_viewed_car_state(void)
 {
 	const struct CARSTATE *second_car = followOpponentFlag != 0 ? frame_second_car_state() : 0;
 	return second_car != 0 ? second_car : &frame_state->playerstate;
-}
-
-const struct GHOST_CAMERA_STATE *frame_viewed_ghost_camera(void)
-{
-	return followOpponentFlag != 0 && gameconfig.game_opponenttype == 0
-			   ? (frame_uses_snapshot != 0 ? frame_ghost_camera : ghost_camera_state())
-			   : 0;
 }
 
 legacy_s16 frame_position_camera(struct FRAME_CAMERA *camera, const struct VECTOR *car_pos,
