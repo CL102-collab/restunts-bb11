@@ -26,11 +26,7 @@ legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
 				continue;
 			}
 			struct TRACKOBJECT *object = &terrain_scene_objects[terrain];
-#if defined(RESTUNTS_SDL3)
-			currenttransshape->shapeptr = frame_track_shape(object, tile->detail);
-#else
-			currenttransshape->shapeptr = object->ss_shapePtr;
-#endif
+			currenttransshape->shapeptr = frame_terrain_shape(object, tile->detail);
 			frame_prepare_flat_track_shape(
 				currenttransshape, east, south, &camera->position,
 				(legacy_s16)(redraw_transform_flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT),

@@ -15,6 +15,17 @@
 static const legacy_u8 geometry_original_roads[][EXTENDED_GEOMETRY_AXIS_COUNT] = {
 	{4U, 5U}, {14U, 15U}, {24U, 25U}};
 
+enum EXTENDED_GEOMETRY_ROAD_MATERIAL {
+	EXTENDED_MATERIAL_PAVED = 19,
+	EXTENDED_MATERIAL_PAVED_MARKING = 21,
+	EXTENDED_MATERIAL_SHADED_PAVED = 22,
+	EXTENDED_MATERIAL_SHADED_MARKING = 24,
+	EXTENDED_MATERIAL_DIRT = 25,
+	EXTENDED_MATERIAL_DIRT_MARKING = 27,
+	EXTENDED_MATERIAL_ICE = 28,
+	EXTENDED_MATERIAL_ICE_MARKING = 30
+};
+
 static legacy_s32 context_x, context_z;
 
 legacy_s32 extended_geometry_unwrap(legacy_s16 coordinate, legacy_s32 reference)
@@ -367,8 +378,38 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 	legacy_u8 *out = destination->shape3d_primitives;
 	for (unsigned i = 0; i < source->shape3d_numprimitives; i++) {
 		unsigned count = counts[primitive[0]];
-		legacy_u8 material =
-			hires_track_geometry_material(source, primitive, surface, physical_model);
+		legacy_u16 paint = surface < source->shape3d_numpaints ? surface : 0;
+		legacy_u8 material = primitive[2U + paint];
+		/* Paint columns can animate a sign while every road face stays paved.
+		 * HyperVision remaps these unchanged faces while retaining native variants. */
+		if (surface != CSTRK_ROAD_PAVED &&
+			(source->shape3d_numpaints <= CSTRK_ROAD_ICE ||
+			 hires_track_geometry_repaint_unchanged(material, primitive[2U]))) {
+			legacy_u8 road_material =
+				surface == CSTRK_ROAD_DIRT ? EXTENDED_MATERIAL_DIRT : EXTENDED_MATERIAL_ICE;
+			if (material == EXTENDED_MATERIAL_PAVED) {
+				material = road_material;
+			} else if (material == EXTENDED_MATERIAL_PAVED_MARKING) {
+				material = surface == CSTRK_ROAD_DIRT ? EXTENDED_MATERIAL_DIRT_MARKING
+													  : EXTENDED_MATERIAL_ICE_MARKING;
+			} else if ((physical_model == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT ||
+						physical_model == PHYSICAL_MODEL_LOOP ||
+						physical_model == PHYSICAL_MODEL_PIPE_ENTRANCE ||
+						physical_model == PHYSICAL_MODEL_PIPE ||
+						physical_model == PHYSICAL_MODEL_HALF_PIPE ||
+						physical_model == PHYSICAL_MODEL_OVERPASS) &&
+					   material >= EXTENDED_MATERIAL_SHADED_PAVED &&
+					   material <= EXTENDED_MATERIAL_SHADED_MARKING) {
+				/* Curved driving faces use a shaded road pair and separate
+				 * markings. Their structural framing retains its own paint. */
+				material = road_material + material - EXTENDED_MATERIAL_SHADED_PAVED;
+			} else if ((physical_model == PHYSICAL_MODEL_ELEVATED_ROAD ||
+						physical_model == PHYSICAL_MODEL_ELEVATED_SPAN) &&
+					   material >= EXTENDED_MATERIAL_SHADED_PAVED &&
+					   material < EXTENDED_MATERIAL_SHADED_MARKING) {
+				material = road_material;
+			}
+		}
 		out[0] = primitive[0];
 		out[1] = primitive[1];
 		out[2] = material;

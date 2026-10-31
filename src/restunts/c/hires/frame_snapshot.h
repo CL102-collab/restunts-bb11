@@ -7,9 +7,12 @@ struct GAMESTATE;
 struct CARSTATE;
 struct GHOST_CAMERA_STATE;
 
-extern const struct CARSTATE *frame_ghost;
-extern const struct GHOST_CAMERA_STATE *frame_ghost_camera;
-extern legacy_u8 frame_uses_snapshot;
+legacy_u8 frame_snapshot_active(void);
+const struct CARSTATE *frame_snapshot_ghost(const struct CARSTATE *current);
+const struct GHOST_CAMERA_STATE *
+frame_snapshot_ghost_camera(const struct GHOST_CAMERA_STATE *current);
+void frame_preserve_authoritative_events(struct GAMESTATE *presentation, struct CARSTATE *ghost,
+										 struct GHOST_CAMERA_STATE *ghost_camera);
 
 /* Render a visual snapshot without changing the simulation or its retained scratch. */
 void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,

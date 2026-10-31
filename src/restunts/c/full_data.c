@@ -49,13 +49,13 @@ struct TRANSFORMEDSHAPE3D currenttransshape[29];
 struct TRANSFORMEDSHAPE3D *curtransshape_ptr;
 
 #if defined(RESTUNTS_SDL3)
-static polyinfo_link initial_polygon_next_index[POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY + 1U];
-static polyinfo_offset initial_polygon_record_offsets[POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY];
+static polyinfo_link initial_polygon_next_index[POLYINFO_STORAGE_PRIMITIVE_CAPACITY + 1U];
+static polyinfo_offset initial_polygon_record_offsets[POLYINFO_STORAGE_PRIMITIVE_CAPACITY];
 polyinfo_link *polygon_next_index = initial_polygon_next_index;
 polyinfo_offset *polygon_record_offsets = initial_polygon_record_offsets;
 #else
-polyinfo_link polygon_next_index[POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY + 1U];
-polyinfo_offset polygon_record_offsets[POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY];
+polyinfo_link polygon_next_index[POLYINFO_STORAGE_PRIMITIVE_CAPACITY + 1U];
+polyinfo_offset polygon_record_offsets[POLYINFO_STORAGE_PRIMITIVE_CAPACITY];
 #endif
 
 struct RECTANGLE frame_layer_rects[15];

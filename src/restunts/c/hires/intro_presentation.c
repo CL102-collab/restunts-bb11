@@ -1,7 +1,7 @@
 #include "intro_presentation.h"
+#include "settings.h"
 #ifdef RESTUNTS_SDL3
 #include "../intro_render_internal.h"
-#include "../game_input.h"
 #include "../externs.h"
 #include "../platform.h"
 
@@ -89,7 +89,7 @@ void hires_intro_begin(struct INTRO_SESSION *intro)
 	intro->presentation.input_delta = 0;
 }
 
-void hires_intro_present(struct INTRO_SESSION *intro)
+legacy_s16 hires_intro_present(struct INTRO_SESSION *intro)
 {
 	legacy_u64 now = presentation_now();
 	legacy_s16 keyframe = intro->needs_render;
@@ -103,28 +103,36 @@ void hires_intro_present(struct INTRO_SESSION *intro)
 			intro_render_session(intro, &view);
 		}
 	} else if (keyframe != 0) {
-		intro_render_session(intro, &intro->presentation.current_view);
+		return 0;
 	}
+	return 1;
 }
 
-legacy_s16 hires_intro_input(struct INTRO_SESSION *intro, legacy_s16 delta)
+const struct INTRO_VIEW *hires_intro_keyframe(const struct INTRO_SESSION *intro)
 {
-	legacy_s16 key = 0;
-	legacy_u64 input_now = presentation_now();
+	return &intro->presentation.current_view;
+}
+
+legacy_s16 hires_intro_input(struct INTRO_SESSION *intro, legacy_s16 delta,
+							 legacy_s16 *sample_delta)
+{
+	intro->presentation.sample_time = presentation_now();
 	if (supersight_enabled != 0) {
 		intro->presentation.input_delta =
 			LEGACY_S16_WRAP_ADD(intro->presentation.input_delta, delta);
 		/* Presentation-only loops cannot sample devices between timer ticks. */
-		if (input_now - intro->presentation.input_time >= INTRO_TIMER_TICK_NS) {
-			key = input_do_checking(intro->presentation.input_delta);
-			intro->presentation.input_delta = 0;
-			intro->presentation.input_time = input_now;
+		if (intro->presentation.sample_time - intro->presentation.input_time <
+			INTRO_TIMER_TICK_NS) {
+			return 0;
 		}
-	} else {
-		key = input_do_checking(delta);
-		intro->presentation.input_delta = 0;
-		intro->presentation.input_time = input_now;
+		*sample_delta = intro->presentation.input_delta;
 	}
-	return key;
+	return 1;
+}
+
+void hires_intro_input_complete(struct INTRO_SESSION *intro)
+{
+	intro->presentation.input_delta = 0;
+	intro->presentation.input_time = intro->presentation.sample_time;
 }
 #endif

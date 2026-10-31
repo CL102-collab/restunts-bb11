@@ -2,25 +2,13 @@
 
 void frame_hires_begin(void)
 {
-	/* Ghost guidance adds many small polygons. Native queue growth keeps those
-	 * from consuming the classic scene's fixed budget before nearer cars/roads. */
-	polyinfo_set_supersight(supersight_enabled
-#if defined(RESTUNTS_SDL3)
-							|| ghost_is_active()
-#endif
-	);
 	if (supersight_enabled == 0) {
 		frame_supersight_reset();
 	}
 #if defined(RESTUNTS_SDL3)
-	frame_adaptive_active = supersight_enabled != 0 && frame_uses_snapshot != 0 &&
+	frame_adaptive_active = supersight_enabled != 0 && frame_snapshot_active() &&
 							frame_adaptive.quality != 0 && extended_frame_uses_legacy_tiles();
 #endif
-}
-
-void frame_hires_end(void)
-{
-	polyinfo_set_supersight(0);
 }
 
 void frame_hires_prepare_ground(const struct FRAME_CAMERA *camera)

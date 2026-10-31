@@ -12,7 +12,6 @@
 #include "../keyboard.h"
 #include "../timing.h"
 #include "../car/car_model.h"
-#include "../video_frame.h"
 
 #define SHOWROOM_MODEL_SCALE 20
 /* Low light from the left casts toward the rear-right of the painted podium. */
@@ -26,7 +25,6 @@
 void hires_showroom_initialize(struct HIRES_SHOWROOM *showroom)
 {
 	showroom->rotation_time = presentation_now();
-	showroom->prepared_render_ns = 0;
 	showroom->input_time = showroom->rotation_time;
 	showroom->input_delta = 0;
 	showroom->portrait_dirty = 0;
@@ -63,11 +61,6 @@ legacy_u8 hires_showroom_visual_rotation(struct HIRES_SHOWROOM *showroom, legacy
 								   DOS_TIMER_REALTIME_TICKS_PER_SECOND / PRESENTATION_SECOND_NS));
 	}
 	return 1;
-}
-
-void hires_showroom_prepare_begin(struct HIRES_SHOWROOM *showroom)
-{
-	showroom->prepare_started = presentation_now();
 }
 
 void hires_showroom_shadows(struct HIRES_SHOWROOM *showroom, struct TRANSFORMEDSHAPE3D *transformed,
@@ -119,25 +112,6 @@ void hires_showroom_defer_render(legacy_u8 *deferred)
 	}
 }
 
-void hires_showroom_prepare_end(struct HIRES_SHOWROOM *showroom)
-{
-	/* Classic previews can defer rasterization until another iteration.
-	 * Carry preparation work, but exclude input and waiting between them. */
-	showroom->prepared_render_ns = presentation_now() - showroom->prepare_started;
-}
-
-void hires_showroom_render_begin(struct HIRES_SHOWROOM *showroom, legacy_u8 complete_frame)
-{
-	showroom->complete_frame = complete_frame;
-	if (complete_frame != 0) {
-		/* Geometry is already queued at the current scale. Keep that scale and
-		 * leave the initial dissolve free to present each of its phases. */
-		sdl3_video_begin_track_frame(0);
-		sdl3_video_add_render_work(showroom->prepared_render_ns);
-	}
-	showroom->prepared_render_ns = 0;
-}
-
 void hires_showroom_background(struct HIRES_SHOWROOM *showroom, const struct SHAPE2D *background)
 {
 	menu_background_draw(&drawing_sprite, background, MENU_BACKGROUND_SHOWROOM);
@@ -162,13 +136,6 @@ void hires_showroom_portrait(struct HIRES_SHOWROOM *showroom, legacy_u16 opponen
 									 shape2d_get_height(shape)};
 		rect_union(rectangle, &portrait, rectangle);
 		showroom->portrait_dirty = 0;
-	}
-}
-
-void hires_showroom_render_end(struct HIRES_SHOWROOM *showroom)
-{
-	if (showroom->complete_frame != 0) {
-		sdl3_video_end_frame();
 	}
 }
 

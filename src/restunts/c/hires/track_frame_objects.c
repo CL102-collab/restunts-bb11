@@ -45,9 +45,6 @@ legacy_u16 frame_extended_queue_precise_object(struct TRANSFORMEDSHAPE3D *instan
 											   const struct VECTOR *upright_anchor)
 {
 	const struct SHAPE3D *mesh = instance->shapeptr;
-	if (mesh->shape3d_numverts > LEGACY_U8_MAX) {
-		return shape3d_transform_and_queue(instance);
-	}
 	struct SHAPE3D_HIRES_VECTOR vertices[LEGACY_U8_MAX];
 	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
 		struct VECTOR point;
@@ -80,65 +77,29 @@ legacy_u16 frame_extended_queue_precise_object(struct TRANSFORMEDSHAPE3D *instan
 }
 #endif
 
-legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *object,
-										   const struct TRACKOBJECT *definition,
-										   const struct SHAPE3D *source, legacy_u8 surface)
+legacy_u8 hires_track_queue_object(struct TRANSFORMEDSHAPE3D *instance,
+								   const struct FRAME_EXTENDED_OBJECT *object,
+								   const struct SHAPE3D *source, const struct VECTOR *anchor,
+								   legacy_s16 *result)
 {
-	struct SHAPE3D mesh;
-	if (!extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
-										   object->definition->ss_physicalModel)) {
+	if (!supersight_enabled || !object->graded ||
+		instance->shapeptr->shape3d_numverts > LEGACY_U8_MAX) {
 		return 0;
 	}
-	const struct VECTOR *upright_anchor = NULL;
-#if defined(RESTUNTS_SDL3)
-	struct VECTOR anchor;
-	if (object->graded && frame_extended_upright_scenery(object->definition->ss_physicalModel)) {
-		anchor = frame_extended_scenery_anchor(source, definition, object->object);
-		upright_anchor = &anchor;
-	}
-#endif
-	if (object->graded) {
-		frame_extended_apply_object_grade(&mesh, object->object, upright_anchor);
-	} else if (frame_extended_object_sloped(object->object) && !object->native_grass) {
-		frame_extended_remove_hill_grass(&mesh);
-	}
-	if (!mesh.shape3d_numprimitives) {
-		extended_geometry_free_shape(&mesh);
-		return 0;
-	}
-	struct TRANSFORMEDSHAPE3D instance = frame_extended_object_instance(object, &mesh);
-	legacy_s16 result;
-#if defined(RESTUNTS_SDL3)
-	if (supersight_enabled && object->graded) {
-		result = (legacy_s16)frame_extended_queue_precise_object(&instance, object->object, source,
-																 upright_anchor);
-	} else
-#endif
-	{
-		result = frame_extended_queue_hill_shape(&instance, object->edges);
-	}
-	extended_geometry_free_shape(&mesh);
-	return result > 0 && supersight_enabled != 0;
+	*result =
+		(legacy_s16)frame_extended_queue_precise_object(instance, object->object, source, anchor);
+	return 1;
 }
 
-legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OBJECT *object,
-										   const struct TRACKOBJECT *definition, legacy_u8 overlay)
+const struct VECTOR *hires_track_object_anchor(const struct FRAME_EXTENDED_OBJECT *object,
+											   const struct TRACKOBJECT *definition,
+											   const struct SHAPE3D *source, struct VECTOR *anchor)
 {
-	legacy_u8 surface = overlay && object->definition->ss_physicalModel == PHYSICAL_MODEL_OVERPASS
-							? object->object->lower_surface
-							: object->object->surface;
-	const struct SHAPE3D *source = frame_track_shape(definition, object->detail);
-	if (frame_extended_object_sloped(object->object) && !object->graded && object->native_grass &&
-		(overlay || surface < source->shape3d_numpaints)) {
-		struct TRANSFORMEDSHAPE3D instance =
-			frame_extended_object_instance(object, (struct SHAPE3D *)source);
-		instance.rotvec.z = definition->ss_rotY;
-		instance.ts_flags |= definition->ss_ignoreZBias;
-		instance.material = overlay ? 0 : surface;
-		return (legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges) > 0 &&
-			   supersight_enabled != 0;
+	if (!object->graded || !frame_extended_upright_scenery(object->definition->ss_physicalModel)) {
+		return NULL;
 	}
-	return frame_extended_draw_object_mesh(object, definition, source, surface);
+	*anchor = frame_extended_scenery_anchor(source, definition, object->object);
+	return anchor;
 }
 
 #endif

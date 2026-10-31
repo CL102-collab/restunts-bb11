@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,7 +69,7 @@ static legacy_u8 *capture(legacy_u16 speed, legacy_s32 *width, legacy_s32 *heigh
 	assert(memcmp(&state, &saved, sizeof(state)) == 0);
 	assert(memcmp(&gameconfig, &saved_config, sizeof(gameconfig)) == 0);
 	assert(memcmp(seed_before, seed_after, sizeof(seed_before)) == 0);
-	const legacy_u8 *pixels = hires_framebuffer(dos_memory_make_pointer(0xA000U, 0), width, height);
+	const legacy_u8 *pixels = video_framebuffer(dos_memory_make_pointer(0xA000U, 0), width, height);
 	assert(pixels != NULL);
 	size_t size = (size_t)*width * *height;
 	legacy_u8 *copy = malloc(size);

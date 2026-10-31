@@ -29,6 +29,97 @@ polyinfo_index queued_ghost_primitives;
 polyinfo_index polyinfo_primitive_capacity = POLYINFO_LEGACY_PRIMITIVE_CAPACITY;
 polyinfo_offset polyinfo_last_valid_offset = POLYINFO_LEGACY_LAST_VALID_OFFSET;
 
+#ifdef RESTUNTS_SDL3
+/* Native classic scenes also expand for ghost ribbons. Keep their storage and
+ * growth policy with the shared polygon queue, independent of the rasterizer. */
+static legacy_u8 polyinfo_expanded_enabled;
+static polyinfo_index native_primitive_capacity = POLYINFO_STORAGE_PRIMITIVE_CAPACITY;
+static polyinfo_offset native_data_capacity;
+static polyinfo_link *native_polygon_links;
+static polyinfo_offset *native_polygon_offsets;
+static legacy_u8 *native_polyinfo;
+
+static void *polyinfo_allocate(size_t count, size_t size)
+{
+	if (count > (size_t)-1 / size) {
+		fatal_error("SuperSight scene exceeds addressable memory");
+		return NULL;
+	}
+	void *result = malloc(count * size);
+	if (result == NULL) {
+		fatal_error("Cannot allocate SuperSight scene queue");
+	}
+	return result;
+}
+
+void polyinfo_reserve(void)
+{
+	if (!polyinfo_expanded_enabled) {
+		return;
+	}
+	if (polyinfonumpolys >= polyinfo_primitive_capacity) {
+		polyinfo_index previous_capacity = polyinfo_primitive_capacity;
+		/* Links use a signed index so that -1 remains the end marker. */
+		if (previous_capacity > LEGACY_S32_MAX / 2U) {
+			fatal_error("SuperSight scene has too many primitives");
+			return;
+		}
+		polyinfo_index capacity = previous_capacity * 2U;
+		polyinfo_link *links = polyinfo_allocate((size_t)capacity + 1U, sizeof(*links));
+		polyinfo_offset *offsets = polyinfo_allocate(capacity, sizeof(*offsets));
+		memcpy(links, polygon_next_index, ((size_t)previous_capacity + 1U) * sizeof(*links));
+		memcpy(offsets, polygon_record_offsets, (size_t)previous_capacity * sizeof(*offsets));
+		/* The head sentinel lives after all primitive slots. Move it before
+		 * its former slot becomes the next primitive, including mid-shape growth. */
+		links[capacity] = links[previous_capacity];
+		if (shape_polygon_predecessor == previous_capacity) {
+			shape_polygon_predecessor = capacity;
+		}
+		if (polygon_insertion_cursor == previous_capacity) {
+			polygon_insertion_cursor = capacity;
+		}
+		if (polygon_list_tail == previous_capacity) {
+			polygon_list_tail = capacity;
+		}
+		free(native_polygon_links);
+		free(native_polygon_offsets);
+		polygon_next_index = native_polygon_links = links;
+		polygon_record_offsets = native_polygon_offsets = offsets;
+		polyinfo_primitive_capacity = native_primitive_capacity = capacity;
+	}
+	if (polyinfoptrnext > LEGACY_U32_MAX - POLYINFO_MAX_RECORD_SIZE) {
+		fatal_error("SuperSight scene data exceeds addressable memory");
+		return;
+	}
+	polyinfo_offset required = polyinfoptrnext + POLYINFO_MAX_RECORD_SIZE;
+	if (required > native_data_capacity) {
+		polyinfo_offset capacity = native_data_capacity;
+		if (capacity == 0) {
+			capacity = POLYINFO_STORAGE_DATA_SIZE;
+		}
+		while (capacity < required) {
+			capacity = capacity <= LEGACY_U32_MAX / 2U ? capacity * 2U : required;
+		}
+		legacy_u8 *data = polyinfo_allocate(capacity, sizeof(*data));
+		if (polyinfoptrnext != 0) {
+			memcpy(data, polyinfoptr, polyinfoptrnext);
+		}
+		free(native_polyinfo);
+		polyinfoptr = native_polyinfo = data;
+		native_data_capacity = capacity;
+	} else if (polyinfoptr != native_polyinfo) {
+		/* init_polyinfo and isolated render targets can supply a fresh legacy
+		 * buffer. Reuse native storage without taking ownership of that buffer. */
+		if (polyinfoptrnext != 0) {
+			memcpy(native_polyinfo, polyinfoptr, polyinfoptrnext);
+		}
+		polyinfoptr = native_polyinfo;
+	}
+	polyinfo_last_valid_offset = native_data_capacity - POLYINFO_MAX_RECORD_SIZE;
+}
+
+#endif
+
 legacy_u16 polyinfo_read_word(const legacy_u8 far *record, legacy_u16 word_index);
 void polyinfo_write_word(legacy_u8 far *record, legacy_u16 word_index, legacy_u16 value);
 void polyinfo_read_point(const legacy_u8 far *record, legacy_u16 point_index,
@@ -84,7 +175,7 @@ extern legacy_u16 polygon_insert_newest(legacy_u16 depth, legacy_u16 sort_by_dep
 
 	polyinfo_link next_polygon;
 #if defined(RESTUNTS_SDL3)
-	sort_by_depth = shape3d_hires_sort_policy(sort_by_depth);
+	shape3d_hires_adjust_sort(&sort_by_depth);
 #endif
 	if (sort_by_depth == 0) {
 		next_polygon = polygon_next_index[polygon_insertion_cursor];
@@ -118,7 +209,7 @@ extern legacy_u16 polygon_insert_newest(legacy_u16 depth, legacy_u16 sort_by_dep
 	polyinfonumpolys++;
 	polyinfoptrnext += transshapenumvertscopy * sizeof(struct POINT2D) + 6U;
 #if defined(RESTUNTS_SDL3)
-	if (shape3d_hires_queue_is_unlimited()) {
+	if (polyinfo_expanded_enabled) {
 		return 0;
 	}
 #endif
@@ -154,7 +245,7 @@ void init_direction_sector_thresholds(void)
 
 void init_polyinfo(void)
 {
-	polyinfoptr = mmgr_alloc_resbytes("polyinfo", shape3d_hires_polyinfo_size());
+	polyinfoptr = mmgr_alloc_resbytes("polyinfo", POLYINFO_STORAGE_DATA_SIZE);
 
 	mat_rot_y(&mat_y0, 0);
 	mat_rot_y(&mat_y100, ANGLE_QUARTER_TURN);
@@ -165,5 +256,21 @@ void init_polyinfo(void)
 
 void polyinfo_set_supersight(legacy_u8 enabled)
 {
-	shape3d_hires_set_queue_mode(enabled);
+	polyinfo_index capacity = POLYINFO_LEGACY_PRIMITIVE_CAPACITY;
+	polyinfo_offset last_offset = POLYINFO_LEGACY_LAST_VALID_OFFSET;
+#if defined(RESTUNTS_SDL3)
+	polyinfo_expanded_enabled = enabled != 0U;
+#endif
+	if (enabled != 0U) {
+		capacity = POLYINFO_STORAGE_PRIMITIVE_CAPACITY;
+		last_offset = POLYINFO_STORAGE_DATA_SIZE - POLYINFO_MAX_RECORD_SIZE;
+#if defined(RESTUNTS_SDL3)
+		capacity = native_primitive_capacity;
+#endif
+	}
+	if (polyinfo_primitive_capacity != capacity) {
+		polyinfo_primitive_capacity = capacity;
+		polyinfo_last_valid_offset = last_offset;
+		polyinfo_reset();
+	}
 }

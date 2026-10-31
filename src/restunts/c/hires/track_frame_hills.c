@@ -35,31 +35,6 @@ legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 
 /* Native hills overlap a tile by two units. At consecutive elevations that
  * overlap separates the two slope planes vertically. HyperVision joins both
  * sides at the shared grid edge; plateau joins retain their authored overlap. */
-void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edges)
-{
-	if ((edges & FRAME_EXTENDED_HILL_EAST) && point->x > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
-		point->x <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
-		point->x = FRAME_EXTENDED_TERRAIN_HALF_TILE;
-	}
-	if ((edges & FRAME_EXTENDED_HILL_WEST) && point->x < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
-		point->x >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
-		point->x = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
-	}
-	if ((edges & FRAME_EXTENDED_HILL_NORTH) && point->z > FRAME_EXTENDED_TERRAIN_HALF_TILE &&
-		point->z <= FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
-		point->z = FRAME_EXTENDED_TERRAIN_HALF_TILE;
-	}
-	if ((edges & FRAME_EXTENDED_HILL_SOUTH) && point->z < -FRAME_EXTENDED_TERRAIN_HALF_TILE &&
-		point->z >= -FRAME_EXTENDED_HILL_AUTHORED_EDGE) {
-		point->z = -FRAME_EXTENDED_TERRAIN_HALF_TILE;
-	}
-}
-
-legacy_u8 frame_extended_grade_edges(const struct CSTRK_OBJECT *object)
-{
-	return object->slope_x ? FRAME_EXTENDED_HILL_EAST | FRAME_EXTENDED_HILL_WEST
-						   : FRAME_EXTENDED_HILL_NORTH | FRAME_EXTENDED_HILL_SOUTH;
-}
 
 /* Attached markings are layers of the preceding face. Native hill dashes
  * have independently rounded (and occasionally incorrect) heights, visible as
@@ -164,11 +139,12 @@ legacy_u8 frame_extended_road_grade_edges(const struct SHAPE3D *source, legacy_s
 	return (edges & ends) ? ends : 0;
 }
 
-legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, legacy_u8 edges)
+legacy_u8 hires_track_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, legacy_u8 edges,
+									   legacy_u16 *result)
 {
 	const struct SHAPE3D *source = instance->shapeptr;
 	if (edges == 0 || source->shape3d_numverts > LEGACY_U8_MAX) {
-		return shape3d_transform_and_queue(instance);
+		return 0;
 	}
 	legacy_u8 grade_edges = frame_extended_road_grade_edges(source, instance->rotvec.z, edges);
 	struct TRANSFORMEDSHAPE3D adjusted = *instance;
@@ -197,7 +173,8 @@ legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, 
 		frame_extended_align_hill_markings(&mesh);
 	}
 	adjusted.shapeptr = &mesh;
-	return shape3d_transform_and_queue(&adjusted);
+	*result = shape3d_transform_and_queue(&adjusted);
+	return 1;
 }
 
 #endif

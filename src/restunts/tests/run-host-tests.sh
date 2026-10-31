@@ -147,10 +147,25 @@ hires_source_companions() {
     esac
 }
 
+generic_render_companions() {
+    case "$1" in
+        frame.c) printf '%s\n' frame_context.c ;;
+        frame_camera.c) printf '%s\n' frame_context.c ;;
+        frame_car.c) printf '%s\n' frame_context.c ;;
+        frame_car_render.c) printf '%s\n' frame_car.c ;;
+        frame_objects.c) printf '%s\n' hires/frame_visibility.c frame_context.c ;;
+        frame_overlay.c) printf '%s\n' frame_fps.c hires/frame_overlay.c ;;
+        frame_terrain.c) printf '%s\n' frame_terrain.c ;;
+        frame_visibility.c) printf '%s\n' frame_terrain.c ;;
+        hires.c) printf '%s\n' video_framebuffer.c ;;
+    esac
+}
+
 source_companions() {
     extended_companions "$1" "$2"
     small_source_companions "$1"
     hires_source_companions "$1"
+    generic_render_companions "$1"
 }
 
 run_host_test() {

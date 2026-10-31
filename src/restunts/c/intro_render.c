@@ -459,7 +459,9 @@ legacy_s8 setup_intro(void)
 		legacy_s16 delta = LEGACY_S16_FROM_BITS((legacy_u16)timer_get_delta());
 		intro_advance_session(&intro, delta);
 #ifdef RESTUNTS_SDL3
-		hires_intro_present(&intro);
+		if (hires_intro_present(&intro) == 0) {
+			intro_render_session(&intro, hires_intro_keyframe(&intro));
+		}
 #else
 		if (intro.needs_render != 0) {
 			struct INTRO_VIEW view;
@@ -469,7 +471,11 @@ legacy_s8 setup_intro(void)
 #endif
 		legacy_s16 key = 0;
 #ifdef RESTUNTS_SDL3
-		key = hires_intro_input(&intro, delta);
+		legacy_s16 sample_delta = delta;
+		if (hires_intro_input(&intro, delta, &sample_delta) != 0) {
+			key = input_do_checking(sample_delta);
+			hires_intro_input_complete(&intro);
+		}
 #else
 		key = input_do_checking(delta);
 #endif

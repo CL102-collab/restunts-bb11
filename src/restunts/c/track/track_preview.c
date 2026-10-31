@@ -238,11 +238,14 @@ void draw_track_preview(void)
 	transformed.rotvec.x = 0;
 	transformed.rotvec.y = 0;
 	transformed.culling_distance = TRACK_PREVIEW_TRANSFORM_DISTANCE;
+	legacy_s16 batch_scene = hires_track_preview_batch_scene();
 	for (legacy_u8 row = 0; row < TRACK_PREVIEW_GRID_SIZE; row++) {
 		for (legacy_u8 column = 0; column < TRACK_PREVIEW_GRID_SIZE; column++) {
 			track_preview_draw_cell(column, row, &camera, &transformed);
-			hires_track_preview_flush_tile();
+			if (!batch_scene) {
+				shape3d_render_queued_primitives();
+			}
 		}
 	}
-	hires_track_preview_flush_scene();
+	hires_track_preview_flush_scene(batch_scene);
 }

@@ -1,3 +1,4 @@
+#include "../../c/video_framebuffer.h"
 #include "sdl3.h"
 #include "touch.h"
 #include "soft_keyboard.h"
@@ -371,7 +372,7 @@ static void prepare_presentation_page(const legacy_u8 *legacy_pixels)
 	/* Compose from the original address so high-resolution companion pixels
 	 * remain associated with it. Bake the palette into the owned hidden page,
 	 * then flip only after the entire composition is complete. */
-	hires_copy_framebuffer_argb(legacy_pixels, palette_pixels, page->pixels,
+	video_copy_framebuffer_argb(legacy_pixels, palette_pixels, page->pixels,
 								width * sizeof(*page->pixels));
 	front_page = back_page;
 }
@@ -485,7 +486,7 @@ void sdl3_video_present(void)
 			width = hires_render_width();
 			height = hires_render_height();
 		} else {
-			pixels = hires_framebuffer(legacy_pixels, &width, &height);
+			pixels = video_framebuffer(legacy_pixels, &width, &height);
 		}
 		present_surface(pixels, argb, width, height);
 	} else {

@@ -1,3 +1,4 @@
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <float.h>
 #include <stdio.h>
@@ -89,7 +90,7 @@ static const legacy_u8 *get_framebuffer(const struct TEST_SURFACE *screen)
 {
 	legacy_s32 width = 0;
 	legacy_s32 height = 0;
-	const legacy_u8 *pixels = hires_framebuffer(screen->base, &width, &height);
+	const legacy_u8 *pixels = video_framebuffer(screen->base, &width, &height);
 	assert(pixels != NULL);
 	assert(width == TEST_HIRES_WIDTH);
 	assert(height == TEST_HIRES_HEIGHT);
@@ -261,7 +262,7 @@ static void test_lifetime(struct TEST_SURFACE *screen, struct TEST_SURFACE *wind
 	assert(!hires_shadow_begin());
 	legacy_s32 width = 0;
 	legacy_s32 height = 0;
-	const legacy_u8 *pixels = hires_framebuffer(screen->base, &width, &height);
+	const legacy_u8 *pixels = video_framebuffer(screen->base, &width, &height);
 	assert(pixels == screen->base);
 	assert(width == TEST_WIDTH);
 	assert(height == TEST_HEIGHT);
@@ -1190,7 +1191,7 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 	const legacy_u32 guard = 0xC15E9A27U;
 	const legacy_s32 paddings[] = {0, COPY_ROW_PADDING};
 	legacy_s32 width, height;
-	const legacy_u8 *indexed = hires_framebuffer(screen->base, &width, &height);
+	const legacy_u8 *indexed = video_framebuffer(screen->base, &width, &height);
 	const legacy_u32 *argb = hires_framebuffer_argb(screen->base, palette);
 	legacy_s32 has_argb = argb != NULL;
 	size_t pixels = (size_t)width * height;
@@ -1215,7 +1216,7 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 			guarded[pixel] = guard;
 		}
 		legacy_u32 *output = guarded + COPY_GUARD_PIXELS;
-		hires_copy_framebuffer_argb(screen->base, palette, output,
+		video_copy_framebuffer_argb(screen->base, palette, output,
 									stride * (legacy_s32)sizeof(*output));
 		for (legacy_s32 row = 0; row < height; row++) {
 			assert(memcmp(output + (size_t)row * stride, expected + (size_t)row * width,
@@ -1233,7 +1234,7 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 	assert(hires_generation() == generation);
 	assert(memcmp(screen->base, original_legacy, sizeof(original_legacy)) == 0);
 	assert(memcmp(palette, original_palette, sizeof(original_palette)) == 0);
-	indexed = hires_framebuffer(screen->base, &width, &height);
+	indexed = video_framebuffer(screen->base, &width, &height);
 	assert(memcmp(indexed, original_indices, pixels) == 0);
 	argb = hires_framebuffer_argb(screen->base, palette);
 	assert((argb != NULL) == has_argb);
@@ -1344,7 +1345,7 @@ static void assert_scaled_cell(const struct TEST_SURFACE *screen, legacy_s32 x, 
 							   const legacy_u32 *palette)
 {
 	legacy_s32 width, height;
-	const legacy_u8 *indexed = hires_framebuffer(screen->base, &width, &height);
+	const legacy_u8 *indexed = video_framebuffer(screen->base, &width, &height);
 	const legacy_u32 *argb = hires_framebuffer_argb(screen->base, palette);
 	assert(width == TEST_WIDTH * scale && height == TEST_HEIGHT * scale);
 	for (legacy_s32 row = 0; row < scale; row++) {
@@ -1442,7 +1443,7 @@ static void test_scaled_pixels(legacy_s32 scale)
 	assert(target.depth_family[depth_pixel] == TEST_SPAN_SAME_FAMILY);
 	hires_end();
 	legacy_s32 actual_width, actual_height;
-	const legacy_u8 *indexed = hires_framebuffer(screen.base, &actual_width, &actual_height);
+	const legacy_u8 *indexed = video_framebuffer(screen.base, &actual_width, &actual_height);
 	assert(actual_width == width && actual_height == height);
 	assert(memcmp(indexed, expected, (size_t)width * height) == 0);
 	const legacy_u32 *argb = hires_framebuffer_argb(screen.base, palette);
@@ -1656,7 +1657,7 @@ static void test_raster_rows(legacy_s32 scale, legacy_s32 columns, legacy_s32 wr
 						 TEST_WIDTH, SHAPE2D_RASTER_COPY, NULL);
 		}
 		legacy_s32 actual_width, actual_height;
-		const legacy_u8 *pixels = hires_framebuffer(readback.base, &actual_width, &actual_height);
+		const legacy_u8 *pixels = video_framebuffer(readback.base, &actual_width, &actual_height);
 		assert(actual_width == width && actual_height == height);
 		if (jobs.reference) {
 			memcpy(reference, pixels, bytes);
@@ -1749,7 +1750,7 @@ static void test_scaled_workers(legacy_s32 scale)
 		hires_raster_finish(&target, actual_cleared);
 		hires_end();
 		legacy_s32 actual_width, actual_height;
-		const legacy_u8 *pixels = hires_framebuffer(screen.base, &actual_width, &actual_height);
+		const legacy_u8 *pixels = video_framebuffer(screen.base, &actual_width, &actual_height);
 		assert(actual_width == width && actual_height == height);
 		assert(hires_framebuffer_argb(screen.base, palette) == NULL);
 		if (backend == TEST_SPAN_REFERENCE) {
@@ -1800,7 +1801,7 @@ static void test_render_scales(void)
 		assert((hires_generation() != generation) == (previous != scales[pass]));
 		assert(hires_framebuffer_argb(screen.base, palette) == NULL);
 		legacy_s32 width, height;
-		const legacy_u8 *pixels = hires_framebuffer(screen.base, &width, &height);
+		const legacy_u8 *pixels = video_framebuffer(screen.base, &width, &height);
 		assert(width == TEST_WIDTH * scales[pass] && height == TEST_HEIGHT * scales[pass]);
 		for (legacy_s32 y = 0; y < height; y++) {
 			for (legacy_s32 x = 0; x < width; x++) {
@@ -1829,7 +1830,7 @@ static void test_render_scales(void)
 	hires_set_enabled(0);
 	assert(hires_render_scale() == TEST_SCALE);
 	legacy_s32 width, height;
-	assert(hires_framebuffer(screen.base, &width, &height) == screen.base);
+	assert(video_framebuffer(screen.base, &width, &height) == screen.base);
 	assert(width == TEST_WIDTH && height == TEST_HEIGHT);
 	assert_framebuffer_copy(&screen, palette);
 	hires_set_render_scale(TEST_SCALE_MINIMUM);

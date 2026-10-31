@@ -1,10 +1,10 @@
 #include "../frame_render_private.h"
 
-legacy_u8 frame_uses_snapshot;
+static legacy_u8 frame_uses_snapshot;
 
-const struct GHOST_CAMERA_STATE *frame_ghost_camera;
+static const struct GHOST_CAMERA_STATE *frame_ghost_camera;
 
-const struct CARSTATE *frame_ghost;
+static const struct CARSTATE *frame_ghost;
 
 /* A visual snapshot may lag behind physics. Damage, sinking and disappearing
  * cars still follow the authoritative events, including their original timing. */
@@ -81,16 +81,18 @@ void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 	legacy_render_player_headings_active = saved_render_headings;
 }
 
-const struct CARSTATE *frame_second_car_state(void)
+const struct CARSTATE *frame_snapshot_ghost(const struct CARSTATE *current)
 {
-	return gameconfig.game_opponenttype != 0
-			   ? &frame_state->opponentstate
-			   : (frame_uses_snapshot != 0 ? frame_ghost : ghost_car_state());
+	return frame_uses_snapshot != 0 ? frame_ghost : current;
 }
 
-const struct GHOST_CAMERA_STATE *frame_viewed_ghost_camera(void)
+const struct GHOST_CAMERA_STATE *
+frame_snapshot_ghost_camera(const struct GHOST_CAMERA_STATE *current)
 {
-	return followOpponentFlag != 0 && gameconfig.game_opponenttype == 0
-			   ? (frame_uses_snapshot != 0 ? frame_ghost_camera : ghost_camera_state())
-			   : 0;
+	return frame_uses_snapshot != 0 ? frame_ghost_camera : current;
+}
+
+legacy_u8 frame_snapshot_active(void)
+{
+	return frame_uses_snapshot;
 }

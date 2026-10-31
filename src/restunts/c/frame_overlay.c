@@ -1,5 +1,5 @@
 #include "frame_internal.h"
-#include "hires/frame_render.h"
+#include "frame_fps.h"
 #include "game_input.h"
 #include "ui/ui_text.h"
 #include "shape2d/shape2d.h"
@@ -28,14 +28,6 @@
 #define CRACK_END_Y_OFFSET 6U
 #define DEMO_TEXT_FIRST_Y 170
 #define DEMO_TEXT_SECOND_Y 182
-#define REPLAY_TEXT_LEFT_X 8
-#define REPLAY_TEXT_RIGHT_X 312
-#define REPLAY_TEXT_CHARACTER_WIDTH 8U
-#define REPLAY_TEXT_Y 15
-#define REPLAY_FILENAME_Y 3
-#define REPLAY_TEXT_LINE_HEIGHT (REPLAY_TEXT_Y - REPLAY_FILENAME_Y)
-#define REPLAY_TEXT_MAX_CHARACTERS                                                                 \
-	((REPLAY_TEXT_RIGHT_X - REPLAY_TEXT_LEFT_X) / REPLAY_TEXT_CHARACTER_WIDTH)
 #define PREPARE_TEXT_Y 90
 #define SECURITY_TEXT_FIRST_Y 93
 #define SECURITY_TEXT_SECOND_Y 105
@@ -230,7 +222,7 @@ static legacy_s16 draw_replay_filename(legacy_u16 reserved_characters)
 
 	while (*filename != 0) {
 		legacy_u16 reserved = y == REPLAY_FILENAME_Y ? reserved_characters : 0;
-		reserved = frame_hires_filename_reserved(y, reserved);
+		reserved = frame_fps_filename_reserved(y, reserved);
 		legacy_u16 line_limit = REPLAY_TEXT_MAX_CHARACTERS - reserved;
 		legacy_s8 line[REPLAY_TEXT_MAX_CHARACTERS + 1U];
 		legacy_u16 length = 0;
@@ -247,7 +239,7 @@ static legacy_s16 draw_replay_filename(legacy_u16 reserved_characters)
 struct RECTANGLE *draw_ingame_text(void)
 {
 	rect_ingame_text = empty_rect;
-	legacy_u16 fps_characters = frame_hires_prepare_text();
+	legacy_u16 fps_characters = frame_fps_prepare_text();
 	if (idle_expired != 0) {
 		draw_centered_ingame_resource("dm1", DEMO_TEXT_FIRST_Y);
 		draw_centered_ingame_resource("dm2", DEMO_TEXT_SECOND_Y);

@@ -121,7 +121,9 @@ codec headers. The `hires` folder owns high-resolution rendering, adaptive
 visibility, presentation and interpolation, enhanced artwork, settings, and the
 render worker pool. Original engine modules retain generic behavior and invoke
 these implementations. Enhanced CSTRK rendering also lives under `hires`, using
-file names based on their rendering responsibility.
+file names based on their rendering responsibility. Shared diagnostics, palette
+conversion, and classic rendering logic stay outside `hires`; feature modules
+provide enhanced operations and overrides.
 
 CSTRK/CSRPL loading, physics, replay, and route implementations live in C/C++
 files whose names start with `extended_`. Original engine and generator files

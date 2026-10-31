@@ -3,6 +3,8 @@
 
 /* Shared renderer declarations and data; implementations stay in C modules. */
 #include "extended_frame.h"
+#include <stdlib.h>
+#include <string.h>
 #include "../game_input.h"
 #include "../track/trackdata_layout.h"
 #include "../frame_render_internal.h"
@@ -177,5 +179,40 @@ legacy_s16 extended_frame_try_draw_objects(struct FRAME_TILE *tile,
 
 legacy_s16 extended_frame_last_x(void);
 legacy_s16 extended_frame_last_y(void);
+
+legacy_u8 frame_extended_uses_grade(const struct CSTRK_OBJECT *object);
+legacy_s16 frame_extended_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 local_x,
+									   legacy_s16 local_z);
+void frame_extended_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain);
+legacy_s16 frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TERRAIN *terrain,
+												 legacy_s8 detail);
+legacy_s16 frame_extended_draw_terrain_mesh(const struct FRAME_EXTENDED_TERRAIN *terrain,
+											legacy_s8 detail);
+legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
+									   const struct FRAME_CAMERA *camera, legacy_s8 flags);
+legacy_s16 frame_extended_queue_terrain_polygon(const struct VECTOR *points, legacy_u16 count,
+												legacy_u8 primitive_flags, legacy_u8 material,
+												const struct VECTOR *position, legacy_s8 flags);
+legacy_s16 frame_extended_append_ground_fragments(struct FRAME_EXTENDED_GROUND_FRAGMENT **fragments,
+												  legacy_u16 *written, legacy_u16 *capacity,
+												  const struct VECTOR *points, legacy_u16 count);
+legacy_s16 frame_extended_paint_terrain_face(const struct VECTOR *points, legacy_u16 count,
+											 const legacy_u8 *primitive,
+											 const struct FRAME_EXTENDED_TERRAIN *terrain);
+legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *object,
+										   const struct TRACKOBJECT *definition,
+										   const struct SHAPE3D *source, legacy_u8 surface);
+legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OBJECT *object,
+										   const struct TRACKOBJECT *definition, legacy_u8 overlay);
+void frame_extended_join_hill_vertex(struct VECTOR *point, legacy_u8 edges);
+legacy_u8 frame_extended_grade_edges(const struct CSTRK_OBJECT *object);
+legacy_s16 extended_frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
+											 const struct FRAME_TILE *tile, legacy_s16 tile_index);
+void extended_frame_position_tiles(struct FRAME_TILE_SELECTION *tiles,
+								   const struct FRAME_CAMERA *camera, legacy_u8 adaptive);
+legacy_s16 extended_frame_front_fences(const struct FRAME_TILE *tile,
+									   const struct FRAME_TILE_SELECTION *tiles,
+									   const struct FRAME_CAMERA *camera, legacy_s8 flags);
+legacy_u16 frame_extended_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, legacy_u8 edges);
 
 #endif

@@ -7,8 +7,7 @@
 #include "../externs.h"
 
 legacy_s16 skybox_hires_render_scene(struct RECTANGLE *clip, const struct MATRIX *rotation,
-									 legacy_s16 direction, legacy_s16 angle, legacy_s16 camera_y,
-									 legacy_s16 full_redraw)
+									 legacy_s16 direction, legacy_s16 angle, legacy_s16 camera_y)
 {
 	struct SPRITE target = drawing_sprite;
 	target.sprite_raster_left = clip->left;
@@ -22,6 +21,6 @@ legacy_s16 skybox_hires_render_scene(struct RECTANGLE *clip, const struct MATRIX
 		rect_skybox = *clip;
 		return 1;
 	}
-	return full_redraw;
+	return 0;
 }
 #endif
