@@ -2,7 +2,7 @@
 #include "externs.h"
 #include "fatal.h"
 #include "platform.h"
-#include "shape2d.h"
+#include "shape2d/shape2d.h"
 #include "keyboard.h"
 
 #ifdef RESTUNTS_SDL3

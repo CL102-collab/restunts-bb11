@@ -4,11 +4,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <SDL3/SDL.h>
-#include "../c/hires.h"
+#include "../c/hires/hires.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
-#include "../c/skybox_hires.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
+#include "../c/hires/skybox_hires.h"
 #include "../c/skybox.h"
 
 static struct SPRITE target;

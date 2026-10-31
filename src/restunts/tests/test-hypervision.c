@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <SDL3/SDL_stdinc.h>
-#include "../c/hypervision.h"
+#include "../c/hires/hypervision.h"
 #include "../c/platform.h"
-#include "../c/render_workers.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/hires/render_workers.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 
 #define TEST_WIDTH (HIRES_WIDTH / HIRES_SCALE)
 #define TEST_HEIGHT (HIRES_HEIGHT / HIRES_SCALE)

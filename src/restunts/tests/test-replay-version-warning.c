@@ -5,9 +5,9 @@
 #include "../c/externs.h"
 #include "../c/fileio.h"
 #include "../c/platform.h"
-#include "../c/replay.h"
-#include "../c/ui_dialog.h"
-#include "../c/extended_replay_runtime.h"
+#include "../c/replay/replay.h"
+#include "../c/ui/ui_dialog.h"
+#include "../c/extended/extended_replay_runtime.h"
 #include "../c/driving_rules.h"
 #undef memcpy
 #undef strcmp

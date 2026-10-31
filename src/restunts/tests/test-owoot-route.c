@@ -3,10 +3,10 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/owoot.h"
-#include "../c/owoot_route.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/owoot/owoot.h"
+#include "../c/owoot/owoot_route.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 struct TRACKOBJECT trkObjectList[215];
 legacy_s16 track_pieces_counter;

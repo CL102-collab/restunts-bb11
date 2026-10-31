@@ -4,8 +4,8 @@
 Run without arguments to write out/game-music. No third-party packages are
 needed. --check verifies that existing exports match a fresh conversion.
 
-The sequence decoder follows audio_resources.c and audio_sequence.c. Songs
-are exported through one complete repeat, with loop markers and note tails
+The sequence decoder follows audio/audio_resources.c and audio/audio_sequence.c.
+Songs are exported through one complete repeat, with loop markers and note tails
 clipped at the repeat boundary. Instrument timbres are GM approximations;
 the original AdLib/MT-32 patches cannot be represented by GM program numbers.
 """

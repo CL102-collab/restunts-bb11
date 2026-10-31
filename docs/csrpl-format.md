@@ -114,6 +114,7 @@ mismatched lengths, and unsupported input bits before returning a usable replay
 view. Encoding a decoded replay preserves its recorded revision and rules
 without relabeling its inputs as a new recording.
 
+The C codec and runtime sources live in `src/restunts/c/extended/`.
 `extended_csrpl.c` implements serialization without relying on packed C structures.
 `extended_replay.c` provides growing input storage, ordered rewind snapshots,
 and 32-bit timeline calculations with 64-bit intermediates.

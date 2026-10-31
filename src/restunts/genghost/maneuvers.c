@@ -4,9 +4,9 @@
 #include "maneuvers.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
-#include "../c/track_objects.h"
-#include "../c/track_collision.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/trackdata_layout.h"
 #include "extended_maneuvers.h"
 #include "maneuvers_internal.h"
 

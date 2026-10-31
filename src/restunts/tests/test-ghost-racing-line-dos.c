@@ -8,7 +8,7 @@
 
 #include "frame_internal.h"
 #include "ghost.h"
-#include "race_graphics.h"
+#include "../c/race/race_graphics.h"
 #include "residue.h"
 
 static legacy_s16 ghost_line_check_large_stream(void)

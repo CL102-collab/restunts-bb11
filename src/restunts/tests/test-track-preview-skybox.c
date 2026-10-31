@@ -5,16 +5,16 @@
 #include <SDL3/SDL.h>
 #include "../c/externs.h"
 #include "../c/frame_internal.h"
-#include "../c/hires.h"
-#include "../c/menu_internal.h"
+#include "../c/hires/hires.h"
+#include "../c/menu/menu_internal.h"
 #include "../c/platform.h"
 #include "../c/projection.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape3d/shape3d.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/skybox.h"
-#include "../c/skybox_hires.h"
+#include "../c/hires/skybox_hires.h"
 
 #define SKY_HEIGHT 8
 #define HORIZON 80

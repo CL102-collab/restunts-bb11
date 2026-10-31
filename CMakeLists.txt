@@ -179,7 +179,8 @@ else()
     # Upstream DOS support and the gameport/Sound Blaster IRQ fix used by
     # stuntsengine's DOS port. Pin all platforms to the same SDL implementation.
     FetchContent_Declare(SDL3
-        URL https://github.com/libsdl-org/SDL/archive/015489c672f24feed28c2aa2cdd6176df95329f3.tar.gz
+        URL
+        https://github.com/libsdl-org/SDL/archive/015489c672f24feed28c2aa2cdd6176df95329f3.tar.gz
         URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(SDL3)
@@ -218,36 +219,52 @@ set(core src/restunts/c)
 set(platform src/restunts/platform/sdl3)
 set(common_sources
     fileio.c legacy.c resource.c math.c memmgr.c strlib.c numlib.c kevinrnd.c
-    replinit.c gameinit.c gamestep.c simd.c carsetup.c trkutil.c trackres.c
-    headless_data.c headless_trackdata.c state.c race_route.c physics_grip.c opponent.c
-    track_setup.c stateply.c physics_collision.c statecrs.c statecar.c trackobj.c
-    owoot.c owoot_wheels.c owoot_road.c owoot_route.c driving_rules.c replay.c stateio.c
-    extended_cstrk.c extended_csrpl.c extended_cshig.c extended_replay.c extended_track.c
-    extended_geometry.c extended_opponent.c
-    extended_roll_ramp.c
-    extended_trackobj.c extended_stateply.c extended_physics_collision.c extended_statecrs.c
-    extended_track_setup.c extended_race_route.c extended_gameinit.c extended_gamestep.c
-    extended_trkutil.c extended_fileio.c extended_owoot_route.c extended_owoot_road.c)
+    replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c
+    headless_data.c headless_trackdata.c state.c race/race_route.c physics_grip.c
+    opponent/opponent.c
+    track/track_setup.c stateply.c physics_collision.c statecrs.c statecar.c track/trackobj.c
+    owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c driving_rules.c
+    replay/replay.c stateio.c
+    extended/extended_cstrk.c extended/extended_csrpl.c extended/extended_cshig.c
+    extended/extended_replay.c extended/extended_track.c
+    extended/extended_geometry.c extended/extended_opponent.c
+    extended/extended_roll_ramp.c
+    extended/extended_trackobj.c extended/extended_stateply.c extended/extended_physics_collision.c
+    extended/extended_statecrs.c
+    extended/extended_track_setup.c extended/extended_race_route.c extended/extended_gameinit.c
+    extended/extended_gamestep.c
+    extended/extended_trkutil.c extended/extended_fileio.c extended/extended_owoot_route.c
+    extended/extended_owoot_road.c)
 set(game_sources
-    restunts.c command_line.c fatal.c timing.c game_input.c ui_text.c ui_input.c ui_dialog.c
-    intro.c highscore.c replay_record.c replay_viewer.c race.c ghost.c
-    extended_file.c extended_replay_runtime.c extended_editor.c extended_race_stats.c
-    extended_ghost.c
-    extended_validation.c extended_highscore.c extended_frame.c extended_track_preview.c
-    extended_menu_runtime.c extended_highscore_ui.c extended_ui_dialog.c extended_replay_ui.c
-    extended_ghost_runtime.c
-    race_resources.c dashboard.c menu_common.c menu_main.c menu_options.c
-    menu_track.c menu_track_editor.c menu_opponent.c opponent_portrait.c opponent_animation.c menu_background.c
-    menu_car.c audio_engine.c
-    audio_resources.c audio_car.c audio_sequence.c shape3d.c shape3d_resources.c
-    shape3d_car.c shape3d_prerender.c shape3d_lines.c shape2d.c shape2d_blit.c
-    video_pages.c hires.c hypervision.c render_workers.c frame_interpolation.c shape3d_hires.c shape2d_resources.c heapsort.c frame.c frame_adaptive.c skybox.c skybox_hires.c frame_overlay.c
-    intro_render.c track_preview.c full_data.c full_strings.c full_tables.c)
+    restunts.c command_line.c fatal.c timing.c game_input.c ui/ui_text.c ui/ui_input.c
+    ui/ui_dialog.c
+    intro.c highscore.c replay/replay_record.c replay/replay_viewer.c race/race.c ghost.c
+    extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
+    extended/extended_race_stats.c
+    extended/extended_ghost.c
+    extended/extended_validation.c extended/extended_highscore.c extended/extended_frame.c
+    extended/extended_track_preview.c
+    extended/extended_menu_runtime.c extended/extended_highscore_ui.c extended/extended_ui_dialog.c
+    extended/extended_replay_ui.c
+    extended/extended_ghost_runtime.c
+    race/race_resources.c dashboard.c menu/menu_common.c menu/menu_main.c menu/menu_options.c
+    menu/menu_track.c menu/menu_track_editor.c menu/menu_opponent.c opponent/opponent_portrait.c
+    opponent/opponent_animation.c menu/menu_background.c
+    menu/menu_car.c audio/audio_engine.c
+    audio/audio_resources.c audio/audio_car.c audio/audio_sequence.c shape3d/shape3d.c
+    shape3d/shape3d_resources.c
+    shape3d/shape3d_car.c shape3d/shape3d_prerender.c shape3d/shape3d_lines.c shape2d/shape2d.c
+    shape2d/shape2d_blit.c
+    video_pages.c hires/hires.c hires/hypervision.c hires/render_workers.c
+    hires/frame_interpolation.c hires/shape3d_hires.c shape2d/shape2d_resources.c heapsort.c frame.c
+    hires/frame_adaptive.c skybox.c hires/skybox_hires.c frame_overlay.c
+    intro_render.c track/track_preview.c full_data.c full_strings.c full_tables.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")
 set(platform_common ${platform}/memory.c ${platform}/file.c ${platform}/runtime.c
-    ${core}/extended_file_dialog.c)
-set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c ${platform}/timer.c
+    ${core}/extended/extended_file_dialog.c)
+set(platform_game ${platform}/asset_path.c ${platform}/video.c ${platform}/input.c
+${platform}/timer.c
     ${platform}/audio.c ${platform}/music.c ${platform}/touch.c ${platform}/soft_keyboard.c)
 
 execute_process(COMMAND git -c safe.directory=${CMAKE_SOURCE_DIR} rev-parse HEAD
@@ -277,7 +294,7 @@ target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
 function(restunts_add_genghost)
     # The optimizer shares repldump's physics and owns its command-line entry point.
     add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
-        ${core}/extended_replay_runtime.c
+        ${core}/extended/extended_replay_runtime.c
         src/restunts/genghost/main.c src/restunts/genghost/extended_source.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
@@ -489,10 +506,10 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
-    add_executable(test-cstrk ${core}/extended_cstrk.c src/restunts/tests/test-cstrk.c)
+    add_executable(test-cstrk ${core}/extended/extended_cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
-    add_executable(test-cshig ${core}/extended_cstrk.c ${core}/extended_cshig.c
+    add_executable(test-cshig ${core}/extended/extended_cstrk.c ${core}/extended/extended_cshig.c
         src/restunts/tests/test-cshig.c)
     target_compile_options(test-cshig PRIVATE -UNDEBUG)
     add_test(NAME cshig-format COMMAND test-cshig)
@@ -503,22 +520,24 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-highscore COMMAND test-extended-highscore)
     set_tests_properties(extended-highscore PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/extended-highscore-test")
-    add_executable(test-extended-validation ${core}/extended_validation.c
+    add_executable(test-extended-validation ${core}/extended/extended_validation.c
         src/restunts/tests/test-extended-validation.c)
     target_compile_options(test-extended-validation PRIVATE -UNDEBUG)
     add_test(NAME extended-validation COMMAND test-extended-validation)
-    add_executable(test-csrpl ${core}/extended_cstrk.c ${core}/extended_csrpl.c
-        ${core}/extended_replay.c
+    add_executable(test-csrpl ${core}/extended/extended_cstrk.c ${core}/extended/extended_csrpl.c
+        ${core}/extended/extended_replay.c
         src/restunts/tests/test-csrpl.c)
     target_compile_options(test-csrpl PRIVATE -UNDEBUG)
     add_test(NAME csrpl-format COMMAND test-csrpl)
-    add_executable(test-extended-replay-runtime ${core}/extended_replay.c
-        ${core}/extended_replay_runtime.c src/restunts/tests/test-extended-replay-runtime.c)
+    add_executable(test-extended-replay-runtime ${core}/extended/extended_replay.c
+        ${core}/extended/extended_replay_runtime.c
+        src/restunts/tests/test-extended-replay-runtime.c)
     target_compile_definitions(test-extended-replay-runtime PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-replay-runtime PRIVATE -UNDEBUG)
     add_test(NAME extended-replay-runtime COMMAND test-extended-replay-runtime)
-    add_executable(test-extended-ghost ${core}/extended_ghost.c ${core}/extended_cstrk.c
-        ${core}/extended_csrpl.c
+    add_executable(test-extended-ghost ${core}/extended/extended_ghost.c
+        ${core}/extended/extended_cstrk.c
+        ${core}/extended/extended_csrpl.c
         src/restunts/tests/test-extended-ghost.c)
     target_compile_definitions(test-extended-ghost PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-ghost PRIVATE -UNDEBUG)
@@ -560,14 +579,14 @@ if(RESTUNTS_BUILD_TESTS)
     enable_testing()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
-            ${platform}/file.c ${core}/extended_file_dialog.c)
+            ${platform}/file.c ${core}/extended/extended_file_dialog.c)
         target_compile_definitions(test-sdl3-file-replace PRIVATE RESTUNTS_SDL3 __EMSCRIPTEN__)
         target_include_directories(test-sdl3-file-replace PRIVATE src/restunts/tests/stubs)
         target_compile_options(test-sdl3-file-replace PRIVATE -UNDEBUG -Wno-pointer-sign)
         add_test(NAME browser-file-replace COMMAND test-sdl3-file-replace)
     endif()
     add_executable(test-extended-hiscore-ui src/restunts/tests/test-extended-hiscore-ui.c
-        ${core}/extended_highscore_ui.c ${core}/extended_menu_runtime.c)
+        ${core}/extended/extended_highscore_ui.c ${core}/extended/extended_menu_runtime.c)
     target_compile_definitions(test-extended-hiscore-ui PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-hiscore-ui PRIVATE -UNDEBUG
         ${restunts_test_section_options})
@@ -575,7 +594,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-extended-hiscore-ui PRIVATE restunts_options)
     add_test(NAME extended-hiscore-ui COMMAND test-extended-hiscore-ui)
     add_executable(test-extended-race-start src/restunts/tests/test-extended-race-start.c
-        ${core}/extended_validation.c ${core}/extended_menu_runtime.c)
+        ${core}/extended/extended_validation.c ${core}/extended/extended_menu_runtime.c)
     target_compile_definitions(test-extended-race-start PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-race-start PRIVATE -UNDEBUG
         ${restunts_test_section_options})
@@ -584,9 +603,10 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-race-start COMMAND test-extended-race-start)
     add_executable(test-driving-rules src/restunts/tests/test-driving-rules.c
         ${core}/driving_rules.c ${core}/statecar.c ${core}/physics_collision.c
-        ${core}/extended_physics_collision.c ${core}/extended_statecrs.c
-        ${core}/extended_race_route.c ${core}/extended_trackobj.c
-        ${core}/physics_grip.c ${core}/race_route.c ${core}/trackobj.c ${core}/owoot.c
+        ${core}/extended/extended_physics_collision.c ${core}/extended/extended_statecrs.c
+        ${core}/extended/extended_race_route.c ${core}/extended/extended_trackobj.c
+        ${core}/physics_grip.c ${core}/race/race_route.c ${core}/track/trackobj.c
+        ${core}/owoot/owoot.c
         ${core}/strlib.c)
     target_compile_options(test-driving-rules PRIVATE -UNDEBUG -Wno-pointer-sign
         -Wno-sign-compare -Wno-missing-braces ${restunts_test_section_options})
@@ -594,7 +614,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-driving-rules PRIVATE restunts_options)
     add_test(NAME driving-rules COMMAND test-driving-rules)
     add_executable(test-replay-version-warning src/restunts/tests/test-replay-version-warning.c
-        ${core}/fileio.c ${core}/extended_fileio.c ${core}/strlib.c)
+        ${core}/fileio.c ${core}/extended/extended_fileio.c ${core}/strlib.c)
     target_compile_definitions(test-replay-version-warning PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-replay-version-warning PRIVATE -UNDEBUG -Wno-pointer-sign
         ${restunts_test_section_options})
@@ -602,7 +622,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-replay-version-warning PRIVATE restunts_options)
     add_test(NAME replay-version-warning COMMAND test-replay-version-warning)
     add_executable(test-extended-file-dialog src/restunts/tests/test-extended-file-dialog.c
-        ${core}/ui_dialog.c ${core}/extended_ui_dialog.c ${core}/ui_input.c ${core}/legacy.c
+        ${core}/ui/ui_dialog.c ${core}/extended/extended_ui_dialog.c ${core}/ui/ui_input.c
+        ${core}/legacy.c
         ${core}/strlib.c
         ${core}/resource.c ${platform}/runtime.c)
     target_compile_definitions(test-extended-file-dialog PRIVATE RESTUNTS_SDL3)
@@ -611,7 +632,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_options(test-extended-file-dialog PRIVATE ${restunts_test_gc_sections})
     add_test(NAME extended-file-dialog COMMAND test-extended-file-dialog)
     add_executable(test-extended-fileio src/restunts/tests/test-extended-fileio.c ${platform}/file.c
-        ${core}/extended_file_dialog.c)
+        ${core}/extended/extended_file_dialog.c)
     target_compile_definitions(test-extended-fileio PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-fileio PRIVATE -UNDEBUG -Wno-pointer-sign
         ${restunts_test_section_options})
@@ -619,7 +640,7 @@ if(RESTUNTS_BUILD_TESTS)
     add_test(NAME extended-fileio COMMAND test-extended-fileio)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         add_executable(test-penalty-routing src/restunts/tests/test-penalty-routing.c
-            ${core}/race_route.c ${core}/extended_race_route.c ${core}/strlib.c)
+            ${core}/race/race_route.c ${core}/extended/extended_race_route.c ${core}/strlib.c)
         target_link_libraries(test-penalty-routing PRIVATE restunts_options)
         target_compile_options(test-penalty-routing PRIVATE -UNDEBUG ${restunts_test_section_options})
         target_link_options(test-penalty-routing PRIVATE ${restunts_test_gc_sections})
@@ -736,7 +757,7 @@ endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_executable(test-genghost-simulation ${common_sources} ${core}/headless.c ${platform_common}
-        ${core}/extended_replay_runtime.c
+        ${core}/extended/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
@@ -746,7 +767,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-simulation PRIVATE restunts_options)
     add_executable(test-genghost-state ${common_sources} ${core}/headless.c ${platform_common}
-        ${core}/extended_replay_runtime.c
+        ${core}/extended/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
@@ -760,7 +781,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_options(test-genghost-state PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-state PRIVATE restunts_options)
     add_executable(test-genghost-extended ${common_sources} ${core}/headless.c ${platform_common}
-        ${core}/extended_replay_runtime.c ${platform}/main.c
+        ${core}/extended/extended_replay_runtime.c ${platform}/main.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
@@ -873,25 +894,28 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_test(NAME sdl3-soft-keyboard COMMAND test-sdl3-soft-keyboard)
     add_executable(test-sdl3-input src/restunts/tests/test-sdl3-input.c
         ${platform}/input.c ${platform}/video.c ${platform}/timer.c ${platform}/touch.c
-        ${platform}/soft_keyboard.c ${core}/frame_adaptive.c)
+        ${platform}/soft_keyboard.c ${core}/hires/frame_adaptive.c)
     target_link_libraries(test-sdl3-input PRIVATE restunts_options)
     target_compile_options(test-sdl3-input PRIVATE -UNDEBUG)
     add_test(NAME sdl3-input COMMAND test-sdl3-input)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
-    add_executable(test-frame-adaptive src/restunts/tests/test-frame-adaptive.c ${core}/frame_adaptive.c)
+    add_executable(test-frame-adaptive src/restunts/tests/test-frame-adaptive.c
+        ${core}/hires/frame_adaptive.c)
     target_link_libraries(test-frame-adaptive PRIVATE restunts_options)
     target_compile_options(test-frame-adaptive PRIVATE -UNDEBUG)
     add_test(NAME frame-adaptive COMMAND test-frame-adaptive)
-    add_executable(test-frame-interpolation src/restunts/tests/test-frame-interpolation.c ${core}/frame_interpolation.c)
+    add_executable(test-frame-interpolation src/restunts/tests/test-frame-interpolation.c
+        ${core}/hires/frame_interpolation.c)
     target_link_libraries(test-frame-interpolation PRIVATE restunts_options)
     target_compile_options(test-frame-interpolation PRIVATE -UNDEBUG)
     add_test(NAME frame-interpolation COMMAND test-frame-interpolation)
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-race-frames src/restunts/tests/test-race-frames.c
-            ${core}/extended_replay_ui.c
-            ${core}/legacy.c ${core}/full_data.c ${core}/headless_data.c ${core}/frame_interpolation.c)
+            ${core}/extended/extended_replay_ui.c
+            ${core}/legacy.c ${core}/full_data.c ${core}/headless_data.c
+            ${core}/hires/frame_interpolation.c)
         target_link_libraries(test-sdl3-race-frames PRIVATE restunts_options)
         target_compile_options(test-sdl3-race-frames PRIVATE -UNDEBUG ${restunts_test_section_options})
         target_link_options(test-sdl3-race-frames PRIVATE ${restunts_test_gc_sections})
@@ -926,7 +950,8 @@ if(RESTUNTS_BUILD_TESTS)
         set_tests_properties(extended-replay-engine PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
             TIMEOUT 120)
-        add_executable(test-render-replay ${platform}/main.c src/restunts/tests/test-render-replay.c)
+        add_executable(test-render-replay ${platform}/main.c
+            src/restunts/tests/test-render-replay.c)
         target_compile_definitions(test-render-replay PRIVATE RESTUNTS_PIXLDUMP)
         target_link_libraries(test-render-replay PRIVATE restunts_game)
         target_compile_options(test-render-replay PRIVATE -UNDEBUG)
@@ -957,7 +982,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-shape3d-hires PRIVATE -UNDEBUG)
     add_test(NAME shape3d-hires COMMAND test-shape3d-hires)
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
-        ${core}/skybox_hires.c ${core}/hires.c ${core}/render_workers.c ${platform}/memory.c ${platform}/asset_path.c)
+        ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-skybox-hires PRIVATE restunts_options)
     target_compile_options(test-skybox-hires PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/skybox-test")
@@ -972,7 +998,8 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(track-preview-skybox PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/track-preview-test")
     add_executable(test-opponent-portrait src/restunts/tests/test-opponent-portrait.c
-        ${core}/opponent_portrait.c ${core}/hires.c ${core}/render_workers.c ${platform}/memory.c ${platform}/asset_path.c)
+        ${core}/opponent/opponent_portrait.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-opponent-portrait PRIVATE restunts_options)
     target_compile_options(test-opponent-portrait PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-test")
@@ -989,14 +1016,16 @@ if(RESTUNTS_BUILD_TESTS)
     set_tests_properties(opponent-animation PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-animation-test")
     add_executable(test-menu-background src/restunts/tests/test-menu-background.c
-        ${core}/menu_background.c ${core}/hires.c ${core}/render_workers.c ${platform}/memory.c ${platform}/asset_path.c)
+        ${core}/menu/menu_background.c ${core}/hires/hires.c ${core}/hires/render_workers.c
+        ${platform}/memory.c ${platform}/asset_path.c)
     target_link_libraries(test-menu-background PRIVATE restunts_options)
     target_compile_options(test-menu-background PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
     add_test(NAME menu-background COMMAND test-menu-background)
     set_tests_properties(menu-background PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
-    add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires.c ${core}/render_workers.c ${platform}/memory.c)
+    add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires/hires.c
+        ${core}/hires/render_workers.c ${platform}/memory.c)
     target_link_libraries(test-sdl3-hires PRIVATE restunts_options)
     target_compile_options(test-sdl3-hires PRIVATE -UNDEBUG)
     add_test(NAME sdl3-hires COMMAND test-sdl3-hires)

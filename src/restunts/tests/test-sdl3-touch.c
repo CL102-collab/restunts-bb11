@@ -3,7 +3,7 @@
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
 #include "../c/gamestate.h"
-#include "../c/replay.h"
+#include "../c/replay/replay.h"
 #include <assert.h>
 #include <stdio.h>
 

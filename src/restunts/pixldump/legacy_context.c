@@ -7,8 +7,8 @@
 #include "../c/externs.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 
 #define PIXLDUMP_LEGACY_INITIAL_STACK_POINTER 52318U
 #define PIXLDUMP_PSP_ENVIRONMENT_OFFSET 44U

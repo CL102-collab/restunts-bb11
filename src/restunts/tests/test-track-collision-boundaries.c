@@ -4,8 +4,8 @@
 #include "../c/externs.h"
 #include "../c/physics_internal.h"
 #include "../c/residue.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 static legacy_u8 elements[900], terrain[900];
 

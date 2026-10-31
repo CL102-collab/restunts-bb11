@@ -1,8 +1,8 @@
 #include "dos_interrupts.h"
-#include "../../c/audio.h"
+#include "../../c/audio/audio.h"
 #include "../../c/platform.h"
 #include "../../c/timing.h"
-#include "../../c/audio_internal.h"
+#include "../../c/audio/audio_internal.h"
 #include "../../c/memmgr.h"
 
 typedef void(far *driver_set_volume_type)(legacy_s16 driver_channel, legacy_u8 *context,

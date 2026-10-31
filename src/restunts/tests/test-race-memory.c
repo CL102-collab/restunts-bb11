@@ -7,7 +7,7 @@
 #undef run_main_menu_loop
 
 #include "frame_internal.h"
-#include "shape2d_internal.h"
+#include "../c/shape2d/shape2d_internal.h"
 #include "video_pages.h"
 
 static legacy_u32 race_memory_free_bytes;

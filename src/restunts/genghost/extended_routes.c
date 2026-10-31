@@ -8,12 +8,12 @@
 #include "extended_routes.h"
 #include "../c/externs.h"
 #include "../c/game_input.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
-#include "../c/track_collision.h"
-#include "../c/extended_track.h"
-#include "../c/extended_geometry.h"
-#include "../c/roll_ramp.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
+#include "../c/track/track_collision.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/extended_geometry.h"
+#include "../c/extended/roll_ramp.h"
 
 #undef memcpy
 

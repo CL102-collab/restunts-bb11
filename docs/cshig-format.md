@@ -72,9 +72,10 @@ intermediate. For example, `UINT32_MAX` frames at 10 Hz becomes 8,589,934,590
 ticks, which exceeds a 32-bit field. The codec retains the full 64-bit range
 below the empty sentinel.
 
-`extended_cshig.c` owns serialization, canonical identity comparison, ranking, and
-insertion. Successfully decoded tables own their identity allocation. Failed
-create, decode, encode, and insert operations preserve the previous table or
+`src/restunts/c/extended/extended_cshig.c` owns serialization, canonical identity
+comparison, ranking, and insertion. Successfully decoded tables own their
+identity allocation. Failed create, decode, encode, and insert operations preserve
+the previous table or
 output arguments, allowing the game to report damaged files without replacing
 them with a new empty table. Filesystem replacement and dialogs are handled by
 the SDL3 runtime adapter, not this codec.

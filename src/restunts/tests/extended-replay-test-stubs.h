@@ -6,14 +6,14 @@
  * extended storage/clock/rewind behavior has separate integration tests. */
 #include "../c/externs.h"
 #include "../c/fileio.h"
-#include "../c/ui_dialog.h"
+#include "../c/ui/ui_dialog.h"
 #ifdef RESTUNTS_SDL3
-#include "../c/extended_replay_runtime.h"
-#include "../c/extended_track.h"
-#include "../c/extended_file.h"
-#include "../c/extended_geometry.h"
-#include "../c/track_objects.h"
-#include "../c/extended_highscore.h"
+#include "../c/extended/extended_replay_runtime.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/extended_file.h"
+#include "../c/extended/extended_geometry.h"
+#include "../c/track/track_objects.h"
+#include "../c/extended/extended_highscore.h"
 int extended_highscore_load_or_create(const legacy_s8 *directory, const legacy_s8 *name,
 									  const struct CSTRK_TRACK *track, int create_default)
 {
@@ -98,7 +98,7 @@ void file_warn_replay_driving_rules(legacy_u16 recorded)
 	(void)recorded;
 	assert(!"Unexpected extended replay rules warning in a legacy ghost fixture");
 }
-#include "../c/extended_ghost.h"
+#include "../c/extended/extended_ghost.h"
 void extended_ghost_free(struct EXTENDED_GHOST_REPLAY *replay)
 {
 	assert(replay->bytes == NULL);

@@ -4,12 +4,12 @@
 
 #include "../c/externs.h"
 #include "../c/state_internal.h"
-#include "../c/car_speed.h"
+#include "../c/car/car_speed.h"
 #include "../c/crash_state.h"
 #include "../c/game_input.h"
-#include "../c/opponent.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/opponent/opponent.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 static legacy_s8 route_indices[9 * LEGACY_WORD_BYTES];
 static legacy_s8 route_elements[8];

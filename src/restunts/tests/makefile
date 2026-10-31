@@ -7,7 +7,7 @@ PLATFORM_ASM_DIR = $(PLATFORM_DIR)/wasm
 PLATFORM_NAMES = runtime memory file
 PLATFORM_OBJECTS = $(PLATFORM_ASM_DIR)/dosbss.obj $(addprefix $(PLATFORM_DIR)/,$(addsuffix .obj,$(PLATFORM_NAMES))) $(PLATFORM_ASM_DIR)/dosstack.obj
 OBJ_FILES = $(PLATFORM_ASM_DIR)/dosbss.obj $(OBJDIR)/dosstart.obj $(OBJDIR)/test-dos-platform.obj $(OBJDIR)/resource.obj $(filter-out $(PLATFORM_ASM_DIR)/dosbss.obj,$(PLATFORM_OBJECTS))
-C_HEADERS = $(wildcard ../c/*.h) $(wildcard ../platform/dos/*.h)
+C_HEADERS = $(wildcard ../c/*.h ../c/*/*.h) $(wildcard ../platform/dos/*.h)
 SPACE := $(empty) $(empty)
 COMMA := ,
 

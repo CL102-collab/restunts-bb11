@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/csrpl.h"
-#include "../c/cstrk.h"
-#include "../c/extended_replay.h"
+#include "../c/extended/csrpl.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/extended_replay.h"
 
 #define TEST_FUTURE_TRACK_VERSION 101U
 #define TEST_REPLAY_ERROR_CAPACITY 128U

@@ -3,8 +3,8 @@
 #include <string.h>
 #include "../c/externs.h"
 #include "../c/dashboard.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape3d/shape3d.h"
 #include "../c/platform.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"

@@ -2,10 +2,10 @@
 #include "fileio.h"
 #include "memmgr.h"
 #include "platform.h"
-#include "shape2d.h"
+#include "shape2d/shape2d.h"
 #include "game_input.h"
 #include "externs.h"
-#include "shape3d.h"
+#include "shape3d/shape3d.h"
 
 #define DASHBOARD_STEERING_SCALE_SHIFT 3U
 #define DASHBOARD_VIEWPORT_WIDTH 320

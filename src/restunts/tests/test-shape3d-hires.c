@@ -4,12 +4,12 @@
 #include <string.h>
 #include <SDL3/SDL_stdinc.h>
 #include "../c/externs.h"
-#include "../c/hires.h"
+#include "../c/hires/hires.h"
 #include "../c/platform.h"
 #include "../c/projection.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d_hires.h"
-#include "../c/shape3d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/hires/shape3d_hires.h"
+#include "../c/shape3d/shape3d_internal.h"
 
 #undef memcpy
 

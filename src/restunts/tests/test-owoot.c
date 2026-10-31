@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/owoot.c"
-#include "../c/owoot_wheels.c"
+#include "../c/owoot/owoot.c"
+#include "../c/owoot/owoot_wheels.c"
 
 static legacy_s16 route_valid = 1;
 static legacy_s16 jump_valid = 0;

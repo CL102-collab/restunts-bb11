@@ -32,9 +32,30 @@ class CleanupTests(unittest.TestCase):
             result = subprocess.run([
                 "gcc", "-fsyntax-only", "-Wno-implicit-function-declaration",
                 "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS",
-                str(sources / "shape2d_blit.c"),
+                str(sources / "shape2d/shape2d_blit.c"),
             ], text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_nested_source_paths_keep_flat_module_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            feed = root / "src/restunts/dos/full-game-objects.mk"
+            feed.parent.mkdir(parents=True)
+            feed.write_text("RESTUNTS_OBJ_FILES = shape2d/shape2d.obj "
+                            "extended/extended_trackobj.obj shape2d/shape2d.obj\n")
+            with patch.object(TRANSLATE, "ROOT", root):
+                paths = TRANSLATE.source_names()
+            self.assertEqual(paths, ["shape2d/shape2d", "extended/extended_trackobj", "stateio"])
+            self.assertEqual([Path(name).name for name in paths],
+                             ["shape2d", "extended_trackobj", "stateio"])
+
+    def test_prepared_sources_preserve_nested_header_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            sources = TRANSLATE.prepare_sources(Path(directory))
+            self.assertTrue((sources / "shape2d/shape2d_blit.c").is_file())
+            self.assertTrue((sources / "shape2d/shape2d_internal.h").is_file())
+            self.assertTrue((sources / "extended/extended_track.h").is_file())
+            self.assertFalse((sources / "shape2d_blit.c").exists())
 
     def test_constants_follow_transitive_dependencies(self):
         definitions = {"BASE": "2", "NEXT": "BASE + 1", "LIMIT": "NEXT + 1",

@@ -8,9 +8,9 @@
 #include "../c/platform.h"
 #include "../c/memmgr.h"
 #include "../c/resource.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
-#include "../c/ui_text.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
+#include "../c/ui/ui_text.h"
 
 #define TEST_SOURCE_SEGMENT 0x2000U
 #define TEST_BITMAP_SEGMENT 0x5000U

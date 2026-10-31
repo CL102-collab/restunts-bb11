@@ -7,12 +7,12 @@
 #include "../genghost/state_search.h"
 #include "../genghost/parallel.h"
 #include "../c/externs.h"
-#include "../c/car_speed.h"
+#include "../c/car/car_speed.h"
 #include "../c/game_input.h"
-#include "../c/owoot_road.h"
-#include "../c/track_objects.h"
-#include "../c/track_collision.h"
-#include "../c/trackdata_layout.h"
+#include "../c/owoot/owoot_road.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/physics_internal.h"
 
 #undef memcpy

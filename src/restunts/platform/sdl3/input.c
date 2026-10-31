@@ -7,7 +7,7 @@
 #include "../../c/keyboard.h"
 #include "../../c/game_input.h"
 #include "../../c/fatal.h"
-#include "../../c/hires.h"
+#include "../../c/hires/hires.h"
 #include <string.h>
 #ifdef __ANDROID__
 #include <jni.h>

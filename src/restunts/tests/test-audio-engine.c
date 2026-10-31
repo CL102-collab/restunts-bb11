@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/audio_engine.c"
+#include "../c/audio/audio_engine.c"
 #undef printf
 
 struct AUDIO_TIMER audio_timers[AUDIO_TIMER_COUNT];

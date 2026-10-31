@@ -1,13 +1,13 @@
 #include "externs.h"
 #include "legacy.h"
 #include "math.h"
-#include "replay.h"
+#include "replay/replay.h"
 #include "crash_state.h"
-#include "race_stats.h"
-#include "car_audio.h"
-#include "audio_control.h"
+#include "race/race_stats.h"
+#include "car/car_audio.h"
+#include "audio/audio_control.h"
 #if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
-#include "extended_statecrs.h"
+#include "extended/extended_statecrs.h"
 #endif
 
 #define CAR_CRASH_PARTICLE_KIND_COUNT 2

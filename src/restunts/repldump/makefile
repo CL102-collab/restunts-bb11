@@ -1,4 +1,5 @@
 include ../watcom.mk
+include ../dos/full-game-objects.mk
 
 TARGET ?= headless
 ifeq (,$(filter $(TARGET),headless original))
@@ -7,8 +8,9 @@ endif
 
 RESTUNTS_OBJ_FILES = fileio.obj legacy.obj resource.obj math.obj memmgr.obj strlib.obj numlib.obj \
                      kevinrnd.obj replinit.obj gameinit.obj gamestep.obj \
-                     simd.obj carsetup.obj trkutil.obj trackres.obj headless.obj dosstart.obj headless_data.obj headless_trackdata.obj state.obj race_route.obj physics_grip.obj opponent.obj track_setup.obj stateply.obj physics_collision.obj \
-                     statecrs.obj statecar.obj trackobj.obj owoot.obj owoot_wheels.obj owoot_road.obj owoot_route.obj replay.obj stateio.obj
+                     simd.obj car/carsetup.obj trkutil.obj track/trackres.obj headless.obj dosstart.obj headless_data.obj headless_trackdata.obj state.obj race/race_route.obj physics_grip.obj opponent/opponent.obj track/track_setup.obj stateply.obj physics_collision.obj \
+                     statecrs.obj statecar.obj track/trackobj.obj owoot/owoot.obj owoot/owoot_wheels.obj owoot/owoot_road.obj owoot/owoot_route.obj replay/replay.obj stateio.obj
+RESTUNTS_OBJ_FILES += $(RESTUNTS_EXTENDED_COMMON_OBJ_FILES)
 
 PLATFORM_DIR = ../platform/dos/build/watcom/$(CONFIG)
 PLATFORM_ASM_DIR = $(PLATFORM_DIR)/wasm
@@ -63,7 +65,7 @@ $(ALIAS_FILE): $(ASMORIG_LINK_OBJECTS) $(C_LINK_OBJECTS) $(ALIAS_SCRIPT) $(MAKEF
 	$(PYTHON) $(ALIAS_SCRIPT) --asm-dir "$(ASMORIG_DIR)" --output "$@" $(C_LINK_OBJECTS)
 endif
 
-$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h) $(wildcard ../platform/dos/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h ../c/*/*.h) $(wildcard ../platform/dos/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WRAPPER_CFLAGS) $(CFLAGS) -i=../c -fo=$@ $<
 
 clean:

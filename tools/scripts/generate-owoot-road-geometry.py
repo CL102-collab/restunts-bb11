@@ -263,7 +263,7 @@ def generate(directory):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--game-directory", type=Path, default=ROOT / "stunts")
-    parser.add_argument("--output", type=Path, default=ROOT / "src/restunts/c/owoot_road_data.h")
+    parser.add_argument("--output", type=Path, default=ROOT / "src/restunts/c/owoot/owoot_road_data.h")
     parser.add_argument("--clang-format", default="clang-format")
     args = parser.parse_args()
     args.output.write_bytes(generate(args.game_directory).replace("\n", "\r\n").encode())

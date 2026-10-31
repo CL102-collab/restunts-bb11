@@ -2,9 +2,9 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d.h"
-#include "../c/shape3d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape3d/shape3d.h"
+#include "../c/shape3d/shape3d_internal.h"
 
 #undef memset
 

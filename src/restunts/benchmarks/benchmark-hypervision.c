@@ -2,7 +2,7 @@
 #define stuntsmain benchmark_replay_test_main
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
-#include "../c/render_workers.h"
+#include "../c/hires/render_workers.h"
 #include "../platform/sdl3/sdl3.h"
 #include <errno.h>
 #include <sys/resource.h>

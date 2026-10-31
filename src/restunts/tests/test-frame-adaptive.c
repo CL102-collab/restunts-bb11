@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include "../c/frame_adaptive.h"
+#include "../c/hires/frame_adaptive.h"
 #include "../c/math.h"
 
 #define TEST_CAMERA_TILE 15

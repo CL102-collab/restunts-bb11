@@ -1,9 +1,9 @@
 #include "restunts.h"
-#include "opponent.h"
+#include "opponent/opponent.h"
 #include "externs.h"
 #include "crash_state.h"
-#include "owoot.h"
-#include "extended_gameinit.h"
+#include "owoot/owoot.h"
+#include "extended/extended_gameinit.h"
 
 #define CAR_START_LONGITUDINAL_OFFSET 210
 #define CAR_START_LATERAL_OFFSET 36

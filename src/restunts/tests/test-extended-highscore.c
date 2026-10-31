@@ -15,7 +15,7 @@
 #include <signal.h>
 #include <sys/resource.h>
 #endif
-#include "../c/extended_highscore.h"
+#include "../c/extended/extended_highscore.h"
 #include "../c/platform.h"
 
 #define SCORE_DIRECTORY "ExtendedHighscore"

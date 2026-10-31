@@ -9,7 +9,7 @@
 #include "guide.h"
 #include "../c/externs.h"
 #include "../c/crash_state.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/game_input.h"
 
 #undef memcpy

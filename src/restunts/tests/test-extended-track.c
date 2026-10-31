@@ -7,19 +7,19 @@
 #include <string.h>
 
 #include "../c/externs.h"
-#include "../c/cstrk.h"
-#include "../c/extended_track.h"
-#include "../c/extended_geometry.h"
-#include "../c/extended_opponent.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/extended_geometry.h"
+#include "../c/extended/extended_opponent.h"
 #include "../c/memmgr.h"
-#include "../c/track_collision.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/physics_internal.h"
-#include "../c/car_speed.h"
-#include "../c/owoot_road.h"
-#include "../c/owoot_route.h"
-#include "../c/roll_ramp.h"
+#include "../c/car/car_speed.h"
+#include "../c/owoot/owoot_road.h"
+#include "../c/owoot/owoot_route.h"
+#include "../c/extended/roll_ramp.h"
 
 #undef memcpy
 #undef printf

@@ -4,10 +4,10 @@
 #include "test-car-menu.c"
 #undef main
 #undef locate_text_res
-#include "../c/audio_control.h"
+#include "../c/audio/audio_control.h"
 #include "../c/fatal.h"
-#include "../c/ui_dialog_internal.h"
-#include "../c/replay_viewer_internal.h"
+#include "../c/ui/ui_dialog_internal.h"
+#include "../c/replay/replay_viewer_internal.h"
 #include "extended-replay-test-stubs.h"
 #ifdef RESTUNTS_SDL3
 #include "../platform/sdl3/controller_game.h"

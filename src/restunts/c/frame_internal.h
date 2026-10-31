@@ -2,8 +2,8 @@
 #define RESTUNTS_FRAME_INTERNAL_H
 
 #include "math.h"
-#include "shape3d.h"
-#include "track_types.h"
+#include "shape3d/shape3d.h"
+#include "track/track_types.h"
 
 extern struct RECTANGLE frame_rects_page0[];
 extern struct RECTANGLE frame_rects_page1[];

@@ -3,16 +3,16 @@
 #include <stdio.h>
 #include <string.h>
 #include "../c/externs.h"
-#include "../c/opponent.h"
+#include "../c/opponent/opponent.h"
 #include "../c/game_input.h"
-#include "../c/car_audio.h"
+#include "../c/car/car_audio.h"
 #include "../c/fileio.h"
 #include "../c/resource.h"
-#include "../c/ui_text.h"
-#include "../c/track_objects.h"
-#include "../c/car_speed.h"
+#include "../c/ui/ui_text.h"
+#include "../c/track/track_objects.h"
+#include "../c/car/car_speed.h"
 #include "../c/state_internal.h"
-#include "../c/owoot.h"
+#include "../c/owoot/owoot.h"
 #include "../c/physics_internal.h"
 
 extern void update_follow_cameras(void);

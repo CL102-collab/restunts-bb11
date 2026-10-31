@@ -3,9 +3,9 @@
 #include <stdio.h>
 
 #include "../c/externs.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
-#include "../c/shape3d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
+#include "../c/shape3d/shape3d_internal.h"
 
 void generate_poly_edges(legacy_s16 *edges, const legacy_u16 *line, legacy_s16 clipping_mode);
 

@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/owoot_road.c"
+#include "../c/owoot/owoot_road.c"
 
 struct TRACKOBJECT trkObjectList[215];
 legacy_s16 terrainrows[30];

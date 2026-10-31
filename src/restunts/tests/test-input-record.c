@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <string.h>
 #ifdef RESTUNTS_SDL3
-#include "../c/frame_adaptive.h"
+#include "../c/hires/frame_adaptive.h"
 #endif
 #ifndef INPUT_SOURCE
 #define INPUT_SOURCE "../c/game_input.c"
 #endif
 #ifndef RECORD_SOURCE
-#define RECORD_SOURCE "../c/replay_record.c"
+#define RECORD_SOURCE "../c/replay/replay_record.c"
 #endif
 #include INPUT_SOURCE
 #include RECORD_SOURCE

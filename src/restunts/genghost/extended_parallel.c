@@ -1,6 +1,6 @@
 #include <string.h>
 #include "extended_parallel.h"
-#include "../c/csrpl.h"
+#include "../c/extended/csrpl.h"
 
 static const legacy_u8 source_track_signature[] = {'C', 'S', 'T', 'R', 'K', 26U, '\r', '\n'};
 static const legacy_u8 source_replay_signature[] = {'C', 'S', 'R', 'P', 'L', '\r', '\n', 26U};

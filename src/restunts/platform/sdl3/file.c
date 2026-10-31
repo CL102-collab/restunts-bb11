@@ -9,7 +9,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "../../c/platform.h"
-#include "../../c/extended_file_dialog.h"
+#include "../../c/extended/extended_file_dialog.h"
 #if defined(__ANDROID__) && !defined(RESTUNTS_HEADLESS)
 #include <jni.h>
 #include <SDL3/SDL.h>
