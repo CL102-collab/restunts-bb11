@@ -7,11 +7,11 @@
 #include "../c/stateply.c"
 /* Exercise the player tick with the actual route and penalty module. */
 #include "../c/state.c"
-#include "audio_internal.h"
-#include "car_speed.h"
-#include "track_collision.h"
-#include "track_objects.h"
-#include "trackdata_layout.h"
+#include "../c/audio/audio_internal.h"
+#include "../c/car/car_speed.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 static const legacy_s8 *driving_options_failure;
 

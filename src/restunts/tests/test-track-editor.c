@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../c/menu_track_editor.c"
+#include "../c/menu/menu_track_editor.c"
 
 static legacy_u8 element_tiles[TRACKDATA_MAP_SIZE];
 static legacy_u8 terrain_tiles[TRACKDATA_MAP_SIZE];

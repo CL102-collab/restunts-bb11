@@ -1,10 +1,10 @@
 #include "externs.h"
-#include "track_types.h"
-#include "track_objects.h"
-#include "opponent.h"
+#include "track/track_types.h"
+#include "track/track_objects.h"
+#include "opponent/opponent.h"
 #include "residue.h"
-#include "trackdata_layout.h"
-#include "extended_trkutil.h"
+#include "track/trackdata_layout.h"
+#include "extended/extended_trkutil.h"
 
 #define MULTI_TILE_ROW_FLAG 1U
 #define MULTI_TILE_COLUMN_FLAG 2U

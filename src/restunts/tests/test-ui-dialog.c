@@ -1,10 +1,10 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "../c/ui_dialog.h"
-#include "../c/ui_dialog_internal.h"
-#include "../c/ui_text.h"
-#include "../c/shape2d.h"
+#include "../c/ui/ui_dialog.h"
+#include "../c/ui/ui_dialog_internal.h"
+#include "../c/ui/ui_text.h"
+#include "../c/shape2d/shape2d.h"
 #include "../c/timing.h"
 #include "../c/game_input.h"
 #include "../c/keyboard.h"

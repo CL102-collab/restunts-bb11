@@ -6,14 +6,14 @@
 #include "../genghost/simulation.h"
 #include "../genghost/routes.h"
 #include "../c/externs.h"
-#include "../c/cstrk.h"
-#include "../c/csrpl.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/csrpl.h"
 #include "../c/driving_rules.h"
-#include "../c/extended_track.h"
+#include "../c/extended/extended_track.h"
 #include "../c/game_input.h"
 #include "../c/crash_state.h"
 #include "../c/physics_internal.h"
-#include "../c/roll_ramp.h"
+#include "../c/extended/roll_ramp.h"
 
 #undef memcpy
 #undef strlen

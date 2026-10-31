@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_SCENE_RESOURCES_H
 #define RESTUNTS_SCENE_RESOURCES_H
 
-#include "shape3d.h"
+#include "shape3d/shape3d.h"
 
 extern struct SHAPE3D game3dshapes[130];
 extern legacy_s8 far *curshapeptr;

@@ -4,8 +4,8 @@
 #include <unistd.h>
 #include <SDL3/SDL.h>
 #include "../c/legacy.h"
-#include "../c/shape2d.h"
-#include "../c/hires.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/hires/hires.h"
 
 #define TEST_PATH_SIZE 1024
 #define TEST_BUFFER_SIZE 16384
@@ -56,7 +56,7 @@ static legacy_u64 animation_test_ticks(void)
 #define asset_path_base test_asset_path_base
 #undef RESTUNTS_OPPONENT_DIRECTORY
 #define RESTUNTS_OPPONENT_DIRECTORY "source"
-#include "../c/opponent_animation.c"
+#include "../c/opponent/opponent_animation.c"
 #undef SDL_GetTicksNS
 #undef asset_path_base
 

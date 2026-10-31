@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/audio_car.c"
+#include "../c/audio/audio_car.c"
 #undef printf
 
 legacy_s8 audio_car_state_ready, audio_player_car_flags, audio_opponent_car_flags;

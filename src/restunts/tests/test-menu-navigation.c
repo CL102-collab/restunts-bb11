@@ -55,7 +55,7 @@ void *_memcpy(void *destination, const void *source, legacy_u16 count)
 #undef draw_button
 #undef menu_animate_button_highlight
 #ifdef RESTUNTS_SDL3
-#include "../c/opponent_portrait.h"
+#include "../c/opponent/opponent_portrait.h"
 #endif
 
 static legacy_u8 track_toggle_test, track_window_live, track_skybox_live, track_shapes_live;

@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include "../c/race.c"
+#include "../c/race/race.c"
 #include "extended-replay-test-stubs.h"
 #undef printf
 #undef memset

@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../c/audio.h"
+#include "../c/audio/audio.h"
 #include "../c/highscore.h"
 #include "../c/platform.h"
-#include "../c/shape2d.h"
-#include "../c/shape3d.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape3d/shape3d.h"
 
 /* These globals deliberately do not depend on the linker preserving DOS data
  * segment adjacency. Save/restore must copy the two sprites independently. */

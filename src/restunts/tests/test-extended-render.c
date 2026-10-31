@@ -4,20 +4,20 @@
 #include "test-render-replay.c"
 #undef stuntsmain
 
-#include "../c/cstrk.h"
-#include "../c/extended_track.h"
-#include "../c/extended_geometry.h"
-#include "../c/extended_frame.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/extended_geometry.h"
+#include "../c/extended/extended_frame.h"
 #include "../c/frame_render_internal.h"
 #include "../c/skybox.h"
-#include "../c/race_graphics.h"
-#include "../c/trackdata_layout.h"
-#include "../c/shape3d_internal.h"
-#include "../c/shape3d_hires.h"
+#include "../c/race/race_graphics.h"
+#include "../c/track/trackdata_layout.h"
+#include "../c/shape3d/shape3d_internal.h"
+#include "../c/hires/shape3d_hires.h"
 #include "../c/projection.h"
-#include "../c/roll_ramp.h"
-#include "../c/owoot_road.h"
-#include "../c/menu_internal.h"
+#include "../c/extended/roll_ramp.h"
+#include "../c/owoot/owoot_road.h"
+#include "../c/menu/menu_internal.h"
 
 #define STUNT_RENDER_PART_COUNT 2U
 #define STUNT_RENDER_DETAIL_COUNT 2U

@@ -3,7 +3,7 @@
 
 #define RESTUNTS_HEADLESS
 #include "../repldump/repldump.c"
-#include "../c/ui_text.h"
+#include "../c/ui/ui_text.h"
 
 #undef memcpy
 #undef strcmp

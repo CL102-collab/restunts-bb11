@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#include "../c/audio_internal.h"
+#include "../c/audio/audio_internal.h"
 #include "../c/platform.h"
 
 static legacy_u32 trace_hash;

@@ -4,14 +4,14 @@
 #include "residue.h"
 #include "state_internal.h"
 #include "crash_state.h"
-#include "track_collision.h"
+#include "track/track_collision.h"
 #include "wheel_transform.h"
-#include "owoot.h"
-#include "car_audio.h"
-#include "car_resources.h"
+#include "owoot/owoot.h"
+#include "car/car_audio.h"
+#include "car/car_resources.h"
 #include "externs.h"
 #ifdef RESTUNTS_SDL3
-#include "extended_stateply.h"
+#include "extended/extended_stateply.h"
 #endif
 
 #define PLAYER_PHYSICS_WHEEL_COUNT 4

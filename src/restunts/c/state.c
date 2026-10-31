@@ -1,8 +1,8 @@
 #include "state_internal.h"
 #include "game_input.h"
 #include "crash_state.h"
-#include "race_route.h"
-#include "car_speed.h"
+#include "race/race_route.h"
+#include "car/car_speed.h"
 #include "externs.h"
 #include "residue.h"
 

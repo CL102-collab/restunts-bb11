@@ -2,13 +2,13 @@
 #include "math.h"
 #include "physics_internal.h"
 #include "residue.h"
-#include "trackdata_layout.h"
-#include "track_objects.h"
-#include "track_collision.h"
+#include "track/trackdata_layout.h"
+#include "track/track_objects.h"
+#include "track/track_collision.h"
 #include "externs.h"
 #include "physics_collision_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "extended_physics_collision.h"
+#include "extended/extended_physics_collision.h"
 #endif
 
 #define COLLISION_ANGLE_DAMPING_NUMERATOR 15

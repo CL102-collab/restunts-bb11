@@ -164,13 +164,16 @@ def source_names():
     makefile = (ROOT / "src/restunts/dos/full-game-objects.mk").read_text()
     # The canonical state serializer is used by the cross-platform replay
     # regression even though the original executable does not link it.
-    return list(dict.fromkeys(re.findall(r"\b(\w+)\.obj", makefile) + ["stateio"]))
+    return list(dict.fromkeys(re.findall(r"\b([\w/]+)\.obj", makefile) + ["stateio"]))
 
 
 def prepare_sources(folder):
     target = folder / "src/restunts/c"
     target.mkdir(parents=True)
-    for path in C_DIR.glob("*.[ch]"):
+    for path in sorted(C_DIR.rglob("*.[ch]")):
+        relative = path.relative_to(C_DIR)
+        if "build" in relative.parts:
+            continue
         text = path.read_text()
         # These branches describe flat-pointer storage rather than SDL features.
         if path.name == "shape2d_internal.h":
@@ -213,7 +216,7 @@ def prepare_sources(folder):
             if count != 1:
                 raise ValueError("TempleOS startup help adaptation missing")
         if path.name == "memmgr.c":
-            text = text.replace('#include "hires.h"', '')
+            text = re.sub(r'^#include "(?:hires/)?hires\.h"[^\n]*', '', text, flags=re.M)
             text = text.replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
             text = text.replace("hires_forget_range", "TempleRasterForgetRange")
         native_functions = {
@@ -251,7 +254,9 @@ def prepare_sources(folder):
             text = text.replace("return farwnd;", "TempleRasterRegisterSprite(farwnd);\n\treturn farwnd;")
             text = text.replace("fmemcpy(&drawing_sprite, target_sprite, sizeof(struct SPRITE));", "fmemcpy(&drawing_sprite, target_sprite, sizeof(struct SPRITE));\n\tTempleRasterSelect(&drawing_sprite);")
             text = text.replace("\tsprite_putimage(mcga_backbuffer_sprite->sprite_bitmapptr);", "\tsprite_putimage(mcga_backbuffer_sprite->sprite_bitmapptr);\n\tTempleVideoPresent();")
-        (target / path.name).write_text(text)
+        prepared = target / relative
+        prepared.parent.mkdir(parents=True, exist_ok=True)
+        prepared.write_text(text)
     memory = folder / "src/restunts/platform/sdl3"
     memory.mkdir(parents=True)
     shutil.copyfile(ROOT / "src/restunts/platform/sdl3/memory.c", memory / "memory.c")
@@ -1342,10 +1347,13 @@ def translate(cpp):
         headers.mkdir()
         for name, text in FAKE_HEADERS.items():
             (headers / name).write_text(text)
-        for module in source_names() + ["memory"]:
+        for source_name in source_names() + ["memory"]:
+            # Source paths follow the C folder layout; generated HolyC modules
+            # and static-symbol prefixes retain their existing flat names.
+            module = Path(source_name).name
             if module == "dosstart":
                 continue
-            source = sources / (module + ".c") if module != "memory" else tmp / "src/restunts/platform/sdl3/memory.c"
+            source = sources / (source_name + ".c") if module != "memory" else tmp / "src/restunts/platform/sdl3/memory.c"
             command = [cpp, "-E", "-nostdinc", "-I" + str(headers), "-I" + str(sources),
                        "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS", "-DRESTUNTS_GIT_HASH=\"TempleOS\"",
                        '-D__DATE__="Oct 03 2026"', str(source)]

@@ -3,9 +3,9 @@
 
 #include "../c/externs.h"
 #include "../c/physics_internal.h"
-#include "../c/track_collision.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/track/track_collision.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 
 #define TEST_TILE_FIRST 1U
 #define TEST_TILE_SECOND 2U

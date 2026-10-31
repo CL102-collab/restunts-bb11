@@ -1,6 +1,6 @@
 #include "extended_maneuvers.h"
 #include "maneuvers_internal.h"
-#include "../c/extended_track.h"
+#include "../c/extended/extended_track.h"
 #include "../c/gamestate.h"
 
 #define MANEUVER_BARREL_HORIZON 160U

@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/extended_track.h"
+#include "../c/extended/extended_track.h"
 #include "../c/externs.h"
 #include "../c/memmgr.h"
-#include "../c/track_objects.h"
+#include "../c/track/track_objects.h"
 
 #define TEST_CAMERA_CAPACITY 64U
 #define TEST_BRANCH_MAP_SIZE 20U

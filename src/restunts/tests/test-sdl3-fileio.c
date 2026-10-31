@@ -20,7 +20,7 @@
 #include "../c/highscore.h"
 #include "../c/platform.h"
 #include "../c/memmgr.h"
-#include "../c/shape2d.h"
+#include "../c/shape2d/shape2d.h"
 
 #define TEST_GUARD_BYTES 19U
 #define TEST_GUARD_VALUE 0xa7U

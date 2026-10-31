@@ -13,7 +13,7 @@
 #ifdef RESTUNTS_SDL3
 #undef FRAME_TRACK_LAST_X
 #undef TRACK_GRID_LAST_COORDINATE
-#include "../c/extended_frame.c"
+#include "../c/extended/extended_frame.c"
 #endif
 
 struct TRACKOBJECT trkObjectList[215];

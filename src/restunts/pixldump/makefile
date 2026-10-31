@@ -5,10 +5,9 @@ ifeq (,$(filter $(TARGET),ported original))
   $(error Unsupported pixldump target: $(TARGET))
 endif
 
-RESTUNTS_OBJ_FILES = fileio.obj legacy.obj resource.obj math.obj memmgr.obj strlib.obj numlib.obj \
-                     kevinrnd.obj replinit.obj gameinit.obj gamestep.obj simd.obj carsetup.obj trkutil.obj trackres.obj restunts.obj fatal.obj timing.obj game_input.obj ui_text.obj ui_input.obj ui_dialog.obj intro.obj highscore.obj replay_record.obj replay_viewer.obj race.obj ghost.obj race_resources.obj dashboard.obj menu_common.obj menu_main.obj menu_options.obj menu_track.obj menu_track_editor.obj menu_opponent.obj menu_car.obj audio_engine.obj audio_resources.obj audio_car.obj audio_sequence.obj \
-                     shape3d.obj shape3d_resources.obj shape3d_car.obj shape3d_prerender.obj shape3d_lines.obj shape2d.obj shape2d_blit.obj video_pages.obj shape2d_resources.obj heapsort.obj frame.obj skybox.obj frame_overlay.obj intro_render.obj track_preview.obj state.obj race_route.obj physics_grip.obj opponent.obj track_setup.obj stateply.obj physics_collision.obj statecrs.obj statecar.obj trackobj.obj owoot.obj owoot_wheels.obj owoot_road.obj owoot_route.obj replay.obj \
-                     headless_data.obj headless_trackdata.obj full_data.obj full_strings.obj full_tables.obj
+# Use the same ported core as the game, replacing only its DOS startup.
+include ../dos/full-game-objects.mk
+RESTUNTS_OBJ_FILES := $(filter-out dosstart.obj,$(RESTUNTS_OBJ_FILES))
 
 PLATFORM_DIR = ../platform/dos/build/watcom/$(CONFIG)
 PLATFORM_ASM_DIR = $(PLATFORM_DIR)/wasm
@@ -71,10 +70,10 @@ $(ALIAS_FILE): $(ASMORIG_LINK_OBJECTS) $(C_LINK_OBJECTS) $(ALIAS_SCRIPT) $(MAKEF
 	$(PYTHON) $(ALIAS_SCRIPT) --asm-dir "$(ASMORIG_DIR)" --output "$@" $(C_LINK_OBJECTS)
 endif
 
-$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h) $(wildcard ../platform/dos/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/%.obj: %.c $(wildcard ../c/*.h ../c/*/*.h) $(wildcard ../platform/dos/*.h) $(wildcard *.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WRAPPER_CFLAGS) $(CFLAGS) -i=../c -fo=$@ $<
 
-$(OBJDIR)/pixlstart.obj: pixlstart.c ../platform/dos/dosstart.c $(wildcard ../platform/dos/*.h) $(wildcard ../c/*.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/pixlstart.obj: pixlstart.c ../platform/dos/dosstart.c $(wildcard ../platform/dos/*.h) $(wildcard ../c/*.h ../c/*/*.h) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_PLATFORM_CFLAGS) $(CFLAGS) -i=../c -fo=$@ $<
 
 

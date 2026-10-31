@@ -4,7 +4,7 @@
 #include "sdl3.h"
 #include "../../c/asset_path.h"
 #include "../../c/platform.h"
-#include "../../c/audio_internal.h"
+#include "../../c/audio/audio_internal.h"
 #include <stdio.h>
 #include <string.h>
 #define STB_VORBIS_HEADER_ONLY

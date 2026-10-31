@@ -4,9 +4,9 @@
 #include "memmgr.h"
 #include "platform.h"
 #include "resource.h"
-#include "shape2d.h"
+#include "shape2d/shape2d.h"
 #include "timing.h"
-#include "ui_text.h"
+#include "ui/ui_text.h"
 #include "crash_state.h"
 #include "camera.h"
 #include "externs.h"
@@ -16,9 +16,9 @@
 #include "../platform/amiga/amiga.h"
 #endif
 #ifdef RESTUNTS_SDL3
-#include "hires.h"
-#include "frame_adaptive.h"
-#include "skybox_hires.h"
+#include "hires/hires.h"
+#include "hires/frame_adaptive.h"
+#include "hires/skybox_hires.h"
 #include "../platform/sdl3/controller_game.h"
 #endif
 

@@ -7,7 +7,7 @@
 #ifdef RESTUNTS_FULL
 #include "../../c/externs.h"
 #include "../../c/gamestate.h"
-#include "../../c/race_graphics.h"
+#include "../../c/race/race_graphics.h"
 #endif
 
 #define TOUCH_FINGER_COUNT 16U

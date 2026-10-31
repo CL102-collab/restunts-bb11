@@ -1,5 +1,5 @@
 #include <assert.h>
-#include "../c/replay_viewer.c"
+#include "../c/replay/replay_viewer.c"
 #include "extended-replay-test-stubs.h"
 
 static legacy_u16 pressed_key;

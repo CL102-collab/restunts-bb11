@@ -4,7 +4,7 @@
 #include "extended_options.h"
 #include "options_internal.h"
 extern "C" {
-#include "../c/csrpl.h"
+#include "../c/extended/csrpl.h"
 }
 #include "../genghost/simulation.h"
 

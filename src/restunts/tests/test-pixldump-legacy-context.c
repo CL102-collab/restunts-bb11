@@ -5,8 +5,8 @@
 #include "../c/platform.h"
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
-#include "../c/shape2d.h"
-#include "../c/shape2d_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/shape2d/shape2d_internal.h"
 
 #define TEST_ENVIRONMENT_SEGMENT 4660U
 #define TEST_ENVIRONMENT_SIZE 65536UL

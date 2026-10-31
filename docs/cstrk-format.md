@@ -9,10 +9,10 @@ a horizon choice, and up to 8,000 ASCII text bytes of notes. One hill level
 retains the original game's 450 geometry-unit height; horizontal tile size
 remains 1,024 units.
 
-The pure storage codec lives in `src/restunts/c/extended_cstrk.c` and `cstrk.h`. It does
-not alter vehicle physics or legacy file layouts. A replay on an extended track
-uses `.csrpl`, embedding the complete `.cstrk` file rather than truncating it to
-the legacy replay track section.
+The pure storage codec lives in `src/restunts/c/extended/extended_cstrk.c`, with
+`cstrk.h` in the same directory. It does not alter vehicle physics or legacy file
+layouts. A replay on an extended track uses `.csrpl`, embedding the complete
+`.cstrk` file rather than truncating it to the legacy replay track section.
 
 ## Binary layout
 

@@ -5,14 +5,14 @@
 
 #include "../genghost/routes.h"
 #include "../genghost/maneuvers.h"
-#include "../c/extended_geometry.h"
+#include "../c/extended/extended_geometry.h"
 #include "../c/game_input.h"
 #include "../c/externs.h"
-#include "../c/cstrk.h"
-#include "../c/extended_track.h"
-#include "../c/roll_ramp.h"
-#include "../c/track_objects.h"
-#include "../c/trackdata_layout.h"
+#include "../c/extended/cstrk.h"
+#include "../c/extended/extended_track.h"
+#include "../c/extended/roll_ramp.h"
+#include "../c/track/track_objects.h"
+#include "../c/track/trackdata_layout.h"
 #include "../c/memmgr.h"
 
 #undef memcpy

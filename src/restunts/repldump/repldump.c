@@ -6,19 +6,19 @@
 #include <fileio.h>
 #include <memmgr.h>
 #include <platform.h>
-#include <trackdata_layout.h>
-#include "../c/shape3d_internal.h"
-#include "../c/race_resources.h"
+#include <track/trackdata_layout.h>
+#include "../c/shape3d/shape3d_internal.h"
+#include "../c/race/race_resources.h"
 #include "../c/fatal.h"
 #include "../c/keyboard.h"
 #include "../c/game_input.h"
-#include "../c/shape3d.h"
-#include "../c/replay_record.h"
-#include "../c/track_objects.h"
+#include "../c/shape3d/shape3d.h"
+#include "../c/replay/replay_record.h"
+#include "../c/track/track_objects.h"
 #include "../c/camera.h"
-#include "../c/audio_control.h"
+#include "../c/audio/audio_control.h"
 #ifndef RESTUNTS_ORIGINAL
-#include "../c/owoot.h"
+#include "../c/owoot/owoot.h"
 #include "../c/crash_state.h"
 #endif
 #ifdef RESTUNTS_ORIGINAL

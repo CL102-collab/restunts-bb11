@@ -2,10 +2,10 @@
 #define RESTUNTS_GENGHOST_SIMULATION_H
 
 #include "../c/gamestate.h"
-#include "../c/replay.h"
+#include "../c/replay/replay.h"
 #include "../c/residue.h"
-#include "../c/track_collision.h"
-#include "../c/extended_replay_runtime.h"
+#include "../c/track/track_collision.h"
+#include "../c/extended/extended_replay_runtime.h"
 
 #define GENGHOST_LEGACY_MAX_FRAMES 12000U
 #define GENGHOST_MAX_FRAMES 120000U

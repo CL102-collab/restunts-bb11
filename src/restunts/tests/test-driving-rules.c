@@ -1,10 +1,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include "../c/driving_rules.h"
-#include "../c/car_speed.h"
+#include "../c/car/car_speed.h"
 #include "../c/physics_internal.h"
-#include "../c/race_route.h"
-#include "../c/owoot.h"
+#include "../c/race/race_route.h"
+#include "../c/owoot/owoot.h"
 
 #define TEST_SWITCH_RULE_COUNT 5U
 #define TEST_ARGUMENT_CAPACITY 16U

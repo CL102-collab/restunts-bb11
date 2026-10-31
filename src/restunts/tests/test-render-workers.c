@@ -65,7 +65,7 @@ static void destroy_semaphore(SDL_Semaphore *semaphore)
 #define SDL_CreateSemaphore create_semaphore
 #define SDL_DestroySemaphore destroy_semaphore
 #define SDL_GetNumLogicalCPUCores detect_cores
-#include "../c/render_workers.c"
+#include "../c/hires/render_workers.c"
 
 struct JOB_RESULTS {
 	legacy_s32 visits[TEST_JOB_COUNT];

@@ -1,7 +1,7 @@
 /* Regression fingerprints captured from the original audio routines before extraction. */
 #include "audio-test-support.h"
 #ifndef AUDIO_RESOURCES_SOURCE
-#define AUDIO_RESOURCES_SOURCE "../c/audio_resources.c"
+#define AUDIO_RESOURCES_SOURCE "../c/audio/audio_resources.c"
 #endif
 #include AUDIO_RESOURCES_SOURCE
 #undef memcpy

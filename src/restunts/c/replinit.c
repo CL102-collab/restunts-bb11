@@ -1,9 +1,9 @@
 #include "restunts.h"
 #include "memmgr.h"
-#include "trackdata_layout.h"
+#include "track/trackdata_layout.h"
 #include "externs.h"
-#include "extended_track.h"
-#include "extended_trkutil.h"
+#include "extended/extended_track.h"
+#include "extended/extended_trkutil.h"
 
 #define REPLAY_SLOW_CALLBACK_DIVISOR 2U
 #define VIDEO_GEOMETRY_UNIT_SCALE 1
