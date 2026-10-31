@@ -281,6 +281,16 @@ void skybox_copy_image(legacy_s16 image, legacy_s16 x, legacy_s16 y)
 	sprite_copy_image_at(skyboxes[image], x, y);
 }
 
+#ifdef RESTUNTS_SDL3
+void skybox_render_level_rect(struct RECTANGLE *rect, legacy_s16 heading, legacy_s16 horizon)
+{
+	(void)rect;
+	(void)heading;
+	(void)horizon;
+	assert(!"Unexpected extended preview in a legacy track fixture");
+}
+#endif
+
 void sprite_putpixel_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 color)
 {
 	record_word(4);
