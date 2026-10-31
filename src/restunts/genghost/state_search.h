@@ -1,6 +1,9 @@
 #ifndef RESTUNTS_GENGHOST_STATE_SEARCH_H
 #define RESTUNTS_GENGHOST_STATE_SEARCH_H
 
+/* Number of generic whole-route pilot profiles before format-specific seeds. */
+#define GENGHOST_STATE_PILOT_PROFILES 8U
+
 #include "search.h"
 #include "maneuvers.h"
 

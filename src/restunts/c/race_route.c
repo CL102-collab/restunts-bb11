@@ -5,19 +5,9 @@
 #include "residue.h"
 #include "crash_state.h"
 #include "race_stats.h"
-#include "extended_track.h"
-#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
-#include "extended_replay_runtime.h"
-#endif
+#include "extended_race_route.h"
 
 #define TRACK_GRID_LAST_COORDINATE 29
-#ifdef RESTUNTS_SDL3
-#define PENALTY_ROUTE_VISITED_CAPACITY (EXTENDED_TRACK_ROUTE_CAPACITY + 3U)
-#define PENALTY_ROUTE_PENDING_CAPACITY EXTENDED_TRACK_ROUTE_CAPACITY
-#else
-#define PENALTY_ROUTE_VISITED_CAPACITY 904U
-#define PENALTY_ROUTE_PENDING_CAPACITY 128U
-#endif
 #define PENALTY_ROUTE_SENTINEL (-1)
 #define PENALTY_ROUTE_START_TRACK_INDEX 900U
 #define PENALTY_ROUTE_START_TILE_INDEX 11999U
@@ -94,10 +84,8 @@ static legacy_s16 penalty_route_next(legacy_s16 track_index)
 static legacy_s16 penalty_route_alternate(legacy_s16 track_index)
 {
 	if (track_index == PENALTY_ROUTE_SENTINEL) {
-		if (extended_track_active()) {
-			return PENALTY_ROUTE_SENTINEL;
-		}
-		return track_primary_route_links[PENALTY_ROUTE_START_TRACK_INDEX];
+		return extended_race_route_alternate(
+			track_primary_route_links[PENALTY_ROUTE_START_TRACK_INDEX]);
 	}
 	return track_alternate_route_links[track_index];
 }
@@ -162,9 +150,8 @@ static void penalty_route_bounds(legacy_s16 next_track, struct PENALTY_ROUTE_BOU
 {
 	bounds->piece = next_track;
 	legacy_u8 tile_element;
-	if (extended_track_active() && next_track == PENALTY_ROUTE_SENTINEL) {
-		bounds->minimum_row = bounds->maximum_row = 255U;
-		bounds->minimum_column = bounds->maximum_column = 255U;
+	if (extended_race_route_sentinel_bounds(next_track, &bounds->minimum_row, &bounds->maximum_row,
+											&bounds->minimum_column, &bounds->maximum_column)) {
 		return;
 	}
 	if (next_track == PENALTY_ROUTE_SENTINEL) {
@@ -195,17 +182,11 @@ static void penalty_route_bounds(legacy_s16 next_track, struct PENALTY_ROUTE_BOU
 static legacy_s16 penalty_route_contains(const struct PENALTY_ROUTE_SEARCH *search,
 										 const struct PENALTY_ROUTE_BOUNDS *bounds)
 {
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		if (bounds->piece < 0 || bounds->piece >= track_pieces_counter) {
-			return 0;
-		}
-		const struct CSTRK_OBJECT *object = extended_track_object_at(search->column, search->row);
-		return object && object->x == bounds->minimum_column && object->y == bounds->minimum_row &&
-			   extended_track_object_id(object) ==
-				   (legacy_u8)track_route_element_ids[bounds->piece];
+	legacy_s16 contains;
+	if (extended_race_route_contains(search->column, search->row, bounds->piece,
+									 bounds->minimum_column, bounds->minimum_row, &contains)) {
+		return contains;
 	}
-#endif
 	return ((legacy_u8)search->column == bounds->minimum_column ||
 			(legacy_u8)search->column == bounds->maximum_column) &&
 		   ((legacy_u8)search->row == bounds->minimum_row ||
@@ -366,11 +347,7 @@ legacy_s16 detect_penalty(legacy_s16 *current_track, legacy_s16 *penalty_count)
 		(legacy_u8)((legacy_u32)state.playerstate.car_position.lz >> TRACK_WORLD_TILE_SHIFT)));
 	if ((search.column == state.game_startcol || search.column == state.game_startcol2) &&
 		(search.row == state.game_startrow || search.row == state.game_startrow2)) {
-		struct PENALTY_ROUTE_BOUNDS bounds;
-		if (extended_track_active()) {
-			penalty_route_bounds(*current_track, &bounds);
-		}
-		if (!extended_track_active() || penalty_route_contains(&search, &bounds)) {
+		if (extended_race_route_current_matches(*current_track, search.column, search.row)) {
 			*penalty_count = PENALTY_ROUTE_DISTANCE_NONE;
 			return PENALTY_NOT_DETECTED;
 		}
@@ -469,17 +446,8 @@ void update_player_route_penalty(void)
 				show_penalty_counter = LEGACY_S8_FROM_BITS(
 					(legacy_u8)LEGACY_U16_SHL(framespersec, PENALTY_DISPLAY_DURATION_SHIFT));
 				state.game_penalty = LEGACY_S16_WRAP_ADD(state.game_penalty, penalty_time);
-#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
-				if (extended_replay_is_active()) {
-					uint32_t added = (uint32_t)skipped_route_count * framespersec *
-									 PENALTY_SECONDS_PER_SKIPPED_ROUTE;
-					if (UINT32_MAX - extended_replay_clocks.penalty < added) {
-						extended_replay_clocks.penalty = UINT32_MAX;
-					} else {
-						extended_replay_clocks.penalty += added;
-					}
-				}
-#endif
+				extended_race_route_add_penalty(skipped_route_count, framespersec,
+												PENALTY_SECONDS_PER_SKIPPED_ROUTE);
 			}
 		}
 		state.game_player_previous_route = route_index;

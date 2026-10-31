@@ -114,6 +114,13 @@ I've also done a huge amount of manual testing myself, to test everything else w
 		driving inputs and writes a replay for use as a ghost.
 
 
+CSTRK/CSRPL implementation lives in C/C++ files whose names start with
+`extended_`. Original engine and generator files delegate format-specific work
+through these modules while retaining generic legacy behavior. Public codec
+headers keep their existing names and APIs. The shared format-aware OWOOT and
+generator route engines also live in `extended_` modules so both track formats
+continue to use the same traversal algorithms.
+
 ## Running the game
 
 Desktop builds include a [native startup window](docs/launcher.md). Run

@@ -8,10 +8,7 @@
 #include "track_objects.h"
 #include "opponent.h"
 #include "externs.h"
-#include "extended_track.h"
-#ifdef RESTUNTS_SDL3
-#include "extended_geometry.h"
-#endif
+#include "extended_opponent.h"
 
 #define LEGACY_NULL_TRACK_VECTOR_CAPACITY 256
 #define LEGACY_NULL_TRACK_TEXT_SPACE 32
@@ -52,7 +49,6 @@
 #define OPPONENT_AVERAGE_SHIFT 1U
 
 #define TRACK_ROUTE_SUBTYPE_MASK 15U
-#define TRACK_ROUTE_OVERPASS_LOWER_SUBTYPE 1U
 #define TRACK_ROUTE_REVERSED_FLAG 16U
 #define TRACK_ROUTE_FLAG_OFFSET 18U
 #define TRACK_ROUTE_VECTORS_PER_SEGMENT 2U
@@ -238,9 +234,9 @@ static void opponent_advance_route(void)
 
 static legacy_s16 opponent_average(legacy_s16 first, legacy_s16 second)
 {
-	if (extended_track_active()) {
-		return LEGACY_S16_WRAP_ADD(
-			first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first), OPPONENT_AVERAGE_SHIFT));
+	legacy_s16 average;
+	if (extended_opponent_average(first, second, &average)) {
+		return average;
 	}
 	legacy_s32 sum = (legacy_s32)first + (legacy_s32)second;
 	return LEGACY_S16_FROM_BITS((legacy_u16)LEGACY_S32_SAR(sum, OPPONENT_AVERAGE_SHIFT));
@@ -277,16 +273,9 @@ static void opponent_check_route_distance(struct OPPONENT_GUIDANCE *guidance)
 
 static void opponent_passing_target(struct OPPONENT_GUIDANCE *guidance, struct VECTOR *route_target)
 {
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		legacy_s32 dx = state.playerstate.car_position.lx - state.opponentstate.car_position.lx;
-		legacy_s32 dz = state.playerstate.car_position.lz - state.opponentstate.car_position.lz;
-		/* Cars a 65536-unit page apart must not appear in a nearby passing lane. */
-		if (dx > 4096L * 64L || dx < -4096L * 64L || dz > 4096L * 64L || dz < -4096L * 64L) {
-			return;
-		}
+	if (!extended_opponent_passing_allowed()) {
+		return;
 	}
-#endif
 	const struct VECTOR *edge;
 	struct VECTOR relative;
 	struct VECTOR transformed;
@@ -632,9 +621,9 @@ void update_player_steering_fraction(struct CARSTATE *carstate, legacy_s8 steeri
 
 static legacy_s16 route_average(legacy_s16 first, legacy_s16 second)
 {
-	if (extended_track_active()) {
-		return LEGACY_S16_WRAP_ADD(
-			first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first), OPPONENT_AVERAGE_SHIFT));
+	legacy_s16 average;
+	if (extended_opponent_average(first, second, &average)) {
+		return average;
 	}
 	legacy_s32 sum = LEGACY_S32_WRAP_ADD(first, second);
 	return LEGACY_S16_FROM_BITS((legacy_u16)LEGACY_S32_SAR(sum, OPPONENT_AVERAGE_SHIFT));
@@ -690,35 +679,9 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 {
 	legacy_u8 column = (legacy_u8)track_route_columns[track_index];
 	legacy_u8 row = (legacy_u8)track_route_rows[track_index];
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
-			column, row, (legacy_u8)track_route_element_ids[track_index]);
-		if (object) {
-			struct VECTOR origin;
-			extended_geometry_object_origin(extended_track_model(), object, &origin);
-			if (first_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
-				first_point->y = 0;
-			}
-			if (second_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
-				second_point->y = 0;
-			}
-			first_point->y = LEGACY_S16_WRAP_ADD(
-				first_point->y,
-				extended_geometry_object_grade(object, first_point->x, first_point->z));
-			second_point->y = LEGACY_S16_WRAP_ADD(
-				second_point->y,
-				extended_geometry_object_grade(object, second_point->x, second_point->z));
-			first_point->x = LEGACY_S16_WRAP_ADD(origin.x, first_point->x);
-			first_point->y = LEGACY_S16_WRAP_ADD(origin.y, first_point->y);
-			first_point->z = LEGACY_S16_WRAP_ADD(origin.z, first_point->z);
-			second_point->x = LEGACY_S16_WRAP_ADD(origin.x, second_point->x);
-			second_point->y = LEGACY_S16_WRAP_ADD(origin.y, second_point->y);
-			second_point->z = LEGACY_S16_WRAP_ADD(origin.z, second_point->z);
-			goto store_points;
-		}
+	if (extended_opponent_place_points(track_index, first_point, second_point)) {
+		goto store_points;
 	}
-#endif
 	if (first_point->y != ROUTE_POINT_HEIGHT_UNSPECIFIED &&
 		track_terrain_map[terrainrows[row] + column] == TERRAIN_RAISED_TILE) {
 		first_point->y =
@@ -735,9 +698,7 @@ static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track
 	first_point->x = LEGACY_S16_WRAP_ADD(first_point->x, base_position);
 	second_point->x = LEGACY_S16_WRAP_ADD(second_point->x, base_position);
 
-#ifdef RESTUNTS_SDL3
 store_points:
-#endif
 	output[TRACK_ROUTE_RESULT_CENTER_INDEX].x = route_average(first_point->x, second_point->x);
 	if (first_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 		output[TRACK_ROUTE_RESULT_CENTER_INDEX].y = ROUTE_POINT_HEIGHT_UNSPECIFIED;
@@ -775,12 +736,7 @@ legacy_s16 get_track_route_point(legacy_s16 track_index_arg, struct VECTOR *outp
 	struct TRACKOBJECT *track_object = &trkObjectList[tile_element];
 	const struct TRKOBJINFO *track_info;
 	const struct TRKOBJINFO *blocks = track_object->ss_trkObjInfoPtr;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		blocks = extended_track_route_info((legacy_u8)track_route_columns[track_index],
-										   (legacy_u8)track_route_rows[track_index], tile_element);
-	}
-#endif
+	blocks = extended_opponent_route_info(track_index, tile_element, blocks);
 	if (blocks == 0) {
 		track_info = &legacy_null_track_info;
 	} else {
@@ -799,22 +755,8 @@ legacy_s16 get_track_route_point(legacy_s16 track_index_arg, struct VECTOR *outp
 	}
 
 	store_route_speed(track_info, track_object, optional_speed);
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active() && optional_speed) {
-		const struct CSTRK_OBJECT *placed =
-			extended_track_object_for_id((legacy_u8)track_route_columns[track_index],
-										 (legacy_u8)track_route_rows[track_index], tile_element);
-		if (placed) {
-			legacy_u8 surface = placed->surface;
-			if (track_object->ss_physicalModel == PHYSICAL_MODEL_OVERPASS &&
-				track_subtype == TRACK_ROUTE_OVERPASS_LOWER_SUBTYPE) {
-				surface = placed->lower_surface;
-			}
-			*optional_speed = LEGACY_S8_FROM_BITS(
-				opponent_speed_at((legacy_u8)track_info->opponent_speed_code + surface));
-		}
-	}
-#endif
+	extended_opponent_route_speed(track_index, tile_element, track_subtype, track_info,
+								  track_object, optional_speed, opponent_speed_at);
 
 	legacy_u16 packed_opponent_offset =
 		(legacy_u16)((legacy_u8)track_info->reverse_path_offset_low |

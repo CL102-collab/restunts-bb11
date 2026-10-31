@@ -6,12 +6,9 @@
 #include "track_objects.h"
 #include "track_collision.h"
 #include "externs.h"
+#include "physics_collision_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "extended_track.h"
-#include "extended_geometry.h"
-#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
-#include "extended_replay_runtime.h"
-#endif
+#include "extended_physics_collision.h"
 #endif
 
 #define COLLISION_ANGLE_DAMPING_NUMERATOR 15
@@ -87,14 +84,18 @@ void interpolate_collision_at_z(struct VECTOR *first, struct VECTOR *second, str
 /* Plane normals use half the rotation matrix's fixed-point scale. */
 #define COLLISION_NORMAL_SCALE 8192L
 
+static legacy_s32 collision_coordinate_delta(legacy_s16 current, legacy_s16 previous)
+{
+	legacy_s32 delta = (legacy_s32)current - previous;
+#ifdef RESTUNTS_SDL3
+	delta = extended_collision_coordinate_delta(current, previous, delta);
+#endif
+	return delta;
+}
+
 static legacy_s16 sweep_coordinate(legacy_s16 previous, legacy_s16 current, legacy_s16 fraction)
 {
-	legacy_s32 delta = (legacy_s32)current - (legacy_s32)previous;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		delta = LEGACY_S16_WRAP_SUB(current, previous);
-	}
-#endif
+	legacy_s32 delta = collision_coordinate_delta(current, previous);
 	legacy_s32 displacement = delta * fraction / TRIG_FIXED_ONE;
 	return LEGACY_S16_WRAP_ADD(previous, LEGACY_S16_FROM_BITS((legacy_u16)displacement));
 }
@@ -104,9 +105,7 @@ static legacy_s16 selected_body_plane_is_coplanar(const struct TRACK_COLLISION_S
 	const struct PLANE far *plane = current_planptr;
 	const struct PLANE far *other_plane = other->plane;
 #ifdef RESTUNTS_SDL3
-	if (other->extended_plane_valid) {
-		other_plane = &other->extended_plane;
-	}
+	other_plane = extended_collision_snapshot_plane(other);
 #endif
 	if (plane->plane_normal.x != other_plane->plane_normal.x ||
 		plane->plane_normal.y != other_plane->plane_normal.y ||
@@ -114,20 +113,12 @@ static legacy_s16 selected_body_plane_is_coplanar(const struct TRACK_COLLISION_S
 		return 0;
 	}
 
-	legacy_s32 delta_x = (legacy_s32)elem_xCenter - other->element_x + plane->plane_origin.x -
-						 other_plane->plane_origin.x;
+	legacy_s32 delta_x = collision_coordinate_delta(elem_xCenter, other->element_x) +
+						 plane->plane_origin.x - other_plane->plane_origin.x;
 	legacy_s32 delta_y = (legacy_s32)terrainHeight - other->terrain_height + plane->plane_origin.y -
 						 other_plane->plane_origin.y;
-	legacy_s32 delta_z = (legacy_s32)elem_zCenter - other->element_z + plane->plane_origin.z -
-						 other_plane->plane_origin.z;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		delta_x = (legacy_s32)LEGACY_S16_WRAP_SUB(elem_xCenter, other->element_x) +
-				  plane->plane_origin.x - other_plane->plane_origin.x;
-		delta_z = (legacy_s32)LEGACY_S16_WRAP_SUB(elem_zCenter, other->element_z) +
-				  plane->plane_origin.z - other_plane->plane_origin.z;
-	}
-#endif
+	legacy_s32 delta_z = collision_coordinate_delta(elem_zCenter, other->element_z) +
+						 plane->plane_origin.z - other_plane->plane_origin.z;
 	return (legacy_s64)delta_x * plane->plane_normal.x +
 			   (legacy_s64)delta_y * plane->plane_normal.y +
 			   (legacy_s64)delta_z * plane->plane_normal.z ==
@@ -137,15 +128,9 @@ static legacy_s16 selected_body_plane_is_coplanar(const struct TRACK_COLLISION_S
 static legacy_s64 body_plane_distance(const struct VECTOR *point)
 {
 	const struct PLANE far *plane = current_planptr;
-	legacy_s32 x = (legacy_s32)point->x - elem_xCenter - plane->plane_origin.x;
+	legacy_s32 x = collision_coordinate_delta(point->x, elem_xCenter) - plane->plane_origin.x;
 	legacy_s32 y = (legacy_s32)point->y - terrainHeight - plane->plane_origin.y;
-	legacy_s32 z = (legacy_s32)point->z - elem_zCenter - plane->plane_origin.z;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		x = (legacy_s32)LEGACY_S16_WRAP_SUB(point->x, elem_xCenter) - plane->plane_origin.x;
-		z = (legacy_s32)LEGACY_S16_WRAP_SUB(point->z, elem_zCenter) - plane->plane_origin.z;
-	}
-#endif
+	legacy_s32 z = collision_coordinate_delta(point->z, elem_zCenter) - plane->plane_origin.z;
 	return (legacy_s64)x * plane->plane_normal.x + (legacy_s64)y * plane->plane_normal.y +
 		   (legacy_s64)z * plane->plane_normal.z;
 }
@@ -155,12 +140,7 @@ static legacy_s64 body_plane_distance(const struct VECTOR *point)
 static void body_plane_intersection_axis(legacy_s16 previous, legacy_s16 current, legacy_s64 offset,
 										 legacy_s64 span, legacy_s16 *first, legacy_s16 *second)
 {
-	legacy_s64 delta = (legacy_s64)current - previous;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		delta = LEGACY_S16_WRAP_SUB(current, previous);
-	}
-#endif
+	legacy_s64 delta = collision_coordinate_delta(current, previous);
 	legacy_s64 numerator = (legacy_s64)previous * span + delta * offset;
 	*first = (legacy_s16)(numerator / span);
 	*second = *first;
@@ -313,83 +293,6 @@ static void sweep_position(struct VECTOR *result, struct VECTORLONG *previous,
 	result->z = sweep_fixed_coordinate(previous->lz, current->lz, fraction);
 }
 
-#ifdef RESTUNTS_SDL3
-static legacy_s16 track_sweep_uses_fixed_positions(void)
-{
-	if (!extended_track_active()) {
-		return 0;
-	}
-#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
-	/* Replaying an older recording retains its original contact decisions. */
-	if (extended_replay_is_active() &&
-		extended_replay_version() < CSRPL_FIXED_POINT_SOLID_VERSION) {
-		return 0;
-	}
-#endif
-	return 1;
-}
-
-static void sweep_fixed_position(struct VECTORLONG *result, const struct VECTORLONG *previous,
-								 const struct VECTORLONG *current, legacy_s16 fraction)
-{
-	result->lx = LEGACY_S32_WRAP_ADD_S16(
-		previous->lx, scale_position_delta(current->lx, previous->lx, fraction, TRIG_FIXED_ONE));
-	result->ly = LEGACY_S32_WRAP_ADD_S16(
-		previous->ly, scale_position_delta(current->ly, previous->ly, fraction, TRIG_FIXED_ONE));
-	result->lz = LEGACY_S32_WRAP_ADD_S16(
-		previous->lz, scale_position_delta(current->lz, previous->lz, fraction, TRIG_FIXED_ONE));
-}
-
-static legacy_s16 sweep_fixed_track_solid(struct VECTORLONG *previous, struct VECTORLONG *current,
-										  legacy_s16 *fraction)
-{
-	legacy_s16 contact;
-	if (!track_solid_wall_contact_fixed(previous, current, &contact) ||
-		track_solid_obstacle_contact_fixed(previous, previous, &contact)) {
-		return 0;
-	}
-	legacy_s16 clear_fraction = 0, contact_fraction = TRIG_FIXED_ONE;
-	while (contact_fraction - clear_fraction > 1) {
-		legacy_s16 midpoint = clear_fraction + (contact_fraction - clear_fraction) / 2;
-		struct VECTORLONG end;
-		sweep_fixed_position(&end, previous, current, midpoint);
-		if (track_solid_wall_contact_fixed(previous, &end, &contact)) {
-			contact_fraction = midpoint;
-		} else {
-			clear_fraction = midpoint;
-		}
-	}
-	*fraction = clear_fraction;
-	return 1;
-}
-
-static legacy_s16 sweep_fixed_track_wall_span(struct VECTORLONG *previous_first,
-											  struct VECTORLONG *previous_second,
-											  struct VECTORLONG *current_first,
-											  struct VECTORLONG *current_second,
-											  legacy_s16 *fraction)
-{
-	if (!track_wall_intersects_segment_fixed(current_first, current_second) ||
-		track_wall_intersects_segment_fixed(previous_first, previous_second)) {
-		return 0;
-	}
-	legacy_s16 clear_fraction = 0, contact_fraction = TRIG_FIXED_ONE;
-	while (contact_fraction - clear_fraction > 1) {
-		legacy_s16 midpoint = clear_fraction + (contact_fraction - clear_fraction) / 2;
-		struct VECTORLONG first, second;
-		sweep_fixed_position(&first, previous_first, current_first, midpoint);
-		sweep_fixed_position(&second, previous_second, current_second, midpoint);
-		if (track_wall_intersects_segment_fixed(&first, &second)) {
-			contact_fraction = midpoint;
-		} else {
-			clear_fraction = midpoint;
-		}
-	}
-	*fraction = clear_fraction;
-	return 1;
-}
-#endif
-
 legacy_s16 sweep_track_solid_obstacle(struct VECTORLONG *previous, struct VECTORLONG *current,
 									  legacy_s16 *fraction)
 {
@@ -397,8 +300,9 @@ legacy_s16 sweep_track_solid_obstacle(struct VECTORLONG *previous, struct VECTOR
 		return 0;
 	}
 #ifdef RESTUNTS_SDL3
-	if (track_sweep_uses_fixed_positions()) {
-		return sweep_fixed_track_solid(previous, current, fraction);
+	legacy_s16 extended_result;
+	if (extended_sweep_track_solid_obstacle(previous, current, fraction, &extended_result)) {
+		return extended_result;
 	}
 #endif
 	struct VECTOR start;
@@ -438,9 +342,10 @@ legacy_s16 sweep_track_wall_span(struct VECTORLONG *previous_first,
 		return 0;
 	}
 #ifdef RESTUNTS_SDL3
-	if (track_sweep_uses_fixed_positions()) {
-		return sweep_fixed_track_wall_span(previous_first, previous_second, current_first,
-										   current_second, fraction);
+	legacy_s16 extended_result;
+	if (extended_sweep_track_wall_span(previous_first, previous_second, current_first,
+									   current_second, fraction, &extended_result)) {
+		return extended_result;
 	}
 #endif
 	struct VECTOR first;
@@ -571,8 +476,8 @@ static void collision_tile_center(legacy_u8 tile_element, legacy_u16 row_index,
 	}
 }
 
-static legacy_u16 collision_model_points(legacy_u8 tile_element,
-										 const struct VECTOR **dependency_points)
+legacy_u16 physics_collision_model_points(legacy_u8 tile_element,
+										  const struct VECTOR **dependency_points)
 {
 	*dependency_points = 0;
 	legacy_s8 physical_model = (legacy_s8)trkObjectList[tile_element].ss_physicalModel;
@@ -594,10 +499,10 @@ static legacy_u16 collision_model_points(legacy_u8 tile_element,
 	return count;
 }
 
-static void transform_collision_points(const struct VECTOR *dependency_points,
-									   struct VECTOR *output, legacy_u16 count,
-									   legacy_u16 orientation, legacy_u16 center_x,
-									   legacy_u16 center_z, legacy_u16 terrain_height)
+void physics_transform_collision_points(const struct VECTOR *dependency_points,
+										struct VECTOR *output, legacy_u16 count,
+										legacy_u16 orientation, legacy_u16 center_x,
+										legacy_u16 center_z, legacy_u16 terrain_height)
 {
 	for (legacy_u16 index = 0; index < count; index++) {
 		legacy_u16 source_x = (legacy_u16)dependency_points[index].x;
@@ -630,35 +535,9 @@ legacy_s16 get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 									  struct VECTOR *output)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		const struct CSTRK_OBJECT *object = extended_track_object_at(column_arg, row_arg);
-		if (!object) {
-			return 0;
-		}
-		/* The generated launch ramp supplies its own finite concrete supports;
-		 * its backing corkscrew ID must not introduce invisible native posts. */
-		if (object->roll_ramp) {
-			return 0;
-		}
-		unsigned id = extended_track_object_id(object);
-		if (id >= 215) {
-			return 0;
-		}
-		const struct VECTOR *points;
-		legacy_u16 count = collision_model_points((legacy_u8)id, &points);
-		struct VECTOR origin;
-		extended_geometry_object_origin(extended_track_model(), object, &origin);
-		transform_collision_points(points, output, count, trkObjectList[id].ss_rotY, 0, 0, 0);
-		for (unsigned i = 0; i < count; i++) {
-			if (extended_geometry_uses_grade(object)) {
-				output[i].y = LEGACY_S16_WRAP_ADD(
-					output[i].y, extended_geometry_object_grade(object, output[i].x, output[i].z));
-			}
-			output[i].x = LEGACY_S16_WRAP_ADD(output[i].x, origin.x);
-			output[i].y = LEGACY_S16_WRAP_ADD(output[i].y, origin.y);
-			output[i].z = LEGACY_S16_WRAP_ADD(output[i].z, origin.z);
-		}
-		return count;
+	legacy_s16 extended_result;
+	if (extended_get_track_collision_points(column_arg, row_arg, output, &extended_result)) {
+		return extended_result;
 	}
 #endif
 	legacy_u16 column = (legacy_u16)column_arg;
@@ -686,7 +565,7 @@ legacy_s16 get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 	}
 
 	const struct VECTOR *dependency_points;
-	legacy_u16 count = collision_model_points(tile_element, &dependency_points);
+	legacy_u16 count = physics_collision_model_points(tile_element, &dependency_points);
 	if (count == 0) {
 		return 0;
 	}
@@ -695,8 +574,8 @@ legacy_s16 get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 									? (legacy_u16)hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]
 									: 0;
 	legacy_u16 orientation = (legacy_u16)trkObjectList[tile_element].ss_rotY;
-	transform_collision_points(dependency_points, output, count, orientation, center_x, center_z,
-							   terrain_height);
+	physics_transform_collision_points(dependency_points, output, count, orientation, center_x,
+									   center_z, terrain_height);
 	return count;
 }
 

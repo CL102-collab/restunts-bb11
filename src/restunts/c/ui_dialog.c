@@ -1,3 +1,5 @@
+#include "ui_file_dialog_internal.h"
+#include "extended_ui_dialog.h"
 #include "fileio.h"
 #include "legacy.h"
 #include "memmgr.h"
@@ -38,7 +40,6 @@
 #define FILE_DIALOG_SEPARATOR_WIDTH 171
 #define FILE_DIALOG_LIST_WIDTH 162
 #define FILE_DIALOG_DIRECTORY_MAX_LENGTH 18
-#define FILE_DIALOG_EXTENDED_TEXT_COLOR 4
 #define DIALOG_INPUT_TIMEOUT 30000UL
 #define SECURITY_DIALOG_Y 120U
 #define DIALOG_LINE_BUFFER_CAPACITY 128
@@ -479,23 +480,6 @@ legacy_u16 show_dialog(legacy_s16 dialog_type, legacy_s16 save_background, void 
 	return result;
 }
 
-struct FILE_DIALOG {
-	legacy_s16 positions[40];
-	struct BUTTON_AREA hit_areas[10];
-	legacy_s8 filenames[128][13];
-	legacy_s8 selected;
-	legacy_s8 scroll;
-	legacy_s8 previous_selected;
-	legacy_s8 previous_scroll;
-	legacy_u8 file_count;
-	legacy_u8 search_again;
-#ifdef RESTUNTS_SDL3
-	legacy_u8 extended[128];
-	legacy_u8 merge_formats;
-	const legacy_s8 *legacy_extension;
-#endif
-};
-
 static legacy_s8 selected_file_extension[7];
 
 const legacy_s8 *file_dialog_selected_extension(void)
@@ -538,27 +522,13 @@ static void file_dialog_append_name(struct FILE_DIALOG *dialog, const legacy_s8 
 									legacy_u8 extended)
 {
 #ifdef RESTUNTS_SDL3
-	if (dialog->merge_formats) {
-		const legacy_s8 *stem = path;
-		for (const legacy_s8 *cursor = path; *cursor != 0; cursor++) {
-			if (*cursor == '/' || *cursor == '\\' || *cursor == ':') {
-				stem = cursor + 1;
-			}
-		}
-		legacy_u16 length = 0;
-		while (stem[length] != 0 && stem[length] != '.') {
-			length++;
-		}
-		/* GAMEINFO retains the original eight-character track-name field. */
-		if (length == 0 || length > 8U || stem[length] != '.') {
-			return;
-		}
-		memcpy(dialog->filenames[dialog->file_count], stem, length);
-		dialog->filenames[dialog->file_count][length] = 0;
-	} else {
+	legacy_s16 handled = extended_ui_dialog_append_name(dialog, path, extended);
+	if (handled < 0) {
+		return;
+	}
+	if (handled == 0) {
 		parse_filepath_separators(dialog->filenames[dialog->file_count], path);
 	}
-	dialog->extended[dialog->file_count] = extended;
 #else
 	(void)extended;
 	parse_filepath_separators(dialog->filenames[dialog->file_count], path);
@@ -587,9 +557,7 @@ static void file_dialog_sort_names(struct FILE_DIALOG *dialog)
 				strcpy(dialog->filenames[index], dialog->filenames[compare_index]);
 				strcpy(dialog->filenames[compare_index], &resID_byte1);
 #ifdef RESTUNTS_SDL3
-				legacy_u8 format = dialog->extended[index];
-				dialog->extended[index] = dialog->extended[compare_index];
-				dialog->extended[compare_index] = format;
+				extended_ui_dialog_swap(dialog, index, compare_index);
 #endif
 			}
 		}
@@ -623,17 +591,7 @@ static void file_dialog_draw_rows(struct FILE_DIALOG *dialog)
 		if (candidate < (legacy_s16)dialog->file_count) {
 			strcpy(&resID_byte1, dialog->filenames[(legacy_u8)candidate]);
 #ifdef RESTUNTS_SDL3
-			if (dialog->merge_formats) {
-				const legacy_s8 *extension = dialog->legacy_extension;
-				if (dialog->extended[(legacy_u8)candidate]) {
-					extension = strcmp(extension, ".trk") == 0 ? ".cstrk" : ".csrpl";
-					/* Keep extended names red when selected, with the usual bright background. */
-					font_set_colors(FILE_DIALOG_EXTENDED_TEXT_COLOR, candidate == dialog->selected
-																		 ? dialog_fnt_colour
-																		 : dialog_background_color);
-				}
-				strcat(&resID_byte1, extension);
-			}
+			extended_ui_dialog_label(dialog, candidate, &resID_byte1);
 #endif
 			font_draw_text_opaque(&resID_byte1, dialog->positions[2],
 								  dialog->hit_areas[visible_row + 2U].y1);
@@ -765,10 +723,7 @@ static legacy_s8 file_dialog_choose(struct FILE_DIALOG *dialog, legacy_s8 *direc
 		}
 		strcpy(filename, dialog->filenames[(legacy_u8)dialog->selected]);
 #ifdef RESTUNTS_SDL3
-		if (dialog->merge_formats && dialog->extended[(legacy_u8)dialog->selected]) {
-			strcpy(selected_file_extension,
-				   strcmp(dialog->legacy_extension, ".trk") == 0 ? ".cstrk" : ".csrpl");
-		}
+		extended_ui_dialog_selected_extension(dialog, selected_file_extension);
 #endif
 		result = 1;
 		break;
@@ -782,9 +737,7 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 {
 	struct FILE_DIALOG dialog;
 #ifdef RESTUNTS_SDL3
-	dialog.merge_formats =
-		merge_formats && (strcmp(extension, ".trk") == 0 || strcmp(extension, ".rpl") == 0);
-	dialog.legacy_extension = extension;
+	extended_ui_dialog_initialize(&dialog, merge_formats, extension);
 #else
 	(void)merge_formats;
 #endif
@@ -810,13 +763,7 @@ static legacy_s8 do_fileselect_dialog_impl(legacy_s8 *directory, legacy_s8 *file
 			file_dialog_collect_names(&dialog, found_path, 0);
 		}
 #ifdef RESTUNTS_SDL3
-		if (dialog.merge_formats) {
-			found_path = file_combine_and_find(
-				directory, "*", strcmp(extension, ".trk") == 0 ? ".cstrk" : ".csrpl");
-			if (found_path != 0) {
-				file_dialog_collect_names(&dialog, found_path, 1);
-			}
-		}
+		extended_ui_dialog_collect(&dialog, directory, file_dialog_collect_names);
 #endif
 		if (dialog.file_count == 0) {
 #ifdef __EMSCRIPTEN__

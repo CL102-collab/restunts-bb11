@@ -100,7 +100,7 @@ target_link_options(test-amiga-unflip PRIVATE -Wl,--gc-sections)
 
 add_executable(test-amiga-decompression EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-amiga-decompression.c"
-    "${core}/fileio.c")
+    "${core}/fileio.c" "${core}/extended_fileio.c")
 target_include_directories(test-amiga-decompression PRIVATE "${core}")
 target_compile_definitions(test-amiga-decompression PRIVATE RESTUNTS_AMIGA RESTUNTS_HEADLESS)
 target_compile_options(test-amiga-decompression PRIVATE -Os -m68000 -fsigned-char
@@ -130,8 +130,11 @@ target_compile_definitions(test-amiga-command-line PRIVATE
 add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-startup.c"
     "${core}/math.c" "${core}/owoot.c" "${core}/carsetup.c" "${core}/trackobj.c"
+    "${core}/extended_opponent.c" "${core}/extended_trackobj.c"
     "${core}/statecar.c" "${core}/strlib.c" "${core}/physics_collision.c"
     "${core}/physics_grip.c" "${core}/race_route.c" "${core}/full_data.c"
+    "${core}/extended_physics_collision.c" "${core}/extended_race_route.c"
+    "${core}/extended_menu_runtime.c"
     "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c")
 configure_amiga_diagnostic(test-amiga-startup)
 
@@ -139,7 +142,7 @@ configure_amiga_diagnostic(test-amiga-startup)
 foreach(target test-amiga-penalty-routing test-amiga-penalty-routing-features)
     add_executable(${target} EXCLUDE_FROM_ALL
         "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-penalty-routing.c"
-        "${core}/race_route.c" "${core}/strlib.c")
+        "${core}/race_route.c" "${core}/extended_race_route.c" "${core}/strlib.c")
     configure_amiga_diagnostic(${target})
 endforeach()
 # Keep every feature assertion on a cycle-accurate A500+, while the full target
@@ -151,6 +154,9 @@ add_executable(test-amiga-car-adhesion EXCLUDE_FROM_ALL
     "${core}/physics_collision.c" "${core}/trackobj.c" "${core}/owoot_road.c" "${core}/headless_data.c"
     "${core}/headless_trackdata.c" "${core}/math.c" "${core}/legacy.c"
     "${core}/strlib.c" "${core}/trkutil.c" "${core}/resource.c"
-    "${core}/physics_grip.c")
+    "${core}/physics_grip.c" "${core}/extended_physics_collision.c"
+    "${core}/extended_trackobj.c" "${core}/extended_owoot_road.c"
+    "${core}/extended_opponent.c" "${core}/extended_trkutil.c"
+    "${core}/extended_stateply.c")
 configure_amiga_diagnostic(test-amiga-car-adhesion)
 target_compile_definitions(test-amiga-car-adhesion PRIVATE RESTUNTS_HEADLESS)

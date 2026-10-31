@@ -4,7 +4,7 @@
 #include "opponent.h"
 #include "residue.h"
 #include "trackdata_layout.h"
-#include "extended_track.h"
+#include "extended_trkutil.h"
 
 #define MULTI_TILE_ROW_FLAG 1U
 #define MULTI_TILE_COLUMN_FLAG 2U
@@ -25,7 +25,11 @@
  * Preserve those live words without depending on C global-variable layout. */
 legacy_s16 track_row_position(legacy_u16 row)
 {
-	if (!extended_track_active() && row == TRACK_GRID_SIZE) {
+	legacy_s16 position;
+	if (extended_trkutil_row_position(row, &position)) {
+		return position;
+	}
+	if (row == TRACK_GRID_SIZE) {
 		return LEGACY_S16_FROM_BITS(legacy_closed_hihat_offset);
 	}
 	return track_row_positions[row];
@@ -33,7 +37,11 @@ legacy_s16 track_row_position(legacy_u16 row)
 
 legacy_s16 track_column_position(legacy_u16 column)
 {
-	if (!extended_track_active() && column == TRACK_GRID_SIZE) {
+	legacy_s16 position;
+	if (extended_trkutil_column_position(column, &position)) {
+		return position;
+	}
+	if (column == TRACK_GRID_SIZE) {
 		return LEGACY_S16_FROM_BITS(elapsed_time2);
 	}
 	return track_column_positions[column];

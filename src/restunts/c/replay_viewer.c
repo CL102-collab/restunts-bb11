@@ -1,3 +1,5 @@
+#include "extended_menu_runtime.h"
+#include "extended_replay_ui.h"
 #include "fileio.h"
 #include "game_input.h"
 #include "math.h"
@@ -27,10 +29,7 @@
 #include "../platform/amiga/amiga.h"
 #endif
 #ifdef RESTUNTS_SDL3
-#include "extended_replay.h"
 #include "extended_replay_runtime.h"
-#include "extended_track.h"
-#include "extended_file.h"
 #include "../platform/sdl3/touch_game.h"
 #include "../platform/sdl3/controller_game.h"
 #endif
@@ -154,15 +153,14 @@ static legacy_u32 replay_recorded_frames(void)
 static void replay_format_time(legacy_u32 frame, legacy_s16 fraction)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		extended_replay_format_runtime_time(&resID_byte1, frame, fraction);
+	if (extended_replay_ui_format_time(&resID_byte1, frame, fraction)) {
 		return;
 	}
 #endif
 	format_frame_as_string(&resID_byte1, LEGACY_S16_FROM_BITS((legacy_u16)frame), fraction);
 }
 
-static void replay_controls_select(legacy_u8 selection)
+void replay_controls_select(legacy_u8 selection)
 {
 	for (legacy_u16 index = 0; index < REPLAY_CONTROL_COUNT; index++) {
 		replay_control_active[index] = 0;
@@ -195,13 +193,11 @@ static void replay_controls_draw_time(legacy_u16 buffer_index, legacy_u32 curren
 {
 	legacy_u32 displayed_time = (legacy_u16)(current_frame + elapsed_time1);
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		displayed_time = current_frame;
-	}
+	displayed_time = extended_replay_ui_displayed_time(current_frame, displayed_time);
 #endif
 	if (
 #ifdef RESTUNTS_SDL3
-		extended_replay_is_active() ||
+		extended_replay_ui_redraw_time() ||
 #endif
 		(legacy_u16)replay_displayed_time_cache[buffer_index] != displayed_time) {
 		replay_displayed_time_cache[buffer_index] = (legacy_s16)displayed_time;
@@ -236,12 +232,8 @@ static void replay_controls_draw_timeline(legacy_u16 buffer_index, legacy_u32 re
 {
 	legacy_s16 recorded_position, current_position;
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		recorded_position = (legacy_s16)extended_replay_timeline_position(
-			recorded_frame, replay_recorded_frames(), REPLAY_TIMELINE_POSITION_RANGE);
-		current_position = (legacy_s16)extended_replay_timeline_position(
-			current_frame, replay_recorded_frames(), REPLAY_TIMELINE_POSITION_RANGE);
-	} else
+	if (!extended_replay_ui_timeline(recorded_frame, current_frame, REPLAY_TIMELINE_POSITION_RANGE,
+									 &recorded_position, &current_position))
 #endif
 	{
 		recorded_position = (legacy_s16)replay_timeline_position((legacy_u16)recorded_frame,
@@ -322,7 +314,7 @@ static void replay_controls_draw_buttons(legacy_u16 buffer_index)
 	}
 }
 
-static void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_frame)
+void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_frame)
 {
 	legacy_u16 buffer_index = (legacy_u8)dashboard_buffer_index;
 	replay_controls_prepare_background(buffer_index);
@@ -335,7 +327,7 @@ static void replay_controls_draw(legacy_u32 recorded_frame, legacy_u32 current_f
 	mouse_draw_transparent_check();
 }
 
-static void replay_draw_waiting(void)
+void replay_draw_waiting(void)
 {
 	copy_string(&resID_byte1, locate_text_res(gameresptr, "wai"));
 	struct RECTANGLE *text_rectangle =
@@ -409,9 +401,7 @@ static void replay_restart_recording(void)
 	check_input();
 	frame_supersight_reset();
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		extended_replay_runtime_begin();
-	}
+	(void)extended_replay_ui_restart();
 #endif
 	init_game_state_with_frame_rate_byte(configured_frame_rate);
 	elapsed_time2 = 0;
@@ -438,9 +428,7 @@ static legacy_s16 replay_continue_recording(void)
 		replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG;
 	}
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		(void)extended_replay_branch(extended_replay_frame());
-	} else
+	if (!extended_replay_ui_branch())
 #endif
 	{
 		elapsed_time2 = (legacy_u16)state.game_frame;
@@ -475,8 +463,7 @@ static void replay_reload_changed_resources(const struct GAMEINFO *saved_config,
 {
 	legacy_u8 current_track;
 #ifdef RESTUNTS_SDL3
-	current_track = extended_track_active() ? extended_track_model()->horizon
-											: track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
+	current_track = extended_menu_horizon(track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
 #else
 	current_track = track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #endif
@@ -528,8 +515,7 @@ static void replay_load_recording(void)
 	struct GAMEINFO saved_config = gameconfig;
 	legacy_u8 saved_track;
 #ifdef RESTUNTS_SDL3
-	saved_track = extended_track_active() ? extended_track_model()->horizon
-										  : track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
+	saved_track = extended_menu_horizon(track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
 #else
 	saved_track = track_element_map[TRACK_SKYBOX_ELEMENT_INDEX];
 #endif
@@ -542,11 +528,7 @@ static void replay_load_recording(void)
 #endif
 		!= 0) {
 #ifdef RESTUNTS_SDL3
-		if (strcmp(file_dialog_selected_extension(), ".csrpl") == 0) {
-			replay_recording_flags = saved_recording_flags;
-			show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
-						(void *)extended_file_error(), DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
-						dialog_border_color, 0, 0);
+		if (extended_replay_ui_load_error(saved_recording_flags)) {
 			return;
 		}
 #endif
@@ -572,9 +554,7 @@ static legacy_s8 replay_choose_save_path(void)
 	} else {
 		const legacy_s8 *extension = replay_file_extension;
 #ifdef RESTUNTS_SDL3
-		if (extended_replay_is_active()) {
-			extension = ".csrpl";
-		}
+		extension = extended_replay_ui_extension(extension);
 #endif
 		file_build_path(replay_directory, replay_filename_input, extension, g_path_buf);
 		save_status = REPLAY_SAVE_READY;
@@ -644,7 +624,7 @@ static void replay_display_options(void)
 	}
 }
 
-static void replay_pause_menu(void)
+void replay_pause_menu(void)
 {
 #ifdef RESTUNTS_SDL3
 	sdl3_touch_set_replay_active(0);
@@ -705,7 +685,7 @@ static legacy_u16 replay_scrub_amount(legacy_s32 accumulated)
 	return (legacy_u16)LEGACY_S32_DIV_OR_ZERO(accumulated, REPLAY_SCRUB_FIXED_SCALE);
 }
 
-static legacy_s32 replay_scrub_begin(legacy_u8 selection)
+legacy_s32 replay_scrub_begin(legacy_u8 selection)
 {
 	is_in_replay = 1;
 	audio_carstate();
@@ -724,58 +704,10 @@ static legacy_s32 replay_scrub_advance(legacy_s32 accumulated, legacy_u16 *delta
 	return replay_scrub_accumulate(accumulated, speed, *delta);
 }
 
-#ifdef RESTUNTS_SDL3
-static void replay_extended_scrub(legacy_s16 direction)
-{
-	legacy_u64 accumulated =
-		replay_scrub_begin(direction > 0 ? REPLAY_CONTROL_FAST_FORWARD : REPLAY_CONTROL_REWIND);
-	legacy_u32 origin = extended_replay_input_frame();
-	legacy_u32 limit = direction > 0 ? extended_replay_recorded_frames() - origin : origin;
-	legacy_u64 maximum = (legacy_u64)limit * REPLAY_SCRUB_FIXED_SCALE;
-	if (accumulated > maximum) {
-		accumulated = maximum;
-	}
-	legacy_u32 amount = (legacy_u32)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
-	legacy_u32 target = direction > 0 ? origin + amount : origin - amount;
-	legacy_u8 menu_requested = 0;
-	while (((legacy_u8)input_combined_flags & INPUT_ACTION_BUTTON_MASK) != 0U) {
-		if (sdl3_controller_take_menu_request() != 0) {
-			menu_requested = 1;
-			break;
-		}
-		/* Match classic toolbar acceleration without narrowing long CSRPL distances. */
-		legacy_u64 speed =
-			accumulated / REPLAY_SCRUB_ACCELERATION_DIVISOR + REPLAY_SCRUB_INITIAL_SPEED;
-		if (speed > REPLAY_SCRUB_MAX_SPEED) {
-			speed = REPLAY_SCRUB_MAX_SPEED;
-		}
-		legacy_u32 delta = timer_get_delta_alt();
-		accumulated += (legacy_u64)delta * speed;
-		if (accumulated > maximum) {
-			accumulated = maximum;
-		}
-		amount = (legacy_u32)(accumulated / REPLAY_SCRUB_FIXED_SCALE);
-		target = direction > 0 ? origin + amount : origin - amount;
-		replay_controls_draw(extended_replay_frame(), target);
-		input_do_checking((legacy_s16)(delta > LEGACY_S16_MAX ? LEGACY_S16_MAX : delta));
-	}
-	frame_supersight_reset();
-	replay_controls_select(REPLAY_CONTROL_PAUSE);
-	replay_draw_waiting();
-	(void)extended_replay_seek(target);
-	replay_controls_draw(extended_replay_frame(), target);
-	input_do_checking(REPLAY_INPUT_SETTLE_DELTA);
-	if (menu_requested) {
-		replay_pause_menu();
-	}
-}
-#endif
-
 static void replay_fast_forward(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		replay_extended_scrub(1);
+	if (extended_replay_ui_scrub(1)) {
 		return;
 	}
 #endif
@@ -834,8 +766,7 @@ static void replay_fast_forward(void)
 static void replay_rewind(void)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		replay_extended_scrub(-1);
+	if (extended_replay_ui_scrub(-1)) {
 		return;
 	}
 #endif
@@ -1162,11 +1093,10 @@ static legacy_s16 replay_touch_seek(void)
 	audio_carstate();
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
 	frame_supersight_reset();
-	if (extended_replay_is_active()) {
-		(void)extended_replay_seek((uint32_t)target);
-		replay_controls_draw(extended_replay_frame(), (uint32_t)target);
+	if (extended_replay_ui_seek_draw((legacy_u32)target)) {
 		return 1;
 	}
+
 	restore_gamestate((legacy_u16)target);
 	elapsed_time2 = (legacy_u16)target;
 	while ((legacy_u16)state.game_frame != elapsed_time2) {
@@ -1248,8 +1178,7 @@ void loop_game(legacy_s16 operation, legacy_s16 recorded_frame, legacy_s16 curre
 	}
 	if (operation == REPLAY_LOOP_DRAW_CONTROLS) {
 #ifdef RESTUNTS_SDL3
-		if (extended_replay_is_active()) {
-			replay_controls_draw(extended_replay_frame(), extended_replay_frame());
+		if (extended_replay_ui_draw_current()) {
 			return;
 		}
 #endif

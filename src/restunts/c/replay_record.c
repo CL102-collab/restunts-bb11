@@ -1,3 +1,4 @@
+#include "extended_replay_ui.h"
 #include "externs.h"
 #include "game_input.h"
 #include "keyboard.h"
@@ -291,13 +292,16 @@ void replay_update_input_tick(legacy_s16 force_neutral_input)
 #endif
 	} else if (game_replay_mode == REPLAY_MODE_PLAYBACK) {
 #ifdef RESTUNTS_SDL3
-		if (extended_replay_is_active()) {
-			if (extended_replay_advance_input()) {
-				return;
-			}
-		} else
+		legacy_s16 handled;
+		if (extended_replay_ui_advance_input(&handled)) {
+			return;
+		}
 #endif
-			if (gameconfig.game_recordedframes > elapsed_time2) {
+		if (
+#ifdef RESTUNTS_SDL3
+			!handled &&
+#endif
+			gameconfig.game_recordedframes > elapsed_time2) {
 			elapsed_time2++;
 			return;
 		}
@@ -320,11 +324,7 @@ void replay_update_input_tick(legacy_s16 force_neutral_input)
 	}
 
 #ifdef RESTUNTS_SDL3
-	if (extended_replay_is_active()) {
-		if (!extended_replay_record_input((uint8_t)input_flags)) {
-			/* Preserve the complete recording if memory or the format limit is reached. */
-			race_exit_request = 1;
-		}
+	if (extended_replay_ui_record_input(input_flags)) {
 		return;
 	}
 #endif
@@ -387,11 +387,7 @@ void replay_apply_analog_steering_history(void)
 	}
 	if (action != 0) {
 #ifdef RESTUNTS_SDL3
-		if (extended_replay_is_active()) {
-			uint32_t actual_frame = extended_replay_frame();
-			(void)extended_replay_replace_input(
-				actual_frame, (uint8_t)(extended_replay_input_at(actual_frame) | action));
-		} else
+		if (!extended_replay_ui_or_input(action))
 #endif
 		{
 			replay_input_buffer[frame] |= action;

@@ -10,9 +10,7 @@
 #endif
 #include "dashboard.h"
 #include "fileio.h"
-#ifdef RESTUNTS_SDL3
-#include "extended_track.h"
-#endif
+#include "extended_trkutil.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
 #endif
@@ -233,11 +231,7 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 	AMIGA_RACE_TRACE("race effects");
 	load_sdgame2_shapes();
 	AMIGA_RACE_TRACE("skybox");
-	load_skybox(
-#ifdef RESTUNTS_SDL3
-		extended_track_active() ? extended_track_model()->horizon :
-#endif
-								track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]);
+	load_skybox(extended_trkutil_horizon(track_element_map[TRACK_SKYBOX_ELEMENT_INDEX]));
 	AMIGA_RACE_TRACE("track 3D geometry");
 	if (shape3d_load_all() != 0) {
 		return 1;

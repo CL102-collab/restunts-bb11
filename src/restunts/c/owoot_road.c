@@ -3,22 +3,13 @@
 #include "track_objects.h"
 #include "track_collision.h"
 #include "trackdata_layout.h"
-#include "extended_track.h"
-#ifdef RESTUNTS_SDL3
-#include "extended_geometry.h"
-#include "roll_ramp.h"
-#endif
+#include "extended_owoot_road.h"
+#include "owoot_road_internal.h"
 
 #define OWOOT_ROAD_CONTACT_TOLERANCE 12
 #define OWOOT_PROJECTION_SCALE 256L
 #define OWOOT_CLIPPED_VERTEX_MAX (OWOOT_WHEEL_RING_MAX * 5U)
-#define OWOOT_HILL_ROAD_MODEL 36U
-#define OWOOT_ROAD_TILE_OVERHANG 8
 #define OWOOT_SLALOM_BARRIER_VERTEX_COUNT 4U
-
-struct OWOOT_ROAD_TRIANGLE {
-	struct VECTOR vertex[3];
-};
 
 struct OWOOT_ROAD_MODEL {
 	legacy_u16 first_triangle;
@@ -469,9 +460,9 @@ static void road_append_crossing(struct OWOOT_PROJECTED_POINT *points, legacy_u1
 	}
 }
 
-static legacy_s16 road_triangle_overlaps_wheel(const struct OWOOT_ROAD_TRIANGLE far *triangle,
-											   const struct VECTOR *vertices, legacy_u16 ring_count,
-											   legacy_s16 contact_tolerance)
+legacy_s16 owoot_road_triangle_overlaps_wheel(const struct OWOOT_ROAD_TRIANGLE far *triangle,
+											  const struct VECTOR *vertices, legacy_u16 ring_count,
+											  legacy_s16 contact_tolerance)
 {
 	legacy_s16 min_x = triangle->vertex[0].x;
 	legacy_s16 max_x = min_x;
@@ -565,139 +556,6 @@ static legacy_s16 road_triangle_overlaps_wheel(const struct OWOOT_ROAD_TRIANGLE 
 	return road_projected_overlap(road, hull, hull_count);
 }
 
-#ifdef RESTUNTS_SDL3
-static legacy_s16 road_extended_object_overlaps_wheel(const struct CSTRK_OBJECT *placed,
-													  const struct VECTOR *vertices,
-													  legacy_u16 ring_count,
-													  legacy_s16 contact_tolerance)
-{
-	legacy_u32 id = extended_track_object_id(placed);
-	const struct TRACKOBJECT *object = &trkObjectList[id];
-	legacy_s16 model = placed->tunnel_slalom ? PHYSICAL_MODEL_TUNNEL : object->ss_physicalModel;
-	if (model < 0 || model > PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
-		return 0;
-	}
-	if (model == PHYSICAL_MODEL_ROAD && (placed->slope_x || placed->slope_y) &&
-		!extended_geometry_uses_grade(placed)) {
-		model = OWOOT_HILL_ROAD_MODEL;
-	}
-	struct VECTOR origin, local[OWOOT_WHEEL_VERTEX_MAX];
-	extended_geometry_object_origin(extended_track_model(), placed, &origin);
-	for (legacy_u16 index = 0; index < ring_count * OWOOT_WHEEL_RIM_COUNT; index++) {
-		local[index] = (struct VECTOR){LEGACY_S16_WRAP_SUB(vertices[index].x, origin.x),
-									   LEGACY_S16_WRAP_SUB(vertices[index].y, origin.y),
-									   LEGACY_S16_WRAP_SUB(vertices[index].z, origin.z)};
-		if (extended_geometry_uses_grade(placed)) {
-			local[index].y = LEGACY_S16_WRAP_SUB(
-				local[index].y,
-				extended_geometry_object_grade(placed, local[index].x, local[index].z));
-		}
-		legacy_s16 x = local[index].x, z = local[index].z;
-		legacy_s16 orientation =
-			placed->roll_ramp ? roll_ramp_orientation(placed) : object->ss_rotY;
-		switch ((legacy_u16)orientation) {
-			case ANGLE_QUARTER_TURN:
-				local[index].x = -z;
-				local[index].z = x;
-				break;
-			case ANGLE_HALF_TURN:
-				local[index].x = -x;
-				local[index].z = -z;
-				break;
-			case ANGLE_THREE_QUARTER_TURN:
-				local[index].x = z;
-				local[index].z = -x;
-				break;
-		}
-	}
-	if (placed->roll_ramp) {
-		for (legacy_u16 index = 0; index < roll_ramp_road_triangle_count(); index++) {
-			struct OWOOT_ROAD_TRIANGLE triangle;
-			roll_ramp_road_triangle(index, triangle.vertex);
-			if (road_triangle_overlaps_wheel(&triangle, local, ring_count, contact_tolerance)) {
-				return 1;
-			}
-		}
-		return 0;
-	}
-	const struct OWOOT_ROAD_MODEL *geometry = &owoot_road_models[model];
-	for (legacy_u16 index = 0; index < geometry->triangle_count; index++) {
-		if (road_triangle_overlaps_wheel(&owoot_road_triangles[geometry->first_triangle + index],
-										 local, ring_count, contact_tolerance)) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-static legacy_s16 road_extended_tile_overlaps_wheel(const struct VECTOR *vertices,
-													legacy_u16 ring_count, legacy_s16 column,
-													legacy_s16 world_row,
-													legacy_s16 contact_tolerance)
-{
-	const struct CSTRK_OBJECT *candidates[EXTENDED_TRACK_CELL_OBJECT_MAX];
-	legacy_u16 count =
-		extended_track_objects_in_cell(column, extended_track_height() - 1 - world_row, candidates,
-									   EXTENDED_TRACK_CELL_OBJECT_MAX);
-	for (legacy_u16 index = 0; index < count; index++) {
-		if (road_extended_object_overlaps_wheel(candidates[index], vertices, ring_count,
-												contact_tolerance)) {
-			return 1;
-		}
-	}
-	return 0;
-}
-
-static legacy_s16 road_extended_overlaps_wheel(const struct VECTOR *vertices, legacy_u16 ring_count,
-											   legacy_s16 contact_tolerance)
-{
-	legacy_s32 min_x, min_z;
-	extended_geometry_world_position(&vertices[0], &min_x, &min_z);
-	legacy_s32 max_x = min_x, max_z = min_z;
-	for (legacy_u16 index = 1; index < ring_count * OWOOT_WHEEL_RIM_COUNT; index++) {
-		legacy_s32 x, z;
-		extended_geometry_world_position(&vertices[index], &x, &z);
-		if (x < min_x) {
-			min_x = x;
-		}
-		if (x > max_x) {
-			max_x = x;
-		}
-		if (z < min_z) {
-			min_z = z;
-		}
-		if (z > max_z) {
-			max_z = z;
-		}
-	}
-	int first_column = (int)((min_x - OWOOT_ROAD_TILE_OVERHANG) >> 10);
-	int last_column = (int)((max_x + OWOOT_ROAD_TILE_OVERHANG) >> 10);
-	int first_row = (int)((min_z - OWOOT_ROAD_TILE_OVERHANG) >> 10);
-	int last_row = (int)((max_z + OWOOT_ROAD_TILE_OVERHANG) >> 10);
-	if (first_column < 0) {
-		first_column = 0;
-	}
-	if (first_row < 0) {
-		first_row = 0;
-	}
-	if (last_column >= extended_track_width()) {
-		last_column = extended_track_width() - 1;
-	}
-	if (last_row >= extended_track_height()) {
-		last_row = extended_track_height() - 1;
-	}
-	for (int row = first_row; row <= last_row; row++) {
-		for (int column = first_column; column <= last_column; column++) {
-			if (road_extended_tile_overlaps_wheel(vertices, ring_count, column, row,
-												  contact_tolerance)) {
-				return 1;
-			}
-		}
-	}
-	return 0;
-}
-#endif
-
 static legacy_s16 road_tile_overlaps_wheel(const struct VECTOR *vertices, legacy_u16 ring_count,
 										   legacy_s16 column, legacy_s16 row,
 										   legacy_s16 contact_tolerance)
@@ -769,8 +627,8 @@ static legacy_s16 road_tile_overlaps_wheel(const struct VECTOR *vertices, legacy
 	}
 	const struct OWOOT_ROAD_MODEL *geometry = &owoot_road_models[model];
 	for (legacy_u16 i = 0; i < geometry->triangle_count; i++) {
-		if (road_triangle_overlaps_wheel(&owoot_road_triangles[geometry->first_triangle + i], local,
-										 ring_count, contact_tolerance)) {
+		if (owoot_road_triangle_overlaps_wheel(&owoot_road_triangles[geometry->first_triangle + i],
+											   local, ring_count, contact_tolerance)) {
 			return 1;
 		}
 	}
@@ -784,11 +642,10 @@ legacy_s16 track_road_overlaps_wheel(const struct VECTOR *vertices, legacy_u16 r
 		return 0;
 	}
 	legacy_s16 contact_tolerance = road_contact ? OWOOT_ROAD_CONTACT_TOLERANCE : 0;
-#ifdef RESTUNTS_SDL3
-	if (extended_track_active()) {
-		return road_extended_overlaps_wheel(vertices, ring_count, contact_tolerance);
+	legacy_s16 overlap;
+	if (extended_owoot_road_overlap(vertices, ring_count, contact_tolerance, &overlap)) {
+		return overlap;
 	}
-#endif
 	legacy_s16 min_x = vertices[0].x;
 	legacy_s16 max_x = vertices[0].x;
 	legacy_s16 min_z = vertices[0].z;
