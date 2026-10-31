@@ -46,7 +46,7 @@ if "$test_compiler" -Werror -Wno-maybe-uninitialized -x c -fsyntax-only /dev/nul
     test_uninitialized_flag=-Wno-maybe-uninitialized
 fi
 
-# A production source and its extracted format-aware hooks form one link unit.
+# Production sources, their functional modules and format hooks form one link unit.
 # Keep this mapping explicit; fixtures may include either implementation to
 # inspect private helpers, in which case that source must not also be linked.
 extended_companions() {
@@ -81,6 +81,41 @@ extended_companions() {
     esac
 }
 
+small_source_companions() {
+    case "$1" in
+        frame.c) printf '%s\n' frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c ;;
+        extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c extended/extended_frame_precise.c ;;
+        shape3d.c) printf '%s\n' shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
+        shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
+        shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
+        math.c) printf '%s\n' math_rectangles.c ;;
+        shape3d_hires.c) printf '%s\n' hires/shape3d_hires_draw.c hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c ;;
+        hires.c) printf '%s\n' hires/hires_raster.c ;;
+        shape2d.c) printf '%s\n' shape2d/shape2d_image.c ;;
+        shape2d_blit.c) printf '%s\n' shape2d/shape2d_window.c ;;
+        trackobj.c) printf '%s\n' track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c ;;
+        stateply.c) printf '%s\n' stateply_motion.c stateply_contact.c ;;
+        extended_trackobj.c) printf '%s\n' extended/extended_trackobj_solids.c ;;
+        extended_owoot_route.c) printf '%s\n' extended/extended_owoot_gates.c extended/extended_owoot_jump.c ;;
+        highscore.c) printf '%s\n' highscore_results.c highscore_results_text.c ;;
+        ui_dialog.c) printf '%s\n' ui/ui_file_dialog.c ui/ui_disk_dialog.c ;;
+        replay_viewer.c) printf '%s\n' replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c ;;
+        menu_track_editor.c) printf '%s\n' menu/menu_track_editor_map.c menu/menu_track_editor_render.c menu/menu_track_editor_input.c ;;
+        audio_engine.c) printf '%s\n' audio/audio_channels.c audio/audio_context.c ;;
+        fileio.c) printf '%s\n' file_car.c file_decomp.c ;;
+        game_input.c) printf '%s\n' game_input_shortcuts.c ;;
+        ghost.c) printf '%s\n' ghost_line.c ;;
+        physics_collision.c) printf '%s\n' physics_suspension.c ;;
+        restunts.c) printf '%s\n' startup.c ;;
+        race.c) printf '%s\n' race/race_rewind.c race/race_presentation.c ;;
+    esac
+}
+
+source_companions() {
+    extended_companions "$1" "$2"
+    small_source_companions "$1"
+}
+
 run_host_test() {
     local test_name="$1"
     local source_file="$2"
@@ -97,14 +132,18 @@ run_host_test() {
     done < <(sed -n -e 's|^#include "../c/\([^" ]*\.c\)".*|\1|p' \
         -e 's|^#define [A-Z_]*SOURCE "../c/\([^" ]*\.c\)".*|\1|p' "$fixture")
     local extra_sources=()
-    for source in "${sources[@]}"; do
+    local source_index=0
+    while [[ "$source_index" -lt "${#sources[@]}" ]]; do
+        source="${sources[$source_index]}"
+        source_index=$((source_index + 1))
         while IFS= read -r companion; do
             if [[ "$known_sources" != *"/$companion "* &&
                   "$known_sources" != *" $companion "* ]]; then
                 extra_sources+=("$test_source_dir/$companion")
+                sources+=("$companion")
                 known_sources="$known_sources $companion "
             fi
-        done < <(extended_companions "${source##*/}" "$*")
+        done < <(source_companions "${source##*/}" "$*")
     done
 
     echo "Building $test_name"

@@ -10,6 +10,8 @@
 
 /* Exercise the stopped-wheel handoff without exporting its private geometry helpers. */
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 
 #undef memcpy
 

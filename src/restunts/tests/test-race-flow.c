@@ -3,6 +3,8 @@
 
 /* Exercise the frame scheduler and viewport policy without a DOS display. */
 #include "../c/race/race.c"
+#include "../c/race/race_rewind.c"
+#include "../c/race/race_presentation.c"
 
 legacy_u8 supersight_enabled;
 static legacy_u32 projection_updates;

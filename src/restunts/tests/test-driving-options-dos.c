@@ -1,10 +1,13 @@
 /* Keep the complete game startup and 16-bit memory model in this regression. */
 #define run_main_menu_loop driving_options_original_main_menu_loop
 #include "../c/restunts.c"
+#include "../c/startup.c"
 #undef run_main_menu_loop
 
 /* Exercise the actual contact solver, including its file-private wheel state. */
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 /* Exercise the player tick with the actual route and penalty module. */
 #include "../c/state.c"
 #include "../c/audio/audio_internal.h"

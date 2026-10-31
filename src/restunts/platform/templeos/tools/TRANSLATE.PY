@@ -220,11 +220,14 @@ def prepare_sources(folder):
             text = text.replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
             text = text.replace("hires_forget_range", "TempleRasterForgetRange")
         native_functions = {
-            "shape2d.c": ["shape2d_get_line_offset", "shape2d_line_pointer", "sprite_set_palette_map", "sprite_draw_dissolve_row"],
-            "shape2d_blit.c": ["sprite_make_wnd", "sprite_free_wnd", "sprite_save_context", "sprite_restore_context", "sprite_push_background", "sprite_pop_background"],
+            "shape2d.c": ["shape2d_get_line_offset", "shape2d_line_pointer"],
+            "shape2d_image.c": ["sprite_set_palette_map", "sprite_draw_dissolve_row"],
+            "shape2d_window.c": ["sprite_make_wnd", "sprite_free_wnd", "sprite_save_context", "sprite_restore_context", "sprite_push_background", "sprite_pop_background"],
             "full_data.c": ["full_initialize_screen_sprite", "full_data_initialize"],
             "audio_resources.c": ["audio_load_dos_driver", "audioresource_compare_chunknames", "audioresource_get_chunk_index", "audio_far_pointer_add_normalized", "audioresource_find", "audio_map_song_instruments", "audioresource_copy_n_bytes"],
-            "audio_engine.c": ["audio_copy_engine_definition", "audio_reclaim_driver_context", "audio_set_finish_callback"],
+            "audio_engine.c": ["audio_copy_engine_definition"],
+            "audio_context.c": ["audio_reclaim_driver_context"],
+            "audio_channels.c": ["audio_set_finish_callback"],
             "fileio.c": ["file_read", "file_write"],
         }.get(path.name, [])
         for function in native_functions:
@@ -239,11 +242,11 @@ def prepare_sources(folder):
                 block = block.replace("audio_driver_prefix[0] = 'a'", "audio_driver_prefix[0] = 'p'")
                 block = block.replace("audio_driver_prefix[1] = 'd'", "audio_driver_prefix[1] = 'c'")
             text = text[:match.start()] + block + text[end:]
-        if path.name == "shape2d.c":
+        if path.name == "shape2d_image.c":
             text, count = re.subn(r"video_pages_write_pixel\(bitmap, destination,\s*video_pages_read_pixel\(bitmap, destination\) \^ color_bits\);", "TempleRasterXorPixel(bitmap, destination, color_bits);", text)
             if count != 1:
                 raise ValueError("Native XOR raster adaptation missing")
-        if path.name == "shape2d_blit.c":
+        if path.name == "shape2d_window.c":
             text, count = re.subn(
                 r"#if defined\(RESTUNTS_SDL3\) \|\| defined\(RESTUNTS_AMIGA\)"
                 r"(\nstatic struct SPRITE\s+native_background_contexts\b)",

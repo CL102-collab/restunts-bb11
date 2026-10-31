@@ -1576,6 +1576,10 @@ and a required braced body for every `if`, `else`, `for`, `while`, and `do`.
 Conventional `else if` chains are allowed. Empty loops also need braces. Keep
 CRLF line endings, as required by `.gitattributes`.
 
+Core `.c` files under `src/restunts/c` are split by responsibility into units of
+at most 800 code lines, excluding blank lines and comments. Internal headers
+share declarations and context; implementations stay in separate `.c` files.
+
 The desktop launcher and ghost generator window use C++11 and follow the same
 whitespace and brace rules.
 Their `.cpp` files are included in the formatting checks below.

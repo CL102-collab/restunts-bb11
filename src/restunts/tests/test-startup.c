@@ -7,6 +7,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include "../c/restunts.c"
+#include "../c/startup.c"
 #include "extended-replay-test-stubs.h"
 #undef printf
 #undef strlen

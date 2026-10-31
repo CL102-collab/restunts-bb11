@@ -50,12 +50,12 @@ include ../dos/full-game-objects.mk
 FULL_GAME_DIR = ../c/build/watcom/$(CONFIG)/dosfull
 RACE_MEMORY_OUTFILE = $(OBJDIR)/RACEMEM.EXE
 RACE_MEMORY_PLATFORM_NAMES = timer runtime_options data_directory memory file keyboard divide joystick mouse video audio critical
-RACE_MEMORY_OBJECTS = $(PLATFORM_ASM_DIR)/dosbss.obj $(subst $(FULL_GAME_DIR)/restunts.obj,$(OBJDIR)/test-race-memory.obj,$(addprefix $(FULL_GAME_DIR)/,$(RESTUNTS_OBJ_FILES))) $(addprefix $(PLATFORM_DIR)/,$(addsuffix .obj,$(RACE_MEMORY_PLATFORM_NAMES))) $(PLATFORM_ASM_DIR)/dosstack.obj
+RACE_MEMORY_OBJECTS = $(PLATFORM_ASM_DIR)/dosbss.obj $(filter-out $(FULL_GAME_DIR)/startup.obj,$(subst $(FULL_GAME_DIR)/restunts.obj,$(OBJDIR)/test-race-memory.obj,$(addprefix $(FULL_GAME_DIR)/,$(RESTUNTS_OBJ_FILES)))) $(addprefix $(PLATFORM_DIR)/,$(addsuffix .obj,$(RACE_MEMORY_PLATFORM_NAMES))) $(PLATFORM_ASM_DIR)/dosstack.obj
 
 .PHONY: race-memory
 race-memory: $(RACE_MEMORY_OUTFILE)
 
-$(OBJDIR)/test-race-memory.obj: test-race-memory.c ../c/restunts.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-race-memory.obj: test-race-memory.c ../c/restunts.c ../c/startup.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(RACE_MEMORY_OUTFILE): $(RACE_MEMORY_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
@@ -67,12 +67,12 @@ $(RACE_MEMORY_OUTFILE): $(RACE_MEMORY_OBJECTS) ../dos/full-game-objects.mk makef
 	$(WLINK) @$(OBJDIR)/race-memory.lnk
 
 GHOST_LINE_OUTFILE = $(OBJDIR)/GHOSTLIN.EXE
-GHOST_LINE_OBJECTS = $(filter-out $(FULL_GAME_DIR)/ghost.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-ghost-racing-line-dos.obj,$(RACE_MEMORY_OBJECTS)))
+GHOST_LINE_OBJECTS = $(filter-out $(FULL_GAME_DIR)/ghost.obj $(FULL_GAME_DIR)/ghost_line.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-ghost-racing-line-dos.obj,$(RACE_MEMORY_OBJECTS)))
 
 .PHONY: ghost-racing-line
 ghost-racing-line: $(GHOST_LINE_OUTFILE)
 
-$(OBJDIR)/test-ghost-racing-line-dos.obj: test-ghost-racing-line-dos.c ../c/restunts.c ../c/ghost.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-ghost-racing-line-dos.obj: test-ghost-racing-line-dos.c ../c/restunts.c ../c/startup.c ../c/ghost.c ../c/ghost_line.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -fpc -zls -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(GHOST_LINE_OUTFILE): $(GHOST_LINE_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link
@@ -84,12 +84,12 @@ $(GHOST_LINE_OUTFILE): $(GHOST_LINE_OBJECTS) ../dos/full-game-objects.mk makefil
 	$(WLINK) @$(OBJDIR)/ghost-line.lnk
 
 DRIVING_OPTIONS_OUTFILE = $(OBJDIR)/OPTIONS.EXE
-DRIVING_OPTIONS_OBJECTS = $(filter-out $(FULL_GAME_DIR)/stateply.obj $(FULL_GAME_DIR)/state.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-driving-options-dos.obj,$(RACE_MEMORY_OBJECTS)))
+DRIVING_OPTIONS_OBJECTS = $(filter-out $(FULL_GAME_DIR)/stateply.obj $(FULL_GAME_DIR)/stateply_motion.obj $(FULL_GAME_DIR)/stateply_contact.obj $(FULL_GAME_DIR)/state.obj,$(subst $(OBJDIR)/test-race-memory.obj,$(OBJDIR)/test-driving-options-dos.obj,$(RACE_MEMORY_OBJECTS)))
 
 .PHONY: driving-options
 driving-options: $(DRIVING_OPTIONS_OUTFILE)
 
-$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/stateply.c ../c/state.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
+$(OBJDIR)/test-driving-options-dos.obj: test-driving-options-dos.c ../c/restunts.c ../c/startup.c ../c/stateply.c ../c/stateply_motion.c ../c/stateply_contact.c ../c/state.c $(C_HEADERS) makefile ../watcom.mk $(WATCOM_STAMP) | $(OBJDIR)
 	$(CC) $(WATCOM_CFLAGS) -dRESTUNTS_FULL -i=../c -fo=$@ $<
 
 $(DRIVING_OPTIONS_OUTFILE): $(DRIVING_OPTIONS_OBJECTS) ../dos/full-game-objects.mk makefile ../watcom.mk force-link

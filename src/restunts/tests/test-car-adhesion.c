@@ -4,6 +4,8 @@
 
 #include "../c/car/carsetup.c"
 #include "../c/stateply.c"
+#include "../c/stateply_motion.c"
+#include "../c/stateply_contact.c"
 #include "../c/track/trackdata_layout.h"
 #include "../c/track/track_objects.h"
 

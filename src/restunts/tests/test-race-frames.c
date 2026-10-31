@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "../c/race/race.c"
+#include "../c/race/race_rewind.c"
+#include "../c/race/race_presentation.c"
 #include "extended-replay-test-stubs.h"
 #undef printf
 #undef memset

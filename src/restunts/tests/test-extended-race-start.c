@@ -5,6 +5,7 @@
 #include <string.h>
 #include "../c/extended/cstrk.h"
 #include "../c/restunts.c"
+#include "../c/startup.c"
 #undef printf
 #undef strlen
 #undef strcmp

@@ -6,6 +6,11 @@
 #define subst_hillroad_track frame_test_subst_hillroad_track
 #define transform_wheel_travel_to_world frame_test_transform_wheel_travel
 #include "../c/frame.c"
+#include "../c/frame_camera.c"
+#include "../c/frame_car.c"
+#include "../c/frame_tiles.c"
+#include "../c/frame_terrain.c"
+#include "../c/frame_objects.c"
 #include "extended-replay-test-stubs.h"
 
 #undef printf
@@ -14,6 +19,9 @@
 #undef FRAME_TRACK_LAST_X
 #undef TRACK_GRID_LAST_COORDINATE
 #include "../c/extended/extended_frame.c"
+#include "../c/extended/extended_frame_objects.c"
+#include "../c/extended/extended_frame_terrain.c"
+#include "../c/extended/extended_frame_precise.c"
 #endif
 
 struct TRACKOBJECT trkObjectList[215];
