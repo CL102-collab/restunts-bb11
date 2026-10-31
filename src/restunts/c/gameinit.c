@@ -244,7 +244,7 @@ static void init_race_cars(legacy_s16 initialization_mode)
 
 void init_game_state(legacy_s16 initialization_mode)
 {
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 	if (extended_replay_is_active() && initialization_mode != GAMESTATE_INIT_TIMING_ONLY) {
 		extended_replay_reset_simulation(initialization_mode == GAMESTATE_INIT_RESET_CHECKPOINTS);
 	}
@@ -324,7 +324,7 @@ void init_game_state_with_frame_rate_byte(legacy_u16 frame_rate)
 
 void restore_gamestate(legacy_u16 frame)
 {
-#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#if defined(RESTUNTS_SDL3) && (!defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY))
 	if (extended_replay_is_active()) {
 		(void)extended_replay_seek(frame);
 		return;

@@ -11,6 +11,9 @@
 #include "../c/track_objects.h"
 #include "../c/trackdata_layout.h"
 #include "../c/track_collision.h"
+#include "../c/extended_track.h"
+#include "../c/extended_geometry.h"
+#include "../c/roll_ramp.h"
 
 #undef memcpy
 
@@ -23,7 +26,12 @@ extern legacy_f64 atan(legacy_f64);
 extern legacy_f64 fmin(legacy_f64, legacy_f64);
 extern legacy_f64 fmax(legacy_f64, legacy_f64);
 
-#define GENGHOST_ROUTE_NODE_COUNT (TRACK_GRID_SIZE * TRACK_GRID_SIZE)
+#define GENGHOST_ROUTE_NODE_COUNT EXTENDED_TRACK_ROUTE_CAPACITY
+#define GENGHOST_OVERPASS_LOWER_SUBTYPE 1U
+#define GENGHOST_ROUTE_SUBTYPE_MASK 15U
+#define GENGHOST_BARREL_APPROACH_SPEED 100.0
+#define GENGHOST_BARREL_APPROACH_DISTANCE (3.0 * TRACK_TILE_SIZE)
+#define GENGHOST_BARREL_LANDING_DISTANCE (2.0 * TRACK_TILE_SIZE)
 #define GENGHOST_ROUTE_MEMORY_LIMIT ((size_t)512U * 1024U * 1024U)
 #define GENGHOST_ANGLE_SCALE (ANGLE_FULL_TURN / 6.28318530717958647693)
 /* Native physics: speed*1408/15360 fixed-position units, divided by 64. */
@@ -39,6 +47,100 @@ static void route_error(legacy_char *error, size_t error_size, const legacy_char
 	if (error != NULL && error_size != 0U) {
 		(void)snprintf(error, error_size, "%s", message);
 	}
+}
+
+static const struct CSTRK_OBJECT *route_placed_object(legacy_int piece)
+{
+	if (!extended_track_active()) {
+		return NULL;
+	}
+	return extended_track_object_for_id((legacy_u8)track_route_columns[piece],
+										(legacy_u8)track_route_rows[piece],
+										(legacy_u8)track_route_element_ids[piece]);
+}
+
+static const struct TRKOBJINFO *route_piece_info(legacy_int piece)
+{
+	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
+	legacy_uint subtype =
+		(legacy_u8)track_route_traversal_flags[piece] & GENGHOST_ROUTE_SUBTYPE_MASK;
+	const struct TRKOBJINFO *blocks = trkObjectList[tile].ss_trkObjInfoPtr;
+	if (extended_track_active()) {
+		blocks = extended_track_route_info((legacy_u8)track_route_columns[piece],
+										   (legacy_u8)track_route_rows[piece], (legacy_u16)tile);
+	}
+	return blocks ? &blocks[subtype] : NULL;
+}
+
+static void route_piece_dimensions(legacy_int piece, legacy_uint *width, legacy_uint *height)
+{
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	if (placed) {
+		*width = placed->width;
+		*height = placed->height;
+		return;
+	}
+	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
+	legacy_uint flags = (legacy_u8)trkObjectList[tile].ss_multiTileFlag;
+	*width = 1U + !!(flags & MULTI_TILE_COLUMN_EDGE_FLAG);
+	*height = 1U + !!(flags & MULTI_TILE_ROW_EDGE_FLAG);
+}
+
+void genghost_route_piece_frame(legacy_int piece, legacy_f64 *x, legacy_f64 *z,
+								legacy_s16 *orientation)
+{
+	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
+	const struct TRACKOBJECT *definition = &trkObjectList[tile];
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	*orientation = definition->ss_rotY;
+	if (placed) {
+		*x = (placed->x + placed->width * 0.5) * TRACK_TILE_SIZE;
+		*z = (extended_track_height() - placed->y - placed->height * 0.5) * TRACK_TILE_SIZE;
+		if (placed->roll_ramp) {
+			*orientation = roll_ramp_orientation(placed);
+		}
+		return;
+	}
+	*x = track_object_base_x(definition, (legacy_u8)track_route_columns[piece]);
+	*z = track_object_base_z(definition, (legacy_u8)track_route_rows[piece]);
+}
+
+legacy_f64 genghost_route_piece_height(legacy_int piece, legacy_f64 x, legacy_f64 z)
+{
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	if (!placed) {
+		return 0.0;
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(extended_track_model(), placed, &origin);
+	legacy_f64 center_x, center_z;
+	legacy_s16 orientation;
+	genghost_route_piece_frame(piece, &center_x, &center_z, &orientation);
+	return origin.y + extended_geometry_support_grade(placed, (legacy_s16)(x - center_x),
+													  (legacy_s16)(z - center_z));
+}
+
+void genghost_route_target_height(struct GENGHOST_WAYPOINT *target)
+{
+	if (route_placed_object(target->piece)) {
+		target->y = genghost_route_piece_height(target->piece, target->x, target->z);
+		target->height_specified = 1;
+	}
+}
+
+static legacy_int route_piece_surface(legacy_int piece)
+{
+	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	if (placed) {
+		legacy_uint subtype =
+			(legacy_u8)track_route_traversal_flags[piece] & GENGHOST_ROUTE_SUBTYPE_MASK;
+		return trkObjectList[tile].ss_physicalModel == PHYSICAL_MODEL_OVERPASS &&
+					   subtype == GENGHOST_OVERPASS_LOWER_SUBTYPE
+				   ? placed->lower_surface
+				   : placed->surface;
+	}
+	return trkObjectList[tile].ss_surfaceType;
 }
 
 static legacy_f64 wheelbase(void)
@@ -74,8 +176,7 @@ static void route_speed_limits(struct GENGHOST_ROUTE *route)
 	legacy_f64 axle_length = wheelbase();
 	for (size_t i = 0; i < route->point_count; i++) {
 		struct GENGHOST_WAYPOINT *point = &route->points[i];
-		legacy_uint tile = (legacy_u8)track_route_element_ids[point->piece];
-		legacy_int surface = trkObjectList[tile].ss_surfaceType;
+		legacy_int surface = route_piece_surface(point->piece);
 		/* Resource surface codes are zero-based, CARSTATE contact codes are
 		 * one-based. A negative model surface is an alternating paved piece. */
 		if (surface < 0 || surface > 2) {
@@ -86,8 +187,11 @@ static void route_speed_limits(struct GENGHOST_ROUTE *route)
 		if (grip < 1.0) {
 			grip = 1200.0;
 		}
+		point->surface = surface;
 		point->speed = 250.0;
-		if (stunt_model(point->physical_model)) {
+		if (point->roll_ramp) {
+			point->speed = GENGHOST_BARREL_APPROACH_SPEED;
+		} else if (stunt_model(point->physical_model)) {
 			/* Loop/corkscrew projection doubles back in x/z. Treating it as
 			 * a hairpin would brake until the car falls off the ceiling. */
 			point->speed =
@@ -118,15 +222,13 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 	size_t point_count = 0U;
 	for (size_t i = 0; i <= depth; i++) {
 		legacy_int piece = i == depth ? 0 : path[i];
-		legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-		legacy_uint subtype = (legacy_u8)track_route_traversal_flags[piece] & 15U;
-		const struct TRKOBJINFO *info = trkObjectList[tile].ss_trkObjInfoPtr;
-		if (info == NULL || info[subtype].route_point_count <= 0) {
+		const struct TRKOBJINFO *info = route_piece_info(piece);
+		if (info == NULL || info->route_point_count <= 0) {
 			route_error(error, error_size,
 						"Track route contains a piece without usable driving geometry.");
 			return -1;
 		}
-		point_count += portals && portals[i] ? 1U : (legacy_u8)info[subtype].route_point_count;
+		point_count += portals && portals[i] ? 1U : (legacy_u8)info->route_point_count;
 	}
 	size_t required =
 		(depth + 1U) * (sizeof(legacy_int) + 1U) + point_count * sizeof(struct GENGHOST_WAYPOINT);
@@ -174,8 +276,8 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 	for (size_t i = 0; i < route.piece_count; i++) {
 		legacy_int piece = route.pieces[i];
 		legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-		legacy_uint subtype = (legacy_u8)track_route_traversal_flags[piece] & 15U;
-		const struct TRKOBJINFO *info = &trkObjectList[tile].ss_trkObjInfoPtr[subtype];
+		const struct TRKOBJINFO *info = route_piece_info(piece);
+		const struct CSTRK_OBJECT *placed = route_placed_object(piece);
 		for (legacy_uint j = 0;
 			 j < (portals && portals[i] ? 1U : (legacy_u8)info->route_point_count); j++) {
 			/* The native API writes center, two edges, and a word at byte 18. */
@@ -186,22 +288,26 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 			point.x = geometry[0].x;
 			point.y = geometry[0].y;
 			point.z = geometry[0].z;
+			if (placed) {
+				legacy_f64 center_x, center_z;
+				legacy_s16 orientation;
+				genghost_route_piece_frame(piece, &center_x, &center_z, &orientation);
+				point.x = extended_geometry_unwrap(geometry[0].x, (legacy_s32)center_x);
+				point.z = extended_geometry_unwrap(geometry[0].z, (legacy_s32)center_z);
+				point.roll_ramp = placed->roll_ramp;
+				point.tunnel_slalom = placed->tunnel_slalom;
+			}
 			point.height_specified = geometry[0].y != ROUTE_POINT_HEIGHT_UNSPECIFIED;
-			point.edge_x = ((legacy_f64)geometry[2].x - geometry[1].x) * 0.5;
+			point.edge_x = LEGACY_S16_WRAP_SUB(geometry[2].x, geometry[1].x) * 0.5;
 			point.edge_y =
 				point.height_specified ? ((legacy_f64)geometry[2].y - geometry[1].y) * 0.5 : 0.0;
-			point.edge_z = ((legacy_f64)geometry[2].z - geometry[1].z) * 0.5;
+			point.edge_z = LEGACY_S16_WRAP_SUB(geometry[2].z, geometry[1].z) * 0.5;
 			point.piece = piece;
 			point.piece_index = i;
 			point.physical_model = trkObjectList[tile].ss_physicalModel;
 			if (portals && portals[i]) {
-				legacy_uint flags = (legacy_u8)trkObjectList[tile].ss_multiTileFlag;
-				point.x = ((legacy_u8)track_route_columns[piece] + 0.5 +
-						   !!(flags & MULTI_TILE_COLUMN_EDGE_FLAG) * 0.5) *
-						  (legacy_f64)TRACK_TILE_SIZE;
-				point.z = ((TRACK_GRID_LAST_INDEX + 0.5) - (legacy_u8)track_route_rows[piece] -
-						   !!(flags & MULTI_TILE_ROW_EDGE_FLAG) * 0.5) *
-						  (legacy_f64)TRACK_TILE_SIZE;
+				legacy_s16 orientation;
+				genghost_route_piece_frame(piece, &point.x, &point.z, &orientation);
 				point.height_specified = 0;
 				point.edge_x = point.edge_y = point.edge_z = 0.0;
 				point.physical_model = PHYSICAL_MODEL_ROAD;
@@ -250,34 +356,22 @@ struct GENGHOST_DUALWAY {
 
 static legacy_int piece_overlap(legacy_int a, legacy_int b)
 {
-	legacy_uint at = (legacy_u8)track_route_element_ids[a];
-	legacy_uint bt = (legacy_u8)track_route_element_ids[b];
-	legacy_uint af = (legacy_u8)trkObjectList[at].ss_multiTileFlag;
-	legacy_uint bf = (legacy_u8)trkObjectList[bt].ss_multiTileFlag;
+	legacy_uint aw, ah, bw, bh;
+	route_piece_dimensions(a, &aw, &ah);
+	route_piece_dimensions(b, &bw, &bh);
 	legacy_int ax = (legacy_u8)track_route_columns[a], az = (legacy_u8)track_route_rows[a];
 	legacy_int bx = (legacy_u8)track_route_columns[b], bz = (legacy_u8)track_route_rows[b];
-	return ax <= bx + !!(bf & MULTI_TILE_COLUMN_EDGE_FLAG) &&
-		   bx <= ax + !!(af & MULTI_TILE_COLUMN_EDGE_FLAG) &&
-		   az <= bz + !!(bf & MULTI_TILE_ROW_EDGE_FLAG) &&
-		   bz <= az + !!(af & MULTI_TILE_ROW_EDGE_FLAG);
+	return ax < bx + (legacy_int)bw && bx < ax + (legacy_int)aw && az < bz + (legacy_int)bh &&
+		   bz < az + (legacy_int)ah;
 }
 
 static legacy_f64 piece_distance(legacy_int a, legacy_int b)
 {
-	legacy_uint at = (legacy_u8)track_route_element_ids[a];
-	legacy_uint bt = (legacy_u8)track_route_element_ids[b];
-	legacy_uint af = (legacy_u8)trkObjectList[at].ss_multiTileFlag;
-	legacy_uint bf = (legacy_u8)trkObjectList[bt].ss_multiTileFlag;
-	legacy_f64 dx = ((legacy_u8)track_route_columns[a] - (legacy_u8)track_route_columns[b]) *
-						(legacy_f64)TRACK_TILE_SIZE +
-					((legacy_int) !!(af & MULTI_TILE_COLUMN_EDGE_FLAG) -
-					 (legacy_int) !!(bf & MULTI_TILE_COLUMN_EDGE_FLAG)) *
-						512.0;
-	legacy_f64 dz = ((legacy_u8)track_route_rows[a] - (legacy_u8)track_route_rows[b]) *
-						(legacy_f64)TRACK_TILE_SIZE +
-					((legacy_int) !!(af & MULTI_TILE_ROW_EDGE_FLAG) -
-					 (legacy_int) !!(bf & MULTI_TILE_ROW_EDGE_FLAG)) *
-						512.0;
+	legacy_f64 ax, az, bx, bz;
+	legacy_s16 orientation;
+	genghost_route_piece_frame(a, &ax, &az, &orientation);
+	genghost_route_piece_frame(b, &bx, &bz, &orientation);
+	legacy_f64 dx = ax - bx, dz = az - bz;
 	return sqrt(dx * dx + dz * dz);
 }
 
@@ -521,8 +615,9 @@ legacy_int genghost_route_policy(const struct GENGHOST_ROUTES *set, size_t index
 								 size_t error_size)
 {
 	const struct GENGHOST_ROUTE *base = &set->routes[index];
-	legacy_int path[TRACKDATA_MAP_SIZE];
-	legacy_u8 portals[TRACKDATA_MAP_SIZE] = {0}, visited[GENGHOST_ROUTE_NODE_COUNT] = {0};
+	legacy_int path[GENGHOST_ROUTE_NODE_COUNT + 1U];
+	legacy_u8 portals[GENGHOST_ROUTE_NODE_COUNT + 1U] = {0},
+												  visited[GENGHOST_ROUTE_NODE_COUNT] = {0};
 	size_t count = 0U, next = 0U, switches = 0U;
 	legacy_uint confirmation_remaining = 0U;
 	memset(result, 0, sizeof(*result));
@@ -670,7 +765,8 @@ legacy_int genghost_routes_build(struct GENGHOST_ROUTES *set, legacy_char *error
 {
 	memset(set, 0, sizeof(*set));
 	route_error(error, error_size, "");
-	if (track_pieces_counter <= 0 || track_pieces_counter > GENGHOST_ROUTE_NODE_COUNT) {
+	if (track_pieces_counter <= 0 ||
+		(legacy_uint)track_pieces_counter >= extended_track_route_capacity()) {
 		route_error(error, error_size, "Track setup did not produce a valid route graph.");
 		return -1;
 	}
@@ -764,6 +860,32 @@ void genghost_policy_default(struct GENGHOST_POLICY *policy)
 	}
 }
 
+static const legacy_f64 barrel_seed_speeds[] = {1.0,  0.98, 1.04, 1.02, 0.96, 1.06,
+												0.94, 1.08, 0.9,  1.1,	0.85, 1.15};
+
+legacy_uint genghost_barrel_seed_count(const struct GENGHOST_ROUTE *route)
+{
+	for (size_t point = 0; point < route->point_count; point++) {
+		if (route->points[point].roll_ramp) {
+			return sizeof(barrel_seed_speeds) / sizeof(barrel_seed_speeds[0]);
+		}
+	}
+	return 0;
+}
+
+void genghost_barrel_seed_policy(const struct GENGHOST_ROUTE *route, struct GENGHOST_POLICY *policy,
+								 legacy_uint seed)
+{
+	genghost_policy_default(policy);
+	legacy_uint count = genghost_barrel_seed_count(route);
+	if (!count) {
+		return;
+	}
+	for (legacy_uint segment = 0; segment < GENGHOST_POLICY_SEGMENTS; segment++) {
+		policy->segment[segment].speed_scale = barrel_seed_speeds[seed % count];
+	}
+}
+
 void genghost_driver_reset(struct GENGHOST_DRIVER *driver)
 {
 	memset(driver, 0, sizeof(*driver));
@@ -789,17 +911,14 @@ void genghost_driver_observe(const struct GENGHOST_ROUTE *route, struct GENGHOST
 		while (driver->next_portal < route->piece_count) {
 			size_t n = driver->next_portal;
 			legacy_int piece = route->pieces[n];
-			legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-			legacy_uint flags = (legacy_u8)trkObjectList[tile].ss_multiTileFlag;
+			legacy_uint width, height;
+			route_piece_dimensions(piece, &width, &height);
 			legacy_f64 min_x = (legacy_u8)track_route_columns[piece] * (legacy_f64)TRACK_TILE_SIZE;
-			legacy_f64 max_z = (TRACK_GRID_SIZE - (legacy_u8)track_route_rows[piece]) *
+			legacy_f64 max_z = (extended_track_height() - (legacy_u8)track_route_rows[piece]) *
 							   (legacy_f64)TRACK_TILE_SIZE;
-			if (route->portals[n] && !(x >= min_x &&
-									   x < min_x + (1U + !!(flags & MULTI_TILE_COLUMN_EDGE_FLAG)) *
-													   (legacy_f64)TRACK_TILE_SIZE &&
-									   z < max_z &&
-									   z >= max_z - (1U + !!(flags & MULTI_TILE_ROW_EDGE_FLAG)) *
-														(legacy_f64)TRACK_TILE_SIZE)) {
+			if (route->portals[n] &&
+				!(x >= min_x && x < min_x + width * (legacy_f64)TRACK_TILE_SIZE && z < max_z &&
+				  z >= max_z - height * (legacy_f64)TRACK_TILE_SIZE)) {
 				break;
 			}
 			++driver->next_portal;
@@ -889,19 +1008,14 @@ static legacy_int open_piece(legacy_int piece)
  * footprint, including both rows/columns of multi-tile pieces. */
 static void tile_portal(legacy_int piece, legacy_f64 margin, struct GENGHOST_REGION *portal)
 {
-	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-	legacy_uint flags = (legacy_u8)trkObjectList[tile].ss_multiTileFlag;
+	legacy_uint width, height;
+	route_piece_dimensions(piece, &width, &height);
 	legacy_uint column = (legacy_u8)track_route_columns[piece];
 	legacy_uint row = (legacy_u8)track_route_rows[piece];
 	portal->min_x = column * (legacy_f64)TRACK_TILE_SIZE + margin;
-	portal->max_x = (column + 1U + ((flags & MULTI_TILE_COLUMN_EDGE_FLAG) != 0U)) *
-						(legacy_f64)TRACK_TILE_SIZE -
-					margin;
-	portal->min_z =
-		((legacy_f64)TRACK_GRID_LAST_INDEX - row - ((flags & MULTI_TILE_ROW_EDGE_FLAG) != 0U)) *
-			(legacy_f64)TRACK_TILE_SIZE +
-		margin;
-	portal->max_z = (TRACK_GRID_SIZE - row) * (legacy_f64)TRACK_TILE_SIZE - margin;
+	portal->max_x = (column + width) * (legacy_f64)TRACK_TILE_SIZE - margin;
+	portal->min_z = (extended_track_height() - row - height) * (legacy_f64)TRACK_TILE_SIZE + margin;
+	portal->max_z = (extended_track_height() - row) * (legacy_f64)TRACK_TILE_SIZE - margin;
 }
 
 static legacy_f64 portal_cost(legacy_f64 x, legacy_f64 z, legacy_f64 ax, legacy_f64 az,
@@ -1572,11 +1686,11 @@ static legacy_int tactic_model(legacy_int model, legacy_uint mode, legacy_int co
 						  model == PHYSICAL_MODEL_SOLID_RAMP);
 }
 
-static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
-							   const struct GENGHOST_DRIVER *driver,
-							   const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
-							   legacy_int collision, struct GENGHOST_WAYPOINT *target,
-							   legacy_f64 *protected_end, legacy_int slalom_only)
+static legacy_int stunt_target_raw(const struct GENGHOST_ROUTE *route,
+								   const struct GENGHOST_DRIVER *driver,
+								   const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
+								   legacy_int collision, struct GENGHOST_WAYPOINT *target,
+								   legacy_f64 *protected_end, legacy_int slalom_only)
 {
 	legacy_uint mode = gene->stunt_mode;
 	if (!mode) {
@@ -1594,16 +1708,20 @@ static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
 			++end;
 		}
 		legacy_int model = route->points[begin].physical_model;
-		if (end > begin && route->points[end].distance > driver->progress - 100.0 &&
+		if (end > begin && !route->points[begin].roll_ramp &&
+			(!route->points[begin].tunnel_slalom || mode == GENGHOST_STUNT_HUMAN ||
+			 mode == GENGHOST_STUNT_HUMAN_ALT || mode == GENGHOST_STUNT_SLALOM_CENTER) &&
+			route->points[end].distance > driver->progress - 100.0 &&
 			(!slalom_only || model == PHYSICAL_MODEL_SLALOM) &&
 			tactic_model(model, mode, collision)) {
 			const struct GENGHOST_WAYPOINT *first = &route->points[begin],
 										   *last = &route->points[end];
 			legacy_int piece = first->piece;
 			legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-			const struct TRACKOBJECT *object = &trkObjectList[tile];
-			legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
-			legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
+			struct TRACKOBJECT oriented = trkObjectList[tile];
+			const struct TRACKOBJECT *object = &oriented;
+			legacy_f64 ox, oz;
+			genghost_route_piece_frame(piece, &ox, &oz, &oriented.ss_rotY);
 			legacy_f64 cx, cz, ax, az, bx, bz;
 			turn_quarter(state.playerstate.car_position.lx / 64.0 - ox,
 						 state.playerstate.car_position.lz / 64.0 - oz, -object->ss_rotY, &cx, &cz);
@@ -1726,6 +1844,96 @@ static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
 			return 1;
 		}
 		begin = end + 1U;
+	}
+	return 0;
+}
+
+static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
+							   const struct GENGHOST_DRIVER *driver,
+							   const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
+							   legacy_int collision, struct GENGHOST_WAYPOINT *target,
+							   legacy_f64 *protected_end, legacy_int slalom_only)
+{
+	legacy_int found = stunt_target_raw(route, driver, gene, lookahead, collision, target,
+										protected_end, slalom_only);
+	if (found && !target->height_specified) {
+		/* Catalog ground cuts are expressed in the placement's support plane.
+		 * Supplying its real height preserves steering in a pitched car frame. */
+		genghost_route_target_height(target);
+	}
+	return found;
+}
+
+/* The ramp ends at its lip. Subsequent target points describe the receiving
+ * road, never invented tire support or a continuation of the banked ramp. */
+static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGHOST_DRIVER *driver,
+								const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
+								struct GENGHOST_WAYPOINT *target, legacy_f64 *protected_end)
+{
+	const struct CARSTATE *car = &state.playerstate;
+	legacy_f64 x = car->car_position.lx / 64.0, z = car->car_position.lz / 64.0;
+	size_t begin = driver->barrel_waypoint && driver->barrel_waypoint <= route->point_count
+					   ? driver->barrel_waypoint - 1U
+					   : driver->waypoint;
+	while (begin && route->points[begin - 1U].piece == route->points[begin].piece) {
+		--begin;
+	}
+	/* Retain the launch while crossing its unsupported corridor, even if the
+	 * nearest projection has already advanced onto a receiving-road segment. */
+	if (begin && !route->points[begin].roll_ramp) {
+		size_t previous = begin - 1U;
+		while (previous && route->points[previous - 1U].piece == route->points[previous].piece) {
+			--previous;
+		}
+		if (route->points[previous].roll_ramp) {
+			begin = previous;
+		}
+	}
+	while (begin < route->point_count &&
+		   route->points[begin].distance <= driver->progress + GENGHOST_BARREL_APPROACH_DISTANCE) {
+		size_t end = begin;
+		while (end + 1U < route->point_count &&
+			   route->points[end + 1U].piece == route->points[begin].piece) {
+			++end;
+		}
+		const struct GENGHOST_WAYPOINT *first = &route->points[begin], *lip = &route->points[end];
+		if (!first->roll_ramp || end + 1U >= route->point_count) {
+			begin = end + 1U;
+			continue;
+		}
+		const struct GENGHOST_WAYPOINT *landing = &route->points[end + 1U];
+		legacy_f64 dx = lip->x - first->x, dz = lip->z - first->z;
+		legacy_f64 length = sqrt(dx * dx + dz * dz);
+		if (length < 1.0) {
+			begin = end + 1U;
+			continue;
+		}
+		dx /= length;
+		dz /= length;
+		legacy_f64 along = (x - lip->x) * dx + (z - lip->z) * dz;
+		legacy_f64 landing_distance = (landing->x - lip->x) * dx + (landing->z - lip->z) * dz;
+		legacy_int airborne = car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
+		legacy_int settled = !airborne && along > landing_distance &&
+							 fabs((legacy_f64)car->car_rotate.z) < ANGLE_FULL_TURN / 32.0 &&
+							 fabs((legacy_f64)car->car_rotate.y) < ANGLE_FULL_TURN / 16.0;
+		if (along > landing_distance + GENGHOST_BARREL_LANDING_DISTANCE || settled) {
+			driver->barrel_waypoint = 0U;
+			begin = end + 1U;
+			continue;
+		}
+		driver->barrel_waypoint = begin + 1U;
+		driver->barrel_active = airborne && along >= 0.0 ? 3U : along > -length ? 2U : 1U;
+		if (along >= 0.0) {
+			*target = *landing;
+			target->x = lip->x + dx * fmax(landing_distance, along + lookahead);
+			target->z = lip->z + dz * fmax(landing_distance, along + lookahead);
+			target->height_specified = 0;
+		} else {
+			point_at(route, fmin(lip->distance, driver->progress + lookahead), 0.0, target);
+		}
+		target->speed = GENGHOST_BARREL_APPROACH_SPEED * bounded(gene->speed_scale, 0.65, 1.5);
+		*protected_end = landing->distance;
+		return 1;
 	}
 	return 0;
 }
@@ -1895,7 +2103,8 @@ legacy_u8 genghost_steering_key(legacy_f64 wanted)
 			response =
 				angle < 0 ? (legacy_int)fmin(-angle, maximum) : -(legacy_int)fmin(angle, maximum);
 		}
-		legacy_f64 predicted = bounded(angle + bounded(response, -80.0, 80.0), -240.0, 240.0);
+		legacy_f64 maximum = framespersec == GAME_FRAME_RATE_LOW ? 160.0 : 80.0;
+		legacy_f64 predicted = bounded(angle + bounded(response, -maximum, maximum), -240.0, 240.0);
 		legacy_f64 cost = fabs(predicted - wanted);
 		if (cost < best) {
 			best = cost;
@@ -1912,6 +2121,7 @@ legacy_u8 genghost_driver_step(const struct GENGHOST_ROUTE *route,
 {
 	genghost_driver_observe(route, driver);
 	driver->ticks++;
+	driver->barrel_active = 0U;
 	const struct CARSTATE *car = &state.playerstate;
 	const struct GENGHOST_GENE *gene = &policy->segment[driver->segment];
 	legacy_f64 speed = car->car_actual_speed / 256.0;
@@ -1957,6 +2167,10 @@ legacy_u8 genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		planned_shortcut = 1;
 		planned_tactic = 0;
 	}
+	if (barrel_target(route, driver, gene, lookahead, &target, &tactic_end)) {
+		planned_shortcut = 0;
+		planned_tactic = 1;
+	}
 	/* Count only a target the controller actually uses. */
 	if (planned_tactic) {
 		++driver->tactic_ticks;
@@ -1980,7 +2194,13 @@ legacy_u8 genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		wanted = local.x >= 0 ? 240.0 : -240.0;
 	}
 	wanted = bounded(wanted, -240.0, 240.0);
-	legacy_u8 input = genghost_steering_key(wanted);
+	if (driver->barrel_active >= 2U) {
+		/* The centered ramp is straight in world space. Chasing its rising
+		 * line through the banked car frame introduces unwanted yaw; retain
+		 * neutral steering through contact and the unsupported roll. */
+		wanted = 0.0;
+	}
+	legacy_u8 input = driver->barrel_active >= 2U ? INPUT_NONE : genghost_steering_key(wanted);
 
 	legacy_f64 target_speed = 250.0;
 	/* Integrating dv/dframe against native distance/frame yields this exact
@@ -2048,13 +2268,18 @@ legacy_u8 genghost_driver_step(const struct GENGHOST_ROUTE *route,
 			pg_feature_ahead = 1;
 		}
 	}
-	if (local.z < -30 || (driver->off_route > 500.0 && !planned_shortcut && !planned_tactic)) {
+	if (!driver->barrel_active &&
+		(local.z < -30 || (driver->off_route > 500.0 && !planned_shortcut && !planned_tactic))) {
 		target_speed = fmin(target_speed, 38.0);
 	}
 	/* Human laps sustain controlled slides under throttle. Keep the safer
 	 * brake response as a segment gene instead of forcing it on every line. */
-	if (gene->slide_brake > 0.5 && car->car_slidingFlag && fabs(wanted) > 60.0) {
+	if (!driver->barrel_active && gene->slide_brake > 0.5 && car->car_slidingFlag &&
+		fabs(wanted) > 60.0) {
 		target_speed = fmin(target_speed, fmax(35.0, speed - 2.0));
+	}
+	if (driver->barrel_active) {
+		target_speed = target.speed;
 	}
 	driver->target_speed = target_speed;
 	if (speed > target_speed + 1.5) {

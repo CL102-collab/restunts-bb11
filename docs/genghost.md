@@ -1,7 +1,8 @@
 # Offline ghost generation
 
-`genghost` searches for driving inputs and writes a standard Stunts replay that
-Restunts can load for playback or use as a ghost. It is an SDL3 tool built
+`genghost` searches for driving inputs and writes a replay that Restunts can
+load for playback or use as a ghost. Legacy tracks produce `.rpl`; extended
+Chocolate Stunts tracks produce `.csrpl` with their complete embedded `.cstrk`. It is an SDL3 tool built
 alongside `repldump` and `pixldump`: `genghost` on Linux and `genghost.exe`
 on Windows. A native desktop window, `genghost-gui` (`genghost-gui.exe` on Windows), and an
 [Android app](genghost-android.md) provide track and car controls for the same
@@ -31,8 +32,8 @@ report files require confirmation before replacement.
 
 **Generate ghost** starts the sibling `genghost` executable in a separate process.
 The window stays responsive and displays elapsed time and the search log. The
-generator saves each improved completed replay and its `.rpl.json` driving-rule
-report. **Stop and keep best replay** requests a graceful stop, including for
+generator saves each improved completed replay and its `.rpl.json` or
+`.csrpl.json` driving-rule report. **Stop and keep best replay** requests a graceful stop, including for
 parallel searches. Closing the window during a search requests the same stop
 and waits for the generator to finish. **Export replay** and **Export report**
 copy the completed result to another location.
@@ -69,6 +70,9 @@ runtime checks on the other supported platforms remain outstanding.
 
 ```sh
 genghost --data-dir /path/to/game TRACK.TRK COUN --output ghost.rpl
+genghost --data-dir /path/to/game TRACK.CSTRK COUN --output ghost.csrpl
+genghost --data-dir /path/to/game BARREL.CSTRK P962 --owoot --pg:off --output roll.csrpl
+genghost --data-dir /path/to/game winner.CSRPL --fine-tune --cores 4 --output better.csrpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 4 --output parallel.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --cores 0 --output allcores.rpl
 genghost --data-dir /path/to/game DEFAULT.TRK PMIN --strategy state --cores 4 --output state.rpl
@@ -87,10 +91,14 @@ The default output uses a DOS 8.3 filename so the game's replay picker can
 list it: `DEFAULT.TRK COUN` produces `DEF-COUN.rpl`. The prefix takes the first
 three track-name characters (or fewer for a shorter name), uppercases letters,
 and replaces non-alphanumeric characters with `_`. With `--output`, use a
-basename of at most eight characters followed by `.rpl` for in-game selection.
+basename of at most eight characters followed by `.rpl` for legacy in-game
+selection. Extended tracks use the same prefix followed by `.csrpl`, and an
+explicit output must use the replay extension matching its track format.
 
 The positional arguments are a track source and a four-character car code.
-The source may be a `.TRK` file or a `.RPL` file containing an embedded track.
+The source may be `.trk`, `.rpl`, `.cstrk`, or `.csrpl`. Replay inputs contain
+an embedded track. Signatures and codec validation select the extended format;
+renaming a file does not bypass validation.
 The car code selects the installed car resources, for example `COUN` or `DIA3`.
 An input replay can therefore supply a track even when it was driven with a
 different car.
@@ -101,7 +109,7 @@ All generated replays use manual transmission; there is no transmission option.
 | Option | Purpose |
 | --- | --- |
 | `--data-dir DIR` | Game resource directory; defaults to the working directory. |
-| `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` using the shortened track prefix above. |
+| `--output FILE` | Destination replay; defaults to `TRK-CAR.rpl` or `TRK-CAR.csrpl` using the shortened track prefix above. |
 | `--seconds N` | Search budget in whole seconds; defaults to 1800 (30 minutes). `0` disables the timer. |
 | `--strategy MODE` | `legacy` (default route optimizer) or `state` (new cooperative state planner). |
 | `--fine-tune` | Refine a compatible completed input replay, keeping its validated score as the baseline. |
@@ -114,9 +122,9 @@ All generated replays use manual transmission; there is no transmission option.
 | `--lc:on`, `--lc:off` | Enable or disable the original collision behavior. |
 | `--lcb:on`, `--lcb:off` | Enable or disable the original left corner bias. |
 | `--dws:on`, `--dws:off` | Enable original Dual-Way Switching or fix penalties for switching between branches. |
-| `--owoot` | Enforce the game's One Wheel On/Over Track rules. |
+| `--owoot[:on\|off]` | Enforce or disable the game's One Wheel On/Over Track rules. |
 | `--cfg:on`, `--cfg:off` | Chicane Fast-Grass: keep road behavior on green chicane areas, or use ordinary grass grip and drag when off; defaults on. |
-| `--amigagrass` | Use original Amiga grass grip for stock cars; defaults off. |
+| `--amigagrass[:on\|off]` | Use or disable original Amiga grass grip for stock cars; defaults off. |
 | `--verify` | Re-simulate a compatible input replay and print its score, without searching or writing a ghost. |
 
 Physics defaults match Restunts: `--pg:on --lc:on --lcb:on --dws:on --cfg:on`, with OWOOT and
@@ -141,10 +149,48 @@ For an independent check of a generated replay:
 genghost --data-dir /path/to/game ghost.rpl COUN --verify
 ```
 
-`--verify` requires a solo 20 Hz replay with the requested car and uses the
-transmission recorded in that replay. Supply its required physics options.
+`--verify` uses the car and transmission recorded in the replay when the car
+argument is omitted. It accepts 10 or 20 Hz recordings; legacy verification
+requires a solo replay, while CSRPL verification also restores opponent metadata.
+Supply the required physics options for legacy replays. CSRPL rules are inherited
+unless explicitly overridden.
 The command prints finish and penalty counts in frames and returns a nonzero exit status
 if the replay does not finish.
+
+## Extended tracks and stunts
+
+CSTRK generation uses the game's admitted 1–90 by 1–90 route graph and collision
+geometry, including independent overpass surfaces, extra rotations, straight
+slopes, sparse footprints, the v7 Tunnel with slalom and v8 Barrel roll ramp.
+Waypoints retain full world coordinates beyond the legacy signed-word boundary.
+Search snapshots include wide frame/finish/penalty clocks and collision context;
+parallel workers load the same complete source and driving rules.
+
+Raw tracks start at 20 Hz. CSRPL sources retain their recorded 10 or 20 Hz rate,
+car paint, version and driving-rule metadata. Explicit rule options override the
+recording and the output stores the rules actually used. The desktop and Android
+interfaces load recorded rules when a CSRPL is selected. The search supports up
+to 120,000 inputs on extended tracks (100 minutes at 20 Hz or 200 at 10 Hz);
+legacy searches retain their 12,000-input limit.
+
+Barrel ramps use sampled road geometry through the lip, a centered approach near
+100 mph and neutral steering during ramp banking and unsupported flight. Speed
+variants let the search adapt to the car and surface. The receiving road is a
+flight target, not fictitious road support across the gap. Slalom/tunnel
+combinations retain roof clearance instead of proposing jumps over their poles.
+Only native simulation decides whether a proposal finishes; selected OWOOT rules
+also require the complete airborne roll and a valid upright landing.
+
+A physically valid route does not guarantee a particular car can complete it.
+The gap, grade, grip, collision settings and search budget affect the result.
+The barrel regression uses original collision behavior (`--lc:on`). Tested
+`--lc:off` approaches crash in native physics before completing the ramp, so
+successful barrel generation with those fixed-collision settings remains
+unverified.
+The extended regression checks fresh ghosts on wide tracks, a large track file,
+sloped combined stunts and all barrel-ramp orientations, then independently
+replays the saved CSRPL. It also checks 70,001-frame restore, fine-tuning and
+parallel workers across the legacy frame boundary.
 
 ## Fine-tuning a completed replay
 
@@ -156,8 +202,9 @@ genghost --data-dir /path/to/game winner.RPL --fine-tune --strategy state --core
 genghost --data-dir /path/to/game winner.RPL --fine-tune-gears-only --cores 4 --output GEARSFT.rpl
 ```
 
-Both modes require a complete, solo 20 Hz `.RPL` replay and automatically use
-its recorded car. A supplied car argument is ignored with a warning. `.TRK`
+Both modes require a complete solo replay and automatically use its recorded
+car. Legacy `.rpl` fine-tuning requires 20 Hz; `.csrpl` supports 10 or 20 Hz.
+A supplied car argument is ignored with a warning. Track-only `.trk` and `.cstrk`
 inputs are rejected. The two fine-tuning options cannot be combined, and neither
 can be combined with `--verify`.
 
@@ -167,8 +214,8 @@ reproduce its native upshifts and downshifts. The converted lap must retain the
 same finish time and penalties before searching starts. The tool replays the
 entire source under your selected physics flags and OWOOT setting.
 A source that does not finish under those settings is rejected.
-Physics flags are not stored in the RPL format: supply the settings required by
-the source lap.
+Physics flags are not stored in RPL: supply the source lap's required settings.
+CSRPL supplies its stored rules unless an option explicitly overrides them.
 
 Fine-tuning spends the budget on variations of the validated lap. The legacy
 strategy changes intervals of driving inputs. The state strategy also refines
@@ -430,12 +477,12 @@ finding an initially slow finish does not stop the search for a better line.
 Successful parents supply cached checkpoints and control boundaries; no replay
 archive is required at runtime.
 
-An input replay is also a possible starting candidate. Its inputs are useful
-only when its car and transmission match and its recording rate is 20 Hz.
-They are re-simulated as a solo run under the requested restrictions; a
-previously successful replay may fail with different physics or without its
-original opponent. A 10 Hz replay or one using a different car still supplies
-an embedded track, but its inputs are not reused.
+An input replay is also a possible starting candidate when its car and manual
+transmission match. Inputs are re-simulated as a solo run at their recorded rate
+under the selected restrictions. A previously successful replay may fail with
+different physics or without its original opponent. Other replay inputs still
+supply an embedded track, while fine-tuning can convert automatic shifts before
+refining a validated solo lap.
 
 Power gear is considered only for cars whose parameters support it and when
 `--pg:on` is active. The driver accelerates normally on the approach and tries early
@@ -456,15 +503,17 @@ More time can improve a result, but does not guarantee a finish on every track
 or discovery of every collision exploit. The program validates a completed
 replay from the beginning before reporting success. If no valid completed lap
 is found, it exits unsuccessfully and does not present an unfinished run as a
-completed ghost. Replays are limited to 12,000 input frames at 20 Hz. The
-normal one-second post-finish tail is shortened when necessary to keep a valid
-finish within that limit.
+completed ghost. Legacy searches are limited to 12,000 inputs; extended searches
+use up to 120,000 at the source's 10 or 20 Hz rate. The normal one-second
+post-finish tail is shortened when necessary to keep a valid finish within that
+limit.
 
 ## Playback and reports
 
-The output uses the standard `.RPL` format, which does **not** store the power
-gear, collision, left corner bias, dual-way switching, or OWOOT switches.
-A companion report, `FILE.rpl.json`, records the selected physics options and
+Legacy output uses `.rpl`, which does not store the power gear, collision,
+left corner bias, dual-way switching, or OWOOT switches. Extended `.csrpl` output
+stores its complete track, actual frame rate and driving rules. A companion
+`FILE.rpl.json` or `FILE.csrpl.json` report records the selected options and
 search result. Launch
 Restunts with the same physics switches before playing the replay or selecting it as a
 ghost. For example, a replay generated with `--owoot --pg:off --lc:off --lcb:off --dws:off`

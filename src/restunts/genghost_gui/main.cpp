@@ -297,16 +297,24 @@ class GenghostFrame : public wxFrame
 		if (!error.empty()) {
 			set_status(error);
 		} else if (catalog.inputs.empty()) {
-			set_status("No .TRK or .RPL files in this folder. Browse to a track or replay.");
+			set_status("No .TRK, .CSTRK, .RPL or .CSRPL files in this folder. Browse to a track or "
+					   "replay.");
 		} else {
-			set_status("Ready. The best completed replay and its .rpl.json report are saved "
+			set_status("Ready. The best completed replay and its .json report are saved "
 					   "as the search improves them.");
 		}
 	}
 
 	void update_selection()
 	{
-		const GenghostOptions options = read_controls();
+		GenghostOptions options = read_controls();
+		const wxString input = genghost_resolved_input(options);
+		if (input != physics_source_ && genghost_apply_replay_physics(options)) {
+			for (legacy_int index = 0; index < GENGHOST_PHYSICS_COUNT; index++) {
+				physics_[index]->SetValue(options.physics[index]);
+			}
+			physics_source_ = input;
+		}
 		const legacy_bool fine_tune = options.mode != GENGHOST_MODE_GENERATE;
 		car_->Enable(!fine_tune);
 		if (fine_tune) {
@@ -346,7 +354,8 @@ class GenghostFrame : public wxFrame
 	{
 		wxFileDialog dialog(
 			this, "Choose a track or replay", folder_->GetValue(), wxEmptyString,
-			"Tracks and replays (*.trk;*.TRK;*.rpl;*.RPL)|*.trk;*.TRK;*.rpl;*.RPL|All files|*",
+			"Tracks and replays|*.trk;*.TRK;*.rpl;*.RPL;*.cstrk;*.CSTRK;*.csrpl;*.CSRPL|All "
+			"files|*",
 			wxFD_OPEN | wxFD_FILE_MUST_EXIST);
 		if (dialog.ShowModal() == wxID_OK) {
 			input_->SetValue(dialog.GetPath());
@@ -356,8 +365,10 @@ class GenghostFrame : public wxFrame
 	void choose_output()
 	{
 		const wxFileName current(output_->GetValue());
-		wxFileDialog dialog(this, "Save generated replay", current.GetPath(), current.GetFullName(),
-							"Stunts replays (*.rpl)|*.rpl", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+		wxFileDialog dialog(
+			this, "Save generated replay", current.GetPath(), current.GetFullName(),
+			"Chocolate Stunts replays (*.csrpl)|*.csrpl|Stunts replays (*.rpl)|*.rpl",
+			wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 		if (dialog.ShowModal() == wxID_OK) {
 			output_->ChangeValue(dialog.GetPath());
 		}
@@ -559,11 +570,12 @@ class GenghostFrame : public wxFrame
 	{
 		const wxString source = result_path_ + (report ? ".json" : "");
 		const wxFileName original(source);
-		wxFileDialog dialog(this, report ? "Export driving-rule report" : "Export replay",
-							wxEmptyString, original.GetFullName(),
-							report ? "JSON reports (*.json)|*.json"
-								   : "Stunts replays (*.rpl)|*.rpl",
-							wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+		wxFileDialog dialog(
+			this, report ? "Export driving-rule report" : "Export replay", wxEmptyString,
+			original.GetFullName(),
+			report ? "JSON reports (*.json)|*.json"
+				   : "Chocolate Stunts replays (*.csrpl)|*.csrpl|Stunts replays (*.rpl)|*.rpl",
+			wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 		if (dialog.ShowModal() == wxID_OK) {
 			wxFileName destination(dialog.GetPath());
 			if (destination.SameAs(original)) {
@@ -617,6 +629,7 @@ class GenghostFrame : public wxFrame
 	wxProcess *process_ = nullptr;
 	wxString stop_path_;
 	wxString automatic_output_;
+	wxString physics_source_;
 	wxString result_path_;
 	wxString previous_report_;
 	std::string stdout_pending_;

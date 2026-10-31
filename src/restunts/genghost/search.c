@@ -15,7 +15,6 @@
 #define POPULATION 6U
 #define MAX_SEARCH_FAMILIES 3U
 #define CHECKPOINT_INTERVAL 64U
-#define CHECKPOINT_COUNT (GENGHOST_MAX_FRAMES / CHECKPOINT_INTERVAL + 1U)
 
 volatile sig_atomic_t genghost_interrupted;
 
@@ -140,7 +139,7 @@ struct checkpoint_cache {
 	struct GENGHOST_DRIVER *driver_checkpoints;
 	legacy_uint checkpoint_count;
 	legacy_uint boundary_count;
-	legacy_u16 *boundaries;
+	legacy_uint *boundaries;
 	struct GENGHOST_GUIDE_POINT *guide;
 	legacy_uint guide_count;
 	size_t checkpoint_route;
@@ -170,10 +169,11 @@ struct search_context {
 
 static legacy_int allocate_cache(struct checkpoint_cache *cache)
 {
-	cache->checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->checkpoints));
-	cache->driver_checkpoints = calloc(CHECKPOINT_COUNT, sizeof(*cache->driver_checkpoints));
-	cache->guide = calloc(GENGHOST_MAX_FRAMES, sizeof(*cache->guide));
-	cache->boundaries = malloc(GENGHOST_MAX_FRAMES * sizeof(*cache->boundaries));
+	legacy_uint count = genghost_sim_frame_limit() / CHECKPOINT_INTERVAL + 1U;
+	cache->checkpoints = calloc(count, sizeof(*cache->checkpoints));
+	cache->driver_checkpoints = calloc(count, sizeof(*cache->driver_checkpoints));
+	cache->guide = calloc(genghost_sim_frame_limit(), sizeof(*cache->guide));
+	cache->boundaries = malloc(genghost_sim_frame_limit() * sizeof(*cache->boundaries));
 	return !cache->checkpoints || !cache->driver_checkpoints || !cache->guide || !cache->boundaries;
 }
 
@@ -284,8 +284,14 @@ static void mutate_policy(struct search_context *context, struct GENGHOST_POLICY
 }
 
 static void choose_policy(struct search_context *context, struct route_search *search,
-						  struct GENGHOST_POLICY *policy)
+						  const struct GENGHOST_ROUTE *route, struct GENGHOST_POLICY *policy)
 {
+	if (search->trials < genghost_barrel_seed_count(route)) {
+		/* Tire-contact timing makes neighboring launch speeds physically distinct.
+		 * Fund these complete pilots before repairing a failed coarse parent. */
+		genghost_barrel_seed_policy(route, policy, (legacy_uint)search->trials);
+		return;
+	}
 	legacy_int ordinary_fallback = search->ordinary_discovery && !context->result->race.finished &&
 								   search->trials >= POPULATION && search->trials < POPULATION * 2U;
 	if (search->trials < POPULATION || ordinary_fallback) {
@@ -395,19 +401,19 @@ static legacy_int save_candidate(struct search_context *context, legacy_u8 *inpu
 		if (context->result->length) {
 			length = context->result->length;
 		}
-		if (length > GENGHOST_MAX_FRAMES) {
+		if (length > genghost_sim_frame_limit()) {
 			return -1;
 		}
 	} else {
 		/* Store the normal one-second finish tail, never truncate or claim a finish
 		 * based on route geometry. Replay it again from a clean canonical state. */
 		length = race->finish_frame;
-		if (length > GENGHOST_MAX_FRAMES) {
+		if (length > genghost_sim_frame_limit()) {
 			return -1;
 		}
-		legacy_uint tail = GENGHOST_MAX_FRAMES - length;
-		if (tail > GENGHOST_FRAME_RATE) {
-			tail = GENGHOST_FRAME_RATE;
+		legacy_uint tail = genghost_sim_frame_limit() - length;
+		if (tail > genghost_sim_frame_rate()) {
+			tail = genghost_sim_frame_rate();
 		}
 		memset(inputs + length, 0, tail);
 		length += tail;
@@ -436,9 +442,9 @@ static legacy_int save_candidate(struct search_context *context, legacy_u8 *inpu
 	context->result->race = verified;
 	context->result->elapsed_seconds = elapsed(context);
 	fprintf(stderr, "best %.2fs (driving %.2fs + penalty %.2fs), %" LEGACY_PRIu64 " candidates\n",
-			verified.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
-			verified.finish_frame / (legacy_f64)GENGHOST_FRAME_RATE,
-			verified.penalty_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+			verified.total_frames / (legacy_f64)genghost_sim_frame_rate(),
+			verified.finish_frame / (legacy_f64)genghost_sim_frame_rate(),
+			verified.penalty_frames / (legacy_f64)genghost_sim_frame_rate(),
 			(legacy_u64)context->result->evaluations);
 	return context->save(context->result, context->save_context) ? -1 : 0;
 }
@@ -451,7 +457,7 @@ static legacy_uint run_policy(struct search_context *context, const struct GENGH
 	legacy_f64 furthest = 0.0;
 	genghost_sim_reset();
 	genghost_driver_reset(driver);
-	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+	while (length < genghost_sim_frame_limit() - genghost_sim_frame_rate()) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
@@ -491,7 +497,7 @@ static void cache_checkpoints(struct search_context *context, size_t route_index
 	context->cache->guide_count = 0;
 	for (legacy_uint i = 0; i < search->length; ++i) {
 		if (i && search->best_inputs[i] != search->best_inputs[i - 1U]) {
-			context->cache->boundaries[context->cache->boundary_count++] = (legacy_u16)i;
+			context->cache->boundaries[context->cache->boundary_count++] = i;
 		}
 		if (i % CHECKPOINT_INTERVAL == 0U) {
 			context->cache->driver_checkpoints[context->cache->checkpoint_count] = driver;
@@ -628,7 +634,7 @@ static legacy_uint run_catalog_policy(struct search_context *context, size_t rou
 	legacy_uint last_progress_tick = length;
 	legacy_f64 furthest = driver->progress;
 	legacy_int replay_prefix = 1;
-	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+	while (length < genghost_sim_frame_limit() - genghost_sim_frame_rate()) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
@@ -764,7 +770,7 @@ static legacy_uint mutate_inputs(struct search_context *context, const struct ro
 			length -= width;
 			break;
 		case 11:
-			if (length + width < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+			if (length + width < genghost_sim_frame_limit() - genghost_sim_frame_rate()) {
 				memmove(inputs + *start + width, inputs + *start, length - *start);
 				memset(inputs + *start, inputs[*start + width], width);
 				length += width;
@@ -830,8 +836,8 @@ static legacy_uint run_mutation(struct search_context *context, size_t route_ind
 	legacy_int guided =
 		!gears_only && !shift && search->trials % 16U < 2U && common > 16U && changed_end > start;
 	legacy_uint limit = guided ? length + 120U : length;
-	if (limit > GENGHOST_MAX_FRAMES) {
-		limit = GENGHOST_MAX_FRAMES;
+	if (limit > genghost_sim_frame_limit()) {
+		limit = genghost_sim_frame_limit();
 	}
 	context->guided_candidate = guided;
 	if (guided) {
@@ -926,7 +932,7 @@ static legacy_uint repair_suffix(struct search_context *context, size_t route_in
 	}
 	legacy_uint last_progress_tick = length;
 	legacy_f64 furthest = driver->progress;
-	while (length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE) {
+	while (length < genghost_sim_frame_limit() - genghost_sim_frame_rate()) {
 		if (length % 64U == 0U && expired(context)) {
 			break;
 		}
@@ -979,7 +985,7 @@ static legacy_int refine_seed(struct search_context *context, const struct GENGH
 			fprintf(stderr,
 					"fine-tune progress: %" LEGACY_PRIu64 " candidates, best %.2fs, %.1fs\n",
 					(legacy_u64)context->result->evaluations,
-					context->result->race.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+					context->result->race.total_frames / (legacy_f64)genghost_sim_frame_rate(),
 					elapsed(context));
 			context->next_progress = now + 5000000000ULL;
 		}
@@ -1052,7 +1058,7 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 	legacy_uint family_count = 1U;
 	legacy_u64 family_round = 0U;
 	legacy_u32 family_random[MAX_SEARCH_FAMILIES];
-	legacy_u8 *inputs = malloc(GENGHOST_MAX_FRAMES);
+	legacy_u8 *inputs = malloc(genghost_sim_frame_limit());
 	struct route_search *searches = NULL;
 	memset(result, 0, sizeof(*result));
 	context.cache = &context.caches[0];
@@ -1072,7 +1078,7 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 	context.next_progress = context.started + 5000000000ULL;
 	context.save = save;
 	context.save_context = save_context;
-	if (seed_length > GENGHOST_MAX_FRAMES || (seed_length && !seed_inputs) ||
+	if (seed_length > genghost_sim_frame_limit() || (seed_length && !seed_inputs) ||
 		(options->fine_tune && !seed_length)) {
 		fputs("genghost: fine-tune requires a completed compatible replay\n", stderr);
 		status = -1;
@@ -1121,7 +1127,7 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 			/* Keep the source as one input refinement parent, independently
 			 * of the autonomous driving attempts on every route combination. */
 			struct route_search *seed_parent = &searches[0];
-			seed_parent->best_inputs = malloc(GENGHOST_MAX_FRAMES);
+			seed_parent->best_inputs = malloc(genghost_sim_frame_limit());
 			if (!seed_parent->best_inputs) {
 				status = -1;
 				goto done;
@@ -1205,8 +1211,9 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 			}
 			context.corkscrew_cut_available = 0;
 			for (size_t point = 0; point < routes.routes[index].point_count; ++point) {
-				if (!options->owoot && routes.routes[index].points[point].physical_model ==
-										   PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
+				if (!options->owoot && !routes.routes[index].points[point].roll_ramp &&
+					routes.routes[index].points[point].physical_model ==
+						PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT) {
 					context.corkscrew_cut_available = 1;
 					break;
 				}
@@ -1239,9 +1246,13 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 				struct GENGHOST_RESULT race;
 				context.guided_candidate = 0;
 				legacy_uint catalog_first_segment = 0U;
+				legacy_int barrel_seed =
+					search->trials < genghost_barrel_seed_count(&routes.routes[index]);
 				legacy_int catalog =
-					choose_catalog_policy(&context, &routes, index, search, &policy,
-										  &catalog_first_segment, error, sizeof(error));
+					barrel_seed
+						? 0
+						: choose_catalog_policy(&context, &routes, index, search, &policy,
+												&catalog_first_segment, error, sizeof(error));
 				if (catalog < 0) {
 					fprintf(stderr, "genghost: %s\n", error);
 					status = -1;
@@ -1251,18 +1262,19 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 													  search->catalog_exhausted &&
 													  search->catalog_cursor != 0U;
 				legacy_int mutation =
-					!catalog && search->best_inputs && search->race.finished &&
+					!barrel_seed && !catalog && search->best_inputs && search->race.finished &&
 					search->trials >= POPULATION &&
 					random_word(&context) % (search->demonstration ? 16U : 3U) != 0U;
 				legacy_int initial_fallback = search->ordinary_discovery &&
 											  !result->race.finished &&
 											  search->trials < POPULATION * 2U;
-				legacy_int repair = !catalog && search->best_inputs && !search->race.finished &&
-									!initial_fallback && search->trials >= POPULATION &&
+				legacy_int repair = !barrel_seed && !catalog && search->best_inputs &&
+									!search->race.finished && !initial_fallback &&
+									search->trials >= POPULATION &&
 									random_word(&context) % 3U != 0U;
 				context.dualway_available = routes.routes[index].dualway_count != 0U;
 				if (!catalog && !mutation && !repair) {
-					choose_policy(&context, search, &policy);
+					choose_policy(&context, search, &routes.routes[index], &policy);
 					if (context.dualway_family && search->trials < POPULATION) {
 						genghost_dualway_seed_policy(&routes, index, &policy,
 													 (legacy_uint)search->trials);
@@ -1350,7 +1362,7 @@ legacy_int genghost_search(const struct GENGHOST_OPTIONS *options, const legacy_
 				 * score and may replace that parent. */
 				if ((!catalog || race.finished) && fitness > search->fitness && length) {
 					if (!search->best_inputs) {
-						search->best_inputs = malloc(GENGHOST_MAX_FRAMES);
+						search->best_inputs = malloc(genghost_sim_frame_limit());
 					}
 					if (!search->best_inputs) {
 						status = -1;
