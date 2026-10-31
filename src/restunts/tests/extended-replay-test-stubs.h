@@ -265,6 +265,14 @@ const struct CSTRK_TRACK *extended_track_model(void)
 	assert(0);
 	return NULL;
 }
+const legacy_u8 *extended_track_lap_tiles(void)
+{
+	return NULL;
+}
+void extended_track_cache_lap_routes(legacy_u16 route_count)
+{
+	(void)route_count;
+}
 void extended_track_unload(void)
 {
 }

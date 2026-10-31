@@ -39,6 +39,7 @@ struct EXTENDED_TRACK_STORAGE {
 	int32_t origin_heads[EXTENDED_TRACK_MAX_CELLS];
 	int32_t origin_next[CSTRK_MAX_OBJECTS];
 	uint8_t object_ids[CSTRK_MAX_OBJECTS];
+	legacy_u8 lap_tiles[EXTENDED_TRACK_MAX_CELLS];
 };
 
 static struct CSTRK_TRACK current_track;
@@ -106,6 +107,116 @@ unsigned extended_track_route_capacity(void)
 const struct CSTRK_TRACK *extended_track_model(void)
 {
 	return storage ? &current_track : NULL;
+}
+
+#define EXTENDED_TRACK_ROUTE_LINK_COUNT 2U
+
+struct EXTENDED_TRACK_LAP_GRAPH {
+	legacy_s16 incoming[EXTENDED_TRACK_ROUTE_CAPACITY];
+	legacy_s16 source[EXTENDED_TRACK_ROUTE_CAPACITY * EXTENDED_TRACK_ROUTE_LINK_COUNT];
+	legacy_s16 next[EXTENDED_TRACK_ROUTE_CAPACITY * EXTENDED_TRACK_ROUTE_LINK_COUNT];
+	legacy_s16 queue[EXTENDED_TRACK_ROUTE_CAPACITY];
+	legacy_u8 reached[EXTENDED_TRACK_ROUTE_CAPACITY];
+};
+
+const legacy_u8 *extended_track_lap_tiles(void)
+{
+	return storage ? storage->lap_tiles : NULL;
+}
+
+void extended_track_cache_lap_routes(legacy_u16 route_count)
+{
+	if (!storage) {
+		return;
+	}
+	memset(storage->lap_tiles, 0, sizeof(storage->lap_tiles));
+	if (route_count == 0 || route_count > EXTENDED_TRACK_ROUTE_CAPACITY) {
+		return;
+	}
+	struct EXTENDED_TRACK_LAP_GRAPH *graph = malloc(sizeof(*graph));
+	if (!graph) {
+		return;
+	}
+	memset(graph->reached, 0, sizeof(graph->reached));
+	graph->reached[0] = 1;
+	graph->queue[0] = 0;
+	legacy_u16 head = 0, tail = 1;
+	/* Keep reachability explicit: an unrelated graph component must never pull
+	 * the view away from the lap, even if it points toward the finish. */
+	while (head < tail) {
+		legacy_s16 piece = graph->queue[head++];
+		legacy_s16 links[EXTENDED_TRACK_ROUTE_LINK_COUNT];
+		links[0] = storage->primary[piece];
+		links[1] = storage->alternate[piece];
+		for (legacy_u16 link = 0; link < EXTENDED_TRACK_ROUTE_LINK_COUNT; link++) {
+			legacy_s16 destination = links[link];
+			if (destination >= 0 && destination < route_count && !graph->reached[destination]) {
+				graph->reached[destination] = 1;
+				graph->queue[tail++] = destination;
+			}
+		}
+	}
+	memset(graph->incoming, -1, sizeof(graph->incoming));
+	legacy_s16 edge_count = 0;
+	for (legacy_u16 piece = 0; piece < route_count; piece++) {
+		if (!graph->reached[piece]) {
+			continue;
+		}
+		legacy_s16 links[EXTENDED_TRACK_ROUTE_LINK_COUNT];
+		links[0] = storage->primary[piece];
+		links[1] = storage->alternate[piece];
+		for (legacy_u16 link = 0; link < EXTENDED_TRACK_ROUTE_LINK_COUNT; link++) {
+			legacy_s16 destination = links[link];
+			if (destination >= 0 && destination < route_count) {
+				graph->source[edge_count] = (legacy_s16)piece;
+				graph->next[edge_count] = graph->incoming[destination];
+				graph->incoming[destination] = edge_count++;
+			}
+		}
+	}
+	/* A start piece alone is not a complete lap. At least one reachable path
+	 * must actually link back to the compiler's start state. */
+	if (graph->incoming[0] == TRACK_ROUTE_LINK_NONE) {
+		free(graph);
+		return;
+	}
+	memset(graph->reached, 0, sizeof(graph->reached));
+	graph->reached[0] = 1;
+	graph->queue[0] = 0;
+	head = 0;
+	tail = 1;
+	while (head < tail) {
+		legacy_s16 destination = graph->queue[head++];
+		for (legacy_s16 edge = graph->incoming[destination]; edge != TRACK_ROUTE_LINK_NONE;
+			 edge = graph->next[edge]) {
+			legacy_s16 source = graph->source[edge];
+			if (!graph->reached[source]) {
+				graph->reached[source] = 1;
+				graph->queue[tail++] = source;
+			}
+		}
+	}
+	for (legacy_u16 piece = 0; piece < route_count; piece++) {
+		if (!graph->reached[piece]) {
+			continue;
+		}
+		legacy_u16 id = (legacy_u8)storage->route_elements[piece];
+		const struct CSTRK_OBJECT *object = extended_track_object_for_id(
+			(legacy_u8)storage->columns[piece], (legacy_u8)storage->rows[piece], id);
+		if (!object || !trkObjectList[id].ss_trkObjInfoPtr) {
+			continue;
+		}
+		for (legacy_u16 row = 0; row < object->height; row++) {
+			for (legacy_u16 column = 0; column < object->width; column++) {
+				if ((object->occupied_mask & (1U << (row * object->width + column))) != 0) {
+					storage
+						->lap_tiles[(object->y + row) * current_track.width + object->x + column] =
+						1;
+				}
+			}
+		}
+	}
+	free(graph);
 }
 
 static void restore_bindings(void)

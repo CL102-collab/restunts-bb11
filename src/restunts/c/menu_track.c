@@ -55,7 +55,7 @@
 #define TRACK_MENU_BUTTON_Y 172
 #define TRACK_MENU_BUTTON_WIDTH 94
 #define TRACK_MENU_BUTTON_HEIGHT 24
-#define TRACK_MENU_PREVIEW_TOP 40U
+#define TRACK_MENU_PREVIEW_TOP 0U
 #define TRACK_MENU_PREVIEW_BOTTOM 166U
 #define TRACK_MENU_PREVIEW_FRAMES_PER_SECOND 25UL
 #define TRACK_MENU_PREVIEW_FRAME_TICKS                                                             \
@@ -74,6 +74,9 @@ struct TRACK_MENU_STATE {
 #ifdef RESTUNTS_SDL3
 	legacy_u8 preview_live;
 	legacy_u32 preview_tick;
+	legacy_u8 preview_score_visible;
+	legacy_u8 preview_score_offsets[TRACK_MENU_HIGHSCORE_FIELD_COUNT];
+	legacy_s8 preview_score_text[RESID_BUFFER_SIZE];
 #endif
 };
 
@@ -130,8 +133,44 @@ static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 	unload_skybox();
 }
 
-static void track_menu_draw_highscore(void)
+static void track_menu_draw_highscore_label(void)
 {
+	copy_string(&resID_byte1, locate_text_res(mainresptr, "hs0"));
+	intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), TRACK_MENU_HIGHSCORE_LABEL_Y,
+					dialog_fnt_colour, 0);
+}
+
+static void track_menu_draw_highscore_fields(const legacy_s8 *text, const legacy_u8 *text_offsets)
+{
+	font_set_colors(0, 0);
+	font_draw_text(text + text_offsets[0], TRACK_MENU_HIGHSCORE_NAME_X,
+				   TRACK_MENU_HIGHSCORE_ENTRY_Y);
+	font_draw_text(text + text_offsets[1], TRACK_MENU_HIGHSCORE_CAR_X,
+				   TRACK_MENU_HIGHSCORE_ENTRY_Y);
+	font_draw_text(text + text_offsets[2], TRACK_MENU_HIGHSCORE_OPPONENT_X,
+				   TRACK_MENU_HIGHSCORE_ENTRY_Y);
+	legacy_s16 time_x = TRACK_MENU_HIGHSCORE_TIME_X;
+#ifdef RESTUNTS_SDL3
+	if (extended_track_active()) {
+		legacy_s16 right_aligned =
+			(legacy_s16)(TRACK_MENU_SCREEN_WIDTH - 1U) - font_text_width(text + text_offsets[3]);
+		if (right_aligned < time_x) {
+			time_x = right_aligned;
+		}
+	}
+#endif
+	font_draw_text(text + text_offsets[3], time_x, TRACK_MENU_HIGHSCORE_ENTRY_Y);
+}
+
+static void track_menu_draw_highscore(struct TRACK_MENU_STATE *menu)
+{
+#ifdef RESTUNTS_SDL3
+	if (menu != 0) {
+		menu->preview_score_visible = 0;
+	}
+#else
+	(void)menu;
+#endif
 	legacy_u8 text_offsets[TRACK_MENU_HIGHSCORE_FIELD_COUNT];
 	if (highscore_load_or_create(0) == 0) {
 		legacy_u8 has_score;
@@ -150,29 +189,18 @@ static void track_menu_draw_highscore(void)
 		}
 #endif
 		if (has_score) {
-			copy_string(&resID_byte1, locate_text_res(mainresptr, "hs0"));
-			intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1),
-							TRACK_MENU_HIGHSCORE_LABEL_Y, dialog_fnt_colour, 0);
+			track_menu_draw_highscore_label();
 			font_set_fontdef2(fontnptr);
 			print_highscore_entry(0, text_offsets);
-			font_set_colors(0, 0);
-			font_draw_text(&resID_byte1 + text_offsets[0], TRACK_MENU_HIGHSCORE_NAME_X,
-						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
-			font_draw_text(&resID_byte1 + text_offsets[1], TRACK_MENU_HIGHSCORE_CAR_X,
-						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
-			font_draw_text(&resID_byte1 + text_offsets[2], TRACK_MENU_HIGHSCORE_OPPONENT_X,
-						   TRACK_MENU_HIGHSCORE_ENTRY_Y);
-			legacy_s16 time_x = TRACK_MENU_HIGHSCORE_TIME_X;
+
 #ifdef RESTUNTS_SDL3
-			if (extended_track_active()) {
-				legacy_s16 right_aligned = (legacy_s16)(TRACK_MENU_SCREEN_WIDTH - 1U) -
-										   font_text_width(&resID_byte1 + text_offsets[3]);
-				if (right_aligned < time_x) {
-					time_x = right_aligned;
-				}
+			if (menu != 0 && menu->preview_live != 0) {
+				menu->preview_score_visible = 1;
+				memcpy(menu->preview_score_offsets, text_offsets, sizeof(text_offsets));
+				memcpy(menu->preview_score_text, &resID_byte1, sizeof(menu->preview_score_text));
 			}
 #endif
-			font_draw_text(&resID_byte1 + text_offsets[3], time_x, TRACK_MENU_HIGHSCORE_ENTRY_Y);
+			track_menu_draw_highscore_fields(&resID_byte1, text_offsets);
 			font_set_fontdef();
 		}
 	}
@@ -195,16 +223,21 @@ static void track_menu_draw_buttons(void)
 	unload_resource(text_resource);
 }
 
-static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
+static void track_menu_draw_title(void)
 {
-	track_menu_draw_preview(menu);
 	sprite_select_render_window();
 	strcpy(&resID_byte1, "'");
 	strcat(&resID_byte1, gameconfig.game_trackname);
 	strcat(&resID_byte1, "'");
 	intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), TRACK_MENU_NAME_Y,
 					dialog_fnt_colour, 0);
-	track_menu_draw_highscore();
+}
+
+static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
+{
+	track_menu_draw_preview(menu);
+	track_menu_draw_title();
+	track_menu_draw_highscore(menu);
 
 	track_menu_draw_buttons();
 	if (frame_status_overlay_active() != 0) {
@@ -225,10 +258,17 @@ static void track_menu_animate_preview(struct TRACK_MENU_STATE *menu)
 		return;
 	}
 	menu->preview_tick = tick;
-	/* Preserve the title, scores and highlighted button outside the overview. */
+	/* The scene fills the header too; repaint its text without rereading scores. */
 	mouse_draw_opaque_check();
 	sprite_select_render_window();
 	draw_track_preview();
+	track_menu_draw_title();
+	if (menu->preview_score_visible != 0) {
+		track_menu_draw_highscore_label();
+		font_set_fontdef2(fontnptr);
+		track_menu_draw_highscore_fields(menu->preview_score_text, menu->preview_score_offsets);
+		font_set_fontdef();
+	}
 	if (frame_status_overlay_active() != 0) {
 		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
 		frame_status_draw_text();

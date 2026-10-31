@@ -3683,16 +3683,58 @@ static legacy_u16 check_highway_transition_surfaces(void)
 
 #define OVERVIEW_RENDER_WIDTH 320
 #define OVERVIEW_RENDER_HEIGHT 200
-#define OVERVIEW_RENDER_TOP 40
+#define OVERVIEW_RENDER_TOP 0
 #define OVERVIEW_RENDER_BOTTOM 166
 #define OVERVIEW_RENDER_MARKER 13U
 #define OVERVIEW_RENDER_QUARTER_ORBIT 1000UL
 #define OVERVIEW_RENDER_MIN_PIXELS 8U
 #define OVERVIEW_RENDER_MIN_ROAD_PIXELS 128U
 #define OVERVIEW_RENDER_ROAD_FIRST_COLUMN 78U
-#define OVERVIEW_RENDER_ROAD_LAST_COLUMN 82U
-#define OVERVIEW_RENDER_ROAD_FIRST_ROW 28U
-#define OVERVIEW_RENDER_ROAD_LAST_ROW 61U
+#define OVERVIEW_RENDER_ROAD_LAST_COLUMN 84U
+#define OVERVIEW_RENDER_ROAD_FIRST_ROW 40U
+#define OVERVIEW_RENDER_ROAD_LAST_ROW 46U
+
+static void add_overview_piece(struct CSTRK_TRACK *track, legacy_u16 id, legacy_u8 column,
+							   legacy_u8 row, legacy_u8 width, legacy_u8 height)
+{
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = id;
+	object.x = column;
+	object.y = row;
+	object.width = width;
+	object.height = height;
+	object.occupied_mask = (legacy_u8)((1U << (width * height)) - 1U);
+	legacy_char error[192];
+	assert(cstrk_add_object(track, &object, error, sizeof(error)));
+}
+
+static void make_overview_lap(struct CSTRK_TRACK *track, legacy_u16 width, legacy_u16 height,
+							  legacy_u8 left, legacy_u8 top, legacy_u8 right, legacy_u8 bottom,
+							  legacy_u8 with_stunts)
+{
+	legacy_char error[192];
+	assert(cstrk_create(track, width, height, error, sizeof(error)));
+	add_overview_piece(track, 6U, left, top, 1U, 1U);
+	add_overview_piece(track, 7U, right, top, 1U, 1U);
+	add_overview_piece(track, 8U, left, bottom, 1U, 1U);
+	add_overview_piece(track, 9U, right, bottom, 1U, 1U);
+	for (legacy_u8 column = left + 1U; column < right; column++) {
+		add_overview_piece(track, 5U, column, top, 1U, 1U);
+		add_overview_piece(track, 5U, column, bottom, 1U, 1U);
+	}
+	for (legacy_u8 row = top + 1U; row < bottom; row++) {
+		legacy_u16 id = row == top + 1U ? 1U : 4U;
+		if (with_stunts && row == bottom - 2U) {
+			id = 66U;
+		}
+		add_overview_piece(track, id, left, row, 1U, 1U);
+		if (with_stunts && row == top + 3U) {
+			add_overview_piece(track, 85U, right, row, 1U, 2U);
+		} else if (!with_stunts || row != top + 4U) {
+			add_overview_piece(track, 4U, right, row, 1U, 1U);
+		}
+	}
+}
 
 static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, legacy_s32 *height)
 {
@@ -3717,6 +3759,9 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 	memcpy(copy, pixels, (size_t)*width * *height);
 	if (hires_enabled()) {
 		legacy_s32 scale = hires_render_scale();
+		/* The preview now reaches behind the title and scores. A reserved
+		 * untouched header would leave this first scene row at the guard color. */
+		assert(copy[0] != OVERVIEW_RENDER_MARKER);
 		for (legacy_s32 y = 0; y < *height; y++) {
 			if (y >= OVERVIEW_RENDER_TOP * scale && y < OVERVIEW_RENDER_BOTTOM * scale) {
 				continue;
@@ -3736,25 +3781,46 @@ static legacy_u16 check_extended_track_overview(void)
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	legacy_char error[192];
-	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
-	/* Nearby roads surround a drone whose X position exceeds a full unsigned
-	 * word. The empty flat map has the same background at either target. */
-	struct CSTRK_OBJECT road = {0};
-	road.legacy_id = 4U;
-	road.width = road.height = road.occupied_mask = 1U;
-	for (legacy_u16 row = OVERVIEW_RENDER_ROAD_FIRST_ROW; row <= OVERVIEW_RENDER_ROAD_LAST_ROW;
-		 row++) {
-		road.y = (legacy_u8)row;
-		for (legacy_u16 column = OVERVIEW_RENDER_ROAD_FIRST_COLUMN;
-			 column <= OVERVIEW_RENDER_ROAD_LAST_COLUMN; column++) {
-			road.x = (legacy_u8)column;
-			assert(cstrk_add_object(&track, &road, error, sizeof(error)));
-		}
-	}
+	/* Keep the active lap beyond a full unsigned word in world X, while
+	 * distant disconnected roads must not pull its center or camera fit. */
+	make_overview_lap(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION,
+					  OVERVIEW_RENDER_ROAD_FIRST_COLUMN, OVERVIEW_RENDER_ROAD_FIRST_ROW,
+					  OVERVIEW_RENDER_ROAD_LAST_COLUMN, OVERVIEW_RENDER_ROAD_LAST_ROW, 0);
 	activate_render_track(&track, 1);
+	assert(track_setup() == TRACK_SETUP_OK);
+	legacy_u8 lap_tiles[EXTENDED_TRACK_MAX_CELLS];
+	memcpy(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles));
 	legacy_s32 width, height, empty_width, empty_height;
 	legacy_u8 *roads = capture_track_overview(0, &width, &height);
+	add_overview_piece(&track, 5U, 0U, 0U, 1U, 1U);
+	activate_render_track(&track, 1);
+	assert(track_setup() == TRACK_SETUP_OK);
+	assert(memcmp(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles)) == 0);
+	legacy_u8 *disconnected = capture_track_overview(0, &empty_width, &empty_height);
+	assert(width == empty_width && height == empty_height);
+	/* The isolated tile is outside this view. Its addition must not move
+	 * the visible lap or zoom it out to include the unused map corner. */
+	assert(memcmp(roads, disconnected, (size_t)width * height) == 0);
+	free(disconnected);
+	assert(cstrk_remove_object(&track, track.object_count - 1U));
+	legacy_u8 branch_row = (OVERVIEW_RENDER_ROAD_FIRST_ROW + OVERVIEW_RENDER_ROAD_LAST_ROW) / 2;
+	for (legacy_u32 index = 0; index < track.object_count; index++) {
+		if (track.objects[index].x == OVERVIEW_RENDER_ROAD_FIRST_COLUMN &&
+			track.objects[index].y == branch_row) {
+			track.objects[index].legacy_id = 75U;
+		}
+	}
+	for (legacy_u8 column = OVERVIEW_RENDER_ROAD_FIRST_COLUMN - 3U;
+		 column < OVERVIEW_RENDER_ROAD_FIRST_COLUMN; column++) {
+		add_overview_piece(&track, 5U, column, branch_row, 1U, 1U);
+	}
+	activate_render_track(&track, 1);
+	assert(track_setup() == TRACK_SETUP_OK);
+	/* A reachable branch that cannot return to the finish also has no
+	 * influence on the lap's equally weighted center and bounds. */
+	assert(memcmp(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles)) == 0);
 	activate_render_track(&track, 0);
+	assert(track_setup() == TRACK_SETUP_NO_START_FINISH);
 	legacy_u8 *empty = capture_track_overview(0, &empty_width, &empty_height);
 	assert(width == empty_width && height == empty_height);
 	legacy_u32 changed = 0;
@@ -3765,17 +3831,9 @@ static legacy_u16 check_extended_track_overview(void)
 	free(roads);
 	free(empty);
 	cstrk_free(&track);
-	assert(cstrk_create(&track, 30U, 18U, error, sizeof(error)));
-	for (legacy_u16 column = 5U; column < 25U; column++) {
-		if (column != 8U && column != 9U && column != 18U && column != 22U) {
-			add_render_piece(&track, 4U, column, 3U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
-		}
-		add_render_piece(&track, 4U, column, 14U, 1U, 1U, 1U, CSTRK_ROAD_DIRT);
-	}
-	add_render_piece(&track, 11U, 8U, 3U, 2U, 2U, 11U, CSTRK_ROAD_ICE);
-	add_render_piece(&track, 85U, 18U, 2U, 1U, 2U, 3U, CSTRK_ROAD_PAVED);
-	add_render_piece(&track, 67U, 22U, 3U, 1U, 1U, 1U, CSTRK_ROAD_PAVED);
+	make_overview_lap(&track, 30U, 18U, 6U, 4U, 23U, 13U, 1U);
 	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == TRACK_SETUP_OK);
 	legacy_u8 *first = capture_track_overview(0, &width, &height);
 	legacy_u8 *rotated =
 		capture_track_overview(OVERVIEW_RENDER_QUARTER_ORBIT, &empty_width, &empty_height);
@@ -3800,7 +3858,7 @@ static legacy_u16 check_extended_track_overview(void)
 	visual_clock_ticks = saved_ticks;
 	extended_track_unload();
 	cstrk_free(&track);
-	return 6;
+	return 7;
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
