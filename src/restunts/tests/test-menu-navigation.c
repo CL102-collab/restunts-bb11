@@ -9,6 +9,7 @@
 #define sprite_free_wnd car_fixture_sprite_free_wnd
 #define sprite_blit_to_video car_fixture_sprite_blit_to_video
 #define sprite_putimage car_fixture_sprite_putimage
+#define font_draw_text car_fixture_font_draw_text
 #define draw_button car_fixture_draw_button
 #define menu_animate_button_highlight car_fixture_menu_animate_button_highlight
 #include "test-car-menu.c"
@@ -50,6 +51,7 @@ void *_memcpy(void *destination, const void *source, legacy_u16 count)
 #undef sprite_free_wnd
 #undef sprite_blit_to_video
 #undef sprite_putimage
+#undef font_draw_text
 #undef draw_button
 #undef menu_animate_button_highlight
 #ifdef RESTUNTS_SDL3
@@ -68,6 +70,12 @@ static const legacy_s16 track_expected_selection[] = {0, 1, 1, 1, 2};
 #ifdef RESTUNTS_SDL3
 static legacy_u8 track_extended_fixture;
 static struct CSTRK_TRACK track_fixture_model;
+static struct CSHIG_ENTRY track_fixture_score;
+static legacy_u8 track_score_test;
+static legacy_u32 track_score_labels, track_score_fields;
+static const legacy_s8 *track_score_text[] = {
+	(const legacy_s8 *)"RACER", (const legacy_s8 *)"Porsche 962 IMSA", (const legacy_s8 *)" ",
+	(const legacy_s8 *)" 1:01.70"};
 
 int extended_track_active(void)
 {
@@ -82,9 +90,8 @@ const struct CSTRK_TRACK *extended_track_model(void)
 
 const struct CSHIG_ENTRY *extended_highscore_entry(unsigned index)
 {
-	(void)index;
-	assert(!"Animated menu fixture does not load highscore entries");
-	return NULL;
+	assert(track_score_test != 0 && index == 0);
+	return &track_fixture_score;
 }
 
 int extended_editor_open(void)
@@ -181,9 +188,30 @@ void sprite_putimage(struct SHAPE2D *shape)
 		assert(track_shapes_live != 0 && track_skybox_live != 0);
 		assert(display_clip.left == 0 && display_clip.right == 320);
 		assert(display_clip.top == 40 && display_clip.bottom == 166);
+#ifdef RESTUNTS_SDL3
+		if (track_score_test != 0) {
+			assert(track_score_fields == track_title_draws * 4U);
+			assert(track_score_labels == track_title_draws);
+		}
+#endif
 		track_partial_presentations++;
 	}
 	car_fixture_sprite_putimage(shape);
+}
+
+void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
+{
+#ifdef RESTUNTS_SDL3
+	if (track_score_test != 0) {
+		static const legacy_s16 columns[] = {16, 120, 224, 272};
+		legacy_u32 field = track_score_fields % 4U;
+		assert(_strcmp(text, track_score_text[field]) == 0);
+		assert(x == columns[field] && y == 30 && y + font_glyph_height <= 40);
+		assert(display_target == 1 && display_clip.top == 0 && display_clip.bottom == 200);
+		track_score_fields++;
+	}
+#endif
+	car_fixture_font_draw_text(text, x, y);
 }
 
 void draw_button(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
@@ -372,6 +400,12 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 		_strcmp(text, (legacy_s8 *)"'DEFAULT'") == 0) {
 		track_title_draws++;
 	}
+#ifdef RESTUNTS_SDL3
+	if (track_score_test != 0 && _strcmp(text, (legacy_s8 *)"hs0") == 0) {
+		assert(y == 18 && display_target == 1 && display_clip.top == 0);
+		track_score_labels++;
+	}
+#endif
 	trace_word(2011);
 	trace_text(text);
 	trace_word(x);
@@ -384,9 +418,8 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 #ifdef RESTUNTS_SDL3
 legacy_s16 font_text_width(const legacy_s8 *text)
 {
-	(void)text;
-	assert(!"Legacy menu fixture must not measure an extended score");
-	return 0;
+	assert(track_score_test != 0 && _strcmp(text, track_score_text[3]) == 0);
+	return 40;
 }
 #endif
 legacy_s16 font_centered_text_x(const legacy_s8 *text)
@@ -474,6 +507,11 @@ legacy_s16 highscore_load_or_create(legacy_s16 create)
 	track_highscore_table = (legacy_s8 *)menu_scores;
 	ranking_entry_order[0] = 0;
 	menu_scores[0].time = scenario % 2U == 0 ? 65535U : 123U;
+#ifdef RESTUNTS_SDL3
+	if (track_score_test != 0) {
+		return 0;
+	}
+#endif
 	return scenario % 3U == 0;
 }
 void print_highscore_entry(legacy_s16 entry, legacy_u8 *offsets)
@@ -483,6 +521,20 @@ void print_highscore_entry(legacy_s16 entry, legacy_u8 *offsets)
 	}
 	trace_word(2021);
 	trace_word(entry);
+#ifdef RESTUNTS_SDL3
+	if (track_score_test != 0) {
+		legacy_u16 offset = 0;
+		for (legacy_u16 field = 0; field < 4; field++) {
+			offsets[field] = (legacy_u8)offset;
+			_strcpy(&resID_byte1 + offset, track_score_text[field]);
+			while (*(&resID_byte1 + offset) != 0) {
+				offset++;
+			}
+			offset++;
+		}
+		return;
+	}
+#endif
 	for (legacy_u32 i = 0; i < 4; i++) {
 		offsets[i] = i * 2;
 		*(&resID_byte1 + i * 2) = 'a' + i;
@@ -736,11 +788,15 @@ static void test_track_supersight_toggle(void)
 }
 
 #ifdef RESTUNTS_SDL3
-static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping)
+static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
+									  legacy_u8 has_score)
 {
 	reset_menu_case(0, 1);
 	video_uses_page_flipping = page_flipping;
 	track_extended_fixture = 1;
+	track_score_test = has_score;
+	track_fixture_score.ticks = 1234U;
+	track_score_labels = track_score_fields = 0;
 	supersight_enabled = action != 4;
 	display_status_active = display_status_expire_pending = 0;
 	track_window_live = track_skybox_live = track_shapes_live = 0;
@@ -791,13 +847,24 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping)
 		assert(track_title_draws == 1 && track_partial_presentations == 0);
 	}
 	assert(track_shape_loads == track_title_draws);
+	if (has_score != 0) {
+		/* The saved best time remains above the scene throughout animation and toggles. */
+		assert(track_score_labels == track_title_draws);
+		assert(track_score_fields == track_title_draws * 4U);
+		assert(track_highscore_entries == track_title_draws);
+	} else {
+		assert(track_score_labels == 0 && track_score_fields == 0);
+	}
+	track_score_test = 0;
 }
 
 static void test_track_animation(void)
 {
 	for (legacy_u8 page_flipping = 0; page_flipping < 2; page_flipping++) {
 		for (legacy_u8 action = 0; action < 5; action++) {
-			test_track_animation_case(action, page_flipping);
+			for (legacy_u8 has_score = 0; has_score < 2; has_score++) {
+				test_track_animation_case(action, page_flipping, has_score);
+			}
 		}
 	}
 }

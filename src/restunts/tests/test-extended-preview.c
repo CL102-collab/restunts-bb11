@@ -17,8 +17,9 @@
 #include "../c/trackdata_layout.h"
 
 #define PREVIEW_TEST_OBJECT_CAPACITY 8U
-#define PREVIEW_TEST_ORBIT_TICKS 4000U
-#define PREVIEW_TEST_HALF_ORBIT_TICKS (PREVIEW_TEST_ORBIT_TICKS / 2U)
+#define PREVIEW_TEST_SPIN_TICKS 4000U
+#define PREVIEW_TEST_QUARTER_SPIN_TICKS (PREVIEW_TEST_SPIN_TICKS / 4U)
+#define PREVIEW_TEST_DRONE_CLEARANCE (6 * CSTRK_LEVEL_WORLD_HEIGHT)
 #define PREVIEW_TEST_PRECISION .000001
 #define PREVIEW_TEST_SCREEN_WIDTH 320
 #define PREVIEW_TEST_SCREEN_HEIGHT 200
@@ -40,9 +41,11 @@ legacy_u8 supersight_enabled;
 static legacy_u32 fill_count, outline_count, clear_count;
 static legacy_u32 tile_count, flush_count, origin_count, reset_count;
 static legacy_u32 projection_count;
+static legacy_u32 background_count;
 static legacy_s16 current_yaw, current_pitch;
+static legacy_s16 background_heading;
 static legacy_u16 projection_origin_x, projection_origin_y;
-static struct RECTANGLE current_clip;
+static struct RECTANGLE current_clip, background_clip;
 static struct SHAPE3D_HIRES_VECTOR current_origin, captured_camera;
 static legacy_u8 origin_active;
 
@@ -112,6 +115,11 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 {
 	assert(preview_hires != 0 && origin_active != 0);
 	assert(current_clip.top > 0 && current_clip.bottom < PREVIEW_TEST_SCREEN_HEIGHT);
+	assert(background_count == 1);
+	assert(current_clip.left == background_clip.left &&
+		   current_clip.right == background_clip.right);
+	assert(current_clip.top == background_clip.top &&
+		   current_clip.bottom == background_clip.bottom);
 	assert(column >= 0 && column < preview_track.width);
 	assert(row >= 0 && row < preview_track.height);
 	legacy_u32 index = (legacy_u32)row * preview_track.width + column;
@@ -151,6 +159,8 @@ void set_projection(legacy_s16 horizontal_fov, legacy_s16 vertical_fov, legacy_s
 	assert(horizontal_fov > 0 && vertical_fov > 0);
 	assert(width == PREVIEW_TEST_SCREEN_WIDTH);
 	assert(height > 0 && height <= PREVIEW_TEST_SCREEN_HEIGHT);
+	projection_center_y = (legacy_u16)height / 2;
+	projection_focal_length_y = (legacy_u16)height;
 	projection_count++;
 }
 
@@ -158,6 +168,7 @@ void projection_set_origin(legacy_u16 x, legacy_u16 y)
 {
 	projection_origin_x = x;
 	projection_origin_y = y;
+	projection_center_y = PREVIEW_TEST_SCREEN_HEIGHT / 2 + y;
 }
 
 legacy_u16 select_cliprect_rotate(legacy_s16 roll, legacy_s16 pitch, legacy_s16 yaw,
@@ -222,6 +233,18 @@ void skybox_copy_image(legacy_s16 image, legacy_s16 x, legacy_s16 y)
 	assert(!"Extended preview has no classic horizon strip");
 }
 
+void skybox_render_level_rect(struct RECTANGLE *rect, legacy_s16 heading, legacy_s16 horizon)
+{
+	assert(preview_hires != 0);
+	assert(rect->left == 0 && rect->right == PREVIEW_TEST_SCREEN_WIDTH);
+	assert(rect->top > 0 && rect->bottom < PREVIEW_TEST_SCREEN_HEIGHT);
+	assert(rect->top < rect->bottom);
+	assert(horizon >= 0 && horizon < projection_center_y);
+	background_clip = *rect;
+	background_heading = heading;
+	background_count++;
+}
+
 struct TRACKOBJECT *frame_track_object_from_legacy_index(legacy_u8 index)
 {
 	assert(index < 215U);
@@ -233,6 +256,7 @@ static void reset_capture(void)
 	fill_count = outline_count = clear_count = 0;
 	tile_count = flush_count = origin_count = reset_count = 0;
 	projection_count = 0;
+	background_count = 0;
 	memset(visited_tiles, 0, sizeof(visited_tiles));
 }
 
@@ -288,32 +312,42 @@ static struct SHAPE3D_HIRES_VECTOR render_3d(legacy_u32 ticks)
 	assert(projection_origin_x == 0 && projection_origin_y == 0);
 	assert(current_clip.left == 0 && current_clip.right == PREVIEW_TEST_SCREEN_WIDTH);
 	assert(current_clip.top == 0 && current_clip.bottom == PREVIEW_TEST_SCREEN_HEIGHT);
+	assert(background_count == 1 && background_heading == current_yaw);
 	assert(current_pitch != 0);
 	return captured_camera;
 }
 
-static void assert_orbit_center(legacy_f64 x, legacy_f64 y, legacy_f64 z)
+static void assert_drone_center(legacy_f64 x, legacy_f64 y, legacy_f64 z)
 {
 	struct SHAPE3D_HIRES_VECTOR first = render_3d(0);
 	legacy_s16 first_yaw = current_yaw;
-	struct SHAPE3D_HIRES_VECTOR opposite = render_3d(PREVIEW_TEST_HALF_ORBIT_TICKS);
-	assert(((current_yaw - first_yaw) & ANGLE_MASK) == ANGLE_HALF_TURN);
-	assert_close((first.x + opposite.x) / 2, x);
-	assert_close((first.z + opposite.z) / 2, z);
-	assert_close(first.y, opposite.y);
-	/* At the first cardinal heading, the 45-degree overview has equal
-	 * horizontal and vertical offsets from its target. */
+	legacy_s16 first_pitch = current_pitch;
 	assert_close(first.x, x);
-	assert_close(first.y - (z - first.z), y);
-	assert(first.x != opposite.x || first.z != opposite.z);
-	struct SHAPE3D_HIRES_VECTOR repeated = render_3d(PREVIEW_TEST_HALF_ORBIT_TICKS);
-	assert_close(repeated.x, opposite.x);
-	assert_close(repeated.y, opposite.y);
-	assert_close(repeated.z, opposite.z);
-	struct SHAPE3D_HIRES_VECTOR full = render_3d(PREVIEW_TEST_ORBIT_TICKS);
-	assert_close(full.x, first.x);
-	assert_close(full.y, first.y);
-	assert_close(full.z, first.z);
+	assert_close(first.y, y + PREVIEW_TEST_DRONE_CLEARANCE);
+	assert_close(first.z, z);
+	/* The drone stays above the weighted center and turns to look around.
+	 * Its position and gentle downward pitch remain fixed throughout the spin. */
+	assert(first_pitch < 0 && first_pitch > -ANGLE_EIGHTH_TURN / 2);
+	for (legacy_u16 quarter = 1; quarter <= 4; quarter++) {
+		struct SHAPE3D_HIRES_VECTOR turned = render_3d(quarter * PREVIEW_TEST_QUARTER_SPIN_TICKS);
+		assert(((current_yaw - first_yaw) & ANGLE_MASK) ==
+			   ((quarter * ANGLE_QUARTER_TURN) & ANGLE_MASK));
+		assert(current_pitch == first_pitch);
+		assert_close(turned.x, first.x);
+		assert_close(turned.y, first.y);
+		assert_close(turned.z, first.z);
+	}
+	/* Sub-quarter headings animate too, with a stable pose at the same tick. */
+	struct SHAPE3D_HIRES_VECTOR intermediate = render_3d(PREVIEW_TEST_QUARTER_SPIN_TICKS / 2U);
+	assert(((current_yaw - first_yaw) & ANGLE_MASK) == ANGLE_EIGHTH_TURN);
+	assert_close(intermediate.x, first.x);
+	assert_close(intermediate.y, first.y);
+	assert_close(intermediate.z, first.z);
+	struct SHAPE3D_HIRES_VECTOR repeated = render_3d(PREVIEW_TEST_QUARTER_SPIN_TICKS / 2U);
+	assert(((current_yaw - first_yaw) & ANGLE_MASK) == ANGLE_EIGHTH_TURN);
+	assert_close(repeated.x, intermediate.x);
+	assert_close(repeated.y, intermediate.y);
+	assert_close(repeated.z, intermediate.z);
 }
 
 static void test_equal_road_tile_weight(void)
@@ -330,12 +364,12 @@ static void test_equal_road_tile_weight(void)
 	assert(trkObjectList[151].ss_trkObjInfoPtr == NULL);
 	/* Four equally weighted tile centers: (1,1), (8,4), (13,8), (12,9).
 	 * The other two quadrants of the stunt and both scenery pieces have no vote. */
-	assert_orbit_center(9 * CSTRK_TILE_WORLD_SIZE, 0, 64 * CSTRK_TILE_WORLD_SIZE);
+	assert_drone_center(9 * CSTRK_TILE_WORLD_SIZE, 0, 64 * CSTRK_TILE_WORLD_SIZE);
 	preview_elevations[1U * preview_track.width + 1U] = CSTRK_LEVEL_WORLD_HEIGHT;
 	preview_elevations[4U * preview_track.width + 8U] = 2 * CSTRK_LEVEL_WORLD_HEIGHT;
 	preview_elevations[9U * preview_track.width + 12U] = CSTRK_LEVEL_WORLD_HEIGHT;
 	preview_elevations[60U * preview_track.width + 80U] = 4 * CSTRK_LEVEL_WORLD_HEIGHT;
-	assert_orbit_center(9 * CSTRK_TILE_WORLD_SIZE, CSTRK_LEVEL_WORLD_HEIGHT,
+	assert_drone_center(9 * CSTRK_TILE_WORLD_SIZE, CSTRK_LEVEL_WORLD_HEIGHT,
 						64 * CSTRK_TILE_WORLD_SIZE);
 	preview_hires = supersight_enabled = 0;
 	reset_capture();
@@ -343,17 +377,18 @@ static void test_equal_road_tile_weight(void)
 	assert(fill_count == 90U * 70U + 6U);
 	assert(outline_count == 1 && clear_count == 1);
 	assert(tile_count == 0 && flush_count == 0 && origin_count == 0);
+	assert(background_count == 0);
 	/* Switching back uses the current track rather than a cached surface map. */
-	assert_orbit_center(9 * CSTRK_TILE_WORLD_SIZE, CSTRK_LEVEL_WORLD_HEIGHT,
+	assert_drone_center(9 * CSTRK_TILE_WORLD_SIZE, CSTRK_LEVEL_WORLD_HEIGHT,
 						64 * CSTRK_TILE_WORLD_SIZE);
 }
 
 static void test_empty_and_scenery_tracks(void)
 {
 	make_track(90, 30);
-	assert_orbit_center(45 * CSTRK_TILE_WORLD_SIZE, 0, 15 * CSTRK_TILE_WORLD_SIZE);
+	assert_drone_center(45 * CSTRK_TILE_WORLD_SIZE, 0, 15 * CSTRK_TILE_WORLD_SIZE);
 	add_object(151, 89, 29, 1, 1, 1);
-	assert_orbit_center(45 * CSTRK_TILE_WORLD_SIZE, 0, 15 * CSTRK_TILE_WORLD_SIZE);
+	assert_drone_center(45 * CSTRK_TILE_WORLD_SIZE, 0, 15 * CSTRK_TILE_WORLD_SIZE);
 }
 
 static void test_far_edge_track(void)
@@ -361,7 +396,7 @@ static void test_far_edge_track(void)
 	make_track(CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION);
 	add_object(4, 89, 89, 1, 1, 1);
 	add_object(37, 89, 88, 1, 1, 1);
-	assert_orbit_center(89.5 * CSTRK_TILE_WORLD_SIZE, 0, CSTRK_TILE_WORLD_SIZE);
+	assert_drone_center(89.5 * CSTRK_TILE_WORLD_SIZE, 0, CSTRK_TILE_WORLD_SIZE);
 }
 
 legacy_int main(void)

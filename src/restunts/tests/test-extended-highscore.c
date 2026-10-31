@@ -233,6 +233,35 @@ static void test_track_identity(struct CSTRK_TRACK *track)
 	free(prior);
 }
 
+static void test_prior_table_revision(struct CSTRK_TRACK *track)
+{
+	size_t size = 0;
+	legacy_u8 *prior = read_bytes(SCORE_PATH, &size);
+	LEGACY_WRITE_U16_LE(prior + CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET,
+						CSTRK_TUNNEL_SLALOM_VERSION);
+	write_bytes(SCORE_PATH, prior, size);
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "TWIN", track, 0) == 0);
+	check_loaded_score(0U, "Other process", 500U);
+	check_loaded_score(1U, "New score", 900U);
+	check_loaded_score(2U, "Equal time", 900U);
+	assert(extended_highscore_qualifies(600U, 20U));
+	/* Reading upgrades only the owned identity, leaving the existing file intact. */
+	check_bytes(SCORE_PATH, prior, size);
+	free(prior);
+	struct CSHIG_ENTRY score = score_entry("After upgrade", 600U);
+	legacy_uint rank = UINT_MAX;
+	assert(extended_highscore_record(SCORE_DIRECTORY, "TWIN", track, &score, &rank) == 0);
+	assert(rank == 1U);
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "TWIN", track, 0) == 0);
+	check_loaded_score(0U, "Other process", 500U);
+	check_loaded_score(1U, "After upgrade", 600U);
+	check_loaded_score(2U, "New score", 900U);
+	legacy_u8 *upgraded = read_bytes(SCORE_PATH, &size);
+	assert(LEGACY_READ_U16_LE(upgraded + CSHIG_HEADER_SIZE + CSTRK_VERSION_OFFSET) ==
+		   CSTRK_VERSION);
+	free(upgraded);
+}
+
 static void test_failure_preserves_scores(struct CSTRK_TRACK *track)
 {
 	size_t prior_size;
@@ -374,6 +403,7 @@ int main(void)
 	write_track(&track);
 	test_creation_and_wide_times(&track);
 	test_stale_table_merge(&track);
+	test_prior_table_revision(&track);
 	test_track_identity(&track);
 	test_failure_preserves_scores(&track);
 	test_full_table(&track);
