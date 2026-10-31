@@ -883,6 +883,9 @@ static void track_setup_cameras(struct TRACK_SETUP_WALK *walk)
 
 legacy_s16 track_setup(void)
 {
+#ifdef RESTUNTS_SDL3
+	extended_track_cache_lap_routes(0);
+#endif
 	struct TRACK_SETUP_WALK walk = {0};
 	walk.branches = (struct TRACK_SETUP_BRANCH far *)mmgr_alloc_resbytes(
 		(const legacy_s8 *)"tcomp", (extended_track_active() ? TRACK_SETUP_BRANCH_COUNT : 64U) *
@@ -945,6 +948,9 @@ legacy_s16 track_setup(void)
 		return seam_status;
 	}
 	track_setup_cameras(&walk);
+#ifdef RESTUNTS_SDL3
+	extended_track_cache_lap_routes((legacy_u16)track_pieces_counter);
+#endif
 	mmgr_release((legacy_s8 far *)walk.branches);
 	return TRACK_SETUP_OK;
 }

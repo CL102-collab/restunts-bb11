@@ -174,8 +174,8 @@ legacy_s16 sprite_blit_to_video(struct SPRITE *sprite, legacy_s16 mode)
 		track_presentations++;
 	}
 	if (track_animation_test != 0) {
-		assert(track_window_live != 0 && track_title_draws == track_highscore_draws);
-		assert(track_button_draws == track_title_draws * 3U);
+		assert(track_window_live != 0 && track_title_draws == track_preview_draws);
+		assert(track_button_draws == track_highscore_draws * 3U);
 		track_presentations++;
 	}
 	return car_fixture_sprite_blit_to_video(sprite, mode);
@@ -187,7 +187,7 @@ void sprite_putimage(struct SHAPE2D *shape)
 		assert(shape == render_window_sprite->sprite_bitmapptr && display_target == 0);
 		assert(track_shapes_live != 0 && track_skybox_live != 0);
 		assert(display_clip.left == 0 && display_clip.right == 320);
-		assert(display_clip.top == 40 && display_clip.bottom == 166);
+		assert(display_clip.top == 0 && display_clip.bottom == 166);
 #ifdef RESTUNTS_SDL3
 		if (track_score_test != 0) {
 			assert(track_score_fields == track_title_draws * 4U);
@@ -831,27 +831,27 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
 	assert(track_window_live == 0 && track_skybox_live == 0 && track_shapes_live == 0);
 	assert(track_shape_loads == track_shape_releases);
 	assert(track_window_allocations == track_window_releases);
-	assert(track_highscore_draws == track_title_draws);
-	assert(track_button_draws == track_title_draws * 3U);
-	assert(track_preview_draws == track_title_draws + track_partial_presentations);
+	assert(track_title_draws == track_preview_draws);
+	assert(track_button_draws == track_highscore_draws * 3U);
+	assert(track_preview_draws == track_highscore_draws + track_partial_presentations);
 	assert(track_setup_calls == 0 && ghost_track_checks == 0);
 	if (action == 0) {
-		assert(track_title_draws == 1 && track_partial_presentations == 2);
+		assert(track_highscore_draws == 1 && track_partial_presentations == 2);
 	} else if (action == 1) {
-		assert(track_title_draws == 2 && track_partial_presentations == 1);
+		assert(track_highscore_draws == 2 && track_partial_presentations == 1);
 	} else if (action == 2) {
-		assert(track_title_draws == 2 && track_partial_presentations == 2);
+		assert(track_highscore_draws == 2 && track_partial_presentations == 2);
 	} else if (action == 3) {
-		assert(track_title_draws == 3 && track_partial_presentations == 2);
+		assert(track_highscore_draws == 3 && track_partial_presentations == 2);
 	} else {
-		assert(track_title_draws == 1 && track_partial_presentations == 0);
+		assert(track_highscore_draws == 1 && track_partial_presentations == 0);
 	}
-	assert(track_shape_loads == track_title_draws);
+	assert(track_shape_loads == track_highscore_draws);
 	if (has_score != 0) {
-		/* The saved best time remains above the scene throughout animation and toggles. */
+		/* Header text is repainted over each frame; disk reads and formatting happen once. */
 		assert(track_score_labels == track_title_draws);
 		assert(track_score_fields == track_title_draws * 4U);
-		assert(track_highscore_entries == track_title_draws);
+		assert(track_highscore_entries == track_highscore_draws);
 	} else {
 		assert(track_score_labels == 0 && track_score_fields == 0);
 	}

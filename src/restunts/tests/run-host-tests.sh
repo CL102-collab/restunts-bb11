@@ -224,8 +224,10 @@ run_host_test test-intro-preview intro_render.c \
     "$test_source_dir/track_preview.c" "$test_source_dir/full_data.c" \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
+    "$test_source_dir/extended_track_preview.c" \
     -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-extended-preview track_preview.c \
+    "$test_source_dir/extended_track_preview.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
@@ -466,6 +468,13 @@ run_host_test test-track-setup track_setup.c \
     "$test_source_dir/trkutil.c" "$test_source_dir/opponent.c" "$test_source_dir/legacy.c" \
     -Wno-missing-braces -Wno-type-limits -Wno-pointer-sign -Wno-unused-variable \
     "$test_uninitialized_flag"
+run_host_test test-extended-lap-routes extended_track.c \
+    "$test_source_dir/track_setup.c" "$test_source_dir/cstrk.c" \
+    "$test_source_dir/extended_geometry.c" "$test_source_dir/roll_ramp.c" \
+    "$test_source_dir/replinit.c" "$test_source_dir/trkutil.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/opponent.c" "$test_source_dir/math.c" \
+    -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-type-limits -Wno-unused-variable
 run_host_test test-track-resource-decoding trackres.c
 run_host_test test-ui-file-input ui_dialog.c \
     "$test_source_dir/ui_input.c" "$test_source_dir/legacy.c" \

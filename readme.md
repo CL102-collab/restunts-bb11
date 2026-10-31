@@ -315,11 +315,13 @@ unobstructed. Switching HyperVision off restores 320x200 rendering and the origi
 dashboard layout.
 
 For `.cstrk` tracks, the track menu shows a rotating 3D view while HyperVision
-is enabled. The camera hovers six hill levels above the average center of the
-occupied road and stunt tiles, counting each tile equally and excluding scenery.
-It turns through 360 degrees in place to look around the track. Tracks without
-road or stunt tiles use the map center. The best recorded time remains at the top.
-Turning HyperVision off restores the 2D surface map.
+is enabled. The camera circles the average center of road and stunt tiles on
+complete lap routes, counting each occupied tile equally. Disconnected pieces,
+dead ends and scenery do not affect its center or bounding box. It looks toward
+that center at 45 degrees down, at least twelve hill levels above it; larger
+courses raise the orbit enough to keep all lap pieces visible. Tracks without
+a valid complete lap use the map center. The scene extends behind the title and
+best recorded time. Turning HyperVision off restores the 2D surface map.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.

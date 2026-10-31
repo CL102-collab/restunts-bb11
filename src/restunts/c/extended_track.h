@@ -16,6 +16,13 @@ int extended_track_width(void);
 int extended_track_height(void);
 unsigned extended_track_route_capacity(void);
 const struct CSTRK_TRACK *extended_track_model(void);
+/* Road/stunt cells on compiled paths from start back to finish, in north-to-south
+ * row-major order. Invalid tracks have no selected cells. The active owner's
+ * mask remains valid until recompilation, unload or reload. */
+const legacy_u8 *extended_track_lap_tiles(void);
+/* Route compiler hook: zero clears stale membership before compiling; otherwise
+ * retain only its reachable states that can return to the start state. */
+void extended_track_cache_lap_routes(legacy_u16 route_count);
 int extended_track_load(const uint8_t *data, size_t size, char *error, size_t error_size);
 int extended_track_activate(const struct CSTRK_TRACK *track, char *error, size_t error_size);
 void extended_track_unload(void);
