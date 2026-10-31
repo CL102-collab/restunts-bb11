@@ -1021,6 +1021,9 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 			/* Generation uses the embedded track for a solo ghost; existing
 			 * opponent-dependent inputs are not a compatible search seed. */
 			metadata.opponent_type = 0;
+			/* New inputs use this engine's physics, even when the track came
+			 * from a recording made by a newer engine. */
+			metadata.version = CSRPL_VERSION;
 		}
 		genghost_sim_set_replay_metadata(&metadata);
 	}

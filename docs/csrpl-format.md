@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v11**. The revision identifies the track-format and
+recordings currently use **v12**. The revision identifies the track-format and
 physics behavior of the game that recorded the inputs; it is separate from the
 revision stored in the embedded track.
 
@@ -14,7 +14,7 @@ Increasing the track revision automatically advances the replay revision.
 Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v8 and physics revision is 3. Physics revision 1 corrected wheel
+revision is v8 and physics revision is 4. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
@@ -23,17 +23,23 @@ track pieces in replay v8. Replay v9 adds the Tunnel with slalom element
 introduced by track v7. Replay v10 adds the Barrel roll ramp and its
 contact-derived airborne roll momentum, introduced by track v8. Physics revision 3
 in replay v11 requires OWOOT barrel-roll attempts to pass the ordered airborne
-roll milestones and return upright before touchdown. A new recording uses the
-running game's replay revision, including when its track was loaded with a
-different track revision.
+roll milestones and return upright before touchdown. Physics revision 4 in replay
+v12 retains fractional wheel coordinates in solid contact checks and resolves
+mesh-road contact against the same exact triangles. Drivable tops and internal
+mesh seams use road response while sides, undersides and supports remain solid,
+allowing valid barrel-ramp approaches with fixed collision (`--lc:off`). A new
+recording uses the running game's replay revision, including when its track was
+loaded with a different track revision.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
 
-Replay revisions older than the running game's current replay revision are
-unsupported and rejected before activation, including existing v1–v10 recordings.
-The game does not emulate older physics. Increasing either the track revision
-or the physics revision also raises the minimum replay revision.
+Replay revisions v1–v10 remain unsupported and are rejected before activation.
+Version v11 remains supported with its historical solid-contact precision and
+wheel-plane response. New recordings use v12's precise contacts; loading,
+seeking, branching and resaving v11 retain v11 behavior. The minimum supported
+revision and the v12 physics cutoff are fixed compatibility boundaries, separate
+from the current recording revision.
 
 The game shows an OK-only warning when a selected replay or ghost has a newer
 recorded revision than the current game. The warning names both revisions and
@@ -49,7 +55,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current and minimum revision `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `12`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

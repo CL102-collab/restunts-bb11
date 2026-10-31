@@ -2392,6 +2392,364 @@ static void test_roll_ramp_solids(void)
 	cstrk_free(&track);
 }
 
+#define TEST_FIXED_POSITION_SCALE 64L
+#define TEST_FIXED_RAMP_COLUMN 72U
+#define TEST_FIXED_RAMP_ROW 8U
+#define TEST_FIXED_TRIANGLE_VERTICES 3U
+#define TEST_FIXED_ROAD_CLEARANCE 1L
+#define TEST_FIXED_PENETRATION (2L * TEST_FIXED_POSITION_SCALE)
+
+static struct VECTORLONG
+fixed_road_sample(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
+				  const struct VECTOR triangle[TEST_FIXED_TRIANGLE_VERTICES],
+				  const legacy_u8 weights[TEST_FIXED_TRIANGLE_VERTICES])
+{
+	legacy_s32 center_x =
+		object->x * CSTRK_TILE_WORLD_SIZE + object->width * CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 center_z = (track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
+						  object->height * CSTRK_TILE_WORLD_SIZE / 2;
+	struct VECTORLONG sample = {0};
+	legacy_u16 total = 0;
+	for (legacy_u8 index = 0; index < TEST_FIXED_TRIANGLE_VERTICES; index++) {
+		struct VECTOR vertex = roll_ramp_test_world(track, object, triangle[index]);
+		sample.lx += extended_geometry_unwrap(vertex.x, center_x) * weights[index];
+		sample.ly += (legacy_s32)vertex.y * weights[index];
+		sample.lz += extended_geometry_unwrap(vertex.z, center_z) * weights[index];
+		total += weights[index];
+	}
+	/* Barycentric weights sum to the native position scale, so the integer
+	 * weighted coordinates are exact 26.6 points on the authored triangle. */
+	assert(total == TEST_FIXED_POSITION_SCALE);
+	return sample;
+}
+
+static void test_fractional_roll_ramp_contacts(void)
+{
+	static const legacy_u8 first_weights[TEST_FIXED_TRIANGLE_VERTICES] = {44, 13, 7};
+	static const legacy_u8 second_weights[TEST_FIXED_TRIANGLE_VERTICES] = {7, 13, 44};
+	for (legacy_u16 id = CSTRK_ROLL_RAMP_FIRST_ID; id <= CSTRK_ROLL_RAMP_LAST_ID; id++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROLL_RAMP_ROTATION_COUNT; rotation++) {
+			for (legacy_u8 grade = 0; grade < TEST_ROLL_RAMP_SLOPE_COUNT; grade++) {
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+									sizeof(error)));
+				struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+				object.x = TEST_FIXED_RAMP_COLUMN;
+				object.y = TEST_FIXED_RAMP_ROW;
+				object.roll_ramp = 1;
+				object.base_height = GENERAL_SLOPE_BASE_HEIGHT;
+				if (grade) {
+					object.slope_x = general_slope_directions[grade - 1U][0];
+					object.slope_y = general_slope_directions[grade - 1U][1];
+				}
+				for (legacy_u16 y = 0; y <= track.height; y++) {
+					for (legacy_u16 x = 0; x <= track.width; x++) {
+						legacy_s16 height = object.base_height +
+											object.slope_x * ((legacy_s16)x - object.x) +
+											object.slope_y * ((legacy_s16)y - object.y);
+						track.corner_heights[y * (track.width + 1U) + x] =
+							height < 0								? 0
+							: height > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_u8)CSTRK_MAX_HEIGHT
+																	: (legacy_u8)height;
+					}
+				}
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+					track.objects[0].surface = surface;
+					activate(&track);
+					(void)roll_ramp_test_select(&track, &object, (struct VECTOR){0, 0, 0});
+					for (legacy_u16 index = 0; index < roll_ramp_road_triangle_count() / 2U;
+						 index++) {
+						struct VECTOR triangle[TEST_FIXED_TRIANGLE_VERTICES];
+						assert(roll_ramp_road_triangle(index, triangle));
+						struct VECTORLONG first =
+							fixed_road_sample(&track, &object, triangle, first_weights);
+						struct VECTORLONG second =
+							fixed_road_sample(&track, &object, triangle, second_weights);
+						first.ly += TEST_FIXED_ROAD_CLEARANCE;
+						second.ly += TEST_FIXED_ROAD_CLEARANCE;
+						legacy_s16 fraction = -1;
+						assert(!track_solid_obstacle_contact_fixed(&first, &second, &fraction));
+						assert(!track_wall_intersects_segment_fixed(&first, &second));
+						/* The first segment tapers to zero thickness. Later segments
+						 * have enough concrete to test real top/inside contacts too. */
+						if (index >= 2U) {
+							struct VECTORLONG below = first;
+							below.ly -= TEST_FIXED_PENETRATION;
+							assert(track_solid_obstacle_contact_fixed(&first, &below, &fraction));
+							assert(fraction >= 0 && fraction < TRIG_FIXED_ONE);
+							assert(track_solid_obstacle_contact_fixed(&below, &below, &fraction));
+						}
+					}
+					extended_track_unload();
+				}
+				cstrk_free(&track);
+			}
+		}
+	}
+}
+
+#define TEST_WALL_CONTACT_HEIGHT 100L
+#define TEST_WALL_CONTACT_CLEARANCE 16L
+#define TEST_WALL_SIDE_EXTENSION 80L
+
+static struct VECTORLONG fixed_canonical_contact(const struct CSTRK_TRACK *track,
+												 const struct CSTRK_OBJECT *object,
+												 legacy_s16 orientation, legacy_s32 x, legacy_s32 y,
+												 legacy_s32 z)
+{
+	legacy_s32 previous_x = x;
+	switch (orientation) {
+		case ANGLE_QUARTER_TURN:
+			x = z;
+			z = -previous_x;
+			break;
+		case ANGLE_HALF_TURN:
+			x = -x;
+			z = -z;
+			break;
+		case ANGLE_THREE_QUARTER_TURN:
+			x = -z;
+			z = previous_x;
+			break;
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(track, object, &origin);
+	struct VECTORLONG result = {
+		(object->x * CSTRK_TILE_WORLD_SIZE + object->width * CSTRK_TILE_WORLD_SIZE / 2) *
+				TEST_FIXED_POSITION_SCALE +
+			x,
+		origin.y * TEST_FIXED_POSITION_SCALE + y,
+		((track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
+		 object->height * CSTRK_TILE_WORLD_SIZE / 2) *
+				TEST_FIXED_POSITION_SCALE +
+			z};
+	return result;
+}
+
+static void assert_solid_wall_feature(struct VECTORLONG first, struct VECTORLONG second,
+									  legacy_s16 wall)
+{
+	legacy_s16 fraction = -1;
+	assert(track_solid_obstacle_contact_fixed(&first, &second, &fraction));
+	assert(fraction >= 0 && fraction < TRIG_FIXED_ONE);
+	assert(track_solid_wall_contact_fixed(&first, &second, &fraction) == wall);
+	assert(track_wall_intersects_segment_fixed(&first, &second) == wall);
+}
+
+static void test_roll_ramp_wall_features(void)
+{
+	const legacy_s32 span = ROLL_RAMP_LENGTH / ROLL_RAMP_SEGMENT_COUNT;
+	legacy_s32 seam = 0;
+	for (legacy_s32 section = 1; section < (legacy_s32)ROLL_RAMP_SEGMENT_COUNT / 2; section++) {
+		legacy_s32 distance = section * span;
+		legacy_s32 incoming =
+			roll_ramp_center_height(distance) - roll_ramp_center_height(distance - span);
+		legacy_s32 outgoing =
+			roll_ramp_center_height(distance + span) - roll_ramp_center_height(distance);
+		if (incoming > outgoing) {
+			/* The rendered integer-height profile can have a slightly concave
+			 * seam. A supported wheel's straight tick chord passes through its
+			 * top and the next segment's internal cap, not an external wall. */
+			seam = distance;
+			break;
+		}
+	}
+	assert(seam > 0);
+	legacy_s32 first_height =
+		(roll_ramp_center_height(seam - span) + roll_ramp_center_height(seam)) *
+			TEST_FIXED_POSITION_SCALE / 2 +
+		TEST_FIXED_ROAD_CLEARANCE;
+	legacy_s32 second_height =
+		(roll_ramp_center_height(seam) + roll_ramp_center_height(seam + span)) *
+			TEST_FIXED_POSITION_SCALE / 2 +
+		TEST_FIXED_ROAD_CLEARANCE;
+	for (legacy_u16 id = CSTRK_ROLL_RAMP_FIRST_ID; id <= CSTRK_ROLL_RAMP_LAST_ID; id++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROLL_RAMP_ROTATION_COUNT; rotation++) {
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+								sizeof(error)));
+			memset(track.corner_heights, GENERAL_SLOPE_BASE_HEIGHT,
+				   (size_t)(track.width + 1U) * (track.height + 1U));
+			struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+			object.x = TEST_FIXED_RAMP_COLUMN;
+			object.y = TEST_FIXED_RAMP_ROW;
+			object.base_height = GENERAL_SLOPE_BASE_HEIGHT;
+			object.roll_ramp = 1;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			activate(&track);
+			(void)roll_ramp_test_select(&track, &object, (struct VECTOR){0, 0, 0});
+			legacy_s16 orientation = roll_ramp_orientation(&object);
+			struct VECTORLONG first = fixed_canonical_contact(
+				&track, &object, orientation, 0, first_height,
+				(ROLL_RAMP_HALF_LENGTH - seam + span / 2) * TEST_FIXED_POSITION_SCALE);
+			struct VECTORLONG second = fixed_canonical_contact(
+				&track, &object, orientation, 0, second_height,
+				(ROLL_RAMP_HALF_LENGTH - seam - span / 2) * TEST_FIXED_POSITION_SCALE);
+			assert_solid_wall_feature(first, second, 0);
+			legacy_s32 z = CSTRK_TILE_WORLD_SIZE / 2;
+			legacy_s32 top = roll_ramp_center_height(ROLL_RAMP_HALF_LENGTH - z);
+			first = fixed_canonical_contact(&track, &object, orientation, 0,
+											(top + TEST_WALL_CONTACT_CLEARANCE) *
+												TEST_FIXED_POSITION_SCALE,
+											z * TEST_FIXED_POSITION_SCALE);
+			second = fixed_canonical_contact(&track, &object, orientation, 0,
+											 (top - TEST_WALL_CONTACT_CLEARANCE) *
+												 TEST_FIXED_POSITION_SCALE,
+											 z * TEST_FIXED_POSITION_SCALE);
+			assert_solid_wall_feature(first, second, 0);
+			/* Crossing the infinite top while still outside the footprint does
+			 * not exempt a later real side entry; exact side/top ties block too. */
+			for (legacy_u8 tied = 0; tied <= 1U; tied++) {
+				first = fixed_canonical_contact(
+					&track, &object, orientation,
+					-(ROLL_RAMP_HALF_WIDTH + TEST_WALL_SIDE_EXTENSION) * TEST_FIXED_POSITION_SCALE,
+					(top + (tied ? TEST_WALL_SIDE_EXTENSION : TEST_WALL_CONTACT_CLEARANCE)) *
+						TEST_FIXED_POSITION_SCALE,
+					z * TEST_FIXED_POSITION_SCALE);
+				second = fixed_canonical_contact(
+					&track, &object, orientation, 0,
+					(tied ? top - ROLL_RAMP_HALF_WIDTH : TEST_WALL_CONTACT_HEIGHT) *
+						TEST_FIXED_POSITION_SCALE,
+					z * TEST_FIXED_POSITION_SCALE);
+				assert_solid_wall_feature(first, second, 1);
+			}
+			first =
+				fixed_canonical_contact(&track, &object, orientation, 0,
+										-TEST_WALL_CONTACT_CLEARANCE * TEST_FIXED_POSITION_SCALE,
+										z * TEST_FIXED_POSITION_SCALE);
+			second =
+				fixed_canonical_contact(&track, &object, orientation, 0,
+										TEST_WALL_CONTACT_CLEARANCE * TEST_FIXED_POSITION_SCALE,
+										z * TEST_FIXED_POSITION_SCALE);
+			assert_solid_wall_feature(first, second, 1);
+			first = fixed_canonical_contact(&track, &object, orientation, 0,
+											TEST_WALL_CONTACT_HEIGHT * TEST_FIXED_POSITION_SCALE,
+											-span * TEST_FIXED_POSITION_SCALE);
+			second = fixed_canonical_contact(&track, &object, orientation, 0,
+											 TEST_WALL_CONTACT_HEIGHT * TEST_FIXED_POSITION_SCALE,
+											 span * TEST_FIXED_POSITION_SCALE);
+			assert_solid_wall_feature(first, second, 1);
+			struct VECTORLONG inside =
+				fixed_canonical_contact(&track, &object, orientation, 0,
+										TEST_WALL_CONTACT_HEIGHT * TEST_FIXED_POSITION_SCALE,
+										z * TEST_FIXED_POSITION_SCALE);
+			assert_solid_wall_feature(inside, inside, 1);
+			for (legacy_u16 support_index = 0; support_index < roll_ramp_support_box_count();
+				 support_index++) {
+				struct ROLL_RAMP_BOX support;
+				assert(roll_ramp_support_box(support_index, &support));
+				legacy_s32 x = (support.minimum.x + support.maximum.x) / 2;
+				z = (support.minimum.z + support.maximum.z) / 2;
+				first = fixed_canonical_contact(
+					&track, &object, orientation, x * TEST_FIXED_POSITION_SCALE,
+					(support.maximum.y + TEST_WALL_CONTACT_CLEARANCE) * TEST_FIXED_POSITION_SCALE,
+					z * TEST_FIXED_POSITION_SCALE);
+				second = fixed_canonical_contact(
+					&track, &object, orientation, x * TEST_FIXED_POSITION_SCALE,
+					(support.minimum.y + support.maximum.y) * TEST_FIXED_POSITION_SCALE / 2,
+					z * TEST_FIXED_POSITION_SCALE);
+				assert_solid_wall_feature(first, second, 1);
+			}
+			extended_track_unload();
+			cstrk_free(&track);
+		}
+	}
+}
+
+/* The grille starts after half of the road triangles. These exact barycentric
+ * samples stay near its lower edge so the rendered crest is concave even on a
+ * graded support; a straight supported span cuts the final concrete cap. */
+#define TEST_GRILLE_FIRST_TRIANGLE (ROLL_RAMP_SEGMENT_COUNT + 1U)
+#define TEST_CONCRETE_LAST_TRIANGLE (ROLL_RAMP_SEGMENT_COUNT - 1U)
+#define TEST_CAPTURED_SPAN_LATERAL (-1024L)
+#define TEST_CAPTURED_GRILLE_HEIGHT 24545L
+#define TEST_CAPTURED_GRILLE_DISTANCE (-2924L)
+#define TEST_CAPTURED_CONCRETE_HEIGHT 23167L
+#define TEST_CAPTURED_CONCRETE_DISTANCE 659L
+
+static void test_roll_ramp_grille_join(void)
+{
+	static const legacy_u8 grille_weights[TEST_FIXED_TRIANGLE_VERTICES] = {18, 4, 42};
+	static const legacy_u8 grille_edge_weights[TEST_FIXED_TRIANGLE_VERTICES] = {18, 0, 46};
+	static const legacy_u8 concrete_weights[TEST_FIXED_TRIANGLE_VERTICES] = {10, 4, 50};
+	struct VECTOR grille[TEST_FIXED_TRIANGLE_VERTICES];
+	struct VECTOR concrete[TEST_FIXED_TRIANGLE_VERTICES];
+	assert(roll_ramp_road_triangle(TEST_GRILLE_FIRST_TRIANGLE, grille));
+	assert(roll_ramp_road_triangle(TEST_CONCRETE_LAST_TRIANGLE, concrete));
+	for (legacy_u16 id = CSTRK_ROLL_RAMP_FIRST_ID; id <= CSTRK_ROLL_RAMP_LAST_ID; id++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROLL_RAMP_ROTATION_COUNT; rotation++) {
+			for (legacy_u8 grade = 0; grade < TEST_ROLL_RAMP_SLOPE_COUNT; grade++) {
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error,
+									sizeof(error)));
+				struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+				object.x = TEST_FIXED_RAMP_COLUMN;
+				object.y = TEST_FIXED_RAMP_ROW;
+				object.roll_ramp = 1;
+				object.base_height = GENERAL_SLOPE_BASE_HEIGHT;
+				if (grade) {
+					object.slope_x = general_slope_directions[grade - 1U][0];
+					object.slope_y = general_slope_directions[grade - 1U][1];
+				}
+				for (legacy_u16 y = 0; y <= track.height; y++) {
+					for (legacy_u16 x = 0; x <= track.width; x++) {
+						legacy_s16 height = object.base_height +
+											object.slope_x * ((legacy_s16)x - object.x) +
+											object.slope_y * ((legacy_s16)y - object.y);
+						track.corner_heights[y * (track.width + 1U) + x] =
+							height < 0								? 0
+							: height > (legacy_s16)CSTRK_MAX_HEIGHT ? (legacy_u8)CSTRK_MAX_HEIGHT
+																	: (legacy_u8)height;
+					}
+				}
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				(void)roll_ramp_test_select(&track, &object, (struct VECTOR){0, 0, 0});
+				struct VECTORLONG first =
+					fixed_road_sample(&track, &object, grille, grille_weights);
+				struct VECTORLONG second =
+					fixed_road_sample(&track, &object, concrete, concrete_weights);
+				first.ly += TEST_FIXED_ROAD_CLEARANCE;
+				second.ly += TEST_FIXED_ROAD_CLEARANCE;
+				assert_solid_wall_feature(first, second, 0);
+				/* Either endpoint below its actual finite road leaves this a
+				 * genuine exposed cap contact. The raw solid always stays closed. */
+				struct VECTORLONG below = first;
+				below.ly -= TEST_FIXED_PENETRATION;
+				assert_solid_wall_feature(below, second, 1);
+				below = second;
+				below.ly -= TEST_FIXED_PENETRATION;
+				assert_solid_wall_feature(first, below, 1);
+				/* Extrapolating beyond the finite grille edge keeps the first
+				 * endpoint above its infinite triangle plane, but does not
+				 * qualify it as a road-supported endpoint. The later cap blocks. */
+				struct VECTORLONG edge =
+					fixed_road_sample(&track, &object, grille, grille_edge_weights);
+				edge.ly += TEST_FIXED_ROAD_CLEARANCE;
+				struct VECTORLONG outside = {2 * edge.lx - first.lx, 2 * edge.ly - first.ly,
+											 2 * edge.lz - first.lz};
+				assert_solid_wall_feature(outside, second, 1);
+				if (!grade) {
+					legacy_s16 orientation = roll_ramp_orientation(&object);
+					first = fixed_canonical_contact(
+						&track, &object, orientation, TEST_CAPTURED_SPAN_LATERAL,
+						TEST_CAPTURED_GRILLE_HEIGHT, TEST_CAPTURED_GRILLE_DISTANCE);
+					second = fixed_canonical_contact(
+						&track, &object, orientation, TEST_CAPTURED_SPAN_LATERAL,
+						TEST_CAPTURED_CONCRETE_HEIGHT, TEST_CAPTURED_CONCRETE_DISTANCE);
+					assert_solid_wall_feature(first, second, 0);
+				}
+				extended_track_unload();
+				cstrk_free(&track);
+			}
+		}
+	}
+}
+
 int main(void)
 {
 	FILE *resource = fopen("GAME.PRE", "rb");
@@ -2426,6 +2784,9 @@ int main(void)
 	test_flat_tunnel_slalom();
 	test_roll_ramp_collision();
 	test_roll_ramp_solids();
+	test_fractional_roll_ramp_contacts();
+	test_roll_ramp_wall_features();
+	test_roll_ramp_grille_join();
 	test_hill_shore_geometry();
 	test_shore_materials();
 	test_resource_admission();

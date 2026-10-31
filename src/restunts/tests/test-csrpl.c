@@ -305,8 +305,8 @@ static void test_recorded_versions(void)
 {
 	static const legacy_u16 track_versions[] = {CSTRK_MIN_VERSION, CSTRK_VERSION,
 												TEST_FUTURE_TRACK_VERSION};
-	static const legacy_u16 replay_versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U, 15U, 101U,
-												 LEGACY_U16_MAX};
+	static const legacy_u16 replay_versions[] = {
+		CSRPL_MIN_VERSION, CSRPL_VERSION, CSRPL_VERSION + 1U, 15U, 101U, LEGACY_U16_MAX};
 	static const legacy_u8 inputs[] = {1U, 2U};
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
@@ -348,8 +348,8 @@ static void test_recorded_versions(void)
 			assert(saved_size == size && memcmp(saved, encoded, size) == 0);
 			free(saved);
 			struct CSRPL_VIEW unchanged = view;
-			/* Every revision older than the running game is unsupported. */
-			for (legacy_u16 version = 0; version < CSRPL_VERSION; version++) {
+			/* Revisions below the compatibility floor remain unsupported. */
+			for (legacy_u16 version = 0; version < CSRPL_MIN_VERSION; version++) {
 				LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET, version);
 				assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
 				assert(strstr(error, "Unsupported Chocolate Stunts replay version") != NULL);
@@ -379,7 +379,7 @@ static void test_recorded_versions(void)
 
 static void test_recorded_driving_rules(void)
 {
-	static const legacy_u16 versions[] = {CSRPL_VERSION, CSRPL_VERSION + 1U};
+	static const legacy_u16 versions[] = {CSRPL_MIN_VERSION, CSRPL_VERSION, CSRPL_VERSION + 1U};
 	static const legacy_u8 inputs[] = {1U, 2U};
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);

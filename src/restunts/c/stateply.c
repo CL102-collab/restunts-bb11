@@ -14,6 +14,9 @@
 #include "extended_track.h"
 #include "extended_geometry.h"
 #include "roll_ramp.h"
+#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
+#include "extended_replay_runtime.h"
+#endif
 #endif
 
 #define PLAYER_PHYSICS_WHEEL_COUNT 4
@@ -56,6 +59,7 @@ enum PLAYER_PHYSICS_POSE_VECTOR_INDEX {
 #define PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT PHYSICS_PLANE_CONTACT_TOLERANCE
 #define PLAYER_PHYSICS_INVERTED_CONTACT_DISTANCE_LIMIT PHYSICS_UNDERSIDE_CLEARANCE
 #define PLAYER_PHYSICS_PLANE_PENETRATION_BIAS 6
+#define PLAYER_PHYSICS_FRACTIONAL_CONTACT_LIMIT 1
 #define PLAYER_PHYSICS_PLANE_RETRACE_DISTANCE 64
 #define PLAYER_PHYSICS_SUSPENSION_SOUND_THRESHOLD 250
 #define PLAYER_PHYSICS_SUSPENSION_CRASH_THRESHOLD 23275
@@ -841,9 +845,20 @@ static legacy_s32 ground_plane_coordinate(legacy_s32 position, legacy_s16 origin
 static legacy_s16 extended_ground_contact(const struct VECTORLONG *position,
 										  struct PLAYER_GROUND_CONTACT *contact)
 {
-	if (!extended_track_active() || planindex != EXTENDED_GEOMETRY_PLANE_INDEX ||
-		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+	if (!extended_track_active() || player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
 		return 0;
+	}
+	if (planindex != EXTENDED_GEOMETRY_PLANE_INDEX) {
+		if (legacy_collision_is_enabled()) {
+			return 0;
+		}
+#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
+		if (extended_replay_is_active() &&
+			extended_replay_version() < CSRPL_FIXED_POINT_SOLID_VERSION) {
+			return 0;
+		}
+#endif
+		return track_selected_plane_contact_fixed(position, &contact->height, &contact->distance);
 	}
 	const struct PLANE *plane = current_planptr;
 	const struct VECTOR *normal = &plane->plane_normal;
@@ -1309,7 +1324,10 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 		struct PLAYER_GROUND_CONTACT previous_contact;
 		if (extended_ground_contact(&motion->current[wheel_index], &contact) &&
 			extended_ground_contact(&motion->previous[wheel_index], &previous_contact) &&
-			previous_contact.distance <= 0) {
+			previous_contact.distance <= 0 &&
+			(planindex == EXTENDED_GEOMETRY_PLANE_INDEX ||
+			 (previous_contact.distance >= -PLAYER_PHYSICS_FRACTIONAL_CONTACT_LIMIT &&
+			  contact.distance >= -PLAYER_PHYSICS_FRACTIONAL_CONTACT_LIMIT))) {
 			/* Correct sub-unit penetration too, without pulling an airborne
 			 * wheel down onto an incline or changing its horizontal travel.
 			 * New impacts retain the original split between air and road travel. */
@@ -1323,6 +1341,17 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 			resolved = nextPosAndNormalIP >= 0 ||
 					   correct_wheel_plane_penetration(carstate, motion, wheel_index, car_index);
 		}
+#ifdef RESTUNTS_SDL3
+		/* A new landing can retain a fraction below its exact mesh plane even
+		 * after the legacy rotated response. Keep suspension/impact accounting,
+		 * then remove only that final penetration before testing closed solids. */
+		if (resolved && planindex != EXTENDED_GEOMETRY_PLANE_INDEX &&
+			extended_ground_contact(&motion->current[wheel_index], &contact) &&
+			contact.distance >= -PLAYER_PHYSICS_FRACTIONAL_CONTACT_LIMIT &&
+			motion->current[wheel_index].ly < contact.height) {
+			motion->current[wheel_index].ly = contact.height;
+		}
+#endif
 		if (player_motion_fraction != 0 && resolved) {
 			relax_wheel_plane_residual(motion, wheel_index, initial_distance);
 		}
