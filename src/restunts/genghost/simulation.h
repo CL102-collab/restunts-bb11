@@ -5,8 +5,10 @@
 #include "../c/replay.h"
 #include "../c/residue.h"
 #include "../c/track_collision.h"
+#include "../c/extended_replay_runtime.h"
 
-#define GENGHOST_MAX_FRAMES 12000U
+#define GENGHOST_LEGACY_MAX_FRAMES 12000U
+#define GENGHOST_MAX_FRAMES 120000U
 #define GENGHOST_FRAME_RATE 20U
 
 /* The engine is process-global. Snapshots belong to the one initialized track,
@@ -15,6 +17,8 @@
 struct GENGHOST_SNAPSHOT {
 	struct GAMESTATE state;
 	struct LEGACY_EXECUTION_RESIDUE residue;
+	struct EXTENDED_REPLAY_CLOCKS clocks;
+	legacy_s32 context_x, context_z;
 	struct TRACK_COLLISION_SNAPSHOT collision;
 	struct VECTORLONG position;
 	struct VECTOR rotation, initial_rotation, forward, world;
@@ -42,10 +46,21 @@ struct GENGHOST_RESULT {
 legacy_int genghost_sim_init(const legacy_u8 track[REPLAY_TRACK_SIZE],
 							 const legacy_char car[REPLAY_CAR_ID_SIZE], legacy_int transmission,
 							 legacy_int argc, legacy_char **argv);
+/* Size-aware initialization admits complete legacy or CSTRK tracks. Configure
+ * an embedded replay's rate and metadata before initialization. */
+legacy_int genghost_sim_init_track(const legacy_u8 *track, legacy_uint track_size,
+								   const legacy_char car[REPLAY_CAR_ID_SIZE],
+								   legacy_int transmission, legacy_int argc, legacy_char **argv);
+void genghost_sim_set_frame_rate(legacy_u16 rate);
+void genghost_sim_set_replay_metadata(const struct CSRPL_METADATA *metadata);
+legacy_uint genghost_sim_frame(void);
+legacy_uint genghost_sim_frame_limit(void);
+legacy_u16 genghost_sim_frame_rate(void);
 void genghost_sim_capture(struct GENGHOST_SNAPSHOT *snapshot);
 void genghost_sim_restore(const struct GENGHOST_SNAPSHOT *snapshot);
 void genghost_sim_reset(void);
-/* Consume one original 20 Hz input tick. Returns the game's crash/finish event,
+/* Consume one original input tick at the configured frame rate. Returns the
+ * game's crash/finish event,
  * or -1 at the replay length limit. Read engine `state` for route/speed data. */
 legacy_int genghost_sim_step(legacy_u8 input);
 void genghost_sim_result(struct GENGHOST_RESULT *result);
@@ -58,7 +73,7 @@ legacy_int genghost_sim_evaluate(const legacy_u8 *inputs, legacy_uint length,
  * simulation/configuration are manual, with the original finish and score. */
 legacy_int genghost_sim_manual_inputs(legacy_u8 *inputs, legacy_uint length,
 									  struct GENGHOST_RESULT *baseline);
-/* Save original track bytes and standard v1.1 header. Caller must validate the
+/* Save a legacy RPL or a CSRPL with the complete extended track and rules. Caller must validate the
  * complete input sequence first. Output errors return nonzero. */
 legacy_int genghost_sim_write_replay(const legacy_char *path, const legacy_char *track_name,
 									 const legacy_u8 *inputs, legacy_uint length);

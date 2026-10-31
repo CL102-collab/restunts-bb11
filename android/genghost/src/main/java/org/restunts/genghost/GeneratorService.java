@@ -1,16 +1,6 @@
 package org.restunts.genghost;
 
-import static org.restunts.genghost.GenerationRequest.BYTE_BITS;
-import static org.restunts.genghost.GenerationRequest.BYTE_MASK;
-import static org.restunts.genghost.GenerationRequest.REPLAY_CAR_BYTES;
-import static org.restunts.genghost.GenerationRequest.REPLAY_CAR_OFFSET;
-import static org.restunts.genghost.GenerationRequest.REPLAY_FRAME_COUNT_OFFSET;
 import static org.restunts.genghost.GenerationRequest.REPLAY_FRAME_MASK;
-import static org.restunts.genghost.GenerationRequest.REPLAY_FRAMES_PER_SECOND;
-import static org.restunts.genghost.GenerationRequest.REPLAY_HEADER_BYTES;
-import static org.restunts.genghost.GenerationRequest.REPLAY_INPUT_OFFSET;
-import static org.restunts.genghost.GenerationRequest.REPLAY_OPPONENT_OFFSET;
-import static org.restunts.genghost.GenerationRequest.REPLAY_RATE_OFFSET;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -55,7 +45,7 @@ public final class GeneratorService extends Service {
     private static final int NOTIFICATION_ID = 1;
     private static final int MAX_LOG = 24000;
     private static final long STOP_GRACE_MS = 15000;
-    private static final int MAX_OUTPUT_BYTES = 65536;
+    private static final int MAX_OUTPUT_BYTES = GenerationRequest.EXTENDED_REPLAY_MAX_BYTES;
     private static final int COPY_BUFFER_BYTES = 8192;
     private static final int REPORT_BUFFER_BYTES = 1024;
     private static final int PROCESS_COMMAND_BUFFER_BYTES = 4096;
@@ -252,7 +242,7 @@ public final class GeneratorService extends Service {
     /** Resolve exports independently of the replaceable game cache. */
     public static File outputFile(Context context, String name) throws IOException {
         if (name == null || !name.matches(
-                "(g[0-9a-f]{7}|ghost-[a-z0-9]{4}-[0-9a-f]{12})\\.rpl(\\.json)?")) {
+                "(g[0-9a-f]{7}|ghost-[a-z0-9]{4}-[0-9a-f]{12})\\.(rpl|csrpl)(\\.json)?")) {
             throw new IOException("Invalid generated replay filename.");
         }
         File retainedRoot = new File(context.getFilesDir(), "ghost-results").getCanonicalFile();
@@ -304,12 +294,12 @@ public final class GeneratorService extends Service {
         }
     }
 
-    private String uniqueOutputName(File game) throws IOException {
+    private String uniqueOutputName(File game, File track) throws IOException {
         File retained = new File(getFilesDir(), "ghost-results");
         for (int attempt = 0; attempt < OUTPUT_NAME_ATTEMPTS; attempt++) {
             // The game's replay chooser accepts DOS 8.3 names only.
             String name = "g" + UUID.randomUUID().toString().substring(0, OUTPUT_NAME_RANDOM_CHARS)
-                + ".rpl";
+                + GenerationRequest.outputExtension(track);
             if (!outputExists(game, name) && !outputExists(retained, name)) {
                 return name;
             }
@@ -683,7 +673,7 @@ public final class GeneratorService extends Service {
             if (!executable.isFile() || !executable.canExecute()) {
                 throw new IOException("The packaged generator is unavailable.");
             }
-            String outputName = uniqueOutputName(game);
+            String outputName = uniqueOutputName(game, track);
             File output = new File(game, outputName);
             synchronized (stateLock) {
                 state.outputName = outputName;
@@ -986,33 +976,19 @@ public final class GeneratorService extends Service {
             throw new IOException("The generator did not save a complete replay and report.");
         }
         JSONObject result = readReport(report);
-        byte[] header = new byte[REPLAY_HEADER_BYTES];
-        try (FileInputStream input = new FileInputStream(replay)) {
-            int total = 0;
-            while (total < header.length) {
-                int count = input.read(header, total, header.length - total);
-                if (count < 0) {
-                    throw new IOException("The replay header is incomplete.");
-                }
-                total += count;
-            }
+        GenerationRequest.ReplayInfo info = GenerationRequest.readReplay(replay);
+        long expectedTotal = (long)result.getInt("finish_frame") + result.getInt("penalty_frames");
+        if (!info.extended) {
+            expectedTotal &= REPLAY_FRAME_MASK;
         }
-        int frames = (header[REPLAY_FRAME_COUNT_OFFSET] & BYTE_MASK)
-            | ((header[REPLAY_FRAME_COUNT_OFFSET + 1] & BYTE_MASK) << BYTE_BITS);
-        String replayCar = new String(header, REPLAY_CAR_OFFSET, REPLAY_CAR_BYTES,
-            StandardCharsets.US_ASCII);
         if (!result.getBoolean("finished") || !result.getString("tool").equals("genghost")
                 || !result.getString("car").equalsIgnoreCase(car)
-                || !replayCar.equalsIgnoreCase(car)
-                || (header[REPLAY_RATE_OFFSET] & BYTE_MASK) != REPLAY_FRAMES_PER_SECOND
-                || header[REPLAY_RATE_OFFSET + 1] != 0 || header[REPLAY_OPPONENT_OFFSET] != 0
-                || frames == 0 || frames != result.getInt("replay_frames")
-                || replay.length() != REPLAY_INPUT_OFFSET + frames
-                || result.getInt("finish_frame") <= 0 || result.getInt("finish_frame") > frames
-                || result.getInt("total_frames") != ((result.getInt("finish_frame")
-                    + result.getInt("penalty_frames")) & REPLAY_FRAME_MASK)
+                || !info.car.equalsIgnoreCase(car) || info.opponent != 0
+                || info.frames == 0 || info.frames != result.getInt("replay_frames")
+                || result.getInt("finish_frame") <= 0 || result.getInt("finish_frame") > info.frames
+                || result.getInt("total_frames") != expectedTotal
                 || Math.abs(result.getDouble("total_seconds")
-                    - (double)result.getInt("total_frames") / REPLAY_FRAMES_PER_SECOND)
+                    - (double)result.getInt("total_frames") / info.rate)
                     > REPORT_SECONDS_TOLERANCE) {
             throw new IOException("The replay and its completion report do not match.");
         }

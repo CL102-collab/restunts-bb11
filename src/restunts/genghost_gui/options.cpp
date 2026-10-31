@@ -10,6 +10,9 @@
 #include <windows.h>
 #endif
 #include "options.h"
+extern "C" {
+#include "../c/csrpl.h"
+}
 #include "../genghost/simulation.h"
 
 namespace
@@ -35,6 +38,38 @@ static const legacy_uint FINE_TUNE_PREFIX_LENGTH = 5U;
 static const legacy_uint CAR_PREFIX_LENGTH = sizeof(CAR_PREFIX) - 1U;
 static const legacy_uint REPLAY_SLOW_FRAME_RATE = 10U;
 static const legacy_uint TRANSMISSION_AUTOMATIC = 1U;
+static const size_t EXTENDED_TRACK_MAX_BYTES =
+	CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +
+	CSTRK_MAX_DIMENSION * CSTRK_MAX_DIMENSION * 2U + CSTRK_MAX_OBJECTS * CSTRK_OBJECT_SIZE +
+	CSTRK_MAX_NOTES;
+static const size_t EXTENDED_REPLAY_MAX_BYTES =
+	CSRPL_HEADER_SIZE + EXTENDED_TRACK_MAX_BYTES + GENGHOST_MAX_FRAMES;
+
+static legacy_bool extended_input(const wxString &path)
+{
+	const wxString extension = wxFileName(path).GetExt().Upper();
+	return extension == "CSTRK" || extension == "CSRPL";
+}
+
+static legacy_bool read_extended(const wxString &path, std::vector<legacy_u8> &bytes)
+{
+	wxLogNull silence;
+	wxFFile file(path, "rb");
+	if (!file.IsOpened() || file.Length() <= 0 ||
+		static_cast<legacy_u64>(file.Length()) > EXTENDED_REPLAY_MAX_BYTES) {
+		return false;
+	}
+	bytes.resize(static_cast<size_t>(file.Length()));
+	return file.Read(bytes.data(), bytes.size()) == bytes.size();
+}
+
+static legacy_bool read_extended_replay(const wxString &path, std::vector<legacy_u8> &bytes,
+										CSRPL_VIEW &view)
+{
+	return read_extended(path, bytes) &&
+		   csrpl_decode(bytes.data(), bytes.size(), &view, nullptr, 0) &&
+		   view.metadata.frame_count <= GENGHOST_MAX_FRAMES;
+}
 
 static legacy_bool valid_car(const wxString &car)
 {
@@ -128,13 +163,23 @@ static wxString header_car(const legacy_u8 *header)
 
 static legacy_bool valid_replay(const wxString &path, legacy_bool fine_tune)
 {
+	if (wxFileName(path).GetExt().CmpNoCase("csrpl") == 0) {
+		std::vector<legacy_u8> bytes;
+		CSRPL_VIEW view;
+		if (!read_extended_replay(path, bytes, view)) {
+			return false;
+		}
+		return !fine_tune || (view.metadata.frame_count != 0 && view.metadata.opponent_type == 0 &&
+							  !header_car(view.metadata.player_car_id).empty());
+	}
 	legacy_u8 header[REPLAY_GAMEINFO_SIZE];
 	if (!read_header(path, header)) {
 		return false;
 	}
 	const legacy_u16 frames = header_word(header, offsetof(GAMEINFO, game_recordedframes));
 	const legacy_u16 rate = header_word(header, offsetof(GAMEINFO, game_framespersec));
-	if (frames > GENGHOST_MAX_FRAMES || wxFileName::GetSize(path) != REPLAY_INPUT_OFFSET + frames ||
+	if (frames > GENGHOST_LEGACY_MAX_FRAMES ||
+		wxFileName::GetSize(path) != REPLAY_INPUT_OFFSET + frames ||
 		header[offsetof(GAMEINFO, game_playertransmission)] > TRANSMISSION_AUTOMATIC ||
 		(rate != REPLAY_SLOW_FRAME_RATE && rate != GENGHOST_FRAME_RATE)) {
 		return false;
@@ -182,7 +227,8 @@ static wxString collect_directory(const wxString &path, legacy_bool required,
 		 more = directory.GetNext(&name)) {
 		const wxFileName file(path, name);
 		const wxString extension = file.GetExt().Upper();
-		if (inputs != nullptr && (extension == "TRK" || extension == "RPL")) {
+		if (inputs != nullptr && (extension == "TRK" || extension == "RPL" ||
+								  extension == "CSTRK" || extension == "CSRPL")) {
 			inputs->push_back(absolute_path(file.GetFullPath(), wxEmptyString));
 		}
 		const wxString stem = file.GetName().Upper();
@@ -330,8 +376,39 @@ wxString genghost_resolved_car(const GenghostOptions &options)
 	if (options.mode == GENGHOST_MODE_GENERATE) {
 		return valid_car(options.car) ? options.car.Upper() : wxString();
 	}
+	const wxString path = genghost_resolved_input(options);
+	if (wxFileName(path).GetExt().CmpNoCase("csrpl") == 0) {
+		std::vector<legacy_u8> bytes;
+		CSRPL_VIEW view;
+		return read_extended_replay(path, bytes, view) ? header_car(view.metadata.player_car_id)
+													   : wxString();
+	}
 	legacy_u8 header[REPLAY_GAMEINFO_SIZE];
-	return read_header(genghost_resolved_input(options), header) ? header_car(header) : wxString();
+	return read_header(path, header) ? header_car(header) : wxString();
+}
+
+legacy_bool genghost_apply_replay_physics(GenghostOptions &options)
+{
+	const wxString input = genghost_resolved_input(options);
+	if (wxFileName(input).GetExt().CmpNoCase("csrpl") != 0) {
+		return false;
+	}
+	std::vector<legacy_u8> bytes;
+	CSRPL_VIEW view;
+	if (!read_extended_replay(input, bytes, view)) {
+		return false;
+	}
+	static const legacy_u16 rules[GENGHOST_PHYSICS_COUNT] = {DRIVING_RULE_POWER_GEAR,
+															 DRIVING_RULE_LEGACY_COLLISION,
+															 DRIVING_RULE_LEFT_CORNER_BIAS,
+															 DRIVING_RULE_DUAL_WAY_SWITCHING,
+															 DRIVING_RULE_CHICANE_FAST_GRASS,
+															 DRIVING_RULE_AMIGA_GRASS,
+															 DRIVING_RULE_OWOOT};
+	for (legacy_uint index = 0; index < GENGHOST_PHYSICS_COUNT; index++) {
+		options.physics[index] = (view.metadata.driving_rules & rules[index]) != 0;
+	}
+	return true;
 }
 
 wxString genghost_default_output(const GenghostOptions &options)
@@ -348,7 +425,8 @@ wxString genghost_default_output(const GenghostOptions &options)
 	if (prefix.empty()) {
 		prefix = wxString("TRACK").Left(maximum);
 	}
-	const wxString suffix = fine_tune ? "-FT.rpl" : "-" + options.car.Upper() + ".rpl";
+	const wxString extension = extended_input(options.input) ? ".csrpl" : ".rpl";
+	const wxString suffix = fine_tune ? "-FT" + extension : "-" + options.car.Upper() + extension;
 	return absolute_path(prefix + suffix, options.folder);
 }
 
@@ -379,17 +457,29 @@ wxString genghost_validate_options(const GenghostOptions &options)
 	}
 	const wxString extension = wxFileName(input).GetExt().Upper();
 	if (fine_tune) {
-		if (extension != "RPL" || !valid_replay(input, true)) {
-			return "Fine-tuning requires a complete solo 20 Hz .RPL replay with a valid car code.";
+		if ((extension != "RPL" && extension != "CSRPL") || !valid_replay(input, true)) {
+			return "Fine-tuning requires a complete solo .CSRPL or 20 Hz .RPL replay with a valid "
+				   "car code.";
 		}
-	} else if ((extension != "TRK" && extension != "RPL") ||
-			   (extension == "TRK" && wxFileName::GetSize(input) != REPLAY_TRACK_SIZE) ||
-			   (extension == "RPL" && !valid_replay(input, false))) {
-		return "Choose a complete Stunts .TRK track or .RPL replay.";
+	} else {
+		legacy_bool valid = false;
+		if (extension == "TRK") {
+			valid = wxFileName::GetSize(input) == REPLAY_TRACK_SIZE;
+		} else if (extension == "RPL" || extension == "CSRPL") {
+			valid = valid_replay(input, false);
+		} else if (extension == "CSTRK") {
+			std::vector<legacy_u8> bytes;
+			valid = read_extended(input, bytes) &&
+					cstrk_validate_bytes(bytes.data(), bytes.size(), nullptr, 0);
+		}
+		if (!valid) {
+			return "Choose a complete .TRK/.CSTRK track or .RPL/.CSRPL replay.";
+		}
 	}
 	const wxString output = output_path(options);
-	if (output.empty() || wxFileName(output).GetExt().CmpNoCase("rpl") != 0) {
-		return "Choose an output replay filename ending in .rpl.";
+	const wxString expected_extension = extended_input(input) ? "csrpl" : "rpl";
+	if (output.empty() || wxFileName(output).GetExt().CmpNoCase(expected_extension) != 0) {
+		return "Choose an output replay filename ending in ." + expected_extension + ".";
 	}
 	const wxString report = output + REPORT_SUFFIX;
 	if (same_file(input, output) || same_file(input, report)) {
@@ -430,6 +520,11 @@ std::vector<wxString> genghost_arguments(const wxString &executable, const Gengh
 			launcher_option_definitions[genghost_physics_options[index]];
 		const legacy_char *argument =
 			options.physics[index] ? definition.enabled_argument : definition.disabled_argument;
+		if (argument == nullptr && genghost_physics_options[index] == LAUNCHER_OWOOT) {
+			argument = "--owoot:off";
+		} else if (argument == nullptr && genghost_physics_options[index] == LAUNCHER_AMIGA_GRASS) {
+			argument = "--amigagrass:off";
+		}
 		if (argument != nullptr) {
 			arguments.push_back(argument);
 		}

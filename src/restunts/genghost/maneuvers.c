@@ -7,6 +7,7 @@
 #include "../c/track_objects.h"
 #include "../c/track_collision.h"
 #include "../c/trackdata_layout.h"
+#include "../c/extended_track.h"
 
 #undef memcpy
 
@@ -20,6 +21,8 @@ extern legacy_f64 fmax(legacy_f64, legacy_f64);
 
 #define MANEUVER_ANGLE_SCALE (ANGLE_FULL_TURN / 6.28318530717958647693)
 #define MANEUVER_MPH_TRAVEL (11.0 / 30.0)
+#define MANEUVER_BARREL_HORIZON 160U
+#define MANEUVER_BARREL_APPROACH_SPEED 100.0
 
 static legacy_f64 bounded(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 {
@@ -29,9 +32,9 @@ static legacy_f64 bounded(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 const legacy_char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind)
 {
 	static const legacy_char *const names[] = {
-		"follow",		   "accelerate",		 "brake",  "tile touch", "stunt",
-		"stunt alternate", "chicane fast grass", "launch", "power gear", "landing",
-		"slalom center",   "slalom jump"};
+		"follow",		   "accelerate",		 "brake",	   "tile touch", "stunt",
+		"stunt alternate", "chicane fast grass", "launch",	   "power gear", "landing",
+		"slalom center",   "slalom jump",		 "barrel roll"};
 	return (legacy_uint)kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "unknown";
 }
 
@@ -167,13 +170,14 @@ static void straight_chicane(struct GENGHOST_MANEUVER *action, legacy_uint varia
 	legacy_int piece = action->approach.piece;
 	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
 	const struct TRACKOBJECT *object = &trkObjectList[tile];
-	legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
-	legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
+	legacy_f64 ox, oz;
+	legacy_s16 orientation;
+	genghost_route_piece_frame(piece, &ox, &oz, &orientation);
 	legacy_f64 ax, az, bx, bz, cx, cz;
-	turn_quarter(action->approach.x - ox, action->approach.z - oz, -object->ss_rotY, &ax, &az);
-	turn_quarter(action->exit.x - ox, action->exit.z - oz, -object->ss_rotY, &bx, &bz);
+	turn_quarter(action->approach.x - ox, action->approach.z - oz, -orientation, &ax, &az);
+	turn_quarter(action->exit.x - ox, action->exit.z - oz, -orientation, &bx, &bz);
 	turn_quarter(state.playerstate.car_position.lx / 64.0 - ox,
-				 state.playerstate.car_position.lz / 64.0 - oz, -object->ss_rotY, &cx, &cz);
+				 state.playerstate.car_position.lz / 64.0 - oz, -orientation, &cx, &cz);
 	(void)ax;
 	(void)bx;
 	(void)cz;
@@ -190,15 +194,17 @@ static void straight_chicane(struct GENGHOST_MANEUVER *action, legacy_uint varia
 								  : 512.0;
 	legacy_f64 world_half_z =
 		object->ss_multiTileFlag & MULTI_TILE_ROW_EDGE_FLAG ? (legacy_f64)TRACK_TILE_SIZE : 512.0;
-	legacy_f64 local_half_x = ((legacy_uint)object->ss_rotY & 256U) ? world_half_z : world_half_x;
+	legacy_f64 local_half_x = ((legacy_uint)orientation & 256U) ? world_half_z : world_half_x;
 	legacy_f64 margin = fmax(32.0, half_width + 24.0);
 	legacy_f64 x = variant == 1U ? bounded(cx, -local_half_x + margin, local_half_x - margin) : 0.0;
-	turn_quarter(x, az, object->ss_rotY, &action->approach.x, &action->approach.z);
-	turn_quarter(x, bz, object->ss_rotY, &action->exit.x, &action->exit.z);
+	turn_quarter(x, az, orientation, &action->approach.x, &action->approach.z);
+	turn_quarter(x, bz, orientation, &action->exit.x, &action->exit.z);
 	action->approach.x += ox;
 	action->approach.z += oz;
 	action->exit.x += ox;
 	action->exit.z += oz;
+	genghost_route_target_height(&action->approach);
+	genghost_route_target_height(&action->exit);
 	action->exit_heading_x = action->exit.x - action->approach.x;
 	action->exit_heading_z = action->exit.z - action->approach.z;
 	legacy_f64 length = fabs(bz - az);
@@ -253,19 +259,23 @@ static struct GENGHOST_MANEUVER feature_action(const struct GENGHOST_MANEUVER *o
 static legacy_int slalom_flight(struct GENGHOST_MANEUVER *action)
 {
 	legacy_int piece = action->approach.piece;
-	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
-	const struct TRACKOBJECT *object = &trkObjectList[tile];
+	/* The combined stunt has a roof: an ordinary slalom's over-stone flight
+	 * proposal cannot infer clearance through that shell. */
+	if (action->approach.tunnel_slalom) {
+		return 0;
+	}
 	const struct CARSTATE *car = &state.playerstate;
-	legacy_f64 ox = track_object_base_x(object, (legacy_u8)track_route_columns[piece]);
-	legacy_f64 oz = track_object_base_z(object, (legacy_u8)track_route_rows[piece]);
+	legacy_f64 ox, oz;
+	legacy_s16 orientation;
+	genghost_route_piece_frame(piece, &ox, &oz, &orientation);
 	legacy_f64 ax, az, bx, bz, cx, cz, dx, dz;
-	turn_quarter(action->approach.x - ox, action->approach.z - oz, -object->ss_rotY, &ax, &az);
-	turn_quarter(action->exit.x - ox, action->exit.z - oz, -object->ss_rotY, &bx, &bz);
-	turn_quarter(car->car_position.lx / 64.0 - ox, car->car_position.lz / 64.0 - oz,
-				 -object->ss_rotY, &cx, &cz);
+	turn_quarter(action->approach.x - ox, action->approach.z - oz, -orientation, &ax, &az);
+	turn_quarter(action->exit.x - ox, action->exit.z - oz, -orientation, &bx, &bz);
+	turn_quarter(car->car_position.lx / 64.0 - ox, car->car_position.lz / 64.0 - oz, -orientation,
+				 &cx, &cz);
 	turn_quarter((car->car_position.lx - (legacy_f64)car->car_previous_position.lx) / 64.0,
 				 (car->car_position.lz - (legacy_f64)car->car_previous_position.lz) / 64.0,
-				 -object->ss_rotY, &dx, &dz);
+				 -orientation, &dx, &dz);
 	legacy_f64 direction = bz >= az ? 1.0 : -1.0;
 	/* Native body half-length is point one's x coordinate. Point zero holds
 	 * width/height, while point one's y coordinate is a collision radius. */
@@ -281,12 +291,13 @@ static legacy_int slalom_flight(struct GENGHOST_MANEUVER *action)
 	action->approach.x = car->car_position.lx / 64.0;
 	action->approach.y = car->car_position.ly / 64.0;
 	action->approach.z = car->car_position.lz / 64.0;
-	turn_quarter(x, clear, object->ss_rotY, &action->exit.x, &action->exit.z);
+	turn_quarter(x, clear, orientation, &action->exit.x, &action->exit.z);
 	action->exit.x += ox;
 	action->exit.z += oz;
 	action->exit.height_specified = 0;
+	genghost_route_target_height(&action->exit);
 	legacy_f64 length = sqrt(dx * dx + dz * dz);
-	turn_quarter(dx / length, dz / length, object->ss_rotY, &action->exit_heading_x,
+	turn_quarter(dx / length, dz / length, orientation, &action->exit_heading_x,
 				 &action->exit_heading_z);
 	return 1;
 }
@@ -380,6 +391,31 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 		}
 		slalom_begin = feature_ahead(route, driver, slalom_end + 1U, &slalom_end);
 	}
+	/* A barrel launch is a directional road followed by real unsupported
+	 * flight. Keep its centered approach distinct from the stock corkscrew
+	 * bypass/launch recipes, including while OWOOT requires the full roll. */
+	size_t roll_begin = begin, roll_end = end;
+	for (legacy_uint number = 0U; number < 2U && roll_begin < route->point_count; ++number) {
+		if (route->points[roll_begin].roll_ramp) {
+			static const legacy_f64 scales[] = {1.0, 0.85, 1.15};
+			for (legacy_uint variant = 0U; variant < sizeof(scales) / sizeof(scales[0]);
+				 ++variant) {
+				action = feature_action(&ordinary, route, driver, roll_begin, roll_end);
+				action.kind = GENGHOST_MANEUVER_BARREL_ROLL;
+				action.horizon_frames = MANEUVER_BARREL_HORIZON;
+				action.road_only = 1U;
+				action.gene.stunt_mode = GENGHOST_STUNT_BARREL;
+				action.gene.lateral_offset = 0.0;
+				action.gene.speed_scale = scales[variant];
+				action.gene.corner_scale = 1.0;
+				action.gene.powergear_bias = 0.0;
+				action.approach_speed = MANEUVER_BARREL_APPROACH_SPEED * scales[variant];
+				action.exit_speed = action.approach_speed;
+				add_action(actions, &count, capacity, &action);
+			}
+		}
+		roll_begin = feature_ahead(route, driver, roll_end + 1U, &roll_end);
+	}
 	if (owoot) {
 		return count;
 	}
@@ -417,6 +453,10 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	for (legacy_uint feature_number = 0U;
 		 feature_number < 2U && begin < route->point_count && count < capacity; ++feature_number) {
 		struct GENGHOST_MANEUVER feature = feature_action(&ordinary, route, driver, begin, end);
+		if (feature.approach.roll_ramp) {
+			begin = feature_ahead(route, driver, end + 1U, &end);
+			continue;
+		}
 		for (legacy_uint variant = 0U; variant < 4U; ++variant) {
 			action = feature;
 			action.kind =
@@ -492,7 +532,10 @@ static legacy_u8 toward_target(const struct GENGHOST_WAYPOINT *target, legacy_f6
 {
 	const struct CARSTATE *car = &state.playerstate;
 	struct VECTOR delta = {
-		(legacy_s16)bounded(target->x - car->car_position.lx / 64.0, -32767.0, 32767.0), 0,
+		(legacy_s16)bounded(target->x - car->car_position.lx / 64.0, -32767.0, 32767.0),
+		extended_track_active() && target->height_specified
+			? (legacy_s16)bounded(target->y - car->car_position.ly / 64.0, -32767.0, 32767.0)
+			: 0,
 		(legacy_s16)bounded(target->z - car->car_position.lz / 64.0, -32767.0, 32767.0)};
 	struct VECTOR local;
 	struct MATRIX *rotation = mat_rot_zxy(car->car_rotate.z, car->car_rotate.y, car->car_rotate.x,
@@ -548,6 +591,7 @@ static legacy_int chicane_target(const struct GENGHOST_ROUTE *route,
 	*target = action->exit;
 	target->x = action->approach.x + (next * dx + offset * dz) / length;
 	target->z = action->approach.z + (next * dz - offset * dx) / length;
+	genghost_route_target_height(target);
 	*target_speed = action->approach_speed;
 	/* Human fast-grass passes can leave toward another shortcut rather than
 	 * the spline's next corner. Retain a full-throttle alternative; the beam
@@ -597,7 +641,8 @@ legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 		}
 	}
 	legacy_u8 input = genghost_driver_step(route, &local, driver, powergear, collision, owoot);
-	if (owoot && action->kind != GENGHOST_MANEUVER_POWERGEAR) {
+	if (driver->barrel_active || action->kind == GENGHOST_MANEUVER_BARREL_ROLL ||
+		(owoot && action->kind != GENGHOST_MANEUVER_POWERGEAR)) {
 		return input;
 	}
 	const struct CARSTATE *car = &state.playerstate;

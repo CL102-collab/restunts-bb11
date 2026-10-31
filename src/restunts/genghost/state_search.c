@@ -63,7 +63,7 @@ struct state_search {
 	legacy_uint section_frames[STATE_SECTION_COUNT];
 	legacy_uint section_count, section_cursor;
 	legacy_u64 fine_tune_trials;
-	struct state_node rescue[STATE_RESCUE_COUNT];
+	struct state_node *rescue;
 	legacy_uint rescue_count, rescue_cursor, scout_cursor;
 };
 
@@ -100,7 +100,7 @@ genghost_state_executor_create(const struct GENGHOST_OPTIONS *options)
 	executor->options = *options;
 	executor->started = SDL_GetTicksNS();
 	executor->cache = calloc(STATE_CACHE_COUNT, sizeof(*executor->cache));
-	executor->guide = calloc(GENGHOST_MAX_FRAMES, sizeof(*executor->guide));
+	executor->guide = calloc(genghost_sim_frame_limit(), sizeof(*executor->guide));
 	if (!executor->cache || !executor->guide ||
 		genghost_routes_build(&executor->routes, error, sizeof(error))) {
 		if (executor->cache && executor->guide) {
@@ -123,11 +123,19 @@ void genghost_state_executor_destroy(struct GENGHOST_STATE_EXECUTOR *executor)
 	free(executor);
 }
 
-static void state_policy(struct GENGHOST_POLICY *policy, legacy_uint variant, legacy_uint profile)
+static void state_policy(struct GENGHOST_POLICY *policy, const struct GENGHOST_ROUTE *route,
+						 legacy_uint variant, legacy_uint profile)
 {
+	legacy_uint barrel_count = genghost_barrel_seed_count(route);
+	legacy_uint barrel_index = profile;
+	legacy_int barrel_seed = profile < barrel_count;
+	profile = barrel_seed ? 0U : profile - barrel_count;
 	static const legacy_f64 speed[STATE_PILOT_PROFILES] = {1.0, 0.75, 0.55, 1.2,
 														   0.9, 1.5,  0.85, 1.05};
 	genghost_policy_default(policy);
+	if (barrel_seed) {
+		genghost_barrel_seed_policy(route, policy, barrel_index);
+	}
 	for (legacy_uint n = 0; n < GENGHOST_POLICY_SEGMENTS; ++n) {
 		struct GENGHOST_GENE *gene = &policy->segment[n];
 		gene->line_mode = variant != 0U;
@@ -145,10 +153,12 @@ static void state_policy(struct GENGHOST_POLICY *policy, legacy_uint variant, le
 			choice *= UINT64_C(0x94d049bb133111eb);
 			gene->dualway_choice = 3U + ((choice ^ (choice >> 31U)) % (UINT64_MAX - 3U));
 		}
-		gene->speed_scale = speed[profile % STATE_PILOT_PROFILES];
-		gene->stunt_mode = profile == 6U   ? GENGHOST_STUNT_HUMAN
-						   : profile == 7U ? GENGHOST_STUNT_HUMAN_ALT
-										   : GENGHOST_STUNT_CORKSCREW_CUT;
+		if (!barrel_seed) {
+			gene->speed_scale = speed[profile % STATE_PILOT_PROFILES];
+			gene->stunt_mode = profile == 6U   ? GENGHOST_STUNT_HUMAN
+							   : profile == 7U ? GENGHOST_STUNT_HUMAN_ALT
+											   : GENGHOST_STUNT_CORKSCREW_CUT;
+		}
 		if (profile == 3U || profile == 5U) {
 			gene->slide_brake = 0.0;
 		}
@@ -325,14 +335,15 @@ legacy_int genghost_state_execute(const void *request, void *response, void *opa
 	memset(reply, 0, sizeof(*reply));
 	reply->id = task->id;
 	if (!executor || task->route_index >= executor->routes.count ||
-		task->prefix_length > GENGHOST_MAX_FRAMES || task->kind > GENGHOST_STATE_TASK_REFERENCE ||
-		task->reference_length > GENGHOST_MAX_FRAMES ||
+		task->prefix_length > genghost_sim_frame_limit() ||
+		task->kind > GENGHOST_STATE_TASK_REFERENCE ||
+		task->reference_length > genghost_sim_frame_limit() ||
 		(task->kind == GENGHOST_STATE_TASK_REFERENCE &&
 		 (!task->reference_length || task->reference_first >= task->reference_length))) {
 		return -1;
 	}
 	struct GENGHOST_POLICY policy;
-	state_policy(&policy, task->route_variant,
+	state_policy(&policy, &executor->routes.routes[task->route_index], task->route_variant,
 				 task->kind == GENGHOST_STATE_TASK_POLICY ? task->action_index : 0U);
 	if (task->route_variant >= 4U && task->route_variant <= 7U) {
 		genghost_dualway_seed_policy(&executor->routes, task->route_index, &policy,
@@ -381,9 +392,10 @@ legacy_int genghost_state_execute(const void *request, void *response, void *opa
 		struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
 		struct GENGHOST_MANEUVER action;
 		memset(&action, 0, sizeof(action));
-		legacy_uint horizon = reply->length < GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE
-								  ? GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE - reply->length
-								  : 0U;
+		legacy_uint horizon =
+			reply->length < genghost_sim_frame_limit() - genghost_sim_frame_rate()
+				? genghost_sim_frame_limit() - genghost_sim_frame_rate() - reply->length
+				: 0U;
 		if (task->kind == GENGHOST_STATE_TASK_MANEUVER) {
 			reply->action_count = (legacy_uint)genghost_maneuvers(
 				route, &reply->driver, &policy, executor->options.powergear,
@@ -544,7 +556,7 @@ static void insert_node(struct state_search *search, struct state_node *nodes, l
 						const struct GENGHOST_STATE_REPLY *reply)
 {
 	if (!reply->available || reply->race.crashed || reply->race.finished ||
-		reply->length >= GENGHOST_MAX_FRAMES - GENGHOST_FRAME_RATE ||
+		reply->length >= genghost_sim_frame_limit() - genghost_sim_frame_rate() ||
 		reply->length <= task->prefix_length || reply->features.off_route > 4096.0) {
 		return;
 	}
@@ -616,15 +628,18 @@ static legacy_int state_save(struct state_search *search, const struct GENGHOST_
 	}
 	legacy_uint length =
 		search->options->fine_tune_gears_only ? reply->length : reply->race.finish_frame;
-	if (length > GENGHOST_MAX_FRAMES) {
+	if (length > genghost_sim_frame_limit()) {
 		return -1;
 	}
-	legacy_u8 inputs[GENGHOST_MAX_FRAMES];
+	legacy_u8 *inputs = malloc(genghost_sim_frame_limit());
+	if (!inputs) {
+		return -1;
+	}
 	memcpy(inputs, reply->inputs, length);
 	if (!search->options->fine_tune_gears_only) {
-		legacy_uint tail = GENGHOST_MAX_FRAMES - length;
-		if (tail > GENGHOST_FRAME_RATE) {
-			tail = GENGHOST_FRAME_RATE;
+		legacy_uint tail = genghost_sim_frame_limit() - length;
+		if (tail > genghost_sim_frame_rate()) {
+			tail = genghost_sim_frame_rate();
 		}
 		memset(inputs + length, 0, tail);
 		length += tail;
@@ -633,6 +648,7 @@ static legacy_int state_save(struct state_search *search, const struct GENGHOST_
 	if (genghost_sim_evaluate(inputs, length, &verified) || !verified.finished ||
 		verified.total_frames != reply->race.total_frames) {
 		fputs("genghost state planner: full replay validation failed\n", stderr);
+		free(inputs);
 		return -1;
 	}
 	search->result->simulated_frames += verified.frames;
@@ -640,12 +656,13 @@ static legacy_int state_save(struct state_search *search, const struct GENGHOST_
 	search->result->race = verified;
 	search->result->length = length;
 	memcpy(search->result->inputs, inputs, length);
+	free(inputs);
 	search->result->elapsed_seconds = state_elapsed(search);
 	fprintf(stderr,
 			"state best %.2fs (driving %.2fs + penalty %.2fs), %" LEGACY_PRIu64 " candidates\n",
-			verified.total_frames / (legacy_f64)GENGHOST_FRAME_RATE,
-			verified.finish_frame / (legacy_f64)GENGHOST_FRAME_RATE,
-			verified.penalty_frames / (legacy_f64)GENGHOST_FRAME_RATE,
+			verified.total_frames / (legacy_f64)genghost_sim_frame_rate(),
+			verified.finish_frame / (legacy_f64)genghost_sim_frame_rate(),
+			verified.penalty_frames / (legacy_f64)genghost_sim_frame_rate(),
 			(legacy_u64)search->result->evaluations);
 	return search->save && search->save(search->result, search->save_context) ? -1 : 0;
 }
@@ -870,12 +887,15 @@ static void task_root(struct state_search *search, struct GENGHOST_STATE_TASK *t
  * a minority of candidates rejoin the same incumbent by native position. */
 static legacy_int fine_tune_inputs(struct state_search *search)
 {
-	legacy_u16 boundaries[GENGHOST_MAX_FRAMES];
+	legacy_uint *boundaries = malloc(genghost_sim_frame_limit() * sizeof(*boundaries));
+	if (!boundaries) {
+		return -1;
+	}
 	legacy_uint boundary_count = 0U;
 	legacy_uint finish = search->result->race.finish_frame;
 	for (legacy_uint frame = 1U; frame < finish; ++frame) {
 		if (search->result->inputs[frame] != search->result->inputs[frame - 1U]) {
-			boundaries[boundary_count++] = (legacy_u16)frame;
+			boundaries[boundary_count++] = frame;
 		}
 	}
 	/* Full replay candidates can be expensive on older Android devices. Small
@@ -987,7 +1007,7 @@ static legacy_int fine_tune_inputs(struct state_search *search)
 						task->prefix_length - first - width);
 				task->prefix_length -= width;
 			} else if (mode == 9U) {
-				if (width <= GENGHOST_MAX_FRAMES - task->prefix_length) {
+				if (width <= genghost_sim_frame_limit() - task->prefix_length) {
 					memmove(task->prefix + first + width, task->prefix + first,
 							task->prefix_length - first);
 					memset(task->prefix + first, task->prefix[first + width], width);
@@ -1019,6 +1039,7 @@ static legacy_int fine_tune_inputs(struct state_search *search)
 			memcpy(task->reference, search->result->inputs, finish);
 		}
 	}
+	free(boundaries);
 	return state_dispatch(search, count, NULL, NULL);
 }
 
@@ -1078,7 +1099,8 @@ static legacy_int trace_sections(struct state_search *search)
 	struct GENGHOST_ROUTE owned = {0};
 	struct GENGHOST_POLICY policy;
 	legacy_char error[256];
-	state_policy(&policy, search->incumbent_variant, 0U);
+	state_policy(&policy, &search->executor->routes.routes[search->incumbent_route],
+				 search->incumbent_variant, 0U);
 	if (search->incumbent_variant >= 4U && search->incumbent_variant <= 7U) {
 		genghost_dualway_seed_policy(&search->executor->routes, search->incumbent_route, &policy,
 									 search->incumbent_variant - 2U);
@@ -1206,7 +1228,11 @@ static legacy_uint section_prune(struct state_node *nodes, legacy_uint count)
 	if (count <= STATE_SECTION_WIDTH) {
 		return count;
 	}
-	struct state_node kept[STATE_SECTION_WIDTH];
+	struct state_node *kept = malloc(STATE_SECTION_WIDTH * sizeof(*kept));
+	if (!kept) {
+		/* The sorted leading nodes remain a valid beam under memory pressure. */
+		return STATE_SECTION_WIDTH;
+	}
 	legacy_u8 selected[STATE_BEAM_WIDTH] = {0};
 	legacy_uint used = 0U;
 	for (legacy_uint n = 0U; n < count && used < STATE_SECTION_WIDTH; ++n) {
@@ -1227,6 +1253,7 @@ static legacy_uint section_prune(struct state_node *nodes, legacy_uint count)
 		}
 	}
 	memcpy(nodes, kept, used * sizeof(*nodes));
+	free(kept);
 	return used;
 }
 
@@ -1250,7 +1277,13 @@ static legacy_int refine_section(struct state_search *search)
 	search->section_active = 1;
 	++search->result->state_section_starts;
 	legacy_uint cursor = search->section_cursor++;
-	legacy_u8 reference[GENGHOST_MAX_FRAMES];
+	legacy_u8 *reference = malloc(genghost_sim_frame_limit());
+	if (!reference) {
+		search->section_active = 0;
+		free(frontier);
+		free(next);
+		return -1;
+	}
 	legacy_uint reference_length =
 		search->result->race.finished ? search->result->race.finish_frame : 0U;
 	if (reference_length) {
@@ -1308,6 +1341,7 @@ static legacy_int refine_section(struct state_search *search)
 	}
 done:
 	search->section_active = 0;
+	free(reference);
 	free(frontier);
 	free(next);
 	return status;
@@ -1351,7 +1385,7 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 	search.save_context = save_context;
 	search.started = SDL_GetTicksNS();
 	search.next_progress = search.started + 5000000000ULL;
-	if (seed_length > GENGHOST_MAX_FRAMES || (seed_length && !seed_inputs) ||
+	if (seed_length > genghost_sim_frame_limit() || (seed_length && !seed_inputs) ||
 		(options->fine_tune && !seed_length)) {
 		fputs("genghost: fine-tune requires a completed compatible replay\n", stderr);
 		goto done;
@@ -1359,7 +1393,9 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 	search.executor = genghost_state_executor_create(options);
 	search.tasks = calloc(STATE_BATCH_COUNT, sizeof(*search.tasks));
 	search.replies = calloc(STATE_BATCH_COUNT, sizeof(*search.replies));
-	if (!frontier || !next || !search.executor || !search.tasks || !search.replies) {
+	search.rescue = calloc(STATE_RESCUE_COUNT, sizeof(*search.rescue));
+	if (!frontier || !next || !search.executor || !search.tasks || !search.replies ||
+		!search.rescue) {
 		goto done;
 	}
 	search.batch = batch ? batch : state_local_batch;
@@ -1379,7 +1415,7 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 			"state/gear/penalty diversity\n",
 			result->routes, search.root_count, STATE_BEAM_WIDTH);
 	if (seed_length) {
-		if (seed_length > GENGHOST_MAX_FRAMES) {
+		if (seed_length > genghost_sim_frame_limit()) {
 			goto done;
 		}
 		struct GENGHOST_STATE_REPLY *reply = &search.replies[0];
@@ -1413,19 +1449,34 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 	/* Whole-route controllers provide a verified incumbent and scout failures.
 	 * Their prefixes are reusable, while the beam also starts at the grid so
 	 * preparatory shifts/launches are not constrained to the scout's strategy. */
-	for (legacy_uint profile = 0U; profile < STATE_PILOT_PROFILES && !state_expired(&search);
-		 ++profile) {
+	legacy_uint pilot_count = STATE_PILOT_PROFILES;
+	for (size_t route = 0; route < search.executor->routes.count; ++route) {
+		legacy_uint count = STATE_PILOT_PROFILES +
+							genghost_barrel_seed_count(&search.executor->routes.routes[route]);
+		if (count > pilot_count) {
+			pilot_count = count;
+		}
+	}
+	for (legacy_uint profile = 0U; profile < pilot_count && !state_expired(&search); ++profile) {
 		for (legacy_uint first = 0U; first < search.root_count && !state_expired(&search);) {
 			size_t count = state_budget(&search, search.root_count - first);
 			if (count > STATE_BATCH_COUNT) {
 				count = STATE_BATCH_COUNT;
 			}
+			size_t used = 0;
 			for (size_t n = 0; n < count; ++n) {
-				task_root(&search, &search.tasks[n], first + (legacy_uint)n);
-				search.tasks[n].kind = GENGHOST_STATE_TASK_POLICY;
-				search.tasks[n].action_index = profile;
+				legacy_uint root = first + (legacy_uint)n;
+				const struct GENGHOST_ROUTE *route =
+					&search.executor->routes.routes[root / variants];
+				if (profile >= STATE_PILOT_PROFILES + genghost_barrel_seed_count(route)) {
+					continue;
+				}
+				task_root(&search, &search.tasks[used], root);
+				search.tasks[used].kind = GENGHOST_STATE_TASK_POLICY;
+				search.tasks[used].action_index = profile;
+				used++;
 			}
-			if (state_dispatch(&search, count, NULL, NULL)) {
+			if (used && state_dispatch(&search, used, NULL, NULL)) {
 				goto done;
 			}
 			first += (legacy_uint)count;
@@ -1438,11 +1489,11 @@ legacy_int genghost_state_search(const struct GENGHOST_OPTIONS *options,
 		if (!frontier_count) {
 			legacy_uint start = (search.round / 2U) % search.root_count;
 			for (legacy_uint n = 0U; n < search.root_count && n < STATE_BEAM_WIDTH; ++n) {
-				struct GENGHOST_STATE_TASK root;
-				task_root(&search, &root, (start + n) % search.root_count);
+				struct GENGHOST_STATE_TASK *root = &search.tasks[0];
+				task_root(&search, root, (start + n) % search.root_count);
 				memset(&frontier[n], 0, sizeof(frontier[n]));
-				frontier[n].route = root.route_index;
-				frontier[n].variant = root.route_variant;
+				frontier[n].route = root->route_index;
+				frontier[n].variant = root->route_variant;
 				++frontier_count;
 			}
 		}
@@ -1471,6 +1522,7 @@ done:
 	free(next);
 	free(search.tasks);
 	free(search.replies);
+	free(search.rescue);
 	free(search.route_attempted);
 	free(search.route_finished);
 	genghost_state_executor_destroy(search.executor);

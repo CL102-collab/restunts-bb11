@@ -269,11 +269,12 @@ target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
 function(restunts_add_genghost)
     # The optimizer shares repldump's physics and owns its command-line entry point.
     add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
+        ${core}/extended_replay_runtime.c
         src/restunts/genghost/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/search.c
         src/restunts/genghost/guide.c src/restunts/genghost/parallel.c
         src/restunts/genghost/maneuvers.c src/restunts/genghost/state_search.c)
-    target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS)
+    target_compile_definitions(genghost PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_link_libraries(genghost PRIVATE restunts_options)
     if(ANDROID)
         # Android permits execution from an APK's extracted native-library directory.
@@ -715,21 +716,43 @@ endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     add_executable(test-genghost-simulation ${common_sources} ${core}/headless.c ${platform_common}
+        ${core}/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/routes.c
         src/restunts/tests/test-genghost-simulation.c)
-    target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS)
+    target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-simulation PRIVATE restunts_options)
     add_executable(test-genghost-state ${common_sources} ${core}/headless.c ${platform_common}
+        ${core}/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/guide.c src/restunts/genghost/routes.c
         src/restunts/genghost/search.c src/restunts/genghost/parallel.c
         src/restunts/genghost/maneuvers.c src/restunts/genghost/state_search.c
         src/restunts/tests/test-genghost-state.c)
-    target_compile_definitions(test-genghost-state PRIVATE RESTUNTS_HEADLESS)
+    target_compile_definitions(test-genghost-state PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_compile_options(test-genghost-state PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-state PRIVATE restunts_options)
+    add_executable(test-genghost-extended ${common_sources} ${core}/headless.c ${platform_common}
+        ${core}/extended_replay_runtime.c ${platform}/main.c
+        src/restunts/genghost/simulation.c src/restunts/genghost/routes.c
+        src/restunts/genghost/guide.c src/restunts/tests/test-genghost-extended.c)
+    target_compile_definitions(test-genghost-extended PRIVATE
+        RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
+    target_compile_options(test-genghost-extended PRIVATE -UNDEBUG)
+    target_link_libraries(test-genghost-extended PRIVATE restunts_options)
+    foreach(extended_feature geometry maneuvers)
+        add_executable(test-genghost-extended-${extended_feature}
+            ${common_sources} ${core}/headless.c ${platform_common}
+            src/restunts/genghost/routes.c src/restunts/genghost/guide.c
+            src/restunts/genghost/maneuvers.c
+            src/restunts/tests/test-genghost-extended-${extended_feature}.c)
+        target_compile_definitions(test-genghost-extended-${extended_feature} PRIVATE RESTUNTS_HEADLESS)
+        target_compile_options(test-genghost-extended-${extended_feature} PRIVATE -UNDEBUG)
+        target_link_libraries(test-genghost-extended-${extended_feature} PRIVATE restunts_options)
+        add_test(NAME genghost-extended-${extended_feature}
+            COMMAND test-genghost-extended-${extended_feature})
+    endforeach()
     add_test(NAME genghost-regions COMMAND test-genghost-simulation --geometry-only)
     if(NOT CMAKE_CROSSCOMPILING)
         find_package(Python3 COMPONENTS Interpreter QUIET)
@@ -748,6 +771,11 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
+            add_test(NAME genghost-extended COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
+                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
+                "${CMAKE_SOURCE_DIR}/stunts")
+            set_tests_properties(genghost-extended PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
@@ -788,7 +816,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 message(FATAL_ERROR
                     "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
             endif()
-            foreach(restunts_genghost_test genghost-simulation genghost-search
+            foreach(restunts_genghost_test genghost-simulation genghost-search genghost-extended
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout
