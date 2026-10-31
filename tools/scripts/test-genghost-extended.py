@@ -16,7 +16,9 @@ from regression_timeouts import scaled_timeout
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
 CSTRK_VERSION = 8
-CSRPL_VERSION = 11
+CSRPL_VERSION = 12
+CSRPL_MIN_VERSION = 11
+CSRPL_FUTURE_VERSION = 101
 CSTRK_HEADER_SIZE = 32
 CSRPL_HEADER_SIZE = 64
 CSTRK_OBJECT_SIZE = 16
@@ -24,6 +26,7 @@ MAP_SIZE = 90
 TILE_SIZE = 1024
 LONG_FRAMES = 70001
 BRAKE_INPUT = 2
+RULE_LEGACY_COLLISION = 0x02
 RULE_AMIGA_GRASS = 0x20
 RULE_OWOOT = 0x40
 RESTRICTED = ("--owoot", "--pg:off", "--lc:off", "--lcb:off", "--dws:off")
@@ -120,7 +123,7 @@ def blank_replay(track, rate, car=b"P962"):
 def decode_replay(recording):
     assert recording[:8] == CSRPL_MAGIC
     version, header = struct.unpack_from("<HH", recording, 8)
-    assert version >= CSRPL_VERSION and header == CSRPL_HEADER_SIZE
+    assert version >= CSRPL_MIN_VERSION and header == CSRPL_HEADER_SIZE
     assert recording[12:16] == bytes(4) and recording[50:64] == bytes(14)
     track_size, frames, rate, rules = struct.unpack_from("<IIHH", recording, 16)
     assert rate in (10, 20) and not rules & ~0x7F
@@ -189,10 +192,55 @@ def main():
         wide_path.write_bytes(track_bytes())
         first, view, report, replayed = generate(wide_path, "COUN", "wide.csrpl")
         assert view["track"] == wide_path.read_bytes()
+        assert view["version"] == CSRPL_VERSION
         assert replayed["maximum_x"] > 65535 and replayed["maximum_z"] > 65535
         second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
         assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
         print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
+
+        # Stored revisions select playback physics. Verification and refinement
+        # retain v11, while a fresh search uses the current physics revision.
+        old_recording = bytearray(first.read_bytes())
+        struct.pack_into("<H", old_recording, 8, CSRPL_MIN_VERSION)
+        old_source = output / "previous-physics.csrpl"
+        old_source.write_bytes(old_recording)
+        old_score = verify(old_source)
+        assert old_score["total_frames"] == report["total_frames"]
+        for strategy in ("legacy", "state"):
+            refined_old = output / f"previous-{strategy}.csrpl"
+            run(genghost, [old_source, "--fine-tune-gears-only", "--cores", 2,
+                           "--strategy", strategy, "--evaluations", 2, "--output", refined_old])
+            assert decode_replay(refined_old.read_bytes())["version"] == CSRPL_MIN_VERSION
+            assert verify(refined_old)["total_frames"] <= old_score["total_frames"]
+        _, upgraded_view, _, _ = generate(old_source, "COUN", "new-physics.csrpl", evaluations=32)
+        assert upgraded_view["version"] == CSRPL_VERSION
+        future_recording = bytearray(first.read_bytes())
+        struct.pack_into("<H", future_recording, 8, CSRPL_FUTURE_VERSION)
+        future_track = bytearray(view["track"])
+        struct.pack_into("<H", future_track, 8, CSRPL_FUTURE_VERSION)
+        future_recording[CSRPL_HEADER_SIZE:CSRPL_HEADER_SIZE + len(future_track)] = future_track
+        future_source = output / "future-physics.csrpl"
+        future_source.write_bytes(future_recording)
+        future_score = verify(future_source)
+        assert future_score["total_frames"] == report["total_frames"]
+        refined_future = output / "future-refined.csrpl"
+        run(genghost, [future_source, "--fine-tune-gears-only", "--evaluations", 1,
+                       "--output", refined_future])
+        refined_future_view = decode_replay(refined_future.read_bytes())
+        assert refined_future_view["version"] == CSRPL_FUTURE_VERSION
+        assert refined_future_view["track"] == future_track
+        assert verify(refined_future)["total_frames"] <= future_score["total_frames"]
+        _, current_view, _, _ = generate(future_source, "COUN", "current-physics.csrpl",
+                                         evaluations=32)
+        assert current_view["version"] == CSRPL_VERSION
+        assert current_view["track"] == future_track
+        assert future_source.read_bytes() == future_recording
+        obsolete = bytearray(old_recording)
+        struct.pack_into("<H", obsolete, 8, CSRPL_MIN_VERSION - 1)
+        obsolete_path = output / "obsolete-physics.csrpl"
+        obsolete_path.write_bytes(obsolete)
+        run(genghost, [obsolete_path, "--verify"], expected=1)
+        print("Previous CSRPL physics retained for playback/refinement; fresh searches upgrade", flush=True)
 
         default_path = output / "wide-COUN.csrpl"
         default_path.unlink(missing_ok=True)
@@ -298,14 +346,27 @@ def main():
                     source = output / f"barrel{rotation}-source10.csrpl"
                     source.write_bytes(blank_replay(barrel_path.read_bytes(), rate))
                     filename = f"barrel{rotation}-10.csrpl"
-                _, barrel_view, _, checked = generate(source, "P962", filename,
-                                                      evaluations=1024,
-                                                      flags=("--owoot", "--pg:off"))
-                assert barrel_view["rate"] == rate
-                assert barrel_view["track"] == barrel_path.read_bytes()
-                assert checked["barrel_present"] and checked["barrel_complete"], checked
-                assert checked["airborne_roll"] >= 1024 - 16, checked
-        print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings in all orientations at both frame rates", flush=True)
+                for collision in ("on", "off"):
+                    collision_name = filename.replace(".csrpl", f"-{collision}.csrpl")
+                    generated, barrel_view, _, checked = generate(
+                        source, "P962", collision_name, evaluations=1024,
+                        flags=("--owoot", "--pg:off", f"--lc:{collision}"))
+                    assert barrel_view["version"] == CSRPL_VERSION
+                    assert barrel_view["rate"] == rate
+                    assert barrel_view["track"] == barrel_path.read_bytes()
+                    assert checked["barrel_present"] and checked["barrel_complete"], checked
+                    assert checked["airborne_roll"] >= 1024 - 16, checked
+                    if rotation == 0 and rate == 20 and collision == "off":
+                        # Identical fixed-collision inputs retain the earlier
+                        # quantized contact behavior when recorded as v11.
+                        previous = bytearray(generated.read_bytes())
+                        struct.pack_into("<H", previous, 8, CSRPL_MIN_VERSION)
+                        previous_path = output / "previous-barrel-physics.csrpl"
+                        previous_path.write_bytes(previous)
+                        rejected = verify(previous_path, expected=2)
+                        assert not rejected["finished"]
+                        assert rejected["frames"] < checked["finish_frame"]
+        print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings in all orientations, both frame rates and collision modes", flush=True)
     return 0
 
 

@@ -54,8 +54,8 @@ void update_gamestate(void)
 
 static void test_recording_versions(void)
 {
-	static const legacy_u16 versions[] = {CSRPL_VERSION, TEST_FUTURE_REPLAY_VERSION,
-										  LEGACY_U16_MAX};
+	static const legacy_u16 versions[] = {CSRPL_MIN_VERSION, CSRPL_VERSION,
+										  TEST_FUTURE_REPLAY_VERSION, LEGACY_U16_MAX};
 	legacy_u8 inputs[] = {1U, 2U, 3U};
 	for (size_t index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
 		for (legacy_u16 rules = 0; rules <= DRIVING_RULE_KNOWN_MASK; rules++) {

@@ -9,6 +9,9 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "extended_geometry.h"
+#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
+#include "extended_replay_runtime.h"
+#endif
 #endif
 
 #define COLLISION_ANGLE_DAMPING_NUMERATOR 15
@@ -310,12 +313,94 @@ static void sweep_position(struct VECTOR *result, struct VECTORLONG *previous,
 	result->z = sweep_fixed_coordinate(previous->lz, current->lz, fraction);
 }
 
+#ifdef RESTUNTS_SDL3
+static legacy_s16 track_sweep_uses_fixed_positions(void)
+{
+	if (!extended_track_active()) {
+		return 0;
+	}
+#if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
+	/* Replaying an older recording retains its original contact decisions. */
+	if (extended_replay_is_active() &&
+		extended_replay_version() < CSRPL_FIXED_POINT_SOLID_VERSION) {
+		return 0;
+	}
+#endif
+	return 1;
+}
+
+static void sweep_fixed_position(struct VECTORLONG *result, const struct VECTORLONG *previous,
+								 const struct VECTORLONG *current, legacy_s16 fraction)
+{
+	result->lx = LEGACY_S32_WRAP_ADD_S16(
+		previous->lx, scale_position_delta(current->lx, previous->lx, fraction, TRIG_FIXED_ONE));
+	result->ly = LEGACY_S32_WRAP_ADD_S16(
+		previous->ly, scale_position_delta(current->ly, previous->ly, fraction, TRIG_FIXED_ONE));
+	result->lz = LEGACY_S32_WRAP_ADD_S16(
+		previous->lz, scale_position_delta(current->lz, previous->lz, fraction, TRIG_FIXED_ONE));
+}
+
+static legacy_s16 sweep_fixed_track_solid(struct VECTORLONG *previous, struct VECTORLONG *current,
+										  legacy_s16 *fraction)
+{
+	legacy_s16 contact;
+	if (!track_solid_wall_contact_fixed(previous, current, &contact) ||
+		track_solid_obstacle_contact_fixed(previous, previous, &contact)) {
+		return 0;
+	}
+	legacy_s16 clear_fraction = 0, contact_fraction = TRIG_FIXED_ONE;
+	while (contact_fraction - clear_fraction > 1) {
+		legacy_s16 midpoint = clear_fraction + (contact_fraction - clear_fraction) / 2;
+		struct VECTORLONG end;
+		sweep_fixed_position(&end, previous, current, midpoint);
+		if (track_solid_wall_contact_fixed(previous, &end, &contact)) {
+			contact_fraction = midpoint;
+		} else {
+			clear_fraction = midpoint;
+		}
+	}
+	*fraction = clear_fraction;
+	return 1;
+}
+
+static legacy_s16 sweep_fixed_track_wall_span(struct VECTORLONG *previous_first,
+											  struct VECTORLONG *previous_second,
+											  struct VECTORLONG *current_first,
+											  struct VECTORLONG *current_second,
+											  legacy_s16 *fraction)
+{
+	if (!track_wall_intersects_segment_fixed(current_first, current_second) ||
+		track_wall_intersects_segment_fixed(previous_first, previous_second)) {
+		return 0;
+	}
+	legacy_s16 clear_fraction = 0, contact_fraction = TRIG_FIXED_ONE;
+	while (contact_fraction - clear_fraction > 1) {
+		legacy_s16 midpoint = clear_fraction + (contact_fraction - clear_fraction) / 2;
+		struct VECTORLONG first, second;
+		sweep_fixed_position(&first, previous_first, current_first, midpoint);
+		sweep_fixed_position(&second, previous_second, current_second, midpoint);
+		if (track_wall_intersects_segment_fixed(&first, &second)) {
+			contact_fraction = midpoint;
+		} else {
+			clear_fraction = midpoint;
+		}
+	}
+	*fraction = clear_fraction;
+	return 1;
+}
+#endif
+
 legacy_s16 sweep_track_solid_obstacle(struct VECTORLONG *previous, struct VECTORLONG *current,
 									  legacy_s16 *fraction)
 {
 	if (legacy_collision_enabled != 0) {
 		return 0;
 	}
+#ifdef RESTUNTS_SDL3
+	if (track_sweep_uses_fixed_positions()) {
+		return sweep_fixed_track_solid(previous, current, fraction);
+	}
+#endif
 	struct VECTOR start;
 	struct VECTOR end;
 	sweep_position(&start, previous, current, 0);
@@ -352,6 +437,12 @@ legacy_s16 sweep_track_wall_span(struct VECTORLONG *previous_first,
 	if (legacy_collision_enabled != 0) {
 		return 0;
 	}
+#ifdef RESTUNTS_SDL3
+	if (track_sweep_uses_fixed_positions()) {
+		return sweep_fixed_track_wall_span(previous_first, previous_second, current_first,
+										   current_second, fraction);
+	}
+#endif
 	struct VECTOR first;
 	struct VECTOR second;
 	sweep_position(&first, previous_first, current_first, TRIG_FIXED_ONE);
