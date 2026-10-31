@@ -24,7 +24,7 @@ legacy_s16 extended_frame_background_height(legacy_s16 height);
 void extended_frame_position_camera_tiles(struct FRAME_TILE_SELECTION *tiles,
 										  const struct FRAME_CAMERA *camera);
 void extended_frame_set_context(const struct CARSTATE *viewed);
-legacy_s16 extended_frame_first_tile_pass(void);
+void extended_frame_first_tile_pass(legacy_s16 *first_pass);
 legacy_u8 extended_frame_should_draw_terrain(const struct FRAME_TILE *tile, legacy_s16 first_pass,
 											 legacy_s16 pass);
 #ifndef RESTUNTS_HEADLESS

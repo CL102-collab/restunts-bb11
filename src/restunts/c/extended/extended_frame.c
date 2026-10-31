@@ -240,3 +240,31 @@ legacy_s16 extended_frame_last_y(void)
 {
 	return extended_track_height() - 1;
 }
+
+legacy_s16 extended_frame_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
+											 const struct FRAME_TILE *tile, legacy_s16 tile_index)
+{
+	if (extended_track_active()) {
+		return 1;
+	}
+	return hires_track_mark_covered_tiles(tiles, tile, tile_index);
+}
+
+void extended_frame_position_tiles(struct FRAME_TILE_SELECTION *tiles,
+								   const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
+{
+	if (extended_track_active()) {
+		extended_frame_position_camera_tiles(tiles, camera);
+		hires_track_position_tiles(tiles, camera, adaptive);
+	}
+}
+
+legacy_s16 extended_frame_front_fences(const struct FRAME_TILE *tile,
+									   const struct FRAME_TILE_SELECTION *tiles,
+									   const struct FRAME_CAMERA *camera, legacy_s8 flags)
+{
+	if (!extended_track_active()) {
+		return 0;
+	}
+	return hires_track_queue_exhausted(extended_frame_draw_fences(tile, tiles, camera, flags));
+}

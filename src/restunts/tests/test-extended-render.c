@@ -1,6 +1,7 @@
 /* Reuse the live renderer/resource fixture, including its state/RNG checks.
  * This test compares visible geometry, rather than storing a renderer golden. */
 #define stuntsmain legacy_render_replay_fixture_main
+#include "../c/video_framebuffer.h"
 #include "test-render-replay.c"
 #undef stuntsmain
 
@@ -141,7 +142,7 @@ static legacy_u32 *capture_complete_render(size_t *pixel_count)
 	render_and_check(&state);
 	legacy_u8 *legacy = dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0);
 	legacy_s32 width, height;
-	assert(hires_framebuffer(legacy, &width, &height) != NULL);
+	assert(video_framebuffer(legacy, &width, &height) != NULL);
 	assert(width >= 320 && height >= 200);
 	*pixel_count = (size_t)width * height;
 	legacy_u32 *pixels = malloc(*pixel_count * sizeof(*pixels));
@@ -157,7 +158,7 @@ static legacy_u32 *capture_complete_render(size_t *pixel_count)
 		// keeps indexed background coverage distinct from those overlays.
 		palette[RENDER_CAPTURE_SKY_MARKER] = RENDER_CAPTURE_SKY_COLOR;
 	}
-	hires_copy_framebuffer_argb(legacy, palette, pixels, width * sizeof(*pixels));
+	video_copy_framebuffer_argb(legacy, palette, pixels, width * sizeof(*pixels));
 	return pixels;
 }
 
@@ -659,7 +660,7 @@ static legacy_u16 check_classic_hill_rendering(void)
 				legacy_u32 *raised = capture_complete_render(&raised_size);
 				assert(raised_size == original_size);
 				legacy_s32 width, height;
-				assert(hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
+				assert(video_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
 										 &width, &height));
 				legacy_u16 edge = (legacy_u16)(width / CLASSIC_RENDER_LOGICAL_WIDTH);
 				size_t protected_pixels = 0, changed_pixels = 0;
@@ -1855,7 +1856,7 @@ static legacy_u16 check_consecutive_hill_seams(void)
 						seam_capture_hill_shapes = 0;
 #endif
 						legacy_s32 width, height;
-						assert(hires_framebuffer(
+						assert(video_framebuffer(
 								   dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width,
 								   &height) != NULL);
 						assert(size == (size_t)width * height);
@@ -1957,7 +1958,7 @@ static legacy_u16 check_elevated_multitile_road(void)
 				} else if (supersight_enabled) {
 					assert(size == ground_size);
 					legacy_s32 width, height;
-					assert(hires_framebuffer(
+					assert(video_framebuffer(
 						dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width, &height));
 					legacy_u32 asphalt =
 						RENDER_CAPTURE_OPAQUE_ALPHA |
@@ -2528,7 +2529,7 @@ static legacy_u16 check_sloped_road_occlusion(void)
 				legacy_u32 *actual = capture_complete_render(&actual_size);
 				assert(actual_size == reference_size);
 				legacy_s32 width, height;
-				assert(hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
+				assert(video_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
 										 &width, &height));
 				if (supersight_enabled) {
 					struct CSTRK_TRACK bare = track;
@@ -3752,7 +3753,7 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 	assert(memcmp(&saved_config, &gameconfig, sizeof(gameconfig)) == 0);
 	assert(memcmp(seed_before, seed_after, sizeof(seed_before)) == 0);
 	const legacy_u8 *pixels =
-		hires_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), width, height);
+		video_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), width, height);
 	assert(pixels != NULL);
 	legacy_u8 *copy = malloc((size_t)*width * *height);
 	assert(copy != NULL);

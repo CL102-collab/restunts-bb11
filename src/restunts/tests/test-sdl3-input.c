@@ -1,6 +1,7 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
+#include "../c/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,18 +93,18 @@ const legacy_u32 *hires_framebuffer_argb(const legacy_u8 *legacy, const legacy_u
 	return argb_active ? argb_framebuffer : NULL;
 }
 
-const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
+const legacy_u8 *video_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)
 {
 	*width = high_resolution_active ? hires_render_width() : SDL3_SCREEN_WIDTH;
 	*height = high_resolution_active ? hires_render_height() : SDL3_SCREEN_HEIGHT;
 	return high_resolution_active ? high_resolution_framebuffer : legacy;
 }
 
-void hires_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
+void video_copy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 								 legacy_u32 *destination, legacy_s32 pitch)
 {
 	legacy_s32 width, height;
-	const legacy_u8 *indexed = hires_framebuffer(legacy, &width, &height);
+	const legacy_u8 *indexed = video_framebuffer(legacy, &width, &height);
 	const legacy_u32 *argb = hires_framebuffer_argb(legacy, palette);
 	presented_raster_width = width;
 	presented_raster_height = height;

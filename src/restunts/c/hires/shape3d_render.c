@@ -64,7 +64,6 @@ legacy_u8 shape3d_hires_render_scene(void)
 		shape3d_hires_batch_end();
 		shape3d_hires_draw_shadows();
 		hires_end();
-		polyinfo_reset();
 		return 1;
 	}
 	return 0;
@@ -72,7 +71,7 @@ legacy_u8 shape3d_hires_render_scene(void)
 
 legacy_u32 shape3d_hires_scene_count(void)
 {
-	return hires_enabled() ? hypervision_scene_count : polyinfonumpolys;
+	return hypervision_scene_count;
 }
 void shape3d_hires_set_half_scale(legacy_s16 half_scale)
 {

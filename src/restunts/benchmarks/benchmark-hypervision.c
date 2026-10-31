@@ -1,5 +1,6 @@
 /* Reuse the production replay setup and state-preservation checks. */
 #define stuntsmain benchmark_replay_test_main
+#include "../c/video_framebuffer.h"
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
 #include "../c/hires/render_workers.h"
@@ -70,7 +71,7 @@ static void benchmark_render_frame(legacy_u32 *composed)
 	full_redraw_frames_remaining = 1;
 	render_and_check(NULL);
 	if (composed != NULL) {
-		hires_copy_framebuffer_argb(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0),
+		video_copy_framebuffer_argb(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0),
 									benchmark_palette, composed,
 									hires_render_width() * sizeof(*composed));
 	}

@@ -18,7 +18,7 @@ struct TRACKOBJECT *frame_track_object_from_legacy_index(legacy_u8 index)
 void transformed_shape_add_for_sort(legacy_s16 z_adjust, legacy_s16 type)
 {
 	legacy_s16 index = LEGACY_S8_FROM_BITS((legacy_u8)transformedshape_counter);
-	if (frame_hires_sort_depth()) {
+	if (!frame_hires_uses_screen_depth()) {
 		struct VECTOR transformed_position;
 		mat_mul_vector(&curtransshape_ptr->pos, &mat_temp, &transformed_position);
 		transformedshape_zarray[index] = LEGACY_S16_WRAP_ADD(transformed_position.z, z_adjust);
@@ -393,6 +393,12 @@ void frame_finish(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 
 void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 {
+	/* Ghost guidance adds polygons without reducing the budget for nearby scenery. */
+	legacy_u8 expanded_queue = frame_hires_enabled();
+#if defined(RESTUNTS_SDL3)
+	expanded_queue = expanded_queue || ghost_is_active();
+#endif
+	polyinfo_set_supersight(expanded_queue);
 	frame_hires_begin();
 	struct FRAME_CAR_RENDER cars[FRAME_EXPLOSION_CAR_COUNT];
 	cars[PLAYER_CAR_INDEX].explosion_visible = 0;
@@ -432,5 +438,5 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	frame_draw_dashboard_top(cliprect);
 	frame_draw_elapsed_time();
 	frame_finish(buffer_index, cliprect, skybox_requires_full_redraw, camera.yaw);
-	frame_hires_end();
+	polyinfo_set_supersight(0);
 }

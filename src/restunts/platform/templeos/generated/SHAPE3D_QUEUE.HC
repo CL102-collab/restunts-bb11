@@ -201,7 +201,7 @@ legacy_void RsInitDirectionSectorThresholds()
 
 legacy_void RsInitPolyinfo()
 {
-  (polyinfoptr=RsMmgrAllocResbytes("polyinfo",TempleCastS32(RsShape3dHiresPolyinfoSize())));
+  (polyinfoptr=RsMmgrAllocResbytes("polyinfo",TempleCastS32(13312)));
   RsMatRotY((&(mat_y0)),TempleCastS16(0));
   RsMatRotY((&(mat_y100)),TempleCastS16(256));
   RsMatRotY((&(mat_y200)),TempleCastS16(512));
@@ -211,5 +211,18 @@ legacy_void RsInitPolyinfo()
 
 legacy_void RsPolyinfoSetSupersight(legacy_u8 enabled)
 {
-  RsShape3dHiresSetQueueMode(TempleCastU8(enabled));
+  legacy_u16 noreg temple_capacity_3640;
+  legacy_u16 noreg temple_last_offset_3641;
+  temple_capacity_3640=TempleCastU16(400);
+  temple_last_offset_3641=TempleCastU16(10354);
+  if((enabled!=0)) {
+    (temple_capacity_3640=TempleCastU16(592));
+    (temple_last_offset_3641=
+            TempleCastU16(TempleCastU32((13312-TempleCastU32((6+TempleCastU32((4*15))))))));
+  }
+  if((polyinfo_primitive_capacity!=temple_capacity_3640)) {
+    (polyinfo_primitive_capacity=TempleCastU16(temple_capacity_3640));
+    (polyinfo_last_valid_offset=TempleCastU16(temple_last_offset_3641));
+    RsPolyinfoReset();
+  }
 }

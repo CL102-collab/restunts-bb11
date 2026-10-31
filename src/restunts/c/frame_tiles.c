@@ -126,7 +126,7 @@ void frame_select_lookahead_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAM
 								 legacy_s16 tile_index, legacy_s8 detail_threshold)
 {
 	/* Far tiles can be omitted at lower classic detail levels. */
-	if (frame_hires_omit_tile(tiles, tile_index, detail_threshold)) {
+	if (!frame_hires_enabled() && tiles->lookahead[tile_index].detail > detail_threshold) {
 		tiles->markers[tile_index] = FRAME_TILE_UNAVAILABLE_MARKER;
 		return;
 	}
@@ -153,7 +153,7 @@ void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_C
 		TRACK_GRID_LAST_COORDINATE, LEGACY_S16_SAR(camera->position.z, FRAME_CAMERA_TILE_SHIFT));
 	frame_hires_prepare_tiles(tiles, camera);
 #if defined(RESTUNTS_SDL3)
-	frame_hires_position_tiles(tiles, camera);
+	extended_frame_position_tiles(tiles, camera, frame_hires_adaptive_enabled());
 #endif
 	if (detail_level != FRAME_DETAIL_FULL) {
 		tiles->player_east = frame_tile_from_world(frame_state->playerstate.car_position.lx);
@@ -193,7 +193,7 @@ legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 	 * Hills and classic rendering retain their authored overlap order. */
 	legacy_s16 first_pass = FRAME_TILE_OBJECT_PASS;
 #if defined(RESTUNTS_SDL3)
-	first_pass = extended_frame_first_tile_pass();
+	extended_frame_first_tile_pass(&first_pass);
 #endif
 	for (legacy_s16 pass = first_pass; pass <= FRAME_TILE_OBJECT_PASS; pass++) {
 		struct FRAME_TILE tile;

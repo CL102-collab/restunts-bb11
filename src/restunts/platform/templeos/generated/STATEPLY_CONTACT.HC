@@ -2,57 +2,57 @@
 
 legacy_s8 RsStateplyContactLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_6512;
+  legacy_s32 noreg temple_tmp_6525;
   if((value<=127)) {
-    temple_tmp_6512=TempleCastS32(TempleCastS8(value));
+    temple_tmp_6525=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_6512=TempleCastS32(TempleCastS8(
+    temple_tmp_6525=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_6512);
+  return TempleCastS8(temple_tmp_6525);
 }
 
 legacy_s16 RsStateplyContactLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_6513;
+  legacy_s32 noreg temple_tmp_6526;
   if((value<=32767)) {
-    temple_tmp_6513=TempleCastS32(TempleCastS16(value));
+    temple_tmp_6526=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_6513=TempleCastS32(TempleCastS16(
+    temple_tmp_6526=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_6513);
+  return TempleCastS16(temple_tmp_6526);
 }
 
 legacy_s32 RsStateplyContactLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_6514;
+  legacy_s32 noreg temple_tmp_6527;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_6514=TempleCastS32(TempleCastS32(value));
+    temple_tmp_6527=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_6514=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_6527=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_6514);
+  return TempleCastS32(temple_tmp_6527);
 }
 
 legacy_void RsStateplyContactRetainCollisionPlaneRotation(CMatrix *rotation,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_i_6516;
-  legacy_s16 *temple_tmp_6517;
-  legacy_s16 noreg temple_tmp_6518;
+  legacy_s16 noreg temple_i_6529;
+  legacy_s16 *temple_tmp_6530;
+  legacy_s16 noreg temple_tmp_6531;
   if((car_index==PLAYER_CAR_INDEX)) {
-    temple_i_6516=TempleCastS16(0);
+    temple_i_6529=TempleCastS16(0);
     while(1) {
-      if(!((temple_i_6516<4))) {
+      if(!((temple_i_6529<4))) {
         break;
       }
-      (legacy_execution_residue.wheel_angle_stack_words[temple_i_6516]=
-              TempleCastS16(rotation->vals[TempleCastU32((4+TempleCastU32(temple_i_6516)))]));
-      temple_tmp_6517=&(temple_i_6516);
-      temple_tmp_6518=*temple_tmp_6517;
-      *temple_tmp_6517=TempleCastS16((temple_tmp_6518+1));
-      temple_tmp_6518;
+      (legacy_execution_residue.wheel_angle_stack_words[temple_i_6529]=
+              TempleCastS16(rotation->vals[TempleCastU32((4+TempleCastU32(temple_i_6529)))]));
+      temple_tmp_6530=&(temple_i_6529);
+      temple_tmp_6531=*temple_tmp_6530;
+      *temple_tmp_6530=TempleCastS16((temple_tmp_6531+1));
+      temple_tmp_6531;
     }
   }
 }
@@ -71,50 +71,50 @@ legacy_void RsStateplyContactScaleWheelDisplacement(CVector *displacement,CVecto
 legacy_void RsStateplyContactRepositionWheelsAtWall(
     CPlayerWheelMotion *motion,legacy_s16 retained_travel,CVector *wall_response)
 {
-  CVector temple_retained_6519;
-  legacy_s16 noreg temple_i_6521;
-  legacy_s16 *temple_tmp_6522;
-  legacy_s16 noreg temple_tmp_6523;
-  temple_i_6521=TempleCastS16(0);
+  CVector temple_retained_6532;
+  legacy_s16 noreg temple_i_6534;
+  legacy_s16 *temple_tmp_6535;
+  legacy_s16 noreg temple_tmp_6536;
+  temple_i_6534=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_6521<4))) {
+    if(!((temple_i_6534<4))) {
       break;
     }
-    (temple_retained_6519.x=TempleCastS16(0));
-    (temple_retained_6519.y=TempleCastS16(0));
-    (temple_retained_6519.z=TempleCastS16(0));
+    (temple_retained_6532.x=TempleCastS16(0));
+    (temple_retained_6532.y=TempleCastS16(0));
+    (temple_retained_6532.z=TempleCastS16(0));
     if((retained_travel!=0)) {
-      RsStateplyContactScaleWheelDisplacement((&(temple_retained_6519)),
-          (&(motion->current[temple_i_6521])),(&(motion->previous[temple_i_6521])),
+      RsStateplyContactScaleWheelDisplacement((&(temple_retained_6532)),
+          (&(motion->current[temple_i_6534])),(&(motion->previous[temple_i_6534])),
           TempleCastS16(retained_travel),TempleCastS16(motion->travel));
     }
-    RsPhysicsPositionOffset((&(motion->current[temple_i_6521])),
-        (&(motion->previous[temple_i_6521])),(&(temple_retained_6519)));
+    RsPhysicsPositionOffset((&(motion->current[temple_i_6534])),
+        (&(motion->previous[temple_i_6534])),(&(temple_retained_6532)));
     RsPhysicsPositionOffset(
-        (&(motion->current[temple_i_6521])),(&(motion->current[temple_i_6521])),wall_response);
-    temple_tmp_6522=&(temple_i_6521);
-    temple_tmp_6523=*temple_tmp_6522;
-    *temple_tmp_6522=TempleCastS16((temple_tmp_6523+1));
-    temple_tmp_6523;
+        (&(motion->current[temple_i_6534])),(&(motion->current[temple_i_6534])),wall_response);
+    temple_tmp_6535=&(temple_i_6534);
+    temple_tmp_6536=*temple_tmp_6535;
+    *temple_tmp_6535=TempleCastS16((temple_tmp_6536+1));
+    temple_tmp_6536;
   }
 }
 
 legacy_void RsStateplyContactApplyWallImpact(
     CCarState *carstate,legacy_s16 wall_heading,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_angle_distance_6524;
-  legacy_s16 noreg temple_reverse_turn_6525;
-  legacy_u16 noreg temple_wall_safe_speed_6526;
-  legacy_u32 noreg temple_tmp_6527;
-  legacy_u32 noreg temple_tmp_6528;
-  legacy_u32 noreg temple_tmp_6529;
-  legacy_u32 noreg temple_tmp_6530;
-  legacy_u32 noreg temple_tmp_6531;
-  legacy_s16 noreg temple_impact_turn_6532;
-  legacy_s32 noreg temple_tmp_6533;
-  legacy_u32 noreg temple_tmp_6534;
-  legacy_s8 *temple_tmp_6535;
-  temple_angle_distance_6524=
+  legacy_s16 noreg temple_angle_distance_6537;
+  legacy_s16 noreg temple_reverse_turn_6538;
+  legacy_u16 noreg temple_wall_safe_speed_6539;
+  legacy_u32 noreg temple_tmp_6540;
+  legacy_u32 noreg temple_tmp_6541;
+  legacy_u32 noreg temple_tmp_6542;
+  legacy_u32 noreg temple_tmp_6543;
+  legacy_u32 noreg temple_tmp_6544;
+  legacy_s16 noreg temple_impact_turn_6545;
+  legacy_s32 noreg temple_tmp_6546;
+  legacy_u32 noreg temple_tmp_6547;
+  legacy_s8 *temple_tmp_6548;
+  temple_angle_distance_6537=
       TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU32(
           (TempleCastU16(RsStateplyContactLegacyS16FromBits(
               TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
@@ -122,96 +122,96 @@ legacy_void RsStateplyContactApplyWallImpact(
                         TempleCastU16(TempleCastU32((0-TempleCastU16(car_working_yaw))))))))-
                       TempleCastU16(wall_heading))))))))&
               1023))))));
-  temple_reverse_turn_6525=TempleCastS16((temple_angle_distance_6524>256));
-  if(temple_reverse_turn_6525) {
-    (temple_angle_distance_6524=TempleCastS16(
+  temple_reverse_turn_6538=TempleCastS16((temple_angle_distance_6537>256));
+  if(temple_reverse_turn_6538) {
+    (temple_angle_distance_6537=TempleCastS16(
         RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(1024)-TempleCastU16(temple_angle_distance_6524)))))))));
+            TempleCastS32((TempleCastU16(1024)-TempleCastU16(temple_angle_distance_6537)))))))));
   }
   if((TempleCastU32((TempleCastU16(8)&31))>=16)) {
-    temple_tmp_6531=TempleCastU32(0);
+    temple_tmp_6544=TempleCastU32(0);
   } else {
     if((TempleCastU32((TempleCastU16(8)&31))==0)) {
-      temple_tmp_6530=TempleCastU32(TempleCastU16(
+      temple_tmp_6543=TempleCastU32(TempleCastU16(
           RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6524))*
+              TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6537))*
                   TempleCastU32(TempleCastU16(70))))))))));
     } else {
       if((TempleCastU32((TempleCastU16(RsStateplyContactLegacyS16FromBits(
                             TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32(
-                                (TempleCastU32(TempleCastU16(temple_angle_distance_6524))*
+                                (TempleCastU32(TempleCastU16(temple_angle_distance_6537))*
                                     TempleCastU32(TempleCastU16(70)))))))))&
               32768))!=0)) {
         if((TempleCastU32((TempleCastU16(8)&31))>=16)) {
-          temple_tmp_6527=TempleCastU32(TempleCastU32(65535));
+          temple_tmp_6540=TempleCastU32(TempleCastU32(65535));
         } else {
-          temple_tmp_6527=TempleCastU32(TempleCastU32(
+          temple_tmp_6540=TempleCastU32(TempleCastU32(
               (TempleCastU32(TempleCastS32((
                   TempleCastU16(
                       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                          TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6524))*
+                          TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6537))*
                               TempleCastU32(TempleCastU16(70)))))))))>>
                   TempleCastU32((TempleCastU16(8)&31)))))|
                   TempleCastU16(TempleCastU32((TempleCastU32(65535)
                       <<TempleCastU32((16-TempleCastU32((TempleCastU16(8)&31))))))))));
         }
-        temple_tmp_6529=TempleCastU32(temple_tmp_6527);
+        temple_tmp_6542=TempleCastU32(temple_tmp_6540);
       } else {
         if((TempleCastU32((TempleCastU16(8)&31))>=16)) {
-          temple_tmp_6528=TempleCastU32(0);
+          temple_tmp_6541=TempleCastU32(0);
         } else {
-          temple_tmp_6528=TempleCastU32(TempleCastU32(TempleCastS32(
+          temple_tmp_6541=TempleCastU32(TempleCastU32(TempleCastS32(
               (TempleCastU16(
                   RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                      TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6524))*
+                      TempleCastU32((TempleCastU32(TempleCastU16(temple_angle_distance_6537))*
                           TempleCastU32(TempleCastU16(70)))))))))>>
                   TempleCastU32((TempleCastU16(8)&31))))));
         }
-        temple_tmp_6529=TempleCastU32(temple_tmp_6528);
+        temple_tmp_6542=TempleCastU32(temple_tmp_6541);
       }
-      temple_tmp_6530=TempleCastU32(temple_tmp_6529);
+      temple_tmp_6543=TempleCastU32(temple_tmp_6542);
     }
-    temple_tmp_6531=TempleCastU32(TempleCastU32(
+    temple_tmp_6544=TempleCastU32(TempleCastU32(
         (TempleCastU32(TempleCastU16(TempleCastU8(RsStateplyContactLegacyS16FromBits(
             TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((0-
                 TempleCastU16(RsStateplyContactLegacyS16FromBits(
                     TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
                         (TempleCastU16(RsStateplyContactLegacyS16FromBits(
-                              TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6530)))))-
+                              TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6543)))))-
                             TempleCastU16(100)))))))))))))))))
             <<TempleCastU32((TempleCastU16(8)&31)))));
   }
-  temple_wall_safe_speed_6526=TempleCastU16(TempleCastU16(temple_tmp_6531));
-  if((carstate->car_actual_speed>temple_wall_safe_speed_6526)) {
-    if(temple_reverse_turn_6525) {
-      temple_tmp_6533=TempleCastS32(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
-          TempleCastU16(TempleCastU32((0-TempleCastU16(temple_angle_distance_6524))))))));
+  temple_wall_safe_speed_6539=TempleCastU16(TempleCastU16(temple_tmp_6544));
+  if((carstate->car_actual_speed>temple_wall_safe_speed_6539)) {
+    if(temple_reverse_turn_6538) {
+      temple_tmp_6546=TempleCastS32(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
+          TempleCastU16(TempleCastU32((0-TempleCastU16(temple_angle_distance_6537))))))));
     } else {
-      temple_tmp_6533=TempleCastS32(temple_angle_distance_6524);
+      temple_tmp_6546=TempleCastS32(temple_angle_distance_6537);
     }
-    temple_impact_turn_6532=TempleCastS16(temple_tmp_6533);
+    temple_impact_turn_6545=TempleCastS16(temple_tmp_6546);
     if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-      temple_tmp_6534=TempleCastU32(0);
+      temple_tmp_6547=TempleCastU32(0);
     } else {
-      temple_tmp_6534=
-          TempleCastU32(TempleCastU32((TempleCastU32(TempleCastU16(temple_impact_turn_6532))
+      temple_tmp_6547=
+          TempleCastU32(TempleCastU32((TempleCastU32(TempleCastU16(temple_impact_turn_6545))
               <<TempleCastU32((TempleCastU16(1)&31)))));
     }
     (carstate->car_velocity_heading_offset=TempleCastS16(RsStateplyContactLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6534))))));
+        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6547))))));
     RsPlayerMotionCrash(TempleCastS16(CRASH_EVENT_COLLISION),TempleCastS16(car_index));
   }
-  temple_tmp_6535=&(carstate->car_sound_flags);
-  ((*temple_tmp_6535)=TempleCastS8((TempleCastU32((*temple_tmp_6535))|16)));
+  temple_tmp_6548=&(carstate->car_sound_flags);
+  ((*temple_tmp_6548)=TempleCastS8((TempleCastU32((*temple_tmp_6548))|16)));
 }
 
 legacy_s16 RsStateplyContactWallResponseHeading(
     CVector *push,legacy_s16 remaining_travel,legacy_s16 reversed)
 {
-  legacy_s16 noreg temple_relative_heading_6536;
-  legacy_s16 noreg temple_wall_heading_6537;
-  legacy_s32 noreg temple_tmp_6538;
-  temple_relative_heading_6536=
+  legacy_s16 noreg temple_relative_heading_6549;
+  legacy_s16 noreg temple_wall_heading_6550;
+  legacy_s32 noreg temple_tmp_6551;
+  temple_relative_heading_6549=
       TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU32(
           (TempleCastU16(RsStateplyContactLegacyS16FromBits(
               TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
@@ -221,21 +221,21 @@ legacy_s16 RsStateplyContactWallResponseHeading(
               1023))))));
   (push->y=TempleCastS16(0));
   (push->z=TempleCastS16(remaining_travel));
-  temple_tmp_6538=0;
-  if((temple_relative_heading_6536<256)) {
-    temple_tmp_6538=1;
+  temple_tmp_6551=0;
+  if((temple_relative_heading_6549<256)) {
+    temple_tmp_6551=1;
   }
-  if(!temple_tmp_6538) {
-    temple_tmp_6538=0;
-    if((temple_relative_heading_6536>768)) {
-      temple_tmp_6538=1;
+  if(!temple_tmp_6551) {
+    temple_tmp_6551=0;
+    if((temple_relative_heading_6549>768)) {
+      temple_tmp_6551=1;
     }
   }
-  if(temple_tmp_6538) {
-    (temple_wall_heading_6537=TempleCastS16(wall_orientation));
+  if(temple_tmp_6551) {
+    (temple_wall_heading_6550=TempleCastS16(wall_orientation));
     (push->x=TempleCastS16(768));
   } else {
-    (temple_wall_heading_6537=TempleCastS16(
+    (temple_wall_heading_6550=TempleCastS16(
         RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU32(
             (TempleCastU16(
                   RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
@@ -247,227 +247,227 @@ legacy_s16 RsStateplyContactWallResponseHeading(
     (push->x=TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
         TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(push->x)))))))));
   }
-  return TempleCastS16(temple_wall_heading_6537);
+  return TempleCastS16(temple_wall_heading_6550);
 }
 
 legacy_s16 RsStateplyContactResolveWheelWallCollision(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index,legacy_s16 car_index)
 {
-  CVectorLong *temple_current_wheel_position_6539;
-  legacy_s32 noreg temple_tmp_6540;
-  legacy_s32 noreg temple_tmp_6541;
-  CVector temple_previous_wall_6542;
-  CVector temple_current_wall_6543;
-  CVector temple_previous_relative_6544;
-  CVector temple_current_relative_6545;
-  CMatrix temple_collision_plane_rotation_6546;
-  CVector temple_start_6547;
-  CVector temple_end_6548;
-  legacy_s32 noreg temple_tmp_6549;
-  legacy_s32 noreg temple_tmp_6550;
-  legacy_s32 noreg temple_tmp_6551;
-  legacy_s16 noreg temple_reversed_6552;
-  CVector temple_temporary_6553;
-  legacy_s16 noreg temple_remaining_travel_6554;
-  CVector temple_intersection_delta_6555;
-  legacy_s16 noreg temple_retained_travel_6556;
-  CVector temple_push_6557;
-  legacy_s16 noreg temple_wall_heading_6558;
-  CMatrix *temple_response_rotation_6559;
-  CVector temple_response_6560;
-  temple_current_wheel_position_6539=(&(motion->current[wheel_index]));
-  temple_tmp_6540=0;
+  CVectorLong *temple_current_wheel_position_6552;
+  legacy_s32 noreg temple_tmp_6553;
+  legacy_s32 noreg temple_tmp_6554;
+  CVector temple_previous_wall_6555;
+  CVector temple_current_wall_6556;
+  CVector temple_previous_relative_6557;
+  CVector temple_current_relative_6558;
+  CMatrix temple_collision_plane_rotation_6559;
+  CVector temple_start_6560;
+  CVector temple_end_6561;
+  legacy_s32 noreg temple_tmp_6562;
+  legacy_s32 noreg temple_tmp_6563;
+  legacy_s32 noreg temple_tmp_6564;
+  legacy_s16 noreg temple_reversed_6565;
+  CVector temple_temporary_6566;
+  legacy_s16 noreg temple_remaining_travel_6567;
+  CVector temple_intersection_delta_6568;
+  legacy_s16 noreg temple_retained_travel_6569;
+  CVector temple_push_6570;
+  legacy_s16 noreg temple_wall_heading_6571;
+  CMatrix *temple_response_rotation_6572;
+  CVector temple_response_6573;
+  temple_current_wheel_position_6552=(&(motion->current[wheel_index]));
+  temple_tmp_6553=0;
   if((wallindex==TempleCastS32((-(1))))) {
-    temple_tmp_6540=1;
+    temple_tmp_6553=1;
   }
-  if(!temple_tmp_6540) {
-    temple_tmp_6540=0;
+  if(!temple_tmp_6553) {
+    temple_tmp_6553=0;
     if((next_pos_and_normal_ip<=el_rd_wall_related)) {
-      temple_tmp_6540=1;
+      temple_tmp_6553=1;
     }
   }
-  temple_tmp_6541=0;
-  if(temple_tmp_6540) {
-    temple_tmp_6541=1;
+  temple_tmp_6554=0;
+  if(temple_tmp_6553) {
+    temple_tmp_6554=1;
   }
-  if(!temple_tmp_6541) {
-    temple_tmp_6541=0;
+  if(!temple_tmp_6554) {
+    temple_tmp_6554=0;
     if((next_pos_and_normal_ip>=wall_height)) {
-      temple_tmp_6541=1;
+      temple_tmp_6554=1;
     }
   }
-  if(temple_tmp_6541) {
+  if(temple_tmp_6554) {
     return TempleCastS16(0);
   }
-  MemCpy(&temple_previous_wall_6542,&(carstate->car_wheel_contact_positions[wheel_index]),
+  MemCpy(&temple_previous_wall_6555,&(carstate->car_wheel_contact_positions[wheel_index]),
       sizeof(CVector));
-  RsPhysicsPositionToVector((&(temple_current_wall_6543)),temple_current_wheel_position_6539);
-  (temple_previous_relative_6544.x=TempleCastS16(
+  RsPhysicsPositionToVector((&(temple_current_wall_6556)),temple_current_wheel_position_6552);
+  (temple_previous_relative_6557.x=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(temple_previous_wall_6542.x)-TempleCastU16(wall_start_x)))))))));
-  (temple_previous_relative_6544.y=TempleCastS16(0));
-  (temple_previous_relative_6544.z=TempleCastS16(
+          (TempleCastU16(temple_previous_wall_6555.x)-TempleCastU16(wall_start_x)))))))));
+  (temple_previous_relative_6557.y=TempleCastS16(0));
+  (temple_previous_relative_6557.z=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(temple_previous_wall_6542.z)-TempleCastU16(wall_start_z)))))))));
-  (temple_current_relative_6545.x=TempleCastS16(
+          (TempleCastU16(temple_previous_wall_6555.z)-TempleCastU16(wall_start_z)))))))));
+  (temple_current_relative_6558.x=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(temple_current_wall_6543.x)-TempleCastU16(wall_start_x)))))))));
-  (temple_current_relative_6545.y=TempleCastS16(0));
-  (temple_current_relative_6545.z=TempleCastS16(
+          (TempleCastU16(temple_current_wall_6556.x)-TempleCastU16(wall_start_x)))))))));
+  (temple_current_relative_6558.y=TempleCastS16(0));
+  (temple_current_relative_6558.z=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(temple_current_wall_6543.z)-TempleCastU16(wall_start_z)))))))));
-  RsMatRotY((&(temple_collision_plane_rotation_6546)),
+          (TempleCastU16(temple_current_wall_6556.z)-TempleCastU16(wall_start_z)))))))));
+  RsMatRotY((&(temple_collision_plane_rotation_6559)),
       TempleCastS16(RsStateplyContactLegacyS16FromBits(
           TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
               (TempleCastU16(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
                   TempleCastU16(TempleCastU32((0-TempleCastU16(wall_orientation))))))))-
                   TempleCastU16(256)))))))));
   RsStateplyContactRetainCollisionPlaneRotation(
-      (&(temple_collision_plane_rotation_6546)),TempleCastS16(car_index));
-  RsMatMulVector((&(temple_previous_relative_6544)),(&(temple_collision_plane_rotation_6546)),
-      (&(temple_start_6547)));
-  RsMatMulVector((&(temple_current_relative_6545)),(&(temple_collision_plane_rotation_6546)),
-      (&(temple_end_6548)));
-  temple_tmp_6549=0;
-  if((temple_end_6548.z>0)) {
-    temple_tmp_6549=1;
+      (&(temple_collision_plane_rotation_6559)),TempleCastS16(car_index));
+  RsMatMulVector((&(temple_previous_relative_6557)),(&(temple_collision_plane_rotation_6559)),
+      (&(temple_start_6560)));
+  RsMatMulVector((&(temple_current_relative_6558)),(&(temple_collision_plane_rotation_6559)),
+      (&(temple_end_6561)));
+  temple_tmp_6562=0;
+  if((temple_end_6561.z>0)) {
+    temple_tmp_6562=1;
   }
-  if(temple_tmp_6549) {
-    temple_tmp_6549=0;
-    if((temple_start_6547.z>0)) {
-      temple_tmp_6549=1;
+  if(temple_tmp_6562) {
+    temple_tmp_6562=0;
+    if((temple_start_6560.z>0)) {
+      temple_tmp_6562=1;
     }
   }
-  temple_tmp_6551=0;
-  if(temple_tmp_6549) {
-    temple_tmp_6551=1;
+  temple_tmp_6564=0;
+  if(temple_tmp_6562) {
+    temple_tmp_6564=1;
   }
-  if(!temple_tmp_6551) {
-    temple_tmp_6550=0;
-    if((temple_end_6548.z<0)) {
-      temple_tmp_6550=1;
+  if(!temple_tmp_6564) {
+    temple_tmp_6563=0;
+    if((temple_end_6561.z<0)) {
+      temple_tmp_6563=1;
     }
-    if(temple_tmp_6550) {
-      temple_tmp_6550=0;
-      if((temple_start_6547.z<0)) {
-        temple_tmp_6550=1;
+    if(temple_tmp_6563) {
+      temple_tmp_6563=0;
+      if((temple_start_6560.z<0)) {
+        temple_tmp_6563=1;
       }
     }
-    temple_tmp_6551=0;
-    if(temple_tmp_6550) {
-      temple_tmp_6551=1;
+    temple_tmp_6564=0;
+    if(temple_tmp_6563) {
+      temple_tmp_6564=1;
     }
   }
-  if(temple_tmp_6551) {
+  if(temple_tmp_6564) {
     return TempleCastS16(0);
   }
-  temple_reversed_6552=TempleCastS16((temple_end_6548.z>temple_start_6547.z));
-  if(temple_reversed_6552) {
-    MemCpy(&(temple_temporary_6553),&(temple_end_6548),sizeof(CVector));
-    MemCpy(&(temple_end_6548),&(temple_start_6547),sizeof(CVector));
-    MemCpy(&(temple_start_6547),&(temple_temporary_6553),sizeof(CVector));
+  temple_reversed_6565=TempleCastS16((temple_end_6561.z>temple_start_6560.z));
+  if(temple_reversed_6565) {
+    MemCpy(&(temple_temporary_6566),&(temple_end_6561),sizeof(CVector));
+    MemCpy(&(temple_end_6561),&(temple_start_6560),sizeof(CVector));
+    MemCpy(&(temple_start_6560),&(temple_temporary_6566),sizeof(CVector));
   }
-  if((temple_end_6548.z==0)) {
-    (temple_retained_travel_6556=TempleCastS16(motion->travel));
-    (temple_remaining_travel_6554=TempleCastS16(0));
+  if((temple_end_6561.z==0)) {
+    (temple_retained_travel_6569=TempleCastS16(motion->travel));
+    (temple_remaining_travel_6567=TempleCastS16(0));
   } else {
-    if((temple_start_6547.z==0)) {
-      (temple_retained_travel_6556=TempleCastS16(0));
-      (temple_remaining_travel_6554=TempleCastS16(motion->travel));
+    if((temple_start_6560.z==0)) {
+      (temple_retained_travel_6569=TempleCastS16(0));
+      (temple_remaining_travel_6567=TempleCastS16(motion->travel));
     } else {
-      (temple_remaining_travel_6554=
-              TempleCastS16(RsScaledVectorSeparation((&(temple_end_6548)),(&(temple_start_6547)),
-                  (&(temple_temporary_6553)),(&(temple_intersection_delta_6555)))));
-      (temple_retained_travel_6556=TempleCastS16(RsStateplyContactLegacyS16FromBits(
+      (temple_remaining_travel_6567=
+              TempleCastS16(RsScaledVectorSeparation((&(temple_end_6561)),(&(temple_start_6560)),
+                  (&(temple_temporary_6566)),(&(temple_intersection_delta_6568)))));
+      (temple_retained_travel_6569=TempleCastS16(RsStateplyContactLegacyS16FromBits(
           TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(motion->travel)-TempleCastU16(temple_remaining_travel_6554)))))))));
+              (TempleCastU16(motion->travel)-TempleCastU16(temple_remaining_travel_6567)))))))));
     }
   }
-  temple_wall_heading_6558=
-      TempleCastS16(RsStateplyContactWallResponseHeading((&(temple_push_6557)),
-          TempleCastS16(temple_remaining_travel_6554),TempleCastS16(temple_reversed_6552)));
-  temple_response_rotation_6559=RsMatRotZxy(
+  temple_wall_heading_6571=
+      TempleCastS16(RsStateplyContactWallResponseHeading((&(temple_push_6570)),
+          TempleCastS16(temple_remaining_travel_6567),TempleCastS16(temple_reversed_6565)));
+  temple_response_rotation_6572=RsMatRotZxy(
       TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
           TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(car_working_roll)))))))),
       TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
           TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(car_working_pitch)))))))),
-      TempleCastS16(temple_wall_heading_6558),TempleCastS16(MATRIX_ROTATION_ORDER_ZXY));
-  RsMatMulVector((&(temple_push_6557)),temple_response_rotation_6559,(&(temple_response_6560)));
+      TempleCastS16(temple_wall_heading_6571),TempleCastS16(MATRIX_ROTATION_ORDER_ZXY));
+  RsMatMulVector((&(temple_push_6570)),temple_response_rotation_6572,(&(temple_response_6573)));
   RsStateplyContactApplyWallImpact(
-      carstate,TempleCastS16(temple_wall_heading_6558),TempleCastS16(car_index));
+      carstate,TempleCastS16(temple_wall_heading_6571),TempleCastS16(car_index));
   RsStateplyContactRepositionWheelsAtWall(
-      motion,TempleCastS16(temple_retained_travel_6556),(&(temple_response_6560)));
+      motion,TempleCastS16(temple_retained_travel_6569),(&(temple_response_6573)));
   return TempleCastS16(1);
 }
 
 legacy_void RsStateplyContactMeasureWheelPlaneDistance(CVectorLong *position)
 {
-  CVector temple_wheel_6561;
-  legacy_s32 noreg temple_tmp_6562;
-  RsPhysicsPositionToVector((&(temple_wheel_6561)),position);
+  CVector temple_wheel_6574;
+  legacy_s32 noreg temple_tmp_6575;
+  RsPhysicsPositionToVector((&(temple_wheel_6574)),position);
   if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
-    temple_tmp_6562=TempleCastS32(temple_wheel_6561.y);
+    temple_tmp_6575=TempleCastS32(temple_wheel_6574.y);
   } else {
-    temple_tmp_6562=TempleCastS32(
-        RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_wheel_6561.x),
-            TempleCastS16(temple_wheel_6561.y),TempleCastS16(temple_wheel_6561.z)));
+    temple_tmp_6575=TempleCastS32(
+        RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_wheel_6574.x),
+            TempleCastS16(temple_wheel_6574.y),TempleCastS16(temple_wheel_6574.z)));
   }
-  (next_pos_and_normal_ip=TempleCastS16(temple_tmp_6562));
+  (next_pos_and_normal_ip=TempleCastS16(temple_tmp_6575));
 }
 
 legacy_void RsStateplyContactApplyWheelGravity(
     CCarState *carstate,CVectorLong *position,legacy_s16 wheel_index)
 {
-  legacy_s16 noreg temple_gravity_6563;
-  legacy_s16 noreg temple_step_count_6564;
-  legacy_s32 noreg temple_tmp_6565;
-  legacy_s32 noreg temple_tmp_6566;
-  legacy_s16 noreg temple_step_6568;
-  legacy_u32 noreg temple_tmp_6569;
-  legacy_s16 *temple_tmp_6570;
-  legacy_s16 noreg temple_tmp_6571;
-  temple_gravity_6563=TempleCastS16(wheel_gravity_steps[wheel_index]);
-  temple_tmp_6565=0;
+  legacy_s16 noreg temple_gravity_6576;
+  legacy_s16 noreg temple_step_count_6577;
+  legacy_s32 noreg temple_tmp_6578;
+  legacy_s32 noreg temple_tmp_6579;
+  legacy_s16 noreg temple_step_6581;
+  legacy_u32 noreg temple_tmp_6582;
+  legacy_s16 *temple_tmp_6583;
+  legacy_s16 noreg temple_tmp_6584;
+  temple_gravity_6576=TempleCastS16(wheel_gravity_steps[wheel_index]);
+  temple_tmp_6578=0;
   if((framespersec==GAME_FRAME_RATE_LOW)) {
-    temple_tmp_6565=1;
+    temple_tmp_6578=1;
   }
-  if(temple_tmp_6565) {
-    temple_tmp_6565=0;
+  if(temple_tmp_6578) {
+    temple_tmp_6578=0;
     if((player_motion_fraction==TempleCastU32(0))) {
-      temple_tmp_6565=1;
+      temple_tmp_6578=1;
     }
   }
-  if(temple_tmp_6565) {
-    temple_tmp_6566=TempleCastS32(2);
+  if(temple_tmp_6578) {
+    temple_tmp_6579=TempleCastS32(2);
   } else {
-    temple_tmp_6566=TempleCastS32(1);
+    temple_tmp_6579=TempleCastS32(1);
   }
-  temple_step_count_6564=TempleCastS16(temple_tmp_6566);
-  temple_step_6568=TempleCastS16(0);
+  temple_step_count_6577=TempleCastS16(temple_tmp_6579);
+  temple_step_6581=TempleCastS16(0);
   while(1) {
-    if(!((temple_step_6568<temple_step_count_6564))) {
+    if(!((temple_step_6581<temple_step_count_6577))) {
       break;
     }
     (carstate->car_wheel_vertical_speed[wheel_index]=TempleCastS16(
         RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(carstate->car_wheel_vertical_speed[wheel_index])+
-                TempleCastU16(RsScalePlayerMotion(TempleCastS16(temple_gravity_6563)))))))))));
+                TempleCastU16(RsScalePlayerMotion(TempleCastS16(temple_gravity_6576)))))))))));
     if((TempleCastU32((TempleCastU16(RsScalePlayerMotion(
                           TempleCastS16(carstate->car_wheel_vertical_speed[wheel_index])))&
             32768))!=TempleCastU32(0))) {
-      temple_tmp_6569=TempleCastU32(TempleCastU32(4294901760));
+      temple_tmp_6582=TempleCastU32(TempleCastU32(4294901760));
     } else {
-      temple_tmp_6569=TempleCastU32(TempleCastU32(0));
+      temple_tmp_6582=TempleCastU32(TempleCastU32(0));
     }
     (position->ly=TempleCastS32(RsStateplyContactLegacyS32FromBits(
         TempleCastU32(TempleCastU32(TempleCastU32((TempleCastU32(position->ly)-
-            TempleCastU32(TempleCastU32((temple_tmp_6569|
+            TempleCastU32(TempleCastU32((temple_tmp_6582|
                 TempleCastU16(RsScalePlayerMotion(
                     TempleCastS16(carstate->car_wheel_vertical_speed[wheel_index])))))))))))));
-    temple_tmp_6570=&(temple_step_6568);
-    temple_tmp_6571=*temple_tmp_6570;
-    *temple_tmp_6570=TempleCastS16((temple_tmp_6571+1));
-    temple_tmp_6571;
+    temple_tmp_6583=&(temple_step_6581);
+    temple_tmp_6584=*temple_tmp_6583;
+    *temple_tmp_6583=TempleCastS16((temple_tmp_6584+1));
+    temple_tmp_6584;
   }
   RsStateplyContactMeasureWheelPlaneDistance(position);
   if((next_pos_and_normal_ip>12)) {
@@ -478,156 +478,156 @@ legacy_void RsStateplyContactApplyWheelGravity(
 legacy_s16 RsStateplyContactHoldWheelToSurface(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index)
 {
-  CCarSurfaceAdhesionSettings *temple_settings_6572;
-  legacy_s32 noreg temple_tmp_6573;
-  legacy_s32 noreg temple_tmp_6574;
-  legacy_s32 noreg temple_tmp_6575;
-  legacy_s32 noreg temple_tmp_6576;
-  legacy_s32 noreg temple_tmp_6577;
-  legacy_s32 noreg temple_tmp_6578;
-  legacy_s32 noreg temple_tmp_6579;
-  CVector temple_up_6580;
-  CVector temple_car_up_6581;
-  CVector temple_surface_up_6582;
-  legacy_s32 noreg temple_alignment_6583;
-  legacy_s32 noreg temple_tmp_6584;
-  legacy_s32 noreg temple_tmp_6585;
+  CCarSurfaceAdhesionSettings *temple_settings_6585;
   legacy_s32 noreg temple_tmp_6586;
-  CVector temple_normal_6587;
-  CVector temple_correction_6588;
-  temple_settings_6572=
+  legacy_s32 noreg temple_tmp_6587;
+  legacy_s32 noreg temple_tmp_6588;
+  legacy_s32 noreg temple_tmp_6589;
+  legacy_s32 noreg temple_tmp_6590;
+  legacy_s32 noreg temple_tmp_6591;
+  legacy_s32 noreg temple_tmp_6592;
+  CVector temple_up_6593;
+  CVector temple_car_up_6594;
+  CVector temple_surface_up_6595;
+  legacy_s32 noreg temple_alignment_6596;
+  legacy_s32 noreg temple_tmp_6597;
+  legacy_s32 noreg temple_tmp_6598;
+  legacy_s32 noreg temple_tmp_6599;
+  CVector temple_normal_6600;
+  CVector temple_correction_6601;
+  temple_settings_6585=
       (&(car_surface_adhesion_settings[(motion->car_index==OPPONENT_CAR_INDEX)]));
-  temple_tmp_6573=0;
+  temple_tmp_6586=0;
   if((!(motion->surface_adhesion))) {
-    temple_tmp_6573=1;
+    temple_tmp_6586=1;
   }
-  if(!temple_tmp_6573) {
-    temple_tmp_6573=0;
-    if((carstate->car_crash_bmp_flag!=CRASH_EVENT_NONE)) {
-      temple_tmp_6573=1;
-    }
-  }
-  temple_tmp_6574=0;
-  if(temple_tmp_6573) {
-    temple_tmp_6574=1;
-  }
-  if(!temple_tmp_6574) {
-    temple_tmp_6574=0;
-    if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
-      temple_tmp_6574=1;
-    }
-  }
-  temple_tmp_6575=0;
-  if(temple_tmp_6574) {
-    temple_tmp_6575=1;
-  }
-  if(!temple_tmp_6575) {
-    temple_tmp_6575=0;
-    if((current_surf_type<CAR_SURFACE_PAVED)) {
-      temple_tmp_6575=1;
-    }
-  }
-  temple_tmp_6576=0;
-  if(temple_tmp_6575) {
-    temple_tmp_6576=1;
-  }
-  if(!temple_tmp_6576) {
-    temple_tmp_6576=0;
-    if((current_surf_type>CAR_SURFACE_GRASS)) {
-      temple_tmp_6576=1;
-    }
-  }
-  temple_tmp_6577=0;
-  if(temple_tmp_6576) {
-    temple_tmp_6577=1;
-  }
-  if(!temple_tmp_6577) {
-    temple_tmp_6577=0;
-    if((next_pos_and_normal_ip<0)) {
-      temple_tmp_6577=1;
-    }
-  }
-  temple_tmp_6578=0;
-  if(temple_tmp_6577) {
-    temple_tmp_6578=1;
-  }
-  if(!temple_tmp_6578) {
-    temple_tmp_6578=0;
-    if((next_pos_and_normal_ip>temple_settings_6572->max_distance)) {
-      temple_tmp_6578=1;
-    }
-  }
-  temple_tmp_6579=0;
-  if(temple_tmp_6578) {
-    temple_tmp_6579=1;
-  }
-  if(!temple_tmp_6579) {
-    temple_tmp_6579=0;
-    if((TempleCastU32((temple_settings_6572->surface_mask&
-            TempleCastU32((1<<TempleCastS32((current_surf_type-CAR_SURFACE_PAVED))))))==
-          TempleCastU32(0))) {
-      temple_tmp_6579=1;
-    }
-  }
-  if(temple_tmp_6579) {
-    return TempleCastS16(0);
-  }
-  MemSet(&temple_up_6580,0,sizeof(temple_up_6580));
-  temple_up_6580.y=TempleCastS16(16384);
-  RsMatMulVector((&(temple_up_6580)),(&(car_to_world_rotation)),(&(temple_car_up_6581)));
-  RsMatMulVector2(
-      (&(temple_up_6580)),(&(current_planptr->plane_rotation)),(&(temple_surface_up_6582)));
-  temple_alignment_6583=TempleCastS32(TempleCastS32(
-      (TempleCastS32(
-          (TempleCastS32((TempleCastS32(temple_car_up_6581.x)*temple_surface_up_6582.x))+
-              TempleCastS32((TempleCastS32(temple_car_up_6581.y)*temple_surface_up_6582.y))))+
-          TempleCastS32((TempleCastS32(temple_car_up_6581.z)*temple_surface_up_6582.z)))));
-  if((temple_alignment_6583<
-        TempleCastS32((TempleCastS32(16384)*temple_settings_6572->min_alignment)))) {
-    temple_tmp_6584=0;
-    if((temple_alignment_6583<=0)) {
-      temple_tmp_6584=1;
-    }
-    if(!temple_tmp_6584) {
-      temple_tmp_6584=0;
-      if((TempleCastS32((TempleCastS32(temple_car_up_6581.x)*temple_surface_up_6582.y))!=
-            TempleCastS32((TempleCastS32(temple_car_up_6581.y)*temple_surface_up_6582.x)))) {
-        temple_tmp_6584=1;
-      }
-    }
-    temple_tmp_6585=0;
-    if(temple_tmp_6584) {
-      temple_tmp_6585=1;
-    }
-    if(!temple_tmp_6585) {
-      temple_tmp_6585=0;
-      if((TempleCastS32((TempleCastS32(temple_car_up_6581.x)*temple_surface_up_6582.z))!=
-            TempleCastS32((TempleCastS32(temple_car_up_6581.z)*temple_surface_up_6582.x)))) {
-        temple_tmp_6585=1;
-      }
-    }
+  if(!temple_tmp_6586) {
     temple_tmp_6586=0;
-    if(temple_tmp_6585) {
+    if((carstate->car_crash_bmp_flag!=CRASH_EVENT_NONE)) {
       temple_tmp_6586=1;
     }
-    if(!temple_tmp_6586) {
-      temple_tmp_6586=0;
-      if((TempleCastS32((TempleCastS32(temple_car_up_6581.y)*temple_surface_up_6582.z))!=
-            TempleCastS32((TempleCastS32(temple_car_up_6581.z)*temple_surface_up_6582.y)))) {
-        temple_tmp_6586=1;
+  }
+  temple_tmp_6587=0;
+  if(temple_tmp_6586) {
+    temple_tmp_6587=1;
+  }
+  if(!temple_tmp_6587) {
+    temple_tmp_6587=0;
+    if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
+      temple_tmp_6587=1;
+    }
+  }
+  temple_tmp_6588=0;
+  if(temple_tmp_6587) {
+    temple_tmp_6588=1;
+  }
+  if(!temple_tmp_6588) {
+    temple_tmp_6588=0;
+    if((current_surf_type<CAR_SURFACE_PAVED)) {
+      temple_tmp_6588=1;
+    }
+  }
+  temple_tmp_6589=0;
+  if(temple_tmp_6588) {
+    temple_tmp_6589=1;
+  }
+  if(!temple_tmp_6589) {
+    temple_tmp_6589=0;
+    if((current_surf_type>CAR_SURFACE_GRASS)) {
+      temple_tmp_6589=1;
+    }
+  }
+  temple_tmp_6590=0;
+  if(temple_tmp_6589) {
+    temple_tmp_6590=1;
+  }
+  if(!temple_tmp_6590) {
+    temple_tmp_6590=0;
+    if((next_pos_and_normal_ip<0)) {
+      temple_tmp_6590=1;
+    }
+  }
+  temple_tmp_6591=0;
+  if(temple_tmp_6590) {
+    temple_tmp_6591=1;
+  }
+  if(!temple_tmp_6591) {
+    temple_tmp_6591=0;
+    if((next_pos_and_normal_ip>temple_settings_6585->max_distance)) {
+      temple_tmp_6591=1;
+    }
+  }
+  temple_tmp_6592=0;
+  if(temple_tmp_6591) {
+    temple_tmp_6592=1;
+  }
+  if(!temple_tmp_6592) {
+    temple_tmp_6592=0;
+    if((TempleCastU32((temple_settings_6585->surface_mask&
+            TempleCastU32((1<<TempleCastS32((current_surf_type-CAR_SURFACE_PAVED))))))==
+          TempleCastU32(0))) {
+      temple_tmp_6592=1;
+    }
+  }
+  if(temple_tmp_6592) {
+    return TempleCastS16(0);
+  }
+  MemSet(&temple_up_6593,0,sizeof(temple_up_6593));
+  temple_up_6593.y=TempleCastS16(16384);
+  RsMatMulVector((&(temple_up_6593)),(&(car_to_world_rotation)),(&(temple_car_up_6594)));
+  RsMatMulVector2(
+      (&(temple_up_6593)),(&(current_planptr->plane_rotation)),(&(temple_surface_up_6595)));
+  temple_alignment_6596=TempleCastS32(TempleCastS32(
+      (TempleCastS32(
+          (TempleCastS32((TempleCastS32(temple_car_up_6594.x)*temple_surface_up_6595.x))+
+              TempleCastS32((TempleCastS32(temple_car_up_6594.y)*temple_surface_up_6595.y))))+
+          TempleCastS32((TempleCastS32(temple_car_up_6594.z)*temple_surface_up_6595.z)))));
+  if((temple_alignment_6596<
+        TempleCastS32((TempleCastS32(16384)*temple_settings_6585->min_alignment)))) {
+    temple_tmp_6597=0;
+    if((temple_alignment_6596<=0)) {
+      temple_tmp_6597=1;
+    }
+    if(!temple_tmp_6597) {
+      temple_tmp_6597=0;
+      if((TempleCastS32((TempleCastS32(temple_car_up_6594.x)*temple_surface_up_6595.y))!=
+            TempleCastS32((TempleCastS32(temple_car_up_6594.y)*temple_surface_up_6595.x)))) {
+        temple_tmp_6597=1;
       }
     }
-    if(temple_tmp_6586) {
+    temple_tmp_6598=0;
+    if(temple_tmp_6597) {
+      temple_tmp_6598=1;
+    }
+    if(!temple_tmp_6598) {
+      temple_tmp_6598=0;
+      if((TempleCastS32((TempleCastS32(temple_car_up_6594.x)*temple_surface_up_6595.z))!=
+            TempleCastS32((TempleCastS32(temple_car_up_6594.z)*temple_surface_up_6595.x)))) {
+        temple_tmp_6598=1;
+      }
+    }
+    temple_tmp_6599=0;
+    if(temple_tmp_6598) {
+      temple_tmp_6599=1;
+    }
+    if(!temple_tmp_6599) {
+      temple_tmp_6599=0;
+      if((TempleCastS32((TempleCastS32(temple_car_up_6594.y)*temple_surface_up_6595.z))!=
+            TempleCastS32((TempleCastS32(temple_car_up_6594.z)*temple_surface_up_6595.y)))) {
+        temple_tmp_6599=1;
+      }
+    }
+    if(temple_tmp_6599) {
       return TempleCastS16(0);
     }
   }
-  MemSet(&temple_normal_6587,0,sizeof(temple_normal_6587));
-  (temple_normal_6587.y=TempleCastS16(
+  MemSet(&temple_normal_6600,0,sizeof(temple_normal_6600));
+  (temple_normal_6600.y=TempleCastS16(
       TempleCastS32((TempleCastS32((-(next_pos_and_normal_ip)))*TempleCastS32((1<<6))))));
   RsMatMulVector2(
-      (&(temple_normal_6587)),(&(current_planptr->plane_rotation)),(&(temple_correction_6588)));
+      (&(temple_normal_6600)),(&(current_planptr->plane_rotation)),(&(temple_correction_6601)));
   RsPhysicsPositionOffset((&(motion->current[wheel_index])),(&(motion->current[wheel_index])),
-      (&(temple_correction_6588)));
+      (&(temple_correction_6601)));
   (next_pos_and_normal_ip=TempleCastS16(0));
   return TempleCastS16(1);
 }
@@ -635,19 +635,19 @@ legacy_s16 RsStateplyContactHoldWheelToSurface(
 legacy_void RsStateplyContactMoveAirborneWheel(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index)
 {
-  legacy_s32 noreg temple_tmp_6589;
+  legacy_s32 noreg temple_tmp_6602;
   if((next_pos_and_normal_ip>0)) {
-    temple_tmp_6589=0;
+    temple_tmp_6602=0;
     if((motion->inverted_adjustment>0)) {
-      temple_tmp_6589=1;
+      temple_tmp_6602=1;
     }
-    if(temple_tmp_6589) {
-      temple_tmp_6589=0;
+    if(temple_tmp_6602) {
+      temple_tmp_6602=0;
       if((next_pos_and_normal_ip<24)) {
-        temple_tmp_6589=1;
+        temple_tmp_6602=1;
       }
     }
-    if(temple_tmp_6589) {
+    if(temple_tmp_6602) {
       RsPhysicsPositionOffset((&(motion->current[wheel_index])),(&(motion->current[wheel_index])),
           (&(motion->inverted_offset)));
     } else {
@@ -660,60 +660,60 @@ legacy_void RsStateplyContactMoveAirborneWheel(
 legacy_void RsStateplyContactTransformWheelPlaneCrossing(CPlayerWheelMotion *motion,
     legacy_s16 wheel_index,legacy_s16 car_index,CVector *start,CVector *end)
 {
-  CVectorLong *temple_current_wheel_position_6590;
-  CVectorLong *temple_previous_wheel_position_6591;
-  CPlane *temple_contact_plane_6592;
-  CVector temple_plane_world_origin_6593;
-  CVector temple_previous_relative_6594;
-  CVector temple_current_relative_6595;
-  CMatrix temple_collision_plane_rotation_6596;
-  CMatrix temple_inverse_rotation_6597;
-  temple_current_wheel_position_6590=(&(motion->current[wheel_index]));
-  temple_previous_wheel_position_6591=(&(motion->previous[wheel_index]));
-  temple_contact_plane_6592=current_planptr;
-  (temple_plane_world_origin_6593.x=TempleCastS16(
+  CVectorLong *temple_current_wheel_position_6603;
+  CVectorLong *temple_previous_wheel_position_6604;
+  CPlane *temple_contact_plane_6605;
+  CVector temple_plane_world_origin_6606;
+  CVector temple_previous_relative_6607;
+  CVector temple_current_relative_6608;
+  CMatrix temple_collision_plane_rotation_6609;
+  CMatrix temple_inverse_rotation_6610;
+  temple_current_wheel_position_6603=(&(motion->current[wheel_index]));
+  temple_previous_wheel_position_6604=(&(motion->previous[wheel_index]));
+  temple_contact_plane_6605=current_planptr;
+  (temple_plane_world_origin_6606.x=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6592->plane_origin.x)+
+          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6605->plane_origin.x)+
               TempleCastU16(elem_x_center)))))))));
-  (temple_plane_world_origin_6593.y=TempleCastS16(
+  (temple_plane_world_origin_6606.y=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6592->plane_origin.y)+
+          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6605->plane_origin.y)+
               TempleCastU16(terrain_height)))))))));
-  (temple_plane_world_origin_6593.z=TempleCastS16(
+  (temple_plane_world_origin_6606.z=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
-          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6592->plane_origin.z)+
+          TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_plane_6605->plane_origin.z)+
               TempleCastU16(elem_z_center)))))))));
-  (temple_previous_relative_6594.x=TempleCastS16(
+  (temple_previous_relative_6607.x=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((
-          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6591->lx)))-
-          TempleCastU16(temple_plane_world_origin_6593.x)))))))));
-  (temple_previous_relative_6594.y=TempleCastS16(
+          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6604->lx)))-
+          TempleCastU16(temple_plane_world_origin_6606.x)))))))));
+  (temple_previous_relative_6607.y=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((
-          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6591->ly)))-
-          TempleCastU16(temple_plane_world_origin_6593.y)))))))));
-  (temple_previous_relative_6594.z=TempleCastS16(
+          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6604->ly)))-
+          TempleCastU16(temple_plane_world_origin_6606.y)))))))));
+  (temple_previous_relative_6607.z=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32((
-          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6591->lz)))-
-          TempleCastU16(temple_plane_world_origin_6593.z)))))))));
-  (temple_current_relative_6595.x=TempleCastS16(
+          TempleCastU16(RsPositionToWord(TempleCastS32(temple_previous_wheel_position_6604->lz)))-
+          TempleCastU16(temple_plane_world_origin_6606.z)))))))));
+  (temple_current_relative_6608.x=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6590->lx)))-
-              TempleCastU16(temple_plane_world_origin_6593.x)))))))));
-  (temple_current_relative_6595.y=TempleCastS16(
+          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6603->lx)))-
+              TempleCastU16(temple_plane_world_origin_6606.x)))))))));
+  (temple_current_relative_6608.y=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6590->ly)))-
-              TempleCastU16(temple_plane_world_origin_6593.y)))))))));
-  (temple_current_relative_6595.z=TempleCastS16(
+          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6603->ly)))-
+              TempleCastU16(temple_plane_world_origin_6606.y)))))))));
+  (temple_current_relative_6608.z=TempleCastS16(
       RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6590->lz)))-
-              TempleCastU16(temple_plane_world_origin_6593.z)))))))));
-  MemCpy(&temple_collision_plane_rotation_6596,&(temple_contact_plane_6592->plane_rotation),
+          (TempleCastU16(RsPositionToWord(TempleCastS32(temple_current_wheel_position_6603->lz)))-
+              TempleCastU16(temple_plane_world_origin_6606.z)))))))));
+  MemCpy(&temple_collision_plane_rotation_6609,&(temple_contact_plane_6605->plane_rotation),
       sizeof(CMatrix));
   RsStateplyContactRetainCollisionPlaneRotation(
-      (&(temple_collision_plane_rotation_6596)),TempleCastS16(car_index));
-  RsMatInvert((&(temple_collision_plane_rotation_6596)),(&(temple_inverse_rotation_6597)));
-  RsMatMulVector((&(temple_previous_relative_6594)),(&(temple_inverse_rotation_6597)),start);
-  RsMatMulVector((&(temple_current_relative_6595)),(&(temple_inverse_rotation_6597)),end);
+      (&(temple_collision_plane_rotation_6609)),TempleCastS16(car_index));
+  RsMatInvert((&(temple_collision_plane_rotation_6609)),(&(temple_inverse_rotation_6610)));
+  RsMatMulVector((&(temple_previous_relative_6607)),(&(temple_inverse_rotation_6610)),start);
+  RsMatMulVector((&(temple_current_relative_6608)),(&(temple_inverse_rotation_6610)),end);
 }
 
 legacy_void RsStateplyContactPrepareWheelPlaneTravel(
@@ -729,54 +729,54 @@ legacy_void RsStateplyContactPrepareWheelPlaneTravel(
 
 legacy_void RsStateplyContactTurnPlaneHeightIntoDepth(CVector *position)
 {
-  legacy_s16 noreg temple_depth_6598;
-  temple_depth_6598=TempleCastS16(position->z);
+  legacy_s16 noreg temple_depth_6611;
+  temple_depth_6611=TempleCastS16(position->z);
   (position->z=TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
       TempleCastU16(TempleCastU16(TempleCastU32((0-TempleCastU16(position->y)))))))));
-  (position->y=TempleCastS16(temple_depth_6598));
+  (position->y=TempleCastS16(temple_depth_6611));
 }
 
 legacy_void RsStateplyContactSplitWheelPlaneTravel(CCarState *carstate,CPlayerWheelMotion *motion,
     legacy_s16 wheel_index,CVector *start,CVector *end)
 {
-  CVector temple_delta_6599;
-  CVector temple_intersection_6600;
-  legacy_s16 noreg temple_remaining_travel_6601;
-  legacy_s16 noreg temple_total_travel_6602;
-  legacy_s16 noreg temple_retained_travel_6603;
-  CVector temple_retained_6604;
+  CVector temple_delta_6612;
+  CVector temple_intersection_6613;
+  legacy_s16 noreg temple_remaining_travel_6614;
+  legacy_s16 noreg temple_total_travel_6615;
+  legacy_s16 noreg temple_retained_travel_6616;
+  CVector temple_retained_6617;
   RsStateplyContactTurnPlaneHeightIntoDepth(start);
   RsStateplyContactTurnPlaneHeightIntoDepth(end);
-  temple_remaining_travel_6601=TempleCastS16(
-      RsScaledVectorSeparation(end,start,(&(temple_intersection_6600)),(&(temple_delta_6599))));
-  temple_total_travel_6602=
+  temple_remaining_travel_6614=TempleCastS16(
+      RsScaledVectorSeparation(end,start,(&(temple_intersection_6613)),(&(temple_delta_6612))));
+  temple_total_travel_6615=
       TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
           TempleCastU16(TempleCastS32((TempleCastU16(RsScalePlayerMotion(TempleCastS16(
                                           carstate->car_wheel_vertical_speed[wheel_index])))+
               TempleCastU16(motion->travel))))))));
-  temple_retained_travel_6603=TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
-      TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_total_travel_6602)-
-          TempleCastU16(temple_remaining_travel_6601))))))));
-  RsStateplyContactScaleWheelDisplacement((&(temple_retained_6604)),
+  temple_retained_travel_6616=TempleCastS16(RsStateplyContactLegacyS16FromBits(TempleCastU16(
+      TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_total_travel_6615)-
+          TempleCastU16(temple_remaining_travel_6614))))))));
+  RsStateplyContactScaleWheelDisplacement((&(temple_retained_6617)),
       (&(motion->current[wheel_index])),(&(motion->previous[wheel_index])),
-      TempleCastS16(temple_retained_travel_6603),TempleCastS16(temple_total_travel_6602));
+      TempleCastS16(temple_retained_travel_6616),TempleCastS16(temple_total_travel_6615));
   RsStateplyContactPrepareWheelPlaneTravel(
-      motion,TempleCastS16(wheel_index),TempleCastS16(temple_remaining_travel_6601));
+      motion,TempleCastS16(wheel_index),TempleCastS16(temple_remaining_travel_6614));
   RsPhysicsPositionOffset((&(motion->current[wheel_index])),(&(motion->previous[wheel_index])),
-      (&(temple_retained_6604)));
+      (&(temple_retained_6617)));
   RsPhysicsPositionOffset((&(motion->current[wheel_index])),(&(motion->current[wheel_index])),
       (&(wheel_world_travel)));
 }
 
 legacy_void RsStateplyContactPushWheelOutOfPlane(CVectorLong *position,legacy_s16 reverse_response)
 {
-  CVector temple_wheel_6605;
-  CVector temple_correction_6606;
-  legacy_u32 noreg temple_tmp_6607;
-  RsPhysicsPositionToVector((&(temple_wheel_6605)),position);
+  CVector temple_wheel_6618;
+  CVector temple_correction_6619;
+  legacy_u32 noreg temple_tmp_6620;
+  RsPhysicsPositionToVector((&(temple_wheel_6618)),position);
   (next_pos_and_normal_ip=TempleCastS16(
-      RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_wheel_6605.x),
-          TempleCastS16(temple_wheel_6605.y),TempleCastS16(temple_wheel_6605.z))));
+      RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_wheel_6618.x),
+          TempleCastS16(temple_wheel_6618.y),TempleCastS16(temple_wheel_6618.z))));
   if((next_pos_and_normal_ip<0)) {
     if(reverse_response) {
       (next_pos_and_normal_ip=TempleCastS16(RsStateplyContactLegacyS16FromBits(
@@ -785,94 +785,94 @@ legacy_void RsStateplyContactPushWheelOutOfPlane(CVectorLong *position,legacy_s1
                     TempleCastU16(TempleCastU32((0-TempleCastU16(next_pos_and_normal_ip))))))))+
                   TempleCastU16(6)))))))));
     }
-    (temple_wheel_6605.x=TempleCastS16(0));
+    (temple_wheel_6618.x=TempleCastS16(0));
     if((TempleCastU32((TempleCastU16(6)&31))>=16)) {
-      temple_tmp_6607=TempleCastU32(0);
+      temple_tmp_6620=TempleCastU32(0);
     } else {
-      temple_tmp_6607=TempleCastU32(TempleCastU32(
+      temple_tmp_6620=TempleCastU32(TempleCastU32(
           (TempleCastU32(
               TempleCastU16(RsStateplyContactLegacyS16FromBits(TempleCastU16(TempleCastU16(
                   TempleCastU16(TempleCastU32((0-TempleCastU16(next_pos_and_normal_ip)))))))))
               <<TempleCastU32((TempleCastU16(6)&31)))));
     }
-    (temple_wheel_6605.y=TempleCastS16(RsStateplyContactLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6607))))));
-    (temple_wheel_6605.z=TempleCastS16(0));
+    (temple_wheel_6618.y=TempleCastS16(RsStateplyContactLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6620))))));
+    (temple_wheel_6618.z=TempleCastS16(0));
     RsMatMulVector2(
-        (&(temple_wheel_6605)),(&(current_planptr->plane_rotation)),(&(temple_correction_6606)));
-    RsPhysicsPositionOffset(position,position,(&(temple_correction_6606)));
+        (&(temple_wheel_6618)),(&(current_planptr->plane_rotation)),(&(temple_correction_6619)));
+    RsPhysicsPositionOffset(position,position,(&(temple_correction_6619)));
   }
 }
 
 legacy_void RsStateplyContactUseGroundPlaneForWheel(CVectorLong *position)
 {
-  CVector temple_wheel_6608;
+  CVector temple_wheel_6621;
   (planindex=TempleCastS16(0));
   (current_planptr=planptr);
   (track_wall_collision_enabled=TempleCastS8(1));
-  RsPhysicsPositionToVector((&(temple_wheel_6608)),position);
+  RsPhysicsPositionToVector((&(temple_wheel_6621)),position);
   (next_pos_and_normal_ip=
-          TempleCastS16(RsPlaneSignedDistance(TempleCastS16(0),TempleCastS16(temple_wheel_6608.x),
-              TempleCastS16(temple_wheel_6608.y),TempleCastS16(temple_wheel_6608.z))));
+          TempleCastS16(RsPlaneSignedDistance(TempleCastS16(0),TempleCastS16(temple_wheel_6621.x),
+              TempleCastS16(temple_wheel_6621.y),TempleCastS16(temple_wheel_6621.z))));
 }
 
 legacy_s16 RsStateplyContactCorrectWheelPlanePenetration(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index,legacy_s16 car_index)
 {
-  CVector temple_end_6609;
-  CVector temple_start_6610;
-  legacy_s16 noreg temple_reverse_response_6611;
-  legacy_s32 noreg temple_tmp_6612;
-  legacy_s32 noreg temple_tmp_6613;
-  legacy_s32 noreg temple_tmp_6614;
+  CVector temple_end_6622;
+  CVector temple_start_6623;
+  legacy_s16 noreg temple_reverse_response_6624;
+  legacy_s32 noreg temple_tmp_6625;
+  legacy_s32 noreg temple_tmp_6626;
+  legacy_s32 noreg temple_tmp_6627;
   RsStateplyContactTransformWheelPlaneCrossing(motion,TempleCastS16(wheel_index),
-      TempleCastS16(car_index),(&(temple_start_6610)),(&(temple_end_6609)));
-  temple_reverse_response_6611=TempleCastS16(0);
-  temple_tmp_6612=0;
+      TempleCastS16(car_index),(&(temple_start_6623)),(&(temple_end_6622)));
+  temple_reverse_response_6624=TempleCastS16(0);
+  temple_tmp_6625=0;
   if((track_wall_collision_enabled==0)) {
-    temple_tmp_6612=1;
+    temple_tmp_6625=1;
   }
-  if(temple_tmp_6612) {
-    temple_tmp_6612=0;
-    if((temple_start_6610.y<TempleCastS32((-(12))))) {
-      temple_tmp_6612=1;
+  if(temple_tmp_6625) {
+    temple_tmp_6625=0;
+    if((temple_start_6623.y<TempleCastS32((-(12))))) {
+      temple_tmp_6625=1;
     }
   }
-  temple_tmp_6613=0;
-  if(temple_tmp_6612) {
-    temple_tmp_6613=1;
+  temple_tmp_6626=0;
+  if(temple_tmp_6625) {
+    temple_tmp_6626=1;
   }
-  if(temple_tmp_6613) {
-    temple_tmp_6613=0;
-    if((temple_end_6609.y<TempleCastS32((-(12))))) {
-      temple_tmp_6613=1;
+  if(temple_tmp_6626) {
+    temple_tmp_6626=0;
+    if((temple_end_6622.y<TempleCastS32((-(12))))) {
+      temple_tmp_6626=1;
     }
   }
-  if(temple_tmp_6613) {
-    if((temple_end_6609.y<=TempleCastS32((-(24))))) {
+  if(temple_tmp_6626) {
+    if((temple_end_6622.y<=TempleCastS32((-(24))))) {
       RsStateplyContactUseGroundPlaneForWheel((&(motion->current[wheel_index])));
       return TempleCastS16(0);
     }
     RsPlayerMotionCrash(TempleCastS16(CRASH_EVENT_IMMEDIATE_STOP),TempleCastS16(car_index));
-    (temple_reverse_response_6611=TempleCastS16(1));
+    (temple_reverse_response_6624=TempleCastS16(1));
   }
-  if((temple_end_6609.y==0)) {
+  if((temple_end_6622.y==0)) {
     RsStateplyContactPrepareWheelPlaneTravel(motion,TempleCastS16(wheel_index),TempleCastS16(64));
     RsPhysicsPositionPullBack((&(motion->current[wheel_index])),(&(wheel_world_travel)));
   } else {
-    temple_tmp_6614=0;
-    if((temple_start_6610.y>0)) {
-      temple_tmp_6614=1;
+    temple_tmp_6627=0;
+    if((temple_start_6623.y>0)) {
+      temple_tmp_6627=1;
     }
-    if(temple_tmp_6614) {
-      temple_tmp_6614=0;
-      if((temple_end_6609.y<0)) {
-        temple_tmp_6614=1;
+    if(temple_tmp_6627) {
+      temple_tmp_6627=0;
+      if((temple_end_6622.y<0)) {
+        temple_tmp_6627=1;
       }
     }
-    if(temple_tmp_6614) {
+    if(temple_tmp_6627) {
       RsStateplyContactSplitWheelPlaneTravel(carstate,motion,TempleCastS16(wheel_index),
-          (&(temple_start_6610)),(&(temple_end_6609)));
+          (&(temple_start_6623)),(&(temple_end_6622)));
     } else {
       RsStateplyContactPrepareWheelPlaneTravel(
           motion,TempleCastS16(wheel_index),TempleCastS16(motion->travel));
@@ -880,7 +880,7 @@ legacy_s16 RsStateplyContactCorrectWheelPlanePenetration(
           (&(wheel_world_travel)));
     }
     RsStateplyContactPushWheelOutOfPlane(
-        (&(motion->current[wheel_index])),TempleCastS16(temple_reverse_response_6611));
+        (&(motion->current[wheel_index])),TempleCastS16(temple_reverse_response_6624));
   }
   return TempleCastS16(1);
 }
@@ -888,10 +888,10 @@ legacy_s16 RsStateplyContactCorrectWheelPlanePenetration(
 legacy_void RsStateplyContactApplyWheelLanding(
     CCarState *carstate,legacy_s16 wheel_index,legacy_s16 car_index)
 {
-  legacy_s8 *temple_tmp_6615;
+  legacy_s8 *temple_tmp_6628;
   if((carstate->car_wheel_vertical_speed[wheel_index]>250)) {
-    temple_tmp_6615=&(carstate->car_sound_flags);
-    ((*temple_tmp_6615)=TempleCastS8((TempleCastU32((*temple_tmp_6615))|32)));
+    temple_tmp_6628=&(carstate->car_sound_flags);
+    ((*temple_tmp_6628)=TempleCastS8((TempleCastU32((*temple_tmp_6628))|32)));
   }
   if((carstate->car_wheel_vertical_speed[wheel_index]>23275)) {
     RsPlayerMotionCrash(TempleCastS16(CRASH_EVENT_COLLISION),TempleCastS16(car_index));
@@ -902,24 +902,24 @@ legacy_void RsStateplyContactApplyWheelLanding(
 legacy_void RsStateplyContactStopWheelsAtContact(
     CPlayerWheelMotion *motion,legacy_s16 fraction,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_i_6617;
-  CVector temple_offset_6618;
-  legacy_s16 *temple_tmp_6619;
-  legacy_s16 noreg temple_tmp_6620;
-  temple_i_6617=TempleCastS16(0);
+  legacy_s16 noreg temple_i_6630;
+  CVector temple_offset_6631;
+  legacy_s16 *temple_tmp_6632;
+  legacy_s16 noreg temple_tmp_6633;
+  temple_i_6630=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_6617<4))) {
+    if(!((temple_i_6630<4))) {
       break;
     }
-    RsStateplyContactScaleWheelDisplacement((&(temple_offset_6618)),
-        (&(motion->current[temple_i_6617])),(&(motion->previous[temple_i_6617])),
+    RsStateplyContactScaleWheelDisplacement((&(temple_offset_6631)),
+        (&(motion->current[temple_i_6630])),(&(motion->previous[temple_i_6630])),
         TempleCastS16(fraction),TempleCastS16(16384));
-    RsPhysicsPositionOffset((&(motion->current[temple_i_6617])),
-        (&(motion->previous[temple_i_6617])),(&(temple_offset_6618)));
-    temple_tmp_6619=&(temple_i_6617);
-    temple_tmp_6620=*temple_tmp_6619;
-    *temple_tmp_6619=TempleCastS16((temple_tmp_6620+1));
-    temple_tmp_6620;
+    RsPhysicsPositionOffset((&(motion->current[temple_i_6630])),
+        (&(motion->previous[temple_i_6630])),(&(temple_offset_6631)));
+    temple_tmp_6632=&(temple_i_6630);
+    temple_tmp_6633=*temple_tmp_6632;
+    *temple_tmp_6632=TempleCastS16((temple_tmp_6633+1));
+    temple_tmp_6633;
   }
   (motion->travel=TempleCastS16(TempleCastS16(TempleCastS32(
       TempleDivideS64(TempleCastS32((TempleCastS32(motion->travel)*fraction)),16384)))));
@@ -929,243 +929,243 @@ legacy_void RsStateplyContactStopWheelsAtContact(
 legacy_s16 RsStateplyContactStopAtTrackUnderside(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index,legacy_s16 car_index)
 {
-  legacy_s32 noreg temple_tmp_6621;
-  CVector temple_previous_6622;
-  CVector temple_current_6623;
-  legacy_s16 noreg temple_fraction_6624;
-  temple_tmp_6621=0;
+  legacy_s32 noreg temple_tmp_6634;
+  CVector temple_previous_6635;
+  CVector temple_current_6636;
+  legacy_s16 noreg temple_fraction_6637;
+  temple_tmp_6634=0;
   if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
-    temple_tmp_6621=1;
+    temple_tmp_6634=1;
   }
-  if(!temple_tmp_6621) {
-    temple_tmp_6621=0;
+  if(!temple_tmp_6634) {
+    temple_tmp_6634=0;
     if((carstate->car_crash_bmp_flag!=CRASH_EVENT_NONE)) {
-      temple_tmp_6621=1;
+      temple_tmp_6634=1;
     }
   }
-  if(temple_tmp_6621) {
+  if(temple_tmp_6634) {
     return TempleCastS16(0);
   }
-  RsPhysicsPositionToVector((&(temple_previous_6622)),(&(motion->previous[wheel_index])));
-  RsPhysicsPositionToVector((&(temple_current_6623)),(&(motion->current[wheel_index])));
+  RsPhysicsPositionToVector((&(temple_previous_6635)),(&(motion->previous[wheel_index])));
+  RsPhysicsPositionToVector((&(temple_current_6636)),(&(motion->current[wheel_index])));
   if((!(RsSweepTrackUnderside(
-        (&(temple_previous_6622)),(&(temple_current_6623)),(&(temple_fraction_6624)))))) {
+        (&(temple_previous_6635)),(&(temple_current_6636)),(&(temple_fraction_6637)))))) {
     return TempleCastS16(0);
   }
   RsStateplyContactStopWheelsAtContact(
-      motion,TempleCastS16(temple_fraction_6624),TempleCastS16(car_index));
+      motion,TempleCastS16(temple_fraction_6637),TempleCastS16(car_index));
   return TempleCastS16(1);
 }
 
 legacy_s16 RsStateplyContactStopAtTrackWallContact(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 car_index)
 {
-  legacy_s32 noreg temple_tmp_6625;
-  legacy_s16 noreg temple_first_contact_6626;
-  legacy_s16 noreg temple_hit_6627;
-  legacy_s16 noreg temple_i_6629;
-  legacy_s16 noreg temple_next_6630;
-  legacy_s16 noreg temple_fraction_6631;
-  legacy_s16 *temple_tmp_6632;
-  legacy_s16 noreg temple_tmp_6633;
-  temple_tmp_6625=0;
+  legacy_s32 noreg temple_tmp_6638;
+  legacy_s16 noreg temple_first_contact_6639;
+  legacy_s16 noreg temple_hit_6640;
+  legacy_s16 noreg temple_i_6642;
+  legacy_s16 noreg temple_next_6643;
+  legacy_s16 noreg temple_fraction_6644;
+  legacy_s16 *temple_tmp_6645;
+  legacy_s16 noreg temple_tmp_6646;
+  temple_tmp_6638=0;
   if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
-    temple_tmp_6625=1;
+    temple_tmp_6638=1;
   }
-  if(!temple_tmp_6625) {
-    temple_tmp_6625=0;
+  if(!temple_tmp_6638) {
+    temple_tmp_6638=0;
     if((carstate->car_crash_bmp_flag!=CRASH_EVENT_NONE)) {
-      temple_tmp_6625=1;
+      temple_tmp_6638=1;
     }
   }
-  if(temple_tmp_6625) {
+  if(temple_tmp_6638) {
     return TempleCastS16(0);
   }
-  temple_first_contact_6626=TempleCastS16(16384);
-  temple_hit_6627=TempleCastS16(0);
-  temple_i_6629=TempleCastS16(0);
+  temple_first_contact_6639=TempleCastS16(16384);
+  temple_hit_6640=TempleCastS16(0);
+  temple_i_6642=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_6629<4))) {
+    if(!((temple_i_6642<4))) {
       break;
     }
-    temple_next_6630=
-        TempleCastS16(TempleCastS32(TempleRemainderS64(TempleCastS32((temple_i_6629+1)),4)));
-    if(RsSweepTrackSolidObstacle((&(motion->previous[temple_i_6629])),
-          (&(motion->current[temple_i_6629])),(&(temple_fraction_6631)))) {
-      if((temple_fraction_6631<temple_first_contact_6626)) {
-        (temple_first_contact_6626=TempleCastS16(temple_fraction_6631));
+    temple_next_6643=
+        TempleCastS16(TempleCastS32(TempleRemainderS64(TempleCastS32((temple_i_6642+1)),4)));
+    if(RsSweepTrackSolidObstacle((&(motion->previous[temple_i_6642])),
+          (&(motion->current[temple_i_6642])),(&(temple_fraction_6644)))) {
+      if((temple_fraction_6644<temple_first_contact_6639)) {
+        (temple_first_contact_6639=TempleCastS16(temple_fraction_6644));
       }
-      (temple_hit_6627=TempleCastS16(1));
+      (temple_hit_6640=TempleCastS16(1));
     }
-    if(RsSweepTrackWallSpan((&(motion->previous[temple_i_6629])),
-          (&(motion->previous[temple_next_6630])),(&(motion->current[temple_i_6629])),
-          (&(motion->current[temple_next_6630])),(&(temple_fraction_6631)))) {
-      if((temple_fraction_6631<temple_first_contact_6626)) {
-        (temple_first_contact_6626=TempleCastS16(temple_fraction_6631));
+    if(RsSweepTrackWallSpan((&(motion->previous[temple_i_6642])),
+          (&(motion->previous[temple_next_6643])),(&(motion->current[temple_i_6642])),
+          (&(motion->current[temple_next_6643])),(&(temple_fraction_6644)))) {
+      if((temple_fraction_6644<temple_first_contact_6639)) {
+        (temple_first_contact_6639=TempleCastS16(temple_fraction_6644));
       }
-      (temple_hit_6627=TempleCastS16(1));
+      (temple_hit_6640=TempleCastS16(1));
     }
-    temple_tmp_6632=&(temple_i_6629);
-    temple_tmp_6633=*temple_tmp_6632;
-    *temple_tmp_6632=TempleCastS16((temple_tmp_6633+1));
-    temple_tmp_6633;
+    temple_tmp_6645=&(temple_i_6642);
+    temple_tmp_6646=*temple_tmp_6645;
+    *temple_tmp_6645=TempleCastS16((temple_tmp_6646+1));
+    temple_tmp_6646;
   }
-  if(temple_hit_6627) {
+  if(temple_hit_6640) {
     RsStateplyContactStopWheelsAtContact(
-        motion,TempleCastS16(temple_first_contact_6626),TempleCastS16(car_index));
+        motion,TempleCastS16(temple_first_contact_6639),TempleCastS16(car_index));
   }
-  return TempleCastS16(temple_hit_6627);
+  return TempleCastS16(temple_hit_6640);
 }
 
 legacy_s16 RsStateplyContactInheritedWheelPlaneDistance(CVectorLong *position)
 {
-  CVector temple_previous_6634;
-  legacy_s16 noreg temple_distance_6635;
-  legacy_s32 noreg temple_tmp_6636;
-  CTrackCollisionSnapshot temple_selected_6637;
-  legacy_s16 noreg temple_same_surface_6638;
-  legacy_s32 noreg temple_tmp_6639;
-  legacy_s32 noreg temple_tmp_6640;
-  legacy_s32 noreg temple_tmp_6641;
-  legacy_s32 noreg temple_tmp_6642;
-  legacy_s32 noreg temple_tmp_6643;
+  CVector temple_previous_6647;
+  legacy_s16 noreg temple_distance_6648;
+  legacy_s32 noreg temple_tmp_6649;
+  CTrackCollisionSnapshot temple_selected_6650;
+  legacy_s16 noreg temple_same_surface_6651;
+  legacy_s32 noreg temple_tmp_6652;
+  legacy_s32 noreg temple_tmp_6653;
+  legacy_s32 noreg temple_tmp_6654;
+  legacy_s32 noreg temple_tmp_6655;
+  legacy_s32 noreg temple_tmp_6656;
   if((player_motion_fraction==TempleCastU32(0))) {
     return TempleCastS16(0);
   }
-  RsPhysicsPositionToVector((&(temple_previous_6634)),position);
-  temple_distance_6635=TempleCastS16(
-      RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_previous_6634.x),
-          TempleCastS16(temple_previous_6634.y),TempleCastS16(temple_previous_6634.z)));
-  temple_tmp_6636=0;
-  if((temple_distance_6635>=0)) {
-    temple_tmp_6636=1;
+  RsPhysicsPositionToVector((&(temple_previous_6647)),position);
+  temple_distance_6648=TempleCastS16(
+      RsPlaneSignedDistance(TempleCastS16(planindex),TempleCastS16(temple_previous_6647.x),
+          TempleCastS16(temple_previous_6647.y),TempleCastS16(temple_previous_6647.z)));
+  temple_tmp_6649=0;
+  if((temple_distance_6648>=0)) {
+    temple_tmp_6649=1;
   }
-  if(!temple_tmp_6636) {
-    temple_tmp_6636=0;
+  if(!temple_tmp_6649) {
+    temple_tmp_6649=0;
     if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
-      temple_tmp_6636=1;
+      temple_tmp_6649=1;
     }
   }
-  if(temple_tmp_6636) {
-    return TempleCastS16(temple_distance_6635);
+  if(temple_tmp_6649) {
+    return TempleCastS16(temple_distance_6648);
   }
-  RsTrackCollisionCapture((&(temple_selected_6637)));
-  RsBuildTrackObject((&(temple_previous_6634)),(&(temple_previous_6634)));
-  temple_tmp_6639=0;
-  if((planindex==temple_selected_6637.plane_index)) {
-    temple_tmp_6639=1;
+  RsTrackCollisionCapture((&(temple_selected_6650)));
+  RsBuildTrackObject((&(temple_previous_6647)),(&(temple_previous_6647)));
+  temple_tmp_6652=0;
+  if((planindex==temple_selected_6650.plane_index)) {
+    temple_tmp_6652=1;
   }
-  if(temple_tmp_6639) {
-    temple_tmp_6639=0;
-    if((current_planptr==temple_selected_6637.plane)) {
-      temple_tmp_6639=1;
+  if(temple_tmp_6652) {
+    temple_tmp_6652=0;
+    if((current_planptr==temple_selected_6650.plane)) {
+      temple_tmp_6652=1;
     }
   }
-  temple_tmp_6640=0;
-  if(temple_tmp_6639) {
-    temple_tmp_6640=1;
+  temple_tmp_6653=0;
+  if(temple_tmp_6652) {
+    temple_tmp_6653=1;
   }
-  if(temple_tmp_6640) {
-    temple_tmp_6640=0;
-    if((terrain_height==temple_selected_6637.terrain_height)) {
-      temple_tmp_6640=1;
+  if(temple_tmp_6653) {
+    temple_tmp_6653=0;
+    if((terrain_height==temple_selected_6650.terrain_height)) {
+      temple_tmp_6653=1;
     }
   }
-  temple_tmp_6641=0;
-  if(temple_tmp_6640) {
-    temple_tmp_6641=1;
+  temple_tmp_6654=0;
+  if(temple_tmp_6653) {
+    temple_tmp_6654=1;
   }
-  if(temple_tmp_6641) {
-    temple_tmp_6641=0;
-    if((elem_x_center==temple_selected_6637.element_x)) {
-      temple_tmp_6641=1;
+  if(temple_tmp_6654) {
+    temple_tmp_6654=0;
+    if((elem_x_center==temple_selected_6650.element_x)) {
+      temple_tmp_6654=1;
     }
   }
-  temple_tmp_6642=0;
-  if(temple_tmp_6641) {
-    temple_tmp_6642=1;
+  temple_tmp_6655=0;
+  if(temple_tmp_6654) {
+    temple_tmp_6655=1;
   }
-  if(temple_tmp_6642) {
-    temple_tmp_6642=0;
-    if((elem_z_center==temple_selected_6637.element_z)) {
-      temple_tmp_6642=1;
+  if(temple_tmp_6655) {
+    temple_tmp_6655=0;
+    if((elem_z_center==temple_selected_6650.element_z)) {
+      temple_tmp_6655=1;
     }
   }
-  temple_same_surface_6638=TempleCastS16(temple_tmp_6642);
-  RsTrackCollisionRestore((&(temple_selected_6637)));
-  if(temple_same_surface_6638) {
-    temple_tmp_6643=TempleCastS32(temple_distance_6635);
+  temple_same_surface_6651=TempleCastS16(temple_tmp_6655);
+  RsTrackCollisionRestore((&(temple_selected_6650)));
+  if(temple_same_surface_6651) {
+    temple_tmp_6656=TempleCastS32(temple_distance_6648);
   } else {
-    temple_tmp_6643=TempleCastS32(0);
+    temple_tmp_6656=TempleCastS32(0);
   }
-  return TempleCastS16(temple_tmp_6643);
+  return TempleCastS16(temple_tmp_6656);
 }
 
 legacy_s16 RsStateplyContactRetainedWheelPlaneResidual(
     legacy_s16 previous,legacy_s16 current,legacy_u32 fraction)
 {
-  legacy_s32 noreg temple_tmp_6644;
-  legacy_s16 noreg temple_residual_6645;
-  legacy_s32 noreg temple_tmp_6646;
-  temple_tmp_6644=0;
+  legacy_s32 noreg temple_tmp_6657;
+  legacy_s16 noreg temple_residual_6658;
+  legacy_s32 noreg temple_tmp_6659;
+  temple_tmp_6657=0;
   if((previous>=0)) {
-    temple_tmp_6644=1;
+    temple_tmp_6657=1;
   }
-  if(!temple_tmp_6644) {
-    temple_tmp_6644=0;
+  if(!temple_tmp_6657) {
+    temple_tmp_6657=0;
     if((current>=0)) {
-      temple_tmp_6644=1;
+      temple_tmp_6657=1;
     }
   }
-  if(temple_tmp_6644) {
+  if(temple_tmp_6657) {
     return TempleCastS16(0);
   }
-  temple_residual_6645=TempleCastS16(TempleCastS32(
+  temple_residual_6658=TempleCastS16(TempleCastS32(
       (previous-RsScalePlayerFraction(TempleCastS16(previous),TempleCastU32(fraction)))));
-  if((temple_residual_6645<current)) {
-    temple_tmp_6646=TempleCastS32(current);
+  if((temple_residual_6658<current)) {
+    temple_tmp_6659=TempleCastS32(current);
   } else {
-    temple_tmp_6646=TempleCastS32(temple_residual_6645);
+    temple_tmp_6659=TempleCastS32(temple_residual_6658);
   }
-  return TempleCastS16(temple_tmp_6646);
+  return TempleCastS16(temple_tmp_6659);
 }
 
 legacy_void RsStateplyContactRelaxWheelPlaneResidual(
     CPlayerWheelMotion *motion,legacy_s16 wheel_index,legacy_s16 initial_distance)
 {
-  legacy_s16 noreg temple_distance_6647;
-  legacy_u32 noreg temple_fraction_6648;
-  legacy_s16 noreg temple_residual_6649;
-  CVector temple_normal_6650;
-  legacy_u32 noreg temple_tmp_6651;
-  CVector temple_offset_6652;
-  temple_distance_6647=TempleCastS16(motion->contact_distances[wheel_index]);
-  temple_fraction_6648=TempleCastU32(RsPlayerTickFraction());
-  temple_residual_6649=
+  legacy_s16 noreg temple_distance_6660;
+  legacy_u32 noreg temple_fraction_6661;
+  legacy_s16 noreg temple_residual_6662;
+  CVector temple_normal_6663;
+  legacy_u32 noreg temple_tmp_6664;
+  CVector temple_offset_6665;
+  temple_distance_6660=TempleCastS16(motion->contact_distances[wheel_index]);
+  temple_fraction_6661=TempleCastU32(RsPlayerTickFraction());
+  temple_residual_6662=
       TempleCastS16(RsStateplyContactRetainedWheelPlaneResidual(TempleCastS16(initial_distance),
-          TempleCastS16(temple_distance_6647),TempleCastU32(temple_fraction_6648)));
-  if((temple_residual_6649!=0)) {
-    (temple_normal_6650.x=TempleCastS16(0));
+          TempleCastS16(temple_distance_6660),TempleCastU32(temple_fraction_6661)));
+  if((temple_residual_6662!=0)) {
+    (temple_normal_6663.x=TempleCastS16(0));
     if((TempleCastU32((TempleCastU16(6)&31))>=16)) {
-      temple_tmp_6651=TempleCastU32(0);
+      temple_tmp_6664=TempleCastU32(0);
     } else {
-      temple_tmp_6651=
-          TempleCastU32(TempleCastU32((TempleCastU32(TempleCastU16(temple_residual_6649))
+      temple_tmp_6664=
+          TempleCastU32(TempleCastU32((TempleCastU32(TempleCastU16(temple_residual_6662))
               <<TempleCastU32((TempleCastU16(6)&31)))));
     }
-    (temple_normal_6650.y=TempleCastS16(RsStateplyContactLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6651))))));
-    (temple_normal_6650.z=TempleCastS16(0));
+    (temple_normal_6663.y=TempleCastS16(RsStateplyContactLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6664))))));
+    (temple_normal_6663.z=TempleCastS16(0));
     RsMatMulVector2(
-        (&(temple_normal_6650)),(&(current_planptr->plane_rotation)),(&(temple_offset_6652)));
+        (&(temple_normal_6663)),(&(current_planptr->plane_rotation)),(&(temple_offset_6665)));
     RsPhysicsPositionOffset((&(motion->current[wheel_index])),(&(motion->current[wheel_index])),
-        (&(temple_offset_6652)));
+        (&(temple_offset_6665)));
     (motion->contact_distances[wheel_index]=
-            TempleCastS16(TempleCastS32((temple_distance_6647-temple_residual_6649))));
+            TempleCastS16(TempleCastS32((temple_distance_6660-temple_residual_6662))));
   } else {
-    if((temple_distance_6647>0)) {
+    if((temple_distance_6660>0)) {
       (motion->contact_distances[wheel_index]=TempleCastS16(RsScalePlayerFraction(
-          TempleCastS16(temple_distance_6647),TempleCastU32(temple_fraction_6648))));
+          TempleCastS16(temple_distance_6660),TempleCastU32(temple_fraction_6661))));
     }
   }
 }
@@ -1173,12 +1173,12 @@ legacy_void RsStateplyContactRelaxWheelPlaneResidual(
 legacy_s16 RsStateplyContactResolveWheelPlaneContact(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_resolved_6653;
-  legacy_s16 noreg temple_initial_distance_6655;
-  legacy_s32 noreg temple_tmp_6656;
-  legacy_s32 noreg temple_tmp_6657;
+  legacy_s16 noreg temple_resolved_6666;
+  legacy_s16 noreg temple_initial_distance_6668;
+  legacy_s32 noreg temple_tmp_6669;
+  legacy_s32 noreg temple_tmp_6670;
   while(1) {
-    temple_initial_distance_6655=TempleCastS16(
+    temple_initial_distance_6668=TempleCastS16(
         RsStateplyContactInheritedWheelPlaneDistance((&(motion->previous[wheel_index]))));
     if((!(RsStateplyContactHoldWheelToSurface(carstate,motion,TempleCastS16(wheel_index))))) {
       RsStateplyContactMoveAirborneWheel(carstate,motion,TempleCastS16(wheel_index));
@@ -1188,33 +1188,33 @@ legacy_s16 RsStateplyContactResolveWheelPlaneContact(
       return TempleCastS16(0);
     }
     (motion->contact_distances[wheel_index]=TempleCastS16(next_pos_and_normal_ip));
-    temple_tmp_6656=0;
+    temple_tmp_6669=0;
     if((next_pos_and_normal_ip>=0)) {
-      temple_tmp_6656=1;
+      temple_tmp_6669=1;
     }
-    if(!temple_tmp_6656) {
-      temple_tmp_6656=0;
+    if(!temple_tmp_6669) {
+      temple_tmp_6669=0;
       if(RsStateplyContactCorrectWheelPlanePenetration(
             carstate,motion,TempleCastS16(wheel_index),TempleCastS16(car_index))) {
-        temple_tmp_6656=1;
+        temple_tmp_6669=1;
       }
     }
-    (temple_resolved_6653=TempleCastS16(temple_tmp_6656));
-    temple_tmp_6657=0;
+    (temple_resolved_6666=TempleCastS16(temple_tmp_6669));
+    temple_tmp_6670=0;
     if((player_motion_fraction!=TempleCastU32(0))) {
-      temple_tmp_6657=1;
+      temple_tmp_6670=1;
     }
-    if(temple_tmp_6657) {
-      temple_tmp_6657=0;
-      if(temple_resolved_6653) {
-        temple_tmp_6657=1;
+    if(temple_tmp_6670) {
+      temple_tmp_6670=0;
+      if(temple_resolved_6666) {
+        temple_tmp_6670=1;
       }
     }
-    if(temple_tmp_6657) {
+    if(temple_tmp_6670) {
       RsStateplyContactRelaxWheelPlaneResidual(
-          motion,TempleCastS16(wheel_index),TempleCastS16(temple_initial_distance_6655));
+          motion,TempleCastS16(wheel_index),TempleCastS16(temple_initial_distance_6668));
     }
-    if(!((!(temple_resolved_6653)))) {
+    if(!((!(temple_resolved_6666)))) {
       break;
     }
   }
@@ -1228,8 +1228,8 @@ legacy_s16 RsStateplyContactResolveWheelPlaneContact(
 legacy_void RsStateplyContactLookUpWheelSurface(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 wheel_index)
 {
-  CVector temple_wheel_6658;
-  RsPhysicsPositionToVector((&(temple_wheel_6658)),(&(motion->current[wheel_index])));
+  CVector temple_wheel_6671;
+  RsPhysicsPositionToVector((&(temple_wheel_6671)),(&(motion->current[wheel_index])));
   if((player_motion_state->game_inputmode==GAME_INPUT_MODE_INTRO)) {
     (wallindex=TempleCastS16(TempleCastS32((-(1)))));
     (current_surf_type=TempleCastS8(CAR_SURFACE_PAVED));
@@ -1237,7 +1237,7 @@ legacy_void RsStateplyContactLookUpWheelSurface(
     (current_planptr=planptr);
   } else {
     RsBuildTrackObject(
-        (&(temple_wheel_6658)),(&(carstate->car_wheel_contact_positions[wheel_index])));
+        (&(temple_wheel_6671)),(&(carstate->car_wheel_contact_positions[wheel_index])));
   }
   (carstate->car_surface_whl[wheel_index]=TempleCastS8(current_surf_type));
   RsStateplyContactMeasureWheelPlaneDistance((&(motion->current[wheel_index])));
@@ -1246,27 +1246,27 @@ legacy_void RsStateplyContactLookUpWheelSurface(
 legacy_s16 RsStateplyContactResolveWheelContactPass(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_i_6660;
-  legacy_s16 *temple_tmp_6661;
-  legacy_s16 noreg temple_tmp_6662;
-  temple_i_6660=TempleCastS16(0);
+  legacy_s16 noreg temple_i_6673;
+  legacy_s16 *temple_tmp_6674;
+  legacy_s16 noreg temple_tmp_6675;
+  temple_i_6673=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_6660<4))) {
+    if(!((temple_i_6673<4))) {
       break;
     }
-    RsStateplyContactLookUpWheelSurface(carstate,motion,TempleCastS16(temple_i_6660));
+    RsStateplyContactLookUpWheelSurface(carstate,motion,TempleCastS16(temple_i_6673));
     if(RsStateplyContactResolveWheelWallCollision(
-          carstate,motion,TempleCastS16(temple_i_6660),TempleCastS16(car_index))) {
+          carstate,motion,TempleCastS16(temple_i_6673),TempleCastS16(car_index))) {
       return TempleCastS16(0);
     }
     if((!(RsStateplyContactResolveWheelPlaneContact(
-          carstate,motion,TempleCastS16(temple_i_6660),TempleCastS16(car_index))))) {
+          carstate,motion,TempleCastS16(temple_i_6673),TempleCastS16(car_index))))) {
       return TempleCastS16(0);
     }
-    temple_tmp_6661=&(temple_i_6660);
-    temple_tmp_6662=*temple_tmp_6661;
-    *temple_tmp_6661=TempleCastS16((temple_tmp_6662+1));
-    temple_tmp_6662;
+    temple_tmp_6674=&(temple_i_6673);
+    temple_tmp_6675=*temple_tmp_6674;
+    *temple_tmp_6674=TempleCastS16((temple_tmp_6675+1));
+    temple_tmp_6675;
   }
   return TempleCastS16(
       (!(RsStateplyContactStopAtTrackWallContact(carstate,motion,TempleCastS16(car_index)))));
@@ -1275,72 +1275,72 @@ legacy_s16 RsStateplyContactResolveWheelContactPass(
 legacy_void RsResolveWheelContacts(
     CCarState *carstate,CPlayerWheelMotion *motion,legacy_s16 car_index)
 {
-  legacy_s16 noreg temple_pass_6663;
-  legacy_s16 noreg temple_resolved_6664;
-  legacy_s32 noreg temple_tmp_6666;
-  legacy_s16 *temple_tmp_6667;
-  legacy_s16 noreg temple_tmp_6668;
-  legacy_s32 noreg temple_tmp_6669;
-  legacy_s32 noreg temple_tmp_6670;
-  legacy_s32 noreg temple_tmp_6671;
-  temple_pass_6663=TempleCastS16(1);
-  temple_resolved_6664=TempleCastS16(0);
+  legacy_s16 noreg temple_pass_6676;
+  legacy_s16 noreg temple_resolved_6677;
+  legacy_s32 noreg temple_tmp_6679;
+  legacy_s16 *temple_tmp_6680;
+  legacy_s16 noreg temple_tmp_6681;
+  legacy_s32 noreg temple_tmp_6682;
+  legacy_s32 noreg temple_tmp_6683;
+  legacy_s32 noreg temple_tmp_6684;
+  temple_pass_6676=TempleCastS16(1);
+  temple_resolved_6677=TempleCastS16(0);
   while(1) {
-    temple_tmp_6666=0;
-    if((temple_pass_6663<5)) {
-      temple_tmp_6666=1;
+    temple_tmp_6679=0;
+    if((temple_pass_6676<5)) {
+      temple_tmp_6679=1;
     }
-    if(temple_tmp_6666) {
-      temple_tmp_6666=0;
-      if((!(temple_resolved_6664))) {
-        temple_tmp_6666=1;
+    if(temple_tmp_6679) {
+      temple_tmp_6679=0;
+      if((!(temple_resolved_6677))) {
+        temple_tmp_6679=1;
       }
     }
-    if(!(temple_tmp_6666)) {
+    if(!(temple_tmp_6679)) {
       break;
     }
-    (temple_resolved_6664=TempleCastS16(
+    (temple_resolved_6677=TempleCastS16(
         RsStateplyContactResolveWheelContactPass(carstate,motion,TempleCastS16(car_index))));
-    temple_tmp_6667=&(temple_pass_6663);
-    temple_tmp_6668=*temple_tmp_6667;
-    *temple_tmp_6667=TempleCastS16((temple_tmp_6668+1));
-    temple_tmp_6668;
+    temple_tmp_6680=&(temple_pass_6676);
+    temple_tmp_6681=*temple_tmp_6680;
+    *temple_tmp_6680=TempleCastS16((temple_tmp_6681+1));
+    temple_tmp_6681;
   }
-  if((!(temple_resolved_6664))) {
+  if((!(temple_resolved_6677))) {
     (carstate->car_velocity_heading_offset=TempleCastS16(512));
     RsPlayerMotionCrash(TempleCastS16(CRASH_EVENT_COLLISION),TempleCastS16(car_index));
   }
-  temple_tmp_6669=0;
+  temple_tmp_6682=0;
   if((carstate->car_surface_whl[PLAYER_PHYSICS_FRONT_WHEEL_FIRST]==CAR_SURFACE_WATER)) {
-    temple_tmp_6669=1;
+    temple_tmp_6682=1;
   }
-  if(temple_tmp_6669) {
-    temple_tmp_6669=0;
+  if(temple_tmp_6682) {
+    temple_tmp_6682=0;
     if((carstate->car_surface_whl[PLAYER_PHYSICS_FRONT_WHEEL_SECOND]==CAR_SURFACE_WATER)) {
-      temple_tmp_6669=1;
+      temple_tmp_6682=1;
     }
   }
-  temple_tmp_6670=0;
-  if(temple_tmp_6669) {
-    temple_tmp_6670=1;
+  temple_tmp_6683=0;
+  if(temple_tmp_6682) {
+    temple_tmp_6683=1;
   }
-  if(temple_tmp_6670) {
-    temple_tmp_6670=0;
+  if(temple_tmp_6683) {
+    temple_tmp_6683=0;
     if((carstate->car_surface_whl[PLAYER_PHYSICS_REAR_WHEEL_FIRST]==CAR_SURFACE_WATER)) {
-      temple_tmp_6670=1;
+      temple_tmp_6683=1;
     }
   }
-  temple_tmp_6671=0;
-  if(temple_tmp_6670) {
-    temple_tmp_6671=1;
+  temple_tmp_6684=0;
+  if(temple_tmp_6683) {
+    temple_tmp_6684=1;
   }
-  if(temple_tmp_6671) {
-    temple_tmp_6671=0;
+  if(temple_tmp_6684) {
+    temple_tmp_6684=0;
     if((carstate->car_surface_whl[PLAYER_PHYSICS_REAR_WHEEL_SECOND]==CAR_SURFACE_WATER)) {
-      temple_tmp_6671=1;
+      temple_tmp_6684=1;
     }
   }
-  if(temple_tmp_6671) {
+  if(temple_tmp_6684) {
     RsPlayerMotionCrash(TempleCastS16(CRASH_EVENT_WATER),TempleCastS16(car_index));
   }
 }

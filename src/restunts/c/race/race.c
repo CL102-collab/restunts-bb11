@@ -446,12 +446,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 		if (rewind.active == 0) {
 			race_check_recording_limit();
 		}
-		if (video_uses_page_flipping != 0) {
-			sprite_select_mcga_backbuffer();
-			dashboard_buffer_index = frame_buffer_index;
-		} else {
-			sprite_select_render_window();
-		}
+		race_select_render_target();
 
 		ghost_update(race_ghost_frame(), framespersec);
 		if (state.game_frame == 0) {
@@ -462,7 +457,10 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			AMIGA_NORMAL_RACE_TRACE("viewport complete");
 		}
 #ifdef RESTUNTS_SDL3
-		race_presentation_draw(rewind.active);
+		if (race_presentation_draw(rewind.active) == 0) {
+			race_draw_frame();
+			race_presentation_frame_complete();
+		}
 #else
 		if (state.game_frame == 0) {
 			AMIGA_NORMAL_RACE_TRACE("draw begin");

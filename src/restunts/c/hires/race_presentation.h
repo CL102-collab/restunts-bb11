@@ -11,7 +11,8 @@ void race_presentation_begin_frame(void);
 legacy_s16 race_presentation_draw_snapshot(void);
 legacy_s16 race_presentation_poll(legacy_s64 *last_processed_frame, legacy_s16 *wait_for_sample,
 								  legacy_u16 *ready);
-void race_presentation_draw(legacy_s16 rewind_active);
+legacy_s16 race_presentation_draw(legacy_s16 rewind_active);
+void race_presentation_frame_complete(void);
 void race_presentation_finish(void);
 #endif
 #endif

@@ -15,13 +15,17 @@ struct HIRES_INTRO_PRESENTATION {
 	legacy_s16 view_frame;
 	legacy_u8 view_valid;
 	legacy_u64 input_time;
+	legacy_u64 sample_time;
 	legacy_s16 input_delta;
 };
 
 void hires_intro_reset(struct INTRO_SESSION *intro);
 void hires_intro_begin(struct INTRO_SESSION *intro);
-void hires_intro_present(struct INTRO_SESSION *intro);
-legacy_s16 hires_intro_input(struct INTRO_SESSION *intro, legacy_s16 delta);
+legacy_s16 hires_intro_present(struct INTRO_SESSION *intro);
+const struct INTRO_VIEW *hires_intro_keyframe(const struct INTRO_SESSION *intro);
+legacy_s16 hires_intro_input(struct INTRO_SESSION *intro, legacy_s16 delta,
+							 legacy_s16 *sample_delta);
+void hires_intro_input_complete(struct INTRO_SESSION *intro);
 #endif
 
 #endif

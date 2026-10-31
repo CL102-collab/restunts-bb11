@@ -109,3 +109,13 @@ void race_draw_frame(void)
 	sdl3_video_end_frame();
 #endif
 }
+
+void race_select_render_target(void)
+{
+	if (video_uses_page_flipping != 0) {
+		sprite_select_mcga_backbuffer();
+		dashboard_buffer_index = frame_buffer_index;
+	} else {
+		sprite_select_render_window();
+	}
+}

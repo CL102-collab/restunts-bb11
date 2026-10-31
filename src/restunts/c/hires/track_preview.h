@@ -12,7 +12,7 @@ void hires_track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, 
 											legacy_u8 row, const struct VECTOR *camera,
 											struct TRANSFORMEDSHAPE3D *transformed,
 											HIRES_TRACK_PREVIEW_TERRAIN draw_terrain);
-void hires_track_preview_flush_tile(void);
-void hires_track_preview_flush_scene(void);
+legacy_s16 hires_track_preview_batch_scene(void);
+void hires_track_preview_flush_scene(legacy_s16 batch_scene);
 
 #endif

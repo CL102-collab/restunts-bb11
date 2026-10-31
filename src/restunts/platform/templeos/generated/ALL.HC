@@ -131,6 +131,8 @@
 #include "generated/HIRES_SHAPE3D_RENDER.HC"
 #include "generated/HIRES_HIGHSCORE_ANIMATION.HC"
 #include "generated/HIRES_SKYBOX_SCENE.HC"
+#include "generated/FRAME_CONTEXT.HC"
+#include "generated/FRAME_FPS.HC"
 #include "generated/COMMAND_LINE.HC"
 #include "generated/HEADLESS_DATA.HC"
 #include "generated/HEADLESS_TRACKDATA.HC"

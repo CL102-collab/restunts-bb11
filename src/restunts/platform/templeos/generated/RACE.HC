@@ -699,12 +699,7 @@ legacy_void RsRaceRaceRunFrames(CRaceViewportCache *cache)
     if((temple_rewind_2119.active==0)) {
       RsRaceRaceCheckRecordingLimit();
     }
-    if((video_uses_page_flipping!=0)) {
-      RsSpriteSelectMcgaBackbuffer();
-      (dashboard_buffer_index=TempleCastS8(frame_buffer_index));
-    } else {
-      RsSpriteSelectRenderWindow();
-    }
+    RsRaceSelectRenderTarget();
     RsGhostUpdate(TempleCastU32(RsRaceGhostFrame()),TempleCastU16(framespersec));
     if((state.game_frame==0)) {
       0;

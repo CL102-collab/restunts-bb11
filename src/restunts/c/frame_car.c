@@ -23,14 +23,15 @@ void frame_add_dynamic_shape(struct TRACKOBJECT *track_object, legacy_s16 state_
 							 legacy_s16 flags, legacy_s16 material, legacy_s16 z_adjust,
 							 const struct VECTOR *camera_position)
 {
+	struct SHAPE3D *shape = track_object->ss_shapePtr;
 #if defined(RESTUNTS_SDL3)
-	if (!frame_hires_dynamic_shape(track_object, camera_position)) {
+	if (!frame_hires_dynamic_shape(track_object, camera_position, &shape)) {
 		return;
 	}
 #else
 	(void)camera_position;
-	curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
 #endif
+	curtransshape_ptr->shapeptr = shape;
 	curtransshape_ptr->rectptr = &frame_sorted_shapes_rect;
 	curtransshape_ptr->ts_flags = flags;
 	curtransshape_ptr->rotvec.x =
@@ -49,7 +50,10 @@ void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
 							 legacy_s16 *wheel_angles, struct VECTOR *wheel_vectors,
 							 struct VECTOR *wheel_vector, legacy_s8 tile_detail)
 {
-	if (frame_hires_low_car_model(track_object, tile_detail)) {
+	legacy_s16 low_detail =
+		tile_detail != FRAME_TILE_DETAIL_FULL || detail_level >= FRAME_CAR_LOW_DETAIL_FIRST;
+	frame_hires_override_car_detail(track_object, tile_detail, &low_detail);
+	if (low_detail) {
 		curtransshape_ptr->shapeptr = track_object->ss_loShapePtr;
 	} else {
 		curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
@@ -85,7 +89,7 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 				   legacy_s16 material, legacy_s16 z_adjust)
 {
 #if defined(RESTUNTS_SDL3)
-	struct VECTOR render_offset;
+	struct VECTOR render_offset = {0, 0, 0};
 	if (!frame_hires_prepare_car(carstate, debris_owner, wheel_shape, &tile_detail, &flags,
 								 &render_offset)) {
 		return;
@@ -94,7 +98,7 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 	struct TRACKOBJECT *track_object;
 	if (frame_state->game_particles_active != 0 && (flags & SHAPE3D_GHOST_FLAG) == 0U
 #if defined(RESTUNTS_SDL3)
-		&& frame_hires_attached_particles()
+		&& !frame_hires_adaptive_enabled()
 #endif
 	) {
 		for (legacy_s16 index = 0; index < FRAME_DEBRIS_SLOT_COUNT; index++) {
@@ -167,14 +171,18 @@ legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const struct SI
 		mat_mul_vector(&offset_vector, rotation, &rotated_vector);
 		legacy_s8 tile_east, tile_south;
 #if defined(RESTUNTS_SDL3)
-		if (!frame_hires_wheel_tile(carstate, &rotated_vector, &tile_east, &tile_south)) {
-			continue;
-		}
-#else
-		tile_east = frame_tile_from_world_offset(carstate->car_position.lx, rotated_vector.x);
-		tile_south =
-			frame_south_tile_from_world_offset(carstate->car_position.lz, rotated_vector.z);
+		legacy_s16 visible;
+		if (frame_hires_wheel_tile(carstate, &rotated_vector, &tile_east, &tile_south, &visible)) {
+			if (!visible) {
+				continue;
+			}
+		} else
 #endif
+		{
+			tile_east = frame_tile_from_world_offset(carstate->car_position.lx, rotated_vector.x);
+			tile_south =
+				frame_south_tile_from_world_offset(carstate->car_position.lz, rotated_vector.z);
+		}
 #if defined(RESTUNTS_SDL3)
 		if (frame_has_complete_tile_lookup(tiles)) {
 			legacy_s16 tile_index = frame_lookup_world_tile(tiles, tile_east, tile_south);
@@ -234,3 +242,12 @@ void frame_place_cars(const struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAR
 		}
 	}
 }
+
+#if defined(RESTUNTS_SDL3)
+void frame_offset_car_shape(const struct VECTOR *offset)
+{
+	curtransshape_ptr->pos.x = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.x, offset->x);
+	curtransshape_ptr->pos.y = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.y, offset->y);
+	curtransshape_ptr->pos.z = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.z, offset->z);
+}
+#endif

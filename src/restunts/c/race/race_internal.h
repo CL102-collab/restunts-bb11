@@ -54,6 +54,7 @@ void race_rewind_resume(struct RACE_REWIND_STATE *rewind);
 void race_update_rewind(struct RACE_REWIND_STATE *rewind);
 legacy_u32 race_ghost_frame(void);
 void race_draw_frame(void);
+void race_select_render_target(void);
 void race_update_dashboard_layout(legacy_s16 rewind_active);
 void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_active);
 

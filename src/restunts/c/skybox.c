@@ -462,8 +462,9 @@ legacy_s16 skybox_render(legacy_s16 view_index, struct RECTANGLE *clip, legacy_s
 	legacy_s16 full_redraw =
 		skybox_render_legacy(view_index, clip, direction, rotation, roll, angle, camera_y);
 #ifdef RESTUNTS_SDL3
-	return skybox_hires_render_scene(clip, rotation, direction, angle, camera_y, full_redraw);
-#else
-	return full_redraw;
+	if (skybox_hires_render_scene(clip, rotation, direction, angle, camera_y)) {
+		return 1;
+	}
 #endif
+	return full_redraw;
 }
