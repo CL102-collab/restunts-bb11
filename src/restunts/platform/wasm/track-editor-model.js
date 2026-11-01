@@ -13,12 +13,13 @@
     const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8, ROLL_RAMP_DIRECTION_OFFSET = 2;
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
-    const PINE_PHYSICAL_MODEL = 71, PINE_GROUP_VERSION = 9, PINE_COUNTS = [10, 5];
+    const PINE_PHYSICAL_MODEL = 71, PINE_TREE_ID = 153, PINE_GROUP_VERSION = 9, PINE_COUNTS = [10, 5];
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
+    const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
     const VERSION = 9, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
@@ -579,6 +580,37 @@
             return object;
         }
         place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp, pineCount); this.objects.push(object); return object; }); }
+        pineBrushPreview(x, y, size, pineCount, rotation = 0) {
+            if (!PINE_BRUSH_SIZES.includes(size)) throw new Error('Invalid pine brush size.');
+            if (!PINE_COUNTS.includes(pineCount)) throw new Error('Invalid pine tree count for the brush.');
+            checkVersion(this.version);
+            checkPineCount(byId.get(PINE_TREE_ID), pineCount, this.version);
+            integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'rotation');
+            this.cellIndex(x, y);
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
+            const taken = new Set(this.objects.flatMap(object => occupied(object).map(([cx, cy]) => cy * this.width + cx)));
+            // The brush visits separate single-tile groups. Inspect occupied cells once,
+            // then reuse the regular placement checks without rescanning every element.
+            const target = Object.create(this); target.objects = [];
+            const result = [];
+            for (let row = y; row < bottom; row++) for (let column = x; column < right; column++) {
+                if (taken.has(row * this.width + column)) continue;
+                const profile = terrainProfile(this.tileHeights(column, row));
+                if (!profile) throw new Error('The pine brush encountered invalid terrain.');
+                // Native plants support flat tiles and straight inclines; valid hill
+                // corners stay untouched instead of making the whole brush fail.
+                if (profile.terrain > CLASSIC_LAST_SLOPE) continue;
+                result.push(target.placement(PINE_TREE_ID, column, row, 0, rotation, 0, 0, 0, pineCount));
+            }
+            return result;
+        }
+        placePineBrush(x, y, size, pineCount, rotation = 0) {
+            const objects = this.pineBrushPreview(x, y, size, pineCount, rotation);
+            return this.transaction('Place pine trees', () => {
+                this.objects.push(...objects);
+                return objects;
+            });
+        }
         erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
         selection(rectangle) {
             const selected = selectionObjects(this, rectangle);
@@ -752,5 +784,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));
