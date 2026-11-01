@@ -17,7 +17,7 @@
 #include "../ui/ui_input.h"
 #include "../track/track_objects.h"
 #include "../skybox.h"
-#include "../highscore.h"
+#include "../highscore/highscore.h"
 #include "menu_common.h"
 #include "../externs.h"
 #include "../keyboard.h"

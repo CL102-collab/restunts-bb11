@@ -1,6 +1,6 @@
 #include "highscore_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "opponent/opponent_animation.h"
+#include "../opponent/opponent_animation.h"
 #endif
 
 static legacy_u32 end_player_finish_time(void)

@@ -1,7 +1,7 @@
 #include "highscore_animation.h"
 
 #ifdef RESTUNTS_SDL3
-#include "../highscore_internal.h"
+#include "../highscore/highscore_internal.h"
 #include "hires.h"
 #include "../opponent/opponent_animation.h"
 #include "../shape2d/shape2d_internal.h"

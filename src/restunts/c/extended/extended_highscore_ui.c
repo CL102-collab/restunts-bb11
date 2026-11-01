@@ -19,7 +19,7 @@
 #include "../race/race_stats.h"
 #include "../audio/audio_control.h"
 #include "../car/car_resources.h"
-#include "../highscore.h"
+#include "../highscore/highscore.h"
 #include "../menu/menu_common.h"
 #include "../externs.h"
 #include "../keyboard.h"

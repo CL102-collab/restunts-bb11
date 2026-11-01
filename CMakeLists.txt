@@ -244,7 +244,8 @@ set(common_sources
 set(game_sources
     restunts.c startup.c command_line.c fatal.c timing.c game_input.c game_input_shortcuts.c
     ui/ui_text.c ui/ui_input.c ui/ui_dialog.c ui/ui_file_dialog.c ui/ui_disk_dialog.c intro.c
-    highscore.c highscore_results.c highscore_results_text.c replay/replay_record.c
+    highscore/highscore.c highscore/highscore_results.c highscore/highscore_results_text.c
+    replay/replay_record.c
     replay/replay_viewer.c replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c
     race/race.c race/race_rewind.c race/race_presentation.c ghost/ghost.c ghost/ghost_line.c
     extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
