@@ -277,7 +277,8 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
 		 object_index++) {
 		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
-		if (object->roll_ramp || !frame_extended_uses_grade(object) ||
+		legacy_u8 graded = frame_extended_uses_grade(object);
+		if (object->roll_ramp || (frame_extended_object_sloped(object) && !graded) ||
 			!hires_frame_extended_terrain_matches_grade(source, count, terrain, object)) {
 			continue;
 		}
@@ -290,7 +291,9 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 			track_road_triangle(definition->ss_physicalModel, triangle_index, authored);
 			for (legacy_u16 vertex = 0; vertex < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT; vertex++) {
 				frame_extended_rotate_vertex(&authored[vertex], definition->ss_rotY);
-				frame_extended_join_object_grade_vertex(&authored[vertex], object);
+				if (graded) {
+					frame_extended_join_object_grade_vertex(&authored[vertex], object);
+				}
 				triangle[vertex] = (struct SHAPE3D_HIRES_VECTOR){
 					authored[vertex].x, authored[vertex].y, authored[vertex].z};
 			}
