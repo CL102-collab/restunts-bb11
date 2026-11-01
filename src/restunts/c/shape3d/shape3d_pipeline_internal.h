@@ -3,9 +3,7 @@
 
 #include <stddef.h>
 #include "shape3d_internal.h"
-#ifdef RESTUNTS_SDL3
 #include "../hires/shape3d_pipeline.h"
-#endif
 #define WHEEL_INNER_RADIUS_SCALE 9472U
 #define SHAPE3D_VERTEX_CAPACITY 255U
 #define SHAPE3D_VERTEX_FLAG_CAPACITY 256U
@@ -35,11 +33,6 @@
 #define PROJECTION_VIEW_VECTOR_LENGTH 10000
 #define PROJECTION_YAW_MASK 1023U
 #define PROJECTION_SINCOS_ANGLE 128
-
-#if (defined(RESTUNTS_TEMPLEOS))
-#define SHAPE3D_NATIVE_SCALE 2
-#define SHAPE3D_NATIVE_COORD_LIMIT ((legacy_s32)LEGACY_S16_MAX / SHAPE3D_NATIVE_SCALE)
-#endif
 
 #if !((defined(RESTUNTS_TEMPLEOS)))
 #define shape3d_project_point vector_to_point
@@ -177,24 +170,6 @@ void polyinfo_read_points(const legacy_u8 far *record, struct POINT2D *points,
 						  legacy_u16 point_count);
 void polyinfo_write_point(legacy_u8 far *record, legacy_u16 point_index,
 						  const struct POINT2D *point);
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_native_coordinate(legacy_s64 value);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_coordinates(legacy_s64 x, legacy_s64 y, legacy_s64 z, struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_point(struct VECTOR *vector, struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_logical_coordinate(legacy_s16 value);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_u16 shape3d_geometry_clip_flags(struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_adjust_geometry_bounds(struct POINT2D *point, struct RECTANGLE *rectangle);
-#endif
 void shape3d_cache_vertex(const struct SHAPE3D *shape, struct SHAPE3D_TRANSFORM_CONTEXT *context,
 						  legacy_u16 index);
 legacy_u8 shape3d_vertex_rect_flags(struct SHAPE3D_TRANSFORM_CONTEXT *context, legacy_u16 index);

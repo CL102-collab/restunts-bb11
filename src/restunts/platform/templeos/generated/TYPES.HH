@@ -1205,7 +1205,7 @@ class CGhostLinePose
   legacy_u8 has_orientation;
 };
 
-class CRsAnonB755155759f1
+class CRsAnonFcf61efba636
 {
   CGhostLinePose previous;
   CGhostLinePose sample;

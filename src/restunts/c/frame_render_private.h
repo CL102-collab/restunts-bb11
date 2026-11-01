@@ -181,9 +181,6 @@ legacy_s8 frame_tile_from_world(legacy_s32 position);
 legacy_s8 frame_south_tile_from_world(legacy_s32 position);
 legacy_s8 frame_tile_from_world_offset(legacy_s32 position, legacy_s16 offset);
 legacy_s8 frame_south_tile_from_world_offset(legacy_s32 position, legacy_s16 offset);
-#if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset);
-#endif
 struct SHAPE3D *frame_terrain_shape(const struct TRACKOBJECT *object, legacy_s8 detail);
 legacy_s16 frame_car_z_adjust(const legacy_s8 *wheel_surfaces, struct MATRIX *rotation);
 void frame_add_dynamic_shape(struct TRACKOBJECT *track_object, legacy_s16 state_index,

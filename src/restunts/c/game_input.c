@@ -16,8 +16,6 @@
 #include "../platform/amiga/amiga.h"
 #endif
 #ifdef RESTUNTS_SDL3
-#include "hires/hires.h"
-#include "hires/frame_adaptive.h"
 #include "hires/skybox_hires.h"
 #include "../platform/sdl3/controller_game.h"
 #endif

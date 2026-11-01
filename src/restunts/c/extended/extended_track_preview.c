@@ -2,7 +2,7 @@
 
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
-#include "extended_track_preview_hires.h"
+#include "../hires/extended_track_preview_hires.h"
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
 #include "../track/track_objects.h"

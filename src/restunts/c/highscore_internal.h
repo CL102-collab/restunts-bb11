@@ -26,9 +26,7 @@
 #include "externs.h"
 #include "keyboard.h"
 #ifdef RESTUNTS_SDL3
-#include "hires/hires.h"
-#include "opponent/opponent_animation.h"
-#include "shape2d/shape2d_internal.h"
+#include "hires/highscore_animation.h"
 #endif
 
 #define HIGHSCORE_READ_RETRY_CANCEL_RESULT 2
@@ -137,8 +135,7 @@ struct END_SCREEN_STATE {
 #endif
 	legacy_s16 animation_x, animation_y, animation_timer, text_y;
 #ifdef RESTUNTS_SDL3
-	legacy_s16 animation_width, animation_height;
-	legacy_u8 external_animation_drawn;
+	struct HIRES_HIGHSCORE_ANIMATION hires_animation;
 #endif
 };
 

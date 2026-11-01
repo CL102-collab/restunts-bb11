@@ -59,6 +59,7 @@ legacy_u8 frame_adaptive_tile_flags(const struct FRAME_TILE *tile);
 #endif
 
 #if defined(RESTUNTS_SDL3)
+void frame_offset_car_shape(const struct VECTOR *offset);
 struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
 									  const struct SHAPE3D *wheel_shape);
 #endif

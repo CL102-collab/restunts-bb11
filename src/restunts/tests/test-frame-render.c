@@ -22,7 +22,7 @@
 #include "../c/extended/extended_frame.c"
 #include "../c/extended/extended_frame_objects.c"
 #include "../c/extended/extended_frame_terrain.c"
-#include "../c/extended/extended_frame_precise.c"
+#include "../c/hires/extended_frame_precise.c"
 #endif
 
 struct TRACKOBJECT trkObjectList[215];

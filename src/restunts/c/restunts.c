@@ -5,8 +5,6 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "hires/frame_adaptive.h"
-#include "hires/hires.h"
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__

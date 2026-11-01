@@ -4,6 +4,11 @@
 #include "../legacy.h"
 
 #ifdef RESTUNTS_SDL3
+struct HIRES_HIGHSCORE_ANIMATION {
+	legacy_s16 width, height;
+	legacy_u8 drawn;
+};
+
 struct END_SCREEN_STATE;
 struct SPRITE;
 typedef void (*HIRES_HIGHSCORE_DRAW_FRAME)(legacy_s8 far *resource, legacy_u8 far *sequence,

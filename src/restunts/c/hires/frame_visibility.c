@@ -201,6 +201,7 @@ legacy_s16 frame_hires_tile_detail(const struct FRAME_TILE_SELECTION *tiles, leg
 legacy_s16 frame_hires_prepare_tile(struct FRAME_TILE *tile)
 {
 #if defined(RESTUNTS_SDL3)
+	tile->adaptive_flags = 0;
 	if (frame_adaptive_active != 0) {
 		tile->adaptive_flags = frame_adaptive_tile_flags(tile);
 	}
