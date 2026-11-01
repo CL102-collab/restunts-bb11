@@ -16,6 +16,9 @@
     const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
     const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
+    const WHEAT_FIELD_ID = 215, WHEAT_ICON_SCALE = 4, WHEAT_ICON_ROWS = 6, WHEAT_ICON_PLANTS = 5;
+    const WHEAT_ICON_ROW_GAP = 2, WHEAT_ICON_STEM_HEIGHT = 5, WHEAT_ICON_GRAINS = 3, WHEAT_ICON_GRAIN_STEP = 2;
+    const WHEAT_ICON_COLORS = { soil: 200, row: 74, stem: 6, ear: 72, highlight: 68 };
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
     const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
         [101, 128, 192], [348, -48, 152], [-365, -151, 168], [-61, -190, 120],
@@ -289,7 +292,35 @@
         }
         return { width, height, pixels, alpha };
     }
+    function composeWheatFieldBitmap() {
+        const width = EDITOR_TILE_INTERIOR * WHEAT_ICON_SCALE, height = width;
+        const pixels = new Uint8Array(width * height).fill(WHEAT_ICON_COLORS.soil);
+        const alpha = new Uint8Array(pixels.length).fill(255);
+        function pixel(x, y, color) {
+            if (x >= 0 && x < width && y >= 0 && y < height) pixels[y * width + x] = color;
+        }
+        const rowWidth = Math.floor(width / WHEAT_ICON_ROWS) - WHEAT_ICON_ROW_GAP;
+        for (let row = 0; row < WHEAT_ICON_ROWS; row++) {
+            const x = Math.floor((row + .5) * width / WHEAT_ICON_ROWS);
+            for (let y = 0; y < height; y++) for (let dx = -Math.floor(rowWidth / 2); dx <= Math.floor(rowWidth / 2); dx++)
+                pixel(x + dx, y, WHEAT_ICON_COLORS.row);
+            for (let plant = 0; plant < WHEAT_ICON_PLANTS; plant++) {
+                const y = Math.floor((plant + .5) * height / WHEAT_ICON_PLANTS);
+                for (let stem = 0; stem <= WHEAT_ICON_STEM_HEIGHT; stem++) pixel(x, y + stem, WHEAT_ICON_COLORS.stem);
+                for (let grain = 0; grain < WHEAT_ICON_GRAINS; grain++) {
+                    pixel(x - 1, y + grain * WHEAT_ICON_GRAIN_STEP, WHEAT_ICON_COLORS.ear);
+                    pixel(x + 1, y + grain * WHEAT_ICON_GRAIN_STEP - 1, WHEAT_ICON_COLORS.highlight);
+                }
+                pixel(x, y - WHEAT_ICON_GRAIN_STEP, WHEAT_ICON_COLORS.highlight);
+            }
+        }
+        return { width, height, pixels, alpha };
+    }
     function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
+        if (id === WHEAT_FIELD_ID) {
+            if (tunnelSlalom || rollRamp || pineCount) fail('Invalid wheat field artwork flags.');
+            return composeWheatFieldBitmap();
+        }
         if (pineCount) {
             if (id !== PINE_ICON || tunnelSlalom || rollRamp || ![PINE_SMALL_COUNT, PINE_TEN_LAYOUT.length].includes(pineCount))
                 fail('Invalid pine tree group artwork.');

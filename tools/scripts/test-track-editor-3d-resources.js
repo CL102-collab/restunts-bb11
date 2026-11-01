@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const resources = require('../../src/restunts/platform/wasm/track-editor-resources.js');
+const model = require('../../src/restunts/platform/wasm/track-editor-model.js');
 
 const PALETTE_SIZE = 256 * 3, SHAPE_HEADER_SIZE = 16;
 const palette = Uint8Array.from({ length: PALETTE_SIZE }, (_, index) => index % 256);
@@ -35,6 +36,20 @@ function files() {
         ['GaMe2.3sH', archive([['zban', Uint8Array.from([7, 8])], ['road', Uint8Array.from([9, 10])]])]
     ]);
 }
+
+test('wheat field artwork draws golden crop rows without a native bitmap', () => {
+    const bitmap = resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID);
+    assert.equal(bitmap.width, 60); assert.equal(bitmap.height, 60);
+    assert.equal(bitmap.pixels.length, bitmap.width * bitmap.height);
+    assert.equal(bitmap.alpha.length, bitmap.pixels.length);
+    assert(bitmap.alpha.every(value => value === 255));
+    const colors = new Set(bitmap.pixels);
+    for (const color of [200, 74, 6, 72, 68]) assert(colors.has(color), 'soil, rows, stems and grain remain distinct');
+    const next = resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID);
+    assert.deepEqual(next, bitmap); assert.notEqual(next.pixels, bitmap.pixels);
+    for (const flags of [[1, 0, 0], [0, 1, 0], [0, 0, 6]])
+        assert.throws(() => resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID, ...flags), /wheat field artwork flags/);
+});
 
 test('3D loader accepts case-insensitive File inputs and preserves native archive precedence', async () => {
     const selected = files(), first = selected.get('GAME1.3SH');

@@ -245,12 +245,24 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 								 uint32_t index, uint8_t *occupied, legacy_u8 allow_old_pines,
 								 char *error, size_t error_size)
 {
-	if (object->legacy_id == 0U || object->legacy_id > CSTRK_MAX_LEGACY_ID ||
+	if (object->legacy_id == 0U ||
+		(object->legacy_id > CSTRK_MAX_LEGACY_ID && object->legacy_id != CSTRK_WHEAT_FIELD_ID) ||
 		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE || object->width < 1U ||
 		object->width > 2U || object->height < 1U || object->height > 2U ||
 		object->x + object->width > track->width || object->y + object->height > track->height) {
 		return cstrk_fail(error, error_size, "Object %u has an invalid ID, surface or footprint",
 						  (unsigned)index);
+	}
+	if (object->legacy_id == CSTRK_WHEAT_FIELD_ID) {
+		if (track->version < CSTRK_WHEAT_FIELD_VERSION) {
+			return cstrk_fail(error, error_size,
+							  "Object %u requires track version v%u for wheat fields",
+							  (legacy_uint)index, CSTRK_WHEAT_FIELD_VERSION);
+		}
+		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
+			return cstrk_fail(error, error_size, "Object %u has an invalid wheat field footprint",
+							  (legacy_uint)index);
+		}
 	}
 	if (object->tunnel_slalom > 1U ||
 		(object->tunnel_slalom &&
