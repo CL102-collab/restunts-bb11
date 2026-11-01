@@ -8,7 +8,7 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 13]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 15]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
     assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
@@ -1351,44 +1351,62 @@ test('overlapping pine brushes join drag history and repeated occupied strokes p
     doc.beginTransaction('Cancelled forest'); doc.placePineBrush(7, 7, 2, 6);
     doc.cancelTransaction(); assert.deepEqual(doc.snapshot(), after);
 });
-test('wheat fields are distinct scenery and round-trip on flat ground and every straight slope', () => {
-    const entry = model.library.find(piece => piece.id === model.WHEAT_FIELD_ID);
-    assert(entry); assert.equal(entry.name, 'Wheat field'); assert(entry.decoration); assert.equal(entry.group, 10);
-    for (let rotation = 0; rotation < 4; rotation++) for (const [slopeX, slopeY] of [[0, 0], ...SLOPE_DIRECTIONS]) {
-        const doc = new model.Document(1, 1);
-        doc.vertices.set([2, 2 + slopeX, 2 + slopeY, 2 + slopeX + slopeY]);
-        const before = doc.snapshot(), object = doc.place(entry.id, 0, 0, 2, rotation);
-        assert.equal(object.surface, 0); assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
-        assert.deepEqual(doc.validate(), []);
-        const bytes = model.encodeCstrk(doc), reopened = model.decodeCstrk(bytes);
-        assert.deepEqual(reopened.snapshot(), doc.snapshot());
-        assert.deepEqual(model.encodeCstrk(reopened), bytes);
-        const clip = doc.copyRegion({ x: 0, y: 0, width: 1, height: 1 });
-        assert.deepEqual(model.rotateClipboard(clip, 4), clip);
-        for (const axis of ['horizontal', 'vertical']) assert.deepEqual(model.flipClipboard(model.flipClipboard(clip, axis), axis), clip);
-        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before); assert(doc.redo());
+const CROP_FIELD_CASES = [
+    [model.WHEAT_FIELD_ID, 'Wheat field', model.WHEAT_FIELD_VERSION],
+    [model.TULIP_FIELD_ID, 'Tulip field', model.TULIP_FIELD_VERSION],
+    [model.VINE_FIELD_ID, 'Vine field', model.VINE_FIELD_VERSION]
+];
+test('crop fields are distinct scenery and round-trip on flat ground and every straight slope', () => {
+    assert(!model.isCropField(153)); assert(!model.isCropField(model.VINE_FIELD_ID + 1));
+    for (const [id, name] of CROP_FIELD_CASES) {
+        const entry = model.library.find(piece => piece.id === id);
+        assert(entry); assert.equal(entry.name, name); assert(entry.decoration); assert.equal(entry.group, 10);
+        assert(model.isCropField(id));
+        for (let rotation = 0; rotation < 4; rotation++) for (const [slopeX, slopeY] of [[0, 0], ...SLOPE_DIRECTIONS]) {
+            const doc = new model.Document(1, 1);
+            doc.vertices.set([2, 2 + slopeX, 2 + slopeY, 2 + slopeX + slopeY]);
+            const before = doc.snapshot(), object = doc.place(entry.id, 0, 0, 2, rotation);
+            assert.equal(object.surface, 0); assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
+            assert.deepEqual(doc.validate(), []);
+            const bytes = model.encodeCstrk(doc), reopened = model.decodeCstrk(bytes);
+            assert.deepEqual(reopened.snapshot(), doc.snapshot());
+            assert.deepEqual(model.encodeCstrk(reopened), bytes);
+            const clip = doc.copyRegion({ x: 0, y: 0, width: 1, height: 1 });
+            assert.deepEqual(model.rotateClipboard(clip, 4), clip);
+            for (const axis of ['horizontal', 'vertical']) assert.deepEqual(model.flipClipboard(model.flipClipboard(clip, axis), axis), clip);
+            const pasted = new model.Document(1, 1); pasted.vertices.set(doc.vertices);
+            pasted.pasteRegion(clip, 0, 0); assert.deepEqual(pasted.objects, doc.objects);
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before); assert(doc.redo());
+        }
     }
 });
-test('wheat fields require v11 and reject unrelated flags and noncanonical footprints', () => {
-    const doc = new model.Document(2, 2);
-    doc.place(model.WHEAT_FIELD_ID, 0, 0);
-    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
-    for (let version = 3; version < model.WHEAT_FIELD_VERSION; version++) {
-        doc.version = version;
-        const before = doc.snapshot(), history = doc.history.length;
-        assert.throws(() => model.encodeCstrk(doc), /wheat.*version v11/i);
-        assert.throws(() => doc.place(model.WHEAT_FIELD_ID, 1, 1), /wheat.*version v11/i);
-        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
-        const older = bytes.slice(); new DataView(older.buffer).setUint16(8, version, true);
-        assert.throws(() => model.decodeCstrk(older), /wheat.*version v11/i);
+test('crop fields enforce their introduction revisions and reject unrelated flags or footprints', () => {
+    for (const [id, , requiredVersion] of CROP_FIELD_CASES) {
+        const doc = new model.Document(2, 2);
+        doc.place(id, 0, 0);
+        const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+        const versionError = new RegExp('field.*version v' + requiredVersion, 'i');
+        for (let version = 3; version < requiredVersion; version++) {
+            doc.version = version;
+            const before = doc.snapshot(), history = doc.history.length;
+            assert.throws(() => model.encodeCstrk(doc), versionError);
+            assert.throws(() => doc.place(id, 1, 1), versionError);
+            assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+            const older = bytes.slice(); new DataView(older.buffer).setUint16(8, version, true);
+            assert.throws(() => model.decodeCstrk(older), versionError);
+        }
+        doc.version = requiredVersion;
+        const minimum = model.encodeCstrk(doc), upgraded = model.decodeCstrk(minimum);
+        assert.equal(upgraded.version, model.VERSION); assert.deepEqual(upgraded.objects, doc.objects);
+        upgraded.version = requiredVersion;
+        assert.deepEqual(model.encodeCstrk(upgraded), minimum);
+        for (const [offset, value] of [[6, 2], [7, 2], [8, 0], [12, 1], [13, 1], [14, 1], [15, 6]]) {
+            const corrupt = bytes.slice(); corrupt[record + offset] = value;
+            assert.throws(() => model.decodeCstrk(corrupt));
+        }
+        const future = bytes.slice(); new DataView(future.buffer).setUint16(8, 101, true);
+        assert.equal(model.decodeCstrk(future).version, 101);
     }
-    doc.version = model.VERSION;
-    for (const [offset, value] of [[6, 2], [7, 2], [8, 0], [12, 1], [13, 1], [14, 1], [15, 6]]) {
-        const corrupt = bytes.slice(); corrupt[record + offset] = value;
-        assert.throws(() => model.decodeCstrk(corrupt));
-    }
-    const future = bytes.slice(); new DataView(future.buffer).setUint16(8, 101, true);
-    assert.equal(model.decodeCstrk(future).version, 101);
 });
 test('pine groups require v9 and reject other counts and backing elements atomically', () => {
     const doc = new model.Document(4, 4); doc.place(153, 1, 1, 0, 0, 0, 0, 0, 10);
@@ -2035,7 +2053,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, model.WHEAT_FIELD_VERSION); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, model.TULIP_FIELD_VERSION); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -2243,7 +2261,7 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
             const pixelsPerTile = tile.width / entry.width;
             assert(Number.isInteger(pixelsPerTile));
             assert.equal(tile.height, entry.height * pixelsPerTile);
-            if (entry.id === model.WHEAT_FIELD_ID) assert(pixelsPerTile >= 15, 'generated scenery may use finer artwork');
+            if (model.isCropField(entry.id)) assert(pixelsPerTile >= 15, 'generated scenery may use finer artwork');
             else assert.equal(pixelsPerTile, 15, 'native artwork keeps its original tile resolution');
             assert.equal(tile.pixels.length, tile.width * tile.height);
             assert.equal(tile.alpha.length, tile.pixels.length);

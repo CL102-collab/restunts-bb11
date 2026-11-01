@@ -163,6 +163,104 @@ test('low wheat rows follow the terrain in all slope and rotation directions', (
     }
 });
 
+test('tulip cups and raised vine rows render without native model resources', () => {
+    const assets = { models: new Map(), palette: palette() };
+    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 16, 148, 30], [model.VINE_FIELD_ID, 192, 316, 0]]) {
+        const doc = new model.Document(1, 1); doc.place(id, 0, 0);
+        const before = doc.snapshot(), result = scene.buildScene(doc, assets);
+        assert.equal(result.instances, id === model.VINE_FIELD_ID ? 5 : 1); assert.equal(result.triangles, triangles);
+        assert.equal(result.linePositions.length / 6, stems);
+        assert(result.positions.every(Number.isFinite)); near(result.bounds.max[1], height / TILE);
+        assert.deepEqual(result.bounds.min, [0, 0, 0]); assert.deepEqual(doc.snapshot(), before);
+        if (id === model.TULIP_FIELD_ID) {
+            const colors = new Set(vertices(result.colors).map(color => color.map(channel => channel.toFixed(4)).join(',')));
+            assert(colors.size >= 8, 'soil, leaves and five flower colors remain visible');
+        }
+    }
+});
+
+test('tulips retain distinct purple, orange, red, pink, purple and yellow rows', () => {
+    const doc = new model.Document(1, 1); doc.place(model.TULIP_FIELD_ID, 0, 0);
+    const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
+    const first = 16 * 9, count = 12 * 3;
+    const points = vertices(result.positions, first).slice(0, count);
+    let area = 0;
+    for (let index = 0; index < points.length; index += 3) {
+        const [a, b, c] = points.slice(index, index + 3);
+        for (const point of [a, b, c]) near(point[1], 12 / TILE);
+        area += Math.abs((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0])) / 2;
+    }
+    near(area, 6 * 140 / TILE);
+    const colors = new Set(vertices(result.colors, first).slice(0, count).map(color => color.map(channel => channel.toFixed(4)).join(',')));
+    assert.equal(colors.size, 5, 'purple, orange, red, pink and yellow rows stay visible beyond individual flowers');
+    const rowMaterials = [75, 124, 54, 37, 75, 61], flowerColors = vertices(result.colors, first).slice(0, count), rgb = palette();
+    for (let row = 0; row < 6; row++) {
+        const index = data.materials[rowMaterials[row % rowMaterials.length]].color * 3;
+        for (const point of flowerColors.slice(row * 6, (row + 1) * 6))
+            point.forEach((channel, axis) => near(channel, rgb[index + axis] / 255, 'each row keeps one flower color'));
+    }
+});
+
+test('tall narrow vine foliage carries eight unchanged purple bunches on each side', () => {
+    const doc = new model.Document(1, 1); doc.place(model.VINE_FIELD_ID, 0, 0);
+    const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
+    const canopy = vertices(result.positions, 36).slice(0, 4 * 14 * 3);
+    for (let row = 0; row < 4; row++) {
+        const points = canopy.slice(row * 14 * 3, (row + 1) * 14 * 3);
+        near(Math.max(...points.map(point => point[0])) - Math.min(...points.map(point => point[0])), 128 / TILE);
+        near(Math.max(...points.map(point => point[1])), 192 / TILE);
+    }
+    const grapePoints = vertices(result.positions, 60 * 9);
+    assert.equal(grapePoints.length, 64 * 2 * 2 * 3, 'sixty-four bunches each have two rectangular patches');
+    assert(grapePoints.every(point => point[1] >= 64 / TILE && point[1] <= 104 / TILE));
+    for (let station = 0; station < 8; station++) {
+        const points = grapePoints.slice(station * 24, (station + 1) * 24);
+        near((Math.min(...points.map(point => point[2])) + Math.max(...points.map(point => point[2]))) / 2,
+            (2 * station + 1) / 16, 'grape bunches fill the row at evenly spaced stations');
+    }
+    for (const [points, width, height] of [[grapePoints.slice(0, 6), 32, 24], [grapePoints.slice(6, 12), 16, 16]]) {
+        near(Math.max(...points.map(point => point[2])) - Math.min(...points.map(point => point[2])), width / TILE);
+        near(Math.max(...points.map(point => point[1])) - Math.min(...points.map(point => point[1])), height / TILE);
+    }
+    const patchColors = new Set(vertices(result.colors, 60 * 9).map(color => color.map(channel => channel.toFixed(4)).join(',')));
+    assert.equal(patchColors.size, 1, 'all grape pixels use the same purple material');
+});
+
+test('tulip and vine fields rotate and follow every straight hillside direction', () => {
+    const assets = { models: new Map(), palette: palette() };
+    for (const id of [model.TULIP_FIELD_ID, model.VINE_FIELD_ID]) {
+        const neutral = new model.Document(1, 1); neutral.place(id, 0, 0);
+        const unrotated = scene.buildScene(neutral, assets);
+        for (let rotation = 0; rotation < 4; rotation++) {
+            const flat = new model.Document(1, 1); flat.place(id, 0, 0, 0, rotation);
+            const reference = scene.buildScene(flat, assets);
+            for (const [buffer, baseline, first] of [[reference.positions, unrotated.positions, 18], [reference.linePositions, unrotated.linePositions, 0]]) {
+                const originals = vertices(baseline, first);
+                vertices(buffer, first).forEach((point, index) => {
+                    let x = originals[index][0] - .5, z = originals[index][2] - .5;
+                    for (let turn = 0; turn < rotation; turn++) [x, z] = [z, -x];
+                    near(point[0], .5 + x); near(point[2], .5 + z); near(point[1], originals[index][1]);
+                });
+            }
+            for (const [slopeX, slopeY] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
+                doc.place(id, 0, 0, 0, rotation);
+                const result = scene.buildScene(doc, assets);
+                for (const [buffer, baseline, first] of [[result.positions, reference.positions, 18], [result.linePositions, reference.linePositions, 0]]) {
+                    const points = vertices(buffer, first), originals = vertices(baseline, first);
+                    assert.equal(points.length, originals.length);
+                    points.forEach((point, index) => {
+                        const original = originals[index];
+                        near(point[0], original[0]); near(point[2], original[2]);
+                        const grade = (1 + slopeX * point[0] + slopeY * (1 - point[2])) * LEVEL / TILE;
+                        near(point[1], original[1] + grade, 'crop field follows its hillside');
+                    });
+                }
+            }
+        }
+    }
+});
+
 (async () => {
     const directory = process.argv[2] || path.join(ROOT, 'stunts');
     if (!fs.existsSync(path.join(directory, 'GAME1.P3S')) && !fs.existsSync(path.join(directory, 'GAME1.3SH'))) {

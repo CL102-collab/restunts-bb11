@@ -52,6 +52,35 @@ test('wheat field artwork draws golden crop rows without a native bitmap', () =>
         assert.throws(() => resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID, ...flags), /wheat field artwork flags/);
 });
 
+test('tulip and vine field artwork uses distinct generated colors without native bitmaps', () => {
+    for (const [id, name, expected] of [
+        [model.TULIP_FIELD_ID, 'tulip field', [38, 54, 70, 167, 181, 200]],
+        [model.VINE_FIELD_ID, 'vine field', [90, 92, 171, 200]]
+    ]) {
+        const bitmap = resources.composePieceTileBitmap(new Map(), id);
+        assert.equal(bitmap.width, 60); assert.equal(bitmap.height, 60);
+        assert(bitmap.alpha.every(value => value === 255));
+        assert.deepEqual([...new Set(bitmap.pixels)].sort((first, second) => first - second), expected, name);
+        assert.deepEqual(resources.composePieceTileBitmap(new Map(), id), bitmap);
+        for (const flags of [[1, 0, 0], [0, 1, 0], [0, 0, 6]])
+            assert.throws(() => resources.composePieceTileBitmap(new Map(), id, ...flags), new RegExp(name + ' artwork flags'));
+    }
+});
+
+test('tulip icons keep dense single-color rows and narrow vines show purple grape pixels', () => {
+    const tulips = resources.composePieceTileBitmap(new Map(), model.TULIP_FIELD_ID), colors = [167, 54, 38, 181, 167, 70];
+    for (let row = 0; row < 6; row++) for (let y = 0; y < tulips.height; y++)
+        assert.equal(tulips.pixels[y * tulips.width + row * 10 + 5], colors[row % colors.length]);
+    for (let y = 1; y < tulips.height; y++)
+        assert.deepEqual(tulips.pixels.subarray(y * tulips.width, (y + 1) * tulips.width), tulips.pixels.subarray(0, tulips.width), 'flower rows contain no mixed dot decorations');
+    assert(tulips.pixels.filter(color => color !== 200).length >= tulips.pixels.length * .8, 'colored flowers cover most of the tile');
+    const vines = resources.composePieceTileBitmap(new Map(), model.VINE_FIELD_ID);
+    assert(vines.pixels.includes(171), 'purple grape clusters remain visible');
+    assert.equal(vines.pixels.filter(color => color === 171).length, 64 * 5, 'eight unchanged pixel bunches on each side of four rows');
+    assert(vines.pixels.subarray(0, vines.width).filter(color => color === 90 || color === 92).length < vines.width / 2,
+        'vine rows leave broad gaps between their narrower foliage');
+});
+
 test('3D loader accepts case-insensitive File inputs and preserves native archive precedence', async () => {
     const selected = files(), first = selected.get('GAME1.3SH');
     selected.set('GAME1.3SH', { arrayBuffer: async () => first.buffer });

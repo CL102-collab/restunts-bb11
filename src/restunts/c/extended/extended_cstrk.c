@@ -7,6 +7,11 @@
 
 static const uint8_t cstrk_magic[8] = {'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n'};
 
+legacy_int cstrk_is_crop_field(legacy_u16 id)
+{
+	return id == CSTRK_WHEAT_FIELD_ID || id == CSTRK_TULIP_FIELD_ID || id == CSTRK_VINE_FIELD_ID;
+}
+
 static int cstrk_fail(char *error, size_t size, const char *format, ...)
 {
 	if (error != NULL && size != 0U) {
@@ -246,21 +251,25 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 								 char *error, size_t error_size)
 {
 	if (object->legacy_id == 0U ||
-		(object->legacy_id > CSTRK_MAX_LEGACY_ID && object->legacy_id != CSTRK_WHEAT_FIELD_ID) ||
+		(object->legacy_id > CSTRK_MAX_LEGACY_ID && !cstrk_is_crop_field(object->legacy_id)) ||
 		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE || object->width < 1U ||
 		object->width > 2U || object->height < 1U || object->height > 2U ||
 		object->x + object->width > track->width || object->y + object->height > track->height) {
 		return cstrk_fail(error, error_size, "Object %u has an invalid ID, surface or footprint",
 						  (unsigned)index);
 	}
-	if (object->legacy_id == CSTRK_WHEAT_FIELD_ID) {
-		if (track->version < CSTRK_WHEAT_FIELD_VERSION) {
+	if (cstrk_is_crop_field(object->legacy_id)) {
+		legacy_u16 required_version =
+			object->legacy_id == CSTRK_WHEAT_FIELD_ID	? CSTRK_WHEAT_FIELD_VERSION
+			: object->legacy_id == CSTRK_TULIP_FIELD_ID ? CSTRK_TULIP_FIELD_VERSION
+														: CSTRK_VINE_FIELD_VERSION;
+		if (track->version < required_version) {
 			return cstrk_fail(error, error_size,
-							  "Object %u requires track version v%u for wheat fields",
-							  (legacy_uint)index, CSTRK_WHEAT_FIELD_VERSION);
+							  "Object %u requires track version v%u for this crop field",
+							  (legacy_uint)index, required_version);
 		}
 		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
-			return cstrk_fail(error, error_size, "Object %u has an invalid wheat field footprint",
+			return cstrk_fail(error, error_size, "Object %u has an invalid crop field footprint",
 							  (legacy_uint)index);
 		}
 	}
