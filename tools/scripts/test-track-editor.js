@@ -1421,6 +1421,93 @@ test('Shore paints every distinct material pair and corner with exact storage an
         }
     }
 });
+test('square paint brushes repaint exactly their footprint without changing heights or track elements', () => {
+    assert.deepEqual(model.PAINT_BRUSH_SIZES, [1, 2, 4]);
+    for (const size of model.PAINT_BRUSH_SIZES) for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+        const doc = new model.Document(8, 8);
+        doc.vertices.fill(2);
+        doc.cells = doc.cells.map(() => {
+            const cell = { surface: (surface + 1) % model.TERRAIN_SURFACES.length, halfWaterCorner: 2 };
+            if (surface !== model.DEFAULT_CORNER_SURFACE) cell.cornerSurface = surface;
+            return cell;
+        });
+        doc.place(4, 2, 2);
+        const before = doc.snapshot(), history = doc.history.length;
+        doc.paintArea(1, 1, size, surface);
+        for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+            const expected = x >= 1 && x < 1 + size && y >= 1 && y < 1 + size
+                ? { surface, halfWaterCorner: 0 } : before.cells[y * doc.width + x];
+            assert.deepEqual(doc.cells[y * doc.width + x], expected, size + 'x' + size + ' cell ' + x + ',' + y);
+        }
+        assert.deepEqual(Array.from(doc.vertices), before.vertices);
+        assert.deepEqual(doc.objects, before.objects);
+        assert.equal(doc.history.length, history + 1);
+        const after = doc.snapshot();
+        assert.deepEqual(doc.validate(), []);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    }
+    const single = new model.Document(3, 3), square = new model.Document(3, 3);
+    single.paint(1, 1, 3); square.paintArea(1, 1, 1, 3);
+    assert.deepEqual(square.snapshot(), single.snapshot());
+});
+test('paint brushes clip to rectangular map edges and work on maps smaller than the brush', () => {
+    for (const size of model.PAINT_BRUSH_SIZES) for (const [x, y] of [[0, 0], [4, 3], [3, 1], [0, 2]]) {
+        const doc = new model.Document(5, 4);
+        doc.paintArea(x, y, size, 2);
+        assert.equal(doc.cells.filter(cell => cell.surface === 2).length,
+            Math.min(size, doc.width - x) * Math.min(size, doc.height - y));
+        for (let row = 0; row < doc.height; row++) for (let column = 0; column < doc.width; column++) {
+            const painted = column >= x && column < x + size && row >= y && row < y + size;
+            assert.equal(doc.cells[row * doc.width + column].surface, painted ? 2 : 0);
+        }
+    }
+    const tiny = new model.Document(1, 1);
+    tiny.paintArea(0, 0, 4, 3);
+    assert.deepEqual(tiny.cells, [{ surface: 3, halfWaterCorner: 0 }]);
+    assert.equal(tiny.history.length, 1);
+});
+test('paint brush validation is atomic both before a stroke and after earlier edits', () => {
+    const doc = new model.Document(5, 4);
+    doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot();
+    const invalid = [
+        ...[-1, 0, 3, 5, 1.5, null, '2', NaN].map(size => [0, 0, size, 2]),
+        ...[-1, model.TERRAIN_SURFACES.length, 1.5, null].map(surface => [0, 0, 2, surface]),
+        [-1, 0, 2, 2], [5, 0, 2, 2], [0, -1, 2, 2], [0, 4, 2, 2], [.5, 0, 2, 2], [0, null, 2, 2]
+    ];
+    for (const args of invalid) {
+        assert.throws(() => doc.paintArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before);
+        assert.equal(doc.history.length, 0); assert.equal(doc.canRedo, true);
+    }
+    doc.beginTransaction('Terrain stroke'); doc.paintArea(1, 1, 2, 2);
+    const earlier = doc.snapshot();
+    for (const args of invalid) {
+        assert.throws(() => doc.paintArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), earlier);
+        assert.notEqual(doc.pending, null);
+    }
+    doc.endTransaction(); assert.equal(doc.history.length, 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+});
+test('overlapping paint brushes share drag undo and cancellation while no-op painting preserves redo', () => {
+    const doc = new model.Document(8, 8), before = doc.snapshot();
+    doc.beginTransaction('Terrain stroke');
+    doc.paintArea(1, 1, 2, 2); doc.paintArea(2, 2, 4, 2); doc.paintArea(7, 7, 1, 2);
+    doc.endTransaction();
+    assert.equal(doc.history.length, 1);
+    assert.equal(doc.cells.filter(cell => cell.surface === 2).length, 20);
+    const after = doc.snapshot();
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    doc.beginTransaction('Terrain stroke'); doc.paintArea(0, 0, 4, 3); doc.cancelTransaction();
+    assert.deepEqual(doc.snapshot(), after); assert.equal(doc.history.length, 1);
+    const clean = new model.Document(4, 4);
+    clean.setNotes('future'); clean.undo(); clean.paintArea(0, 0, 4, 0);
+    assert.equal(clean.history.length, 0); assert.equal(clean.canRedo, true);
+});
 test('lower surface paints every flat elevation and preserves uniform hills through all four transitions', () => {
     const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
     for (let target = 0; target < model.TERRAIN_SURFACES.length; target++) {
