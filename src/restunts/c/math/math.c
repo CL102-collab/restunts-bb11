@@ -1,12 +1,12 @@
-#include "externs.h"
-#include "legacy.h"
+#include "../externs.h"
+#include "../legacy.h"
 #include "math.h"
 #include "math_internal.h"
-#include "fatal.h"
-#include "track/track_collision.h"
-#include "wheel_transform.h"
-#include "projection.h"
-#include "extended/extended_math.h"
+#include "../fatal.h"
+#include "../track/track_collision.h"
+#include "../wheel_transform.h"
+#include "../projection.h"
+#include "../extended/extended_math.h"
 
 legacy_s16 sign_word(legacy_s16 value)
 {

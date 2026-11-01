@@ -2,7 +2,7 @@
 #define RESTUNTS_CAR_AUDIO_H
 
 #include <stddef.h>
-#include "../math.h"
+#include "../math/math.h"
 
 /* Car sound samples and engine definitions shared with race and replay state. */
 

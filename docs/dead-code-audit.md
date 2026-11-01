@@ -42,9 +42,9 @@ Their translated TempleOS names likewise have no callers.
 | Input | `kb_get_readchar_callback` | `src/restunts/c/game_input.c:198` |
 | Input | `joystick_get_scaled_y` | `src/restunts/c/game_input.c:218` |
 | Input | `input_wait_for_press_and_release` | `src/restunts/c/game_input.c:862` |
-| Math | `sign_word` | `src/restunts/c/math.c:13` |
-| Math | `absolute_long` | `src/restunts/c/math.c:22` |
-| Math | `vector_interpolate_at_saved_z` | `src/restunts/c/math.c:971` |
+| Math | `sign_word` | `src/restunts/c/math/math.c:13` |
+| Math | `absolute_long` | `src/restunts/c/math/math.c:22` |
+| Math | `vector_interpolate_at_saved_z` | `src/restunts/c/math/math.c:971` |
 | Memory | `mmgr_available_paragraphs` | `src/restunts/c/memmgr.c:227` |
 | Memory | `mmgr_allocated_paragraphs` | `src/restunts/c/memmgr.c:232` |
 | Memory | `mmgr_has_cached_resource` | `src/restunts/c/memmgr.c:461` |
@@ -70,7 +70,7 @@ Their translated TempleOS names likewise have no callers.
   `kb_call_readchar_callback` implementations call `kb_read_char` directly.
 - `vector_saved_z_low` and `vector_saved_z_high` are used only by
   `vector_interpolate_at_saved_z`. Locate their storage definitions as well as
-  their declarations at `math.c:968`.
+  their declarations at `math/math.c:968`.
 - Static `locate_many_resources_nofatal` at `memmgr.c:649` is called only by the
   unused memory wrappers above. It is an additional dependent helper, not one of
   the 23 zero-caller functions.

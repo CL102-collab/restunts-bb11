@@ -1,11 +1,11 @@
-#include "externs.h"
-#include "legacy.h"
+#include "../externs.h"
+#include "../legacy.h"
 #include "math.h"
 #include "math_internal.h"
-#include "fatal.h"
-#include "track/track_collision.h"
-#include "wheel_transform.h"
-#include "projection.h"
+#include "../fatal.h"
+#include "../track/track_collision.h"
+#include "../wheel_transform.h"
+#include "../projection.h"
 
 #ifndef RESTUNTS_HEADLESS
 

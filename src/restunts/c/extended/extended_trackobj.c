@@ -1,6 +1,6 @@
 #include "../restunts.h"
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../track/trackdata_layout.h"
 #include "../track/track_types.h"
 #include "../track/track_objects.h"

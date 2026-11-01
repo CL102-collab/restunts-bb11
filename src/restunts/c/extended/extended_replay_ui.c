@@ -2,7 +2,7 @@
 #ifdef RESTUNTS_SDL3
 #include "../fileio.h"
 #include "../game_input.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../memmgr.h"
 #include "../menu/menu_internal.h"
 #include "../race/race_resources.h"

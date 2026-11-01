@@ -1,7 +1,7 @@
 /* Select curved stunt surfaces and rectangular scenery collision walls. */
 #include "../restunts.h"
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "trackdata_layout.h"
 #include "track_types.h"
 #include "track_objects.h"

@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_GAMESTATE_H
 #define RESTUNTS_GAMESTATE_H
 
-#include "math.h"
+#include "math/math.h"
 
 #define GAMESTATE_SERIALIZED_SIZE 1120U
 #define CARSTATE_SERIALIZED_SIZE 208U

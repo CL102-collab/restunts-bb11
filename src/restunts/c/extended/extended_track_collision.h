@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_EXTENDED_TRACK_COLLISION_H
 #define RESTUNTS_EXTENDED_TRACK_COLLISION_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 #ifdef RESTUNTS_SDL3
 /* Dynamic CSTRK planes must survive nested collision and camera queries. */

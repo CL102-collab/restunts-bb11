@@ -1,6 +1,6 @@
 #include "externs.h"
 #include "game_input.h"
-#include "math.h"
+#include "math/math.h"
 #include "car/car_speed.h"
 #include "physics_internal.h"
 

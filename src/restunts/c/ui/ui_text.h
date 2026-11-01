@@ -2,7 +2,7 @@
 #define RESTUNTS_UI_TEXT_H
 
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 
 extern legacy_u8 far *active_font_definition;
 

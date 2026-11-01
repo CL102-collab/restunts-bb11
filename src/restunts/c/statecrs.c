@@ -1,6 +1,6 @@
 #include "externs.h"
 #include "legacy.h"
-#include "math.h"
+#include "math/math.h"
 #include "replay/replay.h"
 #include "crash_state.h"
 #include "race/race_stats.h"

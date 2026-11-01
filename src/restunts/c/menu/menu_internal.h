@@ -2,7 +2,7 @@
 #define RESTUNTS_MENU_INTERNAL_H
 
 #include "../game_input.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
 

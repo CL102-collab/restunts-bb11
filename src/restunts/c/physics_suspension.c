@@ -1,5 +1,5 @@
 #include "legacy.h"
-#include "math.h"
+#include "math/math.h"
 #include "physics_internal.h"
 #include "residue.h"
 #include "track/trackdata_layout.h"

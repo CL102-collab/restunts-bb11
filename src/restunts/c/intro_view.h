@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_INTRO_VIEW_H
 #define RESTUNTS_INTRO_VIEW_H
 
-#include "math.h"
+#include "math/math.h"
 
 struct INTRO_VIEW {
 	struct VECTOR camera;

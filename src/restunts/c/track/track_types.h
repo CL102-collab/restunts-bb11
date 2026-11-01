@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_TRACK_TYPES_H
 #define RESTUNTS_TRACK_TYPES_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 struct SHAPE3D;
 

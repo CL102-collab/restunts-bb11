@@ -1,7 +1,7 @@
 /* Select native road, ramp, elevated and banked driving surfaces. */
 #include "../restunts.h"
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "trackdata_layout.h"
 #include "track_types.h"
 #include "track_objects.h"

@@ -12,7 +12,7 @@
 #include "../shape2d/shape2d_internal.h"
 #include "../shape3d/shape3d_internal.h"
 #include "../shape2d/shape2d.h"
-#include "../math_internal.h"
+#include "../math/math_internal.h"
 #include "../car/car_model.h"
 #include "../projection.h"
 #include "../residue.h"

@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_FRAME_INTERNAL_H
 #define RESTUNTS_FRAME_INTERNAL_H
 
-#include "../math.h"
+#include "../math/math.h"
 #include "../shape3d/shape3d.h"
 #include "../track/track_types.h"
 
