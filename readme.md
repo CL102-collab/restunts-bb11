@@ -31,6 +31,11 @@ revision is v9. Revision v3 through v8 tracks open as v9 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
 
+Switch from the 2D editor to **3D preview** to explore the track with WebGL and
+original models from your selected Stunts folder. Click for mouse look; WASD moves,
+Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
+releases the mouse, and the 2D editor retains its zoom and map position.
+
 The Scenery palette includes **Pine trees (10)** and **Pine trees (5)**,
 with varied tree sizes and fixed scattered layouts. On slopes, each pine retains
 the single tree's upright crown and slope-following trunk roots.

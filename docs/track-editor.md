@@ -24,6 +24,22 @@ Build, Remove or an element group opens the track library. New tracks can have
 any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
 dimensions. Names use the game's 1–8 character ASCII filename stems.
 
+Choose **3D preview** above the canvas to explore the current track with WebGL.
+The preview reads GAME1 and GAME2 `.P3S` or `.3SH` model archives from your selected
+Stunts folder when first opened. Terrain, road materials, stunts, scenery and pine
+groups appear in 3D. Native patterned fills use solid palette colors in this
+preview. Changes, including undo and redo, refresh the preview. Choose
+**2D editor** to continue building; its zoom and map position are preserved.
+
+Click the 3D view for mouse look, and press **Esc** to release the pointer. If the
+browser cannot capture the pointer, hold the left mouse button and drag to look.
+Use **WASD** to move horizontally relative to your view, **Space** to rise, and
+**Shift** to descend. Hold **Alt**, or turn **Caps Lock** on, to move at **3×**
+speed; using both keeps the same 3× speed. This ghost camera can pass freely
+through scenery, track pieces and terrain. **Reset camera** returns to the initial
+view. Movement stops when the preview loses focus or you return to 2D. The
+browser must support WebGL; if it is unavailable, you can continue editing in 2D.
+
 Below Build, Remove and Pan, choose **Select** and drag with the left mouse
 button to mark a rectangle. The selection expands to include whole multi-tile
 pieces. **Copy** keeps the originals; **Cut** removes them in one undo step.

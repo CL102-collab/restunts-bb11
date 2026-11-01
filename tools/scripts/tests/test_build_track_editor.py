@@ -60,12 +60,22 @@ class BuildTrackEditorTests(unittest.TestCase):
         self.assertEqual(contents.resource_references, [])
         self.assertEqual(len(contents.styles), 1)
         self.assertIn(".editor-layout", contents.styles[0])
-        names = ("model", "resources", "route-data", "validation", None)
+        names = ("model", "resources", "route-data", "validation", "scene-data", "scene", "preview", None)
         self.assertEqual(len(contents.scripts), len(names))
         for script, name in zip(contents.scripts, names):
             filename = f"track-editor-{name}.js" if name else "track-editor.js"
             expected = (EDITOR.SOURCE_DIRECTORY / filename).read_text(encoding="utf-8")
             self.assertEqual(script.strip(), expected.strip())
+
+    def test_3d_preview_controls_are_embedded(self):
+        source = EDITOR.build_editor()
+        contents = BundleContents(source)
+        for identifier in ("view-2d", "view-3d", "preview-reset"):
+            self.assertEqual(contents.buttons[identifier]["type"], "button")
+        for identifier in ("preview-canvas", "preview-controls", "preview-speed"):
+            self.assertIn(f'id="{identifier}"', source)
+        self.assertIn('aria-label="Track view"', source)
+        self.assertIn("Caps Lock", source)
 
     def test_selection_clipboard_controls_are_embedded_below_build_remove_and_pan(self):
         source = EDITOR.build_editor()
@@ -105,6 +115,9 @@ const scripts = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
 const browser = vm.createContext({});
 for (const script of scripts.slice(0, -1)) vm.runInContext(script, browser);
 vm.runInContext(`
+    if (typeof TrackEditorPreview.Preview !== 'function' || typeof TrackEditorScene.buildScene !== 'function') {
+        throw new Error('Standalone 3D preview modules missing');
+    }
     const model = TrackEditorModel;
     const doc = new model.Document(12, 10);
     doc.setNotes('An offline track');

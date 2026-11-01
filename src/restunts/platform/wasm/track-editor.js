@@ -11,6 +11,8 @@
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
+        viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
+        previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
         rotation: 0, shoreDirection: 0, lowerSurface: null, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
@@ -100,10 +102,100 @@
     }
     function folderMessage(text) { $('folder-status').textContent = text; }
     function showDialog(id) {
+        state.preview?.stop();
         const d = $(id);
         if (!d.open) d.showModal();
     }
-    function closeDialog(id) { $(id).close(); canvas.focus({ preventScroll: true }); }
+    function closeDialog(id) { $(id).close(); if (state.viewMode === '2d') canvas.focus({ preventScroll: true }); }
+    function previewMessage(text, error = false) {
+        const output = $('preview-message');
+        output.textContent = text; output.dataset.error = String(error); output.hidden = !text;
+    }
+    function previewStatus(status) {
+        const recovered = state.previewAvailable === false && status.available;
+        state.previewAvailable = status.available;
+        if (recovered) queueMicrotask(() => {
+            if (state.viewMode !== '3d' || state.previewLoading || state.previewError || document.querySelector('dialog[open]')) return;
+            if (state.previewDirty || !state.preview.active) setViewMode('3d');
+        });
+        const fast = status.speedMultiplier === 3;
+        $('preview-reset').disabled = state.previewLoading || !status.available;
+        $('preview-speed').textContent = fast ? 'Running · 3×' : 'Walking · 1×';
+        $('preview-speed').dataset.running = String(fast);
+        if (state.viewMode !== '3d' || state.previewLoading || state.previewError) return;
+        previewMessage(status.looking ? '' : status.message, !status.available);
+    }
+    function syncViewMode() {
+        const preview = state.viewMode === '3d';
+        $('view-2d').setAttribute('aria-pressed', String(!preview));
+        $('view-3d').setAttribute('aria-pressed', String(preview));
+        $('preview-view').hidden = !preview;
+        canvas.hidden = preview;
+        $('canvas-container').classList.toggle('is-preview', preview);
+        for (const id of ['map-display-options', 'map-view-controls', 'map-toolbar-divider']) $(id).hidden = preview;
+        $('preview-reset').hidden = !preview;
+        $('preview-reset').disabled = state.previewLoading || !state.preview?.available;
+        $('workspace-title').textContent = preview ? '3D preview' : 'Track canvas';
+    }
+    async function setViewMode(mode) {
+        if (!state.ready || !state.doc) return;
+        finishDrag(); finishNavigatorDrag();
+        state.space = false; state.hover = null; updateCanvasCursor();
+        state.viewMode = mode;
+        const generation = ++state.previewGeneration;
+        syncViewMode();
+        if (mode === '2d') {
+            state.previewLoading = false;
+            state.preview?.stop();
+            canvas.focus({ preventScroll: true }); scheduleDraw();
+            return;
+        }
+        state.previewError = false;
+        try {
+            if (!window.TrackEditorScene || !window.TrackEditorPreview) throw new Error('The 3D preview could not be loaded. Reopen or re-download the editor.');
+            if (!state.preview) state.preview = new window.TrackEditorPreview.Preview($('preview-canvas'), { onStatus: previewStatus });
+            if (!state.preview.available) {
+                previewMessage(state.preview.status.message, true);
+                return;
+            }
+            if (state.previewDirty || !state.previewAssets) {
+                state.previewLoading = true; syncViewMode();
+                previewMessage('Loading original 3D models…');
+                const files = state.files;
+                if (!state.previewAssetsPromise) {
+                    state.previewAssetsPromise = window.TrackEditorResources.load3D(files, state.resources.palette)
+                        .then(assets => { if (state.files === files) state.previewAssets = assets; return assets; })
+                        .catch(error => { if (state.files === files) state.previewAssetsPromise = null; throw error; });
+                }
+                const assets = await state.previewAssetsPromise;
+                if (generation !== state.previewGeneration) return;
+                previewMessage('Building the 3D track…');
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                if (generation !== state.previewGeneration) return;
+                const scene = window.TrackEditorScene.buildScene(state.doc, assets);
+                state.preview.setScene(scene, { resetCamera: state.previewReset });
+                state.previewDirty = false;
+            }
+            if (state.previewReset) { state.preview.resetCamera(); state.previewReset = false; }
+            state.previewLoading = false; syncViewMode();
+            if (!document.querySelector('dialog[open]')) {
+                state.preview.start();
+                $('preview-canvas').focus({ preventScroll: true });
+            }
+            previewStatus(state.preview.status);
+        } catch (error) {
+            if (generation !== state.previewGeneration) return;
+            state.previewError = true;
+            state.preview?.stop();
+            previewMessage(error.message || 'Could not build the 3D preview.', true);
+        } finally {
+            if (generation === state.previewGeneration) { state.previewLoading = false; syncViewMode(); }
+        }
+    }
+    function refreshPreview() {
+        state.previewDirty = true;
+        if (state.viewMode === '3d') setViewMode('3d');
+    }
     function editableTarget(target) { return target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName); }
     function signature() {
         if (!state.doc) return '';
@@ -123,12 +215,14 @@
         $('undo').disabled = !state.doc.canUndo;
         $('redo').disabled = !state.doc.canRedo;
         updateClipboardControls();
+        refreshPreview();
         scheduleDraw();
     }
     function setDocument(doc, name, clean = true) {
         finishDrag(true); finishNavigatorDrag();
         state.selection = null;
         state.doc = doc;
+        state.previewReset = true;
         state.name = name || 'Untitled';
         state.saved = clean ? signature() : '';
         state.cursor = { x: 0, y: 0 };
@@ -380,7 +474,9 @@
             if (!normalized.has('main.res') && !normalized.has('main.pre')) throw new Error('Choose the game folder containing MAIN.RES or MAIN.PRE.');
             const resources = await window.TrackEditorResources.load(normalized);
             state.resources = resources; state.files = normalized; state.diskNames = diskNames; state.folder = directory;
+            state.previewAssets = null; state.previewAssetsPromise = null; state.previewDirty = true;
             state.iconCache.clear(); state.ready = true;
+            $('view-2d').disabled = false; $('view-3d').disabled = false;
             $('editor-controls').disabled = false;
             $('folder-button-label').textContent = name;
             $('folder-button').title = 'Change Stunts folder (' + (directory ? 'direct saving' : 'read-only selection') + ')';
@@ -560,9 +656,10 @@
         }
         c.restore();
     }
-    function scheduleDraw() { if (!state.frame) state.frame = requestAnimationFrame(draw); }
+    function scheduleDraw() { if (state.viewMode === '2d' && !state.frame) state.frame = requestAnimationFrame(draw); }
     function draw() {
         state.frame = 0;
+        if (state.viewMode !== '2d') return;
         const ratio = window.devicePixelRatio || 1;
         if (canvas.width !== Math.round(view.width * ratio) || canvas.height !== Math.round(view.height * ratio)) {
             canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
@@ -808,6 +905,14 @@
     }
 
     function installEvents() {
+        $('view-2d').addEventListener('click', () => setViewMode('2d'));
+        $('view-3d').addEventListener('click', () => setViewMode('3d'));
+        $('preview-reset').addEventListener('click', () => {
+            state.preview?.resetCamera(); $('preview-canvas').focus({ preventScroll: true });
+        });
+        document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => {
+            if (state.viewMode === '3d' && !document.querySelector('dialog[open]')) setViewMode('3d');
+        }));
         document.querySelectorAll('[data-surface-for]').forEach(button => button.addEventListener('click', () => {
             const control = $(button.dataset.surfaceFor);
             control.value = button.dataset.value;
@@ -956,6 +1061,7 @@
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
             else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); historyEdit(key === 'y' || event.shiftKey); }
+            else if (state.viewMode === '3d') return;
             else if (ctrl && (key === 'c' || key === 'x') && state.selection?.objects.length) { event.preventDefault(); copySelection(key === 'x'); }
             else if (ctrl && key === 'v' && state.clipboard?.objects.length) { event.preventDefault(); startPaste(); }
             else if (ctrl || event.altKey) return;
