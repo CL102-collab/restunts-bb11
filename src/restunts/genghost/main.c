@@ -689,8 +689,11 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 					fine_tune_option);
 			goto done;
 		}
-		memcpy(track_name, replay.game_trackname, sizeof(replay.game_trackname));
-		track_name[sizeof(replay.game_trackname)] = 0;
+		const legacy_u8 *recorded_name = input.extended ? input.extended_replay.metadata.track_name
+														: (const legacy_u8 *)replay.game_trackname;
+		size_t name_capacity = input.extended ? CSRPL_TRACK_NAME_SIZE : REPLAY_TRACK_NAME_SIZE;
+		memcpy(track_name, recorded_name, name_capacity);
+		track_name[name_capacity] = 0;
 	}
 	if (chdir(data_dir)) {
 		perror(data_dir);

@@ -75,6 +75,34 @@ static uint8_t *extended_io_read(const legacy_s8 *path, size_t maximum, size_t *
 	return bytes;
 }
 
+static void extended_track_name_from_path(const legacy_s8 *path)
+{
+	const legacy_s8 *base = path;
+	for (const legacy_s8 *cursor = path; *cursor; cursor++) {
+		if (*cursor == '/' || *cursor == '\\' || *cursor == ':') {
+			base = cursor + 1;
+		}
+	}
+	const legacy_s8 *end = base;
+	const legacy_s8 *extension = NULL;
+	while (*end) {
+		if (*end == '.') {
+			extension = end;
+		}
+		end++;
+	}
+	if (extension) {
+		end = extension;
+	}
+	legacy_s8 stem[EXTENDED_FILE_STEM_CAPACITY] = {0};
+	legacy_u16 length = 0;
+	while (base + length < end && length < EXTENDED_FILE_STEM_MAX_LENGTH) {
+		stem[length] = base[length];
+		length++;
+	}
+	extended_track_set_name(stem);
+}
+
 int extended_file_load_track(const legacy_s8 *path)
 {
 	size_t size;
@@ -85,6 +113,7 @@ int extended_file_load_track(const legacy_s8 *path)
 	int success = extended_track_load(bytes, size, extended_io_error, sizeof(extended_io_error));
 	free(bytes);
 	if (success) {
+		extended_track_name_from_path(path);
 		extended_replay_runtime_clear();
 	}
 	return success ? 0 : 1;
@@ -99,8 +128,7 @@ static void extended_metadata_to_gameinfo(const struct CSRPL_METADATA *metadata)
 	memcpy(gameconfig.game_opponentcarid, metadata->opponent_car_id, REPLAY_CAR_ID_SIZE);
 	gameconfig.game_opponentmaterial = metadata->opponent_material;
 	gameconfig.game_opponenttransmission = metadata->opponent_transmission;
-	memcpy(gameconfig.game_trackname, metadata->track_name, REPLAY_TRACK_NAME_SIZE);
-	gameconfig.game_trackname[REPLAY_TRACK_NAME_SIZE - 1U] = 0;
+	extended_track_set_name((const legacy_s8 *)metadata->track_name);
 	gameconfig.game_framespersec = metadata->frames_per_second;
 }
 
@@ -167,7 +195,10 @@ int extended_file_write_replay(const legacy_s8 *path)
 	memcpy(metadata.opponent_car_id, gameconfig.game_opponentcarid, REPLAY_CAR_ID_SIZE);
 	metadata.opponent_material = gameconfig.game_opponentmaterial;
 	metadata.opponent_transmission = gameconfig.game_opponenttransmission;
-	memcpy(metadata.track_name, gameconfig.game_trackname, REPLAY_TRACK_NAME_SIZE);
+	const legacy_s8 *track_name = extended_track_name();
+	for (legacy_u16 index = 0; index < CSRPL_TRACK_NAME_SIZE - 1U && track_name[index]; index++) {
+		metadata.track_name[index] = (legacy_char)track_name[index];
+	}
 	metadata.frames_per_second = gameconfig.game_framespersec;
 	metadata.frame_count = extended_replay_recorded_frames();
 	uint8_t *bytes = NULL;

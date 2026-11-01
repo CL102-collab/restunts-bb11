@@ -26,6 +26,7 @@
 #endif
 
 #ifdef RESTUNTS_SDL3
+#include "../c/extended/extended_track.h"
 #define REPLDUMP_OUTPUT_NAME_SIZE REPLAY_FILENAME_SIZE
 #else
 #define REPLDUMP_OUTPUT_NAME_SIZE 13U
@@ -514,7 +515,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	legacy_s8 carid[REPLDUMP_CAR_ID_BUFFER_SIZE];
 	_memcpy(carid, gameconfig.game_playercarid, REPLDUMP_CAR_ID_SIZE);
 	carid[REPLDUMP_CAR_ID_SIZE] = 0;
+#ifdef RESTUNTS_SDL3
+	printf("  Track: '%s' Car: '%s'\n", extended_track_name(), carid);
+#else
 	printf("  Track: '%s' Car: '%s'\n", gameconfig.game_trackname, carid);
+#endif
 
 	printf("Copying track... ");
 	_memcpy(&gameconfigcopy, &gameconfig, sizeof(struct GAMEINFO));

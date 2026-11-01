@@ -1,4 +1,5 @@
 #include "extended_highscore.h"
+#include "extended_file_dialog.h"
 #include "../fileio.h"
 #include "../platform.h"
 
@@ -37,7 +38,8 @@ static int score_fail(const char *message)
 static int score_path(const legacy_s8 *directory, const legacy_s8 *name, const legacy_s8 *extension,
 					  legacy_s8 path[EXTENDED_HIGHSCORE_PATH_SIZE])
 {
-	if (name == NULL || name[0] == 0 || strlen((const char *)name) > 8U) {
+	if (name == NULL || name[0] == 0 ||
+		strlen((const char *)name) > EXTENDED_FILE_STEM_MAX_LENGTH) {
 		return score_fail("Invalid track name for the high score table.");
 	}
 	for (const legacy_s8 *character = name; *character; character++) {

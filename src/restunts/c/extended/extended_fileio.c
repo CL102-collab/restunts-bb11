@@ -64,6 +64,7 @@ legacy_s16 extended_fileio_load_replay(const legacy_s8 *directory, const legacy_
 {
 	if (strcmp(extension, ".csrpl") != 0) {
 		extended_track_unload();
+		extended_track_clear_name();
 		extended_replay_runtime_clear();
 		return 0;
 	}

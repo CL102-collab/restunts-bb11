@@ -28,7 +28,8 @@ extern const legacy_s8 headless_pack_error[];
 #define FILE_IO_PAGE_SEGMENT_GAP 1024
 #define DOS_FILENAME_LENGTH 13
 #ifdef RESTUNTS_SDL3
-#define FILE_FIND_NAME_SIZE 15U
+#include "extended/extended_file_dialog.h"
+#define FILE_FIND_NAME_SIZE EXTENDED_FILE_NAME_CAPACITY
 #else
 #define FILE_FIND_NAME_SIZE DOS_FILENAME_LENGTH
 #endif
