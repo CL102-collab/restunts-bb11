@@ -13,7 +13,7 @@
 #include "../track/track_collision.h"
 #include "../wheel_transform.h"
 #include "../camera.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../shape2d/shape2d.h"
 #ifdef RESTUNTS_AMIGA
 #include "../shape2d/shape2d_internal.h"

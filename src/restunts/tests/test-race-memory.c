@@ -9,7 +9,7 @@
 
 #include "frame/frame_internal.h"
 #include "../c/shape2d/shape2d_internal.h"
-#include "video_pages.h"
+#include "../c/video/video_pages.h"
 
 static legacy_u32 race_memory_free_bytes;
 

@@ -116,7 +116,7 @@ I've also done a huge amount of manual testing myself, to test everything else w
 
 The C core groups related sources and headers under `audio`, `car`, `data`, `frame`,
 `ghost`, `highscore`, `math`, `menu`, `opponent`, `owoot`, `physics`, `race`, `replay`,
-`shape2d`, `shape3d`, `stateply`, `track` and `ui`.
+`shape2d`, `shape3d`, `stateply`, `track`, `ui` and `video`.
 The `data` folder holds full-game data definitions, resource strings, and lookup tables.
 The `frame` folder owns classic frame rendering, camera setup, terrain and object
 rendering, shared frame context, and frame diagnostics.
@@ -125,6 +125,7 @@ The `highscore` folder owns score tables, race-result screens, and result text.
 The `math` folder owns trigonometry, vector and matrix operations, and rectangle helpers.
 The `physics` folder owns vehicle collision, grip, and suspension helpers.
 The `stateply` folder owns car-state updates, motion, and wheel-contact helpers.
+The `video` folder owns frame interfaces, framebuffer selection, and page management.
 The `extended` folder owns CSTRK/CSRPL logic and its codec headers, including
 classic and high-resolution rendering that depends on decoded track or replay
 data. The `hires` folder owns format-independent high-resolution rendering,

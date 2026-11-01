@@ -1,7 +1,7 @@
 #include "dos_interrupts.h"
 #include "../../c/legacy.h"
 #include "../../c/platform.h"
-#include "../../c/video_pages.h"
+#include "../../c/video/video_pages.h"
 #include "../../c/fatal.h"
 
 #define DOS_VIDEO_BIOS_INTERRUPT 16
