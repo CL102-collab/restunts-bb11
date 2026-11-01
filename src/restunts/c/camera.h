@@ -3,7 +3,7 @@
 
 #include "legacy.h"
 #include "keyboard.h"
-#include "math.h"
+#include "math/math.h"
 
 enum CAMERA_MODE {
 	CAMERA_MODE_COCKPIT = 0,

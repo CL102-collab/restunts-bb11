@@ -26,7 +26,7 @@
 #include "frame/frame_internal.h"
 #include "keyboard.h"
 #include "legacy.h"
-#include "math.h"
+#include "math/math.h"
 #include "memmgr.h"
 #include "menu/menu_internal.h"
 #include "platform.h"

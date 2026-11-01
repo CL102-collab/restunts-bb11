@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_VIDEO_FRAME_H
 #define RESTUNTS_VIDEO_FRAME_H
 
-#include "math.h"
+#include "math/math.h"
 
 /* Frame rectangles and backbuffer policy shared with screen controllers. */
 

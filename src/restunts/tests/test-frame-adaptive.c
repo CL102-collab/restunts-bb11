@@ -3,7 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include "../c/hires/frame_adaptive.h"
-#include "../c/math.h"
+#include "../c/math/math.h"
 
 #define TEST_CAMERA_TILE 15
 #define TEST_MASK_RADIUS 10

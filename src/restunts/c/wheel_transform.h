@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_WHEEL_TRANSFORM_H
 #define RESTUNTS_WHEEL_TRANSFORM_H
 
-#include "math.h"
+#include "math/math.h"
 
 /* Shared wheel travel and orientation used by collision geometry and car drawing. */
 

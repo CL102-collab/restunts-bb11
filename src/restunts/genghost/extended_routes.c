@@ -17,9 +17,7 @@
 
 #undef memcpy
 
-/* restunts_options puts the legacy c/math.h ahead of the host's <math.h>.
- * These ISO C declarations keep this tool independent of compiler-specific
- * include_next paths while using the platform math library on both targets. */
+/* ISO C math declarations use the shared floating-point type aliases. */
 extern legacy_f64 fabs(legacy_f64);
 extern legacy_f64 sqrt(legacy_f64);
 extern legacy_f64 atan(legacy_f64);

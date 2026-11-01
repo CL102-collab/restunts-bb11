@@ -219,7 +219,7 @@ set(core src/restunts/c)
 set(platform src/restunts/platform/sdl3)
 set(common_sources
     fileio.c file_car.c file_decomp.c legacy.c
-    resource.c math.c math_rectangles.c memmgr.c
+    resource.c math/math.c math/math_rectangles.c memmgr.c
     strlib.c numlib.c kevinrnd.c replinit.c
     gameinit.c gamestep.c simd.c car/carsetup.c
     trkutil.c track/trackres.c headless_data.c headless_trackdata.c

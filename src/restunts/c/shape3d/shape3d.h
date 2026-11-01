@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_SHAPE3D_H
 #define RESTUNTS_SHAPE3D_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 #define SHAPE3D_HEADER_SIZE 4U
 #define SHAPE3D_VERTEX_COUNT_OFFSET 0U

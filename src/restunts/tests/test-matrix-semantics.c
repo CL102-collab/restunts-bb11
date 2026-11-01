@@ -5,7 +5,7 @@
 #define far
 #endif
 
-#include "../c/math.h"
+#include "../c/math/math.h"
 
 static legacy_s16 reference_matrix_product(legacy_s16 left, legacy_s16 right)
 {

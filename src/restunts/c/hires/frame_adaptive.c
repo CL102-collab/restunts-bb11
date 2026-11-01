@@ -1,6 +1,6 @@
 #include <string.h>
 #include "frame_adaptive.h"
-#include "../math.h"
+#include "../math/math.h"
 
 #define FRAME_ADAPTIVE_BACKOFF_FACTOR 2U
 #define FRAME_ADAPTIVE_HALF_CELL (TRIG_FIXED_ONE / 2)

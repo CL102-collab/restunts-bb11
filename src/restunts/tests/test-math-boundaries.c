@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include "../c/externs.h"
-#include "../c/math.h"
+#include "../c/math/math.h"
 #include "../c/fatal.h"
 
 #undef printf

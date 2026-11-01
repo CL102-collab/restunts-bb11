@@ -64,7 +64,7 @@
 #define full_redraw_frames_remaining byte_454A4
 #endif
 
-#include "math.h"
+#include "math/math.h"
 #include "track/track_types.h"
 
 #include "replay/replay.h"

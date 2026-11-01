@@ -1,7 +1,7 @@
 #include "extended_stateply.h"
 
 #ifdef RESTUNTS_SDL3
-#include "../math.h"
+#include "../math/math.h"
 #include "../physics_internal.h"
 #include "../crash_state.h"
 #include "../track/track_collision.h"
