@@ -27,7 +27,7 @@
 #include "../math.h"
 #include "../externs.h"
 #include "../crash_state.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../residue.h"
 #include "../hires/frame_render.h"
 

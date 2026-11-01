@@ -3,7 +3,7 @@
 #include "race_presentation.h"
 #include "presentation.h"
 #include "../gamestate.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #ifdef RESTUNTS_SDL3
 #define RACE_PRESENTATION_VIEW_COUNT 13U
 #define RACE_PRESENTATION_SLOW_INTERVAL_SCALE 2U

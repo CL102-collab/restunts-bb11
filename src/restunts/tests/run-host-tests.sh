@@ -105,7 +105,7 @@ small_source_companions() {
         audio_engine.c) printf '%s\n' audio/audio_channels.c audio/audio_context.c ;;
         fileio.c) printf '%s\n' file_car.c file_decomp.c ;;
         game_input.c) printf '%s\n' game_input_shortcuts.c ;;
-        ghost.c) printf '%s\n' ghost_line.c ;;
+        ghost.c) printf '%s\n' ghost/ghost_line.c ;;
         physics_collision.c) printf '%s\n' physics_suspension.c ;;
         restunts.c) printf '%s\n' startup.c ;;
         race.c) printf '%s\n' race/race_rewind.c race/race_presentation.c ;;
@@ -235,7 +235,7 @@ run_host_test test-amiga-endian shape2d/shape2d.c \
     "$test_source_dir/audio/audio_engine.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-unused-variable -Wno-sign-compare
 run_host_test test-amiga-display ../platform/amiga/display.c
-# This fixture includes ghost.c to exercise its private fixed-point helpers.
+# This fixture includes ghost/ghost.c to exercise its private fixed-point helpers.
 echo "Building test-amiga-ghost-line"
 "$test_compiler" "${test_compile_flags[@]}" -DRESTUNTS_AMIGA -Wno-pointer-sign \
     "$test_script_dir/test-amiga-ghost-line.c" \
@@ -426,10 +426,10 @@ run_host_test test-fatal-format legacy.c \
     "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-gamestate-serialization stateio.c
-run_host_test test-ghost ghost.c \
+run_host_test test-ghost ghost/ghost.c \
     "$test_source_dir/replay/replay.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/legacy.c" -Wno-pointer-sign
-run_host_test test-ghost ghost.c \
+run_host_test test-ghost ghost/ghost.c \
     "$test_source_dir/replay/replay.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/hires/frame_interpolation.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign

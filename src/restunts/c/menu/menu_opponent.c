@@ -17,7 +17,7 @@
 #include "menu_common.h"
 #include "../externs.h"
 #include "../keyboard.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../opponent/opponent.h"
 #include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3

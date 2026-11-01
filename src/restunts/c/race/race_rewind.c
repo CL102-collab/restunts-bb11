@@ -18,7 +18,7 @@
 #include "../memmgr.h"
 #include "../platform.h"
 #include "race.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "race_resources.h"
 #include "../replay/replay.h"
 #include "../replay/replay_record.h"

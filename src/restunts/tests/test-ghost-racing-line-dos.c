@@ -5,11 +5,11 @@
 #undef run_main_menu_loop
 
 /* Also exercise a synthetic route larger than any 16-bit allocation. */
-#include "../c/ghost.c"
-#include "../c/ghost_line.c"
+#include "../c/ghost/ghost.c"
+#include "../c/ghost/ghost_line.c"
 
 #include "frame/frame_internal.h"
-#include "ghost.h"
+#include "../c/ghost/ghost.h"
 #include "../c/race/race_graphics.h"
 #include "residue.h"
 

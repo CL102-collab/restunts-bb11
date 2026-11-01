@@ -36,7 +36,7 @@
 #include "race/race.h"
 #include "race/race_resources.h"
 #include "replay/replay.h"
-#include "ghost.h"
+#include "ghost/ghost.h"
 #include "replay/replay_record.h"
 #include "replay/replay_viewer.h"
 #include "replay/replay_viewer_internal.h"

@@ -1,6 +1,6 @@
 #include "ghost_render.h"
 #ifdef RESTUNTS_SDL3
-#include "../ghost_internal.h"
+#include "../ghost/ghost_internal.h"
 #include "../fileio.h"
 #include "../externs.h"
 #include "frame_interpolation.h"

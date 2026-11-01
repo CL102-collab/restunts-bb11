@@ -11,7 +11,7 @@
 #include "../race/race_resources.h"
 #include "replay.h"
 #include "replay_viewer.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "replay_viewer_internal.h"
 #include "../resource.h"
 #include "../shape2d/shape2d.h"

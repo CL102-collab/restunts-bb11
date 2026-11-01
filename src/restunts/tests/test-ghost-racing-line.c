@@ -15,7 +15,7 @@
 #include "../c/shape2d/shape2d.h"
 #include "../c/track/track_objects.h"
 #include "../c/hires/hires.h"
-#include "../c/ghost.h"
+#include "../c/ghost/ghost.h"
 #include "../c/resource.h"
 
 #undef memcpy
