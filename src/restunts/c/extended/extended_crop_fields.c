@@ -7,22 +7,13 @@
 #define CROP_FIELDS_ALWAYS_VISIBLE 1U
 #define CROP_FIELDS_PRIMITIVE_PREFIX (SHAPE3D_PRIMITIVE_HEADER_SIZE + CROP_FIELDS_PAINT_COUNT)
 #define CROP_FIELDS_QUAD_BYTES (CROP_FIELDS_PRIMITIVE_PREFIX + CROP_FIELDS_QUAD_VERTICES)
-#define CROP_FIELDS_TRIANGLE_VERTICES 3U
-#define CROP_FIELDS_TRIANGLE_BYTES (CROP_FIELDS_PRIMITIVE_PREFIX + CROP_FIELDS_TRIANGLE_VERTICES)
-#define CROP_FIELDS_LINE_VERTICES 2U
-#define CROP_FIELDS_LINE_BYTES (CROP_FIELDS_PRIMITIVE_PREFIX + CROP_FIELDS_LINE_VERTICES)
 #define CROP_FIELDS_TERMINATOR_BYTES 2U
 #define CROP_FIELDS_SOIL_VERTEX_FIRST CROP_FIELDS_BOUNDING_VERTICES
 #define CROP_FIELDS_ROWS_VERTEX_FIRST (CROP_FIELDS_SOIL_VERTEX_FIRST + CROP_FIELDS_QUAD_VERTICES)
 #define TULIP_FIELD_BAND_VERTEX_FIRST                                                              \
 	(CROP_FIELDS_ROWS_VERTEX_FIRST + TULIP_FIELD_ROW_COUNT * CROP_FIELDS_QUAD_VERTICES)
-#define TULIP_FIELD_FLOWER_VERTEX_FIRST                                                            \
-	(TULIP_FIELD_BAND_VERTEX_FIRST + TULIP_FIELD_ROW_COUNT * CROP_FIELDS_QUAD_VERTICES)
 #define TULIP_FIELD_PRIMITIVE_BYTES                                                                \
-	((2U * TULIP_FIELD_ROW_COUNT + 1U) * CROP_FIELDS_QUAD_BYTES +                                  \
-	 TULIP_FIELD_ROW_COUNT * TULIP_FIELD_PLANTS_PER_ROW *                                          \
-		 (CROP_FIELDS_LINE_BYTES + TULIP_FIELD_PETAL_COUNT * CROP_FIELDS_TRIANGLE_BYTES) +         \
-	 CROP_FIELDS_TERMINATOR_BYTES)
+	((2U * TULIP_FIELD_ROW_COUNT + 1U) * CROP_FIELDS_QUAD_BYTES + CROP_FIELDS_TERMINATOR_BYTES)
 #define VINE_FIELD_CAP_BYTES (CROP_FIELDS_PRIMITIVE_PREFIX + VINE_FIELD_SECTION_VERTICES)
 #define VINE_FIELD_GRAPE_VERTEX_FIRST CROP_FIELDS_BOUNDING_VERTICES
 #define VINE_FIELD_PRIMITIVE_BYTES                                                                 \
@@ -74,32 +65,6 @@ static legacy_s16 crop_fields_center(legacy_u16 index, legacy_u16 count)
 						CROP_FIELDS_HALF_TILE);
 }
 
-static legacy_u8 *crop_fields_write_tulip(struct SHAPE3D *mesh, legacy_u8 *primitive,
-										  legacy_u16 first, legacy_s16 x, legacy_s16 z,
-										  legacy_u8 material)
-{
-	crop_fields_write_vertex(mesh, first, x, TULIP_FIELD_ROW_HEIGHT, z);
-	crop_fields_write_vertex(mesh, first + 1U, x, TULIP_FIELD_CUP_BOTTOM, z);
-	crop_fields_write_vertex(mesh, first + 2U, x - TULIP_FIELD_PETAL_RADIUS, TULIP_FIELD_HEIGHT, z);
-	crop_fields_write_vertex(mesh, first + 3U, x, TULIP_FIELD_HEIGHT, z - TULIP_FIELD_PETAL_RADIUS);
-	crop_fields_write_vertex(mesh, first + 4U, x + TULIP_FIELD_PETAL_RADIUS, TULIP_FIELD_HEIGHT, z);
-	crop_fields_write_vertex(mesh, first + 5U, x, TULIP_FIELD_HEIGHT, z + TULIP_FIELD_PETAL_RADIUS);
-	legacy_u8 stem[CROP_FIELDS_LINE_VERTICES];
-	stem[0] = (legacy_u8)first;
-	stem[1] = (legacy_u8)(first + 1U);
-	primitive = crop_fields_write_primitive(primitive, CROP_FIELDS_LINE_VERTICES,
-											TULIP_FIELD_STEM_MATERIAL, stem);
-	for (legacy_u16 petal = 0; petal < TULIP_FIELD_PETAL_COUNT; petal++) {
-		legacy_u8 indices[CROP_FIELDS_TRIANGLE_VERTICES];
-		indices[0] = (legacy_u8)(first + 1U);
-		indices[1] = (legacy_u8)(first + 2U + petal);
-		indices[2] = (legacy_u8)(first + 2U + (petal + 1U) % TULIP_FIELD_PETAL_COUNT);
-		primitive = crop_fields_write_primitive(primitive, CROP_FIELDS_TRIANGLE_VERTICES, material,
-												indices);
-	}
-	return primitive;
-}
-
 static legacy_u8 *crop_fields_write_tulips(struct SHAPE3D *mesh, legacy_u8 *primitive)
 {
 	for (legacy_u16 row = 0; row < TULIP_FIELD_ROW_COUNT; row++) {
@@ -112,7 +77,7 @@ static legacy_u8 *crop_fields_write_tulips(struct SHAPE3D *mesh, legacy_u8 *prim
 	static const legacy_u8 colors[TULIP_FIELD_ROW_COUNT] = {
 		TULIP_FIELD_PURPLE_MATERIAL, TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,
 		TULIP_FIELD_PINK_MATERIAL,	 TULIP_FIELD_PURPLE_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL};
-	/* Wide color bands keep the flower rows readable beyond the individual cups. */
+	/* Continuous color bands represent the field's planted flower rows. */
 	for (legacy_u16 row = 0; row < TULIP_FIELD_ROW_COUNT; row++) {
 		legacy_s16 center = crop_fields_center(row, TULIP_FIELD_ROW_COUNT);
 		primitive = crop_fields_write_quad(
@@ -120,17 +85,6 @@ static legacy_u8 *crop_fields_write_tulips(struct SHAPE3D *mesh, legacy_u8 *prim
 			center - TULIP_FIELD_FLOWER_BAND_HALF_WIDTH,
 			center + TULIP_FIELD_FLOWER_BAND_HALF_WIDTH, TULIP_FIELD_FLOWER_BAND_HEIGHT,
 			colors[row]);
-	}
-	for (legacy_u16 row = 0; row < TULIP_FIELD_ROW_COUNT; row++) {
-		legacy_s16 x = crop_fields_center(row, TULIP_FIELD_ROW_COUNT);
-		for (legacy_u16 plant = 0; plant < TULIP_FIELD_PLANTS_PER_ROW; plant++) {
-			legacy_u16 first =
-				TULIP_FIELD_FLOWER_VERTEX_FIRST +
-				(row * TULIP_FIELD_PLANTS_PER_ROW + plant) * TULIP_FIELD_PLANT_VERTICES;
-			primitive = crop_fields_write_tulip(
-				mesh, primitive, first, x, crop_fields_center(plant, TULIP_FIELD_PLANTS_PER_ROW),
-				colors[row]);
-		}
 	}
 	return primitive;
 }
