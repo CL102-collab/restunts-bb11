@@ -157,6 +157,13 @@ void race_present_interpolation(void)
 #endif
 
 #ifdef RESTUNTS_SDL3
+void race_presentation_idle(legacy_s16 rewind_active, legacy_s64 last_processed_frame)
+{
+	if (rewind_active == 0 && (legacy_s64)race_current_frame() == last_processed_frame) {
+		race_present_interpolation();
+	}
+}
+
 void race_presentation_initialize(void)
 {
 	race_presentation = (struct RACE_PRESENTATION){0};
@@ -211,23 +218,19 @@ legacy_s16 race_presentation_poll(legacy_s64 *last_processed_frame, legacy_s16 *
 	return 0;
 }
 
-legacy_s16 race_presentation_draw(legacy_s16 rewind_active)
+void race_presentation_draw(legacy_s16 rewind_active)
 {
 	race_presentation_capture();
 	if (supersight_enabled == 0) {
-		return 0;
+		race_draw_frame();
+		race_presentation.started = 1;
+		return;
 	}
 	if (rewind_active != 0 || (game_replay_mode == REPLAY_MODE_PLAYBACK && is_in_replay != 0) ||
 		presentation_due(&race_presentation.clock, presentation_now()) != 0) {
 		race_draw_visual();
-		race_presentation_frame_complete();
+		race_presentation.started = 1;
 	}
-	return 1;
-}
-
-void race_presentation_frame_complete(void)
-{
-	race_presentation.started = 1;
 }
 
 void race_presentation_finish(void)

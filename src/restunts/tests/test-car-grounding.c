@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../c/shape3d/shape3d_car.c"
+#include "../c/hires/shape3d_car_ground.c"
 
 legacy_u16 projection_focal_length_x = 16;
 legacy_u16 projection_focal_length_y = 13;

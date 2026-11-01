@@ -116,6 +116,34 @@ class CleanupTests(unittest.TestCase):
             self.assertEqual([Path(name).name for name in paths],
                              ["shape2d", "extended_trackobj", "stateio"])
 
+    def test_relocated_memory_helpers_use_native_raster_service(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            sources = TRANSLATE.prepare_sources(directory)
+            headers = directory / "include"
+            headers.mkdir()
+            for name, text in TRANSLATE.FAKE_HEADERS.items():
+                (headers / name).write_text(text)
+            source = directory / "memory-helper.c"
+            source.write_text('#include "hires/memory.h"\n')
+            preprocessed = subprocess.run([
+                "gcc", "-E", "-nostdinc", "-I" + str(headers), "-I" + str(sources),
+                "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS", str(source),
+            ], text=True, capture_output=True, check=True).stdout
+            tree = TRANSLATE.c_parser.CParser().parse(preprocessed)
+        model = TRANSLATE.Model()
+        model.collect(tree, "memory_helper")
+        TRANSLATE.build_name_map(model)
+        helper = next(node for node in tree.ext if isinstance(node, TRANSLATE.A.FuncDef)
+                      and node.decl.name == "hires_forget_paragraphs")
+        generator = TRANSLATE.Generator(model)
+        generator.function(helper, "hires_forget_paragraphs")
+        self.assertIn("TempleRasterForgetRange", model.external_used)
+        self.assertNotIn("hires_forget_range", model.external_used)
+        self.assertTrue(set(model.classes).isdisjoint({
+            "HIRES_DEPTH_PLANE", "HIRES_RASTER_TARGET", "HIRES_RASTER_CONTEXT",
+        }), "SDL companion raster types must stay outside the native model")
+
     def test_prepared_sources_preserve_nested_header_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             sources = TRANSLATE.prepare_sources(Path(directory))

@@ -118,9 +118,6 @@ static void track_preview_draw_bridge_terrain(legacy_u8 column, legacy_u8 row,
 	}
 }
 
-/* Queue covered water with its owner so later continuation cells cannot paint
- * over the road after the owner's primitives have been flushed. */
-
 static void track_preview_draw_hill_base(const struct TRACKOBJECT *track_object,
 										 const struct VECTOR *position,
 										 struct TRANSFORMEDSHAPE3D *transformed)

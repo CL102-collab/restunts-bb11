@@ -27,24 +27,6 @@
 
 void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct VECTOR *destination);
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source);
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_native_coordinate(legacy_s64 value);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_coordinates(legacy_s64 x, legacy_s64 y, legacy_s64 z, struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_point(struct VECTOR *vector, struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_logical_coordinate(legacy_s16 value);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_u16 shape3d_geometry_clip_flags(struct POINT2D *point);
-#endif
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_adjust_geometry_bounds(struct POINT2D *point, struct RECTANGLE *rectangle);
-#endif
 static void shape3d_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
 									 legacy_s16 half_scale, struct MATRIX *matrix,
 									 struct VECTOR *translation, struct VECTOR *transformed);
@@ -76,71 +58,6 @@ void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct 
 	LEGACY_WRITE_U16_LE(destination + SHAPE3D_VERTEX_Y_OFFSET, (legacy_u16)source->y);
 	LEGACY_WRITE_U16_LE(destination + SHAPE3D_VERTEX_Z_OFFSET, (legacy_u16)source->z);
 }
-
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_native_coordinate(legacy_s64 value)
-{
-	if (value < -SHAPE3D_NATIVE_COORD_LIMIT) {
-		return -SHAPE3D_NATIVE_COORD_LIMIT;
-	}
-	if (value > SHAPE3D_NATIVE_COORD_LIMIT) {
-		return SHAPE3D_NATIVE_COORD_LIMIT;
-	}
-	return (legacy_s16)value;
-}
-#endif
-
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_coordinates(legacy_s64 x, legacy_s64 y, legacy_s64 z, struct POINT2D *point)
-{
-	/* Scale before division: half a DOS pixel is a complete native pixel. */
-	point->px = shape3d_native_coordinate((legacy_s64)(legacy_s16)projection_center_x *
-											  SHAPE3D_NATIVE_SCALE +
-										  x * projection_focal_length_x * SHAPE3D_NATIVE_SCALE / z);
-	point->py = shape3d_native_coordinate((legacy_s64)(legacy_s16)projection_center_y *
-											  SHAPE3D_NATIVE_SCALE -
-										  y * projection_focal_length_y * SHAPE3D_NATIVE_SCALE / z);
-}
-#endif
-
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_project_point(struct VECTOR *vector, struct POINT2D *point)
-{
-	shape3d_project_coordinates(vector->x, vector->y, vector->z, point);
-}
-#endif
-
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_s16 shape3d_logical_coordinate(legacy_s16 value)
-{
-	/* Floor negative coordinates so clipping and saved backgrounds agree. */
-	if (value < 0) {
-		return (
-			legacy_s16)(-((-(legacy_s32)value + SHAPE3D_NATIVE_SCALE - 1) / SHAPE3D_NATIVE_SCALE));
-	}
-	return value / SHAPE3D_NATIVE_SCALE;
-}
-#endif
-
-#if (defined(RESTUNTS_TEMPLEOS))
-legacy_u16 shape3d_geometry_clip_flags(struct POINT2D *point)
-{
-	struct POINT2D logical;
-	logical.px = shape3d_logical_coordinate(point->px);
-	logical.py = shape3d_logical_coordinate(point->py);
-	return rect_compare_point(&logical);
-}
-#endif
-
-#if (defined(RESTUNTS_TEMPLEOS))
-void shape3d_adjust_geometry_bounds(struct POINT2D *point, struct RECTANGLE *rectangle)
-{
-	struct POINT2D logical;
-	logical.px = shape3d_logical_coordinate(point->px);
-	logical.py = shape3d_logical_coordinate(point->py);
-	rect_adjust_from_point(&logical, rectangle);
-}
-#endif
 
 static void shape3d_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
 									 legacy_s16 half_scale, struct MATRIX *matrix,

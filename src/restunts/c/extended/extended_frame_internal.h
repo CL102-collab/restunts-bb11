@@ -47,7 +47,6 @@ enum FRAME_EXTENDED_TERRAIN_MATERIAL {
 #define FRAME_EXTENDED_TERRAIN_NEIGHBOR_COUNT 9U
 #define FRAME_EXTENDED_TERRAIN_OBJECT_MAX                                                          \
 	(FRAME_EXTENDED_TERRAIN_NEIGHBOR_COUNT * EXTENDED_TRACK_CELL_OBJECT_MAX)
-#define FRAME_EXTENDED_ROAD_OVERSCAN 8
 #define FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX                                                   \
 	(SHAPE3D_POLYGON_MAX_VERTICES + OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)
 
@@ -100,10 +99,9 @@ struct FRAME_EXTENDED_OBJECT {
 #define FRAME_MULTITILE_COLUMN 2
 #define FRAME_MULTITILE_BOTH 3
 #define FRAME_TILE_MULTITILE_COVERED_MARKER 1
-#define FRAME_EXTENDED_LOOKAHEAD_RADIUS 28
 #define FRAME_EXTENDED_LEGACY_ELEMENT_LIMIT 253
 
-#include "extended_frame_render.h"
+#include "../hires/extended_frame_render.h"
 
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
 											 const struct CSTRK_OBJECT *object);
