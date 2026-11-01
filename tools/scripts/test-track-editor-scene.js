@@ -96,6 +96,23 @@ test('native hill-road substitutions use authored road geometry rather than an e
     near(Math.max(...points.map(point => point[1])), LEVEL / TILE + .0005);
 });
 
+test('start camera keeps the map position and native north-east-south-west heading', () => {
+    const assets = syntheticAssets(), cardinal = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+    const starts = model.catalog.filter(piece => piece.physical === 0);
+    for (const entry of starts) for (let rotation = 0; rotation < cardinal.length; rotation++) {
+        const doc = new model.Document(9, 6);
+        doc.vertices.fill(2);
+        const start = doc.place(entry.id, 1, 3, 0, rotation);
+        const { spawn } = scene.buildScene(doc, assets);
+        near(spawn.position[0], 1.5, 'a start placed on the west side keeps its x coordinate');
+        near(spawn.position[2], 2.5, 'the map row maps to the original north-positive z coordinate');
+        near(spawn.position[1], 2 * LEVEL / TILE + .18);
+        const direction = cardinal[(entry.rotation + start.rotation) % cardinal.length];
+        near(Math.sin(spawn.yaw), direction[0], 'native start east/west heading');
+        near(Math.cos(spawn.yaw), direction[1], 'native start north/south heading');
+    }
+});
+
 test('large maps compile into finite typed buffers without changing the document', () => {
     const doc = new model.Document(90, 90), before = doc.snapshot();
     const result = scene.buildScene(doc, syntheticAssets());

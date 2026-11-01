@@ -72,7 +72,7 @@ function scene() {
 test('WASD follows heading while Space and either Shift move in world elevation', () => {
     const pose = camera();
     movement(pose, new Set(['KeyW']), 1, false);
-    close(pose.position[0], 0); close(pose.position[2], -MOVE_SPEED);
+    close(pose.position[0], 0); close(pose.position[2], MOVE_SPEED);
     pose.yaw = Math.PI / 2; pose.pitch = Math.PI / 4;
     movement(pose, new Set(['KeyW']), 1, false);
     close(pose.position[0], MOVE_SPEED); close(pose.position[1], 0);
@@ -101,12 +101,70 @@ test('mouse look clamps pitch and the view matrix points along the same yaw', ()
     for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++) clip[row] += matrix[column * 4 + row] * ahead[column];
     close(clip[0], 0); close(clip[1], 0); assert(clip[3] > 0); assert(Math.abs(clip[2]) < clip[3]);
 });
+function project(pose, point) {
+    const matrix = viewProjection(pose, 1, 100), input = [...point, 1], clip = [0, 0, 0, 0];
+    for (let row = 0; row < 4; row++) for (let column = 0; column < 4; column++)
+        clip[row] += matrix[column * 4 + row] * input[column];
+    return { x: clip[0] / clip[3], y: clip[1] / clip[3], z: clip[2] / clip[3], w: clip[3] };
+}
+test('native map cardinal directions project with the same left and right ordering', () => {
+    // These expected map directions are independent of the view matrix equations:
+    // facing north puts east on the right; facing east puts south on the right.
+    const headings = [
+        { yaw: 0, forward: [0, 0, 1], right: [1, 0, 0] },
+        { yaw: Math.PI / 2, forward: [1, 0, 0], right: [0, 0, -1] },
+        { yaw: Math.PI, forward: [0, 0, -1], right: [-1, 0, 0] },
+        { yaw: 3 * Math.PI / 2, forward: [-1, 0, 0], right: [0, 0, 1] }
+    ];
+    for (const { yaw, forward, right } of headings) {
+        const pose = { position: [13, 7, -9], yaw, pitch: 0 };
+        const point = (ahead, across, elevation = 0) => pose.position.map((value, axis) =>
+            value + forward[axis] * ahead + right[axis] * across + (axis === 1 ? elevation : 0));
+        const center = project(pose, point(5, 0)), left = project(pose, point(5, -1)), rightPoint = project(pose, point(5, 1));
+        close(center.x, 0); close(center.y, 0);
+        assert(center.w > 0 && Math.abs(center.z) < 1);
+        assert(left.x < center.x && rightPoint.x > center.x);
+        assert(project(pose, point(5, 0, 1)).y > 0);
+        assert(project(pose, point(-5, 0)).w < 0);
+        const moved = { ...pose, position: pose.position.slice() };
+        movement(moved, new Set(['KeyW']), 1, false);
+        moved.position.forEach((value, axis) => close(value - pose.position[axis], forward[axis] * MOVE_SPEED));
+        moved.position = pose.position.slice(); movement(moved, new Set(['KeyD']), 1, false);
+        moved.position.forEach((value, axis) => close(value - pose.position[axis], right[axis] * MOVE_SPEED));
+        assert(project(moved, point(5, 0)).x < center.x, 'Strafing right must move stationary landmarks left.');
+    }
+});
+test('mouse look turns toward the screen-right landmark and preserves upright pitched views', () => {
+    const pose = camera(), landmark = [1, 0, 5];
+    const before = project(pose, landmark);
+    look(pose, 40, 0);
+    assert(project(pose, landmark).x < before.x, 'Looking right must bring a right-side landmark toward center.');
+    for (const pitch of [-.5, .5]) {
+        const pitched = { position: [3, 2, -4], yaw: 0, pitch };
+        const ahead = [3, 2 + 5 * Math.sin(pitch), -4 + 5 * Math.cos(pitch)];
+        const center = project(pitched, ahead);
+        close(center.x, 0); close(center.y, 0); assert(center.w > 0);
+        assert(project(pitched, [ahead[0] + 1, ahead[1], ahead[2]]).x > 0);
+        assert(project(pitched, [ahead[0], ahead[1] + 1, ahead[2]]).y > 0);
+    }
+});
+test('cameras without a track spawn start south of the scene and face north into it', () => {
+    const f = fixture();
+    assert(f.preview.camera.position[2] < 0);
+    const data = scene(); delete data.spawn;
+    data.bounds = { min: [-4, 0, 10], max: [6, 2, 18] };
+    f.preview.setScene(data);
+    close(f.preview.camera.position[0], 1); assert(f.preview.camera.position[2] < data.bounds.min[2]);
+    close(f.preview.camera.yaw, 0); assert(project(f.preview.camera, [1, 1, 14]).w > 0);
+    assert(project(f.preview.camera, [-1, 1, 14]).x < project(f.preview.camera, [3, 1, 14]).x);
+    f.preview.dispose();
+});
 test('Alt and actual Caps Lock state give exactly 3x speed, never a stacked multiplier', () => {
     for (const modifiers of [{}, { alt: true }, { caps: true }, { alt: true, caps: true }]) {
         const f = fixture(); f.preview.setScene(scene()); f.preview.start();
         f.key('KeyW', true, modifiers); f.frame(0); f.frame(100);
         const multiplier = modifiers.alt || modifiers.caps ? RUN_MULTIPLIER : 1;
-        close(.5 - f.preview.camera.position[2], MOVE_SPEED * .1 * multiplier);
+        close(f.preview.camera.position[2] - .5, MOVE_SPEED * .1 * multiplier);
         assert.equal(f.preview.status.speedMultiplier, multiplier);
         assert.equal(f.preview.status.running, !!modifiers.caps);
         f.key('KeyW', false, modifiers);
@@ -150,7 +208,7 @@ test('Ctrl and Command shortcuts never move the camera or consume application ke
             assert.equal(released.prevented, false); assert.equal(released.stopped, false);
         }
         f.key('KeyW', true, { alt: true }); f.frame(400); f.frame(500);
-        close(position[2] - f.preview.camera.position[2], MOVE_SPEED * .2 * RUN_MULTIPLIER);
+        close(f.preview.camera.position[2] - position[2], MOVE_SPEED * .2 * RUN_MULTIPLIER);
         f.preview.dispose();
     }
 });
