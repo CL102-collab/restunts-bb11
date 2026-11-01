@@ -83,7 +83,7 @@ legacy_void TempleGraphicsQueueTest()
 legacy_void TempleGraphicsPoint(legacy_u16 index,legacy_s16 x,legacy_s16 y)
 {
   CPoint2D actual;
-  RsShape3dPolyinfoReadPoint(polyinfoptr,index,&actual);
+  RsPolyinfoReadPoint(polyinfoptr,index,&actual);
   TempleGraphicsAssert(
       actual.px==x&&actual.py==y,"queued geometry retains native projection precision");
 }
@@ -234,24 +234,24 @@ legacy_void TempleGraphicsProjectionTest()
   vertex.x=I16_MAX;
   vertex.y=I16_MIN;
   vertex.z=TEMPLE_GRAPHICS_NEAR_DEPTH;
-  RsShape3dShape3dProjectPoint(&vertex,&native);
+  RsShape3dProjectPoint(&vertex,&native);
   TempleGraphicsAssert(native.px==TEMPLE_GRAPHICS_COORDINATE_LIMIT&&
           native.py==TEMPLE_GRAPHICS_COORDINATE_LIMIT,
       "positive offscreen projections saturate without signed overflow");
   vertex.x=I16_MIN;
   vertex.y=I16_MAX;
-  RsShape3dShape3dProjectPoint(&vertex,&native);
+  RsShape3dProjectPoint(&vertex,&native);
   TempleGraphicsAssert(native.px==-TEMPLE_GRAPHICS_COORDINATE_LIMIT&&
           native.py==-TEMPLE_GRAPHICS_COORDINATE_LIMIT,
       "negative offscreen projections retain their signs when saturated");
   native.px=TEMPLE_RENDER_WIDTH-1;
   native.py=TEMPLE_RENDER_HEIGHT-1;
-  TempleGraphicsAssert(!RsShape3dShape3dGeometryClipFlags(&native),
+  TempleGraphicsAssert(!RsShape3dGeometryClipFlags(&native),
       "final odd native column and row remain inside the logical viewport");
   native.px=-1;
-  TempleGraphicsAssert(RsShape3dShape3dGeometryClipFlags(&native),
+  TempleGraphicsAssert(RsShape3dGeometryClipFlags(&native),
       "negative native coordinates floor outside the logical viewport");
-  RsShape3dShape3dAdjustGeometryBounds(&native,&bounds);
+  RsShape3dAdjustGeometryBounds(&native,&bounds);
   TempleGraphicsAssert(
       bounds.left==-1,"negative native coordinates expand logical capture bounds downward");
 
@@ -262,7 +262,7 @@ legacy_void TempleGraphicsProjectionTest()
   native.px=TEMPLE_GRAPHICS_COORDINATE_LIMIT;
   native.py=TEMPLE_GRAPHICS_COORDINATE_LIMIT;
   transshaperectptr=&bounds;
-  RsShape3dShape3dAdjustRoundBounds(
+  RsShape3dPrimitivesShape3dAdjustRoundBounds(
       &native,TEMPLE_GRAPHICS_LARGE_WHEEL_RADIUS,TEMPLE_GRAPHICS_WHEEL_PADDING);
   TempleGraphicsAssert(bounds.left==-TEMPLE_GRAPHICS_LARGE_BOUND&&
           bounds.top==-TEMPLE_GRAPHICS_LARGE_BOUND&&
@@ -285,7 +285,7 @@ legacy_void TempleGraphicsProjectionTest()
   RsShape3dVertexWrite(&shape,1,&vertex);
   TempleGraphicsAssert(!RsShape3dTransformAndQueue(&instance)&&polyinfonumpolys==1,
       "sphere with unsigned radius above the signed word limit remains visible");
-  TempleGraphicsAssert(RsShape3dPolyinfoReadWord(polyinfoptr,TEMPLE_GRAPHICS_SPHERE_RADIUS_WORD)==
+  TempleGraphicsAssert(RsPolyinfoReadWord(polyinfoptr,TEMPLE_GRAPHICS_SPHERE_RADIUS_WORD)==
           TEMPLE_GRAPHICS_COORDINATE_LIMIT,
       "large sphere radius saturates positively before rasterization");
   RsPolyinfoReset();

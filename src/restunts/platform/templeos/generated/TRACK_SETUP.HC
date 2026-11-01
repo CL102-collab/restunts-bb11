@@ -839,7 +839,7 @@ legacy_s16 RsTrackSetupTrackSetupAppendPiece(CTrackSetupWalk *walk)
   RsTrackSetupTrackSetupRoadsideSign(walk,temple_current_info_6304);
   (track_pieces_counter=TempleCastS16(RsTrackSetupLegacyS16FromBits(TempleCastU16(TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(track_pieces_counter)+TempleCastU16(1)))))))));
-  if(((track_pieces_counter)(unsigned)==901)) {
+  if((TempleCastU32(track_pieces_counter)==901)) {
     return TempleCastS16(RsTrackSetupError(walk->branches,TempleCastU8(TRACK_SETUP_MANY_ELEMENTS),
         TempleCastS8(walk->column),TempleCastS8(walk->row)));
   }

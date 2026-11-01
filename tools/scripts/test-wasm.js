@@ -14,6 +14,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { chromium, firefox } = require('playwright');
+const { serveHtml } = require('./browser-test-server.js');
 
 const ROOT = path.resolve(__dirname, '../..');
 const DEFAULT_HTML = path.join(ROOT, 'out/sdl3-wasm/restunts.html');
@@ -54,6 +55,8 @@ function options() {
         const arg = args[index];
         if (arg === '--headed') {
             result.headed = true;
+        } else if (arg === '--serve') {
+            result.serve = true;
         } else if (arg === '--direct-only') {
             result.directOnly = true;
         } else if (arg === '--idle-only') {
@@ -63,12 +66,13 @@ function options() {
         } else if (arg === '--help') {
             console.log('Usage: node tools/scripts/test-wasm.js --data-dir DIR ' +
                 '[--html FILE] [--output DIR] [--browser chromium|firefox] [--headed] ' +
+                '[--browser-executable FILE] [--serve] ' +
                 '[--direct-only|--saves-only|--idle-only]');
             process.exit(0);
         } else if (arg === '--browser') {
             result.browser = args[++index];
             assert.ok(['chromium', 'firefox'].includes(result.browser), 'Unsupported browser');
-        } else if (['--html', '--data-dir', '--output'].includes(arg)) {
+        } else if (['--html', '--data-dir', '--output', '--browser-executable'].includes(arg)) {
             assert.ok(args[index + 1], 'Missing value for ' + arg);
             result[arg.slice(2)] = path.resolve(args[++index]);
         } else {
@@ -98,7 +102,7 @@ async function readSave(page) {
 }
 
 async function loadOwnData(page, settings, report) {
-    await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+    await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
     assert.deepEqual(report.errors, [], 'Browser startup failed');
     await page.locator('#game-files').waitFor();
     await page.waitForFunction(() => !document.getElementById('game-files').disabled,
@@ -167,7 +171,7 @@ async function exerciseExitFeedback(context, settings, report) {
     const page = await context.newPage();
     page.on('pageerror', error => report.errors.push(String(error)));
     try {
-        await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         await page.waitForFunction(() => !document.getElementById('open-folder').disabled ||
             !document.getElementById('game-files').disabled, null, { timeout: READY_TIMEOUT_MS });
         await page.evaluate(() => Module.onExit(1));
@@ -213,7 +217,7 @@ async function exerciseReadOnlyScreenshot(context, settings, report) {
     page.on('pageerror', error => report.errors.push(String(error)));
     await page.addInitScript(() => { window.showDirectoryPicker = undefined; });
     try {
-        await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         await page.waitForFunction(() => !document.getElementById('game-files').disabled,
             null, { timeout: READY_TIMEOUT_MS });
         await page.evaluate(({ directory, name, bytes }) => {
@@ -299,7 +303,7 @@ async function exerciseDirectSaving(context, settings, report) {
     }, { resourceNames: RESOURCE_IMPORT_NAMES, animationNames: ANIMATION_IMPORT_NAMES,
         ignoredNames: IGNORED_IMPORT_NAMES, fixtureBytes: Array.from(SAVE_BYTES) });
     try {
-        await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         assert.deepEqual(report.errors, [], 'Browser startup failed');
         await page.waitForFunction(() => !document.getElementById('open-folder').disabled,
             null, { timeout: READY_TIMEOUT_MS });
@@ -447,7 +451,7 @@ async function exerciseReadOnlyAnimationImports(context, settings, report) {
         await page.waitForFunction(() => !document.getElementById('game-files').disabled);
     }
     try {
-        await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         await page.waitForFunction(() => !document.getElementById('game-files').disabled,
             null, { timeout: READY_TIMEOUT_MS });
         const animationPath = ANIMATION_IMPORT_NAMES[0].toLowerCase();
@@ -594,7 +598,7 @@ async function exerciseRememberedFolders(context, settings, report) {
     page.on('pageerror', error => report.errors.push(String(error)));
     await installRememberedFolderFixture(page);
     try {
-        await page.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await page.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         await waitForFolderControls(page);
         assert.equal(await page.locator('#open-folder').innerText(), 'Choose game folder');
         await page.locator('#open-folder').click();
@@ -683,7 +687,7 @@ async function exerciseRememberedFolders(context, settings, report) {
     unavailable.on('pageerror', error => report.errors.push(String(error)));
     await installRememberedFolderFixture(unavailable, true);
     try {
-        await unavailable.goto(pathToFileURL(settings.html).href, { timeout: READY_TIMEOUT_MS });
+        await unavailable.goto(settings.url, { timeout: READY_TIMEOUT_MS });
         await waitForFolderControls(unavailable);
         assert.equal(await unavailable.locator('#open-folder').innerText(), 'Choose game folder');
         await unavailable.locator('#open-folder').click();
@@ -813,8 +817,13 @@ async function main() {
     const report = { html: settings.html, browser: settings.browser, dataFolderLoads: 0,
         errors: [], requests: [], console: [] };
     const browserType = settings.browser === 'firefox' ? firefox : chromium;
-    const browser = await browserType.launch({ headless: !settings.headed });
-    const context = await browser.newContext({ acceptDownloads: true, offline: true,
+    const browser = await browserType.launch({
+        headless: !settings.headed, executablePath: settings['browser-executable'],
+    });
+    const server = settings.serve ? await serveHtml(settings.html) : undefined;
+    settings.url = server ? server.url : pathToFileURL(settings.html).href;
+    report.transport = settings.serve ? 'http-loopback' : 'file';
+    const context = await browser.newContext({ acceptDownloads: true, offline: !settings.serve,
         viewport: { width: 1100, height: 1000 } });
     const page = await context.newPage();
     page.setDefaultTimeout(READY_TIMEOUT_MS);
@@ -832,7 +841,7 @@ async function main() {
         const url = request.url();
         report.requests.push(url);
         const ownNavigation = request.isNavigationRequest() &&
-            request.frame().parentFrame() === null && url === pathToFileURL(settings.html).href;
+            request.frame().parentFrame() === null && url === settings.url;
         if (!ownNavigation && !url.startsWith('data:') && !url.startsWith('blob:')) {
             report.errors.push('External request: ' + url);
         }
@@ -864,7 +873,8 @@ async function main() {
         assert.deepEqual(report.errors, [], 'Browser errors or external resource requests occurred');
         report.passed = true;
         const passedChecks = settings.directOnly ? 'exit feedback, resource imports, direct saves, screenshot saves/downloads, remembered folders, permission retry and recovery' :
-            'file:// offline startup, exit feedback, supplied data, resource imports, remembered folders and direct-write recovery' +
+            (settings.serve ? 'HTTP loopback startup' : 'file:// offline startup') +
+            ', exit feedback, supplied data, resource imports, remembered folders and direct-write recovery' +
             (settings.idleOnly ? ', idle demo playback' : settings.savesOnly ? ', saves' : ', saves, keyboard and driving');
         console.log('PASS: ' + passedChecks);
     } catch (error) {
@@ -879,6 +889,7 @@ async function main() {
         }
         await fs.writeFile(path.join(settings.output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
         await browser.close();
+        if (server) await server.close();
         console.log('Diagnostics: ' + settings.output);
     }
 }

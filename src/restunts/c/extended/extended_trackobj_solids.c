@@ -513,10 +513,14 @@ legacy_s16 track_solid_obstacle_contact_fixed(struct VECTORLONG *first, struct V
 													 fraction);
 	}
 #endif
-	struct VECTOR start = {position_to_word(first->lx), position_to_word(first->ly),
-						   position_to_word(first->lz)};
-	struct VECTOR end = {position_to_word(second->lx), position_to_word(second->ly),
-						 position_to_word(second->lz)};
+	struct VECTOR start;
+	start.x = position_to_word(first->lx);
+	start.y = position_to_word(first->ly);
+	start.z = position_to_word(first->lz);
+	struct VECTOR end;
+	end.x = position_to_word(second->lx);
+	end.y = position_to_word(second->ly);
+	end.z = position_to_word(second->lz);
 	return track_solid_obstacle_contact(&start, &end, fraction);
 }
 
@@ -534,10 +538,14 @@ legacy_s16 track_solid_wall_contact_fixed(struct VECTORLONG *first, struct VECTO
 
 legacy_s16 track_wall_intersects_segment_fixed(struct VECTORLONG *first, struct VECTORLONG *second)
 {
-	struct VECTOR start = {position_to_word(first->lx), position_to_word(first->ly),
-						   position_to_word(first->lz)};
-	struct VECTOR end = {position_to_word(second->lx), position_to_word(second->ly),
-						 position_to_word(second->lz)};
+	struct VECTOR start;
+	start.x = position_to_word(first->lx);
+	start.y = position_to_word(first->ly);
+	start.z = position_to_word(first->lz);
+	struct VECTOR end;
+	end.x = position_to_word(second->lx);
+	end.y = position_to_word(second->ly);
+	end.z = position_to_word(second->lz);
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
 		struct TRACK_COLLISION_SNAPSHOT saved;

@@ -33,6 +33,6 @@ void extended_track_setup_jump_source(const struct TRACK_SETUP_WALK *walk, legac
 legacy_s16 extended_track_setup_roadside_height(const struct TRACK_SETUP_WALK *walk,
 												struct VECTOR *vector);
 legacy_s16 extended_track_setup_camera_height(const struct TRACK_SETUP_WALK *walk,
-											  const struct VECTOR *vector, legacy_s16 *height);
+											  const struct VECTOR *vector, legacy_s16 far *height);
 legacy_s16 extended_track_setup_jump_connection(legacy_u8 code);
 #endif

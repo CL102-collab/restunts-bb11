@@ -51,6 +51,9 @@ legacy_s16 extended_highscore_print_entry(legacy_s16 entry, legacy_u8 *text_offs
 	if (score == 0 || score->ticks == CSHIG_EMPTY_TICKS) {
 		struct HIGHSCORE_ENTRY empty;
 		highscore_make_empty_entry(&empty);
+		/* Legacy dots span both name fields. Extended columns use independent
+		 * terminated strings, leaving room for the wider time in shared scratch. */
+		empty.player_name[sizeof(empty.player_name) - 1U] = 0;
 		output_offset = highscore_format_fields(empty.player_name, empty.car_name, empty.opponent,
 												empty.car_flag, text_offsets);
 	} else {

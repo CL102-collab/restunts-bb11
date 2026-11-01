@@ -526,6 +526,12 @@ if(RESTUNTS_BUILD_LAUNCHER)
 endif()
 
 if(RESTUNTS_BUILD_TESTS)
+    set(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER 1 CACHE STRING
+        "Timeout multiplier for native ghost and rendering regressions")
+    if(NOT RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER MATCHES "^[1-9][0-9]*$")
+        message(FATAL_ERROR
+            "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
+    endif()
     add_executable(test-cstrk ${core}/extended/extended_cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
@@ -889,12 +895,6 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
             # CTest's --timeout does not override an explicit test TIMEOUT.
             # Propagate the same multiplier to the Python subprocess deadlines.
-            set(RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER 1 CACHE STRING
-                "Timeout multiplier for native ghost regressions")
-            if(NOT RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER MATCHES "^[1-9][0-9]*$")
-                message(FATAL_ERROR
-                    "RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER must be a positive integer")
-            endif()
             foreach(restunts_genghost_test genghost-simulation genghost-search genghost-extended
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
@@ -952,6 +952,8 @@ if(RESTUNTS_BUILD_TESTS)
         add_test(NAME sdl3-race-frames COMMAND test-sdl3-race-frames)
     endif()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING AND Python3_Interpreter_FOUND)
+        math(EXPR restunts_render_test_timeout
+            "120 * ${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER}")
         add_executable(test-extended-render ${platform}/main.c
             src/restunts/tests/test-extended-render.c)
         target_compile_definitions(test-extended-render PRIVATE RESTUNTS_PIXLDUMP)
@@ -967,7 +969,7 @@ if(RESTUNTS_BUILD_TESTS)
             --data-dir "${CMAKE_SOURCE_DIR}/stunts")
         set_tests_properties(extended-render PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
-            TIMEOUT 120)
+            TIMEOUT ${restunts_render_test_timeout})
         add_executable(test-extended-replay-engine ${platform}/main.c
             src/restunts/tests/test-extended-replay-engine.c)
         target_compile_definitions(test-extended-replay-engine PRIVATE
@@ -979,7 +981,7 @@ if(RESTUNTS_BUILD_TESTS)
             --data-dir "${CMAKE_SOURCE_DIR}/stunts")
         set_tests_properties(extended-replay-engine PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE="
-            TIMEOUT 120)
+            TIMEOUT ${restunts_render_test_timeout})
         add_executable(test-render-replay ${platform}/main.c
             src/restunts/tests/test-render-replay.c)
         target_compile_definitions(test-render-replay PRIVATE RESTUNTS_PIXLDUMP)

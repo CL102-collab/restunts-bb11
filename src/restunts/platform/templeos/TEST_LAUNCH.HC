@@ -27,7 +27,7 @@ legacy_void TestLaunchConfigure(legacy_s32 count,legacy_s8 **arguments)
   RsConfigureAmigaGrass(count,arguments);
   RsConfigureOwoot(count,arguments);
   RsResetCarCapabilities();
-  RsRestuntsStartupParseOptions(count,arguments,&rs_restunts_startup_options);
+  RsStartupStartupParseOptions(count,arguments,&startup_options);
 }
 
 legacy_void TestLaunchChicane(legacy_u8 fast_grass)
@@ -44,7 +44,7 @@ legacy_void TestLaunchChicane(legacy_u8 fast_grass)
     sample.physical_model=model;
     sample.position.x=0;
     sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
-    RsTrackobjTrackObjectChicane(&sample);
+    RsTrackObjectChicane(&sample);
     TestLaunchAssert(current_surf_type==expected_surface,
         "Chicane Fast-Grass controls the translated green surface");
     sample.position.x=TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
@@ -52,7 +52,7 @@ legacy_void TestLaunchChicane(legacy_u8 fast_grass)
       sample.position.x=-TEMPLE_LAUNCH_TEST_CHICANE_ROAD_X;
     }
     sample.position.z=TEMPLE_LAUNCH_TEST_CHICANE_GRASS_Z;
-    RsTrackobjTrackObjectChicane(&sample);
+    RsTrackObjectChicane(&sample);
     TestLaunchAssert(current_surf_type==CAR_SURFACE_PAVED,
         "the translated chicane keeps its visible road paved");
   }
@@ -77,35 +77,34 @@ legacy_void TestLaunch()
   TestLaunchAssert(!rs_physics_collision_legacy_collision_enabled,"collision can be disabled");
   TestLaunchAssert(!rs_physics_grip_left_corner_bias_enabled,"corner bias can be disabled");
   TestLaunchAssert(!rs_race_route_dual_way_switching_enabled,"Dual-Way Switching can be disabled");
-  TestLaunchAssert(!rs_trackobj_chicane_fast_grass_enabled,"Chicane fast-grass can be disabled");
+  TestLaunchAssert(
+      !rs_trackobj_road_chicane_fast_grass_enabled,"Chicane fast-grass can be disabled");
   TestLaunchChicane(FALSE);
   TestLaunchAssert(rs_physics_grip_amiga_grass_enabled,"Amiga grass can be enabled");
   TestLaunchAssert(owoot_enabled,"OWOOT can be enabled");
-  TestLaunchAssert(rs_restunts_startup_options.sound_disabled,"sound can be disabled");
-  TestLaunchAssert(rs_restunts_startup_options.skip_intro,"intro can be skipped");
-  TestLaunchAssert(rs_restunts_startup_options.fps_display_enabled,"FPS can be enabled");
+  TestLaunchAssert(startup_options.sound_disabled,"sound can be disabled");
+  TestLaunchAssert(startup_options.skip_intro,"intro can be skipped");
+  TestLaunchAssert(startup_options.fps_display_enabled,"FPS can be enabled");
   count=TempleLaunchSplit(legacy_options,arguments,1);
   TestLaunchAssert(count==5,"all legacy argument strings arrive");
   TestLaunchConfigure(count,arguments);
-  TestLaunchAssert(rs_restunts_startup_options.sound_disabled,"legacy sound flag");
-  TestLaunchAssert(rs_restunts_startup_options.unused_nd_option,"recognized legacy /nd flag");
-  TestLaunchAssert(rs_restunts_startup_options.mode4_requested==4,"legacy video flag parsing");
+  TestLaunchAssert(startup_options.sound_disabled,"legacy sound flag");
+  TestLaunchAssert(startup_options.unused_nd_option,"recognized legacy /nd flag");
+  TestLaunchAssert(startup_options.mode4_requested==4,"legacy video flag parsing");
   TestLaunchAssert(audiodriverstring[0]=='P' &&audiodriverstring[1]=='C',
       "legacy PC audio argument reaches the parser");
   TestLaunchConfigure(1,arguments);
   TestLaunchAssert(rs_statecar_powergear_bug_enabled&&
           rs_physics_collision_legacy_collision_enabled&&
           rs_physics_grip_left_corner_bias_enabled&&rs_race_route_dual_way_switching_enabled&&
-          rs_trackobj_chicane_fast_grass_enabled,
+          rs_trackobj_road_chicane_fast_grass_enabled,
       "original physics defaults are restored");
   TestLaunchChicane(TRUE);
   TestLaunchAssert(
       !rs_physics_grip_amiga_grass_enabled&&!owoot_enabled,"opt-in physics resets when omitted");
-  TestLaunchAssert(
-      !rs_restunts_startup_options.sound_disabled&&!rs_restunts_startup_options.skip_intro,
+  TestLaunchAssert(!startup_options.sound_disabled&&!startup_options.skip_intro,
       "intro and sound default to on");
-  TestLaunchAssert(!rs_restunts_startup_options.fps_display_enabled&&
-          !rs_restunts_startup_options.fps_display_specified,
+  TestLaunchAssert(!startup_options.fps_display_enabled&&!startup_options.fps_display_specified,
       "FPS defaults to off");
   arguments[1]="--dws:off";
   arguments[2]="--DWS:ON";
@@ -121,12 +120,12 @@ legacy_void TestLaunch()
   arguments[1]="--cfg:off";
   arguments[2]="--CFG:ON";
   RsConfigureChicaneFastGrass(3,arguments);
-  TestLaunchAssert(rs_trackobj_chicane_fast_grass_enabled,
+  TestLaunchAssert(rs_trackobj_road_chicane_fast_grass_enabled,
       "Chicane fast-grass uses the last case-insensitive value");
   arguments[1]="--CFG:ON";
   arguments[2]="--cfg:off";
   RsConfigureChicaneFastGrass(3,arguments);
-  TestLaunchAssert(!rs_trackobj_chicane_fast_grass_enabled,
+  TestLaunchAssert(!rs_trackobj_road_chicane_fast_grass_enabled,
       "Chicane fast-grass can be disabled after an earlier option");
   RsConfigureChicaneFastGrass(1,arguments);
   count=TempleLaunchSplit(quoted,arguments,1);
