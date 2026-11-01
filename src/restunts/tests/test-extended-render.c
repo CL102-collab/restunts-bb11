@@ -7,6 +7,7 @@
 
 #include "../c/extended/cstrk.h"
 #include "../c/extended/extended_track.h"
+#include "../c/extended/extended_menu_runtime.h"
 #include "../c/extended/extended_geometry.h"
 #include "../c/extended/extended_frame.h"
 #include "../c/frame/frame_render_internal.h"
@@ -3688,6 +3689,8 @@ static legacy_u16 check_highway_transition_surfaces(void)
 #define OVERVIEW_RENDER_BOTTOM 166
 #define OVERVIEW_RENDER_MARKER 13U
 #define OVERVIEW_RENDER_QUARTER_ORBIT 1000UL
+#define OVERVIEW_RENDER_ORBIT_HEADINGS 4U
+#define OVERVIEW_RENDER_RESTORE_CASES 2U
 #define OVERVIEW_RENDER_MIN_PIXELS 8U
 #define OVERVIEW_RENDER_MIN_ROAD_PIXELS 128U
 #define OVERVIEW_RENDER_ROAD_FIRST_COLUMN 78U
@@ -3775,6 +3778,45 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 	return copy;
 }
 
+static legacy_u16 check_restored_track_overview(const struct CSTRK_TRACK *track)
+{
+	struct GAMEINFO saved_config = gameconfig, saved_configcopy = gameconfigcopy;
+	legacy_u8 lap_tiles[EXTENDED_TRACK_MAX_CELLS];
+	memcpy(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles));
+	legacy_u8 *before[OVERVIEW_RENDER_ORBIT_HEADINGS];
+	legacy_s32 width, height;
+	for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+		before[heading] =
+			capture_track_overview(heading * OVERVIEW_RENDER_QUARTER_ORBIT, &width, &height);
+	}
+	for (legacy_u16 replacement = 0; replacement < OVERVIEW_RENDER_RESTORE_CASES; replacement++) {
+		/* The main menu retains its track and configuration before a race.
+		 * A replay may replace the active track before returning to the menu. */
+		gameconfigcopy = gameconfig;
+		extended_menu_backup_track();
+		if (replacement != 0) {
+			activate_render_track(track, 0);
+		}
+		gameconfig.game_recordedframes++;
+		assert(extended_menu_restore_track() == 0);
+		assert(memcmp(&gameconfig, &saved_config, sizeof(gameconfig)) == 0);
+		assert(memcmp(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles)) == 0);
+		for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+			legacy_s32 restored_width, restored_height;
+			legacy_u8 *after = capture_track_overview(heading * OVERVIEW_RENDER_QUARTER_ORBIT,
+													  &restored_width, &restored_height);
+			assert(width == restored_width && height == restored_height);
+			assert(memcmp(before[heading], after, (size_t)width * height) == 0);
+			free(after);
+		}
+	}
+	for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+		free(before[heading]);
+	}
+	gameconfigcopy = saved_configcopy;
+	return OVERVIEW_RENDER_ORBIT_HEADINGS * (OVERVIEW_RENDER_RESTORE_CASES + 1U);
+}
+
 static legacy_u16 check_extended_track_overview(void)
 {
 	assert(hires_enabled());
@@ -3793,6 +3835,7 @@ static legacy_u16 check_extended_track_overview(void)
 	memcpy(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles));
 	legacy_s32 width, height, empty_width, empty_height;
 	legacy_u8 *roads = capture_track_overview(0, &width, &height);
+	legacy_u16 restored_frames = check_restored_track_overview(&track);
 	add_overview_piece(&track, 5U, 0U, 0U, 1U, 1U);
 	activate_render_track(&track, 1);
 	assert(track_setup() == TRACK_SETUP_OK);
@@ -3859,7 +3902,7 @@ static legacy_u16 check_extended_track_overview(void)
 	visual_clock_ticks = saved_ticks;
 	extended_track_unload();
 	cstrk_free(&track);
-	return 7;
+	return 7U + restored_frames;
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
