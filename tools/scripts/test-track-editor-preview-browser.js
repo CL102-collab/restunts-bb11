@@ -97,6 +97,29 @@ async function loadEditor(page, url, directory, bytes) {
     await page.waitForFunction(() => document.getElementById('document-name').textContent === 'PREVIEW');
 }
 
+async function checkExtendedTrackNameBoundary(page, bytes) {
+    const stem = 'ABCDEFGHIJKL';
+    assert.equal(await page.locator('#new-name').getAttribute('maxlength'), String(stem.length));
+    await page.locator('#save-track').click();
+    assert.equal(await page.locator('#save-name').getAttribute('maxlength'), String(stem.length));
+    // Programmatic input can bypass maxlength; the save handler still rejects it.
+    await page.evaluate(name => {
+        document.getElementById('save-name').value = name;
+        document.getElementById('save-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }, stem + 'M');
+    assert.match(await page.locator('#save-error').textContent(), /1–12 ASCII characters/);
+    assert(await page.locator('#save-dialog').isVisible());
+    await page.locator('#save-name').fill(stem);
+    const [download] = await Promise.all([
+        page.waitForEvent('download'), page.locator('#confirm-save').click()
+    ]);
+    assert.equal(download.suggestedFilename(), stem + '.cstrk');
+    assert.deepEqual(await fs.readFile(await download.path()), bytes, 'twelve-character names preserve the complete track');
+    await download.delete();
+    await page.waitForFunction(name => document.getElementById('document-name').textContent === name, stem);
+    assert(await page.locator('#save-dialog').isHidden());
+}
+
 async function camera(page) {
     return page.evaluate(() => ({
         position: Array.from(previewUnderTest.camera.position),
@@ -503,6 +526,7 @@ async function main() {
         const bytes = fixture();
         await observePreview(page);
         await loadEditor(page, server.url, settings['data-dir'], bytes);
+        await checkExtendedTrackNameBoundary(page, bytes);
         await checkLoadingExit(page);
         await page.locator('#view-3d').click();
         await page.waitForFunction(() => window.previewUnderTest?.active && previewUnderTest.available && previewUnderTest.scene,

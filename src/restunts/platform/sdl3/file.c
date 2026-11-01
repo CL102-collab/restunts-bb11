@@ -21,7 +21,7 @@
 #define FILE_HANDLE_COUNT 64U
 #define FILE_FIRST_HANDLE 5U
 #define FILE_PATH_SIZE 1024U
-#define FILE_NAME_SIZE 15U
+#define FILE_NAME_SIZE EXTENDED_FILE_NAME_CAPACITY
 
 #ifdef _WIN32
 #include "file_windows.h"

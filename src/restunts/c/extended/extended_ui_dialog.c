@@ -1,5 +1,7 @@
 #include "../ui/ui_dialog_internal.h"
 #include "extended_ui_dialog.h"
+#include "extended_file_dialog.h"
+#define FILE_DIALOG_LEGACY_STEM_MAX_LENGTH 8U
 #ifdef RESTUNTS_SDL3
 #include "../ui/ui_file_dialog_internal.h"
 #include "../fileio.h"
@@ -20,8 +22,9 @@ legacy_s16 extended_ui_dialog_append_name(struct FILE_DIALOG *dialog, const lega
 		while (stem[length] != 0 && stem[length] != '.') {
 			length++;
 		}
-		/* GAMEINFO retains the original eight-character track-name field. */
-		if (length == 0 || length > 8U || stem[length] != '.') {
+		legacy_u16 max_length =
+			extended ? EXTENDED_FILE_STEM_MAX_LENGTH : FILE_DIALOG_LEGACY_STEM_MAX_LENGTH;
+		if (length == 0 || length > max_length || stem[length] != '.') {
 			return -1;
 		}
 		memcpy(dialog->filenames[dialog->file_count], stem, length);

@@ -712,6 +712,24 @@ static void test_save_dialog(void)
 																				: "OLD";
 		assert(strcmp(filename, expected_name) == 0);
 	}
+	/* The explicit extended limit accepts twelve bytes without widening the legacy wrapper. */
+	for (legacy_u16 maximum = 8U; maximum <= 12U; maximum += 4U) {
+		reset_case();
+		legacy_s8 directory[SAVE_TEST_DIRECTORY_CAPACITY] = "OLDIR";
+		legacy_s8 filename[14] = {0};
+		filename[sizeof(filename) - 1U] = 'Z';
+		for (legacy_u16 index = 0; index < 14U; index++) {
+			keyboard_keys[index] = 'A' + index;
+		}
+		keyboard_keys[14] = KEY_ENTER;
+		keyboard_count = 15U;
+		legacy_s16 accepted =
+			maximum == 8U ? do_savefile_dialog(directory, filename, "Save file")
+						  : do_savefile_dialog_limit(directory, filename, "Save file", maximum);
+		assert(accepted && strlen(filename) == maximum);
+		assert(filename[sizeof(filename) - 1U] == 'Z');
+		assert(strncmp(filename, "ABCDEFGHIJKL", maximum) == 0);
+	}
 	puts("Save dialog text editing, confirmation, cancellation and background restoration passed.");
 }
 

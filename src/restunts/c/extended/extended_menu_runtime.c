@@ -18,12 +18,14 @@
 #define TRACK_VERSION_WARNING_SIZE 192U
 static legacy_u8 *main_menu_extended_track_backup;
 static size_t main_menu_extended_track_backup_size;
+static legacy_s8 main_menu_extended_track_name[EXTENDED_FILE_STEM_CAPACITY];
 void extended_menu_backup_track(void)
 {
 	free(main_menu_extended_track_backup);
 	main_menu_extended_track_backup = NULL;
 	main_menu_extended_track_backup_size = 0;
 	if (extended_track_active()) {
+		strcpy(main_menu_extended_track_name, extended_track_name());
 		legacy_char error[128];
 		if (!cstrk_encode(extended_track_model(), &main_menu_extended_track_backup,
 						  &main_menu_extended_track_backup_size, error, sizeof(error))) {
@@ -41,6 +43,7 @@ legacy_s16 extended_menu_restore_track(void)
 								 main_menu_extended_track_backup_size, error, sizeof(error))) {
 			fatal_error("Cannot restore track: %s", error);
 		}
+		extended_track_set_name(main_menu_extended_track_name);
 		/* Loading replaces the compiled routes and lap mask used by the preview. */
 		track_setup();
 		free(main_menu_extended_track_backup);
@@ -48,6 +51,7 @@ legacy_s16 extended_menu_restore_track(void)
 		main_menu_extended_track_backup_size = 0;
 	} else {
 		extended_track_unload();
+		extended_track_clear_name();
 		if (was_extended) {
 			gameconfig = gameconfigcopy;
 		} else {
@@ -87,8 +91,16 @@ void extended_menu_validation_error(legacy_s16 result, legacy_s16 column, legacy
 }
 void extended_menu_load_startup_track(void)
 {
+	/* A selected extended stem takes precedence over a same-prefix classic file. */
+	if (extended_track_active()) {
+		file_build_path(track_directory, extended_track_name(), ".cstrk", g_path_buf);
+		if (extended_file_load_track(g_path_buf) != 0) {
+			fatal_error("Cannot load track: %s", extended_file_error());
+		}
+		return;
+	}
 	if (file_find(g_path_buf) == 0) {
-		file_build_path(track_directory, gameconfig.game_trackname, ".cstrk", g_path_buf);
+		file_build_path(track_directory, extended_track_name(), ".cstrk", g_path_buf);
 		if (file_find(g_path_buf) != 0) {
 			if (extended_file_load_track(g_path_buf) != 0) {
 				fatal_error("Cannot load track: %s", extended_file_error());
@@ -96,11 +108,13 @@ void extended_menu_load_startup_track(void)
 		} else {
 			file_build_path(track_directory, gameconfig.game_trackname, ".trk", g_path_buf);
 			extended_track_unload();
+			extended_track_clear_name();
 			extended_replay_runtime_clear();
 			file_read_fatal(g_path_buf, track_element_map);
 		}
 	} else {
 		extended_track_unload();
+		extended_track_clear_name();
 		extended_replay_runtime_clear();
 		file_read_fatal(g_path_buf, track_element_map);
 	}
@@ -124,7 +138,7 @@ legacy_s16 extended_menu_load_selected_track(const legacy_s8 *extension, const l
 {
 	if (strcmp(extension, ".cstrk") == 0) {
 		if (extended_file_load_track(path) != 0) {
-			memcpy(gameconfig.game_trackname, previous_name, REPLAY_TRACK_NAME_SIZE);
+			extended_track_set_name(previous_name);
 			show_dialog(DIALOG_TYPE_ACKNOWLEDGEMENT, DIALOG_SAVE_BACKGROUND,
 						(void *)extended_file_error(), DIALOG_AUTO_POSITION, DIALOG_AUTO_POSITION,
 						dialog_border_color, 0, 0);
@@ -132,6 +146,7 @@ legacy_s16 extended_menu_load_selected_track(const legacy_s8 *extension, const l
 		}
 	} else {
 		extended_track_unload();
+		extended_track_clear_name();
 		extended_replay_runtime_clear();
 		file_read_fatal(path, track_element_map);
 	}

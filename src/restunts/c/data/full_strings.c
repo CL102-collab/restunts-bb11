@@ -4,6 +4,9 @@
 #include "../scene_resources.h"
 #include "../ui/ui_dialog_internal.h"
 #include "../replay/replay_viewer_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../extended/extended_file_dialog.h"
+#endif
 
 /* Exact resource identifiers and messages formerly stored in dseg.asm. */
 
@@ -125,7 +128,11 @@ legacy_s8 dashboard_top_shape_id[5] = {'d', 'a', 's', 't', 0};
 
 legacy_s8 disk_retry_dialog_id[4] = {'d', 'e', 'a', 0};
 
+#ifdef RESTUNTS_SDL3
+legacy_s8 replay_filename_input[EXTENDED_FILE_STEM_CAPACITY] = "DEFAULT";
+#else
 legacy_s8 replay_filename_input[10] = {'D', 'E', 'F', 'A', 'U', 'L', 'T', 0, 0, 0};
+#endif
 
 legacy_s8 disk_error_dialog_id[4] = {'d', 'e', 'r', 0};
 

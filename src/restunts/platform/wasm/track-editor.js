@@ -4,7 +4,7 @@
     const $ = id => document.getElementById(id);
     const canvas = $('track-canvas'), ctx = canvas.getContext('2d');
     const minimap = $('minimap'), mini = minimap.getContext('2d');
-    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024;
+    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024, maximumTrackNameLength = 12;
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
     const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
     const terrainMaximumLevel = 4, paletteChannels = 3;
@@ -589,7 +589,7 @@
         event.preventDefault();
         if (!state.ready || state.loading) return;
         const name = $('save-name').value.trim();
-        if (!name || name.length > 8 || /[^\x21-\x7e]|[/\\:*?"<>|.]/.test(name)) { $('save-error').textContent = 'Use 1–8 ASCII characters without spaces, dots, or reserved characters.'; return; }
+        if (!name || name.length > maximumTrackNameLength || /[^\x21-\x7e]|[/\\:*?"<>|.]/.test(name)) { $('save-error').textContent = 'Use 1–' + maximumTrackNameLength + ' ASCII characters without spaces, dots, or reserved characters.'; return; }
         const filename = name + '.cstrk';
         $('confirm-save').disabled = true;
         try {

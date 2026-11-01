@@ -16,11 +16,15 @@ from regression_timeouts import scaled_timeout
 CSTRK_MAGIC = b"CSTRK\x1a\r\n"
 CSRPL_MAGIC = b"CSRPL\r\n\x1a"
 CSTRK_VERSION = 12
-CSRPL_VERSION = 16
+CSRPL_VERSION = 17
 CSRPL_MIN_VERSION = 11
 CSRPL_FUTURE_VERSION = 101
 CSTRK_HEADER_SIZE = 32
 CSRPL_HEADER_SIZE = 64
+CSRPL_LONG_TRACK_NAME_VERSION = 17
+CSRPL_TRACK_NAME_OFFSET = 41
+CSRPL_LEGACY_TRACK_NAME_SIZE = 9
+CSRPL_TRACK_NAME_SIZE = 13
 CSTRK_OBJECT_SIZE = 16
 MAP_SIZE = 90
 TILE_SIZE = 1024
@@ -124,7 +128,11 @@ def decode_replay(recording):
     assert recording[:8] == CSRPL_MAGIC
     version, header = struct.unpack_from("<HH", recording, 8)
     assert version >= CSRPL_MIN_VERSION and header == CSRPL_HEADER_SIZE
-    assert recording[12:16] == bytes(4) and recording[50:64] == bytes(14)
+    name_size = (CSRPL_LEGACY_TRACK_NAME_SIZE if version < CSRPL_LONG_TRACK_NAME_VERSION
+                 else CSRPL_TRACK_NAME_SIZE)
+    reserved_start = CSRPL_TRACK_NAME_OFFSET + name_size
+    assert recording[12:16] == bytes(4)
+    assert recording[reserved_start:CSRPL_HEADER_SIZE] == bytes(CSRPL_HEADER_SIZE - reserved_start)
     track_size, frames, rate, rules = struct.unpack_from("<IIHH", recording, 16)
     assert rate in (10, 20) and not rules & ~0x7F
     assert len(recording) == CSRPL_HEADER_SIZE + track_size + frames
@@ -133,7 +141,8 @@ def decode_replay(recording):
     assert track[:8] == CSTRK_MAGIC and all(value <= 63 for value in inputs)
     return dict(version=version, frames=frames, rate=rate, rules=rules, track=track,
                 inputs=inputs, car=recording[28:32], material=recording[32],
-                transmission=recording[33], opponent=recording[34])
+                transmission=recording[33], opponent=recording[34],
+                track_name=recording[CSRPL_TRACK_NAME_OFFSET:reserved_start].split(b"\0", 1)[0])
 
 
 def main():
@@ -197,6 +206,26 @@ def main():
         second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
         assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
         print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
+
+        # The replay name is independent of the source filename and must retain
+        # all twelve extended characters when a fine-tuned replay is published.
+        long_track_name = b"FLOWERFIELD1"
+        assert len(long_track_name) == CSRPL_TRACK_NAME_SIZE - 1
+        named_recording = bytearray(first.read_bytes())
+        named_recording[CSRPL_TRACK_NAME_OFFSET:CSRPL_TRACK_NAME_OFFSET + CSRPL_TRACK_NAME_SIZE] = long_track_name + b"\0"
+        named_source = output / "long-name-seed.csrpl"
+        named_source.write_bytes(named_recording)
+        named_refined = output / "long-name-refined.csrpl"
+        run(genghost, [named_source, "--fine-tune-gears-only", "--evaluations", 1,
+                       "--output", named_refined])
+        named_view = decode_replay(named_refined.read_bytes())
+        named_report = json.loads(named_refined.with_name(named_refined.name + ".json").read_text())
+        assert named_view["track_name"] == long_track_name
+        assert named_report["track"] == long_track_name.decode("ascii")
+        assert named_view["track"] == view["track"] and named_view["version"] == CSRPL_VERSION
+        assert verify(named_refined)["total_frames"] <= report["total_frames"]
+        assert named_source.read_bytes() == named_recording
+        print("Twelve-character CSRPL names survive fine-tuning and report output", flush=True)
 
         # Stored revisions select playback physics. Verification and refinement
         # retain v11, while a fresh search uses the current physics revision.

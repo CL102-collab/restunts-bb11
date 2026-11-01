@@ -41,6 +41,8 @@ legacy_s8 do_format_fileselect_dialog(legacy_s8 *directory, legacy_s8 *filename,
 									  legacy_s8 *extension, legacy_s8 far *prompt);
 const legacy_s8 *file_dialog_selected_extension(void);
 legacy_s16 do_savefile_dialog(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt);
+legacy_s16 do_savefile_dialog_limit(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt,
+									legacy_u16 max_length);
 void ensure_file_exists(legacy_s16 unused);
 void show_waiting(void);
 legacy_s16 show_disk_error_dialog(void);

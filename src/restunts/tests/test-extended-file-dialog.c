@@ -15,6 +15,7 @@
 #undef input_checking
 
 #define TEST_EXTENDED_FILE_RED_COLOR 4
+#define TEST_EXTENDED_STEM_CAPACITY 13U
 
 static const legacy_s8 *const *legacy_paths;
 static const legacy_s8 *const *extended_paths;
@@ -131,7 +132,7 @@ static void configure_selector(const legacy_s8 *legacy_suffix, const legacy_s8 *
 
 static void select_name(const legacy_s8 *expected_name, const legacy_s8 *expected_suffix)
 {
-	legacy_s8 directory[32] = "tracks", filename[9] = "OLD";
+	legacy_s8 directory[32] = "tracks", filename[TEST_EXTENDED_STEM_CAPACITY] = "OLD";
 	strcpy(choose_display_name, expected_name);
 	strcat(choose_display_name, expected_suffix);
 	assert(do_format_fileselect_dialog(directory, filename, (legacy_s8 *)expected_legacy_suffix,
@@ -147,7 +148,8 @@ static void test_tracks_keep_identical_stems_and_full_names(void)
 	static const legacy_s8 *const old_files[] = {"C:\\GAME\\ZZZZZZZZ.TRK", "C:\\GAME\\TWIN.TRK",
 												 "/game/ALPHA.TRK", NULL};
 	static const legacy_s8 *const new_files[] = {"C:\\GAME\\TWIN.CSTRK", "/game/BETATEST.CSTRK",
-												 "/game/TOOLONG99.CSTRK", "/game/.CSTRK", NULL};
+												 "/game/TOOLONG1234567.CSTRK", "/game/.CSTRK",
+												 NULL};
 	configure_selector(".trk", ".cstrk", old_files, new_files);
 	select_name("TWIN", ".cstrk");
 	assert(drawn_count >= 5);
@@ -196,11 +198,29 @@ static void test_cancel_leaves_name_and_drops_previous_suffix(void)
 	assert(g_is_busy == 9 && modal_depth == 0);
 }
 
+static void test_extended_twelve_character_stems(void)
+{
+	static const legacy_s8 *const old_files[] = {"123456789.TRK", "OLD.TRK", NULL};
+	static const legacy_s8 *const new_tracks[] = {"123456789.CSTRK", "123456789012.CSTRK",
+												  "1234567890123.CSTRK", NULL};
+	configure_selector(".trk", ".cstrk", old_files, new_tracks);
+	select_name("123456789012", ".cstrk");
+	assert(
+		!saw_color("1234567890123.cstrk", TEST_EXTENDED_FILE_RED_COLOR, dialog_background_color));
+	assert(!saw_color("123456789.trk", dialog_fnt_colour, dialog_background_color));
+	static const legacy_s8 *const new_replays[] = {"123456789012.CSRPL", "1234567890123.CSRPL",
+												   NULL};
+	configure_selector(".rpl", ".csrpl", NULL, new_replays);
+	select_name("123456789012", ".csrpl");
+	assert(drawn_count >= 1);
+}
+
 int main(void)
 {
 	test_tracks_keep_identical_stems_and_full_names();
 	test_replays_keep_identical_stems_and_red_selection();
 	test_cancel_leaves_name_and_drops_previous_suffix();
+	test_extended_twelve_character_stems();
 	puts("Extended track/replay selectors retain formats, identical stems, "
 		 "full names and red rows.");
 	return 0;
