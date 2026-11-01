@@ -2,7 +2,7 @@
 
 #if defined(RESTUNTS_SDL3)
 #include <string.h>
-#include "../projection.h"
+#include "../math/projection.h"
 
 #define CAR_WHEEL_VERTEX_GROUP_SIZE 6
 #define CAR_WHEEL_CENTER_SAMPLE_OFFSET 3U

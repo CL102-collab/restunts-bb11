@@ -7,7 +7,7 @@
 #include "../c/externs.h"
 #include "../c/hires/hires.h"
 #include "../c/platform.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/hires/shape3d_hires.h"
 #include "../c/shape3d/shape3d_internal.h"

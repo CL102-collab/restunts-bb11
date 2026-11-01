@@ -6,7 +6,7 @@
 #include "../c/shape2d/shape2d_internal.h"
 #include "../c/shape3d/shape3d.h"
 #include "../c/shape3d/shape3d_internal.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 
 /* Exercise the stopped-wheel handoff without exporting its private geometry helpers. */
 #include "../c/stateply/stateply.c"
