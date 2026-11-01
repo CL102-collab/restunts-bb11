@@ -232,6 +232,7 @@ set(common_sources
     extended/extended_csrpl.c extended/extended_cshig.c extended/extended_replay.c
     extended/extended_track.c
     extended/extended_geometry.c extended/extended_opponent.c extended/extended_roll_ramp.c
+    extended/extended_pine_trees.c
     extended/extended_trackobj.c
     extended/extended_trackobj_solids.c extended/extended_stateply.c
     extended/extended_physics_collision.c extended/extended_statecrs.c

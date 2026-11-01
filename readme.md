@@ -27,9 +27,13 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v8. Revision v3 through v7 tracks open as v8 while preserving their
+revision is v9. Revision v3 through v8 tracks open as v9 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
+
+The Scenery palette includes **Pine trees (10)** and **Pine trees (5)**,
+with varied tree sizes and fixed scattered layouts. On slopes, each pine retains
+the single tree's upright crown and slope-following trunk roots.
 
 The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
 with slalom barriers as one piece. It supports paved, dirt and ice roads,

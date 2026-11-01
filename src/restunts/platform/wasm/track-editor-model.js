@@ -13,10 +13,12 @@
     const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8, ROLL_RAMP_DIRECTION_OFFSET = 2;
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
+    const PINE_PHYSICAL_MODEL = 71, PINE_GROUP_VERSION = 9, PINE_COUNTS = [10, 5];
+    const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 8, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 9, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -76,8 +78,12 @@
                 ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: TUNNEL_SLALOM_NAME, tunnelSlalom: 1, key: 'tunnel-slalom' }]
                 : piece.physical === ROLL_RAMP_PHYSICAL_MODEL
                     ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: ROLL_RAMP_NAME, rollRamp: 1, key: 'roll-ramp' }]
+                : piece.physical === PINE_PHYSICAL_MODEL
+                    ? [{ ...piece, key: 'piece:' + piece.id }, ...PINE_COUNTS.map(pineCount =>
+                        ({ ...piece, name: 'Pine trees (' + pineCount + ')', pineCount, key: 'pine-trees:' + pineCount }))]
                 : [{ ...piece, key: 'piece:' + piece.id }]);
     function withPaletteVariant(piece, selected) {
+        if (selected.pineCount) return { ...piece, name: 'Pine trees (' + selected.pineCount + ')', pineCount: selected.pineCount, key: 'pine-trees:' + selected.pineCount };
         if (selected.rollRamp) return { ...piece, name: ROLL_RAMP_NAME, rollRamp: 1, key: 'roll-ramp' };
         if (selected.tunnelSlalom) return { ...piece, name: TUNNEL_SLALOM_NAME, tunnelSlalom: 1, key: 'tunnel-slalom' };
         return selected.physical === OVERPASS_PHYSICAL_MODEL && selected.lowerSurface !== undefined
@@ -138,6 +144,11 @@
         integer(rollRamp, 0, 1, 'barrel roll ramp flag');
         if (rollRamp && entry.physical !== ROLL_RAMP_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only horizontal corkscrew elements can be barrel roll ramps.');
         if (rollRamp && version < ROLL_RAMP_VERSION) throw new Error(ROLL_RAMP_VERSION_ERROR);
+    }
+    function checkPineCount(entry, pineCount, version) {
+        if (pineCount !== 0 && !PINE_COUNTS.includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
+        if (pineCount && entry.physical !== PINE_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only pine trees can form pine tree groups.');
+        if (pineCount && version < PINE_GROUP_VERSION) throw new Error(PINE_GROUP_VERSION_ERROR);
     }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
@@ -212,6 +223,7 @@
             integer(object.slopeX, -1, 1, 'clipboard slope'); integer(object.slopeY, -1, 1, 'clipboard slope');
             checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, VERSION);
             checkRollRamp(entry, object.rollRamp ?? 0, VERSION);
+            checkPineCount(entry, object.pineCount ?? 0, VERSION);
         }
     }
     function flipClipboard(clipboard, axis) {
@@ -501,10 +513,11 @@
             const required = requiredSlopeVersion(object, entry, profile);
             return this.version >= required;
         }
-        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, allowExistingSlope = false) {
+        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, allowExistingSlope = false) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
             checkTunnelSlalom(entry, tunnelSlalom, this.version);
             checkRollRamp(entry, rollRamp, this.version);
+            checkPineCount(entry, pineCount, this.version);
             integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation'); integer(lowerSurface, 0, 2, 'lower road surface');
             if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
             if (this.version < OVERPASS_SURFACE_VERSION && entry.physical === OVERPASS_PHYSICAL_MODEL && lowerSurface !== surface) throw new Error('Independent overpass road surfaces require Chocolate Stunts track version v4.');
@@ -514,6 +527,7 @@
             const object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, lowerSurface, ...footprint };
             if (tunnelSlalom) object.tunnelSlalom = tunnelSlalom;
             if (rollRamp) object.rollRamp = rollRamp;
+            if (pineCount) object.pineCount = pineCount;
             const [cx, cy] = occupied(object)[0], h = this.tileHeights(cx, cy), profile = terrainProfile(h);
             object.slopeX = h[1] - h[0]; object.slopeY = h[3] - h[0];
             object.baseHeight = h[0] - (cx - x) * object.slopeX - (cy - y) * object.slopeY;
@@ -531,7 +545,7 @@
                 throw new Error('This space is occupied. Remove the existing element first.');
             return object;
         }
-        place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp); this.objects.push(object); return object; }); }
+        place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp, pineCount); this.objects.push(object); return object; }); }
         erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
         selection(rectangle) {
             const selected = selectionObjects(this, rectangle);
@@ -558,7 +572,7 @@
             const result = [];
             for (const source of clipboard.objects) {
                 const object = target.placement(source.id, x + source.x, y + source.y, source.surface, source.rotation,
-                    source.lowerSurface ?? 0, source.tunnelSlalom ?? 0, source.rollRamp ?? 0, true);
+                    source.lowerSurface ?? 0, source.tunnelSlalom ?? 0, source.rollRamp ?? 0, source.pineCount ?? 0, true);
                 // Imported scenery may retain an explicit road selection even
                 // though new palette placement defaults it to paved.
                 object.surface = source.surface;
@@ -612,6 +626,7 @@
                     if (!entry) throw new Error('Unknown track element.');
                     checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, this.version);
                     checkRollRamp(entry, object.rollRamp ?? 0, this.version);
+                    checkPineCount(entry, object.pineCount ?? 0, this.version);
                     const lowerSurface = object.lowerSurface ?? 0;
                     integer(lowerSurface, 0, 2, 'lower road surface');
                     if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
@@ -649,7 +664,7 @@
         for (const o of doc.objects) {
             v.setUint16(p, o.id, true); a.set([o.x, o.y, o.rotation, o.surface, o.width, o.height, o.mask, o.baseHeight], p + 2);
             v.setInt8(p + 10, o.slopeX); v.setInt8(p + 11, o.slopeY); a[p + 12] = doc.version < OVERPASS_SURFACE_VERSION ? 0 : o.lowerSurface ?? 0;
-            a[p + 13] = o.tunnelSlalom ?? 0; a[p + 14] = o.rollRamp ?? 0; p += 16;
+            a[p + 13] = o.tunnelSlalom ?? 0; a[p + 14] = o.rollRamp ?? 0; a[p + 15] = o.pineCount ?? 0; p += 16;
         }
         for (let i = 0; i < doc.notes.length; i++) a[p++] = doc.notes.charCodeAt(i);
         return a;
@@ -678,12 +693,14 @@
         for (let i = 0; i < count; i++, p += 16) {
             if ((version < OVERPASS_SURFACE_VERSION && a[p + 12]) ||
                 (version < TUNNEL_SLALOM_VERSION && a[p + 13]) || a[p + 13] > 1 ||
-                (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 || a[p + 15]) throw new Error('Unsupported element flags.');
+                (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 ||
+                (version < PINE_GROUP_VERSION && a[p + 15]) || (a[p + 15] !== 0 && !PINE_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
             const id = v.getUint16(p, true), surface = a[p + 5];
             const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
             const object = { id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) };
             if (a[p + 13]) object.tunnelSlalom = a[p + 13];
             if (a[p + 14]) object.rollRamp = a[p + 14];
+            if (a[p + 15]) object.pineCount = a[p + 15];
             const entry = byId.get(id);
             if (entry && (CORNER_PHYSICAL_MODELS.has(entry.physical) ||
                 entry.physical === LARGE_BRANCH_LEFT_MODEL || entry.physical === LARGE_BRANCH_RIGHT_MODEL)) {
@@ -702,5 +719,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));
