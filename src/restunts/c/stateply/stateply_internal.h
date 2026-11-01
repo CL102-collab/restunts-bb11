@@ -1,8 +1,8 @@
 #ifndef RESTUNTS_STATEPLY_INTERNAL_H
 #define RESTUNTS_STATEPLY_INTERNAL_H
 
-#include "physics/physics_internal.h"
-#include "state_internal.h"
+#include "../physics/physics_internal.h"
+#include "../state_internal.h"
 
 #define PLAYER_PHYSICS_WHEEL_COUNT 4
 #define PLAYER_PHYSICS_FRONT_WHEEL_COUNT 2

@@ -224,7 +224,7 @@ set(common_sources
     gameinit.c gamestep.c simd.c car/carsetup.c
     trkutil.c track/trackres.c headless_data.c headless_trackdata.c
     state.c race/race_route.c physics/physics_grip.c opponent/opponent.c
-    track/track_setup.c stateply.c stateply_motion.c stateply_contact.c
+    track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c
     physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c
     track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c
     owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c

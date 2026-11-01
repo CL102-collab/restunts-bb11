@@ -84,7 +84,7 @@ Their translated TempleOS names likewise have no callers.
 The predictor implementation and header were already removed before this audit.
 Related fractional-only paths remain in the production sources.
 
-At `src/restunts/c/stateply.c:78`, static `player_motion_fraction` is
+At `src/restunts/c/stateply/stateply.c:78`, static `player_motion_fraction` is
 zero-initialized and has no production assignments. Only tests that include the
 implementation directly change it. `player_motion_state` at line 79 likewise
 remains permanently `&state` in production.
@@ -94,13 +94,13 @@ handling, inherited contact-residual relaxation, and fractional suspension are
 unreachable during gameplay. Relevant locations include:
 
 - `scale_player_fraction`, `scale_player_motion`, and `player_tick_fraction`
-  near `stateply.c:81`.
-- The fractional branch in `player_motion_crash` near `stateply.c:109`.
-- Inherited/relaxed wheel-plane residual helpers around `stateply.c:992`.
-- The fractional suspension branch at `stateply.c:1169`.
+  near `stateply/stateply.c:81`.
+- The fractional branch in `player_motion_crash` near `stateply/stateply.c:109`.
+- Inherited/relaxed wheel-plane residual helpers around `stateply/stateply.c:992`.
+- The fractional suspension branch at `stateply/stateply.c:1169`.
 - Other `player_motion_fraction` guards throughout the same file.
 
-Native object inspection supported this result: the optimized `stateply.c`
+Native object inspection supported this result: the optimized `stateply/stateply.c`
 object retained the ordinary suspension reference and no reference to
 `update_wheel_suspension_fraction`. GCC had folded away the unused fraction
 branch. Source reachability, rather than that optimization alone, is the basis
@@ -111,7 +111,7 @@ for the finding.
 | `update_car_speed_fraction` | `src/restunts/c/statecar.c:387` | `test-car-speed.c` only |
 | `update_player_steering_fraction` | `src/restunts/c/opponent.c:624` | `test-route-points.c` only |
 | `update_follow_cameras_fraction` | `src/restunts/c/gamestep.c:168` | `test-simulation-setup.c` only |
-| `update_wheel_suspension_fraction` | `src/restunts/c/physics/physics_collision.c:714` | Tests and the unreachable `stateply.c` branch |
+| `update_wheel_suspension_fraction` | `src/restunts/c/physics/physics_collision.c:714` | Tests and the unreachable `stateply/stateply.c` branch |
 
 Production steering always supplies a full tick to its shared steering helper;
 production follow cameras use the ordinary update path with a zero fraction.

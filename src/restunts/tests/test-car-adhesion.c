@@ -3,9 +3,9 @@
 #include <string.h>
 
 #include "../c/car/carsetup.c"
-#include "../c/stateply.c"
-#include "../c/stateply_motion.c"
-#include "../c/stateply_contact.c"
+#include "../c/stateply/stateply.c"
+#include "../c/stateply/stateply_motion.c"
+#include "../c/stateply/stateply_contact.c"
 #include "../c/track/trackdata_layout.h"
 #include "../c/track/track_objects.h"
 
