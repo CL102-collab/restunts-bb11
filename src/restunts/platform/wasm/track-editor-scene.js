@@ -26,9 +26,9 @@
     // Match the crop rows and flower cups in extended/extended_crop_fields.c.
     const TULIP = { rows: 6, flowers: 5, height: 16, leafHeight: 4, cupHeight: 8, halfWidth: 10,
         rowHalfWidth: 80, bandHeight: 12, bandHalfWidth: 70, leaves: 69, stem: 16, petals: [75, 124, 54, 37, 75, 61] };
-    const VINE = { rows: 4, height: 192, halfWidth: 64, shoulderOffset: 48, shoulderHeight: 128,
+    const VINE = { rows: 12, height: 96, eaveHeight: 72, ridge: 0, left: -22, right: 23,
         dark: 68, light: 69, grapes: 73, grapeClearance: 2, grapeStationCount: 8,
-        grapeParts: [{ halfWidth: 16, bottom: 80, top: 104 }, { halfWidth: 8, bottom: 64, top: 80 }] };
+        grapeParts: [{ halfWidth: 16, bottom: 48, top: 72 }, { halfWidth: 8, bottom: 32, top: 48 }] };
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,
@@ -269,8 +269,8 @@
     }
     function vineField() {
         const shape = cropFieldBase(VINE.height);
-        const section = [[-VINE.halfWidth, WHEAT.soilHeight], [-VINE.shoulderOffset, VINE.shoulderHeight],
-            [0, VINE.height], [VINE.shoulderOffset, VINE.shoulderHeight], [VINE.halfWidth, WHEAT.soilHeight]];
+        const section = [[VINE.left, WHEAT.soilHeight], [VINE.left, VINE.eaveHeight], [VINE.ridge, VINE.height],
+            [VINE.right, VINE.eaveHeight], [VINE.right, WHEAT.soilHeight]];
         const sectionSize = section.length;
         for (let row = 0; row < VINE.rows; row++) {
             const x = cropFieldCenter(row, VINE.rows), first = shape.vertices.length;
@@ -279,8 +279,8 @@
             for (let segment = 0; segment < sectionSize - 1; segment++)
                 cropFieldPrimitive(shape, [segment, segment + 1, segment + sectionSize + 1, segment + sectionSize].map(index => first + index),
                     segment === 0 || segment === sectionSize - 2 ? VINE.dark : VINE.light);
-            cropFieldPrimitive(shape, [0, 1, 2, 3, 4].map(index => first + index), VINE.dark);
-            cropFieldPrimitive(shape, [5, 9, 8, 7, 6].map(index => first + index), VINE.dark);
+            cropFieldPrimitive(shape, Array.from({ length: sectionSize }, (_, index) => first + index), VINE.dark);
+            cropFieldPrimitive(shape, Array.from({ length: sectionSize }, (_, index) => first + (index ? 2 * sectionSize - index : sectionSize)), VINE.dark);
         }
         return shape;
     }
@@ -291,8 +291,7 @@
             for (const side of [-1, 1]) for (const part of VINE.grapeParts) {
                 const first = shape.vertices.length;
                 for (const [dz, height] of [[-part.halfWidth, part.bottom], [part.halfWidth, part.bottom], [part.halfWidth, part.top], [-part.halfWidth, part.top]]) {
-                    const inset = Math.trunc((VINE.halfWidth - VINE.shoulderOffset) * (height - WHEAT.soilHeight) / (VINE.shoulderHeight - WHEAT.soilHeight));
-                    shape.vertices.push([center + side * (VINE.halfWidth - inset + VINE.grapeClearance), height, z + dz]);
+                    shape.vertices.push([center + (side < 0 ? VINE.left - VINE.grapeClearance : VINE.right + VINE.grapeClearance), height, z + dz]);
                 }
                 cropFieldPrimitive(shape, (side < 0 ? [0, 1, 2, 3] : [0, 3, 2, 1]).map(index => first + index), VINE.grapes);
             }

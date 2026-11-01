@@ -53,12 +53,12 @@ test('wheat field artwork draws golden crop rows without a native bitmap', () =>
 });
 
 test('tulip and vine field artwork uses distinct generated colors without native bitmaps', () => {
-    for (const [id, name, expected] of [
-        [model.TULIP_FIELD_ID, 'tulip field', [38, 54, 70, 167, 181, 200]],
-        [model.VINE_FIELD_ID, 'vine field', [90, 92, 171, 200]]
+    for (const [id, name, expected, size] of [
+        [model.TULIP_FIELD_ID, 'tulip field', [38, 54, 70, 167, 181, 200], 60],
+        [model.VINE_FIELD_ID, 'vine field', [90, 92, 171, 200], 120]
     ]) {
         const bitmap = resources.composePieceTileBitmap(new Map(), id);
-        assert.equal(bitmap.width, 60); assert.equal(bitmap.height, 60);
+        assert.equal(bitmap.width, size); assert.equal(bitmap.height, size);
         assert(bitmap.alpha.every(value => value === 255));
         assert.deepEqual([...new Set(bitmap.pixels)].sort((first, second) => first - second), expected, name);
         assert.deepEqual(resources.composePieceTileBitmap(new Map(), id), bitmap);
@@ -76,9 +76,12 @@ test('tulip icons keep dense single-color rows and narrow vines show purple grap
     assert(tulips.pixels.filter(color => color !== 200).length >= tulips.pixels.length * .8, 'colored flowers cover most of the tile');
     const vines = resources.composePieceTileBitmap(new Map(), model.VINE_FIELD_ID);
     assert(vines.pixels.includes(171), 'purple grape clusters remain visible');
-    assert.equal(vines.pixels.filter(color => color === 171).length, 64 * 5, 'eight unchanged pixel bunches on each side of four rows');
-    assert(vines.pixels.subarray(0, vines.width).filter(color => color === 90 || color === 92).length < vines.width / 2,
-        'vine rows leave broad gaps between their narrower foliage');
+    assert.equal(vines.pixels.filter(color => color === 171).length, 192 * 5, 'eight unchanged pixel bunches on each side of twelve rows');
+    for (let row = 0; row < 12; row++) {
+        const center = row * 10 + 5;
+        for (let dx = -2; dx <= 2; dx++) assert([90, 92].includes(vines.pixels[center + dx]));
+        assert.equal(vines.pixels[center - 3], 200); assert.equal(vines.pixels[center + 3], 200);
+    }
 });
 
 test('3D loader accepts case-insensitive File inputs and preserves native archive precedence', async () => {
