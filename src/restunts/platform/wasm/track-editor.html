@@ -76,7 +76,9 @@
                     <div id="paint-preview-row" class="terrain-options" hidden>
                         <div class="terrain-choice-heading">Paint tile</div>
                         <div class="terrain-choices" role="group" aria-label="Paint tile">
-                            <button type="button" class="terrain-choice" aria-pressed="true" aria-label="Selected ground tile" title="Paint the selected ground surface"><canvas id="paint-preview" width="64" height="64" aria-hidden="true"></canvas></button>
+                            <button type="button" class="terrain-choice paint-size-choice" data-paint-size="1" aria-pressed="true" aria-label="Paint 1x1 tiles" title="Paint a 1x1 area with the selected ground surface"><canvas id="paint-preview" width="64" height="64" aria-hidden="true"></canvas><span>1x1</span></button>
+                            <button type="button" class="terrain-choice paint-size-choice" data-paint-size="2" aria-pressed="false" aria-label="Paint 2x2 tiles" title="Paint a 2x2 area with the selected ground surface"><canvas width="64" height="64" aria-hidden="true"></canvas><span>2x2</span></button>
+                            <button type="button" class="terrain-choice paint-size-choice" data-paint-size="4" aria-pressed="false" aria-label="Paint 4x4 tiles" title="Paint a 4x4 area with the selected ground surface"><canvas width="64" height="64" aria-hidden="true"></canvas><span>4x4</span></button>
                         </div>
                     </div>
                     <div id="lower-surface-row" class="terrain-options" hidden>

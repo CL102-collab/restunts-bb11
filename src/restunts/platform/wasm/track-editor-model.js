@@ -17,6 +17,7 @@
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
+    const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
     const VERSION = 9, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
@@ -440,6 +441,16 @@
                 this.cells[this.cellIndex(x, y)] = cell;
             });
         }
+        paintArea(x, y, size, surface) {
+            if (!PAINT_BRUSH_SIZES.includes(size)) throw new Error('Invalid paint brush size.');
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            this.cellIndex(x, y);
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
+            return this.transaction('Paint terrain', () => {
+                for (let row = y; row < bottom; row++) for (let column = x; column < right; column++)
+                    this.paint(column, row, surface);
+            });
+        }
         paintLowerSurface(x, y, surface) {
             integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
             const index = this.cellIndex(x, y), heights = this.tileHeights(x, y), profile = terrainProfile(heights);
@@ -719,5 +730,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));
