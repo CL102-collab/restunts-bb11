@@ -2,7 +2,7 @@
 #include "game_input.h"
 #include "math/math.h"
 #include "car/car_speed.h"
-#include "physics_internal.h"
+#include "physics/physics_internal.h"
 
 #define ACCELERATION_MASS_NUMERATOR 25L
 #define ACCELERATION_DRAG_SCALE 200L

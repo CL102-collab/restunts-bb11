@@ -11,7 +11,7 @@
 #include "car_resources.h"
 #include "../resource.h"
 #include "../owoot/owoot.h"
-#include "../physics_internal.h"
+#include "../physics/physics_internal.h"
 #include "../extended/extended_opponent.h"
 #ifdef RESTUNTS_SDL3
 #include "../fatal.h"

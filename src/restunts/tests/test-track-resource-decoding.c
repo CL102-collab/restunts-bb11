@@ -1,7 +1,7 @@
 #include <assert.h>
 
 #include "../c/externs.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/track/track_types.h"
 #include "../c/track/track_collision.h"
 

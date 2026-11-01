@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_PHYSICS_INTERNAL_H
 #define RESTUNTS_PHYSICS_INTERNAL_H
 
-#include "gamestate.h"
+#include "../gamestate.h"
 
 struct CARSTATE;
 struct SIMD;

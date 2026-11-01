@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <stddef.h>
 
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 
 static void configure_collision_option(const char *option)
 {

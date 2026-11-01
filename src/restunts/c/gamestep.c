@@ -6,7 +6,7 @@
 #include "externs.h"
 #include "crash_state.h"
 #include "state_internal.h"
-#include "physics_internal.h"
+#include "physics/physics_internal.h"
 #include "extended/extended_gamestep.h"
 
 #define ACTIVE_CAR_COUNT_WITHOUT_OPPONENT 1U

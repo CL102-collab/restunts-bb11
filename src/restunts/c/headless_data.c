@@ -1,5 +1,5 @@
 #include "externs.h"
-#include "physics_internal.h"
+#include "physics/physics_internal.h"
 #include "state_internal.h"
 #include "resource.h"
 #include "race/race_stats.h"
