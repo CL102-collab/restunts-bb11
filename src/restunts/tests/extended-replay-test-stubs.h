@@ -244,6 +244,26 @@ uint32_t extended_replay_timeline_position(uint32_t frame, uint32_t count, uint3
 	return count ? (uint32_t)((uint64_t)frame * width / count) : 0U;
 }
 
+/* Inactive extended storage uses the packed legacy name, with no retained stem. */
+const legacy_s8 *extended_track_name(void)
+{
+	return gameconfig.game_trackname;
+}
+void extended_track_set_name(const legacy_s8 *name)
+{
+	legacy_s8 retained[REPLAY_TRACK_NAME_SIZE] = {0};
+	for (legacy_u16 index = 0; name && index < REPLAY_TRACK_NAME_SIZE - 1U && name[index];
+		 index++) {
+		retained[index] = name[index];
+	}
+	for (legacy_u16 index = 0; index < REPLAY_TRACK_NAME_SIZE; index++) {
+		gameconfig.game_trackname[index] = retained[index];
+	}
+}
+void extended_track_clear_name(void)
+{
+}
+
 int extended_track_active(void)
 {
 	return 0;
