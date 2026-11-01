@@ -7,7 +7,7 @@
 #include <string.h>
 #include "../game_input.h"
 #include "../track/trackdata_layout.h"
-#include "../frame_render_internal.h"
+#include "../frame/frame_render_internal.h"
 #include "extended_track.h"
 #include "extended_geometry.h"
 #include "../shape3d/shape3d_internal.h"

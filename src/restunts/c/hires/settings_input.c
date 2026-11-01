@@ -2,7 +2,7 @@
 #include "../keyboard.h"
 #include "../externs.h"
 #include "../game_input.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "frame_adaptive.h"
 #include "hires.h"

@@ -36,7 +36,7 @@
 #include "../externs.h"
 #include "../keyboard.h"
 #include "../timing.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 
 #ifdef RESTUNTS_AMIGA_TRACE
 #define AMIGA_NORMAL_RACE_TRACE(stage)                                                             \

@@ -8,7 +8,7 @@
 #include "../c/ghost.c"
 #include "../c/ghost_line.c"
 
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "ghost.h"
 #include "../c/race/race_graphics.h"
 #include "residue.h"

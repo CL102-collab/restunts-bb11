@@ -1,5 +1,5 @@
 #include "frame_overlay.h"
-#include "../frame_fps.h"
+#include "../frame/frame_fps.h"
 #include "../game_input.h"
 #include "../ui/ui_text.h"
 #include "../externs.h"

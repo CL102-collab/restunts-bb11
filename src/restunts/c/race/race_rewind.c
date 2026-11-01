@@ -36,7 +36,7 @@
 #include "../externs.h"
 #include "../keyboard.h"
 #include "../timing.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 
 legacy_u32 race_current_frame(void)
 {

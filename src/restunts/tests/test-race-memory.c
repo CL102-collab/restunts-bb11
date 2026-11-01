@@ -7,7 +7,7 @@
 #include "../c/startup.c"
 #undef run_main_menu_loop
 
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "../c/shape2d/shape2d_internal.h"
 #include "video_pages.h"
 

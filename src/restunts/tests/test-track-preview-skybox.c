@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <SDL3/SDL.h>
 #include "../c/externs.h"
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/hires/hires.h"
 #include "../c/menu/menu_internal.h"
 #include "../c/platform.h"

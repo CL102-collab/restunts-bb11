@@ -1,9 +1,9 @@
 #ifndef RESTUNTS_FRAME_INTERNAL_H
 #define RESTUNTS_FRAME_INTERNAL_H
 
-#include "math.h"
-#include "shape3d/shape3d.h"
-#include "track/track_types.h"
+#include "../math.h"
+#include "../shape3d/shape3d.h"
+#include "../track/track_types.h"
 
 extern struct RECTANGLE frame_rects_page0[];
 extern struct RECTANGLE frame_rects_page1[];
@@ -76,8 +76,8 @@ struct GAMESTATE;
 struct CARSTATE;
 struct GHOST_CAMERA_STATE;
 
-#include "hires/frame_snapshot.h"
-#include "hires/frame_overlay.h"
+#include "../hires/frame_snapshot.h"
+#include "../hires/frame_overlay.h"
 #include "frame_fps.h"
 
 /* Prepare diagnostic redraw bounds before dashboard composition; paint it with

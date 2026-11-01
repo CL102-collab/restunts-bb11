@@ -114,8 +114,10 @@ I've also done a huge amount of manual testing myself, to test everything else w
 		driving inputs and writes a replay for use as a ghost.
 
 
-The C core groups related sources and headers under `audio`, `car`, `menu`,
+The C core groups related sources and headers under `audio`, `car`, `frame`, `menu`,
 `opponent`, `owoot`, `race`, `replay`, `shape2d`, `shape3d`, `track` and `ui`.
+The `frame` folder owns classic frame rendering, camera setup, terrain and object
+rendering, shared frame context, and frame diagnostics.
 The `extended` folder owns CSTRK/CSRPL logic and its codec headers, including
 classic and high-resolution rendering that depends on decoded track or replay
 data. The `hires` folder owns format-independent high-resolution rendering,

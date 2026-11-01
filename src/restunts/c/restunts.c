@@ -26,7 +26,7 @@
 #include "fileio.h"
 #include "fatal.h"
 #include "game_input.h"
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "keyboard.h"
 #include "legacy.h"
 #include "math.h"

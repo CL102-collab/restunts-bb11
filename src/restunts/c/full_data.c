@@ -6,7 +6,7 @@
 #include "shape3d/shape3d.h"
 #include "shape3d/shape3d_internal.h"
 #include "math_internal.h"
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "ui/ui_text.h"
 #include "race/race_resources_internal.h"
 #include "menu/menu_internal.h"

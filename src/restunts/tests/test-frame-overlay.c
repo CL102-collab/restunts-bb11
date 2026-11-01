@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/externs.h"
 #include "../c/shape3d/shape3d.h"
 #include "../c/shape3d/shape3d_internal.h"

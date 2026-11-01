@@ -266,9 +266,10 @@ set(game_sources
     hires/render_workers.c hires/frame_interpolation.c hires/shape3d_hires.c
     hires/shape3d_car_ground.c hires/shape3d_hires_draw.c
     hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c
-    shape2d/shape2d_resources.c heapsort.c frame.c frame_camera.c frame_car.c frame_tiles.c
-    frame_terrain.c frame_objects.c hires/frame_adaptive.c skybox.c hires/skybox_hires.c
-    frame_overlay.c intro_render.c track/track_preview.c full_data.c full_strings.c full_tables.c
+    shape2d/shape2d_resources.c heapsort.c frame/frame.c frame/frame_camera.c frame/frame_car.c
+    frame/frame_tiles.c frame/frame_terrain.c frame/frame_objects.c hires/frame_adaptive.c
+    skybox.c hires/skybox_hires.c frame/frame_overlay.c intro_render.c track/track_preview.c
+    full_data.c full_strings.c full_tables.c
     hires/settings_startup.c hires/settings_input.c hires/race_view.c hires/race_presentation.c
     hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
     extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c
@@ -279,7 +280,8 @@ set(game_sources
     hires/frame_overlay.c hires/intro_presentation.c hires/track_preview_scene.c
     hires/opponent_portrait_artwork.c hires/opponent_animation_artwork.c hires/menu_artwork.c
     hires/showroom.c hires/shape3d_pipeline.c hires/shape3d_queue.c hires/shape3d_render.c
-    hires/highscore_animation.c hires/skybox_scene.c video_framebuffer.c frame_fps.c frame_context.c
+    hires/highscore_animation.c hires/skybox_scene.c video_framebuffer.c frame/frame_fps.c
+    frame/frame_context.c
     extended/extended_frame_layout.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")

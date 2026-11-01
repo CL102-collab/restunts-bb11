@@ -19,7 +19,7 @@
 #include "../keyboard.h"
 #ifdef RESTUNTS_SDL3
 #include "../game_input.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #include "menu_background.h"
 #endif
 
