@@ -1143,7 +1143,8 @@ static void test_roll_ramp_records(void)
 
 static void test_pine_group_records(void)
 {
-	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_LEGACY_COUNT, CSTRK_PINE_GROUP_SMALL_COUNT,
+									   CSTRK_PINE_GROUP_LARGE_COUNT};
 	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
 	struct CSTRK_TRACK track, decoded;
 	cstrk_init(&track);
@@ -1158,6 +1159,9 @@ static void test_pine_group_records(void)
 	const size_t object_offset = CSTRK_HEADER_SIZE + 4U + 2U;
 	for (legacy_u8 count = 0; count < sizeof(counts) / sizeof(counts[0]); count++) {
 		object.pine_count = counts[count];
+		legacy_u16 required_version = counts[count] == CSTRK_PINE_GROUP_SMALL_COUNT
+										  ? CSTRK_PINE_SIX_VERSION
+										  : CSTRK_PINE_GROUP_VERSION;
 		for (legacy_u8 rotation = 0; rotation < TEST_PINE_ROTATION_COUNT; rotation++) {
 			object.rotation = rotation;
 			for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
@@ -1170,6 +1174,11 @@ static void test_pine_group_records(void)
 					}
 				}
 				track.objects[0] = object;
+				track.version = required_version - 1U;
+				assert(!cstrk_validate(&track, error, sizeof(error)));
+				track.version = required_version;
+				assert(cstrk_validate(&track, error, sizeof(error)));
+				track.version = CSTRK_VERSION;
 				legacy_u8 *data = NULL, *again = NULL;
 				size_t size = 0, again_size = 0;
 				assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
@@ -1181,12 +1190,22 @@ static void test_pine_group_records(void)
 				assert(decoded.objects[0].slope_y == object.slope_y);
 				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
 				assert(again_size == size && memcmp(data, again, size) == 0);
-				for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_PINE_GROUP_VERSION;
+				for (legacy_u16 version = CSTRK_MIN_VERSION; version < required_version;
 					 version++) {
 					LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
 					assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
 					assert(decoded.objects[0].pine_count == counts[count]);
 				}
+				/* Historical five-tree records keep their count through upgrade and resave. */
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, required_version);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.version == CSTRK_VERSION);
+				assert(decoded.objects[0].pine_count == counts[count]);
+				decoded.version = required_version;
+				free(again);
+				again = NULL;
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(data, again, size) == 0);
 				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, TEST_FUTURE_REVISION);
 				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 				assert(decoded.version == TEST_FUTURE_REVISION);
@@ -1195,7 +1214,7 @@ static void test_pine_group_records(void)
 			}
 		}
 	}
-	static const legacy_u8 invalid_counts[] = {1U, 4U, 6U, 9U, 11U, LEGACY_U8_MAX};
+	static const legacy_u8 invalid_counts[] = {1U, 4U, 7U, 9U, 11U, LEGACY_U8_MAX};
 	for (legacy_u8 index = 0; index < sizeof(invalid_counts) / sizeof(invalid_counts[0]); index++) {
 		track.objects[0].pine_count = invalid_counts[index];
 		assert(!cstrk_validate(&track, error, sizeof(error)));

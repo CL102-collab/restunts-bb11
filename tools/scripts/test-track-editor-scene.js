@@ -144,10 +144,10 @@ test('large maps compile into finite typed buffers without changing the document
             assert.deepEqual(doc.snapshot(), before);
         }
     });
-    test('five and ten pines keep independent upright crowns and slope-following roots', () => {
+    test('legacy five, six and ten pines keep independent upright crowns and slope-following roots', () => {
         const source = scene.decodeShape(assets.models.get('tree'));
         const nativeTrees = source.primitives.reduce((sum, primitive) => sum + primitive.indices.length - 2, 0);
-        for (const count of [5, 10]) for (const [slopeX, slopeY] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) for (let rotation = 0; rotation < 4; rotation++) {
+        for (const count of [5, 6, 10]) for (const [slopeX, slopeY] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) for (let rotation = 0; rotation < 4; rotation++) {
             const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
             doc.objects.push(object(153, { pineCount: count, rotation, baseHeight: 1, slopeX, slopeY }));
             const result = scene.buildScene(doc, assets);
@@ -163,17 +163,29 @@ test('large maps compile into finite typed buffers without changing the document
                 const trunkTop = treePoints.filter(point => point[1] > Math.max(...roots.map(root => root[1])) + .01);
                 assert(trunkTop.length > 0, 'each tree has foliage above its roots');
             }
-            // The first authored pine is half-size at (-340,+300). Its full
-            // native bounding box extends 30 units uphill after scaling; the
-            // 150-unit crown must receive this tree's support lift, independent
-            // of the other trees in the tile.
-            const firstOffset = [[-340, 300], [300, 340], [340, -300], [-300, -340]][rotation];
+            // Each crown receives its own uphill lift, based on this pine's
+            // scaled native footprint, independent of the other trees.
+            const [x, z, scale] = resources.pineTreeLayout(count)[0];
+            const firstOffset = [[x, z], [z, -x], [-x, -z], [-z, x]][rotation];
+            const radius = Math.trunc(60 * scale / 256), crownHeight = Math.trunc(300 * scale / 256);
             const anchorHeight = (1 + slopeX * (.5 + firstOffset[0] / TILE) +
-                slopeY * (.5 - firstOffset[1] / TILE) + (Math.abs(slopeX) + Math.abs(slopeY)) * 30 / TILE) * LEVEL;
-            near(maximums[0], (150 + anchorHeight) / TILE, 'first crown retains one common independent uphill lift');
+                slopeY * (.5 - firstOffset[1] / TILE) + (Math.abs(slopeX) + Math.abs(slopeY)) * radius / TILE) * LEVEL;
+            near(maximums[0], (crownHeight + anchorHeight) / TILE, 'first crown retains one common independent uphill lift');
             assert(new Set(maximums.map(value => value.toFixed(4))).size > 1, 'trees have different sizes and lifts');
             if (slopeX || slopeY) assert(new Set(minimums.map(value => value.toFixed(4))).size > 1, 'trees have independent support heights');
         }
+    });
+    test('an eight-tile forest varies neighboring groves and reproduces the same mesh after saving', () => {
+        const doc = new model.Document(8, 8);
+        doc.placePineBrush(0, 0, 8, 6);
+        const layouts = doc.objects.map(object => resources.pineTreeLayout(object.pineCount, object.x, object.y));
+        assert.equal(new Set(layouts.map(layout => JSON.stringify(layout))).size, 64, 'neighboring groves have distinct arrangements');
+        const before = scene.buildScene(doc, assets);
+        assert.equal(before.instances, 64 * 6);
+        const reloaded = model.decodeCstrk(model.encodeCstrk(doc));
+        const after = scene.buildScene(reloaded, assets);
+        assert.deepEqual(after.positions, before.positions, 'saving and reloading preserves all tree geometry');
+        assert.deepEqual(after.colors, before.colors);
     });
     test('barrel ramps show concrete approach, twisted grille, markings and supports', () => {
         const doc = new model.Document(2, 2); doc.objects.push(object(85, { rollRamp: 1 }));

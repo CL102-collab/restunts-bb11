@@ -159,10 +159,12 @@ dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
 
-The **Scenery** group includes **Pine trees (10)** and **Pine trees (5)**. Each
-occupies one tile with differently sized pines scattered in a fixed, irregular
-layout. Rotate the element to turn its layout. Both groups support straight
-inclines and require `.cstrk` v9.
+The **Scenery** group includes **Pine trees (10)** and **Pine trees (6)**. Each
+occupies one tile with differently sized pines. Six-tree groups vary positions
+and sizes deterministically by tile, so neighboring tiles do not repeat the same
+rows. Rotate the element to turn its layout. Both groups support straight
+inclines. Six-tree groups require `.cstrk` v10; ten-tree groups retain their
+original v9 layout, and saved five-tree groups remain supported unchanged.
 Selecting either group shows **Brush size** above **Ready to build**, with
 **1x1**, **2x2**, **4x4** and **8x8** choices. Click or drag to fill that square
 with one selected pine group per empty compatible tile, starting at the hovered

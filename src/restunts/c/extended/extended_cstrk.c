@@ -286,16 +286,20 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 	}
 	if (object->pine_count != 0U) {
 		if ((object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
+			 object->pine_count != CSTRK_PINE_GROUP_LEGACY_COUNT &&
 			 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT) ||
 			object->legacy_id != CSTRK_PINE_TREE_ID || object->width != 1U ||
 			object->height != 1U || object->occupied_mask != 1U) {
 			return cstrk_fail(error, error_size, "Object %u has an invalid pine tree group",
 							  (legacy_uint)index);
 		}
-		if (track->version < CSTRK_PINE_GROUP_VERSION) {
+		legacy_u16 required_version = object->pine_count == CSTRK_PINE_GROUP_SMALL_COUNT
+										  ? CSTRK_PINE_SIX_VERSION
+										  : CSTRK_PINE_GROUP_VERSION;
+		if (track->version < required_version) {
 			return cstrk_fail(error, error_size,
 							  "Object %u requires track version v%u for pine tree groups",
-							  (legacy_uint)index, CSTRK_PINE_GROUP_VERSION);
+							  (legacy_uint)index, required_version);
 		}
 	}
 	legacy_u8 overpass =
