@@ -817,6 +817,115 @@ test('blocked Level leaves heights and surfaces atomic inside and outside a drag
     assert.throws(() => slope.level(2, 1, 1, 2), /bend/);
     assert.deepEqual(slope.snapshot(), supported);
 });
+test('Level square brushes flatten their complete footprint at every height and selected material', () => {
+    assert.deepEqual(model.LEVEL_BRUSH_SIZES, [1, 2, 4, 8]);
+    for (const size of model.LEVEL_BRUSH_SIZES) for (const base of [0, 2, 4])
+        for (let height = 0; height <= 4; height++) for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+            const doc = new model.Document(14, 14);
+            doc.vertices.fill(base);
+            const initial = (surface + 1) % model.TERRAIN_SURFACES.length;
+            doc.cells = doc.cells.map(() => ({ surface: initial, halfWaterCorner: 0 }));
+            doc.paint(3, 3, initial, 1, surface);
+            doc.history = [];
+            const before = doc.snapshot();
+            doc.levelArea(3, 3, size, height, surface);
+            for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+                const targeted = x >= 3 && x < 3 + size && y >= 3 && y < 3 + size;
+                if (targeted) assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
+                const corners = [y * 15 + x, y * 15 + x + 1, (y + 1) * 15 + x, (y + 1) * 15 + x + 1];
+                const affected = targeted || corners.some(index => doc.vertices[index] !== before.vertices[index]);
+                assert.deepEqual(doc.cells[y * doc.width + x], affected ? { surface, halfWaterCorner: 0 } : before.cells[y * doc.width + x]);
+            }
+            assert.deepEqual(doc.validate(), []);
+            assert.equal(doc.history.length, 1);
+            const after = doc.snapshot();
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        }
+});
+test('Level brushes clip at every edge and apply on maps smaller than the selected size', () => {
+    for (const size of model.LEVEL_BRUSH_SIZES) for (const [x, y] of [[0, 0], [4, 3], [3, 1], [0, 2]])
+        for (const height of [0, 2, 4]) {
+            const doc = new model.Document(5, 4); doc.vertices.fill(1);
+            doc.levelArea(x, y, size, height, 2);
+            for (let row = y; row < Math.min(doc.height, y + size); row++)
+                for (let column = x; column < Math.min(doc.width, x + size); column++) {
+                    assert.deepEqual(doc.tileHeights(column, row), [height, height, height, height]);
+                    assert.deepEqual(doc.cells[row * doc.width + column], { surface: 2, halfWaterCorner: 0 });
+                }
+            assert.deepEqual(doc.validate(), []);
+        }
+    const tiny = new model.Document(1, 1);
+    tiny.levelArea(0, 0, 8, 4, 3);
+    assert.deepEqual(Array.from(tiny.vertices), [4, 4, 4, 4]);
+    assert.deepEqual(tiny.cells, [{ surface: 3, halfWaterCorner: 0 }]);
+});
+test('Level mixed-height brushes preserve the chosen plateau through opposite saddle repairs', () => {
+    for (const invert of [false, true]) {
+        const doc = new model.Document(10, 10);
+        doc.raise(1, 1); doc.raise(6, 6); doc.raise(6, 6);
+        if (invert) doc.vertices = doc.vertices.map(value => 4 - value);
+        const height = invert ? 3 : 1;
+        doc.levelArea(2, 2, 4, height, 2);
+        for (let y = 2; y < 6; y++) for (let x = 2; x < 6; x++)
+            assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
+        assert.deepEqual(doc.validate(), []);
+    }
+    const corner = new model.Document(5, 5);
+    for (let y = 0; y <= 5; y++) for (let x = 0; x <= 5; x++)
+        corner.vertices[y * 6 + x] = Math.max(0, 2 - Math.max(Math.abs(x - 3), Math.abs(y - 3)));
+    corner.vertices[0] = 1;
+    assert.deepEqual(corner.validate(), []);
+    corner.levelArea(1, 1, 2, 1, 3);
+    for (let y = 1; y < 3; y++) for (let x = 1; x < 3; x++)
+        assert.deepEqual(corner.tileHeights(x, y), [1, 1, 1, 1]);
+    assert.deepEqual(corner.validate(), []);
+});
+test('Level area validation and blocked structures leave earlier stroke edits atomic', () => {
+    const doc = new model.Document(18, 18);
+    doc.place(4, 3, 3); doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot(), history = doc.history.length;
+    const invalid = [
+        ...[-1, 0, 3, 5, 16, 1.5, null, '2', NaN].map(size => [0, 0, size, 2, 1]),
+        ...[-1, 5, .5, null].map(height => [0, 0, 2, height, 1]),
+        ...[-1, 4, .5, null].map(surface => [0, 0, 2, 2, surface]),
+        [-1, 0, 2, 2, 1], [18, 0, 2, 2, 1], [0, -1, 2, 2, 1], [0, 18, 2, 2, 1]
+    ];
+    for (const args of invalid) {
+        assert.throws(() => doc.levelArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before);
+        assert.equal(doc.history.length, history); assert(doc.canRedo);
+    }
+    assert.throws(() => doc.levelArea(2, 2, 4, 2, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), before); assert(doc.canRedo);
+    doc.beginTransaction('Terrain stroke'); doc.levelArea(12, 12, 4, 2, 1);
+    const earlier = doc.snapshot();
+    for (const args of invalid) {
+        assert.throws(() => doc.levelArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), earlier); assert(doc.pending);
+    }
+    assert.throws(() => doc.levelArea(2, 2, 4, 2, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), earlier); assert(doc.pending);
+    doc.endTransaction(); assert.equal(doc.history.length, history + 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), earlier);
+});
+test('overlapping Level brushes share one undo step and preserve no-op redo', () => {
+    const doc = new model.Document(18, 18), before = doc.snapshot();
+    doc.beginTransaction('Terrain stroke');
+    doc.levelArea(1, 1, 8, 2, 1); doc.levelArea(5, 5, 8, 2, 1);
+    doc.endTransaction();
+    assert.equal(doc.history.length, 1); assert.deepEqual(doc.validate(), []);
+    const after = doc.snapshot();
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    doc.beginTransaction('Terrain stroke'); doc.levelArea(0, 0, 8, 3, 2); doc.cancelTransaction();
+    assert.deepEqual(doc.snapshot(), after);
+    const flat = new model.Document(4, 4);
+    flat.setNotes('future'); flat.undo(); flat.levelArea(0, 0, 8, 0, 0);
+    assert.equal(flat.history.length, 0); assert(flat.canRedo);
+});
 test('one live terrain stroke is one undo operation and undo restores notes', () => {
     const doc = new model.Document(8, 8), before = doc.snapshot();
     doc.beginTransaction('Terrain stroke'); doc.raise(3, 3); doc.raise(3, 3); doc.paint(3, 3, 1, 2); doc.endTransaction();
@@ -1422,9 +1531,9 @@ test('Shore paints every distinct material pair and corner with exact storage an
     }
 });
 test('square paint brushes repaint exactly their footprint without changing heights or track elements', () => {
-    assert.deepEqual(model.PAINT_BRUSH_SIZES, [1, 2, 4]);
+    assert.deepEqual(model.PAINT_BRUSH_SIZES, [1, 2, 4, 8]);
     for (const size of model.PAINT_BRUSH_SIZES) for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
-        const doc = new model.Document(8, 8);
+        const doc = new model.Document(10, 10);
         doc.vertices.fill(2);
         doc.cells = doc.cells.map(() => {
             const cell = { surface: (surface + 1) % model.TERRAIN_SURFACES.length, halfWaterCorner: 2 };
