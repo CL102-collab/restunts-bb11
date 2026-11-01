@@ -1,4 +1,4 @@
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 #if !defined(RESTUNTS_SDL3)
 const struct FRAME_SUPERSIGHT_TILE supersight_tiles[FRAME_SUPERSIGHT_TILE_COUNT] = {

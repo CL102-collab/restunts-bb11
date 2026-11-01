@@ -1,4 +1,4 @@
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #include "../hires/track_preview.h"
 #include "../game_input.h"
 #include "trackdata_layout.h"

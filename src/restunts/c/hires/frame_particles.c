@@ -1,4 +1,4 @@
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 #if defined(RESTUNTS_SDL3)
 legacy_s16 frame_draw_adaptive_particles(const struct FRAME_CAMERA *camera,

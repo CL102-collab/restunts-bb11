@@ -1,4 +1,4 @@
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 void frame_hires_begin(void)
 {

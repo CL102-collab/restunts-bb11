@@ -2,7 +2,7 @@
 
 #ifdef RESTUNTS_SDL3
 #include "skybox_hires.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #include "../shape2d/shape2d_internal.h"
 #include "../externs.h"
 

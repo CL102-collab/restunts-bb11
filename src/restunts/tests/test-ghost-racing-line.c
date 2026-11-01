@@ -8,7 +8,7 @@
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/platform.h"
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/game_input.h"
 #include "../c/race/race_resources.h"
 #include "../c/camera.h"

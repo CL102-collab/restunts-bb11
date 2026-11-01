@@ -1,4 +1,4 @@
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "platform.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"

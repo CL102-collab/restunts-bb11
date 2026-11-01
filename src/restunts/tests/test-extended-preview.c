@@ -4,7 +4,7 @@
 #include "../c/externs.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_frame.h"
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/game_input.h"
 #include "../c/hires/hires.h"
 #include "../c/menu/menu_internal.h"

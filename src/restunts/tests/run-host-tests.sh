@@ -83,7 +83,7 @@ extended_companions() {
 
 small_source_companions() {
     case "$1" in
-        frame.c) printf '%s\n' frame_camera.c frame_car.c frame_tiles.c frame_terrain.c frame_objects.c ;;
+        frame.c) printf '%s\n' frame/frame_camera.c frame/frame_car.c frame/frame_tiles.c frame/frame_terrain.c frame/frame_objects.c ;;
         extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c extended/extended_frame_precise.c ;;
         shape3d.c) printf '%s\n' shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
         shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
@@ -152,14 +152,14 @@ hires_source_companions() {
 
 generic_render_companions() {
     case "$1" in
-        frame.c) printf '%s\n' frame_context.c ;;
-        frame_camera.c) printf '%s\n' frame_context.c ;;
-        frame_car.c) printf '%s\n' frame_context.c ;;
-        frame_car_render.c) printf '%s\n' frame_car.c ;;
-        frame_objects.c) printf '%s\n' hires/frame_visibility.c frame_context.c ;;
-        frame_overlay.c) printf '%s\n' frame_fps.c hires/frame_overlay.c ;;
-        frame_terrain.c) printf '%s\n' frame_terrain.c ;;
-        frame_visibility.c) printf '%s\n' frame_terrain.c ;;
+        frame.c) printf '%s\n' frame/frame_context.c ;;
+        frame_camera.c) printf '%s\n' frame/frame_context.c ;;
+        frame_car.c) printf '%s\n' frame/frame_context.c ;;
+        frame_car_render.c) printf '%s\n' frame/frame_car.c ;;
+        frame_objects.c) printf '%s\n' hires/frame_visibility.c frame/frame_context.c ;;
+        frame_overlay.c) printf '%s\n' frame/frame_fps.c hires/frame_overlay.c ;;
+        frame_terrain.c) printf '%s\n' frame/frame_terrain.c ;;
+        frame_visibility.c) printf '%s\n' frame/frame_terrain.c ;;
         hires.c) printf '%s\n' video_framebuffer.c ;;
     esac
 }
@@ -371,13 +371,13 @@ run_host_test test-frame-render math.c -DRESTUNTS_SDL3 \
     "$test_source_dir/legacy.c" "$test_source_dir/heapsort.c" "$test_source_dir/trkutil.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers "$test_uninitialized_flag" \
     -Wno-missing-braces
-run_host_test test-frame-overlay frame_overlay.c \
+run_host_test test-frame-overlay frame/frame_overlay.c \
     "$test_source_dir/strlib.c" \
     "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_prerender.c" \
     "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
-run_host_test test-frame-overlay frame_overlay.c -DRESTUNTS_SDL3 \
+run_host_test test-frame-overlay frame/frame_overlay.c -DRESTUNTS_SDL3 \
     "$test_source_dir/strlib.c" \
     "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_prerender.c" \
     "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \

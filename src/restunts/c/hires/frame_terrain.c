@@ -1,4 +1,4 @@
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
 									const struct FRAME_CAMERA *camera,

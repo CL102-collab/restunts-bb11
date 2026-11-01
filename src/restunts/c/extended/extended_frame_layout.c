@@ -2,7 +2,7 @@
 
 #if defined(RESTUNTS_SDL3)
 #include "extended_frame.h"
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 void extended_frame_begin_tile_selection(struct FRAME_TILE_SELECTION *tiles)
 {

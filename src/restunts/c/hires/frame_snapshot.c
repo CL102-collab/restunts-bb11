@@ -1,4 +1,4 @@
-#include "../frame_render_private.h"
+#include "../frame/frame_render_private.h"
 
 static legacy_u8 frame_uses_snapshot;
 

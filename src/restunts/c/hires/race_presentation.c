@@ -13,7 +13,7 @@
 #include "../replay/replay_viewer.h"
 #include "../race/race_resources.h"
 #include "../shape2d/shape2d.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #include "../game_input.h"
 #include "../timing.h"
 #endif

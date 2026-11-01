@@ -8,7 +8,7 @@
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/platform.h"
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/hires/frame_interpolation.h"
 #include "../c/hires/presentation.h"
 #include "../c/physics_internal.h"
