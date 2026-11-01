@@ -544,7 +544,8 @@ run_host_test test-driving-rules driving_rules.c \
 run_host_test test-csrpl extended/extended_csrpl.c "$test_source_dir/extended/extended_cstrk.c" \
     "$test_source_dir/extended/extended_replay.c"
 run_host_test test-extended-replay-runtime extended/extended_replay_runtime.c \
-    "$test_source_dir/extended/extended_replay.c" -DRESTUNTS_SDL3
+    "$test_source_dir/extended/extended_replay.c" "$test_source_dir/extended/extended_replay_ui.c" \
+    "$test_source_dir/ui/ui_text.c" "$test_source_dir/legacy.c" -DRESTUNTS_SDL3 -Wno-pointer-sign
 run_host_test test-resource-lookup resource.c
 run_host_test test-shape2d-memory shape2d/shape2d_resources.c \
     "$test_source_dir/memmgr.c" "$test_source_dir/resource.c" "$test_source_dir/shape2d/shape2d.c" \

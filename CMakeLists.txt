@@ -565,7 +565,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-csrpl PRIVATE -UNDEBUG)
     add_test(NAME csrpl-format COMMAND test-csrpl)
     add_executable(test-extended-replay-runtime ${core}/extended/extended_replay.c
-        ${core}/extended/extended_replay_runtime.c
+        ${core}/extended/extended_replay_runtime.c ${core}/extended/extended_replay_ui.c
+        ${core}/ui/ui_text.c ${core}/legacy.c
         src/restunts/tests/test-extended-replay-runtime.c)
     target_compile_definitions(test-extended-replay-runtime PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-replay-runtime PRIVATE -UNDEBUG)
@@ -615,6 +616,8 @@ if(RESTUNTS_BUILD_TESTS)
     else()
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
+    target_compile_options(test-extended-replay-runtime PRIVATE ${restunts_test_section_options})
+    target_link_options(test-extended-replay-runtime PRIVATE ${restunts_test_gc_sections})
     enable_testing()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
