@@ -203,6 +203,24 @@ static void track_menu_draw_title(void)
 					dialog_fnt_colour, 0);
 }
 
+static void track_menu_draw_overlay(legacy_u8 diagnostics)
+{
+	legacy_s16 active =
+		diagnostics != 0 ? frame_display_overlay_active() : frame_renderer_status_overlay_active();
+	if (active == 0) {
+		return;
+	}
+	sprite_select_render_window();
+	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
+	if (diagnostics != 0) {
+		/* The title and best score have already been painted. Diagnostics occupy
+		 * their usual upper-left rows and are copied with the complete preview. */
+		frame_fps_draw_text();
+	} else {
+		frame_renderer_status_draw_text();
+	}
+}
+
 static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
 {
 	track_menu_draw_preview(menu);
@@ -210,11 +228,11 @@ static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
 	track_menu_draw_highscore(menu);
 
 	track_menu_draw_buttons();
-	if (frame_renderer_status_overlay_active() != 0) {
-		sprite_select_render_window();
-		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
-		frame_renderer_status_draw_text();
-	}
+#ifdef RESTUNTS_SDL3
+	track_menu_draw_overlay(menu->preview.live);
+#else
+	track_menu_draw_overlay(0);
+#endif
 }
 
 #ifdef RESTUNTS_SDL3
@@ -227,10 +245,7 @@ static void track_menu_draw_preview_header(const struct HIRES_TRACK_MENU_PREVIEW
 		track_menu_draw_highscore_fields(preview->score_text, preview->score_offsets);
 		font_set_fontdef();
 	}
-	if (frame_renderer_status_overlay_active() != 0) {
-		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
-		frame_renderer_status_draw_text();
-	}
+	track_menu_draw_overlay(1);
 }
 #endif
 
@@ -273,7 +288,8 @@ static legacy_u8 track_menu_activate_key(struct TRACK_MENU_STATE *menu, legacy_u
 {
 	if (key == (legacy_u16)KEY_F12
 #ifdef RESTUNTS_SDL3
-		|| key == (legacy_u16)KEY_SHIFT_F12
+		|| key == (legacy_u16)KEY_SHIFT_F12 ||
+		(key == (legacy_u16)KEY_F11 && menu->preview.live != 0)
 #endif
 	) {
 		mouse_draw_opaque_check();
