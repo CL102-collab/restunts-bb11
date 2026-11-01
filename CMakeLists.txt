@@ -222,7 +222,7 @@ set(common_sources
     resource.c math/math.c math/math_rectangles.c memmgr.c
     strlib.c numlib.c kevinrnd.c replinit.c
     gameinit.c gamestep.c simd.c car/carsetup.c
-    trkutil.c track/trackres.c headless_data.c headless_trackdata.c
+    trkutil.c track/trackres.c headless/headless_data.c headless/headless_trackdata.c
     state.c race/race_route.c physics/physics_grip.c opponent/opponent.c
     track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c
     physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c
@@ -318,7 +318,7 @@ target_link_libraries(restunts_options INTERFACE SDL3::SDL3 m)
 
 function(restunts_add_genghost)
     # The optimizer shares repldump's physics and owns its command-line entry point.
-    add_executable(genghost ${common_sources} ${core}/headless.c ${platform_common}
+    add_executable(genghost ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c
         src/restunts/genghost/main.c src/restunts/genghost/extended_source.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
@@ -464,7 +464,7 @@ if(EMSCRIPTEN)
     return()
 endif()
 
-add_executable(repldump ${common_sources} ${core}/headless.c ${platform_common}
+add_executable(repldump ${common_sources} ${core}/headless/headless.c ${platform_common}
     ${platform}/main.c src/restunts/repldump/repldump.c)
 target_compile_definitions(repldump PRIVATE RESTUNTS_HEADLESS)
 target_link_libraries(repldump PRIVATE restunts_options)
@@ -573,7 +573,7 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_definitions(test-extended-ghost PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-ghost PRIVATE -UNDEBUG)
     add_test(NAME extended-ghost COMMAND test-extended-ghost)
-    add_executable(test-extended-track ${common_sources} ${core}/headless.c ${platform_common}
+    add_executable(test-extended-track ${common_sources} ${core}/headless/headless.c ${platform_common}
         src/restunts/tests/test-extended-track.c)
     target_compile_definitions(test-extended-track PRIVATE RESTUNTS_HEADLESS)
     target_link_libraries(test-extended-track PRIVATE restunts_options)
@@ -796,7 +796,7 @@ if(RESTUNTS_BUILD_TESTS AND TARGET restunts_opl)
 endif()
 
 if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
-    add_executable(test-genghost-simulation ${common_sources} ${core}/headless.c ${platform_common}
+    add_executable(test-genghost-simulation ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/extended_simulation.c
@@ -806,7 +806,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_definitions(test-genghost-simulation PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_compile_options(test-genghost-simulation PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-simulation PRIVATE restunts_options)
-    add_executable(test-genghost-state ${common_sources} ${core}/headless.c ${platform_common}
+    add_executable(test-genghost-state ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c
         ${platform}/main.c src/restunts/genghost/simulation.c
         src/restunts/genghost/extended_simulation.c
@@ -820,7 +820,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_compile_definitions(test-genghost-state PRIVATE RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
     target_compile_options(test-genghost-state PRIVATE -UNDEBUG)
     target_link_libraries(test-genghost-state PRIVATE restunts_options)
-    add_executable(test-genghost-extended ${common_sources} ${core}/headless.c ${platform_common}
+    add_executable(test-genghost-extended ${common_sources} ${core}/headless/headless.c ${platform_common}
         ${core}/extended/extended_replay_runtime.c ${platform}/main.c
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
@@ -832,7 +832,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
     target_link_libraries(test-genghost-extended PRIVATE restunts_options)
     foreach(extended_feature geometry maneuvers)
         add_executable(test-genghost-extended-${extended_feature}
-            ${common_sources} ${core}/headless.c ${platform_common}
+            ${common_sources} ${core}/headless/headless.c ${platform_common}
             src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
             src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
             src/restunts/genghost/maneuvers.c src/restunts/genghost/extended_maneuvers.c
@@ -948,7 +948,7 @@ if(RESTUNTS_BUILD_TESTS)
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-race-frames src/restunts/tests/test-race-frames.c
             ${core}/extended/extended_replay_ui.c
-            ${core}/legacy.c ${core}/data/full_data.c ${core}/headless_data.c
+            ${core}/legacy.c ${core}/data/full_data.c ${core}/headless/headless_data.c
             ${core}/hires/frame_interpolation.c
         ${core}/hires/race_view.c)
         target_link_libraries(test-sdl3-race-frames PRIVATE restunts_options)

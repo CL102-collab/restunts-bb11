@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE = ROOT / 'src/restunts/c/headless_trackdata.c'
+SOURCE = ROOT / 'src/restunts/c/headless/headless_trackdata.c'
 OUTPUT = ROOT / 'src/restunts/platform/wasm/track-editor-route-data.js'
 
 

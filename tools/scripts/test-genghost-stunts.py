@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class StuntCoordinates(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.objects = STUNTS.metadata(ROOT / "src/restunts/c/headless_trackdata.c")
+        cls.objects = STUNTS.metadata(ROOT / "src/restunts/c/headless/headless_trackdata.c")
 
     def test_elements_and_terrain_use_opposite_row_order(self):
         track = bytearray(1802)
@@ -139,7 +139,7 @@ class WinnerSelection(unittest.TestCase):
 
 class CatalogDiscovery(unittest.TestCase):
     def test_complete_catalog_finds_chicanes_without_changing_legacy_selection(self):
-        objects = STUNTS.metadata(ROOT / "src/restunts/c/headless_trackdata.c")
+        objects = STUNTS.metadata(ROOT / "src/restunts/c/headless/headless_trackdata.c")
         rows = []
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
