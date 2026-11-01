@@ -153,7 +153,7 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	object.flags = flags;
 	if (model->legacy_id == CSTRK_WHEAT_FIELD_ID) {
 		struct SHAPE3D source;
-		if (!wheat_field_create_mesh(&source, object.detail)) {
+		if (!wheat_field_create_mesh(&source)) {
 			return 0;
 		}
 		struct TRACKOBJECT wheat = *definition;

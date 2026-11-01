@@ -43,8 +43,9 @@ test('wheat field artwork draws golden crop rows without a native bitmap', () =>
     assert.equal(bitmap.pixels.length, bitmap.width * bitmap.height);
     assert.equal(bitmap.alpha.length, bitmap.pixels.length);
     assert(bitmap.alpha.every(value => value === 255));
-    const colors = new Set(bitmap.pixels);
-    for (const color of [200, 74, 6, 72, 68]) assert(colors.has(color), 'soil, rows, stems and grain remain distinct');
+    assert.deepEqual([...new Set(bitmap.pixels)].sort((first, second) => first - second), [74, 200], 'only soil and golden rows remain');
+    for (let row = 1; row < bitmap.height; row++)
+        assert.deepEqual(bitmap.pixels.subarray(row * bitmap.width, (row + 1) * bitmap.width), bitmap.pixels.subarray(0, bitmap.width), 'crop rows have no stalk decorations');
     const next = resources.composePieceTileBitmap(new Map(), model.WHEAT_FIELD_ID);
     assert.deepEqual(next, bitmap); assert.notEqual(next.pixels, bitmap.pixels);
     for (const flags of [[1, 0, 0], [0, 1, 0], [0, 0, 6]])
