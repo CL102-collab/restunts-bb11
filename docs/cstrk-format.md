@@ -1,7 +1,7 @@
 # Chocolate Stunts track format
 
 `.cstrk` is the extended track format for SDL3 builds, including the
-SDL3 WebAssembly build. The current file-format revision is **v8**, supported
+SDL3 WebAssembly build. The current file-format revision is **v9**, supported
 by the game and HTML editor. DOS, Amiga and TempleOS builds continue to use `.trk`.
 The format stores a 1–90 by 1–90 tile terrain grid, terrain heights from zero
 through four hill levels, independent terrain and road surfaces, track objects,
@@ -20,7 +20,7 @@ All integer fields are little-endian, unsigned unless explicitly marked signed.
 There is no implicit padding, compression, native C structure image, or trailing
 data. The revision is numeric metadata: an unsigned 16-bit integer. The
 minimum supported revision is v3; older extended-track revisions are rejected.
-New tracks are created with revision v8. Valid v3 through v7 tracks upgrade to v8
+New tracks are created with revision v9. Valid v3 through v8 tracks upgrade to v9
 in memory. Revision v3 tracks preserve their shared overpass surface as both
 upper and lower road materials, so subsequent saves retain their appearance and
 grip. Sloped tunnels and slaloms require v5; the reader rejects these placements
@@ -28,10 +28,11 @@ in a v3 or v4 file before upgrading its revision. Revision v6 permits every
 catalog piece on a continuous straight slope, including multi-tile objects.
 Revision v7 adds the Tunnel with slalom modifier without changing object size.
 Revision v8 adds the directional Barrel roll ramp modifier.
+Revision v9 adds the five-tree and ten-tree pine group modifiers.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
-v15 or v101 is newer than a reader supporting v8. Its revision alone does not
+v15 or v101 is newer than a reader supporting v9. Its revision alone does not
 make loading fail, and its numeric revision is retained when saving.
 
 Best-effort loading still validates header size, horizon, dimensions, object
@@ -148,7 +149,7 @@ to Water. The field is ignored when the direction is zero.
 | 12 | 1 | Lower overpass road surface: paved `0`, dirt `1`, ice `2` (v4+) |
 | 13 | 1 | Tunnel with slalom modifier: ordinary `0`, combined stunt `1` (v7+) |
 | 14 | 1 | Barrel roll ramp modifier: ordinary `0`, launch ramp `1` (v8+) |
-| 15 | 1 | Reserved, `0` |
+| 15 | 1 | Pine group count: single tree `0`, five trees `5`, ten trees `10` (v9+) |
 
 The ordinary road surface selects the upper road on an overpass. The independent
 lower surface selects its road underneath. Only overpass IDs 101 and 102 may
@@ -156,13 +157,13 @@ store a nonzero lower surface; all other objects require paved `0` in that field
 Revision v3 reserves all four bytes at offsets 12–15 as zero. Revisions v4
 through v6 reserve offsets 13–15, v7 reserves offsets 14–15, and v8 reserves
 offset 15. The reader rejects nonzero reserved bytes and upgrades accepted v3
-through v7 tracks to v8.
+through v8 tracks to v9.
 A v3 overpass inherits its lower material from its ordinary surface because the
 older renderer and collision model used that selection for both roads. Since v4,
 new overpasses default the lower surface to paved independently of the upper road.
 Revisions v5 and v6 retain the v4 header and object layout. Revision v7 assigns
-byte 13, and v8 assigns byte 14, without changing the header or the 16-byte
-object record. Future revisions
+byte 13, v8 assigns byte 14, and v9 assigns byte 15, without changing the header
+or the 16-byte object record. Future revisions
 retain their numeric metadata and use this known layout.
 An explicit in-memory v3 export requires equal upper and lower overpass
 surfaces and writes zero at byte 12, preserving the original shared-surface format.
@@ -181,6 +182,14 @@ significant: opposite directions do not share the same launch end. The modifier
 requires revision v8, a full two-cell footprint, and a value of `0` or `1`. Other
 catalog IDs require `0`. The road ends at the lip; the subsequent roll is an
 unsupported flight using angular momentum acquired during tire contact.
+
+Pine trees (5) and Pine trees (10) use pine catalog ID 153 with byte 15 set to
+`5` or `10`. Both occupy one tile and contain a fixed, irregular arrangement of
+pine trees with varied sizes. Rotation turns the whole arrangement. Each tree
+retains the single pine's upright crown and slope-following trunk roots, with its
+own position and scale used for rendering and collisions. This modifier requires
+revision v9; other catalog IDs require `0`. Values other than `0`, `5` and `10`
+are invalid. The ordinary Pine tree uses `0`.
 
 Rotation is additional to the rotation already represented by the original tile
 ID; zero preserves that catalog tile's orientation. Footprint dimensions and
@@ -264,5 +273,6 @@ specified binary fixture, every truncation of that fixture, malformed headers
 and objects, all horizon choices, current and future numeric revisions, rejection
 of obsolete revisions, all 12 material pairs in four corner directions, sparse
 overlays, positive and negative slopes, versioned sloped-stunt placement, the v7
-Tunnel with slalom modifier and reserved-byte rejection, ASCII
+Tunnel with slalom modifier, v8 barrel roll ramps, v9 pine groups and
+revision-specific reserved-byte rejection, ASCII
 limits, transactional failure, and the maximum-size 90×90 map.

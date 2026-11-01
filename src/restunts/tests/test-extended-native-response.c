@@ -14,6 +14,7 @@
 #include "../c/extended/extended_owoot_jump.c"
 #include "../c/owoot/owoot_road.c"
 #include "../c/track/trackdata_layout.h"
+#include "../c/extended/pine_trees.h"
 
 #undef memcpy
 
@@ -72,6 +73,11 @@ legacy_int extended_track_height(void)
 const struct CSTRK_TRACK *extended_track_model(void)
 {
 	return &fixture_track;
+}
+
+legacy_uint extended_track_object_id(const struct CSTRK_OBJECT *object)
+{
+	return object->legacy_id;
 }
 
 const struct CSTRK_OBJECT *extended_track_object_for_id(legacy_int column, legacy_int row,
@@ -613,6 +619,138 @@ static void test_roll_shortcuts_are_rejected(void)
 	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
 }
 
+enum {
+	TEST_PINE_COLUMN = 5,
+	TEST_PINE_ROW = 5,
+	TEST_PINE_FIRST_X = -340,
+	TEST_PINE_FIRST_Z = 300,
+	TEST_PINE_FIRST_SCALE = PINE_TREE_SCALE_ONE / 2,
+	TEST_PINE_TRUNK_WIDTH = 32,
+	TEST_PINE_TRUNK_HEIGHT = 128,
+	TEST_PINE_TRUNK_RADIUS = 136,
+	TEST_PINE_CAR_EXTENT = 8,
+	TEST_PINE_CAR_RADIUS = 16,
+	TEST_PINE_CLEAR_GUARD = 30000,
+	TEST_PINE_SLOPE_COUNT = 5,
+	TEST_PINE_SIGNED_FIRST_WIDTH = -33,
+	TEST_PINE_SIGNED_FIRST_HEIGHT = 129,
+	TEST_PINE_SIGNED_SECOND_WIDTH = 35,
+	TEST_PINE_SIGNED_SECOND_RADIUS = -137
+};
+
+static void test_pine_group_collision_centers(void)
+{
+	static const legacy_s8 slopes[TEST_PINE_SLOPE_COUNT][2] = {
+		{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
+	fixture_extended = 1;
+	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
+	trkObjectList[CSTRK_PINE_TREE_ID].ss_physicalModel = PHYSICAL_MODEL_PINE_TREE;
+	for (legacy_u8 group = 0; group < sizeof(counts) / sizeof(counts[0]); group++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
+			for (legacy_u8 slope = 0; slope < TEST_PINE_SLOPE_COUNT; slope++) {
+				fixture_object = (struct CSTRK_OBJECT){0};
+				fixture_object.legacy_id = CSTRK_PINE_TREE_ID;
+				fixture_object.x = TEST_PINE_COLUMN;
+				fixture_object.y = TEST_PINE_ROW;
+				fixture_object.width = fixture_object.height = 1;
+				fixture_object.occupied_mask = 1;
+				fixture_object.rotation = rotation;
+				fixture_object.base_height = 1;
+				fixture_object.slope_x = slopes[slope][0];
+				fixture_object.slope_y = slopes[slope][1];
+				fixture_object.pine_count = counts[group];
+				struct VECTOR origin;
+				extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
+				struct VECTOR positions[CSTRK_PINE_GROUP_LARGE_COUNT + 1U] = {{0}};
+				positions[counts[group]].x = TEST_PINE_CLEAR_GUARD;
+				assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) ==
+					   counts[group]);
+				assert(positions[counts[group]].x == TEST_PINE_CLEAR_GUARD);
+				for (legacy_u8 index = 0; index < counts[group]; index++) {
+					struct PINE_TREE_INSTANCE tree;
+					assert(pine_trees_instance(&fixture_object, index, &tree));
+					assert(positions[index].x == LEGACY_S16_WRAP_ADD(origin.x, tree.x));
+					assert(positions[index].z == LEGACY_S16_WRAP_ADD(origin.z, tree.z));
+					assert(positions[index].y == origin.y + extended_geometry_object_grade(
+																&fixture_object, tree.x, tree.z));
+					assert(positions[index].x != origin.x || positions[index].z != origin.z);
+				}
+				if (rotation == 0) {
+					assert(positions[0].x == origin.x + TEST_PINE_FIRST_X);
+					assert(positions[0].z == origin.z + TEST_PINE_FIRST_Z);
+				}
+				/* The unmodified single pine retains its one centered collision point. */
+				fixture_object.pine_count = 0;
+				assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) == 1);
+				assert(positions[0].x == origin.x && positions[0].z == origin.z);
+				assert(positions[0].y ==
+					   origin.y + extended_geometry_object_grade(&fixture_object, 0, 0));
+			}
+		}
+	}
+}
+
+static void test_pine_group_collision_bounds(void)
+{
+	struct POINT2D native_bounds[2];
+	native_bounds[0] = track_auxiliary_obstacle_bounds[0];
+	native_bounds[1] = track_auxiliary_obstacle_bounds[1];
+	track_auxiliary_obstacle_bounds[0] =
+		(struct POINT2D){TEST_PINE_TRUNK_WIDTH, TEST_PINE_TRUNK_HEIGHT};
+	track_auxiliary_obstacle_bounds[1] =
+		(struct POINT2D){TEST_PINE_TRUNK_WIDTH, TEST_PINE_TRUNK_RADIUS};
+	fixture_object.rotation = fixture_object.slope_x = fixture_object.slope_y = 0;
+	fixture_object.pine_count = CSTRK_PINE_GROUP_LARGE_COUNT;
+	struct VECTOR positions[CSTRK_PINE_GROUP_LARGE_COUNT];
+	assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) ==
+		   CSTRK_PINE_GROUP_LARGE_COUNT);
+	struct POINT2D car_bounds[2] = {{TEST_PINE_CAR_EXTENT, TEST_PINE_CAR_EXTENT},
+									{TEST_PINE_CAR_EXTENT, TEST_PINE_CAR_RADIUS}};
+	struct VECTOR car_pose[2] = {{0}}, obstacle_pose[2] = {{0}};
+	for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_LARGE_COUNT; index++) {
+		struct POINT2D bounds[2];
+		bounds[0] = track_auxiliary_obstacle_bounds[0];
+		bounds[1] = track_auxiliary_obstacle_bounds[1];
+		extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, index, bounds);
+		struct PINE_TREE_INSTANCE tree;
+		assert(pine_trees_instance(&fixture_object, index, &tree));
+		assert(bounds[0].px ==
+			   TEST_PINE_TRUNK_WIDTH * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		assert(bounds[0].py ==
+			   TEST_PINE_TRUNK_HEIGHT * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		assert(bounds[1].py ==
+			   TEST_PINE_TRUNK_RADIUS * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		if (index == 0) {
+			assert(bounds[0].px ==
+				   TEST_PINE_TRUNK_WIDTH * TEST_PINE_FIRST_SCALE / (legacy_s32)PINE_TREE_SCALE_ONE);
+		}
+		obstacle_pose[0] = positions[index];
+		car_pose[0] = positions[index];
+		assert(car_collision_boxes_overlap(car_bounds, car_pose, bounds, obstacle_pose));
+		extended_geometry_object_origin(&fixture_track, &fixture_object, &car_pose[0]);
+		assert(!car_collision_boxes_overlap(car_bounds, car_pose, bounds, obstacle_pose));
+	}
+	struct POINT2D bounds[2];
+	bounds[0] = track_auxiliary_obstacle_bounds[0];
+	bounds[1] = track_auxiliary_obstacle_bounds[1];
+	fixture_object.pine_count = 0;
+	extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, 0, bounds);
+	assert(memcmp(bounds, track_auxiliary_obstacle_bounds, sizeof(bounds)) == 0);
+	/* Signed, asymmetric bounds round toward zero, including negative values. */
+	fixture_object.pine_count = CSTRK_PINE_GROUP_LARGE_COUNT;
+	bounds[0] = (struct POINT2D){TEST_PINE_SIGNED_FIRST_WIDTH, TEST_PINE_SIGNED_FIRST_HEIGHT};
+	bounds[1] = (struct POINT2D){TEST_PINE_SIGNED_SECOND_WIDTH, TEST_PINE_SIGNED_SECOND_RADIUS};
+	extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, 0, bounds);
+	assert(bounds[0].px == TEST_PINE_SIGNED_FIRST_WIDTH / 2);
+	assert(bounds[0].py == TEST_PINE_SIGNED_FIRST_HEIGHT / 2);
+	assert(bounds[1].px == TEST_PINE_SIGNED_SECOND_WIDTH / 2);
+	assert(bounds[1].py == TEST_PINE_SIGNED_SECOND_RADIUS / 2);
+	fixture_object.pine_count = 0;
+	track_auxiliary_obstacle_bounds[0] = native_bounds[0];
+	track_auxiliary_obstacle_bounds[1] = native_bounds[1];
+}
+
 legacy_int main(void)
 {
 	test_native_wall_response();
@@ -623,5 +761,7 @@ legacy_int main(void)
 	test_roll_completion_and_checkpoint_state();
 	test_roll_completion_on_cross_slope();
 	test_roll_shortcuts_are_rejected();
+	test_pine_group_collision_centers();
+	test_pine_group_collision_bounds();
 	return 0;
 }

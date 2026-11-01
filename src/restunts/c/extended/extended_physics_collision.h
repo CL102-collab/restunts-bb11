@@ -21,6 +21,9 @@ legacy_s16 extended_sweep_track_wall_span(struct VECTORLONG *previous_first,
 										  legacy_s16 *result);
 legacy_s16 extended_get_track_collision_points(legacy_s16 column_arg, legacy_s16 row_arg,
 											   struct VECTOR *output, legacy_s16 *result);
+/* Scale the ordinary auxiliary obstacle box for one pine in a scenery group. */
+void extended_track_collision_bounds(legacy_s16 column, legacy_s16 row, legacy_u8 index,
+									 struct POINT2D bounds[2]);
 #endif
 
 #endif

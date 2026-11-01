@@ -18,6 +18,7 @@
 #include "../c/hires/shape3d_hires.h"
 #include "../c/math/projection.h"
 #include "../c/extended/roll_ramp.h"
+#include "../c/extended/pine_trees.h"
 #include "../c/owoot/owoot_road.h"
 #include "../c/menu/menu_internal.h"
 
@@ -963,6 +964,9 @@ static legacy_u8 plant_capture_active, plant_capture_calls, plant_capture_precis
 static struct CSTRK_OBJECT plant_capture_object;
 static struct SHAPE3D plant_capture_source;
 static legacy_f64 plant_capture_lift;
+static legacy_u8 plant_capture_pine_count;
+static const struct SHAPE3D *plant_capture_native;
+static legacy_f64 plant_capture_pine_lifts[CSTRK_PINE_GROUP_LARGE_COUNT];
 
 /* Check the renderer submission: rigid upper geometry, roots on the terrain,
  * and a trunk at least as tall as its flat-ground model on the uphill side. */
@@ -1022,11 +1026,18 @@ static void plant_check_vertices(const struct TRANSFORMEDSHAPE3D *instance,
 static void plant_check_submission(const struct TRANSFORMEDSHAPE3D *instance,
 								   const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (plant_capture_pine_count) {
+		assert(plant_capture_calls < plant_capture_pine_count);
+		extended_geometry_free_shape(&plant_capture_source);
+		assert(pine_trees_create_mesh(plant_capture_native, &plant_capture_source,
+									  &plant_capture_object, plant_capture_calls));
+	}
 	plant_check_vertices(instance, NULL);
 	if (vertices) {
 		plant_check_vertices(instance, vertices);
 	}
 	plant_capture_precise = vertices != NULL;
+	plant_capture_pine_lifts[plant_capture_calls] = plant_capture_lift;
 	plant_capture_calls++;
 }
 
@@ -3019,8 +3030,14 @@ static legacy_u16 check_general_sloped_rendering(void)
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 static void check_upright_sloped_plants(void)
 {
-	static const legacy_u16 ids[] = {PLANT_RENDER_PALM_ID, PLANT_RENDER_CACTUS_ID,
-									 PLANT_RENDER_PINE_ID};
+	static const struct {
+		legacy_u16 id;
+		legacy_u8 pine_count;
+	} variants[] = {{PLANT_RENDER_PALM_ID, 0},
+					{PLANT_RENDER_CACTUS_ID, 0},
+					{PLANT_RENDER_PINE_ID, 0},
+					{PLANT_RENDER_PINE_ID, CSTRK_PINE_GROUP_SMALL_COUNT},
+					{PLANT_RENDER_PINE_ID, CSTRK_PINE_GROUP_LARGE_COUNT}};
 	static const legacy_s8 slopes[PLANT_RENDER_SLOPE_COUNT][2] = {
 		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
 	static const legacy_u8 bases[] = {0, CSTRK_MAX_HEIGHT - 1U};
@@ -3030,7 +3047,7 @@ static void check_upright_sloped_plants(void)
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
 	const struct FRAME_CAMERA camera = {0};
 	legacy_u16 submissions = 0;
-	for (legacy_u16 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+	for (legacy_u16 kind = 0; kind < sizeof(variants) / sizeof(variants[0]); kind++) {
 		for (legacy_u8 rotation = 0; rotation < PLANT_RENDER_DIRECTION_COUNT; rotation++) {
 			for (legacy_u8 slope = 0; slope < PLANT_RENDER_SLOPE_COUNT; slope++) {
 				for (legacy_u8 base = 0; base < sizeof(bases) / sizeof(bases[0]); base++) {
@@ -3047,7 +3064,8 @@ static void check_upright_sloped_plants(void)
 						}
 					}
 					struct CSTRK_OBJECT object = {0};
-					object.legacy_id = ids[kind];
+					object.legacy_id = variants[kind].id;
+					object.pine_count = variants[kind].pine_count;
 					object.x = STUNT_RENDER_COLUMN;
 					object.y = STUNT_RENDER_ROW;
 					object.rotation = rotation;
@@ -3061,14 +3079,20 @@ static void check_upright_sloped_plants(void)
 					const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
 					const struct TRACKOBJECT *definition =
 						&trkObjectList[extended_track_object_id(placed)];
-					legacy_f64 lifts[STUNT_RENDER_DETAIL_COUNT] = {0};
+					legacy_f64 lifts[STUNT_RENDER_DETAIL_COUNT][CSTRK_PINE_GROUP_LARGE_COUNT] = {
+						{0}};
+					legacy_u8 trees = object.pine_count ? object.pine_count : 1U;
 					for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
 						const struct SHAPE3D *source = detail && definition->ss_loShapePtr
 														   ? definition->ss_loShapePtr
 														   : definition->ss_shapePtr;
-						assert(extended_geometry_transform_shape(
-							source, &plant_capture_source, definition->ss_rotY, CSTRK_ROAD_PAVED,
-							definition->ss_physicalModel));
+						plant_capture_pine_count = object.pine_count;
+						plant_capture_native = source;
+						if (!object.pine_count) {
+							assert(extended_geometry_transform_shape(
+								source, &plant_capture_source, definition->ss_rotY,
+								CSTRK_ROAD_PAVED, definition->ss_physicalModel));
+						}
 						plant_capture_object = *placed;
 						plant_capture_calls = plant_capture_precise = 0;
 						plant_capture_lift = 0;
@@ -3079,14 +3103,25 @@ static void check_upright_sloped_plants(void)
 						plant_capture_active = 1;
 						assert(!extended_frame_draw_objects(&tile, &camera, 0));
 						plant_capture_active = 0;
-						assert(plant_capture_calls == 1);
+						assert(plant_capture_calls == trees);
 						assert(plant_capture_precise == (renderer_active && slope != 0));
-						lifts[detail] = plant_capture_lift;
+						memcpy(lifts[detail], plant_capture_pine_lifts, sizeof(lifts[detail]));
 						extended_geometry_free_shape(&plant_capture_source);
-						submissions++;
+						submissions += trees;
 					}
 					/* A detail switch must not shift the canopy's elevation. */
-					assert(lifts[0] == lifts[1]);
+					for (legacy_u8 tree = 0; tree < trees; tree++) {
+						assert(lifts[0][tree] == lifts[1][tree]);
+					}
+					if (object.pine_count && renderer_active && slope) {
+						/* A grove must not share a crown lift: every tree
+						 * follows its own uphill root extent. */
+						legacy_u8 different = 0;
+						for (legacy_u8 tree = 1; tree < trees; tree++) {
+							different |= lifts[0][tree] != lifts[0][0];
+						}
+						assert(different);
+					}
 				}
 			}
 		}

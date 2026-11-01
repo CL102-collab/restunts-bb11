@@ -8,9 +8,9 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 10]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 12]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
-    assert.equal(families.size + model.SURFACES.length + 1, model.library.length);
+    assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
@@ -115,7 +115,7 @@ test('every library direction preserves the placement footprint and saved track 
         assert.equal((piece.rotation + rotation) % 4, entry.rollRamp ? (direction + 2) % 4 : direction);
         const expected = model.rotatedFootprint(entry, direction);
         assert.deepEqual(model.rotatedFootprint(piece, rotation), expected);
-        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
+        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0, entry.pineCount ?? 0);
         assert.equal(placed.width, expected.width); assert.equal(placed.height, expected.height); assert.equal(placed.mask, expected.mask);
         assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
     }
@@ -540,7 +540,7 @@ test('buildable library families fit straight slopes in every element and slope 
                 assert.deepEqual(doc.snapshot(), before);
                 continue;
             }
-            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
+            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0, entry.pineCount ?? 0);
             assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
             assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
             assert.equal(object.baseHeight, slopeX + slopeY > 0 ? 0 : slopeX ? footprint.width : footprint.height);
@@ -1086,6 +1086,73 @@ test('tunnel with slalom flags require v7 and only apply to slalom objects', () 
     doc.objects[0].tunnelSlalom = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
 });
+test('pine groups preserve counts through directions, sloped placement, clipboard and reload', () => {
+    const groups = model.library.filter(piece => piece.pineCount);
+    assert.deepEqual(groups.map(piece => [piece.name, piece.pineCount, piece.group]),
+        [['Pine trees (10)', 10, 10], ['Pine trees (5)', 5, 10]]);
+    const ordinary = model.library.find(piece => piece.physical === model.PINE_PHYSICAL_MODEL && !piece.pineCount);
+    assert(ordinary); assert.equal(ordinary.name, 'Pine tree');
+    for (const selected of groups) for (const direction of [0, 1, 2, 3]) {
+        const variant = model.pieceVariant(selected, direction), display = model.pieceDisplayVariant(variant.piece, variant.rotation);
+        assert.equal(variant.piece.pineCount, selected.pineCount); assert.equal(display.piece.pineCount, selected.pineCount);
+        assert.equal(display.piece.key, selected.key); assert.equal(display.piece.name, selected.name);
+        assert.equal((display.piece.rotation + display.rotation) % 4, direction);
+        assert.equal(model.pieceVariant(ordinary, direction).piece.pineCount, undefined);
+        for (const [slopeX, slopeY] of [[0, 0], ...SLOPE_DIRECTIONS]) {
+            const doc = slopeX || slopeY ? slopeDocument(selected, slopeX, slopeY) : new model.Document(4, 4);
+            const before = doc.snapshot();
+            const object = doc.place(variant.piece.id, 1, 1, 2, variant.rotation, 0, 0, 0, selected.pineCount);
+            assert.equal(object.pineCount, selected.pineCount); assert.equal(object.surface, 0);
+            assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
+            assert.deepEqual([object.width, object.height, object.mask], [1, 1, 1]);
+            const placed = doc.snapshot(), bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+            assert.equal(bytes[record + 15], selected.pineCount);
+            assert.deepEqual(model.decodeCstrk(bytes).snapshot(), placed);
+            const clipboard = doc.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
+            for (const transformed of [clipboard, model.flipClipboard(clipboard, 'horizontal'), model.flipClipboard(clipboard, 'vertical'), model.rotateClipboard(clipboard, 1)]) {
+                assert.equal(transformed.objects[0].pineCount, selected.pineCount);
+                const target = new model.Document(4, 4);
+                target.pasteRegion(transformed, 2, 2);
+                assert.equal(target.objects[0].pineCount, selected.pineCount);
+                assert.deepEqual(model.decodeCstrk(model.encodeCstrk(target)).snapshot(), target.snapshot());
+            }
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+        }
+    }
+});
+test('pine groups require v9 and reject other counts and backing elements atomically', () => {
+    const doc = new model.Document(4, 4); doc.place(153, 1, 1, 0, 0, 0, 0, 0, 10);
+    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+    for (let version = 3; version < model.PINE_GROUP_VERSION; version++) {
+        doc.version = version;
+        assert.throws(() => model.encodeCstrk(doc), /version v9/);
+        assert.throws(() => doc.placement(153, 2, 2, 0, 0, 0, 0, 0, 5), /version v9/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    doc.version = model.VERSION;
+    for (const id of [4, 85, 115, 151, 152, 154]) {
+        assert.throws(() => doc.placement(id, 2, 2, 0, 0, 0, 0, 0, 5), /only pine trees/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(record, id, true);
+        assert.throws(() => model.decodeCstrk(invalid), /only pine trees/);
+    }
+    const before = doc.snapshot(), history = doc.history.length;
+    for (const count of [-1, 1, 4, 6, 11, 255, 1.5, true]) {
+        assert.throws(() => doc.place(153, 2, 2, 0, 0, 0, 0, 0, count), /pine tree count/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+        if (Number.isInteger(count) && count > 0) {
+            const invalid = bytes.slice(); invalid[record + 15] = count;
+            assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+        }
+    }
+    for (const count of [5, 10]) {
+        const invalid = bytes.slice(); invalid[record + 13] = 1; invalid[record + 15] = count;
+        assert.throws(() => model.decodeCstrk(invalid), /only slalom/);
+    }
+    doc.objects[0].pineCount = 2;
+    assert.throws(() => model.encodeCstrk(doc), /pine tree count/);
+});
 test('barrel roll ramps retain all launch directions, footprints and history after reload', () => {
     const selected = model.library.find(piece => piece.rollRamp);
     const ordinary = model.library.find(piece => piece.physical === model.ROLL_RAMP_PHYSICAL_MODEL && !piece.rollRamp);
@@ -1143,6 +1210,44 @@ test('barrel roll ramps require v8 and reject invalid variants without editing t
     assert.throws(() => model.decodeCstrk(both), /only slalom/);
     doc.objects[0].rollRamp = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
+});
+test('pine group artwork keeps the exact count, varied sizes and transparent gaps', () => {
+    const nativeSize = 16, green = 10, trunk = 6;
+    const pine = { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize),
+        mask: { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize).fill(15) } };
+    for (let y = 0; y < 12; y++) for (let x = 7 - Math.floor(y / 3); x <= 7 + Math.floor(y / 3); x++)
+        pine.pixels[y * nativeSize + x + 1] = green;
+    for (let y = 12; y < 14; y++) for (let x = 6; x <= 8; x++) pine.pixels[y * nativeSize + x + 1] = trunk;
+    const icons = new Map([[153, pine]]);
+    for (const count of [5, 10]) {
+        const bitmap = resources.composePieceTileBitmap(icons, 153, 0, 0, count);
+        assert.deepEqual(bitmap, resources.composePieceTileBitmap(icons, 153, 0, 0, count));
+        assert.equal(bitmap.width, bitmap.height);
+        const seen = new Set(), trees = [];
+        for (let index = 0; index < bitmap.alpha.length; index++) {
+            if (!bitmap.alpha[index] || seen.has(index)) continue;
+            const queue = [index]; seen.add(index);
+            for (let cursor = 0; cursor < queue.length; cursor++) {
+                const current = queue[cursor];
+                for (const step of [-1, 1, -bitmap.width, bitmap.width]) {
+                    const next = current + step;
+                    if (next < 0 || next >= bitmap.alpha.length || Math.abs(next % bitmap.width - current % bitmap.width) > 1 ||
+                        !bitmap.alpha[next] || seen.has(next)) continue;
+                    seen.add(next); queue.push(next);
+                }
+            }
+            const xs = queue.map(pixel => pixel % bitmap.width), ys = queue.map(pixel => Math.floor(pixel / bitmap.width));
+            trees.push({ x: Math.min(...xs), y: Math.min(...ys), height: Math.max(...ys) - Math.min(...ys) + 1 });
+            assert(queue.some(pixel => bitmap.pixels[pixel] === trunk), 'every tree retains a trunk');
+            assert(queue.some(pixel => bitmap.pixels[pixel] === green), 'every tree retains native foliage');
+        }
+        assert.equal(trees.length, count, 'each tree has its own silhouette');
+        assert(new Set(trees.map(tree => tree.height)).size > 1, 'trees have different sizes');
+        assert(new Set(trees.map(tree => tree.x)).size > 2 && new Set(trees.map(tree => tree.y)).size > 2, 'trees are scattered across the tile');
+        assert(bitmap.alpha.filter(value => !value).length > bitmap.alpha.length / 2, 'terrain remains visible between the trees');
+    }
+    for (const [id, tunnel, roll, count] of [[151, 0, 0, 5], [153, 1, 0, 5], [153, 0, 1, 10], [153, 0, 0, 6]])
+        assert.throws(() => resources.composePieceTileBitmap(icons, id, tunnel, roll, count), /pine tree group artwork/);
 });
 test('barrel roll ramp artwork distinguishes the concrete entry, grille and launch direction', () => {
     const vertical = resources.composePieceTileBitmap(new Map(), 85, 0, 1);
@@ -1517,7 +1622,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 8); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, 9); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
