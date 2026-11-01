@@ -1,4 +1,5 @@
 #include "extended_frame_internal.h"
+#include "pine_trees.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
@@ -92,6 +93,41 @@ void frame_extended_apply_object_grade(struct SHAPE3D *mesh, const struct CSTRK_
 	}
 }
 
+/* Each tree owns its full-detail anchor. A shared grove anchor would lift
+ * every crown to the uphill tree and stretch the downhill trunks. */
+static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJECT *object)
+{
+	const struct TRACKOBJECT *native = object->definition;
+	for (legacy_u8 tree = 0; tree < object->object->pine_count; tree++) {
+		struct SHAPE3D full, detail;
+		if (!pine_trees_create_mesh(native->ss_shapePtr, &full, object->object, tree)) {
+			continue;
+		}
+		const struct SHAPE3D *source = &full;
+		legacy_u8 low_detail = object->detail && native->ss_loShapePtr;
+		if (low_detail) {
+			if (!pine_trees_create_mesh(native->ss_loShapePtr, &detail, object->object, tree)) {
+				extended_geometry_free_shape(&full);
+				continue;
+			}
+			source = &detail;
+		}
+		struct TRACKOBJECT definition = *native;
+		definition.ss_shapePtr = &full;
+		definition.ss_rotY = 0;
+		legacy_s16 result =
+			frame_extended_draw_object_mesh(object, &definition, source, CSTRK_ROAD_PAVED);
+		if (low_detail) {
+			extended_geometry_free_shape(&detail);
+		}
+		extended_geometry_free_shape(&full);
+		if (result) {
+			return result;
+		}
+	}
+	return 0;
+}
+
 legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 									  const struct CSTRK_OBJECT *model,
 									  const struct TRACKOBJECT *definition,
@@ -114,6 +150,9 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (model->pine_count) {
+		return frame_extended_draw_pine_trees(&object);
+	}
 	if (model->roll_ramp) {
 		object.flags |= SHAPE3D_BLACK_GRILLE_FLAG;
 		struct SHAPE3D source;

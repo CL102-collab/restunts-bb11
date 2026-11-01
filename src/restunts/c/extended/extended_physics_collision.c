@@ -9,6 +9,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_track.h"
 #include "extended_geometry.h"
+#include "pine_trees.h"
 #if !defined(RESTUNTS_HEADLESS) || defined(RESTUNTS_EXTENDED_REPLAY)
 #include "extended_replay_runtime.h"
 #endif
@@ -147,10 +148,25 @@ legacy_s16 extended_get_track_collision_points(legacy_s16 column_arg, legacy_s16
 		*result = 0;
 		return 1;
 	}
-	const struct VECTOR *points;
-	legacy_u16 count = physics_collision_model_points((legacy_u8)id, &points);
 	struct VECTOR origin;
 	extended_geometry_object_origin(extended_track_model(), object, &origin);
+	if (object->pine_count) {
+		for (legacy_u8 index = 0; index < object->pine_count; index++) {
+			struct PINE_TREE_INSTANCE tree;
+			if (!pine_trees_instance(object, index, &tree)) {
+				*result = 0;
+				return 1;
+			}
+			output[index].x = LEGACY_S16_WRAP_ADD(origin.x, tree.x);
+			output[index].y = LEGACY_S16_WRAP_ADD(
+				origin.y, extended_geometry_object_grade(object, tree.x, tree.z));
+			output[index].z = LEGACY_S16_WRAP_ADD(origin.z, tree.z);
+		}
+		*result = object->pine_count;
+		return 1;
+	}
+	const struct VECTOR *points;
+	legacy_u16 count = physics_collision_model_points((legacy_u8)id, &points);
 	physics_transform_collision_points(points, output, count, trkObjectList[id].ss_rotY, 0, 0, 0);
 	for (legacy_u16 i = 0; i < count; i++) {
 		if (extended_geometry_uses_grade(object)) {
@@ -163,5 +179,25 @@ legacy_s16 extended_get_track_collision_points(legacy_s16 column_arg, legacy_s16
 	}
 	*result = (legacy_s16)count;
 	return 1;
+}
+
+void extended_track_collision_bounds(legacy_s16 column, legacy_s16 row, legacy_u8 index,
+									 struct POINT2D bounds[2])
+{
+	if (!extended_track_active()) {
+		return;
+	}
+	const struct CSTRK_OBJECT *object = extended_track_object_at(column, row);
+	struct PINE_TREE_INSTANCE tree;
+	if (!object || !object->pine_count || !pine_trees_instance(object, index, &tree)) {
+		return;
+	}
+	/* Reuse the native pine trunk's collision box at this tree's scale. */
+	for (legacy_u8 point = 0; point < 2U; point++) {
+		bounds[point].px = (legacy_s16)((legacy_s32)bounds[point].px * tree.scale /
+										(legacy_s32)PINE_TREE_SCALE_ONE);
+		bounds[point].py = (legacy_s16)((legacy_s32)bounds[point].py * tree.scale /
+										(legacy_s32)PINE_TREE_SCALE_ONE);
+	}
 }
 #endif

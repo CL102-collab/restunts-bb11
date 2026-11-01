@@ -129,11 +129,21 @@ vm.runInContext(`
     const rampReloaded = model.decodeCstrk(model.encodeCstrk(ramp));
     const rampDisplay = model.pieceDisplayVariant({ ...model.catalog.find(piece => piece.id === rampReloaded.objects[0].id), rollRamp: 1 }, rampReloaded.objects[0].rotation);
     // West travel is native yaw 1: the concrete entry is on the right.
-    if (rampReloaded.version !== 8 || rampReloaded.objects[0].rollRamp !== 1 || rampDisplay.piece.id !== 85 || rampDisplay.rotation !== 1) {
+    if (rampReloaded.version !== model.VERSION || rampReloaded.objects[0].rollRamp !== 1 || rampDisplay.piece.id !== 85 || rampDisplay.rotation !== 1) {
         throw new Error('Embedded codec lost the barrel roll launch direction');
     }
     const rampIcon = TrackEditorResources.composePieceTileBitmap(new Map(), 85, 0, 1);
     if (rampIcon.width !== 15 || rampIcon.height !== 30) throw new Error('Embedded ramp artwork is invalid');
+    for (const count of [10, 5]) {
+        const pine = model.library.find(piece => piece.pineCount === count);
+        if (!pine || pine.group !== 10 || pine.name !== 'Pine trees (' + count + ')') throw new Error('Pine group missing from palette');
+        const forest = new model.Document(4, 4), treeVariant = model.pieceVariant(pine, 3);
+        forest.place(treeVariant.piece.id, 1, 1, 0, treeVariant.rotation, 0, 0, 0, count);
+        const forestReloaded = model.decodeCstrk(model.encodeCstrk(forest));
+        if (forestReloaded.version !== model.VERSION || forestReloaded.objects[0].pineCount !== count || forestReloaded.objects[0].rotation !== 3) {
+            throw new Error('Embedded codec lost the pine group count or orientation');
+        }
+    }
     const block = new model.Document(12, 10);
     block.place(4, 2, 2, 1);
     block.place(115, 4, 2, 2, 0, 0, 1);

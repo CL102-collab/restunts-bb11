@@ -15,6 +15,12 @@
     const ROLL_RAMP_SUPPORT_WIDTH = 2, ROLL_RAMP_SUPPORT_DEPTH = 3;
     const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
+    const PINE_ICON = 153, PINE_SMALL_COUNT = 5, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
+    // Keep positions and sizes in sync with extended/extended_pine_trees.c. Five trees
+    // use alternating entries of the ten-tree layout. Positive z points north.
+    const PINE_LAYOUT = [[-340, 300, 128], [-80, 340, 176], [240, 310, 144], [350, 70, 112],
+        [130, 80, 192], [-220, 80, 152], [-350, -190, 168], [-90, -300, 120],
+        [200, -260, 160], [350, -110, 136]];
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
@@ -232,7 +238,34 @@
         }
         return { width: height, height: width, pixels: rotated, alpha: rotatedAlpha };
     }
-    function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0) {
+    function composePineTreesBitmap(icons, pineCount) {
+        const source = composeTileBitmap(icons.get(PINE_ICON));
+        const width = EDITOR_TILE_INTERIOR * PINE_GROUP_ICON_SCALE, height = width;
+        const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
+        const trees = PINE_LAYOUT.filter((tree, index) => pineCount === PINE_LAYOUT.length || index % 2 === 0);
+        // Paint the northern trees first, keeping the individual silhouettes
+        // and their trunks legible on the transparent terrain background.
+        for (const [x, z, scale] of trees.sort((first, second) => second[1] - first[1])) {
+            const treeWidth = Math.max(1, Math.round(source.width * scale / PINE_LAYOUT_SCALE));
+            const treeHeight = Math.max(1, Math.round(source.height * scale / PINE_LAYOUT_SCALE));
+            const left = Math.round((x / PINE_TILE_WORLD_SIZE + .5) * width - treeWidth / 2);
+            const top = Math.round((.5 - z / PINE_TILE_WORLD_SIZE) * height - treeHeight);
+            for (let dy = 0; dy < treeHeight; dy++) for (let dx = 0; dx < treeWidth; dx++) {
+                const sourceX = Math.floor(dx * source.width / treeWidth), sourceY = Math.floor(dy * source.height / treeHeight);
+                const from = sourceY * source.width + sourceX, targetX = left + dx, targetY = top + dy;
+                if (!source.alpha[from] || targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
+                const to = targetY * width + targetX;
+                pixels[to] = source.pixels[from]; alpha[to] = source.alpha[from];
+            }
+        }
+        return { width, height, pixels, alpha };
+    }
+    function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0) {
+        if (pineCount) {
+            if (id !== PINE_ICON || tunnelSlalom || rollRamp || (pineCount !== PINE_SMALL_COUNT && pineCount !== PINE_LAYOUT.length))
+                fail('Invalid pine tree group artwork.');
+            return composePineTreesBitmap(icons, pineCount);
+        }
         if (rollRamp) {
             if (rollRamp !== 1 || tunnelSlalom ||
                 (id !== ROLL_RAMP_VERTICAL_ICON && id !== ROLL_RAMP_HORIZONTAL_ICON)) fail('Invalid barrel roll ramp artwork.');

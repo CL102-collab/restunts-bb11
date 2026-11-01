@@ -96,8 +96,9 @@ higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
 On a straight incline, place track pieces in any direction. Palm tree, Cactus
-and Pine tree scenery also accepts straight inclines. The editor requires level
-ground for divided highways, highway transitions and other scenery; raised
+and Pine tree scenery, including both pine tree groups, also accepts straight
+inclines. The editor requires level ground for divided highways, highway
+transitions and other scenery; raised
 flat ground is allowed. Existing files containing these elements on slopes still
 open, validate, save and play normally. Use Remove to delete those elements in
 the editor.
@@ -110,7 +111,8 @@ cannot span a change in slope direction or a flat-to-slope transition.
 
 With HyperVision, Palm tree, Cactus and Pine tree stay upright on inclines.
 Their trunks extend down to meet the terrain while the foliage and branches
-keep their original shape.
+keep their original shape. Each pine in a group follows the same behavior at
+its own position on the slope.
 
 These generalized placements require `.cstrk` v6. Aligned roads and compatible
 ramps keep their original hill-road or hill-span models. The aligned tunnels and
@@ -130,6 +132,11 @@ are not separate palette groups. Every road and stunt piece supports paved,
 dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
+
+The **Scenery** group includes **Pine trees (10)** and **Pine trees (5)**. Each
+occupies one tile with differently sized pines scattered in a fixed, irregular
+layout. Rotate the element to turn its layout. Both groups support straight
+inclines and require `.cstrk` v9.
 
 The **Stunts** group includes **Tunnel with slalom**, combining the tunnel shell
 and slalom barriers in one tile. It supports all four directions, every road

@@ -284,6 +284,20 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 							  (legacy_uint)index);
 		}
 	}
+	if (object->pine_count != 0U) {
+		if ((object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
+			 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT) ||
+			object->legacy_id != CSTRK_PINE_TREE_ID || object->width != 1U ||
+			object->height != 1U || object->occupied_mask != 1U) {
+			return cstrk_fail(error, error_size, "Object %u has an invalid pine tree group",
+							  (legacy_uint)index);
+		}
+		if (track->version < CSTRK_PINE_GROUP_VERSION) {
+			return cstrk_fail(error, error_size,
+							  "Object %u requires track version v%u for pine tree groups",
+							  (legacy_uint)index, CSTRK_PINE_GROUP_VERSION);
+		}
+	}
 	legacy_u8 overpass =
 		object->legacy_id >= CSTRK_OVERPASS_FIRST_ID && object->legacy_id <= CSTRK_OVERPASS_LAST_ID;
 	if (object->lower_surface > CSTRK_ROAD_ICE ||
@@ -536,6 +550,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 			track->version < CSTRK_LOWER_SURFACE_VERSION ? 0 : object->lower_surface;
 		cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = object->tunnel_slalom;
 		cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET] = object->roll_ramp;
+		cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET] = object->pine_count;
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(cursor, track->notes, track->notes_length);
@@ -616,7 +631,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		if ((version < CSTRK_LOWER_SURFACE_VERSION && cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET]) ||
 			(version < CSTRK_TUNNEL_SLALOM_VERSION && cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET]) ||
 			(version < CSTRK_ROLL_RAMP_VERSION && cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET]) ||
-			cursor[CSTRK_OBJECT_RESERVED_OFFSET] != 0U) {
+			(version < CSTRK_PINE_GROUP_VERSION && cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET])) {
 			cstrk_free(&next);
 			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags",
 							  (unsigned)index);
@@ -639,6 +654,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 									: cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET];
 		object->tunnel_slalom = cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET];
 		object->roll_ramp = cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET];
+		object->pine_count = cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET];
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(next.notes, cursor, notes_length);

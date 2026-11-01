@@ -161,7 +161,8 @@ if the replay does not finish.
 
 CSTRK generation uses the game's admitted 1–90 by 1–90 route graph and collision
 geometry, including independent overpass surfaces, extra rotations, straight
-slopes, sparse footprints, the v7 Tunnel with slalom and v8 Barrel roll ramp.
+slopes, sparse footprints, the v7 Tunnel with slalom, v8 Barrel roll ramp,
+and v9 pine tree groups.
 Waypoints retain full world coordinates beyond the legacy signed-word boundary.
 Search snapshots include wide frame/finish/penalty clocks and collision context;
 parallel workers load the same complete source and driving rules.
@@ -186,7 +187,7 @@ The gap, grade, grip, collision settings and search budget affect the result.
 Replay v12 retains fractional positions through fixed-collision solid checks
 and exact mesh-road contact. Barrel regressions cover both `--lc:on` and
 `--lc:off`. Existing v11 recordings retain their original collision decisions
-when verified or fine-tuned; fresh generation upgrades them to v12 physics.
+when verified or fine-tuned; fresh generation uses the current replay revision with v12 precise contacts.
 The extended regression checks fresh ghosts on wide tracks, a large track file,
 sloped combined stunts and all barrel-ramp orientations, then independently
 replays the saved CSRPL. It also checks 70,001-frame restore, fine-tuning and

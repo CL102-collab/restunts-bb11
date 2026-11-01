@@ -6,13 +6,14 @@
 #include <stdint.h>
 #include "../legacy.h"
 
-#define CSTRK_VERSION 8U
+#define CSTRK_VERSION 9U
 #define CSTRK_MIN_VERSION 3U
 #define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_SLOPED_STUNT_VERSION 5U
 #define CSTRK_GENERIC_SLOPE_VERSION 6U
 #define CSTRK_TUNNEL_SLALOM_VERSION 7U
 #define CSTRK_ROLL_RAMP_VERSION 8U
+#define CSTRK_PINE_GROUP_VERSION 9U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -20,7 +21,10 @@
 #define CSTRK_OBJECT_LOWER_SURFACE_OFFSET 12U
 #define CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET 13U
 #define CSTRK_OBJECT_ROLL_RAMP_OFFSET 14U
-#define CSTRK_OBJECT_RESERVED_OFFSET 15U
+#define CSTRK_OBJECT_PINE_COUNT_OFFSET 15U
+#define CSTRK_PINE_TREE_ID 153U
+#define CSTRK_PINE_GROUP_SMALL_COUNT 5U
+#define CSTRK_PINE_GROUP_LARGE_COUNT 10U
 #define CSTRK_OVERPASS_FIRST_ID 101U
 #define CSTRK_OVERPASS_LAST_ID 102U
 #define CSTRK_TUNNEL_FIRST_ID 66U
@@ -119,6 +123,7 @@ struct CSTRK_OBJECT {
 	legacy_u8 lower_surface; /* Overpass road underneath; paved for every other object. */
 	legacy_u8 tunnel_slalom; /* Slalom with the tunnel shell, 0 or 1 (v7+). */
 	legacy_u8 roll_ramp;	 /* Two-tile barrel-roll launch ramp, 0 or 1 (v8+). */
+	legacy_u8 pine_count;	 /* Pine group size, 0 (single tree), 5 or 10 (v9+). */
 };
 
 struct CSTRK_TRACK {
