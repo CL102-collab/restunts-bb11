@@ -163,9 +163,9 @@ test('low wheat rows follow the terrain in all slope and rotation directions', (
     }
 });
 
-test('tulip cups and raised vine rows render without native model resources', () => {
+test('solid tulip rows and pitched vine rows render without native model resources', () => {
     const assets = { models: new Map(), palette: palette() };
-    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 16, 148, 30], [model.VINE_FIELD_ID, 96, 940, 0]]) {
+    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 12, 28, 0], [model.VINE_FIELD_ID, 96, 940, 0]]) {
         const doc = new model.Document(1, 1); doc.place(id, 0, 0);
         const before = doc.snapshot(), result = scene.buildScene(doc, assets);
         assert.equal(result.instances, id === model.VINE_FIELD_ID ? 13 : 1); assert.equal(result.triangles, triangles);
@@ -182,6 +182,14 @@ test('tulip cups and raised vine rows render without native model resources', ()
 test('tulips retain distinct purple, orange, red, pink, purple and yellow rows', () => {
     const doc = new model.Document(1, 1); doc.place(model.TULIP_FIELD_ID, 0, 0);
     const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
+    const objectPoints = vertices(result.positions, 18);
+    assert.equal(objectPoints.length, 13 * 6, 'only soil, six green rows and six colored quads remain');
+    assert.equal(result.linePositions.length, 0, 'there are no individual flower stems');
+    for (let first = 0; first < objectPoints.length; first += 6) {
+        const quad = objectPoints.slice(first, first + 6);
+        assert(quad.every(point => point[1] === quad[0][1]), 'each solid row remains a planar quad at one height');
+        assert([2 / TILE, 4 / TILE, 12 / TILE].includes(quad[0][1]), 'no individual flower cups or petals remain above the bands');
+    }
     const first = 16 * 9, count = 12 * 3;
     const points = vertices(result.positions, first).slice(0, count);
     let area = 0;

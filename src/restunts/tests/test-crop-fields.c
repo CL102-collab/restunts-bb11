@@ -15,6 +15,11 @@ static legacy_s16 coordinate(const struct SHAPE3D *mesh, legacy_u16 index, legac
 
 #define TEST_TULIP_COLOR_COUNT 5U
 #define TEST_TULIP_BAND_HALF_WIDTH 70
+#define TEST_TULIP_LEAF_HALF_WIDTH 80
+#define TEST_TULIP_LEAF_HEIGHT 4
+#define TEST_TULIP_HEIGHT 12
+#define TEST_TULIP_VERTEX_COUNT 60U
+#define TEST_TULIP_PRIMITIVE_COUNT 13U
 #define TEST_VINE_WIDTH 45
 #define TEST_VINE_LEFT_OFFSET (-22)
 #define TEST_VINE_RIGHT_OFFSET 23
@@ -47,64 +52,52 @@ static legacy_int flower_material(legacy_u8 material)
 
 static void check_tulip_rows(const struct SHAPE3D *mesh)
 {
-	legacy_s16 band_left[TULIP_FIELD_ROW_COUNT], band_right[TULIP_FIELD_ROW_COUNT];
-	legacy_u8 band_material[TULIP_FIELD_ROW_COUNT];
-	legacy_u8 plants[TULIP_FIELD_ROW_COUNT] = {0};
-	legacy_u8 row = TULIP_FIELD_ROW_COUNT, bands = 0, colors = 0;
+	assert(mesh->shape3d_numverts == TEST_TULIP_VERTEX_COUNT);
+	assert(mesh->shape3d_numprimitives == TEST_TULIP_PRIMITIVE_COUNT);
+	assert(coordinate(mesh, 4, SHAPE3D_VERTEX_Y_OFFSET) == TEST_TULIP_HEIGHT);
+	legacy_s16 centers[TULIP_FIELD_ROW_COUNT];
+	legacy_u8 green_rows = 0, bands = 0, soil = 0, colors = 0;
 	const legacy_u8 *primitive = mesh->shape3d_primitives;
 	for (legacy_u16 index = 0; index < mesh->shape3d_numprimitives; index++) {
 		legacy_u8 count = primitive[0], material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
-		if (count == CROP_FIELDS_QUAD_VERTICES && flower_material(material)) {
-			assert(bands < TULIP_FIELD_ROW_COUNT);
+		/* Every visible surface is one flat row or the soil; no individual plants. */
+		assert(count == CROP_FIELDS_QUAD_VERTICES);
+		legacy_u8 first = primitive[TEST_CROP_PRIMITIVE_PREFIX];
+		legacy_u8 right = primitive[TEST_CROP_PRIMITIVE_PREFIX + 1U];
+		legacy_s16 left_x = coordinate(mesh, first, SHAPE3D_VERTEX_X_OFFSET);
+		legacy_s16 right_x = coordinate(mesh, right, SHAPE3D_VERTEX_X_OFFSET);
+		legacy_s16 height;
+		if (material == TULIP_FIELD_ROW_MATERIAL) {
+			assert(green_rows < TULIP_FIELD_ROW_COUNT);
+			assert(right_x - left_x == 2 * TEST_TULIP_LEAF_HALF_WIDTH);
+			centers[green_rows++] = (left_x + right_x) / 2;
+			height = TEST_TULIP_LEAF_HEIGHT;
+		} else if (flower_material(material)) {
+			assert(green_rows == TULIP_FIELD_ROW_COUNT && bands < TULIP_FIELD_ROW_COUNT);
 			assert(material == test_tulip_row_colors[bands]);
-			band_material[bands] = material;
+			assert(right_x - left_x == 2 * TEST_TULIP_BAND_HALF_WIDTH);
+			assert(left_x + TEST_TULIP_BAND_HALF_WIDTH == centers[bands]);
+			height = TEST_TULIP_HEIGHT;
 			for (legacy_u8 color = 0; color < TEST_TULIP_COLOR_COUNT; color++) {
 				colors |= material == test_tulip_colors[color] ? (legacy_u8)(1U << color) : 0;
 			}
-			legacy_u8 left = primitive[TEST_CROP_PRIMITIVE_PREFIX];
-			legacy_u8 right = primitive[TEST_CROP_PRIMITIVE_PREFIX + 1U];
-			band_left[bands] = coordinate(mesh, left, SHAPE3D_VERTEX_X_OFFSET);
-			band_right[bands] = coordinate(mesh, right, SHAPE3D_VERTEX_X_OFFSET);
-			assert(band_right[bands] - band_left[bands] == 2 * TEST_TULIP_BAND_HALF_WIDTH);
-			for (legacy_u8 corner = 0; corner < count; corner++) {
-				legacy_u8 actual = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
-				assert(coordinate(mesh, actual, SHAPE3D_VERTEX_Y_OFFSET) ==
-					   TULIP_FIELD_FLOWER_BAND_HEIGHT);
-				legacy_s16 z = coordinate(mesh, actual, SHAPE3D_VERTEX_Z_OFFSET);
-				assert(z == -CROP_FIELDS_HALF_TILE || z == CROP_FIELDS_HALF_TILE);
-			}
 			bands++;
+		} else {
+			assert(material == CROP_FIELDS_SOIL_MATERIAL);
+			assert(left_x == -CROP_FIELDS_HALF_TILE && right_x == CROP_FIELDS_HALF_TILE);
+			height = CROP_FIELDS_SOIL_HEIGHT;
+			soil++;
 		}
-		if (count == SHAPE3D_PRIMITIVE_LINE) {
-			assert(bands == TULIP_FIELD_ROW_COUNT);
-			legacy_u8 root = primitive[TEST_CROP_PRIMITIVE_PREFIX];
-			legacy_s16 x = coordinate(mesh, root, SHAPE3D_VERTEX_X_OFFSET);
-			row = TULIP_FIELD_ROW_COUNT;
-			for (legacy_u8 candidate = 0; candidate < TULIP_FIELD_ROW_COUNT; candidate++) {
-				if (x > band_left[candidate] && x < band_right[candidate]) {
-					row = candidate;
-					plants[row]++;
-					break;
-				}
-			}
-			assert(row < TULIP_FIELD_ROW_COUNT);
-		}
-		if (count == SHAPE3D_PRIMITIVE_POLYGON_FIRST) {
-			assert(row < TULIP_FIELD_ROW_COUNT);
-			assert(material == band_material[row]);
-			for (legacy_u8 corner = 0; corner < count; corner++) {
-				legacy_s16 x = coordinate(mesh, primitive[TEST_CROP_PRIMITIVE_PREFIX + corner],
-										  SHAPE3D_VERTEX_X_OFFSET);
-				assert(x > band_left[row] && x < band_right[row]);
-			}
+		for (legacy_u8 corner = 0; corner < count; corner++) {
+			legacy_u8 actual = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
+			assert(coordinate(mesh, actual, SHAPE3D_VERTEX_Y_OFFSET) == height);
+			legacy_s16 z = coordinate(mesh, actual, SHAPE3D_VERTEX_Z_OFFSET);
+			assert(z == -CROP_FIELDS_HALF_TILE || z == CROP_FIELDS_HALF_TILE);
 		}
 		primitive += TEST_CROP_PRIMITIVE_PREFIX + count;
 	}
-	assert(bands == TULIP_FIELD_ROW_COUNT);
+	assert(soil == 1U && green_rows == TULIP_FIELD_ROW_COUNT && bands == TULIP_FIELD_ROW_COUNT);
 	assert(colors == (1U << TEST_TULIP_COLOR_COUNT) - 1U);
-	for (legacy_u8 index = 0; index < TULIP_FIELD_ROW_COUNT; index++) {
-		assert(plants[index] == TULIP_FIELD_PLANTS_PER_ROW);
-	}
 }
 
 static void check_vine_foliage(const struct SHAPE3D *mesh, legacy_s16 centers[VINE_FIELD_ROW_COUNT])
@@ -255,22 +248,14 @@ static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 pa
 	}
 	const legacy_u8 *primitive = mesh->shape3d_primitives;
 	legacy_u8 green_top = 0, green_side = 0;
-	legacy_u16 stems = 0, flower_faces = 0, end_caps = 0;
+	legacy_u16 end_caps = 0;
 	for (legacy_u16 index = 0; index < mesh->shape3d_numprimitives; index++) {
 		legacy_u8 count = primitive[0];
 		legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
-		assert(count >= SHAPE3D_PRIMITIVE_LINE && count <= VINE_FIELD_SECTION_VERTICES);
+		assert(count >= CROP_FIELDS_QUAD_VERTICES && count <= VINE_FIELD_SECTION_VERTICES);
 		assert(primitive[1] == 1U);
 		if (grapes) {
 			assert(material == VINE_FIELD_GRAPE_MATERIAL && count == CROP_FIELDS_QUAD_VERTICES);
-		}
-		if (count == SHAPE3D_PRIMITIVE_LINE) {
-			assert(tulips && material == TULIP_FIELD_STEM_MATERIAL);
-			stems++;
-		}
-		if (count == SHAPE3D_PRIMITIVE_POLYGON_FIRST) {
-			assert(tulips && flower_material(material));
-			flower_faces++;
 		}
 		if (!tulips && !grapes && material == VINE_FIELD_SIDE_MATERIAL) {
 			legacy_u8 first = primitive[TEST_CROP_PRIMITIVE_PREFIX];
@@ -302,13 +287,13 @@ static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 pa
 	}
 	assert(primitive[0] == 0 && primitive[1] == 0);
 	if (tulips) {
-		assert(green_top && stems > 0 && flower_faces > stems && end_caps == 0);
+		assert(green_top && end_caps == 0);
 		check_tulip_rows(mesh);
 	} else if (!grapes) {
-		assert(green_top && green_side && stems == 0 && flower_faces == 0);
+		assert(green_top && green_side);
 		assert(end_caps == TEST_VINE_ROW_COUNT * VINE_FIELD_CAP_COUNT);
 	} else {
-		assert(!green_top && !green_side && stems == 0 && flower_faces == 0 && end_caps == 0);
+		assert(!green_top && !green_side && end_caps == 0);
 	}
 	return (size_t)(primitive - mesh->shape3d_primitives) + SHAPE3D_PRIMITIVE_HEADER_SIZE;
 }
