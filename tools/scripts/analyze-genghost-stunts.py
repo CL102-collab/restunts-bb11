@@ -434,7 +434,7 @@ def main():
     parser.add_argument("--corpus", default=Path("tools/scripts/rpls_golden/replays.zip"), type=Path)
     parser.add_argument("--discovery-ranking", default=Path("build/expanded-human/ranking.json"), type=Path)
     parser.add_argument("--exclude-manifest", action="append", type=Path)
-    parser.add_argument("--track-metadata-source", default=Path("src/restunts/c/headless_trackdata.c"), type=Path)
+    parser.add_argument("--track-metadata-source", default=Path("src/restunts/c/headless/headless_trackdata.c"), type=Path)
     parser.add_argument("--output", default=Path("build/stunt-human"), type=Path)
     parser.add_argument("--telemetry-tracks", type=int, default=60)
     parser.add_argument("--validation-tracks", type=int, default=20)
