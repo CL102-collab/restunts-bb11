@@ -704,6 +704,7 @@ run_host_test test-roll-ramp-motion legacy.c "$test_source_dir/math/math.c" \
     -Wno-missing-field-initializers
 run_host_test test-extended-native-response physics/physics_collision.c "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/extended/extended_geometry.c" \
+    "$test_source_dir/extended/extended_cstrk.c" \
     "$test_source_dir/trkutil.c" \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -Wno-pointer-sign -Wno-missing-field-initializers
