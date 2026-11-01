@@ -6,6 +6,8 @@
 #include "../shape3d/shape3d.h"
 #include "../skybox.h"
 #include "../menu/menu_internal.h"
+#include "../frame/frame_fps.h"
+#include "../video/video_frame.h"
 
 #define TRACK_MENU_PREVIEW_SCREEN_WIDTH 320U
 #define TRACK_MENU_PREVIEW_SCREEN_HEIGHT 200U
@@ -19,6 +21,8 @@ void hires_track_menu_preview_retain(struct HIRES_TRACK_MENU_PREVIEW *preview)
 {
 	preview->live = 1;
 	preview->tick = dos_timer_get_realtime_counter();
+	frame_fps_reset();
+	frame_render_timing_reset();
 }
 
 void hires_track_menu_preview_release(struct HIRES_TRACK_MENU_PREVIEW *preview)
@@ -51,6 +55,9 @@ void hires_track_menu_preview_present(struct HIRES_TRACK_MENU_PREVIEW *preview,
 		return;
 	}
 	preview->tick = tick;
+	/* Keep the selected render scale and measure only completed preview frames,
+	 * excluding the pacing wait above and presentation synchronization. */
+	sdl3_video_begin_track_frame(0);
 	/* The scene fills the header too; repaint its text without rereading scores. */
 	mouse_draw_opaque_check();
 	sprite_select_render_window();
@@ -63,5 +70,7 @@ void hires_track_menu_preview_present(struct HIRES_TRACK_MENU_PREVIEW *preview,
 	sprite_set_target_clip_bounds(0, TRACK_MENU_PREVIEW_SCREEN_WIDTH, 0,
 								  TRACK_MENU_PREVIEW_SCREEN_HEIGHT);
 	mouse_draw_transparent_check();
+	frame_fps_record_presented();
+	sdl3_video_end_frame();
 }
 #endif

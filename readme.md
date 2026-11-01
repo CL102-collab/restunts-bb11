@@ -370,7 +370,9 @@ dead ends and scenery do not affect its center or bounding box. It looks toward
 that center at 45 degrees down, at least twelve hill levels above it; larger
 courses raise the orbit enough to keep all lap pieces visible. Tracks without
 a valid complete lap use the map center. The scene extends behind the title and
-best recorded time. Turning HyperVision off restores the 2D surface map.
+best recorded time. F11 or Shift+F11 toggles FPS and render time over the preview;
+the counter measures presented preview frames, and timing excludes pacing and
+display synchronization. Turning HyperVision off restores the 2D surface map.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
@@ -517,8 +519,10 @@ F11, Shift+F11, and F12 also work in both car-selection screens and during the
 nighttime driving intro without skipping the animation, including in 16-bit DOS. F12 also
 works in the track preview and opponent-selection menu, with the same two-second
 status display. SDL3 builds additionally support Shift+F12 in these locations.
-The main menu, opponent biographies, and track-selection menu hide F11 diagnostics;
-the F11 setting is retained when returning to a screen that displays them.
+The main menu, opponent biographies, and static track-selection previews hide
+F11 diagnostics; the F11 setting is retained when returning to a screen that
+displays them. HyperVision previews of extended tracks show the same diagnostics
+as races and car-selection previews.
 
 HyperVision and the FPS display start off by default. Use `--fps:on` to show
 FPS from startup on every port, or `--fps:off` to select the default explicitly.
