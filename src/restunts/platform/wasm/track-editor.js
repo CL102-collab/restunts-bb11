@@ -14,8 +14,8 @@
         viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
         previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
-        drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
+        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, pineSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, pineBrushPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
     const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
@@ -103,6 +103,19 @@
         const doc = { width: 1, cells: [{ surface, halfWaterCorner, cornerSurface }], tileHeights: () => [level, level, level, level] };
         drawTerrain(c, doc, 0, 0, 0, 0, preview.width);
     }
+    function drawPineBrushPreview(preview, piece, rotation, size) {
+        const c = preview.getContext('2d'), tileWidth = preview.width / size, tileHeight = preview.height / size;
+        c.clearRect(0, 0, preview.width, preview.height);
+        c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+            drawPiece(c, piece, x * tileWidth, y * tileHeight, tileWidth, tileHeight, 0, rotation, true);
+        c.strokeStyle = '#141c18'; c.lineWidth = brushPreviewGridWidth; c.beginPath();
+        for (let tile = 1; tile < size; tile++) {
+            c.moveTo(tile * tileWidth, 0); c.lineTo(tile * tileWidth, preview.height);
+            c.moveTo(0, tile * tileHeight); c.lineTo(preview.width, tile * tileHeight);
+        }
+        c.stroke();
+    }
     function renderSelection() {
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
         const selected = variant && variant.piece, preview = $('selected-preview'), c = preview.getContext('2d');
@@ -111,11 +124,20 @@
             c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
             drawPiece(c, selected, 0, 0, preview.width, preview.height, Number($('road-surface').value), variant.rotation, true);
         }
+        const pineGroup = Boolean(selected?.pineCount);
+        $('pine-brush-row').hidden = !pineGroup;
+        if (pineGroup) document.querySelectorAll('[data-pine-size]').forEach(button => {
+            const size = Number(button.dataset.pineSize);
+            button.title = 'Place ' + selected.name.toLowerCase() + ' in a ' + size + 'x' + size + ' area';
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(state.pineSize === size));
+            drawPineBrushPreview(button.querySelector('canvas'), selected, variant.rotation, size);
+        });
         $('selected-piece').textContent = selected ? selected.name : 'No compatible pieces';
         document.querySelector('.selection-label').textContent = selected ? 'READY TO BUILD' : 'TRY ANOTHER SURFACE';
-        const width = selected && (variant.rotation % 2 ? selected.height : selected.width);
-        const height = selected && (variant.rotation % 2 ? selected.width : selected.height);
-        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : (selected.physical === model.OVERPASS_PHYSICAL_MODEL ? 'Upper ' : '') + model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
+        const width = selected && (pineGroup ? state.pineSize : (variant.rotation % 2 ? selected.height : selected.width));
+        const height = selected && (pineGroup ? state.pineSize : (variant.rotation % 2 ? selected.width : selected.height));
+        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : (selected.physical === model.OVERPASS_PHYSICAL_MODEL ? 'Upper ' : '') + model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + (pineGroup ? ' brush' : ' tiles') : 'Choose another road surface';
     }
 
     function message(text, error = false) {
@@ -225,7 +247,7 @@
         return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.version]);
     }
     function refreshDocument() {
-        state.clipboardPreview = null;
+        state.clipboardPreview = null; state.pineBrushPreview = null;
         if (!state.doc) return;
         state.dirty = signature() !== state.saved;
         $('document-name').textContent = state.name + (state.dirty ? ' •' : '');
@@ -758,14 +780,31 @@
         ctx.strokeRect(left + 1, top + 1, clipboard.width * size - 2, clipboard.height * size - 2);
         ctx.restore();
     }
+    function pineBrushPlan(point) {
+        let preview = state.pineBrushPreview;
+        const count = state.selected.pineCount;
+        if (!preview || preview.doc !== state.doc || preview.x !== point.x || preview.y !== point.y ||
+            preview.size !== state.pineSize || preview.count !== count || preview.rotation !== state.rotation) {
+            let objects = [], error = false;
+            try { objects = state.doc.pineBrushPreview(point.x, point.y, state.pineSize, count, state.rotation); }
+            catch (_) { error = true; }
+            preview = { doc: state.doc, x: point.x, y: point.y, size: state.pineSize, count, rotation: state.rotation, objects, error };
+            state.pineBrushPreview = preview;
+        }
+        return preview;
+    }
     function drawCursor(size) {
         const h = state.hover, doc = state.doc;
         if (state.tool === 'select') return;
         if (state.tool === 'paste') { drawPastePreview(size); return; }
         if (h.x < 0 || h.y < 0 || h.x >= doc.width || h.y >= doc.height) return;
-        let width = 1, height = 1, valid = true, preview = null;
+        let width = 1, height = 1, valid = true, preview = null, pinePreview = null;
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
-        if (state.tool === 'place' && state.selected) {
+        if (state.tool === 'place' && state.selected?.pineCount) {
+            pinePreview = pineBrushPlan(h);
+            width = Math.min(state.pineSize, doc.width - h.x); height = Math.min(state.pineSize, doc.height - h.y);
+            valid = !pinePreview.error && pinePreview.objects.length > 0;
+        } else if (state.tool === 'place' && state.selected) {
             try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
@@ -777,6 +816,7 @@
         const left = view.x + h.x * size, top = view.y + h.y * size;
         ctx.fillStyle = valid ? '#e6d69f22' : '#f080703b'; ctx.strokeStyle = valid ? '#ffdf8b' : '#ff9c80'; ctx.lineWidth = 2;
         ctx.fillRect(left, top, width * size, height * size);
+        if (pinePreview) { ctx.globalAlpha = .6; for (const object of pinePreview.objects) drawTrackObject(object, size); ctx.globalAlpha = 1; }
         if (preview && variant) { ctx.globalAlpha = .6; drawPiece(ctx, variant.piece, left, top, width * size, height * size, Number($('road-surface').value), variant.rotation); ctx.globalAlpha = 1; }
         ctx.strokeRect(left + 1, top + 1, width * size - 2, height * size - 2);
         if (state.tool === 'raise' || state.tool === 'lower') {
@@ -844,7 +884,10 @@
         try {
             state.selection = null;
             updateClipboardControls();
-            if (tool === 'place' && state.selected) {
+            if (tool === 'place' && state.selected?.pineCount) {
+                const objects = doc.placePineBrush(point.x, point.y, state.pineSize, state.selected.pineCount, state.rotation);
+                if (!objects.length) message('No empty tiles with suitable terrain in this brush area.');
+            } else if (tool === 'place' && state.selected) {
                 const variant = model.pieceVariant(state.selected, state.rotation);
                 doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0);
             }
@@ -854,6 +897,7 @@
             else if (tool === 'paint') doc.paintArea(point.x, point.y, state.paintSize, Number($('terrain-surface').value));
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
             else if (tool === 'level') doc.levelArea(point.x, point.y, state.levelSize, Number($('terrain-level').value), Number($('terrain-surface').value));
+            state.pineBrushPreview = null;
             scheduleDraw();
         } catch (error) { message(error.message, true); }
     }
@@ -995,6 +1039,11 @@
             const size = Number(button.dataset.levelSize);
             if (!state.ready || !model.LEVEL_BRUSH_SIZES.includes(size)) return;
             finishDrag(); state.levelSize = size; updateTool('level');
+        }));
+        document.querySelectorAll('[data-pine-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.pineSize);
+            if (!state.ready || !state.selected?.pineCount || !model.PINE_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.pineSize = size; updateTool('place'); renderSelection();
         }));
         document.querySelectorAll('[data-lower-surface]').forEach(button => button.addEventListener('click', () => {
             if (!state.ready) return;

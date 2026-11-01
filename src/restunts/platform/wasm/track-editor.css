@@ -110,9 +110,9 @@ fieldset:disabled { opacity: .3; }
 .terrain-choice { position: relative; display: block; min-width: 0; width: 100%; aspect-ratio: 1; padding: 3px; overflow: hidden; border-radius: 7px; border: 1px solid #a4bc8d28; background: #141c18; }
 .terrain-choice > .icon { display: block; width: 100%; height: 100%; border-radius: 3px; }
 .terrain-choice-hint { margin: 8px 0 0; color: #a6b9c4; font-size: 18px; line-height: 1.4; }
-.lower-surface-choice, .paint-size-choice, .level-size-choice { display: flex; flex-direction: column; gap: 5px; aspect-ratio: auto; padding-bottom: 6px; color: #aebcc4; font-size: 18px; }
-.lower-surface-choice > .icon, .terrain-choice.paint-size-choice > canvas, .terrain-choice.level-size-choice > canvas { aspect-ratio: 1; height: auto; }
-.lower-surface-choice[aria-pressed="true"], .paint-size-choice[aria-pressed="true"], .level-size-choice[aria-pressed="true"] { color: #d7e5ce; }
+.lower-surface-choice, .paint-size-choice, .level-size-choice, .pine-size-choice { display: flex; flex-direction: column; gap: 5px; aspect-ratio: auto; padding-bottom: 6px; color: #aebcc4; font-size: 18px; }
+.lower-surface-choice > .icon, .terrain-choice.paint-size-choice > canvas, .terrain-choice.level-size-choice > canvas, .terrain-choice.pine-size-choice > canvas { aspect-ratio: 1; height: auto; }
+.lower-surface-choice[aria-pressed="true"], .paint-size-choice[aria-pressed="true"], .level-size-choice[aria-pressed="true"], .pine-size-choice[aria-pressed="true"] { color: #d7e5ce; }
 .terrain-choice canvas { display: block; width: 100%; height: 100%; border-radius: 3px; image-rendering: pixelated; }
 .terrain-choice[aria-pressed="true"], .terrain-choice[aria-pressed="true"]:hover { border-color: #b8d996; background: #34452b; box-shadow: 0 0 0 1px #b8d99645; }
 .terrain-choice[aria-pressed="true"]::after { content: "\2713"; position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 14px; height: 14px; color: #1b2a13; background: #c8e5a9; border-radius: 3px; font-size: 22px; font-weight: 800; line-height: 1; box-shadow: 0 1px 3px #0006; }
