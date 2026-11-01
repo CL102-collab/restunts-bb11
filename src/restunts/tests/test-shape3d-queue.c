@@ -4,7 +4,7 @@
 #include "../c/externs.h"
 #include "../c/shape3d/shape3d.h"
 #include "../c/shape3d/shape3d_internal.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 
 #undef memcpy
 

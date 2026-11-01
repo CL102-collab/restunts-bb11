@@ -2,7 +2,7 @@
 #include "hires.h"
 #include "../shape2d/shape2d.h"
 #include "../skybox.h"
-#include "../projection.h"
+#include "../math/projection.h"
 #include "render_workers.h"
 #include "../asset_path.h"
 #include "../../platform/sdl3/sdl3.h"

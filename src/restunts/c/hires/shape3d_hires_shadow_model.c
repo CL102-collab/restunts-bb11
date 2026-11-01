@@ -9,7 +9,7 @@
 #include "../fatal.h"
 #include "hires.h"
 #include "hypervision.h"
-#include "../projection.h"
+#include "../math/projection.h"
 #include "render_workers.h"
 #include "../shape3d/shape3d_internal.h"
 

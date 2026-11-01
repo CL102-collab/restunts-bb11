@@ -8,7 +8,7 @@
 #include "../c/shape2d/shape2d.h"
 #include "../c/shape2d/shape2d_internal.h"
 #include "../c/skybox.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 
 legacy_u8 atantable[257];
 legacy_u8 vector_saved_z_low;

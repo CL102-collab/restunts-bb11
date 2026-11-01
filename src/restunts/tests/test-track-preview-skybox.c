@@ -9,7 +9,7 @@
 #include "../c/hires/hires.h"
 #include "../c/menu/menu_internal.h"
 #include "../c/platform.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/shape3d/shape3d.h"
 #include "../c/track/track_objects.h"
