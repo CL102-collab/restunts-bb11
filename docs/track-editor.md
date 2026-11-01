@@ -72,8 +72,13 @@ before loading it; features from newer editors may not work correctly.
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
-Paint shows one selected square preview of the current grass, ice, dirt or water
-surface. Select that primary surface, then choose Shore to show a second material
+Paint shows **1x1**, **2x2** and **4x4** tile choices, labeled below previews of
+the current grass, ice, dirt or water surface. Choose a size, then click or drag
+to paint that square starting at the hovered tile. The brush clips to the map
+edges, preserves terrain heights and track pieces, and each stroke undoes as one
+edit. The selected size applies to whole-tile painting; Lower surface and Shore
+keep their single-tile behavior.
+Select a primary surface, then choose Shore to show a second material
 row above the four corner previews. The second row contains only the other three
 surfaces, so any two different materials can meet at a corner, including Water
 as the primary surface. The first corner is selected initially. Click another
@@ -92,7 +97,7 @@ stroke. Straight inclines and inner corners have no lower flat part and stay
 as they are.
 If an existing material boundary crosses the hill, Lower surface leaves that
 tile unchanged and explains that it cannot preserve both hill materials.
-Click the regular Paint tile preview or a primary surface to paint whole tiles
+Click a Paint tile size or a primary surface to paint whole tiles
 again. Lower surface strokes support undo and redo and save in the existing
 track format.
 
