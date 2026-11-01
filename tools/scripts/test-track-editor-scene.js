@@ -144,10 +144,10 @@ test('large maps compile into finite typed buffers without changing the document
             assert.deepEqual(doc.snapshot(), before);
         }
     });
-    test('legacy five, six and ten pines keep independent upright crowns and slope-following roots', () => {
+    test('six and ten pines keep independent upright crowns and slope-following roots', () => {
         const source = scene.decodeShape(assets.models.get('tree'));
         const nativeTrees = source.primitives.reduce((sum, primitive) => sum + primitive.indices.length - 2, 0);
-        for (const count of [5, 6, 10]) for (const [slopeX, slopeY] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) for (let rotation = 0; rotation < 4; rotation++) {
+        for (const count of [6, 10]) for (const [slopeX, slopeY] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) for (let rotation = 0; rotation < 4; rotation++) {
             const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
             doc.objects.push(object(153, { pineCount: count, rotation, baseHeight: 1, slopeX, slopeY }));
             const result = scene.buildScene(doc, assets);
@@ -175,17 +175,21 @@ test('large maps compile into finite typed buffers without changing the document
             if (slopeX || slopeY) assert(new Set(minimums.map(value => value.toFixed(4))).size > 1, 'trees have independent support heights');
         }
     });
-    test('an eight-tile forest varies neighboring groves and reproduces the same mesh after saving', () => {
-        const doc = new model.Document(8, 8);
-        doc.placePineBrush(0, 0, 8, 6);
-        const layouts = doc.objects.map(object => resources.pineTreeLayout(object.pineCount, object.x, object.y));
-        assert.equal(new Set(layouts.map(layout => JSON.stringify(layout))).size, 64, 'neighboring groves have distinct arrangements');
-        const before = scene.buildScene(doc, assets);
-        assert.equal(before.instances, 64 * 6);
-        const reloaded = model.decodeCstrk(model.encodeCstrk(doc));
-        const after = scene.buildScene(reloaded, assets);
-        assert.deepEqual(after.positions, before.positions, 'saving and reloading preserves all tree geometry');
-        assert.deepEqual(after.colors, before.colors);
+    test('pine forests vary neighboring groves and reproduce the same mesh after saving older or current tracks', () => {
+        for (const count of [6, 10]) {
+            const doc = new model.Document(8, 8);
+            doc.placePineBrush(0, 0, 8, count);
+            // Existing ten-tree tracks use the same scatter as newly created tracks.
+            if (count === 10) doc.version = model.PINE_GROUP_VERSION;
+            const layouts = doc.objects.map(object => resources.pineTreeLayout(object.pineCount, object.x, object.y));
+            assert.equal(new Set(layouts.map(layout => JSON.stringify(layout))).size, 64, 'neighboring groves have distinct arrangements');
+            const before = scene.buildScene(doc, assets);
+            assert.equal(before.instances, 64 * count);
+            const reloaded = model.decodeCstrk(model.encodeCstrk(doc));
+            const after = scene.buildScene(reloaded, assets);
+            assert.deepEqual(after.positions, before.positions, 'saving and reloading preserves all tree geometry');
+            assert.deepEqual(after.colors, before.colors);
+        }
     });
     test('barrel ramps show concrete approach, twisted grille, markings and supports', () => {
         const doc = new model.Document(2, 2); doc.objects.push(object(85, { rollRamp: 1 }));

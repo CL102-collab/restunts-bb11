@@ -12,8 +12,8 @@ struct PINE_TREE_INSTANCE {
 	legacy_u16 scale;
 };
 
-/* Stable scatter, rotated into this object's map axes. Six-tree groves vary
- * with map coordinates; legacy five- and ten-tree layouts remain unchanged. */
+/* Stable scatter, rotated into this object's map axes. Both grove sizes vary
+ * positions and tree scales with their map coordinates. */
 legacy_s16 pine_trees_instance(const struct CSTRK_OBJECT *object, legacy_u8 index,
 							   struct PINE_TREE_INSTANCE *instance);
 /* One native pine, scaled and positioned inside its tile. The caller owns the

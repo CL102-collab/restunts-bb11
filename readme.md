@@ -36,11 +36,11 @@ original models from your selected Stunts folder. Click for mouse look; WASD mov
 Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
 releases the mouse, and the 2D editor retains its zoom and map position.
 
-The Scenery palette includes **Pine trees (10)** and **Pine trees (6)**. The
-six-tree group varies positions and sizes by tile, breaking up rows and repeated
-patterns across neighboring tiles. Saved five-tree groups remain supported. On
-slopes, each pine retains the single tree's upright crown and slope-following
-trunk roots.
+The Scenery palette includes **Pine trees (10)** and **Pine trees (6)**. Both
+groups vary positions and sizes by tile, breaking up rows and repeated
+patterns across neighboring tiles. Opening the same track always restores the
+same forest. On slopes, each pine retains the single tree's upright crown and
+slope-following trunk roots.
 
 The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
 with slalom barriers as one piece. It supports paved, dirt and ice roads,

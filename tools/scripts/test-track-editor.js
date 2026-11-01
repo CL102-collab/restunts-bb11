@@ -1383,7 +1383,7 @@ test('pine groups require v9 and reject other counts and backing elements atomic
     doc.objects[0].pineCount = 2;
     assert.throws(() => model.encodeCstrk(doc), /pine tree count/);
 });
-test('six-tree groups require v10 while legacy five-tree tracks retain their count', () => {
+test('six-tree groups require v10 and imported count five becomes six before editing or saving', () => {
     const doc = new model.Document(4, 4);
     doc.place(153, 1, 1, 0, 3, 0, 0, 0, 6);
     const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
@@ -1399,19 +1399,37 @@ test('six-tree groups require v10 while legacy five-tree tracks retain their cou
     new DataView(bytes.buffer).setUint16(8, model.PINE_SIX_VERSION - 1, true);
     assert.throws(() => model.decodeCstrk(bytes), /element flags/);
 
-    for (const count of [5, 10]) {
-        const old = new model.Document(4, 4); old.version = model.PINE_GROUP_VERSION;
-        old.place(153, 1, 1, 0, 3, 0, 0, 0, count);
-        const encoded = model.encodeCstrk(old), reopened = model.decodeCstrk(encoded);
-        assert.equal(new DataView(encoded.buffer).getUint16(8, true), model.PINE_GROUP_VERSION);
-        assert.equal(reopened.version, model.VERSION);
-        assert.equal(reopened.objects[0].pineCount, count);
+    for (const version of [model.PINE_GROUP_VERSION, model.PINE_SIX_VERSION, 101]) {
+        const encoded = bytes.slice(); encoded[record + 15] = 5;
+        new DataView(encoded.buffer).setUint16(8, version, true);
+        const reopened = model.decodeCstrk(encoded);
+        assert.equal(reopened.version, Math.max(version, model.VERSION));
+        assert.equal(reopened.objects[0].pineCount, 6);
         assert.equal(reopened.objects[0].rotation, 3);
-        assert.equal(model.decodeCstrk(model.encodeCstrk(reopened)).objects[0].pineCount, count);
+        assert.deepEqual(reopened.validate(), []);
+        const saved = model.encodeCstrk(reopened);
+        assert.equal(saved[record + 15], 6);
+        assert.equal(new DataView(saved.buffer).getUint16(8, true), reopened.version);
+        assert.deepEqual(model.decodeCstrk(saved).snapshot(), reopened.snapshot());
         const clipboard = reopened.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
-        const target = new model.Document(4, 4); target.pasteRegion(clipboard, 2, 2);
-        assert.equal(target.objects[0].pineCount, count);
+        assert.equal(clipboard.objects[0].pineCount, 6);
+        const importedClipboard = { ...clipboard, objects: clipboard.objects.map(object => ({ ...object, pineCount: 5 })) };
+        for (const contents of [clipboard, importedClipboard, model.rotateClipboard(importedClipboard, 1), model.flipClipboard(importedClipboard, 'horizontal')]) {
+            const target = new model.Document(4, 4); target.pasteRegion(contents, 2, 2);
+            assert.equal(target.objects[0].pineCount, 6);
+            assert.equal(model.decodeCstrk(model.encodeCstrk(target)).objects[0].pineCount, 6);
+            assert.equal(target.placePineBrush(0, 0, 1, target.objects[0].pineCount).length, 1);
+        }
     }
+    for (let version = 3; version < model.PINE_GROUP_VERSION; version++) {
+        const invalid = bytes.slice(); invalid[record + 15] = 5;
+        new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    const malformed = bytes.slice(); malformed[record + 15] = 5; malformed[record + 12] = 1;
+    assert.throws(() => model.decodeCstrk(malformed), /Only overpasses/);
+    const current = new model.Document(4, 4);
+    assert.equal(current.place(153, 1, 1, 0, 0, 0, 0, 0, 5).pineCount, 6);
     assert(!model.library.some(piece => piece.pineCount === 5));
 });
 test('barrel roll ramps retain all launch directions, footprints and history after reload', () => {
@@ -1472,7 +1490,7 @@ test('barrel roll ramps require v8 and reject invalid variants without editing t
     doc.objects[0].rollRamp = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
 });
-test('pine group artwork keeps the exact count, varied sizes and transparent gaps', () => {
+test('pine group artwork keeps each logical count, varied sizes and transparent gaps', () => {
     const nativeSize = 16, green = 10, trunk = 6;
     const pine = { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize),
         mask: { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize).fill(15) } };
@@ -1480,7 +1498,13 @@ test('pine group artwork keeps the exact count, varied sizes and transparent gap
         pine.pixels[y * nativeSize + x + 1] = green;
     for (let y = 12; y < 14; y++) for (let x = 6; x <= 8; x++) pine.pixels[y * nativeSize + x + 1] = trunk;
     const icons = new Map([[153, pine]]);
-    for (const count of [5, 6, 10]) {
+    for (const count of [6, 10]) {
+        const layout = resources.pineTreeLayout(count);
+        assert.equal(layout.length, count, 'each group contains its selected number of trees');
+        assert(new Set(layout.map(tree => tree[2])).size > 1, 'the individual trees have different scales');
+        const neighbor = resources.pineTreeLayout(count, 1, 0);
+        assert.notDeepEqual(layout.map(tree => tree.slice(0, 2)), neighbor.map(tree => tree.slice(0, 2)), 'neighboring tiles vary tree positions');
+        assert.notDeepEqual(layout.map(tree => tree[2]), neighbor.map(tree => tree[2]), 'neighboring tiles vary tree sizes');
         const bitmap = resources.composePieceTileBitmap(icons, 153, 0, 0, count);
         assert.deepEqual(bitmap, resources.composePieceTileBitmap(icons, 153, 0, 0, count));
         assert.equal(bitmap.width, bitmap.height);
@@ -1507,9 +1531,9 @@ test('pine group artwork keeps the exact count, varied sizes and transparent gap
         assert(new Set(trees.map(tree => tree.x)).size > 2 && new Set(trees.map(tree => tree.y)).size > 2, 'trees are scattered across the tile');
         assert(bitmap.alpha.filter(value => !value).length > bitmap.alpha.length / 2, 'terrain remains visible between the trees');
     }
-    assert.notDeepEqual(resources.composePieceTileBitmap(icons, 153, 0, 0, 6, 0, 0),
-        resources.composePieceTileBitmap(icons, 153, 0, 0, 6, 1, 0), 'neighboring map tiles have different artwork');
-    for (const [id, tunnel, roll, count] of [[151, 0, 0, 6], [153, 1, 0, 6], [153, 0, 1, 10], [153, 0, 0, 7]])
+    for (const count of [6, 10]) assert.notDeepEqual(resources.composePieceTileBitmap(icons, 153, 0, 0, count, 0, 0),
+        resources.composePieceTileBitmap(icons, 153, 0, 0, count, 1, 0), 'neighboring map tiles have different artwork');
+    for (const [id, tunnel, roll, count] of [[151, 0, 0, 6], [153, 1, 0, 6], [153, 0, 1, 10], [153, 0, 0, 5], [153, 0, 0, 7]])
         assert.throws(() => resources.composePieceTileBitmap(icons, id, tunnel, roll, count), /pine tree group artwork/);
 });
 test('barrel roll ramp artwork distinguishes the concrete entry, grille and launch direction', () => {

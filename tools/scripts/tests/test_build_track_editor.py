@@ -156,6 +156,19 @@ vm.runInContext(`
         if (forestReloaded.version !== model.VERSION || forestReloaded.objects[0].pineCount !== count || forestReloaded.objects[0].rotation !== 3) {
             throw new Error('Embedded codec lost the pine group count or orientation');
         }
+        const layout = TrackEditorResources.pineTreeLayout(count, 1, 1);
+        if (layout.length !== count || JSON.stringify(layout) !== JSON.stringify(TrackEditorResources.pineTreeLayout(count, 1, 1)) ||
+            JSON.stringify(layout) === JSON.stringify(TrackEditorResources.pineTreeLayout(count, 2, 1))) {
+            throw new Error('Embedded pine groups must vary by tile and remain deterministic');
+        }
+        if (count === 6) {
+            const imported = model.encodeCstrk(forest), record = 32 + forest.vertices.length + forest.cells.length * 2;
+            imported[record + 15] = 5; new DataView(imported.buffer).setUint16(8, model.PINE_GROUP_VERSION, true);
+            const migrated = model.decodeCstrk(imported), saved = model.encodeCstrk(migrated);
+            if (migrated.objects[0].pineCount !== 6 || saved[record + 15] !== 6 || migrated.version !== model.VERSION) {
+                throw new Error('Embedded codec failed to normalize the imported pine count');
+            }
+        }
     }
     const block = new model.Document(12, 10);
     block.place(4, 2, 2, 1);

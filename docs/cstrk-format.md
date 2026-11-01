@@ -28,10 +28,8 @@ in a v3 or v4 file before upgrading its revision. Revision v6 permits every
 catalog piece on a continuous straight slope, including multi-tile objects.
 Revision v7 adds the Tunnel with slalom modifier without changing object size.
 Revision v8 adds the directional Barrel roll ramp modifier.
-Revision v9 adds the five-tree and ten-tree pine group modifiers.
-Revision v10 adds six-tree groves whose arrangement varies with tile position.
-The palette replaces the five-tree choice with six trees; existing five-tree
-records retain their original count and geometry.
+Revision v9 adds pine group modifiers. Revision v10 adds six-tree groves whose
+arrangement varies deterministically with tile position.
 
 Files with a revision higher than the reader supports show an OK-only warning
 and are loaded on a best-effort basis using the known layout. A file marked
@@ -152,7 +150,7 @@ to Water. The field is ignored when the direction is zero.
 | 12 | 1 | Lower overpass road surface: paved `0`, dirt `1`, ice `2` (v4+) |
 | 13 | 1 | Tunnel with slalom modifier: ordinary `0`, combined stunt `1` (v7+) |
 | 14 | 1 | Barrel roll ramp modifier: ordinary `0`, launch ramp `1` (v8+) |
-| 15 | 1 | Pine group count: single tree `0`; legacy five `5` and ten `10` (v9+); six `6` (v10+) |
+| 15 | 1 | Pine group count: single tree `0`, six `6` (v10+), ten `10` (v9+) |
 
 The ordinary road surface selects the upper road on an overpass. The independent
 lower surface selects its road underneath. Only overpass IDs 101 and 102 may
@@ -188,17 +186,18 @@ catalog IDs require `0`. The road ends at the lip; the subsequent roll is an
 unsupported flight using angular momentum acquired during tire contact.
 
 Pine trees (6) and Pine trees (10) use pine catalog ID 153 with byte 15 set to
-`6` or `10`. Both occupy one tile and contain pine trees of varied sizes. Six-tree
-groves use a deterministic arrangement based on tile position so neighboring
-tiles do not repeat the same rows. Rotation turns the whole arrangement. Each
+`6` or `10`. Both occupy one tile and contain pine trees of varied sizes. Both
+groups vary positions and sizes with a pure hash of tile coordinates and tree
+index, so neighboring tiles do not repeat the same rows. No random state or
+loading order affects the layout: opening the same track produces the same
+forest. Rotation turns the whole arrangement. Each
 tree retains the single pine's upright crown and slope-following trunk roots,
 with its own position and scale used for rendering and collisions.
 
-Six-tree groups require revision v10. Legacy five-tree records use `5`, remain
-valid from revision v9, and keep their original count and arrangement when
-loaded or saved. Ten-tree groups also remain valid from v9 and retain their
-original arrangement. Other catalog IDs require `0`. Values other than `0`, `5`,
-`6` and `10` are invalid. The ordinary Pine tree uses `0`.
+Six-tree groups require revision v10. Ten-tree groups remain valid from v9.
+During import, wire count `5` from v9 or later is converted to `6`; subsequent
+saves write `6` in v10 or later. Other catalog IDs require `0`. Canonical counts
+are `0`, `6` and `10`; the ordinary Pine tree uses `0`.
 
 Rotation is additional to the rotation already represented by the original tile
 ID; zero preserves that catalog tile's orientation. Footprint dimensions and
@@ -282,6 +281,6 @@ specified binary fixture, every truncation of that fixture, malformed headers
 and objects, all horizon choices, current and future numeric revisions, rejection
 of obsolete revisions, all 12 material pairs in four corner directions, sparse
 overlays, positive and negative slopes, versioned sloped-stunt placement, the v7
-Tunnel with slalom modifier, v8 barrel roll ramps, v9 legacy pine groups, v10
+Tunnel with slalom modifier, v8 barrel roll ramps, v9 pine groups, v10
 six-tree groups, revision-specific reserved-byte rejection, ASCII limits,
 transactional failure, and the maximum-size 90×90 map.

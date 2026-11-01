@@ -3036,7 +3036,6 @@ static void check_upright_sloped_plants(void)
 	} variants[] = {{PLANT_RENDER_PALM_ID, 0},
 					{PLANT_RENDER_CACTUS_ID, 0},
 					{PLANT_RENDER_PINE_ID, 0},
-					{PLANT_RENDER_PINE_ID, CSTRK_PINE_GROUP_LEGACY_COUNT},
 					{PLANT_RENDER_PINE_ID, CSTRK_PINE_GROUP_SMALL_COUNT},
 					{PLANT_RENDER_PINE_ID, CSTRK_PINE_GROUP_LARGE_COUNT}};
 	static const legacy_s8 slopes[PLANT_RENDER_SLOPE_COUNT][2] = {

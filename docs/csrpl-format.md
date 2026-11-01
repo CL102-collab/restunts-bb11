@@ -31,8 +31,8 @@ allowing valid barrel-ramp approaches with fixed collision (`--lc:off`). A new
 recording uses the running game's replay revision, including when its track was
 loaded with a different track revision. Replay v13 adds the pine tree group
 scenery introduced by track v9. Replay v14 adds the six-tree groves introduced
-by track v10. Legacy five-tree and ten-tree arrangements remain unchanged,
-preserving their collision geometry in existing recordings.
+by track v10. Both pine groups derive positions and sizes deterministically from
+track tile coordinates and tree index, shared by rendering and collision checks.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
