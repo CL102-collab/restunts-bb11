@@ -9,6 +9,7 @@
 #include "../ui/ui_dialog.h"
 #include "../hires/track_preview_mode.h"
 #include "../platform.h"
+#include "../track/track_objects.h"
 #include "extended_track.h"
 #include "extended_validation.h"
 #include "extended_file.h"
@@ -40,6 +41,8 @@ legacy_s16 extended_menu_restore_track(void)
 								 main_menu_extended_track_backup_size, error, sizeof(error))) {
 			fatal_error("Cannot restore track: %s", error);
 		}
+		/* Loading replaces the compiled routes and lap mask used by the preview. */
+		track_setup();
 		free(main_menu_extended_track_backup);
 		main_menu_extended_track_backup = NULL;
 		main_menu_extended_track_backup_size = 0;
