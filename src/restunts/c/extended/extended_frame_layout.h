@@ -2,6 +2,15 @@
 #define RESTUNTS_EXTENDED_FRAME_LAYOUT_H
 
 #include "../legacy.h"
+#if defined(RESTUNTS_SDL3)
+#include "extended_frame_limits.h"
+
+/* Indexed lookup storage follows the supported extended track area. */
+struct EXTENDED_FRAME_TILE_LOOKUP {
+	legacy_s16 index_by_world_tile[EXTENDED_FRAME_MAXIMUM_TILE_COUNT];
+	legacy_s32 complete_tile_lookup;
+};
+#endif
 
 struct FRAME_TILE_SELECTION;
 

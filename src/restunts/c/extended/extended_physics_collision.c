@@ -22,7 +22,7 @@ legacy_s32 extended_collision_coordinate_delta(legacy_s16 current, legacy_s16 pr
 const struct PLANE far *
 extended_collision_snapshot_plane(const struct TRACK_COLLISION_SNAPSHOT *saved)
 {
-	return saved->extended_plane_valid ? &saved->extended_plane : saved->plane;
+	return saved->extended.plane_valid ? &saved->extended.plane : saved->plane;
 }
 
 static legacy_s16 track_sweep_uses_fixed_positions(void)

@@ -3,6 +3,14 @@
 #include "../legacy.h"
 struct FILE_DIALOG;
 #ifdef RESTUNTS_SDL3
+#define EXTENDED_UI_DIALOG_FILE_CAPACITY 128U
+
+struct EXTENDED_FILE_DIALOG {
+	legacy_u8 extended[EXTENDED_UI_DIALOG_FILE_CAPACITY];
+	legacy_u8 merge_formats;
+	const legacy_s8 *legacy_extension;
+};
+
 legacy_s16 extended_ui_dialog_append_name(struct FILE_DIALOG *dialog, const legacy_s8 *path,
 										  legacy_u8 extended);
 void extended_ui_dialog_swap(struct FILE_DIALOG *dialog, legacy_u16 first, legacy_u16 second);

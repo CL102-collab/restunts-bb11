@@ -1,4 +1,3 @@
-#include "extended/extended_fileio.h"
 #include <stddef.h>
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA_TRACE)
 #include <stdio.h>

@@ -2,36 +2,36 @@
 
 legacy_s8 RsHiresHighscoreAnimationLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7914;
+  legacy_s32 noreg temple_tmp_7902;
   if((value<=127)) {
-    temple_tmp_7914=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7902=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7914=TempleCastS32(TempleCastS8(
+    temple_tmp_7902=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7914);
+  return TempleCastS8(temple_tmp_7902);
 }
 
 legacy_s16 RsHiresHighscoreAnimationLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7915;
+  legacy_s32 noreg temple_tmp_7903;
   if((value<=32767)) {
-    temple_tmp_7915=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7903=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7915=TempleCastS32(TempleCastS16(
+    temple_tmp_7903=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7915);
+  return TempleCastS16(temple_tmp_7903);
 }
 
 legacy_s32 RsHiresHighscoreAnimationLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7916;
+  legacy_s32 noreg temple_tmp_7904;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7916=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7904=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7916=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7904=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7916);
+  return TempleCastS32(temple_tmp_7904);
 }

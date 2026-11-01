@@ -2,38 +2,38 @@
 
 legacy_s8 RsHiresFrameCarRenderLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7747;
+  legacy_s32 noreg temple_tmp_7735;
   if((value<=127)) {
-    temple_tmp_7747=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7735=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7747=TempleCastS32(TempleCastS8(
+    temple_tmp_7735=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7747);
+  return TempleCastS8(temple_tmp_7735);
 }
 
 legacy_s16 RsHiresFrameCarRenderLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7748;
+  legacy_s32 noreg temple_tmp_7736;
   if((value<=32767)) {
-    temple_tmp_7748=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7736=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7748=TempleCastS32(TempleCastS16(
+    temple_tmp_7736=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7748);
+  return TempleCastS16(temple_tmp_7736);
 }
 
 legacy_s32 RsHiresFrameCarRenderLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7749;
+  legacy_s32 noreg temple_tmp_7737;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7749=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7737=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7749=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7737=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7749);
+  return TempleCastS32(temple_tmp_7737);
 }
 
 legacy_s16 RsHiresFrameCarRenderCameraAdjustCustomDirection(legacy_u16 direction)
