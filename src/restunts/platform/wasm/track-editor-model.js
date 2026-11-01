@@ -14,7 +14,7 @@
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
     const PINE_PHYSICAL_MODEL = 71, PINE_TREE_ID = 153, PINE_GROUP_VERSION = 9, PINE_SIX_VERSION = 10, PINE_COUNTS = [10, 6];
-    const PINE_LEGACY_COUNT = 5, PINE_SIX_COUNT = 6, PINE_SUPPORTED_COUNTS = [...PINE_COUNTS, PINE_LEGACY_COUNT];
+    const PINE_IMPORT_COUNT = 5, PINE_SIX_COUNT = 6, PINE_IMPORT_COUNTS = [...PINE_COUNTS, PINE_IMPORT_COUNT];
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const PINE_SIX_VERSION_ERROR = 'Six-tree pine groups require Chocolate Stunts track version v10.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
@@ -150,8 +150,8 @@
         if (rollRamp && entry.physical !== ROLL_RAMP_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only horizontal corkscrew elements can be barrel roll ramps.');
         if (rollRamp && version < ROLL_RAMP_VERSION) throw new Error(ROLL_RAMP_VERSION_ERROR);
     }
-    function checkPineCount(entry, pineCount, version) {
-        if (pineCount !== 0 && !PINE_SUPPORTED_COUNTS.includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
+    function checkPineCount(entry, pineCount, version, importing = false) {
+        if (pineCount !== 0 && !(importing ? PINE_IMPORT_COUNTS : PINE_COUNTS).includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
         if (pineCount && entry.physical !== PINE_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only pine trees can form pine tree groups.');
         if (pineCount && version < PINE_GROUP_VERSION) throw new Error(PINE_GROUP_VERSION_ERROR);
         if (pineCount === PINE_SIX_COUNT && version < PINE_SIX_VERSION) throw new Error(PINE_SIX_VERSION_ERROR);
@@ -203,7 +203,7 @@
         return { x, y, width, height, objects: doc.objects.filter(object => selected.has(object)) };
     }
     function freezeClipboard(width, height, objects) {
-        return Object.freeze({ width, height, objects: Object.freeze(objects.map(object => Object.freeze({ ...object }))) });
+        return Object.freeze({ width, height, objects: Object.freeze(objects.map(object => Object.freeze({ ...object, ...(object.pineCount === PINE_IMPORT_COUNT ? { pineCount: PINE_SIX_COUNT } : {}) }))) });
     }
     function clipboardFromSelection(selection) {
         return freezeClipboard(selection.width, selection.height, selection.objects.map(object =>
@@ -229,7 +229,7 @@
             integer(object.slopeX, -1, 1, 'clipboard slope'); integer(object.slopeY, -1, 1, 'clipboard slope');
             checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, VERSION);
             checkRollRamp(entry, object.rollRamp ?? 0, VERSION);
-            checkPineCount(entry, object.pineCount ?? 0, VERSION);
+            checkPineCount(entry, object.pineCount ?? 0, VERSION, true);
         }
     }
     function flipClipboard(clipboard, axis) {
@@ -554,6 +554,7 @@
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
             checkTunnelSlalom(entry, tunnelSlalom, this.version);
             checkRollRamp(entry, rollRamp, this.version);
+            if (pineCount === PINE_IMPORT_COUNT) pineCount = PINE_SIX_COUNT;
             checkPineCount(entry, pineCount, this.version);
             integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation'); integer(lowerSurface, 0, 2, 'lower road surface');
             if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
@@ -663,7 +664,7 @@
         }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
-        validate() {
+        validate(importing = false) {
             const errors = [], occupiedCells = new Set();
             try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
@@ -694,7 +695,7 @@
                     if (!entry) throw new Error('Unknown track element.');
                     checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, this.version);
                     checkRollRamp(entry, object.rollRamp ?? 0, this.version);
-                    checkPineCount(entry, object.pineCount ?? 0, this.version);
+                    checkPineCount(entry, object.pineCount ?? 0, this.version, importing);
                     const lowerSurface = object.lowerSurface ?? 0;
                     integer(lowerSurface, 0, 2, 'lower road surface');
                     if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
@@ -763,7 +764,7 @@
                 (version < TUNNEL_SLALOM_VERSION && a[p + 13]) || a[p + 13] > 1 ||
                 (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 ||
                 (version < PINE_GROUP_VERSION && a[p + 15]) || (version < PINE_SIX_VERSION && a[p + 15] === PINE_SIX_COUNT) ||
-                (a[p + 15] !== 0 && !PINE_SUPPORTED_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
+                (a[p + 15] !== 0 && !PINE_IMPORT_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
             const id = v.getUint16(p, true), surface = a[p + 5];
             const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
             const object = { id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) };
@@ -784,7 +785,9 @@
             doc.objects.push(object);
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
-        const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
+        // Validate every field against the original wire revision before upgrading.
+        const errors = doc.validate(true); if (errors.length) throw new Error(errors.join(' '));
+        for (const object of doc.objects) if (object.pineCount === PINE_IMPORT_COUNT) object.pineCount = PINE_SIX_COUNT;
         doc.version = Math.max(version, VERSION);
         return doc;
     }

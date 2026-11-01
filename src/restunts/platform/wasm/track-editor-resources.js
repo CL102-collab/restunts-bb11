@@ -15,32 +15,33 @@
     const ROLL_RAMP_SUPPORT_WIDTH = 2, ROLL_RAMP_SUPPORT_DEPTH = 3;
     const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
-    const PINE_ICON = 153, PINE_LEGACY_COUNT = 5, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
+    const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
-    // Legacy five-tree groves use alternating entries of the ten-tree layout.
-    const PINE_LAYOUT = [[-340, 300, 128], [-80, 340, 176], [240, 310, 144], [350, 70, 112],
-        [130, 80, 192], [-220, 80, 152], [-350, -190, 168], [-90, -300, 120],
-        [200, -260, 160], [350, -110, 136]];
+    const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
+        [101, 128, 192], [348, -48, 152], [-365, -151, 168], [-61, -190, 120],
+        [221, -311, 160], [-261, -367, 136]];
     const PINE_SIX_LAYOUT = [[-318, 274, 152], [-47, 355, 192], [305, 171, 136],
         [171, -143, 208], [-119, -326, 160], [-363, -89, 176]];
     const PINE_SCATTER = { columnSeed: 0x9e3779b1, rowSeed: 0x85ebca77, treeSeed: 0xc2b2ae3d,
         mixFirst: 0x7feb352d, mixSecond: 0x846ca68b, depthSeed: 0x68bc21eb, scaleSeed: 0x02e5be93,
-        positionRange: 193, positionRadius: 96, scaleRange: 33, scaleRadius: 16 };
+        positionRange: 193, positionRadius: 96, largePositionRange: 129, largePositionRadius: 64,
+        scaleRange: 33, scaleRadius: 16 };
     function pineScatterHash(value) {
         value = Math.imul(value ^ (value >>> 16), PINE_SCATTER.mixFirst);
         value = Math.imul(value ^ (value >>> 15), PINE_SCATTER.mixSecond);
         return (value ^ (value >>> 16)) >>> 0;
     }
     function pineTreeLayout(pineCount, column = 0, row = 0) {
-        if (pineCount === PINE_LEGACY_COUNT) return PINE_LAYOUT.filter((_, index) => index % 2 === 0).map(tree => tree.slice());
-        if (pineCount === PINE_LAYOUT.length) return PINE_LAYOUT.map(tree => tree.slice());
-        if (pineCount !== PINE_SMALL_COUNT) fail('Invalid pine tree group.');
-        return PINE_SIX_LAYOUT.map(([x, z, scale], index) => {
+        if (pineCount !== PINE_SMALL_COUNT && pineCount !== PINE_TEN_LAYOUT.length) fail('Invalid pine tree group.');
+        const small = pineCount === PINE_SMALL_COUNT, layout = small ? PINE_SIX_LAYOUT : PINE_TEN_LAYOUT;
+        const positionRange = small ? PINE_SCATTER.positionRange : PINE_SCATTER.largePositionRange;
+        const positionRadius = small ? PINE_SCATTER.positionRadius : PINE_SCATTER.largePositionRadius;
+        return layout.map(([x, z, scale], index) => {
             let hash = pineScatterHash(Math.imul(column, PINE_SCATTER.columnSeed) ^
                 Math.imul(row, PINE_SCATTER.rowSeed) ^ Math.imul(index + 1, PINE_SCATTER.treeSeed));
-            x += hash % PINE_SCATTER.positionRange - PINE_SCATTER.positionRadius;
+            x += hash % positionRange - positionRadius;
             hash = pineScatterHash(hash ^ PINE_SCATTER.depthSeed);
-            z += hash % PINE_SCATTER.positionRange - PINE_SCATTER.positionRadius;
+            z += hash % positionRange - positionRadius;
             hash = pineScatterHash(hash ^ PINE_SCATTER.scaleSeed);
             scale += hash % PINE_SCATTER.scaleRange - PINE_SCATTER.scaleRadius;
             return [x, z, scale];
@@ -270,7 +271,7 @@
         const width = EDITOR_TILE_INTERIOR * PINE_GROUP_ICON_SCALE, height = width;
         const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
         const trees = pineTreeLayout(pineCount, column, row);
-        const topPadding = pineCount === PINE_SMALL_COUNT ? Math.ceil(source.height * Math.max(...trees.map(tree => tree[2])) / PINE_LAYOUT_SCALE) : 0;
+        const topPadding = Math.ceil(source.height * Math.max(...trees.map(tree => tree[2])) / PINE_LAYOUT_SCALE);
         // Paint the northern trees first, keeping the individual silhouettes
         // and their trunks legible on the transparent terrain background.
         for (const [x, z, scale] of trees.sort((first, second) => second[1] - first[1])) {
@@ -290,7 +291,7 @@
     }
     function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
         if (pineCount) {
-            if (id !== PINE_ICON || tunnelSlalom || rollRamp || ![PINE_LEGACY_COUNT, PINE_SMALL_COUNT, PINE_LAYOUT.length].includes(pineCount))
+            if (id !== PINE_ICON || tunnelSlalom || rollRamp || ![PINE_SMALL_COUNT, PINE_TEN_LAYOUT.length].includes(pineCount))
                 fail('Invalid pine tree group artwork.');
             return composePineTreesBitmap(icons, pineCount, column, row);
         }
