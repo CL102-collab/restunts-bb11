@@ -12,7 +12,7 @@
 #include "../c/ui/ui_text.h"
 #include "../c/memmgr.h"
 #include "../c/camera.h"
-#include "../c/video_frame.h"
+#include "../c/video/video_frame.h"
 #include "../c/fatal.h"
 #include "../c/game_input.h"
 #include "../c/dashboard.h"

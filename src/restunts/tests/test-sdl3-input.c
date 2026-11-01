@@ -1,7 +1,7 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include "../c/video_framebuffer.h"
+#include "../c/video/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,7 +16,7 @@
 #include "../c/game_input.h"
 #include "../c/hires/hires.h"
 #include "../c/hires/frame_adaptive.h"
-#include "../c/video_frame.h"
+#include "../c/video/video_frame.h"
 #include "../c/hires/presentation.h"
 
 legacy_s32 sdl3_batch_mode;

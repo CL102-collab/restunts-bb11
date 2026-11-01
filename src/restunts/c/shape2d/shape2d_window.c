@@ -13,7 +13,7 @@
 #include "shape2d.h"
 #include "shape2d_internal.h"
 #include "../game_input.h"
-#include "../video_pages.h"
+#include "../video/video_pages.h"
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
 static struct SPRITE native_background_contexts[SPRITE_BACKGROUND_STACK_CAPACITY]
 											   [SPRITE_STATE_COUNT];

@@ -1,10 +1,10 @@
 #include "video_pages.h"
 
 #ifdef RESTUNTS_HAS_VGA_PAGES
-#include "platform.h"
-#include "externs.h"
-#include "shape2d/shape2d.h"
-#include "shape2d/shape2d_internal.h"
+#include "../platform.h"
+#include "../externs.h"
+#include "../shape2d/shape2d.h"
+#include "../shape2d/shape2d_internal.h"
 
 #define VGA_PAGE_SEGMENT 0xA000U
 #define VGA_SECOND_PAGE_SEGMENT 0xA400U

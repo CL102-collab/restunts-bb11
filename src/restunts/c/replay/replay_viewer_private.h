@@ -22,7 +22,7 @@
 #include "../crash_state.h"
 #include "../track/track_objects.h"
 #include "../camera.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../race/race_graphics.h"
 #include "../car/car_audio.h"
 #include "../externs.h"

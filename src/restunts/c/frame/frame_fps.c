@@ -8,7 +8,7 @@
 #include "../externs.h"
 #include "../platform.h"
 #include "../dashboard.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../resource.h"
 
 static legacy_u32 fps_sample_start;

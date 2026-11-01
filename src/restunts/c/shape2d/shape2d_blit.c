@@ -13,7 +13,7 @@
 #include "shape2d.h"
 #include "shape2d_internal.h"
 #include "../game_input.h"
-#include "../video_pages.h"
+#include "../video/video_pages.h"
 #define PALETTE_MAP_TRANSPARENT 255U
 
 struct SHAPE2D_CLIP {

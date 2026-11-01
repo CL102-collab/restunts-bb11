@@ -1,6 +1,6 @@
 #include "video_framebuffer.h"
 #ifdef RESTUNTS_SDL3
-#include "hires/hires.h"
+#include "../hires/hires.h"
 #endif
 
 const legacy_u8 *video_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, legacy_s32 *height)

@@ -14,7 +14,7 @@
 #include "../ui/ui_input.h"
 #include "../ui/ui_dialog.h"
 #include "../car/car_speed.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../car/car_model.h"
 #include "../scene_resources.h"
 #include "../car/car_resources.h"

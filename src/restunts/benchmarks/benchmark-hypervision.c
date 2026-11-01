@@ -1,6 +1,6 @@
 /* Reuse the production replay setup and state-preservation checks. */
 #define stuntsmain benchmark_replay_test_main
-#include "../c/video_framebuffer.h"
+#include "../c/video/video_framebuffer.h"
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
 #include "../c/hires/render_workers.h"

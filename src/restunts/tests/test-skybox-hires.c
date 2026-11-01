@@ -1,4 +1,4 @@
-#include "../c/video_framebuffer.h"
+#include "../c/video/video_framebuffer.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,12 +1,12 @@
 #ifndef RESTUNTS_VIDEO_PAGES_H
 #define RESTUNTS_VIDEO_PAGES_H
 
-#include "shape2d/shape2d.h"
+#include "../shape2d/shape2d.h"
 
 #define VGA_PLANE_COUNT 4U
 #define VGA_PAGE_PLANE_BYTES 16384U
 #ifdef RESTUNTS_SDL3
-#include "hires/hires.h"
+#include "../hires/hires.h"
 #endif
 
 /* Page sprites retain chunky 320-byte rows. Only the raster helpers translate

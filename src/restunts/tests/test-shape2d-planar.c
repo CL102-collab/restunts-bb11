@@ -5,7 +5,7 @@
 #define main shape2d_reference_main
 #include "test-shape2d-render.c"
 #undef main
-#include "../c/video_pages.h"
+#include "../c/video/video_pages.h"
 
 static legacy_u8 planar_enabled;
 static legacy_u8 planar_pixels[65536];

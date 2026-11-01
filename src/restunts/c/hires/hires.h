@@ -2,7 +2,7 @@
 #define RESTUNTS_HIRES_H
 
 #include "../legacy.h"
-#include "../video_framebuffer.h"
+#include "../video/video_framebuffer.h"
 
 /* Maximum raster size and authored artwork scale. Active dimensions may be smaller. */
 #define HIRES_SCALE 4

@@ -1,7 +1,7 @@
 /* Reuse the live renderer/resource fixture, including its state/RNG checks.
  * This test compares visible geometry, rather than storing a renderer golden. */
 #define stuntsmain legacy_render_replay_fixture_main
-#include "../c/video_framebuffer.h"
+#include "../c/video/video_framebuffer.h"
 #include "test-render-replay.c"
 #undef stuntsmain
 

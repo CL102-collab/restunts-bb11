@@ -6,7 +6,7 @@
 #include "../shape2d/shape2d_internal.h"
 #include "../race/race_stats.h"
 #include "../camera.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../skybox.h"
 #include "../race/race_graphics.h"
 #include "../externs.h"

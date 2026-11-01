@@ -40,7 +40,7 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/game_input.h"
-#include "../c/video_frame.h"
+#include "../c/video/video_frame.h"
 #include "../c/shape3d/shape3d.h"
 #include "../c/keyboard.h"
 #ifdef RESTUNTS_SDL3
