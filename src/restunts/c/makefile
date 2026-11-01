@@ -15,13 +15,13 @@ C_FILES = fileio.c file_car.c file_decomp.c legacy.c resource.c math/math.c math
 DOS_STARTUP_OBJ =
 
 ifeq ($(TARGET),dosheadless)
-  C_FILES = fileio.c file_car.c file_decomp.c legacy.c resource.c math/math.c math/math_rectangles.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c headless.c \
-			headless_data.c headless_trackdata.c state.c race/race_route.c physics/physics_grip.c opponent/opponent.c track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c extended/extended_math.c
+  C_FILES = fileio.c file_car.c file_decomp.c legacy.c resource.c math/math.c math/math_rectangles.c memmgr.c strlib.c numlib.c kevinrnd.c replinit.c gameinit.c gamestep.c simd.c car/carsetup.c trkutil.c track/trackres.c headless/headless.c \
+			headless/headless_data.c headless/headless_trackdata.c state.c race/race_route.c physics/physics_grip.c opponent/opponent.c track/track_setup.c stateply/stateply.c stateply/stateply_motion.c stateply/stateply_contact.c physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c replay/replay.c stateio.c extended/extended_math.c
   DOS_STARTUP_OBJ = $(OBJDIR)/dosstart.obj
 endif
 
 ifeq ($(TARGET),dosfull)
-  C_FILES += command_line.c video/video_pages.c headless_data.c headless_trackdata.c data/full_data.c data/full_strings.c data/full_tables.c
+  C_FILES += command_line.c video/video_pages.c headless/headless_data.c headless/headless_trackdata.c data/full_data.c data/full_strings.c data/full_tables.c
   DOS_STARTUP_OBJ = $(OBJDIR)/dosstart.obj
 endif
 

@@ -8,7 +8,7 @@ endif
 
 RESTUNTS_OBJ_FILES = fileio.obj file_car.obj file_decomp.obj legacy.obj resource.obj math/math.obj math/math_rectangles.obj memmgr.obj strlib.obj numlib.obj \
                      kevinrnd.obj replinit.obj gameinit.obj gamestep.obj \
-                     simd.obj car/carsetup.obj trkutil.obj track/trackres.obj headless.obj dosstart.obj headless_data.obj headless_trackdata.obj state.obj race/race_route.obj physics/physics_grip.obj opponent/opponent.obj track/track_setup.obj stateply/stateply.obj stateply/stateply_motion.obj stateply/stateply_contact.obj physics/physics_collision.obj physics/physics_suspension.obj \
+                     simd.obj car/carsetup.obj trkutil.obj track/trackres.obj headless/headless.obj dosstart.obj headless/headless_data.obj headless/headless_trackdata.obj state.obj race/race_route.obj physics/physics_grip.obj opponent/opponent.obj track/track_setup.obj stateply/stateply.obj stateply/stateply_motion.obj stateply/stateply_contact.obj physics/physics_collision.obj physics/physics_suspension.obj \
                      statecrs.obj statecar.obj track/trackobj.obj track/trackobj_road.obj track/trackobj_stunts.obj track/trackobj_queries.obj owoot/owoot.obj owoot/owoot_wheels.obj owoot/owoot_road.obj owoot/owoot_route.obj replay/replay.obj stateio.obj extended/extended_math.obj
 RESTUNTS_OBJ_FILES += $(RESTUNTS_EXTENDED_COMMON_OBJ_FILES)
 

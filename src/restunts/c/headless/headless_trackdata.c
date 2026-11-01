@@ -1,8 +1,8 @@
-#include "externs.h"
-#include "shape3d/shape3d.h"
-#include "track/track_types.h"
-#include "track/track_objects.h"
-#include "scene_resources.h"
+#include "../externs.h"
+#include "../shape3d/shape3d.h"
+#include "../track/track_types.h"
+#include "../track/track_objects.h"
+#include "../scene_resources.h"
 
 /* The original table points into four adjacent shape banks.  The full C port
  * stores those banks contiguously in game3dshapes; headless does not render. */
