@@ -618,7 +618,7 @@ if(RESTUNTS_BUILD_TESTS)
     endif()
     add_executable(test-extended-hiscore-ui src/restunts/tests/test-extended-hiscore-ui.c
         ${core}/extended/extended_highscore_ui.c ${core}/extended/extended_menu_runtime.c
-        ${core}/hires/track_preview_mode.c
+        ${core}/hires/track_preview_mode.c ${core}/hires/track_menu_preview.c
         ${core}/hires/highscore_animation.c)
     target_compile_definitions(test-extended-hiscore-ui PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-hiscore-ui PRIVATE -UNDEBUG
