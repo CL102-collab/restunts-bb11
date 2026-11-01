@@ -23,9 +23,9 @@
     const TULIP_FIELD_ID = 216, TULIP_PHYSICAL_MODEL = 76, VINE_FIELD_ID = 217, VINE_PHYSICAL_MODEL = 77;
     // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
     const WHEAT = { rows: 6, soilHeight: 2, canopyHeight: 10, rowHalfWidth: 70, soil: 25, canopy: 82 };
-    // Match the crop rows and flower cups in extended/extended_crop_fields.c.
-    const TULIP = { rows: 6, flowers: 5, height: 16, leafHeight: 4, cupHeight: 8, halfWidth: 10,
-        rowHalfWidth: 80, bandHeight: 12, bandHalfWidth: 70, leaves: 69, stem: 16, petals: [75, 124, 54, 37, 75, 61] };
+    // Match the solid crop rows in extended/extended_crop_fields.c.
+    const TULIP = { rows: 6, leafHeight: 4, rowHalfWidth: 80, bandHeight: 12, bandHalfWidth: 70,
+        leaves: 69, rowColors: [75, 124, 54, 37, 75, 61] };
     const VINE = { rows: 12, height: 96, eaveHeight: 72, ridge: 0, left: -22, right: 23,
         dark: 68, light: 69, grapes: 73, grapeClearance: 2, grapeStationCount: 8,
         grapeParts: [{ halfWidth: 16, bottom: 48, top: 72 }, { halfWidth: 8, bottom: 32, top: 48 }] };
@@ -247,23 +247,14 @@
         return shape;
     }
     function tulipField() {
-        const shape = cropFieldBase(TULIP.height);
+        const shape = cropFieldBase(TULIP.bandHeight);
         for (let row = 0; row < TULIP.rows; row++) {
             const x = cropFieldCenter(row, TULIP.rows);
             cropFieldQuad(shape, x - TULIP.rowHalfWidth, x + TULIP.rowHalfWidth, TULIP.leafHeight, TULIP.leaves);
         }
         for (let row = 0; row < TULIP.rows; row++) {
             const x = cropFieldCenter(row, TULIP.rows);
-            cropFieldQuad(shape, x - TULIP.bandHalfWidth, x + TULIP.bandHalfWidth, TULIP.bandHeight, TULIP.petals[row % TULIP.petals.length]);
-        }
-        for (let row = 0; row < TULIP.rows; row++) for (let flower = 0; flower < TULIP.flowers; flower++) {
-            const x = cropFieldCenter(row, TULIP.rows), z = cropFieldCenter(flower, TULIP.flowers), first = shape.vertices.length;
-            shape.vertices.push([x, TULIP.leafHeight, z], [x, TULIP.cupHeight, z],
-                [x - TULIP.halfWidth, TULIP.height, z], [x, TULIP.height, z - TULIP.halfWidth],
-                [x + TULIP.halfWidth, TULIP.height, z], [x, TULIP.height, z + TULIP.halfWidth]);
-            cropFieldPrimitive(shape, [first, first + 1], TULIP.stem);
-            for (const indices of [[1, 2, 3], [1, 3, 4], [1, 4, 5], [1, 5, 2]])
-                cropFieldPrimitive(shape, indices.map(index => first + index), TULIP.petals[row % TULIP.petals.length]);
+            cropFieldQuad(shape, x - TULIP.bandHalfWidth, x + TULIP.bandHalfWidth, TULIP.bandHeight, TULIP.rowColors[row]);
         }
         return shape;
     }
