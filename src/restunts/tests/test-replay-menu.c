@@ -538,6 +538,14 @@ legacy_s16 do_savefile_dialog(legacy_s8 *directory, legacy_s8 *filename, legacy_
 	event(19);
 	return save_count++ == 0 && (scenario & 1);
 }
+#ifdef RESTUNTS_SDL3
+legacy_s16 do_savefile_dialog_limit(legacy_s8 *directory, legacy_s8 *filename,
+									legacy_s8 far *prompt, legacy_u16 max_length)
+{
+	assert(max_length == EXTENDED_FILE_STEM_MAX_LENGTH);
+	return do_savefile_dialog(directory, filename, prompt);
+}
+#endif
 void file_build_path(const legacy_s8 *directory, const legacy_s8 *name, const legacy_s8 *ext,
 					 legacy_s8 *path)
 {

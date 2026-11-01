@@ -191,6 +191,33 @@ static void test_stale_table_merge(struct CSTRK_TRACK *track)
 	check_loaded_score(2U, "Equal time", 900U);
 }
 
+static void test_long_track_names(struct CSTRK_TRACK *track)
+{
+	static const char *const names[] = {"ABCDEFGHIJKL", "ABCDEFGHIJKM"};
+	static const char *const tracks[] = {SCORE_DIRECTORY "/ABCDEFGHIJKL.CSTRK",
+										 SCORE_DIRECTORY "/ABCDEFGHIJKM.CSTRK"};
+	static const char *const scores[] = {SCORE_DIRECTORY "/ABCDEFGHIJKL.cshig",
+										 SCORE_DIRECTORY "/ABCDEFGHIJKM.cshig"};
+	size_t size;
+	uint8_t *bytes = read_bytes(TRACK_PATH, &size);
+	for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
+		write_bytes(tracks[index], bytes, size);
+		assert(extended_highscore_validate_track(SCORE_DIRECTORY, names[index], track) == 0);
+		struct CSHIG_ENTRY entry = score_entry(names[index], 100U + index);
+		unsigned rank = UINT_MAX;
+		assert(extended_highscore_record(SCORE_DIRECTORY, names[index], track, &entry, &rank) == 0);
+		assert(rank == 0U);
+	}
+	free(bytes);
+	for (size_t index = 0; index < sizeof(names) / sizeof(names[0]); index++) {
+		assert(extended_highscore_load_or_create(SCORE_DIRECTORY, names[index], track, 0) == 0);
+		check_loaded_score(0U, names[index], 100U + index);
+		assert(remove(tracks[index]) == 0);
+		assert(remove(scores[index]) == 0);
+	}
+	assert(extended_highscore_load_or_create(SCORE_DIRECTORY, "ABCDEFGHIJKLM", track, 1) != 0);
+}
+
 static void test_track_identity(struct CSTRK_TRACK *track)
 {
 	char error[192];
@@ -401,6 +428,7 @@ int main(void)
 	struct CSTRK_TRACK track;
 	fixture(&track);
 	write_track(&track);
+	test_long_track_names(&track);
 	test_creation_and_wide_times(&track);
 	test_stale_table_merge(&track);
 	test_prior_table_revision(&track);

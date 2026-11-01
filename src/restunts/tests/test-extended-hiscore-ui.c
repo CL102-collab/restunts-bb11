@@ -75,18 +75,27 @@ static const legacy_s8 *fixture_error_message;
 static legacy_u16 fixture_record_rank;
 static legacy_s16 current_font_color;
 static legacy_u8 table_pixels[END_SCREEN_TOP_HEIGHT][END_SCREEN_WIDTH];
+static const legacy_s8 *fixture_track_name;
+static legacy_s8 table_title[64];
+static legacy_s8 track_title[64];
 
 static void check_adapter_arguments(const legacy_s8 *directory, const legacy_s8 *name,
 									const struct CSTRK_TRACK *track)
 {
 	assert(fixture_extended && directory == track_directory);
 	assert(strcmp((const char *)directory, "tracks") == 0);
-	assert(strcmp((const char *)name, "TRACK") == 0 && track == &fixture_model);
+	assert(strcmp((const char *)name, (const char *)fixture_track_name) == 0 &&
+		   track == &fixture_model);
 }
 
 int extended_track_active(void)
 {
 	return fixture_extended;
+}
+
+const legacy_s8 *extended_track_name(void)
+{
+	return fixture_extended ? fixture_track_name : gameconfig.game_trackname;
 }
 
 const struct CSTRK_TRACK *extended_track_model(void)
@@ -337,6 +346,9 @@ void draw_button(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 width, 
 
 void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 {
+	if (y == HIGHSCORE_TITLE_Y) {
+		strcpy((char *)table_title, (const char *)text);
+	}
 	/* Like the real font renderer, unset glyph bits leave old pixels visible. */
 	for (legacy_u16 character = 0; text[character] != 0; character++) {
 		if (text[character] == ' ') {
@@ -371,10 +383,13 @@ void font_draw_text(const legacy_s8 *text, legacy_s16 x, legacy_s16 y)
 struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_s16 color,
 								  legacy_s16 shadow)
 {
-	(void)text;
 	(void)x;
 	(void)color;
 	(void)shadow;
+	if (y == TRACK_MENU_NAME_Y) {
+		strcpy((char *)track_title, (const char *)text);
+		return &highscore_text_bounds;
+	}
 	assert(y == TRACK_MENU_HIGHSCORE_LABEL_Y);
 	++preview_labels;
 	return &highscore_text_bounds;
@@ -432,6 +447,7 @@ static void reset_fixture(legacy_u32 finish, legacy_u16 rate)
 	framespersec = rate;
 	replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG;
 	gameconfig.game_opponenttype = 0;
+	fixture_track_name = (const legacy_s8 *)"TRACK";
 	strcpy((char *)gameconfig.game_trackname, "TRACK");
 	strcpy((char *)track_directory, "tracks");
 	strcpy((char *)gnam_string, "Very long car display name exceeding the field");
@@ -688,6 +704,22 @@ static void check_legacy_eligibility(void)
 	assert(preview_time_x == TRACK_MENU_HIGHSCORE_TIME_X && strcmp(preview_time, "650") == 0);
 }
 
+static void check_full_track_name(void)
+{
+	reset_fixture(TEST_NEW_SCORE_FRAMES, GAME_FRAME_RATE_NORMAL);
+	fixture_track_name = (const legacy_s8 *)"ABCDEFGHIJKL";
+	strcpy((char *)gameconfig.game_trackname, "ABCDEFGH");
+	struct END_SCREEN_STATE screen = {0};
+	end_hiscore_check_score(&screen);
+	assert(screen.score_status == 1 && validate_calls == 1 && load_calls == 1);
+	end_hiscore_enter_score(&screen, (void *)"Name", 0);
+	assert(record_calls == 1);
+	highscore_draw_table();
+	assert(strcmp((const char *)table_title, "Score 'ABCDEFGHIJKL'") == 0);
+	track_menu_draw_title();
+	assert(strcmp((const char *)track_title, "'ABCDEFGHIJKL'") == 0);
+}
+
 int main(void)
 {
 	check_wide_finish(65536U, 0);
@@ -701,6 +733,7 @@ int main(void)
 	check_score_insertion_redraw();
 	check_long_time_alignment();
 	check_legacy_eligibility();
+	check_full_track_name();
 	puts("Extended highscore UI checks passed");
 	return 0;
 }

@@ -61,7 +61,7 @@ int main(void)
 	metadata.driving_rules =
 		DRIVING_RULE_POWER_GEAR | DRIVING_RULE_LEFT_CORNER_BIAS | DRIVING_RULE_OWOOT;
 	memcpy(metadata.player_car_id, "P962", 4);
-	memcpy(metadata.track_name, "LONGTEST", 8);
+	memcpy(metadata.track_name, "LONGTEST1234", sizeof("LONGTEST1234"));
 	metadata.frame_count = 70001;
 	metadata.frames_per_second = 20;
 	uint8_t *inputs = calloc(metadata.frame_count, 1);
@@ -80,6 +80,8 @@ int main(void)
 	assert(selected.view.metadata.version == CSRPL_VERSION);
 	assert(selected.view.metadata.driving_rules == metadata.driving_rules);
 	assert(selected.view.metadata.frame_count == 70001);
+	assert(strcmp((const char *)selected.view.metadata.track_name, "LONGTEST1234") == 0);
+	assert(strcmp((const char *)config.game_trackname, "LONGTEST") == 0);
 	assert(selected.view.inputs[70000] == 5);
 	assert(memcmp(config.game_playercarid, "P962", 4) == 0);
 	assert(config.game_recordedframes == LEGACY_S16_MAX);

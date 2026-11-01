@@ -1,4 +1,7 @@
 #include "replay_viewer_private.h"
+#ifdef RESTUNTS_SDL3
+#include "../extended/extended_file_dialog.h"
+#endif
 
 static legacy_s8 replay_choose_pause_action(void)
 {
@@ -210,8 +213,19 @@ static void replay_load_recording(void)
 static legacy_s8 replay_choose_save_path(void)
 {
 	legacy_s8 save_status = REPLAY_SAVE_RETRY;
-	if (do_savefile_dialog(replay_directory, replay_filename_input,
-						   locate_text_res(mainresptr, replay_save_prompt_id)) == 0) {
+	legacy_s16 chosen;
+#ifdef RESTUNTS_SDL3
+	if (extended_replay_is_active()) {
+		chosen = do_savefile_dialog_limit(replay_directory, replay_filename_input,
+										  locate_text_res(mainresptr, replay_save_prompt_id),
+										  EXTENDED_FILE_STEM_MAX_LENGTH);
+	} else
+#endif
+	{
+		chosen = do_savefile_dialog(replay_directory, replay_filename_input,
+									locate_text_res(mainresptr, replay_save_prompt_id));
+	}
+	if (chosen == 0) {
 		save_status = REPLAY_SAVE_CANCELLED;
 	} else {
 		const legacy_s8 *extension = replay_file_extension;

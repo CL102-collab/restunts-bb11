@@ -6,12 +6,14 @@
 #include "../ghost/ghost_internal.h"
 #include "extended_ghost.h"
 #include "extended_track.h"
+#include "extended_file_dialog.h"
 #include "extended_replay_runtime.h"
 #include "../externs.h"
 #include "../fileio.h"
 #include "../platform.h"
 static struct EXTENDED_GHOST_REPLAY ghost_extended;
 static struct EXTENDED_REPLAY_SUSPENDED saved_extended;
+static legacy_s8 saved_track_name[EXTENDED_FILE_STEM_CAPACITY];
 legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,
 									  const legacy_s8 *extension)
 {
@@ -30,6 +32,7 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 			(void)track_setup();
 		} else if (result == 0) {
 			extended_replay_runtime_clear();
+			extended_track_clear_name();
 		}
 		free(previous);
 		return result;
@@ -99,7 +102,7 @@ legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s
 		add_exit_handler(ghost_cleanup);
 		ghost_cleanup_registered = 1;
 	}
-	memcpy(gameconfig.game_trackname, config.game_trackname, REPLAY_TRACK_NAME_SIZE);
+	extended_track_set_name((const legacy_s8 *)ghost_extended.view.metadata.track_name);
 	file_warn_replay_version(ghost_extended.view.metadata.version);
 	file_warn_replay_driving_rules(ghost_extended.view.metadata.driving_rules);
 	return 0;
@@ -141,16 +144,21 @@ legacy_s16 extended_ghost_runtime_prepare_inputs(legacy_u32 pose_size, legacy_s1
 }
 legacy_s16 extended_ghost_runtime_begin(void)
 {
+	strcpy(saved_track_name, extended_track_name());
 	extended_replay_runtime_suspend(&saved_extended);
 	if (ghost_extended.bytes && !extended_replay_runtime_load(&ghost_extended.view)) {
 		extended_replay_runtime_resume(&saved_extended);
 		return 0;
+	}
+	if (ghost_extended.bytes) {
+		extended_track_set_name((const legacy_s8 *)ghost_extended.view.metadata.track_name);
 	}
 	return 1;
 }
 void extended_ghost_runtime_end(void)
 {
 	extended_replay_runtime_resume(&saved_extended);
+	extended_track_set_name(saved_track_name);
 }
 void extended_ghost_runtime_camera(struct GHOST_CAMERA_STATE *camera)
 {

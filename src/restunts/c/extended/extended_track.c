@@ -46,6 +46,29 @@ static struct CSTRK_TRACK current_track;
 static struct EXTENDED_TRACK_STORAGE *storage;
 static struct EXTENDED_TRACK_BINDINGS legacy_bindings;
 static int bound;
+static legacy_s8 current_track_name[EXTENDED_FILE_STEM_CAPACITY];
+
+const legacy_s8 *extended_track_name(void)
+{
+	return storage && current_track_name[0] ? current_track_name : gameconfig.game_trackname;
+}
+
+void extended_track_set_name(const legacy_s8 *name)
+{
+	legacy_s8 retained[EXTENDED_FILE_STEM_CAPACITY] = {0};
+	for (legacy_u16 index = 0; name && index < EXTENDED_FILE_STEM_MAX_LENGTH && name[index];
+		 index++) {
+		retained[index] = name[index];
+	}
+	memcpy(current_track_name, retained, sizeof(current_track_name));
+	memcpy(gameconfig.game_trackname, retained, REPLAY_TRACK_NAME_SIZE - 1U);
+	gameconfig.game_trackname[REPLAY_TRACK_NAME_SIZE - 1U] = 0;
+}
+
+void extended_track_clear_name(void)
+{
+	current_track_name[0] = 0;
+}
 
 #define EXTENDED_ROLL_DIRECTION_COUNT 4U
 #define EXTENDED_ROLL_ROUTE_CAMERA_VECTORS 3U

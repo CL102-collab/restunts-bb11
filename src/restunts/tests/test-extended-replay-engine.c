@@ -1132,8 +1132,7 @@ static void test_recorded_half_pipe_body_collision(void)
 	ghost_free_simulation_resources();
 	memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
 	memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
-	memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
-	gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+	extended_track_set_name((const legacy_s8 *)view.metadata.track_name);
 	gameconfig.game_playermaterial = view.metadata.player_material;
 	gameconfig.game_playertransmission = view.metadata.player_transmission;
 	gameconfig.game_opponenttype = view.metadata.opponent_type;
@@ -1158,6 +1157,74 @@ static void test_recorded_half_pipe_body_collision(void)
 	ghost_free_simulation_resources();
 	gameconfig = original_config;
 	ghost_load_simulation_resources();
+}
+
+static void test_long_extended_names(void)
+{
+	static const legacy_s8 first_name[] = "ALPINECIRCU1";
+	static const legacy_s8 second_name[] = "ALPINECIRCU2";
+	legacy_char track_path[128], saved_path[128];
+	snprintf(track_path, sizeof(track_path), "%s/%s.cstrk", temporary_directory, first_name);
+	snprintf(saved_path, sizeof(saved_path), "%s/%s.csrpl", temporary_directory, first_name);
+	create_track(0);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	legacy_u8 *track_bytes = NULL;
+	size_t track_size = 0;
+	assert(cstrk_encode(extended_track_model(), &track_bytes, &track_size, error, sizeof(error)));
+	FILE *file = fopen(track_path, "wb");
+	assert(file && fwrite(track_bytes, 1U, track_size, file) == track_size && fclose(file) == 0);
+	free(track_bytes);
+	assert(extended_file_load_track((const legacy_s8 *)track_path) == 0);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	assert(strcmp((const legacy_char *)gameconfig.game_trackname, "ALPINECI") == 0);
+	assert(sizeof(struct GAMEINFO) == REPLAY_GAMEINFO_SIZE);
+	/* The state setter accepts its own getter without destroying the name. */
+	extended_track_set_name(extended_track_name());
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	const struct CSTRK_TRACK *prior_track = extended_track_model();
+	file = fopen(invalid_path, "wb");
+	assert(file && fputc(0, file) == 0 && fclose(file) == 0);
+	assert(extended_file_load_track((const legacy_s8 *)invalid_path) != 0);
+	assert(extended_track_model() == prior_track);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	extended_replay_runtime_begin();
+	assert(extended_replay_record_input(0));
+	assert(extended_file_write_replay((const legacy_s8 *)saved_path) == 0);
+	file = fopen(saved_path, "rb");
+	assert(file && fseek(file, 0, SEEK_END) == 0);
+	legacy_s32 size = (legacy_s32)ftell(file);
+	assert(size > 0 && fseek(file, 0, SEEK_SET) == 0);
+	legacy_u8 *bytes = malloc((size_t)size);
+	assert(bytes && fread(bytes, 1U, (size_t)size, file) == (size_t)size && fclose(file) == 0);
+	struct CSRPL_VIEW view;
+	assert(csrpl_decode(bytes, (size_t)size, &view, error, sizeof(error)));
+	assert(strcmp(view.metadata.track_name, (const legacy_char *)first_name) == 0);
+	assert(view.metadata.version >= CSRPL_LONG_TRACK_NAME_VERSION);
+	/* Admission failure occurs after replay history allocation and must retain both names. */
+	size_t first_object =
+		CSRPL_HEADER_SIZE + CSTRK_HEADER_SIZE +
+		((size_t)extended_track_width() + 1U) * ((size_t)extended_track_height() + 1U) +
+		2U * (size_t)extended_track_width() * extended_track_height();
+	LEGACY_WRITE_U16_LE(bytes + first_object, 182U);
+	assert(csrpl_decode(bytes, (size_t)size, &view, error, sizeof(error)));
+	file = fopen(invalid_path, "wb");
+	assert(file && fwrite(bytes, 1U, (size_t)size, file) == (size_t)size && fclose(file) == 0);
+	free(bytes);
+	extended_track_set_name(second_name);
+	const legacy_u8 *prior_inputs = extended_replay_inputs();
+	assert(extended_file_load_replay((const legacy_s8 *)invalid_path) != 0);
+	assert(extended_replay_inputs() == prior_inputs && extended_track_model() == prior_track);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)second_name) ==
+		   0);
+	assert(extended_file_load_replay((const legacy_s8 *)saved_path) == 0);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	assert(gameconfig.game_framespersec == GAME_FRAME_RATE_NORMAL);
+	assert(strcmp((const legacy_char *)gameconfig.game_trackname, "ALPINECI") == 0);
+	assert(unlink(track_path) == 0 && unlink(saved_path) == 0);
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
@@ -1360,6 +1427,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_deep_contact_below_roll_grille();
 	test_terrain_below_roll_ramp_does_not_arm();
 	test_extended_opponent_laps();
+	test_long_extended_names();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

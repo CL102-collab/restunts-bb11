@@ -4113,6 +4113,8 @@ static legacy_u8 *capture_track_overview(legacy_u32 ticks, legacy_s32 *width, le
 
 static legacy_u16 check_restored_track_overview(const struct CSTRK_TRACK *track)
 {
+	static const legacy_s8 original_name[] = "ALPINECIRCU1";
+	extended_track_set_name(original_name);
 	struct GAMEINFO saved_config = gameconfig, saved_configcopy = gameconfigcopy;
 	legacy_u8 lap_tiles[EXTENDED_TRACK_MAX_CELLS];
 	memcpy(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles));
@@ -4130,8 +4132,10 @@ static legacy_u16 check_restored_track_overview(const struct CSTRK_TRACK *track)
 		if (replacement != 0) {
 			activate_render_track(track, 0);
 		}
+		extended_track_set_name("ALPINECIRCU2");
 		gameconfig.game_recordedframes++;
 		assert(extended_menu_restore_track() == 0);
+		assert(strcmp(extended_track_name(), original_name) == 0);
 		assert(memcmp(&gameconfig, &saved_config, sizeof(gameconfig)) == 0);
 		assert(memcmp(lap_tiles, extended_track_lap_tiles(), sizeof(lap_tiles)) == 0);
 		for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
