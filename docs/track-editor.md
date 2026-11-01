@@ -109,6 +109,9 @@ to the map edges. Its corners take the chosen height, and the selected terrain
 surface covers the square and any slopes created by the height change.
 Level supports grass, dirt, ice and water. Switching between these surfaces keeps
 Level active and preserves both its brush size and height selection.
+Grass shades progress from the original ground green at level 0 to the original
+yellow-green at level 4, with evenly spaced colors for levels 1, 2 and 3. The map,
+elevation previews and navigator use the same gradient to distinguish heights.
 Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
 Adjoining corners adjust to retain the original game's flat tiles, straight

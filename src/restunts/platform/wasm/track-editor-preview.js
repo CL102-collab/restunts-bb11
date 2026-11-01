@@ -50,7 +50,7 @@
         const sine = Math.sin(camera.yaw), cosine = Math.cos(camera.yaw);
         camera.position[0] += (forward * sine + right * cosine) * distance;
         camera.position[1] += up * distance;
-        camera.position[2] += (-forward * cosine + right * sine) * distance;
+        camera.position[2] += (forward * cosine - right * sine) * distance;
     }
     function look(camera, dx, dy) {
         if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
@@ -60,9 +60,11 @@
     function viewProjection(camera, aspect, far) {
         const sine = Math.sin(camera.yaw), cosine = Math.cos(camera.yaw);
         const pitchSine = Math.sin(camera.pitch), pitchCosine = Math.cos(camera.pitch);
-        const right = [cosine, 0, sine];
-        const up = [-sine * pitchSine, pitchCosine, cosine * pitchSine];
-        const back = [-sine * pitchCosine, -pitchSine, cosine * pitchCosine];
+        // Native track coordinates use +Z north/forward. Reflect depth once at
+        // the WebGL view boundary, whose perspective projection looks down -Z.
+        const right = [cosine, 0, -sine];
+        const up = [-sine * pitchSine, pitchCosine, -cosine * pitchSine];
+        const back = [-sine * pitchCosine, -pitchSine, -cosine * pitchCosine];
         const eye = camera.position;
         const dot = vector => vector[0] * eye[0] + vector[1] * eye[1] + vector[2] * eye[2];
         const view = [right[0], up[0], back[0], 0, right[1], up[1], back[1], 0,
@@ -100,7 +102,7 @@
             this.window = this.document.defaultView;
             this.onStatus = typeof options.onStatus === 'function' ? options.onStatus : () => {};
             this.active = false; this.available = false; this.disposed = false;
-            this.camera = { position: [0, DEFAULT_EYE_HEIGHT, DEFAULT_CAMERA_DISTANCE], yaw: 0, pitch: 0 };
+            this.camera = { position: [0, DEFAULT_EYE_HEIGHT, -DEFAULT_CAMERA_DISTANCE], yaw: 0, pitch: 0 };
             this.codes = new Set(); this.alt = false; this.capsLock = false;
             this.dragging = false; this.pointerLocked = false; this.contextLost = false;
             this.scene = null; this.frame = null; this.lastTime = null; this.lastStatus = '';
@@ -286,7 +288,7 @@
             if (!this.scene) return;
             const { bounds, spawn } = this.scene;
             this.camera.position = spawn ? Array.from(spawn.position) :
-                [(bounds.min[0] + bounds.max[0]) / 2, bounds.max[1] + DEFAULT_EYE_HEIGHT, bounds.max[2] + DEFAULT_CAMERA_DISTANCE];
+                [(bounds.min[0] + bounds.max[0]) / 2, bounds.max[1] + DEFAULT_EYE_HEIGHT, bounds.min[2] - DEFAULT_CAMERA_DISTANCE];
             this.camera.yaw = spawn?.yaw || 0;
             this.camera.pitch = clamp(spawn?.pitch || 0, -PITCH_LIMIT, PITCH_LIMIT);
             this.clearInput(); this.schedule();

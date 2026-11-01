@@ -333,7 +333,7 @@
         const stride = doc.width + 1, vertex = centerTileY * stride + centerTileX;
         const ground = (doc.vertices[vertex] + doc.vertices[vertex + 1] + doc.vertices[vertex + stride] + doc.vertices[vertex + stride + 1]) / 4;
         return { positions: positions.finish(), colors: colors.finish(), linePositions: linePositions.finish(), lineColors: lineColors.finish(), bounds,
-            spawn: { position: [centerX, ground * LEVEL_HEIGHT / TILE_SIZE + .18, centerZ], yaw: start ? -(data.objects[start.id].rotation + start.rotation) * Math.PI / 2 : 0, pitch: 0 },
+            spawn: { position: [centerX, ground * LEVEL_HEIGHT / TILE_SIZE + .18, centerZ], yaw: start ? ((data.objects[start.id].rotation + start.rotation) % 4) * Math.PI / 2 : 0, pitch: 0 },
             triangles: positions.length / 9, instances };
     }
     return { buildScene, decodeShape, triangulate, TILE_SIZE, LEVEL_HEIGHT };

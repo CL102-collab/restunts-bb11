@@ -42,7 +42,7 @@ function fixture() {
     const doc = new model.Document(FIXTURE_SIZE, FIXTURE_SIZE);
     for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++)
         doc.vertices[doc.vertexIndex(x, y)] = x < 7 ? 0 : x === 7 ? 1 : 2;
-    doc.place(1, 2, 2);
+    doc.place(1, 2, 9);
     doc.place(4, 2, 3);
     doc.place(11, 3, 3);
     doc.place(115, 2, 6, 1, 0, 0, 1);
@@ -51,7 +51,7 @@ function fixture() {
     doc.place(153, 8, 5, 0, 3, 0, 0, 0, 5);
     doc.place(153, 8, 3);
     doc.place(101, 8, 8, 2, 0, 1);
-    doc.place(155, 2, 9);
+    doc.place(155, 2, 10);
     for (let y = 1; y < 5; y++) for (let x = 9; x < doc.width; x++) doc.paint(x, y, 3);
     doc.paint(8, 1, 0, 2, 3);
     assert.deepEqual(doc.validate(), []);
@@ -176,6 +176,118 @@ async function checkMovement(page) {
     });
     assert.equal(await page.evaluate(() => previewUnderTest.status.running), false, 'Caps Lock off disables running');
     assert.equal(await page.evaluate(() => previewUnderTest.status.speedMultiplier), 1);
+}
+
+async function checkCompassHandedness(page, originalBytes) {
+    // Native extended_geometry_object_origin increases x with eastward columns
+    // and z with northward rows. These map compass expectations are independent
+    // of the preview's camera/projection implementation.
+    const cases = [
+        { name: 'North', yaw: 0, position: [5.5, .7, 1.5], start: [3, 5], pine: [7, 5], forward: [0, 0, 1], right: [1, 0, 0] },
+        { name: 'East', yaw: Math.PI / 2, position: [1.5, .7, 5.5], start: [5, 3], pine: [5, 7], forward: [1, 0, 0], right: [0, 0, -1] },
+        { name: 'South', yaw: Math.PI, position: [5.5, .7, 9.5], start: [7, 5], pine: [3, 5], forward: [0, 0, -1], right: [-1, 0, 0] },
+        { name: 'West', yaw: Math.PI * 3 / 2, position: [9.5, .7, 5.5], start: [5, 7], pine: [5, 3], forward: [-1, 0, 0], right: [0, 0, 1] }
+    ];
+    const map = new model.Document(11, 11);
+    map.place(1, ...cases[0].start); map.place(153, ...cases[0].pine);
+    await page.locator('#view-2d').click();
+    await page.locator('#track-file-input').setInputFiles({ name: 'COMPASS.cstrk',
+        mimeType: 'application/octet-stream', buffer: Buffer.from(model.encodeCstrk(map)) });
+    await page.waitForFunction(() => document.getElementById('document-name').textContent === 'COMPASS');
+    await page.locator('#fit-map').click();
+    await settleFrames(page);
+    const mapMarkers = await page.evaluate(() => {
+        const canvas = document.getElementById('track-canvas'), rect = canvas.getBoundingClientRect();
+        const size = 32 * Math.max(.12, Math.min(4, (rect.width - 64) / (11 * 32), (rect.height - 64) / (11 * 32)));
+        const left = (rect.width - 11 * size) / 2;
+        return { start: left + 3.5 * size, pine: left + 7.5 * size };
+    });
+    assert.ok(mapMarkers.start < mapMarkers.pine, 'The asymmetric fixture places Start west/left of Pine on the 2D map');
+    await page.locator('#view-3d').click();
+    await page.waitForFunction(() => previewUnderTest.active && previewUnderTest.available);
+    await page.evaluate(async headings => {
+        const files = new Map(Array.from(document.getElementById('folder-input').files, file => [file.name.toLowerCase(), file]));
+        const resources = await TrackEditorResources.load(files);
+        const assets = await TrackEditorResources.load3D(files, resources.palette);
+        window.previewCompassFixtures = headings.map(heading => {
+            const empty = new TrackEditorModel.Document(11, 11);
+            const start = new TrackEditorModel.Document(11, 11); start.place(1, ...heading.start);
+            const pine = new TrackEditorModel.Document(11, 11); pine.place(153, ...heading.pine);
+            return { ...heading, empty: TrackEditorScene.buildScene(empty, assets),
+                startScene: TrackEditorScene.buildScene(start, assets), pineScene: TrackEditorScene.buildScene(pine, assets) };
+        });
+        window.previewCompassPixels = index => {
+            const preview = previewUnderTest, gl = preview.gl, fixture = previewCompassFixtures[index];
+            const render = scene => {
+                preview.setScene(scene, { resetCamera: false }); preview.draw();
+                const pixels = new Uint8Array(gl.drawingBufferWidth * gl.drawingBufferHeight * 4);
+                gl.readPixels(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                return pixels;
+            };
+            const background = render(fixture.empty);
+            const marker = scene => {
+                const pixels = render(scene), width = gl.drawingBufferWidth;
+                let count = 0, sumX = 0;
+                for (let p = 0; p < pixels.length; p += 4) {
+                    if (Math.abs(pixels[p] - background[p]) + Math.abs(pixels[p + 1] - background[p + 1]) +
+                        Math.abs(pixels[p + 2] - background[p + 2]) < 16) continue;
+                    count++; sumX += (p / 4) % width;
+                }
+                return { count, x: count ? sumX / count : null };
+            };
+            return { width: gl.drawingBufferWidth, start: marker(fixture.startScene), pine: marker(fixture.pineScene) };
+        };
+    }, cases);
+    const report = [];
+    for (let index = 0; index < cases.length; index++) {
+        const heading = cases[index];
+        const reset = () => page.evaluate(index => {
+            const fixture = previewCompassFixtures[index];
+            previewUnderTest.camera = { position: Array.from(fixture.position), yaw: fixture.yaw, pitch: -.1 };
+            previewUnderTest.clearInput();
+        }, index);
+        const sample = () => page.evaluate(index => previewCompassPixels(index), index);
+        await reset(); await page.locator('#preview-canvas').focus();
+        const initial = await sample();
+        assert.ok(initial.start.count > 20 && initial.pine.count > 20,
+            heading.name + ' camera must see both actual native mesh markers');
+        assert.ok(initial.start.x < initial.width / 2 && initial.pine.x > initial.width / 2,
+            heading.name + ' camera must show the native Start marker on the compass-left and Pine on the compass-right');
+        const strafe = await move(page, 'd');
+        assert.ok(strafe.reduce((sum, value, axis) => sum + value * heading.right[axis], 0) >= MOVE_DISTANCE,
+            heading.name + ' D must strafe toward the native compass-right direction');
+        const afterStrafe = await sample();
+        assert.ok(afterStrafe.start.x < initial.start.x,
+            heading.name + ' right strafe must shift the fixed native Start mesh left on screen');
+        await reset();
+        const forward = await move(page, 'w');
+        assert.ok(forward.reduce((sum, value, axis) => sum + value * heading.forward[axis], 0) >= MOVE_DISTANCE,
+            heading.name + ' W must move toward its native compass heading');
+        await reset();
+        const beforeLook = await sample(), beforeCamera = await camera(page);
+        const bounds = await page.locator('#preview-canvas').boundingBox();
+        await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(bounds.x + bounds.width / 2 + 30, bounds.y + bounds.height / 2);
+        await page.mouse.up();
+        const afterCamera = await camera(page);
+        const turn = Math.atan2(Math.sin(afterCamera.yaw - beforeCamera.yaw), Math.cos(afterCamera.yaw - beforeCamera.yaw));
+        assert.ok(turn > 0, heading.name + ' right mouselook turns clockwise toward compass-right');
+        const afterLook = await sample();
+        assert.ok(afterLook.start.x < beforeLook.start.x,
+            heading.name + ' right mouselook must shift the fixed native Start mesh left on screen');
+        await page.keyboard.press('Escape');
+        if (await page.evaluate(() => document.pointerLockElement !== null)) await page.evaluate(() => document.exitPointerLock());
+        report.push({ heading: heading.name, left: Math.round(initial.start.x), right: Math.round(initial.pine.x) });
+    }
+    await page.locator('#view-2d').click();
+    await page.locator('#track-file-input').setInputFiles({ name: 'PREVIEW.cstrk',
+        mimeType: 'application/octet-stream', buffer: originalBytes });
+    await page.waitForFunction(() => document.getElementById('document-name').textContent === 'PREVIEW');
+    await page.locator('#view-3d').click();
+    await page.waitForFunction(() => previewUnderTest.active && previewUnderTest.available);
+    await page.locator('#preview-canvas').focus();
+    console.log('Native compass marker pixels: ' + JSON.stringify(report));
 }
 
 async function checkMouseLook(page) {
@@ -394,6 +506,7 @@ async function main() {
             await fs.mkdir(settings.output, { recursive: true });
             await page.screenshot({ path: path.join(settings.output, 'preview.png') });
         }
+        await checkCompassHandedness(page, bytes);
         await checkMovement(page);
         await checkMouseLook(page);
         await checkDialogInput(page);
