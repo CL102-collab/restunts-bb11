@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "../legacy.h"
 
-#define CSTRK_VERSION 10U
+#define CSTRK_VERSION 11U
 #define CSTRK_MIN_VERSION 3U
 #define CSTRK_LOWER_SURFACE_VERSION 4U
 #define CSTRK_SLOPED_STUNT_VERSION 5U
@@ -15,6 +15,7 @@
 #define CSTRK_ROLL_RAMP_VERSION 8U
 #define CSTRK_PINE_GROUP_VERSION 9U
 #define CSTRK_PINE_SIX_VERSION 10U
+#define CSTRK_WHEAT_FIELD_VERSION 11U
 #define CSTRK_VERSION_OFFSET 8U
 #define CSTRK_HORIZON_OFFSET 12U
 #define CSTRK_HEADER_SIZE 32U
@@ -24,6 +25,7 @@
 #define CSTRK_OBJECT_ROLL_RAMP_OFFSET 14U
 #define CSTRK_OBJECT_PINE_COUNT_OFFSET 15U
 #define CSTRK_PINE_TREE_ID 153U
+#define CSTRK_WHEAT_FIELD_ID 215U
 #define CSTRK_PINE_GROUP_OLD_COUNT 5U /* Decode-only alias for the six-tree group. */
 #define CSTRK_PINE_GROUP_SMALL_COUNT 6U
 #define CSTRK_PINE_GROUP_LARGE_COUNT 10U
@@ -109,7 +111,8 @@ struct CSTRK_CELL {
  * Bit (row * width + column) claims that cell. Unclaimed cells remain usable.
  * Vertices touching claimed cells lie on the rigid support plane
  * base_height + slope_x*x + slope_y*y; other vertices may form hills.
- * Legacy IDs refer to the original game catalog; resource admission is separate. */
+ * IDs refer to the original catalog or an extended scenery definition;
+ * resource admission is separate. */
 struct CSTRK_OBJECT {
 	uint16_t legacy_id;
 	uint8_t x;

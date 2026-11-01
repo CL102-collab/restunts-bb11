@@ -1,5 +1,6 @@
 #include "extended_frame_internal.h"
 #include "pine_trees.h"
+#include "wheat_field.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
@@ -150,6 +151,18 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (model->legacy_id == CSTRK_WHEAT_FIELD_ID) {
+		struct SHAPE3D source;
+		if (!wheat_field_create_mesh(&source, object.detail)) {
+			return 0;
+		}
+		struct TRACKOBJECT wheat = *definition;
+		wheat.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
+		legacy_s16 result =
+			frame_extended_draw_object_mesh(&object, &wheat, &source, CSTRK_ROAD_PAVED);
+		extended_geometry_free_shape(&source);
+		return result;
+	}
 	if (model->pine_count) {
 		return frame_extended_draw_pine_trees(&object);
 	}
