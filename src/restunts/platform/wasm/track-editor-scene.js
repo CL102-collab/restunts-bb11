@@ -18,7 +18,7 @@
     const HILL_GRASS_FIRST = 101, HILL_GRASS_LAST = 105;
     const SURFACE_BIAS = .0005, MARKING_BIAS = .001, GEOMETRY_EPSILON = 1e-10;
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
-    const PINE_COUNTS = new Set([5, 6, 10]), PINE_SCALE = 256;
+    const PINE_COUNTS = new Set([6, 10]), PINE_SCALE = 256;
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,

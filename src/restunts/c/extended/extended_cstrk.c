@@ -242,7 +242,8 @@ legacy_u16 cstrk_object_slope_version(const struct CSTRK_OBJECT *object)
 }
 
 static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
-								 uint32_t index, uint8_t *occupied, char *error, size_t error_size)
+								 uint32_t index, uint8_t *occupied, legacy_u8 allow_old_pines,
+								 char *error, size_t error_size)
 {
 	if (object->legacy_id == 0U || object->legacy_id > CSTRK_MAX_LEGACY_ID ||
 		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE || object->width < 1U ||
@@ -286,8 +287,8 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 	}
 	if (object->pine_count != 0U) {
 		if ((object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
-			 object->pine_count != CSTRK_PINE_GROUP_LEGACY_COUNT &&
-			 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT) ||
+			 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT &&
+			 (object->pine_count != CSTRK_PINE_GROUP_OLD_COUNT || !allow_old_pines)) ||
 			object->legacy_id != CSTRK_PINE_TREE_ID || object->width != 1U ||
 			object->height != 1U || object->occupied_mask != 1U) {
 			return cstrk_fail(error, error_size, "Object %u has an invalid pine tree group",
@@ -371,7 +372,8 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 	return 1;
 }
 
-int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size)
+static int cstrk_validate_internal(const struct CSTRK_TRACK *track, legacy_u8 allow_old_pines,
+								   char *error, size_t error_size)
 {
 	uint8_t occupied[CSTRK_MAX_OBJECTS] = {0};
 	if (track == NULL || !cstrk_dimensions(track->width, track->height) ||
@@ -423,8 +425,8 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		}
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
-								   error_size)) {
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, allow_old_pines,
+								   error, error_size)) {
 			return 0;
 		}
 	}
@@ -433,6 +435,11 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 	}
 	cstrk_success(error, error_size);
 	return 1;
+}
+
+int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size)
+{
+	return cstrk_validate_internal(track, 0, error, error_size);
 }
 
 int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
@@ -461,14 +468,14 @@ int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *objec
 		return cstrk_fail(error, error_size, "Track has no free object capacity");
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, 0, error,
 								   error_size)) {
 			return 0;
 		}
 	}
 	/* Copy before realloc so an object already in track->objects is safe input. */
 	struct CSTRK_OBJECT next_object = *object;
-	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, error,
+	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, 0, error,
 							   error_size)) {
 		return 0;
 	}
@@ -664,9 +671,15 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 	memcpy(next.notes, cursor, notes_length);
 	next.notes[notes_length] = '\0';
 	next.notes_length = notes_length;
-	if (!cstrk_validate(&next, error, error_size)) {
+	/* Validate the original revision before upgrading historical wire aliases. */
+	if (!cstrk_validate_internal(&next, 1, error, error_size)) {
 		cstrk_free(&next);
 		return 0;
+	}
+	for (legacy_u32 index = 0; index < next.object_count; index++) {
+		if (next.objects[index].pine_count == CSTRK_PINE_GROUP_OLD_COUNT) {
+			next.objects[index].pine_count = CSTRK_PINE_GROUP_SMALL_COUNT;
+		}
 	}
 	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
 	cstrk_free(track);

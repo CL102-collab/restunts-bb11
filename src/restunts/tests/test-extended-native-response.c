@@ -622,11 +622,9 @@ static void test_roll_shortcuts_are_rejected(void)
 enum {
 	TEST_PINE_COLUMN = 5,
 	TEST_PINE_ROW = 5,
-	TEST_PINE_FIRST_X = -340,
-	TEST_PINE_FIRST_Z = 300,
-	TEST_PINE_FIRST_SCALE = PINE_TREE_SCALE_ONE / 2,
 	TEST_PINE_CROWN_RADIUS = 60,
-	TEST_PINE_SCATTER_MIN_SCALE = 120,
+	TEST_PINE_SCATTER_MIN_SCALE = 96,
+	TEST_PINE_MIN_TRUNK_DISTANCE = 80,
 	TEST_PINE_SCATTER_MAX_SCALE = 224,
 	TEST_PINE_TRUNK_WIDTH = 32,
 	TEST_PINE_TRUNK_HEIGHT = 128,
@@ -641,16 +639,12 @@ enum {
 	TEST_PINE_SIGNED_SECOND_RADIUS = -137
 };
 
-static void test_six_pine_scatter(void)
+static void test_pine_scatter(legacy_u8 count, const struct PINE_TREE_INSTANCE *expected)
 {
-	/* Fixed samples also guard the editor's independently implemented recipe. */
-	static const struct PINE_TREE_INSTANCE expected[CSTRK_PINE_GROUP_SMALL_COUNT] = {
-		{-302, 349, 155}, {17, 433, 186},	{344, 241, 139},
-		{117, -109, 215}, {-30, -313, 145}, {-360, -121, 168}};
 	struct CSTRK_OBJECT object = {0};
 	object.legacy_id = CSTRK_PINE_TREE_ID;
-	object.pine_count = CSTRK_PINE_GROUP_SMALL_COUNT;
-	for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+	object.pine_count = count;
+	for (legacy_u8 index = 0; index < count; index++) {
 		struct PINE_TREE_INSTANCE tree, repeated;
 		assert(pine_trees_instance(&object, index, &tree));
 		assert(memcmp(&tree, &expected[index], sizeof(tree)) == 0);
@@ -672,14 +666,14 @@ static void test_six_pine_scatter(void)
 		object.rotation = 0;
 	}
 	struct PINE_TREE_INSTANCE tree;
-	assert(!pine_trees_instance(&object, CSTRK_PINE_GROUP_SMALL_COUNT, &tree));
+	assert(!pine_trees_instance(&object, count, &tree));
 
 	/* Adjacent tiles must not repeat the same trunk positions or size sequence. */
 	for (legacy_u8 axis = 0; axis < 2; axis++) {
 		object.x = axis == 0;
 		object.y = axis != 0;
 		legacy_u8 different_positions = 0, different_sizes = 0;
-		for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+		for (legacy_u8 index = 0; index < count; index++) {
 			assert(pine_trees_instance(&object, index, &tree));
 			different_positions |= tree.x != expected[index].x || tree.z != expected[index].z;
 			different_sizes |= tree.scale != expected[index].scale;
@@ -692,7 +686,8 @@ static void test_six_pine_scatter(void)
 		object.y = row;
 		for (legacy_u8 column = 0; column < CSTRK_MAX_DIMENSION; column++) {
 			object.x = column;
-			for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+			struct PINE_TREE_INSTANCE placed[CSTRK_PINE_GROUP_LARGE_COUNT];
+			for (legacy_u8 index = 0; index < count; index++) {
 				assert(pine_trees_instance(&object, index, &tree));
 				legacy_s32 x = tree.x < 0 ? -tree.x : tree.x;
 				legacy_s32 z = tree.z < 0 ? -tree.z : tree.z;
@@ -702,17 +697,36 @@ static void test_six_pine_scatter(void)
 					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
 				assert(z * PINE_TREE_SCALE_ONE + TEST_PINE_CROWN_RADIUS * tree.scale <
 					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
+				for (legacy_u8 other = 0; other < index; other++) {
+					legacy_s32 dx = tree.x - placed[other].x;
+					legacy_s32 dz = tree.z - placed[other].z;
+					assert(dx * dx + dz * dz >=
+						   TEST_PINE_MIN_TRUNK_DISTANCE * TEST_PINE_MIN_TRUNK_DISTANCE);
+				}
+				placed[index] = tree;
 			}
 		}
 	}
+}
+
+static void test_pine_group_scatter(void)
+{
+	/* Fixed samples also guard the editor's independently implemented recipe. */
+	static const struct PINE_TREE_INSTANCE six[CSTRK_PINE_GROUP_SMALL_COUNT] = {
+		{-302, 349, 155}, {17, 433, 186},	{344, 241, 139},
+		{117, -109, 215}, {-30, -313, 145}, {-360, -121, 168}};
+	static const struct PINE_TREE_INSTANCE ten[CSTRK_PINE_GROUP_LARGE_COUNT] = {
+		{-266, 283, 131}, {-28, 358, 170},	 {250, 230, 147},  {-152, 147, 119}, {85, 133, 177},
+		{306, 12, 144},	  {-427, -125, 157}, {-29, -219, 105}, {178, -332, 164}, {-211, -400, 141}};
+	test_pine_scatter(CSTRK_PINE_GROUP_SMALL_COUNT, six);
+	test_pine_scatter(CSTRK_PINE_GROUP_LARGE_COUNT, ten);
 }
 
 static void test_pine_group_collision_centers(void)
 {
 	static const legacy_s8 slopes[TEST_PINE_SLOPE_COUNT][2] = {
 		{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_LEGACY_COUNT, CSTRK_PINE_GROUP_SMALL_COUNT,
-									   CSTRK_PINE_GROUP_LARGE_COUNT};
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
 	fixture_extended = 1;
 	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
 	trkObjectList[CSTRK_PINE_TREE_ID].ss_physicalModel = PHYSICAL_MODEL_PINE_TREE;
@@ -745,10 +759,6 @@ static void test_pine_group_collision_centers(void)
 					assert(positions[index].y == origin.y + extended_geometry_object_grade(
 																&fixture_object, tree.x, tree.z));
 					assert(positions[index].x != origin.x || positions[index].z != origin.z);
-				}
-				if (rotation == 0 && counts[group] != CSTRK_PINE_GROUP_SMALL_COUNT) {
-					assert(positions[0].x == origin.x + TEST_PINE_FIRST_X);
-					assert(positions[0].z == origin.z + TEST_PINE_FIRST_Z);
 				}
 				/* The unmodified single pine retains its one centered collision point. */
 				fixture_object.pine_count = 0;
@@ -791,10 +801,6 @@ static void test_pine_group_collision_bounds(void)
 			   TEST_PINE_TRUNK_HEIGHT * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
 		assert(bounds[1].py ==
 			   TEST_PINE_TRUNK_RADIUS * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
-		if (index == 0) {
-			assert(bounds[0].px ==
-				   TEST_PINE_TRUNK_WIDTH * TEST_PINE_FIRST_SCALE / (legacy_s32)PINE_TREE_SCALE_ONE);
-		}
 		obstacle_pose[0] = positions[index];
 		car_pose[0] = positions[index];
 		assert(car_collision_boxes_overlap(car_bounds, car_pose, bounds, obstacle_pose));
@@ -811,11 +817,17 @@ static void test_pine_group_collision_bounds(void)
 	fixture_object.pine_count = CSTRK_PINE_GROUP_LARGE_COUNT;
 	bounds[0] = (struct POINT2D){TEST_PINE_SIGNED_FIRST_WIDTH, TEST_PINE_SIGNED_FIRST_HEIGHT};
 	bounds[1] = (struct POINT2D){TEST_PINE_SIGNED_SECOND_WIDTH, TEST_PINE_SIGNED_SECOND_RADIUS};
+	struct PINE_TREE_INSTANCE first;
+	assert(pine_trees_instance(&fixture_object, 0, &first));
 	extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, 0, bounds);
-	assert(bounds[0].px == TEST_PINE_SIGNED_FIRST_WIDTH / 2);
-	assert(bounds[0].py == TEST_PINE_SIGNED_FIRST_HEIGHT / 2);
-	assert(bounds[1].px == TEST_PINE_SIGNED_SECOND_WIDTH / 2);
-	assert(bounds[1].py == TEST_PINE_SIGNED_SECOND_RADIUS / 2);
+	assert(bounds[0].px ==
+		   TEST_PINE_SIGNED_FIRST_WIDTH * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[0].py ==
+		   TEST_PINE_SIGNED_FIRST_HEIGHT * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[1].px ==
+		   TEST_PINE_SIGNED_SECOND_WIDTH * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[1].py ==
+		   TEST_PINE_SIGNED_SECOND_RADIUS * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
 	fixture_object.pine_count = 0;
 	track_auxiliary_obstacle_bounds[0] = native_bounds[0];
 	track_auxiliary_obstacle_bounds[1] = native_bounds[1];
@@ -831,7 +843,7 @@ legacy_int main(void)
 	test_roll_completion_and_checkpoint_state();
 	test_roll_completion_on_cross_slope();
 	test_roll_shortcuts_are_rejected();
-	test_six_pine_scatter();
+	test_pine_group_scatter();
 	test_pine_group_collision_centers();
 	test_pine_group_collision_bounds();
 	return 0;

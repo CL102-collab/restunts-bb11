@@ -9,7 +9,6 @@
     const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
     const terrainMaximumLevel = 4, paletteChannels = 3;
     const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, brushPreviewGridWidth = 1;
-    const scatteredPineCount = 6;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
@@ -672,7 +671,7 @@
     }
     function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp, pineCount, column = 0, row = 0) {
         if (!state.resources || !state.resources.palette) return null;
-        const location = pineCount === scatteredPineCount ? ':' + column + ':' + row : '';
+        const location = pineCount ? ':' + column + ':' + row : '';
         const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp + ':' + pineCount + location;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);

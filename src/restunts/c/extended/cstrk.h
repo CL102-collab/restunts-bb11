@@ -24,7 +24,7 @@
 #define CSTRK_OBJECT_ROLL_RAMP_OFFSET 14U
 #define CSTRK_OBJECT_PINE_COUNT_OFFSET 15U
 #define CSTRK_PINE_TREE_ID 153U
-#define CSTRK_PINE_GROUP_LEGACY_COUNT 5U
+#define CSTRK_PINE_GROUP_OLD_COUNT 5U /* Decode-only alias for the six-tree group. */
 #define CSTRK_PINE_GROUP_SMALL_COUNT 6U
 #define CSTRK_PINE_GROUP_LARGE_COUNT 10U
 #define CSTRK_OVERPASS_FIRST_ID 101U
@@ -125,7 +125,7 @@ struct CSTRK_OBJECT {
 	legacy_u8 lower_surface; /* Overpass road underneath; paved for every other object. */
 	legacy_u8 tunnel_slalom; /* Slalom with the tunnel shell, 0 or 1 (v7+). */
 	legacy_u8 roll_ramp;	 /* Two-tile barrel-roll launch ramp, 0 or 1 (v8+). */
-	legacy_u8 pine_count;	 /* Single 0; legacy 5 or current 10 (v9+); current 6 (v10+). */
+	legacy_u8 pine_count;	 /* Single 0; group 6 (v10+) or 10 (v9+). */
 };
 
 struct CSTRK_TRACK {
