@@ -79,7 +79,7 @@ const legacy_s8 *extended_highscore_error(void)
 	return NULL;
 }
 #ifdef EXTENDED_TEST_GHOST_SELECTION
-#include "../c/ghost.h"
+#include "../c/ghost/ghost.h"
 legacy_s16 ghost_select_replay_format(const legacy_s8 *directory, const legacy_s8 *name,
 									  const legacy_s8 *extension)
 {

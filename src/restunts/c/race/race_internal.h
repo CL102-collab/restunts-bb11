@@ -3,7 +3,7 @@
 
 #include "../legacy.h"
 #include "../gamestate.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../hires/race_view.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/race_presentation.h"

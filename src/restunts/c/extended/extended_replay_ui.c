@@ -8,7 +8,7 @@
 #include "../race/race_resources.h"
 #include "../replay/replay.h"
 #include "../replay/replay_viewer.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../replay/replay_viewer_internal.h"
 #include "../resource.h"
 #include "../shape2d/shape2d.h"

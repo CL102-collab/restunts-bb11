@@ -3,7 +3,7 @@
 #include "extended_ghost_runtime.h"
 #ifdef RESTUNTS_SDL3
 #include <stdlib.h>
-#include "../ghost_internal.h"
+#include "../ghost/ghost_internal.h"
 #include "extended_ghost.h"
 #include "extended_track.h"
 #include "extended_replay_runtime.h"

@@ -246,7 +246,7 @@ set(game_sources
     ui/ui_text.c ui/ui_input.c ui/ui_dialog.c ui/ui_file_dialog.c ui/ui_disk_dialog.c intro.c
     highscore.c highscore_results.c highscore_results_text.c replay/replay_record.c
     replay/replay_viewer.c replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c
-    race/race.c race/race_rewind.c race/race_presentation.c ghost.c ghost_line.c
+    race/race.c race/race_rewind.c race/race_presentation.c ghost/ghost.c ghost/ghost_line.c
     extended/extended_file.c extended/extended_replay_runtime.c extended/extended_editor.c
     extended/extended_race_stats.c extended/extended_ghost.c extended/extended_validation.c
     extended/extended_highscore.c extended/extended_frame.c extended/extended_frame_objects.c

@@ -16,7 +16,7 @@
 #endif
 #include "../memmgr.h"
 #include "race_resources.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "race_resources_internal.h"
 #include "../replay/replay_viewer.h"
 #include "../shape2d/shape2d.h"

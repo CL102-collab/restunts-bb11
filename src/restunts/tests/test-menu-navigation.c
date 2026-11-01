@@ -21,7 +21,7 @@
 #undef menu_update_idle_counter
 #include "../c/highscore.h"
 #include "../c/skybox.h"
-#include "../c/ghost.h"
+#include "../c/ghost/ghost.h"
 #define EXTENDED_TEST_GHOST_SELECTION
 #ifdef RESTUNTS_SDL3
 #define extended_track_active inactive_extended_track_active

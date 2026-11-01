@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_GHOST_H
 #define RESTUNTS_GHOST_H
 
-#include "gamestate.h"
+#include "../gamestate.h"
 
 struct SIMD;
 
@@ -61,7 +61,7 @@ const struct GHOST_RACING_LINE_SEGMENT *
 ghost_racing_line_next(const struct GHOST_RACING_LINE_SEGMENT *segment);
 legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_speed);
 
-#include "hires/ghost_render.h"
+#include "../hires/ghost_render.h"
 
 /* Convert recorded listener movement to one live audio tick, without file I/O. */
 void ghost_adjust_camera_motion(struct VECTOR *previous, const struct VECTOR *current);
