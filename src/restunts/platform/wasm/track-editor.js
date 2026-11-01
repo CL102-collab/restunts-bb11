@@ -7,14 +7,14 @@
     const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024;
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
     const terrainPaletteFallbacks = { 2: '#00aa00', 10: '#55ff55', 7: '#aaaaaa' };
-    const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, paintPreviewGridWidth = 1;
+    const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, brushPreviewGridWidth = 1;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
         viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
         previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
         drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
@@ -57,6 +57,7 @@
         $('lower-surface-row').hidden = state.tool !== 'paint';
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
+        $('level-brush-row').hidden = state.tool !== 'level';
         const cornerSurface = Number($('shore-surface').value);
         document.querySelectorAll('[data-surface-for="shore-surface"]').forEach(button => {
             button.hidden = Number(button.dataset.value) === surface;
@@ -67,20 +68,27 @@
             button.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase() + ' (' + size + 'x' + size + ')';
             button.setAttribute('aria-label', button.title);
             button.setAttribute('aria-pressed', String(state.lowerSurface === null && state.paintSize === size));
-            drawPaintPreview(button.querySelector('canvas'), surface, size);
+            drawBrushPreview(button.querySelector('canvas'), surface, size);
         });
         document.querySelectorAll('[data-shore-direction]').forEach(button => {
             drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1, cornerSurface);
+        });
+        document.querySelectorAll('[data-level-size]').forEach(button => {
+            const size = Number(button.dataset.levelSize), level = Number($('terrain-level').value);
+            button.title = 'Level ' + size + 'x' + size + ' tiles to elevation ' + level;
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(state.levelSize === size));
+            drawBrushPreview(button.querySelector('canvas'), surface, size, level);
         });
         $('level-options-row').querySelectorAll('[data-level] canvas').forEach(preview => {
             drawTerrainPreview(preview, surface, Number(preview.parentElement.dataset.level));
         });
     }
-    function drawPaintPreview(preview, surface, size) {
-        drawTerrainPreview(preview, surface);
+    function drawBrushPreview(preview, surface, size, level = 0) {
+        drawTerrainPreview(preview, surface, level);
         if (size === 1) return;
         const c = preview.getContext('2d');
-        c.strokeStyle = '#141c18'; c.lineWidth = paintPreviewGridWidth;
+        c.strokeStyle = '#141c18'; c.lineWidth = brushPreviewGridWidth;
         c.beginPath();
         for (let tile = 1; tile < size; tile++) {
             const x = tile * preview.width / size, y = tile * preview.height / size;
@@ -761,9 +769,10 @@
             try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
         }
-        if (state.tool === 'paint' && state.lowerSurface === null) {
-            width = Math.min(state.paintSize, doc.width - h.x);
-            height = Math.min(state.paintSize, doc.height - h.y);
+        if (state.tool === 'level' || (state.tool === 'paint' && state.lowerSurface === null)) {
+            const brushSize = state.tool === 'level' ? state.levelSize : state.paintSize;
+            width = Math.min(brushSize, doc.width - h.x);
+            height = Math.min(brushSize, doc.height - h.y);
         }
         const left = view.x + h.x * size, top = view.y + h.y * size;
         ctx.fillStyle = valid ? '#e6d69f22' : '#f080703b'; ctx.strokeStyle = valid ? '#ffdf8b' : '#ff9c80'; ctx.lineWidth = 2;
@@ -844,7 +853,7 @@
             else if (tool === 'paint' && state.lowerSurface !== null) doc.paintLowerSurface(point.x, point.y, state.lowerSurface);
             else if (tool === 'paint') doc.paintArea(point.x, point.y, state.paintSize, Number($('terrain-surface').value));
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
-            else if (tool === 'level') doc.level(point.x, point.y, Number($('terrain-level').value), Number($('terrain-surface').value));
+            else if (tool === 'level') doc.levelArea(point.x, point.y, state.levelSize, Number($('terrain-level').value), Number($('terrain-surface').value));
             scheduleDraw();
         } catch (error) { message(error.message, true); }
     }
@@ -981,6 +990,11 @@
             const size = Number(button.dataset.paintSize);
             if (!state.ready || !model.PAINT_BRUSH_SIZES.includes(size)) return;
             finishDrag(); state.lowerSurface = null; state.paintSize = size; updateTool('paint');
+        }));
+        document.querySelectorAll('[data-level-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.levelSize);
+            if (!state.ready || !model.LEVEL_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.levelSize = size; updateTool('level');
         }));
         document.querySelectorAll('[data-lower-surface]').forEach(button => button.addEventListener('click', () => {
             if (!state.ready) return;
