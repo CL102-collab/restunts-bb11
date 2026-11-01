@@ -675,7 +675,7 @@
         const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp + ':' + pineCount + location;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);
-        if (!source && id !== model.WHEAT_FIELD_ID) return null;
+        if (!source && !model.isCropField(id)) return null;
         const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp, pineCount, column, row);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;

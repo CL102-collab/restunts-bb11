@@ -16,8 +16,15 @@
     const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
     const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
-    const WHEAT_FIELD_ID = 215, WHEAT_ICON_SCALE = 4, WHEAT_ICON_ROWS = 6, WHEAT_ICON_ROW_GAP = 2;
-    const WHEAT_ICON_COLORS = { soil: 200, row: 74 };
+    const WHEAT_FIELD_ID = 215, TULIP_FIELD_ID = 216, VINE_FIELD_ID = 217;
+    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 2, CROP_ICON_GRAPE_COLOR = 171;
+    const CROP_ICON_GRAPE_COUNT = 8;
+    const CROP_ICON_GRAPE_STATIONS = Array.from({ length: CROP_ICON_GRAPE_COUNT }, (_, index) => (2 * index + 1) / (2 * CROP_ICON_GRAPE_COUNT));
+    const CROP_FIELD_ICONS = new Map([
+        [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
+        [TULIP_FIELD_ID, { name: 'tulip field', rows: 6, gap: 2, colors: [167, 54, 38, 181, 167, 70] }],
+        [VINE_FIELD_ID, { name: 'vine field', rows: 4, gap: 8, colors: [90], edge: 92, grapes: true }]
+    ]);
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
     const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
         [101, 128, 192], [348, -48, 152], [-365, -151, 168], [-61, -190, 120],
@@ -291,25 +298,31 @@
         }
         return { width, height, pixels, alpha };
     }
-    function composeWheatFieldBitmap() {
-        const width = EDITOR_TILE_INTERIOR * WHEAT_ICON_SCALE, height = width;
-        const pixels = new Uint8Array(width * height).fill(WHEAT_ICON_COLORS.soil);
+    function composeCropFieldBitmap(field) {
+        const width = EDITOR_TILE_INTERIOR * CROP_ICON_SCALE, height = width;
+        const pixels = new Uint8Array(width * height).fill(CROP_ICON_SOIL);
         const alpha = new Uint8Array(pixels.length).fill(255);
         function pixel(x, y, color) {
             if (x >= 0 && x < width && y >= 0 && y < height) pixels[y * width + x] = color;
         }
-        const rowWidth = Math.floor(width / WHEAT_ICON_ROWS) - WHEAT_ICON_ROW_GAP;
-        for (let row = 0; row < WHEAT_ICON_ROWS; row++) {
-            const x = Math.floor((row + .5) * width / WHEAT_ICON_ROWS);
-            for (let y = 0; y < height; y++) for (let dx = -Math.floor(rowWidth / 2); dx <= Math.floor(rowWidth / 2); dx++)
-                pixel(x + dx, y, WHEAT_ICON_COLORS.row);
+        const rowWidth = Math.floor(width / field.rows) - field.gap;
+        for (let row = 0; row < field.rows; row++) {
+            const x = Math.floor((row + .5) * width / field.rows), halfWidth = Math.floor(rowWidth / 2);
+            for (let y = 0; y < height; y++) for (let dx = -halfWidth; dx <= halfWidth; dx++)
+                pixel(x + dx, y, field.edge !== undefined && Math.abs(dx) > halfWidth - CROP_ICON_EDGE_WIDTH
+                    ? field.edge : field.colors[row % field.colors.length]);
+            if (field.grapes) for (const station of CROP_ICON_GRAPE_STATIONS) for (const side of [-1, 1]) {
+                const y = Math.floor(station * height), edge = x + side * halfWidth;
+                for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]]) pixel(edge + side * dx, y + dy, CROP_ICON_GRAPE_COLOR);
+            }
         }
         return { width, height, pixels, alpha };
     }
     function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
-        if (id === WHEAT_FIELD_ID) {
-            if (tunnelSlalom || rollRamp || pineCount) fail('Invalid wheat field artwork flags.');
-            return composeWheatFieldBitmap();
+        const field = CROP_FIELD_ICONS.get(id);
+        if (field) {
+            if (tunnelSlalom || rollRamp || pineCount) fail('Invalid ' + field.name + ' artwork flags.');
+            return composeCropFieldBitmap(field);
         }
         if (pineCount) {
             if (id !== PINE_ICON || tunnelSlalom || rollRamp || ![PINE_SMALL_COUNT, PINE_TEN_LAYOUT.length].includes(pineCount))

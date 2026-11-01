@@ -55,6 +55,10 @@ function fixture() {
     // Cover generated scenery in its 2D map and actual WebGL preview, including
     // adjacent fields and a continuous slope through the wheat rows.
     for (let y = 7; y < 9; y++) for (let x = 6; x < 8; x++) doc.place(model.WHEAT_FIELD_ID, x, y);
+    for (let x = 6; x < 9; x++) {
+        doc.place(model.TULIP_FIELD_ID, x, 9);
+        doc.place(model.VINE_FIELD_ID, x, 11, 0, 1);
+    }
     for (let y = 1; y < 5; y++) for (let x = 9; x < doc.width; x++) doc.paint(x, y, 3);
     doc.paint(8, 1, 0, 2, 3);
     assert.deepEqual(doc.validate(), []);

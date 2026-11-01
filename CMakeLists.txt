@@ -232,7 +232,7 @@ set(common_sources
     extended/extended_csrpl.c extended/extended_cshig.c extended/extended_replay.c
     extended/extended_track.c
     extended/extended_geometry.c extended/extended_opponent.c extended/extended_roll_ramp.c
-    extended/extended_pine_trees.c extended/extended_wheat_field.c
+    extended/extended_pine_trees.c extended/extended_wheat_field.c extended/extended_crop_fields.c
     extended/extended_trackobj.c
     extended/extended_trackobj_solids.c extended/extended_stateply.c
     extended/extended_physics_collision.c extended/extended_statecrs.c
@@ -548,6 +548,10 @@ if(RESTUNTS_BUILD_TESTS)
         src/restunts/tests/test-wheat-field.c)
     target_compile_options(test-wheat-field PRIVATE -UNDEBUG)
     add_test(NAME wheat-field-mesh COMMAND test-wheat-field)
+    add_executable(test-crop-fields ${core}/extended/extended_crop_fields.c
+        src/restunts/tests/test-crop-fields.c)
+    target_compile_options(test-crop-fields PRIVATE -UNDEBUG)
+    add_test(NAME crop-field-meshes COMMAND test-crop-fields)
     add_executable(test-cshig ${core}/extended/extended_cstrk.c ${core}/extended/extended_cshig.c
         src/restunts/tests/test-cshig.c)
     target_compile_options(test-cshig PRIVATE -UNDEBUG)

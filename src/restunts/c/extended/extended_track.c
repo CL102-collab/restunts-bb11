@@ -349,7 +349,7 @@ static int resolve_object_id(const struct CSTRK_OBJECT *object)
 {
 	/* Extended-only scenery retains its independent object while the legacy
 	 * route map sees an empty cell, without requiring new original assets. */
-	if (object->legacy_id == CSTRK_WHEAT_FIELD_ID) {
+	if (cstrk_is_crop_field(object->legacy_id)) {
 		return object->width == 1U && object->height == 1U && object->occupied_mask == 1U ? 0 : -1;
 	}
 	if (!object_footprint_valid(object)) {

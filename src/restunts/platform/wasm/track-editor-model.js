@@ -18,14 +18,21 @@
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const PINE_SIX_VERSION_ERROR = 'Six-tree pine groups require Chocolate Stunts track version v10.';
     const WHEAT_FIELD_ID = 215, WHEAT_FIELD_PHYSICAL_MODEL = 75, WHEAT_FIELD_VERSION = 11;
-    const WHEAT_FIELD_VERSION_ERROR = 'Wheat fields require Chocolate Stunts track version v11.';
+    const TULIP_FIELD_ID = 216, TULIP_FIELD_PHYSICAL_MODEL = 76, TULIP_FIELD_VERSION = 12;
+    const VINE_FIELD_ID = 217, VINE_FIELD_PHYSICAL_MODEL = 77, VINE_FIELD_VERSION = 12;
+    const CROP_FIELDS = new Map([
+        [WHEAT_FIELD_ID, { name: 'Wheat field', physical: WHEAT_FIELD_PHYSICAL_MODEL, version: WHEAT_FIELD_VERSION }],
+        [TULIP_FIELD_ID, { name: 'Tulip field', physical: TULIP_FIELD_PHYSICAL_MODEL, version: TULIP_FIELD_VERSION }],
+        [VINE_FIELD_ID, { name: 'Vine field', physical: VINE_FIELD_PHYSICAL_MODEL, version: VINE_FIELD_VERSION }]
+    ]);
+    function isCropField(id) { return CROP_FIELDS.has(id); }
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 11, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 12, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -70,8 +77,8 @@
             rotation: a[0] / 256, physical, decoration, legacySurface: a[1],
             surfaces: [0, 1, 2] };
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
-    catalog.push({ id: WHEAT_FIELD_ID, name: 'Wheat field', group: 10, width: 1, height: 1, mask: 1,
-        rotation: 0, physical: WHEAT_FIELD_PHYSICAL_MODEL, decoration: true, legacySurface: 0, surfaces: [0, 1, 2] });
+    for (const [id, field] of CROP_FIELDS) catalog.push({ id, name: field.name, group: 10, width: 1, height: 1, mask: 1,
+        rotation: 0, physical: field.physical, decoration: true, legacySurface: 0, surfaces: [0, 1, 2] });
     const byId = new Map(catalog.map(a => [a.id, a]));
     // A family keeps distinct shapes and editor groups, while combining native rotations.
     const libraryFamilies = new Map();
@@ -160,8 +167,9 @@
         if (pineCount && version < PINE_GROUP_VERSION) throw new Error(PINE_GROUP_VERSION_ERROR);
         if (pineCount === PINE_SIX_COUNT && version < PINE_SIX_VERSION) throw new Error(PINE_SIX_VERSION_ERROR);
     }
-    function checkWheatField(entry, version) {
-        if (entry.id === WHEAT_FIELD_ID && version < WHEAT_FIELD_VERSION) throw new Error(WHEAT_FIELD_VERSION_ERROR);
+    function checkCropField(entry, version) {
+        const field = CROP_FIELDS.get(entry.id);
+        if (field && version < field.version) throw new Error(field.name + 's require Chocolate Stunts track version v' + field.version + '.');
     }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
@@ -234,7 +242,7 @@
             integer(object.lowerSurface ?? 0, 0, SURFACES.length - 1, 'clipboard lower road surface');
             integer(object.baseHeight, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'clipboard height');
             integer(object.slopeX, -1, 1, 'clipboard slope'); integer(object.slopeY, -1, 1, 'clipboard slope');
-            checkWheatField(entry, VERSION);
+            checkCropField(entry, VERSION);
             checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, VERSION);
             checkRollRamp(entry, object.rollRamp ?? 0, VERSION);
             checkPineCount(entry, object.pineCount ?? 0, VERSION, true);
@@ -311,7 +319,7 @@
     const GENERAL_SLOPE_VERSION_ERROR = 'This sloped element requires Chocolate Stunts track version v6.';
     const CLASSIC_PLACEMENT_ERROR = 'This element needs level ground or one continuous straight original hill slope beneath its occupied cells.';
     const EDITOR_LEVEL_GROUND_PHYSICAL_MODELS = new Set([10, 11]);
-    const EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS = new Set([71, 72, 74, WHEAT_FIELD_PHYSICAL_MODEL]);
+    const EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS = new Set([71, 72, 74, ...Array.from(CROP_FIELDS.values(), field => field.physical)]);
     function requiredSlopeVersion(object, entry, profile) {
         if (!object.slopeX && !object.slopeY) return CSTRK_MIN_VERSION;
         if (object.width === 1 && object.height === 1) {
@@ -560,7 +568,7 @@
         }
         placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, allowExistingSlope = false) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
-            checkWheatField(entry, this.version);
+            checkCropField(entry, this.version);
             checkTunnelSlalom(entry, tunnelSlalom, this.version);
             checkRollRamp(entry, rollRamp, this.version);
             if (pineCount === PINE_IMPORT_COUNT) pineCount = PINE_SIX_COUNT;
@@ -695,14 +703,14 @@
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
                 try {
-                    integer(object.id, 1, WHEAT_FIELD_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
+                    integer(object.id, 1, VINE_FIELD_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
                     integer(object.width, 1, 2, 'element width'); integer(object.height, 1, 2, 'element height');
                     integer(object.mask, 1, (1 << (object.width * object.height)) - 1, 'element footprint');
                     integer(object.rotation, 0, 3, 'element rotation'); integer(object.surface, 0, 2, 'element surface');
                     integer(object.baseHeight, 0, 4, 'element height'); integer(object.slopeX, -1, 1, 'element slope'); integer(object.slopeY, -1, 1, 'element slope');
                     const entry = byId.get(object.id);
                     if (!entry) throw new Error('Unknown track element.');
-                    checkWheatField(entry, this.version);
+                    checkCropField(entry, this.version);
                     checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, this.version);
                     checkRollRamp(entry, object.rollRamp ?? 0, this.version);
                     checkPineCount(entry, object.pineCount ?? 0, this.version, importing);
@@ -801,5 +809,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));
