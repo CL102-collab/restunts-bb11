@@ -157,7 +157,7 @@ def main():
               'Paired pixel count differs')
         check(sum(pairs[source][target] for source, target in majority.items()) ==
               mapping['dominant_mapping_agreement'], 'Paired agreement count differs')
-    source = (ROOT / 'src/restunts/c/full_data.c').read_text()
+    source = (ROOT / 'src/restunts/c/data/full_data.c').read_text()
     material_block = source.split('material_color_list[SHAPE3D_MATERIAL_COUNT] = {', 1)[1]
     material_block = material_block.split('#ifdef RESTUNTS_AMIGA', 1)[1].split('#else', 1)[0]
     material_block = re.sub(r'/\*.*?\*/', '', material_block, flags=re.S)

@@ -269,7 +269,7 @@ set(game_sources
     shape2d/shape2d_resources.c heapsort.c frame/frame.c frame/frame_camera.c frame/frame_car.c
     frame/frame_tiles.c frame/frame_terrain.c frame/frame_objects.c hires/frame_adaptive.c
     skybox.c hires/skybox_hires.c frame/frame_overlay.c intro_render.c track/track_preview.c
-    full_data.c full_strings.c full_tables.c
+    data/full_data.c data/full_strings.c data/full_tables.c
     hires/settings_startup.c hires/settings_input.c hires/race_view.c hires/race_presentation.c
     hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
     extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c
@@ -947,7 +947,7 @@ if(RESTUNTS_BUILD_TESTS)
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-race-frames src/restunts/tests/test-race-frames.c
             ${core}/extended/extended_replay_ui.c
-            ${core}/legacy.c ${core}/full_data.c ${core}/headless_data.c
+            ${core}/legacy.c ${core}/data/full_data.c ${core}/headless_data.c
             ${core}/hires/frame_interpolation.c
         ${core}/hires/race_view.c)
         target_link_libraries(test-sdl3-race-frames PRIVATE restunts_options)
