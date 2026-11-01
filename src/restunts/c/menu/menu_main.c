@@ -87,7 +87,7 @@ legacy_s8 run_menu(void)
 
 	for (;;) {
 #ifdef RESTUNTS_SDL3
-		if (frame_status_expire_idle() != 0) {
+		if (frame_renderer_status_expire_idle() != 0) {
 			previous = MAIN_MENU_NO_SELECTION;
 		}
 #endif
@@ -105,11 +105,11 @@ legacy_s8 run_menu(void)
 			sprite_select_screen_compat();
 #ifdef RESTUNTS_SDL3
 			/* Keep the cached background clean so refreshes erase expired or replaced text. */
-			if (frame_status_overlay_active() != 0) {
+			if (frame_renderer_status_overlay_active() != 0) {
 				mouse_draw_opaque_check();
 				sprite_set_target_clip_bounds(0, MAIN_MENU_SCREEN_WIDTH, 0,
 											  MAIN_MENU_SCREEN_HEIGHT);
-				frame_status_draw_text();
+				frame_renderer_status_draw_text();
 				mouse_draw_transparent_check();
 			}
 #endif

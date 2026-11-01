@@ -33,7 +33,7 @@ enum SHAPE3D_PRIMITIVE_TYPE {
 
 /* Per-instance visual override; resource paint and geometry remain unchanged. */
 #define SHAPE3D_GHOST_FLAG 16U
-/* Camera-relative scenery is painted behind all world geometry in SuperSight. */
+/* Camera-relative scenery is a background layer for scene renderers. */
 #define SHAPE3D_BACKGROUND_FLAG 32U
 /* Cars and their wheels never receive the simple ground shadow. */
 #define SHAPE3D_NO_SHADOW_RECEIVE_FLAG 64U
@@ -96,9 +96,9 @@ void shape3d_load_car_shapes(legacy_s8 *carid, legacy_s8 *opponent_carid);
 void shape3d_free_car_shapes(void);
 #if defined(RESTUNTS_SDL3)
 /* Visible local underside at the current projection, clamped to signed renderer units. */
-legacy_s16 shape3d_car_ground_height(const struct SHAPE3D *shape);
+legacy_s16 shape3d_hires_car_ground_height(const struct SHAPE3D *shape);
 /* Cached local downward correction for a loaded car model; physics stays unchanged. */
-legacy_s16 shape3d_car_ground_offset(const struct SHAPE3D *shape);
+legacy_s16 shape3d_hires_car_ground_offset(const struct SHAPE3D *shape);
 #endif
 void shape3d_init_shape(legacy_s8 far *shapeptr, struct SHAPE3D *gameshape);
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
@@ -109,7 +109,7 @@ legacy_u16 select_cliprect_rotate(legacy_s16 angZ, legacy_s16 angX, legacy_s16 a
 void init_polyinfo(void);
 void polyinfo_reset(void);
 /* Changing capacity discards queued primitives; select the mode before drawing a frame. */
-void polyinfo_set_supersight(legacy_u8 enabled);
+void polyinfo_set_expanded(legacy_u8 enabled);
 void shape3d_render_queued_primitives(void);
 #if defined(RESTUNTS_SDL3)
 /* Submitted scene primitives before rasterization, for either active backend. */

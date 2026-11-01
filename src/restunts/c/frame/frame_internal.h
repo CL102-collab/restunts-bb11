@@ -76,8 +76,8 @@ struct GAMESTATE;
 struct CARSTATE;
 struct GHOST_CAMERA_STATE;
 
-#include "../hires/frame_snapshot.h"
-#include "../hires/frame_overlay.h"
+#include "../renderer/frame_snapshot.h"
+#include "../renderer/frame_overlay.h"
 #include "frame_fps.h"
 
 /* Prepare diagnostic redraw bounds before dashboard composition; paint it with

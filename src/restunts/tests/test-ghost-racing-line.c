@@ -62,8 +62,8 @@ static legacy_u8 *capture(legacy_u16 speed, legacy_s32 *width, legacy_s32 *heigh
 	presentation.playerstate.car_actual_speed = speed;
 	full_redraw_frames_remaining = 1;
 	sprite_select_render_window();
-	update_frame_snapshot(0, &rect_windshield, &presentation, ghost_car_state(),
-						  ghost_camera_state());
+	hires_update_frame_snapshot(0, &rect_windshield, &presentation, ghost_car_state(),
+								ghost_camera_state());
 	frame_present(&rect_windshield);
 	get_kevinrandom_seed(seed_after);
 	assert(memcmp(&state, &saved, sizeof(state)) == 0);
@@ -173,7 +173,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	/* The line near the player must remain after the ghost has left this area. */
 	ghost_update(gameconfig.game_recordedframes, framespersec);
 	check_colors(reference_speed, 0);
-	supersight_enabled = 1;
+	renderer_active = 1;
 	hires_set_enabled(1);
 	for (legacy_s16 scale = 1; scale <= 4; scale *= 2) {
 		hires_set_render_scale(scale);

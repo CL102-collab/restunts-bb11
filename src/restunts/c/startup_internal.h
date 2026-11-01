@@ -57,8 +57,8 @@ struct STARTUP_OPTIONS {
 	legacy_u8 fps_display_enabled;
 	legacy_u8 fps_display_specified;
 #ifdef RESTUNTS_SDL3
-	legacy_u16 hypervision_preset;
-	legacy_u8 hypervision_specified;
+	legacy_u16 hires_preset;
+	legacy_u8 hires_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)

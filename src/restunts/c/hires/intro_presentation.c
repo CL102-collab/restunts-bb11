@@ -5,10 +5,11 @@
 #include "../externs.h"
 #include "../platform.h"
 
-#define INTRO_TIMER_TICK_NS (PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND)
+#define INTRO_TIMER_TICK_NS (HIRES_PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND)
 
-static legacy_s16 intro_predict_coordinate(legacy_s16 previous, legacy_s16 current,
-										   legacy_u64 elapsed, legacy_u64 interval, legacy_u8 angle)
+static legacy_s16 hires_intro_predict_coordinate(legacy_s16 previous, legacy_s16 current,
+												 legacy_u64 elapsed, legacy_u64 interval,
+												 legacy_u8 angle)
 {
 	legacy_s16 change = LEGACY_S16_WRAP_SUB(current, previous);
 	if (angle != 0) {
@@ -20,8 +21,8 @@ static legacy_s16 intro_predict_coordinate(legacy_s16 previous, legacy_s16 curre
 	return LEGACY_S16_WRAP_ADD(current, offset);
 }
 
-static void intro_predict_view(const struct INTRO_SESSION *intro, legacy_u64 now,
-							   struct INTRO_VIEW *view)
+static void hires_intro_predict_view(const struct INTRO_SESSION *intro, legacy_u64 now,
+									 struct INTRO_VIEW *view)
 {
 	*view = intro->presentation.current_view;
 	if (intro->presentation.view_interval == 0) {
@@ -33,28 +34,32 @@ static void intro_predict_view(const struct INTRO_SESSION *intro, legacy_u64 now
 		elapsed = maximum;
 	}
 	const struct INTRO_VIEW *previous = &intro->presentation.previous_view;
-	view->camera.x = intro_predict_coordinate(previous->camera.x, view->camera.x, elapsed,
-											  intro->presentation.view_interval, 0);
-	view->camera.y = intro_predict_coordinate(previous->camera.y, view->camera.y, elapsed,
-											  intro->presentation.view_interval, 0);
-	view->camera.z = intro_predict_coordinate(previous->camera.z, view->camera.z, elapsed,
-											  intro->presentation.view_interval, 0);
-	view->car_position.x = intro_predict_coordinate(previous->car_position.x, view->car_position.x,
-													elapsed, intro->presentation.view_interval, 0);
-	view->car_position.y = intro_predict_coordinate(previous->car_position.y, view->car_position.y,
-													elapsed, intro->presentation.view_interval, 0);
-	view->car_position.z = intro_predict_coordinate(previous->car_position.z, view->car_position.z,
-													elapsed, intro->presentation.view_interval, 0);
-	view->car_rotation = intro_predict_coordinate(previous->car_rotation, view->car_rotation,
-												  elapsed, intro->presentation.view_interval, 1);
+	view->camera.x = hires_intro_predict_coordinate(previous->camera.x, view->camera.x, elapsed,
+													intro->presentation.view_interval, 0);
+	view->camera.y = hires_intro_predict_coordinate(previous->camera.y, view->camera.y, elapsed,
+													intro->presentation.view_interval, 0);
+	view->camera.z = hires_intro_predict_coordinate(previous->camera.z, view->camera.z, elapsed,
+													intro->presentation.view_interval, 0);
+	view->car_position.x =
+		hires_intro_predict_coordinate(previous->car_position.x, view->car_position.x, elapsed,
+									   intro->presentation.view_interval, 0);
+	view->car_position.y =
+		hires_intro_predict_coordinate(previous->car_position.y, view->car_position.y, elapsed,
+									   intro->presentation.view_interval, 0);
+	view->car_position.z =
+		hires_intro_predict_coordinate(previous->car_position.z, view->car_position.z, elapsed,
+									   intro->presentation.view_interval, 0);
+	view->car_rotation = hires_intro_predict_coordinate(
+		previous->car_rotation, view->car_rotation, elapsed, intro->presentation.view_interval, 1);
 	view->horizontal_angle =
-		intro_predict_coordinate(previous->horizontal_angle, view->horizontal_angle, elapsed,
-								 intro->presentation.view_interval, 1);
-	view->vertical_angle = intro_predict_coordinate(previous->vertical_angle, view->vertical_angle,
-													elapsed, intro->presentation.view_interval, 1);
+		hires_intro_predict_coordinate(previous->horizontal_angle, view->horizontal_angle, elapsed,
+									   intro->presentation.view_interval, 1);
+	view->vertical_angle =
+		hires_intro_predict_coordinate(previous->vertical_angle, view->vertical_angle, elapsed,
+									   intro->presentation.view_interval, 1);
 }
 
-static void intro_update_view(struct INTRO_SESSION *intro, legacy_u64 now)
+static void hires_intro_update_view(struct INTRO_SESSION *intro, legacy_u64 now)
 {
 	struct INTRO_VIEW current;
 	intro_capture_view(intro, &current);
@@ -80,26 +85,26 @@ static void intro_update_view(struct INTRO_SESSION *intro, legacy_u64 now)
 void hires_intro_reset(struct INTRO_SESSION *intro)
 {
 	intro->presentation.view_valid = 0;
-	presentation_reset(&intro->presentation.presentation_clock, presentation_now());
+	hires_presentation_reset(&intro->presentation.presentation_clock, hires_presentation_now());
 }
 
 void hires_intro_begin(struct INTRO_SESSION *intro)
 {
-	intro->presentation.input_time = presentation_now();
+	intro->presentation.input_time = hires_presentation_now();
 	intro->presentation.input_delta = 0;
 }
 
 legacy_s16 hires_intro_present(struct INTRO_SESSION *intro)
 {
-	legacy_u64 now = presentation_now();
+	legacy_u64 now = hires_presentation_now();
 	legacy_s16 keyframe = intro->needs_render;
 	if (keyframe != 0) {
-		intro_update_view(intro, now);
+		hires_intro_update_view(intro, now);
 	}
-	if (supersight_enabled != 0) {
-		if (presentation_due(&intro->presentation.presentation_clock, now)) {
+	if (hires_active != 0) {
+		if (hires_presentation_due(&intro->presentation.presentation_clock, now)) {
 			struct INTRO_VIEW view;
-			intro_predict_view(intro, now, &view);
+			hires_intro_predict_view(intro, now, &view);
 			intro_render_session(intro, &view);
 		}
 	} else if (keyframe != 0) {
@@ -116,8 +121,8 @@ const struct INTRO_VIEW *hires_intro_keyframe(const struct INTRO_SESSION *intro)
 legacy_s16 hires_intro_input(struct INTRO_SESSION *intro, legacy_s16 delta,
 							 legacy_s16 *sample_delta)
 {
-	intro->presentation.sample_time = presentation_now();
-	if (supersight_enabled != 0) {
+	intro->presentation.sample_time = hires_presentation_now();
+	if (hires_active != 0) {
 		intro->presentation.input_delta =
 			LEGACY_S16_WRAP_ADD(intro->presentation.input_delta, delta);
 		/* Presentation-only loops cannot sample devices between timer ticks. */

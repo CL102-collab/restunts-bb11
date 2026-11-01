@@ -226,7 +226,7 @@ legacy_s16 frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TER
 			low_half[vertex] =
 				flat[(high_corner + vertex + 1U) % FRAME_EXTENDED_TERRAIN_CORNER_COUNT];
 		}
-		frame_extended_join_low_half(low_half, count, terrain, detail);
+		hires_frame_extended_join_low_half(low_half, count, terrain, detail);
 		points = low_half;
 	}
 	legacy_u8 material = profile->base_height == 0 ? FRAME_EXTENDED_GROUND_GRASS_MATERIAL
@@ -287,7 +287,7 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 		return 0;
 	}
 	terrain.cell = &track->cells[(size_t)tile->south * track->width + tile->east];
-	terrain.edges = frame_extended_hill_edges(track, tile->east, tile->south);
+	terrain.edges = hires_frame_extended_hill_edges(track, tile->east, tile->south);
 	terrain.position = (struct VECTOR){
 		LEGACY_S16_WRAP_SUB(track_column_centers[tile->east], camera->position.x),
 		LEGACY_S16_WRAP_SUB((legacy_s16)(terrain.profile.base_height * CSTRK_LEVEL_WORLD_HEIGHT),

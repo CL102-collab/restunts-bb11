@@ -145,7 +145,7 @@ static void test_platform_delay(void)
 static void test_regular_progression(void)
 {
 	reset_timer();
-	assert(presentation_now() == mock_time_ns);
+	assert(hires_presentation_now() == mock_time_ns);
 	expect_counters(0, 0, 0, 0);
 
 	mock_time_ms += TEST_TICK_MS - 1U;

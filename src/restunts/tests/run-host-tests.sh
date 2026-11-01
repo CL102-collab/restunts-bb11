@@ -85,7 +85,7 @@ small_source_companions() {
     case "$1" in
         frame.c) printf '%s\n' frame/frame_camera.c frame/frame_car.c frame/frame_tiles.c frame/frame_terrain.c frame/frame_objects.c ;;
         extended_frame.c) printf '%s\n' extended/extended_frame_objects.c extended/extended_frame_terrain.c extended/extended_frame_precise.c ;;
-        shape3d.c) printf '%s\n' shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
+        shape3d.c) printf '%s\n' shape3d/shape3d_native.c shape3d/shape3d_queue.c shape3d/shape3d_primitives.c shape3d/shape3d_render.c ;;
         shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
         math.c) printf '%s\n' math/math_rectangles.c ;;
@@ -126,7 +126,7 @@ hires_source_companions() {
         frame_objects.c) printf '%s\n' hires/frame_particles.c ;;
         frame_overlay.c) printf '%s\n' hires/frame_overlay.c ;;
         frame_terrain.c) printf '%s\n' hires/frame_terrain.c ;;
-        frame_tiles.c) printf '%s\n' hires/frame_visibility.c hires/frame_supersight.c ;;
+        frame_tiles.c) printf '%s\n' hires/frame_visibility.c hires/frame_scene.c ;;
         game_input.c) printf '%s\n' hires/settings_input.c ;;
         game_input_shortcuts.c) printf '%s\n' hires/settings_input.c ;;
         ghost.c) printf '%s\n' hires/ghost_render.c ;;
@@ -150,6 +150,21 @@ hires_source_companions() {
     esac
 }
 
+supersight_source_companions() {
+    case "$1" in
+        frame.c) printf '%s\n' supersight/frame_visibility.c supersight/frame_integration.c ;;
+        frame_car.c) printf '%s\n' supersight/frame_visibility.c ;;
+        frame_objects.c) printf '%s\n' supersight/frame_visibility.c ;;
+        frame_overlay.c) printf '%s\n' supersight/frame_overlay.c ;;
+        frame_terrain.c) printf '%s\n' supersight/frame_terrain.c ;;
+        frame_tiles.c) printf '%s\n' supersight/frame_visibility.c supersight/frame_scene.c ;;
+        game_input.c|game_input_shortcuts.c) printf '%s\n' supersight/settings.c ;;
+        race.c) printf '%s\n' supersight/race_view.c ;;
+        track_preview.c) printf '%s\n' supersight/track_preview_scene.c ;;
+        extended_geometry.c) printf '%s\n' supersight/track_geometry.c ;;
+    esac
+}
+
 generic_render_companions() {
     case "$1" in
         frame.c) printf '%s\n' frame/frame_context.c ;;
@@ -161,6 +176,8 @@ generic_render_companions() {
         frame_terrain.c) printf '%s\n' frame/frame_terrain.c ;;
         frame_visibility.c) printf '%s\n' frame/frame_terrain.c ;;
         hires.c) printf '%s\n' video/video_framebuffer.c ;;
+        video_framebuffer.c) printf '%s\n' hires/video_framebuffer.c ;;
+        showroom.c) printf '%s\n' hires/showroom_presentation.c ;;
     esac
 }
 
@@ -186,6 +203,7 @@ source_companions() {
     extended_companions "$1" "$2"
     small_source_companions "$1"
     hires_source_companions "$1"
+    supersight_source_companions "$1"
     generic_render_companions "$1"
     extended_folder_companions "$1" "$2"
 }

@@ -2,7 +2,6 @@
 #define RESTUNTS_SHAPE3D_INTERNAL_H
 
 #include "shape3d.h"
-#include "../hires/shape3d_queue.h"
 
 /* Queued renderer categories, distinct from shape resource primitive types.
  * Their numeric values are stored in the byte-sized polyinfo type field. */

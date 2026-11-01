@@ -55,12 +55,12 @@ static void begin_frame(legacy_s32 scale)
 	assert(hires_begin(&sprite));
 	hires_depth_begin(0, hires_render_width(), 0, hires_render_height());
 	assert(hires_raster_prepare(&target));
-	hypervision_begin(NULL);
+	hires_backend_begin(NULL);
 }
 
 static const legacy_u8 *end_frame(void)
 {
-	(void)hypervision_end(&target, 0);
+	(void)hires_backend_end(&target, 0);
 	hires_end();
 	legacy_s32 width, height;
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
@@ -68,22 +68,22 @@ static const legacy_u8 *end_frame(void)
 	return pixels;
 }
 
-static struct HYPERVISION_MATERIAL material(legacy_u16 color, legacy_u32 family)
+static struct HIRES_BACKEND_MATERIAL material(legacy_u16 color, legacy_u32 family)
 {
-	struct HYPERVISION_MATERIAL result = {family, color, 0, 0, HIRES_PAINT_SOLID, 0};
+	struct HIRES_BACKEND_MATERIAL result = {family, color, 0, 0, HIRES_PAINT_SOLID, 0};
 	return result;
 }
 
 static void rectangle(legacy_f64 left, legacy_f64 right, legacy_f64 top, legacy_f64 bottom,
 					  legacy_f64 left_depth, legacy_f64 right_depth,
-					  const struct HYPERVISION_MATERIAL *paint)
+					  const struct HIRES_BACKEND_MATERIAL *paint)
 {
-	const struct HYPERVISION_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
+	const struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
 		{left, top, left_depth},
 		{right, top, right_depth},
 		{right, bottom, right_depth},
 		{left, bottom, left_depth}};
-	hypervision_polygon(vertices, TEST_RECTANGLE_VERTICES, paint);
+	hires_backend_polygon(vertices, TEST_RECTANGLE_VERTICES, paint);
 }
 
 static void assert_same_pixels(const legacy_u8 *pixels)
@@ -93,8 +93,8 @@ static void assert_same_pixels(const legacy_u8 *pixels)
 
 static void test_crossing_surfaces(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL first = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	const struct HYPERVISION_MATERIAL second = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL first = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL second = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
 		legacy_s32 border = TEST_BORDER * scale;
@@ -127,14 +127,14 @@ static void test_crossing_surfaces(legacy_s32 scale)
 
 static void test_concave_coverage(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
 		legacy_s32 left = target.width / 8, right = target.width * 7 / 8;
 		legacy_s32 top = target.height / 8, bottom = target.height * 7 / 8;
 		legacy_s32 notch_left = target.width * 3 / 8, notch_right = target.width * 5 / 8;
 		legacy_s32 notch_top = target.height / 2;
-		const struct HYPERVISION_VERTEX outline[TEST_CONCAVE_VERTICES] = {
+		const struct HIRES_BACKEND_VERTEX outline[TEST_CONCAVE_VERTICES] = {
 			{left, top, TEST_FAR_DEPTH},
 			{right, top, TEST_FAR_DEPTH},
 			{right, bottom, TEST_FAR_DEPTH},
@@ -143,11 +143,11 @@ static void test_concave_coverage(legacy_s32 scale)
 			{notch_left, notch_top, TEST_FAR_DEPTH},
 			{notch_left, bottom, TEST_FAR_DEPTH},
 			{left, bottom, TEST_FAR_DEPTH}};
-		struct HYPERVISION_VERTEX vertices[TEST_CONCAVE_VERTICES];
+		struct HIRES_BACKEND_VERTEX vertices[TEST_CONCAVE_VERTICES];
 		for (legacy_u32 index = 0; index < TEST_CONCAVE_VERTICES; index++) {
 			vertices[index] = outline[reverse ? TEST_CONCAVE_VERTICES - index - 1U : index];
 		}
-		hypervision_polygon(vertices, TEST_CONCAVE_VERTICES, &paint);
+		hires_backend_polygon(vertices, TEST_CONCAVE_VERTICES, &paint);
 		const legacy_u8 *pixels = end_frame();
 		for (legacy_s32 y = 0; y < target.height; y++) {
 			for (legacy_s32 x = 0; x < target.width; x++) {
@@ -162,11 +162,11 @@ static void test_concave_coverage(legacy_s32 scale)
 
 static void test_cutout_and_occluder(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL backing = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	struct HYPERVISION_MATERIAL cutout = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL backing = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	struct HIRES_BACKEND_MATERIAL cutout = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
 	cutout.mode = HIRES_PAINT_PATTERN;
 	cutout.pattern = TEST_PATTERN_EVEN_COLUMNS;
-	const struct HYPERVISION_MATERIAL occluder = material(TEST_DECAL_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL occluder = material(TEST_DECAL_COLOR, TEST_SECOND_FAMILY);
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
 		for (legacy_s32 command = 0; command < 3; command++) {
@@ -196,9 +196,9 @@ static void test_cutout_and_occluder(legacy_s32 scale)
 
 static void test_coplanar_decal(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL backing = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	struct HYPERVISION_MATERIAL decal = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
-	decal.flags = HYPERVISION_DECAL;
+	const struct HIRES_BACKEND_MATERIAL backing = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	struct HIRES_BACKEND_MATERIAL decal = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
+	decal.flags = HIRES_BACKEND_DECAL;
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
 		for (legacy_s32 command = 0; command <= 1; command++) {
@@ -218,9 +218,9 @@ static void test_coplanar_decal(legacy_s32 scale)
 }
 
 struct TEST_POLYGON {
-	struct HYPERVISION_VERTEX vertices[TEST_RECTANGLE_VERTICES];
+	struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES];
 	legacy_f64 x_step, y_step, origin;
-	struct HYPERVISION_MATERIAL paint;
+	struct HIRES_BACKEND_MATERIAL paint;
 };
 
 static legacy_u32 random_coordinate(legacy_u32 *state)
@@ -232,9 +232,9 @@ static legacy_u32 random_coordinate(legacy_u32 *state)
 static legacy_s32 contains_sample(const struct TEST_POLYGON *polygon, legacy_f64 x, legacy_f64 y)
 {
 	legacy_s32 inside = 0;
-	const struct HYPERVISION_VERTEX *previous = &polygon->vertices[TEST_RECTANGLE_VERTICES - 1U];
+	const struct HIRES_BACKEND_VERTEX *previous = &polygon->vertices[TEST_RECTANGLE_VERTICES - 1U];
 	for (legacy_u32 index = 0; index < TEST_RECTANGLE_VERTICES; index++) {
-		const struct HYPERVISION_VERTEX *current = &polygon->vertices[index];
+		const struct HIRES_BACKEND_VERTEX *current = &polygon->vertices[index];
 		if ((previous->y > y) != (current->y > y) &&
 			x < previous->x +
 					(current->x - previous->x) * (y - previous->y) / (current->y - previous->y)) {
@@ -270,7 +270,7 @@ static void test_offscreen_depth_oracle(legacy_s32 scale)
 		for (legacy_u32 vertex = 0; vertex < TEST_RECTANGLE_VERTICES; vertex++) {
 			legacy_f64 along = vertex == 0 || vertex == 3 ? -1 : 1;
 			legacy_f64 across = vertex < 2 ? -1 : 1;
-			struct HYPERVISION_VERTEX *point = &polygon->vertices[vertex];
+			struct HIRES_BACKEND_VERTEX *point = &polygon->vertices[vertex];
 			point->x = center_x + along * along_x + across * across_x;
 			point->y = center_y + along * along_y + across * across_y;
 			point->inverse_z =
@@ -283,7 +283,7 @@ static void test_offscreen_depth_oracle(legacy_s32 scale)
 		for (legacy_u32 command = 0; command < TEST_SCENE_POLYGONS; command++) {
 			const struct TEST_POLYGON *polygon =
 				&polygons[reverse ? TEST_SCENE_POLYGONS - command - 1U : command];
-			hypervision_polygon(polygon->vertices, TEST_RECTANGLE_VERTICES, &polygon->paint);
+			hires_backend_polygon(polygon->vertices, TEST_RECTANGLE_VERTICES, &polygon->paint);
 		}
 		const legacy_u8 *pixels = end_frame();
 		for (legacy_s32 y = 0; y < target.height; y++) {
@@ -316,8 +316,8 @@ static void test_coplanar_edge_interpolation(legacy_s32 scale)
 {
 	/* A wide ground surface and a road strip sample the same plane through
 	 * different edges. Roundoff must not alternate their paint precedence. */
-	const struct HYPERVISION_MATERIAL ground = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	const struct HYPERVISION_MATERIAL road = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL ground = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL road = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
 	static const legacy_f64 coordinates[][TEST_RECTANGLE_VERTICES][2] = {
 		{{-400, -200}, {600, -200}, {600, 400}, {-400, 400}},
 		{{-100, 175.125}, {375, 50.125}, {375, 100.125}, {-100, 225.125}}};
@@ -326,13 +326,13 @@ static void test_coplanar_edge_interpolation(legacy_s32 scale)
 	for (legacy_u32 shape = 0; shape < 2; shape++) {
 		polygons[shape].paint = shape == 0 ? ground : road;
 		for (legacy_u32 vertex = 0; vertex < TEST_RECTANGLE_VERTICES; vertex++) {
-			struct HYPERVISION_VERTEX *point = &polygons[shape].vertices[vertex];
+			struct HIRES_BACKEND_VERTEX *point = &polygons[shape].vertices[vertex];
 			point->x = coordinates[shape][vertex][0] * scale;
 			point->y = coordinates[shape][vertex][1] * scale;
 			point->inverse_z = TEST_PLANE_DEPTH + TEST_PLANE_STEP * point->y / scale;
 		}
-		hypervision_polygon(polygons[shape].vertices, TEST_RECTANGLE_VERTICES,
-							&polygons[shape].paint);
+		hires_backend_polygon(polygons[shape].vertices, TEST_RECTANGLE_VERTICES,
+							  &polygons[shape].paint);
 	}
 	const legacy_u8 *pixels = end_frame();
 	for (legacy_s32 y = 0; y < target.height; y++) {
@@ -348,7 +348,7 @@ static void test_coplanar_edge_interpolation(legacy_s32 scale)
 
 static void test_clipping_at_pixel_centers(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
 	begin_frame(scale);
 	legacy_s32 last_column = target.width - 1;
 	legacy_s32 last_row = target.height - 1;
@@ -380,10 +380,10 @@ static void test_clipping_at_pixel_centers(legacy_s32 scale)
 
 static void test_attached_support_depth(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL support = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	const struct HYPERVISION_MATERIAL occluder = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
-	struct HYPERVISION_MATERIAL decal = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
-	decal.flags = HYPERVISION_DECAL;
+	const struct HIRES_BACKEND_MATERIAL support = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL occluder = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	struct HIRES_BACKEND_MATERIAL decal = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
+	decal.flags = HIRES_BACKEND_DECAL;
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
 		legacy_s32 support_right = target.width * 3 / 4;
@@ -422,14 +422,14 @@ static void test_attached_support_depth(legacy_s32 scale)
 
 static void test_ground_uses_surface_ownership(legacy_s32 scale)
 {
-	struct HYPERVISION_MATERIAL support = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	struct HYPERVISION_MATERIAL detail = material(TEST_DECAL_COLOR, TEST_SECOND_FAMILY);
-	detail.flags = HYPERVISION_GROUND_CLIP;
+	struct HIRES_BACKEND_MATERIAL support = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	struct HIRES_BACKEND_MATERIAL detail = material(TEST_DECAL_COLOR, TEST_SECOND_FAMILY);
+	detail.flags = HIRES_BACKEND_GROUND_CLIP;
 	for (legacy_s32 patterned = 0; patterned <= 1; patterned++) {
 		begin_frame(scale);
 		struct HIRES_DEPTH_PLANE ground = {(TEST_NEAR_DEPTH - TEST_FAR_DEPTH) / target.width, 0,
 										   TEST_FAR_DEPTH};
-		hypervision_begin(&ground);
+		hires_backend_begin(&ground);
 		legacy_s32 support_left = target.width * 3 / 4;
 		rectangle(support_left, target.width, 0, target.height, TEST_FAR_DEPTH, TEST_FAR_DEPTH,
 				  &support);
@@ -458,18 +458,18 @@ static void test_ground_uses_surface_ownership(legacy_s32 scale)
  * must not be replaced by the plane through only three of their vertices. */
 static void test_warped_quad_depth(legacy_s32 scale)
 {
-	const struct HYPERVISION_MATERIAL warped = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-	const struct HYPERVISION_MATERIAL flat = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL warped = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL flat = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
 	for (legacy_s32 reverse = 0; reverse <= 1; reverse++) {
 		begin_frame(scale);
-		const struct HYPERVISION_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
+		const struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
 			{0, 0, TEST_FAR_DEPTH},
 			{target.width, 0, TEST_FAR_DEPTH},
 			{target.width, target.height, TEST_NEAR_DEPTH},
 			{0, target.height, TEST_FAR_DEPTH}};
 		for (legacy_s32 order = 0; order <= 1; order++) {
 			if ((order ^ reverse) == 0) {
-				hypervision_polygon(vertices, TEST_RECTANGLE_VERTICES, &warped);
+				hires_backend_polygon(vertices, TEST_RECTANGLE_VERTICES, &warped);
 			} else {
 				rectangle(0, target.width, 0, target.height, TEST_MIDDLE_DEPTH, TEST_MIDDLE_DEPTH,
 						  &flat);
@@ -509,7 +509,7 @@ static void test_growth_and_reset(void)
 	legacy_s32 row = target.height / 2;
 	for (legacy_u32 command = 0; command < TEST_GROWTH_COMMANDS; command++) {
 		legacy_s32 column = command % target.width;
-		struct HYPERVISION_MATERIAL paint =
+		struct HIRES_BACKEND_MATERIAL paint =
 			material((column & 1) == 0 ? TEST_FIRST_COLOR : TEST_SECOND_COLOR, TEST_FIRST_FAMILY);
 		rectangle(column, column + 1, row, row + 1, command + TEST_FAR_DEPTH,
 				  command + TEST_FAR_DEPTH, &paint);
@@ -533,15 +533,15 @@ static void test_growth_and_reset(void)
 static void test_workers_match(void)
 {
 	for (legacy_s32 workers = 0; workers <= 1; workers++) {
-		render_workers_shutdown();
+		hires_render_workers_shutdown();
 		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS",
 								 workers ? TEST_WORKER_COUNT : TEST_NO_WORKERS, true) == 0);
 #if !defined(__DJGPP__) && !defined(__EMSCRIPTEN__)
-		assert(render_workers_count() == (workers ? TEST_WORKER_THREADS : 0));
+		assert(hires_render_workers_count() == (workers ? TEST_WORKER_THREADS : 0));
 #endif
 		begin_frame(HIRES_SCALE);
-		const struct HYPERVISION_MATERIAL first = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
-		struct HYPERVISION_MATERIAL second = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+		const struct HIRES_BACKEND_MATERIAL first = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+		struct HIRES_BACKEND_MATERIAL second = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
 		rectangle(0, target.width, 0, target.height, TEST_FAR_DEPTH, TEST_NEAR_DEPTH, &first);
 		rectangle(0, target.width, 0, target.height, TEST_NEAR_DEPTH, TEST_FAR_DEPTH, &second);
 		second.mode = HIRES_PAINT_PATTERN;
@@ -555,7 +555,7 @@ static void test_workers_match(void)
 			assert_same_pixels(pixels);
 		}
 	}
-	render_workers_shutdown();
+	hires_render_workers_shutdown();
 }
 
 legacy_int main(void)
@@ -584,7 +584,7 @@ legacy_int main(void)
 	}
 	test_growth_and_reset();
 	test_workers_match();
-	hypervision_shutdown();
+	hires_backend_shutdown();
 	hires_shutdown();
 	puts("HyperVision visibility, cutouts, decals, queue lifetime and worker parity passed.");
 	return 0;

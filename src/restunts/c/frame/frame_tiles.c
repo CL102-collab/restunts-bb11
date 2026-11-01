@@ -9,7 +9,7 @@
 #if defined(RESTUNTS_SDL3)
 legacy_s32 frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
 {
-	return extended_frame_has_complete_tile_lookup(tiles);
+	return hires_extended_frame_has_complete_tile_lookup(tiles);
 }
 #endif
 
@@ -17,7 +17,7 @@ legacy_s32 frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *til
 legacy_s16 frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles, legacy_s16 east,
 								   legacy_s16 south)
 {
-	return extended_frame_lookup_world_tile(tiles, east, south);
+	return hires_extended_frame_lookup_world_tile(tiles, east, south);
 }
 #endif
 
@@ -126,7 +126,7 @@ void frame_select_lookahead_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAM
 								 legacy_s16 tile_index, legacy_s8 detail_threshold)
 {
 	/* Far tiles can be omitted at lower classic detail levels. */
-	if (!frame_hires_enabled() && tiles->lookahead[tile_index].detail > detail_threshold) {
+	if (!frame_renderer_enabled() && tiles->lookahead[tile_index].detail > detail_threshold) {
 		tiles->markers[tile_index] = FRAME_TILE_UNAVAILABLE_MARKER;
 		return;
 	}
@@ -143,7 +143,7 @@ void frame_select_lookahead_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAM
 void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_CAMERA *camera)
 {
 #if defined(RESTUNTS_SDL3)
-	extended_frame_begin_tile_selection(tiles);
+	hires_extended_frame_begin_tile_selection(tiles);
 #endif
 	tiles->count = FRAME_LOOKAHEAD_TILE_COUNT;
 	tiles->first = 0;
@@ -151,9 +151,9 @@ void frame_select_tiles(struct FRAME_TILE_SELECTION *tiles, const struct FRAME_C
 		LEGACY_S8_FROM_BITS((legacy_u8)LEGACY_S16_SAR(camera->position.x, FRAME_CAMERA_TILE_SHIFT));
 	tiles->camera_south = LEGACY_S8_WRAP_SUB(
 		TRACK_GRID_LAST_COORDINATE, LEGACY_S16_SAR(camera->position.z, FRAME_CAMERA_TILE_SHIFT));
-	frame_hires_prepare_tiles(tiles, camera);
+	frame_renderer_prepare_tiles(tiles, camera);
 #if defined(RESTUNTS_SDL3)
-	extended_frame_position_tiles(tiles, camera, frame_hires_adaptive_enabled());
+	extended_frame_position_tiles(tiles, camera, frame_renderer_adaptive_enabled());
 #endif
 	if (detail_level != FRAME_DETAIL_FULL) {
 		tiles->player_east = frame_tile_from_world(frame_state->playerstate.car_position.lx);
@@ -193,7 +193,7 @@ legacy_s16 frame_draw_tiles(const struct FRAME_TILE_SELECTION *tiles,
 	 * Hills and classic rendering retain their authored overlap order. */
 	legacy_s16 first_pass = FRAME_TILE_OBJECT_PASS;
 #if defined(RESTUNTS_SDL3)
-	extended_frame_first_tile_pass(&first_pass);
+	hires_extended_frame_first_tile_pass(&first_pass);
 #endif
 	for (legacy_s16 pass = first_pass; pass <= FRAME_TILE_OBJECT_PASS; pass++) {
 		struct FRAME_TILE tile;

@@ -9,14 +9,22 @@ struct SHAPE2D;
 
 struct HIRES_SHOWROOM {
 	struct VECTOR shadow_position;
-	struct PRESENTATION_CLOCK presentation_clock;
+	struct HIRES_PRESENTATION_CLOCK presentation_clock;
 	legacy_u64 rotation_time;
 	legacy_u64 input_time;
+	legacy_u64 prepare_started;
+	legacy_u64 prepared_render_ns;
+	legacy_u8 complete_frame;
 	legacy_s16 input_delta;
 	legacy_u8 portrait_dirty, background_dirty;
 };
 
 void hires_showroom_initialize(struct HIRES_SHOWROOM *showroom);
+void hires_showroom_presentation_initialize(struct HIRES_SHOWROOM *showroom);
+void hires_showroom_prepare_begin(struct HIRES_SHOWROOM *showroom);
+void hires_showroom_prepare_end(struct HIRES_SHOWROOM *showroom);
+void hires_showroom_present_begin(struct HIRES_SHOWROOM *showroom, legacy_u8 blit_mode);
+void hires_showroom_present_end(struct HIRES_SHOWROOM *showroom);
 void hires_showroom_load_car(struct HIRES_SHOWROOM *showroom,
 							 const struct TRANSFORMEDSHAPE3D *transformed);
 void hires_showroom_reset_clock(struct HIRES_SHOWROOM *showroom);

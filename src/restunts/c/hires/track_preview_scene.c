@@ -3,10 +3,8 @@
 #include "../track/track_types.h"
 #include "../track/track_objects.h"
 #include "../externs.h"
-#include "../game_input.h"
-#ifdef RESTUNTS_SDL3
+#include "settings.h"
 #include "hires.h"
-#endif
 #define TRACK_PREVIEW_BRIDGE_FIRST 105U
 #define TRACK_PREVIEW_BRIDGE_LAST 108U
 #define TRACK_PREVIEW_GRID_SIZE 30U
@@ -20,7 +18,7 @@ void hires_track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, 
 											struct TRANSFORMEDSHAPE3D *transformed,
 											HIRES_TRACK_PREVIEW_TERRAIN draw_terrain)
 {
-	if (supersight_enabled == 0) {
+	if (hires_active == 0) {
 		return;
 	}
 	if (track == 0 || (track >= TRACK_PREVIEW_BRIDGE_FIRST && track <= TRACK_PREVIEW_BRIDGE_LAST &&
@@ -56,11 +54,7 @@ void hires_track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, 
 
 legacy_s16 hires_track_preview_batch_scene(void)
 {
-#ifdef RESTUNTS_SDL3
 	return hires_enabled();
-#else
-	return 0;
-#endif
 }
 
 void hires_track_preview_flush_scene(legacy_s16 batch_scene)

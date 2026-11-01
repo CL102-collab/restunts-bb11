@@ -6,7 +6,7 @@
 #include "../c/race/race_rewind.c"
 #include "../c/race/race_presentation.c"
 
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 static legacy_u32 projection_updates;
 
 void set_projection(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height)
@@ -168,20 +168,20 @@ static void test_replay_viewport_toggle(void)
 		projection_updates = 0;
 		legacy_s16 enhanced_bottom = dashbmp_y > 151 ? 151 : dashbmp_y;
 		for (legacy_u16 pass = 0; pass < 3; pass++) {
-			supersight_enabled = pass == 1;
+			renderer_active = pass == 1;
 			full_redraw_frames_remaining = 0;
 			race_update_viewport(&cache, 0);
-			legacy_s16 expected_bottom = supersight_enabled ? enhanced_bottom : dashbmp_y;
+			legacy_s16 expected_bottom = renderer_active ? enhanced_bottom : dashbmp_y;
 			assert(dashbmp_y_copy == expected_bottom);
 			assert(rect_windshield.bottom == expected_bottom);
 			assert(height_above_replaybar == 151);
 			assert(dashboard_visible == 1 && replaybar_enabled == 1);
-			assert(cache.hires.supersight == supersight_enabled);
+			assert(race_renderer_viewport_changed(&cache.renderer_viewport) == 0);
 			assert(full_redraw_frames_remaining == (pass == 0 || dashbmp_y > 151 ? 2 : 0));
 		}
 		assert(projection_updates == (dashbmp_y > 151 ? 3 : 1));
 
-		supersight_enabled = 1;
+		renderer_active = 1;
 		replaybar_toggle = 0;
 		race_update_viewport(&cache, 0);
 		assert(replaybar_enabled == 0 && height_above_replaybar == 200);
@@ -190,7 +190,7 @@ static void test_replay_viewport_toggle(void)
 		race_update_viewport(&cache, 0);
 		assert(replaybar_enabled == 1 && rect_windshield.bottom == enhanced_bottom);
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 
 int main(void)

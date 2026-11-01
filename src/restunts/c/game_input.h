@@ -2,7 +2,7 @@
 #define RESTUNTS_GAME_INPUT_H
 
 #include "legacy.h"
-#include "hires/settings.h"
+#include "renderer/settings.h"
 
 #define INPUT_NONE 0U
 #define INPUT_ACCELERATE_FLAG 1U

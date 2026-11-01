@@ -116,7 +116,7 @@ class CleanupTests(unittest.TestCase):
             self.assertEqual([Path(name).name for name in paths],
                              ["shape2d", "extended_trackobj", "stateio"])
 
-    def test_relocated_memory_helpers_use_native_raster_service(self):
+    def test_memory_invalidation_uses_native_services_without_hypervision(self):
         with tempfile.TemporaryDirectory() as directory:
             directory = Path(directory)
             sources = TRANSLATE.prepare_sources(directory)
@@ -124,8 +124,8 @@ class CleanupTests(unittest.TestCase):
             headers.mkdir()
             for name, text in TRANSLATE.FAKE_HEADERS.items():
                 (headers / name).write_text(text)
-            source = directory / "memory-helper.c"
-            source.write_text('#include "hires/memory.h"\n')
+            source = sources / "memmgr.c"
+            self.assertNotIn('"hires/memory.h"', source.read_text())
             preprocessed = subprocess.run([
                 "gcc", "-E", "-nostdinc", "-I" + str(headers), "-I" + str(sources),
                 "-DRESTUNTS_FULL", "-DRESTUNTS_TEMPLEOS", str(source),
@@ -134,12 +134,13 @@ class CleanupTests(unittest.TestCase):
         model = TRANSLATE.Model()
         model.collect(tree, "memory_helper")
         TRANSLATE.build_name_map(model)
-        helper = next(node for node in tree.ext if isinstance(node, TRANSLATE.A.FuncDef)
-                      and node.decl.name == "hires_forget_paragraphs")
-        generator = TRANSLATE.Generator(model)
-        generator.function(helper, "hires_forget_paragraphs")
-        self.assertIn("TempleRasterForgetRange", model.external_used)
-        self.assertNotIn("hires_forget_range", model.external_used)
+        for name in ("mmgr_free", "mmgr_resize_memory"):
+            function = next(node for node in tree.ext if isinstance(node, TRANSLATE.A.FuncDef)
+                            and node.decl.name == name)
+            TRANSLATE.Generator(model).function(function, name)
+        self.assertIn("TempleRasterForgetParagraphs", model.external_used)
+        self.assertIn("TempleRasterResizeParagraphs", model.external_used)
+        self.assertFalse(any("hires" in name for name in model.external_used))
         self.assertTrue(set(model.classes).isdisjoint({
             "HIRES_DEPTH_PLANE", "HIRES_RASTER_TARGET", "HIRES_RASTER_CONTEXT",
         }), "SDL companion raster types must stay outside the native model")

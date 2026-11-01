@@ -972,7 +972,7 @@ static void plant_check_vertices(const struct TRANSFORMEDSHAPE3D *instance,
 	assert(mesh->shape3d_numverts == plant_capture_source.shape3d_numverts);
 	assert(instance->rotvec.z == 0);
 	legacy_u8 sloped = plant_capture_object.slope_x || plant_capture_object.slope_y;
-	legacy_u8 upright = supersight_enabled && sloped;
+	legacy_u8 upright = renderer_active && sloped;
 	legacy_u16 roots = 0, upper = 0;
 	legacy_f64 tolerance =
 		vertices ? PLANT_RENDER_PRECISE_TOLERANCE : PLANT_RENDER_ROUNDING_TOLERANCE;
@@ -1825,9 +1825,9 @@ static legacy_u16 check_consecutive_hill_seams(void)
 					}
 				}
 				activate_render_track(&track, road);
-				for (legacy_s32 scale = supersight_enabled ? HIRES_SCALE : 1; scale;
-					 scale = supersight_enabled ? scale / 2 : 0) {
-					if (supersight_enabled) {
+				for (legacy_s32 scale = renderer_active ? HIRES_SCALE : 1; scale;
+					 scale = renderer_active ? scale / 2 : 0) {
+					if (renderer_active) {
 						hires_set_render_scale(scale);
 					}
 					for (legacy_u8 camera = 0; camera < SEAM_RENDER_DIRECTION_COUNT; camera++) {
@@ -1835,15 +1835,15 @@ static legacy_u16 check_consecutive_hill_seams(void)
 						// Ice highlights share the real sky color. Give the background
 						// a distinct marker so visible ice cannot look like a hole.
 						legacy_s16 saved_sky = skybox.sky_color;
-						if (supersight_enabled) {
+						if (renderer_active) {
 							skybox.sky_color = SEAM_RENDER_SKY_MARKER;
 							assert(!seam_render_terrain_pixel(RENDER_CAPTURE_OPAQUE_ALPHA |
 															  SEAM_RENDER_SKY_MARKER *
 																  RENDER_CAPTURE_INDEX_RGB_STEP));
 						}
-						render_capture_mark_sky = supersight_enabled != 0;
+						render_capture_mark_sky = renderer_active != 0;
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
-						seam_capture_hill_shapes = supersight_enabled && road != 0;
+						seam_capture_hill_shapes = renderer_active && road != 0;
 						seam_captured_road_parents = seam_captured_marking_vertices = 0;
 #endif
 						size_t size;
@@ -1863,13 +1863,13 @@ static legacy_u16 check_consecutive_hill_seams(void)
 						size_t gaps = seam_render_interior_sky(pixels, width, height);
 						skybox.sky_color = saved_sky;
 						render_capture_mark_sky = 0;
-						if (supersight_enabled && gaps) {
+						if (renderer_active && gaps) {
 							fprintf(stderr,
 									"Consecutive hills base %u direction %u road %u camera %u "
 									"scale %d expose %zu interior sky pixels\n",
 									base, direction, road, camera, scale, gaps);
 						}
-						if (supersight_enabled) {
+						if (renderer_active) {
 							assert(gaps == 0);
 						} else {
 							for (size_t pixel = 0; pixel < size; pixel++) {
@@ -1885,7 +1885,7 @@ static legacy_u16 check_consecutive_hill_seams(void)
 		}
 	}
 	hires_set_render_scale(saved_scale);
-	if (!supersight_enabled) {
+	if (!renderer_active) {
 		printf("Consecutive hills classic pixel hash: %016" LEGACY_PRIx64 "\n", classic_hash);
 	}
 	extended_track_unload();
@@ -1955,7 +1955,7 @@ static legacy_u16 check_elevated_multitile_road(void)
 				if (base == 0) {
 					ground = pixels;
 					ground_size = size;
-				} else if (supersight_enabled) {
+				} else if (renderer_active) {
 					assert(size == ground_size);
 					legacy_s32 width, height;
 					assert(video_framebuffer(
@@ -1987,7 +1987,7 @@ static legacy_u16 check_elevated_multitile_road(void)
 					}
 					assert(covered == 0);
 				}
-				if (!supersight_enabled) {
+				if (!renderer_active) {
 					for (size_t pixel = 0; pixel < size; pixel++) {
 						classic_hash = (classic_hash ^ pixels[pixel]) * SEAM_RENDER_HASH_PRIME;
 					}
@@ -2000,7 +2000,7 @@ static legacy_u16 check_elevated_multitile_road(void)
 			free(ground);
 		}
 	}
-	if (!supersight_enabled) {
+	if (!renderer_active) {
 		printf("Elevated loops classic pixel hash: %016" LEGACY_PRIx64 "\n", classic_hash);
 	}
 	extended_track_unload();
@@ -2251,7 +2251,7 @@ static legacy_u16 check_sloped_stunt_rendering(void)
 										"Sloped stunt render kind %u base %u rotation %u grade %d "
 										"surface %u detail %u mode %d captured parts %u\n",
 										kind, base, rotation, grade, surface, detail,
-										supersight_enabled, stunt_capture_parts);
+										renderer_active, stunt_capture_parts);
 							}
 							assert(stunt_capture_parts == (1U << STUNT_RENDER_PART_COUNT) - 1U);
 							assert(stunt_capture_ground == 3U);
@@ -2477,12 +2477,12 @@ static legacy_u16 check_sloped_road_occlusion(void)
 		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
 		assert(cstrk_add_object(&track, &scenery, error, sizeof(error)));
 		assert(extended_track_activate(&track, error, sizeof(error)));
-		for (legacy_s32 scale = supersight_enabled ? HIRES_SCALE : HIRES_MINIMUM_SCALE; scale;
-			 scale = supersight_enabled ? scale / 2 : 0) {
-			if (supersight_enabled) {
+		for (legacy_s32 scale = renderer_active ? HIRES_SCALE : HIRES_MINIMUM_SCALE; scale;
+			 scale = renderer_active ? scale / 2 : 0) {
+			if (renderer_active) {
 				hires_set_render_scale(scale);
 			}
-			legacy_u8 camera_count = SLOPE_OCCLUSION_CAMERA_COUNT + (supersight_enabled != 0);
+			legacy_u8 camera_count = SLOPE_OCCLUSION_CAMERA_COUNT + (renderer_active != 0);
 			for (legacy_u8 camera = 0; camera < camera_count; camera++) {
 				struct CARSTATE *car = &state.playerstate;
 				car->car_rotate = (struct VECTOR){0, 0, 0};
@@ -2518,7 +2518,7 @@ static legacy_u16 check_sloped_road_occlusion(void)
 					minimum_road_pixels = SLOPE_OCCLUSION_MIN_GRAZING_ROAD_PIXELS;
 				}
 				legacy_s16 saved_sky = skybox.sky_color;
-				if (supersight_enabled) {
+				if (renderer_active) {
 					skybox.sky_color = SEAM_RENDER_SKY_MARKER;
 					render_capture_mark_sky = 1;
 				}
@@ -2531,7 +2531,7 @@ static legacy_u16 check_sloped_road_occlusion(void)
 				legacy_s32 width, height;
 				assert(video_framebuffer(dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0),
 										 &width, &height));
-				if (supersight_enabled) {
+				if (renderer_active) {
 					struct CSTRK_TRACK bare = track;
 					bare.object_count = 0;
 					assert(extended_track_activate(&bare, error, sizeof(error)));
@@ -2589,13 +2589,13 @@ static legacy_u16 check_sloped_road_occlusion(void)
 						}
 					}
 				}
-				if ((supersight_enabled && covered) || visible < minimum_road_pixels) {
+				if ((renderer_active && covered) || visible < minimum_road_pixels) {
 					fprintf(stderr,
 							"Sloped road %u camera %u mode %d has %zu/%zu covered asphalt pixels\n",
-							road.legacy_id, camera, supersight_enabled, covered, visible);
+							road.legacy_id, camera, renderer_active, covered, visible);
 				}
 				assert(visible >= minimum_road_pixels);
-				if (supersight_enabled) {
+				if (renderer_active) {
 					assert(covered == 0);
 				} else {
 					legacy_u64 hash = SEAM_RENDER_HASH_OFFSET;
@@ -2666,7 +2666,7 @@ static legacy_f64 capture_corner_terrain(const struct CSTRK_TRACK *track, legacy
 static legacy_u16 check_terrain_below_graded_turn(void)
 {
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
-	if (!supersight_enabled) {
+	if (!renderer_active) {
 		return 0;
 	}
 	/* The occupied diagonal follows a straight eastward slope. Its free NE
@@ -2756,7 +2756,7 @@ static legacy_u16 check_terrain_below_graded_turn(void)
 static legacy_u16 check_generated_terrain_bounds(void)
 {
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
-	if (!supersight_enabled) {
+	if (!renderer_active) {
 		return 0;
 	}
 	struct GAMESTATE saved_state = state;
@@ -2885,7 +2885,7 @@ static legacy_u16 check_reversed_native_slope_rendering(void)
 	native_slope_capture_definitions[1] =
 		definition->ss_ssOvelay ? frame_track_object_from_legacy_index(definition->ss_ssOvelay)
 								: NULL;
-	native_slope_capture_active = supersight_enabled != 0;
+	native_slope_capture_active = renderer_active != 0;
 	native_slope_capture_parts = 0;
 	native_slope_capture_markings = 0;
 #endif
@@ -2908,13 +2908,13 @@ static legacy_u16 check_reversed_native_slope_rendering(void)
 	legacy_u32 *pixels = capture_complete_render(&size);
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 	native_slope_capture_active = 0;
-	if (supersight_enabled) {
+	if (renderer_active) {
 		legacy_u8 expected = definition->ss_ssOvelay ? (1U << STUNT_RENDER_PART_COUNT) - 1U : 1U;
 		assert(native_slope_capture_parts == expected);
 		assert(native_slope_capture_markings > 0);
 	}
 #endif
-	if (!supersight_enabled) {
+	if (!renderer_active) {
 		legacy_u64 hash = SEAM_RENDER_HASH_OFFSET;
 		for (size_t pixel = 0; pixel < size; pixel++) {
 			hash = (hash ^ pixels[pixel]) * SEAM_RENDER_HASH_PRIME;
@@ -3079,7 +3079,7 @@ static void check_upright_sloped_plants(void)
 						assert(!extended_frame_draw_objects(&tile, &camera, 0));
 						plant_capture_active = 0;
 						assert(plant_capture_calls == 1);
-						assert(plant_capture_precise == (supersight_enabled && slope != 0));
+						assert(plant_capture_precise == (renderer_active && slope != 0));
 						lifts[detail] = plant_capture_lift;
 						extended_geometry_free_shape(&plant_capture_source);
 						submissions++;
@@ -3093,7 +3093,7 @@ static void check_upright_sloped_plants(void)
 	extended_track_unload();
 	cstrk_free(&track);
 	printf("Upright plant geometry: %u submissions in %s mode.\n", submissions,
-		   supersight_enabled ? "HyperVision" : "classic");
+		   renderer_active ? "HyperVision" : "classic");
 }
 #endif
 
@@ -3178,7 +3178,7 @@ static void check_combined_stunt_meshes(void)
 						   (1U << COMBINED_STUNT_RENDER_PART_COUNT) - 1U);
 					assert(combined_stunt_capture_calls == COMBINED_STUNT_RENDER_PART_COUNT);
 					assert(combined_stunt_capture_precise ==
-						   (supersight_enabled && slope ? COMBINED_STUNT_RENDER_PART_COUNT : 0));
+						   (renderer_active && slope ? COMBINED_STUNT_RENDER_PART_COUNT : 0));
 					for (legacy_u8 part = 0; part < COMBINED_STUNT_RENDER_PART_COUNT; part++) {
 						extended_geometry_free_shape(&combined_stunt_capture_meshes[part]);
 					}
@@ -3190,7 +3190,7 @@ static void check_combined_stunt_meshes(void)
 	extended_track_unload();
 	cstrk_free(&track);
 	printf("Tunnel with slalom: %u three-part submissions in %s mode.\n", cases,
-		   supersight_enabled ? "HyperVision" : "classic");
+		   renderer_active ? "HyperVision" : "classic");
 }
 #endif
 
@@ -3245,7 +3245,7 @@ static legacy_u16 check_combined_stunt_rendering(void)
 					fprintf(stderr,
 							"Tunnel with slalom pixels mode %d slope %u detail %u baseline %u "
 							"changed %zu\n",
-							supersight_enabled, sloped, detail, variant, changed);
+							renderer_active, sloped, detail, variant, changed);
 				}
 				assert(changed > SURFACE_RENDER_MIN_CHANGED_PIXELS);
 			}
@@ -3481,7 +3481,7 @@ static void check_roll_ramp_submissions(void)
 	extended_track_unload();
 	cstrk_free(&track);
 	printf("Roll ramp geometry: %u submissions in %s mode.\n", submissions,
-		   supersight_enabled ? "HyperVision" : "classic");
+		   renderer_active ? "HyperVision" : "classic");
 }
 #endif
 
@@ -3576,7 +3576,7 @@ static void check_highway_transition_paints(void)
 					for (legacy_u16 paint = 0; paint < source->shape3d_numpaints; paint++) {
 						assert(original[SHAPE3D_PRIMITIVE_HEADER_SIZE + paint] == material);
 					}
-					if (supersight_enabled != 0) {
+					if (renderer_active != 0) {
 						expected = material == HIGHWAY_RENDER_ASPHALT_MATERIAL
 									   ? road_materials[surface]
 									   : marking_materials[surface];
@@ -3659,7 +3659,7 @@ static legacy_u16 check_highway_transition_surfaces(void)
 			}
 			for (legacy_u8 surface = CSTRK_ROAD_DIRT; surface <= CSTRK_ROAD_ICE; surface++) {
 				assert(sizes[surface] == sizes[CSTRK_ROAD_PAVED]);
-				if (supersight_enabled != 0) {
+				if (renderer_active != 0) {
 					size_t changed = 0;
 					for (size_t pixel = 0; pixel < sizes[surface]; pixel++) {
 						changed += pixels[surface][pixel] != pixels[CSTRK_ROAD_PAVED][pixel];
@@ -3895,7 +3895,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	visual_clock_frozen = 1;
 	unsigned frames = 0;
 	for (unsigned enhanced = 0; enhanced < 2U; enhanced++) {
-		if ((unsigned)(supersight_enabled != 0) != enhanced) {
+		if ((unsigned)(renderer_active != 0) != enhanced) {
 			assert(handle_ingame_kb_shortcuts(KEY_F12));
 		}
 		cameramode = CAMERA_MODE_CUSTOM;

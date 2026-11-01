@@ -390,22 +390,22 @@ static void test_ghost_preserves_normal_point_indices(void)
 	shape3d_set_legacy_render_stack(0, 0, 0, 0);
 }
 
-static void test_supersight_render_capacity(void)
+static void test_renderer_render_capacity(void)
 {
 	shape3d_set_legacy_render_stack(0, 0, 0, 0);
-	static legacy_u8 queue[32U + POLYINFO_SUPERSIGHT_DATA_SIZE];
+	static legacy_u8 queue[32U + POLYINFO_STORAGE_DATA_SIZE];
 	static legacy_u8 clipped_record[66] = {0, 0, 0, 15, RENDER_PRIMITIVE_POLYGON, 0};
 	LEGACY_WRITE_U16_LE(clipped_record + 62, 123);
 	LEGACY_WRITE_U16_LE(clipped_record + 64, 45);
 	static const legacy_u8 modes[] = {1, 0};
 	for (legacy_u32 test = 0; test < sizeof(modes) / sizeof(modes[0]); test++) {
-		polyinfo_set_supersight(modes[test]);
+		polyinfo_set_expanded(modes[test]);
 		queue_polygon(0);
 		legacy_u16 capacity = modes[test] != 0U ? 592U : 400U;
 		legacy_u8 *record = modes[test] != 0U ? clipped_record : polygon_record;
 		expected_polygon_vertices = record[3];
 		polyinfoptr = queue + 32;
-		legacy_u16 offset = modes[test] != 0U ? POLYINFO_SUPERSIGHT_DATA_SIZE - 66U : 0U;
+		legacy_u16 offset = modes[test] != 0U ? POLYINFO_STORAGE_DATA_SIZE - 66U : 0U;
 		memcpy(polyinfoptr, record, modes[test] != 0U ? 66U : sizeof(polygon_record));
 		memcpy(polyinfoptr + offset, record, modes[test] != 0U ? 66U : sizeof(polygon_record));
 		polyinfonumpolys = capacity;
@@ -518,6 +518,6 @@ int main(void)
 	test_rendered_player_crash_transition();
 	test_ghost_material_and_physics_isolation();
 	test_ghost_preserves_normal_point_indices();
-	test_supersight_render_capacity();
+	test_renderer_render_capacity();
 	return 0;
 }

@@ -41,7 +41,7 @@ static legacy_u8 visited_tiles[CSTRK_MAX_OBJECTS];
 static legacy_u8 lap_tiles[CSTRK_MAX_OBJECTS];
 static legacy_u32 preview_ticks;
 static legacy_s32 preview_hires;
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 
 static legacy_u32 fill_count, outline_count, clear_count;
 static legacy_u32 tile_count, flush_count, origin_count, reset_count;
@@ -332,7 +332,7 @@ static void add_object(legacy_u16 id, legacy_u8 x, legacy_u8 y, legacy_u8 width,
 static struct SHAPE3D_HIRES_VECTOR render_3d(legacy_u32 ticks)
 {
 	preview_ticks = ticks;
-	preview_hires = supersight_enabled = 1;
+	preview_hires = renderer_active = 1;
 	reset_capture();
 	draw_track_preview();
 	assert(tile_count == (legacy_u32)preview_track.width * preview_track.height);
@@ -473,7 +473,7 @@ static void test_equal_lap_tile_weight(void)
 	bounds.max_y = 2 * CSTRK_LEVEL_WORLD_HEIGHT;
 	assert_orbit_center(9 * CSTRK_TILE_WORLD_SIZE, CSTRK_LEVEL_WORLD_HEIGHT,
 						64 * CSTRK_TILE_WORLD_SIZE, &bounds);
-	preview_hires = supersight_enabled = 0;
+	preview_hires = renderer_active = 0;
 	reset_capture();
 	draw_track_preview();
 	assert(fill_count == 90U * 70U + 8U);

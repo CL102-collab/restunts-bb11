@@ -1054,7 +1054,7 @@ static legacy_u8 scene_vertices[10U * SHAPE3D_VERTEX_SIZE];
 static legacy_u8 scene_primitives[64];
 static legacy_u8 scene_visibility[16];
 static legacy_u8 scene_front_facing[16];
-static legacy_u8 scene_polyinfo[POLYINFO_SUPERSIGHT_DATA_SIZE];
+static legacy_u8 scene_polyinfo[POLYINFO_STORAGE_DATA_SIZE];
 static legacy_s16 scene_colors[] = {7, 8, 9, 10};
 static legacy_s16 scene_patterns[4];
 static struct SHAPE3D scene_shape;
@@ -1843,7 +1843,7 @@ static void test_hypervision_full_scene_queue(void)
 	const legacy_u32 shape_count = 23334;
 	const legacy_u32 count = shape_count * 3U;
 	prepare_scene(vertices, 3, primitives, sizeof(primitives), 1);
-	polyinfo_set_supersight(1);
+	polyinfo_set_expanded(1);
 	for (legacy_u32 index = 0; index < shape_count; index++) {
 		scene_instance.pos.x = index == 0 ? -200 : index + 1U == shape_count ? 200 : 0;
 		if (index + 1U == shape_count) {
@@ -1877,7 +1877,7 @@ static void test_hypervision_full_scene_queue(void)
 
 	/* F12 restores the exact legacy limit even after native queues have grown.
 	 * A new target buffer must also be safe when reusing the cached allocation. */
-	polyinfo_set_supersight(0);
+	polyinfo_set_expanded(0);
 	const legacy_u8 point[] = {1, 0, 0, 0, 0, 0};
 	prepare_scene(vertices, 1, point, sizeof(point), 0);
 	for (legacy_u32 index = 1; index < POLYINFO_LEGACY_PRIMITIVE_CAPACITY; index++) {
@@ -1886,7 +1886,7 @@ static void test_hypervision_full_scene_queue(void)
 	assert(shape3d_transform_and_queue(&scene_instance) == 1);
 	assert(shape3d_queued_primitive_count() == POLYINFO_LEGACY_PRIMITIVE_CAPACITY);
 	prepare_scene(vertices, 1, point, sizeof(point), 1);
-	polyinfo_set_supersight(1);
+	polyinfo_set_expanded(1);
 	for (legacy_u32 index = 0; index < 2000; index++) {
 		assert(shape3d_transform_and_queue(&scene_instance) == 0);
 	}
@@ -1894,7 +1894,7 @@ static void test_hypervision_full_scene_queue(void)
 	assert(polyinfonumpolys == 0 && polyinfoptrnext == 0);
 	shape3d_render_queued_primitives();
 	assert(count_color(7) != 0);
-	polyinfo_set_supersight(0);
+	polyinfo_set_expanded(0);
 }
 
 /* Every primitive is queued before recording the immutable batch. The wide
@@ -2902,7 +2902,7 @@ static void test_projected_car_shadow_wheel_contacts(void)
 	for (legacy_s16 heading = 0; heading < ANGLE_FULL_TURN; heading += ANGLE_EIGHTH_TURN) {
 		begin_projected_shadow_scene(heading, ANGLE_EIGHTH_TURN, PROJECTED_SHADOW_FOCAL_LENGTH);
 		shape3d_hires_shadow_projected_model(&shadow_model,
-											 shape3d_car_ground_height(&shadow_model));
+											 shape3d_hires_car_ground_height(&shadow_model));
 		finish_projected_shadow_scene();
 		legacy_f64 cosine = cos_fast(heading) / (legacy_f64)TRIG_FIXED_ONE;
 		legacy_f64 sine = sin_fast(heading) / (legacy_f64)TRIG_FIXED_ONE;
@@ -2966,7 +2966,7 @@ static void test_projected_car_shadow_height_and_cache(void)
 		prepare_projected_shadow_panels(ground_heights[index]);
 		shape3d_hires_shadow_models_reset();
 		begin_projected_shadow_scene(0, ANGLE_QUARTER_TURN, PROJECTED_SHADOW_FOCAL_LENGTH);
-		assert(shape3d_car_ground_height(&projected_shadow_model) == ground_heights[index]);
+		assert(shape3d_hires_car_ground_height(&projected_shadow_model) == ground_heights[index]);
 		shape3d_hires_shadow_projected_model(&projected_shadow_model, ground_heights[index]);
 		assert(finish_projected_shadow_scene() == projected);
 	}
@@ -2993,7 +2993,7 @@ static void test_projected_car_shadow_sphere_contacts(void)
 		for (legacy_s16 heading = 0; heading < ANGLE_FULL_TURN; heading += ANGLE_EIGHTH_TURN) {
 			begin_projected_shadow_scene(heading, ANGLE_QUARTER_TURN, focal_lengths[focal]);
 			shape3d_hires_shadow_projected_model(
-				&projected_shadow_model, shape3d_car_ground_height(&projected_shadow_model));
+				&projected_shadow_model, shape3d_hires_car_ground_height(&projected_shadow_model));
 			finish_projected_shadow_scene();
 			assert(projected_shadow_samples_near(0, 0) > 0);
 			/* The control vertex describes a diameter; the transverse shadow

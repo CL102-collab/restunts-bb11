@@ -27,36 +27,36 @@
 #include "shape3d_queue.h"
 
 #ifdef RESTUNTS_SDL3
-struct HYPERVISION_SCENE_PRIMITIVE *hypervision_scene;
-legacy_u32 hypervision_scene_count;
-static legacy_u32 hypervision_scene_capacity;
+struct HIRES_BACKEND_SCENE_PRIMITIVE *hires_backend_scene;
+legacy_u32 hires_backend_scene_count;
+static legacy_u32 hires_backend_scene_capacity;
 #endif
 
 #ifdef RESTUNTS_SDL3
 
-void hypervision_scene_reserve(void)
+void hires_backend_scene_reserve(void)
 {
-	if (hypervision_scene_count < hypervision_scene_capacity) {
+	if (hires_backend_scene_count < hires_backend_scene_capacity) {
 		return;
 	}
-	if (hypervision_scene_capacity > LEGACY_U32_MAX / 2U) {
+	if (hires_backend_scene_capacity > LEGACY_U32_MAX / 2U) {
 		fatal_error("HyperVision scene has too many primitives");
 		return;
 	}
-	size_t capacity = hypervision_scene_capacity != 0 ? (size_t)hypervision_scene_capacity * 2U
-													  : POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY;
-	if (capacity > LEGACY_U32_MAX || capacity > (size_t)-1 / sizeof(*hypervision_scene)) {
+	size_t capacity = hires_backend_scene_capacity != 0 ? (size_t)hires_backend_scene_capacity * 2U
+														: HIRES_INITIAL_PRIMITIVE_CAPACITY;
+	if (capacity > LEGACY_U32_MAX || capacity > (size_t)-1 / sizeof(*hires_backend_scene)) {
 		fatal_error("HyperVision scene exceeds addressable memory");
 		return;
 	}
-	struct HYPERVISION_SCENE_PRIMITIVE *scene =
-		realloc(hypervision_scene, capacity * sizeof(*hypervision_scene));
+	struct HIRES_BACKEND_SCENE_PRIMITIVE *scene =
+		realloc(hires_backend_scene, capacity * sizeof(*hires_backend_scene));
 	if (scene == NULL) {
 		fatal_error("Cannot allocate HyperVision scene metadata");
 		return;
 	}
-	hypervision_scene = scene;
-	hypervision_scene_capacity = (legacy_u32)capacity;
+	hires_backend_scene = scene;
+	hires_backend_scene_capacity = (legacy_u32)capacity;
 }
 
 void shape3d_hires_adjust_sort(legacy_u16 *sort_by_depth)
@@ -68,7 +68,7 @@ void shape3d_hires_adjust_sort(legacy_u16 *sort_by_depth)
 }
 void shape3d_hires_scene_reset(void)
 {
-	hypervision_scene_count = 0;
+	hires_backend_scene_count = 0;
 	shape3d_hires_reset();
 }
 #endif

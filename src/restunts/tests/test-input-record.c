@@ -61,10 +61,10 @@ struct CARSTATE *ghost_car_state(void)
 
 static legacy_u32 trace_hash, random_state = 1;
 static legacy_u32 fps_reset_count;
-static legacy_u32 supersight_reset_count;
+static legacy_u32 renderer_reset_count;
 #define TEST_SUPERSIGHT_STATUS_CAPACITY 16
-static legacy_u32 supersight_status_count;
-static legacy_s8 supersight_status[TEST_SUPERSIGHT_STATUS_CAPACITY];
+static legacy_u32 renderer_status_count;
+static legacy_s8 renderer_status[TEST_SUPERSIGHT_STATUS_CAPACITY];
 #ifdef RESTUNTS_SDL3
 static legacy_u16 touch_shift_flags;
 
@@ -103,19 +103,19 @@ void hires_set_render_scale(legacy_s32 scale)
 }
 #endif
 
-void frame_supersight_show_status(const legacy_s8 *name)
+void frame_renderer_show_status(const legacy_s8 *name)
 {
 	size_t length = strlen((const legacy_char *)name);
-	assert(length < sizeof(supersight_status));
-	memcpy(supersight_status, name, length + 1);
-	supersight_status_count++;
+	assert(length < sizeof(renderer_status));
+	memcpy(renderer_status, name, length + 1);
+	renderer_status_count++;
 }
 
-void frame_supersight_reset(void)
+void frame_renderer_reset(void)
 {
-	supersight_reset_count++;
+	renderer_reset_count++;
 #ifdef RESTUNTS_SDL3
-	frame_adaptive_restart(&frame_adaptive);
+	frame_hires_adaptive_restart(&frame_hires_adaptive);
 #endif
 }
 
@@ -332,9 +332,9 @@ static void reset_inputs(void)
 	memset(key_states, 0, sizeof(key_states));
 	memset(mouse_samples, 0, sizeof(mouse_samples));
 	keyboard_char = joystick_flags = 0;
-	supersight_enabled = fps_display_enabled = 0;
-	fps_reset_count = supersight_reset_count = supersight_status_count = 0;
-	supersight_status[0] = 0;
+	renderer_active = fps_display_enabled = 0;
+	fps_reset_count = renderer_reset_count = renderer_status_count = 0;
+	renderer_status[0] = 0;
 #ifdef RESTUNTS_SDL3
 	touch_shift_flags = 0;
 	controller_mode_set = controller_switch_to_keyboard = 0;
@@ -342,7 +342,7 @@ static void reset_inputs(void)
 	controller_x = controller_pedals = controller_shifts = controller_camera = 0;
 	tilt_x = 0;
 	tilt_sample_count = 0;
-	frame_adaptive_reset(&frame_adaptive);
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
 	render_timing_reset_count = 0;
 	hires_enabled_transitions = 0;
 	test_hires_enabled = 0;
@@ -981,10 +981,10 @@ static void test_custom_camera_switches(void)
 	}
 }
 
-static void assert_supersight_status(const legacy_char *expected, legacy_u32 count)
+static void assert_renderer_status(const legacy_char *expected, legacy_u32 count)
 {
-	assert(supersight_status_count == count);
-	assert(strcmp((const legacy_char *)supersight_status, expected) == 0);
+	assert(renderer_status_count == count);
+	assert(strcmp((const legacy_char *)renderer_status, expected) == 0);
 }
 
 static void test_display_shortcuts(void)
@@ -1002,38 +1002,38 @@ static void test_display_shortcuts(void)
 			game_replay_mode = mode;
 			cameramode = camera;
 			followOpponentFlag = 1;
-			assert(supersight_enabled == 0 && fps_display_enabled == FRAME_FPS_DISPLAY_OFF);
+			assert(renderer_active == 0 && fps_display_enabled == FRAME_FPS_DISPLAY_OFF);
 			assert(handle_ingame_kb_shortcuts(KEY_F11) == 1);
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && supersight_enabled == 0);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && renderer_active == 0);
 			assert(fps_reset_count == 1);
-			assert(supersight_status_count == 0);
+			assert(renderer_status_count == 0);
 			assert(full_redraw_frames_remaining == video_page_count);
 			full_redraw_frames_remaining = 0;
 			assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && supersight_enabled == 1);
-			assert(supersight_reset_count == 1);
-			assert_supersight_status(enabled_status, 1);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && renderer_active == 1);
+			assert(renderer_reset_count == 1);
+			assert_renderer_status(enabled_status, 1);
 			assert(full_redraw_frames_remaining == video_page_count);
 			assert(game_replay_mode == mode && cameramode == camera);
 			assert(followOpponentFlag == 1);
 			/* Camera changes and live/replay transitions retain the session toggles. */
 			assert(handle_ingame_kb_shortcuts(KEY_F2) == 1);
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && supersight_enabled == 1);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_ON && renderer_active == 1);
 			assert(handle_ingame_kb_shortcuts(KEY_F11) == 1);
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && supersight_enabled == 1);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && renderer_active == 1);
 			assert(fps_reset_count == FRAME_FPS_DISPLAY_MODE_COUNT);
 			assert(full_redraw_frames_remaining == video_page_count);
-			assert_supersight_status(enabled_status, 1);
+			assert_renderer_status(enabled_status, 1);
 			assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && supersight_enabled == 0);
-			assert(supersight_reset_count == 2);
-			assert_supersight_status("Off", 2);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && renderer_active == 0);
+			assert(renderer_reset_count == 2);
+			assert_renderer_status("Off", 2);
 			/* Both toggle directions request status while the FPS display is off. */
 			assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && supersight_enabled == 1);
-			assert(supersight_reset_count == 3);
-			assert_supersight_status(enabled_status, 3);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && renderer_active == 1);
+			assert(renderer_reset_count == 3);
+			assert_renderer_status(enabled_status, 3);
 		}
 	}
 }
@@ -1074,14 +1074,14 @@ static void test_shift_f12_callback(void)
 static void test_locked_display_shortcuts(void)
 {
 	static const struct {
-		enum FRAME_ADAPTIVE_PRESET preset;
+		enum FRAME_HIRES_ADAPTIVE_PRESET preset;
 		legacy_s32 scale;
 		const legacy_char *name;
-	} presets[] = {{FRAME_ADAPTIVE_PRESET_FULL, FRAME_ADAPTIVE_FULL_SCALE, "Full"},
-				   {FRAME_ADAPTIVE_PRESET_HIGH, FRAME_ADAPTIVE_FULL_SCALE, "High"},
-				   {FRAME_ADAPTIVE_PRESET_MEDIUM, FRAME_ADAPTIVE_HALF_SCALE, "Medium"},
-				   {FRAME_ADAPTIVE_PRESET_LOW, FRAME_ADAPTIVE_MINIMUM_SCALE, "Low"},
-				   {FRAME_ADAPTIVE_PRESET_FULL, FRAME_ADAPTIVE_FULL_SCALE, "Full"}};
+	} presets[] = {{FRAME_HIRES_ADAPTIVE_PRESET_FULL, FRAME_HIRES_ADAPTIVE_FULL_SCALE, "Full"},
+				   {FRAME_HIRES_ADAPTIVE_PRESET_HIGH, FRAME_HIRES_ADAPTIVE_FULL_SCALE, "High"},
+				   {FRAME_HIRES_ADAPTIVE_PRESET_MEDIUM, FRAME_HIRES_ADAPTIVE_HALF_SCALE, "Medium"},
+				   {FRAME_HIRES_ADAPTIVE_PRESET_LOW, FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE, "Low"},
+				   {FRAME_HIRES_ADAPTIVE_PRESET_FULL, FRAME_HIRES_ADAPTIVE_FULL_SCALE, "Full"}};
 	for (legacy_u8 mode = REPLAY_MODE_LIVE; mode <= REPLAY_MODE_PAUSED; mode++) {
 		for (legacy_u16 camera = CAMERA_MODE_COCKPIT; camera < CAMERA_MODE_COUNT; camera++) {
 			for (legacy_u8 start_auto = 0; start_auto <= 1; start_auto++) {
@@ -1092,22 +1092,23 @@ static void test_locked_display_shortcuts(void)
 				legacy_u32 status_count = 0;
 				if (start_auto != 0) {
 					assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-					assert(supersight_enabled == 1 &&
-						   frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
-					assert_supersight_status("Auto", ++status_count);
+					assert(renderer_active == 1 &&
+						   frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
+					assert_renderer_status("Auto", ++status_count);
 					/* An already reduced auto stage still enters the first lock. */
-					frame_adaptive.quality = FRAME_ADAPTIVE_SMALL_VIEW;
-					test_hires_scale = FRAME_ADAPTIVE_MINIMUM_SCALE;
+					frame_hires_adaptive.quality = FRAME_HIRES_ADAPTIVE_SMALL_VIEW;
+					test_hires_scale = FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE;
 				}
 				for (size_t preset = 0; preset < sizeof(presets) / sizeof(presets[0]); preset++) {
 					full_redraw_frames_remaining = 0;
 					assert(handle_ingame_kb_shortcuts(KEY_SHIFT_F12) == 1);
-					assert(supersight_enabled == 1 && test_hires_enabled == 1);
-					assert(frame_adaptive.preset == presets[preset].preset);
+					assert(renderer_active == 1 && test_hires_enabled == 1);
+					assert(frame_hires_adaptive.preset == presets[preset].preset);
 					assert(test_hires_scale == presets[preset].scale);
-					assert(frame_adaptive_render_scale(&frame_adaptive) == presets[preset].scale);
+					assert(frame_hires_adaptive_render_scale(&frame_hires_adaptive) ==
+						   presets[preset].scale);
 					assert(full_redraw_frames_remaining == video_page_count);
-					assert_supersight_status(presets[preset].name, ++status_count);
+					assert_renderer_status(presets[preset].name, ++status_count);
 					/* Selecting locked modes never cycles the output mode, and their
 					 * status is still requested with the FPS display switched off. */
 					assert(hires_enabled_transitions == 1 && fps_display_enabled == 0);
@@ -1123,17 +1124,17 @@ static void test_locked_display_shortcuts(void)
 		for (size_t press = 0; press <= preset; press++) {
 			assert(handle_ingame_kb_shortcuts(KEY_SHIFT_F12) == 1);
 		}
-		legacy_u32 status_count = supersight_status_count;
+		legacy_u32 status_count = renderer_status_count;
 		assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-		assert(supersight_enabled == 0 && test_hires_enabled == 0);
+		assert(renderer_active == 0 && test_hires_enabled == 0);
 		assert(test_hires_scale == HIRES_SCALE && hires_enabled_transitions == 2);
-		assert_supersight_status("Off", ++status_count);
+		assert_renderer_status("Off", ++status_count);
 		assert(handle_ingame_kb_shortcuts(KEY_F12) == 1);
-		assert(supersight_enabled == 1 && test_hires_enabled == 1);
-		assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
-		assert(frame_adaptive.quality == FRAME_ADAPTIVE_FULL_VIEW);
+		assert(renderer_active == 1 && test_hires_enabled == 1);
+		assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
+		assert(frame_hires_adaptive.quality == FRAME_HIRES_ADAPTIVE_FULL_VIEW);
 		assert(test_hires_scale == HIRES_SCALE && hires_enabled_transitions == 3);
-		assert_supersight_status("Auto", ++status_count);
+		assert_renderer_status("Auto", ++status_count);
 		assert(fps_display_enabled == 0);
 	}
 }

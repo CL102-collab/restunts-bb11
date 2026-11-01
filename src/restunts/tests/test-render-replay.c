@@ -144,7 +144,7 @@ static void interpolate_and_check(struct GAMESTATE *result, const struct GAMESTA
 	memcpy(checkpoints, cvxptr, sizeof(checkpoints));
 	get_kevinrandom_seed(seed_before);
 	capture_physics_scratch(&before);
-	frame_interpolate_state(result, &state, previous, fraction);
+	frame_hires_interpolate_state(result, &state, previous, fraction);
 	get_kevinrandom_seed(seed_after);
 	capture_physics_scratch(&after);
 	assert(memcmp(&saved, &state, sizeof(state)) == 0);
@@ -156,7 +156,7 @@ static void interpolate_and_check(struct GAMESTATE *result, const struct GAMESTA
 	assert(result->game_frame == state.game_frame);
 	/* Repeated presentations must depend only on the two authoritative snapshots. */
 	struct GAMESTATE repeated;
-	frame_interpolate_state(&repeated, &state, previous, fraction);
+	frame_hires_interpolate_state(&repeated, &state, previous, fraction);
 	assert(memcmp(result, &repeated, sizeof(repeated)) == 0);
 }
 
@@ -250,9 +250,9 @@ static void render_and_check(const struct GAMESTATE *snapshot)
 	capture_scratch(&before);
 	sprite_select_render_window();
 	if (snapshot != NULL) {
-		update_frame_snapshot(0, &rect_windshield, snapshot, NULL, NULL);
-	} else if (supersight_enabled != 0) {
-		update_frame_snapshot(0, &rect_windshield, &saved, NULL, NULL);
+		hires_update_frame_snapshot(0, &rect_windshield, snapshot, NULL, NULL);
+	} else if (renderer_active != 0) {
+		hires_update_frame_snapshot(0, &rect_windshield, &saved, NULL, NULL);
 	} else {
 		update_frame(0, &rect_windshield);
 	}
@@ -261,7 +261,7 @@ static void render_and_check(const struct GAMESTATE *snapshot)
 	assert(memcmp(&saved, &state, sizeof(state)) == 0);
 	assert(memcmp(&saved_config, &gameconfig, sizeof(gameconfig)) == 0);
 	assert(memcmp(seed_before, seed_after, sizeof(seed_before)) == 0);
-	if (snapshot != NULL || supersight_enabled != 0) {
+	if (snapshot != NULL || renderer_active != 0) {
 		capture_scratch(&after);
 		assert(memcmp(&before, &after, sizeof(before)) == 0);
 	}
@@ -417,13 +417,13 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		assert((legacy_u16)state.game_frame == tick);
 		legacy_s16 enhanced = mode == 1 || mode == RENDER_REPLAY_ADAPTIVE_MODE ||
 							  (mode == 2 && (tick / 17U) % 2U != 0);
-		if (enhanced != supersight_enabled) {
+		if (enhanced != renderer_active) {
 			assert(handle_ingame_kb_shortcuts(KEY_F12) != 0);
 		}
 		if (mode == RENDER_REPLAY_ADAPTIVE_MODE) {
 			/* Sweep every reduction and recovery state independently of host speed. */
-			frame_adaptive.quality = tick % (FRAME_ADAPTIVE_MAX_QUALITY + 1U);
-			hires_set_render_scale(frame_adaptive_render_scale(&frame_adaptive));
+			frame_hires_adaptive.quality = tick % (FRAME_HIRES_ADAPTIVE_MAX_QUALITY + 1U);
+			hires_set_render_scale(frame_hires_adaptive_render_scale(&frame_hires_adaptive));
 		}
 		/* Cover each camera and both targets without modifying recorded input. */
 		cameramode = (legacy_s8)((tick / 29U) % CAMERA_MODE_COUNT);
@@ -435,7 +435,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			check_authoritative_event_visuals();
 		}
 		if (enhanced != 0 && tick != 0) {
-			legacy_u16 count = PRESENTATION_RATE / gameconfig.game_framespersec;
+			legacy_u16 count = HIRES_PRESENTATION_RATE / gameconfig.game_framespersec;
 			struct GAMESTATE last;
 			interpolate_and_check(&last, &previous, 0);
 			/* Match production: sample the completed interval in 60 Hz slots,

@@ -15,11 +15,11 @@
 
 #include "shape3d_hires_internal.h"
 
-static void shadow_update_volume(struct HIRES_CAR_SHADOW *shadow);
+static void hires_shadow_update_volume(struct HIRES_CAR_SHADOW *shadow);
 
 static struct SHADOW_SILHOUETTE_POINT
-shadow_project_point(const struct SHADOW_SILHOUETTE *silhouette, legacy_f64 x, legacy_f64 y,
-					 legacy_f64 z)
+hires_shadow_project_point(const struct SHADOW_SILHOUETTE *silhouette, legacy_f64 x, legacy_f64 y,
+						   legacy_f64 z)
 {
 	const struct SHADOW_PROJECTION *projection = &silhouette->projection;
 	legacy_f64 height = y - projection->ground_height;
@@ -29,9 +29,9 @@ shadow_project_point(const struct SHADOW_SILHOUETTE *silhouette, legacy_f64 x, l
 /* Union the authored shape3d_hires_state.primitives in the receiving plane. Separate polygons
  * preserve gaps beside open-wheel suspension; the projected mode anchors
  * ground-level vertices while higher geometry travels along the light. */
-static void shadow_silhouette_polygon(struct SHADOW_SILHOUETTE *silhouette,
-									  const struct SHADOW_SILHOUETTE_POINT *points,
-									  legacy_s32 count, legacy_s32 rasterize)
+static void hires_shadow_silhouette_polygon(struct SHADOW_SILHOUETTE *silhouette,
+											const struct SHADOW_SILHOUETTE_POINT *points,
+											legacy_s32 count, legacy_s32 rasterize)
 {
 	if (!rasterize) {
 		for (legacy_s32 index = 0; index < count; index++) {
@@ -99,13 +99,14 @@ static void shadow_silhouette_polygon(struct SHADOW_SILHOUETTE *silhouette,
 	}
 }
 
-static void shadow_silhouette_line(struct SHADOW_SILHOUETTE *silhouette, const struct VECTOR *first,
-								   const struct VECTOR *last, legacy_s32 rasterize)
+static void hires_shadow_silhouette_line(struct SHADOW_SILHOUETTE *silhouette,
+										 const struct VECTOR *first, const struct VECTOR *last,
+										 legacy_s32 rasterize)
 {
 	struct SHADOW_SILHOUETTE_POINT start =
-		shadow_project_point(silhouette, first->x, first->y, first->z);
+		hires_shadow_project_point(silhouette, first->x, first->y, first->z);
 	struct SHADOW_SILHOUETTE_POINT end =
-		shadow_project_point(silhouette, last->x, last->y, last->z);
+		hires_shadow_project_point(silhouette, last->x, last->y, last->z);
 	legacy_f64 dx = end.x - start.x;
 	legacy_f64 dz = end.z - start.z;
 	legacy_f64 length = SDL_sqrt(dx * dx + dz * dz);
@@ -125,11 +126,11 @@ static void shadow_silhouette_line(struct SHADOW_SILHOUETTE *silhouette, const s
 												{end.x - x, end.z - z},
 												{end.x + x, end.z + z},
 												{start.x + x, start.z + z}};
-	shadow_silhouette_polygon(silhouette, points, 4, rasterize);
+	hires_shadow_silhouette_polygon(silhouette, points, 4, rasterize);
 }
 
-static void shadow_projected_wheel(struct SHADOW_SILHOUETTE *silhouette,
-								   const struct VECTOR *vertices, legacy_s32 rasterize)
+static void hires_shadow_projected_wheel(struct SHADOW_SILHOUETTE *silhouette,
+										 const struct VECTOR *vertices, legacy_s32 rasterize)
 {
 	for (legacy_u32 rim = 0; rim <= SHAPE3D_WHEEL_RIM_VERTEX_COUNT;
 		 rim += SHAPE3D_WHEEL_RIM_VERTEX_COUNT) {
@@ -155,26 +156,26 @@ static void shadow_projected_wheel(struct SHADOW_SILHOUETTE *silhouette,
 			legacy_f64 along_second = bottom_sine * cosine + bottom_cosine * sine;
 			for (legacy_u32 face = 0; face < SDL_arraysize(faces); face++) {
 				const struct VECTOR *origin = &vertices[face * SHAPE3D_WHEEL_RIM_VERTEX_COUNT];
-				faces[face][vertex] = shadow_project_point(
+				faces[face][vertex] = hires_shadow_project_point(
 					silhouette, origin->x + first.x * along_first + second.x * along_second,
 					origin->y + first.y * along_first + second.y * along_second,
 					origin->z + first.z * along_first + second.z * along_second);
 			}
 		}
 		for (legacy_u32 face = 0; face < SDL_arraysize(faces); face++) {
-			shadow_silhouette_polygon(silhouette, faces[face], HIRES_ROUND_POINTS, rasterize);
+			hires_shadow_silhouette_polygon(silhouette, faces[face], HIRES_ROUND_POINTS, rasterize);
 		}
 		for (legacy_s32 vertex = 0; vertex < HIRES_ROUND_POINTS; vertex++) {
 			legacy_s32 next = (vertex + 1) % HIRES_ROUND_POINTS;
 			struct SHADOW_SILHOUETTE_POINT side[] = {faces[0][vertex], faces[0][next],
 													 faces[1][next], faces[1][vertex]};
-			shadow_silhouette_polygon(silhouette, side, SDL_arraysize(side), rasterize);
+			hires_shadow_silhouette_polygon(silhouette, side, SDL_arraysize(side), rasterize);
 		}
 	}
 }
 
-static void shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
-										 const struct SHAPE3D *shape, legacy_s32 rasterize)
+static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
+											   const struct SHAPE3D *shape, legacy_s32 rasterize)
 {
 	static const legacy_u8 vertex_counts[SHAPE3D_PRIMITIVE_TYPE_COUNT] = {0, 1, 2,	3, 4, 5, 6, 7,
 																		  8, 9, 10, 2, 6, 3, 0, 0};
@@ -211,15 +212,15 @@ static void shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
 		struct SHADOW_SILHOUETTE_POINT points[HIRES_ROUND_POINTS];
 		if (type >= SHAPE3D_PRIMITIVE_POLYGON_FIRST && type <= SHAPE3D_PRIMITIVE_POLYGON_LAST) {
 			for (legacy_u8 vertex = 0; vertex < count; vertex++) {
-				points[vertex] = shadow_project_point(silhouette, vertices[vertex].x,
-													  vertices[vertex].y, vertices[vertex].z);
+				points[vertex] = hires_shadow_project_point(silhouette, vertices[vertex].x,
+															vertices[vertex].y, vertices[vertex].z);
 			}
-			shadow_silhouette_polygon(silhouette, points, count, rasterize);
+			hires_shadow_silhouette_polygon(silhouette, points, count, rasterize);
 		} else if (type == SHAPE3D_PRIMITIVE_LINE) {
-			shadow_silhouette_line(silhouette, &vertices[0], &vertices[1], rasterize);
+			hires_shadow_silhouette_line(silhouette, &vertices[0], &vertices[1], rasterize);
 		} else if (type == SHAPE3D_PRIMITIVE_WHEEL) {
 			if (silhouette->projection.enabled) {
-				shadow_projected_wheel(silhouette, vertices, rasterize);
+				hires_shadow_projected_wheel(silhouette, vertices, rasterize);
 				continue;
 			}
 			/* A wheel is an ellipse extruded from vertex 0 to vertex 3.
@@ -241,14 +242,15 @@ static void shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
 				other[vertex].z =
 					points[vertex].z + vertices[SHAPE3D_WHEEL_RIM_VERTEX_COUNT].z - vertices[0].z;
 			}
-			shadow_silhouette_polygon(silhouette, points, SHADOW_SILHOUETTE_ROUND_POINTS,
-									  rasterize);
-			shadow_silhouette_polygon(silhouette, other, SHADOW_SILHOUETTE_ROUND_POINTS, rasterize);
+			hires_shadow_silhouette_polygon(silhouette, points, SHADOW_SILHOUETTE_ROUND_POINTS,
+											rasterize);
+			hires_shadow_silhouette_polygon(silhouette, other, SHADOW_SILHOUETTE_ROUND_POINTS,
+											rasterize);
 			for (legacy_s32 vertex = 0; vertex < SHADOW_SILHOUETTE_ROUND_POINTS; vertex++) {
 				legacy_s32 next = (vertex + 1) % SHADOW_SILHOUETTE_ROUND_POINTS;
 				struct SHADOW_SILHOUETTE_POINT side[4] = {points[vertex], points[next], other[next],
 														  other[vertex]};
-				shadow_silhouette_polygon(silhouette, side, 4, rasterize);
+				hires_shadow_silhouette_polygon(silhouette, side, 4, rasterize);
 			}
 		} else if (type == SHAPE3D_PRIMITIVE_SPHERE) {
 			legacy_f64 dx = vertices[1].x - vertices[0].x;
@@ -259,7 +261,7 @@ static void shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
 				silhouette->height = vertices[0].y + radius;
 			}
 			struct SHADOW_SILHOUETTE_POINT center =
-				shadow_project_point(silhouette, vertices[0].x, vertices[0].y, vertices[0].z);
+				hires_shadow_project_point(silhouette, vertices[0].x, vertices[0].y, vertices[0].z);
 			legacy_f64 axis_x = radius, axis_z = radius, skew = 0;
 			legacy_s32 count = SHADOW_SILHOUETTE_ROUND_POINTS;
 			if (silhouette->projection.enabled) {
@@ -281,14 +283,14 @@ static void shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhouette,
 				points[vertex].x = center.x + axis_x * cosine;
 				points[vertex].z = center.z + skew * cosine + axis_z * sine;
 			}
-			shadow_silhouette_polygon(silhouette, points, count, rasterize);
+			hires_shadow_silhouette_polygon(silhouette, points, count, rasterize);
 		}
 	}
 }
 
-static legacy_s32 shadow_silhouette_build(struct SHADOW_SILHOUETTE *silhouette,
-										  const struct SHAPE3D *shape,
-										  const struct SHADOW_PROJECTION *projection)
+static legacy_s32 hires_shadow_silhouette_build(struct SHADOW_SILHOUETTE *silhouette,
+												const struct SHAPE3D *shape,
+												const struct SHADOW_PROJECTION *projection)
 {
 	memset(silhouette, 0, sizeof(*silhouette));
 	silhouette->projection = *projection;
@@ -297,7 +299,7 @@ static legacy_s32 shadow_silhouette_build(struct SHADOW_SILHOUETTE *silhouette,
 	}
 	silhouette->min_x = silhouette->min_z = SHADOW_SILHOUETTE_INITIAL_BOUND;
 	silhouette->max_x = silhouette->max_z = -SHADOW_SILHOUETTE_INITIAL_BOUND;
-	shadow_silhouette_primitives(silhouette, shape, 0);
+	hires_shadow_silhouette_primitives(silhouette, shape, 0);
 	legacy_f64 width = silhouette->max_x - silhouette->min_x;
 	legacy_f64 length = silhouette->max_z - silhouette->min_z;
 	if (width <= 0 || length <= 0) {
@@ -311,7 +313,7 @@ static legacy_s32 shadow_silhouette_build(struct SHADOW_SILHOUETTE *silhouette,
 	silhouette->max_x += SHADOW_SILHOUETTE_BORDER_TEXELS / silhouette->scale_x;
 	silhouette->min_z -= SHADOW_SILHOUETTE_BORDER_TEXELS / silhouette->scale_z;
 	silhouette->max_z += SHADOW_SILHOUETTE_BORDER_TEXELS / silhouette->scale_z;
-	shadow_silhouette_primitives(silhouette, shape, 1);
+	hires_shadow_silhouette_primitives(silhouette, shape, 1);
 	silhouette->shape = shape;
 	silhouette->vertex_bytes = shape->shape3d_vertex_bytes;
 	return 1;
@@ -336,7 +338,7 @@ legacy_f64 shape3d_hires_shadow_silhouette_sample(const struct SHADOW_SILHOUETTE
 	return (first + (last - first) * z) / LEGACY_U8_MAX;
 }
 
-static struct SHADOW_SILHOUETTE shadow_silhouettes[HIRES_CAR_SHADOW_COUNT];
+static struct SHADOW_SILHOUETTE hires_shadow_silhouettes[HIRES_CAR_SHADOW_COUNT];
 
 void shape3d_hires_ground_begin(const struct VECTOR *camera_position)
 {
@@ -435,7 +437,7 @@ void shape3d_hires_shadow_car(const struct VECTOR *relative_position, legacy_s16
 	shadow->silhouette = NULL;
 	shadow->projected = 0;
 	shadow->surface_top = shadow->grille_top = -DBL_MAX;
-	shadow_update_volume(shadow);
+	hires_shadow_update_volume(shadow);
 	shape3d_hires_state.shadow_model_pending = 1;
 }
 
@@ -445,12 +447,12 @@ void shape3d_hires_shadow_models_reset(void)
 	shape3d_hires_state.shadow_model_pending = 0;
 	shape3d_hires_state.shadow_surface_count = 0;
 	for (legacy_s32 index = 0; index < HIRES_CAR_SHADOW_COUNT; index++) {
-		shadow_silhouettes[index].shape = NULL;
+		hires_shadow_silhouettes[index].shape = NULL;
 	}
 }
 
-static void shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_height,
-								legacy_s32 projected)
+static void hires_shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_height,
+									  legacy_s32 projected)
 {
 	if (!shape3d_hires_state.shadow_model_pending || shape == NULL) {
 		return;
@@ -462,7 +464,7 @@ static void shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_h
 	struct HIRES_CAR_SHADOW *shadow =
 		&shape3d_hires_state.car_shadows[shape3d_hires_state.car_shadow_count - 1];
 	struct SHADOW_SILHOUETTE *silhouette =
-		&shadow_silhouettes[shape3d_hires_state.car_shadow_count - 1];
+		&hires_shadow_silhouettes[shape3d_hires_state.car_shadow_count - 1];
 	struct SHADOW_PROJECTION projection = {0};
 	if (projected) {
 		projection.x = (shape3d_hires_state.shadow_light_x * shadow->cosine -
@@ -484,7 +486,7 @@ static void shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_h
 		cached->enabled != projection.enabled ||
 		cached->ground_height != projection.ground_height || cached->x != projection.x ||
 		cached->z != projection.z || cached->sphere_vertical != projection.sphere_vertical) {
-		if (!shadow_silhouette_build(silhouette, shape, &projection)) {
+		if (!hires_shadow_silhouette_build(silhouette, shape, &projection)) {
 			return;
 		}
 		silhouette->shape = shape;
@@ -499,17 +501,17 @@ static void shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 ground_h
 	shadow->height = silhouette->height;
 	shadow->half_width = (silhouette->max_x - silhouette->min_x) * 0.5;
 	shadow->half_length = (silhouette->max_z - silhouette->min_z) * 0.5;
-	shadow_update_volume(shadow);
+	hires_shadow_update_volume(shadow);
 }
 
 void shape3d_hires_shadow_model(const struct SHAPE3D *shape)
 {
-	shadow_attach_model(shape, 0, 0);
+	hires_shadow_attach_model(shape, 0, 0);
 }
 
 void shape3d_hires_shadow_projected_model(const struct SHAPE3D *shape, legacy_s16 ground_height)
 {
-	shadow_attach_model(shape, ground_height, 1);
+	hires_shadow_attach_model(shape, ground_height, 1);
 }
 
 legacy_f64 shape3d_hires_shadow_light_offset(const struct HIRES_CAR_SHADOW *shadow, legacy_f64 gap)
@@ -525,7 +527,7 @@ legacy_f64 shape3d_hires_shadow_light_offset(const struct HIRES_CAR_SHADOW *shad
 	return offset < limit ? offset : limit;
 }
 
-static void shadow_update_volume(struct HIRES_CAR_SHADOW *shadow)
+static void hires_shadow_update_volume(struct HIRES_CAR_SHADOW *shadow)
 {
 	legacy_f64 extent_x = SDL_max(-shadow->min_x, shadow->max_x);
 	legacy_f64 extent_z = SDL_max(-shadow->min_z, shadow->max_z);

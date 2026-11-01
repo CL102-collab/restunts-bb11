@@ -66,7 +66,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/assets/cars/" DESTINATION cars COMPONENT 
 # little-endian host test it also detects odd-address word loads on the 68000.
 add_executable(test-amiga-endian EXCLUDE_FROM_ALL
     "${CMAKE_SOURCE_DIR}/src/restunts/tests/test-amiga-endian.c"
-    "${core}/shape2d/shape2d.c" "${core}/shape2d/shape2d_image.c" "${core}/shape2d/shape2d_blit.c" "${core}/shape2d/shape2d_window.c" "${core}/shape3d/shape3d.c" "${core}/hires/shape3d_pipeline.c"  "${core}/shape3d/shape3d_queue.c" "${core}/hires/shape3d_queue.c"  "${core}/shape3d/shape3d_primitives.c" "${core}/shape3d/shape3d_render.c" "${core}/hires/shape3d_render.c"
+    "${core}/shape2d/shape2d.c" "${core}/shape2d/shape2d_image.c" "${core}/shape2d/shape2d_blit.c" "${core}/shape2d/shape2d_window.c" "${core}/shape3d/shape3d.c" "${core}/shape3d/shape3d_native.c"  "${core}/shape3d/shape3d_queue.c"  "${core}/shape3d/shape3d_primitives.c" "${core}/shape3d/shape3d_render.c"
     "${core}/audio/audio_engine.c" "${core}/audio/audio_channels.c" "${core}/audio/audio_context.c")
 target_include_directories(test-amiga-endian PRIVATE "${core}")
 target_compile_definitions(test-amiga-endian PRIVATE RESTUNTS_AMIGA)
@@ -134,7 +134,7 @@ add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${core}/statecar.c" "${core}/strlib.c" "${core}/physics/physics_collision.c" "${core}/physics/physics_suspension.c"
     "${core}/physics/physics_grip.c" "${core}/race/race_route.c" "${core}/data/full_data.c"
     "${core}/extended/extended_physics_collision.c" "${core}/extended/extended_race_route.c"
-    "${core}/extended/extended_menu_runtime.c" "${core}/hires/track_preview_mode.c"
+    "${core}/extended/extended_menu_runtime.c"
     "${core}/data/full_strings.c" "${core}/headless/headless_data.c" "${core}/legacy.c"
     "${core}/extended/extended_math.c")
 configure_amiga_diagnostic(test-amiga-startup)

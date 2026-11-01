@@ -50,7 +50,7 @@ void race_draw_frame(void)
 	amiga_video_begin_frame();
 #endif
 #ifdef RESTUNTS_SDL3
-	race_presentation_begin_frame();
+	race_hires_presentation_begin_frame();
 #endif
 	if (full_redraw_frames_remaining != 0) {
 		replay_controls_drawn[dashboard_buffer_index] = 0;
@@ -71,7 +71,7 @@ void race_draw_frame(void)
 	}
 
 #ifdef RESTUNTS_SDL3
-	if (race_presentation_draw_snapshot() == 0)
+	if (race_hires_presentation_draw_snapshot() == 0)
 #endif
 	{
 		update_frame(frame_buffer_index, &rect_windshield);

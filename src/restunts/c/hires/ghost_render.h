@@ -7,11 +7,11 @@ struct GHOST_CAMERA_STATE;
 /* Sample cached recorded poses at (live_frame - lag / 65536) / live_frame_rate.
  * This presentation-only read never advances physics or changes the live ghost.
  * Failure leaves both outputs untouched. Start/end times clamp to the replay. */
-legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
-									legacy_u32 lag, struct CARSTATE *car,
-									struct GHOST_CAMERA_STATE *camera);
+legacy_s16 hires_ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
+										  legacy_u32 lag, struct CARSTATE *car,
+										  struct GHOST_CAMERA_STATE *camera);
 #endif
 #ifdef RESTUNTS_SDL3
-void ghost_render_reset(void);
+void hires_ghost_render_reset(void);
 #endif
 #endif

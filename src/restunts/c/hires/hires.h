@@ -5,6 +5,7 @@
 #include "../video/video_framebuffer.h"
 
 /* Maximum raster size and authored artwork scale. Active dimensions may be smaller. */
+#define HIRES_INITIAL_PRIMITIVE_CAPACITY 592U
 #define HIRES_SCALE 4
 #define HIRES_MEDIUM_SCALE 2
 #define HIRES_MINIMUM_SCALE 1

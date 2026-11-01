@@ -1,0 +1,31 @@
+#ifndef RESTUNTS_RENDERER_FRAME_OVERLAY_H
+#define RESTUNTS_RENDERER_FRAME_OVERLAY_H
+
+/* Compile-time routing only; implementations belong to each renderer. */
+#if defined(RESTUNTS_SDL3)
+#include "../hires/frame_overlay.h"
+#define frame_renderer_reset frame_hires_reset
+#define frame_renderer_show_status frame_hires_show_status
+#define frame_renderer_status_overlay_active frame_hires_status_overlay_active
+#define frame_renderer_status_expire_idle frame_hires_status_expire_idle
+#define frame_renderer_status_draw_text frame_hires_status_draw_text
+#define frame_renderer_status_redraw_pending frame_hires_status_redraw_pending
+#define frame_renderer_status_expire_at frame_hires_status_expire_at
+#define frame_renderer_status_redraw_bounds frame_hires_status_redraw_bounds
+#define frame_renderer_fps_target frame_hires_fps_target
+#define frame_renderer_filename_reserved frame_hires_filename_reserved
+#else
+#include "../supersight/frame_overlay.h"
+#define frame_renderer_reset frame_supersight_reset
+#define frame_renderer_show_status frame_supersight_show_status
+#define frame_renderer_status_overlay_active frame_supersight_status_overlay_active
+#define frame_renderer_status_expire_idle frame_supersight_status_expire_idle
+#define frame_renderer_status_draw_text frame_supersight_status_draw_text
+#define frame_renderer_status_redraw_pending frame_supersight_status_redraw_pending
+#define frame_renderer_status_expire_at frame_supersight_status_expire_at
+#define frame_renderer_status_redraw_bounds frame_supersight_status_redraw_bounds
+#define frame_renderer_fps_target frame_supersight_fps_target
+#define frame_renderer_filename_reserved frame_supersight_filename_reserved
+#endif
+
+#endif

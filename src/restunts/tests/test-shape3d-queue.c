@@ -20,7 +20,7 @@ extern legacy_s8 backlights_paint_override;
 static legacy_u8 vertices[8U * SHAPE3D_VERTEX_SIZE];
 static legacy_u8 primitives[128];
 static legacy_u8 masks[128];
-static legacy_u8 polyinfo[POLYINFO_SUPERSIGHT_DATA_SIZE + 32U];
+static legacy_u8 polyinfo[POLYINFO_STORAGE_DATA_SIZE + 32U];
 static struct SHAPE3D shape;
 static struct TRANSFORMEDSHAPE3D instance;
 static struct RECTANGLE bounds;
@@ -355,14 +355,14 @@ static void check_queue_chain(legacy_u16 capacity, legacy_u16 count)
 	legacy_s16 index = polygon_next_index[capacity];
 	for (legacy_u16 expected = 0; expected < count; expected++) {
 		assert(index == (legacy_s16)expected);
-		assert(polygon_record_offsets[index] < POLYINFO_SUPERSIGHT_DATA_SIZE);
+		assert(polygon_record_offsets[index] < POLYINFO_STORAGE_DATA_SIZE);
 		assert(polygon_record_offsets[index] < polyinfoptrnext);
 		index = polygon_next_index[index];
 	}
 	assert(index == -1);
 }
 
-static void test_supersight_queue_limits(void)
+static void test_renderer_queue_limits(void)
 {
 	static const legacy_u8 point[] = {1, 1, 7, 0, 0, 0};
 	static const legacy_u8 polygon[] = {10, 1, 7, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 0, 0};
@@ -374,7 +374,7 @@ static void test_supersight_queue_limits(void)
 	} cases[] = {{1, 592, 288, 13248}, {0, 400, 226, 10396}, {1, 592, 288, 13248}};
 	for (legacy_u32 test = 0; test < sizeof(cases) / sizeof(cases[0]); test++) {
 		reset_scene();
-		polyinfo_set_supersight(cases[test].enabled);
+		polyinfo_set_expanded(cases[test].enabled);
 		assert(polygon_next_index[cases[test].capacity] == -1);
 		memcpy(primitives, point, sizeof(point));
 		for (legacy_u16 i = 1; i < cases[test].capacity; i++) {
@@ -395,18 +395,18 @@ static void test_supersight_queue_limits(void)
 		assert(polyinfoptrnext == cases[test].data_end);
 		check_queue_chain(cases[test].capacity, cases[test].polygon_count);
 	}
-	polyinfo_set_supersight(0);
+	polyinfo_set_expanded(0);
 	assert(polyinfonumpolys == 0);
 	assert(polyinfoptrnext == 0);
 	assert(polygon_buffer_full == 0);
 	assert(polygon_next_index[400] == -1);
 }
 
-static void test_supersight_clipped_record_boundary(void)
+static void test_renderer_clipped_record_boundary(void)
 {
 	reset_scene();
-	polyinfo_set_supersight(1);
-	memset(polyinfo + POLYINFO_SUPERSIGHT_DATA_SIZE, 255, 32);
+	polyinfo_set_expanded(1);
+	memset(polyinfo + POLYINFO_STORAGE_DATA_SIZE, 255, 32);
 	static const legacy_u8 polygon[] = {10, 1, 7, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 0, 0};
 	memcpy(primitives, polygon, sizeof(polygon));
 	for (legacy_u32 i = 0; i < 287; i++) {
@@ -428,13 +428,13 @@ static void test_supersight_clipped_record_boundary(void)
 	assert(shape3d_transform_and_queue(&instance) == 1);
 	assert(polygon_record_offsets[291] == 13246);
 	assert(polyinfoptr[polygon_record_offsets[291] + 3U] == 15);
-	assert(polyinfoptrnext == POLYINFO_SUPERSIGHT_DATA_SIZE);
+	assert(polyinfoptrnext == POLYINFO_STORAGE_DATA_SIZE);
 	assert(polygon_buffer_full == 1);
 	assert(shape3d_transform_and_queue(0) == 1);
 	for (legacy_u32 i = 0; i < 32; i++) {
-		assert(polyinfo[POLYINFO_SUPERSIGHT_DATA_SIZE + i] == 255);
+		assert(polyinfo[POLYINFO_STORAGE_DATA_SIZE + i] == 255);
 	}
-	polyinfo_set_supersight(0);
+	polyinfo_set_expanded(0);
 }
 
 static void test_ghost_override_is_per_instance(void)
@@ -572,8 +572,8 @@ int main(void)
 	test_clipped_depth_signedness();
 	test_backface_and_material_override();
 	test_queue_limits();
-	test_supersight_queue_limits();
-	test_supersight_clipped_record_boundary();
+	test_renderer_queue_limits();
+	test_renderer_clipped_record_boundary();
 	test_ghost_override_is_per_instance();
 	test_black_grille_override_selects_only_instance_grille_polygons();
 	test_visibility_masks_after_bounds();

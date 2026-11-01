@@ -13,11 +13,11 @@ static struct GAMESTATE checkpoints[21];
 static legacy_s16 held_q, held_control, live_input, interrupts_disabled;
 static legacy_u32 pending_ticks;
 static legacy_u32 timer_reads, audio_updates, restores, simulation_updates;
-static legacy_u32 supersight_resets;
+static legacy_u32 renderer_resets;
 
-void frame_supersight_reset(void)
+void frame_renderer_reset(void)
 {
-	supersight_resets++;
+	renderer_resets++;
 }
 static legacy_u16 event_frame;
 static legacy_s8 event_kind;
@@ -126,7 +126,7 @@ void restore_gamestate(legacy_u16 target)
 	state = checkpoints[target / 600];
 	elapsed_time2 = state.game_frame;
 	restores++;
-	assert(supersight_resets == restores);
+	assert(renderer_resets == restores);
 }
 static void assert_reconstructed(legacy_u16 target)
 {
@@ -147,7 +147,7 @@ static void reset_race(legacy_u16 frame, legacy_u16 end_frame, legacy_s8 end_eve
 	live_input = INPUT_ACCELERATE_FLAG;
 	interrupts_disabled = 0;
 	pending_ticks = 987654;
-	timer_reads = audio_updates = restores = simulation_updates = supersight_resets = 0;
+	timer_reads = audio_updates = restores = simulation_updates = renderer_resets = 0;
 	event_frame = end_frame;
 	event_kind = end_event;
 	for (legacy_u32 i = 0; i < sizeof(recorded_inputs); i++) {

@@ -59,7 +59,7 @@ enum REPLAY_TEST_TARGET {
 	REPLAY_TEST_SCREEN_TARGET
 };
 
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 
 #ifdef RESTUNTS_SDL3
 #define TEST_GHOST_DISTANCE_PER_FRAME 100L
@@ -144,7 +144,7 @@ static void record_scheduled_frame(const struct GAMESTATE *rendered)
 	frames++;
 }
 
-legacy_u64 presentation_now(void)
+legacy_u64 hires_presentation_now(void)
 {
 	return scheduled_time;
 }
@@ -153,13 +153,13 @@ void sdl3_platform_delay(legacy_u32 milliseconds)
 {
 	assert(scheduled_mode != 0);
 	scheduled_time += (legacy_u64)milliseconds * 1000000U;
-	assert(scheduled_time <= PRESENTATION_SECOND_NS);
+	assert(scheduled_time <= HIRES_PRESENTATION_SECOND_NS);
 }
 
 void sdl3_platform_pump(void)
 {
 	assert(scheduled_mode != 0);
-	legacy_u64 callbacks = scheduled_time * framespersec / PRESENTATION_SECOND_NS;
+	legacy_u64 callbacks = scheduled_time * framespersec / HIRES_PRESENTATION_SECOND_NS;
 	if (game_replay_mode == REPLAY_MODE_PLAYBACK) {
 		if (replay_playback_speed == REPLAY_PLAYBACK_SLOW) {
 			callbacks /= 2;
@@ -168,7 +168,7 @@ void sdl3_platform_pump(void)
 		}
 	}
 	elapsed_time2 = (legacy_u16)callbacks;
-	if (scheduled_time == PRESENTATION_SECOND_NS) {
+	if (scheduled_time == HIRES_PRESENTATION_SECOND_NS) {
 		race_exit_request = REPLAY_EXIT_REQUESTED;
 	}
 }
@@ -203,21 +203,22 @@ void hires_set_render_scale(legacy_s32 scale)
 	}
 	test_render_scale = scale;
 }
-struct FRAME_ADAPTIVE_STATE frame_adaptive;
-legacy_s32 frame_adaptive_render_scale(const struct FRAME_ADAPTIVE_STATE *adaptive)
+struct FRAME_HIRES_ADAPTIVE_STATE frame_hires_adaptive;
+legacy_s32 frame_hires_adaptive_render_scale(const struct FRAME_HIRES_ADAPTIVE_STATE *adaptive)
 {
-	if (adaptive->quality < FRAME_ADAPTIVE_HALF_RESOLUTION) {
+	if (adaptive->quality < FRAME_HIRES_ADAPTIVE_HALF_RESOLUTION) {
 		return HIRES_SCALE;
 	}
-	return adaptive->quality == FRAME_ADAPTIVE_HALF_RESOLUTION ? FRAME_ADAPTIVE_HALF_SCALE
-															   : FRAME_ADAPTIVE_MINIMUM_SCALE;
+	return adaptive->quality == FRAME_HIRES_ADAPTIVE_HALF_RESOLUTION
+			   ? FRAME_HIRES_ADAPTIVE_HALF_SCALE
+			   : FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE;
 }
 
 void sdl3_video_begin_track_frame(legacy_u8 adaptive)
 {
 	if (scale_transition.active != 0) {
 		assert(scale_transition.begun == 0);
-		assert(adaptive == supersight_enabled);
+		assert(adaptive == renderer_active);
 		scale_transition.begun = 1;
 		assert_render_scale_before_drawing();
 	}
@@ -242,9 +243,9 @@ const struct GHOST_CAMERA_STATE *ghost_camera_state(void)
 	return scheduled_ghost_active != 0 ? &scheduled_ghost_camera : NULL;
 }
 
-legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
-									legacy_u32 lag, struct CARSTATE *car,
-									struct GHOST_CAMERA_STATE *camera)
+legacy_s16 hires_ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
+										  legacy_u32 lag, struct CARSTATE *car,
+										  struct GHOST_CAMERA_STATE *camera)
 {
 	scheduled_ghost_sample_calls++;
 	scheduled_ghost_sample_frame = live_frame;
@@ -263,31 +264,31 @@ legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame
 	return 1;
 }
 
-void update_frame_snapshot(legacy_s8 buffer, struct RECTANGLE *rect,
-						   const struct GAMESTATE *snapshot, const struct CARSTATE *ghost,
-						   const struct GHOST_CAMERA_STATE *ghost_camera)
+void hires_update_frame_snapshot(legacy_s8 buffer, struct RECTANGLE *rect,
+								 const struct GAMESTATE *snapshot, const struct CARSTATE *ghost,
+								 const struct GHOST_CAMERA_STATE *ghost_camera)
 {
 	(void)buffer;
 	(void)rect;
-	assert(scheduled_mode != 0 && supersight_enabled != 0);
+	assert(scheduled_mode != 0 && renderer_active != 0);
 	if (scheduled_ghost_active != 0) {
-		assert(ghost == &race_presentation.ghost_interpolated);
-		assert(ghost_camera == &race_presentation.ghost_camera_interpolated);
+		assert(ghost == &race_hires_presentation.ghost_interpolated);
+		assert(ghost_camera == &race_hires_presentation.ghost_camera_interpolated);
 	} else {
 		assert(ghost == NULL && ghost_camera == NULL);
 	}
 	assert(snapshot->game_frame == state.game_frame);
 	assert(snapshot->playerstate.car_position.lx <= state.playerstate.car_position.lx);
-	if (race_presentation.history_valid != 0) {
+	if (race_hires_presentation.history_valid != 0) {
 		assert(snapshot->playerstate.car_position.lx >=
-			   race_presentation.previous.playerstate.car_position.lx);
+			   race_hires_presentation.previous.playerstate.car_position.lx);
 	}
 	scheduled_snapshots++;
 	record_scheduled_frame(snapshot);
 }
 #endif
 
-void frame_supersight_reset(void)
+void frame_renderer_reset(void)
 {
 }
 
@@ -586,7 +587,7 @@ void update_frame(legacy_s8 buffer, struct RECTANGLE *rect)
 #endif
 	if (replay_render.active != 0) {
 		assert(rect == &rect_windshield);
-		assert(rect->bottom == (supersight_enabled != 0 && replaybar_enabled != 0 ? 151 : 165));
+		assert(rect->bottom == (renderer_active != 0 && replaybar_enabled != 0 ? 151 : 165));
 		assert(replay_render.updates == frames && replay_render.diagnostic_draws == frames);
 		assert(replay_render.target == (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET
 																	  : REPLAY_TEST_RENDER_TARGET));
@@ -709,7 +710,7 @@ legacy_s16 dos_kb_get_char(void)
 	if (scheduled_mode != 0) {
 		keys++;
 		if (scheduled_toggle != 0 && state.game_frame == framespersec / 2) {
-			supersight_enabled = 1;
+			renderer_active = 1;
 		}
 		return 0;
 	}
@@ -807,7 +808,7 @@ static void test_replay_dashboard_rendering(void)
 	for (legacy_u16 mode = 0; mode < TEST_DASHBOARD_RENDER_MODES; mode++) {
 		memset(&replay_render, 0, sizeof(replay_render));
 		replay_render.active = 1;
-		supersight_enabled = mode & 1;
+		renderer_active = mode & 1;
 		replaybar_toggle = (mode >> 1) & 1;
 		video_uses_page_flipping = (mode >> 2) & 1;
 		legacy_u8 full_redraw = (mode >> 3) & 1;
@@ -825,7 +826,7 @@ static void test_replay_dashboard_rendering(void)
 		slow_video_mgmt_copy = (mode >> TEST_DASHBOARD_DIRTY_MODE_SHIFT) & 1U;
 		frames = presented_frames = 0;
 		race_update_viewport(&cache, 0);
-		legacy_u8 clipped = supersight_enabled != 0 && replaybar_enabled != 0;
+		legacy_u8 clipped = renderer_active != 0 && replaybar_enabled != 0;
 		assert(rect_windshield.bottom == (clipped != 0 ? 151 : 165));
 		assert(dashboard_visible != 0);
 		full_redraw_frames_remaining = full_redraw;
@@ -844,7 +845,7 @@ static void test_replay_dashboard_rendering(void)
 		assert(full_redraw_frames_remaining == 0 && presented_frames == 1);
 	}
 	replay_render.active = 0;
-	supersight_enabled = 0;
+	renderer_active = 0;
 	assert(trace_hash == previous_trace);
 }
 
@@ -890,27 +891,27 @@ static void test_render_scale_transitions(void)
 {
 	static const struct {
 		legacy_u16 quality;
-		legacy_u8 supersight;
+		legacy_u8 renderer;
 		legacy_s32 scale;
-	} stages[] = {{FRAME_ADAPTIVE_FULL_VIEW, 1, HIRES_SCALE},
-				  {FRAME_ADAPTIVE_LARGE_VIEW, 1, HIRES_SCALE},
-				  {FRAME_ADAPTIVE_HALF_RESOLUTION, 1, FRAME_ADAPTIVE_HALF_SCALE},
-				  {FRAME_ADAPTIVE_MINIMUM_RESOLUTION, 1, FRAME_ADAPTIVE_MINIMUM_SCALE},
-				  {FRAME_ADAPTIVE_SMALL_VIEW, 1, FRAME_ADAPTIVE_MINIMUM_SCALE},
+	} stages[] = {{FRAME_HIRES_ADAPTIVE_FULL_VIEW, 1, HIRES_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_LARGE_VIEW, 1, HIRES_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_HALF_RESOLUTION, 1, FRAME_HIRES_ADAPTIVE_HALF_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_MINIMUM_RESOLUTION, 1, FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_SMALL_VIEW, 1, FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE},
 				  /* F12 disables SuperSight even if its previous stage used a small raster. */
-				  {FRAME_ADAPTIVE_SMALL_VIEW, 0, HIRES_SCALE},
-				  {FRAME_ADAPTIVE_MINIMUM_RESOLUTION, 1, FRAME_ADAPTIVE_MINIMUM_SCALE},
-				  {FRAME_ADAPTIVE_FULL_VIEW, 1, HIRES_SCALE}};
+				  {FRAME_HIRES_ADAPTIVE_SMALL_VIEW, 0, HIRES_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_MINIMUM_RESOLUTION, 1, FRAME_HIRES_ADAPTIVE_MINIMUM_SCALE},
+				  {FRAME_HIRES_ADAPTIVE_FULL_VIEW, 1, HIRES_SCALE}};
 	const legacy_u32 previous_trace = trace_hash;
 	scheduled_mode = 0;
-	race_presentation.interpolating = 0;
+	race_hires_presentation.interpolating = 0;
 	for (legacy_u8 pages = 1; pages <= 2; pages++) {
 		test_render_scale = HIRES_SCALE;
 		for (size_t stage = 0; stage < sizeof(stages) / sizeof(stages[0]); stage++) {
 			memset(&replay_render, 0, sizeof(replay_render));
 			replay_render.active = 1;
-			supersight_enabled = stages[stage].supersight;
-			frame_adaptive.quality = stages[stage].quality;
+			renderer_active = stages[stage].renderer;
+			frame_hires_adaptive.quality = stages[stage].quality;
 			legacy_u8 changed = test_render_scale != stages[stage].scale;
 			struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
@@ -956,8 +957,8 @@ static void test_render_scale_transitions(void)
 		}
 	}
 	replay_render.active = 0;
-	supersight_enabled = 0;
-	frame_adaptive.quality = FRAME_ADAPTIVE_FULL_VIEW;
+	renderer_active = 0;
+	frame_hires_adaptive.quality = FRAME_HIRES_ADAPTIVE_FULL_VIEW;
 	test_render_scale = HIRES_SCALE;
 	assert(trace_hash == previous_trace);
 }
@@ -975,7 +976,7 @@ static void prepare_presentation_test(legacy_u16 rate, legacy_u16 mode)
 	scheduled_ghost_sample_calls = 0;
 	memset(scheduled_renders, 0, sizeof(scheduled_renders));
 	scripted_rewind = 0;
-	supersight_enabled = mode == 1;
+	renderer_active = mode == 1;
 	frames = keys = presented_frames = 0;
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
 	state.game_frames_per_sec = framespersec = configured_frame_rate = rate;
@@ -1089,11 +1090,12 @@ static void test_hotkeys_during_frame_waits(void)
 				hotkey_script.queue[hotkey_script.count++] = KEY_F11;
 				if (timing != TEST_HOTKEY_BETWEEN_SAMPLES) {
 					/* A key arrives during catch-up, with three physics updates outstanding. */
-					scheduled_time = TEST_HOTKEY_CATCHUP_FRAMES * PRESENTATION_SECOND_NS / rate;
+					scheduled_time =
+						TEST_HOTKEY_CATCHUP_FRAMES * HIRES_PRESENTATION_SECOND_NS / rate;
 					elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;
 					hotkey_script.available_physics = 1;
 					if (timing == TEST_HOTKEY_DURING_STALL) {
-						hotkey_script.catchup_delay = PRESENTATION_SECOND_NS / rate;
+						hotkey_script.catchup_delay = HIRES_PRESENTATION_SECOND_NS / rate;
 					}
 				} else {
 					/* A key arrives just after presentation, before the next input sample. */
@@ -1122,7 +1124,7 @@ static void test_hotkey_exit_during_catchup(void)
 		 request++) {
 		struct RACE_VIEWPORT_CACHE cache = {-1, -1, {0}};
 		prepare_presentation_test(GAME_FRAME_RATE_NORMAL, 1);
-		scheduled_time = TEST_HOTKEY_CATCHUP_FRAMES * PRESENTATION_SECOND_NS / framespersec;
+		scheduled_time = TEST_HOTKEY_CATCHUP_FRAMES * HIRES_PRESENTATION_SECOND_NS / framespersec;
 		elapsed_time2 = TEST_HOTKEY_CATCHUP_FRAMES;
 		memset(&hotkey_script, 0, sizeof(hotkey_script));
 		hotkey_script.active = 1;
@@ -1152,13 +1154,14 @@ static void assert_presentation_timestamps(legacy_u16 samples_per_second,
 										   legacy_u16 distance_per_sample)
 {
 	assert(frames == 61U && scheduled_snapshots == frames);
-	legacy_u64 interval = PRESENTATION_SECOND_NS / samples_per_second;
-	const legacy_u16 slots_per_sample = PRESENTATION_RATE / samples_per_second;
+	legacy_u64 interval = HIRES_PRESENTATION_SECOND_NS / samples_per_second;
+	const legacy_u16 slots_per_sample = HIRES_PRESENTATION_RATE / samples_per_second;
 	for (legacy_u32 index = 0; index < frames; index++) {
 		legacy_u64 time = scheduled_renders[index].time;
 		/* The frame loop sleeps in whole milliseconds. It must never present
 		 * before the exact rational 60 Hz deadline. */
-		assert(time == (index * 1000U + PRESENTATION_RATE - 1U) / PRESENTATION_RATE * 1000000ULL);
+		assert(time == (index * 1000U + HIRES_PRESENTATION_RATE - 1U) / HIRES_PRESENTATION_RATE *
+						   1000000ULL);
 		legacy_u32 sample = (legacy_u32)(time / interval);
 		legacy_s32 expected = 0;
 		if (sample != 0) {
@@ -1231,14 +1234,14 @@ static void test_replay_presentation_rate(void)
 static void prepare_interpolation_pair(void)
 {
 	prepare_presentation_test(20, 1);
-	race_presentation = (struct RACE_PRESENTATION){0};
-	race_presentation_sync(0);
+	race_hires_presentation = (struct RACE_PRESENTATION){0};
+	race_hires_presentation_sync(0);
 	scheduled_time = 50000000U;
 	state.game_frame = elapsed_time2 = 1;
 	state.playerstate.car_position.lx = 60;
-	race_presentation_capture();
-	assert(race_presentation.history_valid != 0);
-	race_presentation.started = 1;
+	race_hires_presentation_capture();
+	assert(race_hires_presentation.history_valid != 0);
+	race_hires_presentation.started = 1;
 }
 
 static void assert_visual_position(legacy_s32 position)
@@ -1246,7 +1249,7 @@ static void assert_visual_position(legacy_s32 position)
 	struct GAMESTATE authoritative = state;
 	legacy_u32 physics = scheduled_physics;
 	legacy_u32 input_samples = keys;
-	race_draw_visual();
+	race_hires_draw_visual();
 	assert(scheduled_renders[frames - 1U].position == position);
 	assert(memcmp(&authoritative, &state, sizeof(state)) == 0);
 	assert(scheduled_physics == physics && keys == input_samples);
@@ -1260,30 +1263,31 @@ static void test_interpolation_slot_boundaries(void)
 			framespersec = rate;
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			replay_playback_speed = slow != 0 ? REPLAY_PLAYBACK_SLOW : REPLAY_PLAYBACK_NORMAL;
-			legacy_u16 slots = PRESENTATION_RATE / rate * (slow != 0 ? 2U : 1U);
+			legacy_u16 slots = HIRES_PRESENTATION_RATE / rate * (slow != 0 ? 2U : 1U);
 			legacy_u64 origin = scheduled_time;
 			struct GAMESTATE authoritative = state;
-			race_present_interpolation();
+			race_hires_present_interpolation();
 			assert(frames == 1);
-			assert(race_presentation_fraction(scheduled_time) == FRAME_INTERPOLATION_ONE / slots);
+			assert(race_hires_presentation_fraction(scheduled_time) ==
+				   FRAME_INTERPOLATION_ONE / slots);
 			for (legacy_u16 slot = 1; slot < slots; slot++) {
-				legacy_u64 deadline =
-					origin + ((legacy_u64)slot * PRESENTATION_SECOND_NS + PRESENTATION_RATE - 1U) /
-								 PRESENTATION_RATE;
+				legacy_u64 deadline = origin + ((legacy_u64)slot * HIRES_PRESENTATION_SECOND_NS +
+												HIRES_PRESENTATION_RATE - 1U) /
+												   HIRES_PRESENTATION_RATE;
 				scheduled_time = deadline - 1U;
-				assert(race_presentation_fraction(scheduled_time) ==
+				assert(race_hires_presentation_fraction(scheduled_time) ==
 					   slot * FRAME_INTERPOLATION_ONE / slots);
-				race_present_interpolation();
+				race_hires_present_interpolation();
 				assert(frames == slot);
 				scheduled_time = deadline;
 				legacy_u32 fraction = (slot + 1U) * FRAME_INTERPOLATION_ONE / slots;
-				assert(race_presentation_fraction(scheduled_time) == fraction);
-				race_present_interpolation();
+				assert(race_hires_presentation_fraction(scheduled_time) == fraction);
+				race_hires_present_interpolation();
 				assert(frames == slot + 1U);
 				assert(scheduled_renders[slot].position ==
 					   (legacy_s32)(60U * fraction / FRAME_INTERPOLATION_ONE));
 			}
-			assert(race_presentation_fraction(scheduled_time) == FRAME_INTERPOLATION_ONE);
+			assert(race_hires_presentation_fraction(scheduled_time) == FRAME_INTERPOLATION_ONE);
 			assert(scheduled_renders[frames - 1U].position == 60);
 			assert(memcmp(&authoritative, &state, sizeof(state)) == 0);
 			assert(scheduled_physics == 0 && keys == 0);
@@ -1307,19 +1311,19 @@ static void test_interpolation_slots_and_stalls(void)
 	assert_visual_position(60);
 
 	prepare_interpolation_pair();
-	race_present_interpolation();
+	race_hires_present_interpolation();
 	assert(frames == 1 && scheduled_renders[0].position == 19);
 	/* A late frame skips missed slots without drawing a catch-up burst. */
 	scheduled_time = 181000000U;
-	race_present_interpolation();
+	race_hires_present_interpolation();
 	assert(frames == 2 && scheduled_renders[1].position == 60);
-	race_present_interpolation();
+	race_hires_present_interpolation();
 	assert(frames == 2);
 	scheduled_time = 183333333U;
-	race_present_interpolation();
+	race_hires_present_interpolation();
 	assert(frames == 2);
 	scheduled_time = 183333334U;
-	race_present_interpolation();
+	race_hires_present_interpolation();
 	assert(frames == 3 && scheduled_renders[2].position == 60);
 }
 
@@ -1331,35 +1335,35 @@ static void test_interpolation_resets(void)
 		if (reset == 0) {
 			cameramode++;
 		} else if (reset == 1) {
-			supersight_enabled = 0;
-			race_presentation_sync(0);
-			supersight_enabled = 1;
+			renderer_active = 0;
+			race_hires_presentation_sync(0);
+			renderer_active = 1;
 		} else if (reset == 2) {
 			game_replay_mode = REPLAY_MODE_PLAYBACK;
 			is_in_replay = 1;
 		} else if (reset == 3) {
 			custom_camera.distance++;
 		} else if (reset == 4) {
-			race_presentation_sync(1);
+			race_hires_presentation_sync(1);
 		} else {
 			replay_playback_speed = REPLAY_PLAYBACK_FAST;
 		}
-		race_presentation_sync(0);
-		assert(race_presentation.history_valid == 0);
+		race_hires_presentation_sync(0);
+		assert(race_hires_presentation.history_valid == 0);
 		assert_visual_position(60);
 	}
 	for (legacy_u16 backwards = 0; backwards < 2; backwards++) {
 		prepare_interpolation_pair();
 		state.game_frame = elapsed_time2 = backwards != 0 ? 0 : 10;
 		state.playerstate.car_position.lx = state.game_frame * 60L;
-		race_presentation_capture();
-		assert(race_presentation.history_valid == 0);
+		race_hires_presentation_capture();
+		assert(race_hires_presentation.history_valid == 0);
 		assert_visual_position(state.playerstate.car_position.lx);
 		state.game_frame = ++elapsed_time2;
 		state.playerstate.car_position.lx += 60;
 		scheduled_time += 50000000U;
-		race_presentation_capture();
-		assert(race_presentation.history_valid != 0);
+		race_hires_presentation_capture();
+		assert(race_hires_presentation.history_valid != 0);
 		assert_visual_position(state.playerstate.car_position.lx - 41);
 	}
 }
@@ -1369,9 +1373,9 @@ static void assert_visual_ghost_position(legacy_s32 position)
 	struct CARSTATE authoritative_car = scheduled_ghost;
 	struct GHOST_CAMERA_STATE authoritative_camera = scheduled_ghost_camera;
 	assert_visual_position(state.playerstate.car_position.lx);
-	assert(race_presentation.ghost_valid != 0);
-	assert(race_presentation.ghost_interpolated.car_position.lx == position);
-	assert(race_presentation.ghost_camera_interpolated.follow_position.x == position);
+	assert(race_hires_presentation.ghost_valid != 0);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == position);
+	assert(race_hires_presentation.ghost_camera_interpolated.follow_position.x == position);
 	assert(memcmp(&authoritative_car, &scheduled_ghost, sizeof(authoritative_car)) == 0);
 	assert(memcmp(&authoritative_camera, &scheduled_ghost_camera, sizeof(authoritative_camera)) ==
 		   0);
@@ -1384,15 +1388,15 @@ static void test_ghost_waits_for_race_start(void)
 										  RACE_START_SEQUENCE_AUTO_DRIVE};
 	for (legacy_u16 rate_index = 0; rate_index < sizeof(rates) / sizeof(rates[0]); rate_index++) {
 		legacy_u16 rate = rates[rate_index];
-		legacy_u16 slots = PRESENTATION_RATE / rate;
+		legacy_u16 slots = HIRES_PRESENTATION_RATE / rate;
 		prepare_presentation_test(rate, 1);
-		race_presentation = (struct RACE_PRESENTATION){0};
+		race_hires_presentation = (struct RACE_PRESENTATION){0};
 		scheduled_ghost_active = 1;
 		scheduled_ghost = (struct CARSTATE){0};
 		scheduled_ghost_camera = (struct GHOST_CAMERA_STATE){0};
 		game_replay_mode = REPLAY_MODE_PAUSED;
 		state.game_inputmode = GAME_INPUT_MODE_WAITING;
-		race_presentation_sync(0);
+		race_hires_presentation_sync(0);
 		/* The truck sequence advances simulation frames while race time stays zero. */
 		for (legacy_u16 sequence = 0; sequence < sizeof(sequences) / sizeof(sequences[0]);
 			 sequence++) {
@@ -1400,14 +1404,14 @@ static void test_ghost_waits_for_race_start(void)
 			state.game_frame++;
 			elapsed_time2 = state.game_frame;
 			ghost_update(0, rate);
-			scheduled_time += PRESENTATION_SECOND_NS / rate;
-			race_presentation_capture();
-			assert(race_presentation.history_valid != 0);
+			scheduled_time += HIRES_PRESENTATION_SECOND_NS / rate;
+			race_hires_presentation_capture();
+			assert(race_hires_presentation.history_valid != 0);
 			for (legacy_u16 slot = 0; slot < slots; slot++) {
-				scheduled_time =
-					race_presentation.sample_time +
-					((legacy_u64)slot * PRESENTATION_SECOND_NS + PRESENTATION_RATE - 1U) /
-						PRESENTATION_RATE;
+				scheduled_time = race_hires_presentation.sample_time +
+								 ((legacy_u64)slot * HIRES_PRESENTATION_SECOND_NS +
+								  HIRES_PRESENTATION_RATE - 1U) /
+									 HIRES_PRESENTATION_RATE;
 				assert_visual_ghost_position(0);
 				assert(scheduled_ghost_sample_frame == 0 && scheduled_ghost_sample_rate == rate);
 			}
@@ -1417,20 +1421,21 @@ static void test_ghost_waits_for_race_start(void)
 		race_start_sequence_state = RACE_START_SEQUENCE_INACTIVE;
 		state.game_frame = elapsed_time2 = 0;
 		ghost_update(0, rate);
-		race_presentation_sync(0);
+		race_hires_presentation_sync(0);
 		assert_visual_ghost_position(0);
-		scheduled_time += PRESENTATION_SECOND_NS / rate;
+		scheduled_time += HIRES_PRESENTATION_SECOND_NS / rate;
 		assert_visual_ghost_position(0);
 
 		state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
 		state.game_frame = elapsed_time2 = 1;
 		ghost_update(1, rate);
-		race_presentation_capture();
-		assert(race_presentation.history_valid != 0);
+		race_hires_presentation_capture();
+		assert(race_hires_presentation.history_valid != 0);
 		for (legacy_u16 slot = 0; slot < slots; slot++) {
-			scheduled_time = race_presentation.sample_time +
-							 ((legacy_u64)slot * PRESENTATION_SECOND_NS + PRESENTATION_RATE - 1U) /
-								 PRESENTATION_RATE;
+			scheduled_time =
+				race_hires_presentation.sample_time +
+				((legacy_u64)slot * HIRES_PRESENTATION_SECOND_NS + HIRES_PRESENTATION_RATE - 1U) /
+					HIRES_PRESENTATION_RATE;
 			legacy_u32 fraction = (slot + 1U) * FRAME_INTERPOLATION_ONE / slots;
 			assert_visual_ghost_position(
 				(legacy_s32)(fraction * TEST_GHOST_DISTANCE_PER_FRAME / FRAME_INTERPOLATION_ONE));
@@ -1449,40 +1454,40 @@ static void test_ghost_interpolation_timestamps(void)
 	scheduled_ghost_camera = (struct GHOST_CAMERA_STATE){0};
 	scheduled_ghost_camera.follow_position.x = 500;
 	elapsed_time1 = 7;
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
-	assert(race_presentation.ghost_valid != 0);
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
+	assert(race_hires_presentation.ghost_valid != 0);
 	assert(scheduled_ghost_sample_calls == 1);
 	assert(scheduled_ghost_sample_frame == 8 && scheduled_ghost_sample_rate == 20);
 	assert(scheduled_ghost_sample_lag == FRAME_INTERPOLATION_ONE / 2U);
-	assert(race_presentation.ghost_interpolated.car_position.lx == 750);
-	assert(race_presentation.ghost_camera_interpolated.follow_position.x == 750);
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == 750);
+	assert(race_hires_presentation.ghost_camera_interpolated.follow_position.x == 750);
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE);
 	assert(scheduled_ghost_sample_lag == 0);
-	assert(race_presentation.ghost_interpolated.car_position.lx == 800);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == 800);
 
 	/* Fast playback spans two live ticks; the same visual fraction must map
 	 * to the same recorded time for the ghost as for the player's pose. */
-	race_presentation.sample_span = 2;
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 4U);
+	race_hires_presentation.sample_span = 2;
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 4U);
 	assert(scheduled_ghost_sample_lag == FRAME_INTERPOLATION_ONE * 3U / 2U);
-	assert(race_presentation.ghost_interpolated.car_position.lx == 650);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == 650);
 
 	scheduled_ghost_sample_succeeds = 0;
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
-	assert(race_presentation.ghost_valid != 0);
-	assert(race_presentation.ghost_interpolated.car_position.lx == 500);
-	assert(race_presentation.ghost_camera_interpolated.follow_position.x == 500);
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
+	assert(race_hires_presentation.ghost_valid != 0);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == 500);
+	assert(race_hires_presentation.ghost_camera_interpolated.follow_position.x == 500);
 	legacy_u32 reads = scheduled_ghost_sample_calls;
-	race_presentation.history_valid = 0;
+	race_hires_presentation.history_valid = 0;
 	scheduled_ghost_sample_succeeds = 1;
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
 	assert(scheduled_ghost_sample_calls == reads);
-	assert(race_presentation.ghost_interpolated.car_position.lx == 500);
+	assert(race_hires_presentation.ghost_interpolated.car_position.lx == 500);
 	assert(scheduled_ghost.car_position.lx == 500);
 	assert(scheduled_ghost_camera.follow_position.x == 500);
 	scheduled_ghost_active = 0;
-	race_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
-	assert(race_presentation.ghost_valid == 0);
+	race_hires_presentation_interpolate_ghost(FRAME_INTERPOLATION_ONE / 2U);
+	assert(race_hires_presentation.ghost_valid == 0);
 	assert(scheduled_ghost_sample_calls == reads);
 }
 
@@ -1501,7 +1506,7 @@ int main(void)
 		memset(&rect_windshield, 0, sizeof(rect_windshield));
 		memset(&dirty_rect, 0, sizeof(dirty_rect));
 		cache.roof_height = cache.dashboard_bottom = -1;
-		cache.hires.supersight = 0;
+		memset(&cache.renderer_viewport, 0, sizeof(cache.renderer_viewport));
 		frames = keys = 0;
 		state.game_frame = 10;
 		elapsed_time2 = (scenario & 1) ? 11 : 10;

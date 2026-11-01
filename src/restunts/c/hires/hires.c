@@ -135,7 +135,7 @@ static void hires_configure_scale(legacy_s32 scale)
 
 void hires_shutdown(void)
 {
-	render_workers_shutdown();
+	hires_render_workers_shutdown();
 	hires_release_buffers();
 	hires_configure_scale(HIRES_SCALE);
 	hires_state.enabled = 0;

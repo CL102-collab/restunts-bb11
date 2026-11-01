@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "shape3d_internal.h"
 #include "../hires/shape3d_pipeline.h"
+#include "shape3d_native.h"
 #define WHEEL_INNER_RADIUS_SCALE 9472U
 #define SHAPE3D_VERTEX_CAPACITY 255U
 #define SHAPE3D_VERTEX_FLAG_CAPACITY 256U
@@ -70,9 +71,6 @@ struct SHAPE3D_TRANSFORM_CONTEXT {
 	struct VECTOR view_translation;
 	struct VECTOR view_vertices[SHAPE3D_VERTEX_CAPACITY];
 	struct POINT2D projected_vertices[SHAPE3D_VERTEX_CAPACITY];
-#if defined(RESTUNTS_SDL3)
-	struct SHAPE3D_HIRES_TRANSFORM_CONTEXT hires;
-#endif
 	legacy_s32 visibility_mask;
 	legacy_s32 front_facing_mask;
 };

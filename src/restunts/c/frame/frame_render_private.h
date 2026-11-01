@@ -29,7 +29,7 @@
 #include "../crash_state.h"
 #include "../ghost/ghost.h"
 #include "../residue.h"
-#include "../hires/frame_render.h"
+#include "../renderer/frame_render.h"
 
 #if defined(RESTUNTS_SDL3)
 #include "../shape3d/shape3d_internal.h"

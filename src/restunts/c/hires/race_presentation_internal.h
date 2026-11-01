@@ -10,7 +10,7 @@
 #define RACE_PRESENTATION_FAST_FRAME_SPAN 2
 
 struct RACE_PRESENTATION {
-	struct PRESENTATION_CLOCK clock;
+	struct HIRES_PRESENTATION_CLOCK clock;
 	struct GAMESTATE previous;
 	struct GAMESTATE current;
 	struct GAMESTATE interpolated;

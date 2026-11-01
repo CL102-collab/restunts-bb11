@@ -1,5 +1,5 @@
 #include "../frame/frame_internal.h"
-#include "../hires/track_preview.h"
+#include "../renderer/track_preview.h"
 #include "../game_input.h"
 #include "trackdata_layout.h"
 #include "../shape2d/shape2d.h"
@@ -14,8 +14,8 @@
 #endif
 
 #define TRACK_PREVIEW_HALF_SHIFT 1U
-#define TRACK_PREVIEW_SCREEN_WIDTH 320
-#define TRACK_PREVIEW_SCREEN_HEIGHT 200
+#define HIRES_TRACK_PREVIEW_SCREEN_WIDTH 320
+#define HIRES_TRACK_PREVIEW_SCREEN_HEIGHT 200
 #define TRACK_PREVIEW_SKYBOX_HEIGHT 100
 #define TRACK_PREVIEW_TRANSFORM_DISTANCE 1024
 #define TRACK_PREVIEW_GRID_SIZE 30U
@@ -87,18 +87,20 @@ static void track_preview_prepare(const struct VECTOR *camera)
 		horizon = 0;
 	}
 
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0,
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
 								  LEGACY_S16_WRAP_SUB(horizon, skybox.minimum_height));
 	sprite_clear_target((legacy_u8)skybox.sky_color);
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0, TRACK_PREVIEW_SKYBOX_HEIGHT);
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
+								  TRACK_PREVIEW_SKYBOX_HEIGHT);
 	skybox_copy_image(TRACK_PREVIEW_SKYBOX_LEFT, 0,
 					  LEGACY_S16_WRAP_SUB(horizon, skybox.heights[TRACK_PREVIEW_SKYBOX_LEFT]));
-	skybox_copy_image(TRACK_PREVIEW_SKYBOX_RIGHT, TRACK_PREVIEW_SCREEN_WIDTH,
+	skybox_copy_image(TRACK_PREVIEW_SKYBOX_RIGHT, HIRES_TRACK_PREVIEW_SCREEN_WIDTH,
 					  LEGACY_S16_WRAP_SUB(horizon, skybox.heights[TRACK_PREVIEW_SKYBOX_RIGHT]));
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, horizon,
-								  TRACK_PREVIEW_SCREEN_HEIGHT);
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, horizon,
+								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
 	sprite_clear_target((legacy_u8)skybox.ground_color);
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0, TRACK_PREVIEW_SCREEN_HEIGHT);
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
+								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
 	select_cliprect_rotate(0, camera_angle, 0, &trackpreview_cliprect, TRACK_PREVIEW_ROTATE_CLIP);
 }
 
@@ -198,8 +200,8 @@ static void track_preview_draw_cell(legacy_u8 column, legacy_u8 row, const struc
 		terrain = 0;
 	}
 
-	hires_track_preview_draw_covered_water(track, terrain, column, row, camera, transformed,
-										   track_preview_draw_terrain);
+	renderer_track_preview_draw_covered_water(track, terrain, column, row, camera, transformed,
+											  track_preview_draw_terrain);
 
 	legacy_s16 terrain_height = 0;
 	if (terrain == TERRAIN_RAISED_TILE) {
@@ -235,7 +237,7 @@ void draw_track_preview(void)
 	transformed.rotvec.x = 0;
 	transformed.rotvec.y = 0;
 	transformed.culling_distance = TRACK_PREVIEW_TRANSFORM_DISTANCE;
-	legacy_s16 batch_scene = hires_track_preview_batch_scene();
+	legacy_s16 batch_scene = renderer_track_preview_batch_scene();
 	for (legacy_u8 row = 0; row < TRACK_PREVIEW_GRID_SIZE; row++) {
 		for (legacy_u8 column = 0; column < TRACK_PREVIEW_GRID_SIZE; column++) {
 			track_preview_draw_cell(column, row, &camera, &transformed);
@@ -244,5 +246,5 @@ void draw_track_preview(void)
 			}
 		}
 	}
-	hires_track_preview_flush_scene(batch_scene);
+	renderer_track_preview_flush_scene(batch_scene);
 }

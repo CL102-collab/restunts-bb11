@@ -43,7 +43,7 @@ legacy_s16 dos_write_stderr(const legacy_s8 *text, legacy_u16 length)
 }
 
 #ifdef RESTUNTS_SDL3
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 static legacy_s32 startup_render_enabled;
 static legacy_s32 startup_render_scale = HIRES_SCALE;
 static legacy_u16 expected_hypervision_preset;
@@ -111,9 +111,9 @@ void hires_set_render_scale(legacy_s32 scale)
 static void check_startup_hypervision(void)
 {
 	if (expected_hypervision_enabled != 0) {
-		assert(supersight_enabled != 0 && startup_render_enabled != 0);
-		assert(frame_adaptive.preset == expected_hypervision_preset);
-		assert(startup_render_scale == frame_adaptive_render_scale(&frame_adaptive));
+		assert(renderer_active != 0 && startup_render_enabled != 0);
+		assert(frame_hires_adaptive.preset == expected_hypervision_preset);
+		assert(startup_render_scale == frame_hires_adaptive_render_scale(&frame_hires_adaptive));
 	}
 }
 #endif
@@ -750,12 +750,12 @@ static void test_startup_physics_options(void)
 static void reset_startup_hypervision(void)
 {
 #ifdef RESTUNTS_SDL3
-	supersight_enabled = 0;
+	renderer_active = 0;
 	startup_render_enabled = 0;
 	startup_render_scale = HIRES_SCALE;
-	expected_hypervision_preset = FRAME_ADAPTIVE_PRESET_AUTO;
+	expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
 	expected_hypervision_enabled = 0;
-	frame_adaptive_reset(&frame_adaptive);
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
 #endif
 	timer_calls = status_calls = 0;
 	audio_failure = 0;
@@ -784,8 +784,8 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(startup_exit_status == EXIT_FAILURE);
 	/* Validate all arguments before enabling rendering or starting the timer. */
 #ifdef RESTUNTS_SDL3
-	assert(startup_render_enabled == 0 && supersight_enabled == 0);
-	assert(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO);
+	assert(startup_render_enabled == 0 && renderer_active == 0);
+	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
 #ifdef STARTUP_FULLSCREEN_PREFIX
@@ -811,27 +811,32 @@ static void test_startup_hypervision_options(void)
 {
 	static const struct {
 		const legacy_s8 *argument;
-		enum FRAME_ADAPTIVE_PRESET preset;
-		enum FRAME_ADAPTIVE_QUALITY quality;
+		enum FRAME_HIRES_ADAPTIVE_PRESET preset;
+		enum FRAME_HIRES_ADAPTIVE_QUALITY quality;
 		legacy_s32 scale;
-	} cases[] = {{"--hv:auto", FRAME_ADAPTIVE_PRESET_AUTO, FRAME_ADAPTIVE_FULL_VIEW, HIRES_SCALE},
-				 {"--hv:full", FRAME_ADAPTIVE_PRESET_FULL, FRAME_ADAPTIVE_FULL_VIEW, HIRES_SCALE},
-				 {"--hv:high", FRAME_ADAPTIVE_PRESET_HIGH, FRAME_ADAPTIVE_LARGE_VIEW, HIRES_SCALE},
-				 {"--hv:medium", FRAME_ADAPTIVE_PRESET_MEDIUM, FRAME_ADAPTIVE_HALF_RESOLUTION,
-				  HIRES_MEDIUM_SCALE},
-				 {"--hv:low", FRAME_ADAPTIVE_PRESET_LOW, FRAME_ADAPTIVE_MINIMUM_RESOLUTION,
-				  HIRES_MINIMUM_SCALE},
-				 {"--HV:AuTo", FRAME_ADAPTIVE_PRESET_AUTO, FRAME_ADAPTIVE_FULL_VIEW, HIRES_SCALE},
-				 {"--HV:FuLl", FRAME_ADAPTIVE_PRESET_FULL, FRAME_ADAPTIVE_FULL_VIEW, HIRES_SCALE},
-				 {"--hV:LoW", FRAME_ADAPTIVE_PRESET_LOW, FRAME_ADAPTIVE_MINIMUM_RESOLUTION,
-				  HIRES_MINIMUM_SCALE}};
+	} cases[] = {{"--hv:auto", FRAME_HIRES_ADAPTIVE_PRESET_AUTO, FRAME_HIRES_ADAPTIVE_FULL_VIEW,
+				  HIRES_SCALE},
+				 {"--hv:full", FRAME_HIRES_ADAPTIVE_PRESET_FULL, FRAME_HIRES_ADAPTIVE_FULL_VIEW,
+				  HIRES_SCALE},
+				 {"--hv:high", FRAME_HIRES_ADAPTIVE_PRESET_HIGH, FRAME_HIRES_ADAPTIVE_LARGE_VIEW,
+				  HIRES_SCALE},
+				 {"--hv:medium", FRAME_HIRES_ADAPTIVE_PRESET_MEDIUM,
+				  FRAME_HIRES_ADAPTIVE_HALF_RESOLUTION, HIRES_MEDIUM_SCALE},
+				 {"--hv:low", FRAME_HIRES_ADAPTIVE_PRESET_LOW,
+				  FRAME_HIRES_ADAPTIVE_MINIMUM_RESOLUTION, HIRES_MINIMUM_SCALE},
+				 {"--HV:AuTo", FRAME_HIRES_ADAPTIVE_PRESET_AUTO, FRAME_HIRES_ADAPTIVE_FULL_VIEW,
+				  HIRES_SCALE},
+				 {"--HV:FuLl", FRAME_HIRES_ADAPTIVE_PRESET_FULL, FRAME_HIRES_ADAPTIVE_FULL_VIEW,
+				  HIRES_SCALE},
+				 {"--hV:LoW", FRAME_HIRES_ADAPTIVE_PRESET_LOW,
+				  FRAME_HIRES_ADAPTIVE_MINIMUM_RESOLUTION, HIRES_MINIMUM_SCALE}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"/sSB",
 								  (legacy_s8 *)cases[index].argument, (legacy_s8 *)"--pg:off",
 								  (legacy_s8 *)"--nointro"};
 		reset_startup_hypervision();
 		/* Explicit startup selection must replace any previous adaptive state. */
-		frame_adaptive_set_preset(&frame_adaptive, FRAME_ADAPTIVE_PRESET_LOW);
+		frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_LOW);
 		expected_hypervision_preset = cases[index].preset;
 		expected_hypervision_enabled = 1;
 		expected_initial_intro_calls = index % 2U;
@@ -848,8 +853,8 @@ static void test_startup_hypervision_options(void)
 		assert(run_main_menu_loop(count, arguments) == 1);
 		assert(menu_calls == 1 && intro_calls == (legacy_u32)expected_initial_intro_calls + 1U);
 		assert(game_calls == 0);
-		assert(startup_options.hypervision_specified != 0);
-		assert(frame_adaptive.quality == cases[index].quality);
+		assert(startup_options.hires_specified != 0);
+		assert(frame_hires_adaptive.quality == cases[index].quality);
 		assert(startup_render_scale == cases[index].scale);
 		assert(audiodriverstring[0] == 'a' && audiodriverstring[1] == 'd');
 	}
@@ -885,9 +890,9 @@ static void test_startup_hypervision_options(void)
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)ignored[index]};
 		reset_startup_hypervision();
 		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
-		assert(startup_render_enabled == 0 && supersight_enabled == 0);
-		assert(startup_options.hypervision_preset == FRAME_ADAPTIVE_PRESET_AUTO);
-		assert(startup_options.hypervision_specified == 0);
+		assert(startup_render_enabled == 0 && renderer_active == 0);
+		assert(startup_options.hires_preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
+		assert(startup_options.hires_specified == 0);
 	}
 }
 
@@ -902,7 +907,7 @@ static void test_startup_ogg_music_options(void)
 								  (legacy_s8 *)"/ns", (legacy_s8 *)"--hv:low",
 								  (legacy_s8 *)"--nointro"};
 		reset_startup_hypervision();
-		expected_hypervision_preset = FRAME_ADAPTIVE_PRESET_LOW;
+		expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_LOW;
 		expected_hypervision_enabled = 1;
 		expected_ogg_music_enabled = cases[index].enabled;
 		expected_initial_intro_calls = index % 2U;
@@ -1033,7 +1038,7 @@ static void test_startup_fps_display_options(void)
 								  (legacy_s8 *)"--ogg:on", (legacy_s8 *)"--nointro"};
 		reset_startup_hypervision();
 #ifdef RESTUNTS_SDL3
-		expected_hypervision_preset = FRAME_ADAPTIVE_PRESET_LOW;
+		expected_hypervision_preset = FRAME_HIRES_ADAPTIVE_PRESET_LOW;
 		expected_hypervision_enabled = 1;
 		expected_ogg_music_enabled = 1;
 #endif

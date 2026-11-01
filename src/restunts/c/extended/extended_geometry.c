@@ -1,5 +1,5 @@
 #include "extended_geometry.h"
-#include "../hires/track_geometry.h"
+#include "../renderer/track_geometry.h"
 #include "../track/trackdata_layout.h"
 #include "../track/track_collision.h"
 #include "../track/track_objects.h"
@@ -384,7 +384,7 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 		 * HyperVision remaps these unchanged faces while retaining native variants. */
 		if (surface != CSTRK_ROAD_PAVED &&
 			(source->shape3d_numpaints <= CSTRK_ROAD_ICE ||
-			 (hires_geometry_repaint_enabled() && material == primitive[2U]))) {
+			 (renderer_geometry_repaint_enabled() && material == primitive[2U]))) {
 			legacy_u8 road_material =
 				surface == CSTRK_ROAD_DIRT ? EXTENDED_MATERIAL_DIRT : EXTENDED_MATERIAL_ICE;
 			if (material == EXTENDED_MATERIAL_PAVED) {

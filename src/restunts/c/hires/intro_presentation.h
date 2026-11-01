@@ -7,7 +7,7 @@
 
 struct INTRO_SESSION;
 struct HIRES_INTRO_PRESENTATION {
-	struct PRESENTATION_CLOCK presentation_clock;
+	struct HIRES_PRESENTATION_CLOCK presentation_clock;
 	struct INTRO_VIEW previous_view;
 	struct INTRO_VIEW current_view;
 	legacy_u64 view_time;

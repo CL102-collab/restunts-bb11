@@ -240,6 +240,22 @@ legacy_void TempleRasterForgetRange(legacy_u8 *begin,legacy_u32 size)
   }
 }
 
+legacy_void TempleRasterForgetParagraphs(legacy_u16 segment,legacy_u16 paragraphs)
+{
+  TempleRasterForgetRange(
+      RsDosMemoryMakePointer(segment,0),paragraphs*TEMPLE_RASTER_PARAGRAPH_BYTES);
+}
+
+legacy_void TempleRasterResizeParagraphs(
+    legacy_u16 segment,legacy_u16 previous,legacy_u16 paragraphs)
+{
+  if(paragraphs!=previous) {
+    legacy_u16 retained=paragraphs<previous ? paragraphs : previous;
+    legacy_u16 changed=paragraphs<previous ? previous-paragraphs : paragraphs-previous;
+    TempleRasterForgetParagraphs((segment+retained)&TEMPLE_WORD_MASK,changed);
+  }
+}
+
 legacy_void TempleRasterSelect(CSprite *sprite)
 {
   if(!sprite||!sprite->sprite_bitmapptr) {

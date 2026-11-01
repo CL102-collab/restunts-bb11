@@ -99,7 +99,7 @@ static void race_rewind_seek(struct RACE_REWIND_STATE *rewind)
 	legacy_u32 target =
 		rewind->origin_frame - (legacy_u32)(rewind->accumulated / RACE_REWIND_UNITS_PER_FRAME);
 	if (target != race_current_frame()) {
-		frame_supersight_reset();
+		frame_renderer_reset();
 #ifdef RESTUNTS_SDL3
 		if (extended_replay_ui_seek(target)) {
 			return;
