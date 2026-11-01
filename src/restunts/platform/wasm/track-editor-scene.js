@@ -20,8 +20,15 @@
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
     const PINE_COUNTS = new Set([6, 10]), PINE_SCALE = 256;
     const WHEAT_FIELD_ID = 215, WHEAT_PHYSICAL_MODEL = 75;
+    const TULIP_FIELD_ID = 216, TULIP_PHYSICAL_MODEL = 76, VINE_FIELD_ID = 217, VINE_PHYSICAL_MODEL = 77;
     // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
     const WHEAT = { rows: 6, soilHeight: 2, canopyHeight: 10, rowHalfWidth: 70, soil: 25, canopy: 82 };
+    // Match the crop rows and flower cups in extended/extended_crop_fields.c.
+    const TULIP = { rows: 6, flowers: 5, height: 16, leafHeight: 4, cupHeight: 8, halfWidth: 10,
+        rowHalfWidth: 80, bandHeight: 12, bandHalfWidth: 70, leaves: 69, stem: 16, petals: [75, 124, 54, 37, 75, 61] };
+    const VINE = { rows: 4, height: 192, halfWidth: 64, shoulderOffset: 48, shoulderHeight: 128,
+        dark: 68, light: 69, grapes: 73, grapeClearance: 2, grapeStationCount: 8,
+        grapeParts: [{ halfWidth: 16, bottom: 80, top: 104 }, { halfWidth: 8, bottom: 64, top: 80 }] };
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,
@@ -209,24 +216,95 @@
         }
         return { vertices, primitives };
     }
-    function wheatField() {
+    function cropFieldBounds(height) {
         const vertices = [0, 1, 3, 2, 7, 6, 4, 5].map(corner => [corner & 1 ? HALF_TILE : -HALF_TILE,
-            corner & 2 ? WHEAT.canopyHeight : 0, corner & 4 ? HALF_TILE : -HALF_TILE]);
-        const primitives = [];
-        function quad(left, right, height, material) {
-            const first = vertices.length;
-            for (let corner = 0; corner < 4; corner++)
-                vertices.push([corner & 1 ? right : left, height, corner & 2 ? HALF_TILE : -HALF_TILE]);
-            primitives.push({ type: 4, flags: 1, materials: [material], indices: [0, 1, 3, 2].map(index => first + index) });
-        }
-        quad(-HALF_TILE, HALF_TILE, WHEAT.soilHeight, WHEAT.soil);
+            corner & 2 ? height : 0, corner & 4 ? HALF_TILE : -HALF_TILE]);
+        return { vertices, primitives: [] };
+    }
+    function cropFieldBase(height) {
+        const shape = cropFieldBounds(height);
+        cropFieldQuad(shape, -HALF_TILE, HALF_TILE, WHEAT.soilHeight, WHEAT.soil);
+        return shape;
+    }
+    function cropFieldPrimitive(shape, indices, material) {
+        shape.primitives.push({ type: indices.length, flags: 1, materials: [material], indices });
+    }
+    function cropFieldQuad(shape, left, right, height, material) {
+        const first = shape.vertices.length;
+        for (let corner = 0; corner < 4; corner++)
+            shape.vertices.push([corner & 1 ? right : left, height, corner & 2 ? HALF_TILE : -HALF_TILE]);
+        cropFieldPrimitive(shape, [0, 1, 3, 2].map(index => first + index), material);
+    }
+    function cropFieldCenter(index, count) {
+        return Math.floor((2 * index + 1) * TILE_SIZE / (2 * count)) - HALF_TILE;
+    }
+    function wheatField() {
+        const shape = cropFieldBase(WHEAT.canopyHeight);
         for (let row = 0; row < WHEAT.rows; row++) {
-            const x = Math.floor((2 * row + 1) * TILE_SIZE / (2 * WHEAT.rows)) - HALF_TILE;
-            quad(x - WHEAT.rowHalfWidth, x + WHEAT.rowHalfWidth, WHEAT.canopyHeight, WHEAT.canopy);
+            const x = cropFieldCenter(row, WHEAT.rows);
+            cropFieldQuad(shape, x - WHEAT.rowHalfWidth, x + WHEAT.rowHalfWidth, WHEAT.canopyHeight, WHEAT.canopy);
         }
-        return { vertices, primitives };
+        return shape;
+    }
+    function tulipField() {
+        const shape = cropFieldBase(TULIP.height);
+        for (let row = 0; row < TULIP.rows; row++) {
+            const x = cropFieldCenter(row, TULIP.rows);
+            cropFieldQuad(shape, x - TULIP.rowHalfWidth, x + TULIP.rowHalfWidth, TULIP.leafHeight, TULIP.leaves);
+        }
+        for (let row = 0; row < TULIP.rows; row++) {
+            const x = cropFieldCenter(row, TULIP.rows);
+            cropFieldQuad(shape, x - TULIP.bandHalfWidth, x + TULIP.bandHalfWidth, TULIP.bandHeight, TULIP.petals[row % TULIP.petals.length]);
+        }
+        for (let row = 0; row < TULIP.rows; row++) for (let flower = 0; flower < TULIP.flowers; flower++) {
+            const x = cropFieldCenter(row, TULIP.rows), z = cropFieldCenter(flower, TULIP.flowers), first = shape.vertices.length;
+            shape.vertices.push([x, TULIP.leafHeight, z], [x, TULIP.cupHeight, z],
+                [x - TULIP.halfWidth, TULIP.height, z], [x, TULIP.height, z - TULIP.halfWidth],
+                [x + TULIP.halfWidth, TULIP.height, z], [x, TULIP.height, z + TULIP.halfWidth]);
+            cropFieldPrimitive(shape, [first, first + 1], TULIP.stem);
+            for (const indices of [[1, 2, 3], [1, 3, 4], [1, 4, 5], [1, 5, 2]])
+                cropFieldPrimitive(shape, indices.map(index => first + index), TULIP.petals[row % TULIP.petals.length]);
+        }
+        return shape;
+    }
+    function vineField() {
+        const shape = cropFieldBase(VINE.height);
+        const section = [[-VINE.halfWidth, WHEAT.soilHeight], [-VINE.shoulderOffset, VINE.shoulderHeight],
+            [0, VINE.height], [VINE.shoulderOffset, VINE.shoulderHeight], [VINE.halfWidth, WHEAT.soilHeight]];
+        const sectionSize = section.length;
+        for (let row = 0; row < VINE.rows; row++) {
+            const x = cropFieldCenter(row, VINE.rows), first = shape.vertices.length;
+            for (const z of [-HALF_TILE, HALF_TILE]) for (const [dx, height] of section)
+                shape.vertices.push([x + dx, height, z]);
+            for (let segment = 0; segment < sectionSize - 1; segment++)
+                cropFieldPrimitive(shape, [segment, segment + 1, segment + sectionSize + 1, segment + sectionSize].map(index => first + index),
+                    segment === 0 || segment === sectionSize - 2 ? VINE.dark : VINE.light);
+            cropFieldPrimitive(shape, [0, 1, 2, 3, 4].map(index => first + index), VINE.dark);
+            cropFieldPrimitive(shape, [5, 9, 8, 7, 6].map(index => first + index), VINE.dark);
+        }
+        return shape;
+    }
+    function vineGrapes(row) {
+        const shape = cropFieldBounds(VINE.height), center = cropFieldCenter(row, VINE.rows);
+        for (let station = 0; station < VINE.grapeStationCount; station++) {
+            const z = cropFieldCenter(station, VINE.grapeStationCount);
+            for (const side of [-1, 1]) for (const part of VINE.grapeParts) {
+                const first = shape.vertices.length;
+                for (const [dz, height] of [[-part.halfWidth, part.bottom], [part.halfWidth, part.bottom], [part.halfWidth, part.top], [-part.halfWidth, part.top]]) {
+                    const inset = Math.trunc((VINE.halfWidth - VINE.shoulderOffset) * (height - WHEAT.soilHeight) / (VINE.shoulderHeight - WHEAT.soilHeight));
+                    shape.vertices.push([center + side * (VINE.halfWidth - inset + VINE.grapeClearance), height, z + dz]);
+                }
+                cropFieldPrimitive(shape, (side < 0 ? [0, 1, 2, 3] : [0, 3, 2, 1]).map(index => first + index), VINE.grapes);
+            }
+        }
+        return shape;
     }
     const wheatFieldShape = wheatField();
+    const cropFieldShapes = new Map([
+        [WHEAT_FIELD_ID, { name: 'wheat field', shapes: [wheatFieldShape], physical: WHEAT_PHYSICAL_MODEL }],
+        [TULIP_FIELD_ID, { name: 'tulip field', shapes: [tulipField()], physical: TULIP_PHYSICAL_MODEL }],
+        [VINE_FIELD_ID, { name: 'vine field', shapes: [vineField(), ...Array.from({ length: VINE.rows }, (_, row) => vineGrapes(row))], physical: VINE_PHYSICAL_MODEL }]
+    ]);
     function buildScene(doc, assets) {
         if (!doc || !Number.isInteger(doc.width) || !Number.isInteger(doc.height) || doc.width < 1 || doc.height < 1 ||
             doc.width > MAX_DIMENSION || doc.height > MAX_DIMENSION || !doc.vertices || !Array.isArray(doc.cells) || !Array.isArray(doc.objects))
@@ -316,10 +394,11 @@
             instances++;
         }
         for (const object of doc.objects) {
-            if (object.id === WHEAT_FIELD_ID) {
+            const field = cropFieldShapes.get(object.id);
+            if (field) {
                 if (object.width !== 1 || object.height !== 1 || object.mask !== 1 ||
-                    object.lowerSurface || object.tunnelSlalom || object.rollRamp || object.pineCount) fail('Invalid 3D wheat field.');
-                mesh(object, { rotation: 0, ignoreZBias: 0 }, wheatFieldShape, WHEAT_PHYSICAL_MODEL, 0);
+                    object.lowerSurface || object.tunnelSlalom || object.rollRamp || object.pineCount) fail('Invalid 3D ' + field.name + '.');
+                for (const shape of field.shapes) mesh(object, { rotation: 0, ignoreZBias: 0 }, shape, field.physical, 0);
                 continue;
             }
             const original = data.objects[object.id];

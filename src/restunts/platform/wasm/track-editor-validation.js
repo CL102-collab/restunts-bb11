@@ -43,7 +43,7 @@
             (HINTS[status] || 'Check the track and try again.');
     }
     function resolveOrientation(object) {
-        if (object.id === model.WHEAT_FIELD_ID) return 0;
+        if (model.isCropField(object.id)) return 0;
         const original = data.objects[object.id];
         if (!original || object.id < 1 || object.id >= 182) return -1;
         if (!object.rotation) return object.id;

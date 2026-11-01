@@ -139,8 +139,8 @@ legacy_s16 extended_get_track_collision_points(legacy_s16 column_arg, legacy_s16
 	}
 	/* The generated launch ramp supplies its own finite concrete supports;
 	 * its backing corkscrew ID must not introduce invisible native posts.
-	 * Wheat is decorative and contributes no solid collision points. */
-	if (object->roll_ramp || object->legacy_id == CSTRK_WHEAT_FIELD_ID) {
+	 * Crop fields are decorative and contribute no solid collision points. */
+	if (object->roll_ramp || cstrk_is_crop_field(object->legacy_id)) {
 		*result = 0;
 		return 1;
 	}

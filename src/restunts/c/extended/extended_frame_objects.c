@@ -1,6 +1,7 @@
 #include "extended_frame_internal.h"
 #include "pine_trees.h"
 #include "wheat_field.h"
+#include "crop_fields.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
@@ -151,17 +152,28 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
-	if (model->legacy_id == CSTRK_WHEAT_FIELD_ID) {
-		struct SHAPE3D source;
-		if (!wheat_field_create_mesh(&source)) {
-			return 0;
+	if (cstrk_is_crop_field(model->legacy_id)) {
+		struct TRACKOBJECT crop = *definition;
+		crop.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
+		legacy_u8 count = model->legacy_id == CSTRK_WHEAT_FIELD_ID
+							  ? 1U
+							  : crop_fields_mesh_count(model->legacy_id);
+		for (legacy_u8 part = 0; part < count; part++) {
+			struct SHAPE3D source;
+			legacy_s16 created = model->legacy_id == CSTRK_WHEAT_FIELD_ID
+									 ? wheat_field_create_mesh(&source)
+									 : crop_fields_create_mesh(&source, model->legacy_id, part);
+			if (!created) {
+				continue;
+			}
+			legacy_s16 result =
+				frame_extended_draw_object_mesh(&object, &crop, &source, CSTRK_ROAD_PAVED);
+			extended_geometry_free_shape(&source);
+			if (result) {
+				return result;
+			}
 		}
-		struct TRACKOBJECT wheat = *definition;
-		wheat.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
-		legacy_s16 result =
-			frame_extended_draw_object_mesh(&object, &wheat, &source, CSTRK_ROAD_PAVED);
-		extended_geometry_free_shape(&source);
-		return result;
+		return 0;
 	}
 	if (model->pine_count) {
 		return frame_extended_draw_pine_trees(&object);

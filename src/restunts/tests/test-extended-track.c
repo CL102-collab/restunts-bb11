@@ -2751,81 +2751,96 @@ static void test_roll_ramp_grille_join(void)
 	}
 }
 
-#define WHEAT_TEST_DIRECTION_COUNT 4U
-#define WHEAT_TEST_GRADE_COUNT 5U
-#define WHEAT_TEST_PROBE_COUNT 3U
-#define WHEAT_TEST_HEIGHT 64
-#define WHEAT_TEST_POSITION 400
+#define CROP_TEST_DIRECTION_COUNT 4U
+#define CROP_TEST_GRADE_COUNT 5U
+#define CROP_TEST_PROBE_COUNT 3U
+#define CROP_TEST_HEIGHT 64
+#define CROP_TEST_POSITION 400
 
-static void test_wheat_field_scenery(void)
+static void test_crop_field_variant(legacy_u16 id, legacy_u8 rotation, legacy_u8 grade,
+									legacy_u8 level, legacy_u8 surface)
 {
-	static const legacy_s8 slopes[WHEAT_TEST_GRADE_COUNT][2] = {
+	static const legacy_s8 slopes[CROP_TEST_GRADE_COUNT][2] = {
 		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-	static const legacy_s16 offsets[WHEAT_TEST_PROBE_COUNT] = {-WHEAT_TEST_POSITION, 0,
-															   WHEAT_TEST_POSITION};
-	for (legacy_u8 rotation = 0; rotation < WHEAT_TEST_DIRECTION_COUNT; rotation++) {
-		for (legacy_u8 grade = 0; grade < WHEAT_TEST_GRADE_COUNT; grade++) {
-			for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface <= CSTRK_TERRAIN_WATER;
-				 surface++) {
-				struct CSTRK_TRACK track;
-				cstrk_init(&track);
-				assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
-				struct CSTRK_OBJECT wheat = object_at(CSTRK_WHEAT_FIELD_ID, 0, 0);
-				wheat.rotation = rotation;
-				wheat.base_height = GENERAL_SLOPE_BASE_HEIGHT;
-				wheat.slope_x = slopes[grade][0];
-				wheat.slope_y = slopes[grade][1];
-				for (legacy_u8 y = 0; y <= track.height; y++) {
-					for (legacy_u8 x = 0; x <= track.width; x++) {
-						track.corner_heights[y * (track.width + 1U) + x] =
-							wheat.base_height + wheat.slope_x * x + wheat.slope_y * y;
+	static const legacy_s16 offsets[CROP_TEST_PROBE_COUNT] = {-CROP_TEST_POSITION, 0,
+															  CROP_TEST_POSITION};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT crop = object_at(id, 0, 0);
+	crop.rotation = rotation;
+	crop.base_height = level + (slopes[grade][0] < 0 || slopes[grade][1] < 0);
+	crop.slope_x = slopes[grade][0];
+	crop.slope_y = slopes[grade][1];
+	for (legacy_u8 y = 0; y <= track.height; y++) {
+		for (legacy_u8 x = 0; x <= track.width; x++) {
+			track.corner_heights[y * (track.width + 1U) + x] =
+				crop.base_height + crop.slope_x * x + crop.slope_y * y;
+		}
+	}
+	track.cells[0].surface = surface;
+	assert(cstrk_add_object(&track, &crop, error, sizeof(error)));
+	activate(&track);
+	const struct CSTRK_OBJECT *placed = extended_track_object_origin_at(0, 0);
+	assert(placed && placed->legacy_id == id);
+	assert(extended_track_object_at(0, 0) == placed);
+	assert(extended_track_object_id(placed) == 0U);
+	assert(extended_track_route_info(0, 0, 0U) == NULL);
+	assert(track_element_map[0] == 0U);
+	struct VECTOR collision_points[CROP_TEST_PROBE_COUNT];
+	assert(get_track_collision_points(0, 0, collision_points) == 0);
+	legacy_s16 expected_height[CROP_TEST_PROBE_COUNT];
+	legacy_s8 expected_surface[CROP_TEST_PROBE_COUNT];
+	struct VECTOR expected_normal[CROP_TEST_PROBE_COUNT];
+	for (legacy_u8 probe = 0; probe < CROP_TEST_PROBE_COUNT; probe++) {
+		struct VECTOR local = {offsets[probe], CROP_TEST_HEIGHT, -offsets[probe]};
+		struct VECTOR point = object_world(&track, &crop, local);
+		(void)sample_world(point.x, point.y, point.z);
+		assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
+		assert(wallindex == TRACK_WALL_NONE);
+		expected_height[probe] = (legacy_s16)selected_height(&point);
+		expected_surface[probe] = current_surf_type;
+		expected_normal[probe] = current_planptr->plane_normal;
+	}
+	struct VECTOR first =
+		object_world(&track, &crop, (struct VECTOR){-CROP_TEST_POSITION, CROP_TEST_HEIGHT, 0});
+	struct VECTOR second =
+		object_world(&track, &crop, (struct VECTOR){CROP_TEST_POSITION, CROP_TEST_HEIGHT, 0});
+	legacy_s16 fraction;
+	assert(!track_solid_obstacle_contact(&first, &second, &fraction));
+	/* The crop must not change the terrain's contact plane or grip. */
+	track.object_count = 0;
+	activate(&track);
+	for (legacy_u8 probe = 0; probe < CROP_TEST_PROBE_COUNT; probe++) {
+		struct VECTOR local = {offsets[probe], CROP_TEST_HEIGHT, -offsets[probe]};
+		struct VECTOR point = object_world(&track, &crop, local);
+		(void)sample_world(point.x, point.y, point.z);
+		assert(selected_height(&point) == expected_height[probe]);
+		assert(current_surf_type == expected_surface[probe]);
+		assert(current_planptr->plane_normal.x == expected_normal[probe].x);
+		assert(current_planptr->plane_normal.y == expected_normal[probe].y);
+		assert(current_planptr->plane_normal.z == expected_normal[probe].z);
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
+static void test_crop_field_scenery(void)
+{
+	static const legacy_u16 ids[] = {CSTRK_WHEAT_FIELD_ID, CSTRK_TULIP_FIELD_ID,
+									 CSTRK_VINE_FIELD_ID};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < CROP_TEST_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 grade = 0; grade < CROP_TEST_GRADE_COUNT; grade++) {
+				for (legacy_u8 level = 0; level <= CSTRK_MAX_HEIGHT; level++) {
+					if (grade && level == CSTRK_MAX_HEIGHT) {
+						continue;
+					}
+					for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface <= CSTRK_TERRAIN_WATER;
+						 surface++) {
+						test_crop_field_variant(ids[kind], rotation, grade, level, surface);
 					}
 				}
-				track.cells[0].surface = surface;
-				assert(cstrk_add_object(&track, &wheat, error, sizeof(error)));
-				activate(&track);
-				const struct CSTRK_OBJECT *placed = extended_track_object_origin_at(0, 0);
-				assert(placed && placed->legacy_id == CSTRK_WHEAT_FIELD_ID);
-				assert(extended_track_object_at(0, 0) == placed);
-				assert(extended_track_object_id(placed) == 0U);
-				assert(extended_track_route_info(0, 0, 0U) == NULL);
-				assert(track_element_map[0] == 0U);
-				struct VECTOR collision_points[WHEAT_TEST_PROBE_COUNT];
-				assert(get_track_collision_points(0, 0, collision_points) == 0);
-				legacy_s16 expected_height[WHEAT_TEST_PROBE_COUNT];
-				legacy_s8 expected_surface[WHEAT_TEST_PROBE_COUNT];
-				struct VECTOR expected_normal[WHEAT_TEST_PROBE_COUNT];
-				for (legacy_u8 probe = 0; probe < WHEAT_TEST_PROBE_COUNT; probe++) {
-					struct VECTOR local = {offsets[probe], WHEAT_TEST_HEIGHT, -offsets[probe]};
-					struct VECTOR point = object_world(&track, &wheat, local);
-					(void)sample_world(point.x, point.y, point.z);
-					assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
-					assert(wallindex == TRACK_WALL_NONE);
-					expected_height[probe] = (legacy_s16)selected_height(&point);
-					expected_surface[probe] = current_surf_type;
-					expected_normal[probe] = current_planptr->plane_normal;
-				}
-				struct VECTOR first = object_world(
-					&track, &wheat, (struct VECTOR){-WHEAT_TEST_POSITION, WHEAT_TEST_HEIGHT, 0});
-				struct VECTOR second = object_world(
-					&track, &wheat, (struct VECTOR){WHEAT_TEST_POSITION, WHEAT_TEST_HEIGHT, 0});
-				legacy_s16 fraction;
-				assert(!track_solid_obstacle_contact(&first, &second, &fraction));
-				/* The crop must not change the terrain's contact plane or grip. */
-				track.object_count = 0;
-				activate(&track);
-				for (legacy_u8 probe = 0; probe < WHEAT_TEST_PROBE_COUNT; probe++) {
-					struct VECTOR local = {offsets[probe], WHEAT_TEST_HEIGHT, -offsets[probe]};
-					struct VECTOR point = object_world(&track, &wheat, local);
-					(void)sample_world(point.x, point.y, point.z);
-					assert(selected_height(&point) == expected_height[probe]);
-					assert(current_surf_type == expected_surface[probe]);
-					assert(current_planptr->plane_normal.x == expected_normal[probe].x);
-					assert(current_planptr->plane_normal.y == expected_normal[probe].y);
-					assert(current_planptr->plane_normal.z == expected_normal[probe].z);
-				}
-				extended_track_unload();
-				cstrk_free(&track);
 			}
 		}
 	}
@@ -2876,7 +2891,7 @@ int main(void)
 	test_overpass_independent_surfaces();
 	test_overpass_opponent_speeds();
 	test_scenery_ignores_road_surface();
-	test_wheat_field_scenery();
+	test_crop_field_scenery();
 	test_extended_material_variants();
 	test_shared_road_anchor();
 	test_opponent_shortest_branch();
