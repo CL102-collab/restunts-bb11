@@ -12,7 +12,7 @@ legacy_u8 hires_track_paint_terrain_face(const struct VECTOR *points, legacy_u16
 										 const struct FRAME_EXTENDED_TERRAIN *terrain,
 										 legacy_s16 *result)
 {
-	if (!hires_active || !terrain->graded) {
+	if (!hires_active || (!terrain->graded && !terrain->cut_roads)) {
 		return 0;
 	}
 	*result = hires_frame_extended_paint_precise_terrain_face(points, count, primitive, terrain);

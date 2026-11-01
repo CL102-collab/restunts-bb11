@@ -73,6 +73,25 @@ void hires_track_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain)
 			}
 		}
 	}
+	/* Flat roads can extend into a free quadrant or over a neighboring edge.
+	 * Keep occupied flat cells on their usual fast path; only those shared
+	 * terrain faces need the precise road cutout in addition to graded roads. */
+	for (legacy_u16 index = 0; index < terrain->object_count; index++) {
+		const struct CSTRK_OBJECT *object = terrain->objects[index];
+		if (object->roll_ramp || frame_extended_object_sloped(object)) {
+			continue;
+		}
+		legacy_s16 column = terrain->column - object->x, row = terrain->row - object->y;
+		if (column >= 0 && column < object->width && row >= 0 && row < object->height &&
+			(object->occupied_mask & (1U << (row * object->width + column)))) {
+			continue;
+		}
+		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
+		if (track_road_triangle_count(definition->ss_physicalModel)) {
+			terrain->cut_roads = 1;
+			break;
+		}
+	}
 }
 
 legacy_u8 hires_track_uses_grade(const struct CSTRK_OBJECT *object, legacy_u8 *result)

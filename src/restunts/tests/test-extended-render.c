@@ -2675,6 +2675,121 @@ static legacy_f64 capture_corner_terrain(const struct CSTRK_TRACK *track, legacy
 }
 #endif
 
+#define CORNER_OCCLUSION_ROAD 13U
+#define CORNER_OCCLUSION_BASE_HEIGHT 2U
+#define CORNER_OCCLUSION_DIRT_MATERIAL 25U
+#define CORNER_OCCLUSION_ICE_MATERIAL 28U
+
+static legacy_u16 check_terrain_above_flat_turn(void)
+{
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	if (!renderer_active) {
+		return 0;
+	}
+	/* Reproduce triang1.csrpl at 6:14.70: an unclaimed outer corner rises
+	 * above a flat big turn. The hill must not cover the road crossing it. */
+	static const legacy_u8 materials[SURFACE_RENDER_COUNT] = {CLASSIC_RENDER_PAVED_MATERIAL,
+															  CORNER_OCCLUSION_DIRT_MATERIAL,
+															  CORNER_OCCLUSION_ICE_MATERIAL};
+	struct GAMESTATE saved_state = state;
+	legacy_s8 saved_camera = cameramode;
+	legacy_s32 saved_scale = hires_render_scale();
+	legacy_u16 frames = 0;
+	for (legacy_u8 rotation = 0; rotation < CORNER_FILL_ROTATIONS; rotation++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+		assert(
+			cstrk_create(&track, CORNER_FILL_MAP_SIZE, CORNER_FILL_MAP_SIZE, error, sizeof(error)));
+		memset(track.corner_heights, CORNER_OCCLUSION_BASE_HEIGHT,
+			   (track.width + 1U) * (track.height + 1U));
+		legacy_u16 raised_x = CORNER_FILL_FOOTPRINT, raised_y = CORNER_FILL_FOOTPRINT;
+		corner_fill_rotate(&raised_x, &raised_y, CORNER_FILL_FOOTPRINT, rotation);
+		track.corner_heights[(CORNER_FILL_ANCHOR + raised_y) * (track.width + 1U) +
+							 CORNER_FILL_ANCHOR + raised_x]++;
+		struct CSTRK_OBJECT road = {0};
+		road.legacy_id = CORNER_OCCLUSION_ROAD;
+		road.x = road.y = CORNER_FILL_ANCHOR;
+		road.width = road.height = CORNER_FILL_FOOTPRINT;
+		road.occupied_mask = rotation & 1U ? 9U : 6U;
+		road.rotation = rotation;
+		road.base_height = CORNER_OCCLUSION_BASE_HEIGHT;
+		assert(cstrk_add_object(&track, &road, error, sizeof(error)));
+		for (legacy_u8 surface = 0; surface < SURFACE_RENDER_COUNT; surface++) {
+			track.objects[0].surface = surface;
+			assert(extended_track_activate(&track, error, sizeof(error)));
+			struct CARSTATE *car = &state.playerstate;
+			car->car_position.lx = (road.x * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE) *
+								   GRASS_RENDER_POSITION_SCALE;
+			car->car_position.lz =
+				((track.height - road.y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE) *
+				GRASS_RENDER_POSITION_SCALE;
+			car->car_position.ly = (CORNER_OCCLUSION_BASE_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT +
+									STUNT_RENDER_CAR_CLEARANCE) *
+								   GRASS_RENDER_POSITION_SCALE;
+			car->car_previous_position = car->car_position;
+			car->car_rotate = (struct VECTOR){0};
+			car->car_crashBmpFlag = CRASH_EVENT_WATER;
+			state.game_particles_active = 0;
+			cameramode = CAMERA_MODE_CUSTOM;
+			custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+			custom_camera.elevation_angle = SLOPE_OCCLUSION_CAMERA_ELEVATION;
+			for (legacy_s32 scale = HIRES_SCALE; scale >= HIRES_MINIMUM_SCALE; scale /= 2) {
+				hires_set_render_scale(scale);
+				for (legacy_u8 camera = 0; camera < SLOPE_OCCLUSION_CAMERA_COUNT; camera++) {
+					custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN + camera * ANGLE_QUARTER_TURN;
+					size_t reference_size, actual_size;
+					slope_occlusion_hide_terrain = 1;
+					legacy_u32 *reference = capture_complete_render(&reference_size);
+					slope_occlusion_hide_terrain = 0;
+					legacy_u32 *actual = capture_complete_render(&actual_size);
+					assert(reference_size == actual_size);
+					legacy_s32 width, height;
+					assert(video_framebuffer(
+						dos_memory_make_pointer(RENDER_CAPTURE_VIDEO_SEGMENT, 0), &width, &height));
+					legacy_u32 road_color = RENDER_CAPTURE_OPAQUE_ALPHA |
+											(legacy_u32)material_clrlist_ptr[materials[surface]] *
+												RENDER_CAPTURE_INDEX_RGB_STEP;
+					size_t visible = 0, covered = 0;
+					for (legacy_s32 y = 1; y + 1 < height; y++) {
+						for (legacy_s32 x = 1; x + 1 < width; x++) {
+							size_t pixel = (size_t)y * width + x;
+							if (reference[pixel] == road_color &&
+								reference[pixel - 1U] == road_color &&
+								reference[pixel + 1U] == road_color &&
+								reference[pixel - width] == road_color &&
+								reference[pixel + width] == road_color) {
+								visible++;
+								covered += actual[pixel] != road_color;
+							}
+						}
+					}
+					if (covered || visible < SLOPE_OCCLUSION_MIN_ROAD_PIXELS) {
+						fprintf(stderr,
+								"Flat turn rotation %u surface %u camera %u scale %d has %zu/%zu "
+								"covered road pixels\n",
+								rotation, surface, camera, scale, covered, visible);
+					}
+					assert(visible >= SLOPE_OCCLUSION_MIN_ROAD_PIXELS);
+					assert(covered == 0);
+					free(reference);
+					free(actual);
+					frames += 2;
+				}
+			}
+		}
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+	hires_set_render_scale(saved_scale);
+	cameramode = saved_camera;
+	state = saved_state;
+	return frames;
+#else
+	return 0;
+#endif
+}
+
 static legacy_u16 check_terrain_below_graded_turn(void)
 {
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
@@ -4006,6 +4121,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		check_roll_ramp_submissions();
 #endif
 		frames += check_sloped_road_occlusion();
+		frames += check_terrain_above_flat_turn();
 		frames += check_terrain_below_graded_turn();
 		frames += check_generated_terrain_bounds();
 		frames += check_reversed_native_slope_rendering();
