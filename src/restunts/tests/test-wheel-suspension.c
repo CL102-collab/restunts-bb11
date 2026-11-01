@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/gamestate.h"
 
 static void test_suspension_boundaries(void)

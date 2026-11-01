@@ -6,7 +6,7 @@
 #include "track_objects.h"
 #include "track_collision.h"
 #include "trackobj_internal.h"
-#include "../physics_internal.h"
+#include "../physics/physics_internal.h"
 #include "../owoot/owoot_road.h"
 #include "../externs.h"
 #ifdef RESTUNTS_SDL3

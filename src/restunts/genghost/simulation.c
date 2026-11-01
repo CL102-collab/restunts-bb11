@@ -10,7 +10,7 @@
 #include "../c/memmgr.h"
 #include "../c/race/race_resources.h"
 #include "../c/race/race_stats.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/wheel_transform.h"
 #include "../c/crash_state.h"
 #include "../c/track/trackdata_layout.h"

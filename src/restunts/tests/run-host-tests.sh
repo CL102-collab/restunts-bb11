@@ -106,7 +106,7 @@ small_source_companions() {
         fileio.c) printf '%s\n' file_car.c file_decomp.c ;;
         game_input.c) printf '%s\n' game_input_shortcuts.c ;;
         ghost.c) printf '%s\n' ghost/ghost_line.c ;;
-        physics_collision.c) printf '%s\n' physics_suspension.c ;;
+        physics_collision.c) printf '%s\n' physics/physics_suspension.c ;;
         restunts.c) printf '%s\n' startup.c ;;
         race.c) printf '%s\n' race/race_rewind.c race/race_presentation.c ;;
     esac
@@ -277,7 +277,7 @@ run_host_test test-car-menu menu/menu_car.c \
 run_host_test test-car-speed statecar.c \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c"
 run_host_test test-crash-state statecrs.c "$test_source_dir/legacy.c" -DRESTUNTS_HEADLESS
-run_host_test test-collision-interpolation physics_collision.c \
+run_host_test test-collision-interpolation physics/physics_collision.c \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c"
 run_host_test test-command-line command_line.c \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
@@ -307,14 +307,14 @@ run_host_test test-command-line command_line.c \
 run_host_test test-startup math/math.c "$test_source_dir/owoot/owoot.c" "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/car/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math/math.c -DRESTUNTS_AMIGA "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/owoot/owoot.c" "$test_source_dir/car/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
@@ -322,7 +322,7 @@ run_host_test test-startup math/math.c -DRESTUNTS_SDL3 "$test_source_dir/track/t
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
@@ -330,7 +330,7 @@ run_host_test test-startup math/math.c -DRESTUNTS_SDL3 -D__ANDROID__ "$test_sour
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
@@ -338,7 +338,7 @@ run_host_test test-startup math/math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ "$test_s
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
@@ -346,7 +346,7 @@ run_host_test test-startup math/math.c -DRESTUNTS_SDL3 -D__DJGPP__ "$test_source
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/physics/physics_grip.c" \
     "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
@@ -433,8 +433,8 @@ run_host_test test-ghost ghost/ghost.c \
     "$test_source_dir/replay/replay.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/hires/frame_interpolation.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign
-run_host_test test-grip physics_grip.c \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/strlib.c" \
+run_host_test test-grip physics/physics_grip.c \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" -Wno-sign-compare
 run_host_test test-legacy-semantics legacy.c
 run_host_test test-line-prepare shape3d/shape3d_lines.c \
@@ -448,15 +448,15 @@ run_host_test test-simulation-setup gameinit.c "$test_source_dir/owoot/owoot.c" 
     "$test_source_dir/math/math.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" -Wno-pointer-sign -Wno-sign-compare
 run_host_test test-penalty-routing race/race_route.c "$test_source_dir/strlib.c" -Wno-sign-compare
-run_host_test test-wheel-suspension physics_collision.c
-run_host_test test-car-adhesion physics_collision.c \
+run_host_test test-wheel-suspension physics/physics_collision.c
+run_host_test test-car-adhesion physics/physics_collision.c \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
-    "$test_source_dir/resource.c" "$test_source_dir/physics_grip.c" \
+    "$test_source_dir/resource.c" "$test_source_dir/physics/physics_grip.c" \
     -DRESTUNTS_HEADLESS -Wno-pointer-sign -Wno-sign-compare -Wno-missing-braces
 run_host_test test-fractional-motion legacy.c \
-    "$test_source_dir/physics_grip.c" "$test_source_dir/physics_collision.c" \
+    "$test_source_dir/physics/physics_grip.c" "$test_source_dir/physics/physics_collision.c" \
     "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-route-points opponent/opponent.c "$test_source_dir/trkutil.c" -Wno-missing-braces
 run_host_test test-memmgr-cache memmgr.c \
@@ -518,8 +518,8 @@ run_host_test test-replay-version-warning fileio.c "$test_source_dir/strlib.c" \
 run_host_test test-replay-version-warning fileio.c "$test_source_dir/strlib.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -Wno-pointer-sign
 run_host_test test-driving-rules driving_rules.c \
-    "$test_source_dir/statecar.c" "$test_source_dir/physics_collision.c" \
-    "$test_source_dir/physics_grip.c" "$test_source_dir/race/race_route.c" \
+    "$test_source_dir/statecar.c" "$test_source_dir/physics/physics_collision.c" \
+    "$test_source_dir/physics/physics_grip.c" "$test_source_dir/race/race_route.c" \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot.c" "$test_source_dir/strlib.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-braces
 run_host_test test-csrpl extended/extended_csrpl.c "$test_source_dir/extended/extended_cstrk.c" \
@@ -562,7 +562,7 @@ run_host_test test-car-shape-lifetime shape3d/shape3d_car.c \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-skybox-render skybox.c \
     "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/data/full_data.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-simd-decoding simd.c
 run_host_test test-editor-boundaries legacy.c \
@@ -610,27 +610,27 @@ run_host_test test-track-object track/trackobj.c "$test_source_dir/extended/exte
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     -Wno-missing-braces
-run_host_test test-body-plane-collision physics_collision.c \
+run_host_test test-body-plane-collision physics/physics_collision.c \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
     -Wno-missing-braces
-run_host_test test-underside-collision physics_collision.c \
+run_host_test test-underside-collision physics/physics_collision.c \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
     -Wno-missing-braces
-run_host_test test-wall-span-collision physics_collision.c \
+run_host_test test-wall-span-collision physics/physics_collision.c \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
     -Wno-missing-braces
-run_host_test test-solid-obstacle-collision physics_collision.c \
+run_host_test test-solid-obstacle-collision physics/physics_collision.c \
     "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
     -Wno-missing-braces
-run_host_test test-track-collision-boundaries physics_collision.c \
+run_host_test test-track-collision-boundaries physics/physics_collision.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/trkutil.c" -Wno-missing-braces
 run_host_test test-track-setup track/track_setup.c \
@@ -659,8 +659,8 @@ run_host_test test-ui-dialog ui/ui_dialog.c "$test_source_dir/legacy.c" \
 
 run_host_test test-gameplay-residue gamestep.c \
     "$test_source_dir/state.c" "$test_source_dir/race/race_route.c" \
-    "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/physics/physics_grip.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math/math.c" \
     "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-braces
@@ -670,7 +670,7 @@ run_host_test test-pixldump-native-context legacy.c
 
 run_host_test test-shape3d-render-residue shape3d/shape3d.c \
     "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
-    "$test_source_dir/physics_collision.c" "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/physics/physics_collision.c" "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 
 run_host_test test-owoot math/math.c \
@@ -682,7 +682,7 @@ run_host_test test-owoot-route owoot/owoot_route.c "$test_source_dir/owoot/owoot
 run_host_test test-roll-ramp-motion legacy.c "$test_source_dir/math/math.c" \
     "$test_source_dir/headless_data.c" -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS \
     -Wno-missing-field-initializers
-run_host_test test-extended-native-response physics_collision.c "$test_source_dir/extended/extended_roll_ramp.c" \
+run_host_test test-extended-native-response physics/physics_collision.c "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/headless_data.c" "$test_source_dir/extended/extended_geometry.c" \
     "$test_source_dir/trkutil.c" \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \

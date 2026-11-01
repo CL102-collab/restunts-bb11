@@ -1,5 +1,5 @@
 #include "../state_internal.h"
-#include "../physics_internal.h"
+#include "../physics/physics_internal.h"
 #include "../game_input.h"
 #include "../track/trackdata_layout.h"
 #include "../crash_state.h"

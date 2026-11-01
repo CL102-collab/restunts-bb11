@@ -1,7 +1,7 @@
 /* Prepare wheel travel and derive the working car pose in native update order. */
 #include "legacy.h"
 #include "math/math.h"
-#include "physics_internal.h"
+#include "physics/physics_internal.h"
 #include "residue.h"
 #include "state_internal.h"
 #include "crash_state.h"

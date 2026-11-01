@@ -11,7 +11,7 @@
 #include "../c/frame/frame_internal.h"
 #include "../c/hires/frame_interpolation.h"
 #include "../c/hires/presentation.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/game_input.h"
 #include "../c/keyboard.h"
 #include "../c/race/race_resources.h"

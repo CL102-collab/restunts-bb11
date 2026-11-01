@@ -13,7 +13,7 @@
 #include "../c/car/car_speed.h"
 #include "../c/state_internal.h"
 #include "../c/owoot/owoot.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 
 extern void update_follow_cameras(void);
 

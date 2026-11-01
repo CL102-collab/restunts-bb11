@@ -25,7 +25,7 @@
 #include "../c/car/car_speed.h"
 #include "../c/car/car_resources.h"
 #include "../c/owoot/owoot.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/extended/roll_ramp.h"
 #include "../c/opponent/opponent.h"
 

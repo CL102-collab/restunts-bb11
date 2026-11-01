@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "../c/driving_rules.h"
 #include "../c/car/car_speed.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 #include "../c/race/race_route.h"
 #include "../c/owoot/owoot.h"
 

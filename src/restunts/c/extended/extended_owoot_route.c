@@ -12,7 +12,7 @@
 #ifdef RESTUNTS_SDL3
 #include "extended_geometry.h"
 #include "roll_ramp.h"
-#include "../physics_internal.h"
+#include "../physics/physics_internal.h"
 #endif
 
 #include "extended_owoot_internal.h"
