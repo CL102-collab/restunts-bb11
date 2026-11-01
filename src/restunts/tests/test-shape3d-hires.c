@@ -79,15 +79,13 @@ static void queue(legacy_u8 type, legacy_u32 count, const struct SHAPE3D_HIRES_V
 	queue_flagged(type, count, vertices, 0);
 }
 
-#define DECAL_TEST_INTERIOR_WIDTH 0.5
-#define DECAL_TEST_MAXIMUM_BORDER_WIDTH 2U
 #define DECAL_TEST_CENTER_Y (HIRES_HEIGHT / 2)
 #define LINE_TEST_FAR_MAXIMUM_WIDTH 2U
 #define LINE_TEST_CLIPPED_FAR_SAMPLE_X 739
 #define DECAL_TEST_BORDER_SAMPLE_OFFSET (HIRES_SAMPLE_CENTER_OFFSET / 2)
 
-/* Attached road dashes are polygons. Nearby markings retain their weight;
- * distant subpixel markings can miss pixel centers or have gaps. */
+/* Nearby attached dashes retain their weight. At overview distances their
+ * authored footprint becomes too small to resolve and must disappear. */
 static void test_attached_polygon_weight(void)
 {
 	const legacy_f64 directions[][2] = {{1, 0}, {0, 1}, {0.8, 0.6}};
@@ -131,25 +129,13 @@ static void test_attached_polygon_weight(void)
 						assert(coverage >= 80 * (HIRES_SCALE - 1));
 						near_coverage[translation][winding] = coverage;
 					} else if (distance == 2) {
-						assert(coverage <= 84 * DECAL_TEST_MAXIMUM_BORDER_WIDTH);
+						assert(coverage == 0);
 						assert(coverage < near_coverage[translation][winding]);
 					}
 					for (legacy_s32 along = -30; along <= 30; along++) {
 						legacy_s32 x = (legacy_s32)(640 + tangent_x * along + shift);
 						legacy_s32 y = (legacy_s32)(400 + tangent_y * along + shift);
-						if (distance == 2) {
-							/* Edge quads may cover an extra sample compared with the old
-							 * distance-based border. Keep their interior visible while
-							 * bounding the complete distant stroke above. */
-							legacy_f64 offset_x = x + HIRES_SAMPLE_CENTER_OFFSET - (640 + shift);
-							legacy_f64 offset_y = y + HIRES_SAMPLE_CENTER_OFFSET - (400 + shift);
-							legacy_f64 across = offset_x * tangent_y - offset_y * tangent_x;
-							if (SDL_fabs(across) < DECAL_TEST_INTERIOR_WIDTH / 2) {
-								assert(image[y * HIRES_WIDTH + x] == 8);
-							}
-						} else {
-							assert(image[y * HIRES_WIDTH + x] == 8);
-						}
+						assert(image[y * HIRES_WIDTH + x] == (distance == 2 ? 3 : 8));
 					}
 				}
 			}
@@ -161,8 +147,8 @@ static void test_attached_polygon_weight(void)
 
 static void test_attached_polygon_midrange_weight(void)
 {
-	/* Keep the projected dash length and subpixel phase fixed. These distances
-	 * cover the near cap, mid-range falloff, and distant visibility floor. */
+	/* Keep the projected dash length and subpixel phase fixed. The authored
+	 * width narrows naturally before the smallest details disappear. */
 	const legacy_f64 depths[] = {200, 250, 300, 400, 1000, 6400};
 	legacy_u32 widths[SDL_arraysize(depths)] = {0};
 	for (legacy_u32 distance = 0; distance < sizeof(depths) / sizeof(depths[0]); distance++) {
@@ -182,16 +168,94 @@ static void test_attached_polygon_midrange_weight(void)
 			for (legacy_s32 y = 395; y <= 405; y++) {
 				coverage += image[y * HIRES_WIDTH + x] == 8;
 			}
-			assert(coverage >= 1 && coverage <= HIRES_SCALE);
+			assert(coverage <= HIRES_SCALE);
+			assert(distance < 4 ? coverage >= 1 : coverage == 0);
 			assert(widths[distance] == 0 || widths[distance] == coverage);
 			widths[distance] = coverage;
-			assert(image[400 * HIRES_WIDTH + x] == 8);
+			assert(image[400 * HIRES_WIDTH + x] == (distance < 4 ? 8 : 3));
 		}
 		if (distance != 0) {
 			assert(widths[distance] <= widths[distance - 1U]);
 		}
 	}
 	assert(widths[0] > widths[SDL_arraysize(depths) - 1U]);
+}
+
+#define DECAL_LOD_NEAR_DEPTH 600.0
+#define DECAL_LOD_MIDDLE_DEPTH 3200.0
+#define DECAL_LOD_OVERVIEW_DEPTH 20000.0
+#define DECAL_LOD_HALF_LENGTH 100.0
+#define DECAL_LOD_HALF_WIDTH 1.5
+
+static void test_attached_polygon_detail_levels(void)
+{
+	static legacy_u8 reference[HIRES_WIDTH * HIRES_HEIGHT];
+	const legacy_f64 depths[] = {DECAL_LOD_NEAR_DEPTH, DECAL_LOD_MIDDLE_DEPTH,
+								 DECAL_LOD_OVERVIEW_DEPTH};
+	for (legacy_s32 scale = HIRES_MINIMUM_SCALE; scale <= HIRES_SCALE; scale *= 2) {
+		legacy_u32 previous_coverage = LEGACY_U32_MAX;
+		for (legacy_u32 distance = 0; distance < SDL_arraysize(depths); distance++) {
+			legacy_f64 depth = depths[distance];
+			legacy_f64 shift =
+				-depth * HIRES_SAMPLE_CENTER_OFFSET / (projection_focal_length_y * scale);
+			const struct SHAPE3D_HIRES_VECTOR road[] = {{-120, -512 + shift, depth},
+														{120, -512 + shift, depth},
+														{120, 512 + shift, depth},
+														{-120, 512 + shift, depth}};
+			const struct SHAPE3D_HIRES_VECTOR marking[] = {
+				{-DECAL_LOD_HALF_LENGTH, -DECAL_LOD_HALF_WIDTH + shift, depth},
+				{DECAL_LOD_HALF_LENGTH, -DECAL_LOD_HALF_WIDTH + shift, depth},
+				{DECAL_LOD_HALF_LENGTH, DECAL_LOD_HALF_WIDTH + shift, depth},
+				{-DECAL_LOD_HALF_LENGTH, DECAL_LOD_HALF_WIDTH + shift, depth}};
+			reset_target();
+			hires_end();
+			hires_set_render_scale(scale);
+			assert(hires_begin(&target));
+			queue(RENDER_PRIMITIVE_POLYGON, 4, road);
+			shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 7, 0, 0, 0, 0);
+			memcpy(reference, pixels(), hires_render_width() * hires_render_height());
+			assert(count_color(7) > 0);
+			queue_flagged(RENDER_PRIMITIVE_POLYGON, 4, marking, 3);
+			shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
+			hires_end();
+			legacy_u32 coverage = count_color(8);
+			assert(distance < 2 ? coverage > 0 : coverage == 0);
+			assert(coverage < previous_coverage);
+			previous_coverage = coverage;
+			if (distance == 2) {
+				assert(memcmp(reference, pixels(), hires_render_width() * hires_render_height()) ==
+					   0);
+				/* Ordinary road polygons still render at this thin projected size. */
+				assert(hires_begin(&target));
+				queue(RENDER_PRIMITIVE_POLYGON, 4, marking);
+				shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
+				hires_end();
+				assert(count_color(8) > 0);
+			}
+		}
+		/* A broad attached panel remains visible at the same overview depth. */
+		const struct SHAPE3D_HIRES_VECTOR panel[] = {{-5000, -2000, DECAL_LOD_OVERVIEW_DEPTH},
+													 {5000, -2000, DECAL_LOD_OVERVIEW_DEPTH},
+													 {5000, 2000, DECAL_LOD_OVERVIEW_DEPTH},
+													 {-5000, 2000, DECAL_LOD_OVERVIEW_DEPTH}};
+		reset_target();
+		hires_end();
+		hires_set_render_scale(scale);
+		assert(hires_begin(&target));
+		queue(RENDER_PRIMITIVE_POLYGON, 4, panel);
+		shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
+		memcpy(reference, pixels(), hires_render_width() * hires_render_height());
+		reset_target();
+		hires_end();
+		hires_set_render_scale(scale);
+		assert(hires_begin(&target));
+		queue_flagged(RENDER_PRIMITIVE_POLYGON, 4, panel, 3);
+		shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
+		hires_end();
+		assert(count_color(8) > 100U * scale * scale);
+		assert(memcmp(reference, pixels(), hires_render_width() * hires_render_height()) == 0);
+	}
+	hires_set_render_scale(HIRES_SCALE);
 }
 
 static void test_attached_polygon_weight_follows_projection(void)
@@ -207,7 +271,7 @@ static void test_attached_polygon_weight_follows_projection(void)
 	queue_flagged(RENDER_PRIMITIVE_POLYGON, 4, marking, 3);
 	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
 	hires_end();
-	assert(count_color(8) >= 160 && count_color(8) < 200);
+	assert(count_color(8) >= 80 && count_color(8) < 160);
 	memcpy(reference, pixels(), sizeof(reference));
 
 	/* Equal focal-length/depth ratios preserve both geometry and weight. */
@@ -247,8 +311,8 @@ static void test_attached_polygon_weight_follows_projection(void)
 static void test_attached_polygon_varies_along_depth(void)
 {
 	/* Perspective narrows the far end of a dash on a sloping road. Offset
-	 * its projected center so the far tip needs added border coverage to reach
-	 * the sample row: its original half-width is 0.15 pixels at that end. */
+	 * its projected center so only the resolved near end reaches a sample;
+	 * the far tip must not receive artificial border coverage. */
 	struct SHAPE3D_HIRES_VECTOR marking[] = {
 		{-100, -1.5, 1600}, {-100, 1.5, 1600}, {400, 1.5, 6400}, {400, -1.5, 6400}};
 	for (legacy_u32 vertex = 0; vertex < SDL_arraysize(marking); vertex++) {
@@ -260,15 +324,20 @@ static void test_attached_polygon_varies_along_depth(void)
 	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
 	hires_end();
 	const legacy_u8 *image = pixels();
-	assert(count_color(8) >= 80);
+	assert(count_color(8) >= 20);
+	legacy_u32 visible_columns = 0, empty_columns = 0;
 	for (legacy_s32 x = 605; x <= 675; x++) {
 		legacy_u32 coverage = 0;
 		for (legacy_s32 y = 397; y <= 403; y++) {
 			coverage += image[y * HIRES_WIDTH + x] == 8;
 		}
-		assert(coverage >= 1);
-		assert(image[400 * HIRES_WIDTH + x] == 8);
+		assert(coverage <= 1);
+		visible_columns += coverage != 0;
+		empty_columns += coverage == 0;
 	}
+	assert(visible_columns > 0 && empty_columns > 0);
+	assert(image[400 * HIRES_WIDTH + 605] == 8);
+	assert(image[400 * HIRES_WIDTH + 675] != 8);
 }
 
 static void test_polygon_weight_preserves_surfaces(void)
@@ -301,23 +370,25 @@ static void test_polygon_weight_preserves_surfaces(void)
 
 static void test_attached_polygon_clipping(void)
 {
-	/* Offset the subpixel dash so only its added border reaches the sample
-	 * row, exercising border clipping at both ends and at the viewport top. */
-	struct SHAPE3D_HIRES_VECTOR marking[] = {
-		{-7000, -1.5, 6400}, {7000, -1.5, 6400}, {7000, 1.5, 6400}, {-7000, 1.5, 6400}};
-	for (legacy_u32 vertex = 0; vertex < SDL_arraysize(marking); vertex++) {
-		marking[vertex].y -= marking[vertex].z * DECAL_TEST_BORDER_SAMPLE_OFFSET /
-							 (projection_focal_length_y * HIRES_SCALE);
-	}
+	static legacy_u8 reference[HIRES_WIDTH * HIRES_HEIGHT];
+	/* A resolved, thin overlay keeps its border. Its upper border reaches
+	 * row 398 outside the authored polygon; clip this coverage at both ends
+	 * and at a viewport edge without changing the surviving samples. */
+	const struct SHAPE3D_HIRES_VECTOR marking[] = {{-110, -0.2890625, 100},
+												   {110, -0.2890625, 100},
+												   {110, 0.2109375, 100},
+												   {-110, 0.2109375, 100}};
 	reset_target();
 	queue_flagged(RENDER_PRIMITIVE_POLYGON, 4, marking, 3);
 	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
 	hires_end();
 	const legacy_u8 *image = pixels();
-	assert(count_color(8) == HIRES_WIDTH);
-	legacy_s32 sample_row = projection_center_y * HIRES_SCALE;
-	assert(image[sample_row * HIRES_WIDTH] == 8);
-	assert(image[sample_row * HIRES_WIDTH + HIRES_WIDTH - 1] == 8);
+	legacy_u32 full_coverage = count_color(8);
+	assert(full_coverage >= HIRES_WIDTH * 3U && full_coverage <= HIRES_WIDTH * 5U);
+	assert(image[398 * HIRES_WIDTH + 640] == 8);
+	assert(image[400 * HIRES_WIDTH] == 8);
+	assert(image[400 * HIRES_WIDTH + HIRES_WIDTH - 1] == 8);
+	memcpy(reference, image, sizeof(reference));
 
 	target.sprite_raster_left = 150;
 	target.sprite_raster_right = 170;
@@ -328,12 +399,11 @@ static void test_attached_polygon_clipping(void)
 	shape3d_hires_render(0, RENDER_PRIMITIVE_POLYGON, 8, 0, 0, 0, 0);
 	hires_end();
 	image = pixels();
-	assert(count_color(8) == 80);
+	assert(count_color(8) > 0 && count_color(8) < full_coverage);
 	for (legacy_s32 y = 0; y < HIRES_HEIGHT; y++) {
 		for (legacy_s32 x = 0; x < HIRES_WIDTH; x++) {
-			if (x < 600 || x >= 680 || y < 400 || y >= 440) {
-				assert(image[y * HIRES_WIDTH + x] == 3);
-			}
+			legacy_s32 inside = x >= 600 && x < 680 && y >= 400 && y < 440;
+			assert(image[y * HIRES_WIDTH + x] == (inside ? reference[y * HIRES_WIDTH + x] : 3));
 		}
 	}
 	target.sprite_raster_left = 0;
@@ -348,7 +418,7 @@ static void test_attached_polygon_occlusion(void)
 		{-5, -2.5, 80}, {5, -2.5, 80}, {5, 2.5, 80}, {-5, 2.5, 80}};
 	/* Attached paint can be authored slightly behind its supporting surface. */
 	const struct SHAPE3D_HIRES_VECTOR marking[] = {
-		{-5, -0.025, 80.5}, {5, -0.025, 80.5}, {5, 0.025, 80.5}, {-5, 0.025, 80.5}};
+		{-5, -0.125, 80.5}, {5, -0.125, 80.5}, {5, 0.125, 80.5}, {-5, 0.125, 80.5}};
 	const struct SHAPE3D_HIRES_VECTOR nearer[] = {
 		{-3.75, -1.25, 40}, {0, -1.25, 40}, {0, 1.25, 40}, {-3.75, 1.25, 40}};
 	const legacy_u8 indices[] = {0, 1, 2, 3};
@@ -2130,6 +2200,9 @@ static void test_render_scale_roundtrip(void)
 #define GROUND_DETAIL_FOCAL_LENGTH 160
 #define GROUND_DETAIL_FOOT_OFFSET 1.2
 #define GROUND_DETAIL_FAR_OFFSET 1.3
+#define GROUND_DETAIL_POLYGON_FAR_OFFSET 5.0
+#define GROUND_DETAIL_POLYGON_EDGE_PHASE 0.2
+#define GROUND_DETAIL_POLYGON_WIDTH 0.6
 #define GROUND_DETAIL_TOP_OFFSET -4.0
 #define GROUND_DETAIL_HALF_LENGTH 8.0
 #define GROUND_DETAIL_SUPPORT_MARGIN 2.0
@@ -2151,6 +2224,13 @@ static struct SHAPE3D_HIRES_VECTOR ground_detail_vertex(legacy_f64 along, legacy
 	struct SHAPE3D_HIRES_VECTOR result = {(rolled ? down : along) * depth / focal,
 										  -(rolled ? along : down) * depth / focal, depth};
 	return result;
+}
+
+static legacy_f64 ground_detail_far_offset(legacy_s32 scale, legacy_u8 type)
+{
+	return type == RENDER_PRIMITIVE_POLYGON
+			   ? GROUND_DETAIL_POLYGON_FAR_OFFSET * scale + GROUND_DETAIL_POLYGON_EDGE_PHASE
+			   : GROUND_DETAIL_FAR_OFFSET;
 }
 
 static void draw_ground_detail(legacy_s32 scale, legacy_s32 rolled, legacy_u8 type,
@@ -2175,10 +2255,16 @@ static void draw_ground_detail(legacy_s32 scale, legacy_s32 rolled, legacy_u8 ty
 	if (plane == GROUND_DETAIL_RESET) {
 		shape3d_hires_reset();
 	}
-	legacy_f64 depth = GROUND_DETAIL_CAMERA_HEIGHT * GROUND_DETAIL_FOCAL_LENGTH * scale /
-					   GROUND_DETAIL_FOOT_OFFSET;
+	legacy_f64 far_offset = ground_detail_far_offset(scale, type);
+	legacy_f64 foot_offset = type == RENDER_PRIMITIVE_POLYGON
+								 ? far_offset - GROUND_DETAIL_POLYGON_WIDTH * scale
+								 : GROUND_DETAIL_FOOT_OFFSET;
+	legacy_f64 depth =
+		GROUND_DETAIL_CAMERA_HEIGHT * GROUND_DETAIL_FOCAL_LENGTH * scale / foot_offset;
 	legacy_f64 near_depth =
-		GROUND_DETAIL_CAMERA_HEIGHT * GROUND_DETAIL_FOCAL_LENGTH * scale / GROUND_DETAIL_FAR_OFFSET;
+		GROUND_DETAIL_CAMERA_HEIGHT * GROUND_DETAIL_FOCAL_LENGTH * scale / far_offset;
+	legacy_f64 support_far =
+		GROUND_DETAIL_SUPPORT_MARGIN * 2 + (type == RENDER_PRIMITIVE_POLYGON ? far_offset : 0);
 	const legacy_u8 indices[] = {0, 1, 2, 3};
 	legacy_u32 index = 0;
 	if (supported) {
@@ -2187,25 +2273,25 @@ static void draw_ground_detail(legacy_s32 scale, legacy_s32 rolled, legacy_u8 ty
 								 rolled, scale),
 			ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, -GROUND_DETAIL_SUPPORT_MARGIN, depth,
 								 rolled, scale),
-			ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_SUPPORT_MARGIN * 2, depth,
-								 rolled, scale),
-			ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_SUPPORT_MARGIN * 2,
-								 depth, rolled, scale)};
+			ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, support_far, depth, rolled, scale),
+			ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, support_far, depth, rolled, scale)};
 		shape3d_hires_queue(index++, RENDER_PRIMITIVE_POLYGON, SDL_arraysize(support), indices,
 							support, 0);
 	}
 	struct SHAPE3D_HIRES_VECTOR detail[4];
 	legacy_u16 count;
 	if (type == RENDER_PRIMITIVE_POLYGON) {
-		detail[0] = ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_FOOT_OFFSET,
-										 depth, rolled, scale);
-		detail[1] = ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_FOOT_OFFSET,
-										 depth, rolled, scale);
-		detail[2] = ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_FAR_OFFSET,
-										 near_depth, rolled, scale);
-		detail[3] = ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, GROUND_DETAIL_FAR_OFFSET,
-										 near_depth, rolled, scale);
+		detail[0] =
+			ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, foot_offset, depth, rolled, scale);
+		detail[1] =
+			ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, foot_offset, depth, rolled, scale);
+		detail[2] =
+			ground_detail_vertex(GROUND_DETAIL_HALF_LENGTH, far_offset, near_depth, rolled, scale);
+		detail[3] =
+			ground_detail_vertex(-GROUND_DETAIL_HALF_LENGTH, far_offset, near_depth, rolled, scale);
 		count = SDL_arraysize(detail);
+		/* Keep this overlay resolved while exercising its added border. */
+		shape3d_hires_set_model_scale(GROUND_DETAIL_STROKE_SCALE);
 	} else {
 		detail[0] = ground_detail_vertex(0, GROUND_DETAIL_FOOT_OFFSET, depth, rolled, scale);
 		detail[1] = ground_detail_vertex(0, GROUND_DETAIL_TOP_OFFSET, depth, rolled, scale);
@@ -2271,12 +2357,20 @@ static void test_ground_occludes_generated_detail(void)
 							legacy_s32 width = hires_render_width();
 							legacy_s32 center_x = projection_center_x * scale;
 							legacy_s32 center_y = projection_center_y * scale;
-							legacy_s32 foot = (legacy_s32)GROUND_DETAIL_FOOT_OFFSET;
+							legacy_s32 polygon = types[kind] == RENDER_PRIMITIVE_POLYGON;
+							legacy_s32 foot =
+								(legacy_s32)(polygon ? ground_detail_far_offset(scale, types[kind])
+													 : GROUND_DETAIL_FOOT_OFFSET);
 							legacy_s32 x = center_x + (rolled ? foot : 0);
 							legacy_s32 y = center_y + (rolled ? 0 : foot);
 							const legacy_u8 *sample_image =
 								plane == GROUND_DETAIL_NO_PLANE ? image : without_plane;
-							assert(ground_detail_sample(sample_image, width, rolled, &x, &y));
+							if (polygon) {
+								/* This center is beyond the far authored edge, inside its border. */
+								assert(sample_image[y * width + x] == GROUND_DETAIL_COLOR);
+							} else {
+								assert(ground_detail_sample(sample_image, width, rolled, &x, &y));
+							}
 							legacy_u8 expected = !supported && plane == GROUND_DETAIL_PLANE
 													 ? GROUND_DETAIL_BACKGROUND_COLOR
 													 : GROUND_DETAIL_COLOR;
@@ -2284,7 +2378,10 @@ static void test_ground_occludes_generated_detail(void)
 							if (supported) {
 								/* This core fill lies behind ground but has no added coverage. */
 								legacy_s32 interior =
-									(legacy_s32)(GROUND_DETAIL_SUPPORT_MARGIN + 1);
+									(legacy_s32)(polygon ? ground_detail_far_offset(scale,
+																					types[kind]) +
+															   GROUND_DETAIL_SUPPORT_MARGIN
+														 : GROUND_DETAIL_SUPPORT_MARGIN + 1);
 								x = center_x + (rolled ? interior : 0);
 								y = center_y + (rolled ? 0 : interior);
 								assert(image[y * width + x] == GROUND_DETAIL_SUPPORT_COLOR);
@@ -3415,6 +3512,7 @@ legacy_int main(void)
 	test_projection_and_subpixel_edges();
 	test_attached_polygon_weight();
 	test_attached_polygon_midrange_weight();
+	test_attached_polygon_detail_levels();
 	test_attached_polygon_weight_follows_projection();
 	test_attached_polygon_varies_along_depth();
 	test_polygon_weight_preserves_surfaces();
