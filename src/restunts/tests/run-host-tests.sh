@@ -95,7 +95,7 @@ small_source_companions() {
         shape2d_blit.c) printf '%s\n' shape2d/shape2d_window.c ;;
         trackobj.c) printf '%s\n' track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c ;;
         trackobj_road.c) printf '%s\n' owoot/owoot_road.c ;;
-        stateply.c) printf '%s\n' stateply_motion.c stateply_contact.c ;;
+        stateply.c) printf '%s\n' stateply/stateply_motion.c stateply/stateply_contact.c ;;
         extended_trackobj.c) printf '%s\n' extended/extended_trackobj_solids.c ;;
         extended_owoot_route.c) printf '%s\n' extended/extended_owoot_gates.c extended/extended_owoot_jump.c ;;
         highscore.c) printf '%s\n' highscore/highscore_results.c highscore/highscore_results_text.c ;;

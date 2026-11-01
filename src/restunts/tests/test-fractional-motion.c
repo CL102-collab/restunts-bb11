@@ -1,9 +1,9 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "../c/stateply.c"
-#include "../c/stateply_motion.c"
-#include "../c/stateply_contact.c"
+#include "../c/stateply/stateply.c"
+#include "../c/stateply/stateply_motion.c"
+#include "../c/stateply/stateply_contact.c"
 #include "../c/math/math.c"
 #include "../c/math/math_rectangles.c"
 
