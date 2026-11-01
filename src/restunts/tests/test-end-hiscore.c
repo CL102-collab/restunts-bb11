@@ -17,7 +17,7 @@
 #include "../c/race/race_stats.h"
 #include "../c/audio/audio_control.h"
 #include "../c/car/car_resources.h"
-#include "../c/highscore.h"
+#include "../c/highscore/highscore.h"
 #include "../c/menu/menu_common.h"
 #include "../c/externs.h"
 #include "extended-replay-test-stubs.h"

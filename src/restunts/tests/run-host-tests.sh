@@ -98,7 +98,7 @@ small_source_companions() {
         stateply.c) printf '%s\n' stateply_motion.c stateply_contact.c ;;
         extended_trackobj.c) printf '%s\n' extended/extended_trackobj_solids.c ;;
         extended_owoot_route.c) printf '%s\n' extended/extended_owoot_gates.c extended/extended_owoot_jump.c ;;
-        highscore.c) printf '%s\n' highscore_results.c highscore_results_text.c ;;
+        highscore.c) printf '%s\n' highscore/highscore_results.c highscore/highscore_results_text.c ;;
         ui_dialog.c) printf '%s\n' ui/ui_file_dialog.c ui/ui_disk_dialog.c ;;
         replay_viewer.c) printf '%s\n' replay/replay_toolbar.c replay/replay_menu.c replay/replay_scrub.c ;;
         menu_track_editor.c) printf '%s\n' menu/menu_track_editor_map.c menu/menu_track_editor_render.c menu/menu_track_editor_input.c ;;
@@ -402,11 +402,11 @@ run_host_test test-extended-preview track/track_preview.c \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
-run_host_test test-end-hiscore highscore.c \
+run_host_test test-end-hiscore highscore/highscore.c \
     "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
-run_host_test test-end-hiscore highscore.c \
+run_host_test test-end-hiscore highscore/highscore.c \
     "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers

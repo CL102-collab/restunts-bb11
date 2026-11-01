@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_EXTENDED_HIGHSCORE_UI_H
 #define RESTUNTS_EXTENDED_HIGHSCORE_UI_H
 #include "../legacy.h"
-#include "../highscore.h"
+#include "../highscore/highscore.h"
 void highscore_draw_table(void);
 void extended_hiscore_show_error(void);
 void highscore_make_empty_entry(struct HIGHSCORE_ENTRY *record);
