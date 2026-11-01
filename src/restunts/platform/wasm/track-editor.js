@@ -6,7 +6,8 @@
     const minimap = $('minimap'), mini = minimap.getContext('2d');
     const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024;
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
-    const terrainPaletteFallbacks = { 2: '#00aa00', 10: '#55ff55', 7: '#aaaaaa' };
+    const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
+    const terrainMaximumLevel = 4, paletteChannels = 3;
     const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, brushPreviewGridWidth = 1;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
@@ -613,17 +614,21 @@
         finally { $('confirm-save').disabled = false; }
     }
 
-    function terrainPaletteColor(index) {
+    function terrainPaletteRgb(index) {
         const palette = state.resources?.palette;
         if (!palette) return terrainPaletteFallbacks[index];
-        const offset = index * 3;
-        return 'rgb(' + palette[offset] + ' ' + palette[offset + 1] + ' ' + palette[offset + 2] + ')';
+        const offset = index * paletteChannels;
+        return palette.subarray(offset, offset + paletteChannels);
     }
+    function terrainPaletteColor(index) { return 'rgb(' + terrainPaletteRgb(index).join(' ') + ')'; }
     function terrainColor(surface, level) {
         if (surface === 1) return 'hsl(192 39% ' + (58 + level * 3) + '%)';
         if (surface === 2) return 'hsl(31 34% ' + (35 + level * 4) + '%)';
         if (surface === 3) return 'hsl(204 48% ' + (34 + level * 3) + '%)';
-        return terrainPaletteColor(level > 0 ? terrainGrassPalette.raised : terrainGrassPalette.ground);
+        const ground = terrainPaletteRgb(terrainGrassPalette.ground), raised = terrainPaletteRgb(terrainGrassPalette.raised);
+        const fraction = Math.max(0, Math.min(terrainMaximumLevel, level)) / terrainMaximumLevel;
+        const channels = Array.from(ground, (value, channel) => Math.round(value + (raised[channel] - value) * fraction));
+        return 'rgb(' + channels.join(' ') + ')';
     }
     function drawTerrain(c, doc, x, y, left, top, size, showHeight = false) {
         const h = doc.tileHeights(x, y), cell = doc.cells[y * doc.width + x];
