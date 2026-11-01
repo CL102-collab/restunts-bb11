@@ -9,9 +9,9 @@
 #include "../c/projection.h"
 
 /* Exercise the stopped-wheel handoff without exporting its private geometry helpers. */
-#include "../c/stateply.c"
-#include "../c/stateply_motion.c"
-#include "../c/stateply_contact.c"
+#include "../c/stateply/stateply.c"
+#include "../c/stateply/stateply_motion.c"
+#include "../c/stateply/stateply_contact.c"
 
 #undef memcpy
 

@@ -5,9 +5,9 @@
 #undef run_main_menu_loop
 
 /* Exercise the actual contact solver, including its file-private wheel state. */
-#include "../c/stateply.c"
-#include "../c/stateply_motion.c"
-#include "../c/stateply_contact.c"
+#include "../c/stateply/stateply.c"
+#include "../c/stateply/stateply_motion.c"
+#include "../c/stateply/stateply_contact.c"
 /* Exercise the player tick with the actual route and penalty module. */
 #include "../c/state.c"
 #include "../c/audio/audio_internal.h"
