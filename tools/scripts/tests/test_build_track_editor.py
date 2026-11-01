@@ -147,7 +147,7 @@ vm.runInContext(`
     }
     const rampIcon = TrackEditorResources.composePieceTileBitmap(new Map(), 85, 0, 1);
     if (rampIcon.width !== 15 || rampIcon.height !== 30) throw new Error('Embedded ramp artwork is invalid');
-    for (const count of [10, 5]) {
+    for (const count of [10, 6]) {
         const pine = model.library.find(piece => piece.pineCount === count);
         if (!pine || pine.group !== 10 || pine.name !== 'Pine trees (' + count + ')') throw new Error('Pine group missing from palette');
         const forest = new model.Document(4, 4), treeVariant = model.pieceVariant(pine, 3);

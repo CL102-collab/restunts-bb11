@@ -2,25 +2,74 @@
 #include "extended_geometry.h"
 #include "../track/trackdata_layout.h"
 
-/* Five-tree groves use every other entry of the same irregular scatter.
- * Keep this layout in sync with the track editor's pine-group icon. */
+/* Retain the original grove geometry for existing tracks and replays. */
 static const struct PINE_TREE_INSTANCE pine_trees_layout[CSTRK_PINE_GROUP_LARGE_COUNT] = {
 	{-340, 300, 128}, {-80, 340, 176},	 {240, 310, 144},  {350, 70, 112},	 {130, 80, 192},
 	{-220, 80, 152},  {-350, -190, 168}, {-90, -300, 120}, {200, -260, 160}, {350, -110, 136}};
+
+/* Six-tree groves vary with their map coordinates, avoiding repeated rows when
+ * neighboring tiles are filled. Keep the recipe in sync with the track editor. */
+static const struct PINE_TREE_INSTANCE pine_trees_six_layout[CSTRK_PINE_GROUP_SMALL_COUNT] = {
+	{-318, 274, 152}, {-47, 355, 192},	 {305, 171, 136},
+	{171, -143, 208}, {-119, -326, 160}, {-363, -89, 176}};
+
+#define PINE_SCATTER_COLUMN_SEED 0x9e3779b1U
+#define PINE_SCATTER_ROW_SEED 0x85ebca77U
+#define PINE_SCATTER_TREE_SEED 0xc2b2ae3dU
+#define PINE_SCATTER_MIX_FIRST 0x7feb352dU
+#define PINE_SCATTER_MIX_SECOND 0x846ca68bU
+#define PINE_SCATTER_MIX_OUTER_SHIFT 16U
+#define PINE_SCATTER_MIX_INNER_SHIFT 15U
+#define PINE_SCATTER_Z_SEED 0x68bc21ebU
+#define PINE_SCATTER_SCALE_SEED 0x02e5be93U
+#define PINE_SCATTER_POSITION_RANGE 193U
+#define PINE_SCATTER_POSITION_RADIUS 96
+#define PINE_SCATTER_SCALE_RANGE 33U
+#define PINE_SCATTER_SCALE_RADIUS 16
+
+static legacy_u32 pine_trees_mix(legacy_u32 value)
+{
+	value ^= value >> PINE_SCATTER_MIX_OUTER_SHIFT;
+	value *= PINE_SCATTER_MIX_FIRST;
+	value ^= value >> PINE_SCATTER_MIX_INNER_SHIFT;
+	value *= PINE_SCATTER_MIX_SECOND;
+	return value ^ (value >> PINE_SCATTER_MIX_OUTER_SHIFT);
+}
+
+static void pine_trees_scatter(const struct CSTRK_OBJECT *object, legacy_u8 index,
+							   struct PINE_TREE_INSTANCE *instance)
+{
+	legacy_u32 hash = pine_trees_mix((legacy_u32)object->x * PINE_SCATTER_COLUMN_SEED ^
+									 (legacy_u32)object->y * PINE_SCATTER_ROW_SEED ^
+									 (legacy_u32)(index + 1U) * PINE_SCATTER_TREE_SEED);
+	instance->x += (legacy_s16)(hash % PINE_SCATTER_POSITION_RANGE) - PINE_SCATTER_POSITION_RADIUS;
+	hash = pine_trees_mix(hash ^ PINE_SCATTER_Z_SEED);
+	instance->z += (legacy_s16)(hash % PINE_SCATTER_POSITION_RANGE) - PINE_SCATTER_POSITION_RADIUS;
+	hash = pine_trees_mix(hash ^ PINE_SCATTER_SCALE_SEED);
+	instance->scale = (legacy_u16)(instance->scale + (legacy_s16)(hash % PINE_SCATTER_SCALE_RANGE) -
+								   PINE_SCATTER_SCALE_RADIUS);
+}
 
 legacy_s16 pine_trees_instance(const struct CSTRK_OBJECT *object, legacy_u8 index,
 							   struct PINE_TREE_INSTANCE *instance)
 {
 	if (!object || !instance || object->legacy_id != CSTRK_PINE_TREE_ID ||
-		(object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
+		(object->pine_count != CSTRK_PINE_GROUP_LEGACY_COUNT &&
+		 object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
 		 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT) ||
 		index >= object->pine_count) {
 		return 0;
 	}
-	legacy_u8 slot = object->pine_count == CSTRK_PINE_GROUP_SMALL_COUNT
-						 ? index * (CSTRK_PINE_GROUP_LARGE_COUNT / CSTRK_PINE_GROUP_SMALL_COUNT)
-						 : index;
-	*instance = pine_trees_layout[slot];
+	if (object->pine_count == CSTRK_PINE_GROUP_SMALL_COUNT) {
+		*instance = pine_trees_six_layout[index];
+		pine_trees_scatter(object, index, instance);
+	} else {
+		legacy_u8 slot =
+			object->pine_count == CSTRK_PINE_GROUP_LEGACY_COUNT
+				? index * (CSTRK_PINE_GROUP_LARGE_COUNT / CSTRK_PINE_GROUP_LEGACY_COUNT)
+				: index;
+		*instance = pine_trees_layout[slot];
+	}
 	legacy_s16 x = instance->x, z = instance->z;
 	switch (object->rotation) {
 		case 1:

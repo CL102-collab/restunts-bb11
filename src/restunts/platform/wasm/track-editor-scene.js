@@ -1,10 +1,11 @@
 /* Native track meshes compiled once into WebGL triangle and line buffers. */
 (function (root, factory) {
     const data = typeof module === 'object' && module.exports ? require('./track-editor-scene-data.js') : root.TrackEditorSceneData;
-    const api = factory(data);
+    const resources = typeof module === 'object' && module.exports ? require('./track-editor-resources.js') : root.TrackEditorResources;
+    const api = factory(data, resources);
     if (typeof module === 'object' && module.exports) module.exports = api;
     else root.TrackEditorScene = api;
-}(typeof globalThis !== 'undefined' ? globalThis : this, function (data) {
+}(typeof globalThis !== 'undefined' ? globalThis : this, function (data, resources) {
     'use strict';
     const TILE_SIZE = 1024, LEVEL_HEIGHT = 450, HALF_TILE = TILE_SIZE / 2;
     const PRIMITIVE_COUNTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6, 3, 0, 0];
@@ -17,10 +18,7 @@
     const HILL_GRASS_FIRST = 101, HILL_GRASS_LAST = 105;
     const SURFACE_BIAS = .0005, MARKING_BIAS = .001, GEOMETRY_EPSILON = 1e-10;
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
-    const PINE_COUNTS = new Set([5, 10]), PINE_SCALE = 256;
-    const PINE_LAYOUT = [[-340, 300, 128], [-80, 340, 176], [240, 310, 144], [350, 70, 112],
-        [130, 80, 192], [-220, 80, 152], [-350, -190, 168], [-90, -300, 120],
-        [200, -260, 160], [350, -110, 136]];
+    const PINE_COUNTS = new Set([5, 6, 10]), PINE_SCALE = 256;
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,
@@ -301,7 +299,7 @@
             if (!original || !original.shape) fail('Unsupported 3D track element ' + object.id + '.');
             if (object.pineCount) {
                 if (!PINE_COUNTS.has(object.pineCount) || original.physical !== 71) fail('Invalid 3D pine group.');
-                const shape = nativeShape(original.shape), layout = object.pineCount === PINE_LAYOUT.length ? PINE_LAYOUT : PINE_LAYOUT.filter((_, index) => index % 2 === 0);
+                const shape = nativeShape(original.shape), layout = resources.pineTreeLayout(object.pineCount, object.x, object.y);
                 for (const [x, z, scale] of layout) mesh(object, original, shape, original.physical, 0,
                     { scale: scale / PINE_SCALE, offset: rotate([x, 0, z], object.rotation) });
                 continue;
