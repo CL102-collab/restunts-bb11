@@ -27,7 +27,7 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v10. Revision v3 through v9 tracks open as v10 while preserving their
+revision is v11. Revision v3 through v10 tracks open as v11 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
 
@@ -36,7 +36,12 @@ original models from your selected Stunts folder. Click for mouse look; WASD mov
 Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
 releases the mouse, and the 2D editor retains its zoom and map position.
 
-The Scenery palette includes **Pine trees (10)** and **Pine trees (6)**. Both
+The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
+rows. Adjacent tiles form larger fields, rotation changes the row direction, and
+straight inclines are supported. Cars drive through the crops using the terrain
+beneath them. Wheat appears in both the game and the editor's 2D and 3D views.
+
+The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both
 groups vary positions and sizes by tile, breaking up rows and repeated
 patterns across neighboring tiles. Opening the same track always restores the
 same forest. On slopes, each pine retains the single tree's upright crown and

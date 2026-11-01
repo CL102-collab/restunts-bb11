@@ -19,6 +19,7 @@
 #include "../c/math/projection.h"
 #include "../c/extended/roll_ramp.h"
 #include "../c/extended/pine_trees.h"
+#include "../c/extended/wheat_field.h"
 #include "../c/owoot/owoot_road.h"
 #include "../c/menu/menu_internal.h"
 
@@ -3688,6 +3689,62 @@ static legacy_u16 check_roll_ramp_pixels(void)
 	return 2;
 }
 
+#define WHEAT_RENDER_VARIANT_COUNT 2U
+#define WHEAT_RENDER_MIN_PIXELS 64U
+
+static legacy_u16 check_wheat_field_pixels(void)
+{
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	track.horizon = CSTRK_HORIZON_COUNTRY;
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_WHEAT_FIELD_ID;
+	object.x = STUNT_RENDER_COLUMN;
+	object.y = STUNT_RENDER_ROW;
+	object.width = object.height = object.occupied_mask = 1U;
+	for (legacy_u8 grade = 0; grade < WHEAT_RENDER_VARIANT_COUNT; grade++) {
+		for (legacy_u16 y = 0; y <= track.height; y++) {
+			for (legacy_u16 x = 0; x <= track.width; x++) {
+				track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+					grade && x > STUNT_RENDER_COLUMN;
+			}
+		}
+		object.slope_x = (legacy_s8)grade;
+		for (legacy_u8 rotation = 0; rotation < WHEAT_RENDER_VARIANT_COUNT; rotation++) {
+			object.rotation = rotation;
+			track.object_count = 0;
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			position_render_target(STUNT_RENDER_COLUMN, STUNT_RENDER_ROW);
+			state.playerstate.car_position.ly =
+				(STUNT_RENDER_CAR_CLEARANCE + grade * CSTRK_LEVEL_WORLD_HEIGHT / 2) *
+				GRASS_RENDER_POSITION_SCALE;
+			state.playerstate.car_previous_position = state.playerstate.car_position;
+			state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+			custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+			custom_camera.elevation_angle = STUNT_RENDER_CAMERA_ELEVATION;
+			custom_camera.azimuth_angle = ANGLE_EIGHTH_TURN;
+			activate_render_track(&track, 1);
+			size_t field_size, empty_size;
+			legacy_u32 *field = capture_complete_render(&field_size);
+			activate_render_track(&track, 0);
+			legacy_u32 *empty = capture_complete_render(&empty_size);
+			assert(field_size == empty_size);
+			size_t changed = 0;
+			for (size_t pixel = 0; pixel < field_size; pixel++) {
+				changed += field[pixel] != empty[pixel];
+			}
+			assert(changed > WHEAT_RENDER_MIN_PIXELS);
+			free(field);
+			free(empty);
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	return WHEAT_RENDER_VARIANT_COUNT * WHEAT_RENDER_VARIANT_COUNT * 2U;
+}
+
 #define HIGHWAY_RENDER_ID 111U
 #define HIGHWAY_RENDER_REVERSED_ID 113U
 #define HIGHWAY_RENDER_BASE_HEIGHT 2
@@ -4114,6 +4171,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_general_sloped_rendering();
 		check_roll_ramp_mesh_geometry();
 		frames += check_roll_ramp_pixels();
+		frames += check_wheat_field_pixels();
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 		check_combined_stunt_meshes();

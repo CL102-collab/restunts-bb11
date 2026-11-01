@@ -164,7 +164,7 @@ legacy_u8 frame_extended_uses_grade(const struct CSTRK_OBJECT *object)
 		return result;
 	}
 	if (object && (object->slope_x || object->slope_y) && object->width == 1U &&
-		object->height == 1U &&
+		object->height == 1U && object->legacy_id < TRACK_OBJECT_COUNT &&
 		trkObjectList[object->legacy_id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
 		legacy_u16 angle = ((legacy_u16)trkObjectList[object->legacy_id].ss_rotY +
 							object->rotation * ANGLE_QUARTER_TURN) &

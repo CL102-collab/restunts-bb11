@@ -19,6 +19,12 @@
     const SURFACE_BIAS = .0005, MARKING_BIAS = .001, GEOMETRY_EPSILON = 1e-10;
     const FLOAT_BUFFER_CAPACITY = 16384, SPHERE_SEGMENTS = 12, SPHERE_RINGS = 6;
     const PINE_COUNTS = new Set([6, 10]), PINE_SCALE = 256;
+    const WHEAT_FIELD_ID = 215, WHEAT_PHYSICAL_MODEL = 75;
+    // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
+    const WHEAT = { rows: 6, plants: 5, soilHeight: 2, canopyHeight: 40, rowHalfWidth: 70,
+        earBottom: 56, earTop: 96, earMiddle: 76, earBottomLean: 6, earTopLean: 12,
+        earLeft: -14, earRight: 32, earDepthLean: 9, earHalfDepth: 23,
+        soil: 25, canopy: 82, stem: 6, earFront: 60, earSide: 62 };
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,
@@ -206,6 +212,35 @@
         }
         return { vertices, primitives };
     }
+    function wheatField() {
+        const vertices = [0, 1, 3, 2, 7, 6, 4, 5].map(corner => [corner & 1 ? HALF_TILE : -HALF_TILE,
+            corner & 2 ? WHEAT.earTop : 0, corner & 4 ? HALF_TILE : -HALF_TILE]);
+        const primitives = [];
+        function quad(left, right, height, material) {
+            const first = vertices.length;
+            for (let corner = 0; corner < 4; corner++)
+                vertices.push([corner & 1 ? right : left, height, corner & 2 ? HALF_TILE : -HALF_TILE]);
+            primitives.push({ type: 4, flags: 1, materials: [material], indices: [0, 1, 3, 2].map(index => first + index) });
+        }
+        quad(-HALF_TILE, HALF_TILE, WHEAT.soilHeight, WHEAT.soil);
+        for (let row = 0; row < WHEAT.rows; row++) {
+            const x = Math.floor((2 * row + 1) * TILE_SIZE / (2 * WHEAT.rows)) - HALF_TILE;
+            quad(x - WHEAT.rowHalfWidth, x + WHEAT.rowHalfWidth, WHEAT.canopyHeight, WHEAT.canopy);
+        }
+        for (let row = 0; row < WHEAT.rows; row++) for (let plant = 0; plant < WHEAT.plants; plant++) {
+            const x = Math.floor((2 * row + 1) * TILE_SIZE / (2 * WHEAT.rows)) - HALF_TILE;
+            const z = Math.floor((2 * plant + 1) * TILE_SIZE / (2 * WHEAT.plants)) - HALF_TILE;
+            const first = vertices.length;
+            vertices.push([x, 0, z], [x + WHEAT.earBottomLean, WHEAT.earBottom, z], [x + WHEAT.earTopLean, WHEAT.earTop, z],
+                [x + WHEAT.earLeft, WHEAT.earMiddle, z], [x + WHEAT.earRight, WHEAT.earMiddle, z],
+                [x + WHEAT.earDepthLean, WHEAT.earMiddle, z - WHEAT.earHalfDepth],
+                [x + WHEAT.earDepthLean, WHEAT.earMiddle, z + WHEAT.earHalfDepth]);
+            for (const [indices, material] of [[[0, 1], WHEAT.stem], [[1, 3, 2, 4], WHEAT.earFront], [[1, 5, 2, 6], WHEAT.earSide]])
+                primitives.push({ type: indices.length, flags: 1, materials: [material], indices: indices.map(index => first + index) });
+        }
+        return { vertices, primitives };
+    }
+    const wheatFieldShape = wheatField();
     function buildScene(doc, assets) {
         if (!doc || !Number.isInteger(doc.width) || !Number.isInteger(doc.height) || doc.width < 1 || doc.height < 1 ||
             doc.width > MAX_DIMENSION || doc.height > MAX_DIMENSION || !doc.vertices || !Array.isArray(doc.cells) || !Array.isArray(doc.objects))
@@ -295,6 +330,12 @@
             instances++;
         }
         for (const object of doc.objects) {
+            if (object.id === WHEAT_FIELD_ID) {
+                if (object.width !== 1 || object.height !== 1 || object.mask !== 1 ||
+                    object.lowerSurface || object.tunnelSlalom || object.rollRamp || object.pineCount) fail('Invalid 3D wheat field.');
+                mesh(object, { rotation: 0, ignoreZBias: 0 }, wheatFieldShape, WHEAT_PHYSICAL_MODEL, 0);
+                continue;
+            }
             const original = data.objects[object.id];
             if (!original || !original.shape) fail('Unsupported 3D track element ' + object.id + '.');
             if (object.pineCount) {

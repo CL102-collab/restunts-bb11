@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v14**. The revision identifies the track-format and
+recordings currently use **v15**. The revision identifies the track-format and
 physics behavior of the game that recorded the inputs; it is separate from the
 revision stored in the embedded track.
 
@@ -14,7 +14,7 @@ Increasing the track revision automatically advances the replay revision.
 Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v10 and physics revision is 4. Physics revision 1 corrected wheel
+revision is v11 and physics revision is 4. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
@@ -33,6 +33,7 @@ loaded with a different track revision. Replay v13 adds the pine tree group
 scenery introduced by track v9. Replay v14 adds the six-tree groves introduced
 by track v10. Both pine groups derive positions and sizes deterministically from
 track tile coordinates and tree index, shared by rendering and collision checks.
+Replay v15 adds the drive-through Wheat field scenery introduced by track v11.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -58,7 +59,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `14`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `15`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

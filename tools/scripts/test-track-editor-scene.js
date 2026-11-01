@@ -122,6 +122,49 @@ test('large maps compile into finite typed buffers without changing the document
     assert.deepEqual(doc.snapshot(), before);
 });
 
+test('wheat fields render complete golden rows without native model resources', () => {
+    const assets = { models: new Map(), palette: palette() }, doc = new model.Document(1, 1);
+    doc.place(model.WHEAT_FIELD_ID, 0, 0);
+    const before = doc.snapshot(), result = scene.buildScene(doc, assets);
+    assert.equal(result.instances, 1);
+    assert.equal(result.triangles, 136, 'terrain, soil, six crop rows and thirty crossed grain ears');
+    assert.equal(result.linePositions.length / 6, 30, 'each grain ear has a stem');
+    assert(result.positions.every(Number.isFinite));
+    near(result.bounds.max[1], 96 / TILE);
+    assert.deepEqual(result.bounds.min, [0, 0, 0]);
+    assert.deepEqual(doc.snapshot(), before);
+});
+
+test('wheat roots and rows follow the terrain in all slope and rotation directions', () => {
+    const assets = { models: new Map(), palette: palette() };
+    const neutral = new model.Document(1, 1); neutral.place(model.WHEAT_FIELD_ID, 0, 0);
+    const roots = vertices(scene.buildScene(neutral, assets).linePositions);
+    for (let rotation = 0; rotation < 4; rotation++) {
+        const flat = new model.Document(1, 1); flat.place(model.WHEAT_FIELD_ID, 0, 0, 0, rotation);
+        const reference = scene.buildScene(flat, assets);
+        vertices(reference.linePositions).forEach((point, index) => {
+            let x = roots[index][0] - .5, z = roots[index][2] - .5;
+            for (let turn = 0; turn < rotation; turn++) [x, z] = [z, -x];
+            near(point[0], .5 + x, 'wheat rows rotate with their tile'); near(point[2], .5 + z);
+        });
+        for (const [slopeX, slopeY] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const doc = new model.Document(1, 1); heightPlane(doc, slopeX, slopeY, 1);
+            doc.place(model.WHEAT_FIELD_ID, 0, 0, 0, rotation);
+            const result = scene.buildScene(doc, assets);
+            for (const [buffer, baseline, first] of [[result.positions, reference.positions, 18], [result.linePositions, reference.linePositions, 0]]) {
+                const points = vertices(buffer, first), originals = vertices(baseline, first);
+                assert.equal(points.length, originals.length);
+                points.forEach((point, index) => {
+                    const original = originals[index];
+                    near(point[0], original[0]); near(point[2], original[2]);
+                    const grade = (1 + slopeX * point[0] + slopeY * (1 - point[2])) * LEVEL / TILE;
+                    near(point[1], original[1] + grade, 'wheat follows its support plane');
+                });
+            }
+        }
+    }
+});
+
 (async () => {
     const directory = process.argv[2] || path.join(ROOT, 'stunts');
     if (!fs.existsSync(path.join(directory, 'GAME1.P3S')) && !fs.existsSync(path.join(directory, 'GAME1.3SH'))) {
