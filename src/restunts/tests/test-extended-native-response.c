@@ -625,6 +625,9 @@ enum {
 	TEST_PINE_FIRST_X = -340,
 	TEST_PINE_FIRST_Z = 300,
 	TEST_PINE_FIRST_SCALE = PINE_TREE_SCALE_ONE / 2,
+	TEST_PINE_CROWN_RADIUS = 60,
+	TEST_PINE_SCATTER_MIN_SCALE = 120,
+	TEST_PINE_SCATTER_MAX_SCALE = 224,
 	TEST_PINE_TRUNK_WIDTH = 32,
 	TEST_PINE_TRUNK_HEIGHT = 128,
 	TEST_PINE_TRUNK_RADIUS = 136,
@@ -638,11 +641,78 @@ enum {
 	TEST_PINE_SIGNED_SECOND_RADIUS = -137
 };
 
+static void test_six_pine_scatter(void)
+{
+	/* Fixed samples also guard the editor's independently implemented recipe. */
+	static const struct PINE_TREE_INSTANCE expected[CSTRK_PINE_GROUP_SMALL_COUNT] = {
+		{-302, 349, 155}, {17, 433, 186},	{344, 241, 139},
+		{117, -109, 215}, {-30, -313, 145}, {-360, -121, 168}};
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_PINE_TREE_ID;
+	object.pine_count = CSTRK_PINE_GROUP_SMALL_COUNT;
+	for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+		struct PINE_TREE_INSTANCE tree, repeated;
+		assert(pine_trees_instance(&object, index, &tree));
+		assert(memcmp(&tree, &expected[index], sizeof(tree)) == 0);
+		assert(pine_trees_instance(&object, index, &repeated));
+		assert(memcmp(&tree, &repeated, sizeof(tree)) == 0);
+		for (legacy_u8 rotation = 1; rotation < TEST_ROTATION_COUNT; rotation++) {
+			object.rotation = rotation;
+			struct PINE_TREE_INSTANCE turned;
+			assert(pine_trees_instance(&object, index, &turned));
+			assert(turned.scale == tree.scale);
+			if (rotation == 1) {
+				assert(turned.x == tree.z && turned.z == -tree.x);
+			} else if (rotation == 2) {
+				assert(turned.x == -tree.x && turned.z == -tree.z);
+			} else {
+				assert(turned.x == -tree.z && turned.z == tree.x);
+			}
+		}
+		object.rotation = 0;
+	}
+	struct PINE_TREE_INSTANCE tree;
+	assert(!pine_trees_instance(&object, CSTRK_PINE_GROUP_SMALL_COUNT, &tree));
+
+	/* Adjacent tiles must not repeat the same trunk positions or size sequence. */
+	for (legacy_u8 axis = 0; axis < 2; axis++) {
+		object.x = axis == 0;
+		object.y = axis != 0;
+		legacy_u8 different_positions = 0, different_sizes = 0;
+		for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+			assert(pine_trees_instance(&object, index, &tree));
+			different_positions |= tree.x != expected[index].x || tree.z != expected[index].z;
+			different_sizes |= tree.scale != expected[index].scale;
+		}
+		assert(different_positions && different_sizes);
+	}
+
+	/* Even the largest jitter and crowns remain inside their own tile. */
+	for (legacy_u8 row = 0; row < CSTRK_MAX_DIMENSION; row++) {
+		object.y = row;
+		for (legacy_u8 column = 0; column < CSTRK_MAX_DIMENSION; column++) {
+			object.x = column;
+			for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_SMALL_COUNT; index++) {
+				assert(pine_trees_instance(&object, index, &tree));
+				legacy_s32 x = tree.x < 0 ? -tree.x : tree.x;
+				legacy_s32 z = tree.z < 0 ? -tree.z : tree.z;
+				assert(tree.scale >= TEST_PINE_SCATTER_MIN_SCALE &&
+					   tree.scale <= TEST_PINE_SCATTER_MAX_SCALE);
+				assert(x * PINE_TREE_SCALE_ONE + TEST_PINE_CROWN_RADIUS * tree.scale <
+					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
+				assert(z * PINE_TREE_SCALE_ONE + TEST_PINE_CROWN_RADIUS * tree.scale <
+					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
+			}
+		}
+	}
+}
+
 static void test_pine_group_collision_centers(void)
 {
 	static const legacy_s8 slopes[TEST_PINE_SLOPE_COUNT][2] = {
 		{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_LEGACY_COUNT, CSTRK_PINE_GROUP_SMALL_COUNT,
+									   CSTRK_PINE_GROUP_LARGE_COUNT};
 	fixture_extended = 1;
 	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
 	trkObjectList[CSTRK_PINE_TREE_ID].ss_physicalModel = PHYSICAL_MODEL_PINE_TREE;
@@ -676,7 +746,7 @@ static void test_pine_group_collision_centers(void)
 																&fixture_object, tree.x, tree.z));
 					assert(positions[index].x != origin.x || positions[index].z != origin.z);
 				}
-				if (rotation == 0) {
+				if (rotation == 0 && counts[group] != CSTRK_PINE_GROUP_SMALL_COUNT) {
 					assert(positions[0].x == origin.x + TEST_PINE_FIRST_X);
 					assert(positions[0].z == origin.z + TEST_PINE_FIRST_Z);
 				}
@@ -761,6 +831,7 @@ legacy_int main(void)
 	test_roll_completion_and_checkpoint_state();
 	test_roll_completion_on_cross_slope();
 	test_roll_shortcuts_are_rejected();
+	test_six_pine_scatter();
 	test_pine_group_collision_centers();
 	test_pine_group_collision_bounds();
 	return 0;

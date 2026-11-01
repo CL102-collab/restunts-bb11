@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v13**. The revision identifies the track-format and
+recordings currently use **v14**. The revision identifies the track-format and
 physics behavior of the game that recorded the inputs; it is separate from the
 revision stored in the embedded track.
 
@@ -14,7 +14,7 @@ Increasing the track revision automatically advances the replay revision.
 Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v9 and physics revision is 4. Physics revision 1 corrected wheel
+revision is v10 and physics revision is 4. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
@@ -30,7 +30,9 @@ mesh seams use road response while sides, undersides and supports remain solid,
 allowing valid barrel-ramp approaches with fixed collision (`--lc:off`). A new
 recording uses the running game's replay revision, including when its track was
 loaded with a different track revision. Replay v13 adds the pine tree group
-scenery introduced by track v9.
+scenery introduced by track v9. Replay v14 adds the six-tree groves introduced
+by track v10. Legacy five-tree and ten-tree arrangements remain unchanged,
+preserving their collision geometry in existing recordings.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -56,7 +58,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `12`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `14`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

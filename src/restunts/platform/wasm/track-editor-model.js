@@ -13,15 +13,17 @@
     const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8, ROLL_RAMP_DIRECTION_OFFSET = 2;
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
-    const PINE_PHYSICAL_MODEL = 71, PINE_TREE_ID = 153, PINE_GROUP_VERSION = 9, PINE_COUNTS = [10, 5];
+    const PINE_PHYSICAL_MODEL = 71, PINE_TREE_ID = 153, PINE_GROUP_VERSION = 9, PINE_SIX_VERSION = 10, PINE_COUNTS = [10, 6];
+    const PINE_LEGACY_COUNT = 5, PINE_SIX_COUNT = 6, PINE_SUPPORTED_COUNTS = [...PINE_COUNTS, PINE_LEGACY_COUNT];
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
+    const PINE_SIX_VERSION_ERROR = 'Six-tree pine groups require Chocolate Stunts track version v10.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
     const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 9, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 10, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -149,9 +151,10 @@
         if (rollRamp && version < ROLL_RAMP_VERSION) throw new Error(ROLL_RAMP_VERSION_ERROR);
     }
     function checkPineCount(entry, pineCount, version) {
-        if (pineCount !== 0 && !PINE_COUNTS.includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
+        if (pineCount !== 0 && !PINE_SUPPORTED_COUNTS.includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
         if (pineCount && entry.physical !== PINE_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only pine trees can form pine tree groups.');
         if (pineCount && version < PINE_GROUP_VERSION) throw new Error(PINE_GROUP_VERSION_ERROR);
+        if (pineCount === PINE_SIX_COUNT && version < PINE_SIX_VERSION) throw new Error(PINE_SIX_VERSION_ERROR);
     }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
@@ -759,7 +762,8 @@
             if ((version < OVERPASS_SURFACE_VERSION && a[p + 12]) ||
                 (version < TUNNEL_SLALOM_VERSION && a[p + 13]) || a[p + 13] > 1 ||
                 (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 ||
-                (version < PINE_GROUP_VERSION && a[p + 15]) || (a[p + 15] !== 0 && !PINE_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
+                (version < PINE_GROUP_VERSION && a[p + 15]) || (version < PINE_SIX_VERSION && a[p + 15] === PINE_SIX_COUNT) ||
+                (a[p + 15] !== 0 && !PINE_SUPPORTED_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
             const id = v.getUint16(p, true), surface = a[p + 5];
             const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
             const object = { id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) };
@@ -784,5 +788,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

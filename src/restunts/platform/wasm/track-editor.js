@@ -9,6 +9,7 @@
     const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
     const terrainMaximumLevel = 4, paletteChannels = 3;
     const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, brushPreviewGridWidth = 1;
+    const scatteredPineCount = 6;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
@@ -669,13 +670,14 @@
             c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
-    function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp, pineCount) {
+    function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp, pineCount, column = 0, row = 0) {
         if (!state.resources || !state.resources.palette) return null;
-        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp + ':' + pineCount;
+        const location = pineCount === scatteredPineCount ? ':' + column + ':' + row : '';
+        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp + ':' + pineCount + location;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);
         if (!source) return null;
-        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp, pineCount);
+        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp, pineCount, column, row);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;
         image.data.set(window.TrackEditorResources.tintTileBitmap(bitmap, palette, surface, lowerSurface, id));
@@ -684,7 +686,7 @@
     function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false, lowerSurface = piece.lowerSurface ?? 0) {
         if (piece.decoration) surface = 0;
         const display = model.pieceDisplayVariant(piece, rotation);
-        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0, piece.rollRamp ?? 0, piece.pineCount ?? 0);
+        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0, piece.rollRamp ?? 0, piece.pineCount ?? 0, piece.x ?? 0, piece.y ?? 0);
         c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(display.rotation * Math.PI / 2);
         if (icon) {
             c.imageSmoothingEnabled = false;
@@ -752,7 +754,7 @@
         const left = view.x + object.x * size, top = view.y + object.y * size;
         if (left + object.width * size < 0 || top + object.height * size < 0 || left > view.width || top > view.height) return;
         const piece = catalogEntry(object.id);
-        if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0, pineCount: object.pineCount ?? 0 }, left, top, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
+        if (piece) drawPiece(ctx, { ...piece, x: object.x, y: object.y, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0, pineCount: object.pineCount ?? 0 }, left, top, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
     }
     function drawAreaSelection(size) {
         const area = state.selection, left = view.x + area.x * size, top = view.y + area.y * size;
