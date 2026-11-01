@@ -166,8 +166,9 @@ appears in both the 2D editor and 3D preview. Cars can drive through the crops;
 the underlying terrain determines driving grip. Wheat field requires `.cstrk` v11.
 
 **Tulip field** adds dense flower bands ordered purple, orange, red, pink,
-purple and yellow, with one color along each row. **Vine field** adds tall,
-narrow green vineyard rows with dense purple grape clusters on both sides.
+purple and yellow, with one color along each row. **Vine field** adds twelve low,
+narrow green rows with triangular tops and dense purple grape clusters on
+both sides.
 Both occupy one tile, join into larger fields, and support rotation, raised
 ground and straight hillside inclines in every direction.
 They appear in the 2D editor, 3D preview and game. Both are drive-through

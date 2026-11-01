@@ -165,10 +165,10 @@ test('low wheat rows follow the terrain in all slope and rotation directions', (
 
 test('tulip cups and raised vine rows render without native model resources', () => {
     const assets = { models: new Map(), palette: palette() };
-    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 16, 148, 30], [model.VINE_FIELD_ID, 192, 316, 0]]) {
+    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 16, 148, 30], [model.VINE_FIELD_ID, 96, 940, 0]]) {
         const doc = new model.Document(1, 1); doc.place(id, 0, 0);
         const before = doc.snapshot(), result = scene.buildScene(doc, assets);
-        assert.equal(result.instances, id === model.VINE_FIELD_ID ? 5 : 1); assert.equal(result.triangles, triangles);
+        assert.equal(result.instances, id === model.VINE_FIELD_ID ? 13 : 1); assert.equal(result.triangles, triangles);
         assert.equal(result.linePositions.length / 6, stems);
         assert(result.positions.every(Number.isFinite)); near(result.bounds.max[1], height / TILE);
         assert.deepEqual(result.bounds.min, [0, 0, 0]); assert.deepEqual(doc.snapshot(), before);
@@ -201,18 +201,28 @@ test('tulips retain distinct purple, orange, red, pink, purple and yellow rows',
     }
 });
 
-test('tall narrow vine foliage carries eight unchanged purple bunches on each side', () => {
+test('twelve narrow vine rows retain vertical bodies and gain triangular tops', () => {
     const doc = new model.Document(1, 1); doc.place(model.VINE_FIELD_ID, 0, 0);
     const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
-    const canopy = vertices(result.positions, 36).slice(0, 4 * 14 * 3);
-    for (let row = 0; row < 4; row++) {
+    const canopy = vertices(result.positions, 36).slice(0, 12 * 14 * 3);
+    for (let row = 0; row < 12; row++) {
         const points = canopy.slice(row * 14 * 3, (row + 1) * 14 * 3);
-        near(Math.max(...points.map(point => point[0])) - Math.min(...points.map(point => point[0])), 128 / TILE);
-        near(Math.max(...points.map(point => point[1])), 192 / TILE);
+        near(Math.max(...points.map(point => point[0])) - Math.min(...points.map(point => point[0])), 45 / TILE);
+        near(Math.max(...points.map(point => point[1])), 96 / TILE);
+        const body = points.filter(point => point[1] <= 72 / TILE);
+        assert.equal(new Set(body.map(point => point[0].toFixed(6))).size, 2, 'body walls stay vertical up to the eaves');
+        assert.equal(new Set(points.map(point => point[1].toFixed(6))).size, 3, 'soil, eaves and ridge retain their distinct heights');
+        const ridge = points.filter(point => point[1] === 96 / TILE), center = Math.floor((2 * row + 1) * TILE / 24) / TILE;
+        assert(ridge.length > 0); ridge.forEach(point => near(point[0], center, 'roof peaks at the center ridge'));
     }
-    const grapePoints = vertices(result.positions, 60 * 9);
-    assert.equal(grapePoints.length, 64 * 2 * 2 * 3, 'sixty-four bunches each have two rectangular patches');
-    assert(grapePoints.every(point => point[1] >= 64 / TILE && point[1] <= 104 / TILE));
+    const grapePoints = vertices(result.positions, 172 * 9);
+    assert.equal(grapePoints.length, 192 * 2 * 2 * 3, 'one hundred ninety-two bunches each have two rectangular patches');
+    assert(grapePoints.every(point => point[1] >= 32 / TILE && point[1] <= 72 / TILE));
+    for (let row = 0; row < 12; row++) {
+        const center = (Math.floor((2 * row + 1) * TILE / 24)) / TILE;
+        const points = grapePoints.slice(row * 8 * 24, (row + 1) * 8 * 24);
+        points.forEach(point => near(point[0] - center, (point[0] < center ? -24 : 25) / TILE, 'grapes stay two units outside either wall'));
+    }
     for (let station = 0; station < 8; station++) {
         const points = grapePoints.slice(station * 24, (station + 1) * 24);
         near((Math.min(...points.map(point => point[2])) + Math.max(...points.map(point => point[2]))) / 2,
@@ -222,7 +232,7 @@ test('tall narrow vine foliage carries eight unchanged purple bunches on each si
         near(Math.max(...points.map(point => point[2])) - Math.min(...points.map(point => point[2])), width / TILE);
         near(Math.max(...points.map(point => point[1])) - Math.min(...points.map(point => point[1])), height / TILE);
     }
-    const patchColors = new Set(vertices(result.colors, 60 * 9).map(color => color.map(channel => channel.toFixed(4)).join(',')));
+    const patchColors = new Set(vertices(result.colors, 172 * 9).map(color => color.map(channel => channel.toFixed(4)).join(',')));
     assert.equal(patchColors.size, 1, 'all grape pixels use the same purple material');
 });
 

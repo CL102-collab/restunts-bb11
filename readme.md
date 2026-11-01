@@ -40,9 +40,9 @@ The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
 rows. Adjacent tiles form larger fields, rotation changes the row direction, and
 straight inclines are supported. Cars drive through the crops using the terrain
 beneath them. **Tulip field** adds solid purple, orange, red, pink, purple and
-yellow flower rows. **Vine field** adds tall, narrow green rows with dense
-purple grape clusters. Both support hillside inclines, rotation and adjoining
-fields. All three appear in the game and the editor's 2D and 3D views.
+yellow flower rows. **Vine field** adds twelve low, narrow rows with
+triangular tops and dense purple grape clusters. Both support hillside
+inclines, rotation and adjoining fields. All three appear in the game and the editor's 2D and 3D views.
 Tulip and Vine fields require `.cstrk` v12.
 
 The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both

@@ -17,13 +17,13 @@
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
     const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
     const WHEAT_FIELD_ID = 215, TULIP_FIELD_ID = 216, VINE_FIELD_ID = 217;
-    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 2, CROP_ICON_GRAPE_COLOR = 171;
+    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 1, CROP_ICON_GRAPE_COLOR = 171;
     const CROP_ICON_GRAPE_COUNT = 8;
     const CROP_ICON_GRAPE_STATIONS = Array.from({ length: CROP_ICON_GRAPE_COUNT }, (_, index) => (2 * index + 1) / (2 * CROP_ICON_GRAPE_COUNT));
     const CROP_FIELD_ICONS = new Map([
         [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
         [TULIP_FIELD_ID, { name: 'tulip field', rows: 6, gap: 2, colors: [167, 54, 38, 181, 167, 70] }],
-        [VINE_FIELD_ID, { name: 'vine field', rows: 4, gap: 8, colors: [90], edge: 92, grapes: true }]
+        [VINE_FIELD_ID, { name: 'vine field', rows: 12, scale: 8, gap: 6, colors: [90], edge: 92, grapes: true }]
     ]);
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
     const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
@@ -299,7 +299,7 @@
         return { width, height, pixels, alpha };
     }
     function composeCropFieldBitmap(field) {
-        const width = EDITOR_TILE_INTERIOR * CROP_ICON_SCALE, height = width;
+        const width = EDITOR_TILE_INTERIOR * (field.scale || CROP_ICON_SCALE), height = width;
         const pixels = new Uint8Array(width * height).fill(CROP_ICON_SOIL);
         const alpha = new Uint8Array(pixels.length).fill(255);
         function pixel(x, y, color) {
