@@ -289,7 +289,7 @@ static void video_record_render_work(void)
 		legacy_u64 elapsed = SDL_GetTicksNS() - render_frame_started;
 		frame_render_timing_record(elapsed);
 		if (adaptive_frame != 0) {
-			frame_adaptive_record(&frame_adaptive, elapsed);
+			frame_hires_adaptive_record(&frame_hires_adaptive, elapsed);
 		}
 		measured_frame = 0;
 		adaptive_frame = 0;
@@ -577,9 +577,9 @@ void sdl3_video_screenshot(void)
 
 void sdl3_video_begin_frame(void)
 {
-	hires_set_render_scale(frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO
+	hires_set_render_scale(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO
 							   ? HIRES_SCALE
-							   : frame_adaptive_render_scale(&frame_adaptive));
+							   : frame_hires_adaptive_render_scale(&frame_hires_adaptive));
 	drawing_frame = true;
 	adaptive_frame = 0;
 	measured_frame = 1;
@@ -589,7 +589,8 @@ void sdl3_video_begin_frame(void)
 void sdl3_video_begin_track_frame(legacy_u8 adaptive)
 {
 	drawing_frame = true;
-	adaptive_frame = adaptive != 0 && frame_adaptive.preset == FRAME_ADAPTIVE_PRESET_AUTO;
+	adaptive_frame =
+		adaptive != 0 && frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
 	measured_frame = 1;
 	render_frame_started = SDL_GetTicksNS();
 }

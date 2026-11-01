@@ -35,25 +35,25 @@
 #define PNG_IHDR_HEIGHT_OFFSET 20
 #define PNG_CHUNK_TYPE_SIZE 4
 
-static SDL_Surface *portrait;
-static legacy_u8 attempted_opponent;
+static SDL_Surface *hires_portrait;
+static legacy_u8 hires_attempted_opponent;
 
 void hires_opponent_portrait_unload(void)
 {
-	SDL_DestroySurface(portrait);
-	portrait = NULL;
-	attempted_opponent = 0;
+	SDL_DestroySurface(hires_portrait);
+	hires_portrait = NULL;
+	hires_attempted_opponent = 0;
 }
 
-static legacy_u32 portrait_read_be32(const legacy_u8 *bytes)
+static legacy_u32 hires_portrait_read_be32(const legacy_u8 *bytes)
 {
 	return ((legacy_u32)bytes[0] << LEGACY_THREE_BYTE_BITS) |
 		   ((legacy_u32)bytes[1] << LEGACY_WORD_BITS) | ((legacy_u32)bytes[2] << LEGACY_BYTE_BITS) |
 		   bytes[3];
 }
 
-static SDL_Surface *portrait_load(const legacy_char *directory, legacy_u8 opponent,
-								  legacy_u8 prepared)
+static SDL_Surface *hires_portrait_load(const legacy_char *directory, legacy_u8 opponent,
+										legacy_u8 prepared)
 {
 	legacy_char path[PORTRAIT_PATH_SIZE];
 	legacy_s32 length = snprintf(path, sizeof(path), "%s%sopp%u.png", directory,
@@ -72,12 +72,12 @@ static SDL_Surface *portrait_load(const legacy_char *directory, legacy_u8 oppone
 	fclose(file);
 	static const legacy_u8 signature[] = {137, 'P', 'N', 'G', 13, 10, 26, 10};
 	if (read != sizeof(header) || memcmp(header, signature, sizeof(signature)) != 0 ||
-		portrait_read_be32(header + PNG_IHDR_LENGTH_OFFSET) != PNG_IHDR_DATA_LENGTH ||
+		hires_portrait_read_be32(header + PNG_IHDR_LENGTH_OFFSET) != PNG_IHDR_DATA_LENGTH ||
 		memcmp(header + PNG_IHDR_TYPE_OFFSET, "IHDR", PNG_CHUNK_TYPE_SIZE) != 0) {
 		return NULL;
 	}
-	legacy_u32 width = portrait_read_be32(header + PNG_IHDR_WIDTH_OFFSET);
-	legacy_u32 height = portrait_read_be32(header + PNG_IHDR_HEIGHT_OFFSET);
+	legacy_u32 width = hires_portrait_read_be32(header + PNG_IHDR_WIDTH_OFFSET);
+	legacy_u32 height = hires_portrait_read_be32(header + PNG_IHDR_HEIGHT_OFFSET);
 	if (width == 0 || height == 0 || width > PORTRAIT_MAX_DIMENSION ||
 		height > PORTRAIT_MAX_DIMENSION) {
 		return NULL;
@@ -92,9 +92,9 @@ static SDL_Surface *portrait_load(const legacy_char *directory, legacy_u8 oppone
 	return SDL_LoadPNG(path);
 }
 
-static SDL_Surface *portrait_find(legacy_u8 opponent, legacy_u8 prepared)
+static SDL_Surface *hires_portrait_find(legacy_u8 opponent, legacy_u8 prepared)
 {
-	SDL_Surface *source = portrait_load(PORTRAIT_DIRECTORY, opponent, prepared);
+	SDL_Surface *source = hires_portrait_load(PORTRAIT_DIRECTORY, opponent, prepared);
 	if (source == NULL) {
 		const legacy_char *base = asset_path_base();
 		legacy_char directory[PORTRAIT_PATH_SIZE];
@@ -102,19 +102,19 @@ static SDL_Surface *portrait_find(legacy_u8 opponent, legacy_u8 prepared)
 			legacy_s32 length =
 				snprintf(directory, sizeof(directory), "%s%s", base, PORTRAIT_DIRECTORY);
 			if (length >= 0 && (size_t)length < sizeof(directory)) {
-				source = portrait_load(directory, opponent, prepared);
+				source = hires_portrait_load(directory, opponent, prepared);
 			}
 		}
 	}
 #ifdef RESTUNTS_OPPONENT_DIRECTORY
 	if (source == NULL) {
-		source = portrait_load(RESTUNTS_OPPONENT_DIRECTORY "/", opponent, prepared);
+		source = hires_portrait_load(RESTUNTS_OPPONENT_DIRECTORY "/", opponent, prepared);
 	}
 #endif
 	return source;
 }
 
-static SDL_Surface *portrait_convert(SDL_Surface *source)
+static SDL_Surface *hires_portrait_convert(SDL_Surface *source)
 {
 	if (source->w == PORTRAIT_INNER_WIDTH * HIRES_SCALE &&
 		source->h == PORTRAIT_INNER_HEIGHT * HIRES_SCALE) {
@@ -142,21 +142,21 @@ static SDL_Surface *portrait_convert(SDL_Surface *source)
 	return result;
 }
 
-static SDL_Surface *portrait_image(legacy_u8 opponent)
+static SDL_Surface *hires_portrait_image(legacy_u8 opponent)
 {
-	if (attempted_opponent == opponent) {
-		return portrait;
+	if (hires_attempted_opponent == opponent) {
+		return hires_portrait;
 	}
 	hires_opponent_portrait_unload();
-	attempted_opponent = opponent;
+	hires_attempted_opponent = opponent;
 	/* Search all game artwork roots before the optional master portraits. */
 	for (legacy_s32 prepared = 1; prepared >= 0; prepared--) {
-		SDL_Surface *source = portrait_find(opponent, (legacy_u8)prepared);
+		SDL_Surface *source = hires_portrait_find(opponent, (legacy_u8)prepared);
 		if (source != NULL) {
-			portrait = portrait_convert(source);
+			hires_portrait = hires_portrait_convert(source);
 			SDL_DestroySurface(source);
-			if (portrait != NULL) {
-				return portrait;
+			if (hires_portrait != NULL) {
+				return hires_portrait;
 			}
 		}
 	}
@@ -178,7 +178,7 @@ void hires_opponent_portrait_draw_at(const struct SPRITE *target, const struct S
 		shape2d_get_height(original) != PORTRAIT_HEIGHT) {
 		return;
 	}
-	SDL_Surface *source = portrait_image(opponent);
+	SDL_Surface *source = hires_portrait_image(opponent);
 	if (source == NULL || !hires_begin_argb(target)) {
 		return;
 	}

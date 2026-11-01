@@ -3,21 +3,21 @@
 #include <stdlib.h>
 #include <string.h>
 
-void extended_frame_first_tile_pass(legacy_s16 *first_pass)
+void hires_extended_frame_first_tile_pass(legacy_s16 *first_pass)
 {
-	if (supersight_enabled != 0 && extended_track_active()) {
+	if (hires_active != 0 && extended_track_active()) {
 		*first_pass = FRAME_TILE_GROUND_PASS;
 	}
 }
 
-legacy_s32 extended_frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
+legacy_s32 hires_extended_frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
 {
 	return tiles->extended_lookup.complete_tile_lookup &&
 		   tiles->lookahead == tiles->extended_lookahead;
 }
 
-legacy_s16 extended_frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles,
-											legacy_s16 east, legacy_s16 south)
+legacy_s16 hires_extended_frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles,
+												  legacy_s16 east, legacy_s16 south)
 {
 	if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 || south > TRACK_GRID_LAST_COORDINATE) {
 		return -1;
@@ -25,8 +25,8 @@ legacy_s16 extended_frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *t
 	return tiles->extended_lookup.index_by_world_tile[south * extended_track_width() + east];
 }
 
-void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
-									 const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
+void hires_extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
+										   const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
 {
 	(void)camera;
 	/* HyperVision uses screen depth, so enumerate each world tile once in
@@ -38,12 +38,12 @@ void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 	for (legacy_s16 south = 0; south <= TRACK_GRID_LAST_COORDINATE; south++) {
 		for (legacy_s16 east = 0; east <= FRAME_TRACK_LAST_X; east++) {
 			if (extended_track_active() &&
-				(abs(east - tiles->camera_east) > FRAME_EXTENDED_LOOKAHEAD_RADIUS ||
-				 abs(south - tiles->camera_south) > FRAME_EXTENDED_LOOKAHEAD_RADIUS)) {
+				(abs(east - tiles->camera_east) > HIRES_FRAME_EXTENDED_LOOKAHEAD_RADIUS ||
+				 abs(south - tiles->camera_south) > HIRES_FRAME_EXTENDED_LOOKAHEAD_RADIUS)) {
 				continue;
 			}
-			if (adaptive != 0 &&
-				frame_adaptive_flags(&frame_adaptive, east, south) == FRAME_ADAPTIVE_HIDE) {
+			if (adaptive != 0 && frame_hires_adaptive_flags(&frame_hires_adaptive, east, south) ==
+									 FRAME_HIRES_ADAPTIVE_HIDE) {
 				continue;
 			}
 			struct FRAME_LOOKAHEAD_TILE *tile = &tiles->extended_lookahead[index++];
@@ -75,7 +75,7 @@ legacy_s16 hires_track_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 	if (tile->element != 0) {
 		legacy_s16 multitile_flag = trkObjectList[tile->element].ss_multiTileFlag;
 		if (multitile_flag != FRAME_MULTITILE_NONE) {
-			if (extended_frame_has_complete_tile_lookup(tiles)) {
+			if (hires_extended_frame_has_complete_tile_lookup(tiles)) {
 				if (multitile_flag < FRAME_MULTITILE_ROW || multitile_flag > FRAME_MULTITILE_BOTH) {
 					return 1;
 				}
@@ -84,7 +84,7 @@ legacy_s16 hires_track_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 				for (legacy_s16 south = tile->south; south <= last_south; south++) {
 					for (legacy_s16 east = tile->east; east <= last_east; east++) {
 						legacy_s16 covered_index =
-							extended_frame_lookup_world_tile(tiles, east, south);
+							hires_extended_frame_lookup_world_tile(tiles, east, south);
 						if (covered_index >= 0 && covered_index < tile_index) {
 							tiles->markers[covered_index] = FRAME_TILE_MULTITILE_COVERED_MARKER;
 						}
@@ -100,8 +100,8 @@ legacy_s16 hires_track_mark_covered_tiles(struct FRAME_TILE_SELECTION *tiles,
 void hires_track_position_tiles(struct FRAME_TILE_SELECTION *tiles,
 								const struct FRAME_CAMERA *camera, legacy_u8 adaptive)
 {
-	if (supersight_enabled != 0) {
-		extended_frame_extend_lookahead(tiles, camera, adaptive);
+	if (hires_active != 0) {
+		hires_extended_frame_extend_lookahead(tiles, camera, adaptive);
 	}
 }
 

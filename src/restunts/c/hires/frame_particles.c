@@ -1,11 +1,11 @@
 #include "../frame/frame_render_private.h"
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16 frame_draw_adaptive_particles(const struct FRAME_CAMERA *camera,
-										 struct FRAME_CAR_RENDER *cars,
-										 legacy_s8 redraw_transform_flags)
+legacy_s16 frame_hires_draw_adaptive_particles(const struct FRAME_CAMERA *camera,
+											   struct FRAME_CAR_RENDER *cars,
+											   legacy_s8 redraw_transform_flags)
 {
-	if (frame_adaptive_active == 0 || frame_state->game_particles_active == 0) {
+	if (frame_hires_adaptive_active == 0 || frame_state->game_particles_active == 0) {
 		return 0;
 	}
 	/* Debris can cross the mask boundary independently of its hidden owner.
@@ -39,10 +39,10 @@ legacy_s16 frame_draw_adaptive_particles(const struct FRAME_CAMERA *camera,
 				const struct SHAPE3D *wheel_shape =
 					&game3dshapes[owner == PLAYER_CAR_INDEX ? PLAYER_CAR_WHEEL_SHAPE
 															: OPPONENT_CAR_WHEEL_SHAPE];
-				car_offsets[owner] = frame_car_render_offset(carstate, wheel_shape);
+				car_offsets[owner] = frame_hires_car_render_offset(carstate, wheel_shape);
 				offset_ready[owner] = 1;
 			}
-			frame_offset_car_shape(&car_offsets[owner]);
+			frame_hires_offset_car_shape(&car_offsets[owner]);
 			flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
 			material = owner == PLAYER_CAR_INDEX ? gameconfig.game_playermaterial
 												 : gameconfig.game_opponentmaterial;

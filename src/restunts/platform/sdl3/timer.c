@@ -74,7 +74,7 @@ void sdl3_browser_yield_if_due(void)
 }
 #endif
 
-legacy_u64 presentation_now(void)
+legacy_u64 hires_presentation_now(void)
 {
 	return SDL_GetTicksNS();
 }

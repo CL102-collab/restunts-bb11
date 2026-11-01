@@ -68,9 +68,9 @@ static struct SHAPE3D reset_shape(void)
 static legacy_s16 calculate_offset(const struct SHAPE3D *shape)
 {
 	struct CAR_GROUND_BOUNDS bounds;
-	shape3d_car_ground_bounds(shape, &bounds);
-	return shape3d_calculate_car_ground_level(&bounds, projection_focal_length_x,
-											  projection_focal_length_y, CAR_PHYSICS_TIRE_BOTTOM);
+	shape3d_hires_car_ground_bounds(shape, &bounds);
+	return shape3d_hires_calculate_car_ground_level(
+		&bounds, projection_focal_length_x, projection_focal_length_y, CAR_PHYSICS_TIRE_BOTTOM);
 }
 
 static void check_wheel_clearance(void)
@@ -120,9 +120,9 @@ static void check_wheel_clearance(void)
 	set_rim(10, 4, 7, 7);
 	set_rim(13, 4, 7, 7);
 	assert(calculate_offset(&shape) == 5);
-	assert(shape3d_car_extent(3, 4, 0) == 5);
-	assert(shape3d_car_extent(3, 3, 0) == 5);
-	assert(shape3d_car_extent(-65535, 65535, 0) == 92681);
+	assert(shape3d_hires_car_extent(3, 4, 0) == 5);
+	assert(shape3d_hires_car_extent(3, 3, 0) == 5);
+	assert(shape3d_hires_car_extent(-65535, 65535, 0) == 92681);
 
 	/* Coordinate subtraction and squared radii must not overflow signed words. */
 	set_rim(1, 32767, -32768, -32768);
@@ -253,20 +253,20 @@ static void check_sphere_geometry(void)
 	set_vertex(10, 0, 4, 0);
 	set_vertex(11, 0, 12, 0);
 
-	shape3d_reset_car_ground_offsets();
-	shape3d_cache_car_ground_offset(0, &shape);
-	assert(shape3d_car_ground_offset(&shape) == 6);
+	shape3d_hires_reset_car_ground_offsets();
+	shape3d_hires_cache_car_ground_offset(0, &shape);
+	assert(shape3d_hires_car_ground_offset(&shape) == 6);
 	/* Projection changes recompute sphere extent from neutral cached controls,
 	 * rather than rereading animated geometry every rendered frame. */
 	set_vertex(11, 0, 100, 0);
-	assert(shape3d_car_ground_offset(&shape) == 6);
+	assert(shape3d_hires_car_ground_offset(&shape) == 6);
 	projection_focal_length_x = 230;
 	projection_focal_length_y = 155;
-	assert(shape3d_car_ground_offset(&shape) == 5);
+	assert(shape3d_hires_car_ground_offset(&shape) == 5);
 	projection_focal_length_x = 16;
 	projection_focal_length_y = 13;
-	assert(shape3d_car_ground_offset(&shape) == 6);
-	shape3d_reset_car_ground_offsets();
+	assert(shape3d_hires_car_ground_offset(&shape) == 6);
+	shape3d_hires_reset_car_ground_offsets();
 
 	shape.shape3d_primitives = sphere;
 	shape.shape3d_numprimitives = 1;
@@ -311,22 +311,22 @@ static void check_cached_clearance(void)
 	struct SHAPE3D first = reset_shape();
 	struct SHAPE3D second = first;
 	struct SHAPE3D unknown = first;
-	shape3d_reset_car_ground_offsets();
-	assert(shape3d_car_ground_offset(&first) == 0);
-	assert(shape3d_car_ground_offset(0) == 0);
-	shape3d_cache_car_ground_offset(0, &first);
-	assert(shape3d_car_ground_offset(&first) == 5);
-	assert(shape3d_car_ground_offset(&unknown) == 0);
+	shape3d_hires_reset_car_ground_offsets();
+	assert(shape3d_hires_car_ground_offset(&first) == 0);
+	assert(shape3d_hires_car_ground_offset(0) == 0);
+	shape3d_hires_cache_car_ground_offset(0, &first);
+	assert(shape3d_hires_car_ground_offset(&first) == 5);
+	assert(shape3d_hires_car_ground_offset(&unknown) == 0);
 	set_wheel(1, 6, 10);
-	shape3d_cache_car_ground_offset(1, &second);
-	assert(shape3d_car_ground_offset(&second) == 2);
+	shape3d_hires_cache_car_ground_offset(1, &second);
+	assert(shape3d_hires_car_ground_offset(&second) == 2);
 	/* Suspension changes the mutable resource but not the cached neutral offset. */
-	assert(shape3d_car_ground_offset(&first) == 5);
-	shape3d_reset_car_ground_offsets();
-	assert(shape3d_car_ground_offset(&first) == 0);
-	assert(shape3d_car_ground_offset(&second) == 0);
-	shape3d_cache_car_ground_offset(0, &first);
-	assert(shape3d_car_ground_offset(&first) == 2);
+	assert(shape3d_hires_car_ground_offset(&first) == 5);
+	shape3d_hires_reset_car_ground_offsets();
+	assert(shape3d_hires_car_ground_offset(&first) == 0);
+	assert(shape3d_hires_car_ground_offset(&second) == 0);
+	shape3d_hires_cache_car_ground_offset(0, &first);
+	assert(shape3d_hires_car_ground_offset(&first) == 2);
 }
 
 static void check_model_ground_height(void)
@@ -348,23 +348,23 @@ static void check_model_ground_height(void)
 	};
 	struct SHAPE3D shape = reset_shape();
 	/* The showroom floor uses the visible underside without a physics offset. */
-	assert(shape3d_car_ground_height(&shape) == -1);
+	assert(shape3d_hires_car_ground_height(&shape) == -1);
 	assert(calculate_offset(&shape) == 5);
 	set_wheel(FIRST_WHEEL_VERTEX, RAISED_WHEEL_CENTER, RAISED_WHEEL_RADIUS);
 	set_wheel(SECOND_WHEEL_VERTEX, RAISED_WHEEL_CENTER, RAISED_WHEEL_RADIUS);
-	assert(shape3d_car_ground_height(&shape) == 6);
+	assert(shape3d_hires_car_ground_height(&shape) == 6);
 	set_wheel(FIRST_WHEEL_VERTEX, LOWERED_WHEEL_CENTER, LOWERED_WHEEL_RADIUS);
-	assert(shape3d_car_ground_height(&shape) == -9);
-	assert(shape3d_car_ground_height(0) == 0);
+	assert(shape3d_hires_car_ground_height(&shape) == -9);
+	assert(shape3d_hires_car_ground_height(0) == 0);
 	shape.shape3d_numprimitives = 0;
-	assert(shape3d_car_ground_height(&shape) == 0);
+	assert(shape3d_hires_car_ground_height(&shape) == 0);
 
 	static legacy_u8 point[] = {SHAPE3D_PRIMITIVE_POINT, 0, PRIMITIVE_PAINT, FIRST_WHEEL_VERTEX};
 	shape.shape3d_numprimitives = 1;
 	shape.shape3d_primitives = point;
 	set_height(FIRST_WHEEL_VERTEX, LEGACY_S16_FROM_BITS(LEGACY_U16_SIGN_BIT));
 	/* Apply the physics reference before clamping, preserving extreme models. */
-	assert(shape3d_car_ground_height(&shape) == -(legacy_s32)LEGACY_S16_MAX);
+	assert(shape3d_hires_car_ground_height(&shape) == -(legacy_s32)LEGACY_S16_MAX);
 	assert(calculate_offset(&shape) == -(legacy_s32)LEGACY_S16_MAX - 1 - CAR_PHYSICS_TIRE_BOTTOM);
 
 	static legacy_u8 sphere[] = {SHAPE3D_PRIMITIVE_SPHERE, 0, PRIMITIVE_PAINT, SPHERE_CENTER_VERTEX,
@@ -372,12 +372,12 @@ static void check_model_ground_height(void)
 	shape.shape3d_primitives = sphere;
 	set_vertex(SPHERE_CENTER_VERTEX, 0, SPHERE_CENTER_HEIGHT, 0);
 	set_vertex(SPHERE_CONTROL_VERTEX, 0, SPHERE_CENTER_HEIGHT + SPHERE_DIAMETER, 0);
-	assert(shape3d_car_ground_height(&shape) == 0);
+	assert(shape3d_hires_car_ground_height(&shape) == 0);
 	legacy_u16 original_focal_x = projection_focal_length_x;
 	legacy_u16 original_focal_y = projection_focal_length_y;
 	projection_focal_length_x = WIDE_PROJECTION_FOCAL_X;
 	projection_focal_length_y = WIDE_PROJECTION_FOCAL_Y;
-	assert(shape3d_car_ground_height(&shape) == -1);
+	assert(shape3d_hires_car_ground_height(&shape) == -1);
 	projection_focal_length_x = original_focal_x;
 	projection_focal_length_y = original_focal_y;
 }

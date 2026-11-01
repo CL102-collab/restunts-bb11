@@ -80,7 +80,7 @@ legacy_s16 extended_replay_ui_scrub(legacy_s16 direction)
 		replay_controls_draw(extended_replay_frame(), target);
 		input_do_checking((legacy_s16)(delta > LEGACY_S16_MAX ? LEGACY_S16_MAX : delta));
 	}
-	frame_supersight_reset();
+	frame_renderer_reset();
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
 	replay_draw_waiting();
 	(void)extended_replay_seek(target);

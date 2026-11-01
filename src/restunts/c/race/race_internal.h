@@ -4,7 +4,7 @@
 #include "../legacy.h"
 #include "../gamestate.h"
 #include "../ghost/ghost.h"
-#include "../hires/race_view.h"
+#include "../renderer/race_view.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/race_presentation.h"
 #endif
@@ -36,7 +36,7 @@
 struct RACE_VIEWPORT_CACHE {
 	legacy_s16 roof_height;
 	legacy_s16 dashboard_bottom;
-	struct RACE_HIRES_VIEWPORT hires;
+	struct RACE_RENDERER_VIEWPORT renderer_viewport;
 };
 
 struct RACE_REWIND_STATE {

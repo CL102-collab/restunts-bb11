@@ -110,7 +110,7 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 									  LEGACY_S16_WRAP_SUB(origin.y, camera->position.y),
 									  LEGACY_S16_WRAP_SUB(origin.z, camera->position.z)};
 	object.edges = frame_extended_object_sloped(model) && !object.graded
-					   ? frame_extended_hill_edges(track, model->x, model->y)
+					   ? hires_frame_extended_hill_edges(track, model->x, model->y)
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;

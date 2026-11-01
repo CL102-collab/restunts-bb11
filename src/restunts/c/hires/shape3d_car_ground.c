@@ -32,11 +32,11 @@ static struct {
 	struct CAR_GROUND_BOUNDS bounds;
 	legacy_u16 focal_x, focal_y;
 	legacy_s16 offset;
-} car_ground_offsets[CAR_GROUND_OFFSET_CACHE_COUNT];
+} hires_car_ground_offsets[CAR_GROUND_OFFSET_CACHE_COUNT];
 
 /* Round extents upward with integer arithmetic, including full signed-word
  * coordinate differences. This runs only while loading a model. */
-static legacy_s32 shape3d_car_extent(legacy_s32 first, legacy_s32 second, legacy_s32 third)
+static legacy_s32 shape3d_hires_car_extent(legacy_s32 first, legacy_s32 second, legacy_s32 third)
 {
 	legacy_u32 first_size = (legacy_u32)(first < 0 ? -first : first);
 	legacy_u32 second_size = (legacy_u32)(second < 0 ? -second : second);
@@ -57,7 +57,7 @@ static legacy_s32 shape3d_car_extent(legacy_s32 first, legacy_s32 second, legacy
 	return (legacy_s32)lower;
 }
 
-static legacy_s16 shape3d_car_has_area(const struct VECTOR *vertices, legacy_u16 count)
+static legacy_s16 shape3d_hires_car_has_area(const struct VECTOR *vertices, legacy_u16 count)
 {
 	legacy_s64 ax = 0, ay = 0, az = 0;
 	for (legacy_u16 index = 1; index < count; index++) {
@@ -75,7 +75,7 @@ static legacy_s16 shape3d_car_has_area(const struct VECTOR *vertices, legacy_u16
 	return 0;
 }
 
-static void shape3d_car_ground_bottom(struct CAR_GROUND_BOUNDS *bounds, legacy_s32 bottom)
+static void shape3d_hires_car_ground_bottom(struct CAR_GROUND_BOUNDS *bounds, legacy_s32 bottom)
 {
 	if (!bounds->has_geometry || bottom < bounds->lowest) {
 		bounds->lowest = bottom;
@@ -83,7 +83,8 @@ static void shape3d_car_ground_bottom(struct CAR_GROUND_BOUNDS *bounds, legacy_s
 	bounds->has_geometry = 1;
 }
 
-static void shape3d_car_ground_bounds(const struct SHAPE3D *shape, struct CAR_GROUND_BOUNDS *bounds)
+static void shape3d_hires_car_ground_bounds(const struct SHAPE3D *shape,
+											struct CAR_GROUND_BOUNDS *bounds)
 {
 	static const legacy_u8 vertex_counts[SHAPE3D_PRIMITIVE_TYPE_COUNT] = {0, 1, 2,	3, 4, 5, 6, 7,
 																		  8, 9, 10, 2, 6, 3, 0, 0};
@@ -121,14 +122,14 @@ static void shape3d_car_ground_bounds(const struct SHAPE3D *shape, struct CAR_GR
 			legacy_u16 has_rim = 0;
 			for (legacy_u16 rim = 0; rim < CAR_WHEEL_VERTEX_GROUP_SIZE;
 				 rim += SHAPE3D_WHEEL_RIM_VERTEX_COUNT) {
-				if (!shape3d_car_has_area(&vertices[rim], SHAPE3D_WHEEL_RIM_VERTEX_COUNT)) {
+				if (!shape3d_hires_car_has_area(&vertices[rim], SHAPE3D_WHEEL_RIM_VERTEX_COUNT)) {
 					continue;
 				}
 				legacy_s32 first_y =
 					(legacy_s32)vertices[rim + SHAPE3D_WHEEL_FIRST_AXIS].y - vertices[rim].y;
 				legacy_s32 second_y =
 					(legacy_s32)vertices[rim + SHAPE3D_WHEEL_SECOND_AXIS].y - vertices[rim].y;
-				legacy_s32 rim_radius = shape3d_car_extent(first_y, second_y, 0);
+				legacy_s32 rim_radius = shape3d_hires_car_extent(first_y, second_y, 0);
 				if (rim_radius > radius) {
 					radius = rim_radius;
 				}
@@ -139,13 +140,13 @@ static void shape3d_car_ground_bounds(const struct SHAPE3D *shape, struct CAR_GR
 				legacy_s32 center = vertices[0].y < vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y
 										? vertices[0].y
 										: vertices[CAR_WHEEL_CENTER_SAMPLE_OFFSET].y;
-				shape3d_car_ground_bottom(bounds, center - radius);
+				shape3d_hires_car_ground_bottom(bounds, center - radius);
 			}
 		} else if (type == SHAPE3D_PRIMITIVE_SPHERE) {
 			legacy_u32 diameter =
-				(legacy_u32)shape3d_car_extent((legacy_s32)vertices[1].x - vertices[0].x,
-											   (legacy_s32)vertices[1].y - vertices[0].y,
-											   (legacy_s32)vertices[1].z - vertices[0].z);
+				(legacy_u32)shape3d_hires_car_extent((legacy_s32)vertices[1].x - vertices[0].x,
+													 (legacy_s32)vertices[1].y - vertices[0].y,
+													 (legacy_s32)vertices[1].z - vertices[0].z);
 			if (diameter == 0) {
 				continue;
 			}
@@ -157,17 +158,17 @@ static void shape3d_car_ground_bounds(const struct SHAPE3D *shape, struct CAR_GR
 			sphere->center_y = vertices[0].y;
 			sphere->diameter = diameter;
 		} else if (type == SHAPE3D_PRIMITIVE_POINT || type == SHAPE3D_PRIMITIVE_LINE ||
-				   shape3d_car_has_area(vertices, count)) {
+				   shape3d_hires_car_has_area(vertices, count)) {
 			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
-				shape3d_car_ground_bottom(bounds, vertices[vertex].y);
+				shape3d_hires_car_ground_bottom(bounds, vertices[vertex].y);
 			}
 		}
 	}
 }
 
-static legacy_s16 shape3d_calculate_car_ground_level(const struct CAR_GROUND_BOUNDS *bounds,
-													 legacy_u16 focal_x, legacy_u16 focal_y,
-													 legacy_s16 reference_height)
+static legacy_s16 shape3d_hires_calculate_car_ground_level(const struct CAR_GROUND_BOUNDS *bounds,
+														   legacy_u16 focal_x, legacy_u16 focal_y,
+														   legacy_s16 reference_height)
 {
 	legacy_s64 lowest = bounds->lowest;
 	legacy_u16 found = bounds->has_geometry;
@@ -199,46 +200,46 @@ static legacy_s16 shape3d_calculate_car_ground_level(const struct CAR_GROUND_BOU
 	return (legacy_s16)offset;
 }
 
-legacy_s16 shape3d_car_ground_height(const struct SHAPE3D *shape)
+legacy_s16 shape3d_hires_car_ground_height(const struct SHAPE3D *shape)
 {
 	struct CAR_GROUND_BOUNDS bounds;
-	shape3d_car_ground_bounds(shape, &bounds);
-	return shape3d_calculate_car_ground_level(&bounds, projection_focal_length_x,
-											  projection_focal_length_y, 0);
+	shape3d_hires_car_ground_bounds(shape, &bounds);
+	return shape3d_hires_calculate_car_ground_level(&bounds, projection_focal_length_x,
+													projection_focal_length_y, 0);
 }
 
-void shape3d_reset_car_ground_offsets(void)
+void shape3d_hires_reset_car_ground_offsets(void)
 {
 	for (legacy_u16 index = 0; index < CAR_GROUND_OFFSET_CACHE_COUNT; index++) {
-		car_ground_offsets[index].shape = 0;
-		car_ground_offsets[index].offset = 0;
+		hires_car_ground_offsets[index].shape = 0;
+		hires_car_ground_offsets[index].offset = 0;
 	}
 }
 
-void shape3d_cache_car_ground_offset(legacy_u16 index, const struct SHAPE3D *shape)
+void shape3d_hires_cache_car_ground_offset(legacy_u16 index, const struct SHAPE3D *shape)
 {
-	car_ground_offsets[index].shape = shape;
-	shape3d_car_ground_bounds(shape, &car_ground_offsets[index].bounds);
-	car_ground_offsets[index].focal_x = projection_focal_length_x;
-	car_ground_offsets[index].focal_y = projection_focal_length_y;
-	car_ground_offsets[index].offset = shape3d_calculate_car_ground_level(
-		&car_ground_offsets[index].bounds, projection_focal_length_x, projection_focal_length_y,
-		CAR_PHYSICS_TIRE_BOTTOM);
+	hires_car_ground_offsets[index].shape = shape;
+	shape3d_hires_car_ground_bounds(shape, &hires_car_ground_offsets[index].bounds);
+	hires_car_ground_offsets[index].focal_x = projection_focal_length_x;
+	hires_car_ground_offsets[index].focal_y = projection_focal_length_y;
+	hires_car_ground_offsets[index].offset = shape3d_hires_calculate_car_ground_level(
+		&hires_car_ground_offsets[index].bounds, projection_focal_length_x,
+		projection_focal_length_y, CAR_PHYSICS_TIRE_BOTTOM);
 }
 
-legacy_s16 shape3d_car_ground_offset(const struct SHAPE3D *shape)
+legacy_s16 shape3d_hires_car_ground_offset(const struct SHAPE3D *shape)
 {
 	for (legacy_u16 index = 0; shape != 0 && index < CAR_GROUND_OFFSET_CACHE_COUNT; index++) {
-		if (shape == car_ground_offsets[index].shape) {
-			if (car_ground_offsets[index].focal_x != projection_focal_length_x ||
-				car_ground_offsets[index].focal_y != projection_focal_length_y) {
-				car_ground_offsets[index].focal_x = projection_focal_length_x;
-				car_ground_offsets[index].focal_y = projection_focal_length_y;
-				car_ground_offsets[index].offset = shape3d_calculate_car_ground_level(
-					&car_ground_offsets[index].bounds, projection_focal_length_x,
+		if (shape == hires_car_ground_offsets[index].shape) {
+			if (hires_car_ground_offsets[index].focal_x != projection_focal_length_x ||
+				hires_car_ground_offsets[index].focal_y != projection_focal_length_y) {
+				hires_car_ground_offsets[index].focal_x = projection_focal_length_x;
+				hires_car_ground_offsets[index].focal_y = projection_focal_length_y;
+				hires_car_ground_offsets[index].offset = shape3d_hires_calculate_car_ground_level(
+					&hires_car_ground_offsets[index].bounds, projection_focal_length_x,
 					projection_focal_length_y, CAR_PHYSICS_TIRE_BOTTOM);
 			}
-			return car_ground_offsets[index].offset;
+			return hires_car_ground_offsets[index].offset;
 		}
 	}
 	return 0;

@@ -42,12 +42,12 @@ static legacy_u8 *native_polyinfo;
 static void *polyinfo_allocate(size_t count, size_t size)
 {
 	if (count > (size_t)-1 / size) {
-		fatal_error("SuperSight scene exceeds addressable memory");
+		fatal_error("Polygon scene exceeds addressable memory");
 		return NULL;
 	}
 	void *result = malloc(count * size);
 	if (result == NULL) {
-		fatal_error("Cannot allocate SuperSight scene queue");
+		fatal_error("Cannot allocate Polygon scene queue");
 	}
 	return result;
 }
@@ -61,7 +61,7 @@ void polyinfo_reserve(void)
 		polyinfo_index previous_capacity = polyinfo_primitive_capacity;
 		/* Links use a signed index so that -1 remains the end marker. */
 		if (previous_capacity > LEGACY_S32_MAX / 2U) {
-			fatal_error("SuperSight scene has too many primitives");
+			fatal_error("Polygon scene has too many primitives");
 			return;
 		}
 		polyinfo_index capacity = previous_capacity * 2U;
@@ -88,7 +88,7 @@ void polyinfo_reserve(void)
 		polyinfo_primitive_capacity = native_primitive_capacity = capacity;
 	}
 	if (polyinfoptrnext > LEGACY_U32_MAX - POLYINFO_MAX_RECORD_SIZE) {
-		fatal_error("SuperSight scene data exceeds addressable memory");
+		fatal_error("Polygon scene data exceeds addressable memory");
 		return;
 	}
 	polyinfo_offset required = polyinfoptrnext + POLYINFO_MAX_RECORD_SIZE;
@@ -254,7 +254,7 @@ void init_polyinfo(void)
 	init_direction_sector_thresholds();
 }
 
-void polyinfo_set_supersight(legacy_u8 enabled)
+void polyinfo_set_expanded(legacy_u8 enabled)
 {
 	polyinfo_index capacity = POLYINFO_LEGACY_PRIMITIVE_CAPACITY;
 	polyinfo_offset last_offset = POLYINFO_LEGACY_LAST_VALID_OFFSET;

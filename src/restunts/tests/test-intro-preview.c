@@ -60,14 +60,14 @@ static legacy_u32 trace_hash;
 static legacy_u32 queued_count, flush_count, pixel_count;
 static struct SHAPE2D sky_images[4];
 static legacy_u8 elements[900], terrain[900];
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 
 #ifdef RESTUNTS_SDL3
-static legacy_u8 hires_active;
+static legacy_u8 hires_raster_active;
 
 legacy_s32 hires_enabled(void)
 {
-	return hires_active;
+	return hires_raster_active;
 }
 
 void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
@@ -150,7 +150,7 @@ void sdl3_video_end_frame(void)
 	drawing_frame = 0;
 }
 
-legacy_u64 presentation_now(void)
+legacy_u64 hires_presentation_now(void)
 {
 	return scripted_now;
 }
@@ -167,9 +167,9 @@ legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 																		   : FRAME_FPS_DISPLAY_OFF;
 		frame_fps_reset();
 	} else if (key == KEY_SHIFT_F12) {
-		supersight_enabled = preset_status_active = 1;
+		renderer_active = preset_status_active = 1;
 	} else {
-		supersight_enabled ^= 1U;
+		renderer_active ^= 1U;
 		preset_status_active = 1;
 	}
 	shortcut_count++;
@@ -316,7 +316,7 @@ legacy_u16 select_cliprect_rotate(legacy_s16 z, legacy_s16 x, legacy_s16 y, stru
 legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *shape)
 {
 #ifdef RESTUNTS_SDL3
-	if (hires_active != 0) {
+	if (hires_raster_active != 0) {
 		assert(flush_count == 0);
 	}
 #endif
@@ -362,7 +362,7 @@ void shape3d_render_queued_primitives(void)
 	record_word(7);
 	if ((scripted_input == 1 || scripted_input == INTRO_TEST_STATUS_EXPIRY_INPUT) &&
 		flush_count < 8) {
-		rendered_modes[flush_count] = supersight_enabled;
+		rendered_modes[flush_count] = renderer_active;
 		rendered_fps[flush_count] = fps_display_enabled;
 	}
 	flush_count++;
@@ -503,7 +503,7 @@ static void preview_case(legacy_u32 scenario)
 	draw_track_preview();
 	legacy_u32 expected_flushes = TRACK_GRID_SIZE * TRACK_GRID_SIZE;
 #ifdef RESTUNTS_SDL3
-	if (hires_active != 0) {
+	if (hires_raster_active != 0) {
 		expected_flushes = 1;
 	}
 #endif
@@ -518,10 +518,10 @@ static void test_preview_batching(void)
 	for (legacy_u32 scenario = 0; scenario < PREVIEW_SCENARIO_COUNT; scenario++) {
 		preview_case(scenario);
 		legacy_u32 classic_queued_count = queued_count;
-		hires_active = 1;
+		hires_raster_active = 1;
 		preview_case(scenario);
 		assert(queued_count == classic_queued_count);
-		hires_active = 0;
+		hires_raster_active = 0;
 		preview_case(scenario);
 		assert(queued_count == classic_queued_count);
 	}
@@ -547,7 +547,7 @@ static void preview_water_case(const struct PREVIEW_WATER_FIXTURE *fixture, lega
 	legacy_u8 expected = wet_cells & fixture->cells;
 	legacy_u8 bridge = fixture->track >= PREVIEW_WATER_BRIDGE_FIRST &&
 					   fixture->track <= PREVIEW_WATER_BRIDGE_LAST && raised == 0;
-	if (supersight_enabled == 0 && bridge == 0) {
+	if (renderer_active == 0 && bridge == 0) {
 		expected &= PREVIEW_WATER_NORTHWEST;
 	}
 	if (raised != 0) {
@@ -647,7 +647,7 @@ static void test_preview_covered_water(void)
 		for (legacy_u8 water = PREVIEW_WATER_FIRST; water <= PREVIEW_WATER_LAST; water++) {
 			for (legacy_u8 wet = 0; wet <= PREVIEW_WATER_ALL_CELLS; wet++) {
 				for (legacy_u8 raised = 0; raised <= 1; raised++) {
-					for (supersight_enabled = 0; supersight_enabled <= 1; supersight_enabled++) {
+					for (renderer_active = 0; renderer_active <= 1; renderer_active++) {
 						preview_water_case(&fixture, wet, water, raised);
 					}
 				}
@@ -660,19 +660,19 @@ static void test_preview_covered_water(void)
 	/* Elevated corners already draw four high-detail terrain cells. */
 	for (; fixture.track <= PREVIEW_WATER_BRIDGE_LAST; fixture.track++) {
 		for (legacy_u8 raised = 0; raised <= 1; raised++) {
-			for (supersight_enabled = 0; supersight_enabled <= 1; supersight_enabled++) {
+			for (renderer_active = 0; renderer_active <= 1; renderer_active++) {
 				preview_water_case(&fixture, PREVIEW_WATER_ALL_CELLS, PREVIEW_WATER_FIRST, raised);
 			}
 		}
 	}
 	fixture.track = PREVIEW_WATER_OBJECT;
-	supersight_enabled = 1;
+	renderer_active = 1;
 	for (legacy_u8 edge = 0; edge < PREVIEW_WATER_QUADRANTS; edge++) {
 		fixture.column = (edge & 1U) != 0 ? TRACK_GRID_LAST_INDEX : PREVIEW_WATER_TILE;
 		fixture.row = (edge & 2U) != 0 ? TRACK_GRID_LAST_INDEX : PREVIEW_WATER_TILE;
 		preview_water_case(&fixture, PREVIEW_WATER_ALL_CELLS, PREVIEW_WATER_FIRST, 0);
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 
 static legacy_s8 title_data[3];
@@ -790,7 +790,7 @@ legacy_s16 input_do_checking(legacy_s16 delta)
 	input_polls++;
 	assert(drawing_frame == 0);
 	if (scripted_input == 3) {
-		if (supersight_enabled != 0) {
+		if (renderer_active != 0) {
 			assert(scripted_now - previous_input_time >= 10000000ULL);
 		}
 		previous_input_time = scripted_now;
@@ -922,7 +922,7 @@ static void display_toggle_case(legacy_u32 scenario)
 	legacy_u8 initial_mode = (scenario >> 2) & 1;
 	legacy_u8 initial_fps = (scenario >> 3) & 1;
 	scripted_key = (scenario & 16) != 0 ? KEY_F11 : KEY_F12;
-	supersight_enabled = initial_mode;
+	renderer_active = initial_mode;
 	fps_display_enabled = initial_fps;
 	copy_backbuffer = 0;
 	cancel_after = 0;
@@ -933,7 +933,7 @@ static void display_toggle_case(legacy_u32 scenario)
 	assert(setup_intro() == 1);
 	assert(input_polls == 5);
 	assert(shortcut_count == 2);
-	assert(supersight_enabled == initial_mode);
+	assert(renderer_active == initial_mode);
 	assert(fps_display_enabled == initial_fps);
 	assert(opponent_updates == 5);
 	assert(flush_count == 5);
@@ -984,7 +984,7 @@ static void predictive_presentation_case(void)
 		intro_colorvalue = 1;
 		intro_palette_color_count = 16;
 		slow_video_mgmt = video_uses_page_flipping = 0;
-		supersight_enabled = mode == 1;
+		renderer_active = mode == 1;
 		fps_display_enabled = 0;
 		input_polls = timer_reads = shortcut_count = opponent_updates = 0;
 		fps_draw_count = fps_presented_count = fps_reset_count = 0;
@@ -1030,14 +1030,14 @@ static void display_status_expiry_case(legacy_u32 scenario)
 	intro_palette_color_count = 16;
 	slow_video_mgmt = (scenario >> 1) & 1U;
 	video_uses_page_flipping = scenario & 1U;
-	supersight_enabled = fps_display_enabled = 0;
+	renderer_active = fps_display_enabled = 0;
 	input_polls = timer_reads = shortcut_count = 0;
 	fps_draw_count = fps_presented_count = fps_reset_count = 0;
 	copy_backbuffer = cancel_after = 0;
 	scripted_key = KEY_F12;
 	scripted_input = INTRO_TEST_STATUS_EXPIRY_INPUT;
 	assert(setup_intro() == 1);
-	assert(shortcut_count == 1 && supersight_enabled != 0);
+	assert(shortcut_count == 1 && renderer_active != 0);
 	assert(fps_draw_count == INTRO_TEST_STATUS_EXPIRY_POLL - 1U);
 	assert(fps_presented_count == flush_count);
 	legacy_u32 page_age = video_uses_page_flipping != 0 ? 2U : 1U;
@@ -1062,7 +1062,7 @@ static void display_toggle_completion_case(legacy_s16 key)
 	intro_colorvalue = 1;
 	intro_palette_color_count = 16;
 	slow_video_mgmt = video_uses_page_flipping = 0;
-	supersight_enabled = fps_display_enabled = 0;
+	renderer_active = fps_display_enabled = 0;
 	input_polls = timer_reads = shortcut_count = 0;
 	fps_draw_count = fps_presented_count = fps_reset_count = 0;
 	copy_backbuffer = cancel_after = 0;
@@ -1071,7 +1071,7 @@ static void display_toggle_completion_case(legacy_s16 key)
 	assert(setup_intro() == 0);
 	assert(input_polls > 1);
 	assert(shortcut_count == 1);
-	assert(supersight_enabled == (key != KEY_F11));
+	assert(renderer_active == (key != KEY_F11));
 	assert(fps_display_enabled == (key == KEY_F11));
 	assert(fps_draw_count == flush_count - 1U);
 	assert(fps_presented_count == flush_count);

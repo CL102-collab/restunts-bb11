@@ -1,10 +1,10 @@
+#if defined(RESTUNTS_SDL3)
 #include "../frame/frame_render_private.h"
 
-#if defined(RESTUNTS_SDL3)
-struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
-									  const struct SHAPE3D *wheel_shape)
+struct VECTOR frame_hires_car_render_offset(const struct CARSTATE *carstate,
+											const struct SHAPE3D *wheel_shape)
 {
-	struct VECTOR local = {0, -shape3d_car_ground_offset(wheel_shape), 0};
+	struct VECTOR local = {0, -shape3d_hires_car_ground_offset(wheel_shape), 0};
 	struct VECTOR offset;
 	struct MATRIX *rotation =
 		mat_rot_zxy(LEGACY_S16_WRAP_NEGATE(carstate->car_rotate.z),
@@ -30,17 +30,15 @@ struct VECTOR frame_car_render_offset(const struct CARSTATE *carstate,
 	offset.y = LEGACY_S16_WRAP_SUB(offset.y, surface_bias);
 	return offset;
 }
-#endif
 
-#if defined(RESTUNTS_SDL3)
-void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,
-						  const struct VECTOR *camera_position, const struct SHAPE3D *shape)
+void frame_hires_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *simd,
+								const struct VECTOR *camera_position, const struct SHAPE3D *shape)
 {
 	if (!extended_frame_car_visible(carstate)) {
 		return;
 	}
 
-	if (frame_adaptive_car_flags(carstate, simd) == FRAME_ADAPTIVE_HIDE ||
+	if (frame_hires_adaptive_car_flags(carstate, simd) == FRAME_HIRES_ADAPTIVE_HIDE ||
 		carstate->car_crashBmpFlag == CRASH_EVENT_WATER ||
 		(cameramode == CAMERA_MODE_COCKPIT && carstate == frame_viewed_car_state())) {
 		return;
@@ -54,42 +52,33 @@ void frame_add_car_shadow(const struct CARSTATE *carstate, const struct SIMD *si
 							 simd->collide_points[0].px, simd->collide_points[1].px);
 	shape3d_hires_shadow_model(shape);
 }
-#endif
 
 void frame_hires_override_car_detail(const struct TRACKOBJECT *track_object, legacy_s8 tile_detail,
 									 legacy_s16 *low_detail)
 {
-#if !defined(RESTUNTS_SDL3)
-	(void)track_object;
-#endif
-	if (supersight_enabled != 0) {
-		*low_detail = tile_detail != FRAME_TILE_DETAIL_FULL
-#if defined(RESTUNTS_SDL3)
-					  && track_object->ss_loShapePtr != 0
-#endif
-			;
+	if (hires_active != 0) {
+		*low_detail = tile_detail != FRAME_TILE_DETAIL_FULL && track_object->ss_loShapePtr != 0;
 	}
 }
 
-#if defined(RESTUNTS_SDL3)
 legacy_s16 frame_hires_prepare_car(const struct CARSTATE *carstate, legacy_s8 debris_owner,
 								   const struct SHAPE3D *wheel_shape, legacy_s8 *tile_detail,
 								   legacy_s8 *flags, struct VECTOR *render_offset)
 {
-	if (frame_adaptive_active != 0) {
+	if (frame_hires_adaptive_active != 0) {
 		const struct SIMD *simd =
 			debris_owner == PLAYER_CAR_INDEX
 				? &simd_player
 				: (gameconfig.game_opponenttype != 0 ? &simd_opponent : ghost_car_simd());
-		legacy_u8 adaptive_flags = frame_adaptive_car_flags(carstate, simd);
-		if (adaptive_flags == FRAME_ADAPTIVE_HIDE) {
+		legacy_u8 adaptive_flags = frame_hires_adaptive_car_flags(carstate, simd);
+		if (adaptive_flags == FRAME_HIRES_ADAPTIVE_HIDE) {
 			return 0;
 		}
-		*tile_detail = adaptive_flags == FRAME_ADAPTIVE_LOW_GEOMETRY;
+		*tile_detail = adaptive_flags == FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY;
 	}
-	if (supersight_enabled != 0) {
+	if (hires_active != 0) {
 		*flags |= SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
-		*render_offset = frame_car_render_offset(carstate, wheel_shape);
+		*render_offset = frame_hires_car_render_offset(carstate, wheel_shape);
 	}
 	return 1;
 }
@@ -98,13 +87,12 @@ void frame_hires_car_flags(legacy_s8 flags)
 {
 	curtransshape_ptr->ts_flags |= flags & SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
 }
-#endif
 
-#if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset)
+void frame_hires_offset_car_shape(const struct VECTOR *offset)
 {
 	curtransshape_ptr->pos.x = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.x, offset->x);
 	curtransshape_ptr->pos.y = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.y, offset->y);
 	curtransshape_ptr->pos.z = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.z, offset->z);
 }
+
 #endif

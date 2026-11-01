@@ -101,8 +101,8 @@ static legacy_s16 ghost_line_check_full_queue(void)
 	legacy_u32 original_count = ghost_line_count;
 	ghost_line_count = 0;
 	for (legacy_s16 mode = 0; mode < 2; mode++) {
-		supersight_enabled = mode;
-		frame_supersight_reset();
+		renderer_active = mode;
+		frame_renderer_reset();
 		if (ghost_line_capture(mode == 0 ? "BASE0.RAW" : "BASE1.RAW", 0)) {
 			return 1;
 		}
@@ -134,8 +134,8 @@ static legacy_s16 ghost_line_check_full_queue(void)
 		}
 	}
 	for (legacy_s16 mode = 0; mode < 2; mode++) {
-		supersight_enabled = mode;
-		frame_supersight_reset();
+		renderer_active = mode;
+		frame_renderer_reset();
 		if (ghost_line_capture(mode == 0 ? "DENSE0.RAW" : "DENSE1.RAW", 0)) {
 			return 1;
 		}
@@ -213,8 +213,8 @@ static legacy_s16 ghost_line_check(void)
 	ghost_update(gameconfig.game_recordedframes, framespersec);
 	legacy_s16 result = 0;
 	for (legacy_s16 mode = 0; mode < 2 && result == 0; mode++) {
-		supersight_enabled = mode;
-		frame_supersight_reset();
+		renderer_active = mode;
+		frame_renderer_reset();
 		result = ghost_line_capture(mode == 0 ? "GREEN0.RAW" : "GREEN1.RAW", 0) ||
 				 ghost_line_capture(mode == 0 ? "RED0.RAW" : "RED1.RAW", LEGACY_U16_MAX) ||
 				 ghost_line_capture(mode == 0 ? "YELLOW0.RAW" : "YELLOW1.RAW", reference_speed);

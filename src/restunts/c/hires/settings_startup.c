@@ -15,8 +15,8 @@
 
 void hires_settings_reset_startup(struct STARTUP_OPTIONS *options)
 {
-	options->hypervision_preset = FRAME_ADAPTIVE_PRESET_AUTO;
-	options->hypervision_specified = 0;
+	options->hires_preset = FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
+	options->hires_specified = 0;
 }
 
 void hires_settings_parse_startup(const legacy_s8 *argument, struct STARTUP_OPTIONS *options)
@@ -30,23 +30,23 @@ void hires_settings_parse_startup(const legacy_s8 *argument, struct STARTUP_OPTI
 	if (*prefix != 0) {
 		return;
 	}
-	if (options->hypervision_specified != 0) {
+	if (options->hires_specified != 0) {
 		fprintf(stderr, "Only one HyperVision preset may be specified (--hv:).\n");
 		dos_process_exit(EXIT_FAILURE);
 		return;
 	}
 	static const struct {
 		const legacy_s8 *name;
-		enum FRAME_ADAPTIVE_PRESET preset;
-	} presets[] = {{"auto", FRAME_ADAPTIVE_PRESET_AUTO},
-				   {"full", FRAME_ADAPTIVE_PRESET_FULL},
-				   {"high", FRAME_ADAPTIVE_PRESET_HIGH},
-				   {"medium", FRAME_ADAPTIVE_PRESET_MEDIUM},
-				   {"low", FRAME_ADAPTIVE_PRESET_LOW}};
+		enum FRAME_HIRES_ADAPTIVE_PRESET preset;
+	} presets[] = {{"auto", FRAME_HIRES_ADAPTIVE_PRESET_AUTO},
+				   {"full", FRAME_HIRES_ADAPTIVE_PRESET_FULL},
+				   {"high", FRAME_HIRES_ADAPTIVE_PRESET_HIGH},
+				   {"medium", FRAME_HIRES_ADAPTIVE_PRESET_MEDIUM},
+				   {"low", FRAME_HIRES_ADAPTIVE_PRESET_LOW}};
 	for (legacy_u16 index = 0; index < sizeof(presets) / sizeof(presets[0]); index++) {
 		if (stricmp(value, presets[index].name) == 0) {
-			options->hypervision_preset = presets[index].preset;
-			options->hypervision_specified = 1;
+			options->hires_preset = presets[index].preset;
+			options->hires_specified = 1;
 			return;
 		}
 	}
@@ -59,12 +59,12 @@ void hires_settings_parse_startup(const legacy_s8 *argument, struct STARTUP_OPTI
 
 void hires_settings_apply_startup(const struct STARTUP_OPTIONS *options)
 {
-	if (options->hypervision_specified != 0) {
-		frame_adaptive_set_preset(&frame_adaptive,
-								  (enum FRAME_ADAPTIVE_PRESET)options->hypervision_preset);
-		supersight_enabled = 1;
-		hires_set_enabled(supersight_enabled);
-		hires_set_render_scale(frame_adaptive_render_scale(&frame_adaptive));
+	if (options->hires_specified != 0) {
+		frame_hires_adaptive_set_preset(&frame_hires_adaptive,
+										(enum FRAME_HIRES_ADAPTIVE_PRESET)options->hires_preset);
+		hires_active = 1;
+		hires_set_enabled(hires_active);
+		hires_set_render_scale(frame_hires_adaptive_render_scale(&frame_hires_adaptive));
 	}
 }
 #endif

@@ -80,7 +80,7 @@ void replay_fast_forward(void)
 	if (LEGACY_S16_FROM_BITS(target) > LEGACY_S16_FROM_BITS(gameconfig.game_recordedframes)) {
 		target = gameconfig.game_recordedframes;
 	}
-	frame_supersight_reset();
+	frame_renderer_reset();
 	restore_gamestate(target);
 	elapsed_time2 = target;
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
@@ -135,7 +135,7 @@ void replay_rewind(void)
 	if (amount != 0) {
 		replay_draw_waiting();
 		legacy_u16 target = LEGACY_U16_WRAP_SUB(elapsed_time2, amount);
-		frame_supersight_reset();
+		frame_renderer_reset();
 		restore_gamestate(target);
 		elapsed_time2 = target;
 		legacy_s16 frames_to_catch_up =

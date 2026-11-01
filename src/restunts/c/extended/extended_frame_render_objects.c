@@ -4,18 +4,18 @@
 #include <string.h>
 
 #if defined(RESTUNTS_SDL3)
-legacy_u8 frame_extended_upright_scenery(legacy_s16 physical_model)
+legacy_u8 hires_frame_extended_upright_scenery(legacy_s16 physical_model)
 {
-	return supersight_enabled &&
+	return hires_active &&
 		   (physical_model == PHYSICAL_MODEL_PALM_TREE || physical_model == PHYSICAL_MODEL_CACTUS ||
 			physical_model == PHYSICAL_MODEL_PINE_TREE);
 }
 #endif
 
 #if defined(RESTUNTS_SDL3)
-struct VECTOR frame_extended_scenery_anchor(const struct SHAPE3D *source,
-											const struct TRACKOBJECT *definition,
-											const struct CSTRK_OBJECT *object)
+struct VECTOR hires_frame_extended_scenery_anchor(const struct SHAPE3D *source,
+												  const struct TRACKOBJECT *definition,
+												  const struct CSTRK_OBJECT *object)
 {
 	/* Both detail levels use the uphill extent of the full mesh, including its
 	 * enclosing box. This keeps the crown rigid, clear of the terrain, and at
@@ -39,10 +39,10 @@ struct VECTOR frame_extended_scenery_anchor(const struct SHAPE3D *source,
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_u16 frame_extended_queue_precise_object(struct TRANSFORMEDSHAPE3D *instance,
-											   const struct CSTRK_OBJECT *object,
-											   const struct SHAPE3D *source,
-											   const struct VECTOR *upright_anchor)
+legacy_u16 hires_frame_extended_queue_precise_object(struct TRANSFORMEDSHAPE3D *instance,
+													 const struct CSTRK_OBJECT *object,
+													 const struct SHAPE3D *source,
+													 const struct VECTOR *upright_anchor)
 {
 	const struct SHAPE3D *mesh = instance->shapeptr;
 	struct SHAPE3D_HIRES_VECTOR vertices[LEGACY_U8_MAX];
@@ -82,12 +82,11 @@ legacy_u8 hires_track_queue_object(struct TRANSFORMEDSHAPE3D *instance,
 								   const struct SHAPE3D *source, const struct VECTOR *anchor,
 								   legacy_s16 *result)
 {
-	if (!supersight_enabled || !object->graded ||
-		instance->shapeptr->shape3d_numverts > LEGACY_U8_MAX) {
+	if (!hires_active || !object->graded || instance->shapeptr->shape3d_numverts > LEGACY_U8_MAX) {
 		return 0;
 	}
-	*result =
-		(legacy_s16)frame_extended_queue_precise_object(instance, object->object, source, anchor);
+	*result = (legacy_s16)hires_frame_extended_queue_precise_object(instance, object->object,
+																	source, anchor);
 	return 1;
 }
 
@@ -95,10 +94,11 @@ const struct VECTOR *hires_track_object_anchor(const struct FRAME_EXTENDED_OBJEC
 											   const struct TRACKOBJECT *definition,
 											   const struct SHAPE3D *source, struct VECTOR *anchor)
 {
-	if (!object->graded || !frame_extended_upright_scenery(object->definition->ss_physicalModel)) {
+	if (!object->graded ||
+		!hires_frame_extended_upright_scenery(object->definition->ss_physicalModel)) {
 		return NULL;
 	}
-	*anchor = frame_extended_scenery_anchor(source, definition, object->object);
+	*anchor = hires_frame_extended_scenery_anchor(source, definition, object->object);
 	return anchor;
 }
 

@@ -18,7 +18,7 @@ struct TRACKOBJECT *frame_track_object_from_legacy_index(legacy_u8 index)
 void transformed_shape_add_for_sort(legacy_s16 z_adjust, legacy_s16 type)
 {
 	legacy_s16 index = LEGACY_S8_FROM_BITS((legacy_u8)transformedshape_counter);
-	if (!frame_hires_uses_screen_depth()) {
+	if (!frame_renderer_uses_screen_depth()) {
 		struct VECTOR transformed_position;
 		mat_mul_vector(&curtransshape_ptr->pos, &mat_temp, &transformed_position);
 		transformedshape_zarray[index] = LEGACY_S16_WRAP_ADD(transformed_position.z, z_adjust);
@@ -334,7 +334,7 @@ void frame_draw_dashboard_top(const struct RECTANGLE *cliprect)
 		mask_bounds.bottom = dashbmp_y_copy;
 		rect_union(frame_layer_rects, &mask_bounds, frame_layer_rects);
 	}
-	if (!frame_hires_dashboard_top(cliprect)) {
+	if (!frame_renderer_dashboard_top(cliprect)) {
 		shape2d_render_bmp_as_mask(dasmshapeptr);
 		shape2d_rle_or_far_pointer(dastbmp_y2, dastseg);
 	}
@@ -393,13 +393,7 @@ void frame_finish(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 
 void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 {
-	/* Ghost guidance adds polygons without reducing the budget for nearby scenery. */
-	legacy_u8 expanded_queue = frame_hires_enabled();
-#if defined(RESTUNTS_SDL3)
-	expanded_queue = expanded_queue || ghost_is_active();
-#endif
-	polyinfo_set_supersight(expanded_queue);
-	frame_hires_begin();
+	frame_renderer_begin();
 	struct FRAME_CAR_RENDER cars[FRAME_EXPLOSION_CAR_COUNT];
 	cars[PLAYER_CAR_INDEX].explosion_visible = 0;
 	cars[OPPONENT_CAR_INDEX].explosion_visible = 0;
@@ -414,9 +408,9 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	tiles.lookahead = frame_setup_projection(&camera, cliprect);
 	frame_draw_clouds(&camera, redraw_transform_flags);
 	frame_select_tiles(&tiles, &camera);
-	frame_hires_prepare_ground(&camera);
-	if (!frame_hires_draw_scene(&tiles, &camera, cars, buffer_index, redraw_transform_flags,
-								animated_material)) {
+	frame_renderer_prepare_ground(&camera);
+	if (!frame_renderer_draw_scene(&tiles, &camera, cars, buffer_index, redraw_transform_flags,
+								   animated_material)) {
 #if defined(RESTUNTS_SDL3)
 		frame_place_cars(&tiles, cars);
 		frame_draw_tiles(&tiles, &camera, cars, redraw_transform_flags, animated_material);
@@ -438,5 +432,5 @@ void update_frame(legacy_s8 buffer_index, struct RECTANGLE *cliprect)
 	frame_draw_dashboard_top(cliprect);
 	frame_draw_elapsed_time();
 	frame_finish(buffer_index, cliprect, skybox_requires_full_redraw, camera.yaw);
-	polyinfo_set_supersight(0);
+	polyinfo_set_expanded(0);
 }

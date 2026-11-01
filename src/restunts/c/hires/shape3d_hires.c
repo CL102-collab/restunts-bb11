@@ -21,14 +21,14 @@ struct SHAPE3D_HIRES_STATE shape3d_hires_state = {
 	.model_scale = 1,
 };
 
-static void reserve_primitives(legacy_u32 index)
+static void hires_reserve_primitives(legacy_u32 index)
 {
 	if (index < shape3d_hires_state.primitive_capacity) {
 		return;
 	}
 	size_t capacity = shape3d_hires_state.primitive_capacity != 0
 						  ? shape3d_hires_state.primitive_capacity
-						  : POLYINFO_SUPERSIGHT_PRIMITIVE_CAPACITY;
+						  : HIRES_INITIAL_PRIMITIVE_CAPACITY;
 	while (capacity <= index) {
 		if (capacity > LEGACY_S32_MAX / 2U) {
 			fatal_error("HyperVision scene has too many shape3d_hires_state.primitives");
@@ -60,8 +60,8 @@ static void reserve_primitives(legacy_u32 index)
 	shape3d_hires_state.primitive_capacity = (legacy_u32)capacity;
 }
 
-static void project_coordinates(legacy_f64 x, legacy_f64 y, legacy_f64 z,
-								struct SHAPE3D_HIRES_POINT *point)
+static void hires_project_coordinates(legacy_f64 x, legacy_f64 y, legacy_f64 z,
+									  struct SHAPE3D_HIRES_POINT *point)
 {
 	legacy_s32 scale = hires_render_scale();
 	point->x = (legacy_s16)projection_center_x * scale + x * projection_focal_length_x * scale / z;
@@ -72,10 +72,10 @@ static void project_coordinates(legacy_f64 x, legacy_f64 y, legacy_f64 z,
 void shape3d_hires_project(const struct SHAPE3D_HIRES_VECTOR *vector,
 						   struct SHAPE3D_HIRES_POINT *point)
 {
-	project_coordinates(vector->x, vector->y, vector->z > 0 ? vector->z : 1, point);
+	hires_project_coordinates(vector->x, vector->y, vector->z > 0 ? vector->z : 1, point);
 }
 
-static legacy_u8 point_clip_flags(const struct SHAPE3D_HIRES_POINT *point, legacy_f64 padding)
+static legacy_u8 hires_point_clip_flags(const struct SHAPE3D_HIRES_POINT *point, legacy_f64 padding)
 {
 	legacy_s32 scale = hires_render_scale();
 	legacy_u8 flags = 0;
@@ -127,7 +127,8 @@ legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector)
 	return flags;
 }
 
-static legacy_s32 polygon_faces_camera(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count)
+static legacy_s32 hires_polygon_faces_camera(const struct SHAPE3D_HIRES_POINT *points,
+											 legacy_u32 count)
 {
 	/* Use every edge: the first three vertices can be collinear even when
 	 * the complete polygon covers visible pixels at the higher resolution. */
@@ -139,7 +140,7 @@ static legacy_s32 polygon_faces_camera(const struct SHAPE3D_HIRES_POINT *points,
 	return area > 0;
 }
 
-static legacy_f64 decal_width(legacy_f64 inverse_z)
+static legacy_f64 hires_decal_width(legacy_f64 inverse_z)
 {
 	legacy_s32 scale = hires_render_scale();
 	legacy_f64 minimum_width = SDL_min(HIRES_MIN_DECAL_WIDTH, scale);
@@ -160,7 +161,7 @@ static legacy_f64 decal_width(legacy_f64 inverse_z)
 
 /* Measure the complete projected polygon across each edge normal. The coverage
  * target follows perspective, with a subpixel minimum width for distant decals. */
-static legacy_f64 polygon_padding(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count)
+static legacy_f64 hires_polygon_padding(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count)
 {
 	legacy_s32 scale = hires_render_scale();
 	legacy_f64 minimum_width = 0;
@@ -203,10 +204,10 @@ static legacy_f64 polygon_padding(const struct SHAPE3D_HIRES_POINT *points, lega
 	if (minimum_width >= scale) {
 		return 0;
 	}
-	legacy_f64 expansion = decal_width(nearest) - minimum_width;
+	legacy_f64 expansion = hires_decal_width(nearest) - minimum_width;
 	/* A sloping dash can taper below a sample at its far end even when its
 	 * near end is wide enough. Account for that narrowing before adding a border. */
-	legacy_f64 far_expansion = decal_width(farthest) - minimum_width * farthest / nearest;
+	legacy_f64 far_expansion = hires_decal_width(farthest) - minimum_width * farthest / nearest;
 	if (far_expansion > expansion) {
 		expansion = far_expansion;
 	}
@@ -228,10 +229,10 @@ legacy_s32 shape3d_hires_polygon_visible(legacy_u32 index, legacy_s32 cull_backf
 	}
 	legacy_u8 flags = SHAPE3D_ALL_RECT_CLIP_FLAGS;
 	for (legacy_u32 point = 0; point < primitive->count; point++) {
-		flags &= point_clip_flags(&primitive->points[point], primitive->size);
+		flags &= hires_point_clip_flags(&primitive->points[point], primitive->size);
 	}
 	return flags == 0 &&
-		   (!cull_backface || polygon_faces_camera(primitive->points, primitive->count));
+		   (!cull_backface || hires_polygon_faces_camera(primitive->points, primitive->count));
 }
 
 legacy_u32 shape3d_hires_wheel_face(legacy_u32 index)
@@ -243,7 +244,7 @@ legacy_u32 shape3d_hires_wheel_face(legacy_u32 index)
 
 void shape3d_hires_begin_shape(legacy_u32 index, legacy_s32 depth_mode)
 {
-	reserve_primitives(index);
+	hires_reserve_primitives(index);
 	shape3d_hires_state.current_shape = index;
 	shape3d_hires_state.current_family = index + 1;
 	shape3d_hires_state.shapes[index].depth_mode = depth_mode;
@@ -292,14 +293,16 @@ void shape3d_hires_project_intersection(const struct SHAPE3D_HIRES_VECTOR *first
 	 * world coordinate to binary64 can move an exact pixel-center intersection. */
 	legacy_f64 depth_difference = second->z - first->z;
 	legacy_f64 near_difference = HIRES_NEAR_CLIP_Z - first->z;
-	project_coordinates(first->x * depth_difference + (second->x - first->x) * near_difference,
-						first->y * depth_difference + (second->y - first->y) * near_difference,
-						HIRES_NEAR_CLIP_Z * depth_difference, point);
+	hires_project_coordinates(
+		first->x * depth_difference + (second->x - first->x) * near_difference,
+		first->y * depth_difference + (second->y - first->y) * near_difference,
+		HIRES_NEAR_CLIP_Z * depth_difference, point);
 	point->inverse_z = 1.0 / HIRES_NEAR_CLIP_Z;
 }
 
-static void queue_polygon(struct HIRES_PRIMITIVE *primitive, legacy_u32 count,
-						  const legacy_u8 *indices, const struct SHAPE3D_HIRES_VECTOR *vertices)
+static void hires_queue_polygon(struct HIRES_PRIMITIVE *primitive, legacy_u32 count,
+								const legacy_u8 *indices,
+								const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	const struct SHAPE3D_HIRES_VECTOR *previous = &vertices[indices[count - 1]];
 	for (legacy_u32 index = 0; index < count; index++) {
@@ -315,11 +318,12 @@ static void queue_polygon(struct HIRES_PRIMITIVE *primitive, legacy_u32 count,
 	}
 }
 
-static void queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_count,
-							const legacy_u8 *indices, const struct SHAPE3D_HIRES_VECTOR *vertices)
+static void hires_queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_count,
+								  const legacy_u8 *indices,
+								  const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	legacy_s32 scale = hires_render_scale();
-	reserve_primitives(index);
+	hires_reserve_primitives(index);
 	if (shape3d_hires_state.primitive_count <= index) {
 		shape3d_hires_state.primitive_count = index + 1U;
 	}
@@ -332,7 +336,7 @@ static void queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_
 		return;
 	}
 	if (type == RENDER_PRIMITIVE_POLYGON) {
-		queue_polygon(primitive, vertex_count, indices, vertices);
+		hires_queue_polygon(primitive, vertex_count, indices, vertices);
 		return;
 	}
 	if (type == RENDER_PRIMITIVE_WHEEL) {
@@ -340,7 +344,7 @@ static void queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_
 		for (legacy_u32 vertex = 0; vertex < SHAPE3D_WHEEL_RIM_VERTEX_COUNT; vertex++) {
 			shape3d_hires_project(&vertices[indices[vertex]], &face[vertex]);
 		}
-		legacy_u32 start = polygon_faces_camera(face, SHAPE3D_WHEEL_RIM_VERTEX_COUNT)
+		legacy_u32 start = hires_polygon_faces_camera(face, SHAPE3D_WHEEL_RIM_VERTEX_COUNT)
 							   ? 0
 							   : SHAPE3D_WHEEL_RIM_VERTEX_COUNT;
 		primitive->wheel_face = start;
@@ -378,7 +382,7 @@ static void queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_
 	}
 }
 
-static legacy_u32 round_point_count(legacy_f64 radius_squared)
+static legacy_u32 hires_round_point_count(legacy_f64 radius_squared)
 {
 	/* The squared sum of both projected axes bounds the squared ellipse
 	 * radius, including skewed wheels. At radii 3, 12 and 48 the existing
@@ -400,7 +404,7 @@ void shape3d_hires_queue(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_cou
 						 const legacy_u8 *indices, const struct SHAPE3D_HIRES_VECTOR *vertices,
 						 legacy_u16 flags)
 {
-	queue_primitive(index, type, vertex_count, indices, vertices);
+	hires_queue_primitive(index, type, vertex_count, indices, vertices);
 	if (index >= shape3d_hires_state.primitive_capacity ||
 		shape3d_hires_state.primitives[index].count == 0) {
 		return;
@@ -415,18 +419,18 @@ void shape3d_hires_queue(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_cou
 			legacy_f64 second_x = primitive->points[2].x - primitive->points[0].x;
 			legacy_f64 second_y = primitive->points[2].y - primitive->points[0].y;
 			/* The inner rim is smaller; the tread's far perimeter is translated. */
-			primitive->round_points = round_point_count(first_x * first_x + first_y * first_y +
-														second_x * second_x + second_y * second_y);
+			primitive->round_points = hires_round_point_count(
+				first_x * first_x + first_y * first_y + second_x * second_x + second_y * second_y);
 		} else if (type == RENDER_PRIMITIVE_SPHERE) {
 			legacy_f64 horizontal = primitive->size * HIRES_SPHERE_HORIZONTAL_SCALE;
 			legacy_f64 vertical = primitive->size * HIRES_SPHERE_VERTICAL_SCALE;
 			primitive->round_points =
-				round_point_count(horizontal * horizontal + vertical * vertical);
+				hires_round_point_count(horizontal * horizontal + vertical * vertical);
 		}
 	}
 	primitive->attached = (flags & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) != 0;
 	if (type == RENDER_PRIMITIVE_POLYGON && primitive->attached) {
-		primitive->size = polygon_padding(primitive->points, primitive->count);
+		primitive->size = hires_polygon_padding(primitive->points, primitive->count);
 	}
 	if (!primitive->attached) {
 		shape3d_hires_state.current_family = index + 1;

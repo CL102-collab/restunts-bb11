@@ -11,7 +11,9 @@
 #include "../c/frame/frame_tiles.c"
 #include "../c/frame/frame_terrain.c"
 #include "../c/frame/frame_objects.c"
+#ifdef RESTUNTS_SDL3
 #include "../c/hires/frame_snapshot.c"
+#endif
 #include "extended-replay-test-stubs.h"
 
 #undef printf
@@ -27,7 +29,7 @@
 
 struct TRACKOBJECT trkObjectList[215];
 legacy_s16 camera_track_height_offset;
-legacy_u8 supersight_enabled;
+legacy_u8 renderer_active;
 
 static legacy_u64 trace_hash = UINT64_C(1469598103934665603);
 static legacy_s16 fixture_plane_distance;
@@ -290,7 +292,7 @@ legacy_u8 ghost_racing_line_color(legacy_u16 current_speed, legacy_u16 recorded_
 }
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16 shape3d_car_ground_offset(const struct SHAPE3D *shape)
+legacy_s16 shape3d_hires_car_ground_offset(const struct SHAPE3D *shape)
 {
 	assert(shape == &game3dshapes[PLAYER_CAR_WHEEL_SHAPE] ||
 		   shape == &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
@@ -336,7 +338,7 @@ legacy_u16 select_cliprect_rotate(legacy_s16 roll, legacy_s16 pitch, legacy_s16 
 	return 0;
 }
 
-void polyinfo_set_supersight(legacy_u8 enabled)
+void polyinfo_set_expanded(legacy_u8 enabled)
 {
 	(void)enabled;
 }
@@ -642,7 +644,7 @@ static void test_dashboard_top_layers(void)
 	dastseg = HUD_TEST_SHAPE_SEGMENT;
 	for (legacy_u16 mode = 0; mode < HUD_TEST_RENDER_MODES; mode++) {
 		hud_test_reset();
-		supersight_enabled = (mode & HUD_TEST_ENHANCED_BIT) != 0;
+		renderer_active = (mode & HUD_TEST_ENHANCED_BIT) != 0;
 		replaybar_enabled = (mode & HUD_TEST_REPLAY_BIT) != 0;
 		slow_video_mgmt_copy = (mode & HUD_TEST_DIRTY_BIT) != 0;
 		video_uses_page_flipping = (mode & HUD_TEST_PAGE_BIT) != 0;
@@ -666,14 +668,14 @@ static void test_dashboard_top_layers(void)
 		legacy_u16 draws = dashboard_visible != 0 && dastbmp_y != 0;
 		assert(hud_fixture.masks == draws && hud_fixture.overlays == draws);
 		assert(hud_fixture.clipped_masks ==
-			   (supersight_enabled != 0 && replaybar_enabled != 0 ? draws * 2 : 0));
+			   (renderer_active != 0 && replaybar_enabled != 0 ? draws * 2 : 0));
 		assert(hud_fixture.timers == (replaybar_enabled == 0));
 		assert(hud_fixture.messages == 1);
 		hud_test_assert_pixels(&hud_fixture.message_rect, HUD_TEST_MESSAGE_COLOR);
 		if (replaybar_enabled == 0) {
 			hud_test_assert_pixels(&hud_fixture.timer_rect, HUD_TEST_TIMER_COLOR);
 		}
-		if (draws != 0 && supersight_enabled != 0 && replaybar_enabled != 0) {
+		if (draws != 0 && renderer_active != 0 && replaybar_enabled != 0) {
 			struct RECTANGLE toolbar = {0, FRAME_SCREEN_WIDTH, HUD_TEST_REPLAY_TOP,
 										HUD_TEST_SCREEN_HEIGHT};
 			hud_test_assert_pixels(&toolbar, HUD_TEST_SCENE_COLOR);
@@ -694,7 +696,7 @@ static void test_dashboard_top_layers(void)
 	hud_fixture.active = 0;
 	fontdefptr = fontledresptr = NULL;
 	dashboard_visible = dastbmp_y = replaybar_enabled = slow_video_mgmt_copy = 0;
-	video_uses_page_flipping = supersight_enabled = 0;
+	video_uses_page_flipping = renderer_active = 0;
 }
 
 static void test_camera_modes(void)
@@ -1098,6 +1100,7 @@ static void test_ghost_camera_modes(void)
 	followOpponentFlag = 0;
 }
 
+#ifdef RESTUNTS_SDL3
 /* Snapshot collision or water flags must not start irreversible effects.
  * Confirmed events must still be visible on every intervening presentation. */
 static void test_snapshot_uses_authoritative_events(void)
@@ -1157,12 +1160,13 @@ static void test_snapshot_uses_authoritative_events(void)
 				struct GAMESTATE presentation = snapshot_state;
 				struct CARSTATE presentation_ghost = snapshot_ghost;
 				struct GHOST_CAMERA_STATE presentation_ghost_camera = snapshot_ghost_camera;
-				frame_preserve_authoritative_events(&presentation, &presentation_ghost,
-													&presentation_ghost_camera);
+				frame_hires_preserve_authoritative_events(&presentation, &presentation_ghost,
+														  &presentation_ghost_camera);
 				frame_state = &presentation;
-				frame_ghost = ghost_fixture_active != 0 ? &presentation_ghost : 0;
-				frame_ghost_camera = ghost_fixture_active != 0 ? &presentation_ghost_camera : 0;
-				frame_uses_snapshot = 1;
+				frame_hires_ghost = ghost_fixture_active != 0 ? &presentation_ghost : 0;
+				frame_hires_ghost_camera =
+					ghost_fixture_active != 0 ? &presentation_ghost_camera : 0;
+				frame_hires_uses_snapshot = 1;
 
 				cameramode = CAMERA_MODE_COCKPIT;
 				cockpit_effect_kind = cockpit_effect_frame = -1;
@@ -1207,10 +1211,10 @@ static void test_snapshot_uses_authoritative_events(void)
 					   snapshot_state.game_oEndFrame == 1999);
 				assert(snapshot_ghost_camera.frame == 999 &&
 					   snapshot_ghost_camera.crash_frame == 119);
-				frame_uses_snapshot = 0;
+				frame_hires_uses_snapshot = 0;
 				frame_state = &state;
-				frame_ghost = 0;
-				frame_ghost_camera = 0;
+				frame_hires_ghost = 0;
+				frame_hires_ghost_camera = 0;
 			}
 		}
 	}
@@ -1218,8 +1222,10 @@ static void test_snapshot_uses_authoritative_events(void)
 	followOpponentFlag = 0;
 }
 
+#endif
+
 #if !defined(RESTUNTS_SDL3)
-static void test_supersight_selection(void)
+static void test_renderer_selection(void)
 {
 	/* The eight original headings select four cardinal rotations and their
 	 * mirrored painter order. Every one must cover the same 110 unique cells. */
@@ -1229,7 +1235,7 @@ static void test_supersight_selection(void)
 	struct FRAME_CAMERA camera = {0};
 	camera.position.x = 15 * 1024;
 	camera.position.z = 14 * 1024;
-	supersight_enabled = 1;
+	renderer_active = 1;
 	for (legacy_u32 heading = 0; heading < 8; heading++) {
 		for (detail_level = 0; detail_level < 5; detail_level++) {
 			struct FRAME_TILE_SELECTION tiles = {0};
@@ -1275,10 +1281,10 @@ static void test_supersight_selection(void)
 		frame_select_tiles(&tiles, &camera);
 		assert(tiles.elements[107] == (detail_level == 0 ? 1 : 0));
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 
-static void test_supersight_capacity_retries(void)
+static void test_renderer_capacity_retries(void)
 {
 	struct FRAME_CAMERA camera = {0};
 	struct FRAME_TILE_SELECTION tiles = {0};
@@ -1295,13 +1301,13 @@ static void test_supersight_capacity_retries(void)
 	cameramode = CAMERA_MODE_COCKPIT;
 	followOpponentFlag = 0;
 	gameconfig.game_opponenttype = 0;
-	supersight_enabled = 1;
+	renderer_active = 1;
 	frame_select_tiles(&tiles, &camera);
 	check_retry_brake_paint = 1;
-	frame_supersight_reset();
+	frame_renderer_reset();
 	transform_capacity = 35;
 	queue_resets = 0;
-	frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+	frame_renderer_draw_selected(&tiles, &camera, cars, 0, 0, 0);
 	assert(queue_resets == 5);
 	assert(tiles.first == 80);
 	assert(transform_count == 30);
@@ -1314,7 +1320,7 @@ static void test_supersight_capacity_retries(void)
 		legacy_s16 resets = queue_resets;
 		tiles.lookahead = &north;
 		frame_select_tiles(&tiles, &camera);
-		frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+		frame_renderer_draw_selected(&tiles, &camera, cars, 0, 0, 0);
 		assert(queue_resets == resets);
 		assert(tiles.first == (frame < FRAME_SUPERSIGHT_PROBE_INTERVAL ? 80 : 0));
 	}
@@ -1327,16 +1333,16 @@ static void test_supersight_capacity_retries(void)
 	select_rect_rc.right++;
 	assert(frame_supersight_first_attempt(&tiles, &camera) == 0);
 	supersight_attempt_hint = 5;
-	frame_supersight_reset();
+	frame_renderer_reset();
 	assert(frame_supersight_first_attempt(&tiles, &camera) == 0);
 	transform_capacity = 1;
 	polyinfo_reset();
 	tiles.lookahead = &north;
 	frame_select_tiles(&tiles, &camera);
-	frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+	frame_renderer_draw_selected(&tiles, &camera, cars, 0, 0, 0);
 	assert(tiles.first == 106);
 	assert(transform_count == 2);
-	supersight_enabled = 0;
+	renderer_active = 0;
 	transform_capacity = 0;
 	check_retry_brake_paint = 0;
 }
@@ -1365,7 +1371,7 @@ static void test_complete_tile_lookup_matches_scans(void)
 				camera_tiles[sizeof(camera_tiles) / sizeof(camera_tiles[0]) - 1U - camera_index];
 			mat_temp =
 				*mat_rot_zxy(pose * 43, camera_index * 73, pose * 127, MATRIX_ROTATION_ORDER_ZXY);
-			frame_extend_lookahead(&tiles, &camera);
+			frame_renderer_extend_lookahead(&tiles, &camera);
 			legacy_s32 reconstructed = 1;
 			for (legacy_s16 index = 0; index < tiles.count; index++) {
 				legacy_s16 east = tiles.lookahead[index].east + tiles.camera_east;
@@ -1435,10 +1441,10 @@ static void test_complete_tile_lookup_matches_scans(void)
 	}
 }
 
-static void test_supersight_selection(void)
+static void test_renderer_selection(void)
 {
 	struct FRAME_CAMERA camera = {0};
-	supersight_enabled = 1;
+	renderer_active = 1;
 	for (legacy_s16 pose = 0; pose < 24; pose++) {
 		configure_track();
 		camera.position.x = pose & 1 ? 0 : 29 * 1024;
@@ -1492,10 +1498,10 @@ static void test_supersight_selection(void)
 		assert(objects == 1 && covered == 3);
 		assert(scenery == (detail_level == 0));
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 
-static void test_supersight_capacity_retries(void)
+static void test_renderer_capacity_retries(void)
 {
 	struct FRAME_CAMERA camera = {0};
 	struct FRAME_TILE_SELECTION tiles = {0};
@@ -1511,11 +1517,11 @@ static void test_supersight_capacity_retries(void)
 	followOpponentFlag = 0;
 	gameconfig.game_opponenttype = 0;
 	start_finish_column = -1;
-	supersight_enabled = 1;
+	renderer_active = 1;
 	frame_select_tiles(&tiles, &camera);
 	transform_capacity = 0;
 	queue_resets = 0;
-	frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+	frame_renderer_draw_selected(&tiles, &camera, cars, 0, 0, 0);
 	assert(queue_resets == 0 && tiles.first == 0);
 	assert(transform_count == 900);
 	/* Camera depths and legacy painter biases must not reorder enhanced submissions. */
@@ -1533,7 +1539,7 @@ static void test_supersight_capacity_retries(void)
 	for (legacy_s16 i = 0; i < transformedshape_counter; i++) {
 		assert(transformedshape_indices[i] == i);
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 #endif
 
@@ -1542,12 +1548,13 @@ static void assert_grounding_offset(const struct CARSTATE *car, legacy_s16 x, le
 									legacy_s16 z)
 {
 	struct CARSTATE original = *car;
-	struct VECTOR offset = frame_car_render_offset(car, &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
+	struct VECTOR offset =
+		frame_hires_car_render_offset(car, &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
 	assert(offset.x == x && offset.y == y && offset.z == z);
 	assert(memcmp(car, &original, sizeof(original)) == 0);
 }
 
-static void test_supersight_grounding_surfaces(void)
+static void test_renderer_grounding_surfaces(void)
 {
 	struct CARSTATE car = {0};
 	car_ground_offsets[0] = 8;
@@ -1585,7 +1592,7 @@ static void test_supersight_grounding_surfaces(void)
 	car_ground_offsets[0] = 0;
 }
 
-static void test_supersight_grounding_poses(void)
+static void test_renderer_grounding_poses(void)
 {
 	struct FRAME_CAMERA camera = {0};
 	struct FRAME_TILE tile = {0};
@@ -1597,7 +1604,7 @@ static void test_supersight_grounding_poses(void)
 	car_ground_offsets[0] = 5;
 	car_ground_offsets[1] = 3;
 	frame_state = &state;
-	frame_uses_snapshot = 0;
+	frame_hires_uses_snapshot = 0;
 	slow_video_mgmt_copy = 0;
 	detail_level = 0;
 	for (legacy_s16 enabled = 0; enabled < 2; enabled++) {
@@ -1636,7 +1643,7 @@ static void test_supersight_grounding_poses(void)
 				struct GAMESTATE original = state;
 				struct CARSTATE original_ghost = ghost_fixture;
 				reset_shapes();
-				supersight_enabled = enabled;
+				renderer_active = enabled;
 				frame_add_tile_cars(&tile, &camera, cars, 0);
 				assert(transformedshape_counter == (kind == 2 ? 1 : 2));
 				legacy_s16 body = transformedshape_counter - 1;
@@ -1659,11 +1666,11 @@ static void test_supersight_grounding_poses(void)
 		}
 	}
 	car_ground_offsets[0] = car_ground_offsets[1] = 0;
-	shadow_frame_active = supersight_enabled = ghost_fixture_active = 0;
+	shadow_frame_active = renderer_active = ghost_fixture_active = 0;
 	state.game_particles_active = 0;
 }
 
-static void test_supersight_car_shadows(void)
+static void test_renderer_car_shadows(void)
 {
 	struct RECTANGLE cliprect = {0, 320, 0, 200};
 	static struct FRAME_LOOKAHEAD_TILE lookahead[24];
@@ -1714,11 +1721,11 @@ static void test_supersight_car_shadows(void)
 		struct GAMESTATE presentation = state;
 		presentation.playerstate.car_position.lx += 640;
 		frame_state = snapshot != 0 ? &presentation : &state;
-		frame_uses_snapshot = snapshot;
-		frame_ghost = &ghost_fixture;
-		frame_ghost_camera = &ghost_camera_fixture;
+		frame_hires_uses_snapshot = snapshot;
+		frame_hires_ghost = &ghost_fixture;
+		frame_hires_ghost_camera = &ghost_camera_fixture;
 		for (legacy_s16 scenario = 0; scenario < 48; scenario++) {
-			supersight_enabled = scenario & 1;
+			renderer_active = scenario & 1;
 			followOpponentFlag = (scenario >> 1) & 1;
 			cameramode = (scenario & 4) != 0 ? CAMERA_MODE_COCKPIT : CAMERA_MODE_FOLLOW;
 			gameconfig.game_opponenttype = (scenario >> 3) & 1;
@@ -1728,8 +1735,9 @@ static void test_supersight_car_shadows(void)
 			state.opponentstate.car_crashBmpFlag = presentation.opponentstate.car_crashBmpFlag =
 				scenario >= 16 && scenario < 32 ? CRASH_EVENT_WATER : CRASH_EVENT_NONE;
 			reset_shapes();
-			legacy_u16 adaptive_quality = (scenario & 16) != 0 ? FRAME_ADAPTIVE_MAX_QUALITY : 0;
-			frame_adaptive.quality = adaptive_quality;
+			legacy_u16 adaptive_quality =
+				(scenario & 16) != 0 ? FRAME_HIRES_ADAPTIVE_MAX_QUALITY : 0;
+			frame_hires_adaptive.quality = adaptive_quality;
 			shadow_count = shadow_begin_count = shadow_projection_count = 0;
 			hud_test_reset();
 			update_frame(0, &cliprect);
@@ -1737,19 +1745,18 @@ static void test_supersight_car_shadows(void)
 			assert(hud_fixture.timers == 1 && hud_fixture.messages == 1);
 			hud_test_assert_pixels(&hud_fixture.timer_rect, HUD_TEST_TIMER_COLOR);
 			hud_test_assert_pixels(&hud_fixture.message_rect, HUD_TEST_MESSAGE_COLOR);
-			assert(frame_adaptive_active ==
-				   (supersight_enabled != 0 && snapshot != 0 && adaptive_quality != 0));
-			assert(shadow_begin_count == supersight_enabled);
+			assert(frame_hires_adaptive_active ==
+				   (renderer_active != 0 && snapshot != 0 && adaptive_quality != 0));
+			assert(shadow_begin_count == renderer_active);
 			legacy_s16 expected_count = 0;
 			for (legacy_s16 car_index = 0; car_index < 2; car_index++) {
 				const struct CARSTATE *car =
 					car_index == 0 ? &frame_state->playerstate : &frame_state->opponentstate;
 				const struct SIMD *simd = car_index == 0 ? &simd_player : &simd_opponent;
-				if (supersight_enabled == 0 ||
-					(car_index == 1 && gameconfig.game_opponenttype == 0) ||
+				if (renderer_active == 0 || (car_index == 1 && gameconfig.game_opponenttype == 0) ||
 					car->car_crashBmpFlag == CRASH_EVENT_WATER ||
 					(cameramode == CAMERA_MODE_COCKPIT && car_index == followOpponentFlag) ||
-					frame_adaptive_car_flags(car, simd) == FRAME_ADAPTIVE_HIDE) {
+					frame_hires_adaptive_car_flags(car, simd) == FRAME_HIRES_ADAPTIVE_HIDE) {
 					continue;
 				}
 				assert(expected_count < shadow_count);
@@ -1772,19 +1779,19 @@ static void test_supersight_car_shadows(void)
 	hud_fixture.active = 0;
 	fontdefptr = fontledresptr = NULL;
 	dashboard_visible = dastbmp_y = 0;
-	frame_uses_snapshot = 0;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive_active = 0;
+	frame_hires_uses_snapshot = 0;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive_active = 0;
 	frame_state = &state;
-	frame_ghost = 0;
-	frame_ghost_camera = 0;
+	frame_hires_ghost = 0;
+	frame_hires_ghost_camera = 0;
 	ghost_fixture_active = 0;
 	/* Body, wheel model, ghost and attached debris all reject receiving;
 	 * ordinary rendering retains exactly its original flag bits. */
 	for (legacy_s16 enabled = 0; enabled < 2; enabled++) {
 		for (legacy_s16 ghost = 0; ghost < 2; ghost++) {
 			reset_shapes();
-			supersight_enabled = enabled;
+			renderer_active = enabled;
 			state.playerstate.car_crashBmpFlag = CRASH_EVENT_NONE;
 			state.game_particles_active = 1;
 			state.game_particle_forward_speed[0] = 1;
@@ -1810,7 +1817,7 @@ static void test_supersight_car_shadows(void)
 		}
 	}
 	shadow_frame_active = 0;
-	supersight_enabled = 0;
+	renderer_active = 0;
 	state.game_particles_active = 0;
 	followOpponentFlag = 0;
 }
@@ -1883,7 +1890,7 @@ static void water_reset_scene(struct FRAME_TILE *tile, legacy_s16 footprint, leg
 {
 	configure_track();
 	adaptive_reset_capture();
-	frame_adaptive_active = 0;
+	frame_hires_adaptive_active = 0;
 	memset(tile, 0, sizeof(*tile));
 	tile->east = tile->south = WATER_TEST_TILE;
 	tile->element = WATER_TEST_OBJECT;
@@ -1937,7 +1944,7 @@ static void water_assert_shapes(const struct FRAME_TILE *tile, const struct FRAM
 	assert(seen == expected_cells);
 }
 
-static void test_supersight_covered_water(void)
+static void test_renderer_covered_water(void)
 {
 	static const struct {
 		legacy_s16 footprint;
@@ -1957,12 +1964,12 @@ static void test_supersight_covered_water(void)
 			 water++) {
 			for (legacy_u16 wet_cells = 0; wet_cells < WATER_TEST_MASK_COUNT; wet_cells++) {
 				for (legacy_u8 raised = 0; raised <= 1; raised++) {
-					for (supersight_enabled = 0; supersight_enabled <= 1; supersight_enabled++) {
+					for (renderer_active = 0; renderer_active <= 1; renderer_active++) {
 						water_reset_scene(&tile, footprints[footprint].footprint, wet_cells, water,
 										  raised);
 						legacy_u16 expected =
-							wet_cells & (supersight_enabled != 0 ? footprints[footprint].cells
-																 : WATER_TEST_NORTHWEST);
+							wet_cells & (renderer_active != 0 ? footprints[footprint].cells
+															  : WATER_TEST_NORTHWEST);
 						if (raised != 0) {
 							expected &= ~WATER_TEST_NORTHWEST;
 						}
@@ -1976,7 +1983,7 @@ static void test_supersight_covered_water(void)
 			}
 		}
 	}
-	supersight_enabled = 1;
+	renderer_active = 1;
 	/* Shoreline models and rotations must come from each cell, not the owner. */
 	water_reset_scene(&tile, FRAME_MULTITILE_BOTH, WATER_TEST_ALL_CELLS, FRAME_WATER_TERRAIN_FIRST,
 					  0);
@@ -1995,9 +2002,9 @@ static void test_supersight_covered_water(void)
 			tile.element = FRAME_ELEVATED_CORNER_FIRST;
 			trkObjectList[tile.element].ss_multiTileFlag = FRAME_MULTITILE_BOTH;
 		} else {
-			frame_adaptive_active = 1;
-			memset(frame_adaptive.tile_flags, FRAME_ADAPTIVE_HIDE,
-				   sizeof(frame_adaptive.tile_flags));
+			frame_hires_adaptive_active = 1;
+			memset(frame_hires_adaptive.tile_flags, FRAME_HIRES_ADAPTIVE_HIDE,
+				   sizeof(frame_hires_adaptive.tile_flags));
 		}
 		assert(frame_draw_terrain(&tile, &camera, FRAME_TRANSFORM_FLAGS_CLIPPED) == 0);
 		water_assert_shapes(&tile, &camera, WATER_TEST_ALL_CELLS);
@@ -2036,7 +2043,7 @@ static void test_supersight_covered_water(void)
 	rejected_shape = 1;
 	assert(frame_draw_terrain(&tile, &camera, FRAME_TRANSFORM_FLAGS_CLIPPED) == 0);
 	water_assert_shapes(&tile, &camera, WATER_TEST_ALL_CELLS);
-	adaptive_capture_enabled = frame_adaptive_active = supersight_enabled = 0;
+	adaptive_capture_enabled = frame_hires_adaptive_active = renderer_active = 0;
 }
 
 static void adaptive_reset_scene(void)
@@ -2045,13 +2052,13 @@ static void adaptive_reset_scene(void)
 	memset(&state, 0, sizeof(state));
 	memset(trkObjectList, 0, sizeof(trkObjectList));
 	frame_state = &state;
-	frame_uses_snapshot = 0;
-	frame_adaptive_active = 1;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive.quality = FRAME_ADAPTIVE_LARGE_VIEW;
-	assert(frame_adaptive_prepare(&frame_adaptive, ADAPTIVE_TEST_CAMERA_TILE,
-								  ADAPTIVE_TEST_CAMERA_TILE, TRIG_FIXED_ONE, 0));
-	supersight_enabled = 1;
+	frame_hires_uses_snapshot = 0;
+	frame_hires_adaptive_active = 1;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive.quality = FRAME_HIRES_ADAPTIVE_LARGE_VIEW;
+	assert(frame_hires_adaptive_prepare(&frame_hires_adaptive, ADAPTIVE_TEST_CAMERA_TILE,
+										ADAPTIVE_TEST_CAMERA_TILE, TRIG_FIXED_ONE, 0));
+	renderer_active = 1;
 	detail_level = FRAME_DETAIL_FULL;
 	slow_video_mgmt_copy = 0;
 	gameconfig.game_opponenttype = 0;
@@ -2080,9 +2087,9 @@ static void test_adaptive_selection_before_submission(void)
 	adaptive_capture_enabled = 0;
 	struct FRAME_CAMERA camera = adaptive_camera();
 	struct FRAME_TILE_SELECTION tiles = {0};
-	for (legacy_u16 quality = FRAME_ADAPTIVE_LARGE_VIEW; quality <= FRAME_ADAPTIVE_SMALL_VIEW;
-		 quality++) {
-		frame_adaptive.quality = quality;
+	for (legacy_u16 quality = FRAME_HIRES_ADAPTIVE_LARGE_VIEW;
+		 quality <= FRAME_HIRES_ADAPTIVE_SMALL_VIEW; quality++) {
+		frame_hires_adaptive.quality = quality;
 		for (legacy_s16 heading = 0; heading < ANGLE_FULL_TURN; heading += ANGLE_QUARTER_TURN) {
 			camera.view_heading = heading;
 			/* Deliberately disagree with the camera's effective heading. */
@@ -2091,17 +2098,18 @@ static void test_adaptive_selection_before_submission(void)
 			struct GAMESTATE before = state;
 			frame_select_tiles(&tiles, &camera);
 			assert(memcmp(&before, &state, sizeof(state)) == 0);
-			assert(tiles.count == (quality == FRAME_ADAPTIVE_SMALL_VIEW
+			assert(tiles.count == (quality == FRAME_HIRES_ADAPTIVE_SMALL_VIEW
 									   ? ADAPTIVE_TEST_SMALL_COUNT
 									   : ADAPTIVE_TEST_LARGE_COUNT));
 			assert(frame_has_complete_tile_lookup(&tiles));
-			assert(frame_adaptive.cached_cos == cos_fast(camera.view_heading));
-			assert(frame_adaptive.cached_sin == sin_fast(camera.view_heading));
+			assert(frame_hires_adaptive.cached_cos == cos_fast(camera.view_heading));
+			assert(frame_hires_adaptive.cached_sin == sin_fast(camera.view_heading));
 			legacy_s16 previous_tile = -1;
 			for (legacy_s16 index = 0; index < tiles.count; index++) {
 				legacy_s16 east = tiles.lookahead[index].east + tiles.camera_east;
 				legacy_s16 south = tiles.lookahead[index].south + tiles.camera_south;
-				assert(frame_adaptive_flags(&frame_adaptive, east, south) != FRAME_ADAPTIVE_HIDE);
+				assert(frame_hires_adaptive_flags(&frame_hires_adaptive, east, south) !=
+					   FRAME_HIRES_ADAPTIVE_HIDE);
 				assert(frame_lookup_world_tile(&tiles, east, south) == index);
 				legacy_s16 tile = south * TRACK_GRID_SIZE + east;
 				assert(tile > previous_tile);
@@ -2110,14 +2118,14 @@ static void test_adaptive_selection_before_submission(void)
 			for (legacy_s16 south = 0; south < TRACK_GRID_SIZE; south++) {
 				for (legacy_s16 east = 0; east < TRACK_GRID_SIZE; east++) {
 					assert((frame_lookup_world_tile(&tiles, east, south) < 0) ==
-						   (frame_adaptive_flags(&frame_adaptive, east, south) ==
-							FRAME_ADAPTIVE_HIDE));
+						   (frame_hires_adaptive_flags(&frame_hires_adaptive, east, south) ==
+							FRAME_HIRES_ADAPTIVE_HIDE));
 				}
 			}
 		}
 	}
 	/* Returning to full view restores every world tile, including stale sparse entries. */
-	frame_adaptive.quality = FRAME_ADAPTIVE_FULL_VIEW;
+	frame_hires_adaptive.quality = FRAME_HIRES_ADAPTIVE_FULL_VIEW;
 	frame_select_tiles(&tiles, &camera);
 	assert(tiles.count == TRACK_GRID_SIZE * TRACK_GRID_SIZE);
 	for (legacy_s16 south = 0; south < TRACK_GRID_SIZE; south++) {
@@ -2138,12 +2146,14 @@ static void test_adaptive_multitile_boundary(void)
 		legacy_u8 expected;
 	} cases[] = {
 		{ADAPTIVE_TEST_L_COLUMN, -ADAPTIVE_TEST_H_FORWARD, FRAME_MULTITILE_COLUMN,
-		 FRAME_ADAPTIVE_FULL},
+		 FRAME_HIRES_ADAPTIVE_FULL},
 		{ADAPTIVE_TEST_L_COLUMN, -ADAPTIVE_TEST_H_FORWARD, FRAME_MULTITILE_BOTH,
-		 FRAME_ADAPTIVE_FULL},
-		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 1, FRAME_MULTITILE_ROW, FRAME_ADAPTIVE_LOW_GEOMETRY},
-		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 1, FRAME_MULTITILE_BOTH, FRAME_ADAPTIVE_LOW_GEOMETRY},
-		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 2, FRAME_MULTITILE_BOTH, FRAME_ADAPTIVE_HIDE}};
+		 FRAME_HIRES_ADAPTIVE_FULL},
+		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 1, FRAME_MULTITILE_ROW,
+		 FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY},
+		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 1, FRAME_MULTITILE_BOTH,
+		 FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY},
+		{0, -ADAPTIVE_TEST_LARGE_FORWARD - 2, FRAME_MULTITILE_BOTH, FRAME_HIRES_ADAPTIVE_HIDE}};
 	for (legacy_u32 which = 0; which < sizeof(cases) / sizeof(cases[0]); which++) {
 		memset(element_map, 0, sizeof(element_map));
 		struct FRAME_TILE tile = {0};
@@ -2162,7 +2172,7 @@ static void test_adaptive_multitile_boundary(void)
 			element_map[trackrows[tile.south + 1] + tile.east + 1] =
 				TRACK_TILE_CONTINUATION_SOUTHEAST;
 		}
-		assert(frame_adaptive_tile_flags(&tile) == cases[which].expected);
+		assert(frame_hires_adaptive_tile_flags(&tile) == cases[which].expected);
 		struct FRAME_TILE_SELECTION tiles = {0};
 		tiles.detail_threshold = FRAME_TILE_DETAIL_FULL + 1;
 		mat_temp = *mat_rot_zxy(0, 0, 0, MATRIX_ROTATION_ORDER_YXZ);
@@ -2175,7 +2185,7 @@ static void test_adaptive_multitile_boundary(void)
 				selected++;
 			}
 		}
-		assert(selected == (cases[which].expected != FRAME_ADAPTIVE_HIDE));
+		assert(selected == (cases[which].expected != FRAME_HIRES_ADAPTIVE_HIDE));
 		adaptive_reset_capture();
 		struct GAMESTATE before = state;
 		assert(frame_draw_tiles(&tiles, &camera, cars, 0, 0) == 0);
@@ -2183,7 +2193,7 @@ static void test_adaptive_multitile_boundary(void)
 		assert(adaptive_captured_count == selected);
 		if (selected != 0) {
 			assert(adaptive_captured[0].shapeptr ==
-				   &game3dshapes[cases[which].expected == FRAME_ADAPTIVE_FULL
+				   &game3dshapes[cases[which].expected == FRAME_HIRES_ADAPTIVE_FULL
 									 ? ADAPTIVE_TEST_HIGH_SHAPE
 									 : ADAPTIVE_TEST_LOW_SHAPE]);
 		}
@@ -2201,7 +2211,7 @@ static void test_adaptive_model_fallbacks(void)
 	tile.south = ADAPTIVE_TEST_CAMERA_TILE - ADAPTIVE_TEST_LARGE_FORWARD;
 	tile.element = ADAPTIVE_TEST_OBJECT;
 	tile.detail = ADAPTIVE_TEST_REDUCED_DETAIL;
-	tile.adaptive_flags = FRAME_ADAPTIVE_LOW_GEOMETRY;
+	tile.adaptive_flags = FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY;
 	trkObjectList[ADAPTIVE_TEST_OBJECT].ss_ssOvelay = ADAPTIVE_TEST_OVERLAY_OBJECT;
 	struct TRACKOBJECT *overlay_object = &trkObjectList[ADAPTIVE_TEST_OVERLAY_OBJECT];
 	overlay_object->ss_shapePtr = &game3dshapes[ADAPTIVE_TEST_OVERLAY_SHAPE];
@@ -2224,8 +2234,8 @@ static void test_adaptive_model_fallbacks(void)
 	tile.element = 0;
 	tile.east = 0;
 	tile.south = ADAPTIVE_TEST_CAMERA_TILE;
-	frame_adaptive.tile_flags[tile.south * TRACK_GRID_SIZE + tile.east] =
-		FRAME_ADAPTIVE_LOW_GEOMETRY;
+	frame_hires_adaptive.tile_flags[tile.south * TRACK_GRID_SIZE + tile.east] =
+		FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY;
 	legacy_s16 fence = fence_by_edge[FRAME_FENCE_EDGE_LOW][FRAME_FENCE_EDGE_INTERIOR];
 	struct TRACKOBJECT *fence_object =
 		frame_track_object_from_legacy_index(fence_TrkObjCodes[fence]);
@@ -2239,10 +2249,10 @@ static void test_adaptive_model_fallbacks(void)
 			   &game3dshapes[missing ? ADAPTIVE_TEST_HIGH_SHAPE : ADAPTIVE_TEST_LOW_SHAPE]);
 	}
 	adaptive_capture_enabled = 0;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive_active = 0;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive_active = 0;
 	shadow_frame_active = 0;
-	supersight_enabled = 0;
+	renderer_active = 0;
 }
 
 static void test_adaptive_world_tile_boundaries(void)
@@ -2263,7 +2273,7 @@ static void test_adaptive_world_tile_boundaries(void)
 				 {LEGACY_S32_MAX, 1, LEGACY_S32_MAX / TEST_LOOKUP_WORLD_TILE_SIZE + 1},
 				 {minimum_position, -1, minimum_position / TEST_LOOKUP_WORLD_TILE_SIZE - 1}};
 	for (legacy_u16 which = 0; which < sizeof(cases) / sizeof(cases[0]); which++) {
-		assert(frame_adaptive_world_tile(cases[which].position, cases[which].offset) ==
+		assert(frame_hires_adaptive_world_tile(cases[which].position, cases[which].offset) ==
 			   cases[which].expected);
 	}
 }
@@ -2273,12 +2283,12 @@ static void test_adaptive_car_submission_near_track_edge(void)
 	/* A rotated car sits just in front of the helicopter camera near the east
 	 * edge. Its real wheel footprint occupies one tile; treating fixed-point
 	 * offsets as whole units moves every wheel outside the selected tiles. */
-	for (legacy_u16 quality = FRAME_ADAPTIVE_FULL_VIEW; quality <= FRAME_ADAPTIVE_SMALL_VIEW;
-		 quality++) {
+	for (legacy_u16 quality = FRAME_HIRES_ADAPTIVE_FULL_VIEW;
+		 quality <= FRAME_HIRES_ADAPTIVE_SMALL_VIEW; quality++) {
 		adaptive_reset_scene();
 		memset(&simd_player, 0, sizeof(simd_player));
-		frame_adaptive.quality = quality;
-		frame_adaptive_active = quality != FRAME_ADAPTIVE_FULL_VIEW;
+		frame_hires_adaptive.quality = quality;
+		frame_hires_adaptive_active = quality != FRAME_HIRES_ADAPTIVE_FULL_VIEW;
 		/* Omit unrelated border fences from this empty-track fixture. */
 		detail_level = FRAME_DETAIL_FASTEST;
 		cameramode = CAMERA_MODE_FOLLOW;
@@ -2309,7 +2319,8 @@ static void test_adaptive_car_submission_near_track_edge(void)
 		frame_select_tiles(&tiles, &camera);
 		assert(frame_lookup_world_tile(&tiles, ADAPTIVE_TEST_EDGE_CAR_EAST,
 									   ADAPTIVE_TEST_EDGE_CAR_SOUTH) >= 0);
-		assert(frame_adaptive_car_flags(&state.playerstate, &simd_player) == FRAME_ADAPTIVE_FULL);
+		assert(frame_hires_adaptive_car_flags(&state.playerstate, &simd_player) ==
+			   FRAME_HIRES_ADAPTIVE_FULL);
 		frame_place_cars(&tiles, cars);
 		assert(cars[PLAYER_CAR_INDEX].east == ADAPTIVE_TEST_EDGE_CAR_EAST);
 		assert(cars[PLAYER_CAR_INDEX].south == ADAPTIVE_TEST_EDGE_CAR_SOUTH);
@@ -2319,8 +2330,8 @@ static void test_adaptive_car_submission_near_track_edge(void)
 		assert(adaptive_captured[0].shapeptr == &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
 	}
 	adaptive_capture_enabled = 0;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive_active = shadow_frame_active = supersight_enabled = 0;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive_active = shadow_frame_active = renderer_active = 0;
 }
 
 static void test_adaptive_car_footprint_and_fallback(void)
@@ -2334,11 +2345,12 @@ static void test_adaptive_car_footprint_and_fallback(void)
 	object->ss_shapePtr = &game3dshapes[PLAYER_CAR_WHEEL_SHAPE];
 	struct FRAME_CAMERA camera = adaptive_camera();
 	struct RECTANGLE crash_rect = {0};
-	const legacy_u8 flags[] = {FRAME_ADAPTIVE_HIDE, FRAME_ADAPTIVE_LOW_GEOMETRY,
-							   FRAME_ADAPTIVE_FULL};
+	const legacy_u8 flags[] = {FRAME_HIRES_ADAPTIVE_HIDE, FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY,
+							   FRAME_HIRES_ADAPTIVE_FULL};
 	for (legacy_u32 which = 0; which < sizeof(flags) / sizeof(flags[0]); which++) {
-		memset(frame_adaptive.tile_flags, FRAME_ADAPTIVE_HIDE, sizeof(frame_adaptive.tile_flags));
-		frame_adaptive
+		memset(frame_hires_adaptive.tile_flags, FRAME_HIRES_ADAPTIVE_HIDE,
+			   sizeof(frame_hires_adaptive.tile_flags));
+		frame_hires_adaptive
 			.tile_flags[ADAPTIVE_TEST_CAMERA_TILE * TRACK_GRID_SIZE + ADAPTIVE_TEST_CAMERA_TILE] =
 			flags[which];
 		for (legacy_s16 missing = 0; missing <= 1; missing++) {
@@ -2351,10 +2363,10 @@ static void test_adaptive_car_footprint_and_fallback(void)
 						  &frame_player_car_rect, &crash_rect, &camera.position,
 						  ADAPTIVE_TEST_REDUCED_DETAIL, 0, 0, 0);
 			assert(memcmp(&before, &state, sizeof(state)) == 0);
-			assert(transformedshape_counter == (flags[which] != FRAME_ADAPTIVE_HIDE));
+			assert(transformedshape_counter == (flags[which] != FRAME_HIRES_ADAPTIVE_HIDE));
 			if (transformedshape_counter != 0) {
 				assert(currenttransshape[0].shapeptr ==
-					   &game3dshapes[flags[which] == FRAME_ADAPTIVE_LOW_GEOMETRY && !missing
+					   &game3dshapes[flags[which] == FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY && !missing
 										 ? PLAYER_CAR_LOW_SHAPE
 										 : PLAYER_CAR_WHEEL_SHAPE]);
 			}
@@ -2363,19 +2375,22 @@ static void test_adaptive_car_footprint_and_fallback(void)
 	/* The center is one world unit outside, but a two-unit wheel offset
 	 * crosses into H. Positions and wheel vectors both have six fractional bits. */
 	state.playerstate.car_position.lx += ADAPTIVE_TEST_POSITION_SCALE;
-	memset(frame_adaptive.tile_flags, FRAME_ADAPTIVE_HIDE, sizeof(frame_adaptive.tile_flags));
-	frame_adaptive
+	memset(frame_hires_adaptive.tile_flags, FRAME_HIRES_ADAPTIVE_HIDE,
+		   sizeof(frame_hires_adaptive.tile_flags));
+	frame_hires_adaptive
 		.tile_flags[ADAPTIVE_TEST_CAMERA_TILE * TRACK_GRID_SIZE + ADAPTIVE_TEST_CAMERA_TILE - 1] =
-		FRAME_ADAPTIVE_FULL;
+		FRAME_HIRES_ADAPTIVE_FULL;
 	simd_player.wheel_coords[0].x = -ADAPTIVE_TEST_POSITION_SCALE / 2;
-	assert(frame_adaptive_car_flags(&state.playerstate, &simd_player) == FRAME_ADAPTIVE_HIDE);
+	assert(frame_hires_adaptive_car_flags(&state.playerstate, &simd_player) ==
+		   FRAME_HIRES_ADAPTIVE_HIDE);
 	simd_player.wheel_coords[0].x = -ADAPTIVE_TEST_WHEEL_CROSSING_OFFSET;
-	assert(frame_adaptive_car_flags(&state.playerstate, &simd_player) == FRAME_ADAPTIVE_FULL);
-	frame_adaptive
+	assert(frame_hires_adaptive_car_flags(&state.playerstate, &simd_player) ==
+		   FRAME_HIRES_ADAPTIVE_FULL);
+	frame_hires_adaptive
 		.tile_flags[ADAPTIVE_TEST_CAMERA_TILE * TRACK_GRID_SIZE + ADAPTIVE_TEST_CAMERA_TILE - 1] =
-		FRAME_ADAPTIVE_LOW_GEOMETRY;
-	assert(frame_adaptive_car_flags(&state.playerstate, &simd_player) ==
-		   FRAME_ADAPTIVE_LOW_GEOMETRY);
+		FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY;
+	assert(frame_hires_adaptive_car_flags(&state.playerstate, &simd_player) ==
+		   FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY);
 	/* Placement must use the same real wheel coordinates as the mask policy. */
 	cameramode = CAMERA_MODE_FOLLOW;
 	mat_temp = *mat_rot_zxy(0, 0, 0, MATRIX_ROTATION_ORDER_YXZ);
@@ -2388,13 +2403,13 @@ static void test_adaptive_car_footprint_and_fallback(void)
 	assert(cars[PLAYER_CAR_INDEX].south == ADAPTIVE_TEST_CAMERA_TILE);
 	assert(memcmp(&before, &state, sizeof(state)) == 0);
 	/* Adaptive and classic placement agree on the physical wheel footprint. */
-	frame_adaptive_active = 0;
+	frame_hires_adaptive_active = 0;
 	frame_place_cars(&tiles, cars);
 	assert(cars[PLAYER_CAR_INDEX].east == ADAPTIVE_TEST_CAMERA_TILE - 1);
 	assert(cars[PLAYER_CAR_INDEX].south == ADAPTIVE_TEST_CAMERA_TILE);
 	adaptive_capture_enabled = 0;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive_active = shadow_frame_active = supersight_enabled = 0;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive_active = shadow_frame_active = renderer_active = 0;
 }
 
 static void test_adaptive_detached_particles(void)
@@ -2407,8 +2422,8 @@ static void test_adaptive_detached_particles(void)
 											ADAPTIVE_TEST_PARTICLE_SIGN};
 	static const legacy_s16 east_offsets[] = {0, 0, ADAPTIVE_TEST_PARTICLE_OWNER_DISTANCE};
 	static const legacy_s16 forward_offsets[] = {0, ADAPTIVE_TEST_LARGE_FORWARD, 0};
-	static const legacy_u8 expected_flags[] = {FRAME_ADAPTIVE_FULL, FRAME_ADAPTIVE_LOW_GEOMETRY,
-											   FRAME_ADAPTIVE_HIDE};
+	static const legacy_u8 expected_flags[] = {
+		FRAME_HIRES_ADAPTIVE_FULL, FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY, FRAME_HIRES_ADAPTIVE_HIDE};
 	for (legacy_u16 kind = 0; kind < sizeof(owners) / sizeof(owners[0]); kind++) {
 		for (legacy_u16 view = 0; view < sizeof(expected_flags) / sizeof(expected_flags[0]);
 			 view++) {
@@ -2453,9 +2468,9 @@ static void test_adaptive_detached_particles(void)
 						car->car_surfaceWhl[wheel] = CAR_SURFACE_PAVED;
 					}
 					car_ground_offsets[owner] = ADAPTIVE_TEST_PARTICLE_GROUND_OFFSET;
-					assert(frame_adaptive_car_flags(
+					assert(frame_hires_adaptive_car_flags(
 							   car, owner == PLAYER_CAR_INDEX ? &simd_player : &simd_opponent) ==
-						   FRAME_ADAPTIVE_HIDE);
+						   FRAME_HIRES_ADAPTIVE_HIDE);
 					expected_position.y -=
 						ADAPTIVE_TEST_PARTICLE_GROUND_OFFSET + FRAME_NON_GRASS_HEIGHT_OFFSET;
 					material = owner == PLAYER_CAR_INDEX ? ADAPTIVE_TEST_PARTICLE_PLAYER_MATERIAL
@@ -2464,25 +2479,27 @@ static void test_adaptive_detached_particles(void)
 					state.game_object_destroyed[ADAPTIVE_TEST_PARTICLE_SIGN] = 1;
 					roadside_sign_positions[ADAPTIVE_TEST_PARTICLE_SIGN] =
 						(struct VECTOR){owner_x, 0, camera.position.z};
-					assert(frame_adaptive_flags(&frame_adaptive,
-												ADAPTIVE_TEST_CAMERA_TILE +
-													ADAPTIVE_TEST_PARTICLE_OWNER_DISTANCE,
-												ADAPTIVE_TEST_CAMERA_TILE) == FRAME_ADAPTIVE_HIDE);
+					assert(frame_hires_adaptive_flags(
+							   &frame_hires_adaptive,
+							   ADAPTIVE_TEST_CAMERA_TILE + ADAPTIVE_TEST_PARTICLE_OWNER_DISTANCE,
+							   ADAPTIVE_TEST_CAMERA_TILE) == FRAME_HIRES_ADAPTIVE_HIDE);
 				}
 				particle_scene_objects[0].ss_shapePtr = &game3dshapes[ADAPTIVE_TEST_HIGH_SHAPE];
 				particle_scene_objects[0].ss_loShapePtr =
 					missing ? NULL : &game3dshapes[ADAPTIVE_TEST_LOW_SHAPE];
 				mat_temp = *mat_rot_zxy(0, 0, 0, MATRIX_ROTATION_ORDER_YXZ);
 				struct GAMESTATE before = state;
-				assert(frame_draw_adaptive_particles(&camera, cars, 0) == 0);
+				assert(frame_hires_draw_adaptive_particles(&camera, cars, 0) == 0);
 				assert(memcmp(&before, &state, sizeof(state)) == 0);
-				assert(adaptive_captured_count == (expected_flags[view] != FRAME_ADAPTIVE_HIDE));
+				assert(adaptive_captured_count ==
+					   (expected_flags[view] != FRAME_HIRES_ADAPTIVE_HIDE));
 				if (adaptive_captured_count != 0) {
-					assert(adaptive_captured[0].shapeptr ==
-						   &game3dshapes[expected_flags[view] == FRAME_ADAPTIVE_LOW_GEOMETRY &&
-												 !missing
-											 ? ADAPTIVE_TEST_LOW_SHAPE
-											 : ADAPTIVE_TEST_HIGH_SHAPE]);
+					assert(
+						adaptive_captured[0].shapeptr ==
+						&game3dshapes[expected_flags[view] == FRAME_HIRES_ADAPTIVE_LOW_GEOMETRY &&
+											  !missing
+										  ? ADAPTIVE_TEST_LOW_SHAPE
+										  : ADAPTIVE_TEST_HIGH_SHAPE]);
 					assert(memcmp(&adaptive_captured[0].pos, &expected_position,
 								  sizeof(expected_position)) == 0);
 					assert(adaptive_captured[0].material == material);
@@ -2490,17 +2507,17 @@ static void test_adaptive_detached_particles(void)
 							0) == (owner < FRAME_CHECKPOINT_OWNER_OFFSET));
 				}
 				/* The independent pass does no work at full quality/classic. */
-				frame_adaptive_active = 0;
+				frame_hires_adaptive_active = 0;
 				adaptive_reset_capture();
-				assert(frame_draw_adaptive_particles(&camera, cars, 0) == 0);
+				assert(frame_hires_draw_adaptive_particles(&camera, cars, 0) == 0);
 				assert(adaptive_captured_count == 0);
 			}
 		}
 	}
 	roadside_sign_positions = saved_sign_positions;
 	adaptive_capture_enabled = 0;
-	frame_adaptive_reset(&frame_adaptive);
-	frame_adaptive_active = shadow_frame_active = supersight_enabled = 0;
+	frame_hires_adaptive_reset(&frame_hires_adaptive);
+	frame_hires_adaptive_active = shadow_frame_active = renderer_active = 0;
 }
 
 #endif
@@ -2537,7 +2554,7 @@ static void test_racing_line_queue_exhaustion(void)
 	racing_line_transform_result = 0;
 	fixed_queue_capacity = 4;
 	for (legacy_s16 mode = 0; mode < 2; mode++) {
-		supersight_enabled = mode;
+		renderer_active = mode;
 		for (legacy_s16 exhaustion = 0; exhaustion < 3; exhaustion++) {
 			/* Fill the queue in guidance, in a later world shape, or in the last
 			 * line after tiles report success. Every case must restore all tiles. */
@@ -2555,8 +2572,8 @@ static void test_racing_line_queue_exhaustion(void)
 			tiles.first = 0;
 			struct GAMESTATE saved = state;
 			if (mode != 0) {
-				frame_supersight_reset();
-				frame_draw_supersight(&tiles, &camera, cars, 0, 0, 0);
+				frame_renderer_reset();
+				frame_renderer_draw_selected(&tiles, &camera, cars, 0, 0, 0);
 				assert(supersight_attempt_hint == 0);
 			} else {
 				frame_draw_classic(&tiles, &camera, cars, 0, 0, 0);
@@ -2569,7 +2586,7 @@ static void test_racing_line_queue_exhaustion(void)
 		}
 	}
 	fixed_queue_capacity = 0;
-	ghost_fixture_active = racing_line_capture_enabled = supersight_enabled = 0;
+	ghost_fixture_active = racing_line_capture_enabled = renderer_active = 0;
 	racing_line_segment_count = 0;
 }
 #endif
@@ -2613,7 +2630,7 @@ static void test_racing_line_batches_and_sorting(void)
 	assert(racing_line_bucket_reads == 0 && racing_line_batch_count == 0);
 	ghost_fixture_active = 1;
 	for (legacy_s16 mode = 0; mode < 2; mode++) {
-		supersight_enabled = mode;
+		renderer_active = mode;
 		racing_line_batch_count = 0;
 		struct GAMESTATE saved = presentation;
 		assert(frame_draw_sorted_shapes(cars, &tile, &camera, 8) == 0);
@@ -2664,7 +2681,7 @@ static void test_racing_line_batches_and_sorting(void)
 	tile.last_south = tile.south;
 	racing_line_segment_count = 1;
 	for (legacy_s16 mode = 0; mode < 2; mode++) {
-		supersight_enabled = mode;
+		renderer_active = mode;
 		legacy_s16 expected_order = 2;
 #if defined(RESTUNTS_SDL3)
 		if (mode != 0) {
@@ -2687,7 +2704,7 @@ static void test_racing_line_batches_and_sorting(void)
 			assert(racing_line_batch_count == 1 && racing_line_batches[0].order == expected_order);
 		}
 	}
-	supersight_enabled = 0;
+	renderer_active = 0;
 	racing_line_capture_enabled = ghost_fixture_active = 0;
 	racing_line_segment_count = 0;
 	racing_line_transform_result = 0;
@@ -2714,15 +2731,17 @@ legacy_int main(void)
 	test_invalid_multitile_flags();
 	test_ghost_uses_independent_visual_state();
 	test_ghost_camera_modes();
+#ifdef RESTUNTS_SDL3
 	test_snapshot_uses_authoritative_events();
-	test_supersight_selection();
-	test_supersight_capacity_retries();
+#endif
+	test_renderer_selection();
+	test_renderer_capacity_retries();
 #if defined(RESTUNTS_SDL3)
 	test_complete_tile_lookup_matches_scans();
-	test_supersight_car_shadows();
-	test_supersight_grounding_surfaces();
-	test_supersight_grounding_poses();
-	test_supersight_covered_water();
+	test_renderer_car_shadows();
+	test_renderer_grounding_surfaces();
+	test_renderer_grounding_poses();
+	test_renderer_covered_water();
 	test_adaptive_selection_before_submission();
 	test_adaptive_multitile_boundary();
 	test_adaptive_model_fallbacks();

@@ -38,7 +38,7 @@ static void test_motion_and_isolation(void)
 	current.game_follow_camera_position[1] = (struct VECTOR){400, 100, 800};
 	struct GAMESTATE saved_previous = previous;
 	struct GAMESTATE saved_current = current;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.playerstate.car_position.lx == 130);
 	assert(result.playerstate.car_position.ly == 190);
 	assert(result.playerstate.car_position.lz == 285);
@@ -71,7 +71,7 @@ static void test_motion_and_isolation(void)
 	assert(memcmp(&previous, &saved_previous, sizeof(previous)) == 0);
 	assert(memcmp(&current, &saved_current, sizeof(current)) == 0);
 	/* Signed division must truncate tiny deltas toward zero from the previous pose. */
-	frame_interpolate_state(&result, &current, &previous, 1);
+	frame_hires_interpolate_state(&result, &current, &previous, 1);
 	assert(result.playerstate.car_position.lx == 100);
 	assert(result.playerstate.car_position.ly == 200);
 	assert(result.playerstate.car_rotate.x == 1020);
@@ -92,7 +92,7 @@ static void test_endpoints_and_bounds(void)
 	previous.car_suspension_deflection[0] = INT16_MAX;
 	current.car_suspension_deflection[0] = INT16_MIN;
 	current.car_rev_speed = 999;
-	frame_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.car_position.lx == -1);
 	assert(result.car_position.ly == 0);
 	assert(result.car_position.lz == 15);
@@ -100,26 +100,26 @@ static void test_endpoints_and_bounds(void)
 	assert(result.car_rotate.y == 0);
 	assert(result.car_steeringAngle == -1);
 	assert(result.car_suspension_deflection[0] == 0);
-	frame_interpolate_car(&result, &current, &previous, 0);
+	frame_hires_interpolate_car(&result, &current, &previous, 0);
 	struct CARSTATE expected = previous;
 	expected.car_rev_speed = current.car_rev_speed;
 	assert(memcmp(&result, &expected, sizeof(result)) == 0);
-	frame_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE);
+	frame_hires_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
-	frame_interpolate_car(&result, &current, &previous, UINT32_MAX);
+	frame_hires_interpolate_car(&result, &current, &previous, UINT32_MAX);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
 
 	struct VECTOR previous_vector = {INT16_MIN, INT16_MAX, 10};
 	struct VECTOR current_vector = {INT16_MAX, INT16_MIN, 20};
 	struct VECTOR result_vector;
-	frame_interpolate_vector(&result_vector, &current_vector, &previous_vector,
-							 FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_vector(&result_vector, &current_vector, &previous_vector,
+								   FRAME_INTERPOLATION_ONE / 2U);
 	assert(result_vector.x == -1);
 	assert(result_vector.y == 0);
 	assert(result_vector.z == 15);
-	frame_interpolate_vector(&result_vector, &current_vector, &previous_vector, 0);
+	frame_hires_interpolate_vector(&result_vector, &current_vector, &previous_vector, 0);
 	assert(memcmp(&result_vector, &previous_vector, sizeof(result_vector)) == 0);
-	frame_interpolate_vector(&result_vector, &current_vector, &previous_vector, UINT32_MAX);
+	frame_hires_interpolate_vector(&result_vector, &current_vector, &previous_vector, UINT32_MAX);
 	assert(memcmp(&result_vector, &current_vector, sizeof(result_vector)) == 0);
 }
 
@@ -130,15 +130,15 @@ static void test_wrapped_angles(void)
 	struct CARSTATE result;
 	previous.car_rotate = (struct VECTOR){1020, 4, 0};
 	current.car_rotate = (struct VECTOR){4, 1020, ANGLE_HALF_TURN};
-	frame_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 4U);
+	frame_hires_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 4U);
 	assert(result.car_rotate.x == 1022);
 	assert(result.car_rotate.y == 2);
 	assert(result.car_rotate.z == 896);
-	frame_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.car_rotate.x == 0);
 	assert(result.car_rotate.y == 0);
 	assert(result.car_rotate.z == 768);
-	frame_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE * 3U / 4U);
+	frame_hires_interpolate_car(&result, &current, &previous, FRAME_INTERPOLATION_ONE * 3U / 4U);
 	assert(result.car_rotate.x == 2);
 	assert(result.car_rotate.y == 1022);
 	assert(result.car_rotate.z == 640);
@@ -159,24 +159,24 @@ static void test_crash_and_camera_discontinuities(void)
 	current.game_follow_camera_position[0].x = 400;
 	previous.game_follow_camera_position[1].x = 200;
 	current.game_follow_camera_position[1].x = 500;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(memcmp(&result.playerstate, &current.playerstate, sizeof(result.playerstate)) == 0);
 	assert(memcmp(&result.opponentstate, &current.opponentstate, sizeof(result.opponentstate)) ==
 		   0);
 	assert(result.game_follow_camera_position[0].x == 400);
 	assert(result.game_follow_camera_position[1].x == 500);
-	frame_interpolate_state(&result, &current, &previous, 0);
+	frame_hires_interpolate_state(&result, &current, &previous, 0);
 	assert(result.playerstate.car_position.lx == 200);
 	assert(result.opponentstate.car_position.lx == 400);
 	assert(result.game_follow_camera_position[0].x == 400);
 	assert(result.game_follow_camera_position[1].x == 500);
 	/* Motion after a confirmed crash still has continuous authoritative snapshots. */
 	previous.playerstate.car_crashBmpFlag = current.playerstate.car_crashBmpFlag;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.playerstate.car_position.lx == 150);
 	assert(result.game_follow_camera_position[0].x == 250);
 	current.game_trackside_camera_index[0] = 1;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(result.game_follow_camera_position[0].x == 400);
 }
 
@@ -205,7 +205,7 @@ static void test_particles(void)
 	}
 	struct GAMESTATE saved_previous = previous;
 	struct GAMESTATE saved_current = current;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	for (legacy_u16 part = 0; part < GAMESTATE_PARTICLE_SLOT_COUNT; part++) {
 		assert(result.game_particle_x[part] == 950);
 		assert(result.game_particle_y[part] == 0);
@@ -216,11 +216,11 @@ static void test_particles(void)
 	}
 	assert(memcmp(&previous, &saved_previous, sizeof(previous)) == 0);
 	assert(memcmp(&current, &saved_current, sizeof(current)) == 0);
-	frame_interpolate_state(&result, &current, &previous, 0);
+	frame_hires_interpolate_state(&result, &current, &previous, 0);
 	assert(memcmp(&result, &previous, sizeof(result)) == 0);
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
-	frame_interpolate_state(&result, &current, &previous, UINT32_MAX);
+	frame_hires_interpolate_state(&result, &current, &previous, UINT32_MAX);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
 
 	previous.game_particle_forward_speed[0] = 0;
@@ -228,18 +228,18 @@ static void test_particles(void)
 	current.game_particle_owner[2] = 1;
 	current.game_particle_shape_index[3] = 1;
 	current.game_particle_forward_speed[4] = 30;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	for (legacy_u16 part = 0; part < 5; part++) {
 		assert(result.game_particle_x[part] == current.game_particle_x[part]);
 		assert(result.game_particle_heading[part] == current.game_particle_heading[part]);
 	}
 	assert(result.game_particle_x[5] == 950);
 	previous.game_particles_active = 0;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
 	previous.game_particles_active = 1;
 	current.game_particles_active = 0;
-	frame_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
+	frame_hires_interpolate_state(&result, &current, &previous, FRAME_INTERPOLATION_ONE / 2U);
 	assert(memcmp(&result, &current, sizeof(result)) == 0);
 }
 

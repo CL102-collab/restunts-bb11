@@ -41,47 +41,47 @@ struct SKYBOX_HIRES_STRIP {
 	legacy_s32 width, height, pitch, scale;
 };
 
-static legacy_u8 *panorama_pixels;
-static struct SKYBOX_HIRES_STRIP panorama_strips[SKYBOX_IMAGE_COUNT];
-static legacy_s32 panorama_height;
-static legacy_u8 panorama_sky_color;
+static legacy_u8 *hires_panorama_pixels;
+static struct SKYBOX_HIRES_STRIP hires_panorama_strips[SKYBOX_IMAGE_COUNT];
+static legacy_s32 hires_panorama_height;
+static legacy_u8 hires_panorama_sky_color;
 
-static const legacy_char *theme_names[SKYBOX_THEME_COUNT] = {"desert", "tropical", "alpine", "city",
-															 "country"};
-static const legacy_char *image_names[SKYBOX_IMAGE_COUNT] = {"scen", "sce2", "sce3", "sce4"};
-static struct SKYBOX_HIRES_IMAGE images[SKYBOX_IMAGE_COUNT];
-static SDL_Color original_palette[SKYBOX_PALETTE_COLOR_COUNT];
-static legacy_s32 palette_ready;
-static legacy_s16 loaded_theme = -1;
+static const legacy_char *hires_theme_names[SKYBOX_THEME_COUNT] = {"desert", "tropical", "alpine",
+																   "city", "country"};
+static const legacy_char *hires_image_names[SKYBOX_IMAGE_COUNT] = {"scen", "sce2", "sce3", "sce4"};
+static struct SKYBOX_HIRES_IMAGE hires_images[SKYBOX_IMAGE_COUNT];
+static SDL_Color hires_original_palette[SKYBOX_PALETTE_COLOR_COUNT];
+static legacy_s32 hires_palette_ready;
+static legacy_s16 hires_loaded_theme = -1;
 
 void skybox_hires_unload(void)
 {
 	for (legacy_s32 index = 0; index < SKYBOX_IMAGE_COUNT; index++) {
-		SDL_DestroySurface(images[index].surface);
+		SDL_DestroySurface(hires_images[index].surface);
 	}
-	memset(images, 0, sizeof(images));
-	SDL_free(panorama_pixels);
-	panorama_pixels = NULL;
-	panorama_height = 0;
-	loaded_theme = -1;
+	memset(hires_images, 0, sizeof(hires_images));
+	SDL_free(hires_panorama_pixels);
+	hires_panorama_pixels = NULL;
+	hires_panorama_height = 0;
+	hires_loaded_theme = -1;
 }
 
 void skybox_hires_set_palette(const legacy_u8 *palette)
 {
 	skybox_hires_unload();
 	for (legacy_s32 index = 0; index < (legacy_s32)SKYBOX_PALETTE_COLOR_COUNT; index++) {
-		original_palette[index].r =
+		hires_original_palette[index].r =
 			(palette[index * SKYBOX_PALETTE_CHANNEL_COUNT] & SKYBOX_PALETTE_CHANNEL_MAX) *
 			SDL_ALPHA_OPAQUE / SKYBOX_PALETTE_CHANNEL_MAX;
-		original_palette[index].g =
+		hires_original_palette[index].g =
 			(palette[index * SKYBOX_PALETTE_CHANNEL_COUNT + 1] & SKYBOX_PALETTE_CHANNEL_MAX) *
 			SDL_ALPHA_OPAQUE / SKYBOX_PALETTE_CHANNEL_MAX;
-		original_palette[index].b =
+		hires_original_palette[index].b =
 			(palette[index * SKYBOX_PALETTE_CHANNEL_COUNT + 2] & SKYBOX_PALETTE_CHANNEL_MAX) *
 			SDL_ALPHA_OPAQUE / SKYBOX_PALETTE_CHANNEL_MAX;
-		original_palette[index].a = SDL_ALPHA_OPAQUE;
+		hires_original_palette[index].a = SDL_ALPHA_OPAQUE;
 	}
-	palette_ready = 1;
+	hires_palette_ready = 1;
 }
 
 /* Asset loading runs on the main thread that also advances both music paths.
@@ -142,8 +142,8 @@ static SDL_Surface *skybox_hires_load(const legacy_char *directory, legacy_s16 t
 									  legacy_s16 image)
 {
 	legacy_char path[SKYBOX_PATH_SIZE];
-	legacy_s32 length = snprintf(path, sizeof(path), "%s%s-%s.png", directory, theme_names[theme],
-								 image_names[image]);
+	legacy_s32 length = snprintf(path, sizeof(path), "%s%s-%s.png", directory,
+								 hires_theme_names[theme], hires_image_names[image]);
 	if (length < 0 || (size_t)length >= sizeof(path)) {
 		return NULL;
 	}
@@ -164,11 +164,11 @@ static SDL_Surface *skybox_hires_load(const legacy_char *directory, legacy_s16 t
 static SDL_Surface *skybox_hires_image(legacy_s16 theme, legacy_s16 image, legacy_s32 width,
 									   legacy_s32 height)
 {
-	if (loaded_theme != theme) {
+	if (hires_loaded_theme != theme) {
 		skybox_hires_unload();
-		loaded_theme = theme;
+		hires_loaded_theme = theme;
 	}
-	struct SKYBOX_HIRES_IMAGE *entry = &images[image];
+	struct SKYBOX_HIRES_IMAGE *entry = &hires_images[image];
 	if (entry->attempted) {
 		return entry->surface;
 	}
@@ -200,7 +200,7 @@ static SDL_Surface *skybox_hires_image(legacy_s16 theme, legacy_s16 image, legac
 	}
 	SDL_Palette *palette = SDL_CreatePalette(SKYBOX_PALETTE_COLOR_COUNT);
 	if (palette != NULL &&
-		SDL_SetPaletteColors(palette, original_palette, 0, SKYBOX_PALETTE_COLOR_COUNT)) {
+		SDL_SetPaletteColors(palette, hires_original_palette, 0, SKYBOX_PALETTE_COLOR_COUNT)) {
 		entry->surface = skybox_hires_convert(source, palette);
 	}
 	SDL_DestroyPalette(palette);
@@ -213,7 +213,7 @@ void skybox_hires_draw(const struct SPRITE *target, legacy_s16 theme, legacy_s16
 {
 	legacy_s32 scale = hires_render_scale();
 	/* The ordinary horizon has already been drawn into the legacy target. */
-	if (scale == HIRES_MINIMUM_SCALE || !hires_enabled() || !palette_ready || theme < 0 ||
+	if (scale == HIRES_MINIMUM_SCALE || !hires_enabled() || !hires_palette_ready || theme < 0 ||
 		theme >= SKYBOX_THEME_COUNT || image < 0 || image >= SKYBOX_IMAGE_COUNT || width <= 0 ||
 		width > SKYBOX_SCREEN_WIDTH || height <= 0 || height > SKYBOX_SCREEN_BOTTOM) {
 		return;
@@ -279,7 +279,7 @@ static legacy_s32 skybox_hires_prepare_strips(struct SKYBOX_HIRES_STRIP strips[S
 		SDL_Surface *source = NULL;
 		/* Keep enhanced images cached for resolution recovery. The smallest
 		 * renderer samples original artwork through the same rotated projection. */
-		if (scale != HIRES_MINIMUM_SCALE && palette_ready && theme >= 0 &&
+		if (scale != HIRES_MINIMUM_SCALE && hires_palette_ready && theme >= 0 &&
 			theme < SKYBOX_THEME_COUNT) {
 			source = skybox_hires_image(theme, index, shape->width, shape->height);
 		}
@@ -327,27 +327,27 @@ skybox_hires_panorama(const struct SKYBOX_HIRES_STRIP strips[SKYBOX_IMAGE_COUNT]
 	if (height <= 0) {
 		return NULL;
 	}
-	legacy_s32 matches =
-		panorama_pixels != NULL && panorama_height == height && panorama_sky_color == sky_color;
+	legacy_s32 matches = hires_panorama_pixels != NULL && hires_panorama_height == height &&
+						 hires_panorama_sky_color == sky_color;
 	for (legacy_s32 index = 0; matches && index < SKYBOX_IMAGE_COUNT; index++) {
-		const struct SKYBOX_HIRES_STRIP *old = &panorama_strips[index];
+		const struct SKYBOX_HIRES_STRIP *old = &hires_panorama_strips[index];
 		const struct SKYBOX_HIRES_STRIP *current = &strips[index];
 		matches = old->pixels == current->pixels && old->width == current->width &&
 				  old->height == current->height && old->pitch == current->pitch &&
 				  old->scale == current->scale;
 	}
 	if (matches) {
-		return panorama_pixels;
+		return hires_panorama_pixels;
 	}
-	legacy_u8 *pixels = SDL_realloc(panorama_pixels, (size_t)SKYBOX_ATLAS_WIDTH * height);
+	legacy_u8 *pixels = SDL_realloc(hires_panorama_pixels, (size_t)SKYBOX_ATLAS_WIDTH * height);
 	if (pixels == NULL) {
 		/* The existing direct sampler remains a complete allocation fallback. */
 		return NULL;
 	}
-	panorama_pixels = pixels;
-	panorama_height = height;
-	panorama_sky_color = sky_color;
-	memcpy(panorama_strips, strips, sizeof(panorama_strips));
+	hires_panorama_pixels = pixels;
+	hires_panorama_height = height;
+	hires_panorama_sky_color = sky_color;
+	memcpy(hires_panorama_strips, strips, sizeof(hires_panorama_strips));
 	memset(pixels, sky_color, (size_t)SKYBOX_ATLAS_WIDTH * height);
 	static const legacy_s32 offsets[SKYBOX_IMAGE_COUNT + 1] = {
 		0, SKYBOX_IMAGE_WIDTH, SKYBOX_IMAGE_HALF_WRAP, SKYBOX_IMAGE_ONE_AND_HALF_WIDTH,
@@ -652,7 +652,7 @@ static void skybox_hires_render_rows(const struct SKYBOX_HIRES_RENDER *render)
 	}
 	legacy_s32 rows_per_job = SKYBOX_WORK_ROWS;
 	legacy_s32 samples = (target.right - target.left) * (target.bottom - target.top);
-	if (samples < SKYBOX_WORK_MIN_SAMPLES || render_workers_count() == 0) {
+	if (samples < SKYBOX_WORK_MIN_SAMPLES || hires_render_workers_count() == 0) {
 		rows_per_job = SKYBOX_SCREEN_BOTTOM;
 	}
 	struct SKYBOX_HIRES_JOB jobs[SKYBOX_WORK_CAPACITY];
@@ -665,7 +665,7 @@ static void skybox_hires_render_rows(const struct SKYBOX_HIRES_RENDER *render)
 		job->raster.bottom = SDL_min(top + rows_per_job * render->scale, target.bottom);
 		job->raster.cleared_argb_cells = 0;
 	}
-	render_workers_run(count, skybox_hires_render_job, jobs);
+	hires_render_workers_run(count, skybox_hires_render_job, jobs);
 	legacy_u32 cleared_argb_cells = 0;
 	for (legacy_s32 index = 0; index < count; index++) {
 		cleared_argb_cells += jobs[index].raster.cleared_argb_cells;

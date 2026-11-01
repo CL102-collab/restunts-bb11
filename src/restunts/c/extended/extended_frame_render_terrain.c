@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-void frame_extended_join_low_half(struct VECTOR *points, legacy_u16 count,
-								  const struct FRAME_EXTENDED_TERRAIN *terrain, legacy_s8 detail)
+void hires_frame_extended_join_low_half(struct VECTOR *points, legacy_u16 count,
+										const struct FRAME_EXTENDED_TERRAIN *terrain,
+										legacy_s8 detail)
 {
-	if (!supersight_enabled) {
+	if (!hires_active) {
 		return;
 	}
 	const struct TRACKOBJECT *definition = &terrain_scene_objects[terrain->profile.terrain_id];
@@ -31,7 +32,7 @@ void frame_extended_join_low_half(struct VECTOR *points, legacy_u16 count,
 
 void hires_track_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain)
 {
-	if (!supersight_enabled) {
+	if (!hires_active) {
 		return;
 	}
 	/* Authored roads overhang their grid rectangle by a few world units.
@@ -52,11 +53,13 @@ void hires_track_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain)
 				legacy_s32 object_left = object->x * CSTRK_TILE_WORLD_SIZE;
 				legacy_s32 object_north = object->y * CSTRK_TILE_WORLD_SIZE;
 				if (left >= object_left + object->width * CSTRK_TILE_WORLD_SIZE +
-								FRAME_EXTENDED_ROAD_OVERSCAN ||
-					left + CSTRK_TILE_WORLD_SIZE <= object_left - FRAME_EXTENDED_ROAD_OVERSCAN ||
+								HIRES_FRAME_EXTENDED_ROAD_OVERSCAN ||
+					left + CSTRK_TILE_WORLD_SIZE <=
+						object_left - HIRES_FRAME_EXTENDED_ROAD_OVERSCAN ||
 					north >= object_north + object->height * CSTRK_TILE_WORLD_SIZE +
-								 FRAME_EXTENDED_ROAD_OVERSCAN ||
-					north + CSTRK_TILE_WORLD_SIZE <= object_north - FRAME_EXTENDED_ROAD_OVERSCAN) {
+								 HIRES_FRAME_EXTENDED_ROAD_OVERSCAN ||
+					north + CSTRK_TILE_WORLD_SIZE <=
+						object_north - HIRES_FRAME_EXTENDED_ROAD_OVERSCAN) {
 					continue;
 				}
 				legacy_u16 existing = 0;
@@ -74,7 +77,7 @@ void hires_track_collect_terrain_objects(struct FRAME_EXTENDED_TERRAIN *terrain)
 
 legacy_u8 hires_track_uses_grade(const struct CSTRK_OBJECT *object, legacy_u8 *result)
 {
-	if (!supersight_enabled) {
+	if (!hires_active) {
 		return 0;
 	}
 	*result = extended_geometry_uses_grade(object);
@@ -83,7 +86,7 @@ legacy_u8 hires_track_uses_grade(const struct CSTRK_OBJECT *object, legacy_u8 *r
 legacy_u8 hires_track_object_grade(const struct CSTRK_OBJECT *object, legacy_s16 x, legacy_s16 z,
 								   legacy_s16 *result)
 {
-	if (!supersight_enabled) {
+	if (!hires_active) {
 		return 0;
 	}
 	*result = extended_geometry_object_grade(object, x, z);
@@ -92,17 +95,17 @@ legacy_u8 hires_track_object_grade(const struct CSTRK_OBJECT *object, legacy_s16
 void hires_track_select_terrain_shape(const struct TRACKOBJECT *definition, legacy_s8 detail,
 									  const struct SHAPE3D **source)
 {
-	if (supersight_enabled) {
+	if (hires_active) {
 		*source = frame_track_shape(definition, detail);
 	}
 }
 legacy_u8 hires_track_native_support(const struct FRAME_EXTENDED_TERRAIN *terrain)
 {
-	return supersight_enabled && !frame_extended_uses_grade(terrain->object);
+	return hires_active && !frame_extended_uses_grade(terrain->object);
 }
 legacy_s16 hires_track_queue_exhausted(legacy_s16 result)
 {
-	return result > 0 && supersight_enabled != 0;
+	return result > 0 && hires_active != 0;
 }
 
 #endif

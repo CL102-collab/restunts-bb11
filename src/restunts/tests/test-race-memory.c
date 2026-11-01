@@ -77,8 +77,8 @@ static legacy_s16 race_memory_draw(void)
 	fps_display_enabled = 1;
 	frame_fps_reset();
 	for (legacy_s16 pass = 0; pass < 3; pass++) {
-		supersight_enabled = pass == 1;
-		frame_supersight_reset();
+		renderer_active = pass == 1;
+		frame_renderer_reset();
 		init_rect_arrays();
 		full_redraw_frames_remaining = video_page_count;
 		/* Visit both pages three times: change the gear knob and needles, hide

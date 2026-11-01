@@ -12,36 +12,36 @@ static struct {
 	legacy_u32 lower_frame;
 	legacy_u32 upper_frame;
 	legacy_u8 valid;
-} ghost_render_cache;
+} hires_ghost_render_cache;
 #endif
 #ifdef RESTUNTS_SDL3
-void ghost_render_reset(void)
+void hires_ghost_render_reset(void)
 {
-	ghost_render_cache.valid = 0;
+	hires_ghost_render_cache.valid = 0;
 }
 #endif
 #ifdef RESTUNTS_SDL3
-static legacy_s16 ghost_read_render_pose(legacy_u32 frame, struct GHOST_POSE *pose)
+static legacy_s16 hires_ghost_read_render_pose(legacy_u32 frame, struct GHOST_POSE *pose)
 {
 	if (ghost_copy_live_pose(frame, pose) != 0) {
 		return 1;
 	}
-	if (ghost_render_cache.valid != 0) {
-		if (ghost_render_cache.lower_frame == frame) {
-			*pose = ghost_render_cache.lower;
+	if (hires_ghost_render_cache.valid != 0) {
+		if (hires_ghost_render_cache.lower_frame == frame) {
+			*pose = hires_ghost_render_cache.lower;
 			return 1;
 		}
-		if (ghost_render_cache.upper_frame == frame) {
-			*pose = ghost_render_cache.upper;
+		if (hires_ghost_render_cache.upper_frame == frame) {
+			*pose = hires_ghost_render_cache.upper;
 			return 1;
 		}
 	}
 	return ghost_read_pose(frame, pose);
 }
 
-legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
-									legacy_u32 lag, struct CARSTATE *car,
-									struct GHOST_CAMERA_STATE *camera)
+legacy_s16 hires_ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame_rate,
+										  legacy_u32 lag, struct CARSTATE *car,
+										  struct GHOST_CAMERA_STATE *camera)
 {
 	const struct CARSTATE *live_car = ghost_car_state();
 	const struct GHOST_CAMERA_STATE *live_camera = ghost_camera_state();
@@ -59,21 +59,21 @@ legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame
 	legacy_u32 fraction = (legacy_u32)(source_time % FRAME_INTERPOLATION_ONE);
 	legacy_u32 upper_frame = lower_frame + (fraction != 0);
 	struct GHOST_POSE lower, upper;
-	if (!ghost_read_render_pose(lower_frame, &lower)) {
+	if (!hires_ghost_read_render_pose(lower_frame, &lower)) {
 		return 0;
 	}
 	if (lower_frame == upper_frame) {
 		upper = lower;
-	} else if (!ghost_read_render_pose(upper_frame, &upper)) {
+	} else if (!hires_ghost_read_render_pose(upper_frame, &upper)) {
 		return 0;
 	}
 	/* Commit a complete bracket only. Failed reads leave the authoritative pose
 	 * and the caller's output untouched, so presentation can fall back safely. */
-	ghost_render_cache.lower = lower;
-	ghost_render_cache.upper = upper;
-	ghost_render_cache.lower_frame = lower_frame;
-	ghost_render_cache.upper_frame = upper_frame;
-	ghost_render_cache.valid = 1;
+	hires_ghost_render_cache.lower = lower;
+	hires_ghost_render_cache.upper = upper;
+	hires_ghost_render_cache.lower_frame = lower_frame;
+	hires_ghost_render_cache.upper_frame = upper_frame;
+	hires_ghost_render_cache.valid = 1;
 	if (lower.car.car_crashBmpFlag != upper.car.car_crashBmpFlag ||
 		upper.car.car_crashBmpFlag != live_car->car_crashBmpFlag) {
 		/* A known future impact must not move the rendered car before the live
@@ -82,7 +82,7 @@ legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame
 		*camera = *live_camera;
 	} else {
 		struct CARSTATE blended;
-		frame_interpolate_car(&blended, &upper.car, &lower.car, fraction);
+		frame_hires_interpolate_car(&blended, &upper.car, &lower.car, fraction);
 		*car = *live_car;
 		car->car_position = blended.car_position;
 		car->car_rotate = blended.car_rotate;
@@ -93,10 +93,11 @@ legacy_s16 ghost_sample_render_pose(legacy_u32 live_frame, legacy_u16 live_frame
 		*camera = *live_camera;
 		if (lower.camera.trackside_index == upper.camera.trackside_index &&
 			upper.camera.trackside_index == live_camera->trackside_index) {
-			frame_interpolate_vector(&camera->follow_position, &upper.camera.follow_position,
-									 &lower.camera.follow_position, fraction);
-			frame_interpolate_vector(&camera->previous_position, &upper.camera.previous_position,
-									 &lower.camera.previous_position, fraction);
+			frame_hires_interpolate_vector(&camera->follow_position, &upper.camera.follow_position,
+										   &lower.camera.follow_position, fraction);
+			frame_hires_interpolate_vector(&camera->previous_position,
+										   &upper.camera.previous_position,
+										   &lower.camera.previous_position, fraction);
 		}
 	}
 	car->car_sound_flags = CAR_SOUND_NONE;

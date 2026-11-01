@@ -4,8 +4,9 @@
 #include <string.h>
 
 #if defined(RESTUNTS_SDL3)
-void frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output, legacy_u16 *count,
-										  const struct SHAPE3D_HIRES_VECTOR *point)
+void hires_frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output,
+												legacy_u16 *count,
+												const struct SHAPE3D_HIRES_VECTOR *point)
 {
 	if (!*count || output[*count - 1U].x != point->x || output[*count - 1U].y != point->y ||
 		output[*count - 1U].z != point->z) {
@@ -15,8 +16,8 @@ void frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output, l
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_f64 frame_extended_precise_shore_distance(const struct SHAPE3D_HIRES_VECTOR *point,
-												 legacy_u8 corner)
+legacy_f64 hires_frame_extended_precise_shore_distance(const struct SHAPE3D_HIRES_VECTOR *point,
+													   legacy_u8 corner)
 {
 	switch (corner) {
 		case CSTRK_WATER_NORTHWEST:
@@ -32,20 +33,20 @@ legacy_f64 frame_extended_precise_shore_distance(const struct SHAPE3D_HIRES_VECT
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_u16 frame_extended_clip_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *source,
-											   legacy_u16 count,
-											   struct SHAPE3D_HIRES_VECTOR *output,
-											   legacy_u8 corner, legacy_u8 secondary)
+legacy_u16 hires_frame_extended_clip_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *source,
+													 legacy_u16 count,
+													 struct SHAPE3D_HIRES_VECTOR *output,
+													 legacy_u8 corner, legacy_u8 secondary)
 {
 	legacy_u16 written = 0;
 	struct SHAPE3D_HIRES_VECTOR previous = source[count - 1U];
-	legacy_f64 previous_distance = frame_extended_precise_shore_distance(&previous, corner);
+	legacy_f64 previous_distance = hires_frame_extended_precise_shore_distance(&previous, corner);
 	if (!secondary) {
 		previous_distance = -previous_distance;
 	}
 	for (legacy_u16 index = 0; index < count; index++) {
 		struct SHAPE3D_HIRES_VECTOR current = source[index];
-		legacy_f64 distance = frame_extended_precise_shore_distance(&current, corner);
+		legacy_f64 distance = hires_frame_extended_precise_shore_distance(&current, corner);
 		if (!secondary) {
 			distance = -distance;
 		}
@@ -56,10 +57,10 @@ legacy_u16 frame_extended_clip_precise_terrain(const struct SHAPE3D_HIRES_VECTOR
 				((current.x * previous_distance - previous.x * distance) / divisor),
 				((current.y * previous_distance - previous.y * distance) / divisor),
 				((current.z * previous_distance - previous.z * distance) / divisor)};
-			frame_extended_append_precise_vertex(output, &written, &crossing);
+			hires_frame_extended_append_precise_vertex(output, &written, &crossing);
 		}
 		if (distance >= 0) {
-			frame_extended_append_precise_vertex(output, &written, &current);
+			hires_frame_extended_append_precise_vertex(output, &written, &current);
 		}
 		previous = current;
 		previous_distance = distance;
@@ -73,10 +74,11 @@ legacy_u16 frame_extended_clip_precise_terrain(const struct SHAPE3D_HIRES_VECTOR
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16 frame_extended_queue_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *points,
-												legacy_u16 count, legacy_u8 primitive_flags,
-												legacy_u8 material, const struct VECTOR *position,
-												legacy_s8 flags)
+legacy_s16 hires_frame_extended_queue_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *points,
+													  legacy_u16 count, legacy_u8 primitive_flags,
+													  legacy_u8 material,
+													  const struct VECTOR *position,
+													  legacy_s8 flags)
 {
 	if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST) {
 		return 0;
@@ -84,8 +86,9 @@ legacy_s16 frame_extended_queue_precise_terrain(const struct SHAPE3D_HIRES_VECTO
 	if (count > SHAPE3D_POLYGON_MAX_VERTICES) {
 		for (legacy_u16 index = 1; index + 1U < count; index++) {
 			struct SHAPE3D_HIRES_VECTOR triangle[] = {points[0], points[index], points[index + 1U]};
-			if (frame_extended_queue_precise_terrain(triangle, SHAPE3D_PRIMITIVE_POLYGON_FIRST,
-													 primitive_flags, material, position, flags)) {
+			if (hires_frame_extended_queue_precise_terrain(
+					triangle, SHAPE3D_PRIMITIVE_POLYGON_FIRST, primitive_flags, material, position,
+					flags)) {
 				return 1;
 			}
 		}
@@ -113,16 +116,17 @@ legacy_s16 frame_extended_queue_precise_terrain(const struct SHAPE3D_HIRES_VECTO
 	instance.culling_distance = FRAME_DEFAULT_TRANSFORM_DISTANCE;
 	instance.ts_flags = flags | FRAME_TRANSFORM_FLAGS_DEFAULT;
 	return (legacy_s16)shape3d_hires_transform_and_queue(&instance, points) > 0 &&
-		   supersight_enabled != 0;
+		   hires_active != 0;
 }
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16 frame_extended_paint_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *points,
-												legacy_u16 count, legacy_u8 primitive_flags,
-												legacy_u8 grass_material,
-												const struct CSTRK_CELL *cell,
-												const struct VECTOR *position, legacy_s8 flags)
+legacy_s16 hires_frame_extended_paint_precise_terrain(const struct SHAPE3D_HIRES_VECTOR *points,
+													  legacy_u16 count, legacy_u8 primitive_flags,
+													  legacy_u8 grass_material,
+													  const struct CSTRK_CELL *cell,
+													  const struct VECTOR *position,
+													  legacy_s8 flags)
 {
 	static const legacy_u8 materials[] = {FRAME_EXTENDED_GROUND_GRASS_MATERIAL,
 										  FRAME_EXTENDED_ICE_MATERIAL, FRAME_EXTENDED_DIRT_MATERIAL,
@@ -134,12 +138,12 @@ legacy_s16 frame_extended_paint_precise_terrain(const struct SHAPE3D_HIRES_VECTO
 		legacy_u8 surface = half ? cell->corner_surface : cell->surface;
 		legacy_u8 material = surface == CSTRK_TERRAIN_GRASS ? grass_material : materials[surface];
 		if (cell->half_water_corner != CSTRK_WATER_NONE) {
-			polygon_count = frame_extended_clip_precise_terrain(points, count, clipped,
-																cell->half_water_corner, half);
+			polygon_count = hires_frame_extended_clip_precise_terrain(
+				points, count, clipped, cell->half_water_corner, half);
 			polygon = clipped;
 		}
-		if (frame_extended_queue_precise_terrain(polygon, polygon_count, primitive_flags, material,
-												 position, flags)) {
+		if (hires_frame_extended_queue_precise_terrain(polygon, polygon_count, primitive_flags,
+													   material, position, flags)) {
 			return 1;
 		}
 	}
@@ -148,9 +152,9 @@ legacy_s16 frame_extended_paint_precise_terrain(const struct SHAPE3D_HIRES_VECTO
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_f64 frame_extended_precise_ground_side(const struct SHAPE3D_HIRES_VECTOR *a,
-											  const struct SHAPE3D_HIRES_VECTOR *b,
-											  const struct SHAPE3D_HIRES_VECTOR *point)
+legacy_f64 hires_frame_extended_precise_ground_side(const struct SHAPE3D_HIRES_VECTOR *a,
+													const struct SHAPE3D_HIRES_VECTOR *b,
+													const struct SHAPE3D_HIRES_VECTOR *point)
 {
 	return (legacy_f64)(b->x - a->x) * (point->z - a->z) -
 		   (legacy_f64)(b->z - a->z) * (point->x - a->x);
@@ -158,21 +162,23 @@ legacy_f64 frame_extended_precise_ground_side(const struct SHAPE3D_HIRES_VECTOR 
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_u16 frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_VECTOR *points,
-											  legacy_u16 count, struct SHAPE3D_HIRES_VECTOR *output,
-											  const struct SHAPE3D_HIRES_VECTOR *a,
-											  const struct SHAPE3D_HIRES_VECTOR *b,
-											  legacy_s16 orientation)
+legacy_u16 hires_frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_VECTOR *points,
+													legacy_u16 count,
+													struct SHAPE3D_HIRES_VECTOR *output,
+													const struct SHAPE3D_HIRES_VECTOR *a,
+													const struct SHAPE3D_HIRES_VECTOR *b,
+													legacy_s16 orientation)
 {
 	if (!count) {
 		return 0;
 	}
 	legacy_u16 written = 0;
 	struct SHAPE3D_HIRES_VECTOR previous = points[count - 1U];
-	legacy_f64 previous_side = frame_extended_precise_ground_side(a, b, &previous) * orientation;
+	legacy_f64 previous_side =
+		hires_frame_extended_precise_ground_side(a, b, &previous) * orientation;
 	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 		struct SHAPE3D_HIRES_VECTOR current = points[vertex];
-		legacy_f64 side = frame_extended_precise_ground_side(a, b, &current) * orientation;
+		legacy_f64 side = hires_frame_extended_precise_ground_side(a, b, &current) * orientation;
 		if ((side >= 0) != (previous_side >= 0)) {
 			legacy_f64 divisor = previous_side - side;
 			struct SHAPE3D_HIRES_VECTOR crossing = {
@@ -180,10 +186,10 @@ legacy_u16 frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_VECTOR 
 				(((legacy_f64)current.y * previous_side - (legacy_f64)previous.y * side) / divisor),
 				(((legacy_f64)current.z * previous_side - (legacy_f64)previous.z * side) /
 				 divisor)};
-			frame_extended_append_precise_vertex(output, &written, &crossing);
+			hires_frame_extended_append_precise_vertex(output, &written, &crossing);
 		}
 		if (side >= 0) {
-			frame_extended_append_precise_vertex(output, &written, &current);
+			hires_frame_extended_append_precise_vertex(output, &written, &current);
 		}
 		previous = current;
 		previous_side = side;
@@ -196,10 +202,9 @@ legacy_u16 frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_VECTOR 
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16
-frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRAGMENT **fragments,
-										legacy_u16 *written, legacy_u16 *capacity,
-										const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count)
+legacy_s16 hires_frame_extended_append_precise_fragments(
+	struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT **fragments, legacy_u16 *written,
+	legacy_u16 *capacity, const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count)
 {
 	if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST) {
 		return 1;
@@ -208,8 +213,8 @@ frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRA
 		for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
 			struct SHAPE3D_HIRES_VECTOR triangle[] = {points[0], points[vertex],
 													  points[vertex + 1U]};
-			if (!frame_extended_append_precise_fragments(fragments, written, capacity, triangle,
-														 OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)) {
+			if (!hires_frame_extended_append_precise_fragments(
+					fragments, written, capacity, triangle, OWOOT_ROAD_TRIANGLE_VERTEX_COUNT)) {
 				return 0;
 			}
 		}
@@ -217,10 +222,11 @@ frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRA
 	}
 	legacy_f64 area = 0;
 	for (legacy_u16 vertex = 1; vertex + 1U < count; vertex++) {
-		area +=
-			frame_extended_precise_ground_side(&points[0], &points[vertex], &points[vertex + 1U]);
+		area += hires_frame_extended_precise_ground_side(&points[0], &points[vertex],
+														 &points[vertex + 1U]);
 	}
-	if (area > -FRAME_EXTENDED_GROUND_AREA_EPSILON && area < FRAME_EXTENDED_GROUND_AREA_EPSILON) {
+	if (area > -HIRES_FRAME_EXTENDED_GROUND_AREA_EPSILON &&
+		area < HIRES_FRAME_EXTENDED_GROUND_AREA_EPSILON) {
 		return 1;
 	}
 	if (*written == *capacity) {
@@ -232,7 +238,7 @@ frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRA
 		if (next_capacity > LEGACY_U16_MAX) {
 			next_capacity = LEGACY_U16_MAX;
 		}
-		struct FRAME_EXTENDED_PRECISE_GROUND_FRAGMENT *grown =
+		struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *grown =
 			realloc(*fragments, next_capacity * sizeof(**fragments));
 		if (!grown) {
 			return 0;
@@ -248,30 +254,31 @@ frame_extended_append_precise_fragments(struct FRAME_EXTENDED_PRECISE_GROUND_FRA
 #endif
 
 #if defined(RESTUNTS_SDL3)
-legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source, legacy_u16 count,
-													 const legacy_u8 *primitive,
-													 const struct FRAME_EXTENDED_TERRAIN *terrain)
+legacy_s16
+hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, legacy_u16 count,
+												const legacy_u8 *primitive,
+												const struct FRAME_EXTENDED_TERRAIN *terrain)
 {
 	struct SHAPE3D_HIRES_VECTOR points[SHAPE3D_POLYGON_MAX_VERTICES];
 	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 		points[vertex] =
 			(struct SHAPE3D_HIRES_VECTOR){source[vertex].x, source[vertex].y, source[vertex].z};
 	}
-	struct FRAME_EXTENDED_PRECISE_GROUND_FRAGMENT *current = NULL, *next = NULL;
+	struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *current = NULL, *next = NULL;
 	legacy_u16 remaining = 0, current_capacity = 0, next_capacity = 0;
-	if (!frame_extended_append_precise_fragments(&current, &remaining, &current_capacity, points,
-												 count)) {
+	if (!hires_frame_extended_append_precise_fragments(&current, &remaining, &current_capacity,
+													   points, count)) {
 		free(current);
-		return frame_extended_paint_precise_terrain(points, count, primitive[1], primitive[2],
-													terrain->cell, &terrain->position,
-													terrain->flags);
+		return hires_frame_extended_paint_precise_terrain(points, count, primitive[1], primitive[2],
+														  terrain->cell, &terrain->position,
+														  terrain->flags);
 	}
 	legacy_s16 complete = 1;
 	for (legacy_u16 object_index = 0; object_index < terrain->object_count && complete;
 		 object_index++) {
 		const struct CSTRK_OBJECT *object = terrain->objects[object_index];
 		if (object->roll_ramp || !frame_extended_uses_grade(object) ||
-			!frame_extended_terrain_matches_grade(source, count, terrain, object)) {
+			!hires_frame_extended_terrain_matches_grade(source, count, terrain, object)) {
 			continue;
 		}
 		const struct TRACKOBJECT *definition = &trkObjectList[extended_track_object_id(object)];
@@ -299,7 +306,7 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
 					((legacy_s16)object->height - 1) * FRAME_EXTENDED_TERRAIN_HALF_TILE;
 			}
 			legacy_f64 winding =
-				frame_extended_precise_ground_side(&triangle[0], &triangle[1], &triangle[2]);
+				hires_frame_extended_precise_ground_side(&triangle[0], &triangle[1], &triangle[2]);
 			if (!winding) {
 				continue;
 			}
@@ -316,22 +323,22 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
 					const struct SHAPE3D_HIRES_VECTOR *a = &triangle[edge];
 					const struct SHAPE3D_HIRES_VECTOR *b =
 						&triangle[(edge + 1U) % OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
-					legacy_u16 outside_count = frame_extended_clip_precise_ground(
+					legacy_u16 outside_count = hires_frame_extended_clip_precise_ground(
 						inside, inside_count, outside, a, b, -orientation);
-					if (!frame_extended_append_precise_fragments(&next, &written, &next_capacity,
-																 outside, outside_count)) {
+					if (!hires_frame_extended_append_precise_fragments(
+							&next, &written, &next_capacity, outside, outside_count)) {
 						complete = 0;
 						break;
 					}
-					inside_count = frame_extended_clip_precise_ground(inside, inside_count, clipped,
-																	  a, b, orientation);
+					inside_count = hires_frame_extended_clip_precise_ground(
+						inside, inside_count, clipped, a, b, orientation);
 					memcpy(inside, clipped, inside_count * sizeof(inside[0]));
 				}
 			}
 			if (!complete) {
 				break;
 			}
-			struct FRAME_EXTENDED_PRECISE_GROUND_FRAGMENT *swap = current;
+			struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *swap = current;
 			current = next;
 			next = swap;
 			legacy_u16 swap_capacity = current_capacity;
@@ -343,7 +350,7 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
 	legacy_s16 result = 0;
 	if (complete) {
 		for (legacy_u16 fragment = 0; fragment < remaining; fragment++) {
-			if (frame_extended_paint_precise_terrain(
+			if (hires_frame_extended_paint_precise_terrain(
 					current[fragment].points, current[fragment].count, primitive[1], primitive[2],
 					terrain->cell, &terrain->position, terrain->flags)) {
 				result = 1;
@@ -351,9 +358,9 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
 			}
 		}
 	} else {
-		result =
-			frame_extended_paint_precise_terrain(points, count, primitive[1], primitive[2],
-												 terrain->cell, &terrain->position, terrain->flags);
+		result = hires_frame_extended_paint_precise_terrain(points, count, primitive[1],
+															primitive[2], terrain->cell,
+															&terrain->position, terrain->flags);
 	}
 	free(current);
 	free(next);
@@ -366,9 +373,9 @@ legacy_s16 frame_extended_paint_precise_terrain_face(const struct VECTOR *source
  * plane. Its projected footprint must not remove that lower terrain. Match each
  * face separately so the compatible part of an inner hill corner can still be
  * cut, allowing the native mesh's small authored edge overlap. */
-legacy_u8 frame_extended_terrain_matches_grade(const struct VECTOR *points, legacy_u16 count,
-											   const struct FRAME_EXTENDED_TERRAIN *terrain,
-											   const struct CSTRK_OBJECT *object)
+legacy_u8 hires_frame_extended_terrain_matches_grade(const struct VECTOR *points, legacy_u16 count,
+													 const struct FRAME_EXTENDED_TERRAIN *terrain,
+													 const struct CSTRK_OBJECT *object)
 {
 	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 		legacy_s32 x = ((legacy_s16)terrain->column - object->x) * CSTRK_TILE_WORLD_SIZE +

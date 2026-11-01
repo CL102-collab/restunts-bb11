@@ -59,12 +59,12 @@ static const enum TEST_STATUS *expected_statuses;
 static legacy_u32 status_deadline, status_draws, status_expirations;
 static legacy_u8 status_clear_pending, mouse_hidden, full_screen_clip;
 
-legacy_s16 frame_status_overlay_active(void)
+legacy_s16 frame_renderer_status_overlay_active(void)
 {
 	return status_message != TEST_STATUS_NONE || status_clear_pending != 0;
 }
 
-legacy_s16 frame_status_expire_idle(void)
+legacy_s16 frame_renderer_status_expire_idle(void)
 {
 	if (status_message != TEST_STATUS_NONE && frame_index >= status_deadline) {
 		status_message = TEST_STATUS_NONE;
@@ -87,11 +87,11 @@ void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16
 	full_screen_clip = 1;
 }
 
-struct RECTANGLE *frame_status_draw_text(void)
+struct RECTANGLE *frame_renderer_status_draw_text(void)
 {
 	/* Status text must never become part of the cached menu background. */
 	assert(screen_selected != 0 && mouse_hidden != 0 && full_screen_clip != 0);
-	assert(screen_status == TEST_STATUS_NONE && frame_status_overlay_active() != 0);
+	assert(screen_status == TEST_STATUS_NONE && frame_renderer_status_overlay_active() != 0);
 	screen_status = status_message;
 	status_clear_pending = 0;
 	status_draws++;

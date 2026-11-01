@@ -2,7 +2,7 @@
 #define RESTUNTS_HIRES_RACE_VIEW_H
 #include "../legacy.h"
 struct RACE_HIRES_VIEWPORT {
-	legacy_u8 supersight;
+	legacy_u8 hires_active;
 };
 void race_hires_clip_dashboard(void);
 legacy_s16 race_hires_viewport_changed(const struct RACE_HIRES_VIEWPORT *cache);

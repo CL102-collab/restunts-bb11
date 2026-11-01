@@ -24,12 +24,12 @@
 
 void hires_showroom_initialize(struct HIRES_SHOWROOM *showroom)
 {
-	showroom->rotation_time = presentation_now();
+	showroom->rotation_time = hires_presentation_now();
 	showroom->input_time = showroom->rotation_time;
 	showroom->input_delta = 0;
 	showroom->portrait_dirty = 0;
 	showroom->background_dirty = 0;
-	presentation_reset(&showroom->presentation_clock, showroom->rotation_time);
+	hires_presentation_reset(&showroom->presentation_clock, showroom->rotation_time);
 }
 
 void hires_showroom_load_car(struct HIRES_SHOWROOM *showroom,
@@ -37,28 +37,29 @@ void hires_showroom_load_car(struct HIRES_SHOWROOM *showroom,
 {
 	showroom->shadow_position = transformed->pos;
 	showroom->shadow_position.y = LEGACY_S16_WRAP_ADD(
-		showroom->shadow_position.y, shape3d_car_ground_height(transformed->shapeptr));
+		showroom->shadow_position.y, shape3d_hires_car_ground_height(transformed->shapeptr));
 }
 
 void hires_showroom_reset_clock(struct HIRES_SHOWROOM *showroom)
 {
-	showroom->rotation_time = presentation_now();
-	presentation_reset(&showroom->presentation_clock, showroom->rotation_time);
+	showroom->rotation_time = hires_presentation_now();
+	hires_presentation_reset(&showroom->presentation_clock, showroom->rotation_time);
 }
 
 legacy_u8 hires_showroom_visual_rotation(struct HIRES_SHOWROOM *showroom, legacy_s16 rotation,
 										 legacy_u8 start, legacy_s16 *visual_rotation)
 {
-	if (supersight_enabled != 0) {
-		legacy_u64 now = presentation_now();
-		if (!presentation_due(&showroom->presentation_clock, now) && start == 0) {
+	if (hires_active != 0) {
+		legacy_u64 now = hires_presentation_now();
+		if (!hires_presentation_due(&showroom->presentation_clock, now) && start == 0) {
 			return 0;
 		}
 		/* The preview turns at one angle unit per 100 Hz timer tick. Continue
 		 * that known motion without reading another input or changing its timer. */
-		*visual_rotation = LEGACY_S16_WRAP_ADD(
-			rotation, (legacy_u16)((now - showroom->rotation_time) *
-								   DOS_TIMER_REALTIME_TICKS_PER_SECOND / PRESENTATION_SECOND_NS));
+		*visual_rotation =
+			LEGACY_S16_WRAP_ADD(rotation, (legacy_u16)((now - showroom->rotation_time) *
+													   DOS_TIMER_REALTIME_TICKS_PER_SECOND /
+													   HIRES_PRESENTATION_SECOND_NS));
 	}
 	return 1;
 }
@@ -69,7 +70,7 @@ void hires_showroom_shadows(struct HIRES_SHOWROOM *showroom, struct TRANSFORMEDS
 	/* The car0 showroom model is authored at twenty times the racing scale. */
 	shape3d_hires_set_model_scale(SHOWROOM_MODEL_SCALE);
 	transformed->ts_flags &= ~SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
-	if (supersight_enabled != 0) {
+	if (hires_active != 0) {
 		const struct VECTOR camera = {LEGACY_S16_WRAP_NEGATE(showroom->shadow_position.x),
 									  LEGACY_S16_WRAP_NEGATE(showroom->shadow_position.y),
 									  LEGACY_S16_WRAP_NEGATE(showroom->shadow_position.z)};
@@ -88,7 +89,7 @@ void hires_showroom_shadows(struct HIRES_SHOWROOM *showroom, struct TRANSFORMEDS
 
 void hires_showroom_car_bounds(struct RECTANGLE *rectangle)
 {
-	if (supersight_enabled != 0) {
+	if (hires_active != 0) {
 		/* Restore and copy the floor beyond the car's own dirty bounds, including
 		 * the previous shadow when the preview rotates or F12 turns it off. */
 		*rectangle = carmenu_cliprect;
@@ -107,7 +108,7 @@ void hires_showroom_background_bounds(struct HIRES_SHOWROOM *showroom, struct RE
 
 void hires_showroom_defer_render(legacy_u8 *deferred)
 {
-	if (supersight_enabled != 0) {
+	if (hires_active != 0) {
 		*deferred = 0;
 	}
 }
@@ -141,17 +142,17 @@ void hires_showroom_portrait(struct HIRES_SHOWROOM *showroom, legacy_u16 opponen
 
 void hires_showroom_record_rotation(struct HIRES_SHOWROOM *showroom)
 {
-	showroom->rotation_time = presentation_now();
+	showroom->rotation_time = hires_presentation_now();
 }
 
 legacy_u8 hires_showroom_input(struct HIRES_SHOWROOM *showroom, legacy_s16 rotation_delta,
 							   legacy_s16 *input_delta)
 {
-	if (supersight_enabled != 0) {
+	if (hires_active != 0) {
 		showroom->input_delta = LEGACY_S16_WRAP_ADD(showroom->input_delta, rotation_delta);
 		/* Render deadlines do not create additional device samples. */
 		if (showroom->rotation_time - showroom->input_time <
-			PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND) {
+			HIRES_PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND) {
 			return 0;
 		}
 		*input_delta = showroom->input_delta;
@@ -169,7 +170,7 @@ void hires_showroom_shortcut(struct HIRES_SHOWROOM *showroom, legacy_u16 input, 
 			showroom->portrait_dirty = 1;
 		}
 	}
-	presentation_reset(&showroom->presentation_clock, presentation_now());
+	hires_presentation_reset(&showroom->presentation_clock, hires_presentation_now());
 }
 
 void hires_showroom_release(void)

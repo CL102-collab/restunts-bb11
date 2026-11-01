@@ -3,7 +3,7 @@
 
 #include "../legacy.h"
 
-extern legacy_u8 supersight_enabled;
+extern legacy_u8 hires_active;
 
 /* Input routing stays with the game; display policy stays with the renderer. */
 void hires_settings_select_display(legacy_s16 key);

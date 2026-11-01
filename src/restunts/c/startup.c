@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
-#include "hires/settings.h"
+#include "renderer/settings.h"
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__

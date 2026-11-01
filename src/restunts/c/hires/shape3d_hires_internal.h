@@ -40,7 +40,7 @@ struct HIRES_PRIMITIVE {
 };
 
 struct HIRES_PAINT {
-	struct HYPERVISION_MATERIAL material;
+	struct HIRES_BACKEND_MATERIAL material;
 	legacy_s32 scale;
 };
 

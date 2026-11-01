@@ -126,7 +126,7 @@ static void assert_color(legacy_u32 channel)
 static void assert_unloaded(void)
 {
 	static const struct OPPONENT_ANIMATION empty;
-	assert(memcmp(&animation, &empty, sizeof(animation)) == 0);
+	assert(memcmp(&hires_animation, &empty, sizeof(hires_animation)) == 0);
 	assert(!draw() && drawn_pixels == 0);
 }
 
@@ -164,12 +164,12 @@ static void test_timing(void)
 	clock_ns = 0;
 	opponent_animation_load(TEST_CLIP_OPPONENT, 1);
 	assert(!draw() && drawn_pixels == 0);
-	assert(animation.frame != NULL && animation.frame->w == TEST_FIXTURE_SIZE &&
-		   animation.frame->h == TEST_FIXTURE_SIZE);
+	assert(hires_animation.frame != NULL && hires_animation.frame->w == TEST_FIXTURE_SIZE &&
+		   hires_animation.frame->h == TEST_FIXTURE_SIZE);
 	/* The second packet is an interframe, exercising VP8 reference frames. */
 	legacy_u8 *packet;
 	size_t packet_size;
-	assert(nestegg_packet_data(animation.packet, 0, &packet, &packet_size) == 0);
+	assert(nestegg_packet_data(hires_animation.packet, 0, &packet, &packet_size) == 0);
 	assert(packet_size > 0 && (packet[0] & ANIMATION_VP8_INTERFRAME_FLAG));
 	clock_ns = TEST_START_NS;
 	hypervision = 1;
@@ -253,7 +253,7 @@ static void test_inferred_duration(void)
 	assert(changed);
 	write_bytes("opponents/animations/opp1win.webm", bytes, size);
 	opponent_animation_load(TEST_CLIP_OPPONENT, 1);
-	assert(animation.duration == 0);
+	assert(hires_animation.duration == 0);
 	assert_color(TEST_COLOR_RED);
 	clock_ns += TEST_CLIP_NS - 1;
 	assert_color(TEST_COLOR_BLUE);
@@ -320,7 +320,7 @@ static void test_unusable_inputs(void)
 	/* A later damaged packet must retire its decoder and return the fallback. */
 	legacy_u8 *packet;
 	size_t packet_size;
-	assert(nestegg_packet_data(animation.packet, 0, &packet, &packet_size) == 0);
+	assert(nestegg_packet_data(hires_animation.packet, 0, &packet, &packet_size) == 0);
 	memset(packet, 0, packet_size);
 	clock_ns += TEST_FRAME_NS;
 	assert(!draw());
@@ -332,8 +332,8 @@ static void test_odd_dimensions(void)
 {
 	copy_fixture("odd.webm", "opponents/animations/opp1win.webm");
 	opponent_animation_load(TEST_CLIP_OPPONENT, 1);
-	assert(animation.frame != NULL && animation.frame->w == TEST_ODD_WIDTH &&
-		   animation.frame->h == TEST_ODD_HEIGHT);
+	assert(hires_animation.frame != NULL && hires_animation.frame->w == TEST_ODD_WIDTH &&
+		   hires_animation.frame->h == TEST_ODD_HEIGHT);
 	assert_color(TEST_COLOR_RED);
 	clock_ns += TEST_FRAME_NS;
 	assert_color(TEST_COLOR_GREEN);

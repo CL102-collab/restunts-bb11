@@ -85,7 +85,7 @@ static void check_jobs(legacy_s32 expected_workers)
 {
 	for (legacy_s32 pass = 0; pass < TEST_JOB_PASSES; pass++) {
 		struct JOB_RESULTS results = {0};
-		assert(render_workers_run(TEST_JOB_COUNT, record_job, &results) == expected_workers);
+		assert(hires_render_workers_run(TEST_JOB_COUNT, record_job, &results) == expected_workers);
 		legacy_s32 background_jobs = 0;
 		for (legacy_s32 index = 0; index < TEST_JOB_COUNT; index++) {
 			assert(results.visits[index] == 1);
@@ -97,8 +97,8 @@ static void check_jobs(legacy_s32 expected_workers)
 
 static void configure_workers(const legacy_char *setting)
 {
-	render_workers_shutdown();
-	render_workers_shutdown();
+	hires_render_workers_shutdown();
+	hires_render_workers_shutdown();
 	assert(live_semaphores == 0);
 	if (setting == NULL) {
 		assert(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS"));
@@ -122,7 +122,7 @@ legacy_int main(void)
 		for (legacy_u32 index = 0; index < sizeof(cores) / sizeof(cores[0]); index++) {
 			configure_workers(defaults[setting]);
 			detected_cores = cores[index];
-			assert(render_workers_count() == 0);
+			assert(hires_render_workers_count() == 0);
 			check_jobs(0);
 			assert(created_threads == 0 && created_semaphores == 0);
 		}
@@ -130,7 +130,7 @@ legacy_int main(void)
 	for (legacy_u32 index = 0; index < sizeof(cores) / sizeof(cores[0]); index++) {
 		configure_workers("auto");
 		detected_cores = cores[index];
-		assert(render_workers_count() == expected[index]);
+		assert(hires_render_workers_count() == expected[index]);
 		check_jobs(expected[index]);
 	}
 	/* Resource exhaustion keeps the workers already created, or runs serially. */
@@ -139,14 +139,14 @@ legacy_int main(void)
 		detected_cores = TEST_RESOURCE_BUDGET;
 		thread_budget = available;
 		check_jobs(available);
-		assert(render_workers_count() == available);
+		assert(hires_render_workers_count() == available);
 	}
 	for (legacy_s32 available = 0; available < TEST_FAILURE_LIMIT; available++) {
 		configure_workers("auto");
 		semaphore_budget = available;
 		legacy_s32 expected_workers = available > 0 ? available - 1 : 0;
 		check_jobs(expected_workers);
-		assert(render_workers_count() == expected_workers);
+		assert(hires_render_workers_count() == expected_workers);
 	}
 	const legacy_char *settings[] = {
 		"0",	   "1",	 "2",		 "7", "999",
@@ -158,20 +158,20 @@ legacy_int main(void)
 		configure_workers(settings[index]);
 		/* A previous library error must not reject a valid numeric override. */
 		errno = ERANGE;
-		assert(render_workers_count() == configured[index]);
+		assert(hires_render_workers_count() == configured[index]);
 		check_jobs(configured[index]);
 	}
 	configure_workers("auto");
 	detected_cores = TEST_RESOURCE_BUDGET;
 	struct JOB_RESULTS single = {0};
-	assert(render_workers_run(0, record_job, &single) == 0);
+	assert(hires_render_workers_run(0, record_job, &single) == 0);
 	assert(single.visits[0] == 0);
-	assert(render_workers_run(1, record_job, &single) == 0);
+	assert(hires_render_workers_run(1, record_job, &single) == 0);
 	assert(single.visits[0] == 1 && single.threads[0] == SDL_GetCurrentThreadID());
 	assert(created_threads == 0 && created_semaphores == 0);
 	check_jobs(TEST_MAX_WORKERS);
-	render_workers_shutdown();
-	render_workers_shutdown();
+	hires_render_workers_shutdown();
+	hires_render_workers_shutdown();
 	assert(live_semaphores == 0);
 	SDL_Quit();
 	puts("Renderer serial defaults, overrides, CPU detection, failure recovery and ownership "
