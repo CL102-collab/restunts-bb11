@@ -159,9 +159,10 @@ static legacy_f64 hires_decal_width(legacy_f64 inverse_z)
 	return width > minimum_width ? width : minimum_width;
 }
 
-/* Measure the complete projected polygon across each edge normal. The coverage
- * target follows perspective, with a subpixel minimum width for distant decals. */
-static legacy_f64 hires_polygon_padding(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count)
+/* Measure the complete projected polygon across each edge normal. Resolvable
+ * decals retain their nearby weight; tiny details receive no artificial border. */
+static legacy_f64 hires_polygon_padding(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count,
+										legacy_f64 *projected_width)
 {
 	legacy_s32 scale = hires_render_scale();
 	legacy_f64 minimum_width = 0;
@@ -201,7 +202,8 @@ static legacy_f64 hires_polygon_padding(const struct SHAPE3D_HIRES_POINT *points
 		}
 		has_edge = 1;
 	}
-	if (minimum_width >= scale) {
+	*projected_width = minimum_width;
+	if (minimum_width <= HIRES_DECAL_BORDER_LOGICAL_WIDTH * scale || minimum_width >= scale) {
 		return 0;
 	}
 	legacy_f64 expansion = hires_decal_width(nearest) - minimum_width;
@@ -430,7 +432,12 @@ void shape3d_hires_queue(legacy_u32 index, legacy_u8 type, legacy_u16 vertex_cou
 	}
 	primitive->attached = (flags & SHAPE3D_PRIMITIVE_SKIP_DEPTH_SORT_FLAG) != 0;
 	if (type == RENDER_PRIMITIVE_POLYGON && primitive->attached) {
-		primitive->size = hires_polygon_padding(primitive->points, primitive->count);
+		legacy_f64 projected_width;
+		primitive->size =
+			hires_polygon_padding(primitive->points, primitive->count, &projected_width);
+		if (projected_width < HIRES_DECAL_CULL_LOGICAL_WIDTH * hires_render_scale()) {
+			primitive->count = 0;
+		}
 	}
 	if (!primitive->attached) {
 		shape3d_hires_state.current_family = index + 1;
