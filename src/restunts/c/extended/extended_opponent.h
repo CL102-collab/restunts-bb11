@@ -19,5 +19,5 @@ typedef legacy_u8 (*EXTENDED_OPPONENT_SPEED_LOOKUP)(legacy_u16 index);
 void extended_opponent_route_speed(legacy_s16 track_index, legacy_u16 id, legacy_u8 subtype,
 								   const struct TRKOBJINFO *info, const struct TRACKOBJECT *object,
 								   legacy_s8 *speed, EXTENDED_OPPONENT_SPEED_LOOKUP lookup);
-legacy_s16 extended_opponent_load_route(const legacy_u8 *costs, void far *resource);
+legacy_s16 extended_opponent_load_route(const legacy_u8 far *costs, void far *resource);
 #endif

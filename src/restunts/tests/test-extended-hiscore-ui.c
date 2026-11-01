@@ -564,6 +564,10 @@ static void check_empty_placeholders(void)
 	for (legacy_u16 field = 0; field < TEST_PLACEHOLDER_FIELD_COUNT; field++) {
 		strcpy((char *)expected[field], (const char *)resID_buffer + offsets[field]);
 	}
+	/* Classic empty names deliberately share one dotted span across both
+	 * fields. Extended columns retain those dots within their own field sizes. */
+	assert(strlen((const char *)expected[0]) == HIGHSCORE_COMBINED_NAME_TEXT_BYTES);
+	strcpy((char *)expected[0], "................");
 	fixture_extended = 1;
 	for (legacy_u16 entry = 0; entry < HIGHSCORE_ENTRY_COUNT; entry++) {
 		print_highscore_entry(entry, offsets);
@@ -579,6 +583,35 @@ static void check_empty_placeholders(void)
 		assert(strcmp((const char *)resID_buffer + offsets[field], (const char *)expected[field]) ==
 			   0);
 	}
+}
+
+static void check_maximum_score_text(void)
+{
+	reset_fixture(TEST_NEW_SCORE_FRAMES, GAME_FRAME_RATE_NORMAL);
+	struct CSHIG_ENTRY *score = &fixture_scores[0];
+	memset(score->player_name, 'P', sizeof(score->player_name) - 1U);
+	memset(score->car_name, 'C', sizeof(score->car_name) - 1U);
+	memset(score->opponent, 'O', sizeof(score->opponent) - 1U);
+	score->player_name[sizeof(score->player_name) - 1U] = 0;
+	score->car_name[sizeof(score->car_name) - 1U] = 0;
+	score->opponent[sizeof(score->opponent) - 1U] = 0;
+	score->car_flag = 1;
+	score->ticks = UINT64_MAX - 1U;
+	legacy_s8 expected_time[sizeof(preview_time)];
+	extended_highscore_format_time(expected_time, sizeof(expected_time), score->ticks);
+	memset(resID_buffer, 'X', sizeof(resID_buffer));
+	legacy_u8 offsets[HIGHSCORE_TEXT_FIELD_COUNT];
+	print_highscore_entry(0, offsets);
+	assert(strcmp((const char *)resID_buffer + offsets[0], (const char *)score->player_name) == 0);
+	assert(strcmp((const char *)resID_buffer + offsets[1], (const char *)score->car_name) == 0);
+	assert(resID_buffer[offsets[2]] == '(');
+	assert(strncmp((const char *)resID_buffer + offsets[2] + 1U, (const char *)score->opponent,
+				   CSHIG_OPPONENT_BYTES - 1U) == 0);
+	assert(resID_buffer[offsets[2] + CSHIG_OPPONENT_BYTES] == ')');
+	assert(resID_buffer[offsets[2] + CSHIG_OPPONENT_BYTES + 1U] == 0);
+	assert(strcmp((const char *)resID_buffer + offsets[3], (const char *)expected_time) == 0);
+	assert(offsets[3] + strlen((const char *)expected_time) + 1U < sizeof(resID_buffer));
+	assert(resID_buffer[sizeof(resID_buffer) - 1U] == 'X');
 }
 
 static void check_normal_time_alignment(void)
@@ -663,6 +696,7 @@ int main(void)
 	check_save_failure();
 	check_extended_print_and_preview();
 	check_empty_placeholders();
+	check_maximum_score_text();
 	check_normal_time_alignment();
 	check_score_insertion_redraw();
 	check_long_time_alignment();

@@ -143,7 +143,9 @@ legacy_s16 polarAngle(legacy_s16 z, legacy_s16 y)
 		}
 		result = ANGLE_EIGHTH_TURN;
 	} else {
-		if (z > y) {
+		/* Wrapped -32768 retains its sign bit. Order the magnitudes as unsigned
+		 * words before forming the unsigned table ratio. */
+		if ((legacy_u16)z > (legacy_u16)y) {
 			legacy_s16 coordinate_swap = z;
 			z = y;
 			y = coordinate_swap;

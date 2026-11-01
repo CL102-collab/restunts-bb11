@@ -3,10 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 #ifdef __EMSCRIPTEN__
+#include "../legacy.h"
 #include <emscripten.h>
 
 // clang-format off
-EM_JS(int, extended_editor_open, (void), {
+EM_JS(legacy_int, extended_editor_open_browser, (void), {
 	const editor = window.open(new URL('tracked.html', window.location.href).href, '_blank');
 	if (editor === null) {
 		return 0;
@@ -15,6 +16,12 @@ EM_JS(int, extended_editor_open, (void), {
 	return 1;
 });
 // clang-format on
+
+/* Keep a C definition so static archives retain the EM_JS import metadata. */
+legacy_int extended_editor_open(void)
+{
+	return extended_editor_open_browser();
+}
 #else
 
 static int extended_editor_open_path(const char *path)

@@ -282,7 +282,7 @@ def main():
                         cwd=temporary, env=environment, stdout=output, stderr=subprocess.STDOUT)
                     worker_ids = []
                     try:
-                        deadline = time.monotonic() + 15
+                        deadline = time.monotonic() + scaled_timeout(15)
                         while time.monotonic() < deadline:
                             worker_ids = children(process.pid)
                             if len(worker_ids) == 2 and (temporary / (name + ".json")).is_file():
@@ -296,10 +296,10 @@ def main():
                         assert (temporary / (name + ".json")).is_file(), log.read_text()
                         if mode == "cancel":
                             process.send_signal(signal.SIGINT)
-                            assert process.wait(timeout=15) in (0, 130), log.read_text()
+                            assert process.wait(timeout=scaled_timeout(15)) in (0, 130), log.read_text()
                         else:
                             os.kill(worker_ids[0], signal.SIGKILL)
-                            assert process.wait(timeout=15) == 1, log.read_text()
+                            assert process.wait(timeout=scaled_timeout(15)) == 1, log.read_text()
                     finally:
                         if process.poll() is None:
                             process.kill()

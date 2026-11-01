@@ -41,14 +41,12 @@ legacy_s16 RsTrackSolidObstacleContactFixed(
 {
   CVector temple_start_8061;
   CVector temple_end_8062;
-  MemSet(&temple_start_8061,0,sizeof(temple_start_8061));
-  temple_start_8061.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx)));
-  temple_start_8061.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly)));
-  temple_start_8061.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz)));
-  MemSet(&temple_end_8062,0,sizeof(temple_end_8062));
-  temple_end_8062.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx)));
-  temple_end_8062.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly)));
-  temple_end_8062.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz)));
+  (temple_start_8061.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
+  (temple_start_8061.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
+  (temple_start_8061.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
+  (temple_end_8062.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
+  (temple_end_8062.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
+  (temple_end_8062.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
   return TempleCastS16(
       RsTrackSolidObstacleContact((&(temple_start_8061)),(&(temple_end_8062)),fraction));
 }
@@ -63,13 +61,11 @@ legacy_s16 RsTrackWallIntersectsSegmentFixed(CVectorLong *first,CVectorLong *sec
 {
   CVector temple_start_8063;
   CVector temple_end_8064;
-  MemSet(&temple_start_8063,0,sizeof(temple_start_8063));
-  temple_start_8063.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx)));
-  temple_start_8063.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly)));
-  temple_start_8063.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz)));
-  MemSet(&temple_end_8064,0,sizeof(temple_end_8064));
-  temple_end_8064.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx)));
-  temple_end_8064.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly)));
-  temple_end_8064.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz)));
+  (temple_start_8063.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
+  (temple_start_8063.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
+  (temple_start_8063.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
+  (temple_end_8064.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
+  (temple_end_8064.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
+  (temple_end_8064.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
   return TempleCastS16(RsTrackWallIntersectsSegment((&(temple_start_8063)),(&(temple_end_8064))));
 }

@@ -129,7 +129,7 @@ prefix = prefix.replace("RESTUNTS_TEMPLE_CONSTANTS", "\n".join(
     if line.startswith("#define TEMPLE_")
 ))
 prefix = prefix.replace("RESTUNTS_MATERIAL_COUNT", next(
-    line for line in (root.parents[1] / "c" / "shape3d_internal.h").read_text().splitlines()
+    line for line in (root.parents[1] / "c" / "shape3d" / "shape3d_internal.h").read_text().splitlines()
     if line.startswith("#define SHAPE3D_MATERIAL_COUNT ")
 ))
 prefix = prefix.replace("RESTUNTS_LEGACY_INCLUDE", str(root.parents[1] / "c" / "legacy.h"))

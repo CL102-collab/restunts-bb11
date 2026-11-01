@@ -308,6 +308,12 @@ NODE_PATH="$PWD/out/wasm-test-tools/node_modules" node tools/scripts/test-wasm.j
 
 Add `--browser firefox --output out/wasm-browser-test/firefox-results` to run
 the same smoke test in Firefox. Chromium and Firefox have both been tested.
+Use `--browser-executable /path/to/browser` to select an existing browser.
+Both the pacing driver and full smoke test accept `--serve` to use a temporary
+loopback HTTP server when browser policy prevents local-file navigation. This
+mode exercises the same functional assertions and rejects runtime dependencies,
+but does not verify offline `file://` access. Omitting `--serve` preserves the
+offline-file test.
 Add `--idle-only` to check that the main-menu idle demo starts and keeps playing;
 this waits for the normal idle timeout and requires `DEFAULT.RPL` in the supplied folder.
 

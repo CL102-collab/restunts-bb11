@@ -238,7 +238,7 @@ void frame_build_racing_line_segment(struct SHAPE3D *shape,
 	corners[3] = &segment->end_left;
 	legacy_u16 first =
 		FRAME_RACING_LINE_BOUNDS_VERTICES + count * FRAME_RACING_LINE_SEGMENT_VERTICES;
-	legacy_u8 *primitive = shape->shape3d_primitives + count * FRAME_RACING_LINE_PRIMITIVE_SIZE;
+	legacy_u8 far *primitive = shape->shape3d_primitives + count * FRAME_RACING_LINE_PRIMITIVE_SIZE;
 	primitive[0] = FRAME_RACING_LINE_SEGMENT_VERTICES;
 	/* A ribbon is visible from either side, including inside a loop.
 	 * Its surface lift supplies depth separation from road artwork. */

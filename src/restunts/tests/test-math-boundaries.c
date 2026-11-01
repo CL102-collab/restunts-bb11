@@ -40,6 +40,37 @@ static void test_polar_boundaries(void)
 	}
 }
 
+static void test_polar_minimum_components(void)
+{
+	const legacy_s16 minimum = LEGACY_S16_FROM_BITS(LEGACY_U16_SIGN_BIT);
+	const legacy_s16 maximum = (legacy_s16)LEGACY_S16_MAX;
+	assert(polarAngle(minimum, 0) == -ANGLE_QUARTER_TURN);
+	assert(polarAngle(0, minimum) == ANGLE_HALF_TURN);
+	assert(polarAngle(minimum, minimum) == -(ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN));
+	assert(polarAngle(minimum, LEGACY_S16_MAX) == -ANGLE_EIGHTH_TURN);
+	assert(polarAngle(LEGACY_S16_MAX, minimum) == ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN);
+	legacy_s16 previous_first = -(ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN);
+	legacy_u16 previous_second = ANGLE_HALF_TURN + ANGLE_EIGHTH_TURN;
+	/* Every signed word paired with the minimum must stay in its geometric
+	 * quadrant and turn monotonically. Even pairs also have an exact, safe
+	 * half-scale direction that never contains the signed minimum. */
+	for (legacy_s32 coordinate = minimum; coordinate <= maximum; coordinate++) {
+		legacy_s16 first = polarAngle(minimum, (legacy_s16)coordinate);
+		legacy_u16 second = (legacy_u16)polarAngle((legacy_s16)coordinate, minimum) & ANGLE_MASK;
+		assert(first >= -(ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN));
+		assert(first <= -ANGLE_EIGHTH_TURN && first >= previous_first);
+		assert(second >= ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN);
+		assert(second <= ANGLE_HALF_TURN + ANGLE_EIGHTH_TURN && second <= previous_second);
+		if (coordinate % 2 == 0) {
+			assert(first == polarAngle(minimum / 2, (legacy_s16)(coordinate / 2)));
+			assert(second == ((legacy_u16)polarAngle((legacy_s16)(coordinate / 2), minimum / 2) &
+							  ANGLE_MASK));
+		}
+		previous_first = first;
+		previous_second = second;
+	}
+}
+
 static void test_rectangle_splits(void)
 {
 	video_x_alignment = 1;
@@ -75,6 +106,7 @@ static void test_rectangle_splits(void)
 int main(void)
 {
 	test_polar_boundaries();
+	test_polar_minimum_components();
 	test_rectangle_splits();
 	/* Captured before extraction: quadrant boundaries and 1,728 ordered rectangle triples. */
 	assert(trace_hash == UINT64_C(0x998e7d0d29ad404a));
