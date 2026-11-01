@@ -19,7 +19,7 @@
 #undef mouse_multi_hittest
 #undef locate_text_res
 #undef menu_update_idle_counter
-#include "../c/highscore.h"
+#include "../c/highscore/highscore.h"
 #include "../c/skybox.h"
 #include "../c/ghost/ghost.h"
 #define EXTENDED_TEST_GHOST_SELECTION

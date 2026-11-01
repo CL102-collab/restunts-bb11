@@ -21,7 +21,7 @@
 #include "../race/race_graphics.h"
 #include "../car/car_audio.h"
 #include "../ui/ui_dialog_internal.h"
-#include "../highscore.h"
+#include "../highscore/highscore.h"
 #include "../menu/menu_common.h"
 
 #define FENCE_TRACK_OBJECT_CODE 214U

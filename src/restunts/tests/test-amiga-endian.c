@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "../c/audio/audio.h"
-#include "../c/highscore.h"
+#include "../c/highscore/highscore.h"
 #include "../c/platform.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/shape3d/shape3d.h"

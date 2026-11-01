@@ -17,7 +17,7 @@
 #endif
 #include "../platform/sdl3/sdl3.h"
 #include "../c/fileio.h"
-#include "../c/highscore.h"
+#include "../c/highscore/highscore.h"
 #include "../c/platform.h"
 #include "../c/memmgr.h"
 #include "../c/shape2d/shape2d.h"

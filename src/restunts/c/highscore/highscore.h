@@ -2,7 +2,7 @@
 #define RESTUNTS_HIGHSCORE_H
 
 #include <stddef.h>
-#include "legacy.h"
+#include "../legacy.h"
 
 #define HIGHSCORE_ENTRY_COUNT 7U
 #define HIGHSCORE_LAST_ENTRY_INDEX (HIGHSCORE_ENTRY_COUNT - 1U)
