@@ -395,26 +395,26 @@ legacy_s16 extended_trackobj_build(struct VECTOR *position, struct VECTOR *next)
 
 void extended_trackobj_capture(struct TRACK_COLLISION_SNAPSHOT *saved)
 {
-	saved->extended_plane_valid =
+	saved->extended.plane_valid =
 		extended_track_active() && planindex >= EXTENDED_GEOMETRY_PLANE_INDEX;
-	if (saved->extended_plane_valid) {
-		saved->extended_plane = *current_planptr;
+	if (saved->extended.plane_valid) {
+		saved->extended.plane = *current_planptr;
 	}
-	saved->extended_exact_normal_valid =
-		saved->extended_plane_valid && extended_selected_exact_normal_valid;
-	saved->extended_exact_normal = saved->extended_exact_normal_valid
+	saved->extended.exact_normal_valid =
+		saved->extended.plane_valid && extended_selected_exact_normal_valid;
+	saved->extended.exact_normal = saved->extended.exact_normal_valid
 									   ? extended_selected_exact_normal
 									   : (struct VECTORLONG){0, 0, 0};
 }
 
 void extended_trackobj_restore(const struct TRACK_COLLISION_SNAPSHOT *saved)
 {
-	if (saved->extended_plane_valid) {
-		extended_selected_plane = saved->extended_plane;
+	if (saved->extended.plane_valid) {
+		extended_selected_plane = saved->extended.plane;
 		current_planptr = &extended_selected_plane;
 	}
-	extended_selected_exact_normal_valid = saved->extended_exact_normal_valid;
-	extended_selected_exact_normal = saved->extended_exact_normal;
+	extended_selected_exact_normal_valid = saved->extended.exact_normal_valid;
+	extended_selected_exact_normal = saved->extended.exact_normal;
 }
 
 legacy_s32 extended_trackobj_coordinate_delta(legacy_s16 first, legacy_s16 second,

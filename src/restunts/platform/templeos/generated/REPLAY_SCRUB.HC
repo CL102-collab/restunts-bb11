@@ -2,38 +2,38 @@
 
 legacy_s8 RsReplayScrubLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_2063;
+  legacy_s32 noreg temple_tmp_2051;
   if((value<=127)) {
-    temple_tmp_2063=TempleCastS32(TempleCastS8(value));
+    temple_tmp_2051=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_2063=TempleCastS32(TempleCastS8(
+    temple_tmp_2051=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_2063);
+  return TempleCastS8(temple_tmp_2051);
 }
 
 legacy_s16 RsReplayScrubLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_2064;
+  legacy_s32 noreg temple_tmp_2052;
   if((value<=32767)) {
-    temple_tmp_2064=TempleCastS32(TempleCastS16(value));
+    temple_tmp_2052=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_2064=TempleCastS32(TempleCastS16(
+    temple_tmp_2052=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_2064);
+  return TempleCastS16(temple_tmp_2052);
 }
 
 legacy_s32 RsReplayScrubLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_2065;
+  legacy_s32 noreg temple_tmp_2053;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_2065=TempleCastS32(TempleCastS32(value));
+    temple_tmp_2053=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_2065=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_2053=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_2065);
+  return TempleCastS32(temple_tmp_2053);
 }
 
 legacy_u16 RsReplayScrubShowTextInputDialog(legacy_s16 save_background,legacy_u8 *text_resource,
@@ -83,31 +83,31 @@ legacy_s16 RsReplayScrubCameraAdjustCustomDirection(legacy_u16 direction)
 legacy_s32 RsReplayScrubReplayScrubAccumulate(
     legacy_s32 accumulated,legacy_s16 speed,legacy_u16 delta)
 {
-  legacy_s16 noreg temple_increment_2066;
-  legacy_u32 noreg temple_tmp_2067;
-  temple_increment_2066=TempleCastS16(RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(
+  legacy_s16 noreg temple_increment_2054;
+  legacy_u32 noreg temple_tmp_2055;
+  temple_increment_2054=TempleCastS16(RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(
       TempleCastU16(TempleCastU32((TempleCastU32(TempleCastU16(RsReplayScrubLegacyS16FromBits(
                                       TempleCastU16(TempleCastU16(delta)))))*
           TempleCastU32(TempleCastU16(speed)))))))));
-  if((TempleCastU32((TempleCastU16(temple_increment_2066)&32768))!=TempleCastU32(0))) {
-    temple_tmp_2067=TempleCastU32(TempleCastU32(4294901760));
+  if((TempleCastU32((TempleCastU16(temple_increment_2054)&32768))!=TempleCastU32(0))) {
+    temple_tmp_2055=TempleCastU32(TempleCastU32(4294901760));
   } else {
-    temple_tmp_2067=TempleCastU32(TempleCastU32(0));
+    temple_tmp_2055=TempleCastU32(TempleCastU32(0));
   }
   return TempleCastS32(RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(TempleCastU32((
       TempleCastU32(accumulated)+
-      TempleCastU32(TempleCastU32((temple_tmp_2067|TempleCastU16(temple_increment_2066))))))))));
+      TempleCastU32(TempleCastU32((temple_tmp_2055|TempleCastU16(temple_increment_2054))))))))));
 }
 
 legacy_s16 RsReplayScrubReplayScrubSpeed(legacy_s32 accumulated)
 {
-  legacy_s32 noreg temple_quotient_2068;
-  temple_quotient_2068=TempleCastS32(RsLegacyS32DivOrZero(
+  legacy_s32 noreg temple_quotient_2056;
+  temple_quotient_2056=TempleCastS32(RsLegacyS32DivOrZero(
       TempleCastS32(RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(accumulated)))),
       TempleCastS32(RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(50))))));
   return TempleCastS16(RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(RsReplayScrubLegacyS16FromBits(TempleCastU16(
-                                      TempleCastU16(TempleCastU16(temple_quotient_2068)))))+
+                                      TempleCastU16(TempleCastU16(temple_quotient_2056)))))+
           TempleCastU16(3))))))));
 }
 
@@ -129,69 +129,69 @@ legacy_s32 RsReplayScrubBegin(legacy_u8 selection)
 
 legacy_s32 RsReplayScrubReplayScrubAdvance(legacy_s32 accumulated,legacy_u16 *delta)
 {
-  legacy_s16 noreg temple_speed_2069;
-  temple_speed_2069=TempleCastS16(RsReplayScrubReplayScrubSpeed(TempleCastS32(accumulated)));
-  if((temple_speed_2069>100)) {
-    (temple_speed_2069=TempleCastS16(100));
+  legacy_s16 noreg temple_speed_2057;
+  temple_speed_2057=TempleCastS16(RsReplayScrubReplayScrubSpeed(TempleCastS32(accumulated)));
+  if((temple_speed_2057>100)) {
+    (temple_speed_2057=TempleCastS16(100));
   }
   ((*(delta))=TempleCastU16(TempleCastU16(RsTimerGetDeltaAlt())));
   return TempleCastS32(RsReplayScrubReplayScrubAccumulate(
-      TempleCastS32(accumulated),TempleCastS16(temple_speed_2069),TempleCastU16((*(delta)))));
+      TempleCastS32(accumulated),TempleCastS16(temple_speed_2057),TempleCastU16((*(delta)))));
 }
 
 legacy_void RsReplayFastForward()
 {
-  legacy_s32 noreg temple_accumulated_2070;
-  legacy_u16 noreg temple_amount_2071;
-  legacy_u16 noreg temple_delta_2072;
-  legacy_u16 noreg temple_remaining_2073;
-  legacy_u16 noreg temple_target_2075;
-  temple_accumulated_2070=
+  legacy_s32 noreg temple_accumulated_2058;
+  legacy_u16 noreg temple_amount_2059;
+  legacy_u16 noreg temple_delta_2060;
+  legacy_u16 noreg temple_remaining_2061;
+  legacy_u16 noreg temple_target_2063;
+  temple_accumulated_2058=
       TempleCastS32(RsReplayScrubBegin(TempleCastU8(REPLAY_CONTROL_FAST_FORWARD)));
   while(1) {
     if(!((TempleCastU32((TempleCastU8(input_combined_flags)&TempleCastU32((16|32))))!=
           TempleCastU32(0)))) {
       break;
     }
-    (temple_accumulated_2070=TempleCastS32(RsReplayScrubReplayScrubAdvance(
-        TempleCastS32(temple_accumulated_2070),(&(temple_delta_2072)))));
-    (temple_remaining_2073=TempleCastU16(TempleCastU16(TempleCastS32(
+    (temple_accumulated_2058=TempleCastS32(RsReplayScrubReplayScrubAdvance(
+        TempleCastS32(temple_accumulated_2058),(&(temple_delta_2060)))));
+    (temple_remaining_2061=TempleCastU16(TempleCastU16(TempleCastS32(
         (TempleCastU16(gameconfig.game_recordedframes)-TempleCastU16(elapsed_time2))))));
-    (temple_amount_2071=
-            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2070))));
-    if((temple_amount_2071>temple_remaining_2073)) {
-      (temple_accumulated_2070=TempleCastS32(
+    (temple_amount_2059=
+            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2058))));
+    if((temple_amount_2059>temple_remaining_2061)) {
+      (temple_accumulated_2058=TempleCastS32(
           RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(TempleCastU32(TempleCastU32(
-              (TempleCastU32(TempleCastS32(temple_remaining_2073))*TempleCastU32(20)))))))));
+              (TempleCastU32(TempleCastS32(temple_remaining_2061))*TempleCastU32(20)))))))));
     }
-    (temple_amount_2071=
-            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2070))));
+    (temple_amount_2059=
+            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2058))));
     RsReplayControlsDraw(TempleCastU32(state.game_frame),
         TempleCastU32(TempleCastU16(
-            TempleCastS32((TempleCastU16(elapsed_time2)+TempleCastU16(temple_amount_2071))))));
+            TempleCastS32((TempleCastU16(elapsed_time2)+TempleCastU16(temple_amount_2059))))));
     RsInputDoChecking(TempleCastS16(
-        RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_delta_2072)))));
+        RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_delta_2060)))));
   }
-  (temple_remaining_2073=TempleCastU16(TempleCastU16(TempleCastS32(
+  (temple_remaining_2061=TempleCastU16(TempleCastU16(TempleCastS32(
       (TempleCastU16(gameconfig.game_recordedframes)-TempleCastU16(elapsed_time2))))));
-  (temple_amount_2071=
-          TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2070))));
-  if((temple_amount_2071>temple_remaining_2073)) {
-    (temple_accumulated_2070=TempleCastS32(
+  (temple_amount_2059=
+          TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2058))));
+  if((temple_amount_2059>temple_remaining_2061)) {
+    (temple_accumulated_2058=TempleCastS32(
         RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(TempleCastU32(TempleCastU32(
-            (TempleCastU32(TempleCastS32(temple_remaining_2073))*TempleCastU32(20)))))))));
-    (temple_amount_2071=TempleCastU16(temple_remaining_2073));
+            (TempleCastU32(TempleCastS32(temple_remaining_2061))*TempleCastU32(20)))))))));
+    (temple_amount_2059=TempleCastU16(temple_remaining_2061));
   }
-  temple_target_2075=TempleCastU16(TempleCastU16(
-      TempleCastS32((TempleCastU16(elapsed_time2)+TempleCastU16(temple_amount_2071)))));
-  if((RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_target_2075)))>
+  temple_target_2063=TempleCastU16(TempleCastU16(
+      TempleCastS32((TempleCastU16(elapsed_time2)+TempleCastU16(temple_amount_2059)))));
+  if((RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_target_2063)))>
         RsReplayScrubLegacyS16FromBits(
             TempleCastU16(TempleCastU16(gameconfig.game_recordedframes))))) {
-    (temple_target_2075=TempleCastU16(gameconfig.game_recordedframes));
+    (temple_target_2063=TempleCastU16(gameconfig.game_recordedframes));
   }
   RsFrameSupersightReset();
-  RsRestoreGamestate(TempleCastU16(temple_target_2075));
-  (elapsed_time2=TempleCastU16(temple_target_2075));
+  RsRestoreGamestate(TempleCastU16(temple_target_2063));
+  (elapsed_time2=TempleCastU16(temple_target_2063));
   RsReplayControlsSelect(TempleCastU8(REPLAY_CONTROL_PAUSE));
   RsReplayDrawWaiting();
   while(1) {
@@ -206,70 +206,70 @@ legacy_void RsReplayFastForward()
 
 legacy_void RsReplayRewind()
 {
-  legacy_s32 noreg temple_accumulated_2077;
-  legacy_u16 noreg temple_amount_2078;
-  legacy_u16 noreg temple_delta_2079;
-  legacy_u16 noreg temple_target_2081;
-  legacy_s16 noreg temple_frames_to_catch_up_2082;
-  legacy_s16 noreg temple_frames_remaining_2083;
-  legacy_u16 noreg temple_displayed_frame_2085;
-  temple_accumulated_2077=TempleCastS32(RsReplayScrubBegin(TempleCastU8(REPLAY_CONTROL_REWIND)));
+  legacy_s32 noreg temple_accumulated_2065;
+  legacy_u16 noreg temple_amount_2066;
+  legacy_u16 noreg temple_delta_2067;
+  legacy_u16 noreg temple_target_2069;
+  legacy_s16 noreg temple_frames_to_catch_up_2070;
+  legacy_s16 noreg temple_frames_remaining_2071;
+  legacy_u16 noreg temple_displayed_frame_2073;
+  temple_accumulated_2065=TempleCastS32(RsReplayScrubBegin(TempleCastU8(REPLAY_CONTROL_REWIND)));
   while(1) {
     if(!((TempleCastU32((TempleCastU8(input_combined_flags)&TempleCastU32((16|32))))!=
           TempleCastU32(0)))) {
       break;
     }
-    (temple_accumulated_2077=TempleCastS32(RsReplayScrubReplayScrubAdvance(
-        TempleCastS32(temple_accumulated_2077),(&(temple_delta_2079)))));
-    (temple_amount_2078=
-            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2077))));
-    if((temple_amount_2078>elapsed_time2)) {
-      (temple_accumulated_2077=TempleCastS32(
+    (temple_accumulated_2065=TempleCastS32(RsReplayScrubReplayScrubAdvance(
+        TempleCastS32(temple_accumulated_2065),(&(temple_delta_2067)))));
+    (temple_amount_2066=
+            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2065))));
+    if((temple_amount_2066>elapsed_time2)) {
+      (temple_accumulated_2065=TempleCastS32(
           RsReplayScrubLegacyS32FromBits(TempleCastU32(TempleCastU32(TempleCastU32(TempleCastU32(
               (TempleCastU32(TempleCastS32(elapsed_time2))*TempleCastU32(20)))))))));
     }
-    (temple_amount_2078=
-            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2077))));
+    (temple_amount_2066=
+            TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2065))));
     RsReplayControlsDraw(TempleCastU32(state.game_frame),
         TempleCastU32(TempleCastU16(
-            TempleCastS32((TempleCastU16(elapsed_time2)-TempleCastU16(temple_amount_2078))))));
+            TempleCastS32((TempleCastU16(elapsed_time2)-TempleCastU16(temple_amount_2066))))));
     RsInputDoChecking(TempleCastS16(
-        RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_delta_2079)))));
+        RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_delta_2067)))));
   }
-  (temple_amount_2078=
-          TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2077))));
-  if((temple_amount_2078>elapsed_time2)) {
-    (temple_amount_2078=TempleCastU16(elapsed_time2));
+  (temple_amount_2066=
+          TempleCastU16(RsReplayScrubReplayScrubAmount(TempleCastS32(temple_accumulated_2065))));
+  if((temple_amount_2066>elapsed_time2)) {
+    (temple_amount_2066=TempleCastU16(elapsed_time2));
   }
   RsReplayControlsSelect(TempleCastU8(REPLAY_CONTROL_PAUSE));
-  if((temple_amount_2078!=0)) {
+  if((temple_amount_2066!=0)) {
     RsReplayDrawWaiting();
-    temple_target_2081=TempleCastU16(TempleCastU16(
-        TempleCastS32((TempleCastU16(elapsed_time2)-TempleCastU16(temple_amount_2078)))));
+    temple_target_2069=TempleCastU16(TempleCastU16(
+        TempleCastS32((TempleCastU16(elapsed_time2)-TempleCastU16(temple_amount_2066)))));
     RsFrameSupersightReset();
-    RsRestoreGamestate(TempleCastU16(temple_target_2081));
-    (elapsed_time2=TempleCastU16(temple_target_2081));
-    temple_frames_to_catch_up_2082=
+    RsRestoreGamestate(TempleCastU16(temple_target_2069));
+    (elapsed_time2=TempleCastU16(temple_target_2069));
+    temple_frames_to_catch_up_2070=
         TempleCastS16(RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(
             TempleCastU16(TempleCastS32((TempleCastU16(RsReplayScrubLegacyS16FromBits(
-                                            TempleCastU16(TempleCastU16(temple_target_2081))))-
+                                            TempleCastU16(TempleCastU16(temple_target_2069))))-
                 TempleCastU16(state.game_frame))))))));
-    temple_frames_remaining_2083=TempleCastS16(temple_frames_to_catch_up_2082);
+    temple_frames_remaining_2071=TempleCastS16(temple_frames_to_catch_up_2070);
     while(1) {
       if(!((TempleCastU16(state.game_frame)!=elapsed_time2))) {
         break;
       }
       RsUpdateGamestate();
-      (temple_frames_remaining_2083=TempleCastS16(
+      (temple_frames_remaining_2071=TempleCastS16(
           RsReplayScrubLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(temple_frames_remaining_2083)-TempleCastU16(1)))))))));
-      temple_displayed_frame_2085=
+              (TempleCastU16(temple_frames_remaining_2071)-TempleCastU16(1)))))))));
+      temple_displayed_frame_2073=
           TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(elapsed_time2)+
-              TempleCastU16(RsReplayRewindInterpolate(TempleCastU16(temple_amount_2078),
-                  TempleCastU16(TempleCastU16(temple_frames_remaining_2083)),
-                  TempleCastU16(TempleCastU16(temple_frames_to_catch_up_2082))))))));
+              TempleCastU16(RsReplayRewindInterpolate(TempleCastU16(temple_amount_2066),
+                  TempleCastU16(TempleCastU16(temple_frames_remaining_2071)),
+                  TempleCastU16(TempleCastU16(temple_frames_to_catch_up_2070))))))));
       RsReplayControlsDraw(
-          TempleCastU32(temple_displayed_frame_2085),TempleCastU32(elapsed_time2));
+          TempleCastU32(temple_displayed_frame_2073),TempleCastU32(elapsed_time2));
       RsInputDoChecking(TempleCastS16(1));
     }
   }

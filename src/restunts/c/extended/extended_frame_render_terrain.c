@@ -1,5 +1,5 @@
 #ifdef RESTUNTS_SDL3
-#include "../extended/extended_frame_internal.h"
+#include "extended_frame_internal.h"
 #include <stdlib.h>
 #include <string.h>
 

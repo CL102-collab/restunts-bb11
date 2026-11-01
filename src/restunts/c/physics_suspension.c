@@ -7,9 +7,6 @@
 #include "track/track_collision.h"
 #include "externs.h"
 #include "physics_collision_internal.h"
-#ifdef RESTUNTS_SDL3
-#include "extended/extended_physics_collision.h"
-#endif
 
 #define SUSPENSION_TARGET_DECAY 4
 #define SUSPENSION_RETURN_STEP 128

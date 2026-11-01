@@ -1,5 +1,5 @@
 #ifdef RESTUNTS_SDL3
-#include "../extended/extended_frame_internal.h"
+#include "extended_frame_internal.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,7 +12,8 @@ void extended_frame_first_tile_pass(legacy_s16 *first_pass)
 
 legacy_s32 extended_frame_has_complete_tile_lookup(const struct FRAME_TILE_SELECTION *tiles)
 {
-	return tiles->complete_tile_lookup && tiles->lookahead == tiles->extended_lookahead;
+	return tiles->extended_lookup.complete_tile_lookup &&
+		   tiles->lookahead == tiles->extended_lookahead;
 }
 
 legacy_s16 extended_frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *tiles,
@@ -21,7 +22,7 @@ legacy_s16 extended_frame_lookup_world_tile(const struct FRAME_TILE_SELECTION *t
 	if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 || south > TRACK_GRID_LAST_COORDINATE) {
 		return -1;
 	}
-	return tiles->index_by_world_tile[south * extended_track_width() + east];
+	return tiles->extended_lookup.index_by_world_tile[south * extended_track_width() + east];
 }
 
 void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
@@ -32,7 +33,8 @@ void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 	 * stable grid order. Continuations still resolve to their complete object;
 	 * the lookup identifies the same submission tile for its cars and wheels. */
 	legacy_s16 index = 0;
-	memset(tiles->index_by_world_tile, -1, sizeof(tiles->index_by_world_tile));
+	memset(tiles->extended_lookup.index_by_world_tile, -1,
+		   sizeof(tiles->extended_lookup.index_by_world_tile));
 	for (legacy_s16 south = 0; south <= TRACK_GRID_LAST_COORDINATE; south++) {
 		for (legacy_s16 east = 0; east <= FRAME_TRACK_LAST_X; east++) {
 			if (extended_track_active() &&
@@ -51,16 +53,17 @@ void extended_frame_extend_lookahead(struct FRAME_TILE_SELECTION *tiles,
 		}
 	}
 	tiles->count = index;
-	tiles->complete_tile_lookup = 1;
+	tiles->extended_lookup.complete_tile_lookup = 1;
 	for (index = 0; index < tiles->count; index++) {
 		legacy_s16 east = tiles->extended_lookahead[index].east + tiles->camera_east;
 		legacy_s16 south = tiles->extended_lookahead[index].south + tiles->camera_south;
 		/* Wrapped signed-byte offsets need the original comparison semantics. */
 		if (east < 0 || east > FRAME_TRACK_LAST_X || south < 0 ||
 			south > TRACK_GRID_LAST_COORDINATE) {
-			tiles->complete_tile_lookup = 0;
+			tiles->extended_lookup.complete_tile_lookup = 0;
 		} else {
-			tiles->index_by_world_tile[south * extended_track_width() + east] = index;
+			tiles->extended_lookup.index_by_world_tile[south * extended_track_width() + east] =
+				index;
 		}
 	}
 	tiles->lookahead = tiles->extended_lookahead;

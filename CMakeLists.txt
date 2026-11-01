@@ -270,10 +270,10 @@ set(game_sources
     frame_terrain.c frame_objects.c hires/frame_adaptive.c skybox.c hires/skybox_hires.c
     frame_overlay.c intro_render.c track/track_preview.c full_data.c full_strings.c full_tables.c
     hires/settings_startup.c hires/settings_input.c hires/race_view.c hires/race_presentation.c
-    hires/ghost_render.c hires/extended_frame_tiles.c hires/extended_frame_hills.c
-    hires/extended_frame_render_objects.c hires/extended_frame_render_terrain.c
-    hires/extended_frame_render_ground.c hires/extended_frame_precise.c
-    hires/extended_track_preview_hires.c hires/track_preview_mode.c hires/track_menu_preview.c
+    hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
+    extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c
+    extended/extended_frame_render_ground.c extended/extended_frame_precise.c
+    extended/extended_track_preview_hires.c hires/track_preview_mode.c hires/track_menu_preview.c
     hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c
     hires/frame_car_render.c hires/frame_supersight.c hires/frame_terrain.c hires/frame_particles.c
     hires/frame_overlay.c hires/intro_presentation.c hires/track_preview_scene.c

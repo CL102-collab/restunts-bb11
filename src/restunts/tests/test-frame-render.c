@@ -22,7 +22,7 @@
 #include "../c/extended/extended_frame.c"
 #include "../c/extended/extended_frame_objects.c"
 #include "../c/extended/extended_frame_terrain.c"
-#include "../c/hires/extended_frame_precise.c"
+#include "../c/extended/extended_frame_precise.c"
 #endif
 
 struct TRACKOBJECT trkObjectList[215];
@@ -1381,7 +1381,7 @@ static void test_complete_tile_lookup_matches_scans(void)
 			/* A copied selection retains the same offsets but explicitly uses the
 			 * original scan, including duplicate and signed-byte wrap semantics. */
 			reference = tiles;
-			reference.complete_tile_lookup = 0;
+			reference.extended_lookup.complete_tile_lookup = 0;
 			for (legacy_s16 flag = FRAME_MULTITILE_NONE - 1; flag <= FRAME_MULTITILE_BOTH + 1;
 				 flag++) {
 				trkObjectList[1].ss_multiTileFlag = flag;

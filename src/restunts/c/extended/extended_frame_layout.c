@@ -6,7 +6,7 @@
 
 void extended_frame_begin_tile_selection(struct FRAME_TILE_SELECTION *tiles)
 {
-	tiles->complete_tile_lookup = 0;
+	tiles->extended_lookup.complete_tile_lookup = 0;
 }
 
 void extended_frame_adaptive_policy(legacy_u8 *active)

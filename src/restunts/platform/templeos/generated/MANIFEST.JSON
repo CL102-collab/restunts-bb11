@@ -165,7 +165,7 @@
     "stateio",
     "memory"
   ],
-  "functions": 2354,
+  "functions": 2355,
   "classes": 109,
   "external": [
     "RsDosAudioBindChannelContext",
