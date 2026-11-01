@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_HIRES_FRAME_RENDER_H
 #define RESTUNTS_HIRES_FRAME_RENDER_H
 
-#include "../frame_render_internal.h"
+#include "../frame/frame_render_internal.h"
 #if defined(RESTUNTS_SDL3)
 #include "frame_adaptive.h"
 #include "shape3d_hires.h"

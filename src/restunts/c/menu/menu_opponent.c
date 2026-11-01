@@ -19,7 +19,7 @@
 #include "../keyboard.h"
 #include "../ghost.h"
 #include "../opponent/opponent.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../opponent/opponent_portrait.h"
 #include "menu_background.h"

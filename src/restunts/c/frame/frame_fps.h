@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_FRAME_FPS_H
 #define RESTUNTS_FRAME_FPS_H
 
-#include "math.h"
+#include "../math.h"
 
 #define REPLAY_TEXT_LEFT_X 8
 #define REPLAY_TEXT_RIGHT_X 312

@@ -6,7 +6,7 @@
 #include "../../c/fatal.h"
 #include "../../c/hires/hires.h"
 #include "../../c/hires/frame_adaptive.h"
-#include "../../c/frame_internal.h"
+#include "../../c/frame/frame_internal.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -21,7 +21,7 @@
 #include "../c/menu/menu_common.h"
 #include "../c/externs.h"
 #include "../c/keyboard.h"
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #include "../c/hires/shape3d_hires.h"
 #include "../c/opponent/opponent_portrait.h"
 #include "../c/menu/menu_background.h"

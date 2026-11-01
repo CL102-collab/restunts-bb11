@@ -27,7 +27,7 @@
 #include "../car/car_audio.h"
 #include "../externs.h"
 #include "../keyboard.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #ifdef RESTUNTS_AMIGA
 #include "../../platform/amiga/amiga.h"
 #endif

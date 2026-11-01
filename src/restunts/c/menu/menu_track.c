@@ -22,7 +22,7 @@
 #include "../externs.h"
 #include "../keyboard.h"
 #include "../ghost.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/track_menu_preview.h"
 #endif

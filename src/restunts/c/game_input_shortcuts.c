@@ -11,7 +11,7 @@
 #include "camera.h"
 #include "externs.h"
 #include "ghost.h"
-#include "frame_internal.h"
+#include "frame/frame_internal.h"
 #include "hires/settings.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"

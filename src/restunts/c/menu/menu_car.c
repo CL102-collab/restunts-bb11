@@ -21,7 +21,7 @@
 #include "menu_common.h"
 #include "../externs.h"
 #include "../keyboard.h"
-#include "../frame_internal.h"
+#include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/showroom.h"
 #endif

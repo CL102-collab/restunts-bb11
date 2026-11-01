@@ -13,7 +13,7 @@
 #include "../c/menu/menu_background.h"
 #include "../c/game_input.h"
 #ifdef RESTUNTS_SDL3
-#include "../c/frame_internal.h"
+#include "../c/frame/frame_internal.h"
 #endif
 
 #define TEST_MENU_BUTTON_COUNT 5U

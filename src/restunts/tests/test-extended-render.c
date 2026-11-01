@@ -9,7 +9,7 @@
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_geometry.h"
 #include "../c/extended/extended_frame.h"
-#include "../c/frame_render_internal.h"
+#include "../c/frame/frame_render_internal.h"
 #include "../c/skybox.h"
 #include "../c/race/race_graphics.h"
 #include "../c/track/trackdata_layout.h"

@@ -5,12 +5,12 @@
 #define plane_signed_distance frame_test_plane_distance
 #define subst_hillroad_track frame_test_subst_hillroad_track
 #define transform_wheel_travel_to_world frame_test_transform_wheel_travel
-#include "../c/frame.c"
-#include "../c/frame_camera.c"
-#include "../c/frame_car.c"
-#include "../c/frame_tiles.c"
-#include "../c/frame_terrain.c"
-#include "../c/frame_objects.c"
+#include "../c/frame/frame.c"
+#include "../c/frame/frame_camera.c"
+#include "../c/frame/frame_car.c"
+#include "../c/frame/frame_tiles.c"
+#include "../c/frame/frame_terrain.c"
+#include "../c/frame/frame_objects.c"
 #include "../c/hires/frame_snapshot.c"
 #include "extended-replay-test-stubs.h"
 
