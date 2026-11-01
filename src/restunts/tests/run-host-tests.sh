@@ -253,26 +253,26 @@ run_host_test test-audio-engine legacy.c -DRESTUNTS_SDL3 -Wno-unused-variable -W
 run_host_test test-audio-engine legacy.c -DRESTUNTS_SDL3 -D__ANDROID__ \
     -Wno-unused-variable -Wno-sign-compare
 run_host_test test-audio-car legacy.c \
-    "$test_source_dir/math.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/math.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-audio-sequence legacy.c -Wno-sign-compare
 run_host_test test-audio-resources legacy.c "$test_source_dir/resource.c" -Wno-pointer-sign
 run_host_test test-race-flow legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-race-rewind legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-race-frames legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-car-menu menu/menu_car.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-car-menu menu/menu_car.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-car-speed statecar.c \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c"
@@ -308,66 +308,66 @@ run_host_test test-startup math.c "$test_source_dir/owoot/owoot.c" "$test_source
     "$test_source_dir/car/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_AMIGA "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/owoot/owoot.c" "$test_source_dir/car/carsetup.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__ANDROID__ "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__EMSCRIPTEN__ "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-startup math.c -DRESTUNTS_SDL3 -D__DJGPP__ "$test_source_dir/track/trackobj.c" "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/car/carsetup.c" "$test_source_dir/extended/extended_validation.c" \
     "$test_source_dir/hires/frame_adaptive.c" "$test_source_dir/owoot/owoot.c" \
     "$test_source_dir/statecar.c" "$test_source_dir/strlib.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/physics_grip.c" \
-    "$test_source_dir/race/race_route.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/race/race_route.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-credits legacy.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-modal-dialogs menu/menu_options.c \
     "$test_source_dir/ui/ui_dialog.c" "$test_source_dir/legacy.c" \
     -DRESTUNTS_GIT_HASH='"0123456"' -Wno-pointer-sign
 run_host_test test-dashboard dashboard.c \
-    "$test_source_dir/simd.c" "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/simd.c" "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-frame-render math.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/heapsort.c" "$test_source_dir/trkutil.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers "$test_uninitialized_flag" \
     -Wno-missing-braces
 run_host_test test-frame-render math.c -DRESTUNTS_SDL3 \
     "$test_source_dir/hires/frame_adaptive.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/heapsort.c" "$test_source_dir/trkutil.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers "$test_uninitialized_flag" \
     -Wno-missing-braces
@@ -375,40 +375,40 @@ run_host_test test-frame-overlay frame/frame_overlay.c \
     "$test_source_dir/strlib.c" \
     "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_prerender.c" \
     "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-frame-overlay frame/frame_overlay.c -DRESTUNTS_SDL3 \
     "$test_source_dir/strlib.c" \
     "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_prerender.c" \
     "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-frame-adaptive hires/frame_adaptive.c
 run_host_test test-frame-interpolation hires/frame_interpolation.c
 run_host_test test-intro-preview intro_render.c \
-    "$test_source_dir/track/track_preview.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/track/track_preview.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     -DRESTUNTS_FULL -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-intro-preview intro_render.c \
-    "$test_source_dir/track/track_preview.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/track/track_preview.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     "$test_source_dir/extended/extended_track_preview.c" \
     -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-extended-preview track/track_preview.c \
     "$test_source_dir/extended/extended_track_preview.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/headless_trackdata.c" "$test_source_dir/math.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/trkutil.c" \
     -DRESTUNTS_FULL -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-end-hiscore highscore.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-end-hiscore highscore.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-car-resource-paths fileio.c \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/memmgr.c" \
@@ -423,7 +423,7 @@ run_host_test test-file-write fileio.c \
 run_host_test test-file-write fileio.c \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -D__ANDROID__ -Wno-pointer-sign
 run_host_test test-fatal-format legacy.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-gamestate-serialization stateio.c
 run_host_test test-ghost ghost.c \
@@ -438,7 +438,7 @@ run_host_test test-grip physics_grip.c \
     "$test_source_dir/math.c" "$test_source_dir/legacy.c" -Wno-sign-compare
 run_host_test test-legacy-semantics legacy.c
 run_host_test test-line-prepare shape3d/shape3d_lines.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-matrix-semantics math.c
 run_host_test test-math-boundaries math.c \
@@ -470,38 +470,38 @@ run_host_test test-opponent-tick opponent/opponent.c \
     -Wno-missing-braces
 run_host_test test-pixldump-murmur3 ../pixldump/murmur3.c
 run_host_test test-pixldump-playback legacy.c -I"$test_source_dir" \
-    "$test_source_dir/strlib.c" "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/strlib.c" "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-sign-compare -Wno-missing-field-initializers
 run_host_test test-polygon-edges shape3d/shape3d_prerender.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-input-record legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
 run_host_test test-input-record legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
 run_host_test test-input-record legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/hires/frame_adaptive.c" -DRESTUNTS_SDL3 \
     -Wno-pointer-sign -Wno-missing-field-initializers "$test_uninitialized_flag"
 run_host_test test-replay-menu replay/replay.c \
     "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-menu replay/replay.c \
     "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     -DRESTUNTS_AMIGA -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-menu replay/replay.c \
     "$test_source_dir/legacy.c" "$test_source_dir/headless_data.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-controls legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" "$test_source_dir/math.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" "$test_source_dir/math.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-controls legacy.c \
-    "$test_source_dir/headless_data.c" "$test_source_dir/full_data.c" "$test_source_dir/math.c" \
+    "$test_source_dir/headless_data.c" "$test_source_dir/data/full_data.c" "$test_source_dir/math.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-replay-serialization replay/replay.c
 run_host_test test-cstrk extended/extended_cstrk.c
@@ -534,23 +534,23 @@ run_host_test test-shape2d-memory shape2d/shape2d_resources.c \
     -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-shape2d-render shape2d/shape2d.c \
     "$test_source_dir/shape2d/shape2d_blit.c" "$test_source_dir/shape2d/shape2d_resources.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-video-pages video_pages.c -DRESTUNTS_VGA_TEST
 run_host_test test-shape2d-planar shape2d/shape2d.c \
     "$test_source_dir/shape2d/shape2d_blit.c" "$test_source_dir/shape2d/shape2d_resources.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \
     -DRESTUNTS_VGA_TEST -Wno-pointer-sign -Wno-missing-braces \
     -Wno-missing-field-initializers -Wno-unused-variable
 run_host_test test-shape3d-raster shape3d/shape3d_prerender.c \
-    "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_tables.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_tables.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-shape3d-queue shape3d/shape3d.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-shape3d-materials shape3d/shape3d.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-shape3d-vertices shape3d/shape3d.c \
     -Wno-pointer-sign -Wno-unused-variable
@@ -558,52 +558,52 @@ run_host_test test-car-grounding legacy.c -DRESTUNTS_SDL3 -Wno-pointer-sign
 run_host_test test-car-shape-lifetime shape3d/shape3d_car.c \
     "$test_source_dir/owoot/owoot.c" "$test_source_dir/owoot/owoot_wheels.c" \
     "$test_source_dir/shape3d/shape3d_resources.c" "$test_source_dir/shape3d/shape3d.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-skybox-render skybox.c \
-    "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/full_data.c" \
+    "$test_source_dir/shape3d/shape3d.c" "$test_source_dir/shape3d/shape3d_lines.c" "$test_source_dir/data/full_data.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-unused-variable -Wno-missing-field-initializers
 run_host_test test-simd-decoding simd.c
 run_host_test test-editor-boundaries legacy.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-missing-braces
 run_host_test test-menu-main menu/menu_main.c "$test_source_dir/legacy.c" -Wno-pointer-sign
 run_host_test test-menu-main menu/menu_main.c "$test_source_dir/legacy.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign
 run_host_test test-menu-options menu/menu_options.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"' \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-menu-options menu/menu_options.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_SDL3 \
     -DRESTUNTS_GIT_HASH='"0123456789abcdef0123456789abcdef01234567"' \
     -DRESTUNTS_BUILD_DATE='"Feb 12 1991"' \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-menu-navigation menu/menu_opponent.c \
     "$test_source_dir/menu/menu_track.c" "$test_source_dir/legacy.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless_data.c" -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-menu-navigation menu/menu_opponent.c \
     "$test_source_dir/menu/menu_track.c" "$test_source_dir/legacy.c" \
-    "$test_source_dir/full_data.c" "$test_source_dir/full_strings.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/data/full_strings.c" \
     "$test_source_dir/headless_data.c" -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-opponent-menu menu/menu_opponent.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-opponent-menu menu/menu_opponent.c \
-    "$test_source_dir/legacy.c" "$test_source_dir/full_data.c" \
-    "$test_source_dir/full_strings.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/legacy.c" "$test_source_dir/data/full_data.c" \
+    "$test_source_dir/data/full_strings.c" "$test_source_dir/headless_data.c" \
     -DRESTUNTS_SDL3 -Wno-pointer-sign -Wno-missing-field-initializers
 run_host_test test-track-editor legacy.c \
     "$test_source_dir/headless_data.c" "$test_source_dir/headless_trackdata.c" \
-    "$test_source_dir/full_data.c" \
+    "$test_source_dir/data/full_data.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers -Wno-missing-braces
 run_host_test test-track-object track/trackobj.c "$test_source_dir/extended/extended_roll_ramp.c" "$test_source_dir/owoot/owoot_road.c" \
     "$test_source_dir/strlib.c" \
@@ -669,7 +669,7 @@ run_host_test test-pixldump-legacy-context ../pixldump/legacy_context.c
 run_host_test test-pixldump-native-context legacy.c
 
 run_host_test test-shape3d-render-residue shape3d/shape3d.c \
-    "$test_source_dir/full_data.c" "$test_source_dir/headless_data.c" \
+    "$test_source_dir/data/full_data.c" "$test_source_dir/headless_data.c" \
     "$test_source_dir/physics_collision.c" "$test_source_dir/math.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-field-initializers
 

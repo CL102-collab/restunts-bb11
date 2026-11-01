@@ -72,7 +72,7 @@ def main():
         ("test-startup", ["math.c", "car/carsetup.c", "hires/frame_adaptive.c", "owoot/owoot.c",
                           "track/trackobj.c", "statecar.c", "strlib.c", "physics_collision.c",
                           "physics_grip.c",
-                          "race/race_route.c", "full_data.c", "full_strings.c", "headless_data.c",
+                          "race/race_route.c", "data/full_data.c", "data/full_strings.c", "headless_data.c",
                           "legacy.c", "extended/extended_opponent.c", "extended/extended_trackobj.c",
                           "extended/extended_physics_collision.c", "extended/extended_race_route.c",
                           "extended/extended_menu_runtime.c", "extended/extended_validation.c",

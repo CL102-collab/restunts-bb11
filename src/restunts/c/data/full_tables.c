@@ -1,4 +1,4 @@
-#include "legacy.h"
+#include "../legacy.h"
 
 static legacy_u8 sphere_radii_data[780] = {
 	1,	2,	3,	3,	4,	4,	3,	4,	5,	5,	4,	5,	6,	6,	6,	4,	6,	6,	7,	7,	8,	5,	6,	7,

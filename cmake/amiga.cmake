@@ -132,10 +132,10 @@ add_executable(test-amiga-startup EXCLUDE_FROM_ALL
     "${core}/math.c" "${core}/math_rectangles.c" "${core}/owoot/owoot.c" "${core}/car/carsetup.c" "${core}/track/trackobj.c" "${core}/track/trackobj_road.c" "${core}/track/trackobj_stunts.c" "${core}/track/trackobj_queries.c"
     "${core}/extended/extended_opponent.c" "${core}/extended/extended_trackobj.c" "${core}/extended/extended_trackobj_solids.c"
     "${core}/statecar.c" "${core}/strlib.c" "${core}/physics_collision.c" "${core}/physics_suspension.c"
-    "${core}/physics_grip.c" "${core}/race/race_route.c" "${core}/full_data.c"
+    "${core}/physics_grip.c" "${core}/race/race_route.c" "${core}/data/full_data.c"
     "${core}/extended/extended_physics_collision.c" "${core}/extended/extended_race_route.c"
     "${core}/extended/extended_menu_runtime.c" "${core}/hires/track_preview_mode.c"
-    "${core}/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c"
+    "${core}/data/full_strings.c" "${core}/headless_data.c" "${core}/legacy.c"
     "${core}/extended/extended_math.c")
 configure_amiga_diagnostic(test-amiga-startup)
 
