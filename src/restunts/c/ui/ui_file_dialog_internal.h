@@ -2,6 +2,7 @@
 #define RESTUNTS_UI_FILE_DIALOG_INTERNAL_H
 #include "../legacy.h"
 #include "../game_input.h"
+#include "../extended/extended_ui_dialog.h"
 struct FILE_DIALOG {
 	legacy_s16 positions[40];
 	struct BUTTON_AREA hit_areas[10];
@@ -13,9 +14,7 @@ struct FILE_DIALOG {
 	legacy_u8 file_count;
 	legacy_u8 search_again;
 #ifdef RESTUNTS_SDL3
-	legacy_u8 extended[128];
-	legacy_u8 merge_formats;
-	const legacy_s8 *legacy_extension;
+	struct EXTENDED_FILE_DIALOG format;
 #endif
 };
 #endif

@@ -21,7 +21,7 @@
 #define FRAME_FENCE_NONE (-1)
 #define FRAME_CAMERA_TILE_SHIFT 10U
 #if defined(RESTUNTS_SDL3)
-#include "extended/extended_frame_limits.h"
+#include "extended/extended_frame_layout.h"
 #define FRAME_MAXIMUM_TILE_COUNT EXTENDED_FRAME_MAXIMUM_TILE_COUNT
 #else
 #define FRAME_MAXIMUM_TILE_COUNT FRAME_SUPERSIGHT_TILE_COUNT
@@ -66,8 +66,7 @@ struct FRAME_TILE_SELECTION {
 	legacy_u8 elements[FRAME_MAXIMUM_TILE_COUNT];
 	legacy_u8 terrain[FRAME_MAXIMUM_TILE_COUNT];
 #if defined(RESTUNTS_SDL3)
-	legacy_s16 index_by_world_tile[FRAME_MAXIMUM_TILE_COUNT];
-	legacy_s32 complete_tile_lookup;
+	struct EXTENDED_FRAME_TILE_LOOKUP extended_lookup;
 #endif
 };
 

@@ -2,38 +2,38 @@
 
 legacy_s8 RsGameInputShortcutsLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_1334;
+  legacy_s32 noreg temple_tmp_1322;
   if((value<=127)) {
-    temple_tmp_1334=TempleCastS32(TempleCastS8(value));
+    temple_tmp_1322=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_1334=TempleCastS32(TempleCastS8(
+    temple_tmp_1322=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_1334);
+  return TempleCastS8(temple_tmp_1322);
 }
 
 legacy_s16 RsGameInputShortcutsLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_1335;
+  legacy_s32 noreg temple_tmp_1323;
   if((value<=32767)) {
-    temple_tmp_1335=TempleCastS32(TempleCastS16(value));
+    temple_tmp_1323=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_1335=TempleCastS32(TempleCastS16(
+    temple_tmp_1323=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_1335);
+  return TempleCastS16(temple_tmp_1323);
 }
 
 legacy_s32 RsGameInputShortcutsLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_1336;
+  legacy_s32 noreg temple_tmp_1324;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_1336=TempleCastS32(TempleCastS32(value));
+    temple_tmp_1324=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_1336=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_1324=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_1336);
+  return TempleCastS32(temple_tmp_1324);
 }
 
 legacy_s16 RsGameInputShortcutsCameraAdjustCustomDirection(legacy_u16 direction)
@@ -75,18 +75,18 @@ legacy_s16 RsGameInputShortcutsCameraAdjustCustomDirection(legacy_u16 direction)
 
 legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
 {
-  legacy_s32 noreg temple_tmp_1337;
-  legacy_s8 *temple_tmp_1338;
-  legacy_u8 *temple_tmp_1339;
-  legacy_s8 *temple_tmp_1340;
+  legacy_s32 noreg temple_tmp_1325;
+  legacy_s8 *temple_tmp_1326;
+  legacy_u8 *temple_tmp_1327;
+  legacy_s8 *temple_tmp_1328;
   switch(key) {
     case-31488:
       if((fps_display_enabled==FRAME_FPS_DISPLAY_OFF)) {
-        temple_tmp_1337=TempleCastS32(FRAME_FPS_DISPLAY_ON);
+        temple_tmp_1325=TempleCastS32(FRAME_FPS_DISPLAY_ON);
       } else {
-        temple_tmp_1337=TempleCastS32(FRAME_FPS_DISPLAY_OFF);
+        temple_tmp_1325=TempleCastS32(FRAME_FPS_DISPLAY_OFF);
       }
-      (fps_display_enabled=TempleCastU8(temple_tmp_1337));
+      (fps_display_enabled=TempleCastU8(temple_tmp_1325));
       RsFrameFpsReset();
       (full_redraw_frames_remaining=TempleCastS8(TempleCastS8(video_page_count)));
       return TempleCastS16(1);
@@ -95,13 +95,13 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 68:
     case 100:
-      temple_tmp_1338=&(dashb_toggle);
-      ((*temple_tmp_1338)=TempleCastS8(((*temple_tmp_1338)^1)));
+      temple_tmp_1326=&(dashb_toggle);
+      ((*temple_tmp_1326)=TempleCastS8(((*temple_tmp_1326)^1)));
       return TempleCastS16(1);
     case 72:
     case 104:
-      temple_tmp_1339=&(rs_game_input_shortcuts_h_key_toggle);
-      ((*temple_tmp_1339)=TempleCastU8(((*temple_tmp_1339)^1)));
+      temple_tmp_1327=&(rs_game_input_shortcuts_h_key_toggle);
+      ((*temple_tmp_1327)=TempleCastU8(((*temple_tmp_1327)^1)));
       return TempleCastS16(1);
     case 77:
     case 109:
@@ -111,8 +111,8 @@ legacy_s16 RsGameInputShortcutsInputHandleDisplayShortcut(legacy_s16 key)
       return TempleCastS16(1);
     case 82:
     case 114:
-      temple_tmp_1340=&(replaybar_toggle);
-      ((*temple_tmp_1340)=TempleCastS8(((*temple_tmp_1340)^1)));
+      temple_tmp_1328=&(replaybar_toggle);
+      ((*temple_tmp_1328)=TempleCastS8(((*temple_tmp_1328)^1)));
       return TempleCastS16(1);
   }
   return TempleCastS16(0);
@@ -136,12 +136,12 @@ legacy_void RsCameraSelectMode(legacy_s8 mode)
   (cameramode=TempleCastS8(mode));
 }
 
-legacy_s16 temple_distances_1341[CUSTOM_CAMERA_PRESET_COUNT];
-MemSet(&temple_distances_1341,0,sizeof(temple_distances_1341));
+legacy_s16 temple_distances_1329[CUSTOM_CAMERA_PRESET_COUNT];
+MemSet(&temple_distances_1329,0,sizeof(temple_distances_1329));
 legacy_void RsGameInputShortcutsInputCycleCustomCamera()
 {
-  legacy_u8 *temple_tmp_1342;
-  legacy_u8 noreg temple_tmp_1343;
+  legacy_u8 *temple_tmp_1330;
+  legacy_u8 noreg temple_tmp_1331;
   if((cameramode!=CAMERA_MODE_CUSTOM)) {
     RsCameraSelectMode(TempleCastS8(CAMERA_MODE_CUSTOM));
     return;
@@ -155,12 +155,12 @@ legacy_void RsGameInputShortcutsInputCycleCustomCamera()
         &(rs_game_input_shortcuts_custom_camera_original),&(custom_camera),sizeof(CCustomCamera));
     (rs_game_input_shortcuts_custom_camera_original_dashboard=TempleCastS8(dashb_toggle));
   }
-  temple_tmp_1342=&(rs_game_input_shortcuts_custom_camera_preset);
-  temple_tmp_1343=*temple_tmp_1342;
-  *temple_tmp_1342=TempleCastU8((temple_tmp_1343+1));
-  temple_tmp_1343;
+  temple_tmp_1330=&(rs_game_input_shortcuts_custom_camera_preset);
+  temple_tmp_1331=*temple_tmp_1330;
+  *temple_tmp_1330=TempleCastU8((temple_tmp_1331+1));
+  temple_tmp_1331;
   (custom_camera.distance=
-          TempleCastS16(temple_distances_1341[rs_game_input_shortcuts_custom_camera_preset]));
+          TempleCastS16(temple_distances_1329[rs_game_input_shortcuts_custom_camera_preset]));
   (custom_camera.elevation_angle=TempleCastS16(TempleCastS32((80-TempleCastS32((2*16))))));
   (custom_camera.azimuth_angle=TempleCastS16(TempleCastS32((464+TempleCastS32((3*16))))));
   (dashb_toggle=TempleCastS8(0));
@@ -194,21 +194,21 @@ legacy_s16 RsGameInputShortcutsInputHandleCameraShortcut(legacy_s16 key)
 
 legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
 {
-  legacy_s32 noreg temple_tmp_1344;
-  legacy_s32 noreg temple_tmp_1345;
-  legacy_s32 noreg temple_tmp_1346;
-  legacy_s8 *temple_tmp_1347;
-  temple_tmp_1344=0;
+  legacy_s32 noreg temple_tmp_1332;
+  legacy_s32 noreg temple_tmp_1333;
+  legacy_s32 noreg temple_tmp_1334;
+  legacy_s8 *temple_tmp_1335;
+  temple_tmp_1332=0;
   if(RsGameInputShortcutsInputHandleDisplayShortcut(TempleCastS16(key))) {
-    temple_tmp_1344=1;
+    temple_tmp_1332=1;
   }
-  if(!temple_tmp_1344) {
-    temple_tmp_1344=0;
+  if(!temple_tmp_1332) {
+    temple_tmp_1332=0;
     if(RsGameInputShortcutsInputHandleCameraShortcut(TempleCastS16(key))) {
-      temple_tmp_1344=1;
+      temple_tmp_1332=1;
     }
   }
-  if(temple_tmp_1344) {
+  if(temple_tmp_1332) {
     return TempleCastS16(1);
   }
   switch(key) {
@@ -219,29 +219,29 @@ legacy_s16 RsHandleIngameKbShortcuts(legacy_s16 key)
       (race_exit_request=TempleCastU8(1));
       return TempleCastS16(1);
     case 116:
-      temple_tmp_1345=0;
+      temple_tmp_1333=0;
       if((follow_opponent_flag!=0)) {
-        temple_tmp_1345=1;
+        temple_tmp_1333=1;
       }
-      if(!temple_tmp_1345) {
-        temple_tmp_1345=0;
+      if(!temple_tmp_1333) {
+        temple_tmp_1333=0;
         if((gameconfig.game_opponenttype!=0)) {
-          temple_tmp_1345=1;
+          temple_tmp_1333=1;
         }
       }
-      temple_tmp_1346=0;
-      if(temple_tmp_1345) {
-        temple_tmp_1346=1;
+      temple_tmp_1334=0;
+      if(temple_tmp_1333) {
+        temple_tmp_1334=1;
       }
-      if(!temple_tmp_1346) {
-        temple_tmp_1346=0;
+      if(!temple_tmp_1334) {
+        temple_tmp_1334=0;
         if((RsGhostCarState()!=0)) {
-          temple_tmp_1346=1;
+          temple_tmp_1334=1;
         }
       }
-      if(temple_tmp_1346) {
-        temple_tmp_1347=&(follow_opponent_flag);
-        ((*temple_tmp_1347)=TempleCastS8(((*temple_tmp_1347)^1)));
+      if(temple_tmp_1334) {
+        temple_tmp_1335=&(follow_opponent_flag);
+        ((*temple_tmp_1335)=TempleCastS8(((*temple_tmp_1335)^1)));
       }
       return TempleCastS16(1);
   }

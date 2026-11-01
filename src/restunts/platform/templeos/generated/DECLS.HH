@@ -171,7 +171,7 @@ extern legacy_void RsTrackCollisionResourcesDecode(legacy_u8 *plane_source,legac
 extern legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv);
 extern legacy_s16 RsExtendedTrkutilRowPosition(legacy_u16 row,legacy_s16 *position);
 extern legacy_s16 RsExtendedTrkutilColumnPosition(legacy_u16 column,legacy_s16 *position);
-extern legacy_s16 RsExtendedTrkutilRowTableCount(legacy_s16 width,legacy_s16 height);
+extern legacy_void RsExtendedTrkutilInitRowTables();
 extern legacy_u8 RsExtendedTrkutilHorizon(legacy_u8 legacy_horizon);
 extern legacy_void RsOpponentRouteAdvance(legacy_s16 route_point);
 extern legacy_void RsUpdateOpponentTick();

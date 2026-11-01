@@ -5,12 +5,16 @@
 #include "race/race_stats.h"
 #include "car/car_speed.h"
 #include "track/track_types.h"
+#include "track/trackdata_layout.h"
 #include "track/track_objects.h"
 #include "track/track_collision.h"
 #include "wheel_transform.h"
 #include "camera.h"
 #include "car/car_resources.h"
 #include "residue.h"
+#ifdef RESTUNTS_SDL3
+#include "extended/extended_track.h"
+#endif
 
 /* Mutable engine state formerly allocated by dseg.asm. */
 struct GAMEINFO gameconfig;
@@ -72,9 +76,9 @@ struct GAMESTATE far *cvxptr;
 legacy_u16 legacy_closed_hihat_offset;
 
 #ifdef RESTUNTS_SDL3
-#define TRACK_POSITION_TABLE_CAPACITY 91
+#define TRACK_POSITION_TABLE_CAPACITY EXTENDED_TRACK_POSITION_TABLE_CAPACITY
 #else
-#define TRACK_POSITION_TABLE_CAPACITY 30
+#define TRACK_POSITION_TABLE_CAPACITY TRACK_GRID_SIZE
 #endif
 legacy_s16 trackrows[TRACK_POSITION_TABLE_CAPACITY];
 legacy_s16 terrainrows[TRACK_POSITION_TABLE_CAPACITY];

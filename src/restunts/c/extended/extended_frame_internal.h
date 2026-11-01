@@ -101,7 +101,7 @@ struct FRAME_EXTENDED_OBJECT {
 #define FRAME_TILE_MULTITILE_COVERED_MARKER 1
 #define FRAME_EXTENDED_LEGACY_ELEMENT_LIMIT 253
 
-#include "../hires/extended_frame_render.h"
+#include "extended_frame_render.h"
 
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
 											 const struct CSTRK_OBJECT *object);
