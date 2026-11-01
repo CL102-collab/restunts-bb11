@@ -284,8 +284,16 @@ legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *o
 										   const struct SHAPE3D *source, legacy_u8 surface)
 {
 	struct SHAPE3D mesh;
-	if (!extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
-										   object->definition->ss_physicalModel)) {
+	legacy_s16 transformed;
+	if (definition->ss_surfaceType < 0) {
+		transformed = extended_geometry_transform_shape_paint(
+			source, &mesh, definition->ss_rotY, surface, object->definition->ss_physicalModel,
+			(legacy_u16)frame_animated_material());
+	} else {
+		transformed = extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
+														object->definition->ss_physicalModel);
+	}
+	if (!transformed) {
 		return 0;
 	}
 	struct VECTOR anchor;
@@ -323,6 +331,9 @@ legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OBJECT *o
 		instance.rotvec.z = definition->ss_rotY;
 		instance.ts_flags |= definition->ss_ignoreZBias;
 		instance.material = overlay ? 0 : surface;
+		if (definition->ss_surfaceType < 0) {
+			instance.material = frame_animated_material();
+		}
 		return hires_track_queue_exhausted(
 			(legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges));
 	}

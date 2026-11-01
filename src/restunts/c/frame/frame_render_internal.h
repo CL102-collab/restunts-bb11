@@ -78,6 +78,7 @@ struct FRAME_TILE {
 	struct VECTOR position;
 };
 
+legacy_s8 frame_animated_material(void);
 extern const legacy_s8 fence_by_edge[FRAME_FENCE_EDGE_CLASS_COUNT][FRAME_FENCE_EDGE_CLASS_COUNT];
 void frame_prepare_flat_track_shape(struct TRANSFORMEDSHAPE3D *shape, legacy_s8 tile_east,
 									legacy_s8 tile_south, const struct VECTOR *camera_position,

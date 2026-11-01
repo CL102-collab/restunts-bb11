@@ -11,6 +11,7 @@
 #define EXTENDED_GEOMETRY_TERMINATOR_BYTES 2U
 #define EXTENDED_GEOMETRY_CATALOG_END 182U
 #define EXTENDED_GEOMETRY_AXIS_COUNT 2U
+#define EXTENDED_GEOMETRY_SCENERY_FIRST_MODEL 64
 
 static const legacy_u8 geometry_original_roads[][EXTENDED_GEOMETRY_AXIS_COUNT] = {
 	{4U, 5U}, {14U, 15U}, {24U, 25U}};
@@ -315,14 +316,25 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 									  legacy_s16 orientation, legacy_u16 surface,
 									  legacy_s16 physical_model)
 {
+	legacy_u16 paint =
+		physical_model >= EXTENDED_GEOMETRY_SCENERY_FIRST_MODEL ? CSTRK_ROAD_PAVED : surface;
+	return extended_geometry_transform_shape_paint(source, destination, orientation, surface,
+												   physical_model, paint);
+}
+
+legacy_s16 extended_geometry_transform_shape_paint(const struct SHAPE3D *source,
+												   struct SHAPE3D *destination,
+												   legacy_s16 orientation, legacy_u16 surface,
+												   legacy_s16 physical_model, legacy_u16 paint)
+{
 	static const legacy_u8 counts[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6, 3, 0, 0};
 	memset(destination, 0, sizeof(*destination));
 	if (source == 0 || source->shape3d_numverts == 0 || source->shape3d_numpaints == 0) {
 		return 0;
 	}
-	/* Scenery keeps its own paint and animation palette regardless of the
-	 * selected road surface. */
-	if (physical_model >= 64) {
+	/* Scenery keeps its authored animation palette regardless of the
+	 * selected road surface. Paint selection remains independent. */
+	if (physical_model >= EXTENDED_GEOMETRY_SCENERY_FIRST_MODEL) {
 		surface = CSTRK_ROAD_PAVED;
 	}
 	size_t primitive_bytes = EXTENDED_GEOMETRY_TERMINATOR_BYTES;
@@ -378,8 +390,8 @@ int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE
 	legacy_u8 *out = destination->shape3d_primitives;
 	for (unsigned i = 0; i < source->shape3d_numprimitives; i++) {
 		unsigned count = counts[primitive[0]];
-		legacy_u16 paint = surface < source->shape3d_numpaints ? surface : 0;
-		legacy_u8 material = primitive[2U + paint];
+		legacy_u16 selected_paint = paint < source->shape3d_numpaints ? paint : 0;
+		legacy_u8 material = primitive[2U + selected_paint];
 		/* Paint columns can animate a sign while every road face stays paved.
 		 * HyperVision remaps these unchanged faces while retaining native variants. */
 		if (surface != CSTRK_ROAD_PAVED &&
