@@ -227,7 +227,6 @@ legacy_s16 frame_position_camera(struct FRAME_CAMERA *camera, const struct VECTO
 								 const struct GHOST_CAMERA_STATE *ghost_camera);
 void frame_aim_external_camera(struct FRAME_CAMERA *camera, const struct VECTOR *car_pos);
 void frame_setup_camera(struct FRAME_CAMERA *camera);
-legacy_s8 frame_animated_material(void);
 const struct FRAME_LOOKAHEAD_TILE *frame_setup_projection(struct FRAME_CAMERA *camera,
 														  struct RECTANGLE *cliprect);
 legacy_s16 frame_background_camera_height(const struct FRAME_CAMERA *camera);
