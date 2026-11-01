@@ -170,9 +170,9 @@ legacy_s16 RsTrackobjQueriesSelectedWallContainsPoint(CVector *point,CMatrix *ro
       TempleCastS32(TempleDivideS64(TempleCastS32((TempleCastS32(rotation->m._31)*2)),16384))));
   temple_offset_z_7177=TempleCastS16(TempleCastS16(
       TempleCastS32(TempleDivideS64(TempleCastS32((TempleCastS32(rotation->m._33)*2)),16384))));
-  MemSet(&temple_probe_7178,0,sizeof(temple_probe_7178));
-  temple_probe_7178.x=TempleCastS16(temple_offset_x_7176);
-  temple_probe_7178.z=TempleCastS16(temple_offset_z_7177);
+  (temple_probe_7178.x=TempleCastS16(temple_offset_x_7176));
+  (temple_probe_7178.y=TempleCastS16(0));
+  (temple_probe_7178.z=TempleCastS16(temple_offset_z_7177));
   MemCpy(&temple_first_7179,&((*(point))),sizeof(CVector));
   MemCpy(&temple_second_7180,&((*(point))),sizeof(CVector));
   (temple_first_7179.x=TempleCastS16(

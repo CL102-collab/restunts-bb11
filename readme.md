@@ -174,8 +174,13 @@ configuration file:
 # DOS version (DOSBox-X only)
 ver=7.1
 
-# Put the shell into upper memory (DOSBox-X only)
+# Enable XMS and UMB so the shell and kernel can use upper memory.
+xms=true
+umb=true
+
+# Keep the shell and DOS kernel out of conventional memory (DOSBox-X only).
 shellhigh=true
+kernel allocation in umb=true
 
 # Enable long file name support (DOSBox-X only)
 lfn=true
@@ -184,6 +189,10 @@ lfn=true
 # Original dump tools need this space when loading large custom dashboards.
 minimum mcb free=1
 ```
+
+XMS and UMB must be enabled for the shell and kernel to load high. These settings
+leave enough conventional memory for large custom dashboards and their parsing
+workspace; `shellhigh=true` alone cannot do that when UMB is disabled.
 
 ### Replacement music
 
@@ -1771,8 +1780,10 @@ export ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-18
 export TSAN_OPTIONS=halt_on_error=1
 export UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1
 export RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS=600
+export RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=4
 cmake -S . -B out/sanitizer-address -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-    -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF
+    -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF \
+    -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
 cmake --build out/sanitizer-address --parallel 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     ctest --test-dir out/sanitizer-address --output-on-failure --no-tests=error --timeout 1800
@@ -1780,6 +1791,10 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
 
 Replace `address` with `thread` or `undefined` in both the flag and build
 directory for the other sanitizers, and use `CC=gcc` and `CXX=g++` to match CI.
+Set `RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=2` for UBSan or `20` for TSan,
+using the same value for the environment and CMake option. These budgets keep
+the complete evaluation counts and replay assertions under instrumentation, and
+also scale the native rendering fixture deadlines.
 Update `CXXFLAGS` to match `CFLAGS`. The host runner accepts `CFLAGS` and
 `LDFLAGS` as whitespace-separated arguments, without shell evaluation. TSan on
 Linux hosts with high ASLR entropy may need
@@ -1922,7 +1937,7 @@ This regression loads DIA3 for the player and CSIL for the opponent on
 remaining conventional memory. It checks page isolation and presentation, changes
 gears and gauges, and reloads the race to check drawing and resource release.
 It also requires that the conventional-memory race framebuffer is absent. Run it
-in both DOSBox and DOSBox-X; the latter has a smaller conventional-memory budget. The bundled game
-and custom car resources are copied to an isolated directory. The test links
+in both DOSBox and DOSBox-X using the recommended memory settings above. The bundled
+game and custom car resources are copied to an isolated directory. The test links
 all normal game objects; its small test entry makes its memory budget slightly
 stricter than the game.

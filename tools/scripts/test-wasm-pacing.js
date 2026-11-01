@@ -13,6 +13,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { setTimeout: pause } = require('node:timers/promises');
 const { chromium, firefox } = require('playwright');
+const { serveHtml } = require('./browser-test-server.js');
 
 const ROOT = path.resolve(__dirname, '../..');
 const TIMEOUT_MS = 30000;
@@ -31,8 +32,12 @@ function options() {
         if (name === 'help') {
             console.log('Usage: node tools/scripts/test-wasm-pacing.js ' +
                 '[--emcc COMMAND] [--sdl-include DIR] [--output DIR] ' +
-                '[--browser chromium|firefox] [--browser-executable FILE]');
+                '[--browser chromium|firefox] [--browser-executable FILE] [--serve]');
             process.exit(0);
+        }
+        if (name === 'serve') {
+            result.serve = true;
+            continue;
         }
         assert.ok(['emcc', 'sdl-include', 'output', 'browser', 'browser-executable'].includes(name),
             'Unknown option: ' + args[index]);
@@ -44,7 +49,7 @@ function options() {
     return result;
 }
 
-async function exercise(browser, fixture, hidden) {
+async function exercise(browser, url, hidden) {
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(String(error)));
@@ -102,7 +107,7 @@ async function exercise(browser, fixture, hidden) {
         window.requestAnimationFrame = () => 0;
     }, hidden);
     try {
-        await page.goto(pathToFileURL(fixture).href, { timeout: TIMEOUT_MS });
+        await page.goto(url, { timeout: TIMEOUT_MS });
         const started = Date.now();
         let report;
         do {
@@ -146,16 +151,20 @@ async function main() {
     const browser = await browserType.launch({
         headless: true, executablePath: settings['browser-executable'],
     });
+    const server = settings.serve ? await serveHtml(fixture) : undefined;
     try {
+        const url = server ? server.url : pathToFileURL(fixture).href;
         const reports = [];
         for (const hidden of [false, true]) {
-            reports.push(await exercise(browser, fixture, hidden));
+            reports.push(await exercise(browser, url, hidden));
         }
         await fs.writeFile(path.join(settings.output, 'results.json'),
             JSON.stringify(reports, null, 2) + '\n');
-        console.log('WebAssembly pacing: visible and hidden-document regressions passed');
+        console.log('WebAssembly pacing: visible and hidden-document regressions passed (' +
+            (settings.serve ? 'HTTP loopback' : 'file://') + ')');
     } finally {
         await browser.close();
+        if (server) await server.close();
     }
 }
 

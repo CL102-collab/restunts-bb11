@@ -182,7 +182,7 @@ legacy_s16 extended_track_setup_roadside_height(const struct TRACK_SETUP_WALK *w
 	return 0;
 }
 legacy_s16 extended_track_setup_camera_height(const struct TRACK_SETUP_WALK *walk,
-											  const struct VECTOR *vector, legacy_s16 *height)
+											  const struct VECTOR *vector, legacy_s16 far *height)
 {
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {

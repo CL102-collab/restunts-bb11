@@ -51,7 +51,10 @@ static legacy_s16 selected_wall_contains_point(struct VECTOR *point, struct MATR
 		(legacy_s16)((legacy_s32)rotation->m._31 * WALL_CONTACT_PROBE_DISTANCE / TRIG_FIXED_ONE);
 	legacy_s16 offset_z =
 		(legacy_s16)((legacy_s32)rotation->m._33 * WALL_CONTACT_PROBE_DISTANCE / TRIG_FIXED_ONE);
-	struct VECTOR probe = {offset_x, 0, offset_z};
+	struct VECTOR probe;
+	probe.x = offset_x;
+	probe.y = 0;
+	probe.z = offset_z;
 	struct VECTOR first = *point;
 	struct VECTOR second = *point;
 	first.x = LEGACY_S16_WRAP_ADD(first.x, probe.x);

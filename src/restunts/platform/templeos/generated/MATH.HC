@@ -132,7 +132,7 @@ legacy_s16 RsPolarAngle(legacy_s16 z,legacy_s16 y)
     }
     (temple_result_432=TempleCastS16(128));
   } else {
-    if((z>y)) {
+    if((TempleCastU16(z)>TempleCastU16(y))) {
       temple_coordinate_swap_433=TempleCastS16(z);
       (z=TempleCastS16(y));
       (y=TempleCastS16(temple_coordinate_swap_433));

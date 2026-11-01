@@ -28,7 +28,8 @@ enum TranslationStorageEnum {
     TRANSLATION_STORAGE_STEP = 2,
     TRANSLATION_STORAGE_EXPECTED = 1,
     TRANSLATION_STORAGE_FAILURE = 51,
-    TRANSLATION_VARIADIC_FAILURE = 52
+    TRANSLATION_VARIADIC_FAILURE = 52,
+    TRANSLATION_BUILTIN_INTEGER_FAILURE = 66
 };
 struct TranslationPair { legacy_u16 first; legacy_s16 second; };
 struct TranslationPacked { legacy_s8 value; legacy_u8 neighbor; legacy_u16 word; legacy_u32 doubleWord; };
@@ -113,6 +114,28 @@ static legacy_s32 TranslationPointerMatrix(legacy_s8 *values[][2])
 {
     return values[0][1][1] == 'n' && values[1][0][2] == 'f' &&
         values[1][1][0] == '/';
+}
+static legacy_s32 TranslationBuiltinIntegers(void)
+{
+    signed negative = -1;
+    unsigned counter = (unsigned)negative;
+    int unsigned reversed = (int unsigned)negative;
+    legacy_u32 all_bits = (legacy_u32)-1;
+    if (sizeof(unsigned) != sizeof(legacy_u32) || sizeof(signed) != sizeof(legacy_s32)) {
+        return 0;
+    }
+    if (counter != all_bits || reversed != all_bits || negative != (unsigned)negative) {
+        return 0;
+    }
+    counter++;
+    if (counter != 0 || (signed)all_bits != negative) { return 0; }
+    unsigned short int short_word = (short unsigned int)negative;
+    short signed int signed_word = (signed short int)short_word;
+    if (short_word != (legacy_u16)-1 || signed_word != negative) { return 0; }
+    long unsigned int wide = (unsigned long int)negative;
+    unsigned long long int widest = (long long int unsigned)negative;
+    if (wide != (legacy_u64)-1 || widest != (legacy_u64)-1) { return 0; }
+    return 1;
 }
 legacy_s32 TranslationSemantics(void)
 {
@@ -249,6 +272,7 @@ legacy_s32 TranslationSemantics(void)
     if (!TranslationScalarMatrix(matrix)) { return 64; }
     legacy_s8 *pointer_matrix[2][2] = {{"--fps:on", "/ns"}, {"--fps:on", "/ns"}};
     if (!TranslationPointerMatrix(pointer_matrix)) { return 65; }
+    if (!TranslationBuiltinIntegers()) { return TRANSLATION_BUILTIN_INTEGER_FAILURE; }
     return 0;
 }
 '''

@@ -16,6 +16,73 @@ LOADER.exec_module(TRANSLATE)
 
 
 class CleanupTests(unittest.TestCase):
+    def test_module_filenames_preserve_existing_short_names(self):
+        self.assertEqual(TRANSLATE.module_filename("frame"), "FRAME.HC")
+        self.assertEqual(TRANSLATE.module_filename("hires_frame_visibility"),
+                         "HIRES_FRAME_VISIBILITY.HC")
+
+    def test_long_module_filenames_fit_stock_fat_without_losing_identity(self):
+        modules = ["menu_track_editor_render", "menu_track_editor_input",
+                   "extended_physics_collision", "hires_track_preview_scene",
+                   "hires_track_preview_mode"]
+        filenames = TRANSLATE.module_filenames(modules)
+        self.assertEqual(set(filenames), set(modules))
+        self.assertEqual(len(set(filenames.values())), len(modules))
+        for module, filename in filenames.items():
+            with self.subTest(module=module):
+                self.assertLessEqual(len(filename), TRANSLATE.MODULE_FILENAME_LIMIT)
+                self.assertTrue(filename.isascii())
+                self.assertEqual(filename, TRANSLATE.module_filename(module))
+                self.assertTrue(filename.endswith(".HC"))
+        self.assertNotEqual(filenames["hires_track_preview_scene"],
+                            filenames["hires_track_preview_mode"])
+
+    def test_module_filename_collisions_fail_before_output_is_overwritten(self):
+        with patch.object(TRANSLATE, "module_filename", return_value="COLLISION.HC"):
+            with self.assertRaisesRegex(ValueError, "filename collision"):
+                TRANSLATE.module_filenames(["first", "second"])
+
+    def test_translation_rejects_filename_collisions_before_any_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(TRANSLATE, "prepare_sources", return_value=Path(directory)), \
+                    patch.object(TRANSLATE, "source_names", return_value=["first", "second"]), \
+                    patch.object(TRANSLATE.subprocess, "run", return_value=
+                                 subprocess.CompletedProcess([], 0, stdout="", stderr="")), \
+                    patch.object(TRANSLATE, "module_filename", return_value="COLLISION.HC"), \
+                    patch.object(TRANSLATE, "write") as write, patch("builtins.print"):
+                with self.assertRaisesRegex(ValueError, "filename collision"):
+                    TRANSLATE.translate("cpp")
+                write.assert_not_called()
+
+    def test_obsolete_module_cleanup_preserves_unrelated_generated_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            old = output / "MENU_TRACK_EDITOR_RENDER.HC"
+            current = output / TRANSLATE.module_filename("menu_track_editor_render")
+            unrelated = output / "UNRELATED_LONG_GENERATED_MODULE.HC"
+            for path in (old, current, unrelated):
+                path.write_text("generated")
+            with patch.object(TRANSLATE, "GEN", output), \
+                    patch.object(TRANSLATE, "CHECK", False):
+                TRANSLATE.remove_obsolete_module_output("menu_track_editor_render", current.name)
+            self.assertFalse(old.exists())
+            self.assertTrue(current.exists())
+            self.assertTrue(unrelated.exists())
+
+    def test_obsolete_module_check_reports_without_deleting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            old = output / "MENU_TRACK_EDITOR_RENDER.HC"
+            old.write_text("generated")
+            with patch.object(TRANSLATE, "GEN", output), \
+                    patch.object(TRANSLATE, "CHECK", True), \
+                    patch.object(TRANSLATE, "MISMATCHES", []):
+                TRANSLATE.remove_obsolete_module_output(
+                    "menu_track_editor_render", TRANSLATE.module_filename("menu_track_editor_render"))
+                self.assertEqual(TRANSLATE.MISMATCHES,
+                                 [old.name + " (obsolete module output)"])
+            self.assertTrue(old.exists())
+
     def test_metadata_check_accepts_git_checkout_line_endings(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

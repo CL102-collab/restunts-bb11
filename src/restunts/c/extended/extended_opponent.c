@@ -287,7 +287,7 @@ void extended_opponent_route_speed(legacy_s16 track_index, legacy_u16 id, legacy
 	(void)lookup;
 #endif
 }
-legacy_s16 extended_opponent_load_route(const legacy_u8 *costs, void far *resource)
+legacy_s16 extended_opponent_load_route(const legacy_u8 far *costs, void far *resource)
 {
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
