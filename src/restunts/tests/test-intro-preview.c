@@ -32,7 +32,7 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 #include "../c/shape2d/shape2d.h"
 #include "../c/scene_resources.h"
 #include "../c/skybox.h"
-#include "../c/projection.h"
+#include "../c/math/projection.h"
 #include "../c/menu/menu_internal.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"

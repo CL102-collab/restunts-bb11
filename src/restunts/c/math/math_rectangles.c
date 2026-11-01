@@ -5,7 +5,7 @@
 #include "../fatal.h"
 #include "../track/track_collision.h"
 #include "../wheel_transform.h"
-#include "../projection.h"
+#include "projection.h"
 
 #ifndef RESTUNTS_HEADLESS
 

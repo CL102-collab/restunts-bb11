@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_PROJECTION_H
 #define RESTUNTS_PROJECTION_H
 
-#include "math/math.h"
+#include "math.h"
 
 extern struct MATRIX mat_temp;
 extern legacy_u16 projection_center_x;

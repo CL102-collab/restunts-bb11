@@ -10,7 +10,7 @@
 #include "../track/trackdata_layout.h"
 #include "../skybox.h"
 #include "../platform.h"
-#include "../projection.h"
+#include "../math/projection.h"
 #include "../externs.h"
 #define TRACK_PREVIEW_SCREEN_WIDTH 320
 #define TRACK_PREVIEW_SCREEN_HEIGHT 200

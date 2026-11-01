@@ -20,7 +20,7 @@
 #endif
 #include "../car/car_model.h"
 #include "../scene_resources.h"
-#include "../projection.h"
+#include "../math/projection.h"
 #include "../skybox.h"
 #include "../race/race_graphics.h"
 #include "../platform.h"
