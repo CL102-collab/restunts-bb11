@@ -2,7 +2,7 @@
 #include "audio_internal.h"
 #include "../externs.h"
 #include "../game_input.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../legacy.h"
 #include "../math.h"
 #include "../platform.h"

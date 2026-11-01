@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../c/ghost.h"
+#include "../c/ghost/ghost.h"
 #include "../c/externs.h"
 #define EXTENDED_TEST_GHOST_STUBS
 #include "extended-replay-test-stubs.h"

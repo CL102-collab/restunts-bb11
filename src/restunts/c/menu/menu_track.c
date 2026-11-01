@@ -21,7 +21,7 @@
 #include "menu_common.h"
 #include "../externs.h"
 #include "../keyboard.h"
-#include "../ghost.h"
+#include "../ghost/ghost.h"
 #include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/track_menu_preview.h"

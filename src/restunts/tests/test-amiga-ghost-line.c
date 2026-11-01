@@ -4,8 +4,8 @@
 #include <string.h>
 
 /* Keep the real Amiga arithmetic and discard unrelated platform code at link. */
-#include "../c/ghost.c"
-#include "../c/ghost_line.c"
+#include "../c/ghost/ghost.c"
+#include "../c/ghost/ghost_line.c"
 
 #undef printf
 #undef memcpy

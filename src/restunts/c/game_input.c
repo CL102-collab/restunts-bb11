@@ -10,7 +10,7 @@
 #include "crash_state.h"
 #include "camera.h"
 #include "externs.h"
-#include "ghost.h"
+#include "ghost/ghost.h"
 #include "frame/frame_internal.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
