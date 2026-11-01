@@ -160,6 +160,13 @@ The **Scenery** group includes **Pine trees (10)** and **Pine trees (5)**. Each
 occupies one tile with differently sized pines scattered in a fixed, irregular
 layout. Rotate the element to turn its layout. Both groups support straight
 inclines and require `.cstrk` v9.
+Selecting either group shows **Brush size** above **Ready to build**, with
+**1x1**, **2x2**, **4x4** and **8x8** choices. Click or drag to fill that square
+with one selected pine group per empty compatible tile, starting at the hovered
+tile and clipping at the map edges. Occupied tiles and unsupported hill corners
+are skipped. Each group uses its tile's own elevation and slope. Rotation applies
+to every group, and the stroke undoes as one edit. Other scenery and track pieces
+keep single-element placement. Pine, Paint and Level brush sizes are independent.
 
 The **Stunts** group includes **Tunnel with slalom**, combining the tunnel shell
 and slalom barriers in one tile. It supports all four directions, every road
