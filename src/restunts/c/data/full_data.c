@@ -13,7 +13,7 @@
 #include "../race/race_stats.h"
 #include "../track/track_types.h"
 #include "../camera.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../car/car_model.h"
 #include "../scene_resources.h"
 #include "../projection.h"

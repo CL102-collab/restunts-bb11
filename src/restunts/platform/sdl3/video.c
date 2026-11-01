@@ -1,4 +1,4 @@
-#include "../../c/video_framebuffer.h"
+#include "../../c/video/video_framebuffer.h"
 #include "sdl3.h"
 #include "touch.h"
 #include "soft_keyboard.h"

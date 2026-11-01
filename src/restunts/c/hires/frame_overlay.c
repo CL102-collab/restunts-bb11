@@ -4,7 +4,7 @@
 #include "../ui/ui_text.h"
 #include "../externs.h"
 #include "../platform.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 
 #define FPS_TEXT_SUPERSIGHT_TARGET 60U
 #ifdef RESTUNTS_SDL3

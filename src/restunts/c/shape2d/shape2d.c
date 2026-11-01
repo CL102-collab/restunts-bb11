@@ -9,7 +9,7 @@
 #include "shape2d.h"
 #include "shape2d_internal.h"
 #include "../ui/ui_text.h"
-#include "../video_pages.h"
+#include "../video/video_pages.h"
 
 extern legacy_u16 fontdefseg;
 

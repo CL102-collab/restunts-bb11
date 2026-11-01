@@ -7,7 +7,7 @@
 #include "../c/platform.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/shape2d/shape2d_internal.h"
-#include "../c/video_pages.h"
+#include "../c/video/video_pages.h"
 
 #define TEST_PAGE_PIXELS 65536UL
 #define TEST_VISIBLE_PIXELS 64000U

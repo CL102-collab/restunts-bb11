@@ -3,7 +3,7 @@
 
 #include <SDL3/SDL.h>
 #include "../../c/legacy.h"
-#include "../../c/video_frame.h"
+#include "../../c/video/video_frame.h"
 #include "video_game.h"
 
 #define SDL3_SCREEN_WIDTH 320

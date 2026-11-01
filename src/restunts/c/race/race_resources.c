@@ -32,7 +32,7 @@
 #include "../audio/audio_control.h"
 #include "../car/car_resources.h"
 #include "../externs.h"
-#include "../video_pages.h"
+#include "../video/video_pages.h"
 #ifdef RESTUNTS_AMIGA
 #include "../shape2d/shape2d_internal.h"
 #endif

@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_VIDEO_FRAMEBUFFER_H
 #define RESTUNTS_VIDEO_FRAMEBUFFER_H
 
-#include "legacy.h"
+#include "../legacy.h"
 
 #define VIDEO_FRAMEBUFFER_WIDTH 320
 #define VIDEO_FRAMEBUFFER_HEIGHT 200

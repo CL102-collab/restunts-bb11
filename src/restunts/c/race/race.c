@@ -30,7 +30,7 @@
 #include "../crash_state.h"
 #include "../track/track_objects.h"
 #include "../camera.h"
-#include "../video_frame.h"
+#include "../video/video_frame.h"
 #include "../car/car_audio.h"
 #include "../audio/audio_control.h"
 #include "../externs.h"

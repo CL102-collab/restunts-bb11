@@ -160,7 +160,7 @@ generic_render_companions() {
         frame_overlay.c) printf '%s\n' frame/frame_fps.c hires/frame_overlay.c ;;
         frame_terrain.c) printf '%s\n' frame/frame_terrain.c ;;
         frame_visibility.c) printf '%s\n' frame/frame_terrain.c ;;
-        hires.c) printf '%s\n' video_framebuffer.c ;;
+        hires.c) printf '%s\n' video/video_framebuffer.c ;;
     esac
 }
 
@@ -536,7 +536,7 @@ run_host_test test-shape2d-render shape2d/shape2d.c \
     "$test_source_dir/shape2d/shape2d_blit.c" "$test_source_dir/shape2d/shape2d_resources.c" \
     "$test_source_dir/data/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \
     -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers -Wno-unused-variable
-run_host_test test-video-pages video_pages.c -DRESTUNTS_VGA_TEST
+run_host_test test-video-pages video/video_pages.c -DRESTUNTS_VGA_TEST
 run_host_test test-shape2d-planar shape2d/shape2d.c \
     "$test_source_dir/shape2d/shape2d_blit.c" "$test_source_dir/shape2d/shape2d_resources.c" \
     "$test_source_dir/data/full_data.c" "$test_source_dir/resource.c" "$test_source_dir/legacy.c" \

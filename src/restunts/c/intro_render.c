@@ -7,7 +7,7 @@
 #include "shape3d/shape3d.h"
 #include "game_input.h"
 #include "track/track_objects.h"
-#include "video_frame.h"
+#include "video/video_frame.h"
 #include "opponent/opponent.h"
 #include "projection.h"
 #include "externs.h"
