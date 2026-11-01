@@ -3,13 +3,16 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="An offline 2D track editor for Chocolate Stunts, with extended terrain and track formats.">
+    <meta name="description" content="An offline track editor for Chocolate Stunts, with WebGL 3D preview and extended terrain and track formats.">
     <title>Track editor · Chocolate Stunts</title>
     <link rel="stylesheet" href="track-editor.css">
     <script defer src="track-editor-model.js"></script>
     <script defer src="track-editor-resources.js"></script>
     <script defer src="track-editor-route-data.js"></script>
     <script defer src="track-editor-validation.js"></script>
+    <script defer src="track-editor-scene-data.js"></script>
+    <script defer src="track-editor-scene.js"></script>
+    <script defer src="track-editor-preview.js"></script>
     <script defer src="track-editor.js"></script>
 </head>
 <body>
@@ -152,16 +155,23 @@
         <section class="workspace" aria-label="Track canvas">
             <div class="canvas-toolbar">
                 <button id="sidebar-toggle" type="button" aria-controls="editor-sidebar" aria-expanded="true" title="Hide or show the editor controls"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-chevron"></use></svg><span id="sidebar-toggle-label">Hide tools</span></button>
-                <div class="workspace-label"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Track canvas</span><span class="view-badge">2D</span></div>
-                <div class="display-options"><label class="display-toggle" title="Show tile grid"><input id="show-grid" type="checkbox" checked><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-grid"></use></svg><span>Grid</span></label><label class="display-toggle" title="Show terrain heights"><input id="show-heights" type="checkbox"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg><span>Heights</span></label></div>
-                <div class="toolbar-divider"></div>
-                <div class="view-controls"><button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-minus"></use></svg></button><output id="zoom-value">100%</output><button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-plus"></use></svg></button><button id="fit-map" type="button" title="Fit entire track" aria-label="Fit entire track"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-fit"></use></svg></button></div>
+                <div class="workspace-label"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span class="workspace-title" id="workspace-title">Track canvas</span><div class="view-switch" role="group" aria-label="Track view"><button id="view-2d" type="button" aria-pressed="true" disabled>2D editor</button><button id="view-3d" type="button" aria-pressed="false" disabled>3D preview</button></div></div>
+                <div id="map-display-options" class="display-options"><label class="display-toggle" title="Show tile grid"><input id="show-grid" type="checkbox" checked><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-grid"></use></svg><span>Grid</span></label><label class="display-toggle" title="Show terrain heights"><input id="show-heights" type="checkbox"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-layers"></use></svg><span>Heights</span></label></div>
+                <div id="map-toolbar-divider" class="toolbar-divider"></div>
+                <div id="map-view-controls" class="view-controls"><button id="zoom-out" type="button" title="Zoom out" aria-label="Zoom out"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-minus"></use></svg></button><output id="zoom-value">100%</output><button id="zoom-in" type="button" title="Zoom in" aria-label="Zoom in"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-plus"></use></svg></button><button id="fit-map" type="button" title="Fit entire track" aria-label="Fit entire track"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-fit"></use></svg></button></div>
+                <button id="preview-reset" class="preview-reset" type="button" hidden title="Return to the starting camera position">Reset camera</button>
             </div>
             <div id="canvas-container" class="canvas-container">
                 <canvas id="track-canvas" tabindex="0" aria-label="2D track editing canvas. Use arrow keys to move and Enter to place; use the controls for terrain and elements."></canvas>
                 <div class="canvas-tool-indicator"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-build"></use></svg><span id="canvas-mode">BUILD TRACK · 2D</span></div>
                 <div class="map-compass" aria-hidden="true"><span>N</span><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-compass"></use></svg></div>
                 <div class="minimap-panel"><div class="minimap-heading"><svg class="icon " aria-hidden="true" focusable="false"><use href="#i-map"></use></svg><span>Navigator</span><span class="status-dot"></span></div><canvas id="minimap" width="156" height="156" aria-label="Track overview. Click or drag to move the view."></canvas><span id="minimap-caption">90 × 90 tiles</span></div>
+                <div id="preview-view" class="preview-view" hidden>
+                    <canvas id="preview-canvas" tabindex="0" aria-label="3D track preview. Click for mouse look; WASD moves, Space rises, Shift descends. Alt or Caps Lock runs at three times speed. Escape releases the mouse." aria-describedby="preview-controls"></canvas>
+                    <div class="preview-heading"><span class="preview-badge">GHOST CAMERA</span><output id="preview-speed">Walking · 1×</output></div>
+                    <p id="preview-message" class="preview-message" role="status" aria-live="polite">Loading 3D preview…</p>
+                    <div id="preview-controls" class="preview-controls"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span><span><kbd>Space</kbd> up · <kbd>Shift</kbd> down</span><span><kbd>Alt</kbd> / Caps Lock · 3× speed</span><span>Click for mouse look · <kbd>Esc</kbd> release</span></div>
+                </div>
                 <div id="canvas-empty" class="canvas-empty"><span class="eyebrow">YOUR NEXT GREAT TRACK</span><h1>A little imagination.<br>A lot more room.</h1><p>90 × 90 tiles. Four terrain levels.<br>Every corner is a possibility.</p></div>
             </div>
             <footer class="statusbar"><span class="status-dot"></span><span id="status" role="status" aria-live="polite">Connect your Stunts folder to start building.</span><span id="cursor-position">—</span><span id="object-count">0 elements</span><span class="status-format">.cstrk</span></footer>

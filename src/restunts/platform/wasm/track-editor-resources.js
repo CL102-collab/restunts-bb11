@@ -22,6 +22,8 @@
         [130, 80, 192], [-220, 80, 152], [-350, -190, 168], [-90, -300, 120],
         [200, -260, 160], [350, -110, 136]];
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
+    const RGB_PALETTE_SIZE = 256 * 3, PALETTE_HEADER_SIZE = 16;
+    const COMPRESSED_RESOURCE_EXTENSIONS = new Set(['pre', 'pvs', 'pes', 'xvs', 'p3s']);
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
     function read24(a, p) { return a[p] | (a[p + 1] << 8) | (a[p + 2] << 16); }
@@ -312,25 +314,51 @@
         }
         return rgba;
     }
-    async function load(files) {
+    function normalizeFiles(files) {
         const normalized = new Map();
         for (const [name, value] of files) normalized.set(name.toLowerCase(), value);
-        async function read(name, extensions) {
-            for (const extension of extensions) {
-                const filename = name + '.' + extension, value = normalized.get(filename);
-                if (value) {
+        return normalized;
+    }
+    async function readResource(files, name, extensions) {
+        for (const extension of extensions) {
+            const filename = name + '.' + extension, value = files.get(filename);
+            if (value) {
+                try {
                     let data = bytes(value.arrayBuffer ? await value.arrayBuffer() : value);
-                    if (['pre', 'pvs', 'pes', 'xvs'].includes(extension)) data = decompress(data);
+                    if (COMPRESSED_RESOURCE_EXTENSIONS.has(extension)) data = decompress(data);
                     return { directory: resourceDirectory(data), extension };
-                }
+                } catch (error) { fail('Cannot read ' + filename.toUpperCase() + ': ' + error.message); }
             }
-            fail('Select a Stunts folder containing ' + name.toUpperCase() + ' game resources.');
         }
-        const text = await read('tedit', ['res', 'pre']), shapes = await read('sdtedit', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
-        const main = await read('sdmain', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
+        fail('Select a Stunts folder containing ' + name.toUpperCase() + ' game resources (' +
+            extensions.map(extension => name.toUpperCase() + '.' + extension.toUpperCase()).join(' or ') + ').');
+    }
+    async function loadPalette(files) {
+        const main = await readResource(files, 'sdmain', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
         const colorShape = main.directory.get('!pal');
-        if (!colorShape || colorShape.length < 784) fail('The selected folder is missing its VGA palette.');
-        const rgbPalette = colorShape.slice(16, 784).map(n => ((n & 63) << 2) | ((n & 63) >>> 4));
+        if (!colorShape || colorShape.length < PALETTE_HEADER_SIZE + RGB_PALETTE_SIZE)
+            fail('The selected folder is missing its VGA palette.');
+        return colorShape.slice(PALETTE_HEADER_SIZE, PALETTE_HEADER_SIZE + RGB_PALETTE_SIZE)
+            .map(n => ((n & 63) << 2) | ((n & 63) >>> 4));
+    }
+    async function load3D(files, palette) {
+        const normalized = normalizeFiles(files), models = new Map();
+        // The game searches GAME1 before GAME2; duplicate names such as zban
+        // intentionally have different geometry in the two archives.
+        for (const name of ['game1', 'game2']) {
+            const resource = await readResource(normalized, name, ['3sh', 'p3s']);
+            for (const [id, shape] of resource.directory) if (!models.has(id)) models.set(id, shape);
+        }
+        if (!models.size) fail('The selected folder has no 3D track models.');
+        const rgbPalette = palette === undefined ? await loadPalette(normalized) : bytes(palette);
+        if (rgbPalette.length !== RGB_PALETTE_SIZE) fail('The 3D preview requires a complete VGA palette.');
+        return { models, palette: rgbPalette };
+    }
+    async function load(files) {
+        const normalized = normalizeFiles(files);
+        const read = (name, extensions) => readResource(normalized, name, extensions);
+        const text = await read('tedit', ['res', 'pre']), shapes = await read('sdtedit', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
+        const rgbPalette = await loadPalette(normalized);
         const shapeNames = text.directory.get('snam'), maskNames = text.directory.get('mnam'), pages = text.directory.get('pbox');
         if (!shapeNames || !maskNames || shapeNames.length < 186 * 4 || maskNames.length < 186 * 4 || !pages || pages.length < 396)
             fail('The selected folder has incomplete track editor resources.');
@@ -348,5 +376,5 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap };
+    return { load, load3D, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap };
 }));

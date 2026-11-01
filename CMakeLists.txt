@@ -591,6 +591,10 @@ if(RESTUNTS_BUILD_TESTS)
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor.js")
         add_test(NAME html-track-validation COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-validation.js")
+        foreach(editor_feature scene preview 3d-resources)
+            add_test(NAME html-track-${editor_feature} COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-${editor_feature}.js")
+        endforeach()
         if(NOT CMAKE_CROSSCOMPILING)
             add_executable(editor-route-oracle src/restunts/tests/editor-route-oracle.c)
             target_link_libraries(editor-route-oracle PRIVATE restunts_game)
@@ -749,6 +753,8 @@ if(RESTUNTS_BUILD_TESTS)
         if(Python3_Interpreter_FOUND)
             add_test(NAME html-track-route-data COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-route-data.py" --check)
+            add_test(NAME html-track-scene-data COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-scene-data.py" --check)
             add_test(NAME opl-trace-renderer COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-opl-trace.py")
             add_test(NAME skybox-assets COMMAND "${Python3_EXECUTABLE}"

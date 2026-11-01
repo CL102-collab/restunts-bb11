@@ -6,7 +6,8 @@ set(restunts_editor_html "${CMAKE_CURRENT_BINARY_DIR}/tracked.html")
 set(restunts_editor_inputs "${restunts_editor_builder}")
 foreach(editor_file track-editor.html track-editor.css track-editor.js
         track-editor-model.js track-editor-resources.js
-        track-editor-route-data.js track-editor-validation.js)
+        track-editor-route-data.js track-editor-validation.js
+        track-editor-scene-data.js track-editor-scene.js track-editor-preview.js)
     list(APPEND restunts_editor_inputs "${restunts_editor_source}/${editor_file}")
 endforeach()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${restunts_editor_inputs})
