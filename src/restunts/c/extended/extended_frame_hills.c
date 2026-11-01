@@ -3,10 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 x, legacy_s16 y)
+legacy_u8 hires_frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 x,
+										  legacy_s16 y)
 {
 	struct CSTRK_TERRAIN_PROFILE profile;
-	if (supersight_enabled == 0 ||
+	if (hires_active == 0 ||
 		!cstrk_terrain_profile(track, (legacy_u16)x, (legacy_u16)y, &profile) ||
 		profile.terrain_id < CSTRK_TERRAIN_PROFILE_NORTH) {
 		return 0;
@@ -40,7 +41,7 @@ legacy_u8 frame_extended_hill_edges(const struct CSTRK_TRACK *track, legacy_s16 
  * have independently rounded (and occasionally incorrect) heights, visible as
  * dips in HyperVision. Drape them onto their corrected road instead of retaining
  * those offsets. Curbs and horizontal spans keep their authored heights. */
-void frame_extended_align_hill_markings(struct SHAPE3D *mesh)
+void hires_frame_extended_align_hill_markings(struct SHAPE3D *mesh)
 {
 	const legacy_u8 *primitive = mesh->shape3d_primitives;
 	struct VECTOR origin = {0};
@@ -90,8 +91,8 @@ void frame_extended_align_hill_markings(struct SHAPE3D *mesh)
 /* The narrow, inclined first face of a native hill-road mesh is its road.
  * Give the pavement and curbs a uniform grid-sized run, while retaining the
  * surrounding terrain boundary's overlap at unrelated hills and corners. */
-legacy_u8 frame_extended_road_grade_edges(const struct SHAPE3D *source, legacy_s16 yaw,
-										  legacy_u8 edges)
+legacy_u8 hires_frame_extended_road_grade_edges(const struct SHAPE3D *source, legacy_s16 yaw,
+												legacy_u8 edges)
 {
 	const legacy_u8 *primitive = source->shape3d_primitives;
 	legacy_u16 count = primitive[0];
@@ -146,7 +147,8 @@ legacy_u8 hires_track_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, lega
 	if (edges == 0 || source->shape3d_numverts > LEGACY_U8_MAX) {
 		return 0;
 	}
-	legacy_u8 grade_edges = frame_extended_road_grade_edges(source, instance->rotvec.z, edges);
+	legacy_u8 grade_edges =
+		hires_frame_extended_road_grade_edges(source, instance->rotvec.z, edges);
 	struct TRANSFORMEDSHAPE3D adjusted = *instance;
 	/* Resource vertex counts occupy one byte. Queueing copies transformed
 	 * vertices, so the original resource remains intact. */
@@ -170,7 +172,7 @@ legacy_u8 hires_track_queue_hill_shape(struct TRANSFORMEDSHAPE3D *instance, lega
 		shape3d_vertex_write(&mesh, index, &point);
 	}
 	if (grade_edges != 0) {
-		frame_extended_align_hill_markings(&mesh);
+		hires_frame_extended_align_hill_markings(&mesh);
 	}
 	adjusted.shapeptr = &mesh;
 	*result = shape3d_transform_and_queue(&adjusted);

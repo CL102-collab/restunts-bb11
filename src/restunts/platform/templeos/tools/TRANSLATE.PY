@@ -39,9 +39,6 @@ NATIVE_PRERENDER_FUNCTIONS = {
     "preRender_default", "preRender_default_alt", "preRender_patterned",
     "preRender_two_color", "preRender_line", "preRender_sphere",
 }
-NATIVE_RASTER_API = {
-    "hires_forget_range": "TempleRasterForgetRange",
-}
 RASTER_SOURCE_FUNCTIONS = {
     "shape2d_render_rle", "shape2d_render_rle_clipped",
     "sprite_putimage_at", "sprite_shape_to_1_impl",
@@ -208,9 +205,6 @@ def prepare_sources(folder):
         if "build" in relative.parts:
             continue
         text = path.read_text()
-        # Native raster services follow their API when C helpers move between files.
-        for source_name, native_name in NATIVE_RASTER_API.items():
-            text = re.sub(r"\b" + source_name + r"\b", native_name, text)
         # These branches describe flat-pointer storage rather than SDL features.
         if path.name == "shape2d_internal.h":
             text = text.replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
@@ -251,10 +245,13 @@ def prepare_sources(folder):
             text, count = re.subn(r'static const legacy_s8 command_line_help\[\] =.*?COMMAND_LINE_NEWLINE;', lambda match: replacement, text, flags=re.S)
             if count != 1:
                 raise ValueError("TempleOS startup help adaptation missing")
-        if path.name == "memmgr.c" or relative == Path("hires/memory.h"):
-            # Native invalidation uses TempleRaster services without SDL raster types.
-            text = re.sub(r'^#include "(?:hires/)?hires\.h"[^\n]*', '', text, flags=re.M)
         if path.name == "memmgr.c":
+            # Native companion storage belongs to the TempleOS rasterizer.
+            text = text.replace('#include "hires/memory.h"',
+                                'void TempleRasterForgetParagraphs(legacy_u16 segment, legacy_u16 paragraphs);\n'
+                                'void TempleRasterResizeParagraphs(legacy_u16 segment, legacy_u16 previous, legacy_u16 paragraphs);')
+            text = text.replace("hires_forget_paragraphs", "TempleRasterForgetParagraphs")
+            text = text.replace("hires_resize_paragraphs", "TempleRasterResizeParagraphs")
             text = text.replace("RESTUNTS_SDL3", "RESTUNTS_TEMPLEOS")
         native_functions = {
             "shape2d.c": ["shape2d_get_line_offset", "shape2d_line_pointer"],
@@ -1421,10 +1418,10 @@ def translate(cpp):
         for name, text in FAKE_HEADERS.items():
             (headers / name).write_text(text)
         for source_name in source_names() + ["memory"]:
-            # Keep existing module names stable. Enhanced companions can share
-            # their basename with classic sources, so include their folder in
-            # the generated module name and static-symbol prefix.
-            module = (source_name.replace("/", "_") if source_name.startswith("hires/")
+            # Renderer companions can share basenames with classic sources, so
+            # include their folder in generated modules and static symbols.
+            module = (source_name.replace("/", "_") if source_name.startswith(
+                ("hires/", "supersight/", "renderer/"))
                       else Path(source_name).name)
             if module == "dosstart":
                 continue

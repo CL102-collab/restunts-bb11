@@ -76,7 +76,7 @@ static struct BUTTON_AREA pointer_area;
 #define FIXTURE_DECODE_FAILURE_DRAW 3U
 #define FIXTURE_SHORTCUT_COUNT 3U
 
-static legacy_u8 movie_available, display_shortcuts, hires_active;
+static legacy_u8 movie_available, display_shortcuts, hires_raster_active;
 static legacy_u8 movie_loaded, movie_won, movie_drawn, fallback_pending;
 static legacy_u32 movie_draws, movie_unloads, original_draws, previous_original_draws;
 static legacy_u32 fallback_restorations, movie_draws_between_originals, display_shortcut_count;
@@ -84,7 +84,7 @@ static legacy_u32 movie_failure_draw;
 
 legacy_s32 hires_enabled(void)
 {
-	return hires_active;
+	return hires_raster_active;
 }
 
 void opponent_animation_load(legacy_u8 opponent, legacy_u8 won)
@@ -122,9 +122,9 @@ legacy_s32 opponent_animation_draw(const struct SPRITE *target, legacy_s16 x, le
 	}
 	previous_original_draws = original_draws;
 	movie_draws++;
-	legacy_u8 drawn = movie_available != 0 && hires_active != 0 &&
+	legacy_u8 drawn = movie_available != 0 && hires_raster_active != 0 &&
 					  (movie_failure_draw == 0 || movie_draws < movie_failure_draw);
-	if (movie_drawn != 0 && drawn == 0 && hires_active != 0) {
+	if (movie_drawn != 0 && drawn == 0 && hires_raster_active != 0) {
 		fallback_pending = 1;
 	}
 	movie_drawn = drawn;
@@ -134,8 +134,8 @@ legacy_s32 opponent_animation_draw(const struct SPRITE *target, legacy_s16 x, le
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key)
 {
 	assert(key == KEY_F12 || key == KEY_SHIFT_F12);
-	hires_active = key == KEY_F12 ? !hires_active : 1;
-	if (hires_active == 0) {
+	hires_raster_active = key == KEY_F12 ? !hires_raster_active : 1;
+	if (hires_raster_active == 0) {
 		movie_drawn = 0;
 	}
 	display_shortcut_count++;
@@ -722,7 +722,7 @@ static void initialize_score_fixture(legacy_u32 index)
 static void initialize_end_screen(legacy_u32 index)
 {
 #ifdef RESTUNTS_SDL3
-	hires_active = movie_available;
+	hires_raster_active = movie_available;
 	movie_loaded = movie_won = movie_drawn = fallback_pending = 0;
 	movie_draws = movie_unloads = original_draws = previous_original_draws = 0;
 	fallback_restorations = movie_draws_between_originals = display_shortcut_count = 0;
@@ -804,9 +804,9 @@ static void test_external_animation_interaction(void)
 	display_shortcuts = 1;
 	/* Exercise both the score-entry continue loop and the regular result menu. */
 	run_end_screen_case(1U);
-	assert(display_shortcut_count == FIXTURE_SHORTCUT_COUNT && hires_active != 0);
+	assert(display_shortcut_count == FIXTURE_SHORTCUT_COUNT && hires_raster_active != 0);
 	run_end_screen_case(2U);
-	assert(display_shortcut_count == FIXTURE_SHORTCUT_COUNT && hires_active != 0);
+	assert(display_shortcut_count == FIXTURE_SHORTCUT_COUNT && hires_raster_active != 0);
 	assert(movie_draws_between_originals != 0);
 }
 #endif

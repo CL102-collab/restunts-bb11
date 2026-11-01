@@ -52,7 +52,7 @@ void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
 {
 	legacy_s16 low_detail =
 		tile_detail != FRAME_TILE_DETAIL_FULL || detail_level >= FRAME_CAR_LOW_DETAIL_FIRST;
-	frame_hires_override_car_detail(track_object, tile_detail, &low_detail);
+	frame_renderer_override_car_detail(track_object, tile_detail, &low_detail);
 	if (low_detail) {
 		curtransshape_ptr->shapeptr = track_object->ss_loShapePtr;
 	} else {
@@ -98,7 +98,7 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 	struct TRACKOBJECT *track_object;
 	if (frame_state->game_particles_active != 0 && (flags & SHAPE3D_GHOST_FLAG) == 0U
 #if defined(RESTUNTS_SDL3)
-		&& !frame_hires_adaptive_enabled()
+		&& !frame_renderer_adaptive_enabled()
 #endif
 	) {
 		for (legacy_s16 index = 0; index < FRAME_DEBRIS_SLOT_COUNT; index++) {
@@ -116,7 +116,7 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 					frame_relative_position_sum(frame_state->game_particle_z[index],
 												carstate->car_position.lz, camera_position->z);
 #if defined(RESTUNTS_SDL3)
-				frame_offset_car_shape(&render_offset);
+				frame_hires_offset_car_shape(&render_offset);
 #endif
 				frame_add_dynamic_shape(track_object, index,
 										flags | FRAME_TRANSFORM_FLAGS_NO_DEPTH_SORT, material,
@@ -133,7 +133,7 @@ void frame_add_car(const struct CARSTATE *carstate, legacy_s8 debris_owner, lega
 	curtransshape_ptr->pos.z =
 		frame_relative_position(carstate->car_position.lz, camera_position->z);
 #if defined(RESTUNTS_SDL3)
-	frame_offset_car_shape(&render_offset);
+	frame_hires_offset_car_shape(&render_offset);
 #endif
 
 	frame_prepare_car_model(track_object, carstate, wheel_shape, wheel_angles, wheel_vectors,
@@ -184,9 +184,9 @@ legacy_s16 frame_find_car_wheel(const struct CARSTATE *carstate, const struct SI
 				frame_south_tile_from_world_offset(carstate->car_position.lz, rotated_vector.z);
 		}
 #if defined(RESTUNTS_SDL3)
-		if (extended_frame_find_indexed_wheel(tiles, tile_east, tile_south, wheel, &best_tile_index,
-											  &matched_wheel, result_tile_east,
-											  result_tile_south)) {
+		if (hires_extended_frame_find_indexed_wheel(tiles, tile_east, tile_south, wheel,
+													&best_tile_index, &matched_wheel,
+													result_tile_east, result_tile_south)) {
 			continue;
 		}
 #endif

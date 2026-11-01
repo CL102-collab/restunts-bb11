@@ -176,7 +176,7 @@ legacy_s16 amiga_game_smoke(void)
 	detail_level = 0;
 	slow_video_mgmt = 0;
 	slow_video_mgmt_copy = 0;
-	supersight_enabled = 0;
+	renderer_active = 0;
 	smoke_progress("load car, dashboard, sound, skybox and track geometry");
 	if (!smoke_check(setup_player_cars() == 0, "race resource setup failed")) {
 		ok = 0;

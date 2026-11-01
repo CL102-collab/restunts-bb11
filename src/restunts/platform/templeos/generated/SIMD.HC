@@ -2,72 +2,72 @@
 
 legacy_s8 RsSimdLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_843;
+  legacy_s32 noreg temple_tmp_839;
   if((value<=127)) {
-    temple_tmp_843=TempleCastS32(TempleCastS8(value));
+    temple_tmp_839=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_843=TempleCastS32(TempleCastS8(
+    temple_tmp_839=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_843);
+  return TempleCastS8(temple_tmp_839);
 }
 
 legacy_s16 RsSimdLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_844;
+  legacy_s32 noreg temple_tmp_840;
   if((value<=32767)) {
-    temple_tmp_844=TempleCastS32(TempleCastS16(value));
+    temple_tmp_840=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_844=TempleCastS32(TempleCastS16(
+    temple_tmp_840=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_844);
+  return TempleCastS16(temple_tmp_840);
 }
 
 legacy_s32 RsSimdLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_845;
+  legacy_s32 noreg temple_tmp_841;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_845=TempleCastS32(TempleCastS32(value));
+    temple_tmp_841=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_845=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_841=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_845);
+  return TempleCastS32(temple_tmp_841);
 }
 
 legacy_u8 RsSimdSimdReadU8(CSimdReader *reader)
 {
-  legacy_u8 noreg temple_value_846;
-  temple_value_846=TempleCastU8(reader->source[reader->offset]);
+  legacy_u8 noreg temple_value_842;
+  temple_value_842=TempleCastU8(reader->source[reader->offset]);
   (reader->offset=TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(reader->offset)+TempleCastU16(1))))));
-  return TempleCastU8(temple_value_846);
+  return TempleCastU8(temple_value_842);
 }
 
 legacy_s8 RsSimdSimdReadS8(CSimdReader *reader)
 {
-  legacy_u8 noreg temple_value_847;
-  temple_value_847=TempleCastU8(RsSimdSimdReadU8(reader));
-  return TempleCastS8(RsSimdLegacyS8FromBits(TempleCastU8(TempleCastU8(temple_value_847))));
+  legacy_u8 noreg temple_value_843;
+  temple_value_843=TempleCastU8(RsSimdSimdReadU8(reader));
+  return TempleCastS8(RsSimdLegacyS8FromBits(TempleCastU8(TempleCastU8(temple_value_843))));
 }
 
 legacy_u16 RsSimdSimdReadU16(CSimdReader *reader)
 {
-  legacy_u16 noreg temple_value_848;
-  temple_value_848=TempleCastU16(TempleCastU16(TempleCastS32((
+  legacy_u16 noreg temple_value_844;
+  temple_value_844=TempleCastU16(TempleCastU16(TempleCastS32((
       TempleCastU16(TempleCastU8((reader->source+reader->offset)[0]))|
       TempleCastS32((TempleCastU16(TempleCastU8((reader->source+reader->offset)[1]))<<8))))));
   (reader->offset=TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(reader->offset)+TempleCastU16(2))))));
-  return TempleCastU16(temple_value_848);
+  return TempleCastU16(temple_value_844);
 }
 
 legacy_s16 RsSimdSimdReadS16(CSimdReader *reader)
 {
-  legacy_u16 noreg temple_value_849;
-  temple_value_849=TempleCastU16(RsSimdSimdReadU16(reader));
-  return TempleCastS16(RsSimdLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_849))));
+  legacy_u16 noreg temple_value_845;
+  temple_value_845=TempleCastU16(RsSimdSimdReadU16(reader));
+  return TempleCastS16(RsSimdLegacyS16FromBits(TempleCastU16(TempleCastU16(temple_value_845))));
 }
 
 legacy_void RsSimdSimdReadPoint(CSimdReader *reader,CPoint2D *point)
@@ -85,6 +85,24 @@ legacy_void RsSimdSimdReadVector(CSimdReader *reader,CVector *vector)
 
 legacy_void RsSimdSimdReadS8Array(CSimdReader *reader,legacy_s8 *values,legacy_u16 count)
 {
+  legacy_u16 noreg temple_index_847;
+  legacy_u16 *temple_tmp_848;
+  legacy_u16 noreg temple_tmp_849;
+  temple_index_847=TempleCastU16(0);
+  while(1) {
+    if(!((temple_index_847<count))) {
+      break;
+    }
+    (values[temple_index_847]=TempleCastS8(RsSimdSimdReadS8(reader)));
+    temple_tmp_848=&(temple_index_847);
+    temple_tmp_849=*temple_tmp_848;
+    *temple_tmp_848=TempleCastU16((temple_tmp_849+1));
+    temple_tmp_849;
+  }
+}
+
+legacy_void RsSimdSimdReadU16Array(CSimdReader *reader,legacy_u16 *values,legacy_u16 count)
+{
   legacy_u16 noreg temple_index_851;
   legacy_u16 *temple_tmp_852;
   legacy_u16 noreg temple_tmp_853;
@@ -93,7 +111,7 @@ legacy_void RsSimdSimdReadS8Array(CSimdReader *reader,legacy_s8 *values,legacy_u
     if(!((temple_index_851<count))) {
       break;
     }
-    (values[temple_index_851]=TempleCastS8(RsSimdSimdReadS8(reader)));
+    (values[temple_index_851]=TempleCastU16(RsSimdSimdReadU16(reader)));
     temple_tmp_852=&(temple_index_851);
     temple_tmp_853=*temple_tmp_852;
     *temple_tmp_852=TempleCastU16((temple_tmp_853+1));
@@ -101,7 +119,7 @@ legacy_void RsSimdSimdReadS8Array(CSimdReader *reader,legacy_s8 *values,legacy_u
   }
 }
 
-legacy_void RsSimdSimdReadU16Array(CSimdReader *reader,legacy_u16 *values,legacy_u16 count)
+legacy_void RsSimdSimdReadS16Array(CSimdReader *reader,legacy_s16 *values,legacy_u16 count)
 {
   legacy_u16 noreg temple_index_855;
   legacy_u16 *temple_tmp_856;
@@ -111,7 +129,7 @@ legacy_void RsSimdSimdReadU16Array(CSimdReader *reader,legacy_u16 *values,legacy
     if(!((temple_index_855<count))) {
       break;
     }
-    (values[temple_index_855]=TempleCastU16(RsSimdSimdReadU16(reader)));
+    (values[temple_index_855]=TempleCastS16(RsSimdSimdReadS16(reader)));
     temple_tmp_856=&(temple_index_855);
     temple_tmp_857=*temple_tmp_856;
     *temple_tmp_856=TempleCastU16((temple_tmp_857+1));
@@ -119,7 +137,7 @@ legacy_void RsSimdSimdReadU16Array(CSimdReader *reader,legacy_u16 *values,legacy
   }
 }
 
-legacy_void RsSimdSimdReadS16Array(CSimdReader *reader,legacy_s16 *values,legacy_u16 count)
+legacy_void RsSimdSimdReadPointArray(CSimdReader *reader,CPoint2D *points,legacy_u16 count)
 {
   legacy_u16 noreg temple_index_859;
   legacy_u16 *temple_tmp_860;
@@ -129,7 +147,7 @@ legacy_void RsSimdSimdReadS16Array(CSimdReader *reader,legacy_s16 *values,legacy
     if(!((temple_index_859<count))) {
       break;
     }
-    (values[temple_index_859]=TempleCastS16(RsSimdSimdReadS16(reader)));
+    RsSimdSimdReadPoint(reader,(&(points[temple_index_859])));
     temple_tmp_860=&(temple_index_859);
     temple_tmp_861=*temple_tmp_860;
     *temple_tmp_860=TempleCastU16((temple_tmp_861+1));
@@ -137,7 +155,7 @@ legacy_void RsSimdSimdReadS16Array(CSimdReader *reader,legacy_s16 *values,legacy
   }
 }
 
-legacy_void RsSimdSimdReadPointArray(CSimdReader *reader,CPoint2D *points,legacy_u16 count)
+legacy_void RsSimdSimdReadVectorArray(CSimdReader *reader,CVector *vectors,legacy_u16 count)
 {
   legacy_u16 noreg temple_index_863;
   legacy_u16 *temple_tmp_864;
@@ -147,7 +165,7 @@ legacy_void RsSimdSimdReadPointArray(CSimdReader *reader,CPoint2D *points,legacy
     if(!((temple_index_863<count))) {
       break;
     }
-    RsSimdSimdReadPoint(reader,(&(points[temple_index_863])));
+    RsSimdSimdReadVector(reader,(&(vectors[temple_index_863])));
     temple_tmp_864=&(temple_index_863);
     temple_tmp_865=*temple_tmp_864;
     *temple_tmp_864=TempleCastU16((temple_tmp_865+1));
@@ -155,60 +173,42 @@ legacy_void RsSimdSimdReadPointArray(CSimdReader *reader,CPoint2D *points,legacy
   }
 }
 
-legacy_void RsSimdSimdReadVectorArray(CSimdReader *reader,CVector *vectors,legacy_u16 count)
-{
-  legacy_u16 noreg temple_index_867;
-  legacy_u16 *temple_tmp_868;
-  legacy_u16 noreg temple_tmp_869;
-  temple_index_867=TempleCastU16(0);
-  while(1) {
-    if(!((temple_index_867<count))) {
-      break;
-    }
-    RsSimdSimdReadVector(reader,(&(vectors[temple_index_867])));
-    temple_tmp_868=&(temple_index_867);
-    temple_tmp_869=*temple_tmp_868;
-    *temple_tmp_868=TempleCastU16((temple_tmp_869+1));
-    temple_tmp_869;
-  }
-}
-
 legacy_u16 RsSimdDecode(CSimd *destination,legacy_u8 *source)
 {
-  CSimdReader temple_reader_870;
-  (temple_reader_870.source=source);
-  (temple_reader_870.offset=TempleCastU16(0));
-  (destination->num_gears=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_870)))));
-  (destination->reserved_gear_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_870)))));
-  (destination->car_mass=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->braking_eff=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->idle_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->downshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->upshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->max_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  RsSimdSimdReadU16Array((&(temple_reader_870)),destination->gear_ratios,TempleCastU16(7));
-  RsSimdSimdReadPointArray((&(temple_reader_870)),destination->knob_points,TempleCastU16(7));
-  (destination->aero_resistance=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  (destination->idle_torque=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_870)))));
-  RsSimdSimdReadS8Array((&(temple_reader_870)),destination->torque_curve,TempleCastU16(104));
-  (destination->reserved_torque_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_870)))));
-  (destination->grip=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
+  CSimdReader temple_reader_866;
+  (temple_reader_866.source=source);
+  (temple_reader_866.offset=TempleCastU16(0));
+  (destination->num_gears=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_866)))));
+  (destination->reserved_gear_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_866)))));
+  (destination->car_mass=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->braking_eff=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->idle_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->downshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->upshift_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->max_rpm=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  RsSimdSimdReadU16Array((&(temple_reader_866)),destination->gear_ratios,TempleCastU16(7));
+  RsSimdSimdReadPointArray((&(temple_reader_866)),destination->knob_points,TempleCastU16(7));
+  (destination->aero_resistance=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  (destination->idle_torque=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_866)))));
+  RsSimdSimdReadS8Array((&(temple_reader_866)),destination->torque_curve,TempleCastU16(104));
+  (destination->reserved_torque_byte=TempleCastS8(RsSimdSimdReadS8((&(temple_reader_866)))));
+  (destination->grip=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
   RsSimdSimdReadS16Array(
-      (&(temple_reader_870)),destination->reserved_handling_words,TempleCastU16(7));
-  (destination->sliding=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  RsSimdSimdReadS16Array((&(temple_reader_870)),destination->surface_grip,TempleCastU16(4));
+      (&(temple_reader_866)),destination->reserved_handling_words,TempleCastU16(7));
+  (destination->sliding=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  RsSimdSimdReadS16Array((&(temple_reader_866)),destination->surface_grip,TempleCastU16(4));
   RsSimdSimdReadS8Array(
-      (&(temple_reader_870)),destination->reserved_grip_bytes,TempleCastU16(10));
-  RsSimdSimdReadPointArray((&(temple_reader_870)),destination->collide_points,TempleCastU16(2));
-  (destination->car_height=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  RsSimdSimdReadVectorArray((&(temple_reader_870)),destination->wheel_coords,TempleCastU16(4));
-  RsSimdSimdReadS8Array((&(temple_reader_870)),destination->steeringdots,TempleCastU16(62));
-  RsSimdSimdReadPoint((&(temple_reader_870)),(&(destination->spdcenter)));
-  (destination->spdnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  RsSimdSimdReadS8Array((&(temple_reader_870)),destination->spdpoints,TempleCastU16(208));
-  RsSimdSimdReadPoint((&(temple_reader_870)),(&(destination->revcenter)));
-  (destination->revnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_870)))));
-  RsSimdSimdReadS8Array((&(temple_reader_870)),destination->revpoints,TempleCastU16(256));
+      (&(temple_reader_866)),destination->reserved_grip_bytes,TempleCastU16(10));
+  RsSimdSimdReadPointArray((&(temple_reader_866)),destination->collide_points,TempleCastU16(2));
+  (destination->car_height=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  RsSimdSimdReadVectorArray((&(temple_reader_866)),destination->wheel_coords,TempleCastU16(4));
+  RsSimdSimdReadS8Array((&(temple_reader_866)),destination->steeringdots,TempleCastU16(62));
+  RsSimdSimdReadPoint((&(temple_reader_866)),(&(destination->spdcenter)));
+  (destination->spdnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  RsSimdSimdReadS8Array((&(temple_reader_866)),destination->spdpoints,TempleCastU16(208));
+  RsSimdSimdReadPoint((&(temple_reader_866)),(&(destination->revcenter)));
+  (destination->revnumpoints=TempleCastS16(RsSimdSimdReadS16((&(temple_reader_866)))));
+  RsSimdSimdReadS8Array((&(temple_reader_866)),destination->revpoints,TempleCastU16(256));
   (destination->aerorestable=0);
-  return TempleCastU16(temple_reader_870.offset);
+  return TempleCastU16(temple_reader_866.offset);
 }

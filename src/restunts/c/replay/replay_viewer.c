@@ -132,7 +132,7 @@ static legacy_u16 replay_activate_selected_control(void)
 			audio_carstate();
 			replay_controls_select(REPLAY_CONTROL_RESTART);
 			replay_controls_draw(replay_current_frame(), replay_current_frame());
-			frame_supersight_reset();
+			frame_renderer_reset();
 			restore_gamestate(REPLAY_FIRST_FRAME);
 			(void)timer_wait_ticks(REPLAY_RESTART_WAIT_TICKS);
 			replay_controls_select(REPLAY_CONTROL_PAUSE);
@@ -264,7 +264,7 @@ static legacy_s16 replay_touch_seek(void)
 	is_in_replay = 1;
 	audio_carstate();
 	replay_controls_select(REPLAY_CONTROL_PAUSE);
-	frame_supersight_reset();
+	frame_renderer_reset();
 	if (extended_replay_ui_seek_draw((legacy_u32)target)) {
 		return 1;
 	}

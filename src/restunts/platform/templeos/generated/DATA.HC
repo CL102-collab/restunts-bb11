@@ -304,9 +304,6 @@ MemSet(&rs_owoot_road_owoot_road_triangles,0,sizeof(rs_owoot_road_owoot_road_tri
 COwootRoadModel rs_owoot_road_owoot_road_models[37];
 MemSet(&rs_owoot_road_owoot_road_models,0,sizeof(rs_owoot_road_owoot_road_models));
 legacy_u8 supersight_enabled=0;
-legacy_u8 rs_hires_frame_snapshot_frame_uses_snapshot=0;
-CGhostCameraState *rs_hires_frame_snapshot_frame_ghost_camera=0;
-CCarState *rs_hires_frame_snapshot_frame_ghost=0;
 CFrameSupersightTile supersight_tiles[110];
 MemSet(&supersight_tiles,0,sizeof(supersight_tiles));
 legacy_s8 supersight_detail_thresholds[7];
@@ -316,13 +313,13 @@ legacy_u8 supersight_probe_frames=0;
 legacy_u8 supersight_view_valid=0;
 legacy_s16 supersight_previous_view[20];
 MemSet(&supersight_previous_view,0,sizeof(supersight_previous_view));
-legacy_s8 rs_hires_frame_overlay_supersight_status_text[(13+(7-1))];
-MemSet(&rs_hires_frame_overlay_supersight_status_text,0,
-    sizeof(rs_hires_frame_overlay_supersight_status_text));
-legacy_u32 rs_hires_frame_overlay_supersight_status_start=0;
-legacy_u8 rs_hires_frame_overlay_supersight_status_active=0;
-legacy_u8 rs_hires_frame_overlay_supersight_status_expired_pending=0;
-legacy_u8 rs_hires_frame_overlay_supersight_status_clear_frames=0;
+legacy_s8 rs_supersight_frame_overlay_supersight_status_text[(13+(7-1))];
+MemSet(&rs_supersight_frame_overlay_supersight_status_text,0,
+    sizeof(rs_supersight_frame_overlay_supersight_status_text));
+legacy_u32 rs_supersight_frame_overlay_supersight_status_start=0;
+legacy_u8 rs_supersight_frame_overlay_supersight_status_active=0;
+legacy_u8 rs_supersight_frame_overlay_supersight_status_expired_pending=0;
+legacy_u8 rs_supersight_frame_overlay_supersight_status_clear_frames=0;
 legacy_u32 rs_frame_fps_fps_sample_start=0;
 legacy_u32 rs_frame_fps_fps_last_presented=0;
 legacy_u16 rs_frame_fps_fps_sample_frames=0;

@@ -115,8 +115,9 @@ I've also done a huge amount of manual testing myself, to test everything else w
 
 
 The C core groups related sources and headers under `audio`, `car`, `data`, `frame`,
-`ghost`, `headless`, `highscore`, `math`, `menu`, `opponent`, `owoot`, `physics`,
-`race`, `replay`, `shape2d`, `shape3d`, `stateply`, `track`, `ui` and `video`.
+`ghost`, `headless`, `highscore`, `hires`, `math`, `menu`, `opponent`, `owoot`,
+`physics`, `race`, `renderer`, `replay`, `shape2d`, `shape3d`, `stateply`,
+`supersight`, `track`, `ui` and `video`.
 The `data` folder holds full-game data definitions, resource strings, and lookup tables.
 The `frame` folder owns classic frame rendering, camera setup, terrain and object
 rendering, shared frame context, and frame diagnostics.
@@ -129,10 +130,14 @@ The `stateply` folder owns car-state updates, motion, and wheel-contact helpers.
 The `video` folder owns frame interfaces, framebuffer selection, and page management.
 The `extended` folder owns CSTRK/CSRPL logic and its codec headers, including
 classic and high-resolution rendering that depends on decoded track or replay
-data. The `hires` folder owns format-independent high-resolution rendering,
-adaptive visibility, presentation, interpolation, enhanced artwork, settings,
-and the render worker pool. Shared diagnostics, palette conversion, and classic
-rendering logic stay outside `hires`.
+data. The `hires` folder contains only HyperVision implementation: depth-based
+visibility, high-resolution rendering, adaptive quality, interpolation, enhanced
+artwork, settings, and render workers. HyperVision functions and renderer-owned
+state use `hires` names. The `supersight` folder owns the classic SuperSight
+visibility mask, queue/detail policy, settings, and status display. The two
+renderers keep independent state. The `renderer` headers only route shared game
+API calls to the selected implementation; classic rendering and shared
+diagnostics stay outside both renderer folders.
 
 CSTRK/CSRPL codecs and gameplay implementations live under `src/restunts/c/extended`
 in files whose names start with `extended_`. Other core files delegate format work

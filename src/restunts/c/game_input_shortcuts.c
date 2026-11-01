@@ -12,7 +12,7 @@
 #include "externs.h"
 #include "ghost/ghost.h"
 #include "frame/frame_internal.h"
-#include "hires/settings.h"
+#include "renderer/settings.h"
 #ifdef RESTUNTS_AMIGA
 #include "../platform/amiga/amiga.h"
 #endif
@@ -59,7 +59,7 @@ static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 		case KEY_SHIFT_F12:
 #endif
 		case KEY_F12:
-			hires_settings_select_display(key);
+			renderer_settings_select_display(key);
 			return 1;
 
 		case 'D':

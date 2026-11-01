@@ -1,8 +1,8 @@
+#if defined(RESTUNTS_SDL3)
 #include "../frame/frame_render_private.h"
 
-legacy_s16 frame_draw_covered_water(const struct FRAME_TILE *tile,
-									const struct FRAME_CAMERA *camera,
-									legacy_s8 redraw_transform_flags)
+legacy_s16 frame_hires_draw_water(const struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
+								  legacy_s8 redraw_transform_flags)
 {
 	if (tile->element == 0 ||
 		(tile->element >= FRAME_ELEVATED_CORNER_FIRST &&
@@ -44,6 +44,7 @@ legacy_s16 frame_hires_draw_covered_water(const struct FRAME_TILE *tile,
 										  const struct FRAME_CAMERA *camera,
 										  legacy_s8 redraw_transform_flags)
 {
-	return supersight_enabled != 0 &&
-		   frame_draw_covered_water(tile, camera, redraw_transform_flags) != 0;
+	return hires_active != 0 && frame_hires_draw_water(tile, camera, redraw_transform_flags) != 0;
 }
+
+#endif

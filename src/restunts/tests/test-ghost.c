@@ -722,7 +722,7 @@ static void assert_render_sample(legacy_u32 live_frame, legacy_u16 live_rate, le
 	legacy_s32 steps = simulation_steps;
 	struct CARSTATE rendered;
 	struct GHOST_CAMERA_STATE camera;
-	assert(ghost_sample_render_pose(live_frame, live_rate, lag, &rendered, &camera));
+	assert(hires_ghost_sample_render_pose(live_frame, live_rate, lag, &rendered, &camera));
 	assert(rendered.car_position.lx == position);
 	assert(camera.follow_position.x == 100 + position);
 	assert(camera.previous_position.x == position);
@@ -771,8 +771,8 @@ static void test_render_sampling(void)
 	struct CARSTATE rendered = before;
 	struct GHOST_CAMERA_STATE camera = before_camera;
 	fail_read = 1;
-	assert(!ghost_sample_render_pose(14, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U,
-									 &rendered, &camera));
+	assert(!hires_ghost_sample_render_pose(14, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U,
+										   &rendered, &camera));
 	fail_read = 0;
 	assert(memcmp(&rendered, &before, sizeof(before)) == 0);
 	assert(memcmp(&camera, &before_camera, sizeof(before_camera)) == 0);
@@ -783,7 +783,7 @@ static void test_render_sampling(void)
 	assert_render_sample(1, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U, 25);
 	assert_render_sample(0, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE, 0);
 	assert_render_sample(UINT32_C(0xffffffff), GAME_FRAME_RATE_NORMAL, 0, 800);
-	assert(!ghost_sample_render_pose(1, 0, 0, &rendered, &camera));
+	assert(!hires_ghost_sample_render_pose(1, 0, 0, &rendered, &camera));
 	assert(memcmp(&rendered, &before, sizeof(before)) == 0);
 	assert(memcmp(&camera, &before_camera, sizeof(before_camera)) == 0);
 
@@ -804,7 +804,7 @@ static void test_render_sampling(void)
 						 FRAME_INTERPOLATION_ONE - FRAME_INTERPOLATION_ONE * 5U / 6U, 166);
 	assert_render_sample(1, GAME_FRAME_RATE_LOW, 0, 200);
 	ghost_end_race();
-	assert(!ghost_sample_render_pose(1, GAME_FRAME_RATE_LOW, 0, &rendered, &camera));
+	assert(!hires_ghost_sample_render_pose(1, GAME_FRAME_RATE_LOW, 0, &rendered, &camera));
 	render_fixture = 0;
 }
 
@@ -824,13 +824,13 @@ static void test_render_discontinuities(void)
 	struct GHOST_CAMERA_STATE camera;
 	ghost_update(7, GAME_FRAME_RATE_NORMAL);
 	struct GHOST_CAMERA_STATE authoritative_camera = *ghost_camera_state();
-	assert(ghost_sample_render_pose(7, GAME_FRAME_RATE_NORMAL, 0, &rendered, &camera));
+	assert(hires_ghost_sample_render_pose(7, GAME_FRAME_RATE_NORMAL, 0, &rendered, &camera));
 	assert(rendered.car_position.lx == 350);
 	assert(memcmp(&camera, &authoritative_camera, sizeof(camera)) == 0);
 	ghost_update(8, GAME_FRAME_RATE_NORMAL);
 	authoritative_camera = *ghost_camera_state();
-	assert(ghost_sample_render_pose(8, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U,
-									&rendered, &camera));
+	assert(hires_ghost_sample_render_pose(8, GAME_FRAME_RATE_NORMAL, FRAME_INTERPOLATION_ONE / 2U,
+										  &rendered, &camera));
 	assert(rendered.car_position.lx == 375);
 	assert(memcmp(&camera, &authoritative_camera, sizeof(camera)) == 0);
 	/* Preparation discards cached poses even when the selection is unchanged. */

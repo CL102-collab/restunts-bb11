@@ -61,7 +61,7 @@ static legacy_s16 replay_confirm_restart(void)
 static void replay_restart_recording(void)
 {
 	check_input();
-	frame_supersight_reset();
+	frame_renderer_reset();
 #ifdef RESTUNTS_SDL3
 	(void)extended_replay_ui_restart();
 #endif
@@ -203,7 +203,7 @@ static void replay_load_recording(void)
 	replay_reload_changed_resources(&saved_config, saved_track);
 	framespersec =
 		(legacy_s16)LEGACY_S8_FROM_BITS(LEGACY_U16_LOW_BYTE(gameconfig.game_framespersec));
-	frame_supersight_reset();
+	frame_renderer_reset();
 	init_game_state(GAMESTATE_INIT_RESET_CHECKPOINTS);
 }
 

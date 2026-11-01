@@ -259,7 +259,7 @@ set(game_sources
     menu/menu_track_editor_input.c menu/menu_opponent.c opponent/opponent_portrait.c
     opponent/opponent_animation.c menu/menu_background.c menu/menu_car.c audio/audio_engine.c
     audio/audio_channels.c audio/audio_context.c audio/audio_resources.c audio/audio_car.c
-    audio/audio_sequence.c shape3d/shape3d.c shape3d/shape3d_queue.c shape3d/shape3d_primitives.c
+    audio/audio_sequence.c shape3d/shape3d_native.c shape3d/shape3d.c shape3d/shape3d_queue.c shape3d/shape3d_primitives.c
     shape3d/shape3d_render.c shape3d/shape3d_resources.c shape3d/shape3d_car.c
     shape3d/shape3d_prerender.c shape3d/shape3d_polygon.c shape3d/shape3d_lines.c
     shape3d/shape3d_line_setup.c shape2d/shape2d.c shape2d/shape2d_image.c shape2d/shape2d_blit.c
@@ -277,12 +277,15 @@ set(game_sources
     extended/extended_frame_render_ground.c extended/extended_frame_precise.c
     extended/extended_track_preview_hires.c hires/track_preview_mode.c hires/track_menu_preview.c
     hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c
-    hires/frame_car_render.c hires/frame_supersight.c hires/frame_terrain.c hires/frame_particles.c
+    hires/frame_car_render.c hires/frame_scene.c hires/frame_terrain.c hires/frame_particles.c
     hires/frame_overlay.c hires/intro_presentation.c hires/track_preview_scene.c
     hires/opponent_portrait_artwork.c hires/opponent_animation_artwork.c hires/menu_artwork.c
-    hires/showroom.c hires/shape3d_pipeline.c hires/shape3d_queue.c hires/shape3d_render.c
-    hires/highscore_animation.c hires/skybox_scene.c video/video_framebuffer.c frame/frame_fps.c
+    hires/showroom.c hires/showroom_presentation.c hires/shape3d_pipeline.c hires/shape3d_queue.c hires/shape3d_render.c
+    hires/highscore_animation.c hires/skybox_scene.c video/video_framebuffer.c hires/video_framebuffer.c frame/frame_fps.c
     frame/frame_context.c
+    supersight/frame_scene.c supersight/frame_visibility.c supersight/frame_integration.c
+    supersight/frame_terrain.c supersight/settings.c supersight/frame_overlay.c
+    supersight/race_view.c supersight/track_geometry.c
     extended/extended_frame_layout.c)
 list(TRANSFORM common_sources PREPEND "${core}/")
 list(TRANSFORM game_sources PREPEND "${core}/")
@@ -1022,7 +1025,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
-        ${core}/video/video_framebuffer.c)
+        ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-skybox-hires PRIVATE restunts_options)
     target_compile_options(test-skybox-hires PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/skybox-test")
@@ -1041,7 +1044,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/opponent_portrait_artwork.c
-        ${core}/video/video_framebuffer.c)
+        ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-opponent-portrait PRIVATE restunts_options)
     target_compile_options(test-opponent-portrait PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-test")
@@ -1062,7 +1065,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/menu_artwork.c
-        ${core}/video/video_framebuffer.c)
+        ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-menu-background PRIVATE restunts_options)
     target_compile_options(test-menu-background PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
@@ -1072,7 +1075,7 @@ if(RESTUNTS_BUILD_TESTS)
     add_executable(test-sdl3-hires src/restunts/tests/test-sdl3-hires.c ${core}/hires/hires.c
         ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c ${platform}/memory.c
-        ${core}/video/video_framebuffer.c)
+        ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
     target_link_libraries(test-sdl3-hires PRIVATE restunts_options)
     target_compile_options(test-sdl3-hires PRIVATE -UNDEBUG)
     add_test(NAME sdl3-hires COMMAND test-sdl3-hires)

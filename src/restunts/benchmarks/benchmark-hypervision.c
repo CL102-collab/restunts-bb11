@@ -166,8 +166,9 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 		(legacy_u32)((legacy_u64)count * BENCH_PERCENTILE_95 / BENCH_PERCENTILE_100);
 	printf("tick=%u camera=%d resolution=%dx%d workers=%d n=%u "
 		   "cpu=%.3f mean=%.3f p50=%.3f p95=%.3f ms\n",
-		   tick, cameramode, hires_render_width(), hires_render_height(), render_workers_count(),
-		   count, cpu, total / count, times[count / 2U], times[percentile]);
+		   tick, cameramode, hires_render_width(), hires_render_height(),
+		   hires_render_workers_count(), count, cpu, total / count, times[count / 2U],
+		   times[percentile]);
 	fflush(stdout);
 	free(composed);
 	free(times);
@@ -209,7 +210,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	visual_clock_ticks = dos_timer_get_realtime_counter();
 	visual_clock_frozen = 1;
 	assert(handle_ingame_kb_shortcuts(KEY_F12) != 0);
-	frame_adaptive_set_preset(&frame_adaptive, FRAME_ADAPTIVE_PRESET_FULL);
+	frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_FULL);
 	custom_camera.elevation_angle = BENCH_CAMERA_ELEVATION;
 	custom_camera.azimuth_angle = BENCH_CAMERA_AZIMUTH;
 	custom_camera.distance = BENCH_CAMERA_DISTANCE;

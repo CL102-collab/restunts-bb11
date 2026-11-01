@@ -1,6 +1,5 @@
 #include "amiga.h"
 #include "../../c/platform.h"
-#include "../../c/hires/presentation.h"
 #include <devices/timer.h>
 #include <proto/exec.h>
 #include <proto/timer.h>
@@ -54,12 +53,6 @@ legacy_u32 amiga_clock_ticks(void)
 	SubTime(&now, &origin);
 	return (legacy_u32)now.tv_secs * DOS_TIMER_REALTIME_TICKS_PER_SECOND +
 		   now.tv_micro / (1000000UL / DOS_TIMER_REALTIME_TICKS_PER_SECOND);
-}
-
-legacy_u64 presentation_now(void)
-{
-	return (legacy_u64)amiga_clock_ticks() *
-		   (PRESENTATION_SECOND_NS / DOS_TIMER_REALTIME_TICKS_PER_SECOND);
 }
 
 void amiga_timer_pump(void)

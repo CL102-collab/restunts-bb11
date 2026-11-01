@@ -208,7 +208,7 @@ void race_update_dashboard_layout(legacy_s16 rewind_active)
 		dashboard_visible = 1;
 		roofbmpheight_copy = roofbmpheight;
 		dashbmp_y_copy = dashbmp_y;
-		race_hires_clip_dashboard();
+		race_renderer_clip_dashboard();
 	}
 }
 
@@ -217,8 +217,8 @@ void race_update_viewport(struct RACE_VIEWPORT_CACHE *cache, legacy_s16 rewind_a
 	if (game_replay_mode != game_replay_mode_copy || dashb_toggle != dashb_toggle_copy ||
 		replaybar_toggle != replaybar_toggle_copy || is_in_replay != is_in_replay_copy ||
 		followOpponentFlag != followOpponentFlag_copy ||
-		race_hires_viewport_changed(&cache->hires) != 0) {
-		race_hires_cache_viewport(&cache->hires);
+		race_renderer_viewport_changed(&cache->renderer_viewport) != 0) {
+		race_renderer_cache_viewport(&cache->renderer_viewport);
 		race_update_dashboard_layout(rewind_active);
 		if (cache->roof_height != roofbmpheight_copy || dashbmp_y_copy != viewport_bottom_cache ||
 			cache->dashboard_bottom != height_above_replaybar) {
@@ -302,7 +302,8 @@ static legacy_u16 race_frame_is_ready(legacy_s64 *last_processed_frame)
 	legacy_s16 wait_for_sample = game_replay_mode == REPLAY_MODE_LIVE;
 #ifdef RESTUNTS_SDL3
 	legacy_u16 presentation_ready;
-	if (race_presentation_poll(last_processed_frame, &wait_for_sample, &presentation_ready) != 0) {
+	if (race_hires_presentation_poll(last_processed_frame, &wait_for_sample, &presentation_ready) !=
+		0) {
 		return presentation_ready;
 	}
 #endif
@@ -388,10 +389,10 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #ifdef RESTUNTS_SDL3
 	legacy_u8 controller_menu_pending = 0;
 #endif
-	frame_supersight_reset();
+	frame_renderer_reset();
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
-	race_presentation_initialize();
+	race_hires_presentation_initialize();
 #endif
 
 	while (1) {
@@ -416,11 +417,11 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			race_handle_driving_input();
 		}
 #ifdef RESTUNTS_SDL3
-		race_presentation_sync(rewind.active);
+		race_hires_presentation_sync(rewind.active);
 #endif
 		if (race_frame_is_ready(&last_processed_frame) == 0) {
 #ifdef RESTUNTS_SDL3
-			race_presentation_idle(rewind.active, last_processed_frame);
+			race_hires_presentation_idle(rewind.active, last_processed_frame);
 #endif
 			continue;
 		}
@@ -455,7 +456,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			AMIGA_NORMAL_RACE_TRACE("viewport complete");
 		}
 #ifdef RESTUNTS_SDL3
-		race_presentation_draw(rewind.active);
+		race_hires_presentation_draw(rewind.active);
 #else
 		if (state.game_frame == 0) {
 			AMIGA_NORMAL_RACE_TRACE("draw begin");
@@ -555,7 +556,7 @@ static void race_release_resources(void)
 	remove_frame_callback();
 	free_player_cars();
 #ifdef RESTUNTS_SDL3
-	race_presentation_finish();
+	race_hires_presentation_finish();
 #endif
 }
 
@@ -567,7 +568,7 @@ void run_game(void)
 	struct RACE_VIEWPORT_CACHE cache;
 	cache.roof_height = -1;
 	cache.dashboard_bottom = -1;
-	race_hires_cache_viewport(&cache.hires);
+	race_renderer_cache_viewport(&cache.renderer_viewport);
 	viewport_bottom_cache = -1;
 	run_game_random = LEGACY_S16_SHL(get_kevinrandom(), RACE_RANDOM_VALUE_SHIFT);
 	replaybar_toggle = 1;

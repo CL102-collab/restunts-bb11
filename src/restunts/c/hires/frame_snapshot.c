@@ -1,15 +1,16 @@
 #include "../frame/frame_render_private.h"
 
-static legacy_u8 frame_uses_snapshot;
+static legacy_u8 frame_hires_uses_snapshot;
 
-static const struct GHOST_CAMERA_STATE *frame_ghost_camera;
+static const struct GHOST_CAMERA_STATE *frame_hires_ghost_camera;
 
-static const struct CARSTATE *frame_ghost;
+static const struct CARSTATE *frame_hires_ghost;
 
 /* A visual snapshot may lag behind physics. Damage, sinking and disappearing
  * cars still follow the authoritative events, including their original timing. */
-void frame_preserve_authoritative_events(struct GAMESTATE *presentation, struct CARSTATE *ghost,
-										 struct GHOST_CAMERA_STATE *ghost_camera)
+void frame_hires_preserve_authoritative_events(struct GAMESTATE *presentation,
+											   struct CARSTATE *ghost,
+											   struct GHOST_CAMERA_STATE *ghost_camera)
 {
 	presentation->playerstate.car_crashBmpFlag = state.playerstate.car_crashBmpFlag;
 	presentation->opponentstate.car_crashBmpFlag = state.opponentstate.car_crashBmpFlag;
@@ -29,10 +30,10 @@ void frame_preserve_authoritative_events(struct GAMESTATE *presentation, struct 
 	}
 }
 
-void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
-						   const struct GAMESTATE *render_state,
-						   const struct CARSTATE *render_ghost,
-						   const struct GHOST_CAMERA_STATE *render_ghost_camera)
+void hires_update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
+								 const struct GAMESTATE *render_state,
+								 const struct CARSTATE *render_ghost,
+								 const struct GHOST_CAMERA_STATE *render_ghost_camera)
 {
 	/* External-camera clearance borrows the collision and wheel-travel scratch.
 	 * Extra presentations must not leave their visual geometry for physics. */
@@ -57,17 +58,17 @@ void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 	if (render_ghost_camera != 0) {
 		ghost_camera = *render_ghost_camera;
 	}
-	frame_preserve_authoritative_events(&presentation, render_ghost != 0 ? &ghost : 0,
-										render_ghost_camera != 0 ? &ghost_camera : 0);
+	frame_hires_preserve_authoritative_events(&presentation, render_ghost != 0 ? &ghost : 0,
+											  render_ghost_camera != 0 ? &ghost_camera : 0);
 	frame_state = &presentation;
-	frame_ghost = render_ghost != 0 ? &ghost : 0;
-	frame_ghost_camera = render_ghost_camera != 0 ? &ghost_camera : 0;
-	frame_uses_snapshot = 1;
+	frame_hires_ghost = render_ghost != 0 ? &ghost : 0;
+	frame_hires_ghost_camera = render_ghost_camera != 0 ? &ghost_camera : 0;
+	frame_hires_uses_snapshot = 1;
 	update_frame(buffer_index, cliprect);
-	frame_uses_snapshot = 0;
+	frame_hires_uses_snapshot = 0;
 	frame_state = &state;
-	frame_ghost = 0;
-	frame_ghost_camera = 0;
+	frame_hires_ghost = 0;
+	frame_hires_ghost_camera = 0;
 
 	track_collision_restore(&saved_collision);
 	planindex_copy = saved_plane;
@@ -81,18 +82,18 @@ void update_frame_snapshot(legacy_s8 buffer_index, struct RECTANGLE *cliprect,
 	legacy_render_player_headings_active = saved_render_headings;
 }
 
-const struct CARSTATE *frame_snapshot_ghost(const struct CARSTATE *current)
+const struct CARSTATE *frame_hires_snapshot_ghost(const struct CARSTATE *current)
 {
-	return frame_uses_snapshot != 0 ? frame_ghost : current;
+	return frame_hires_uses_snapshot != 0 ? frame_hires_ghost : current;
 }
 
 const struct GHOST_CAMERA_STATE *
-frame_snapshot_ghost_camera(const struct GHOST_CAMERA_STATE *current)
+frame_hires_snapshot_ghost_camera(const struct GHOST_CAMERA_STATE *current)
 {
-	return frame_uses_snapshot != 0 ? frame_ghost_camera : current;
+	return frame_hires_uses_snapshot != 0 ? frame_hires_ghost_camera : current;
 }
 
-legacy_u8 frame_snapshot_active(void)
+legacy_u8 frame_hires_snapshot_active(void)
 {
-	return frame_uses_snapshot;
+	return frame_hires_uses_snapshot;
 }

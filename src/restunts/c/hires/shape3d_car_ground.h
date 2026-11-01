@@ -5,9 +5,9 @@
 
 #if defined(RESTUNTS_SDL3)
 /* Cache the neutral visible underside before wheel suspension changes vertices. */
-void shape3d_cache_car_ground_offset(legacy_u16 index, const struct SHAPE3D *shape);
+void shape3d_hires_cache_car_ground_offset(legacy_u16 index, const struct SHAPE3D *shape);
 /* Invalidate cached geometry before car resources are replaced or freed. */
-void shape3d_reset_car_ground_offsets(void);
+void shape3d_hires_reset_car_ground_offsets(void);
 #endif
 
 #endif

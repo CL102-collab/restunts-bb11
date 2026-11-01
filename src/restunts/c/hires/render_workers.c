@@ -19,41 +19,41 @@ struct RENDER_WORKER {
 	SDL_Semaphore *start;
 };
 
-static struct RENDER_WORKER workers[RENDER_MAX_WORKERS];
-static SDL_Semaphore *completed;
-static SDL_AtomicInt next_job;
-static legacy_s32 initialized;
-static legacy_s32 worker_count;
-static legacy_s32 stopping;
-static legacy_s32 job_count;
+static struct RENDER_WORKER hires_workers[RENDER_MAX_WORKERS];
+static SDL_Semaphore *hires_completed;
+static SDL_AtomicInt hires_next_job;
+static legacy_s32 hires_initialized;
+static legacy_s32 hires_worker_count;
+static legacy_s32 hires_stopping;
+static legacy_s32 hires_job_count;
 static void (*job_function)(void *, legacy_s32);
-static void *job_context;
+static void *hires_job_context;
 
-static void run_jobs(void)
+static void hires_run_jobs(void)
 {
 	for (;;) {
-		legacy_s32 index = SDL_AddAtomicInt(&next_job, 1);
-		if (index >= job_count) {
+		legacy_s32 index = SDL_AddAtomicInt(&hires_next_job, 1);
+		if (index >= hires_job_count) {
 			return;
 		}
-		job_function(job_context, index);
+		job_function(hires_job_context, index);
 	}
 }
 
-static legacy_int SDLCALL worker_main(void *argument)
+static legacy_int SDLCALL hires_worker_main(void *argument)
 {
 	struct RENDER_WORKER *worker = argument;
 	for (;;) {
 		SDL_WaitSemaphore(worker->start);
-		if (stopping) {
+		if (hires_stopping) {
 			return 0;
 		}
-		run_jobs();
-		SDL_SignalSemaphore(completed);
+		hires_run_jobs();
+		SDL_SignalSemaphore(hires_completed);
 	}
 }
 
-static legacy_s32 requested_workers(void)
+static legacy_s32 hires_requested_workers(void)
 {
 	const legacy_char *setting = SDL_getenv("RESTUNTS_RENDER_WORKERS");
 	if (setting == NULL || *setting == 0) {
@@ -75,64 +75,65 @@ static legacy_s32 requested_workers(void)
 	return value > RENDER_MAX_WORKERS ? RENDER_MAX_WORKERS : (legacy_s32)value;
 }
 
-static void initialize_workers(void)
+static void hires_initialize_workers(void)
 {
-	if (initialized) {
+	if (hires_initialized) {
 		return;
 	}
-	initialized = 1;
-	legacy_s32 requested = requested_workers();
+	hires_initialized = 1;
+	legacy_s32 requested = hires_requested_workers();
 	if (requested <= 0) {
 		return;
 	}
-	completed = SDL_CreateSemaphore(0);
-	if (completed == NULL) {
+	hires_completed = SDL_CreateSemaphore(0);
+	if (hires_completed == NULL) {
 		return;
 	}
 	for (legacy_s32 index = 0; index < requested; index++) {
-		struct RENDER_WORKER *worker = &workers[index];
+		struct RENDER_WORKER *worker = &hires_workers[index];
 		worker->start = SDL_CreateSemaphore(0);
 		if (worker->start == NULL) {
 			break;
 		}
-		worker->thread = SDL_CreateThread(worker_main, "renderer", worker);
+		worker->thread = SDL_CreateThread(hires_worker_main, "renderer", worker);
 		if (worker->thread == NULL) {
 			SDL_DestroySemaphore(worker->start);
 			worker->start = NULL;
 			break;
 		}
-		worker_count++;
+		hires_worker_count++;
 	}
 }
 
-legacy_s32 render_workers_count(void)
+legacy_s32 hires_render_workers_count(void)
 {
-	initialize_workers();
-	return worker_count;
+	hires_initialize_workers();
+	return hires_worker_count;
 }
 
-void render_workers_shutdown(void)
+void hires_render_workers_shutdown(void)
 {
-	stopping = 1;
-	for (legacy_s32 index = 0; index < worker_count; index++) {
-		SDL_SignalSemaphore(workers[index].start);
+	hires_stopping = 1;
+	for (legacy_s32 index = 0; index < hires_worker_count; index++) {
+		SDL_SignalSemaphore(hires_workers[index].start);
 	}
-	for (legacy_s32 index = 0; index < worker_count; index++) {
-		SDL_WaitThread(workers[index].thread, NULL);
-		SDL_DestroySemaphore(workers[index].start);
-		workers[index].thread = NULL;
-		workers[index].start = NULL;
+	for (legacy_s32 index = 0; index < hires_worker_count; index++) {
+		SDL_WaitThread(hires_workers[index].thread, NULL);
+		SDL_DestroySemaphore(hires_workers[index].start);
+		hires_workers[index].thread = NULL;
+		hires_workers[index].start = NULL;
 	}
-	if (completed != NULL) {
-		SDL_DestroySemaphore(completed);
+	if (hires_completed != NULL) {
+		SDL_DestroySemaphore(hires_completed);
 	}
-	completed = NULL;
-	worker_count = 0;
-	initialized = 0;
-	stopping = 0;
+	hires_completed = NULL;
+	hires_worker_count = 0;
+	hires_initialized = 0;
+	hires_stopping = 0;
 }
 
-legacy_s32 render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32), void *context)
+legacy_s32 hires_render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32),
+									void *context)
 {
 	if (count <= 1) {
 		if (count == 1) {
@@ -140,34 +141,35 @@ legacy_s32 render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32),
 		}
 		return 0;
 	}
-	initialize_workers();
-	legacy_s32 used = worker_count < count ? worker_count : count - 1;
+	hires_initialize_workers();
+	legacy_s32 used = hires_worker_count < count ? hires_worker_count : count - 1;
 	if (used == 0) {
 		for (legacy_s32 index = 0; index < count; index++) {
 			job(context, index);
 		}
 		return 0;
 	}
-	job_count = count;
+	hires_job_count = count;
 	job_function = job;
-	job_context = context;
-	SDL_SetAtomicInt(&next_job, 0);
+	hires_job_context = context;
+	SDL_SetAtomicInt(&hires_next_job, 0);
 	for (legacy_s32 index = 0; index < used; index++) {
-		SDL_SignalSemaphore(workers[index].start);
+		SDL_SignalSemaphore(hires_workers[index].start);
 	}
-	run_jobs();
+	hires_run_jobs();
 	for (legacy_s32 index = 0; index < used; index++) {
-		SDL_WaitSemaphore(completed);
+		SDL_WaitSemaphore(hires_completed);
 	}
 	return used;
 }
 #else
-legacy_s32 render_workers_count(void)
+legacy_s32 hires_render_workers_count(void)
 {
 	return 0;
 }
 
-legacy_s32 render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32), void *context)
+legacy_s32 hires_render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32),
+									void *context)
 {
 	for (legacy_s32 index = 0; index < count; index++) {
 		job(context, index);
@@ -175,7 +177,7 @@ legacy_s32 render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32),
 	return 0;
 }
 
-void render_workers_shutdown(void)
+void hires_render_workers_shutdown(void)
 {
 }
 #endif

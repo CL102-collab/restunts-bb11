@@ -1163,16 +1163,16 @@ class CEndScreenState
   legacy_s16 text_y;
 };
 
-class CRaceHiresViewport
+class CRaceSupersightViewport
 {
-  legacy_u8 supersight;
+  legacy_u8 supersight_enabled;
 };
 
 class CRaceViewportCache
 {
   legacy_s16 roof_height;
   legacy_s16 dashboard_bottom;
-  CRaceHiresViewport hires;
+  CRaceSupersightViewport renderer_viewport;
 };
 
 class CRaceRewindState
@@ -1745,12 +1745,6 @@ class COwootProjectedPoint
 {
   legacy_s32 x;
   legacy_s32 z;
-};
-
-class CPresentationClock
-{
-  legacy_u64 origin;
-  legacy_u64 next_frame;
 };
 
 class COwootPoint

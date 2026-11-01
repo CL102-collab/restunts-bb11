@@ -22,34 +22,35 @@
 #define PNG_IHDR_HEIGHT_OFFSET 20
 #define PNG_CHUNK_TYPE_SIZE 4
 
-static SDL_Surface *images[MENU_BACKGROUND_COUNT];
-static legacy_u8 attempted[MENU_BACKGROUND_COUNT];
-static const legacy_char *const filenames[MENU_BACKGROUND_COUNT] = {"main.png", "showroom.png",
-																	"opponent.png"};
-static const legacy_s32 heights[MENU_BACKGROUND_COUNT] = {
+static SDL_Surface *hires_images[MENU_BACKGROUND_COUNT];
+static legacy_u8 hires_attempted[MENU_BACKGROUND_COUNT];
+static const legacy_char *const hires_filenames[MENU_BACKGROUND_COUNT] = {
+	"main.png", "showroom.png", "opponent.png"};
+static const legacy_s32 hires_heights[MENU_BACKGROUND_COUNT] = {
 	MENU_BACKGROUND_MAIN_HEIGHT, MENU_BACKGROUND_SHOWROOM_HEIGHT, MENU_BACKGROUND_OPPONENT_HEIGHT};
 
 void hires_menu_background_unload(void)
 {
 	for (legacy_s32 index = 0; index < MENU_BACKGROUND_COUNT; index++) {
-		SDL_DestroySurface(images[index]);
-		images[index] = NULL;
-		attempted[index] = 0;
+		SDL_DestroySurface(hires_images[index]);
+		hires_images[index] = NULL;
+		hires_attempted[index] = 0;
 	}
 }
 
-static legacy_u32 menu_background_read_be32(const legacy_u8 *bytes)
+static legacy_u32 hires_menu_background_read_be32(const legacy_u8 *bytes)
 {
 	return ((legacy_u32)bytes[0] << LEGACY_THREE_BYTE_BITS) |
 		   ((legacy_u32)bytes[1] << LEGACY_WORD_BITS) | ((legacy_u32)bytes[2] << LEGACY_BYTE_BITS) |
 		   bytes[3];
 }
 
-static SDL_Surface *menu_background_load(const legacy_char *directory,
-										 enum MENU_BACKGROUND background)
+static SDL_Surface *hires_menu_background_load(const legacy_char *directory,
+											   enum MENU_BACKGROUND background)
 {
 	legacy_char path[MENU_BACKGROUND_PATH_SIZE];
-	legacy_s32 length = snprintf(path, sizeof(path), "%s%s", directory, filenames[background]);
+	legacy_s32 length =
+		snprintf(path, sizeof(path), "%s%s", directory, hires_filenames[background]);
 	if (length < 0 || (size_t)length >= sizeof(path)) {
 		return NULL;
 	}
@@ -63,12 +64,12 @@ static SDL_Surface *menu_background_load(const legacy_char *directory,
 	fclose(file);
 	static const legacy_u8 signature[] = {137, 'P', 'N', 'G', 13, 10, 26, 10};
 	if (read != sizeof(header) || memcmp(header, signature, sizeof(signature)) != 0 ||
-		menu_background_read_be32(header + PNG_IHDR_LENGTH_OFFSET) != PNG_IHDR_DATA_LENGTH ||
+		hires_menu_background_read_be32(header + PNG_IHDR_LENGTH_OFFSET) != PNG_IHDR_DATA_LENGTH ||
 		memcmp(header + PNG_IHDR_TYPE_OFFSET, "IHDR", PNG_CHUNK_TYPE_SIZE) != 0 ||
-		menu_background_read_be32(header + PNG_IHDR_WIDTH_OFFSET) !=
+		hires_menu_background_read_be32(header + PNG_IHDR_WIDTH_OFFSET) !=
 			MENU_BACKGROUND_WIDTH * MENU_BACKGROUND_ASSET_SCALE ||
-		menu_background_read_be32(header + PNG_IHDR_HEIGHT_OFFSET) !=
-			(legacy_u32)(heights[background] * MENU_BACKGROUND_ASSET_SCALE)) {
+		hires_menu_background_read_be32(header + PNG_IHDR_HEIGHT_OFFSET) !=
+			(legacy_u32)(hires_heights[background] * MENU_BACKGROUND_ASSET_SCALE)) {
 		return NULL;
 	}
 	SDL_Surface *source = SDL_LoadPNG(path);
@@ -80,13 +81,13 @@ static SDL_Surface *menu_background_load(const legacy_char *directory,
 	return result;
 }
 
-static SDL_Surface *menu_background_image(enum MENU_BACKGROUND background)
+static SDL_Surface *hires_menu_background_image(enum MENU_BACKGROUND background)
 {
-	if (attempted[background] != 0) {
-		return images[background];
+	if (hires_attempted[background] != 0) {
+		return hires_images[background];
 	}
-	attempted[background] = 1;
-	SDL_Surface *source = menu_background_load(MENU_BACKGROUND_DIRECTORY, background);
+	hires_attempted[background] = 1;
+	SDL_Surface *source = hires_menu_background_load(MENU_BACKGROUND_DIRECTORY, background);
 	if (source == NULL) {
 		const legacy_char *base = asset_path_base();
 		legacy_char directory[MENU_BACKGROUND_PATH_SIZE];
@@ -94,16 +95,16 @@ static SDL_Surface *menu_background_image(enum MENU_BACKGROUND background)
 			legacy_s32 length =
 				snprintf(directory, sizeof(directory), "%s%s", base, MENU_BACKGROUND_DIRECTORY);
 			if (length >= 0 && (size_t)length < sizeof(directory)) {
-				source = menu_background_load(directory, background);
+				source = hires_menu_background_load(directory, background);
 			}
 		}
 	}
 #ifdef RESTUNTS_MENU_DIRECTORY
 	if (source == NULL) {
-		source = menu_background_load(RESTUNTS_MENU_DIRECTORY "/", background);
+		source = hires_menu_background_load(RESTUNTS_MENU_DIRECTORY "/", background);
 	}
 #endif
-	images[background] = source;
+	hires_images[background] = source;
 	return source;
 }
 
@@ -112,10 +113,10 @@ void hires_menu_background_draw(const struct SPRITE *target, const struct SHAPE2
 {
 	if (!hires_enabled() || (legacy_u32)background >= MENU_BACKGROUND_COUNT ||
 		shape2d_get_width(original) != MENU_BACKGROUND_WIDTH ||
-		shape2d_get_height(original) != heights[background]) {
+		shape2d_get_height(original) != hires_heights[background]) {
 		return;
 	}
-	SDL_Surface *source = menu_background_image(background);
+	SDL_Surface *source = hires_menu_background_image(background);
 	if (source == NULL || !hires_begin_argb(target)) {
 		return;
 	}
@@ -128,8 +129,8 @@ void hires_menu_background_draw(const struct SPRITE *target, const struct SHAPE2
 	if (right > MENU_BACKGROUND_WIDTH) {
 		right = MENU_BACKGROUND_WIDTH;
 	}
-	if (bottom > heights[background]) {
-		bottom = heights[background];
+	if (bottom > hires_heights[background]) {
+		bottom = hires_heights[background];
 	}
 	legacy_s32 scale = hires_render_scale();
 	/* Keep the authored 2x pixels crisp at every adaptive render scale. At 1x,
@@ -165,13 +166,13 @@ void hires_menu_background_draw_overlay(const struct SPRITE *target, const struc
 	if (right > MENU_BACKGROUND_WIDTH) {
 		right = MENU_BACKGROUND_WIDTH;
 	}
-	if (bottom > heights[background]) {
-		bottom = heights[background];
+	if (bottom > hires_heights[background]) {
+		bottom = hires_heights[background];
 	}
 	if (left >= right || top >= bottom) {
 		return;
 	}
-	SDL_Surface *source = menu_background_image(background);
+	SDL_Surface *source = hires_menu_background_image(background);
 	if (source == NULL || !hires_begin_argb(target)) {
 		return;
 	}

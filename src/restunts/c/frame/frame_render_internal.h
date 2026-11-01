@@ -2,7 +2,7 @@
 #define RESTUNTS_FRAME_RENDER_INTERNAL_H
 
 #include "frame_internal.h"
-#include "../hires/frame_limits.h"
+#include "../renderer/frame_limits.h"
 
 #define TRACK_OBJECT_COUNT 215U
 #define FRAME_DEFAULT_TRANSFORM_DISTANCE 1024
@@ -20,12 +20,7 @@
 #define FRAME_FENCE_EDGE_CLASS_COUNT 3
 #define FRAME_FENCE_NONE (-1)
 #define FRAME_CAMERA_TILE_SHIFT 10U
-#if defined(RESTUNTS_SDL3)
-#include "../extended/extended_frame_layout.h"
-#define FRAME_MAXIMUM_TILE_COUNT EXTENDED_FRAME_MAXIMUM_TILE_COUNT
-#else
-#define FRAME_MAXIMUM_TILE_COUNT FRAME_SUPERSIGHT_TILE_COUNT
-#endif
+#define FRAME_MAXIMUM_TILE_COUNT FRAME_RENDERER_TILE_COUNT
 
 enum FRAME_FENCE_EDGE_CLASS {
 	FRAME_FENCE_EDGE_LOW = 0,

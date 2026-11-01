@@ -27,7 +27,7 @@
 
 #ifdef RESTUNTS_SDL3
 static void shape3d_render_hires_primitive(legacy_u32 index,
-										   const struct HYPERVISION_SCENE_PRIMITIVE *primitive)
+										   const struct HIRES_BACKEND_SCENE_PRIMITIVE *primitive)
 {
 	legacy_u16 material = primitive->material;
 	legacy_u16 type = primitive->type & ~RENDER_PRIMITIVE_VISUAL_FLAGS;
@@ -58,8 +58,8 @@ legacy_u8 shape3d_hires_render_scene(void)
 		/* Enhanced presentation has its own depth rasterizer. Drawing the
 		 * original 320x200 polygons as well only repeats the complete scene. */
 		shape3d_hires_batch_begin();
-		for (legacy_u32 index = 0; index < hypervision_scene_count; index++) {
-			shape3d_render_hires_primitive(index, &hypervision_scene[index]);
+		for (legacy_u32 index = 0; index < hires_backend_scene_count; index++) {
+			shape3d_render_hires_primitive(index, &hires_backend_scene[index]);
 		}
 		shape3d_hires_batch_end();
 		shape3d_hires_draw_shadows();
@@ -71,7 +71,7 @@ legacy_u8 shape3d_hires_render_scene(void)
 
 legacy_u32 shape3d_hires_scene_count(void)
 {
-	return hypervision_scene_count;
+	return hires_backend_scene_count;
 }
 void shape3d_hires_set_half_scale(legacy_s16 half_scale)
 {

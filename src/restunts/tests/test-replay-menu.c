@@ -38,7 +38,7 @@ static struct CARSTATE ghost_fixture;
 static legacy_s16 ghost_fixture_active;
 static legacy_u32 ghost_end_calls;
 static legacy_s16 opponent_view_disabled;
-static legacy_u8 supersight_reset_pending;
+static legacy_u8 renderer_reset_pending;
 static legacy_u32 input_polls, input_exit_poll, fps_expire_poll, fps_expiry_checks;
 legacy_s16 input_combined_flags;
 #ifdef RESTUNTS_SDL3
@@ -101,8 +101,8 @@ legacy_int extended_replay_seek(legacy_u32 frame)
 	assert(toolbar_scrub_testing != 0 && toolbar_extended_active != 0);
 	assert((input_combined_flags & INPUT_ACTION_BUTTON_MASK) == 0 || toolbar_interrupt_menu != 0);
 	assert(toolbar_hold_polls == toolbar_release_poll);
-	assert(supersight_reset_pending != 0 && toolbar_seek_calls == 0);
-	supersight_reset_pending = 0;
+	assert(renderer_reset_pending != 0 && toolbar_seek_calls == 0);
+	renderer_reset_pending = 0;
 	toolbar_target = toolbar_frame = frame;
 	toolbar_seek_calls++;
 	return 1;
@@ -291,9 +291,9 @@ legacy_s16 input_do_checking(legacy_s16 delta)
 void restore_gamestate(legacy_u16 target)
 {
 #ifdef RESTUNTS_SDL3
-	assert(touch_seek_testing && supersight_reset_pending);
+	assert(touch_seek_testing && renderer_reset_pending);
 	assert(is_in_replay != 0 && game_replay_mode == REPLAY_MODE_PLAYBACK);
-	supersight_reset_pending = 0;
+	renderer_reset_pending = 0;
 	touch_seek_target = target;
 	touch_seek_restores++;
 	state.game_frame = target / TEST_SEEK_CHECKPOINT_INTERVAL * TEST_SEEK_CHECKPOINT_INTERVAL;
@@ -323,9 +323,9 @@ legacy_u32 timer_wait_ticks(legacy_u32 ticks)
 	return 0;
 }
 
-void frame_supersight_reset(void)
+void frame_renderer_reset(void)
 {
-	supersight_reset_pending = 1;
+	renderer_reset_pending = 1;
 }
 
 struct CARSTATE *ghost_car_state(void)
@@ -452,10 +452,10 @@ void mouse_minmax_position(legacy_s16 enabled)
 }
 void init_game_state_with_frame_rate_byte(legacy_u16 rate)
 {
-	assert(supersight_reset_pending != 0);
+	assert(renderer_reset_pending != 0);
 	assert(restart_questions == 1 && restart_confirmation_answer == REPLAY_DIALOG_CONFIRMED_CHOICE);
 	restart_initializations++;
-	supersight_reset_pending = 0;
+	renderer_reset_pending = 0;
 	event(14);
 	hash_word(rate);
 	state.game_frame = 0;
@@ -511,7 +511,7 @@ legacy_u16 show_dialog(legacy_s16 type, legacy_s16 save, void far *text, legacy_
 			   initial == REPLAY_DIALOG_INITIAL_CHOICE);
 		assert(strncmp((const legacy_char *)text, (const legacy_char *)restart_expected_text,
 					   REPLAY_RESTART_DIALOG_CAPACITY) == 0);
-		assert(restart_initializations == 0 && supersight_reset_pending == 0);
+		assert(restart_initializations == 0 && renderer_reset_pending == 0);
 		restart_questions++;
 		return (legacy_u16)restart_confirmation_answer;
 	}
@@ -609,8 +609,8 @@ legacy_s16 setup_player_cars(void)
 }
 void init_game_state(legacy_s16 mode)
 {
-	assert(supersight_reset_pending != 0);
-	supersight_reset_pending = 0;
+	assert(renderer_reset_pending != 0);
+	renderer_reset_pending = 0;
 	event(30);
 	hash_word(mode);
 	hash_word(framespersec);
@@ -622,7 +622,7 @@ void show_graphic_levels_menu(void)
 
 static void reset_viewer(void)
 {
-	supersight_reset_pending = 0;
+	renderer_reset_pending = 0;
 	restart_questions = restart_initializations = ghost_end_calls = 0;
 	restart_confirmation_answer = REPLAY_DIALOG_CONFIRMED_CHOICE;
 	restart_exit_text = exit_confirmation_text;

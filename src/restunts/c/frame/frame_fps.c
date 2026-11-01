@@ -1,6 +1,6 @@
 #include "frame_fps.h"
 #include "frame_internal.h"
-#include "../hires/frame_overlay.h"
+#include "../renderer/frame_overlay.h"
 #include "../game_input.h"
 #include "../ui/ui_text.h"
 #include "../shape2d/shape2d.h"
@@ -56,7 +56,7 @@ static legacy_u64 frame_render_timing_average(void)
 
 legacy_s16 frame_display_overlay_active(void)
 {
-	legacy_s16 status_active = frame_status_overlay_active();
+	legacy_s16 status_active = frame_renderer_status_overlay_active();
 	return fps_display_enabled != 0 || status_active != 0;
 }
 
@@ -71,11 +71,11 @@ legacy_s16 frame_fps_expire_idle(void)
 {
 	legacy_s16 fps_can_expire =
 		fps_display_enabled != 0 && fps_sample_value != 0 && fps_sample_started != 0;
-	if (frame_status_redraw_pending() == 0 && fps_can_expire == 0) {
+	if (frame_renderer_status_redraw_pending() == 0 && fps_can_expire == 0) {
 		return 0;
 	}
 	legacy_u32 now = dos_timer_get_realtime_counter();
-	legacy_s16 expired = frame_status_expire_at(now);
+	legacy_s16 expired = frame_renderer_status_expire_at(now);
 	if (fps_can_expire != 0 &&
 		LEGACY_U32_WRAP_SUB(now, fps_last_presented) >= DOS_TIMER_REALTIME_TICKS_PER_SECOND) {
 		/* Ask the waiting replay loop to repaint the expired value only once. */
@@ -212,14 +212,14 @@ struct RECTANGLE *frame_fps_draw_text(void)
 		legacy_s8 text[FPS_TEXT_BUFFER_SIZE];
 		legacy_u16 count = frame_fps_format_number(text, fps_sample_value);
 		copy_string(text + count, " FPS");
-		legacy_u16 target = frame_hires_fps_target(FPS_TEXT_TARGET);
+		legacy_u16 target = frame_renderer_fps_target(FPS_TEXT_TARGET);
 		legacy_s16 color = fps_sample_value < target ? FPS_TEXT_RED : FPS_TEXT_GREEN;
 		bounds = *intro_draw_text(text, REPLAY_TEXT_LEFT_X, REPLAY_FILENAME_Y, color, 0);
 #ifdef RESTUNTS_SDL3
 		rect_union(&bounds, frame_render_timing_draw_text(), &bounds);
 #endif
 	}
-	rect_union(&bounds, frame_status_draw_text(), &bounds);
+	rect_union(&bounds, frame_renderer_status_draw_text(), &bounds);
 	return &bounds;
 }
 
@@ -239,7 +239,7 @@ legacy_u16 frame_fps_prepare_text(void)
 		rect_union(&overlay_bounds, frame_render_timing_bounds(), &overlay_bounds);
 #endif
 	}
-	rect_union(&overlay_bounds, frame_status_redraw_bounds(), &overlay_bounds);
+	rect_union(&overlay_bounds, frame_renderer_status_redraw_bounds(), &overlay_bounds);
 	/* Only the roof lies outside the scene that was redrawn this frame. */
 	frame_fps_restore_roof(&overlay_bounds);
 	/* Reserve the dirty region now; the race controller paints the text after
@@ -256,5 +256,5 @@ legacy_u16 frame_fps_filename_reserved(legacy_s16 y, legacy_u16 reserved)
 		reserved = RENDER_TIME_BUFFER_SIZE;
 	}
 #endif
-	return frame_hires_filename_reserved(y, reserved);
+	return frame_renderer_filename_reserved(y, reserved);
 }

@@ -19,8 +19,6 @@
 #if defined(RESTUNTS_SDL3)
 #undef memcpy
 #include "../fatal.h"
-#include "../hires/hires.h"
-#include "../hires/shape3d_hires.h"
 #endif
 
 #include "shape3d_pipeline_internal.h"
@@ -245,18 +243,9 @@ static legacy_u16 shape3d_prepare_polygon(struct SHAPE3D_TRANSFORM_CONTEXT *cont
 	legacy_u16 cull_backface =
 		(primitive_flags & SHAPE3D_PRIMITIVE_ALWAYS_VISIBLE_FLAG) == 0 &&
 		((legacy_u32)context->front_facing_mask & LEGACY_READ_U32_LE(front_facing_masks)) == 0UL;
-#if defined(RESTUNTS_SDL3)
-	if (hires_enabled()) {
-		if (!shape3d_hires_polygon_visible(polyinfonumpolys, cull_backface)) {
-			return 0;
-		}
-	} else
-#endif
-	{
-		if (transshapenumvertscopy == 0 || common_clip_flags != 0 ||
-			(cull_backface != 0 && polyinfo_is_facing_camera(transshapepolyinfo) == 0)) {
-			return 0;
-		}
+	if (transshapenumvertscopy == 0 || common_clip_flags != 0 ||
+		(cull_backface != 0 && polyinfo_is_facing_camera(transshapepolyinfo) == 0)) {
+		return 0;
 	}
 	if ((transshapeflags & SHAPE3D_USE_BOUNDING_RECT_FLAG) != 0) {
 		shape3d_adjust_polygon_bounds();
@@ -321,11 +310,6 @@ static legacy_u16 shape3d_prepare_wheel(struct SHAPE3D_TRANSFORM_CONTEXT *contex
 		polyinfo_write_point(transshapepolyinfo, i, &points[i]);
 	}
 	legacy_s16 first_face = is_facing_camera(points);
-#if defined(RESTUNTS_SDL3)
-	if (hires_enabled()) {
-		first_face = shape3d_hires_wheel_face(polyinfonumpolys) == 0;
-	}
-#endif
 	if (first_face != 0) {
 		*depth_sum =
 			LEGACY_S32_SHL((legacy_s32)context->view_vertices[transshapeprimitives[0]].z, 2U);

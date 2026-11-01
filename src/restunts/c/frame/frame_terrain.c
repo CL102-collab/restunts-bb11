@@ -157,7 +157,7 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 		return result;
 	}
 #endif
-	if (frame_hires_draw_covered_water(tile, camera, redraw_transform_flags)) {
+	if (frame_renderer_draw_covered_water(tile, camera, redraw_transform_flags)) {
 		return 1;
 	}
 
@@ -169,7 +169,7 @@ legacy_s16 frame_draw_terrain(struct FRAME_TILE *tile, const struct FRAME_CAMERA
 		if (tile->element >= FRAME_ELEVATED_CORNER_FIRST &&
 			tile->element <= FRAME_ELEVATED_CORNER_LAST) {
 			if (frame_draw_elevated_corners(tile, camera, redraw_transform_flags) != 0 &&
-				frame_hires_enabled()) {
+				frame_renderer_enabled()) {
 				return 1;
 			}
 

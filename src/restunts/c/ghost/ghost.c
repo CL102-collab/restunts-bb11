@@ -57,7 +57,7 @@ void ghost_end_race(void)
 	ghost_active = 0;
 	ghost_pose_valid = 0;
 #ifdef RESTUNTS_SDL3
-	ghost_render_reset();
+	hires_ghost_render_reset();
 #endif
 	ghost_line_clear();
 }

@@ -12,35 +12,35 @@
 #include "../platform.h"
 #include "../math/projection.h"
 #include "../externs.h"
-#define TRACK_PREVIEW_SCREEN_WIDTH 320
-#define TRACK_PREVIEW_SCREEN_HEIGHT 200
+#define HIRES_TRACK_PREVIEW_SCREEN_WIDTH 320
+#define HIRES_TRACK_PREVIEW_SCREEN_HEIGHT 200
 
-#define TRACK_PREVIEW_EXTENDED_TOP 0
-#define TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM 40
-#define TRACK_PREVIEW_EXTENDED_BOTTOM 166
-#define TRACK_PREVIEW_EXTENDED_FOV 40
-#define TRACK_PREVIEW_EXTENDED_SPIN_SECONDS 40UL
-#define TRACK_PREVIEW_EXTENDED_SPIN_TICKS                                                          \
-	(TRACK_PREVIEW_EXTENDED_SPIN_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
-#define TRACK_PREVIEW_EXTENDED_MINIMUM_LEVELS 12
-#define TRACK_PREVIEW_EXTENDED_ORBIT_PITCH ANGLE_EIGHTH_TURN
-#define TRACK_PREVIEW_EXTENDED_FIT_MARGIN 4
-#define TRACK_PREVIEW_EXTENDED_RADIUS_SCALE 8
-#define TRACK_PREVIEW_EXTENDED_RADIUS_ALLOWANCE 1.01
+#define HIRES_TRACK_PREVIEW_EXTENDED_TOP 0
+#define HIRES_TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM 40
+#define HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM 166
+#define HIRES_TRACK_PREVIEW_EXTENDED_FOV 40
+#define HIRES_TRACK_PREVIEW_EXTENDED_SPIN_SECONDS 40UL
+#define HIRES_TRACK_PREVIEW_EXTENDED_SPIN_TICKS                                                    \
+	(HIRES_TRACK_PREVIEW_EXTENDED_SPIN_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
+#define HIRES_TRACK_PREVIEW_EXTENDED_MINIMUM_LEVELS 12
+#define HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH ANGLE_EIGHTH_TURN
+#define HIRES_TRACK_PREVIEW_EXTENDED_FIT_MARGIN 4
+#define HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_SCALE 8
+#define HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_ALLOWANCE 1.01
 /* Authored road meshes rise at most 975 units above their support plane and
  * overhang a footprint by at most seven units. Include generated stunt meshes. */
-#define TRACK_PREVIEW_EXTENDED_MODEL_HEIGHT CSTRK_TILE_WORLD_SIZE
-#define TRACK_PREVIEW_EXTENDED_MODEL_MARGIN (CSTRK_TILE_WORLD_SIZE / 64)
-#define TRACK_PREVIEW_EXTENDED_CORNER_AXIS 2
+#define HIRES_TRACK_PREVIEW_EXTENDED_MODEL_HEIGHT CSTRK_TILE_WORLD_SIZE
+#define HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN (CSTRK_TILE_WORLD_SIZE / 64)
+#define HIRES_TRACK_PREVIEW_EXTENDED_CORNER_AXIS 2
 
-struct TRACK_PREVIEW_EXTENDED_BOUNDS {
+struct HIRES_TRACK_PREVIEW_EXTENDED_BOUNDS {
 	legacy_f64 min_x, max_x, min_y, max_y, min_z, max_z;
 	legacy_u32 tiles;
 };
 
 static struct SHAPE3D_HIRES_VECTOR
-track_preview_extended_center(const struct CSTRK_TRACK *track,
-							  struct TRACK_PREVIEW_EXTENDED_BOUNDS *bounds)
+hires_track_preview_extended_center(const struct CSTRK_TRACK *track,
+									struct HIRES_TRACK_PREVIEW_EXTENDED_BOUNDS *bounds)
 {
 	struct SHAPE3D_HIRES_VECTOR center = {0};
 	const legacy_u8 *lap_tiles = extended_track_lap_tiles();
@@ -58,8 +58,8 @@ track_preview_extended_center(const struct CSTRK_TRACK *track,
 			legacy_s16 height = extended_track_elevation(column, row, CSTRK_TILE_WORLD_SIZE / 2,
 														 CSTRK_TILE_WORLD_SIZE / 2);
 			legacy_s16 low = height, high = height;
-			for (legacy_u16 y = 0; y < TRACK_PREVIEW_EXTENDED_CORNER_AXIS; y++) {
-				for (legacy_u16 x = 0; x < TRACK_PREVIEW_EXTENDED_CORNER_AXIS; x++) {
+			for (legacy_u16 y = 0; y < HIRES_TRACK_PREVIEW_EXTENDED_CORNER_AXIS; y++) {
+				for (legacy_u16 x = 0; x < HIRES_TRACK_PREVIEW_EXTENDED_CORNER_AXIS; x++) {
 					legacy_s16 corner =
 						track->corner_heights[(row + y) * (track->width + 1U) + column + x] *
 						CSTRK_LEVEL_WORLD_HEIGHT;
@@ -109,10 +109,10 @@ track_preview_extended_center(const struct CSTRK_TRACK *track,
 }
 
 static legacy_f64
-track_preview_extended_orbit_radius(const struct TRACK_PREVIEW_EXTENDED_BOUNDS *bounds,
-									const struct SHAPE3D_HIRES_VECTOR *center)
+hires_track_preview_extended_orbit_radius(const struct HIRES_TRACK_PREVIEW_EXTENDED_BOUNDS *bounds,
+										  const struct SHAPE3D_HIRES_VECTOR *center)
 {
-	legacy_f64 radius = TRACK_PREVIEW_EXTENDED_MINIMUM_LEVELS * CSTRK_LEVEL_WORLD_HEIGHT;
+	legacy_f64 radius = HIRES_TRACK_PREVIEW_EXTENDED_MINIMUM_LEVELS * CSTRK_LEVEL_WORLD_HEIGHT;
 	if (!bounds->tiles) {
 		return radius;
 	}
@@ -124,28 +124,29 @@ track_preview_extended_orbit_radius(const struct TRACK_PREVIEW_EXTENDED_BOUNDS *
 	if (extent_z < center->z - bounds->min_z) {
 		extent_z = center->z - bounds->min_z;
 	}
-	extent_x += TRACK_PREVIEW_EXTENDED_MODEL_MARGIN;
-	extent_z += TRACK_PREVIEW_EXTENDED_MODEL_MARGIN;
+	extent_x += HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN;
+	extent_z += HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN;
 	/* Normalize the largest supported diagonal into word range; allow for
 	 * integer radius and angle rounding before fitting the camera frustum. */
 	legacy_f64 reach =
-		(polarRadius2D((legacy_s16)(extent_x / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE),
-					   (legacy_s16)(extent_z / TRACK_PREVIEW_EXTENDED_RADIUS_SCALE)) *
-			 TRACK_PREVIEW_EXTENDED_RADIUS_SCALE +
-		 TRACK_PREVIEW_EXTENDED_MODEL_MARGIN) *
-		TRACK_PREVIEW_EXTENDED_RADIUS_ALLOWANCE;
-	legacy_f64 low = bounds->min_y - TRACK_PREVIEW_EXTENDED_MODEL_MARGIN - center->y;
-	legacy_f64 high = bounds->max_y + TRACK_PREVIEW_EXTENDED_MODEL_HEIGHT - center->y;
-	legacy_f64 cosine = cos_fast(TRACK_PREVIEW_EXTENDED_ORBIT_PITCH) / (legacy_f64)TRIG_FIXED_ONE;
+		(polarRadius2D((legacy_s16)(extent_x / HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_SCALE),
+					   (legacy_s16)(extent_z / HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_SCALE)) *
+			 HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_SCALE +
+		 HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN) *
+		HIRES_TRACK_PREVIEW_EXTENDED_RADIUS_ALLOWANCE;
+	legacy_f64 low = bounds->min_y - HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN - center->y;
+	legacy_f64 high = bounds->max_y + HIRES_TRACK_PREVIEW_EXTENDED_MODEL_HEIGHT - center->y;
+	legacy_f64 cosine =
+		cos_fast(HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH) / (legacy_f64)TRIG_FIXED_ONE;
 	legacy_f64 horizontal =
-		projection_focal_length_x /
-		(legacy_f64)(TRACK_PREVIEW_SCREEN_WIDTH / 2 - TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
+		projection_focal_length_x / (legacy_f64)(HIRES_TRACK_PREVIEW_SCREEN_WIDTH / 2 -
+												 HIRES_TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
 	legacy_f64 top = projection_focal_length_y /
-					 (legacy_f64)(projection_center_y - TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM -
-								  TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
+					 (legacy_f64)(projection_center_y - HIRES_TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM -
+								  HIRES_TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
 	legacy_f64 bottom = projection_focal_length_y /
-						(legacy_f64)(TRACK_PREVIEW_EXTENDED_BOTTOM - projection_center_y -
-									 TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
+						(legacy_f64)(HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM - projection_center_y -
+									 HIRES_TRACK_PREVIEW_EXTENDED_FIT_MARGIN);
 	/* At 45 degrees the orbit radius equals its height above the target.
 	 * Bound each frustum plane over every heading, keeping the entire lap
 	 * below its header without zooming as the camera goes around the circle. */
@@ -165,35 +166,40 @@ track_preview_extended_orbit_radius(const struct TRACK_PREVIEW_EXTENDED_BOUNDS *
 	return radius;
 }
 
-static void track_preview_draw_extended_3d(void)
+static void hires_track_preview_draw_extended_3d(void)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
-	struct TRACK_PREVIEW_EXTENDED_BOUNDS bounds = {0};
-	struct SHAPE3D_HIRES_VECTOR camera = track_preview_extended_center(track, &bounds);
+	struct HIRES_TRACK_PREVIEW_EXTENDED_BOUNDS bounds = {0};
+	struct SHAPE3D_HIRES_VECTOR camera = hires_track_preview_extended_center(track, &bounds);
 	legacy_u16 heading =
-		(legacy_u16)((dos_timer_get_realtime_counter() % TRACK_PREVIEW_EXTENDED_SPIN_TICKS) *
-					 ANGLE_FULL_TURN / TRACK_PREVIEW_EXTENDED_SPIN_TICKS);
-	set_projection(TRACK_PREVIEW_EXTENDED_FOV, TRACK_PREVIEW_EXTENDED_FOV,
-				   TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_SCREEN_HEIGHT);
-	projection_set_origin(0, (TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM + TRACK_PREVIEW_EXTENDED_BOTTOM -
-							  TRACK_PREVIEW_SCREEN_HEIGHT) /
+		(legacy_u16)((dos_timer_get_realtime_counter() % HIRES_TRACK_PREVIEW_EXTENDED_SPIN_TICKS) *
+					 ANGLE_FULL_TURN / HIRES_TRACK_PREVIEW_EXTENDED_SPIN_TICKS);
+	set_projection(HIRES_TRACK_PREVIEW_EXTENDED_FOV, HIRES_TRACK_PREVIEW_EXTENDED_FOV,
+				   HIRES_TRACK_PREVIEW_SCREEN_WIDTH, HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
+	projection_set_origin(0, (HIRES_TRACK_PREVIEW_EXTENDED_HEADER_BOTTOM +
+							  HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM -
+							  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT) /
 								 2);
-	legacy_f64 radius = track_preview_extended_orbit_radius(&bounds, &camera);
+	legacy_f64 radius = hires_track_preview_extended_orbit_radius(&bounds, &camera);
 	camera.x += radius * sin_fast(heading) / TRIG_FIXED_ONE;
 	camera.y += radius;
 	camera.z -= radius * cos_fast(heading) / TRIG_FIXED_ONE;
 	legacy_s16 horizon = (legacy_s16)projection_center_y -
 						 (legacy_s16)((legacy_s32)projection_focal_length_y *
-									  sin_fast(TRACK_PREVIEW_EXTENDED_ORBIT_PITCH) /
-									  cos_fast(TRACK_PREVIEW_EXTENDED_ORBIT_PITCH));
-	struct RECTANGLE viewport = {0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
-								 TRACK_PREVIEW_EXTENDED_BOTTOM};
+									  sin_fast(HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH) /
+									  cos_fast(HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH));
+	struct RECTANGLE viewport = {0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH,
+								 HIRES_TRACK_PREVIEW_EXTENDED_TOP,
+								 HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM};
 	skybox_render_level_rect(&viewport, (legacy_s16)heading, horizon);
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, TRACK_PREVIEW_EXTENDED_TOP,
-								  TRACK_PREVIEW_EXTENDED_BOTTOM);
-	struct RECTANGLE clip = {0, TRACK_PREVIEW_SCREEN_WIDTH - 1, TRACK_PREVIEW_EXTENDED_TOP,
-							 TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
-	select_cliprect_rotate(0, -TRACK_PREVIEW_EXTENDED_ORBIT_PITCH, (legacy_s16)heading, &clip, 0);
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH,
+								  HIRES_TRACK_PREVIEW_EXTENDED_TOP,
+								  HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM);
+	struct RECTANGLE clip = {0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH - 1,
+							 HIRES_TRACK_PREVIEW_EXTENDED_TOP,
+							 HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
+	select_cliprect_rotate(0, -HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH, (legacy_s16)heading, &clip,
+						   0);
 	for (legacy_s16 row = 0; row < track->height; row++) {
 		for (legacy_s16 column = 0; column < track->width; column++) {
 			/* Existing meshes use a tile-local wrapped camera. Restore its full
@@ -209,7 +215,8 @@ static void track_preview_draw_extended_3d(void)
 	shape3d_hires_set_origin(NULL);
 	shape3d_render_queued_primitives();
 	projection_set_origin(0, 0);
-	sprite_set_target_clip_bounds(0, TRACK_PREVIEW_SCREEN_WIDTH, 0, TRACK_PREVIEW_SCREEN_HEIGHT);
+	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
+								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
 }
 
 legacy_s16 extended_track_preview_hires_draw(void)
@@ -217,7 +224,7 @@ legacy_s16 extended_track_preview_hires_draw(void)
 	if (!hires_enabled()) {
 		return 0;
 	}
-	track_preview_draw_extended_3d();
+	hires_track_preview_draw_extended_3d();
 	return 1;
 }
 #endif

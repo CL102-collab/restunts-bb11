@@ -601,7 +601,7 @@ static void test_raster_bands(void)
 	struct HIRES_RASTER_TARGET target;
 	assert(hires_raster_prepare(&target));
 	struct HIRES_RASTER_CONTEXT contexts[2] = {{&target, 240, 244, 0}, {&target, 244, 248, 0}};
-	render_workers_run(2, raster_band_job, contexts);
+	hires_render_workers_run(2, raster_band_job, contexts);
 	assert(contexts[0].cleared_argb_cells == 4);
 	assert(contexts[1].cleared_argb_cells == 4);
 	hires_raster_finish(&target, contexts[0].cleared_argb_cells + contexts[1].cleared_argb_cells);
@@ -1636,7 +1636,7 @@ static void test_raster_rows(legacy_s32 scale, legacy_s32 columns, legacy_s32 wr
 				raster_row_job(&jobs, job);
 			}
 		} else {
-			render_workers_run(TEST_ROW_JOBS, raster_row_job, &jobs);
+			hires_render_workers_run(TEST_ROW_JOBS, raster_row_job, &jobs);
 		}
 		legacy_u32 retired = 0;
 		for (legacy_s32 job = 0; job < TEST_ROW_JOBS; job++) {
@@ -1742,7 +1742,7 @@ static void test_scaled_workers(legacy_s32 scale)
 				scaled_raster_job(&jobs, job);
 			}
 		} else {
-			render_workers_run(WORKER_COUNT, scaled_raster_job, &jobs);
+			hires_render_workers_run(WORKER_COUNT, scaled_raster_job, &jobs);
 		}
 		legacy_u32 actual_cleared =
 			jobs.contexts[0].cleared_argb_cells + jobs.contexts[1].cleared_argb_cells;
