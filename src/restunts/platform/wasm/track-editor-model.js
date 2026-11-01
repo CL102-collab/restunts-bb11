@@ -17,7 +17,8 @@
     const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
-    const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4]);
+    const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
+    const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
     const VERSION = 9, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
@@ -477,20 +478,41 @@
             } else if (cell.surface === surface && !cell.halfWaterCorner) return false;
             return this.transaction('Paint lower surface', () => { this.cells[index] = next; return true; });
         }
-        level(x, y, height, surface) {
-            const cell = this.cellIndex(x, y);
-            integer(height, 0, 4, 'terrain level'); integer(surface, 0, 3, 'terrain surface');
+        level(x, y, height, surface) { return this.levelArea(x, y, LEVEL_BRUSH_SIZES[0], height, surface); }
+        levelArea(x, y, size, height, surface) {
+            if (!LEVEL_BRUSH_SIZES.includes(size)) throw new Error('Invalid level brush size.');
+            this.cellIndex(x, y);
+            integer(height, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'terrain level');
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
             return this.transaction('Level terrain', () => {
-                const vertices = this.vertices.slice(), affected = new Set([cell]), stride = this.width + 1;
-                for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
-                    // Clamp to the legal slope envelope around the four target corners.
-                    // Staging the whole plateau avoids partial edits if an object blocks it.
-                    const distance = Math.max(x - vx, 0, vx - x - 1, y - vy, vy - y - 1);
-                    const index = vy * stride + vx;
-                    vertices[index] = Math.max(height - distance, Math.min(height + distance, this.vertices[index]));
+                const vertices = this.vertices.slice(), affected = new Set(), stride = this.width + 1;
+                let minimum = TERRAIN_DISPLAY_MAX_HEIGHT, maximum = 0;
+                for (let vy = y; vy <= bottom; vy++) for (let vx = x; vx <= right; vx++) {
+                    const value = this.vertices[vy * stride + vx];
+                    minimum = Math.min(minimum, value); maximum = Math.max(maximum, value);
                 }
-                const direction = height >= Math.max(...this.tileHeights(x, y)) ? 1 : -1;
-                normalizeTerrain(vertices, this.width, this.height, direction);
+                for (let row = y; row < bottom; row++) for (let column = x; column < right; column++)
+                    affected.add(row * this.width + column);
+                const clampEnvelope = direction => {
+                    for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
+                        // Stage one continuous plateau and its legal slope envelope.
+                        const distance = Math.max(x - vx, 0, vx - right, y - vy, vy - bottom);
+                        const index = vy * stride + vx;
+                        if (direction <= 0) vertices[index] = Math.min(height + distance, vertices[index]);
+                        if (direction >= 0) vertices[index] = Math.max(height - distance, vertices[index]);
+                    }
+                };
+                if (minimum < height && maximum > height) {
+                    // A mixed-height footprint needs both directions. Lower first to a
+                    // valid terrain whose target is at most height; the second pass
+                    // only raises values below height, keeping every target corner fixed.
+                    clampEnvelope(-1); normalizeTerrain(vertices, this.width, this.height, -1);
+                    clampEnvelope(1); normalizeTerrain(vertices, this.width, this.height, 1);
+                } else {
+                    clampEnvelope(0);
+                    normalizeTerrain(vertices, this.width, this.height, height >= maximum ? 1 : -1);
+                }
                 for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
                     const index = vy * stride + vx;
                     if (vertices[index] === this.vertices[index]) continue;
@@ -730,5 +752,5 @@
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

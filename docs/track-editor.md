@@ -72,7 +72,7 @@ before loading it; features from newer editors may not work correctly.
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
-Paint shows **1x1**, **2x2** and **4x4** tile choices, labeled below previews of
+Paint shows **1x1**, **2x2**, **4x4** and **8x8** tile choices, labeled below previews of
 the current grass, ice, dirt or water surface. Choose a size, then click or drag
 to paint that square starting at the hovered tile. The brush clips to the map
 edges, preserves terrain heights and track pieces, and each stroke undoes as one
@@ -101,12 +101,14 @@ Click a Paint tile size or a primary surface to paint whole tiles
 again. Lower surface strokes support undo and redo and save in the existing
 track format.
 
-Level shows five square choices, starting with Ground (0), then heights 1
-through 4. These choices appear only while Level is selected; click a map tile
-to set its corners to the chosen height and apply the selected terrain surface
-to it and any slopes created by the height change. Level supports grass, dirt,
-ice and water. Switching between these surfaces keeps Level active and
-preserves its height selection.
+Level shows a **Brush size** section above **Elevation**, with **1x1**, **2x2**,
+**4x4** and **8x8** choices. Elevation has five choices, starting with Ground (0),
+then heights 1 through 4. Choose the brush size and elevation independently, then
+click or drag to level that square starting at the hovered tile. The brush clips
+to the map edges. Its corners take the chosen height, and the selected terrain
+surface covers the square and any slopes created by the height change.
+Level supports grass, dirt, ice and water. Switching between these surfaces keeps
+Level active and preserves both its brush size and height selection.
 Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
 Adjoining corners adjust to retain the original game's flat tiles, straight
