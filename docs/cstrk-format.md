@@ -216,9 +216,10 @@ model revision is embedded in the file.
 Tulip field uses extended-only catalog ID `216`; Vine field uses `217`. Both
 require revision v12 and use the same one-tile footprint and zero modifier
 fields as Wheat field. Tulip rows are ordered purple, orange, red, pink,
-purple and yellow, with a single color per row. Vines render as tall, narrow green
-rows with dense purple grape clusters on both sides. Both support all four rotations, raised ground
-and straight hillside inclines in every direction. Adjacent tiles form larger
+purple and yellow, with a single color per row. Vines render as twelve low, narrow
+green rows with triangular tops and dense purple grape clusters on both sides.
+Both support all four rotations, raised ground and straight hillside inclines
+in every direction. Adjacent tiles form larger
 fields. They are decorative and drive-through, preserving the underlying
 terrain surface, grip and slope. Their generated artwork needs no extra game
 resource files. Hill corners and changes of grade remain subject to the normal

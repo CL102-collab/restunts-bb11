@@ -143,7 +143,8 @@ static legacy_u8 *crop_fields_write_grapes(struct SHAPE3D *mesh, legacy_u8 *prim
 	for (legacy_u8 station = 0; station < VINE_FIELD_GRAPE_STATION_COUNT; station++) {
 		legacy_s16 z = crop_fields_center(station, VINE_FIELD_GRAPE_STATION_COUNT);
 		for (legacy_u8 side = 0; side < VINE_FIELD_GRAPE_SIDE_COUNT; side++) {
-			legacy_s16 direction = side ? 1 : -1;
+			legacy_s16 x = side ? VINE_FIELD_ROW_RIGHT_OFFSET + VINE_FIELD_GRAPE_OUTWARD_OFFSET
+								: VINE_FIELD_ROW_LEFT_OFFSET - VINE_FIELD_GRAPE_OUTWARD_OFFSET;
 			for (legacy_u8 part = 0; part < VINE_FIELD_GRAPE_PART_COUNT; part++) {
 				legacy_s16 low =
 					part ? VINE_FIELD_GRAPE_LOWER_HEIGHT : VINE_FIELD_GRAPE_JOIN_HEIGHT;
@@ -153,16 +154,9 @@ static legacy_u8 *crop_fields_write_grapes(struct SHAPE3D *mesh, legacy_u8 *prim
 					part ? VINE_FIELD_GRAPE_LOWER_HALF_WIDTH : VINE_FIELD_GRAPE_UPPER_HALF_WIDTH;
 				for (legacy_u8 corner = 0; corner < CROP_FIELDS_QUAD_VERTICES; corner++) {
 					legacy_s16 y = corner >= CROP_FIELDS_QUAD_VERTICES / 2U ? high : low;
-					legacy_s16 x =
-						VINE_FIELD_ROW_HALF_WIDTH -
-						(legacy_s32)(VINE_FIELD_ROW_HALF_WIDTH - VINE_FIELD_SHOULDER_OFFSET) *
-							(y - CROP_FIELDS_SOIL_HEIGHT) /
-							(VINE_FIELD_SHOULDER_HEIGHT - CROP_FIELDS_SOIL_HEIGHT) +
-						VINE_FIELD_GRAPE_OUTWARD_OFFSET;
 					legacy_s16 depth =
 						corner == 0 || corner == CROP_FIELDS_QUAD_VERTICES - 1U ? -half : half;
-					crop_fields_write_vertex(mesh, first + corner, center + direction * x, y,
-											 z + depth);
+					crop_fields_write_vertex(mesh, first + corner, center + x, y, z + depth);
 				}
 				legacy_u8 indices[CROP_FIELDS_QUAD_VERTICES];
 				for (legacy_u8 corner = 0; corner < CROP_FIELDS_QUAD_VERTICES; corner++) {
@@ -182,11 +176,11 @@ static legacy_u8 *crop_fields_write_grapes(struct SHAPE3D *mesh, legacy_u8 *prim
 static legacy_u8 *crop_fields_write_vines(struct SHAPE3D *mesh, legacy_u8 *primitive)
 {
 	static const legacy_s16 section_x[VINE_FIELD_SECTION_VERTICES] = {
-		-VINE_FIELD_ROW_HALF_WIDTH, -VINE_FIELD_SHOULDER_OFFSET, 0, VINE_FIELD_SHOULDER_OFFSET,
-		VINE_FIELD_ROW_HALF_WIDTH};
+		VINE_FIELD_ROW_LEFT_OFFSET, VINE_FIELD_ROW_LEFT_OFFSET, VINE_FIELD_RIDGE_OFFSET,
+		VINE_FIELD_ROW_RIGHT_OFFSET, VINE_FIELD_ROW_RIGHT_OFFSET};
 	static const legacy_s16 section_y[VINE_FIELD_SECTION_VERTICES] = {
-		CROP_FIELDS_SOIL_HEIGHT, VINE_FIELD_SHOULDER_HEIGHT, VINE_FIELD_HEIGHT,
-		VINE_FIELD_SHOULDER_HEIGHT, CROP_FIELDS_SOIL_HEIGHT};
+		CROP_FIELDS_SOIL_HEIGHT, VINE_FIELD_EAVE_HEIGHT, VINE_FIELD_HEIGHT, VINE_FIELD_EAVE_HEIGHT,
+		CROP_FIELDS_SOIL_HEIGHT};
 	for (legacy_u16 row = 0; row < VINE_FIELD_ROW_COUNT; row++) {
 		legacy_u16 first = CROP_FIELDS_ROWS_VERTEX_FIRST + row * VINE_FIELD_ROW_VERTICES;
 		legacy_s16 center = crop_fields_center(row, VINE_FIELD_ROW_COUNT);
