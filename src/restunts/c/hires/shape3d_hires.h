@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_SHAPE3D_HIRES_H
 #define RESTUNTS_SHAPE3D_HIRES_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 #if defined(RESTUNTS_SDL3)
 

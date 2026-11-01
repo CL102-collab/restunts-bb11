@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_MATH_H
 #define RESTUNTS_MATH_H
 
-#include "legacy.h"
+#include "../legacy.h"
 
 enum MATRIX_ROTATION_ORDER { MATRIX_ROTATION_ORDER_ZXY = 0, MATRIX_ROTATION_ORDER_YXZ = 1 };
 

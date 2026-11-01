@@ -4,7 +4,7 @@
 #include "../game_input.h"
 #include "../ghost/ghost.h"
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../platform.h"
 #include "../camera.h"
 #include "../car/car_audio.h"

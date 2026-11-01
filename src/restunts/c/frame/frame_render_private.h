@@ -24,7 +24,7 @@
 #include "../skybox.h"
 #include "../race/race_graphics.h"
 #include "../platform.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../externs.h"
 #include "../crash_state.h"
 #include "../ghost/ghost.h"

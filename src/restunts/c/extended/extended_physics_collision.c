@@ -1,5 +1,5 @@
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 #include "../physics_internal.h"
 #include "../physics_collision_internal.h"
 #include "../track/track_collision.h"

@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_HIRES_FRAME_SNAPSHOT_H
 #define RESTUNTS_HIRES_FRAME_SNAPSHOT_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 struct GAMESTATE;
 struct CARSTATE;

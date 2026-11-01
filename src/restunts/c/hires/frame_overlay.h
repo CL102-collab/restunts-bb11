@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_HIRES_FRAME_OVERLAY_H
 #define RESTUNTS_HIRES_FRAME_OVERLAY_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 void frame_supersight_reset(void);
 void frame_supersight_show_status(const legacy_s8 *name);

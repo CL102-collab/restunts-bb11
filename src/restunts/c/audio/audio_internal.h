@@ -3,7 +3,7 @@
 
 #include "audio.h"
 #include "../legacy.h"
-#include "../math.h"
+#include "../math/math.h"
 
 #define AUDIO_RESOURCE_ID_LENGTH 4U
 #define DOS_AUDIO_MASTER_STATE_SIZE 3U

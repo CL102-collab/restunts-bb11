@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_SKYBOX_H
 #define RESTUNTS_SKYBOX_H
 
-#include "math.h"
+#include "math/math.h"
 
 #define SKYBOX_IMAGE_COUNT 4
 #define SKYBOX_IMAGE_WIDTH 320U

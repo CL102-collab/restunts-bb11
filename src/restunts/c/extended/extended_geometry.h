@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_EXTENDED_GEOMETRY_H
 #define RESTUNTS_EXTENDED_GEOMETRY_H
 
-#include "../math.h"
+#include "../math/math.h"
 #include "cstrk.h"
 #include "../shape3d/shape3d.h"
 

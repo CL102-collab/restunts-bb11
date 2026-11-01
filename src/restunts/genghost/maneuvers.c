@@ -12,7 +12,7 @@
 
 #undef memcpy
 
-/* Legacy c/math.h precedes the platform header in this build. */
+/* ISO C math declarations use the shared floating-point type aliases. */
 extern legacy_f64 fabs(legacy_f64);
 extern legacy_f64 sqrt(legacy_f64);
 extern legacy_f64 atan(legacy_f64);

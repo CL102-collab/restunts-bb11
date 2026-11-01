@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_OWOOT_H
 #define RESTUNTS_OWOOT_H
 
-#include "../math.h"
+#include "../math/math.h"
 
 struct CARSTATE;
 
