@@ -223,9 +223,9 @@ set(common_sources
     strlib.c numlib.c kevinrnd.c replinit.c
     gameinit.c gamestep.c simd.c car/carsetup.c
     trkutil.c track/trackres.c headless_data.c headless_trackdata.c
-    state.c race/race_route.c physics_grip.c opponent/opponent.c
+    state.c race/race_route.c physics/physics_grip.c opponent/opponent.c
     track/track_setup.c stateply.c stateply_motion.c stateply_contact.c
-    physics_collision.c physics_suspension.c statecrs.c statecar.c
+    physics/physics_collision.c physics/physics_suspension.c statecrs.c statecar.c
     track/trackobj.c track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c
     owoot/owoot.c owoot/owoot_wheels.c owoot/owoot_road.c owoot/owoot_route.c
     driving_rules.c replay/replay.c stateio.c extended/extended_cstrk.c
@@ -636,12 +636,12 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-extended-race-start PRIVATE restunts_options)
     add_test(NAME extended-race-start COMMAND test-extended-race-start)
     add_executable(test-driving-rules src/restunts/tests/test-driving-rules.c
-        ${core}/driving_rules.c ${core}/statecar.c ${core}/physics_collision.c
-        ${core}/physics_suspension.c
+        ${core}/driving_rules.c ${core}/statecar.c ${core}/physics/physics_collision.c
+        ${core}/physics/physics_suspension.c
         ${core}/extended/extended_physics_collision.c ${core}/extended/extended_statecrs.c
         ${core}/extended/extended_race_route.c ${core}/extended/extended_trackobj.c
         ${core}/extended/extended_trackobj_solids.c
-        ${core}/physics_grip.c ${core}/race/race_route.c ${core}/track/trackobj.c
+        ${core}/physics/physics_grip.c ${core}/race/race_route.c ${core}/track/trackobj.c
         ${core}/track/trackobj_road.c ${core}/track/trackobj_stunts.c
         ${core}/track/trackobj_queries.c
         ${core}/owoot/owoot.c

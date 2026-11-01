@@ -15,7 +15,7 @@
 #include "dashboard.h"
 #include "car/car_speed.h"
 #include "car/car_resources.h"
-#include "physics_internal.h"
+#include "physics/physics_internal.h"
 #include "race/race_route.h"
 #include "owoot/owoot.h"
 #include "restunts.h"

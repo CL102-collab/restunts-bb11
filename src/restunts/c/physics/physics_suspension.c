@@ -1,11 +1,11 @@
-#include "legacy.h"
-#include "math/math.h"
+#include "../legacy.h"
+#include "../math/math.h"
 #include "physics_internal.h"
-#include "residue.h"
-#include "track/trackdata_layout.h"
-#include "track/track_objects.h"
-#include "track/track_collision.h"
-#include "externs.h"
+#include "../residue.h"
+#include "../track/trackdata_layout.h"
+#include "../track/track_objects.h"
+#include "../track/track_collision.h"
+#include "../externs.h"
 #include "physics_collision_internal.h"
 
 #define SUSPENSION_TARGET_DECAY 4

@@ -111,7 +111,7 @@ for the finding.
 | `update_car_speed_fraction` | `src/restunts/c/statecar.c:387` | `test-car-speed.c` only |
 | `update_player_steering_fraction` | `src/restunts/c/opponent.c:624` | `test-route-points.c` only |
 | `update_follow_cameras_fraction` | `src/restunts/c/gamestep.c:168` | `test-simulation-setup.c` only |
-| `update_wheel_suspension_fraction` | `src/restunts/c/physics_collision.c:714` | Tests and the unreachable `stateply.c` branch |
+| `update_wheel_suspension_fraction` | `src/restunts/c/physics/physics_collision.c:714` | Tests and the unreachable `stateply.c` branch |
 
 Production steering always supplies a full tick to its shared steering helper;
 production follow cameras use the ordinary update path with a zero fraction.

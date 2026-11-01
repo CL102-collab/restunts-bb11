@@ -2,7 +2,7 @@
 
 #ifdef RESTUNTS_SDL3
 #include "../math/math.h"
-#include "../physics_internal.h"
+#include "../physics/physics_internal.h"
 #include "../crash_state.h"
 #include "../track/track_collision.h"
 #include "../externs.h"

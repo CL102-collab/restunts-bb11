@@ -6,7 +6,7 @@
 #include "../c/track/track_collision.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
-#include "../c/physics_internal.h"
+#include "../c/physics/physics_internal.h"
 
 extern legacy_s8 corkFlag;
 

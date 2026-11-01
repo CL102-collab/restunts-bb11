@@ -1,7 +1,7 @@
 #ifndef RESTUNTS_PHYSICS_COLLISION_INTERNAL_H
 #define RESTUNTS_PHYSICS_COLLISION_INTERNAL_H
 
-#include "track/track_types.h"
+#include "../track/track_types.h"
 
 /* Shared native model geometry, independent of track format and placement. */
 legacy_u16 physics_collision_model_points(legacy_u8 tile_element,
