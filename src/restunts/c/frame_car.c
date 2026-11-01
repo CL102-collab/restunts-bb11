@@ -236,12 +236,3 @@ void frame_place_cars(const struct FRAME_TILE_SELECTION *tiles, struct FRAME_CAR
 		}
 	}
 }
-
-#if defined(RESTUNTS_SDL3)
-void frame_offset_car_shape(const struct VECTOR *offset)
-{
-	curtransshape_ptr->pos.x = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.x, offset->x);
-	curtransshape_ptr->pos.y = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.y, offset->y);
-	curtransshape_ptr->pos.z = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.z, offset->z);
-}
-#endif

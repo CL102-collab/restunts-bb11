@@ -99,3 +99,12 @@ void frame_hires_car_flags(legacy_s8 flags)
 	curtransshape_ptr->ts_flags |= flags & SHAPE3D_NO_SHADOW_RECEIVE_FLAG;
 }
 #endif
+
+#if defined(RESTUNTS_SDL3)
+void frame_offset_car_shape(const struct VECTOR *offset)
+{
+	curtransshape_ptr->pos.x = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.x, offset->x);
+	curtransshape_ptr->pos.y = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.y, offset->y);
+	curtransshape_ptr->pos.z = LEGACY_S16_WRAP_ADD(curtransshape_ptr->pos.z, offset->z);
+}
+#endif

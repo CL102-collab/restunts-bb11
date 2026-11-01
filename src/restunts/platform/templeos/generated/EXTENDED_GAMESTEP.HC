@@ -2,38 +2,38 @@
 
 legacy_s8 RsExtendedGamestepLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_8037;
+  legacy_s32 noreg temple_tmp_8035;
   if((value<=127)) {
-    temple_tmp_8037=TempleCastS32(TempleCastS8(value));
+    temple_tmp_8035=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_8037=TempleCastS32(TempleCastS8(
+    temple_tmp_8035=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_8037);
+  return TempleCastS8(temple_tmp_8035);
 }
 
 legacy_s16 RsExtendedGamestepLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_8038;
+  legacy_s32 noreg temple_tmp_8036;
   if((value<=32767)) {
-    temple_tmp_8038=TempleCastS32(TempleCastS16(value));
+    temple_tmp_8036=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_8038=TempleCastS32(TempleCastS16(
+    temple_tmp_8036=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_8038);
+  return TempleCastS16(temple_tmp_8036);
 }
 
 legacy_s32 RsExtendedGamestepLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_8039;
+  legacy_s32 noreg temple_tmp_8037;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_8039=TempleCastS32(TempleCastS32(value));
+    temple_tmp_8037=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_8039=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_8037=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_8039);
+  return TempleCastS32(temple_tmp_8037);
 }
 
 legacy_s16 RsExtendedGamestepInput(legacy_s8 *input,legacy_s16 store_checkpoints)

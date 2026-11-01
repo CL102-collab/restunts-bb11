@@ -2,46 +2,46 @@
 
 legacy_s8 RsShape3dPolygonLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_4034;
+  legacy_s32 noreg temple_tmp_4026;
   if((value<=127)) {
-    temple_tmp_4034=TempleCastS32(TempleCastS8(value));
+    temple_tmp_4026=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_4034=TempleCastS32(TempleCastS8(
+    temple_tmp_4026=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_4034);
+  return TempleCastS8(temple_tmp_4026);
 }
 
 legacy_s16 RsShape3dPolygonLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_4035;
+  legacy_s32 noreg temple_tmp_4027;
   if((value<=32767)) {
-    temple_tmp_4035=TempleCastS32(TempleCastS16(value));
+    temple_tmp_4027=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_4035=TempleCastS32(TempleCastS16(
+    temple_tmp_4027=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_4035);
+  return TempleCastS16(temple_tmp_4027);
 }
 
 legacy_s32 RsShape3dPolygonLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_4036;
+  legacy_s32 noreg temple_tmp_4028;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_4036=TempleCastS32(TempleCastS32(value));
+    temple_tmp_4028=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_4036=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_4028=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_4036);
+  return TempleCastS32(temple_tmp_4028);
 }
 
 legacy_void RsShape3dPolygonPolygonFindBounds(
     CPoint2D *vertices,legacy_u16 vertex_count,CPolygonRaster *raster)
 {
-  legacy_s16 noreg temple_vertex_index_4038;
-  legacy_s16 *temple_tmp_4039;
-  legacy_s16 noreg temple_tmp_4040;
+  legacy_s16 noreg temple_vertex_index_4030;
+  legacy_s16 *temple_tmp_4031;
+  legacy_s16 noreg temple_tmp_4032;
   (raster->clip_left=TempleCastS16(drawing_sprite.sprite_raster_left));
   (raster->clip_right=TempleCastS16(TempleCastS32((drawing_sprite.sprite_raster_right-1))));
   (raster->clip_top=TempleCastS16(drawing_sprite.sprite_top));
@@ -52,68 +52,68 @@ legacy_void RsShape3dPolygonPolygonFindBounds(
   (raster->bottom_vertex=vertices);
   (raster->bottom_y=TempleCastS16((raster->top_y=TempleCastS16(vertices->py))));
   (raster->max_x=TempleCastS16((raster->min_x=TempleCastS16(vertices->px))));
-  temple_vertex_index_4038=TempleCastS16(1);
+  temple_vertex_index_4030=TempleCastS16(1);
   while(1) {
-    if(!((temple_vertex_index_4038<vertex_count))) {
+    if(!((temple_vertex_index_4030<vertex_count))) {
       break;
     }
-    if((vertices[temple_vertex_index_4038].py<=raster->top_y)) {
-      (raster->top_y=TempleCastS16(vertices[temple_vertex_index_4038].py));
-      (raster->top_vertex=(&(vertices[temple_vertex_index_4038])));
+    if((vertices[temple_vertex_index_4030].py<=raster->top_y)) {
+      (raster->top_y=TempleCastS16(vertices[temple_vertex_index_4030].py));
+      (raster->top_vertex=(&(vertices[temple_vertex_index_4030])));
     }
-    if((vertices[temple_vertex_index_4038].py>raster->bottom_y)) {
-      (raster->bottom_y=TempleCastS16(vertices[temple_vertex_index_4038].py));
-      (raster->bottom_vertex=(&(vertices[temple_vertex_index_4038])));
+    if((vertices[temple_vertex_index_4030].py>raster->bottom_y)) {
+      (raster->bottom_y=TempleCastS16(vertices[temple_vertex_index_4030].py));
+      (raster->bottom_vertex=(&(vertices[temple_vertex_index_4030])));
     }
-    if((vertices[temple_vertex_index_4038].px<raster->min_x)) {
-      (raster->min_x=TempleCastS16(vertices[temple_vertex_index_4038].px));
+    if((vertices[temple_vertex_index_4030].px<raster->min_x)) {
+      (raster->min_x=TempleCastS16(vertices[temple_vertex_index_4030].px));
     }
-    if((vertices[temple_vertex_index_4038].px>raster->max_x)) {
-      (raster->max_x=TempleCastS16(vertices[temple_vertex_index_4038].px));
+    if((vertices[temple_vertex_index_4030].px>raster->max_x)) {
+      (raster->max_x=TempleCastS16(vertices[temple_vertex_index_4030].px));
     }
-    temple_tmp_4039=&(temple_vertex_index_4038);
-    temple_tmp_4040=*temple_tmp_4039;
-    *temple_tmp_4039=TempleCastS16((temple_tmp_4040+1));
-    temple_tmp_4040;
+    temple_tmp_4031=&(temple_vertex_index_4030);
+    temple_tmp_4032=*temple_tmp_4031;
+    *temple_tmp_4031=TempleCastS16((temple_tmp_4032+1));
+    temple_tmp_4032;
   }
 }
 
 legacy_s16 RsShape3dPolygonPolygonIsOutside(CPolygonRaster *raster)
 {
-  legacy_s32 noreg temple_tmp_4041;
-  legacy_s32 noreg temple_tmp_4042;
-  legacy_s32 noreg temple_tmp_4043;
-  temple_tmp_4041=0;
+  legacy_s32 noreg temple_tmp_4033;
+  legacy_s32 noreg temple_tmp_4034;
+  legacy_s32 noreg temple_tmp_4035;
+  temple_tmp_4033=0;
   if((raster->max_x<raster->clip_left)) {
-    temple_tmp_4041=1;
+    temple_tmp_4033=1;
   }
-  if(!temple_tmp_4041) {
-    temple_tmp_4041=0;
+  if(!temple_tmp_4033) {
+    temple_tmp_4033=0;
     if((raster->min_x>=raster->clip_right)) {
-      temple_tmp_4041=1;
+      temple_tmp_4033=1;
     }
   }
-  temple_tmp_4042=0;
-  if(temple_tmp_4041) {
-    temple_tmp_4042=1;
+  temple_tmp_4034=0;
+  if(temple_tmp_4033) {
+    temple_tmp_4034=1;
   }
-  if(!temple_tmp_4042) {
-    temple_tmp_4042=0;
+  if(!temple_tmp_4034) {
+    temple_tmp_4034=0;
     if((raster->bottom_y<raster->clip_top)) {
-      temple_tmp_4042=1;
+      temple_tmp_4034=1;
     }
   }
-  temple_tmp_4043=0;
-  if(temple_tmp_4042) {
-    temple_tmp_4043=1;
+  temple_tmp_4035=0;
+  if(temple_tmp_4034) {
+    temple_tmp_4035=1;
   }
-  if(!temple_tmp_4043) {
-    temple_tmp_4043=0;
+  if(!temple_tmp_4035) {
+    temple_tmp_4035=0;
     if((raster->top_y>=raster->clip_bottom)) {
-      temple_tmp_4043=1;
+      temple_tmp_4035=1;
     }
   }
-  return TempleCastS16(temple_tmp_4043);
+  return TempleCastS16(temple_tmp_4035);
 }
 
 legacy_void RsShape3dPolygonPolygonPrepareSegment(
@@ -131,27 +131,27 @@ legacy_void RsShape3dPolygonPolygonPrepareSegment(
 legacy_void RsShape3dPolygonPolygonGenerateFirstSide(
     CPolygonRaster *raster,legacy_s16 *edges,legacy_u16 *line_setup)
 {
-  CPoint2D *temple_current_vertex_4044;
-  CPoint2D *temple_start_vertex_4045;
-  legacy_s32 noreg temple_tmp_4047;
-  temple_current_vertex_4044=raster->top_vertex;
+  CPoint2D *temple_current_vertex_4036;
+  CPoint2D *temple_start_vertex_4037;
+  legacy_s32 noreg temple_tmp_4039;
+  temple_current_vertex_4036=raster->top_vertex;
   while(1) {
-    (temple_start_vertex_4045=temple_current_vertex_4044);
-    (temple_current_vertex_4044++);
-    if((temple_current_vertex_4044>raster->last_vertex)) {
-      (temple_current_vertex_4044=raster->first_vertex);
+    (temple_start_vertex_4037=temple_current_vertex_4036);
+    (temple_current_vertex_4036++);
+    if((temple_current_vertex_4036>raster->last_vertex)) {
+      (temple_current_vertex_4036=raster->first_vertex);
     }
-    if((temple_current_vertex_4044->py>temple_start_vertex_4045->py)) {
-      RsShape3dPolygonPolygonPrepareSegment(temple_start_vertex_4045,temple_current_vertex_4044,
+    if((temple_current_vertex_4036->py>temple_start_vertex_4037->py)) {
+      RsShape3dPolygonPolygonPrepareSegment(temple_start_vertex_4037,temple_current_vertex_4036,
           line_setup,TempleCastU16(raster->needs_clipping));
       if((raster->needs_clipping!=0)) {
-        temple_tmp_4047=TempleCastS32(PRERENDER_EDGE_CLIPPED_MODE);
+        temple_tmp_4039=TempleCastS32(PRERENDER_EDGE_CLIPPED_MODE);
       } else {
-        temple_tmp_4047=TempleCastS32(PRERENDER_EDGE_UNCLIPPED_MODE);
+        temple_tmp_4039=TempleCastS32(PRERENDER_EDGE_UNCLIPPED_MODE);
       }
-      RsGeneratePolyEdges(edges,line_setup,TempleCastS16(temple_tmp_4047));
+      RsGeneratePolyEdges(edges,line_setup,TempleCastS16(temple_tmp_4039));
     }
-    if(!((temple_current_vertex_4044!=raster->bottom_vertex))) {
+    if(!((temple_current_vertex_4036!=raster->bottom_vertex))) {
       break;
     }
   }
@@ -160,23 +160,23 @@ legacy_void RsShape3dPolygonPolygonGenerateFirstSide(
 legacy_void RsShape3dPolygonPolygonMergeSecondSide(CPolygonRaster *raster,legacy_s16 *edges,
     legacy_u16 *line_setup,legacy_u16 choose_edge_per_row)
 {
-  CPoint2D *temple_current_vertex_4048;
-  CPoint2D *temple_start_vertex_4049;
-  temple_current_vertex_4048=raster->top_vertex;
+  CPoint2D *temple_current_vertex_4040;
+  CPoint2D *temple_start_vertex_4041;
+  temple_current_vertex_4040=raster->top_vertex;
   while(1) {
-    (temple_start_vertex_4049=temple_current_vertex_4048);
-    if((temple_current_vertex_4048==raster->first_vertex)) {
-      (temple_current_vertex_4048=raster->last_vertex);
+    (temple_start_vertex_4041=temple_current_vertex_4040);
+    if((temple_current_vertex_4040==raster->first_vertex)) {
+      (temple_current_vertex_4040=raster->last_vertex);
     } else {
-      (temple_current_vertex_4048--);
+      (temple_current_vertex_4040--);
     }
-    if((temple_current_vertex_4048->py>temple_start_vertex_4049->py)) {
-      RsShape3dPolygonPolygonPrepareSegment(temple_start_vertex_4049,temple_current_vertex_4048,
+    if((temple_current_vertex_4040->py>temple_start_vertex_4041->py)) {
+      RsShape3dPolygonPolygonPrepareSegment(temple_start_vertex_4041,temple_current_vertex_4040,
           line_setup,TempleCastU16(raster->needs_clipping));
       RsPolygonMergeSecondEdge(line_setup,TempleCastU16(choose_edge_per_row),
           TempleCastU16(raster->needs_clipping),edges);
     }
-    if(!((temple_current_vertex_4048!=raster->bottom_vertex))) {
+    if(!((temple_current_vertex_4040!=raster->bottom_vertex))) {
       break;
     }
   }
@@ -185,176 +185,229 @@ legacy_void RsShape3dPolygonPolygonMergeSecondSide(CPolygonRaster *raster,legacy
 legacy_void RsShape3dPolygonPolygonDrawSpans(
     CPolygonRaster *raster,legacy_s16 *edges,legacy_u16 color)
 {
-  legacy_s16 noreg temple_bottom_4051;
-  legacy_s16 noreg temple_top_4052;
-  legacy_s16 noreg temple_line_count_4053;
-  legacy_s16 *temple_tmp_4054;
-  legacy_s16 noreg temple_tmp_4055;
-  legacy_void (*temple_callee_4056)(
+  legacy_s16 noreg temple_bottom_4043;
+  legacy_s16 noreg temple_top_4044;
+  legacy_s16 noreg temple_line_count_4045;
+  legacy_s16 *temple_tmp_4046;
+  legacy_s16 noreg temple_tmp_4047;
+  legacy_void (*temple_callee_4048)(
       legacy_s16 *arg0,legacy_s16 *arg1,legacy_u16 arg2,legacy_u16 arg3,legacy_u16 arg4);
-  temple_bottom_4051=TempleCastS16(raster->bottom_y);
-  if((temple_bottom_4051>=raster->clip_bottom)) {
-    (temple_bottom_4051=TempleCastS16(TempleCastS32((raster->clip_bottom-1))));
+  temple_bottom_4043=TempleCastS16(raster->bottom_y);
+  if((temple_bottom_4043>=raster->clip_bottom)) {
+    (temple_bottom_4043=TempleCastS16(TempleCastS32((raster->clip_bottom-1))));
   }
-  temple_top_4052=TempleCastS16(raster->top_y);
-  if((temple_top_4052<raster->clip_top)) {
-    (temple_top_4052=TempleCastS16(raster->clip_top));
+  temple_top_4044=TempleCastS16(raster->top_y);
+  if((temple_top_4044<raster->clip_top)) {
+    (temple_top_4044=TempleCastS16(raster->clip_top));
   }
-  temple_line_count_4053=TempleCastS16(TempleCastS32((temple_bottom_4051-temple_top_4052)));
-  if((temple_line_count_4053<=0)) {
+  temple_line_count_4045=TempleCastS16(TempleCastS32((temple_bottom_4043-temple_top_4044)));
+  if((temple_line_count_4045<=0)) {
     return;
   }
-  temple_tmp_4054=&(temple_line_count_4053);
-  temple_tmp_4055=*temple_tmp_4054;
-  *temple_tmp_4054=TempleCastS16((temple_tmp_4055+1));
-  temple_tmp_4055;
-  temple_callee_4056=spritefunc;
-  temple_callee_4056((&(edges[temple_top_4052])),
-      (&(edges[TempleCastS32((480+temple_top_4052))])),TempleCastU16(temple_top_4052),
-      TempleCastU16(temple_line_count_4053),TempleCastU16(color));
+  temple_tmp_4046=&(temple_line_count_4045);
+  temple_tmp_4047=*temple_tmp_4046;
+  *temple_tmp_4046=TempleCastS16((temple_tmp_4047+1));
+  temple_tmp_4047;
+  temple_callee_4048=spritefunc;
+  temple_callee_4048((&(edges[temple_top_4044])),
+      (&(edges[TempleCastS32((480+temple_top_4044))])),TempleCastU16(temple_top_4044),
+      TempleCastU16(temple_line_count_4045),TempleCastU16(color));
 }
 
 legacy_void RsPolygonRasterize(
     legacy_u16 color,legacy_u16 vertex_count,CPoint2D *vertices,legacy_u16 choose_edge_per_row)
 {
-  CPolygonRaster temple_raster_4057;
-  legacy_void (*temple_callee_4058)(
+  CPolygonRaster temple_raster_4049;
+  legacy_void (*temple_callee_4050)(
       legacy_u16 arg0,legacy_u16 arg1,legacy_u16 arg2,legacy_u16 arg3,legacy_u16 arg4);
-  legacy_s32 noreg temple_tmp_4059;
-  legacy_s32 noreg temple_tmp_4060;
-  legacy_s32 noreg temple_tmp_4061;
-  legacy_s32 noreg temple_tmp_4062;
-  legacy_void (*temple_callee_4063)(
+  legacy_s32 noreg temple_tmp_4051;
+  legacy_s32 noreg temple_tmp_4052;
+  legacy_s32 noreg temple_tmp_4053;
+  legacy_s32 noreg temple_tmp_4054;
+  legacy_void (*temple_callee_4055)(
       legacy_u16 arg0,legacy_u16 arg1,legacy_u16 arg2,legacy_u16 arg3,legacy_u16 arg4);
-  legacy_u16 temple_line_setup_4064[(14*2)];
-  legacy_s16 temple_edge_tables_4065[(480*2)];
+  legacy_u16 temple_line_setup_4056[(14*2)];
+  legacy_s16 temple_edge_tables_4057[(480*2)];
   if((vertex_count==0)) {
     return;
   }
-  RsShape3dPolygonPolygonFindBounds(vertices,TempleCastU16(vertex_count),(&(temple_raster_4057)));
+  RsShape3dPolygonPolygonFindBounds(vertices,TempleCastU16(vertex_count),(&(temple_raster_4049)));
   if((vertex_count==1)) {
-    temple_callee_4058=imagefunc;
-    temple_callee_4058(TempleCastU16(vertices->px),TempleCastU16(vertices->py),
+    temple_callee_4050=imagefunc;
+    temple_callee_4050(TempleCastU16(vertices->px),TempleCastU16(vertices->py),
         TempleCastU16(vertices->px),TempleCastU16(vertices->py),TempleCastU16(color));
     return;
   }
-  if(RsShape3dPolygonPolygonIsOutside((&(temple_raster_4057)))) {
+  if(RsShape3dPolygonPolygonIsOutside((&(temple_raster_4049)))) {
     return;
   }
-  (temple_raster_4057.needs_clipping=TempleCastU16(0));
-  temple_tmp_4059=0;
-  if((temple_raster_4057.max_x>temple_raster_4057.clip_right)) {
-    temple_tmp_4059=1;
+  (temple_raster_4049.needs_clipping=TempleCastU16(0));
+  temple_tmp_4051=0;
+  if((temple_raster_4049.max_x>temple_raster_4049.clip_right)) {
+    temple_tmp_4051=1;
   }
-  if(!temple_tmp_4059) {
-    temple_tmp_4059=0;
-    if((temple_raster_4057.min_x<temple_raster_4057.clip_left)) {
-      temple_tmp_4059=1;
+  if(!temple_tmp_4051) {
+    temple_tmp_4051=0;
+    if((temple_raster_4049.min_x<temple_raster_4049.clip_left)) {
+      temple_tmp_4051=1;
     }
   }
-  temple_tmp_4060=0;
-  if(temple_tmp_4059) {
-    temple_tmp_4060=1;
+  temple_tmp_4052=0;
+  if(temple_tmp_4051) {
+    temple_tmp_4052=1;
   }
-  if(!temple_tmp_4060) {
-    temple_tmp_4060=0;
-    if((temple_raster_4057.bottom_y>=temple_raster_4057.clip_bottom)) {
-      temple_tmp_4060=1;
+  if(!temple_tmp_4052) {
+    temple_tmp_4052=0;
+    if((temple_raster_4049.bottom_y>=temple_raster_4049.clip_bottom)) {
+      temple_tmp_4052=1;
     }
   }
-  temple_tmp_4061=0;
-  if(temple_tmp_4060) {
-    temple_tmp_4061=1;
+  temple_tmp_4053=0;
+  if(temple_tmp_4052) {
+    temple_tmp_4053=1;
   }
-  if(!temple_tmp_4061) {
-    temple_tmp_4061=0;
-    if((temple_raster_4057.top_y<temple_raster_4057.clip_top)) {
-      temple_tmp_4061=1;
+  if(!temple_tmp_4053) {
+    temple_tmp_4053=0;
+    if((temple_raster_4049.top_y<temple_raster_4049.clip_top)) {
+      temple_tmp_4053=1;
     }
   }
-  if(temple_tmp_4061) {
-    (temple_raster_4057.needs_clipping=TempleCastU16(1));
+  if(temple_tmp_4053) {
+    (temple_raster_4049.needs_clipping=TempleCastU16(1));
   }
-  temple_tmp_4062=0;
-  if((temple_raster_4057.bottom_y==temple_raster_4057.top_y)) {
-    temple_tmp_4062=1;
+  temple_tmp_4054=0;
+  if((temple_raster_4049.bottom_y==temple_raster_4049.top_y)) {
+    temple_tmp_4054=1;
   }
-  if(!temple_tmp_4062) {
-    temple_tmp_4062=0;
-    if((temple_raster_4057.max_x==temple_raster_4057.min_x)) {
-      temple_tmp_4062=1;
+  if(!temple_tmp_4054) {
+    temple_tmp_4054=0;
+    if((temple_raster_4049.max_x==temple_raster_4049.min_x)) {
+      temple_tmp_4054=1;
     }
   }
-  if(temple_tmp_4062) {
-    temple_callee_4063=imagefunc;
-    temple_callee_4063(TempleCastU16(temple_raster_4057.min_x),
-        TempleCastU16(temple_raster_4057.top_y),TempleCastU16(temple_raster_4057.max_x),
-        TempleCastU16(temple_raster_4057.bottom_y),TempleCastU16(color));
+  if(temple_tmp_4054) {
+    temple_callee_4055=imagefunc;
+    temple_callee_4055(TempleCastU16(temple_raster_4049.min_x),
+        TempleCastU16(temple_raster_4049.top_y),TempleCastU16(temple_raster_4049.max_x),
+        TempleCastU16(temple_raster_4049.bottom_y),TempleCastU16(color));
     return;
   }
   RsShape3dPolygonPolygonGenerateFirstSide(
-      (&(temple_raster_4057)),temple_edge_tables_4065,temple_line_setup_4064);
-  RsShape3dPolygonPolygonMergeSecondSide((&(temple_raster_4057)),temple_edge_tables_4065,
-      temple_line_setup_4064,TempleCastU16(choose_edge_per_row));
+      (&(temple_raster_4049)),temple_edge_tables_4057,temple_line_setup_4056);
+  RsShape3dPolygonPolygonMergeSecondSide((&(temple_raster_4049)),temple_edge_tables_4057,
+      temple_line_setup_4056,TempleCastU16(choose_edge_per_row));
   RsShape3dPolygonPolygonDrawSpans(
-      (&(temple_raster_4057)),temple_edge_tables_4065,TempleCastU16(color));
+      (&(temple_raster_4049)),temple_edge_tables_4057,TempleCastU16(color));
 }
 
 legacy_void RsShape3dPolygonGeneratePolyEdgeFill(
     legacy_s16 *edges,legacy_s16 offset,legacy_s16 count,legacy_s16 boundary)
 {
-  legacy_s16 noreg temple_index_4067;
-  legacy_s16 *temple_tmp_4068;
-  legacy_s16 noreg temple_tmp_4069;
-  temple_index_4067=TempleCastS16(0);
+  legacy_s16 noreg temple_index_4059;
+  legacy_s16 *temple_tmp_4060;
+  legacy_s16 noreg temple_tmp_4061;
+  temple_index_4059=TempleCastS16(0);
   while(1) {
-    if(!((temple_index_4067<count))) {
+    if(!((temple_index_4059<count))) {
       break;
     }
-    (edges[TempleCastS32((offset+temple_index_4067))]=TempleCastS16(boundary));
-    (edges[TempleCastS32((TempleCastS32((480+offset))+temple_index_4067))]=
+    (edges[TempleCastS32((offset+temple_index_4059))]=TempleCastS16(boundary));
+    (edges[TempleCastS32((TempleCastS32((480+offset))+temple_index_4059))]=
             TempleCastS16(TempleCastS32((boundary-1))));
-    temple_tmp_4068=&(temple_index_4067);
-    temple_tmp_4069=*temple_tmp_4068;
-    *temple_tmp_4068=TempleCastS16((temple_tmp_4069+1));
-    temple_tmp_4069;
+    temple_tmp_4060=&(temple_index_4059);
+    temple_tmp_4061=*temple_tmp_4060;
+    *temple_tmp_4060=TempleCastS16((temple_tmp_4061+1));
+    temple_tmp_4061;
   }
 }
 
 legacy_void RsShape3dPolygonGeneratePolyEdgePadding(legacy_s16 *edges,legacy_u16 *setup,
     legacy_u16 count_index,legacy_s16 boundary,legacy_s16 leading)
 {
-  legacy_s16 noreg temple_count_4070;
-  legacy_s16 noreg temple_offset_4071;
-  temple_count_4070=TempleCastS16(
+  legacy_s16 noreg temple_count_4062;
+  legacy_s16 noreg temple_offset_4063;
+  temple_count_4062=TempleCastS16(
       RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(setup[count_index]))));
-  if((temple_count_4070<=0)) {
+  if((temple_count_4062<=0)) {
     return;
   }
   if((leading!=0)) {
-    (temple_offset_4071=TempleCastS16(
+    (temple_offset_4063=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                                 TempleCastU16(TempleCastU16(setup[DRAW_LINE_START_Y_INDEX]))))-
-                TempleCastU16(temple_count_4070)))))))));
+                TempleCastU16(temple_count_4062)))))))));
     if((RsShape3dPolygonLegacyS16FromBits(
             TempleCastU16(TempleCastU16(setup[DRAW_LINE_START_Y_FRACTION_INDEX])))<0)) {
-      (temple_offset_4071=TempleCastS16(
+      (temple_offset_4063=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_offset_4071)+TempleCastU16(1)))))))));
+              TempleCastS32((TempleCastU16(temple_offset_4063)+TempleCastU16(1)))))))));
     }
   } else {
-    (temple_offset_4071=TempleCastS16(
+    (temple_offset_4063=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                                 TempleCastU16(TempleCastU16(setup[DRAW_LINE_END_Y_INDEX]))))+
                 TempleCastU16(1)))))))));
   }
-  RsShape3dPolygonGeneratePolyEdgeFill(edges,TempleCastS16(temple_offset_4071),
-      TempleCastS16(temple_count_4070),TempleCastS16(boundary));
+  RsShape3dPolygonGeneratePolyEdgeFill(edges,TempleCastS16(temple_offset_4063),
+      TempleCastS16(temple_count_4062),TempleCastS16(boundary));
 }
 
 legacy_void RsShape3dPolygonGeneratePolyVertical(
+    legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
+{
+  legacy_s16 noreg temple_step_index_4065;
+  legacy_s16 *temple_tmp_4066;
+  legacy_s16 noreg temple_tmp_4067;
+  temple_step_index_4065=TempleCastS16(0);
+  while(1) {
+    if(!((temple_step_index_4065<step_count))) {
+      break;
+    }
+    (edges[TempleCastS32((row_index+temple_step_index_4065))]=
+            TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+                TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX])))));
+    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4065))]=
+            TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+                TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX])))));
+    temple_tmp_4066=&(temple_step_index_4065);
+    temple_tmp_4067=*temple_tmp_4066;
+    *temple_tmp_4066=TempleCastS16((temple_tmp_4067+1));
+    temple_tmp_4067;
+  }
+}
+
+legacy_void RsShape3dPolygonGeneratePolyDiagonalLeft(
+    legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
+{
+  legacy_s16 noreg temple_step_index_4069;
+  legacy_s16 *temple_tmp_4070;
+  legacy_s16 noreg temple_tmp_4071;
+  temple_step_index_4069=TempleCastS16(0);
+  while(1) {
+    if(!((temple_step_index_4069<step_count))) {
+      break;
+    }
+    (edges[TempleCastS32((row_index+temple_step_index_4069))]=TempleCastS16(
+        RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+            TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+                                TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))-
+                TempleCastU16(temple_step_index_4069)))))))));
+    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4069))]=
+            TempleCastS16(
+                RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+                    TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+                                      TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))-
+                        TempleCastU16(temple_step_index_4069)))))))));
+    temple_tmp_4070=&(temple_step_index_4069);
+    temple_tmp_4071=*temple_tmp_4070;
+    *temple_tmp_4070=TempleCastS16((temple_tmp_4071+1));
+    temple_tmp_4071;
+  }
+}
+
+legacy_void RsShape3dPolygonGeneratePolyDiagonalRight(
     legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
 {
   legacy_s16 noreg temple_step_index_4073;
@@ -365,12 +418,17 @@ legacy_void RsShape3dPolygonGeneratePolyVertical(
     if(!((temple_step_index_4073<step_count))) {
       break;
     }
-    (edges[TempleCastS32((row_index+temple_step_index_4073))]=
-            TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
-                TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX])))));
+    (edges[TempleCastS32((row_index+temple_step_index_4073))]=TempleCastS16(
+        RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+            TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+                                TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))+
+                TempleCastU16(temple_step_index_4073)))))))));
     (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4073))]=
-            TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
-                TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX])))));
+            TempleCastS16(
+                RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
+                    TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+                                      TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))+
+                        TempleCastU16(temple_step_index_4073)))))))));
     temple_tmp_4074=&(temple_step_index_4073);
     temple_tmp_4075=*temple_tmp_4074;
     *temple_tmp_4074=TempleCastS16((temple_tmp_4075+1));
@@ -378,295 +436,237 @@ legacy_void RsShape3dPolygonGeneratePolyVertical(
   }
 }
 
-legacy_void RsShape3dPolygonGeneratePolyDiagonalLeft(
-    legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
-{
-  legacy_s16 noreg temple_step_index_4077;
-  legacy_s16 *temple_tmp_4078;
-  legacy_s16 noreg temple_tmp_4079;
-  temple_step_index_4077=TempleCastS16(0);
-  while(1) {
-    if(!((temple_step_index_4077<step_count))) {
-      break;
-    }
-    (edges[TempleCastS32((row_index+temple_step_index_4077))]=TempleCastS16(
-        RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                                TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))-
-                TempleCastU16(temple_step_index_4077)))))))));
-    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4077))]=
-            TempleCastS16(
-                RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                    TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                                      TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))-
-                        TempleCastU16(temple_step_index_4077)))))))));
-    temple_tmp_4078=&(temple_step_index_4077);
-    temple_tmp_4079=*temple_tmp_4078;
-    *temple_tmp_4078=TempleCastS16((temple_tmp_4079+1));
-    temple_tmp_4079;
-  }
-}
-
-legacy_void RsShape3dPolygonGeneratePolyDiagonalRight(
-    legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
-{
-  legacy_s16 noreg temple_step_index_4081;
-  legacy_s16 *temple_tmp_4082;
-  legacy_s16 noreg temple_tmp_4083;
-  temple_step_index_4081=TempleCastS16(0);
-  while(1) {
-    if(!((temple_step_index_4081<step_count))) {
-      break;
-    }
-    (edges[TempleCastS32((row_index+temple_step_index_4081))]=TempleCastS16(
-        RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                                TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))+
-                TempleCastU16(temple_step_index_4081)))))))));
-    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4081))]=
-            TempleCastS16(
-                RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                    TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                                      TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))))+
-                        TempleCastU16(temple_step_index_4081)))))))));
-    temple_tmp_4082=&(temple_step_index_4081);
-    temple_tmp_4083=*temple_tmp_4082;
-    *temple_tmp_4082=TempleCastS16((temple_tmp_4083+1));
-    temple_tmp_4083;
-  }
-}
-
 legacy_void RsShape3dPolygonGeneratePolyYMajor(
     legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
 {
-  legacy_u32 noreg temple_x_position_4084;
-  legacy_s16 noreg temple_step_index_4086;
-  legacy_s16 *temple_tmp_4087;
-  legacy_s16 noreg temple_tmp_4088;
-  temple_x_position_4084=TempleCastU32(TempleCastU32(TempleCastU32(
+  legacy_u32 noreg temple_x_position_4076;
+  legacy_s16 noreg temple_step_index_4078;
+  legacy_s16 *temple_tmp_4079;
+  legacy_s16 noreg temple_tmp_4080;
+  temple_x_position_4076=TempleCastU32(TempleCastU32(TempleCastU32(
       (TempleCastU32(TempleCastU32(
           TempleCastU32((TempleCastU16(line_setup[DRAW_LINE_START_X_FRACTION_INDEX])|
               TempleCastU32(
                   (TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]))<<16))))))+
           TempleCastU32(32768)))));
-  temple_step_index_4086=TempleCastS16(0);
+  temple_step_index_4078=TempleCastS16(0);
   while(1) {
-    if(!((temple_step_index_4086<step_count))) {
+    if(!((temple_step_index_4078<step_count))) {
       break;
     }
-    (edges[TempleCastS32((row_index+temple_step_index_4086))]=
+    (edges[TempleCastS32((row_index+temple_step_index_4078))]=
             TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                TempleCastU16(TempleCastU16(TempleCastU32((temple_x_position_4084>>16))))))));
-    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4086))]=
+                TempleCastU16(TempleCastU16(TempleCastU32((temple_x_position_4076>>16))))))));
+    (edges[TempleCastS32((TempleCastS32((480+row_index))+temple_step_index_4078))]=
             TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-                TempleCastU16(TempleCastU16(TempleCastU32((temple_x_position_4084>>16))))))));
+                TempleCastU16(TempleCastU16(TempleCastU32((temple_x_position_4076>>16))))))));
     if((TempleCastU8(line_setup[DRAW_LINE_MODE_AND_CLIP_INDEX])==DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
-      (temple_x_position_4084=
-              TempleCastU32(TempleCastU32(TempleCastU32((TempleCastU32(temple_x_position_4084)-
+      (temple_x_position_4076=
+              TempleCastU32(TempleCastU32(TempleCastU32((TempleCastU32(temple_x_position_4076)-
                   TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))))));
     } else {
-      (temple_x_position_4084=
-              TempleCastU32(TempleCastU32(TempleCastU32((TempleCastU32(temple_x_position_4084)+
+      (temple_x_position_4076=
+              TempleCastU32(TempleCastU32(TempleCastU32((TempleCastU32(temple_x_position_4076)+
                   TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))))));
     }
-    temple_tmp_4087=&(temple_step_index_4086);
-    temple_tmp_4088=*temple_tmp_4087;
-    *temple_tmp_4087=TempleCastS16((temple_tmp_4088+1));
-    temple_tmp_4088;
+    temple_tmp_4079=&(temple_step_index_4078);
+    temple_tmp_4080=*temple_tmp_4079;
+    *temple_tmp_4079=TempleCastS16((temple_tmp_4080+1));
+    temple_tmp_4080;
   }
 }
 
 legacy_void RsShape3dPolygonGeneratePolyXMajorLeft(
     legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
 {
-  legacy_u32 noreg temple_x_position_4089;
-  legacy_u32 noreg temple_y_fraction_4090;
+  legacy_u32 noreg temple_x_position_4081;
+  legacy_u32 noreg temple_y_fraction_4082;
+  legacy_s16 *temple_tmp_4083;
+  legacy_s16 noreg temple_tmp_4084;
+  legacy_s16 noreg temple_step_index_4086;
+  legacy_u32 *temple_tmp_4087;
+  legacy_u32 noreg temple_tmp_4088;
+  legacy_u32 *temple_tmp_4089;
+  legacy_u32 noreg temple_tmp_4090;
   legacy_s16 *temple_tmp_4091;
   legacy_s16 noreg temple_tmp_4092;
-  legacy_s16 noreg temple_step_index_4094;
-  legacy_u32 *temple_tmp_4095;
-  legacy_u32 noreg temple_tmp_4096;
-  legacy_u32 *temple_tmp_4097;
-  legacy_u32 noreg temple_tmp_4098;
-  legacy_s16 *temple_tmp_4099;
-  legacy_s16 noreg temple_tmp_4100;
-  legacy_s16 *temple_tmp_4101;
-  legacy_s16 noreg temple_tmp_4102;
-  temple_x_position_4089=TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]));
-  temple_y_fraction_4090=
+  legacy_s16 *temple_tmp_4093;
+  legacy_s16 noreg temple_tmp_4094;
+  temple_x_position_4081=TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]));
+  temple_y_fraction_4082=
       TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_Y_FRACTION_INDEX]));
-  if((TempleCastU32((temple_y_fraction_4090+32768))>TempleCastU32(65535))) {
-    temple_tmp_4091=&(row_index);
-    temple_tmp_4092=*temple_tmp_4091;
-    *temple_tmp_4091=TempleCastS16((temple_tmp_4092+1));
-    temple_tmp_4092;
+  if((TempleCastU32((temple_y_fraction_4082+32768))>TempleCastU32(65535))) {
+    temple_tmp_4083=&(row_index);
+    temple_tmp_4084=*temple_tmp_4083;
+    *temple_tmp_4083=TempleCastS16((temple_tmp_4084+1));
+    temple_tmp_4084;
   }
-  (temple_y_fraction_4090=
-          TempleCastU32(TempleCastU32((TempleCastU32((temple_y_fraction_4090+32768))&65535))));
-  (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4089));
-  temple_step_index_4094=TempleCastS16(0);
+  (temple_y_fraction_4082=
+          TempleCastU32(TempleCastU32((TempleCastU32((temple_y_fraction_4082+32768))&65535))));
+  (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4081));
+  temple_step_index_4086=TempleCastS16(0);
   while(1) {
-    if(!((temple_step_index_4094<step_count))) {
+    if(!((temple_step_index_4086<step_count))) {
       break;
     }
-    if((TempleCastU32((temple_y_fraction_4090+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))<=
+    if((TempleCastU32((temple_y_fraction_4082+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))<=
           TempleCastU32(65535))) {
-      temple_tmp_4095=&(temple_x_position_4089);
-      temple_tmp_4096=*temple_tmp_4095;
-      *temple_tmp_4095=TempleCastU32((temple_tmp_4096-1));
-      temple_tmp_4096;
-      if((temple_step_index_4094==TempleCastS32((step_count-1)))) {
+      temple_tmp_4087=&(temple_x_position_4081);
+      temple_tmp_4088=*temple_tmp_4087;
+      *temple_tmp_4087=TempleCastU32((temple_tmp_4088-1));
+      temple_tmp_4088;
+      if((temple_step_index_4086==TempleCastS32((step_count-1)))) {
         (edges[row_index]=
-                TempleCastS16(TempleCastU32((temple_x_position_4089+TempleCastU32(1)))));
+                TempleCastS16(TempleCastU32((temple_x_position_4081+TempleCastU32(1)))));
       }
     } else {
-      (edges[row_index]=TempleCastS16(temple_x_position_4089));
-      temple_tmp_4097=&(temple_x_position_4089);
-      temple_tmp_4098=*temple_tmp_4097;
-      *temple_tmp_4097=TempleCastU32((temple_tmp_4098-1));
-      temple_tmp_4098;
-      temple_tmp_4099=&(row_index);
-      temple_tmp_4100=*temple_tmp_4099;
-      *temple_tmp_4099=TempleCastS16((temple_tmp_4100+1));
-      temple_tmp_4100;
-      if((TempleCastS32((temple_step_index_4094+1))<step_count)) {
-        (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4089));
+      (edges[row_index]=TempleCastS16(temple_x_position_4081));
+      temple_tmp_4089=&(temple_x_position_4081);
+      temple_tmp_4090=*temple_tmp_4089;
+      *temple_tmp_4089=TempleCastU32((temple_tmp_4090-1));
+      temple_tmp_4090;
+      temple_tmp_4091=&(row_index);
+      temple_tmp_4092=*temple_tmp_4091;
+      *temple_tmp_4091=TempleCastS16((temple_tmp_4092+1));
+      temple_tmp_4092;
+      if((TempleCastS32((temple_step_index_4086+1))<step_count)) {
+        (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4081));
       }
     }
-    (temple_y_fraction_4090=TempleCastU32(TempleCastU32((
-        TempleCastU32((temple_y_fraction_4090+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))&
+    (temple_y_fraction_4082=TempleCastU32(TempleCastU32((
+        TempleCastU32((temple_y_fraction_4082+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))&
         65535))));
-    temple_tmp_4101=&(temple_step_index_4094);
-    temple_tmp_4102=*temple_tmp_4101;
-    *temple_tmp_4101=TempleCastS16((temple_tmp_4102+1));
-    temple_tmp_4102;
+    temple_tmp_4093=&(temple_step_index_4086);
+    temple_tmp_4094=*temple_tmp_4093;
+    *temple_tmp_4093=TempleCastS16((temple_tmp_4094+1));
+    temple_tmp_4094;
   }
 }
 
 legacy_void RsShape3dPolygonGeneratePolyXMajorRight(
     legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 step_count,legacy_s16 row_index)
 {
-  legacy_u32 noreg temple_x_position_4103;
-  legacy_u32 noreg temple_y_fraction_4104;
+  legacy_u32 noreg temple_x_position_4095;
+  legacy_u32 noreg temple_y_fraction_4096;
+  legacy_s16 *temple_tmp_4097;
+  legacy_s16 noreg temple_tmp_4098;
+  legacy_s16 noreg temple_step_index_4100;
+  legacy_u32 *temple_tmp_4101;
+  legacy_u32 noreg temple_tmp_4102;
+  legacy_u32 *temple_tmp_4103;
+  legacy_u32 noreg temple_tmp_4104;
   legacy_s16 *temple_tmp_4105;
   legacy_s16 noreg temple_tmp_4106;
-  legacy_s16 noreg temple_step_index_4108;
-  legacy_u32 *temple_tmp_4109;
-  legacy_u32 noreg temple_tmp_4110;
-  legacy_u32 *temple_tmp_4111;
-  legacy_u32 noreg temple_tmp_4112;
-  legacy_s16 *temple_tmp_4113;
-  legacy_s16 noreg temple_tmp_4114;
-  legacy_s16 *temple_tmp_4115;
-  legacy_s16 noreg temple_tmp_4116;
-  temple_x_position_4103=TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]));
-  temple_y_fraction_4104=
+  legacy_s16 *temple_tmp_4107;
+  legacy_s16 noreg temple_tmp_4108;
+  temple_x_position_4095=TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_X_INDEX]));
+  temple_y_fraction_4096=
       TempleCastU32(TempleCastU16(line_setup[DRAW_LINE_START_Y_FRACTION_INDEX]));
-  if((TempleCastU32((temple_y_fraction_4104+32768))>TempleCastU32(65535))) {
-    temple_tmp_4105=&(row_index);
-    temple_tmp_4106=*temple_tmp_4105;
-    *temple_tmp_4105=TempleCastS16((temple_tmp_4106+1));
-    temple_tmp_4106;
+  if((TempleCastU32((temple_y_fraction_4096+32768))>TempleCastU32(65535))) {
+    temple_tmp_4097=&(row_index);
+    temple_tmp_4098=*temple_tmp_4097;
+    *temple_tmp_4097=TempleCastS16((temple_tmp_4098+1));
+    temple_tmp_4098;
   }
-  (temple_y_fraction_4104=
-          TempleCastU32(TempleCastU32((TempleCastU32((temple_y_fraction_4104+32768))&65535))));
-  (edges[row_index]=TempleCastS16(temple_x_position_4103));
-  temple_step_index_4108=TempleCastS16(0);
+  (temple_y_fraction_4096=
+          TempleCastU32(TempleCastU32((TempleCastU32((temple_y_fraction_4096+32768))&65535))));
+  (edges[row_index]=TempleCastS16(temple_x_position_4095));
+  temple_step_index_4100=TempleCastS16(0);
   while(1) {
-    if(!((temple_step_index_4108<step_count))) {
+    if(!((temple_step_index_4100<step_count))) {
       break;
     }
-    if((TempleCastU32((temple_y_fraction_4104+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))<=
+    if((TempleCastU32((temple_y_fraction_4096+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))<=
           TempleCastU32(65535))) {
-      temple_tmp_4109=&(temple_x_position_4103);
-      temple_tmp_4110=*temple_tmp_4109;
-      *temple_tmp_4109=TempleCastU32((temple_tmp_4110+1));
-      temple_tmp_4110;
-      if((temple_step_index_4108==TempleCastS32((step_count-1)))) {
+      temple_tmp_4101=&(temple_x_position_4095);
+      temple_tmp_4102=*temple_tmp_4101;
+      *temple_tmp_4101=TempleCastU32((temple_tmp_4102+1));
+      temple_tmp_4102;
+      if((temple_step_index_4100==TempleCastS32((step_count-1)))) {
         (edges[TempleCastS32((480+row_index))]=
-                TempleCastS16(TempleCastU32((temple_x_position_4103-TempleCastU32(1)))));
+                TempleCastS16(TempleCastU32((temple_x_position_4095-TempleCastU32(1)))));
       }
     } else {
-      (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4103));
-      temple_tmp_4111=&(temple_x_position_4103);
-      temple_tmp_4112=*temple_tmp_4111;
-      *temple_tmp_4111=TempleCastU32((temple_tmp_4112+1));
-      temple_tmp_4112;
-      temple_tmp_4113=&(row_index);
-      temple_tmp_4114=*temple_tmp_4113;
-      *temple_tmp_4113=TempleCastS16((temple_tmp_4114+1));
-      temple_tmp_4114;
-      if((TempleCastS32((temple_step_index_4108+1))<step_count)) {
-        (edges[row_index]=TempleCastS16(temple_x_position_4103));
+      (edges[TempleCastS32((480+row_index))]=TempleCastS16(temple_x_position_4095));
+      temple_tmp_4103=&(temple_x_position_4095);
+      temple_tmp_4104=*temple_tmp_4103;
+      *temple_tmp_4103=TempleCastU32((temple_tmp_4104+1));
+      temple_tmp_4104;
+      temple_tmp_4105=&(row_index);
+      temple_tmp_4106=*temple_tmp_4105;
+      *temple_tmp_4105=TempleCastS16((temple_tmp_4106+1));
+      temple_tmp_4106;
+      if((TempleCastS32((temple_step_index_4100+1))<step_count)) {
+        (edges[row_index]=TempleCastS16(temple_x_position_4095));
       }
     }
-    (temple_y_fraction_4104=TempleCastU32(TempleCastU32((
-        TempleCastU32((temple_y_fraction_4104+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))&
+    (temple_y_fraction_4096=TempleCastU32(TempleCastU32((
+        TempleCastU32((temple_y_fraction_4096+TempleCastU16(line_setup[DRAW_LINE_STEP_INDEX])))&
         65535))));
-    temple_tmp_4115=&(temple_step_index_4108);
-    temple_tmp_4116=*temple_tmp_4115;
-    *temple_tmp_4115=TempleCastS16((temple_tmp_4116+1));
-    temple_tmp_4116;
+    temple_tmp_4107=&(temple_step_index_4100);
+    temple_tmp_4108=*temple_tmp_4107;
+    *temple_tmp_4107=TempleCastS16((temple_tmp_4108+1));
+    temple_tmp_4108;
   }
 }
 
 legacy_void RsGeneratePolyEdges(legacy_s16 *edges,legacy_u16 *line_setup,legacy_s16 clipping_mode)
 {
-  legacy_s16 noreg temple_clip_left_4117;
-  legacy_s16 noreg temple_clip_right_4118;
-  legacy_s16 noreg temple_step_count_4119;
-  legacy_s16 noreg temple_row_index_4120;
-  temple_clip_left_4117=TempleCastS16(drawing_sprite.sprite_raster_left);
-  temple_clip_right_4118=TempleCastS16(drawing_sprite.sprite_raster_right);
+  legacy_s16 noreg temple_clip_left_4109;
+  legacy_s16 noreg temple_clip_right_4110;
+  legacy_s16 noreg temple_step_count_4111;
+  legacy_s16 noreg temple_row_index_4112;
+  temple_clip_left_4109=TempleCastS16(drawing_sprite.sprite_raster_left);
+  temple_clip_right_4110=TempleCastS16(drawing_sprite.sprite_raster_right);
   if((clipping_mode!=PRERENDER_EDGE_UNCLIPPED_MODE)) {
     RsShape3dPolygonGeneratePolyEdgePadding(edges,line_setup,
-        TempleCastU16(DRAW_LINE_START_LEFT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_left_4117),
+        TempleCastU16(DRAW_LINE_START_LEFT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_left_4109),
         TempleCastS16(1));
     RsShape3dPolygonGeneratePolyEdgePadding(edges,line_setup,
         TempleCastU16(DRAW_LINE_START_RIGHT_CLIP_COUNT_INDEX),
-        TempleCastS16(temple_clip_right_4118),TempleCastS16(1));
+        TempleCastS16(temple_clip_right_4110),TempleCastS16(1));
     RsShape3dPolygonGeneratePolyEdgePadding(edges,line_setup,
-        TempleCastU16(DRAW_LINE_END_LEFT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_left_4117),
+        TempleCastU16(DRAW_LINE_END_LEFT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_left_4109),
         TempleCastS16(0));
     RsShape3dPolygonGeneratePolyEdgePadding(edges,line_setup,
-        TempleCastU16(DRAW_LINE_END_RIGHT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_right_4118),
+        TempleCastU16(DRAW_LINE_END_RIGHT_CLIP_COUNT_INDEX),TempleCastS16(temple_clip_right_4110),
         TempleCastS16(0));
   }
-  temple_step_count_4119=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_step_count_4111=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  if((temple_step_count_4119<=0)) {
+  if((temple_step_count_4111<=0)) {
     return;
   }
-  temple_row_index_4120=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4112=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_START_Y_INDEX]))));
   switch(TempleCastU8(line_setup[DRAW_LINE_MODE_AND_CLIP_INDEX])) {
     case 0:
     case 1:
       return;
     case 2:
-      RsShape3dPolygonGeneratePolyVertical(edges,line_setup,TempleCastS16(temple_step_count_4119),
-          TempleCastS16(temple_row_index_4120));
+      RsShape3dPolygonGeneratePolyVertical(edges,line_setup,TempleCastS16(temple_step_count_4111),
+          TempleCastS16(temple_row_index_4112));
       return;
     case 3:
       RsShape3dPolygonGeneratePolyDiagonalLeft(edges,line_setup,
-          TempleCastS16(temple_step_count_4119),TempleCastS16(temple_row_index_4120));
+          TempleCastS16(temple_step_count_4111),TempleCastS16(temple_row_index_4112));
       return;
     case 4:
       RsShape3dPolygonGeneratePolyDiagonalRight(edges,line_setup,
-          TempleCastS16(temple_step_count_4119),TempleCastS16(temple_row_index_4120));
+          TempleCastS16(temple_step_count_4111),TempleCastS16(temple_row_index_4112));
       return;
     case 5:
     case 6:
-      RsShape3dPolygonGeneratePolyYMajor(edges,line_setup,TempleCastS16(temple_step_count_4119),
-          TempleCastS16(temple_row_index_4120));
+      RsShape3dPolygonGeneratePolyYMajor(edges,line_setup,TempleCastS16(temple_step_count_4111),
+          TempleCastS16(temple_row_index_4112));
       return;
     case 7:
       RsShape3dPolygonGeneratePolyXMajorLeft(edges,line_setup,
-          TempleCastS16(temple_step_count_4119),TempleCastS16(temple_row_index_4120));
+          TempleCastS16(temple_step_count_4111),TempleCastS16(temple_row_index_4112));
       return;
     case 8:
       RsShape3dPolygonGeneratePolyXMajorRight(edges,line_setup,
-          TempleCastS16(temple_step_count_4119),TempleCastS16(temple_row_index_4120));
+          TempleCastS16(temple_step_count_4111),TempleCastS16(temple_row_index_4112));
       return;
     case 9:
     default:
@@ -691,48 +691,48 @@ legacy_void RsShape3dPolygonPrerenderExtendEdge(legacy_s16 *left_edges,legacy_s1
 legacy_void RsShape3dPolygonPrerenderMergeLinearRows(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4121;
-  legacy_u16 noreg temple_mode_4122;
-  legacy_s16 noreg temple_count_4123;
-  legacy_s16 noreg temple_row_index_4124;
-  legacy_s16 *temple_tmp_4126;
-  legacy_s16 noreg temple_tmp_4127;
-  legacy_s16 *temple_tmp_4128;
-  legacy_s16 noreg temple_tmp_4129;
-  temple_x_position_4121=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  legacy_s16 noreg temple_x_position_4113;
+  legacy_u16 noreg temple_mode_4114;
+  legacy_s16 noreg temple_count_4115;
+  legacy_s16 noreg temple_row_index_4116;
+  legacy_s16 *temple_tmp_4118;
+  legacy_s16 noreg temple_tmp_4119;
+  legacy_s16 *temple_tmp_4120;
+  legacy_s16 noreg temple_tmp_4121;
+  temple_x_position_4113=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_mode_4122=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
-  temple_count_4123=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_mode_4114=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
+  temple_count_4115=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4124=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4116=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
   while(1) {
-    temple_tmp_4126=&(temple_count_4123);
-    temple_tmp_4127=*temple_tmp_4126;
-    *temple_tmp_4126=TempleCastS16((temple_tmp_4127-1));
-    if(!((temple_tmp_4127>0))) {
+    temple_tmp_4118=&(temple_count_4115);
+    temple_tmp_4119=*temple_tmp_4118;
+    *temple_tmp_4118=TempleCastS16((temple_tmp_4119-1));
+    if(!((temple_tmp_4119>0))) {
       break;
     }
-    if((right_edges[temple_row_index_4124]<temple_x_position_4121)) {
-      (right_edges[temple_row_index_4124]=TempleCastS16(temple_x_position_4121));
+    if((right_edges[temple_row_index_4116]<temple_x_position_4113)) {
+      (right_edges[temple_row_index_4116]=TempleCastS16(temple_x_position_4113));
     } else {
-      if((left_edges[temple_row_index_4124]>temple_x_position_4121)) {
-        (left_edges[temple_row_index_4124]=TempleCastS16(temple_x_position_4121));
+      if((left_edges[temple_row_index_4116]>temple_x_position_4113)) {
+        (left_edges[temple_row_index_4116]=TempleCastS16(temple_x_position_4113));
       }
     }
-    temple_tmp_4128=&(temple_row_index_4124);
-    temple_tmp_4129=*temple_tmp_4128;
-    *temple_tmp_4128=TempleCastS16((temple_tmp_4129+1));
-    temple_tmp_4129;
-    if((temple_mode_4122==DRAW_LINE_MODE_DIAGONAL_LEFT)) {
-      (temple_x_position_4121=TempleCastS16(
+    temple_tmp_4120=&(temple_row_index_4116);
+    temple_tmp_4121=*temple_tmp_4120;
+    *temple_tmp_4120=TempleCastS16((temple_tmp_4121+1));
+    temple_tmp_4121;
+    if((temple_mode_4114==DRAW_LINE_MODE_DIAGONAL_LEFT)) {
+      (temple_x_position_4113=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_x_position_4121)-TempleCastU16(1)))))))));
+              TempleCastS32((TempleCastU16(temple_x_position_4113)-TempleCastU16(1)))))))));
     } else {
-      if((temple_mode_4122==DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
-        (temple_x_position_4121=TempleCastS16(
+      if((temple_mode_4114==DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
+        (temple_x_position_4113=TempleCastS16(
             RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                TempleCastS32((TempleCastU16(temple_x_position_4121)+TempleCastU16(1)))))))));
+                TempleCastS32((TempleCastU16(temple_x_position_4113)+TempleCastU16(1)))))))));
       }
     }
   }
@@ -741,58 +741,58 @@ legacy_void RsShape3dPolygonPrerenderMergeLinearRows(
 legacy_void RsShape3dPolygonPrerenderMergeFractionalRows(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4130;
-  legacy_u16 noreg temple_mode_4131;
-  legacy_s16 noreg temple_count_4132;
-  legacy_s16 noreg temple_row_index_4133;
-  legacy_u32 noreg temple_fixed_x_4134;
+  legacy_s16 noreg temple_x_position_4122;
+  legacy_u16 noreg temple_mode_4123;
+  legacy_s16 noreg temple_count_4124;
+  legacy_s16 noreg temple_row_index_4125;
+  legacy_u32 noreg temple_fixed_x_4126;
+  legacy_u32 *temple_tmp_4127;
+  legacy_u16 noreg temple_step_4128;
+  legacy_s16 *temple_tmp_4130;
+  legacy_s16 noreg temple_tmp_4131;
+  legacy_s16 *temple_tmp_4132;
+  legacy_s16 noreg temple_tmp_4133;
+  legacy_u32 *temple_tmp_4134;
   legacy_u32 *temple_tmp_4135;
-  legacy_u16 noreg temple_step_4136;
-  legacy_s16 *temple_tmp_4138;
-  legacy_s16 noreg temple_tmp_4139;
-  legacy_s16 *temple_tmp_4140;
-  legacy_s16 noreg temple_tmp_4141;
-  legacy_u32 *temple_tmp_4142;
-  legacy_u32 *temple_tmp_4143;
-  temple_x_position_4130=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_x_position_4122=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_mode_4131=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
-  temple_count_4132=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_mode_4123=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
+  temple_count_4124=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4133=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4125=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
-  temple_fixed_x_4134=TempleCastU32(TempleCastU32(
+  temple_fixed_x_4126=TempleCastU32(TempleCastU32(
       (TempleCastU32((TempleCastU32(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))<<16))|
           TempleCastU16(line[DRAW_LINE_START_X_FRACTION_INDEX]))));
-  temple_tmp_4135=&(temple_fixed_x_4134);
-  ((*temple_tmp_4135)=TempleCastU32(((*temple_tmp_4135)+32768)));
-  temple_step_4136=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
+  temple_tmp_4127=&(temple_fixed_x_4126);
+  ((*temple_tmp_4127)=TempleCastU32(((*temple_tmp_4127)+32768)));
+  temple_step_4128=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
   while(1) {
-    temple_tmp_4138=&(temple_count_4132);
-    temple_tmp_4139=*temple_tmp_4138;
-    *temple_tmp_4138=TempleCastS16((temple_tmp_4139-1));
-    if(!((temple_tmp_4139>0))) {
+    temple_tmp_4130=&(temple_count_4124);
+    temple_tmp_4131=*temple_tmp_4130;
+    *temple_tmp_4130=TempleCastS16((temple_tmp_4131-1));
+    if(!((temple_tmp_4131>0))) {
       break;
     }
-    (temple_x_position_4130=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
-        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((temple_fixed_x_4134>>16))))))));
-    if((right_edges[temple_row_index_4133]<temple_x_position_4130)) {
-      (right_edges[temple_row_index_4133]=TempleCastS16(temple_x_position_4130));
+    (temple_x_position_4122=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+        TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((temple_fixed_x_4126>>16))))))));
+    if((right_edges[temple_row_index_4125]<temple_x_position_4122)) {
+      (right_edges[temple_row_index_4125]=TempleCastS16(temple_x_position_4122));
     } else {
-      if((left_edges[temple_row_index_4133]>temple_x_position_4130)) {
-        (left_edges[temple_row_index_4133]=TempleCastS16(temple_x_position_4130));
+      if((left_edges[temple_row_index_4125]>temple_x_position_4122)) {
+        (left_edges[temple_row_index_4125]=TempleCastS16(temple_x_position_4122));
       }
     }
-    temple_tmp_4140=&(temple_row_index_4133);
-    temple_tmp_4141=*temple_tmp_4140;
-    *temple_tmp_4140=TempleCastS16((temple_tmp_4141+1));
-    temple_tmp_4141;
-    if((temple_mode_4131==DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
-      temple_tmp_4142=&(temple_fixed_x_4134);
-      ((*temple_tmp_4142)=TempleCastU32(((*temple_tmp_4142)-temple_step_4136)));
+    temple_tmp_4132=&(temple_row_index_4125);
+    temple_tmp_4133=*temple_tmp_4132;
+    *temple_tmp_4132=TempleCastS16((temple_tmp_4133+1));
+    temple_tmp_4133;
+    if((temple_mode_4123==DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
+      temple_tmp_4134=&(temple_fixed_x_4126);
+      ((*temple_tmp_4134)=TempleCastU32(((*temple_tmp_4134)-temple_step_4128)));
     } else {
-      temple_tmp_4143=&(temple_fixed_x_4134);
-      ((*temple_tmp_4143)=TempleCastU32(((*temple_tmp_4143)+temple_step_4136)));
+      temple_tmp_4135=&(temple_fixed_x_4126);
+      ((*temple_tmp_4135)=TempleCastU32(((*temple_tmp_4135)+temple_step_4128)));
     }
   }
 }
@@ -800,100 +800,100 @@ legacy_void RsShape3dPolygonPrerenderMergeFractionalRows(
 legacy_void RsShape3dPolygonPrerenderMergeXMajorRows(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4144;
-  legacy_u16 noreg temple_mode_4145;
-  legacy_s16 noreg temple_count_4146;
-  legacy_s16 noreg temple_row_index_4147;
-  legacy_s16 noreg temple_to_left_4148;
-  legacy_s32 noreg temple_tmp_4149;
-  legacy_s16 noreg temple_x_step_4150;
-  legacy_s32 noreg temple_tmp_4151;
-  legacy_u16 noreg temple_step_4152;
-  legacy_u32 noreg temple_sum_4153;
-  legacy_u16 noreg temple_fraction_4154;
+  legacy_s16 noreg temple_x_position_4136;
+  legacy_u16 noreg temple_mode_4137;
+  legacy_s16 noreg temple_count_4138;
+  legacy_s16 noreg temple_row_index_4139;
+  legacy_s16 noreg temple_to_left_4140;
+  legacy_s32 noreg temple_tmp_4141;
+  legacy_s16 noreg temple_x_step_4142;
+  legacy_s32 noreg temple_tmp_4143;
+  legacy_u16 noreg temple_step_4144;
+  legacy_u32 noreg temple_sum_4145;
+  legacy_u16 noreg temple_fraction_4146;
+  legacy_s16 *temple_tmp_4147;
+  legacy_s16 noreg temple_tmp_4148;
+  legacy_s16 noreg temple_carry_4150;
+  legacy_s16 *temple_tmp_4151;
+  legacy_s16 noreg temple_tmp_4152;
+  legacy_s16 *temple_tmp_4153;
+  legacy_s16 noreg temple_tmp_4154;
   legacy_s16 *temple_tmp_4155;
   legacy_s16 noreg temple_tmp_4156;
-  legacy_s16 noreg temple_carry_4158;
-  legacy_s16 *temple_tmp_4159;
-  legacy_s16 noreg temple_tmp_4160;
-  legacy_s16 *temple_tmp_4161;
-  legacy_s16 noreg temple_tmp_4162;
-  legacy_s16 *temple_tmp_4163;
-  legacy_s16 noreg temple_tmp_4164;
-  temple_x_position_4144=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_x_position_4136=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_mode_4145=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
-  temple_count_4146=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_mode_4137=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
+  temple_count_4138=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4147=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4139=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
-  if((temple_mode_4145==DRAW_LINE_MODE_X_MAJOR_LEFT)) {
-    temple_tmp_4149=TempleCastS32(1);
+  if((temple_mode_4137==DRAW_LINE_MODE_X_MAJOR_LEFT)) {
+    temple_tmp_4141=TempleCastS32(1);
   } else {
-    temple_tmp_4149=TempleCastS32(0);
+    temple_tmp_4141=TempleCastS32(0);
   }
-  temple_to_left_4148=TempleCastS16(temple_tmp_4149);
-  if(temple_to_left_4148) {
-    temple_tmp_4151=TempleCastS32(TempleCastS32((-(1))));
+  temple_to_left_4140=TempleCastS16(temple_tmp_4141);
+  if(temple_to_left_4140) {
+    temple_tmp_4143=TempleCastS32(TempleCastS32((-(1))));
   } else {
-    temple_tmp_4151=TempleCastS32(1);
+    temple_tmp_4143=TempleCastS32(1);
   }
-  temple_x_step_4150=TempleCastS16(temple_tmp_4151);
-  temple_step_4152=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
-  temple_sum_4153=TempleCastU32(TempleCastU32(
+  temple_x_step_4142=TempleCastS16(temple_tmp_4143);
+  temple_step_4144=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
+  temple_sum_4145=TempleCastU32(TempleCastU32(
       (TempleCastU32(TempleCastU16(line[DRAW_LINE_START_Y_FRACTION_INDEX]))+32768)));
-  temple_fraction_4154=TempleCastU16(TempleCastU16(temple_sum_4153));
-  if((temple_sum_4153>TempleCastU32(65535))) {
-    temple_tmp_4155=&(temple_row_index_4147);
-    temple_tmp_4156=*temple_tmp_4155;
-    *temple_tmp_4155=TempleCastS16((temple_tmp_4156+1));
-    temple_tmp_4156;
+  temple_fraction_4146=TempleCastU16(TempleCastU16(temple_sum_4145));
+  if((temple_sum_4145>TempleCastU32(65535))) {
+    temple_tmp_4147=&(temple_row_index_4139);
+    temple_tmp_4148=*temple_tmp_4147;
+    *temple_tmp_4147=TempleCastS16((temple_tmp_4148+1));
+    temple_tmp_4148;
   }
-  RsShape3dPolygonPrerenderExtendEdge(left_edges,right_edges,TempleCastS16(temple_row_index_4147),
-      TempleCastS16(temple_x_position_4144),TempleCastS16((!(temple_to_left_4148))));
+  RsShape3dPolygonPrerenderExtendEdge(left_edges,right_edges,TempleCastS16(temple_row_index_4139),
+      TempleCastS16(temple_x_position_4136),TempleCastS16((!(temple_to_left_4140))));
   while(1) {
-    if(!((temple_count_4146>0))) {
+    if(!((temple_count_4138>0))) {
       break;
     }
-    (temple_sum_4153=
-            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4154)+temple_step_4152))));
-    (temple_fraction_4154=TempleCastU16(TempleCastU16(temple_sum_4153)));
-    temple_carry_4158=TempleCastS16((temple_sum_4153>TempleCastU32(65535)));
-    if(temple_carry_4158) {
+    (temple_sum_4145=
+            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4146)+temple_step_4144))));
+    (temple_fraction_4146=TempleCastU16(TempleCastU16(temple_sum_4145)));
+    temple_carry_4150=TempleCastS16((temple_sum_4145>TempleCastU32(65535)));
+    if(temple_carry_4150) {
       RsShape3dPolygonPrerenderExtendEdge(left_edges,right_edges,
-          TempleCastS16(temple_row_index_4147),TempleCastS16(temple_x_position_4144),
-          TempleCastS16(temple_to_left_4148));
-      temple_tmp_4159=&(temple_row_index_4147);
-      temple_tmp_4160=*temple_tmp_4159;
-      *temple_tmp_4159=TempleCastS16((temple_tmp_4160+1));
-      temple_tmp_4160;
-      (temple_x_position_4144=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+          TempleCastS16(temple_row_index_4139),TempleCastS16(temple_x_position_4136),
+          TempleCastS16(temple_to_left_4140));
+      temple_tmp_4151=&(temple_row_index_4139);
+      temple_tmp_4152=*temple_tmp_4151;
+      *temple_tmp_4151=TempleCastS16((temple_tmp_4152+1));
+      temple_tmp_4152;
+      (temple_x_position_4136=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
           TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(temple_x_position_4144)+TempleCastU16(temple_x_step_4150)))))))));
-      temple_tmp_4161=&(temple_count_4146);
-      temple_tmp_4162=*temple_tmp_4161;
-      *temple_tmp_4161=TempleCastS16((temple_tmp_4162-1));
-      temple_tmp_4162;
-      if((temple_count_4146>0)) {
+              (TempleCastU16(temple_x_position_4136)+TempleCastU16(temple_x_step_4142)))))))));
+      temple_tmp_4153=&(temple_count_4138);
+      temple_tmp_4154=*temple_tmp_4153;
+      *temple_tmp_4153=TempleCastS16((temple_tmp_4154-1));
+      temple_tmp_4154;
+      if((temple_count_4138>0)) {
         RsShape3dPolygonPrerenderExtendEdge(left_edges,right_edges,
-            TempleCastS16(temple_row_index_4147),TempleCastS16(temple_x_position_4144),
-            TempleCastS16((!(temple_to_left_4148))));
+            TempleCastS16(temple_row_index_4139),TempleCastS16(temple_x_position_4136),
+            TempleCastS16((!(temple_to_left_4140))));
       }
     } else {
-      (temple_x_position_4144=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+      (temple_x_position_4136=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
           TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-              (TempleCastU16(temple_x_position_4144)+TempleCastU16(temple_x_step_4150)))))))));
-      temple_tmp_4163=&(temple_count_4146);
-      temple_tmp_4164=*temple_tmp_4163;
-      *temple_tmp_4163=TempleCastS16((temple_tmp_4164-1));
-      temple_tmp_4164;
-      if((temple_count_4146==0)) {
-        (temple_x_position_4144=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+              (TempleCastU16(temple_x_position_4136)+TempleCastU16(temple_x_step_4142)))))))));
+      temple_tmp_4155=&(temple_count_4138);
+      temple_tmp_4156=*temple_tmp_4155;
+      *temple_tmp_4155=TempleCastS16((temple_tmp_4156-1));
+      temple_tmp_4156;
+      if((temple_count_4138==0)) {
+        (temple_x_position_4136=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
             TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-                (TempleCastU16(temple_x_position_4144)-TempleCastU16(temple_x_step_4150)))))))));
+                (TempleCastU16(temple_x_position_4136)-TempleCastU16(temple_x_step_4142)))))))));
         RsShape3dPolygonPrerenderExtendEdge(left_edges,right_edges,
-            TempleCastS16(temple_row_index_4147),TempleCastS16(temple_x_position_4144),
-            TempleCastS16(temple_to_left_4148));
+            TempleCastS16(temple_row_index_4139),TempleCastS16(temple_x_position_4136),
+            TempleCastS16(temple_to_left_4140));
       }
     }
   }
@@ -902,97 +902,97 @@ legacy_void RsShape3dPolygonPrerenderMergeXMajorRows(
 legacy_void RsShape3dPolygonPrerenderMergeFixedYEdge(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4165;
-  legacy_u16 noreg temple_mode_4166;
-  legacy_s16 noreg temple_count_4167;
-  legacy_s16 noreg temple_row_index_4168;
-  legacy_u32 noreg temple_fixed_x_4169;
-  legacy_u32 *temple_tmp_4170;
-  legacy_u16 noreg temple_step_4171;
-  legacy_s16 noreg temple_target_edge_4172;
-  legacy_s32 noreg temple_tmp_4174;
-  legacy_s16 *temple_tmp_4175;
-  legacy_s16 noreg temple_tmp_4176;
-  legacy_s16 *temple_tmp_4177;
-  legacy_s16 noreg temple_tmp_4178;
-  legacy_u32 *temple_tmp_4179;
-  legacy_u32 *temple_tmp_4180;
-  temple_x_position_4165=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  legacy_s16 noreg temple_x_position_4157;
+  legacy_u16 noreg temple_mode_4158;
+  legacy_s16 noreg temple_count_4159;
+  legacy_s16 noreg temple_row_index_4160;
+  legacy_u32 noreg temple_fixed_x_4161;
+  legacy_u32 *temple_tmp_4162;
+  legacy_u16 noreg temple_step_4163;
+  legacy_s16 noreg temple_target_edge_4164;
+  legacy_s32 noreg temple_tmp_4166;
+  legacy_s16 *temple_tmp_4167;
+  legacy_s16 noreg temple_tmp_4168;
+  legacy_s16 *temple_tmp_4169;
+  legacy_s16 noreg temple_tmp_4170;
+  legacy_u32 *temple_tmp_4171;
+  legacy_u32 *temple_tmp_4172;
+  temple_x_position_4157=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_mode_4166=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
-  temple_count_4167=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_mode_4158=TempleCastU16(TempleCastU8(line[DRAW_LINE_MODE_AND_CLIP_INDEX]));
+  temple_count_4159=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4168=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4160=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
-  temple_fixed_x_4169=TempleCastU32(TempleCastU32(
+  temple_fixed_x_4161=TempleCastU32(TempleCastU32(
       (TempleCastU32((TempleCastU32(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))<<16))|
           TempleCastU16(line[DRAW_LINE_START_X_FRACTION_INDEX]))));
-  temple_tmp_4170=&(temple_fixed_x_4169);
-  ((*temple_tmp_4170)=TempleCastU32(((*temple_tmp_4170)+32768)));
-  temple_step_4171=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
-  temple_target_edge_4172=TempleCastS16(0);
+  temple_tmp_4162=&(temple_fixed_x_4161);
+  ((*temple_tmp_4162)=TempleCastU32(((*temple_tmp_4162)+32768)));
+  temple_step_4163=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
+  temple_target_edge_4164=TempleCastS16(0);
   while(1) {
-    if(!((temple_count_4167>0))) {
+    if(!((temple_count_4159>0))) {
       break;
     }
-    if((temple_mode_4166>=DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
-      temple_tmp_4174=TempleCastS32(RsShape3dPolygonLegacyS16FromBits(
-          TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((temple_fixed_x_4169>>16)))))));
+    if((temple_mode_4158>=DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
+      temple_tmp_4166=TempleCastS32(RsShape3dPolygonLegacyS16FromBits(
+          TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32((temple_fixed_x_4161>>16)))))));
     } else {
-      temple_tmp_4174=TempleCastS32(RsShape3dPolygonLegacyS16FromBits(
+      temple_tmp_4166=TempleCastS32(RsShape3dPolygonLegacyS16FromBits(
           TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
     }
-    (temple_x_position_4165=TempleCastS16(temple_tmp_4174));
-    if((temple_mode_4166==DRAW_LINE_MODE_DIAGONAL_LEFT)) {
-      (temple_x_position_4165=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-          TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_x_position_4165)-
+    (temple_x_position_4157=TempleCastS16(temple_tmp_4166));
+    if((temple_mode_4158==DRAW_LINE_MODE_DIAGONAL_LEFT)) {
+      (temple_x_position_4157=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+          TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_x_position_4157)-
               TempleCastU16(
                   RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
                       TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
                                           TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))))-
-                          TempleCastU16(temple_count_4167))))))))))))))));
+                          TempleCastU16(temple_count_4159))))))))))))))));
     } else {
-      if((temple_mode_4166==DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
-        (temple_x_position_4165=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
-            TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_x_position_4165)+
+      if((temple_mode_4158==DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
+        (temple_x_position_4157=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
+            TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_x_position_4157)+
                 TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                     TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
                         (TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                               TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))))-
-                            TempleCastU16(temple_count_4167))))))))))))))));
+                            TempleCastU16(temple_count_4159))))))))))))))));
       }
     }
-    if((temple_target_edge_4172==0)) {
-      if((left_edges[temple_row_index_4168]>temple_x_position_4165)) {
-        (temple_target_edge_4172=TempleCastS16(1));
+    if((temple_target_edge_4164==0)) {
+      if((left_edges[temple_row_index_4160]>temple_x_position_4157)) {
+        (temple_target_edge_4164=TempleCastS16(1));
       } else {
-        if((right_edges[temple_row_index_4168]<temple_x_position_4165)) {
-          (temple_target_edge_4172=TempleCastS16(2));
+        if((right_edges[temple_row_index_4160]<temple_x_position_4157)) {
+          (temple_target_edge_4164=TempleCastS16(2));
         }
       }
     }
-    if((temple_target_edge_4172==1)) {
-      (left_edges[temple_row_index_4168]=TempleCastS16(temple_x_position_4165));
+    if((temple_target_edge_4164==1)) {
+      (left_edges[temple_row_index_4160]=TempleCastS16(temple_x_position_4157));
     } else {
-      if((temple_target_edge_4172==2)) {
-        (right_edges[temple_row_index_4168]=TempleCastS16(temple_x_position_4165));
+      if((temple_target_edge_4164==2)) {
+        (right_edges[temple_row_index_4160]=TempleCastS16(temple_x_position_4157));
       }
     }
-    temple_tmp_4175=&(temple_row_index_4168);
-    temple_tmp_4176=*temple_tmp_4175;
-    *temple_tmp_4175=TempleCastS16((temple_tmp_4176+1));
-    temple_tmp_4176;
-    temple_tmp_4177=&(temple_count_4167);
-    temple_tmp_4178=*temple_tmp_4177;
-    *temple_tmp_4177=TempleCastS16((temple_tmp_4178-1));
-    temple_tmp_4178;
-    if((temple_mode_4166==DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
-      temple_tmp_4179=&(temple_fixed_x_4169);
-      ((*temple_tmp_4179)=TempleCastU32(((*temple_tmp_4179)-temple_step_4171)));
+    temple_tmp_4167=&(temple_row_index_4160);
+    temple_tmp_4168=*temple_tmp_4167;
+    *temple_tmp_4167=TempleCastS16((temple_tmp_4168+1));
+    temple_tmp_4168;
+    temple_tmp_4169=&(temple_count_4159);
+    temple_tmp_4170=*temple_tmp_4169;
+    *temple_tmp_4169=TempleCastS16((temple_tmp_4170-1));
+    temple_tmp_4170;
+    if((temple_mode_4158==DRAW_LINE_MODE_Y_MAJOR_LEFT)) {
+      temple_tmp_4171=&(temple_fixed_x_4161);
+      ((*temple_tmp_4171)=TempleCastU32(((*temple_tmp_4171)-temple_step_4163)));
     } else {
-      if((temple_mode_4166==DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
-        temple_tmp_4180=&(temple_fixed_x_4169);
-        ((*temple_tmp_4180)=TempleCastU32(((*temple_tmp_4180)+temple_step_4171)));
+      if((temple_mode_4158==DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
+        temple_tmp_4172=&(temple_fixed_x_4161);
+        ((*temple_tmp_4172)=TempleCastU32(((*temple_tmp_4172)+temple_step_4163)));
       }
     }
   }
@@ -1001,39 +1001,39 @@ legacy_void RsShape3dPolygonPrerenderMergeFixedYEdge(
 legacy_void RsShape3dPolygonPrerenderFinishFixedLeft(legacy_s16 *right_edges,legacy_s16 x_position,
     legacy_s16 count,legacy_s16 row_index,legacy_u16 fraction,legacy_u16 step)
 {
-  legacy_u32 noreg temple_sum_4182;
-  legacy_s16 *temple_tmp_4183;
-  legacy_s16 noreg temple_tmp_4184;
-  legacy_s32 noreg temple_tmp_4185;
-  legacy_s16 *temple_tmp_4186;
-  legacy_s16 noreg temple_tmp_4187;
+  legacy_u32 noreg temple_sum_4174;
+  legacy_s16 *temple_tmp_4175;
+  legacy_s16 noreg temple_tmp_4176;
+  legacy_s32 noreg temple_tmp_4177;
+  legacy_s16 *temple_tmp_4178;
+  legacy_s16 noreg temple_tmp_4179;
   while(1) {
     if(!((count>0))) {
       break;
     }
     (x_position=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(
         TempleCastU16(TempleCastS32((TempleCastU16(x_position)-TempleCastU16(1)))))))));
-    temple_sum_4182=TempleCastU32(TempleCastU32((TempleCastU32(fraction)+step)));
-    (fraction=TempleCastU16(TempleCastU16(temple_sum_4182)));
-    temple_tmp_4183=&(count);
-    temple_tmp_4184=*temple_tmp_4183;
-    *temple_tmp_4183=TempleCastS16((temple_tmp_4184-1));
-    temple_tmp_4184;
-    temple_tmp_4185=0;
+    temple_sum_4174=TempleCastU32(TempleCastU32((TempleCastU32(fraction)+step)));
+    (fraction=TempleCastU16(TempleCastU16(temple_sum_4174)));
+    temple_tmp_4175=&(count);
+    temple_tmp_4176=*temple_tmp_4175;
+    *temple_tmp_4175=TempleCastS16((temple_tmp_4176-1));
+    temple_tmp_4176;
+    temple_tmp_4177=0;
     if((count>0)) {
-      temple_tmp_4185=1;
+      temple_tmp_4177=1;
     }
-    if(temple_tmp_4185) {
-      temple_tmp_4185=0;
-      if((temple_sum_4182>TempleCastU32(65535))) {
-        temple_tmp_4185=1;
+    if(temple_tmp_4177) {
+      temple_tmp_4177=0;
+      if((temple_sum_4174>TempleCastU32(65535))) {
+        temple_tmp_4177=1;
       }
     }
-    if(temple_tmp_4185) {
-      temple_tmp_4186=&(row_index);
-      temple_tmp_4187=*temple_tmp_4186;
-      *temple_tmp_4186=TempleCastS16((temple_tmp_4187+1));
-      (right_edges[temple_tmp_4187]=TempleCastS16(x_position));
+    if(temple_tmp_4177) {
+      temple_tmp_4178=&(row_index);
+      temple_tmp_4179=*temple_tmp_4178;
+      *temple_tmp_4178=TempleCastS16((temple_tmp_4179+1));
+      (right_edges[temple_tmp_4179]=TempleCastS16(x_position));
     }
   }
 }
@@ -1041,439 +1041,439 @@ legacy_void RsShape3dPolygonPrerenderFinishFixedLeft(legacy_s16 *right_edges,leg
 legacy_void RsShape3dPolygonPrerenderMergeFixedLeftEdge(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4188;
-  legacy_s16 noreg temple_count_4189;
-  legacy_s16 noreg temple_row_index_4190;
-  legacy_u16 noreg temple_step_4191;
-  legacy_u32 noreg temple_sum_4192;
-  legacy_u16 noreg temple_fraction_4193;
-  legacy_s16 *temple_tmp_4194;
-  legacy_s16 noreg temple_tmp_4195;
-  legacy_s16 *temple_tmp_4197;
-  legacy_s16 noreg temple_tmp_4198;
-  legacy_s16 noreg temple_carry_4199;
-  legacy_s32 noreg temple_tmp_4200;
-  legacy_s16 *temple_tmp_4201;
-  legacy_s16 noreg temple_tmp_4202;
+  legacy_s16 noreg temple_x_position_4180;
+  legacy_s16 noreg temple_count_4181;
+  legacy_s16 noreg temple_row_index_4182;
+  legacy_u16 noreg temple_step_4183;
+  legacy_u32 noreg temple_sum_4184;
+  legacy_u16 noreg temple_fraction_4185;
+  legacy_s16 *temple_tmp_4186;
+  legacy_s16 noreg temple_tmp_4187;
+  legacy_s16 *temple_tmp_4189;
+  legacy_s16 noreg temple_tmp_4190;
+  legacy_s16 noreg temple_carry_4191;
+  legacy_s32 noreg temple_tmp_4192;
+  legacy_s16 *temple_tmp_4193;
+  legacy_s16 noreg temple_tmp_4194;
+  legacy_s16 *temple_tmp_4195;
+  legacy_s16 noreg temple_tmp_4196;
+  legacy_s16 *temple_tmp_4198;
+  legacy_s16 noreg temple_tmp_4199;
+  legacy_s16 *temple_tmp_4200;
+  legacy_s16 noreg temple_tmp_4201;
+  legacy_s32 noreg temple_tmp_4202;
   legacy_s16 *temple_tmp_4203;
   legacy_s16 noreg temple_tmp_4204;
-  legacy_s16 *temple_tmp_4206;
-  legacy_s16 noreg temple_tmp_4207;
-  legacy_s16 *temple_tmp_4208;
-  legacy_s16 noreg temple_tmp_4209;
-  legacy_s32 noreg temple_tmp_4210;
-  legacy_s16 *temple_tmp_4211;
-  legacy_s16 noreg temple_tmp_4212;
-  legacy_s16 *temple_tmp_4213;
-  legacy_s16 noreg temple_tmp_4214;
-  temple_x_position_4188=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  legacy_s16 *temple_tmp_4205;
+  legacy_s16 noreg temple_tmp_4206;
+  temple_x_position_4180=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_count_4189=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_count_4181=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4190=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4182=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
-  temple_step_4191=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
-  temple_sum_4192=TempleCastU32(TempleCastU32(
+  temple_step_4183=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
+  temple_sum_4184=TempleCastU32(TempleCastU32(
       (TempleCastU32(TempleCastU16(line[DRAW_LINE_START_Y_FRACTION_INDEX]))+32768)));
-  temple_fraction_4193=TempleCastU16(TempleCastU16(temple_sum_4192));
-  if((temple_sum_4192>TempleCastU32(65535))) {
-    temple_tmp_4194=&(temple_row_index_4190);
-    temple_tmp_4195=*temple_tmp_4194;
-    *temple_tmp_4194=TempleCastS16((temple_tmp_4195+1));
-    temple_tmp_4195;
+  temple_fraction_4185=TempleCastU16(TempleCastU16(temple_sum_4184));
+  if((temple_sum_4184>TempleCastU32(65535))) {
+    temple_tmp_4186=&(temple_row_index_4182);
+    temple_tmp_4187=*temple_tmp_4186;
+    *temple_tmp_4186=TempleCastS16((temple_tmp_4187+1));
+    temple_tmp_4187;
   }
   while(1) {
-    if(!((temple_count_4189>0))) {
+    if(!((temple_count_4181>0))) {
       break;
     }
-    if((right_edges[temple_row_index_4190]<temple_x_position_4188)) {
-      temple_tmp_4197=&(temple_row_index_4190);
-      temple_tmp_4198=*temple_tmp_4197;
-      *temple_tmp_4197=TempleCastS16((temple_tmp_4198+1));
-      (right_edges[temple_tmp_4198]=TempleCastS16(temple_x_position_4188));
-      RsShape3dPolygonPrerenderFinishFixedLeft(right_edges,TempleCastS16(temple_x_position_4188),
-          TempleCastS16(temple_count_4189),TempleCastS16(temple_row_index_4190),
-          TempleCastU16(temple_fraction_4193),TempleCastU16(temple_step_4191));
+    if((right_edges[temple_row_index_4182]<temple_x_position_4180)) {
+      temple_tmp_4189=&(temple_row_index_4182);
+      temple_tmp_4190=*temple_tmp_4189;
+      *temple_tmp_4189=TempleCastS16((temple_tmp_4190+1));
+      (right_edges[temple_tmp_4190]=TempleCastS16(temple_x_position_4180));
+      RsShape3dPolygonPrerenderFinishFixedLeft(right_edges,TempleCastS16(temple_x_position_4180),
+          TempleCastS16(temple_count_4181),TempleCastS16(temple_row_index_4182),
+          TempleCastU16(temple_fraction_4185),TempleCastU16(temple_step_4183));
       break;
     }
-    (temple_sum_4192=
-            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4193)+temple_step_4191))));
-    (temple_fraction_4193=TempleCastU16(TempleCastU16(temple_sum_4192)));
-    temple_carry_4199=TempleCastS16((temple_sum_4192>TempleCastU32(65535)));
-    temple_tmp_4200=0;
-    if(temple_carry_4199) {
-      temple_tmp_4200=1;
+    (temple_sum_4184=
+            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4185)+temple_step_4183))));
+    (temple_fraction_4185=TempleCastU16(TempleCastU16(temple_sum_4184)));
+    temple_carry_4191=TempleCastS16((temple_sum_4184>TempleCastU32(65535)));
+    temple_tmp_4192=0;
+    if(temple_carry_4191) {
+      temple_tmp_4192=1;
     }
-    if(temple_tmp_4200) {
-      temple_tmp_4200=0;
-      if((left_edges[temple_row_index_4190]>temple_x_position_4188)) {
-        temple_tmp_4200=1;
+    if(temple_tmp_4192) {
+      temple_tmp_4192=0;
+      if((left_edges[temple_row_index_4182]>temple_x_position_4180)) {
+        temple_tmp_4192=1;
       }
     }
-    if(temple_tmp_4200) {
-      temple_tmp_4201=&(temple_row_index_4190);
-      temple_tmp_4202=*temple_tmp_4201;
-      *temple_tmp_4201=TempleCastS16((temple_tmp_4202+1));
-      (left_edges[temple_tmp_4202]=TempleCastS16(temple_x_position_4188));
-      (temple_x_position_4188=TempleCastS16(
+    if(temple_tmp_4192) {
+      temple_tmp_4193=&(temple_row_index_4182);
+      temple_tmp_4194=*temple_tmp_4193;
+      *temple_tmp_4193=TempleCastS16((temple_tmp_4194+1));
+      (left_edges[temple_tmp_4194]=TempleCastS16(temple_x_position_4180));
+      (temple_x_position_4180=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_x_position_4188)-TempleCastU16(1)))))))));
-      temple_tmp_4203=&(temple_count_4189);
-      temple_tmp_4204=*temple_tmp_4203;
-      *temple_tmp_4203=TempleCastS16((temple_tmp_4204-1));
-      temple_tmp_4204;
+              TempleCastS32((TempleCastU16(temple_x_position_4180)-TempleCastU16(1)))))))));
+      temple_tmp_4195=&(temple_count_4181);
+      temple_tmp_4196=*temple_tmp_4195;
+      *temple_tmp_4195=TempleCastS16((temple_tmp_4196-1));
+      temple_tmp_4196;
       while(1) {
-        if(!((temple_count_4189>0))) {
+        if(!((temple_count_4181>0))) {
           break;
         }
-        (temple_sum_4192=TempleCastU32(
-            TempleCastU32((TempleCastU32(temple_fraction_4193)+temple_step_4191))));
-        (temple_fraction_4193=TempleCastU16(TempleCastU16(temple_sum_4192)));
-        (temple_carry_4199=TempleCastS16((temple_sum_4192>TempleCastU32(65535))));
-        if(temple_carry_4199) {
-          temple_tmp_4206=&(temple_row_index_4190);
-          temple_tmp_4207=*temple_tmp_4206;
-          *temple_tmp_4206=TempleCastS16((temple_tmp_4207+1));
-          (left_edges[temple_tmp_4207]=TempleCastS16(temple_x_position_4188));
+        (temple_sum_4184=TempleCastU32(
+            TempleCastU32((TempleCastU32(temple_fraction_4185)+temple_step_4183))));
+        (temple_fraction_4185=TempleCastU16(TempleCastU16(temple_sum_4184)));
+        (temple_carry_4191=TempleCastS16((temple_sum_4184>TempleCastU32(65535))));
+        if(temple_carry_4191) {
+          temple_tmp_4198=&(temple_row_index_4182);
+          temple_tmp_4199=*temple_tmp_4198;
+          *temple_tmp_4198=TempleCastS16((temple_tmp_4199+1));
+          (left_edges[temple_tmp_4199]=TempleCastS16(temple_x_position_4180));
         }
-        (temple_x_position_4188=TempleCastS16(
+        (temple_x_position_4180=TempleCastS16(
             RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                TempleCastS32((TempleCastU16(temple_x_position_4188)-TempleCastU16(1)))))))));
-        temple_tmp_4208=&(temple_count_4189);
-        temple_tmp_4209=*temple_tmp_4208;
-        *temple_tmp_4208=TempleCastS16((temple_tmp_4209-1));
-        temple_tmp_4209;
-        temple_tmp_4210=0;
-        if((temple_count_4189==0)) {
-          temple_tmp_4210=1;
+                TempleCastS32((TempleCastU16(temple_x_position_4180)-TempleCastU16(1)))))))));
+        temple_tmp_4200=&(temple_count_4181);
+        temple_tmp_4201=*temple_tmp_4200;
+        *temple_tmp_4200=TempleCastS16((temple_tmp_4201-1));
+        temple_tmp_4201;
+        temple_tmp_4202=0;
+        if((temple_count_4181==0)) {
+          temple_tmp_4202=1;
         }
-        if(temple_tmp_4210) {
-          temple_tmp_4210=0;
-          if((!(temple_carry_4199))) {
-            temple_tmp_4210=1;
+        if(temple_tmp_4202) {
+          temple_tmp_4202=0;
+          if((!(temple_carry_4191))) {
+            temple_tmp_4202=1;
           }
         }
-        if(temple_tmp_4210) {
-          (temple_x_position_4188=TempleCastS16(
+        if(temple_tmp_4202) {
+          (temple_x_position_4180=TempleCastS16(
               RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                  TempleCastS32((TempleCastU16(temple_x_position_4188)+TempleCastU16(1)))))))));
-          (left_edges[temple_row_index_4190]=TempleCastS16(temple_x_position_4188));
+                  TempleCastS32((TempleCastU16(temple_x_position_4180)+TempleCastU16(1)))))))));
+          (left_edges[temple_row_index_4182]=TempleCastS16(temple_x_position_4180));
         }
       }
       break;
     }
-    if(temple_carry_4199) {
-      temple_tmp_4211=&(temple_row_index_4190);
-      temple_tmp_4212=*temple_tmp_4211;
-      *temple_tmp_4211=TempleCastS16((temple_tmp_4212+1));
-      temple_tmp_4212;
+    if(temple_carry_4191) {
+      temple_tmp_4203=&(temple_row_index_4182);
+      temple_tmp_4204=*temple_tmp_4203;
+      *temple_tmp_4203=TempleCastS16((temple_tmp_4204+1));
+      temple_tmp_4204;
     }
-    (temple_x_position_4188=TempleCastS16(
+    (temple_x_position_4180=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(temple_x_position_4188)-TempleCastU16(1)))))))));
-    temple_tmp_4213=&(temple_count_4189);
-    temple_tmp_4214=*temple_tmp_4213;
-    *temple_tmp_4213=TempleCastS16((temple_tmp_4214-1));
-    temple_tmp_4214;
+            TempleCastS32((TempleCastU16(temple_x_position_4180)-TempleCastU16(1)))))))));
+    temple_tmp_4205=&(temple_count_4181);
+    temple_tmp_4206=*temple_tmp_4205;
+    *temple_tmp_4205=TempleCastS16((temple_tmp_4206-1));
+    temple_tmp_4206;
   }
 }
 
 legacy_void RsShape3dPolygonPrerenderFinishFixedRight(legacy_s16 *left_edges,legacy_s16 x_position,
     legacy_s16 count,legacy_s16 row_index,legacy_u16 fraction,legacy_u16 step)
 {
-  legacy_u32 noreg temple_sum_4216;
-  legacy_s16 *temple_tmp_4217;
-  legacy_s16 noreg temple_tmp_4218;
-  legacy_s16 *temple_tmp_4219;
-  legacy_s16 noreg temple_tmp_4220;
+  legacy_u32 noreg temple_sum_4208;
+  legacy_s16 *temple_tmp_4209;
+  legacy_s16 noreg temple_tmp_4210;
+  legacy_s16 *temple_tmp_4211;
+  legacy_s16 noreg temple_tmp_4212;
   while(1) {
     if(!((count>0))) {
       break;
     }
-    temple_sum_4216=TempleCastU32(TempleCastU32((TempleCastU32(fraction)+step)));
-    (fraction=TempleCastU16(TempleCastU16(temple_sum_4216)));
-    if((temple_sum_4216>TempleCastU32(65535))) {
-      temple_tmp_4217=&(row_index);
-      temple_tmp_4218=*temple_tmp_4217;
-      *temple_tmp_4217=TempleCastS16((temple_tmp_4218+1));
-      (left_edges[temple_tmp_4218]=TempleCastS16(x_position));
+    temple_sum_4208=TempleCastU32(TempleCastU32((TempleCastU32(fraction)+step)));
+    (fraction=TempleCastU16(TempleCastU16(temple_sum_4208)));
+    if((temple_sum_4208>TempleCastU32(65535))) {
+      temple_tmp_4209=&(row_index);
+      temple_tmp_4210=*temple_tmp_4209;
+      *temple_tmp_4209=TempleCastS16((temple_tmp_4210+1));
+      (left_edges[temple_tmp_4210]=TempleCastS16(x_position));
     }
     (x_position=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(
         TempleCastU16(TempleCastS32((TempleCastU16(x_position)+TempleCastU16(1)))))))));
-    temple_tmp_4219=&(count);
-    temple_tmp_4220=*temple_tmp_4219;
-    *temple_tmp_4219=TempleCastS16((temple_tmp_4220-1));
-    temple_tmp_4220;
+    temple_tmp_4211=&(count);
+    temple_tmp_4212=*temple_tmp_4211;
+    *temple_tmp_4211=TempleCastS16((temple_tmp_4212-1));
+    temple_tmp_4212;
   }
 }
 
 legacy_void RsShape3dPolygonPrerenderMergeFixedRightEdge(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_s16 noreg temple_x_position_4221;
-  legacy_s16 noreg temple_count_4222;
-  legacy_s16 noreg temple_row_index_4223;
-  legacy_u16 noreg temple_step_4224;
-  legacy_u32 noreg temple_sum_4225;
-  legacy_u16 noreg temple_fraction_4226;
-  legacy_s16 *temple_tmp_4227;
-  legacy_s16 noreg temple_tmp_4228;
-  legacy_s16 *temple_tmp_4230;
-  legacy_s16 noreg temple_tmp_4231;
-  legacy_s16 *temple_tmp_4232;
-  legacy_s16 noreg temple_tmp_4233;
-  legacy_s16 noreg temple_carry_4234;
-  legacy_s32 noreg temple_tmp_4235;
-  legacy_s16 *temple_tmp_4237;
-  legacy_s16 noreg temple_tmp_4238;
-  legacy_s16 *temple_tmp_4239;
-  legacy_s16 noreg temple_tmp_4240;
-  legacy_s32 noreg temple_tmp_4241;
-  legacy_s16 *temple_tmp_4242;
-  legacy_s16 noreg temple_tmp_4243;
-  legacy_s16 *temple_tmp_4244;
-  legacy_s16 noreg temple_tmp_4245;
-  legacy_s16 *temple_tmp_4246;
-  legacy_s16 noreg temple_tmp_4247;
-  temple_x_position_4221=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  legacy_s16 noreg temple_x_position_4213;
+  legacy_s16 noreg temple_count_4214;
+  legacy_s16 noreg temple_row_index_4215;
+  legacy_u16 noreg temple_step_4216;
+  legacy_u32 noreg temple_sum_4217;
+  legacy_u16 noreg temple_fraction_4218;
+  legacy_s16 *temple_tmp_4219;
+  legacy_s16 noreg temple_tmp_4220;
+  legacy_s16 *temple_tmp_4222;
+  legacy_s16 noreg temple_tmp_4223;
+  legacy_s16 *temple_tmp_4224;
+  legacy_s16 noreg temple_tmp_4225;
+  legacy_s16 noreg temple_carry_4226;
+  legacy_s32 noreg temple_tmp_4227;
+  legacy_s16 *temple_tmp_4229;
+  legacy_s16 noreg temple_tmp_4230;
+  legacy_s16 *temple_tmp_4231;
+  legacy_s16 noreg temple_tmp_4232;
+  legacy_s32 noreg temple_tmp_4233;
+  legacy_s16 *temple_tmp_4234;
+  legacy_s16 noreg temple_tmp_4235;
+  legacy_s16 *temple_tmp_4236;
+  legacy_s16 noreg temple_tmp_4237;
+  legacy_s16 *temple_tmp_4238;
+  legacy_s16 noreg temple_tmp_4239;
+  temple_x_position_4213=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_X_INDEX]))));
-  temple_count_4222=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_count_4214=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_row_index_4223=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_row_index_4215=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))));
-  temple_step_4224=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
-  temple_sum_4225=TempleCastU32(TempleCastU32(
+  temple_step_4216=TempleCastU16(TempleCastU16(line[DRAW_LINE_STEP_INDEX]));
+  temple_sum_4217=TempleCastU32(TempleCastU32(
       (TempleCastU32(TempleCastU16(line[DRAW_LINE_START_Y_FRACTION_INDEX]))+32768)));
-  temple_fraction_4226=TempleCastU16(TempleCastU16(temple_sum_4225));
-  if((temple_sum_4225>TempleCastU32(65535))) {
-    temple_tmp_4227=&(temple_row_index_4223);
-    temple_tmp_4228=*temple_tmp_4227;
-    *temple_tmp_4227=TempleCastS16((temple_tmp_4228+1));
-    temple_tmp_4228;
+  temple_fraction_4218=TempleCastU16(TempleCastU16(temple_sum_4217));
+  if((temple_sum_4217>TempleCastU32(65535))) {
+    temple_tmp_4219=&(temple_row_index_4215);
+    temple_tmp_4220=*temple_tmp_4219;
+    *temple_tmp_4219=TempleCastS16((temple_tmp_4220+1));
+    temple_tmp_4220;
   }
   while(1) {
-    if(!((temple_count_4222>0))) {
+    if(!((temple_count_4214>0))) {
       break;
     }
-    if((left_edges[temple_row_index_4223]>temple_x_position_4221)) {
-      temple_tmp_4230=&(temple_row_index_4223);
-      temple_tmp_4231=*temple_tmp_4230;
-      *temple_tmp_4230=TempleCastS16((temple_tmp_4231+1));
-      (left_edges[temple_tmp_4231]=TempleCastS16(temple_x_position_4221));
-      (temple_x_position_4221=TempleCastS16(
+    if((left_edges[temple_row_index_4215]>temple_x_position_4213)) {
+      temple_tmp_4222=&(temple_row_index_4215);
+      temple_tmp_4223=*temple_tmp_4222;
+      *temple_tmp_4222=TempleCastS16((temple_tmp_4223+1));
+      (left_edges[temple_tmp_4223]=TempleCastS16(temple_x_position_4213));
+      (temple_x_position_4213=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_x_position_4221)+TempleCastU16(1)))))))));
-      temple_tmp_4232=&(temple_count_4222);
-      temple_tmp_4233=*temple_tmp_4232;
-      *temple_tmp_4232=TempleCastS16((temple_tmp_4233-1));
-      temple_tmp_4233;
-      RsShape3dPolygonPrerenderFinishFixedRight(left_edges,TempleCastS16(temple_x_position_4221),
-          TempleCastS16(temple_count_4222),TempleCastS16(temple_row_index_4223),
-          TempleCastU16(temple_fraction_4226),TempleCastU16(temple_step_4224));
+              TempleCastS32((TempleCastU16(temple_x_position_4213)+TempleCastU16(1)))))))));
+      temple_tmp_4224=&(temple_count_4214);
+      temple_tmp_4225=*temple_tmp_4224;
+      *temple_tmp_4224=TempleCastS16((temple_tmp_4225-1));
+      temple_tmp_4225;
+      RsShape3dPolygonPrerenderFinishFixedRight(left_edges,TempleCastS16(temple_x_position_4213),
+          TempleCastS16(temple_count_4214),TempleCastS16(temple_row_index_4215),
+          TempleCastU16(temple_fraction_4218),TempleCastU16(temple_step_4216));
       break;
     }
-    (temple_sum_4225=
-            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4226)+temple_step_4224))));
-    (temple_fraction_4226=TempleCastU16(TempleCastU16(temple_sum_4225)));
-    temple_carry_4234=TempleCastS16((temple_sum_4225>TempleCastU32(65535)));
-    temple_tmp_4235=0;
-    if(temple_carry_4234) {
-      temple_tmp_4235=1;
+    (temple_sum_4217=
+            TempleCastU32(TempleCastU32((TempleCastU32(temple_fraction_4218)+temple_step_4216))));
+    (temple_fraction_4218=TempleCastU16(TempleCastU16(temple_sum_4217)));
+    temple_carry_4226=TempleCastS16((temple_sum_4217>TempleCastU32(65535)));
+    temple_tmp_4227=0;
+    if(temple_carry_4226) {
+      temple_tmp_4227=1;
     }
-    if(temple_tmp_4235) {
-      temple_tmp_4235=0;
-      if((right_edges[temple_row_index_4223]<temple_x_position_4221)) {
-        temple_tmp_4235=1;
+    if(temple_tmp_4227) {
+      temple_tmp_4227=0;
+      if((right_edges[temple_row_index_4215]<temple_x_position_4213)) {
+        temple_tmp_4227=1;
       }
     }
-    if(temple_tmp_4235) {
-      (right_edges[temple_row_index_4223]=TempleCastS16(temple_x_position_4221));
+    if(temple_tmp_4227) {
+      (right_edges[temple_row_index_4215]=TempleCastS16(temple_x_position_4213));
       while(1) {
-        if(!((temple_count_4222>0))) {
+        if(!((temple_count_4214>0))) {
           break;
         }
-        (temple_x_position_4221=TempleCastS16(
+        (temple_x_position_4213=TempleCastS16(
             RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                TempleCastS32((TempleCastU16(temple_x_position_4221)+TempleCastU16(1)))))))));
-        (temple_sum_4225=TempleCastU32(
-            TempleCastU32((TempleCastU32(temple_fraction_4226)+temple_step_4224))));
-        (temple_fraction_4226=TempleCastU16(TempleCastU16(temple_sum_4225)));
-        (temple_carry_4234=TempleCastS16((temple_sum_4225>TempleCastU32(65535))));
-        if(temple_carry_4234) {
-          temple_tmp_4237=&(temple_row_index_4223);
-          temple_tmp_4238=*temple_tmp_4237;
-          *temple_tmp_4237=TempleCastS16((temple_tmp_4238+1));
-          temple_tmp_4238;
+                TempleCastS32((TempleCastU16(temple_x_position_4213)+TempleCastU16(1)))))))));
+        (temple_sum_4217=TempleCastU32(
+            TempleCastU32((TempleCastU32(temple_fraction_4218)+temple_step_4216))));
+        (temple_fraction_4218=TempleCastU16(TempleCastU16(temple_sum_4217)));
+        (temple_carry_4226=TempleCastS16((temple_sum_4217>TempleCastU32(65535))));
+        if(temple_carry_4226) {
+          temple_tmp_4229=&(temple_row_index_4215);
+          temple_tmp_4230=*temple_tmp_4229;
+          *temple_tmp_4229=TempleCastS16((temple_tmp_4230+1));
+          temple_tmp_4230;
         }
-        temple_tmp_4239=&(temple_count_4222);
-        temple_tmp_4240=*temple_tmp_4239;
-        *temple_tmp_4239=TempleCastS16((temple_tmp_4240-1));
-        temple_tmp_4240;
-        temple_tmp_4241=0;
-        if((temple_count_4222>0)) {
-          temple_tmp_4241=1;
+        temple_tmp_4231=&(temple_count_4214);
+        temple_tmp_4232=*temple_tmp_4231;
+        *temple_tmp_4231=TempleCastS16((temple_tmp_4232-1));
+        temple_tmp_4232;
+        temple_tmp_4233=0;
+        if((temple_count_4214>0)) {
+          temple_tmp_4233=1;
         }
-        if(temple_tmp_4241) {
-          temple_tmp_4241=0;
-          if(temple_carry_4234) {
-            temple_tmp_4241=1;
+        if(temple_tmp_4233) {
+          temple_tmp_4233=0;
+          if(temple_carry_4226) {
+            temple_tmp_4233=1;
           }
         }
-        if(temple_tmp_4241) {
-          (right_edges[temple_row_index_4223]=TempleCastS16(temple_x_position_4221));
+        if(temple_tmp_4233) {
+          (right_edges[temple_row_index_4215]=TempleCastS16(temple_x_position_4213));
         } else {
-          if((temple_count_4222==0)) {
-            if((!(temple_carry_4234))) {
-              temple_tmp_4242=&(temple_row_index_4223);
-              temple_tmp_4243=*temple_tmp_4242;
-              *temple_tmp_4242=TempleCastS16((temple_tmp_4243+1));
-              temple_tmp_4243;
+          if((temple_count_4214==0)) {
+            if((!(temple_carry_4226))) {
+              temple_tmp_4234=&(temple_row_index_4215);
+              temple_tmp_4235=*temple_tmp_4234;
+              *temple_tmp_4234=TempleCastS16((temple_tmp_4235+1));
+              temple_tmp_4235;
             }
-            (temple_x_position_4221=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+            (temple_x_position_4213=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
                 TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-                    (TempleCastU16(temple_x_position_4221)-TempleCastU16(1)))))))));
-            (right_edges[temple_row_index_4223]=TempleCastS16(temple_x_position_4221));
+                    (TempleCastU16(temple_x_position_4213)-TempleCastU16(1)))))))));
+            (right_edges[temple_row_index_4215]=TempleCastS16(temple_x_position_4213));
           }
         }
       }
       break;
     }
-    if(temple_carry_4234) {
-      temple_tmp_4244=&(temple_row_index_4223);
-      temple_tmp_4245=*temple_tmp_4244;
-      *temple_tmp_4244=TempleCastS16((temple_tmp_4245+1));
-      temple_tmp_4245;
+    if(temple_carry_4226) {
+      temple_tmp_4236=&(temple_row_index_4215);
+      temple_tmp_4237=*temple_tmp_4236;
+      *temple_tmp_4236=TempleCastS16((temple_tmp_4237+1));
+      temple_tmp_4237;
     }
-    (temple_x_position_4221=TempleCastS16(
+    (temple_x_position_4213=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(temple_x_position_4221)+TempleCastU16(1)))))))));
-    temple_tmp_4246=&(temple_count_4222);
-    temple_tmp_4247=*temple_tmp_4246;
-    *temple_tmp_4246=TempleCastS16((temple_tmp_4247-1));
-    temple_tmp_4247;
+            TempleCastS32((TempleCastU16(temple_x_position_4213)+TempleCastU16(1)))))))));
+    temple_tmp_4238=&(temple_count_4214);
+    temple_tmp_4239=*temple_tmp_4238;
+    *temple_tmp_4238=TempleCastS16((temple_tmp_4239-1));
+    temple_tmp_4239;
   }
 }
 
 legacy_void RsShape3dPolygonPrerenderMergeClipPadding(
     legacy_u16 *line,legacy_s16 *left_edges,legacy_s16 *right_edges)
 {
-  legacy_u32 noreg temple_sum_4248;
-  legacy_s16 noreg temple_carry_4249;
-  legacy_s16 noreg temple_count_4250;
-  legacy_s16 noreg temple_row_index_4251;
-  legacy_s16 *temple_tmp_4253;
-  legacy_s16 noreg temple_tmp_4254;
+  legacy_u32 noreg temple_sum_4240;
+  legacy_s16 noreg temple_carry_4241;
+  legacy_s16 noreg temple_count_4242;
+  legacy_s16 noreg temple_row_index_4243;
+  legacy_s16 *temple_tmp_4245;
+  legacy_s16 noreg temple_tmp_4246;
+  legacy_s16 *temple_tmp_4247;
+  legacy_s16 noreg temple_tmp_4248;
+  legacy_s16 *temple_tmp_4250;
+  legacy_s16 noreg temple_tmp_4251;
+  legacy_s16 *temple_tmp_4252;
+  legacy_s16 noreg temple_tmp_4253;
   legacy_s16 *temple_tmp_4255;
   legacy_s16 noreg temple_tmp_4256;
-  legacy_s16 *temple_tmp_4258;
-  legacy_s16 noreg temple_tmp_4259;
+  legacy_s16 *temple_tmp_4257;
+  legacy_s16 noreg temple_tmp_4258;
   legacy_s16 *temple_tmp_4260;
   legacy_s16 noreg temple_tmp_4261;
-  legacy_s16 *temple_tmp_4263;
-  legacy_s16 noreg temple_tmp_4264;
-  legacy_s16 *temple_tmp_4265;
-  legacy_s16 noreg temple_tmp_4266;
-  legacy_s16 *temple_tmp_4268;
-  legacy_s16 noreg temple_tmp_4269;
-  legacy_s16 *temple_tmp_4270;
-  legacy_s16 noreg temple_tmp_4271;
-  temple_sum_4248=TempleCastU32(TempleCastU32(
+  legacy_s16 *temple_tmp_4262;
+  legacy_s16 noreg temple_tmp_4263;
+  temple_sum_4240=TempleCastU32(TempleCastU32(
       (TempleCastU32(TempleCastU16(line[DRAW_LINE_START_Y_FRACTION_INDEX]))+32768)));
-  temple_carry_4249=TempleCastS16((temple_sum_4248>TempleCastU32(65535)));
-  temple_count_4250=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  temple_carry_4241=TempleCastS16((temple_sum_4240>TempleCastU32(65535)));
+  temple_count_4242=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_LEFT_CLIP_COUNT_INDEX]))));
-  if((temple_count_4250>0)) {
-    (temple_row_index_4251=TempleCastS16(
+  if((temple_count_4242>0)) {
+    (temple_row_index_4243=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
             (TempleCastU16(
                   RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
                       TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
                                         TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))))+
-                          TempleCastU16(temple_carry_4249))))))))-
-                TempleCastU16(temple_count_4250)))))))));
+                          TempleCastU16(temple_carry_4241))))))))-
+                TempleCastU16(temple_count_4242)))))))));
     while(1) {
-      temple_tmp_4253=&(temple_count_4250);
-      temple_tmp_4254=*temple_tmp_4253;
-      *temple_tmp_4253=TempleCastS16((temple_tmp_4254-1));
-      if(!((temple_tmp_4254>0))) {
+      temple_tmp_4245=&(temple_count_4242);
+      temple_tmp_4246=*temple_tmp_4245;
+      *temple_tmp_4245=TempleCastS16((temple_tmp_4246-1));
+      if(!((temple_tmp_4246>0))) {
         break;
       }
-      temple_tmp_4255=&(temple_row_index_4251);
-      temple_tmp_4256=*temple_tmp_4255;
-      *temple_tmp_4255=TempleCastS16((temple_tmp_4256+1));
-      (left_edges[temple_tmp_4256]=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+      temple_tmp_4247=&(temple_row_index_4243);
+      temple_tmp_4248=*temple_tmp_4247;
+      *temple_tmp_4247=TempleCastS16((temple_tmp_4248+1));
+      (left_edges[temple_tmp_4248]=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
           TempleCastU16(TempleCastU16(drawing_sprite.sprite_raster_left)))));
     }
   }
-  (temple_count_4250=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  (temple_count_4242=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_START_RIGHT_CLIP_COUNT_INDEX])))));
-  if((temple_count_4250>0)) {
-    (temple_row_index_4251=TempleCastS16(
+  if((temple_count_4242>0)) {
+    (temple_row_index_4243=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
             (TempleCastU16(
                   RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
                       TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
                                         TempleCastU16(line[DRAW_LINE_START_Y_INDEX]))))+
-                          TempleCastU16(temple_carry_4249))))))))-
-                TempleCastU16(temple_count_4250)))))))));
+                          TempleCastU16(temple_carry_4241))))))))-
+                TempleCastU16(temple_count_4242)))))))));
     while(1) {
-      temple_tmp_4258=&(temple_count_4250);
-      temple_tmp_4259=*temple_tmp_4258;
-      *temple_tmp_4258=TempleCastS16((temple_tmp_4259-1));
-      if(!((temple_tmp_4259>0))) {
+      temple_tmp_4250=&(temple_count_4242);
+      temple_tmp_4251=*temple_tmp_4250;
+      *temple_tmp_4250=TempleCastS16((temple_tmp_4251-1));
+      if(!((temple_tmp_4251>0))) {
         break;
       }
-      temple_tmp_4260=&(temple_row_index_4251);
-      temple_tmp_4261=*temple_tmp_4260;
-      *temple_tmp_4260=TempleCastS16((temple_tmp_4261+1));
-      (right_edges[temple_tmp_4261]=TempleCastS16(
+      temple_tmp_4252=&(temple_row_index_4243);
+      temple_tmp_4253=*temple_tmp_4252;
+      *temple_tmp_4252=TempleCastS16((temple_tmp_4253+1));
+      (right_edges[temple_tmp_4253]=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
               TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
                                   TempleCastU16(drawing_sprite.sprite_raster_right))))-
                   TempleCastU16(1)))))))));
     }
   }
-  (temple_count_4250=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  (temple_count_4242=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_END_LEFT_CLIP_COUNT_INDEX])))));
-  if((temple_count_4250>0)) {
-    (temple_row_index_4251=TempleCastS16(
+  if((temple_count_4242>0)) {
+    (temple_row_index_4243=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                                 TempleCastU16(TempleCastU16(line[DRAW_LINE_END_Y_INDEX]))))+
                 TempleCastU16(1)))))))));
     while(1) {
-      temple_tmp_4263=&(temple_count_4250);
-      temple_tmp_4264=*temple_tmp_4263;
-      *temple_tmp_4263=TempleCastS16((temple_tmp_4264-1));
-      if(!((temple_tmp_4264>0))) {
+      temple_tmp_4255=&(temple_count_4242);
+      temple_tmp_4256=*temple_tmp_4255;
+      *temple_tmp_4255=TempleCastS16((temple_tmp_4256-1));
+      if(!((temple_tmp_4256>0))) {
         break;
       }
-      temple_tmp_4265=&(temple_row_index_4251);
-      temple_tmp_4266=*temple_tmp_4265;
-      *temple_tmp_4265=TempleCastS16((temple_tmp_4266+1));
-      (left_edges[temple_tmp_4266]=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+      temple_tmp_4257=&(temple_row_index_4243);
+      temple_tmp_4258=*temple_tmp_4257;
+      *temple_tmp_4257=TempleCastS16((temple_tmp_4258+1));
+      (left_edges[temple_tmp_4258]=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
           TempleCastU16(TempleCastU16(drawing_sprite.sprite_raster_left)))));
     }
   }
-  (temple_count_4250=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  (temple_count_4242=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line[DRAW_LINE_END_RIGHT_CLIP_COUNT_INDEX])))));
-  if((temple_count_4250>0)) {
-    (temple_row_index_4251=TempleCastS16(
+  if((temple_count_4242>0)) {
+    (temple_row_index_4243=TempleCastS16(
         RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
             TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(
                                 TempleCastU16(TempleCastU16(line[DRAW_LINE_END_Y_INDEX]))))+
                 TempleCastU16(1)))))))));
     while(1) {
-      temple_tmp_4268=&(temple_count_4250);
-      temple_tmp_4269=*temple_tmp_4268;
-      *temple_tmp_4268=TempleCastS16((temple_tmp_4269-1));
-      if(!((temple_tmp_4269>0))) {
+      temple_tmp_4260=&(temple_count_4242);
+      temple_tmp_4261=*temple_tmp_4260;
+      *temple_tmp_4260=TempleCastS16((temple_tmp_4261-1));
+      if(!((temple_tmp_4261>0))) {
         break;
       }
-      temple_tmp_4270=&(temple_row_index_4251);
-      temple_tmp_4271=*temple_tmp_4270;
-      *temple_tmp_4270=TempleCastS16((temple_tmp_4271+1));
-      (right_edges[temple_tmp_4271]=TempleCastS16(
+      temple_tmp_4262=&(temple_row_index_4243);
+      temple_tmp_4263=*temple_tmp_4262;
+      *temple_tmp_4262=TempleCastS16((temple_tmp_4263+1));
+      (right_edges[temple_tmp_4263]=TempleCastS16(
           RsShape3dPolygonLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
               TempleCastS32((TempleCastU16(RsShape3dPolygonLegacyS16FromBits(TempleCastU16(
                                   TempleCastU16(drawing_sprite.sprite_raster_right))))-
@@ -1485,68 +1485,68 @@ legacy_void RsShape3dPolygonPrerenderMergeClipPadding(
 legacy_void RsPolygonMergeSecondEdge(legacy_u16 *line_setup,legacy_u16 choose_edge_per_row,
     legacy_u16 needs_clipping,legacy_s16 *edge_tables)
 {
-  legacy_s16 *temple_left_edges_4272;
-  legacy_s16 *temple_right_edges_4273;
-  legacy_s16 noreg temple_count_4274;
-  legacy_u16 noreg temple_mode_4275;
-  legacy_s32 noreg temple_tmp_4276;
-  legacy_s32 noreg temple_tmp_4277;
-  temple_left_edges_4272=edge_tables;
-  temple_right_edges_4273=(temple_left_edges_4272+480);
-  temple_count_4274=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
+  legacy_s16 *temple_left_edges_4264;
+  legacy_s16 *temple_right_edges_4265;
+  legacy_s16 noreg temple_count_4266;
+  legacy_u16 noreg temple_mode_4267;
+  legacy_s32 noreg temple_tmp_4268;
+  legacy_s32 noreg temple_tmp_4269;
+  temple_left_edges_4264=edge_tables;
+  temple_right_edges_4265=(temple_left_edges_4264+480);
+  temple_count_4266=TempleCastS16(RsShape3dPolygonLegacyS16FromBits(
       TempleCastU16(TempleCastU16(line_setup[DRAW_LINE_PIXEL_COUNT_INDEX]))));
-  temple_mode_4275=TempleCastU16(TempleCastU8(line_setup[DRAW_LINE_MODE_AND_CLIP_INDEX]));
-  temple_tmp_4276=0;
-  if((temple_count_4274>0)) {
-    temple_tmp_4276=1;
+  temple_mode_4267=TempleCastU16(TempleCastU8(line_setup[DRAW_LINE_MODE_AND_CLIP_INDEX]));
+  temple_tmp_4268=0;
+  if((temple_count_4266>0)) {
+    temple_tmp_4268=1;
   }
-  if(temple_tmp_4276) {
-    temple_tmp_4276=0;
-    if((temple_mode_4275>=DRAW_LINE_MODE_VERTICAL)) {
-      temple_tmp_4276=1;
+  if(temple_tmp_4268) {
+    temple_tmp_4268=0;
+    if((temple_mode_4267>=DRAW_LINE_MODE_VERTICAL)) {
+      temple_tmp_4268=1;
     }
   }
-  temple_tmp_4277=0;
-  if(temple_tmp_4276) {
-    temple_tmp_4277=1;
+  temple_tmp_4269=0;
+  if(temple_tmp_4268) {
+    temple_tmp_4269=1;
   }
-  if(temple_tmp_4277) {
-    temple_tmp_4277=0;
-    if((temple_mode_4275<=DRAW_LINE_MODE_X_MAJOR_RIGHT)) {
-      temple_tmp_4277=1;
+  if(temple_tmp_4269) {
+    temple_tmp_4269=0;
+    if((temple_mode_4267<=DRAW_LINE_MODE_X_MAJOR_RIGHT)) {
+      temple_tmp_4269=1;
     }
   }
-  if(temple_tmp_4277) {
+  if(temple_tmp_4269) {
     if((choose_edge_per_row!=0)) {
-      if((temple_mode_4275<=DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
+      if((temple_mode_4267<=DRAW_LINE_MODE_DIAGONAL_RIGHT)) {
         RsShape3dPolygonPrerenderMergeLinearRows(
-            line_setup,temple_left_edges_4272,temple_right_edges_4273);
+            line_setup,temple_left_edges_4264,temple_right_edges_4265);
       } else {
-        if((temple_mode_4275<=DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
+        if((temple_mode_4267<=DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
           RsShape3dPolygonPrerenderMergeFractionalRows(
-              line_setup,temple_left_edges_4272,temple_right_edges_4273);
+              line_setup,temple_left_edges_4264,temple_right_edges_4265);
         } else {
           RsShape3dPolygonPrerenderMergeXMajorRows(
-              line_setup,temple_left_edges_4272,temple_right_edges_4273);
+              line_setup,temple_left_edges_4264,temple_right_edges_4265);
         }
       }
     } else {
-      if((temple_mode_4275<=DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
+      if((temple_mode_4267<=DRAW_LINE_MODE_Y_MAJOR_RIGHT)) {
         RsShape3dPolygonPrerenderMergeFixedYEdge(
-            line_setup,temple_left_edges_4272,temple_right_edges_4273);
+            line_setup,temple_left_edges_4264,temple_right_edges_4265);
       } else {
-        if((temple_mode_4275==DRAW_LINE_MODE_X_MAJOR_LEFT)) {
+        if((temple_mode_4267==DRAW_LINE_MODE_X_MAJOR_LEFT)) {
           RsShape3dPolygonPrerenderMergeFixedLeftEdge(
-              line_setup,temple_left_edges_4272,temple_right_edges_4273);
+              line_setup,temple_left_edges_4264,temple_right_edges_4265);
         } else {
           RsShape3dPolygonPrerenderMergeFixedRightEdge(
-              line_setup,temple_left_edges_4272,temple_right_edges_4273);
+              line_setup,temple_left_edges_4264,temple_right_edges_4265);
         }
       }
     }
   }
   if((needs_clipping!=0)) {
     RsShape3dPolygonPrerenderMergeClipPadding(
-        line_setup,temple_left_edges_4272,temple_right_edges_4273);
+        line_setup,temple_left_edges_4264,temple_right_edges_4265);
   }
 }

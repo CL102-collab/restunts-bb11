@@ -14,9 +14,6 @@
 #include "residue.h"
 #include "track/trackdata_layout.h"
 #include "track/track_objects.h"
-#ifdef RESTUNTS_SDL3
-#include "hires/frame_interpolation.h"
-#endif
 
 #include "ghost_line_internal.h"
 

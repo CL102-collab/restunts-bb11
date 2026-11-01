@@ -576,9 +576,6 @@ legacy_s16 frame_prepare_draw_tile(struct FRAME_TILE *tile,
 		tile->detail = tiles->detail[tile_index];
 	}
 	tile->depth_mask = 0;
-#if defined(RESTUNTS_SDL3)
-	tile->adaptive_flags = 0;
-#endif
 	return frame_hires_prepare_tile(tile);
 }
 

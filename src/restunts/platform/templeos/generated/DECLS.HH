@@ -388,6 +388,15 @@ extern legacy_s16 RsAudioEffectChannelIdle(legacy_s16 channel);
 extern legacy_void RsAudioRequestContextFade(legacy_s16 index);
 extern legacy_void RsAudioFadeOut(legacy_s16 delay_ticks);
 extern legacy_void RsAudioSequenceTimer();
+extern legacy_void RsShape3dProjectPoint(CVector *vector,CPoint2D *point);
+extern legacy_s16 RsShape3dLogicalCoordinate(legacy_s16 value);
+extern legacy_u16 RsShape3dGeometryClipFlags(CPoint2D *point);
+extern legacy_void RsShape3dAdjustGeometryBounds(CPoint2D *point,CRectangle *rectangle);
+extern legacy_void RsShape3dNativeNearIntersection(
+    CVector *front,CVector *behind,CPoint2D *point);
+extern legacy_void RsShape3dNativeRoundBounds(
+    CPoint2D *center,legacy_u16 radius,legacy_s16 padding,CRectangle *rectangle);
+extern legacy_u16 RsShape3dNativeSphereRadius(CVector *radius_vector,legacy_s16 depth);
 extern legacy_s8 RsIsFacingCamera(CPoint2D *pts);
 extern legacy_u16 RsShape3dPreparePrimitiveVertices(
     CShape3D *shape,CShape3DTransformContext *context,legacy_u16 *any_vertex_behind);

@@ -13,6 +13,8 @@
 #define TRACK_PREVIEW_WATER_TERRAIN_FIRST 1U
 #define TRACK_PREVIEW_WATER_TERRAIN_LAST 5U
 
+/* Queue covered water with its owner so later continuation cells cannot paint
+ * over the road after the owner's primitives have been flushed. */
 void hires_track_preview_draw_covered_water(legacy_u8 track, legacy_u8 terrain, legacy_u8 column,
 											legacy_u8 row, const struct VECTOR *camera,
 											struct TRANSFORMEDSHAPE3D *transformed,

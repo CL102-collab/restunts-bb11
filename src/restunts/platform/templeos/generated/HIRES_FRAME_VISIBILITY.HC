@@ -2,38 +2,38 @@
 
 legacy_s8 RsHiresFrameVisibilityLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7722;
+  legacy_s32 noreg temple_tmp_7714;
   if((value<=127)) {
-    temple_tmp_7722=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7714=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7722=TempleCastS32(TempleCastS8(
+    temple_tmp_7714=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7722);
+  return TempleCastS8(temple_tmp_7714);
 }
 
 legacy_s16 RsHiresFrameVisibilityLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7723;
+  legacy_s32 noreg temple_tmp_7715;
   if((value<=32767)) {
-    temple_tmp_7723=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7715=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7723=TempleCastS32(TempleCastS16(
+    temple_tmp_7715=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7723);
+  return TempleCastS16(temple_tmp_7715);
 }
 
 legacy_s32 RsHiresFrameVisibilityLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7724;
+  legacy_s32 noreg temple_tmp_7716;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7724=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7716=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7724=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7716=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7724);
+  return TempleCastS32(temple_tmp_7716);
 }
 
 legacy_s16 RsHiresFrameVisibilityCameraAdjustCustomDirection(legacy_u16 direction)
@@ -106,7 +106,7 @@ legacy_s16 RsFrameHiresPrepareTile(CFrameTile *tile)
 
 legacy_void RsFrameHiresRacingLineFlags(legacy_u8 *flags)
 {
-  legacy_u8 *temple_tmp_7725;
-  temple_tmp_7725=&((*(flags)));
-  ((*temple_tmp_7725)=TempleCastU8(((*temple_tmp_7725)|64)));
+  legacy_u8 *temple_tmp_7717;
+  temple_tmp_7717=&((*(flags)));
+  ((*temple_tmp_7717)=TempleCastU8(((*temple_tmp_7717)|64)));
 }

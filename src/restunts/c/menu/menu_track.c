@@ -24,7 +24,7 @@
 #include "../ghost.h"
 #include "../frame_internal.h"
 #ifdef RESTUNTS_SDL3
-#include "../hires/hires.h"
+#include "../hires/track_menu_preview.h"
 #endif
 
 #define TRACK_EDITOR_RESOURCE_FILE_INDEX 3
@@ -52,11 +52,6 @@
 #define TRACK_MENU_BUTTON_Y 172
 #define TRACK_MENU_BUTTON_WIDTH 94
 #define TRACK_MENU_BUTTON_HEIGHT 24
-#define TRACK_MENU_PREVIEW_TOP 0U
-#define TRACK_MENU_PREVIEW_BOTTOM 166U
-#define TRACK_MENU_PREVIEW_FRAMES_PER_SECOND 25UL
-#define TRACK_MENU_PREVIEW_FRAME_TICKS                                                             \
-	(DOS_TIMER_REALTIME_TICKS_PER_SECOND / TRACK_MENU_PREVIEW_FRAMES_PER_SECOND)
 
 enum TRACK_MENU_BUTTON {
 	TRACK_MENU_LOAD_BUTTON = 0,
@@ -69,22 +64,14 @@ struct TRACK_MENU_STATE {
 	legacy_u8 previous;
 	legacy_u8 blit_mode;
 #ifdef RESTUNTS_SDL3
-	legacy_u8 preview_live;
-	legacy_u32 preview_tick;
-	legacy_u8 preview_score_visible;
-	legacy_u8 preview_score_offsets[TRACK_MENU_HIGHSCORE_FIELD_COUNT];
-	legacy_s8 preview_score_text[RESID_BUFFER_SIZE];
+	struct HIRES_TRACK_MENU_PREVIEW preview;
 #endif
 };
 
 static void track_menu_release_preview(struct TRACK_MENU_STATE *menu)
 {
 #ifdef RESTUNTS_SDL3
-	if (menu->preview_live != 0) {
-		shape3d_free_all();
-		unload_skybox();
-		menu->preview_live = 0;
-	}
+	hires_track_menu_preview_release(&menu->preview);
 #else
 	(void)menu;
 #endif
@@ -118,8 +105,7 @@ static void track_menu_draw_preview(struct TRACK_MENU_STATE *menu)
 	draw_track_preview();
 #ifdef RESTUNTS_SDL3
 	if (extended_menu_live_preview()) {
-		menu->preview_live = 1;
-		menu->preview_tick = dos_timer_get_realtime_counter();
+		hires_track_menu_preview_retain(&menu->preview);
 		return;
 	}
 #else
@@ -156,7 +142,7 @@ static void track_menu_draw_highscore(struct TRACK_MENU_STATE *menu)
 {
 #ifdef RESTUNTS_SDL3
 	if (menu != 0) {
-		menu->preview_score_visible = 0;
+		menu->preview.score_visible = 0;
 	}
 #else
 	(void)menu;
@@ -180,10 +166,8 @@ static void track_menu_draw_highscore(struct TRACK_MENU_STATE *menu)
 			print_highscore_entry(0, text_offsets);
 
 #ifdef RESTUNTS_SDL3
-			if (menu != 0 && menu->preview_live != 0) {
-				menu->preview_score_visible = 1;
-				memcpy(menu->preview_score_offsets, text_offsets, sizeof(text_offsets));
-				memcpy(menu->preview_score_text, &resID_byte1, sizeof(menu->preview_score_text));
+			if (menu != 0) {
+				hires_track_menu_preview_cache_score(&menu->preview, &resID_byte1, text_offsets);
 			}
 #endif
 			track_menu_draw_highscore_fields(&resID_byte1, text_offsets);
@@ -234,37 +218,19 @@ static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
 }
 
 #ifdef RESTUNTS_SDL3
-static void track_menu_animate_preview(struct TRACK_MENU_STATE *menu)
+static void track_menu_draw_preview_header(const struct HIRES_TRACK_MENU_PREVIEW *preview)
 {
-	if (menu->preview_live == 0) {
-		return;
-	}
-	legacy_u32 tick = dos_timer_get_realtime_counter();
-	if (tick - menu->preview_tick < TRACK_MENU_PREVIEW_FRAME_TICKS) {
-		return;
-	}
-	menu->preview_tick = tick;
-	/* The scene fills the header too; repaint its text without rereading scores. */
-	mouse_draw_opaque_check();
-	sprite_select_render_window();
-	draw_track_preview();
 	track_menu_draw_title();
-	if (menu->preview_score_visible != 0) {
+	if (preview->score_visible != 0) {
 		track_menu_draw_highscore_label();
 		font_set_fontdef2(fontnptr);
-		track_menu_draw_highscore_fields(menu->preview_score_text, menu->preview_score_offsets);
+		track_menu_draw_highscore_fields(preview->score_text, preview->score_offsets);
 		font_set_fontdef();
 	}
 	if (frame_status_overlay_active() != 0) {
 		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
 		frame_status_draw_text();
 	}
-	sprite_select_screen_compat();
-	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, TRACK_MENU_PREVIEW_TOP,
-								  TRACK_MENU_PREVIEW_BOTTOM);
-	sprite_putimage(render_window_sprite->sprite_bitmapptr);
-	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
-	mouse_draw_transparent_check();
 }
 #endif
 
@@ -286,7 +252,7 @@ static legacy_u16 track_menu_poll_input(struct TRACK_MENU_STATE *menu)
 	}
 
 #ifdef RESTUNTS_SDL3
-	track_menu_animate_preview(menu);
+	hires_track_menu_preview_present(&menu->preview, track_menu_draw_preview_header);
 #endif
 	legacy_u16 elapsed = (legacy_u16)menu_animate_button_highlight(
 		menu->selected, trackmenu_buttons, menu_highlight_second_color, menu_highlight_first_color);
@@ -370,7 +336,7 @@ void run_tracks_menu(legacy_s16 reload_track)
 		menu.previous = TRACK_MENU_NO_SELECTION;
 		menu.blit_mode = MENU_BLIT_MODE_INITIAL;
 #ifdef RESTUNTS_SDL3
-		menu.preview_live = 0;
+		menu.preview.live = 0;
 #endif
 		track_menu_draw_background(&menu);
 
@@ -384,7 +350,7 @@ void run_tracks_menu(legacy_s16 reload_track)
 			if (menu.selected == TRACK_MENU_LOAD_BUTTON) {
 				legacy_s8 far *prompt = locate_text_res(mainresptr, "trk");
 #ifdef RESTUNTS_SDL3
-				legacy_u8 animated_preview = menu.preview_live;
+				legacy_u8 animated_preview = menu.preview.live;
 				track_menu_release_preview(&menu);
 				legacy_s8 previous_name[REPLAY_TRACK_NAME_SIZE];
 				memcpy(previous_name, gameconfig.game_trackname, sizeof(previous_name));

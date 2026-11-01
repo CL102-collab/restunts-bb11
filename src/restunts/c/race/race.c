@@ -420,9 +420,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 #endif
 		if (race_frame_is_ready(&last_processed_frame) == 0) {
 #ifdef RESTUNTS_SDL3
-			if (rewind.active == 0 && (legacy_s64)race_current_frame() == last_processed_frame) {
-				race_present_interpolation();
-			}
+			race_presentation_idle(rewind.active, last_processed_frame);
 #endif
 			continue;
 		}
@@ -457,10 +455,7 @@ static void race_run_frames(struct RACE_VIEWPORT_CACHE *cache)
 			AMIGA_NORMAL_RACE_TRACE("viewport complete");
 		}
 #ifdef RESTUNTS_SDL3
-		if (race_presentation_draw(rewind.active) == 0) {
-			race_draw_frame();
-			race_presentation_frame_complete();
-		}
+		race_presentation_draw(rewind.active);
 #else
 		if (state.game_frame == 0) {
 			AMIGA_NORMAL_RACE_TRACE("draw begin");

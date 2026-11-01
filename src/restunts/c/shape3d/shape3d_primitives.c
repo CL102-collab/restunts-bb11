@@ -138,15 +138,8 @@ static void shape3d_project_near_intersection(struct SHAPE3D_TRANSFORM_CONTEXT *
 											  struct POINT2D *point)
 {
 #if defined(RESTUNTS_TEMPLEOS)
-	const struct VECTOR *front = &context->view_vertices[front_index];
-	const struct VECTOR *behind = &context->view_vertices[behind_index];
-	legacy_s64 depth_span = (legacy_s64)front->z - behind->z;
-	legacy_s64 near_offset = SHAPE3D_NEAR_CLIP_Z - (legacy_s64)behind->z;
-	/* Preserve the intersection's fraction until the native projection divides. */
-	shape3d_project_coordinates(
-		behind->x * depth_span + ((legacy_s64)front->x - behind->x) * near_offset,
-		behind->y * depth_span + ((legacy_s64)front->y - behind->y) * near_offset,
-		SHAPE3D_NEAR_CLIP_Z * depth_span, point);
+	shape3d_native_near_intersection(&context->view_vertices[front_index],
+									 &context->view_vertices[behind_index], point);
 #else
 	struct VECTOR intersection;
 
@@ -303,24 +296,17 @@ static legacy_u16 shape3d_prepare_line(struct SHAPE3D_TRANSFORM_CONTEXT *context
 static void shape3d_adjust_round_bounds(const struct POINT2D *center, legacy_u16 radius,
 										legacy_s16 padding)
 {
-	struct POINT2D point;
-
 #if defined(RESTUNTS_TEMPLEOS)
-	/* Large offscreen wheels must not wrap their saved-background bounds. */
-	legacy_s64 extent = (legacy_s64)radius + padding * SHAPE3D_NATIVE_SCALE;
-	point.px = shape3d_native_coordinate(center->px - extent);
-	point.py = shape3d_native_coordinate(center->py - extent);
-	shape3d_adjust_geometry_bounds(&point, transshaperectptr);
-	point.px = shape3d_native_coordinate(center->px + extent);
-	point.py = shape3d_native_coordinate(center->py + extent);
+	shape3d_native_round_bounds(center, radius, padding, transshaperectptr);
 #else
+	struct POINT2D point;
 	point.px = LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_SUB(center->px, radius), padding);
 	point.py = LEGACY_S16_WRAP_SUB(LEGACY_S16_WRAP_SUB(center->py, radius), padding);
 	shape3d_adjust_geometry_bounds(&point, transshaperectptr);
 	point.px = LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(center->px, radius), padding);
 	point.py = LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_ADD(center->py, radius), padding);
-#endif
 	shape3d_adjust_geometry_bounds(&point, transshaperectptr);
+#endif
 }
 
 static legacy_u16 shape3d_prepare_wheel(struct SHAPE3D_TRANSFORM_CONTEXT *context,
@@ -401,9 +387,7 @@ static legacy_u16 shape3d_prepare_sphere(struct SHAPE3D_TRANSFORM_CONTEXT *conte
 	radius_vector.y = LEGACY_S16_WRAP_SUB(center.y, endpoint.y);
 	radius_vector.z = LEGACY_S16_WRAP_SUB(center.z, endpoint.z);
 #if defined(RESTUNTS_TEMPLEOS)
-	legacy_u16 screen_radius = shape3d_native_coordinate((legacy_s64)projection_focal_length_x *
-														 (legacy_u16)polarRadius3D(&radius_vector) *
-														 SHAPE3D_NATIVE_SCALE / center.z);
+	legacy_u16 screen_radius = shape3d_native_sphere_radius(&radius_vector, center.z);
 #else
 	legacy_u16 screen_radius = projection_scale_x_wrapped(polarRadius3D(&radius_vector), center.z);
 #endif
