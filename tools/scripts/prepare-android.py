@@ -9,12 +9,24 @@ import tarfile
 import urllib.request
 
 
-def dependency(root, name, configuration, directory):
+def dependency_pin(root, name, configuration):
     cmake = (root / configuration).read_text()
-    pin = re.search(r"FetchContent_Declare\(" + name + r"\s+URL (\S+)\s+URL_HASH SHA256=(\w+)", cmake)
-    if pin is None:
+    declaration = re.search(r"\bFetchContent_Declare\s*\(\s*" + re.escape(name) +
+                            r"\s+([^)]*)\)", cmake, re.IGNORECASE)
+    argument = r'(?:"([^"]+)"|([^\s()]+))'
+    url = (re.search(r"\bURL\s+" + argument, declaration[1], re.IGNORECASE)
+           if declaration else None)
+    digest = (re.search(r"\bURL_HASH\s+" + argument, declaration[1], re.IGNORECASE)
+              if declaration else None)
+    checksum = (re.fullmatch(r"SHA256=([0-9a-f]{64})", digest[1] or digest[2], re.IGNORECASE)
+                if digest else None)
+    if url is None or checksum is None:
         raise RuntimeError("Cannot locate the pinned " + name + " source and checksum")
-    url, checksum = pin.groups()
+    return url[1] or url[2], checksum[1].lower()
+
+
+def dependency(root, name, configuration, directory):
+    url, checksum = dependency_pin(root, name, configuration)
     destination = root / "out/android-deps" / directory
     marker = destination / ".restunts-checksum"
     if not marker.exists() or marker.read_text().strip() != checksum:
