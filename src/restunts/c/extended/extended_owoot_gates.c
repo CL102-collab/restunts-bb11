@@ -16,6 +16,11 @@
 
 #include "extended_owoot_internal.h"
 
+#define OWOOT_GEOMETRY_CENTER_INDEX 0U
+#define OWOOT_GEOMETRY_FIRST_EDGE_INDEX 1U
+#define OWOOT_GEOMETRY_SECOND_EDGE_INDEX 2U
+#define OWOOT_GEOMETRY_AVERAGE_SHIFT 1U
+
 /* Gate construction uses the authored geometry. Its plane constraints are
  * transformed together after the intrinsic tube, loop or corkscrew shape. */
 static void route_geometry_points(legacy_s16 piece, struct VECTOR *output, legacy_s16 index,
@@ -27,15 +32,37 @@ static void route_geometry_points(legacy_s16 piece, struct VECTOR *output, legac
 		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
 			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
 			(legacy_u8)track_route_element_ids[piece]);
-		if (extended_geometry_uses_grade(placed)) {
+		if (placed) {
 			struct VECTOR origin;
 			extended_geometry_object_origin(extended_track_model(), placed, &origin);
-			/* The fourth storage slot contains a flag, not a route vector. */
+			legacy_u8 unspecified_center =
+				output[OWOOT_GEOMETRY_CENTER_INDEX].y == ROUTE_POINT_HEIGHT_UNSPECIFIED;
+			/* Guidance can omit height, but gates need concrete support geometry.
+			 * The fourth storage slot contains a flag, not a route vector. */
 			for (legacy_u16 point = 0; point < OWOOT_ROUTE_VECTOR_COUNT; point++) {
-				output[point].y = LEGACY_S16_WRAP_SUB(
-					output[point].y, extended_geometry_object_grade(
-										 placed, LEGACY_S16_WRAP_SUB(output[point].x, origin.x),
-										 LEGACY_S16_WRAP_SUB(output[point].z, origin.z)));
+				if (output[point].y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+					output[point].y = LEGACY_S16_WRAP_ADD(
+						origin.y, extended_geometry_object_grade(
+									  placed, LEGACY_S16_WRAP_SUB(output[point].x, origin.x),
+									  LEGACY_S16_WRAP_SUB(output[point].z, origin.z)));
+				}
+			}
+			if (unspecified_center) {
+				/* Average the rounded edge heights before removing the grade,
+				 * preserving the gate center's original one-unit rounding. */
+				legacy_s16 first = output[OWOOT_GEOMETRY_FIRST_EDGE_INDEX].y;
+				legacy_s16 second = output[OWOOT_GEOMETRY_SECOND_EDGE_INDEX].y;
+				output[OWOOT_GEOMETRY_CENTER_INDEX].y =
+					LEGACY_S16_WRAP_ADD(first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first),
+															  OWOOT_GEOMETRY_AVERAGE_SHIFT));
+			}
+			if (extended_geometry_uses_grade(placed)) {
+				for (legacy_u16 point = 0; point < OWOOT_ROUTE_VECTOR_COUNT; point++) {
+					output[point].y = LEGACY_S16_WRAP_SUB(
+						output[point].y, extended_geometry_object_grade(
+											 placed, LEGACY_S16_WRAP_SUB(output[point].x, origin.x),
+											 LEGACY_S16_WRAP_SUB(output[point].z, origin.z)));
+				}
 			}
 		}
 	}
@@ -332,6 +359,12 @@ static void route_authored_gate(legacy_s16 piece, legacy_s16 index, struct OWOOT
 	struct VECTOR section[ROUTE_GEOMETRY_POINT_COUNT], before[ROUTE_GEOMETRY_POINT_COUNT],
 		after[ROUTE_GEOMETRY_POINT_COUNT];
 	legacy_s16 count = (legacy_u8)route_info(piece)->route_point_count;
+#ifdef RESTUNTS_SDL3
+	if (route_is_roll_ramp(piece)) {
+		/* Physical gates stop at the lip, before the unsupported AI target. */
+		count = ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT;
+	}
+#endif
 	if (route_object(piece)->ss_physicalModel == PHYSICAL_MODEL_CORKSCREW_LEFT_RIGHT &&
 		!route_is_roll_ramp(piece)) {
 		index = index * (count - 1) / (OWOOT_CORKSCREW_GATE_COUNT - 1);

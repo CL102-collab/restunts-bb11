@@ -32,6 +32,11 @@
 #define TEST_LANDING_ROW 48U
 #define TEST_COMBINED_ROW 44U
 #define TEST_ROTATIONS 4U
+#define TEST_ROUTE_HEIGHT_TOLERANCE 2.0
+#define TEST_SHARP_ROUTE_POINT_COUNT 5U
+#define TEST_ROUTE_EDGE_COUNT 2U
+#define TEST_ROUTE_AVERAGE_SHIFT 1U
+#define TEST_ROUTE_REVERSED_FLAG 16U
 #define TEST_START_NORTH 1U
 #define TEST_START_SOUTH 179U
 #define TEST_ROAD_VERTICAL 4U
@@ -143,6 +148,54 @@ static void rectangle(struct CSTRK_TRACK *track, legacy_u8 barrel, legacy_u8 com
 	}
 }
 
+static void check_sharp_route_samples(const struct GENGHOST_ROUTE *route)
+{
+	for (legacy_uint route_piece = 0; route_piece < route->piece_count; route_piece++) {
+		legacy_int piece = route->pieces[route_piece];
+		const struct TRACKOBJECT *native =
+			&trkObjectList[(legacy_u8)track_route_element_ids[piece]];
+		if (native->ss_physicalModel != PHYSICAL_MODEL_SHARP_CORNER) {
+			continue;
+		}
+		const struct TRKOBJINFO *info = native->ss_trkObjInfoPtr;
+		assert((legacy_u8)info->route_point_count == TEST_SHARP_ROUTE_POINT_COUNT);
+		const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+			(legacy_u8)track_route_columns[piece], (legacy_u8)track_route_rows[piece],
+			(legacy_u8)track_route_element_ids[piece]);
+		assert(placed != NULL);
+		legacy_s32 origin_x = placed->x * CSTRK_TILE_WORLD_SIZE +
+							  placed->width * CSTRK_TILE_WORLD_SIZE / TEST_ROUTE_EDGE_COUNT;
+		legacy_s32 origin_z = (extended_track_height() - placed->y) * CSTRK_TILE_WORLD_SIZE -
+							  placed->height * CSTRK_TILE_WORLD_SIZE / TEST_ROUTE_EDGE_COUNT;
+		legacy_u8 count = 0;
+		for (legacy_uint index = 0; index < route->point_count; index++) {
+			const struct GENGHOST_WAYPOINT *point = &route->points[index];
+			if (point->piece != piece) {
+				continue;
+			}
+			assert(count < TEST_SHARP_ROUTE_POINT_COUNT);
+			legacy_u8 source = track_route_traversal_flags[piece] & TEST_ROUTE_REVERSED_FLAG
+								   ? TEST_SHARP_ROUTE_POINT_COUNT - 1U - count
+								   : count;
+			legacy_s32 x = 0, z = 0;
+			for (legacy_u8 edge = 0; edge < TEST_ROUTE_EDGE_COUNT; edge++) {
+				const struct VECTOR *vertex =
+					&info->route_vectors[source * TEST_ROUTE_EDGE_COUNT + edge];
+				x += ((legacy_s32)vertex->x * cos_fast(info->route_orientation) +
+					  (legacy_s32)vertex->z * sin_fast(info->route_orientation)) /
+					 TRIG_FIXED_ONE;
+				z += ((legacy_s32)vertex->z * cos_fast(info->route_orientation) -
+					  (legacy_s32)vertex->x * sin_fast(info->route_orientation)) /
+					 TRIG_FIXED_ONE;
+			}
+			assert(point->x == origin_x + LEGACY_S32_SAR(x, TEST_ROUTE_AVERAGE_SHIFT));
+			assert(point->z == origin_z + LEGACY_S32_SAR(z, TEST_ROUTE_AVERAGE_SHIFT));
+			count++;
+		}
+		assert(count == TEST_SHARP_ROUTE_POINT_COUNT);
+	}
+}
+
 static void test_placed_geometry(void)
 {
 	for (legacy_u8 rotation = 0; rotation < TEST_ROTATIONS; rotation++) {
@@ -161,6 +214,7 @@ static void test_placed_geometry(void)
 			struct GENGHOST_ROUTES routes;
 			assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
 			assert(routes.count == 1U);
+			check_sharp_route_samples(&routes.routes[0]);
 			for (size_t index = 0; index < routes.routes[0].point_count; index++) {
 				const struct GENGHOST_WAYPOINT *point = &routes.routes[0].points[index];
 				assert(point->x >= 0 && point->x <= CSTRK_MAX_DIMENSION * CSTRK_TILE_WORLD_SIZE);
@@ -183,6 +237,93 @@ static void test_placed_geometry(void)
 	}
 }
 
+/* Independent world-space plane for a four-level eastward climb. */
+static legacy_f64 route_grade_height(legacy_f64 x, legacy_f64 z, legacy_u8 rotation)
+{
+	legacy_f64 y = CSTRK_MAX_DIMENSION * CSTRK_TILE_WORLD_SIZE - z;
+	for (legacy_u8 turn = 0; turn < rotation; turn++) {
+		legacy_f64 old_x = x;
+		x = y;
+		y = CSTRK_MAX_DIMENSION * CSTRK_TILE_WORLD_SIZE - old_x;
+	}
+	legacy_f64 height = (x / CSTRK_TILE_WORLD_SIZE - TEST_LEFT) * CSTRK_LEVEL_WORLD_HEIGHT;
+	return height < 0.0 ? 0.0
+		   : height > CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT
+			   ? CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT
+			   : height;
+}
+
+static void test_graded_route_heights(void)
+{
+	for (legacy_u8 rotation = 0; rotation < TEST_ROTATIONS; rotation++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		rectangle(&track, 0, 0);
+		rotate_track(&track, rotation);
+		for (legacy_u16 row = 0; row <= track.height; row++) {
+			for (legacy_u16 column = 0; column <= track.width; column++) {
+				track.corner_heights[row * (track.width + 1U) + column] =
+					(legacy_u8)(route_grade_height(column * CSTRK_TILE_WORLD_SIZE,
+												   (track.height - row) * CSTRK_TILE_WORLD_SIZE,
+												   rotation) /
+								CSTRK_LEVEL_WORLD_HEIGHT);
+			}
+		}
+		for (legacy_u32 index = 0; index < track.object_count; index++) {
+			struct CSTRK_OBJECT *object = &track.objects[index];
+			legacy_u32 corner = object->y * (track.width + 1U) + object->x;
+			object->base_height = track.corner_heights[corner];
+			object->slope_x = track.corner_heights[corner + 1U] - object->base_height;
+			object->slope_y = track.corner_heights[corner + track.width + 1U] - object->base_height;
+		}
+		activate(&track);
+		struct GENGHOST_ROUTES routes;
+		assert(genghost_routes_build(&routes, error, sizeof(error)) == 0 && routes.count == 1U);
+		for (legacy_uint index = 0; index < routes.routes[0].point_count; index++) {
+			const struct GENGHOST_WAYPOINT *point = &routes.routes[0].points[index];
+			legacy_f64 expected = route_grade_height(point->x, point->z, rotation);
+			legacy_f64 edge =
+				(route_grade_height(point->x + point->edge_x, point->z + point->edge_z, rotation) -
+				 route_grade_height(point->x - point->edge_x, point->z - point->edge_z, rotation)) *
+				0.5;
+			assert(point->height_specified);
+			const struct CSTRK_OBJECT *placed =
+				extended_track_object_for_id((legacy_u8)track_route_columns[point->piece],
+											 (legacy_u8)track_route_rows[point->piece],
+											 (legacy_u8)track_route_element_ids[point->piece]);
+			assert(placed != NULL);
+			if ((placed->slope_x || placed->slope_y) && !extended_geometry_uses_grade(placed)) {
+				/* Native hill roads keep their authored unspecified-height lane
+				 * at the lowest support height, without an additional shear. */
+				legacy_u32 corner = placed->y * (track.width + 1U) + placed->x;
+				const legacy_u8 supports[] = {track.corner_heights[corner],
+											  track.corner_heights[corner + 1U],
+											  track.corner_heights[corner + track.width + 1U],
+											  track.corner_heights[corner + track.width + 2U]};
+				expected = CSTRK_MAX_HEIGHT * CSTRK_LEVEL_WORLD_HEIGHT;
+				for (legacy_u8 support = 0; support < sizeof(supports) / sizeof(supports[0]);
+					 support++) {
+					legacy_f64 height = supports[support] * CSTRK_LEVEL_WORLD_HEIGHT;
+					if (height < expected) {
+						expected = height;
+					}
+				}
+				edge = 0.0;
+				assert(point->y == expected && point->edge_y == edge);
+			}
+			/* Edge heights round before the center's coordinates and height
+			 * are averaged, giving at most two units of accumulated rounding. */
+			assert(point->y >= expected - TEST_ROUTE_HEIGHT_TOLERANCE &&
+				   point->y <= expected + TEST_ROUTE_HEIGHT_TOLERANCE);
+			assert(point->edge_y >= edge - TEST_ROUTE_HEIGHT_TOLERANCE &&
+				   point->edge_y <= edge + TEST_ROUTE_HEIGHT_TOLERANCE);
+		}
+		genghost_routes_free(&routes);
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+}
+
 static void test_modifier_geometry(void)
 {
 	for (legacy_u8 barrel = 0; barrel <= 1U; barrel++) {
@@ -201,6 +342,18 @@ static void test_modifier_geometry(void)
 				if (barrel && point->roll_ramp) {
 					modified++;
 					assert(point->speed == 100.0);
+					const struct CSTRK_OBJECT *placed = extended_track_object_for_id(
+						(legacy_u8)track_route_columns[point->piece],
+						(legacy_u8)track_route_rows[point->piece],
+						(legacy_u8)track_route_element_ids[point->piece]);
+					assert(placed != NULL);
+					/* The AI-only tangent extends past the lip and must never
+					 * become a supported search waypoint outside this footprint. */
+					assert(point->x >= placed->x * CSTRK_TILE_WORLD_SIZE &&
+						   point->x <= (placed->x + placed->width) * CSTRK_TILE_WORLD_SIZE);
+					assert(point->z >= (track.height - placed->y - placed->height) *
+										   CSTRK_TILE_WORLD_SIZE &&
+						   point->z <= (track.height - placed->y) * CSTRK_TILE_WORLD_SIZE);
 				} else if (!barrel && point->tunnel_slalom) {
 					modified++;
 					assert(point->physical_model == PHYSICAL_MODEL_SLALOM);
@@ -208,7 +361,7 @@ static void test_modifier_geometry(void)
 			}
 			assert(modified > 0);
 			if (barrel) {
-				assert(modified == ROLL_RAMP_ROUTE_POINT_COUNT);
+				assert(modified == ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT);
 			}
 			genghost_routes_free(&routes);
 			extended_track_unload();
@@ -436,6 +589,11 @@ static void test_graded_catalog_targets(void)
 				waypoint->y = geometry[0].y;
 				waypoint->z = extended_geometry_unwrap(geometry[0].z, (track.height - active->y) *
 																		  CSTRK_TILE_WORLD_SIZE);
+				/* This fixture models concrete search geometry, rather than the
+				 * opponent's unspecified-height steering targets. */
+				if (waypoint->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+					waypoint->y = graded_height(waypoint->x, waypoint->z, rotation);
+				}
 				waypoint->height_specified = 1;
 				waypoint->physical_model = models[model];
 				if (point) {
@@ -572,6 +730,7 @@ int main(void)
 	init_row_tables();
 	init_trackdata();
 	test_placed_geometry();
+	test_graded_route_heights();
 	test_modifier_geometry();
 	test_barrel_pilot_landing_release();
 	test_graded_catalog_targets();

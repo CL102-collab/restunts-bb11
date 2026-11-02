@@ -136,6 +136,12 @@ const struct TRKOBJINFO *route_info(legacy_s16 piece)
 
 static legacy_s16 route_gate_count(legacy_s16 piece)
 {
+#ifdef RESTUNTS_SDL3
+	if (route_is_roll_ramp(piece)) {
+		/* The trailing AI target extends the launch tangent beyond tire support. */
+		return ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT;
+	}
+#endif
 	/* The entry/exit fans join the spiral over a range of angular phases.
 	 * Require both sides and its crown, rather than the AI's intermediate
 	 * subdivisions of those continuously drivable surfaces. */

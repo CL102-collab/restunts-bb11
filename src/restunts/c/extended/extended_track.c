@@ -70,6 +70,92 @@ void extended_track_clear_name(void)
 	current_track_name[0] = 0;
 }
 
+/* Dense points retain tight turns while the opponent steering responds.
+ * Keep every authored vertex and the trailing camera/sign placements. */
+#define EXTENDED_SHARP_DIRECTION_COUNT 4U
+#define EXTENDED_SHARP_ROUTE_SUBDIVISIONS 16U
+#define EXTENDED_SHARP_ROUTE_MAX_POINTS 127U
+#define EXTENDED_SHARP_ROUTE_EDGES 2U
+#define EXTENDED_SHARP_ROUTE_TRAILING_VECTORS 3U
+static const struct TRKOBJINFO *sharp_original_info[EXTENDED_SHARP_DIRECTION_COUNT];
+static struct TRKOBJINFO sharp_route_info[EXTENDED_SHARP_DIRECTION_COUNT];
+static struct VECTOR
+	sharp_route_vectors[EXTENDED_SHARP_ROUTE_MAX_POINTS * EXTENDED_SHARP_ROUTE_EDGES +
+						EXTENDED_SHARP_ROUTE_TRAILING_VECTORS];
+
+static void prepare_sharp_route_info(void)
+{
+	const struct TRKOBJINFO *canonical = NULL;
+	legacy_u16 point_count = 0;
+	memset(sharp_original_info, 0, sizeof(sharp_original_info));
+	for (legacy_u16 id = 1; id < sizeof(trkObjectList) / sizeof(trkObjectList[0]); id++) {
+		const struct TRACKOBJECT *object = &trkObjectList[id];
+		const struct TRKOBJINFO *original = object->ss_trkObjInfoPtr;
+		if (object->ss_physicalModel != PHYSICAL_MODEL_SHARP_CORNER || !original ||
+			(legacy_u8)original->route_point_count < EXTENDED_SHARP_ROUTE_EDGES ||
+			original->reverse_path_offset_low || original->reverse_path_offset_high) {
+			continue;
+		}
+		if (!canonical) {
+			point_count =
+				((legacy_u8)original->route_point_count - 1U) * EXTENDED_SHARP_ROUTE_SUBDIVISIONS +
+				1U;
+			if (point_count > EXTENDED_SHARP_ROUTE_MAX_POINTS) {
+				continue;
+			}
+			canonical = original;
+			for (legacy_u16 point = 0; point < point_count; point++) {
+				legacy_u16 source = point / EXTENDED_SHARP_ROUTE_SUBDIVISIONS;
+				legacy_u16 fraction = point % EXTENDED_SHARP_ROUTE_SUBDIVISIONS;
+				for (legacy_u16 edge = 0; edge < EXTENDED_SHARP_ROUTE_EDGES; edge++) {
+					const struct VECTOR *first =
+						&original->route_vectors[source * EXTENDED_SHARP_ROUTE_EDGES + edge];
+					const struct VECTOR *second =
+						source + 1U < (legacy_u8)original->route_point_count
+							? first + EXTENDED_SHARP_ROUTE_EDGES
+							: first;
+					struct VECTOR *output =
+						&sharp_route_vectors[point * EXTENDED_SHARP_ROUTE_EDGES + edge];
+					*output = *first;
+					if (fraction) {
+						output->x += ((legacy_s32)second->x - first->x) * fraction /
+									 (legacy_s32)EXTENDED_SHARP_ROUTE_SUBDIVISIONS;
+						output->z += ((legacy_s32)second->z - first->z) * fraction /
+									 (legacy_s32)EXTENDED_SHARP_ROUTE_SUBDIVISIONS;
+						output->y =
+							first->y == ROUTE_POINT_HEIGHT_UNSPECIFIED ||
+									second->y == ROUTE_POINT_HEIGHT_UNSPECIFIED
+								? ROUTE_POINT_HEIGHT_UNSPECIFIED
+								: first->y + ((legacy_s32)second->y - first->y) * fraction /
+												 (legacy_s32)EXTENDED_SHARP_ROUTE_SUBDIVISIONS;
+					}
+				}
+			}
+			/* Camera and forward/reverse sign vectors follow the path pairs. */
+			for (legacy_u16 trailing = 0; trailing < EXTENDED_SHARP_ROUTE_TRAILING_VECTORS;
+				 trailing++) {
+				sharp_route_vectors[point_count * EXTENDED_SHARP_ROUTE_EDGES + trailing] =
+					original->route_vectors[(legacy_u8)original->route_point_count *
+												EXTENDED_SHARP_ROUTE_EDGES +
+											trailing];
+			}
+		}
+		if (original->route_vectors != canonical->route_vectors ||
+			original->route_point_count != canonical->route_point_count ||
+			(legacy_u16)original->route_orientation % ANGLE_QUARTER_TURN) {
+			continue;
+		}
+		legacy_u16 direction = (legacy_u16)original->route_orientation / ANGLE_QUARTER_TURN;
+		if (direction >= EXTENDED_SHARP_DIRECTION_COUNT) {
+			continue;
+		}
+		sharp_original_info[direction] = original;
+		sharp_route_info[direction] = *original;
+		sharp_route_info[direction].route_point_count = (legacy_s8)point_count;
+		sharp_route_info[direction].route_vectors = sharp_route_vectors;
+	}
+}
+
 #define EXTENDED_ROLL_DIRECTION_COUNT 4U
 #define EXTENDED_ROLL_ROUTE_CAMERA_VECTORS 3U
 static struct TRKOBJINFO roll_route_info[EXTENDED_ROLL_DIRECTION_COUNT];
@@ -81,13 +167,23 @@ static void prepare_roll_route_info(void)
 	static const legacy_s8 entries[EXTENDED_ROLL_DIRECTION_COUNT] = {1, 8, 11, 4};
 	static const legacy_s8 exits[EXTENDED_ROLL_DIRECTION_COUNT] = {11, 4, 1, 8};
 	const struct TRKOBJINFO *original = trkObjectList[CSTRK_ROLL_RAMP_FIRST_ID].ss_trkObjInfoPtr;
-	for (legacy_u16 index = 0; index < ROLL_RAMP_ROUTE_POINT_COUNT; index++) {
-		legacy_s16 distance =
-			(legacy_s16)((legacy_s32)index * ROLL_RAMP_LENGTH / (ROLL_RAMP_ROUTE_POINT_COUNT - 1U));
+	for (legacy_u16 index = 0; index < ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT; index++) {
+		legacy_s16 distance = (legacy_s16)((legacy_s32)index * ROLL_RAMP_LENGTH /
+										   (ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT - 1U));
 		struct VECTOR normal;
 		roll_ramp_sample(distance, -ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U], &normal);
 		roll_ramp_sample(distance, ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U + 1U],
 						 &normal);
+	}
+	/* Hold the launch tangent until the banked front wheels have left the lip.
+	 * A horizontal landing target would otherwise steer the car during release. */
+	for (legacy_u16 edge = 0; edge < EXTENDED_SHARP_ROUTE_EDGES; edge++) {
+		struct VECTOR *point =
+			&roll_route_vectors[ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT * 2U + edge];
+		*point = roll_route_vectors[(ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT - 1U) * 2U + edge];
+		point->y +=
+			(legacy_s32)ROLL_RAMP_ENTRY_EASE * ROLL_RAMP_RISE_PER_TILE / CSTRK_TILE_WORLD_SIZE;
+		point->z -= ROLL_RAMP_ENTRY_EASE;
 	}
 	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U] =
 		(struct VECTOR){0, ROLL_RAMP_RISE_PER_TILE, 0};
@@ -445,6 +541,7 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 						   char *error, size_t error_size)
 {
 	memset(target, 0, sizeof(*target));
+	prepare_sharp_route_info();
 	for (unsigned cell = 0; cell < EXTENDED_TRACK_MAX_CELLS; cell++) {
 		target->occupied[cell] = -1;
 		target->origins[cell] = -1;
@@ -628,9 +725,17 @@ const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16
 	if (object && object->roll_ramp) {
 		return &roll_route_info[(legacy_u16)roll_ramp_orientation(object) / ANGLE_QUARTER_TURN];
 	}
-	return id < sizeof(trkObjectList) / sizeof(trkObjectList[0])
-			   ? trkObjectList[id].ss_trkObjInfoPtr
-			   : NULL;
+	const struct TRKOBJINFO *original = id < sizeof(trkObjectList) / sizeof(trkObjectList[0])
+											? trkObjectList[id].ss_trkObjInfoPtr
+											: NULL;
+	if (object && original && trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_SHARP_CORNER) {
+		legacy_u16 direction = (legacy_u16)original->route_orientation / ANGLE_QUARTER_TURN;
+		if (direction < EXTENDED_SHARP_DIRECTION_COUNT &&
+			sharp_original_info[direction] == original) {
+			return &sharp_route_info[direction];
+		}
+	}
+	return original;
 }
 
 unsigned extended_track_object_id(const struct CSTRK_OBJECT *object)

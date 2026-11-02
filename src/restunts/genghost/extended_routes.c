@@ -28,6 +28,10 @@ extern legacy_f64 fmax(legacy_f64, legacy_f64);
 #define GENGHOST_ROUTE_NODE_COUNT EXTENDED_TRACK_ROUTE_CAPACITY
 #define GENGHOST_OVERPASS_LOWER_SUBTYPE 1U
 #define GENGHOST_ROUTE_SUBTYPE_MASK 15U
+#define GENGHOST_ROUTE_CENTER_INDEX 0U
+#define GENGHOST_ROUTE_FIRST_EDGE_INDEX 1U
+#define GENGHOST_ROUTE_SECOND_EDGE_INDEX 2U
+#define GENGHOST_ROUTE_AVERAGE_SHIFT 1U
 #define GENGHOST_BARREL_APPROACH_SPEED 100.0
 #define GENGHOST_BARREL_APPROACH_DISTANCE (3.0 * TRACK_TILE_SIZE)
 #define GENGHOST_BARREL_LATERAL_LIMIT 0.8
@@ -59,6 +63,35 @@ static const struct CSTRK_OBJECT *route_placed_object(legacy_int piece)
 										(legacy_u8)track_route_element_ids[piece]);
 }
 
+/* Search geometry needs concrete terrain heights; the opponent API retains
+ * unspecified-height sentinels so its steering can remain horizontal-only. */
+static void route_geometry_heights(const struct CSTRK_OBJECT *placed, struct VECTOR *geometry)
+{
+	if (!placed) {
+		return;
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(extended_track_model(), placed, &origin);
+	legacy_u8 resolved = 0;
+	for (legacy_u8 edge = GENGHOST_ROUTE_FIRST_EDGE_INDEX; edge <= GENGHOST_ROUTE_SECOND_EDGE_INDEX;
+		 edge++) {
+		if (geometry[edge].y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+			geometry[edge].y = LEGACY_S16_WRAP_ADD(
+				origin.y, extended_geometry_object_grade(
+							  placed, LEGACY_S16_WRAP_SUB(geometry[edge].x, origin.x),
+							  LEGACY_S16_WRAP_SUB(geometry[edge].z, origin.z)));
+			resolved = 1;
+		}
+	}
+	if (resolved) {
+		legacy_s16 first = geometry[GENGHOST_ROUTE_FIRST_EDGE_INDEX].y;
+		legacy_s16 second = geometry[GENGHOST_ROUTE_SECOND_EDGE_INDEX].y;
+		geometry[GENGHOST_ROUTE_CENTER_INDEX].y =
+			LEGACY_S16_WRAP_ADD(first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first),
+													  GENGHOST_ROUTE_AVERAGE_SHIFT));
+	}
+}
+
 static const struct TRKOBJINFO *route_piece_info(legacy_int piece)
 {
 	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
@@ -70,6 +103,26 @@ static const struct TRKOBJINFO *route_piece_info(legacy_int piece)
 										   (legacy_u8)track_route_rows[piece], (legacy_u16)tile);
 	}
 	return blocks ? &blocks[subtype] : NULL;
+}
+
+/* Search geometry retains authored corners without AI steering subdivisions,
+ * and excludes the AI-only launch tangent beyond the barrel-ramp lip. */
+static legacy_u8 route_geometry_count(legacy_int piece, const struct TRKOBJINFO *info)
+{
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	if (placed) {
+		if (placed->roll_ramp) {
+			return ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT;
+		}
+		const struct TRACKOBJECT *native =
+			&trkObjectList[(legacy_u8)track_route_element_ids[piece]];
+		if (native->ss_physicalModel == PHYSICAL_MODEL_SHARP_CORNER) {
+			legacy_u8 subtype =
+				(legacy_u8)track_route_traversal_flags[piece] & GENGHOST_ROUTE_SUBTYPE_MASK;
+			return (legacy_u8)native->ss_trkObjInfoPtr[subtype].route_point_count;
+		}
+	}
+	return (legacy_u8)info->route_point_count;
 }
 
 static void route_piece_dimensions(legacy_int piece, legacy_uint *width, legacy_uint *height)
@@ -228,7 +281,7 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 						"Track route contains a piece without usable driving geometry.");
 			return -1;
 		}
-		point_count += portals && portals[i] ? 1U : (legacy_u8)info->route_point_count;
+		point_count += portals && portals[i] ? 1U : route_geometry_count(piece, info);
 	}
 	size_t required =
 		(depth + 1U) * (sizeof(legacy_int) + 1U) + point_count * sizeof(struct GENGHOST_WAYPOINT);
@@ -278,11 +331,16 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 		legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
 		const struct TRKOBJINFO *info = route_piece_info(piece);
 		const struct CSTRK_OBJECT *placed = route_placed_object(piece);
-		for (legacy_uint j = 0;
-			 j < (portals && portals[i] ? 1U : (legacy_u8)info->route_point_count); j++) {
+		legacy_uint geometry_count = route_geometry_count(piece, info);
+		for (legacy_uint j = 0; j < (portals && portals[i] ? 1U : geometry_count); j++) {
+			legacy_uint sample = j;
+			if (placed && trkObjectList[tile].ss_physicalModel == PHYSICAL_MODEL_SHARP_CORNER) {
+				sample = j * ((legacy_u8)info->route_point_count - 1U) / (geometry_count - 1U);
+			}
 			/* The native API writes center, two edges, and a word at byte 18. */
 			struct VECTOR geometry[ROUTE_GEOMETRY_POINT_COUNT];
-			(void)get_track_route_point((legacy_s16)piece, geometry, (legacy_s16)j, NULL);
+			(void)get_track_route_point((legacy_s16)piece, geometry, (legacy_s16)sample, NULL);
+			route_geometry_heights(placed, geometry);
 			struct GENGHOST_WAYPOINT point;
 			memset(&point, 0, sizeof(point));
 			point.x = geometry[0].x;
