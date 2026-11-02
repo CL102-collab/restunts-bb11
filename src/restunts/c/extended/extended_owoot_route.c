@@ -184,6 +184,16 @@ legacy_s16 route_contains(const struct OWOOT_BOUNDS *bounds, const struct OWOOT_
 		   position->z >= bounds->minimum_z && position->z < bounds->maximum_z;
 }
 
+/* Branches can give the same physical element forward and reverse route nodes.
+ * Completing one must not re-enter its alias while a rear tire still overlaps it. */
+static legacy_s16 route_same_object(legacy_s16 first, legacy_s16 second)
+{
+	return second >= 0 && second < track_pieces_counter &&
+		   track_route_columns[first] == track_route_columns[second] &&
+		   track_route_rows[first] == track_route_rows[second] &&
+		   track_route_element_ids[first] == track_route_element_ids[second];
+}
+
 static legacy_s16 route_requires_gates(legacy_s16 piece)
 {
 	legacy_s16 model = route_object(piece)->ss_physicalModel;
@@ -462,8 +472,8 @@ legacy_s16 extended_owoot_route_is_valid(struct CARSTATE *carstate, legacy_s16 a
 		return 1;
 	}
 	for (legacy_s16 piece = 0; piece < track_pieces_counter; piece++) {
-		if (piece == active || !route_requires_gates(piece) || route_info(piece) == 0 ||
-			(legacy_u8)route_info(piece)->route_point_count < 2U) {
+		if (route_same_object(piece, active) || !route_requires_gates(piece) ||
+			route_info(piece) == 0 || (legacy_u8)route_info(piece)->route_point_count < 2U) {
 			continue;
 		}
 		struct OWOOT_BOUNDS bounds;

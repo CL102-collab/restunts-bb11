@@ -5,7 +5,9 @@
 #include "../c/externs.h"
 #include "../c/owoot/owoot.h"
 #include "../c/owoot/owoot_route.h"
+#include "../c/extended/extended_owoot_internal.h"
 #include "../c/track/track_objects.h"
+#include "../c/track/track_collision.h"
 #include "../c/track/trackdata_layout.h"
 
 struct TRACKOBJECT trkObjectList[215];
@@ -16,6 +18,13 @@ legacy_s16 *track_primary_route_links, *track_alternate_route_links;
 legacy_u8 *track_terrain_map, *track_element_map;
 legacy_s16 trackrows[30];
 legacy_s16 terrainrows[30], hillHeightConsts[2] = {0, 450};
+
+#define OWOOT_TEST_ADJACENT_TUBE_COUNT 2U
+#define OWOOT_TEST_ALIASED_TUBE_COUNT (OWOOT_TEST_ADJACENT_TUBE_COUNT * 2U)
+#define OWOOT_TEST_PORTAL_MARGIN (TRACK_TILE_SIZE / 8)
+#define OWOOT_TEST_PORTAL_SWEEP_STEP 2
+#define OWOOT_TEST_PORTAL_HEIGHT (TUNNEL_HEIGHT / 2)
+#define OWOOT_TEST_PIPE_ONLY_HEIGHT (TUNNEL_HEIGHT + TUNNEL_HEIGHT / 4)
 
 static legacy_s8 elements[8], columns[8], rows[8], flags[8];
 static legacy_s16 next_pieces[8], alternate_pieces[8];
@@ -426,6 +435,74 @@ static void test_adjacent_finite_portals(void)
 	}
 }
 
+static void add_adjacent_tube_aliases(legacy_s16 reversed)
+{
+	for (legacy_u16 piece = 0; piece < OWOOT_TEST_ADJACENT_TUBE_COUNT; piece++) {
+		legacy_u16 alias = piece + OWOOT_TEST_ADJACENT_TUBE_COUNT;
+		elements[alias] = elements[piece];
+		columns[alias] = columns[piece];
+		rows[alias] = rows[piece];
+		flags[alias] = reversed ? OWOOT_ROUTE_REVERSE_FLAG : 0;
+		infos[alias] = infos[piece];
+		legacy_u16 count = (legacy_u8)infos[piece].route_point_count;
+		for (legacy_u16 point = 0; point < count; point++) {
+			sections[alias][point] = sections[piece][reversed ? count - point - 1U : point];
+		}
+	}
+	track_pieces_counter = OWOOT_TEST_ALIASED_TUBE_COUNT;
+}
+
+static void test_completed_portal_route_aliases(void)
+{
+	/* A branched route graph can list one physical tube more than once,
+	 * including in reverse. Completing its mouth must not enter that alias
+	 * again while the rear tires still occupy the completed tube. */
+	for (legacy_s16 reversed = 0; reversed <= 1; reversed++) {
+		for (legacy_s16 direction = -1; direction <= 1; direction += 2) {
+			configure_adjacent_tubes(PHYSICAL_MODEL_PIPE);
+			/* Different cells can contain the same catalog element. Only
+			 * aliases of the active placement may be skipped. */
+			legacy_u16 receiving = OWOOT_TEST_ADJACENT_TUBE_COUNT - 1U;
+			elements[receiving] = elements[0];
+			tiles[trackrows[(legacy_u8)rows[receiving]] + (legacy_u8)columns[receiving]] =
+				elements[receiving];
+			add_adjacent_tube_aliases(reversed);
+			legacy_s16 before = -OWOOT_TEST_PORTAL_MARGIN;
+			legacy_s16 after =
+				OWOOT_TEST_ADJACENT_TUBE_COUNT * TRACK_TILE_SIZE + OWOOT_TEST_PORTAL_MARGIN;
+			legacy_s16 start = direction > 0 ? before : after;
+			legacy_s16 finish = direction > 0 ? after : before;
+			start_at(start, OWOOT_TEST_PORTAL_HEIGHT, TRACK_TILE_HALF_SIZE);
+			for (legacy_s16 position = start + direction * OWOOT_TEST_PORTAL_SWEEP_STEP;
+				 direction * (finish - position) >= 0;
+				 position += direction * OWOOT_TEST_PORTAL_SWEEP_STEP) {
+				move_to(position, OWOOT_TEST_PORTAL_HEIGHT, TRACK_TILE_HALF_SIZE);
+				assert(owoot_route_is_valid(&car, 0));
+			}
+			assert(car.car_reserved_route_word1 == 0);
+		}
+
+		/* Skipping aliases of a completed pipe must still enforce the
+		 * independent aperture of the adjacent receiving tunnel. */
+		for (legacy_s16 raised = 0; raised < 2; raised++) {
+			configure_adjacent_tubes(PHYSICAL_MODEL_TUNNEL);
+			add_adjacent_tube_aliases(reversed);
+			terrain[TRACK_GRID_LAST_INDEX * TRACK_GRID_SIZE + 1] = raised ? TERRAIN_RAISED_TILE : 0;
+			legacy_s16 height = raised ? OWOOT_TEST_PORTAL_HEIGHT : OWOOT_TEST_PIPE_ONLY_HEIGHT;
+			start_at(-OWOOT_TEST_PORTAL_MARGIN, height, TRACK_TILE_HALF_SIZE);
+			move_to(TRACK_TILE_SIZE - OWOOT_TEST_PORTAL_MARGIN, height, TRACK_TILE_HALF_SIZE);
+			assert(owoot_route_is_valid(&car, 0));
+			move_to(TRACK_TILE_SIZE + OWOOT_TEST_PORTAL_MARGIN, height, TRACK_TILE_HALF_SIZE);
+			assert(owoot_route_is_valid(&car, 0));
+			assert(car.car_reserved_route_word1 == OWOOT_TEST_ADJACENT_TUBE_COUNT &&
+				   car.car_reserved_route_word2 == 0);
+			move_to(OWOOT_TEST_ADJACENT_TUBE_COUNT * TRACK_TILE_SIZE + OWOOT_TEST_PORTAL_MARGIN,
+					height, TRACK_TILE_HALF_SIZE);
+			assert(!owoot_route_is_valid(&car, 0));
+		}
+	}
+}
+
 static void configure_gap(legacy_s16 gap_tiles)
 {
 	reset();
@@ -739,6 +816,7 @@ int main(void)
 	test_only_portal_plane_slice_counts();
 	test_finite_mouth_entry_and_exit();
 	test_adjacent_finite_portals();
+	test_completed_portal_route_aliases();
 	test_jump_provenance_and_gap_limit();
 	test_corkscrew_phase_progress();
 	test_rear_contact_and_reverse_jump();
