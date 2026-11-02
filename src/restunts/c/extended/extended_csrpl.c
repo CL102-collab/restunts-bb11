@@ -46,15 +46,16 @@ static void csrpl_write32(uint8_t *data, uint32_t value)
 
 int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size)
 {
-	if (out_size == NULL || track_size == 0U || track_size > UINT32_MAX ||
-		track_size > SIZE_MAX - CSRPL_HEADER_SIZE) {
+	if (out_size == NULL || track_size == 0U || track_size > UINT32_MAX) {
 		return 0;
 	}
-	size_t size = CSRPL_HEADER_SIZE + track_size;
-	if ((uint64_t)frame_count > (uint64_t)(SIZE_MAX - size)) {
+	/* Both payload counts fit in 32 bits, so their complete sum fits in 64
+	 * bits. Check the host address space before narrowing to its size type. */
+	legacy_u64 size = (legacy_u64)CSRPL_HEADER_SIZE + track_size + frame_count;
+	if (size > SIZE_MAX) {
 		return 0;
 	}
-	*out_size = size + (size_t)frame_count;
+	*out_size = (size_t)size;
 	return 1;
 }
 
