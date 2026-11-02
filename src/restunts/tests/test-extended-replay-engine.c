@@ -1283,6 +1283,123 @@ static void test_mini_half_pipe_on_straight_slope(void)
 	ghost_load_simulation_resources();
 }
 
+#define ENGINE_FAN_REPLAY_FRAMES 195U
+#define ENGINE_FAN_FIRST_SLOPE_ROW 2U
+#define ENGINE_FAN_LAST_SLOPE_ROW 6U
+#define ENGINE_FAN_SAMPLE_FIRST_ROW (ENGINE_FAN_FIRST_SLOPE_ROW + 1U)
+#define ENGINE_FAN_SAMPLE_LAST_ROW (ENGINE_FAN_LAST_SLOPE_ROW - 2U)
+#define ENGINE_FAN_MAXIMUM_HEIGHT_VARIATION (ENGINE_TEST_POSITION_SCALE / 8L)
+
+static void test_recorded_fan_slope_contacts(void)
+{
+	FILE *fixture = fopen(RESTUNTS_FAN_SLOPE_REPLAY_FIXTURE, "rb");
+	assert(fixture != NULL && fseek(fixture, 0, SEEK_END) == 0);
+	legacy_s32 length = (legacy_s32)ftell(fixture);
+	assert(length > (legacy_s32)CSRPL_HEADER_SIZE && fseek(fixture, 0, SEEK_SET) == 0);
+	legacy_u8 *bytes = malloc((size_t)length);
+	assert(bytes != NULL && fread(bytes, 1U, (size_t)length, fixture) == (size_t)length);
+	assert(fclose(fixture) == 0);
+	struct CSRPL_VIEW view;
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(csrpl_decode(bytes, (size_t)length, &view, error, sizeof(error)));
+	assert(view.metadata.frame_count == ENGINE_FAN_REPLAY_FRAMES);
+	assert(view.metadata.frames_per_second == GAME_FRAME_RATE_NORMAL);
+	assert(memcmp(view.metadata.player_car_id, "MCMU", CSRPL_CAR_ID_SIZE) == 0);
+	assert(view.metadata.driving_rules == driving_rules_current());
+	/* Keep the supplied recording and embedded map intact. Its original controls
+	 * exercise current physics with either of the two actual fan-car resources. */
+	view.metadata.version = CSRPL_VERSION;
+	static const legacy_char cars[][CSRPL_CAR_ID_SIZE + 1U] = {"MCMU", "TERR"};
+	struct GAMEINFO original_config = gameconfig;
+	for (legacy_u8 car_index = 0; car_index < sizeof(cars) / sizeof(cars[0]); car_index++) {
+		memcpy(view.metadata.player_car_id, cars[car_index], CSRPL_CAR_ID_SIZE);
+		for (legacy_u8 downhill = 0; downhill <= 1U; downhill++) {
+			ghost_free_simulation_resources();
+			memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
+			memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
+			extended_track_set_name((const legacy_s8 *)view.metadata.track_name);
+			gameconfig.game_playermaterial = view.metadata.player_material;
+			gameconfig.game_playertransmission = view.metadata.player_transmission;
+			gameconfig.game_opponenttype = view.metadata.opponent_type;
+			gameconfig.game_opponentmaterial = view.metadata.opponent_material;
+			gameconfig.game_opponenttransmission = view.metadata.opponent_transmission;
+			gameconfig.game_framespersec = view.metadata.frames_per_second;
+			assert(extended_track_load(view.track_data, view.track_size, error, sizeof(error)));
+			assert(track_setup() == 0);
+			ghost_load_simulation_resources();
+			assert(car_surface_adhesion[PLAYER_CAR_INDEX] != 0);
+			assert(extended_replay_runtime_load(&view));
+			initialize_simulation();
+			legacy_s32 slope_bottom = (extended_track_height() - ENGINE_FAN_LAST_SLOPE_ROW) *
+									  CSTRK_TILE_WORLD_SIZE * ENGINE_TEST_POSITION_SCALE;
+			if (downhill) {
+				/* Start aligned on the same grade. Entering over its sharp crest at
+				 * the Tesla's full acceleration can legitimately launch the car. */
+				legacy_s32 z = (extended_track_height() - ENGINE_FAN_FIRST_SLOPE_ROW) *
+								   CSTRK_TILE_WORLD_SIZE * ENGINE_TEST_POSITION_SCALE -
+							   CSTRK_TILE_WORLD_SIZE * ENGINE_TEST_POSITION_SCALE / 2;
+				legacy_s32 y =
+					(z - slope_bottom) * CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+				extended_replay_runtime_begin();
+				init_carstate_from_simd(&state.playerstate, &simd_player, TRANSMISSION_AUTOMATIC,
+										CSTRK_TILE_WORLD_SIZE * ENGINE_TEST_POSITION_SCALE / 2, y,
+										z, ANGLE_HALF_TURN);
+				state.playerstate.car_rotate.y =
+					-polarAngle(CSTRK_LEVEL_WORLD_HEIGHT, CSTRK_TILE_WORLD_SIZE);
+			}
+			legacy_u16 samples = 0;
+			legacy_s16 previous_pitch = 0;
+			legacy_s32 minimum_height = LEGACY_S32_MAX;
+			legacy_s32 maximum_height = -(legacy_s32)LEGACY_S32_MAX;
+			for (legacy_u32 frame = 0; frame < view.metadata.frame_count; frame++) {
+				if (downhill) {
+					assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
+				}
+				update_gamestate();
+				const struct CARSTATE *car = &state.playerstate;
+				legacy_s32 row =
+					extended_track_height() - 1 -
+					car->car_position.lz / ENGINE_TEST_POSITION_SCALE / CSTRK_TILE_WORLD_SIZE;
+				if (row < (legacy_s32)ENGINE_FAN_SAMPLE_FIRST_ROW ||
+					row > (legacy_s32)ENGINE_FAN_SAMPLE_LAST_ROW) {
+					continue;
+				}
+				assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+				for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+					assert(car->car_surfaceWhl[wheel] == CAR_SURFACE_PAVED);
+				}
+				legacy_s16 pitch_step = car->car_rotate.y - previous_pitch;
+				if (samples != 0) {
+					assert(pitch_step >= -ENGINE_TEST_SLOPE_MAXIMUM_PITCH_STEP &&
+						   pitch_step <= ENGINE_TEST_SLOPE_MAXIMUM_PITCH_STEP);
+				}
+				/* Evaluate the grade at the fixed-point car position. Integer terrain
+				 * height samples would conceal the one-world-unit fan heave. */
+				legacy_s32 height = car->car_position.ly - (car->car_position.lz - slope_bottom) *
+															   CSTRK_LEVEL_WORLD_HEIGHT /
+															   CSTRK_TILE_WORLD_SIZE;
+				if (height < minimum_height) {
+					minimum_height = height;
+				}
+				if (height > maximum_height) {
+					maximum_height = height;
+				}
+				previous_pitch = car->car_rotate.y;
+				samples++;
+			}
+			assert(samples >= ENGINE_TEST_SLOPE_MINIMUM_SAMPLES);
+			assert(maximum_height - minimum_height <= ENGINE_FAN_MAXIMUM_HEIGHT_VARIATION);
+			extended_replay_runtime_clear();
+			extended_track_unload();
+		}
+	}
+	free(bytes);
+	ghost_free_simulation_resources();
+	gameconfig = original_config;
+	framespersec = gameconfig.game_framespersec;
+	ghost_load_simulation_resources();
+}
+
 #define ENGINE_HALF_PIPE_REPLAY_VERSION 7U
 #define ENGINE_HALF_PIPE_REPLAY_FRAMES 1178U
 #define ENGINE_HALF_PIPE_REPLAY_CRASH_FRAME 1097U
@@ -1592,6 +1709,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_sloped_slalom_impacts();
 	test_mini_half_pipe_on_straight_slope();
 	test_recorded_half_pipe_body_collision();
+	test_recorded_fan_slope_contacts();
 	static const legacy_u8 collision_modes[] = {1U, 0U};
 	static const legacy_u8 owoot_modes[] = {0U, 1U};
 	for (legacy_u8 collision = 0; collision < sizeof(collision_modes) / sizeof(collision_modes[0]);
