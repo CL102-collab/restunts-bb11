@@ -16,6 +16,8 @@
 #include <sys/resource.h>
 #endif
 #include "../c/extended/extended_highscore.h"
+#include "../c/extended/extended_file.h"
+#include "../c/extended/extended_track.h"
 #include "../c/platform.h"
 
 #define SCORE_DIRECTORY "ExtendedHighscore"
@@ -23,6 +25,8 @@
 #define SCORE_PATH SCORE_DIRECTORY "/TWIN.cshig"
 #define LEGACY_SCORE_PATH SCORE_DIRECTORY "/TWIN.HIG"
 #define LEGACY_TRACK_PATH SCORE_DIRECTORY "/TWIN.TRK"
+#define FOLDER_TRACK_STEM "FOLDER"
+#define FOLDER_TRACK_PATH "tracks/" FOLDER_TRACK_STEM ".CSTRK"
 
 static void write_bytes(const char *path, const uint8_t *bytes, size_t size)
 {
@@ -386,6 +390,38 @@ static void test_full_table(struct CSTRK_TRACK *track)
 	free(prior);
 }
 
+static void test_track_folder_loading(struct CSTRK_TRACK *track)
+{
+	assert(chdir(SCORE_DIRECTORY) == 0);
+#ifdef _WIN32
+	assert(_mkdir("tracks") == 0);
+#else
+	assert(mkdir("tracks", 0700) == 0);
+#endif
+	legacy_char error[192];
+	legacy_u8 *bytes = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(track, &bytes, &size, error, sizeof(error)));
+	write_bytes(FOLDER_TRACK_PATH, bytes, size);
+	free(bytes);
+
+	assert(extended_file_load_track(FOLDER_TRACK_STEM ".cstrk") == 0);
+	assert(strcmp(extended_track_name(), FOLDER_TRACK_STEM) == 0);
+	assert(extended_highscore_validate_track("", FOLDER_TRACK_STEM, track) == 0);
+
+	/* A loose file must retain priority even when the folder has a valid track. */
+	static const legacy_u8 invalid_track[] = "Invalid track";
+	write_bytes(FOLDER_TRACK_STEM ".cstrk", invalid_track, sizeof(invalid_track));
+	assert(extended_file_load_track(FOLDER_TRACK_STEM ".cstrk") != 0);
+	assert(extended_highscore_validate_track("", FOLDER_TRACK_STEM, track) != 0);
+	assert(remove(FOLDER_TRACK_STEM ".cstrk") == 0);
+	extended_track_unload();
+	extended_track_clear_name();
+	assert(remove(FOLDER_TRACK_PATH) == 0);
+	assert(rmdir("tracks") == 0);
+	assert(chdir("..") == 0);
+}
+
 static void remove_test_directory(void)
 {
 	if (sdl3_file_exists(SCORE_DIRECTORY) == 0) {
@@ -435,6 +471,7 @@ int main(void)
 	test_track_identity(&track);
 	test_failure_preserves_scores(&track);
 	test_full_table(&track);
+	test_track_folder_loading(&track);
 	check_bytes(LEGACY_SCORE_PATH, legacy_scores, sizeof(legacy_scores));
 	check_bytes(LEGACY_TRACK_PATH, legacy_track, sizeof(legacy_track));
 	cstrk_free(&track);

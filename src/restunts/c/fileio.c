@@ -72,12 +72,17 @@ struct file_find_dos {
 	legacy_s8 path[FILE_FIND_PATH_SIZE];
 	legacy_s8 *dirdelim;
 } g_find;
+static legacy_u16 file_find_tracks;
 
 // Find file matching given query. Returns pointer to first matched filename
 // including path from the query. NULL is returned on error/no hits.
 // FIXME: DOS specific implementation.
 const legacy_s8 *file_find(const legacy_s8 *query)
 {
+	file_find_tracks = file_track_query(query) != 0;
+	if (file_find_tracks) {
+		return file_track_find_first(query);
+	}
 	legacy_s8 car_path[FILE_CAR_PATH_SIZE];
 	const legacy_s8 *found_name = dos_file_find_first(query);
 	if (found_name == 0 && file_car_resolve(query, car_path)) {
@@ -114,6 +119,9 @@ const legacy_s8 *file_find(const legacy_s8 *query)
 // FIXME: DOS specific implementation.
 const legacy_s8 *file_find_next(void)
 {
+	if (file_find_tracks) {
+		return file_track_find_next();
+	}
 	const legacy_s8 *found_name = dos_file_find_next();
 	if (found_name == 0) {
 		return 0;

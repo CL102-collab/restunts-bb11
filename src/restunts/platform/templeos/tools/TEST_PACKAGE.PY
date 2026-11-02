@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check bundled cars and private car-folder transfers without a guest."""
+"""Check bundled cars and private resource-folder transfers without a guest."""
 
 from pathlib import Path
 import runpy
@@ -41,6 +41,9 @@ class TemplePackageTests(unittest.TestCase):
             for name in BUNDLED_NAMES:
                 self.assertEqual((cars / name).read_bytes(),
                                  (PREPARE["BUNDLED_CARS"] / name).read_bytes())
+            tracks = destination / "PORT/TRACKS"
+            self.assertEqual({path.name for path in tracks.iterdir()}, {"README.TXT"})
+            self.assertEqual((tracks / "README.TXT").read_bytes(), PREPARE["TRACKS_README"].read_bytes())
 
     def test_private_package_preserves_loose_and_folder_car_overrides(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -86,6 +89,56 @@ class TemplePackageTests(unittest.TestCase):
             _, car_cluster, car_size = cars["CARTEST.RES"]
             offset = car_cluster * DATA_CD["SECTOR_BYTES"]
             self.assertEqual(image[offset:offset + car_size], b"custom car")
+
+    def test_private_packages_preserve_track_folder_and_loose_override(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            data = directory / "game"
+            tracks = data / "Tracks"
+            tracks.mkdir(parents=True)
+            (data / "MISC.RES").write_bytes(b"version resource")
+            (data / "custom.trk").write_bytes(b"loose override")
+            (tracks / "Custom.TrK").write_bytes(b"folder track")
+            (tracks / "custom.hig").write_bytes(b"high scores")
+            (tracks / "ignore.res").write_bytes(b"not a track")
+            (tracks / "README.TXT").write_text("track instructions")
+            (tracks / "nested").mkdir()
+            (tracks / "nested/ignored.trk").write_bytes(b"nested track")
+            destination = directory / "private"
+            PREPARE["prepare"](data, destination)
+            self.assertEqual((destination / "DATA/CUSTOM.TRK").read_bytes(), b"loose override")
+            self.assertEqual({path.name for path in (destination / "DATA/TRACKS").iterdir()},
+                             {"CUSTOM.TRK", "CUSTOM.HIG"})
+            self.assertEqual((destination / "DATA/TRACKS/CUSTOM.TRK").read_bytes(), b"folder track")
+            assets = DATA_CD["collect_data"](data)
+            helper = {"name": "IMPORT.HC", "data": b"helper", "date": 1}
+            image = DATA_CD["build_image"]([helper], assets)
+            boot = DATA_CD["REDSEA_OFFSET"] * DATA_CD["SECTOR_BYTES"]
+            root_cluster = struct.unpack_from("<5Q", image, boot + DATA_CD["BOOT_FIELDS_OFFSET"])[2]
+            root = directory_entries(image, root_cluster, DATA_CD["SECTOR_BYTES"])
+            _, data_cluster, data_size = root["DATA"]
+            entries = directory_entries(image, data_cluster, data_size)
+            _, tracks_cluster, tracks_size = entries["TRACKS"]
+            entries = directory_entries(image, tracks_cluster, tracks_size)
+            self.assertEqual(entries[".."][1], data_cluster)
+            self.assertEqual(set(entries), {"TRACKS", "..", "CUSTOM.TRK", "CUSTOM.HIG"})
+            _, track_cluster, track_size = entries["CUSTOM.TRK"]
+            offset = track_cluster * DATA_CD["SECTOR_BYTES"]
+            self.assertEqual(image[offset:offset + track_size], b"folder track")
+
+    def test_case_collisions_in_track_folders_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            data = directory / "game"
+            tracks = data / "tracks"
+            tracks.mkdir(parents=True)
+            (data / "MISC.RES").write_bytes(b"version resource")
+            (tracks / "CUSTOM.TRK").write_bytes(b"first")
+            (tracks / "custom.trk").write_bytes(b"second")
+            with self.assertRaisesRegex(ValueError, "same uppercase name"):
+                PREPARE["prepare"](data, directory / "package")
+            with self.assertRaisesRegex(ValueError, "same uppercase name"):
+                DATA_CD["collect_data"](data)
 
     def test_case_collisions_in_car_folders_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

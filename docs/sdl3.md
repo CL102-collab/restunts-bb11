@@ -340,6 +340,14 @@ over files in `cars/`; duplicate IDs appear only once in the car menu. Source
 builds also search `assets/cars/`. Browser and Android builds bundle these same
 car resources automatically.
 
+Custom tracks are discovered in `tracks/` inside the game-data folder and beside
+the executable. Place `.TRK` files there, or `.CSTRK` files for Chocolate Stunts
+tracks. Optional `.HIG` and `.CSHIG` high score tables can accompany them.
+Search priority is loose game-data files, loose executable files, game-data
+`tracks/`, then executable `tracks/`. Filenames are matched without case
+sensitivity; duplicate filenames appear once in the track menu. Saved tracks
+and updated high scores continue to go into the selected game-data folder.
+
 `repldump --time` also writes a `.tim` file with the replay's basename, such as
 `DEFAULT.tim`. Its first line contains the player's driving time to the finish,
 excluding penalties and the recording tail after finishing, formatted like the

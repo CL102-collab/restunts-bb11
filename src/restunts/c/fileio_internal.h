@@ -77,6 +77,9 @@ typedef legacy_u16 fileio_handle;
 #define FILEIO_INVALID_HANDLE 0U
 
 legacy_u16 file_bytes_to_paras(legacy_s32 length);
+const legacy_s8 *file_track_query(const legacy_s8 *filename);
+const legacy_s8 *file_track_find_first(const legacy_s8 *query);
+const legacy_s8 *file_track_find_next(void);
 legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE]);
 void far *file_alloc_tail_pages(const legacy_s8 *filename, legacy_u16 paragraphs,
 								legacy_u16 tail_bytes);

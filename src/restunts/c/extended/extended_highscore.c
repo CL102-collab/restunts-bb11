@@ -59,7 +59,7 @@ static int score_path(const legacy_s8 *directory, const legacy_s8 *name, const l
 static enum SCORE_READ_RESULT score_read(const legacy_s8 *path, size_t maximum, uint8_t **data,
 										 size_t *size)
 {
-	legacy_u16 handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
+	legacy_u16 handle = file_open_resource(path);
 	if (handle == 0) {
 		if (sdl3_file_exists(path) == 0) {
 			return SCORE_READ_MISSING;
