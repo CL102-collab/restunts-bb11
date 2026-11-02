@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generate and replay extended ghosts with independent binary-format fixtures."""
 
+import argparse
 import contextlib
 import json
 import os
@@ -34,6 +35,19 @@ RULE_LEGACY_COLLISION = 0x02
 RULE_AMIGA_GRASS = 0x20
 RULE_OWOOT = 0x40
 RESTRICTED = ("--owoot", "--pg:off", "--lc:off", "--lcb:off", "--dws:off")
+FORMAT_PART = 1
+REPLAY_PART = 2
+STUNT_PART = 3
+TEST_PARTS = (FORMAT_PART, REPLAY_PART, STUNT_PART)
+BARREL_ROTATION_COUNT = 4
+# Keep each orientation/rate pair's collision modes together. Measured native
+# runtimes balance these searches with each part's format, replay or stunt work.
+BARREL_PARTS = {
+    (0, 20): REPLAY_PART, (0, 10): STUNT_PART,
+    (1, 20): FORMAT_PART, (1, 10): FORMAT_PART,
+    (2, 20): STUNT_PART, (2, 10): REPLAY_PART,
+    (3, 20): REPLAY_PART, (3, 10): STUNT_PART,
+}
 
 
 def object_record(tile, x, y, *, width=1, height=1, mask=1,
@@ -154,9 +168,15 @@ def decode_replay(recording):
 
 
 def main():
-    if len(sys.argv) not in (4, 5):
-        raise SystemExit("Usage: test-genghost-extended.py GENGHOST HARNESS DATA-DIR [OUTPUT-DIR]")
-    genghost, harness, data = (Path(argument).resolve() for argument in sys.argv[1:4])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("genghost", type=Path)
+    parser.add_argument("harness", type=Path)
+    parser.add_argument("data", type=Path)
+    parser.add_argument("output", nargs="?", type=Path)
+    parser.add_argument("--part", type=int, choices=TEST_PARTS,
+                        help="Run one balanced part; omit to run the complete suite")
+    args = parser.parse_args()
+    genghost, harness, data = (path.resolve() for path in (args.genghost, args.harness, args.data))
     available = {p.name.upper() for p in data.iterdir()} if data.is_dir() else set()
     required = (("GAME.PRE", "GAME.RES"), ("CARCOUN.PRE", "CARCOUN.RES"),
                 ("STCOUN.P3S", "STCOUN.3SH"), ("CARP962.PRE", "CARP962.RES"),
@@ -167,7 +187,7 @@ def main():
         return 77
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
-    context = (contextlib.nullcontext(str(Path(sys.argv[4]).resolve())) if len(sys.argv) == 5
+    context = (contextlib.nullcontext(str(args.output.resolve())) if args.output is not None
                else tempfile.TemporaryDirectory(prefix="ghextended-"))
     with context as directory:
         output = Path(directory)
@@ -212,179 +232,184 @@ def main():
         assert view["track"] == wide_path.read_bytes()
         assert view["version"] == CSRPL_VERSION
         assert replayed["maximum_x"] > 65535 and replayed["maximum_z"] > 65535
-        second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
-        assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
-        print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
+        if args.part in (None, FORMAT_PART):
+            second, _, _, _ = generate(wide_path, "COUN", "repeat.csrpl")
+            assert first.read_bytes() == second.read_bytes(), "Fixed-budget extended generation is not repeatable"
+            print("Wide CSTRK generation, full embedded track and deterministic CSRPL playback passed", flush=True)
 
-        # The replay name is independent of the source filename and must retain
-        # all twelve extended characters when a fine-tuned replay is published.
-        long_track_name = b"FLOWERFIELD1"
-        assert len(long_track_name) == CSRPL_TRACK_NAME_SIZE - 1
-        named_recording = bytearray(first.read_bytes())
-        named_recording[CSRPL_TRACK_NAME_OFFSET:CSRPL_TRACK_NAME_OFFSET + CSRPL_TRACK_NAME_SIZE] = long_track_name + b"\0"
-        named_source = output / "long-name-seed.csrpl"
-        named_source.write_bytes(named_recording)
-        named_refined = output / "long-name-refined.csrpl"
-        run(genghost, [named_source, "--fine-tune-gears-only", "--evaluations", 1,
-                       "--output", named_refined])
-        named_view = decode_replay(named_refined.read_bytes())
-        named_report = json.loads(named_refined.with_name(named_refined.name + ".json").read_text())
-        assert named_view["track_name"] == long_track_name
-        assert named_report["track"] == long_track_name.decode("ascii")
-        assert named_view["track"] == view["track"] and named_view["version"] == CSRPL_VERSION
-        assert verify(named_refined)["total_frames"] <= report["total_frames"]
-        assert named_source.read_bytes() == named_recording
-        print("Twelve-character CSRPL names survive fine-tuning and report output", flush=True)
+            # The replay name is independent of the source filename and must retain
+            # all twelve extended characters when a fine-tuned replay is published.
+            long_track_name = b"FLOWERFIELD1"
+            assert len(long_track_name) == CSRPL_TRACK_NAME_SIZE - 1
+            named_recording = bytearray(first.read_bytes())
+            named_recording[CSRPL_TRACK_NAME_OFFSET:CSRPL_TRACK_NAME_OFFSET + CSRPL_TRACK_NAME_SIZE] = long_track_name + b"\0"
+            named_source = output / "long-name-seed.csrpl"
+            named_source.write_bytes(named_recording)
+            named_refined = output / "long-name-refined.csrpl"
+            run(genghost, [named_source, "--fine-tune-gears-only", "--evaluations", 1,
+                           "--output", named_refined])
+            named_view = decode_replay(named_refined.read_bytes())
+            named_report = json.loads(named_refined.with_name(named_refined.name + ".json").read_text())
+            assert named_view["track_name"] == long_track_name
+            assert named_report["track"] == long_track_name.decode("ascii")
+            assert named_view["track"] == view["track"] and named_view["version"] == CSRPL_VERSION
+            assert verify(named_refined)["total_frames"] <= report["total_frames"]
+            assert named_source.read_bytes() == named_recording
+            print("Twelve-character CSRPL names survive fine-tuning and report output", flush=True)
 
-        # Stored revisions select playback physics. Verification and refinement
-        # retain v11, while a fresh search uses the current physics revision.
-        old_recording = bytearray(first.read_bytes())
-        struct.pack_into("<H", old_recording, 8, CSRPL_MIN_VERSION)
-        old_source = output / "previous-physics.csrpl"
-        old_source.write_bytes(old_recording)
-        old_score = verify(old_source)
-        assert old_score["total_frames"] == report["total_frames"]
-        for strategy in ("legacy", "state"):
-            refined_old = output / f"previous-{strategy}.csrpl"
-            run(genghost, [old_source, "--fine-tune-gears-only", "--cores", 2,
-                           "--strategy", strategy, "--evaluations", 2, "--output", refined_old])
-            assert decode_replay(refined_old.read_bytes())["version"] == CSRPL_MIN_VERSION
-            assert verify(refined_old)["total_frames"] <= old_score["total_frames"]
-        _, upgraded_view, _, _ = generate(old_source, "COUN", "new-physics.csrpl", evaluations=32)
-        assert upgraded_view["version"] == CSRPL_VERSION
-        future_recording = bytearray(first.read_bytes())
-        struct.pack_into("<H", future_recording, 8, CSRPL_FUTURE_VERSION)
-        future_track = bytearray(view["track"])
-        struct.pack_into("<H", future_track, 8, CSRPL_FUTURE_VERSION)
-        future_recording[CSRPL_HEADER_SIZE:CSRPL_HEADER_SIZE + len(future_track)] = future_track
-        future_source = output / "future-physics.csrpl"
-        future_source.write_bytes(future_recording)
-        future_score = verify(future_source)
-        assert future_score["total_frames"] == report["total_frames"]
-        refined_future = output / "future-refined.csrpl"
-        run(genghost, [future_source, "--fine-tune-gears-only", "--evaluations", 1,
-                       "--output", refined_future])
-        refined_future_view = decode_replay(refined_future.read_bytes())
-        assert refined_future_view["version"] == CSRPL_FUTURE_VERSION
-        assert refined_future_view["track"] == future_track
-        assert verify(refined_future)["total_frames"] <= future_score["total_frames"]
-        _, current_view, _, _ = generate(future_source, "COUN", "current-physics.csrpl",
-                                         evaluations=32)
-        assert current_view["version"] == CSRPL_VERSION
-        assert current_view["track"] == future_track
-        assert future_source.read_bytes() == future_recording
-        obsolete = bytearray(old_recording)
-        struct.pack_into("<H", obsolete, 8, CSRPL_MIN_VERSION - 1)
-        obsolete_path = output / "obsolete-physics.csrpl"
-        obsolete_path.write_bytes(obsolete)
-        run(genghost, [obsolete_path, "--verify"], expected=1)
-        print("Previous CSRPL physics retained for playback/refinement; fresh searches upgrade", flush=True)
+            # Stored revisions select playback physics. Verification and refinement
+            # retain v11, while a fresh search uses the current physics revision.
+            old_recording = bytearray(first.read_bytes())
+            struct.pack_into("<H", old_recording, 8, CSRPL_MIN_VERSION)
+            old_source = output / "previous-physics.csrpl"
+            old_source.write_bytes(old_recording)
+            old_score = verify(old_source)
+            assert old_score["total_frames"] == report["total_frames"]
+            for strategy in ("legacy", "state"):
+                refined_old = output / f"previous-{strategy}.csrpl"
+                run(genghost, [old_source, "--fine-tune-gears-only", "--cores", 2,
+                               "--strategy", strategy, "--evaluations", 2, "--output", refined_old])
+                assert decode_replay(refined_old.read_bytes())["version"] == CSRPL_MIN_VERSION
+                assert verify(refined_old)["total_frames"] <= old_score["total_frames"]
+            _, upgraded_view, _, _ = generate(old_source, "COUN", "new-physics.csrpl", evaluations=32)
+            assert upgraded_view["version"] == CSRPL_VERSION
+            future_recording = bytearray(first.read_bytes())
+            struct.pack_into("<H", future_recording, 8, CSRPL_FUTURE_VERSION)
+            future_track = bytearray(view["track"])
+            struct.pack_into("<H", future_track, 8, CSRPL_FUTURE_VERSION)
+            future_recording[CSRPL_HEADER_SIZE:CSRPL_HEADER_SIZE + len(future_track)] = future_track
+            future_source = output / "future-physics.csrpl"
+            future_source.write_bytes(future_recording)
+            future_score = verify(future_source)
+            assert future_score["total_frames"] == report["total_frames"]
+            refined_future = output / "future-refined.csrpl"
+            run(genghost, [future_source, "--fine-tune-gears-only", "--evaluations", 1,
+                           "--output", refined_future])
+            refined_future_view = decode_replay(refined_future.read_bytes())
+            assert refined_future_view["version"] == CSRPL_FUTURE_VERSION
+            assert refined_future_view["track"] == future_track
+            assert verify(refined_future)["total_frames"] <= future_score["total_frames"]
+            _, current_view, _, _ = generate(future_source, "COUN", "current-physics.csrpl",
+                                             evaluations=32)
+            assert current_view["version"] == CSRPL_VERSION
+            assert current_view["track"] == future_track
+            assert future_source.read_bytes() == future_recording
+            obsolete = bytearray(old_recording)
+            struct.pack_into("<H", obsolete, 8, CSRPL_MIN_VERSION - 1)
+            obsolete_path = output / "obsolete-physics.csrpl"
+            obsolete_path.write_bytes(obsolete)
+            run(genghost, [obsolete_path, "--verify"], expected=1)
+            print("Previous CSRPL physics retained for playback/refinement; fresh searches upgrade", flush=True)
 
-        default_path = output / "wide-COUN.csrpl"
-        default_path.unlink(missing_ok=True)
-        run(genghost, [wide_path.with_suffix(""), "COUN", "--evaluations", 32, *RESTRICTED])
-        assert decode_replay(default_path.read_bytes())["track"] == wide_path.read_bytes()
-        assert verify(default_path)["finished"]
+            default_path = output / "wide-COUN.csrpl"
+            default_path.unlink(missing_ok=True)
+            run(genghost, [wide_path.with_suffix(""), "COUN", "--evaluations", 32, *RESTRICTED])
+            assert decode_replay(default_path.read_bytes())["track"] == wide_path.read_bytes()
+            assert verify(default_path)["finished"]
 
-        # The generator must inspect magic rather than assume a large binary is
-        # a legacy RPL. Names without suffix also resolve the new track format.
-        renamed = output / "misnamed.trk"
-        renamed.write_bytes(wide_path.read_bytes())
-        generated, renamed_view, _, _ = generate(renamed, "COUN", "misnamed.csrpl", evaluations=32)
-        assert renamed_view["track"] == wide_path.read_bytes()
-        run(genghost, [wide_path, "COUN", "--evaluations", 1, "--output", output / "wrong.rpl"], expected=1)
-        bad_rules = bytearray(first.read_bytes())
-        struct.pack_into("<H", bad_rules, 26, 0x8000)
-        bad_input = bytearray(first.read_bytes())
-        bad_input[-1] = 64
-        for number, malformed in enumerate((wide_path.read_bytes()[:31],
-                                            wide_path.read_bytes()[:-1],
-                                            first.read_bytes()[:-1],
-                                            first.read_bytes() + b"\x00",
-                                            bad_rules, bad_input)):
-            path = output / f"bad{number}.cstrk"
-            path.write_bytes(malformed)
-            run(genghost, [path, "COUN", "--evaluations", 1, "--output", output / "bad.csrpl"], expected=1)
-        dense_path = output / "dense.cstrk"
-        dense_path.write_bytes(track_bytes("dense"))
-        assert len(dense_path.read_bytes()) > 65536
-        _, dense_view, _, _ = generate(dense_path, "COUN", "dense.csrpl")
-        assert dense_view["track"] == dense_path.read_bytes()
-        print("Format sniffing, large CSTRK payloads and malformed file rejection passed", flush=True)
+            # The generator must inspect magic rather than assume a large binary is
+            # a legacy RPL. Names without suffix also resolve the new track format.
+            renamed = output / "misnamed.trk"
+            renamed.write_bytes(wide_path.read_bytes())
+            generated, renamed_view, _, _ = generate(renamed, "COUN", "misnamed.csrpl", evaluations=32)
+            assert renamed_view["track"] == wide_path.read_bytes()
+            run(genghost, [wide_path, "COUN", "--evaluations", 1, "--output", output / "wrong.rpl"], expected=1)
+            bad_rules = bytearray(first.read_bytes())
+            struct.pack_into("<H", bad_rules, 26, 0x8000)
+            bad_input = bytearray(first.read_bytes())
+            bad_input[-1] = 64
+            for number, malformed in enumerate((wide_path.read_bytes()[:31],
+                                                wide_path.read_bytes()[:-1],
+                                                first.read_bytes()[:-1],
+                                                first.read_bytes() + b"\x00",
+                                                bad_rules, bad_input)):
+                path = output / f"bad{number}.cstrk"
+                path.write_bytes(malformed)
+                run(genghost, [path, "COUN", "--evaluations", 1, "--output", output / "bad.csrpl"], expected=1)
+            dense_path = output / "dense.cstrk"
+            dense_path.write_bytes(track_bytes("dense"))
+            assert len(dense_path.read_bytes()) > 65536
+            _, dense_view, _, _ = generate(dense_path, "COUN", "dense.csrpl")
+            assert dense_view["track"] == dense_path.read_bytes()
+            print("Format sniffing, large CSTRK payloads and malformed file rejection passed", flush=True)
 
-        for rate, mode in ((20, "--snapshot"), (10, "--snapshot10")):
-            long_path = output / f"stationary{rate}.csrpl"
-            snapshot = json.loads(run(harness, [mode, wide_path, long_path]).stdout)
-            assert snapshot["frames"] == LONG_FRAMES and snapshot["restored"]
-            long_view = decode_replay(long_path.read_bytes())
-            assert long_view["frames"] == LONG_FRAMES and long_view["rate"] == rate
-            verified = verify(long_path, expected=2)
-            assert verified["frames"] == LONG_FRAMES and verified["frames_per_second"] == rate
-            assert not verified["finished"]
-        _, ten_view, _, _ = generate(output / "stationary10.csrpl", "COUN", "from-tenhz.csrpl")
-        assert ten_view["rate"] == 10
-        ten_hz = output / "tenhz.csrpl"
-        run(harness, ["--drive10", wide_path, ten_hz])
-        assert verify(ten_hz)["frames_per_second"] == 10
-        for strategy in ("legacy", "state"):
-            refined_ten = output / f"tenhz-{strategy}.csrpl"
-            run(genghost, [ten_hz, "--fine-tune-gears-only", "--cores", 2,
-                           "--strategy", strategy, "--evaluations", 2, "--output", refined_ten])
-            assert decode_replay(refined_ten.read_bytes())["rate"] == 10
-            assert verify(refined_ten)["frames_per_second"] == 10
-        print("70,001-frame snapshots at both rates and 10 Hz CSRPL worker fine-tuning passed", flush=True)
+        if args.part in (None, REPLAY_PART):
+            for rate, mode in ((20, "--snapshot"), (10, "--snapshot10")):
+                long_path = output / f"stationary{rate}.csrpl"
+                snapshot = json.loads(run(harness, [mode, wide_path, long_path]).stdout)
+                assert snapshot["frames"] == LONG_FRAMES and snapshot["restored"]
+                long_view = decode_replay(long_path.read_bytes())
+                assert long_view["frames"] == LONG_FRAMES and long_view["rate"] == rate
+                verified = verify(long_path, expected=2)
+                assert verified["frames"] == LONG_FRAMES and verified["frames_per_second"] == rate
+                assert not verified["finished"]
+            _, ten_view, _, _ = generate(output / "stationary10.csrpl", "COUN", "from-tenhz.csrpl")
+            assert ten_view["rate"] == 10
+            ten_hz = output / "tenhz.csrpl"
+            run(harness, ["--drive10", wide_path, ten_hz])
+            assert verify(ten_hz)["frames_per_second"] == 10
+            for strategy in ("legacy", "state"):
+                refined_ten = output / f"tenhz-{strategy}.csrpl"
+                run(genghost, [ten_hz, "--fine-tune-gears-only", "--cores", 2,
+                               "--strategy", strategy, "--evaluations", 2, "--output", refined_ten])
+                assert decode_replay(refined_ten.read_bytes())["rate"] == 10
+                assert verify(refined_ten)["frames_per_second"] == 10
+            print("70,001-frame snapshots at both rates and 10 Hz CSRPL worker fine-tuning passed", flush=True)
 
-        # A complete long replay exercises parent/worker CSRPL seed extraction
-        # above both the old file-size and frame-counter limits. The tail does
-        # not alter the already latched finish score.
-        long_finished = bytearray(first.read_bytes())
-        tail = LONG_FRAMES - view["frames"]
-        long_finished.extend(bytes([BRAKE_INPUT]) * tail)
-        struct.pack_into("<I", long_finished, 20, LONG_FRAMES)
-        long_finished[32] = 3
-        late_frame = 65536
-        track_size = len(view["track"])
-        long_finished[CSRPL_HEADER_SIZE + track_size + late_frame] |= 16
-        rules = view["rules"] | RULE_AMIGA_GRASS
-        struct.pack_into("<H", long_finished, 26, rules)
-        long_seed = output / "long-finished.csrpl"
-        long_seed.write_bytes(long_finished)
-        baseline = verify(long_seed)
-        assert baseline["frames"] == LONG_FRAMES and baseline["total_frames"] == report["total_frames"]
-        for strategy in ("legacy", "state"):
-            refined = output / f"refined-{strategy}.csrpl"
-            run(genghost, [long_seed, "--fine-tune-gears-only", "--cores", 2,
-                           "--strategy", strategy, "--evaluations", 2, "--output", refined,
-                           "--owoot:off", "--amigagrass:off"])
-            refined_view = decode_replay(refined.read_bytes())
-            assert refined_view["frames"] == LONG_FRAMES
-            assert refined_view["track"] == view["track"] and refined_view["material"] == 3
-            assert refined_view["rules"] == rules & ~(RULE_AMIGA_GRASS | RULE_OWOOT)
-            seed_view = decode_replay(long_finished)
-            assert all((before & 15) == (after & 15)
-                       for before, after in zip(seed_view["inputs"], refined_view["inputs"]))
-            refined_report = json.loads(refined.with_name(refined.name + ".json").read_text())
-            assert refined_report["cores_used"] == 2
-            assert verify(refined)["total_frames"] <= baseline["total_frames"]
-        print("Long CSRPL fine-tuning, metadata and explicit worker rules passed with both strategies", flush=True)
+            # A complete long replay exercises parent/worker CSRPL seed extraction
+            # above both the old file-size and frame-counter limits. The tail does
+            # not alter the already latched finish score.
+            long_finished = bytearray(first.read_bytes())
+            tail = LONG_FRAMES - view["frames"]
+            long_finished.extend(bytes([BRAKE_INPUT]) * tail)
+            struct.pack_into("<I", long_finished, 20, LONG_FRAMES)
+            long_finished[32] = 3
+            late_frame = 65536
+            track_size = len(view["track"])
+            long_finished[CSRPL_HEADER_SIZE + track_size + late_frame] |= 16
+            rules = view["rules"] | RULE_AMIGA_GRASS
+            struct.pack_into("<H", long_finished, 26, rules)
+            long_seed = output / "long-finished.csrpl"
+            long_seed.write_bytes(long_finished)
+            baseline = verify(long_seed)
+            assert baseline["frames"] == LONG_FRAMES and baseline["total_frames"] == report["total_frames"]
+            for strategy in ("legacy", "state"):
+                refined = output / f"refined-{strategy}.csrpl"
+                run(genghost, [long_seed, "--fine-tune-gears-only", "--cores", 2,
+                               "--strategy", strategy, "--evaluations", 2, "--output", refined,
+                               "--owoot:off", "--amigagrass:off"])
+                refined_view = decode_replay(refined.read_bytes())
+                assert refined_view["frames"] == LONG_FRAMES
+                assert refined_view["track"] == view["track"] and refined_view["material"] == 3
+                assert refined_view["rules"] == rules & ~(RULE_AMIGA_GRASS | RULE_OWOOT)
+                seed_view = decode_replay(long_finished)
+                assert all((before & 15) == (after & 15)
+                           for before, after in zip(seed_view["inputs"], refined_view["inputs"]))
+                refined_report = json.loads(refined.with_name(refined.name + ".json").read_text())
+                assert refined_report["cores_used"] == 2
+                assert verify(refined)["total_frames"] <= baseline["total_frames"]
+            print("Long CSRPL fine-tuning, metadata and explicit worker rules passed with both strategies", flush=True)
 
-        combined_path = output / "combined.cstrk"
-        combined_path.write_bytes(track_bytes("combined"))
-        _, combined_view, _, _ = generate(combined_path, "COUN", "combined.csrpl", evaluations=512)
-        assert combined_view["track"] == combined_path.read_bytes()
-        print("Fresh generation on graded tunnel-with-slalom CSTRK passed", flush=True)
+        if args.part in (None, STUNT_PART):
+            combined_path = output / "combined.cstrk"
+            combined_path.write_bytes(track_bytes("combined"))
+            _, combined_view, _, _ = generate(combined_path, "COUN", "combined.csrpl", evaluations=512)
+            assert combined_view["track"] == combined_path.read_bytes()
+            print("Fresh generation on graded tunnel-with-slalom CSTRK passed", flush=True)
 
-        tight_path = output / "barrel-budget.cstrk"
-        tight_path.write_bytes(track_bytes("barrel-tight"))
-        budget = json.loads(run(harness, ["--barrel-budget", tight_path]).stdout)
-        assert budget["evaluations"] == 32 and budget["native_inputs"] > 0
-        assert budget["cancelled_at"] < budget["evaluations"] and budget["deterministic"]
-        print("Unfinished barrel repair honors native candidate budgets, cancellation and repeatability", flush=True)
+            tight_path = output / "barrel-budget.cstrk"
+            tight_path.write_bytes(track_bytes("barrel-tight"))
+            budget = json.loads(run(harness, ["--barrel-budget", tight_path]).stdout)
+            assert budget["evaluations"] == 32 and budget["native_inputs"] > 0
+            assert budget["cancelled_at"] < budget["evaluations"] and budget["deterministic"]
+            print("Unfinished barrel repair honors native candidate budgets, cancellation and repeatability", flush=True)
 
-        for rotation in range(4):
+        for rotation in range(BARREL_ROTATION_COUNT):
             barrel_path = output / f"barrel{rotation}.cstrk"
             barrel_path.write_bytes(track_bytes("barrel", rotation=rotation))
             for rate in (20, 10):
+                if args.part is not None and BARREL_PARTS[rotation, rate] != args.part:
+                    continue
                 source = barrel_path
                 filename = f"barrel{rotation}.csrpl"
                 if rate == 10:
@@ -411,7 +436,8 @@ def main():
                         rejected = verify(previous_path, expected=2)
                         assert not rejected["finished"]
                         assert rejected["frames"] < checked["finish_frame"]
-        print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings in all orientations, both frame rates and collision modes", flush=True)
+        print("Fresh barrel-roll ghosts finish with full airborne rolls and upright road landings "
+              f"for part {args.part or 'all'} in both collision modes", flush=True)
     return 0
 
 
