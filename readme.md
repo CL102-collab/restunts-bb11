@@ -1798,9 +1798,11 @@ remain available in their individual artifacts if replay validation fails.
 AddressSanitizer and UndefinedBehaviorSanitizer each build and run the host
 and SDL3 regression suites in a separate Linux x64 job, including the
 renderer-worker and audio tests. ThreadSanitizer splits the same suites across
-eight parallel jobs: `genghost-extended`, `genghost-search`, `genghost-fine-tune`,
-`genghost-parallel`, `extended-render`, and `render-replay` each run alone, with
-separate jobs for the remaining `genghost-` tests and the remaining tests without
+ten parallel jobs. `genghost-extended-1`, `genghost-extended-2`, and
+`genghost-extended-3` run the complete extended suite in three parts;
+`genghost-search`, `genghost-fine-tune`, `genghost-parallel`, `extended-render`,
+and `render-replay` each run alone.
+Two jobs cover the remaining `genghost-` tests and the remaining tests without
 that prefix. These checks run for every platform selection and gate both PR
 validation and releases. Each job uses
 debug symbols, frame pointers, and fail-on-error sanitizer settings. ASan uses

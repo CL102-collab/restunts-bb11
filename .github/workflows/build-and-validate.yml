@@ -142,12 +142,24 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 20
             exclude-regex: '^genghost-|^(extended-render|render-replay)$'
-          - name: thread-genghost-extended
+          - name: thread-genghost-extended-1
             sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 20
-            include-regex: '^genghost-extended$'
+            include-regex: '^genghost-extended-1$'
+          - name: thread-genghost-extended-2
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-extended-2$'
+          - name: thread-genghost-extended-3
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-extended-3$'
           - name: thread-genghost-search
             sanitizer: thread
             compiler: gcc
@@ -184,7 +196,7 @@ jobs:
             cxx-compiler: g++
             timeout-multiplier: 20
             include-regex: '^genghost-'
-            exclude-regex: '^genghost-(extended|search|fine-tune|parallel)$'
+            exclude-regex: '^genghost-(extended-[123]|search|fine-tune|parallel)$'
           - name: undefined
             sanitizer: undefined
             compiler: gcc

@@ -884,11 +884,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
-            add_test(NAME genghost-extended COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
-                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
-                "${CMAKE_SOURCE_DIR}/stunts")
-            set_tests_properties(genghost-extended PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+            foreach(restunts_extended_part 1 2 3)
+                add_test(NAME genghost-extended-${restunts_extended_part} COMMAND "${Python3_EXECUTABLE}"
+                    "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
+                    "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
+                    "${CMAKE_SOURCE_DIR}/stunts" --part "${restunts_extended_part}")
+                set_tests_properties(genghost-extended-${restunts_extended_part} PROPERTIES
+                    SKIP_RETURN_CODE 77 TIMEOUT 300)
+            endforeach()
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
@@ -923,7 +926,8 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
             # CTest's --timeout does not override an explicit test TIMEOUT.
             # Propagate the same multiplier to the Python subprocess deadlines.
-            foreach(restunts_genghost_test genghost-simulation genghost-search genghost-extended
+            foreach(restunts_genghost_test genghost-simulation genghost-search
+                    genghost-extended-1 genghost-extended-2 genghost-extended-3
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout
