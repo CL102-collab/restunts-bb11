@@ -50,6 +50,7 @@ def disc_sources():
     files["PORT/README.TXT"] = PORT / "README.TXT"
     files |= {"PORT/CARS/" + name: source for name, source in PREPARE["collect_resources"](
         PREPARE["BUNDLED_CARS"], PREPARE["CAR_EXTENSIONS"]).items()}
+    files["PORT/TRACKS/" + PREPARE["TRACKS_README"].name] = PREPARE["TRACKS_README"]
     files |= {name: PORT / "package" / name for name in INSTALLER_FILES}
     files["README.MD"] = ROOT / "docs/templeos.md"
     return files
