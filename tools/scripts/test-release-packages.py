@@ -231,7 +231,7 @@ class ReleasePackageTests(unittest.TestCase):
             return json.dumps({"passed": True, "problems": [],
                                "sha256": PACKAGES.sha256(FILE_DATA),
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
-        if name in {"tracks/README.TXT", "bin/tracks/README.TXT"}:
+        if name in {"tracks/README.TXT", "bin/tracks/README.TXT", "assets/tracks/README.TXT"}:
             return (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
@@ -828,6 +828,28 @@ class ReleasePackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unsupported Android package minimum API"):
                 PACKAGES.android_minimum_sdk("android-armv7")
 
+    def test_android_game_apks_accept_the_complete_bundled_asset_inventory(self):
+        for target in PACKAGES.ANDROID_TARGETS:
+            bundled = {path.relative_to(PACKAGES.ROOT).as_posix(): self.runtime_data(
+                target, path.relative_to(PACKAGES.ROOT).as_posix())
+                for path in (PACKAGES.ROOT / "assets").rglob("*") if path.is_file()}
+            with self.subTest(target=target):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, bundled))
+
+    def test_android_game_track_readme_is_required_and_matches_source(self):
+        name = "assets/tracks/README.TXT"
+        for target in PACKAGES.ANDROID_TARGETS:
+            with self.subTest(target=target, missing=name), \
+                    self.assertRaisesRegex(ValueError, "missing APK members"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, missing=(name,)))
+            with self.subTest(target=target, changed=name), \
+                    self.assertRaisesRegex(ValueError, "tracks README differs from source"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, {name: FILE_DATA}))
+            for extra in ("assets/tracks/OTHER.TXT", "assets/tracks/readme.txt",
+                          "assets/tracks/DEFAULT.TRK", "assets/tracks/private.CSTRK"):
+                with self.subTest(target=target, extra=extra), self.assertRaises(ValueError):
+                    PACKAGES.validate_android_apk(target, self.apk_data(target, {extra: FILE_DATA}))
+
     def test_android_apks_require_exact_abi_and_all_shared_libraries(self):
         for target, abi in PACKAGES.ANDROID_TARGETS.items():
             with self.subTest(target=target):
@@ -899,6 +921,7 @@ class ReleasePackageTests(unittest.TestCase):
             for extra in (f"lib/{abi}/libmain.so", f"lib/{abi}/genghost",
                           f"lib/{PACKAGES.ANDROID_TARGETS[other]}/libgenghost_exec.so",
                           "bin/genghost", "assets/MISC.RES", "assets/game/FONTDEF.FNT",
+                          "assets/tracks/README.TXT",
                           "assets/data.zip", "assets/private.dat", "assets/music/titl.ogg",
                           "assets/licenses/Nuked-OPL2-LICENSE.txt", "stunts/notice.txt"):
                 with self.subTest(target=target, extra=extra), self.assertRaises(ValueError):

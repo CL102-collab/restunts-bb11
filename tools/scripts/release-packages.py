@@ -90,6 +90,7 @@ ANDROID_ADAPTIVE_ICON_API = 26
 ANDROID_FALLBACK_ICON = "res/mipmap-anydpi-v21/ic_launcher.xml"
 ANDROID_APK = "bin/restunts.apk"
 ANDROID_GENGHOST_APK = "bin/genghost.apk"
+ANDROID_TRACKS_README = "assets/tracks/README.TXT"
 ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so")
 ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LICENSE.txt",
                     "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt")
@@ -263,6 +264,7 @@ def android_required_resources(target):
 
 def android_required_assets():
     required = {f"assets/licenses/{name}" for name in ANDROID_LICENSES}
+    required.add(ANDROID_TRACKS_README)
     required |= custom_car_files("assets/cars")
     required |= {f"assets/skyboxes/{theme}-{image}.png"
                  for theme in SKYBOX_THEMES for image in SKYBOX_IMAGES}
@@ -343,6 +345,8 @@ def validate_android_apk(target, content):
             require(files[name], f"Empty APK member: {name}")
     missing = required - files.keys()
     require(not missing, f"{target}: missing APK members: {', '.join(sorted(missing))}")
+    require(files[ANDROID_TRACKS_README] == (ROOT / ANDROID_TRACKS_README).read_bytes(),
+            "Android tracks README differs from source")
     validate_custom_car_resources(files)
     elf_class, machine = ELF_ARCHITECTURES[target.split("-")[1]]
     for name in native:
