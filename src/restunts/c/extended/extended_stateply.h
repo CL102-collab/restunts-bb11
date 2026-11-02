@@ -25,6 +25,7 @@ void extended_player_restore_suspension(struct CARSTATE *carstate,
 legacy_s16 extended_player_measure_plane(const struct VECTORLONG *position, legacy_s16 input_mode);
 void extended_player_contact_distance(const struct VECTORLONG *position, legacy_s16 input_mode,
 									  legacy_s16 *distance);
+legacy_s16 extended_player_hold_wheel_contact(struct VECTORLONG *position, legacy_s16 input_mode);
 legacy_s16 extended_player_wheel_gravity(const struct CARSTATE *carstate, legacy_s16 gravity);
 legacy_s16 extended_player_use_ground_plane(const struct VECTORLONG *position);
 legacy_s16 extended_player_correct_wheel_contact(struct VECTORLONG *current,

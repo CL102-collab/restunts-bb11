@@ -375,6 +375,20 @@ void extended_player_contact_distance(const struct VECTORLONG *position, legacy_
 	}
 }
 
+legacy_s16 extended_player_hold_wheel_contact(struct VECTORLONG *position, legacy_s16 input_mode)
+{
+	struct PLAYER_GROUND_CONTACT contact;
+	if (!extended_ground_contact(position, &contact, input_mode)) {
+		return 0;
+	}
+	/* Fan acquisition has already checked distance, alignment and material.
+	 * Use the same precise support as ordinary slope contacts, including gaps
+	 * below one world unit. A rounded normal projection changes horizontal
+	 * travel and leaves errors that repeatedly excite the suspension. */
+	position->ly = contact.height;
+	return 1;
+}
+
 legacy_s16 extended_player_wheel_gravity(const struct CARSTATE *carstate, legacy_s16 gravity)
 {
 	if (extended_track_active() &&

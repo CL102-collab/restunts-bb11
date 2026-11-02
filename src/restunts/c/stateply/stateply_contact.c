@@ -242,6 +242,13 @@ static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
 		}
 	}
 
+#ifdef RESTUNTS_SDL3
+	if (extended_player_hold_wheel_contact(&motion->current[wheel_index],
+										   player_motion_state->game_inputmode)) {
+		nextPosAndNormalIP = 0;
+		return 1;
+	}
+#endif
 	/* Resolve the configured contact distance along the surface normal, rather
 	 * than applying world gravity and letting an inverted wheel separate. */
 	struct VECTOR normal = {0, 0, 0};
