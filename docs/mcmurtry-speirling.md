@@ -133,9 +133,9 @@ primitives and remain within its 255-vertex and 255-primitive limits.
 
 | Shape | Vertices | Primitives |
 | --- | ---: | ---: |
-| `car0` showroom | 255 | 246 |
-| `car1` racing | 255 | 245 |
-| `car2` distant racing | 247 | 241 |
+| `car0` showroom | 255 | 247 |
+| `car1` racing | 255 | 247 |
+| `car2` distant racing | 247 | 243 |
 
 The first eight car vertices are bounds; the following 24 control the four
 animated wheels. The cockpit is original indexed-colour artwork. Its dashboard
@@ -247,11 +247,21 @@ height). The rounded wheel areas deliberately adapt that reference. The
 showroom uses the stock 20× scale, and both racing detail levels share the
 same overall size and wheel controls.
 
-Wheel locations follow the source mesh with integer quantization for native
-animated wheels: front centres are `(±16, 2, 27)` and rear centres are
-`(±16, 2, -24)`, with eight-unit radii and three-unit half-widths. Tyre bottoms
-meet the engine's `y = -6` contact plane. The SIMD wheel coordinates,
-collision box and cockpit height follow the rebuilt geometry.
+The native car origin is centered between its axles. At 44 mm per game unit,
+the specified 2,200 mm wheelbase is exactly 50 units: visual front centres
+are `(±16, 2, 25)` and rear centres are `(±16, 2, -25)`, with eight-unit radii
+and three-unit half-widths. Tyre bottoms meet the engine's `y = -6` contact
+plane. The ignored SIMD wheel Y fields are zero, while its X/Z coordinates
+match the visual wheel controls exactly.
+
+The source body shifts by 1.5 units along Z before native rounding. Wheel
+arches follow the adapted axles, OBJ tyres use the same centered coordinates,
+and collision bounds enclose the shifted body. The generator rejects
+uncentered physical wheels, nonzero physical Y fields, mismatched visual
+controls, incorrect tyre contact, and collision bounds that miss the model.
+This follows the original engine's car format without changing its physics.
+Replays recorded with the earlier McMurtry resources can follow a different
+trajectory because the corrected car no longer adds unintended movement.
 See [the stock dimensional references](tesla-sizing.md#stock-reference-measurements)
 for the Corvette and NSX sources.
 
@@ -302,8 +312,8 @@ gap. Current minimum clearances, in game units, are:
 
 | Shape | Front arches | Rear arches | Upper cover |
 | --- | ---: | ---: | ---: |
-| `car0` showroom | 1.108 | 1.317 | 1.510 |
-| `car1` / `car2` racing | 1.262 | 1.191 | 1.408 |
+| `car0` showroom | 1.108 | 1.317 | 1.688 |
+| `car1` / `car2` racing | 1.262 | 1.191 | 1.738 |
 
 The lower front crown retains the same side-arch gaps and more than one
 game unit of upper tyre clearance after native integer rounding.

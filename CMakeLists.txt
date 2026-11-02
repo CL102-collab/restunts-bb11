@@ -1008,6 +1008,7 @@ if(RESTUNTS_BUILD_TESTS)
             RESTUNTS_PIXLDUMP
             RESTUNTS_HALF_PIPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/half-pipe-uphill.csrpl"
             RESTUNTS_FAN_SLOPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/fan-adhesion-slopes.csrpl"
+            RESTUNTS_ZERO_SPEED_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/zero-speed-offset.csrpl"
             RESTUNTS_NINHBINH_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/ninhbinh.cstrk")
         target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
         target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)

@@ -45,8 +45,18 @@ WHEEL_CONTROL_START = 8
 WHEEL_CONTROL_COUNT = 6
 WHEEL_RADIUS = 8
 WHEEL_HALF_WIDTH = 3
-WHEEL_CENTERS = ((-16, 2, 27), (16, 2, 27),
-                 (16, 2, -24), (-16, 2, -24))
+SOURCE_WHEEL_CENTERS = ((-16, 2, 27), (16, 2, 27),
+                        (16, 2, -24), (-16, 2, -24))
+# The native engine reconstructs the body at the wheel midpoint. Translate the
+# source body to that origin before rounding, and adapt the axles to the real
+# 2200 mm wheelbase: exactly 50 whole game units, centered at +/-25.
+BODY_ORIGIN_Z = sum(point[2] for point in SOURCE_WHEEL_CENTERS) / len(SOURCE_WHEEL_CENTERS)
+HALF_WHEELBASE = round(REAL_DIMENSIONS_MM["wheelbase"] / (2 * MM_PER_UNIT))
+WHEEL_CENTERS = tuple((x, y, HALF_WHEELBASE if z > BODY_ORIGIN_Z else -HALF_WHEELBASE)
+                      for x, y, z in SOURCE_WHEEL_CENTERS)
+# Shell construction remains in the measured source frame. Only native/OBJ
+# output uses the centered car frame; the arches follow the adapted axles.
+AUTHORING_WHEEL_CENTERS = tuple((x, y, z + BODY_ORIGIN_Z) for x, y, z in WHEEL_CENTERS)
 WHEEL_MATERIAL = 118
 ARCH_RADIUS = WHEEL_RADIUS + 2.0
 ARCH_SKIN_THICKNESS = 1.2
@@ -78,6 +88,7 @@ def _normal(points):
 @dataclass
 class _Shape:
     scale: int
+    origin_z: float = BODY_ORIGIN_Z
     vertices: list[tuple[int, int, int]] = field(default_factory=list)
     primitives: list[tuple[int, int, tuple[int, ...], tuple[int, ...]]] = field(default_factory=list)
     _lookup: dict[tuple[int, int, int], int] = field(default_factory=dict)
@@ -85,7 +96,12 @@ class _Shape:
     _wheel_vents: dict[int, list[tuple[int, int, tuple[int, ...], tuple[int, ...]]]] = field(default_factory=dict)
 
     def point(self, point):
-        return tuple(round(c * self.scale) for c in point)
+        x, y, z = point
+        return round(x * self.scale), round(y * self.scale), round((z - self.origin_z) * self.scale)
+
+    def authoring_point(self, point):
+        x, y, z = point
+        return x / self.scale, y / self.scale, z / self.scale + self.origin_z
 
     def fixed(self, point):
         self.vertices.append(self.point(point))
@@ -166,7 +182,7 @@ def _controls(shape):
         for z in (LENGTH / 2, -LENGTH / 2):
             for x in (-WIDTH / 2, WIDTH / 2):
                 shape.fixed((x, y, z))
-    for wheel, (x, y, z) in enumerate(WHEEL_CENTERS):
+    for wheel, (x, y, z) in enumerate(AUTHORING_WHEEL_CENTERS):
         inside = math.copysign(abs(x) - WHEEL_HALF_WIDTH, x)
         outside = math.copysign(abs(x) + WHEEL_HALF_WIDTH, x)
         direction = 1 if x < 0 else -1
@@ -227,7 +243,7 @@ SIDE_DUCT_CENTER_Z = 14.0
 SIDE_DUCT_CENTER_Y = WHEEL_CENTERS[0][1]
 SIDE_DUCT_DEPTH = 1.5
 SIDE_DUCT_FRONT_Z = next(section[0] for section in _SECTIONS
-                         if section[0] < WHEEL_CENTERS[0][2] - ARCH_RADIUS)
+                         if section[0] < AUTHORING_WHEEL_CENTERS[0][2] - ARCH_RADIUS)
 
 
 def _section(z):
@@ -242,7 +258,7 @@ def _outer_profile():
     profile = [(z, outer, y) for z, outer, y, *_ in _SECTIONS]
     for z in EXTRA_OUTER_STATIONS:
         outer, y, *_ = _section(z)
-        for _, cy, cz in WHEEL_CENTERS:
+        for _, cy, cz in AUTHORING_WHEEL_CENTERS:
             dz = z - cz
             if abs(dz) < ARCH_RADIUS:
                 y = max(y, cy + math.sqrt(ARCH_RADIUS ** 2 - dz ** 2) + ARCH_SKIN_THICKNESS)
@@ -380,7 +396,7 @@ def _triangulate_side(shape, side, points):
 
 
 def _wheel_arch(wheel):
-    _, cy, cz = WHEEL_CENTERS[wheel]
+    _, cy, cz = AUTHORING_WHEEL_CENTERS[wheel]
     end = math.sqrt(ARCH_RADIUS ** 2 - (BODY_SILL_Y - cy) ** 2)
     samples = [(-end, BODY_SILL_Y)]
     # Extra lower front samples clear the tyre's full steering envelope;
@@ -546,7 +562,7 @@ def _nose(shape):
             triangle = (corner, a, b)
             shape.polygon(triangle, PAINT_SIDE, facing=(side, 0, 1))
     arch_end = math.sqrt(ARCH_RADIUS ** 2 - (BODY_SILL_Y - WHEEL_CENTERS[0][1]) ** 2)
-    end_z = WHEEL_CENTERS[0][2] + arch_end
+    end_z = AUTHORING_WHEEL_CENTERS[0][2] + arch_end
     end = _side_point(1, end_z, BODY_SILL_Y)
     front = _side_point(1, _SECTIONS[0][0], BODY_SILL_Y)
     shape.polygon(((-front[0], front[1], front[2]), lower[len(lower) // 2], front,
@@ -567,8 +583,7 @@ def _lamp_ring(shape, center, diameter_point):
     """Keep native circular lenses with a smaller dark concentric centre."""
     first, last = shape.point(center), shape.point(diameter_point)
     inner_diameter = round(math.dist(first, last) * REAR_LAMP_INNER_RATIO)
-    inner_point = tuple(value / shape.scale for value in
-                        (first[0] + inner_diameter, first[1], first[2]))
+    inner_point = shape.authoring_point((first[0] + inner_diameter, first[1], first[2]))
     shape.sphere(center, diameter_point, BRAKE_LIGHT)
     shape.sphere(center, inner_point, BLACK)
 
@@ -605,8 +620,7 @@ def _tail(shape):
         upper, lower = rear_lamp_centres(side)
         diameter = round(REAR_LAMP_DIAMETER * REAR_LAMP_SIZE_SCALE * shape.scale)
         center = shape.point(lower)
-        diameter_point = tuple(value / shape.scale for value in
-                               (center[0] + side * diameter, center[1], center[2]))
+        diameter_point = shape.authoring_point((center[0] + side * diameter, center[1], center[2]))
         _lamp_ring(shape, upper, crown)
         _lamp_ring(shape, lower, diameter_point)
     # Two measured aerofoil elements and swept endplates. Source mounts
@@ -660,7 +674,7 @@ def _debris(index):
     )
     points, material = panels[index]
     centre = tuple(sum(point[axis] for point in points) / len(points) for axis in range(3))
-    shape = _Shape(1)
+    shape = _Shape(1, origin_z=0)
     shape.polygon(tuple(tuple(c - centre[axis] for axis, c in enumerate(point))
                         for point in points), material)
     return shape.encode()

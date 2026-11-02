@@ -25,6 +25,10 @@ WHEEL_ARCH_MIN_CLEARANCE = 1.0
 WHEEL_ARCH_SIDE_BAND = 1.0
 FRONT_STEERED_WHEEL_COUNT = 2
 GEOMETRY_TOLERANCE = 1e-9
+PHYSICS_POSITION_SCALE = 64
+SIMD_WHEEL_COORDINATE_OFFSET = 0xD2
+SIMD_WHEEL_COORDINATE_SIZE = struct.calcsize("<3h")
+SIMD_COLLISION_BOUNDS_OFFSET = 0xC8
 GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH")
 DOWNLOADED_MODEL = {
     "title": "2026 McMurtry Spéirling",
@@ -40,7 +44,7 @@ DOWNLOADED_MODEL = {
     "source_triangles": 211145, "source_meshes": 110, "source_materials": 43,
     "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
     "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
-    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The original GLB and textures are not included.",
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and native wheel controls and arches are adapted to a centered 50-unit wheelbase. The original GLB and textures are not included.",
 }
 SPEC_SOURCE = physics.SPECIFICATION_SOURCE
 SOURCES = list(dict.fromkeys(physics.REAL_SPECIFICATIONS["sources"] + [
@@ -329,6 +333,34 @@ def dashboard_ram_usage(primary, secondary):
     }
 
 
+def validate_wheel_contacts(simd, points, scale, shift, label):
+    """Enforce the original engine's centered-wheel asset contract."""
+    contacts = [struct.unpack_from("<3h", simd, SIMD_WHEEL_COORDINATE_OFFSET +
+                                   wheel * SIMD_WHEEL_COORDINATE_SIZE)
+                for wheel in range(len(model.WHEEL_CENTERS))]
+    if any(sum(point[axis] for point in contacts) != 0 for axis in (0, 2)):
+        raise ValueError(f"Wheel coordinates must be centered on the car origin in {label}")
+    if any(point[1] != 0 for point in contacts):
+        raise ValueError(f"Ignored physical wheel Y coordinates must be zero in {label}")
+    floor = shift + model.CONTACT_Y * scale
+    for wheel, contact in enumerate(contacts):
+        inner, radial, outer = [points[model.WHEEL_CONTROL_START +
+                                      model.WHEEL_CONTROL_COUNT * wheel + index]
+                                 for index in (0, 1, 3)]
+        # SIMD Y is unused by native suspension. Horizontal contact locations
+        # must match the animated wheel controls exactly at either model scale.
+        for axis in (0, 2):
+            if ((inner[axis] + outer[axis]) * (PHYSICS_POSITION_SCALE // 2) !=
+                    contact[axis] * scale):
+                raise ValueError(f"Physical and visual wheel centres disagree in {label}")
+        radius = radial[1] - inner[1]
+        if radius != model.WHEEL_RADIUS * scale:
+            raise ValueError(f"Incorrect visual wheel radius in {label}")
+        if inner[1] - radius != floor or outer[1] - radius != floor:
+            raise ValueError(f"Wheel does not meet engine contact plane in {label}")
+    return contacts
+
+
 def validate(outputs, repository):
     car = resources(outputs["CARMCMU.RES"])
     simd = car["simd"]
@@ -345,23 +377,21 @@ def validate(outputs, repository):
     if set(shapes) != {"car0", "car1", "car2", "exp0", "exp1", "exp2", "exp3"}:
         raise ValueError("Missing showroom, racing, LOD, or crash shape")
     metadata = {}
-    contacts = [struct.unpack_from("<3h", simd, 0xD2 + i * 6) for i in range(4)]
     for name, shape in shapes.items():
         points, triangles, metadata[name] = decode_model(shape, name)
         if not name.startswith("car"):
             continue
         scale = model.SHOWROOM_SCALE if name == "car0" else 1
         shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
-        floor = shift - 6 * scale
-        for wheel, contact in enumerate(contacts):
-            inner, radial, outer = [points[8 + 6 * wheel + j] for j in (0, 1, 3)]
-            for axis in range(3):
-                centre = inner[axis] + outer[axis] - (2 * shift if axis == 1 else 0)
-                if centre * 32 != contact[axis] * scale:
-                    raise ValueError(f"Physical and visual wheel centres disagree in {name}")
-            radius = radial[1] - inner[1]
-            if inner[1] - radius != floor:
-                raise ValueError(f"Wheel does not meet engine contact plane in {name}")
+        floor = shift + model.CONTACT_Y * scale
+        contacts = validate_wheel_contacts(simd, points, scale, shift, name)
+        half_width, _, half_length, collision_radius = struct.unpack_from(
+            "<4h", simd, SIMD_COLLISION_BOUNDS_OFFSET)
+        if any(abs(point[0]) > half_width * scale or abs(point[2]) > half_length * scale
+               for point in points[model.WHEEL_CONTROL_START:]):
+            raise ValueError(f"Collision bounds do not enclose the centered model in {name}")
+        if collision_radius < math.ceil(math.hypot(half_width, half_length)):
+            raise ValueError(f"Collision radius does not enclose the centered bounds in {name}")
         if min(p[1] for p in points[32:]) < floor:
             raise ValueError(f"Body below tyre contact plane in {name}")
         dimensions = {
@@ -448,7 +478,7 @@ def generate(repository):
         "car_id": CAR_ID, "name": "McMurtry Spéirling PURE", "variant": specs["variant"],
         "model_year": specs["model_year"], "specifications_verified_date": specs["verified_date"],
         "game_name": "McMurtry Speirling PURE", "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
-        "geometry_revision": "The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+        "geometry_revision": "The car origin is centered between native axles at Z=+25 and Z=-25, matching the specified 2200 mm wheelbase. The source body is translated by 1.5 units before quantization, and the arches follow the adapted wheel controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
         "downloaded_model": DOWNLOADED_MODEL,
         "historical_exterior_reference_images": REFERENCE_IMAGES,
         "historical_initial_reconstruction_reference_images": INITIAL_REFERENCE_IMAGES,
@@ -458,8 +488,9 @@ def generate(repository):
                                       "usage": "Simplified into a narrow vertical fish-like gill on both sides, opening toward the rear as subsequently requested; reference image is not redistributed."},
         "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
         "rear_lamps": {"count": 4, "layout": "Upper and lower circular red ring with a dark centre at each outer rear corner.",
-                       "centres_game_units": [center for side in (-1, 1)
-                                               for center in model.rear_lamp_centres(side)],
+                       "centres_game_units": [(x, y, z - model.BODY_ORIGIN_Z)
+                                               for side in (-1, 1)
+                                               for x, y, z in model.rear_lamp_centres(side)],
                        "nominal_outer_diameter_mm": (model.REAR_LAMP_DIAMETER *
                                                      model.REAR_LAMP_SIZE_SCALE * model.MM_PER_UNIT),
                        "size_scale": model.REAR_LAMP_SIZE_SCALE,
@@ -478,13 +509,16 @@ def generate(repository):
         "sizing": {"millimetres_per_game_unit": model.MM_PER_UNIT, "showroom_scale": model.SHOWROOM_SCALE,
                    "showroom_y_offset": model.SHOWROOM_Y_OFFSET, "wheel_radius_game_units": model.WHEEL_RADIUS,
                    "wheel_centres_game_units": model.WHEEL_CENTERS,
+                   "body_origin_source_z_game_units": model.BODY_ORIGIN_Z,
+                   "physical_wheel_y": 0,
+                   "adapted_wheelbase_mm": 2 * model.HALF_WHEELBASE * model.MM_PER_UNIT,
                    "reference_glb_bounds": model.SOURCE_BOUNDS,
                    "reference_glb_uniform_scale": model.SOURCE_SCALE,
                    "reference_model_dimensions_game_units": {"length": model.LENGTH,
                        "width": model.WIDTH, "height": model.HEIGHT},
                    "adapted_body_height_game_units": model.BODY_HEIGHT,
                    "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-                   "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. Source wheel locations are quantized to integer native controls and the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling bounds enclose the quantized body and detail geometry."},
+                   "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. The source body is translated to the axle midpoint before quantization. The wheelbase is adapted to the specified 2200 mm using centered integer controls at Z=+25 and Z=-25; arches use those same centers. Ignored SIMD wheel Y fields are zero; visual tyre bottoms meet the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling and collision bounds enclose the recentered geometry."},
         "wheel_arch_clearance": {"minimum_game_units": WHEEL_ARCH_MIN_CLEARANCE,
                                  "minimum_mm": WHEEL_ARCH_MIN_CLEARANCE * model.MM_PER_UNIT,
                                  "authored_arch_radius_game_units": model.ARCH_RADIUS,
@@ -573,6 +607,11 @@ specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
+The car origin is centered between axles at Z=+25 and Z=-25, giving the
+specified 2200 mm wheelbase. Body vertices shift by 1.5 units from the source
+origin before rounding; native wheel controls and arches stay aligned.
+Physical wheel Y fields are zero. Visual tyres retain their eight-unit radius
+and meet the engine contact plane. Bounds enclose the recentered body.
 The nose has curved body-coloured upper and lower bands and rolled side
 cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
 The four white front lamp markers are omitted.
