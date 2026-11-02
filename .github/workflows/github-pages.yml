@@ -46,7 +46,7 @@ jobs:
         run: bash tools/scripts/install-package-dependencies.sh browser
 
       - name: Build and verify the complete browser package
-        run: bash tools/scripts/build-package.sh browser
+        run: RESTUNTS_BUILD_JOBS="$(nproc)" bash tools/scripts/build-package.sh browser
 
       - name: Assemble the website
         run: |
