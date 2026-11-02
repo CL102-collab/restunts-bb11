@@ -365,7 +365,9 @@ enum {
 	TEST_ROLL_SIDE_ESCAPE = TRACK_TILE_HALF_SIZE + 1,
 	TEST_ROLL_UPRIGHT_TOLERANCE = ANGLE_FULL_TURN / 64,
 	TEST_ROLL_FIRST_TIRE_TILT = ANGLE_FULL_TURN * 50L / 360L,
-	TEST_ROLL_SKIPPED_OFFSET = ANGLE_QUARTER_TURN / 8
+	TEST_ROLL_SKIPPED_OFFSET = ANGLE_QUARTER_TURN / 8,
+	TEST_ROLL_CENTER_EDGE_OFFSET = 10,
+	TEST_ROLL_CONTACT_EDGE_OFFSET = 30
 };
 
 static legacy_s32 roll_fixture_lip_z(void)
@@ -453,7 +455,7 @@ static legacy_s16 roll_fixture_air(struct CARSTATE *car, legacy_s16 angle)
 	return owoot_jump_is_valid(car);
 }
 
-static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
+static void roll_fixture_touchdown(struct CARSTATE *car, legacy_s16 angle)
 {
 	car->car_previous_position = car->car_position;
 	struct VECTOR origin;
@@ -468,6 +470,15 @@ static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
 	car->car_rotate.z = angle;
 	car->car_sumSurfAllWheels = CAR_SURFACE_PAVED;
 	car->car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	car->car_wheel_contact_positions[0] = (struct VECTOR){
+		(legacy_s16)(car->car_position.lx / OWOOT_POSITION_SCALE),
+		(legacy_s16)(car->car_position.ly / OWOOT_POSITION_SCALE - TEST_WHEEL_HEIGHT),
+		(legacy_s16)(car->car_position.lz / OWOOT_POSITION_SCALE)};
+}
+
+static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
+{
+	roll_fixture_touchdown(car, angle);
 	return owoot_jump_is_valid(car);
 }
 
@@ -500,27 +511,33 @@ static void test_roll_launch_corridor(void)
 static void test_roll_completion_and_checkpoint_state(void)
 {
 	struct CARSTATE car = roll_fixture_car();
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	roll_fixture_arm(&car);
 	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
 	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	struct CARSTATE checkpoint = car;
 	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
 	assert(roll_fixture_air(&car, 0) == 1);
+	assert(extended_owoot_barrel_roll_complete(&car) == 1);
 	struct CARSTATE tilted = car;
 	assert(roll_fixture_land(&tilted, TEST_CAR_ROLL) == 0);
 	/* The first tire may touch while the completed roll still leans, then
 	 * suspension settles the wheels-down car onto its receiving road. */
 	tilted = car;
 	assert(roll_fixture_land(&tilted, TEST_ROLL_FIRST_TIRE_TILT) == 0);
+	/* Native collision response owns landing orientation. A noncrashed car
+	 * with real receiving-road contact does not need another OWOOT tilt test. */
 	tilted = car;
-	assert(roll_fixture_land(&tilted, ANGLE_QUARTER_TURN) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, ANGLE_QUARTER_TURN) == 0);
 	tilted = car;
-	assert(roll_fixture_land(&tilted, ANGLE_HALF_TURN) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, ANGLE_HALF_TURN) == 0);
 	tilted = car;
 	tilted.car_rotate.y = ANGLE_HALF_TURN;
-	assert(roll_fixture_land(&tilted, 0) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, 0) == 0);
 	assert(roll_fixture_land(&car, 0) == 0);
 	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	/* Validation progress belongs to the copied car, rather than a global
 	 * phase that could be lost or borrowed during replay seeking. */
 	struct CARSTATE other = roll_fixture_car();
@@ -549,6 +566,69 @@ static void test_roll_completion_and_checkpoint_state(void)
 		assert(roll_fixture_air(&car, skipped[sample]) == 1);
 	}
 	assert(roll_fixture_land(&car, 0) == 0);
+}
+
+static void roll_fixture_complete_airborne(struct CARSTATE *car)
+{
+	roll_fixture_arm(car);
+	assert(roll_fixture_air(car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(car, ANGLE_HALF_TURN) == 1);
+	assert(roll_fixture_air(car, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(car, 0) == 1);
+}
+
+static void test_roll_native_landing_contact(void)
+{
+	for (legacy_u16 trailing = 0; trailing < 2U; trailing++) {
+		struct CARSTATE car = roll_fixture_car();
+		roll_fixture_complete_airborne(&car);
+		/* The first tire reaches the receiver before the center. The last
+		 * tire can likewise remain on its runout after the center exits. */
+		legacy_s16 piece = trailing ? TEST_ROLL_ROUTE_COUNT - 1U : 1;
+		struct OWOOT_BOUNDS bounds;
+		route_bounds(piece, &bounds);
+		legacy_s32 edge = trailing ? bounds.minimum_z : bounds.maximum_z;
+		legacy_s16 direction = trailing ? -1 : 1;
+		car.car_position.lz =
+			(edge + direction * TEST_ROLL_CENTER_EDGE_OFFSET) * OWOOT_POSITION_SCALE;
+		car.car_previous_position = car.car_position;
+		car.car_previous_position.lz += OWOOT_POSITION_SCALE;
+		car.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+		car.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+		car.car_wheel_contact_positions[0] =
+			(struct VECTOR){(legacy_s16)(car.car_position.lx / OWOOT_POSITION_SCALE), 0,
+							(legacy_s16)(edge - direction * TEST_ROLL_CONTACT_EDGE_OFFSET)};
+		assert(owoot_jump_is_valid(&car) == 0);
+		assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	}
+	/* An actual receiving-road contact is required, even after a complete roll. */
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_complete_airborne(&car);
+	struct CARSTATE grass = car;
+	grass.car_sumSurfAllWheels = CAR_SURFACE_GRASS;
+	grass.car_surfaceWhl[0] = CAR_SURFACE_GRASS;
+	assert(owoot_jump_is_valid(&grass) == OWOOT_JUMP_FAILED);
+	struct CARSTATE unrelated = car;
+	unrelated.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+	unrelated.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	assert(owoot_jump_is_valid(&unrelated) == OWOOT_JUMP_FAILED);
+	/* Completing the roll does not exempt a still-airborne car from the corridor. */
+	car.car_position.lx += TEST_ROLL_SIDE_ESCAPE * OWOOT_POSITION_SCALE;
+	assert(owoot_jump_is_valid(&car) == OWOOT_JUMP_FAILED);
+}
+
+static void test_roll_completed_attempt_is_retained(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_complete_airborne(&car);
+	/* A native landing response can reverse motion during first contact. */
+	struct CARSTATE backwards = car;
+	roll_fixture_touchdown(&backwards, 0);
+	backwards.car_previous_position.lz = backwards.car_position.lz - OWOOT_POSITION_SCALE;
+	assert(owoot_jump_is_valid(&backwards) == 0);
+	/* A complete airborne turn remains earned if rotation later reverses. */
+	assert(roll_fixture_air(&car, ANGLE_FULL_TURN - TEST_ROLL_SKIPPED_OFFSET) == 1);
+	assert(roll_fixture_land(&car, ANGLE_HALF_TURN) == 0);
 }
 
 static void test_roll_completion_on_cross_slope(void)
@@ -841,6 +921,8 @@ legacy_int main(void)
 	test_sloped_tunnel_portals(1);
 	test_roll_launch_corridor();
 	test_roll_completion_and_checkpoint_state();
+	test_roll_native_landing_contact();
+	test_roll_completed_attempt_is_retained();
 	test_roll_completion_on_cross_slope();
 	test_roll_shortcuts_are_rejected();
 	test_pine_group_scatter();

@@ -381,15 +381,6 @@ static legacy_u16 roll_jump_angle(const struct CARSTATE *carstate,
 	return (legacy_u16)(carstate->car_rotate.z - polarAngle(normal.x, normal.y)) & ANGLE_MASK;
 }
 
-static legacy_s16 roll_jump_lands_wheels_down(const struct CARSTATE *carstate,
-											  const struct CSTRK_OBJECT *placed)
-{
-	struct VECTOR normal = roll_jump_grade_normal(carstate, placed);
-	legacy_u16 roll = (legacy_u16)carstate->car_rotate.z;
-	legacy_s32 up = (legacy_s32)normal.x * sin_fast(roll) + (legacy_s32)normal.y * cos_fast(roll);
-	return up > 0;
-}
-
 static void roll_jump_store(struct CARSTATE *carstate, legacy_u16 angle, legacy_u16 phase)
 {
 	/* This word normally names a launch piece. For this custom jump the
@@ -411,6 +402,11 @@ static legacy_s16 roll_jump_airborne_progress(struct CARSTATE *carstate,
 	legacy_u16 saved = (legacy_u16)carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_LAUNCH];
 	legacy_u16 previous = saved & ANGLE_MASK;
 	legacy_u16 phase = saved >> OWOOT_ROLL_ANGLE_BITS;
+	/* A completed airborne rotation belongs to this attempt even if the car
+	 * subsequently rotates back before its native landing. */
+	if (phase == OWOOT_ROLL_COMPLETE) {
+		return 1;
+	}
 	legacy_u16 angle = roll_jump_angle(carstate, placed);
 	legacy_s16 delta =
 		(legacy_s16)(((angle - previous + ANGLE_HALF_TURN) & ANGLE_MASK) - ANGLE_HALF_TURN);
@@ -499,6 +495,22 @@ static legacy_s16 roll_jump_has_ramp_contact(const struct CARSTATE *carstate,
 	return 0;
 }
 
+static legacy_s16 roll_jump_landing_contact(const struct CARSTATE *carstate, legacy_s16 piece,
+											const struct OWOOT_BOUNDS *bounds)
+{
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		if (carstate->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+			carstate->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+			continue;
+		}
+		struct OWOOT_POINT contact = route_vector(&carstate->car_wheel_contact_positions[wheel]);
+		if (route_contains(bounds, &contact) && route_owns_position(piece, &contact)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* A roll launch has a longer, explicitly compiled landing corridor. Arming
  * requires actual tire contact with that ramp; merely flying above it cannot
  * enable this exception. Every other jump retains the native one-cell rule. */
@@ -559,8 +571,7 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 	}
 	struct OWOOT_POINT current = route_position(&carstate->car_position);
 	struct OWOOT_POINT previous = route_position(&carstate->car_previous_position);
-	legacy_s16 on_landing = route_contains(&landing, &current);
-	legacy_s16 landing_piece = on_landing ? target : -1;
+	legacy_s16 on_landing = roll_jump_landing_contact(carstate, target, &landing);
 	legacy_s16 receiver = target;
 	/* The first receiving road can begin before touchdown. Follow only its
 	 * compiled straight runout, bounded by the roll launch's flight budget. */
@@ -581,9 +592,8 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 			break;
 		}
 		distance = next_distance;
-		if (route_contains(&runout, &current)) {
+		if (roll_jump_landing_contact(carstate, next, &runout)) {
 			on_landing = 1;
-			landing_piece = next;
 		}
 		receiver = next;
 	}
@@ -592,6 +602,16 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 	legacy_u16 roll_phase =
 		(legacy_u16)carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_LAUNCH] >>
 		OWOOT_ROLL_ANGLE_BITS;
+	/* The qualifying tire can reach the receiver before the center, or
+	 * remain on its edge after the center passes the flight corridor. Native
+	 * landing response can also reverse the center's motion on that tick. */
+	if (on_landing && carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
+		if (roll_phase != OWOOT_ROLL_COMPLETE) {
+			return roll_jump_fail(carstate);
+		}
+		jump_clear(carstate);
+		return OWOOT_ROLL_NOT_APPLICABLE;
+	}
 	if ((current.x - previous.x) * dx + (current.z - previous.z) * dz < 0) {
 		if (roll_phase == OWOOT_ROLL_ARMED &&
 			carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
@@ -608,20 +628,6 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 	if (carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
 		if (!jump_has_road_contact(carstate)) {
 			return roll_jump_fail(carstate);
-		}
-		if (on_landing) {
-			/* A landing correction must not supply the missing last part of
-			 * the roll. Completion must already have happened unsupported. */
-			const struct CSTRK_OBJECT *receiver_object = route_extended_object(landing_piece);
-			/* First tire contact can precede the suspension settling upright.
-			 * The car's up vector must face the receiving road normal: a
-			 * side or roof landing cannot complete this stunt. */
-			if (roll_phase != OWOOT_ROLL_COMPLETE ||
-				!roll_jump_lands_wheels_down(carstate, receiver_object)) {
-				return roll_jump_fail(carstate);
-			}
-			jump_clear(carstate);
-			return OWOOT_ROLL_NOT_APPLICABLE;
 		}
 		if (roll_phase != OWOOT_ROLL_ARMED) {
 			return roll_jump_fail(carstate);
@@ -643,6 +649,22 @@ static legacy_s16 roll_jump_is_valid(struct CARSTATE *carstate)
 	return along >= -ROLL_RAMP_HALF_WIDTH;
 }
 #endif
+
+legacy_s16 extended_owoot_barrel_roll_complete(const struct CARSTATE *carstate)
+{
+#ifdef RESTUNTS_SDL3
+	if (carstate == 0) {
+		return 0;
+	}
+	legacy_s16 source = carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] - 1;
+	return source >= 0 && source < track_pieces_counter && route_is_roll_ramp(source) &&
+		   ((legacy_u16)carstate->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_LAUNCH] >>
+			OWOOT_ROLL_ANGLE_BITS) == OWOOT_ROLL_COMPLETE;
+#else
+	(void)carstate;
+	return 0;
+#endif
+}
 
 legacy_s16 extended_owoot_jump_is_valid(struct CARSTATE *carstate)
 {

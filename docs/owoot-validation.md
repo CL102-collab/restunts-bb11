@@ -122,11 +122,15 @@ barrier footprints even when airborne.
 
 The Barrel roll ramp requires genuine tire contact with its twisting grille,
 forward travel through its bounded flight corridor, and ordered airborne roll
-milestones: sideways, inverted, the opposite side and back upright. The car must
-complete these before touchdown and land wheels down; reaching the receiving
-road cannot excuse an incomplete roll. Reversing cannot collect
-roll progress, and supported rotation cannot finish the stunt. Progress is part
-of the serialized car state, so replay seeking restores the same requirement.
+milestones: sideways, inverted, the opposite side and a completed turn. The car
+must complete these before touchdown; reaching the receiving road cannot excuse
+an incomplete roll. After completion, native physics decides whether a landing
+survives, with no extra upright-attitude requirement from OWOOT. Actual
+receiving-road tire contact counts even while the car center is still over the
+gap. Reversing cannot collect an unfinished roll, and supported rotation cannot
+finish the stunt; once an airborne roll is complete, further rotation does not
+erase it. Progress is part of the serialized car state, so replay seeking
+restores the same requirement.
 
 Route tests cover reversed traversal, backtracking, checkpoint restoration,
 skipped stunts, exact portal boundaries, and invalid cross-wheel/angled-wheel
