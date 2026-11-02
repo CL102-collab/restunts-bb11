@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "../track/track_objects.h"
 #include "extended_geometry.h"
+#include "roll_ramp.h"
 
 struct EXTENDED_ROUTE_VERTEX {
 	uint32_t distance;
@@ -217,23 +218,34 @@ legacy_s16 extended_opponent_place_points(legacy_s16 track_index, struct VECTOR 
 			(legacy_u8)track_route_columns[track_index], (legacy_u8)track_route_rows[track_index],
 			(legacy_u8)track_route_element_ids[track_index]);
 		if (object) {
+			legacy_u8 id = (legacy_u8)track_route_element_ids[track_index];
+			if (trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_PIPE_ENTRANCE) {
+				/* A car leaving the pipe wall can be banked almost vertically.
+				 * Its exit target must identify the floor in three dimensions. */
+				if (first->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+					first->y = 0;
+				}
+				if (second->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+					second->y = 0;
+				}
+			}
 			struct VECTOR origin;
 			extended_geometry_object_origin(extended_track_model(), object, &origin);
-			if (first->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
-				first->y = 0;
+			/* Unspecified heights select horizontal-only AI guidance. Treating
+			 * them as terrain height puts elevated-road targets below the deck. */
+			if (first->y != ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+				first->y = LEGACY_S16_WRAP_ADD(
+					first->y, extended_geometry_object_grade(object, first->x, first->z));
+				first->y = LEGACY_S16_WRAP_ADD(origin.y, first->y);
 			}
-			if (second->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
-				second->y = 0;
+			if (second->y != ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+				second->y = LEGACY_S16_WRAP_ADD(
+					second->y, extended_geometry_object_grade(object, second->x, second->z));
+				second->y = LEGACY_S16_WRAP_ADD(origin.y, second->y);
 			}
-			first->y = LEGACY_S16_WRAP_ADD(
-				first->y, extended_geometry_object_grade(object, first->x, first->z));
-			second->y = LEGACY_S16_WRAP_ADD(
-				second->y, extended_geometry_object_grade(object, second->x, second->z));
 			first->x = LEGACY_S16_WRAP_ADD(origin.x, first->x);
-			first->y = LEGACY_S16_WRAP_ADD(origin.y, first->y);
 			first->z = LEGACY_S16_WRAP_ADD(origin.z, first->z);
 			second->x = LEGACY_S16_WRAP_ADD(origin.x, second->x);
-			second->y = LEGACY_S16_WRAP_ADD(origin.y, second->y);
 			second->z = LEGACY_S16_WRAP_ADD(origin.z, second->z);
 			return 1;
 		}
@@ -259,6 +271,64 @@ const struct TRKOBJINFO *extended_opponent_route_info(legacy_s16 track_index, le
 #endif
 	return legacy_info;
 }
+#ifdef RESTUNTS_SDL3
+#define EXTENDED_OPPONENT_BRAKING_PIECES 2U
+#define EXTENDED_OPPONENT_ELEVATED_BEND_SPEED 50U
+#define EXTENDED_OPPONENT_SHARP_BEND_SPEED 50U
+#define EXTENDED_OPPONENT_LARGE_BEND_SPEED 50U
+#define EXTENDED_OPPONENT_BANKED_BEND_SPEED 60U
+#define EXTENDED_OPPONENT_ROLL_LAUNCH_SPEED 90U
+
+static legacy_u8 extended_opponent_bend_speed(legacy_u16 piece, legacy_u8 speed)
+{
+	if (piece >= (legacy_u16)track_pieces_counter) {
+		return speed;
+	}
+	legacy_u8 id = (legacy_u8)track_route_element_ids[piece];
+	legacy_s16 model = trkObjectList[id].ss_physicalModel;
+	legacy_u8 limit = speed;
+	if (model == PHYSICAL_MODEL_ELEVATED_CORNER) {
+		limit = EXTENDED_OPPONENT_ELEVATED_BEND_SPEED;
+	} else if (model == PHYSICAL_MODEL_SHARP_CORNER) {
+		limit = EXTENDED_OPPONENT_SHARP_BEND_SPEED;
+	} else if (model == PHYSICAL_MODEL_LARGE_CORNER) {
+		limit = EXTENDED_OPPONENT_LARGE_BEND_SPEED;
+	} else if (model == PHYSICAL_MODEL_BANKED_CORNER) {
+		limit = EXTENDED_OPPONENT_BANKED_BEND_SPEED;
+	}
+	return speed < limit ? speed : limit;
+}
+
+static legacy_u8 extended_opponent_approach_speed(legacy_s16 piece, legacy_u8 speed)
+{
+	speed = extended_opponent_bend_speed((legacy_u16)piece, speed);
+	/* Brake along the selected branch before the bend, including when the
+	 * current target belongs to the preceding straight or bank transition. */
+	for (legacy_u16 position = 0; position < (legacy_u16)track_pieces_counter; position++) {
+		legacy_u16 current = LEGACY_READ_U16_LE((const legacy_u8 *)opponent_route_track_indices +
+												position * LEGACY_WORD_BYTES);
+		if (position && current == 0) {
+			break;
+		}
+		if (current != (legacy_u16)piece) {
+			continue;
+		}
+		for (legacy_u16 ahead = 1; ahead <= EXTENDED_OPPONENT_BRAKING_PIECES &&
+								   position + ahead < (legacy_u16)track_pieces_counter;
+			 ahead++) {
+			legacy_u16 next = LEGACY_READ_U16_LE((const legacy_u8 *)opponent_route_track_indices +
+												 (position + ahead) * LEGACY_WORD_BYTES);
+			if (next == 0) {
+				break;
+			}
+			speed = extended_opponent_bend_speed(next, speed);
+		}
+		break;
+	}
+	return speed;
+}
+#endif
+
 void extended_opponent_route_speed(legacy_s16 track_index, legacy_u16 id, legacy_u8 subtype,
 								   const struct TRKOBJINFO *info, const struct TRACKOBJECT *object,
 								   legacy_s8 *speed, EXTENDED_OPPONENT_SPEED_LOOKUP lookup)
@@ -274,7 +344,21 @@ void extended_opponent_route_speed(legacy_s16 track_index, legacy_u16 id, legacy
 				subtype == EXTENDED_OPPONENT_LOWER_OVERPASS_SUBTYPE) {
 				surface = placed->lower_surface;
 			}
-			*speed = LEGACY_S8_FROM_BITS(lookup((legacy_u8)info->opponent_speed_code + surface));
+			legacy_u16 base = (legacy_u8)info->opponent_speed_code;
+			legacy_u16 material = base + surface;
+			/* The final speed family has a single entry. Extended dirt/ice
+			 * pieces must not turn an out-of-table read into a zero target. */
+			if (material >= OPPONENT_SPEED_COUNT) {
+				material = base;
+			}
+			legacy_u8 target = lookup(material);
+			if (placed->roll_ramp) {
+				/* The backing horizontal corkscrew's slow speed cannot launch a roll. */
+				target = EXTENDED_OPPONENT_ROLL_LAUNCH_SPEED;
+			} else {
+				target = extended_opponent_approach_speed(track_index, target);
+			}
+			*speed = LEGACY_S8_FROM_BITS(target);
 		}
 	}
 #else
