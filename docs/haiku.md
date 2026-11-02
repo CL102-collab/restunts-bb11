@@ -45,8 +45,11 @@ out/package-haiku-x64/bin/restunts-launcher
 out/package-haiku-x64/bin/restunts --data-dir "$PWD/stunts" --nointro
 ```
 
-Tests have a per-test timeout of 600 seconds in the package helper;
+The package helper supplies a 600-second default CTest timeout;
 `RESTUNTS_TEST_TIMEOUT_SECONDS` overrides it for slower emulated machines.
+CI also sets `RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=4` for fixed ghost and
+rendering workloads. The helper passes that multiplier to CMake so CTest and
+ghost subprocess limits agree; local builds default to `1`.
 For software emulation, use `ctest --timeout 7200` or set
 `RESTUNTS_TEST_TIMEOUT_SECONDS=7200` when running the package helper. The host
 regression test compiles many fixtures and can exceed the default timeout.

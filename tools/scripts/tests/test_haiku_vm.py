@@ -23,6 +23,7 @@ WRONG_BOOT_DEVICE = "/dev/disk/ata/0/master/raw"
 SCRIPT_MODE = 0o755
 SHELL_TIMEOUT_SECONDS = 10
 TEST_DISK_BYTES = 4096
+CONFIGURE_FAILURE_CODE = 99
 
 
 class HaikuVmTests(unittest.TestCase):
@@ -317,6 +318,48 @@ class HaikuVmTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("matching native Haiku userspace", result.stderr)
                     self.assertFalse(log.exists())
+
+    def package_configuration(self, target, architecture, multiplier=None):
+        checkout = self.directory / "checkout"
+        scripts = checkout / "tools" / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        package_script = scripts / "build-package.sh"
+        package_script.write_bytes((SCRIPTS / package_script.name).read_bytes())
+        environment, log = self.shell_environment("Haiku")
+        commands = self.directory / "commands"
+        (commands / "uname").write_text(
+            "#!/bin/sh\ncase \"$1\" in\n"
+            f"  -s) echo Haiku ;;\n  -m) echo {architecture} ;;\nesac\n")
+        (commands / "git").write_text("#!/bin/sh\nexit 0\n")
+        setarch = commands / "setarch"
+        setarch.write_text('#!/bin/sh\nprintf "%s\\n" "$PATH"\n')
+        setarch.chmod(SCRIPT_MODE)
+        (commands / "cmake").write_text(
+            '#!/bin/sh\nprintf "%s\\0" "$@" > "$COMMAND_LOG"\n'
+            f"exit {CONFIGURE_FAILURE_CODE}\n")
+        environment.pop("RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER", None)
+        if multiplier is not None:
+            environment["RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"] = multiplier
+        result = subprocess.run(["bash", str(package_script), target], env=environment,
+                                capture_output=True, text=True, timeout=SHELL_TIMEOUT_SECONDS)
+        self.assertEqual(result.returncode, CONFIGURE_FAILURE_CODE, result.stderr)
+        return log.read_text().split("\0")[:-1]
+
+    def test_haiku_package_passes_timeout_multiplier_to_ctest_configuration(self):
+        for target, architecture in (("haiku-x64", "x86_64"), ("haiku-x86", "BePC")):
+            for multiplier in (None, "4", "7"):
+                with self.subTest(target=target, multiplier=multiplier):
+                    arguments = self.package_configuration(target, architecture, multiplier)
+                    self.assertIn("-DRESTUNTS_BUILD_TESTS=ON", arguments)
+                    self.assertIn(
+                        "-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=" + (multiplier or "1"),
+                        arguments)
+
+    def test_other_package_targets_keep_their_existing_test_configuration(self):
+        arguments = self.package_configuration("linux-x64", "x86_64", "7")
+        self.assertIn("-DRESTUNTS_BUILD_TESTS=OFF", arguments)
+        self.assertFalse(any(argument.startswith("-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=")
+                             for argument in arguments))
 
 
 if __name__ == "__main__":

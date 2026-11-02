@@ -491,6 +491,7 @@ jobs:
         target: [haiku-x64, haiku-x86]
     env:
       PACKAGE_TARGET: ${{ matrix.target }}
+      RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: 4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -500,7 +501,9 @@ jobs:
         run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
 
       - name: Test the Haiku VM helper
-        run: python3 -m unittest discover -s tools/scripts/tests -p test_haiku_vm.py
+        run: |
+          python3 -m unittest discover -s tools/scripts/tests -p test_haiku_vm.py
+          python3 -m unittest discover -s tools/scripts/tests -p test_host_test_sources.py
 
       - name: Download and verify native regression test assets
         run: |
@@ -546,6 +549,7 @@ jobs:
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" ssh env \
             PACKAGE_TARGET="$PACKAGE_TARGET" \
             RESTUNTS_BUILD_JOBS="$RESTUNTS_BUILD_JOBS" \
+            RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER" \
             GITHUB_SHA="$GITHUB_SHA" GITHUB_REF="$GITHUB_REF" \
             GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             bash -c 'set -eu; cd /boot/home/restunts
