@@ -13,6 +13,7 @@
 #include "../c/track/track_collision.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_geometry.h"
+#include "../c/extended/extended_owoot_internal.h"
 #include "../c/extended/roll_ramp.h"
 
 #undef memcpy
@@ -29,6 +30,7 @@ extern legacy_f64 fmax(legacy_f64, legacy_f64);
 #define GENGHOST_ROUTE_SUBTYPE_MASK 15U
 #define GENGHOST_BARREL_APPROACH_SPEED 100.0
 #define GENGHOST_BARREL_APPROACH_DISTANCE (3.0 * TRACK_TILE_SIZE)
+#define GENGHOST_BARREL_LATERAL_LIMIT 0.8
 #define GENGHOST_BARREL_LANDING_DISTANCE (2.0 * TRACK_TILE_SIZE)
 #define GENGHOST_ROUTE_MEMORY_LIMIT ((size_t)512U * 1024U * 1024U)
 #define GENGHOST_ANGLE_SCALE (ANGLE_FULL_TURN / 6.28318530717958647693)
@@ -1867,11 +1869,35 @@ static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
 	return found;
 }
 
+static legacy_int barrel_owoot_landing(const struct CARSTATE *car, legacy_int receiver,
+									   legacy_int past_receiver)
+{
+	if (car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE]) {
+		return 0;
+	}
+	struct OWOOT_BOUNDS bounds;
+	route_bounds((legacy_s16)receiver, &bounds);
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; ++wheel) {
+		if (car->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+			car->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+			continue;
+		}
+		struct OWOOT_POINT contact = {0};
+		extended_geometry_world_position(&car->car_wheel_contact_positions[wheel], &contact.x,
+										 &contact.z);
+		if (past_receiver || route_contains(&bounds, &contact)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* The ramp ends at its lip. Subsequent target points describe the receiving
  * road, never invented tire support or a continuation of the banked ramp. */
 static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGHOST_DRIVER *driver,
 								const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
-								struct GENGHOST_WAYPOINT *target, legacy_f64 *protected_end)
+								legacy_int owoot, struct GENGHOST_WAYPOINT *target,
+								legacy_f64 *protected_end)
 {
 	const struct CARSTATE *car = &state.playerstate;
 	legacy_f64 x = car->car_position.lx / 64.0, z = car->car_position.lz / 64.0;
@@ -1916,9 +1942,15 @@ static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGH
 		legacy_f64 along = (x - lip->x) * dx + (z - lip->z) * dz;
 		legacy_f64 landing_distance = (landing->x - lip->x) * dx + (landing->z - lip->z) * dz;
 		legacy_int airborne = car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
-		legacy_int settled = !airborne && along > landing_distance &&
-							 fabs((legacy_f64)car->car_rotate.z) < ANGLE_FULL_TURN / 32.0 &&
-							 fabs((legacy_f64)car->car_rotate.y) < ANGLE_FULL_TURN / 16.0;
+		/* Native OWOOT has already validated the complete roll and road contact.
+		 * Resume steering at that landing even when its grade or remaining bank
+		 * makes the absolute attitude differ from an upright level-road pose. */
+		legacy_int settled =
+			!airborne &&
+			(owoot ? barrel_owoot_landing(car, landing->piece, along > landing_distance)
+				   : along > landing_distance &&
+						 fabs((legacy_f64)car->car_rotate.z) < ANGLE_FULL_TURN / 32.0 &&
+						 fabs((legacy_f64)car->car_rotate.y) < ANGLE_FULL_TURN / 16.0);
 		if (along > landing_distance + GENGHOST_BARREL_LANDING_DISTANCE || settled) {
 			driver->barrel_waypoint = 0U;
 			begin = end + 1U;
@@ -1932,7 +1964,10 @@ static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGH
 			target->z = lip->z + dz * fmax(landing_distance, along + lookahead);
 			target->height_specified = 0;
 		} else {
-			point_at(route, fmin(lip->distance, driver->progress + lookahead), 0.0, target);
+			point_at(route, fmin(lip->distance, driver->progress + lookahead),
+					 bounded(gene->lateral_offset, -GENGHOST_BARREL_LATERAL_LIMIT,
+							 GENGHOST_BARREL_LATERAL_LIMIT),
+					 target);
 		}
 		target->speed = GENGHOST_BARREL_APPROACH_SPEED * bounded(gene->speed_scale, 0.65, 1.5);
 		*protected_end = landing->distance;
@@ -2171,7 +2206,7 @@ legacy_u8 extended_genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		planned_shortcut = 1;
 		planned_tactic = 0;
 	}
-	if (barrel_target(route, driver, gene, lookahead, &target, &tactic_end)) {
+	if (barrel_target(route, driver, gene, lookahead, owoot, &target, &tactic_end)) {
 		planned_shortcut = 0;
 		planned_tactic = 1;
 	}

@@ -25,7 +25,10 @@ track pieces in replay v8. Replay v9 adds the Tunnel with slalom element
 introduced by track v7. Replay v10 adds the Barrel roll ramp and its
 contact-derived airborne roll momentum, introduced by track v8. Physics revision 3
 in replay v11 requires OWOOT barrel-roll attempts to pass the ordered airborne
-roll milestones and return upright before touchdown. Physics revision 4 in replay
+roll milestones before touchdown. Native physics decides whether the landing
+survives; OWOOT adds no separate attitude requirement. Receiving-road tire contact
+counts before the car center reaches the road, and a completed airborne roll
+remains complete through later rotation. Physics revision 4 in replay
 v12 retains fractional wheel coordinates in solid contact checks and resolves
 mesh-road contact against the same exact triangles. Drivable tops and internal
 mesh seams use road response while sides, undersides and supports remain solid,
