@@ -219,6 +219,8 @@ legacy_void RsReplayMenuReplayRestartRecording()
           (TempleCastU32((TempleCastU16(replay_overflow_acknowledged_word)&65280))|
               TempleCastU16(TempleCastU8(0))))))))));
   (replay_recording_flags=TempleCastS8(1));
+  RsCameraSelectMode(TempleCastS8(CAMERA_MODE_COCKPIT));
+  (dashb_toggle=TempleCastS8(1));
 }
 
 legacy_s16 RsReplayMenuReplayContinueRecording()
@@ -249,8 +251,6 @@ legacy_s16 RsReplayMenuReplayContinueRecording()
 legacy_void RsReplayMenuReplayResumeLive()
 {
   (replay_filename[0]=TempleCastS8(0));
-  RsCameraSelectMode(TempleCastS8(CAMERA_MODE_COCKPIT));
-  (dashb_toggle=TempleCastS8(1));
   (show_penalty_counter=TempleCastS8(0));
   (follow_opponent_flag=TempleCastS8(0));
   (game_replay_mode=TempleCastU8(REPLAY_MODE_LIVE));
