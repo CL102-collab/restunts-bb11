@@ -1798,9 +1798,11 @@ remain available in their individual artifacts if replay validation fails.
 AddressSanitizer and UndefinedBehaviorSanitizer each build and run the host
 and SDL3 regression suites in a separate Linux x64 job, including the
 renderer-worker and audio tests. ThreadSanitizer splits the same suites across
-three parallel jobs: tests without the `genghost-` prefix, `genghost-extended`
-alone, and the remaining `genghost-` tests. These checks run for every platform
-selection and gate both PR validation and releases. Each job uses
+eight parallel jobs: `genghost-extended`, `genghost-search`, `genghost-fine-tune`,
+`genghost-parallel`, `extended-render`, and `render-replay` each run alone, with
+separate jobs for the remaining `genghost-` tests and the remaining tests without
+that prefix. These checks run for every platform selection and gate both PR
+validation and releases. Each job uses
 debug symbols, frame pointers, and fail-on-error sanitizer settings. ASan uses
 Clang 18 and also checks for leaks; TSan and UBSan use GCC. The ASan linker
 flags preserve removal of unused fixture data while retaining checks on all
@@ -1808,11 +1810,11 @@ globals that remain in the executable. Bundled SDL3, wxWidgets, and Nuked are
 instrumented along with the game, launcher, and tests. Sanitizer builds disable
 SDL D-Bus support because the headless dummy drivers do not need desktop IPC.
 Test logs are retained in `sanitizer-<variant>-logs` artifacts, including on
-failure. TSan variants are `thread`, `thread-genghost-extended`, and
-`thread-genghost-other`. TSan's runner lowers ASLR mapping entropy to keep its
-shadow-memory range available. Sanitizer jobs allow ten minutes per replay
-subprocess and use a thirty-minute default CTest timeout, with scaled limits
-for ghost and rendering regressions. Normal replay tests
+failure. Dedicated TSan variants use `thread-<test-name>`; the remaining suites
+use `thread` and `thread-genghost-other`. TSan's runner lowers ASLR mapping
+entropy to keep its shadow-memory range available. Sanitizer jobs allow ten
+minutes per replay subprocess and use a thirty-minute default CTest timeout,
+with scaled limits for ghost and rendering regressions. Normal replay tests
 retain their two-minute limit (five minutes with `--full`); set
 `RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS` to override it with a positive integer.
 
