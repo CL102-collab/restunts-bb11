@@ -28,7 +28,9 @@
 #define ROLL_RAMP_SUPPORT_BOX_COUNT 6U
 #define ROLL_RAMP_LAUNCH_CONNECTION 6
 #define ROLL_RAMP_JUMP_MAX_EMPTY_TILES 6U
-#define ROLL_RAMP_ROUTE_POINT_COUNT 17U
+/* The final guidance point extends the launch tangent into unsupported flight. */
+#define ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT 17U
+#define ROLL_RAMP_ROUTE_POINT_COUNT (ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT + 1U)
 
 struct ROLL_RAMP_BOX {
 	struct VECTOR minimum;
