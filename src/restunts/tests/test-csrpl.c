@@ -10,6 +10,41 @@
 #define TEST_FUTURE_TRACK_VERSION 101U
 #define TEST_REPLAY_ERROR_CAPACITY 128U
 
+#define TEST_ENCODED_SIZE_SENTINEL 123U
+
+static void test_encoded_size_boundaries(void)
+{
+	size_t output = TEST_ENCODED_SIZE_SENTINEL;
+	assert(!csrpl_encoded_size(1U, 0U, NULL));
+	assert(!csrpl_encoded_size(0U, 0U, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+	assert(csrpl_encoded_size(1U, 0U, &output));
+	assert(output == CSRPL_HEADER_SIZE + 1U);
+#if SIZE_MAX <= UINT32_MAX
+	/* Exactly full address spaces are valid; one more header or input byte
+	 * must fail without publishing a wrapped result. No allocation is needed. */
+	size_t track_limit = SIZE_MAX - CSRPL_HEADER_SIZE;
+	assert(csrpl_encoded_size(track_limit, 0U, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(track_limit + 1U, 0U, &output));
+	assert(output == SIZE_MAX);
+	legacy_u32 frame_limit = (legacy_u32)(SIZE_MAX - CSRPL_HEADER_SIZE - 1U);
+	assert(csrpl_encoded_size(1U, frame_limit, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(1U, frame_limit + 1U, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(1U, UINT32_MAX, &output));
+	assert(output == SIZE_MAX);
+#else
+	/* Wide hosts must accept both maximum wire counts without truncation. */
+	assert(csrpl_encoded_size(UINT32_MAX, UINT32_MAX, &output));
+	assert(output == (legacy_u64)CSRPL_HEADER_SIZE + UINT32_MAX + UINT32_MAX);
+	output = TEST_ENCODED_SIZE_SENTINEL;
+	assert(!csrpl_encoded_size((size_t)UINT32_MAX + 1U, 0U, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+#endif
+}
+
 static void test_recording_and_seek_storage(void)
 {
 	struct EXTENDED_REPLAY_BUFFER buffer;
@@ -545,6 +580,7 @@ static void test_track_name_layouts(void)
 
 int main(void)
 {
+	test_encoded_size_boundaries();
 	test_track_name_layouts();
 	test_recording_and_seek_storage();
 	test_large_timeline();
