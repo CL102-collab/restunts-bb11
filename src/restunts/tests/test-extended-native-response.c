@@ -40,6 +40,7 @@ enum {
 };
 
 struct TRACKOBJECT trkObjectList[TEST_OBJECT_COUNT];
+struct CAR_SURFACE_ADHESION_SETTINGS car_surface_adhesion_settings[2];
 
 static legacy_int fixture_extended, fixture_lane_edges;
 static struct CSTRK_TRACK fixture_track;
@@ -53,6 +54,16 @@ static legacy_s8 fixture_elements[TEST_ROLL_ROUTE_COUNT] = {TEST_OBJECT_ID};
 static legacy_s8 fixture_columns[TEST_ROLL_ROUTE_COUNT] = {0};
 static legacy_s8 fixture_rows[TEST_ROLL_ROUTE_COUNT] = {TRACK_GRID_LAST_INDEX};
 static legacy_s8 fixture_flags[TEST_ROLL_ROUTE_COUNT] = {0};
+
+/* This fixture supplies ground planes directly, without a selected mesh. */
+legacy_s16 track_selected_plane_contact_fixed(const struct VECTORLONG *position, legacy_s32 *height,
+											  legacy_s16 *distance)
+{
+	(void)position;
+	(void)height;
+	(void)distance;
+	return 0;
+}
 
 legacy_int extended_track_active(void)
 {
@@ -208,6 +219,77 @@ static void test_native_wall_response(void)
 	}
 	/* A yaw-only response would flatten this contact while the car is tilted. */
 	assert(has_vertical_response);
+}
+
+enum {
+	TEST_ADHESION_FRACTIONAL_COORDINATE = 13,
+	TEST_ADHESION_WHOLE_GAP = 3,
+	TEST_ADHESION_CONTACT_STEPS = 32
+};
+
+static void test_fan_contacts_follow_exact_slopes(void)
+{
+	static const legacy_s8 slopes[TEST_ROTATION_COUNT][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	static const legacy_s32 gaps[] = {0, OWOOT_POSITION_SCALE / 2,
+									  TEST_ADHESION_WHOLE_GAP * OWOOT_POSITION_SCALE +
+										  OWOOT_POSITION_SCALE / 2};
+	fixture_extended = 1;
+	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+	player_motion_state = &state;
+	elem_xCenter = elem_zCenter = 0;
+	terrainHeight = TEST_WHEEL_HEIGHT;
+	planindex = EXTENDED_GEOMETRY_PLANE_INDEX;
+	current_surf_type = CAR_SURFACE_PAVED;
+	struct PLANE plane = {0};
+	current_planptr = &plane;
+	for (legacy_u8 direction = 0; direction < TEST_ROTATION_COUNT; direction++) {
+		plane = (struct PLANE){0};
+		plane.plane_normal.y = TRIG_FIXED_ONE / 2;
+		mat_rot_y(&plane.plane_rotation, 0);
+		struct CSTRK_OBJECT object = {0};
+		object.width = object.height = 1;
+		object.slope_x = slopes[direction][0];
+		object.slope_y = slopes[direction][1];
+		extended_geometry_grade_plane(&object, &plane);
+		car_to_world_rotation = plane.plane_rotation;
+		for (legacy_s16 car_index = PLAYER_CAR_INDEX; car_index <= OPPONENT_CAR_INDEX;
+			 car_index++) {
+			car_surface_adhesion_settings[car_index] = (struct CAR_SURFACE_ADHESION_SETTINGS){
+				CAR_ADHESION_DEFAULT_DISTANCE, CAR_ADHESION_DEFAULT_ALIGNMENT,
+				CAR_ADHESION_SURFACE_MASK};
+			struct CARSTATE car = {0};
+			struct PLAYER_WHEEL_MOTION motion = {0};
+			motion.surface_adhesion = 1;
+			motion.car_index = car_index;
+			for (legacy_u8 gap = 0; gap < sizeof(gaps) / sizeof(gaps[0]); gap++) {
+				struct VECTORLONG position = {TEST_WHEEL_DISPLACEMENT * OWOOT_POSITION_SCALE +
+												  TEST_ADHESION_FRACTIONAL_COORDINATE,
+											  TEST_WHEEL_HEIGHT * OWOOT_POSITION_SCALE,
+											  TEST_WHEEL_DISPLACEMENT * OWOOT_POSITION_SCALE -
+												  TEST_ADHESION_FRACTIONAL_COORDINATE};
+				for (legacy_u8 step = 0; step < TEST_ADHESION_CONTACT_STEPS; step++) {
+					position.lx += TEST_ADHESION_FRACTIONAL_COORDINATE;
+					position.lz -= TEST_ADHESION_FRACTIONAL_COORDINATE;
+					struct PLAYER_GROUND_CONTACT support;
+					assert(extended_ground_contact(&position, &support, GAME_INPUT_MODE_ACTIVE));
+					position.ly = support.height;
+					motion.current[0] = position;
+					motion.current[0].ly += gaps[gap];
+					measure_wheel_plane_distance(&motion.current[0]);
+					assert(nextPosAndNormalIP >= 0);
+					if (gaps[gap] < OWOOT_POSITION_SCALE) {
+						assert(nextPosAndNormalIP == 0);
+					}
+					assert(hold_wheel_to_surface(&car, &motion, 0));
+					assert(motion.current[0].lx == position.lx);
+					assert(motion.current[0].ly == position.ly);
+					assert(motion.current[0].lz == position.lz);
+					assert(nextPosAndNormalIP == 0);
+				}
+			}
+		}
+	}
+	current_planptr = NULL;
 }
 
 static void assert_same_point(const struct OWOOT_POINT *original,
@@ -616,6 +698,7 @@ static void test_roll_shortcuts_are_rejected(void)
 legacy_int main(void)
 {
 	test_native_wall_response();
+	test_fan_contacts_follow_exact_slopes();
 	test_native_corkscrew_gates();
 	test_sloped_tunnel_portals(0);
 	test_sloped_tunnel_portals(1);
