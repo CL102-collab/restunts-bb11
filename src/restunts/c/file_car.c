@@ -133,8 +133,9 @@ static legacy_u16 file_car_family(const legacy_s8 *filename, legacy_u16 *stem_le
 	return FILE_CAR_NONE;
 }
 
-static legacy_u16 file_car_path(legacy_u16 root, const legacy_s8 *filename,
-								legacy_s8 path[FILE_CAR_PATH_SIZE])
+static legacy_u16 file_resource_path(legacy_u16 root, const legacy_s8 *filename,
+									 legacy_s8 path[FILE_CAR_PATH_SIZE], const legacy_s8 *directory,
+									 const legacy_s8 *bundled)
 {
 	path[0] = 0;
 	if (root == FILE_CAR_BASE_LOOSE || root == FILE_CAR_BASE_DIRECTORY) {
@@ -142,13 +143,9 @@ static legacy_u16 file_car_path(legacy_u16 root, const legacy_s8 *filename,
 			return 0;
 		}
 	} else if (root == FILE_CAR_BUNDLED_DIRECTORY) {
-#ifdef RESTUNTS_CAR_DIRECTORY
-		if (!file_car_append(path, FILE_CAR_PATH_SIZE, RESTUNTS_CAR_DIRECTORY)) {
+		if (bundled == 0 || !file_car_append(path, FILE_CAR_PATH_SIZE, bundled)) {
 			return 0;
 		}
-#else
-		return 0;
-#endif
 	}
 	legacy_u16 used = 0;
 	while (path[used] != 0) {
@@ -159,10 +156,22 @@ static legacy_u16 file_car_path(legacy_u16 root, const legacy_s8 *filename,
 		return 0;
 	}
 	if ((root == FILE_CAR_DATA_DIRECTORY || root == FILE_CAR_BASE_DIRECTORY) &&
-		!file_car_append(path, FILE_CAR_PATH_SIZE, "cars/")) {
+		!file_car_append(path, FILE_CAR_PATH_SIZE, directory)) {
 		return 0;
 	}
 	return file_car_append(path, FILE_CAR_PATH_SIZE, filename);
+}
+
+static legacy_u16 file_car_path(legacy_u16 root, const legacy_s8 *filename,
+								legacy_s8 path[FILE_CAR_PATH_SIZE])
+{
+	return file_resource_path(root, filename, path, "cars/",
+#ifdef RESTUNTS_CAR_DIRECTORY
+							  RESTUNTS_CAR_DIRECTORY
+#else
+							  0
+#endif
+	);
 }
 
 /* Select a directory before choosing a packed/unpacked representation. This
@@ -204,12 +213,114 @@ legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_P
 	return 0;
 }
 
+/* Track names use the same loose-before-subdirectory precedence as cars. An
+ * explicitly selected directory remains isolated from the automatic search. */
+const legacy_s8 *file_track_query(const legacy_s8 *filename)
+{
+	while (filename[0] == '.' && (filename[1] == '/' || filename[1] == '\\')) {
+		filename += 2;
+	}
+	const legacy_s8 *extension = 0;
+	legacy_u16 length = 0;
+	for (const legacy_s8 *cursor = filename; *cursor != 0; cursor++) {
+		if (*cursor == '/' || *cursor == '\\' || *cursor == ':' ||
+			++length >= FILE_FIND_NAME_SIZE) {
+			return 0;
+		}
+		if (*cursor == '.') {
+			extension = cursor;
+		}
+	}
+	if (extension == 0 || extension == filename ||
+		(!file_car_equal(extension, ".trk") && !file_car_equal(extension, ".cstrk") &&
+		 !file_car_equal(extension, ".hig") && !file_car_equal(extension, ".cshig"))) {
+		return 0;
+	}
+	return filename;
+}
+
+static legacy_u16 file_track_path(legacy_u16 root, const legacy_s8 *filename,
+								  legacy_s8 path[FILE_CAR_PATH_SIZE])
+{
+	return file_resource_path(root, filename, path, "tracks/", 0);
+}
+
+legacy_u16 file_track_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE])
+{
+	filename = file_track_query(filename);
+	if (filename == 0) {
+		return 0;
+	}
+	for (legacy_u16 root = FILE_CAR_DATA_LOOSE; root < FILE_CAR_ROOT_COUNT; root++) {
+		if (!file_track_path(root, filename, path)) {
+			continue;
+		}
+		fileio_handle handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
+		if (handle != FILEIO_INVALID_HANDLE) {
+			dos_file_close(handle);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static struct {
+	legacy_u16 root;
+	legacy_s8 pattern[FILE_FIND_NAME_SIZE];
+	legacy_s8 previous[FILE_FIND_NAME_SIZE];
+	legacy_s8 path[FILE_CAR_PATH_SIZE];
+} file_track_search;
+
+static const legacy_s8 *file_track_find_result(const legacy_s8 *found)
+{
+	legacy_s8 query[FILE_CAR_PATH_SIZE];
+	legacy_s8 preferred[FILE_CAR_PATH_SIZE];
+	while (file_track_search.root < FILE_CAR_ROOT_COUNT) {
+		while (found != 0) {
+			/* Native directory enumeration sorts names without case. The other
+			 * supported filesystems already prohibit case-only duplicates. */
+			if (!file_car_equal(found, file_track_search.previous) &&
+				file_track_path(file_track_search.root, found, file_track_search.path) &&
+				file_track_resolve(found, preferred) &&
+				file_car_equal(file_track_search.path, preferred)) {
+				strcpy(file_track_search.previous, found);
+				return file_track_search.path;
+			}
+			found = dos_file_find_next();
+		}
+		file_track_search.root++;
+		file_track_search.previous[0] = 0;
+		if (file_track_search.root < FILE_CAR_ROOT_COUNT &&
+			file_track_path(file_track_search.root, file_track_search.pattern, query)) {
+			found = dos_file_find_first(query);
+		}
+	}
+	return 0;
+}
+
+const legacy_s8 *file_track_find_first(const legacy_s8 *query)
+{
+	const legacy_s8 *pattern = file_track_query(query);
+	file_track_search.root = FILE_CAR_DATA_LOOSE;
+	file_track_search.previous[0] = 0;
+	strcpy(file_track_search.pattern, pattern);
+	return file_track_find_result(dos_file_find_first(pattern));
+}
+
+const legacy_s8 *file_track_find_next(void)
+{
+	if (file_track_search.root >= FILE_CAR_ROOT_COUNT) {
+		return 0;
+	}
+	return file_track_find_result(dos_file_find_next());
+}
+
 legacy_u16 file_open_resource(const legacy_s8 *filename)
 {
 	fileio_handle handle = dos_file_open(filename, DOS_FILE_OPEN_EXISTING);
 	if (handle == FILEIO_INVALID_HANDLE) {
 		legacy_s8 path[FILE_CAR_PATH_SIZE];
-		if (file_car_resolve(filename, path)) {
+		if (file_car_resolve(filename, path) || file_track_resolve(filename, path)) {
 			handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
 		}
 	}

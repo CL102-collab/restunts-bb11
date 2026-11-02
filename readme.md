@@ -771,6 +771,14 @@ The generator's `--install stunts` option writes the four resources to
 `stunts/cars/`. Restunts discovers compatible cars there automatically and
 continues to load loose cars from the game-data and executable folders.
 
+Tracks can likewise be placed in `tracks/` inside the game-data folder or beside
+the executable. The game discovers `.TRK` tracks there automatically; SDL3 builds
+also support `.CSTRK` tracks. Loose game-data files take priority, followed by
+loose executable files, game-data `tracks/`, then executable `tracks/`. Duplicate
+filenames appear once in the track menu, matched without case sensitivity.
+Optional `.HIG`/`.CSHIG` tables can accompany the tracks. Saved tracks and updated
+scores continue to be written in the selected game-data folder.
+
 The generator checks both dashboard resources against DIA3 after extraction
 and game preparation. See [car details and references](tools/scripts/cars/READTERR.TXT).
 

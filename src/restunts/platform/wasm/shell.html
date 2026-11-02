@@ -225,6 +225,8 @@
         const FILE_READ_CONCURRENCY = 8;
         const ANIMATION_DIRECTORY = 'opponents/animations';
         const CAR_DIRECTORY = 'cars';
+        const TRACK_DIRECTORY = 'tracks';
+        const TRACK_EXTENSIONS = new Set(['trk', 'cstrk', 'hig', 'cshig']);
         const CAR_EXTENSIONS = new Set(['res', 'pre', '3sh', 'p3s', 'vsh', 'pvs']);
         // Use character comparisons: HTML minifiers may unescape regex control ranges.
         const DOS_BASENAME_MAX_LENGTH = 8;
@@ -265,6 +267,8 @@
             if (!name.includes('/') && validFilename(path, GAME_EXTENSIONS)) return name;
             if (name.startsWith(CAR_DIRECTORY + '/') &&
                 validFilename(path.slice(CAR_DIRECTORY.length + 1), CAR_EXTENSIONS)) return name;
+            if (name.startsWith(TRACK_DIRECTORY + '/') &&
+                validFilename(path.slice(TRACK_DIRECTORY.length + 1), TRACK_EXTENSIONS)) return name;
             if (/^opponents\/animations\/opp[1-6](win|lose)\.webm$/.test(name)) return name;
             return null;
         }
@@ -812,7 +816,8 @@
                         files.push({ handle: entry, path });
                         status.textContent = 'Scanning game folder ' + selected.name + '… ' + files.length + ' game files found.';
                     } else if (entry.kind === 'directory' &&
-                        (path.toLowerCase() === CAR_DIRECTORY || path.toLowerCase() === 'opponents' ||
+                        (path.toLowerCase() === CAR_DIRECTORY || path.toLowerCase() === TRACK_DIRECTORY ||
+                            path.toLowerCase() === 'opponents' ||
                             path.toLowerCase() === ANIMATION_DIRECTORY)) {
                         await collectDirectory(entry, path + '/');
                     }

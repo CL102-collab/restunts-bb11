@@ -52,6 +52,9 @@ class ReleasePackageTests(unittest.TestCase):
         self.output = self.root / "archives"
 
     def copy_car_sources(self, source):
+        track_readme = source / "assets/tracks/README.TXT"
+        track_readme.parent.mkdir(parents=True, exist_ok=True)
+        track_readme.write_bytes((PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes())
         for name in PACKAGES.CUSTOM_CAR_FILES:
             path = source / "assets/cars" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,7 +181,7 @@ class ReleasePackageTests(unittest.TestCase):
                         output.writestr(entry, content)
         else:
             with tarfile.open(archive, "w:gz") as output:
-                for path in (".", "./cars"):
+                for path in (".", "./cars", "./tracks"):
                     entry = tarfile.TarInfo(path)
                     entry.type = tarfile.DIRTYPE
                     entry.mode = PACKAGES.EXECUTABLE_MODE
@@ -227,6 +230,8 @@ class ReleasePackageTests(unittest.TestCase):
             return json.dumps({"passed": True, "problems": [],
                                "sha256": PACKAGES.sha256(FILE_DATA),
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
+        if name in {"tracks/README.TXT", "bin/tracks/README.TXT"}:
+            return (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
             return car_source.read_bytes()
@@ -348,6 +353,21 @@ class ReleasePackageTests(unittest.TestCase):
                         expected = (PACKAGES.ROOT / "assets/cars" / Path(name).name).read_bytes()
                         self.assertEqual(contents[name], expected)
                         self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
+
+    def test_native_archives_preserve_the_tracks_folder(self):
+        expected = (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
+        targets = PACKAGES.TARGETS.keys() - PACKAGES.ANDROID_TARGETS.keys() - {"browser", "templeos"}
+        for target in targets:
+            with self.subTest(target=target):
+                name = ("tracks/README.TXT" if target in {"dos16", "amiga-m68k"}
+                        else "bin/tracks/README.TXT")
+                archive = self.create(target)
+                files, modes = PACKAGES.archive_contents(archive)
+                self.assertEqual(files[name], expected)
+                self.assertEqual(modes[name], PACKAGES.FILE_MODE)
+                with self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents(target, {key: data for key, data in files.items()
+                                                       if key != name}, modes)
 
     def test_custom_car_sources_are_required_and_cannot_be_substituted(self):
         for target in PACKAGES.TARGETS:

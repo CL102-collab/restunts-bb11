@@ -396,7 +396,7 @@ def required_files(target):
     if target == "templeos":
         return required | TEMPLEOS_PACKAGE_FILES
     if target == "amiga-m68k":
-        return required | AMIGA_PACKAGE_FILES | custom_car_files("cars")
+        return required | AMIGA_PACKAGE_FILES | custom_car_files("cars") | {"tracks/README.TXT"}
     if target != "dos16":
         required.add("THIRD-PARTY-NOTICES.txt")
         required |= {f"share/licenses/restunts/{name}" for name in SDL_DECODER_LICENSES}
@@ -433,8 +433,8 @@ def required_files(target):
     prefix = "" if target == "dos16" else "bin/"
     required |= {f"{prefix}{name}{extension}" for name in names}
     if target == "dos16":
-        return required | custom_car_files("cars")
-    required |= custom_car_files("bin/cars")
+        return required | custom_car_files("cars") | {"tracks/README.TXT"}
+    required |= custom_car_files("bin/cars") | {"bin/tracks/README.TXT"}
     required |= {"share/docs/restunts/sdl3.md", "share/licenses/restunts/SDL-LICENSE.txt"}
     if target in HAIKU_TARGETS:
         required.add("share/docs/restunts/haiku.md")
@@ -552,7 +552,8 @@ def readme(target, commit):
     if target == "amiga-m68k":
         lines += ["Requires an Amiga 500+ compatible system with a Motorola 68000 CPU or newer.",
                   "See README.md for hardware requirements, game-data setup and controls.",
-                  "Run restunts from the game directory; keep the bundled cars beside it.",
+                  "Run restunts from the game directory; keep the cars and tracks folders beside it.",
+                  "Place custom tracks in tracks; loose tracks take priority on name conflicts.",
                   "restunts.map is the linker map for this executable."]
         return ("\r\n".join(lines) + "\r\n").encode("utf-8")
     if target in SDL3_TARGETS:
@@ -592,7 +593,8 @@ def readme(target, commit):
                   "The HTML runs offline by itself. Keep the licenses and Nuked source/relink",
                   "kit with redistributed packages; see wasm.md for instructions."]
     elif target == "dos16":
-        lines += ["Copy the executables and cars folder into your original game's directory.",
+        lines += ["Copy the executables, cars and tracks folders into your original game's directory.",
+                  "Place custom tracks in tracks; loose tracks take priority on name conflicts.",
                   "Run restunts.exe in DOS or DOSBox with core=dynamic and cycles=max.",
                   "The other executables are original/rebuilt game and regression tools."]
     else:
@@ -600,6 +602,7 @@ def readme(target, commit):
         lines += [f"Run bin/{executable} --data-dir PATH_TO_YOUR_STUNTS_FOLDER.",
                   "Enhanced skyboxes, opponent portraits, and menu backgrounds are included",
                   "beside the game. Custom cars in bin/cars are loaded automatically.",
+                  "Place custom tracks in bin/tracks; loose tracks take priority on name conflicts.",
                   "See share/docs/restunts/sdl3.md for controls and platform details."]
         if target != "dos32":
             launcher = "restunts-launcher.exe" if target.startswith("windows") else "restunts-launcher"
@@ -764,7 +767,7 @@ def import_amiga(args):
     modes = {}
     directories = set()
     expected = required_files("amiga-m68k") - {README}
-    allowed_directories = {".", "cars"}
+    allowed_directories = {".", "cars", "tracks"}
     with tarfile.open(args.archive, "r:gz") as source:
         for entry in source:
             # The validation job's tar uses a conventional leading ./ and

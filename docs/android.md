@@ -19,6 +19,11 @@ other game files.
 Car resources may be placed directly in the game folder or in its `cars/`
 subfolder. The bundled Tesla Roadster and McMurtry cars load automatically from
 the app's private `cars/` folder alongside its music and skyboxes.
+Tracks may remain loose or go directly in `tracks/` in the selected game folder.
+Both `.TRK` and `.CSTRK` tracks are discovered automatically, with loose files
+taking priority over matching filenames in `tracks/`. Optional `.HIG`/`.CSHIG`
+high score tables can accompany them. Updated scores and saved tracks are written
+to the selected game folder.
 The choice is remembered. Copy custom content into this folder with a file
 manager, then press **Start game** again to load it.
 

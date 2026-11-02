@@ -58,8 +58,8 @@ Stock TempleOS installation CD
 
 For the player guide, see docs/templeos.md in the repository. The stock package
 contains a native RedSea RESTUNTS.ISO with INSTALL.HC and PLAY.HC, plus the game
-sources, the bundled Tesla and McMurtry cars in PORT/CARS, and an empty DATA
-directory. Original game resources are not included.
+sources, the bundled Tesla and McMurtry cars in PORT/CARS, a PORT/TRACKS folder,
+and an empty DATA directory. Original game resources are not included.
 Mount it as a CD in the existing TempleOS VM.
 The installer copies and verifies a new C:/Restunts directory; it never replaces
 an existing installation. tools/PACKAGE.PY builds the CD using stock TempleOS.
@@ -69,9 +69,9 @@ on a separate private RedSea CD. See docs/templeos.md for both steps.
 Loading in the guest
 --------------------
 
-Copy the prepared PORT directory, including generated/ and CARS/, into C:/PORT and
-the original Broderbund Stunts 1.1 game data into C:/DATA. Extensions must stay
-uppercase. Use a writable data directory for tracks, replays, and configuration.
+Copy the prepared PORT directory, including generated/, CARS/, and TRACKS/,
+into C:/PORT and the original Broderbund Stunts 1.1 game data into C:/DATA.
+Extensions must stay uppercase. Use a writable data directory for tracks, replays, and configuration.
 The game verifies the MISC resource version exactly as the DOS build does.
 
 Cars are discovered automatically in the selected data directory, beside LOAD.HC,
@@ -81,6 +81,11 @@ after changing the current directory or selecting data from another installation
 The prepared PORT/CARS contains only the bundled .RES/.3SH/.VSH files; additional
 compatible custom cars may be added there or in DATA/CARS. Packed car resources
 are supported as well. All TempleOS filenames must be uppercase.
+
+Tracks are also discovered in DATA/TRACKS and PORT/TRACKS. Loose .TRK files in
+DATA and beside LOAD.HC retain priority, in the same order as cars. A duplicate
+track name appears once. Optional .HIG files may accompany tracks in TRACKS;
+new tracks and updated high scores are saved in the selected DATA directory.
 
 In a fresh TempleOS task:
 
@@ -143,10 +148,10 @@ From the repository root, prepare a new directory (inputs are never renamed):
     python3 src/restunts/platform/templeos/tools/PREPARE.PY \
         --data /path/to/original/game --output /path/to/new/package
 
-The package contains PORT/ with bundled CARS/ and DATA/ with your private game
-files. Existing cars/ under the input game directory is preserved as DATA/CARS.
-Case collisions with different contents
-are rejected. Existing output directories are rejected to protect prior saves.
+The package contains PORT/ with bundled CARS/ and a TRACKS/ folder, and DATA/
+with your private game files. Existing cars/ under the input game directory is
+preserved as DATA/CARS; tracks/ .TRK and .HIG files are preserved as DATA/TRACKS.
+Case collisions with different contents are rejected. Existing output directories are rejected to protect prior saves.
 Copy those two folders to a guest disk. Do not mount a disk on the host while
 the guest is using it. tools/VM.PY builds its own disposable FAT32 disk instead;
 see tools/VM.TXT for the tested QEMU workflow and dependency installation.

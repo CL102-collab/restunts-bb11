@@ -117,6 +117,13 @@ the game-data directory or beside the executable. Loose car resources in the
 game-data directory and beside the executable remain supported and take
 priority. Executable-relative resources also work with `--data-dir`.
 
+The packaged `tracks/` folder also sits beside `restunts`. Add `.TRK` files
+and optional `.HIG` high score tables there, or to `tracks/` in the selected
+game-data folder. Loose game-data files take priority, followed by loose files
+beside the executable, game-data `tracks/`, then executable `tracks/`. Duplicate
+filenames appear once in the track menu without case sensitivity. Saved tracks
+and updated high scores are written to the selected game-data folder.
+
 Use the keyboard or mouse for the menus. Arrow keys control the car, and the
 original game's gear, camera and replay controls remain in place.
 Digital joystick input uses Amiga game port 2 when joystick control is selected.
