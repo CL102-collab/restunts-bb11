@@ -71,6 +71,8 @@ static void replay_restart_recording(void)
 	replay_overflow_acknowledged_word =
 		LEGACY_S16_FROM_BITS(LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
 	replay_recording_flags = REPLAY_RECORDING_ACTIVE_FLAG;
+	camera_select_mode(CAMERA_MODE_COCKPIT);
+	dashb_toggle = 1;
 }
 
 static legacy_s16 replay_continue_recording(void)
@@ -102,8 +104,6 @@ static legacy_s16 replay_continue_recording(void)
 static void replay_resume_live(void)
 {
 	replay_filename[0] = 0;
-	camera_select_mode(CAMERA_MODE_COCKPIT);
-	dashb_toggle = 1;
 	show_penalty_counter = 0;
 	followOpponentFlag = 0;
 	game_replay_mode = REPLAY_MODE_LIVE;

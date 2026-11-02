@@ -39,6 +39,7 @@ static legacy_s16 ghost_fixture_active;
 static legacy_u32 ghost_end_calls;
 static legacy_s16 opponent_view_disabled;
 static legacy_u8 renderer_reset_pending;
+static legacy_u16 camera_selection_count;
 static legacy_u32 input_polls, input_exit_poll, fps_expire_poll, fps_expiry_checks;
 legacy_s16 input_combined_flags;
 #ifdef RESTUNTS_SDL3
@@ -207,6 +208,7 @@ legacy_s16 input_checking(legacy_s16 delta)
 
 void camera_select_mode(legacy_s8 mode)
 {
+	camera_selection_count++;
 	cameramode = mode;
 }
 
@@ -622,6 +624,7 @@ void show_graphic_levels_menu(void)
 
 static void reset_viewer(void)
 {
+	camera_selection_count = 0;
 	renderer_reset_pending = 0;
 	restart_questions = restart_initializations = ghost_end_calls = 0;
 	restart_confirmation_answer = REPLAY_DIALOG_CONFIRMED_CHOICE;
@@ -770,8 +773,8 @@ static void test_pause_cleanup(void)
 	assert(replay_recording_flags ==
 		   (REPLAY_RECORDING_ACTIVE_FLAG | REPLAY_RECORDING_MODIFIED_FLAG));
 	assert(elapsed_time2 == 60 && gameconfig.game_recordedframes == 60);
-	assert(cameramode == CAMERA_MODE_COCKPIT && followOpponentFlag == 0 &&
-		   show_penalty_counter == 0);
+	assert(cameramode == CAMERA_MODE_CUSTOM && dashb_toggle == 0 && followOpponentFlag == 0 &&
+		   show_penalty_counter == 0 && camera_selection_count == 0);
 	reset_viewer();
 	menu_action = REPLAY_PAUSE_ACTION_RESTART;
 	scenario = 0;
@@ -780,6 +783,68 @@ static void test_pause_cleanup(void)
 	assert(restart_questions == 1 && restart_initializations == 1 && dialog_count == 2);
 	assert(elapsed_time2 == 0 && gameconfig.game_recordedframes == 0);
 	assert(replay_overflow_acknowledged_word == 0x5a00);
+	assert(cameramode == CAMERA_MODE_COCKPIT && dashb_toggle == 1 && camera_selection_count == 1);
+}
+
+#define TEST_CONTINUE_CHASE_RIGHT_STEPS 3
+#define TEST_CONTINUE_CHASE_DOWN_STEPS 2
+#define TEST_CONTINUE_CHASE_ZOOM_IN_STEPS 2
+#define TEST_CONTINUE_CHASE_ZOOM_OUT_STEPS 3
+
+enum TEST_CONTINUE_RESULT {
+	TEST_CONTINUE_CANCELLED,
+	TEST_CONTINUE_BRANCH_ACCEPTED,
+	TEST_CONTINUE_AT_END,
+	TEST_CONTINUE_RESULT_COUNT
+};
+
+/* Continue must not select a camera: selection also ends the active F3 preset cycle. */
+static void test_continue_preserves_camera(void)
+{
+	static const struct CUSTOM_CAMERA views[] = {
+		{CUSTOM_CAMERA_INITIAL_DISTANCE + CAMERA_ZOOM_STEP,
+		 CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE + CAMERA_ANGLE_STEP,
+		 CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE - CAMERA_ANGLE_STEP},
+		{CUSTOM_CAMERA_INITIAL_DISTANCE - TEST_CONTINUE_CHASE_ZOOM_IN_STEPS * CAMERA_ZOOM_STEP,
+		 CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE - TEST_CONTINUE_CHASE_DOWN_STEPS * CAMERA_ANGLE_STEP,
+		 CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE + TEST_CONTINUE_CHASE_RIGHT_STEPS * CAMERA_ANGLE_STEP},
+		{CUSTOM_CAMERA_INITIAL_DISTANCE,
+		 CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE - TEST_CONTINUE_CHASE_DOWN_STEPS * CAMERA_ANGLE_STEP,
+		 CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE + TEST_CONTINUE_CHASE_RIGHT_STEPS * CAMERA_ANGLE_STEP},
+		{CUSTOM_CAMERA_INITIAL_DISTANCE + TEST_CONTINUE_CHASE_ZOOM_OUT_STEPS * CAMERA_ZOOM_STEP,
+		 CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE - TEST_CONTINUE_CHASE_DOWN_STEPS * CAMERA_ANGLE_STEP,
+		 CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE +
+			 TEST_CONTINUE_CHASE_RIGHT_STEPS * CAMERA_ANGLE_STEP}};
+	for (legacy_u8 mode = CAMERA_MODE_COCKPIT; mode < CAMERA_MODE_COUNT; mode++) {
+		for (legacy_s8 dashboard = 0; dashboard <= 1; dashboard++) {
+			for (legacy_u32 view = 0; view < sizeof(views) / sizeof(views[0]); view++) {
+				for (legacy_u8 result = TEST_CONTINUE_CANCELLED;
+					 result < TEST_CONTINUE_RESULT_COUNT; result++) {
+					reset_viewer();
+					menu_action = REPLAY_PAUSE_ACTION_CONTINUE;
+					scenario = result == TEST_CONTINUE_CANCELLED ? 0 : 8;
+					if (result == TEST_CONTINUE_AT_END) {
+						state.game_frame = (legacy_s16)gameconfig.game_recordedframes;
+					} else {
+						elapsed_time2 = 20;
+					}
+					cameramode = mode;
+					dashb_toggle = dashboard;
+					custom_camera = views[view];
+					replay_pause_menu();
+					assert(game_replay_mode == (result == TEST_CONTINUE_CANCELLED
+													? REPLAY_MODE_PAUSED
+													: REPLAY_MODE_LIVE));
+					assert(cameramode == mode && dashb_toggle == dashboard);
+					assert(custom_camera.distance == views[view].distance);
+					assert(custom_camera.elevation_angle == views[view].elevation_angle);
+					assert(custom_camera.azimuth_angle == views[view].azimuth_angle);
+					assert(dialog_count == (result == TEST_CONTINUE_AT_END ? 1U : 2U));
+					assert(camera_selection_count == 0);
+				}
+			}
+		}
+	}
 }
 
 static void test_restart_confirmation_cancel(void)
@@ -1122,6 +1187,7 @@ legacy_int main(void)
 	legacy_u32 menu = menu_fingerprint();
 	legacy_u32 draw = draw_fingerprint();
 	test_pause_cleanup();
+	test_continue_preserves_camera();
 	test_restart_confirmation_cancel();
 	test_restart_confirmation_localized();
 	test_save_cleanup();
@@ -1141,7 +1207,7 @@ legacy_int main(void)
 #ifdef REPLAY_MENU_BASELINE
 	printf("%08" LEGACY_PRIx32 " %08" LEGACY_PRIx32 "\n", menu, draw);
 #else
-	assert(menu == 0x5b094968UL);
+	assert(menu == 0x9d3057e8UL);
 	assert(draw == 0x9b2a836aUL);
 #endif
 	return 0;
