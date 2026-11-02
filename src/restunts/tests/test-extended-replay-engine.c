@@ -1219,6 +1219,93 @@ static void test_recorded_fan_slope_contacts(void)
 	ghost_load_simulation_resources();
 }
 
+#define ENGINE_ZERO_SPEED_REPLAY_FRAMES 233U
+#define ENGINE_ZERO_SPEED_ACCELERATION_FRAMES GAME_FRAME_RATE_NORMAL
+
+static void test_recorded_zero_speed_position(void)
+{
+	FILE *fixture = fopen(RESTUNTS_ZERO_SPEED_REPLAY_FIXTURE, "rb");
+	assert(fixture != NULL && fseek(fixture, 0, SEEK_END) == 0);
+	legacy_s32 length = (legacy_s32)ftell(fixture);
+	assert(length > (legacy_s32)CSRPL_HEADER_SIZE && fseek(fixture, 0, SEEK_SET) == 0);
+	legacy_u8 *bytes = malloc((size_t)length);
+	assert(bytes != NULL && fread(bytes, 1U, (size_t)length, fixture) == (size_t)length);
+	assert(fclose(fixture) == 0);
+	struct CSRPL_VIEW view;
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(csrpl_decode(bytes, (size_t)length, &view, error, sizeof(error)));
+	assert(view.metadata.frame_count == ENGINE_ZERO_SPEED_REPLAY_FRAMES);
+	assert(view.metadata.frames_per_second == GAME_FRAME_RATE_NORMAL);
+	assert(memcmp(view.metadata.player_car_id, "MCMU", CSRPL_CAR_ID_SIZE) == 0);
+	assert(view.metadata.driving_rules == driving_rules_current());
+	view.metadata.version = CSRPL_VERSION;
+	static const legacy_char cars[][CSRPL_CAR_ID_SIZE + 1U] = {"MCMU", "TERR"};
+	struct GAMEINFO original_config = gameconfig;
+	for (legacy_u8 car_index = 0; car_index < sizeof(cars) / sizeof(cars[0]); car_index++) {
+		memcpy(view.metadata.player_car_id, cars[car_index], CSRPL_CAR_ID_SIZE);
+		for (legacy_u8 fan_enabled = 0; fan_enabled <= 1U; fan_enabled++) {
+			ghost_free_simulation_resources();
+			memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
+			memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
+			memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
+			gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+			gameconfig.game_playermaterial = view.metadata.player_material;
+			gameconfig.game_playertransmission = view.metadata.player_transmission;
+			gameconfig.game_opponenttype = view.metadata.opponent_type;
+			gameconfig.game_opponentmaterial = view.metadata.opponent_material;
+			gameconfig.game_opponenttransmission = view.metadata.opponent_transmission;
+			gameconfig.game_framespersec = view.metadata.frames_per_second;
+			assert(extended_track_load(view.track_data, view.track_size, error, sizeof(error)));
+			assert(track_setup() == 0);
+			ghost_load_simulation_resources();
+			assert(car_surface_adhesion[PLAYER_CAR_INDEX] != 0);
+			car_surface_adhesion[PLAYER_CAR_INDEX] = fan_enabled;
+			assert(extended_replay_runtime_load(&view));
+			initialize_simulation();
+			legacy_u16 stopped_brake_samples = 0;
+			legacy_u16 stopped_coast_samples = 0;
+			for (legacy_u32 frame = 0; frame < view.metadata.frame_count; frame++) {
+				struct VECTORLONG previous_position = state.playerstate.car_position;
+				legacy_u16 previous_speed = state.playerstate.car_actual_speed;
+				update_gamestate();
+				const struct CARSTATE *car = &state.playerstate;
+				assert(car->car_crashBmpFlag == CRASH_EVENT_NONE);
+				if (previous_speed != CAR_SPEED_STOPPED ||
+					car->car_actual_speed != CAR_SPEED_STOPPED) {
+					continue;
+				}
+				/* Custom wheel coordinates must remain centered on the model origin.
+				 * Settled contacts must not translate the body while speed is zero. */
+				assert(car->car_position.lx == previous_position.lx);
+				assert(car->car_position.lz == previous_position.lz);
+				if ((view.inputs[frame] & INPUT_BRAKE_FLAG) != 0) {
+					stopped_brake_samples++;
+				} else {
+					assert(view.inputs[frame] == INPUT_NONE);
+					stopped_coast_samples++;
+				}
+			}
+			assert(stopped_brake_samples != 0 && stopped_coast_samples != 0);
+			extended_replay_set_input_frame(extended_replay_recorded_frames());
+			struct VECTORLONG stopped_position = state.playerstate.car_position;
+			for (legacy_u16 frame = 0; frame < ENGINE_ZERO_SPEED_ACCELERATION_FRAMES; frame++) {
+				assert(extended_replay_record_input(INPUT_ACCELERATE_FLAG));
+				update_gamestate();
+			}
+			assert(state.playerstate.car_actual_speed > CAR_SPEED_STOPPED);
+			assert(state.playerstate.car_position.lx != stopped_position.lx ||
+				   state.playerstate.car_position.lz != stopped_position.lz);
+			extended_replay_runtime_clear();
+			extended_track_unload();
+		}
+	}
+	free(bytes);
+	ghost_free_simulation_resources();
+	gameconfig = original_config;
+	framespersec = gameconfig.game_framespersec;
+	ghost_load_simulation_resources();
+}
+
 #define ENGINE_HALF_PIPE_REPLAY_VERSION 7U
 #define ENGINE_HALF_PIPE_REPLAY_FRAMES 1178U
 #define ENGINE_HALF_PIPE_REPLAY_CRASH_FRAME 1097U
@@ -1462,6 +1549,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_mini_half_pipe_on_straight_slope();
 	test_recorded_half_pipe_body_collision();
 	test_recorded_fan_slope_contacts();
+	test_recorded_zero_speed_position();
 	static const legacy_u8 collision_modes[] = {1U, 0U};
 	static const legacy_u8 owoot_modes[] = {0U, 1U};
 	for (legacy_u8 collision = 0; collision < sizeof(collision_modes) / sizeof(collision_modes[0]);
