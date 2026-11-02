@@ -6,7 +6,7 @@
   "specifications_verified_date": "2026-10-21",
   "game_name": "McMurtry Speirling PURE",
   "geometry": "Native low-polygon exterior rebuilt from the supplied high-resolution GLB, with curved painted front and rear panels and compact dark-grey insets, upright rear-facing recessed side gills, rounded enlarged wheel surrounds for tyre clearance, and the accepted canopy surface preserved without its thin centre fin.",
-  "geometry_revision": "The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
+  "geometry_revision": "The car origin is centered between native axles at Z=+25 and Z=-25, matching the specified 2200 mm wheelbase. The source body is translated by 1.5 units before quantization, and the arches follow the adapted wheel controls. SIMD wheel Y fields are zero, while the visible tyres retain their correct contact height. Collision bounds enclose the recentered body. The side skin behind each front wheel is retriangulated around a narrow upright dark-grey gill, following the requested fish-gill simplification. Its centre pulls inward behind the outer vertical lip, turning the grey wall toward the rear and screening it from the front. Its upper and lower ends taper into the body-coloured skin. The surrounding painted panels follow every existing aft arch chord, preserving tyre clearance. The four white front lamp markers are omitted. Mirror stalks joined to existing crown vertices retain the native vertex budget; the mirror heads are preserved. The rear has painted rolled shoulders and a lower bumper framing a compact dark-grey inset with one game unit of depth. The complete existing roof-ring edge closes the upper fascia; the bumper joins the existing rising undertray. The exposed rear ramp and corner returns use the same darker grey as the underbody. Four small circular red rings form vertical pairs at the rear corners, with a nominal 10% size reduction and dark concentric centres following the latest rear-view photograph. Nested native round primitives retain brake brightening on the red rims. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the vertex budget. Curved painted upper and lower nose bands and rolled side cheeks replace the oversized black front mouth; only a narrow centre inset is dark grey. Shared rows and explicit outward triangles retain the curvature at native racing precision, with the white front lamp markers omitted. Rounded four-point transverse wheel-pod sections, bowed outer shoulders and enlarged circular wheel openings replace the slab fenders and tight arches. The front lip, shoulder and crown have a shallow, nearly level side profile toward the cockpit instead of a raised peak over the axle. Encoded side-panel chords clear a conservative front-steering envelope by at least one game unit; upper covers also maintain a one-unit tyre gap. The rear floor rises into the fascia with shared seams and no low panel projecting behind the body. The main floor stays inside the tyre paths and widens behind the rear openings. The thin roof/cowl centre fin is omitted; the canopy surface, main rear wing and wheel controls are preserved.",
   "downloaded_model": {
     "title": "2026 McMurtry Spéirling",
     "author": "Dave Love SketchFab",
@@ -23,7 +23,7 @@
     "source_materials": 43,
     "embedded_source_name": "exmods_mcmurtry_speirling22.fbx",
     "geometry_reference_policy": "Use the supplied high-resolution model for the overall exterior design. Use curved body-coloured front and rear panels around compact dark-grey insets instead of oversized black caps. Simplify the highlighted side duct behind each front wheel into a narrow upright recessed gill which opens toward the rear, surrounded by body-coloured skin. Prioritize rounded wheel surrounds and native tyre clearance over exact source geometry around the wheels; preserve the accepted canopy surface and omit the thin centre fin above the roof and rear cowl. The internal filename suggests an earlier prototype despite the 2026 download title.",
-    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The original GLB and textures are not included."
+    "modifications": "Completely rebuilt native low-polygon exterior topology for the showroom and both racing detail levels. Rounded wheel pods and enlarged wheel openings intentionally depart from the source where needed for a visible tyre-to-chassis gap, including native quantization and front steering. The front fender crown follows the source's shallow side profile, with only the lift needed over the enlarged native wheel arch. The oversized flat black front mouth is replaced by curved body-coloured upper and lower bands and rolled side cheeks around a narrow dark-grey inset. The four white front lamp markers are omitted. Mirror stalks join existing fender-crown vertices, preserving room for the curved nose and side ducts; mirror heads are retained. A tall, narrow, tapered dark-grey gill replaces the flat skin behind each front wheel, with an inward centre behind its outer lip so the grey opening faces rearward. Its surrounding painted panels follow every existing wheel-arch chord. The rear equipment-bay cap is replaced by painted rolled shoulders and a lower bumper around a small recessed dark-grey panel. Four small circular brake-light rings form an upper and lower pair at each rear corner, following the supplied rear photographs. Their nominal diameter is reduced by 10%, with dark concentric centres like the latest rear-view reference. Shared crown controls, merged coplanar sill triangles and a tapered hidden floor retain the native vertex budget. A connected rising rear undertray ends at the body fascia, replacing the projecting low flap and central strake. Its exposed diffuser ramp and corner returns use the same darker grey as the underbody. The thin centre fin above the canopy and rear cowl is omitted for a clean roof silhouette; the canopy surface is preserved. Other changes include uniform length scaling, animated wheels, palette materials and seven paint schemes. The body origin is translated to the axle midpoint, and native wheel controls and arches are adapted to a centered 50-unit wheelbase. The original GLB and textures are not included."
   },
   "historical_exterior_reference_images": [
     {
@@ -108,22 +108,22 @@
       [
         -14.251000000000001,
         8.477,
-        -39.044999999999995
+        -40.544999999999995
       ],
       [
         -14.39,
         -1.5,
-        -39.05
+        -40.55
       ],
       [
         14.251000000000001,
         8.477,
-        -39.044999999999995
+        -40.544999999999995
       ],
       [
         14.39,
         -1.5,
-        -39.05
+        -40.55
       ]
     ],
     "nominal_outer_diameter_mm": 79.2,
@@ -206,24 +206,27 @@
       [
         -16,
         2,
-        27
+        25
       ],
       [
         16,
         2,
-        27
+        25
       ],
       [
         16,
         2,
-        -24
+        -25
       ],
       [
         -16,
         2,
-        -24
+        -25
       ]
     ],
+    "body_origin_source_z_game_units": 1.5,
+    "physical_wheel_y": 0,
+    "adapted_wheelbase_mm": 2200.0,
     "reference_glb_bounds": [
       [
         -0.007688376135638886,
@@ -244,7 +247,7 @@
     },
     "adapted_body_height_game_units": 25.9,
     "reference": "Stock Corvette body 103 units / 4506 mm and NSX 100 units / 4405 mm; stock cars are stylized, so exact ratios to every stock car are impossible.",
-    "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. Source wheel locations are quantized to integer native controls and the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling bounds enclose the quantized body and detail geometry."
+    "rounding": "The supplied mesh is uniformly scaled to the nominal car length, preserving its source width and height proportions. The source body is translated to the axle midpoint before quantization. The wheelbase is adapted to the specified 2200 mm using centered integer controls at Z=+25 and Z=-25; arches use those same centers. Ignored SIMD wheel Y fields are zero; visual tyre bottoms meet the engine contact plane. Racing coordinates round to whole game units; the showroom retains sub-unit precision at 20x. Native culling and collision bounds enclose the recentered geometry."
   },
   "wheel_arch_clearance": {
     "minimum_game_units": 1.0,
@@ -372,9 +375,9 @@
         "length": 86.7,
         "width": 38.5,
         "height": 25.9,
-        "wheelbase": 51.0
+        "wheelbase": 50.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.51,
+      "minimum_upper_tyre_clearance_game_units": 1.688,
       "minimum_side_arch_tyre_clearance_game_units": [
         1.108,
         1.108,
@@ -390,15 +393,15 @@
     },
     "car1": {
       "vertices": 255,
-      "primitives": 246,
+      "primitives": 247,
       "paint_jobs": 7,
       "dimensions_game_units": {
-        "length": 86.0,
+        "length": 87.0,
         "width": 38.0,
         "height": 26.0,
-        "wheelbase": 51.0
+        "wheelbase": 50.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.408,
+      "minimum_upper_tyre_clearance_game_units": 1.738,
       "minimum_side_arch_tyre_clearance_game_units": [
         1.262,
         1.262,
@@ -414,15 +417,15 @@
     },
     "car2": {
       "vertices": 247,
-      "primitives": 242,
+      "primitives": 243,
       "paint_jobs": 7,
       "dimensions_game_units": {
-        "length": 86.0,
+        "length": 87.0,
         "width": 38.0,
         "height": 26.0,
-        "wheelbase": 51.0
+        "wheelbase": 50.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.408,
+      "minimum_upper_tyre_clearance_game_units": 1.738,
       "minimum_side_arch_tyre_clearance_game_units": [
         1.262,
         1.262,
@@ -470,11 +473,11 @@
   "files": {
     "CARMCMU.RES": {
       "bytes": 1012,
-      "sha256": "44c0d089ca3c9303d0f218740ab0c84bda2a49090c5f5885df586237e32056b6"
+      "sha256": "889603c55f5aeb717028b90155b8b873b2650d05b613eee747c679b09b03e7ac"
     },
     "STMCMU.3SH": {
-      "bytes": 19761,
-      "sha256": "37847328bd397e65a1710facd4f00f1be515e734f5b44e57cb93aee821fbd94f"
+      "bytes": 19801,
+      "sha256": "7e49540f34ce704688ae9a1223f3506586ab6decf378ebb59a949a957c279568"
     },
     "STDAMCMU.VSH": {
       "bytes": 141515,
@@ -485,8 +488,8 @@
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
     },
     "MCMU.obj": {
-      "bytes": 27732,
-      "sha256": "f092e8481a46cfbc78be4fa3cd9ea1e626d77e85c4ff1d19ae859889991a2e3a"
+      "bytes": 27742,
+      "sha256": "67d21278cbb8af10ff7acf6121ff46d8658cb8fdf468f3d55caae825b354b089"
     },
     "MCMU.mtl": {
       "bytes": 837,
