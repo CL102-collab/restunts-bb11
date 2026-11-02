@@ -66,6 +66,7 @@ DATA_EXTENSIONS = {
     ".TRK", ".RPL", ".HIG", ".CFG", ".DAT", ".DRV", ".VCE", ".SFX",
     ".KMS", ".FNT", ".PLB",
 }
+RESOURCE_DIRECTORIES = {"CARS": DATA_EXTENSIONS, "TRACKS": {".TRK", ".HIG"}}
 
 
 def round_up(value, alignment):
@@ -119,20 +120,22 @@ def collect_data(data):
             assets[name] = read_entry(name, source)
     if not any(name in assets for name in ("MISC.RES", "MISC.PRE")):
         raise ValueError("The game folder must contain MISC.RES or MISC.PRE")
-    car_directories = [source for source in data.iterdir()
-                       if source.is_dir() and source.name.upper() == "CARS"]
-    if len(car_directories) > 1:
-        raise ValueError("Directories have the same uppercase name: CARS")
-    if car_directories:
-        cars = {}
-        for source in sorted(car_directories[0].iterdir()):
-            if source.is_file() and source.suffix.upper() in DATA_EXTENSIONS:
-                name = source.name.upper()
-                if name in cars:
-                    raise ValueError("Files have the same uppercase name: " + name)
-                cars[name] = read_entry(name, source)
-        if cars:
-            assets["CARS"] = {"name": "CARS", "children": [cars[name] for name in sorted(cars)]}
+    for directory, extensions in RESOURCE_DIRECTORIES.items():
+        sources = [source for source in data.iterdir()
+                   if source.is_dir() and source.name.upper() == directory]
+        if len(sources) > 1:
+            raise ValueError("Directories have the same uppercase name: " + directory)
+        if sources:
+            resources = {}
+            for source in sorted(sources[0].iterdir()):
+                if source.is_file() and source.suffix.upper() in extensions:
+                    name = source.name.upper()
+                    if name in resources:
+                        raise ValueError("Files have the same uppercase name: " + name)
+                    resources[name] = read_entry(name, source)
+            if resources:
+                assets[directory] = {"name": directory,
+                                     "children": [resources[name] for name in sorted(resources)]}
     return [assets[name] for name in sorted(assets)]
 
 

@@ -464,12 +464,16 @@ async function exerciseDirectoryLoading(browser, url) {
             'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM', 'CARTERR.RES',
             'Cars/CaRTerR.ReS', 'cars/STMCMU.3SH', 'cars/STDAMCMU.VSH',
             'cars/CARCSTM.PRE', 'cars/STCSTM.P3S', 'cars/STDBCSTM.PVS',
+            'Tracks/MiXeD.TrK', 'tracks/TRACK0.TRK', 'tracks/EXTENDED.CSTRK',
+            'tracks/MIXED.HIG', 'tracks/EXTENDED.CSHIG',
             'ignored.exe', 'archive/MAIN.RES', 'opponents/animations/opp7win.webm',
-            'cars/IGNORE.TRK', 'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES']
-            .map(path => ({ path, bytes: [1, 2, 3] }));
+            'cars/IGNORE.TRK', 'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES',
+            'tracks/IGNORE.RES', 'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK']
+            .map(path => ({ path, bytes: path === 'tracks/TRACK0.TRK' ? [4, 5, 6] : [1, 2, 3] }));
         const accepted = specs.filter(spec => !['ignored.exe', 'archive/MAIN.RES',
             'opponents/animations/opp7win.webm', 'cars/IGNORE.TRK',
-            'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES'].includes(spec.path));
+            'cars/nested/CARNEST.RES', 'cars/CARTOOLONG.RES', 'tracks/IGNORE.RES',
+            'tracks/nested/DEEP.TRK', 'tracks/TOOLONGNAME.TRK'].includes(spec.path));
         const metadataCount = accepted.length;
         const fileCount = new Set(accepted.map(spec => spec.path.toLowerCase())).size;
         await installLoadingFixture(page, specs);
@@ -496,6 +500,8 @@ async function exerciseDirectoryLoading(browser, url) {
         await assertLoadProgress(page, 100, { loading: false });
         const imported = await page.evaluate(() => ({
             files: Array.from(fixtureFiles.keys()),
+            trackConflict: [fixtureFiles.get('/stunts/track0.trk'), fixtureFiles.get('/stunts/tracks/track0.trk')]
+                .map(bytes => Array.from(bytes)),
             casing: Array.from(diskNames),
             baseline: Array.from(baseline.keys()),
             calls: testLoadingFixture.calls,
@@ -517,6 +523,12 @@ async function exerciseDirectoryLoading(browser, url) {
         assert.ok(imported.files.includes('/stunts/cars/carcstm.pre'));
         assert.ok(imported.files.includes('/stunts/cars/stcstm.p3s'));
         assert.ok(imported.files.includes('/stunts/cars/stdbcstm.pvs'));
+        assert.ok(imported.files.includes('/stunts/tracks/mixed.trk'), 'Mixed-case track folders must load');
+        assert.ok(imported.files.includes('/stunts/tracks/extended.cstrk'));
+        assert.ok(imported.files.includes('/stunts/tracks/mixed.hig'));
+        assert.ok(imported.files.includes('/stunts/tracks/extended.cshig'));
+        assert.deepEqual(imported.trackConflict, [[1, 2, 3], [4, 5, 6]],
+            'Loose and folder tracks must remain separate for runtime conflict resolution');
         assert.equal(imported.files.length, fileCount);
         assert.ok(imported.baseline.includes('mixed.hig'), 'Existing saves must retain their export baseline');
         assert.ok(imported.statuses.some(value => value.startsWith('Scanning game folder ')),
@@ -612,10 +624,14 @@ async function exerciseFallbackLoading(browser, url, temporary) {
     await fs.mkdir(directory);
     const names = ['MAIN.RES', 'FONTDEF.FNT', 'FONTN.FNT', 'CARTERR.RES',
         ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
-        'CaRs/CaRMcmu.ReS', 'CaRs/STMCMU.3SH', 'CaRs/STDAMCMU.VSH'];
+        'CaRs/CaRMcmu.ReS', 'CaRs/STMCMU.3SH', 'CaRs/STDAMCMU.VSH',
+        'TrAcKs/CUSTOM.TRK', 'TrAcKs/EXTENDED.CSTRK', 'TrAcKs/CUSTOM.HIG', 'TrAcKs/EXTENDED.CSHIG'];
     await fs.mkdir(path.join(directory, 'CaRs'));
+    await fs.mkdir(path.join(directory, 'TrAcKs'));
+    await fs.mkdir(path.join(directory, 'TrAcKs', 'nested'));
     await fs.mkdir(path.join(directory, 'CaRs', 'nested'));
-    await Promise.all(names.concat('IGNORE.EXE', 'CaRs/IGNORE.TRK', 'CaRs/nested/CARNEST.RES')
+    await Promise.all(names.concat('IGNORE.EXE', 'CaRs/IGNORE.TRK', 'CaRs/nested/CARNEST.RES',
+        'TrAcKs/IGNORE.RES', 'TrAcKs/nested/DEEP.TRK')
         .map(name => fs.writeFile(path.join(directory, name), 'fixture')));
     await fs.mkdir(path.join(directory, 'archive'));
     await fs.writeFile(path.join(directory, 'archive', 'OLD.TRK'), 'ignored');
@@ -644,11 +660,15 @@ async function exerciseFallbackLoading(browser, url, temporary) {
             mode: document.getElementById('save-mode').textContent
         }));
         assert.deepEqual(actual.calls.slice().sort(), names.slice().sort(),
-            'Read-only directory loading must concurrently read supported root and car files exactly once');
+            'Read-only directory loading must concurrently read supported root, car and track files exactly once');
         assert.ok(actual.files.includes('/stunts/cars/carmcmu.res'));
         assert.ok(actual.files.includes('/stunts/cars/stmcmu.3sh'));
         assert.ok(actual.files.includes('/stunts/cars/stdamcmu.vsh'));
         assert.ok(actual.files.includes('/stunts/carterr.res'));
+        assert.ok(actual.files.includes('/stunts/tracks/custom.trk'));
+        assert.ok(actual.files.includes('/stunts/tracks/extended.cstrk'));
+        assert.ok(actual.files.includes('/stunts/tracks/custom.hig'));
+        assert.ok(actual.files.includes('/stunts/tracks/extended.cshig'));
         assert.ok(actual.peak > 1 && actual.peak <= 8);
         assert.match(actual.mode, /read-only/);
     } finally {
@@ -1119,7 +1139,7 @@ async function main() {
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

@@ -5,6 +5,7 @@
 #include "extended_replay_runtime.h"
 #include "../externs.h"
 #include "../platform.h"
+#include "../fileio.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -36,7 +37,7 @@ static int extended_io_fail(const char *message)
 static uint8_t *extended_io_read(const legacy_s8 *path, size_t maximum, size_t *size)
 {
 	extended_io_error[0] = 0;
-	legacy_u16 handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
+	legacy_u16 handle = file_open_resource(path);
 	if (!handle) {
 		extended_io_fail("Unable to open the selected file.");
 		return NULL;

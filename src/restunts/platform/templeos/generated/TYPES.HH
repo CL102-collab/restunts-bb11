@@ -806,6 +806,14 @@ class CFileFindDos
   legacy_s8 *dirdelim;
 };
 
+class CRsAnonDcade8718ff6
+{
+  legacy_u16 root;
+  legacy_s8 pattern[13];
+  legacy_s8 previous[13];
+  legacy_s8 path[1024];
+};
+
 class CVleDecoder
 {
   legacy_u16 escape_alphabet_offsets[16];

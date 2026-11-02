@@ -292,6 +292,13 @@ files in `DATA` retain priority, followed by loose files beside `LOAD.HC`,
 `DATA/CARS`, and `PORT/CARS`. The private-data CD tool preserves an existing
 `cars` subfolder and converts its names to uppercase for TempleOS.
 
+Tracks may also go in `DATA/TRACKS` or `PORT/TRACKS`. Loose `.TRK` files in
+`DATA` take priority, followed by loose files beside `LOAD.HC`, `DATA/TRACKS`,
+and `PORT/TRACKS`; duplicate names appear once. `.HIG` files can accompany
+tracks in those folders. New tracks and updated high scores are saved in
+`DATA`. The private-data CD tool preserves `tracks` files and uppercases their
+names. TempleOS supports legacy `.TRK` tracks.
+
 ## Update an existing installation
 
 Quit the game and attach the new `RESTUNTS.ISO`. Install the updated code in a
@@ -383,9 +390,9 @@ python3 src/restunts/platform/templeos/tools/PACKAGE.PY \
 The output path must not exist. This creates the package directory and a sibling
 `RESTUNTS_STOCK_TEMPLEOS.ZIP`. Original input files are not renamed or changed.
 The public builder has no game-data input. Its CD has the bundled Tesla and
-McMurtry car resources in `PORT/CARS` and an empty `DATA` directory. The ZIP
-includes the standalone private-data CD tool. The public build does not read
-or package anyone's original game assets.
+McMurtry car resources in `PORT/CARS`, a `PORT/TRACKS` folder, and an empty
+`DATA` directory. The ZIP includes the standalone private-data CD tool. The
+public build does not read or package anyone's original game assets.
 
 **PR validation** and **Release** run this builder after the TempleOS VM checks.
 The shared release-packaging workflow preserves this installation payload in

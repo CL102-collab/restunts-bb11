@@ -28,10 +28,13 @@ extern "C" {
 #endif
 
 /* Preserve the executable/asset directory before selecting the game-data dir.
- * Loose game data takes priority over cars/ and bundled replacement assets. */
+ * Loose game data takes priority over cars/, tracks/ and bundled replacement assets. */
 void file_car_set_base(const legacy_s8 *directory);
 legacy_u16 file_find_car_ids(legacy_s8 car_ids[][FILE_CAR_ID_BUFFER_SIZE], legacy_u16 capacity);
-/* Open an existing resource, including the car search directories. */
+/* Resolve classic/extended tracks and score sidecars using the car root order.
+ * Explicit paths other than ./ retain their original behavior. */
+legacy_u16 file_track_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_PATH_SIZE]);
+/* Open an existing resource, including the car and track search directories. */
 legacy_u16 file_open_resource(const legacy_s8 *filename);
 
 const legacy_s8 *file_find(const legacy_s8 *query);

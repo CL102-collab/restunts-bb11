@@ -75,6 +75,13 @@ and beside the executable before their `cars/` subfolders and the bundled
 resource folder. Any compatible car placed in these folders is discovered
 automatically; duplicate car IDs appear once, with loose files taking priority.
 
+Desktop, DOS and Amiga packages also include a `tracks/` folder beside the
+executables. Add your own `.TRK` files there; SDL3 builds also support `.CSTRK`
+tracks. The game checks loose game-data files, loose executable files, game-data
+`tracks/`, then executable `tracks/`, and lists duplicate filenames only once
+without case sensitivity. Optional `.HIG`/`.CSHIG` tables load from these folders
+too; new tracks and updated scores are saved in the selected game-data folder.
+
 SDL3 desktop packages contain the game, its startup window, the command-line ghost
 generator and its GUI, physics dumper, renderer dumper, statically linked SDL,
 its license, and the replaceable Nuked OPL2 shared library. The exact Nuked source,

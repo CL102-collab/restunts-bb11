@@ -8,6 +8,7 @@ import shutil
 
 PORT = Path(__file__).resolve().parent.parent
 BUNDLED_CARS = PORT.parents[3] / "assets/cars"
+TRACKS_README = PORT.parents[3] / "assets/tracks/README.TXT"
 SOURCE_EXTENSIONS = {".HC", ".HH"}
 CAR_EXTENSIONS = {".RES", ".3SH", ".VSH"}
 DATA_EXTENSIONS = {
@@ -15,6 +16,7 @@ DATA_EXTENSIONS = {
     ".TRK", ".RPL", ".HIG", ".CFG", ".DAT", ".DRV", ".VCE", ".SFX",
     ".KMS", ".FNT", ".PLB",
 }
+RESOURCE_DIRECTORIES = {"CARS": DATA_EXTENSIONS, "TRACKS": {".TRK", ".HIG"}}
 
 
 def collect_resources(directory, extensions):
@@ -42,13 +44,14 @@ def prepare(data, destination):
     assets = collect_resources(data, DATA_EXTENSIONS) if data is not None else {}
     if data is not None and not any(name in assets for name in ("MISC.RES", "MISC.PRE")):
         raise ValueError("The data directory has no MISC.RES or MISC.PRE")
-    car_directories = [source for source in data.iterdir()
-                       if source.is_dir() and source.name.upper() == "CARS"] if data else []
-    if len(car_directories) > 1:
-        raise ValueError("Directories have the same uppercase name: CARS")
-    if car_directories:
-        assets.update({"CARS/" + name: source for name, source in
-                       collect_resources(car_directories[0], DATA_EXTENSIONS).items()})
+    for directory, extensions in RESOURCE_DIRECTORIES.items():
+        sources = [source for source in data.iterdir()
+                   if source.is_dir() and source.name.upper() == directory] if data else []
+        if len(sources) > 1:
+            raise ValueError("Directories have the same uppercase name: " + directory)
+        if sources:
+            assets.update({directory + "/" + name: source for name, source in
+                           collect_resources(sources[0], extensions).items()})
     bundled_cars = collect_resources(BUNDLED_CARS, CAR_EXTENSIONS)
     if not bundled_cars:
         raise ValueError("No bundled car resources found")
@@ -69,6 +72,8 @@ def prepare(data, destination):
     (destination / "PORT/CARS").mkdir()
     for name, source in bundled_cars.items():
         shutil.copyfile(source, destination / "PORT/CARS" / name)
+    (destination / "PORT/TRACKS").mkdir()
+    shutil.copyfile(TRACKS_README, destination / "PORT/TRACKS" / TRACKS_README.name)
     for name, source in assets.items():
         target = destination / "DATA" / name
         target.parent.mkdir(parents=True, exist_ok=True)

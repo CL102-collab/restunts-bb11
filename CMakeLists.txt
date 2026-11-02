@@ -486,6 +486,7 @@ install(TARGETS restunts repldump pixldump RUNTIME DESTINATION bin COMPONENT Run
 foreach(car_file IN LISTS restunts_car_files)
     install(FILES "assets/cars/${car_file}" DESTINATION bin/cars COMPONENT Runtime)
 endforeach()
+install(FILES assets/tracks/README.TXT DESTINATION bin/tracks COMPONENT Runtime)
 foreach(music IN LISTS music_tracks)
     install(FILES "assets/music/${music}.ogg" DESTINATION bin/music COMPONENT Runtime OPTIONAL)
 endforeach()
