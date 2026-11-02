@@ -217,26 +217,34 @@ run_host_test() {
     local source
     local companion
     local included
+    local included_sources
+    local companions
     local known_sources=" $source_file $* "
     local sources=("$source_file" "$@")
+    # Collect producer output synchronously so source discovery does not rely
+    # on background process-substitution pipes on native test hosts.
+    included_sources=$(sed -n -e 's|^#include "../c/\([^" ]*\.c\)".*|\1|p' \
+        -e 's|^#define [A-Z_]*SOURCE "../c/\([^" ]*\.c\)".*|\1|p' "$fixture")
     while IFS= read -r included; do
+        [[ -n "$included" ]] || continue
         known_sources="$known_sources $included "
         sources+=("$included")
-    done < <(sed -n -e 's|^#include "../c/\([^" ]*\.c\)".*|\1|p' \
-        -e 's|^#define [A-Z_]*SOURCE "../c/\([^" ]*\.c\)".*|\1|p' "$fixture")
+    done <<< "$included_sources"
     local extra_sources=()
     local source_index=0
     while [[ "$source_index" -lt "${#sources[@]}" ]]; do
         source="${sources[$source_index]}"
         source_index=$((source_index + 1))
+        companions=$(source_companions "${source##*/}" "$*")
         while IFS= read -r companion; do
+            [[ -n "$companion" ]] || continue
             if [[ "$known_sources" != *"/$companion "* &&
                   "$known_sources" != *" $companion "* ]]; then
                 extra_sources+=("$test_source_dir/$companion")
                 sources+=("$companion")
                 known_sources="$known_sources $companion "
             fi
-        done < <(source_companions "${source##*/}" "$*")
+        done <<< "$companions"
     done
 
     echo "Building $test_name"
