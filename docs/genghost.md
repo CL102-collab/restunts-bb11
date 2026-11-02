@@ -174,13 +174,19 @@ interfaces load recorded rules when a CSRPL is selected. The search supports up
 to 120,000 inputs on extended tracks (100 minutes at 20 Hz or 200 at 10 Hz);
 legacy searches retain their 12,000-input limit.
 
-Barrel ramps use sampled road geometry through the lip, a centered approach near
-100 mph and neutral steering during ramp banking and unsupported flight. Speed
-variants let the search adapt to the car and surface. The receiving road is a
-flight target, not fictitious road support across the gap. Slalom/tunnel
+Barrel ramps use sampled road geometry through the lip. Initial pilots use a
+centered approach near 100 mph and neutral steering during banking and flight.
+For unfinished OWOOT runs, the default optimizer also tries bounded approach
+lines, steering and countersteering, and pedal inputs during contact and flight.
+Airborne braking can reduce wheel RPM before touchdown without changing the
+selected physics. Native simulation must confirm the roll and sustained landing
+before the search retains that prefix and adapts the next corner. The receiving
+road is a flight target, not fictitious road support across the gap. Slalom/tunnel
 combinations retain roof clearance instead of proposing jumps over their poles.
 Only native simulation decides whether a proposal finishes; selected OWOOT rules
-also require the complete airborne roll and a valid upright landing.
+also require a completed airborne roll and a road landing that survives the
+normal physics. OWOOT adds no separate upright-attitude requirement to that
+landing. A completed roll remains valid through further airborne rotation.
 
 A physically valid route does not guarantee a particular car can complete it.
 The gap, grade, grip, collision settings and search budget affect the result.

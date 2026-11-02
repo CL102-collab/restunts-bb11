@@ -52,30 +52,36 @@ def rotate_object(piece, turns):
                            if mask & (1 << (row * width + column)))
         result.update(x=MAP_SIZE - result["y"] - height, y=result["x"],
                       width=height, height=width, mask=rotated_mask)
-    result["rotation"] = turns
+    result["rotation"] = (result["rotation"] + turns) % 4
     return result
 
 
 def track_bytes(kind="flat", rotation=0, surface=0):
     """Build a rectangular lap, optionally with the new slope/stunt modifiers."""
-    barrel = kind == "barrel"
-    left, right = (70, 76) if barrel else (72, 78)
-    top, bottom = (20, 55) if barrel else (8, 16)
-    start = 22 if barrel else (bottom - 1 if kind == "combined" else top + 3)
+    tight_barrel = kind == "barrel-tight"
+    barrel = kind in ("barrel", "barrel-tight")
+    left, right = (45, 51) if tight_barrel else ((70, 76) if barrel else (72, 78))
+    top, bottom = (15, 45) if tight_barrel else ((20, 55) if barrel else (8, 16))
+    start = top + 2 if barrel else (bottom - 1 if kind == "combined" else top + 3)
+    launch = bottom - 7 if tight_barrel else 43
+    landing = bottom - 1 if tight_barrel else 48
     pieces = [object_record(6, left, top), object_record(7, right, top),
               object_record(8, left, bottom), object_record(9, right, bottom)]
     for column in range(left + 1, right):
         pieces.extend((object_record(5, column, top), object_record(5, column, bottom)))
     for row in range(top + 1, bottom):
         pieces.append(object_record(4, right, row))
-        if barrel and 43 <= row < 48:
+        if barrel and launch <= row < landing:
             continue
         tile = (179 if barrel else 1) if row == start else 4
-        combined = kind == "combined" and row == top + 4
-        pieces.append(object_record(115 if combined else tile, left, row,
-                                    combined=int(combined)))
+        combined = ((kind == "combined" and row == top + 4) or
+                    (tight_barrel and row == landing))
+        piece = object_record(115 if combined else tile, left, row, combined=int(combined))
+        if tight_barrel and combined:
+            piece["rotation"] = 2
+        pieces.append(piece)
     if barrel:
-        pieces.append(object_record(85, left, 43, width=1, height=2, mask=3, roll=1))
+        pieces.append(object_record(85, left, launch, width=1, height=2, mask=3, roll=1))
     if kind == "dense":
         # Keep scenery clear of the lap while exercising a valid track payload
         # larger than the old entire-file reader limit.
@@ -88,6 +94,8 @@ def track_bytes(kind="flat", rotation=0, surface=0):
     for row in range(MAP_SIZE + 1):
         value = max(0, min(4, row - (top + 2))) if kind == "combined" else 0
         for column in range(MAP_SIZE + 1):
+            if tight_barrel:
+                value = 3 + int(column > left)
             x, y = column, row
             for _ in range(rotation):
                 x, y = MAP_SIZE - y, x
@@ -152,9 +160,10 @@ def main():
     available = {p.name.upper() for p in data.iterdir()} if data.is_dir() else set()
     required = (("GAME.PRE", "GAME.RES"), ("CARCOUN.PRE", "CARCOUN.RES"),
                 ("STCOUN.P3S", "STCOUN.3SH"), ("CARP962.PRE", "CARP962.RES"),
-                ("STP962.P3S", "STP962.3SH"))
+                ("STP962.P3S", "STP962.3SH"), ("CARPMIN.PRE", "CARPMIN.RES"),
+                ("STPMIN.P3S", "STPMIN.3SH"))
     if any(not any(name in available for name in names) for names in required):
-        print("SKIP: original Stunts game and COUN/P962 car resources are needed", flush=True)
+        print("SKIP: original Stunts game and COUN/P962/PMIN car resources are needed", flush=True)
         return 77
     environment = dict(os.environ, SDL_VIDEODRIVER="restunts-invalid-driver",
                        SDL_AUDIODRIVER="restunts-invalid-driver", RESTUNTS_AUDIO_TRACE="")
@@ -364,6 +373,13 @@ def main():
         _, combined_view, _, _ = generate(combined_path, "COUN", "combined.csrpl", evaluations=512)
         assert combined_view["track"] == combined_path.read_bytes()
         print("Fresh generation on graded tunnel-with-slalom CSTRK passed", flush=True)
+
+        tight_path = output / "barrel-budget.cstrk"
+        tight_path.write_bytes(track_bytes("barrel-tight"))
+        budget = json.loads(run(harness, ["--barrel-budget", tight_path]).stdout)
+        assert budget["evaluations"] == 32 and budget["native_inputs"] > 0
+        assert budget["cancelled_at"] < budget["evaluations"] and budget["deterministic"]
+        print("Unfinished barrel repair honors native candidate budgets, cancellation and repeatability", flush=True)
 
         for rotation in range(4):
             barrel_path = output / f"barrel{rotation}.cstrk"

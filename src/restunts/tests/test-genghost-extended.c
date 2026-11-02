@@ -5,6 +5,7 @@
 
 #include "../genghost/simulation.h"
 #include "../genghost/routes.h"
+#include "../genghost/search.h"
 #include "../c/externs.h"
 #include "../c/extended/cstrk.h"
 #include "../c/extended/csrpl.h"
@@ -28,6 +29,7 @@
 #define EXTENDED_TEST_ERROR_CAPACITY 256U
 #define EXTENDED_TEST_ROLL_PHASES 4U
 #define EXTENDED_TEST_LANDING_DIVISOR 2U
+#define EXTENDED_TEST_SEARCH_BUDGET 32U
 #define EXTENDED_TEST_MAX_TRACK                                                                    \
 	(CSTRK_HEADER_SIZE + (CSTRK_MAX_DIMENSION + 1U) * (CSTRK_MAX_DIMENSION + 1U) +                 \
 	 2U * CSTRK_MAX_OBJECTS + CSTRK_OBJECT_SIZE * CSTRK_MAX_OBJECTS + CSTRK_MAX_NOTES)
@@ -280,6 +282,60 @@ static void test_replay(const legacy_u8 *bytes, legacy_uint size, const legacy_c
 		   roll.complete ? "true" : "false", (legacy_int)roll.maximum);
 }
 
+static legacy_int budget_save(const struct GENGHOST_SEARCH_RESULT *result, void *opaque)
+{
+	(void)result;
+	(void)opaque;
+	return 0;
+}
+
+static legacy_int cancel_after_native_input(const struct GENGHOST_SEARCH_RESULT *result,
+											void *opaque)
+{
+	(void)opaque;
+	return result->input_evaluations != 0U;
+}
+
+static void test_barrel_search_budget(const legacy_u8 *track, legacy_uint size,
+									  const legacy_char *program)
+{
+	legacy_char *arguments[] = {(legacy_char *)program, (legacy_char *)"--owoot"};
+	genghost_sim_set_frame_rate(GAME_FRAME_RATE_NORMAL);
+	assert(genghost_sim_init_track(track, size, "PMIN", TRANSMISSION_MANUAL,
+								   sizeof(arguments) / sizeof(arguments[0]), arguments) == 0);
+	struct GENGHOST_OPTIONS options = {0};
+	options.evaluations = EXTENDED_TEST_SEARCH_BUDGET;
+	options.seed = 1U;
+	options.powergear = options.collision = options.left_bias = options.dual_way_switching =
+		options.chicane_fast_grass = options.owoot = 1;
+	struct GENGHOST_SEARCH_RESULT first, second;
+	genghost_interrupted = 0;
+	legacy_int status = genghost_search(&options, NULL, 0U, &first, budget_save, NULL);
+	assert(status == 0 || status == 2);
+	assert(first.evaluations == EXTENDED_TEST_SEARCH_BUDGET);
+	assert(first.input_evaluations > 0U && first.policy_evaluations > 0U);
+	assert(first.input_evaluations + first.policy_evaluations == first.evaluations);
+	genghost_interrupted = 0;
+	status = genghost_search(&options, NULL, 0U, &second, budget_save, NULL);
+	assert(status == 0 || status == 2);
+	assert(second.evaluations == first.evaluations &&
+		   second.input_evaluations == first.input_evaluations &&
+		   second.policy_evaluations == first.policy_evaluations &&
+		   second.simulated_frames == first.simulated_frames);
+	assert(second.length == first.length && memcmp(second.inputs, first.inputs, first.length) == 0);
+	assert(second.race.finished == first.race.finished &&
+		   second.race.total_frames == first.race.total_frames);
+	options.progress = cancel_after_native_input;
+	genghost_interrupted = 0;
+	status = genghost_search(&options, NULL, 0U, &second, budget_save, NULL);
+	assert(status == 0 || status == 2);
+	assert(second.input_evaluations > 0U && second.evaluations < options.evaluations);
+	printf("{\"evaluations\":%u,\"native_inputs\":%u,\"cancelled_at\":%u,"
+		   "\"deterministic\":true}\n",
+		   (legacy_uint)first.evaluations, (legacy_uint)first.input_evaluations,
+		   (legacy_uint)second.evaluations);
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 {
 	assert(argc >= 3);
@@ -292,6 +348,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 **argv)
 						   strcmp((const legacy_char *)argv[1], "--snapshot10") == 0
 							   ? GAME_FRAME_RATE_LOW
 							   : GAME_FRAME_RATE_NORMAL);
+	} else if (strcmp((const legacy_char *)argv[1], "--barrel-budget") == 0) {
+		assert(argc == 3);
+		test_barrel_search_budget(source, size, (const legacy_char *)argv[0]);
 	} else if (strcmp((const legacy_char *)argv[1], "--drive10") == 0) {
 		assert(argc == 4);
 		test_drive_10hz(source, size, (const legacy_char *)argv[3], (const legacy_char *)argv[0]);

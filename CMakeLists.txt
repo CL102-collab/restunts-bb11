@@ -846,6 +846,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
+        src/restunts/genghost/search.c src/restunts/genghost/extended_search.c
         src/restunts/tests/test-genghost-extended.c)
     target_compile_definitions(test-genghost-extended PRIVATE
         RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)

@@ -6,6 +6,7 @@
 #include "../genghost/routes.h"
 #include "../genghost/maneuvers.h"
 #include "../c/extended/extended_geometry.h"
+#include "../c/extended/extended_owoot_internal.h"
 #include "../c/game_input.h"
 #include "../c/externs.h"
 #include "../c/extended/cstrk.h"
@@ -53,6 +54,10 @@
 #define TEST_POSITION_SCALE 64L
 #define TEST_GRADE_APPROACH 512.0
 #define TEST_GRADE_LOOKAHEAD 200.0
+#define TEST_LANDING_ATTITUDE (ANGLE_QUARTER_TURN / 2)
+#define TEST_LANDING_ADVANCE (CSTRK_TILE_WORLD_SIZE / 8)
+#define TEST_BARREL_ENTRY_SPEED (30U * 256U)
+#define TEST_BARREL_ENTRY_OFFSET 0.5
 
 extern legacy_f64 sqrt(legacy_f64);
 
@@ -210,6 +215,137 @@ static void test_modifier_geometry(void)
 			cstrk_free(&track);
 		}
 	}
+}
+
+enum TEST_BARREL_PILOT_POSE {
+	TEST_BARREL_PILOT_LANDED,
+	TEST_BARREL_PILOT_ACTIVE,
+	TEST_BARREL_PILOT_LIP,
+	TEST_BARREL_PILOT_POSES
+};
+
+static void test_barrel_pilot_landing_release(void)
+{
+	const struct CARSTATE saved_car = state.playerstate;
+	legacy_s8 *saved_steering = steerWhlRespTable_ptr;
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	steerWhlRespTable_ptr = steerWhlRespTable_20fps;
+	for (legacy_u8 rotation = 0; rotation < TEST_ROTATIONS; rotation++) {
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		rectangle(&track, 1, 0);
+		rotate_track(&track, rotation);
+		activate(&track);
+		struct GENGHOST_ROUTES routes;
+		assert(genghost_routes_build(&routes, error, sizeof(error)) == 0);
+		assert(routes.count == 1U);
+		const struct GENGHOST_ROUTE *route = &routes.routes[0];
+		size_t first = 0U;
+		while (first < route->point_count && !route->points[first].roll_ramp) {
+			first++;
+		}
+		assert(first < route->point_count);
+		size_t last = first;
+		while (last + 1U < route->point_count &&
+			   route->points[last + 1U].piece == route->points[first].piece) {
+			last++;
+		}
+		assert(last + 1U < route->point_count);
+		const struct GENGHOST_WAYPOINT *entry = &route->points[first];
+		const struct GENGHOST_WAYPOINT *lip = &route->points[last];
+		const struct GENGHOST_WAYPOINT *landing = &route->points[last + 1U];
+		legacy_f64 forward_x = (lip->x - entry->x) / ROLL_RAMP_LENGTH;
+		legacy_f64 forward_z = (lip->z - entry->z) / ROLL_RAMP_LENGTH;
+		struct GENGHOST_POLICY policy;
+		genghost_policy_default(&policy);
+		for (legacy_u8 scenario = 0U; scenario < TEST_BARREL_PILOT_POSES; scenario++) {
+			legacy_int at_lip = scenario == TEST_BARREL_PILOT_LIP;
+			const struct GENGHOST_WAYPOINT *position = at_lip ? lip : landing;
+			memset(&state.playerstate, 0, sizeof(state.playerstate));
+			struct CARSTATE *car = &state.playerstate;
+			car->car_position.lx =
+				(legacy_s32)((position->x + (at_lip ? 0.0 : forward_x * TEST_LANDING_ADVANCE)) *
+							 TEST_POSITION_SCALE);
+			car->car_position.ly =
+				(legacy_s32)((position->y + TEST_GRADE_BODY_HEIGHT) * TEST_POSITION_SCALE);
+			car->car_position.lz =
+				(legacy_s32)((position->z + (at_lip ? 0.0 : forward_z * TEST_LANDING_ADVANCE)) *
+							 TEST_POSITION_SCALE);
+			car->car_rotate.x = (ANGLE_HALF_TURN - rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+			car->car_rotate.y = car->car_rotate.z = TEST_LANDING_ATTITUDE;
+			car->car_sumSurfAllWheels = CARSTATE_WHEEL_COUNT;
+			for (legacy_u8 wheel = 0U; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+				car->car_surfaceWhl[wheel] = CAR_SURFACE_PAVED;
+				car->car_wheel_contact_positions[wheel].x =
+					LEGACY_S16_FROM_BITS((legacy_u16)(car->car_position.lx / TEST_POSITION_SCALE));
+				car->car_wheel_contact_positions[wheel].y = (legacy_s16)position->y;
+				car->car_wheel_contact_positions[wheel].z =
+					LEGACY_S16_FROM_BITS((legacy_u16)(car->car_position.lz / TEST_POSITION_SCALE));
+			}
+			if (scenario == TEST_BARREL_PILOT_ACTIVE) {
+				car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] = entry->piece + 1;
+			}
+			extended_geometry_set_context(car->car_position.lx, car->car_position.lz);
+			struct GENGHOST_DRIVER driver = {0};
+			driver.waypoint = first;
+			driver.progress = entry->distance;
+			driver.barrel_waypoint = first + 1U;
+			genghost_driver_step(route, &policy, &driver, 0, 1, 1);
+			if (scenario == TEST_BARREL_PILOT_LANDED) {
+				/* Cleared jump state and real road contact represent an already
+				 * validated landing. Remaining bank must not lock out steering. */
+				assert(driver.barrel_active == 0U && driver.barrel_waypoint == 0U);
+			} else {
+				/* Neither an active flight nor tire contact on the launch lip
+				 * grants the receiving road's steering release. */
+				assert(driver.barrel_active != 0U && driver.barrel_waypoint == first + 1U);
+			}
+		}
+		/* Opposite safe approach lines must produce opposite steering before
+		 * banking, so the input repair can explore actual launch contacts. */
+		legacy_u8 steering[2];
+		for (legacy_u8 side = 0U; side < 2U; side++) {
+			memset(&state.playerstate, 0, sizeof(state.playerstate));
+			struct CARSTATE *car = &state.playerstate;
+			car->car_position.lx =
+				(legacy_s32)((entry->x - forward_x * TEST_GRADE_APPROACH) * TEST_POSITION_SCALE);
+			car->car_position.ly =
+				(legacy_s32)((entry->y + TEST_GRADE_BODY_HEIGHT) * TEST_POSITION_SCALE);
+			car->car_position.lz =
+				(legacy_s32)((entry->z - forward_z * TEST_GRADE_APPROACH) * TEST_POSITION_SCALE);
+			car->car_rotate.x = (ANGLE_HALF_TURN - rotation * ANGLE_QUARTER_TURN) & ANGLE_MASK;
+			car->car_actual_speed = TEST_BARREL_ENTRY_SPEED;
+			car->car_sumSurfAllWheels = CARSTATE_WHEEL_COUNT;
+			for (legacy_u8 wheel = 0U; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+				car->car_surfaceWhl[wheel] = CAR_SURFACE_PAVED;
+				car->car_wheel_contact_positions[wheel].x =
+					LEGACY_S16_FROM_BITS((legacy_u16)(car->car_position.lx / TEST_POSITION_SCALE));
+				car->car_wheel_contact_positions[wheel].z =
+					LEGACY_S16_FROM_BITS((legacy_u16)(car->car_position.lz / TEST_POSITION_SCALE));
+			}
+			for (legacy_uint segment = 0U; segment < GENGHOST_POLICY_SEGMENTS; segment++) {
+				policy.segment[segment].lateral_offset =
+					side ? TEST_BARREL_ENTRY_OFFSET : -TEST_BARREL_ENTRY_OFFSET;
+			}
+			extended_geometry_set_context(car->car_position.lx, car->car_position.lz);
+			struct GENGHOST_DRIVER driver = {0};
+			driver.waypoint = first;
+			driver.progress = entry->distance - TEST_GRADE_APPROACH;
+			steering[side] = genghost_driver_step(route, &policy, &driver, 0, 1, 1) &
+							 (INPUT_STEER_LEFT_FLAG | INPUT_STEER_RIGHT_FLAG);
+			assert(driver.barrel_active == 1U);
+		}
+		assert(steering[0] != INPUT_NONE && steering[1] != INPUT_NONE &&
+			   steering[0] != steering[1]);
+		genghost_routes_free(&routes);
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+	state.playerstate = saved_car;
+	steerWhlRespTable_ptr = saved_steering;
+	extended_geometry_set_context(saved_context_x * TEST_POSITION_SCALE,
+								  saved_context_z * TEST_POSITION_SCALE);
 }
 
 static legacy_f64 graded_height(legacy_f64 x, legacy_f64 z, legacy_u8 rotation)
@@ -437,6 +573,7 @@ int main(void)
 	init_trackdata();
 	test_placed_geometry();
 	test_modifier_geometry();
+	test_barrel_pilot_landing_release();
 	test_graded_catalog_targets();
 	test_long_route();
 	puts("Extended generator geometry: wide coordinates, road materials, modifiers and long "
