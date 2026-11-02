@@ -28,10 +28,12 @@ if [[ -n "$(ls -A "$runtime_dir")" ]]; then
     echo "Android runtime directory must be empty: $runtime_dir" >&2
     exit 1
 fi
-bash "$script_dir/build-android.sh" "$target" --no-daemon \
-    "-PrestuntsAndroidBuildRoot=$build_root"
-bash "$script_dir/build-genghost-android.sh" "$target" --no-daemon \
-    "-PrestuntsAndroidBuildRoot=$build_root"
+gradle_options=(--no-daemon "-PrestuntsAndroidBuildRoot=$build_root")
+if [[ -n "${RESTUNTS_BUILD_JOBS:-}" ]]; then
+    gradle_options+=(--parallel "--max-workers=$RESTUNTS_BUILD_JOBS")
+fi
+bash "$script_dir/build-android.sh" "$target" "${gradle_options[@]}"
+bash "$script_dir/build-genghost-android.sh" "$target" "${gradle_options[@]}"
 
 expected_digest=
 if [[ "$build_type" == release ]]; then

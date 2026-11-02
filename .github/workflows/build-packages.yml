@@ -78,6 +78,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Use all runner CPUs for builds
+        run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+
       - name: Cache verified AppImage build downloads
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
@@ -246,6 +249,9 @@ jobs:
       - name: Select the runner's Java 17 toolchain
         run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
 
+      - name: Use all runner CPUs for builds
+        run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+
       - name: Install the pinned Android SDK, NDK and CMake
         run: bash tools/scripts/install-android-package-dependencies.sh
 
@@ -362,6 +368,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Use all runner CPUs for builds
+        run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+
       - name: Install target dependencies and verified cross compilers
         env:
           PACKAGE_TARGET: ${{ matrix.target }}
@@ -417,6 +426,7 @@ jobs:
           envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           run: |
             set -eu
+            export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
             sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
             bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
 
@@ -430,6 +440,7 @@ jobs:
           envs: PACKAGE_TARGET GITHUB_SHA GITHUB_REF GITHUB_RUN_ID GITHUB_RUN_ATTEMPT
           run: |
             set -eu
+            export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
             sh tools/scripts/install-bsd-package-dependencies.sh "$PACKAGE_TARGET"
             bash tools/scripts/build-package.sh "$PACKAGE_TARGET"
 
@@ -446,6 +457,7 @@ jobs:
             /usr/sbin/pkg_add -u curl git-base mozilla-rootcerts-openssl
           run: |
             set -eu
+            export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
             export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
             if [ "$PACKAGE_TARGET" = netbsd-x86 ] || [ "$PACKAGE_TARGET" = netbsd-x86-no-sse2 ]; then
               sh tools/scripts/build-netbsd-x86-package.sh "$PACKAGE_TARGET"
@@ -484,6 +496,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Use all runner CPUs for builds and the Haiku VM
+        run: echo "RESTUNTS_BUILD_JOBS=$(nproc)" >> "$GITHUB_ENV"
+
       - name: Test the Haiku VM helper
         run: python3 -m unittest discover -s tools/scripts/tests -p test_haiku_vm.py
 
@@ -508,12 +523,12 @@ jobs:
         if: matrix.target == 'haiku-x86'
         run: |
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
-            prepare-x86 --accel kvm
+            prepare-x86 --accel kvm --cpus "$RESTUNTS_BUILD_JOBS"
 
       - name: Boot the Haiku VM and upload sources
         run: |
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
-            start --arch "${PACKAGE_TARGET#haiku-}" --accel kvm
+            start --arch "${PACKAGE_TARGET#haiku-}" --accel kvm --cpus "$RESTUNTS_BUILD_JOBS"
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
             upload "$GITHUB_WORKSPACE" /boot/home/restunts
 
@@ -524,12 +539,13 @@ jobs:
           # A Haiku system update defers package activation until the next boot.
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" stop
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" \
-            start --arch "${PACKAGE_TARGET#haiku-}" --accel kvm
+            start --arch "${PACKAGE_TARGET#haiku-}" --accel kvm --cpus "$RESTUNTS_BUILD_JOBS"
 
       - name: Build and test in the Haiku VM
         run: |
           python3 tools/scripts/haiku-vm.py --directory "$RUNNER_TEMP/haiku-vm" ssh env \
             PACKAGE_TARGET="$PACKAGE_TARGET" \
+            RESTUNTS_BUILD_JOBS="$RESTUNTS_BUILD_JOBS" \
             GITHUB_SHA="$GITHUB_SHA" GITHUB_REF="$GITHUB_REF" \
             GITHUB_RUN_ID="$GITHUB_RUN_ID" GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
             bash -c 'set -eu; cd /boot/home/restunts
@@ -657,7 +673,9 @@ jobs:
       - name: Build both architectures with a macOS 11.0 deployment target
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
-        run: bash tools/scripts/build-package.sh macos-universal
+        run: |
+          export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
+          bash tools/scripts/build-package.sh macos-universal
 
       - name: Upload immutable package artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

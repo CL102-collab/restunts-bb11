@@ -259,7 +259,8 @@ def test_package(build, cmake):
             configure_arguments.extend(f"-D{name}={cache[name]}" for name in MACOS_BUILD_SETTINGS
                                        if name in cache)
         command(configure_arguments)
-        command([cmake, "--build", replacement_build, "--parallel", "2"])
+        jobs = os.environ.get("RESTUNTS_BUILD_JOBS") or str(os.cpu_count() or 1)
+        command([cmake, "--build", replacement_build, "--parallel", jobs])
         replacement = replacement_build / LIBRARY_NAME
         require(replacement.is_file(), "shipped library sources did not build the replacement library")
         # A new inode avoids stale macOS code-signature cache entries after replacement.

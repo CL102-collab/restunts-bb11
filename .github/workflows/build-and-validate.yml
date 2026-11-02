@@ -211,7 +211,7 @@ jobs:
           cmake -S . -B build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug \
             -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF \
             -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
-          cmake --build build/sanitizer --parallel 2
+          cmake --build build/sanitizer --parallel "$(nproc)"
 
       - name: Run instrumented host and SDL3 regressions
         run: >-
@@ -373,13 +373,13 @@ jobs:
           unzip -oq "$zip_path" -d stunts
 
       - name: Build original dump references
-        run: make -C src/restunts repldump-original pixldump-original
+        run: make --jobs="$(nproc)" -C src/restunts repldump-original pixldump-original
 
       - name: Build all six DOS executables
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
-          make -C src/restunts restunts repldump pixldump
-          make -C src/restunts restunts-original
+          make --jobs="$(nproc)" -C src/restunts restunts repldump pixldump
+          make --jobs="$(nproc)" -C src/restunts restunts-original
 
       - name: Install DOSBox-X
         run: |
@@ -389,14 +389,14 @@ jobs:
       - name: Check the DOS platform ABI and dump timer masking
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
-          make -C src/restunts test-dos-platform
+          make --jobs="$(nproc)" -C src/restunts test-dos-platform
           python3 tools/scripts/run-dos-platform-test.py
 
       - name: Verify DOS16 startup and driving settings
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
           python3 tools/scripts/generate-tesla-roadster.py --install stunts
-          make -C src/restunts test-driving-options
+          make --jobs="$(nproc)" -C src/restunts test-driving-options
           python3 tools/scripts/run-driving-options-dos-test.py
 
       - name: Collect the executables
@@ -455,7 +455,7 @@ jobs:
         run: |
           cmake -S . -B build/sdl3 -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DRESTUNTS_BUILD_TESTS=ON
-          cmake --build build/sdl3 --parallel 2
+          cmake --build build/sdl3 --parallel "$(nproc)"
 
       - name: Run SDL3 timer regression
         run: ctest --test-dir build/sdl3 --output-on-failure --no-tests=error -R '^sdl3-timer$'
@@ -512,7 +512,7 @@ jobs:
           cmake -S . -B build/amiga -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/amiga-m68k.cmake \
             -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/amiga --parallel 2 --target restunts \
+          cmake --build build/amiga --parallel "$(nproc)" --target restunts \
             test-amiga-platform test-amiga-endian test-amiga-display \
             test-amiga-rle test-amiga-unflip test-amiga-decompression \
             test-amiga-command-line test-amiga-startup test-amiga-car-adhesion

@@ -27,6 +27,7 @@ TEST_SHARDS = 3
 TEST_PARTITIONS = 1
 TEST_PERCENTAGE = 40
 TEST_REPLAY_COUNT = 10
+TEST_BUILD_CPUS = 4
 TEST_SHORT_TICKS = 100
 TEST_LONG_TICKS = 60000
 COMMAND_TIMEOUT_SECONDS = 30
@@ -210,11 +211,12 @@ class ReplayWorkflowTests(unittest.TestCase):
             directory = Path(temporary)
             binaries = directory / "stub-bin"
             binaries.mkdir()
-            self.write_stub(binaries, "make", """
+            self.write_stub(binaries, "nproc", f"print({TEST_BUILD_CPUS})\n")
+            self.write_stub(binaries, "make", f"""
                 from pathlib import Path
                 import sys
-                assert sys.argv[1:] == ["-C", "src/restunts", "repldump-original",
-                                        "pixldump-original"]
+                assert sys.argv[1:] == ["--jobs={TEST_BUILD_CPUS}", "-C", "src/restunts",
+                                        "repldump-original", "pixldump-original"]
                 stunts = Path("stunts")
                 stunts.mkdir()
                 (stunts / "repldumo.exe").write_bytes(b"built physics")
