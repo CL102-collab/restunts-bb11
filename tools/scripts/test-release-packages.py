@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import stat
 import struct
 import subprocess
@@ -506,6 +507,22 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
                 PACKAGES.validate_contents(target, files | {name: FILE_DATA}, modes)
 
+    def test_templeos_inventory_matches_prepared_public_disc(self):
+        disc = self.root / "templeos-disc"
+        with contextlib.redirect_stdout(io.StringIO()):
+            PACKAGES.TEMPLEOS["PREPARE"]["prepare"](None, disc)
+        for name in PACKAGES.TEMPLEOS["INSTALLER_FILES"]:
+            shutil.copyfile(TEMPLEOS_TOOLS.parent / "package" / name, disc / name)
+        shutil.copyfile(PACKAGES.ROOT / "docs/templeos.md", disc / "README.MD")
+        prepared = {path.relative_to(disc).as_posix(): path.read_bytes()
+                    for path in disc.rglob("*") if path.is_file()}
+        expected = {name: source.read_bytes() for name, source in
+                    PACKAGES.templeos_disc_sources().items()}
+        self.assertEqual(expected.keys(), prepared.keys())
+        for name, content in expected.items():
+            with self.subTest(file=name):
+                self.assertEqual(content, prepared[name])
+
     def test_templeos_package_checksums_and_source_inventories_cannot_be_substituted(self):
         original = self.templeos_files()
         PACKAGES.validate_templeos_package(original)
@@ -531,7 +548,8 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_templeos_disc_rejects_changed_missing_and_additional_nested_files(self):
         sources = PACKAGES.templeos_disc_sources()
-        changed_names = ("INSTALL.HC", "PORT/CARS/CARTERR.RES", "PORT/LOAD.HC")
+        changed_names = ("INSTALL.HC", "PORT/CARS/CARTERR.RES", "PORT/LOAD.HC",
+                         "PORT/TRACKS/README.TXT")
         for name in changed_names:
             for files in (self.templeos_files({name: FILE_DATA}), self.templeos_files(missing=(name,))):
                 with self.subTest(changed=name), self.assertRaises(ValueError):
@@ -539,14 +557,14 @@ class ReleasePackageTests(unittest.TestCase):
         for name in ("PORT/CARS/MISC.RES", "PRIVATE.TXT", "PORT/EXTRA.HC"):
             with self.subTest(extra=name), self.assertRaises(ValueError):
                 PACKAGES.validate_templeos_package(self.templeos_files({name: FILE_DATA}))
-        name = "PORT/LOAD.HC"
-        changed = self.templeos_files({name: FILE_DATA})
-        contents = {key: source.read_bytes() for key, source in sources.items()} | {name: FILE_DATA}
-        changed["CONTENTS.TXT"] = self.templeos_checksums(contents)
-        changed["SHA256SUMS.TXT"] = self.templeos_checksums(
-            {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
-        with self.assertRaises(ValueError):
-            PACKAGES.validate_templeos_package(changed)
+        for name in ("PORT/LOAD.HC", "PORT/TRACKS/README.TXT"):
+            changed = self.templeos_files({name: FILE_DATA})
+            contents = {key: source.read_bytes() for key, source in sources.items()} | {name: FILE_DATA}
+            changed["CONTENTS.TXT"] = self.templeos_checksums(contents)
+            changed["SHA256SUMS.TXT"] = self.templeos_checksums(
+                {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
+            with self.subTest(rehashed=name), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package(changed)
 
     def test_templeos_disc_rejects_unsafe_duplicates_cycles_and_invalid_extents(self):
         original = self.templeos_iso_data()
