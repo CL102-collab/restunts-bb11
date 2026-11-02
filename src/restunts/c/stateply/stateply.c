@@ -279,7 +279,7 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 #ifdef RESTUNTS_SDL3
 	extended_player_restore_suspension(carstate, &saved_suspension);
 #endif
-	derive_car_pose_from_wheels(&motion);
+	derive_car_pose_from_wheels(&motion, simd);
 	sum_front_and_rear_wheel_surfaces(carstate);
 #ifdef RESTUNTS_SDL3
 	extended_player_finish(carstate, player_motion_state, player_motion_fraction);

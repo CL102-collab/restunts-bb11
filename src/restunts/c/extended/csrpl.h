@@ -9,7 +9,7 @@
 /* Track revisions always advance the replay revision. Increment the physics
  * revision independently when simulation changes affect replay compatibility;
  * filename metadata changes have their own independent revision offset. */
-#define CSRPL_PHYSICS_REVISION 4U
+#define CSRPL_PHYSICS_REVISION 5U
 #define CSRPL_FILENAME_REVISION 1U
 #define CSRPL_VERSION (CSTRK_VERSION + CSRPL_PHYSICS_REVISION + CSRPL_FILENAME_REVISION)
 /* Compatibility cutoffs remain fixed when a later track revision advances. */

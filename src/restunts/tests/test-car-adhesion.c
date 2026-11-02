@@ -628,8 +628,140 @@ static void test_full_moving_loop_facets(void)
 	}
 }
 
+enum {
+	TEST_ORIGIN_LATERAL_OFFSET = 3 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_FRONT_Z = 27 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_REAR_Z = -24 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_WORLD_POSITION = 10000 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_WORLD_HEIGHT = 1000 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_TRANSLATION = 7 * PLAYER_PHYSICS_POSITION_SCALE,
+	TEST_ORIGIN_ROTATED_TOLERANCE = 4,
+	TEST_ORIGIN_SETTLING_TICKS = 100,
+	TEST_ORIGIN_HEADING_COUNT = ANGLE_FULL_TURN / ANGLE_QUARTER_TURN,
+	TEST_ORIGIN_SPEED_SCALE = 256,
+	TEST_ORIGIN_MOVING_SPEED = 30 * TEST_ORIGIN_SPEED_SCALE
+};
+
+static void set_offset_wheel_geometry(struct SIMD *simd)
+{
+	for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		simd->wheel_coords[wheel].x += TEST_ORIGIN_LATERAL_OFFSET;
+		simd->wheel_coords[wheel].z =
+			wheel < PLAYER_PHYSICS_FRONT_WHEEL_COUNT ? TEST_ORIGIN_FRONT_Z : TEST_ORIGIN_REAR_Z;
+	}
+}
+
+static void test_offset_wheel_pose_reconstruction(void)
+{
+	static const struct VECTOR poses[] = {
+		{0, 0, 0},
+		{ANGLE_QUARTER_TURN, 0, 0},
+		{ANGLE_HALF_TURN, 0, 0},
+		{ANGLE_THREE_QUARTER_TURN, 0, 0},
+		{0, ANGLE_EIGHTH_TURN, 0},
+		{0, -ANGLE_EIGHTH_TURN, 0},
+		{0, 0, ANGLE_EIGHTH_TURN},
+		{ANGLE_QUARTER_TURN, ANGLE_EIGHTH_TURN / 2, ANGLE_EIGHTH_TURN / 4}};
+	struct CARSTATE car;
+	struct SIMD simd;
+	configure_loop_car(&car, &simd, 0, 0, 0, PLAYER_CAR_INDEX);
+	set_offset_wheel_geometry(&simd);
+	struct SIMD original = simd;
+	for (legacy_u16 sample = 0; sample < sizeof(poses) / sizeof(poses[0]); sample++) {
+		struct VECTORLONG expected = {TEST_ORIGIN_WORLD_POSITION + sample * TEST_ORIGIN_TRANSLATION,
+									  TEST_ORIGIN_WORLD_HEIGHT - sample * TEST_ORIGIN_TRANSLATION,
+									  TEST_ORIGIN_WORLD_POSITION -
+										  sample * TEST_ORIGIN_TRANSLATION};
+		struct MATRIX rotation = *mat_rot_zxy(-poses[sample].z, -poses[sample].y, -poses[sample].x,
+											  MATRIX_ROTATION_ORDER_ZXY);
+		struct PLAYER_WHEEL_MOTION motion = {0};
+		for (legacy_u8 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+			struct VECTOR local = simd.wheel_coords[wheel];
+			local.y = 0;
+			struct VECTOR offset;
+			mat_mul_vector(&local, &rotation, &offset);
+			motion.current[wheel] = (struct VECTORLONG){
+				expected.lx + offset.x, expected.ly + offset.y, expected.lz + offset.z};
+		}
+		/* The result must follow the translated wheel pose rather than retain
+		 * the previous car position to hide zero-speed displacement. */
+		car_working_x = car_working_z = TEST_ORIGIN_WORLD_POSITION;
+		car_working_y = TEST_ORIGIN_WORLD_HEIGHT;
+		derive_car_pose_from_wheels(&motion, &simd);
+		legacy_s32 tolerance =
+			poses[sample].y == 0 && poses[sample].z == 0 ? 0 : TEST_ORIGIN_ROTATED_TOLERANCE;
+		assert(car_working_x >= expected.lx - tolerance &&
+			   car_working_x <= expected.lx + tolerance);
+		assert(car_working_y >= expected.ly - tolerance &&
+			   car_working_y <= expected.ly + tolerance);
+		assert(car_working_z >= expected.lz - tolerance &&
+			   car_working_z <= expected.lz + tolerance);
+		assert(memcmp(&simd, &original, sizeof(simd)) == 0);
+	}
+}
+
+static void test_stopped_offset_wheels(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
+	for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+		for (legacy_u8 fan = 0; fan <= 1; fan++) {
+			for (legacy_s16 driver = PLAYER_CAR_INDEX; driver <= OPPONENT_CAR_INDEX; driver++) {
+				for (legacy_u8 heading = 0; heading < TEST_ORIGIN_HEADING_COUNT; heading++) {
+					test_finite_loop_surface();
+					memset(elements, 0, sizeof(elements));
+					planes[0].plane_normal.y = TRIG_FIXED_ONE / 2;
+					mat_rot_y(&planes[0].plane_rotation, 0);
+					struct CARSTATE car;
+					struct CARSTATE other = {0};
+					struct SIMD simd;
+					struct SIMD other_simd = {0};
+					configure_loop_car(&car, &simd,
+									   PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT /
+										   PLAYER_PHYSICS_POSITION_SCALE,
+									   0, 0, driver);
+					set_offset_wheel_geometry(&simd);
+					struct SIMD original = simd;
+					car.car_rotate.x = heading * ANGLE_QUARTER_TURN;
+					car_surface_adhesion[driver] = fan;
+					framespersec = rates[rate];
+					gameconfig.game_opponenttype = 0;
+					struct VECTORLONG start = car.car_position;
+					for (legacy_u16 tick = 0; tick < TEST_ORIGIN_SETTLING_TICKS; tick++) {
+						update_player_state(&car, &simd, &other, &other_simd, driver);
+						assert(car.car_actual_speed == CAR_SPEED_STOPPED);
+						assert(car.car_crashBmpFlag == CRASH_EVENT_NONE);
+						assert(car.car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE);
+						assert(car.car_position.lx == start.lx);
+						assert(car.car_position.lz == start.lz);
+					}
+					start = car.car_position;
+					car.car_actual_speed = TEST_ORIGIN_MOVING_SPEED;
+					struct VECTOR travel = {
+						0, 0,
+						scale_speed_to_travel(car.car_actual_speed,
+											  framespersec == GAME_FRAME_RATE_LOW
+												  ? PLAYER_PHYSICS_LOW_RATE_TRAVEL_DIVISOR
+												  : PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR)};
+					struct VECTOR world_travel;
+					struct MATRIX rotation;
+					mat_rot_y(&rotation, -car.car_rotate.x);
+					mat_mul_vector(&travel, &rotation, &world_travel);
+					update_player_state(&car, &simd, &other, &other_simd, driver);
+					assert(car.car_crashBmpFlag == CRASH_EVENT_NONE);
+					assert(car.car_position.lx == start.lx + world_travel.x);
+					assert(car.car_position.lz == start.lz + world_travel.z);
+					assert(memcmp(&simd, &original, sizeof(simd)) == 0);
+				}
+			}
+		}
+	}
+	reset_car_capabilities();
+}
+
 legacy_int main(void)
 {
+	test_offset_wheel_pose_reconstruction();
+	test_stopped_offset_wheels();
 	test_resource_capability();
 	test_resource_settings();
 	test_selected_car_capability();

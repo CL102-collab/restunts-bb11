@@ -104,7 +104,7 @@ void prepare_wheel_motion(struct CARSTATE *carstate, struct SIMD *simd,
 
 void apply_wheel_suspension(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTION *motion);
 
-void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion);
+void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion, const struct SIMD *simd);
 
 void sum_front_and_rear_wheel_surfaces(struct CARSTATE *carstate);
 

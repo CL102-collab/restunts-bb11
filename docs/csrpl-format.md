@@ -5,7 +5,7 @@ recording behavior. A `.cstrk` race records `.csrpl`, with the complete track
 embedded so subsequent track edits do not change replay playback.
 
 Each recording stores an unsigned 16-bit numeric **replay revision**. New
-recordings currently use **v17**. The revision identifies the track format,
+recordings currently use **v18**. The revision identifies the track format,
 physics behavior, and filename metadata layout of the game that recorded the
 inputs; it is separate from the revision stored in the embedded track.
 
@@ -16,7 +16,7 @@ Increment the physics revision independently when simulation changes can alter
 replay playback, keeping that increment when the track revision later advances.
 Filename metadata has its own revision offset and does not change physics.
 The track and replay revision numbers can therefore diverge. The current track
-revision is v12, physics revision is 4, and filename revision is 1. Physics revision 1 corrected wheel
+revision is v12, physics revision is 5, and filename revision is 1. Physics revision 1 corrected wheel
 contact at consecutive hill slopes in replay v5; replay v6 also supports the
 sloped tunnels and slaloms introduced by track v5. Replay v7 supports
 generalized straight-slope placements introduced by track v6. Physics revision 2
@@ -42,6 +42,13 @@ Replay v15 adds the drive-through Wheat field scenery introduced by track v11.
 Replay v16 adds the Tulip field and Vine field scenery introduced by track v12.
 Replay v17 expands the stored track name to thirteen bytes, retaining twelve-character
 filenames plus a NUL terminator. This metadata change does not change replay physics.
+Physics revision 5 in replay v18 corrects body-origin reconstruction for cars
+whose wheel coordinates are not centered on the model origin. Asymmetric axle
+positions no longer add unintended travel on every physics update, including
+when speed is zero. Centered stock-car reconstruction retains its original
+arithmetic. This shared origin correction also applies when playing supported
+older recordings with offset-wheel cars, so their trajectories can change even
+though loading and resaving retain the recorded revision.
 Loading, seeking, branching, suspending for a ghost, and resaving an existing
 replay retain its original recorded revision; a fresh recording uses the current
 game revision.
@@ -67,7 +74,7 @@ trailing data. The frame count is 32 bits, twice the original field's width.
 | Offset | Bytes | Meaning |
 | --- | --- | --- |
 | 0 | 8 | `CSRPL\r\n\x1a` signature |
-| 8 | 2 | Recorded replay revision, 11–65,535; current revision `17`, minimum `11` |
+| 8 | 2 | Recorded replay revision, 11–65,535; current revision `18`, minimum `11` |
 | 10 | 2 | Header size, 64 |
 | 12 | 4 | Flags, zero |
 | 16 | 4 | Embedded `.cstrk` size in bytes |

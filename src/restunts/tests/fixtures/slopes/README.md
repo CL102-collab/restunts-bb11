@@ -31,3 +31,20 @@ on the slope so a legitimate high-speed launch from the sharp crest cannot
 mask the contact behavior under test.
 
 SHA-256: `f07a87f94d6cc477b7e7c5cfa3028ab6d18850933bb94f6b9fe96724d8d1e4bd`.
+
+## Stopped car with an offset wheel centroid
+
+`zero-speed-offset.csrpl` preserves the user-provided McMurtry recording and all
+233 input frames. It embeds the same 20×20 test map as the slope fixture, but
+the car accelerates briefly and stops on the flat approach. The old wheel-pose
+reconstruction moved it forward by 96 fixed-position units every tick while
+its speed was zero, both with brakes held and released. That displacement
+matched the McMurtry's authored axle midpoint relative to its model origin.
+
+The engine regression checks exact stationary X/Z positions with the actual
+McMurtry and Tesla resources, independently with fan adhesion on and off. It
+then resumes acceleration to verify normal motion remains available. The
+recorded file stays unchanged; only its in-memory admission revision advances
+to exercise current physics. No original game assets or track notes are included.
+
+SHA-256: `cde7d2eff87ea2f3ad37a484a39caf11690080f0e8b2670e8f6f6ed94fcf26ba`.

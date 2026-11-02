@@ -436,6 +436,10 @@ static void derive_car_position_from_wheels(struct PLAYER_WHEEL_MOTION *motion,
 		wheel_offsets[i].y = physics_difference_word(wheels[i].ly, car_working_y);
 		wheel_offsets[i].z = physics_difference_word(wheels[i].lz, car_working_z);
 	}
+}
+
+static void clamp_working_car_position(void)
+{
 	if (car_working_y < 0) {
 		car_working_y = 0;
 	}
@@ -519,7 +523,48 @@ static void derive_car_roll(struct VECTOR *wheel_offsets)
 	}
 }
 
-void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion)
+static void derive_authored_car_origin(const struct PLAYER_WHEEL_MOTION *motion,
+									   const struct SIMD *simd)
+{
+	legacy_s32 sum_x = 0;
+	legacy_s32 sum_z = 0;
+	for (legacy_s16 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		sum_x += simd->wheel_coords[wheel].x;
+		sum_z += simd->wheel_coords[wheel].z;
+	}
+	/* Stock cars have centered wheels. Retain their original reconstruction
+	 * arithmetic, including its fixed-point rounding. */
+	if (sum_x == 0 && sum_z == 0) {
+		return;
+	}
+	struct MATRIX rotation = *mat_rot_zxy(
+		LEGACY_S16_WRAP_NEGATE(car_working_roll), LEGACY_S16_WRAP_NEGATE(car_working_pitch),
+		LEGACY_S16_WRAP_NEGATE(car_working_yaw), MATRIX_ROTATION_ORDER_ZXY);
+	struct VECTORLONG origins[PLAYER_PHYSICS_WHEEL_COUNT];
+	for (legacy_s16 wheel = 0; wheel < PLAYER_PHYSICS_WHEEL_COUNT; wheel++) {
+		/* Suspension has already restored each wheel's body-height anchor. Remove
+		 * its authored horizontal offset before averaging the body origin. An
+		 * asymmetric axle layout must not become extra travel on every tick. */
+		struct VECTOR local = simd->wheel_coords[wheel];
+		local.y = 0;
+		struct VECTOR offset;
+		mat_mul_vector(&local, &rotation, &offset);
+		origins[wheel].lx = LEGACY_S32_WRAP_SUB_S16(motion->current[wheel].lx, offset.x);
+		origins[wheel].ly = LEGACY_S32_WRAP_SUB_S16(motion->current[wheel].ly, offset.y);
+		origins[wheel].lz = LEGACY_S32_WRAP_SUB_S16(motion->current[wheel].lz, offset.z);
+	}
+	car_working_x = wheel_axis_average(
+		origins[PLAYER_PHYSICS_FRONT_WHEEL_FIRST].lx, origins[PLAYER_PHYSICS_FRONT_WHEEL_SECOND].lx,
+		origins[PLAYER_PHYSICS_REAR_WHEEL_FIRST].lx, origins[PLAYER_PHYSICS_REAR_WHEEL_SECOND].lx);
+	car_working_y = wheel_axis_average(
+		origins[PLAYER_PHYSICS_FRONT_WHEEL_FIRST].ly, origins[PLAYER_PHYSICS_FRONT_WHEEL_SECOND].ly,
+		origins[PLAYER_PHYSICS_REAR_WHEEL_FIRST].ly, origins[PLAYER_PHYSICS_REAR_WHEEL_SECOND].ly);
+	car_working_z = wheel_axis_average(
+		origins[PLAYER_PHYSICS_FRONT_WHEEL_FIRST].lz, origins[PLAYER_PHYSICS_FRONT_WHEEL_SECOND].lz,
+		origins[PLAYER_PHYSICS_REAR_WHEEL_FIRST].lz, origins[PLAYER_PHYSICS_REAR_WHEEL_SECOND].lz);
+}
+
+void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion, const struct SIMD *simd)
 {
 	struct VECTOR wheel_offsets[PLAYER_PHYSICS_WHEEL_COUNT];
 	derive_car_position_from_wheels(motion, wheel_offsets);
@@ -533,6 +578,8 @@ void derive_car_pose_from_wheels(struct PLAYER_WHEEL_MOTION *motion)
 		rotate_wheel_offsets(wheel_offsets, &rotation);
 	}
 	derive_car_roll(wheel_offsets);
+	derive_authored_car_origin(motion, simd);
+	clamp_working_car_position();
 }
 
 void sum_front_and_rear_wheel_surfaces(struct CARSTATE *carstate)
