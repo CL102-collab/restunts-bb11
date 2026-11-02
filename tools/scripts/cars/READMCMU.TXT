@@ -63,6 +63,11 @@ specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
 MCMU.obj and MCMU.mtl are editable Wavefront source exports in metres,
 Y-up with tyre bottoms at ground level; keep these two files together.
+The car origin is centered between axles at Z=+25 and Z=-25, giving the
+specified 2200 mm wheelbase. Body vertices shift by 1.5 units from the source
+origin before rounding; native wheel controls and arches stay aligned.
+Physical wheel Y fields are zero. Visual tyres retain their eight-unit radius
+and meet the engine contact plane. Bounds enclose the recentered body.
 The nose has curved body-coloured upper and lower bands and rolled side
 cheeks around a narrow dark-grey inset, replacing the oversized black mouth.
 The four white front lamp markers are omitted.

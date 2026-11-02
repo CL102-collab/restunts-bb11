@@ -211,7 +211,7 @@ def simulate_performance(fps: int = 20) -> dict[str, float | int | None]:
 
 def build_car(repo: Path, dashboard_patch: dict[int, bytes]) -> bytes:
     """Build CARMCMU.RES from stock reserved fields and authored tuning."""
-    from mcmurtry_model import HEIGHT, LENGTH, WIDTH, WHEEL_CENTERS
+    from mcmurtry_model import BODY_ORIGIN_Z, HEIGHT, LENGTH, WIDTH, WHEEL_CENTERS
 
     resources = _resources((repo / "stunts" / "CARANSX.RES").read_bytes())
     simd = bytearray(resources[b"simd"])
@@ -228,12 +228,12 @@ def build_car(repo: Path, dashboard_patch: dict[int, bytes]) -> bytes:
     simd[0x3B:0xA2] = _torque_curve()
     struct.pack_into("<4h", simd, 0xB6, 256, 192, 64, 128)
     half_width = math.ceil(WIDTH / 2)
-    half_length = math.ceil(LENGTH / 2)
+    half_length = math.ceil(LENGTH / 2 + abs(BODY_ORIGIN_Z))
     struct.pack_into("<4h", simd, 0xC8, half_width, math.ceil(HEIGHT - 6),
                      half_length, math.ceil(math.hypot(half_width, half_length)))
     for index, point in enumerate(WHEEL_CENTERS):
         struct.pack_into("<3h", simd, 0xD2 + index * 6,
-                         *(round(coordinate * 64) for coordinate in point))
+                         round(point[0] * 64), 0, round(point[2] * 64))
 
     # Neutral and Drive share their selector position, avoiding a fictitious
     # shift pause for the real car's fixed-ratio electric transmission.
