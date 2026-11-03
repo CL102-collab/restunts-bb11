@@ -1007,12 +1007,12 @@ static void test_startup_multi_core_options(void)
 	/* A new startup without the option clears the previous session's choice. */
 	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
 	reset_startup_hypervision();
-	startup_multi_core_enabled = STARTUP_MULTI_CORE_ON;
+	startup_multi_core_enabled = STARTUP_MULTI_CORE_OFF;
 	legacy_u32 before = startup_multi_core_set_calls;
 	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
 	assert(startup_multi_core_set_calls == before + 1U);
-	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_OFF);
-	assert(startup_options.multi_core_enabled == STARTUP_MULTI_CORE_OFF);
+	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_ON);
+	assert(startup_options.multi_core_enabled == STARTUP_MULTI_CORE_ON);
 	assert(startup_options.multi_core_specified == 0);
 	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); ++first) {
 		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); ++second) {

@@ -106,8 +106,10 @@ build supports `file://` without a local web server. The HTML's location does no
    original AdLib music (`--ogg:off`). It is enabled by default.
    **Graphics settings** contains **Show FPS** (`--fps:on`),
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
-   (`--multi-core:on/off`, initially off), and the **HyperVision** selector.
-   Multi-core rendering requires the threaded build and an isolated page. HyperVision offers **Off**, **Auto**, **Full**,
+   (`--multi-core:on/off`, initially on when supported), and the **HyperVision**
+   selector. Multi-core rendering requires the threaded build and an isolated
+   page; a saved choice overrides its default. Offline builds keep it disabled.
+   HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
    Off starts without HyperVision. Show FPS starts off. Show Control Layout
@@ -241,7 +243,7 @@ and original AdLib music during the intro, menus, and race-end/victory screens.
 
 The browser presents frames through SDL3's WebGL renderer and uses WebAudio
 output. Scene rendering runs on the CPU. **Multi-core rendering** uses
-background CPU workers in threaded builds; it defaults to off. Offline builds
+background CPU workers by default in supported threaded builds. Offline builds
 render serially. Asyncify preserves the existing
 nested game/menu loops. Browser waits share one scheduler: explicit waits also
 satisfy the bounded input/presentation yield interval, and SDL's additional

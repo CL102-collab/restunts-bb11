@@ -365,8 +365,9 @@ Physics dumps use the recording's stored 10 or 20 Hz rate, matching the
 replay viewer. Adding `--time` does not change the `.BNI` or `.owo` output.
 
 SDL3 builds except DOS32 support `--multi-core:on` and `--multi-core:off`.
-The default is off. The desktop, Android, and browser startup windows expose
-**Multi-core rendering** under **Graphics settings** and remember the selection.
+The default is on. The desktop, Android, and supported browser startup windows
+expose **Multi-core rendering** under **Graphics settings** and remember the
+selection; saved choices take precedence over the default.
 Enabled rendering uses available CPU cores; `RESTUNTS_RENDER_WORKERS` overrides
 the background worker count for measurements only while the option is enabled.
 See [render-worker settings](../readme.md#hypervision-and-fps-display) and

@@ -153,7 +153,7 @@ static void test_help_contents(void)
 	expect_text("F11 toggles it during play.");
 	expect_text("FPS display options are case-insensitive.");
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
-	expect_text("Multi-core rendering starts off.");
+	expect_text("Multi-core rendering starts on.");
 	expect_text("Multi-core rendering options are case-insensitive.");
 #else
 	assert(strstr(output, "--multi-core") == NULL);

@@ -1040,7 +1040,7 @@ async function main() {
         assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
             'Initial fullscreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
-        assert.equal(await page.locator('#multi-core').isChecked(), false, 'Multi-core rendering must default off');
+        assert.equal(await page.locator('#multi-core').isChecked(), true, 'Available multi-core rendering must default on');
         assert.equal(await page.locator('#multi-core').isEnabled(), true);
         assert.equal(await page.locator('#multi-core-note').isVisible(), false);
         assert.equal((await page.locator('#multi-core').locator('..').innerText()).trim(), 'Multi-core rendering');
@@ -1063,7 +1063,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:off', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1140,8 +1140,8 @@ async function main() {
             assert.equal(await page.locator('#hypervision').inputValue(), expected,
                 'Legacy checkbox values must migrate; unknown presets must use the browser default');
             assert.equal(await page.locator('#show-fps').isChecked(), false, 'Malformed boolean values must be ignored');
-            assert.equal(await page.locator('#multi-core').isChecked(), false,
-                'Preferences from earlier versions must keep multi-core rendering disabled');
+            assert.equal(await page.locator('#multi-core').isChecked(), true,
+                'Preferences without a multi-core setting must use the enabled default');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
             assert.equal(await page.locator('#sound-enabled').isChecked(), true,
                 'Preferences from earlier versions must leave sound enabled');

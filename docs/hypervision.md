@@ -78,10 +78,11 @@ software span resolution should be translated directly into Vulkan commands.
 
 ## Multi-core rendering
 
-`--multi-core:on` enables a persistent worker pool; `--multi-core:off` is the
-default. The desktop, Android, and browser Graphics settings expose the same
-selection. DOS32 remains serial. Browser threads require a threaded build and
-cross-origin isolation, as described in [the browser guide](wasm.md).
+`--multi-core:on` is the default and enables a persistent worker pool;
+`--multi-core:off` selects serial rendering. The desktop, Android, and supported
+browser Graphics settings expose the same selection and preserve saved choices.
+DOS32 remains serial. Browser threads require a threaded build and cross-origin
+isolation, as described in [the browser guide](wasm.md).
 
 Extended-track terrain and objects are prepared in private geometry contexts.
 Jobs own their projected vertices, shape metadata, shadow receivers, origins,
@@ -188,8 +189,8 @@ not a CTest timing gate.
 
 ### Workers
 
-Render workers are opt-in through `--multi-core:on` or the startup checkbox.
-With the default `--multi-core:off`, no workers are created, even if
+Render workers are enabled by default through `--multi-core:on` or the startup
+checkbox. `--multi-core:off` prevents worker creation, even if
 `RESTUNTS_RENDER_WORKERS` is set. Enabled rendering automatically selects the
 logical CPU count minus one; the calling thread also works. For controlled
 measurements, set `RESTUNTS_RENDER_WORKERS=0`, `1`, or `3` to compare one, two,
@@ -271,7 +272,7 @@ SuperSight with original strips. Higher-resolution results are unaffected.
 One background worker reduced mean elapsed time from 7.163 to 6.277 ms at
 1280x800 (12.4%), with slightly higher process CPU time. At 640x400 elapsed time
 changed from 3.984 to 3.652 ms; at 320x200 the difference was small, 2.928 to
-2.875 ms. Workers therefore remain opt-in, with a serial default.
+2.875 ms. At that point, workers remained opt-in, with a serial default.
 
 These measurements include scene rendering, shadows, frame copies, and replay
 state checks; they exclude display upload/composition, VSync, audio, pacing,
@@ -312,10 +313,10 @@ than shading, skybox output, and shadows. Shadow traversal also remains serial.
 At 1280x800 the optimized serial elapsed mean was 7.299 ms, versus 7.116 ms with
 one worker and 7.531 ms with two workers. Process CPU rose from 6.835 ms to
 7.279 and 7.539 ms. Scheduling variation is too large to establish a consistent
-worker benefit here, so the default remains serial. All 18 captured views match
-byte-for-byte between zero and two workers. The high-resolution serial elapsed
-comparison (7.333 to 7.299 ms) is also within this VM's timing noise; the table
-reports process CPU time, not a guaranteed FPS increase.
+worker benefit in that experiment, so its default remained serial. All 18
+captured views match byte-for-byte between zero and two workers. The high-resolution
+serial elapsed comparison (7.333 to 7.299 ms) is also within this VM's timing
+noise; the table reports process CPU time, not a guaranteed FPS increase.
 
 ## Validation
 

@@ -102,7 +102,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
-	"Multi-core rendering starts off." COMMAND_LINE_NEWLINE
+	"Multi-core rendering starts on." COMMAND_LINE_NEWLINE
 #endif
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)

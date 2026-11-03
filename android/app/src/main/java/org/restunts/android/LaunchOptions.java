@@ -27,7 +27,7 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_SKIP_INTRO = false;
     public static final boolean DEFAULT_TILT_STEERING = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
-    public static final boolean DEFAULT_MULTI_CORE = false;
+    public static final boolean DEFAULT_MULTI_CORE = true;
     public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
     public static final boolean DEFAULT_POWER_GEAR = true;
     public static final boolean DEFAULT_LEGACY_COLLISION = true;

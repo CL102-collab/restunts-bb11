@@ -439,10 +439,11 @@ default. If the renderer cannot apply the requested setting, the game warns and
 continues. The setting does not affect DOS builds or batch dump tools. Display
 synchronization waits are excluded from automatic HyperVision quality measurements.
 
-Multi-core rendering is off by default. On SDL3 builds except 32-bit DOS,
-pass `--multi-core:on` or select **Multi-core rendering** in the startup window's
-**Graphics settings** group. Desktop, Android, and browser launchers remember
-the checkbox. `--multi-core:off` explicitly selects serial rendering. For example:
+Multi-core rendering is on by default in SDL3 builds except 32-bit DOS.
+Use `--multi-core:off` or clear **Multi-core rendering** in the startup window's
+**Graphics settings** group to select serial rendering. Desktop, Android, and
+supported browser launchers remember the checkbox; a saved choice takes
+precedence over the default. `--multi-core:on` selects the default explicitly:
 
 ```sh
 ./out/sdl3-linux-x64/restunts --data-dir stunts --hv:full --multi-core:on
