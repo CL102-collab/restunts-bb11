@@ -79,10 +79,12 @@ static void hires_draw_polygon(const struct SHAPE3D_HIRES_POINT *points, legacy_
 		return;
 	}
 	struct HIRES_BACKEND_VERTEX vertices[HIRES_BACKEND_MAX_VERTICES];
-	for (legacy_u32 index = 0; index < count; index++) {
-		vertices[index] = (struct HIRES_BACKEND_VERTEX){points[index].x, points[index].y,
-														points[index].inverse_z};
-	}
+	legacy_u32 vertex = 0;
+	do {
+		vertices[vertex] = (struct HIRES_BACKEND_VERTEX){points[vertex].x, points[vertex].y,
+														 points[vertex].inverse_z};
+		vertex++;
+	} while (vertex < count);
 	hires_backend_polygon_to(paint->buffer, vertices, count, &paint->material);
 	/* Thin authored decals retain a visible stroke without the former per-pixel
 	 * distance/coverage search over every polygon edge. */
