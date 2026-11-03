@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -47,6 +47,7 @@ const RUNTIME = `<script>
             return { path: options?.parent ? path.slice(0, path.lastIndexOf('/')) : path };
         }
     };
+    Module['restuntsMultiCoreSupported'] = true;
     Module.callMain = args => { window.launchedArguments = args; };
     // Pinned SDL overrides this entry point and requests fullscreen on #canvas
     // through emscripten_request_fullscreen_strategy (SDL_emscriptenvideo.c).
@@ -98,7 +99,7 @@ async function assertSettingsLayout(page, narrow) {
         };
     }, RULES);
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'show-control-layout', 'hypervision'],
+    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout', 'hypervision'],
         'Fullscreen must precede the shared graphics controls, with HyperVision last');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
@@ -946,6 +947,38 @@ async function exerciseStartupFullscreen(browser, url, fixture) {
     }
 }
 
+async function exerciseMultiCoreAvailability(browser, url, fixture) {
+    const context = await browser.newContext();
+    await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
+    const page = await context.newPage();
+    try {
+        for (const path of ['serial', 'nonisolated']) {
+            await page.goto(url + path);
+            await ready(page);
+            assert.equal(await page.locator('#multi-core').isDisabled(), true,
+                'Unsupported modules and browser contexts must disable multi-core rendering');
+            assert.match(await page.locator('#multi-core-note').innerText(),
+                path === 'serial' ? /unavailable in this offline build/ : /cross-origin isolation/);
+            await page.evaluate(() => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', { 'multi-core': true }));
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#multi-core').isChecked(), false,
+                'A remembered on value must not imply support in an unavailable context');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            assert.deepEqual(await page.evaluate(() => window.launchedArguments.filter(
+                arg => arg.startsWith('--multi-core:'))), ['--multi-core:off']);
+            if (path === 'nonisolated') {
+                await page.evaluate(() => Module.onAbort(new Error('SharedArrayBuffer is not defined')));
+                assert.match(await page.locator('#status').innerText(), /secure website with cross-origin isolation/,
+                    'Unsupported threaded startup must explain how to run the game');
+            }
+        }
+    } finally {
+        await context.close();
+    }
+}
+
 async function main() {
     const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'restunts-web-shell-'));
     const fixture = path.join(temporary, 'game-files');
@@ -957,8 +990,14 @@ async function main() {
     assert.ok(source.includes('{{{ SCRIPT }}}'), 'Shell runtime placeholder is missing');
     const html = source.replace('{{{ SCRIPT }}}', RUNTIME);
     const server = http.createServer((request, response) => {
-        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        response.end(html);
+        const headers = { 'Content-Type': 'text/html; charset=utf-8' };
+        if (request.url !== '/nonisolated') {
+            headers['Cross-Origin-Opener-Policy'] = 'same-origin';
+            headers['Cross-Origin-Embedder-Policy'] = 'require-corp';
+        }
+        response.writeHead(200, headers);
+        response.end(request.url === '/serial' ? html.replace(
+            "Module['restuntsMultiCoreSupported'] = true;", "Module['restuntsMultiCoreSupported'] = false;") : html);
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     let browser;
@@ -1001,6 +1040,10 @@ async function main() {
         assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
             'Initial fullscreen must default off');
         assert.equal(await page.locator('#show-fps').isChecked(), false);
+        assert.equal(await page.locator('#multi-core').isChecked(), false, 'Multi-core rendering must default off');
+        assert.equal(await page.locator('#multi-core').isEnabled(), true);
+        assert.equal(await page.locator('#multi-core-note').isVisible(), false);
+        assert.equal((await page.locator('#multi-core').locator('..').innerText()).trim(), 'Multi-core rendering');
         assert.equal(await page.locator('#show-control-layout').isChecked(), false);
         assert.equal(await page.locator('#power-gear').isChecked(), true);
         assert.equal(await page.locator('#legacy-collision').isChecked(), true);
@@ -1020,7 +1063,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:off', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1031,24 +1074,29 @@ async function main() {
             await page.locator('#hypervision').selectOption(preset);
             const fps = index % 2 === 1;
             await page.locator('#show-fps').setChecked(fps);
+            await page.locator('#multi-core').setChecked(fps);
             const stored = await storedOptions(page);
             assert.equal(stored.hypervision, preset, 'Preset must be stored as its string value');
             assert.equal(stored['show-fps'], fps, 'FPS must be stored as a boolean');
+            assert.equal(stored['multi-core'], fps, 'Multi-core rendering must be stored as a boolean');
             await page.reload();
             await ready(page);
             assert.equal(await page.locator('#hypervision').inputValue(), preset, 'Preset must persist');
             assert.equal(await page.locator('#show-fps').isChecked(), fps, 'FPS must persist');
+            assert.equal(await page.locator('#multi-core').isChecked(), fps, 'Multi-core rendering must persist');
             await loadFixture(page, fixture);
             await page.locator('#start').click();
             const args = await page.evaluate(() => window.launchedArguments);
             assert.deepEqual(args.filter(arg => arg.startsWith('--hv:')),
                 preset === 'off' ? [] : ['--hv:' + preset], 'Only the chosen preset may be passed');
             assert.deepEqual(args.filter(arg => arg.startsWith('--fps:')), [fps ? '--fps:on' : '--fps:off']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--multi-core:')),
+                [fps ? '--multi-core:on' : '--multi-core:off']);
         }
 
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
+        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
         for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
@@ -1057,7 +1105,7 @@ async function main() {
         for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-fps', 'show-control-layout', 'owoot', 'amiga-grass']) {
+        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
         for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) {
@@ -1067,7 +1115,7 @@ async function main() {
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--multi-core:on', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1092,6 +1140,8 @@ async function main() {
             assert.equal(await page.locator('#hypervision').inputValue(), expected,
                 'Legacy checkbox values must migrate; unknown presets must use the browser default');
             assert.equal(await page.locator('#show-fps').isChecked(), false, 'Malformed boolean values must be ignored');
+            assert.equal(await page.locator('#multi-core').isChecked(), false,
+                'Preferences from earlier versions must keep multi-core rendering disabled');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
             assert.equal(await page.locator('#sound-enabled').isChecked(), true,
                 'Preferences from earlier versions must leave sound enabled');
@@ -1134,12 +1184,13 @@ async function main() {
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
         const url = 'http://127.0.0.1:' + server.address().port + '/';
+        await exerciseMultiCoreAvailability(browser, url, fixture);
         await exerciseStartupFullscreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

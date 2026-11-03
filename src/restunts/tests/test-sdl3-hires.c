@@ -1187,6 +1187,7 @@ static void test_shadow_composition(void)
  * the caller's row pitch and leaving every source representation untouched. */
 static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const legacy_u32 *palette)
 {
+	hires_render_workers_set_enabled(0);
 	enum { COPY_GUARD_PIXELS = 3, COPY_ROW_PADDING = 7 };
 	const legacy_u32 guard = 0xC15E9A27U;
 	const legacy_s32 paddings[] = {0, COPY_ROW_PADDING};
@@ -1207,6 +1208,9 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 	memcpy(original_legacy, screen->base, sizeof(original_legacy));
 	memcpy(original_palette, palette, sizeof(original_palette));
 	legacy_u32 generation = hires_generation();
+	/* Capture serial pixels first, then compare every parallel output row,
+	 * including mixed overlays, fades and caller padding at each scale. */
+	hires_render_workers_set_enabled(1);
 	for (size_t pass = 0; pass < sizeof(paddings) / sizeof(paddings[0]); pass++) {
 		legacy_s32 stride = width + paddings[pass];
 		size_t allocation = (size_t)stride * height + COPY_GUARD_PIXELS * 2;
@@ -1231,6 +1235,7 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 		}
 		free(guarded);
 	}
+	hires_render_workers_set_enabled(0);
 	assert(hires_generation() == generation);
 	assert(memcmp(screen->base, original_legacy, sizeof(original_legacy)) == 0);
 	assert(memcmp(palette, original_palette, sizeof(original_palette)) == 0);

@@ -4,6 +4,7 @@
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
 #include "../c/hires/render_workers.h"
+#include "../c/extended/extended_file.h"
 #include "../platform/sdl3/sdl3.h"
 #include <errno.h>
 #include <sys/resource.h>
@@ -30,8 +31,16 @@
 #define BENCH_GREEN_SHIFT 8U
 #define BENCH_OPAQUE_ALPHA 0xFF000000U
 #define BENCH_SCREEN_SEGMENT 0xA000U
+#define BENCH_HASH_OFFSET 2166136261U
+#define BENCH_HASH_PRIME 16777619U
+#define BENCH_TRACK_FRAME_RATE 20U
+#define BENCH_TRACK_CAR "COUN"
 
 static legacy_s32 benchmark_compose;
+static legacy_s32 benchmark_start_only;
+static legacy_s32 benchmark_all_views;
+static legacy_u8 benchmark_multi_core;
+static const legacy_s8 *benchmark_track;
 static legacy_u32 benchmark_palette[LEGACY_U8_MAX + 1U];
 
 static void benchmark_parse_options(legacy_s16 *argc, legacy_s8 *argv[])
@@ -40,6 +49,16 @@ static void benchmark_parse_options(legacy_s16 *argc, legacy_s8 *argv[])
 	for (legacy_s16 input = 1; input < *argc; input++) {
 		if (strcmp((const legacy_char *)argv[input], "--compose") == 0) {
 			benchmark_compose = 1;
+		} else if (SDL_strcasecmp((const legacy_char *)argv[input], "--multi-core:on") == 0) {
+			benchmark_multi_core = 1;
+		} else if (SDL_strcasecmp((const legacy_char *)argv[input], "--multi-core:off") == 0) {
+			benchmark_multi_core = 0;
+		} else if (strcmp((const legacy_char *)argv[input], "--all-views") == 0) {
+			benchmark_all_views = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--start-only") == 0) {
+			benchmark_start_only = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--track") == 0 && input + 1 < *argc) {
+			benchmark_track = argv[++input];
 		} else {
 			argv[output++] = argv[input];
 		}
@@ -80,12 +99,17 @@ static void benchmark_render_frame(legacy_u32 *composed)
 static void benchmark_usage(const legacy_s8 *program)
 {
 	fprintf(stderr,
-			"Usage: %s [--data-dir DIR] [--compose] REPLAY [FRAMES]\n"
+			"Usage: %s [--data-dir DIR] [--compose] [--start-only] REPLAY [FRAMES]\n"
+			"       %s [--data-dir DIR] [--compose] --track TRACK [FRAMES]\n"
 			"  REPLAY is a replay name without .rpl; FRAMES is a positive integer\n"
 			"  (default %u). Measures full-track geometry at 320x200, 640x400\n"
 			"  and 1280x800 in cockpit and external views at ticks 0, 80, 160.\n"
-			"  --compose also measures final ARGB framebuffer composition.\n",
-			program, BENCH_DEFAULT_FRAMES);
+			"  --multi-core:on enables parallel rendering (off by default).\n"
+			"  --compose also measures final ARGB framebuffer composition.\n"
+			"  --start-only measures full resolution cockpit view at tick 0.\n"
+			"  --track measures that view on a .cstrk track with the Countach.\n"
+			"  --all-views includes both cameras and all resolutions with --track.\n",
+			program, program, BENCH_DEFAULT_FRAMES);
 }
 
 static legacy_s32 benchmark_parse_count(const legacy_s8 *argument, legacy_u32 *count)
@@ -121,6 +145,58 @@ static legacy_f64 benchmark_cpu_milliseconds(const struct rusage *start, const s
 			   BENCH_MICROSECONDS_PER_MILLISECOND;
 }
 
+static legacy_u32 benchmark_hash(const legacy_u32 *composed)
+{
+	legacy_s32 width;
+	legacy_s32 height;
+	const legacy_u8 *pixels =
+		video_framebuffer(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0), &width, &height);
+	size_t size = (size_t)width * height;
+	if (composed != NULL) {
+		pixels = (const legacy_u8 *)composed;
+		size *= sizeof(*composed);
+	}
+	legacy_u32 hash = BENCH_HASH_OFFSET;
+	for (size_t index = 0; index < size; index++) {
+		hash = (hash ^ pixels[index]) * BENCH_HASH_PRIME;
+	}
+	return hash;
+}
+
+static void benchmark_check_parallel_pixels(legacy_u32 *composed)
+{
+	if (!benchmark_multi_core) {
+		return;
+	}
+	hires_render_workers_set_enabled(0);
+	benchmark_render_frame(composed);
+	legacy_s32 width;
+	legacy_s32 height;
+	const legacy_u8 *indexed =
+		video_framebuffer(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0), &width, &height);
+	size_t size =
+		(size_t)width * height * (composed != NULL ? sizeof(*composed) : sizeof(*indexed));
+	legacy_u8 *expected = malloc(size);
+	assert(expected != NULL);
+	memcpy(expected, composed != NULL ? (const void *)composed : (const void *)indexed, size);
+	hires_render_workers_set_enabled(1);
+	benchmark_render_frame(composed);
+	indexed = video_framebuffer(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0), &width, &height);
+	assert(memcmp(expected, composed != NULL ? (const void *)composed : (const void *)indexed,
+				  size) == 0);
+	free(expected);
+}
+
+static void benchmark_initialize_track(void)
+{
+	assert(extended_file_load_track(benchmark_track) == 0);
+	memset(&gameconfig, 0, sizeof(gameconfig));
+	memcpy(gameconfig.game_playercarid, BENCH_TRACK_CAR, REPLAY_CAR_ID_SIZE);
+	gameconfig.game_opponentcarid[0] = -1;
+	gameconfig.game_framespersec = BENCH_TRACK_FRAME_RATE;
+	initialize_loaded_race();
+}
+
 static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 {
 	legacy_f64 *times = malloc((size_t)count * sizeof(*times));
@@ -134,6 +210,7 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 		fputs("Cannot allocate benchmark frame samples\n", stderr);
 		return 0;
 	}
+	benchmark_check_parallel_pixels(composed);
 	for (legacy_u32 frame = 0; frame < BENCH_WARMUP_FRAMES; frame++) {
 		benchmark_render_frame(composed);
 	}
@@ -165,10 +242,11 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 	legacy_u32 percentile =
 		(legacy_u32)((legacy_u64)count * BENCH_PERCENTILE_95 / BENCH_PERCENTILE_100);
 	printf("tick=%u camera=%d resolution=%dx%d workers=%d n=%u "
-		   "cpu=%.3f mean=%.3f p50=%.3f p95=%.3f ms\n",
+		   "cpu=%.3f mean=%.3f p50=%.3f p95=%.3f ms hash=%08x parity=%s\n",
 		   tick, cameramode, hires_render_width(), hires_render_height(),
 		   hires_render_workers_count(), count, cpu, total / count, times[count / 2U],
-		   times[percentile]);
+		   times[percentile], benchmark_hash(composed),
+		   benchmark_multi_core ? "matched" : "serial");
 	fflush(stdout);
 	free(composed);
 	free(times);
@@ -178,6 +256,16 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	benchmark_parse_options(&argc, argv);
+	/* Keep the normal positional parser for track-only startup measurements. */
+	if (benchmark_track != NULL) {
+		for (legacy_s16 index = argc; index > BENCH_REPLAY_ARGUMENT; index--) {
+			argv[index] = argv[index - 1];
+		}
+		argv[BENCH_REPLAY_ARGUMENT] = (legacy_s8 *)benchmark_track;
+		argc++;
+		argv[argc] = NULL;
+		benchmark_start_only = !benchmark_all_views;
+	}
 	legacy_u32 count = BENCH_DEFAULT_FRAMES;
 	if (argc == BENCH_ARGUMENTS_REQUIRED &&
 		SDL_strcmp((const legacy_char *)argv[BENCH_REPLAY_ARGUMENT], "--help") == 0) {
@@ -192,6 +280,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		return EXIT_FAILURE;
 	}
 	init_main(argc, argv);
+	hires_render_workers_set_enabled(benchmark_multi_core);
 	init_div0();
 	init_row_tables();
 	mainresptr = file_load_resfile("main");
@@ -202,7 +291,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	init_trackdata();
 	reset_race_loop_state();
 	init_kevinrandom("kevin");
-	initialize_replay(argv[BENCH_REPLAY_ARGUMENT]);
+	if (benchmark_track != NULL) {
+		benchmark_initialize_track();
+	} else {
+		initialize_replay(argv[BENCH_REPLAY_ARGUMENT]);
+	}
 	if (benchmark_compose) {
 		benchmark_load_palette();
 	}
@@ -219,15 +312,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	legacy_u16 limit = gameconfig.game_recordedframes < BENCH_LAST_TICK
 						   ? gameconfig.game_recordedframes
 						   : BENCH_LAST_TICK;
+	if (benchmark_start_only) {
+		limit = 0;
+	}
 	puts("HyperVision full-track renderer benchmark: process CPU and elapsed milliseconds/frame.");
 	puts("Includes render/state checks, shadows, skybox and framebuffer copies; "
 		 "excludes display, pacing and physics.");
 	printf("Final ARGB composition: %s.\n", benchmark_compose ? "included" : "excluded");
 	for (legacy_u16 tick = 0; tick <= limit; tick++) {
 		if (tick % BENCH_TICK_INTERVAL == 0 || tick == limit) {
-			for (legacy_u32 camera = 0; camera < SDL_arraysize(cameras); camera++) {
+			legacy_u32 camera_count = benchmark_start_only ? 1U : SDL_arraysize(cameras);
+			for (legacy_u32 camera = 0; camera < camera_count; camera++) {
 				cameramode = cameras[camera];
-				for (legacy_u32 scale = 0; scale < SDL_arraysize(scales); scale++) {
+				legacy_u32 first_scale = benchmark_start_only ? SDL_arraysize(scales) - 1U : 0U;
+				for (legacy_u32 scale = first_scale; scale < SDL_arraysize(scales); scale++) {
 					hires_set_render_scale(scales[scale]);
 					if (!benchmark_frames(tick, count)) {
 						call_exitlist();

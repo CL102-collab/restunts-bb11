@@ -17,6 +17,9 @@ struct SHAPE3D_HIRES_TRANSFORM_CONTEXT {
 	legacy_u32 shadow_surface_count;
 };
 struct SHAPE3D_HIRES_PIPELINE_CONTEXT {
+	legacy_u16 vertex_count, paint_count;
+	legacy_u8 material, flags, view_sector;
+	struct RECTANGLE *rectangle;
 	legacy_u8 vertex_clip_flags[LEGACY_U8_MAX + 1U];
 	struct MATRIX object_to_view_rotation;
 	struct SHAPE3D_HIRES_TRANSFORM_CONTEXT hires;

@@ -88,9 +88,14 @@ endif()
 
 if(EMSCRIPTEN OR ANDROID)
     set(restunts_tests_default OFF)
-    # file:// cannot supply the isolation headers required by browser threads.
     if(EMSCRIPTEN)
-        set(SDL_PTHREADS OFF CACHE BOOL "The standalone browser build uses one thread" FORCE)
+        option(RESTUNTS_WASM_THREADS "Enable browser multi-core rendering (requires cross-origin isolation)" OFF)
+        set(SDL_PTHREADS ${RESTUNTS_WASM_THREADS} CACHE BOOL "Browser thread support" FORCE)
+        if(RESTUNTS_WASM_THREADS)
+            # Every archive, including SDL and the decoders, must use the shared-memory ABI.
+            add_compile_options(-pthread)
+            add_link_options(-pthread)
+        endif()
     endif()
     if(RESTUNTS_SYSTEM_SDL)
         message(FATAL_ERROR "Browser and Android builds require the bundled SDL3")
@@ -266,6 +271,7 @@ set(game_sources
     shape3d/shape3d_line_setup.c shape2d/shape2d.c shape2d/shape2d_image.c shape2d/shape2d_blit.c
     shape2d/shape2d_window.c video/video_pages.c hires/hires.c hires/hires_raster.c hires/hypervision.c
     hires/render_workers.c hires/frame_interpolation.c hires/shape3d_hires.c
+    hires/shape3d_geometry.c
     hires/shape3d_car_ground.c hires/shape3d_hires_draw.c
     hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c
     shape2d/shape2d_resources.c heapsort.c frame/frame.c frame/frame_camera.c frame/frame_car.c

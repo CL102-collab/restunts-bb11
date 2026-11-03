@@ -39,6 +39,15 @@
 #define TEST_PLANE_SEPARATION 0.000009147
 #define TEST_SAMPLE_JITTER 0.125
 #define TEST_DEPTH_TOLERANCE (8 * FLT_EPSILON)
+#define TEST_BUILD_GROUPS 73
+#define TEST_BUILD_EMPTY_GROUP 2
+#define TEST_BUILD_INVALID_GROUP 3
+#define TEST_BUILD_CLIPPED_GROUP 4
+#define TEST_BUILD_GROWTH_GROUP 5
+#define TEST_BUILD_APPEND_GROUPS 7
+#define TEST_BUILD_GROWTH_COMMANDS 257U
+#define TEST_BUILD_STRIPE_DIVISOR 3
+#define TEST_BUILD_DEPTH_STEP 0.001
 
 static struct SPRITE sprite;
 static struct HIRES_RASTER_TARGET target;
@@ -532,6 +541,7 @@ static void test_growth_and_reset(void)
 
 static void test_workers_match(void)
 {
+	hires_render_workers_set_enabled(1);
 	for (legacy_s32 workers = 0; workers <= 1; workers++) {
 		hires_render_workers_shutdown();
 		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS",
@@ -555,7 +565,94 @@ static void test_workers_match(void)
 			assert_same_pixels(pixels);
 		}
 	}
-	hires_render_workers_shutdown();
+	hires_render_workers_set_enabled(0);
+}
+
+static void build_test_group(void *context, legacy_s32 index, struct HIRES_BACKEND_BUFFER *buffer)
+{
+	(void)context;
+	if (index == TEST_BUILD_EMPTY_GROUP) {
+		return;
+	}
+	legacy_f64 left = 0, right = target.width;
+	legacy_f64 top = 0, bottom = target.height;
+	legacy_f64 depth = TEST_MIDDLE_DEPTH;
+	struct HIRES_BACKEND_MATERIAL paint = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
+	legacy_u32 count = TEST_RECTANGLE_VERTICES;
+	legacy_u32 repeats = 1;
+	if (index == 0) {
+		/* The supporting surface was submitted before the parallel build. */
+		paint.flags = HIRES_BACKEND_DECAL;
+		depth = TEST_FAR_DEPTH;
+	} else if (index == 1) {
+		right = target.width / TEST_BUILD_STRIPE_DIVISOR;
+		depth = TEST_NEAR_DEPTH;
+		paint = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	} else if (index == TEST_BUILD_INVALID_GROUP) {
+		count = TEST_RECTANGLE_VERTICES - 2U;
+	} else if (index == TEST_BUILD_CLIPPED_GROUP) {
+		top = -TEST_BORDER;
+		bottom = -1;
+	} else if (index == TEST_BUILD_GROWTH_GROUP) {
+		top = target.height - 1;
+		paint = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+		repeats = TEST_BUILD_GROWTH_COMMANDS;
+	} else {
+		left = target.width - target.width / TEST_BUILD_STRIPE_DIVISOR;
+		depth += index * TEST_BUILD_DEPTH_STEP;
+		paint =
+			material((index & 1) == 0 ? TEST_FIRST_COLOR : TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+		if ((index & 1) != 0) {
+			paint.mode = HIRES_PAINT_PATTERN;
+			paint.pattern = TEST_PATTERN_EVEN_COLUMNS;
+		}
+	}
+	const struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
+		{left, top, depth}, {right, top, depth}, {right, bottom, depth}, {left, bottom, depth}};
+	for (legacy_u32 repeat = 0; repeat < repeats; repeat++) {
+		hires_backend_polygon_to(buffer, vertices, count, &paint);
+	}
+}
+
+static void test_parallel_build_matches(void)
+{
+	legacy_f32 *depths = malloc((size_t)HIRES_WIDTH * HIRES_HEIGHT * sizeof(*depths));
+	legacy_u32 *families = malloc((size_t)HIRES_WIDTH * HIRES_HEIGHT * sizeof(*families));
+	assert(depths != NULL && families != NULL);
+	const legacy_char *workers[] = {TEST_NO_WORKERS, "1", "3"};
+	const legacy_s32 counts[] = {0, 1, TEST_BUILD_GROUPS};
+	hires_render_workers_set_enabled(1);
+	for (legacy_s32 scale = HIRES_MINIMUM_SCALE; scale <= HIRES_SCALE;
+		 scale *= HIRES_MEDIUM_SCALE) {
+		for (legacy_u32 count = 0; count < SDL_arraysize(counts); count++) {
+			for (legacy_u32 worker = 0; worker < SDL_arraysize(workers); worker++) {
+				hires_render_workers_shutdown();
+				assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", workers[worker], true) == 0);
+				begin_frame(scale);
+				const struct HIRES_BACKEND_MATERIAL support =
+					material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+				rectangle(0, target.width, 0, target.height, TEST_MIDDLE_DEPTH, TEST_MIDDLE_DEPTH,
+						  &support);
+				hires_backend_build(counts[count], build_test_group, NULL);
+				/* Reusing private buffers must append after existing commands. */
+				hires_backend_build(TEST_BUILD_APPEND_GROUPS, build_test_group, NULL);
+				const legacy_u8 *pixels = end_frame();
+				size_t samples = (size_t)target.width * target.height;
+				if (worker == 0) {
+					memcpy(reference, pixels, samples);
+					memcpy(depths, target.inverse_depth, samples * sizeof(*depths));
+					memcpy(families, target.depth_family, samples * sizeof(*families));
+				} else {
+					assert_same_pixels(pixels);
+					assert(memcmp(depths, target.inverse_depth, samples * sizeof(*depths)) == 0);
+					assert(memcmp(families, target.depth_family, samples * sizeof(*families)) == 0);
+				}
+			}
+		}
+	}
+	hires_render_workers_set_enabled(0);
+	free(depths);
+	free(families);
 }
 
 legacy_int main(void)
@@ -584,6 +681,7 @@ legacy_int main(void)
 	}
 	test_growth_and_reset();
 	test_workers_match();
+	test_parallel_build_matches();
 	hires_backend_shutdown();
 	hires_shutdown();
 	puts("HyperVision visibility, cutouts, decals, queue lifetime and worker parity passed.");

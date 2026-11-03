@@ -139,17 +139,23 @@ legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *verti
 			capacity > (size_t)-1 / sizeof(*shape3d_hires_state.shadow_surfaces) ||
 			capacity > (size_t)-1 / (HIRES_SHADOW_SURFACE_MAX_HITS *
 									 sizeof(*shape3d_hires_state.shadow_grille_hits))) {
-			fatal_error("HyperVision shadow surfaces exceed addressable memory");
+			shape3d_hires_geometry_error("HyperVision shadow surfaces exceed addressable memory");
 			return 0;
 		}
-		struct SHADOW_SURFACE *surfaces =
-			realloc(shape3d_hires_state.shadow_surfaces, capacity * sizeof(*surfaces));
-		legacy_f64 *hits = realloc(shape3d_hires_state.shadow_grille_hits,
-								   capacity * HIRES_SHADOW_SURFACE_MAX_HITS * sizeof(*hits));
+		struct SHADOW_SURFACE *surfaces = malloc(capacity * sizeof(*surfaces));
+		legacy_f64 *hits = malloc(capacity * HIRES_SHADOW_SURFACE_MAX_HITS * sizeof(*hits));
 		if (surfaces == NULL || hits == NULL) {
-			fatal_error("Cannot allocate HyperVision shadow surfaces");
+			free(surfaces);
+			free(hits);
+			shape3d_hires_geometry_error("Cannot allocate HyperVision shadow surfaces");
 			return 0;
 		}
+		if (shape3d_hires_state.shadow_surface_count != 0) {
+			memcpy(surfaces, shape3d_hires_state.shadow_surfaces,
+				   shape3d_hires_state.shadow_surface_count * sizeof(*surfaces));
+		}
+		free(shape3d_hires_state.shadow_surfaces);
+		free(shape3d_hires_state.shadow_grille_hits);
 		shape3d_hires_state.shadow_surfaces = surfaces;
 		shape3d_hires_state.shadow_grille_hits = hits;
 		shape3d_hires_state.shadow_surface_capacity = capacity;

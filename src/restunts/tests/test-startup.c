@@ -52,6 +52,17 @@ static legacy_s32 startup_audio_driver_loaded;
 static legacy_s32 startup_ogg_music_enabled;
 static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
+#ifdef STARTUP_MULTI_CORE_PREFIX
+static legacy_u8 startup_multi_core_enabled = STARTUP_MULTI_CORE_OFF;
+static legacy_u32 startup_multi_core_set_calls;
+
+void hires_render_workers_set_enabled(legacy_u8 enabled)
+{
+	assert(enabled == STARTUP_MULTI_CORE_OFF || enabled == STARTUP_MULTI_CORE_ON);
+	startup_multi_core_enabled = enabled;
+	++startup_multi_core_set_calls;
+}
+#endif
 #ifdef STARTUP_FULLSCREEN_PREFIX
 static legacy_u8 startup_fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
 static legacy_u32 startup_fullscreen_set_calls;
@@ -764,6 +775,10 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#ifdef STARTUP_MULTI_CORE_PREFIX
+	legacy_u32 before_multi_core_calls = startup_multi_core_set_calls;
+	legacy_u8 before_multi_core_enabled = startup_multi_core_enabled;
+#endif
 #ifdef STARTUP_FULLSCREEN_PREFIX
 	legacy_u32 before_fullscreen_calls = startup_fullscreen_set_calls;
 	legacy_u8 before_fullscreen_enabled = startup_fullscreen_enabled;
@@ -788,6 +803,10 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
+#ifdef STARTUP_MULTI_CORE_PREFIX
+	assert(startup_multi_core_set_calls == before_multi_core_calls);
+	assert(startup_multi_core_enabled == before_multi_core_enabled);
+#endif
 #ifdef STARTUP_FULLSCREEN_PREFIX
 	assert(startup_fullscreen_set_calls == before_fullscreen_calls);
 	assert(startup_fullscreen_enabled == before_fullscreen_enabled);
@@ -961,6 +980,67 @@ static void test_startup_ogg_music_options(void)
 }
 
 #endif
+
+static void test_startup_multi_core_options(void)
+{
+#ifdef STARTUP_MULTI_CORE_PREFIX
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 enabled;
+	} cases[] = {{"--multi-core:on", STARTUP_MULTI_CORE_ON},
+				 {"--multi-core:off", STARTUP_MULTI_CORE_OFF},
+				 {"--MULTI-CORE:On", STARTUP_MULTI_CORE_ON},
+				 {"--mUlTi-CoRe:OfF", STARTUP_MULTI_CORE_OFF}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		startup_multi_core_enabled = cases[index].enabled == STARTUP_MULTI_CORE_ON
+										 ? STARTUP_MULTI_CORE_OFF
+										 : STARTUP_MULTI_CORE_ON;
+		legacy_u32 before = startup_multi_core_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_multi_core_set_calls == before + 1U);
+		assert(startup_multi_core_enabled == cases[index].enabled);
+		assert(startup_options.multi_core_enabled == cases[index].enabled);
+		assert(startup_options.multi_core_specified != 0);
+	}
+	/* A new startup without the option clears the previous session's choice. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_multi_core_enabled = STARTUP_MULTI_CORE_ON;
+	legacy_u32 before = startup_multi_core_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_multi_core_set_calls == before + 1U);
+	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_OFF);
+	assert(startup_options.multi_core_enabled == STARTUP_MULTI_CORE_OFF);
+	assert(startup_options.multi_core_specified == 0);
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); ++first) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); ++second) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)"--nointro",
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+	static const legacy_s8 *invalid[] = {"--multi-core:",		"--multi-core:auto",
+										 "--multi-core:1",		"--multi-core:onx",
+										 "--multi-core:off:on", "--MULTI-CORE:unknown"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	/* No platform setting changes until every later option has validated. */
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--multi-core:on",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+#else
+	/* Unsupported platforms ignore multi-core options. */
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--multi-core:on",
+							  (legacy_s8 *)"--multi-core:off", (legacy_s8 *)"--multi-core:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
 
 static void test_startup_fullscreen_options(void)
 {
@@ -1309,6 +1389,7 @@ int main(void)
 #endif
 #endif
 	test_startup_fps_display_options();
+	test_startup_multi_core_options();
 	test_startup_fullscreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");

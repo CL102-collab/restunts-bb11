@@ -8,6 +8,11 @@ if(NOT CMAKE_C_COMPILER_VERSION VERSION_EQUAL "@CMAKE_C_COMPILER_VERSION@")
 endif()
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+# Imported archives retain the original build's shared-memory ABI.
+set(RESTUNTS_WASM_THREADS @RESTUNTS_WASM_THREADS@)
+if(RESTUNTS_WASM_THREADS)
+    add_compile_options(-pthread)
+endif()
 add_subdirectory(nuked-opl2-lite)
 add_library(restunts_game STATIC IMPORTED)
 set_target_properties(restunts_game PROPERTIES

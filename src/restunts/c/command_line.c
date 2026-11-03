@@ -46,6 +46,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  --ogg:on|off     Start with Ogg replacements enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE
+#ifndef __DJGPP__
+	"  --multi-core:on|off  Enable/disable multi-core rendering; supply once." COMMAND_LINE_NEWLINE
+#endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"  --fullscreen:on|off  Start fullscreen/windowed; supply once." COMMAND_LINE_NEWLINE
 #endif
@@ -98,6 +101,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Amiga grass grip starts off; enable with --amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
+#ifndef __DJGPP__
+	"Multi-core rendering starts off." COMMAND_LINE_NEWLINE
+#endif
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"Fullscreen starts off. Alt+Enter toggles fullscreen during play." COMMAND_LINE_NEWLINE
@@ -115,6 +121,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"HyperVision presets and Ogg music options are also case-insensitive." COMMAND_LINE_NEWLINE
+#ifndef __DJGPP__
+	"Multi-core rendering options are case-insensitive." COMMAND_LINE_NEWLINE
+#endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"Fullscreen options are case-insensitive." COMMAND_LINE_NEWLINE
 #endif

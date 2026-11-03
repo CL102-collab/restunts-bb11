@@ -21,12 +21,15 @@
 #include "../fatal.h"
 #include "../hires/hires.h"
 #include "../hires/shape3d_hires.h"
+#include "hypervision.h"
 #endif
 
 #include "../shape3d/shape3d_pipeline_internal.h"
 
 #ifdef RESTUNTS_SDL3
-static void shape3d_render_hires_primitive(legacy_u32 index,
+#define HIRES_COMMAND_GROUP_PRIMITIVES 128U
+
+static void shape3d_render_hires_primitive(struct HIRES_BACKEND_BUFFER *buffer, legacy_u32 index,
 										   const struct HIRES_BACKEND_SCENE_PRIMITIVE *primitive)
 {
 	legacy_u16 material = primitive->material;
@@ -48,8 +51,23 @@ static void shape3d_render_hires_primitive(legacy_u32 index,
 		second_color = shape3d_material_value(material_clrlist_ptr_cpy, material + 1U);
 		third_color = shape3d_material_value(material_clrlist_ptr_cpy, material + 2U);
 	}
-	shape3d_hires_render(index, primitive->type, color, second_color, third_color, pattern_type,
-						 pattern);
+	shape3d_hires_render_to(buffer, index, primitive->type, color, second_color, third_color,
+							pattern_type, pattern);
+}
+
+/* Contiguous groups preserve all authored material/decal ties when joined.
+ * The scene and projected primitives are read-only until command work completes. */
+static void shape3d_build_hires_commands(void *context, legacy_s32 group,
+										 struct HIRES_BACKEND_BUFFER *buffer)
+{
+	(void)context;
+	legacy_u32 first = (legacy_u32)group * HIRES_COMMAND_GROUP_PRIMITIVES;
+	legacy_u32 last = hires_backend_scene_count - first < HIRES_COMMAND_GROUP_PRIMITIVES
+						  ? hires_backend_scene_count
+						  : first + HIRES_COMMAND_GROUP_PRIMITIVES;
+	for (legacy_u32 index = first; index < last; index++) {
+		shape3d_render_hires_primitive(buffer, index, &hires_backend_scene[index]);
+	}
 }
 
 legacy_u8 shape3d_hires_render_scene(void)
@@ -58,9 +76,10 @@ legacy_u8 shape3d_hires_render_scene(void)
 		/* Enhanced presentation has its own depth rasterizer. Drawing the
 		 * original 320x200 polygons as well only repeats the complete scene. */
 		shape3d_hires_batch_begin();
-		for (legacy_u32 index = 0; index < hires_backend_scene_count; index++) {
-			shape3d_render_hires_primitive(index, &hires_backend_scene[index]);
-		}
+		legacy_s32 groups =
+			(legacy_s32)(hires_backend_scene_count / HIRES_COMMAND_GROUP_PRIMITIVES +
+						 (hires_backend_scene_count % HIRES_COMMAND_GROUP_PRIMITIVES != 0));
+		hires_backend_build(groups, shape3d_build_hires_commands, NULL);
 		shape3d_hires_batch_end();
 		shape3d_hires_draw_shadows();
 		hires_end();

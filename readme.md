@@ -439,22 +439,25 @@ default. If the renderer cannot apply the requested setting, the game warns and
 continues. The setting does not affect DOS builds or batch dump tools. Display
 synchronization waits are excluded from automatic HyperVision quality measurements.
 
-On Windows, Linux, BSD, Haiku, and macOS, HyperVision draws serially by default with zero background
-render workers. Set `RESTUNTS_RENDER_WORKERS` to `1` through `7` to select a
-background worker count, or `auto` to use the detected logical CPU count minus
-one, capped at seven. The setting is read when the renderer initializes its
-worker pool. For example, on Linux:
+Multi-core rendering is off by default. On SDL3 builds except 32-bit DOS,
+pass `--multi-core:on` or select **Multi-core rendering** in the startup window's
+**Graphics settings** group. Desktop, Android, and browser launchers remember
+the checkbox. `--multi-core:off` explicitly selects serial rendering. For example:
 
 ```sh
-RESTUNTS_RENDER_WORKERS=auto ./out/sdl3-linux-x64/restunts --data-dir stunts
+./out/sdl3-linux-x64/restunts --data-dir stunts --hv:full --multi-core:on
 ```
 
-In PowerShell, use `$env:RESTUNTS_RENDER_WORKERS = 'auto'` before launching
-`restunts.exe`. Unset the variable or set it to `0` to restore the default.
-Small scenes remain serial even with workers enabled. The physics schedule is
-independent of the worker count; DOS always renders serially. If worker creation
-fails, rendering uses the available workers or runs serially. Enable workers only
-when measurements on the intended machine show a useful benefit.
+When enabled, the renderer uses the detected logical CPU count and keeps the
+calling thread working alongside background workers. `RESTUNTS_RENDER_WORKERS`
+can override the background worker count for measurements; `0` selects serial
+execution and `auto` restores automatic selection. Native builds cap the pool at
+63 background workers; threaded browser builds cap it at seven. The environment variable
+has no effect while multi-core rendering is off. Browser threads require an
+isolated HTTPS or localhost page; see the [browser build guide](docs/wasm.md).
+Small scenes can remain serial. Physics and replay recording are independent
+of the worker count. If worker creation fails, rendering uses the workers that
+were created or runs serially.
 
 See [HyperVision measurement methods](docs/hypervision.md#performance-measurement)
 for the current benchmark scope. The earlier
@@ -1197,8 +1200,10 @@ and native replay validation.
 
 ### SDL3 WebAssembly build: offline HTML
 
-This target produces a single `restunts.html` that opens directly in a browser
-without a web server. It embeds the program, enhanced skyboxes, and enhanced
+This target produces a single `restunts.html`. The default build supports serial
+offline `file://` play. Configure `-DRESTUNTS_WASM_THREADS=ON` in a separate build
+directory for multi-core rendering, and serve that build over HTTPS or localhost
+with cross-origin isolation headers. It embeds the program, enhanced skyboxes, and enhanced
 opponent portraits. **Original game files, including tracks and cars, are not
 included** and are not needed to build the HTML. Players supply their own game
 folder when starting it.
@@ -1245,8 +1250,9 @@ only the game; native dump tools and regression executables are disabled.
 
 #### Run and package the HTML
 
-Copy `restunts.html` into your own Stunts game folder and open it in a browser.
-Click **Choose game folder**, select that folder, then click **Start game**.
+Serve the threaded `restunts.html` with the isolation headers described in
+[the browser guide](docs/wasm.md), or open the serial offline build directly.
+Click **Choose game folder**, select your Stunts folder, then click **Start game**.
 Supported browsers remember the selected folder and may ask you to **Allow folder
 access** again when reopening the HTML. Use **Change game folder** to select a
 different folder. These browsers can save directly after read/write permission;

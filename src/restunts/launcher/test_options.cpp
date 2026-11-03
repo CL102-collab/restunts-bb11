@@ -47,9 +47,17 @@ legacy_int main()
 	check(arguments[GAME_ARGUMENT_INDEX] == game && arguments[DATA_OPTION_INDEX] == "--data-dir" &&
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
-	const legacy_char *defaults[] = {
-		"--ogg:on", "--hv:auto", "--fullscreen:off", "--fps:off", "--controller-vibration:on",
-		"--pg:on",	"--lc:on",	 "--lcb:on",		 "--dws:on",  "--cfg:on"};
+	const legacy_char *defaults[] = {"--ogg:on",
+									 "--hv:auto",
+									 "--fullscreen:off",
+									 "--fps:off",
+									 "--controller-vibration:on",
+									 "--multi-core:off",
+									 "--pg:on",
+									 "--lc:on",
+									 "--lcb:on",
+									 "--dws:on",
+									 "--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -67,6 +75,7 @@ legacy_int main()
 									"--controller-vibration:off",
 									"--fullscreen:on",
 									"--fps:on",
+									"--multi-core:on",
 									"--pg:off",
 									"--lc:off",
 									"--lcb:off",
@@ -117,6 +126,7 @@ legacy_int main()
 		config.DisableAutoSave();
 		config.Write("hypervision", "unknown-future-preset");
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
@@ -125,12 +135,14 @@ legacy_int main()
 			restored.enabled[LAUNCHER_AMIGA_GRASS] == options.enabled[LAUNCHER_AMIGA_GRASS] &&
 			restored.enabled[LAUNCHER_OWOOT] == options.enabled[LAUNCHER_OWOOT],
 		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
+	check(!restored.enabled[LAUNCHER_MULTI_CORE],
+		  "Existing configurations must keep multi-core rendering off until selected.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
-			  !restored.enabled[LAUNCHER_FULLSCREEN] &&
+			  !restored.enabled[LAUNCHER_FULLSCREEN] && !restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");

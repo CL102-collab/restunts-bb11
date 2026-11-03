@@ -67,8 +67,9 @@
             <p>You need your own <strong>Stunts (Brøderbund 1.1)</strong> game files to play.
                 Click <strong>Choose game folder</strong> and select the folder containing those files
                 on your device, then click <strong>Start game</strong>.</p>
-            <p>You can play directly from a website. Saving a copy of this page is optional.
-                For offline play, save the HTML file anywhere on your device and open it in your browser.
+            <p>You can play directly from a website. Multi-core builds need a secure website with
+                cross-origin isolation enabled. For offline play, use a build without multi-core support,
+                save the HTML file anywhere on your device and open it in your browser.
                 In either case, select the folder containing your game files.</p>
             <p>Where supported, your browser remembers the folder and may ask you to allow access again next time.
                 Otherwise, select it each time. Your game files and saves remain on your device,
@@ -92,6 +93,7 @@
             <div class="settings-row">
                 <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
+                <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
                     <option value="off">Off</option>
@@ -102,6 +104,7 @@
                     <option value="low">Low</option>
                 </select></label>
             </div>
+            <p id="multi-core-note" hidden></p>
         </fieldset>
         <fieldset class="settings driving-rules" id="driving-rules">
             <legend>Driving rules</legend>
@@ -249,7 +252,7 @@
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
         const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
-            'show-fps', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+            'show-fps', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -284,6 +287,8 @@
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
         const hyperVision = document.getElementById('hypervision');
+        const multiCore = document.getElementById('multi-core');
+        const multiCoreNote = document.getElementById('multi-core-note');
         const saveControls = document.getElementById('save-controls');
         const saveMode = document.getElementById('save-mode');
         const directSavingAvailable = typeof window.showDirectoryPicker === 'function';
@@ -329,9 +334,31 @@
             return btoa(binary);
         }
 
+        function browserSupportsMultiCore() {
+            return typeof SharedArrayBuffer === 'function' && window.crossOriginIsolated === true;
+        }
+
+        function multiCoreAvailable() {
+            return Module['restuntsMultiCoreSupported'] === true && browserSupportsMultiCore();
+        }
+
+        function updateMultiCoreAvailability() {
+            const available = multiCoreAvailable();
+            multiCoreNote.hidden = available;
+            multiCoreNote.textContent = Module['restuntsMultiCoreSupported'] === true ?
+                'Multi-core rendering needs a browser with cross-origin isolation and SharedArrayBuffer support.' :
+                'Multi-core rendering is unavailable in this offline build.';
+            if (!available) {
+                multiCore.checked = false;
+                multiCore.disabled = true;
+            }
+        }
+
         function fail(error) {
             gameRunning = false;
-            const message = error instanceof Error ? error.message : String(error);
+            const message = Module && Module['restuntsMultiCoreSupported'] === true && !browserSupportsMultiCore() ?
+                'This multi-core build needs a secure website with cross-origin isolation enabled. Use the offline build to play from a local HTML file.' :
+                (error instanceof Error ? error.message : String(error));
             status.textContent = 'Game error: ' + message;
             log(message);
         }
@@ -480,6 +507,7 @@
             if (!document.getElementById('sound-enabled').checked) args.push('/ns');
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
+            args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
@@ -603,6 +631,7 @@
                 loadProgressFill.style.width = '0%';
             }
             for (const option of launchOptions) option.disabled = loading || started;
+            updateMultiCoreAvailability();
             openFolder.disabled = loading || started;
             restoreFolder.disabled = loading || started;
             gameFiles.disabled = loading || started;

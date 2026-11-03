@@ -55,6 +55,10 @@ function options() {
         const arg = args[index];
         if (arg === '--headed') {
             result.headed = true;
+        } else if (arg === '--no-isolation') {
+            result.isolated = false;
+        } else if (arg === '--multi-core') {
+            result.multiCore = true;
         } else if (arg === '--serve') {
             result.serve = true;
         } else if (arg === '--direct-only') {
@@ -66,13 +70,13 @@ function options() {
         } else if (arg === '--help') {
             console.log('Usage: node tools/scripts/test-wasm.js --data-dir DIR ' +
                 '[--html FILE] [--output DIR] [--browser chromium|firefox] [--headed] ' +
-                '[--browser-executable FILE] [--serve] ' +
+                '[--browser-executable FILE] [--serve] [--no-isolation] [--multi-core] [--track FILE.cstrk] ' +
                 '[--direct-only|--saves-only|--idle-only]');
             process.exit(0);
         } else if (arg === '--browser') {
             result.browser = args[++index];
             assert.ok(['chromium', 'firefox'].includes(result.browser), 'Unsupported browser');
-        } else if (['--html', '--data-dir', '--output', '--browser-executable'].includes(arg)) {
+        } else if (['--html', '--data-dir', '--output', '--browser-executable', '--track'].includes(arg)) {
             assert.ok(args[index + 1], 'Missing value for ' + arg);
             result[arg.slice(2)] = path.resolve(args[++index]);
         } else {
@@ -771,6 +775,22 @@ async function exerciseIdleDemo(page, settings, report) {
 }
 
 async function exerciseGame(page, settings, report) {
+    if (settings.track) {
+        const bytes = await fs.readFile(settings.track);
+        await page.evaluate(({ directory, bytes }) => {
+            // Substitute only the browser's in-memory startup track; keep the
+            // supplied game directory and the original track file unchanged.
+            for (const name of Module.FS.readdir(directory)) {
+                if (name.toLowerCase() === 'default.trk') Module.FS.unlink(directory + '/' + name);
+            }
+            Module.FS.writeFile(directory + '/default.cstrk', Uint8Array.from(bytes));
+        }, { directory: DATA_DIRECTORY, bytes: Array.from(bytes) });
+        report.track = settings.track;
+    }
+    if (settings.multiCore) {
+        await page.locator('#multi-core').check();
+        await page.locator('#hypervision').selectOption('full');
+    }
     await page.locator('#skip-intro').check();
     await page.locator('#start').click();
     await page.waitForTimeout(FRAME_SETTLE_MS);
@@ -789,6 +809,12 @@ async function exerciseGame(page, settings, report) {
     await key(page, 'Enter');
     await page.waitForTimeout(RACE_START_MS);
     const race = await capture(page, settings, 'race-start');
+    if (settings.multiCore) {
+        const workerCount = await page.evaluate(() =>
+            typeof PThread === 'object' ? Object.keys(PThread.pthreads).length : 0);
+        assert.ok(workerCount > 0, 'Multi-core rendering must create native browser render threads');
+        report.renderWorkers = workerCount;
+    }
     assertChanged(returned, race, 'Starting a race');
     const initialFrames = await page.evaluate(() => window.testAnimationFrames);
     await page.keyboard.down('ArrowUp');
@@ -820,7 +846,7 @@ async function main() {
     const browser = await browserType.launch({
         headless: !settings.headed, executablePath: settings['browser-executable'],
     });
-    const server = settings.serve ? await serveHtml(settings.html) : undefined;
+    const server = settings.serve ? await serveHtml(settings.html, { isolated: settings.isolated !== false }) : undefined;
     settings.url = server ? server.url : pathToFileURL(settings.html).href;
     report.transport = settings.serve ? 'http-loopback' : 'file';
     const context = await browser.newContext({ acceptDownloads: true, offline: !settings.serve,

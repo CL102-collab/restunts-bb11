@@ -81,6 +81,11 @@ void shape3d_hires_update_bounds(legacy_u32 index, legacy_u8 type, struct RECTAN
  * End returns the background worker count, or zero for the serial fallback. */
 void shape3d_hires_batch_begin(void);
 legacy_s32 shape3d_hires_batch_end(void);
+/* Parallel command producers use a private backend buffer; geometry is immutable. */
+struct HIRES_BACKEND_BUFFER;
+void shape3d_hires_render_to(struct HIRES_BACKEND_BUFFER *buffer, legacy_u32 index, legacy_u8 type,
+							 legacy_u16 color, legacy_u16 second_color, legacy_u16 third_color,
+							 legacy_u16 pattern_type, legacy_u16 pattern);
 void shape3d_hires_render(legacy_u32 index, legacy_u8 type, legacy_u16 color,
 						  legacy_u16 second_color, legacy_u16 third_color, legacy_u16 pattern_type,
 						  legacy_u16 pattern);

@@ -364,11 +364,13 @@ leaves any existing `.tim` file untouched.
 Physics dumps use the recording's stored 10 or 20 Hz rate, matching the
 replay viewer. Adding `--time` does not change the `.BNI` or `.owo` output.
 
-On Linux, BSD, Haiku, Windows, and macOS, the interactive game defaults to serial rendering with
-zero background render workers. `RESTUNTS_RENDER_WORKERS=auto` enables automatic
-parallel rendering, or use a count from `0` through `7`. See the
-[render-worker settings](../readme.md#hypervision-and-fps-display) for Linux and
-PowerShell examples.
+SDL3 builds except DOS32 support `--multi-core:on` and `--multi-core:off`.
+The default is off. The desktop, Android, and browser startup windows expose
+**Multi-core rendering** under **Graphics settings** and remember the selection.
+Enabled rendering uses available CPU cores; `RESTUNTS_RENDER_WORKERS` overrides
+the background worker count for measurements only while the option is enabled.
+See [render-worker settings](../readme.md#hypervision-and-fps-display) and
+[browser threading requirements](wasm.md).
 
 Desktop rendering uses two owned ARGB presentation pages. Composition writes the
 hidden page and flips it to the front only after the complete frame is ready.

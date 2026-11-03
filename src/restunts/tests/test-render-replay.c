@@ -342,9 +342,8 @@ static void check_authoritative_event_visuals(void)
 	visual_clock_frozen = 0;
 }
 
-static void initialize_replay(const legacy_s8 *name)
+static void initialize_loaded_race(void)
 {
-	assert(file_load_replay("", name) == 0);
 	replay_filename[0] = 0;
 	gameconfigcopy = gameconfig;
 	assert(track_setup() == 0);
@@ -377,6 +376,12 @@ static void initialize_replay(const legacy_s8 *name)
 	full_redraw_frames_remaining = 1;
 	/* This is an ordinary live renderer, with no archived dump stack emulation. */
 	shape3d_set_legacy_render_stack(NULL, 0, 0, NULL);
+}
+
+static void initialize_replay(const legacy_s8 *name)
+{
+	assert(file_load_replay("", name) == 0);
+	initialize_loaded_race();
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])

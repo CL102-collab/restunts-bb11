@@ -443,6 +443,7 @@ void shape3d_hires_shadow_car(const struct VECTOR *relative_position, legacy_s16
 
 void shape3d_hires_shadow_models_reset(void)
 {
+	shape3d_hires_geometry_shutdown();
 	shape3d_hires_state.car_shadow_count = 0;
 	shape3d_hires_state.shadow_model_pending = 0;
 	shape3d_hires_state.shadow_surface_count = 0;
