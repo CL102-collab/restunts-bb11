@@ -13,6 +13,7 @@
 #include "../../c/asset_path.h"
 #include "../../c/fileio.h"
 #include "sdl3.h"
+#include "../../c/renderer/graphics_backend.h"
 
 extern void full_data_initialize(void);
 extern legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[]);
@@ -61,6 +62,31 @@ static legacy_int enter_data_directory(const legacy_char *directory)
 #endif
 }
 
+#if defined(RESTUNTS_RENDERER_SELECTION) && !defined(RESTUNTS_HEADLESS)
+static legacy_int print_render_devices(FILE *output)
+{
+	struct GRAPHICS_DEVICE devices[GRAPHICS_DEVICE_CAPACITY];
+	legacy_u32 count = graphics_enumerate_devices(devices, GRAPHICS_DEVICE_CAPACITY);
+	if (fputs(GRAPHICS_DEVICE_REPORT_HEADER, output) == EOF) {
+		return EXIT_FAILURE;
+	}
+	if (count > GRAPHICS_DEVICE_CAPACITY) {
+		count = GRAPHICS_DEVICE_CAPACITY;
+	}
+	for (legacy_u32 index = 0; index < count; index++) {
+		fprintf(output, "%" LEGACY_PRId32 "\t", devices[index].index);
+		for (legacy_u32 character = 0;
+			 character < GRAPHICS_DEVICE_NAME_CAPACITY && devices[index].name[character] != 0;
+			 character++) {
+			legacy_u8 value = (legacy_u8)devices[index].name[character];
+			fputc(value < ' ' || value == LEGACY_S8_MAX ? ' ' : value, output);
+		}
+		fputc('\n', output);
+	}
+	return ferror(output) || fflush(output) != 0 ? EXIT_FAILURE : EXIT_SUCCESS;
+}
+#endif
+
 /* Match the argument and result types required by the C runtime. */
 legacy_int main(legacy_int argc, legacy_char **argv)
 {
@@ -71,6 +97,11 @@ legacy_int main(legacy_int argc, legacy_char **argv)
 			return COMMAND_LINE_FAILURE;
 		}
 		return info_result;
+	}
+#endif
+#if defined(RESTUNTS_RENDERER_SELECTION) && !defined(RESTUNTS_HEADLESS)
+	if (argc == 2 && strcmp(argv[1], "--list-render-devices") == 0) {
+		return print_render_devices(stdout);
 	}
 #endif
 #if !defined(__DJGPP__) && !defined(RESTUNTS_HEADLESS)

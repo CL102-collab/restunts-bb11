@@ -103,6 +103,12 @@
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
                 </select></label>
+                <label for="renderer">Renderer <select id="renderer" disabled>
+                    <option value="software" selected>Software</option>
+                </select></label>
+                <label for="renderer-device" id="renderer-device-setting" hidden>Device <select id="renderer-device" disabled>
+                    <option value="-1" selected>Automatic</option>
+                </select></label>
             </div>
             <p id="multi-core-note" hidden></p>
         </fieldset>
@@ -251,7 +257,9 @@
         const STORAGE_DATABASE_VERSION = 2;
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
-        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
+        const SOFTWARE_RENDERER = 'software';
+        const AUTOMATIC_RENDER_DEVICE = '-1';
+        const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'renderer', 'renderer-device', 'new-midi', 'start-fullscreen',
             'show-fps', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
@@ -287,6 +295,9 @@
         const restoreFolder = document.getElementById('restore-folder');
         const launchOptions = LAUNCH_OPTION_IDS.map(id => document.getElementById(id));
         const hyperVision = document.getElementById('hypervision');
+        const renderer = document.getElementById('renderer');
+        const rendererDevice = document.getElementById('renderer-device');
+        const rendererDeviceSetting = document.getElementById('renderer-device-setting');
         const multiCore = document.getElementById('multi-core');
         const multiCoreNote = document.getElementById('multi-core-note');
         const saveControls = document.getElementById('save-controls');
@@ -300,6 +311,7 @@
         const baseline = new Map();
         const logLines = [];
         let started = false;
+        let launchOptionsLoading = true;
         let gameRunning = false;
         let gameLoaded = false;
         let lastErrorMessage = '';
@@ -348,10 +360,16 @@
             multiCoreNote.textContent = Module['restuntsMultiCoreSupported'] === true ?
                 'Multi-core rendering needs a browser with cross-origin isolation and SharedArrayBuffer support.' :
                 'Multi-core rendering is unavailable in this offline build.';
-            if (!available) {
-                multiCore.checked = false;
-                multiCore.disabled = true;
-            }
+            if (!available) multiCore.checked = false;
+            multiCore.disabled = launchOptionsLoading || started || !available || renderer.value !== SOFTWARE_RENDERER;
+        }
+
+        function updateRendererAvailability() {
+            // Browser APIs expose neither native Vulkan nor its device inventory.
+            // WebGPU support does not establish Vulkan compatibility.
+            rendererDeviceSetting.hidden = true;
+            rendererDevice.disabled = true;
+            updateMultiCoreAvailability();
         }
 
         function fail(error) {
@@ -488,6 +506,10 @@
 
         start.addEventListener('click', () => {
             if (started || !gameLoaded) return;
+            if (renderer.value !== SOFTWARE_RENDERER || rendererDevice.value !== AUTOMATIC_RENDER_DEVICE) {
+                fail('The selected renderer or graphics device is unavailable in this browser build.');
+                return;
+            }
             started = true;
             gameRunning = true;
             loadProgress.hidden = true;
@@ -509,6 +531,7 @@
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
+            args.push('--renderer:' + renderer.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');
             args.push(document.getElementById('legacy-collision').checked ? '--lc:on' : '--lc:off');
@@ -630,8 +653,9 @@
                 loadProgress.setAttribute('aria-valuenow', '0');
                 loadProgressFill.style.width = '0%';
             }
+            launchOptionsLoading = loading;
             for (const option of launchOptions) option.disabled = loading || started;
-            updateMultiCoreAvailability();
+            updateRendererAvailability();
             openFolder.disabled = loading || started;
             restoreFolder.disabled = loading || started;
             gameFiles.disabled = loading || started;
@@ -795,14 +819,17 @@
         async function restoreLaunchOptions() {
             document.getElementById('show-control-layout').checked = isMobileDevice();
             multiCore.checked = multiCoreAvailable();
+            renderer.value = SOFTWARE_RENDERER;
+            rendererDevice.value = AUTOMATIC_RENDER_DEVICE;
             try {
                 const stored = await browserStorage(LAUNCH_OPTIONS_STORE, 'readonly');
                 if (!stored || typeof stored !== 'object') return;
                 for (const option of launchOptions) {
                     const value = stored[option.id];
-                    if (option === hyperVision) {
+                    if (option instanceof HTMLSelectElement) {
                         // Older pages stored HyperVision as an on/off checkbox.
-                        const mode = typeof value === 'boolean' ? (value ? 'auto' : 'off') : value;
+                        const mode = option === hyperVision && typeof value === 'boolean' ?
+                            (value ? 'auto' : 'off') : value;
                         if (Array.from(option.options).some(preset => preset.value === mode)) option.value = mode;
                     } else if (typeof value === 'boolean') {
                         option.checked = value;
@@ -815,8 +842,9 @@
 
         for (const option of launchOptions) {
             option.addEventListener('change', async () => {
+                updateRendererAvailability();
                 const values = Object.fromEntries(launchOptions.map(option =>
-                    [option.id, option === hyperVision ? option.value : option.checked]));
+                    [option.id, option instanceof HTMLSelectElement ? option.value : option.checked]));
                 try {
                     await browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values);
                 } catch (error) {

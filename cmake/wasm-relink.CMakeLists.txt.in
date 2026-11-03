@@ -17,6 +17,9 @@ add_subdirectory(nuked-opl2-lite)
 add_library(restunts_game STATIC IMPORTED)
 set_target_properties(restunts_game PROPERTIES
     IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/librestunts_game.a")
+add_library(restunts_graphics STATIC IMPORTED)
+set_target_properties(restunts_graphics PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/librestunts_graphics.a")
 add_library(restunts_webm STATIC IMPORTED)
 set_target_properties(restunts_webm PROPERTIES
     IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/lib/librestunts_webm.a")
@@ -29,7 +32,7 @@ if(NOT entry_objects)
 endif()
 add_executable(restunts ${entry_objects})
 set_target_properties(restunts PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(restunts PRIVATE restunts_game restunts_webm restunts_sdl nuked_opl2 m)
+target_link_libraries(restunts PRIVATE restunts_game restunts_graphics restunts_webm restunts_sdl nuked_opl2 m)
 include(wasm-link.cmake)
 restunts_configure_wasm(restunts "${CMAKE_CURRENT_SOURCE_DIR}/data"
     "${CMAKE_CURRENT_SOURCE_DIR}/shell.html")

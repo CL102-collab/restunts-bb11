@@ -364,6 +364,35 @@ leaves any existing `.tim` file untouched.
 Physics dumps use the recording's stored 10 or 20 Hz rate, matching the
 replay viewer. Adding `--time` does not change the `.BNI` or `.owo` output.
 
+### Scene renderer
+
+Windows, Linux, FreeBSD, OpenBSD, NetBSD, Haiku, and Android support
+`--renderer:software` and `--renderer:vulkan`. The default is `software`,
+the existing CPU scene renderer. Vulkan requires an installed Vulkan driver
+and a device that meets the renderer's compute requirements. Android Vulkan
+selection requires Android 7.0/API 24 or newer; the Software baseline is
+unchanged. The [desktop startup window](launcher.md) and
+[Android launcher](android.md) offer Vulkan only after finding a compatible
+device.
+
+Run `restunts --list-render-devices` by itself to list compatible Vulkan
+devices without loading game data. Use a listed zero-based index with
+`--renderer-device:N`; omitting it selects the first compatible device.
+The device option requires `--renderer:vulkan`. For example:
+
+```sh
+out/sdl3-linux-x64/restunts --list-render-devices
+out/sdl3-linux-x64/restunts --data-dir stunts --renderer:vulkan --renderer-device:0
+out/sdl3-linux-x64/restunts --data-dir stunts --renderer:software
+```
+
+An explicitly selected Vulkan renderer reports an error if its device cannot
+be opened. Select Software to use CPU rendering. Vulkan disables CPU render
+workers; startup windows grey out **Multi-core rendering** and retain its
+saved setting for the next Software launch.
+
+### Rendering and presentation
+
 SDL3 builds except DOS32 support `--multi-core:on` and `--multi-core:off`.
 The default is on. The desktop, Android, and supported browser startup windows
 expose **Multi-core rendering** under **Graphics settings** and remember the

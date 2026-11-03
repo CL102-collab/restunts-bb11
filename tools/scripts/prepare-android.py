@@ -53,6 +53,7 @@ def prepare(root):
     destination = dependency(root, "SDL3", "CMakeLists.txt", "sdl")
     vpx = dependency(root, "restunts_vpx", "cmake/webm.cmake", "vpx")
     nestegg = dependency(root, "restunts_nestegg", "cmake/webm.cmake", "nestegg")
+    vulkan = dependency(root, "restunts_vulkan_headers", "cmake/graphics.cmake", "vulkan-headers")
     # Upstream wrapper belongs with upstream Java glue; keep generated files in out/.
     wrapper = root / "out/android-gradle"
     wrapper.mkdir(parents=True, exist_ok=True)
@@ -70,6 +71,11 @@ def prepare(root):
     for source, name in [(vpx / "LICENSE", "libvpx-LICENSE.txt"),
                          (vpx / "PATENTS", "libvpx-PATENTS.txt"),
                          (nestegg / "LICENSE", "nestegg-LICENSE.txt")]:
+        shutil.copy2(source, notices / name)
+
+    for source, name in [(vulkan / "LICENSE.md", "Vulkan-Headers-LICENSE.md"),
+                         (vulkan / "LICENSES/Apache-2.0.txt", "Vulkan-Headers-Apache-2.0.txt"),
+                         (vulkan / "LICENSES/MIT.txt", "Vulkan-Headers-MIT.txt")]:
         shutil.copy2(source, notices / name)
 
 

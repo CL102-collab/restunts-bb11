@@ -27,12 +27,105 @@ static legacy_bool contains(const std::vector<wxString> &arguments, const wxStri
 	return std::find(arguments.begin(), arguments.end(), argument) != arguments.end();
 }
 
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+static void check_graphics_options()
+{
+	LauncherOptions options;
+	options.folder = "/game";
+	check(options.renderer == GRAPHICS_RENDERER_SOFTWARE &&
+			  options.device == GRAPHICS_DEVICE_DEFAULT,
+		  "Renderer must default to Software with automatic device selection.");
+	check(contains(launcher_game_arguments("game", options), "--renderer:software"),
+		  "Software selection must reach the game explicitly.");
+	std::vector<LauncherGraphicsDevice> devices;
+	check(launcher_parse_graphics_devices(GRAPHICS_DEVICE_REPORT_HEADER, devices) &&
+			  devices.empty(),
+		  "A successful inventory without compatible devices must be accepted.");
+	const wxString inventory =
+		wxString::FromUTF8(GRAPHICS_DEVICE_REPORT_HEADER) + "0\tIntegrated GPU\n7\tDiscrete GPU\n";
+	check(launcher_parse_graphics_devices(inventory, devices) && devices.size() == 2U &&
+			  devices[0].index == 0 && devices[1].index == 7 && devices[1].name == "Discrete GPU",
+		  "Device inventory must preserve compatible adapter names and physical indices.");
+	wxString windows_inventory = inventory;
+	windows_inventory.Replace("\n", "\r\n");
+	check(launcher_parse_graphics_devices(windows_inventory, devices),
+		  "Windows console line endings must be accepted.");
+	options.renderer = GRAPHICS_RENDERER_VULKAN;
+	options.device = 7;
+	launcher_normalize_graphics_options(options, devices);
+	std::vector<wxString> arguments = launcher_game_arguments("game", options);
+	check(contains(arguments, "--renderer:vulkan") && contains(arguments, "--renderer-device:7") &&
+			  contains(arguments, "--multi-core:off") && !contains(arguments, "--multi-core:on"),
+		  "Vulkan must select the physical device and disable effective CPU rendering workers.");
+	check(options.enabled[LAUNCHER_MULTI_CORE],
+		  "Selecting Vulkan must preserve the user's Software multi-core preference.");
+	const wxString settings = wxFileName::CreateTempFileName("restunts-renderer-options-");
+	check(launcher_save_options(settings, options).empty(), "Could not save renderer preferences.");
+	LauncherOptions restored;
+	launcher_read_options(settings, restored);
+	check(restored.renderer == GRAPHICS_RENDERER_VULKAN && restored.device == 7 &&
+			  restored.enabled[LAUNCHER_MULTI_CORE],
+		  "Renderer, device and retained CPU worker preference must round-trip.");
+	launcher_normalize_graphics_options(restored, {});
+	check(restored.renderer == GRAPHICS_RENDERER_SOFTWARE &&
+			  restored.device == GRAPHICS_DEVICE_DEFAULT && restored.enabled[LAUNCHER_MULTI_CORE],
+		  "Unavailable Vulkan hardware must normalize to Software without losing CPU preferences.");
+	arguments = launcher_game_arguments("game", restored);
+	check(contains(arguments, "--renderer:software") && contains(arguments, "--multi-core:on") &&
+			  !contains(arguments, "--renderer-device:7"),
+		  "Software must not pass an incompatible Vulkan device argument.");
+	launcher_normalize_graphics_options(options, {{4, "Replacement GPU"}});
+	check(options.renderer == GRAPHICS_RENDERER_VULKAN && options.device == 4,
+		  "A missing preferred device must select an available compatible adapter.");
+	{
+		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
+							wxCONFIG_USE_LOCAL_FILE);
+		config.DisableAutoSave();
+		config.Write("renderer", "unknown-renderer");
+		config.Write("renderer_device", "2147483648");
+		config.Flush();
+	}
+	launcher_read_options(settings, restored);
+	check(restored.renderer == GRAPHICS_RENDERER_SOFTWARE &&
+			  restored.device == GRAPHICS_DEVICE_DEFAULT,
+		  "Unknown renderer or overflowing saved device must use safe defaults.");
+	wxRemoveFile(settings);
+	const legacy_char *invalid[] = {
+		"RESTUNTS_RENDER_DEVICES 2\n0\tGPU\n",	"RESTUNTS_RENDER_DEVICES 1\n0\tGPU\n0\tDuplicate\n",
+		"RESTUNTS_RENDER_DEVICES 1\n-1\tGPU\n", "RESTUNTS_RENDER_DEVICES 1\n2147483648\tGPU\n",
+		"RESTUNTS_RENDER_DEVICES 1\n0\t\n",		"RESTUNTS_RENDER_DEVICES 1\n0\tGPU\tinvalid\n",
+	};
+	for (const legacy_char *report : invalid) {
+		check(!launcher_parse_graphics_devices(report, devices) && devices.empty(),
+			  "Malformed or ambiguous device inventories must fail closed.");
+	}
+	wxString excessive = wxString::FromUTF8(GRAPHICS_DEVICE_REPORT_HEADER);
+	for (legacy_u32 index = 0; index <= GRAPHICS_DEVICE_CAPACITY; ++index) {
+		excessive += wxString::Format("%" LEGACY_PRIu32 "\tGPU\n", index);
+	}
+	check(!launcher_parse_graphics_devices(excessive, devices) && devices.empty(),
+		  "Device inventories must respect their bounded adapter capacity.");
+}
+#else
+static void check_graphics_options()
+{
+	LauncherOptions options;
+	options.renderer = GRAPHICS_RENDERER_VULKAN;
+	options.device = 7;
+	for (const wxString &argument : launcher_game_arguments("game", options)) {
+		check(!argument.StartsWith("--renderer:") && !argument.StartsWith("--renderer-device:"),
+			  "Unsupported launcher targets must not pass renderer selection arguments.");
+	}
+}
+#endif
+
 legacy_int main()
 {
 	wxInitializer initialize;
 	if (!initialize.IsOk()) {
 		return TEST_FAILURE;
 	}
+	check_graphics_options();
 	check(LAUNCHER_CHICANE_FAST_GRASS + 1 == LAUNCHER_AMIGA_GRASS &&
 			  LAUNCHER_AMIGA_GRASS + 1 == LAUNCHER_OWOOT &&
 			  LAUNCHER_OWOOT + 1 == LAUNCHER_OPTION_COUNT,

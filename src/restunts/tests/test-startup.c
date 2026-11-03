@@ -52,6 +52,30 @@ static legacy_s32 startup_audio_driver_loaded;
 static legacy_s32 startup_ogg_music_enabled;
 static legacy_s32 expected_ogg_music_enabled;
 static legacy_u32 startup_ogg_set_calls;
+#ifdef RESTUNTS_RENDERER_SELECTION
+static legacy_s32 startup_graphics_renderer = GRAPHICS_RENDERER_SOFTWARE;
+static legacy_s32 startup_graphics_device = GRAPHICS_DEVICE_DEFAULT;
+static legacy_u32 startup_graphics_select_calls;
+static legacy_u8 startup_graphics_failure;
+
+legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, legacy_char *error,
+									size_t error_capacity)
+{
+	++startup_graphics_select_calls;
+	if (startup_graphics_failure) {
+		snprintf(error, error_capacity, "No compatible Vulkan device");
+		return 0;
+	}
+	startup_graphics_renderer = renderer;
+	startup_graphics_device = device;
+	return 1;
+}
+
+legacy_s32 graphics_renderer(void)
+{
+	return startup_graphics_renderer;
+}
+#endif
 #ifdef STARTUP_MULTI_CORE_PREFIX
 static legacy_u8 startup_multi_core_enabled = STARTUP_MULTI_CORE_OFF;
 static legacy_u32 startup_multi_core_set_calls;
@@ -775,6 +799,9 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+#ifdef RESTUNTS_RENDERER_SELECTION
+	legacy_u32 before_graphics_calls = startup_graphics_select_calls;
+#endif
 #ifdef STARTUP_MULTI_CORE_PREFIX
 	legacy_u32 before_multi_core_calls = startup_multi_core_set_calls;
 	legacy_u8 before_multi_core_enabled = startup_multi_core_enabled;
@@ -803,6 +830,9 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
+#ifdef RESTUNTS_RENDERER_SELECTION
+	assert(startup_graphics_select_calls == before_graphics_calls);
+#endif
 #ifdef STARTUP_MULTI_CORE_PREFIX
 	assert(startup_multi_core_set_calls == before_multi_core_calls);
 	assert(startup_multi_core_enabled == before_multi_core_enabled);
@@ -1037,6 +1067,105 @@ static void test_startup_multi_core_options(void)
 	/* Unsupported platforms ignore multi-core options. */
 	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--multi-core:on",
 							  (legacy_s8 *)"--multi-core:off", (legacy_s8 *)"--multi-core:invalid"};
+	reset_startup_hypervision();
+	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+#endif
+}
+
+static void test_startup_renderer_options(void)
+{
+#ifdef RESTUNTS_RENDERER_SELECTION
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_s32 renderer;
+	} cases[] = {{"--renderer:software", GRAPHICS_RENDERER_SOFTWARE},
+				 {"--renderer:vulkan", GRAPHICS_RENDERER_VULKAN},
+				 {"--RENDERER:VuLkAn", GRAPHICS_RENDERER_VULKAN}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument,
+								  (legacy_s8 *)"--multi-core:on"};
+		reset_startup_hypervision();
+		legacy_u32 before = startup_graphics_select_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_graphics_select_calls == before + 1U);
+		assert(startup_graphics_renderer == cases[index].renderer);
+		assert(startup_graphics_device == GRAPHICS_DEVICE_DEFAULT);
+		assert(startup_options.graphics_renderer_specified);
+		assert(startup_options.multi_core_enabled == STARTUP_MULTI_CORE_ON);
+		assert(startup_multi_core_enabled == (cases[index].renderer == GRAPHICS_RENDERER_SOFTWARE));
+	}
+	legacy_s8 *device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer-device:2",
+						   (legacy_s8 *)"--renderer:vulkan"};
+	reset_startup_hypervision();
+	init_main(sizeof(device) / sizeof(device[0]), device);
+	assert(startup_graphics_renderer == GRAPHICS_RENDERER_VULKAN);
+	assert(startup_graphics_device == 2);
+	assert(startup_options.graphics_device_specified);
+	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_OFF);
+
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_graphics_renderer == GRAPHICS_RENDERER_SOFTWARE);
+	assert(startup_graphics_device == GRAPHICS_DEVICE_DEFAULT);
+	assert(!startup_options.graphics_renderer_specified &&
+		   !startup_options.graphics_device_specified);
+	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_ON);
+
+	static const legacy_s8 *invalid_renderer[] = {"--renderer:", "--renderer:metal",
+												  "--renderer:softwarex"};
+	for (legacy_u16 index = 0; index < sizeof(invalid_renderer) / sizeof(invalid_renderer[0]);
+		 index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid_renderer[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	static const legacy_s8 *invalid_device[] = {"--renderer-device:",
+												"--renderer-device:-1",
+												"--renderer-device:+1",
+												"--renderer-device:auto",
+												"--renderer-device:1x",
+												"--renderer-device:2147483648",
+												"--renderer-device:999999999999999999999999999999"};
+	for (legacy_u16 index = 0; index < sizeof(invalid_device) / sizeof(invalid_device[0]);
+		 index++) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+								  (legacy_s8 *)invalid_device[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	legacy_s8 *duplicate_renderer[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:software",
+									   (legacy_s8 *)"--renderer:vulkan"};
+	expect_startup_option_error(sizeof(duplicate_renderer) / sizeof(duplicate_renderer[0]),
+								duplicate_renderer);
+	legacy_s8 *duplicate_device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+									 (legacy_s8 *)"--renderer-device:0",
+									 (legacy_s8 *)"--renderer-device:1"};
+	expect_startup_option_error(sizeof(duplicate_device) / sizeof(duplicate_device[0]),
+								duplicate_device);
+	legacy_s8 *software_device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer-device:0"};
+	expect_startup_option_error(sizeof(software_device) / sizeof(software_device[0]),
+								software_device);
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+
+	/* A requested unavailable backend must fail before worker/video initialization. */
+	reset_startup_hypervision();
+	startup_graphics_failure = 1;
+	legacy_u32 before_workers = startup_multi_core_set_calls;
+	legacy_u16 before_video = startup_video_calls;
+	startup_exit_status = EXIT_SUCCESS;
+	if (setjmp(exit_jump) == 0) {
+		init_main(sizeof(device) / sizeof(device[0]), device);
+		assert(0);
+	}
+	assert(startup_exit_status == EXIT_FAILURE);
+	assert(startup_multi_core_set_calls == before_workers);
+	assert(startup_video_calls == before_video && timer_calls == 0);
+	startup_graphics_failure = 0;
+#else
+	/* Options for unavailable targets do not change their software startup. */
+	legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+							  (legacy_s8 *)"--renderer-device:0"};
 	reset_startup_hypervision();
 	init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
 #endif
@@ -1390,6 +1519,7 @@ int main(void)
 #endif
 	test_startup_fps_display_options();
 	test_startup_multi_core_options();
+	test_startup_renderer_options();
 	test_startup_fullscreen_options();
 	test_startup_controller_vibration_options();
 	puts("startup option tests passed");

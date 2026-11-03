@@ -6,6 +6,9 @@
 #include "shape3d_internal.h"
 
 #include "shape3d_prerender_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../renderer/gpu_raster.h"
+#endif
 
 struct POLYGON_RASTER {
 	const struct POINT2D *first_vertex;
@@ -129,6 +132,15 @@ static void polygon_draw_spans(const struct POLYGON_RASTER *raster, legacy_s16 *
 void polygon_rasterize(legacy_u16 color, legacy_u16 vertex_count, const struct POINT2D *vertices,
 					   legacy_u16 choose_edge_per_row)
 {
+#ifdef RESTUNTS_SDL3
+	legacy_u8 mode = spritefunc == draw_patterned_lines	  ? HIRES_PAINT_PATTERN
+					 : spritefunc == draw_two_color_lines ? HIRES_PAINT_ALTERNATE
+														  : HIRES_PAINT_SOLID;
+	if (gpu_raster_classic_polygon(color, raster_alternate_color, raster_fill_pattern, mode,
+								   vertex_count, vertices, imagefunc != preRender_line)) {
+		return;
+	}
+#endif
 	if (vertex_count == 0U) {
 		return;
 	}

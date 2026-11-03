@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -70,6 +71,9 @@ public final class LauncherActivity extends Activity {
     private static boolean preparingAssets;
     private static boolean assetsReady;
     private static boolean permissionsCleaned;
+    private static boolean probingGraphics;
+    private static boolean graphicsProbed;
+    private static List<VulkanDevices.Device> graphicsDevices = Collections.emptyList();
     private static String currentStatus = "Import your Brøderbund Stunts 1.1 game files.\n"
         + "Choose the game folder itself, or a ZIP to extract into Chocolate Stunts.";
     private TextView status;
@@ -94,6 +98,10 @@ public final class LauncherActivity extends Activity {
     private CheckBox owoot;
     private CheckBox amigaGrass;
     private Spinner hyperVision;
+    private Spinner renderer;
+    private Spinner graphicsDevice;
+    private WrappingLayout graphicsDeviceOption;
+    private boolean updatingGraphics;
     private SharedPreferences preferences;
     private boolean television;
 
@@ -174,12 +182,16 @@ public final class LauncherActivity extends Activity {
                 }
             });
         }
+        requestGraphicsDevices();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         active = new WeakReference<>(this);
+        if (graphicsProbed) {
+            populateGraphicsOptions();
+        }
         String saveError = GameDataStorage.lastError(this);
         if (!saveError.isEmpty() && !importing && !synchronizing) {
             currentStatus = saveError + " Start game to retry copying your files.";
@@ -289,7 +301,18 @@ public final class LauncherActivity extends Activity {
         hyperVision.setSelection(LaunchOptions.HyperVision.fromStored(
             preferences.getString(LaunchOptions.HYPERVISION_KEY, null)).ordinal());
         hyperVisionOption.addView(hyperVision);
-        graphics.addView(hyperVisionOption);
+        LinearLayout rendererSettings = new LinearLayout(this);
+        rendererSettings.setOrientation(LinearLayout.VERTICAL);
+        rendererSettings.addView(hyperVisionOption);
+        renderer = new Spinner(this);
+        rendererSettings.addView(graphicsChoice("Renderer", renderer, textSize));
+        graphicsDevice = new Spinner(this);
+        graphicsDeviceOption = graphicsChoice("Device", graphicsDevice, textSize);
+        rendererSettings.addView(graphicsDeviceOption);
+        graphics.addView(rendererSettings, new android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+        populateGraphicsOptions();
 
         WrappingLayout drivingRules = settingsGroup(layout, "Driving rules", textSize, spacing);
         powerGear = option(drivingRules, "Power Gear", LaunchOptions.POWER_GEAR_KEY,
@@ -322,6 +345,118 @@ public final class LauncherActivity extends Activity {
             public void onNothingSelected(AdapterView<?> parent) {
                 // A populated Spinner keeps its current choice.
             }
+        });
+        renderer.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!updatingGraphics) {
+                    updateGraphicsAvailability();
+                    saveOptions();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Software remains available while hardware discovery is pending.
+            }
+        });
+        graphicsDevice.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!updatingGraphics) {
+                    saveOptions();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // No native device is selected when Vulkan is unavailable.
+            }
+        });
+    }
+
+    private WrappingLayout graphicsChoice(String labelText, Spinner spinner, int textSize) {
+        WrappingLayout row = new WrappingLayout(this, 0, 0);
+        TextView label = new TextView(this);
+        label.setText(labelText);
+        label.setTextSize(textSize);
+        spinner.setId(View.generateViewId());
+        label.setLabelFor(spinner.getId());
+        row.addView(label);
+        row.addView(spinner);
+        return row;
+    }
+
+    private LaunchOptions.Renderer storedRenderer() {
+        try {
+            return LaunchOptions.Renderer.fromStored(
+                preferences.getString(LaunchOptions.RENDERER_KEY, null));
+        } catch (ClassCastException invalid) {
+            return LaunchOptions.Renderer.SOFTWARE;
+        }
+    }
+
+    private int storedGraphicsDevice() {
+        try {
+            return preferences.getInt(LaunchOptions.RENDERER_DEVICE_KEY,
+                LaunchOptions.DEFAULT_RENDERER_DEVICE);
+        } catch (ClassCastException invalid) {
+            return LaunchOptions.DEFAULT_RENDERER_DEVICE;
+        }
+    }
+
+    private void populateGraphicsOptions() {
+        updatingGraphics = true;
+        boolean vulkanAvailable = graphicsProbed && !graphicsDevices.isEmpty();
+        LaunchOptions.Renderer[] choices = vulkanAvailable ? LaunchOptions.Renderer.values()
+            : new LaunchOptions.Renderer[] {LaunchOptions.Renderer.SOFTWARE};
+        ArrayAdapter<LaunchOptions.Renderer> renderers = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, choices);
+        renderers.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        renderer.setAdapter(renderers);
+        LaunchOptions.Renderer selected = storedRenderer();
+        renderer.setSelection(vulkanAvailable ? selected.ordinal() : 0);
+        ArrayAdapter<VulkanDevices.Device> devices = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, graphicsDevices);
+        devices.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        graphicsDevice.setAdapter(devices);
+        int selectedDevice = storedGraphicsDevice();
+        for (int position = 0; position < graphicsDevices.size(); position++) {
+            if (graphicsDevices.get(position).index == selectedDevice) {
+                graphicsDevice.setSelection(position);
+                break;
+            }
+        }
+        updatingGraphics = false;
+        updateGraphicsAvailability();
+    }
+
+    private void updateGraphicsAvailability() {
+        boolean software = renderer.getSelectedItem() != LaunchOptions.Renderer.VULKAN;
+        renderer.setEnabled(graphicsProbed);
+        multiCore.setEnabled(software);
+        graphicsDevice.setEnabled(!software);
+        graphicsDeviceOption.setVisibility(graphicsDevices.size() > 1 ? View.VISIBLE : View.GONE);
+    }
+
+    private static void requestGraphicsDevices() {
+        if (graphicsProbed || probingGraphics) {
+            return;
+        }
+        probingGraphics = true;
+        WORKER.execute(() -> {
+            List<VulkanDevices.Device> devices = VulkanDevices.query(Build.VERSION.SDK_INT);
+            MAIN_THREAD.post(() -> {
+                graphicsDevices = devices;
+                graphicsProbed = true;
+                probingGraphics = false;
+                LauncherActivity activity = active.get();
+                if (activity != null) {
+                    activity.populateGraphicsOptions();
+                    activity.saveOptions();
+                    activity.refresh();
+                }
+            });
         });
     }
 
@@ -362,16 +497,20 @@ public final class LauncherActivity extends Activity {
     }
 
     private LaunchOptions selectedOptions() {
+        VulkanDevices.Device selectedDevice = (VulkanDevices.Device) graphicsDevice.getSelectedItem();
         return new LaunchOptions(newMidi.isChecked(), showFps.isChecked(), showControlLayout.isChecked(),
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
             legacyCollision.isChecked(), leftCornerBias.isChecked(), dualWaySwitching.isChecked(),
             chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
-            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked());
+            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked(),
+            (LaunchOptions.Renderer) renderer.getSelectedItem(),
+            selectedDevice == null ? LaunchOptions.DEFAULT_RENDERER_DEVICE : selectedDevice.index);
     }
 
     private void saveOptions() {
         LaunchOptions options = selectedOptions();
-        preferences.edit().putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
+        SharedPreferences.Editor editor = preferences.edit()
+            .putBoolean(LaunchOptions.NEW_MIDI_KEY, options.newMidi)
             .putBoolean(LaunchOptions.SOUND_KEY, options.sound)
             .putBoolean(LaunchOptions.VIBRATION_KEY, vibration.isChecked())
             .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
@@ -386,12 +525,17 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.DUAL_WAY_SWITCHING_KEY, options.dualWaySwitching)
             .putBoolean(LaunchOptions.CHICANE_FAST_GRASS_KEY, options.chicaneFastGrass)
             .putBoolean(LaunchOptions.OWOOT_KEY, options.owoot)
-            .putBoolean(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass).apply();
+            .putBoolean(LaunchOptions.AMIGA_GRASS_KEY, options.amigaGrass);
+        if (graphicsProbed) {
+            editor.putString(LaunchOptions.RENDERER_KEY, options.renderer.value)
+                .putInt(LaunchOptions.RENDERER_DEVICE_KEY, options.rendererDevice);
+        }
+        editor.apply();
     }
 
     private void refresh() {
         status.setText(currentStatus);
-        boolean busy = importing || synchronizing || preparingAssets;
+        boolean busy = importing || synchronizing || preparingAssets || probingGraphics;
         preparationProgress.setVisibility(busy ? View.VISIBLE : View.GONE);
         folder.setEnabled(!busy);
         zip.setEnabled(!busy);
@@ -415,10 +559,11 @@ public final class LauncherActivity extends Activity {
     }
 
     private void startGame() {
-        if (importing || synchronizing || preparingAssets) {
+        if (importing || synchronizing || preparingAssets || probingGraphics) {
             return;
         }
         LaunchOptions options = selectedOptions();
+        VulkanDevices.Device selectedDevice = VulkanDevices.find(graphicsDevices, options.rendererDevice);
         boolean selectedVibration = vibration.isChecked();
         boolean selectedTiltSteering = tiltSteering.isEnabled() && tiltSteering.isChecked();
         Context context = getApplicationContext();
@@ -427,9 +572,32 @@ public final class LauncherActivity extends Activity {
         refreshActive();
         WORKER.execute(() -> {
             try {
+                List<VulkanDevices.Device> available = options.renderer == LaunchOptions.Renderer.VULKAN
+                    ? VulkanDevices.query(Build.VERSION.SDK_INT) : null;
+                if (available != null) {
+                    VulkanDevices.Device checked = VulkanDevices.find(available, options.rendererDevice);
+                    if (selectedDevice == null || checked == null || !checked.name.equals(selectedDevice.name)) {
+                        MAIN_THREAD.post(() -> {
+                            synchronizing = false;
+                            graphicsDevices = available;
+                            currentStatus = "The selected Vulkan device is no longer available. "
+                                + "Review Renderer and Device, then start again.";
+                            LauncherActivity activity = active.get();
+                            if (activity != null) {
+                                activity.populateGraphicsOptions();
+                                activity.saveOptions();
+                                activity.refresh();
+                            }
+                        });
+                        return;
+                    }
+                }
                 GameDataStorage.refresh(context);
                 MAIN_THREAD.post(() -> {
                     synchronizing = false;
+                    if (available != null) {
+                        graphicsDevices = available;
+                    }
                     currentStatus = "Ready to play.";
                     refreshActive();
                     LauncherActivity activity = active.get();
@@ -444,6 +612,8 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
+                        intent.putExtra(LaunchOptions.RENDERER_KEY, options.renderer.value);
+                        intent.putExtra(LaunchOptions.RENDERER_DEVICE_KEY, options.rendererDevice);
                         intent.putExtra(LaunchOptions.POWER_GEAR_KEY, options.powerGear);
                         intent.putExtra(LaunchOptions.LEGACY_COLLISION_KEY, options.legacyCollision);
                         intent.putExtra(LaunchOptions.LEFT_CORNER_BIAS_KEY, options.leftCornerBias);

@@ -1,6 +1,7 @@
 #include "hypervision.h"
 #include "../fatal.h"
 #include "render_workers.h"
+#include "../renderer/gpu_raster.h"
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,17 +25,6 @@
 #define HIRES_VISIBILITY_EVALUATE_AS_DECLARED 0
 #define HIRES_VISIBILITY_EVALUATE_AS_DOUBLE 1
 
-struct HIRES_VISIBILITY_EDGE {
-	legacy_f64 x, y, z, x_step, z_step;
-	legacy_s32 top, bottom;
-};
-struct HIRES_VISIBILITY_COMMAND {
-	struct HIRES_BACKEND_MATERIAL material;
-	legacy_u32 first_edge, hires_edge_count;
-	legacy_s32 top, bottom;
-	struct HIRES_DEPTH_PLANE plane;
-	legacy_s32 planar;
-};
 struct HIRES_VISIBILITY_BIN {
 	legacy_u32 *hires_commands;
 	size_t count, capacity;
@@ -50,8 +40,8 @@ struct HIRES_VISIBILITY_CROSSING {
 };
 
 struct HIRES_BACKEND_BUFFER {
-	struct HIRES_VISIBILITY_COMMAND *commands;
-	struct HIRES_VISIBILITY_EDGE *edges;
+	struct GPU_RASTER_COMMAND *commands;
+	struct GPU_RASTER_EDGE *edges;
 	size_t command_count, command_capacity, edge_count, edge_capacity;
 	size_t command_offset, edge_offset;
 	legacy_u32 command_area;
@@ -227,8 +217,8 @@ void hires_backend_polygon_to(struct HIRES_BACKEND_BUFFER *buffer,
 	if (buffer->allocation_failed) {
 		return;
 	}
-	struct HIRES_VISIBILITY_COMMAND command = {*material, (legacy_u32)buffer->edge_count, 0,
-											   HIRES_HEIGHT, 0};
+	struct GPU_RASTER_COMMAND command = {*material, (legacy_u32)buffer->edge_count, 0, HIRES_HEIGHT,
+										 0};
 	command.planar = hires_visibility_polygon_plane(vertices, count, &command.plane);
 	const struct HIRES_BACKEND_VERTEX *previous = &vertices[count - 1U];
 	for (legacy_u32 vertex = 0; vertex < count; vertex++) {
@@ -251,13 +241,13 @@ void hires_backend_polygon_to(struct HIRES_BACKEND_BUFFER *buffer,
 		}
 		legacy_f64 reciprocal = 1.0 / (upper->y - lower->y);
 		buffer->edges[buffer->edge_count++] =
-			(struct HIRES_VISIBILITY_EDGE){lower->x,
-										   lower->y,
-										   lower->inverse_z,
-										   (upper->x - lower->x) * reciprocal,
-										   (upper->inverse_z - lower->inverse_z) * reciprocal,
-										   top,
-										   bottom};
+			(struct GPU_RASTER_EDGE){lower->x,
+									 lower->y,
+									 lower->inverse_z,
+									 (upper->x - lower->x) * reciprocal,
+									 (upper->inverse_z - lower->inverse_z) * reciprocal,
+									 top,
+									 bottom};
 		command.hires_edge_count++;
 		if (top < command.top) {
 			command.top = top;
@@ -309,7 +299,7 @@ static void hires_backend_merge_job(void *argument, legacy_s32 index)
 	(void)argument;
 	const struct HIRES_BACKEND_BUFFER *buffer = &hires_build_buffers[index];
 	for (size_t command = 0; command < buffer->command_count; command++) {
-		struct HIRES_VISIBILITY_COMMAND copy = buffer->commands[command];
+		struct GPU_RASTER_COMMAND copy = buffer->commands[command];
 		copy.first_edge += (legacy_u32)buffer->edge_offset;
 		hires_frame.commands[buffer->command_offset + command] = copy;
 	}
@@ -549,11 +539,11 @@ static void hires_visibility_scan_command(struct HIRES_VISIBILITY_BIN *bin,
 										  legacy_s32 *visible_count,
 										  struct HIRES_VISIBILITY_SPAN *scratch, legacy_s32 sampled)
 {
-	const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[command_index];
+	const struct GPU_RASTER_COMMAND *command = &hires_frame.commands[command_index];
 	struct HIRES_VISIBILITY_CROSSING crossings[HIRES_BACKEND_MAX_VERTICES];
 	legacy_u32 crossing_count = 0;
 	for (legacy_u32 index = 0; index < command->hires_edge_count; index++) {
-		const struct HIRES_VISIBILITY_EDGE *edge = &hires_frame.edges[command->first_edge + index];
+		const struct GPU_RASTER_EDGE *edge = &hires_frame.edges[command->first_edge + index];
 		if (y < edge->top || y >= edge->bottom) {
 			continue;
 		}
@@ -616,7 +606,7 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 										   0, HIRES_VISIBILITY_NO_COMMAND};
 		for (size_t index = 0; index < bin->count; index++) {
 			legacy_u32 entry = bin->hires_commands[index];
-			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
+			const struct GPU_RASTER_COMMAND *command = &hires_frame.commands[entry];
 			if (y < command->top || y >= command->bottom ||
 				(command->material.mode == HIRES_PAINT_PATTERN ||
 				 (command->material.flags & (HIRES_BACKEND_DECAL | HIRES_BACKEND_GROUND_CLIP)) !=
@@ -630,7 +620,7 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 		 * markings and line quads therefore need no per-sample depth checks. */
 		for (size_t index = 0; index < bin->count; index++) {
 			legacy_u32 entry = bin->hires_commands[index];
-			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
+			const struct GPU_RASTER_COMMAND *command = &hires_frame.commands[entry];
 			if (command->material.mode != HIRES_PAINT_PATTERN &&
 				(command->material.flags & (HIRES_BACKEND_DECAL | HIRES_BACKEND_GROUND_CLIP)) !=
 					0U &&
@@ -656,7 +646,7 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 		}
 		for (size_t index = 0; index < bin->count; index++) {
 			legacy_u32 entry = bin->hires_commands[index];
-			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
+			const struct GPU_RASTER_COMMAND *command = &hires_frame.commands[entry];
 			if (command->material.mode == HIRES_PAINT_PATTERN && y >= command->top &&
 				y < command->bottom) {
 				hires_visibility_scan_command(bin, entry, y, visible, &count, scratch, 1);
@@ -675,6 +665,14 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 		target->top >= target->bottom) {
 		return 0;
 	}
+	if (graphics_renderer() == GRAPHICS_RENDERER_VULKAN) {
+		gpu_raster_hires(target, hires_frame.commands, hires_frame.command_count, hires_frame.edges,
+						 hires_frame.edge_count, hires_ground_enabled ? &hires_ground : NULL,
+						 preserve_depth);
+		hires_frame.command_count = 0;
+		hires_frame.edge_count = 0;
+		return 0;
+	}
 	hires_incremental = preserve_depth;
 	legacy_s32 band_count =
 		(target->height + HIRES_VISIBILITY_BAND_HEIGHT - 1) / HIRES_VISIBILITY_BAND_HEIGHT;
@@ -691,7 +689,7 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 		}
 	}
 	for (size_t index = 0; index < hires_frame.command_count; index++) {
-		const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[index];
+		const struct GPU_RASTER_COMMAND *command = &hires_frame.commands[index];
 		legacy_s32 first = command->top / HIRES_VISIBILITY_BAND_HEIGHT;
 		legacy_s32 last = (command->bottom - 1) / HIRES_VISIBILITY_BAND_HEIGHT;
 		if (last >= band_count) {

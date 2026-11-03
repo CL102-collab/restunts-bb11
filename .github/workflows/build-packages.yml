@@ -261,6 +261,7 @@ jobs:
             android/app/src/main/java/org/restunts/android/GameDataImport.java \
             android/app/src/main/java/org/restunts/android/GameDataVersion.java \
             android/app/src/main/java/org/restunts/android/LaunchOptions.java \
+            android/app/src/main/java/org/restunts/android/VulkanDevices.java \
             android/app/src/main/java/org/restunts/android/TiltSteeringMath.java \
             android/app/src/main/java/org/restunts/android/GameDataSync.java \
             android/app/src/main/java/org/restunts/android/LocalGameFolder.java \

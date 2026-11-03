@@ -1,5 +1,8 @@
 #include "command_line.h"
 #include "platform.h"
+#ifdef RESTUNTS_SDL3
+#include "renderer/graphics_backend.h"
+#endif
 
 #ifndef RESTUNTS_GIT_HASH
 #define RESTUNTS_GIT_HASH "source-archive"
@@ -37,6 +40,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
 	"  --licenses       Show dependency notices and exit; use alone." COMMAND_LINE_NEWLINE
 #endif
+#if defined(RESTUNTS_RENDERER_SELECTION) && !defined(RESTUNTS_HEADLESS)
+	"  --list-render-devices  List usable Vulkan devices and exit; use alone." COMMAND_LINE_NEWLINE
+#endif
 	COMMAND_LINE_NEWLINE
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
 	(defined(RESTUNTS_DOS16) && defined(RESTUNTS_FULL))
@@ -48,6 +54,10 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"once." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
 	"  --multi-core:on|off  Enable/disable multi-core rendering; supply once." COMMAND_LINE_NEWLINE
+#endif
+#ifdef RESTUNTS_RENDERER_SELECTION
+	"  --renderer:software|vulkan  Select scene rendering; supply once." COMMAND_LINE_NEWLINE
+	"  --renderer-device:N  Select Vulkan device N from --list-render-devices." COMMAND_LINE_NEWLINE
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"  --fullscreen:on|off  Start fullscreen/windowed; supply once." COMMAND_LINE_NEWLINE
@@ -103,6 +113,10 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"HyperVision starts off. F12 and Shift+F12 change it during play." COMMAND_LINE_NEWLINE
 #ifndef __DJGPP__
 	"Multi-core rendering starts on." COMMAND_LINE_NEWLINE
+#endif
+#ifdef RESTUNTS_RENDERER_SELECTION
+	"Software rendering is the default. Vulkan disables CPU render workers." COMMAND_LINE_NEWLINE
+	"The Vulkan device defaults to automatic selection." COMMAND_LINE_NEWLINE
 #endif
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)

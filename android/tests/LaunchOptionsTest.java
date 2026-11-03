@@ -1,6 +1,7 @@
 package org.restunts.android;
 
 import java.util.Arrays;
+import java.util.List;
 
 public final class LaunchOptionsTest {
     private static final int CHICANE_FAST_GRASS_MASK = 64;
@@ -18,7 +19,76 @@ public final class LaunchOptionsTest {
         require(Arrays.equals(actual, expected), "Unexpected arguments: " + Arrays.toString(actual));
     }
 
+    private static LaunchOptions graphicsOptions(LaunchOptions.Renderer renderer, int device,
+            boolean multiCore) {
+        return new LaunchOptions(LaunchOptions.DEFAULT_NEW_MIDI, LaunchOptions.DEFAULT_SHOW_FPS,
+            LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, LaunchOptions.HyperVision.OFF,
+            LaunchOptions.DEFAULT_POWER_GEAR, LaunchOptions.DEFAULT_LEGACY_COLLISION,
+            LaunchOptions.DEFAULT_LEFT_CORNER_BIAS, LaunchOptions.DEFAULT_DUAL_WAY_SWITCHING,
+            LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, LaunchOptions.DEFAULT_OWOOT,
+            LaunchOptions.DEFAULT_AMIGA_GRASS, LaunchOptions.DEFAULT_SOUND,
+            LaunchOptions.DEFAULT_SKIP_INTRO, multiCore, renderer, device);
+    }
+
+    private static void rendererSelection() {
+        require(LaunchOptions.Renderer.SOFTWARE.toString().equals("Software"),
+            "Software must be the first renderer choice.");
+        require(LaunchOptions.Renderer.VULKAN.toString().equals("Vulkan"),
+            "Keep the native renderer label.");
+        require(LaunchOptions.Renderer.values()[0] == LaunchOptions.Renderer.SOFTWARE,
+            "Software must remain the default renderer.");
+        for (LaunchOptions.Renderer renderer : LaunchOptions.Renderer.values()) {
+            require(LaunchOptions.Renderer.fromStored(renderer.value) == renderer,
+                "Renderer selection must survive preference and Intent storage.");
+        }
+        for (String invalid : new String[] {null, "", "Software", "VULKAN", "unknown"}) {
+            require(LaunchOptions.Renderer.fromStored(invalid) == LaunchOptions.Renderer.SOFTWARE,
+                "Invalid renderer preferences must restore Software.");
+        }
+        LaunchOptions software = graphicsOptions(LaunchOptions.Renderer.SOFTWARE, 3, true);
+        List<String> softwareArguments = Arrays.asList(software.arguments(DATA_DIRECTORY));
+        require(softwareArguments.contains("--multi-core:on"), "Software keeps the worker preference.");
+        require(softwareArguments.stream().noneMatch(value -> value.startsWith("--renderer")),
+            "Software must not request a Vulkan device.");
+        require(software.rendererDevice == 3, "Software must retain the remembered Vulkan device.");
+        LaunchOptions vulkan = graphicsOptions(LaunchOptions.Renderer.VULKAN, 3, true);
+        List<String> vulkanArguments = Arrays.asList(vulkan.arguments(DATA_DIRECTORY));
+        require(vulkanArguments.contains("--renderer:vulkan"), "Vulkan must select the native renderer.");
+        require(vulkanArguments.contains("--renderer-device:3"), "Forward the selected native device index.");
+        require(vulkanArguments.contains("--multi-core:off") && !vulkanArguments.contains("--multi-core:on"),
+            "Vulkan must never run CPU rendering workers.");
+        require(vulkan.multiCore, "Disabling the Vulkan widget must not erase the Software preference.");
+        for (int automatic : new int[] {LaunchOptions.DEFAULT_RENDERER_DEVICE, -100}) {
+            LaunchOptions options = graphicsOptions(LaunchOptions.Renderer.VULKAN, automatic, false);
+            require(options.rendererDevice == LaunchOptions.DEFAULT_RENDERER_DEVICE,
+                "Invalid saved indices must restore automatic native device selection.");
+            require(Arrays.stream(options.arguments(DATA_DIRECTORY))
+                    .noneMatch(value -> value.startsWith("--renderer-device:")),
+                "Automatic selection must not pass an invalid device index.");
+        }
+        require(graphicsOptions(null, LaunchOptions.DEFAULT_RENDERER_DEVICE, true).renderer
+                == LaunchOptions.Renderer.SOFTWARE,
+            "Missing Intent renderer selection must remain Software.");
+        require(VulkanDevices.query(VulkanDevices.MINIMUM_VULKAN_API - 1).isEmpty(),
+            "Android 5/6 must remain usable without loading a Vulkan library.");
+        List<VulkanDevices.Device> devices = VulkanDevices.fromNativeReport(
+            new String[] {"0", "Same GPU", "3", "Same GPU"});
+        require(devices.size() == 2 && devices.get(1).index == 3,
+            "Native physical-device indices must not be replaced by dropdown positions.");
+        require(!devices.get(0).toString().equals(devices.get(1).toString()),
+            "Identical graphics-device names must still have distinguishable choices.");
+        require(VulkanDevices.find(devices, 3) == devices.get(1)
+                && VulkanDevices.find(devices, 1) == null,
+            "Revalidation must find the actual native device index.");
+        for (String[] invalid : new String[][] {null, {"0"}, {"x", "GPU"}, {"-1", "GPU"},
+                {"0", null}, {"0", " "}, {"0", "GPU", "0", "Other GPU"}}) {
+            require(VulkanDevices.fromNativeReport(invalid).isEmpty(),
+                "Incomplete or invalid native inventories must not advertise Vulkan.");
+        }
+    }
+
     public static void main(String[] args) {
+        rendererSelection();
         require(!LaunchOptions.DEFAULT_NEW_MIDI, "New MIDI must default to original AdLib.");
         require(LaunchOptions.DEFAULT_SOUND, "Sound must remain enabled by default.");
         require(!LaunchOptions.DEFAULT_SKIP_INTRO, "The intro must remain enabled by default.");

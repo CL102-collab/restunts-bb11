@@ -21,6 +21,7 @@
 #include "../fatal.h"
 #include "../hires/hires.h"
 #include "../hires/shape3d_hires.h"
+#include "../renderer/gpu_raster.h"
 #endif
 
 #include "shape3d_pipeline_internal.h"
@@ -457,6 +458,7 @@ void shape3d_render_queued_primitives(void)
 		polyinfo_reset();
 		return;
 	}
+	gpu_raster_classic_begin();
 #endif
 	polyinfo_index record_index = polyinfo_primitive_capacity;
 	polyinfo_index rendered_ghost_primitives = 0;
@@ -541,6 +543,12 @@ void shape3d_render_queued_primitives(void)
 			legacy_u16 x = polyinfo_read_word(record, POLYINFO_START_X_WORD);
 			legacy_u16 y = polyinfo_read_word(record, POLYINFO_START_Y_WORD);
 			preRender_line(x, y, x, y, material_color);
+#elif defined(RESTUNTS_SDL3)
+			legacy_s16 x = LEGACY_S16_FROM_BITS(polyinfo_read_word(record, POLYINFO_START_X_WORD));
+			legacy_s16 y = LEGACY_S16_FROM_BITS(polyinfo_read_word(record, POLYINFO_START_Y_WORD));
+			if (!gpu_raster_classic_line(x, y, x, y, material_color)) {
+				sprite_putpixel_clipped(x, y, material_color);
+			}
 #else
 			sprite_putpixel_clipped(
 				LEGACY_S16_FROM_BITS(polyinfo_read_word(record, POLYINFO_START_X_WORD)),
@@ -549,6 +557,9 @@ void shape3d_render_queued_primitives(void)
 #endif
 		}
 	}
+#if defined(RESTUNTS_SDL3)
+	gpu_raster_classic_end();
+#endif
 #if defined(RESTUNTS_TEMPLEOS)
 	TempleRasterNative(0);
 #endif

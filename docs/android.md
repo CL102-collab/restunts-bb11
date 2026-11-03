@@ -85,10 +85,20 @@ remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 **Show Control Layout** for the touch circles, **Multi-core rendering**
 (`--multi-core:on/off`, initially on unless a saved choice overrides it), and
-finally the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
-Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
-Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
-**Amiga Grass**, and **OWOOT**. Each settings group
+the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**,
+and **Low** presets. **Renderer**, below HyperVision, defaults to **Software**,
+the existing CPU renderer. **Vulkan** appears only on Android 7.0/API 24 or
+newer when a compatible Vulkan device is detected. With multiple compatible
+devices, **Device** appears below Renderer and is enabled only for Vulkan.
+Selecting Vulkan greys out Multi-core rendering and disables CPU render
+workers for that launch; returning to Software restores the saved checkbox
+choice. The launcher remembers the renderer and device and checks that the
+selected Vulkan device is still available before starting. Older Android
+versions and devices without Vulkan continue to use Software.
+
+Directly below Graphics settings, **Driving rules** groups **Power Gear**,
+**Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
+**Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**. Each settings group
 places its controls side by side and wraps onto additional rows on smaller
 screens, keeping every option visible without horizontal scrolling. The
 HyperVision label and selector stay grouped; the label moves above the selector

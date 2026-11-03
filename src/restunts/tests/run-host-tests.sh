@@ -207,6 +207,13 @@ source_companions() {
     supersight_source_companions "$1"
     generic_render_companions "$1"
     extended_folder_companions "$1" "$2"
+    if [[ " $2 " == *" -DRESTUNTS_SDL3 "* ]]; then
+        case "$1" in
+            shape3d_render.c|shape3d_prerender.c|shape3d_polygon.c|hypervision.c)
+                printf '%s\n' renderer/gpu_raster.c renderer/gpu_raster_classic.c renderer/graphics_backend.c
+                ;;
+        esac
+    fi
 }
 
 run_host_test() {

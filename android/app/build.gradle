@@ -27,7 +27,8 @@ android {
                 arguments '-DRESTUNTS_BUILD_TESTS=OFF', '-DANDROID_STL=c++_static',
                     "-DFETCHCONTENT_SOURCE_DIR_SDL3=${sdlDirectory.absolutePath}",
                     "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_VPX=${file('../../out/android-deps/vpx').absolutePath}",
-                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_NESTEGG=${file('../../out/android-deps/nestegg').absolutePath}"
+                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_NESTEGG=${file('../../out/android-deps/nestegg').absolutePath}",
+                    "-DFETCHCONTENT_SOURCE_DIR_RESTUNTS_VULKAN_HEADERS=${file('../../out/android-deps/vulkan-headers').absolutePath}"
                 targets 'restunts', 'SDL3-shared', 'nuked_opl2'
             }
         }

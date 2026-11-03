@@ -2,6 +2,9 @@
 #define RESTUNTS_STARTUP_INTERNAL_H
 
 #include "legacy.h"
+#ifdef RESTUNTS_SDL3
+#include "renderer/graphics_backend.h"
+#endif
 
 #define GAME_SCREEN_WIDTH 320
 #define GAME_SCREEN_HEIGHT 200
@@ -20,6 +23,11 @@
 #define CALLBACK_DOS_HELP_ALT_KEY 24
 
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
+#ifdef RESTUNTS_RENDERER_SELECTION
+#define STARTUP_RENDERER_PREFIX "--renderer:"
+#define STARTUP_RENDERER_DEVICE_PREFIX "--renderer-device:"
+#define STARTUP_RENDERER_DEVICE_BASE 10U
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
 #define STARTUP_MULTI_CORE_PREFIX "--multi-core:"
 #define STARTUP_MULTI_CORE_OFF 0U
@@ -56,6 +64,12 @@ struct STARTUP_OPTIONS {
 	legacy_u8 hires_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
+#ifdef RESTUNTS_RENDERER_SELECTION
+	legacy_s32 graphics_renderer;
+	legacy_s32 graphics_device;
+	legacy_u8 graphics_renderer_specified;
+	legacy_u8 graphics_device_specified;
+#endif
 #ifndef __DJGPP__
 	legacy_u8 multi_core_enabled;
 	legacy_u8 multi_core_specified;

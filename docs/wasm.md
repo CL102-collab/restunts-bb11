@@ -109,6 +109,10 @@ build supports `file://` without a local web server. The HTML's location does no
    (`--multi-core:on/off`, initially on when supported), and the **HyperVision**
    selector. Multi-core rendering requires the threaded build and an isolated
    page; a saved choice overrides its default. Offline builds keep it disabled.
+   **Renderer**, after HyperVision, defaults to **Software** (`--renderer:software`)
+   and is remembered with the other settings. Browsers do not expose native Vulkan
+   devices, so Software is the only available renderer and the Device selector stays
+   hidden. WebGPU would require a separate renderer implementation.
    HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while

@@ -94,6 +94,16 @@ license directory. Windows ARM64 uses LLVM's libc++ and support runtimes;
 their complete upstream license texts and provenance are installed in
 share/licenses/llvm-runtime/.
 
+Vulkan-Headers
+--------------
+Vulkan-capable Windows, Linux, BSD, Haiku and Android game builds use Khronos
+Vulkan-Headers 1.3.296 for API declarations. The loader and device driver are
+provided by the operating system; no Vulkan runtime is bundled.
+Source: https://github.com/KhronosGroup/Vulkan-Headers/tree/v1.3.296
+The headers are provided under Apache-2.0 and MIT terms. Complete notices are
+installed as Vulkan-Headers-LICENSE.md, Vulkan-Headers-Apache-2.0.txt and
+Vulkan-Headers-MIT.txt under share/licenses/restunts (assets/licenses in Android).
+
 SDL3
 ----
 Bundled SDL3 builds include SDL's zlib license in

@@ -145,6 +145,78 @@ static void startup_parse_boolean(const legacy_s8 *argument, const legacy_s8 *pr
 	dos_process_exit(1);
 }
 
+#ifdef RESTUNTS_RENDERER_SELECTION
+static const legacy_s8 *startup_graphics_value(const legacy_s8 *argument, const legacy_s8 *prefix)
+{
+	while (*prefix != 0) {
+		legacy_u8 character = (legacy_u8)*argument;
+		if (character >= 'A' && character <= 'Z') {
+			character += 'a' - 'A';
+		}
+		if (character != (legacy_u8)*prefix) {
+			return NULL;
+		}
+		argument++;
+		prefix++;
+	}
+	return argument;
+}
+
+static void startup_graphics_error(const legacy_s8 *message)
+{
+	startup_option_error_text(message);
+	dos_process_exit(1);
+}
+
+static void startup_parse_graphics(const legacy_s8 *argument, struct STARTUP_OPTIONS *options)
+{
+	const legacy_s8 *value = startup_graphics_value(argument, STARTUP_RENDERER_PREFIX);
+	if (value != NULL) {
+		if (options->graphics_renderer_specified) {
+			startup_graphics_error("Only one renderer option may be specified (--renderer:).\n");
+			return;
+		}
+		options->graphics_renderer_specified = 1;
+		if (stricmp(value, "software") == 0) {
+			options->graphics_renderer = GRAPHICS_RENDERER_SOFTWARE;
+		} else if (stricmp(value, "vulkan") == 0) {
+			options->graphics_renderer = GRAPHICS_RENDERER_VULKAN;
+		} else {
+			startup_graphics_error(
+				"Invalid renderer; use --renderer:software or --renderer:vulkan.\n");
+		}
+		return;
+	}
+	value = startup_graphics_value(argument, STARTUP_RENDERER_DEVICE_PREFIX);
+	if (value == NULL) {
+		return;
+	}
+	if (options->graphics_device_specified) {
+		startup_graphics_error("Only one graphics device may be specified (--renderer-device:).\n");
+		return;
+	}
+	options->graphics_device_specified = 1;
+	legacy_u32 device = 0;
+	if (*value == 0) {
+		startup_graphics_error("Graphics device must be a nonnegative decimal index.\n");
+		return;
+	}
+	for (; *value != 0; value++) {
+		if (*value < '0' || *value > '9') {
+			startup_graphics_error("Graphics device must be a nonnegative decimal index.\n");
+			return;
+		}
+		legacy_u32 digit = (legacy_u8)*value - '0';
+		if (device > ((legacy_u32)LEGACY_S32_MAX - digit) / STARTUP_RENDERER_DEVICE_BASE) {
+			startup_graphics_error("Graphics device index is too large.\n");
+			return;
+		}
+		device = device * STARTUP_RENDERER_DEVICE_BASE + digit;
+	}
+	options->graphics_device = (legacy_s32)device;
+}
+#endif
+
 static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 								  struct STARTUP_OPTIONS *options)
 {
@@ -157,6 +229,12 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
+#ifdef RESTUNTS_RENDERER_SELECTION
+	options->graphics_renderer = GRAPHICS_RENDERER_SOFTWARE;
+	options->graphics_device = GRAPHICS_DEVICE_DEFAULT;
+	options->graphics_renderer_specified = 0;
+	options->graphics_device_specified = 0;
+#endif
 #ifndef __DJGPP__
 	options->multi_core_enabled = STARTUP_MULTI_CORE_ON;
 	options->multi_core_specified = 0;
@@ -177,6 +255,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	for (legacy_u16 i = 1; argc > i; ++i) {
 #ifdef RESTUNTS_SDL3
 		hires_settings_parse_startup(argv[i], options);
+#ifdef RESTUNTS_RENDERER_SELECTION
+		startup_parse_graphics(argv[i], options);
+#endif
 #ifndef __DJGPP__
 		startup_parse_boolean(argv[i], STARTUP_MULTI_CORE_PREFIX, "Multi-core rendering",
 							  &options->multi_core_enabled, &options->multi_core_specified);
@@ -221,6 +302,12 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 			}
 		}
 	}
+#ifdef RESTUNTS_RENDERER_SELECTION
+	if (options->graphics_device_specified &&
+		options->graphics_renderer != GRAPHICS_RENDERER_VULKAN) {
+		startup_graphics_error("--renderer-device requires --renderer:vulkan.\n");
+	}
+#endif
 }
 
 static void startup_measure_video(void)
@@ -321,8 +408,23 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+#ifdef RESTUNTS_RENDERER_SELECTION
+	legacy_char graphics_error[GRAPHICS_ERROR_CAPACITY];
+	if (!graphics_select_renderer(startup_options.graphics_renderer,
+								  startup_options.graphics_device, graphics_error,
+								  sizeof(graphics_error))) {
+		startup_option_error_text((const legacy_s8 *)graphics_error);
+		startup_graphics_error("\n");
+		return;
+	}
+#endif
 #ifndef __DJGPP__
+#ifdef RESTUNTS_RENDERER_SELECTION
+	hires_render_workers_set_enabled(startup_options.multi_core_enabled &&
+									 graphics_renderer() == GRAPHICS_RENDERER_SOFTWARE);
+#else
 	hires_render_workers_set_enabled(startup_options.multi_core_enabled);
+#endif
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);

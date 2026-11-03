@@ -8,6 +8,12 @@
 #include <wx/utils.h>
 #include "options.h"
 #include "game_data.h"
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+#include <wx/process.h>
+#include <wx/stopwatch.h>
+#include <memory>
+#include <string>
+#endif
 #ifdef __WXQT__
 #include <QtGui/QKeyEvent>
 #include <QtWidgets/QApplication>
@@ -86,6 +92,112 @@ class LauncherPopupFilter : public QObject
 };
 
 #endif
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+static const legacy_char GRAPHICS_PROBE_ARGUMENT[] = "--list-render-devices";
+static const legacy_s32 GRAPHICS_PROBE_TIMEOUT_MS = 5000;
+static const legacy_s32 GRAPHICS_PROBE_KILL_GRACE_MS = 500;
+static const legacy_u32 GRAPHICS_PROBE_POLL_MS = 10U;
+static const size_t GRAPHICS_PROBE_ROW_OVERHEAD = 16U;
+static const size_t GRAPHICS_PROBE_OUTPUT_CAPACITY =
+	GRAPHICS_DEVICE_CAPACITY * (GRAPHICS_DEVICE_NAME_CAPACITY + GRAPHICS_PROBE_ROW_OVERHEAD);
+static const size_t GRAPHICS_PROBE_READ_CAPACITY = 1024U;
+
+struct GraphicsProbeState {
+	std::string output;
+	size_t received = 0;
+	legacy_bool complete = false;
+	legacy_bool overflow = false;
+	legacy_int status = -1;
+};
+
+/* wxExecute retains its callback until the child exits. The callback owns its
+ * state so a killed or unresponsive driver cannot leave a dangling stack object. */
+class GraphicsProbeProcess : public wxProcess
+{
+	public:
+	explicit GraphicsProbeProcess(const std::shared_ptr<GraphicsProbeState> &state)
+		: wxProcess(wxPROCESS_REDIRECT), state_(state)
+	{
+	}
+
+	void OnTerminate(legacy_int, legacy_int status) override
+	{
+		drain();
+		state_->status = status;
+		state_->complete = true;
+		delete this;
+	}
+
+	void drain()
+	{
+		drain_stream(GetInputStream(), true);
+		drain_stream(GetErrorStream(), false);
+	}
+
+	private:
+	void drain_stream(wxInputStream *stream, legacy_bool retain)
+	{
+		legacy_char buffer[GRAPHICS_PROBE_READ_CAPACITY];
+		while (stream != nullptr && stream->CanRead() && !state_->overflow) {
+			stream->Read(buffer, sizeof(buffer));
+			const size_t count = stream->LastRead();
+			if (count == 0) {
+				break;
+			}
+			if (count > GRAPHICS_PROBE_OUTPUT_CAPACITY - state_->received) {
+				state_->overflow = true;
+				break;
+			}
+			state_->received += count;
+			if (retain) {
+				state_->output.append(buffer, count);
+			}
+		}
+	}
+
+	std::shared_ptr<GraphicsProbeState> state_;
+};
+
+static std::vector<LauncherGraphicsDevice> probe_graphics_devices(const wxString &game)
+{
+	std::vector<LauncherGraphicsDevice> devices;
+	if (!wxFileName::IsFileExecutable(game)) {
+		return devices;
+	}
+	const std::shared_ptr<GraphicsProbeState> state = std::make_shared<GraphicsProbeState>();
+	GraphicsProbeProcess *process = new GraphicsProbeProcess(state);
+	const wxString option = GRAPHICS_PROBE_ARGUMENT;
+	const wxChar *arguments[] = {game.c_str(), option.c_str(), nullptr};
+	wxLogNull quiet;
+	const legacy_s64 pid = wxExecute(
+		arguments, wxEXEC_ASYNC | wxEXEC_HIDE_CONSOLE | wxEXEC_MAKE_GROUP_LEADER, process);
+	if (pid <= 0) {
+		delete process;
+		return devices;
+	}
+	wxStopWatch timer;
+	while (!state->complete && !state->overflow && timer.Time() < GRAPHICS_PROBE_TIMEOUT_MS) {
+		process->drain();
+		wxMilliSleep(GRAPHICS_PROBE_POLL_MS);
+		wxYieldIfNeeded();
+	}
+	if (!state->complete) {
+		wxProcess::Kill(static_cast<legacy_int>(pid), wxSIGKILL, wxKILL_CHILDREN);
+		while (!state->complete &&
+			   timer.Time() < GRAPHICS_PROBE_TIMEOUT_MS + GRAPHICS_PROBE_KILL_GRACE_MS) {
+			wxMilliSleep(GRAPHICS_PROBE_POLL_MS);
+			wxYieldIfNeeded();
+		}
+		return devices;
+	}
+	if (state->status == 0 && !state->overflow) {
+		launcher_parse_graphics_devices(
+			wxString::FromUTF8(state->output.data(), state->output.size()), devices);
+	}
+	return devices;
+}
+#endif
+
 static wxString initial_folder(const wxString &game)
 {
 	const wxString current = wxGetCwd();
@@ -114,6 +226,10 @@ class LauncherDialog : public wxDialog
 			wxLogNull quiet;
 			launcher_read_options(settings_path_, options_);
 		}
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+		graphics_devices_ = probe_graphics_devices(game_);
+		launcher_normalize_graphics_options(options_, graphics_devices_);
+#endif
 		if (!folder_override.empty()) {
 			options_.folder = folder_override;
 		} else if (options_.folder.empty()) {
@@ -152,6 +268,36 @@ class LauncherDialog : public wxDialog
 		}
 		hypervision_->SetSelection(options_.hypervision);
 		graphics_grid->Add(hypervision_, FIXED_LAYOUT, wxEXPAND);
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Renderer"),
+						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+		renderer_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
+		renderer_->SetName("Renderer");
+		renderer_->Append("Software");
+		if (!graphics_devices_.empty()) {
+			renderer_->Append("Vulkan");
+		}
+		renderer_->SetSelection(options_.renderer);
+		graphics_grid->Add(renderer_, FIXED_LAYOUT, wxEXPAND);
+		if (graphics_devices_.size() > 1U) {
+			graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Device"),
+							   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
+			device_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);
+			device_->SetName("Device");
+			legacy_int selected_device = 0;
+			for (const LauncherGraphicsDevice &device : graphics_devices_) {
+				if (device.index == options_.device) {
+					selected_device = static_cast<legacy_int>(device_->GetCount());
+				}
+				device_->Append(device.name +
+								wxString::Format(" [%" LEGACY_PRId32 "]", device.index));
+			}
+			device_->SetSelection(selected_device);
+			graphics_grid->Add(device_, FIXED_LAYOUT, wxEXPAND);
+		}
+		renderer_->Bind(wxEVT_CHOICE, &LauncherDialog::renderer_changed, this);
+		update_renderer_controls();
+#endif
 		graphics->Add(graphics_grid, FIXED_LAYOUT, wxEXPAND | wxALL, spacing);
 		fields->Add(graphics, FIXED_LAYOUT, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, border);
 		add_group(content, fields, "Driving rules", LAUNCHER_POWER_GEAR, LAUNCHER_OPTION_COUNT);
@@ -219,6 +365,22 @@ class LauncherDialog : public wxDialog
 	}
 
 	private:
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+	void renderer_changed(wxCommandEvent &)
+	{
+		update_renderer_controls();
+	}
+
+	void update_renderer_controls()
+	{
+		const legacy_bool software = renderer_->GetSelection() == GRAPHICS_RENDERER_SOFTWARE;
+		checks_[LAUNCHER_MULTI_CORE]->Enable(software);
+		if (device_ != nullptr) {
+			device_->Enable(!software);
+		}
+	}
+#endif
+
 	void add_option(wxWindow *parent, wxSizer *layout, legacy_int index)
 	{
 		checks_[index] = new wxCheckBox(parent, wxID_ANY, launcher_option_definitions[index].label);
@@ -283,6 +445,13 @@ class LauncherDialog : public wxDialog
 			options_.enabled[index] = checks_[index]->GetValue();
 		}
 		options_.hypervision = hypervision_->GetSelection();
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+		options_.renderer = renderer_->GetSelection();
+		if (device_ != nullptr && device_->GetSelection() != wxNOT_FOUND) {
+			options_.device = graphics_devices_[static_cast<size_t>(device_->GetSelection())].index;
+		}
+		launcher_normalize_graphics_options(options_, graphics_devices_);
+#endif
 		wxString save_error;
 		{
 			wxLogNull quiet;
@@ -395,6 +564,11 @@ class LauncherDialog : public wxDialog
 	LauncherOptions options_;
 	wxTextCtrl *folder_;
 	wxChoice *hypervision_;
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+	std::vector<LauncherGraphicsDevice> graphics_devices_;
+	wxChoice *renderer_;
+	wxChoice *device_ = nullptr;
+#endif
 	wxCheckBox *checks_[LAUNCHER_OPTION_COUNT];
 	wxStaticText *status_;
 	legacy_bool wait_for_game_;

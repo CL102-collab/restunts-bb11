@@ -1244,6 +1244,7 @@ class ReleasePackageTests(unittest.TestCase):
         for target in ("linux-x64", "dos32", "browser"):
             expected = decoder_files.copy()
             if target == "browser":
+                expected.add("share/restunts/wasm-relink/lib/librestunts_graphics.a")
                 expected.add("share/restunts/wasm-relink/lib/librestunts_webm.a")
             files = {name: self.runtime_data(target, name) for name in PACKAGES.required_files(target)}
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}

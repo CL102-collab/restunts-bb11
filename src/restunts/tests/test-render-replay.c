@@ -28,6 +28,11 @@
 
 #define RENDER_REPLAY_ADAPTIVE_MODE 3
 
+#ifdef RESTUNTS_TEST_VULKAN
+#include "../c/renderer/graphics_backend.h"
+#define RENDER_REPLAY_VULKAN_UNAVAILABLE 77
+#endif
+
 #undef memcpy
 #undef printf
 
@@ -395,6 +400,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	legacy_u16 settling_start = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[7]) : 0;
 	legacy_u16 settling_end = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[8]) : 0;
 	init_main(argc, argv);
+#ifdef RESTUNTS_TEST_VULKAN
+	struct GRAPHICS_DEVICE device;
+	if (graphics_enumerate_devices(&device, 1) == 0) {
+		puts("No Vulkan compute device is available; Vulkan replay test skipped.");
+		return RENDER_REPLAY_VULKAN_UNAVAILABLE;
+	}
+	legacy_char graphics_error[GRAPHICS_ERROR_CAPACITY];
+	if (!graphics_select_renderer(GRAPHICS_RENDERER_VULKAN, device.index, graphics_error,
+								  sizeof(graphics_error))) {
+		fprintf(stderr, "Cannot initialize enumerated Vulkan device: %s\n", graphics_error);
+		return 1;
+	}
+	assert(graphics_renderer() == GRAPHICS_RENDERER_VULKAN);
+#endif
 	init_div0();
 	init_row_tables();
 	mainresptr = file_load_resfile("main");

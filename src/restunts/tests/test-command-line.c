@@ -4,6 +4,9 @@
 #include <string.h>
 #include "../c/command_line.h"
 #include "../c/platform.h"
+#ifdef RESTUNTS_SDL3
+#include "../c/renderer/graphics_backend.h"
+#endif
 
 #define COMMAND_LINE_TEST_OUTPUT_CAPACITY 8192U
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA)
@@ -85,7 +88,10 @@ static void test_help_contents(void)
 		   COMMAND_LINE_SUCCESS);
 	static const legacy_char *info_options[] = {"  --help, -h", "  --version, -v",
 #if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
-												"  --licenses"
+												"  --licenses",
+#endif
+#if defined(RESTUNTS_RENDERER_SELECTION) && !defined(RESTUNTS_HEADLESS)
+												"  --list-render-devices"
 #endif
 	};
 	static const legacy_char *startup_options[] = {
@@ -98,6 +104,10 @@ static void test_help_contents(void)
 		"  --ogg:on|off",
 #ifndef __DJGPP__
 		"  --multi-core:on|off",
+#endif
+#ifdef RESTUNTS_RENDERER_SELECTION
+		"  --renderer:software|vulkan",
+		"  --renderer-device:N",
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 		"  --fullscreen:on|off",
@@ -158,6 +168,16 @@ static void test_help_contents(void)
 #else
 	assert(strstr(output, "--multi-core") == NULL);
 	assert(strstr(output, "Multi-core rendering") == NULL);
+#endif
+#ifdef RESTUNTS_RENDERER_SELECTION
+	expect_text("Software rendering is the default.");
+	expect_text("Vulkan disables CPU render workers.");
+	expect_text("The Vulkan device defaults to automatic selection.");
+	expect_text("--renderer:software|vulkan");
+#else
+	assert(strstr(output, "--renderer:") == NULL);
+	assert(strstr(output, "--renderer-device:") == NULL);
+	assert(strstr(output, "--list-render-devices") == NULL);
 #endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
 	!defined(__DJGPP__)

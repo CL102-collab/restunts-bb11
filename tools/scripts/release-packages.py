@@ -92,8 +92,10 @@ ANDROID_APK = "bin/restunts.apk"
 ANDROID_GENGHOST_APK = "bin/genghost.apk"
 ANDROID_TRACKS_README = "assets/tracks/README.TXT"
 ANDROID_LIBRARIES = ("libSDL3.so", "libmain.so", "libnuked-opl2.so")
+VULKAN_LICENSES = ("Vulkan-Headers-LICENSE.md", "Vulkan-Headers-Apache-2.0.txt",
+                   "Vulkan-Headers-MIT.txt")
 ANDROID_LICENSES = ("THIRD-PARTY-NOTICES.txt", "SDL-LICENSE.txt", "Nuked-OPL2-LICENSE.txt",
-                    "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt")
+                    "stb-LICENSE.txt", "libvpx-LICENSE.txt", "libvpx-PATENTS.txt", "nestegg-LICENSE.txt") + VULKAN_LICENSES
 ANDROID_DEX_PATTERN = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex")
 ANDROID_SIGNATURE_PATTERN = re.compile(r"META-INF/[A-Za-z0-9_-]+\.(?:SF|RSA|DSA|EC)")
 ANDROID_ASSET_METADATA = {"assets/menus/manifest.json", "assets/opponents/game/manifest.json",
@@ -404,6 +406,8 @@ def required_files(target):
     if target != "dos16":
         required.add("THIRD-PARTY-NOTICES.txt")
         required |= {f"share/licenses/restunts/{name}" for name in SDL_DECODER_LICENSES}
+    if target in SDL3_TARGETS and target not in {"macos-universal", "browser", "dos32"}:
+        required |= {f"share/licenses/restunts/{name}" for name in VULKAN_LICENSES}
     if target in ANDROID_TARGETS:
         required |= {ANDROID_APK, ANDROID_GENGHOST_APK, "share/docs/restunts/android.md",
                      "share/docs/restunts/genghost.md", "share/docs/restunts/genghost-android.md",
@@ -417,7 +421,8 @@ def required_files(target):
         relink = "share/restunts/wasm-relink"
         required |= {f"{relink}/{name}" for name in (
             "CMakeLists.txt", "wasm-link.cmake", "wasm-relink.md", "shell.html",
-            "nuked-build-info.txt", "lib/librestunts_game.a", "lib/librestunts_webm.a",
+            "nuked-build-info.txt", "lib/librestunts_game.a", "lib/librestunts_graphics.a",
+            "lib/librestunts_webm.a",
             "lib/libSDL3.a", "objects/main.c.o")}
         required |= {f"{relink}/nuked-opl2-lite/{name}" for name in NUKED_FILES}
         required |= {f"{relink}/data/assets/skyboxes/{theme}-{image}.png"

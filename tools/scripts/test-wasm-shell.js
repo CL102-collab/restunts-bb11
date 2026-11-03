@@ -13,10 +13,11 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'renderer', 'renderer-device', 'new-midi', 'start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
+const SELECT_OPTIONS = ['hypervision', 'renderer', 'renderer-device'];
 // Only the native runtime boundary is replaced. Browser form logic, file
 // selection, settings storage, fullscreen, and CSS run unchanged from the shell.
 const RUNTIME = `<script>
@@ -90,6 +91,7 @@ async function assertSettingsLayout(page, narrow) {
                 const bounds = row.getBoundingClientRect();
                 return { display: style.display, wrap: style.flexWrap, scrollWidth: row.scrollWidth,
                     clientWidth: row.clientWidth, childrenFit: Array.from(row.children).every(child => {
+                        if (!child.getClientRects().length) return true;
                         const item = child.getBoundingClientRect();
                         return item.left >= bounds.left - 1 && item.right <= bounds.right + 1;
                     }) };
@@ -99,8 +101,8 @@ async function assertSettingsLayout(page, narrow) {
         };
     }, RULES);
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout', 'hypervision'],
-        'Fullscreen must precede the shared graphics controls, with HyperVision last');
+    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout', 'hypervision', 'renderer', 'renderer-device'],
+        'Renderer and Device must follow HyperVision in the graphics settings');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
     assert.ok(layout.rules.every(rule => rule.grouped), 'Driving rules must stay in the same group');
@@ -947,6 +949,95 @@ async function exerciseStartupFullscreen(browser, url, fixture) {
     }
 }
 
+async function exerciseRendererAvailability(browser, url, fixture) {
+    const context = await browser.newContext();
+    await context.addInitScript(() => {
+        window.showDirectoryPicker = undefined;
+        window.testWebGPUProbes = 0;
+        Object.defineProperty(navigator, 'gpu', { configurable: true, value: {
+            requestAdapter: async () => {
+                window.testWebGPUProbes++;
+                return { info: { vendor: 'Fixture GPU' } };
+            }
+        } });
+    });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    try {
+        await page.goto(url);
+        await ready(page);
+        for (const [renderer, device, multiCore] of [
+            ['software', '-1', false], ['vulkan', '0', true], ['invalid', '99', false],
+            [true, false, true], [0, 0, false], [null, null, true]
+        ]) {
+            await page.evaluate(values => browserStorage(LAUNCH_OPTIONS_STORE, 'readwrite', values),
+                { renderer, 'renderer-device': device, 'multi-core': multiCore });
+            await page.reload();
+            await ready(page);
+            assert.equal(await page.locator('#renderer').inputValue(), 'software',
+                'Unavailable or malformed remembered renderers must fall back to Software');
+            assert.equal(await page.locator('#renderer-device').inputValue(), '-1',
+                'Unavailable or malformed remembered devices must fall back to Automatic');
+            assert.equal(await page.locator('#renderer-device-setting').isVisible(), false);
+            assert.equal(await page.locator('#renderer-device').isDisabled(), true,
+                'Loading completion must keep an unavailable Device selector disabled');
+            assert.equal(await page.locator('#multi-core').isChecked(), multiCore,
+                'Renderer normalization must retain the Software multi-core preference');
+            assert.equal(await page.locator('#multi-core').isEnabled(), true);
+            await page.locator('#show-fps').check();
+            const stored = await storedOptions(page);
+            assert.equal(stored.renderer, 'software');
+            assert.equal(stored['renderer-device'], '-1');
+            await loadFixture(page, fixture);
+            await page.locator('#start').click();
+            const args = await page.evaluate(() => window.launchedArguments);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--renderer:')), ['--renderer:software']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--renderer-device:')), [],
+                'Software rendering must not pass an explicit Vulkan device');
+            assert.equal(await page.evaluate(() => window.testWebGPUProbes), 0,
+                'WebGPU adapter availability must not be treated as native Vulkan support');
+        }
+        for (const [id, value] of [['renderer', 'vulkan'], ['renderer', 'invalid'], ['renderer-device', '0']]) {
+            await page.reload();
+            await ready(page);
+            await page.locator('#multi-core').check();
+            await loadFixture(page, fixture);
+            await page.evaluate(({ id, value }) => {
+                const select = document.getElementById(id);
+                select.add(new Option('Unavailable fixture choice', value));
+                select.value = value;
+                select.dispatchEvent(new Event('change'));
+            }, { id, value });
+            if (id === 'renderer') {
+                assert.equal(await page.locator('#multi-core').isDisabled(), true,
+                    'Multi-core must be disabled for a renderer other than Software');
+                assert.equal(await page.locator('#multi-core').isChecked(), true,
+                    'Disabling multi-core for another renderer must retain its checked preference');
+            }
+            await page.locator('#start').click();
+            assert.equal(await page.evaluate(() => window.launchedArguments), undefined,
+                'An injected unavailable renderer or device must not reach the native entry point');
+            assert.match(await page.locator('#status').innerText(), /renderer or graphics device is unavailable/);
+            assert.equal(await page.locator('#start').isEnabled(), true,
+                'Invalid renderer selection must leave the launch form usable');
+            await page.evaluate(id => {
+                const select = document.getElementById(id);
+                select.value = id === 'renderer' ? 'software' : '-1';
+                select.dispatchEvent(new Event('change'));
+            }, id);
+            assert.equal(await page.locator('#multi-core').isEnabled(), true);
+            assert.equal(await page.locator('#multi-core').isChecked(), true);
+            await page.locator('#start').click();
+            assert.equal(await page.evaluate(() => window.launchedArguments.includes('--renderer:software')), true,
+                'A corrected renderer choice must support retry without a page reload');
+        }
+        assert.deepEqual(errors, [], 'Renderer controls must not report browser errors');
+    } finally {
+        await context.close();
+    }
+}
+
 async function exerciseMultiCoreAvailability(browser, url, fixture) {
     const context = await browser.newContext();
     await context.addInitScript(() => { window.showDirectoryPicker = undefined; });
@@ -1035,6 +1126,14 @@ async function main() {
             options.map(option => ({ value: option.value, label: option.label }))),
         PRESETS.map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) })));
         assert.equal(await page.locator('#hypervision').inputValue(), 'auto');
+        assert.deepEqual(await page.locator('#renderer option').evaluateAll(options =>
+            options.map(option => ({ value: option.value, label: option.label }))),
+        [{ value: 'software', label: 'Software' }], 'Browsers must only offer the implemented Software renderer');
+        assert.equal(await page.locator('#renderer').inputValue(), 'software');
+        assert.equal(await page.locator('#renderer').isEnabled(), true);
+        assert.equal(await page.locator('#renderer-device').inputValue(), '-1');
+        assert.equal(await page.locator('#renderer-device-setting').isVisible(), false);
+        assert.equal(await page.locator('#renderer-device').isDisabled(), true);
         assert.equal(await page.locator('#sound-enabled').isChecked(), true,
             'Sound must retain its existing enabled default');
         assert.equal(await page.locator('#start-fullscreen').isChecked(), false,
@@ -1063,7 +1162,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:on', '--hv:auto', '--renderer:software', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1077,6 +1176,8 @@ async function main() {
             await page.locator('#multi-core').setChecked(fps);
             const stored = await storedOptions(page);
             assert.equal(stored.hypervision, preset, 'Preset must be stored as its string value');
+            assert.equal(stored.renderer, 'software', 'Renderer must be stored as a string');
+            assert.equal(stored['renderer-device'], '-1', 'Automatic Device must be stored as a string');
             assert.equal(stored['show-fps'], fps, 'FPS must be stored as a boolean');
             assert.equal(stored['multi-core'], fps, 'Multi-core rendering must be stored as a boolean');
             await page.reload();
@@ -1102,7 +1203,8 @@ async function main() {
         for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
         await page.locator('#hypervision').selectOption('high');
         const stored = await storedOptions(page);
-        for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
+        for (const id of OPTIONS.filter(id => !SELECT_OPTIONS.includes(id))) assert.equal(typeof stored[id], 'boolean');
+        for (const id of SELECT_OPTIONS) assert.equal(typeof stored[id], 'string');
         await page.reload();
         await ready(page);
         for (const id of ['skip-intro', 'show-fps', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
@@ -1115,7 +1217,7 @@ async function main() {
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--multi-core:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--multi-core:on', '--hv:high', '--renderer:software', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1184,13 +1286,14 @@ async function main() {
         assert.deepEqual(errors, [], 'Shell must not report browser errors');
         await context.close();
         const url = 'http://127.0.0.1:' + server.address().port + '/';
+        await exerciseRendererAvailability(browser, url, fixture);
         await exerciseMultiCoreAvailability(browser, url, fixture);
         await exerciseStartupFullscreen(browser, url, fixture);
         await exerciseMobileControlLayout(browser, url, fixture);
         await exerciseDirectoryLoading(browser, url);
         await exerciseFallbackLoading(browser, url, temporary);
         await exerciseExtendedHighscoreSaving(browser, url, temporary);
-        console.log('PASS: mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
+        console.log('PASS: Software renderer capability gating, typed renderer/device persistence, unavailable renderer/device rejection with retry, mobile control-layout defaults and saved overrides, wrapping web settings, sound enable/disable, six HyperVision presets, FPS, multi-core defaults, persistence and availability, driving rules, unknown preference filtering, typed persistence, legacy migration, one-click startup fullscreen with nonfatal denial, fullscreen canvas, landscape lock lifecycle, touch-action CSS, bounded concurrent direct/fallback folder reads, two-pass progress bar, animated stripes and reduced motion, root and nested car/track resources, duplicate handling and failed-import draining, CSHIG direct saving and read-only import/export');
     } finally {
         if (browser) await browser.close();
         await new Promise(resolve => server.close(resolve));

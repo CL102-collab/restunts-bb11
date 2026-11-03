@@ -58,6 +58,22 @@ static void test_free(void *allocation);
 #undef SDL_Init
 #undef main
 
+#ifdef RESTUNTS_RENDERER_SELECTION
+static legacy_u32 graphics_report_count;
+static legacy_u32 graphics_report_calls;
+
+legacy_u32 graphics_enumerate_devices(struct GRAPHICS_DEVICE *devices, legacy_u32 capacity)
+{
+	assert(capacity == GRAPHICS_DEVICE_CAPACITY);
+	++graphics_report_calls;
+	for (legacy_u32 index = 0; index < graphics_report_count; index++) {
+		devices[index].index = (legacy_s32)index;
+		strcpy(devices[index].name, index == 0 ? "GPU\tOne\nAdapter" : "GPU Two");
+	}
+	return graphics_report_count;
+}
+#endif
+
 static legacy_char **original_arguments;
 static legacy_char *original_pointers[TEST_ARGUMENT_CAPACITY];
 static legacy_char original_text[TEST_ARGUMENT_CAPACITY][TEST_ARGUMENT_TEXT_CAPACITY];
@@ -350,6 +366,33 @@ static void test_windows_utf8_directory(void)
 }
 #endif
 
+static void test_graphics_device_report(void)
+{
+#ifdef RESTUNTS_RENDERER_SELECTION
+	FILE *output = tmpfile();
+	assert(output != NULL);
+	graphics_report_count = 2;
+	assert(print_render_devices(output) == EXIT_SUCCESS);
+	rewind(output);
+	legacy_char report[GRAPHICS_DEVICE_NAME_CAPACITY];
+	size_t length = fread(report, 1, sizeof(report) - 1U, output);
+	report[length] = 0;
+	assert(strcmp(report, GRAPHICS_DEVICE_REPORT_HEADER "0\tGPU One Adapter\n1\tGPU Two\n") == 0);
+	fclose(output);
+
+	legacy_char *arguments[] = {(legacy_char *)"game", (legacy_char *)"--list-render-devices",
+								NULL};
+	reset_test(TEST_ARGUMENT_COUNT(arguments), arguments, 0, NULL);
+	graphics_report_count = 0;
+	graphics_report_calls = 0;
+	assert(test_entry_main(original_count, arguments) == EXIT_SUCCESS);
+	assert(graphics_report_calls == 1U);
+	assert(directory_calls == 0 && initialization_calls == 0 && game_calls == 0);
+	assert(asset_base_initialized == 0 && car_base_calls == 0 && exit_handler_count == 0);
+	assert(live_allocation == NULL);
+#endif
+}
+
 legacy_int main(void)
 {
 	legacy_char program[] = "restunts";
@@ -405,6 +448,7 @@ legacy_int main(void)
 #ifdef _WIN32
 	test_windows_utf8_directory();
 #endif
+	test_graphics_device_report();
 	puts("SDL3 entry-point argument tests passed");
 	return 0;
 }

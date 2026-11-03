@@ -5,6 +5,9 @@
 #include "shape3d.h"
 #include "shape3d_internal.h"
 #include "shape3d_prerender_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../renderer/gpu_raster.h"
+#endif
 
 #define PRERENDER_POINT_WORD_COUNT 2U
 #define PRERENDER_POINT_Y_OFFSET 1U
@@ -117,6 +120,12 @@ static void prerender_grille_line(legacy_u16 start_x, legacy_u16 start_y, legacy
 void preRender_line(legacy_u16 start_x, legacy_u16 start_y, legacy_u16 end_x, legacy_u16 end_y,
 					legacy_u16 color)
 {
+#ifdef RESTUNTS_SDL3
+	if (gpu_raster_classic_line(LEGACY_S16_FROM_BITS(start_x), LEGACY_S16_FROM_BITS(start_y),
+								LEGACY_S16_FROM_BITS(end_x), LEGACY_S16_FROM_BITS(end_y), color)) {
+		return;
+	}
+#endif
 	if (color == PRERENDER_GHOST_COLOR) {
 		prerender_grille_line(start_x, start_y, end_x, end_y, 0);
 		return;
@@ -518,6 +527,15 @@ static void sphere_draw_spans(struct SPHERE_RASTER *sphere, legacy_s16 *left_edg
 	if (clip_delta > 0) {
 		sphere->line_count = LEGACY_U16_WRAP_SUB(sphere->line_count, clip_delta);
 	}
+#ifdef RESTUNTS_SDL3
+	if (gpu_raster_classic_active()) {
+		for (legacy_s16 line = 0; line < LEGACY_S16_FROM_BITS(sphere->line_count); line++) {
+			gpu_raster_classic_span(left_edges[skip_lines + line], right_edges[skip_lines + line],
+									LEGACY_S16_FROM_BITS(sphere->top + line), color);
+		}
+		return;
+	}
+#endif
 	if (color == PRERENDER_GHOST_COLOR) {
 		raster_fill_pattern = PRERENDER_BLACK_GRILLE_PATTERN;
 		draw_patterned_lines(&left_edges[skip_lines], &right_edges[skip_lines], sphere->top,
@@ -544,6 +562,11 @@ void preRender_sphere(legacy_s16 x, legacy_s16 y, legacy_u16 size, legacy_u16 co
 
 	sphere.half_height = (legacy_u16)(sphere.effective_height >> 1);
 	if (sphere.half_height == 0) {
+#ifdef RESTUNTS_SDL3
+		if (gpu_raster_classic_line(x, y, x, y, color)) {
+			return;
+		}
+#endif
 		if (color == PRERENDER_GHOST_COLOR) {
 			prerender_grille_pixel(sphere.x_bits, sphere.y_bits);
 		} else {

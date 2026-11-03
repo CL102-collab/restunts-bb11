@@ -66,6 +66,8 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/wasm-relink/CMakeLists.txt"
     DESTINATION ${restunts_relink_directory} COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:restunts_game>"
     DESTINATION ${restunts_relink_directory}/lib RENAME librestunts_game.a COMPONENT Runtime)
+install(FILES "$<TARGET_FILE:restunts_graphics>"
+    DESTINATION ${restunts_relink_directory}/lib RENAME librestunts_graphics.a COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:restunts_webm>"
     DESTINATION ${restunts_relink_directory}/lib RENAME librestunts_webm.a COMPONENT Runtime)
 install(FILES "$<TARGET_FILE:SDL3::SDL3>"

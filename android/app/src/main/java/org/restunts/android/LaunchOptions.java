@@ -14,6 +14,9 @@ public final class LaunchOptions {
     public static final String MULTI_CORE_KEY = "multi_core";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
+    public static final String RENDERER_KEY = "renderer";
+    public static final String RENDERER_DEVICE_KEY = "renderer_device";
+    public static final int DEFAULT_RENDERER_DEVICE = -1;
     public static final String POWER_GEAR_KEY = "power_gear";
     public static final String LEGACY_COLLISION_KEY = "legacy_collision";
     public static final String LEFT_CORNER_BIAS_KEY = "left_corner_bias";
@@ -36,6 +39,33 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_CHICANE_FAST_GRASS = true;
     public static final boolean DEFAULT_OWOOT = false;
     public static final boolean DEFAULT_AMIGA_GRASS = false;
+
+    public enum Renderer {
+        SOFTWARE("software", "Software"),
+        VULKAN("vulkan", "Vulkan");
+
+        public final String value;
+        private final String label;
+
+        Renderer(String value, String label) {
+            this.value = value;
+            this.label = label;
+        }
+
+        public static Renderer fromStored(String value) {
+            for (Renderer renderer : values()) {
+                if (renderer.value.equals(value)) {
+                    return renderer;
+                }
+            }
+            return SOFTWARE;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
 
     public enum HyperVision {
         OFF("Off", null),
@@ -77,6 +107,8 @@ public final class LaunchOptions {
     public final boolean multiCore;
     public final boolean showControlLayout;
     public final HyperVision hyperVision;
+    public final Renderer renderer;
+    public final int rendererDevice;
     public final boolean powerGear;
     public final boolean legacyCollision;
     public final boolean leftCornerBias;
@@ -116,6 +148,17 @@ public final class LaunchOptions {
             boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
             boolean owoot, boolean amigaGrass,
             boolean sound, boolean skipIntro, boolean multiCore) {
+        this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
+            leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
+            sound, skipIntro, multiCore, Renderer.SOFTWARE, DEFAULT_RENDERER_DEVICE);
+    }
+
+    public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
+            HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
+            boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
+            boolean owoot, boolean amigaGrass,
+            boolean sound, boolean skipIntro, boolean multiCore, Renderer renderer,
+            int rendererDevice) {
         this.newMidi = newMidi;
         this.sound = sound;
         this.skipIntro = skipIntro;
@@ -123,6 +166,8 @@ public final class LaunchOptions {
         this.multiCore = multiCore;
         this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
+        this.renderer = renderer == null ? Renderer.SOFTWARE : renderer;
+        this.rendererDevice = rendererDevice >= 0 ? rendererDevice : DEFAULT_RENDERER_DEVICE;
         this.powerGear = powerGear;
         this.legacyCollision = legacyCollision;
         this.leftCornerBias = leftCornerBias;
@@ -138,7 +183,14 @@ public final class LaunchOptions {
         arguments.add(dataDirectory);
         arguments.add(newMidi ? "--ogg:on" : "--ogg:off");
         arguments.add(showFps ? "--fps:on" : "--fps:off");
-        arguments.add(multiCore ? "--multi-core:on" : "--multi-core:off");
+        arguments.add(multiCore && renderer == Renderer.SOFTWARE
+            ? "--multi-core:on" : "--multi-core:off");
+        if (renderer == Renderer.VULKAN) {
+            arguments.add("--renderer:vulkan");
+            if (rendererDevice != DEFAULT_RENDERER_DEVICE) {
+                arguments.add("--renderer-device:" + rendererDevice);
+            }
+        }
         if (hyperVision != HyperVision.OFF) {
             arguments.add("--hv:" + hyperVision.argument);
         }
