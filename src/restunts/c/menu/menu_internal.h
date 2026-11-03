@@ -147,10 +147,6 @@ extern struct SHAPE2D far *track_editor_cursor_shapes[];
 extern struct SHAPE2D far *track_editor_under_cursor_shapes[];
 extern legacy_s16 track_editor_highlight_color;
 
-extern struct RECTANGLE shaperect;
-extern struct TRANSFORMEDSHAPE3D transshape;
-extern struct RECTANGLE cliprect;
-extern struct VECTOR carpos;
 extern struct RECTANGLE highscore_text_bounds;
 extern void far *miscptr;
 extern legacy_s16 graphics_menu_background_color;

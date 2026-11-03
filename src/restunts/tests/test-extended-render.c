@@ -3460,7 +3460,7 @@ static void check_roll_ramp_submissions(void)
 				track.object_count = 0;
 				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 				activate_render_track(&track, 1);
-				roll_ramp_capture_object = *extended_track_object_origin_at(object.x, object.y);
+				roll_ramp_capture_object = extended_track_model()->objects[0];
 				assert(roll_ramp_create_mesh(&roll_ramp_capture_source, surface));
 				for (legacy_u8 detail = 0; detail < STUNT_RENDER_DETAIL_COUNT; detail++) {
 					struct FRAME_TILE tile = {0};

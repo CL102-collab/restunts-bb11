@@ -81,7 +81,6 @@ legacy_s32 frame_hires_adaptive_render_scale(const struct FRAME_HIRES_ADAPTIVE_S
 legacy_s32 frame_hires_adaptive_prepare(struct FRAME_HIRES_ADAPTIVE_STATE *adaptive,
 										legacy_s16 camera_east, legacy_s16 camera_south,
 										legacy_s16 heading_cos, legacy_s16 heading_sin);
-void frame_hires_adaptive_invalidate(struct FRAME_HIRES_ADAPTIVE_STATE *adaptive);
 /* AND footprint flags together: any full tile keeps full geometry, any low
  * tile keeps low geometry, and only an entirely hidden footprint disappears. */
 legacy_u8 frame_hires_adaptive_flags(const struct FRAME_HIRES_ADAPTIVE_STATE *adaptive,

@@ -164,14 +164,6 @@ static legacy_s16 geometry_grade_delta(const struct CSTRK_OBJECT *object, legacy
 	return (legacy_s16)(rise / CSTRK_TILE_WORLD_SIZE);
 }
 
-void extended_geometry_grade_vector(const struct CSTRK_OBJECT *object, struct VECTOR *direction)
-{
-	if (extended_geometry_uses_grade(object)) {
-		direction->y = LEGACY_S16_WRAP_ADD(
-			direction->y, geometry_grade_delta(object, direction->x, direction->z));
-	}
-}
-
 void extended_geometry_grade_normal(const struct CSTRK_OBJECT *object, struct VECTOR *normal)
 {
 	if (extended_geometry_uses_grade(object)) {

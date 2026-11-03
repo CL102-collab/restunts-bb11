@@ -190,7 +190,6 @@ extern legacy_void RsKbRegCallback(legacy_s16 code,legacy_u8 *callback);
 extern legacy_s16 RsKbParseKey(legacy_s16 code);
 extern legacy_void RsLoadPalandcursor();
 extern legacy_void RsMouseDrawOpaqueCheck();
-extern legacy_s16 RsGetKbOrJoyFlags();
 extern legacy_s16 RsInputDoChecking(legacy_s16 frame_delta);
 extern legacy_void RsCheckInput();
 extern legacy_void RsInitPlantrak();
@@ -229,9 +228,7 @@ extern legacy_s16 RsWheelPairDelta(
 extern legacy_s16 RsGetTrackCollisionPoints(
     legacy_s16 column_arg,legacy_s16 row_arg,CVector *output);
 extern legacy_s16 RsUpdateWheelSuspension(
-    CCarState *carstate,legacy_s16 contact_delta,legacy_s16 wheel_index);
-extern legacy_s16 RsUpdateWheelSuspensionFraction(
-    CCarState *carstate,legacy_s16 contact_delta,legacy_s16 wheel_index,legacy_u32 fraction20);
+    CCarState *carstate,legacy_s16 contact_delta_arg,legacy_s16 wheel_index);
 extern legacy_s16 RsResolveCarCollisionSpeeds(CCarState *first_state,CCarState *second_state);
 extern legacy_s16 RsCarCollisionBoxesOverlap(CPoint2D *first_collision_points,
     CVector *first_world_coordinates,CPoint2D *second_collision_points,
@@ -315,7 +312,6 @@ extern legacy_void RsFrameCallback();
 extern legacy_void RsReplayUpdateInputTick(legacy_s16 force_neutral_input);
 extern legacy_void RsTimerRemoveCallback(legacy_u8 *callback);
 extern legacy_u32 RsTimerGetDeltaAlt();
-extern legacy_s16 RsSpriteBlitToVideo(CSprite *sprite,legacy_s16 mode);
 extern legacy_s16 RsReadLine(legacy_s16 flags,legacy_s8 *text,legacy_s16 initial_key,
     legacy_s16 max_characters,legacy_s16 max_pixels,legacy_s16 x,legacy_s16 y,
     legacy_u8 *callback,legacy_u32 timeout);
@@ -488,7 +484,6 @@ extern legacy_s16 RsExtendedTrackSetupRoadsideHeight(CTrackSetupWalk *walk,CVect
 extern legacy_s16 RsExtendedTrackSetupCameraHeight(
     CTrackSetupWalk *walk,CVector *vector,legacy_s16 *height);
 extern legacy_s16 RsExtendedTrackSetupJumpConnection(legacy_u8 code);
-extern legacy_void RsPlayerMotionCrash(legacy_s16 crash_event,legacy_s16 car_index);
 extern legacy_void RsPhysicsPositionToVector(CVector *destination,CVectorLong *source);
 extern legacy_void RsInitializeWorkingCarPose(CCarState *carstate);
 extern legacy_void RsPrepareWheelMotion(

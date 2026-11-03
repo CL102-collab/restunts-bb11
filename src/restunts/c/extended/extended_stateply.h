@@ -12,10 +12,8 @@ struct EXTENDED_PLAYER_SUSPENSION_STATE {
 };
 
 /* Native player updates delegate format-specific contact and roll behavior. */
-void extended_player_begin(struct CARSTATE *carstate, const struct GAMESTATE *motion_state,
-						   legacy_u32 motion_fraction);
-void extended_player_finish(struct CARSTATE *carstate, const struct GAMESTATE *motion_state,
-							legacy_u32 motion_fraction);
+void extended_player_begin(struct CARSTATE *carstate);
+void extended_player_finish(struct CARSTATE *carstate);
 void extended_player_clear_motion(struct CARSTATE *carstate);
 void extended_player_clear_crashed_motion(struct CARSTATE *carstate);
 void extended_player_capture_suspension(const struct CARSTATE *carstate,
@@ -23,8 +21,6 @@ void extended_player_capture_suspension(const struct CARSTATE *carstate,
 void extended_player_restore_suspension(struct CARSTATE *carstate,
 										const struct EXTENDED_PLAYER_SUSPENSION_STATE *saved);
 legacy_s16 extended_player_measure_plane(const struct VECTORLONG *position, legacy_s16 input_mode);
-void extended_player_contact_distance(const struct VECTORLONG *position, legacy_s16 input_mode,
-									  legacy_s16 *distance);
 legacy_s16 extended_player_hold_wheel_contact(struct VECTORLONG *position, legacy_s16 input_mode);
 legacy_s16 extended_player_wheel_gravity(const struct CARSTATE *carstate, legacy_s16 gravity);
 legacy_s16 extended_player_use_ground_plane(const struct VECTORLONG *position);

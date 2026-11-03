@@ -29,7 +29,6 @@ int extended_track_activate(const struct CSTRK_TRACK *track, char *error, size_t
 void extended_track_unload(void);
 /* All lookup rows use the editor's north-to-south map convention. */
 const struct CSTRK_OBJECT *extended_track_object_at(int column, int row);
-const struct CSTRK_OBJECT *extended_track_object_origin_at(int column, int row);
 /* Includes unclaimed cells inside each piece's full footprint rectangle. */
 legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
 										  const struct CSTRK_OBJECT **objects, legacy_u16 capacity);

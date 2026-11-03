@@ -13,7 +13,6 @@
 #include "../c/car/car_speed.h"
 #include "../c/state_internal.h"
 #include "../c/owoot/owoot.h"
-#include "../c/physics/physics_internal.h"
 
 extern void update_follow_cameras(void);
 
@@ -389,73 +388,6 @@ static void test_opponent_routes(void)
 	}
 }
 
-static void test_fractional_follow_cameras(void)
-{
-	memset(&state, 0x5a, sizeof(state));
-	struct GAMESTATE real_state = state;
-	struct GAMESTATE branch;
-	memset(&branch, 0, sizeof(branch));
-	gameconfig.game_opponenttype = 1;
-	framespersec = GAME_FRAME_RATE_NORMAL;
-	branch.playerstate.car_route_index = ROUTE_INDEX_NONE;
-	branch.opponentstate.car_route_index = ROUTE_INDEX_NONE;
-	branch.playerstate.car_position.lz = 1000L * 64;
-	branch.opponentstate.car_position.lx = 1000L * 64;
-	branch.game_trackside_camera_index[0] = 2;
-	branch.game_trackside_camera_index[1] = 3;
-
-	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
-	assert(branch.game_follow_camera_position[0].y == 15);
-	assert(branch.game_follow_camera_position[0].z == 60);
-	assert(branch.game_follow_camera_position[1].y == 15);
-	assert(branch.game_follow_camera_position[1].x == 60);
-	assert(branch.game_trackside_camera_index[0] == 2);
-	assert(branch.game_trackside_camera_index[1] == 3);
-
-	/* A landing changes the camera target during the disposable branch. */
-	branch.playerstate.car_position.ly = 400L * 64;
-	branch.game_follow_camera_position[0].y = 500;
-	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
-	assert(branch.game_follow_camera_position[0].y == 515);
-	branch.playerstate.car_position.ly = 0;
-	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 2);
-	assert(branch.game_follow_camera_position[0].y == 500);
-	assert(branch.game_player_camera_previous.y == 515);
-
-	/* The same duration is half a 10 Hz update; inactive opponents stay fixed. */
-	gameconfig.game_opponenttype = 0;
-	framespersec = GAME_FRAME_RATE_LOW;
-	branch.game_follow_camera_position[0] = (struct VECTOR){0, 0, 0};
-	struct VECTOR opponent_position = branch.game_follow_camera_position[1];
-	update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE);
-	assert(branch.game_follow_camera_position[0].y == 15);
-	assert(branch.game_follow_camera_position[0].z == 120);
-	assert(memcmp(&branch.game_follow_camera_position[1], &opponent_position,
-				  sizeof(opponent_position)) == 0);
-	struct GAMESTATE before = branch;
-	update_follow_cameras_fraction(&branch, 0);
-	assert(memcmp(&branch, &before, sizeof(branch)) == 0);
-	assert(memcmp(&state, &real_state, sizeof(state)) == 0);
-
-	/* A camera already following a car must cover its small displacement
-	 * during each fractional step. */
-	for (legacy_u16 rate = GAME_FRAME_RATE_LOW; rate <= GAME_FRAME_RATE_NORMAL; rate += 10) {
-		framespersec = rate;
-		memset(&branch, 0, sizeof(branch));
-		branch.playerstate.car_route_index = ROUTE_INDEX_NONE;
-		branch.playerstate.car_position.lz = 450L * 64;
-		branch.game_follow_camera_position[0].y = 270;
-		for (legacy_s16 step = 1; step <= 60 / rate; step++) {
-			branch.playerstate.car_position.lz += 15L * 64;
-			branch.playerstate.car_position.ly += 2L * 64;
-			update_follow_cameras_fraction(&branch, PHYSICS_FRACTION_ONE / 3);
-			assert(branch.game_follow_camera_position[0].z == 15 * step);
-			assert(branch.game_follow_camera_position[0].y == 270 + 2 * step);
-		}
-	}
-	assert(memcmp(&state, &real_state, sizeof(state)) == 0);
-}
-
 int main(void)
 {
 	test_initialization();
@@ -467,7 +399,6 @@ int main(void)
 	test_restore_initial_checkpoint();
 	test_restore_without_initial_checkpoint();
 	test_owoot_checkpoint_progress();
-	test_fractional_follow_cameras();
 	puts("Simulation setup snapshots and initial checkpoint restoration passed (180 scenarios).");
 	return 0;
 }

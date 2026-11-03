@@ -33,41 +33,6 @@ static void test_suspension_boundaries(void)
 	assert(car.car_suspension_deflection[0] == -287);
 }
 
-static void test_fractional_suspension(void)
-{
-	struct CARSTATE car;
-	memset(&car, 0, sizeof(car));
-	car.car_suspension_target[0] = 12;
-	car.car_suspension_deflection[0] = 300;
-	struct CARSTATE before = car;
-	assert(update_wheel_suspension_fraction(&car, -400, 0, 0) == 300);
-	assert(memcmp(&car, &before, sizeof(car)) == 0);
-
-	/* One display interval advances one third of the spring recovery. */
-	assert(update_wheel_suspension_fraction(&car, 0, 0, 21845UL) == 343);
-	assert(car.car_suspension_target[0] == 11);
-	assert(car.car_suspension_deflection[0] == 257);
-	assert(update_wheel_suspension_fraction(&car, 0, 0, 21846UL) == 300);
-	assert(car.car_suspension_deflection[0] == 214);
-
-	/* Penetration correction depends on distance, not the presentation rate. */
-	static const legacy_s16 contacts[] = {-400, -188, -100, 100, 193};
-	for (legacy_u16 i = 0; i < sizeof(contacts) / sizeof(contacts[0]); i++) {
-		memset(&car, 0, sizeof(car));
-		car.car_suspension_deflection[0] = -100;
-		struct CARSTATE full = car;
-		legacy_s16 expected = update_wheel_suspension(&full, contacts[i], 0);
-		assert(update_wheel_suspension_fraction(&car, contacts[i], 0, 21845UL) == expected);
-		assert(memcmp(&car, &full, sizeof(car)) == 0);
-	}
-
-	car = before;
-	struct CARSTATE full = car;
-	assert(update_wheel_suspension_fraction(&car, 0, 0, 65536UL) ==
-		   update_wheel_suspension(&full, 0, 0));
-	assert(memcmp(&car, &full, sizeof(car)) == 0);
-}
-
 static legacy_u32 suspension_fingerprint(void)
 {
 	legacy_u32 hash = 2166136261UL;
@@ -97,7 +62,6 @@ static legacy_u32 suspension_fingerprint(void)
 int main(void)
 {
 	test_suspension_boundaries();
-	test_fractional_suspension();
 	legacy_u32 hash = suspension_fingerprint();
 #ifdef PHYSICS_RECORD_BASELINE
 	printf("%08" LEGACY_PRIx32 "\n", hash);

@@ -383,26 +383,3 @@ void update_car_speed(legacy_s8 input_flags, legacy_s16 car_index, struct CARSTA
 		state.game_topSpeed = carstate->car_actual_speed;
 	}
 }
-
-void update_car_speed_fraction(legacy_s8 input_flags, legacy_s16 car_index,
-							   struct CARSTATE *carstate, struct SIMD *simd, legacy_u32 fraction20)
-{
-	if (fraction20 == 0) {
-		return;
-	}
-	/* Gear changes and their timers belong to real ticks. Continue the force
-	 * from the held pedals without generating another shift request. */
-	legacy_s16 previous_rpm = carstate->car_currpm;
-	legacy_s16 delta = pedal_speed_delta(input_flags, car_index, carstate, simd);
-	legacy_u32 interval =
-		framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION : PHYSICS_FRACTION_ONE;
-	carstate->car_currpm = previous_rpm + (legacy_s32)(carstate->car_currpm - previous_rpm) *
-											  (legacy_s32)fraction20 / (legacy_s32)interval;
-	delta = (legacy_s16)((legacy_s32)delta * (legacy_s32)fraction20 / (legacy_s32)interval);
-	/* Ground contact synchronizes both wheel and road speeds at once. Once
-	 * equal, later fractional steps cannot repeat the mismatch correction. */
-	synchronize_wheel_speed(carstate, apply_speed_delta(carstate->car_rev_speed, delta));
-	carstate->car_currpm =
-		update_rpm_from_speed(carstate->car_currpm, carstate->car_rev_speed,
-							  carstate->car_gearratio, carstate->car_changing_gear, simd->idle_rpm);
-}

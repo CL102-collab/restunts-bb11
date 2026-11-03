@@ -126,14 +126,6 @@ void set_default_car(void)
 	gameconfig.game_opponentcarid[0] = NO_OPPONENT_CAR_ID;
 }
 
-//extern void shape3d_transform_and_queue(struct TRANSFORMSHAPE3D* shape);
-
-struct RECTANGLE shaperect = {0, GAME_SCREEN_WIDTH, 0, GAME_SCREEN_HEIGHT};
-struct TRANSFORMEDSHAPE3D transshape;
-struct RECTANGLE cliprect = {0, GAME_SCREEN_WIDTH, 0, GAME_INITIAL_CLIP_BOTTOM};
-struct VECTOR carpos = {0, STARTUP_CAR_POSITION_Y, STARTUP_CAR_POSITION_Z}; // from the original
-//struct VECTOR carpos = { 0, 0, GAME_SCREEN_WIDTH };
-
 struct SPRITE far *render_window_sprite;
 // empty_rect uses the legacy sentinel rectangle <9999, 65535, 9999, 65535>.
 
@@ -187,102 +179,6 @@ static void init_main_input_state(void)
 	mouse_draw_opaque_check();
 	kbormouse = 0;
 	passed_security = 1; // set to 0 for the original copy protection
-}
-
-legacy_s16 run_shape_preview(legacy_s16 argc, legacy_s8 *argv[])
-{
-	// initialization
-	init_full_game(argc, argv);
-	init_main_input_state();
-	//set_default_car();
-
-	// try do something
-	menu_reset_animation_timers();
-	set_projection(STARTUP_PROJECTION_X, STARTUP_PROJECTION_Y, GAME_SCREEN_WIDTH,
-				   GAME_TOP_PANEL_HEIGHT);
-	// The camera projection would at best draw a pixel without this setup.
-
-	render_window_sprite =
-		sprite_make_wnd(GAME_SCREEN_WIDTH, GAME_TOP_PANEL_HEIGHT, GAME_SCREEN_COLOR);
-
-	//run_intro_looped();
-
-	legacy_s16 carposangle = polarAngle(carpos.y, carpos.z);
-
-	shape3d_load_all();
-	shape3d_load_car_shapes("coun", "coun");
-	select_cliprect_rotate(0, carposangle, 0, &cliprect, 0);
-
-	//shaperect = cliprect;
-	transshape.material = 0;
-	transshape.rotvec.x = 0;
-	transshape.rotvec.y = 0;
-	transshape.pos = carpos;
-
-	transshape.culling_distance = 0; // The abandoned experiment used 30000.
-	transshape.ts_flags = 0;
-	transshape.rectptr = &shaperect;
-
-	legacy_s16 input_flags;
-	legacy_s16 counter = 0;
-	legacy_s16 shapeindex = 24;
-	for (;; counter++) {
-		transshape.rotvec.z = 0; // An abandoned experiment added 560.
-
-		// The original adds 2728 bytes, or 124 22-byte SHAPE3D records,
-		// to reach the first car shape loaded by shape3d_load_car_shapes().
-
-		transshape.shapeptr = &game3dshapes[shapeindex];
-
-		//transshape.shapeptr = &game3dshapes[124];
-		//transshape.shapeptr = &game3dshapes[124];
-
-		shape3d_transform_and_queue(&transshape);
-
-		sprite_select_render_window();
-		sprite_clear_target(3);
-
-		//sprite_set_target_clip_bounds(50, 200, 50, 100);
-		shape3d_render_queued_primitives(); // renders to drawing_sprite
-
-		//sprite_select_screen_compat();
-		sprite_blit_to_video(render_window_sprite, 0);
-
-		input_flags = get_kb_or_joy_flags(); //kb_get_char();
-		if (input_flags == 4) {				 // right
-			shapeindex++;
-			shapeindex = (shapeindex + STARTUP_SHAPE_COUNT) % STARTUP_SHAPE_COUNT;
-		} else if (input_flags == 8) { // left
-			shapeindex--;
-			shapeindex = (shapeindex + STARTUP_SHAPE_COUNT) % STARTUP_SHAPE_COUNT;
-		} else if (input_flags != 0) {
-			legacy_s8 far *textresptr = locate_text_res(mainresptr, "dos");
-			// DIALOG_AUTO_POSITION centers both dialog coordinates.
-			legacy_s16 result = show_dialog(DIALOG_TYPE_MENU, DIALOG_SAVE_BACKGROUND, textresptr, 0,
-											170, dialog_border_color, 0, 0);
-			if (result >= 1) {
-				break;
-			}
-		}
-	}
-
-	//sprite_select_mcga_backbuffer();
-	//sprite_set_target_clip_bounds(0, 320, 0, 200);
-	//sprite_select_screen_compat();
-	//sprite_clear_target(2);
-	//sprite_select_render_window();
-	//sprite_select_screen_compat();
-
-	//sprite_putimage(render_window_sprite->sprite_bitmapptr);
-
-	//fatal_error("happy yet?");
-
-	// shutdown
-	shutdown_dos_game();
-
-	fatal_error("err %i", input_flags);
-
-	return 0;
 }
 
 static legacy_s16 main_menu_select_race(legacy_s16 result, legacy_s8 *start_in_replay)

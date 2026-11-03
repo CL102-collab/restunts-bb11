@@ -211,17 +211,6 @@ uint32_t extended_replay_timeline_position(uint32_t frame, uint32_t recorded_fra
 	return (uint32_t)(((uint64_t)frame * width) / recorded_frames);
 }
 
-uint32_t extended_replay_rewind_interpolate(uint32_t amount, uint32_t remaining, uint32_t distance)
-{
-	if (distance == 0U) {
-		return 0U;
-	}
-	if (remaining > distance) {
-		remaining = distance;
-	}
-	return (uint32_t)(((uint64_t)amount * remaining) / distance);
-}
-
 int extended_replay_format_time(char *out, size_t size, uint32_t frame, uint16_t fps,
 								int include_fraction)
 {

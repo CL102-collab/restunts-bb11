@@ -415,11 +415,6 @@ void shape3d_hires_cache_vertex(const struct SHAPE3D *shape,
 	context->vertex_clip_flags[index] =
 		context->hires.hires_vertices[index].z < SHAPE3D_NEAR_CLIP_Z;
 }
-legacy_u8 shape3d_hires_vertex_rect_flags(const struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context,
-										  legacy_u16 index)
-{
-	return shape3d_hires_clip_flags(&context->hires.hires_vertices[index]);
-}
 legacy_s16 shape3d_hires_try_transform(struct TRANSFORMEDSHAPE3D *instance,
 									   legacy_u16 *hires_result)
 {

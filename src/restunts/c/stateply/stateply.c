@@ -16,13 +16,10 @@
 
 #include "stateply_internal.h"
 
-legacy_u32 player_motion_fraction;
-struct GAMESTATE *player_motion_state = &state;
-
 static void play_car_impact_sounds(struct CARSTATE *carstate, legacy_s16 car_index)
 {
 #ifndef RESTUNTS_HEADLESS
-	if (player_motion_fraction == 0 && is_in_replay == 0) {
+	if (is_in_replay == 0) {
 		audio_play_car_events(carstate->car_sound_flags, car_index == PLAYER_CAR_INDEX
 															 ? audio_player_engine_channel
 															 : audio_opponent_engine_channel);
@@ -45,7 +42,7 @@ static void check_body_corner_plane(struct CARSTATE *carstate, struct VECTOR *cu
 #endif
 	if (height_only) {
 		if (current_distance <= 0) {
-			player_motion_crash(CRASH_EVENT_IMMEDIATE_STOP, car_index);
+			update_crash_state(CRASH_EVENT_IMMEDIATE_STOP, car_index);
 		}
 	} else {
 		legacy_s16 current_plane_index = planindex;
@@ -59,7 +56,7 @@ static void check_body_corner_plane(struct CARSTATE *carstate, struct VECTOR *cu
 				 (current_distance > 0 && previous_distance < 0)) &&
 				body_plane_crossing_is_collision(&carstate->car_body_corner_positions[corner_index],
 												 current_position)) {
-				player_motion_crash(CRASH_EVENT_IMMEDIATE_STOP, car_index);
+				update_crash_state(CRASH_EVENT_IMMEDIATE_STOP, car_index);
 			}
 		}
 	}
@@ -93,8 +90,7 @@ static void update_car_surface_contact(struct CARSTATE *carstate, legacy_s16 car
 
 	if (car_index != OPPONENT_CAR_INDEX && surface_sum == 0 &&
 		carstate->car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE) {
-		player_motion_state->game_jumpCount =
-			LEGACY_S16_WRAP_ADD(player_motion_state->game_jumpCount, 1);
+		state.game_jumpCount = LEGACY_S16_WRAP_ADD(state.game_jumpCount, 1);
 	}
 	carstate->car_sumSurfAllWheels = surface_sum;
 }
@@ -137,9 +133,9 @@ static legacy_s16 handle_other_car_collision(struct CARSTATE *carstate, struct S
 	}
 	if (carstate->car_collision_latch == CAR_COLLISION_LATCH_CLEAR &&
 		resolve_car_collision_speeds(carstate, other_carstate) != 0) {
-		player_motion_crash(CRASH_EVENT_COLLISION, car_index);
-		player_motion_crash(CRASH_EVENT_COLLISION,
-							car_index == PLAYER_CAR_INDEX ? OPPONENT_CAR_INDEX : PLAYER_CAR_INDEX);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
+		update_crash_state(CRASH_EVENT_COLLISION,
+						   car_index == PLAYER_CAR_INDEX ? OPPONENT_CAR_INDEX : PLAYER_CAR_INDEX);
 	}
 	return 1;
 }
@@ -157,7 +153,7 @@ static legacy_s16 handle_auxiliary_obstacles(struct CARSTATE *carstate, struct S
 										track_auxiliary_obstacle_bounds, obstacle_pose) != 0) {
 			carstate->car_velocity_heading_offset =
 				LEGACY_S16_WRAP_SUB(carstate->car_velocity_heading_offset, ANGLE_HALF_TURN);
-			player_motion_crash(CRASH_EVENT_COLLISION, car_index);
+			update_crash_state(CRASH_EVENT_COLLISION, car_index);
 			return 1;
 		}
 	}
@@ -171,20 +167,18 @@ static void handle_breakable_object(struct CARSTATE *carstate, struct SIMD *simd
 	legacy_s16 object_index = (legacy_s8)roadside_sign_indices_by_tile[trackrows[row] + column];
 
 	if (object_index == PLAYER_PHYSICS_ROADSIDE_SIGN_INDEX_NONE ||
-		player_motion_state->game_object_destroyed[object_index] != 0) {
+		state.game_object_destroyed[object_index] != 0) {
 		return;
 	}
 	obstacle_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX] = roadside_sign_positions[object_index];
 	if (car_collision_boxes_overlap(simd->collide_points, car_pose, breakable_object_bounds,
 									obstacle_pose) != 0) {
-		player_motion_state->game_object_destroyed[object_index] = 1;
-		if (player_motion_fraction == 0) {
-			emit_crash_particles(
-				LEGACY_S16_WRAP_ADD(object_index, PLAYER_PHYSICS_OBJECT_PARTICLE_KIND_OFFSET),
-				LEGACY_S16_WRAP_NEGATE(carstate->car_rotate.x),
-				scale_speed_to_travel(carstate->car_actual_speed,
-									  PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR));
-		}
+		state.game_object_destroyed[object_index] = 1;
+		emit_crash_particles(
+			LEGACY_S16_WRAP_ADD(object_index, PLAYER_PHYSICS_OBJECT_PARTICLE_KIND_OFFSET),
+			LEGACY_S16_WRAP_NEGATE(carstate->car_rotate.x),
+			scale_speed_to_travel(carstate->car_actual_speed,
+								  PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR));
 	}
 }
 
@@ -217,7 +211,7 @@ static legacy_s16 handle_start_finish_poles(struct SIMD *simd, struct VECTOR *ca
 								   LEGACY_S16_WRAP_ADD(track_angle, ANGLE_QUARTER_TURN)) ||
 		overlaps_start_finish_pole(simd, car_pose, obstacle_pose,
 								   LEGACY_S16_WRAP_ADD(track_angle, ANGLE_THREE_QUARTER_TURN))) {
-		player_motion_crash(CRASH_EVENT_COLLISION, car_index);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 		return 1;
 	}
 	return 0;
@@ -259,7 +253,7 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 {
 	initialize_working_car_pose(carstate);
 #ifdef RESTUNTS_SDL3
-	extended_player_begin(carstate, player_motion_state, player_motion_fraction);
+	extended_player_begin(carstate);
 #endif
 	struct PLAYER_WHEEL_MOTION motion;
 	prepare_wheel_motion(carstate, simd, &motion, car_index);
@@ -275,11 +269,11 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 	derive_car_pose_from_wheels(&motion);
 	sum_front_and_rear_wheel_surfaces(carstate);
 #ifdef RESTUNTS_SDL3
-	extended_player_finish(carstate, player_motion_state, player_motion_fraction);
+	extended_player_finish(carstate);
 #endif
 
 	struct VECTOR car_pose[PLAYER_PHYSICS_POSE_VECTOR_COUNT];
-	if (player_motion_state->game_inputmode != GAME_INPUT_MODE_INTRO) {
+	if (state.game_inputmode != GAME_INPUT_MODE_INTRO) {
 		play_car_impact_sounds(carstate, car_index);
 		check_car_body_planes(carstate, simd, car_index);
 #ifdef RESTUNTS_SDL3
@@ -297,7 +291,5 @@ void update_player_state(struct CARSTATE *carstate, struct SIMD *simd,
 		}
 	}
 	commit_working_car_pose(carstate);
-	if (player_motion_fraction == 0) {
-		owoot_update_player(carstate, car_index);
-	}
+	owoot_update_player(carstate, car_index);
 }

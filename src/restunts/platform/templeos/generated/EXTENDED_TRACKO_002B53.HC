@@ -2,53 +2,53 @@
 
 legacy_s8 RsExtendedTrackobjSolidsLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7998;
+  legacy_s32 noreg temple_tmp_7901;
   if((value<=127)) {
-    temple_tmp_7998=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7901=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7998=TempleCastS32(TempleCastS8(
+    temple_tmp_7901=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7998);
+  return TempleCastS8(temple_tmp_7901);
 }
 
 legacy_s16 RsExtendedTrackobjSolidsLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7999;
+  legacy_s32 noreg temple_tmp_7902;
   if((value<=32767)) {
-    temple_tmp_7999=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7902=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7999=TempleCastS32(TempleCastS16(
+    temple_tmp_7902=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7999);
+  return TempleCastS16(temple_tmp_7902);
 }
 
 legacy_s32 RsExtendedTrackobjSolidsLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_8000;
+  legacy_s32 noreg temple_tmp_7903;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_8000=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7903=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_8000=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7903=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_8000);
+  return TempleCastS32(temple_tmp_7903);
 }
 
 legacy_s16 RsTrackSolidObstacleContactFixed(
     CVectorLong *first,CVectorLong *second,legacy_s16 *fraction)
 {
-  CVector temple_start_8001;
-  CVector temple_end_8002;
-  (temple_start_8001.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
-  (temple_start_8001.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
-  (temple_start_8001.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
-  (temple_end_8002.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
-  (temple_end_8002.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
-  (temple_end_8002.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
+  CVector temple_start_7904;
+  CVector temple_end_7905;
+  (temple_start_7904.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
+  (temple_start_7904.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
+  (temple_start_7904.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
+  (temple_end_7905.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
+  (temple_end_7905.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
+  (temple_end_7905.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
   return TempleCastS16(
-      RsTrackSolidObstacleContact((&(temple_start_8001)),(&(temple_end_8002)),fraction));
+      RsTrackSolidObstacleContact((&(temple_start_7904)),(&(temple_end_7905)),fraction));
 }
 
 legacy_s16 RsTrackSolidWallContactFixed(
@@ -59,13 +59,13 @@ legacy_s16 RsTrackSolidWallContactFixed(
 
 legacy_s16 RsTrackWallIntersectsSegmentFixed(CVectorLong *first,CVectorLong *second)
 {
-  CVector temple_start_8003;
-  CVector temple_end_8004;
-  (temple_start_8003.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
-  (temple_start_8003.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
-  (temple_start_8003.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
-  (temple_end_8004.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
-  (temple_end_8004.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
-  (temple_end_8004.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
-  return TempleCastS16(RsTrackWallIntersectsSegment((&(temple_start_8003)),(&(temple_end_8004))));
+  CVector temple_start_7906;
+  CVector temple_end_7907;
+  (temple_start_7906.x=TempleCastS16(RsPositionToWord(TempleCastS32(first->lx))));
+  (temple_start_7906.y=TempleCastS16(RsPositionToWord(TempleCastS32(first->ly))));
+  (temple_start_7906.z=TempleCastS16(RsPositionToWord(TempleCastS32(first->lz))));
+  (temple_end_7907.x=TempleCastS16(RsPositionToWord(TempleCastS32(second->lx))));
+  (temple_end_7907.y=TempleCastS16(RsPositionToWord(TempleCastS32(second->ly))));
+  (temple_end_7907.z=TempleCastS16(RsPositionToWord(TempleCastS32(second->lz))));
+  return TempleCastS16(RsTrackWallIntersectsSegment((&(temple_start_7906)),(&(temple_end_7907))));
 }

@@ -2,36 +2,36 @@
 
 legacy_s8 RsExtendedMathLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7896;
+  legacy_s32 noreg temple_tmp_7799;
   if((value<=127)) {
-    temple_tmp_7896=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7799=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7896=TempleCastS32(TempleCastS8(
+    temple_tmp_7799=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7896);
+  return TempleCastS8(temple_tmp_7799);
 }
 
 legacy_s16 RsExtendedMathLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7897;
+  legacy_s32 noreg temple_tmp_7800;
   if((value<=32767)) {
-    temple_tmp_7897=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7800=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7897=TempleCastS32(TempleCastS16(
+    temple_tmp_7800=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7897);
+  return TempleCastS16(temple_tmp_7800);
 }
 
 legacy_s32 RsExtendedMathLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7898;
+  legacy_s32 noreg temple_tmp_7801;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7898=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7801=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7898=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7801=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7898);
+  return TempleCastS32(temple_tmp_7801);
 }

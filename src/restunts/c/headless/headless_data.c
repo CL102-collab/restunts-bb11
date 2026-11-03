@@ -130,7 +130,6 @@ legacy_s8 opponent_highscore_name[3];
 
 legacy_s8 textresprefix = 'e';
 const legacy_s8 missing_shape_error_format[] = "locateshape - %-4.4s SHAPE NOT FOUND\r\n";
-const legacy_s8 missing_sound_error_format[] = "locatesound - %-4.4s SOUND NOT FOUND\r\n";
 
 /* Lookup tables whose byte-for-byte values affect replay simulation. */
 legacy_u8 atantable[257] = {
@@ -225,8 +224,6 @@ legacy_u8 track_validation_row;
 legacy_u8 trackside_camera_count;
 /* The original DGROUP reserves sixteen consecutive opponent-speed bytes. */
 legacy_u8 oppnentSped[OPPONENT_SPEED_COUNT];
-legacy_u8 vector_saved_z_low;
-legacy_u8 vector_saved_z_high;
 legacy_u16 legacy_divide_fault_segment;
 legacy_u16 legacy_divide_fault_offset;
 

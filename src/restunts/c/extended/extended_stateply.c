@@ -39,13 +39,9 @@ enum PLAYER_ROLL_MOTION_PHASE { PLAYER_ROLL_IDLE, PLAYER_ROLL_SUPPORTED, PLAYER_
 #define PLAYER_ROLL_RATE_FILTER_TICKS 8L
 #define PLAYER_ROLL_REAR_WHEEL_MASK (3U << PLAYER_PHYSICS_FRONT_WHEEL_COUNT)
 
-static legacy_u32 player_roll_tick_fraction(legacy_u32 motion_fraction)
+static legacy_u16 player_roll_tick_count(void)
 {
-	if (motion_fraction) {
-		return motion_fraction;
-	}
-	return framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION
-											   : PHYSICS_FRACTION_ONE;
+	return framespersec == GAME_FRAME_RATE_LOW ? GAME_FRAME_RATE_NORMAL / GAME_FRAME_RATE_LOW : 1U;
 }
 
 static legacy_s16 player_roll_angle_delta(legacy_s16 first, legacy_s16 second)
@@ -69,15 +65,13 @@ static void clear_player_roll_motion(struct CARSTATE *carstate)
 	}
 }
 
-static void prepare_player_roll_motion(struct CARSTATE *carstate,
-									   const struct GAMESTATE *motion_state,
-									   legacy_u32 motion_fraction)
+static void prepare_player_roll_motion(struct CARSTATE *carstate)
 {
 	if (!extended_track_active() || !player_roll_motion_active(carstate)) {
 		return;
 	}
 	if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE ||
-		motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+		state.game_inputmode == GAME_INPUT_MODE_INTRO) {
 		clear_player_roll_motion(carstate);
 		return;
 	}
@@ -86,7 +80,7 @@ static void prepare_player_roll_motion(struct CARSTATE *carstate,
 	}
 	legacy_s64 displacement =
 		(legacy_s64)carstate->car_reserved_contact_state[PLAYER_ROLL_VELOCITY] *
-		(legacy_s64)player_roll_tick_fraction(motion_fraction) / (legacy_s64)PHYSICS_FRACTION_ONE;
+		(legacy_s64)player_roll_tick_count();
 	displacement += carstate->car_reserved_contact_state[PLAYER_ROLL_FRACTION];
 	legacy_s16 angle = (legacy_s16)(displacement / PLAYER_ROLL_VELOCITY_SCALE);
 	carstate->car_reserved_contact_state[PLAYER_ROLL_FRACTION] =
@@ -179,25 +173,18 @@ static legacy_u8 player_roll_ramp_contact(const struct CARSTATE *carstate, legac
 	return mask;
 }
 
-static legacy_s16 player_roll_filter_rate(legacy_s16 previous, legacy_s64 measured,
-										  legacy_u32 motion_fraction)
+static legacy_s16 player_roll_filter_rate(legacy_s16 previous, legacy_s64 measured)
 {
-	legacy_u32 remaining = player_roll_tick_fraction(motion_fraction);
-	while (remaining) {
-		legacy_u32 step = remaining > PHYSICS_FRACTION_ONE ? PHYSICS_FRACTION_ONE : remaining;
-		legacy_s64 change = (measured - previous) * (legacy_s64)step;
-		change /= PLAYER_ROLL_RATE_FILTER_TICKS * (legacy_s64)PHYSICS_FRACTION_ONE;
+	for (legacy_u16 remaining = player_roll_tick_count(); remaining; remaining--) {
+		legacy_s64 change = (measured - previous) / PLAYER_ROLL_RATE_FILTER_TICKS;
 		previous += (legacy_s16)change;
-		remaining -= step;
 	}
 	return previous;
 }
 
-static void finish_player_roll_motion(struct CARSTATE *carstate,
-									  const struct GAMESTATE *motion_state,
-									  legacy_u32 motion_fraction)
+static void finish_player_roll_motion(struct CARSTATE *carstate)
 {
-	if (!extended_track_active() || motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+	if (!extended_track_active() || state.game_inputmode == GAME_INPUT_MODE_INTRO) {
 		return;
 	}
 	if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
@@ -215,9 +202,8 @@ static void finish_player_roll_motion(struct CARSTATE *carstate,
 			roll[PLAYER_ROLL_FRACTION] = 0;
 		}
 		legacy_s16 delta = player_roll_angle_delta(bank, roll[PLAYER_ROLL_LAST_SUPPORTED_ANGLE]);
-		legacy_s64 velocity = (legacy_s64)delta * PLAYER_ROLL_VELOCITY_SCALE *
-							  (legacy_s64)PHYSICS_FRACTION_ONE /
-							  (legacy_s64)player_roll_tick_fraction(motion_fraction);
+		legacy_s64 velocity =
+			(legacy_s64)delta * PLAYER_ROLL_VELOCITY_SCALE / (legacy_s64)player_roll_tick_count();
 		legacy_s32 maximum = LEGACY_S16_MAX;
 		if (velocity > maximum) {
 			velocity = maximum;
@@ -228,7 +214,7 @@ static void finish_player_roll_motion(struct CARSTATE *carstate,
 		 * quantized pose corrections. Filter in physical 20 Hz time units. */
 		if ((contact_mask & PLAYER_ROLL_REAR_WHEEL_MASK) == PLAYER_ROLL_REAR_WHEEL_MASK) {
 			roll[PLAYER_ROLL_VELOCITY] =
-				player_roll_filter_rate(roll[PLAYER_ROLL_VELOCITY], velocity, motion_fraction);
+				player_roll_filter_rate(roll[PLAYER_ROLL_VELOCITY], velocity);
 			roll[PLAYER_ROLL_LAST_SUPPORTED_ANGLE] = bank;
 		}
 		roll[PLAYER_ROLL_PHASE] = PLAYER_ROLL_SUPPORTED;
@@ -308,19 +294,17 @@ static legacy_s16 extended_ground_contact(const struct VECTORLONG *position,
 	return 1;
 }
 
-void extended_player_begin(struct CARSTATE *carstate, const struct GAMESTATE *motion_state,
-						   legacy_u32 motion_fraction)
+void extended_player_begin(struct CARSTATE *carstate)
 {
 	if (extended_track_active()) {
 		extended_geometry_set_context(carstate->car_position.lx, carstate->car_position.lz);
 	}
-	prepare_player_roll_motion(carstate, motion_state, motion_fraction);
+	prepare_player_roll_motion(carstate);
 }
 
-void extended_player_finish(struct CARSTATE *carstate, const struct GAMESTATE *motion_state,
-							legacy_u32 motion_fraction)
+void extended_player_finish(struct CARSTATE *carstate)
 {
-	finish_player_roll_motion(carstate, motion_state, motion_fraction);
+	finish_player_roll_motion(carstate);
 }
 
 void extended_player_clear_motion(struct CARSTATE *carstate)
@@ -364,15 +348,6 @@ legacy_s16 extended_player_measure_plane(const struct VECTORLONG *position, lega
 	}
 	nextPosAndNormalIP = contact.distance;
 	return 1;
-}
-
-void extended_player_contact_distance(const struct VECTORLONG *position, legacy_s16 input_mode,
-									  legacy_s16 *distance)
-{
-	struct PLAYER_GROUND_CONTACT contact;
-	if (extended_ground_contact(position, &contact, input_mode)) {
-		*distance = contact.distance;
-	}
 }
 
 legacy_s16 extended_player_hold_wheel_contact(struct VECTORLONG *position, legacy_s16 input_mode)

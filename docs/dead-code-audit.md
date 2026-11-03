@@ -1,203 +1,164 @@
 # Dead-code audit
 
-Audited on 2026-10-30, branch `tracked`, at commit
-`314803863f6bc39b4f71489dce6b4f50fa274b35`.
+Revalidated on 2026-11-03 against `cont-driv-3`, starting at
+`d129e8d67096f863108437853a6ad266b8b49d29`. This report documents the completed
+cleanup and its validation.
 
-This report records cleanup candidates for later work. Locations refer to that
-commit; use symbol names to find them after subsequent changes. No source cleanup
-was performed during this audit. All findings below remain pending.
+The original audit covered `314803863f6bc39b4f71489dce6b4f50fa274b35` on
+2026-10-30. Subsequent source splits moved several functions and renamed the
+renderer APIs, so its old file locations and caller counts were rechecked.
+The confirmed findings in sections A-C have now been removed, together with
+additional unused dependencies and renderer helpers.
 
-## Evidence and classification
+## Evidence and boundaries
 
-The audit checked C/C++ references, headers, assembly, build manifests, tools,
-tests, and native/generated TempleOS HolyC. Generated name mappings and function
-definitions were not counted as callers. Platform callbacks and macro-based
-calls were checked separately before classifying a function as unused.
+Caller checks covered production C/C++, headers, tests, build manifests, macros,
+assembly interfaces, platform implementations, and native/translated TempleOS
+names. Definitions, declarations, and generated name mappings were not counted as
+callers. A single-platform linker result was not used as proof of dead code.
 
-There are two distinct categories:
+Third-party code and original assembly reference sources are preserved. APIs used
+for constructing test fixtures are retained where they support meaningful checks
+of live behavior. This remains a source audit, not a proof that the entire
+repository contains no other dead code.
 
-- **No callers:** 23 externally linked functions have no callers in the checked
-  repository sources, including tests and platform code.
-- **Unused in production:** additional functions or branches are exercised by
-  tests but have no reachable gameplay callers. Their tests do not establish
-  production use.
+## A. Removed functions with no callers
 
-This is a source audit, not an exhaustive proof that every unused symbol in the
-repository has been found. Recheck callers against the current revision before
-removing a candidate. Do not use a single-platform linker result alone to decide
-whether DOS, Amiga, WebAssembly, or TempleOS code is unused.
+All 23 original zero-caller findings remained unused:
 
-## A. Functions with no callers
+| Area | Removed functions |
+| --- | --- |
+| Preview | `run_shape_preview` |
+| Timing | `timer_read_key_until_deadline`, `timer_read_key_with_timeout` |
+| Input | `kb_set_readchar_callback`, `kb_get_readchar_callback`, `joystick_get_scaled_y`, `input_wait_for_press_and_release` |
+| Math | `sign_word`, `absolute_long`, `vector_interpolate_at_saved_z` |
+| Memory | `mmgr_available_paragraphs`, `mmgr_allocated_paragraphs`, `mmgr_has_cached_resource`, `locate_many_shapes_nofatal`, `locate_many_sounds_fatal`, `locate_many_resources_optional` |
+| Audio | `audio_effect_range_idle`, `audio_play_default_effect`, `audio_timer_effect_idle`, `audio_set_music_volume`, `audio_get_channel_value`, `audio_get_channel_note` |
+| Audio resources | `audio_set_missing_file_fatal` |
 
-All 23 functions below have definitions, and sometimes declarations or generated
-name mappings, but no call sites or function-pointer registrations were found.
-Their translated TempleOS names likewise have no callers.
+Their exclusive dependencies were removed too:
 
-| Group | Function | Location |
-| --- | --- | --- |
-| Preview | `run_shape_preview` | `src/restunts/c/restunts.c:650` |
-| Timing | `timer_read_key_until_deadline` | `src/restunts/c/timing.c:26` |
-| Timing | `timer_read_key_with_timeout` | `src/restunts/c/timing.c:37` |
-| Input | `kb_set_readchar_callback` | `src/restunts/c/game_input.c:193` |
-| Input | `kb_get_readchar_callback` | `src/restunts/c/game_input.c:198` |
-| Input | `joystick_get_scaled_y` | `src/restunts/c/game_input.c:218` |
-| Input | `input_wait_for_press_and_release` | `src/restunts/c/game_input.c:862` |
-| Math | `sign_word` | `src/restunts/c/math/math.c:13` |
-| Math | `absolute_long` | `src/restunts/c/math/math.c:22` |
-| Math | `vector_interpolate_at_saved_z` | `src/restunts/c/math/math.c:971` |
-| Memory | `mmgr_available_paragraphs` | `src/restunts/c/memmgr.c:227` |
-| Memory | `mmgr_allocated_paragraphs` | `src/restunts/c/memmgr.c:232` |
-| Memory | `mmgr_has_cached_resource` | `src/restunts/c/memmgr.c:461` |
-| Memory | `locate_many_shapes_nofatal` | `src/restunts/c/memmgr.c:659` |
-| Memory | `locate_many_sounds_fatal` | `src/restunts/c/memmgr.c:664` |
-| Memory | `locate_many_resources_optional` | `src/restunts/c/memmgr.c:673` |
-| Audio | `audio_effect_range_idle` | `src/restunts/c/audio_engine.c:490` |
-| Audio | `audio_play_default_effect` | `src/restunts/c/audio_engine.c:1234` |
-| Audio | `audio_timer_effect_idle` | `src/restunts/c/audio_engine.c:1273` |
-| Audio | `audio_set_music_volume` | `src/restunts/c/audio_engine.c:1444` |
-| Audio | `audio_get_channel_value` | `src/restunts/c/audio_engine.c:1450` |
-| Audio | `audio_get_channel_note` | `src/restunts/c/audio_engine.c:1455` |
-| Audio resources | `audio_set_missing_file_fatal` | `src/restunts/c/audio_resources.c:807` |
+- The abandoned preview loop's globals, constants, and initializers.
+- The unused read-character callback type and pointer. Platform callback entry
+  points still call `kb_read_char` directly.
+- Saved-Z interpolation storage and obsolete fixture definitions.
+- Static `locate_many_resources_nofatal`, and `locate_sound_fatal` after its only
+  caller was removed. The latter's private fatal branch and error string are gone;
+  live optional sound lookup remains.
+- The never-enabled missing-audio-file fatal flag and its unreachable branches.
+  Audio file fallback and fatal driver-loading behavior remain.
+- Getter-only `audio_channel_values` and `audio_channel_notes` arrays and their
+  writes: 48 bytes of unused channel bookkeeping. The engine regression fingerprint
+  now excludes that deleted bookkeeping; its remaining trace was captured before
+  cleanup and matches afterward.
 
-### Related code that can become removable with these functions
+## B. Removed obsolete fractional prediction support
 
-- `run_shape_preview` is a 95-line abandoned preview loop. Its dedicated globals
-  `shaperect`, `transshape`, `cliprect`, and `carpos` are at `restunts.c:183`;
-  declarations are in `menu_internal.h:150`. Check its preview-only constants
-  around `restunts.c:102` and their initializers when removing the loop.
-- The static `input_readchar_callback` pointer at `game_input.c:78` is read and
-  written only by the unused getter/setter. SDL, Amiga, DOS, and TempleOS
-  `kb_call_readchar_callback` implementations call `kb_read_char` directly.
-- `vector_saved_z_low` and `vector_saved_z_high` are used only by
-  `vector_interpolate_at_saved_z`. Locate their storage definitions as well as
-  their declarations at `math/math.c:968`.
-- Static `locate_many_resources_nofatal` at `memmgr.c:649` is called only by the
-  unused memory wrappers above. It is an additional dependent helper, not one of
-  the 23 zero-caller functions.
-- Static `audio_missing_file_fatal` at `audio_resources.c:58` starts at zero.
-  Its only writer is the unused setter. Therefore the fatal-error branches in
-  `load_audio_file` at line 308 and `load_song_file` at line 322 are unreachable.
-  Preserve the live audio-loading and fallback behavior when simplifying them.
+Production `player_motion_fraction` was permanently zero and
+`player_motion_state` permanently pointed to `state`. Only implementation-including
+tests changed them. The unused speculative paths and their storage were removed:
 
-## B. Remaining fractional prediction support
+- Motion/time scaling and the alternative disposable crash-state path.
+- Inherited contact-residual relaxation and fractional suspension branches.
+- `update_car_speed_fraction`, `update_player_steering_fraction`,
+  `update_follow_cameras_fraction`, and `update_wheel_suspension_fraction`.
+- Unneeded fractional parameters and Q16 tick constants in shared helpers.
+- `extended_player_contact_distance`, whose only production call was in the
+  removed inherited-residual path.
 
-The predictor implementation and header were already removed before this audit.
-Related fractional-only paths remain in the production sources.
+The ordinary 10 Hz and 20 Hz updates remain. Extended roll-ramp momentum retains
+its live subangle remainder and rate filtering, including two filter steps per
+10 Hz tick. Geometric interpolation and contact sweep fractions are still live
+and were not treated as prediction machinery.
 
-At `src/restunts/c/stateply/stateply.c:78`, static `player_motion_fraction` is
-zero-initialized and has no production assignments. Only tests that include the
-implementation directly change it. `player_motion_state` at line 79 likewise
-remains permanently `&state` in production.
+Authoritative speed, steering, camera, and suspension assertions remain; obsolete
+fraction-only assertions were removed. Original cornering-bias and inverted-wheel
+coverage from `test-fractional-motion.c` is retained in `test-player-motion.c`.
+The host runner uses the new name.
 
-Consequently, the nonzero-fraction paths for motion scaling, disposable crash
-handling, inherited contact-residual relaxation, and fractional suspension are
-unreachable during gameplay. Relevant locations include:
+## C. Removed test-only runtime APIs and storage
 
-- `scale_player_fraction`, `scale_player_motion`, and `player_tick_fraction`
-  near `stateply/stateply.c:81`.
-- The fractional branch in `player_motion_crash` near `stateply/stateply.c:109`.
-- Inherited/relaxed wheel-plane residual helpers around `stateply/stateply.c:992`.
-- The fractional suspension branch at `stateply/stateply.c:1169`.
-- Other `player_motion_fraction` guards throughout the same file.
+### Extended-track origin lookup
 
-Native object inspection supported this result: the optimized `stateply/stateply.c`
-object retained the ordinary suspension reference and no reference to
-`update_wheel_suspension_fraction`. GCC had folded away the unused fraction
-branch. Source reachability, rather than that optimization alone, is the basis
-for the finding.
+Removed `extended_track_object_origin_at` and the `origins` array, its
+initialization, and its per-load updates. This saves 8,100 32-bit entries
+(**32,400 bytes**) per active extended-track storage allocation.
 
-| Function | Location | Remaining use |
-| --- | --- | --- |
-| `update_car_speed_fraction` | `src/restunts/c/statecar.c:387` | `test-car-speed.c` only |
-| `update_player_steering_fraction` | `src/restunts/c/opponent.c:624` | `test-route-points.c` only |
-| `update_follow_cameras_fraction` | `src/restunts/c/gamestep.c:168` | `test-simulation-setup.c` only |
-| `update_wheel_suspension_fraction` | `src/restunts/c/physics/physics_collision.c:714` | Tests and the unreachable `stateply/stateply.c` branch |
+Production occupancy and the `origin_heads`/`origin_next` object-ID chains remain.
+Tests now use the live model and `extended_track_object_for_id` APIs. Occupancy,
+sparse footprints, and ordering for objects sharing an anchor remain covered.
 
-Production steering always supplies a full tick to its shared steering helper;
-production follow cameras use the ordinary update path with a zero fraction.
-The full-tick physics helpers remain live and must be preserved.
+### Replay and adaptive rendering
 
-Some tests mix useful authoritative-physics assertions with fractional-only
-coverage. In particular, `test-fractional-motion.c` includes original cornering
-bias checks. Preserve or relocate relevant gameplay assertions when removing
-obsolete fractional tests. Shared helpers, constants, and header declarations
-should be reconsidered after all their fractional-only users are removed.
+Removed `extended_replay_rewind_interpolate` and its obsolete assertions. Current
+CSRPL scrubbing still seeks directly; classic `replay_rewind_interpolate` remains
+live and unchanged.
 
-## C. Other test-only production APIs and storage
+The original `frame_adaptive_invalidate` finding had become
+`frame_hires_adaptive_invalidate`. It was still called only by its test and is now
+removed. Production resets and cache-key invalidation remain covered.
 
-### Extended-track origin lookup: 32,400 bytes
+## Additional confirmed unused helpers
 
-`EXTENDED_TRACK_STORAGE.origins` at `src/restunts/c/extended_track.c:37` contains
-8,100 `int32_t` entries. Storage preparation initializes it at line 256 and writes
-it at lines 283-285 on every extended-track load.
+Current-source checks found eight more zero-caller functions:
 
-Its only lookup consumer outside storage preparation is
-`extended_track_object_origin_at` at line 377. That API has two test callers
-in `test-extended-track.c:1283` and `:1311`, plus a declaration
-and test stub. Production object-by-ID lookups use the separate `origin_heads`
-and `origin_next` chain through `extended_track_object_for_id`.
+- `extended_geometry_grade_vector`; the live grade-delta helper remains.
+- `shape3d_hires_vertex_rect_flags`.
+- `shape3d_hires_wheel_face`, together with the write-only
+  `HIRES_PRIMITIVE.wheel_face` field and assignment.
+- `divide_u32_to_u16`, `projection_multiply_x`, `projection_multiply_y`,
+  `projection_scale_y`, and `projection_set_half_fov`.
 
-Removing the unused runtime API would allow removing this 32,400-byte table and
-its initialization/update work. Preserve the live occupancy and object-by-ID
-lookups, including the ordering of objects sharing an anchor.
+## Retained cases
 
-### CSRPL rewind interpolation
+- The old `hypervision_shutdown` name is now `hires_backend_shutdown`. It still
+  owns live renderer command, edge, and bin allocations and is retained. Its
+  missing connection to production shutdown is a separate lifecycle issue.
+- The intro rendering module remains reachable through intro setup/session code.
+  Its test adapter does not make the implementation dead.
+- Extended-track activation and CSTRK construction APIs still support fixtures.
+- Macro- and assembly-facing arithmetic/resource routines remain when callers
+  exist through those interfaces.
 
-`extended_replay_rewind_interpolate` at
-`src/restunts/c/extended_replay.c:214` has four assertions in
-`test-csrpl.c:67`, but no production callers. Current CSRPL toolbar scrubbing
-previews a target and calls `extended_replay_seek` directly.
+## Generated TempleOS output
 
-The similarly named classic `replay_rewind_interpolate` remains live; it is a
-separate function and is not covered by this finding.
+Shared-source changes require regeneration with `tools/TRANSLATE.PY` and the
+pinned dependencies documented in the port README; generated files are not edited
+by hand. Temporary identifiers use a global serial, so deletions renumber many
+otherwise unchanged generated functions.
 
-### Adaptive cache invalidation
+A separate translation of the starting revision identified pre-existing drift in
+159 generated files. After normalizing temporary numbering, only
+`REPLAY_MENU.HC` differed substantively: it had not yet incorporated the earlier
+camera-continuation cherry-pick. Complete regeneration includes that existing
+source change alongside this cleanup. Baseline-versus-current translation is
+compared separately to distinguish cleanup from numbering and pre-existing drift.
 
-`frame_adaptive_invalidate` at `src/restunts/c/frame_adaptive.c:207` has one
-caller, `test-frame-adaptive.c:177`. Production reset/restart paths and cache-key
-changes already manage cache validity. This is a small test-only API candidate.
+## Validation
 
-## D. Cases requiring different treatment
+- Configured native Linux targets build successfully; the launcher is disabled
+  for the headless environment.
+- All 74 CTest checks pass across the initial run and isolated reruns. The initial
+  parallel run passed 72; `genghost-search` and `genghost-parallel` reached their
+  subprocess time limits. Both pass serially with the repository's timeout
+  multiplier set to 3; no assertion or source change was needed.
+- The host suite includes classic, SDL3, Amiga, and relevant DOS interface checks.
+  Targeted input, startup, memory, resource, audio, and physics tests also pass.
+- Original full-tick speed, steering, and suspension fingerprints remain
+  unchanged. The live audio trace matches its pre-cleanup capture.
+- Before/after replay comparison against preserved starting-revision libraries
+  matches all 241 serialized game-state/RNG records in each of four renderer
+  modes and all 4,031 full-frame pixel digests. This bounded comparison uses
+  `DEFAULT.RPL`; optional crash, hard-landing, and shaking replay fixtures were
+  unavailable as loose files. Extended slope and zero-speed recordings pass the
+  replay-engine regression.
+- TempleOS regeneration is reproducible with `TRANSLATE.PY --check`; its 25
+  translator cleanup tests and HolyC style check pass. After temporary-number
+  normalization, 23 generated files contain substantive cleanup changes.
+- Pinned C/H formatting, EditorConfig, CRLF/file-mode checks, and
+  `git diff --check` pass.
 
-- **Unwired shutdown hook:** `hypervision_shutdown` at `hypervision.c:112` is
-  called only by `test-hypervision.c:586`, but frees live renderer command,
-  edge, and bin allocations. Production `sdl3_platform_shutdown` at
-  `platform/sdl3/input.c:1262` calls `hires_shutdown`, which does not call it.
-  Investigate ownership and whether to connect this cleanup to shutdown rather
-  than deleting it solely because it currently lacks a production caller.
-- **Live intro module:** `intro_render.c` is used through
-  `intro.c:160 -> setup_intro -> intro_render_session -> intro_render_scene_impl`.
-  The public `intro_render_scene` at `intro_render.c:178` is a test-facing adapter.
-  Do not infer that the whole module or its shared helpers are dead from that
-  adapter's caller count.
-- **Fixture/construction APIs:** `extended_track_activate` and the CSTRK
-  construction helpers have test users. They were not classified as accidental
-  dead code merely because gameplay loads serialized tracks instead.
-- **Macro/assembly-facing routines:** several legacy arithmetic and resource
-  functions have no direct C call spelling but are used through macros or
-  assembly. Those were excluded from the confirmed zero-caller inventory.
-
-## Suggested cleanup batches and verification
-
-1. Remove the zero-caller functions in section A with their exclusively owned
-   globals, constants, declarations, and dependent static helpers.
-2. Remove fractional-only prediction machinery as one coherent change, retaining
-   the original full-tick physics behavior and relevant regression assertions.
-3. Remove the unused origin API/table and the small test-only APIs in section C.
-4. Investigate the HyperVision cleanup lifecycle separately.
-
-For each batch, recheck source and translated-name callers, including function
-pointers and platform variants. For the static fraction assignment check, use
-`rg -nP 'player_motion_fraction\s*=(?!=)'` so comparisons are not mistaken for
-assignments. Search tests separately from production callers.
-
-Follow `AGENTS.md`, `.gitattributes`, and the formatting guidance in `readme.md`.
-Regenerate affected TempleOS artifacts using its documented translator workflow;
-the audit also observed pre-existing generation drift outside these candidates,
-so review generated changes for scope. Preserve third-party/reference sources.
-
-Build the native targets and run the affected host, replay, renderer, and audio
-regressions. Physics/rendering changes should retain deterministic replay state
-and pixel output. Check classic and SDL3 configurations and the relevant
-DOS/Amiga/TempleOS interfaces. Update this report with removal commits or new
-callers so future cleanup does not repeat the audit.
+Guest execution on DOS, Amiga, or TempleOS was not performed. Native-generated
+interfaces and translated source were checked as described above. Replay capture
+and generated-scope evidence is retained locally under ignored
+`out/dead-code-baseline/` and `out/dead-code-generated-scope.txt`.

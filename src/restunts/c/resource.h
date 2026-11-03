@@ -27,9 +27,7 @@ legacy_s8 far *locate_resource(legacy_s8 far *data, const legacy_s8 *name, legac
 legacy_s8 far *locate_shape_nofatal(legacy_s8 far *data, const legacy_s8 *name);
 legacy_s8 far *locate_shape_fatal(legacy_s8 far *data, const legacy_s8 *name);
 legacy_s8 far *locate_shape_alt(legacy_s8 far *data, const legacy_s8 *name);
-legacy_s8 far *locate_sound_fatal(legacy_s8 far *data, const legacy_s8 *name);
 
 extern const legacy_s8 missing_shape_error_format[];
-extern const legacy_s8 missing_sound_error_format[];
 
 #endif

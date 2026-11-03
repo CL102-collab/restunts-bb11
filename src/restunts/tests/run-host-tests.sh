@@ -473,7 +473,7 @@ run_host_test test-car-adhesion physics/physics_collision.c \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/trkutil.c" \
     "$test_source_dir/resource.c" "$test_source_dir/physics/physics_grip.c" \
     -DRESTUNTS_HEADLESS -Wno-pointer-sign -Wno-sign-compare -Wno-missing-braces
-run_host_test test-fractional-motion legacy.c \
+run_host_test test-player-motion legacy.c \
     "$test_source_dir/physics/physics_grip.c" "$test_source_dir/physics/physics_collision.c" \
     "$test_source_dir/strlib.c" -Wno-sign-compare
 run_host_test test-route-points opponent/opponent.c "$test_source_dir/trkutil.c" -Wno-missing-braces

@@ -51,7 +51,6 @@ static legacy_u8 input_callback_flags[INPUT_ASCII_KEY_COUNT];
 static legacy_u8 input_extended_callback_flags[INPUT_EXTENDED_KEY_COUNT];
 static void(far *input_callbacks[INPUT_CALLBACK_COUNT])(void);
 static legacy_u8 input_callback_dispatching;
-static readchar_callback_type input_readchar_callback = kb_read_char;
 struct SPRITE far *mouse_small_sprite;
 struct SPRITE far *mouse_medium_sprite;
 struct SPRITE far *mouse_background_sprite;
@@ -164,16 +163,6 @@ void kb_remove_callback(legacy_s16 code)
 	}
 }
 
-void kb_set_readchar_callback(readchar_callback_type callback)
-{
-	input_readchar_callback = callback;
-}
-
-readchar_callback_type kb_get_readchar_callback(void)
-{
-	return input_readchar_callback;
-}
-
 void joystick_reset_calibration(void)
 {
 	dos_joystick_reset_calibration();
@@ -187,11 +176,6 @@ legacy_s16 input_direction_from_flags(legacy_s16 index)
 legacy_s16 joystick_get_scaled_x(void)
 {
 	return dos_joystick_get_scaled_axis(0U);
-}
-
-legacy_s16 joystick_get_scaled_y(void)
-{
-	return dos_joystick_get_scaled_axis(1U);
 }
 
 #ifdef RESTUNTS_AMIGA_TRACE
@@ -630,15 +614,6 @@ void check_input(void)
 			pressed = 1;
 		}
 	} while (pressed);
-}
-
-void input_wait_for_press_and_release(void)
-{
-	do {
-		/* Keep advancing input state until an event is reported. */
-	} while (input_checking((legacy_s16)timer_get_delta_alt()) == 0);
-
-	check_input();
 }
 
 void input_push_status(void)

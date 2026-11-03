@@ -2,38 +2,38 @@
 
 legacy_s8 RsExtendedGameinitLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7962;
+  legacy_s32 noreg temple_tmp_7865;
   if((value<=127)) {
-    temple_tmp_7962=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7865=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7962=TempleCastS32(TempleCastS8(
+    temple_tmp_7865=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7962);
+  return TempleCastS8(temple_tmp_7865);
 }
 
 legacy_s16 RsExtendedGameinitLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7963;
+  legacy_s32 noreg temple_tmp_7866;
   if((value<=32767)) {
-    temple_tmp_7963=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7866=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7963=TempleCastS32(TempleCastS16(
+    temple_tmp_7866=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7963);
+  return TempleCastS16(temple_tmp_7866);
 }
 
 legacy_s32 RsExtendedGameinitLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7964;
+  legacy_s32 noreg temple_tmp_7867;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7964=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7867=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7964=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7867=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7964);
+  return TempleCastS32(temple_tmp_7867);
 }
 
 legacy_s16 RsExtendedGameinitCarStart(CCarState *carstate,CSimd *simd,legacy_s8 transmission,

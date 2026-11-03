@@ -35,7 +35,6 @@ struct EXTENDED_TRACK_STORAGE {
 	legacy_s8 columns[EXTENDED_TRACK_ROUTE_CAPACITY];
 	legacy_s8 rows[EXTENDED_TRACK_ROUTE_CAPACITY];
 	int32_t occupied[EXTENDED_TRACK_MAX_CELLS];
-	int32_t origins[EXTENDED_TRACK_MAX_CELLS];
 	int32_t origin_heads[EXTENDED_TRACK_MAX_CELLS];
 	int32_t origin_next[CSTRK_MAX_OBJECTS];
 	uint8_t object_ids[CSTRK_MAX_OBJECTS];
@@ -419,7 +418,6 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 	memset(target, 0, sizeof(*target));
 	for (unsigned cell = 0; cell < EXTENDED_TRACK_MAX_CELLS; cell++) {
 		target->occupied[cell] = -1;
-		target->origins[cell] = -1;
 		target->origin_heads[cell] = -1;
 	}
 	memset(target->signs, 255, sizeof(target->signs));
@@ -451,9 +449,6 @@ static int prepare_storage(const struct CSTRK_TRACK *track, struct EXTENDED_TRAC
 		unsigned anchor = object->y * track->width + object->x;
 		target->origin_next[index] = target->origin_heads[anchor];
 		target->origin_heads[anchor] = (int32_t)index;
-		if (target->origins[anchor] < 0 || trkObjectList[id].ss_trkObjInfoPtr) {
-			target->origins[anchor] = (int32_t)index;
-		}
 		for (unsigned dy = 0; dy < object->height; dy++) {
 			for (unsigned dx = 0; dx < object->width; dx++) {
 				if (!(object->occupied_mask & (1U << (dy * object->width + dx)))) {
@@ -567,16 +562,6 @@ legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
 		}
 	}
 	return count;
-}
-
-const struct CSTRK_OBJECT *extended_track_object_origin_at(int column, int row)
-{
-	if (!storage || column < 0 || row < 0 || column >= current_track.width ||
-		row >= current_track.height) {
-		return NULL;
-	}
-	int32_t index = storage->origins[row * current_track.width + column];
-	return index < 0 ? NULL : &current_track.objects[index];
 }
 
 const struct CSTRK_OBJECT *extended_track_object_for_id(int column, int row, unsigned id)

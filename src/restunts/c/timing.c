@@ -1,11 +1,7 @@
 #include "externs.h"
 #include "fatal.h"
-#include "game_input.h"
-#include "keyboard.h"
 #include "platform.h"
 #include "timing.h"
-
-#define TIMER_INPUT_KEY_NONE 0
 
 static legacy_u32 timer_wait_target;
 static legacy_s8 input_callback_overflow_message[] =
@@ -21,29 +17,6 @@ void timer_reg_callback(void(far *callback)(void))
 void timer_remove_callback(void(far *callback)(void))
 {
 	dos_timer_unregister_callback(callback);
-}
-
-legacy_s16 timer_read_key_until_deadline(void)
-{
-	do {
-		legacy_s16 key = kb_call_readchar_callback();
-		if (key != TIMER_INPUT_KEY_NONE) {
-			return key;
-		}
-	} while (timer_get_counter() < timer_wait_target);
-	return TIMER_INPUT_KEY_NONE;
-}
-
-legacy_s16 timer_read_key_with_timeout(legacy_u32 ticks)
-{
-	legacy_u32 target = (legacy_u32)(timer_get_counter() + ticks);
-	do {
-		legacy_s16 key = kb_call_readchar_callback();
-		if (key != TIMER_INPUT_KEY_NONE) {
-			return key;
-		}
-	} while ((legacy_u32)timer_get_counter() < target);
-	return TIMER_INPUT_KEY_NONE;
 }
 
 legacy_u32 timer_get_delta_alt(void)

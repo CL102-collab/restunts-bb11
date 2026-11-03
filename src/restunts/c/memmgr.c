@@ -222,17 +222,6 @@ legacy_u16 mmgr_get_ofs_diff(void)
 		   mmgr_last_live_chunk->ressize;
 }
 
-legacy_u16 mmgr_available_paragraphs(void)
-{
-	return mmgr_get_ofs_diff();
-}
-
-legacy_u16 mmgr_allocated_paragraphs(void)
-{
-	return (legacy_u16)(mmgr_last_live_chunk->resofs + mmgr_last_live_chunk->ressize -
-						mmgr_live_sentinel->resofs);
-}
-
 #define MMGR_FIND_ARENA_CHUNK(chunk, segment)                                                      \
 	while (1) {                                                                                    \
 		if (chunk == mmgr_live_sentinel) {                                                         \
@@ -453,34 +442,6 @@ void far *mmgr_get_chunk_by_name(const legacy_s8 *name)
 	return 0;
 }
 
-legacy_u16 mmgr_has_cached_resource(const legacy_s8 *name)
-{
-	const legacy_s8 *wanted = mmgr_path_to_name(name);
-	struct MEMCHUNK *chunk = mmgr_first_cached_chunk;
-	legacy_s16 i;
-	while (chunk < mmgr_cache_sentinel) {
-		if (chunk->resstate == MMGR_RESOURCE_STATE_FREE) {
-			return 0;
-		}
-		for (i = 0; i < MMGR_RESOURCE_NAME_LENGTH; i++) {
-			if (wanted[i] == 0) {
-				if (chunk->resname[i] == '.' || chunk->resname[i] == 0) {
-					return 1;
-				}
-				break;
-			}
-			if (wanted[i] != chunk->resname[i]) {
-				break;
-			}
-		}
-		if (i == MMGR_RESOURCE_NAME_LENGTH) {
-			return 1;
-		}
-		chunk++;
-	}
-	return 0;
-}
-
 void mmgr_release(void far *ptr)
 {
 	legacy_u16 segment = dos_memory_pointer_segment(ptr);
@@ -631,36 +592,6 @@ void locate_many_resources(legacy_s8 far *data, const legacy_s8 *names, legacy_s
 		names += RESOURCE_IDENTIFIER_LENGTH;
 		result++;
 	}
-}
-
-static void locate_many_resources_nofatal(legacy_s8 far *data, const legacy_s8 *names,
-										  legacy_s8 far **result)
-{
-	while (*names != 0) {
-		*result = locate_shape_nofatal(data, names);
-		names += RESOURCE_IDENTIFIER_LENGTH;
-		result++;
-	}
-}
-
-void locate_many_shapes_nofatal(legacy_s8 far *data, const legacy_s8 *names, legacy_s8 far **result)
-{
-	locate_many_resources_nofatal(data, names, result);
-}
-
-void locate_many_sounds_fatal(legacy_s8 far *data, const legacy_s8 *names, legacy_s8 far **result)
-{
-	while (*names != 0) {
-		*result = locate_sound_fatal(data, names);
-		names += RESOURCE_IDENTIFIER_LENGTH;
-		result++;
-	}
-}
-
-void locate_many_resources_optional(legacy_s8 far *data, const legacy_s8 *names,
-									legacy_s8 far **result)
-{
-	locate_many_resources_nofatal(data, names, result);
 }
 
 legacy_s8 far *locate_text_res(legacy_s8 far *data, const legacy_s8 *name)
