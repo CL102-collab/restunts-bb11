@@ -655,32 +655,10 @@ static void rotate_route_points(struct VECTOR *first_point, struct VECTOR *secon
 	}
 }
 
-static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track_object,
-							   struct VECTOR *first_point, struct VECTOR *second_point,
-							   struct VECTOR *output, legacy_u8 has_opponent_path)
+static void store_route_point_result(const struct VECTOR *first_point,
+									 const struct VECTOR *second_point, struct VECTOR *output,
+									 legacy_u8 has_opponent_path)
 {
-	legacy_u8 column = (legacy_u8)track_route_columns[track_index];
-	legacy_u8 row = (legacy_u8)track_route_rows[track_index];
-	if (extended_opponent_place_points(track_index, first_point, second_point)) {
-		goto store_points;
-	}
-	if (first_point->y != ROUTE_POINT_HEIGHT_UNSPECIFIED &&
-		track_terrain_map[terrainrows[row] + column] == TERRAIN_RAISED_TILE) {
-		first_point->y =
-			LEGACY_S16_WRAP_ADD(first_point->y, hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]);
-		second_point->y =
-			LEGACY_S16_WRAP_ADD(second_point->y, hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]);
-	}
-
-	legacy_s16 base_position = track_object_base_z(track_object, row);
-	first_point->z = LEGACY_S16_WRAP_ADD(first_point->z, base_position);
-	second_point->z = LEGACY_S16_WRAP_ADD(second_point->z, base_position);
-
-	base_position = track_object_base_x(track_object, column);
-	first_point->x = LEGACY_S16_WRAP_ADD(first_point->x, base_position);
-	second_point->x = LEGACY_S16_WRAP_ADD(second_point->x, base_position);
-
-store_points:
 	output[TRACK_ROUTE_RESULT_CENTER_INDEX].x = route_average(first_point->x, second_point->x);
 	if (first_point->y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 		output[TRACK_ROUTE_RESULT_CENTER_INDEX].y = ROUTE_POINT_HEIGHT_UNSPECIFIED;
@@ -694,6 +672,33 @@ store_points:
 	legacy_s16 native_flag = has_opponent_path;
 	((legacy_u8 *)output)[TRACK_ROUTE_FLAG_OFFSET] = ((const legacy_u8 *)&native_flag)[0];
 	((legacy_u8 *)output)[TRACK_ROUTE_FLAG_OFFSET + 1U] = ((const legacy_u8 *)&native_flag)[1];
+}
+
+static void store_route_points(legacy_s16 track_index, struct TRACKOBJECT *track_object,
+							   struct VECTOR *first_point, struct VECTOR *second_point,
+							   struct VECTOR *output, legacy_u8 has_opponent_path)
+{
+	legacy_u8 column = (legacy_u8)track_route_columns[track_index];
+	legacy_u8 row = (legacy_u8)track_route_rows[track_index];
+	if (!extended_opponent_place_points(track_index, first_point, second_point)) {
+		if (first_point->y != ROUTE_POINT_HEIGHT_UNSPECIFIED &&
+			track_terrain_map[terrainrows[row] + column] == TERRAIN_RAISED_TILE) {
+			first_point->y =
+				LEGACY_S16_WRAP_ADD(first_point->y, hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]);
+			second_point->y =
+				LEGACY_S16_WRAP_ADD(second_point->y, hillHeightConsts[TERRAIN_RAISED_HEIGHT_INDEX]);
+		}
+
+		legacy_s16 base_position = track_object_base_z(track_object, row);
+		first_point->z = LEGACY_S16_WRAP_ADD(first_point->z, base_position);
+		second_point->z = LEGACY_S16_WRAP_ADD(second_point->z, base_position);
+
+		base_position = track_object_base_x(track_object, column);
+		first_point->x = LEGACY_S16_WRAP_ADD(first_point->x, base_position);
+		second_point->x = LEGACY_S16_WRAP_ADD(second_point->x, base_position);
+	}
+
+	store_route_point_result(first_point, second_point, output, has_opponent_path);
 }
 
 static void store_route_speed(const struct TRKOBJINFO *track_info,

@@ -797,55 +797,10 @@ legacy_void RsOpponentRotateRoutePoints(
   }
 }
 
-legacy_void RsOpponentStoreRoutePoints(legacy_s16 track_index,CTrackObject *track_object,
+legacy_void RsOpponentStoreRoutePointResult(
     CVector *first_point,CVector *second_point,CVector *output,legacy_u8 has_opponent_path)
 {
-  legacy_u8 noreg temple_column_6151;
-  legacy_u8 noreg temple_row_6152;
-  legacy_s32 noreg temple_tmp_6153;
-  legacy_s16 noreg temple_base_position_6154;
-  legacy_s16 noreg temple_native_flag_6155;
-  temple_column_6151=TempleCastU8(TempleCastU8(track_route_columns[track_index]));
-  temple_row_6152=TempleCastU8(TempleCastU8(track_route_rows[track_index]));
-  if(RsExtendedOpponentPlacePoints(TempleCastS16(track_index),first_point,second_point)) {
-    goto store_points;
-  }
-  temple_tmp_6153=0;
-  if((first_point->y!=TempleCastS32((-(1))))) {
-    temple_tmp_6153=1;
-  }
-  if(temple_tmp_6153) {
-    temple_tmp_6153=0;
-    if((track_terrain_map[TempleCastS32((terrainrows[temple_row_6152]+temple_column_6151))]==
-          6)) {
-      temple_tmp_6153=1;
-    }
-  }
-  if(temple_tmp_6153) {
-    (first_point->y=TempleCastS16(
-        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-            (TempleCastU16(first_point->y)+TempleCastU16(hill_height_consts[1])))))))));
-    (second_point->y=TempleCastS16(
-        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-            (TempleCastU16(second_point->y)+TempleCastU16(hill_height_consts[1])))))))));
-  }
-  temple_base_position_6154=
-      TempleCastS16(RsTrackObjectBaseZ(track_object,TempleCastU8(temple_row_6152)));
-  (first_point->z=TempleCastS16(
-      RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(first_point->z)+TempleCastU16(temple_base_position_6154)))))))));
-  (second_point->z=TempleCastS16(
-      RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(second_point->z)+TempleCastU16(temple_base_position_6154)))))))));
-  (temple_base_position_6154=
-          TempleCastS16(RsTrackObjectBaseX(track_object,TempleCastU8(temple_column_6151))));
-  (first_point->x=TempleCastS16(
-      RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(first_point->x)+TempleCastU16(temple_base_position_6154)))))))));
-  (second_point->x=TempleCastS16(
-      RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
-          (TempleCastU16(second_point->x)+TempleCastU16(temple_base_position_6154)))))))));
-store_points:;
+  legacy_s16 noreg temple_native_flag_6151;
   (output[TRACK_ROUTE_RESULT_CENTER_INDEX].x=TempleCastS16(
       RsOpponentRouteAverage(TempleCastS16(first_point->x),TempleCastS16(second_point->x))));
   if((first_point->y==TempleCastS32((-(1))))) {
@@ -858,10 +813,60 @@ store_points:;
       RsOpponentRouteAverage(TempleCastS16(first_point->z),TempleCastS16(second_point->z))));
   MemCpy(&(output[TRACK_ROUTE_RESULT_FIRST_POINT_INDEX]),&((*(first_point))),sizeof(CVector));
   MemCpy(&(output[TRACK_ROUTE_RESULT_SECOND_POINT_INDEX]),&((*(second_point))),sizeof(CVector));
-  temple_native_flag_6155=TempleCastS16(has_opponent_path);
-  ((output)(legacy_u8 *)[18]=TempleCastU8(((&(temple_native_flag_6155)))(legacy_u8 *)[0]));
+  temple_native_flag_6151=TempleCastS16(has_opponent_path);
+  ((output)(legacy_u8 *)[18]=TempleCastU8(((&(temple_native_flag_6151)))(legacy_u8 *)[0]));
   ((output)(legacy_u8 *)[TempleCastU32((18+1))]=
-          TempleCastU8(((&(temple_native_flag_6155)))(legacy_u8 *)[1]));
+          TempleCastU8(((&(temple_native_flag_6151)))(legacy_u8 *)[1]));
+}
+
+legacy_void RsOpponentStoreRoutePoints(legacy_s16 track_index,CTrackObject *track_object,
+    CVector *first_point,CVector *second_point,CVector *output,legacy_u8 has_opponent_path)
+{
+  legacy_u8 noreg temple_column_6152;
+  legacy_u8 noreg temple_row_6153;
+  legacy_s32 noreg temple_tmp_6154;
+  legacy_s16 noreg temple_base_position_6155;
+  temple_column_6152=TempleCastU8(TempleCastU8(track_route_columns[track_index]));
+  temple_row_6153=TempleCastU8(TempleCastU8(track_route_rows[track_index]));
+  if((!(RsExtendedOpponentPlacePoints(TempleCastS16(track_index),first_point,second_point)))) {
+    temple_tmp_6154=0;
+    if((first_point->y!=TempleCastS32((-(1))))) {
+      temple_tmp_6154=1;
+    }
+    if(temple_tmp_6154) {
+      temple_tmp_6154=0;
+      if((track_terrain_map[TempleCastS32((terrainrows[temple_row_6153]+temple_column_6152))]==
+            6)) {
+        temple_tmp_6154=1;
+      }
+    }
+    if(temple_tmp_6154) {
+      (first_point->y=TempleCastS16(
+          RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+              (TempleCastU16(first_point->y)+TempleCastU16(hill_height_consts[1])))))))));
+      (second_point->y=TempleCastS16(
+          RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+              (TempleCastU16(second_point->y)+TempleCastU16(hill_height_consts[1])))))))));
+    }
+    temple_base_position_6155=
+        TempleCastS16(RsTrackObjectBaseZ(track_object,TempleCastU8(temple_row_6153)));
+    (first_point->z=TempleCastS16(
+        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+            (TempleCastU16(first_point->z)+TempleCastU16(temple_base_position_6155)))))))));
+    (second_point->z=TempleCastS16(
+        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+            (TempleCastU16(second_point->z)+TempleCastU16(temple_base_position_6155)))))))));
+    (temple_base_position_6155=
+            TempleCastS16(RsTrackObjectBaseX(track_object,TempleCastU8(temple_column_6152))));
+    (first_point->x=TempleCastS16(
+        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+            (TempleCastU16(first_point->x)+TempleCastU16(temple_base_position_6155)))))))));
+    (second_point->x=TempleCastS16(
+        RsOpponentLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
+            (TempleCastU16(second_point->x)+TempleCastU16(temple_base_position_6155)))))))));
+  }
+  RsOpponentStoreRoutePointResult(
+      first_point,second_point,output,TempleCastU8(has_opponent_path));
 }
 
 legacy_void RsOpponentStoreRouteSpeed(

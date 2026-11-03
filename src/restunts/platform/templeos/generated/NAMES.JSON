@@ -1544,6 +1544,7 @@
   "rs_opponent_player_steering_response": "RsOpponentPlayerSteeringResponse",
   "rs_opponent_rotate_route_points": "RsOpponentRotateRoutePoints",
   "rs_opponent_route_average": "RsOpponentRouteAverage",
+  "rs_opponent_store_route_point_result": "RsOpponentStoreRoutePointResult",
   "rs_opponent_store_route_points": "RsOpponentStoreRoutePoints",
   "rs_opponent_store_route_speed": "RsOpponentStoreRouteSpeed",
   "rs_opponent_update_player_steering": "RsOpponentUpdatePlayerSteering",
