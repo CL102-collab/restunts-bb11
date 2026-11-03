@@ -739,8 +739,8 @@ static legacy_u16 check_classic_hill_rendering(void)
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 #include <SDL3/SDL_mutex.h>
 
-/* Capture hooks share fixture counters and mesh snapshots. Serialize their
- * bookkeeping while leaving the renderer's real transformation work parallel. */
+/* Capture hooks share fixture counters and mesh snapshots. Synchronize their
+ * updates while leaving geometry checks and real transformations parallel. */
 static SDL_Mutex *render_capture_mutex;
 
 #define SEAM_RENDER_PAVED_MATERIAL 19U
@@ -1348,14 +1348,19 @@ static void stunt_check_supporting_ground(const struct TRANSFORMEDSHAPE3D *insta
 			cross_maximum = across;
 		}
 	}
+	legacy_u8 ground = 0;
 	if (maximum > minimum) {
 		if (cross_maximum <= -ROAD_HALF_WIDTH && cross_minimum <= -CSTRK_TILE_WORLD_SIZE / 2) {
-			stunt_capture_ground |= 1U;
-			stunt_capture_ground_position = instance->pos;
+			ground = 1U;
 		} else if (cross_minimum >= ROAD_HALF_WIDTH && cross_maximum >= CSTRK_TILE_WORLD_SIZE / 2) {
-			stunt_capture_ground |= 2U;
-			stunt_capture_ground_position = instance->pos;
+			ground = 2U;
 		}
+	}
+	if (ground) {
+		SDL_LockMutex(render_capture_mutex);
+		stunt_capture_ground |= ground;
+		stunt_capture_ground_position = instance->pos;
+		SDL_UnlockMutex(render_capture_mutex);
 	}
 }
 
@@ -1390,11 +1395,13 @@ static void stunt_check_submitted_shape(const struct TRANSFORMEDSHAPE3D *instanc
 				shape3d_vertex_read(expected, vertex, &target);
 				assert(actual.y == target.y);
 			}
+			SDL_LockMutex(render_capture_mutex);
 			stunt_capture_parts |= 1U << part;
 			if (part == 0) {
 				stunt_capture_details |= 1U << detail;
 				stunt_capture_object_position = instance->pos;
 			}
+			SDL_UnlockMutex(render_capture_mutex);
 		}
 	}
 }
@@ -1408,6 +1415,7 @@ static void seam_check_submitted_road(const struct SHAPE3D *shape)
 	legacy_s64 nx = 0, ny = 0, nz = 0;
 	legacy_s32 span = 0, rise = 0;
 	legacy_u8 road_parent = 0, parent_checked = 0;
+	legacy_u32 road_parents = 0, marking_vertices = 0;
 	for (legacy_u16 index = 0; index < shape->shape3d_numprimitives; index++) {
 		legacy_u16 count = primitive[0];
 		if (count < SHAPE3D_PRIMITIVE_POLYGON_FIRST || count > SHAPE3D_PRIMITIVE_POLYGON_LAST) {
@@ -1468,7 +1476,7 @@ static void seam_check_submitted_road(const struct SHAPE3D *shape)
 			if (!parent_checked) {
 				assert(span == CSTRK_TILE_WORLD_SIZE);
 				assert(rise == CSTRK_LEVEL_WORLD_HEIGHT);
-				seam_captured_road_parents++;
+				road_parents++;
 				parent_checked = 1;
 			}
 			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
@@ -1483,10 +1491,16 @@ static void seam_check_submitted_road(const struct SHAPE3D *shape)
 				/* Integer resource vertices may round by half a world unit,
 				 * but painted dashes must not sag below their road plane. */
 				assert(distance * 2 <= vertical);
-				seam_captured_marking_vertices++;
+				marking_vertices++;
 			}
 		}
 		primitive = indices + count;
+	}
+	if (road_parents || marking_vertices) {
+		SDL_LockMutex(render_capture_mutex);
+		seam_captured_road_parents += road_parents;
+		seam_captured_marking_vertices += marking_vertices;
+		SDL_UnlockMutex(render_capture_mutex);
 	}
 }
 
@@ -1539,6 +1553,7 @@ static legacy_u8 render_capture_skip_shape(struct TRANSFORMEDSHAPE3D *instance)
 		return 1;
 	}
 	if (native_slope_capture_active) {
+		SDL_LockMutex(render_capture_mutex);
 		for (legacy_u8 part = 0; part < STUNT_RENDER_PART_COUNT; part++) {
 			const struct TRACKOBJECT *definition = native_slope_capture_definitions[part];
 			if (!definition) {
@@ -1579,10 +1594,16 @@ static legacy_u8 render_capture_skip_shape(struct TRANSFORMEDSHAPE3D *instance)
 				native_slope_capture_parts |= 1U << part;
 			}
 		}
+		SDL_UnlockMutex(render_capture_mutex);
 	}
-	if (fence_capture_mode && fence_check_submitted_shape(instance) &&
-		fence_capture_mode == FENCE_RENDER_HIDE) {
-		return 1;
+	if (fence_capture_mode) {
+		SDL_LockMutex(render_capture_mutex);
+		legacy_u8 hidden =
+			fence_check_submitted_shape(instance) && fence_capture_mode == FENCE_RENDER_HIDE;
+		SDL_UnlockMutex(render_capture_mutex);
+		if (hidden) {
+			return 1;
+		}
 	}
 	if (seam_capture_hill_shapes) {
 		seam_check_submitted_road(instance->shapeptr);
@@ -1698,16 +1719,23 @@ static legacy_u8 capture_render_submission(struct TRANSFORMEDSHAPE3D *instance,
 		capture_terrain_coverage(instance, vertices);
 		return 1;
 	}
-	return generated_bounds_skip_scene() || render_capture_skip_shape(instance);
+	return generated_bounds_skip_scene();
 }
 
 static legacy_u8 capture_render_shape(struct TRANSFORMEDSHAPE3D *instance,
 									  const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
-	SDL_LockMutex(render_capture_mutex);
-	legacy_u8 captured = capture_render_submission(instance, vertices);
-	SDL_UnlockMutex(render_capture_mutex);
-	return captured;
+	/* Capture modes change only between synchronous renderer calls. Exclusive
+	 * captures consume the submission; other checks lock only shared updates. */
+	if (animation_capture_active || crop_capture_active || roll_ramp_capture_active ||
+		combined_stunt_capture_active || plant_capture_active || terrain_coverage_capture ||
+		generated_bounds_mode) {
+		SDL_LockMutex(render_capture_mutex);
+		legacy_u8 captured = capture_render_submission(instance, vertices);
+		SDL_UnlockMutex(render_capture_mutex);
+		return captured;
+	}
+	return render_capture_skip_shape(instance);
 }
 
 legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
