@@ -1317,8 +1317,7 @@ static void test_recorded_fan_slope_contacts(void)
 			ghost_free_simulation_resources();
 			memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
 			memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
-			memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
-			gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+			extended_track_set_name((const legacy_s8 *)view.metadata.track_name);
 			gameconfig.game_playermaterial = view.metadata.player_material;
 			gameconfig.game_playertransmission = view.metadata.player_transmission;
 			gameconfig.game_opponenttype = view.metadata.opponent_type;
@@ -1429,8 +1428,7 @@ static void test_recorded_zero_speed_position(void)
 			ghost_free_simulation_resources();
 			memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
 			memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
-			memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
-			gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+			extended_track_set_name((const legacy_s8 *)view.metadata.track_name);
 			gameconfig.game_playermaterial = view.metadata.player_material;
 			gameconfig.game_playertransmission = view.metadata.player_transmission;
 			gameconfig.game_opponenttype = view.metadata.opponent_type;
