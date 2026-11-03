@@ -72,7 +72,7 @@ static void test_barrel_proposals(void)
 		struct GENGHOST_DRIVER driver;
 		genghost_driver_reset(&driver);
 		struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-		size_t count = genghost_maneuvers(&route, &driver, &policy, 0, 0, owoot, actions,
+		size_t count = genghost_maneuvers(&route, &driver, &policy, 0, owoot, actions,
 										  GENGHOST_MANEUVER_CAPACITY);
 		legacy_uint barrels = 0;
 		for (size_t index = 0; index < count; index++) {
@@ -129,8 +129,8 @@ static void test_combined_slalom_roof(void)
 		struct GENGHOST_DRIVER driver;
 		genghost_driver_reset(&driver);
 		struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-		size_t count = genghost_maneuvers(&route, &driver, &policy, 0, 0, 0, actions,
-										  GENGHOST_MANEUVER_CAPACITY);
+		size_t count =
+			genghost_maneuvers(&route, &driver, &policy, 0, 0, actions, GENGHOST_MANEUVER_CAPACITY);
 		legacy_uint centers = 0, jumps = 0;
 		for (size_t index = 0; index < count; index++) {
 			centers += actions[index].kind == GENGHOST_MANEUVER_SLALOM_CENTER;

@@ -344,8 +344,7 @@ legacy_int genghost_state_execute(const void *request, void *response, void *opa
 		if (task->kind == GENGHOST_STATE_TASK_MANEUVER) {
 			reply->action_count = (legacy_uint)genghost_maneuvers(
 				route, &reply->driver, &policy, executor->options.powergear,
-				executor->options.collision, executor->options.owoot, actions,
-				GENGHOST_MANEUVER_CAPACITY);
+				executor->options.owoot, actions, GENGHOST_MANEUVER_CAPACITY);
 			if (task->action_index >= reply->action_count) {
 				goto done;
 			}

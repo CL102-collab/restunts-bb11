@@ -648,62 +648,61 @@ legacy_u16 RsMmgrGetChunkSize(legacy_s8 *ptr)
 
 legacy_u16 RsMmgrResizeMemory(legacy_u16 unused_offset,legacy_u16 segment,legacy_u16 paragraphs)
 {
-  legacy_u16 noreg temple_size_or_end_segment_686;
-  CMemChunk *temple_chunk_687;
+  CMemChunk *temple_chunk_686;
+  legacy_u16 noreg temple_size_or_end_segment_688;
   CMemChunk *temple_limit_chunk_689;
   legacy_u16 *temple_tmp_690;
   unused_offset;
-  temple_size_or_end_segment_686=TempleCastU16(segment);
-  temple_chunk_687=mmgr_last_live_chunk;
+  temple_chunk_686=mmgr_last_live_chunk;
   while(1) {
     if(!(1)) {
       break;
     }
-    if((temple_chunk_687==mmgr_live_sentinel)) {
+    if((temple_chunk_686==mmgr_live_sentinel)) {
       RsFatalError("memory manager - BLOCK NOT FOUND at SEG= %x",segment);
     }
-    if((temple_chunk_687->resofs==segment)) {
+    if((temple_chunk_686->resofs==segment)) {
       break;
     }
-    (temple_chunk_687--);
+    (temple_chunk_686--);
   }
-  TempleRasterResizeParagraphs(TempleCastU16(temple_chunk_687->resofs),
-      TempleCastU16(temple_chunk_687->ressize),TempleCastU16(paragraphs));
-  (temple_size_or_end_segment_686=TempleCastU16(paragraphs));
-  if((temple_size_or_end_segment_686<=temple_chunk_687->ressize)) {
-    (temple_chunk_687->ressize=TempleCastU16(temple_size_or_end_segment_686));
-    return TempleCastU16(temple_size_or_end_segment_686);
+  TempleRasterResizeParagraphs(TempleCastU16(temple_chunk_686->resofs),
+      TempleCastU16(temple_chunk_686->ressize),TempleCastU16(paragraphs));
+  temple_size_or_end_segment_688=TempleCastU16(paragraphs);
+  if((temple_size_or_end_segment_688<=temple_chunk_686->ressize)) {
+    (temple_chunk_686->ressize=TempleCastU16(temple_size_or_end_segment_688));
+    return TempleCastU16(temple_size_or_end_segment_688);
   }
-  if((temple_chunk_687!=mmgr_last_live_chunk)) {
+  if((temple_chunk_686!=mmgr_last_live_chunk)) {
     RsFatalError("resizememory - CANNOT EXPAND BLOCK NOT AT TOP");
   }
-  (temple_chunk_687->ressize=TempleCastU16(temple_size_or_end_segment_686));
+  (temple_chunk_686->ressize=TempleCastU16(temple_size_or_end_segment_688));
   temple_limit_chunk_689=mmgr_first_cached_chunk;
-  temple_tmp_690=&(temple_size_or_end_segment_686);
-  ((*temple_tmp_690)=TempleCastU16(((*temple_tmp_690)+temple_chunk_687->resofs)));
-  if((temple_size_or_end_segment_686>=mmgr_high_water_segment)) {
-    (mmgr_high_water_segment=TempleCastU16(temple_size_or_end_segment_686));
+  temple_tmp_690=&(temple_size_or_end_segment_688);
+  ((*temple_tmp_690)=TempleCastU16(((*temple_tmp_690)+temple_chunk_686->resofs)));
+  if((temple_size_or_end_segment_688>=mmgr_high_water_segment)) {
+    (mmgr_high_water_segment=TempleCastU16(temple_size_or_end_segment_688));
   }
-  if((temple_size_or_end_segment_686<=temple_limit_chunk_689->resofs)) {
+  if((temple_size_or_end_segment_688<=temple_limit_chunk_689->resofs)) {
     return TempleCastU16(0);
   }
-  (temple_chunk_687=mmgr_first_cached_chunk);
+  (temple_chunk_686=mmgr_first_cached_chunk);
   (temple_limit_chunk_689=mmgr_last_live_chunk);
-  (temple_size_or_end_segment_686=TempleCastU16(
+  (temple_size_or_end_segment_688=TempleCastU16(
       TempleCastS32((temple_limit_chunk_689->resofs+temple_limit_chunk_689->ressize))));
   while(1) {
     if(!(1)) {
       break;
     }
-    if((temple_size_or_end_segment_686<=temple_chunk_687->resofs)) {
+    if((temple_size_or_end_segment_688<=temple_chunk_686->resofs)) {
       break;
     }
-    if((temple_chunk_687==mmgr_cache_sentinel)) {
+    if((temple_chunk_686==mmgr_cache_sentinel)) {
       RsFatalError("resizememory - NO MEMORY LEFT TO EXPAND HW=%x",mmgr_high_water_segment);
     }
-    (temple_chunk_687->resstate=TempleCastU16(MMGR_RESOURCE_STATE_FREE));
-    (temple_chunk_687++);
-    (mmgr_first_cached_chunk=temple_chunk_687);
+    (temple_chunk_686->resstate=TempleCastU16(MMGR_RESOURCE_STATE_FREE));
+    (temple_chunk_686++);
+    (mmgr_first_cached_chunk=temple_chunk_686);
   }
   return TempleCastU16(0);
 }

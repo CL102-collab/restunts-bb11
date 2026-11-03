@@ -98,7 +98,6 @@ legacy_void RsInitTrackdata()
   (track_route_rows=temple_trkptr_750);
   (temple_trkptr_750+=901);
   (roadside_sign_shape_indices=(temple_trkptr_750)(legacy_u8 *));
-  (temple_trkptr_750+=48);
 }
 
 legacy_void RsResetRaceLoopState()

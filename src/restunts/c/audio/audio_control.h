@@ -14,8 +14,6 @@ extern void far *load_voice_file(const legacy_s8 *filename);
 extern void far *load_sfx_file(const legacy_s8 *filename);
 extern void far *init_audio_resources(void far *songptr, void far *voiceptr, const legacy_s8 *name);
 extern void load_audio_finalize(void far *audiores);
-extern legacy_s16 audio_load_driver(legacy_s8 *driver, legacy_s16 unused_driver_segment,
-									legacy_s16 mode);
 extern void audio_unload(void);
 extern legacy_s16 audio_toggle_music(void);
 extern legacy_s16 audio_toggle_effects(void);

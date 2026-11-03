@@ -37,9 +37,6 @@ void(far *dos_timer_callbacks[DOS_TIMER_CALLBACK_CAPACITY])(void);
 static legacy_u32 dos_timer_last_counter;
 static legacy_u16 dos_timer_slow_low;
 static legacy_u16 dos_timer_slow_high;
-static legacy_u8 dos_timer_chain_timeout_active;
-static legacy_u8 dos_timer_chain_enabled;
-static legacy_u16 dos_timer_chain_timeout;
 static legacy_u16 dos_timer_divider_period;
 static legacy_u16 dos_timer_divider;
 static legacy_u16 dos_timer_max_reentry;
@@ -129,18 +126,7 @@ static void interrupt dos_timer_interrupt(void)
 		}
 		dos_timer_divider = dos_timer_divider_period;
 
-		if (dos_timer_chain_enabled != 0) {
-			if (dos_timer_chain_timeout_active != 0) {
-				dos_timer_chain_timeout = (legacy_u16)(dos_timer_chain_timeout - 1U);
-				if (LEGACY_S16_FROM_BITS(dos_timer_chain_timeout) <= 0) {
-					dos_timer_chain_timeout_active = 0;
-					dos_timer_chain_enabled = 0;
-				}
-			}
-			dos_timer_chain_previous_handler();
-		} else {
-			outp(DOS_TIMER_PIC_COMMAND_PORT, DOS_TIMER_PIC_END_OF_INTERRUPT);
-		}
+		dos_timer_chain_previous_handler();
 	} else {
 		outp(DOS_TIMER_PIC_COMMAND_PORT, DOS_TIMER_PIC_END_OF_INTERRUPT);
 	}
@@ -216,8 +202,6 @@ void dos_timer_setup_interrupt(void)
 {
 	dos_timer_divider_period = DOS_TIMER_DEFAULT_DIVIDER_PERIOD;
 	dos_timer_divider = DOS_TIMER_DEFAULT_DIVIDER_PERIOD;
-	dos_timer_chain_timeout_active = 0;
-	dos_timer_chain_enabled = 1U;
 
 	_disable();
 	dos_timer_in_callbacks = DOS_TIMER_CALLBACKS_IDLE;

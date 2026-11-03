@@ -480,7 +480,6 @@ legacy_u16 mmgr_get_chunk_size(legacy_s8 far *ptr)
 legacy_u16 mmgr_resize_memory(legacy_u16 unused_offset, legacy_u16 segment, legacy_u16 paragraphs)
 {
 	(void)unused_offset;
-	legacy_u16 size_or_end_segment = segment;
 	struct MEMCHUNK *chunk = mmgr_last_live_chunk;
 
 	MMGR_FIND_ARENA_CHUNK(chunk, segment);
@@ -488,7 +487,7 @@ legacy_u16 mmgr_resize_memory(legacy_u16 unused_offset, legacy_u16 segment, lega
 #if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
 	hires_resize_paragraphs(chunk->resofs, chunk->ressize, paragraphs);
 #endif
-	size_or_end_segment = paragraphs;
+	legacy_u16 size_or_end_segment = paragraphs;
 	if (size_or_end_segment <= chunk->ressize) {
 		chunk->ressize = size_or_end_segment;
 		return size_or_end_segment;

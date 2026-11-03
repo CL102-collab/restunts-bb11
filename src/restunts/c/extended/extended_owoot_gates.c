@@ -159,8 +159,7 @@ static legacy_s16 route_extended_tube_gate(legacy_s16 piece, legacy_s16 index, l
 	return 1;
 }
 
-static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 index,
-												struct OWOOT_GATE *gate)
+static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, struct OWOOT_GATE *gate)
 {
 	const struct CSTRK_OBJECT *placed = route_extended_object(piece);
 	if (!placed) {
@@ -220,7 +219,6 @@ static legacy_s16 route_extended_corkscrew_gate(legacy_s16 piece, legacy_s16 ind
 	gate->normal_limit = 0;
 	gate->kind = OWOOT_GATE_CORKSCREW_PHASE;
 	route_extended_place_gate(gate, &origin);
-	(void)index;
 	return 1;
 }
 #endif
@@ -301,7 +299,7 @@ static legacy_s16 route_corkscrew_gate(legacy_s16 piece, legacy_s16 index, struc
 	}
 #ifdef RESTUNTS_SDL3
 	if (extended_track_active()) {
-		return route_extended_corkscrew_gate(piece, index, gate);
+		return route_extended_corkscrew_gate(piece, gate);
 	}
 #endif
 	struct VECTOR first[ROUTE_GEOMETRY_POINT_COUNT], last[ROUTE_GEOMETRY_POINT_COUNT],
