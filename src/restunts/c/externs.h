@@ -357,7 +357,6 @@ extern legacy_s16 *material_patlist_ptr;
 extern legacy_s16 *material_patlist_ptr_cpy;
 extern legacy_s16 *material_patlist2_ptr;
 extern legacy_s16 *material_patlist2_ptr_cpy;
-extern legacy_u16 reserved_material_video_word;
 
 extern legacy_s16 get_track_route_point(legacy_s16 car_route_index, struct VECTOR *car_route_target,
 										legacy_s16 car_route_point_index,

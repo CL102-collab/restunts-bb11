@@ -505,7 +505,6 @@ static void initialize_scenario(legacy_u32 scenario)
 	video_shape_width_scale = 1;
 	video_x_alignment_mask = -1;
 	height_above_replaybar = 180;
-	meter_needle_color = 15;
 	memcpy(gameconfig.game_playercarid, "PMIN", 4);
 	sprite_count = 0;
 	live_sprite_count = 0;
@@ -665,7 +664,6 @@ static void test_needle_colors(void)
 			simd_player.revnumpoints = 1;
 			simd_player.revpoints[0] = 60;
 			simd_player.revpoints[1] = 70;
-			meter_needle_color = 66;
 			setup_car_shapes(DASHBOARD_OPERATION_LOAD);
 			setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
 			needle_line_count = 0;

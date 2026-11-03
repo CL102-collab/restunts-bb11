@@ -56,11 +56,6 @@
 #include "externs.h"
 #include "startup_internal.h"
 
-legacy_s16 video_backbuffer_copy_required(void)
-{
-	return 0;
-}
-
 static void shutdown_dos_game(void)
 {
 	ghost_clear();
@@ -134,14 +129,12 @@ void init_div0(void)
 	dos_install_divide_error_handler();
 }
 
-void copy_material_list_pointers(void *clrlist, void *clrlist2, void *patlist, void *patlist2,
-								 legacy_u16 reserved_video_word)
+void copy_material_list_pointers(void *clrlist, void *clrlist2, void *patlist, void *patlist2)
 {
 	material_clrlist_ptr_cpy = clrlist;
 	material_clrlist2_ptr_cpy = clrlist2;
 	material_patlist_ptr_cpy = patlist;
 	material_patlist2_ptr_cpy = patlist2;
-	reserved_material_video_word = reserved_video_word;
 }
 
 static void init_full_game(legacy_s16 argc, legacy_s8 *argv[])

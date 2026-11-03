@@ -677,7 +677,7 @@ static void test_preview_covered_water(void)
 
 static legacy_s8 title_data[3];
 static struct SPRITE intro_sprite;
-static legacy_u32 input_polls, cancel_after, copy_backbuffer;
+static legacy_u32 input_polls, cancel_after;
 static legacy_u16 random_value;
 static legacy_u32 random_calls, timer_reads;
 
@@ -845,21 +845,6 @@ void sprite_putimage(struct SHAPE2D *shape)
 	assert(shape == &sky_images[0]);
 	record_word(41);
 }
-legacy_s16 video_backbuffer_copy_required(void)
-{
-	record_word(42);
-	return copy_backbuffer;
-}
-void sprite_copy_rect_shifted(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
-							  legacy_s16 shift)
-{
-	record_word(43);
-	record_word(x);
-	record_word(y);
-	record_word(width);
-	record_word(height);
-	record_word(shift);
-}
 /* Full lifecycle uses full redraw: the original setup routine leaves its first
  * dirty rectangle uninitialized. Standalone scene cases cover dirty rectangles
  * with explicit previous-frame inputs instead. */
@@ -874,9 +859,8 @@ static void lifecycle_case(legacy_u32 scenario)
 	intro_palette_color_count = 16;
 	slow_video_mgmt = 0;
 	video_uses_page_flipping = scenario & 1;
-	copy_backbuffer = (scenario >> 1) & 1;
 	static const legacy_u32 cancellations[] = {0, 1, 80, 160};
-	cancel_after = cancellations[(scenario >> 2) & 3];
+	cancel_after = cancellations[(scenario >> 1) & 3];
 	input_polls = 0;
 	random_value = 1;
 	random_calls = timer_reads = 0;
@@ -924,7 +908,6 @@ static void display_toggle_case(legacy_u32 scenario)
 	scripted_key = (scenario & 16) != 0 ? KEY_F11 : KEY_F12;
 	renderer_active = initial_mode;
 	fps_display_enabled = initial_fps;
-	copy_backbuffer = 0;
 	cancel_after = 0;
 	input_polls = timer_reads = shortcut_count = opponent_updates = 0;
 	fps_draw_count = fps_presented_count = fps_reset_count = 0;
@@ -992,7 +975,7 @@ static void predictive_presentation_case(void)
 		scripted_now = previous_input_time = 0;
 		scripted_input = 3;
 		scripted_key = mode == 2 ? KEY_F12 : 0;
-		copy_backbuffer = cancel_after = 0;
+		cancel_after = 0;
 		random_value = 1;
 		assert(setup_intro() == 1);
 		assert(timer_reads >= 1000 && timer_reads <= 1010);
@@ -1033,7 +1016,7 @@ static void display_status_expiry_case(legacy_u32 scenario)
 	renderer_active = fps_display_enabled = 0;
 	input_polls = timer_reads = shortcut_count = 0;
 	fps_draw_count = fps_presented_count = fps_reset_count = 0;
-	copy_backbuffer = cancel_after = 0;
+	cancel_after = 0;
 	scripted_key = KEY_F12;
 	scripted_input = INTRO_TEST_STATUS_EXPIRY_INPUT;
 	assert(setup_intro() == 1);
@@ -1065,7 +1048,7 @@ static void display_toggle_completion_case(legacy_s16 key)
 	renderer_active = fps_display_enabled = 0;
 	input_polls = timer_reads = shortcut_count = 0;
 	fps_draw_count = fps_presented_count = fps_reset_count = 0;
-	copy_backbuffer = cancel_after = 0;
+	cancel_after = 0;
 	scripted_key = key;
 	scripted_input = 2;
 	assert(setup_intro() == 0);
@@ -1094,7 +1077,7 @@ int main(void)
 	}
 	legacy_u32 preview_hash = trace_hash;
 	trace_hash = 2166136261UL;
-	for (legacy_u32 scenario = 0; scenario < 16; scenario++) {
+	for (legacy_u32 scenario = 0; scenario < 8; scenario++) {
 		record_word(scenario);
 		lifecycle_case(scenario);
 	}
@@ -1108,8 +1091,9 @@ int main(void)
 	/* Captured from unmodified production at 43fba20d. */
 	assert(intro_hash == 0xcdcdbe61UL);
 	assert(preview_hash == 0x8ae71f07UL);
-	/* Lifecycle now evaluates each RNG and timer operation exactly once. */
-	assert(lifecycle_hash == 0xa3183e31UL);
+	/* Captured from ad63d3ef with the production-zero backbuffer hook and
+	 * only reachable page-flipping and cancellation cases. */
+	assert(lifecycle_hash == 0xbb4f51bfUL);
 #endif
 #ifdef RESTUNTS_SDL3
 	test_preview_batching();

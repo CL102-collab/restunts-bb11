@@ -16,7 +16,6 @@ import zipfile
 from regression_timeouts import scaled_timeout
 
 
-REPLAY_INPUT_OFFSET = 1828
 GAMESTATE_SIZE = 1120
 RESTRICTED = ("--owoot", "--pg:off", "--lc:off", "--lcb:off")
 

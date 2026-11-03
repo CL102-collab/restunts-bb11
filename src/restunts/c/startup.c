@@ -366,5 +366,5 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 
 	STARTUP_TRACE("materials");
 	copy_material_list_pointers(material_clrlist_ptr, material_clrlist2_ptr, material_patlist_ptr,
-								material_patlist2_ptr, 0);
+								material_patlist2_ptr);
 }

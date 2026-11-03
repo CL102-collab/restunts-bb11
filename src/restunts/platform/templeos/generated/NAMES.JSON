@@ -2539,7 +2539,6 @@
   "vector_direction_sector": "RsVectorDirectionSector",
   "vector_interpolate_at_z": "RsVectorInterpolateAtZ",
   "vector_to_point": "RsVectorToPoint",
-  "video_backbuffer_copy_required": "RsVideoBackbufferCopyRequired",
   "video_pages_begin_race": "RsVideoPagesBeginRace",
   "video_pages_copy_span": "RsVideoPagesCopySpan",
   "video_pages_end_race": "RsVideoPagesEndRace",

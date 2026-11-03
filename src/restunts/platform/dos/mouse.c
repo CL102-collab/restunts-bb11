@@ -7,7 +7,6 @@
 #define DOS_MOUSE_DOUBLE_WIDTH 320
 #define DOS_MOUSE_DOUBLE_WIDTH_SCALE 1U
 #define DOS_MOUSE_DEFAULT_PIXEL_RATIO 16U
-#define DOS_MOUSE_AVAILABLE LEGACY_U16_MAX
 
 enum DOS_MOUSE_FUNCTION {
 	DOS_MOUSE_RESET_FUNCTION = 0,
@@ -21,9 +20,6 @@ enum DOS_MOUSE_FUNCTION {
 static legacy_u16 dos_mouse_button_count;
 
 static legacy_u8 dos_mouse_horizontal_scale;
-static legacy_u16 dos_mouse_available;
-static legacy_u16 dos_mouse_last_x;
-static legacy_u16 dos_mouse_last_y;
 
 static void dos_mouse_set_pixel_ratio(legacy_u16 horizontal, legacy_u16 vertical)
 {
@@ -73,7 +69,6 @@ legacy_s16 dos_mouse_init(legacy_s16 width, legacy_s16 height)
 			width == DOS_MOUSE_DOUBLE_WIDTH ? DOS_MOUSE_DOUBLE_WIDTH_SCALE : 0U;
 		dos_mouse_set_minmax(0, 0, LEGACY_S16_WRAP_SUB(width, 1), LEGACY_S16_WRAP_SUB(height, 1));
 		dos_mouse_set_pixel_ratio(DOS_MOUSE_DEFAULT_PIXEL_RATIO, DOS_MOUSE_DEFAULT_PIXEL_RATIO);
-		dos_mouse_available = DOS_MOUSE_AVAILABLE;
 	}
 	return installed;
 }
@@ -83,10 +78,8 @@ void dos_mouse_set_position(legacy_s16 x, legacy_s16 y)
 	union REGS registers;
 
 	registers.x.ax = DOS_MOUSE_SET_POSITION_FUNCTION;
-	dos_mouse_last_x = (legacy_u16)x;
 	registers.x.cx = (legacy_u16)x << dos_mouse_horizontal_scale;
 	registers.x.dx = (legacy_u16)y;
-	dos_mouse_last_y = (legacy_u16)y;
 	int86(DOS_MOUSE_INTERRUPT, &registers, &registers);
 }
 

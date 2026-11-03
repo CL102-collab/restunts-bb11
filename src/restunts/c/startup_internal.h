@@ -68,8 +68,7 @@ struct STARTUP_OPTIONS {
 
 extern struct STARTUP_OPTIONS startup_options;
 legacy_s16 random_wait(void);
-void copy_material_list_pointers(void *clrlist, void *clrlist2, void *patlist, void *patlist2,
-								 legacy_u16 reserved_video_word);
+void copy_material_list_pointers(void *clrlist, void *clrlist2, void *patlist, void *patlist2);
 
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
