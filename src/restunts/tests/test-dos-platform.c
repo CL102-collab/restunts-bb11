@@ -41,7 +41,6 @@ void file_car_set_base(const legacy_s8 *directory)
 #define TEST_INTERRUPT_FLAG 512U
 
 const legacy_s8 missing_shape_error_format[] = "missing test shape";
-const legacy_s8 missing_sound_error_format[] = "missing test sound";
 
 static void test_message(const legacy_s8 *message)
 {

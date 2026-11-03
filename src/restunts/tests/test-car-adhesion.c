@@ -411,35 +411,30 @@ static void test_stopped_inverted_and_vertical_contacts(void)
 {
 	static const legacy_s16 rolls[] = {ANGLE_HALF_TURN, ANGLE_QUARTER_TURN};
 	static const legacy_u16 rates[] = {GAME_FRAME_RATE_NORMAL, GAME_FRAME_RATE_LOW};
-	static const legacy_u32 fractions[] = {0, 21845UL, PHYSICS_FRACTION_ONE};
 	for (legacy_u16 orientation = 0; orientation < 2; orientation++) {
 		for (legacy_u16 rate = 0; rate < 2; rate++) {
-			for (legacy_u16 fraction = 0; fraction < 3; fraction++) {
-				initialize_plane(rolls[orientation]);
-				framespersec = rates[rate];
-				player_motion_fraction = fractions[fraction];
-				struct CARSTATE car = {0};
-				struct PLAYER_WHEEL_MOTION motion = {0};
-				motion.surface_adhesion = 1;
-				for (legacy_s16 wheel = 0; wheel < 4; wheel++) {
-					motion.current[wheel].ly = 1000L * 64;
-					for (legacy_u16 tick = 0; tick < 200; tick++) {
-						measure_wheel_plane_distance(&motion.current[wheel]);
-						motion.previous[wheel] = motion.current[wheel];
-						car.car_wheel_vertical_speed[wheel] = 10;
-						assert(resolve_wheel_plane_contact(&car, &motion, wheel, PLAYER_CAR_INDEX));
-						assert(car.car_wheel_vertical_speed[wheel] == 0);
-						assert(motion.contact_distances[wheel] == 0);
-						assert(nextPosAndNormalIP == 0);
-						assert(motion.current[wheel].lx == 0);
-						assert(motion.current[wheel].ly == 1000L * 64);
-						assert(motion.current[wheel].lz == 0);
-					}
+			initialize_plane(rolls[orientation]);
+			framespersec = rates[rate];
+			struct CARSTATE car = {0};
+			struct PLAYER_WHEEL_MOTION motion = {0};
+			motion.surface_adhesion = 1;
+			for (legacy_s16 wheel = 0; wheel < 4; wheel++) {
+				motion.current[wheel].ly = 1000L * 64;
+				for (legacy_u16 tick = 0; tick < 200; tick++) {
+					measure_wheel_plane_distance(&motion.current[wheel]);
+					motion.previous[wheel] = motion.current[wheel];
+					car.car_wheel_vertical_speed[wheel] = 10;
+					assert(resolve_wheel_plane_contact(&car, &motion, wheel, PLAYER_CAR_INDEX));
+					assert(car.car_wheel_vertical_speed[wheel] == 0);
+					assert(motion.contact_distances[wheel] == 0);
+					assert(nextPosAndNormalIP == 0);
+					assert(motion.current[wheel].lx == 0);
+					assert(motion.current[wheel].ly == 1000L * 64);
+					assert(motion.current[wheel].lz == 0);
 				}
 			}
 		}
 	}
-	player_motion_fraction = 0;
 }
 
 static void test_contact_releases_and_stock_gravity(void)
@@ -562,7 +557,6 @@ static void configure_loop_car(struct CARSTATE *car, struct SIMD *simd, legacy_s
 	make_capability_resource(resource, 1);
 	reset_car_capabilities();
 	setup_car_surface_adhesion(resource, car_index);
-	player_motion_fraction = 0;
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
 }
 

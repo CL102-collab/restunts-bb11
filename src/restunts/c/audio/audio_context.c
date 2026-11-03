@@ -227,7 +227,6 @@ legacy_s16 audio_start_note(struct AUDIO_CHANNEL *timer, legacy_u16 value, legac
 		LEGACY_S16_WRAP_ADD((legacy_s8)resource[AUDIO_RESOURCE_BASE_PITCH_OFFSET], (legacy_s8)note);
 	dos_audio_driver_activate_context(driver_channel, context, (legacy_u8 *)timer, pitch, parameter,
 									  resource);
-	audio_channel_notes[(legacy_u16)handle] = note;
 	return context_index;
 }
 
@@ -310,7 +309,6 @@ static void audio_update_context_envelope(struct AUDIO_CONTEXT *context, legacy_
 			chunk = &audio_channels[context->channel];
 			chunk->active_notes--;
 			dos_audio_driver_end_context(context->driver_channel, context);
-			audio_channel_notes[context->channel] = 0;
 		}
 	}
 }

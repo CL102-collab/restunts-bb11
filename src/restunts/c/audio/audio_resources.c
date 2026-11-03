@@ -55,7 +55,6 @@
 #define AUDIO_MUSIC_CHANNEL_COUNT_OFFSET 7U
 #define AUDIO_MUSIC_PRIORITY 32U
 
-static legacy_s16 audio_missing_file_fatal;
 static legacy_s8 audio_driver_prefix[AUDIO_DRIVER_PREFIX_LENGTH];
 static legacy_u8 audio_padded_id[AUDIO_PADDED_ID_LENGTH];
 static legacy_s8 audio_filename_buffer[AUDIO_FILENAME_BUFFER_LENGTH];
@@ -296,7 +295,7 @@ void far *load_sfx_ge(const legacy_s8 *filename, const legacy_s8 *extension,
 /* The special audio modes keep their samples under their own extension and
  * fall back to the standard one before the load counts as a failure. */
 static void far *load_audio_file(const legacy_s8 *filename, const legacy_s8 *special_extension,
-								 const legacy_s8 *extension, const legacy_s8 *error_message)
+								 const legacy_s8 *extension)
 {
 	void far *result = 0;
 	if (dos_audio_special_mode != 0) {
@@ -305,29 +304,22 @@ static void far *load_audio_file(const legacy_s8 *filename, const legacy_s8 *spe
 	if (result == 0) {
 		result = load_sfx_ge(filename, extension, audio_driver_prefix);
 	}
-	if (result == 0 && audio_missing_file_fatal != 0) {
-		fatal_error(error_message, filename);
-	}
 	return result;
 }
 
 void far *load_sfx_file(const legacy_s8 *filename)
 {
-	return load_audio_file(filename, "dsf", "sfx", "cannot load sfx file %s");
+	return load_audio_file(filename, "dsf", "sfx");
 }
 
 void far *load_song_file(const legacy_s8 *filename)
 {
-	void far *result = load_sfx_ge(filename, "kms", audio_driver_prefix);
-	if (result == 0 && audio_missing_file_fatal != 0) {
-		fatal_error("cannot load song file %s", filename);
-	}
-	return result;
+	return load_sfx_ge(filename, "kms", audio_driver_prefix);
 }
 
 void far *load_voice_file(const legacy_s8 *filename)
 {
-	return load_audio_file(filename, "dvc", "vce", "cannot load voice file %s");
+	return load_audio_file(filename, "dvc", "vce");
 }
 
 legacy_s16 audioresource_compare_chunknames(legacy_s16 case_sensitive,
@@ -802,9 +794,4 @@ void audioresource_copy_n_bytes(const legacy_u8 far *source, legacy_u8 far *dest
 		remaining = LEGACY_S16_WRAP_SUB(remaining, 1);
 	} while (remaining != 0);
 #endif
-}
-
-void audio_set_missing_file_fatal(legacy_s16 value)
-{
-	audio_missing_file_fatal = value;
 }

@@ -72,24 +72,14 @@ static legacy_s16 follow_camera_uses_car_target(const struct GAMESTATE *camera_s
 			carstate->car_route_heading_error < CAMERA_TARGET_OVERRIDE_FIELD_END);
 }
 
-static legacy_s16 follow_camera_step(legacy_s16 movement, legacy_u32 fraction20)
-{
-	if (fraction20 == 0) {
-		return movement;
-	}
-	legacy_u32 tick_fraction =
-		framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION : PHYSICS_FRACTION_ONE;
-	return (legacy_s16)((legacy_s32)movement * (legacy_s32)fraction20 / (legacy_s32)tick_fraction);
-}
-
 static void update_follow_camera_height(struct GAMESTATE *camera_state, legacy_u16 car_index,
-										legacy_s16 car_y, legacy_u32 fraction20)
+										legacy_s16 car_y)
 {
 	legacy_s16 target_y = LEGACY_S16_WRAP_ADD(car_y, CAMERA_TARGET_HEIGHT);
 	legacy_s16 delta_y =
 		LEGACY_S16_WRAP_SUB(camera_state->game_follow_camera_position[car_index].y, target_y);
 	if (delta_y != 0) {
-		legacy_s16 limit = follow_camera_step(CAMERA_VERTICAL_STEP_LIMIT, fraction20);
+		legacy_s16 limit = CAMERA_VERTICAL_STEP_LIMIT;
 		if (delta_y > limit) {
 			delta_y = limit;
 		} else if (delta_y < -limit) {
@@ -100,8 +90,7 @@ static void update_follow_camera_height(struct GAMESTATE *camera_state, legacy_u
 	}
 }
 
-static void update_car_follow_camera(struct GAMESTATE *camera_state, legacy_u16 car_index,
-									 legacy_u32 fraction20)
+static void update_car_follow_camera(struct GAMESTATE *camera_state, legacy_u16 car_index)
 {
 	struct VECTOR *previous_position = car_index == PLAYER_CAR_INDEX
 										   ? &camera_state->game_player_camera_previous
@@ -122,7 +111,7 @@ static void update_car_follow_camera(struct GAMESTATE *camera_state, legacy_u16 
 		target.z = car_z;
 	}
 
-	update_follow_camera_height(camera_state, car_index, car_y, fraction20);
+	update_follow_camera_height(camera_state, car_index, car_y);
 
 	legacy_s16 angle = (legacy_s16)polarAngle(
 		LEGACY_S16_WRAP_SUB(target.x, camera_state->game_follow_camera_position[car_index].x),
@@ -132,12 +121,8 @@ static void update_car_follow_camera(struct GAMESTATE *camera_state, legacy_u16 
 		LEGACY_S16_WRAP_SUB(car_z, camera_state->game_follow_camera_position[car_index].z));
 	if (distance > CAMERA_FOLLOW_DISTANCE) {
 		legacy_s16 adjustment = LEGACY_S16_WRAP_SUB(distance, CAMERA_FOLLOW_DISTANCE);
-		/* The distance error already includes the short step's car motion.
-		 * Scale the camera's speed limit, not that displacement a second time. */
-		legacy_s16 limit = follow_camera_step(framespersec == GAME_FRAME_RATE_NORMAL
-												  ? CAMERA_FULL_RATE_STEP_LIMIT
-												  : CAMERA_REDUCED_RATE_STEP_LIMIT,
-											  fraction20);
+		legacy_s16 limit = framespersec == GAME_FRAME_RATE_NORMAL ? CAMERA_FULL_RATE_STEP_LIMIT
+																  : CAMERA_REDUCED_RATE_STEP_LIMIT;
 		if (adjustment > limit) {
 			adjustment = limit;
 		}
@@ -149,9 +134,7 @@ static void update_car_follow_camera(struct GAMESTATE *camera_state, legacy_u16 
 								multiply_and_scale(adjustment, cos_fast((legacy_u16)angle)));
 	}
 
-	if (fraction20 == 0) {
-		update_trackside_camera(car_index, car_x, car_z);
-	}
+	update_trackside_camera(car_index, car_x, car_z);
 }
 
 void update_follow_cameras(void)
@@ -159,19 +142,7 @@ void update_follow_cameras(void)
 	legacy_u16 car_count = gameconfig.game_opponenttype == 0 ? ACTIVE_CAR_COUNT_WITHOUT_OPPONENT
 															 : ACTIVE_CAR_COUNT_WITH_OPPONENT;
 	for (legacy_u16 car_index = 0; car_index < car_count; car_index++) {
-		update_car_follow_camera(&state, car_index, 0);
-	}
-}
-
-void update_follow_cameras_fraction(struct GAMESTATE *camera_state, legacy_u32 fraction20)
-{
-	if (fraction20 == 0) {
-		return;
-	}
-	legacy_u16 car_count = gameconfig.game_opponenttype == 0 ? ACTIVE_CAR_COUNT_WITHOUT_OPPONENT
-															 : ACTIVE_CAR_COUNT_WITH_OPPONENT;
-	for (legacy_u16 car_index = 0; car_index < car_count; car_index++) {
-		update_car_follow_camera(camera_state, car_index, fraction20);
+		update_car_follow_camera(&state, car_index);
 	}
 }
 

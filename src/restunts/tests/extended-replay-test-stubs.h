@@ -306,13 +306,6 @@ const struct CSTRK_OBJECT *extended_track_object_at(int x, int y)
 	assert(0);
 	return NULL;
 }
-const struct CSTRK_OBJECT *extended_track_object_origin_at(int x, int y)
-{
-	(void)x;
-	(void)y;
-	assert(0);
-	return NULL;
-}
 const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16 row, legacy_u16 id)
 {
 	(void)column;

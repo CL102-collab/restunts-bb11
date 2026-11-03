@@ -470,9 +470,6 @@ legacy_s8 *RsLocateResource(legacy_s8 *data,legacy_s8 *name,legacy_u16 fatal)
     *temple_tmp_456=TempleCastU16((temple_tmp_457+1));
     temple_tmp_457;
   }
-  if((fatal>=RESOURCE_NOT_FOUND_SOUND_FATAL)) {
-    RsFatalError(missing_sound_error_format,name);
-  }
   if((fatal==RESOURCE_NOT_FOUND_SHAPE_FATAL)) {
     RsFatalError(missing_shape_error_format,name);
   }
@@ -492,9 +489,4 @@ legacy_s8 *RsLocateShapeFatal(legacy_s8 *data,legacy_s8 *name)
 legacy_s8 *RsLocateShapeAlt(legacy_s8 *data,legacy_s8 *name)
 {
   return RsLocateShapeFatal(data,name);
-}
-
-legacy_s8 *RsLocateSoundFatal(legacy_s8 *data,legacy_s8 *name)
-{
-  return RsLocateResource(data,name,TempleCastU16(RESOURCE_NOT_FOUND_SOUND_FATAL));
 }

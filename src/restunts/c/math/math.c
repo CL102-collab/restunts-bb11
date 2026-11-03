@@ -8,24 +8,6 @@
 #include "projection.h"
 #include "../extended/extended_math.h"
 
-legacy_s16 sign_word(legacy_s16 value)
-{
-	legacy_s16 signed_value = LEGACY_S16_FROM_BITS(value);
-	if (signed_value < 0) {
-		return -1;
-	}
-	return signed_value != 0;
-}
-
-legacy_s32 absolute_long(legacy_s32 value)
-{
-	legacy_u32 bits = (legacy_u32)value;
-	if ((bits & LEGACY_U32_SIGN_BIT) != 0) {
-		bits = (legacy_u32)(0UL - bits);
-	}
-	return LEGACY_S32_FROM_BITS(bits);
-}
-
 #define VECTOR_DIRECTION_NEGATIVE_Y 30
 #define VECTOR_DIRECTION_POSITIVE_Y 31
 #define VECTOR_DIRECTION_POSITIVE_Y_OFFSET 15
@@ -618,16 +600,6 @@ void vector_interpolate_at_z(struct VECTOR *first, struct VECTOR *second, struct
 
 	result->x = vector_interpolate_axis(first->x, second->x, depth_offset, depth_span);
 	result->y = vector_interpolate_axis(first->y, second->y, depth_offset, depth_span);
-}
-
-extern legacy_u8 vector_saved_z_low;
-extern legacy_u8 vector_saved_z_high;
-
-void vector_interpolate_at_saved_z(struct VECTOR *vec1, struct VECTOR *vec2, struct VECTOR *outvec)
-{
-	legacy_u16 interpolation_z =
-		(legacy_u16)(vector_saved_z_low | LEGACY_U16_SHL(vector_saved_z_high, 8U));
-	vector_interpolate_at_z(vec1, vec2, outvec, LEGACY_S16_FROM_BITS(interpolation_z));
 }
 
 legacy_s16 multiply_and_scale(legacy_s16 left, legacy_s16 right)

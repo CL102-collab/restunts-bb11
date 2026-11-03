@@ -40,8 +40,6 @@ legacy_s32 shape3d_hires_visibility_reach(const struct TRANSFORMEDSHAPE3D *insta
 legacy_s32 shape3d_hires_above_camera(const struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context);
 void shape3d_hires_cache_vertex(const struct SHAPE3D *shape,
 								struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context, legacy_u16 index);
-legacy_u8 shape3d_hires_vertex_rect_flags(const struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context,
-										  legacy_u16 index);
 legacy_s16 shape3d_hires_try_transform(struct TRANSFORMEDSHAPE3D *instance,
 									   legacy_u16 *hires_result);
 legacy_u32 shape3d_hires_queued_primitive_count(legacy_u32 classic_count);

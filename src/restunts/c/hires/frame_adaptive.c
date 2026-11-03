@@ -205,11 +205,6 @@ legacy_s32 frame_hires_adaptive_prepare(struct FRAME_HIRES_ADAPTIVE_STATE *adapt
 	return 1;
 }
 
-void frame_hires_adaptive_invalidate(struct FRAME_HIRES_ADAPTIVE_STATE *adaptive)
-{
-	adaptive->cache_valid = 0;
-}
-
 legacy_u8 frame_hires_adaptive_flags(const struct FRAME_HIRES_ADAPTIVE_STATE *adaptive,
 									 legacy_s16 east, legacy_s16 south)
 {

@@ -99,10 +99,6 @@ static void test_large_timeline(void)
 	assert(extended_replay_timeline_position(35000U, 70000U, 110U) == 55U);
 	assert(extended_replay_timeline_position(UINT32_MAX, UINT32_MAX, UINT32_MAX) == UINT32_MAX);
 	assert(extended_replay_timeline_position(UINT32_MAX, 100U, 110U) == 110U);
-	assert(extended_replay_rewind_interpolate(UINT32_MAX, UINT32_MAX, UINT32_MAX) == UINT32_MAX);
-	assert(extended_replay_rewind_interpolate(100000U, 50000U, 100000U) == 50000U);
-	assert(extended_replay_rewind_interpolate(100U, 200U, 100U) == 100U);
-	assert(extended_replay_rewind_interpolate(100U, 1U, 0U) == 0U);
 	char text[32] = "unchanged";
 	assert(extended_replay_format_time(text, sizeof(text), 72005U, 20U, 1));
 	assert(strcmp(text, "60:00.25") == 0);

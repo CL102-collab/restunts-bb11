@@ -47,7 +47,6 @@ static const legacy_s8 test_text_empty[] = "";
 #define TEST_TEXT_LARGE_SIZE (TEST_TEXT_LARGE_DATA_OFFSET + sizeof(test_text_version))
 
 const legacy_s8 missing_shape_error_format[] = "shape";
-const legacy_s8 missing_sound_error_format[] = "sound";
 
 void fatal_error(const legacy_s8 *format, ...)
 {

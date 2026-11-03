@@ -2,116 +2,116 @@
 
 legacy_s8 RsKevinrndLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_740;
+  legacy_s32 noreg temple_tmp_726;
   if((value<=127)) {
-    temple_tmp_740=TempleCastS32(TempleCastS8(value));
+    temple_tmp_726=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_740=TempleCastS32(TempleCastS8(
+    temple_tmp_726=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_740);
+  return TempleCastS8(temple_tmp_726);
 }
 
 legacy_s16 RsKevinrndLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_741;
+  legacy_s32 noreg temple_tmp_727;
   if((value<=32767)) {
-    temple_tmp_741=TempleCastS32(TempleCastS16(value));
+    temple_tmp_727=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_741=TempleCastS32(TempleCastS16(
+    temple_tmp_727=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_741);
+  return TempleCastS16(temple_tmp_727);
 }
 
 legacy_s32 RsKevinrndLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_742;
+  legacy_s32 noreg temple_tmp_728;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_742=TempleCastS32(TempleCastS32(value));
+    temple_tmp_728=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_742=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_728=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_742);
+  return TempleCastS32(temple_tmp_728);
 }
 
 legacy_void RsInitKevinrandom(legacy_s8 *seed)
 {
-  legacy_s16 noreg temple_i_744;
-  legacy_s16 *temple_tmp_745;
-  legacy_s16 noreg temple_tmp_746;
-  temple_i_744=TempleCastS16(0);
+  legacy_s16 noreg temple_i_730;
+  legacy_s16 *temple_tmp_731;
+  legacy_s16 noreg temple_tmp_732;
+  temple_i_730=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_744<6))) {
+    if(!((temple_i_730<6))) {
       break;
     }
-    (rs_kevinrnd_g_kevinrandom_seed[temple_i_744]=TempleCastU8(TempleCastU8(seed[temple_i_744])));
-    temple_tmp_745=&(temple_i_744);
-    temple_tmp_746=*temple_tmp_745;
-    *temple_tmp_745=TempleCastS16((temple_tmp_746+1));
-    (*temple_tmp_745);
+    (rs_kevinrnd_g_kevinrandom_seed[temple_i_730]=TempleCastU8(TempleCastU8(seed[temple_i_730])));
+    temple_tmp_731=&(temple_i_730);
+    temple_tmp_732=*temple_tmp_731;
+    *temple_tmp_731=TempleCastS16((temple_tmp_732+1));
+    (*temple_tmp_731);
   }
 }
 
 legacy_void RsGetKevinrandomSeed(legacy_s8 *seed)
 {
-  legacy_s16 noreg temple_i_748;
-  legacy_s16 *temple_tmp_749;
-  legacy_s16 noreg temple_tmp_750;
-  temple_i_748=TempleCastS16(0);
+  legacy_s16 noreg temple_i_734;
+  legacy_s16 *temple_tmp_735;
+  legacy_s16 noreg temple_tmp_736;
+  temple_i_734=TempleCastS16(0);
   while(1) {
-    if(!((temple_i_748<6))) {
+    if(!((temple_i_734<6))) {
       break;
     }
-    (seed[temple_i_748]=TempleCastS8(TempleCastS8(rs_kevinrnd_g_kevinrandom_seed[temple_i_748])));
-    temple_tmp_749=&(temple_i_748);
-    temple_tmp_750=*temple_tmp_749;
-    *temple_tmp_749=TempleCastS16((temple_tmp_750+1));
-    (*temple_tmp_749);
+    (seed[temple_i_734]=TempleCastS8(TempleCastS8(rs_kevinrnd_g_kevinrandom_seed[temple_i_734])));
+    temple_tmp_735=&(temple_i_734);
+    temple_tmp_736=*temple_tmp_735;
+    *temple_tmp_735=TempleCastS16((temple_tmp_736+1));
+    (*temple_tmp_735);
   }
 }
 
 legacy_s16 RsGetKevinrandom()
 {
-  legacy_s16 noreg temple_i_752;
-  legacy_u8 *temple_tmp_753;
-  legacy_s16 *temple_tmp_754;
-  legacy_s16 noreg temple_tmp_755;
-  legacy_s16 noreg temple_i_757;
-  legacy_u8 *temple_tmp_758;
-  legacy_u8 noreg temple_tmp_759;
-  legacy_s16 *temple_tmp_760;
-  legacy_s16 noreg temple_tmp_761;
-  temple_i_752=TempleCastS16(TempleCastS32((6-2)));
+  legacy_s16 noreg temple_i_738;
+  legacy_u8 *temple_tmp_739;
+  legacy_s16 *temple_tmp_740;
+  legacy_s16 noreg temple_tmp_741;
+  legacy_s16 noreg temple_i_743;
+  legacy_u8 *temple_tmp_744;
+  legacy_u8 noreg temple_tmp_745;
+  legacy_s16 *temple_tmp_746;
+  legacy_s16 noreg temple_tmp_747;
+  temple_i_738=TempleCastS16(TempleCastS32((6-2)));
   while(1) {
-    if(!((temple_i_752>=0))) {
+    if(!((temple_i_738>=0))) {
       break;
     }
-    temple_tmp_753=&(rs_kevinrnd_g_kevinrandom_seed[temple_i_752]);
-    ((*temple_tmp_753)=TempleCastU8(
-        ((*temple_tmp_753)+rs_kevinrnd_g_kevinrandom_seed[TempleCastS32((temple_i_752+1))])));
-    temple_tmp_754=&(temple_i_752);
-    temple_tmp_755=*temple_tmp_754;
-    *temple_tmp_754=TempleCastS16((temple_tmp_755-1));
-    (*temple_tmp_754);
+    temple_tmp_739=&(rs_kevinrnd_g_kevinrandom_seed[temple_i_738]);
+    ((*temple_tmp_739)=TempleCastU8(
+        ((*temple_tmp_739)+rs_kevinrnd_g_kevinrandom_seed[TempleCastS32((temple_i_738+1))])));
+    temple_tmp_740=&(temple_i_738);
+    temple_tmp_741=*temple_tmp_740;
+    *temple_tmp_740=TempleCastS16((temple_tmp_741-1));
+    (*temple_tmp_740);
   }
-  temple_i_757=TempleCastS16(TempleCastS32((6-1)));
+  temple_i_743=TempleCastS16(TempleCastS32((6-1)));
   while(1) {
-    if(!((temple_i_757>=0))) {
+    if(!((temple_i_743>=0))) {
       break;
     }
-    temple_tmp_758=&(rs_kevinrnd_g_kevinrandom_seed[temple_i_757]);
-    temple_tmp_759=*temple_tmp_758;
-    *temple_tmp_758=TempleCastU8((temple_tmp_759+1));
-    temple_tmp_759;
-    if((rs_kevinrnd_g_kevinrandom_seed[temple_i_757]!=0)) {
+    temple_tmp_744=&(rs_kevinrnd_g_kevinrandom_seed[temple_i_743]);
+    temple_tmp_745=*temple_tmp_744;
+    *temple_tmp_744=TempleCastU8((temple_tmp_745+1));
+    temple_tmp_745;
+    if((rs_kevinrnd_g_kevinrandom_seed[temple_i_743]!=0)) {
       break;
     }
-    temple_tmp_760=&(temple_i_757);
-    temple_tmp_761=*temple_tmp_760;
-    *temple_tmp_760=TempleCastS16((temple_tmp_761-1));
-    (*temple_tmp_760);
+    temple_tmp_746=&(temple_i_743);
+    temple_tmp_747=*temple_tmp_746;
+    *temple_tmp_746=TempleCastS16((temple_tmp_747-1));
+    (*temple_tmp_746);
   }
   return TempleCastS16(rs_kevinrnd_g_kevinrandom_seed[0]);
 }

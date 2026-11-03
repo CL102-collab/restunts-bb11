@@ -15,8 +15,7 @@ legacy_u32 resource_read_u32le(const legacy_u8 far *source)
 
 enum RESOURCE_NOT_FOUND_BEHAVIOR {
 	RESOURCE_NOT_FOUND_IGNORE = 0,
-	RESOURCE_NOT_FOUND_SHAPE_FATAL = 1,
-	RESOURCE_NOT_FOUND_SOUND_FATAL = 2
+	RESOURCE_NOT_FOUND_SHAPE_FATAL = 1
 };
 
 #define RESOURCE_IDENTIFIER_PADDING ' '
@@ -196,9 +195,6 @@ legacy_s8 far *locate_resource(legacy_s8 far *data, const legacy_s8 *name, legac
 		}
 	}
 
-	if (fatal >= RESOURCE_NOT_FOUND_SOUND_FATAL) {
-		fatal_error(missing_sound_error_format, name);
-	}
 	if (fatal == RESOURCE_NOT_FOUND_SHAPE_FATAL) {
 		fatal_error(missing_shape_error_format, name);
 	}
@@ -218,9 +214,4 @@ legacy_s8 far *locate_shape_fatal(legacy_s8 far *data, const legacy_s8 *name)
 legacy_s8 far *locate_shape_alt(legacy_s8 far *data, const legacy_s8 *name)
 {
 	return locate_shape_fatal(data, name);
-}
-
-legacy_s8 far *locate_sound_fatal(legacy_s8 far *data, const legacy_s8 *name)
-{
-	return locate_resource(data, name, RESOURCE_NOT_FOUND_SOUND_FATAL);
 }

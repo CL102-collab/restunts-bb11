@@ -237,13 +237,6 @@ legacy_s32 shape3d_hires_polygon_visible(legacy_u32 index, legacy_s32 cull_backf
 		   (!cull_backface || hires_polygon_faces_camera(primitive->points, primitive->count));
 }
 
-legacy_u32 shape3d_hires_wheel_face(legacy_u32 index)
-{
-	return index < shape3d_hires_state.primitive_capacity
-			   ? shape3d_hires_state.primitives[index].wheel_face
-			   : 0;
-}
-
 void shape3d_hires_begin_shape(legacy_u32 index, legacy_s32 depth_mode)
 {
 	hires_reserve_primitives(index);
@@ -349,7 +342,6 @@ static void hires_queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 v
 		legacy_u32 start = hires_polygon_faces_camera(face, SHAPE3D_WHEEL_RIM_VERTEX_COUNT)
 							   ? 0
 							   : SHAPE3D_WHEEL_RIM_VERTEX_COUNT;
-		primitive->wheel_face = start;
 		for (legacy_u32 vertex = 0; vertex < 4; vertex++) {
 			shape3d_hires_project(&vertices[indices[(start + vertex) % 6]],
 								  &primitive->points[vertex]);

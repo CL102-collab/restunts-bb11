@@ -32,18 +32,12 @@ static struct SHAPE3D_LEGACY_OPPONENT_RENDER_CONTEXT legacy_opponent_render_cont
 
 legacy_s8 is_facing_camera(struct POINT2D far *pts);
 legacy_u16 projection_scale_x_wrapped(legacy_u16 numerator, legacy_s16 divisor);
-legacy_u16 divide_u32_to_u16(legacy_u32 dividend, legacy_u16 divisor);
-legacy_u32 projection_multiply_x(legacy_u16 value);
-legacy_u32 projection_multiply_y(legacy_u16 value);
-legacy_u16 projection_scale_y(legacy_u16 value, legacy_u16 divisor);
 static legacy_u16 projection_angle_from_extent(legacy_s16 extent);
 static legacy_u16 projection_scale_for_angle(legacy_u16 angle, legacy_u16 extent);
 static void projection_update_derived(void);
 void set_projection(legacy_s16 horizontal_fov_degrees, legacy_s16 vertical_fov_degrees,
 					legacy_s16 width, legacy_s16 height);
 void projection_set_origin(legacy_u16 x, legacy_u16 y);
-void projection_set_half_fov(legacy_u16 horizontal_half_fov, legacy_u16 vertical_half_fov,
-							 legacy_u16 width, legacy_u16 height);
 legacy_u16 select_cliprect_rotate(legacy_s16 angZ, legacy_s16 angX, legacy_s16 angY,
 								  struct RECTANGLE *cliprect, legacy_s16 half_scale);
 void shape3d_set_legacy_render_stack(legacy_s16 *wheel_headings, legacy_u16 polygon_frame_pointer,
@@ -97,27 +91,6 @@ legacy_u16 projection_scale_x_wrapped(legacy_u16 numerator, legacy_s16 divisor)
 								  (legacy_u16)divisor);
 }
 
-legacy_u16 divide_u32_to_u16(legacy_u32 dividend, legacy_u16 divisor)
-{
-	return (legacy_u16)LEGACY_U32_DIV_OR_ZERO(dividend, divisor);
-}
-
-legacy_u32 projection_multiply_x(legacy_u16 value)
-{
-	return (legacy_u32)projection_focal_length_x * value;
-}
-
-legacy_u32 projection_multiply_y(legacy_u16 value)
-{
-	return (legacy_u32)projection_focal_length_y * value;
-}
-
-legacy_u16 projection_scale_y(legacy_u16 value, legacy_u16 divisor)
-{
-	return (legacy_u16)LEGACY_U32_DIV_OR_ZERO(LEGACY_U32_WRAP_MUL(projection_focal_length_y, value),
-											  divisor);
-}
-
 static legacy_u16 projection_angle_from_extent(legacy_s16 extent)
 {
 	legacy_s32 scaled = LEGACY_S32_WRAP_MUL((legacy_s32)extent, PROJECTION_EXTENT_SCALE);
@@ -166,16 +139,6 @@ void projection_set_origin(legacy_u16 x, legacy_u16 y)
 	projection_center_x = LEGACY_U16_WRAP_ADD(projection_half_width, x);
 	projection_origin_y = y;
 	projection_center_y = LEGACY_U16_WRAP_ADD(projection_half_height, y);
-}
-
-void projection_set_half_fov(legacy_u16 horizontal_half_fov, legacy_u16 vertical_half_fov,
-							 legacy_u16 width, legacy_u16 height)
-{
-	projection_horizontal_half_fov = horizontal_half_fov;
-	projection_vertical_half_fov = vertical_half_fov;
-	projection_half_width = width >> 1;
-	projection_half_height = height >> 1;
-	projection_update_derived();
 }
 
 legacy_u16 select_cliprect_rotate(legacy_s16 angZ, legacy_s16 angX, legacy_s16 angY,

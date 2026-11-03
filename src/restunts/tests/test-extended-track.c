@@ -1446,7 +1446,7 @@ static void test_sparse_catalog_footprints(void)
 			activate(&track);
 			const struct CSTRK_OBJECT *found = extended_track_object_at(decoration.x, decoration.y);
 			assert(found != NULL && found->legacy_id == 159);
-			assert(extended_track_object_origin_at(86, 86)->legacy_id == corner.legacy_id);
+			assert(extended_track_object_for_id(corner.x, corner.y, corner.legacy_id) != NULL);
 			struct VECTOR inside =
 				sample_world(decoration.x * 1024 + 512, 0, 90 * 1024 - decoration.y * 1024 - 512);
 			struct VECTOR outside = inside;
@@ -1474,7 +1474,10 @@ static void test_sparse_catalog_footprints(void)
 		chicane.rotation = 2;
 		assert(cstrk_add_object(&track, &chicane, error, sizeof(error)));
 		activate(&track);
-		assert(extended_track_object_id(extended_track_object_origin_at(87, 87)) != 0U);
+		const struct CSTRK_OBJECT *loaded = extended_track_model()->objects;
+		legacy_u16 resolved_id = (legacy_u16)extended_track_object_id(loaded);
+		assert(resolved_id != 0U);
+		assert(extended_track_object_for_id(loaded->x, loaded->y, resolved_id) == loaded);
 		extended_track_unload();
 		cstrk_free(&track);
 	}
@@ -1550,8 +1553,10 @@ static void test_sparse_corner_terrain(void)
 			}
 			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
 			activate(&track);
-			assert(extended_track_object_id(extended_track_object_origin_at(object.x, object.y)) !=
-				   0U);
+			const struct CSTRK_OBJECT *loaded = extended_track_model()->objects;
+			legacy_u16 resolved_id = (legacy_u16)extended_track_object_id(loaded);
+			assert(resolved_id != 0U);
+			assert(extended_track_object_for_id(loaded->x, loaded->y, resolved_id) == loaded);
 			for (legacy_u8 cell = 0; cell < TEST_SPARSE_CELL_COUNT; cell++) {
 				legacy_u16 x = object.x + cell % TEST_SPARSE_SIDE_LENGTH;
 				legacy_u16 y = object.y + cell / TEST_SPARSE_SIDE_LENGTH;
@@ -3147,7 +3152,7 @@ static void test_crop_field_variant(legacy_u16 id, legacy_u8 rotation, legacy_u8
 	track.cells[0].surface = surface;
 	assert(cstrk_add_object(&track, &crop, error, sizeof(error)));
 	activate(&track);
-	const struct CSTRK_OBJECT *placed = extended_track_object_origin_at(0, 0);
+	const struct CSTRK_OBJECT *placed = extended_track_object_for_id(0, 0, 0U);
 	assert(placed && placed->legacy_id == id);
 	assert(extended_track_object_at(0, 0) == placed);
 	assert(extended_track_object_id(placed) == 0U);

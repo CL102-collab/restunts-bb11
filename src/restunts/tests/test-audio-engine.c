@@ -181,7 +181,6 @@ static void reset_engine(legacy_u32 index)
 	memset(audio_timers, 0, sizeof(audio_timers));
 	memset(audio_channels, 0, sizeof(audio_channels));
 	memset(dos_audio_contexts, 0, sizeof(dos_audio_contexts));
-	memset(audio_channel_notes, 0, sizeof(audio_channel_notes));
 	memset(audio_channel_reserved, 0, sizeof(audio_channel_reserved));
 	memset(memory + 0x50000, 0, 128);
 	dos_audio_context_count = 8;
@@ -220,7 +219,6 @@ static void test_envelopes(void)
 		c->sequence_index = 255;
 		audio_channels[c->channel].active_notes = 1;
 		audio_channels[c->channel].sustain = i % 3U == 0;
-		audio_channel_notes[c->channel] = 60;
 		audio_write_far_pointer((legacy_u8 *)&c->resource, r);
 		LEGACY_WRITE_U16_LE(r + 30, 127);
 		LEGACY_WRITE_U16_LE(r + 32, i % 2U ? 32767 : 1);
@@ -240,7 +238,6 @@ static void test_envelopes(void)
 			audio_update_driver_contexts();
 			trace_bytes(c, sizeof(*c));
 			trace_word(audio_channels[c->channel].active_notes);
-			trace_word(audio_channel_notes[c->channel]);
 		}
 	}
 	reset_engine(250);
@@ -482,7 +479,7 @@ int main(void)
 	test_context_selection();
 	test_engine_initialization();
 	test_driver_timer();
-	assert(trace_hash == UINT64_C(0xf07059b72776afde));
+	assert(trace_hash == UINT64_C(0x8b2065cbeef38e5e));
 #endif
 	printf("test-audio-engine: passed\n");
 	return 0;
