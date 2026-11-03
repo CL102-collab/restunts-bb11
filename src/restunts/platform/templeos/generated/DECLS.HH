@@ -58,7 +58,6 @@ extern legacy_void RsMmgrRelease(legacy_u8 *ptr);
 extern legacy_u16 RsMmgrGetChunkSize(legacy_s8 *ptr);
 extern legacy_u16 RsMmgrResizeMemory(
     legacy_u16 unused_offset,legacy_u16 segment,legacy_u16 paragraphs);
-extern legacy_u8 *RsDosMemoryGetPsp();
 extern legacy_u8 *RsDosMemoryMakePointer(legacy_u16 segment,legacy_u16 offset);
 extern legacy_u16 RsDosMemoryPointerSegment(legacy_u8 *pointer);
 extern legacy_u16 RsDosMemoryPointerOffset(legacy_u8 *pointer);

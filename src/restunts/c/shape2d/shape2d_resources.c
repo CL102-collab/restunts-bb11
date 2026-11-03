@@ -325,11 +325,6 @@ struct SHAPE2D far *file_get_shape2d(legacy_u8 far *memchunk, legacy_s16 index)
 	return (struct SHAPE2D far *)file_get_shape2d_bytes(memchunk, index);
 }
 
-void file_get_shape2d_identifier(legacy_u8 far *memchunk, legacy_u16 index, legacy_u32 *result)
-{
-	*result = LEGACY_READ_U32_LE(resource_file_identifier(memchunk, index));
-}
-
 legacy_u16 file_get_res_shape_count(void far *memchunk)
 {
 	return resource_file_count((const legacy_u8 far *)memchunk);

@@ -153,7 +153,6 @@ static legacy_s16 driving_options_check(legacy_s16 opt_in)
 	CHECK_OPTION(owoot_enabled == opt_in, "OWOOT startup switch");
 	CHECK_OPTION(startup_options.skip_intro == opt_in, "skip intro switch");
 	CHECK_OPTION(startup_options.sound_disabled == opt_in, "sound startup switch");
-	CHECK_OPTION(startup_options.unused_nd_option == opt_in, "legacy nd recognition");
 	CHECK_OPTION(startup_options.fps_display_enabled == opt_in && fps_display_enabled == opt_in,
 				 "FPS startup option reaches shared renderer");
 	CHECK_OPTION(audio_music_enabled == !opt_in && audio_effects_enabled == !opt_in,

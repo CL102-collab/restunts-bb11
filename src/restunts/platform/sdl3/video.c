@@ -724,11 +724,6 @@ legacy_s16 dos_video_get_status(void)
 			   : 0;
 }
 
-legacy_s16 video_get_status(void)
-{
-	return dos_video_get_status();
-}
-
 void dos_video_set_palette(legacy_u16 start, legacy_u16 count, legacy_u8 *palette)
 {
 	for (legacy_u32 index = start;

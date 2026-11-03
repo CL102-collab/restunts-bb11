@@ -436,10 +436,6 @@ legacy_s16 dos_video_get_status(void)
 	return vertical < top || vertical >= top + display_height ? DOS_VIDEO_RETRACE_STATUS_BIT : 0;
 }
 
-legacy_s16 video_get_status(void)
-{
-	return dos_video_get_status();
-}
 legacy_u8 dos_video_enable_planar_pages(void)
 {
 	return 0;

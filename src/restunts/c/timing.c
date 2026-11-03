@@ -24,16 +24,6 @@ legacy_u32 timer_get_delta_alt(void)
 	return timer_get_delta();
 }
 
-legacy_u32 timer_custom_delta(legacy_u32 ticks)
-{
-	return timer_get_counter() - ticks;
-}
-
-void timer_reset()
-{
-	dos_timer_reset_counter();
-}
-
 legacy_u32 timer_set_deadline(legacy_u32 ticks)
 {
 	timer_wait_target = timer_get_counter() + ticks;

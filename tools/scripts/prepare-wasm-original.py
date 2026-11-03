@@ -33,7 +33,6 @@ PRIMITIVES = {"byte": 1, "word": 2, "dword": 4, "qword": 8, "tbyte": 10}
 DATA_TYPES = {"db": "byte", "dw": "word", "dd": "dword", "dq": "qword", "dt": "tbyte"}
 WORD_REGISTERS = {name: index for index, name in enumerate(("ax", "cx", "dx", "bx", "sp", "bp", "si", "di"))}
 BYTE_REGISTERS = {name: index for index, name in enumerate(("al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"))}
-REGISTERS = set(WORD_REGISTERS) | {"al", "ah", "cl", "ch", "dl", "dh", "bl", "bh", "cs", "ds", "es", "ss"}
 ACCUMULATOR_OPCODES = {"add": 5, "or": 13, "adc": 21, "sbb": 29, "and": 37, "sub": 45, "xor": 53, "cmp": 61, "test": 169}
 LOGICAL_DIGITS = {"or": 1, "and": 4, "xor": 6}
 REPEAT_PREFIXES = {"repne": 0xF2, "repnz": 0xF2, "repe": 0xF3, "repz": 0xF3}

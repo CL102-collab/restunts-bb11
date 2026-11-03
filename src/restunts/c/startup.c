@@ -147,7 +147,6 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 {
 	options->mode4_requested = 0;
 	options->sound_disabled = 0;
-	options->unused_nd_option = 0;
 	options->skip_intro = 0;
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
@@ -199,10 +198,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 					break;
 
 				case 'n':
+					/* The legacy /nd option is accepted without changing startup settings. */
 					if (argv[i][2] == 's') {
 						options->sound_disabled = 1;
-					} else if (argv[i][2] == 'd') {
-						options->unused_nd_option = 1;
 					}
 					break;
 
@@ -323,9 +321,6 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 #endif
 	hires_settings_apply_startup(&startup_options);
 #endif
-
-	// Unused "/nd" switch. Maybe used when loading other video drivers?
-	(void)startup_options.unused_nd_option;
 
 	STARTUP_TRACE("display");
 	// Video mode.

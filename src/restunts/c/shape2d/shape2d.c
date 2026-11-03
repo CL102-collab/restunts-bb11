@@ -117,22 +117,6 @@ void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16
 	drawing_sprite.sprite_bottom = bottom;
 }
 
-void sprite_set_clip_bounds(struct SPRITE far *sprite, legacy_u16 left, legacy_u16 right,
-							legacy_u16 top, legacy_u16 bottom)
-{
-	sprite->sprite_raster_left = left;
-	sprite->sprite_left = left;
-	sprite->sprite_raster_right = right;
-	sprite->sprite_right = right;
-	sprite->sprite_top = top;
-	sprite->sprite_bottom = bottom;
-
-	if (dos_memory_pointer_segment(sprite->sprite_bitmapptr) ==
-		dos_memory_pointer_segment(drawing_sprite.sprite_bitmapptr)) {
-		sprite_set_target_clip_bounds(left, right, top, bottom);
-	}
-}
-
 void sprite_fill_rect(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
 					  legacy_s16 color)
 {
@@ -420,15 +404,6 @@ void draw_two_color_lines(legacy_s16 *x1arr, legacy_s16 *x2arr, legacy_u16 y, le
 						  legacy_u16 color)
 {
 	draw_pattern_lines(x1arr, x2arr, y, numlines, color, 1);
-}
-
-void draw_two_color_pattern_lines(legacy_s16 *x1arr, legacy_s16 *x2arr, legacy_u16 y,
-								  legacy_u16 numlines, legacy_u16 color, legacy_u16 alternate_color,
-								  legacy_u16 pattern)
-{
-	raster_fill_pattern = (legacy_u16)pattern;
-	raster_alternate_color = LEGACY_U16_REPLACE_LOW_BYTE(raster_alternate_color, alternate_color);
-	draw_two_color_lines(x1arr, x2arr, y, numlines, color);
 }
 
 void draw_patterned_lines(legacy_s16 *x1arr, legacy_s16 *x2arr, legacy_u16 y, legacy_u16 numlines,

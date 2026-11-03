@@ -239,8 +239,6 @@ void init_direction_sector_thresholds(void)
 {
 	direction_sector_sine = sin_fast(PROJECTION_SINCOS_ANGLE);
 	direction_sector_cosine = cos_fast(PROJECTION_SINCOS_ANGLE);
-	direction_sector_sine_copy = sin_fast(PROJECTION_SINCOS_ANGLE);
-	direction_sector_cosine_copy = cos_fast(PROJECTION_SINCOS_ANGLE);
 }
 
 void init_polyinfo(void)

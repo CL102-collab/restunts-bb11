@@ -485,11 +485,6 @@ void far *file_decomp(const legacy_s8 *filename, legacy_s16 fatal)
 	return file_decomp_internal(filename, fatal, 0);
 }
 
-void far *file_decomp_fatal(const legacy_s8 *filename)
-{
-	return file_decomp(filename, 1);
-}
-
 void far *file_decomp_nofatal(const legacy_s8 *filename)
 {
 	return file_decomp(filename, 0);

@@ -296,9 +296,6 @@ void extended_track_cache_lap_routes(legacy_u16 route_count)
 void extended_track_unload(void)
 {
 }
-void extended_track_rebind(void)
-{
-}
 const struct CSTRK_OBJECT *extended_track_object_at(int x, int y)
 {
 	(void)x;

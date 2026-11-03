@@ -26,8 +26,6 @@ extern legacy_u8 replay_selection_cache[2];
 extern legacy_s16 replay_displayed_time_cache[2];
 extern struct SHAPE2D far *rplyshapes[23];
 extern legacy_u8 replay_control_active[9];
-extern legacy_u8 replay_legacy_fast_play_active;
-extern legacy_u8 replay_legacy_play_active;
 extern legacy_u8 replay_camera_mode_cache[2];
 extern legacy_s16 replay_recorded_position_cache[2];
 extern legacy_u8 replay_control_active_cache[18];

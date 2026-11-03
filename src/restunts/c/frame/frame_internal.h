@@ -22,8 +22,6 @@ extern struct RECTANGLE frame_layer_rects[];
 #define frame_cloud_rect frame_layer_rects[7]
 extern struct RECTANGLE intro_redraw_cliprect;
 extern struct RECTANGLE rect_ingame_text2;
-extern struct RECTANGLE rect_ingame_text3;
-extern struct RECTANGLE rect_ingame_text4;
 extern legacy_s8 detail_threshold_by_level[];
 extern legacy_s8 track_material_animation[];
 extern legacy_u16 frame_callback_count;

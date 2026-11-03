@@ -28,8 +28,6 @@ enum MMGR_RESOURCE_STATE {
 legacy_u16 mmgr_arena_end_segment = 0;	 // last para reserved by memmgr
 legacy_u16 mmgr_arena_start_segment = 0; // first para reserved by memmgr
 legacy_u16 mmgr_high_water_segment = 0;	 // highest segment reached by live allocations
-legacy_u16 pspofs = 0;
-legacy_u16 pspseg = 0;
 
 struct MEMCHUNK resources[] = {
 	{{' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, 0, 0, MMGR_RESOURCE_STATE_LIVE},
@@ -180,10 +178,6 @@ void far *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size)
 
 void mmgr_alloc_resmem(legacy_u16 end_segment)
 {
-	void far *psp = dos_memory_get_psp();
-	pspseg = dos_memory_pointer_segment(psp);
-	pspofs = dos_memory_pointer_offset(psp);
-
 	if (mmgr_arena_end_segment == 0) {
 		mmgr_live_sentinel->resofs = dos_memory_allocate(MMGR_INITIAL_ARENA_PARAS);
 		mmgr_arena_start_segment = mmgr_live_sentinel->resofs;

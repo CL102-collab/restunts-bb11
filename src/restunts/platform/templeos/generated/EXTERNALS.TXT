@@ -66,7 +66,6 @@ legacy_void RsDosSetCriticalErrorHandler(legacy_u8 *callback);
 legacy_void RsDosShowStartupError(legacy_s8 *message);
 legacy_u32 RsDosTimerGetRealtimeCounter();
 legacy_s16 RsDosTimerRegisterCallback(legacy_u8 *callback);
-legacy_void RsDosTimerResetCounter();
 legacy_void RsDosTimerSetCallbacksSuspended(legacy_s16 suspended);
 legacy_void RsDosTimerSetupInterrupt();
 legacy_void RsDosTimerShutdown();
