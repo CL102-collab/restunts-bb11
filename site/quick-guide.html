@@ -300,8 +300,8 @@
                     <dd>Desktop VSync is on by default in both classic and HyperVision rendering. Use <code>0</code> to disable it, or <code>1</code> to explicitly enable it. Game speed and the rendering targets stay the same.</dd>
                 </div>
                 <div>
-                    <dt><code>RESTUNTS_RENDER_WORKERS=auto</code> — Try parallel HyperVision rendering.</dt>
-                    <dd>The default is <code>0</code> background workers. Select <code>1</code>–<code>7</code>, or <code>auto</code> for the logical CPU count minus one, capped at seven. Small scenes stay serial. Try this only if it improves measured performance on your machine; physics are unaffected.</dd>
+                    <dt><code>--multi-core:on/off</code> — Use multiple CPU cores for rendering.</dt>
+                    <dd>Off by default. Select Multi-core rendering in Graphics settings on desktop, Android, or web, or pass the parameter directly. SDL3 builds except DOS32 support it; browser threads require an isolated hosted page. Physics are unaffected. When enabled, <code>RESTUNTS_RENDER_WORKERS</code> overrides the background worker count for measurements.</dd>
                 </div>
             </dl>
             <p class="note">Linux/macOS example: <code>RESTUNTS_BORDERLESS=1 ./restunts</code>.<br>PowerShell example: <code>$env:RESTUNTS_BORDERLESS = '1'</code>, then run <code>.\restunts.exe</code>.</p>

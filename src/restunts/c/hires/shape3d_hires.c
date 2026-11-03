@@ -15,37 +15,41 @@
 
 #include "shape3d_hires_internal.h"
 
-struct SHAPE3D_HIRES_STATE shape3d_hires_state = {
+struct SHAPE3D_HIRES_STATE shape3d_hires_main_state = {
 	.shadow_light_z = 1,
 	.shadow_light_cotangent = HIRES_CAR_SHADOW_SUN_COTANGENT,
 	.model_scale = 1,
 };
 
-static void hires_reserve_primitives(legacy_u32 index)
+legacy_s32 shape3d_hires_reserve_primitives(legacy_u32 index)
 {
 	if (index < shape3d_hires_state.primitive_capacity) {
-		return;
+		return 1;
 	}
 	size_t capacity = shape3d_hires_state.primitive_capacity != 0
 						  ? shape3d_hires_state.primitive_capacity
-						  : HIRES_INITIAL_PRIMITIVE_CAPACITY;
+					  : shape3d_hires_thread_state != NULL ? HIRES_GEOMETRY_INITIAL_PRIMITIVES
+														   : HIRES_INITIAL_PRIMITIVE_CAPACITY;
 	while (capacity <= index) {
 		if (capacity > LEGACY_S32_MAX / 2U) {
-			fatal_error("HyperVision scene has too many shape3d_hires_state.primitives");
-			return;
+			shape3d_hires_geometry_error(
+				"HyperVision scene has too many shape3d_hires_state.primitives");
+			return 0;
 		}
 		capacity *= 2U;
 	}
 	if (capacity > (size_t)-1 / sizeof(*shape3d_hires_state.primitives) ||
 		capacity > (size_t)-1 / sizeof(*shape3d_hires_state.shapes)) {
-		fatal_error("HyperVision scene exceeds addressable memory");
-		return;
+		shape3d_hires_geometry_error("HyperVision scene exceeds addressable memory");
+		return 0;
 	}
 	struct HIRES_PRIMITIVE *new_primitives = calloc(capacity, sizeof(*new_primitives));
 	struct HIRES_SHAPE *new_shapes = calloc(capacity, sizeof(*new_shapes));
 	if (new_primitives == NULL || new_shapes == NULL) {
-		fatal_error("Cannot allocate HyperVision scene geometry");
-		return;
+		free(new_primitives);
+		free(new_shapes);
+		shape3d_hires_geometry_error("Cannot allocate HyperVision scene geometry");
+		return 0;
 	}
 	if (shape3d_hires_state.primitive_capacity != 0) {
 		memcpy(new_primitives, shape3d_hires_state.primitives,
@@ -58,6 +62,7 @@ static void hires_reserve_primitives(legacy_u32 index)
 	shape3d_hires_state.primitives = new_primitives;
 	shape3d_hires_state.shapes = new_shapes;
 	shape3d_hires_state.primitive_capacity = (legacy_u32)capacity;
+	return 1;
 }
 
 static void hires_project_coordinates(legacy_f64 x, legacy_f64 y, legacy_f64 z,
@@ -239,7 +244,9 @@ legacy_s32 shape3d_hires_polygon_visible(legacy_u32 index, legacy_s32 cull_backf
 
 void shape3d_hires_begin_shape(legacy_u32 index, legacy_s32 depth_mode)
 {
-	hires_reserve_primitives(index);
+	if (!shape3d_hires_reserve_primitives(index)) {
+		return;
+	}
 	shape3d_hires_state.current_shape = index;
 	shape3d_hires_state.current_family = index + 1;
 	shape3d_hires_state.shapes[index].depth_mode = depth_mode;
@@ -248,7 +255,9 @@ void shape3d_hires_begin_shape(legacy_u32 index, legacy_s32 depth_mode)
 
 void shape3d_hires_set_shadow_receiver(legacy_s32 enabled)
 {
-	shape3d_hires_state.shapes[shape3d_hires_state.current_shape].shadow_receiver = enabled;
+	if (shape3d_hires_state.current_shape < shape3d_hires_state.primitive_capacity) {
+		shape3d_hires_state.shapes[shape3d_hires_state.current_shape].shadow_receiver = enabled;
+	}
 }
 
 void shape3d_hires_set_model_scale(legacy_f64 scale)
@@ -318,7 +327,9 @@ static void hires_queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 v
 								  const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	legacy_s32 scale = hires_render_scale();
-	hires_reserve_primitives(index);
+	if (!shape3d_hires_reserve_primitives(index)) {
+		return;
+	}
 	if (shape3d_hires_state.primitive_count <= index) {
 		shape3d_hires_state.primitive_count = index + 1U;
 	}

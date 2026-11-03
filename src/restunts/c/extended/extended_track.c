@@ -689,6 +689,26 @@ legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
 	return count;
 }
 
+legacy_u16 extended_track_objects_at_origin(legacy_s16 column, legacy_s16 row,
+											const struct CSTRK_OBJECT **objects,
+											legacy_u16 capacity)
+{
+	if (!storage || !objects || capacity == 0 || column < 0 || row < 0 ||
+		column >= current_track.width || row >= current_track.height) {
+		return 0;
+	}
+	legacy_u16 count = 0;
+	/* The origin chain is newest first. Prepend each entry to retain the same
+	 * tie order as a forward scan of the authored objects, including truncation. */
+	for (legacy_s32 index = storage->origin_heads[row * current_track.width + column]; index >= 0;
+		 index = storage->origin_next[index]) {
+		legacy_u16 shifted = count < capacity ? count++ : capacity - 1U;
+		memmove(objects + 1, objects, (size_t)shifted * sizeof(*objects));
+		objects[0] = &current_track.objects[index];
+	}
+	return count;
+}
+
 const struct CSTRK_OBJECT *extended_track_object_for_id(int column, int row, unsigned id)
 {
 	if (!storage || column < 0 || row < 0 || column >= current_track.width ||

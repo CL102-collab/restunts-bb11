@@ -11,6 +11,27 @@
 
 #include "hires_internal.h"
 
+#define HIRES_DEPTH_CLEAR_ROWS 32
+#define HIRES_DEPTH_CLEAR_MIN_AREA 262144U
+
+struct HIRES_DEPTH_CLEAR {
+	legacy_s32 left, right, top, bottom;
+};
+
+static void hires_depth_clear_job(void *argument, legacy_s32 index)
+{
+	const struct HIRES_DEPTH_CLEAR *clear = argument;
+	legacy_s32 top = clear->top + index * HIRES_DEPTH_CLEAR_ROWS;
+	legacy_s32 bottom = top + HIRES_DEPTH_CLEAR_ROWS;
+	if (bottom > clear->bottom) {
+		bottom = clear->bottom;
+	}
+	for (legacy_s32 y = top; y < bottom; y++) {
+		memset(hires_state.depth_family + (size_t)y * hires_state.render_width + clear->left, 0,
+			   (size_t)(clear->right - clear->left) * sizeof(*hires_state.depth_family));
+	}
+}
+
 /* Keep depth across the scene so overlapping tiles cannot paint through one
  * another. Family zero invalidates old depth without clearing the float array.
  * Bounds are clipped to the hires_state.active drawing target. */
@@ -64,9 +85,15 @@ void hires_depth_begin(legacy_s32 left, legacy_s32 right, legacy_s32 top, legacy
 	hires_state.depth_right = right;
 	hires_state.depth_top = top;
 	hires_state.depth_bottom = bottom;
-	for (legacy_s32 y = top; y < bottom; y++) {
-		memset(hires_state.depth_family + (size_t)y * hires_state.render_width + left, 0,
-			   (size_t)(right - left) * sizeof(*hires_state.depth_family));
+	struct HIRES_DEPTH_CLEAR clear = {left, right, top, bottom};
+	legacy_s32 count = (bottom - top + HIRES_DEPTH_CLEAR_ROWS - 1) / HIRES_DEPTH_CLEAR_ROWS;
+	if ((legacy_u32)(right - left) * (bottom - top) >= HIRES_DEPTH_CLEAR_MIN_AREA &&
+		hires_render_workers_count() != 0) {
+		hires_render_workers_run(count, hires_depth_clear_job, &clear);
+	} else {
+		for (legacy_s32 index = 0; index < count; index++) {
+			hires_depth_clear_job(&clear, index);
+		}
 	}
 }
 

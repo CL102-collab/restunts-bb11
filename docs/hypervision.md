@@ -76,6 +76,27 @@ transformation and clipping to move onto the GPU. The current boundary avoids
 introducing those abstractions before they are needed; it does not imply that
 software span resolution should be translated directly into Vulkan commands.
 
+## Multi-core rendering
+
+`--multi-core:on` enables a persistent worker pool; `--multi-core:off` is the
+default. The desktop, Android, and browser Graphics settings expose the same
+selection. DOS32 remains serial. Browser threads require a threaded build and
+cross-origin isolation, as described in [the browser guide](wasm.md).
+
+Extended-track terrain and objects are prepared in private geometry contexts.
+Jobs own their projected vertices, shape metadata, shadow receivers, origins,
+and bounding rectangles. The caller joins groups in the original submission
+order, remaps shape and depth-family indices, and inserts cars, start flags,
+and ghost lines at the same points as serial rendering. Material overrides and
+shadow receiver heights are resolved when groups join.
+
+Projected primitives then build private polygon-command buffers in parallel.
+An ordered prefix layout lets jobs copy into disjoint final command ranges.
+Visibility resolves in eight-row bands aligned with the logical pixel cells;
+depth clearing, skybox rows, and final ARGB composition also use disjoint jobs.
+All jobs join before buffers are resized, resources are retired, or SDL presents
+the frame. Small workloads retain serial paths.
+
 ## Physics, interpolation, and presentation
 
 Authoritative simulation, input sampling, and replay recording remain at their
@@ -167,11 +188,14 @@ not a CTest timing gate.
 
 ### Workers
 
-Existing desktop render workers remain opt-in: `RESTUNTS_RENDER_WORKERS=0` is the
-default, values `1` through `7` request background workers, and `auto` chooses a
-count from the detected logical CPUs. Small workloads can remain serial. DOS
-renders serially; worker creation failure retains the available-worker or serial
-fallback.
+Render workers are opt-in through `--multi-core:on` or the startup checkbox.
+With the default `--multi-core:off`, no workers are created, even if
+`RESTUNTS_RENDER_WORKERS` is set. Enabled rendering automatically selects the
+logical CPU count minus one; the calling thread also works. For controlled
+measurements, set `RESTUNTS_RENDER_WORKERS=0`, `1`, or `3` to compare one, two,
+or four total rendering threads. Small workloads can remain serial. DOS renders
+serially; worker creation failure retains available workers or serial execution.
+Browser workers require a threaded build and an isolated page.
 
 Compare serial execution with one background worker on the two-core target.
 Retain parallel work only when its complete-frame elapsed-time benefit outweighs
@@ -179,7 +203,46 @@ scheduling, synchronization, and extra CPU cost. Results from the previous
 SuperSight worker implementation are historical evidence, not a performance
 claim for HyperVision.
 
-### Results
+### Glacier multi-core measurements (2026-11-03)
+
+A Linux Release build with GCC 14.2 measured the supplied `glacier.cstrk` at the
+race start, Countach cockpit view, Full HyperVision at 1280x800. Each batch used
+eight warmup frames and 240 measured frames, including final ARGB composition.
+CPU affinity selected separate physical cache groups. Forward and reverse
+batches produced these averages:
+
+| Physical cores used | Render ms/frame | Throughput relative to one core |
+| --- | ---: | ---: |
+| 1 | 24.062 | 1.000x |
+| 2 | 15.695 | 1.533x |
+| 3 | 11.602 | 2.074x |
+
+The individual one-to-two-core gains were 52.2% and 54.8%, meeting the 50% target.
+The VM exposes five logical CPUs but only three independent physical cache
+groups, with a four-CPU quota. It cannot establish two-to-four-physical-core
+scaling or a 90–95% gain per doubling. These are renderer throughput results;
+display upload, physics, audio, frame pacing and VSync are excluded.
+
+The original serial renderer averaged 28.68 ms in the same scene. Complete
+serial/parallel ARGB comparisons match for Glacier in both cameras at all three
+resolutions, and for all 18 DEFAULT replay cases. Glacier's full-size cockpit
+frame hash is `503c8616` with zero, one, and three background workers.
+
+Reproduce the supplied-track case with:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts --multi-core:on \
+    --compose --track /path/to/glacier.cstrk 240
+```
+
+Set the worker count to `0`, `1`, or `2` and use CPU affinity for one, two,
+or three physical cores. `--all-views` tests both cameras at all three
+resolutions. Enabling workers also performs a complete serial/parallel pixel
+comparison before each timed case. The replay form accepts `--start-only` to
+restrict measurements to the initial cockpit at 1280x800.
+
+### Earlier results
 
 A paired Linux Release comparison on 2026-10-01 used GCC 13.3 (`-O3`, the same
 instruction-set baseline), a KVM guest with three virtual CPUs reporting an
@@ -256,10 +319,18 @@ reports process CPU time, not a guaranteed FPS increase.
 
 ## Validation
 
-The native Linux Release build and optional benchmark build pass. All 23 CTest
-suites pass, including the host regressions, projection/visibility tests,
-worker consistency, horizon artwork at every resolution, inverted sampling,
-track-preview composition, interpolation, and presentation controls.
+The native Linux Release build and optional benchmark build pass. All 82 native
+CTest suites pass, including host regressions, projection/visibility, worker
+consistency, horizon artwork, track previews, interpolation, and presentation.
+Geometry tests compare ordered serial/parallel scenes, live vertices, shape and
+depth-family remapping, shadows, material overrides, origins, shared bounding
+rectangles and serial callbacks. Composition tests compare faded overlays and
+padded output rows at every scale.
+
+AddressSanitizer and UndefinedBehaviorSanitizer pass the worker/backend/geometry
+suites and all six Glacier camera/resolution cases, including pixel comparisons.
+Focused ThreadSanitizer builds pass the worker tests and full geometry suite;
+SDL and unrelated native archives were reused without TSan instrumentation.
 
 The replay harness compares complete authoritative state and RNG values with
 classic rendering, HyperVision, repeated renderer switching, and adaptive quality
@@ -267,7 +338,9 @@ changes. DEFAULT (10 Hz), DEFCRSH, 0A0A, HARDLAND, and SHAKING (20 Hz fixtures)
 produce identical records across all four modes. Extra interpolated frames cover
 ordinary playback, a hard landing, and a loop exit without changing physics.
 
-The visibility backend and geometry suites also pass AddressSanitizer and
-UndefinedBehaviorSanitizer with leak detection. Source formatting, EditorConfig,
-CRLF, and whitespace checks pass. Windows, DOS, and WebAssembly cross-builds
-were not run in this environment.
+Source formatting, EditorConfig, CRLF, and whitespace checks pass. Browser Release
+builds with and without threading compile; the threaded build passes Chromium
+smoke checks with actual renderer workers. The serial build passes on ordinary
+HTTP; this environment's browser policy blocks local-file navigation. Windows,
+DOS, and Android native cross-builds were not run here. Desktop launcher code
+compiles and links, and Android Java launch-option regressions pass.

@@ -2,11 +2,15 @@
 #define RESTUNTS_SHAPE3D_HIRES_INTERNAL_H
 
 #include "shape3d_hires.h"
+#include "../shape3d/shape3d.h"
 #if defined(RESTUNTS_SDL3)
 #include "hires.h"
 #include "hypervision.h"
+#include "render_workers.h"
 #include <stddef.h>
 
+#define HIRES_GEOMETRY_INITIAL_PRIMITIVES 32U
+#define HIRES_GEOMETRY_RECTANGLE_COUNT 2U
 #define HIRES_NEAR_CLIP_Z 12
 #define HIRES_CLIP_ROUNDING_MARGIN 8
 /* Keep the original displayed pixel width through medium-close views,
@@ -42,6 +46,7 @@ struct HIRES_PRIMITIVE {
 };
 
 struct HIRES_PAINT {
+	struct HIRES_BACKEND_BUFFER *buffer;
 	struct HIRES_BACKEND_MATERIAL material;
 	legacy_s32 scale;
 };
@@ -119,7 +124,18 @@ struct SHADOW_SILHOUETTE_POINT {
 	legacy_f64 x, z;
 };
 
+struct HIRES_GEOMETRY_RECTANGLE {
+	struct RECTANGLE *destination;
+	struct RECTANGLE value;
+};
+
 struct SHAPE3D_HIRES_STATE {
+	struct SHAPE3D_HIRES_VECTOR geometry_origin;
+	struct HIRES_GEOMETRY_RECTANGLE rectangles[HIRES_GEOMETRY_RECTANGLE_COUNT];
+	legacy_u32 rectangle_count;
+	struct HIRES_BACKEND_SCENE_PRIMITIVE *scene;
+	legacy_u32 scene_count, scene_capacity;
+	const legacy_char *allocation_error;
 	struct HIRES_CAR_SHADOW car_shadows[HIRES_CAR_SHADOW_COUNT];
 	legacy_s32 car_shadow_count;
 	legacy_s32 shadow_model_pending;
@@ -145,7 +161,13 @@ struct SHAPE3D_HIRES_STATE {
 	legacy_s32 batching;
 };
 
-extern struct SHAPE3D_HIRES_STATE shape3d_hires_state;
+extern struct SHAPE3D_HIRES_STATE shape3d_hires_main_state;
+extern RESTUNTS_RENDER_THREAD_LOCAL struct SHAPE3D_HIRES_STATE *shape3d_hires_thread_state;
+#define shape3d_hires_state                                                                        \
+	(*(shape3d_hires_thread_state != NULL ? shape3d_hires_thread_state : &shape3d_hires_main_state))
+void shape3d_hires_geometry_error(const legacy_char *message);
+void shape3d_hires_geometry_shutdown(void);
+legacy_s32 shape3d_hires_reserve_primitives(legacy_u32 index);
 void shape3d_hires_project_intersection(const struct SHAPE3D_HIRES_VECTOR *first,
 										const struct SHAPE3D_HIRES_VECTOR *second,
 										struct SHAPE3D_HIRES_POINT *point);

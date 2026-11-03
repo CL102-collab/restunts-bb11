@@ -219,6 +219,23 @@ static legacy_s16 fixed_queue_cost;
 #endif
 
 #if defined(RESTUNTS_SDL3)
+/* Frame scheduling fixtures use serial renderer substitutes. Real geometry
+ * worker ownership and pixel parity are covered by test-shape3d-hires. */
+legacy_s32 hires_render_workers_count(void)
+{
+	return 0;
+}
+
+void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32),
+								void (*joined)(void *, legacy_s32), void *context)
+{
+	(void)count;
+	(void)job;
+	(void)joined;
+	(void)context;
+	assert(0 && "Serial frame fixtures must not dispatch geometry workers");
+}
+
 legacy_u16 frame_callback_count;
 legacy_s8 *lookahead_tiles_tables[8];
 

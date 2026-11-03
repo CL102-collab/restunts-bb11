@@ -37,6 +37,10 @@ const struct CSTRK_OBJECT *extended_track_object_at(int column, int row);
 /* Includes unclaimed cells inside each piece's full footprint rectangle. */
 legacy_u16 extended_track_objects_in_cell(legacy_s16 column, legacy_s16 row,
 										  const struct CSTRK_OBJECT **objects, legacy_u16 capacity);
+/* Objects anchored at the cell, in authored order. Copies at most capacity. */
+legacy_u16 extended_track_objects_at_origin(legacy_s16 column, legacy_s16 row,
+											const struct CSTRK_OBJECT **objects,
+											legacy_u16 capacity);
 const struct CSTRK_OBJECT *extended_track_object_for_id(int column, int row, unsigned id);
 unsigned extended_track_object_id(const struct CSTRK_OBJECT *object);
 /* Modifier-aware route metadata; ordinary pieces retain their native blocks. */

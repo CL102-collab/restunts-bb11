@@ -20,6 +20,11 @@
 #define CALLBACK_DOS_HELP_ALT_KEY 24
 
 #define STARTUP_OGG_MUSIC_PREFIX "--ogg:"
+#if defined(RESTUNTS_SDL3) && !defined(__DJGPP__)
+#define STARTUP_MULTI_CORE_PREFIX "--multi-core:"
+#define STARTUP_MULTI_CORE_OFF 0U
+#define STARTUP_MULTI_CORE_ON 1U
+#endif
 #if defined(RESTUNTS_SDL3) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) &&                 \
 	!defined(__DJGPP__)
 #define STARTUP_FULLSCREEN_PREFIX "--fullscreen:"
@@ -51,6 +56,10 @@ struct STARTUP_OPTIONS {
 	legacy_u8 hires_specified;
 	legacy_u8 ogg_music_enabled;
 	legacy_u8 ogg_music_specified;
+#ifndef __DJGPP__
+	legacy_u8 multi_core_enabled;
+	legacy_u8 multi_core_specified;
+#endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	legacy_u8 fullscreen_enabled;
 	legacy_u8 fullscreen_specified;

@@ -1,6 +1,6 @@
 # Browser / WebAssembly build
 
-The SDL3 platform also builds with Emscripten. The output is one offline
+The SDL3 platform also builds with Emscripten. The output is one self-contained
 `restunts.html`: JavaScript, WebAssembly, enhanced artwork, and any supplied
 optional Ogg Vorbis music replacements are embedded. The Tesla Roadster and
 McMurtry custom cars are bundled under `/assets/cars/`. **No original game data is
@@ -21,9 +21,20 @@ cmake --build out/sdl3-wasm
 
 Use `emsdk_env.bat` in a Windows command prompt. This build uses the same pinned
 SDL3 source as native builds. Native dump tools and native regressions are not
-built for the browser. No pthreads, shared memory, server headers, CDN, or network
-requests are needed at runtime. Emscripten's single-file output and embedded
-artwork avoid requests for neighboring `.wasm`, `.js`, or `.data` files.
+built for the browser. The default `RESTUNTS_WASM_THREADS=OFF` build supports
+offline `file://` play and renders serially. For multi-core rendering, configure
+a separate build with `-DRESTUNTS_WASM_THREADS=ON`. This threaded build requires
+shared memory and cross-origin isolation. Serve it over HTTPS or localhost with
+both headers:
+
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+The default offline build needs no server, shared memory, or isolation headers. The multi-core checkbox explains when
+threading is unavailable. Both builds embed their runtime assets and avoid
+requests for neighboring `.wasm`, `.js`, or `.data` files.
 
 To embed replacement music, add any of `titl.ogg`, `slct.ogg`, `over.ogg`, and
 `vict.ogg` to `assets/music/` before configuring CMake. These replace title,
@@ -78,10 +89,10 @@ WebAssembly; entries in these formats appear red in its load dialogs.
 
 ## Play from a website or offline
 
-You can open a hosted `restunts.html` directly in your browser; saving a copy
-is optional. For offline play, save the HTML file anywhere on your device and
-open it in your browser. `file://` is supported, so a local web server is not
-needed. The HTML's location does not determine where the game looks for data.
+Open the threaded `restunts.html` from an isolated HTTPS or localhost website.
+For offline play, use the build configured with `RESTUNTS_WASM_THREADS=OFF`,
+save its HTML anywhere on your device, and open it in your browser. That serial
+build supports `file://` without a local web server. The HTML's location does not determine where the game looks for data.
 
 1. Have your own Broderbund Stunts 1.1 game files in a folder on your device.
 2. Click **Choose game folder** and select the folder containing those files.
@@ -94,8 +105,9 @@ needed. The HTML's location does not determine where the game looks for data.
    **New MIDI** selects Ogg replacement music (`--ogg:on`); uncheck it for
    original AdLib music (`--ogg:off`). It is enabled by default.
    **Graphics settings** contains **Show FPS** (`--fps:on`),
-   **Show Control Layout** (`--control-layout:on`), and the **HyperVision**
-   selector, in that order. HyperVision offers **Off**, **Auto**, **Full**,
+   **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
+   (`--multi-core:on/off`, initially off), and the **HyperVision** selector.
+   Multi-core rendering requires the threaded build and an isolated page. HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
    Off starts without HyperVision. Show FPS starts off. Show Control Layout
@@ -228,8 +240,9 @@ fullscreen shortcut assigned to F11. **Shift+F10** switches between New MIDI
 and original AdLib music during the intro, menus, and race-end/victory screens.
 
 The browser presents frames through SDL3's WebGL renderer and uses WebAudio
-output. Scene rendering runs on the CPU and is serial;
-`RESTUNTS_RENDER_WORKERS` does not enable threads. Asyncify preserves the existing
+output. Scene rendering runs on the CPU. **Multi-core rendering** uses
+background CPU workers in threaded builds; it defaults to off. Offline builds
+render serially. Asyncify preserves the existing
 nested game/menu loops. Browser waits share one scheduler: explicit waits also
 satisfy the bounded input/presentation yield interval, and SDL's additional
 implicit sleeps are disabled. Each wait resumes through a `MessageChannel` task
@@ -317,7 +330,11 @@ Both the pacing driver and full smoke test accept `--serve` to use a temporary
 loopback HTTP server when browser policy prevents local-file navigation. This
 mode exercises the same functional assertions and rejects runtime dependencies,
 but does not verify offline `file://` access. Omitting `--serve` preserves the
-offline-file test.
+offline-file test. For a threaded build, use `--serve --multi-core`; the temporary
+server supplies isolation headers and the test checks that renderer workers
+actually start. `--serve --no-isolation` checks the serial build without those
+headers. Add `--track /path/to/glacier.cstrk` to load an extended track as the
+startup track in browser memory while leaving the input game folder unchanged.
 Add `--idle-only` to check that the main-menu idle demo starts and keeps playing;
 this waits for the normal idle timeout and requires `DEFAULT.RPL` in the supplied folder.
 

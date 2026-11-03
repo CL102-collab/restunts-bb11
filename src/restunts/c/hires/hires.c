@@ -526,15 +526,31 @@ const legacy_u8 *hires_framebuffer(const legacy_u8 *legacy, legacy_s32 *width, l
 	return hires_state.framebuffer;
 }
 
-static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
-							   const struct HIRES_SURFACE *surface, legacy_u32 *destination,
-							   legacy_s32 pitch)
+#define HIRES_COMPOSE_JOB_ROWS 8
+#define HIRES_COMPOSE_JOB_COUNT                                                                    \
+	((HIRES_LOGICAL_HEIGHT + HIRES_COMPOSE_JOB_ROWS - 1) / HIRES_COMPOSE_JOB_ROWS)
+
+struct HIRES_COMPOSE_JOB {
+	const legacy_u8 *legacy;
+	const legacy_u32 *palette;
+	const struct HIRES_SURFACE *surface;
+	legacy_u32 *destination;
+	legacy_s32 pitch;
+};
+
+static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_s32 top,
+									legacy_s32 bottom)
 {
+	const legacy_u8 *legacy = job->legacy;
+	const legacy_u32 *palette = job->palette;
+	const struct HIRES_SURFACE *surface = job->surface;
+	legacy_u32 *destination = job->destination;
+	legacy_s32 pitch = job->pitch;
 	/* Palette entry 15 is the menu's white. Match its fade so artwork follows
 	 * the same black-to-white transition as the original indexed pixels. */
 	legacy_u32 fade = palette[HIRES_MENU_WHITE_INDEX];
 	const legacy_s32 scale = hires_state.render_scale, cell_shift = hires_state.render_cell_shift;
-	for (legacy_s32 y = 0; y < HIRES_LOGICAL_HEIGHT; y++) {
+	for (legacy_s32 y = top; y < bottom; y++) {
 		for (legacy_s32 x = 0; x < HIRES_LOGICAL_WIDTH; x++) {
 			legacy_u32 offset = y * HIRES_LOGICAL_WIDTH + x;
 			legacy_u8 valid = surface != NULL ? surface->valid[offset] : HIRES_CELL_EMPTY;
@@ -581,6 +597,33 @@ static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palett
 				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
 			}
 		}
+	}
+}
+
+static void hires_compose_argb_job(void *argument, legacy_s32 index)
+{
+	const struct HIRES_COMPOSE_JOB *job = argument;
+	legacy_s32 top = index * HIRES_COMPOSE_JOB_ROWS;
+	legacy_s32 bottom = top + HIRES_COMPOSE_JOB_ROWS;
+	if (bottom > HIRES_LOGICAL_HEIGHT) {
+		bottom = HIRES_LOGICAL_HEIGHT;
+	}
+	hires_compose_argb_rows(job, top, bottom);
+}
+
+static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
+							   const struct HIRES_SURFACE *surface, legacy_u32 *destination,
+							   legacy_s32 pitch)
+{
+	struct HIRES_COMPOSE_JOB job = {legacy, palette, surface, destination, pitch};
+	/* Composition reads frozen surfaces and owns complete output rows. Leave
+	 * unusual overlapping pitches and the smallest framebuffer serial. */
+	if (hires_state.render_scale > HIRES_MINIMUM_SCALE &&
+		pitch >= (legacy_s32)(hires_state.render_width * sizeof(*destination)) &&
+		hires_render_workers_count() != 0) {
+		hires_render_workers_run(HIRES_COMPOSE_JOB_COUNT, hires_compose_argb_job, &job);
+	} else {
+		hires_compose_argb_rows(&job, 0, HIRES_LOGICAL_HEIGHT);
 	}
 }
 

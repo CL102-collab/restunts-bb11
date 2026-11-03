@@ -5,7 +5,7 @@
 #include "../c/legacy.h"
 
 enum {
-	TEST_MAX_WORKERS = 7,
+	TEST_MAX_WORKERS = 63,
 	TEST_RESOURCE_BUDGET = TEST_MAX_WORKERS + 1,
 	TEST_JOB_COUNT = 97,
 	TEST_JOB_PASSES = 3,
@@ -106,6 +106,7 @@ static void configure_workers(const legacy_char *setting)
 		assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS", setting,
 										  true));
 	}
+	hires_render_workers_set_enabled(1);
 	thread_budget = TEST_RESOURCE_BUDGET;
 	semaphore_budget = TEST_RESOURCE_BUDGET;
 	created_threads = 0;
@@ -121,18 +122,34 @@ legacy_int main(void)
 	for (legacy_u32 setting = 0; setting < sizeof(defaults) / sizeof(defaults[0]); setting++) {
 		for (legacy_u32 index = 0; index < sizeof(cores) / sizeof(cores[0]); index++) {
 			configure_workers(defaults[setting]);
+			hires_render_workers_set_enabled(0);
 			detected_cores = cores[index];
 			assert(hires_render_workers_count() == 0);
 			check_jobs(0);
 			assert(created_threads == 0 && created_semaphores == 0);
 		}
 	}
+	/* Disabled always stays serial, even when a diagnostic override requests jobs. */
+	configure_workers("auto");
+	hires_render_workers_set_enabled(0);
+	detected_cores = TEST_RESOURCE_BUDGET;
+	assert(hires_render_workers_count() == 0);
+	check_jobs(0);
+	assert(created_threads == 0 && created_semaphores == 0);
 	for (legacy_u32 index = 0; index < sizeof(cores) / sizeof(cores[0]); index++) {
 		configure_workers("auto");
 		detected_cores = cores[index];
 		assert(hires_render_workers_count() == expected[index]);
 		check_jobs(expected[index]);
 	}
+	configure_workers(NULL);
+	detected_cores = TEST_FAILURE_LIMIT;
+	check_jobs(TEST_FAILURE_LIMIT - 1);
+	hires_render_workers_set_enabled(0);
+	assert(live_semaphores == 0);
+	check_jobs(0);
+	hires_render_workers_set_enabled(1);
+	check_jobs(TEST_FAILURE_LIMIT - 1);
 	/* Resource exhaustion keeps the workers already created, or runs serially. */
 	for (legacy_s32 available = 0; available < TEST_FAILURE_LIMIT; available++) {
 		configure_workers("auto");
@@ -149,8 +166,8 @@ legacy_int main(void)
 		assert(hires_render_workers_count() == expected_workers);
 	}
 	const legacy_char *settings[] = {
-		"0",	   "1",	 "2",		 "7", "999",
-		"invalid", "-2", "2workers", " ", "999999999999999999999999999999999999",
+		"0",	   "1",	 "2",		 "63", "999",
+		"invalid", "-2", "2workers", " ",  "999999999999999999999999999999999999",
 		"auto2"};
 	const legacy_s32 configured[] = {0, 1, 2, TEST_MAX_WORKERS, TEST_MAX_WORKERS, 0, 0, 0, 0, 0, 0};
 	detected_cores = 1;

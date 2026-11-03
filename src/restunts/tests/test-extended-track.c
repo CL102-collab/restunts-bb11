@@ -1378,6 +1378,15 @@ static void test_shared_road_anchor(void)
 	assert(extended_track_object_at(40, 40)->legacy_id == 4);
 	assert(extended_track_object_for_id(40, 40, 13)->width == 2);
 	assert(extended_track_object_for_id(40, 40, 4)->width == 1);
+	const struct CSTRK_OBJECT *objects[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	assert(extended_track_objects_at_origin(40, 40, objects, EXTENDED_TRACK_CELL_OBJECT_MAX) == 2);
+	assert(objects[0]->legacy_id == 13 && objects[1]->legacy_id == 4);
+	assert(extended_track_objects_at_origin(40, 40, objects, 1) == 1);
+	assert(objects[0]->legacy_id == 13);
+	assert(extended_track_objects_at_origin(39, 40, objects, EXTENDED_TRACK_CELL_OBJECT_MAX) == 0);
+	assert(extended_track_objects_at_origin(-1, 40, objects, EXTENDED_TRACK_CELL_OBJECT_MAX) == 0);
+	assert(extended_track_objects_at_origin(40, 40, objects, 0) == 0);
+	assert(extended_track_objects_at_origin(40, 40, NULL, EXTENDED_TRACK_CELL_OBJECT_MAX) == 0);
 	result = track_setup();
 	if (result != 0) {
 		fprintf(stderr, "Shared-anchor road route failed %d at %u,%u\n", result,

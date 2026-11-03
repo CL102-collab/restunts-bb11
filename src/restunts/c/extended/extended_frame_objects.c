@@ -235,11 +235,11 @@ legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRA
 	const struct CSTRK_TRACK *track = extended_track_model();
 	tile->last_east = tile->east;
 	tile->last_south = tile->south;
-	for (legacy_u32 index = 0; index < track->object_count; index++) {
-		const struct CSTRK_OBJECT *object = &track->objects[index];
-		if (object->x != tile->east || object->y != tile->south) {
-			continue;
-		}
+	const struct CSTRK_OBJECT *objects[EXTENDED_TRACK_CELL_OBJECT_MAX];
+	legacy_u16 count = extended_track_objects_at_origin(tile->east, tile->south, objects,
+														EXTENDED_TRACK_CELL_OBJECT_MAX);
+	for (legacy_u16 index = 0; index < count; index++) {
+		const struct CSTRK_OBJECT *object = objects[index];
 		legacy_u32 id = extended_track_object_id(object);
 		if (id >= TRACK_OBJECT_COUNT) {
 			continue;

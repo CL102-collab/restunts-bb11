@@ -1,17 +1,25 @@
 #include "render_workers.h"
 
-#if !defined(__DJGPP__) && !defined(__EMSCRIPTEN__)
+#if !defined(__DJGPP__) && (!defined(__EMSCRIPTEN__) || defined(__EMSCRIPTEN_PTHREADS__))
 #include <SDL3/SDL_atomic.h>
 #include <SDL3/SDL_cpuinfo.h>
 #include <SDL3/SDL_mutex.h>
 #include <SDL3/SDL_thread.h>
 #include <errno.h>
 #include <stdlib.h>
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/threading.h>
+#endif
 
-/* Serial rendering avoids worker scheduling overhead by default. Explicit
- * requests and automatic CPU detection share a bounded worker pool. */
+/* The startup option gates all worker creation. Once enabled, automatic CPU
+ * detection or an explicit diagnostic count shares the persistent pool. */
 #define RENDER_DEFAULT_WORKERS 0
+#if defined(__EMSCRIPTEN__)
+/* Leave one preloaded browser thread available to SDL. */
 #define RENDER_MAX_WORKERS 7
+#else
+#define RENDER_MAX_WORKERS 63
+#endif
 #define RENDER_WORKERS_AUTO "auto"
 
 struct RENDER_WORKER {
@@ -22,6 +30,7 @@ struct RENDER_WORKER {
 static struct RENDER_WORKER hires_workers[RENDER_MAX_WORKERS];
 static SDL_Semaphore *hires_completed;
 static SDL_AtomicInt hires_next_job;
+static legacy_s32 hires_enabled;
 static legacy_s32 hires_initialized;
 static legacy_s32 hires_worker_count;
 static legacy_s32 hires_stopping;
@@ -56,10 +65,7 @@ static legacy_int SDLCALL hires_worker_main(void *argument)
 static legacy_s32 hires_requested_workers(void)
 {
 	const legacy_char *setting = SDL_getenv("RESTUNTS_RENDER_WORKERS");
-	if (setting == NULL || *setting == 0) {
-		return RENDER_DEFAULT_WORKERS;
-	}
-	if (SDL_strcmp(setting, RENDER_WORKERS_AUTO) == 0) {
+	if (setting == NULL || *setting == 0 || SDL_strcmp(setting, RENDER_WORKERS_AUTO) == 0) {
 		legacy_s32 cores = SDL_GetNumLogicalCPUCores();
 		if (cores <= 1) {
 			return RENDER_DEFAULT_WORKERS;
@@ -81,6 +87,14 @@ static void hires_initialize_workers(void)
 		return;
 	}
 	hires_initialized = 1;
+	if (!hires_enabled) {
+		return;
+	}
+#if defined(__EMSCRIPTEN__)
+	if (!emscripten_has_threading_support()) {
+		return;
+	}
+#endif
 	legacy_s32 requested = hires_requested_workers();
 	if (requested <= 0) {
 		return;
@@ -132,6 +146,15 @@ void hires_render_workers_shutdown(void)
 	hires_stopping = 0;
 }
 
+void hires_render_workers_set_enabled(legacy_u8 enabled)
+{
+	legacy_s32 requested = enabled != 0;
+	if (requested != hires_enabled) {
+		hires_render_workers_shutdown();
+		hires_enabled = requested;
+	}
+}
+
 legacy_s32 hires_render_workers_run(legacy_s32 count, void (*job)(void *, legacy_s32),
 									void *context)
 {
@@ -163,6 +186,11 @@ legacy_s32 hires_render_workers_run(legacy_s32 count, void (*job)(void *, legacy
 	return used;
 }
 #else
+void hires_render_workers_set_enabled(legacy_u8 enabled)
+{
+	(void)enabled;
+}
+
 legacy_s32 hires_render_workers_count(void)
 {
 	return 0;

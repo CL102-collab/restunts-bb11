@@ -16,8 +16,13 @@ emcmake cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-Open `build/restunts.html` directly in a browser. The relink step embeds all
-enhanced artwork again and needs neither a web server nor the original game source.
+The relink inherits the original package's `RESTUNTS_WASM_THREADS` setting.
+For a threaded package, serve `build/restunts.html` over HTTPS or localhost with
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`. For a serial offline package, open
+`build/restunts.html` directly in a browser. The relink embeds enhanced artwork
+again and does not need the original game source. Changing the thread setting
+requires rebuilding the supplied application and SDL objects from source.
 When the original package layout is retained, configuration also copies the
 standalone `tracked.html` editor beside the rebuilt game. If you move this relink
 directory separately, copy the packaged `tracked.html` beside `build/restunts.html`

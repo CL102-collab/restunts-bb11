@@ -33,7 +33,7 @@ static void hires_draw_line(const struct SHAPE3D_HIRES_POINT *first,
 												{x, y + 1, first->inverse_z}};
 		struct HIRES_BACKEND_MATERIAL material = paint->material;
 		material.flags |= HIRES_BACKEND_GROUND_CLIP;
-		hires_backend_polygon(point, 4, &material);
+		hires_backend_polygon_to(paint->buffer, point, 4, &material);
 		return;
 	}
 	legacy_f64 first_radius = projected_width * first->inverse_z / 2;
@@ -63,12 +63,15 @@ static void hires_draw_line(const struct SHAPE3D_HIRES_POINT *first,
 		 first->inverse_z}};
 	struct HIRES_BACKEND_MATERIAL material = paint->material;
 	material.flags |= HIRES_BACKEND_GROUND_CLIP;
-	hires_backend_polygon(points, 4, &material);
+	hires_backend_polygon_to(paint->buffer, points, 4, &material);
 }
 
 static void hires_draw_polygon(const struct SHAPE3D_HIRES_POINT *points, legacy_u32 count,
 							   legacy_f64 padding, const struct HIRES_PAINT *paint)
 {
+	if (count > HIRES_BACKEND_MAX_VERTICES) {
+		return;
+	}
 	if (count < 3U) {
 		if (count != 0U) {
 			hires_draw_line(&points[0], &points[count - 1U], 0, paint);
@@ -80,7 +83,7 @@ static void hires_draw_polygon(const struct SHAPE3D_HIRES_POINT *points, legacy_
 		vertices[index] = (struct HIRES_BACKEND_VERTEX){points[index].x, points[index].y,
 														points[index].inverse_z};
 	}
-	hires_backend_polygon(vertices, count, &paint->material);
+	hires_backend_polygon_to(paint->buffer, vertices, count, &paint->material);
 	/* Thin authored decals retain a visible stroke without the former per-pixel
 	 * distance/coverage search over every polygon edge. */
 	if (padding > 0) {
@@ -158,9 +161,9 @@ static void hires_draw_wheel(const struct HIRES_PRIMITIVE *primitive, struct HIR
 	hires_draw_polygon(inner, count, 0, &paint);
 }
 
-static void hires_render_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 color,
-								   legacy_u16 second_color, legacy_u16 third_color,
-								   legacy_u16 pattern_type, legacy_u16 pattern)
+void shape3d_hires_render_to(struct HIRES_BACKEND_BUFFER *buffer, legacy_u32 index, legacy_u8 type,
+							 legacy_u16 color, legacy_u16 second_color, legacy_u16 third_color,
+							 legacy_u16 pattern_type, legacy_u16 pattern)
 {
 	if (index >= shape3d_hires_state.primitive_capacity ||
 		shape3d_hires_state.primitives[index].count == 0) {
@@ -169,6 +172,7 @@ static void hires_render_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 
 	const struct HIRES_PRIMITIVE *primitive = &shape3d_hires_state.primitives[index];
 	const struct HIRES_SHAPE *shape = &shape3d_hires_state.shapes[primitive->shape];
 	struct HIRES_PAINT paint = {
+		buffer,
 		{index + 1U, color, second_color, pattern, (legacy_u8)pattern_type, 0},
 		hires_render_scale()};
 	if (shape->depth_mode == SHAPE3D_HIRES_DEPTH_BACKGROUND) {
@@ -237,7 +241,8 @@ void shape3d_hires_render(legacy_u32 index, legacy_u8 type, legacy_u16 color,
 		hires_backend_begin(shape3d_hires_state.ground_enabled ? &shape3d_hires_state.ground_plane
 															   : NULL);
 	}
-	hires_render_primitive(index, type, color, second_color, third_color, pattern_type, pattern);
+	shape3d_hires_render_to(NULL, index, type, color, second_color, third_color, pattern_type,
+							pattern);
 	if (!shape3d_hires_state.batching) {
 		hires_finish_commands(1);
 	}

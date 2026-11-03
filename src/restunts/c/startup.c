@@ -2,6 +2,9 @@
 #include <stdarg.h>
 #ifdef RESTUNTS_SDL3
 #include "renderer/settings.h"
+#ifndef __DJGPP__
+#include "hires/render_workers.h"
+#endif
 #include "../platform/sdl3/music.h"
 #include "../platform/sdl3/video_game.h"
 #ifndef __ANDROID__
@@ -154,6 +157,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
+#ifndef __DJGPP__
+	options->multi_core_enabled = STARTUP_MULTI_CORE_OFF;
+	options->multi_core_specified = 0;
+#endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	options->fullscreen_enabled = SDL3_STARTUP_FULLSCREEN_OFF;
 	options->fullscreen_specified = 0;
@@ -170,6 +177,10 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	for (legacy_u16 i = 1; argc > i; ++i) {
 #ifdef RESTUNTS_SDL3
 		hires_settings_parse_startup(argv[i], options);
+#ifndef __DJGPP__
+		startup_parse_boolean(argv[i], STARTUP_MULTI_CORE_PREFIX, "Multi-core rendering",
+							  &options->multi_core_enabled, &options->multi_core_specified);
+#endif
 		startup_parse_boolean(argv[i], STARTUP_OGG_MUSIC_PREFIX, "Ogg music",
 							  &options->ogg_music_enabled, &options->ogg_music_specified);
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
@@ -310,6 +321,9 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
+#ifndef __DJGPP__
+	hires_render_workers_set_enabled(startup_options.multi_core_enabled);
+#endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	sdl3_video_set_startup_fullscreen(startup_options.fullscreen_enabled);
 #endif

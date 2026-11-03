@@ -5,7 +5,7 @@ const http = require('node:http');
 
 // Serve only the single-file test artifact. The game and fixtures must still
 // embed their own runtime assets; this endpoint provides no dependency files.
-async function serveHtml(filename) {
+async function serveHtml(filename, { isolated = true } = {}) {
     const content = await fs.readFile(filename);
     const server = http.createServer((request, response) => {
         // Browsers probe this independently of the standalone artifact. Keep
@@ -21,6 +21,10 @@ async function serveHtml(filename) {
             return;
         }
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
+        if (isolated) {
+            response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+            response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        }
         response.end(content);
     });
     await new Promise((resolve, reject) => {
