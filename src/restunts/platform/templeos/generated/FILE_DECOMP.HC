@@ -731,11 +731,6 @@ legacy_u8 *RsFileDecomp(legacy_s8 *filename,legacy_s16 fatal)
   return RsFileDecompInternal(filename,TempleCastS16(fatal),TempleCastU16(0));
 }
 
-legacy_u8 *RsFileDecompFatal(legacy_s8 *filename)
-{
-  return RsFileDecomp(filename,TempleCastS16(1));
-}
-
 legacy_u8 *RsFileDecompNofatal(legacy_s8 *filename)
 {
   return RsFileDecomp(filename,TempleCastS16(0));

@@ -14,7 +14,6 @@ struct EXTENDED_REPLAY_BUFFER {
 
 void extended_replay_init(struct EXTENDED_REPLAY_BUFFER *buffer);
 void extended_replay_free(struct EXTENDED_REPLAY_BUFFER *buffer);
-int extended_replay_reserve(struct EXTENDED_REPLAY_BUFFER *buffer, uint32_t capacity);
 int extended_replay_assign(struct EXTENDED_REPLAY_BUFFER *buffer, const uint8_t *inputs,
 						   uint32_t count);
 int extended_replay_append(struct EXTENDED_REPLAY_BUFFER *buffer, uint8_t input);

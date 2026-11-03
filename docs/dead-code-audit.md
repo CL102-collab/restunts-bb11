@@ -2,7 +2,8 @@
 
 Revalidated on 2026-11-03 against `cont-driv-3`, starting at
 `d129e8d67096f863108437853a6ad266b8b49d29`. This report documents the completed
-cleanup and its validation.
+cleanup and its validation. That cleanup was committed as `3df26b0c`; the further
+cleanup against that revision is documented in the follow-up section.
 
 The original audit covered `314803863f6bc39b4f71489dce6b4f50fa274b35` on
 2026-10-30. Subsequent source splits moved several functions and renamed the
@@ -120,7 +121,7 @@ Current-source checks found eight more zero-caller functions:
 - Macro- and assembly-facing arithmetic/resource routines remain when callers
   exist through those interfaces.
 
-## Generated TempleOS output
+## Generated TempleOS output: first cleanup
 
 Shared-source changes require regeneration with `tools/TRANSLATE.PY` and the
 pinned dependencies documented in the port README; generated files are not edited
@@ -134,7 +135,7 @@ camera-continuation cherry-pick. Complete regeneration includes that existing
 source change alongside this cleanup. Baseline-versus-current translation is
 compared separately to distinguish cleanup from numbering and pre-existing drift.
 
-## Validation
+## Validation: first cleanup
 
 - Configured native Linux targets build successfully; the launcher is disabled
   for the headless environment.
@@ -162,3 +163,98 @@ Guest execution on DOS, Amiga, or TempleOS was not performed. Native-generated
 interfaces and translated source were checked as described above. Replay capture
 and generated-scope evidence is retained locally under ignored
 `out/dead-code-baseline/` and `out/dead-code-generated-scope.txt`.
+
+## Follow-up audit against `3df26b0c`
+
+A second pass on 2026-11-03 checked the remaining shared and platform functions,
+private state, runtime fields, declarations, and tool references. It starts at
+`3df26b0c16551c2e8a8e3246516cddd999392454`. The completed changes and their
+validation are documented below.
+
+### Additional unused APIs removed
+
+The follow-up removes 24 unused API names. Counts below refer to names, since the
+video wrapper had separate implementations on several platforms.
+
+| Area | Removed APIs |
+| --- | --- |
+| Sprites and rasterization | `sprite_set_clip_bounds`, `draw_two_color_pattern_lines`, `shape2d_rle_mask_at_anchor`, `shape2d_rle_mask`, `shape2d_rle_copy_at_anchor`, `shape2d_rle_copy_anchor_clipped`, `sprite_putimage_at_shape_anchor`, `sprite_capture_at_anchor`, `shape2d_copy_at_anchor`, `shape2d_mask_at_anchor`, `file_get_shape2d_identifier`, `wheel_fill_polygon` |
+| File loading | `file_decomp_fatal`, `file_decomp_paras_fatal` |
+| Timing | `timer_custom_delta`, `timer_reset` |
+| Audio | `audioresource_copy_4_bytes`, `audio_play_effect`, `audio_play_engine_start`, `audio_play_engine_stop`, `audio_play_engine_failure` |
+| Platform video | `video_get_status`: SDL3, DOS, Amiga, and handwritten TempleOS wrapper |
+| Ghost generation | `genghost_maneuver_name` and its only dependency `extended_genghost_maneuver_name` |
+
+Two exclusively owned static sprite adapters were also removed:
+`shape2d_render_rle_at_anchor` and `sprite_shape_to_1_at_anchor`. Shared anchor
+math and the live masked/OR drawing paths remain.
+
+The generic decompression helpers and their fatal branches still have callers.
+Actual video polling uses `dos_video_get_status`, which remains on all platforms.
+The live extended route-height implementation also remains. The public
+`genghost_route_piece_height` wrapper was restored because upstream barrel-repair
+scoring now calls it. Assembly references to the removed wrappers belong to the
+isolated original-engine target, which links its own original definitions.
+
+The audio sequence regression now calls the live rate-aware effect helper with
+the same current rate. Only the three obsolete engine convenience cases were
+removed from the feedback test; live effects, engine initialization, and native
+audio assertions remain. The classic audio fingerprint is unchanged.
+
+### Write-only state and stale declarations removed
+
+- Private startup `unused_nd_option` storage. `/nd` remains an accepted no-op;
+  startup regression traces and other option assertions remain unchanged.
+- Unread `pspofs`, `pspseg`, and `reserved_race_word` storage and assignments.
+  DOS process-information and memory APIs remain; only discarded copies are gone.
+- Unused `rect_ingame_text3` and `rect_ingame_text4` rectangles.
+- Write-only `direction_sector_sine_copy` and `direction_sector_cosine_copy`,
+  including their duplicate pure trigonometric calls. Live thresholds remain.
+- Permanently zero `replay_legacy_play_active` and
+  `replay_legacy_fast_play_active`, and their unreachable pause-selection branch.
+  Replay control drawing and normal input handling remain.
+- `EXTENDED_REPLAY_CLOCKS.opponent_end` and `GENGHOST_MANEUVER.feature_begin`.
+  These were assigned but never consumed. The clock and maneuver structures are
+  internal, with no corresponding raw on-disk format or packed driver ABI.
+- The declaration-only `unused_legacy_word` and 16 stale string/error externs
+  without definitions or callers.
+
+Two live implementation helpers, `extended_replay_reserve` and
+`extended_track_rebind`, are now private. Their implementations remain; unused
+public declarations and a test stub were removed.
+
+The tool cleanup removes an unused `shutil` import from
+`analyze-genghost-stunts.py`, `SPEC_SOURCE` alias from the McMurtry generator,
+`REGISTERS` set from `prepare-wasm-original.py`, and `RULE_LEGACY_COLLISION`
+constant from `test-genghost-extended.py`.
+
+### Interfaces deliberately retained
+
+Callback registration/removal and the default-SI player-tick adapter still support
+meaningful lifecycle and compatibility checks. Audio finish-callback and byte-copy
+helpers support native pointer-marshaling tests; packed audio fields and layouts
+are unchanged. `mcmurtry_dashboard.SHAPE_HEADER_SIZE` is a live re-export consumed
+by the generator and remains imported. Renderer shutdown ownership and fixture
+construction APIs remain as documented above.
+
+### Follow-up validation
+
+- Configured native Linux targets build successfully.
+- Focused startup, decompression, memory, race, sprite, audio, and extended replay
+  tests pass, as do all 17 WASM preparation tests and McMurtry asset verification.
+  Startup and classic audio fingerprints remain unchanged.
+- Before/after comparison against the immediate `3df26b0c` baseline preserves all
+  241 game-state/RNG records in each of four modes and all 4,031 full-frame pixel
+  digests. The compared library matches the current native build byte-for-byte.
+- Full TempleOS regeneration passes `--check`, all 25 translator cleanup tests,
+  and the HolyC style check. It updates 153 generated files; after normalizing
+  temporary names, only 22 contain substantive changes. Shared DOS/TempleOS
+  function definitions decrease from 2,268 to 2,245.
+- Pinned C/H formatting, EditorConfig, file endings/modes, and whitespace checks
+  pass. Packed audio layouts, original-engine assembly, and third-party sources
+  remain unchanged.
+- All 74 CTest checks pass in one run with timeout multiplier 3, including
+  the host suite, ghost searches, platform, audio, replay, and rendering checks.
+
+Local before/after captures and normalized generated-scope evidence are retained
+under ignored `out/dead-code-round2/`.

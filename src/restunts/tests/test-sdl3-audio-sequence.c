@@ -11,10 +11,12 @@
 #include "../platform/sdl3/sdl3.h"
 #include "../platform/sdl3/music.h"
 
-extern legacy_s16 audio_play_effect(void *resource, legacy_s16 channel, legacy_u8 priority);
+extern legacy_s16 audio_play_effect_at_rate(void *resource, legacy_s16 channel, legacy_u8 priority,
+											legacy_u16 rate);
 
 #define SEQUENCE_COMMAND(command) (AUDIO_SEQUENCE_COMMAND_BASE + AUDIO_SEQUENCE_COMMAND_##command)
 #define TEST_CHANNEL AUDIO_EFFECT_CHANNEL_FIRST
+#define TEST_EFFECT_PRIORITY 64U
 #define TEST_INSTRUMENT_BYTES 94U
 #define TEST_BANK_BYTES 512U
 #define TEST_FIXTURE_BYTES (TEST_BANK_BYTES * 2U)
@@ -169,7 +171,8 @@ static void check_missing_note(legacy_u8 kind, legacy_u8 volume, legacy_s32 dire
 	dos_audio_uses_direct_channels = (legacy_u8)direct;
 	audio_reset_channels();
 	struct sequence_fixture fixture = make_fixture(kind, volume, "TEST");
-	assert(audio_play_effect(fixture.header, TEST_CHANNEL, 64) == TEST_CHANNEL);
+	assert(audio_play_effect_at_rate(fixture.header, TEST_CHANNEL, TEST_EFFECT_PRIORITY,
+									 audio_effect_rate) == TEST_CHANNEL);
 	struct AUDIO_CHANNEL *channel = &audio_channels[TEST_CHANNEL];
 	assert(audio_read_far_pointer((legacy_u8 *)&channel->cursor) == fixture.events);
 	assert(channel->active_notes == 0);

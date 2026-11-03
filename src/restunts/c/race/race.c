@@ -100,7 +100,6 @@ static void race_initialize_state(void)
 			dashb_toggle = 1;
 			show_penalty_counter = 0;
 			init_game_state_with_frame_rate(configured_frame_rate);
-			reserved_race_word = 0;
 			replay_overflow_acknowledged_word = LEGACY_S16_FROM_BITS(
 				LEGACY_U16_REPLACE_LOW_BYTE(replay_overflow_acknowledged_word, 0U));
 			race_start_sequence_state = RACE_START_SEQUENCE_FLAG_ANIMATION;

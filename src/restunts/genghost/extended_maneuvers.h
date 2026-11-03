@@ -4,7 +4,6 @@
 #include "maneuvers.h"
 struct CARSTATE;
 
-const legacy_char *extended_genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind);
 legacy_int extended_genghost_slalom_flight_allowed(const struct GENGHOST_MANEUVER *action);
 legacy_int extended_genghost_maneuver_skip_feature(const struct GENGHOST_MANEUVER *feature);
 legacy_int extended_genghost_maneuver_preserves_inputs(const struct GENGHOST_DRIVER *driver,

@@ -1054,7 +1054,6 @@ class CStartupOptions
 {
   legacy_u8 mode4_requested;
   legacy_u8 sound_disabled;
-  legacy_u8 unused_nd_option;
   legacy_u8 skip_intro;
   legacy_u8 fps_display_enabled;
   legacy_u8 fps_display_specified;

@@ -599,11 +599,6 @@ void skybox_fill_polygon(legacy_u16 color, legacy_u16 vertex_count, struct POINT
 	preRender_default(color, vertex_count, vertices);
 }
 
-void wheel_fill_polygon(legacy_u16 color, legacy_u16 vertex_count, struct POINT2D vertices[])
-{
-	preRender_default_alt(color, vertex_count, vertices);
-}
-
 void preRender_two_color(legacy_u16 pattern, legacy_u16 color, legacy_u16 alternate_color,
 						 legacy_u16 vertex_count, const struct POINT2D *vertices)
 {

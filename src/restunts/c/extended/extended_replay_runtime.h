@@ -11,7 +11,6 @@ struct EXTENDED_REPLAY_CLOCKS {
 	uint32_t player_finish;
 	uint32_t opponent_finish;
 	uint32_t player_end;
-	uint32_t opponent_end;
 	uint32_t penalty;
 };
 

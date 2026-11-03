@@ -198,7 +198,6 @@ extern legacy_u8 race_start_sequence_state;
 extern legacy_u8 game_replay_mode;
 extern legacy_s16 start_flag_animation;
 
-extern legacy_s16 unused_legacy_word;		 // Unused legacy declaration.
 extern legacy_s16 checkpoint_frame_interval; // fps * 30
 extern legacy_s16 timer_ticks_per_frame;	 // 100 / fps
 extern legacy_s16 track_angle;
@@ -221,7 +220,6 @@ extern legacy_s8 recording_limit_warning_requested;
 extern legacy_s8 dashb_toggle;
 extern legacy_s8 dashboard_buffer_index;
 extern legacy_s8 show_penalty_counter;
-extern legacy_s16 reserved_race_word;
 extern legacy_s16 replay_overflow_acknowledged_word;
 extern legacy_s8 mouse_driving_enabled;
 extern void far *gameresptr;
@@ -315,18 +313,7 @@ extern legacy_s8 idle_expired;
 extern legacy_u16 dialog_border_color;
 extern legacy_s8 replay_directory[];
 extern legacy_s8 replay_recording_flags;
-extern legacy_s8 main_resource_name[];
 extern legacy_s8 random_wait_legacy_bytes[];
-extern legacy_s8 default_font_filename[];
-extern legacy_s8 compact_font_filename[];
-extern legacy_s8 track_arena_resource_name[];
-extern legacy_s8 default_track_name[];
-extern legacy_s8 checkpoint_resource_name[];
-extern legacy_s8 track_editor_resource_wildcard[];
-extern legacy_s8 selection_song_id[];
-extern legacy_s8 selection_instrument_resource_name[];
-extern legacy_s8 selection_music_resource_name[];
-extern legacy_s8 main_exit_dialog_id[];
 
 extern legacy_u16 framespersec;
 extern legacy_u16 configured_frame_rate;
@@ -334,8 +321,6 @@ extern legacy_u16 slow_video_mgmt;
 extern legacy_u16 slow_video_mgmt_copy;
 extern legacy_u8 detail_level;
 
-extern legacy_u16 pspofs;
-extern legacy_u16 pspseg;
 extern legacy_u16 mmgr_arena_end_segment;
 extern legacy_u16 mmgr_arena_start_segment;
 
@@ -350,11 +335,6 @@ extern legacy_u16 slow_timer_deadline_high;
 extern void(far *exitlistfuncs[])(void);
 extern const legacy_s8 exit_handler_overflow_message[];
 
-extern const legacy_s8 resource_slot_exhaustion_message[];
-extern const legacy_s8 resource_arena_exhaustion_message[];
-extern const legacy_s8 resource_block_missing_message[];
-extern const legacy_s8 resource_resize_memory_exhaustion_message[];
-extern const legacy_s8 resource_resize_non_top_block_message[];
 extern const legacy_s8 file_read_error_format[];
 extern const legacy_s8 file_write_error_format[];
 extern const legacy_s8 file_size_error_format[];

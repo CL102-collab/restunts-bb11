@@ -45,8 +45,6 @@ const struct TRKOBJINFO *extended_track_route_info(legacy_s16 column, legacy_s16
 												   legacy_u16 id);
 /* Graphical height at a map cell's fractional point, measured in 1/1024 tile. */
 legacy_s16 extended_track_elevation(int column, int row, int local_x, int local_y);
-/* Called after init_trackdata has installed the ordinary pointers. */
-void extended_track_rebind(void);
 #else
 #define extended_track_active() 0
 #define extended_track_width() 30

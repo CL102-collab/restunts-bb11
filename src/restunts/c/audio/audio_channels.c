@@ -389,11 +389,6 @@ legacy_s16 audio_play_effect_at_rate(void far *resource, legacy_s16 channel, leg
 	return channel;
 }
 
-legacy_s16 audio_play_effect(void far *resource, legacy_s16 channel, legacy_u8 priority)
-{
-	return audio_play_effect_at_rate(resource, channel, priority, (legacy_u16)audio_effect_rate);
-}
-
 legacy_s16 audio_reserve_effect_channel(legacy_s16 channel, legacy_u8 priority)
 {
 	if (channel == -1) {
@@ -460,12 +455,6 @@ static legacy_s16 audio_start_indexed_event(legacy_s16 index, legacy_u16 resourc
 	return channel;
 }
 
-void audio_play_engine_start(legacy_s16 index)
-{
-	audio_start_indexed_event(index, 2U, AUDIO_EFFECT_DEFAULT_PRIORITY);
-	audio_timers[index].restart_engine = 1;
-}
-
 static void audio_start_impact_event(legacy_s16 index, legacy_u16 resource_index,
 									 legacy_u8 priority)
 {
@@ -494,18 +483,6 @@ void audio_play_scrape(legacy_s16 index)
 void audio_play_crash_and_stop_engine(legacy_s16 index)
 {
 	audio_start_impact_event(index, 5U, AUDIO_EFFECT_HIGH_PRIORITY);
-	audio_stop_engine(index);
-}
-
-void audio_play_engine_stop(legacy_s16 index)
-{
-	audio_start_indexed_event(index, 3U, AUDIO_EFFECT_DEFAULT_PRIORITY);
-	audio_stop_engine(index);
-}
-
-void audio_play_engine_failure(legacy_s16 index)
-{
-	audio_start_indexed_event(index, 4U, AUDIO_EFFECT_DEFAULT_PRIORITY);
 	audio_stop_engine(index);
 }
 

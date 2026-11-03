@@ -81,14 +81,6 @@ legacy_s8 *pad_id(const legacy_s8 far *source)
 	return (legacy_s8 *)destination;
 }
 
-void audioresource_copy_4_bytes(legacy_u8 far *destination, const legacy_u8 far *source)
-{
-	destination[0] = source[0];
-	destination[1] = source[1];
-	destination[2] = source[2];
-	destination[3] = source[3];
-}
-
 static void audio_append_filename_part(legacy_s8 *destination, const legacy_s8 *source)
 {
 	while (*destination != 0) {

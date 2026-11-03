@@ -8,11 +8,6 @@
 #define MANEUVER_EXTENDED_POSITION_SCALE 64.0
 #define MANEUVER_EXTENDED_COORDINATE_LIMIT 32767.0
 
-const legacy_char *extended_genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind)
-{
-	return kind == GENGHOST_MANEUVER_BARREL_ROLL ? "barrel roll" : NULL;
-}
-
 legacy_int extended_genghost_slalom_flight_allowed(const struct GENGHOST_MANEUVER *action)
 {
 	/* A combined slalom has a roof, so an ordinary over-stone flight cannot

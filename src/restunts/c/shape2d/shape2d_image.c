@@ -180,11 +180,6 @@ void sprite_clear_shape(struct SHAPE2D far *shape)
 	sprite_clear_shape_impl(shape, shape2d_get_pos_x(shape), shape2d_get_pos_y(shape));
 }
 
-void sprite_capture_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	sprite_clear_shape_impl(shape, shape2d_anchored_x(shape, x), shape2d_anchored_y(shape, y));
-}
-
 static legacy_u16 shape2d_scaled_anchor(legacy_u16 anchor, legacy_u16 scale)
 {
 	legacy_s32 product =
@@ -513,26 +508,9 @@ void sprite_shape_to_1_alt(struct SHAPE2D far *shape)
 						   SHAPE2D_RASTER_COPY);
 }
 
-static void sprite_shape_to_1_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y,
-										legacy_s16 operation)
-{
-	sprite_shape_to_1_impl(shape, shape2d_anchored_x(shape, x), shape2d_anchored_y(shape, y),
-						   operation);
-}
-
-void shape2d_copy_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	sprite_shape_to_1_at_anchor(shape, x, y, SHAPE2D_RASTER_COPY);
-}
-
 void putpixel_iconMask(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
 {
 	sprite_shape_to_1_impl(shape, (legacy_u16)x, (legacy_u16)y, SHAPE2D_RASTER_AND);
-}
-
-void shape2d_mask_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	sprite_shape_to_1_at_anchor(shape, x, y, SHAPE2D_RASTER_AND);
 }
 
 void putpixel_iconFillings(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
