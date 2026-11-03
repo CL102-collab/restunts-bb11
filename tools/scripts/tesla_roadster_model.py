@@ -414,7 +414,7 @@ _CANOPY = (
 )
 
 
-def _canopy(shape: _Shape, simple: bool) -> None:
+def _canopy(shape: _Shape) -> None:
     for front, back in zip(_CANOPY, _CANOPY[1:]):
         z, lw, ly, rw, ry, cy = front
         bz, blw, bly, brw, bry, bcy = back
@@ -457,7 +457,7 @@ def _canopy(shape: _Shape, simple: bool) -> None:
                               PAINT_TOP, flags=2, facing=(side, 1, 0))
 
 
-def _rear(shape: _Shape, simple: bool) -> None:
+def _rear(shape: _Shape) -> None:
     # Narrowed corners and the sloping lower bumper continue the side's
     # tumble-under into a recessed diffuser, under a flush red light blade.
     shape.polygon(((-14.8, 8.1, -37), (14.8, 8.1, -37),
@@ -489,8 +489,8 @@ def _car(scale: int, *, simple: bool = False) -> _Shape:
     shape = _Shape(scale)
     _controls(shape)
     _body(shape, simple)
-    _canopy(shape, simple)
-    _rear(shape, simple)
+    _canopy(shape)
+    _rear(shape)
     return shape
 
 

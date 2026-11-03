@@ -136,7 +136,7 @@ static legacy_uint test_maneuver_rules(const legacy_u8 *inputs, legacy_uint pref
 			struct GENGHOST_SNAPSHOT before, after;
 			genghost_sim_capture(&before);
 			struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-			size_t count = genghost_maneuvers(&routes.routes[r], &driver, &policy, pg, lc, owoot,
+			size_t count = genghost_maneuvers(&routes.routes[r], &driver, &policy, pg, owoot,
 											  actions, GENGHOST_MANEUVER_CAPACITY);
 			assert(count > 0U && count <= GENGHOST_MANEUVER_CAPACITY);
 			assert(actions[0].kind == GENGHOST_MANEUVER_FOLLOW);
@@ -251,8 +251,8 @@ static void test_slalom_proposal_geometry(void)
 				struct GENGHOST_SNAPSHOT before, after;
 				genghost_sim_capture(&before);
 				struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-				size_t count = genghost_maneuvers(&route, &driver, &policy, 1, collision, owoot,
-												  actions, GENGHOST_MANEUVER_CAPACITY);
+				size_t count = genghost_maneuvers(&route, &driver, &policy, 1, owoot, actions,
+												  GENGHOST_MANEUVER_CAPACITY);
 				legacy_uint centers = 0U, jumps = 0U, landings = 0U;
 				for (size_t i = 0U; i < count; ++i) {
 					const struct GENGHOST_MANEUVER *action = &actions[i];
@@ -330,9 +330,8 @@ static void test_slalom_continuation(const struct GENGHOST_OPTIONS *options,
 	struct GENGHOST_POLICY policy;
 	genghost_policy_default(&policy);
 	struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-	size_t count =
-		genghost_maneuvers(route, &driver, &policy, options->powergear, options->collision,
-						   options->owoot, actions, GENGHOST_MANEUVER_CAPACITY);
+	size_t count = genghost_maneuvers(route, &driver, &policy, options->powergear, options->owoot,
+									  actions, GENGHOST_MANEUVER_CAPACITY);
 	size_t chosen = count;
 	for (size_t i = 0U; i < count; ++i) {
 		if (actions[i].kind ==

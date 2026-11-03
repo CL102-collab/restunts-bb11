@@ -37,7 +37,6 @@ extern const legacy_s8 headless_pack_error[];
 #define FILE_COMBINE_PATH_SIZE 80
 #define RESOURCE_NAME_BUFFER_SIZE 80
 
-#define RS_RLE_ESCLEN_MAX 16
 #define RS_RLE_ESCLOOKUP_LEN 256
 #define RS_RLE_ESCSEQ_POS 1
 

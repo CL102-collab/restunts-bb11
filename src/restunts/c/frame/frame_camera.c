@@ -239,10 +239,8 @@ void frame_draw_clouds(struct FRAME_CAMERA *camera, legacy_s8 redraw_transform_f
 				if (currenttransshape->pos.z > FRAME_DISTANT_SHAPE_MIN_DEPTH) {
 					currenttransshape->shapeptr = cloud_shapes[cloud_index];
 					currenttransshape->rotvec.z = LEGACY_S16_WRAP_NEGATE(camera->yaw);
-					legacy_s16 transform_result =
-						shape3d_transform_and_queue(&currenttransshape[0]);
 					// we cannot be out of memory as we are just starting to process
-					(void)transform_result;
+					(void)shape3d_transform_and_queue(&currenttransshape[0]);
 				}
 			}
 		}

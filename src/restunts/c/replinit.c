@@ -69,7 +69,6 @@ void init_trackdata(void)
 	track_route_rows = trkptr;
 	trkptr += TRACKDATA_MAP_SIZE;
 	roadside_sign_shape_indices = (legacy_u8 far *)trkptr;
-	trkptr += TRACKDATA_OBJECT_INDEX_SIZE;
 }
 
 void reset_race_loop_state(void)

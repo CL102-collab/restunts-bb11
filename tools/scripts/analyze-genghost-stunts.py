@@ -387,7 +387,7 @@ def trace(args, row, objects, environment):
     return result
 
 
-def summarize(traces, cases):
+def summarize(traces):
     success = [row for row in traces if row.get("independent_playback_verified")]
     indexed = [{"replay": row["replay"], "track": row["track"], "car": row["car"],
                 "total_frames": row["total_frames"], "penalty_frames": row["penalty_frames"],
@@ -522,7 +522,7 @@ def main():
                 print(f"Measured {index + 1}/{len(selected)}", flush=True)
     if input_provenance(args) != provenance:
         raise ValueError("Engine, archive, resources or metadata changed during analysis")
-    summary = summarize(traces, tuning)
+    summary = summarize(traces)
     HUMAN.write_json(analysis_provenance_path, analysis_provenance)
     HUMAN.write_json(args.output / "analysis.json", summary)
     print(json.dumps({key: value for key, value in summary.items() if key not in ("events", "airborne", "paired_human_comparisons")}, indent=2))
