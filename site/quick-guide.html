@@ -301,7 +301,7 @@
                 </div>
                 <div>
                     <dt><code>--multi-core:on/off</code> — Use multiple CPU cores for rendering.</dt>
-                    <dd>Off by default. Select Multi-core rendering in Graphics settings on desktop, Android, or web, or pass the parameter directly. SDL3 builds except DOS32 support it; browser threads require an isolated hosted page. Physics are unaffected. When enabled, <code>RESTUNTS_RENDER_WORKERS</code> overrides the background worker count for measurements.</dd>
+                    <dd>On by default. Clear Multi-core rendering in Graphics settings or pass <code>--multi-core:off</code> for serial rendering. Saved choices are remembered. SDL3 builds except DOS32 support it; browser threads require a threaded build and an isolated hosted page, while offline builds stay serial. Physics are unaffected. When enabled, <code>RESTUNTS_RENDER_WORKERS</code> overrides the background worker count for measurements.</dd>
                 </div>
             </dl>
             <p class="note">Linux/macOS example: <code>RESTUNTS_BORDERLESS=1 ./restunts</code>.<br>PowerShell example: <code>$env:RESTUNTS_BORDERLESS = '1'</code>, then run <code>.\restunts.exe</code>.</p>

@@ -158,7 +158,7 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->ogg_music_enabled = 0;
 	options->ogg_music_specified = 0;
 #ifndef __DJGPP__
-	options->multi_core_enabled = STARTUP_MULTI_CORE_OFF;
+	options->multi_core_enabled = STARTUP_MULTI_CORE_ON;
 	options->multi_core_specified = 0;
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)

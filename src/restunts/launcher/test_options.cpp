@@ -52,7 +52,7 @@ legacy_int main()
 									 "--fullscreen:off",
 									 "--fps:off",
 									 "--controller-vibration:on",
-									 "--multi-core:off",
+									 "--multi-core:on",
 									 "--pg:on",
 									 "--lc:on",
 									 "--lcb:on",
@@ -75,7 +75,7 @@ legacy_int main()
 									"--controller-vibration:off",
 									"--fullscreen:on",
 									"--fps:on",
-									"--multi-core:on",
+									"--multi-core:off",
 									"--pg:off",
 									"--lc:off",
 									"--lcb:off",
@@ -135,14 +135,14 @@ legacy_int main()
 			restored.enabled[LAUNCHER_AMIGA_GRASS] == options.enabled[LAUNCHER_AMIGA_GRASS] &&
 			restored.enabled[LAUNCHER_OWOOT] == options.enabled[LAUNCHER_OWOOT],
 		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
-	check(!restored.enabled[LAUNCHER_MULTI_CORE],
-		  "Existing configurations must keep multi-core rendering off until selected.");
+	check(restored.enabled[LAUNCHER_MULTI_CORE],
+		  "Configurations without a saved multi-core setting must use the enabled default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
-			  !restored.enabled[LAUNCHER_FULLSCREEN] && !restored.enabled[LAUNCHER_MULTI_CORE] &&
+			  !restored.enabled[LAUNCHER_FULLSCREEN] && restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");

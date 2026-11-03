@@ -84,8 +84,8 @@ remembered; disabling Sound passes `/ns`, and selecting Skip intro passes
 `--nointro`. **Controls** contains the saved **Tilt steering** checkbox. The separate
 **Graphics settings** group contains **Show FPS** for the FPS/render-time display,
 **Show Control Layout** for the touch circles, **Multi-core rendering**
-(`--multi-core:on/off`, initially off), and finally the **HyperVision**
-selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
+(`--multi-core:on/off`, initially on unless a saved choice overrides it), and
+finally the **HyperVision** selector with **Off**, **Auto**, **Full**, **High**, **Medium**, and **Low** presets.
 Directly below it, **Driving rules** groups **Power Gear**, **Original Collision
 Bugs**, **Left Corner Bias**, **Dual-Way Switching**, **Chicane Fast-Grass**,
 **Amiga Grass**, and **OWOOT**. Each settings group

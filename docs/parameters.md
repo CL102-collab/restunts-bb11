@@ -77,7 +77,7 @@ engine. **Sound** enabled means `/ns` is omitted.
 
 | Option | Platforms with the implementation |
 | --- | --- |
-| Multi-core rendering `--multi-core:on/off` | SDL3 builds except DOS32. Off by default; exposed in desktop, Android, and web Graphics settings. Web requires a threaded build and an isolated page. |
+| Multi-core rendering `--multi-core:on/off` | SDL3 builds except DOS32. On by default; exposed in desktop, Android, and web Graphics settings. Web requires a threaded build and an isolated page. |
 | HyperVision `--hv:auto/full/high/medium/low` | All SDL3 builds, including Android, web, and DOS32. Classic ports use their native renderer and F12 SuperSight. |
 | Ogg replacement music `--ogg:on/off` | SDL3 builds. Android/web label this **New MIDI**. Web and desktop launcher default to on; direct native CLI defaults to off. |
 | Initial fullscreen `--fullscreen:on/off` | Windows, Linux, macOS, FreeBSD, OpenBSD, NetBSD, and Haiku SDL3 builds. Defaults to off. |
@@ -93,9 +93,10 @@ without a platform backend are not offered as working launcher choices.
 
 Multi-core names and values are case-insensitive. Supply the option once;
 invalid values or repeated options report an error before starting the game.
-The default is off, including when `RESTUNTS_RENDER_WORKERS` is set. With the
-option enabled, that environment variable can select a background worker count
-for measurements. Physics and replay data are independent of this setting.
+The default is on. `--multi-core:off` disables workers, including when
+`RESTUNTS_RENDER_WORKERS` is set. With the option enabled, that environment
+variable can select a background worker count for measurements. Launchers
+preserve saved choices. Physics and replay data are independent of this setting.
 
 Desktop fullscreen names and values are case-insensitive. Supply this option
 once; unknown values and repeated options report an error before creating the

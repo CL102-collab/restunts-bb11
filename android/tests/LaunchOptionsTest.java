@@ -24,7 +24,7 @@ public final class LaunchOptionsTest {
         require(!LaunchOptions.DEFAULT_SKIP_INTRO, "The intro must remain enabled by default.");
         require(!LaunchOptions.DEFAULT_TILT_STEERING, "Tilt steering must default to off.");
         require(!LaunchOptions.DEFAULT_SHOW_FPS, "FPS must default to hidden.");
-        require(!LaunchOptions.DEFAULT_MULTI_CORE, "Multi-core rendering must default to off.");
+        require(LaunchOptions.DEFAULT_MULTI_CORE, "Multi-core rendering must default to on.");
         require(LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, "Control layout must default to visible.");
         require(LaunchOptions.DEFAULT_POWER_GEAR, "Power gear must preserve its native default.");
         require(LaunchOptions.DEFAULT_LEGACY_COLLISION, "Original collision bugs must preserve their native default.");
@@ -47,25 +47,25 @@ public final class LaunchOptionsTest {
         requireArguments(new LaunchOptions(LaunchOptions.DEFAULT_NEW_MIDI,
             LaunchOptions.DEFAULT_SHOW_FPS, LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT,
             LaunchOptions.HyperVision.fromStored(null)),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, false, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:off", "--multi-core:off", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:off", "--multi-core:on", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:on", "--multi-core:off", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:on", "--multi-core:on", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, false, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.OFF),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.AUTO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:auto", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.FULL),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:full", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:high", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, true, LaunchOptions.HyperVision.MEDIUM),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:medium", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.LOW),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:low", "--control-layout:off", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.FULL,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false,
             true, false, true),
@@ -89,55 +89,55 @@ public final class LaunchOptionsTest {
                 "Invalid stored preset must fall back to Off.");
         }
         requireArguments(new LaunchOptions(false, false, true, null),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on", "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             false, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:off", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, false, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:off", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:off", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--amigagrass");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, LaunchOptions.DEFAULT_SOUND,
             LaunchOptions.DEFAULT_SKIP_INTRO),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "/ns");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false, true, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:on", "--cfg:on", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, false, true),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot", "/ns", "--nointro");
         requireArguments(new LaunchOptions(true, true, false, LaunchOptions.HyperVision.HIGH,
             false, false, false, true, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, true, true, true, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:off", "--hv:high", "--control-layout:off",
+            "--data-dir", DATA_DIRECTORY, "--ogg:on", "--fps:on", "--multi-core:on", "--hv:high", "--control-layout:off",
             "--pg:off", "--lc:off", "--lcb:off", "--dws:on", "--cfg:on", "--amigagrass", "--owoot");
         requireArguments(new LaunchOptions(false, false, true, LaunchOptions.HyperVision.OFF,
             true, true, true, false, LaunchOptions.DEFAULT_CHICANE_FAST_GRASS, false, false),
-            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:off", "--control-layout:on",
+            "--data-dir", DATA_DIRECTORY, "--ogg:off", "--fps:off", "--multi-core:on", "--control-layout:on",
             "--pg:on", "--lc:on", "--lcb:on", "--dws:off", "--cfg:on");
         for (boolean midi : new boolean[] {false, true}) {
             for (boolean fps : new boolean[] {false, true}) {

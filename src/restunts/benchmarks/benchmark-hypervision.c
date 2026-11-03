@@ -4,6 +4,7 @@
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
 #include "../c/hires/render_workers.h"
+#include "../c/startup_internal.h"
 #include "../c/extended/extended_file.h"
 #include "../platform/sdl3/sdl3.h"
 #include <errno.h>
@@ -39,7 +40,7 @@
 static legacy_s32 benchmark_compose;
 static legacy_s32 benchmark_start_only;
 static legacy_s32 benchmark_all_views;
-static legacy_u8 benchmark_multi_core;
+static legacy_u8 benchmark_multi_core = STARTUP_MULTI_CORE_ON;
 static const legacy_s8 *benchmark_track;
 static legacy_u32 benchmark_palette[LEGACY_U8_MAX + 1U];
 
@@ -104,7 +105,7 @@ static void benchmark_usage(const legacy_s8 *program)
 			"  REPLAY is a replay name without .rpl; FRAMES is a positive integer\n"
 			"  (default %u). Measures full-track geometry at 320x200, 640x400\n"
 			"  and 1280x800 in cockpit and external views at ticks 0, 80, 160.\n"
-			"  --multi-core:on enables parallel rendering (off by default).\n"
+			"  --multi-core:off disables parallel rendering (on by default).\n"
 			"  --compose also measures final ARGB framebuffer composition.\n"
 			"  --start-only measures full resolution cockpit view at tick 0.\n"
 			"  --track measures that view on a .cstrk track with the Countach.\n"

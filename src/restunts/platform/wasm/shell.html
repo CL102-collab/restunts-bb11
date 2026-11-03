@@ -93,7 +93,7 @@
             <div class="settings-row">
                 <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
-                <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" disabled> Multi-core rendering</label>
+                <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
                     <option value="off">Off</option>
@@ -794,6 +794,7 @@
 
         async function restoreLaunchOptions() {
             document.getElementById('show-control-layout').checked = isMobileDevice();
+            multiCore.checked = multiCoreAvailable();
             try {
                 const stored = await browserStorage(LAUNCH_OPTIONS_STORE, 'readonly');
                 if (!stored || typeof stored !== 'object') return;
