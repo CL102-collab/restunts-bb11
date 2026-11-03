@@ -550,8 +550,7 @@ static legacy_s16 player_steering_response(const struct CARSTATE *carstate,
 	return response;
 }
 
-static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering_input,
-								   legacy_u32 fraction20)
+static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering_input)
 {
 	legacy_s8 *response_table = steerWhlRespTable_ptr;
 	legacy_s16 steering_angle = carstate->car_steeringAngle;
@@ -581,13 +580,6 @@ static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering
 		}
 	}
 
-	legacy_u32 tick_fraction =
-		framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION : PHYSICS_FRACTION_ONE;
-	if (fraction20 != tick_fraction) {
-		response =
-			(legacy_s16)((legacy_s32)response * (legacy_s32)fraction20 / (legacy_s32)tick_fraction);
-	}
-
 	steering_angle = LEGACY_S16_WRAP_ADD(steering_angle, response);
 	if (steering_angle > STEERING_ANGLE_LIMIT) {
 		steering_angle = STEERING_ANGLE_LIMIT;
@@ -606,17 +598,7 @@ static void update_player_steering(struct CARSTATE *carstate, legacy_s8 steering
 
 void update_player_steering_input(legacy_s8 steering_input)
 {
-	legacy_u32 tick_fraction =
-		framespersec == GAME_FRAME_RATE_LOW ? PHYSICS_LOW_RATE_TICK_FRACTION : PHYSICS_FRACTION_ONE;
-	update_player_steering(&state.playerstate, steering_input, tick_fraction);
-}
-
-void update_player_steering_fraction(struct CARSTATE *carstate, legacy_s8 steering_input,
-									 legacy_u32 fraction20)
-{
-	if (fraction20 != 0) {
-		update_player_steering(carstate, steering_input, fraction20);
-	}
+	update_player_steering(&state.playerstate, steering_input);
 }
 
 static legacy_s16 route_average(legacy_s16 first, legacy_s16 second)

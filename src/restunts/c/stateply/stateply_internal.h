@@ -61,8 +61,6 @@ enum PLAYER_PHYSICS_POSE_VECTOR_INDEX {
 #define PLAYER_PHYSICS_ROADSIDE_SIGN_INDEX_NONE (-1)
 #define PLAYER_PHYSICS_OBJECT_PARTICLE_KIND_OFFSET 2
 
-/* A zero fraction leaves every authoritative 10/20 Hz operation unchanged.
- * Only the synchronous renderer wrapper installs a shorter 20 Hz time step. */
 /* Per-tick wheel geometry shared by contact correction and suspension. */
 struct PLAYER_WHEEL_MOTION {
 	struct VECTORLONG current[PLAYER_PHYSICS_WHEEL_COUNT];
@@ -75,17 +73,6 @@ struct PLAYER_WHEEL_MOTION {
 	legacy_s16 car_index;
 	struct VECTOR inverted_offset;
 };
-
-extern legacy_u32 player_motion_fraction;
-extern struct GAMESTATE *player_motion_state;
-
-legacy_s16 scale_player_fraction(legacy_s16 value, legacy_u32 fraction);
-
-legacy_s16 scale_player_motion(legacy_s16 value);
-
-legacy_u32 player_tick_fraction(void);
-
-void player_motion_crash(legacy_s16 crash_event, legacy_s16 car_index);
 
 void physics_position_to_vector(struct VECTOR *destination, const struct VECTORLONG *source);
 

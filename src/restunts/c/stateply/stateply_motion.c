@@ -17,59 +17,6 @@
 
 #include "stateply_internal.h"
 
-legacy_s16 scale_player_fraction(legacy_s16 value, legacy_u32 fraction)
-{
-	if (fraction == PHYSICS_FRACTION_ONE) {
-		return value;
-	}
-	legacy_s32 product = (legacy_s32)value * (legacy_s32)fraction;
-	legacy_s32 rounding = (legacy_s32)(PHYSICS_FRACTION_ONE / 2);
-	product += product < 0 ? -rounding : rounding;
-	return (legacy_s16)(product / (legacy_s32)PHYSICS_FRACTION_ONE);
-}
-
-legacy_s16 scale_player_motion(legacy_s16 value)
-{
-	return player_motion_fraction == 0 ? value
-									   : scale_player_fraction(value, player_motion_fraction);
-}
-
-legacy_u32 player_tick_fraction(void)
-{
-	/* Suspension recovery and slide rotation run once per original tick;
-	 * forward travel and gravity instead use a fixed 20 Hz unit. */
-	return framespersec == GAME_FRAME_RATE_LOW
-			   ? player_motion_fraction / (GAME_FRAME_RATE_NORMAL / GAME_FRAME_RATE_LOW)
-			   : player_motion_fraction;
-}
-
-/* A speculative impact changes only its disposable race. Sounds, particles,
- * result totals and race termination remain tied to authoritative updates. */
-void player_motion_crash(legacy_s16 crash_event, legacy_s16 car_index)
-{
-	if (player_motion_fraction == 0) {
-		update_crash_state(crash_event, car_index);
-		return;
-	}
-	struct CARSTATE *carstate = car_index == PLAYER_CAR_INDEX ? &player_motion_state->playerstate
-															  : &player_motion_state->opponentstate;
-	if (carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
-		return;
-	}
-	carstate->car_crashBmpFlag =
-		crash_event == CRASH_EVENT_IMMEDIATE_STOP ? CRASH_EVENT_COLLISION : crash_event;
-	if (car_index == PLAYER_CAR_INDEX) {
-		player_motion_state->game_pEndFrame = player_motion_state->game_frame;
-		player_motion_state->game_impactSpeed = carstate->car_actual_speed;
-	} else {
-		player_motion_state->game_oEndFrame = player_motion_state->game_frame;
-	}
-	if (crash_event == CRASH_EVENT_IMMEDIATE_STOP || crash_event == CRASH_EVENT_WATER) {
-		carstate->car_actual_speed = CAR_SPEED_STOPPED;
-		carstate->car_rev_speed = CAR_SPEED_STOPPED;
-	}
-}
-
 /* Hand a long-precision position back as the word-precision vector the rest
  * of the engine works with. */
 void physics_position_to_vector(struct VECTOR *destination, const struct VECTORLONG *source)
@@ -101,12 +48,11 @@ static void prepare_opponent_rear_wheel(struct VECTOR *wheel, struct VECTOR *rot
 										legacy_s16 y_adjustment)
 {
 	*wheel = simd_opponent.wheel_coords[wheel_index];
-	wheel->y = LEGACY_S16_WRAP_ADD(
-		LEGACY_S16_WRAP_NEGATE(LEGACY_S16_WRAP_ADD(
-			player_motion_state->opponentstate.car_suspension_deflection[wheel_index],
-			PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT)),
-		y_adjustment);
-	if ((player_motion_state->opponentstate.car_slide_yaw_delta & ANGLE_MASK) != 0) {
+	wheel->y = LEGACY_S16_WRAP_ADD(LEGACY_S16_WRAP_NEGATE(LEGACY_S16_WRAP_ADD(
+									   state.opponentstate.car_suspension_deflection[wheel_index],
+									   PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT)),
+								   y_adjustment);
+	if ((state.opponentstate.car_slide_yaw_delta & ANGLE_MASK) != 0) {
 		mat_mul_vector(wheel, angle_rotation, rotated);
 		*wheel = *rotated;
 	}
@@ -145,16 +91,15 @@ void initialize_working_car_pose(struct CARSTATE *carstate)
  * as headings. Keep that compatibility detail separate from normal motion. */
 static void restore_crash_wheel_headings(legacy_s16 *wheel_plane_headings)
 {
-	car_to_world_rotation =
-		*mat_rot_zxy(LEGACY_S16_WRAP_NEGATE(player_motion_state->opponentstate.car_rotate.z),
-					 LEGACY_S16_WRAP_NEGATE(player_motion_state->opponentstate.car_rotate.y),
-					 LEGACY_S16_WRAP_NEGATE(player_motion_state->opponentstate.car_rotate.x),
-					 MATRIX_ROTATION_ORDER_ZXY);
+	car_to_world_rotation = *mat_rot_zxy(LEGACY_S16_WRAP_NEGATE(state.opponentstate.car_rotate.z),
+										 LEGACY_S16_WRAP_NEGATE(state.opponentstate.car_rotate.y),
+										 LEGACY_S16_WRAP_NEGATE(state.opponentstate.car_rotate.x),
+										 MATRIX_ROTATION_ORDER_ZXY);
 	struct VECTOR transformed_vector;
 	legacy_s16 inverted_wheel_adjustment = 0;
 	struct VECTOR wheel_vector;
-	if (player_motion_state->opponentstate.car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE &&
-		player_motion_state->opponentstate.car_actual_speed <= PLAYER_PHYSICS_LOW_SPEED_LIMIT) {
+	if (state.opponentstate.car_sumSurfAllWheels != CAR_WHEEL_CONTACT_NONE &&
+		state.opponentstate.car_actual_speed <= PLAYER_PHYSICS_LOW_SPEED_LIMIT) {
 		wheel_vector.x = 0;
 		wheel_vector.y = PLAYER_PHYSICS_UP_VECTOR_LENGTH;
 		wheel_vector.z = 0;
@@ -166,10 +111,10 @@ static void restore_crash_wheel_headings(legacy_s16 *wheel_plane_headings)
 
 	/* Prepare the optional auxiliary wheel rotation once for both wheels. */
 	struct MATRIX wheel_adjustment_rotation;
-	if ((player_motion_state->opponentstate.car_slide_yaw_delta & ANGLE_MASK) != 0) {
-		wheel_adjustment_rotation = *mat_rot_zxy(
-			0, 0, LEGACY_S16_WRAP_NEGATE(player_motion_state->opponentstate.car_slide_yaw_delta),
-			MATRIX_ROTATION_ORDER_ZXY);
+	if ((state.opponentstate.car_slide_yaw_delta & ANGLE_MASK) != 0) {
+		wheel_adjustment_rotation =
+			*mat_rot_zxy(0, 0, LEGACY_S16_WRAP_NEGATE(state.opponentstate.car_slide_yaw_delta),
+						 MATRIX_ROTATION_ORDER_ZXY);
 	}
 
 	/*
@@ -185,9 +130,8 @@ static void restore_crash_wheel_headings(legacy_s16 *wheel_plane_headings)
 	 */
 	mat_mul_vector(&wheel_vector, &car_to_world_rotation, &transformed_vector);
 	wheel_plane_headings[LEGACY_RESIDUE_FIRST_WORD] =
-		(legacy_u16)((legacy_u32)LEGACY_S32_WRAP_ADD_S16(
-						 player_motion_state->opponentstate.car_position.lz,
-						 transformed_vector.z) >>
+		(legacy_u16)((legacy_u32)LEGACY_S32_WRAP_ADD_S16(state.opponentstate.car_position.lz,
+														 transformed_vector.z) >>
 					 LEGACY_WORD_BITS);
 	legacy_execution_residue.wheel_plane_angles[LEGACY_RESIDUE_FIRST_WORD] =
 		wheel_plane_headings[LEGACY_RESIDUE_FIRST_WORD];
@@ -202,22 +146,21 @@ static void restore_crash_wheel_headings(legacy_s16 *wheel_plane_headings)
 	 */
 	mat_mul_vector(&wheel_vector, &car_to_world_rotation, &transformed_vector);
 	wheel_plane_headings[LEGACY_RESIDUE_SECOND_WORD] = (legacy_u16)LEGACY_S32_WRAP_ADD_S16(
-		player_motion_state->opponentstate.car_position.lx, transformed_vector.x);
+		state.opponentstate.car_position.lx, transformed_vector.x);
 
 	/* Commit the second word and recover world X's high word as the third. */
 	legacy_execution_residue.wheel_plane_angles[LEGACY_RESIDUE_SECOND_WORD] =
 		wheel_plane_headings[LEGACY_RESIDUE_SECOND_WORD];
 	wheel_plane_headings[LEGACY_RESIDUE_THIRD_WORD] =
-		(legacy_u16)((legacy_u32)LEGACY_S32_WRAP_ADD_S16(
-						 player_motion_state->opponentstate.car_position.lx,
-						 transformed_vector.x) >>
+		(legacy_u16)((legacy_u32)LEGACY_S32_WRAP_ADD_S16(state.opponentstate.car_position.lx,
+														 transformed_vector.x) >>
 					 LEGACY_WORD_BITS);
 
 	/* Commit the third word and recover world Y's low word as the fourth. */
 	legacy_execution_residue.wheel_plane_angles[LEGACY_RESIDUE_THIRD_WORD] =
 		wheel_plane_headings[LEGACY_RESIDUE_THIRD_WORD];
 	wheel_plane_headings[LEGACY_RESIDUE_FOURTH_WORD] = (legacy_u16)LEGACY_S32_WRAP_ADD_S16(
-		player_motion_state->opponentstate.car_position.ly, transformed_vector.y);
+		state.opponentstate.car_position.ly, transformed_vector.y);
 	legacy_execution_residue.wheel_plane_angles[LEGACY_RESIDUE_FOURTH_WORD] =
 		wheel_plane_headings[LEGACY_RESIDUE_FOURTH_WORD];
 }
@@ -264,10 +207,7 @@ static void prepare_wheel_rotation(struct CARSTATE *carstate, struct PLAYER_WHEE
 	wheel_vector.z = 0;
 	mat_mul_vector(&wheel_vector, &car_to_world_rotation, &transformed_vector);
 	/* Attachment is applied once per native tick, even at 10 Hz. */
-	legacy_s16 inverted_step = player_motion_fraction == 0
-								   ? PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT
-								   : scale_player_fraction(PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT,
-														   player_tick_fraction());
+	legacy_s16 inverted_step = PLAYER_PHYSICS_INVERTED_WHEEL_ADJUSTMENT;
 	if (carstate->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE || transformed_vector.y >= 0) {
 		motion->inverted_adjustment = 0;
 	} else if (carstate->car_actual_speed <= PLAYER_PHYSICS_LOW_SPEED_LIMIT) {
@@ -291,12 +231,10 @@ static legacy_s16 prepare_wheel_travel(struct CARSTATE *carstate,
 			? scale_cornering_angle(carstate->car_front_wheel_response_angle,
 									PLAYER_PHYSICS_FRONT_WHEEL_HEADING_SHIFT)
 			: 0;
-	motion->travel =
-		scale_speed_to_travel(carstate->car_actual_speed,
-							  framespersec == GAME_FRAME_RATE_LOW && player_motion_fraction == 0
-								  ? PLAYER_PHYSICS_LOW_RATE_TRAVEL_DIVISOR
-								  : PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR);
-	motion->travel = scale_player_motion(motion->travel);
+	motion->travel = scale_speed_to_travel(carstate->car_actual_speed,
+										   framespersec == GAME_FRAME_RATE_LOW
+											   ? PLAYER_PHYSICS_LOW_RATE_TRAVEL_DIVISOR
+											   : PLAYER_PHYSICS_NORMAL_RATE_TRAVEL_DIVISOR);
 	return front_wheel_heading_offset;
 }
 
@@ -314,10 +252,7 @@ void prepare_wheel_motion(struct CARSTATE *carstate, struct SIMD *simd,
 		motion->inverted_adjustment = 0;
 	}
 
-	legacy_s16 slide_rotation =
-		player_motion_fraction == 0
-			? carstate->car_slide_yaw_delta
-			: scale_player_fraction(carstate->car_slide_yaw_delta, player_tick_fraction());
+	legacy_s16 slide_rotation = carstate->car_slide_yaw_delta;
 	legacy_s16 has_slide_rotation = (slide_rotation & ANGLE_MASK) != 0;
 	struct MATRIX wheel_adjustment_rotation;
 	if (has_slide_rotation) {
@@ -379,11 +314,7 @@ void apply_wheel_suspension(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTIO
 	struct VECTOR offset;
 	for (legacy_s16 i = 0; i < PLAYER_PHYSICS_WHEEL_COUNT; i++) {
 		physics_position_to_vector(&carstate->car_wheel_contact_positions[i], &motion->current[i]);
-		legacy_s16 deflection =
-			player_motion_fraction == 0
-				? update_wheel_suspension(carstate, motion->contact_distances[i], i)
-				: update_wheel_suspension_fraction(carstate, motion->contact_distances[i], i,
-												   player_tick_fraction());
+		legacy_s16 deflection = update_wheel_suspension(carstate, motion->contact_distances[i], i);
 		offset.x = 0;
 		offset.y = LEGACY_S16_WRAP_ADD(deflection, PLAYER_PHYSICS_SUSPENSION_TRAVEL_LIMIT);
 		offset.z = 0;

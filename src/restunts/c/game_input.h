@@ -20,17 +20,12 @@
 #define INPUT_ACTION_BUTTON_MASK (INPUT_PRIMARY_ACTION_FLAG | INPUT_SECONDARY_ACTION_FLAG)
 #define INPUT_NON_STEERING_MASK (INPUT_PEDAL_MASK | INPUT_ACTION_BUTTON_MASK)
 
-typedef legacy_s16(far *readchar_callback_type)(void);
-
 void kb_reg_callback(legacy_s16 code, void(far *callback)(void));
 legacy_s16 kb_parse_key(legacy_s16 code);
 void kb_remove_callback(legacy_s16 code);
-void kb_set_readchar_callback(readchar_callback_type callback);
-readchar_callback_type kb_get_readchar_callback(void);
 void joystick_reset_calibration(void);
 legacy_s16 input_direction_from_flags(legacy_s16 index);
 legacy_s16 joystick_get_scaled_x(void);
-legacy_s16 joystick_get_scaled_y(void);
 void load_palandcursor(void);
 legacy_s16 handle_ingame_kb_shortcuts(legacy_s16 key);
 #ifdef RESTUNTS_SDL3
@@ -54,7 +49,6 @@ legacy_s16 scrollbar_update(legacy_s16 operation, legacy_s16 x, legacy_s16 width
 							legacy_s16 item_count);
 legacy_s16 input_do_checking(legacy_s16 frame_delta);
 void check_input(void);
-void input_wait_for_press_and_release(void);
 void input_push_status(void);
 void input_pop_status(void);
 legacy_s16 input_repeat_check(legacy_s16 duration);

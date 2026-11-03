@@ -11,8 +11,6 @@
 #include "../c/math/projection.h"
 
 legacy_u8 atantable[257];
-legacy_u8 vector_saved_z_low;
-legacy_u8 vector_saved_z_high;
 legacy_s16 video_x_alignment = 1;
 legacy_s16 video_x_alignment_mask = -1;
 

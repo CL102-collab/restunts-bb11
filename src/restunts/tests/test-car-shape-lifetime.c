@@ -16,10 +16,8 @@
 #define TEST_FIRST_CAR_SHAPE 116U
 
 legacy_s8 car_shape_resource_name[] = "sttest";
-/* The empty-shape render path does not use these math lookup/residue bytes. */
+/* The empty-shape render path does not use the math lookup table. */
 legacy_u8 atantable[257];
-legacy_u8 vector_saved_z_low;
-legacy_u8 vector_saved_z_high;
 
 static void *allocated[2];
 static legacy_u32 allocation_count;

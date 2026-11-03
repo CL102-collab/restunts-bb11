@@ -95,7 +95,6 @@ static struct CARSTATE supported_car(legacy_u16 rate, legacy_s16 angle)
 {
 	struct CARSTATE car = {0};
 	framespersec = rate;
-	player_motion_fraction = 0;
 	fixture_object.roll_ramp = 1;
 	for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 		car.car_surfaceWhl[wheel] = CAR_SURFACE_PAVED;
@@ -106,10 +105,10 @@ static struct CARSTATE supported_car(legacy_u16 rate, legacy_s16 angle)
 	car_working_yaw = ANGLE_HALF_TURN;
 	car_working_pitch = 0;
 	fixture_bank = 0;
-	finish_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	finish_player_roll_motion(&car);
 	fixture_bank = angle;
 	car_working_roll = angle;
-	finish_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	finish_player_roll_motion(&car);
 	return car;
 }
 
@@ -123,7 +122,7 @@ static void leave_ramp(struct CARSTATE *car)
 	car->car_wheel_vertical_speed[1] = TEST_ROLL_FRONT_SPEED + TEST_ROLL_STEP;
 	car->car_wheel_vertical_speed[2] = TEST_ROLL_REAR_SPEED - TEST_ROLL_STEP;
 	car->car_wheel_vertical_speed[3] = TEST_ROLL_REAR_SPEED + TEST_ROLL_STEP;
-	finish_player_roll_motion(car, player_motion_state, player_motion_fraction);
+	finish_player_roll_motion(car);
 	assert(car->car_reserved_contact_state[PLAYER_ROLL_PHASE] == PLAYER_ROLL_AIRBORNE);
 	for (legacy_u8 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
 		assert(car->car_wheel_vertical_speed[wheel] == TEST_ROLL_MEAN_SPEED);
@@ -139,58 +138,48 @@ static void test_contact_derived_rate_and_free_rotation(void)
 	leave_ramp(&car);
 	car_working_roll = 0;
 	for (legacy_u16 step = 0; step < TEST_ROLL_REPEAT_COUNT; step++) {
-		prepare_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+		prepare_player_roll_motion(&car);
 		assert(car_working_roll == (legacy_s16)((step + 1U) * TEST_ROLL_STEP));
 	}
 	assert(car_working_roll == ANGLE_FULL_TURN);
 	/* The rate remains physical state: reaching upright does not stop it. */
-	prepare_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&car);
 	assert(car_working_roll == ANGLE_FULL_TURN + TEST_ROLL_STEP);
 }
 
-static void test_rates_fractions_and_checkpoint_copy(void)
+static void test_rates_and_checkpoint_copy(void)
 {
 	struct CARSTATE normal = supported_car(GAME_FRAME_RATE_NORMAL, TEST_ROLL_STEP);
 	struct CARSTATE low = supported_car(GAME_FRAME_RATE_LOW, TEST_ROLL_STEP * 2);
 	legacy_s16 normal_rate = 0;
 	framespersec = GAME_FRAME_RATE_NORMAL;
-	normal_rate = player_roll_filter_rate(normal_rate, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE,
-										  player_motion_fraction);
-	normal_rate = player_roll_filter_rate(normal_rate, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE,
-										  player_motion_fraction);
+	normal_rate = player_roll_filter_rate(normal_rate, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE);
+	normal_rate = player_roll_filter_rate(normal_rate, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE);
 	framespersec = GAME_FRAME_RATE_LOW;
-	assert(player_roll_filter_rate(0, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE,
-								   player_motion_fraction) == normal_rate);
+	assert(player_roll_filter_rate(0, TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE) == normal_rate);
 	normal.car_reserved_contact_state[PLAYER_ROLL_VELOCITY] =
 		TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE;
 	low.car_reserved_contact_state[PLAYER_ROLL_VELOCITY] =
 		TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE;
 	leave_ramp(&low);
 	car_working_roll = 0;
-	prepare_player_roll_motion(&low, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&low);
 	assert(car_working_roll == TEST_ROLL_STEP * 2);
 	framespersec = GAME_FRAME_RATE_NORMAL;
 	leave_ramp(&normal);
-	player_motion_fraction = PHYSICS_FRACTION_ONE / 2;
-	car_working_roll = 0;
-	prepare_player_roll_motion(&normal, player_motion_state, player_motion_fraction);
-	assert(car_working_roll == TEST_ROLL_STEP / 2);
-	prepare_player_roll_motion(&normal, player_motion_state, player_motion_fraction);
-	assert(car_working_roll == TEST_ROLL_STEP);
-	player_motion_fraction = 0;
 	normal.car_reserved_contact_state[PLAYER_ROLL_VELOCITY] = TEST_ROLL_Q8_FRACTION;
 	normal.car_reserved_contact_state[PLAYER_ROLL_FRACTION] = 0;
 	car_working_roll = 0;
-	prepare_player_roll_motion(&normal, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&normal);
 	struct CARSTATE checkpoint = normal;
 	for (legacy_u16 step = 1; step < PLAYER_ROLL_VELOCITY_SCALE; step++) {
-		prepare_player_roll_motion(&normal, player_motion_state, player_motion_fraction);
+		prepare_player_roll_motion(&normal);
 	}
 	assert(car_working_roll == 1);
 	assert(normal.car_reserved_contact_state[PLAYER_ROLL_FRACTION] == 0);
 	car_working_roll = 0;
 	for (legacy_u16 step = 1; step < PLAYER_ROLL_VELOCITY_SCALE; step++) {
-		prepare_player_roll_motion(&checkpoint, player_motion_state, player_motion_fraction);
+		prepare_player_roll_motion(&checkpoint);
 	}
 	assert(car_working_roll == 1);
 	assert(memcmp(&normal, &checkpoint, sizeof(normal)) == 0);
@@ -203,7 +192,7 @@ static void test_contact_crash_and_legacy_gates(void)
 	fixture_object.roll_ramp = 0;
 	car.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
 	car.car_sumSurfFrontWheels = 1;
-	finish_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	finish_player_roll_motion(&car);
 	for (legacy_u8 word = 0; word < PLAYER_ROLL_WORD_COUNT; word++) {
 		assert(car.car_reserved_contact_state[word] == 0);
 	}
@@ -213,17 +202,17 @@ static void test_contact_crash_and_legacy_gates(void)
 		-TEST_ROLL_STEP * PLAYER_ROLL_VELOCITY_SCALE;
 	leave_ramp(&car);
 	car_working_roll = 0;
-	prepare_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&car);
 	assert(car_working_roll == -TEST_ROLL_STEP);
 	fixture_extended = 0;
 	struct CARSTATE legacy = car;
-	prepare_player_roll_motion(&car, player_motion_state, player_motion_fraction);
-	finish_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&car);
+	finish_player_roll_motion(&car);
 	assert(car_working_roll == -TEST_ROLL_STEP);
 	assert(memcmp(&legacy, &car, sizeof(car)) == 0);
 	fixture_extended = 1;
 	car.car_crashBmpFlag = CRASH_EVENT_COLLISION;
-	prepare_player_roll_motion(&car, player_motion_state, player_motion_fraction);
+	prepare_player_roll_motion(&car);
 	assert(car.car_reserved_contact_state[PLAYER_ROLL_PHASE] == PLAYER_ROLL_IDLE);
 	/* Tile ownership and terrain material cannot arm a car under the grille. */
 	fixture_road_contact = 0;
@@ -235,7 +224,7 @@ static void test_contact_crash_and_legacy_gates(void)
 legacy_int main(void)
 {
 	test_contact_derived_rate_and_free_rotation();
-	test_rates_fractions_and_checkpoint_copy();
+	test_rates_and_checkpoint_copy();
 	test_contact_crash_and_legacy_gates();
 	puts("Roll-ramp contact momentum, unsupported rotation, time steps, and checkpoint state "
 		 "passed.");

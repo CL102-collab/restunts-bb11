@@ -20,8 +20,6 @@
 
 static legacy_u8 audio_saved_channel_volumes[AUDIO_CHANNEL_COUNT];
 static legacy_u8 audio_effect_channel_volumes[AUDIO_CHANNEL_COUNT];
-legacy_u8 audio_channel_values[AUDIO_CHANNEL_COUNT];
-legacy_u8 audio_channel_notes[AUDIO_CHANNEL_COUNT];
 
 void audio_unload(void)
 {
@@ -61,22 +59,6 @@ legacy_s16 audio_toggle_music(void)
 	}
 
 	audio_enable_music();
-	return 1;
-}
-
-legacy_s16 audio_effect_range_idle(void)
-{
-	if (audio_suspended == AUDIO_STATE_ENABLED || audio_music_enabled == AUDIO_STATE_DISABLED) {
-		return 1;
-	}
-
-	for (legacy_u16 channel = 0; channel < (legacy_u16)audio_music_channel_count; channel++) {
-		if ((audio_channels[channel + AUDIO_EFFECT_CHANNEL_FIRST].cursor.offset |
-			 audio_channels[channel + AUDIO_EFFECT_CHANNEL_FIRST].cursor.segment) != 0) {
-			return 0;
-		}
-	}
-
 	return 1;
 }
 
@@ -174,8 +156,6 @@ void audio_init_channel_range(legacy_s16 first_channel, legacy_s16 last_channel,
 		chunk->note_velocity = AUDIO_CHANNEL_DEFAULT_NOTE_VELOCITY;
 		chunk->channel = (legacy_u8)channel;
 		chunk->note_limit = AUDIO_CHANNEL_DEFAULT_NOTE_LIMIT;
-		audio_channel_values[(legacy_u16)channel] = 0;
-		audio_channel_notes[(legacy_u16)channel] = 0;
 		chunk->stack_depth = 0;
 		chunk->call_depth = 0;
 		chunk->priority = priority;
@@ -414,11 +394,6 @@ legacy_s16 audio_play_effect(void far *resource, legacy_s16 channel, legacy_u8 p
 	return audio_play_effect_at_rate(resource, channel, priority, (legacy_u16)audio_effect_rate);
 }
 
-legacy_s16 audio_play_default_effect(void far *resource)
-{
-	return audio_play_effect(resource, -1, AUDIO_EFFECT_DEFAULT_PRIORITY);
-}
-
 legacy_s16 audio_reserve_effect_channel(legacy_s16 channel, legacy_u8 priority)
 {
 	if (channel == -1) {
@@ -451,16 +426,6 @@ void audio_stop_skid_sound(legacy_s16 index)
 	legacy_s16 channel = audio_timers[index].secondary_effect_channel;
 	audio_stop_effect_channel(channel);
 	audio_timers[index].secondary_effect_channel = -1;
-}
-
-legacy_s16 audio_timer_effect_idle(legacy_s16 index)
-{
-	legacy_s16 channel = audio_timers[index].effect_channel;
-	if (channel < 0) {
-		return 1;
-	}
-
-	return audio_effect_channel_idle(channel);
 }
 
 void audio_stop_engine(legacy_s16 index)
@@ -622,22 +587,6 @@ void audio_fade_out(legacy_s16 delay_ticks)
 		dos_audio_driver_set_master_state(AUDIO_DRIVER_MASTER_STATE_COMMAND,
 										  (void far *)dos_audio_master_state);
 	}
-}
-
-legacy_s16 audio_set_music_volume(legacy_s16 value)
-{
-	audio_music_rate = (legacy_u8)value;
-	return audio_set_music_channel_volume(value);
-}
-
-legacy_u16 audio_get_channel_value(legacy_s16 channel)
-{
-	return (legacy_u16)audio_channel_values[(legacy_u16)channel];
-}
-
-legacy_u16 audio_get_channel_note(legacy_s16 channel)
-{
-	return (legacy_u16)audio_channel_notes[(legacy_u16)channel];
 }
 
 void audio_play_car_events(legacy_u8 flags, legacy_s16 channel)

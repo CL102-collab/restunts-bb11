@@ -77,8 +77,6 @@ enum AUDIO_MODULATION_DIRECTION {
 };
 
 extern legacy_u8 audio_channel_reserved[AUDIO_CHANNEL_COUNT];
-extern legacy_u8 audio_channel_values[AUDIO_CHANNEL_COUNT];
-extern legacy_u8 audio_channel_notes[AUDIO_CHANNEL_COUNT];
 void audio_clear_driver_context(struct AUDIO_CONTEXT *context);
 
 #endif

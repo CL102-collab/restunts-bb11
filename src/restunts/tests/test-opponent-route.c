@@ -30,7 +30,6 @@ legacy_s16 *track_alternate_route_links;
 legacy_s8 *track_route_element_ids;
 legacy_s8 *opponent_route_track_indices;
 const legacy_s8 missing_shape_error_format[] = "shape";
-const legacy_s8 missing_sound_error_format[] = "sound";
 
 static legacy_u8 arena[512];
 static legacy_u8 decompression_tail[TEST_TAIL_SIZE];

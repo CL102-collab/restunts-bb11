@@ -32,7 +32,6 @@ void shape3d_hires_project(const struct SHAPE3D_HIRES_VECTOR *vector,
 						   struct SHAPE3D_HIRES_POINT *point);
 legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector);
 legacy_s32 shape3d_hires_polygon_visible(legacy_u32 index, legacy_s32 cull_backface);
-legacy_u32 shape3d_hires_wheel_face(legacy_u32 index);
 void shape3d_hires_reset(void);
 /* Scale the stroke with model size; captured per queued primitive. */
 void shape3d_hires_set_model_scale(legacy_f64 scale);

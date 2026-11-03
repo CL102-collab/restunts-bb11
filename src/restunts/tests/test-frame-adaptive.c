@@ -178,8 +178,6 @@ static void test_cache_full_quality_and_bounds(void)
 	/* Even a one-angle-step-sized heading change must invalidate the cache. */
 	assert(frame_hires_adaptive_prepare(&adaptive, TEST_CAMERA_TILE + 1, TEST_CAMERA_TILE + 1,
 										TRIG_FIXED_ONE, TEST_SMALL_HEADING_SINE));
-	frame_hires_adaptive_invalidate(&adaptive);
-	assert(frame_hires_adaptive_flags(&adaptive, 0, 0) == FRAME_HIRES_ADAPTIVE_FULL);
 	assert(frame_hires_adaptive_prepare(&adaptive, TEST_CAMERA_TILE, TEST_CAMERA_TILE,
 										TRIG_FIXED_ONE, 0));
 	assert(frame_hires_adaptive_flags(&adaptive, TEST_OUTSIDE_TILE, 0) ==

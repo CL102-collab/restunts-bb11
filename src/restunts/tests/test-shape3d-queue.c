@@ -10,8 +10,6 @@
 
 /* Identity rotations avoid the angle lookup; these are math.c's link dependencies. */
 legacy_u8 atantable[257];
-legacy_u8 vector_saved_z_low;
-legacy_u8 vector_saved_z_high;
 
 extern legacy_u16 polyinfoptrnext;
 extern legacy_u16 polygon_buffer_full;

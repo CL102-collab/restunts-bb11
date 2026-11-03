@@ -77,7 +77,7 @@ static void apply_wall_impact(struct CARSTATE *carstate, legacy_s16 wall_heading
 		legacy_s16 impact_turn =
 			reverse_turn ? LEGACY_S16_WRAP_NEGATE(angle_distance) : angle_distance;
 		carstate->car_velocity_heading_offset = LEGACY_S16_SHL(impact_turn, 1U);
-		player_motion_crash(CRASH_EVENT_COLLISION, car_index);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 	}
 	carstate->car_sound_flags |= PLAYER_PHYSICS_WALL_SOUND_FLAG;
 }
@@ -174,14 +174,14 @@ static legacy_s16 resolve_wheel_wall_collision(struct CARSTATE *carstate,
 static void measure_wheel_plane_distance(struct VECTORLONG *position)
 {
 #ifdef RESTUNTS_SDL3
-	if (extended_player_measure_plane(position, player_motion_state->game_inputmode)) {
+	if (extended_player_measure_plane(position, state.game_inputmode)) {
 		return;
 	}
 #endif
 	struct VECTOR wheel;
 
 	physics_position_to_vector(&wheel, position);
-	nextPosAndNormalIP = player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO
+	nextPosAndNormalIP = state.game_inputmode == GAME_INPUT_MODE_INTRO
 							 ? wheel.y
 							 : plane_signed_distance(planindex, wheel.x, wheel.y, wheel.z);
 }
@@ -193,13 +193,12 @@ static void apply_wheel_gravity(struct CARSTATE *carstate, struct VECTORLONG *po
 #ifdef RESTUNTS_SDL3
 	gravity = extended_player_wheel_gravity(carstate, gravity);
 #endif
-	legacy_s16 step_count =
-		framespersec == GAME_FRAME_RATE_LOW && player_motion_fraction == 0 ? 2 : 1;
+	legacy_s16 step_count = framespersec == GAME_FRAME_RATE_LOW ? 2 : 1;
 	for (legacy_s16 step = 0; step < step_count; step++) {
-		carstate->car_wheel_vertical_speed[wheel_index] = LEGACY_S16_WRAP_ADD(
-			carstate->car_wheel_vertical_speed[wheel_index], scale_player_motion(gravity));
-		position->ly = LEGACY_S32_WRAP_SUB_S16(
-			position->ly, scale_player_motion(carstate->car_wheel_vertical_speed[wheel_index]));
+		carstate->car_wheel_vertical_speed[wheel_index] =
+			LEGACY_S16_WRAP_ADD(carstate->car_wheel_vertical_speed[wheel_index], gravity);
+		position->ly =
+			LEGACY_S32_WRAP_SUB_S16(position->ly, carstate->car_wheel_vertical_speed[wheel_index]);
 	}
 	measure_wheel_plane_distance(position);
 	if (nextPosAndNormalIP > PLAYER_PHYSICS_CONTACT_DISTANCE_LIMIT) {
@@ -216,9 +215,9 @@ static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
 	const struct CAR_SURFACE_ADHESION_SETTINGS *settings =
 		&car_surface_adhesion_settings[motion->car_index == OPPONENT_CAR_INDEX];
 	if (!motion->surface_adhesion || carstate->car_crashBmpFlag != CRASH_EVENT_NONE ||
-		player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO ||
-		current_surf_type < CAR_SURFACE_PAVED || current_surf_type > CAR_SURFACE_GRASS ||
-		nextPosAndNormalIP < 0 || nextPosAndNormalIP > settings->max_distance ||
+		state.game_inputmode == GAME_INPUT_MODE_INTRO || current_surf_type < CAR_SURFACE_PAVED ||
+		current_surf_type > CAR_SURFACE_GRASS || nextPosAndNormalIP < 0 ||
+		nextPosAndNormalIP > settings->max_distance ||
 		(settings->surface_mask & (1U << (current_surf_type - CAR_SURFACE_PAVED))) == 0) {
 		return 0;
 	}
@@ -243,8 +242,7 @@ static legacy_s16 hold_wheel_to_surface(struct CARSTATE *carstate,
 	}
 
 #ifdef RESTUNTS_SDL3
-	if (extended_player_hold_wheel_contact(&motion->current[wheel_index],
-										   player_motion_state->game_inputmode)) {
+	if (extended_player_hold_wheel_contact(&motion->current[wheel_index], state.game_inputmode)) {
 		nextPosAndNormalIP = 0;
 		return 1;
 	}
@@ -342,8 +340,8 @@ static void split_wheel_plane_travel(struct CARSTATE *carstate, struct PLAYER_WH
 	struct VECTOR delta;
 	struct VECTOR intersection;
 	legacy_s16 remaining_travel = scaled_vector_separation(end, start, &intersection, &delta);
-	legacy_s16 total_travel = LEGACY_S16_WRAP_ADD(
-		scale_player_motion(carstate->car_wheel_vertical_speed[wheel_index]), motion->travel);
+	legacy_s16 total_travel =
+		LEGACY_S16_WRAP_ADD(carstate->car_wheel_vertical_speed[wheel_index], motion->travel);
 	legacy_s16 retained_travel = LEGACY_S16_WRAP_SUB(total_travel, remaining_travel);
 	struct VECTOR retained;
 	scale_wheel_displacement(&retained, &motion->current[wheel_index],
@@ -409,7 +407,7 @@ static legacy_s16 correct_wheel_plane_penetration(struct CARSTATE *carstate,
 			use_ground_plane_for_wheel(&motion->current[wheel_index]);
 			return 0;
 		}
-		player_motion_crash(CRASH_EVENT_IMMEDIATE_STOP, car_index);
+		update_crash_state(CRASH_EVENT_IMMEDIATE_STOP, car_index);
 		reverse_response = 1;
 	}
 	if (end.y == 0) {
@@ -437,7 +435,7 @@ static void apply_wheel_landing(struct CARSTATE *carstate, legacy_s16 wheel_inde
 	}
 	if (carstate->car_wheel_vertical_speed[wheel_index] >
 		PLAYER_PHYSICS_SUSPENSION_CRASH_THRESHOLD) {
-		player_motion_crash(CRASH_EVENT_COLLISION, car_index);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 	}
 	carstate->car_wheel_vertical_speed[wheel_index] = 0;
 }
@@ -454,14 +452,14 @@ static void stop_wheels_at_contact(struct PLAYER_WHEEL_MOTION *motion, legacy_s1
 		physics_position_offset(&motion->current[i], &motion->previous[i], &offset);
 	}
 	motion->travel = (legacy_s16)((legacy_s32)motion->travel * fraction / TRIG_FIXED_ONE);
-	player_motion_crash(CRASH_EVENT_IMMEDIATE_STOP, car_index);
+	update_crash_state(CRASH_EVENT_IMMEDIATE_STOP, car_index);
 }
 
 static legacy_s16 stop_at_track_underside(struct CARSTATE *carstate,
 										  struct PLAYER_WHEEL_MOTION *motion,
 										  legacy_s16 wheel_index, legacy_s16 car_index)
 {
-	if (player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO ||
+	if (state.game_inputmode == GAME_INPUT_MODE_INTRO ||
 		carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
 		return 0;
 	}
@@ -482,7 +480,7 @@ static legacy_s16 stop_at_track_wall_contact(struct CARSTATE *carstate,
 											 struct PLAYER_WHEEL_MOTION *motion,
 											 legacy_s16 car_index)
 {
-	if (player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO ||
+	if (state.game_inputmode == GAME_INPUT_MODE_INTRO ||
 		carstate->car_crashBmpFlag != CRASH_EVENT_NONE) {
 		return 0;
 	}
@@ -511,70 +509,6 @@ static legacy_s16 stop_at_track_wall_contact(struct CARSTATE *carstate,
 	return hit;
 }
 
-/* A saved pose can retain a small plane residual after the original suspension
- * update. Relax that inherited residual over the original tick, while resolving
- * any penetration introduced by this short step immediately. */
-static legacy_s16 inherited_wheel_plane_distance(struct VECTORLONG *position)
-{
-	if (player_motion_fraction == 0) {
-		return 0;
-	}
-	struct VECTOR previous;
-	physics_position_to_vector(&previous, position);
-	legacy_s16 distance = plane_signed_distance(planindex, previous.x, previous.y, previous.z);
-#ifdef RESTUNTS_SDL3
-	extended_player_contact_distance(position, player_motion_state->game_inputmode, &distance);
-#endif
-	if (distance >= 0 || player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
-		return distance;
-	}
-	/* A new ramp or ledge is a new contact, even when the old wheel lies below
-	 * its infinite plane. Only retain an error on the same finite surface. */
-	struct TRACK_COLLISION_SNAPSHOT selected;
-	track_collision_capture(&selected);
-	build_track_object(&previous, &previous);
-	legacy_s16 same_surface =
-		planindex == selected.plane_index && current_planptr == selected.plane &&
-		terrainHeight == selected.terrain_height && elem_xCenter == selected.element_x &&
-		elem_zCenter == selected.element_z;
-	track_collision_restore(&selected);
-	return same_surface ? distance : 0;
-}
-
-static legacy_s16 retained_wheel_plane_residual(legacy_s16 previous, legacy_s16 current,
-												legacy_u32 fraction)
-{
-	if (previous >= 0 || current >= 0) {
-		return 0;
-	}
-	legacy_s16 residual = previous - scale_player_fraction(previous, fraction);
-	/* Moving out of an inherited overlap must never push the wheel back in. */
-	return residual < current ? current : residual;
-}
-
-static void relax_wheel_plane_residual(struct PLAYER_WHEEL_MOTION *motion, legacy_s16 wheel_index,
-									   legacy_s16 initial_distance)
-{
-	legacy_s16 distance = motion->contact_distances[wheel_index];
-	legacy_u32 fraction = player_tick_fraction();
-	legacy_s16 residual = retained_wheel_plane_residual(initial_distance, distance, fraction);
-	if (residual != 0) {
-		struct VECTOR normal;
-		normal.x = 0;
-		normal.y = LEGACY_S16_SHL(residual, PLAYER_PHYSICS_POSITION_SCALE_SHIFT);
-		normal.z = 0;
-		struct VECTOR offset;
-		mat_mul_vector2(&normal, &current_planptr->plane_rotation, &offset);
-		physics_position_offset(&motion->current[wheel_index], &motion->current[wheel_index],
-								&offset);
-		motion->contact_distances[wheel_index] = distance - residual;
-	} else if (distance > 0) {
-		/* Spring extension is a rate. A newly crossed contact still receives
-		 * the complete negative contact distance and collision correction. */
-		motion->contact_distances[wheel_index] = scale_player_fraction(distance, fraction);
-	}
-}
-
 static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 											  struct PLAYER_WHEEL_MOTION *motion,
 											  legacy_s16 wheel_index, legacy_s16 car_index)
@@ -582,8 +516,6 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 	legacy_s16 resolved;
 
 	do {
-		legacy_s16 initial_distance =
-			inherited_wheel_plane_distance(&motion->previous[wheel_index]);
 		if (!hold_wheel_to_surface(carstate, motion, wheel_index)) {
 			move_airborne_wheel(carstate, motion, wheel_index);
 		}
@@ -595,7 +527,7 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 #ifdef RESTUNTS_SDL3
 		if (extended_player_correct_wheel_contact(&motion->current[wheel_index],
 												  &motion->previous[wheel_index],
-												  player_motion_state->game_inputmode)) {
+												  state.game_inputmode)) {
 			resolved = 1;
 		} else
 #endif
@@ -604,12 +536,9 @@ static legacy_s16 resolve_wheel_plane_contact(struct CARSTATE *carstate,
 					   correct_wheel_plane_penetration(carstate, motion, wheel_index, car_index);
 		}
 #ifdef RESTUNTS_SDL3
-		extended_player_finish_wheel_contact(&motion->current[wheel_index],
-											 player_motion_state->game_inputmode, resolved);
+		extended_player_finish_wheel_contact(&motion->current[wheel_index], state.game_inputmode,
+											 resolved);
 #endif
-		if (player_motion_fraction != 0 && resolved) {
-			relax_wheel_plane_residual(motion, wheel_index, initial_distance);
-		}
 	} while (!resolved);
 
 	if (motion->contact_distances[wheel_index] <= 0) {
@@ -624,7 +553,7 @@ static void look_up_wheel_surface(struct CARSTATE *carstate, struct PLAYER_WHEEL
 	struct VECTOR wheel;
 
 	physics_position_to_vector(&wheel, &motion->current[wheel_index]);
-	if (player_motion_state->game_inputmode == GAME_INPUT_MODE_INTRO) {
+	if (state.game_inputmode == GAME_INPUT_MODE_INTRO) {
 		wallindex = PLAYER_PHYSICS_WALL_INDEX_NONE;
 		current_surf_type = CAR_SURFACE_PAVED;
 		planindex = PLAYER_PHYSICS_GROUND_PLANE_INDEX;
@@ -667,12 +596,12 @@ void resolve_wheel_contacts(struct CARSTATE *carstate, struct PLAYER_WHEEL_MOTIO
 	}
 	if (!resolved) {
 		carstate->car_velocity_heading_offset = ANGLE_HALF_TURN;
-		player_motion_crash(CRASH_EVENT_COLLISION, car_index);
+		update_crash_state(CRASH_EVENT_COLLISION, car_index);
 	}
 	if (carstate->car_surfaceWhl[PLAYER_PHYSICS_FRONT_WHEEL_FIRST] == CAR_SURFACE_WATER &&
 		carstate->car_surfaceWhl[PLAYER_PHYSICS_FRONT_WHEEL_SECOND] == CAR_SURFACE_WATER &&
 		carstate->car_surfaceWhl[PLAYER_PHYSICS_REAR_WHEEL_FIRST] == CAR_SURFACE_WATER &&
 		carstate->car_surfaceWhl[PLAYER_PHYSICS_REAR_WHEEL_SECOND] == CAR_SURFACE_WATER) {
-		player_motion_crash(CRASH_EVENT_WATER, car_index);
+		update_crash_state(CRASH_EVENT_WATER, car_index);
 	}
 }

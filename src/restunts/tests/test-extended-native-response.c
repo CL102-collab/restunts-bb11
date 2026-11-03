@@ -241,7 +241,6 @@ static void test_fan_contacts_follow_exact_slopes(void)
 										  OWOOT_POSITION_SCALE / 2};
 	fixture_extended = 1;
 	state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
-	player_motion_state = &state;
 	elem_xCenter = elem_zCenter = 0;
 	terrainHeight = TEST_WHEEL_HEIGHT;
 	planindex = EXTENDED_GEOMETRY_PLANE_INDEX;

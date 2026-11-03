@@ -33,7 +33,6 @@
 struct HIRES_PRIMITIVE {
 	struct SHAPE3D_HIRES_POINT points[HIRES_MAX_POLYGON_POINTS];
 	legacy_u32 count;
-	legacy_u32 wheel_face;
 	legacy_u32 round_points;
 	legacy_u32 shape;
 	legacy_u32 family;
