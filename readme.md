@@ -18,57 +18,6 @@ https://commonloon102.github.io/restunts-bb11/#downloads
 
 All packages were created by GitHub CI and released as an immutable release directly from the pipeline, so it is guaranteed that the binaries are built directly from the source available on GitHub.
 
-## Extended track editor
-
-The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
-terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
-Select your Stunts folder before editing. Every SDL3 package includes the
-standalone `tracked.html` editor: beside the browser game, or at
-`share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
-and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
-needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v12. Revision v3 through v11 tracks open as v12 while preserving their
-overpass road materials; revisions below v3 are unsupported. Newer revisions
-show a warning and load using the known format.
-
-Switch from the 2D editor to **3D preview** to explore the track with WebGL and
-original models from your selected Stunts folder. Click for mouse look; WASD moves,
-Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
-releases the mouse, and the 2D editor retains its zoom and map position.
-
-The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
-rows. Adjacent tiles form larger fields, rotation changes the row direction, and
-straight inclines are supported. Cars drive through the crops using the terrain
-beneath them. **Tulip field** adds solid purple, orange, red, pink, purple and
-yellow flower rows. **Vine field** adds twelve low, narrow rows with
-triangular tops and dense purple grape clusters. Both support hillside
-inclines, rotation and adjoining fields. All three appear in the game and the editor's 2D and 3D views.
-Tulip and Vine fields require `.cstrk` v12.
-
-The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both
-groups vary positions and sizes by tile, breaking up rows and repeated
-patterns across neighboring tiles. Opening the same track always restores the
-same forest. On slopes, each pine retains the single tree's upright crown and
-slope-following trunk roots.
-
-The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
-with slalom barriers as one piece. It supports paved, dirt and ice roads,
-rotations, and straight inclines. **Barrel roll ramp** is a directional two-tile
-launch stunt: a solid concrete entry leads into an elevated grille ramp with a
-twisted lip. The car carries its acquired roll into free flight after takeoff.
-
-Hills retain the original game's straight inclines and inner and outer corners
-at every elevation. Every track piece and scenery object can be placed on a
-straight incline in any direction. Multi-tile pieces require one continuous
-slope beneath their occupied cells; hill corners and changes of grade cannot
-support a piece. A shared geometry transform makes roads, stunt shapes and
-scenery follow the slope. These placement rules apply only to `.cstrk` tracks.
-
-SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
-counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior
-is preserved. See the [editor guide](docs/track-editor.md),
-[track format](docs/cstrk-format.md), and [replay format](docs/csrpl-format.md).
-
 ## AI usage
 It's not a secret, AI (GPT-5.6 Sol, GPT-6 Astra, GPT-6.1 Sol) was used for the following:
 - Writing code
@@ -1998,3 +1947,54 @@ in both DOSBox and DOSBox-X using the recommended memory settings above. The bun
 game and custom car resources are copied to an isolated directory. The test links
 all normal game objects; its small test entry makes its memory budget slightly
 stricter than the game.
+
+## Extended track editor
+
+The offline HTML editor creates `.cstrk` tracks up to 90×90 tiles, with four
+terrain levels, independent terrain and road surfaces, ASCII notes, and undo/redo.
+Select your Stunts folder before editing. Every SDL3 package includes the
+standalone `tracked.html` editor: beside the browser game, or at
+`share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
+and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
+needed. The browser launcher also links the editor. The current `.cstrk`
+revision is v12. Revision v3 through v11 tracks open as v12 while preserving their
+overpass road materials; revisions below v3 are unsupported. Newer revisions
+show a warning and load using the known format.
+
+Switch from the 2D editor to **3D preview** to explore the track with WebGL and
+original models from your selected Stunts folder. Click for mouse look; WASD moves,
+Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
+releases the mouse, and the 2D editor retains its zoom and map position.
+
+The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
+rows. Adjacent tiles form larger fields, rotation changes the row direction, and
+straight inclines are supported. Cars drive through the crops using the terrain
+beneath them. **Tulip field** adds solid purple, orange, red, pink, purple and
+yellow flower rows. **Vine field** adds twelve low, narrow rows with
+triangular tops and dense purple grape clusters. Both support hillside
+inclines, rotation and adjoining fields. All three appear in the game and the editor's 2D and 3D views.
+Tulip and Vine fields require `.cstrk` v12.
+
+The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both
+groups vary positions and sizes by tile, breaking up rows and repeated
+patterns across neighboring tiles. Opening the same track always restores the
+same forest. On slopes, each pine retains the single tree's upright crown and
+slope-following trunk roots.
+
+The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
+with slalom barriers as one piece. It supports paved, dirt and ice roads,
+rotations, and straight inclines. **Barrel roll ramp** is a directional two-tile
+launch stunt: a solid concrete entry leads into an elevated grille ramp with a
+twisted lip. The car carries its acquired roll into free flight after takeoff.
+
+Hills retain the original game's straight inclines and inner and outer corners
+at every elevation. Every track piece and scenery object can be placed on a
+straight incline in any direction. Multi-tile pieces require one continuous
+slope beneath their occupied cells; hill corners and changes of grade cannot
+support a piece. A shared geometry transform makes roads, stunt shapes and
+scenery follow the slope. These placement rules apply only to `.cstrk` tracks.
+
+SDL3 builds race on these tracks and record `.csrpl` replays with 32-bit frame
+counts and no ten-minute recording window. Original `.trk` and `.rpl` behavior
+is preserved. See the [editor guide](docs/track-editor.md),
+[track format](docs/cstrk-format.md), and [replay format](docs/csrpl-format.md).
