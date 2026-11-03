@@ -26,7 +26,6 @@ MAP_SIZE = 90
 TILE_SIZE = 1024
 LONG_FRAMES = 70001
 BRAKE_INPUT = 2
-RULE_LEGACY_COLLISION = 0x02
 RULE_AMIGA_GRASS = 0x20
 RULE_OWOOT = 0x40
 RESTRICTED = ("--owoot", "--pg:off", "--lc:off", "--lcb:off", "--dws:off")

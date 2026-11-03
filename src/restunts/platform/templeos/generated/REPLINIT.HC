@@ -2,38 +2,38 @@
 
 legacy_s8 RsReplinitLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_713;
+  legacy_s32 noreg temple_tmp_712;
   if((value<=127)) {
-    temple_tmp_713=TempleCastS32(TempleCastS8(value));
+    temple_tmp_712=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_713=TempleCastS32(TempleCastS8(
+    temple_tmp_712=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_713);
+  return TempleCastS8(temple_tmp_712);
 }
 
 legacy_s16 RsReplinitLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_714;
+  legacy_s32 noreg temple_tmp_713;
   if((value<=32767)) {
-    temple_tmp_714=TempleCastS32(TempleCastS16(value));
+    temple_tmp_713=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_714=TempleCastS32(TempleCastS16(
+    temple_tmp_713=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_714);
+  return TempleCastS16(temple_tmp_713);
 }
 
 legacy_s32 RsReplinitLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_715;
+  legacy_s32 noreg temple_tmp_714;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_715=TempleCastS32(TempleCastS32(value));
+    temple_tmp_714=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_715=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_714=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_715);
+  return TempleCastS32(temple_tmp_714);
 }
 
 legacy_void RsInitVideoGeometryFlags()
@@ -51,54 +51,54 @@ legacy_void RsInitRowTables()
 
 legacy_void RsInitTrackdata()
 {
-  legacy_s8 *temple_trkptr_716;
-  temple_trkptr_716=RsMmgrAllocResbytes("trakdata",TempleCastS32(27635));
-  (track_primary_route_links=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=1802);
-  (track_alternate_route_links=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=1802);
-  (opponent_route_track_indices=temple_trkptr_716);
-  (temple_trkptr_716+=1802);
-  (player_aero_resistance_table=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=128);
-  (opponent_aero_resistance_table=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=128);
-  (reserved_trackside_camera_words=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=128);
-  (trackside_camera_ground_heights=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=128);
-  (roadside_sign_headings=(temple_trkptr_716)(legacy_s16 *));
-  (temple_trkptr_716+=96);
-  (trackside_camera_positions=(temple_trkptr_716)(CVector *));
-  (temple_trkptr_716+=384);
-  (roadside_sign_positions=(temple_trkptr_716)(CVector *));
-  (temple_trkptr_716+=288);
-  (track_highscore_table=temple_trkptr_716);
-  (temple_trkptr_716+=364);
-  (sprite_background_state_stack=temple_trkptr_716);
-  (temple_trkptr_716+=240);
-  (replay_header_buffer=temple_trkptr_716);
-  (temple_trkptr_716+=26);
-  (track_element_map=(temple_trkptr_716)(legacy_u8 *));
-  (temple_trkptr_716+=901);
-  (track_terrain_map=(temple_trkptr_716)(legacy_u8 *));
-  (temple_trkptr_716+=901);
-  (replay_input_buffer=temple_trkptr_716);
-  (temple_trkptr_716+=12000);
-  (track_route_element_ids=temple_trkptr_716);
-  (temple_trkptr_716+=901);
-  (track_route_traversal_flags=temple_trkptr_716);
-  (temple_trkptr_716+=901);
-  (roadside_sign_indices_by_tile=(temple_trkptr_716)(legacy_u8 *));
-  (temple_trkptr_716+=901);
-  (track_and_directory_backup=temple_trkptr_716);
-  (temple_trkptr_716+=1964);
-  (track_route_columns=temple_trkptr_716);
-  (temple_trkptr_716+=901);
-  (track_route_rows=temple_trkptr_716);
-  (temple_trkptr_716+=901);
-  (roadside_sign_shape_indices=(temple_trkptr_716)(legacy_u8 *));
-  (temple_trkptr_716+=48);
+  legacy_s8 *temple_trkptr_715;
+  temple_trkptr_715=RsMmgrAllocResbytes("trakdata",TempleCastS32(27635));
+  (track_primary_route_links=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=1802);
+  (track_alternate_route_links=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=1802);
+  (opponent_route_track_indices=temple_trkptr_715);
+  (temple_trkptr_715+=1802);
+  (player_aero_resistance_table=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=128);
+  (opponent_aero_resistance_table=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=128);
+  (reserved_trackside_camera_words=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=128);
+  (trackside_camera_ground_heights=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=128);
+  (roadside_sign_headings=(temple_trkptr_715)(legacy_s16 *));
+  (temple_trkptr_715+=96);
+  (trackside_camera_positions=(temple_trkptr_715)(CVector *));
+  (temple_trkptr_715+=384);
+  (roadside_sign_positions=(temple_trkptr_715)(CVector *));
+  (temple_trkptr_715+=288);
+  (track_highscore_table=temple_trkptr_715);
+  (temple_trkptr_715+=364);
+  (sprite_background_state_stack=temple_trkptr_715);
+  (temple_trkptr_715+=240);
+  (replay_header_buffer=temple_trkptr_715);
+  (temple_trkptr_715+=26);
+  (track_element_map=(temple_trkptr_715)(legacy_u8 *));
+  (temple_trkptr_715+=901);
+  (track_terrain_map=(temple_trkptr_715)(legacy_u8 *));
+  (temple_trkptr_715+=901);
+  (replay_input_buffer=temple_trkptr_715);
+  (temple_trkptr_715+=12000);
+  (track_route_element_ids=temple_trkptr_715);
+  (temple_trkptr_715+=901);
+  (track_route_traversal_flags=temple_trkptr_715);
+  (temple_trkptr_715+=901);
+  (roadside_sign_indices_by_tile=(temple_trkptr_715)(legacy_u8 *));
+  (temple_trkptr_715+=901);
+  (track_and_directory_backup=temple_trkptr_715);
+  (temple_trkptr_715+=1964);
+  (track_route_columns=temple_trkptr_715);
+  (temple_trkptr_715+=901);
+  (track_route_rows=temple_trkptr_715);
+  (temple_trkptr_715+=901);
+  (roadside_sign_shape_indices=(temple_trkptr_715)(legacy_u8 *));
+  (temple_trkptr_715+=48);
 }
 
 legacy_void RsResetRaceLoopState()

@@ -10,13 +10,8 @@
 
 void extended_crash_record_end(legacy_s16 car_index)
 {
-	if (!extended_replay_is_active()) {
-		return;
-	}
-	if (car_index == PLAYER_CAR_INDEX) {
+	if (extended_replay_is_active() && car_index == PLAYER_CAR_INDEX) {
 		extended_replay_clocks.player_end = extended_replay_frame();
-	} else {
-		extended_replay_clocks.opponent_end = extended_replay_frame();
 	}
 }
 

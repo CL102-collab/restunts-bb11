@@ -33,7 +33,7 @@ struct GENGHOST_MANEUVER {
 	legacy_uint road_only;
 	struct GENGHOST_GENE gene;
 	struct GENGHOST_WAYPOINT approach, exit;
-	legacy_f64 feature_begin, feature_end;
+	legacy_f64 feature_end;
 	legacy_f64 approach_speed, exit_speed;
 	legacy_f64 exit_heading_x, exit_heading_z;
 	legacy_int physical_model;
@@ -58,7 +58,6 @@ legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 								 struct GENGHOST_DRIVER *driver,
 								 const struct GENGHOST_MANEUVER *action, legacy_uint elapsed,
 								 legacy_int powergear, legacy_int collision, legacy_int owoot);
-const legacy_char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind);
 /* Positive acceleration from the native unsigned negative-force division on
  * the next settled, grounded throttle tick. This is a readiness predicate,
  * not a persistent PG latch or a high-speed approximation. The caller gates

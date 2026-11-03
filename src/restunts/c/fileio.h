@@ -48,7 +48,6 @@ legacy_u16 file_paras_fatal(const legacy_s8 *filename);
 legacy_u16 file_paras_nofatal(const legacy_s8 *filename);
 
 legacy_u16 file_decomp_paras(const legacy_s8 *filename, legacy_s16 fatal);
-legacy_u16 file_decomp_paras_fatal(const legacy_s8 *filename);
 legacy_u16 file_decomp_paras_nofatal(const legacy_s8 *filename);
 
 void far *file_read(const legacy_s8 *filename, void far *dst, legacy_s16 fatal);
@@ -61,7 +60,6 @@ legacy_s16 file_write_fatal(const legacy_s8 *filename, void far *src, legacy_u32
 legacy_s16 file_write_nofatal(const legacy_s8 *filename, void far *src, legacy_u32 length);
 
 void far *file_decomp(const legacy_s8 *filename, legacy_s16 fatal);
-void far *file_decomp_fatal(const legacy_s8 *filename);
 void far *file_decomp_nofatal(const legacy_s8 *filename);
 
 void far *file_load_binary(const legacy_s8 *filename, legacy_s16 fatal);

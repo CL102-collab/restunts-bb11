@@ -228,11 +228,6 @@ legacy_u16 file_decomp_paras(const legacy_s8 *filename, legacy_s16 fatal)
 	return 0;
 }
 
-legacy_u16 file_decomp_paras_fatal(const legacy_s8 *filename)
-{
-	return file_decomp_paras(filename, 1);
-}
-
 legacy_u16 file_decomp_paras_nofatal(const legacy_s8 *filename)
 {
 	return file_decomp_paras(filename, 0);

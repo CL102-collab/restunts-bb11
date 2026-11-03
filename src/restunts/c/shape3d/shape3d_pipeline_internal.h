@@ -149,10 +149,6 @@ extern legacy_u16 projection_origin_y;
 
 extern struct MATRIX mat_y0, mat_y100, mat_y200, mat_y300;
 
-extern legacy_s32 direction_sector_sine_copy;
-
-extern legacy_s32 direction_sector_cosine_copy;
-
 extern polyinfo_index queued_ghost_primitives;
 extern polyinfo_index polyinfo_primitive_capacity;
 

@@ -2,70 +2,70 @@
 
 legacy_s8 RsPhysicsSuspensionLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_6736;
+  legacy_s32 noreg temple_tmp_6733;
   if((value<=127)) {
-    temple_tmp_6736=TempleCastS32(TempleCastS8(value));
+    temple_tmp_6733=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_6736=TempleCastS32(TempleCastS8(
+    temple_tmp_6733=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_6736);
+  return TempleCastS8(temple_tmp_6733);
 }
 
 legacy_s16 RsPhysicsSuspensionLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_6737;
+  legacy_s32 noreg temple_tmp_6734;
   if((value<=32767)) {
-    temple_tmp_6737=TempleCastS32(TempleCastS16(value));
+    temple_tmp_6734=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_6737=TempleCastS32(TempleCastS16(
+    temple_tmp_6734=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_6737);
+  return TempleCastS16(temple_tmp_6734);
 }
 
 legacy_s32 RsPhysicsSuspensionLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_6738;
+  legacy_s32 noreg temple_tmp_6735;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_6738=TempleCastS32(TempleCastS32(value));
+    temple_tmp_6735=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_6738=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_6735=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_6738);
+  return TempleCastS32(temple_tmp_6735);
 }
 
 legacy_s16 RsPhysicsSuspensionDecaySuspensionTarget(CCarState *carstate,legacy_s16 wheel_index)
 {
-  legacy_s16 noreg temple_target_6739;
-  temple_target_6739=TempleCastS16(TempleCastS16(carstate->car_suspension_target[wheel_index]));
-  if((temple_target_6739<0)) {
-    (temple_target_6739=TempleCastS16(
+  legacy_s16 noreg temple_target_6736;
+  temple_target_6736=TempleCastS16(TempleCastS16(carstate->car_suspension_target[wheel_index]));
+  if((temple_target_6736<0)) {
+    (temple_target_6736=TempleCastS16(
         RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-            TempleCastS32((TempleCastU16(temple_target_6739)+TempleCastU16(4)))))))));
-    if((temple_target_6739>0)) {
-      (temple_target_6739=TempleCastS16(0));
+            TempleCastS32((TempleCastU16(temple_target_6736)+TempleCastU16(4)))))))));
+    if((temple_target_6736>0)) {
+      (temple_target_6736=TempleCastS16(0));
     }
   } else {
-    if((temple_target_6739>0)) {
-      (temple_target_6739=TempleCastS16(
+    if((temple_target_6736>0)) {
+      (temple_target_6736=TempleCastS16(
           RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-              TempleCastS32((TempleCastU16(temple_target_6739)-TempleCastU16(4)))))))));
-      if((temple_target_6739<0)) {
-        (temple_target_6739=TempleCastS16(0));
+              TempleCastS32((TempleCastU16(temple_target_6736)-TempleCastU16(4)))))))));
+      if((temple_target_6736<0)) {
+        (temple_target_6736=TempleCastS16(0));
       }
     }
   }
-  (carstate->car_suspension_target[wheel_index]=TempleCastS16(temple_target_6739));
-  return TempleCastS16(temple_target_6739);
+  (carstate->car_suspension_target[wheel_index]=TempleCastS16(temple_target_6736));
+  return TempleCastS16(temple_target_6736);
 }
 
 legacy_s16 RsPhysicsSuspensionReturnWheelSuspension(
     CCarState *carstate,legacy_s16 wheel_index,legacy_s16 target,legacy_s16 previous_deflection)
 {
-  legacy_s16 noreg temple_adjustment_6740;
-  temple_adjustment_6740=TempleCastS16(0);
+  legacy_s16 noreg temple_adjustment_6737;
+  temple_adjustment_6737=TempleCastS16(0);
   if((TempleCastS16(carstate->car_suspension_deflection[wheel_index])>target)) {
     (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(
         RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
@@ -74,7 +74,7 @@ legacy_s16 RsPhysicsSuspensionReturnWheelSuspension(
     if((TempleCastS16(carstate->car_suspension_deflection[wheel_index])<target)) {
       (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(target));
     }
-    (temple_adjustment_6740=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(
+    (temple_adjustment_6737=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(
         TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(previous_deflection)-
             TempleCastU16(carstate->car_suspension_deflection[wheel_index])))))))));
   } else {
@@ -88,131 +88,131 @@ legacy_s16 RsPhysicsSuspensionReturnWheelSuspension(
       }
     }
   }
-  return TempleCastS16(temple_adjustment_6740);
+  return TempleCastS16(temple_adjustment_6737);
 }
 
 legacy_s16 RsUpdateWheelSuspension(
     CCarState *carstate,legacy_s16 contact_delta_arg,legacy_s16 wheel_index)
 {
-  legacy_s16 noreg temple_previous_deflection_6741;
-  legacy_s16 noreg temple_contact_delta_6742;
-  legacy_s16 noreg temple_target_6743;
-  legacy_s32 noreg temple_tmp_6744;
-  legacy_s16 noreg temple_adjustment_6745;
-  legacy_s16 noreg temple_scaled_delta_6746;
+  legacy_s16 noreg temple_previous_deflection_6738;
+  legacy_s16 noreg temple_contact_delta_6739;
+  legacy_s16 noreg temple_target_6740;
+  legacy_s32 noreg temple_tmp_6741;
+  legacy_s16 noreg temple_adjustment_6742;
+  legacy_s16 noreg temple_scaled_delta_6743;
+  legacy_u32 noreg temple_tmp_6744;
+  legacy_u32 noreg temple_tmp_6745;
+  legacy_u32 noreg temple_tmp_6746;
   legacy_u32 noreg temple_tmp_6747;
-  legacy_u32 noreg temple_tmp_6748;
-  legacy_u32 noreg temple_tmp_6749;
-  legacy_u32 noreg temple_tmp_6750;
-  temple_previous_deflection_6741=
+  temple_previous_deflection_6738=
       TempleCastS16(TempleCastS16(carstate->car_suspension_deflection[wheel_index]));
-  temple_contact_delta_6742=TempleCastS16(TempleCastS16(contact_delta_arg));
-  temple_target_6743=
+  temple_contact_delta_6739=TempleCastS16(TempleCastS16(contact_delta_arg));
+  temple_target_6740=
       TempleCastS16(RsPhysicsSuspensionDecaySuspensionTarget(carstate,TempleCastS16(wheel_index)));
-  temple_tmp_6744=0;
-  if((temple_contact_delta_6742<0)) {
-    temple_tmp_6744=1;
+  temple_tmp_6741=0;
+  if((temple_contact_delta_6739<0)) {
+    temple_tmp_6741=1;
   }
-  if(temple_tmp_6744) {
-    temple_tmp_6744=0;
+  if(temple_tmp_6741) {
+    temple_tmp_6741=0;
     if((TempleCastS16(carstate->car_suspension_deflection[wheel_index])>
           RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(
-              TempleCastU16(TempleCastU32((0-TempleCastU16(temple_contact_delta_6742))))))))) {
-      temple_tmp_6744=1;
+              TempleCastU16(TempleCastU32((0-TempleCastU16(temple_contact_delta_6739))))))))) {
+      temple_tmp_6741=1;
     }
   }
-  if(temple_tmp_6744) {
-    (temple_contact_delta_6742=TempleCastS16(0));
+  if(temple_tmp_6741) {
+    (temple_contact_delta_6739=TempleCastS16(0));
   }
-  temple_adjustment_6745=TempleCastS16(0);
-  if((temple_contact_delta_6742==0)) {
-    (temple_adjustment_6745=TempleCastS16(
+  temple_adjustment_6742=TempleCastS16(0);
+  if((temple_contact_delta_6739==0)) {
+    (temple_adjustment_6742=TempleCastS16(
         RsPhysicsSuspensionReturnWheelSuspension(carstate,TempleCastS16(wheel_index),
-            TempleCastS16(temple_target_6743),TempleCastS16(temple_previous_deflection_6741))));
+            TempleCastS16(temple_target_6740),TempleCastS16(temple_previous_deflection_6738))));
   } else {
-    if((temple_contact_delta_6742>0)) {
-      if((temple_contact_delta_6742>192)) {
-        (temple_contact_delta_6742=TempleCastS16(192));
+    if((temple_contact_delta_6739>0)) {
+      if((temple_contact_delta_6739>192)) {
+        (temple_contact_delta_6739=TempleCastS16(192));
       }
       (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(
           RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
               TempleCastS32((TempleCastU16(carstate->car_suspension_deflection[wheel_index])+
-                  TempleCastU16(temple_contact_delta_6742)))))))));
+                  TempleCastU16(temple_contact_delta_6739)))))))));
       if((TempleCastS16(carstate->car_suspension_deflection[wheel_index])>384)) {
         (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(384));
       }
       (carstate->car_reserved_contact_state[wheel_index]=TempleCastS16(0));
     } else {
       if((RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(
-              TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_delta_6742)+
+              TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_contact_delta_6739)+
                   TempleCastU16(carstate->car_suspension_deflection[wheel_index])))))))>
             TempleCastS32((-(288))))) {
         (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(
             RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
                 TempleCastS32((TempleCastU16(carstate->car_suspension_deflection[wheel_index])+
-                    TempleCastU16(temple_contact_delta_6742)))))))));
+                    TempleCastU16(temple_contact_delta_6739)))))))));
       } else {
         if((TempleCastU32((TempleCastU16(2)&31))==0)) {
-          temple_tmp_6750=TempleCastU32(TempleCastU16(
+          temple_tmp_6747=TempleCastU32(TempleCastU16(
               RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
-                  TempleCastU32((TempleCastU32(TempleCastU16(temple_contact_delta_6742))*
+                  TempleCastU32((TempleCastU32(TempleCastU16(temple_contact_delta_6739))*
                       TempleCastU32(TempleCastU16(3))))))))));
         } else {
           if((TempleCastU32((TempleCastU16(RsPhysicsSuspensionLegacyS16FromBits(
                                 TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32(
-                                    (TempleCastU32(TempleCastU16(temple_contact_delta_6742))*
+                                    (TempleCastU32(TempleCastU16(temple_contact_delta_6739))*
                                         TempleCastU32(TempleCastU16(3)))))))))&
                   32768))!=0)) {
             if((TempleCastU32((TempleCastU16(2)&31))>=16)) {
-              temple_tmp_6747=TempleCastU32(TempleCastU32(65535));
+              temple_tmp_6744=TempleCastU32(TempleCastU32(65535));
             } else {
-              temple_tmp_6747=TempleCastU32(TempleCastU32(
+              temple_tmp_6744=TempleCastU32(TempleCastU32(
                   (TempleCastU32(TempleCastS32(
                       (TempleCastU16(RsPhysicsSuspensionLegacyS16FromBits(
                             TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32(
-                                (TempleCastU32(TempleCastU16(temple_contact_delta_6742))*
+                                (TempleCastU32(TempleCastU16(temple_contact_delta_6739))*
                                     TempleCastU32(TempleCastU16(3)))))))))>>
                           TempleCastU32((TempleCastU16(2)&31)))))|
                       TempleCastU16(TempleCastU32((TempleCastU32(65535)
                           <<TempleCastU32((16-TempleCastU32((TempleCastU16(2)&31))))))))));
             }
-            temple_tmp_6749=TempleCastU32(temple_tmp_6747);
+            temple_tmp_6746=TempleCastU32(temple_tmp_6744);
           } else {
             if((TempleCastU32((TempleCastU16(2)&31))>=16)) {
-              temple_tmp_6748=TempleCastU32(0);
+              temple_tmp_6745=TempleCastU32(0);
             } else {
-              temple_tmp_6748=TempleCastU32(TempleCastU32(
+              temple_tmp_6745=TempleCastU32(TempleCastU32(
                   TempleCastS32((TempleCastU16(RsPhysicsSuspensionLegacyS16FromBits(
                                     TempleCastU16(TempleCastU16(TempleCastU16(TempleCastU32(
-                                        (TempleCastU32(TempleCastU16(temple_contact_delta_6742))*
+                                        (TempleCastU32(TempleCastU16(temple_contact_delta_6739))*
                                             TempleCastU32(TempleCastU16(3)))))))))>>
                       TempleCastU32((TempleCastU16(2)&31))))));
             }
-            temple_tmp_6749=TempleCastU32(temple_tmp_6748);
+            temple_tmp_6746=TempleCastU32(temple_tmp_6745);
           }
-          temple_tmp_6750=TempleCastU32(temple_tmp_6749);
+          temple_tmp_6747=TempleCastU32(temple_tmp_6746);
         }
-        temple_scaled_delta_6746=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(
-            TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6750)))));
+        temple_scaled_delta_6743=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(
+            TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_6747)))));
         (carstate->car_suspension_deflection[wheel_index]=TempleCastS16(
             RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(
                 TempleCastS32((TempleCastU16(carstate->car_suspension_deflection[wheel_index])+
-                    TempleCastU16(temple_scaled_delta_6746)))))))));
+                    TempleCastU16(temple_scaled_delta_6743)))))))));
         if((TempleCastS16(carstate->car_suspension_deflection[wheel_index])<
               TempleCastS32((-(384))))) {
           (carstate->car_suspension_deflection[wheel_index]=
                   TempleCastS16(TempleCastS32((-(384)))));
         }
       }
-      (temple_adjustment_6745=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(
+      (temple_adjustment_6742=TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(
           TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
               (TempleCastU16(RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(TempleCastU16(
-                    TempleCastU16(TempleCastS32((TempleCastU16(temple_previous_deflection_6741)-
+                    TempleCastU16(TempleCastS32((TempleCastU16(temple_previous_deflection_6738)-
                         TempleCastU16(carstate->car_suspension_deflection[wheel_index]))))))))+
-                  TempleCastU16(temple_contact_delta_6742)))))))));
+                  TempleCastU16(temple_contact_delta_6739)))))))));
     }
   }
   return TempleCastS16(RsPhysicsSuspensionLegacyS16FromBits(TempleCastU16(
-      TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_previous_deflection_6741)+
-          TempleCastU16(temple_adjustment_6745))))))));
+      TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(temple_previous_deflection_6738)+
+          TempleCastU16(temple_adjustment_6742))))))));
 }

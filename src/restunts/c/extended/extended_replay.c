@@ -28,7 +28,7 @@ static uint32_t extended_replay_grown_capacity(uint32_t current, uint32_t needed
 	return capacity;
 }
 
-int extended_replay_reserve(struct EXTENDED_REPLAY_BUFFER *buffer, uint32_t needed)
+static int extended_replay_reserve(struct EXTENDED_REPLAY_BUFFER *buffer, uint32_t needed)
 {
 	if (needed <= buffer->capacity) {
 		return 1;

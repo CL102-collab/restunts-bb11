@@ -28,19 +28,6 @@ static legacy_f64 bounded(legacy_f64 value, legacy_f64 low, legacy_f64 high)
 	return value < low ? low : value > high ? high : value;
 }
 
-const legacy_char *genghost_maneuver_name(enum GENGHOST_MANEUVER_KIND kind)
-{
-	static const legacy_char *const names[] = {
-		"follow",		   "accelerate",		 "brake",  "tile touch", "stunt",
-		"stunt alternate", "chicane fast grass", "launch", "power gear", "landing",
-		"slalom center",   "slalom jump"};
-	const legacy_char *extended_name = extended_genghost_maneuver_name(kind);
-	if (extended_name) {
-		return extended_name;
-	}
-	return (legacy_uint)kind < sizeof(names) / sizeof(names[0]) ? names[kind] : "unknown";
-}
-
 legacy_int genghost_maneuver_powergear_ready(void)
 {
 	const struct CARSTATE *car = &state.playerstate;
@@ -234,7 +221,6 @@ struct GENGHOST_MANEUVER genghost_maneuver_feature_action(const struct GENGHOST_
 	struct GENGHOST_MANEUVER feature = *ordinary;
 	feature.approach = route->points[begin];
 	feature.exit = route->points[end];
-	feature.feature_begin = feature.approach.distance;
 	feature.feature_end = feature.exit.distance;
 	feature.physical_model = feature.approach.physical_model;
 	feature.approach_speed = feature.exit_speed = 250.0;
@@ -326,7 +312,7 @@ size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGH
 	ordinary.horizon_frames = 24U;
 	ordinary.gene = policy->segment[driver->segment];
 	ordinary.approach = ordinary.exit = route->points[driver->waypoint];
-	ordinary.feature_begin = ordinary.feature_end = driver->progress;
+	ordinary.feature_end = driver->progress;
 	ordinary.physical_model = route->points[driver->waypoint].physical_model;
 	ordinary.approach_speed = ordinary.exit_speed = ordinary.approach.speed;
 	genghost_maneuver_add_action(actions, &count, capacity, &ordinary);

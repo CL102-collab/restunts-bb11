@@ -113,11 +113,9 @@ legacy_int genghost_route_policy(const struct GENGHOST_ROUTES *set, size_t index
 /* Choose stay/short/near recipes independently of the arbitrary pair selector.
  * The caller already used the low two gate bits to decide whether to mutate. */
 legacy_u64 genghost_dualway_selector(legacy_u32 gate, legacy_u64 selector);
-/* Full world placement of a route piece; includes extended dimensions, rotation,
- * and elevations. Heights are measured at the supplied absolute world point. */
+/* World placement of a route piece, including extended dimensions and rotation. */
 void genghost_route_piece_frame(legacy_int piece, legacy_f64 *x, legacy_f64 *z,
 								legacy_s16 *orientation);
-legacy_f64 genghost_route_piece_height(legacy_int piece, legacy_f64 x, legacy_f64 z);
 void genghost_route_target_height(struct GENGHOST_WAYPOINT *target);
 /* Distance of a particular route occurrence, including the repeated finish. */
 legacy_f64 genghost_route_piece_distance(const struct GENGHOST_ROUTE *route, size_t piece_index);

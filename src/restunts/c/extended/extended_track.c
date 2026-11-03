@@ -236,7 +236,8 @@ static void restore_bindings(void)
 	bound = 0;
 }
 
-void extended_track_rebind(void)
+/* Called after init_trackdata has installed the ordinary pointers. */
+static void extended_track_rebind(void)
 {
 	if (!storage || bound) {
 		return;

@@ -198,10 +198,6 @@ static void replay_refresh_playback_controls(void)
 		is_in_replay_copy = (legacy_s8)REPLAY_BAR_HIDDEN_STATE;
 		viewport_bottom_cache = -1;
 	}
-	if (is_in_replay != 0 &&
-		(replay_legacy_play_active != 0 || replay_legacy_fast_play_active != 0)) {
-		replay_controls_select(REPLAY_CONTROL_PAUSE);
-	}
 	replay_controls_draw(replay_current_frame(), replay_current_frame());
 }
 

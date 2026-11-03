@@ -89,7 +89,6 @@ legacy_void TestLaunch()
   TestLaunchAssert(count==5,"all legacy argument strings arrive");
   TestLaunchConfigure(count,arguments);
   TestLaunchAssert(startup_options.sound_disabled,"legacy sound flag");
-  TestLaunchAssert(startup_options.unused_nd_option,"recognized legacy /nd flag");
   TestLaunchAssert(startup_options.mode4_requested==4,"legacy video flag parsing");
   TestLaunchAssert(audiodriverstring[0]=='P' &&audiodriverstring[1]=='C',
       "legacy PC audio argument reaches the parser");

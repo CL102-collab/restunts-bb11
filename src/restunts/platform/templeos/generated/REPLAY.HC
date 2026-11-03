@@ -2,74 +2,74 @@
 
 legacy_s8 RsReplayLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7566;
+  legacy_s32 noreg temple_tmp_7563;
   if((value<=127)) {
-    temple_tmp_7566=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7563=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7566=TempleCastS32(TempleCastS8(
+    temple_tmp_7563=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7566);
+  return TempleCastS8(temple_tmp_7563);
 }
 
 legacy_s16 RsReplayLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7567;
+  legacy_s32 noreg temple_tmp_7564;
   if((value<=32767)) {
-    temple_tmp_7567=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7564=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7567=TempleCastS32(TempleCastS16(
+    temple_tmp_7564=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7567);
+  return TempleCastS16(temple_tmp_7564);
 }
 
 legacy_s32 RsReplayLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7568;
+  legacy_s32 noreg temple_tmp_7565;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7568=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7565=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7568=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7565=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7568);
+  return TempleCastS32(temple_tmp_7565);
 }
 
 legacy_void RsReplayReplayReadBytes(legacy_s8 *destination,legacy_u8 *source,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_7570;
-  legacy_u16 *temple_tmp_7571;
-  legacy_u16 noreg temple_tmp_7572;
-  temple_index_7570=TempleCastU16(0);
+  legacy_u16 noreg temple_index_7567;
+  legacy_u16 *temple_tmp_7568;
+  legacy_u16 noreg temple_tmp_7569;
+  temple_index_7567=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_7570<count))) {
+    if(!((temple_index_7567<count))) {
       break;
     }
-    (destination[temple_index_7570]=TempleCastS8(
-        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7570])))));
-    temple_tmp_7571=&(temple_index_7570);
-    temple_tmp_7572=*temple_tmp_7571;
-    *temple_tmp_7571=TempleCastU16((temple_tmp_7572+1));
-    temple_tmp_7572;
+    (destination[temple_index_7567]=TempleCastS8(
+        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7567])))));
+    temple_tmp_7568=&(temple_index_7567);
+    temple_tmp_7569=*temple_tmp_7568;
+    *temple_tmp_7568=TempleCastU16((temple_tmp_7569+1));
+    temple_tmp_7569;
   }
 }
 
 legacy_void RsReplayReplayWriteBytes(legacy_u8 *destination,legacy_s8 *source,legacy_u16 count)
 {
-  legacy_u16 noreg temple_index_7574;
-  legacy_u16 *temple_tmp_7575;
-  legacy_u16 noreg temple_tmp_7576;
-  temple_index_7574=TempleCastU16(0);
+  legacy_u16 noreg temple_index_7571;
+  legacy_u16 *temple_tmp_7572;
+  legacy_u16 noreg temple_tmp_7573;
+  temple_index_7571=TempleCastU16(0);
   while(1) {
-    if(!((temple_index_7574<count))) {
+    if(!((temple_index_7571<count))) {
       break;
     }
-    (destination[temple_index_7574]=TempleCastU8(TempleCastU8(source[temple_index_7574])));
-    temple_tmp_7575=&(temple_index_7574);
-    temple_tmp_7576=*temple_tmp_7575;
-    *temple_tmp_7575=TempleCastU16((temple_tmp_7576+1));
-    temple_tmp_7576;
+    (destination[temple_index_7571]=TempleCastU8(TempleCastU8(source[temple_index_7571])));
+    temple_tmp_7572=&(temple_index_7571);
+    temple_tmp_7573=*temple_tmp_7572;
+    *temple_tmp_7572=TempleCastU16((temple_tmp_7573+1));
+    temple_tmp_7573;
   }
 }
 
@@ -98,8 +98,8 @@ legacy_void RsReplayGameinfoDecode(CGameInfo *destination,legacy_u8 *source)
 
 legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
 {
-  legacy_u16 noreg temple_legacy_write_u16_value__7578;
-  legacy_u16 noreg temple_legacy_write_u16_value__7580;
+  legacy_u16 noreg temple_legacy_write_u16_value__7575;
+  legacy_u16 noreg temple_legacy_write_u16_value__7577;
   RsReplayReplayWriteBytes((destination+0),source->game_playercarid,TempleCastU16(4));
   (destination[4]=TempleCastU8(TempleCastU8(source->game_playermaterial)));
   (destination[5]=TempleCastU8(TempleCastU8(source->game_playertransmission)));
@@ -109,19 +109,19 @@ legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
   (destination[12]=TempleCastU8(TempleCastU8(source->game_opponenttransmission)));
   RsReplayReplayWriteBytes((destination+13),source->game_trackname,TempleCastU16(9));
   while(1) {
-    temple_legacy_write_u16_value__7578=TempleCastU16(TempleCastU16(source->game_framespersec));
-    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7578)));
+    temple_legacy_write_u16_value__7575=TempleCastU16(TempleCastU16(source->game_framespersec));
+    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7575)));
     ((destination+22)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7578>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7575>>8)))));
     if(!(0)) {
       break;
     }
   }
   while(1) {
-    temple_legacy_write_u16_value__7580=TempleCastU16(TempleCastU16(source->game_recordedframes));
-    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7580)));
+    temple_legacy_write_u16_value__7577=TempleCastU16(TempleCastU16(source->game_recordedframes));
+    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7577)));
     ((destination+24)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7580>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7577>>8)))));
     if(!(0)) {
       break;
     }

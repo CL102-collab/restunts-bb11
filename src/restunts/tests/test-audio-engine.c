@@ -458,9 +458,8 @@ static void test_impact_feedback(void)
 						  audio_player_engine_channel);
 	assert(impact_feedback_count == 2);
 
-	static void (*const other_sounds[])(legacy_s16) = {
-		audio_play_engine_start, audio_play_engine_stop, audio_play_engine_failure,
-		audio_play_paved_skid, audio_play_offroad_skid};
+	static void (*const other_sounds[])(legacy_s16) = {audio_play_paved_skid,
+													   audio_play_offroad_skid};
 	for (legacy_u16 sound = 0; sound < sizeof(other_sounds) / sizeof(other_sounds[0]); sound++) {
 		reset_impact_sound();
 		other_sounds[sound](audio_player_engine_channel);

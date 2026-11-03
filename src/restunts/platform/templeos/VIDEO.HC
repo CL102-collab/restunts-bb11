@@ -111,11 +111,6 @@ legacy_s16 RsDosVideoGetStatus()
   return 0;
 }
 
-legacy_s16 RsVideoGetStatus()
-{
-  return RsDosVideoGetStatus();
-}
-
 legacy_void RsDosVideoSetPalette(legacy_u16 start,legacy_u16 count,legacy_u8 *palette)
 {
   TemplePaletteSet(start,count,palette);

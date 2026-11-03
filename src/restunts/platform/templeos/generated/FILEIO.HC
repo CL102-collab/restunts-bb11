@@ -303,11 +303,6 @@ legacy_u16 RsFileDecompParas(legacy_s8 *filename,legacy_s16 fatal)
   return TempleCastU16(0);
 }
 
-legacy_u16 RsFileDecompParasFatal(legacy_s8 *filename)
-{
-  return TempleCastU16(RsFileDecompParas(filename,TempleCastS16(1)));
-}
-
 legacy_u16 RsFileDecompParasNofatal(legacy_s8 *filename)
 {
   return TempleCastU16(RsFileDecompParas(filename,TempleCastS16(0)));

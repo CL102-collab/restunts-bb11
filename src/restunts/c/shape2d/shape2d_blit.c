@@ -168,13 +168,6 @@ static void shape2d_render_rle(struct SHAPE2D far *shape, legacy_u16 x, legacy_u
 	}
 }
 
-static void shape2d_render_rle_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y,
-										 legacy_s16 operation)
-{
-	shape2d_render_rle(shape, shape2d_anchored_x(shape, x), shape2d_anchored_y(shape, y),
-					   operation);
-}
-
 /* Several entry points differ only in the raster operation they apply at
  * the position stored in the sprite header. */
 static void shape2d_render_rle_at_position(struct SHAPE2D far *shape, legacy_s16 operation)
@@ -185,16 +178,6 @@ static void shape2d_render_rle_at_position(struct SHAPE2D far *shape, legacy_s16
 void shape2d_render_bmp_as_mask(struct SHAPE2D far *shape)
 {
 	shape2d_render_rle_at_position(shape, SHAPE2D_RASTER_AND);
-}
-
-void shape2d_rle_mask_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	shape2d_render_rle_at_anchor(shape, x, y, SHAPE2D_RASTER_AND);
-}
-
-void shape2d_rle_mask(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	shape2d_render_rle(shape, (legacy_u16)x, (legacy_u16)y, SHAPE2D_RASTER_AND);
 }
 
 void shape2d_rle_or_far_pointer(legacy_u16 offset, legacy_u16 segment)
@@ -211,11 +194,6 @@ void shape2d_rle_copy(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
 void shape2d_rle_copy_at_position(struct SHAPE2D far *shape)
 {
 	shape2d_render_rle_at_position(shape, SHAPE2D_RASTER_COPY);
-}
-
-void shape2d_rle_copy_at_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	shape2d_render_rle_at_anchor(shape, x, y, SHAPE2D_RASTER_COPY);
 }
 
 static legacy_s16 shape2d_clip_blit_rows(legacy_u16 width, legacy_u16 *y, legacy_u16 *source,
@@ -471,12 +449,6 @@ void shape2d_rle_or_position_clipped(struct SHAPE2D far *shape)
 							   SHAPE2D_RASTER_OR);
 }
 
-void shape2d_rle_copy_anchor_clipped(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	shape2d_render_rle_clipped(shape, shape2d_anchored_x(shape, x), shape2d_anchored_y(shape, y),
-							   SHAPE2D_RASTER_COPY);
-}
-
 static void sprite_putimage_at(struct SHAPE2D far *shape, legacy_u16 x, legacy_u16 y,
 							   legacy_s16 operation)
 {
@@ -537,11 +509,6 @@ void sprite_putimage(struct SHAPE2D far *shape)
 {
 	sprite_putimage_at(shape, shape2d_get_pos_x(shape), shape2d_get_pos_y(shape),
 					   SHAPE2D_RASTER_COPY);
-}
-
-void sprite_putimage_at_shape_anchor(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
-{
-	sprite_putimage_at_anchor(shape, x, y, SHAPE2D_RASTER_COPY);
 }
 
 void sprite_putimage_and(struct SHAPE2D far *shape, legacy_u16 x, legacy_u16 y)
