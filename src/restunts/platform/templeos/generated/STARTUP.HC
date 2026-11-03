@@ -439,6 +439,6 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
   RsStartupStartupMeasureVideo();
   RsRandomWait();
   0;
-  RsCopyMaterialListPointers(material_clrlist_ptr,material_clrlist2_ptr,material_patlist_ptr,
-      material_patlist2_ptr,TempleCastU16(0));
+  RsCopyMaterialListPointers(
+      material_clrlist_ptr,material_clrlist2_ptr,material_patlist_ptr,material_patlist2_ptr);
 }

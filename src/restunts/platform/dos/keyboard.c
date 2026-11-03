@@ -47,7 +47,6 @@ static legacy_u16 dos_kb_buffer_read;
 static legacy_u16 dos_kb_buffer_size = DOS_KB_BUFFER_ENTRY_BYTES;
 static legacy_u16 dos_kb_buffer_count;
 static legacy_u16 dos_kb_buffer[DOS_KB_BUFFER_CAPACITY];
-static legacy_u16 dos_kb_last_input;
 
 static const legacy_u8 dos_kb_keymap1[DOS_KB_PRIMARY_KEYMAP_SIZE] = {
 	0,	 27,  49,  50,	51,	 52,  53,  54,	55,	 56,  57,  48,	45,	 61,  8,   9,	113, 119, 101,
@@ -99,7 +98,6 @@ void interrupt kb_int9_handler(void)
 		if (kbc >= DOS_KB_SCANCODE_COUNT) {
 			kbc = 0;
 		}
-		dos_kb_last_input = kbc;
 		legacy_u8 was_pressed = dos_kb_input[kbc];
 		dos_kb_input[kbc] = 1;
 

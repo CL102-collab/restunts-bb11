@@ -267,9 +267,6 @@ static const struct AMIGA_ORIGINAL_PALETTE amiga_original_palettes[] = {
 	 }},
 };
 
-#define AMIGA_ORIGINAL_PALETTE_COUNT                                                               \
-	(sizeof(amiga_original_palettes) / sizeof(amiga_original_palettes[0]))
-
 /* Exact SDMAIN.PVS !pal bytes: VGA DAC components in the range 0..63. */
 static const legacy_u8 amiga_dos_reference_palette[256][3] = {
 	{0, 0, 0},	  {0, 0, 42},	{0, 42, 0},	  {0, 42, 42},	{42, 0, 0},	  {42, 0, 42},

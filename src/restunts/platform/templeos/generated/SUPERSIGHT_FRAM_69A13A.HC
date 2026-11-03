@@ -2,38 +2,38 @@
 
 legacy_s8 RsSupersightFrameVisibilityLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7587;
+  legacy_s32 noreg temple_tmp_7586;
   if((value<=127)) {
-    temple_tmp_7587=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7586=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7587=TempleCastS32(TempleCastS8(
+    temple_tmp_7586=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7587);
+  return TempleCastS8(temple_tmp_7586);
 }
 
 legacy_s16 RsSupersightFrameVisibilityLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7588;
+  legacy_s32 noreg temple_tmp_7587;
   if((value<=32767)) {
-    temple_tmp_7588=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7587=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7588=TempleCastS32(TempleCastS16(
+    temple_tmp_7587=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7588);
+  return TempleCastS16(temple_tmp_7587);
 }
 
 legacy_s32 RsSupersightFrameVisibilityLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7589;
+  legacy_s32 noreg temple_tmp_7588;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7589=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7588=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7589=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7588=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7589);
+  return TempleCastS32(temple_tmp_7588);
 }
 
 legacy_s16 RsSupersightFrameVisibilityCameraAdjustCustomDirection(legacy_u16 direction)
@@ -106,9 +106,9 @@ legacy_s16 RsFrameSupersightPrepareTile(CFrameTile *tile)
 
 legacy_void RsFrameSupersightRacingLineFlags(legacy_u8 *flags)
 {
-  legacy_u8 *temple_tmp_7590;
-  temple_tmp_7590=&((*(flags)));
-  ((*temple_tmp_7590)=TempleCastU8(((*temple_tmp_7590)|64)));
+  legacy_u8 *temple_tmp_7589;
+  temple_tmp_7589=&((*(flags)));
+  ((*temple_tmp_7589)=TempleCastU8(((*temple_tmp_7589)|64)));
 }
 
 legacy_void RsFrameSupersightOverrideCarDetail(

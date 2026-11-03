@@ -80,11 +80,6 @@ legacy_s16 RsRestuntsCameraAdjustCustomDirection(legacy_u16 direction)
   return TempleCastS16(0);
 }
 
-legacy_s16 RsVideoBackbufferCopyRequired()
-{
-  return TempleCastS16(0);
-}
-
 legacy_void RsRestuntsShutdownDosGame()
 {
   RsGhostClear();
@@ -196,14 +191,13 @@ legacy_void RsInitDiv0()
   RsDosInstallDivideErrorHandler();
 }
 
-legacy_void RsCopyMaterialListPointers(legacy_u8 *clrlist,legacy_u8 *clrlist2,legacy_u8 *patlist,
-    legacy_u8 *patlist2,legacy_u16 reserved_video_word)
+legacy_void RsCopyMaterialListPointers(
+    legacy_u8 *clrlist,legacy_u8 *clrlist2,legacy_u8 *patlist,legacy_u8 *patlist2)
 {
   (material_clrlist_ptr_cpy=clrlist);
   (material_clrlist2_ptr_cpy=clrlist2);
   (material_patlist_ptr_cpy=patlist);
   (material_patlist2_ptr_cpy=patlist2);
-  (reserved_material_video_word=TempleCastU16(reserved_video_word));
 }
 
 legacy_void RsRestuntsInitFullGame(legacy_s16 argc,legacy_s8 **argv)

@@ -257,3 +257,105 @@ construction APIs remain as documented above.
 
 Local before/after captures and normalized generated-scope evidence are retained
 under ignored `out/dead-code-round2/`.
+
+## Third audit against `ad63d3ef`
+
+A third pass on 2026-11-03 starts at
+`ad63d3ef3b7dc084f8ab486269d3561d908eb359`. The prior follow-up was committed as
+`ad63d3ef`; the completed changes and their validation are documented below.
+
+This pass checks data flow as well as direct callers: private fields and globals
+that are never read, fixed-result helpers, exclusive constants, platform I/O,
+internal worker/checkpoint layouts, and the remaining tool references.
+
+### Unreachable copy path
+
+Removed `video_backbuffer_copy_required`, whose only implementation returned
+zero unconditionally. Its guarded backbuffer-copy blocks in race cleanup and
+intro shutdown could never run. Normal page flipping, drawing, and non-flipping
+sprite cleanup remain.
+
+The intro fixture previously injected an artificial nonzero result. Its retained
+coverage now consists of all eight reachable lifecycle combinations: two
+page-flipping states and four cancellation timings. An ignored baseline fixture
+using the old production sources and a pure zero-returning hook established
+lifecycle hash `bb4f51bf`; both the classic and SDL3 updated tests match it.
+Scene and preview hashes `cdcdbe61` and `8ae71f07` remain unchanged.
+
+### Unread state removed
+
+Thirteen fields or variables have no consumers in current production:
+
+- `SHAPE3D_HIRES_TRANSFORM_CONTEXT.shadow_primitive`, which had no uses at all.
+- `SHADOW_SURFACE.rendered_index` and its two write-only assignments.
+- `fontdefseg` storage and its write. The live font-definition pointer and font
+  setter remain.
+- `meter_needle_color` and its obsolete production/test writes. Dashboard needle
+  colors still come from the SIMD `Red#5` data and retain their regression checks.
+- `reserved_material_video_word` and the exclusively related fifth parameter of
+  the shared material-pointer copy helper. The four live material pointers and
+  the native graphics context checks remain.
+- `audio_driver_timer_rate` and its only assignment. Actual timer registration,
+  divider, sequence clocks, and callback behavior remain.
+- DOS `dos_kb_last_input`, `dos_mouse_available`, `dos_mouse_last_x`, and
+  `dos_mouse_last_y`. Keyboard queues/interrupt handling, mouse button count,
+  scaling, register setup, and actual device I/O remain.
+- `GENGHOST_DRIVER.target_speed`, `GENGHOST_DRIVER.ticks`, and their writes.
+  Local target-speed calculations, steering/braking decisions, and the consumed
+  tactic/phase counters remain. The private driver is copied only within the
+  current executable; its layout is not the worker result payload or an on-disk
+  replay format.
+- `GENGHOST_STUNT_RECIPE.name` and 48 unread catalog label strings. All 24 catalog
+  entries retain their exact model and recipe-kind ordering. The private
+  `toward_target` helper no longer takes a driver pointer used only for the
+  deleted target-speed write.
+
+### Exclusive constants removed
+
+Removed the now-unused `AUDIO_DRIVER_TIMER_RATE` and `DOS_MOUSE_AVAILABLE`
+constants, plus the unreferenced `AMIGA_ORIGINAL_PALETTE_COUNT` macro. Palette
+contents and their live `sizeof` count remain unchanged.
+
+Six unused Python constants were also removed:
+
+- `MAKE_DATA_CD.PY`: `CATALOG_VALIDATION_BYTES`.
+- `mcmurtry_physics.py`: `ADHESION_MAX_ALIGNMENT_DEGREES`. Tesla's distinct,
+  live constant with the same name remains.
+- `tesla_roadster_physics.py`: `CAR_ID`; the generator owns the live identifier.
+- `test-genghost-extended.py`: `CSTRK_OBJECT_SIZE` and `TILE_SIZE`.
+- `test-genghost-parallel.py`: `REPLAY_INPUT_OFFSET`.
+
+### Cases retained after rechecking
+
+Saved divide-handler state and divide-fault diagnostics were retained: they
+represent an incomplete lifecycle/diagnostic interface, not an abandoned gameplay
+calculation. Serialized CSTRK enum values and roll-phase enum members also remain,
+even where their names have no direct caller: numeric format values and phase
+increments still depend on them. Packed sprite/audio fields, live exports,
+callback registrations, and discovery-based tests remain.
+
+### Third-pass validation
+
+- Configured native Linux targets build successfully.
+- Focused dashboard, sprite, Amiga, classic/SDL3/Android audio, startup, race, and
+  intro tests pass. Both car generators verify their assets, all five TempleOS
+  package tests pass, and Python compilation/source checks pass.
+- The intro baseline and updated fixtures match across all eight reachable
+  lifecycle cases. Scene and preview fingerprints remain unchanged; the 24-entry
+  stunt catalog retains all 96 model/recipe-kind tokens in the original order.
+- Before/after comparison against the immediate `ad63d3ef` baseline preserves all
+  241 game-state/RNG records in each of four modes and all 4,031 full-frame pixel
+  digests. The compared library matches the current native build byte-for-byte.
+- Full TempleOS regeneration updates 120 generated files; only 11 contain
+  substantive changes after temporary-name normalization. Shared DOS/TempleOS
+  definitions decrease from 2,245 to 2,244. All 25 translator cleanup tests and
+  the HolyC style check pass. Regeneration is reproducible with `--check`.
+- Pinned C/H formatting, EditorConfig, CRLF/file-mode checks, and whitespace
+  checks pass. Packed layouts, original assembly, and third-party code remain.
+- All 74 CTest checks pass in one run with timeout multiplier 3.
+
+Native DOS keyboard/mouse behavior was checked by source/interface review;
+no DOS guest execution was performed.
+
+Local baseline snapshots and audit evidence are retained under ignored
+`out/dead-code-round3/`.

@@ -426,15 +426,7 @@ void intro_render_session(struct INTRO_SESSION *intro, const struct INTRO_VIEW *
 
 static void intro_finish_session(struct INTRO_SESSION *intro)
 {
-	if (video_uses_page_flipping != 0) {
-		if (video_backbuffer_copy_required() != 0) {
-			sprite_select_mcga_backbuffer();
-			sprite_copy_rect_shifted(0, 0, INTRO_SCREEN_MAX_X, INTRO_SCREEN_MAX_Y, 0);
-			mouse_draw_opaque_check();
-			sprite_present_mcga_backbuffer();
-			mouse_draw_transparent_check();
-		}
-	} else {
+	if (video_uses_page_flipping == 0) {
 		sprite_free_wnd(render_window_sprite);
 	}
 	mmgr_free(intro->title_resource);

@@ -15,7 +15,6 @@ struct SHAPE3D_HIRES_TRANSFORM_CONTEXT {
 	const struct SHAPE3D_HIRES_VECTOR *source_vertices;
 	legacy_u32 shadow_surfaces[SHAPE3D_SHADOW_PRIMITIVE_CAPACITY];
 	legacy_u32 shadow_surface_count;
-	legacy_u32 shadow_primitive;
 };
 struct SHAPE3D_HIRES_PIPELINE_CONTEXT {
 	legacy_u8 vertex_clip_flags[LEGACY_U8_MAX + 1U];

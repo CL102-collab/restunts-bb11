@@ -120,7 +120,6 @@ void load_skybox(legacy_s8 skybox_index)
 	skybox.sky_color = material_clrlist_ptr[SKYBOX_SKY_MATERIAL_INDEX];
 	skybox.ground_color = material_clrlist_ptr[SKYBOX_GROUND_MATERIAL_INDEX];
 	skybox.water_color = material_clrlist_ptr[SKYBOX_WATER_MATERIAL_INDEX];
-	meter_needle_color = dialog_fnt_colour;
 }
 
 static void setup_car_engine_resources(void)

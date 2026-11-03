@@ -11,8 +11,6 @@
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
 
-extern legacy_u16 fontdefseg;
-
 #define SHAPE2D_FIXED_FRACTION_BITS LEGACY_BYTE_BITS
 #define SHAPE2D_FIXED_ONE 65536UL
 #define SHAPE2D_ZERO_WIDTH_RASTER_PIXELS 131072UL
@@ -537,7 +535,6 @@ void sprite_putpixel_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 color)
 
 void set_fontdefseg(void far *data)
 {
-	fontdefseg = dos_memory_pointer_segment(data);
 	active_font_definition = (legacy_u8 far *)data;
 }
 

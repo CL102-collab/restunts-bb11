@@ -122,8 +122,6 @@ extern legacy_void RsShape2dRleCopy(CShape2D *shape,legacy_s16 x,legacy_s16 y);
 extern legacy_void RsShape2dRenderBmpAsMask(CShape2D *shape);
 extern legacy_void RsSpritePresentMcgaBackbuffer();
 extern legacy_void RsSpriteSelectMcgaBackbuffer();
-extern legacy_void RsSpriteCopyRectShifted(legacy_s16 source_x,legacy_s16 source_y,
-    legacy_s16 width,legacy_s16 height,legacy_s16 destination_shift);
 extern CShape2D *RsFileGetShape2d(legacy_u8 *memchunk,legacy_s16 index);
 extern legacy_u16 RsFileGetResShapeCount(legacy_u8 *memchunk);
 extern legacy_u8 *RsFileLoadShape2dFatal(legacy_s8 *shapename);

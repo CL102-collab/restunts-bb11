@@ -87,7 +87,7 @@ struct SHADOW_SURFACE {
 	struct SHAPE3D_HIRES_VECTOR vertices[HIRES_SHADOW_SURFACE_MAX_POINTS];
 	struct SHAPE3D_HIRES_VECTOR minimum, maximum, normal;
 	legacy_f64 distance;
-	legacy_u32 count, cars, rendered_index;
+	legacy_u32 count, cars;
 	legacy_s32 grille, axis;
 };
 

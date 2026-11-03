@@ -495,7 +495,7 @@ static legacy_f64 wheelbase(void)
 }
 
 static legacy_u8 toward_target(const struct GENGHOST_WAYPOINT *target, legacy_f64 target_speed,
-							   legacy_u8 input, struct GENGHOST_DRIVER *driver)
+							   legacy_u8 input)
 {
 	const struct CARSTATE *car = &state.playerstate;
 	struct VECTOR delta = {
@@ -522,7 +522,6 @@ static legacy_u8 toward_target(const struct GENGHOST_WAYPOINT *target, legacy_f6
 	} else if (speed > target_speed + 1.5) {
 		input |= INPUT_BRAKE_FLAG;
 	}
-	driver->target_speed = target_speed;
 	return input;
 }
 
@@ -615,13 +614,13 @@ legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 	legacy_f64 target_speed;
 	if (!owoot && action->kind == GENGHOST_MANEUVER_CHICANE_GRASS &&
 		chicane_target(route, driver, action, &target, &target_speed)) {
-		input = toward_target(&target, target_speed, input, driver);
+		input = toward_target(&target, target_speed, input);
 	} else if (!owoot && action->kind == GENGHOST_MANEUVER_SLALOM_JUMP &&
 			   car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE &&
 			   (action->exit.x - car->car_position.lx / 64.0) * action->exit_heading_x +
 					   (action->exit.z - car->car_position.lz / 64.0) * action->exit_heading_z >
 				   0.0) {
-		input = toward_target(&action->exit, action->exit_speed, input, driver);
+		input = toward_target(&action->exit, action->exit_speed, input);
 	} else if (!owoot && !action->road_only &&
 			   (action->kind == GENGHOST_MANEUVER_LAUNCH ||
 				action->kind == GENGHOST_MANEUVER_POWERGEAR ||
@@ -632,7 +631,7 @@ legacy_u8 genghost_maneuver_step(const struct GENGHOST_ROUTE *route,
 		/* The approach follows the launch geometry; in flight the goal becomes
 		 * a later landing/tile contact. After touchdown the normal route driver
 		 * takes over. Exact physics decides whether this flight can reach it. */
-		input = toward_target(&action->exit, action->exit_speed, input, driver);
+		input = toward_target(&action->exit, action->exit_speed, input);
 	}
 	/* Human loop entries can trigger the unsigned-force boost before top gear.
 	 * Retain that useful native state instead of immediately shifting away
