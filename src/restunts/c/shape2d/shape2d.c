@@ -11,8 +11,6 @@
 #include "../ui/ui_text.h"
 #include "../video/video_pages.h"
 
-extern legacy_u16 fontdefseg;
-
 #define FONTDEF_LINE_START_X_OFFSET 4U
 #define FONTDEF_START_X_OFFSET 8U
 #define FONTDEF_START_Y_OFFSET 10U

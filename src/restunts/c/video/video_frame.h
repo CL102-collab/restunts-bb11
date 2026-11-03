@@ -9,8 +9,6 @@ extern struct RECTANGLE *alternate_frame_rects;
 extern struct RECTANGLE empty_rect;
 extern struct RECTANGLE full_screen_rect;
 
-legacy_s16 video_backbuffer_copy_required(void);
-
 #ifdef RESTUNTS_SDL3
 /* Keep frame boundaries available to controllers without SDL type dependencies. */
 void sdl3_video_begin_frame(void);

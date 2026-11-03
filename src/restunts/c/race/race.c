@@ -535,14 +535,6 @@ static void race_finish_opponent(void)
 
 static void race_release_resources(void)
 {
-	if (video_uses_page_flipping != 0 && video_backbuffer_copy_required() != 0) {
-		mouse_draw_opaque_check();
-		sprite_select_mcga_backbuffer();
-		sprite_copy_rect_shifted(0, 0, RACE_SCREEN_WIDTH, RACE_SCREEN_HEIGHT, 0);
-		sprite_present_mcga_backbuffer();
-		mouse_draw_transparent_check();
-	}
-
 	sprite_select_screen_compat();
 	is_in_replay = 1;
 	audio_carstate();

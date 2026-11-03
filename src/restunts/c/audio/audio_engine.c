@@ -36,7 +36,6 @@ void far *audio_closed_hihat_resource;
 void far *audio_open_hihat_resource;
 legacy_s16 audio_player_engine_channel;
 legacy_s16 audio_opponent_engine_channel;
-static legacy_u16 audio_driver_timer_rate;
 static legacy_s16 audio_driver_timer_divider;
 legacy_u16 audio_sequence_elapsed_ticks;
 legacy_u16 audio_sequence_tick_period;
@@ -57,7 +56,6 @@ void audio_add_driver_timer(void)
 	for (legacy_u16 index = 0; index < AUDIO_TIMER_COUNT; index++) {
 		audio_timers[index].active = 0;
 	}
-	audio_driver_timer_rate = AUDIO_DRIVER_TIMER_RATE;
 	timer_reg_callback(&audio_driver_timer);
 }
 

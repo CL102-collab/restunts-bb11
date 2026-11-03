@@ -113,7 +113,6 @@ legacy_void TempleGraphicsProjectionTest()
   legacy_s16 *saved_patterns=material_patlist_ptr_cpy;
   legacy_s16 *saved_secondary=material_clrlist2_ptr_cpy;
   legacy_s16 *saved_bits=material_patlist2_ptr_cpy;
-  legacy_u16 noreg saved_reserved=reserved_material_video_word;
   MemSet(&shape,0,sizeof(shape));
   MemSet(&instance,0,sizeof(instance));
   MemSet(primitives,0,sizeof(primitives));
@@ -186,8 +185,8 @@ legacy_void TempleGraphicsProjectionTest()
   material_patlist_ptr_cpy=saved_patterns;
 
   /* Send the real EGA materials through the generated transform and queue. */
-  RsCopyMaterialListPointers(material_clrlist_ptr,material_clrlist2_ptr,material_patlist_ptr,
-      material_patlist2_ptr,saved_reserved);
+  RsCopyMaterialListPointers(
+      material_clrlist_ptr,material_clrlist2_ptr,material_patlist_ptr,material_patlist2_ptr);
   for(material=TEST_MATERIAL_BLUE_FIRST;material<=TEST_MATERIAL_BLUE_LAST;material++) {
     primitives[TEMPLE_GRAPHICS_PRIMITIVE_HEADER_BYTES-1]=material;
     TempleGraphicsAssert(!RsShape3dTransformAndQueue(&instance)&&polyinfonumpolys==1,
@@ -205,8 +204,7 @@ legacy_void TempleGraphicsProjectionTest()
     TempleGraphicsAssert(!temple_raster_native,"EGA queue restores logical UI coordinates");
   }
   primitives[TEMPLE_GRAPHICS_PRIMITIVE_HEADER_BYTES-1]=0;
-  RsCopyMaterialListPointers(
-      saved_colors,saved_secondary,saved_patterns,saved_bits,saved_reserved);
+  RsCopyMaterialListPointers(saved_colors,saved_secondary,saved_patterns,saved_bits);
 
   /* Clipping against z=12 must retain the fractional 3D intersections. */
   vertex.x=0;

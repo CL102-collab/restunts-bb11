@@ -129,7 +129,6 @@ legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *verti
 		}
 	}
 	surface.count = count;
-	surface.rendered_index = LEGACY_U32_MAX;
 	surface.grille = grille;
 	if (shape3d_hires_state.shadow_surface_count == shape3d_hires_state.shadow_surface_capacity) {
 		size_t capacity = shape3d_hires_state.shadow_surface_capacity != 0
@@ -173,7 +172,6 @@ void shape3d_hires_set_shadow_surface(legacy_u32 index, legacy_u32 surface)
 	if (index < shape3d_hires_state.primitive_count && surface != 0 &&
 		surface <= shape3d_hires_state.shadow_surface_count) {
 		shape3d_hires_state.primitives[index].shadow_surface = surface;
-		shape3d_hires_state.shadow_surfaces[surface - 1].rendered_index = index;
 	}
 }
 

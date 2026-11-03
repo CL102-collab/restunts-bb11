@@ -89,8 +89,6 @@ struct GENGHOST_DRIVER {
 	legacy_uint segment;
 	legacy_f64 progress;
 	legacy_f64 off_route;
-	legacy_f64 target_speed;
-	legacy_uint ticks;
 	/* Actual frames driven toward a stunt proposal, not gene presence. */
 	legacy_uint tactic_ticks;
 	/* Current protected roll-ramp approach/contact/flight phase; zero otherwise. */
@@ -152,7 +150,6 @@ enum GENGHOST_STUNT_RECIPE_KIND {
 };
 struct GENGHOST_STUNT_RECIPE {
 	enum GENGHOST_STUNT_RECIPE_KIND kind;
-	const legacy_char *name;
 };
 const struct GENGHOST_STUNT_RECIPE *genghost_stunt_recipe(legacy_int model,
 														  legacy_int collision_enabled);
