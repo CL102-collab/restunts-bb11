@@ -350,9 +350,9 @@ extern legacy_void RsGhostLineFinish();
 extern legacy_void RsGhostLineRecord(CCarState *car);
 extern legacy_s16 RsSkyboxRender(legacy_s16 view_index,CRectangle *clip,legacy_s16 direction,
     CMatrix *rotation,legacy_s16 roll,legacy_s16 angle,legacy_s16 camera_y);
-extern legacy_u8 RsTrackEditorMapTile(legacy_u8 column,legacy_u8 row);
 extern legacy_s16 RsTrackEditorRemoveInvalidTerrainTiles();
 extern legacy_u8 RsTrackEditorPaletteTile(legacy_u8 page,legacy_u8 row,legacy_u8 column);
+extern legacy_u8 RsTrackEditorMapTile(legacy_u8 column,legacy_u8 row);
 extern legacy_void RsTrackEditorShowMessage(legacy_s8 *text_resource,legacy_s8 *resource_id);
 extern legacy_void RsTrackEditorDrawWindow(CTrackEditorSession *editor);
 extern legacy_void RsTrackEditorUpdatePalette(CTrackEditorSession *editor);

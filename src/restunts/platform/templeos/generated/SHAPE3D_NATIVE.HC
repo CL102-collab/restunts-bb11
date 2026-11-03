@@ -2,38 +2,38 @@
 
 legacy_s8 RsShape3dNativeLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7737;
+  legacy_s32 noreg temple_tmp_7736;
   if((value<=127)) {
-    temple_tmp_7737=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7736=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7737=TempleCastS32(TempleCastS8(
+    temple_tmp_7736=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7737);
+  return TempleCastS8(temple_tmp_7736);
 }
 
 legacy_s16 RsShape3dNativeLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7738;
+  legacy_s32 noreg temple_tmp_7737;
   if((value<=32767)) {
-    temple_tmp_7738=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7737=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7738=TempleCastS32(TempleCastS16(
+    temple_tmp_7737=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7738);
+  return TempleCastS16(temple_tmp_7737);
 }
 
 legacy_s32 RsShape3dNativeLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7739;
+  legacy_s32 noreg temple_tmp_7738;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7739=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7738=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7739=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7738=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7739);
+  return TempleCastS32(temple_tmp_7738);
 }
 
 legacy_s16 RsShape3dNativeCoordinate(legacy_s64 value)
@@ -75,50 +75,50 @@ legacy_s16 RsShape3dLogicalCoordinate(legacy_s16 value)
 
 legacy_u16 RsShape3dGeometryClipFlags(CPoint2D *point)
 {
-  CPoint2D temple_logical_7740;
-  (temple_logical_7740.px=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->px))));
-  (temple_logical_7740.py=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->py))));
-  return TempleCastU16(RsRectComparePoint((&(temple_logical_7740))));
+  CPoint2D temple_logical_7739;
+  (temple_logical_7739.px=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->px))));
+  (temple_logical_7739.py=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->py))));
+  return TempleCastU16(RsRectComparePoint((&(temple_logical_7739))));
 }
 
 legacy_void RsShape3dAdjustGeometryBounds(CPoint2D *point,CRectangle *rectangle)
 {
-  CPoint2D temple_logical_7741;
-  (temple_logical_7741.px=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->px))));
-  (temple_logical_7741.py=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->py))));
-  RsRectAdjustFromPoint((&(temple_logical_7741)),rectangle);
+  CPoint2D temple_logical_7740;
+  (temple_logical_7740.px=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->px))));
+  (temple_logical_7740.py=TempleCastS16(RsShape3dLogicalCoordinate(TempleCastS16(point->py))));
+  RsRectAdjustFromPoint((&(temple_logical_7740)),rectangle);
 }
 
 legacy_void RsShape3dNativeNearIntersection(CVector *front,CVector *behind,CPoint2D *point)
 {
-  legacy_s64 temple_depth_span_7742;
-  legacy_s64 temple_near_offset_7743;
-  temple_depth_span_7742=(TempleCastS64(front->z)-behind->z);
-  temple_near_offset_7743=(12-TempleCastS64(behind->z));
+  legacy_s64 temple_depth_span_7741;
+  legacy_s64 temple_near_offset_7742;
+  temple_depth_span_7741=(TempleCastS64(front->z)-behind->z);
+  temple_near_offset_7742=(12-TempleCastS64(behind->z));
   RsShape3dProjectCoordinates(
-      ((behind->x*temple_depth_span_7742)+
-          ((TempleCastS64(front->x)-behind->x)*temple_near_offset_7743)),
-      ((behind->y*temple_depth_span_7742)+
-          ((TempleCastS64(front->y)-behind->y)*temple_near_offset_7743)),
-      (12*temple_depth_span_7742),point);
+      ((behind->x*temple_depth_span_7741)+
+          ((TempleCastS64(front->x)-behind->x)*temple_near_offset_7742)),
+      ((behind->y*temple_depth_span_7741)+
+          ((TempleCastS64(front->y)-behind->y)*temple_near_offset_7742)),
+      (12*temple_depth_span_7741),point);
 }
 
 legacy_void RsShape3dNativeRoundBounds(
     CPoint2D *center,legacy_u16 radius,legacy_s16 padding,CRectangle *rectangle)
 {
-  legacy_s64 temple_extent_7744;
-  CPoint2D temple_point_7745;
-  temple_extent_7744=(TempleCastS64(radius)+TempleCastS32((padding*2)));
-  (temple_point_7745.px=
-          TempleCastS16(RsShape3dNativeCoordinate((center->px-temple_extent_7744))));
-  (temple_point_7745.py=
-          TempleCastS16(RsShape3dNativeCoordinate((center->py-temple_extent_7744))));
-  RsShape3dAdjustGeometryBounds((&(temple_point_7745)),rectangle);
-  (temple_point_7745.px=
-          TempleCastS16(RsShape3dNativeCoordinate((center->px+temple_extent_7744))));
-  (temple_point_7745.py=
-          TempleCastS16(RsShape3dNativeCoordinate((center->py+temple_extent_7744))));
-  RsShape3dAdjustGeometryBounds((&(temple_point_7745)),rectangle);
+  legacy_s64 temple_extent_7743;
+  CPoint2D temple_point_7744;
+  temple_extent_7743=(TempleCastS64(radius)+TempleCastS32((padding*2)));
+  (temple_point_7744.px=
+          TempleCastS16(RsShape3dNativeCoordinate((center->px-temple_extent_7743))));
+  (temple_point_7744.py=
+          TempleCastS16(RsShape3dNativeCoordinate((center->py-temple_extent_7743))));
+  RsShape3dAdjustGeometryBounds((&(temple_point_7744)),rectangle);
+  (temple_point_7744.px=
+          TempleCastS16(RsShape3dNativeCoordinate((center->px+temple_extent_7743))));
+  (temple_point_7744.py=
+          TempleCastS16(RsShape3dNativeCoordinate((center->py+temple_extent_7743))));
+  RsShape3dAdjustGeometryBounds((&(temple_point_7744)),rectangle);
 }
 
 legacy_u16 RsShape3dNativeSphereRadius(CVector *radius_vector,legacy_s16 depth)

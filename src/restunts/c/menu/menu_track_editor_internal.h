@@ -96,8 +96,6 @@ enum TRACK_EDITOR_VALIDATION_RESULT {
 
 extern legacy_u8 far *progress_box_shape;
 
-legacy_u8 track_editor_map_tile(legacy_u8 column, legacy_u8 row);
-
 struct TRACK_EDITOR_MAP_CELL {
 	legacy_u16 source_row;
 	legacy_u16 source_column;

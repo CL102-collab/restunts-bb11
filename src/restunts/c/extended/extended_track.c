@@ -60,10 +60,9 @@ static void prepare_roll_route_info(void)
 	for (legacy_u16 index = 0; index < ROLL_RAMP_ROUTE_POINT_COUNT; index++) {
 		legacy_s16 distance =
 			(legacy_s16)((legacy_s32)index * ROLL_RAMP_LENGTH / (ROLL_RAMP_ROUTE_POINT_COUNT - 1U));
-		struct VECTOR normal;
-		roll_ramp_sample(distance, -ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U], &normal);
+		roll_ramp_sample(distance, -ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U], NULL);
 		roll_ramp_sample(distance, ROLL_RAMP_HALF_WIDTH, &roll_route_vectors[index * 2U + 1U],
-						 &normal);
+						 NULL);
 	}
 	roll_route_vectors[ROLL_RAMP_ROUTE_POINT_COUNT * 2U] =
 		(struct VECTOR){0, ROLL_RAMP_RISE_PER_TILE, 0};

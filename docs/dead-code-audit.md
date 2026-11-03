@@ -359,3 +359,89 @@ no DOS guest execution was performed.
 
 Local baseline snapshots and audit evidence are retained under ignored
 `out/dead-code-round3/`.
+
+## Fourth audit against `bb0fbee4`
+
+A fourth pass on 2026-11-03 starts at
+`bb0fbee4a9fa7a4ef4c93f2415f58f344deb2ab8`. The third cleanup was committed as
+`bb0fbee4`; the completed changes and their validation are documented below.
+
+A further cross-platform scan found no large unused renderer module or additional
+unreferenced gameplay API. The confirmed remaining cleanup is narrower: an
+unreachable DOS timer path, discarded calculations/inputs, and small declaration
+and assignment residues. Callback/policy signatures, packed layouts, lifecycle
+hooks, diagnostics, serialized values, and intentional fixture APIs remain.
+
+### Unreachable DOS timer timeout state
+
+Removed `dos_timer_chain_timeout_active`, `dos_timer_chain_timeout`, and
+`dos_timer_chain_enabled` with their unreachable timeout/disabled-chain branches.
+The timeout-active flag was only assigned zero; the chain-enabled flag was set to
+one before handler installation and could only clear inside that inactive path.
+Every reachable divided tick therefore already chained the previous BIOS handler.
+
+The implementation now chains that handler directly on divided ticks. Non-divided
+PIC acknowledgments, callback registration/removal/suspension, nested interrupt
+handling, counter wrapping, setup ordering, and vector restoration remain. All six
+inline-assembly blocks are unchanged.
+
+An ignored host probe compared the actual old/new C control flow with only the
+hardware/vector/counter assembly boundaries replaced by traced stubs. All 1,646
+event records match byte-for-byte, including an IRQ triggered during installation,
+BIOS chaining/EOI, callback capacity, suspended/nested callbacks, wraparound,
+repeated setup, and shutdown. This does not validate 8086 instruction timing or
+replace DOS guest execution.
+
+### Discarded geometry work and unused inputs
+
+`prepare_roll_route_info` no longer requests two unused surface normals per sample.
+It passes `NULL` through the existing optional-output contract, avoiding derivative
+and normalization work while preserving all 34 route-point vectors byte-for-byte.
+Other callers that consume normals continue to request them.
+
+Removed five discarded inputs and their corresponding arguments:
+
+- The private extended corkscrew gate helper's `index`. The outer classic gate
+  still consumes its index for endpoint geometry.
+- `genghost_maneuvers`' unused `collision` argument. Live collision rules and
+  per-tick recipe selection remain; proposal generation is otherwise unchanged.
+- The stunt-report `summarize` helper's `cases` argument. The separate replay
+  report helper still uses its own `cases` input.
+- Tesla's private canopy/rear helpers' `simple` arguments. The body helper still
+  uses the detail flag; generated assets remain identical.
+
+### Other small residues
+
+- Removed unused `RST_ASC_CONTROL` and `RS_RLE_ESCLEN_MAX` macros; live character
+  classification, decoder lookup sizes, and format behavior remain.
+- Removed a duplicate `track_editor_map_tile` declaration; the live declaration
+  and implementation remain.
+- Removed the stale `audio_load_driver` declaration, which had neither a current
+  definition nor callers. The actual `audio_load_dos_driver` interface remains.
+- Removed an unread final track-data pointer advance and an allocator initializer
+  overwritten before its first read. Allocation/resize behavior and layout sizes
+  remain unchanged.
+- Removed an immediately discarded `transform_result` local. The side-effectful
+  `shape3d_transform_and_queue` call remains at the same position.
+
+### Fourth-pass validation
+
+- Configured native Linux targets build successfully; all 74 CTest checks pass
+  in one run with timeout multiplier 3.
+- Focused memory/decompression, OWOOT/lap-route, geometry, report-analysis,
+  generator, and source checks pass. Tesla assets remain identical.
+- The DOS timer probe preserves all 1,646 event records; all 34 roll-route points
+  remain byte-identical. Six original inline-assembly blocks remain unchanged.
+- Before/after replay comparison against `bb0fbee4` preserves all 241 game-state/
+  RNG records in each of four modes and all 4,031 full-frame pixel digests.
+  The compared library matches the current native build byte-for-byte.
+- TempleOS regeneration passes `--check`, all 25 translator cleanup tests, and
+  HolyC style checks. Of 77 generated files updated, only five have substantive
+  changes after temporary-name normalization. The shared function count remains
+  2,244: this pass removes dead paths/values rather than another function module.
+- Pinned C/H formatting, EditorConfig, CRLF/file-mode checks, and whitespace
+  checks pass. Original assembly sources, packed layouts, and third-party code
+  remain unchanged. No DOS guest execution was performed.
+
+Local snapshots, probes, and evidence are retained under ignored
+`out/dead-code-round4/`.

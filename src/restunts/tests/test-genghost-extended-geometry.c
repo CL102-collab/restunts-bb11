@@ -342,7 +342,7 @@ static void test_graded_catalog_targets(void)
 			assert(target.y >= expected - 1.0 && target.y <= expected + 1.0);
 			if (models[model] == PHYSICAL_MODEL_CHICANE_LEFT_RIGHT) {
 				struct GENGHOST_MANEUVER actions[GENGHOST_MANEUVER_CAPACITY];
-				size_t count = genghost_maneuvers(&route, &driver, &policy, 0, 1, 0, actions,
+				size_t count = genghost_maneuvers(&route, &driver, &policy, 0, 0, actions,
 												  GENGHOST_MANEUVER_CAPACITY);
 				legacy_uint chords = 0;
 				for (size_t index = 0; index < count; index++) {

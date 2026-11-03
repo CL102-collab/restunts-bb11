@@ -46,8 +46,7 @@ struct GENGHOST_MANEUVER {
  * state is advanced or written while generating proposals. */
 size_t genghost_maneuvers(const struct GENGHOST_ROUTE *route, const struct GENGHOST_DRIVER *driver,
 						  const struct GENGHOST_POLICY *policy, legacy_int powergear,
-						  legacy_int collision, legacy_int owoot, struct GENGHOST_MANEUVER *actions,
-						  size_t capacity);
+						  legacy_int owoot, struct GENGHOST_MANEUVER *actions, size_t capacity);
 
 /* Observe native state and produce one ordinary 20 Hz input byte. The caller
  * steps genghost_sim_step, scores native penalties and rejects crashes or

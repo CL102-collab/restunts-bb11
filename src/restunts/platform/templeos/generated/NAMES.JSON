@@ -139,7 +139,6 @@
   "audio_init_channel_range": "RsAudioInitChannelRange",
   "audio_init_engine": "RsAudioInitEngine",
   "audio_load_dos_driver": "RsAudioLoadDosDriver",
-  "audio_load_driver": "RsAudioLoadDriver",
   "audio_make_filename": "RsAudioMakeFilename",
   "audio_map_song_instruments": "RsAudioMapSongInstruments",
   "audio_map_song_tracks": "RsAudioMapSongTracks",
