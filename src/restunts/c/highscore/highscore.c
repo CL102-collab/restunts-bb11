@@ -1,4 +1,7 @@
 #include "highscore_internal.h"
+#ifdef RESTUNTS_SDL3
+#include "../extended/extended_track.h"
+#endif
 
 legacy_u8 ranking_highlight;
 
@@ -161,7 +164,11 @@ void highscore_draw_table(void)
 #endif
 	copy_string(&resID_byte1, locate_text_res(mainresptr, "hs1"));
 	strcat(&resID_byte1, " '");
+#ifdef RESTUNTS_SDL3
+	strcat(&resID_byte1, extended_track_name());
+#else
 	strcat(&resID_byte1, gameconfig.game_trackname);
+#endif
 	strcat(&resID_byte1, "'");
 	hiscore_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), HIGHSCORE_TITLE_Y,
 					  dialog_fnt_colour, 0);

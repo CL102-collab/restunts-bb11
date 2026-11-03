@@ -2,38 +2,38 @@
 
 legacy_s8 RsReplayViewerLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_1877;
+  legacy_s32 noreg temple_tmp_1912;
   if((value<=127)) {
-    temple_tmp_1877=TempleCastS32(TempleCastS8(value));
+    temple_tmp_1912=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_1877=TempleCastS32(TempleCastS8(
+    temple_tmp_1912=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_1877);
+  return TempleCastS8(temple_tmp_1912);
 }
 
 legacy_s16 RsReplayViewerLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_1878;
+  legacy_s32 noreg temple_tmp_1913;
   if((value<=32767)) {
-    temple_tmp_1878=TempleCastS32(TempleCastS16(value));
+    temple_tmp_1913=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_1878=TempleCastS32(TempleCastS16(
+    temple_tmp_1913=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_1878);
+  return TempleCastS16(temple_tmp_1913);
 }
 
 legacy_s32 RsReplayViewerLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_1879;
+  legacy_s32 noreg temple_tmp_1914;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_1879=TempleCastS32(TempleCastS32(value));
+    temple_tmp_1914=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_1879=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_1914=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_1879);
+  return TempleCastS32(temple_tmp_1914);
 }
 
 legacy_u16 RsReplayViewerShowTextInputDialog(legacy_s16 save_background,legacy_u8 *text_resource,
@@ -120,20 +120,20 @@ legacy_s16 RsReplayViewerReplayTryZoom(legacy_u16 input)
 
 legacy_u16 RsReplayViewerReplayPanInput()
 {
-  legacy_s16 noreg temple_y_delta_1880;
-  legacy_u32 noreg temple_tmp_1881;
-  legacy_u32 noreg temple_tmp_1882;
-  legacy_u32 noreg temple_tmp_1883;
-  legacy_u32 noreg temple_tmp_1884;
-  legacy_s16 noreg temple_x_delta_1885;
-  legacy_u32 noreg temple_tmp_1886;
-  legacy_u32 noreg temple_tmp_1887;
-  legacy_u32 noreg temple_tmp_1888;
-  legacy_u32 noreg temple_tmp_1889;
-  legacy_u16 noreg temple_angle_1890;
-  legacy_u16 noreg temple_input_1891;
+  legacy_s16 noreg temple_y_delta_1915;
+  legacy_u32 noreg temple_tmp_1916;
+  legacy_u32 noreg temple_tmp_1917;
+  legacy_u32 noreg temple_tmp_1918;
+  legacy_u32 noreg temple_tmp_1919;
+  legacy_s16 noreg temple_x_delta_1920;
+  legacy_u32 noreg temple_tmp_1921;
+  legacy_u32 noreg temple_tmp_1922;
+  legacy_u32 noreg temple_tmp_1923;
+  legacy_u32 noreg temple_tmp_1924;
+  legacy_u16 noreg temple_angle_1925;
+  legacy_u16 noreg temple_input_1926;
   if((TempleCastU32((TempleCastU16(1)&31))==0)) {
-    temple_tmp_1884=TempleCastU32(TempleCastU16(
+    temple_tmp_1919=TempleCastU32(TempleCastU16(
         RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
             (TempleCastU16(replay_pan_button_top)+TempleCastU16(replay_pan_button_bottom)))))))));
   } else {
@@ -142,9 +142,9 @@ legacy_u16 RsReplayViewerReplayPanInput()
                               TempleCastU16(replay_pan_button_bottom))))))))&
             32768))!=0)) {
       if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-        temple_tmp_1881=TempleCastU32(TempleCastU32(65535));
+        temple_tmp_1916=TempleCastU32(TempleCastU32(65535));
       } else {
-        temple_tmp_1881=TempleCastU32(TempleCastU32(
+        temple_tmp_1916=TempleCastU32(TempleCastU32(
             (TempleCastU32(TempleCastS32(
                 (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
                       TempleCastU16(TempleCastS32((TempleCastU16(replay_pan_button_top)+
@@ -153,27 +153,27 @@ legacy_u16 RsReplayViewerReplayPanInput()
                 TempleCastU16(TempleCastU32((TempleCastU32(65535)
                     <<TempleCastU32((16-TempleCastU32((TempleCastU16(1)&31))))))))));
       }
-      temple_tmp_1883=TempleCastU32(temple_tmp_1881);
+      temple_tmp_1918=TempleCastU32(temple_tmp_1916);
     } else {
       if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-        temple_tmp_1882=TempleCastU32(0);
+        temple_tmp_1917=TempleCastU32(0);
       } else {
-        temple_tmp_1882=TempleCastU32(TempleCastU32(TempleCastS32(
+        temple_tmp_1917=TempleCastU32(TempleCastU32(TempleCastS32(
             (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
                 TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(replay_pan_button_top)+
                     TempleCastU16(replay_pan_button_bottom))))))))>>
                 TempleCastU32((TempleCastU16(1)&31))))));
       }
-      temple_tmp_1883=TempleCastU32(temple_tmp_1882);
+      temple_tmp_1918=TempleCastU32(temple_tmp_1917);
     }
-    temple_tmp_1884=TempleCastU32(temple_tmp_1883);
+    temple_tmp_1919=TempleCastU32(temple_tmp_1918);
   }
-  temple_y_delta_1880=TempleCastS16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
+  temple_y_delta_1915=TempleCastS16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
       TempleCastU16(TempleCastS32((TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
-                                      TempleCastU16(TempleCastU16(temple_tmp_1884)))))-
+                                      TempleCastU16(TempleCastU16(temple_tmp_1919)))))-
           TempleCastU16(TempleCastS16(mouse_ypos)))))))));
   if((TempleCastU32((TempleCastU16(1)&31))==0)) {
-    temple_tmp_1889=TempleCastU32(TempleCastU16(
+    temple_tmp_1924=TempleCastU32(TempleCastU16(
         RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(TempleCastU16(TempleCastS32(
             (TempleCastU16(replay_pan_button_left)+TempleCastU16(replay_pan_button_right)))))))));
   } else {
@@ -182,9 +182,9 @@ legacy_u16 RsReplayViewerReplayPanInput()
                               TempleCastU16(replay_pan_button_right))))))))&
             32768))!=0)) {
       if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-        temple_tmp_1886=TempleCastU32(TempleCastU32(65535));
+        temple_tmp_1921=TempleCastU32(TempleCastU32(65535));
       } else {
-        temple_tmp_1886=TempleCastU32(TempleCastU32(
+        temple_tmp_1921=TempleCastU32(TempleCastU32(
             (TempleCastU32(TempleCastS32(
                 (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
                       TempleCastU16(TempleCastS32((TempleCastU16(replay_pan_button_left)+
@@ -193,105 +193,105 @@ legacy_u16 RsReplayViewerReplayPanInput()
                 TempleCastU16(TempleCastU32((TempleCastU32(65535)
                     <<TempleCastU32((16-TempleCastU32((TempleCastU16(1)&31))))))))));
       }
-      temple_tmp_1888=TempleCastU32(temple_tmp_1886);
+      temple_tmp_1923=TempleCastU32(temple_tmp_1921);
     } else {
       if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-        temple_tmp_1887=TempleCastU32(0);
+        temple_tmp_1922=TempleCastU32(0);
       } else {
-        temple_tmp_1887=TempleCastU32(TempleCastU32(TempleCastS32(
+        temple_tmp_1922=TempleCastU32(TempleCastU32(TempleCastS32(
             (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
                 TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(replay_pan_button_left)+
                     TempleCastU16(replay_pan_button_right))))))))>>
                 TempleCastU32((TempleCastU16(1)&31))))));
       }
-      temple_tmp_1888=TempleCastU32(temple_tmp_1887);
+      temple_tmp_1923=TempleCastU32(temple_tmp_1922);
     }
-    temple_tmp_1889=TempleCastU32(temple_tmp_1888);
+    temple_tmp_1924=TempleCastU32(temple_tmp_1923);
   }
-  temple_x_delta_1885=TempleCastS16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
+  temple_x_delta_1920=TempleCastS16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
       TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(TempleCastS16(mouse_xpos))-
           TempleCastU16(RsReplayViewerLegacyS16FromBits(
-              TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_1889))))))))))));
-  temple_angle_1890=TempleCastU16(TempleCastU16(
-      RsPolarAngle(TempleCastS16(temple_x_delta_1885),TempleCastS16(temple_y_delta_1880))));
-  temple_input_1891=TempleCastU16(0);
+              TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_1924))))))))))));
+  temple_angle_1925=TempleCastU16(TempleCastU16(
+      RsPolarAngle(TempleCastS16(temple_x_delta_1920),TempleCastS16(temple_y_delta_1915))));
+  temple_input_1926=TempleCastU16(0);
   switch(TempleCastU32(
-      (TempleCastU32(TempleCastS32((TempleCastS32((temple_angle_1890+128))>>8)))&3))) {
+      (TempleCastU32(TempleCastS32((TempleCastS32((temple_angle_1925+128))>>8)))&3))) {
     case 0:
-      (temple_input_1891=TempleCastU16(KEY_UP));
+      (temple_input_1926=TempleCastU16(KEY_UP));
       break;
     case 1:
-      (temple_input_1891=TempleCastU16(KEY_RIGHT));
+      (temple_input_1926=TempleCastU16(KEY_RIGHT));
       break;
     case 2:
-      (temple_input_1891=TempleCastU16(KEY_DOWN));
+      (temple_input_1926=TempleCastU16(KEY_DOWN));
       break;
     case 3:
-      (temple_input_1891=TempleCastU16(KEY_LEFT));
+      (temple_input_1926=TempleCastU16(KEY_LEFT));
       break;
   }
-  return TempleCastU16(temple_input_1891);
+  return TempleCastU16(temple_input_1926);
 }
 
 legacy_u16 RsReplayViewerReplayReadControlInput(legacy_s16 delta)
 {
-  legacy_u16 noreg temple_input_1892;
-  legacy_u8 noreg temple_hit_1893;
-  legacy_s32 noreg temple_tmp_1894;
-  legacy_s32 noreg temple_tmp_1895;
-  legacy_s32 noreg temple_tmp_1896;
-  legacy_s16 noreg temple_midpoint_1897;
-  legacy_u32 noreg temple_tmp_1898;
-  legacy_u32 noreg temple_tmp_1899;
-  legacy_u32 noreg temple_tmp_1900;
-  legacy_u32 noreg temple_tmp_1901;
-  legacy_s32 noreg temple_tmp_1902;
-  legacy_s32 noreg temple_tmp_1903;
-  legacy_s32 noreg temple_tmp_1904;
-  temple_input_1892=TempleCastU16(TempleCastU16(RsInputChecking(TempleCastS16(delta))));
-  temple_hit_1893=TempleCastU8(TempleCastU8(RsMouseMultiHittest(
+  legacy_u16 noreg temple_input_1927;
+  legacy_u8 noreg temple_hit_1928;
+  legacy_s32 noreg temple_tmp_1929;
+  legacy_s32 noreg temple_tmp_1930;
+  legacy_s32 noreg temple_tmp_1931;
+  legacy_s16 noreg temple_midpoint_1932;
+  legacy_u32 noreg temple_tmp_1933;
+  legacy_u32 noreg temple_tmp_1934;
+  legacy_u32 noreg temple_tmp_1935;
+  legacy_u32 noreg temple_tmp_1936;
+  legacy_s32 noreg temple_tmp_1937;
+  legacy_s32 noreg temple_tmp_1938;
+  legacy_s32 noreg temple_tmp_1939;
+  temple_input_1927=TempleCastU16(TempleCastU16(RsInputChecking(TempleCastS16(delta))));
+  temple_hit_1928=TempleCastU8(TempleCastU8(RsMouseMultiHittest(
       TempleCastS16(
           TempleCastU8(TempleCastU32((game_camera_buttons_count[TempleCastU8(cameramode)]+1)))),
       game_camera_buttons)));
-  if((temple_hit_1893!=255)) {
-    temple_tmp_1894=0;
-    if((temple_hit_1893!=replay_selected_control)) {
-      temple_tmp_1894=1;
+  if((temple_hit_1928!=255)) {
+    temple_tmp_1929=0;
+    if((temple_hit_1928!=replay_selected_control)) {
+      temple_tmp_1929=1;
     }
-    if(temple_tmp_1894) {
-      temple_tmp_1894=0;
-      if((temple_input_1892==0)) {
-        temple_tmp_1894=1;
+    if(temple_tmp_1929) {
+      temple_tmp_1929=0;
+      if((temple_input_1927==0)) {
+        temple_tmp_1929=1;
       }
     }
-    if(temple_tmp_1894) {
-      (temple_input_1892=TempleCastU16(1));
+    if(temple_tmp_1929) {
+      (temple_input_1927=TempleCastU16(1));
     }
-    (replay_selected_control=TempleCastU8(temple_hit_1893));
-    temple_tmp_1895=0;
-    if((temple_input_1892==KEY_ENTER)) {
-      temple_tmp_1895=1;
+    (replay_selected_control=TempleCastU8(temple_hit_1928));
+    temple_tmp_1930=0;
+    if((temple_input_1927==KEY_ENTER)) {
+      temple_tmp_1930=1;
     }
-    if(!temple_tmp_1895) {
-      temple_tmp_1895=0;
-      if((temple_input_1892==KEY_SPACE)) {
-        temple_tmp_1895=1;
+    if(!temple_tmp_1930) {
+      temple_tmp_1930=0;
+      if((temple_input_1927==KEY_SPACE)) {
+        temple_tmp_1930=1;
       }
     }
-    temple_tmp_1896=0;
-    if(temple_tmp_1895) {
-      temple_tmp_1896=1;
+    temple_tmp_1931=0;
+    if(temple_tmp_1930) {
+      temple_tmp_1931=1;
     }
-    if(temple_tmp_1896) {
-      temple_tmp_1896=0;
+    if(temple_tmp_1931) {
+      temple_tmp_1931=0;
       if((replay_selected_control>=REPLAY_CONTROL_ZOOM)) {
-        temple_tmp_1896=1;
+        temple_tmp_1931=1;
       }
     }
-    if(temple_tmp_1896) {
+    if(temple_tmp_1931) {
       if((replay_selected_control==REPLAY_CONTROL_ZOOM)) {
         if((TempleCastU32((TempleCastU16(1)&31))==0)) {
-          temple_tmp_1901=
+          temple_tmp_1936=
               TempleCastU32(TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(
                   TempleCastU16(TempleCastU16(TempleCastS32((TempleCastU16(replay_zoom_button_top)+
                       TempleCastU16(replay_zoom_button_bottom)))))))));
@@ -302,9 +302,9 @@ legacy_u16 RsReplayViewerReplayReadControlInput(legacy_s16 delta)
                           TempleCastU16(replay_zoom_button_bottom))))))))&
                       32768))!=0)) {
             if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-              temple_tmp_1898=TempleCastU32(TempleCastU32(65535));
+              temple_tmp_1933=TempleCastU32(TempleCastU32(65535));
             } else {
-              temple_tmp_1898=TempleCastU32(TempleCastU32(
+              temple_tmp_1933=TempleCastU32(TempleCastU32(
                   (TempleCastU32(TempleCastS32(
                       (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
                             TempleCastU16(TempleCastS32((TempleCastU16(replay_zoom_button_top)+
@@ -313,80 +313,80 @@ legacy_u16 RsReplayViewerReplayReadControlInput(legacy_s16 delta)
                       TempleCastU16(TempleCastU32((TempleCastU32(65535)
                           <<TempleCastU32((16-TempleCastU32((TempleCastU16(1)&31))))))))));
             }
-            temple_tmp_1900=TempleCastU32(temple_tmp_1898);
+            temple_tmp_1935=TempleCastU32(temple_tmp_1933);
           } else {
             if((TempleCastU32((TempleCastU16(1)&31))>=16)) {
-              temple_tmp_1899=TempleCastU32(0);
+              temple_tmp_1934=TempleCastU32(0);
             } else {
-              temple_tmp_1899=TempleCastU32(TempleCastU32(TempleCastS32(
+              temple_tmp_1934=TempleCastU32(TempleCastU32(TempleCastS32(
                   (TempleCastU16(RsReplayViewerLegacyS16FromBits(TempleCastU16(TempleCastU16(
                       TempleCastU16(TempleCastS32((TempleCastU16(replay_zoom_button_top)+
                           TempleCastU16(replay_zoom_button_bottom))))))))>>
                       TempleCastU32((TempleCastU16(1)&31))))));
             }
-            temple_tmp_1900=TempleCastU32(temple_tmp_1899);
+            temple_tmp_1935=TempleCastU32(temple_tmp_1934);
           }
-          temple_tmp_1901=TempleCastU32(temple_tmp_1900);
+          temple_tmp_1936=TempleCastU32(temple_tmp_1935);
         }
-        temple_midpoint_1897=TempleCastS16(RsReplayViewerLegacyS16FromBits(
-            TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_1901)))));
-        if((temple_midpoint_1897<mouse_ypos)) {
-          temple_tmp_1902=TempleCastS32(KEY_DOWN);
+        temple_midpoint_1932=TempleCastS16(RsReplayViewerLegacyS16FromBits(
+            TempleCastU16(TempleCastU16(TempleCastU16(temple_tmp_1936)))));
+        if((temple_midpoint_1932<mouse_ypos)) {
+          temple_tmp_1937=TempleCastS32(KEY_DOWN);
         } else {
-          temple_tmp_1902=TempleCastS32(KEY_UP);
+          temple_tmp_1937=TempleCastS32(KEY_UP);
         }
-        (temple_input_1892=TempleCastU16(temple_tmp_1902));
+        (temple_input_1927=TempleCastU16(temple_tmp_1937));
       } else {
-        (temple_input_1892=TempleCastU16(RsReplayViewerReplayPanInput()));
+        (temple_input_1927=TempleCastU16(RsReplayViewerReplayPanInput()));
       }
     }
   } else {
-    (temple_hit_1893=TempleCastU8(TempleCastU8(
+    (temple_hit_1928=TempleCastU8(TempleCastU8(
         RsMouseMultiHittest(TempleCastS16(1),(&(replay_hidden_bar_camera_button))))));
-    temple_tmp_1904=0;
-    if((temple_hit_1893==0)) {
-      temple_tmp_1904=1;
+    temple_tmp_1939=0;
+    if((temple_hit_1928==0)) {
+      temple_tmp_1939=1;
     }
-    if(temple_tmp_1904) {
-      temple_tmp_1903=0;
-      if((temple_input_1892==KEY_ENTER)) {
-        temple_tmp_1903=1;
+    if(temple_tmp_1939) {
+      temple_tmp_1938=0;
+      if((temple_input_1927==KEY_ENTER)) {
+        temple_tmp_1938=1;
       }
-      if(!temple_tmp_1903) {
-        temple_tmp_1903=0;
-        if((temple_input_1892==KEY_SPACE)) {
-          temple_tmp_1903=1;
+      if(!temple_tmp_1938) {
+        temple_tmp_1938=0;
+        if((temple_input_1927==KEY_SPACE)) {
+          temple_tmp_1938=1;
         }
       }
-      temple_tmp_1904=0;
-      if(temple_tmp_1903) {
-        temple_tmp_1904=1;
+      temple_tmp_1939=0;
+      if(temple_tmp_1938) {
+        temple_tmp_1939=1;
       }
     }
-    if(temple_tmp_1904) {
-      (temple_input_1892=TempleCastU16('c'));
+    if(temple_tmp_1939) {
+      (temple_input_1927=TempleCastU16('c'));
     }
   }
-  return TempleCastU16(temple_input_1892);
+  return TempleCastU16(temple_input_1927);
 }
 
 legacy_u16 RsReplayViewerReplayAdjustCustomCamera(legacy_u16 *input)
 {
-  legacy_s32 noreg temple_tmp_1905;
+  legacy_s32 noreg temple_tmp_1940;
   if((RsReplayViewerCameraAdjustCustomDirection(TempleCastU16((*(input))))!=0)) {
     return TempleCastU16(1);
   }
-  temple_tmp_1905=0;
+  temple_tmp_1940=0;
   if(((*(input))!='+')) {
-    temple_tmp_1905=1;
+    temple_tmp_1940=1;
   }
-  if(temple_tmp_1905) {
-    temple_tmp_1905=0;
+  if(temple_tmp_1940) {
+    temple_tmp_1940=0;
     if(((*(input))!='-')) {
-      temple_tmp_1905=1;
+      temple_tmp_1940=1;
     }
   }
-  if(temple_tmp_1905) {
+  if(temple_tmp_1940) {
     ((*(input))=TempleCastU16(0));
   }
   return TempleCastU16(0);
@@ -443,7 +443,7 @@ legacy_u16 RsReplayViewerReplayActivateSelectedControl()
 
 legacy_u16 RsReplayViewerReplayHandleControlInput(legacy_u16 input)
 {
-  legacy_u8 noreg temple_next_selection_1906;
+  legacy_u8 noreg temple_next_selection_1941;
   switch(input) {
     case 13:
     case 32:
@@ -452,10 +452,10 @@ legacy_u16 RsReplayViewerReplayHandleControlInput(legacy_u16 input)
       RsReplayPauseMenu();
       return TempleCastU16(1);
     case 19200:
-      (temple_next_selection_1906=
+      (temple_next_selection_1941=
               TempleCastU8(replay_control_left_neighbor[replay_selected_control]));
-      if((temple_next_selection_1906<=game_camera_buttons_count[TempleCastU8(cameramode)])) {
-        (replay_selected_control=TempleCastU8(temple_next_selection_1906));
+      if((temple_next_selection_1941<=game_camera_buttons_count[TempleCastU8(cameramode)])) {
+        (replay_selected_control=TempleCastU8(temple_next_selection_1941));
       }
       break;
     case 19712:
@@ -497,62 +497,62 @@ legacy_void RsReplayViewerReplayRefreshPlaybackControls()
 
 legacy_s16 RsReplayViewerReplayHandleCameraInput(legacy_u16 *input)
 {
-  legacy_u8 noreg temple_custom_camera_active_1907;
-  legacy_s32 noreg temple_tmp_1908;
-  legacy_s32 noreg temple_tmp_1909;
-  legacy_s32 noreg temple_tmp_1910;
-  legacy_s32 noreg temple_tmp_1911;
-  temple_custom_camera_active_1907=TempleCastU8(0);
-  temple_tmp_1909=0;
+  legacy_u8 noreg temple_custom_camera_active_1942;
+  legacy_s32 noreg temple_tmp_1943;
+  legacy_s32 noreg temple_tmp_1944;
+  legacy_s32 noreg temple_tmp_1945;
+  legacy_s32 noreg temple_tmp_1946;
+  temple_custom_camera_active_1942=TempleCastU8(0);
+  temple_tmp_1944=0;
   if((RsKbGetKeyState(TempleCastS16(29))!=0)) {
-    temple_tmp_1909=1;
+    temple_tmp_1944=1;
   }
-  if(!temple_tmp_1909) {
-    temple_tmp_1908=0;
+  if(!temple_tmp_1944) {
+    temple_tmp_1943=0;
     if((replay_selected_control==REPLAY_CONTROL_PAN)) {
-      temple_tmp_1908=1;
+      temple_tmp_1943=1;
     }
-    if(temple_tmp_1908) {
-      temple_tmp_1908=0;
+    if(temple_tmp_1943) {
+      temple_tmp_1943=0;
       if((TempleCastU32((TempleCastU8(input_combined_flags)&TempleCastU32((16|32))))!=
             TempleCastU32(0))) {
-        temple_tmp_1908=1;
+        temple_tmp_1943=1;
       }
     }
-    temple_tmp_1909=0;
-    if(temple_tmp_1908) {
-      temple_tmp_1909=1;
+    temple_tmp_1944=0;
+    if(temple_tmp_1943) {
+      temple_tmp_1944=1;
     }
   }
-  if(temple_tmp_1909) {
-    (temple_custom_camera_active_1907=TempleCastU8(1));
+  if(temple_tmp_1944) {
+    (temple_custom_camera_active_1942=TempleCastU8(1));
   }
-  if((temple_custom_camera_active_1907!=0)) {
+  if((temple_custom_camera_active_1942!=0)) {
     if((RsReplayViewerReplayAdjustCustomCamera(input)!=0)) {
       return TempleCastS16(1);
     }
   }
-  temple_tmp_1910=0;
+  temple_tmp_1945=0;
   if(((*(input))=='-')) {
-    temple_tmp_1910=1;
+    temple_tmp_1945=1;
   }
-  if(!temple_tmp_1910) {
-    temple_tmp_1910=0;
+  if(!temple_tmp_1945) {
+    temple_tmp_1945=0;
     if(((*(input))=='+')) {
-      temple_tmp_1910=1;
+      temple_tmp_1945=1;
     }
   }
-  temple_tmp_1911=0;
-  if(temple_tmp_1910) {
-    temple_tmp_1911=1;
+  temple_tmp_1946=0;
+  if(temple_tmp_1945) {
+    temple_tmp_1946=1;
   }
-  if(temple_tmp_1911) {
-    temple_tmp_1911=0;
+  if(temple_tmp_1946) {
+    temple_tmp_1946=0;
     if((RsReplayViewerReplayTryZoom(TempleCastU16((*(input))))!=0)) {
-      temple_tmp_1911=1;
+      temple_tmp_1946=1;
     }
   }
-  if(temple_tmp_1911) {
+  if(temple_tmp_1946) {
     return TempleCastS16(1);
   }
   return TempleCastS16(0);
@@ -560,26 +560,26 @@ legacy_s16 RsReplayViewerReplayHandleCameraInput(legacy_u16 *input)
 
 legacy_void RsReplayViewerReplayHandleInput()
 {
-  legacy_s32 noreg temple_tmp_1912;
-  legacy_u16 noreg temple_input_1913;
-  legacy_s16 noreg temple_delta_1915;
-  legacy_s32 noreg temple_tmp_1916;
-  legacy_s32 noreg temple_tmp_1917;
-  legacy_s32 noreg temple_tmp_1918;
-  legacy_s32 noreg temple_tmp_1919;
-  temple_tmp_1912=0;
+  legacy_s32 noreg temple_tmp_1947;
+  legacy_u16 noreg temple_input_1948;
+  legacy_s16 noreg temple_delta_1950;
+  legacy_s32 noreg temple_tmp_1951;
+  legacy_s32 noreg temple_tmp_1952;
+  legacy_s32 noreg temple_tmp_1953;
+  legacy_s32 noreg temple_tmp_1954;
+  temple_tmp_1947=0;
   if((RsReplayViewerLegacyS8FromBits(TempleCastU8(TempleCastU8(replay_selected_control)))>
         RsReplayViewerLegacyS8FromBits(
             TempleCastU8(TempleCastU8(game_camera_buttons_count[TempleCastU8(cameramode)]))))) {
-    temple_tmp_1912=1;
+    temple_tmp_1947=1;
   }
-  if(temple_tmp_1912) {
-    temple_tmp_1912=0;
+  if(temple_tmp_1947) {
+    temple_tmp_1947=0;
     if((cameramode!=CAMERA_MODE_CUSTOM)) {
-      temple_tmp_1912=1;
+      temple_tmp_1947=1;
     }
   }
-  if(temple_tmp_1912) {
+  if(temple_tmp_1947) {
     (replay_selected_control=TempleCastU8(game_camera_buttons_count[TempleCastU8(cameramode)]));
   }
   RsSpriteSelectScreen();
@@ -590,44 +590,44 @@ legacy_void RsReplayViewerReplayHandleInput()
     if(!(1)) {
       break;
     }
-    temple_delta_1915=TempleCastS16(RsReplayViewerLegacyS16FromBits(
+    temple_delta_1950=TempleCastS16(RsReplayViewerLegacyS16FromBits(
         TempleCastU16(TempleCastU16(TempleCastU16(RsTimerGetDeltaAlt())))));
-    (temple_input_1913=
-            TempleCastU16(RsReplayViewerReplayReadControlInput(TempleCastS16(temple_delta_1915))));
-    temple_tmp_1916=0;
-    if((temple_input_1913!=0)) {
-      temple_tmp_1916=1;
+    (temple_input_1948=
+            TempleCastU16(RsReplayViewerReplayReadControlInput(TempleCastS16(temple_delta_1950))));
+    temple_tmp_1951=0;
+    if((temple_input_1948!=0)) {
+      temple_tmp_1951=1;
     }
-    if(temple_tmp_1916) {
-      temple_tmp_1916=0;
-      if((temple_input_1913!=KEY_ESCAPE)) {
-        temple_tmp_1916=1;
+    if(temple_tmp_1951) {
+      temple_tmp_1951=0;
+      if((temple_input_1948!=KEY_ESCAPE)) {
+        temple_tmp_1951=1;
       }
     }
-    temple_tmp_1917=0;
-    if(temple_tmp_1916) {
-      temple_tmp_1917=1;
+    temple_tmp_1952=0;
+    if(temple_tmp_1951) {
+      temple_tmp_1952=1;
     }
-    if(temple_tmp_1917) {
-      temple_tmp_1917=0;
-      if((TempleCastU8(RsHandleIngameKbShortcuts(TempleCastS16(temple_input_1913)))!=0)) {
-        temple_tmp_1917=1;
+    if(temple_tmp_1952) {
+      temple_tmp_1952=0;
+      if((TempleCastU8(RsHandleIngameKbShortcuts(TempleCastS16(temple_input_1948)))!=0)) {
+        temple_tmp_1952=1;
       }
     }
-    if(temple_tmp_1917) {
+    if(temple_tmp_1952) {
       return;
     }
-    temple_tmp_1918=0;
+    temple_tmp_1953=0;
     if((is_in_replay==0)) {
-      temple_tmp_1918=1;
+      temple_tmp_1953=1;
     }
-    if(temple_tmp_1918) {
-      temple_tmp_1918=0;
-      if((temple_input_1913==0)) {
-        temple_tmp_1918=1;
+    if(temple_tmp_1953) {
+      temple_tmp_1953=0;
+      if((temple_input_1948==0)) {
+        temple_tmp_1953=1;
       }
     }
-    if(temple_tmp_1918) {
+    if(temple_tmp_1953) {
       if((replaybar_enabled!=0)) {
         RsReplayControlsDraw(
             TempleCastU32(RsReplayCurrentFrame()),TempleCastU32(RsReplayCurrentFrame()));
@@ -635,23 +635,23 @@ legacy_void RsReplayViewerReplayHandleInput()
       return;
     }
     RsReplayViewerReplayRefreshPlaybackControls();
-    if((RsReplayViewerReplayHandleCameraInput((&(temple_input_1913)))!=0)) {
+    if((RsReplayViewerReplayHandleCameraInput((&(temple_input_1948)))!=0)) {
       return;
     }
-    if((RsReplayViewerReplayHandleControlInput(TempleCastU16(temple_input_1913))!=0)) {
+    if((RsReplayViewerReplayHandleControlInput(TempleCastU16(temple_input_1948))!=0)) {
       return;
     }
-    temple_tmp_1919=0;
+    temple_tmp_1954=0;
     if((is_in_replay!=0)) {
-      temple_tmp_1919=1;
+      temple_tmp_1954=1;
     }
-    if(temple_tmp_1919) {
-      temple_tmp_1919=0;
+    if(temple_tmp_1954) {
+      temple_tmp_1954=0;
       if((RsFrameFpsExpireIdle()!=0)) {
-        temple_tmp_1919=1;
+        temple_tmp_1954=1;
       }
     }
-    if(temple_tmp_1919) {
+    if(temple_tmp_1954) {
       return;
     }
     RsReplayControlsDraw(

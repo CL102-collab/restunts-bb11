@@ -250,8 +250,14 @@ legacy_void TempleRasterResizeParagraphs(
     legacy_u16 segment,legacy_u16 previous,legacy_u16 paragraphs)
 {
   if(paragraphs!=previous) {
-    legacy_u16 retained=paragraphs<previous ? paragraphs : previous;
-    legacy_u16 changed=paragraphs<previous ? previous-paragraphs : paragraphs-previous;
+    legacy_u16 retained,changed;
+    if(paragraphs<previous) {
+      retained=paragraphs;
+      changed=previous-paragraphs;
+    } else {
+      retained=previous;
+      changed=paragraphs-previous;
+    }
     TempleRasterForgetParagraphs((segment+retained)&TEMPLE_WORD_MASK,changed);
   }
 }

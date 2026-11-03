@@ -2,38 +2,38 @@
 
 legacy_s8 RsExtendedHighscoreUiLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_8476;
+  legacy_s32 noreg temple_tmp_8520;
   if((value<=127)) {
-    temple_tmp_8476=TempleCastS32(TempleCastS8(value));
+    temple_tmp_8520=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_8476=TempleCastS32(TempleCastS8(
+    temple_tmp_8520=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_8476);
+  return TempleCastS8(temple_tmp_8520);
 }
 
 legacy_s16 RsExtendedHighscoreUiLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_8477;
+  legacy_s32 noreg temple_tmp_8521;
   if((value<=32767)) {
-    temple_tmp_8477=TempleCastS32(TempleCastS16(value));
+    temple_tmp_8521=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_8477=TempleCastS32(TempleCastS16(
+    temple_tmp_8521=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_8477);
+  return TempleCastS16(temple_tmp_8521);
 }
 
 legacy_s32 RsExtendedHighscoreUiLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_8478;
+  legacy_s32 noreg temple_tmp_8522;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_8478=TempleCastS32(TempleCastS32(value));
+    temple_tmp_8522=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_8478=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_8522=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_8478);
+  return TempleCastS32(temple_tmp_8522);
 }
 
 legacy_u16 RsExtendedHighscoreUiHighscoreEntryTime(CHighscoreEntry *entry)
@@ -45,12 +45,12 @@ legacy_u16 RsExtendedHighscoreUiHighscoreEntryTime(CHighscoreEntry *entry)
 
 legacy_void RsExtendedHighscoreUiHighscoreEntrySetTime(CHighscoreEntry *entry,legacy_u16 time)
 {
-  legacy_u16 noreg temple_legacy_write_u16_value__8480;
+  legacy_u16 noreg temple_legacy_write_u16_value__8524;
   while(1) {
-    temple_legacy_write_u16_value__8480=TempleCastU16(TempleCastU16(time));
-    (((entry)(legacy_u8 *)+50)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__8480)));
+    temple_legacy_write_u16_value__8524=TempleCastU16(TempleCastU16(time));
+    (((entry)(legacy_u8 *)+50)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__8524)));
     (((entry)(legacy_u8 *)+50)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__8480>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__8524>>8)))));
     if(!(0)) {
       break;
     }

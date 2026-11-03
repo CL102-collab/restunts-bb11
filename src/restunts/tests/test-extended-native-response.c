@@ -14,6 +14,7 @@
 #include "../c/extended/extended_owoot_jump.c"
 #include "../c/owoot/owoot_road.c"
 #include "../c/track/trackdata_layout.h"
+#include "../c/extended/pine_trees.h"
 
 #undef memcpy
 
@@ -83,6 +84,11 @@ legacy_int extended_track_height(void)
 const struct CSTRK_TRACK *extended_track_model(void)
 {
 	return &fixture_track;
+}
+
+legacy_uint extended_track_object_id(const struct CSTRK_OBJECT *object)
+{
+	return object->legacy_id;
 }
 
 const struct CSTRK_OBJECT *extended_track_object_for_id(legacy_int column, legacy_int row,
@@ -440,7 +446,9 @@ enum {
 	TEST_ROLL_SIDE_ESCAPE = TRACK_TILE_HALF_SIZE + 1,
 	TEST_ROLL_UPRIGHT_TOLERANCE = ANGLE_FULL_TURN / 64,
 	TEST_ROLL_FIRST_TIRE_TILT = ANGLE_FULL_TURN * 50L / 360L,
-	TEST_ROLL_SKIPPED_OFFSET = ANGLE_QUARTER_TURN / 8
+	TEST_ROLL_SKIPPED_OFFSET = ANGLE_QUARTER_TURN / 8,
+	TEST_ROLL_CENTER_EDGE_OFFSET = 10,
+	TEST_ROLL_CONTACT_EDGE_OFFSET = 30
 };
 
 static legacy_s32 roll_fixture_lip_z(void)
@@ -528,7 +536,7 @@ static legacy_s16 roll_fixture_air(struct CARSTATE *car, legacy_s16 angle)
 	return owoot_jump_is_valid(car);
 }
 
-static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
+static void roll_fixture_touchdown(struct CARSTATE *car, legacy_s16 angle)
 {
 	car->car_previous_position = car->car_position;
 	struct VECTOR origin;
@@ -543,6 +551,15 @@ static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
 	car->car_rotate.z = angle;
 	car->car_sumSurfAllWheels = CAR_SURFACE_PAVED;
 	car->car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	car->car_wheel_contact_positions[0] = (struct VECTOR){
+		(legacy_s16)(car->car_position.lx / OWOOT_POSITION_SCALE),
+		(legacy_s16)(car->car_position.ly / OWOOT_POSITION_SCALE - TEST_WHEEL_HEIGHT),
+		(legacy_s16)(car->car_position.lz / OWOOT_POSITION_SCALE)};
+}
+
+static legacy_s16 roll_fixture_land(struct CARSTATE *car, legacy_s16 angle)
+{
+	roll_fixture_touchdown(car, angle);
 	return owoot_jump_is_valid(car);
 }
 
@@ -575,27 +592,33 @@ static void test_roll_launch_corridor(void)
 static void test_roll_completion_and_checkpoint_state(void)
 {
 	struct CARSTATE car = roll_fixture_car();
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	roll_fixture_arm(&car);
 	assert(roll_fixture_air(&car, ANGLE_QUARTER_TURN) == 1);
 	assert(roll_fixture_air(&car, ANGLE_HALF_TURN) == 1);
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	struct CARSTATE checkpoint = car;
 	assert(roll_fixture_air(&car, ANGLE_THREE_QUARTER_TURN) == 1);
 	assert(roll_fixture_air(&car, 0) == 1);
+	assert(extended_owoot_barrel_roll_complete(&car) == 1);
 	struct CARSTATE tilted = car;
 	assert(roll_fixture_land(&tilted, TEST_CAR_ROLL) == 0);
 	/* The first tire may touch while the completed roll still leans, then
 	 * suspension settles the wheels-down car onto its receiving road. */
 	tilted = car;
 	assert(roll_fixture_land(&tilted, TEST_ROLL_FIRST_TIRE_TILT) == 0);
+	/* Native collision response owns landing orientation. A noncrashed car
+	 * with real receiving-road contact does not need another OWOOT tilt test. */
 	tilted = car;
-	assert(roll_fixture_land(&tilted, ANGLE_QUARTER_TURN) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, ANGLE_QUARTER_TURN) == 0);
 	tilted = car;
-	assert(roll_fixture_land(&tilted, ANGLE_HALF_TURN) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, ANGLE_HALF_TURN) == 0);
 	tilted = car;
 	tilted.car_rotate.y = ANGLE_HALF_TURN;
-	assert(roll_fixture_land(&tilted, 0) == OWOOT_JUMP_FAILED);
+	assert(roll_fixture_land(&tilted, 0) == 0);
 	assert(roll_fixture_land(&car, 0) == 0);
 	assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	assert(extended_owoot_barrel_roll_complete(&car) == 0);
 	/* Validation progress belongs to the copied car, rather than a global
 	 * phase that could be lost or borrowed during replay seeking. */
 	struct CARSTATE other = roll_fixture_car();
@@ -624,6 +647,69 @@ static void test_roll_completion_and_checkpoint_state(void)
 		assert(roll_fixture_air(&car, skipped[sample]) == 1);
 	}
 	assert(roll_fixture_land(&car, 0) == 0);
+}
+
+static void roll_fixture_complete_airborne(struct CARSTATE *car)
+{
+	roll_fixture_arm(car);
+	assert(roll_fixture_air(car, ANGLE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(car, ANGLE_HALF_TURN) == 1);
+	assert(roll_fixture_air(car, ANGLE_THREE_QUARTER_TURN) == 1);
+	assert(roll_fixture_air(car, 0) == 1);
+}
+
+static void test_roll_native_landing_contact(void)
+{
+	for (legacy_u16 trailing = 0; trailing < 2U; trailing++) {
+		struct CARSTATE car = roll_fixture_car();
+		roll_fixture_complete_airborne(&car);
+		/* The first tire reaches the receiver before the center. The last
+		 * tire can likewise remain on its runout after the center exits. */
+		legacy_s16 piece = trailing ? TEST_ROLL_ROUTE_COUNT - 1U : 1;
+		struct OWOOT_BOUNDS bounds;
+		route_bounds(piece, &bounds);
+		legacy_s32 edge = trailing ? bounds.minimum_z : bounds.maximum_z;
+		legacy_s16 direction = trailing ? -1 : 1;
+		car.car_position.lz =
+			(edge + direction * TEST_ROLL_CENTER_EDGE_OFFSET) * OWOOT_POSITION_SCALE;
+		car.car_previous_position = car.car_position;
+		car.car_previous_position.lz += OWOOT_POSITION_SCALE;
+		car.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+		car.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+		car.car_wheel_contact_positions[0] =
+			(struct VECTOR){(legacy_s16)(car.car_position.lx / OWOOT_POSITION_SCALE), 0,
+							(legacy_s16)(edge - direction * TEST_ROLL_CONTACT_EDGE_OFFSET)};
+		assert(owoot_jump_is_valid(&car) == 0);
+		assert(car.car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE] == 0);
+	}
+	/* An actual receiving-road contact is required, even after a complete roll. */
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_complete_airborne(&car);
+	struct CARSTATE grass = car;
+	grass.car_sumSurfAllWheels = CAR_SURFACE_GRASS;
+	grass.car_surfaceWhl[0] = CAR_SURFACE_GRASS;
+	assert(owoot_jump_is_valid(&grass) == OWOOT_JUMP_FAILED);
+	struct CARSTATE unrelated = car;
+	unrelated.car_sumSurfAllWheels = CAR_SURFACE_PAVED;
+	unrelated.car_surfaceWhl[0] = CAR_SURFACE_PAVED;
+	assert(owoot_jump_is_valid(&unrelated) == OWOOT_JUMP_FAILED);
+	/* Completing the roll does not exempt a still-airborne car from the corridor. */
+	car.car_position.lx += TEST_ROLL_SIDE_ESCAPE * OWOOT_POSITION_SCALE;
+	assert(owoot_jump_is_valid(&car) == OWOOT_JUMP_FAILED);
+}
+
+static void test_roll_completed_attempt_is_retained(void)
+{
+	struct CARSTATE car = roll_fixture_car();
+	roll_fixture_complete_airborne(&car);
+	/* A native landing response can reverse motion during first contact. */
+	struct CARSTATE backwards = car;
+	roll_fixture_touchdown(&backwards, 0);
+	backwards.car_previous_position.lz = backwards.car_position.lz - OWOOT_POSITION_SCALE;
+	assert(owoot_jump_is_valid(&backwards) == 0);
+	/* A complete airborne turn remains earned if rotation later reverses. */
+	assert(roll_fixture_air(&car, ANGLE_FULL_TURN - TEST_ROLL_SKIPPED_OFFSET) == 1);
+	assert(roll_fixture_land(&car, ANGLE_HALF_TURN) == 0);
 }
 
 static void test_roll_completion_on_cross_slope(void)
@@ -694,6 +780,220 @@ static void test_roll_shortcuts_are_rejected(void)
 	assert(roll_fixture_land(&car, 0) == OWOOT_JUMP_FAILED);
 }
 
+enum {
+	TEST_PINE_COLUMN = 5,
+	TEST_PINE_ROW = 5,
+	TEST_PINE_CROWN_RADIUS = 60,
+	TEST_PINE_SCATTER_MIN_SCALE = 96,
+	TEST_PINE_MIN_TRUNK_DISTANCE = 80,
+	TEST_PINE_SCATTER_MAX_SCALE = 224,
+	TEST_PINE_TRUNK_WIDTH = 32,
+	TEST_PINE_TRUNK_HEIGHT = 128,
+	TEST_PINE_TRUNK_RADIUS = 136,
+	TEST_PINE_CAR_EXTENT = 8,
+	TEST_PINE_CAR_RADIUS = 16,
+	TEST_PINE_CLEAR_GUARD = 30000,
+	TEST_PINE_SLOPE_COUNT = 5,
+	TEST_PINE_SIGNED_FIRST_WIDTH = -33,
+	TEST_PINE_SIGNED_FIRST_HEIGHT = 129,
+	TEST_PINE_SIGNED_SECOND_WIDTH = 35,
+	TEST_PINE_SIGNED_SECOND_RADIUS = -137
+};
+
+static void test_pine_scatter(legacy_u8 count, const struct PINE_TREE_INSTANCE *expected)
+{
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = CSTRK_PINE_TREE_ID;
+	object.pine_count = count;
+	for (legacy_u8 index = 0; index < count; index++) {
+		struct PINE_TREE_INSTANCE tree, repeated;
+		assert(pine_trees_instance(&object, index, &tree));
+		assert(memcmp(&tree, &expected[index], sizeof(tree)) == 0);
+		assert(pine_trees_instance(&object, index, &repeated));
+		assert(memcmp(&tree, &repeated, sizeof(tree)) == 0);
+		for (legacy_u8 rotation = 1; rotation < TEST_ROTATION_COUNT; rotation++) {
+			object.rotation = rotation;
+			struct PINE_TREE_INSTANCE turned;
+			assert(pine_trees_instance(&object, index, &turned));
+			assert(turned.scale == tree.scale);
+			if (rotation == 1) {
+				assert(turned.x == tree.z && turned.z == -tree.x);
+			} else if (rotation == 2) {
+				assert(turned.x == -tree.x && turned.z == -tree.z);
+			} else {
+				assert(turned.x == -tree.z && turned.z == tree.x);
+			}
+		}
+		object.rotation = 0;
+	}
+	struct PINE_TREE_INSTANCE tree;
+	assert(!pine_trees_instance(&object, count, &tree));
+
+	/* Adjacent tiles must not repeat the same trunk positions or size sequence. */
+	for (legacy_u8 axis = 0; axis < 2; axis++) {
+		object.x = axis == 0;
+		object.y = axis != 0;
+		legacy_u8 different_positions = 0, different_sizes = 0;
+		for (legacy_u8 index = 0; index < count; index++) {
+			assert(pine_trees_instance(&object, index, &tree));
+			different_positions |= tree.x != expected[index].x || tree.z != expected[index].z;
+			different_sizes |= tree.scale != expected[index].scale;
+		}
+		assert(different_positions && different_sizes);
+	}
+
+	/* Even the largest jitter and crowns remain inside their own tile. */
+	for (legacy_u8 row = 0; row < CSTRK_MAX_DIMENSION; row++) {
+		object.y = row;
+		for (legacy_u8 column = 0; column < CSTRK_MAX_DIMENSION; column++) {
+			object.x = column;
+			struct PINE_TREE_INSTANCE placed[CSTRK_PINE_GROUP_LARGE_COUNT];
+			for (legacy_u8 index = 0; index < count; index++) {
+				assert(pine_trees_instance(&object, index, &tree));
+				legacy_s32 x = tree.x < 0 ? -tree.x : tree.x;
+				legacy_s32 z = tree.z < 0 ? -tree.z : tree.z;
+				assert(tree.scale >= TEST_PINE_SCATTER_MIN_SCALE &&
+					   tree.scale <= TEST_PINE_SCATTER_MAX_SCALE);
+				assert(x * PINE_TREE_SCALE_ONE + TEST_PINE_CROWN_RADIUS * tree.scale <
+					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
+				assert(z * PINE_TREE_SCALE_ONE + TEST_PINE_CROWN_RADIUS * tree.scale <
+					   CSTRK_TILE_WORLD_SIZE / 2 * PINE_TREE_SCALE_ONE);
+				for (legacy_u8 other = 0; other < index; other++) {
+					legacy_s32 dx = tree.x - placed[other].x;
+					legacy_s32 dz = tree.z - placed[other].z;
+					assert(dx * dx + dz * dz >=
+						   TEST_PINE_MIN_TRUNK_DISTANCE * TEST_PINE_MIN_TRUNK_DISTANCE);
+				}
+				placed[index] = tree;
+			}
+		}
+	}
+}
+
+static void test_pine_group_scatter(void)
+{
+	/* Fixed samples also guard the editor's independently implemented recipe. */
+	static const struct PINE_TREE_INSTANCE six[CSTRK_PINE_GROUP_SMALL_COUNT] = {
+		{-302, 349, 155}, {17, 433, 186},	{344, 241, 139},
+		{117, -109, 215}, {-30, -313, 145}, {-360, -121, 168}};
+	static const struct PINE_TREE_INSTANCE ten[CSTRK_PINE_GROUP_LARGE_COUNT] = {
+		{-266, 283, 131}, {-28, 358, 170},	 {250, 230, 147},  {-152, 147, 119}, {85, 133, 177},
+		{306, 12, 144},	  {-427, -125, 157}, {-29, -219, 105}, {178, -332, 164}, {-211, -400, 141}};
+	test_pine_scatter(CSTRK_PINE_GROUP_SMALL_COUNT, six);
+	test_pine_scatter(CSTRK_PINE_GROUP_LARGE_COUNT, ten);
+}
+
+static void test_pine_group_collision_centers(void)
+{
+	static const legacy_s8 slopes[TEST_PINE_SLOPE_COUNT][2] = {
+		{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
+	fixture_extended = 1;
+	fixture_track.width = fixture_track.height = TRACK_GRID_SIZE;
+	trkObjectList[CSTRK_PINE_TREE_ID].ss_physicalModel = PHYSICAL_MODEL_PINE_TREE;
+	for (legacy_u8 group = 0; group < sizeof(counts) / sizeof(counts[0]); group++) {
+		for (legacy_u8 rotation = 0; rotation < TEST_ROTATION_COUNT; rotation++) {
+			for (legacy_u8 slope = 0; slope < TEST_PINE_SLOPE_COUNT; slope++) {
+				fixture_object = (struct CSTRK_OBJECT){0};
+				fixture_object.legacy_id = CSTRK_PINE_TREE_ID;
+				fixture_object.x = TEST_PINE_COLUMN;
+				fixture_object.y = TEST_PINE_ROW;
+				fixture_object.width = fixture_object.height = 1;
+				fixture_object.occupied_mask = 1;
+				fixture_object.rotation = rotation;
+				fixture_object.base_height = 1;
+				fixture_object.slope_x = slopes[slope][0];
+				fixture_object.slope_y = slopes[slope][1];
+				fixture_object.pine_count = counts[group];
+				struct VECTOR origin;
+				extended_geometry_object_origin(&fixture_track, &fixture_object, &origin);
+				struct VECTOR positions[CSTRK_PINE_GROUP_LARGE_COUNT + 1U] = {{0}};
+				positions[counts[group]].x = TEST_PINE_CLEAR_GUARD;
+				assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) ==
+					   counts[group]);
+				assert(positions[counts[group]].x == TEST_PINE_CLEAR_GUARD);
+				for (legacy_u8 index = 0; index < counts[group]; index++) {
+					struct PINE_TREE_INSTANCE tree;
+					assert(pine_trees_instance(&fixture_object, index, &tree));
+					assert(positions[index].x == LEGACY_S16_WRAP_ADD(origin.x, tree.x));
+					assert(positions[index].z == LEGACY_S16_WRAP_ADD(origin.z, tree.z));
+					assert(positions[index].y == origin.y + extended_geometry_object_grade(
+																&fixture_object, tree.x, tree.z));
+					assert(positions[index].x != origin.x || positions[index].z != origin.z);
+				}
+				/* The unmodified single pine retains its one centered collision point. */
+				fixture_object.pine_count = 0;
+				assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) == 1);
+				assert(positions[0].x == origin.x && positions[0].z == origin.z);
+				assert(positions[0].y ==
+					   origin.y + extended_geometry_object_grade(&fixture_object, 0, 0));
+			}
+		}
+	}
+}
+
+static void test_pine_group_collision_bounds(void)
+{
+	struct POINT2D native_bounds[2];
+	native_bounds[0] = track_auxiliary_obstacle_bounds[0];
+	native_bounds[1] = track_auxiliary_obstacle_bounds[1];
+	track_auxiliary_obstacle_bounds[0] =
+		(struct POINT2D){TEST_PINE_TRUNK_WIDTH, TEST_PINE_TRUNK_HEIGHT};
+	track_auxiliary_obstacle_bounds[1] =
+		(struct POINT2D){TEST_PINE_TRUNK_WIDTH, TEST_PINE_TRUNK_RADIUS};
+	fixture_object.rotation = fixture_object.slope_x = fixture_object.slope_y = 0;
+	fixture_object.pine_count = CSTRK_PINE_GROUP_LARGE_COUNT;
+	struct VECTOR positions[CSTRK_PINE_GROUP_LARGE_COUNT];
+	assert(get_track_collision_points(TEST_PINE_COLUMN, TEST_PINE_ROW, positions) ==
+		   CSTRK_PINE_GROUP_LARGE_COUNT);
+	struct POINT2D car_bounds[2] = {{TEST_PINE_CAR_EXTENT, TEST_PINE_CAR_EXTENT},
+									{TEST_PINE_CAR_EXTENT, TEST_PINE_CAR_RADIUS}};
+	struct VECTOR car_pose[2] = {{0}}, obstacle_pose[2] = {{0}};
+	for (legacy_u8 index = 0; index < CSTRK_PINE_GROUP_LARGE_COUNT; index++) {
+		struct POINT2D bounds[2];
+		bounds[0] = track_auxiliary_obstacle_bounds[0];
+		bounds[1] = track_auxiliary_obstacle_bounds[1];
+		extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, index, bounds);
+		struct PINE_TREE_INSTANCE tree;
+		assert(pine_trees_instance(&fixture_object, index, &tree));
+		assert(bounds[0].px ==
+			   TEST_PINE_TRUNK_WIDTH * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		assert(bounds[0].py ==
+			   TEST_PINE_TRUNK_HEIGHT * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		assert(bounds[1].py ==
+			   TEST_PINE_TRUNK_RADIUS * tree.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+		obstacle_pose[0] = positions[index];
+		car_pose[0] = positions[index];
+		assert(car_collision_boxes_overlap(car_bounds, car_pose, bounds, obstacle_pose));
+		extended_geometry_object_origin(&fixture_track, &fixture_object, &car_pose[0]);
+		assert(!car_collision_boxes_overlap(car_bounds, car_pose, bounds, obstacle_pose));
+	}
+	struct POINT2D bounds[2];
+	bounds[0] = track_auxiliary_obstacle_bounds[0];
+	bounds[1] = track_auxiliary_obstacle_bounds[1];
+	fixture_object.pine_count = 0;
+	extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, 0, bounds);
+	assert(memcmp(bounds, track_auxiliary_obstacle_bounds, sizeof(bounds)) == 0);
+	/* Signed, asymmetric bounds round toward zero, including negative values. */
+	fixture_object.pine_count = CSTRK_PINE_GROUP_LARGE_COUNT;
+	bounds[0] = (struct POINT2D){TEST_PINE_SIGNED_FIRST_WIDTH, TEST_PINE_SIGNED_FIRST_HEIGHT};
+	bounds[1] = (struct POINT2D){TEST_PINE_SIGNED_SECOND_WIDTH, TEST_PINE_SIGNED_SECOND_RADIUS};
+	struct PINE_TREE_INSTANCE first;
+	assert(pine_trees_instance(&fixture_object, 0, &first));
+	extended_track_collision_bounds(TEST_PINE_COLUMN, TEST_PINE_ROW, 0, bounds);
+	assert(bounds[0].px ==
+		   TEST_PINE_SIGNED_FIRST_WIDTH * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[0].py ==
+		   TEST_PINE_SIGNED_FIRST_HEIGHT * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[1].px ==
+		   TEST_PINE_SIGNED_SECOND_WIDTH * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	assert(bounds[1].py ==
+		   TEST_PINE_SIGNED_SECOND_RADIUS * first.scale / (legacy_s32)PINE_TREE_SCALE_ONE);
+	fixture_object.pine_count = 0;
+	track_auxiliary_obstacle_bounds[0] = native_bounds[0];
+	track_auxiliary_obstacle_bounds[1] = native_bounds[1];
+}
+
 legacy_int main(void)
 {
 	test_native_wall_response();
@@ -703,7 +1003,12 @@ legacy_int main(void)
 	test_sloped_tunnel_portals(1);
 	test_roll_launch_corridor();
 	test_roll_completion_and_checkpoint_state();
+	test_roll_native_landing_contact();
+	test_roll_completed_attempt_is_retained();
 	test_roll_completion_on_cross_slope();
 	test_roll_shortcuts_are_rejected();
+	test_pine_group_scatter();
+	test_pine_group_collision_centers();
+	test_pine_group_collision_bounds();
 	return 0;
 }

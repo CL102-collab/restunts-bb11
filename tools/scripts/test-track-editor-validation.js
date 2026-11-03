@@ -63,6 +63,16 @@ function chicaneJump(bridge = false, runway = false) {
 check('empty map', new model.Document(4, 3), 1);
 check('smallest map without start', new model.Document(1, 1), 1);
 check('closed rectangular route', rectangle(), 0);
+for (const id of [model.WHEAT_FIELD_ID, model.TULIP_FIELD_ID, model.VINE_FIELD_ID]) for (let direction = 0; direction < 4; direction++) {
+    const name = model.catalog.find(piece => piece.id === id).name;
+    const doc = rectangle();
+    put(doc, id, 0, 0, 0, direction);
+    const result = check(name + ' scenery retains the route direction ' + direction, clearHistory(doc), 0);
+    assert(result.route.every(piece => !model.isCropField(piece.id)), 'crop fields are scenery, not roads');
+    const missingRoad = rectangle();
+    replace(missingRoad, 25, 4, id, direction);
+    check(name + ' cannot connect a missing road direction ' + direction, clearHistory(missingRoad), validation.STATUS.NO_PATH);
+}
 for (let primary = 0; primary < model.TERRAIN_SURFACES.length; primary++) {
     for (let secondary = 0; secondary < model.TERRAIN_SURFACES.length; secondary++) {
         if (primary === secondary) continue;

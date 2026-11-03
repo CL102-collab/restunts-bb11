@@ -1,4 +1,7 @@
 #include "extended_frame_internal.h"
+#include "pine_trees.h"
+#include "wheat_field.h"
+#include "crop_fields.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
@@ -92,6 +95,41 @@ void frame_extended_apply_object_grade(struct SHAPE3D *mesh, const struct CSTRK_
 	}
 }
 
+/* Each tree owns its full-detail anchor. A shared grove anchor would lift
+ * every crown to the uphill tree and stretch the downhill trunks. */
+static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJECT *object)
+{
+	const struct TRACKOBJECT *native = object->definition;
+	for (legacy_u8 tree = 0; tree < object->object->pine_count; tree++) {
+		struct SHAPE3D full, detail;
+		if (!pine_trees_create_mesh(native->ss_shapePtr, &full, object->object, tree)) {
+			continue;
+		}
+		const struct SHAPE3D *source = &full;
+		legacy_u8 low_detail = object->detail && native->ss_loShapePtr;
+		if (low_detail) {
+			if (!pine_trees_create_mesh(native->ss_loShapePtr, &detail, object->object, tree)) {
+				extended_geometry_free_shape(&full);
+				continue;
+			}
+			source = &detail;
+		}
+		struct TRACKOBJECT definition = *native;
+		definition.ss_shapePtr = &full;
+		definition.ss_rotY = 0;
+		legacy_s16 result =
+			frame_extended_draw_object_mesh(object, &definition, source, CSTRK_ROAD_PAVED);
+		if (low_detail) {
+			extended_geometry_free_shape(&detail);
+		}
+		extended_geometry_free_shape(&full);
+		if (result) {
+			return result;
+		}
+	}
+	return 0;
+}
+
 legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 									  const struct CSTRK_OBJECT *model,
 									  const struct TRACKOBJECT *definition,
@@ -114,6 +152,32 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 					   : 0;
 	object.detail = tile->detail;
 	object.flags = flags;
+	if (cstrk_is_crop_field(model->legacy_id)) {
+		struct TRACKOBJECT crop = *definition;
+		crop.ss_rotY = model->rotation * ANGLE_QUARTER_TURN;
+		legacy_u8 count = model->legacy_id == CSTRK_WHEAT_FIELD_ID
+							  ? 1U
+							  : crop_fields_mesh_count(model->legacy_id);
+		for (legacy_u8 part = 0; part < count; part++) {
+			struct SHAPE3D source;
+			legacy_s16 created = model->legacy_id == CSTRK_WHEAT_FIELD_ID
+									 ? wheat_field_create_mesh(&source)
+									 : crop_fields_create_mesh(&source, model->legacy_id, part);
+			if (!created) {
+				continue;
+			}
+			legacy_s16 result =
+				frame_extended_draw_object_mesh(&object, &crop, &source, CSTRK_ROAD_PAVED);
+			extended_geometry_free_shape(&source);
+			if (result) {
+				return result;
+			}
+		}
+		return 0;
+	}
+	if (model->pine_count) {
+		return frame_extended_draw_pine_trees(&object);
+	}
 	if (model->roll_ramp) {
 		object.flags |= SHAPE3D_BLACK_GRILLE_FLAG;
 		struct SHAPE3D source;
@@ -220,8 +284,16 @@ legacy_s16 frame_extended_draw_object_mesh(const struct FRAME_EXTENDED_OBJECT *o
 										   const struct SHAPE3D *source, legacy_u8 surface)
 {
 	struct SHAPE3D mesh;
-	if (!extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
-										   object->definition->ss_physicalModel)) {
+	legacy_s16 transformed;
+	if (definition->ss_surfaceType < 0) {
+		transformed = extended_geometry_transform_shape_paint(
+			source, &mesh, definition->ss_rotY, surface, object->definition->ss_physicalModel,
+			(legacy_u16)frame_animated_material());
+	} else {
+		transformed = extended_geometry_transform_shape(source, &mesh, definition->ss_rotY, surface,
+														object->definition->ss_physicalModel);
+	}
+	if (!transformed) {
 		return 0;
 	}
 	struct VECTOR anchor;
@@ -259,6 +331,9 @@ legacy_s16 frame_extended_draw_object_part(const struct FRAME_EXTENDED_OBJECT *o
 		instance.rotvec.z = definition->ss_rotY;
 		instance.ts_flags |= definition->ss_ignoreZBias;
 		instance.material = overlay ? 0 : surface;
+		if (definition->ss_surfaceType < 0) {
+			instance.material = frame_animated_material();
+		}
 		return hires_track_queue_exhausted(
 			(legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges));
 	}

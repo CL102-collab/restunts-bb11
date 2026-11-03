@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shutil
 import stat
 import struct
 import subprocess
@@ -52,6 +53,9 @@ class ReleasePackageTests(unittest.TestCase):
         self.output = self.root / "archives"
 
     def copy_car_sources(self, source):
+        track_readme = source / "assets/tracks/README.TXT"
+        track_readme.parent.mkdir(parents=True, exist_ok=True)
+        track_readme.write_bytes((PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes())
         for name in PACKAGES.CUSTOM_CAR_FILES:
             path = source / "assets/cars" / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,7 +182,7 @@ class ReleasePackageTests(unittest.TestCase):
                         output.writestr(entry, content)
         else:
             with tarfile.open(archive, "w:gz") as output:
-                for path in (".", "./cars"):
+                for path in (".", "./cars", "./tracks"):
                     entry = tarfile.TarInfo(path)
                     entry.type = tarfile.DIRTYPE
                     entry.mode = PACKAGES.EXECUTABLE_MODE
@@ -227,6 +231,8 @@ class ReleasePackageTests(unittest.TestCase):
             return json.dumps({"passed": True, "problems": [],
                                "sha256": PACKAGES.sha256(FILE_DATA),
                                "forbid_simd": target.endswith("-no-sse2")}).encode()
+        if name in {"tracks/README.TXT", "bin/tracks/README.TXT", "assets/tracks/README.TXT"}:
+            return (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
         car_source = PACKAGES.custom_car_source(name)
         if car_source is not None:
             return car_source.read_bytes()
@@ -348,6 +354,21 @@ class ReleasePackageTests(unittest.TestCase):
                         expected = (PACKAGES.ROOT / "assets/cars" / Path(name).name).read_bytes()
                         self.assertEqual(contents[name], expected)
                         self.assertEqual(PACKAGES.sha256(contents[name]), PACKAGES.sha256(expected))
+
+    def test_native_archives_preserve_the_tracks_folder(self):
+        expected = (PACKAGES.ROOT / "assets/tracks/README.TXT").read_bytes()
+        targets = PACKAGES.TARGETS.keys() - PACKAGES.ANDROID_TARGETS.keys() - {"browser", "templeos"}
+        for target in targets:
+            with self.subTest(target=target):
+                name = ("tracks/README.TXT" if target in {"dos16", "amiga-m68k"}
+                        else "bin/tracks/README.TXT")
+                archive = self.create(target)
+                files, modes = PACKAGES.archive_contents(archive)
+                self.assertEqual(files[name], expected)
+                self.assertEqual(modes[name], PACKAGES.FILE_MODE)
+                with self.assertRaisesRegex(ValueError, "missing packaged files"):
+                    PACKAGES.validate_contents(target, {key: data for key, data in files.items()
+                                                       if key != name}, modes)
 
     def test_custom_car_sources_are_required_and_cannot_be_substituted(self):
         for target in PACKAGES.TARGETS:
@@ -486,6 +507,22 @@ class ReleasePackageTests(unittest.TestCase):
                     self.assertRaisesRegex(ValueError, "Custom car resource differs from source"):
                 PACKAGES.validate_contents(target, files | {name: FILE_DATA}, modes)
 
+    def test_templeos_inventory_matches_prepared_public_disc(self):
+        disc = self.root / "templeos-disc"
+        with contextlib.redirect_stdout(io.StringIO()):
+            PACKAGES.TEMPLEOS["PREPARE"]["prepare"](None, disc)
+        for name in PACKAGES.TEMPLEOS["INSTALLER_FILES"]:
+            shutil.copyfile(TEMPLEOS_TOOLS.parent / "package" / name, disc / name)
+        shutil.copyfile(PACKAGES.ROOT / "docs/templeos.md", disc / "README.MD")
+        prepared = {path.relative_to(disc).as_posix(): path.read_bytes()
+                    for path in disc.rglob("*") if path.is_file()}
+        expected = {name: source.read_bytes() for name, source in
+                    PACKAGES.templeos_disc_sources().items()}
+        self.assertEqual(expected.keys(), prepared.keys())
+        for name, content in expected.items():
+            with self.subTest(file=name):
+                self.assertEqual(content, prepared[name])
+
     def test_templeos_package_checksums_and_source_inventories_cannot_be_substituted(self):
         original = self.templeos_files()
         PACKAGES.validate_templeos_package(original)
@@ -511,7 +548,8 @@ class ReleasePackageTests(unittest.TestCase):
 
     def test_templeos_disc_rejects_changed_missing_and_additional_nested_files(self):
         sources = PACKAGES.templeos_disc_sources()
-        changed_names = ("INSTALL.HC", "PORT/CARS/CARTERR.RES", "PORT/LOAD.HC")
+        changed_names = ("INSTALL.HC", "PORT/CARS/CARTERR.RES", "PORT/LOAD.HC",
+                         "PORT/TRACKS/README.TXT")
         for name in changed_names:
             for files in (self.templeos_files({name: FILE_DATA}), self.templeos_files(missing=(name,))):
                 with self.subTest(changed=name), self.assertRaises(ValueError):
@@ -519,14 +557,14 @@ class ReleasePackageTests(unittest.TestCase):
         for name in ("PORT/CARS/MISC.RES", "PRIVATE.TXT", "PORT/EXTRA.HC"):
             with self.subTest(extra=name), self.assertRaises(ValueError):
                 PACKAGES.validate_templeos_package(self.templeos_files({name: FILE_DATA}))
-        name = "PORT/LOAD.HC"
-        changed = self.templeos_files({name: FILE_DATA})
-        contents = {key: source.read_bytes() for key, source in sources.items()} | {name: FILE_DATA}
-        changed["CONTENTS.TXT"] = self.templeos_checksums(contents)
-        changed["SHA256SUMS.TXT"] = self.templeos_checksums(
-            {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
-        with self.assertRaises(ValueError):
-            PACKAGES.validate_templeos_package(changed)
+        for name in ("PORT/LOAD.HC", "PORT/TRACKS/README.TXT"):
+            changed = self.templeos_files({name: FILE_DATA})
+            contents = {key: source.read_bytes() for key, source in sources.items()} | {name: FILE_DATA}
+            changed["CONTENTS.TXT"] = self.templeos_checksums(contents)
+            changed["SHA256SUMS.TXT"] = self.templeos_checksums(
+                {key: content for key, content in changed.items() if key != "SHA256SUMS.TXT"})
+            with self.subTest(rehashed=name), self.assertRaises(ValueError):
+                PACKAGES.validate_templeos_package(changed)
 
     def test_templeos_disc_rejects_unsafe_duplicates_cycles_and_invalid_extents(self):
         original = self.templeos_iso_data()
@@ -790,6 +828,28 @@ class ReleasePackageTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unsupported Android package minimum API"):
                 PACKAGES.android_minimum_sdk("android-armv7")
 
+    def test_android_game_apks_accept_the_complete_bundled_asset_inventory(self):
+        for target in PACKAGES.ANDROID_TARGETS:
+            bundled = {path.relative_to(PACKAGES.ROOT).as_posix(): self.runtime_data(
+                target, path.relative_to(PACKAGES.ROOT).as_posix())
+                for path in (PACKAGES.ROOT / "assets").rglob("*") if path.is_file()}
+            with self.subTest(target=target):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, bundled))
+
+    def test_android_game_track_readme_is_required_and_matches_source(self):
+        name = "assets/tracks/README.TXT"
+        for target in PACKAGES.ANDROID_TARGETS:
+            with self.subTest(target=target, missing=name), \
+                    self.assertRaisesRegex(ValueError, "missing APK members"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, missing=(name,)))
+            with self.subTest(target=target, changed=name), \
+                    self.assertRaisesRegex(ValueError, "tracks README differs from source"):
+                PACKAGES.validate_android_apk(target, self.apk_data(target, {name: FILE_DATA}))
+            for extra in ("assets/tracks/OTHER.TXT", "assets/tracks/readme.txt",
+                          "assets/tracks/DEFAULT.TRK", "assets/tracks/private.CSTRK"):
+                with self.subTest(target=target, extra=extra), self.assertRaises(ValueError):
+                    PACKAGES.validate_android_apk(target, self.apk_data(target, {extra: FILE_DATA}))
+
     def test_android_apks_require_exact_abi_and_all_shared_libraries(self):
         for target, abi in PACKAGES.ANDROID_TARGETS.items():
             with self.subTest(target=target):
@@ -861,6 +921,7 @@ class ReleasePackageTests(unittest.TestCase):
             for extra in (f"lib/{abi}/libmain.so", f"lib/{abi}/genghost",
                           f"lib/{PACKAGES.ANDROID_TARGETS[other]}/libgenghost_exec.so",
                           "bin/genghost", "assets/MISC.RES", "assets/game/FONTDEF.FNT",
+                          "assets/tracks/README.TXT",
                           "assets/data.zip", "assets/private.dat", "assets/music/titl.ogg",
                           "assets/licenses/Nuked-OPL2-LICENSE.txt", "stunts/notice.txt"):
                 with self.subTest(target=target, extra=extra), self.assertRaises(ValueError):

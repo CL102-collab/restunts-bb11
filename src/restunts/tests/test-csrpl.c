@@ -10,6 +10,41 @@
 #define TEST_FUTURE_TRACK_VERSION 101U
 #define TEST_REPLAY_ERROR_CAPACITY 128U
 
+#define TEST_ENCODED_SIZE_SENTINEL 123U
+
+static void test_encoded_size_boundaries(void)
+{
+	size_t output = TEST_ENCODED_SIZE_SENTINEL;
+	assert(!csrpl_encoded_size(1U, 0U, NULL));
+	assert(!csrpl_encoded_size(0U, 0U, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+	assert(csrpl_encoded_size(1U, 0U, &output));
+	assert(output == CSRPL_HEADER_SIZE + 1U);
+#if SIZE_MAX <= UINT32_MAX
+	/* Exactly full address spaces are valid; one more header or input byte
+	 * must fail without publishing a wrapped result. No allocation is needed. */
+	size_t track_limit = SIZE_MAX - CSRPL_HEADER_SIZE;
+	assert(csrpl_encoded_size(track_limit, 0U, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(track_limit + 1U, 0U, &output));
+	assert(output == SIZE_MAX);
+	legacy_u32 frame_limit = (legacy_u32)(SIZE_MAX - CSRPL_HEADER_SIZE - 1U);
+	assert(csrpl_encoded_size(1U, frame_limit, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(1U, frame_limit + 1U, &output));
+	assert(output == SIZE_MAX);
+	assert(!csrpl_encoded_size(1U, UINT32_MAX, &output));
+	assert(output == SIZE_MAX);
+#else
+	/* Wide hosts must accept both maximum wire counts without truncation. */
+	assert(csrpl_encoded_size(UINT32_MAX, UINT32_MAX, &output));
+	assert(output == (legacy_u64)CSRPL_HEADER_SIZE + UINT32_MAX + UINT32_MAX);
+	output = TEST_ENCODED_SIZE_SENTINEL;
+	assert(!csrpl_encoded_size((size_t)UINT32_MAX + 1U, 0U, &output));
+	assert(output == TEST_ENCODED_SIZE_SENTINEL);
+#endif
+}
+
 static void test_recording_and_seek_storage(void)
 {
 	struct EXTENDED_REPLAY_BUFFER buffer;
@@ -140,7 +175,8 @@ static void test_codec(legacy_u8 horizon, legacy_u16 version, legacy_u8 corner_s
 	}
 	assert(!csrpl_decode(encoded, size - 1U, &view, error, sizeof(error)));
 	assert(!csrpl_decode(encoded, size + 1U, &view, error, sizeof(error)));
-	const size_t corrupt_offsets[] = {0U, 10U, 12U, 50U};
+	const size_t corrupt_offsets[] = {0U, 10U, 12U,
+									  CSRPL_TRACK_NAME_OFFSET + CSRPL_TRACK_NAME_SIZE};
 	for (size_t index = 0U; index < sizeof(corrupt_offsets) / sizeof(corrupt_offsets[0]); index++) {
 		size_t offset = corrupt_offsets[index];
 		encoded[offset] ^= 1U;
@@ -441,8 +477,107 @@ static void test_recorded_driving_rules(void)
 	cstrk_free(&track);
 }
 
+static void test_track_name_layouts(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[TEST_REPLAY_ERROR_CAPACITY];
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	legacy_u8 *track_data = NULL;
+	size_t track_size = 0;
+	assert(cstrk_encode(&track, &track_data, &track_size, error, sizeof(error)));
+	static const legacy_u8 inputs[] = {1U, 2U};
+	/* Test every old layout through the v16/v17 boundary and a newer reader case. */
+	for (legacy_u16 version = CSRPL_MIN_VERSION; version <= CSRPL_LONG_TRACK_NAME_VERSION + 1U;
+		 version++) {
+		const size_t wire_name_size = version < CSRPL_LONG_TRACK_NAME_VERSION
+										  ? CSRPL_LEGACY_TRACK_NAME_SIZE
+										  : CSRPL_TRACK_NAME_SIZE;
+		for (size_t length = 0; length <= CSRPL_TRACK_NAME_SIZE; length++) {
+			struct CSRPL_METADATA metadata = {0};
+			metadata.version = version;
+			metadata.frames_per_second = 20U;
+			metadata.frame_count = sizeof(inputs);
+			for (size_t index = 0; index < length; index++) {
+				metadata.track_name[index] = (legacy_u8)('A' + index);
+			}
+			legacy_u8 *encoded = NULL;
+			size_t size = 0;
+			if (length > wire_name_size) {
+				assert(!csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs),
+									 &encoded, &size, error, sizeof(error)));
+				assert(strstr(error, "Track name") != NULL);
+				assert(encoded == NULL && size == 0U);
+				continue;
+			}
+			assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded,
+								&size, error, sizeof(error)));
+			assert(size == CSRPL_HEADER_SIZE + track_size + sizeof(inputs));
+			assert(memcmp(encoded + CSRPL_TRACK_NAME_OFFSET, metadata.track_name, wire_name_size) ==
+				   0);
+			struct CSRPL_VIEW view;
+			memset(&view, 0, sizeof(view));
+			assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+			assert(memcmp(view.metadata.track_name, metadata.track_name, CSRPL_TRACK_NAME_SIZE) ==
+				   0);
+			assert(view.metadata.version == version);
+			legacy_u8 *saved = NULL;
+			size_t saved_size = 0;
+			assert(csrpl_encode(&view.metadata, view.track_data, view.track_size, view.inputs,
+								view.metadata.frame_count, &saved, &saved_size, error,
+								sizeof(error)));
+			assert(saved_size == size && memcmp(saved, encoded, size) == 0);
+			free(saved);
+			struct CSRPL_VIEW unchanged = view;
+			for (size_t offset = CSRPL_TRACK_NAME_OFFSET + wire_name_size;
+				 offset < CSRPL_HEADER_SIZE; offset++) {
+				assert(encoded[offset] == 0U);
+				encoded[offset] = 1U;
+				assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+				assert(strstr(error, "reserved") != NULL);
+				assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+				encoded[offset] = 0U;
+			}
+			if (length > CSRPL_LEGACY_TRACK_NAME_SIZE) {
+				/* A long modern name cannot be relabeled as the older nine-byte layout. */
+				LEGACY_WRITE_U16_LE(encoded + CSRPL_VERSION_OFFSET,
+									CSRPL_LONG_TRACK_NAME_VERSION - 1U);
+				assert(!csrpl_decode(encoded, size, &view, error, sizeof(error)));
+				assert(strstr(error, "reserved") != NULL);
+				assert(memcmp(&view, &unchanged, sizeof(view)) == 0);
+				metadata.version = CSRPL_LONG_TRACK_NAME_VERSION - 1U;
+				legacy_u8 *sentinel = encoded;
+				size_t sentinel_size = size;
+				assert(!csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs),
+									 &sentinel, &sentinel_size, error, sizeof(error)));
+				assert(sentinel == encoded && sentinel_size == size);
+			}
+			free(encoded);
+		}
+	}
+	/* Future revisions use the same known long-name layout and retain their metadata. */
+	struct CSRPL_METADATA metadata = {0};
+	metadata.version = TEST_FUTURE_TRACK_VERSION;
+	metadata.frames_per_second = 20U;
+	metadata.frame_count = sizeof(inputs);
+	memcpy(metadata.track_name, "TWELVECHARS!", CSRPL_TRACK_NAME_SIZE - 1U);
+	legacy_u8 *encoded = NULL;
+	size_t size = 0;
+	assert(csrpl_encode(&metadata, track_data, track_size, inputs, sizeof(inputs), &encoded, &size,
+						error, sizeof(error)));
+	struct CSRPL_VIEW view;
+	assert(csrpl_decode(encoded, size, &view, error, sizeof(error)));
+	assert(view.metadata.version == TEST_FUTURE_TRACK_VERSION);
+	assert(memcmp(view.metadata.track_name, metadata.track_name, CSRPL_TRACK_NAME_SIZE) == 0);
+	free(encoded);
+	free(track_data);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
+	test_encoded_size_boundaries();
+	test_track_name_layouts();
 	test_recording_and_seek_storage();
 	test_large_timeline();
 	test_recorded_versions();

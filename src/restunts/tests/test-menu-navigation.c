@@ -12,8 +12,18 @@
 #define font_draw_text car_fixture_font_draw_text
 #define draw_button car_fixture_draw_button
 #define menu_animate_button_highlight car_fixture_menu_animate_button_highlight
+#ifdef RESTUNTS_SDL3
+#define frame_fps_reset car_fixture_frame_fps_reset
+#define frame_fps_record_presented car_fixture_frame_fps_record_presented
+#define frame_fps_draw_text car_fixture_frame_fps_draw_text
+#endif
 #include "test-car-menu.c"
 #undef main
+#ifdef RESTUNTS_SDL3
+#undef frame_fps_reset
+#undef frame_fps_record_presented
+#undef frame_fps_draw_text
+#endif
 #undef menu_background_draw
 #undef input_checking
 #undef mouse_multi_hittest
@@ -73,6 +83,8 @@ static struct CSTRK_TRACK track_fixture_model;
 static struct CSHIG_ENTRY track_fixture_score;
 static legacy_u8 track_score_test;
 static legacy_u32 track_score_labels, track_score_fields;
+static legacy_u32 track_fps_draws, track_fps_presents, track_fps_resets, track_render_resets;
+static legacy_u32 track_fps_modes[FRAME_FPS_DISPLAY_MODE_COUNT];
 static const legacy_s8 *track_score_text[] = {
 	(const legacy_s8 *)"RACER", (const legacy_s8 *)"Porsche 962 IMSA", (const legacy_s8 *)" ",
 	(const legacy_s8 *)" 1:01.70"};
@@ -98,6 +110,52 @@ int extended_editor_open(void)
 {
 	assert(track_animation_test != 0 && track_shapes_live == 0 && track_skybox_live == 0);
 	return 1;
+}
+
+void frame_fps_reset(void)
+{
+	if (track_animation_test != 0) {
+		assert(drawing_frame == 0);
+		assert(track_shapes_live != 0 && track_skybox_live != 0);
+		track_fps_resets++;
+	}
+	car_fixture_frame_fps_reset();
+}
+
+void frame_render_timing_reset(void)
+{
+	assert(track_animation_test != 0 && drawing_frame == 0);
+	assert(track_shapes_live != 0 && track_skybox_live != 0);
+	track_render_resets++;
+}
+
+void frame_fps_record_presented(void)
+{
+	if (track_animation_test != 0) {
+		assert(drawing_frame != 0 && display_target == 0);
+		assert(display_clip.top == 0 && display_clip.bottom == 200);
+		assert(track_partial_presentations == track_fps_presents + 1U);
+		track_fps_presents++;
+	}
+	car_fixture_frame_fps_record_presented();
+}
+
+struct RECTANGLE *frame_fps_draw_text(void)
+{
+	if (track_animation_test != 0) {
+		assert(renderer_active != 0 && track_shapes_live != 0 && track_skybox_live != 0);
+		assert(display_target == 1 && display_clip.left == 0 && display_clip.right == 320);
+		assert(display_clip.top == 0 && display_clip.bottom == 200);
+		assert(track_title_draws == track_preview_draws);
+		if (track_score_test != 0) {
+			assert(track_score_labels == track_title_draws);
+			assert(track_score_fields == track_title_draws * 4U);
+		}
+		assert(fps_display_enabled < FRAME_FPS_DISPLAY_MODE_COUNT);
+		track_fps_modes[fps_display_enabled]++;
+		track_fps_draws++;
+	}
+	return car_fixture_frame_fps_draw_text();
 }
 
 legacy_s32 hires_enabled(void)
@@ -787,7 +845,7 @@ static void test_track_renderer_toggle(void)
 
 #ifdef RESTUNTS_SDL3
 static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
-									  legacy_u8 has_score)
+									  legacy_u8 has_score, legacy_u8 initial_fps)
 {
 	reset_menu_case(0, 1);
 	video_uses_page_flipping = page_flipping;
@@ -795,6 +853,12 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
 	track_score_test = has_score;
 	track_fixture_score.ticks = 1234U;
 	track_score_labels = track_score_fields = 0;
+	fps_display_enabled = initial_fps;
+	status_only_test = action == 4;
+	drawing_frame = completed_frame = 0;
+	committed_frames = display_reset_count = display_shortcut_count = 0;
+	track_fps_draws = track_fps_presents = track_fps_resets = track_render_resets = 0;
+	memset(track_fps_modes, 0, sizeof(track_fps_modes));
 	renderer_active = action != 4;
 	display_status_active = display_status_expire_pending = 0;
 	track_window_live = track_skybox_live = track_shapes_live = 0;
@@ -821,10 +885,19 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
 		menu_keys[2] = 0;
 		menu_keys[3] = KEY_SHIFT_F12;
 		menu_keys[5] = KEY_ESCAPE;
+	} else if (action == 4) {
+		/* A static extended preview must not consume its usual menu input as FPS. */
+		menu_keys[1] = KEY_F11;
+	} else if (action == 5) {
+		/* Both display-toggle aliases arrive as F11 from the input adapter. */
+		menu_keys[1] = menu_keys[3] = KEY_F11;
+		menu_keys[2] = 0;
+		menu_keys[5] = KEY_ESCAPE;
 	}
 	track_animation_test = 1;
 	run_tracks_menu(0);
 	track_animation_test = 0;
+	status_only_test = 0;
 	track_extended_fixture = 0;
 	assert(track_window_live == 0 && track_skybox_live == 0 && track_shapes_live == 0);
 	assert(track_shape_loads == track_shape_releases);
@@ -841,8 +914,28 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
 		assert(track_highscore_draws == 2 && track_partial_presentations == 2);
 	} else if (action == 3) {
 		assert(track_highscore_draws == 3 && track_partial_presentations == 2);
-	} else {
+	} else if (action == 4) {
 		assert(track_highscore_draws == 1 && track_partial_presentations == 0);
+	} else {
+		assert(track_highscore_draws == 3 && track_partial_presentations == 3);
+		assert(display_shortcut_count == 2);
+		assert(track_fps_draws == (initial_fps != 0 ? 4U : 2U));
+	}
+	assert(fps_display_enabled == initial_fps);
+	assert(drawing_frame == 0);
+	assert(track_fps_presents == track_partial_presentations);
+	assert(committed_frames == track_partial_presentations);
+	assert(track_render_resets == track_fps_resets);
+	assert(display_reset_count == track_fps_resets + (action == 5 ? 2U : 0U));
+	if (action == 4) {
+		assert(track_fps_draws == 0 && track_fps_resets == 0);
+		assert(display_shortcut_count == 0);
+	} else {
+		assert(track_fps_resets == (action == 3 ? 2U : track_highscore_draws));
+		assert(track_fps_modes[FRAME_FPS_DISPLAY_ON] != 0 || initial_fps == FRAME_FPS_DISPLAY_OFF);
+		if (action != 3) {
+			assert(track_fps_modes[FRAME_FPS_DISPLAY_OFF] == 0);
+		}
 	}
 	assert(track_shape_loads == track_highscore_draws);
 	if (has_score != 0) {
@@ -859,9 +952,12 @@ static void test_track_animation_case(legacy_u8 action, legacy_u8 page_flipping,
 static void test_track_animation(void)
 {
 	for (legacy_u8 page_flipping = 0; page_flipping < 2; page_flipping++) {
-		for (legacy_u8 action = 0; action < 5; action++) {
+		for (legacy_u8 action = 0; action < 6; action++) {
 			for (legacy_u8 has_score = 0; has_score < 2; has_score++) {
-				test_track_animation_case(action, page_flipping, has_score);
+				for (legacy_u8 fps = FRAME_FPS_DISPLAY_OFF; fps < FRAME_FPS_DISPLAY_MODE_COUNT;
+					 fps++) {
+					test_track_animation_case(action, page_flipping, has_score, fps);
+				}
 			}
 		}
 	}

@@ -11,7 +11,12 @@
 
 #ifdef RESTUNTS_SDL3
 #include "cstrk.h"
+#include "extended_file_dialog.h"
 
+/* Full extended stem is separate from the packed legacy GAMEINFO prefix. */
+const legacy_s8 *extended_track_name(void);
+void extended_track_set_name(const legacy_s8 *name);
+void extended_track_clear_name(void);
 int extended_track_active(void);
 int extended_track_width(void);
 int extended_track_height(void);

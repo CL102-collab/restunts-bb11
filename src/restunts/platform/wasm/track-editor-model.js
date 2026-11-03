@@ -13,10 +13,26 @@
     const ROLL_RAMP_PHYSICAL_MODEL = 35, ROLL_RAMP_VERSION = 8, ROLL_RAMP_DIRECTION_OFFSET = 2;
     const ROLL_RAMP_NAME = 'Barrel roll ramp';
     const ROLL_RAMP_VERSION_ERROR = 'Barrel roll ramp requires Chocolate Stunts track version v8.';
+    const PINE_PHYSICAL_MODEL = 71, PINE_TREE_ID = 153, PINE_GROUP_VERSION = 9, PINE_SIX_VERSION = 10, PINE_COUNTS = [10, 6];
+    const PINE_IMPORT_COUNT = 5, PINE_SIX_COUNT = 6, PINE_IMPORT_COUNTS = [...PINE_COUNTS, PINE_IMPORT_COUNT];
+    const PINE_GROUP_VERSION_ERROR = 'Pine tree groups require Chocolate Stunts track version v9.';
+    const PINE_SIX_VERSION_ERROR = 'Six-tree pine groups require Chocolate Stunts track version v10.';
+    const WHEAT_FIELD_ID = 215, WHEAT_FIELD_PHYSICAL_MODEL = 75, WHEAT_FIELD_VERSION = 11;
+    const TULIP_FIELD_ID = 216, TULIP_FIELD_PHYSICAL_MODEL = 76, TULIP_FIELD_VERSION = 12;
+    const VINE_FIELD_ID = 217, VINE_FIELD_PHYSICAL_MODEL = 77, VINE_FIELD_VERSION = 12;
+    const CROP_FIELDS = new Map([
+        [WHEAT_FIELD_ID, { name: 'Wheat field', physical: WHEAT_FIELD_PHYSICAL_MODEL, version: WHEAT_FIELD_VERSION }],
+        [TULIP_FIELD_ID, { name: 'Tulip field', physical: TULIP_FIELD_PHYSICAL_MODEL, version: TULIP_FIELD_VERSION }],
+        [VINE_FIELD_ID, { name: 'Vine field', physical: VINE_FIELD_PHYSICAL_MODEL, version: VINE_FIELD_VERSION }]
+    ]);
+    function isCropField(id) { return CROP_FIELDS.has(id); }
     const OVERPASS_NAMES = ['Overpass over asphalt', 'Overpass over dirt', 'Overpass over ice'];
     const TERRAIN_SURFACES = ['Grass', 'Ice', 'Dirt', 'Water'];
+    const PAINT_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
+    const LEVEL_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
+    const PINE_BRUSH_SIZES = Object.freeze([1, 2, 4, 8]);
     const HORIZONS = ['Desert', 'Tropical', 'Alpine', 'City', 'Country'];
-    const VERSION = 8, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
+    const VERSION = 12, CSTRK_MIN_VERSION = 3, CSTRK_MAX_VERSION = 0xffff, CSTRK_HEADER_SIZE = 32;
     const DEFAULT_CORNER_SURFACE = 3;
     const CSTRK_CORNER_DIRECTION_MASK = 7, CSTRK_CORNER_SURFACE_SHIFT = 3, CSTRK_CORNER_ENCODING_MASK = 31;
     const CSTRK_HORIZON_OFFSET = 12, DEFAULT_HORIZON = 0;
@@ -61,6 +77,8 @@
             rotation: a[0] / 256, physical, decoration, legacySurface: a[1],
             surfaces: [0, 1, 2] };
     }).filter(a => a.id > 0 && a.id < 182 && a.id !== 2 && a.id !== 3);
+    for (const [id, field] of CROP_FIELDS) catalog.push({ id, name: field.name, group: 10, width: 1, height: 1, mask: 1,
+        rotation: 0, physical: field.physical, decoration: true, legacySurface: 0, surfaces: [0, 1, 2] });
     const byId = new Map(catalog.map(a => [a.id, a]));
     // A family keeps distinct shapes and editor groups, while combining native rotations.
     const libraryFamilies = new Map();
@@ -76,8 +94,12 @@
                 ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: TUNNEL_SLALOM_NAME, tunnelSlalom: 1, key: 'tunnel-slalom' }]
                 : piece.physical === ROLL_RAMP_PHYSICAL_MODEL
                     ? [{ ...piece, key: 'piece:' + piece.id }, { ...piece, name: ROLL_RAMP_NAME, rollRamp: 1, key: 'roll-ramp' }]
+                : piece.physical === PINE_PHYSICAL_MODEL
+                    ? [{ ...piece, key: 'piece:' + piece.id }, ...PINE_COUNTS.map(pineCount =>
+                        ({ ...piece, name: 'Pine trees (' + pineCount + ')', pineCount, key: 'pine-trees:' + pineCount }))]
                 : [{ ...piece, key: 'piece:' + piece.id }]);
     function withPaletteVariant(piece, selected) {
+        if (selected.pineCount) return { ...piece, name: 'Pine trees (' + selected.pineCount + ')', pineCount: selected.pineCount, key: 'pine-trees:' + selected.pineCount };
         if (selected.rollRamp) return { ...piece, name: ROLL_RAMP_NAME, rollRamp: 1, key: 'roll-ramp' };
         if (selected.tunnelSlalom) return { ...piece, name: TUNNEL_SLALOM_NAME, tunnelSlalom: 1, key: 'tunnel-slalom' };
         return selected.physical === OVERPASS_PHYSICAL_MODEL && selected.lowerSurface !== undefined
@@ -139,6 +161,16 @@
         if (rollRamp && entry.physical !== ROLL_RAMP_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only horizontal corkscrew elements can be barrel roll ramps.');
         if (rollRamp && version < ROLL_RAMP_VERSION) throw new Error(ROLL_RAMP_VERSION_ERROR);
     }
+    function checkPineCount(entry, pineCount, version, importing = false) {
+        if (pineCount !== 0 && !(importing ? PINE_IMPORT_COUNTS : PINE_COUNTS).includes(pineCount)) throw new Error('Unsupported element flags: invalid pine tree count.');
+        if (pineCount && entry.physical !== PINE_PHYSICAL_MODEL) throw new Error('Unsupported element flags: only pine trees can form pine tree groups.');
+        if (pineCount && version < PINE_GROUP_VERSION) throw new Error(PINE_GROUP_VERSION_ERROR);
+        if (pineCount === PINE_SIX_COUNT && version < PINE_SIX_VERSION) throw new Error(PINE_SIX_VERSION_ERROR);
+    }
+    function checkCropField(entry, version) {
+        const field = CROP_FIELDS.get(entry.id);
+        if (field && version < field.version) throw new Error(field.name + 's require Chocolate Stunts track version v' + field.version + '.');
+    }
     function checkNotes(notes) {
         if (typeof notes !== 'string' || notes.length > 8000 || /[^\x09\x0a\x0d\x20-\x7e]/.test(notes))
             throw new Error('Notes must contain at most 8000 ASCII characters (text, tabs and line breaks).');
@@ -186,7 +218,7 @@
         return { x, y, width, height, objects: doc.objects.filter(object => selected.has(object)) };
     }
     function freezeClipboard(width, height, objects) {
-        return Object.freeze({ width, height, objects: Object.freeze(objects.map(object => Object.freeze({ ...object }))) });
+        return Object.freeze({ width, height, objects: Object.freeze(objects.map(object => Object.freeze({ ...object, ...(object.pineCount === PINE_IMPORT_COUNT ? { pineCount: PINE_SIX_COUNT } : {}) }))) });
     }
     function clipboardFromSelection(selection) {
         return freezeClipboard(selection.width, selection.height, selection.objects.map(object =>
@@ -210,8 +242,10 @@
             integer(object.lowerSurface ?? 0, 0, SURFACES.length - 1, 'clipboard lower road surface');
             integer(object.baseHeight, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'clipboard height');
             integer(object.slopeX, -1, 1, 'clipboard slope'); integer(object.slopeY, -1, 1, 'clipboard slope');
+            checkCropField(entry, VERSION);
             checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, VERSION);
             checkRollRamp(entry, object.rollRamp ?? 0, VERSION);
+            checkPineCount(entry, object.pineCount ?? 0, VERSION, true);
         }
     }
     function flipClipboard(clipboard, axis) {
@@ -285,7 +319,7 @@
     const GENERAL_SLOPE_VERSION_ERROR = 'This sloped element requires Chocolate Stunts track version v6.';
     const CLASSIC_PLACEMENT_ERROR = 'This element needs level ground or one continuous straight original hill slope beneath its occupied cells.';
     const EDITOR_LEVEL_GROUND_PHYSICAL_MODELS = new Set([10, 11]);
-    const EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS = new Set([71, 72, 74]);
+    const EDITOR_SLOPED_SCENERY_PHYSICAL_MODELS = new Set([71, 72, 74, ...Array.from(CROP_FIELDS.values(), field => field.physical)]);
     function requiredSlopeVersion(object, entry, profile) {
         if (!object.slopeX && !object.slopeY) return CSTRK_MIN_VERSION;
         if (object.width === 1 && object.height === 1) {
@@ -428,6 +462,16 @@
                 this.cells[this.cellIndex(x, y)] = cell;
             });
         }
+        paintArea(x, y, size, surface) {
+            if (!PAINT_BRUSH_SIZES.includes(size)) throw new Error('Invalid paint brush size.');
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            this.cellIndex(x, y);
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
+            return this.transaction('Paint terrain', () => {
+                for (let row = y; row < bottom; row++) for (let column = x; column < right; column++)
+                    this.paint(column, row, surface);
+            });
+        }
         paintLowerSurface(x, y, surface) {
             integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
             const index = this.cellIndex(x, y), heights = this.tileHeights(x, y), profile = terrainProfile(heights);
@@ -454,20 +498,41 @@
             } else if (cell.surface === surface && !cell.halfWaterCorner) return false;
             return this.transaction('Paint lower surface', () => { this.cells[index] = next; return true; });
         }
-        level(x, y, height, surface) {
-            const cell = this.cellIndex(x, y);
-            integer(height, 0, 4, 'terrain level'); integer(surface, 0, 3, 'terrain surface');
+        level(x, y, height, surface) { return this.levelArea(x, y, LEVEL_BRUSH_SIZES[0], height, surface); }
+        levelArea(x, y, size, height, surface) {
+            if (!LEVEL_BRUSH_SIZES.includes(size)) throw new Error('Invalid level brush size.');
+            this.cellIndex(x, y);
+            integer(height, 0, TERRAIN_DISPLAY_MAX_HEIGHT, 'terrain level');
+            integer(surface, 0, TERRAIN_SURFACES.length - 1, 'terrain surface');
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
             return this.transaction('Level terrain', () => {
-                const vertices = this.vertices.slice(), affected = new Set([cell]), stride = this.width + 1;
-                for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
-                    // Clamp to the legal slope envelope around the four target corners.
-                    // Staging the whole plateau avoids partial edits if an object blocks it.
-                    const distance = Math.max(x - vx, 0, vx - x - 1, y - vy, vy - y - 1);
-                    const index = vy * stride + vx;
-                    vertices[index] = Math.max(height - distance, Math.min(height + distance, this.vertices[index]));
+                const vertices = this.vertices.slice(), affected = new Set(), stride = this.width + 1;
+                let minimum = TERRAIN_DISPLAY_MAX_HEIGHT, maximum = 0;
+                for (let vy = y; vy <= bottom; vy++) for (let vx = x; vx <= right; vx++) {
+                    const value = this.vertices[vy * stride + vx];
+                    minimum = Math.min(minimum, value); maximum = Math.max(maximum, value);
                 }
-                const direction = height >= Math.max(...this.tileHeights(x, y)) ? 1 : -1;
-                normalizeTerrain(vertices, this.width, this.height, direction);
+                for (let row = y; row < bottom; row++) for (let column = x; column < right; column++)
+                    affected.add(row * this.width + column);
+                const clampEnvelope = direction => {
+                    for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
+                        // Stage one continuous plateau and its legal slope envelope.
+                        const distance = Math.max(x - vx, 0, vx - right, y - vy, vy - bottom);
+                        const index = vy * stride + vx;
+                        if (direction <= 0) vertices[index] = Math.min(height + distance, vertices[index]);
+                        if (direction >= 0) vertices[index] = Math.max(height - distance, vertices[index]);
+                    }
+                };
+                if (minimum < height && maximum > height) {
+                    // A mixed-height footprint needs both directions. Lower first to a
+                    // valid terrain whose target is at most height; the second pass
+                    // only raises values below height, keeping every target corner fixed.
+                    clampEnvelope(-1); normalizeTerrain(vertices, this.width, this.height, -1);
+                    clampEnvelope(1); normalizeTerrain(vertices, this.width, this.height, 1);
+                } else {
+                    clampEnvelope(0);
+                    normalizeTerrain(vertices, this.width, this.height, height >= maximum ? 1 : -1);
+                }
                 for (let vy = 0; vy <= this.height; vy++) for (let vx = 0; vx <= this.width; vx++) {
                     const index = vy * stride + vx;
                     if (vertices[index] === this.vertices[index]) continue;
@@ -501,10 +566,13 @@
             const required = requiredSlopeVersion(object, entry, profile);
             return this.version >= required;
         }
-        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, allowExistingSlope = false) {
+        placement(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, allowExistingSlope = false) {
             const entry = byId.get(id); if (!entry) throw new Error('Unknown track element.');
+            checkCropField(entry, this.version);
             checkTunnelSlalom(entry, tunnelSlalom, this.version);
             checkRollRamp(entry, rollRamp, this.version);
+            if (pineCount === PINE_IMPORT_COUNT) pineCount = PINE_SIX_COUNT;
+            checkPineCount(entry, pineCount, this.version);
             integer(surface, 0, 2, 'road surface'); integer(rotation, 0, 3, 'rotation'); integer(lowerSurface, 0, 2, 'lower road surface');
             if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
             if (this.version < OVERPASS_SURFACE_VERSION && entry.physical === OVERPASS_PHYSICAL_MODEL && lowerSurface !== surface) throw new Error('Independent overpass road surfaces require Chocolate Stunts track version v4.');
@@ -514,6 +582,7 @@
             const object = { id, x, y, rotation, surface: entry.decoration ? 0 : surface, lowerSurface, ...footprint };
             if (tunnelSlalom) object.tunnelSlalom = tunnelSlalom;
             if (rollRamp) object.rollRamp = rollRamp;
+            if (pineCount) object.pineCount = pineCount;
             const [cx, cy] = occupied(object)[0], h = this.tileHeights(cx, cy), profile = terrainProfile(h);
             object.slopeX = h[1] - h[0]; object.slopeY = h[3] - h[0];
             object.baseHeight = h[0] - (cx - x) * object.slopeX - (cy - y) * object.slopeY;
@@ -531,7 +600,38 @@
                 throw new Error('This space is occupied. Remove the existing element first.');
             return object;
         }
-        place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp); this.objects.push(object); return object; }); }
+        place(id, x, y, surface = 0, rotation = 0, lowerSurface = 0, tunnelSlalom = 0, rollRamp = 0, pineCount = 0) { return this.transaction('Place element', () => { const object = this.placement(id, x, y, surface, rotation, lowerSurface, tunnelSlalom, rollRamp, pineCount); this.objects.push(object); return object; }); }
+        pineBrushPreview(x, y, size, pineCount, rotation = 0) {
+            if (!PINE_BRUSH_SIZES.includes(size)) throw new Error('Invalid pine brush size.');
+            if (!PINE_COUNTS.includes(pineCount)) throw new Error('Invalid pine tree count for the brush.');
+            checkVersion(this.version);
+            checkPineCount(byId.get(PINE_TREE_ID), pineCount, this.version);
+            integer(rotation, 0, PIECE_DIRECTION_COUNT - 1, 'rotation');
+            this.cellIndex(x, y);
+            const right = Math.min(this.width, x + size), bottom = Math.min(this.height, y + size);
+            const taken = new Set(this.objects.flatMap(object => occupied(object).map(([cx, cy]) => cy * this.width + cx)));
+            // The brush visits separate single-tile groups. Inspect occupied cells once,
+            // then reuse the regular placement checks without rescanning every element.
+            const target = Object.create(this); target.objects = [];
+            const result = [];
+            for (let row = y; row < bottom; row++) for (let column = x; column < right; column++) {
+                if (taken.has(row * this.width + column)) continue;
+                const profile = terrainProfile(this.tileHeights(column, row));
+                if (!profile) throw new Error('The pine brush encountered invalid terrain.');
+                // Native plants support flat tiles and straight inclines; valid hill
+                // corners stay untouched instead of making the whole brush fail.
+                if (profile.terrain > CLASSIC_LAST_SLOPE) continue;
+                result.push(target.placement(PINE_TREE_ID, column, row, 0, rotation, 0, 0, 0, pineCount));
+            }
+            return result;
+        }
+        placePineBrush(x, y, size, pineCount, rotation = 0) {
+            const objects = this.pineBrushPreview(x, y, size, pineCount, rotation);
+            return this.transaction('Place pine trees', () => {
+                this.objects.push(...objects);
+                return objects;
+            });
+        }
         erase(x, y) { return this.transaction('Remove element', () => { this.cellIndex(x, y); const index = this.objects.findIndex(object => occupied(object).some(([cx, cy]) => cx === x && cy === y)); if (index < 0) return false; this.objects.splice(index, 1); return true; }); }
         selection(rectangle) {
             const selected = selectionObjects(this, rectangle);
@@ -558,7 +658,7 @@
             const result = [];
             for (const source of clipboard.objects) {
                 const object = target.placement(source.id, x + source.x, y + source.y, source.surface, source.rotation,
-                    source.lowerSurface ?? 0, source.tunnelSlalom ?? 0, source.rollRamp ?? 0, true);
+                    source.lowerSurface ?? 0, source.tunnelSlalom ?? 0, source.rollRamp ?? 0, source.pineCount ?? 0, true);
                 // Imported scenery may retain an explicit road selection even
                 // though new palette placement defaults it to paved.
                 object.surface = source.surface;
@@ -581,7 +681,7 @@
         }
         setNotes(notes) { checkNotes(notes); return this.transaction('Edit notes', () => { this.notes = notes; }); }
         setHorizon(horizon) { integer(horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); return this.transaction('Change horizon', () => { this.horizon = horizon; }); }
-        validate() {
+        validate(importing = false) {
             const errors = [], occupiedCells = new Set();
             try { integer(this.width, 1, 90, 'track width'); integer(this.height, 1, 90, 'track height'); checkNotes(this.notes); integer(this.horizon, DEFAULT_HORIZON, HORIZONS.length - 1, 'horizon'); checkVersion(this.version); } catch (error) { errors.push(error.message); }
             if (this.vertices.length !== (this.width + 1) * (this.height + 1) || this.cells.length !== this.width * this.height) errors.push('Track dimensions do not match its terrain.');
@@ -603,15 +703,17 @@
             if (this.objects.length > 8100) errors.push('Too many track elements.');
             for (const object of this.objects) {
                 try {
-                    integer(object.id, 1, 214, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
+                    integer(object.id, 1, VINE_FIELD_ID, 'element ID'); integer(object.x, 0, this.width - object.width, 'element column'); integer(object.y, 0, this.height - object.height, 'element row');
                     integer(object.width, 1, 2, 'element width'); integer(object.height, 1, 2, 'element height');
                     integer(object.mask, 1, (1 << (object.width * object.height)) - 1, 'element footprint');
                     integer(object.rotation, 0, 3, 'element rotation'); integer(object.surface, 0, 2, 'element surface');
                     integer(object.baseHeight, 0, 4, 'element height'); integer(object.slopeX, -1, 1, 'element slope'); integer(object.slopeY, -1, 1, 'element slope');
                     const entry = byId.get(object.id);
                     if (!entry) throw new Error('Unknown track element.');
+                    checkCropField(entry, this.version);
                     checkTunnelSlalom(entry, object.tunnelSlalom ?? 0, this.version);
                     checkRollRamp(entry, object.rollRamp ?? 0, this.version);
+                    checkPineCount(entry, object.pineCount ?? 0, this.version, importing);
                     const lowerSurface = object.lowerSurface ?? 0;
                     integer(lowerSurface, 0, 2, 'lower road surface');
                     if (entry.physical !== OVERPASS_PHYSICAL_MODEL && lowerSurface) throw new Error('Only overpasses have a lower road surface.');
@@ -649,7 +751,7 @@
         for (const o of doc.objects) {
             v.setUint16(p, o.id, true); a.set([o.x, o.y, o.rotation, o.surface, o.width, o.height, o.mask, o.baseHeight], p + 2);
             v.setInt8(p + 10, o.slopeX); v.setInt8(p + 11, o.slopeY); a[p + 12] = doc.version < OVERPASS_SURFACE_VERSION ? 0 : o.lowerSurface ?? 0;
-            a[p + 13] = o.tunnelSlalom ?? 0; a[p + 14] = o.rollRamp ?? 0; p += 16;
+            a[p + 13] = o.tunnelSlalom ?? 0; a[p + 14] = o.rollRamp ?? 0; a[p + 15] = o.pineCount ?? 0; p += 16;
         }
         for (let i = 0; i < doc.notes.length; i++) a[p++] = doc.notes.charCodeAt(i);
         return a;
@@ -678,12 +780,15 @@
         for (let i = 0; i < count; i++, p += 16) {
             if ((version < OVERPASS_SURFACE_VERSION && a[p + 12]) ||
                 (version < TUNNEL_SLALOM_VERSION && a[p + 13]) || a[p + 13] > 1 ||
-                (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 || a[p + 15]) throw new Error('Unsupported element flags.');
+                (version < ROLL_RAMP_VERSION && a[p + 14]) || a[p + 14] > 1 ||
+                (version < PINE_GROUP_VERSION && a[p + 15]) || (version < PINE_SIX_VERSION && a[p + 15] === PINE_SIX_COUNT) ||
+                (a[p + 15] !== 0 && !PINE_IMPORT_COUNTS.includes(a[p + 15]))) throw new Error('Unsupported element flags.');
             const id = v.getUint16(p, true), surface = a[p + 5];
             const lowerSurface = version < OVERPASS_SURFACE_VERSION && byId.get(id)?.physical === OVERPASS_PHYSICAL_MODEL ? surface : a[p + 12];
             const object = { id, x: a[p + 2], y: a[p + 3], rotation: a[p + 4], surface, lowerSurface, width: a[p + 6], height: a[p + 7], mask: a[p + 8], baseHeight: a[p + 9], slopeX: v.getInt8(p + 10), slopeY: v.getInt8(p + 11) };
             if (a[p + 13]) object.tunnelSlalom = a[p + 13];
             if (a[p + 14]) object.rollRamp = a[p + 14];
+            if (a[p + 15]) object.pineCount = a[p + 15];
             const entry = byId.get(id);
             if (entry && (CORNER_PHYSICAL_MODELS.has(entry.physical) ||
                 entry.physical === LARGE_BRANCH_LEFT_MODEL || entry.physical === LARGE_BRANCH_RIGHT_MODEL)) {
@@ -698,9 +803,11 @@
             doc.objects.push(object);
         }
         doc.notes = String.fromCharCode(...a.subarray(p));
-        const errors = doc.validate(); if (errors.length) throw new Error(errors.join(' '));
+        // Validate every field against the original wire revision before upgrading.
+        const errors = doc.validate(true); if (errors.length) throw new Error(errors.join(' '));
+        for (const object of doc.objects) if (object.pineCount === PINE_IMPORT_COUNT) object.pineCount = PINE_SIX_COUNT;
         doc.version = Math.max(version, VERSION);
         return doc;
     }
-    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, HORIZONS, VERSION, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
+    return { Document, catalog, library, pieceVariant, pieceDisplayVariant, terrainProfile, terrainDisplayLayers, groups, SURFACES, TERRAIN_SURFACES, PAINT_BRUSH_SIZES, LEVEL_BRUSH_SIZES, PINE_BRUSH_SIZES, HORIZONS, VERSION, WHEAT_FIELD_ID, WHEAT_FIELD_VERSION, TULIP_FIELD_ID, TULIP_FIELD_VERSION, VINE_FIELD_ID, VINE_FIELD_VERSION, isCropField, OVERPASS_PHYSICAL_MODEL, SLALOM_PHYSICAL_MODEL, TUNNEL_SLALOM_VERSION, ROLL_RAMP_PHYSICAL_MODEL, ROLL_RAMP_VERSION, PINE_PHYSICAL_MODEL, PINE_GROUP_VERSION, PINE_SIX_VERSION, DEFAULT_CORNER_SURFACE, encodeCstrk, decodeCstrk, occupied, rotatedFootprint, flipClipboard, rotateClipboard };
 }));

@@ -13,6 +13,7 @@
 #include "../c/track/track_collision.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_geometry.h"
+#include "../c/extended/extended_owoot_internal.h"
 #include "../c/extended/roll_ramp.h"
 
 #undef memcpy
@@ -27,8 +28,13 @@ extern legacy_f64 fmax(legacy_f64, legacy_f64);
 #define GENGHOST_ROUTE_NODE_COUNT EXTENDED_TRACK_ROUTE_CAPACITY
 #define GENGHOST_OVERPASS_LOWER_SUBTYPE 1U
 #define GENGHOST_ROUTE_SUBTYPE_MASK 15U
+#define GENGHOST_ROUTE_CENTER_INDEX 0U
+#define GENGHOST_ROUTE_FIRST_EDGE_INDEX 1U
+#define GENGHOST_ROUTE_SECOND_EDGE_INDEX 2U
+#define GENGHOST_ROUTE_AVERAGE_SHIFT 1U
 #define GENGHOST_BARREL_APPROACH_SPEED 100.0
 #define GENGHOST_BARREL_APPROACH_DISTANCE (3.0 * TRACK_TILE_SIZE)
+#define GENGHOST_BARREL_LATERAL_LIMIT 0.8
 #define GENGHOST_BARREL_LANDING_DISTANCE (2.0 * TRACK_TILE_SIZE)
 #define GENGHOST_ROUTE_MEMORY_LIMIT ((size_t)512U * 1024U * 1024U)
 #define GENGHOST_ANGLE_SCALE (ANGLE_FULL_TURN / 6.28318530717958647693)
@@ -57,6 +63,35 @@ static const struct CSTRK_OBJECT *route_placed_object(legacy_int piece)
 										(legacy_u8)track_route_element_ids[piece]);
 }
 
+/* Search geometry needs concrete terrain heights; the opponent API retains
+ * unspecified-height sentinels so its steering can remain horizontal-only. */
+static void route_geometry_heights(const struct CSTRK_OBJECT *placed, struct VECTOR *geometry)
+{
+	if (!placed) {
+		return;
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(extended_track_model(), placed, &origin);
+	legacy_u8 resolved = 0;
+	for (legacy_u8 edge = GENGHOST_ROUTE_FIRST_EDGE_INDEX; edge <= GENGHOST_ROUTE_SECOND_EDGE_INDEX;
+		 edge++) {
+		if (geometry[edge].y == ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+			geometry[edge].y = LEGACY_S16_WRAP_ADD(
+				origin.y, extended_geometry_object_grade(
+							  placed, LEGACY_S16_WRAP_SUB(geometry[edge].x, origin.x),
+							  LEGACY_S16_WRAP_SUB(geometry[edge].z, origin.z)));
+			resolved = 1;
+		}
+	}
+	if (resolved) {
+		legacy_s16 first = geometry[GENGHOST_ROUTE_FIRST_EDGE_INDEX].y;
+		legacy_s16 second = geometry[GENGHOST_ROUTE_SECOND_EDGE_INDEX].y;
+		geometry[GENGHOST_ROUTE_CENTER_INDEX].y =
+			LEGACY_S16_WRAP_ADD(first, LEGACY_S16_SAR(LEGACY_S16_WRAP_SUB(second, first),
+													  GENGHOST_ROUTE_AVERAGE_SHIFT));
+	}
+}
+
 static const struct TRKOBJINFO *route_piece_info(legacy_int piece)
 {
 	legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
@@ -68,6 +103,26 @@ static const struct TRKOBJINFO *route_piece_info(legacy_int piece)
 										   (legacy_u8)track_route_rows[piece], (legacy_u16)tile);
 	}
 	return blocks ? &blocks[subtype] : NULL;
+}
+
+/* Search geometry retains authored corners without AI steering subdivisions,
+ * and excludes the AI-only launch tangent beyond the barrel-ramp lip. */
+static legacy_u8 route_geometry_count(legacy_int piece, const struct TRKOBJINFO *info)
+{
+	const struct CSTRK_OBJECT *placed = route_placed_object(piece);
+	if (placed) {
+		if (placed->roll_ramp) {
+			return ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT;
+		}
+		const struct TRACKOBJECT *native =
+			&trkObjectList[(legacy_u8)track_route_element_ids[piece]];
+		if (native->ss_physicalModel == PHYSICAL_MODEL_SHARP_CORNER) {
+			legacy_u8 subtype =
+				(legacy_u8)track_route_traversal_flags[piece] & GENGHOST_ROUTE_SUBTYPE_MASK;
+			return (legacy_u8)native->ss_trkObjInfoPtr[subtype].route_point_count;
+		}
+	}
+	return (legacy_u8)info->route_point_count;
 }
 
 static void route_piece_dimensions(legacy_int piece, legacy_uint *width, legacy_uint *height)
@@ -226,7 +281,7 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 						"Track route contains a piece without usable driving geometry.");
 			return -1;
 		}
-		point_count += portals && portals[i] ? 1U : (legacy_u8)info->route_point_count;
+		point_count += portals && portals[i] ? 1U : route_geometry_count(piece, info);
 	}
 	size_t required =
 		(depth + 1U) * (sizeof(legacy_int) + 1U) + point_count * sizeof(struct GENGHOST_WAYPOINT);
@@ -276,11 +331,16 @@ static legacy_int append_route(struct GENGHOST_ROUTES *set, size_t *capacity,
 		legacy_uint tile = (legacy_u8)track_route_element_ids[piece];
 		const struct TRKOBJINFO *info = route_piece_info(piece);
 		const struct CSTRK_OBJECT *placed = route_placed_object(piece);
-		for (legacy_uint j = 0;
-			 j < (portals && portals[i] ? 1U : (legacy_u8)info->route_point_count); j++) {
+		legacy_uint geometry_count = route_geometry_count(piece, info);
+		for (legacy_uint j = 0; j < (portals && portals[i] ? 1U : geometry_count); j++) {
+			legacy_uint sample = j;
+			if (placed && trkObjectList[tile].ss_physicalModel == PHYSICAL_MODEL_SHARP_CORNER) {
+				sample = j * ((legacy_u8)info->route_point_count - 1U) / (geometry_count - 1U);
+			}
 			/* The native API writes center, two edges, and a word at byte 18. */
 			struct VECTOR geometry[ROUTE_GEOMETRY_POINT_COUNT];
-			(void)get_track_route_point((legacy_s16)piece, geometry, (legacy_s16)j, NULL);
+			(void)get_track_route_point((legacy_s16)piece, geometry, (legacy_s16)sample, NULL);
+			route_geometry_heights(placed, geometry);
 			struct GENGHOST_WAYPOINT point;
 			memset(&point, 0, sizeof(point));
 			point.x = geometry[0].x;
@@ -1868,11 +1928,35 @@ static legacy_int stunt_target(const struct GENGHOST_ROUTE *route,
 	return found;
 }
 
+static legacy_int barrel_owoot_landing(const struct CARSTATE *car, legacy_int receiver,
+									   legacy_int past_receiver)
+{
+	if (car->car_reserved_wheel_state[OWOOT_SCRATCH_JUMP_SOURCE]) {
+		return 0;
+	}
+	struct OWOOT_BOUNDS bounds;
+	route_bounds((legacy_s16)receiver, &bounds);
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; ++wheel) {
+		if (car->car_surfaceWhl[wheel] < CAR_SURFACE_PAVED ||
+			car->car_surfaceWhl[wheel] > CAR_SURFACE_ICE) {
+			continue;
+		}
+		struct OWOOT_POINT contact = {0};
+		extended_geometry_world_position(&car->car_wheel_contact_positions[wheel], &contact.x,
+										 &contact.z);
+		if (past_receiver || route_contains(&bounds, &contact)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* The ramp ends at its lip. Subsequent target points describe the receiving
  * road, never invented tire support or a continuation of the banked ramp. */
 static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGHOST_DRIVER *driver,
 								const struct GENGHOST_GENE *gene, legacy_f64 lookahead,
-								struct GENGHOST_WAYPOINT *target, legacy_f64 *protected_end)
+								legacy_int owoot, struct GENGHOST_WAYPOINT *target,
+								legacy_f64 *protected_end)
 {
 	const struct CARSTATE *car = &state.playerstate;
 	legacy_f64 x = car->car_position.lx / 64.0, z = car->car_position.lz / 64.0;
@@ -1917,9 +2001,15 @@ static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGH
 		legacy_f64 along = (x - lip->x) * dx + (z - lip->z) * dz;
 		legacy_f64 landing_distance = (landing->x - lip->x) * dx + (landing->z - lip->z) * dz;
 		legacy_int airborne = car->car_sumSurfAllWheels == CAR_WHEEL_CONTACT_NONE;
-		legacy_int settled = !airborne && along > landing_distance &&
-							 fabs((legacy_f64)car->car_rotate.z) < ANGLE_FULL_TURN / 32.0 &&
-							 fabs((legacy_f64)car->car_rotate.y) < ANGLE_FULL_TURN / 16.0;
+		/* Native OWOOT has already validated the complete roll and road contact.
+		 * Resume steering at that landing even when its grade or remaining bank
+		 * makes the absolute attitude differ from an upright level-road pose. */
+		legacy_int settled =
+			!airborne &&
+			(owoot ? barrel_owoot_landing(car, landing->piece, along > landing_distance)
+				   : along > landing_distance &&
+						 fabs((legacy_f64)car->car_rotate.z) < ANGLE_FULL_TURN / 32.0 &&
+						 fabs((legacy_f64)car->car_rotate.y) < ANGLE_FULL_TURN / 16.0);
 		if (along > landing_distance + GENGHOST_BARREL_LANDING_DISTANCE || settled) {
 			driver->barrel_waypoint = 0U;
 			begin = end + 1U;
@@ -1933,7 +2023,10 @@ static legacy_int barrel_target(const struct GENGHOST_ROUTE *route, struct GENGH
 			target->z = lip->z + dz * fmax(landing_distance, along + lookahead);
 			target->height_specified = 0;
 		} else {
-			point_at(route, fmin(lip->distance, driver->progress + lookahead), 0.0, target);
+			point_at(route, fmin(lip->distance, driver->progress + lookahead),
+					 bounded(gene->lateral_offset, -GENGHOST_BARREL_LATERAL_LIMIT,
+							 GENGHOST_BARREL_LATERAL_LIMIT),
+					 target);
 		}
 		target->speed = GENGHOST_BARREL_APPROACH_SPEED * bounded(gene->speed_scale, 0.65, 1.5);
 		*protected_end = landing->distance;
@@ -2171,7 +2264,7 @@ legacy_u8 extended_genghost_driver_step(const struct GENGHOST_ROUTE *route,
 		planned_shortcut = 1;
 		planned_tactic = 0;
 	}
-	if (barrel_target(route, driver, gene, lookahead, &target, &tactic_end)) {
+	if (barrel_target(route, driver, gene, lookahead, owoot, &target, &tactic_end)) {
 		planned_shortcut = 0;
 		planned_tactic = 1;
 	}

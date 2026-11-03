@@ -25,6 +25,7 @@
 #include "../frame/frame_internal.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/track_menu_preview.h"
+#include "../extended/extended_track.h"
 #endif
 
 #define TRACK_EDITOR_RESOURCE_FILE_INDEX 3
@@ -197,10 +198,33 @@ static void track_menu_draw_title(void)
 {
 	sprite_select_render_window();
 	strcpy(&resID_byte1, "'");
-	strcat(&resID_byte1, gameconfig.game_trackname);
+	strcat(&resID_byte1,
+#ifdef RESTUNTS_SDL3
+		   extended_track_name());
+#else
+		   gameconfig.game_trackname);
+#endif
 	strcat(&resID_byte1, "'");
 	intro_draw_text(&resID_byte1, font_centered_text_x(&resID_byte1), TRACK_MENU_NAME_Y,
 					dialog_fnt_colour, 0);
+}
+
+static void track_menu_draw_overlay(legacy_u8 diagnostics)
+{
+	legacy_s16 active =
+		diagnostics != 0 ? frame_display_overlay_active() : frame_renderer_status_overlay_active();
+	if (active == 0) {
+		return;
+	}
+	sprite_select_render_window();
+	sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
+	if (diagnostics != 0) {
+		/* The title and best score have already been painted. Diagnostics occupy
+		 * their usual upper-left rows and are copied with the complete preview. */
+		frame_fps_draw_text();
+	} else {
+		frame_renderer_status_draw_text();
+	}
 }
 
 static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
@@ -210,11 +234,11 @@ static void track_menu_draw_background(struct TRACK_MENU_STATE *menu)
 	track_menu_draw_highscore(menu);
 
 	track_menu_draw_buttons();
-	if (frame_renderer_status_overlay_active() != 0) {
-		sprite_select_render_window();
-		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
-		frame_renderer_status_draw_text();
-	}
+#ifdef RESTUNTS_SDL3
+	track_menu_draw_overlay(menu->preview.live);
+#else
+	track_menu_draw_overlay(0);
+#endif
 }
 
 #ifdef RESTUNTS_SDL3
@@ -227,10 +251,7 @@ static void track_menu_draw_preview_header(const struct HIRES_TRACK_MENU_PREVIEW
 		track_menu_draw_highscore_fields(preview->score_text, preview->score_offsets);
 		font_set_fontdef();
 	}
-	if (frame_renderer_status_overlay_active() != 0) {
-		sprite_set_target_clip_bounds(0, TRACK_MENU_SCREEN_WIDTH, 0, TRACK_MENU_SCREEN_HEIGHT);
-		frame_renderer_status_draw_text();
-	}
+	track_menu_draw_overlay(1);
 }
 #endif
 
@@ -273,7 +294,8 @@ static legacy_u8 track_menu_activate_key(struct TRACK_MENU_STATE *menu, legacy_u
 {
 	if (key == (legacy_u16)KEY_F12
 #ifdef RESTUNTS_SDL3
-		|| key == (legacy_u16)KEY_SHIFT_F12
+		|| key == (legacy_u16)KEY_SHIFT_F12 ||
+		(key == (legacy_u16)KEY_F11 && menu->preview.live != 0)
 #endif
 	) {
 		mouse_draw_opaque_check();
@@ -352,14 +374,19 @@ void run_tracks_menu(legacy_s16 reload_track)
 #ifdef RESTUNTS_SDL3
 				legacy_u8 animated_preview = menu.preview.live;
 				track_menu_release_preview(&menu);
-				legacy_s8 previous_name[REPLAY_TRACK_NAME_SIZE];
-				memcpy(previous_name, gameconfig.game_trackname, sizeof(previous_name));
+				legacy_s8 previous_name[EXTENDED_FILE_STEM_CAPACITY];
+				legacy_s8 selected_name[EXTENDED_FILE_STEM_CAPACITY];
+				strcpy(previous_name, extended_track_name());
+				strcpy(selected_name, previous_name);
+				legacy_s8 *chosen_name = selected_name;
+#else
+				legacy_s8 *chosen_name = gameconfig.game_trackname;
 #endif
-				legacy_s8 chosen = do_format_fileselect_dialog(
-					track_directory, gameconfig.game_trackname, ".trk", prompt);
+				legacy_s8 chosen =
+					do_format_fileselect_dialog(track_directory, chosen_name, ".trk", prompt);
 				if (chosen != 0) {
-					file_build_path(track_directory, gameconfig.game_trackname,
-									file_dialog_selected_extension(), g_path_buf);
+					file_build_path(track_directory, chosen_name, file_dialog_selected_extension(),
+									g_path_buf);
 #ifdef RESTUNTS_SDL3
 					if (!extended_menu_load_selected_track(file_dialog_selected_extension(),
 														   g_path_buf, previous_name)) {
@@ -369,6 +396,10 @@ void run_tracks_menu(legacy_s16 reload_track)
 						}
 						menu.previous = TRACK_MENU_NO_SELECTION;
 						continue;
+					}
+					if (!extended_track_active()) {
+						extended_track_set_name(chosen_name);
+						extended_track_clear_name();
 					}
 #else
 					file_read_fatal(g_path_buf, track_element_map);

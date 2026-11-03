@@ -7,12 +7,15 @@
 #include "../driving_rules.h"
 
 /* Track revisions always advance the replay revision. Increment the physics
- * revision independently when simulation changes affect replay compatibility. */
+ * revision independently when simulation changes affect replay compatibility;
+ * filename metadata changes have their own independent revision offset. */
 #define CSRPL_PHYSICS_REVISION 4U
-#define CSRPL_VERSION (CSTRK_VERSION + CSRPL_PHYSICS_REVISION)
+#define CSRPL_FILENAME_REVISION 1U
+#define CSRPL_VERSION (CSTRK_VERSION + CSRPL_PHYSICS_REVISION + CSRPL_FILENAME_REVISION)
 /* Compatibility cutoffs remain fixed when a later track revision advances. */
 #define CSRPL_MIN_VERSION 11U
 #define CSRPL_FIXED_POINT_SOLID_VERSION 12U
+#define CSRPL_LONG_TRACK_NAME_VERSION 17U
 #define CSRPL_VERSION_OFFSET 8U
 #define CSRPL_DRIVING_RULES_OFFSET 26U
 
@@ -21,7 +24,9 @@
 #endif
 #define CSRPL_HEADER_SIZE 64U
 #define CSRPL_CAR_ID_SIZE 4U
-#define CSRPL_TRACK_NAME_SIZE 9U
+#define CSRPL_TRACK_NAME_OFFSET 41U
+#define CSRPL_LEGACY_TRACK_NAME_SIZE 9U
+#define CSRPL_TRACK_NAME_SIZE 13U
 #define CSRPL_INPUT_MASK 63U
 
 /* This is an in-memory structure, never a packed on-disk structure. */
@@ -50,6 +55,8 @@ struct CSRPL_VIEW {
 
 /* Revisions below CSRPL_MIN_VERSION are unsupported. Decode validates the known
  * layout even for newer revisions and preserves the recorded revision and rules.
+ * Older track-name fields are zero-extended in memory; encoding an older revision
+ * rejects nonzero name bytes beyond its wire field rather than truncating them.
  * The UI warns about newer revisions and differing driving rules. */
 
 /* Functions return 1 on success and 0 on failure. Output is unchanged on failure.

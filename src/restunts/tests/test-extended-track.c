@@ -13,6 +13,7 @@
 #include "../c/extended/extended_opponent.h"
 #include "../c/memmgr.h"
 #include "../c/track/track_collision.h"
+#include "../c/track/trackobj_internal.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
 #include "../c/physics/physics_internal.h"
@@ -1878,6 +1879,370 @@ static void test_overpass_opponent_speeds(void)
 	memcpy(oppnentSped, saved_speeds, sizeof(saved_speeds));
 }
 
+#define OPPONENT_HEIGHT_STRAIGHT_ID 34U
+#define OPPONENT_HEIGHT_CORNER_ID 106U
+#define OPPONENT_HEIGHT_FLAT_GRADE GENERAL_SLOPE_DIRECTION_COUNT
+#define OPPONENT_HEIGHT_RAISED_GRADE (OPPONENT_HEIGHT_FLAT_GRADE + 1U)
+#define OPPONENT_HEIGHT_REVERSED_ROUTE 16U
+#define OPPONENT_HEIGHT_ENDPOINT_COUNT 2U
+
+static void test_opponent_route_heights(void)
+{
+	static const legacy_u16 ids[] = {OPPONENT_HEIGHT_STRAIGHT_ID, OPPONENT_HEIGHT_CORNER_ID};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 grade = 0; grade <= OPPONENT_HEIGHT_RAISED_GRADE; grade++) {
+				struct CSTRK_OBJECT object = general_slope_object(ids[kind], rotation);
+				struct CSTRK_TRACK track;
+				cstrk_init(&track);
+				assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+				if (grade < GENERAL_SLOPE_DIRECTION_COUNT) {
+					general_slope_terrain(&track, &object, grade);
+				} else {
+					object.base_height =
+						grade == OPPONENT_HEIGHT_FLAT_GRADE ? 0U : GENERAL_SLOPE_BASE_HEIGHT;
+					memset(track.corner_heights, object.base_height,
+						   (legacy_uint)(track.width + 1U) * (track.height + 1U));
+				}
+				assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+				activate(&track);
+				const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+				legacy_u16 resolved = extended_track_object_id(placed);
+				track_route_element_ids[0] = (legacy_s8)resolved;
+				track_route_columns[0] = object.x;
+				track_route_rows[0] = object.y;
+				const struct TRKOBJINFO *route =
+					extended_track_route_info(object.x, object.y, resolved);
+				assert(route != NULL);
+				for (legacy_u8 reversed = 0; reversed < OPPONENT_HEIGHT_ENDPOINT_COUNT;
+					 reversed++) {
+					track_route_traversal_flags[0] = reversed ? OPPONENT_HEIGHT_REVERSED_ROUTE : 0;
+					for (legacy_u8 point = 0; point < (legacy_u8)route->route_point_count;
+						 point++) {
+						struct VECTOR result[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+						(void)get_track_route_point(0, result, point, NULL);
+						/* Elevated routes intentionally use horizontal guidance. Turning
+						 * that sentinel into terrain height puts targets below the deck. */
+						for (legacy_u8 vertex = 0; vertex < GENERAL_SLOPE_ROUTE_VECTOR_COUNT;
+							 vertex++) {
+							assert(result[vertex].y == ROUTE_POINT_HEIGHT_UNSPECIFIED);
+						}
+					}
+				}
+				struct VECTOR origin;
+				extended_geometry_object_origin(&track, &object, &origin);
+				legacy_s16 specified_height =
+					(object.base_height + 1U) * CSTRK_LEVEL_WORLD_HEIGHT +
+					(object.slope_x * object.width + object.slope_y * object.height) *
+						CSTRK_LEVEL_WORLD_HEIGHT / 2;
+				for (legacy_u8 unspecified = 0; unspecified < OPPONENT_HEIGHT_ENDPOINT_COUNT;
+					 unspecified++) {
+					struct VECTOR endpoints[OPPONENT_HEIGHT_ENDPOINT_COUNT] = {
+						{0, CSTRK_LEVEL_WORLD_HEIGHT, 0}, {0, CSTRK_LEVEL_WORLD_HEIGHT, 0}};
+					endpoints[unspecified].y = ROUTE_POINT_HEIGHT_UNSPECIFIED;
+					assert(extended_opponent_place_points(0, &endpoints[0], &endpoints[1]));
+					for (legacy_u8 point = 0; point < OPPONENT_HEIGHT_ENDPOINT_COUNT; point++) {
+						assert(endpoints[point].x == origin.x && endpoints[point].z == origin.z);
+						assert(endpoints[point].y == (point == unspecified
+														  ? ROUTE_POINT_HEIGHT_UNSPECIFIED
+														  : specified_height));
+					}
+				}
+				extended_track_unload();
+				cstrk_free(&track);
+			}
+		}
+	}
+	struct VECTOR endpoints[OPPONENT_HEIGHT_ENDPOINT_COUNT] = {
+		{0, ROUTE_POINT_HEIGHT_UNSPECIFIED, 0}, {0, CSTRK_LEVEL_WORLD_HEIGHT, 0}};
+	const struct VECTOR unchanged[OPPONENT_HEIGHT_ENDPOINT_COUNT] = {endpoints[0], endpoints[1]};
+	assert(!extended_opponent_place_points(0, &endpoints[0], &endpoints[1]));
+	assert(memcmp(endpoints, unchanged, sizeof(endpoints)) == 0);
+}
+
+#define OPPONENT_ROUTE_EDGE_COUNT 2U
+#define OPPONENT_ROUTE_TRAILING_VECTOR_COUNT 3U
+#define OPPONENT_BRAKING_ROUTE_COUNT 5U
+#define OPPONENT_BRAKING_APPROACH_PIECE 1U
+#define OPPONENT_BRAKING_BEND_PIECE 2U
+#define OPPONENT_BRAKING_CONNECTOR_PIECE 3U
+#define OPPONENT_BRAKING_EXIT_PIECE 4U
+#define OPPONENT_BRAKING_FAST_SPEED 120U
+#define OPPONENT_BRAKING_SLOW_SPEED 30U
+#define OPPONENT_ROLL_BACKING_SPEED 50U
+
+static legacy_u16 opponent_model_id(legacy_s16 model)
+{
+	for (legacy_u16 id = 1; id < GENERAL_SLOPE_CATALOG_LIMIT; id++) {
+		if (trkObjectList[id].ss_physicalModel == model && trkObjectList[id].ss_trkObjInfoPtr) {
+			return id;
+		}
+	}
+	assert(0);
+	return 0;
+}
+
+static void test_sharp_opponent_route_geometry(void)
+{
+	legacy_u16 id = opponent_model_id(PHYSICAL_MODEL_SHARP_CORNER);
+	for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+		struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		activate(&track);
+		legacy_u16 resolved = extended_track_object_id(&extended_track_model()->objects[0]);
+		const struct TRKOBJINFO *original = trkObjectList[resolved].ss_trkObjInfoPtr;
+		const struct TRKOBJINFO *dense = extended_track_route_info(object.x, object.y, resolved);
+		assert(dense != original && dense->route_point_count > original->route_point_count);
+		legacy_u16 subdivisions = ((legacy_u8)dense->route_point_count - 1U) /
+								  ((legacy_u8)original->route_point_count - 1U);
+		assert(subdivisions > 1U);
+		assert((legacy_u8)dense->route_point_count ==
+			   ((legacy_u8)original->route_point_count - 1U) * subdivisions + 1U);
+		struct TRKOBJINFO expected = *original;
+		expected.route_point_count = dense->route_point_count;
+		expected.route_vectors = dense->route_vectors;
+		assert(memcmp(dense, &expected, sizeof(expected)) == 0);
+		for (legacy_u16 point = 0; point < (legacy_u8)original->route_point_count; point++) {
+			assert(memcmp(&dense->route_vectors[point * subdivisions * OPPONENT_ROUTE_EDGE_COUNT],
+						  &original->route_vectors[point * OPPONENT_ROUTE_EDGE_COUNT],
+						  OPPONENT_ROUTE_EDGE_COUNT * sizeof(struct VECTOR)) == 0);
+		}
+		assert(memcmp(&dense->route_vectors[(legacy_u8)dense->route_point_count *
+											OPPONENT_ROUTE_EDGE_COUNT],
+					  &original->route_vectors[(legacy_u8)original->route_point_count *
+											   OPPONENT_ROUTE_EDGE_COUNT],
+					  OPPONENT_ROUTE_TRAILING_VECTOR_COUNT * sizeof(struct VECTOR)) == 0);
+		track_route_element_ids[0] = (legacy_s8)resolved;
+		track_route_columns[0] = object.x;
+		track_route_rows[0] = object.y;
+		for (legacy_u8 point = 0; point < (legacy_u8)dense->route_point_count; point++) {
+			struct VECTOR forward[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+			struct VECTOR reverse[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+			track_route_traversal_flags[0] = 0;
+			(void)get_track_route_point(0, forward, point, NULL);
+			track_route_traversal_flags[0] = OPPONENT_HEIGHT_REVERSED_ROUTE;
+			(void)get_track_route_point(0, reverse, dense->route_point_count - 1U - point, NULL);
+			assert(memcmp(&forward[0], &reverse[0], sizeof(struct VECTOR)) == 0);
+			assert(memcmp(&forward[GENERAL_SLOPE_ROUTE_FIRST_EDGE],
+						  &reverse[GENERAL_SLOPE_ROUTE_SECOND_EDGE], sizeof(struct VECTOR)) == 0);
+			assert(memcmp(&forward[GENERAL_SLOPE_ROUTE_SECOND_EDGE],
+						  &reverse[GENERAL_SLOPE_ROUTE_FIRST_EDGE], sizeof(struct VECTOR)) == 0);
+			assert(forward[0].y == ROUTE_POINT_HEIGHT_UNSPECIFIED);
+		}
+		extended_track_unload();
+		assert(extended_track_route_info(object.x, object.y, resolved) == original);
+		assert(extended_opponent_route_info(0, resolved, original) == original);
+		cstrk_free(&track);
+	}
+}
+
+static void test_opponent_braking_follows_selected_route(void)
+{
+	static const legacy_s16 bends[] = {PHYSICAL_MODEL_ELEVATED_CORNER, PHYSICAL_MODEL_SHARP_CORNER,
+									   PHYSICAL_MODEL_BANKED_CORNER, PHYSICAL_MODEL_LARGE_CORNER};
+	static const legacy_u16 bypass[] = {0, OPPONENT_BRAKING_APPROACH_PIECE,
+										OPPONENT_BRAKING_CONNECTOR_PIECE,
+										OPPONENT_BRAKING_EXIT_PIECE, 0};
+	static const legacy_u16 turn[] = {0, OPPONENT_BRAKING_APPROACH_PIECE,
+									  OPPONENT_BRAKING_CONNECTOR_PIECE, OPPONENT_BRAKING_BEND_PIECE,
+									  0};
+	legacy_u8 saved_speeds[OPPONENT_SPEED_COUNT];
+	memcpy(saved_speeds, oppnentSped, sizeof(saved_speeds));
+	for (legacy_u8 bend = 0; bend < sizeof(bends) / sizeof(bends[0]); bend++) {
+		struct CSTRK_OBJECT object =
+			general_slope_object(opponent_model_id(PHYSICAL_MODEL_ROAD), 0);
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		activate(&track);
+		legacy_u16 resolved = extended_track_object_id(&extended_track_model()->objects[0]);
+		track_pieces_counter = OPPONENT_BRAKING_ROUTE_COUNT;
+		for (legacy_u16 piece = 0; piece < OPPONENT_BRAKING_ROUTE_COUNT; piece++) {
+			track_route_element_ids[piece] = (legacy_s8)resolved;
+			track_route_columns[piece] = object.x;
+			track_route_rows[piece] = object.y;
+			track_route_traversal_flags[piece] = 0;
+		}
+		track_route_element_ids[OPPONENT_BRAKING_BEND_PIECE] =
+			(legacy_s8)opponent_model_id(bends[bend]);
+		memset(oppnentSped, OPPONENT_BRAKING_FAST_SPEED, sizeof(saved_speeds));
+		for (legacy_u16 position = 0; position < OPPONENT_BRAKING_ROUTE_COUNT; position++) {
+			LEGACY_WRITE_U16_LE((legacy_u8 *)opponent_route_track_indices +
+									position * LEGACY_WORD_BYTES,
+								bypass[position]);
+		}
+		struct VECTOR result[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+		legacy_s8 speed;
+		(void)get_track_route_point(OPPONENT_BRAKING_APPROACH_PIECE, result, 0, &speed);
+		/* A neighboring route index on the unselected branch must not brake us. */
+		assert((legacy_u8)speed == OPPONENT_BRAKING_FAST_SPEED);
+		for (legacy_u16 position = 0; position < OPPONENT_BRAKING_ROUTE_COUNT; position++) {
+			LEGACY_WRITE_U16_LE((legacy_u8 *)opponent_route_track_indices +
+									position * LEGACY_WORD_BYTES,
+								turn[position]);
+		}
+		(void)get_track_route_point(OPPONENT_BRAKING_APPROACH_PIECE, result, 0, &speed);
+		/* The bend is two selected pieces ahead, so braking starts on the straight. */
+		assert((legacy_u8)speed < OPPONENT_BRAKING_FAST_SPEED);
+		memset(oppnentSped, OPPONENT_BRAKING_SLOW_SPEED, sizeof(saved_speeds));
+		(void)get_track_route_point(OPPONENT_BRAKING_APPROACH_PIECE, result, 0, &speed);
+		assert((legacy_u8)speed == OPPONENT_BRAKING_SLOW_SPEED);
+		extended_track_unload();
+		cstrk_free(&track);
+	}
+	struct CSTRK_OBJECT object = general_slope_object(CSTRK_ROLL_RAMP_FIRST_ID, 0);
+	object.roll_ramp = 1;
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+	activate(&track);
+	legacy_u16 resolved = extended_track_object_id(&extended_track_model()->objects[0]);
+	track_pieces_counter = 1;
+	track_route_element_ids[0] = (legacy_s8)resolved;
+	track_route_columns[0] = object.x;
+	track_route_rows[0] = object.y;
+	track_route_traversal_flags[0] = 0;
+	LEGACY_WRITE_U16_LE((legacy_u8 *)opponent_route_track_indices, 0);
+	memset(oppnentSped, OPPONENT_ROLL_BACKING_SPEED, sizeof(saved_speeds));
+	struct VECTOR result[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+	legacy_s8 speed;
+	(void)get_track_route_point(0, result, 0, &speed);
+	assert((legacy_u8)speed > OPPONENT_ROLL_BACKING_SPEED);
+	extended_track_unload();
+	cstrk_free(&track);
+	memcpy(oppnentSped, saved_speeds, sizeof(saved_speeds));
+}
+
+static void test_roll_opponent_route_tangent(void)
+{
+	for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+		struct CSTRK_OBJECT object = general_slope_object(CSTRK_ROLL_RAMP_FIRST_ID, rotation);
+		object.roll_ramp = 1;
+		struct CSTRK_TRACK track;
+		cstrk_init(&track);
+		assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+		assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+		activate(&track);
+		const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+		legacy_u16 resolved = extended_track_object_id(placed);
+		const struct TRKOBJINFO *route = extended_track_route_info(object.x, object.y, resolved);
+		assert((legacy_u8)route->route_point_count == ROLL_RAMP_ROUTE_POINT_COUNT);
+		assert(route->route_orientation == roll_ramp_orientation(placed));
+		for (legacy_u16 point = 0; point < ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT; point++) {
+			legacy_s16 distance =
+				(legacy_s32)point * ROLL_RAMP_LENGTH / (ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT - 1U);
+			for (legacy_u16 edge = 0; edge < OPPONENT_ROUTE_EDGE_COUNT; edge++) {
+				struct VECTOR supported;
+				roll_ramp_sample(distance, edge ? ROLL_RAMP_HALF_WIDTH : -ROLL_RAMP_HALF_WIDTH,
+								 &supported, NULL);
+				assert(memcmp(&route->route_vectors[point * OPPONENT_ROUTE_EDGE_COUNT + edge],
+							  &supported, sizeof(supported)) == 0);
+			}
+		}
+		for (legacy_u16 edge = 0; edge < OPPONENT_ROUTE_EDGE_COUNT; edge++) {
+			const struct VECTOR *lip =
+				&route->route_vectors[(ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT - 1U) *
+										  OPPONENT_ROUTE_EDGE_COUNT +
+									  edge];
+			const struct VECTOR *tangent =
+				&route->route_vectors[ROLL_RAMP_SUPPORTED_ROUTE_POINT_COUNT *
+										  OPPONENT_ROUTE_EDGE_COUNT +
+									  edge];
+			assert(tangent->x == lip->x && tangent->z < lip->z && tangent->y > lip->y);
+			legacy_s32 actual_rise = (legacy_s32)(tangent->y - lip->y) * CSTRK_TILE_WORLD_SIZE;
+			legacy_s32 expected_rise = (legacy_s32)(lip->z - tangent->z) * ROLL_RAMP_RISE_PER_TILE;
+			assert(actual_rise <= expected_rise &&
+				   expected_rise - actual_rise < CSTRK_TILE_WORLD_SIZE);
+		}
+		extended_track_unload();
+		assert(extended_track_route_info(object.x, object.y, resolved) ==
+			   trkObjectList[resolved].ss_trkObjInfoPtr);
+		cstrk_free(&track);
+	}
+}
+
+#define OPPONENT_PIPE_TEST_SPEED 80U
+#define OPPONENT_PIPE_HEIGHT_TOLERANCE 1
+static legacy_u16 opponent_pipe_speed_index;
+
+static legacy_u8 opponent_pipe_speed_lookup(legacy_u16 index)
+{
+	assert(index < OPPONENT_SPEED_COUNT);
+	opponent_pipe_speed_index = index;
+	return OPPONENT_PIPE_TEST_SPEED;
+}
+
+static void test_pipe_opponent_floor_and_speed(void)
+{
+	legacy_u16 id = opponent_model_id(PHYSICAL_MODEL_PIPE_ENTRANCE);
+	for (legacy_u8 rotation = 0; rotation < GENERAL_SLOPE_DIRECTION_COUNT; rotation++) {
+		for (legacy_u8 grade = 0; grade <= OPPONENT_HEIGHT_RAISED_GRADE; grade++) {
+			struct CSTRK_OBJECT object = general_slope_object(id, rotation);
+			struct CSTRK_TRACK track;
+			cstrk_init(&track);
+			assert(cstrk_create(&track, object.width, object.height, error, sizeof(error)));
+			if (grade < GENERAL_SLOPE_DIRECTION_COUNT) {
+				general_slope_terrain(&track, &object, grade);
+			} else {
+				object.base_height =
+					grade == OPPONENT_HEIGHT_FLAT_GRADE ? 0U : GENERAL_SLOPE_BASE_HEIGHT;
+				memset(track.corner_heights, object.base_height,
+					   (legacy_uint)(track.width + 1U) * (track.height + 1U));
+			}
+			assert(cstrk_add_object(&track, &object, error, sizeof(error)));
+			for (legacy_u8 surface = CSTRK_ROAD_PAVED; surface <= CSTRK_ROAD_ICE; surface++) {
+				track.objects[0].surface = surface;
+				activate(&track);
+				const struct CSTRK_OBJECT *placed = &extended_track_model()->objects[0];
+				legacy_u16 resolved = extended_track_object_id(placed);
+				const struct TRKOBJINFO *route =
+					extended_track_route_info(object.x, object.y, resolved);
+				assert(route != NULL);
+				assert((legacy_u8)route->opponent_speed_code == OPPONENT_SPEED_COUNT - 1U);
+				assert(route->route_vectors[0].y == ROUTE_POINT_HEIGHT_UNSPECIFIED);
+				track_pieces_counter = 1;
+				track_route_element_ids[0] = (legacy_s8)resolved;
+				track_route_columns[0] = object.x;
+				track_route_rows[0] = object.y;
+				LEGACY_WRITE_U16_LE((legacy_u8 *)opponent_route_track_indices, 0);
+				legacy_s8 speed = 0;
+				extended_opponent_route_speed(0, resolved, 0, route, &trkObjectList[resolved],
+											  &speed, opponent_pipe_speed_lookup);
+				/* Pipes have one speed entry rather than a three-material family. */
+				assert(opponent_pipe_speed_index == (legacy_u8)route->opponent_speed_code);
+				assert((legacy_u8)speed == OPPONENT_PIPE_TEST_SPEED);
+				for (legacy_u8 reversed = 0; reversed < OPPONENT_HEIGHT_ENDPOINT_COUNT;
+					 reversed++) {
+					track_route_traversal_flags[0] = reversed ? OPPONENT_HEIGHT_REVERSED_ROUTE : 0;
+					for (legacy_u8 point = 0; point < (legacy_u8)route->route_point_count;
+						 point++) {
+						struct VECTOR result[ROUTE_GEOMETRY_POINT_COUNT] = {0};
+						(void)get_track_route_point(0, result, point, NULL);
+						legacy_s16 floor = extended_track_elevation(
+							object.x, object.y, result[0].x - object.x * CSTRK_TILE_WORLD_SIZE,
+							(extended_track_height() - object.y) * CSTRK_TILE_WORLD_SIZE -
+								result[0].z);
+						/* A concrete floor target lets the tilted pipe guide the car in 3D. */
+						assert(result[0].y != ROUTE_POINT_HEIGHT_UNSPECIFIED);
+						assert(abs(result[0].y - floor) <= OPPONENT_PIPE_HEIGHT_TOLERANCE);
+					}
+				}
+				extended_track_unload();
+				struct VECTOR endpoints[OPPONENT_HEIGHT_ENDPOINT_COUNT] = {route->route_vectors[0],
+																		   route->route_vectors[1]};
+				assert(!extended_opponent_place_points(0, &endpoints[0], &endpoints[1]));
+				assert(memcmp(endpoints, route->route_vectors, sizeof(endpoints)) == 0);
+			}
+			cstrk_free(&track);
+		}
+	}
+}
+
 static void test_every_element_on_straight_slopes(void)
 {
 	for (legacy_u16 id = 1; id < GENERAL_SLOPE_CATALOG_LIMIT; id++) {
@@ -2062,9 +2427,11 @@ static void test_general_slope_collision_and_routes(void)
 						 vertex++) {
 						legacy_s16 x = LEGACY_S16_WRAP_SUB(baseline[vertex].x, flat_origin.x);
 						legacy_s16 z = LEGACY_S16_WRAP_SUB(baseline[vertex].z, flat_origin.z);
-						legacy_s16 expected = baseline[vertex].y + origin.y +
-											  extended_geometry_object_grade(&object, x, z);
-						if (vertex == 0) {
+						legacy_s16 expected = baseline[vertex].y;
+						if (expected != ROUTE_POINT_HEIGHT_UNSPECIFIED) {
+							expected += origin.y + extended_geometry_object_grade(&object, x, z);
+						}
+						if (vertex == 0 && expected != ROUTE_POINT_HEIGHT_UNSPECIFIED) {
 							/* The route center averages the rounded edge heights. */
 							expected = (transformed[GENERAL_SLOPE_ROUTE_FIRST_EDGE].y +
 										transformed[GENERAL_SLOPE_ROUTE_SECOND_EDGE].y) /
@@ -2755,6 +3122,101 @@ static void test_roll_ramp_grille_join(void)
 	}
 }
 
+#define CROP_TEST_DIRECTION_COUNT 4U
+#define CROP_TEST_GRADE_COUNT 5U
+#define CROP_TEST_PROBE_COUNT 3U
+#define CROP_TEST_HEIGHT 64
+#define CROP_TEST_POSITION 400
+
+static void test_crop_field_variant(legacy_u16 id, legacy_u8 rotation, legacy_u8 grade,
+									legacy_u8 level, legacy_u8 surface)
+{
+	static const legacy_s8 slopes[CROP_TEST_GRADE_COUNT][2] = {
+		{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+	static const legacy_s16 offsets[CROP_TEST_PROBE_COUNT] = {-CROP_TEST_POSITION, 0,
+															  CROP_TEST_POSITION};
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT crop = object_at(id, 0, 0);
+	crop.rotation = rotation;
+	crop.base_height = level + (slopes[grade][0] < 0 || slopes[grade][1] < 0);
+	crop.slope_x = slopes[grade][0];
+	crop.slope_y = slopes[grade][1];
+	for (legacy_u8 y = 0; y <= track.height; y++) {
+		for (legacy_u8 x = 0; x <= track.width; x++) {
+			track.corner_heights[y * (track.width + 1U) + x] =
+				crop.base_height + crop.slope_x * x + crop.slope_y * y;
+		}
+	}
+	track.cells[0].surface = surface;
+	assert(cstrk_add_object(&track, &crop, error, sizeof(error)));
+	activate(&track);
+	const struct CSTRK_OBJECT *placed = extended_track_object_for_id(0, 0, 0U);
+	assert(placed && placed->legacy_id == id);
+	assert(extended_track_object_at(0, 0) == placed);
+	assert(extended_track_object_id(placed) == 0U);
+	assert(extended_track_route_info(0, 0, 0U) == NULL);
+	assert(track_element_map[0] == 0U);
+	struct VECTOR collision_points[CROP_TEST_PROBE_COUNT];
+	assert(get_track_collision_points(0, 0, collision_points) == 0);
+	legacy_s16 expected_height[CROP_TEST_PROBE_COUNT];
+	legacy_s8 expected_surface[CROP_TEST_PROBE_COUNT];
+	struct VECTOR expected_normal[CROP_TEST_PROBE_COUNT];
+	for (legacy_u8 probe = 0; probe < CROP_TEST_PROBE_COUNT; probe++) {
+		struct VECTOR local = {offsets[probe], CROP_TEST_HEIGHT, -offsets[probe]};
+		struct VECTOR point = object_world(&track, &crop, local);
+		(void)sample_world(point.x, point.y, point.z);
+		assert(planindex == EXTENDED_GEOMETRY_PLANE_INDEX);
+		assert(wallindex == TRACK_WALL_NONE);
+		expected_height[probe] = (legacy_s16)selected_height(&point);
+		expected_surface[probe] = current_surf_type;
+		expected_normal[probe] = current_planptr->plane_normal;
+	}
+	struct VECTOR first =
+		object_world(&track, &crop, (struct VECTOR){-CROP_TEST_POSITION, CROP_TEST_HEIGHT, 0});
+	struct VECTOR second =
+		object_world(&track, &crop, (struct VECTOR){CROP_TEST_POSITION, CROP_TEST_HEIGHT, 0});
+	legacy_s16 fraction;
+	assert(!track_solid_obstacle_contact(&first, &second, &fraction));
+	/* The crop must not change the terrain's contact plane or grip. */
+	track.object_count = 0;
+	activate(&track);
+	for (legacy_u8 probe = 0; probe < CROP_TEST_PROBE_COUNT; probe++) {
+		struct VECTOR local = {offsets[probe], CROP_TEST_HEIGHT, -offsets[probe]};
+		struct VECTOR point = object_world(&track, &crop, local);
+		(void)sample_world(point.x, point.y, point.z);
+		assert(selected_height(&point) == expected_height[probe]);
+		assert(current_surf_type == expected_surface[probe]);
+		assert(current_planptr->plane_normal.x == expected_normal[probe].x);
+		assert(current_planptr->plane_normal.y == expected_normal[probe].y);
+		assert(current_planptr->plane_normal.z == expected_normal[probe].z);
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+}
+
+static void test_crop_field_scenery(void)
+{
+	static const legacy_u16 ids[] = {CSTRK_WHEAT_FIELD_ID, CSTRK_TULIP_FIELD_ID,
+									 CSTRK_VINE_FIELD_ID};
+	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
+		for (legacy_u8 rotation = 0; rotation < CROP_TEST_DIRECTION_COUNT; rotation++) {
+			for (legacy_u8 grade = 0; grade < CROP_TEST_GRADE_COUNT; grade++) {
+				for (legacy_u8 level = 0; level <= CSTRK_MAX_HEIGHT; level++) {
+					if (grade && level == CSTRK_MAX_HEIGHT) {
+						continue;
+					}
+					for (legacy_u8 surface = CSTRK_TERRAIN_GRASS; surface <= CSTRK_TERRAIN_WATER;
+						 surface++) {
+						test_crop_field_variant(ids[kind], rotation, grade, level, surface);
+					}
+				}
+			}
+		}
+	}
+}
+
 int main(void)
 {
 	FILE *resource = fopen("GAME.PRE", "rb");
@@ -2779,6 +3241,11 @@ int main(void)
 	test_world_coordinates_and_surfaces();
 	test_raised_stunt_and_snapshot();
 	test_every_element_on_straight_slopes();
+	test_opponent_route_heights();
+	test_sharp_opponent_route_geometry();
+	test_opponent_braking_follows_selected_route();
+	test_roll_opponent_route_tangent();
+	test_pipe_opponent_floor_and_speed();
 	test_general_slope_collision_and_routes();
 	test_graded_queries_preserve_shared_rotation();
 	test_nonclassic_terrain_is_rejected();
@@ -2800,6 +3267,7 @@ int main(void)
 	test_overpass_independent_surfaces();
 	test_overpass_opponent_speeds();
 	test_scenery_ignores_road_surface();
+	test_crop_field_scenery();
 	test_extended_material_variants();
 	test_shared_road_anchor();
 	test_opponent_shortest_branch();

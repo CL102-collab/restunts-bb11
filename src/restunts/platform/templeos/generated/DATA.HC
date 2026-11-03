@@ -2,6 +2,7 @@
 
 CFileFindDos g_find;
 MemSet(&g_find,0,sizeof(g_find));
+legacy_u16 rs_fileio_file_find_tracks=0;
 legacy_s8 rs_file_car_file_car_base[1024];
 MemSet(&rs_file_car_file_car_base,0,sizeof(rs_file_car_file_car_base));
 legacy_s8 *rs_file_car_file_car_physics_extensions[3];
@@ -12,6 +13,8 @@ MemSet(&rs_file_car_file_car_model_extensions,0,sizeof(rs_file_car_file_car_mode
 legacy_s8 *rs_file_car_file_car_dashboard_extensions[6];
 MemSet(&rs_file_car_file_car_dashboard_extensions,0,
     sizeof(rs_file_car_file_car_dashboard_extensions));
+CRsAnonDcade8718ff6 rs_file_car_file_track_search;
+MemSet(&rs_file_car_file_track_search,0,sizeof(rs_file_car_file_track_search));
 CMatrix rs_math_math_mat_z_rot;
 MemSet(&rs_math_math_mat_z_rot,0,sizeof(rs_math_math_mat_z_rot));
 CMatrix rs_math_math_mat_x_rot;

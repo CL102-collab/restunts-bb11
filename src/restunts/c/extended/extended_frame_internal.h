@@ -74,7 +74,7 @@ struct FRAME_EXTENDED_TERRAIN {
 	const struct CSTRK_OBJECT *objects[FRAME_EXTENDED_TERRAIN_OBJECT_MAX];
 	legacy_u16 object_count;
 	struct VECTOR position;
-	legacy_u8 edges, graded;
+	legacy_u8 edges, graded, cut_roads;
 	legacy_s16 column, row;
 	legacy_s8 flags;
 };

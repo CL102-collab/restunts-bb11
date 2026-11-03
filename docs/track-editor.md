@@ -22,7 +22,24 @@ tools use a wide scrollable drawer below that toggle. The Terrain / Track librar
 switch shows one section at a time. Each section remembers its settings; selecting
 Build, Remove or an element group opens the track library. New tracks can have
 any dimensions from 1 by 1 through 90 by 90 tiles. Use the New dialog to choose
-dimensions. Names use the game's 1–8 character ASCII filename stems.
+dimensions. Track filenames use 1–12 ASCII characters before `.cstrk`, without
+spaces, dots, or reserved filename characters.
+
+Choose **3D preview** above the canvas to explore the current track with WebGL.
+The preview reads GAME1 and GAME2 `.P3S` or `.3SH` model archives from your selected
+Stunts folder when first opened. Terrain, road materials, stunts, scenery and pine
+groups appear in 3D. Native patterned fills use solid palette colors in this
+preview. Changes, including undo and redo, refresh the preview. Choose
+**2D editor** to continue building; its zoom and map position are preserved.
+
+Click the 3D view for mouse look, and press **Esc** to release the pointer. If the
+browser cannot capture the pointer, hold the left mouse button and drag to look.
+Use **WASD** to move horizontally relative to your view, **Space** to rise, and
+**Shift** to descend. Hold **Alt**, or turn **Caps Lock** on, to move at **3×**
+speed; using both keeps the same 3× speed. This ghost camera can pass freely
+through scenery, track pieces and terrain. **Reset camera** returns to the initial
+view. Movement stops when the preview loses focus or you return to 2D. The
+browser must support WebGL; if it is unavailable, you can continue editing in 2D.
 
 Below Build, Remove and Pan, choose **Select** and drag with the left mouse
 button to mark a rectangle. The selection expands to include whole multi-tile
@@ -47,8 +64,8 @@ used in the game and its track preview. Horizon changes support undo and redo.
 New tracks default to Desert.
 
 The footer shows the editor's current `.cstrk` version after "Built for the next
-great track." The current version is v8. Revision v3 through v7 tracks also open
-and are upgraded to v8 while preserving their original overpass road materials.
+great track." The current version is v12. Revision v3 through v11 tracks also open
+and are upgraded to v12 while preserving their original overpass road materials.
 Revisions below v3 cannot be opened. Tracks store their version in the file
 header; saving keeps the version after any upgrade. Opening a newer version shows an OK-only warning
 before loading it; features from newer editors may not work correctly.
@@ -56,8 +73,13 @@ before loading it; features from newer editors may not work correctly.
 ## Terrain
 
 Terrain tools appear in the order Paint, Shore, Level, Raise and Lower.
-Paint shows one selected square preview of the current grass, ice, dirt or water
-surface. Select that primary surface, then choose Shore to show a second material
+Paint shows **1x1**, **2x2**, **4x4** and **8x8** tile choices, labeled below previews of
+the current grass, ice, dirt or water surface. Choose a size, then click or drag
+to paint that square starting at the hovered tile. The brush clips to the map
+edges, preserves terrain heights and track pieces, and each stroke undoes as one
+edit. The selected size applies to whole-tile painting; Lower surface and Shore
+keep their single-tile behavior.
+Select a primary surface, then choose Shore to show a second material
 row above the four corner previews. The second row contains only the other three
 surfaces, so any two different materials can meet at a corner, including Water
 as the primary surface. The first corner is selected initially. Click another
@@ -76,16 +98,21 @@ stroke. Straight inclines and inner corners have no lower flat part and stay
 as they are.
 If an existing material boundary crosses the hill, Lower surface leaves that
 tile unchanged and explains that it cannot preserve both hill materials.
-Click the regular Paint tile preview or a primary surface to paint whole tiles
+Click a Paint tile size or a primary surface to paint whole tiles
 again. Lower surface strokes support undo and redo and save in the existing
 track format.
 
-Level shows five square choices, starting with Ground (0), then heights 1
-through 4. These choices appear only while Level is selected; click a map tile
-to set its corners to the chosen height and apply the selected terrain surface
-to it and any slopes created by the height change. Level supports grass, dirt,
-ice and water. Switching between these surfaces keeps Level active and
-preserves its height selection.
+Level shows a **Brush size** section above **Elevation**, with **1x1**, **2x2**,
+**4x4** and **8x8** choices. Elevation has five choices, starting with Ground (0),
+then heights 1 through 4. Choose the brush size and elevation independently, then
+click or drag to level that square starting at the hovered tile. The brush clips
+to the map edges. Its corners take the chosen height, and the selected terrain
+surface covers the square and any slopes created by the height change.
+Level supports grass, dirt, ice and water. Switching between these surfaces keeps
+Level active and preserves both its brush size and height selection.
+Grass shades progress from the original ground green at level 0 to the original
+yellow-green at level 4, with evenly spaced colors for levels 1, 2 and 3. The map,
+elevation previews and navigator use the same gradient to distinguish heights.
 Height and material changes undo together; unrelated cells keep their materials.
 Raise and Lower change shared corners one level per click.
 Adjoining corners adjust to retain the original game's flat tiles, straight
@@ -96,8 +123,9 @@ higher hills keep the original slope angles. Paint can apply any surface,
 including water, to terrain at any elevation without changing its shape.
 
 On a straight incline, place track pieces in any direction. Palm tree, Cactus
-and Pine tree scenery also accepts straight inclines. The editor requires level
-ground for divided highways, highway transitions and other scenery; raised
+and Pine tree scenery, including both pine tree groups, and Wheat, Tulip and
+Vine fields also accept straight inclines. The editor requires level ground for divided highways, highway
+transitions and other scenery; raised
 flat ground is allowed. Existing files containing these elements on slopes still
 open, validate, save and play normally. Use Remove to delete those elements in
 the editor.
@@ -110,7 +138,8 @@ cannot span a change in slope direction or a flat-to-slope transition.
 
 With HyperVision, Palm tree, Cactus and Pine tree stay upright on inclines.
 Their trunks extend down to meet the terrain while the foliage and branches
-keep their original shape.
+keep their original shape. Each pine in a group follows the same behavior at
+its own position on the slope.
 
 These generalized placements require `.cstrk` v6. Aligned roads and compatible
 ramps keep their original hill-road or hill-span models. The aligned tunnels and
@@ -130,6 +159,37 @@ are not separate palette groups. Every road and stunt piece supports paved,
 dirt and ice, including loops, pipe entrances, pipes, half pipes and all
 corkscrews. Scenery is available with every road surface selection and keeps
 its original appearance.
+
+The **Scenery** group includes **Wheat field**, a one-tile patch of golden crop
+rows. Place adjoining tiles to make a larger field, and rotate the tile to change
+the row direction. Wheat supports raised flat ground and straight inclines and
+appears in both the 2D editor and 3D preview. Cars can drive through the crops;
+the underlying terrain determines driving grip. Wheat field requires `.cstrk` v11.
+
+**Tulip field** adds dense flower bands ordered purple, orange, red, pink,
+purple and yellow, with one color along each row. **Vine field** adds twelve low,
+narrow green rows with triangular tops and dense purple grape clusters on
+both sides.
+Both occupy one tile, join into larger fields, and support rotation, raised
+ground and straight hillside inclines in every direction.
+They appear in the 2D editor, 3D preview and game. Both are drive-through
+scenery and preserve the terrain beneath them. Tulip and Vine fields require
+`.cstrk` v12.
+
+The **Scenery** group also includes **Pine trees (10)** and **Pine trees (6)**. Each
+occupies one tile with differently sized pines. Both groups vary positions and
+sizes deterministically by tile, so neighboring tiles do not repeat the same
+rows. The layout depends only on tile coordinates and tree index, so opening
+the same track always restores the same forest. Rotate the element to turn its
+layout. Both groups support straight inclines. Six-tree groups require `.cstrk`
+v10; ten-tree groups are supported from v9.
+Selecting either group shows **Brush size** above **Ready to build**, with
+**1x1**, **2x2**, **4x4** and **8x8** choices. Click or drag to fill that square
+with one selected pine group per empty compatible tile, starting at the hovered
+tile and clipping at the map edges. Occupied tiles and unsupported hill corners
+are skipped. Each group uses its tile's own elevation and slope. Rotation applies
+to every group, and the stroke undoes as one edit. Other scenery and track pieces
+keep single-element placement. Pine, Paint and Level brush sizes are independent.
 
 The **Stunts** group includes **Tunnel with slalom**, combining the tunnel shell
 and slalom barriers in one tile. It supports all four directions, every road

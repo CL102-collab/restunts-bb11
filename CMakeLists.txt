@@ -232,6 +232,7 @@ set(common_sources
     extended/extended_csrpl.c extended/extended_cshig.c extended/extended_replay.c
     extended/extended_track.c
     extended/extended_geometry.c extended/extended_opponent.c extended/extended_roll_ramp.c
+    extended/extended_pine_trees.c extended/extended_wheat_field.c extended/extended_crop_fields.c
     extended/extended_trackobj.c
     extended/extended_trackobj_solids.c extended/extended_stateply.c
     extended/extended_physics_collision.c extended/extended_statecrs.c
@@ -485,6 +486,7 @@ install(TARGETS restunts repldump pixldump RUNTIME DESTINATION bin COMPONENT Run
 foreach(car_file IN LISTS restunts_car_files)
     install(FILES "assets/cars/${car_file}" DESTINATION bin/cars COMPONENT Runtime)
 endforeach()
+install(FILES assets/tracks/README.TXT DESTINATION bin/tracks COMPONENT Runtime)
 foreach(music IN LISTS music_tracks)
     install(FILES "assets/music/${music}.ogg" DESTINATION bin/music COMPONENT Runtime OPTIONAL)
 endforeach()
@@ -543,6 +545,14 @@ if(RESTUNTS_BUILD_TESTS)
     add_executable(test-cstrk ${core}/extended/extended_cstrk.c src/restunts/tests/test-cstrk.c)
     target_compile_options(test-cstrk PRIVATE -UNDEBUG)
     add_test(NAME cstrk-format COMMAND test-cstrk)
+    add_executable(test-wheat-field ${core}/extended/extended_wheat_field.c
+        src/restunts/tests/test-wheat-field.c)
+    target_compile_options(test-wheat-field PRIVATE -UNDEBUG)
+    add_test(NAME wheat-field-mesh COMMAND test-wheat-field)
+    add_executable(test-crop-fields ${core}/extended/extended_crop_fields.c
+        src/restunts/tests/test-crop-fields.c)
+    target_compile_options(test-crop-fields PRIVATE -UNDEBUG)
+    add_test(NAME crop-field-meshes COMMAND test-crop-fields)
     add_executable(test-cshig ${core}/extended/extended_cstrk.c ${core}/extended/extended_cshig.c
         src/restunts/tests/test-cshig.c)
     target_compile_options(test-cshig PRIVATE -UNDEBUG)
@@ -564,7 +574,8 @@ if(RESTUNTS_BUILD_TESTS)
     target_compile_options(test-csrpl PRIVATE -UNDEBUG)
     add_test(NAME csrpl-format COMMAND test-csrpl)
     add_executable(test-extended-replay-runtime ${core}/extended/extended_replay.c
-        ${core}/extended/extended_replay_runtime.c
+        ${core}/extended/extended_replay_runtime.c ${core}/extended/extended_replay_ui.c
+        ${core}/ui/ui_text.c ${core}/legacy.c
         src/restunts/tests/test-extended-replay-runtime.c)
     target_compile_definitions(test-extended-replay-runtime PRIVATE RESTUNTS_SDL3)
     target_compile_options(test-extended-replay-runtime PRIVATE -UNDEBUG)
@@ -590,6 +601,10 @@ if(RESTUNTS_BUILD_TESTS)
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor.js")
         add_test(NAME html-track-validation COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-validation.js")
+        foreach(editor_feature scene preview 3d-resources)
+            add_test(NAME html-track-${editor_feature} COMMAND "${RESTUNTS_NODE_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-track-editor-${editor_feature}.js")
+        endforeach()
         if(NOT CMAKE_CROSSCOMPILING)
             add_executable(editor-route-oracle src/restunts/tests/editor-route-oracle.c)
             target_link_libraries(editor-route-oracle PRIVATE restunts_game)
@@ -610,6 +625,8 @@ if(RESTUNTS_BUILD_TESTS)
     else()
         set(restunts_test_gc_sections "LINKER:--gc-sections")
     endif()
+    target_compile_options(test-extended-replay-runtime PRIVATE ${restunts_test_section_options})
+    target_link_options(test-extended-replay-runtime PRIVATE ${restunts_test_gc_sections})
     enable_testing()
     if(UNIX AND NOT CMAKE_CROSSCOMPILING)
         add_executable(test-sdl3-file-replace src/restunts/tests/test-sdl3-file-replace.c
@@ -748,6 +765,8 @@ if(RESTUNTS_BUILD_TESTS)
         if(Python3_Interpreter_FOUND)
             add_test(NAME html-track-route-data COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-route-data.py" --check)
+            add_test(NAME html-track-scene-data COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/generate-editor-scene-data.py" --check)
             add_test(NAME opl-trace-renderer COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-opl-trace.py")
             add_test(NAME skybox-assets COMMAND "${Python3_EXECUTABLE}"
@@ -828,6 +847,7 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
         src/restunts/genghost/simulation.c src/restunts/genghost/extended_simulation.c
         src/restunts/genghost/routes.c src/restunts/genghost/extended_routes.c
         src/restunts/genghost/guide.c src/restunts/genghost/extended_guide.c
+        src/restunts/genghost/search.c src/restunts/genghost/extended_search.c
         src/restunts/tests/test-genghost-extended.c)
     target_compile_definitions(test-genghost-extended PRIVATE
         RESTUNTS_HEADLESS RESTUNTS_EXTENDED_REPLAY)
@@ -864,11 +884,14 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-stunts.py")
             add_test(NAME regression-timeouts COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/tests/test_regression_timeouts.py")
-            add_test(NAME genghost-extended COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
-                "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
-                "${CMAKE_SOURCE_DIR}/stunts")
-            set_tests_properties(genghost-extended PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+            foreach(restunts_extended_part 1 2 3)
+                add_test(NAME genghost-extended-${restunts_extended_part} COMMAND "${Python3_EXECUTABLE}"
+                    "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-extended.py"
+                    "$<TARGET_FILE:genghost>" "$<TARGET_FILE:test-genghost-extended>"
+                    "${CMAKE_SOURCE_DIR}/stunts" --part "${restunts_extended_part}")
+                set_tests_properties(genghost-extended-${restunts_extended_part} PROPERTIES
+                    SKIP_RETURN_CODE 77 TIMEOUT 300)
+            endforeach()
             add_test(NAME genghost-simulation COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-genghost-simulation.py"
                 "$<TARGET_FILE:test-genghost-simulation>" "$<TARGET_FILE:repldump>"
@@ -903,7 +926,8 @@ if(RESTUNTS_BUILD_TESTS AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
             set_tests_properties(genghost-state PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)
             # CTest's --timeout does not override an explicit test TIMEOUT.
             # Propagate the same multiplier to the Python subprocess deadlines.
-            foreach(restunts_genghost_test genghost-simulation genghost-search genghost-extended
+            foreach(restunts_genghost_test genghost-simulation genghost-search
+                    genghost-extended-1 genghost-extended-2 genghost-extended-3
                     genghost-fine-tune genghost-stop-file genghost-parallel genghost-state)
                 get_test_property(${restunts_genghost_test} TIMEOUT restunts_genghost_timeout)
                 math(EXPR restunts_genghost_timeout
@@ -984,7 +1008,8 @@ if(RESTUNTS_BUILD_TESTS)
             RESTUNTS_PIXLDUMP
             RESTUNTS_HALF_PIPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/half-pipe-uphill.csrpl"
             RESTUNTS_FAN_SLOPE_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/fan-adhesion-slopes.csrpl"
-            RESTUNTS_ZERO_SPEED_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/zero-speed-offset.csrpl")
+            RESTUNTS_ZERO_SPEED_REPLAY_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/zero-speed-offset.csrpl"
+            RESTUNTS_NINHBINH_TRACK_FIXTURE="${CMAKE_SOURCE_DIR}/src/restunts/tests/fixtures/slopes/ninhbinh.cstrk")
         target_link_libraries(test-extended-replay-engine PRIVATE restunts_game)
         target_compile_options(test-extended-replay-engine PRIVATE -UNDEBUG)
         add_test(NAME extended-replay-engine COMMAND test-extended-replay-engine

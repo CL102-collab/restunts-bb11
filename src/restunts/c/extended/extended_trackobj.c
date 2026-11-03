@@ -278,7 +278,9 @@ static void build_extended_track_object(struct VECTOR *position, struct VECTOR *
 		return;
 	}
 	const struct CSTRK_OBJECT *object = extended_collision_object(track, &terrain, position);
-	if (object == 0) {
+	/* Crop geometry is decorative: preserve the underlying terrain contact,
+	 * surface grip and slope without introducing a driving floor or wall. */
+	if (object == 0 || cstrk_is_crop_field(object->legacy_id)) {
 		extended_select_terrain(&terrain, position);
 		return;
 	}

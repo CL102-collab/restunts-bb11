@@ -164,7 +164,7 @@ legacy_u8 frame_extended_uses_grade(const struct CSTRK_OBJECT *object)
 		return result;
 	}
 	if (object && (object->slope_x || object->slope_y) && object->width == 1U &&
-		object->height == 1U &&
+		object->height == 1U && object->legacy_id < TRACK_OBJECT_COUNT &&
 		trkObjectList[object->legacy_id].ss_physicalModel == PHYSICAL_MODEL_ROAD) {
 		legacy_u16 angle = ((legacy_u16)trkObjectList[object->legacy_id].ss_rotY +
 							object->rotation * ANGLE_QUARTER_TURN) &
@@ -231,6 +231,14 @@ legacy_s16 frame_extended_draw_supporting_ground(const struct FRAME_EXTENDED_TER
 	}
 	legacy_u8 material = profile->base_height == 0 ? FRAME_EXTENDED_GROUND_GRASS_MATERIAL
 												   : FRAME_EXTENDED_HILL_GRASS_MATERIAL;
+	/* The low half of a free hill corner can share a flat road's plane. Cut
+	 * its pavement out just like the terrain mesh, retaining classic fills. */
+	const legacy_u8 primitive[] = {(legacy_u8)count, FRAME_EXTENDED_TERRAIN_ALWAYS_VISIBLE,
+								   material};
+	legacy_s16 cut_result;
+	if (hires_track_paint_terrain_face(points, count, primitive, terrain, &cut_result)) {
+		return cut_result;
+	}
 	return frame_extended_paint_terrain_polygon(points, count,
 												FRAME_EXTENDED_TERRAIN_ALWAYS_VISIBLE, material,
 												terrain->cell, &terrain->position, terrain->flags);
@@ -242,7 +250,7 @@ legacy_s16 frame_extended_draw_terrain_mesh(const struct FRAME_EXTENDED_TERRAIN 
 	const struct TRACKOBJECT *definition = &terrain_scene_objects[terrain->profile.terrain_id];
 	const struct SHAPE3D *source = definition->ss_shapePtr;
 	hires_track_select_terrain_shape(definition, detail, &source);
-	if (!terrain->graded && frame_extended_native_grass(terrain->cell)) {
+	if (!terrain->graded && !terrain->cut_roads && frame_extended_native_grass(terrain->cell)) {
 		struct TRANSFORMEDSHAPE3D instance = {0};
 		instance.pos = terrain->position;
 		instance.shapeptr = (struct SHAPE3D *)source;
@@ -296,7 +304,7 @@ legacy_s16 extended_frame_draw_terrain(const struct FRAME_TILE *tile,
 	terrain.column = tile->east;
 	terrain.row = tile->south;
 	terrain.object = extended_track_object_at(tile->east, tile->south);
-	terrain.graded = 0;
+	terrain.graded = terrain.cut_roads = 0;
 	frame_extended_collect_terrain_objects(&terrain);
 	for (legacy_u16 candidate = 0; candidate < terrain.object_count; candidate++) {
 		if (frame_extended_uses_grade(terrain.objects[candidate])) {

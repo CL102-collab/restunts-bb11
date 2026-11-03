@@ -173,7 +173,7 @@ validation are documented below.
 
 ### Additional unused APIs removed
 
-The follow-up removes 25 unused API names. Counts below refer to names, since the
+The follow-up removes 24 unused API names. Counts below refer to names, since the
 video wrapper had separate implementations on several platforms.
 
 | Area | Removed APIs |
@@ -183,7 +183,7 @@ video wrapper had separate implementations on several platforms.
 | Timing | `timer_custom_delta`, `timer_reset` |
 | Audio | `audioresource_copy_4_bytes`, `audio_play_effect`, `audio_play_engine_start`, `audio_play_engine_stop`, `audio_play_engine_failure` |
 | Platform video | `video_get_status`: SDL3, DOS, Amiga, and handwritten TempleOS wrapper |
-| Ghost generation | `genghost_maneuver_name`, its only dependency `extended_genghost_maneuver_name`, and `genghost_route_piece_height` |
+| Ghost generation | `genghost_maneuver_name` and its only dependency `extended_genghost_maneuver_name` |
 
 Two exclusively owned static sprite adapters were also removed:
 `shape2d_render_rle_at_anchor` and `sprite_shape_to_1_at_anchor`. Shared anchor
@@ -191,9 +191,10 @@ math and the live masked/OR drawing paths remain.
 
 The generic decompression helpers and their fatal branches still have callers.
 Actual video polling uses `dos_video_get_status`, which remains on all platforms.
-The live extended route-height implementation also remains. Assembly references
-to the removed wrappers belong to the isolated original-engine target, which
-links its own original definitions.
+The live extended route-height implementation also remains. The public
+`genghost_route_piece_height` wrapper was restored because upstream barrel-repair
+scoring now calls it. Assembly references to the removed wrappers belong to the
+isolated original-engine target, which links its own original definitions.
 
 The audio sequence regression now calls the live rate-aware effect helper with
 the same current rate. Only the three obsolete engine convenience cases were

@@ -74,6 +74,9 @@ void extended_track_unload(void)
 {
 	++unload_calls;
 }
+void extended_track_clear_name(void)
+{
+}
 void extended_replay_runtime_clear(void)
 {
 	++clear_calls;

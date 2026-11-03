@@ -136,7 +136,7 @@ legacy_s16 extended_highscore_enter_current(legacy_u32 frames, void far *prompt,
 		highscore_draw_table();
 		return 1;
 	}
-	if (extended_highscore_validate_track(track_directory, gameconfig.game_trackname,
+	if (extended_highscore_validate_track(track_directory, extended_track_name(),
 										  extended_track_model()) != 0) {
 		extended_hiscore_show_error();
 		highscore_draw_table();
@@ -170,7 +170,7 @@ legacy_s16 extended_highscore_enter_current(legacy_u32 frames, void far *prompt,
 							   highscore_player_name_input);
 	legacy_uint rank;
 	g_is_busy = 1;
-	legacy_int result = extended_highscore_record(track_directory, gameconfig.game_trackname,
+	legacy_int result = extended_highscore_record(track_directory, extended_track_name(),
 												  extended_track_model(), &record, &rank);
 	g_is_busy = 0;
 	if (result != 0) {
@@ -213,8 +213,8 @@ legacy_s16 extended_highscore_load_current(legacy_s16 create_default, legacy_s16
 		return 0;
 	}
 	g_is_busy = 1;
-	*result = (legacy_s16)extended_highscore_load_or_create(
-		track_directory, gameconfig.game_trackname, extended_track_model(), create_default);
+	*result = (legacy_s16)extended_highscore_load_or_create(track_directory, extended_track_name(),
+															extended_track_model(), create_default);
 	g_is_busy = 0;
 	return 1;
 }
@@ -240,7 +240,7 @@ legacy_s16 extended_highscore_validate_current(legacy_s8 *status)
 	if (!extended_track_active()) {
 		return 0;
 	}
-	*status = extended_highscore_validate_track(track_directory, gameconfig.game_trackname,
+	*status = extended_highscore_validate_track(track_directory, extended_track_name(),
 												extended_track_model()) != 0
 				  ? -1
 				  : 0;

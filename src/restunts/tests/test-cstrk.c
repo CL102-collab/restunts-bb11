@@ -673,14 +673,19 @@ static void test_invalid_records(void)
 	assert(cstrk_create(&track, 2, 2, error, sizeof(error)));
 	struct CSTRK_OBJECT object = object_at(0, 0);
 	assert(cstrk_add_object(&track, &object, error, sizeof(error)));
-	struct CSTRK_OBJECT invalid[] = {
-		{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {215, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0, 0},
-		{1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0}, {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0, 0}, {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0},
-		{1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2, 0}};
+	struct CSTRK_OBJECT invalid[] = {{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {CSTRK_VINE_FIELD_ID + 1U, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 4, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 3, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 3, 1, 1, 0, 0, 0, 0},
+									 {1, 2, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 2, 0, 0, 1, 1, 1, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 2, 0, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, 5, 0, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 0, 0},
+									 {1, 0, 0, 0, 0, 1, 1, 1, 0, 0, -2, 0}};
 	for (size_t index = 0; index < sizeof(invalid) / sizeof(invalid[0]); index++) {
 		track.objects[0] = invalid[index];
 		assert(!cstrk_validate(&track, error, sizeof(error)));
@@ -966,7 +971,7 @@ static void test_tunnel_slalom_roundtrip(void)
 						assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 						assert(data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] == 1U);
 						assert(data[object_offset + CSTRK_OBJECT_LOWER_SURFACE_OFFSET] == 0U);
-						assert(data[object_offset + CSTRK_OBJECT_RESERVED_OFFSET] == 0U);
+						assert(data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] == 0U);
 						assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 						assert(decoded.version == track.version && decoded.object_count == 1U);
 						assert(decoded.objects[0].legacy_id == id);
@@ -1045,7 +1050,7 @@ static void test_tunnel_slalom_invalid_records(void)
 	}
 	track.objects[0].tunnel_slalom = 1U;
 	data[object_offset + CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = 1U;
-	for (legacy_u8 offset = CSTRK_OBJECT_RESERVED_OFFSET; offset < CSTRK_OBJECT_SIZE; offset++) {
+	for (legacy_u8 offset = CSTRK_OBJECT_PINE_COUNT_OFFSET; offset < CSTRK_OBJECT_SIZE; offset++) {
 		data[object_offset + offset] = 1U;
 		assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
 		assert(memcmp(before, &decoded, sizeof(decoded)) == 0);
@@ -1102,7 +1107,7 @@ static void test_roll_ramp_records(void)
 					size_t size = 0, again_size = 0;
 					assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
 					assert(data[object_offset + CSTRK_OBJECT_ROLL_RAMP_OFFSET] == 1U);
-					assert(data[object_offset + CSTRK_OBJECT_RESERVED_OFFSET] == 0U);
+					assert(data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] == 0U);
 					assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
 					assert(decoded.objects[0].roll_ramp == 1U);
 					assert(decoded.objects[0].legacy_id == id);
@@ -1139,13 +1144,299 @@ static void test_roll_ramp_records(void)
 	cstrk_free(&track);
 }
 
+#define TEST_PINE_ROTATION_COUNT 4U
+
+static void test_pine_group_records(void)
+{
+	static const legacy_u8 counts[] = {CSTRK_PINE_GROUP_SMALL_COUNT, CSTRK_PINE_GROUP_LARGE_COUNT};
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.legacy_id = CSTRK_PINE_TREE_ID;
+	object.base_height = 2U;
+	track.objects = calloc(1U, sizeof(*track.objects));
+	assert(track.objects);
+	track.object_count = 1U;
+	const size_t object_offset = CSTRK_HEADER_SIZE + 4U + 2U;
+	for (legacy_u8 count = 0; count < sizeof(counts) / sizeof(counts[0]); count++) {
+		object.pine_count = counts[count];
+		legacy_u16 required_version = counts[count] == CSTRK_PINE_GROUP_SMALL_COUNT
+										  ? CSTRK_PINE_SIX_VERSION
+										  : CSTRK_PINE_GROUP_VERSION;
+		for (legacy_u8 rotation = 0; rotation < TEST_PINE_ROTATION_COUNT; rotation++) {
+			object.rotation = rotation;
+			for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
+				object.slope_x = slopes[slope][0];
+				object.slope_y = slopes[slope][1];
+				for (legacy_u8 y = 0; y <= track.height; y++) {
+					for (legacy_u8 x = 0; x <= track.width; x++) {
+						track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+							object.base_height + object.slope_x * x + object.slope_y * y;
+					}
+				}
+				track.objects[0] = object;
+				track.version = required_version - 1U;
+				assert(!cstrk_validate(&track, error, sizeof(error)));
+				track.version = required_version;
+				assert(cstrk_validate(&track, error, sizeof(error)));
+				track.version = CSTRK_VERSION;
+				legacy_u8 *data = NULL, *again = NULL;
+				size_t size = 0, again_size = 0;
+				assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+				assert(data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] == counts[count]);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.objects[0].pine_count == counts[count]);
+				assert(decoded.objects[0].rotation == rotation);
+				assert(decoded.objects[0].slope_x == object.slope_x);
+				assert(decoded.objects[0].slope_y == object.slope_y);
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(data, again, size) == 0);
+				for (legacy_u16 version = CSTRK_MIN_VERSION; version < required_version;
+					 version++) {
+					LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+					assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+					assert(decoded.objects[0].pine_count == counts[count]);
+				}
+				/* Each current group retains its canonical count at its minimum revision. */
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, required_version);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.version == CSTRK_VERSION);
+				assert(decoded.objects[0].pine_count == counts[count]);
+				decoded.version = required_version;
+				free(again);
+				again = NULL;
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(data, again, size) == 0);
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, TEST_FUTURE_REVISION);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.version == TEST_FUTURE_REVISION);
+				free(again);
+				free(data);
+			}
+		}
+	}
+	static const legacy_u8 invalid_counts[] = {
+		1U, 4U, CSTRK_PINE_GROUP_OLD_COUNT, 7U, 9U, 11U, LEGACY_U8_MAX};
+	for (legacy_u8 index = 0; index < sizeof(invalid_counts) / sizeof(invalid_counts[0]); index++) {
+		track.objects[0].pine_count = invalid_counts[index];
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+	}
+	track.objects[0] = object;
+	track.objects[0].legacy_id = CSTRK_SLALOM_FIRST_ID;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+	track.objects[0].width = 2U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0] = object;
+	track.version = CSTRK_PINE_GROUP_VERSION - 1U;
+	assert(!cstrk_validate(&track, error, sizeof(error)));
+	track.objects[0].pine_count = 0U;
+	assert(cstrk_validate(&track, error, sizeof(error)));
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+	assert(decoded.version == CSTRK_VERSION && decoded.objects[0].pine_count == 0U);
+	free(data);
+	cstrk_free(&decoded);
+	cstrk_free(&track);
+}
+
+static void test_pine_group_wire_upgrade(void)
+{
+	static const legacy_u16 versions[] = {CSTRK_PINE_GROUP_VERSION, CSTRK_VERSION,
+										  TEST_FUTURE_REVISION};
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.legacy_id = CSTRK_PINE_TREE_ID;
+	object.base_height = 2U;
+	object.pine_count = CSTRK_PINE_GROUP_OLD_COUNT;
+	assert(!cstrk_add_object(&track, &object, error, sizeof(error)));
+	assert(track.object_count == 0U);
+	object.pine_count = CSTRK_PINE_GROUP_SMALL_COUNT;
+	track.objects = calloc(1U, sizeof(*track.objects));
+	assert(track.objects);
+	track.object_count = 1U;
+	const size_t object_offset = CSTRK_HEADER_SIZE + 4U + 2U;
+	for (legacy_u8 rotation = 0; rotation < TEST_PINE_ROTATION_COUNT; rotation++) {
+		object.rotation = rotation;
+		for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
+			object.slope_x = slopes[slope][0];
+			object.slope_y = slopes[slope][1];
+			for (legacy_u8 y = 0; y <= track.height; y++) {
+				for (legacy_u8 x = 0; x <= track.width; x++) {
+					track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+						object.base_height + object.slope_x * x + object.slope_y * y;
+				}
+			}
+			track.objects[0] = object;
+			legacy_u8 *data = NULL;
+			size_t size = 0;
+			assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+			for (legacy_u8 index = 0; index < sizeof(versions) / sizeof(versions[0]); index++) {
+				/* A historical wire count is an import alias, never a runtime variant. */
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, versions[index]);
+				data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] = CSTRK_PINE_GROUP_OLD_COUNT;
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				legacy_u16 expected_version =
+					versions[index] < CSTRK_VERSION ? CSTRK_VERSION : versions[index];
+				assert(decoded.version == expected_version);
+				assert(decoded.objects[0].pine_count == CSTRK_PINE_GROUP_SMALL_COUNT);
+				assert(decoded.objects[0].rotation == object.rotation);
+				assert(decoded.objects[0].base_height == object.base_height);
+				assert(decoded.objects[0].slope_x == object.slope_x);
+				assert(decoded.objects[0].slope_y == object.slope_y);
+				assert(cstrk_validate(&decoded, error, sizeof(error)));
+				legacy_u8 *again = NULL;
+				size_t again_size = 0;
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size);
+				assert(LEGACY_READ_U16_LE(again + CSTRK_VERSION_OFFSET) == expected_version);
+				assert(again[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] ==
+					   CSTRK_PINE_GROUP_SMALL_COUNT);
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, expected_version);
+				data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] = CSTRK_PINE_GROUP_SMALL_COUNT;
+				assert(memcmp(again, data, size) == 0);
+				free(again);
+			}
+			data[object_offset + CSTRK_OBJECT_PINE_COUNT_OFFSET] = CSTRK_PINE_GROUP_OLD_COUNT;
+			for (legacy_u16 version = CSTRK_MIN_VERSION; version < CSTRK_PINE_GROUP_VERSION;
+				 version++) {
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+				assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.objects[0].pine_count == CSTRK_PINE_GROUP_SMALL_COUNT);
+				assert(decoded.version == TEST_FUTURE_REVISION);
+			}
+			LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, CSTRK_PINE_GROUP_VERSION);
+			LEGACY_WRITE_U16_LE(data + object_offset, CSTRK_SLALOM_FIRST_ID);
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			assert(decoded.objects[0].pine_count == CSTRK_PINE_GROUP_SMALL_COUNT);
+			free(data);
+		}
+	}
+	track.objects[0].pine_count = CSTRK_PINE_GROUP_OLD_COUNT;
+	legacy_u8 *data = NULL;
+	size_t size = 0;
+	assert(!cstrk_encode(&track, &data, &size, error, sizeof(error)));
+	assert(data == NULL && size == 0U);
+	cstrk_free(&decoded);
+	cstrk_free(&track);
+}
+
+#define TEST_CROP_DIRECTION_COUNT 4U
+
+static void test_crop_field_records(void)
+{
+	static const legacy_u16 field_ids[] = {CSTRK_WHEAT_FIELD_ID, CSTRK_TULIP_FIELD_ID,
+										   CSTRK_VINE_FIELD_ID};
+	static const legacy_u16 field_versions[] = {
+		CSTRK_WHEAT_FIELD_VERSION, CSTRK_TULIP_FIELD_VERSION, CSTRK_VINE_FIELD_VERSION};
+	static const legacy_s8 slopes[][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+	struct CSTRK_TRACK track, decoded;
+	cstrk_init(&track);
+	cstrk_init(&decoded);
+	assert(cstrk_create(&track, 1U, 1U, error, sizeof(error)));
+	struct CSTRK_OBJECT object = object_at(0, 0);
+	object.base_height = 2U;
+	track.objects = calloc(1U, sizeof(*track.objects));
+	assert(track.objects);
+	track.object_count = 1U;
+	const size_t object_offset = CSTRK_HEADER_SIZE + 4U + 2U;
+	assert(!cstrk_is_crop_field(CSTRK_PINE_TREE_ID));
+	assert(!cstrk_is_crop_field(CSTRK_VINE_FIELD_ID + 1U));
+	for (legacy_u8 field = 0; field < sizeof(field_ids) / sizeof(field_ids[0]); field++) {
+		object.legacy_id = field_ids[field];
+		assert(cstrk_is_crop_field(object.legacy_id));
+		legacy_u16 required_version = field_versions[field];
+		for (legacy_u8 rotation = 0; rotation < TEST_CROP_DIRECTION_COUNT; rotation++) {
+			object.rotation = rotation;
+			for (legacy_u8 slope = 0; slope < sizeof(slopes) / sizeof(slopes[0]); slope++) {
+				object.slope_x = slopes[slope][0];
+				object.slope_y = slopes[slope][1];
+				for (legacy_u8 y = 0; y <= track.height; y++) {
+					for (legacy_u8 x = 0; x <= track.width; x++) {
+						track.corner_heights[(size_t)y * (track.width + 1U) + x] =
+							object.base_height + object.slope_x * x + object.slope_y * y;
+					}
+				}
+				track.objects[0] = object;
+				track.version = CSTRK_VERSION;
+				legacy_u8 *data = NULL, *again = NULL;
+				size_t size = 0, again_size = 0;
+				assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+				assert(LEGACY_READ_U16_LE(data + object_offset) == object.legacy_id);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.objects[0].legacy_id == object.legacy_id);
+				assert(decoded.objects[0].rotation == rotation);
+				assert(decoded.objects[0].slope_x == object.slope_x);
+				assert(decoded.objects[0].slope_y == object.slope_y);
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(data, again, size) == 0);
+				/* Wheat remains exportable at v11; later fields require v12. */
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, required_version);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.version == CSTRK_VERSION);
+				decoded.version = required_version;
+				free(again);
+				again = NULL;
+				assert(cstrk_encode(&decoded, &again, &again_size, error, sizeof(error)));
+				assert(again_size == size && memcmp(data, again, size) == 0);
+				for (legacy_u16 version = CSTRK_MIN_VERSION; version < required_version;
+					 version++) {
+					track.version = version;
+					assert(!cstrk_validate(&track, error, sizeof(error)));
+					LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, version);
+					assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+					assert(decoded.objects[0].legacy_id == object.legacy_id);
+				}
+				LEGACY_WRITE_U16_LE(data + CSTRK_VERSION_OFFSET, TEST_FUTURE_REVISION);
+				assert(cstrk_decode(data, size, &decoded, error, sizeof(error)));
+				assert(decoded.version == TEST_FUTURE_REVISION);
+				free(again);
+				free(data);
+			}
+		}
+		track.version = CSTRK_VERSION;
+		track.objects[0] = object;
+		legacy_u8 *data = NULL;
+		size_t size = 0;
+		assert(cstrk_encode(&track, &data, &size, error, sizeof(error)));
+		static const legacy_u8 flags[] = {
+			CSTRK_OBJECT_LOWER_SURFACE_OFFSET, CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET,
+			CSTRK_OBJECT_ROLL_RAMP_OFFSET, CSTRK_OBJECT_PINE_COUNT_OFFSET};
+		for (legacy_u8 index = 0; index < sizeof(flags) / sizeof(flags[0]); index++) {
+			data[object_offset + flags[index]] = 1U;
+			assert(!cstrk_decode(data, size, &decoded, error, sizeof(error)));
+			data[object_offset + flags[index]] = 0U;
+		}
+		track.objects[0].width = 2U;
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+		track.objects[0] = object;
+		track.objects[0].occupied_mask = 0U;
+		assert(!cstrk_validate(&track, error, sizeof(error)));
+		free(data);
+	}
+	cstrk_free(&decoded);
+	cstrk_free(&track);
+}
+
 int main(void)
 {
+	test_crop_field_records();
 	test_wire_layout();
 	test_overpass_lower_surfaces();
 	test_tunnel_slalom_roundtrip();
 	test_tunnel_slalom_invalid_records();
 	test_roll_ramp_records();
+	test_pine_group_records();
+	test_pine_group_wire_upgrade();
 	test_horizons_and_versions();
 	test_surface_corners();
 	test_original_terrain_profiles();

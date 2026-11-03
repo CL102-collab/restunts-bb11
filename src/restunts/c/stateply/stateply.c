@@ -12,6 +12,7 @@
 #include "../externs.h"
 #ifdef RESTUNTS_SDL3
 #include "../extended/extended_stateply.h"
+#include "../extended/extended_physics_collision.h"
 #endif
 
 #include "stateply_internal.h"
@@ -149,8 +150,14 @@ static legacy_s16 handle_auxiliary_obstacles(struct CARSTATE *carstate, struct S
 	legacy_s8 obstacle_count = get_track_collision_points(column, row, positions);
 	for (legacy_s16 i = 0; i < obstacle_count; i++) {
 		obstacle_pose[PLAYER_PHYSICS_POSE_POSITION_INDEX] = positions[i];
-		if (car_collision_boxes_overlap(simd->collide_points, car_pose,
-										track_auxiliary_obstacle_bounds, obstacle_pose) != 0) {
+		struct POINT2D bounds[2];
+		bounds[0] = track_auxiliary_obstacle_bounds[0];
+		bounds[1] = track_auxiliary_obstacle_bounds[1];
+#ifdef RESTUNTS_SDL3
+		extended_track_collision_bounds(column, row, (legacy_u8)i, bounds);
+#endif
+		if (car_collision_boxes_overlap(simd->collide_points, car_pose, bounds, obstacle_pose) !=
+			0) {
 			carstate->car_velocity_heading_offset =
 				LEGACY_S16_WRAP_SUB(carstate->car_velocity_heading_offset, ANGLE_HALF_TURN);
 			update_crash_state(CRASH_EVENT_COLLISION, car_index);

@@ -15,6 +15,9 @@
 /* Subpixel decals can miss pixel centers at some positions and orientations. */
 #define HIRES_MIN_DECAL_WIDTH 0.75
 #define HIRES_DECAL_WIDTH_REDUCTION 2
+/* Logical-pixel thresholds keep decal visibility independent of render scale. */
+#define HIRES_DECAL_CULL_LOGICAL_WIDTH 0.125
+#define HIRES_DECAL_BORDER_LOGICAL_WIDTH 0.5
 #define HIRES_MAX_POLYGON_POINTS 20
 #define HIRES_ROUND_POINTS 64
 #define HIRES_ROUND_SMALL_POINTS 8U

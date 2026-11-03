@@ -96,6 +96,7 @@ small_source_companions() {
         trackobj.c) printf '%s\n' track/trackobj_road.c track/trackobj_stunts.c track/trackobj_queries.c ;;
         trackobj_road.c) printf '%s\n' owoot/owoot_road.c ;;
         stateply.c) printf '%s\n' stateply/stateply_motion.c stateply/stateply_contact.c ;;
+        extended_physics_collision.c|extended_frame_objects.c) echo extended/extended_pine_trees.c ;;
         extended_trackobj.c) printf '%s\n' extended/extended_trackobj_solids.c ;;
         extended_owoot_route.c) printf '%s\n' extended/extended_owoot_gates.c extended/extended_owoot_jump.c ;;
         highscore.c) printf '%s\n' highscore/highscore_results.c highscore/highscore_results_text.c ;;
@@ -216,26 +217,34 @@ run_host_test() {
     local source
     local companion
     local included
+    local included_sources
+    local companions
     local known_sources=" $source_file $* "
     local sources=("$source_file" "$@")
+    # Collect producer output synchronously so source discovery does not rely
+    # on background process-substitution pipes on native test hosts.
+    included_sources=$(sed -n -e 's|^#include "../c/\([^" ]*\.c\)".*|\1|p' \
+        -e 's|^#define [A-Z_]*SOURCE "../c/\([^" ]*\.c\)".*|\1|p' "$fixture")
     while IFS= read -r included; do
+        [[ -n "$included" ]] || continue
         known_sources="$known_sources $included "
         sources+=("$included")
-    done < <(sed -n -e 's|^#include "../c/\([^" ]*\.c\)".*|\1|p' \
-        -e 's|^#define [A-Z_]*SOURCE "../c/\([^" ]*\.c\)".*|\1|p' "$fixture")
+    done <<< "$included_sources"
     local extra_sources=()
     local source_index=0
     while [[ "$source_index" -lt "${#sources[@]}" ]]; do
         source="${sources[$source_index]}"
         source_index=$((source_index + 1))
+        companions=$(source_companions "${source##*/}" "$*")
         while IFS= read -r companion; do
+            [[ -n "$companion" ]] || continue
             if [[ "$known_sources" != *"/$companion "* &&
                   "$known_sources" != *" $companion "* ]]; then
                 extra_sources+=("$test_source_dir/$companion")
                 sources+=("$companion")
                 known_sources="$known_sources $companion "
             fi
-        done < <(source_companions "${source##*/}" "$*")
+        done <<< "$companions"
     done
 
     echo "Building $test_name"
@@ -433,6 +442,11 @@ run_host_test test-car-resource-paths fileio.c \
     "$test_source_dir/../platform/sdl3/file.c" "$test_source_dir/../platform/sdl3/memory.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -DRESTUNTS_CAR_DIRECTORY='"../Bundled"' \
     -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
+run_host_test test-track-resource-paths fileio.c \
+    "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" "$test_source_dir/memmgr.c" \
+    "$test_source_dir/../platform/sdl3/file.c" "$test_source_dir/../platform/sdl3/memory.c" \
+    -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS \
+    -Wno-pointer-sign -Wno-missing-braces -Wno-missing-field-initializers
 run_host_test test-file-decompression fileio.c "$test_source_dir/resource.c" \
     "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \
     -DRESTUNTS_HEADLESS -Wno-pointer-sign
@@ -543,7 +557,8 @@ run_host_test test-driving-rules driving_rules.c \
 run_host_test test-csrpl extended/extended_csrpl.c "$test_source_dir/extended/extended_cstrk.c" \
     "$test_source_dir/extended/extended_replay.c"
 run_host_test test-extended-replay-runtime extended/extended_replay_runtime.c \
-    "$test_source_dir/extended/extended_replay.c" -DRESTUNTS_SDL3
+    "$test_source_dir/extended/extended_replay.c" "$test_source_dir/extended/extended_replay_ui.c" \
+    "$test_source_dir/ui/ui_text.c" "$test_source_dir/legacy.c" -DRESTUNTS_SDL3 -Wno-pointer-sign
 run_host_test test-resource-lookup resource.c
 run_host_test test-shape2d-memory shape2d/shape2d_resources.c \
     "$test_source_dir/memmgr.c" "$test_source_dir/resource.c" "$test_source_dir/shape2d/shape2d.c" \
@@ -702,6 +717,7 @@ run_host_test test-roll-ramp-motion legacy.c "$test_source_dir/math/math.c" \
     -Wno-missing-field-initializers
 run_host_test test-extended-native-response physics/physics_collision.c "$test_source_dir/extended/extended_roll_ramp.c" \
     "$test_source_dir/headless/headless_data.c" "$test_source_dir/extended/extended_geometry.c" \
+    "$test_source_dir/extended/extended_cstrk.c" \
     "$test_source_dir/trkutil.c" \
     "$test_source_dir/math/math.c" "$test_source_dir/legacy.c" "$test_source_dir/strlib.c" \
     -DRESTUNTS_SDL3 -DRESTUNTS_HEADLESS -Wno-pointer-sign -Wno-missing-field-initializers

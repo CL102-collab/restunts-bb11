@@ -284,7 +284,13 @@ notes and instruments with pitch-dependent envelopes, vibrato, key scaling or
 multiplier controllers retain their original setup. Nuked runtime writes are
 buffered to preserve same-tick key-off/key-on transitions.
 
-In DOSBox/DOSBox-X use `core=dynamic`, `cycles=max`, and `aspect=true`. Aspect
+Extended track and replay filenames support up to 12 characters before
+`.cstrk` or `.csrpl` (18 characters including the extension), including in the
+native file picker. Original `.trk` and `.rpl` names retain their eight-character
+limit. Extended high score files use the same full track name with `.cshig`.
+
+In DOSBox-X enable `lfn=true` and use DOS version 7.1 or newer for these long
+filenames. Use `core=dynamic`, `cycles=max`, and `aspect=true`. Aspect
 correction displays 320x200 VGA pixels at their intended 4:3 shape. Mount a
 directory containing the executable, data, and DPMI host, then run `RESTUNTS.EXE`. Stop an
 automated DOSBox process with SIGKILL; graceful termination can open a modal
@@ -333,6 +339,14 @@ Loose car files in the game-data folder or beside the executable retain priority
 over files in `cars/`; duplicate IDs appear only once in the car menu. Source
 builds also search `assets/cars/`. Browser and Android builds bundle these same
 car resources automatically.
+
+Custom tracks are discovered in `tracks/` inside the game-data folder and beside
+the executable. Place `.TRK` files there, or `.CSTRK` files for Chocolate Stunts
+tracks. Optional `.HIG` and `.CSHIG` high score tables can accompany them.
+Search priority is loose game-data files, loose executable files, game-data
+`tracks/`, then executable `tracks/`. Filenames are matched without case
+sensitivity; duplicate filenames appear once in the track menu. Saved tracks
+and updated high scores continue to go into the selected game-data folder.
 
 `repldump --time` also writes a `.tim` file with the replay's basename, such as
 `DEFAULT.tim`. Its first line contains the player's driving time to the finish,

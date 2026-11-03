@@ -65,8 +65,31 @@
 #define ENGINE_TEST_WALL_SOUND_FLAG 16U
 #define ENGINE_OPPONENT_MAXIMUM_SECONDS 120U
 #define ENGINE_OPPONENT_PARK_TILE 10L
+#define ENGINE_OPPONENT_ELEVATED_BOTTOM_ROW 52U
+#define ENGINE_OPPONENT_ELEVATED_START_ROW 49U
+#define ENGINE_OPPONENT_ELEVATED_FIRST_SLOPE_COLUMN 44U
+#define ENGINE_OPPONENT_ELEVATED_FOOTPRINT 2U
+#define ENGINE_OPPONENT_ELEVATED_MAIN_MASK 9U
+#define ENGINE_OPPONENT_ELEVATED_ANTI_MASK 6U
+#define ENGINE_OPPONENT_START_ID 1U
+#define ENGINE_OPPONENT_ELEVATED_ROAD_ID 34U
+#define ENGINE_OPPONENT_ELEVATED_CROSS_ROAD_ID 35U
+#define ENGINE_OPPONENT_UP_RAMP_ID 38U
+#define ENGINE_OPPONENT_DOWN_RAMP_ID 39U
+#define ENGINE_OPPONENT_ELEVATED_TOP_LEFT_ID 105U
+#define ENGINE_OPPONENT_ELEVATED_TOP_RIGHT_ID 106U
+#define ENGINE_OPPONENT_ELEVATED_BOTTOM_LEFT_ID 107U
+#define ENGINE_OPPONENT_ELEVATED_BOTTOM_RIGHT_ID 108U
+#define ENGINE_NINHBINH_MAXIMUM_SECONDS 900U
+#define ENGINE_NINHBINH_OPPONENT_TYPE 6U
+#define ENGINE_NINHBINH_PARK_COLUMN 28U
+#define ENGINE_NINHBINH_PARK_ROW 87U
 
-enum ENGINE_OPPONENT_TERRAIN { ENGINE_OPPONENT_FLAT, ENGINE_OPPONENT_RAISED };
+enum ENGINE_OPPONENT_TERRAIN {
+	ENGINE_OPPONENT_FLAT,
+	ENGINE_OPPONENT_RAISED,
+	ENGINE_OPPONENT_ELEVATED
+};
 
 static char temporary_directory[] = "/tmp/restunts-extended-replay-XXXXXX";
 static char replay_path[128];
@@ -142,6 +165,87 @@ static void create_track(legacy_int raised_start)
 	}
 	assert(track_setup() == 0);
 	assert(start_finish_column == ENGINE_TEST_LEFT_COLUMN && start_finish_row == start_row);
+	cstrk_free(&track);
+}
+
+static legacy_u8 opponent_elevated_height(legacy_u16 column)
+{
+	return column <= ENGINE_OPPONENT_ELEVATED_FIRST_SLOPE_COLUMN ? 0U
+		   : column >= ENGINE_OPPONENT_ELEVATED_FIRST_SLOPE_COLUMN + CSTRK_MAX_HEIGHT
+			   ? CSTRK_MAX_HEIGHT
+			   : column - ENGINE_OPPONENT_ELEVATED_FIRST_SLOPE_COLUMN;
+}
+
+static void add_elevated_opponent_piece(struct CSTRK_TRACK *track, legacy_u16 id, legacy_u8 column,
+										legacy_u8 row)
+{
+	struct CSTRK_OBJECT object = {0};
+	object.legacy_id = id;
+	object.x = column;
+	object.y = row;
+	object.width = object.height = object.occupied_mask = 1U;
+	if (trkObjectList[id].ss_physicalModel == PHYSICAL_MODEL_ELEVATED_CORNER) {
+		object.width = object.height = ENGINE_OPPONENT_ELEVATED_FOOTPRINT;
+		legacy_u16 orientation = (legacy_u16)trkObjectList[id].ss_rotY & ANGLE_MASK;
+		object.occupied_mask =
+			orientation == ANGLE_QUARTER_TURN || orientation == ANGLE_THREE_QUARTER_TURN
+				? ENGINE_OPPONENT_ELEVATED_ANTI_MASK
+				: ENGINE_OPPONENT_ELEVATED_MAIN_MASK;
+	}
+	object.base_height = opponent_elevated_height(column);
+	object.slope_x = (legacy_s8)(opponent_elevated_height(column + 1U) - object.base_height);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_add_object(track, &object, error, sizeof(error)));
+}
+
+/* Both right-hand elevated turns share a continuous terrain incline. The
+ * elevated straights climb, descend and run across that incline, while the
+ * start and its two connecting ramps stay on level ground. */
+static void create_elevated_opponent_track(void)
+{
+	struct CSTRK_TRACK track;
+	cstrk_init(&track);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	for (legacy_u16 row = 0; row <= track.height; row++) {
+		for (legacy_u16 column = 0; column <= track.width; column++) {
+			track.corner_heights[row * (track.width + 1U) + column] =
+				opponent_elevated_height(column);
+		}
+	}
+	add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_TOP_LEFT_ID,
+								ENGINE_TEST_LEFT_COLUMN, ENGINE_TEST_TOP_ROW);
+	add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_TOP_RIGHT_ID,
+								ENGINE_TEST_RIGHT_COLUMN, ENGINE_TEST_TOP_ROW);
+	add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_BOTTOM_LEFT_ID,
+								ENGINE_TEST_LEFT_COLUMN, ENGINE_OPPONENT_ELEVATED_BOTTOM_ROW);
+	add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_BOTTOM_RIGHT_ID,
+								ENGINE_TEST_RIGHT_COLUMN, ENGINE_OPPONENT_ELEVATED_BOTTOM_ROW);
+	for (legacy_u8 column = ENGINE_TEST_LEFT_COLUMN + ENGINE_OPPONENT_ELEVATED_FOOTPRINT;
+		 column < ENGINE_TEST_RIGHT_COLUMN; column++) {
+		add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_CROSS_ROAD_ID, column,
+									ENGINE_TEST_TOP_ROW);
+		add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_CROSS_ROAD_ID, column,
+									ENGINE_OPPONENT_ELEVATED_BOTTOM_ROW + 1U);
+	}
+	for (legacy_u8 row = ENGINE_TEST_TOP_ROW + ENGINE_OPPONENT_ELEVATED_FOOTPRINT;
+		 row < ENGINE_OPPONENT_ELEVATED_BOTTOM_ROW; row++) {
+		legacy_u16 id = ENGINE_OPPONENT_ELEVATED_ROAD_ID;
+		if (row == ENGINE_OPPONENT_ELEVATED_START_ROW) {
+			id = ENGINE_OPPONENT_START_ID;
+		} else if (row == ENGINE_OPPONENT_ELEVATED_START_ROW - 1U) {
+			id = ENGINE_OPPONENT_UP_RAMP_ID;
+		} else if (row == ENGINE_OPPONENT_ELEVATED_START_ROW + 1U) {
+			id = ENGINE_OPPONENT_DOWN_RAMP_ID;
+		}
+		add_elevated_opponent_piece(&track, id, ENGINE_TEST_LEFT_COLUMN, row);
+		add_elevated_opponent_piece(&track, ENGINE_OPPONENT_ELEVATED_ROAD_ID,
+									ENGINE_TEST_RIGHT_COLUMN + 1U, row);
+	}
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == 0);
+	assert(start_finish_column == ENGINE_TEST_LEFT_COLUMN &&
+		   start_finish_row == ENGINE_OPPONENT_ELEVATED_START_ROW);
 	cstrk_free(&track);
 }
 
@@ -277,12 +381,16 @@ static void test_extended_opponent_laps(void)
 	memcpy(gameconfig.game_opponentcarid, "COUN", CSRPL_CAR_ID_SIZE);
 	gameconfig.game_playertransmission = TRANSMISSION_AUTOMATIC;
 	gameconfig.game_opponenttransmission = TRANSMISSION_AUTOMATIC;
-	for (legacy_u8 terrain = ENGINE_OPPONENT_FLAT; terrain <= ENGINE_OPPONENT_RAISED; terrain++) {
+	for (legacy_u8 terrain = ENGINE_OPPONENT_FLAT; terrain <= ENGINE_OPPONENT_ELEVATED; terrain++) {
 		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
 			gameconfig.game_framespersec = rates[rate];
 			for (legacy_u8 opponent = OPPONENT_FIRST; opponent <= OPPONENT_LAST; opponent++) {
 				gameconfig.game_opponenttype = opponent;
-				create_track(terrain == ENGINE_OPPONENT_RAISED);
+				if (terrain == ENGINE_OPPONENT_ELEVATED) {
+					create_elevated_opponent_track();
+				} else {
+					create_track(terrain == ENGINE_OPPONENT_RAISED);
+				}
 				ghost_load_simulation_resources();
 				extended_replay_runtime_begin();
 				initialize_simulation();
@@ -316,7 +424,81 @@ static void test_extended_opponent_laps(void)
 	gameconfig = saved_config;
 	framespersec = gameconfig.game_framespersec;
 	ghost_load_simulation_resources();
-	puts("Extended opponents: all six finish flat and four-level circuits at 10 and 20 Hz.");
+	puts("Extended opponents: all six finish flat, four-level and sloped elevated circuits at 10 "
+		 "and 20 Hz.");
+}
+
+/* Keep the user's full circuit as a regression: passing the first incline
+ * alone misses the later elevated turns, descents and changes of grade. */
+static void test_ninhbinh_opponent_finish(void)
+{
+	static const legacy_u16 rates[] = {GAME_FRAME_RATE_LOW, GAME_FRAME_RATE_NORMAL};
+	static const legacy_char cars[][CSRPL_CAR_ID_SIZE + 1U] = {"P962", "COUN"};
+	const legacy_u8 car_count = sizeof(cars) / sizeof(cars[0]);
+	const struct GAMEINFO saved_config = gameconfig;
+	ghost_free_simulation_resources();
+	gameconfig.game_playertransmission = TRANSMISSION_AUTOMATIC;
+	gameconfig.game_opponenttransmission = TRANSMISSION_AUTOMATIC;
+	gameconfig.game_opponenttype = ENGINE_NINHBINH_OPPONENT_TYPE;
+	for (legacy_u8 car = 0; car < car_count; car++) {
+		memcpy(gameconfig.game_playercarid, cars[car], CSRPL_CAR_ID_SIZE);
+		memcpy(gameconfig.game_opponentcarid, cars[car], CSRPL_CAR_ID_SIZE);
+		for (legacy_u8 rate = 0; rate < sizeof(rates) / sizeof(rates[0]); rate++) {
+			gameconfig.game_framespersec = rates[rate];
+			assert(extended_file_load_track((const legacy_s8 *)RESTUNTS_NINHBINH_TRACK_FIXTURE) ==
+				   0);
+			assert(track_setup() == 0);
+			ghost_load_simulation_resources();
+			extended_replay_runtime_begin();
+			initialize_simulation();
+			state.game_inputmode = GAME_INPUT_MODE_ACTIVE;
+			state.playerstate.car_position.lx =
+				(ENGINE_NINHBINH_PARK_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2L) *
+				ENGINE_TEST_POSITION_SCALE;
+			state.playerstate.car_position.lz =
+				((extended_track_height() - 1L - ENGINE_NINHBINH_PARK_ROW) * CSTRK_TILE_WORLD_SIZE +
+				 CSTRK_TILE_WORLD_SIZE / 2L) *
+				ENGINE_TEST_POSITION_SCALE;
+			legacy_s16 parking_height =
+				extended_track_elevation(ENGINE_NINHBINH_PARK_COLUMN, ENGINE_NINHBINH_PARK_ROW,
+										 CSTRK_TILE_WORLD_SIZE / 2, CSTRK_TILE_WORLD_SIZE / 2);
+			state.playerstate.car_position.ly =
+				(parking_height + ENGINE_TEST_INITIAL_BODY_HEIGHT) * ENGINE_TEST_POSITION_SCALE;
+			state.playerstate.car_previous_position = state.playerstate.car_position;
+			legacy_u16 route_count = 1U;
+			while (LEGACY_READ_U16_LE((const legacy_u8 *)opponent_route_track_indices +
+									  route_count * LEGACY_WORD_BYTES) != 0U) {
+				route_count++;
+				assert(route_count < extended_track_route_capacity());
+			}
+			legacy_u32 frame = 0;
+			legacy_u32 frame_limit = (legacy_u32)ENGINE_NINHBINH_MAXIMUM_SECONDS * rates[rate];
+			while (frame < frame_limit &&
+				   state.opponentstate.car_crashBmpFlag == CRASH_EVENT_NONE) {
+				legacy_s16 route_index = state.opponentstate.car_route_index;
+				assert(route_index >= 0 && (legacy_u16)route_index < route_count);
+				assert(extended_replay_record_input(INPUT_NONE));
+				update_gamestate();
+				frame++;
+			}
+			if (state.opponentstate.car_crashBmpFlag != CRASH_EVENT_FINISH) {
+				fprintf(stderr,
+						"Ninh Binh Skid/%s at %u Hz: event %u after %u frames, route %d/%u\n",
+						cars[car], rates[rate], state.opponentstate.car_crashBmpFlag, frame,
+						state.opponentstate.car_route_index, route_count);
+			}
+			assert(state.opponentstate.car_crashBmpFlag == CRASH_EVENT_FINISH);
+			assert(state.opponentstate.car_lap_count > 0);
+			printf("Ninh Binh: Skid/%s at %u Hz finishes the %u-piece circuit in %u frames.\n",
+				   cars[car], rates[rate], route_count, frame);
+			extended_replay_runtime_clear();
+			ghost_free_simulation_resources();
+			extended_track_unload();
+		}
+	}
+	gameconfig = saved_config;
+	framespersec = gameconfig.game_framespersec;
+	ghost_load_simulation_resources();
 }
 
 /* Rotate the complete four-level climb, including its entry and exit flats.
@@ -1337,8 +1519,7 @@ static void test_recorded_half_pipe_body_collision(void)
 	ghost_free_simulation_resources();
 	memcpy(gameconfig.game_playercarid, view.metadata.player_car_id, CSRPL_CAR_ID_SIZE);
 	memcpy(gameconfig.game_opponentcarid, view.metadata.opponent_car_id, CSRPL_CAR_ID_SIZE);
-	memcpy(gameconfig.game_trackname, view.metadata.track_name, CSRPL_TRACK_NAME_SIZE);
-	gameconfig.game_trackname[CSRPL_TRACK_NAME_SIZE - 1U] = 0;
+	extended_track_set_name((const legacy_s8 *)view.metadata.track_name);
 	gameconfig.game_playermaterial = view.metadata.player_material;
 	gameconfig.game_playertransmission = view.metadata.player_transmission;
 	gameconfig.game_opponenttype = view.metadata.opponent_type;
@@ -1363,6 +1544,74 @@ static void test_recorded_half_pipe_body_collision(void)
 	ghost_free_simulation_resources();
 	gameconfig = original_config;
 	ghost_load_simulation_resources();
+}
+
+static void test_long_extended_names(void)
+{
+	static const legacy_s8 first_name[] = "ALPINECIRCU1";
+	static const legacy_s8 second_name[] = "ALPINECIRCU2";
+	legacy_char track_path[128], saved_path[128];
+	snprintf(track_path, sizeof(track_path), "%s/%s.cstrk", temporary_directory, first_name);
+	snprintf(saved_path, sizeof(saved_path), "%s/%s.csrpl", temporary_directory, first_name);
+	create_track(0);
+	legacy_char error[ENGINE_TEST_ERROR_CAPACITY];
+	legacy_u8 *track_bytes = NULL;
+	size_t track_size = 0;
+	assert(cstrk_encode(extended_track_model(), &track_bytes, &track_size, error, sizeof(error)));
+	FILE *file = fopen(track_path, "wb");
+	assert(file && fwrite(track_bytes, 1U, track_size, file) == track_size && fclose(file) == 0);
+	free(track_bytes);
+	assert(extended_file_load_track((const legacy_s8 *)track_path) == 0);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	assert(strcmp((const legacy_char *)gameconfig.game_trackname, "ALPINECI") == 0);
+	assert(sizeof(struct GAMEINFO) == REPLAY_GAMEINFO_SIZE);
+	/* The state setter accepts its own getter without destroying the name. */
+	extended_track_set_name(extended_track_name());
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	const struct CSTRK_TRACK *prior_track = extended_track_model();
+	file = fopen(invalid_path, "wb");
+	assert(file && fputc(0, file) == 0 && fclose(file) == 0);
+	assert(extended_file_load_track((const legacy_s8 *)invalid_path) != 0);
+	assert(extended_track_model() == prior_track);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	extended_replay_runtime_begin();
+	assert(extended_replay_record_input(0));
+	assert(extended_file_write_replay((const legacy_s8 *)saved_path) == 0);
+	file = fopen(saved_path, "rb");
+	assert(file && fseek(file, 0, SEEK_END) == 0);
+	legacy_s32 size = (legacy_s32)ftell(file);
+	assert(size > 0 && fseek(file, 0, SEEK_SET) == 0);
+	legacy_u8 *bytes = malloc((size_t)size);
+	assert(bytes && fread(bytes, 1U, (size_t)size, file) == (size_t)size && fclose(file) == 0);
+	struct CSRPL_VIEW view;
+	assert(csrpl_decode(bytes, (size_t)size, &view, error, sizeof(error)));
+	assert(strcmp(view.metadata.track_name, (const legacy_char *)first_name) == 0);
+	assert(view.metadata.version >= CSRPL_LONG_TRACK_NAME_VERSION);
+	/* Admission failure occurs after replay history allocation and must retain both names. */
+	size_t first_object =
+		CSRPL_HEADER_SIZE + CSTRK_HEADER_SIZE +
+		((size_t)extended_track_width() + 1U) * ((size_t)extended_track_height() + 1U) +
+		2U * (size_t)extended_track_width() * extended_track_height();
+	LEGACY_WRITE_U16_LE(bytes + first_object, 182U);
+	assert(csrpl_decode(bytes, (size_t)size, &view, error, sizeof(error)));
+	file = fopen(invalid_path, "wb");
+	assert(file && fwrite(bytes, 1U, (size_t)size, file) == (size_t)size && fclose(file) == 0);
+	free(bytes);
+	extended_track_set_name(second_name);
+	const legacy_u8 *prior_inputs = extended_replay_inputs();
+	assert(extended_file_load_replay((const legacy_s8 *)invalid_path) != 0);
+	assert(extended_replay_inputs() == prior_inputs && extended_track_model() == prior_track);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)second_name) ==
+		   0);
+	assert(extended_file_load_replay((const legacy_s8 *)saved_path) == 0);
+	assert(strcmp((const legacy_char *)extended_track_name(), (const legacy_char *)first_name) ==
+		   0);
+	assert(gameconfig.game_framespersec == GAME_FRAME_RATE_NORMAL);
+	assert(strcmp((const legacy_char *)gameconfig.game_trackname, "ALPINECI") == 0);
+	assert(unlink(track_path) == 0 && unlink(saved_path) == 0);
 }
 
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
@@ -1567,6 +1816,8 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	test_deep_contact_below_roll_grille();
 	test_terrain_below_roll_ramp_does_not_arm();
 	test_extended_opponent_laps();
+	test_ninhbinh_opponent_finish();
+	test_long_extended_names();
 	extended_replay_runtime_clear();
 	extended_track_unload();
 	puts("Extended engine replay: 70001 frames, deterministic rewind/branch, file round trip, wide "

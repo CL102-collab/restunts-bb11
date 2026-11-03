@@ -45,6 +45,11 @@ void extended_geometry_grade_plane(const struct CSTRK_OBJECT *object, struct PLA
 int extended_geometry_transform_shape(const struct SHAPE3D *source, struct SHAPE3D *destination,
 									  legacy_s16 orientation, legacy_u16 surface,
 									  legacy_s16 physical_model);
+/* Animated paint columns are independent of the selected road surface. */
+legacy_s16 extended_geometry_transform_shape_paint(const struct SHAPE3D *source,
+												   struct SHAPE3D *destination,
+												   legacy_s16 orientation, legacy_u16 surface,
+												   legacy_s16 physical_model, legacy_u16 paint);
 void extended_geometry_free_shape(struct SHAPE3D *shape);
 
 #endif

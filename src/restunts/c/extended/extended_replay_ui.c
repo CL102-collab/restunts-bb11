@@ -42,6 +42,8 @@
 #define REPLAY_SCRUB_FIXED_SCALE 20L
 #define REPLAY_SCRUB_MAX_SPEED 100
 #define REPLAY_INPUT_SETTLE_DELTA 1000
+#define REPLAY_SECONDS_PER_MINUTE 60U
+#define REPLAY_TWO_DIGIT_MINUTES 10U
 
 legacy_s16 extended_replay_ui_scrub(legacy_s16 direction)
 {
@@ -95,6 +97,10 @@ legacy_s16 extended_replay_ui_format_time(legacy_s8 *out, legacy_u32 frame, lega
 {
 	if (!extended_replay_is_active()) {
 		return 0;
+	}
+	/* Match the classic two-column minute field without truncating long replays. */
+	if (frame < (legacy_u32)framespersec * REPLAY_SECONDS_PER_MINUTE * REPLAY_TWO_DIGIT_MINUTES) {
+		*out++ = ' ';
 	}
 	extended_replay_format_runtime_time(out, frame, fraction);
 	return 1;

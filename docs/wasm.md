@@ -136,7 +136,8 @@ existing hardware-keyboard input.
 when you play from a website. Selecting a folder gives the game local access to
 its files; it does not send them to the hosting server.
 
-Immediate game files, car resources in `cars/`, and custom opponent animations in
+Immediate game files, car resources in `cars/`, tracks and high score tables in
+`tracks/`, and custom opponent animations in
 `opponents/animations/opp1win.webm` through `opp6win.webm`, or `opp1lose.webm`
 through `opp6lose.webm`, are loaded. Animation names describe the opponent's
 result. Use WebM with VP8 video; animations play silently while HyperVision is
@@ -144,7 +145,10 @@ on, keeping the game's music. Missing or unusable clips retain the original
 animation. The `cars/` folder accepts `.RES`, `.PRE`, `.3SH`, `.P3S`, `.VSH`, and
 `.PVS` resources directly; loose car resources in the game folder still work.
 Bundled cars load automatically, alongside cars in your selected folder. Other
-subfolders, executables, and the HTML are ignored.
+subfolders, executables, and the HTML are ignored. The `tracks/` folder accepts
+`.TRK`, `.CSTRK`, `.HIG`, and `.CSHIG` files directly. Loose tracks take priority
+over matching filenames in `tracks/`; duplicate filenames appear only once
+in the track menu. Saved tracks and updated scores remain in the game folder.
 Filenames are resolved case-insensitively. Identical files differing
 only in case are accepted; conflicting contents report an error. The selected
 folder must contain the original game resources, including `MAIN.RES` (or

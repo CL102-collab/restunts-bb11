@@ -8,9 +8,9 @@ const resources = require('../../src/restunts/platform/wasm/track-editor-resourc
 
 function test(name, callback) { callback(); console.log('PASS ' + name); }
 test('library combines rotated alternatives while preserving distinct shapes and groups', () => {
-    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 10]);
+    assert.deepEqual(model.groups.map(g => model.library.filter(p => p.group === g.id).length), [7, 10, 4, 2, 4, 9, 2, 15]);
     const families = new Set(model.library.map(p => p.group + ':' + p.physical));
-    assert.equal(families.size + model.SURFACES.length + 1, model.library.length);
+    assert.equal(families.size + model.SURFACES.length + 3, model.library.length);
     assert.equal(new Set(model.library.map(piece => piece.key)).size, model.library.length);
     for (const entry of model.catalog.filter(p => p.legacySurface <= 0)) assert(families.has(entry.group + ':' + entry.physical));
     for (const id of [38, 58, 60, 62, 101, 103]) assert(model.library.some(p => p.id === id));
@@ -115,7 +115,7 @@ test('every library direction preserves the placement footprint and saved track 
         assert.equal((piece.rotation + rotation) % 4, entry.rollRamp ? (direction + 2) % 4 : direction);
         const expected = model.rotatedFootprint(entry, direction);
         assert.deepEqual(model.rotatedFootprint(piece, rotation), expected);
-        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
+        const doc = new model.Document(4, 4), placed = doc.place(piece.id, 1, 1, 0, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0, entry.pineCount ?? 0);
         assert.equal(placed.width, expected.width); assert.equal(placed.height, expected.height); assert.equal(placed.mask, expected.mask);
         assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), doc.snapshot());
     }
@@ -540,7 +540,7 @@ test('buildable library families fit straight slopes in every element and slope 
                 assert.deepEqual(doc.snapshot(), before);
                 continue;
             }
-            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0);
+            const object = doc.place(piece.id, SLOPE_TEST_ORIGIN, SLOPE_TEST_ORIGIN, surface, rotation, entry.lowerSurface ?? 0, entry.tunnelSlalom ?? 0, entry.rollRamp ?? 0, entry.pineCount ?? 0);
             assert.equal(object.slopeX, slopeX, entry.name + ': column grade');
             assert.equal(object.slopeY, slopeY, entry.name + ': row grade');
             assert.equal(object.baseHeight, slopeX + slopeY > 0 ? 0 : slopeX ? footprint.width : footprint.height);
@@ -817,6 +817,115 @@ test('blocked Level leaves heights and surfaces atomic inside and outside a drag
     assert.throws(() => slope.level(2, 1, 1, 2), /bend/);
     assert.deepEqual(slope.snapshot(), supported);
 });
+test('Level square brushes flatten their complete footprint at every height and selected material', () => {
+    assert.deepEqual(model.LEVEL_BRUSH_SIZES, [1, 2, 4, 8]);
+    for (const size of model.LEVEL_BRUSH_SIZES) for (const base of [0, 2, 4])
+        for (let height = 0; height <= 4; height++) for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+            const doc = new model.Document(14, 14);
+            doc.vertices.fill(base);
+            const initial = (surface + 1) % model.TERRAIN_SURFACES.length;
+            doc.cells = doc.cells.map(() => ({ surface: initial, halfWaterCorner: 0 }));
+            doc.paint(3, 3, initial, 1, surface);
+            doc.history = [];
+            const before = doc.snapshot();
+            doc.levelArea(3, 3, size, height, surface);
+            for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+                const targeted = x >= 3 && x < 3 + size && y >= 3 && y < 3 + size;
+                if (targeted) assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
+                const corners = [y * 15 + x, y * 15 + x + 1, (y + 1) * 15 + x, (y + 1) * 15 + x + 1];
+                const affected = targeted || corners.some(index => doc.vertices[index] !== before.vertices[index]);
+                assert.deepEqual(doc.cells[y * doc.width + x], affected ? { surface, halfWaterCorner: 0 } : before.cells[y * doc.width + x]);
+            }
+            assert.deepEqual(doc.validate(), []);
+            assert.equal(doc.history.length, 1);
+            const after = doc.snapshot();
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+            assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        }
+});
+test('Level brushes clip at every edge and apply on maps smaller than the selected size', () => {
+    for (const size of model.LEVEL_BRUSH_SIZES) for (const [x, y] of [[0, 0], [4, 3], [3, 1], [0, 2]])
+        for (const height of [0, 2, 4]) {
+            const doc = new model.Document(5, 4); doc.vertices.fill(1);
+            doc.levelArea(x, y, size, height, 2);
+            for (let row = y; row < Math.min(doc.height, y + size); row++)
+                for (let column = x; column < Math.min(doc.width, x + size); column++) {
+                    assert.deepEqual(doc.tileHeights(column, row), [height, height, height, height]);
+                    assert.deepEqual(doc.cells[row * doc.width + column], { surface: 2, halfWaterCorner: 0 });
+                }
+            assert.deepEqual(doc.validate(), []);
+        }
+    const tiny = new model.Document(1, 1);
+    tiny.levelArea(0, 0, 8, 4, 3);
+    assert.deepEqual(Array.from(tiny.vertices), [4, 4, 4, 4]);
+    assert.deepEqual(tiny.cells, [{ surface: 3, halfWaterCorner: 0 }]);
+});
+test('Level mixed-height brushes preserve the chosen plateau through opposite saddle repairs', () => {
+    for (const invert of [false, true]) {
+        const doc = new model.Document(10, 10);
+        doc.raise(1, 1); doc.raise(6, 6); doc.raise(6, 6);
+        if (invert) doc.vertices = doc.vertices.map(value => 4 - value);
+        const height = invert ? 3 : 1;
+        doc.levelArea(2, 2, 4, height, 2);
+        for (let y = 2; y < 6; y++) for (let x = 2; x < 6; x++)
+            assert.deepEqual(doc.tileHeights(x, y), [height, height, height, height]);
+        assert.deepEqual(doc.validate(), []);
+    }
+    const corner = new model.Document(5, 5);
+    for (let y = 0; y <= 5; y++) for (let x = 0; x <= 5; x++)
+        corner.vertices[y * 6 + x] = Math.max(0, 2 - Math.max(Math.abs(x - 3), Math.abs(y - 3)));
+    corner.vertices[0] = 1;
+    assert.deepEqual(corner.validate(), []);
+    corner.levelArea(1, 1, 2, 1, 3);
+    for (let y = 1; y < 3; y++) for (let x = 1; x < 3; x++)
+        assert.deepEqual(corner.tileHeights(x, y), [1, 1, 1, 1]);
+    assert.deepEqual(corner.validate(), []);
+});
+test('Level area validation and blocked structures leave earlier stroke edits atomic', () => {
+    const doc = new model.Document(18, 18);
+    doc.place(4, 3, 3); doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot(), history = doc.history.length;
+    const invalid = [
+        ...[-1, 0, 3, 5, 16, 1.5, null, '2', NaN].map(size => [0, 0, size, 2, 1]),
+        ...[-1, 5, .5, null].map(height => [0, 0, 2, height, 1]),
+        ...[-1, 4, .5, null].map(surface => [0, 0, 2, 2, surface]),
+        [-1, 0, 2, 2, 1], [18, 0, 2, 2, 1], [0, -1, 2, 2, 1], [0, 18, 2, 2, 1]
+    ];
+    for (const args of invalid) {
+        assert.throws(() => doc.levelArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before);
+        assert.equal(doc.history.length, history); assert(doc.canRedo);
+    }
+    assert.throws(() => doc.levelArea(2, 2, 4, 2, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), before); assert(doc.canRedo);
+    doc.beginTransaction('Terrain stroke'); doc.levelArea(12, 12, 4, 2, 1);
+    const earlier = doc.snapshot();
+    for (const args of invalid) {
+        assert.throws(() => doc.levelArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), earlier); assert(doc.pending);
+    }
+    assert.throws(() => doc.levelArea(2, 2, 4, 2, 2), /bend/);
+    assert.deepEqual(doc.snapshot(), earlier); assert(doc.pending);
+    doc.endTransaction(); assert.equal(doc.history.length, history + 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), earlier);
+});
+test('overlapping Level brushes share one undo step and preserve no-op redo', () => {
+    const doc = new model.Document(18, 18), before = doc.snapshot();
+    doc.beginTransaction('Terrain stroke');
+    doc.levelArea(1, 1, 8, 2, 1); doc.levelArea(5, 5, 8, 2, 1);
+    doc.endTransaction();
+    assert.equal(doc.history.length, 1); assert.deepEqual(doc.validate(), []);
+    const after = doc.snapshot();
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    doc.beginTransaction('Terrain stroke'); doc.levelArea(0, 0, 8, 3, 2); doc.cancelTransaction();
+    assert.deepEqual(doc.snapshot(), after);
+    const flat = new model.Document(4, 4);
+    flat.setNotes('future'); flat.undo(); flat.levelArea(0, 0, 8, 0, 0);
+    assert.equal(flat.history.length, 0); assert(flat.canRedo);
+});
 test('one live terrain stroke is one undo operation and undo restores notes', () => {
     const doc = new model.Document(8, 8), before = doc.snapshot();
     doc.beginTransaction('Terrain stroke'); doc.raise(3, 3); doc.raise(3, 3); doc.paint(3, 3, 1, 2); doc.endTransaction();
@@ -1086,6 +1195,300 @@ test('tunnel with slalom flags require v7 and only apply to slalom objects', () 
     doc.objects[0].tunnelSlalom = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
 });
+test('pine groups preserve counts through directions, sloped placement, clipboard and reload', () => {
+    const groups = model.library.filter(piece => piece.pineCount);
+    assert.deepEqual(groups.map(piece => [piece.name, piece.pineCount, piece.group]),
+        [['Pine trees (10)', 10, 10], ['Pine trees (6)', 6, 10]]);
+    const ordinary = model.library.find(piece => piece.physical === model.PINE_PHYSICAL_MODEL && !piece.pineCount);
+    assert(ordinary); assert.equal(ordinary.name, 'Pine tree');
+    for (const selected of groups) for (const direction of [0, 1, 2, 3]) {
+        const variant = model.pieceVariant(selected, direction), display = model.pieceDisplayVariant(variant.piece, variant.rotation);
+        assert.equal(variant.piece.pineCount, selected.pineCount); assert.equal(display.piece.pineCount, selected.pineCount);
+        assert.equal(display.piece.key, selected.key); assert.equal(display.piece.name, selected.name);
+        assert.equal((display.piece.rotation + display.rotation) % 4, direction);
+        assert.equal(model.pieceVariant(ordinary, direction).piece.pineCount, undefined);
+        for (const [slopeX, slopeY] of [[0, 0], ...SLOPE_DIRECTIONS]) {
+            const doc = slopeX || slopeY ? slopeDocument(selected, slopeX, slopeY) : new model.Document(4, 4);
+            const before = doc.snapshot();
+            const object = doc.place(variant.piece.id, 1, 1, 2, variant.rotation, 0, 0, 0, selected.pineCount);
+            assert.equal(object.pineCount, selected.pineCount); assert.equal(object.surface, 0);
+            assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
+            assert.deepEqual([object.width, object.height, object.mask], [1, 1, 1]);
+            const placed = doc.snapshot(), bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+            assert.equal(bytes[record + 15], selected.pineCount);
+            assert.deepEqual(model.decodeCstrk(bytes).snapshot(), placed);
+            const clipboard = doc.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
+            for (const transformed of [clipboard, model.flipClipboard(clipboard, 'horizontal'), model.flipClipboard(clipboard, 'vertical'), model.rotateClipboard(clipboard, 1)]) {
+                assert.equal(transformed.objects[0].pineCount, selected.pineCount);
+                const target = new model.Document(4, 4);
+                target.pasteRegion(transformed, 2, 2);
+                assert.equal(target.objects[0].pineCount, selected.pineCount);
+                assert.deepEqual(model.decodeCstrk(model.encodeCstrk(target)).snapshot(), target.snapshot());
+            }
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+            assert(doc.redo()); assert.deepEqual(doc.snapshot(), placed);
+        }
+    }
+});
+test('pine brushes preview and place exactly one selected group per tile with atomic undo and reload', () => {
+    assert.deepEqual(model.PINE_BRUSH_SIZES, [1, 2, 4, 8]);
+    assert(Object.isFrozen(model.PINE_BRUSH_SIZES));
+    for (const count of [6, 10]) for (const size of model.PINE_BRUSH_SIZES) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(10, 10); doc.vertices.fill(2);
+        doc.setNotes('Keep the terrain and notes');
+        const before = doc.snapshot(), history = doc.history.length;
+        const preview = doc.pineBrushPreview(1, 1, size, count, rotation);
+        assert.equal(preview.length, size * size);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+        for (const object of preview) {
+            assert.equal(object.id, 153); assert.equal(object.pineCount, count);
+            assert.equal(object.rotation, rotation); assert.equal(object.surface, 0);
+            assert.equal(object.width, 1); assert.equal(object.height, 1); assert.equal(object.mask, 1);
+            assert.equal(object.baseHeight, 2); assert.equal(object.slopeX, 0); assert.equal(object.slopeY, 0);
+        }
+        const placed = doc.placePineBrush(1, 1, size, count, rotation);
+        assert.deepEqual(placed, preview);
+        assert.equal(doc.history.length, history + 1);
+        assert.deepEqual(doc.vertices, Uint8Array.from(before.vertices)); assert.deepEqual(doc.cells, before.cells);
+        assert.equal(doc.notes, before.notes); assert.equal(doc.version, before.version);
+        const after = doc.snapshot();
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+        preview[0].pineCount = 0;
+        assert.equal(doc.objects[0].pineCount, count, 'preview objects must be detached from placed records');
+    }
+});
+test('pine brushes clip at rectangular map edges and support maps smaller than the brush', () => {
+    for (const size of model.PINE_BRUSH_SIZES) for (const [x, y] of [[0, 0], [7, 6], [5, 3]]) {
+        const doc = new model.Document(8, 7);
+        const placed = doc.placePineBrush(x, y, size, 6);
+        assert.equal(placed.length, Math.min(size, doc.width - x) * Math.min(size, doc.height - y));
+        assert.deepEqual(new Set(placed.map(object => object.x + ':' + object.y)).size, placed.length);
+        assert(placed.every(object => object.x >= x && object.x < doc.width && object.y >= y && object.y < doc.height));
+        assert.deepEqual(doc.validate(), []);
+    }
+    const tiny = new model.Document(1, 1);
+    assert.equal(tiny.placePineBrush(0, 0, 8, 10).length, 1);
+});
+test('pine brush groups retain each tile support plane over positive and negative straight slopes', () => {
+    for (const count of [6, 10]) for (const axis of [0, 1]) for (const sign of [-1, 1]) for (let rotation = 0; rotation < 4; rotation++) {
+        const doc = new model.Document(8, 8), stride = doc.width + 1;
+        for (let y = 0; y <= doc.height; y++) for (let x = 0; x <= doc.width; x++) {
+            const rise = Math.max(0, Math.min(4, (axis ? y : x) - 2));
+            doc.vertices[y * stride + x] = sign > 0 ? rise : 4 - rise;
+        }
+        const before = doc.snapshot(), preview = doc.pineBrushPreview(2, 2, 4, count, rotation);
+        assert.equal(preview.length, 16); assert.deepEqual(doc.snapshot(), before);
+        for (const object of preview) {
+            const heights = doc.tileHeights(object.x, object.y);
+            assert.equal(object.baseHeight, heights[0]);
+            assert.equal(object.slopeX, axis ? 0 : sign); assert.equal(object.slopeY, axis ? sign : 0);
+            assert.equal(object.rotation, rotation); assert.equal(object.pineCount, count);
+        }
+        assert.deepEqual(doc.placePineBrush(2, 2, 4, count, rotation), preview);
+        assert.deepEqual(doc.validate(), []);
+    }
+});
+test('pine brushes skip occupied tiles and hill corners while using free multi-tile footprint cells', () => {
+    const doc = new model.Document(10, 10);
+    doc.raise(4, 4); const road = doc.place(4, 2, 2);
+    const before = doc.snapshot(), preview = doc.pineBrushPreview(2, 2, 4, 10, 1);
+    assert.equal(preview.length, 11, 'skip one road and the four valid hill corners');
+    for (const object of preview) {
+        assert(!(object.x === road.x && object.y === road.y));
+        assert(model.terrainProfile(doc.tileHeights(object.x, object.y)).terrain <= 10);
+    }
+    assert.deepEqual(doc.placePineBrush(2, 2, 4, 10, 1), preview);
+    assert.deepEqual(doc.objects[0], before.objects[0]);
+    assert.deepEqual(doc.vertices, Uint8Array.from(before.vertices)); assert.deepEqual(doc.cells, before.cells);
+    assert.deepEqual(doc.validate(), []);
+    const corners = new model.Document(4, 4), turn = corners.place(11, 1, 1);
+    const occupied = new Set(model.occupied(turn).map(cell => cell.join(':')));
+    const trees = corners.placePineBrush(1, 1, 2, 6);
+    assert.equal(trees.length, 2);
+    assert(trees.every(object => !occupied.has(object.x + ':' + object.y)));
+    assert.deepEqual(corners.validate(), []);
+});
+test('pine brush input validation and malformed terrain failures never partially place a stroke', () => {
+    const doc = new model.Document(8, 8);
+    const invalid = [[0, 0, 0, 6], [0, 0, 3, 6], [0, 0, '2', 6], [0, 0, 2, 0], [0, 0, 2, 5],
+        [0, 0, 2, '6'], [0, 0, 2, 6, -1], [0, 0, 2, 6, 4], [-1, 0, 2, 6], [0, 8, 2, 6]];
+    const before = doc.snapshot();
+    for (const args of invalid) {
+        assert.throws(() => doc.pineBrushPreview(...args), /Invalid/);
+        assert.throws(() => doc.placePineBrush(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, 0);
+    }
+    doc.placePineBrush(0, 0, 8, 6);
+    doc.version = model.PINE_GROUP_VERSION - 1;
+    assert.throws(() => doc.pineBrushPreview(0, 0, 8, 10), /version v9/);
+    assert.throws(() => doc.placePineBrush(0, 0, 8, 10), /version v9/);
+    doc.version = model.VERSION; doc.objects = []; doc.history = [];
+    doc.beginTransaction('Tree stroke'); doc.placePineBrush(0, 0, 1, 6);
+    doc.vertices[3 * (doc.width + 1) + 3] = 4;
+    const earlierStroke = doc.snapshot(), pending = doc.pending;
+    assert.throws(() => doc.placePineBrush(2, 2, 4, 10), /invalid terrain/);
+    assert.deepEqual(doc.snapshot(), earlierStroke); assert.equal(doc.pending, pending);
+    assert.equal(doc.history.length, 0);
+    doc.cancelTransaction(); assert.deepEqual(doc.snapshot(), before);
+});
+test('overlapping pine brushes join drag history and repeated occupied strokes preserve redo', () => {
+    const doc = new model.Document(10, 10), before = doc.snapshot();
+    doc.beginTransaction('Tree stroke');
+    doc.placePineBrush(1, 1, 2, 6); doc.placePineBrush(2, 2, 4, 10, 3);
+    const after = doc.snapshot();
+    assert.equal(doc.objects.length, 19);
+    assert.equal(doc.objects.filter(object => object.pineCount === 6).length, 4);
+    assert.equal(doc.placePineBrush(1, 1, 2, 10).length, 0, 'leave existing groups unchanged');
+    doc.endTransaction(); assert.equal(doc.history.length, 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    doc.setNotes('Future'); doc.undo();
+    const history = doc.history.length, future = doc.future.length;
+    assert.equal(doc.placePineBrush(1, 1, 2, 10).length, 0);
+    assert.equal(doc.history.length, history); assert.equal(doc.future.length, future);
+    doc.beginTransaction('Cancelled forest'); doc.placePineBrush(7, 7, 2, 6);
+    doc.cancelTransaction(); assert.deepEqual(doc.snapshot(), after);
+});
+const CROP_FIELD_CASES = [
+    [model.WHEAT_FIELD_ID, 'Wheat field', model.WHEAT_FIELD_VERSION],
+    [model.TULIP_FIELD_ID, 'Tulip field', model.TULIP_FIELD_VERSION],
+    [model.VINE_FIELD_ID, 'Vine field', model.VINE_FIELD_VERSION]
+];
+test('crop fields are distinct scenery and round-trip on flat ground and every straight slope', () => {
+    assert(!model.isCropField(153)); assert(!model.isCropField(model.VINE_FIELD_ID + 1));
+    for (const [id, name] of CROP_FIELD_CASES) {
+        const entry = model.library.find(piece => piece.id === id);
+        assert(entry); assert.equal(entry.name, name); assert(entry.decoration); assert.equal(entry.group, 10);
+        assert(model.isCropField(id));
+        for (let rotation = 0; rotation < 4; rotation++) for (const [slopeX, slopeY] of [[0, 0], ...SLOPE_DIRECTIONS]) {
+            const doc = new model.Document(1, 1);
+            doc.vertices.set([2, 2 + slopeX, 2 + slopeY, 2 + slopeX + slopeY]);
+            const before = doc.snapshot(), object = doc.place(entry.id, 0, 0, 2, rotation);
+            assert.equal(object.surface, 0); assert.equal(object.slopeX, slopeX); assert.equal(object.slopeY, slopeY);
+            assert.deepEqual(doc.validate(), []);
+            const bytes = model.encodeCstrk(doc), reopened = model.decodeCstrk(bytes);
+            assert.deepEqual(reopened.snapshot(), doc.snapshot());
+            assert.deepEqual(model.encodeCstrk(reopened), bytes);
+            const clip = doc.copyRegion({ x: 0, y: 0, width: 1, height: 1 });
+            assert.deepEqual(model.rotateClipboard(clip, 4), clip);
+            for (const axis of ['horizontal', 'vertical']) assert.deepEqual(model.flipClipboard(model.flipClipboard(clip, axis), axis), clip);
+            const pasted = new model.Document(1, 1); pasted.vertices.set(doc.vertices);
+            pasted.pasteRegion(clip, 0, 0); assert.deepEqual(pasted.objects, doc.objects);
+            assert(doc.undo()); assert.deepEqual(doc.snapshot(), before); assert(doc.redo());
+        }
+    }
+});
+test('crop fields enforce their introduction revisions and reject unrelated flags or footprints', () => {
+    for (const [id, , requiredVersion] of CROP_FIELD_CASES) {
+        const doc = new model.Document(2, 2);
+        doc.place(id, 0, 0);
+        const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+        const versionError = new RegExp('field.*version v' + requiredVersion, 'i');
+        for (let version = 3; version < requiredVersion; version++) {
+            doc.version = version;
+            const before = doc.snapshot(), history = doc.history.length;
+            assert.throws(() => model.encodeCstrk(doc), versionError);
+            assert.throws(() => doc.place(id, 1, 1), versionError);
+            assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+            const older = bytes.slice(); new DataView(older.buffer).setUint16(8, version, true);
+            assert.throws(() => model.decodeCstrk(older), versionError);
+        }
+        doc.version = requiredVersion;
+        const minimum = model.encodeCstrk(doc), upgraded = model.decodeCstrk(minimum);
+        assert.equal(upgraded.version, model.VERSION); assert.deepEqual(upgraded.objects, doc.objects);
+        upgraded.version = requiredVersion;
+        assert.deepEqual(model.encodeCstrk(upgraded), minimum);
+        for (const [offset, value] of [[6, 2], [7, 2], [8, 0], [12, 1], [13, 1], [14, 1], [15, 6]]) {
+            const corrupt = bytes.slice(); corrupt[record + offset] = value;
+            assert.throws(() => model.decodeCstrk(corrupt));
+        }
+        const future = bytes.slice(); new DataView(future.buffer).setUint16(8, 101, true);
+        assert.equal(model.decodeCstrk(future).version, 101);
+    }
+});
+test('pine groups require v9 and reject other counts and backing elements atomically', () => {
+    const doc = new model.Document(4, 4); doc.place(153, 1, 1, 0, 0, 0, 0, 0, 10);
+    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+    for (let version = 3; version < model.PINE_GROUP_VERSION; version++) {
+        doc.version = version;
+        assert.throws(() => model.encodeCstrk(doc), /version v9/);
+        assert.throws(() => doc.placement(153, 2, 2, 0, 0, 0, 0, 0, 5), /version v9/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    doc.version = model.VERSION;
+    for (const id of [4, 85, 115, 151, 152, 154]) {
+        assert.throws(() => doc.placement(id, 2, 2, 0, 0, 0, 0, 0, 5), /only pine trees/);
+        const invalid = bytes.slice(); new DataView(invalid.buffer).setUint16(record, id, true);
+        assert.throws(() => model.decodeCstrk(invalid), /only pine trees/);
+    }
+    const before = doc.snapshot(), history = doc.history.length;
+    for (const count of [-1, 1, 4, 7, 11, 255, 1.5, true]) {
+        assert.throws(() => doc.place(153, 2, 2, 0, 0, 0, 0, 0, count), /pine tree count/);
+        assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+        if (Number.isInteger(count) && count > 0) {
+            const invalid = bytes.slice(); invalid[record + 15] = count;
+            assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+        }
+    }
+    for (const count of [6, 10]) {
+        const invalid = bytes.slice(); invalid[record + 13] = 1; invalid[record + 15] = count;
+        assert.throws(() => model.decodeCstrk(invalid), /only slalom/);
+    }
+    doc.objects[0].pineCount = 2;
+    assert.throws(() => model.encodeCstrk(doc), /pine tree count/);
+});
+test('six-tree groups require v10 and imported count five becomes six before editing or saving', () => {
+    const doc = new model.Document(4, 4);
+    doc.place(153, 1, 1, 0, 3, 0, 0, 0, 6);
+    const bytes = model.encodeCstrk(doc), record = 32 + doc.vertices.length + doc.cells.length * 2;
+    assert.equal(bytes[record + 15], 6);
+    assert.equal(new DataView(bytes.buffer).getUint16(8, true), model.VERSION);
+    doc.version = model.PINE_SIX_VERSION - 1;
+    const before = doc.snapshot(), history = doc.history.length;
+    assert.throws(() => model.encodeCstrk(doc), /version v10/);
+    assert.throws(() => doc.place(153, 2, 2, 0, 0, 0, 0, 0, 6), /version v10/);
+    assert.throws(() => doc.pineBrushPreview(0, 0, 2, 6), /version v10/);
+    assert.throws(() => doc.placePineBrush(0, 0, 2, 6), /version v10/);
+    assert.deepEqual(doc.snapshot(), before); assert.equal(doc.history.length, history);
+    new DataView(bytes.buffer).setUint16(8, model.PINE_SIX_VERSION - 1, true);
+    assert.throws(() => model.decodeCstrk(bytes), /element flags/);
+
+    for (const version of [model.PINE_GROUP_VERSION, model.PINE_SIX_VERSION, 101]) {
+        const encoded = bytes.slice(); encoded[record + 15] = 5;
+        new DataView(encoded.buffer).setUint16(8, version, true);
+        const reopened = model.decodeCstrk(encoded);
+        assert.equal(reopened.version, Math.max(version, model.VERSION));
+        assert.equal(reopened.objects[0].pineCount, 6);
+        assert.equal(reopened.objects[0].rotation, 3);
+        assert.deepEqual(reopened.validate(), []);
+        const saved = model.encodeCstrk(reopened);
+        assert.equal(saved[record + 15], 6);
+        assert.equal(new DataView(saved.buffer).getUint16(8, true), reopened.version);
+        assert.deepEqual(model.decodeCstrk(saved).snapshot(), reopened.snapshot());
+        const clipboard = reopened.copyRegion({ x: 1, y: 1, width: 1, height: 1 });
+        assert.equal(clipboard.objects[0].pineCount, 6);
+        const importedClipboard = { ...clipboard, objects: clipboard.objects.map(object => ({ ...object, pineCount: 5 })) };
+        for (const contents of [clipboard, importedClipboard, model.rotateClipboard(importedClipboard, 1), model.flipClipboard(importedClipboard, 'horizontal')]) {
+            const target = new model.Document(4, 4); target.pasteRegion(contents, 2, 2);
+            assert.equal(target.objects[0].pineCount, 6);
+            assert.equal(model.decodeCstrk(model.encodeCstrk(target)).objects[0].pineCount, 6);
+            assert.equal(target.placePineBrush(0, 0, 1, target.objects[0].pineCount).length, 1);
+        }
+    }
+    for (let version = 3; version < model.PINE_GROUP_VERSION; version++) {
+        const invalid = bytes.slice(); invalid[record + 15] = 5;
+        new DataView(invalid.buffer).setUint16(8, version, true);
+        assert.throws(() => model.decodeCstrk(invalid), /element flags/);
+    }
+    const malformed = bytes.slice(); malformed[record + 15] = 5; malformed[record + 12] = 1;
+    assert.throws(() => model.decodeCstrk(malformed), /Only overpasses/);
+    const current = new model.Document(4, 4);
+    assert.equal(current.place(153, 1, 1, 0, 0, 0, 0, 0, 5).pineCount, 6);
+    assert(!model.library.some(piece => piece.pineCount === 5));
+});
 test('barrel roll ramps retain all launch directions, footprints and history after reload', () => {
     const selected = model.library.find(piece => piece.rollRamp);
     const ordinary = model.library.find(piece => piece.physical === model.ROLL_RAMP_PHYSICAL_MODEL && !piece.rollRamp);
@@ -1143,6 +1546,52 @@ test('barrel roll ramps require v8 and reject invalid variants without editing t
     assert.throws(() => model.decodeCstrk(both), /only slalom/);
     doc.objects[0].rollRamp = 2;
     assert.throws(() => model.encodeCstrk(doc), /flag/);
+});
+test('pine group artwork keeps each logical count, varied sizes and transparent gaps', () => {
+    const nativeSize = 16, green = 10, trunk = 6;
+    const pine = { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize),
+        mask: { width: nativeSize, height: nativeSize, pixels: new Uint8Array(nativeSize * nativeSize).fill(15) } };
+    for (let y = 0; y < 12; y++) for (let x = 7 - Math.floor(y / 3); x <= 7 + Math.floor(y / 3); x++)
+        pine.pixels[y * nativeSize + x + 1] = green;
+    for (let y = 12; y < 14; y++) for (let x = 6; x <= 8; x++) pine.pixels[y * nativeSize + x + 1] = trunk;
+    const icons = new Map([[153, pine]]);
+    for (const count of [6, 10]) {
+        const layout = resources.pineTreeLayout(count);
+        assert.equal(layout.length, count, 'each group contains its selected number of trees');
+        assert(new Set(layout.map(tree => tree[2])).size > 1, 'the individual trees have different scales');
+        const neighbor = resources.pineTreeLayout(count, 1, 0);
+        assert.notDeepEqual(layout.map(tree => tree.slice(0, 2)), neighbor.map(tree => tree.slice(0, 2)), 'neighboring tiles vary tree positions');
+        assert.notDeepEqual(layout.map(tree => tree[2]), neighbor.map(tree => tree[2]), 'neighboring tiles vary tree sizes');
+        const bitmap = resources.composePieceTileBitmap(icons, 153, 0, 0, count);
+        assert.deepEqual(bitmap, resources.composePieceTileBitmap(icons, 153, 0, 0, count));
+        assert.equal(bitmap.width, bitmap.height);
+        const seen = new Set(), trees = [];
+        for (let index = 0; index < bitmap.alpha.length; index++) {
+            if (!bitmap.alpha[index] || seen.has(index)) continue;
+            const queue = [index]; seen.add(index);
+            for (let cursor = 0; cursor < queue.length; cursor++) {
+                const current = queue[cursor];
+                for (const step of [-1, 1, -bitmap.width, bitmap.width]) {
+                    const next = current + step;
+                    if (next < 0 || next >= bitmap.alpha.length || Math.abs(next % bitmap.width - current % bitmap.width) > 1 ||
+                        !bitmap.alpha[next] || seen.has(next)) continue;
+                    seen.add(next); queue.push(next);
+                }
+            }
+            const xs = queue.map(pixel => pixel % bitmap.width), ys = queue.map(pixel => Math.floor(pixel / bitmap.width));
+            trees.push({ x: Math.min(...xs), y: Math.min(...ys), height: Math.max(...ys) - Math.min(...ys) + 1 });
+            assert(queue.some(pixel => bitmap.pixels[pixel] === trunk), 'every tree retains a trunk');
+            assert(queue.some(pixel => bitmap.pixels[pixel] === green), 'every tree retains native foliage');
+        }
+        assert.equal(trees.length, count, 'each tree has its own silhouette');
+        assert(new Set(trees.map(tree => tree.height)).size > 1, 'trees have different sizes');
+        assert(new Set(trees.map(tree => tree.x)).size > 2 && new Set(trees.map(tree => tree.y)).size > 2, 'trees are scattered across the tile');
+        assert(bitmap.alpha.filter(value => !value).length > bitmap.alpha.length / 2, 'terrain remains visible between the trees');
+    }
+    for (const count of [6, 10]) assert.notDeepEqual(resources.composePieceTileBitmap(icons, 153, 0, 0, count, 0, 0),
+        resources.composePieceTileBitmap(icons, 153, 0, 0, count, 1, 0), 'neighboring map tiles have different artwork');
+    for (const [id, tunnel, roll, count] of [[151, 0, 0, 6], [153, 1, 0, 6], [153, 0, 1, 10], [153, 0, 0, 5], [153, 0, 0, 7]])
+        assert.throws(() => resources.composePieceTileBitmap(icons, id, tunnel, roll, count), /pine tree group artwork/);
 });
 test('barrel roll ramp artwork distinguishes the concrete entry, grille and launch direction', () => {
     const vertical = resources.composePieceTileBitmap(new Map(), 85, 0, 1);
@@ -1315,6 +1764,93 @@ test('Shore paints every distinct material pair and corner with exact storage an
             }
         }
     }
+});
+test('square paint brushes repaint exactly their footprint without changing heights or track elements', () => {
+    assert.deepEqual(model.PAINT_BRUSH_SIZES, [1, 2, 4, 8]);
+    for (const size of model.PAINT_BRUSH_SIZES) for (let surface = 0; surface < model.TERRAIN_SURFACES.length; surface++) {
+        const doc = new model.Document(10, 10);
+        doc.vertices.fill(2);
+        doc.cells = doc.cells.map(() => {
+            const cell = { surface: (surface + 1) % model.TERRAIN_SURFACES.length, halfWaterCorner: 2 };
+            if (surface !== model.DEFAULT_CORNER_SURFACE) cell.cornerSurface = surface;
+            return cell;
+        });
+        doc.place(4, 2, 2);
+        const before = doc.snapshot(), history = doc.history.length;
+        doc.paintArea(1, 1, size, surface);
+        for (let y = 0; y < doc.height; y++) for (let x = 0; x < doc.width; x++) {
+            const expected = x >= 1 && x < 1 + size && y >= 1 && y < 1 + size
+                ? { surface, halfWaterCorner: 0 } : before.cells[y * doc.width + x];
+            assert.deepEqual(doc.cells[y * doc.width + x], expected, size + 'x' + size + ' cell ' + x + ',' + y);
+        }
+        assert.deepEqual(Array.from(doc.vertices), before.vertices);
+        assert.deepEqual(doc.objects, before.objects);
+        assert.equal(doc.history.length, history + 1);
+        const after = doc.snapshot();
+        assert.deepEqual(doc.validate(), []);
+        assert.deepEqual(model.decodeCstrk(model.encodeCstrk(doc)).snapshot(), after);
+        assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+        assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    }
+    const single = new model.Document(3, 3), square = new model.Document(3, 3);
+    single.paint(1, 1, 3); square.paintArea(1, 1, 1, 3);
+    assert.deepEqual(square.snapshot(), single.snapshot());
+});
+test('paint brushes clip to rectangular map edges and work on maps smaller than the brush', () => {
+    for (const size of model.PAINT_BRUSH_SIZES) for (const [x, y] of [[0, 0], [4, 3], [3, 1], [0, 2]]) {
+        const doc = new model.Document(5, 4);
+        doc.paintArea(x, y, size, 2);
+        assert.equal(doc.cells.filter(cell => cell.surface === 2).length,
+            Math.min(size, doc.width - x) * Math.min(size, doc.height - y));
+        for (let row = 0; row < doc.height; row++) for (let column = 0; column < doc.width; column++) {
+            const painted = column >= x && column < x + size && row >= y && row < y + size;
+            assert.equal(doc.cells[row * doc.width + column].surface, painted ? 2 : 0);
+        }
+    }
+    const tiny = new model.Document(1, 1);
+    tiny.paintArea(0, 0, 4, 3);
+    assert.deepEqual(tiny.cells, [{ surface: 3, halfWaterCorner: 0 }]);
+    assert.equal(tiny.history.length, 1);
+});
+test('paint brush validation is atomic both before a stroke and after earlier edits', () => {
+    const doc = new model.Document(5, 4);
+    doc.setNotes('future'); doc.undo();
+    const before = doc.snapshot();
+    const invalid = [
+        ...[-1, 0, 3, 5, 1.5, null, '2', NaN].map(size => [0, 0, size, 2]),
+        ...[-1, model.TERRAIN_SURFACES.length, 1.5, null].map(surface => [0, 0, 2, surface]),
+        [-1, 0, 2, 2], [5, 0, 2, 2], [0, -1, 2, 2], [0, 4, 2, 2], [.5, 0, 2, 2], [0, null, 2, 2]
+    ];
+    for (const args of invalid) {
+        assert.throws(() => doc.paintArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), before);
+        assert.equal(doc.history.length, 0); assert.equal(doc.canRedo, true);
+    }
+    doc.beginTransaction('Terrain stroke'); doc.paintArea(1, 1, 2, 2);
+    const earlier = doc.snapshot();
+    for (const args of invalid) {
+        assert.throws(() => doc.paintArea(...args), /Invalid/);
+        assert.deepEqual(doc.snapshot(), earlier);
+        assert.notEqual(doc.pending, null);
+    }
+    doc.endTransaction(); assert.equal(doc.history.length, 1);
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+});
+test('overlapping paint brushes share drag undo and cancellation while no-op painting preserves redo', () => {
+    const doc = new model.Document(8, 8), before = doc.snapshot();
+    doc.beginTransaction('Terrain stroke');
+    doc.paintArea(1, 1, 2, 2); doc.paintArea(2, 2, 4, 2); doc.paintArea(7, 7, 1, 2);
+    doc.endTransaction();
+    assert.equal(doc.history.length, 1);
+    assert.equal(doc.cells.filter(cell => cell.surface === 2).length, 20);
+    const after = doc.snapshot();
+    assert(doc.undo()); assert.deepEqual(doc.snapshot(), before);
+    assert(doc.redo()); assert.deepEqual(doc.snapshot(), after);
+    doc.beginTransaction('Terrain stroke'); doc.paintArea(0, 0, 4, 3); doc.cancelTransaction();
+    assert.deepEqual(doc.snapshot(), after); assert.equal(doc.history.length, 1);
+    const clean = new model.Document(4, 4);
+    clean.setNotes('future'); clean.undo(); clean.paintArea(0, 0, 4, 0);
+    assert.equal(clean.history.length, 0); assert.equal(clean.canRedo, true);
 });
 test('lower surface paints every flat elevation and preserves uniform hills through all four transitions', () => {
     const water = model.DEFAULT_CORNER_SURFACE, maximumLevel = 4, corners = [[0, 0], [1, 0], [1, 1], [0, 1]];
@@ -1517,7 +2053,7 @@ test('Shore rejects matching or invalid materials atomically and in stored track
 test('CSTRK horizons round-trip in the current format without changing terrain or notes', () => {
     const doc = new model.Document(4, 4); doc.place(4, 1, 1); doc.setNotes('Horizon metadata');
     const original = model.encodeCstrk(doc);
-    assert.equal(model.VERSION, 8); assert.equal(doc.version, model.VERSION);
+    assert.equal(model.VERSION, model.TULIP_FIELD_VERSION); assert.equal(doc.version, model.VERSION);
     assert.equal(model.decodeCstrk(original).horizon, 0);
     for (let horizon = 0; horizon < model.HORIZONS.length; horizon++) {
         doc.setHorizon(horizon);
@@ -1721,8 +2257,13 @@ test('planar bitmap expansion preserves high bits and channel mapping', () => {
         assert.equal(decoded.icons.size, 186); assert.equal(decoded.terrain.size, 19); assert.equal(decoded.palette.length, 768);
         assert(decoded.groups.find(g => g.id === 7).tiles.includes(60));
         for (const entry of model.catalog) {
-            const tile = resources.composeTileBitmap(decoded.icons.get(entry.id));
-            assert.equal(tile.width, entry.width * 15); assert.equal(tile.height, entry.height * 15);
+            const tile = resources.composePieceTileBitmap(decoded.icons, entry.id);
+            const pixelsPerTile = tile.width / entry.width;
+            assert(Number.isInteger(pixelsPerTile));
+            assert.equal(tile.height, entry.height * pixelsPerTile);
+            if (model.isCropField(entry.id)) assert(pixelsPerTile >= 15, 'generated scenery may use finer artwork');
+            else assert.equal(pixelsPerTile, 15, 'native artwork keeps its original tile resolution');
+            assert.equal(tile.pixels.length, tile.width * tile.height);
             assert.equal(tile.alpha.length, tile.pixels.length);
         }
         for (const [id, tunnelId] of [[115, 66], [116, 67]]) {

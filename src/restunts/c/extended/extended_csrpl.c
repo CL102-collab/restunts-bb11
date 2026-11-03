@@ -46,16 +46,23 @@ static void csrpl_write32(uint8_t *data, uint32_t value)
 
 int csrpl_encoded_size(size_t track_size, uint32_t frame_count, size_t *out_size)
 {
-	if (out_size == NULL || track_size == 0U || track_size > UINT32_MAX ||
-		track_size > SIZE_MAX - CSRPL_HEADER_SIZE) {
+	if (out_size == NULL || track_size == 0U || track_size > UINT32_MAX) {
 		return 0;
 	}
-	size_t size = CSRPL_HEADER_SIZE + track_size;
-	if ((uint64_t)frame_count > (uint64_t)(SIZE_MAX - size)) {
+	/* Both payload counts fit in 32 bits, so their complete sum fits in 64
+	 * bits. Check the host address space before narrowing to its size type. */
+	legacy_u64 size = (legacy_u64)CSRPL_HEADER_SIZE + track_size + frame_count;
+	if (size > SIZE_MAX) {
 		return 0;
 	}
-	*out_size = size + (size_t)frame_count;
+	*out_size = (size_t)size;
 	return 1;
+}
+
+static size_t csrpl_track_name_size(legacy_u16 version)
+{
+	return version < CSRPL_LONG_TRACK_NAME_VERSION ? CSRPL_LEGACY_TRACK_NAME_SIZE
+												   : CSRPL_TRACK_NAME_SIZE;
 }
 
 static int csrpl_valid_metadata(const struct CSRPL_METADATA *metadata, char *error,
@@ -63,6 +70,13 @@ static int csrpl_valid_metadata(const struct CSRPL_METADATA *metadata, char *err
 {
 	if (metadata->version < CSRPL_MIN_VERSION) {
 		return csrpl_fail(error, error_size, "Unsupported Chocolate Stunts replay version.");
+	}
+	for (size_t index = csrpl_track_name_size(metadata->version); index < CSRPL_TRACK_NAME_SIZE;
+		 index++) {
+		if (metadata->track_name[index] != 0U) {
+			return csrpl_fail(error, error_size,
+							  "Track name does not fit this older replay revision.");
+		}
 	}
 	if ((metadata->driving_rules & (legacy_u16)~DRIVING_RULE_KNOWN_MASK) != 0U) {
 		return csrpl_fail(error, error_size, "Replay driving rules contain unsupported flags.");
@@ -107,7 +121,9 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char 
 	if (csrpl_read32(data + 12U) != 0U) {
 		return csrpl_fail(error, error_size, "Unsupported replay flags.");
 	}
-	for (size_t index = 50U; index < CSRPL_HEADER_SIZE; index++) {
+	size_t track_name_size = csrpl_track_name_size(version);
+	for (size_t index = CSRPL_TRACK_NAME_OFFSET + track_name_size; index < CSRPL_HEADER_SIZE;
+		 index++) {
 		if (data[index] != 0U) {
 			return csrpl_fail(error, error_size, "Nonzero reserved replay bytes.");
 		}
@@ -126,7 +142,7 @@ int csrpl_decode(const uint8_t *data, size_t size, struct CSRPL_VIEW *out, char 
 	memcpy(view.metadata.opponent_car_id, data + 35U, CSRPL_CAR_ID_SIZE);
 	view.metadata.opponent_material = data[39];
 	view.metadata.opponent_transmission = data[40];
-	memcpy(view.metadata.track_name, data + 41U, CSRPL_TRACK_NAME_SIZE);
+	memcpy(view.metadata.track_name, data + CSRPL_TRACK_NAME_OFFSET, track_name_size);
 	size_t expected_size;
 	if (!csrpl_encoded_size(view.track_size, view.metadata.frame_count, &expected_size) ||
 		expected_size != size) {
@@ -184,7 +200,8 @@ int csrpl_encode(const struct CSRPL_METADATA *metadata, const uint8_t *track_dat
 	memcpy(data + 35U, metadata->opponent_car_id, CSRPL_CAR_ID_SIZE);
 	data[39] = metadata->opponent_material;
 	data[40] = metadata->opponent_transmission;
-	memcpy(data + 41U, metadata->track_name, CSRPL_TRACK_NAME_SIZE);
+	memcpy(data + CSRPL_TRACK_NAME_OFFSET, metadata->track_name,
+		   csrpl_track_name_size(metadata->version));
 	memcpy(data + CSRPL_HEADER_SIZE, track_data, track_size);
 	if (input_count != 0U) {
 		memcpy(data + CSRPL_HEADER_SIZE + track_size, inputs, input_count);

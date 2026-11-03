@@ -120,7 +120,7 @@ jobs:
         run: python3 src/restunts/platform/templeos/tools/TEST_PACKAGE.PY
 
   sanitizers:
-    name: Native sanitizer (${{ matrix.sanitizer }})
+    name: Native sanitizer (${{ matrix.name }})
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.sanitizer == 'thread' && 240 || 45 }}
     strategy:
@@ -129,16 +129,76 @@ jobs:
         include:
           # Clang and start-stop-gc preserve the host fixtures' dead-data removal
           # while keeping ASan checks on every global that survives the link.
-          - sanitizer: address
+          - name: address
+            sanitizer: address
             compiler: clang-18
             cxx-compiler: clang++-18
             linker-flags: -Wl,-z,start-stop-gc
             timeout-multiplier: 4
-          - sanitizer: thread
+          # Split the expensive TSan suite without changing its test coverage.
+          - name: thread
+            sanitizer: thread
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 20
-          - sanitizer: undefined
+            exclude-regex: '^genghost-|^(extended-render|render-replay)$'
+          - name: thread-genghost-extended-1
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-extended-1$'
+          - name: thread-genghost-extended-2
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-extended-2$'
+          - name: thread-genghost-extended-3
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-extended-3$'
+          - name: thread-genghost-search
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-search$'
+          - name: thread-genghost-fine-tune
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-fine-tune$'
+          - name: thread-genghost-parallel
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-parallel$'
+          - name: thread-extended-render
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^extended-render$'
+          - name: thread-render-replay
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^render-replay$'
+          - name: thread-genghost-other
+            sanitizer: thread
+            compiler: gcc
+            cxx-compiler: g++
+            timeout-multiplier: 20
+            include-regex: '^genghost-'
+            exclude-regex: '^genghost-(extended-[123]|search|fine-tune|parallel)$'
+          - name: undefined
+            sanitizer: undefined
             compiler: gcc
             cxx-compiler: g++
             timeout-multiplier: 2
@@ -157,6 +217,8 @@ jobs:
       # Apply matching limits in CTest and its Python subprocesses.
       RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER: ${{ matrix.timeout-multiplier }}
       CTEST_TIMEOUT_SECONDS: 1800
+      CTEST_INCLUDE_REGEX: ${{ matrix.include-regex || '.*' }}
+      CTEST_EXCLUDE_REGEX: ${{ matrix.exclude-regex || '^$' }}
       SDL_VIDEODRIVER: dummy
       SDL_AUDIODRIVER: dummy
     steps:
@@ -191,18 +253,19 @@ jobs:
           cmake -S . -B build/sanitizer -G Ninja -DCMAKE_BUILD_TYPE=Debug \
             -DRESTUNTS_BUILD_TESTS=ON -DSDL_DBUS=OFF \
             -DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER="$RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER"
-          cmake --build build/sanitizer --parallel 2
+          cmake --build build/sanitizer --parallel "$(nproc)"
 
       - name: Run instrumented host and SDL3 regressions
         run: >-
           ctest --test-dir build/sanitizer --output-on-failure --no-tests=error
           --timeout "$CTEST_TIMEOUT_SECONDS"
+          --tests-regex "$CTEST_INCLUDE_REGEX" --exclude-regex "$CTEST_EXCLUDE_REGEX"
 
       - name: Upload sanitizer test diagnostics
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: sanitizer-${{ matrix.sanitizer }}-logs
+          name: sanitizer-${{ matrix.name }}-logs
           path: build/sanitizer/Testing/Temporary/
           if-no-files-found: warn
           retention-days: 14
@@ -352,13 +415,13 @@ jobs:
           unzip -oq "$zip_path" -d stunts
 
       - name: Build original dump references
-        run: make -C src/restunts repldump-original pixldump-original
+        run: make --jobs="$(nproc)" -C src/restunts repldump-original pixldump-original
 
       - name: Build all six DOS executables
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
-          make -C src/restunts restunts repldump pixldump
-          make -C src/restunts restunts-original
+          make --jobs="$(nproc)" -C src/restunts restunts repldump pixldump
+          make --jobs="$(nproc)" -C src/restunts restunts-original
 
       - name: Install DOSBox-X
         run: |
@@ -368,14 +431,14 @@ jobs:
       - name: Check the DOS platform ABI and dump timer masking
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
-          make -C src/restunts test-dos-platform
+          make --jobs="$(nproc)" -C src/restunts test-dos-platform
           python3 tools/scripts/run-dos-platform-test.py
 
       - name: Verify DOS16 startup and driving settings
         if: env.BUILD_DOS_EXECUTABLES == 'true'
         run: |
           python3 tools/scripts/generate-tesla-roadster.py --install stunts
-          make -C src/restunts test-driving-options
+          make --jobs="$(nproc)" -C src/restunts test-driving-options
           python3 tools/scripts/run-driving-options-dos-test.py
 
       - name: Collect the executables
@@ -434,7 +497,7 @@ jobs:
         run: |
           cmake -S . -B build/sdl3 -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DRESTUNTS_BUILD_TESTS=ON
-          cmake --build build/sdl3 --parallel 2
+          cmake --build build/sdl3 --parallel "$(nproc)"
 
       - name: Run SDL3 timer regression
         run: ctest --test-dir build/sdl3 --output-on-failure --no-tests=error -R '^sdl3-timer$'
@@ -491,7 +554,7 @@ jobs:
           cmake -S . -B build/amiga -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/amiga-m68k.cmake \
             -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/amiga --parallel 2 --target restunts \
+          cmake --build build/amiga --parallel "$(nproc)" --target restunts \
             test-amiga-platform test-amiga-endian test-amiga-display \
             test-amiga-rle test-amiga-unflip test-amiga-decompression \
             test-amiga-command-line test-amiga-startup test-amiga-car-adhesion

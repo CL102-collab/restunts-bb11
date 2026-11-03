@@ -7,6 +7,11 @@
 
 static const uint8_t cstrk_magic[8] = {'C', 'S', 'T', 'R', 'K', 0x1a, '\r', '\n'};
 
+legacy_int cstrk_is_crop_field(legacy_u16 id)
+{
+	return id == CSTRK_WHEAT_FIELD_ID || id == CSTRK_TULIP_FIELD_ID || id == CSTRK_VINE_FIELD_ID;
+}
+
 static int cstrk_fail(char *error, size_t size, const char *format, ...)
 {
 	if (error != NULL && size != 0U) {
@@ -242,14 +247,31 @@ legacy_u16 cstrk_object_slope_version(const struct CSTRK_OBJECT *object)
 }
 
 static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *object,
-								 uint32_t index, uint8_t *occupied, char *error, size_t error_size)
+								 uint32_t index, uint8_t *occupied, legacy_u8 allow_old_pines,
+								 char *error, size_t error_size)
 {
-	if (object->legacy_id == 0U || object->legacy_id > CSTRK_MAX_LEGACY_ID ||
+	if (object->legacy_id == 0U ||
+		(object->legacy_id > CSTRK_MAX_LEGACY_ID && !cstrk_is_crop_field(object->legacy_id)) ||
 		object->rotation > 3U || object->surface > CSTRK_ROAD_ICE || object->width < 1U ||
 		object->width > 2U || object->height < 1U || object->height > 2U ||
 		object->x + object->width > track->width || object->y + object->height > track->height) {
 		return cstrk_fail(error, error_size, "Object %u has an invalid ID, surface or footprint",
 						  (unsigned)index);
+	}
+	if (cstrk_is_crop_field(object->legacy_id)) {
+		legacy_u16 required_version =
+			object->legacy_id == CSTRK_WHEAT_FIELD_ID	? CSTRK_WHEAT_FIELD_VERSION
+			: object->legacy_id == CSTRK_TULIP_FIELD_ID ? CSTRK_TULIP_FIELD_VERSION
+														: CSTRK_VINE_FIELD_VERSION;
+		if (track->version < required_version) {
+			return cstrk_fail(error, error_size,
+							  "Object %u requires track version v%u for this crop field",
+							  (legacy_uint)index, required_version);
+		}
+		if (object->width != 1U || object->height != 1U || object->occupied_mask != 1U) {
+			return cstrk_fail(error, error_size, "Object %u has an invalid crop field footprint",
+							  (legacy_uint)index);
+		}
 	}
 	if (object->tunnel_slalom > 1U ||
 		(object->tunnel_slalom &&
@@ -282,6 +304,24 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 			return cstrk_fail(error, error_size,
 							  "Object %u has an invalid barrel roll ramp footprint",
 							  (legacy_uint)index);
+		}
+	}
+	if (object->pine_count != 0U) {
+		if ((object->pine_count != CSTRK_PINE_GROUP_SMALL_COUNT &&
+			 object->pine_count != CSTRK_PINE_GROUP_LARGE_COUNT &&
+			 (object->pine_count != CSTRK_PINE_GROUP_OLD_COUNT || !allow_old_pines)) ||
+			object->legacy_id != CSTRK_PINE_TREE_ID || object->width != 1U ||
+			object->height != 1U || object->occupied_mask != 1U) {
+			return cstrk_fail(error, error_size, "Object %u has an invalid pine tree group",
+							  (legacy_uint)index);
+		}
+		legacy_u16 required_version = object->pine_count == CSTRK_PINE_GROUP_SMALL_COUNT
+										  ? CSTRK_PINE_SIX_VERSION
+										  : CSTRK_PINE_GROUP_VERSION;
+		if (track->version < required_version) {
+			return cstrk_fail(error, error_size,
+							  "Object %u requires track version v%u for pine tree groups",
+							  (legacy_uint)index, required_version);
 		}
 	}
 	legacy_u8 overpass =
@@ -353,7 +393,8 @@ static int cstrk_validate_object(const struct CSTRK_TRACK *track, const struct C
 	return 1;
 }
 
-int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size)
+static int cstrk_validate_internal(const struct CSTRK_TRACK *track, legacy_u8 allow_old_pines,
+								   char *error, size_t error_size)
 {
 	uint8_t occupied[CSTRK_MAX_OBJECTS] = {0};
 	if (track == NULL || !cstrk_dimensions(track->width, track->height) ||
@@ -405,8 +446,8 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 		}
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
-								   error_size)) {
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, allow_old_pines,
+								   error, error_size)) {
 			return 0;
 		}
 	}
@@ -415,6 +456,11 @@ int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_si
 	}
 	cstrk_success(error, error_size);
 	return 1;
+}
+
+int cstrk_validate(const struct CSTRK_TRACK *track, char *error, size_t error_size)
+{
+	return cstrk_validate_internal(track, 0, error, error_size);
 }
 
 int cstrk_set_notes(struct CSTRK_TRACK *track, const char *notes, size_t length, char *error,
@@ -443,14 +489,14 @@ int cstrk_add_object(struct CSTRK_TRACK *track, const struct CSTRK_OBJECT *objec
 		return cstrk_fail(error, error_size, "Track has no free object capacity");
 	}
 	for (uint32_t index = 0; index < track->object_count; index++) {
-		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, error,
+		if (!cstrk_validate_object(track, &track->objects[index], index, occupied, 0, error,
 								   error_size)) {
 			return 0;
 		}
 	}
 	/* Copy before realloc so an object already in track->objects is safe input. */
 	struct CSTRK_OBJECT next_object = *object;
-	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, error,
+	if (!cstrk_validate_object(track, &next_object, track->object_count, occupied, 0, error,
 							   error_size)) {
 		return 0;
 	}
@@ -536,6 +582,7 @@ int cstrk_encode(const struct CSTRK_TRACK *track, uint8_t **data, size_t *size, 
 			track->version < CSTRK_LOWER_SURFACE_VERSION ? 0 : object->lower_surface;
 		cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET] = object->tunnel_slalom;
 		cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET] = object->roll_ramp;
+		cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET] = object->pine_count;
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(cursor, track->notes, track->notes_length);
@@ -616,7 +663,7 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 		if ((version < CSTRK_LOWER_SURFACE_VERSION && cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET]) ||
 			(version < CSTRK_TUNNEL_SLALOM_VERSION && cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET]) ||
 			(version < CSTRK_ROLL_RAMP_VERSION && cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET]) ||
-			cursor[CSTRK_OBJECT_RESERVED_OFFSET] != 0U) {
+			(version < CSTRK_PINE_GROUP_VERSION && cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET])) {
 			cstrk_free(&next);
 			return cstrk_fail(error, error_size, "Object %u has unknown reserved flags",
 							  (unsigned)index);
@@ -639,14 +686,21 @@ int cstrk_decode(const uint8_t *data, size_t size, struct CSTRK_TRACK *track, ch
 									: cursor[CSTRK_OBJECT_LOWER_SURFACE_OFFSET];
 		object->tunnel_slalom = cursor[CSTRK_OBJECT_TUNNEL_SLALOM_OFFSET];
 		object->roll_ramp = cursor[CSTRK_OBJECT_ROLL_RAMP_OFFSET];
+		object->pine_count = cursor[CSTRK_OBJECT_PINE_COUNT_OFFSET];
 		cursor += CSTRK_OBJECT_SIZE;
 	}
 	memcpy(next.notes, cursor, notes_length);
 	next.notes[notes_length] = '\0';
 	next.notes_length = notes_length;
-	if (!cstrk_validate(&next, error, error_size)) {
+	/* Validate the original revision before upgrading historical wire aliases. */
+	if (!cstrk_validate_internal(&next, 1, error, error_size)) {
 		cstrk_free(&next);
 		return 0;
+	}
+	for (legacy_u32 index = 0; index < next.object_count; index++) {
+		if (next.objects[index].pine_count == CSTRK_PINE_GROUP_OLD_COUNT) {
+			next.objects[index].pine_count = CSTRK_PINE_GROUP_SMALL_COUNT;
+		}
 	}
 	next.version = version < CSTRK_VERSION ? CSTRK_VERSION : version;
 	cstrk_free(track);

@@ -9,6 +9,11 @@ void genghost_route_piece_frame(legacy_int piece, legacy_f64 *x, legacy_f64 *z,
 	extended_genghost_route_piece_frame(piece, x, z, orientation);
 }
 
+legacy_f64 genghost_route_piece_height(legacy_int piece, legacy_f64 x, legacy_f64 z)
+{
+	return extended_genghost_route_piece_height(piece, x, z);
+}
+
 void genghost_route_target_height(struct GENGHOST_WAYPOINT *target)
 {
 	extended_genghost_route_target_height(target);

@@ -3,8 +3,11 @@
 #include <string.h>
 
 #include "../c/extended/extended_replay_runtime.h"
+#include "../c/extended/extended_replay_ui.h"
+#include "../c/ui/ui_text.h"
 #include "../c/externs.h"
 #undef memcpy
+#undef strcmp
 
 struct GAMESTATE state;
 struct GAMEINFO gameconfig;
@@ -19,6 +22,86 @@ legacy_u16 driving_rules_current(void)
 }
 
 #define TEST_FUTURE_REPLAY_VERSION 101U
+#define TEST_TIME_BUFFER_CAPACITY 32U
+#define TEST_TIME_LOW_FRAME_RATE 10U
+#define TEST_TIME_HIGH_FRAME_RATE 20U
+
+static void test_replay_time_formatting(void)
+{
+	static const legacy_u16 frame_rates[] = {TEST_TIME_LOW_FRAME_RATE, TEST_TIME_HIGH_FRAME_RATE};
+	static const struct {
+		legacy_u16 seconds;
+		legacy_u16 fractional_frame;
+		const legacy_char *expected[2];
+	} cases[] = {{0U, 0U, {" 0:00.00", " 0:00.00"}},
+				 {316U, 9U, {" 5:16.40", " 5:16.45"}},
+				 {599U, 19U, {" 9:59.90", " 9:59.95"}},
+				 {600U, 0U, {"10:00.00", "10:00.00"}}};
+	legacy_s8 extended_text[TEST_TIME_BUFFER_CAPACITY] = "untouched";
+	assert(!extended_replay_ui_format_time(extended_text, 0U, 1));
+	assert(strcmp((const legacy_char *)extended_text, "untouched") == 0);
+	assert(!extended_replay_ui_format_current_time(extended_text));
+	assert(strcmp((const legacy_char *)extended_text, "untouched") == 0);
+
+	extended_replay_runtime_begin();
+	for (legacy_u16 rate = 0U; rate < sizeof(frame_rates) / sizeof(frame_rates[0]); rate++) {
+		framespersec = frame_rates[rate];
+		for (legacy_u16 index = 0U; index < sizeof(cases) / sizeof(cases[0]); index++) {
+			legacy_u32 frame =
+				cases[index].seconds * (legacy_u32)framespersec +
+				cases[index].fractional_frame * framespersec / TEST_TIME_HIGH_FRAME_RATE;
+			for (legacy_s16 fraction = 0; fraction <= 1; fraction++) {
+				legacy_s8 classic_text[TEST_TIME_BUFFER_CAPACITY];
+				format_frame_as_string(classic_text, LEGACY_S16_FROM_BITS((legacy_u16)frame),
+									   fraction);
+				assert(extended_replay_ui_format_time(extended_text, frame, fraction));
+				assert(strcmp((const legacy_char *)extended_text,
+							  (const legacy_char *)classic_text) == 0);
+				if (fraction != 0) {
+					assert(strcmp((const legacy_char *)extended_text,
+								  cases[index].expected[rate]) == 0);
+					extended_replay_clocks.frame = frame;
+					assert(extended_replay_ui_format_current_time(extended_text));
+					assert(strcmp((const legacy_char *)extended_text,
+								  (const legacy_char *)classic_text) == 0);
+				}
+
+				/* Other callers retain the shared runtime formatter's unpadded strings. */
+				legacy_s8 runtime_text[TEST_TIME_BUFFER_CAPACITY];
+				extended_replay_format_runtime_time(runtime_text, frame, fraction);
+				const legacy_s8 *unpadded = classic_text + (classic_text[0] == ' ' ? 1U : 0U);
+				assert(strcmp((const legacy_char *)runtime_text, (const legacy_char *)unpadded) ==
+					   0);
+			}
+		}
+	}
+
+	static const struct {
+		legacy_u32 frame;
+		legacy_u16 frame_rate;
+		const legacy_char *whole_seconds;
+		const legacy_char *hundredths;
+	} long_cases[] = {{72005U, TEST_TIME_HIGH_FRAME_RATE, "60:00", "60:00.25"},
+					  {60000U, TEST_TIME_LOW_FRAME_RATE, "100:00", "100:00.00"},
+					  {7200000U, TEST_TIME_HIGH_FRAME_RATE, "6000:00", "6000:00.00"},
+					  {LEGACY_U32_MAX, TEST_TIME_LOW_FRAME_RATE, "7158278:49", "7158278:49.50"},
+					  {LEGACY_U32_MAX, TEST_TIME_HIGH_FRAME_RATE, "3579139:24", "3579139:24.75"}};
+	for (legacy_u16 index = 0U; index < sizeof(long_cases) / sizeof(long_cases[0]); index++) {
+		framespersec = long_cases[index].frame_rate;
+		for (legacy_s16 fraction = 0; fraction <= 1; fraction++) {
+			const legacy_char *expected =
+				fraction != 0 ? long_cases[index].hundredths : long_cases[index].whole_seconds;
+			assert(
+				extended_replay_ui_format_time(extended_text, long_cases[index].frame, fraction));
+			assert(strcmp((const legacy_char *)extended_text, expected) == 0);
+			legacy_s8 runtime_text[TEST_TIME_BUFFER_CAPACITY];
+			extended_replay_format_runtime_time(runtime_text, long_cases[index].frame, fraction);
+			assert(strcmp((const legacy_char *)runtime_text, expected) == 0);
+		}
+	}
+	framespersec = TEST_TIME_HIGH_FRAME_RATE;
+	extended_replay_runtime_clear();
+}
 
 void get_kevinrandom_seed(legacy_s8 *seed)
 {
@@ -129,6 +212,7 @@ static void test_recording_versions(void)
 
 int main(void)
 {
+	test_replay_time_formatting();
 	test_recording_versions();
 	configured_driving_rules = DRIVING_RULE_KNOWN_MASK;
 	extended_replay_runtime_begin();

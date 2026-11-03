@@ -15,7 +15,50 @@
     const ROLL_RAMP_SUPPORT_WIDTH = 2, ROLL_RAMP_SUPPORT_DEPTH = 3;
     const ROLL_RAMP_DASH_LENGTH = 3, ROLL_RAMP_DASH_PERIOD = 6;
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
+    const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
+    const WHEAT_FIELD_ID = 215, TULIP_FIELD_ID = 216, VINE_FIELD_ID = 217;
+    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 1, CROP_ICON_GRAPE_COLOR = 171;
+    const CROP_ICON_GRAPE_COUNT = 8;
+    const CROP_ICON_GRAPE_STATIONS = Array.from({ length: CROP_ICON_GRAPE_COUNT }, (_, index) => (2 * index + 1) / (2 * CROP_ICON_GRAPE_COUNT));
+    const CROP_FIELD_ICONS = new Map([
+        [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
+        [TULIP_FIELD_ID, { name: 'tulip field', rows: 6, gap: 2, colors: [167, 54, 38, 181, 167, 70] }],
+        [VINE_FIELD_ID, { name: 'vine field', rows: 12, scale: 8, gap: 6, colors: [90], edge: 92, grapes: true }]
+    ]);
+    // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
+    const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
+        [101, 128, 192], [348, -48, 152], [-365, -151, 168], [-61, -190, 120],
+        [221, -311, 160], [-261, -367, 136]];
+    const PINE_SIX_LAYOUT = [[-318, 274, 152], [-47, 355, 192], [305, 171, 136],
+        [171, -143, 208], [-119, -326, 160], [-363, -89, 176]];
+    const PINE_SCATTER = { columnSeed: 0x9e3779b1, rowSeed: 0x85ebca77, treeSeed: 0xc2b2ae3d,
+        mixFirst: 0x7feb352d, mixSecond: 0x846ca68b, depthSeed: 0x68bc21eb, scaleSeed: 0x02e5be93,
+        positionRange: 193, positionRadius: 96, largePositionRange: 129, largePositionRadius: 64,
+        scaleRange: 33, scaleRadius: 16 };
+    function pineScatterHash(value) {
+        value = Math.imul(value ^ (value >>> 16), PINE_SCATTER.mixFirst);
+        value = Math.imul(value ^ (value >>> 15), PINE_SCATTER.mixSecond);
+        return (value ^ (value >>> 16)) >>> 0;
+    }
+    function pineTreeLayout(pineCount, column = 0, row = 0) {
+        if (pineCount !== PINE_SMALL_COUNT && pineCount !== PINE_TEN_LAYOUT.length) fail('Invalid pine tree group.');
+        const small = pineCount === PINE_SMALL_COUNT, layout = small ? PINE_SIX_LAYOUT : PINE_TEN_LAYOUT;
+        const positionRange = small ? PINE_SCATTER.positionRange : PINE_SCATTER.largePositionRange;
+        const positionRadius = small ? PINE_SCATTER.positionRadius : PINE_SCATTER.largePositionRadius;
+        return layout.map(([x, z, scale], index) => {
+            let hash = pineScatterHash(Math.imul(column, PINE_SCATTER.columnSeed) ^
+                Math.imul(row, PINE_SCATTER.rowSeed) ^ Math.imul(index + 1, PINE_SCATTER.treeSeed));
+            x += hash % positionRange - positionRadius;
+            hash = pineScatterHash(hash ^ PINE_SCATTER.depthSeed);
+            z += hash % positionRange - positionRadius;
+            hash = pineScatterHash(hash ^ PINE_SCATTER.scaleSeed);
+            scale += hash % PINE_SCATTER.scaleRange - PINE_SCATTER.scaleRadius;
+            return [x, z, scale];
+        });
+    }
     const ROAD_TINT_NEUTRAL_RANGE = 24, ROAD_TINT_MIN_SHADE = 35, ROAD_TINT_MAX_SHADE = 225;
+    const RGB_PALETTE_SIZE = 256 * 3, PALETTE_HEADER_SIZE = 16;
+    const COMPRESSED_RESOURCE_EXTENSIONS = new Set(['pre', 'pvs', 'pes', 'xvs', 'p3s']);
     function bytes(value) { return value instanceof Uint8Array ? value : new Uint8Array(value); }
     function fail(message) { throw new Error(message); }
     function read24(a, p) { return a[p] | (a[p + 1] << 8) | (a[p + 2] << 16); }
@@ -232,7 +275,60 @@
         }
         return { width: height, height: width, pixels: rotated, alpha: rotatedAlpha };
     }
-    function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0) {
+    function composePineTreesBitmap(icons, pineCount, column, row) {
+        const source = composeTileBitmap(icons.get(PINE_ICON));
+        const width = EDITOR_TILE_INTERIOR * PINE_GROUP_ICON_SCALE, height = width;
+        const pixels = new Uint8Array(width * height), alpha = new Uint8Array(width * height);
+        const trees = pineTreeLayout(pineCount, column, row);
+        const topPadding = Math.ceil(source.height * Math.max(...trees.map(tree => tree[2])) / PINE_LAYOUT_SCALE);
+        // Paint the northern trees first, keeping the individual silhouettes
+        // and their trunks legible on the transparent terrain background.
+        for (const [x, z, scale] of trees.sort((first, second) => second[1] - first[1])) {
+            const treeWidth = Math.max(1, Math.round(source.width * scale / PINE_LAYOUT_SCALE));
+            const treeHeight = Math.max(1, Math.round(source.height * scale / PINE_LAYOUT_SCALE));
+            const left = Math.round((x / PINE_TILE_WORLD_SIZE + .5) * width - treeWidth / 2);
+            const top = Math.round(topPadding + (.5 - z / PINE_TILE_WORLD_SIZE) * (height - topPadding) - treeHeight);
+            for (let dy = 0; dy < treeHeight; dy++) for (let dx = 0; dx < treeWidth; dx++) {
+                const sourceX = Math.floor(dx * source.width / treeWidth), sourceY = Math.floor(dy * source.height / treeHeight);
+                const from = sourceY * source.width + sourceX, targetX = left + dx, targetY = top + dy;
+                if (!source.alpha[from] || targetX < 0 || targetX >= width || targetY < 0 || targetY >= height) continue;
+                const to = targetY * width + targetX;
+                pixels[to] = source.pixels[from]; alpha[to] = source.alpha[from];
+            }
+        }
+        return { width, height, pixels, alpha };
+    }
+    function composeCropFieldBitmap(field) {
+        const width = EDITOR_TILE_INTERIOR * (field.scale || CROP_ICON_SCALE), height = width;
+        const pixels = new Uint8Array(width * height).fill(CROP_ICON_SOIL);
+        const alpha = new Uint8Array(pixels.length).fill(255);
+        function pixel(x, y, color) {
+            if (x >= 0 && x < width && y >= 0 && y < height) pixels[y * width + x] = color;
+        }
+        const rowWidth = Math.floor(width / field.rows) - field.gap;
+        for (let row = 0; row < field.rows; row++) {
+            const x = Math.floor((row + .5) * width / field.rows), halfWidth = Math.floor(rowWidth / 2);
+            for (let y = 0; y < height; y++) for (let dx = -halfWidth; dx <= halfWidth; dx++)
+                pixel(x + dx, y, field.edge !== undefined && Math.abs(dx) > halfWidth - CROP_ICON_EDGE_WIDTH
+                    ? field.edge : field.colors[row % field.colors.length]);
+            if (field.grapes) for (const station of CROP_ICON_GRAPE_STATIONS) for (const side of [-1, 1]) {
+                const y = Math.floor(station * height), edge = x + side * halfWidth;
+                for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]]) pixel(edge + side * dx, y + dy, CROP_ICON_GRAPE_COLOR);
+            }
+        }
+        return { width, height, pixels, alpha };
+    }
+    function composePieceTileBitmap(icons, id, tunnelSlalom = 0, rollRamp = 0, pineCount = 0, column = 0, row = 0) {
+        const field = CROP_FIELD_ICONS.get(id);
+        if (field) {
+            if (tunnelSlalom || rollRamp || pineCount) fail('Invalid ' + field.name + ' artwork flags.');
+            return composeCropFieldBitmap(field);
+        }
+        if (pineCount) {
+            if (id !== PINE_ICON || tunnelSlalom || rollRamp || ![PINE_SMALL_COUNT, PINE_TEN_LAYOUT.length].includes(pineCount))
+                fail('Invalid pine tree group artwork.');
+            return composePineTreesBitmap(icons, pineCount, column, row);
+        }
         if (rollRamp) {
             if (rollRamp !== 1 || tunnelSlalom ||
                 (id !== ROLL_RAMP_VERTICAL_ICON && id !== ROLL_RAMP_HORIZONTAL_ICON)) fail('Invalid barrel roll ramp artwork.');
@@ -279,25 +375,51 @@
         }
         return rgba;
     }
-    async function load(files) {
+    function normalizeFiles(files) {
         const normalized = new Map();
         for (const [name, value] of files) normalized.set(name.toLowerCase(), value);
-        async function read(name, extensions) {
-            for (const extension of extensions) {
-                const filename = name + '.' + extension, value = normalized.get(filename);
-                if (value) {
+        return normalized;
+    }
+    async function readResource(files, name, extensions) {
+        for (const extension of extensions) {
+            const filename = name + '.' + extension, value = files.get(filename);
+            if (value) {
+                try {
                     let data = bytes(value.arrayBuffer ? await value.arrayBuffer() : value);
-                    if (['pre', 'pvs', 'pes', 'xvs'].includes(extension)) data = decompress(data);
+                    if (COMPRESSED_RESOURCE_EXTENSIONS.has(extension)) data = decompress(data);
                     return { directory: resourceDirectory(data), extension };
-                }
+                } catch (error) { fail('Cannot read ' + filename.toUpperCase() + ': ' + error.message); }
             }
-            fail('Select a Stunts folder containing ' + name.toUpperCase() + ' game resources.');
         }
-        const text = await read('tedit', ['res', 'pre']), shapes = await read('sdtedit', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
-        const main = await read('sdmain', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
+        fail('Select a Stunts folder containing ' + name.toUpperCase() + ' game resources (' +
+            extensions.map(extension => name.toUpperCase() + '.' + extension.toUpperCase()).join(' or ') + ').');
+    }
+    async function loadPalette(files) {
+        const main = await readResource(files, 'sdmain', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
         const colorShape = main.directory.get('!pal');
-        if (!colorShape || colorShape.length < 784) fail('The selected folder is missing its VGA palette.');
-        const rgbPalette = colorShape.slice(16, 784).map(n => ((n & 63) << 2) | ((n & 63) >>> 4));
+        if (!colorShape || colorShape.length < PALETTE_HEADER_SIZE + RGB_PALETTE_SIZE)
+            fail('The selected folder is missing its VGA palette.');
+        return colorShape.slice(PALETTE_HEADER_SIZE, PALETTE_HEADER_SIZE + RGB_PALETTE_SIZE)
+            .map(n => ((n & 63) << 2) | ((n & 63) >>> 4));
+    }
+    async function load3D(files, palette) {
+        const normalized = normalizeFiles(files), models = new Map();
+        // The game searches GAME1 before GAME2; duplicate names such as zban
+        // intentionally have different geometry in the two archives.
+        for (const name of ['game1', 'game2']) {
+            const resource = await readResource(normalized, name, ['3sh', 'p3s']);
+            for (const [id, shape] of resource.directory) if (!models.has(id)) models.set(id, shape);
+        }
+        if (!models.size) fail('The selected folder has no 3D track models.');
+        const rgbPalette = palette === undefined ? await loadPalette(normalized) : bytes(palette);
+        if (rgbPalette.length !== RGB_PALETTE_SIZE) fail('The 3D preview requires a complete VGA palette.');
+        return { models, palette: rgbPalette };
+    }
+    async function load(files) {
+        const normalized = normalizeFiles(files);
+        const read = (name, extensions) => readResource(normalized, name, extensions);
+        const text = await read('tedit', ['res', 'pre']), shapes = await read('sdtedit', ['pvs', 'xvs', 'pes', 'esh', 'vsh']);
+        const rgbPalette = await loadPalette(normalized);
         const shapeNames = text.directory.get('snam'), maskNames = text.directory.get('mnam'), pages = text.directory.get('pbox');
         if (!shapeNames || !maskNames || shapeNames.length < 186 * 4 || maskNames.length < 186 * 4 || !pages || pages.length < 396)
             fail('The selected folder has incomplete track editor resources.');
@@ -315,5 +437,5 @@
         for (let id = 1; id <= 10; id++) groups.push({ id, name: 'F' + id, tiles: [...new Set(pages.subarray(id * 36, (id + 1) * 36))].filter(n => n > 0 && n < 186) });
         return { icons, terrain, groups, names, palette: rgbPalette };
     }
-    return { load, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap };
+    return { load, load3D, decompress, resourceDirectory, decodeShape, composeTileBitmap, composePieceTileBitmap, tintTileBitmap, pineTreeLayout };
 }));

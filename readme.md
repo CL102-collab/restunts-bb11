@@ -330,7 +330,9 @@ dead ends and scenery do not affect its center or bounding box. It looks toward
 that center at 45 degrees down, at least twelve hill levels above it; larger
 courses raise the orbit enough to keep all lap pieces visible. Tracks without
 a valid complete lap use the map center. The scene extends behind the title and
-best recorded time. Turning HyperVision off restores the 2D surface map.
+best recorded time. F11 or Shift+F11 toggles FPS and render time over the preview;
+the counter measures presented preview frames, and timing excludes pacing and
+display synchronization. Turning HyperVision off restores the 2D surface map.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
@@ -477,8 +479,10 @@ F11, Shift+F11, and F12 also work in both car-selection screens and during the
 nighttime driving intro without skipping the animation, including in 16-bit DOS. F12 also
 works in the track preview and opponent-selection menu, with the same two-second
 status display. SDL3 builds additionally support Shift+F12 in these locations.
-The main menu, opponent biographies, and track-selection menu hide F11 diagnostics;
-the F11 setting is retained when returning to a screen that displays them.
+The main menu, opponent biographies, and static track-selection previews hide
+F11 diagnostics; the F11 setting is retained when returning to a screen that
+displays them. HyperVision previews of extended tracks show the same diagnostics
+as races and car-selection previews.
 
 HyperVision and the FPS display start off by default. Use `--fps:on` to show
 FPS from startup on every port, or `--fps:off` to select the default explicitly.
@@ -715,6 +719,14 @@ The repository stores only their `.RES`, `.3SH` and `.VSH` game resources in
 The generator's `--install stunts` option writes the four resources to
 `stunts/cars/`. Restunts discovers compatible cars there automatically and
 continues to load loose cars from the game-data and executable folders.
+
+Tracks can likewise be placed in `tracks/` inside the game-data folder or beside
+the executable. The game discovers `.TRK` tracks there automatically; SDL3 builds
+also support `.CSTRK` tracks. Loose game-data files take priority, followed by
+loose executable files, game-data `tracks/`, then executable `tracks/`. Duplicate
+filenames appear once in the track menu, matched without case sensitivity.
+Optional `.HIG`/`.CSHIG` tables can accompany the tracks. Saved tracks and updated
+scores continue to be written in the selected game-data folder.
 
 The generator checks both dashboard resources against DIA3 after extraction
 and game preparation. See [car details and references](tools/scripts/cars/READTERR.TXT).
@@ -1732,20 +1744,28 @@ CI runs in five phases, each requiring the previous phase to pass:
 A failed phase skips the later phases. Physics and renderer phase diagnostics
 remain available in their individual artifacts if replay validation fails.
 
-AddressSanitizer, ThreadSanitizer, and UndefinedBehaviorSanitizer each build
-and run the host and SDL3 regression suites in a separate Linux x64 job,
-including the renderer-worker and audio tests. These checks run for every
-platform selection and gate both PR validation and releases. Each job uses
+AddressSanitizer and UndefinedBehaviorSanitizer each build and run the host
+and SDL3 regression suites in a separate Linux x64 job, including the
+renderer-worker and audio tests. ThreadSanitizer splits the same suites across
+ten parallel jobs. `genghost-extended-1`, `genghost-extended-2`, and
+`genghost-extended-3` run the complete extended suite in three parts;
+`genghost-search`, `genghost-fine-tune`, `genghost-parallel`, `extended-render`,
+and `render-replay` each run alone.
+Two jobs cover the remaining `genghost-` tests and the remaining tests without
+that prefix. These checks run for every platform selection and gate both PR
+validation and releases. Each job uses
 debug symbols, frame pointers, and fail-on-error sanitizer settings. ASan uses
 Clang 18 and also checks for leaks; TSan and UBSan use GCC. The ASan linker
 flags preserve removal of unused fixture data while retaining checks on all
 globals that remain in the executable. Bundled SDL3, wxWidgets, and Nuked are
 instrumented along with the game, launcher, and tests. Sanitizer builds disable
 SDL D-Bus support because the headless dummy drivers do not need desktop IPC.
-Test logs are retained in `sanitizer-<sanitizer>-logs` artifacts, including on
-failure. TSan's runner lowers ASLR mapping entropy to keep its shadow-memory
-range available. Sanitizer jobs allow ten minutes per replay subprocess and
-thirty minutes per CTest entry. Normal replay tests
+Test logs are retained in `sanitizer-<variant>-logs` artifacts, including on
+failure. Dedicated TSan variants use `thread-<test-name>`; the remaining suites
+use `thread` and `thread-genghost-other`. TSan's runner lowers ASLR mapping
+entropy to keep its shadow-memory range available. Sanitizer jobs allow ten
+minutes per replay subprocess and use a thirty-minute default CTest timeout,
+with scaled limits for ghost and rendering regressions. Normal replay tests
 retain their two-minute limit (five minutes with `--full`); set
 `RESTUNTS_RENDER_REPLAY_TIMEOUT_SECONDS` to override it with a positive integer.
 
@@ -1937,9 +1957,29 @@ standalone `tracked.html` editor: beside the browser game, or at
 `share/restunts/editor/tracked.html` in native packages, including 32-bit DOS
 and the Android ZIPs. Open it in a browser; no CSS or JavaScript sidecars are
 needed. The browser launcher also links the editor. The current `.cstrk`
-revision is v8. Revision v3 through v7 tracks open as v8 while preserving their
+revision is v12. Revision v3 through v11 tracks open as v12 while preserving their
 overpass road materials; revisions below v3 are unsupported. Newer revisions
 show a warning and load using the known format.
+
+Switch from the 2D editor to **3D preview** to explore the track with WebGL and
+original models from your selected Stunts folder. Click for mouse look; WASD moves,
+Space rises, and Shift descends. Hold Alt or enable Caps Lock for 3× speed. Esc
+releases the mouse, and the 2D editor retains its zoom and map position.
+
+The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
+rows. Adjacent tiles form larger fields, rotation changes the row direction, and
+straight inclines are supported. Cars drive through the crops using the terrain
+beneath them. **Tulip field** adds solid purple, orange, red, pink, purple and
+yellow flower rows. **Vine field** adds twelve low, narrow rows with
+triangular tops and dense purple grape clusters. Both support hillside
+inclines, rotation and adjoining fields. All three appear in the game and the editor's 2D and 3D views.
+Tulip and Vine fields require `.cstrk` v12.
+
+The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both
+groups vary positions and sizes by tile, breaking up rows and repeated
+patterns across neighboring tiles. Opening the same track always restores the
+same forest. On slopes, each pine retains the single tree's upright crown and
+slope-following trunk roots.
 
 The Stunts palette includes **Tunnel with slalom**, combining a tunnel shell
 with slalom barriers as one piece. It supports paved, dirt and ice roads,

@@ -4,16 +4,19 @@
     const $ = id => document.getElementById(id);
     const canvas = $('track-canvas'), ctx = canvas.getContext('2d');
     const minimap = $('minimap'), mini = minimap.getContext('2d');
-    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024;
+    const baseTile = 32, maximumTrackBytes = 4 * 1024 * 1024, maximumTrackNameLength = 12;
     const terrainGrassPalette = { ground: 2, raised: 10, contour: 7 };
-    const terrainPaletteFallbacks = { 2: '#00aa00', 10: '#55ff55', 7: '#aaaaaa' };
-    const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64;
+    const terrainPaletteFallbacks = { 2: [0, 170, 0], 10: [85, 255, 85], 7: [170, 170, 170] };
+    const terrainMaximumLevel = 4, paletteChannels = 3;
+    const terrainContourMinimumSize = 12, terrainContourReferenceSize = 64, brushPreviewGridWidth = 1;
     const view = { x: 24, y: 24, zoom: 1, width: 0, height: 0 };
     const state = {
         ready: false, loading: false, doc: null, resources: null, folder: null, remembered: null,
+        viewMode: '2d', preview: null, previewAssets: null, previewAssetsPromise: null,
+        previewGeneration: 0, previewDirty: true, previewReset: true, previewLoading: false, previewError: false, previewAvailable: null,
         files: new Map(), diskNames: new Map(), name: 'Untitled', saved: '', tool: 'place',
-        rotation: 0, shoreDirection: 0, lowerSurface: null, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
-        drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
+        rotation: 0, shoreDirection: 0, lowerSurface: null, paintSize: 1, levelSize: 1, pineSize: 1, selected: null, group: 1, panel: 'track', terrainTool: 'paint', hover: null, cursor: { x: 0, y: 0 }, space: false,
+        drag: null, navigatorDrag: null, selection: null, clipboard: null, clipboardPreview: null, pineBrushPreview: null, sidebarCollapsed: false, dirty: false, frame: 0, iconCache: new Map(), lastMessage: ''
     };
     let model;
     const groupIcons = { 1: 'road', 4: 'stunts', 5: 'banked', 6: 'branch', 7: 'highway', 8: 'elevated', 9: 'corkscrew', 10: 'tree' };
@@ -55,28 +58,64 @@
         $('lower-surface-row').hidden = state.tool !== 'paint';
         $('shore-direction-row').hidden = state.tool !== 'water-corner';
         $('level-options-row').hidden = state.tool !== 'level';
+        $('level-brush-row').hidden = state.tool !== 'level';
         const cornerSurface = Number($('shore-surface').value);
         document.querySelectorAll('[data-surface-for="shore-surface"]').forEach(button => {
             button.hidden = Number(button.dataset.value) === surface;
         });
         document.querySelector('[data-tool="level"]').disabled = false;
-        const paint = $('paint-preview-row').querySelector('button');
-        paint.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase();
-        paint.setAttribute('aria-label', paint.title);
-        paint.setAttribute('aria-pressed', String(state.lowerSurface === null));
-        drawTerrainPreview($('paint-preview'), surface);
+        document.querySelectorAll('[data-paint-size]').forEach(button => {
+            const size = Number(button.dataset.paintSize);
+            button.title = 'Paint ' + model.TERRAIN_SURFACES[surface].toLowerCase() + ' (' + size + 'x' + size + ')';
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(state.lowerSurface === null && state.paintSize === size));
+            drawBrushPreview(button.querySelector('canvas'), surface, size);
+        });
         document.querySelectorAll('[data-shore-direction]').forEach(button => {
             drawTerrainPreview(button.querySelector('canvas'), surface, 0, Number(button.dataset.shoreDirection) + 1, cornerSurface);
+        });
+        document.querySelectorAll('[data-level-size]').forEach(button => {
+            const size = Number(button.dataset.levelSize), level = Number($('terrain-level').value);
+            button.title = 'Level ' + size + 'x' + size + ' tiles to elevation ' + level;
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(state.levelSize === size));
+            drawBrushPreview(button.querySelector('canvas'), surface, size, level);
         });
         $('level-options-row').querySelectorAll('[data-level] canvas').forEach(preview => {
             drawTerrainPreview(preview, surface, Number(preview.parentElement.dataset.level));
         });
+    }
+    function drawBrushPreview(preview, surface, size, level = 0) {
+        drawTerrainPreview(preview, surface, level);
+        if (size === 1) return;
+        const c = preview.getContext('2d');
+        c.strokeStyle = '#141c18'; c.lineWidth = brushPreviewGridWidth;
+        c.beginPath();
+        for (let tile = 1; tile < size; tile++) {
+            const x = tile * preview.width / size, y = tile * preview.height / size;
+            c.moveTo(x, 0); c.lineTo(x, preview.height);
+            c.moveTo(0, y); c.lineTo(preview.width, y);
+        }
+        c.stroke();
     }
     function drawTerrainPreview(preview, surface, level = 0, halfWaterCorner = 0, cornerSurface = model.DEFAULT_CORNER_SURFACE) {
         const c = preview.getContext('2d');
         c.clearRect(0, 0, preview.width, preview.height);
         const doc = { width: 1, cells: [{ surface, halfWaterCorner, cornerSurface }], tileHeights: () => [level, level, level, level] };
         drawTerrain(c, doc, 0, 0, 0, 0, preview.width);
+    }
+    function drawPineBrushPreview(preview, piece, rotation, size) {
+        const c = preview.getContext('2d'), tileWidth = preview.width / size, tileHeight = preview.height / size;
+        c.clearRect(0, 0, preview.width, preview.height);
+        c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+            drawPiece(c, piece, x * tileWidth, y * tileHeight, tileWidth, tileHeight, 0, rotation, true);
+        c.strokeStyle = '#141c18'; c.lineWidth = brushPreviewGridWidth; c.beginPath();
+        for (let tile = 1; tile < size; tile++) {
+            c.moveTo(tile * tileWidth, 0); c.lineTo(tile * tileWidth, preview.height);
+            c.moveTo(0, tile * tileHeight); c.lineTo(preview.width, tile * tileHeight);
+        }
+        c.stroke();
     }
     function renderSelection() {
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
@@ -86,11 +125,20 @@
             c.fillStyle = '#365333'; c.fillRect(0, 0, preview.width, preview.height);
             drawPiece(c, selected, 0, 0, preview.width, preview.height, Number($('road-surface').value), variant.rotation, true);
         }
+        const pineGroup = Boolean(selected?.pineCount);
+        $('pine-brush-row').hidden = !pineGroup;
+        if (pineGroup) document.querySelectorAll('[data-pine-size]').forEach(button => {
+            const size = Number(button.dataset.pineSize);
+            button.title = 'Place ' + selected.name.toLowerCase() + ' in a ' + size + 'x' + size + ' area';
+            button.setAttribute('aria-label', button.title);
+            button.setAttribute('aria-pressed', String(state.pineSize === size));
+            drawPineBrushPreview(button.querySelector('canvas'), selected, variant.rotation, size);
+        });
         $('selected-piece').textContent = selected ? selected.name : 'No compatible pieces';
         document.querySelector('.selection-label').textContent = selected ? 'READY TO BUILD' : 'TRY ANOTHER SURFACE';
-        const width = selected && (variant.rotation % 2 ? selected.height : selected.width);
-        const height = selected && (variant.rotation % 2 ? selected.width : selected.height);
-        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : (selected.physical === model.OVERPASS_PHYSICAL_MODEL ? 'Upper ' : '') + model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + ' tiles' : 'Choose another road surface';
+        const width = selected && (pineGroup ? state.pineSize : (variant.rotation % 2 ? selected.height : selected.width));
+        const height = selected && (pineGroup ? state.pineSize : (variant.rotation % 2 ? selected.width : selected.height));
+        $('selected-piece-meta').textContent = selected ? (selected.decoration ? 'Scenery' : (selected.physical === model.OVERPASS_PHYSICAL_MODEL ? 'Upper ' : '') + model.SURFACES[Number($('road-surface').value)]) + ' · ' + width + ' × ' + height + (pineGroup ? ' brush' : ' tiles') : 'Choose another road surface';
     }
 
     function message(text, error = false) {
@@ -100,17 +148,107 @@
     }
     function folderMessage(text) { $('folder-status').textContent = text; }
     function showDialog(id) {
+        state.preview?.stop();
         const d = $(id);
         if (!d.open) d.showModal();
     }
-    function closeDialog(id) { $(id).close(); canvas.focus({ preventScroll: true }); }
+    function closeDialog(id) { $(id).close(); if (state.viewMode === '2d') canvas.focus({ preventScroll: true }); }
+    function previewMessage(text, error = false) {
+        const output = $('preview-message');
+        output.textContent = text; output.dataset.error = String(error); output.hidden = !text;
+    }
+    function previewStatus(status) {
+        const recovered = state.previewAvailable === false && status.available;
+        state.previewAvailable = status.available;
+        if (recovered) queueMicrotask(() => {
+            if (state.viewMode !== '3d' || state.previewLoading || state.previewError || document.querySelector('dialog[open]')) return;
+            if (state.previewDirty || !state.preview.active) setViewMode('3d');
+        });
+        const fast = status.speedMultiplier === 3;
+        $('preview-reset').disabled = state.previewLoading || !status.available;
+        $('preview-speed').textContent = fast ? 'Running · 3×' : 'Walking · 1×';
+        $('preview-speed').dataset.running = String(fast);
+        if (state.viewMode !== '3d' || state.previewLoading || state.previewError) return;
+        previewMessage(status.looking ? '' : status.message, !status.available);
+    }
+    function syncViewMode() {
+        const preview = state.viewMode === '3d';
+        $('view-2d').setAttribute('aria-pressed', String(!preview));
+        $('view-3d').setAttribute('aria-pressed', String(preview));
+        $('preview-view').hidden = !preview;
+        canvas.hidden = preview;
+        $('canvas-container').classList.toggle('is-preview', preview);
+        for (const id of ['map-display-options', 'map-view-controls', 'map-toolbar-divider']) $(id).hidden = preview;
+        $('preview-reset').hidden = !preview;
+        $('preview-reset').disabled = state.previewLoading || !state.preview?.available;
+        $('workspace-title').textContent = preview ? '3D preview' : 'Track canvas';
+    }
+    async function setViewMode(mode) {
+        if (!state.ready || !state.doc) return;
+        finishDrag(); finishNavigatorDrag();
+        state.space = false; state.hover = null; updateCanvasCursor();
+        state.viewMode = mode;
+        const generation = ++state.previewGeneration;
+        syncViewMode();
+        if (mode === '2d') {
+            state.previewLoading = false;
+            state.preview?.stop();
+            canvas.focus({ preventScroll: true }); scheduleDraw();
+            return;
+        }
+        state.previewError = false;
+        try {
+            if (!window.TrackEditorScene || !window.TrackEditorPreview) throw new Error('The 3D preview could not be loaded. Reopen or re-download the editor.');
+            if (!state.preview) state.preview = new window.TrackEditorPreview.Preview($('preview-canvas'), { onStatus: previewStatus });
+            if (!state.preview.available) {
+                previewMessage(state.preview.status.message, true);
+                return;
+            }
+            if (state.previewDirty || !state.previewAssets) {
+                state.previewLoading = true; syncViewMode();
+                previewMessage('Loading original 3D models…');
+                const files = state.files;
+                if (!state.previewAssetsPromise) {
+                    state.previewAssetsPromise = window.TrackEditorResources.load3D(files, state.resources.palette)
+                        .then(assets => { if (state.files === files) state.previewAssets = assets; return assets; })
+                        .catch(error => { if (state.files === files) state.previewAssetsPromise = null; throw error; });
+                }
+                const assets = await state.previewAssetsPromise;
+                if (generation !== state.previewGeneration) return;
+                previewMessage('Building the 3D track…');
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                if (generation !== state.previewGeneration) return;
+                const scene = window.TrackEditorScene.buildScene(state.doc, assets);
+                state.preview.setScene(scene, { resetCamera: state.previewReset });
+                state.previewDirty = false;
+            }
+            if (state.previewReset) { state.preview.resetCamera(); state.previewReset = false; }
+            state.previewLoading = false; syncViewMode();
+            if (!document.querySelector('dialog[open]')) {
+                state.preview.start();
+                $('preview-canvas').focus({ preventScroll: true });
+            }
+            previewStatus(state.preview.status);
+        } catch (error) {
+            if (generation !== state.previewGeneration) return;
+            state.previewError = true;
+            state.preview?.stop();
+            previewMessage(error.message || 'Could not build the 3D preview.', true);
+        } finally {
+            if (generation === state.previewGeneration) { state.previewLoading = false; syncViewMode(); }
+        }
+    }
+    function refreshPreview() {
+        state.previewDirty = true;
+        if (state.viewMode === '3d') setViewMode('3d');
+    }
     function editableTarget(target) { return target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName); }
     function signature() {
         if (!state.doc) return '';
         return JSON.stringify([state.doc.width, state.doc.height, Array.from(state.doc.vertices), state.doc.cells, state.doc.objects, state.doc.notes, state.doc.horizon, state.doc.version]);
     }
     function refreshDocument() {
-        state.clipboardPreview = null;
+        state.clipboardPreview = null; state.pineBrushPreview = null;
         if (!state.doc) return;
         state.dirty = signature() !== state.saved;
         $('document-name').textContent = state.name + (state.dirty ? ' •' : '');
@@ -123,12 +261,14 @@
         $('undo').disabled = !state.doc.canUndo;
         $('redo').disabled = !state.doc.canRedo;
         updateClipboardControls();
+        refreshPreview();
         scheduleDraw();
     }
     function setDocument(doc, name, clean = true) {
         finishDrag(true); finishNavigatorDrag();
         state.selection = null;
         state.doc = doc;
+        state.previewReset = true;
         state.name = name || 'Untitled';
         state.saved = clean ? signature() : '';
         state.cursor = { x: 0, y: 0 };
@@ -380,7 +520,9 @@
             if (!normalized.has('main.res') && !normalized.has('main.pre')) throw new Error('Choose the game folder containing MAIN.RES or MAIN.PRE.');
             const resources = await window.TrackEditorResources.load(normalized);
             state.resources = resources; state.files = normalized; state.diskNames = diskNames; state.folder = directory;
+            state.previewAssets = null; state.previewAssetsPromise = null; state.previewDirty = true;
             state.iconCache.clear(); state.ready = true;
+            $('view-2d').disabled = false; $('view-3d').disabled = false;
             $('editor-controls').disabled = false;
             $('folder-button-label').textContent = name;
             $('folder-button').title = 'Change Stunts folder (' + (directory ? 'direct saving' : 'read-only selection') + ')';
@@ -447,7 +589,7 @@
         event.preventDefault();
         if (!state.ready || state.loading) return;
         const name = $('save-name').value.trim();
-        if (!name || name.length > 8 || /[^\x21-\x7e]|[/\\:*?"<>|.]/.test(name)) { $('save-error').textContent = 'Use 1–8 ASCII characters without spaces, dots, or reserved characters.'; return; }
+        if (!name || name.length > maximumTrackNameLength || /[^\x21-\x7e]|[/\\:*?"<>|.]/.test(name)) { $('save-error').textContent = 'Use 1–' + maximumTrackNameLength + ' ASCII characters without spaces, dots, or reserved characters.'; return; }
         const filename = name + '.cstrk';
         $('confirm-save').disabled = true;
         try {
@@ -472,17 +614,21 @@
         finally { $('confirm-save').disabled = false; }
     }
 
-    function terrainPaletteColor(index) {
+    function terrainPaletteRgb(index) {
         const palette = state.resources?.palette;
         if (!palette) return terrainPaletteFallbacks[index];
-        const offset = index * 3;
-        return 'rgb(' + palette[offset] + ' ' + palette[offset + 1] + ' ' + palette[offset + 2] + ')';
+        const offset = index * paletteChannels;
+        return palette.subarray(offset, offset + paletteChannels);
     }
+    function terrainPaletteColor(index) { return 'rgb(' + terrainPaletteRgb(index).join(' ') + ')'; }
     function terrainColor(surface, level) {
         if (surface === 1) return 'hsl(192 39% ' + (58 + level * 3) + '%)';
         if (surface === 2) return 'hsl(31 34% ' + (35 + level * 4) + '%)';
         if (surface === 3) return 'hsl(204 48% ' + (34 + level * 3) + '%)';
-        return terrainPaletteColor(level > 0 ? terrainGrassPalette.raised : terrainGrassPalette.ground);
+        const ground = terrainPaletteRgb(terrainGrassPalette.ground), raised = terrainPaletteRgb(terrainGrassPalette.raised);
+        const fraction = Math.max(0, Math.min(terrainMaximumLevel, level)) / terrainMaximumLevel;
+        const channels = Array.from(ground, (value, channel) => Math.round(value + (raised[channel] - value) * fraction));
+        return 'rgb(' + channels.join(' ') + ')';
     }
     function drawTerrain(c, doc, x, y, left, top, size, showHeight = false) {
         const h = doc.tileHeights(x, y), cell = doc.cells[y * doc.width + x];
@@ -523,13 +669,14 @@
             c.fillText(h.every(v => v === h[0]) ? String(h[0]) : Math.min(...h) + '–' + Math.max(...h), left + size / 2, top + size / 2);
         }
     }
-    function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp) {
+    function originalIcon(id, surface, lowerSurface, tunnelSlalom, rollRamp, pineCount, column = 0, row = 0) {
         if (!state.resources || !state.resources.palette) return null;
-        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp;
+        const location = pineCount ? ':' + column + ':' + row : '';
+        const cacheKey = id + ':' + surface + ':' + lowerSurface + ':' + tunnelSlalom + ':' + rollRamp + ':' + pineCount + location;
         if (state.iconCache.has(cacheKey)) return state.iconCache.get(cacheKey);
         const source = state.resources.icons.get(id);
-        if (!source) return null;
-        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp);
+        if (!source && !model.isCropField(id)) return null;
+        const bitmap = window.TrackEditorResources.composePieceTileBitmap(state.resources.icons, id, tunnelSlalom, rollRamp, pineCount, column, row);
         const icon = document.createElement('canvas'); icon.width = bitmap.width; icon.height = bitmap.height;
         const context = icon.getContext('2d'), image = context.createImageData(bitmap.width, bitmap.height), palette = state.resources.palette;
         image.data.set(window.TrackEditorResources.tintTileBitmap(bitmap, palette, surface, lowerSurface, id));
@@ -538,7 +685,7 @@
     function drawPiece(c, piece, left, top, width, height, surface, rotation, thumbnail = false, lowerSurface = piece.lowerSurface ?? 0) {
         if (piece.decoration) surface = 0;
         const display = model.pieceDisplayVariant(piece, rotation);
-        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0, piece.rollRamp ?? 0);
+        const icon = originalIcon(display.piece.id, surface, lowerSurface, piece.tunnelSlalom ?? 0, piece.rollRamp ?? 0, piece.pineCount ?? 0, piece.x ?? 0, piece.y ?? 0);
         c.save(); c.translate(left + width / 2, top + height / 2); c.rotate(display.rotation * Math.PI / 2);
         if (icon) {
             c.imageSmoothingEnabled = false;
@@ -560,9 +707,10 @@
         }
         c.restore();
     }
-    function scheduleDraw() { if (!state.frame) state.frame = requestAnimationFrame(draw); }
+    function scheduleDraw() { if (state.viewMode === '2d' && !state.frame) state.frame = requestAnimationFrame(draw); }
     function draw() {
         state.frame = 0;
+        if (state.viewMode !== '2d') return;
         const ratio = window.devicePixelRatio || 1;
         if (canvas.width !== Math.round(view.width * ratio) || canvas.height !== Math.round(view.height * ratio)) {
             canvas.width = Math.round(view.width * ratio); canvas.height = Math.round(view.height * ratio);
@@ -605,7 +753,7 @@
         const left = view.x + object.x * size, top = view.y + object.y * size;
         if (left + object.width * size < 0 || top + object.height * size < 0 || left > view.width || top > view.height) return;
         const piece = catalogEntry(object.id);
-        if (piece) drawPiece(ctx, { ...piece, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0 }, left, top, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
+        if (piece) drawPiece(ctx, { ...piece, x: object.x, y: object.y, tunnelSlalom: object.tunnelSlalom ?? 0, rollRamp: object.rollRamp ?? 0, pineCount: object.pineCount ?? 0 }, left, top, object.width * size, object.height * size, object.surface, object.rotation, false, object.lowerSurface ?? 0);
     }
     function drawAreaSelection(size) {
         const area = state.selection, left = view.x + area.x * size, top = view.y + area.y * size;
@@ -638,20 +786,43 @@
         ctx.strokeRect(left + 1, top + 1, clipboard.width * size - 2, clipboard.height * size - 2);
         ctx.restore();
     }
+    function pineBrushPlan(point) {
+        let preview = state.pineBrushPreview;
+        const count = state.selected.pineCount;
+        if (!preview || preview.doc !== state.doc || preview.x !== point.x || preview.y !== point.y ||
+            preview.size !== state.pineSize || preview.count !== count || preview.rotation !== state.rotation) {
+            let objects = [], error = false;
+            try { objects = state.doc.pineBrushPreview(point.x, point.y, state.pineSize, count, state.rotation); }
+            catch (_) { error = true; }
+            preview = { doc: state.doc, x: point.x, y: point.y, size: state.pineSize, count, rotation: state.rotation, objects, error };
+            state.pineBrushPreview = preview;
+        }
+        return preview;
+    }
     function drawCursor(size) {
         const h = state.hover, doc = state.doc;
         if (state.tool === 'select') return;
         if (state.tool === 'paste') { drawPastePreview(size); return; }
         if (h.x < 0 || h.y < 0 || h.x >= doc.width || h.y >= doc.height) return;
-        let width = 1, height = 1, valid = true, preview = null;
+        let width = 1, height = 1, valid = true, preview = null, pinePreview = null;
         const variant = state.selected && model.pieceVariant(state.selected, state.rotation);
-        if (state.tool === 'place' && state.selected) {
-            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0); width = preview.width; height = preview.height; }
+        if (state.tool === 'place' && state.selected?.pineCount) {
+            pinePreview = pineBrushPlan(h);
+            width = Math.min(state.pineSize, doc.width - h.x); height = Math.min(state.pineSize, doc.height - h.y);
+            valid = !pinePreview.error && pinePreview.objects.length > 0;
+        } else if (state.tool === 'place' && state.selected) {
+            try { preview = doc.placement(variant.piece.id, h.x, h.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0); width = preview.width; height = preview.height; }
             catch (_) { valid = false; const footprint = model.rotatedFootprint(variant.piece, variant.rotation); width = footprint.width; height = footprint.height; }
+        }
+        if (state.tool === 'level' || (state.tool === 'paint' && state.lowerSurface === null)) {
+            const brushSize = state.tool === 'level' ? state.levelSize : state.paintSize;
+            width = Math.min(brushSize, doc.width - h.x);
+            height = Math.min(brushSize, doc.height - h.y);
         }
         const left = view.x + h.x * size, top = view.y + h.y * size;
         ctx.fillStyle = valid ? '#e6d69f22' : '#f080703b'; ctx.strokeStyle = valid ? '#ffdf8b' : '#ff9c80'; ctx.lineWidth = 2;
         ctx.fillRect(left, top, width * size, height * size);
+        if (pinePreview) { ctx.globalAlpha = .6; for (const object of pinePreview.objects) drawTrackObject(object, size); ctx.globalAlpha = 1; }
         if (preview && variant) { ctx.globalAlpha = .6; drawPiece(ctx, variant.piece, left, top, width * size, height * size, Number($('road-surface').value), variant.rotation); ctx.globalAlpha = 1; }
         ctx.strokeRect(left + 1, top + 1, width * size - 2, height * size - 2);
         if (state.tool === 'raise' || state.tool === 'lower') {
@@ -719,16 +890,20 @@
         try {
             state.selection = null;
             updateClipboardControls();
-            if (tool === 'place' && state.selected) {
+            if (tool === 'place' && state.selected?.pineCount) {
+                const objects = doc.placePineBrush(point.x, point.y, state.pineSize, state.selected.pineCount, state.rotation);
+                if (!objects.length) message('No empty tiles with suitable terrain in this brush area.');
+            } else if (tool === 'place' && state.selected) {
                 const variant = model.pieceVariant(state.selected, state.rotation);
-                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0);
+                doc.place(variant.piece.id, point.x, point.y, Number($('road-surface').value), variant.rotation, state.selected.lowerSurface ?? 0, state.selected.tunnelSlalom ?? 0, state.selected.rollRamp ?? 0, state.selected.pineCount ?? 0);
             }
             else if (tool === 'erase') doc.erase(point.x, point.y);
             else if (tool === 'raise' || tool === 'lower') doc.raise(point.cornerX, point.cornerY, tool === 'raise' ? 1 : -1);
             else if (tool === 'paint' && state.lowerSurface !== null) doc.paintLowerSurface(point.x, point.y, state.lowerSurface);
-            else if (tool === 'paint') doc.paint(point.x, point.y, Number($('terrain-surface').value), 0);
+            else if (tool === 'paint') doc.paintArea(point.x, point.y, state.paintSize, Number($('terrain-surface').value));
             else if (tool === 'water-corner') doc.paint(point.x, point.y, Number($('terrain-surface').value), state.shoreDirection + 1, Number($('shore-surface').value));
-            else if (tool === 'level') doc.level(point.x, point.y, Number($('terrain-level').value), Number($('terrain-surface').value));
+            else if (tool === 'level') doc.levelArea(point.x, point.y, state.levelSize, Number($('terrain-level').value), Number($('terrain-surface').value));
+            state.pineBrushPreview = null;
             scheduleDraw();
         } catch (error) { message(error.message, true); }
     }
@@ -808,6 +983,14 @@
     }
 
     function installEvents() {
+        $('view-2d').addEventListener('click', () => setViewMode('2d'));
+        $('view-3d').addEventListener('click', () => setViewMode('3d'));
+        $('preview-reset').addEventListener('click', () => {
+            state.preview?.resetCamera(); $('preview-canvas').focus({ preventScroll: true });
+        });
+        document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => {
+            if (state.viewMode === '3d' && !document.querySelector('dialog[open]')) setViewMode('3d');
+        }));
         document.querySelectorAll('[data-surface-for]').forEach(button => button.addEventListener('click', () => {
             const control = $(button.dataset.surfaceFor);
             control.value = button.dataset.value;
@@ -853,10 +1036,21 @@
         });
         document.querySelectorAll('[data-piece-direction]').forEach(button => button.addEventListener('click', () => setDirection(Number(button.dataset.pieceDirection))));
         document.querySelectorAll('[data-shore-direction]').forEach(button => button.addEventListener('click', () => setShoreDirection(Number(button.dataset.shoreDirection))));
-        $('paint-preview-row').querySelector('button').addEventListener('click', () => {
-            if (!state.ready) return;
-            finishDrag(); state.lowerSurface = null; updateTool('paint');
-        });
+        document.querySelectorAll('[data-paint-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.paintSize);
+            if (!state.ready || !model.PAINT_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.lowerSurface = null; state.paintSize = size; updateTool('paint');
+        }));
+        document.querySelectorAll('[data-level-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.levelSize);
+            if (!state.ready || !model.LEVEL_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.levelSize = size; updateTool('level');
+        }));
+        document.querySelectorAll('[data-pine-size]').forEach(button => button.addEventListener('click', () => {
+            const size = Number(button.dataset.pineSize);
+            if (!state.ready || !state.selected?.pineCount || !model.PINE_BRUSH_SIZES.includes(size)) return;
+            finishDrag(); state.pineSize = size; updateTool('place'); renderSelection();
+        }));
         document.querySelectorAll('[data-lower-surface]').forEach(button => button.addEventListener('click', () => {
             if (!state.ready) return;
             finishDrag(); state.lowerSurface = Number(button.dataset.lowerSurface); updateTool('paint');
@@ -956,6 +1150,7 @@
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
             else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); historyEdit(key === 'y' || event.shiftKey); }
+            else if (state.viewMode === '3d') return;
             else if (ctrl && (key === 'c' || key === 'x') && state.selection?.objects.length) { event.preventDefault(); copySelection(key === 'x'); }
             else if (ctrl && key === 'v' && state.clipboard?.objects.length) { event.preventDefault(); startPaste(); }
             else if (ctrl || event.altKey) return;

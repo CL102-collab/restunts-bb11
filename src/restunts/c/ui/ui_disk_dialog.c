@@ -1,4 +1,5 @@
 #include "ui_dialog_private.h"
+#define FILE_DIALOG_STEM_MAX_LENGTH 8U
 
 const legacy_u8 far quiz_question_suffixes[20] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 												  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'};
@@ -26,7 +27,7 @@ void show_waiting(void)
 }
 
 static legacy_s16 do_savefile_dialog_impl(legacy_s8 *primary, legacy_s8 *secondary,
-										  legacy_s8 far *prompt)
+										  legacy_s8 far *prompt, legacy_u16 max_length)
 {
 	legacy_s16 positions[6];
 	legacy_s16 result = LEGACY_S16_FROM_BITS(show_text_input_dialog(
@@ -46,8 +47,8 @@ static legacy_s16 do_savefile_dialog_impl(legacy_s8 *primary, legacy_s8 *seconda
 
 	result = 0;
 	for (;;) {
-		legacy_s16 key = LEGACY_S16_FROM_BITS(
-			call_read_line(secondary, 8, positions[4], positions[5], DIALOG_INPUT_TIMEOUT));
+		legacy_s16 key = LEGACY_S16_FROM_BITS(call_read_line(secondary, max_length, positions[4],
+															 positions[5], DIALOG_INPUT_TIMEOUT));
 		for (legacy_s16 character_index = 0; secondary[character_index] != 0; character_index++) {
 			if (secondary[character_index] == ' ') {
 				secondary[character_index] = '_';
@@ -72,16 +73,22 @@ static legacy_s16 do_savefile_dialog_impl(legacy_s8 *primary, legacy_s8 *seconda
 	return result;
 }
 
-legacy_s16 do_savefile_dialog(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt)
+legacy_s16 do_savefile_dialog_limit(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt,
+									legacy_u16 max_length)
 {
 #ifdef RESTUNTS_SDL3
 	sdl3_input_push_modal();
 #endif
-	legacy_s16 result = do_savefile_dialog_impl(primary, secondary, prompt);
+	legacy_s16 result = do_savefile_dialog_impl(primary, secondary, prompt, max_length);
 #ifdef RESTUNTS_SDL3
 	sdl3_input_pop_modal();
 #endif
 	return result;
+}
+
+legacy_s16 do_savefile_dialog(legacy_s8 *primary, legacy_s8 *secondary, legacy_s8 far *prompt)
+{
+	return do_savefile_dialog_limit(primary, secondary, prompt, FILE_DIALOG_STEM_MAX_LENGTH);
 }
 
 legacy_s16 show_disk_error_dialog(void)

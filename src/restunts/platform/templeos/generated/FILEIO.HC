@@ -100,6 +100,10 @@ legacy_s8 *RsFileFind(legacy_s8 *query)
   legacy_s8 *temple_chsrc_10;
   legacy_s32 noreg temple_tmp_11;
   legacy_s32 noreg temple_tmp_12;
+  (rs_fileio_file_find_tracks=TempleCastU16((RsFileTrackQuery(query)!=0)));
+  if(rs_fileio_file_find_tracks) {
+    return RsFileTrackFindFirst(query);
+  }
   temple_found_name_6=RsDosFileFindFirst(query);
   temple_tmp_7=0;
   if((temple_found_name_6==0)) {
@@ -164,6 +168,9 @@ legacy_s8 *RsFileFind(legacy_s8 *query)
 legacy_s8 *RsFileFindNext()
 {
   legacy_s8 *temple_found_name_13;
+  if(rs_fileio_file_find_tracks) {
+    return RsFileTrackFindNext();
+  }
   temple_found_name_13=RsDosFileFindNext();
   if((temple_found_name_13==0)) {
     return 0;

@@ -13,6 +13,7 @@ default_jobs=2
 jobs=${RESTUNTS_BUILD_JOBS:-$default_jobs}
 default_test_timeout_seconds=600
 test_timeout_seconds=${RESTUNTS_TEST_TIMEOUT_SECONDS:-$default_test_timeout_seconds}
+default_genghost_test_timeout_multiplier=1
 cmake_options=(-DCMAKE_BUILD_TYPE=Release -DRESTUNTS_BUILD_TESTS=OFF)
 python_command=${PYTHON:-python3}
 
@@ -84,7 +85,8 @@ case "$target" in
         for executable in restunts restunto repldump repldumo pixldump pixldumo; do
             cp -- "$dos_directory/$executable.exe" "$package_dir/$executable.exe"
         done
-        mkdir -p "$package_dir/cars"
+        mkdir -p "$package_dir/cars" "$package_dir/tracks"
+        cp -- "$repo_dir/assets/tracks/README.TXT" "$package_dir/tracks/README.TXT"
         for car_code in MCMU TERR; do
             for car_file in "CAR$car_code.RES" "ST$car_code.3SH" "STDA$car_code.VSH" "STDB$car_code.VSH"; do
                 cp -- "$repo_dir/assets/cars/$car_file" "$package_dir/cars/$car_file"
@@ -127,7 +129,11 @@ case "$target" in
             linux-arm32) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-arm32.cmake) ;;
             linux-arm64) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-arm64.cmake) ;;
             freebsd-x64|openbsd-x64) ;;
-            haiku-x64|haiku-x86) cmake_options+=(-DRESTUNTS_BUILD_TESTS=ON) ;;
+            haiku-x64|haiku-x86)
+                # Keep CTest's limits and its Python subprocess limits in sync.
+                cmake_options+=(-DRESTUNTS_BUILD_TESTS=ON
+                    "-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER:-$default_genghost_test_timeout_multiplier}")
+                ;;
             netbsd-x64|netbsd-x86|netbsd-x86-no-sse2)
                 # NetBSD's ASLR prevents GCC from reusing SDL's precompiled header.
                 cmake_options+=('-DCMAKE_PREFIX_PATH=/usr/pkg;/usr/X11R7' -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON)

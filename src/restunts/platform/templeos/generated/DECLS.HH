@@ -150,6 +150,9 @@ extern legacy_s16 RsAudioToggleMusic();
 extern legacy_s16 RsAudioToggleEffects();
 extern legacy_void RsAudioAddDriverTimer();
 extern legacy_void RsAudioRemoveDriverTimer();
+extern legacy_s8 *RsFileTrackQuery(legacy_s8 *filename);
+extern legacy_s8 *RsFileTrackFindFirst(legacy_s8 *query);
+extern legacy_s8 *RsFileTrackFindNext();
 extern legacy_u16 RsFileCarResolve(legacy_s8 *filename,legacy_s8 *path);
 extern legacy_u8 *RsFileAllocTailPages(
     legacy_s8 *filename,legacy_u16 paragraphs,legacy_u16 tail_bytes);
