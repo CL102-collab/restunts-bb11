@@ -275,9 +275,11 @@ class LauncherDialog : public wxDialog
 		renderer_->SetName("Renderer");
 		renderer_->Append("Software");
 		if (!graphics_devices_.empty()) {
-			renderer_->Append("Vulkan");
+			renderer_->Append(GRAPHICS_RENDERER_NATIVE_LABEL);
 		}
-		renderer_->SetSelection(options_.renderer);
+		renderer_->SetSelection(options_.renderer == GRAPHICS_RENDERER_NATIVE
+									? LAUNCHER_RENDERER_NATIVE
+									: LAUNCHER_RENDERER_SOFTWARE);
 		graphics_grid->Add(renderer_, FIXED_LAYOUT, wxEXPAND);
 		if (graphics_devices_.size() > 1U) {
 			graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "Device"),
@@ -373,7 +375,7 @@ class LauncherDialog : public wxDialog
 
 	void update_renderer_controls()
 	{
-		const legacy_bool software = renderer_->GetSelection() == GRAPHICS_RENDERER_SOFTWARE;
+		const legacy_bool software = renderer_->GetSelection() == LAUNCHER_RENDERER_SOFTWARE;
 		checks_[LAUNCHER_MULTI_CORE]->Enable(software);
 		if (device_ != nullptr) {
 			device_->Enable(!software);
@@ -446,7 +448,9 @@ class LauncherDialog : public wxDialog
 		}
 		options_.hypervision = hypervision_->GetSelection();
 #ifdef RESTUNTS_GRAPHICS_LAUNCHER
-		options_.renderer = renderer_->GetSelection();
+		options_.renderer = renderer_->GetSelection() == LAUNCHER_RENDERER_NATIVE
+								? GRAPHICS_RENDERER_NATIVE
+								: GRAPHICS_RENDERER_SOFTWARE;
 		if (device_ != nullptr && device_->GetSelection() != wxNOT_FOUND) {
 			options_.device = graphics_devices_[static_cast<size_t>(device_->GetSelection())].index;
 		}

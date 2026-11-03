@@ -366,30 +366,33 @@ replay viewer. Adding `--time` does not change the `.BNI` or `.owo` output.
 
 ### Scene renderer
 
-Windows, Linux, FreeBSD, OpenBSD, NetBSD, Haiku, and Android support
-`--renderer:software` and `--renderer:vulkan`. The default is `software`,
-the existing CPU scene renderer. Vulkan requires an installed Vulkan driver
-and a device that meets the renderer's compute requirements. Android Vulkan
-selection requires Android 7.0/API 24 or newer; the Software baseline is
-unchanged. The [desktop startup window](launcher.md) and
-[Android launcher](android.md) offer Vulkan only after finding a compatible
-device.
+Software is the default scene renderer on every target and uses the existing
+CPU rendering path. Windows, Linux, FreeBSD, OpenBSD, NetBSD, Haiku, and
+Android also support `--renderer:vulkan`. macOS supports `--renderer:metal`
+instead; Vulkan is unavailable there. Metal requires a compatible Metal device,
+and Vulkan requires an installed driver and a device that meets its compute
+requirements. Android Vulkan selection requires Android 7.0/API 24 or newer;
+the Software baseline is unchanged. The [desktop startup window](launcher.md)
+and [Android launcher](android.md) offer the platform's GPU renderer only
+after finding a compatible device.
 
-Run `restunts --list-render-devices` by itself to list compatible Vulkan
-devices without loading game data. Use a listed zero-based index with
-`--renderer-device:N`; omitting it selects the first compatible device.
-The device option requires `--renderer:vulkan`. For example:
+Run `restunts --list-render-devices` by itself to list compatible Metal devices
+on macOS or Vulkan devices on other native targets without loading game data.
+Use a listed zero-based index with `--renderer-device:N`; omitting it selects
+the first compatible device. The device option requires the platform's GPU
+renderer. For example:
 
 ```sh
 out/sdl3-linux-x64/restunts --list-render-devices
 out/sdl3-linux-x64/restunts --data-dir stunts --renderer:vulkan --renderer-device:0
+out/sdl3-macos-arm64/restunts --data-dir stunts --renderer:metal --renderer-device:0
 out/sdl3-linux-x64/restunts --data-dir stunts --renderer:software
 ```
 
-An explicitly selected Vulkan renderer reports an error if its device cannot
-be opened. Select Software to use CPU rendering. Vulkan disables CPU render
-workers; startup windows grey out **Multi-core rendering** and retain its
-saved setting for the next Software launch.
+An explicitly selected GPU renderer reports an error if its device cannot be
+opened. Select Software to use CPU rendering. Metal and Vulkan disable CPU
+render workers; startup windows grey out **Multi-core rendering** and retain
+its saved setting for the next Software launch.
 
 ### Rendering and presentation
 

@@ -91,13 +91,20 @@ add_library(wx::base ALIAS wx_base)
                     result = subprocess.run(command, text=True, capture_output=True,
                                             timeout=CONFIGURE_TIMEOUT, check=False)
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                    commands = {entry["file"]: shlex.split(entry["command"])
+                    commands = {str(Path(entry["file"]).resolve()): shlex.split(entry["command"])
                                 for entry in json.loads((build / "compile_commands.json").read_text())}
                     sdl = commands[str(self.sdl / "cocoa.m")]
                     self.assertEqual(sdl[sdl.index("-x") + 1], "objective-c")
+                    metal = commands[str(ROOT / "src/restunts/c/renderer/metal_backend.m")]
+                    self.assertEqual(metal[metal.index("-x") + 1], "objective-c")
+                    self.assertIn("-fobjc-arc", metal)
+                    self.assertIn("-DRESTUNTS_NATIVE_METAL", metal)
+                    self.assertFalse(any(path.endswith("/vulkan_context.c") for path in commands))
                     if launcher == "ON":
                         wx = commands[str(self.wx / "cocoa.mm")]
                         self.assertEqual(wx[wx.index("-x") + 1], "objective-c++")
+                        launcher_command = commands[str(ROOT / "src/restunts/launcher/main.cpp")]
+                        self.assertIn("-DRESTUNTS_GRAPHICS_LAUNCHER", launcher_command)
                     else:
                         self.assertNotIn(str(self.wx / "cocoa.mm"), commands)
 

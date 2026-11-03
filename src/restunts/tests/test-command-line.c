@@ -106,7 +106,7 @@ static void test_help_contents(void)
 		"  --multi-core:on|off",
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
-		"  --renderer:software|vulkan",
+		"  --renderer:software|" GRAPHICS_RENDERER_NATIVE_VALUE,
 		"  --renderer-device:N",
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
@@ -171,9 +171,19 @@ static void test_help_contents(void)
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
 	expect_text("Software rendering is the default.");
-	expect_text("Vulkan disables CPU render workers.");
-	expect_text("The Vulkan device defaults to automatic selection.");
+	expect_text(GRAPHICS_RENDERER_NATIVE_LABEL " disables CPU render workers.");
+	expect_text("The " GRAPHICS_RENDERER_NATIVE_LABEL " device defaults to automatic selection.");
+	expect_text("--renderer:software|" GRAPHICS_RENDERER_NATIVE_VALUE);
+#ifdef __APPLE__
+	expect_text("--renderer:software|metal");
+	expect_text("--renderer-device:N  Select Metal device N");
+	assert(strstr(output, "Vulkan") == NULL);
+	assert(strstr(output, "vulkan") == NULL);
+#else
 	expect_text("--renderer:software|vulkan");
+	assert(strstr(output, "Metal") == NULL);
+	assert(strstr(output, "metal") == NULL);
+#endif
 #else
 	assert(strstr(output, "--renderer:") == NULL);
 	assert(strstr(output, "--renderer-device:") == NULL);

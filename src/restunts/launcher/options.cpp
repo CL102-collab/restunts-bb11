@@ -18,9 +18,9 @@ static const legacy_char SETTINGS_HYPERVISION_KEY[] = "hypervision";
 static const legacy_char SETTINGS_RENDERER_KEY[] = "renderer";
 static const legacy_char SETTINGS_DEVICE_KEY[] = "renderer_device";
 static const legacy_char SOFTWARE_RENDERER_VALUE[] = "software";
-static const legacy_char VULKAN_RENDERER_VALUE[] = "vulkan";
+static const legacy_char NATIVE_RENDERER_VALUE[] = GRAPHICS_RENDERER_NATIVE_VALUE;
 static const legacy_char SOFTWARE_RENDERER_ARGUMENT[] = "--renderer:software";
-static const legacy_char VULKAN_RENDERER_ARGUMENT[] = "--renderer:vulkan";
+static const legacy_char NATIVE_RENDERER_ARGUMENT[] = "--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE;
 #endif
 static const legacy_char DATA_DIRECTORY_ARGUMENT[] = "--data-dir";
 
@@ -109,8 +109,8 @@ void launcher_read_options(const wxString &path, LauncherOptions &options)
 #ifdef RESTUNTS_GRAPHICS_LAUNCHER
 	wxString renderer;
 	config.Read(SETTINGS_RENDERER_KEY, &renderer);
-	if (renderer == VULKAN_RENDERER_VALUE) {
-		options.renderer = GRAPHICS_RENDERER_VULKAN;
+	if (renderer == NATIVE_RENDERER_VALUE) {
+		options.renderer = GRAPHICS_RENDERER_NATIVE;
 	}
 	wxString device;
 	config.Read(SETTINGS_DEVICE_KEY, &device);
@@ -147,8 +147,8 @@ wxString launcher_save_options(const wxString &path, const LauncherOptions &opti
 						   launcher_hypervision_definitions[hypervision].value) &&
 			  written;
 #ifdef RESTUNTS_GRAPHICS_LAUNCHER
-	written = config.Write(SETTINGS_RENDERER_KEY, options.renderer == GRAPHICS_RENDERER_VULKAN
-													  ? VULKAN_RENDERER_VALUE
+	written = config.Write(SETTINGS_RENDERER_KEY, options.renderer == GRAPHICS_RENDERER_NATIVE
+													  ? NATIVE_RENDERER_VALUE
 													  : SOFTWARE_RENDERER_VALUE) &&
 			  written;
 	const legacy_s32 device =
@@ -169,7 +169,7 @@ std::vector<wxString> launcher_game_arguments(const wxString &game, const Launch
 		const LauncherOptionDefinition &definition = launcher_option_definitions[index];
 		legacy_bool enabled = options.enabled[index];
 #ifdef RESTUNTS_GRAPHICS_LAUNCHER
-		if (index == LAUNCHER_MULTI_CORE && options.renderer == GRAPHICS_RENDERER_VULKAN) {
+		if (index == LAUNCHER_MULTI_CORE && options.renderer == GRAPHICS_RENDERER_NATIVE) {
 			enabled = false;
 		}
 #endif
@@ -183,9 +183,9 @@ std::vector<wxString> launcher_game_arguments(const wxString &game, const Launch
 		arguments.push_back(launcher_hypervision_definitions[options.hypervision].argument);
 	}
 #ifdef RESTUNTS_GRAPHICS_LAUNCHER
-	arguments.push_back(options.renderer == GRAPHICS_RENDERER_VULKAN ? VULKAN_RENDERER_ARGUMENT
+	arguments.push_back(options.renderer == GRAPHICS_RENDERER_NATIVE ? NATIVE_RENDERER_ARGUMENT
 																	 : SOFTWARE_RENDERER_ARGUMENT);
-	if (options.renderer == GRAPHICS_RENDERER_VULKAN && options.device >= 0) {
+	if (options.renderer == GRAPHICS_RENDERER_NATIVE && options.device >= 0) {
 		arguments.push_back(wxString::Format("--renderer-device:%" LEGACY_PRId32, options.device));
 	}
 #endif
@@ -252,7 +252,7 @@ legacy_bool launcher_parse_graphics_devices(const wxString &report,
 void launcher_normalize_graphics_options(LauncherOptions &options,
 										 const std::vector<LauncherGraphicsDevice> &devices)
 {
-	if (options.renderer != GRAPHICS_RENDERER_VULKAN || devices.empty()) {
+	if (options.renderer != GRAPHICS_RENDERER_NATIVE || devices.empty()) {
 		options.renderer = GRAPHICS_RENDERER_SOFTWARE;
 	}
 	for (const LauncherGraphicsDevice &device : devices) {

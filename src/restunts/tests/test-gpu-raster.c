@@ -382,7 +382,7 @@ static void test_software_backend_parity(legacy_s32 device)
 	legacy_u32 *families = malloc(pixels * 2U * sizeof(*families));
 	assert(colors != NULL && depths != NULL && families != NULL);
 	backend_fixture(device, GRAPHICS_RENDERER_SOFTWARE, colors, depths, families);
-	backend_fixture(device, GRAPHICS_RENDERER_VULKAN, colors + pixels, depths + pixels,
+	backend_fixture(device, GRAPHICS_RENDERER_NATIVE, colors + pixels, depths + pixels,
 					families + pixels);
 	assert(memcmp(colors, colors + pixels, pixels) == 0);
 	assert(memcmp(depths, depths + pixels, pixels * sizeof(*depths)) == 0);
@@ -404,12 +404,15 @@ legacy_int main(void)
 	struct GRAPHICS_DEVICE devices[GRAPHICS_DEVICE_CAPACITY];
 	legacy_u32 count = graphics_enumerate_devices(devices, GRAPHICS_DEVICE_CAPACITY);
 	if (count == 0) {
-		puts("No Vulkan compute device is available; GPU raster test skipped.");
+		puts("No " GRAPHICS_RENDERER_NATIVE_LABEL " compute device is available; "
+			 "GPU raster test skipped.");
 		return TEST_UNAVAILABLE;
 	}
-	if (!graphics_select_renderer(GRAPHICS_RENDERER_VULKAN, devices[0].index, error,
+	if (!graphics_select_renderer(GRAPHICS_RENDERER_NATIVE, devices[0].index, error,
 								  sizeof(error))) {
-		fprintf(stderr, "Cannot initialize enumerated Vulkan device: %s\n", error);
+		fprintf(stderr,
+				"Cannot initialize enumerated " GRAPHICS_RENDERER_NATIVE_LABEL " device: %s\n",
+				error);
 		return 1;
 	}
 	test_opaque_and_painter_order();
@@ -421,7 +424,8 @@ legacy_int main(void)
 	test_software_backend_parity(devices[0].index);
 	gpu_raster_shutdown();
 	graphics_shutdown();
-	puts("Vulkan shader dispatch, coverage, depth, patterns, classic batches, software parity and "
+	puts(GRAPHICS_RENDERER_NATIVE_LABEL
+		 " shader dispatch, coverage, depth, patterns, classic batches, software parity and "
 		 "CPU companion "
 		 "readback passed.");
 	return 0;

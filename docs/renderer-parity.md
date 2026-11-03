@@ -336,26 +336,32 @@ retains the original hi-hat offset across replay initialization. The fix applies
 to every multi-tile boundary object, including the false collision in `a0457.rpl`.
 Host tests cover row and column boundaries and the audio offset's lifetime.
 
-## Vulkan scene rendering
+## GPU scene rendering
 
-The optional Vulkan backend consumes the same projected geometry and immutable
-materials as Software. Geometry setup and legacy retained-state bookkeeping
-remain on the CPU. Vulkan compute shaders rasterize the classic painter-order
-queue and HyperVision depth/material queue. Readback completes before CPU
-shadows, artwork and interface overlays run; presentation remains SDL3.
+The optional Vulkan and macOS Metal backends consume the same projected
+geometry and immutable materials as Software. Geometry setup and legacy
+retained-state bookkeeping remain on the CPU. Compute shaders rasterize the
+classic painter-order queue and HyperVision depth/material queue. Readback
+completes before CPU shadows, artwork and interface overlays run; presentation
+remains SDL3.
 
 Classic coverage uses the original clipped 16.16 line setup and inclusive
-polygon boundaries. HyperVision uses binary32 shader arithmetic so Vulkan 1.0
-and mobile devices do not require Float64. Arbitrary subpixel or tied-depth
-boundaries can differ from Software's binary64 evaluation.
+polygon boundaries. HyperVision uses binary32 shader arithmetic so Vulkan 1.0,
+mobile and Metal devices do not require Float64. Arbitrary subpixel or
+tied-depth boundaries can differ from Software's binary64 evaluation.
 
-`ctest --test-dir BUILD -R '^(gpu-raster|vulkan-replay)$' --output-on-failure`
-checks actual Vulkan dispatch, classic and HyperVision coverage/depth/material
-fixtures, and matching Software/Vulkan replay gamestate and RNG records. These
-tests skip when no compatible Vulkan device is available. CI also invokes them
-directly with Mesa Lavapipe so a missing driver fails the required GPU check.
-Regenerate the embedded shader after editing `gpu_raster.comp` with
-`python3 tools/scripts/compile-gpu-raster.py`; `--check` verifies source freshness.
+`ctest --test-dir BUILD -R '^(gpu-raster|vulkan-replay|metal-replay)$' --output-on-failure`
+checks the platform's native GPU dispatch, classic and HyperVision
+coverage/depth/material fixtures, and matching Software/GPU replay gamestate
+and RNG records. These tests skip when no compatible device is available.
+Linux CI also invokes them directly with Mesa Lavapipe so a missing driver
+fails the required GPU check.
+
+Regenerate the embedded Vulkan shader after editing `gpu_raster.comp` with
+`python3 tools/scripts/compile-gpu-raster.py`. Regenerate the embedded Metal
+shader after editing `gpu_raster.metal` with
+`python3 tools/scripts/compile-metal-raster.py`. Both tools accept `--check`
+to verify source freshness.
 
 ## Regression checks
 

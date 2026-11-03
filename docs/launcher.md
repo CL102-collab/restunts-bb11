@@ -28,15 +28,16 @@ runs as a separate process and remains running after the launcher closes. The
 AppImage hides the startup window and waits for the game to exit so its mounted
 assets remain available.
 
-On Windows, Linux, the BSDs, and Haiku, **Renderer** appears below
+On Windows, Linux, the BSDs, Haiku, and macOS, **Renderer** appears below
 **HyperVision** in **Graphics settings**. **Software**, the existing CPU
-renderer, is the default. **Vulkan** is offered only when a compatible Vulkan
-device is detected. If more than one compatible device is available,
-**Device** appears immediately below Renderer and is enabled only for Vulkan.
-**Multi-core rendering** is greyed out for Vulkan; switching back to Software
-restores its saved setting. Renderer and Device are saved with the other
-startup choices. See the [renderer command-line options](sdl3.md#scene-renderer)
-for launching directly.
+renderer, is the default. macOS offers **Metal** when a compatible Metal device
+is detected; the other desktop targets offer **Vulkan** when a compatible
+Vulkan device is detected. If more than one compatible device is available,
+**Device** appears immediately below Renderer and is enabled only for the GPU
+renderer. **Multi-core rendering** is greyed out for Metal and Vulkan;
+switching back to Software restores its saved setting. Renderer and Device
+are saved with the other startup choices. See the
+[renderer command-line options](sdl3.md#scene-renderer) for launching directly.
 
 The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
 and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it

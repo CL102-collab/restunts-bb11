@@ -5,8 +5,7 @@
 #include <stddef.h>
 
 /* Scene raster selection is independent of the classic/HyperVision view mode. */
-#if (defined(RESTUNTS_SDL3) && !defined(__APPLE__) && !defined(__DJGPP__)) ||                      \
-	defined(RESTUNTS_GRAPHICS_LAUNCHER)
+#if (defined(RESTUNTS_SDL3) && !defined(__DJGPP__)) || defined(RESTUNTS_GRAPHICS_LAUNCHER)
 #define RESTUNTS_RENDERER_SELECTION 1
 #endif
 
@@ -16,7 +15,21 @@
 #define GRAPHICS_DEVICE_DEFAULT (-1)
 #define GRAPHICS_DEVICE_REPORT_HEADER "RESTUNTS_RENDER_DEVICES 1\n"
 
-enum GRAPHICS_RENDERER { GRAPHICS_RENDERER_SOFTWARE, GRAPHICS_RENDERER_VULKAN };
+enum GRAPHICS_RENDERER {
+	GRAPHICS_RENDERER_SOFTWARE,
+	GRAPHICS_RENDERER_VULKAN,
+	GRAPHICS_RENDERER_METAL
+};
+
+#ifdef __APPLE__
+#define GRAPHICS_RENDERER_NATIVE GRAPHICS_RENDERER_METAL
+#define GRAPHICS_RENDERER_NATIVE_VALUE "metal"
+#define GRAPHICS_RENDERER_NATIVE_LABEL "Metal"
+#else
+#define GRAPHICS_RENDERER_NATIVE GRAPHICS_RENDERER_VULKAN
+#define GRAPHICS_RENDERER_NATIVE_VALUE "vulkan"
+#define GRAPHICS_RENDERER_NATIVE_LABEL "Vulkan"
+#endif
 
 struct GRAPHICS_DEVICE {
 	legacy_s32 index;

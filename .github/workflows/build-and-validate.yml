@@ -81,7 +81,9 @@ jobs:
         run: ec
 
       - name: Validate C and C++ layout and braces with clang-format
-        run: git ls-files -z 'src/*.c' 'src/*.cpp' 'src/*.h' | xargs -0 -r clang-format --dry-run --Werror
+        run: >-
+          git ls-files -z 'src/*.c' 'src/*.cpp' 'src/*.h' 'src/*.m' 'src/*.metal' |
+          xargs -0 -r clang-format --dry-run --Werror
 
   dumpsrv-tests:
     name: C# regression service tests
@@ -115,6 +117,9 @@ jobs:
 
       - name: Check the embedded Vulkan shader matches its source
         run: python3 tools/scripts/compile-gpu-raster.py --check
+
+      - name: Check the embedded Metal shader matches its source
+        run: python3 tools/scripts/compile-metal-raster.py --check
 
       - name: Verify TempleOS argument construction with sanitizers
         run: python3 src/restunts/platform/templeos/tools/TEST_LAUNCH.PY

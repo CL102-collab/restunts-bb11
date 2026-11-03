@@ -41,7 +41,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --licenses       Show dependency notices and exit; use alone." COMMAND_LINE_NEWLINE
 #endif
 #if defined(RESTUNTS_RENDERER_SELECTION) && !defined(RESTUNTS_HEADLESS)
-	"  --list-render-devices  List usable Vulkan devices and exit; use alone." COMMAND_LINE_NEWLINE
+	"  --list-render-devices  List usable " GRAPHICS_RENDERER_NATIVE_LABEL
+	" devices and exit; use alone." COMMAND_LINE_NEWLINE
 #endif
 	COMMAND_LINE_NEWLINE
 #if defined(RESTUNTS_SDL3) || defined(RESTUNTS_AMIGA) ||                                           \
@@ -56,8 +57,10 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --multi-core:on|off  Enable/disable multi-core rendering; supply once." COMMAND_LINE_NEWLINE
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
-	"  --renderer:software|vulkan  Select scene rendering; supply once." COMMAND_LINE_NEWLINE
-	"  --renderer-device:N  Select Vulkan device N from --list-render-devices." COMMAND_LINE_NEWLINE
+	"  --renderer:software|" GRAPHICS_RENDERER_NATIVE_VALUE
+	"  Select scene rendering; supply once." COMMAND_LINE_NEWLINE
+	"  --renderer-device:N  Select " GRAPHICS_RENDERER_NATIVE_LABEL
+	" device N from --list-render-devices." COMMAND_LINE_NEWLINE
 #endif
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)
 	"  --fullscreen:on|off  Start fullscreen/windowed; supply once." COMMAND_LINE_NEWLINE
@@ -115,8 +118,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Multi-core rendering starts on." COMMAND_LINE_NEWLINE
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
-	"Software rendering is the default. Vulkan disables CPU render workers." COMMAND_LINE_NEWLINE
-	"The Vulkan device defaults to automatic selection." COMMAND_LINE_NEWLINE
+	"Software rendering is the default. " GRAPHICS_RENDERER_NATIVE_LABEL
+	" disables CPU render workers." COMMAND_LINE_NEWLINE "The " GRAPHICS_RENDERER_NATIVE_LABEL
+	" device defaults to automatic selection." COMMAND_LINE_NEWLINE
 #endif
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE
 #if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__DJGPP__)

@@ -665,7 +665,7 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 		target->top >= target->bottom) {
 		return 0;
 	}
-	if (graphics_renderer() == GRAPHICS_RENDERER_VULKAN) {
+	if (graphics_renderer() == GRAPHICS_RENDERER_NATIVE) {
 		gpu_raster_hires(target, hires_frame.commands, hires_frame.command_count, hires_frame.edges,
 						 hires_frame.edge_count, hires_ground_enabled ? &hires_ground : NULL,
 						 preserve_depth);

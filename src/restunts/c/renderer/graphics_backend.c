@@ -1,7 +1,20 @@
 #include "graphics_backend.h"
 #include "vulkan_backend.h"
+#include "metal_backend.h"
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef RESTUNTS_NATIVE_VULKAN
+#define graphics_native_enumerate vulkan_enumerate_devices
+#define graphics_native_open vulkan_open
+#define graphics_native_dispatch vulkan_dispatch
+#define graphics_native_close vulkan_close
+#elif defined(RESTUNTS_NATIVE_METAL)
+#define graphics_native_enumerate metal_enumerate_devices
+#define graphics_native_open metal_open
+#define graphics_native_dispatch metal_dispatch
+#define graphics_native_close metal_close
+#endif
 
 static legacy_s32 selected_renderer = GRAPHICS_RENDERER_SOFTWARE;
 static legacy_s32 selected_device = GRAPHICS_DEVICE_DEFAULT;
@@ -17,8 +30,8 @@ static legacy_s32 graphics_error(legacy_char *error, size_t capacity, const lega
 
 legacy_u32 graphics_enumerate_devices(struct GRAPHICS_DEVICE *devices, legacy_u32 capacity)
 {
-#ifdef RESTUNTS_NATIVE_VULKAN
-	return vulkan_enumerate_devices(devices, capacity);
+#if defined(RESTUNTS_NATIVE_VULKAN) || defined(RESTUNTS_NATIVE_METAL)
+	return graphics_native_enumerate(devices, capacity);
 #else
 	(void)devices;
 	(void)capacity;
@@ -28,8 +41,8 @@ legacy_u32 graphics_enumerate_devices(struct GRAPHICS_DEVICE *devices, legacy_u3
 
 void graphics_shutdown(void)
 {
-#ifdef RESTUNTS_NATIVE_VULKAN
-	vulkan_close();
+#if defined(RESTUNTS_NATIVE_VULKAN) || defined(RESTUNTS_NATIVE_METAL)
+	graphics_native_close();
 #endif
 	selected_renderer = GRAPHICS_RENDERER_SOFTWARE;
 	selected_device = GRAPHICS_DEVICE_DEFAULT;
@@ -41,7 +54,7 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 	if (error != NULL && error_capacity != 0) {
 		error[0] = 0;
 	}
-	if (renderer != GRAPHICS_RENDERER_SOFTWARE && renderer != GRAPHICS_RENDERER_VULKAN) {
+	if (renderer != GRAPHICS_RENDERER_SOFTWARE && renderer != GRAPHICS_RENDERER_NATIVE) {
 		return graphics_error(error, error_capacity, "Unknown graphics renderer");
 	}
 	if (device < GRAPHICS_DEVICE_DEFAULT) {
@@ -49,17 +62,20 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 	}
 	if (renderer == GRAPHICS_RENDERER_SOFTWARE) {
 		if (device != GRAPHICS_DEVICE_DEFAULT) {
-			return graphics_error(error, error_capacity,
-								  "A graphics device can only be selected for Vulkan");
+			return graphics_error(
+				error, error_capacity,
+				"A graphics device can only be selected for " GRAPHICS_RENDERER_NATIVE_LABEL);
 		}
 		graphics_shutdown();
 		return 1;
 	}
-#ifdef RESTUNTS_NATIVE_VULKAN
+#if defined(RESTUNTS_NATIVE_VULKAN) || defined(RESTUNTS_NATIVE_METAL)
 	struct GRAPHICS_DEVICE devices[GRAPHICS_DEVICE_CAPACITY];
 	legacy_u32 count = graphics_enumerate_devices(devices, GRAPHICS_DEVICE_CAPACITY);
 	if (count == 0) {
-		return graphics_error(error, error_capacity, "No compatible Vulkan device is available");
+		return graphics_error(error, error_capacity,
+							  "No compatible " GRAPHICS_RENDERER_NATIVE_LABEL
+							  " device is available");
 	}
 	legacy_s32 index = device == GRAPHICS_DEVICE_DEFAULT ? devices[0].index : device;
 	legacy_u8 found = 0;
@@ -67,7 +83,9 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 		found |= devices[entry].index == index;
 	}
 	if (!found) {
-		return graphics_error(error, error_capacity, "The selected Vulkan device is unavailable");
+		return graphics_error(error, error_capacity,
+							  "The selected " GRAPHICS_RENDERER_NATIVE_LABEL
+							  " device is unavailable");
 	}
 	if (!cleanup_registered) {
 		if (atexit(graphics_shutdown) != 0) {
@@ -75,17 +93,19 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 		}
 		cleanup_registered = 1;
 	}
-	if (!vulkan_open(index, error, error_capacity)) {
+	if (!graphics_native_open(index, error, error_capacity)) {
 		selected_renderer = GRAPHICS_RENDERER_SOFTWARE;
 		selected_device = GRAPHICS_DEVICE_DEFAULT;
 		return 0;
 	}
-	selected_renderer = GRAPHICS_RENDERER_VULKAN;
+	selected_renderer = GRAPHICS_RENDERER_NATIVE;
 	selected_device = index;
 	return 1;
 #else
 	(void)cleanup_registered;
-	return graphics_error(error, error_capacity, "Vulkan rendering is unavailable on this target");
+	return graphics_error(error, error_capacity,
+						  GRAPHICS_RENDERER_NATIVE_LABEL
+						  " rendering is unavailable on this target");
 #endif
 }
 
@@ -103,10 +123,10 @@ legacy_s32 graphics_gpu_dispatch(const legacy_u32 *input, size_t input_words, le
 								 size_t output_words, legacy_u32 invocation_count,
 								 legacy_char *error, size_t error_capacity)
 {
-#ifdef RESTUNTS_NATIVE_VULKAN
-	if (selected_renderer == GRAPHICS_RENDERER_VULKAN) {
-		return vulkan_dispatch(input, input_words, output, output_words, invocation_count, error,
-							   error_capacity);
+#if defined(RESTUNTS_NATIVE_VULKAN) || defined(RESTUNTS_NATIVE_METAL)
+	if (selected_renderer == GRAPHICS_RENDERER_NATIVE) {
+		return graphics_native_dispatch(input, input_words, output, output_words, invocation_count,
+										error, error_capacity);
 	}
 #else
 	(void)input;

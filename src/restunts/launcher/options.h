@@ -51,6 +51,11 @@ enum {
 	LAUNCHER_HV_COUNT
 };
 
+#ifdef RESTUNTS_GRAPHICS_LAUNCHER
+/* Dropdown positions are independent of the platform renderer enum values. */
+enum LauncherRendererSelection { LAUNCHER_RENDERER_SOFTWARE, LAUNCHER_RENDERER_NATIVE };
+#endif
+
 struct LauncherGraphicsDevice {
 	legacy_s32 index;
 	wxString name;

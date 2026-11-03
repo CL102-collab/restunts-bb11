@@ -1,5 +1,5 @@
-# The scene renderer loads Vulkan at runtime. Software-only startup therefore
-# needs no graphics driver, and legacy Windows/Android users retain their ABI.
+# Native scene rendering is optional: Metal on macOS, Vulkan elsewhere.
+# Software startup requires no graphics device.
 add_library(restunts_graphics STATIC "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/graphics_backend.c")
 set_target_properties(restunts_graphics PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(restunts_graphics PUBLIC "${CMAKE_SOURCE_DIR}/src/restunts/c")
@@ -9,6 +9,15 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 set(restunts_native_vulkan OFF)
+set(restunts_native_metal OFF)
+if(APPLE AND NOT RESTUNTS_GENGHOST_ONLY)
+    set(restunts_native_metal ON)
+    target_sources(restunts_graphics PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/metal_backend.m")
+    target_compile_definitions(restunts_graphics PRIVATE RESTUNTS_NATIVE_METAL)
+    target_compile_options(restunts_graphics PRIVATE "$<$<COMPILE_LANGUAGE:OBJC>:-fobjc-arc>")
+    target_link_libraries(restunts_graphics PRIVATE "-framework Foundation" "-weak_framework Metal")
+endif()
 if(NOT APPLE AND NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS"
         AND NOT RESTUNTS_GENGHOST_ONLY)
     set(restunts_native_vulkan ON)

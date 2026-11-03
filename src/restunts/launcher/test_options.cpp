@@ -50,32 +50,34 @@ static void check_graphics_options()
 	windows_inventory.Replace("\n", "\r\n");
 	check(launcher_parse_graphics_devices(windows_inventory, devices),
 		  "Windows console line endings must be accepted.");
-	options.renderer = GRAPHICS_RENDERER_VULKAN;
+	options.renderer = GRAPHICS_RENDERER_NATIVE;
 	options.device = 7;
 	launcher_normalize_graphics_options(options, devices);
 	std::vector<wxString> arguments = launcher_game_arguments("game", options);
-	check(contains(arguments, "--renderer:vulkan") && contains(arguments, "--renderer-device:7") &&
+	check(contains(arguments, "--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE) &&
+			  contains(arguments, "--renderer-device:7") &&
 			  contains(arguments, "--multi-core:off") && !contains(arguments, "--multi-core:on"),
-		  "Vulkan must select the physical device and disable effective CPU rendering workers.");
+		  "The native renderer must select the physical device and disable effective CPU rendering "
+		  "workers.");
 	check(options.enabled[LAUNCHER_MULTI_CORE],
-		  "Selecting Vulkan must preserve the user's Software multi-core preference.");
+		  "Selecting a GPU renderer must preserve the user's Software multi-core preference.");
 	const wxString settings = wxFileName::CreateTempFileName("restunts-renderer-options-");
 	check(launcher_save_options(settings, options).empty(), "Could not save renderer preferences.");
 	LauncherOptions restored;
 	launcher_read_options(settings, restored);
-	check(restored.renderer == GRAPHICS_RENDERER_VULKAN && restored.device == 7 &&
+	check(restored.renderer == GRAPHICS_RENDERER_NATIVE && restored.device == 7 &&
 			  restored.enabled[LAUNCHER_MULTI_CORE],
 		  "Renderer, device and retained CPU worker preference must round-trip.");
 	launcher_normalize_graphics_options(restored, {});
 	check(restored.renderer == GRAPHICS_RENDERER_SOFTWARE &&
 			  restored.device == GRAPHICS_DEVICE_DEFAULT && restored.enabled[LAUNCHER_MULTI_CORE],
-		  "Unavailable Vulkan hardware must normalize to Software without losing CPU preferences.");
+		  "Unavailable GPU hardware must normalize to Software without losing CPU preferences.");
 	arguments = launcher_game_arguments("game", restored);
 	check(contains(arguments, "--renderer:software") && contains(arguments, "--multi-core:on") &&
 			  !contains(arguments, "--renderer-device:7"),
-		  "Software must not pass an incompatible Vulkan device argument.");
+		  "Software must not pass an incompatible graphics device argument.");
 	launcher_normalize_graphics_options(options, {{4, "Replacement GPU"}});
-	check(options.renderer == GRAPHICS_RENDERER_VULKAN && options.device == 4,
+	check(options.renderer == GRAPHICS_RENDERER_NATIVE && options.device == 4,
 		  "A missing preferred device must select an available compatible adapter.");
 	{
 		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
@@ -89,6 +91,25 @@ static void check_graphics_options()
 	check(restored.renderer == GRAPHICS_RENDERER_SOFTWARE &&
 			  restored.device == GRAPHICS_DEVICE_DEFAULT,
 		  "Unknown renderer or overflowing saved device must use safe defaults.");
+	{
+		wxFileConfig config(wxEmptyString, wxEmptyString, settings, wxEmptyString,
+							wxCONFIG_USE_LOCAL_FILE);
+		config.DisableAutoSave();
+#ifdef __APPLE__
+		config.Write("renderer", "vulkan");
+#else
+		config.Write("renderer", "metal");
+#endif
+		config.Write("renderer_device", "7");
+		config.Flush();
+	}
+	launcher_read_options(settings, restored);
+	check(restored.renderer == GRAPHICS_RENDERER_SOFTWARE,
+		  "A renderer saved for another platform must fall back to Software.");
+	arguments = launcher_game_arguments("game", restored);
+	check(contains(arguments, "--renderer:software") && contains(arguments, "--multi-core:on") &&
+			  !contains(arguments, "--renderer-device:7"),
+		  "Cross-platform preferences must not select an unavailable GPU or disable CPU workers.");
 	wxRemoveFile(settings);
 	const legacy_char *invalid[] = {
 		"RESTUNTS_RENDER_DEVICES 2\n0\tGPU\n",	"RESTUNTS_RENDER_DEVICES 1\n0\tGPU\n0\tDuplicate\n",

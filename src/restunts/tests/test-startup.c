@@ -63,7 +63,7 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 {
 	++startup_graphics_select_calls;
 	if (startup_graphics_failure) {
-		snprintf(error, error_capacity, "No compatible Vulkan device");
+		snprintf(error, error_capacity, "No compatible " GRAPHICS_RENDERER_NATIVE_LABEL " device");
 		return 0;
 	}
 	startup_graphics_renderer = renderer;
@@ -1079,8 +1079,14 @@ static void test_startup_renderer_options(void)
 		const legacy_s8 *argument;
 		legacy_s32 renderer;
 	} cases[] = {{"--renderer:software", GRAPHICS_RENDERER_SOFTWARE},
-				 {"--renderer:vulkan", GRAPHICS_RENDERER_VULKAN},
-				 {"--RENDERER:VuLkAn", GRAPHICS_RENDERER_VULKAN}};
+				 {"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE, GRAPHICS_RENDERER_NATIVE},
+
+#ifdef __APPLE__
+				 {"--RENDERER:MeTaL", GRAPHICS_RENDERER_METAL}
+#else
+				 {"--RENDERER:VuLkAn", GRAPHICS_RENDERER_VULKAN}
+#endif
+	};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
 		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument,
 								  (legacy_s8 *)"--multi-core:on"};
@@ -1095,10 +1101,10 @@ static void test_startup_renderer_options(void)
 		assert(startup_multi_core_enabled == (cases[index].renderer == GRAPHICS_RENDERER_SOFTWARE));
 	}
 	legacy_s8 *device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer-device:2",
-						   (legacy_s8 *)"--renderer:vulkan"};
+						   (legacy_s8 *)"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE};
 	reset_startup_hypervision();
 	init_main(sizeof(device) / sizeof(device[0]), device);
-	assert(startup_graphics_renderer == GRAPHICS_RENDERER_VULKAN);
+	assert(startup_graphics_renderer == GRAPHICS_RENDERER_NATIVE);
 	assert(startup_graphics_device == 2);
 	assert(startup_options.graphics_device_specified);
 	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_OFF);
@@ -1112,7 +1118,12 @@ static void test_startup_renderer_options(void)
 		   !startup_options.graphics_device_specified);
 	assert(startup_multi_core_enabled == STARTUP_MULTI_CORE_ON);
 
-	static const legacy_s8 *invalid_renderer[] = {"--renderer:", "--renderer:metal",
+	static const legacy_s8 *invalid_renderer[] = {"--renderer:",
+#ifdef __APPLE__
+												  "--renderer:vulkan", "--RENDERER:VuLkAn",
+#else
+												  "--renderer:metal", "--RENDERER:MeTaL",
+#endif
 												  "--renderer:softwarex"};
 	for (legacy_u16 index = 0; index < sizeof(invalid_renderer) / sizeof(invalid_renderer[0]);
 		 index++) {
@@ -1128,23 +1139,25 @@ static void test_startup_renderer_options(void)
 												"--renderer-device:999999999999999999999999999999"};
 	for (legacy_u16 index = 0; index < sizeof(invalid_device) / sizeof(invalid_device[0]);
 		 index++) {
-		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game",
+								  (legacy_s8 *)"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE,
 								  (legacy_s8 *)invalid_device[index]};
 		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
 	}
 	legacy_s8 *duplicate_renderer[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:software",
-									   (legacy_s8 *)"--renderer:vulkan"};
+									   (legacy_s8 *)"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE};
 	expect_startup_option_error(sizeof(duplicate_renderer) / sizeof(duplicate_renderer[0]),
 								duplicate_renderer);
-	legacy_s8 *duplicate_device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
-									 (legacy_s8 *)"--renderer-device:0",
-									 (legacy_s8 *)"--renderer-device:1"};
+	legacy_s8 *duplicate_device[] = {
+		(legacy_s8 *)"game", (legacy_s8 *)"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE,
+		(legacy_s8 *)"--renderer-device:0", (legacy_s8 *)"--renderer-device:1"};
 	expect_startup_option_error(sizeof(duplicate_device) / sizeof(duplicate_device[0]),
 								duplicate_device);
 	legacy_s8 *software_device[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer-device:0"};
 	expect_startup_option_error(sizeof(software_device) / sizeof(software_device[0]),
 								software_device);
-	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--renderer:vulkan",
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game",
+								  (legacy_s8 *)"--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE,
 								  (legacy_s8 *)"--fps:invalid"};
 	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
 

@@ -179,11 +179,11 @@ static void startup_parse_graphics(const legacy_s8 *argument, struct STARTUP_OPT
 		options->graphics_renderer_specified = 1;
 		if (stricmp(value, "software") == 0) {
 			options->graphics_renderer = GRAPHICS_RENDERER_SOFTWARE;
-		} else if (stricmp(value, "vulkan") == 0) {
-			options->graphics_renderer = GRAPHICS_RENDERER_VULKAN;
+		} else if (stricmp(value, GRAPHICS_RENDERER_NATIVE_VALUE) == 0) {
+			options->graphics_renderer = GRAPHICS_RENDERER_NATIVE;
 		} else {
-			startup_graphics_error(
-				"Invalid renderer; use --renderer:software or --renderer:vulkan.\n");
+			startup_graphics_error("Invalid renderer; use --renderer:software or "
+								   "--renderer:" GRAPHICS_RENDERER_NATIVE_VALUE ".\n");
 		}
 		return;
 	}
@@ -304,8 +304,9 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	}
 #ifdef RESTUNTS_RENDERER_SELECTION
 	if (options->graphics_device_specified &&
-		options->graphics_renderer != GRAPHICS_RENDERER_VULKAN) {
-		startup_graphics_error("--renderer-device requires --renderer:vulkan.\n");
+		options->graphics_renderer != GRAPHICS_RENDERER_NATIVE) {
+		startup_graphics_error(
+			"--renderer-device requires --renderer:" GRAPHICS_RENDERER_NATIVE_VALUE ".\n");
 	}
 #endif
 }

@@ -130,7 +130,7 @@ static void classic_line(legacy_s16 x0, legacy_s16 y0, legacy_s16 x1, legacy_s16
 
 void gpu_raster_classic_begin(void)
 {
-	classic_active = graphics_renderer() == GRAPHICS_RENDERER_VULKAN;
+	classic_active = graphics_renderer() == GRAPHICS_RENDERER_NATIVE;
 	classic_command_count = classic_edge_count = 0;
 	if (!classic_active) {
 		return;

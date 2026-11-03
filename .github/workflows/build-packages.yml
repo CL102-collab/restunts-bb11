@@ -682,6 +682,28 @@ jobs:
           export RESTUNTS_BUILD_JOBS="$(sysctl -n hw.ncpu)"
           bash tools/scripts/build-package.sh macos-universal
 
+      - name: Compile the Metal shader with the Apple toolchain
+        run: |
+          python3 tools/scripts/compile-metal-raster.py --check
+          if ! xcrun --sdk macosx metal --version >/dev/null 2>&1; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun --sdk macosx metal -std=macos-metal1.2 -fno-fast-math \
+            -c src/restunts/c/renderer/gpu_raster.metal -o "$RUNNER_TEMP/restunts-raster.air"
+
+      - name: Check Metal rasterization and replay parity when a device is available
+        run: |
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/CommonLoon102/restunts4d-oracles/releases/download/v1.0.1/BB11.zip \
+            --output "$RUNNER_TEMP/metal-game-data.zip"
+          unzip -oq "$RUNNER_TEMP/metal-game-data.zip" -d stunts
+          cmake -S . -B build/packages/macos-universal -DRESTUNTS_BUILD_TESTS=ON
+          cmake --build build/packages/macos-universal --parallel "$(sysctl -n hw.ncpu)" \
+            --target test-gpu-raster test-render-replay test-metal-replay \
+            test-launcher-options test-sdl3-entry
+          ctest --test-dir build/packages/macos-universal --output-on-failure --no-tests=error \
+            --tests-regex '^(gpu-raster|metal-replay|launcher-options|sdl3-entry)$'
+
       - name: Upload immutable package artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

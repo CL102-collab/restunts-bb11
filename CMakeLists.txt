@@ -1035,18 +1035,26 @@ if(RESTUNTS_BUILD_TESTS)
         add_test(NAME render-replay COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-replay.py"
             "$<TARGET_FILE:test-render-replay>" "${CMAKE_SOURCE_DIR}/stunts")
-        if(restunts_native_vulkan)
-            add_executable(test-vulkan-replay ${platform}/main.c
+        if(restunts_native_vulkan OR restunts_native_metal)
+            if(restunts_native_metal)
+                set(restunts_gpu_backend metal)
+                set(restunts_gpu_label Metal)
+            else()
+                set(restunts_gpu_backend vulkan)
+                set(restunts_gpu_label Vulkan)
+            endif()
+            add_executable(test-${restunts_gpu_backend}-replay ${platform}/main.c
                 src/restunts/tests/test-render-replay.c)
-            target_compile_definitions(test-vulkan-replay PRIVATE RESTUNTS_PIXLDUMP
-                RESTUNTS_TEST_VULKAN)
-            target_link_libraries(test-vulkan-replay PRIVATE restunts_game)
-            target_compile_options(test-vulkan-replay PRIVATE -UNDEBUG)
-            add_test(NAME vulkan-replay COMMAND "${Python3_EXECUTABLE}"
+            target_compile_definitions(test-${restunts_gpu_backend}-replay PRIVATE RESTUNTS_PIXLDUMP
+                RESTUNTS_TEST_GPU)
+            target_link_libraries(test-${restunts_gpu_backend}-replay PRIVATE restunts_game)
+            target_compile_options(test-${restunts_gpu_backend}-replay PRIVATE -UNDEBUG)
+            add_test(NAME ${restunts_gpu_backend}-replay COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-vulkan-replay.py"
-                "$<TARGET_FILE:test-render-replay>" "$<TARGET_FILE:test-vulkan-replay>"
-                "${CMAKE_SOURCE_DIR}/stunts")
-            set_tests_properties(vulkan-replay PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
+                "$<TARGET_FILE:test-render-replay>" "$<TARGET_FILE:test-${restunts_gpu_backend}-replay>"
+                "${CMAKE_SOURCE_DIR}/stunts" --renderer-name "${restunts_gpu_label}")
+            set_tests_properties(${restunts_gpu_backend}-replay PROPERTIES
+                SKIP_RETURN_CODE 77 TIMEOUT 180)
         endif()
         add_executable(test-ghost-racing-line ${platform}/main.c
             src/restunts/tests/test-ghost-racing-line.c)
@@ -1063,7 +1071,7 @@ if(RESTUNTS_BUILD_TESTS)
         target_link_libraries(benchmark-hypervision PRIVATE restunts_game)
         target_compile_options(benchmark-hypervision PRIVATE -UNDEBUG)
     endif()
-    if(restunts_native_vulkan)
+    if(restunts_native_vulkan OR restunts_native_metal)
         add_executable(test-gpu-raster src/restunts/tests/test-gpu-raster.c)
         target_compile_options(test-gpu-raster PRIVATE -UNDEBUG)
         target_link_libraries(test-gpu-raster PRIVATE restunts_game)
