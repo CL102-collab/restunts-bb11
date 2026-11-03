@@ -737,6 +737,12 @@ static legacy_u16 check_classic_hill_rendering(void)
 }
 
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
+#include <SDL3/SDL_mutex.h>
+
+/* Capture hooks share fixture counters and mesh snapshots. Serialize their
+ * bookkeeping while leaving the renderer's real transformation work parallel. */
+static SDL_Mutex *render_capture_mutex;
+
 #define SEAM_RENDER_PAVED_MATERIAL 19U
 #define SEAM_RENDER_DIRT_MATERIAL 25U
 #define SEAM_RENDER_ICE_MATERIAL 28U
@@ -1665,37 +1671,49 @@ static void capture_terrain_coverage(const struct TRANSFORMEDSHAPE3D *instance,
 	}
 }
 
-legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
-legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+static legacy_u8 capture_render_submission(struct TRANSFORMEDSHAPE3D *instance,
+										   const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	if (animation_capture_active) {
 		check_animation_submission(instance);
-		return 0;
+		return 1;
 	}
 	if (crop_capture_active) {
-		check_crop_submission(instance, NULL);
-		return 0;
+		check_crop_submission(instance, vertices);
+		return 1;
 	}
 	if (roll_ramp_capture_active) {
-		check_roll_ramp_submission(instance, NULL);
-		return 0;
+		check_roll_ramp_submission(instance, vertices);
+		return 1;
 	}
 	if (combined_stunt_capture_active) {
-		combined_stunt_check_submission(instance, NULL);
-		return 0;
+		combined_stunt_check_submission(instance, vertices);
+		return 1;
 	}
 	if (plant_capture_active) {
-		plant_check_submission(instance, NULL);
-		return 0;
+		plant_check_submission(instance, vertices);
+		return 1;
 	}
 	if (terrain_coverage_capture) {
-		capture_terrain_coverage(instance, NULL);
-		return 0;
+		capture_terrain_coverage(instance, vertices);
+		return 1;
 	}
-	if (generated_bounds_skip_scene()) {
-		return 0;
-	}
-	if (render_capture_skip_shape(instance)) {
+	return generated_bounds_skip_scene() || render_capture_skip_shape(instance);
+}
+
+static legacy_u8 capture_render_shape(struct TRANSFORMEDSHAPE3D *instance,
+									  const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	SDL_LockMutex(render_capture_mutex);
+	legacy_u8 captured = capture_render_submission(instance, vertices);
+	SDL_UnlockMutex(render_capture_mutex);
+	return captured;
+}
+
+legacy_u16 __real_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
+legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance)
+{
+	if (capture_render_shape(instance, NULL)) {
 		return 0;
 	}
 	return __real_shape3d_transform_and_queue(instance);
@@ -1772,34 +1790,7 @@ static void inject_generated_bounds_polygon(void)
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
-	if (animation_capture_active) {
-		check_animation_submission(instance);
-		return 0;
-	}
-	if (crop_capture_active) {
-		check_crop_submission(instance, vertices);
-		return 0;
-	}
-	if (roll_ramp_capture_active) {
-		check_roll_ramp_submission(instance, vertices);
-		return 0;
-	}
-	if (combined_stunt_capture_active) {
-		combined_stunt_check_submission(instance, vertices);
-		return 0;
-	}
-	if (plant_capture_active) {
-		plant_check_submission(instance, vertices);
-		return 0;
-	}
-	if (terrain_coverage_capture) {
-		capture_terrain_coverage(instance, vertices);
-		return 0;
-	}
-	if (generated_bounds_skip_scene()) {
-		return 0;
-	}
-	if (render_capture_skip_shape(instance)) {
+	if (capture_render_shape(instance, vertices)) {
 		return 0;
 	}
 	return __real_shape3d_hires_transform_and_queue(instance, vertices);
@@ -4404,6 +4395,10 @@ static legacy_u16 check_extended_track_overview(void)
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	render_capture_mutex = SDL_CreateMutex();
+	assert(render_capture_mutex != NULL);
+#endif
 	init_main(argc, argv);
 	init_div0();
 	init_row_tables();
@@ -4484,6 +4479,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	cstrk_free(&track);
 	printf("Extended 90x90 four-level terrain and native hill meshes rendered in %u frames.\n",
 		   frames);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	SDL_DestroyMutex(render_capture_mutex);
+	render_capture_mutex = NULL;
+#endif
 	call_exitlist();
 	return 0;
 }
