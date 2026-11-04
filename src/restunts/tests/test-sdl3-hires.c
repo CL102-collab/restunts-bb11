@@ -1208,32 +1208,34 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 	memcpy(original_legacy, screen->base, sizeof(original_legacy));
 	memcpy(original_palette, palette, sizeof(original_palette));
 	legacy_u32 generation = hires_generation();
-	/* Capture serial pixels first, then compare every parallel output row,
+	/* Compare both serial and worker output with the readback reference,
 	 * including mixed overlays, fades and caller padding at each scale. */
-	hires_render_workers_set_enabled(1);
-	for (size_t pass = 0; pass < sizeof(paddings) / sizeof(paddings[0]); pass++) {
-		legacy_s32 stride = width + paddings[pass];
-		size_t allocation = (size_t)stride * height + COPY_GUARD_PIXELS * 2;
-		legacy_u32 *guarded = malloc(allocation * sizeof(*guarded));
-		assert(guarded != NULL);
-		for (size_t pixel = 0; pixel < allocation; pixel++) {
-			guarded[pixel] = guard;
-		}
-		legacy_u32 *output = guarded + COPY_GUARD_PIXELS;
-		video_copy_framebuffer_argb(screen->base, palette, output,
-									stride * (legacy_s32)sizeof(*output));
-		for (legacy_s32 row = 0; row < height; row++) {
-			assert(memcmp(output + (size_t)row * stride, expected + (size_t)row * width,
-						  (size_t)width * sizeof(*output)) == 0);
-			for (legacy_s32 column = width; column < stride; column++) {
-				assert(output[(size_t)row * stride + column] == guard);
+	for (legacy_s32 workers = 0; workers <= 1; workers++) {
+		hires_render_workers_set_enabled(workers);
+		for (size_t pass = 0; pass < sizeof(paddings) / sizeof(paddings[0]); pass++) {
+			legacy_s32 stride = width + paddings[pass];
+			size_t allocation = (size_t)stride * height + COPY_GUARD_PIXELS * 2;
+			legacy_u32 *guarded = malloc(allocation * sizeof(*guarded));
+			assert(guarded != NULL);
+			for (size_t pixel = 0; pixel < allocation; pixel++) {
+				guarded[pixel] = guard;
 			}
+			legacy_u32 *output = guarded + COPY_GUARD_PIXELS;
+			video_copy_framebuffer_argb(screen->base, palette, output,
+										stride * (legacy_s32)sizeof(*output));
+			for (legacy_s32 row = 0; row < height; row++) {
+				assert(memcmp(output + (size_t)row * stride, expected + (size_t)row * width,
+							  (size_t)width * sizeof(*output)) == 0);
+				for (legacy_s32 column = width; column < stride; column++) {
+					assert(output[(size_t)row * stride + column] == guard);
+				}
+			}
+			for (legacy_s32 pixel = 0; pixel < COPY_GUARD_PIXELS; pixel++) {
+				assert(guarded[pixel] == guard);
+				assert(output[(size_t)stride * height + pixel] == guard);
+			}
+			free(guarded);
 		}
-		for (legacy_s32 pixel = 0; pixel < COPY_GUARD_PIXELS; pixel++) {
-			assert(guarded[pixel] == guard);
-			assert(output[(size_t)stride * height + pixel] == guard);
-		}
-		free(guarded);
 	}
 	hires_render_workers_set_enabled(0);
 	assert(hires_generation() == generation);
@@ -1248,6 +1250,47 @@ static void assert_framebuffer_copy(const struct TEST_SURFACE *screen, const leg
 	}
 	free(expected);
 	free(original_indices);
+}
+
+/* Uniform companions retain their own color, including palette alpha. One
+ * changed sample anywhere in a cell must still use the detailed samples. */
+static void test_uniform_indexed_composition(legacy_s32 scale)
+{
+	enum {
+		UNIFORM_SEGMENT = 0x9000U,
+		UNIFORM_LEFT = 40,
+		UNIFORM_TOP = 60,
+		UNIFORM_COLOR = 137,
+		MIXED_COLOR = 231,
+		PALETTE_STEP = 0x0103070B
+	};
+	const legacy_u32 uniform_colors[] = {0x00123456U, 0xA37B19E5U};
+	struct TEST_SURFACE screen;
+	setup_surface(&screen, UNIFORM_SEGMENT, 0);
+	hires_forget(screen.base);
+	legacy_u32 palette[TEST_PALETTE_SIZE];
+	for (legacy_u32 index = 0; index < TEST_PALETTE_SIZE; index++) {
+		palette[index] = index * PALETTE_STEP;
+	}
+	assert(hires_begin(&screen.sprite));
+	legacy_s32 sample_count = scale * scale;
+	for (legacy_s32 cell = 0; cell <= sample_count; cell++) {
+		legacy_u8 samples[HIRES_SCALE * HIRES_SCALE];
+		memset(samples, UNIFORM_COLOR, sizeof(samples));
+		if (cell != 0) {
+			samples[cell - 1] = MIXED_COLOR;
+		}
+		hires_write_pixel(UNIFORM_LEFT + cell, UNIFORM_TOP, samples);
+	}
+	hires_end();
+	assert(screen.base[pixel_offset(&screen, UNIFORM_LEFT, UNIFORM_TOP)] == TEST_BACKGROUND_COLOR);
+	for (size_t color = 0; color < sizeof(uniform_colors) / sizeof(uniform_colors[0]); color++) {
+		palette[UNIFORM_COLOR] = uniform_colors[color];
+		/* This checks serial/worker equality, padded pitches and guard pixels,
+		 * and verifies the source indices, palette and legacy bytes survive. */
+		assert_framebuffer_copy(&screen, palette);
+	}
+	hires_forget(screen.base);
 }
 
 static void test_framebuffer_copy(void)
@@ -2014,6 +2057,7 @@ static void test_render_scales(void)
 		}
 		test_raster_target_aliases();
 		test_scaled_pixels(scales[pass]);
+		test_uniform_indexed_composition(scales[pass]);
 	}
 	hires_set_render_scale(TEST_SCALE_MINIMUM);
 	hires_set_enabled(0);

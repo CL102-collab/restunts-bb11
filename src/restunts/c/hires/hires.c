@@ -576,6 +576,18 @@ static void hires_compose_palette_cell(const legacy_u8 *indices, const legacy_u8
 									   const legacy_u32 *palette, legacy_u32 *output,
 									   legacy_s32 pitch, legacy_s32 scale)
 {
+	/* Uniform companion cells can share one palette lookup. Their index may
+	 * differ from the legacy fallback, and every palette bit must survive. */
+	if (indices != NULL && scale == HIRES_SCALE) {
+		legacy_u32 words[HIRES_CELL_PIXELS / sizeof(legacy_u32)];
+		memcpy(words, indices, sizeof(words));
+		legacy_u32 repeated = indices[0] * (LEGACY_U32_MAX / LEGACY_U8_MAX);
+		if (((words[0] ^ repeated) | (words[1] ^ repeated) | (words[2] ^ repeated) |
+			 (words[3] ^ repeated)) == 0) {
+			fallback = indices;
+			indices = NULL;
+		}
+	}
 	if (indices == NULL) {
 		legacy_u32 color = palette[*fallback];
 		if (scale == HIRES_SCALE) {

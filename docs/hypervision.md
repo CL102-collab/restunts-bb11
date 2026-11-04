@@ -957,6 +957,59 @@ flat and sloped ground, both detail levels, and classic/HyperVision rendering.
 A focused ASan/UBSan run instruments the changed submission unit and extended
 render test driver; all 4,943 rendered regression frames pass with leak checking.
 
+### Glacier uniform indexed-cell composition (2026-11-05)
+
+A fresh profile of baseline `824e104a` attributed about 6.7% of serial CPU
+samples to final ARGB composition. A diagnostic run including startup, warmup
+and checkpoints found 36,926,284 uniform indexed cells and 2,369,716 mixed cells:
+94.0% of the 4x4 cells contained one palette index. There were no empty or ARGB
+cells in this workload. Uniform indexed cells now reuse one palette lookup and
+the existing four-pixel-wide fill, replacing sixteen palette lookups. The test
+uses unaligned-safe word copies and preserves every palette bit, including
+alpha. Mixed cells, smaller scales and ARGB overlays retain their existing paths.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) were compared on the same AMD EPYC 9V74 VM: five exposed
+CPUs and a four-CPU quota. Each run accelerates the automatic Countach straight
+for ten simulated seconds on `glacier.cstrk`, rendering 600 interpolated cockpit
+frames from 200 physics ticks, locked Full HyperVision at 1280x800. Physics,
+interpolation, render/state checks and final ARGB composition are timed; display
+upload, presentation, audio, pacing, warmup and hash diagnostics are excluded.
+
+The final production build uses the normal link order. Three one-CPU pairs and
+five two-CPU pairs alternate baseline/candidate order; CPU-count order also
+reverses between batches. The main thread is pinned to CPU 4. In two-CPU runs,
+one background renderer is pinned to CPU 2 using a temporary thread-creation
+shim; its affinity setup occurs outside timing. `/proc` observations confirmed
+both placements. This limits worker migration while preserving the same code
+and worker count for both versions. The table retains every final batch.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 90.16 (86.32–91.40) | 90.45 (83.11–96.60) | +0.3% |
+| 2 | 126.98 (126.16–132.10) | 137.23 (115.02–138.67) | +8.1% |
+
+Two-CPU median process CPU time including workers falls from 14.269 to
+13.213 ms/frame; median elapsed time falls from 7.876 to 7.287 ms/frame.
+Single-CPU results show no reliable gain. VM variation remains substantial,
+including an optimized two-CPU outlier; three of five two-CPU pairs improve.
+These are uncapped throughput measurements on this host, not presented FPS
+or target-hardware results. Reproduce the workload with the existing
+`--track /path/to/glacier.cstrk --drive-seconds 10 --compose` benchmark options;
+the per-thread placement above is part of this measurement setup.
+
+All 600 driving-frame hashes and all six native camera/resolution hashes match
+the baseline; complete serial/parallel checkpoint images and final state hash
+`fa0fe5fb` also match. The car completes the drive without crashing. New
+composition tests pass against both baseline and optimized code. They cover
+uniform companion colors that differ from legacy fallback pixels, zero and
+nonopaque palette alpha, every possible single differing sample in a cell,
+guarded padded output, source preservation, all scales and serial/worker output.
+Eight focused renderer, worker, replay, interpolation and adaptive-quality CTest
+suites pass. A focused ASan/UBSan build instruments all seven sources of the
+composition test target and passes with leak checking. Formatting, whitespace,
+CRLF line endings, non-executable source modes and core source budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
