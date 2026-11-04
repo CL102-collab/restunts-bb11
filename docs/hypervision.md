@@ -907,6 +907,56 @@ reused. Baseline and optimized composition/geometry tests also pass with
 between those x87 builds. Formatting, whitespace, CRLF, non-executable modes,
 and core source line budgets pass.
 
+### Glacier prepared pine submissions (2026-11-05)
+
+Profiling baseline `381f9122` on the supplied Glacier track found repeated mesh
+preparation underneath grove rendering. Each procedural pine was rotated,
+scaled and scattered into a validated single-paint mesh, then immediately
+allocated and copied again with identity rotation before submission. Flat groves
+now submit that prepared mesh directly, borrowing its buffers until synchronous
+queueing completes. Sloped groves retain their mutable copy and existing grade
+and full-detail anchor handling. This removes one allocation, primitive walk,
+mesh copy and free per submitted flat tree, without a persistent mesh cache.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`) were compared
+on an AMD EPYC 9V74 VM with five exposed CPUs and a four-CPU quota. Each run
+accelerates the automatic Countach straight ahead for ten simulated seconds on
+`glacier.cstrk`: 200 physics ticks and 600 interpolated cockpit frames, locked
+Full HyperVision at 1280x800 with final ARGB composition. Physics, interpolation,
+rendering, state checks and composition are timed; display upload, presentation,
+audio playback, pacing, warmup and hash diagnostics are excluded.
+
+Three one-CPU pairs and five two-CPU pairs alternate baseline/candidate order;
+CPU-count order is also reversed between batches. Affinity is `4` with no
+background workers and `2,4` with one background worker. The table reports
+median complete-run FPS and retains every final batch in the ranges.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 93.69 (91.38–96.38) | 95.03 (92.16–95.88) | +1.4% |
+| 2 | 143.69 (131.38–151.88) | 145.12 (134.51–145.72) | +1.0% |
+
+Median process CPU time including workers falls from 12.590 to 12.468 ms/frame
+on two CPUs. These are small changes with overlapping ranges and mixed paired
+results; this VM run does not establish a reliable end-to-end FPS gain. The
+optimization removes redundant preparation while preserving the render work.
+Reproduce using CPUs appropriate to the host:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    taskset -c 2,4 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --track /path/to/glacier.cstrk --drive-seconds 10 --compose
+```
+
+All 600 driving-frame hashes and all six native camera/resolution hashes match
+the baseline. Complete serial/parallel checkpoint images and the final state
+hash `fa0fe5fb` match; the car finishes the drive without crashing. Eight focused
+renderer, worker, replay, interpolation and adaptive-quality CTest suites pass.
+Existing grove submission tests cover both group sizes, all four rotations,
+flat and sloped ground, both detail levels, and classic/HyperVision rendering.
+A focused ASan/UBSan run instruments the changed submission unit and extended
+render test driver; all 4,943 rendered regression frames pass with leak checking.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

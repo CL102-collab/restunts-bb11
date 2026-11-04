@@ -221,6 +221,25 @@ static legacy_s8 frame_preview_object_detail(const struct CSTRK_TRACK *track,
 												 FRAME_TILE_DETAIL_FULL);
 }
 
+/* Procedural trees already have their rotation, paint and visibility masks.
+ * Borrow their cooked mesh while queuing; grades still need a mutable copy. */
+static legacy_s16
+frame_extended_draw_prepared_object_mesh(const struct FRAME_EXTENDED_OBJECT *object,
+										 const struct TRACKOBJECT *definition,
+										 const struct SHAPE3D *source)
+{
+	if (object->graded || frame_extended_object_sloped(object->object)) {
+		return frame_extended_draw_object_mesh(object, definition, source, CSTRK_ROAD_PAVED);
+	}
+	if (!source->shape3d_numprimitives) {
+		return 0;
+	}
+	struct SHAPE3D mesh = *source;
+	struct TRANSFORMEDSHAPE3D instance = frame_extended_object_instance(object, &mesh);
+	return hires_track_queue_exhausted(
+		(legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges));
+}
+
 /* Each tree owns its full-detail anchor. A shared grove anchor would lift
  * every crown to the uphill tree and stretch the downhill trunks. */
 static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJECT *object)
@@ -236,7 +255,7 @@ static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJ
 			definition.ss_shapePtr = &detail;
 			definition.ss_rotY = 0;
 			legacy_s16 result =
-				frame_extended_draw_object_mesh(object, &definition, &detail, CSTRK_ROAD_PAVED);
+				frame_extended_draw_prepared_object_mesh(object, &definition, &detail);
 			extended_geometry_free_shape(&detail);
 			if (result) {
 				return result;
@@ -258,8 +277,7 @@ static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJ
 		struct TRACKOBJECT definition = *native;
 		definition.ss_shapePtr = &full;
 		definition.ss_rotY = 0;
-		legacy_s16 result =
-			frame_extended_draw_object_mesh(object, &definition, source, CSTRK_ROAD_PAVED);
+		legacy_s16 result = frame_extended_draw_prepared_object_mesh(object, &definition, source);
 		if (low_detail) {
 			extended_geometry_free_shape(&detail);
 		}
