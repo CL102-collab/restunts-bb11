@@ -330,9 +330,21 @@ dead ends and scenery do not affect its center or bounding box. It looks toward
 that center at 45 degrees down, at least twelve hill levels above it; larger
 courses raise the orbit enough to keep all lap pieces visible. Tracks without
 a valid complete lap use the map center. The scene extends behind the title and
-best recorded time. F11 or Shift+F11 toggles FPS and render time over the preview;
-the counter measures presented preview frames, and timing excludes pacing and
-display synchronization. Turning HyperVision off restores the 2D surface map.
+best recorded time. The live preview is capped at 25 FPS. F11 or Shift+F11 toggles
+FPS and render time over the preview; the counter measures presented preview
+frames, and timing excludes pacing and display synchronization. Turning
+HyperVision off restores the 2D surface map.
+
+Extended-track driving, replays, and the rotating preview use available authored
+low-detail meshes for objects farther than 20 tile lengths from the camera,
+including the Full preset. Distance is measured in 3D to the nearest point of the
+complete object's bounds, including its footprint, height, overlays, grove trees,
+and grade. Camera height counts too. Any part within 20 tiles, including exactly
+20 tiles, keeps full detail; models without a low alternative keep their full
+meshes. Distant vine fields omit tiny grape clusters while retaining foliage and
+soil. Terrain meshes and road cutouts keep their full geometry, and vehicles keep
+their existing detail policy. Multi-core rendering also prepares the preview's
+geometry in parallel.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
@@ -341,7 +353,9 @@ movement and jumps without changing physics or replay data. The original rendere
 
 HyperVision uses fewer segments for wheels and spheres that occupy only a small
 part of the screen. Segment counts follow their projected size; nearby round
-shapes and background geometry retain their full detail.
+shapes retain their full detail. Full HyperVision keeps full authored meshes on
+classic tracks. Classic reduced-detail rendering can select authored low-detail
+meshes. Extended tracks use the 20-tile object-distance policy above.
 
 In SDL3 builds, HyperVision adds car-shaped shadows on nearby surfaces below
 each car. Small cached silhouettes follow the model's size, body, wheels, and

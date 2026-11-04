@@ -15,6 +15,7 @@
 #include "../c/extended/extended_menu_runtime.h"
 #include "../c/extended/extended_geometry.h"
 #include "../c/extended/extended_frame_render.h"
+#include "../c/extended/extended_track_preview_hires.h"
 #include "../c/frame/frame_render_private.h"
 #include "../c/skybox.h"
 #include "../c/race/race_graphics.h"
@@ -119,6 +120,17 @@ static void activate_render_track(const struct CSTRK_TRACK *track, int with_obje
 		assert(0);
 	}
 	assert(extended_track_width() == 90 && extended_track_height() == 90);
+}
+
+#define OBJECT_DETAIL_CONTEXT_SCALE 64L
+
+static struct FRAME_CAMERA object_detail_test_camera(legacy_s32 x, legacy_s16 y, legacy_s32 z)
+{
+	struct FRAME_CAMERA camera = {0};
+	camera.position = (struct VECTOR){LEGACY_S16_FROM_BITS((legacy_u16)x), y,
+									  LEGACY_S16_FROM_BITS((legacy_u16)z)};
+	extended_geometry_set_context(x * OBJECT_DETAIL_CONTEXT_SCALE, z * OBJECT_DETAIL_CONTEXT_SCALE);
+	return camera;
 }
 
 static void position_render_target(unsigned column, unsigned north_row)
@@ -972,6 +984,7 @@ static legacy_u32 seam_captured_road_parents, seam_captured_marking_vertices;
 
 static legacy_u8 crop_capture_active, crop_capture_calls;
 static struct CSTRK_OBJECT crop_capture_object;
+static struct VECTOR crop_capture_camera;
 
 static void check_crop_submission(const struct TRANSFORMEDSHAPE3D *instance,
 								  const struct SHAPE3D_HIRES_VECTOR *vertices)
@@ -985,7 +998,10 @@ static void check_crop_submission(const struct TRANSFORMEDSHAPE3D *instance,
 	assert(mesh->shape3d_numprimitives == source.shape3d_numprimitives);
 	struct VECTOR origin;
 	extended_geometry_object_origin(extended_track_model(), object, &origin);
-	assert(memcmp(&instance->pos, &origin, sizeof(origin)) == 0);
+	const struct VECTOR relative = {LEGACY_S16_WRAP_SUB(origin.x, crop_capture_camera.x),
+									LEGACY_S16_WRAP_SUB(origin.y, crop_capture_camera.y),
+									LEGACY_S16_WRAP_SUB(origin.z, crop_capture_camera.z)};
+	assert(memcmp(&instance->pos, &relative, sizeof(relative)) == 0);
 	for (legacy_u16 vertex = 0; vertex < mesh->shape3d_numverts; vertex++) {
 		struct VECTOR point, packed;
 		shape3d_vertex_read(&source, vertex, &point);
@@ -1010,7 +1026,7 @@ static void check_crop_submission(const struct TRANSFORMEDSHAPE3D *instance,
 							(object->slope_x * (CSTRK_TILE_WORLD_SIZE / 2 + (legacy_f64)point.x) +
 							 object->slope_y * (CSTRK_TILE_WORLD_SIZE / 2 - (legacy_f64)point.z)) *
 								CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
-		legacy_f64 expected = point.y + ground - instance->pos.y;
+		legacy_f64 expected = point.y + ground - origin.y;
 		legacy_f64 error = packed.y - expected;
 		assert(error >= -PLANT_RENDER_ROUNDING_TOLERANCE &&
 			   error <= PLANT_RENDER_ROUNDING_TOLERANCE);
@@ -3358,7 +3374,14 @@ static void check_upright_sloped_plants(void)
 	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
 	cstrk_init(&track);
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
-	const struct FRAME_CAMERA camera = {0};
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	/* Keep these mesh/paint fixtures near their subjects; distance selection
+	 * has separate boundary and submission coverage below. */
+	const struct FRAME_CAMERA camera = object_detail_test_camera(
+		STUNT_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2, 0,
+		(CSTRK_MAX_DIMENSION - STUNT_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
+			CSTRK_TILE_WORLD_SIZE / 2);
 	legacy_u16 submissions = 0;
 	for (legacy_u16 kind = 0; kind < sizeof(variants) / sizeof(variants[0]); kind++) {
 		for (legacy_u8 rotation = 0; rotation < PLANT_RENDER_DIRECTION_COUNT; rotation++) {
@@ -3443,6 +3466,8 @@ static void check_upright_sloped_plants(void)
 	cstrk_free(&track);
 	printf("Upright plant geometry: %u submissions in %s mode.\n", submissions,
 		   renderer_active ? "HyperVision" : "classic");
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
 }
 #endif
 
@@ -3781,7 +3806,15 @@ static void check_crop_submissions(void)
 	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
 	cstrk_init(&track);
 	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
-	const struct FRAME_CAMERA camera = {0};
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	/* Keep these mesh/paint fixtures near their subjects; distance selection
+	 * has separate boundary and submission coverage below. */
+	const struct FRAME_CAMERA camera = object_detail_test_camera(
+		STUNT_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2, 0,
+		(CSTRK_MAX_DIMENSION - STUNT_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
+			CSTRK_TILE_WORLD_SIZE / 2);
+	crop_capture_camera = camera.position;
 	for (legacy_u8 kind = 0; kind < sizeof(ids) / sizeof(ids[0]); kind++) {
 		for (legacy_u8 rotation = 0; rotation < PLANT_RENDER_DIRECTION_COUNT; rotation++) {
 			for (legacy_u8 slope = 0; slope < PLANT_RENDER_SLOPE_COUNT; slope++) {
@@ -3825,6 +3858,8 @@ static void check_crop_submissions(void)
 	}
 	extended_track_unload();
 	cstrk_free(&track);
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
 }
 
 static void check_roll_ramp_submissions(void)
@@ -4163,7 +4198,14 @@ static void check_extended_object_animations(void)
 	struct FRAME_TILE tile = {0};
 	tile.east = object.x;
 	tile.south = object.y;
-	struct FRAME_CAMERA camera = {0};
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	/* Keep these mesh/paint fixtures near their subjects; distance selection
+	 * has separate boundary and submission coverage below. */
+	const struct FRAME_CAMERA camera = object_detail_test_camera(
+		STUNT_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2, 0,
+		(CSTRK_MAX_DIMENSION - STUNT_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
+			CSTRK_TILE_WORLD_SIZE / 2);
 	for (legacy_u8 model = 0; model < ANIMATION_RENDER_MODEL_COUNT; model++) {
 		legacy_u16 id;
 		for (id = 1; id < TRACK_OBJECT_COUNT; id++) {
@@ -4232,6 +4274,8 @@ static void check_extended_object_animations(void)
 	track.objects = NULL;
 	track.object_count = 0;
 	cstrk_free(&track);
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
 }
 #endif
 
@@ -4373,10 +4417,321 @@ static legacy_u16 check_restored_track_overview(const struct CSTRK_TRACK *track)
 	return OVERVIEW_RENDER_ORBIT_HEADINGS * (OVERVIEW_RENDER_RESTORE_CASES + 1U);
 }
 
+#define OVERVIEW_DETAIL_FAR_FIRST 5U
+#define OVERVIEW_DETAIL_FAR_LAST 84U
+#define OVERVIEW_DETAIL_NEAR_WIDTH 30U
+#define OVERVIEW_DETAIL_NEAR_HEIGHT 18U
+#define OVERVIEW_DETAIL_NEAR_FIRST_COLUMN 6U
+#define OVERVIEW_DETAIL_NEAR_FIRST_ROW 4U
+#define OVERVIEW_DETAIL_NEAR_LAST_COLUMN 8U
+#define OVERVIEW_DETAIL_NEAR_LAST_ROW 6U
+
+/* Internal policy seam: avoid importing renderer-private macro aliases into
+ * this fixture, which also includes the frame scheduler's private declarations. */
+legacy_s8 hires_extended_frame_object_detail(const struct CSTRK_TRACK *track,
+											 const struct CSTRK_OBJECT *object,
+											 const struct FRAME_CAMERA *camera, legacy_s8 detail);
+
+#define OBJECT_DETAIL_CUTOFF_TILES 20L
+#define OBJECT_DETAIL_TEST_NATIVE_ID 151U
+#define OBJECT_DETAIL_TEST_LOW 2
+#define OBJECT_DETAIL_TEST_COLUMN 40U
+#define OBJECT_DETAIL_TEST_ROW 40U
+#define OBJECT_DETAIL_TEST_BOUNDS 8U
+#define OBJECT_DETAIL_TEST_OVERLAY_ID 2U
+#define OBJECT_DETAIL_TEST_OVERLAY_EXTENSION (CSTRK_TILE_WORLD_SIZE / 2)
+#define OBJECT_DETAIL_WRAP_COLUMN 80U
+#define OBJECT_DETAIL_WRAP_ROW 10U
+#define OBJECT_DETAIL_WRAP_CAMERA_COLUMN 80U
+#define OBJECT_DETAIL_WRAP_FAR_COLUMN 55U
+
+static void check_extended_object_distance_detail(void)
+{
+	assert(hires_active);
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	struct CSTRK_TRACK track;
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	cstrk_init(&track);
+	assert(cstrk_create(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, error, sizeof(error)));
+	add_overview_piece(&track, OBJECT_DETAIL_TEST_NATIVE_ID, OBJECT_DETAIL_TEST_COLUMN,
+					   OBJECT_DETAIL_TEST_ROW, 1U, 1U);
+	activate_render_track(&track, 1);
+	struct CSTRK_TRACK *active = (struct CSTRK_TRACK *)extended_track_model();
+	struct CSTRK_OBJECT *object = &active->objects[0];
+	struct CSTRK_OBJECT saved_object = *object;
+	legacy_u16 id = (legacy_u16)extended_track_object_id(object);
+	struct TRACKOBJECT saved_definition = trkObjectList[id];
+	assert(saved_definition.ss_shapePtr && saved_definition.ss_loShapePtr &&
+		   saved_definition.ss_shapePtr != saved_definition.ss_loShapePtr);
+	struct SHAPE3D shape = *saved_definition.ss_shapePtr;
+	assert(shape.shape3d_numverts >= OBJECT_DETAIL_TEST_BOUNDS);
+	size_t bytes = (size_t)shape.shape3d_numverts * SHAPE3D_VERTEX_SIZE;
+	shape.shape3d_vertex_bytes = malloc(bytes);
+	assert(shape.shape3d_vertex_bytes);
+	memcpy(shape.shape3d_vertex_bytes, saved_definition.ss_shapePtr->shape3d_vertex_bytes, bytes);
+	legacy_s16 top = 0;
+	for (legacy_u16 vertex = 0; vertex < OBJECT_DETAIL_TEST_BOUNDS; vertex++) {
+		struct VECTOR point;
+		shape3d_vertex_read(&shape, vertex, &point);
+		/* Confine the native prefix to the known one-tile footprint so the
+		 * cutoff cases measure exact distances, independently of asset overhang. */
+		point.x = point.x < 0 ? -CSTRK_TILE_WORLD_SIZE / 2 : CSTRK_TILE_WORLD_SIZE / 2;
+		point.z = point.z < 0 ? -CSTRK_TILE_WORLD_SIZE / 2 : CSTRK_TILE_WORLD_SIZE / 2;
+		if (point.y > top) {
+			top = point.y;
+		}
+		shape3d_vertex_write(&shape, vertex, &point);
+	}
+	trkObjectList[id].ss_shapePtr = &shape;
+	trkObjectList[id].ss_rotY = 0;
+	trkObjectList[id].ss_ssOvelay = 0;
+	legacy_s32 center_x = object->x * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 center_z =
+		(active->height - object->y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+	legacy_s32 right =
+		(object->x + object->width) * CSTRK_TILE_WORLD_SIZE + HIRES_FRAME_EXTENDED_ROAD_OVERSCAN;
+	legacy_s32 front =
+		(active->height - object->y) * CSTRK_TILE_WORLD_SIZE + HIRES_FRAME_EXTENDED_ROAD_OVERSCAN;
+	legacy_s32 cutoff = OBJECT_DETAIL_CUTOFF_TILES * CSTRK_TILE_WORLD_SIZE;
+	static const struct {
+		legacy_s32 x, z;
+		legacy_s8 expected;
+	} gaps[] = {
+		{OBJECT_DETAIL_CUTOFF_TILES * CSTRK_TILE_WORLD_SIZE, 0, FRAME_TILE_DETAIL_FULL},
+		{OBJECT_DETAIL_CUTOFF_TILES * CSTRK_TILE_WORLD_SIZE + 1, 0, OBJECT_DETAIL_TEST_LOW},
+		{12L * CSTRK_TILE_WORLD_SIZE, 16L * CSTRK_TILE_WORLD_SIZE, FRAME_TILE_DETAIL_FULL},
+		{12L * CSTRK_TILE_WORLD_SIZE + 1, 16L * CSTRK_TILE_WORLD_SIZE, OBJECT_DETAIL_TEST_LOW},
+		{14L * CSTRK_TILE_WORLD_SIZE, 14L * CSTRK_TILE_WORLD_SIZE, FRAME_TILE_DETAIL_FULL},
+		{15L * CSTRK_TILE_WORLD_SIZE, 15L * CSTRK_TILE_WORLD_SIZE, OBJECT_DETAIL_TEST_LOW}};
+	for (legacy_u16 index = 0; index < SDL_arraysize(gaps); index++) {
+		struct FRAME_CAMERA camera = object_detail_test_camera(
+			right + gaps[index].x, 0, gaps[index].z ? front + gaps[index].z : center_z);
+		assert(hires_extended_frame_object_detail(active, object, &camera,
+												  FRAME_TILE_DETAIL_FULL) == gaps[index].expected);
+	}
+	/* A long piece stays high while its closest edge remains within range. */
+	struct FRAME_CAMERA distant_camera = object_detail_test_camera(right + cutoff + 1, 0, center_z);
+	object->width = 2;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	*object = saved_object;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == OBJECT_DETAIL_TEST_LOW);
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera, 1) ==
+		   OBJECT_DETAIL_TEST_LOW);
+	struct FRAME_CAMERA above =
+		object_detail_test_camera(center_x, (legacy_s16)(top + cutoff), center_z);
+	assert(hires_extended_frame_object_detail(active, object, &above, FRAME_TILE_DETAIL_FULL) ==
+		   FRAME_TILE_DETAIL_FULL);
+	above.position.y++;
+	assert(hires_extended_frame_object_detail(active, object, &above, FRAME_TILE_DETAIL_FULL) ==
+		   OBJECT_DETAIL_TEST_LOW);
+	/* An extended overlay reaches closer to this high camera than its base. */
+	struct TRACKOBJECT saved_overlay = trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID];
+	struct SHAPE3D overlay = shape;
+	overlay.shape3d_vertex_bytes = malloc(bytes);
+	assert(overlay.shape3d_vertex_bytes);
+	memcpy(overlay.shape3d_vertex_bytes, shape.shape3d_vertex_bytes, bytes);
+	for (legacy_u16 vertex = 0; vertex < OBJECT_DETAIL_TEST_BOUNDS; vertex++) {
+		struct VECTOR point;
+		shape3d_vertex_read(&overlay, vertex, &point);
+		if (point.y == top) {
+			point.y += OBJECT_DETAIL_TEST_OVERLAY_EXTENSION;
+		}
+		if (point.z > 0) {
+			point.z += OBJECT_DETAIL_TEST_OVERLAY_EXTENSION;
+		}
+		shape3d_vertex_write(&overlay, vertex, &point);
+	}
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID] = trkObjectList[id];
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID].ss_shapePtr = &overlay;
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID].ss_loShapePtr = NULL;
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID].ss_rotY = 0;
+	trkObjectList[id].ss_ssOvelay = OBJECT_DETAIL_TEST_OVERLAY_ID;
+	assert(hires_extended_frame_object_detail(active, object, &above, FRAME_TILE_DETAIL_FULL) ==
+		   FRAME_TILE_DETAIL_FULL);
+	distant_camera = object_detail_test_camera(right + cutoff + 1, 0, center_z);
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == OBJECT_DETAIL_TEST_LOW);
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID].ss_rotY = ANGLE_QUARTER_TURN;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	trkObjectList[id].ss_ssOvelay = 0;
+	trkObjectList[OBJECT_DETAIL_TEST_OVERLAY_ID] = saved_overlay;
+	free(overlay.shape3d_vertex_bytes);
+	/* Packed words wrap on both axes; the map and camera still share one world. */
+	object->x = OBJECT_DETAIL_WRAP_COLUMN;
+	object->y = OBJECT_DETAIL_WRAP_ROW;
+	legacy_s32 wrapped_z =
+		(active->height - object->y) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+	struct FRAME_CAMERA wrapped = object_detail_test_camera(
+		OBJECT_DETAIL_WRAP_CAMERA_COLUMN * CSTRK_TILE_WORLD_SIZE, 0, wrapped_z);
+	assert(hires_extended_frame_object_detail(active, object, &wrapped, FRAME_TILE_DETAIL_FULL) ==
+		   FRAME_TILE_DETAIL_FULL);
+	object->x = OBJECT_DETAIL_WRAP_FAR_COLUMN;
+	assert(hires_extended_frame_object_detail(active, object, &wrapped, FRAME_TILE_DETAIL_FULL) ==
+		   OBJECT_DETAIL_TEST_LOW);
+	*object = saved_object;
+	/* Missing native low meshes retain full geometry, and classic mode keeps
+	 * the caller's detail choice instead of applying enhanced distance policy. */
+	distant_camera = object_detail_test_camera(right + cutoff + 1, 0, center_z);
+	struct SHAPE3D *low = trkObjectList[id].ss_loShapePtr;
+	trkObjectList[id].ss_loShapePtr = NULL;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	trkObjectList[id].ss_loShapePtr = &shape;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	trkObjectList[id].ss_loShapePtr = low;
+	hires_active = 0;
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	assert(hires_extended_frame_object_detail(active, object, &distant_camera, 1) == 1);
+	hires_active = 1;
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	/* Check production selection reaches the transform with the expected
+	 * native mesh; the caller's shared tile detail must remain unchanged. */
+	for (legacy_u8 pass = 0; pass < 3U; pass++) {
+		struct FRAME_CAMERA camera =
+			object_detail_test_camera(right + cutoff + (pass ? 1 : 0), 0, center_z);
+		const struct SHAPE3D *source = pass == 1U ? low : &shape;
+		trkObjectList[id].ss_loShapePtr = pass == 2U ? NULL : low;
+		assert(extended_geometry_transform_shape(source, &plant_capture_source, 0, CSTRK_ROAD_PAVED,
+												 saved_definition.ss_physicalModel));
+		plant_capture_object = *object;
+		plant_capture_pine_count = plant_capture_calls = plant_capture_precise = 0;
+		plant_capture_lift = 0;
+		struct FRAME_TILE tile = {0};
+		tile.east = object->x;
+		tile.south = object->y;
+		tile.detail = FRAME_TILE_DETAIL_FULL;
+		plant_capture_active = 1;
+		assert(extended_frame_draw_objects(&tile, &camera, 0) == 0);
+		plant_capture_active = 0;
+		assert(plant_capture_calls == 1 && tile.detail == FRAME_TILE_DETAIL_FULL);
+		extended_geometry_free_shape(&plant_capture_source);
+	}
+#endif
+	trkObjectList[id] = saved_definition;
+	free(shape.shape3d_vertex_bytes);
+	extended_track_unload();
+	assert(hires_extended_frame_object_detail(&track, &track.objects[0], &distant_camera,
+											  FRAME_TILE_DETAIL_FULL) == FRAME_TILE_DETAIL_FULL);
+	cstrk_free(&track);
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
+}
+
+static legacy_u16 check_overview_detail_and_workers(void)
+{
+	const legacy_char *original = SDL_getenv("RESTUNTS_RENDER_WORKERS");
+	legacy_char *saved = original ? SDL_strdup(original) : NULL;
+	assert(!original || saved);
+	legacy_s32 previous_workers = hires_render_workers_count();
+	legacy_s32 previous_scale = hires_render_scale();
+	const legacy_char *workers[] = {"0", "1", "3"};
+	struct CSTRK_TRACK track;
+	make_overview_lap(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, OVERVIEW_DETAIL_FAR_FIRST,
+					  OVERVIEW_DETAIL_FAR_FIRST, OVERVIEW_DETAIL_FAR_LAST, OVERVIEW_DETAIL_FAR_LAST,
+					  0);
+	add_overview_piece(&track, CSTRK_VINE_FIELD_ID,
+					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U,
+					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U, 1U, 1U);
+	activate_render_track(&track, 1);
+	assert(track_setup() == TRACK_SETUP_OK);
+	hires_set_render_scale(HIRES_SCALE);
+	legacy_u32 primitives[2][OVERVIEW_RENDER_ORBIT_HEADINGS];
+	legacy_u16 frames = 0;
+	for (legacy_u8 detail = 0; detail <= 1; detail++) {
+		extended_frame_preview_set_detail_enabled(detail);
+		for (legacy_u16 heading = 0; heading < OVERVIEW_RENDER_ORBIT_HEADINGS; heading++) {
+			legacy_u8 *reference = NULL;
+			legacy_s32 reference_width = 0, reference_height = 0;
+			for (legacy_u8 pass = 0; pass < SDL_arraysize(workers); pass++) {
+				hires_render_workers_shutdown();
+				assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", workers[pass], true) == 0);
+				hires_render_workers_set_enabled(1);
+				legacy_s32 width, height;
+				legacy_u8 *image = capture_track_overview(heading * OVERVIEW_RENDER_QUARTER_ORBIT,
+														  &width, &height);
+				frames++;
+				legacy_u32 count = extended_track_preview_hires_primitive_count();
+				assert(count > 0);
+				if (!pass) {
+					reference = image;
+					reference_width = width;
+					reference_height = height;
+					primitives[detail][heading] = count;
+				} else {
+					assert(reference_width == width && reference_height == height);
+					assert(count == primitives[detail][heading]);
+					assert(memcmp(reference, image, (size_t)width * height) == 0);
+					free(image);
+				}
+			}
+			free(reference);
+			if (detail) {
+				/* Tiny fields retain their foliage, with subpixel grape clusters omitted. */
+				assert(primitives[detail][heading] < primitives[0][heading]);
+			}
+		}
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+
+	/* Missing authored low alternatives must keep their full meshes. A compact
+	 * lap also keeps its large, readily visible procedural field at full detail. */
+	make_overview_lap(&track, OVERVIEW_DETAIL_NEAR_WIDTH, OVERVIEW_DETAIL_NEAR_HEIGHT,
+					  OVERVIEW_DETAIL_NEAR_FIRST_COLUMN, OVERVIEW_DETAIL_NEAR_FIRST_ROW,
+					  OVERVIEW_DETAIL_NEAR_LAST_COLUMN, OVERVIEW_DETAIL_NEAR_LAST_ROW, 0);
+	add_overview_piece(&track, CSTRK_VINE_FIELD_ID,
+					   (OVERVIEW_DETAIL_NEAR_FIRST_COLUMN + OVERVIEW_DETAIL_NEAR_LAST_COLUMN) / 2U,
+					   (OVERVIEW_DETAIL_NEAR_FIRST_ROW + OVERVIEW_DETAIL_NEAR_LAST_ROW) / 2U, 1U,
+					   1U);
+	legacy_char error[192];
+	assert(extended_track_activate(&track, error, sizeof(error)));
+	assert(track_setup() == TRACK_SETUP_OK);
+	struct SHAPE3D *low_shapes[TRACK_OBJECT_COUNT];
+	for (legacy_u16 index = 0; index < TRACK_OBJECT_COUNT; index++) {
+		low_shapes[index] = trkObjectList[index].ss_loShapePtr;
+		trkObjectList[index].ss_loShapePtr = NULL;
+	}
+	legacy_s32 width, height, other_width, other_height;
+	extended_frame_preview_set_detail_enabled(0);
+	legacy_u8 *full = capture_track_overview(0, &width, &height);
+	legacy_u32 count = extended_track_preview_hires_primitive_count();
+	extended_frame_preview_set_detail_enabled(1);
+	legacy_u8 *fallback = capture_track_overview(0, &other_width, &other_height);
+	frames += 2;
+	assert(width == other_width && height == other_height);
+	assert(count == extended_track_preview_hires_primitive_count());
+	assert(memcmp(full, fallback, (size_t)width * height) == 0);
+	free(full);
+	free(fallback);
+	for (legacy_u16 index = 0; index < TRACK_OBJECT_COUNT; index++) {
+		trkObjectList[index].ss_loShapePtr = low_shapes[index];
+	}
+	extended_track_unload();
+	cstrk_free(&track);
+	hires_render_workers_shutdown();
+	if (saved) {
+		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", saved, true) == 0);
+		SDL_free(saved);
+	} else {
+		assert(SDL_unsetenv_unsafe("RESTUNTS_RENDER_WORKERS") == 0);
+	}
+	hires_render_workers_set_enabled(previous_workers != 0);
+	hires_set_render_scale(previous_scale);
+	return frames;
+}
+
 static legacy_u16 check_extended_track_overview(void)
 {
 	assert(hires_enabled());
 	legacy_u32 saved_ticks = visual_clock_ticks;
+	check_extended_object_distance_detail();
+	legacy_u16 detail_frames = check_overview_detail_and_workers();
 	struct CSTRK_TRACK track;
 	cstrk_init(&track);
 	legacy_char error[192];
@@ -4458,7 +4813,7 @@ static legacy_u16 check_extended_track_overview(void)
 	visual_clock_ticks = saved_ticks;
 	extended_track_unload();
 	cstrk_free(&track);
-	return 7U + restored_frames;
+	return 7U + restored_frames + detail_frames;
 }
 
 enum {
@@ -4812,9 +5167,13 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	visual_clock_frozen = 1;
 	unsigned frames = 0;
 	legacy_u8 cache_only = SDL_getenv("RESTUNTS_TEST_GROUND_CACHE_ONLY") != NULL;
+	legacy_u8 preview_only = SDL_getenv("RESTUNTS_TEST_PREVIEW_ONLY") != NULL;
 	for (unsigned enhanced = 0; enhanced < 2U; enhanced++) {
 		if ((unsigned)(renderer_active != 0) != enhanced) {
 			assert(handle_ingame_kb_shortcuts(KEY_F12));
+		}
+		if (preview_only) {
+			continue;
 		}
 		if (cache_only) {
 			frames += check_precise_ground_cache(&track);

@@ -2,6 +2,7 @@
 #include "pine_trees.h"
 #include "wheat_field.h"
 #include "crop_fields.h"
+#include "../hires/shape3d_queue.h"
 
 /* Use the same authored edge correction for the graded mesh and its cutout. */
 void frame_extended_join_object_grade_vertex(struct VECTOR *point,
@@ -95,6 +96,133 @@ void frame_extended_apply_object_grade(struct SHAPE3D *mesh, const struct CSTRK_
 	}
 }
 
+#define FRAME_EXTENDED_LOW_DETAIL_TILES 20L
+#define FRAME_EXTENDED_DISTANCE_LOW_DETAIL 2
+#define FRAME_EXTENDED_BOUNDS_VERTICES 8U
+
+static legacy_u8 frame_preview_detail_enabled = 1;
+
+void extended_frame_preview_set_detail_enabled(legacy_u8 enabled)
+{
+	frame_preview_detail_enabled = enabled != 0;
+}
+
+/* Distance to the complete object's conservative bounds includes camera height,
+ * native overlays, grades and scattered trees. Measure in unwrapped world units
+ * so crossing the original word-sized coordinate range cannot change detail. */
+static legacy_s8 frame_extended_object_distance_detail(
+	const struct CSTRK_OBJECT *object, const struct TRACKOBJECT *definition,
+	const struct SHAPE3D_HIRES_VECTOR *translation, legacy_s8 detail)
+{
+	if (object->roll_ramp || object->tunnel_slalom) {
+		return detail;
+	}
+	legacy_u8 vines = object->legacy_id == CSTRK_VINE_FIELD_ID;
+	if (!vines &&
+		(!definition->ss_loShapePtr || definition->ss_loShapePtr == definition->ss_shapePtr)) {
+		const struct TRACKOBJECT *overlay =
+			definition->ss_ssOvelay ? frame_track_object_from_legacy_index(definition->ss_ssOvelay)
+									: NULL;
+		if (!overlay || !overlay->ss_loShapePtr || overlay->ss_loShapePtr == overlay->ss_shapePtr) {
+			return detail;
+		}
+	}
+	struct SHAPE3D_HIRES_VECTOR minimum = {
+		-object->width * (legacy_f64)FRAME_EXTENDED_TERRAIN_HALF_TILE -
+			HIRES_FRAME_EXTENDED_ROAD_OVERSCAN,
+		0,
+		-object->height * (legacy_f64)FRAME_EXTENDED_TERRAIN_HALF_TILE -
+			HIRES_FRAME_EXTENDED_ROAD_OVERSCAN};
+	struct SHAPE3D_HIRES_VECTOR maximum = {-minimum.x, vines ? VINE_FIELD_HEIGHT : 0, -minimum.z};
+	for (legacy_u8 part = 0; !vines && part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {
+		const struct TRACKOBJECT *render_definition = definition;
+		if (part) {
+			if (!definition->ss_ssOvelay) {
+				break;
+			}
+			render_definition = frame_track_object_from_legacy_index(definition->ss_ssOvelay);
+		}
+		const struct SHAPE3D *shape = render_definition->ss_shapePtr;
+		if (!shape) {
+			continue;
+		}
+		legacy_u16 count = shape->shape3d_numverts < FRAME_EXTENDED_BOUNDS_VERTICES
+							   ? shape->shape3d_numverts
+							   : FRAME_EXTENDED_BOUNDS_VERTICES;
+		legacy_u8 instances = object->pine_count ? object->pine_count : 1;
+		for (legacy_u8 tree = 0; tree < instances; tree++) {
+			struct PINE_TREE_INSTANCE pine = {0, 0, PINE_TREE_SCALE_ONE};
+			if (object->pine_count && !pine_trees_instance(object, tree, &pine)) {
+				return detail;
+			}
+			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+				struct VECTOR point;
+				shape3d_vertex_read(shape, vertex, &point);
+				frame_extended_rotate_vertex(&point, object->pine_count
+														 ? object->rotation * ANGLE_QUARTER_TURN
+														 : render_definition->ss_rotY);
+				struct SHAPE3D_HIRES_VECTOR bound = {
+					(legacy_f64)point.x * pine.scale / PINE_TREE_SCALE_ONE + pine.x,
+					(legacy_f64)point.y * pine.scale / PINE_TREE_SCALE_ONE,
+					(legacy_f64)point.z * pine.scale / PINE_TREE_SCALE_ONE + pine.z};
+				if (bound.x < minimum.x) {
+					minimum.x = bound.x;
+				}
+				if (bound.x > maximum.x) {
+					maximum.x = bound.x;
+				}
+				if (bound.y < minimum.y) {
+					minimum.y = bound.y;
+				}
+				if (bound.y > maximum.y) {
+					maximum.y = bound.y;
+				}
+				if (bound.z < minimum.z) {
+					minimum.z = bound.z;
+				}
+				if (bound.z > maximum.z) {
+					maximum.z = bound.z;
+				}
+			}
+		}
+	}
+	legacy_f64 reach_x = maximum.x > -minimum.x ? maximum.x : -minimum.x;
+	legacy_f64 reach_z = maximum.z > -minimum.z ? maximum.z : -minimum.z;
+	legacy_f64 grade =
+		(abs(object->slope_x) * (object->width * FRAME_EXTENDED_TERRAIN_HALF_TILE + reach_x) +
+		 abs(object->slope_y) * (object->height * FRAME_EXTENDED_TERRAIN_HALF_TILE + reach_z)) *
+		CSTRK_LEVEL_WORLD_HEIGHT / CSTRK_TILE_WORLD_SIZE;
+	minimum.y -= grade;
+	maximum.y += grade;
+	legacy_f64 left = translation->x + minimum.x, right = translation->x + maximum.x;
+	legacy_f64 bottom = translation->y + minimum.y, top = translation->y + maximum.y;
+	legacy_f64 back = translation->z + minimum.z, front = translation->z + maximum.z;
+	legacy_f64 dx = left > 0 ? left : right < 0 ? -right : 0;
+	legacy_f64 dy = bottom > 0 ? bottom : top < 0 ? -top : 0;
+	legacy_f64 dz = back > 0 ? back : front < 0 ? -front : 0;
+	legacy_f64 cutoff = FRAME_EXTENDED_LOW_DETAIL_TILES * CSTRK_TILE_WORLD_SIZE;
+	return dx * dx + dy * dy + dz * dz > cutoff * cutoff ? FRAME_EXTENDED_DISTANCE_LOW_DETAIL
+														 : detail;
+}
+
+static legacy_s8 frame_preview_object_detail(const struct CSTRK_TRACK *track,
+											 const struct CSTRK_OBJECT *object,
+											 const struct TRACKOBJECT *definition,
+											 const struct FRAME_CAMERA *camera)
+{
+	if (!frame_preview_detail_enabled || !hires_active) {
+		return FRAME_TILE_DETAIL_FULL;
+	}
+	struct VECTOR origin;
+	extended_geometry_object_origin(track, object, &origin);
+	struct SHAPE3D_HIRES_VECTOR translation = {
+		shape3d_hires_state.geometry_origin.x + LEGACY_S16_WRAP_SUB(origin.x, camera->position.x),
+		shape3d_hires_state.geometry_origin.y + LEGACY_S16_WRAP_SUB(origin.y, camera->position.y),
+		shape3d_hires_state.geometry_origin.z + LEGACY_S16_WRAP_SUB(origin.z, camera->position.z)};
+	return frame_extended_object_distance_detail(object, definition, &translation,
+												 FRAME_TILE_DETAIL_FULL);
+}
+
 /* Each tree owns its full-detail anchor. A shared grove anchor would lift
  * every crown to the uphill tree and stretch the downhill trunks. */
 static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJECT *object)
@@ -102,6 +230,21 @@ static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJ
 	const struct TRACKOBJECT *native = object->definition;
 	for (legacy_u8 tree = 0; tree < object->object->pine_count; tree++) {
 		struct SHAPE3D full, detail;
+		if (object->detail != FRAME_TILE_DETAIL_FULL && native->ss_loShapePtr && !object->graded) {
+			if (!pine_trees_create_mesh(native->ss_loShapePtr, &detail, object->object, tree)) {
+				continue;
+			}
+			struct TRACKOBJECT definition = *native;
+			definition.ss_shapePtr = &detail;
+			definition.ss_rotY = 0;
+			legacy_s16 result =
+				frame_extended_draw_object_mesh(object, &definition, &detail, CSTRK_ROAD_PAVED);
+			extended_geometry_free_shape(&detail);
+			if (result) {
+				return result;
+			}
+			continue;
+		}
 		if (!pine_trees_create_mesh(native->ss_shapePtr, &full, object->object, tree)) {
 			continue;
 		}
@@ -158,6 +301,11 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 		legacy_u8 count = model->legacy_id == CSTRK_WHEAT_FIELD_ID
 							  ? 1U
 							  : crop_fields_mesh_count(model->legacy_id);
+		if (object.detail == FRAME_EXTENDED_DISTANCE_LOW_DETAIL &&
+			model->legacy_id == CSTRK_VINE_FIELD_ID) {
+			/* Distant fields retain every foliage row without individual grape clusters. */
+			count = 1;
+		}
 		for (legacy_u8 part = 0; part < count; part++) {
 			struct SHAPE3D source;
 			legacy_s16 created = model->legacy_id == CSTRK_WHEAT_FIELD_ID
@@ -229,6 +377,30 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 	return 0;
 }
 
+legacy_s8 hires_extended_frame_object_detail(const struct CSTRK_TRACK *track,
+											 const struct CSTRK_OBJECT *object,
+											 const struct FRAME_CAMERA *camera, legacy_s8 detail)
+{
+	if (!hires_active || !extended_track_active()) {
+		return detail;
+	}
+	legacy_u32 id = extended_track_object_id(object);
+	if (id >= TRACK_OBJECT_COUNT) {
+		return detail;
+	}
+	legacy_s32 camera_x, camera_z;
+	extended_geometry_world_position(&camera->position, &camera_x, &camera_z);
+	struct VECTOR origin;
+	extended_geometry_object_origin(track, object, &origin);
+	struct SHAPE3D_HIRES_VECTOR translation = {
+		object->x * CSTRK_TILE_WORLD_SIZE + object->width * FRAME_EXTENDED_TERRAIN_HALF_TILE -
+			camera_x,
+		origin.y - camera->position.y,
+		(track->height - object->y) * CSTRK_TILE_WORLD_SIZE -
+			object->height * FRAME_EXTENDED_TERRAIN_HALF_TILE - camera_z};
+	return frame_extended_object_distance_detail(object, &trkObjectList[id], &translation, detail);
+}
+
 legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRAME_CAMERA *camera,
 									   legacy_s8 flags)
 {
@@ -244,7 +416,11 @@ legacy_s16 extended_frame_draw_objects(struct FRAME_TILE *tile, const struct FRA
 		if (id >= TRACK_OBJECT_COUNT) {
 			continue;
 		}
-		if (frame_extended_draw_object(track, object, &trkObjectList[id], tile, camera, flags)) {
+		struct FRAME_TILE object_tile = *tile;
+		object_tile.detail =
+			hires_extended_frame_object_detail(track, object, camera, tile->detail);
+		if (frame_extended_draw_object(track, object, &trkObjectList[id], &object_tile, camera,
+									   flags)) {
 			return 1;
 		}
 	}
@@ -273,6 +449,8 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 		if (object->x == column && object->y == row) {
 			legacy_u32 id = extended_track_object_id(object);
 			if (id < TRACK_OBJECT_COUNT) {
+				tile.detail =
+					frame_preview_object_detail(track, object, &trkObjectList[id], &camera);
 				frame_extended_draw_object(track, object, &trkObjectList[id], &tile, &camera, 0);
 			}
 		}

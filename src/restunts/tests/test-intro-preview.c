@@ -47,6 +47,7 @@ void sprite_draw_rect_outline(legacy_s16 x1, legacy_s16 y1, legacy_s16 x2, legac
 #include "../c/hires/hires.h"
 #include "../c/extended/extended_frame.h"
 #include "../c/hires/shape3d_hires.h"
+#include "../c/hires/shape3d_pipeline.h"
 #endif
 
 #undef strcmp
@@ -68,6 +69,26 @@ static legacy_u8 hires_raster_active;
 legacy_s32 hires_enabled(void)
 {
 	return hires_raster_active;
+}
+
+legacy_u32 shape3d_hires_scene_count(void)
+{
+	return queued_count;
+}
+
+void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32),
+								void (*joined)(void *, legacy_s32),
+								legacy_s32 (*join_required)(void *, legacy_s32), void *context)
+{
+	/* SDK-free fixtures trace source-order traversal; native renderer tests
+	 * exercise the production worker pool and private geometry scenes. */
+	for (legacy_s32 index = 0; index < count; index++) {
+		job(context, index);
+		if (joined != NULL &&
+			(join_required == NULL || join_required(context, index) || index == count - 1)) {
+			joined(context, index);
+		}
+	}
 }
 
 void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)

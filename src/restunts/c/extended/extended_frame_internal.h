@@ -24,6 +24,10 @@
 #define FRAME_EXTENDED_GEOMETRY_MAX_DISTANCE 28672L
 #define FRAME_EXTENDED_POSITION_SHIFT 6U
 
+legacy_s8 hires_extended_frame_object_detail(const struct CSTRK_TRACK *track,
+											 const struct CSTRK_OBJECT *object,
+											 const struct FRAME_CAMERA *camera, legacy_s8 detail);
+
 enum FRAME_EXTENDED_TERRAIN_MATERIAL {
 	FRAME_EXTENDED_GROUND_GRASS_MATERIAL = 16,
 	FRAME_EXTENDED_ICE_MATERIAL = 28,

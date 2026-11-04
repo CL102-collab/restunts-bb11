@@ -6,6 +6,9 @@
 #include "../c/hires/render_workers.h"
 #include "../c/startup_internal.h"
 #include "../c/extended/extended_file.h"
+#include "../c/extended/extended_frame.h"
+#include "../c/extended/extended_track_preview_hires.h"
+#include "../c/menu/menu_internal.h"
 #include "../platform/sdl3/sdl3.h"
 #include <errno.h>
 #include <sys/resource.h>
@@ -36,8 +39,16 @@
 #define BENCH_HASH_PRIME 16777619U
 #define BENCH_TRACK_FRAME_RATE 20U
 #define BENCH_TRACK_CAR "COUN"
+#define BENCH_PREVIEW_HEADINGS 4U
+#define BENCH_PREVIEW_SPIN_SECONDS 40UL
+#define BENCH_PREVIEW_SPIN_TICKS (BENCH_PREVIEW_SPIN_SECONDS * DOS_TIMER_REALTIME_TICKS_PER_SECOND)
+#define BENCH_PREVIEW_SCREEN_WIDTH (HIRES_WIDTH / HIRES_SCALE)
+#define BENCH_PREVIEW_SCREEN_HEIGHT (HIRES_HEIGHT / HIRES_SCALE)
+#define BENCH_PREVIEW_GUARD_COLOR 13U
 
 static legacy_s32 benchmark_compose;
+static legacy_s32 benchmark_preview;
+static legacy_s32 benchmark_preview_full_detail;
 static legacy_s32 benchmark_start_only;
 static legacy_s32 benchmark_all_views;
 static legacy_u8 benchmark_multi_core = STARTUP_MULTI_CORE_ON;
@@ -48,7 +59,12 @@ static void benchmark_parse_options(legacy_s16 *argc, legacy_s8 *argv[])
 {
 	legacy_s16 output = 1;
 	for (legacy_s16 input = 1; input < *argc; input++) {
-		if (strcmp((const legacy_char *)argv[input], "--compose") == 0) {
+		if (strcmp((const legacy_char *)argv[input], "--preview") == 0) {
+			benchmark_preview = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--preview-full-detail") == 0) {
+			benchmark_preview = 1;
+			benchmark_preview_full_detail = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--compose") == 0) {
 			benchmark_compose = 1;
 		} else if (SDL_strcasecmp((const legacy_char *)argv[input], "--multi-core:on") == 0) {
 			benchmark_multi_core = 1;
@@ -88,8 +104,21 @@ static void benchmark_load_palette(void)
 
 static void benchmark_render_frame(legacy_u32 *composed)
 {
-	full_redraw_frames_remaining = 1;
-	render_and_check(NULL);
+	if (benchmark_preview) {
+		struct GAMESTATE saved = state;
+		struct GAMEINFO saved_config = gameconfig;
+		legacy_s8 seed_before[GAMESTATE_RANDOM_SEED_SIZE], seed_after[GAMESTATE_RANDOM_SEED_SIZE];
+		get_kevinrandom_seed(seed_before);
+		sprite_select_screen_compat();
+		draw_track_preview();
+		get_kevinrandom_seed(seed_after);
+		assert(memcmp(&saved, &state, sizeof(state)) == 0);
+		assert(memcmp(&saved_config, &gameconfig, sizeof(gameconfig)) == 0);
+		assert(memcmp(seed_before, seed_after, sizeof(seed_before)) == 0);
+	} else {
+		full_redraw_frames_remaining = 1;
+		render_and_check(NULL);
+	}
 	if (composed != NULL) {
 		video_copy_framebuffer_argb(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0),
 									benchmark_palette, composed,
@@ -102,6 +131,8 @@ static void benchmark_usage(const legacy_s8 *program)
 	fprintf(stderr,
 			"Usage: %s [--data-dir DIR] [--compose] [--start-only] REPLAY [FRAMES]\n"
 			"       %s [--data-dir DIR] [--compose] --track TRACK [FRAMES]\n"
+			"       %s [--data-dir DIR] [--compose] --preview [--preview-full-detail]\n"
+			"          --track TRACK [FRAMES]\n"
 			"  REPLAY is a replay name without .rpl; FRAMES is a positive integer\n"
 			"  (default %u). Measures full-track geometry at 320x200, 640x400\n"
 			"  and 1280x800 in cockpit and external views at ticks 0, 80, 160.\n"
@@ -109,8 +140,11 @@ static void benchmark_usage(const legacy_s8 *program)
 			"  --compose also measures final ARGB framebuffer composition.\n"
 			"  --start-only measures full resolution cockpit view at tick 0.\n"
 			"  --track measures that view on a .cstrk track with the Countach.\n"
-			"  --all-views includes both cameras and all resolutions with --track.\n",
-			program, program, BENCH_DEFAULT_FRAMES);
+			"  --all-views includes both cameras and all resolutions with --track.\n"
+			"  --preview measures the actual rotating track-menu preview at four fixed\n"
+			"  headings; --all-views includes all three resolutions.\n"
+			"  --preview-full-detail disables preview detail reductions for comparison.\n",
+			program, program, program, BENCH_DEFAULT_FRAMES);
 }
 
 static legacy_s32 benchmark_parse_count(const legacy_s8 *argument, legacy_u32 *count)
@@ -248,9 +282,38 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 		   hires_render_workers_count(), count, cpu, total / count, times[count / 2U],
 		   times[percentile], benchmark_hash(composed),
 		   benchmark_multi_core ? "matched" : "serial");
+	if (benchmark_preview) {
+		printf("preview_tick=%u primitives=%u detail=%s\n", visual_clock_ticks,
+			   extended_track_preview_hires_primitive_count(),
+			   benchmark_preview_full_detail ? "full" : "default");
+	}
 	fflush(stdout);
 	free(composed);
 	free(times);
+	return 1;
+}
+
+static legacy_s32 benchmark_preview_frames(legacy_u32 count)
+{
+	static const legacy_s32 scales[] = {HIRES_MINIMUM_SCALE, HIRES_MEDIUM_SCALE, HIRES_SCALE};
+	extended_frame_preview_set_detail_enabled(!benchmark_preview_full_detail);
+	cameramode = CAMERA_MODE_CUSTOM;
+	for (legacy_u32 heading = 0; heading < BENCH_PREVIEW_HEADINGS; heading++) {
+		visual_clock_ticks = heading * BENCH_PREVIEW_SPIN_TICKS / BENCH_PREVIEW_HEADINGS;
+		legacy_u32 first_scale = benchmark_all_views ? 0U : SDL_arraysize(scales) - 1U;
+		for (legacy_u32 scale = first_scale; scale < SDL_arraysize(scales); scale++) {
+			hires_set_render_scale(scales[scale]);
+			sprite_select_screen_compat();
+			sprite_set_target_clip_bounds(0, BENCH_PREVIEW_SCREEN_WIDTH, 0,
+										  BENCH_PREVIEW_SCREEN_HEIGHT);
+			sprite_clear_target(BENCH_PREVIEW_GUARD_COLOR);
+			if (!benchmark_frames((legacy_u16)visual_clock_ticks, count)) {
+				extended_frame_preview_set_detail_enabled(1);
+				return 0;
+			}
+		}
+	}
+	extended_frame_preview_set_detail_enabled(1);
 	return 1;
 }
 
@@ -277,6 +340,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		argv[BENCH_REPLAY_ARGUMENT][0] == 0 ||
 		(argc == BENCH_ARGUMENTS_WITH_COUNT &&
 		 !benchmark_parse_count(argv[BENCH_COUNT_ARGUMENT], &count))) {
+		benchmark_usage(argv[0]);
+		return EXIT_FAILURE;
+	}
+	if (benchmark_preview && benchmark_track == NULL) {
 		benchmark_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
@@ -316,10 +383,20 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	if (benchmark_start_only) {
 		limit = 0;
 	}
-	puts("HyperVision full-track renderer benchmark: process CPU and elapsed milliseconds/frame.");
-	puts("Includes render/state checks, shadows, skybox and framebuffer copies; "
-		 "excludes display, pacing and physics.");
+	puts(benchmark_preview
+			 ? "HyperVision production track-preview benchmark: CPU and elapsed milliseconds/frame."
+			 : "HyperVision full-track renderer benchmark: process CPU and elapsed "
+			   "milliseconds/frame.");
+	puts(benchmark_preview ? "Includes draw_track_preview and state/RNG checks; excludes menu "
+							 "overlays, display and pacing."
+						   : "Includes render/state checks, shadows, skybox and framebuffer "
+							 "copies; excludes display, pacing and physics.");
 	printf("Final ARGB composition: %s.\n", benchmark_compose ? "included" : "excluded");
+	if (benchmark_preview) {
+		legacy_s32 result = benchmark_preview_frames(count);
+		call_exitlist();
+		return result ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 	for (legacy_u16 tick = 0; tick <= limit; tick++) {
 		if (tick % BENCH_TICK_INTERVAL == 0 || tick == limit) {
 			legacy_u32 camera_count = benchmark_start_only ? 1U : SDL_arraysize(cameras);
