@@ -304,6 +304,81 @@ Glacier checks. Focused ThreadSanitizer builds instrumented 79 renderer/geometry
 units and passed the worker, backend and geometry suites without race reports;
 SDL, media libraries and unrelated core code were reused without TSan.
 
+### Further Glacier CPU optimization (2026-11-04)
+
+A new serial profile of `624ff3d9` still spent 17.78% of sampled CPU time in
+precise-ground splitting and 4.63% in fragment appending. The renderer now retains
+local terrain fragments after cutting out road surfaces. Paint selection,
+shoreline splitting, camera transforms, and queue submission run on every frame.
+The cache key includes the original terrain-face vertices, complete tile objects,
+physical model, yaw, grade mode, and terrain base height. Track load and unload
+clear the entries after rendering jobs finish.
+
+Each tile uses a try-lock. Contention, changed inputs, allocation failure, or an
+exhausted budget use the original clipping path. The aggregate cache limit is
+32 MiB, including 129,600 bytes of fixed slot metadata. Glacier retained
+4,814,506 bytes of dynamic entries plus that metadata: 4,944,106 bytes total,
+about 4.72 MiB. This trades bounded memory and initial cache-fill work for lower
+recurring CPU cost. Newly visible tiles can require further fills. The timings
+below measure warmed rendering; they exclude the first frame that fills entries.
+
+A separate two-core probe first initialized the renderer's job buffers, then
+reset only the terrain cache. Three full-resolution cockpit fills took
+12.39–12.79 ms, followed immediately by warm frames taking 9.00–10.83 ms. This
+isolates cache-fill cost from the renderer's first-use allocation work.
+
+Raster bins also classify solid, detail, and patterned commands once when built,
+so each scanline visits the relevant lists while retaining submission order
+within each class. Exact fixed-point shortcuts avoid unnecessary matrix products
+for yaw-only and identity transforms.
+
+The paired comparison uses `624ff3d9` as its baseline, with the same Linux GCC
+14.2 Release settings (`-O3`) for both binaries. Each configuration ran twice in
+forward and reverse order, alternating baseline and optimized binaries. Each
+batch used eight warmup frames and 240 measured frames, with final ARGB
+composition included: Glacier at race start, Countach cockpit, Full HyperVision
+at 1280x800. Affinity selected `0`, `0,2`, and `0,2,4` for one, two, and three
+independent physical cache groups, respectively.
+
+Values are mean elapsed milliseconds per frame; parentheses show the range of
+the two batch means. Throughput improvement compares the optimized renderer with
+`624ff3d9` at the same core count.
+
+| Cores used | Baseline ms/frame (range) | Optimized ms/frame (range) | Throughput improvement |
+| --- | ---: | ---: | ---: |
+| 1 | 22.111 (22.063–22.159) | 15.428 (15.320–15.536) | 43.3% |
+| 2 | 13.012 (12.970–13.054) | 9.690 (9.687–9.692) | 34.3% |
+| 3 | 9.727 (9.242–10.212) | 7.327 (7.192–7.462) | 32.8% |
+
+Mean process CPU time decreased from 22.097 to 15.416 ms per frame on one core,
+23.915 to 17.279 ms on two, and 24.334 to 17.498 ms on three. Two optimized cores
+provided 59.2% more throughput than one optimized core; the baseline's gain in
+these batches was 69.9%. Removing repeated geometry work improves throughput on
+both paths, with a larger proportional benefit on one core. The one-to-two-core
+gain remains below 90%.
+
+Every timed case passed the complete serial/parallel ARGB comparison and retained
+the `503c8616` cockpit hash. These measurements cover warmed renderer throughput,
+including composition. They exclude display upload, physics, audio, frame pacing,
+and VSync, and do not establish interactive FPS on the target hardware.
+
+All 82 native CTest suites pass. All 18 DEFAULT, six Glacier, and six Ninhbinh
+camera/resolution cases retain the `624ff3d9` hashes with one and three background workers, including complete
+serial/parallel ARGB comparisons and simulation-state checks. The 4,917-frame
+extended-render suite passes, including cold/warm/disabled caching, changed
+camera/detail/paint/geometry inputs, reload/unload invalidation, budget fallback,
+and concurrent requests for the same tile.
+
+Low-detail extended-track filtering also normalizes occupancy markers before
+indexing the legacy object catalog. Regression cases cover all three markers
+at five detail levels in player and distant cells.
+
+ASan/UBSan instrumented all 238 game source units and passed workers, backend,
+geometry, the full extended-render suite, and six Glacier camera/resolution
+comparisons. Focused TSan instrumented 81 game units plus SDL's atomic/spinlock
+implementations and passed workers, backend, geometry, concurrent cache stress,
+and all six Glacier views without race reports.
+
 ### Earlier results
 
 A paired Linux Release comparison on 2026-10-01 used GCC 13.3 (`-O3`, the same

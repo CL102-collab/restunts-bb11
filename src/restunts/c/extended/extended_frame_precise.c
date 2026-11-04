@@ -3,10 +3,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
+#include "extended_frame_cache.h"
 
 #define HIRES_PRECISE_GROUND_CLIP_BUFFER_COUNT 2U
 #define HIRES_PRECISE_EVALUATE_AS_DECLARED 0
 #define HIRES_PRECISE_EVALUATE_AS_DOUBLE 1
+
+static legacy_s16
+ground_cache_paint(const struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *fragments,
+				   legacy_u16 count, const legacy_u8 *primitive,
+				   const struct FRAME_EXTENDED_TERRAIN *terrain)
+{
+	for (legacy_u16 fragment = 0; fragment < count; fragment++) {
+		if (hires_frame_extended_paint_precise_terrain(
+				fragments[fragment].points, fragments[fragment].count, primitive[1], primitive[2],
+				terrain->cell, &terrain->position, terrain->flags)) {
+			return 1;
+		}
+	}
+	return 0;
+}
 
 #if defined(RESTUNTS_SDL3)
 void hires_frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output,
@@ -362,6 +378,13 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 												const legacy_u8 *primitive,
 												const struct FRAME_EXTENDED_TERRAIN *terrain)
 {
+	struct FRAME_HIRES_GROUND_CACHE_PENDING pending;
+	const struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *cached;
+	legacy_u16 cached_count;
+	if (hires_frame_extended_ground_cache_lookup(terrain, source, count, &pending, &cached,
+												 &cached_count)) {
+		return ground_cache_paint(cached, cached_count, primitive, terrain);
+	}
 	struct SHAPE3D_HIRES_VECTOR points[SHAPE3D_POLYGON_MAX_VERTICES];
 	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 		points[vertex] =
@@ -372,6 +395,7 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 	if (!hires_frame_extended_append_precise_fragments(&current, &remaining, &current_capacity,
 													   points, count)) {
 		free(current);
+		hires_frame_extended_ground_cache_release(&pending);
 		return hires_frame_extended_paint_precise_terrain(points, count, primitive[1], primitive[2],
 														  terrain->cell, &terrain->position,
 														  terrain->flags);
@@ -456,22 +480,24 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 			remaining = written;
 		}
 	}
+	legacy_u8 retained = 0;
+	if (complete) {
+		retained = hires_frame_extended_ground_cache_retain(&pending, source, count, current,
+															current_capacity, remaining);
+	} else {
+		hires_frame_extended_ground_cache_release(&pending);
+	}
 	legacy_s16 result = 0;
 	if (complete) {
-		for (legacy_u16 fragment = 0; fragment < remaining; fragment++) {
-			if (hires_frame_extended_paint_precise_terrain(
-					current[fragment].points, current[fragment].count, primitive[1], primitive[2],
-					terrain->cell, &terrain->position, terrain->flags)) {
-				result = 1;
-				break;
-			}
-		}
+		result = ground_cache_paint(current, remaining, primitive, terrain);
 	} else {
 		result = hires_frame_extended_paint_precise_terrain(points, count, primitive[1],
 															primitive[2], terrain->cell,
 															&terrain->position, terrain->flags);
 	}
-	free(current);
+	if (!retained) {
+		free(current);
+	}
 	free(next);
 	return result;
 }

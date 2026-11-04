@@ -5,6 +5,10 @@
 #include "test-render-replay.c"
 #undef stuntsmain
 #include <float.h>
+#include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_atomic.h>
+#include <SDL3/SDL_timer.h>
+#include "../c/hires/render_workers.h"
 
 #include "../c/extended/cstrk.h"
 #include "../c/extended/extended_track.h"
@@ -1748,6 +1752,37 @@ legacy_u16 __wrap_shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instanc
 	return __real_shape3d_transform_and_queue(instance);
 }
 
+#define GROUND_CACHE_CONCURRENT_CAPTURE_FACES 256U
+struct GROUND_CACHE_CONCURRENT_FACE {
+	struct SHAPE3D_HIRES_VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
+	struct VECTOR position;
+	legacy_u16 count;
+	legacy_u8 material, primitive_flags;
+	legacy_s8 flags;
+};
+struct GROUND_CACHE_CONCURRENT_CAPTURE {
+	struct GROUND_CACHE_CONCURRENT_FACE faces[GROUND_CACHE_CONCURRENT_CAPTURE_FACES];
+	legacy_u16 count;
+};
+static RESTUNTS_RENDER_THREAD_LOCAL struct GROUND_CACHE_CONCURRENT_CAPTURE
+	*ground_cache_concurrent_capture;
+
+static void ground_cache_capture_submission(const struct TRANSFORMEDSHAPE3D *instance,
+											const struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	assert(vertices);
+	struct GROUND_CACHE_CONCURRENT_CAPTURE *capture = ground_cache_concurrent_capture;
+	assert(capture->count < GROUND_CACHE_CONCURRENT_CAPTURE_FACES);
+	struct GROUND_CACHE_CONCURRENT_FACE *face = &capture->faces[capture->count++];
+	face->count = instance->shapeptr->shape3d_numverts;
+	assert(face->count <= SHAPE3D_POLYGON_MAX_VERTICES);
+	memcpy(face->vertices, vertices, face->count * sizeof(*vertices));
+	face->position = instance->pos;
+	face->material = instance->shapeptr->shape3d_primitives[2];
+	face->primitive_flags = instance->shapeptr->shape3d_primitives[1];
+	face->flags = instance->ts_flags;
+}
+
 legacy_u16 __real_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices);
 static void queue_generated_bounds_face(const struct SHAPE3D_HIRES_VECTOR *vertices,
@@ -1819,6 +1854,11 @@ static void inject_generated_bounds_polygon(void)
 legacy_u16 __wrap_shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 													const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	if (ground_cache_concurrent_capture) {
+		ground_cache_capture_submission(instance, vertices);
+		return 0;
+	}
+
 	if (capture_render_shape(instance, vertices)) {
 		return 0;
 	}
@@ -4502,6 +4542,238 @@ static void check_precise_ground_splitting(void)
 	}
 }
 
+enum GROUND_CACHE_RENDER_VARIANT {
+	GROUND_CACHE_RENDER_ORIGINAL,
+	GROUND_CACHE_RENDER_LOW_DETAIL,
+	GROUND_CACHE_RENDER_PAINT,
+	GROUND_CACHE_RENDER_OBJECT_HEIGHT,
+	GROUND_CACHE_RENDER_DEFINITION_YAW,
+	GROUND_CACHE_RENDER_DEFINITION_MODEL,
+	GROUND_CACHE_RENDER_TERRAIN_HEIGHT,
+	GROUND_CACHE_RENDER_RESTORED,
+	GROUND_CACHE_RENDER_VARIANTS
+};
+#define GROUND_CACHE_RENDER_PASSES 3U
+#define GROUND_CACHE_RENDER_SMALL_BUDGET 4096U
+#define GROUND_CACHE_RENDER_MAX_BYTES (32U * 1024U * 1024U)
+#define GROUND_CACHE_RENDER_ROW 40U
+#define GROUND_CACHE_RENDER_COLUMN 39U
+#define GROUND_CACHE_RENDER_CAMERA_STEP 32U
+
+struct GROUND_CACHE_RENDER_INPUTS {
+	struct CSTRK_OBJECT object;
+	struct TRACKOBJECT definition;
+	struct CSTRK_CELL cell;
+	legacy_u8 heights[4];
+	legacy_u16 definition_id;
+};
+
+static void ground_cache_render_inputs(struct CSTRK_TRACK *track,
+									   const struct GROUND_CACHE_RENDER_INPUTS *saved,
+									   legacy_u8 variant)
+{
+	track->objects[0] = saved->object;
+	trkObjectList[saved->definition_id] = saved->definition;
+	legacy_u16 cell = GROUND_CACHE_RENDER_ROW * track->width + GROUND_CACHE_RENDER_COLUMN;
+	track->cells[cell] = saved->cell;
+	for (legacy_u16 corner = 0; corner < 4U; corner++) {
+		legacy_u16 index = (GROUND_CACHE_RENDER_ROW + corner / 2U) * (track->width + 1U) +
+						   GROUND_CACHE_RENDER_COLUMN + corner % 2U;
+		track->corner_heights[index] =
+			saved->heights[corner] + (variant == GROUND_CACHE_RENDER_TERRAIN_HEIGHT);
+	}
+	position_render_target(GROUND_CACHE_RENDER_COLUMN + 1U, GROUND_CACHE_RENDER_ROW + 1U);
+	custom_camera.azimuth_angle += variant * (ANGLE_QUARTER_TURN / GROUND_CACHE_RENDER_VARIANTS);
+	custom_camera.distance += variant * GROUND_CACHE_RENDER_CAMERA_STEP;
+	detail_level = variant == GROUND_CACHE_RENDER_LOW_DETAIL ? STUNT_RENDER_LOW_DETAIL : 0;
+	if (variant == GROUND_CACHE_RENDER_PAINT) {
+		track->cells[cell].surface = CSTRK_TERRAIN_ICE;
+		track->cells[cell].half_water_corner = CSTRK_WATER_NORTHEAST;
+		track->cells[cell].corner_surface = CSTRK_TERRAIN_WATER;
+	} else if (variant == GROUND_CACHE_RENDER_OBJECT_HEIGHT) {
+		track->objects[0].base_height++;
+	} else if (variant == GROUND_CACHE_RENDER_DEFINITION_YAW) {
+		trkObjectList[saved->definition_id].ss_rotY += ANGLE_QUARTER_TURN;
+	} else if (variant == GROUND_CACHE_RENDER_DEFINITION_MODEL) {
+		trkObjectList[saved->definition_id].ss_physicalModel = PHYSICAL_MODEL_SOLID_ROAD;
+	}
+}
+
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+#define GROUND_CACHE_CONCURRENT_JOBS 32U
+#define GROUND_CACHE_CONCURRENT_STARTERS 3U
+#define GROUND_CACHE_CONCURRENT_REPEATS 2U
+#define GROUND_CACHE_CONCURRENT_OBJECT 3U
+#define GROUND_CACHE_CONCURRENT_FREE_ROW 1U
+struct GROUND_CACHE_CONCURRENT_JOBS_CONTEXT {
+	struct FRAME_TILE tile;
+	struct FRAME_CAMERA camera;
+	struct GROUND_CACHE_CONCURRENT_CAPTURE *captures;
+	SDL_AtomicInt starters;
+	legacy_u8 parallel;
+};
+
+static void ground_cache_concurrent_job(void *argument, legacy_s32 index)
+{
+	struct GROUND_CACHE_CONCURRENT_JOBS_CONTEXT *context = argument;
+	if (context->parallel && index < (legacy_s32)GROUND_CACHE_CONCURRENT_STARTERS) {
+		SDL_AddAtomicInt(&context->starters, 1);
+		while (SDL_GetAtomicInt(&context->starters) <
+			   (legacy_s32)GROUND_CACHE_CONCURRENT_STARTERS) {
+			SDL_Delay(0);
+		}
+	}
+	ground_cache_concurrent_capture = &context->captures[index];
+	for (legacy_u8 repeat = 0; repeat < GROUND_CACHE_CONCURRENT_REPEATS; repeat++) {
+		assert(extended_frame_draw_terrain(&context->tile, &context->camera, 0) == 0);
+	}
+	ground_cache_concurrent_capture = NULL;
+}
+
+static void check_precise_ground_cache_concurrent(const struct CSTRK_TRACK *track)
+{
+	struct GROUND_CACHE_CONCURRENT_JOBS_CONTEXT context = {0};
+	const struct CSTRK_OBJECT *object = &track->objects[GROUND_CACHE_CONCURRENT_OBJECT];
+	context.tile.east = (legacy_s8)object->x;
+	/* The lower-left quadrant is unclaimed by this three-cell road. Its
+	 * terrain uses the precise cutout path rather than occupied-road culling. */
+	context.tile.south = (legacy_s8)(object->y + GROUND_CACHE_CONCURRENT_FREE_ROW);
+	context.captures = calloc(GROUND_CACHE_CONCURRENT_JOBS, sizeof(*context.captures));
+	assert(context.captures);
+	struct GROUND_CACHE_CONCURRENT_CAPTURE *reference = calloc(1, sizeof(*reference));
+	assert(reference);
+	hires_frame_extended_ground_cache_set_budget(0);
+	ground_cache_concurrent_job(&context, 0);
+	*reference = context.captures[0];
+	assert(reference->count > 0);
+	hires_frame_extended_ground_cache_set_budget(GROUND_CACHE_RENDER_MAX_BYTES);
+	hires_render_workers_set_enabled(1);
+	assert(hires_render_workers_count() >= (legacy_s32)GROUND_CACHE_CONCURRENT_STARTERS - 1);
+	context.parallel = 1;
+	for (legacy_u8 pass = 0; pass < 2U; pass++) {
+		memset(context.captures, 0, GROUND_CACHE_CONCURRENT_JOBS * sizeof(*context.captures));
+		SDL_SetAtomicInt(&context.starters, 0);
+		hires_render_workers_run(GROUND_CACHE_CONCURRENT_JOBS, ground_cache_concurrent_job,
+								 &context);
+		for (legacy_u16 job = 0; job < GROUND_CACHE_CONCURRENT_JOBS; job++) {
+			assert(memcmp(reference, &context.captures[job], sizeof(*reference)) == 0);
+		}
+		assert(hires_frame_extended_ground_cache_bytes() > 0);
+	}
+	free(reference);
+	free(context.captures);
+}
+#endif
+
+static legacy_u16 check_precise_ground_cache(const struct CSTRK_TRACK *fixture)
+{
+	if (!renderer_active) {
+		return 0;
+	}
+	struct GAMESTATE saved_state = state;
+	struct FRAME_HIRES_ADAPTIVE_STATE saved_adaptive = frame_hires_adaptive;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	const legacy_char *workers = SDL_getenv("RESTUNTS_RENDER_WORKERS");
+	legacy_char *saved_workers = workers ? SDL_strdup(workers) : NULL;
+	assert(!workers || saved_workers);
+	hires_render_workers_shutdown();
+	assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS", "2", true));
+	hires_render_workers_set_enabled(0);
+	frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_FULL);
+	cameramode = CAMERA_MODE_CUSTOM;
+	activate_render_track(fixture, 1);
+	struct CSTRK_TRACK *track = (struct CSTRK_TRACK *)extended_track_model();
+	struct GROUND_CACHE_RENDER_INPUTS saved = {0};
+	saved.object = track->objects[0];
+	saved.definition_id = (legacy_u16)extended_track_object_id(&track->objects[0]);
+	saved.definition = trkObjectList[saved.definition_id];
+	saved.cell = track->cells[GROUND_CACHE_RENDER_ROW * track->width + GROUND_CACHE_RENDER_COLUMN];
+	for (legacy_u16 corner = 0; corner < 4U; corner++) {
+		legacy_u16 index = (GROUND_CACHE_RENDER_ROW + corner / 2U) * (track->width + 1U) +
+						   GROUND_CACHE_RENDER_COLUMN + corner % 2U;
+		saved.heights[corner] = track->corner_heights[index];
+	}
+	legacy_u32 *reference[GROUND_CACHE_RENDER_VARIANTS];
+	size_t sizes[GROUND_CACHE_RENDER_VARIANTS];
+	legacy_u16 frames = 0;
+	for (legacy_u8 pass = 0; pass < GROUND_CACHE_RENDER_PASSES; pass++) {
+		if (pass < 2U) {
+			hires_frame_extended_ground_cache_set_budget(pass ? GROUND_CACHE_RENDER_MAX_BYTES : 0);
+		}
+		hires_render_workers_set_enabled(pass == 2U);
+		for (legacy_u8 variant = 0; variant < GROUND_CACHE_RENDER_VARIANTS; variant++) {
+			ground_cache_render_inputs(track, &saved, variant);
+			size_t size;
+			legacy_u32 *pixels = capture_complete_render(&size);
+			frames++;
+			if (!pass) {
+				reference[variant] = pixels;
+				sizes[variant] = size;
+				assert(hires_frame_extended_ground_cache_bytes() == 0);
+			} else {
+				assert(size == sizes[variant]);
+				assert(memcmp(pixels, reference[variant], size * sizeof(*pixels)) == 0);
+				free(pixels);
+				assert(hires_frame_extended_ground_cache_bytes() > 0);
+				assert(hires_frame_extended_ground_cache_bytes() < GROUND_CACHE_RENDER_MAX_BYTES);
+			}
+		}
+	}
+	ground_cache_render_inputs(track, &saved, 0);
+#ifdef RESTUNTS_WRAP_HILL_SHAPES
+	check_precise_ground_cache_concurrent(track);
+#endif
+	static const legacy_u32 budgets[] = {1U, GROUND_CACHE_RENDER_SMALL_BUDGET};
+	for (legacy_u8 index = 0; index < sizeof(budgets) / sizeof(budgets[0]); index++) {
+		hires_frame_extended_ground_cache_set_budget(budgets[index]);
+		size_t size;
+		legacy_u32 *pixels = capture_complete_render(&size);
+		assert(size == sizes[0]);
+		assert(memcmp(pixels, reference[0], size * sizeof(*pixels)) == 0);
+		assert(hires_frame_extended_ground_cache_bytes() <= budgets[index]);
+		assert(index || hires_frame_extended_ground_cache_bytes() == 0);
+		free(pixels);
+		frames++;
+	}
+	for (legacy_u8 variant = 0; variant < GROUND_CACHE_RENDER_VARIANTS; variant++) {
+		free(reference[variant]);
+	}
+	hires_frame_extended_ground_cache_set_budget(GROUND_CACHE_RENDER_MAX_BYTES);
+	size_t size;
+	legacy_u32 *pixels = capture_complete_render(&size);
+	free(pixels);
+	frames++;
+	legacy_u32 retained_bytes = hires_frame_extended_ground_cache_bytes();
+	assert(retained_bytes > 0);
+	static const legacy_u8 invalid_track[] = {0};
+	legacy_char error[GRASS_RENDER_ERROR_CAPACITY];
+	assert(!extended_track_load(invalid_track, sizeof(invalid_track), error, sizeof(error)));
+	assert(hires_frame_extended_ground_cache_bytes() == retained_bytes);
+	activate_render_track(fixture, 1);
+	assert(hires_frame_extended_ground_cache_bytes() == 0);
+	pixels = capture_complete_render(&size);
+	free(pixels);
+	frames++;
+	assert(hires_frame_extended_ground_cache_bytes() > 0);
+	extended_track_unload();
+	assert(hires_frame_extended_ground_cache_bytes() == 0);
+	hires_render_workers_set_enabled(0);
+	hires_render_workers_shutdown();
+	if (saved_workers) {
+		assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS",
+										  saved_workers, true));
+		SDL_free(saved_workers);
+	} else {
+		assert(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS"));
+	}
+	detail_level = saved_detail;
+	cameramode = saved_camera;
+	frame_hires_adaptive = saved_adaptive;
+	state = saved_state;
+	return frames;
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
@@ -4539,9 +4811,14 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	visual_clock_ticks = dos_timer_get_realtime_counter();
 	visual_clock_frozen = 1;
 	unsigned frames = 0;
+	legacy_u8 cache_only = SDL_getenv("RESTUNTS_TEST_GROUND_CACHE_ONLY") != NULL;
 	for (unsigned enhanced = 0; enhanced < 2U; enhanced++) {
 		if ((unsigned)(renderer_active != 0) != enhanced) {
 			assert(handle_ingame_kb_shortcuts(KEY_F12));
+		}
+		if (cache_only) {
+			frames += check_precise_ground_cache(&track);
+			continue;
 		}
 		cameramode = CAMERA_MODE_CUSTOM;
 		size_t slope_pixels = check_rendered_objects(&track, 40U, 41U, 416U);
@@ -4584,8 +4861,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_terrain_below_graded_turn();
 		frames += check_generated_terrain_bounds();
 		frames += check_reversed_native_slope_rendering();
+		frames += check_precise_ground_cache(&track);
 	}
-	frames += check_extended_track_overview();
+	if (!cache_only) {
+		frames += check_extended_track_overview();
+	}
 	extended_track_unload();
 	cstrk_free(&track);
 	printf("Extended 90x90 four-level terrain and native hill meshes rendered in %u frames.\n",
