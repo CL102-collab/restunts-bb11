@@ -1,5 +1,6 @@
 #include "hires.h"
 #include "render_workers.h"
+#include "../renderer/gpu_overlay.h"
 #include "../platform.h"
 #include "../shape2d/shape2d.h"
 #include "../shape2d/shape2d_internal.h"
@@ -170,6 +171,9 @@ void hires_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color)
 	hires_cell(hires_state.active, offset);
 	legacy_u32 sample =
 		(y & hires_state.render_mask) * hires_state.render_scale + (x & hires_state.render_mask);
+	if (gpu_overlay_tracking) {
+		gpu_overlay_write(hires_state.active->base, offset, sample);
+	}
 	if (hires_paint_sample(hires_state.active, offset, sample, color) != 0) {
 		hires_state.active->argb_cells--;
 	}
@@ -331,6 +335,9 @@ void hires_raster_pixel(struct HIRES_RASTER_CONTEXT *context, legacy_s32 x, lega
 	legacy_u16 offset =
 		(legacy_u16)(target->rows[(y >> target->scale_shift)] + (x >> target->scale_shift));
 	legacy_u32 sample = (y & target->scale_mask) * target->scale + (x & target->scale_mask);
+	if (gpu_overlay_tracking) {
+		gpu_overlay_write(target->surface->base, offset, sample);
+	}
 	if (hires_paint_sample(target->surface, offset, sample, color) != 0) {
 		context->cleared_argb_cells++;
 	}
@@ -363,6 +370,9 @@ static void hires_raster_solid_span(struct HIRES_RASTER_CONTEXT *context, legacy
 	const legacy_s32 mask = target->scale_mask;
 	const legacy_s32 cell_shift = target->cell_shift;
 	const size_t depth_row = (size_t)y * target->width;
+	if (gpu_overlay_tracking && !depth_test) {
+		gpu_overlay_span(target, left, right, y);
+	}
 	legacy_u16 row = target->rows[y >> shift];
 	legacy_u32 sample_row = (y & mask) << shift;
 	for (legacy_s32 x = left; x < right;) {
@@ -390,6 +400,9 @@ static void hires_raster_solid_span(struct HIRES_RASTER_CONTEXT *context, legacy
 					hires_test_depth(target->inverse_depth, target->depth_family, depth_row + x,
 									 inverse_z, family, depth_mode)) {
 					cell[sample] = color;
+					if (gpu_overlay_tracking) {
+						gpu_overlay_write(surface->base, offset, sample);
+					}
 				}
 			}
 		} else {
@@ -398,6 +411,9 @@ static void hires_raster_solid_span(struct HIRES_RASTER_CONTEXT *context, legacy
 					hires_test_depth(target->inverse_depth, target->depth_family, depth_row + x,
 									 inverse_z, family, depth_mode)) {
 					cell[sample] = color;
+					if (gpu_overlay_tracking) {
+						gpu_overlay_write(surface->base, offset, sample);
+					}
 					argb[sample] = 0;
 					painted = 1;
 				}
@@ -556,6 +572,9 @@ void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32
 								legacy_u16 alternate, legacy_u16 pattern, legacy_s32 paint_mode)
 {
 	const struct HIRES_RASTER_TARGET *target = context->target;
+	if (gpu_overlay_tracking) {
+		gpu_overlay_span(target, left, right, y);
+	}
 	struct HIRES_SURFACE *surface = target->surface;
 	const legacy_s32 shift = target->scale_shift;
 	const legacy_s32 mask = target->scale_mask;
@@ -622,6 +641,11 @@ static void hires_raster_replace_row(struct HIRES_RASTER_CONTEXT *context, legac
 	if (y < (context->top >> shift) || y >= (context->bottom >> shift) ||
 		y < (target->top >> shift) || y >= (target->bottom >> shift)) {
 		return;
+	}
+	if (gpu_overlay_tracking) {
+		for (legacy_s32 row = 0; row < target->scale; row++) {
+			gpu_overlay_span(target, target->left, target->right, y * target->scale + row);
+		}
 	}
 	struct HIRES_SURFACE *surface = target->surface;
 	legacy_u32 remaining = (legacy_u32)(target->right - target->left) >> shift;

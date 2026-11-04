@@ -171,7 +171,7 @@ static void test_help_contents(void)
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
 	expect_text("Software rendering is the default.");
-	expect_text(GRAPHICS_RENDERER_NATIVE_LABEL " disables CPU render workers.");
+	expect_text("The multi-core setting applies to Software rasterization only.");
 	expect_text("The " GRAPHICS_RENDERER_NATIVE_LABEL " device defaults to automatic selection.");
 	expect_text("--renderer:software|" GRAPHICS_RENDERER_NATIVE_VALUE);
 #ifdef __APPLE__

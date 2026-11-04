@@ -2,6 +2,7 @@
 #include "../fatal.h"
 #include "render_workers.h"
 #include "../renderer/gpu_raster.h"
+#include "../renderer/gpu_scene.h"
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +55,7 @@ static size_t hires_build_capacity;
 static struct HIRES_VISIBILITY_BIN hires_bins[HIRES_VISIBILITY_BAND_COUNT];
 static struct HIRES_DEPTH_PLANE hires_ground;
 static legacy_s32 hires_ground_enabled, hires_incremental;
+static legacy_s32 hires_direct_scene;
 static void *hires_visibility_reserve(void *buffer, size_t *capacity, size_t required,
 									  size_t initial, size_t element_size, legacy_s32 *failed)
 {
@@ -119,6 +121,8 @@ static void hires_backend_buffer_free(struct HIRES_BACKEND_BUFFER *buffer)
 void hires_backend_begin(const struct HIRES_DEPTH_PLANE *plane)
 {
 	hires_backend_buffer_reset(&hires_frame);
+	gpu_scene_begin(0);
+	hires_direct_scene = gpu_scene_active();
 	hires_ground_enabled = plane != NULL;
 	if (plane != NULL) {
 		hires_ground = *plane;
@@ -189,6 +193,10 @@ void hires_backend_polygon_to(struct HIRES_BACKEND_BUFFER *buffer,
 							  const struct HIRES_BACKEND_VERTEX *vertices, legacy_u32 count,
 							  const struct HIRES_BACKEND_MATERIAL *material)
 {
+	if (hires_direct_scene) {
+		gpu_scene_polygon(vertices, count, material);
+		return;
+	}
 	if (buffer == NULL) {
 		buffer = &hires_frame;
 	}
@@ -313,7 +321,7 @@ void hires_backend_build(legacy_s32 count,
 						 void (*job)(void *, legacy_s32, struct HIRES_BACKEND_BUFFER *),
 						 void *context)
 {
-	if (count <= 1 || hires_render_workers_count() == 0) {
+	if (hires_direct_scene || count <= 1 || hires_render_workers_count() == 0) {
 		for (legacy_s32 index = 0; index < count; index++) {
 			job(context, index, NULL);
 		}
@@ -657,6 +665,10 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 
 legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s32 preserve_depth)
 {
+	if (hires_direct_scene) {
+		gpu_scene_flush(target, preserve_depth);
+		return 0;
+	}
 	if (hires_frame.allocation_failed) {
 		fatal_error("Cannot allocate HyperVision command buffer");
 		return 0;
@@ -665,7 +677,7 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 		target->top >= target->bottom) {
 		return 0;
 	}
-	if (graphics_renderer() == GRAPHICS_RENDERER_NATIVE) {
+	if (graphics_renderer() == GRAPHICS_RENDERER_NATIVE && !gpu_scene_software_preview()) {
 		gpu_raster_hires(target, hires_frame.commands, hires_frame.command_count, hires_frame.edges,
 						 hires_frame.edge_count, hires_ground_enabled ? &hires_ground : NULL,
 						 preserve_depth);

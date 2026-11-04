@@ -34,6 +34,11 @@ if(NOT APPLE AND NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS"
     FetchContent_MakeAvailable(restunts_vulkan_headers)
     target_sources(restunts_graphics PRIVATE
         "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_context.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_scene.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_scene_cache.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_scene_depth.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_scene_memory.c"
+        "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_scene_pipeline.c"
         "${CMAKE_SOURCE_DIR}/src/restunts/c/renderer/vulkan_dispatch.c")
     target_compile_definitions(restunts_graphics PRIVATE RESTUNTS_NATIVE_VULKAN)
     target_link_libraries(restunts_graphics PRIVATE Vulkan::Headers ${CMAKE_DL_LIBS})

@@ -2,6 +2,10 @@
 #include "sdl3.h"
 #include "touch.h"
 #include "soft_keyboard.h"
+#include "vulkan_present.h"
+#include "../../c/renderer/gpu_overlay.h"
+#include "../../c/renderer/graphics_backend.h"
+#include "../../c/hires/render_workers.h"
 #include "../../c/platform.h"
 #include "../../c/fatal.h"
 #include "../../c/hires/hires.h"
@@ -55,6 +59,9 @@ static legacy_u32 previous_generation;
 static legacy_u64 last_present;
 static legacy_u8 palette_changed = true;
 static legacy_u8 drawing_frame;
+#ifdef RESTUNTS_VULKAN_PRESENT
+static legacy_u8 screenshot_pending;
+#endif
 static legacy_u8 adaptive_frame;
 static legacy_u8 measured_frame;
 static legacy_u64 render_frame_started;
@@ -374,6 +381,9 @@ static void prepare_presentation_page(const legacy_u8 *legacy_pixels)
 	 * then flip only after the entire composition is complete. */
 	video_copy_framebuffer_argb(legacy_pixels, palette_pixels, page->pixels,
 								width * sizeof(*page->pixels));
+#ifdef RESTUNTS_VULKAN_PRESENT
+	sdl3_vulkan_present_prepare(legacy_pixels, page->pixels, width, height);
+#endif
 	front_page = back_page;
 }
 
@@ -402,18 +412,31 @@ static void present_texture(legacy_u8 new_frame)
 		upload = true;
 	}
 	if (upload) {
-		void *texture_pixels;
-		/* Match the output parameter type required by SDL. */
-		legacy_int pitch;
-		if (!SDL_LockTexture(texture, NULL, &texture_pixels, &pitch)) {
-			video_fail("Lock video texture");
+#ifdef RESTUNTS_VULKAN_PRESENT
+		/* SDL Vulkan unlock submits and waits for the whole queue before freeing
+		 * its staging buffer. UpdateTexture retains uploads until their frame
+		 * completes, allowing scene rendering to overlap CPU work. */
+		if (sdl3_vulkan_present_requested()) {
+			if (!SDL_UpdateTexture(texture, NULL, page->pixels,
+								   page->width * sizeof(*page->pixels))) {
+				video_fail("Upload Vulkan presentation texture");
+			}
+		} else
+#endif
+		{
+			void *texture_pixels;
+			/* Match the output parameter type required by SDL. */
+			legacy_int pitch;
+			if (!SDL_LockTexture(texture, NULL, &texture_pixels, &pitch)) {
+				video_fail("Lock video texture");
+			}
+			for (legacy_s32 row = 0; row < page->height; row++) {
+				memcpy((legacy_u8 *)texture_pixels + (size_t)row * pitch,
+					   page->pixels + (size_t)row * page->width,
+					   (size_t)page->width * sizeof(*page->pixels));
+			}
+			SDL_UnlockTexture(texture);
 		}
-		for (legacy_s32 row = 0; row < page->height; row++) {
-			memcpy((legacy_u8 *)texture_pixels + (size_t)row * pitch,
-				   page->pixels + (size_t)row * page->width,
-				   (size_t)page->width * sizeof(*page->pixels));
-		}
-		SDL_UnlockTexture(texture);
 	}
 	legacy_u8 keyboard_active = sdl3_soft_keyboard_active();
 	legacy_int logical_w = 0, logical_h = 0;
@@ -431,8 +454,16 @@ static void present_texture(legacy_u8 new_frame)
 						   (legacy_f32)output_h / window_h);
 		game_area = sdl3_soft_keyboard_game_area(window);
 	}
-	if (!SDL_RenderClear(renderer) ||
-		!SDL_RenderTexture(renderer, texture, NULL, keyboard_active ? &game_area : NULL)) {
+	if (!SDL_RenderClear(renderer)) {
+		video_fail("Clear video texture");
+	}
+	legacy_s32 vulkan_draw = 0;
+#ifdef RESTUNTS_VULKAN_PRESENT
+	vulkan_draw = sdl3_vulkan_present_draw(renderer, texture, keyboard_active ? &game_area : NULL);
+#endif
+	if (vulkan_draw < 0 ||
+		(vulkan_draw == 0 &&
+		 !SDL_RenderTexture(renderer, texture, NULL, keyboard_active ? &game_area : NULL))) {
 		video_fail("Render video texture");
 	}
 	/* Include CPU composition and submission, but exclude the presentation
@@ -504,6 +535,13 @@ void sdl3_video_redraw(void)
 	if (window == NULL) {
 		return;
 	}
+#ifdef RESTUNTS_VULKAN_PRESENT
+	/* The direct scene image is updated in place. Do not combine it with the
+	 * preceding CPU page while the next complete frame is still being drawn. */
+	if (drawing_frame && sdl3_vulkan_present_requested()) {
+		return;
+	}
+#endif
 	if (surface_output) {
 		/* DOS keeps its direct indexed/VESA path and frame guard. */
 		sdl3_video_present();
@@ -520,6 +558,14 @@ void sdl3_video_screenshot(void)
 	if (window == NULL) {
 		return;
 	}
+#ifdef RESTUNTS_VULKAN_PRESENT
+	/* The shared GPU image may already contain part of the next frame. */
+	if (drawing_frame && sdl3_vulkan_present_active()) {
+		screenshot_pending = 1;
+		return;
+	}
+#endif
+	legacy_u64 capture_started = SDL_GetTicksNS();
 	/* Use the completed frame, not renderer readback after RenderPresent or
 	 * the live game buffers, which may already contain part of the next frame. */
 	SDL_Surface *surface;
@@ -530,14 +576,20 @@ void sdl3_video_screenshot(void)
 		if (page->pixels == NULL) {
 			return;
 		}
-		surface = SDL_CreateSurfaceFrom(page->width, page->height, SDL_PIXELFORMAT_ARGB8888,
-										page->pixels, page->width * sizeof(*page->pixels));
+#ifdef RESTUNTS_VULKAN_PRESENT
+		if (sdl3_vulkan_present_active()) {
+			surface = sdl3_vulkan_present_capture(page->pixels, page->width, page->height);
+		} else
+#endif
+		{
+			surface = SDL_CreateSurfaceFrom(page->width, page->height, SDL_PIXELFORMAT_ARGB8888,
+											page->pixels, page->width * sizeof(*page->pixels));
+		}
 	}
 	if (surface == NULL) {
 		SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "Cannot capture screenshot: %s", SDL_GetError());
 		return;
 	}
-	legacy_u64 capture_started = SDL_GetTicksNS();
 	legacy_char filename[SCREENSHOT_NAME_CAPACITY];
 	legacy_u32 number;
 	/* main selects the game data directory as the working directory. Keep
@@ -577,6 +629,9 @@ void sdl3_video_screenshot(void)
 
 void sdl3_video_begin_frame(void)
 {
+#ifdef RESTUNTS_VULKAN_PRESENT
+	gpu_overlay_reset();
+#endif
 	hires_set_render_scale(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO
 							   ? HIRES_SCALE
 							   : frame_hires_adaptive_render_scale(&frame_hires_adaptive));
@@ -588,6 +643,9 @@ void sdl3_video_begin_frame(void)
 
 void sdl3_video_begin_track_frame(legacy_u8 adaptive)
 {
+#ifdef RESTUNTS_VULKAN_PRESENT
+	gpu_overlay_reset();
+#endif
 	drawing_frame = true;
 	adaptive_frame =
 		adaptive != 0 && frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO;
@@ -606,6 +664,12 @@ void sdl3_video_end_frame(void)
 {
 	drawing_frame = false;
 	sdl3_video_present();
+#ifdef RESTUNTS_VULKAN_PRESENT
+	if (screenshot_pending) {
+		screenshot_pending = 0;
+		sdl3_video_screenshot();
+	}
+#endif
 	adaptive_frame = 0;
 	measured_frame = 0;
 }
@@ -625,6 +689,10 @@ void sdl3_video_refresh(void)
 
 void sdl3_video_shutdown(void)
 {
+#ifdef RESTUNTS_VULKAN_PRESENT
+	sdl3_vulkan_present_shutdown();
+	screenshot_pending = 0;
+#endif
 	SDL_DestroySurface(frame_surface);
 	SDL_DestroyTexture(texture);
 	for (legacy_u32 index = 0; index < PRESENTATION_PAGE_COUNT; index++) {
@@ -682,8 +750,23 @@ void dos_video_set_mode_13h(void)
 	}
 #endif
 #endif
+#ifdef RESTUNTS_VULKAN_PRESENT
+	if (sdl3_vulkan_present_requested()) {
+		window_flags |= SDL_WINDOW_VULKAN;
+	}
+#endif
 	window = SDL_CreateWindow("Chocolate Stunts", SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE,
 							  PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE, window_flags);
+#ifdef RESTUNTS_VULKAN_PRESENT
+	if (window == NULL && (window_flags & SDL_WINDOW_VULKAN) != 0) {
+		SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO, "Vulkan window unavailable; using readback: %s",
+					SDL_GetError());
+		window_flags &= ~SDL_WINDOW_VULKAN;
+		SDL_ClearError();
+		window = SDL_CreateWindow("Chocolate Stunts", SDL3_SCREEN_WIDTH * WINDOW_INITIAL_SCALE,
+								  PRESENTATION_HEIGHT * WINDOW_INITIAL_SCALE, window_flags);
+	}
+#endif
 #endif
 	if (window == NULL) {
 		video_fail("Create game window");
@@ -694,10 +777,41 @@ void dos_video_set_mode_13h(void)
 	select_dos_video_mode(hires_enabled() != 0);
 	surface_output = true;
 #else
-	renderer = SDL_CreateRenderer(window, NULL);
+#ifdef RESTUNTS_VULKAN_PRESENT
+	if ((SDL_GetWindowFlags(window) & SDL_WINDOW_VULKAN) != 0 && sdl3_vulkan_present_requested()) {
+		renderer = sdl3_vulkan_present_create(window);
+		if (renderer == NULL) {
+			SDL_LogWarn(SDL_LOG_CATEGORY_VIDEO,
+						"Direct Vulkan presentation unavailable; using readback: %s",
+						SDL_GetError());
+			sdl3_vulkan_present_shutdown();
+			renderer = SDL_CreateRenderer(window, NULL);
+		}
+		if (renderer != NULL) {
+			/* Geometry preparation and CPU artwork composition can use the
+			 * worker pool even though rasterization itself now runs on Vulkan. */
+			hires_render_workers_set_enabled(1);
+		}
+	} else
+#endif
+	{
+		renderer = SDL_CreateRenderer(window, NULL);
+	}
 	if (renderer == NULL) {
 		video_fail("Create renderer");
 	}
+#ifdef RESTUNTS_VULKAN_PRESENT
+	/* SDL can load driver libraries even after direct presentation falls back.
+	 * Register after each creation so SDL views, then our Vulkan objects, are
+	 * released before those libraries' destructors run at process exit. */
+	if (graphics_renderer() == GRAPHICS_RENDERER_VULKAN &&
+		(atexit(graphics_shutdown) != 0 || atexit(sdl3_video_shutdown) != 0)) {
+		sdl3_video_shutdown();
+		graphics_shutdown();
+		SDL_SetError("Cannot register Vulkan presentation cleanup");
+		video_fail("Create renderer");
+	}
+#endif
 	/* Browser presentation is composited on its own refresh cycle. SDL
 	 * implements swap intervals through an Emscripten main-loop callback,
 	 * whereas this backend preserves the nested game loops with Asyncify. */
@@ -741,6 +855,9 @@ void dos_video_set_palette(legacy_u16 start, legacy_u16 count, legacy_u8 *palett
 								((legacy_u32)color->g << LEGACY_BYTE_BITS) | color->b;
 		palette += VGA_PALETTE_CHANNEL_COUNT;
 	}
+#ifdef RESTUNTS_VULKAN_PRESENT
+	sdl3_vulkan_present_palette(palette_pixels);
+#endif
 	palette_changed = true;
 }
 

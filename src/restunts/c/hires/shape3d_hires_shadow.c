@@ -14,6 +14,9 @@
 #include "../shape3d/shape3d_internal.h"
 
 #include "shape3d_hires_internal.h"
+#include "shape3d_hires_shadow_gpu.h"
+#include "../renderer/gpu_scene.h"
+#include "../shape2d/shape2d_internal.h"
 
 static void hires_shadow_world_vertices(const struct SHAPE3D_HIRES_VECTOR *vertices,
 										legacy_u32 count, struct SHADOW_SURFACE *surface)
@@ -53,15 +56,25 @@ static void hires_shadow_world_vertices(const struct SHAPE3D_HIRES_VECTOR *verti
 	}
 }
 
+/* Collection precedes the scene begin call. A smaller preview may follow a
+ * GPU driving view, so validate the current sprite before reusing the cached
+ * active flag. Cockpit windshields are inset on every side of the framebuffer. */
+static legacy_s32 hires_gpu_shadow_target(void)
+{
+	return gpu_scene_active() &&
+		   gpu_scene_target_eligible(&drawing_sprite, HIRES_WIDTH / HIRES_SCALE,
+									 HIRES_HEIGHT / HIRES_SCALE);
+}
+
 legacy_s32 shape3d_hires_shadows_active(void)
 {
-	return shape3d_hires_state.car_shadow_count != 0;
+	return !hires_gpu_shadow_target() && shape3d_hires_state.car_shadow_count != 0;
 }
 
 legacy_s32 shape3d_hires_shadow_overlap(const struct SHAPE3D_HIRES_VECTOR *vertices,
 										legacy_u32 count)
 {
-	if (shape3d_hires_state.car_shadow_count == 0 || count == 0 ||
+	if (hires_gpu_shadow_target() || shape3d_hires_state.car_shadow_count == 0 || count == 0 ||
 		count > HIRES_SHADOW_SURFACE_MAX_POINTS) {
 		return 0;
 	}
@@ -73,7 +86,7 @@ legacy_s32 shape3d_hires_shadow_overlap(const struct SHAPE3D_HIRES_VECTOR *verti
 legacy_u32 shape3d_hires_shadow_polygon(const struct SHAPE3D_HIRES_VECTOR *vertices,
 										legacy_u32 count, legacy_s32 grille)
 {
-	if (shape3d_hires_state.car_shadow_count == 0 || count < 3 ||
+	if (hires_gpu_shadow_target() || shape3d_hires_state.car_shadow_count == 0 || count < 3 ||
 		count > HIRES_SHADOW_SURFACE_MAX_POINTS) {
 		return 0;
 	}
@@ -508,6 +521,9 @@ static legacy_u8 hires_shadow_opacity(const struct HIRES_CAR_SHADOW *shadow, leg
 
 void shape3d_hires_draw_shadows(void)
 {
+	if (shape3d_hires_draw_gpu_shadows()) {
+		return;
+	}
 	legacy_s32 scale = hires_render_scale();
 	legacy_s32 width = hires_render_width();
 	if (!hires_enabled() || scale == HIRES_MINIMUM_SCALE ||

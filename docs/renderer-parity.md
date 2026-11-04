@@ -338,30 +338,42 @@ Host tests cover row and column boundaries and the audio offset's lifetime.
 
 ## GPU scene rendering
 
-The optional Vulkan and macOS Metal backends consume the same projected
-geometry and immutable materials as Software. Geometry setup and legacy
-retained-state bookkeeping remain on the CPU. Compute shaders rasterize the
-classic painter-order queue and HyperVision depth/material queue. Readback
-completes before CPU shadows, artwork and interface overlays run; presentation
-remains SDL3.
+Software HyperVision retains its existing binary64 scanline renderer. Geometry
+setup and legacy retained-state bookkeeping stay on the CPU for every backend,
+so a faster visual path must not change replay physics or RNG records.
 
-Classic coverage uses the original clipped 16.16 line setup and inclusive
-polygon boundaries. HyperVision uses binary32 shader arithmetic so Vulkan 1.0,
-mobile and Metal devices do not require Float64. Arbitrary subpixel or
-tied-depth boundaries can differ from Software's binary64 evaluation.
+Interactive Vulkan converts projected polygons into hardware triangles, clips
+them in binary64 before narrowing coordinates, and uses device-local color and
+depth attachments. Canonical affine depth planes stabilize coplanar surfaces
+without a triangle-order bias. The scene stays on the GPU through SDL Vulkan
+presentation. A foreground mask follows CPU sprite writes and offscreen copies so dashboards,
+text, artwork and modal interfaces remain above the scene. Screenshots request
+GPU readback explicitly; ordinary frames do not. GPU car shadows use projected,
+feathered footprints. Raster coverage, coplanar layering and shadow geometry can
+differ from Software.
 
-`ctest --test-dir BUILD -R '^(gpu-raster|vulkan-replay|metal-replay)$' --output-on-failure`
-checks the platform's native GPU dispatch, classic and HyperVision
-coverage/depth/material fixtures, and matching Software/GPU replay gamestate
-and RNG records. These tests skip when no compatible device is available.
-Linux CI also invokes them directly with Mesa Lavapipe so a missing driver
-fails the required GPU check.
+Small interactive Vulkan previews use the existing CPU rasterizer. Metal and
+headless Vulkan tools retain the compute path. Classic compute coverage uses
+the original clipped 16.16 line setup and inclusive boundaries; HyperVision uses binary32 shader arithmetic. Discrete
+Vulkan adapters compute in device-local storage with separate upload/readback
+staging, while integrated and CPU adapters retain zero-copy storage. Bulk import
+preserves untouched artwork and retires ARGB cells once per cell.
 
-Regenerate the embedded Vulkan shader after editing `gpu_raster.comp` with
-`python3 tools/scripts/compile-gpu-raster.py`. Regenerate the embedded Metal
-shader after editing `gpu_raster.metal` with
-`python3 tools/scripts/compile-metal-raster.py`. Both tools accept `--check`
-to verify source freshness.
+`ctest --test-dir BUILD -R '^(gpu-(raster|readback|scene|overlay)|vulkan-(scene|memory|replay|window-replay)|metal-replay)$' --output-on-failure`
+checks triangle preparation, foreground masks, hardware rasterization, depth,
+patterns, palette replay, asynchronous resource reuse, staged memory selection,
+and matching Software/GPU replay state, including native window presentation.
+Device-dependent tests skip when no compatible device exists; Linux CI also runs its Vulkan checks explicitly with
+Mesa Lavapipe so missing GPU support fails the required check. Synchronization
+validation is useful for shared SDL images and transfer buffers. Lavapipe timings
+are software-GPU measurements and do not predict NVIDIA or AMD frame rates.
+
+Regenerate embedded graphics shaders with
+`python3 tools/scripts/compile-vulkan-scene.py`, the Vulkan compute shader with
+`python3 tools/scripts/compile-gpu-raster.py`, and Metal with
+`python3 tools/scripts/compile-metal-raster.py`. All accept `--check` to verify
+source freshness. See [the renderer benchmark](sdl3.md#scene-renderer) for actual
+hardware comparisons; `--present` is required to measure direct Vulkan graphics.
 
 ## Regression checks
 

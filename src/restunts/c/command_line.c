@@ -118,8 +118,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Multi-core rendering starts on." COMMAND_LINE_NEWLINE
 #endif
 #ifdef RESTUNTS_RENDERER_SELECTION
-	"Software rendering is the default. " GRAPHICS_RENDERER_NATIVE_LABEL
-	" disables CPU render workers." COMMAND_LINE_NEWLINE "The " GRAPHICS_RENDERER_NATIVE_LABEL
+	"Software rendering is the default. The multi-core setting applies to Software "
+	"rasterization only." COMMAND_LINE_NEWLINE "The " GRAPHICS_RENDERER_NATIVE_LABEL
 	" device defaults to automatic selection." COMMAND_LINE_NEWLINE
 #endif
 	"Ogg music starts off. Shift+F10 switches music sources outside races." COMMAND_LINE_NEWLINE

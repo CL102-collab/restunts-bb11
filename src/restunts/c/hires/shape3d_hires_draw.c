@@ -10,6 +10,7 @@
 #include "hires.h"
 #include "hypervision.h"
 #include "../math/projection.h"
+#include "../renderer/gpu_scene.h"
 #include "render_workers.h"
 #include "../shape3d/shape3d_internal.h"
 
@@ -222,8 +223,12 @@ void shape3d_hires_batch_begin(void)
 
 static legacy_s32 hires_finish_commands(legacy_s32 incremental)
 {
-	if (!shape3d_hires_state.rendered_depth_valid ||
-		shape3d_hires_state.rendered_generation != hires_generation()) {
+	if (gpu_scene_active()) {
+		/* Hardware rendering owns depth. Invalidate the CPU cache so the next
+		 * Software preview clears it even when its surface generation matches. */
+		shape3d_hires_state.rendered_depth_valid = 0;
+	} else if (!shape3d_hires_state.rendered_depth_valid ||
+			   shape3d_hires_state.rendered_generation != hires_generation()) {
 		hires_depth_begin(0, hires_render_width(), 0, hires_render_height());
 		shape3d_hires_state.rendered_depth_valid = 1;
 		shape3d_hires_state.rendered_generation = hires_generation();

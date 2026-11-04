@@ -177,12 +177,14 @@ void main() {
     uint family = image.data[outputAddress + 2u], color = 0u;
     bool touched = false;
     if (scene.data[6] == 1u) {
-        for (uint index = 0u; index < count; index++) {
-            uint command = scene.data[first + index];
+        // Painter order makes the final covered sample authoritative. Walk
+        // backwards so hidden classic polygons never traverse their edges.
+        for (uint index = count; index != 0u; index--) {
+            uint command = scene.data[first + index - 1u];
             float ignored;
             uint selected;
             if (coverage(command, x, y, ignored) && paint(command, x, y, selected)) {
-                color = selected; touched = true;
+                color = selected; touched = true; break;
             }
         }
     } else {

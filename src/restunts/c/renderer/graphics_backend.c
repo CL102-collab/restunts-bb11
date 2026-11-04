@@ -18,7 +18,6 @@
 
 static legacy_s32 selected_renderer = GRAPHICS_RENDERER_SOFTWARE;
 static legacy_s32 selected_device = GRAPHICS_DEVICE_DEFAULT;
-static legacy_u8 cleanup_registered;
 
 static legacy_s32 graphics_error(legacy_char *error, size_t capacity, const legacy_char *message)
 {
@@ -87,22 +86,22 @@ legacy_s32 graphics_select_renderer(legacy_s32 renderer, legacy_s32 device, lega
 							  "The selected " GRAPHICS_RENDERER_NATIVE_LABEL
 							  " device is unavailable");
 	}
-	if (!cleanup_registered) {
-		if (atexit(graphics_shutdown) != 0) {
-			return graphics_error(error, error_capacity, "Cannot register graphics cleanup");
-		}
-		cleanup_registered = 1;
-	}
 	if (!graphics_native_open(index, error, error_capacity)) {
 		selected_renderer = GRAPHICS_RENDERER_SOFTWARE;
 		selected_device = GRAPHICS_DEVICE_DEFAULT;
 		return 0;
 	}
+	/* Driver libraries register their own destructors while opening. Register
+	 * after each open so our objects are released before those destructors,
+	 * including when an earlier Software selection unloaded the driver. */
+	if (atexit(graphics_shutdown) != 0) {
+		graphics_shutdown();
+		return graphics_error(error, error_capacity, "Cannot register graphics cleanup");
+	}
 	selected_renderer = GRAPHICS_RENDERER_NATIVE;
 	selected_device = index;
 	return 1;
 #else
-	(void)cleanup_registered;
 	return graphics_error(error, error_capacity,
 						  GRAPHICS_RENDERER_NATIVE_LABEL
 						  " rendering is unavailable on this target");

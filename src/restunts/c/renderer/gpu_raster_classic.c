@@ -1,4 +1,5 @@
 #include "gpu_raster.h"
+#include "gpu_scene.h"
 #include "../fatal.h"
 #include "../platform.h"
 #include "../shape2d/shape2d_internal.h"
@@ -116,6 +117,10 @@ static void classic_bounds(struct GPU_RASTER_COMMAND *command, legacy_s16 left, 
 static void classic_line(legacy_s16 x0, legacy_s16 y0, legacy_s16 x1, legacy_s16 y1,
 						 const struct HIRES_BACKEND_MATERIAL *material)
 {
+	if (gpu_scene_active()) {
+		gpu_scene_line(x0, y0, x1, y1, material);
+		return;
+	}
 	legacy_u16 line[DRAW_LINE_WORD_COUNT] = {0};
 	if (line_prepare_clipped(x0, y0, x1, y1, line) != 0) {
 		return;
@@ -146,6 +151,11 @@ void gpu_raster_classic_begin(void)
 		classic_target.sprite_bitmapptr == NULL) {
 		classic_active = 0;
 		fatal_error("Invalid classic GPU drawing target");
+		return;
+	}
+	gpu_scene_classic_begin(&classic_target, classic_width, classic_height);
+	if (gpu_scene_software_preview()) {
+		classic_active = 0;
 	}
 }
 
@@ -216,6 +226,17 @@ legacy_s32 gpu_raster_classic_polygon(legacy_u16 color, legacy_u16 alternate, le
 		}
 		return 1;
 	}
+	if (gpu_scene_active()) {
+		if (count <= HIRES_BACKEND_MAX_VERTICES) {
+			struct HIRES_BACKEND_VERTEX vertices[HIRES_BACKEND_MAX_VERTICES];
+			for (legacy_u32 vertex = 0; vertex < count; vertex++) {
+				vertices[vertex] = (struct HIRES_BACKEND_VERTEX){
+					points[vertex].px, points[vertex].py, CLASSIC_GPU_SAMPLE_DEPTH};
+			}
+			gpu_scene_polygon(vertices, count, &material);
+		}
+		return 1;
+	}
 	struct GPU_RASTER_COMMAND *command = classic_command(count, &material);
 	classic_bounds(command, left, right, top, bottom);
 	for (legacy_u32 index = 0; index < count; index++) {
@@ -238,6 +259,10 @@ void gpu_raster_classic_end(void)
 		return;
 	}
 	classic_active = 0;
+	if (gpu_scene_active()) {
+		gpu_scene_classic_flush(&classic_target, classic_width, classic_height);
+		return;
+	}
 	if (classic_command_count == 0) {
 		return;
 	}

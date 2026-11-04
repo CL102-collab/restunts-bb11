@@ -1,4 +1,5 @@
 #include "gpu_raster.h"
+#include "gpu_readback.h"
 #include "../fatal.h"
 #include <float.h>
 #include <stdlib.h>
@@ -58,13 +59,6 @@ static legacy_u32 gpu_float(legacy_f64 value)
 	legacy_u32 word;
 	memcpy(&word, &converted, sizeof(word));
 	return word;
-}
-
-static legacy_f32 gpu_depth(legacy_u32 word)
-{
-	legacy_f32 value;
-	memcpy(&value, &word, sizeof(value));
-	return value;
 }
 
 static legacy_s32 gpu_bound(legacy_f64 value, legacy_s32 limit, legacy_s32 upper)
@@ -317,22 +311,7 @@ legacy_s32 gpu_raster_hires(const struct HIRES_RASTER_TARGET *target,
 						   edge_count, ground, preserve_depth, gpu_pixels)) {
 		return 0;
 	}
-	struct HIRES_RASTER_CONTEXT context = {target, target->top, target->bottom, 0};
-	for (legacy_s32 y = target->top; y < target->bottom; y++) {
-		for (legacy_s32 x = target->left; x < target->right; x++) {
-			size_t pixel = (size_t)y * target->width + x;
-			const legacy_u32 *sample = gpu_pixels + pixel * GPU_RASTER_OUTPUT_WORDS;
-			if ((sample[0] & GPU_RASTER_TOUCHED) != 0) {
-				hires_raster_pixel(&context, x, y, (legacy_u8)sample[0]);
-			}
-			if (x >= target->depth_left && x < target->depth_right && y >= target->depth_top &&
-				y < target->depth_bottom) {
-				target->inverse_depth[pixel] = gpu_depth(sample[1]);
-				target->depth_family[pixel] = sample[2];
-			}
-		}
-	}
-	hires_raster_finish(target, context.cleared_argb_cells);
+	gpu_readback_hires(target, gpu_pixels);
 	return 1;
 }
 

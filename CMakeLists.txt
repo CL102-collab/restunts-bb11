@@ -380,7 +380,12 @@ add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_co
     $<TARGET_OBJECTS:restunts_vorbis>)
 # The shared SDL3 scene hooks also compile on Software-only platforms.
 target_sources(restunts_game PRIVATE ${core}/renderer/gpu_raster.c
-    ${core}/renderer/gpu_raster_classic.c)
+    ${core}/renderer/gpu_readback.c ${core}/renderer/gpu_scene.c ${core}/renderer/gpu_overlay.c
+    ${core}/renderer/gpu_raster_classic.c ${core}/hires/shape3d_hires_shadow_gpu.c)
+if(restunts_native_vulkan)
+    target_compile_definitions(restunts_game PRIVATE RESTUNTS_VULKAN_SCENE)
+    target_sources(restunts_game PRIVATE ${platform}/vulkan_present.c)
+endif()
 target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
@@ -412,6 +417,19 @@ else()
     target_compile_definitions(restunts PRIVATE RESTUNTS_FULL)
 endif()
 target_link_libraries(restunts PRIVATE restunts_game)
+
+# Optional hardware benchmark, also available in release configurations without tests.
+if(NOT ANDROID AND NOT EMSCRIPTEN AND NOT CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    add_executable(benchmark-hypervision EXCLUDE_FROM_ALL ${platform}/main.c
+        src/restunts/benchmarks/benchmark-hypervision.c)
+    target_compile_definitions(benchmark-hypervision PRIVATE RESTUNTS_PIXLDUMP)
+    target_link_libraries(benchmark-hypervision PRIVATE restunts_game)
+    if(MSVC)
+        target_compile_options(benchmark-hypervision PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(benchmark-hypervision PRIVATE -UNDEBUG)
+    endif()
+endif()
 
 foreach(component Runtime Tests)
     set(exclude_from_default)
@@ -1055,6 +1073,20 @@ if(RESTUNTS_BUILD_TESTS)
                 "${CMAKE_SOURCE_DIR}/stunts" --renderer-name "${restunts_gpu_label}")
             set_tests_properties(${restunts_gpu_backend}-replay PROPERTIES
                 SKIP_RETURN_CODE 77 TIMEOUT 180)
+            if(restunts_native_vulkan)
+                add_executable(test-vulkan-window-replay ${platform}/main.c
+                    src/restunts/tests/test-render-replay.c)
+                target_compile_definitions(test-vulkan-window-replay PRIVATE RESTUNTS_PIXLDUMP
+                    RESTUNTS_TEST_GPU RESTUNTS_TEST_GPU_WINDOW)
+                target_link_libraries(test-vulkan-window-replay PRIVATE restunts_game)
+                target_compile_options(test-vulkan-window-replay PRIVATE -UNDEBUG)
+                add_test(NAME vulkan-window-replay COMMAND "${Python3_EXECUTABLE}"
+                    "${CMAKE_SOURCE_DIR}/tools/scripts/test-vulkan-replay.py"
+                    "$<TARGET_FILE:test-render-replay>" "$<TARGET_FILE:test-vulkan-window-replay>"
+                    "${CMAKE_SOURCE_DIR}/stunts" --present)
+                set_tests_properties(vulkan-window-replay PROPERTIES
+                    SKIP_RETURN_CODE 77 TIMEOUT 180)
+            endif()
         endif()
         add_executable(test-ghost-racing-line ${platform}/main.c
             src/restunts/tests/test-ghost-racing-line.c)
@@ -1065,12 +1097,35 @@ if(RESTUNTS_BUILD_TESTS)
             --data-dir "${CMAKE_SOURCE_DIR}/stunts" DEFAULT)
         set_tests_properties(ghost-racing-line PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;RESTUNTS_AUDIO_TRACE=")
-        add_executable(benchmark-hypervision EXCLUDE_FROM_ALL ${platform}/main.c
-            src/restunts/benchmarks/benchmark-hypervision.c)
-        target_compile_definitions(benchmark-hypervision PRIVATE RESTUNTS_PIXLDUMP)
-        target_link_libraries(benchmark-hypervision PRIVATE restunts_game)
-        target_compile_options(benchmark-hypervision PRIVATE -UNDEBUG)
     endif()
+    if(restunts_native_vulkan)
+        add_executable(test-vulkan-memory src/restunts/tests/test-vulkan-memory.c)
+        target_compile_options(test-vulkan-memory PRIVATE -UNDEBUG)
+        target_link_libraries(test-vulkan-memory PRIVATE Vulkan::Headers)
+        add_test(NAME vulkan-memory COMMAND test-vulkan-memory)
+        add_executable(test-vulkan-scene src/restunts/tests/test-vulkan-scene.c)
+        target_compile_options(test-vulkan-scene PRIVATE -UNDEBUG)
+        target_link_libraries(test-vulkan-scene PRIVATE restunts_graphics)
+        add_test(NAME vulkan-scene COMMAND test-vulkan-scene)
+        set_tests_properties(vulkan-scene PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
+    add_executable(test-gpu-scene src/restunts/tests/test-gpu-scene.c
+        ${core}/renderer/gpu_scene.c)
+    target_include_directories(test-gpu-scene PRIVATE "${CMAKE_SOURCE_DIR}/src/restunts/c")
+    target_compile_definitions(test-gpu-scene PRIVATE RESTUNTS_VULKAN_SCENE)
+    target_compile_options(test-gpu-scene PRIVATE -UNDEBUG)
+    if(NOT MSVC)
+        target_link_libraries(test-gpu-scene PRIVATE m)
+    endif()
+    add_test(NAME gpu-scene COMMAND test-gpu-scene)
+    add_executable(test-gpu-overlay src/restunts/tests/test-gpu-overlay.c)
+    target_compile_options(test-gpu-overlay PRIVATE -UNDEBUG)
+    target_link_libraries(test-gpu-overlay PRIVATE restunts_game)
+    add_test(NAME gpu-overlay COMMAND test-gpu-overlay)
+    add_executable(test-gpu-readback src/restunts/tests/test-gpu-readback.c)
+    target_compile_options(test-gpu-readback PRIVATE -UNDEBUG)
+    target_link_libraries(test-gpu-readback PRIVATE restunts_game)
+    add_test(NAME gpu-readback COMMAND test-gpu-readback)
     if(restunts_native_vulkan OR restunts_native_metal)
         add_executable(test-gpu-raster src/restunts/tests/test-gpu-raster.c)
         target_compile_options(test-gpu-raster PRIVATE -UNDEBUG)
@@ -1091,6 +1146,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/hires/render_workers.c
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
+    target_sources(test-skybox-hires PRIVATE ${core}/renderer/gpu_overlay.c)
     target_link_libraries(test-skybox-hires PRIVATE restunts_options)
     target_compile_options(test-skybox-hires PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/skybox-test")
@@ -1110,6 +1166,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/opponent_portrait_artwork.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
+    target_sources(test-opponent-portrait PRIVATE ${core}/renderer/gpu_overlay.c)
     target_link_libraries(test-opponent-portrait PRIVATE restunts_options)
     target_compile_options(test-opponent-portrait PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/opponent-test")
@@ -1131,6 +1188,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${platform}/memory.c ${platform}/asset_path.c
         ${core}/hires/menu_artwork.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
+    target_sources(test-menu-background PRIVATE ${core}/renderer/gpu_overlay.c)
     target_link_libraries(test-menu-background PRIVATE restunts_options)
     target_compile_options(test-menu-background PRIVATE -UNDEBUG)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/menu-background-test")
@@ -1141,6 +1199,7 @@ if(RESTUNTS_BUILD_TESTS)
         ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c ${platform}/memory.c
         ${core}/video/video_framebuffer.c ${core}/hires/video_framebuffer.c)
+    target_sources(test-sdl3-hires PRIVATE ${core}/renderer/gpu_overlay.c)
     target_link_libraries(test-sdl3-hires PRIVATE restunts_options)
     target_compile_options(test-sdl3-hires PRIVATE -UNDEBUG)
     add_test(NAME sdl3-hires COMMAND test-sdl3-hires)

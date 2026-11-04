@@ -390,9 +390,41 @@ out/sdl3-linux-x64/restunts --data-dir stunts --renderer:software
 ```
 
 An explicitly selected GPU renderer reports an error if its device cannot be
-opened. Select Software to use CPU rendering. Metal and Vulkan disable CPU
-render workers; startup windows grey out **Multi-core rendering** and retain
-its saved setting for the next Software launch.
+opened. Select Software to use CPU rendering. Startup windows grey out
+**Multi-core rendering** for GPU renderers and retain its saved setting for the
+next Software launch. This setting controls Software rasterization; Vulkan can
+automatically parallelize geometry preparation and CPU artwork composition.
+
+Interactive Vulkan uses hardware triangle rasterization and depth testing. It
+keeps the 3D scene in device-local memory and combines it with CPU artwork and
+interface overlays during presentation. Full-frame GPU readback is reserved for
+screenshots. Headless Vulkan tools use a compute fallback with bulk readback.
+Small interactive previews use the existing CPU rasterizer to avoid GPU round
+trips. Software HyperVision keeps its existing renderer. Vulkan uses canonical
+depth planes for coplanar surfaces and approximate car shadows; its pixels can
+differ from Software.
+
+For an uncapped comparison on your actual graphics card, build the benchmark
+and use its windowed presentation mode:
+
+```sh
+cmake --build out/sdl3-linux-x64 --target benchmark-hypervision
+RESTUNTS_VSYNC=0 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts --renderer:software --present --start-only DEFAULT 120
+RESTUNTS_VSYNC=0 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts --renderer:vulkan --present --start-only DEFAULT 120
+```
+
+Add `--classic` to compare the original 320x200 view, or omit `--start-only` to
+sample both cameras at several replay positions and HyperVision resolutions.
+`--capture` saves a screenshot after each measured scene. Keep VSync, resolution,
+camera, replay and device consistent between runs. Without `--present`, the
+Vulkan benchmark exercises the headless compute fallback instead of native
+hardware presentation. Mesa Lavapipe is useful for functional testing, but its
+software GPU timings do not predict discrete-card performance.
+
+On Windows PowerShell, set `$env:RESTUNTS_VSYNC = '0'` before running the same
+benchmark arguments with the built `benchmark-hypervision.exe`. The benchmark
+prints the backend (`graphics`, `software`, `software-preview`, or
+`compute-readback`) so the measured path is explicit.
 
 ### Rendering and presentation
 

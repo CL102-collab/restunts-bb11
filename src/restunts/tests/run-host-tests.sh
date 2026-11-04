@@ -89,7 +89,7 @@ small_source_companions() {
         shape3d_prerender.c) printf '%s\n' shape3d/shape3d_polygon.c ;;
         shape3d_lines.c) printf '%s\n' shape3d/shape3d_line_setup.c ;;
         math.c) printf '%s\n' math/math_rectangles.c ;;
-        shape3d_hires.c) printf '%s\n' hires/shape3d_hires_draw.c hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c ;;
+        shape3d_hires.c) printf '%s\n' hires/shape3d_hires_draw.c hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c hires/shape3d_hires_shadow_gpu.c ;;
         hires.c) printf '%s\n' hires/hires_raster.c ;;
         shape2d.c) printf '%s\n' shape2d/shape2d_image.c ;;
         shape2d_blit.c) printf '%s\n' shape2d/shape2d_window.c ;;
@@ -168,6 +168,11 @@ supersight_source_companions() {
 
 generic_render_companions() {
     case "$1" in
+        hires.c) printf '%s\n' renderer/gpu_overlay.c video/video_framebuffer.c ;;
+        hires_raster.c) printf '%s\n' renderer/gpu_overlay.c ;;
+        shape3d_hires_shadow.c) printf '%s\n' hires/shape3d_hires_shadow_gpu.c renderer/gpu_scene.c ;;
+        shape3d_hires_shadow_gpu.c) printf '%s\n' renderer/gpu_scene.c ;;
+        gpu_scene.c) printf '%s\n' renderer/gpu_overlay.c ;;
         frame.c) printf '%s\n' frame/frame_context.c ;;
         frame_camera.c) printf '%s\n' frame/frame_context.c ;;
         frame_car.c) printf '%s\n' frame/frame_context.c ;;
@@ -176,7 +181,6 @@ generic_render_companions() {
         frame_overlay.c) printf '%s\n' frame/frame_fps.c hires/frame_overlay.c ;;
         frame_terrain.c) printf '%s\n' frame/frame_terrain.c ;;
         frame_visibility.c) printf '%s\n' frame/frame_terrain.c ;;
-        hires.c) printf '%s\n' video/video_framebuffer.c ;;
         video_framebuffer.c) printf '%s\n' hires/video_framebuffer.c ;;
         showroom.c) printf '%s\n' hires/showroom_presentation.c ;;
     esac
@@ -210,7 +214,7 @@ source_companions() {
     if [[ " $2 " == *" -DRESTUNTS_SDL3 "* ]]; then
         case "$1" in
             shape3d_render.c|shape3d_prerender.c|shape3d_polygon.c|hypervision.c)
-                printf '%s\n' renderer/gpu_raster.c renderer/gpu_raster_classic.c renderer/graphics_backend.c
+                printf '%s\n' renderer/gpu_raster.c renderer/gpu_readback.c renderer/gpu_scene.c renderer/gpu_overlay.c renderer/gpu_raster_classic.c renderer/graphics_backend.c
                 ;;
         esac
     fi

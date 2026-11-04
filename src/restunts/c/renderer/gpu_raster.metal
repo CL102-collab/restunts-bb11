@@ -248,13 +248,16 @@ struct RasterScene {
 		uint family = image[outputAddress + 2u], color = 0u;
 		bool touched = false;
 		if (scene[6] == 1u) {
-			for (uint index = 0u; index < count; index++) {
-				uint command = scene[first + index];
+			// The last covered sample wins painter order. Hidden commands
+			// need no edge traversal once that sample has been found.
+			for (uint index = count; index != 0u; index--) {
+				uint command = scene[first + index - 1u];
 				float ignored;
 				uint selected;
 				if (coverage(command, x, y, ignored) && paint(command, x, y, selected)) {
 					color = selected;
 					touched = true;
+					break;
 				}
 			}
 		} else {

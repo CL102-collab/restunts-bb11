@@ -58,6 +58,7 @@
 	X(CmdPipelineBarrier)                                                                          \
 	X(CmdBindPipeline)                                                                             \
 	X(CmdBindDescriptorSets)                                                                       \
+	X(CmdCopyBuffer)                                                                               \
 	X(CmdDispatch)                                                                                 \
 	X(CreateFence)                                                                                 \
 	X(DestroyFence)                                                                                \
@@ -104,6 +105,11 @@ struct VULKAN_CONTEXT {
 	VkCommandBuffer command_buffer;
 	VkFence fence;
 	struct VULKAN_BUFFER buffers[VULKAN_STORAGE_BINDING_COUNT];
+	struct VULKAN_BUFFER uploads[VULKAN_STORAGE_BINDING_COUNT];
+	struct VULKAN_BUFFER readback;
+	legacy_s32 staged;
+	legacy_s32 graphics_enabled;
+	legacy_s32 presentation_enabled;
 	legacy_s32 pending;
 	legacy_s32 device_lost;
 	legacy_s32 failed;

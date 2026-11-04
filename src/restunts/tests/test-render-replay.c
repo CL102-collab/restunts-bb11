@@ -33,6 +33,13 @@
 #define RENDER_REPLAY_GPU_UNAVAILABLE 77
 #endif
 
+#ifdef RESTUNTS_TEST_GPU_WINDOW
+#include "../c/renderer/vulkan_scene.h"
+#include "../platform/sdl3/sdl3.h"
+#define RENDER_REPLAY_WINDOW_ARGUMENT_CAPACITY 11U
+#define RENDER_REPLAY_GPU_ALPHA_CHANNEL 3U
+#endif
+
 #undef memcpy
 #undef printf
 
@@ -389,6 +396,63 @@ static void initialize_replay(const legacy_s8 *name)
 	initialize_loaded_race();
 }
 
+#ifdef RESTUNTS_TEST_GPU_WINDOW
+static legacy_s16 initialize_gpu_window(legacy_s16 argc, legacy_s8 *argv[])
+{
+	struct GRAPHICS_DEVICE device;
+	if (graphics_enumerate_devices(&device, 1) == 0) {
+		puts("No Vulkan device is available; native window replay test skipped.");
+		return RENDER_REPLAY_GPU_UNAVAILABLE;
+	}
+#if !defined(_WIN32)
+	const legacy_char *display = getenv("DISPLAY"), *wayland = getenv("WAYLAND_DISPLAY");
+	if ((display == NULL || display[0] == 0) && (wayland == NULL || wayland[0] == 0)) {
+		puts("No window display is available; native Vulkan replay test skipped.");
+		return RENDER_REPLAY_GPU_UNAVAILABLE;
+	}
+#endif
+	/* Select Vulkan during production startup so SDL shares its device from the
+	 * first window. Keep the fixture's positional replay arguments unchanged. */
+	legacy_s8 *startup_arguments[RENDER_REPLAY_WINDOW_ARGUMENT_CAPACITY];
+	assert((size_t)argc + 2U <= RENDER_REPLAY_WINDOW_ARGUMENT_CAPACITY);
+	memcpy(startup_arguments, argv, (size_t)argc * sizeof(*argv));
+	startup_arguments[argc] = (legacy_s8 *)"--renderer:vulkan";
+	startup_arguments[argc + 1] = NULL;
+	sdl3_batch_mode = 0;
+	init_main((legacy_s16)(argc + 1), startup_arguments);
+	if (graphics_renderer() != GRAPHICS_RENDERER_VULKAN || !vulkan_scene_active()) {
+		fputs("Native Vulkan window presentation did not activate on the selected video driver.\n",
+			  stderr);
+		return 1;
+	}
+	return 0;
+}
+
+static void check_gpu_window_scene(void)
+{
+	legacy_s32 width, height;
+	assert(video_framebuffer(dos_memory_make_pointer(0xA000U, 0), &width, &height) != NULL);
+	size_t count = (size_t)width * height;
+	legacy_u32 *rgba = malloc(count * sizeof(*rgba));
+	assert(rgba != NULL);
+	legacy_char error[GRAPHICS_ERROR_CAPACITY];
+	if (!vulkan_scene_readback(rgba, width, height, error, sizeof(error))) {
+		fprintf(stderr, "Cannot verify native Vulkan replay scene: %s\n", error);
+		abort();
+	}
+	/* This explicit final readback proves that the native triangle image was
+	 * drawn; the per-frame state/RNG checks cover the interactive render path. */
+	size_t visible = 0;
+	const legacy_u8 *bytes = (const legacy_u8 *)rgba;
+	for (size_t pixel = 0; pixel < count; pixel++) {
+		visible += bytes[pixel * sizeof(*rgba) + RENDER_REPLAY_GPU_ALPHA_CHANNEL] != 0;
+	}
+	free(rgba);
+	assert(visible != 0);
+	printf("Native Vulkan window replay verified %zu nontransparent scene pixels.\n", visible);
+}
+#endif
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 7 || argc == 9);
@@ -399,6 +463,12 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	legacy_u16 landing_end = (legacy_u16)atoi((const legacy_char *)argv[6]);
 	legacy_u16 settling_start = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[7]) : 0;
 	legacy_u16 settling_end = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[8]) : 0;
+#ifdef RESTUNTS_TEST_GPU_WINDOW
+	legacy_s16 initialized = initialize_gpu_window(argc, argv);
+	if (initialized != 0) {
+		return initialized;
+	}
+#else
 	init_main(argc, argv);
 #if defined(RESTUNTS_TEST_VULKAN) || defined(RESTUNTS_TEST_GPU)
 	struct GRAPHICS_DEVICE device;
@@ -416,6 +486,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		return 1;
 	}
 	assert(graphics_renderer() == GRAPHICS_RENDERER_NATIVE);
+#endif
 #endif
 	init_div0();
 	init_row_tables();
@@ -528,6 +599,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		   mode, extra_frames, landing_interpolations, settling_interpolations);
 	assert(fclose(output) == 0);
 	free(recording);
+#ifdef RESTUNTS_TEST_GPU_WINDOW
+	check_gpu_window_scene();
+#endif
 	/* Match pixldump shutdown: this fixture never loaded dashboard resources. */
 	call_exitlist();
 	return 0;

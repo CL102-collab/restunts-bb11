@@ -1,4 +1,5 @@
 #include "vulkan_internal.h"
+#include "vulkan_scene.h"
 #include "gpu_raster_spirv.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,6 +93,46 @@ static void vulkan_close_instance(struct VULKAN_CONTEXT *context)
 	memset(context, 0, sizeof(*context));
 }
 
+#define VULKAN_EXTENSION_CAPACITY 256U
+#define VULKAN_INSTANCE_EXTENSION_CAPACITY 16U
+#define VULKAN_DEVICE_EXTENSION_CAPACITY 6U
+
+static legacy_u32 vulkan_instance_extensions(struct VULKAN_CONTEXT *context,
+											 const legacy_char **names)
+{
+	static const legacy_char *const wanted[] = {
+		"VK_KHR_surface",		   "VK_KHR_win32_surface",
+		"VK_KHR_xlib_surface",	   "VK_KHR_xcb_surface",
+		"VK_KHR_wayland_surface",  "VK_KHR_android_surface",
+		"VK_EXT_headless_surface", "VK_KHR_get_physical_device_properties2"};
+	PFN_vkEnumerateInstanceExtensionProperties enumerate =
+		(PFN_vkEnumerateInstanceExtensionProperties)context->api.GetInstanceProcAddr(
+			VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties");
+	if (enumerate == NULL) {
+		return 0;
+	}
+	VkExtensionProperties extensions[VULKAN_EXTENSION_CAPACITY];
+	legacy_u32 count = VULKAN_EXTENSION_CAPACITY;
+	VkResult result = enumerate(NULL, &count, extensions);
+	if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
+		return 0;
+	}
+	legacy_u32 enabled = 0;
+	legacy_s32 surface = 0, platform_surface = 0;
+	for (size_t wanted_index = 0; wanted_index < sizeof(wanted) / sizeof(*wanted); wanted_index++) {
+		for (legacy_u32 index = 0; index < count; index++) {
+			if (strcmp(wanted[wanted_index], extensions[index].extensionName) == 0) {
+				names[enabled++] = wanted[wanted_index];
+				surface |= wanted_index == 0;
+				platform_surface |= wanted_index > 0 && wanted_index < 7U;
+				break;
+			}
+		}
+	}
+	context->presentation_enabled = surface && platform_surface;
+	return enabled;
+}
+
 static legacy_s32 vulkan_create_instance(struct VULKAN_CONTEXT *context, legacy_char *error,
 										 size_t capacity)
 {
@@ -121,6 +162,9 @@ static legacy_s32 vulkan_create_instance(struct VULKAN_CONTEXT *context, legacy_
 	VkInstanceCreateInfo create = {0};
 	create.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	create.pApplicationInfo = &application;
+	const legacy_char *extensions[VULKAN_INSTANCE_EXTENSION_CAPACITY];
+	create.enabledExtensionCount = vulkan_instance_extensions(context, extensions);
+	create.ppEnabledExtensionNames = extensions;
 	VkResult result = context->api.CreateInstance(&create, NULL, &context->instance);
 	if (result != VK_SUCCESS) {
 		context->instance = VK_NULL_HANDLE;
@@ -179,10 +223,14 @@ static legacy_s32 vulkan_compatible_device(struct VULKAN_CONTEXT *context, VkPhy
 	}
 	VkQueueFamilyProperties queues[VULKAN_MAX_QUEUE_FAMILIES];
 	context->api.GetPhysicalDeviceQueueFamilyProperties(device, &count, queues);
-	for (legacy_u32 index = 0; index < count; index++) {
-		if (queues[index].queueCount != 0 && (queues[index].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-			*queue_family = index;
-			return 1;
+	for (legacy_u32 pass = 0; pass < 2U; pass++) {
+		for (legacy_u32 index = 0; index < count; index++) {
+			if (queues[index].queueCount != 0 &&
+				(queues[index].queueFlags & VK_QUEUE_COMPUTE_BIT) &&
+				(pass != 0 || (queues[index].queueFlags & VK_QUEUE_GRAPHICS_BIT))) {
+				*queue_family = index;
+				return 1;
+			}
 		}
 	}
 	return 0;
@@ -254,6 +302,60 @@ static legacy_s32 vulkan_select_physical_device(legacy_s32 selected, legacy_char
 						VK_ERROR_FEATURE_NOT_PRESENT);
 }
 
+static legacy_u32
+vulkan_device_extensions(const legacy_char **names,
+						 VkPhysicalDeviceSamplerYcbcrConversionFeatures *conversion)
+{
+	static const legacy_char *const wanted[VULKAN_DEVICE_EXTENSION_CAPACITY] = {
+		"VK_KHR_swapchain",	   "VK_KHR_sampler_ycbcr_conversion",
+		"VK_KHR_maintenance1", "VK_KHR_maintenance2",
+		"VK_KHR_bind_memory2", "VK_KHR_get_memory_requirements2"};
+	PFN_vkEnumerateDeviceExtensionProperties enumerate =
+		(PFN_vkEnumerateDeviceExtensionProperties)vulkan_context.api.GetInstanceProcAddr(
+			vulkan_context.instance, "vkEnumerateDeviceExtensionProperties");
+	legacy_u32 enabled = 0;
+	legacy_u8 found[VULKAN_DEVICE_EXTENSION_CAPACITY] = {0};
+	if (enumerate != NULL) {
+		VkExtensionProperties extensions[VULKAN_EXTENSION_CAPACITY];
+		legacy_u32 count = VULKAN_EXTENSION_CAPACITY;
+		VkResult result = enumerate(vulkan_context.physical_device, NULL, &count, extensions);
+		if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
+			for (legacy_u32 wanted_index = 0; wanted_index < VULKAN_DEVICE_EXTENSION_CAPACITY;
+				 wanted_index++) {
+				for (legacy_u32 index = 0; index < count; index++) {
+					found[wanted_index] |=
+						strcmp(wanted[wanted_index], extensions[index].extensionName) == 0;
+				}
+			}
+		}
+	}
+	if (found[0]) {
+		names[enabled++] = wanted[0];
+	} else {
+		vulkan_context.presentation_enabled = 0;
+	}
+	legacy_s32 ycbcr = 1;
+	for (legacy_u32 index = 1; index < VULKAN_DEVICE_EXTENSION_CAPACITY; index++) {
+		ycbcr &= found[index];
+	}
+	PFN_vkGetPhysicalDeviceFeatures2KHR features =
+		(PFN_vkGetPhysicalDeviceFeatures2KHR)vulkan_context.api.GetInstanceProcAddr(
+			vulkan_context.instance, "vkGetPhysicalDeviceFeatures2KHR");
+	if (ycbcr && features != NULL) {
+		conversion->sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES;
+		VkPhysicalDeviceFeatures2 query = {0};
+		query.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		query.pNext = conversion;
+		features(vulkan_context.physical_device, &query);
+		if (conversion->samplerYcbcrConversion) {
+			for (legacy_u32 index = 1; index < VULKAN_DEVICE_EXTENSION_CAPACITY; index++) {
+				names[enabled++] = wanted[index];
+			}
+		}
+	}
+	return enabled;
+}
+
 static legacy_s32 vulkan_create_device(legacy_char *error, size_t capacity)
 {
 	legacy_f32 priority = VULKAN_QUEUE_PRIORITY;
@@ -266,6 +368,21 @@ static legacy_s32 vulkan_create_device(legacy_char *error, size_t capacity)
 	create.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	create.queueCreateInfoCount = 1;
 	create.pQueueCreateInfos = &queue;
+	const legacy_char *extensions[VULKAN_DEVICE_EXTENSION_CAPACITY];
+	VkPhysicalDeviceSamplerYcbcrConversionFeatures conversion = {0};
+	create.enabledExtensionCount = vulkan_device_extensions(extensions, &conversion);
+	create.ppEnabledExtensionNames = extensions;
+	if (conversion.samplerYcbcrConversion) {
+		create.pNext = &conversion;
+	}
+	VkQueueFamilyProperties families[VULKAN_MAX_QUEUE_FAMILIES];
+	legacy_u32 family_count = VULKAN_MAX_QUEUE_FAMILIES;
+	vulkan_context.api.GetPhysicalDeviceQueueFamilyProperties(vulkan_context.physical_device,
+															  &family_count, families);
+	vulkan_context.graphics_enabled =
+		vulkan_context.queue_family < family_count &&
+		(families[vulkan_context.queue_family].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
+	vulkan_context.presentation_enabled &= vulkan_context.graphics_enabled;
 	VkResult result = vulkan_context.api.CreateDevice(vulkan_context.physical_device, &create, NULL,
 													  &vulkan_context.device);
 	if (result != VK_SUCCESS) {
@@ -377,6 +494,9 @@ void vulkan_close(void)
 			 * or destroying storage still referenced by submitted commands. */
 			return;
 		}
+	}
+	if (!vulkan_scene_shutdown()) {
+		return;
 	}
 	vulkan_release_dispatch();
 	if (vulkan_context.device != VK_NULL_HANDLE) {

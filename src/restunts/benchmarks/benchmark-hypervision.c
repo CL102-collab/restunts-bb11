@@ -4,11 +4,16 @@
 #include "../tests/test-render-replay.c"
 #undef stuntsmain
 #include "../c/hires/render_workers.h"
+#include "../c/renderer/gpu_scene.h"
 #include "../c/startup_internal.h"
 #include "../c/extended/extended_file.h"
 #include "../platform/sdl3/sdl3.h"
 #include <errno.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/resource.h>
+#endif
 
 #define BENCH_DEFAULT_FRAMES 120U
 #define BENCH_WARMUP_FRAMES 8U
@@ -16,6 +21,7 @@
 #define BENCH_TICK_INTERVAL 80U
 #define BENCH_MILLISECONDS_PER_SECOND 1000.0
 #define BENCH_MICROSECONDS_PER_MILLISECOND 1000.0
+#define BENCH_WINDOWS_TICKS_PER_MILLISECOND 10000.0
 #define BENCH_PERCENTILE_95 95U
 #define BENCH_PERCENTILE_100 100U
 #define BENCH_ARGUMENTS_REQUIRED 2
@@ -36,24 +42,68 @@
 #define BENCH_HASH_PRIME 16777619U
 #define BENCH_TRACK_FRAME_RATE 20U
 #define BENCH_TRACK_CAR "COUN"
+#define BENCH_RENDERER_PREFIX "--renderer:"
+#define BENCH_DEVICE_PREFIX "--renderer-device:"
+
+struct BENCHMARK_CPU_TIME {
+#ifdef _WIN32
+	FILETIME kernel, user;
+#else
+	struct rusage usage;
+#endif
+};
 
 static legacy_s32 benchmark_compose;
+static legacy_s32 benchmark_present;
+static legacy_s32 benchmark_capture;
+static legacy_s32 benchmark_classic;
 static legacy_s32 benchmark_start_only;
 static legacy_s32 benchmark_all_views;
 static legacy_u8 benchmark_multi_core = STARTUP_MULTI_CORE_ON;
+static legacy_u8 benchmark_workers_specified;
 static const legacy_s8 *benchmark_track;
+static legacy_s16 benchmark_startup_argc;
+static legacy_s8 **benchmark_startup_arguments;
 static legacy_u32 benchmark_palette[LEGACY_U8_MAX + 1U];
+
+static void benchmark_free_arguments(void)
+{
+	free(benchmark_startup_arguments);
+	benchmark_startup_arguments = NULL;
+}
 
 static void benchmark_parse_options(legacy_s16 *argc, legacy_s8 *argv[])
 {
+	/* Keep GPU options for production startup validation while removing them
+	 * from the benchmark's positional arguments. */
+	benchmark_startup_argc = *argc;
+	benchmark_startup_arguments = malloc(((size_t)*argc + 1U) * sizeof(*argv));
+	if (benchmark_startup_arguments == NULL || atexit(benchmark_free_arguments) != 0) {
+		fatal_error("Cannot preserve benchmark startup arguments");
+		return;
+	}
+	memcpy(benchmark_startup_arguments, argv, ((size_t)*argc + 1U) * sizeof(*argv));
 	legacy_s16 output = 1;
 	for (legacy_s16 input = 1; input < *argc; input++) {
 		if (strcmp((const legacy_char *)argv[input], "--compose") == 0) {
 			benchmark_compose = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--present") == 0) {
+			benchmark_present = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--capture") == 0) {
+			benchmark_present = benchmark_capture = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--classic") == 0) {
+			benchmark_classic = 1;
 		} else if (SDL_strcasecmp((const legacy_char *)argv[input], "--multi-core:on") == 0) {
 			benchmark_multi_core = 1;
+			benchmark_workers_specified = 1;
 		} else if (SDL_strcasecmp((const legacy_char *)argv[input], "--multi-core:off") == 0) {
 			benchmark_multi_core = 0;
+			benchmark_workers_specified = 1;
+		} else if (SDL_strncasecmp((const legacy_char *)argv[input], BENCH_RENDERER_PREFIX,
+								   sizeof(BENCH_RENDERER_PREFIX) - 1U) == 0 ||
+				   SDL_strncasecmp((const legacy_char *)argv[input], BENCH_DEVICE_PREFIX,
+								   sizeof(BENCH_DEVICE_PREFIX) - 1U) == 0) {
+			/* Retained for production startup validation and initialization. */
 		} else if (strcmp((const legacy_char *)argv[input], "--all-views") == 0) {
 			benchmark_all_views = 1;
 		} else if (strcmp((const legacy_char *)argv[input], "--start-only") == 0) {
@@ -86,6 +136,16 @@ static void benchmark_load_palette(void)
 	mmgr_free(resource);
 }
 
+static legacy_s32 benchmark_width(void)
+{
+	return hires_enabled() ? hires_render_width() : VIDEO_FRAMEBUFFER_WIDTH;
+}
+
+static legacy_s32 benchmark_height(void)
+{
+	return hires_enabled() ? hires_render_height() : VIDEO_FRAMEBUFFER_HEIGHT;
+}
+
 static void benchmark_render_frame(legacy_u32 *composed)
 {
 	full_redraw_frames_remaining = 1;
@@ -93,7 +153,7 @@ static void benchmark_render_frame(legacy_u32 *composed)
 	if (composed != NULL) {
 		video_copy_framebuffer_argb(dos_memory_make_pointer(BENCH_SCREEN_SEGMENT, 0),
 									benchmark_palette, composed,
-									hires_render_width() * sizeof(*composed));
+									benchmark_width() * sizeof(*composed));
 	}
 }
 
@@ -105,8 +165,16 @@ static void benchmark_usage(const legacy_s8 *program)
 			"  REPLAY is a replay name without .rpl; FRAMES is a positive integer\n"
 			"  (default %u). Measures full-track geometry at 320x200, 640x400\n"
 			"  and 1280x800 in cockpit and external views at ticks 0, 80, 160.\n"
+			"  --renderer:software|" GRAPHICS_RENDERER_NATIVE_VALUE
+			" selects the scene renderer (default software).\n"
+			"  --renderer-device:N selects a listed GPU device; use the native GPU renderer.\n"
 			"  --multi-core:off disables parallel rendering (on by default).\n"
+			"  Headless GPU benchmarking disables CPU rendering workers.\n"
 			"  --compose also measures final ARGB framebuffer composition.\n"
+			"  --present opens a window and measures native GPU presentation.\n"
+			"  Set RESTUNTS_VSYNC=0 for uncapped hardware comparisons.\n"
+			"  --capture also saves one SHOTxxxx.PNG after each benchmark scene.\n"
+			"  --classic measures the original 320x200 scene rather than HyperVision.\n"
 			"  --start-only measures full resolution cockpit view at tick 0.\n"
 			"  --track measures that view on a .cstrk track with the Countach.\n"
 			"  --all-views includes both cameras and all resolutions with --track.\n",
@@ -136,14 +204,56 @@ static legacy_int benchmark_compare_times(const void *first, const void *second)
 	return (a > b) - (a < b);
 }
 
-static legacy_f64 benchmark_cpu_milliseconds(const struct rusage *start, const struct rusage *end)
+static legacy_s32 benchmark_read_cpu_time(struct BENCHMARK_CPU_TIME *time)
 {
-	return (end->ru_utime.tv_sec - start->ru_utime.tv_sec + end->ru_stime.tv_sec -
-			start->ru_stime.tv_sec) *
+#ifdef _WIN32
+	FILETIME created, exited;
+	if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &time->kernel, &time->user)) {
+		fprintf(stderr, "Cannot read process CPU time (Windows error %" LEGACY_PRIu32 ")\n",
+				(legacy_u32)GetLastError());
+		return 0;
+	}
+#else
+	if (getrusage(RUSAGE_SELF, &time->usage) != 0) {
+		perror("Cannot read process CPU time");
+		return 0;
+	}
+#endif
+	return 1;
+}
+
+#ifdef _WIN32
+static legacy_u64 benchmark_filetime_ticks(const FILETIME *time)
+{
+	return ((legacy_u64)time->dwHighDateTime << LEGACY_DWORD_BITS) | time->dwLowDateTime;
+}
+#endif
+
+static legacy_f64 benchmark_cpu_milliseconds(const struct BENCHMARK_CPU_TIME *start,
+											 const struct BENCHMARK_CPU_TIME *end)
+{
+#ifdef _WIN32
+	return ((benchmark_filetime_ticks(&end->user) - benchmark_filetime_ticks(&start->user)) +
+			(benchmark_filetime_ticks(&end->kernel) - benchmark_filetime_ticks(&start->kernel))) /
+		   BENCH_WINDOWS_TICKS_PER_MILLISECOND;
+#else
+	return (end->usage.ru_utime.tv_sec - start->usage.ru_utime.tv_sec + end->usage.ru_stime.tv_sec -
+			start->usage.ru_stime.tv_sec) *
 			   BENCH_MILLISECONDS_PER_SECOND +
-		   (end->ru_utime.tv_usec - start->ru_utime.tv_usec + end->ru_stime.tv_usec -
-			start->ru_stime.tv_usec) /
+		   (end->usage.ru_utime.tv_usec - start->usage.ru_utime.tv_usec +
+			end->usage.ru_stime.tv_usec - start->usage.ru_stime.tv_usec) /
 			   BENCH_MICROSECONDS_PER_MILLISECOND;
+#endif
+}
+
+static const legacy_char *benchmark_backend(void)
+{
+	if (graphics_renderer() == GRAPHICS_RENDERER_SOFTWARE) {
+		return "software";
+	}
+	return gpu_scene_active()			  ? "graphics"
+		   : gpu_scene_software_preview() ? "software-preview"
+										  : "compute-readback";
 }
 
 static legacy_u32 benchmark_hash(const legacy_u32 *composed)
@@ -203,7 +313,7 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 	legacy_f64 *times = malloc((size_t)count * sizeof(*times));
 	legacy_u32 *composed =
 		benchmark_compose
-			? malloc((size_t)hires_render_width() * hires_render_height() * sizeof(*composed))
+			? malloc((size_t)benchmark_width() * benchmark_height() * sizeof(*composed))
 			: NULL;
 	if (times == NULL || (benchmark_compose && composed == NULL)) {
 		free(composed);
@@ -215,9 +325,8 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 	for (legacy_u32 frame = 0; frame < BENCH_WARMUP_FRAMES; frame++) {
 		benchmark_render_frame(composed);
 	}
-	struct rusage cpu_start, cpu_end;
-	if (getrusage(RUSAGE_SELF, &cpu_start) != 0) {
-		perror("Cannot read process CPU time");
+	struct BENCHMARK_CPU_TIME cpu_start, cpu_end;
+	if (!benchmark_read_cpu_time(&cpu_start)) {
 		free(composed);
 		free(times);
 		return 0;
@@ -232,8 +341,7 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 	}
 	legacy_f64 total =
 		(SDL_GetPerformanceCounter() - started) * BENCH_MILLISECONDS_PER_SECOND / frequency;
-	if (getrusage(RUSAGE_SELF, &cpu_end) != 0) {
-		perror("Cannot read process CPU time");
+	if (!benchmark_read_cpu_time(&cpu_end)) {
 		free(composed);
 		free(times);
 		return 0;
@@ -242,13 +350,18 @@ static legacy_s32 benchmark_frames(legacy_u16 tick, legacy_u32 count)
 	qsort(times, count, sizeof(*times), benchmark_compare_times);
 	legacy_u32 percentile =
 		(legacy_u32)((legacy_u64)count * BENCH_PERCENTILE_95 / BENCH_PERCENTILE_100);
-	printf("tick=%u camera=%d resolution=%dx%d workers=%d n=%u "
+	printf("tick=%u camera=%d resolution=%dx%d renderer=%s backend=%s workers=%d n=%u "
 		   "cpu=%.3f mean=%.3f p50=%.3f p95=%.3f ms hash=%08x parity=%s\n",
-		   tick, cameramode, hires_render_width(), hires_render_height(),
-		   hires_render_workers_count(), count, cpu, total / count, times[count / 2U],
-		   times[percentile], benchmark_hash(composed),
+		   tick, cameramode, benchmark_width(), benchmark_height(),
+		   graphics_renderer() == GRAPHICS_RENDERER_SOFTWARE ? "software"
+															 : GRAPHICS_RENDERER_NATIVE_VALUE,
+		   benchmark_backend(), hires_render_workers_count(), count, cpu, total / count,
+		   times[count / 2U], times[percentile], benchmark_hash(composed),
 		   benchmark_multi_core ? "matched" : "serial");
 	fflush(stdout);
+	if (benchmark_capture) {
+		sdl3_video_screenshot();
+	}
 	free(composed);
 	free(times);
 	return 1;
@@ -280,7 +393,17 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		benchmark_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
-	init_main(argc, argv);
+	if (benchmark_present) {
+		sdl3_batch_mode = 0;
+	}
+	init_main(benchmark_startup_argc, benchmark_startup_arguments);
+	if (graphics_renderer() != GRAPHICS_RENDERER_SOFTWARE) {
+		/* Native presentation can parallelize geometry and artwork while
+		 * triangle coverage and depth testing stay on the GPU. */
+		if (!benchmark_present || !benchmark_workers_specified) {
+			benchmark_multi_core = benchmark_present;
+		}
+	}
 	hires_render_workers_set_enabled(benchmark_multi_core);
 	init_div0();
 	init_row_tables();
@@ -303,7 +426,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	/* Keep transient HUD coverage identical across fast and slow runs. */
 	visual_clock_ticks = dos_timer_get_realtime_counter();
 	visual_clock_frozen = 1;
-	assert(handle_ingame_kb_shortcuts(KEY_F12) != 0);
+	if ((renderer_active != 0) == (benchmark_classic != 0)) {
+		assert(handle_ingame_kb_shortcuts(KEY_F12) != 0);
+	}
 	frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_FULL);
 	custom_camera.elevation_angle = BENCH_CAMERA_ELEVATION;
 	custom_camera.azimuth_angle = BENCH_CAMERA_AZIMUTH;
@@ -316,17 +441,25 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	if (benchmark_start_only) {
 		limit = 0;
 	}
-	puts("HyperVision full-track renderer benchmark: process CPU and elapsed milliseconds/frame.");
+	printf("%s renderer benchmark: process CPU and elapsed milliseconds/frame.\n",
+		   benchmark_classic ? "Classic" : "HyperVision full-track");
 	puts("Includes render/state checks, shadows, skybox and framebuffer copies; "
-		 "excludes display, pacing and physics.");
-	printf("Final ARGB composition: %s.\n", benchmark_compose ? "included" : "excluded");
+		 "excludes pacing and physics.");
+	printf("Standalone ARGB composition: %s.\n", benchmark_compose ? "included" : "excluded");
+	printf("Window presentation: %s.\n", benchmark_present ? "included" : "excluded (headless)");
+	if (benchmark_present) {
+		puts("Window presentation includes production ARGB composition, upload and display.");
+	}
+	puts("Parity and hash cover the CPU framebuffer; native GPU scene pixels are separate.");
 	for (legacy_u16 tick = 0; tick <= limit; tick++) {
 		if (tick % BENCH_TICK_INTERVAL == 0 || tick == limit) {
 			legacy_u32 camera_count = benchmark_start_only ? 1U : SDL_arraysize(cameras);
 			for (legacy_u32 camera = 0; camera < camera_count; camera++) {
 				cameramode = cameras[camera];
-				legacy_u32 first_scale = benchmark_start_only ? SDL_arraysize(scales) - 1U : 0U;
-				for (legacy_u32 scale = first_scale; scale < SDL_arraysize(scales); scale++) {
+				legacy_u32 first_scale =
+					!benchmark_classic && benchmark_start_only ? SDL_arraysize(scales) - 1U : 0U;
+				legacy_u32 last_scale = benchmark_classic ? 1U : SDL_arraysize(scales);
+				for (legacy_u32 scale = first_scale; scale < last_scale; scale++) {
 					hires_set_render_scale(scales[scale]);
 					if (!benchmark_frames(tick, count)) {
 						call_exitlist();

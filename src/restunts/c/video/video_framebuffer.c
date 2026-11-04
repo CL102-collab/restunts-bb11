@@ -1,6 +1,7 @@
 #include "video_framebuffer.h"
 #ifdef RESTUNTS_SDL3
 #include "../hires/video_framebuffer.h"
+#include "../renderer/gpu_overlay.h"
 #endif
 
 const legacy_u8 *video_legacy_framebuffer(const legacy_u8 *legacy, legacy_s32 *width,
@@ -14,6 +15,15 @@ const legacy_u8 *video_legacy_framebuffer(const legacy_u8 *legacy, legacy_s32 *w
 void video_copy_legacy_framebuffer_argb(const legacy_u8 *legacy, const legacy_u32 *palette,
 										legacy_u32 *destination, legacy_s32 pitch)
 {
+#ifdef RESTUNTS_SDL3
+	const legacy_u8 *mask =
+		gpu_overlay_mask(legacy, VIDEO_FRAMEBUFFER_WIDTH, VIDEO_FRAMEBUFFER_HEIGHT, NULL, NULL);
+	if (mask != NULL) {
+		gpu_overlay_compose_rows(legacy, palette, NULL, mask, destination, pitch, 1, 0,
+								 VIDEO_FRAMEBUFFER_HEIGHT);
+		return;
+	}
+#endif
 	for (legacy_s32 row = 0; row < VIDEO_FRAMEBUFFER_HEIGHT; row++) {
 		legacy_u32 *output = (legacy_u32 *)((legacy_u8 *)destination + row * pitch);
 		for (legacy_s32 column = 0; column < VIDEO_FRAMEBUFFER_WIDTH; column++) {

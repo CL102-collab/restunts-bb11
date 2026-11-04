@@ -1,5 +1,6 @@
 #include "hires.h"
 #include "render_workers.h"
+#include "../renderer/gpu_overlay.h"
 #include "../platform.h"
 #include "../shape2d/shape2d.h"
 #include "../shape2d/shape2d_internal.h"
@@ -100,6 +101,7 @@ void hires_depth_reset(void)
 
 static void hires_release_buffers(void)
 {
+	gpu_overlay_reset();
 	while (hires_state.surfaces != NULL) {
 		struct HIRES_SURFACE *next = hires_state.surfaces->next;
 		free(hires_state.surfaces->pixels);
@@ -243,6 +245,9 @@ void hires_fill_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 color)
 	legacy_u16 row =
 		LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
 	legacy_u16 offset = (legacy_u16)(row + x);
+	if (gpu_overlay_tracking) {
+		gpu_overlay_write(hires_state.active->base, offset, -1);
+	}
 	memset(hires_cell(hires_state.active, offset), color, hires_state.render_cell_pixels);
 	hires_clear_argb(hires_state.active, offset);
 }
@@ -258,6 +263,9 @@ void hires_write_pixel(legacy_s32 x, legacy_s32 y, const legacy_u8 *samples)
 	legacy_u16 row =
 		LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs + y * LEGACY_WORD_BYTES);
 	legacy_u16 offset = (legacy_u16)(row + x);
+	if (gpu_overlay_tracking) {
+		gpu_overlay_write(hires_state.active->base, offset, -1);
+	}
 	memcpy(hires_cell(hires_state.active, offset), samples, hires_state.render_cell_pixels);
 	hires_clear_argb(hires_state.active, offset);
 }
@@ -290,6 +298,15 @@ void hires_argb_pixel(legacy_s32 x, legacy_s32 y, legacy_u32 color)
 	legacy_u32 *sample = hires_argb_sample(x, y);
 	if (sample != NULL) {
 		*sample = color;
+		if (gpu_overlay_tracking) {
+			legacy_u16 row =
+				LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs +
+								   (y >> hires_state.render_shift) * LEGACY_WORD_BYTES);
+			legacy_u16 offset = (legacy_u16)(row + (x >> hires_state.render_shift));
+			legacy_s32 index = (y & hires_state.render_mask) * hires_state.render_scale +
+							   (x & hires_state.render_mask);
+			gpu_overlay_write(hires_state.active->base, offset, index);
+		}
 	}
 }
 
@@ -319,11 +336,22 @@ void hires_shadow_pixel(legacy_s32 x, legacy_s32 y, legacy_u8 opacity)
 		color |= channel << shift;
 	}
 	*sample = color;
+	if (gpu_overlay_tracking) {
+		legacy_u16 row = LEGACY_READ_U16_LE(hires_state.active_sprite.sprite_lineofs +
+											(y >> hires_state.render_shift) * LEGACY_WORD_BYTES);
+		legacy_u16 offset = (legacy_u16)(row + (x >> hires_state.render_shift));
+		legacy_s32 index = (y & hires_state.render_mask) * hires_state.render_scale +
+						   (x & hires_state.render_mask);
+		gpu_overlay_shadow(hires_state.active->base, offset, index, opacity);
+	}
 }
 
 void hires_write(const legacy_u8 *base, legacy_u16 offset, legacy_u8 color)
 {
 	(void)color;
+	if (gpu_overlay_tracking && hires_state.active == NULL) {
+		gpu_overlay_write(base, offset, -1);
+	}
 	if (!hires_state.enabled || hires_state.active != NULL) {
 		return;
 	}
@@ -383,6 +411,10 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 				  const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
 				  legacy_s16 operation, const legacy_u8 *palette)
 {
+	if (gpu_overlay_tracking && hires_state.active == NULL && count != 0) {
+		gpu_overlay_raster(destination, destination_offset, source, source_offset, count, operation,
+						   palette);
+	}
 	if (!hires_state.enabled || hires_state.active != NULL || count == 0) {
 		return;
 	}
@@ -434,6 +466,7 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 
 void hires_forget(const void *base)
 {
+	gpu_overlay_forget(base, 0);
 	struct HIRES_SURFACE **link = &hires_state.surfaces;
 	while (*link != NULL) {
 		struct HIRES_SURFACE *surface = *link;
@@ -454,6 +487,7 @@ void hires_forget(const void *base)
 
 void hires_forget_range(const void *base, legacy_u32 size)
 {
+	gpu_overlay_forget(base, size);
 	if (!hires_state.enabled || size == 0) {
 		return;
 	}
@@ -534,6 +568,7 @@ struct HIRES_COMPOSE_JOB {
 	const legacy_u8 *legacy;
 	const legacy_u32 *palette;
 	const struct HIRES_SURFACE *surface;
+	const legacy_u8 *gpu_mask;
 	legacy_u32 *destination;
 	legacy_s32 pitch;
 };
@@ -546,6 +581,11 @@ static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_
 	const struct HIRES_SURFACE *surface = job->surface;
 	legacy_u32 *destination = job->destination;
 	legacy_s32 pitch = job->pitch;
+	if (job->gpu_mask != NULL) {
+		gpu_overlay_compose_rows(legacy, palette, surface, job->gpu_mask, destination, pitch,
+								 hires_state.render_scale, top, bottom);
+		return;
+	}
 	/* Palette entry 15 is the menu's white. Match its fade so artwork follows
 	 * the same black-to-white transition as the original indexed pixels. */
 	legacy_u32 fade = palette[HIRES_MENU_WHITE_INDEX];
@@ -615,7 +655,9 @@ static void hires_compose_argb(const legacy_u8 *legacy, const legacy_u32 *palett
 							   const struct HIRES_SURFACE *surface, legacy_u32 *destination,
 							   legacy_s32 pitch)
 {
-	struct HIRES_COMPOSE_JOB job = {legacy, palette, surface, destination, pitch};
+	const legacy_u8 *gpu_mask =
+		gpu_overlay_mask(legacy, hires_state.render_width, hires_state.render_height, NULL, NULL);
+	struct HIRES_COMPOSE_JOB job = {legacy, palette, surface, gpu_mask, destination, pitch};
 	/* Composition reads frozen surfaces and owns complete output rows. Leave
 	 * unusual overlapping pitches and the smallest framebuffer serial. */
 	if (hires_state.render_scale > HIRES_MINIMUM_SCALE &&

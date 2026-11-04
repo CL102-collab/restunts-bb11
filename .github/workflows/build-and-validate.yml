@@ -118,6 +118,9 @@ jobs:
       - name: Check the embedded Vulkan shader matches its source
         run: python3 tools/scripts/compile-gpu-raster.py --check
 
+      - name: Check the native Vulkan graphics shaders match their sources
+        run: python3 tools/scripts/compile-vulkan-scene.py --check
+
       - name: Check the embedded Metal shader matches its source
         run: python3 tools/scripts/compile-metal-raster.py --check
 
@@ -241,7 +244,7 @@ jobs:
             libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev \
             libwayland-dev libxkbcommon-dev libudev-dev libdrm-dev libgbm-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgtk-3-dev \
-            ${{ matrix.sanitizer == 'undefined' && 'mesa-vulkan-drivers' || '' }}
+            ${{ matrix.sanitizer == 'undefined' && 'mesa-vulkan-drivers xvfb xauth' || '' }}
 
       - name: Reserve a compatible address space for ThreadSanitizer
         if: matrix.sanitizer == 'thread'
@@ -277,8 +280,12 @@ jobs:
           icds=(/usr/share/vulkan/icd.d/lvp_icd*.json)
           test -f "${icds[0]}"
           VK_DRIVER_FILES="${icds[0]}" build/sanitizer/test-gpu-raster
+          VK_DRIVER_FILES="${icds[0]}" build/sanitizer/test-vulkan-scene
           VK_DRIVER_FILES="${icds[0]}" python3 tools/scripts/test-vulkan-replay.py \
             build/sanitizer/test-render-replay build/sanitizer/test-vulkan-replay stunts
+          VK_DRIVER_FILES="${icds[0]}" SDL_VIDEODRIVER=x11 xvfb-run -a \
+            python3 tools/scripts/test-vulkan-replay.py build/sanitizer/test-render-replay \
+            build/sanitizer/test-vulkan-window-replay stunts --present
 
       - name: Upload sanitizer test diagnostics
         if: always()
