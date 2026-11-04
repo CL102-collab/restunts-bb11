@@ -13,13 +13,14 @@ static legacy_s16 coordinate(const struct SHAPE3D *mesh, legacy_u16 index, legac
 							  offset);
 }
 
-#define TEST_TULIP_COLOR_COUNT 5U
-#define TEST_TULIP_BAND_HALF_WIDTH 70
-#define TEST_TULIP_LEAF_HALF_WIDTH 80
+#define TEST_TULIP_COLOR_COUNT 8U
+#define TEST_TULIP_ROW_COUNT 8U
+#define TEST_TULIP_BAND_HALF_WIDTH 50
+#define TEST_TULIP_LEAF_HALF_WIDTH 60
 #define TEST_TULIP_LEAF_HEIGHT 4
 #define TEST_TULIP_HEIGHT 12
-#define TEST_TULIP_VERTEX_COUNT 60U
-#define TEST_TULIP_PRIMITIVE_COUNT 13U
+#define TEST_TULIP_VERTEX_COUNT 76U
+#define TEST_TULIP_PRIMITIVE_COUNT 17U
 #define TEST_VINE_WIDTH 45
 #define TEST_VINE_LEFT_OFFSET (-22)
 #define TEST_VINE_RIGHT_OFFSET 23
@@ -32,11 +33,13 @@ static legacy_s16 coordinate(const struct SHAPE3D *mesh, legacy_u16 index, legac
 #define TEST_VINE_FOLIAGE_PRIMITIVE_COUNT 73U
 
 static const legacy_u8 test_tulip_colors[TEST_TULIP_COLOR_COUNT] = {
-	TULIP_FIELD_PURPLE_MATERIAL, TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,
-	TULIP_FIELD_PINK_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL};
-static const legacy_u8 test_tulip_row_colors[TULIP_FIELD_ROW_COUNT] = {
-	TULIP_FIELD_PURPLE_MATERIAL, TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,
-	TULIP_FIELD_PINK_MATERIAL,	 TULIP_FIELD_PURPLE_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL};
+	TULIP_FIELD_WHITE_MATERIAL,	 TULIP_FIELD_GREEN_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL,
+	TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,	 TULIP_FIELD_PURPLE_MATERIAL,
+	TULIP_FIELD_PINK_MATERIAL,	 TULIP_FIELD_BLUE_MATERIAL};
+static const legacy_u8 test_tulip_row_colors[TEST_TULIP_ROW_COUNT] = {
+	TULIP_FIELD_WHITE_MATERIAL,	 TULIP_FIELD_GREEN_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL,
+	TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,	 TULIP_FIELD_PURPLE_MATERIAL,
+	TULIP_FIELD_PINK_MATERIAL,	 TULIP_FIELD_BLUE_MATERIAL};
 static const legacy_s16 test_grape_stations[VINE_FIELD_GRAPE_STATION_COUNT] = {
 	-448, -320, -192, -64, 64, 192, 320, 448};
 
@@ -52,7 +55,9 @@ static legacy_int flower_material(legacy_u8 material)
 
 static void check_tulip_rows(const struct SHAPE3D *mesh)
 {
+	assert(TULIP_FIELD_ROW_COUNT == TEST_TULIP_ROW_COUNT);
 	assert(mesh->shape3d_numverts == TEST_TULIP_VERTEX_COUNT);
+	assert(TEST_TULIP_BAND_HALF_WIDTH < TEST_TULIP_LEAF_HALF_WIDTH);
 	assert(mesh->shape3d_numprimitives == TEST_TULIP_PRIMITIVE_COUNT);
 	assert(coordinate(mesh, 4, SHAPE3D_VERTEX_Y_OFFSET) == TEST_TULIP_HEIGHT);
 	legacy_s16 centers[TULIP_FIELD_ROW_COUNT];
@@ -70,7 +75,11 @@ static void check_tulip_rows(const struct SHAPE3D *mesh)
 		if (material == TULIP_FIELD_ROW_MATERIAL) {
 			assert(green_rows < TULIP_FIELD_ROW_COUNT);
 			assert(right_x - left_x == 2 * TEST_TULIP_LEAF_HALF_WIDTH);
-			centers[green_rows++] = (left_x + right_x) / 2;
+			legacy_s16 center = (left_x + right_x) / 2;
+			if (green_rows) {
+				assert(center - centers[green_rows - 1U] > 2 * TEST_TULIP_LEAF_HALF_WIDTH);
+			}
+			centers[green_rows++] = center;
 			height = TEST_TULIP_LEAF_HEIGHT;
 		} else if (flower_material(material)) {
 			assert(green_rows == TULIP_FIELD_ROW_COUNT && bands < TULIP_FIELD_ROW_COUNT);

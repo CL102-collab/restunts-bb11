@@ -24,8 +24,8 @@
     // Keep the generated crop mesh in sync with extended/extended_wheat_field.c.
     const WHEAT = { rows: 6, soilHeight: 2, canopyHeight: 10, rowHalfWidth: 70, soil: 25, canopy: 82 };
     // Match the solid crop rows in extended/extended_crop_fields.c.
-    const TULIP = { rows: 6, leafHeight: 4, rowHalfWidth: 80, bandHeight: 12, bandHalfWidth: 70,
-        leaves: 69, rowColors: [75, 124, 54, 37, 75, 61] };
+    const TULIP = { rows: 8, leafHeight: 4, rowHalfWidth: 60, bandHeight: 12, bandHalfWidth: 50,
+        leaves: 69, rowColors: [15, 10, 61, 124, 54, 75, 37, 9] };
     const VINE = { rows: 12, height: 96, eaveHeight: 72, ridge: 0, left: -22, right: 23,
         dark: 68, light: 69, grapes: 73, grapeClearance: 2, grapeStationCount: 8,
         grapeParts: [{ halfWidth: 16, bottom: 48, top: 72 }, { halfWidth: 8, bottom: 32, top: 48 }] };
