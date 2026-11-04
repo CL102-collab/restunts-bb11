@@ -1,6 +1,8 @@
 #include "../c/video/video_framebuffer.h"
 #include <assert.h>
+#include <fenv.h>
 #include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1183,6 +1185,196 @@ static void prepare_scene(const struct VECTOR *vertices, legacy_u32 count,
 	material_patlist_ptr_cpy = scene_patterns;
 	material_patlist2_ptr_cpy = scene_patterns;
 }
+
+#define TRANSFORM_TEST_EVALUATE_AS_DECLARED 0
+#define TRANSFORM_TEST_EVALUATE_AS_DOUBLE 1
+/* Match the identity shortcut's binary64 evaluation contract. With x87 excess
+ * precision, independent reference functions can have different spill points. */
+#if FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DECLARED ||                                      \
+	FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DOUBLE
+/* Keep an independent full-matrix reference for exact vertex transforms. */
+static struct SHAPE3D_HIRES_VECTOR
+reference_rotate_vertex(const struct SHAPE3D_HIRES_VECTOR *source, const struct MATRIX *matrix)
+{
+	return (struct SHAPE3D_HIRES_VECTOR){
+		(source->x * matrix->m._11 + source->y * matrix->m._12 + source->z * matrix->m._13) /
+			TRIG_FIXED_ONE,
+		(source->x * matrix->m._21 + source->y * matrix->m._22 + source->z * matrix->m._23) /
+			TRIG_FIXED_ONE,
+		(source->x * matrix->m._31 + source->y * matrix->m._32 + source->z * matrix->m._33) /
+			TRIG_FIXED_ONE};
+}
+
+static void assert_transform_coordinate(legacy_f64 actual, legacy_f64 expected)
+{
+	if (isnan(expected)) {
+		assert(isnan(actual));
+	} else {
+		/* Numeric equality alone would miss changes to signed zero. */
+		assert(memcmp(&actual, &expected, sizeof(actual)) == 0);
+	}
+}
+
+static void check_reference_transform(const struct SHAPE3D *shape,
+									  struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context,
+									  struct SHAPE3D_HIRES_VECTOR source)
+{
+	legacy_f64 scale = shape_half_scale != 0 ? 0.5 : 1.0;
+	source.x *= scale;
+	source.y *= scale;
+	source.z *= scale;
+	struct SHAPE3D_HIRES_VECTOR world =
+		reference_rotate_vertex(&source, &context->hires.object_to_world_rotation);
+	struct SHAPE3D_HIRES_VECTOR expected;
+	if ((context->flags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
+		expected = reference_rotate_vertex(&world, &mat_temp);
+		expected.x += context->hires.object_translation.x;
+		expected.y += context->hires.object_translation.y;
+		expected.z += context->hires.object_translation.z;
+	} else {
+		world.x += context->hires.object_translation.x;
+		world.y += context->hires.object_translation.y;
+		world.z += context->hires.object_translation.z;
+		expected = reference_rotate_vertex(&world, &mat_temp);
+	}
+	shape3d_hires_cache_vertex(shape, context, 0);
+	const struct SHAPE3D_HIRES_VECTOR *actual = &context->hires.hires_vertices[0];
+	assert_transform_coordinate(actual->x, expected.x);
+	assert_transform_coordinate(actual->y, expected.y);
+	assert_transform_coordinate(actual->z, expected.z);
+}
+
+static void check_precise_reference_vertices(const struct SHAPE3D *shape,
+											 struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context,
+											 const struct SHAPE3D_HIRES_VECTOR *vertices,
+											 legacy_u32 count)
+{
+	for (legacy_u32 vertex = 0; vertex < count; vertex++) {
+		context->hires.source_vertices = &vertices[vertex];
+		check_reference_transform(shape, context, vertices[vertex]);
+	}
+}
+
+#define TRANSFORM_TEST_ROUNDING_MODE_CAPACITY 4U
+#define TRANSFORM_TEST_BOUNDARY_NEIGHBOR_COUNT 4U
+
+static void test_identity_object_rotation(void)
+{
+	/* These inputs deliberately raise overflow, underflow and invalid flags.
+	 * Keep traps disabled during the fixture and restore the caller's flags. */
+	fenv_t saved_environment;
+	assert(feholdexcept(&saved_environment) == 0);
+	legacy_int rounding_modes[TRANSFORM_TEST_ROUNDING_MODE_CAPACITY];
+	legacy_u32 rounding_mode_count = 0;
+#ifdef FE_TONEAREST
+	rounding_modes[rounding_mode_count++] = FE_TONEAREST;
+#endif
+#ifdef FE_UPWARD
+	rounding_modes[rounding_mode_count++] = FE_UPWARD;
+#endif
+#ifdef FE_DOWNWARD
+	rounding_modes[rounding_mode_count++] = FE_DOWNWARD;
+#endif
+#ifdef FE_TOWARDZERO
+	rounding_modes[rounding_mode_count++] = FE_TOWARDZERO;
+#endif
+	const struct SHAPE3D_HIRES_VECTOR vertices[] = {
+		{0.0, 0.0, 0.0},
+		{-0.0, 0.0, 0.0},
+		{0.0, -0.0, 0.0},
+		{0.0, 0.0, -0.0},
+		{-0.0, -0.0, 0.0},
+		{-0.0, 0.0, -0.0},
+		{0.0, -0.0, -0.0},
+		{-0.0, -0.0, -0.0},
+		{1.125, -2.5, -0.0},
+		{-1.125, -2.5, -0.0},
+		{DBL_MIN, -DBL_MIN, DBL_MIN * DBL_EPSILON},
+		{-DBL_MIN * DBL_EPSILON, -0.0, DBL_MIN * DBL_EPSILON},
+		{DBL_MAX / TRIG_FIXED_ONE, -DBL_MAX / TRIG_FIXED_ONE, 0.0},
+		{DBL_MAX, -DBL_MAX, 0.0},
+		{HUGE_VAL, 0.0, -0.0},
+		{NAN, 1.0, -1.0}};
+	struct SHAPE3D_HIRES_VECTOR boundary_neighbors[TRANSFORM_TEST_BOUNDARY_NEIGHBOR_COUNT];
+	legacy_f64 bound = DBL_MAX / TRIG_FIXED_ONE;
+	boundary_neighbors[0].x = nextafter(bound, 0.0);
+	boundary_neighbors[1].x = nextafter(bound, HUGE_VAL);
+	boundary_neighbors[2].x = nextafter(-bound, 0.0);
+	boundary_neighbors[3].x = nextafter(-bound, -HUGE_VAL);
+	for (legacy_u32 neighbor = 0; neighbor < SDL_arraysize(boundary_neighbors); neighbor++) {
+		boundary_neighbors[neighbor].y = -boundary_neighbors[neighbor].x;
+		boundary_neighbors[neighbor].z = boundary_neighbors[neighbor].x;
+	}
+	const struct VECTOR native_vertices[] = {
+		{0, 0, 0}, {0, -1, 0}, {(-(legacy_s32)LEGACY_S16_MAX - 1), LEGACY_S16_MAX, -1}};
+	struct MATRIX rotations[3] = {0};
+	rotations[0].m._11 = rotations[0].m._22 = rotations[0].m._33 = TRIG_FIXED_ONE;
+	mat_rot_y(&rotations[1], ANGLE_QUARTER_TURN);
+	rotations[2] = rotations[0];
+	rotations[2].m._12 = 1;
+	struct MATRIX cameras[3];
+	cameras[0] = rotations[0];
+	cameras[1] =
+		*mat_rot_zxy(ANGLE_QUARTER_TURN / 3, -ANGLE_QUARTER_TURN / 2, ANGLE_QUARTER_TURN / 2, 0);
+	for (legacy_u32 element = 0; element < MATRIX_ELEMENT_COUNT; element++) {
+		/* Every coefficient is negative to expose each zero coordinate's sign. */
+		cameras[2].vals[element] = -TRIG_FIXED_ONE;
+	}
+	struct SHAPE3D shape = {0};
+	legacy_u8 native_vertex[SHAPE3D_VERTEX_SIZE];
+	shape.shape3d_vertex_bytes = native_vertex;
+	struct TRANSFORMEDSHAPE3D instance = {0};
+	struct SHAPE3D_HIRES_PIPELINE_CONTEXT context = {0};
+	struct MATRIX saved_camera = mat_temp;
+	struct SHAPE3D_HIRES_VECTOR saved_origin = shape3d_hires_state.geometry_origin;
+	legacy_u16 saved_half_scale = shape_half_scale;
+	shape3d_hires_set_origin(NULL);
+	legacy_u32 tested_rounding_modes = 0;
+	for (legacy_u32 mode = 0; mode < rounding_mode_count; mode++) {
+		if (fesetround(rounding_modes[mode]) != 0) {
+			continue;
+		}
+		assert(feclearexcept(FE_ALL_EXCEPT) == 0);
+		tested_rounding_modes++;
+		for (legacy_u32 rotation = 0; rotation < SDL_arraysize(rotations); rotation++) {
+			shape3d_hires_prepare_instance(&instance, &context, &rotations[rotation]);
+			for (legacy_u32 camera = 0; camera < SDL_arraysize(cameras); camera++) {
+				mat_temp = cameras[camera];
+				for (legacy_u16 half_scale = 0; half_scale <= 1; half_scale++) {
+					shape_half_scale = half_scale;
+					for (legacy_u32 flags = 0; flags <= 1; flags++) {
+						context.flags = flags != 0 ? SHAPE3D_PRETRANSFORMED_FLAG : 0;
+						for (legacy_u32 translated = 0; translated <= 1; translated++) {
+							context.hires.object_translation =
+								translated ? (struct SHAPE3D_HIRES_VECTOR){400.25, -200.5, 1000.125}
+										   : (struct SHAPE3D_HIRES_VECTOR){-0.0, -0.0, -0.0};
+							check_precise_reference_vertices(&shape, &context, vertices,
+															 SDL_arraysize(vertices));
+							check_precise_reference_vertices(&shape, &context, boundary_neighbors,
+															 SDL_arraysize(boundary_neighbors));
+							context.hires.source_vertices = NULL;
+							for (legacy_u16 vertex = 0; vertex < SDL_arraysize(native_vertices);
+								 vertex++) {
+								shape3d_vertex_write(&shape, 0, &native_vertices[vertex]);
+								struct SHAPE3D_HIRES_VECTOR source = {native_vertices[vertex].x,
+																	  native_vertices[vertex].y,
+																	  native_vertices[vertex].z};
+								check_reference_transform(&shape, &context, source);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	assert(tested_rounding_modes != 0);
+	shape_half_scale = saved_half_scale;
+	mat_temp = saved_camera;
+	shape3d_hires_set_origin(&saved_origin);
+	assert(fesetenv(&saved_environment) == 0);
+}
+
+#endif
 
 static void test_visible_line_overhang_survives_culling(void)
 {
@@ -3831,6 +4023,10 @@ legacy_int main(void)
 	test_roundness_preserves_near_and_bounds_small_shapes();
 	test_roundness_matches_worker_bands();
 	test_disabled_and_reset();
+#if FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DECLARED ||                                      \
+	FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DOUBLE
+	test_identity_object_rotation();
+#endif
 	test_visible_line_overhang_survives_culling();
 	test_visible_round_overhang_survives_culling();
 	test_line_weight_in_half_scale_view();

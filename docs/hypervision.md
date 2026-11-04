@@ -730,6 +730,61 @@ pass with the changed backend and test driver instrumented. Baseline and
 optimized visibility tests also pass with `-mfpmath=387 -fexcess-precision=fast`.
 Formatting, whitespace, CRLF, and non-executable source modes are checked.
 
+### Glacier edge storage and identity rotations (2026-11-04)
+
+A fresh single-CPU sampling profile of baseline `f2099b9e` attributes about
+19.2% of CPU samples to visibility scanning (including inlined partition
+insertion), 6.3% to polygon command construction, and 5.8% to vertex transforms.
+Two changes reduce work in these paths:
+
+- Screen-space edge records shrink from 48 to 32 bytes. Planar polygons use
+  their existing depth plane, so their edges no longer calculate, store, copy,
+  or fetch redundant depth interpolation data. Warped polygons retain the same
+  binary64 depth expressions in a separate sparse stream. Parallel command
+  merges remap both streams with independent, disjoint prefix ranges.
+- Instances identify an exact identity object rotation once during preparation.
+  Bounded vertices then use equivalent signed-zero arithmetic instead of three
+  full matrix dot products. Native signed-word vertices need no range check;
+  precise vertices retain finite/range checks. Non-identity rotations,
+  non-finite or overflowing coordinates, and extended-precision evaluation
+  retain the full matrix path. Camera rotation and translation order stay exact.
+
+Uninstrumented comparisons use Linux x86-64 GCC 14.2 Release on the same Xeon
+Platinum 8573C VM, with Full 1280x800 HyperVision and final ARGB composition.
+Each run accelerates the automatic Countach straight ahead on `glacier.cstrk`
+for ten simulated seconds: 200 physics ticks and 600 interpolated cockpit
+frames. Three baseline/candidate batches alternate execution order; the middle
+batch also reverses the CPU-count order. Affinity is `4` for one CPU (no
+background workers) and `2,4` for two CPUs (one background worker).
+
+| CPUs | Baseline FPS (batch range) | Optimized FPS (batch range) | Throughput change |
+| --- | ---: | ---: | ---: |
+| 1 | 62.10 (61.53–62.86) | 63.96 (63.73–64.40) | +3.0% |
+| 2 | 80.15 (79.87–80.47) | 81.37 (80.88–82.33) | +1.5% |
+
+Every paired batch improves. Two-CPU mean elapsed time falls from 12.477 to
+12.290 ms/frame; total process CPU time, including workers, falls from 22.148
+to 21.706 ms/frame. These are uncapped VM throughput measurements, including
+physics, interpolation, rendering, and composition. Display upload,
+presentation, audio playback, and pacing are excluded. Variable VM conditions
+mean absolute FPS should be compared within this round. Reproduce the workload
+with the preceding `--drive-seconds 10 --compose` command.
+
+All 600 interpolated frame hashes, all six Glacier camera/resolution hashes,
+complete serial/parallel checkpoint pixels, and final state hash `fa0fe5fb`
+match the baseline. Eight targeted renderer, replay, worker, interpolation,
+and adaptive-quality CTest suites pass. Regressions cover mixed planar/warped
+parallel builds, sparse-buffer growth, clipped polygons, appended builds, and
+reuse with preserved depth. Binary64 transform fixtures check signed zeros,
+subnormal and boundary values, non-finite fallbacks, native vertices, camera
+rotations, both translation orders, and all four supported rounding modes.
+Focused ASan/UBSan tests pass with each changed renderer unit and its test
+driver instrumented. Baseline and optimized legacy visibility/transform tests
+pass with `-mfpmath=387 -fexcess-precision=fast`; all six Glacier output hashes
+also match between those x87 builds. The independent binary64 transform
+reference is restricted to the evaluation modes that enable the shortcut.
+Formatting, whitespace, CRLF, source modes, and core source line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

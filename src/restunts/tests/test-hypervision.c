@@ -48,6 +48,7 @@
 #define TEST_BUILD_GROWTH_COMMANDS 257U
 #define TEST_BUILD_STRIPE_DIVISOR 3
 #define TEST_BUILD_DEPTH_STEP 0.001
+#define TEST_BUILD_WARP_DEPTH (TEST_NEAR_DEPTH - TEST_MIDDLE_DEPTH)
 #define TEST_PARTITION_STRIPES 8U
 #define TEST_PARTITION_FIRST_WIN 3U
 #define TEST_SEARCH_SHORT_COUNT 7
@@ -74,14 +75,19 @@ static void begin_frame(legacy_s32 scale)
 	hires_backend_begin(NULL);
 }
 
-static const legacy_u8 *end_frame(void)
+static const legacy_u8 *finish_frame(legacy_s32 preserve_depth)
 {
-	(void)hires_backend_end(&target, 0);
+	(void)hires_backend_end(&target, preserve_depth);
 	hires_end();
 	legacy_s32 width, height;
 	const legacy_u8 *pixels = video_framebuffer(screen, &width, &height);
 	assert(pixels != NULL && width == target.width && height == target.height);
 	return pixels;
+}
+
+static const legacy_u8 *end_frame(void)
+{
+	return finish_frame(0);
 }
 
 static struct HIRES_BACKEND_MATERIAL material(legacy_u16 color, legacy_u32 family)
@@ -722,9 +728,15 @@ static void build_test_group(void *context, legacy_s32 index, struct HIRES_BACKE
 			paint.pattern = TEST_PATTERN_EVEN_COLUMNS;
 		}
 	}
-	const struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
+	struct HIRES_BACKEND_VERTEX vertices[TEST_RECTANGLE_VERTICES] = {
 		{left, top, depth}, {right, top, depth}, {right, bottom, depth}, {left, bottom, depth}};
 	for (legacy_u32 repeat = 0; repeat < repeats; repeat++) {
+		/* Mix planar commands with warped quads, including clipped geometry.
+		 * The repeated group also grows its private depth interpolation stream. */
+		vertices[TEST_RECTANGLE_VERTICES / 2U].inverse_z =
+			depth + ((((legacy_u32)index + repeat) & 1U) != 0U || index == TEST_BUILD_CLIPPED_GROUP
+						 ? TEST_BUILD_WARP_DEPTH
+						 : 0);
 		hires_backend_polygon_to(buffer, vertices, count, &paint);
 	}
 }
@@ -746,12 +758,26 @@ static void test_parallel_build_matches(void)
 				begin_frame(scale);
 				const struct HIRES_BACKEND_MATERIAL support =
 					material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+				const struct HIRES_BACKEND_VERTEX prefix[TEST_RECTANGLE_VERTICES] = {
+					{0, 0, TEST_FAR_DEPTH},
+					{target.width, 0, TEST_FAR_DEPTH},
+					{target.width, target.height, TEST_NEAR_DEPTH},
+					{0, target.height, TEST_FAR_DEPTH}};
+				/* Parallel depth ranges must append after an existing warped command. */
+				hires_backend_polygon(prefix, TEST_RECTANGLE_VERTICES, &support);
 				rectangle(0, target.width, 0, target.height, TEST_MIDDLE_DEPTH, TEST_MIDDLE_DEPTH,
 						  &support);
 				hires_backend_build(counts[count], build_test_group, NULL);
 				/* Reusing private buffers must append after existing commands. */
 				hires_backend_build(TEST_BUILD_APPEND_GROUPS, build_test_group, NULL);
-				const legacy_u8 *pixels = end_frame();
+				legacy_s32 preserve_depth = counts[count] == TEST_BUILD_GROUPS;
+				if (preserve_depth) {
+					/* Reuse the sparse streams after rendering, retaining the first pass. */
+					(void)hires_backend_end(&target, 0);
+					hires_backend_begin(NULL);
+					hires_backend_build(TEST_BUILD_APPEND_GROUPS, build_test_group, NULL);
+				}
+				const legacy_u8 *pixels = finish_frame(preserve_depth);
 				size_t samples = (size_t)target.width * target.height;
 				if (worker == 0) {
 					memcpy(reference, pixels, samples);
