@@ -546,6 +546,72 @@ captured views match byte-for-byte between zero and two workers. The high-resolu
 serial elapsed comparison (7.333 to 7.299 ms) is also within this VM's timing
 noise; the table reports process CPU time, not a guaranteed FPS increase.
 
+### Moving Glacier visibility optimization (2026-11-04)
+
+The supplied `glacier.cstrk` was measured while accelerating straight ahead for
+ten simulated seconds in an automatic Countach, using the cockpit camera with
+no dashboard and locked Full HyperVision at 1280x800. The deterministic workload
+advances 200 physics ticks at 20 Hz and renders 600 interpolated visual samples
+at 60 Hz. It runs without pacing, so reported FPS is renderer throughput,
+including physics, interpolation, rendering, state checks, and final ARGB
+composition. Display upload, presentation, audio playback, warmup, and pixel/hash
+diagnostics are excluded. Ten simulated seconds can take a different amount of
+wall time.
+
+A serial sampling profile attributed about 20.9% of CPU time to scanline
+conversion and its inlined visibility-span resolution. Visibility insertion now
+leaves its scratch partition untouched until an incoming span first wins an
+overlap. Fully hidden polygons avoid partition copies; a later first win
+reconstructs the unchanged prefix before applying the original depth/decal
+rules. Frustum-margin calculations also use standard `fabs`, allowing the
+compiler to replace six external math calls per vertex with intrinsic operations
+without changing the expressions or clipping margins.
+
+Baseline `5a8f37c9` and the optimized renderer use GCC 14.2, Linux x86-64 Release
+(`-O3 -DNDEBUG`, generic x86-64 instruction baseline), on a Xeon Platinum 8573C
+VM. Each configuration ran three batches of 600 measured frames, alternating
+baseline/candidate order and reversing the core-count order in the middle batch.
+Affinity `0` with zero background workers measures one CPU; `0,2` with one
+background worker selects two CPUs in separate L2 cache groups. The VM exposes
+five logical CPUs, three cache groups, and a four-CPU quota. Both binaries use
+the same moving-workload harness and resources.
+
+| CPUs | Baseline FPS (batch range) | Optimized FPS (batch range) | Throughput change |
+| --- | ---: | ---: | ---: |
+| 1 | 57.51 (56.64–58.31) | 58.39 (54.40–61.10) | +1.5% |
+| 2 | 90.36 (89.39–90.86) | 94.55 (93.88–95.14) | +4.6% |
+
+Two-CPU mean elapsed frame time falls from 11.067 to
+10.577 ms; total process CPU time, including workers, falls
+from 19.662 to 18.791 ms/frame. Single-CPU variation
+is too large to establish a reliable gain. These VM measurements do not establish
+interactive FPS or performance on the Core 2 Duo target.
+
+Reproduce the moving case with the optional benchmark target:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    taskset -c 0,2 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --track /path/to/glacier.cstrk --drive-seconds 10 --compose
+```
+
+Choose affinity CPUs appropriate to the host. `--drive-seconds N` requires
+`--track` and a positive whole-second duration, and cannot combine with preview,
+all-view, or positional frame-count modes. The harness reports both elapsed FPS
+and process-CPU FPS, per-frame elapsed percentiles, start/end positions, crash
+status, and representative framebuffer and serialized simulation-state hashes.
+Serial/parallel comparisons run at ticks 0, 100, and 200 outside the timed loop.
+
+All 600 interpolated framebuffer hashes match the baseline in a separate capture
+run. Complete serial/parallel ARGB comparisons match at the three checkpoints,
+and the final serialized state hash is `fa0fe5fb` in every batch. The car moves
+forward without crashing. Captured middle/end frames were reviewed. Focused
+regressions cover fully hidden spans, rejected prefixes and suffixes around a
+later visible interval, and attached decals preserving supporting depth/family
+at all three resolutions with serial and worker execution. The HyperVision,
+shape3d, extended-render, replay-render, worker, framebuffer, interpolation, and
+adaptive-quality tests pass; formatting and CRLF checks pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

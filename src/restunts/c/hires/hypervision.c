@@ -453,47 +453,70 @@ static void hires_visibility_insert(struct HIRES_VISIBILITY_SPAN *visible, legac
 	}
 	legacy_s32 last = first;
 	legacy_s32 replacement = 0;
-	hires_visibility_append(scratch, &replacement, &visible[first], visible[first].left,
-							incoming->left);
+	legacy_s32 changed = 0;
 	while (last < *count && visible[last].left < incoming->right) {
 		const struct HIRES_VISIBILITY_SPAN *old = &visible[last];
 		legacy_s32 left = old->left > incoming->left ? old->left : incoming->left;
 		legacy_s32 right = old->right < incoming->right ? old->right : incoming->right;
-		if ((material->flags & HIRES_BACKEND_DECAL) != 0U &&
+		legacy_s32 supported =
+			(material->flags & HIRES_BACKEND_DECAL) != 0U &&
 			old->command != HIRES_VISIBILITY_NO_COMMAND &&
 			material->family != HIRES_DEPTH_FAMILY_NONE &&
-			material->family == hires_frame.commands[old->command].material.family) {
+			material->family == hires_frame.commands[old->command].material.family;
+		legacy_f64 start = 0, finish = 0;
+		if (!supported) {
+			/* Independently clipped coplanar edges can differ by a few depth ULPs.
+			 * Treat those surfaces as tied across the overlap instead of amplifying
+			 * a near-zero slope into alternating one-row visibility fragments. */
+			legacy_f64 first_depth = hires_visibility_depth(incoming, left);
+			legacy_f64 last_depth = hires_visibility_depth(incoming, right - 1);
+			legacy_f64 old_first = hires_visibility_depth(old, left);
+			legacy_f64 old_last = hires_visibility_depth(old, right - 1);
+			if (hires_ground_enabled && (material->flags & HIRES_BACKEND_GROUND_CLIP) != 0U &&
+				(old->command == HIRES_VISIBILITY_NO_COMMAND ||
+				 (hires_frame.commands[old->command].material.flags & HIRES_BACKEND_BACKGROUND) !=
+					 0U)) {
+				old_first =
+					hires_ground.origin + hires_ground.y_step * y + hires_ground.x_step * left;
+				old_last = hires_ground.origin + hires_ground.y_step * y +
+						   hires_ground.x_step * (right - 1);
+			}
+			start = first_depth * (1 + HIRES_VISIBILITY_DEPTH_RELATIVE_EPSILON) - old_first;
+			finish = last_depth * (1 + HIRES_VISIBILITY_DEPTH_RELATIVE_EPSILON) - old_last;
+			if (start < 0 && finish < 0) {
+				if (changed) {
+					hires_visibility_append(scratch, &replacement, old, left, right);
+				}
+				last++;
+				continue;
+			}
+		}
+		if (!changed) {
+			/* Hidden surfaces leave the partition unchanged. Delay scratch writes
+			 * until the first winning overlap, then restore its untouched
+			 * prefix and any preceding overlaps rejected by the depth tests. */
+			hires_visibility_append(scratch, &replacement, &visible[first], visible[first].left,
+									incoming->left);
+			for (legacy_s32 rejected = first; rejected < last; rejected++) {
+				const struct HIRES_VISIBILITY_SPAN *prefix = &visible[rejected];
+				legacy_s32 prefix_left =
+					prefix->left > incoming->left ? prefix->left : incoming->left;
+				legacy_s32 prefix_right =
+					prefix->right < incoming->right ? prefix->right : incoming->right;
+				hires_visibility_append(scratch, &replacement, prefix, prefix_left, prefix_right);
+			}
+			changed = 1;
+		}
+		if (supported) {
 			/* An authored decal is a material layer on its support. Keep that
 			 * support's depth for other shapes and shadows, independent of the
 			 * decal's deliberately offset vertices. */
-			struct HIRES_VISIBILITY_SPAN supported = *incoming;
-			supported.origin = old->origin;
-			supported.step = old->step;
-			hires_visibility_append(scratch, &replacement, &supported, left, right);
-			last++;
-			continue;
-		}
-		/* Independently clipped coplanar edges can differ by a few depth ULPs.
-		 * Treat those surfaces as tied across the overlap instead of amplifying
-		 * a near-zero slope into alternating one-row visibility fragments. */
-		legacy_f64 first_depth = hires_visibility_depth(incoming, left);
-		legacy_f64 last_depth = hires_visibility_depth(incoming, right - 1);
-		legacy_f64 old_first = hires_visibility_depth(old, left);
-		legacy_f64 old_last = hires_visibility_depth(old, right - 1);
-		if (hires_ground_enabled && (material->flags & HIRES_BACKEND_GROUND_CLIP) != 0U &&
-			(old->command == HIRES_VISIBILITY_NO_COMMAND ||
-			 (hires_frame.commands[old->command].material.flags & HIRES_BACKEND_BACKGROUND) !=
-				 0U)) {
-			old_first = hires_ground.origin + hires_ground.y_step * y + hires_ground.x_step * left;
-			old_last =
-				hires_ground.origin + hires_ground.y_step * y + hires_ground.x_step * (right - 1);
-		}
-		legacy_f64 start = first_depth * (1 + HIRES_VISIBILITY_DEPTH_RELATIVE_EPSILON) - old_first;
-		legacy_f64 finish = last_depth * (1 + HIRES_VISIBILITY_DEPTH_RELATIVE_EPSILON) - old_last;
-		if (start >= 0 && finish >= 0) {
+			struct HIRES_VISIBILITY_SPAN supported_span = *incoming;
+			supported_span.origin = old->origin;
+			supported_span.step = old->step;
+			hires_visibility_append(scratch, &replacement, &supported_span, left, right);
+		} else if (start >= 0 && finish >= 0) {
 			hires_visibility_append(scratch, &replacement, incoming, left, right);
-		} else if (start < 0 && finish < 0) {
-			hires_visibility_append(scratch, &replacement, old, left, right);
 		} else {
 			legacy_f64 crossing = left - start * (right - left - 1) / (finish - start);
 			legacy_s32 split = hires_visibility_ceil(crossing);
@@ -511,6 +534,9 @@ static void hires_visibility_insert(struct HIRES_VISIBILITY_SPAN *visible, legac
 									right);
 		}
 		last++;
+	}
+	if (!changed) {
+		return;
 	}
 	hires_visibility_append(scratch, &replacement, &visible[last - 1], incoming->right,
 							visible[last - 1].right);
