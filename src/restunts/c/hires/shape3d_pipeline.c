@@ -72,9 +72,12 @@ static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u
 	if (context->hires.source_vertices != NULL) {
 		source = context->hires.source_vertices[index];
 	} else {
-		struct VECTOR vertex;
-		shape3d_vertex_read(shape, index, &vertex);
-		source = (struct SHAPE3D_HIRES_VECTOR){vertex.x, vertex.y, vertex.z};
+		/* Validated native vertex indices fit the packed resource offset. */
+		const legacy_u8 *vertex = shape->shape3d_vertex_bytes + (size_t)index * SHAPE3D_VERTEX_SIZE;
+		source =
+			(struct SHAPE3D_HIRES_VECTOR){LEGACY_READ_S16_LE(vertex + SHAPE3D_VERTEX_X_OFFSET),
+										  LEGACY_READ_S16_LE(vertex + SHAPE3D_VERTEX_Y_OFFSET),
+										  LEGACY_READ_S16_LE(vertex + SHAPE3D_VERTEX_Z_OFFSET)};
 	}
 	legacy_f64 scale = shape_half_scale != 0 ? 0.5 : 1.0;
 	source.x *= scale;

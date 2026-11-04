@@ -847,6 +847,67 @@ Baseline and optimized visibility/geometry suites also pass with
 Glacier view hashes match between these x87 builds. Formatting, whitespace,
 CRLF, non-executable modes, and core source line budgets pass.
 
+### Glacier indexed raster copies and native reads (2026-11-04)
+
+A fresh single-CPU profile of baseline `e199b772` attributes about 4.2% of CPU
+samples to the serial companion-cell raster pass and 5.4% to vertex transforms.
+An operation diagnostic counts about 679 million high-resolution sample copies
+across startup, warmup, checkpoints, and the drive; all eligible raster calls
+use indexed COPY with no active ARGB cells. Two changes reduce this work:
+
+- Plain indexed copies move complete 1-, 4-, or 16-byte companion cells directly,
+  with uniform-color filling for cells without source samples. Forward traversal
+  preserves cascading overlaps and 16-bit address wrapping. Valid self-copies
+  keep their existing samples; empty self-copies materialize the fallback color.
+  The shared cleanup and generation update run after either path. Existing
+  generic handling continues to process overlays and other raster operations.
+- Native vertex transformation reads the three signed little-endian coordinates
+  directly into the high-resolution vector. This removes an out-of-line helper
+  call and its temporary word vector. Validated indices fit the packed resource
+  offset, and coordinate values, half scaling, rotations, and translation order
+  retain their existing arithmetic.
+
+Uninstrumented Linux x86-64 GCC 14.2 Release comparisons use the same Xeon
+Platinum 8573C VM, Full 1280x800 HyperVision, and final ARGB composition. Every
+run accelerates the automatic Countach straight ahead on `glacier.cstrk` for
+ten simulated seconds: 200 physics ticks and 600 interpolated cockpit frames.
+Five baseline/candidate pairs per CPU count alternate execution order, with
+CPU-count order also reversed on alternating batches. Affinity is `4` for one
+CPU with no background workers and `2,4` for two CPUs with one background worker.
+
+Large timing outliers affect both versions. The table therefore reports median
+complete-run FPS across all five batches, retaining every batch in the ranges.
+Single-CPU throughput is essentially unchanged within this variability; all five
+two-CPU pairs improve.
+
+| CPUs | Baseline median FPS (batch range) | Optimized median FPS (batch range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 60.40 (44.75–61.06) | 60.15 (41.96–63.67) | -0.4% |
+| 2 | 74.22 (55.94–75.69) | 81.01 (78.57–81.47) | +9.2% |
+
+Two-CPU median elapsed time falls from 13.474 to 12.344 ms/frame; median total
+process CPU time including workers falls from 23.496 to 22.143 ms/frame. These
+are uncapped VM throughput measurements, including physics, interpolation,
+rendering, and composition. Display upload, presentation, audio playback, and
+pacing are excluded. Absolute FPS should be compared within this round.
+Reproduce with the preceding `--drive-seconds 10 --compose` command.
+
+All 600 interpolated frame hashes, complete serial/parallel checkpoint pixels,
+all six native camera/resolution hashes, and final state hash `fa0fe5fb` match
+the baseline. Eight targeted renderer, replay, worker, interpolation, and
+adaptive-quality CTest suites pass. New COPY fixtures cover all scales,
+independent source/destination wrapping, mixed valid and empty cells, guarded
+neighbors, valid and empty self-copies, cascading forward overlap across the
+address wrap, and ARGB fallback/retirement. The fixtures also pass against the
+baseline implementation.
+
+Focused ASan/UBSan composition and geometry tests pass with both changed
+renderer units and their test drivers instrumented; other native objects are
+reused. Baseline and optimized composition/geometry tests also pass with
+`-mfpmath=387 -fexcess-precision=fast`, and all six Glacier view hashes match
+between those x87 builds. Formatting, whitespace, CRLF, non-executable modes,
+and core source line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
