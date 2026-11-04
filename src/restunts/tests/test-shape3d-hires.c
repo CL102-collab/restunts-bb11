@@ -507,6 +507,66 @@ static void test_attached_polygon_preserves_interior_depth(void)
 	}
 }
 
+/* These logical viewport boundaries have known padded extents at each scale.
+ * A one-ULP overhang survives the rounding margin; a half-pixel overhang does not. */
+static void test_prepared_clip_context(void)
+{
+	enum {
+		CLIP_TEST_FOCAL = 160,
+		CLIP_TEST_CENTER_Y = 100,
+		CLIP_TEST_LEFT = 40,
+		CLIP_TEST_RIGHT = 279,
+		CLIP_TEST_TOP = 30,
+		CLIP_TEST_BOTTOM = 169
+	};
+	const legacy_f64 limits[][2] = {{121, 71}, {120.75, 70.75}, {120.625, 70.625}};
+	const legacy_f64 depths[] = {1, SHAPE3D_NEAR_CLIP_Z, CLIP_TEST_FOCAL};
+	const legacy_u8 flags[] = {SHAPE3D_RECT_CLIP_LEFT, SHAPE3D_RECT_CLIP_RIGHT,
+							   SHAPE3D_RECT_CLIP_BOTTOM, SHAPE3D_RECT_CLIP_TOP};
+	struct RECTANGLE saved_rectangle = select_rect_rc;
+	legacy_u16 saved_center_x = projection_center_x, saved_center_y = projection_center_y;
+	legacy_u16 saved_focal_x = projection_focal_length_x, saved_focal_y = projection_focal_length_y;
+	legacy_s32 saved_scale = hires_render_scale();
+	for (legacy_u32 resolution = 0; resolution < SDL_arraysize(limits); resolution++) {
+		hires_set_render_scale(HIRES_MINIMUM_SCALE << resolution);
+		select_rect_rc =
+			(struct RECTANGLE){CLIP_TEST_LEFT, CLIP_TEST_RIGHT, CLIP_TEST_TOP, CLIP_TEST_BOTTOM};
+		projection_center_x = CLIP_TEST_FOCAL;
+		projection_center_y = CLIP_TEST_CENTER_Y;
+		projection_focal_length_x = projection_focal_length_y = CLIP_TEST_FOCAL;
+		struct SHAPE3D_HIRES_CLIP_CONTEXT context;
+		shape3d_hires_prepare_clip(&context);
+		for (legacy_u32 depth = 0; depth < SDL_arraysize(depths); depth++) {
+			for (legacy_u32 edge = 0; edge < SDL_arraysize(flags); edge++) {
+				struct SHAPE3D_HIRES_VECTOR point = {0, 0, depths[depth]};
+				legacy_f64 direction = (edge & 1U) != 0 ? 1 : -1;
+				legacy_f64 *coordinate = edge < 2 ? &point.x : &point.y;
+				*coordinate = direction * limits[resolution][edge / 2] * point.z / CLIP_TEST_FOCAL;
+				assert(shape3d_hires_clip_prepared(&point, &context) == 0);
+				*coordinate = nextafter(*coordinate, direction * HUGE_VAL);
+				assert(shape3d_hires_clip_prepared(&point, &context) == 0);
+				*coordinate += direction * HIRES_SAMPLE_CENTER_OFFSET * point.z / CLIP_TEST_FOCAL;
+				assert(shape3d_hires_clip_prepared(&point, &context) == flags[edge]);
+			}
+		}
+		const struct SHAPE3D_HIRES_VECTOR clamped_near = {1, 0, 0};
+		assert(shape3d_hires_clip_prepared(&clamped_near, &context) == SHAPE3D_RECT_CLIP_RIGHT);
+		const struct SHAPE3D_HIRES_VECTOR probe = {-(CLIP_TEST_FOCAL - CLIP_TEST_LEFT), 0,
+												   CLIP_TEST_FOCAL};
+		select_rect_rc.left += CLIP_TEST_LEFT;
+		projection_center_x += CLIP_TEST_LEFT / 2;
+		assert(shape3d_hires_clip_prepared(&probe, &context) == 0);
+		shape3d_hires_prepare_clip(&context);
+		assert(shape3d_hires_clip_prepared(&probe, &context) == SHAPE3D_RECT_CLIP_LEFT);
+	}
+	select_rect_rc = saved_rectangle;
+	projection_center_x = saved_center_x;
+	projection_center_y = saved_center_y;
+	projection_focal_length_x = saved_focal_x;
+	projection_focal_length_y = saved_focal_y;
+	hires_set_render_scale(saved_scale);
+}
+
 static void test_projection_and_subpixel_edges(void)
 {
 	struct SHAPE3D_HIRES_VECTOR vector = {1, 1, 300};
@@ -4000,6 +4060,7 @@ legacy_int main(void)
 	projection_center_y = 100;
 	projection_focal_length_x = 160;
 	projection_focal_length_y = 160;
+	test_prepared_clip_context();
 	test_projection_and_subpixel_edges();
 	test_attached_polygon_weight();
 	test_attached_polygon_midrange_weight();

@@ -21,6 +21,7 @@ struct SHAPE3D_HIRES_PIPELINE_CONTEXT {
 	legacy_u16 vertex_count, paint_count;
 	legacy_u8 material, flags, view_sector;
 	struct RECTANGLE *rectangle;
+	struct SHAPE3D_HIRES_CLIP_CONTEXT clip;
 	legacy_u8 vertex_clip_flags[LEGACY_U8_MAX + 1U];
 	struct MATRIX object_to_view_rotation;
 	struct SHAPE3D_HIRES_TRANSFORM_CONTEXT hires;

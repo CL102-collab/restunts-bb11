@@ -27,6 +27,10 @@
 #define HIRES_VISIBILITY_EVALUATE_AS_DECLARED 0
 #define HIRES_VISIBILITY_EVALUATE_AS_DOUBLE 1
 
+#if HIRES_HEIGHT > LEGACY_S16_MAX || HIRES_BACKEND_MAX_VERTICES > LEGACY_U16_MAX
+#error HyperVision command bounds exceed their compact internal fields
+#endif
+
 /* Planar commands need only screen crossings. Keep their common edge stream
  * compact and retain exact depth interpolation separately for warped polygons. */
 struct HIRES_VISIBILITY_EDGE {
@@ -38,13 +42,14 @@ struct HIRES_VISIBILITY_EDGE_DEPTH {
 };
 struct HIRES_VISIBILITY_COMMAND {
 	struct HIRES_BACKEND_MATERIAL material;
-	legacy_u32 first_edge, hires_edge_count;
-	legacy_s32 top, bottom;
+	legacy_u32 first_edge;
+	legacy_u16 hires_edge_count;
+	legacy_s16 top, bottom;
+	legacy_u16 planar;
 	union {
 		struct HIRES_DEPTH_PLANE plane;
 		legacy_u32 first_depth;
 	} depth;
-	legacy_s32 planar;
 };
 enum {
 	HIRES_VISIBILITY_SOLID,

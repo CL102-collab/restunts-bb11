@@ -785,6 +785,68 @@ also match between those x87 builds. The independent binary64 transform
 reference is restricted to the evaluation modes that enable the shortcut.
 Formatting, whitespace, CRLF, source modes, and core source line budgets pass.
 
+### Glacier clip setup and command packing (2026-11-04)
+
+A fresh sampling profile of baseline `a084000b` attributes about 6.5% of CPU
+samples to polygon command construction, 5.0% to camera-space clip flags, and
+5.0% to primitive queueing. Visibility scanning remains the largest individual
+cost at 18.4%. A separate source-line profile places about 3.9% of samples on
+the final command-record store. The retained changes reduce setup and copying:
+
+- Prepare the four padded frustum coefficients once per instance. Their integer
+  and dyadic arithmetic is exact at scales 1, 2, and 4; per-vertex products,
+  floating-point margins, and comparisons keep their original order. The
+  one-shot clip helper remains available for other callers.
+- Stop projected polygon clip tests once the common rejection mask reaches
+  zero. Query render scale only for lines and spheres that use it, before
+  calculating their sizes.
+- Reduce command records from 64 to 48 bytes by using bounded 16-bit edge
+  counts, clipped row bounds, and the planar flag, with a compile-time limit
+  guard. Depth planes remain binary64 and edge/depth offsets remain 32-bit.
+  Compact records reduce command construction and parallel merge traffic.
+
+Uninstrumented Linux x86-64 GCC 14.2 Release comparisons use the same Xeon
+Platinum 8573C VM and Full 1280x800 HyperVision. Each run accelerates the
+Countach straight ahead on `glacier.cstrk` for ten simulated seconds, with
+200 physics ticks and 600 interpolated cockpit frames. Three baseline/candidate
+batches alternate execution order, and the middle batch reverses CPU-count
+order. Affinity is `4` for one CPU with no background workers and `2,4` for two
+CPUs with one background worker.
+
+| CPUs | Baseline FPS (batch range) | Optimized FPS (batch range) | Throughput change |
+| --- | ---: | ---: | ---: |
+| 1 | 64.82 (63.61–65.88) | 67.05 (66.59–67.52) | +3.4% |
+| 2 | 80.71 (79.26–82.92) | 83.53 (82.83–84.79) | +3.5% |
+
+Every paired run improves; the two-CPU batch ranges overlap slightly. Two-CPU
+mean elapsed time falls from 12.391 to 11.972 ms/frame, and total process CPU
+time including workers falls from 21.711 to 21.149 ms/frame. FPS includes
+physics, interpolation, rendering, and final ARGB composition. Display upload,
+presentation, audio playback, and pacing are excluded. These are uncapped VM
+throughput measurements; compare absolute FPS within this round.
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    taskset -c 2,4 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --track /path/to/glacier.cstrk --drive-seconds 10 --compose
+```
+
+All 600 interpolated frame hashes, complete serial/parallel checkpoint pixels,
+all six native Glacier camera/resolution hashes, and final state hash
+`fa0fe5fb` match the baseline. Eight targeted renderer, replay, worker,
+interpolation, and adaptive-quality CTest suites pass. New regressions check
+known padded frustum boundaries, one-ULP margins, near depths, and context
+refresh at every scale. A four-corner outline and its maximum 64-edge
+subdivision produce identical pixels, depth, and family values with zero,
+one, and three background workers across all three resolutions.
+
+Focused ASan/UBSan visibility and geometry tests pass with all three changed
+renderer units and their drivers instrumented; other native objects are reused.
+Baseline and optimized visibility/geometry suites also pass with
+`-mfpmath=387 -fexcess-precision=fast`, including sphere queueing. All six
+Glacier view hashes match between these x87 builds. Formatting, whitespace,
+CRLF, non-executable modes, and core source line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
