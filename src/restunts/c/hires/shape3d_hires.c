@@ -4,6 +4,7 @@
 
 #include <SDL3/SDL_stdinc.h>
 #include <float.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../fatal.h"
@@ -115,9 +116,9 @@ legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector)
 	legacy_f64 top = (center_y - select_rect_rc.top + padding) * z;
 	legacy_f64 bottom = (center_y - select_rect_rc.bottom - 1 - padding) * z;
 	legacy_f64 margin_x =
-		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (SDL_fabs(x) + SDL_fabs(left) + SDL_fabs(right));
+		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (fabs(x) + fabs(left) + fabs(right));
 	legacy_f64 margin_y =
-		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (SDL_fabs(y) + SDL_fabs(top) + SDL_fabs(bottom));
+		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (fabs(y) + fabs(top) + fabs(bottom));
 	legacy_u8 flags = 0;
 	if (y > top + margin_y) {
 		flags |= SHAPE3D_RECT_CLIP_TOP;

@@ -48,6 +48,10 @@
 #define TEST_BUILD_GROWTH_COMMANDS 257U
 #define TEST_BUILD_STRIPE_DIVISOR 3
 #define TEST_BUILD_DEPTH_STEP 0.001
+#define TEST_PARTITION_STRIPES 8U
+#define TEST_PARTITION_FIRST_WIN 3U
+
+enum { TEST_PARTITION_HIDDEN, TEST_PARTITION_VISIBLE, TEST_PARTITION_DECAL, TEST_PARTITION_CASES };
 
 static struct SPRITE sprite;
 static struct HIRES_RASTER_TARGET target;
@@ -252,6 +256,70 @@ static legacy_s32 contains_sample(const struct TEST_POLYGON *polygon, legacy_f64
 		previous = current;
 	}
 	return inside;
+}
+
+/* A late first win must reconstruct the rejected prefix without losing either
+ * untouched end of the partition or the rejected suffix after that win. */
+static void test_lazy_partition_prefix(legacy_s32 scale)
+{
+	hires_render_workers_set_enabled(1);
+	for (legacy_s32 workers = 0; workers <= 1; workers++) {
+		hires_render_workers_shutdown();
+		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS",
+								 workers ? TEST_WORKER_COUNT : TEST_NO_WORKERS, true) == 0);
+		for (legacy_s32 variant = 0; variant < TEST_PARTITION_CASES; variant++) {
+			begin_frame(scale);
+			legacy_s32 stripe_width = target.width / TEST_PARTITION_STRIPES;
+			for (legacy_u32 stripe = 0; stripe < TEST_PARTITION_STRIPES; stripe++) {
+				struct HIRES_BACKEND_MATERIAL support =
+					material((stripe & 1U) == 0 ? TEST_FIRST_COLOR : TEST_SECOND_COLOR,
+							 TEST_FIRST_FAMILY + stripe);
+				legacy_f64 depth =
+					stripe == TEST_PARTITION_FIRST_WIN ? TEST_FAR_DEPTH : TEST_NEAR_DEPTH;
+				rectangle(stripe * stripe_width, (stripe + 1U) * stripe_width, 0, target.height,
+						  depth, depth, &support);
+			}
+			legacy_s32 left = stripe_width / 2;
+			legacy_s32 right = target.width - left;
+			legacy_s32 top = target.height / 4;
+			legacy_s32 bottom = target.height - top;
+			struct HIRES_BACKEND_MATERIAL incoming =
+				material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY + TEST_PARTITION_STRIPES);
+			legacy_f64 incoming_depth =
+				variant == TEST_PARTITION_VISIBLE ? TEST_MIDDLE_DEPTH : TEST_FAR_DEPTH / 2;
+			if (variant == TEST_PARTITION_DECAL) {
+				/* The decal is behind every stripe. Its matching support is the
+				 * first winning overlap and must retain the support's depth. */
+				incoming.flags = HIRES_BACKEND_DECAL;
+				incoming.family = TEST_FIRST_FAMILY + TEST_PARTITION_FIRST_WIN;
+			}
+			rectangle(left, right, top, bottom, incoming_depth, incoming_depth, &incoming);
+			const legacy_u8 *pixels = end_frame();
+			for (legacy_s32 y = 0; y < target.height; y++) {
+				for (legacy_s32 x = 0; x < target.width; x++) {
+					legacy_u32 stripe = x / stripe_width;
+					legacy_s32 covered = variant != TEST_PARTITION_HIDDEN &&
+										 stripe == TEST_PARTITION_FIRST_WIN && y >= top &&
+										 y < bottom;
+					legacy_u8 expected =
+						covered ? TEST_DECAL_COLOR
+								: ((stripe & 1U) == 0 ? TEST_FIRST_COLOR : TEST_SECOND_COLOR);
+					legacy_f32 depth =
+						stripe == TEST_PARTITION_FIRST_WIN ? TEST_FAR_DEPTH : TEST_NEAR_DEPTH;
+					legacy_u32 family = TEST_FIRST_FAMILY + stripe;
+					if (covered && variant == TEST_PARTITION_VISIBLE) {
+						depth = TEST_MIDDLE_DEPTH;
+						family = incoming.family;
+					}
+					legacy_u32 offset = (legacy_u32)y * target.width + x;
+					assert(pixels[offset] == expected);
+					assert(target.inverse_depth[offset] == depth);
+					assert(target.depth_family[offset] == family);
+				}
+			}
+		}
+	}
+	hires_render_workers_set_enabled(0);
 }
 
 static void test_offscreen_depth_oracle(legacy_s32 scale)
@@ -678,6 +746,7 @@ legacy_int main(void)
 		test_attached_support_depth(scale);
 		test_ground_uses_surface_ownership(scale);
 		test_warped_quad_depth(scale);
+		test_lazy_partition_prefix(scale);
 	}
 	test_growth_and_reset();
 	test_workers_match();
