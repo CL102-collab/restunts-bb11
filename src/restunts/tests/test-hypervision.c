@@ -50,6 +50,9 @@
 #define TEST_BUILD_DEPTH_STEP 0.001
 #define TEST_PARTITION_STRIPES 8U
 #define TEST_PARTITION_FIRST_WIN 3U
+#define TEST_SEARCH_SHORT_COUNT 7
+#define TEST_SEARCH_LONG_COUNT 31
+#define TEST_SEARCH_REPLACE_PERIOD 3
 
 enum { TEST_PARTITION_HIDDEN, TEST_PARTITION_VISIBLE, TEST_PARTITION_DECAL, TEST_PARTITION_CASES };
 
@@ -320,6 +323,50 @@ static void test_lazy_partition_prefix(legacy_s32 scale)
 		}
 	}
 	hires_render_workers_set_enabled(0);
+}
+
+/* Exact pixel boundaries exercise the partition search at both ends and
+ * throughout long rows whose span counts need not be powers of two. */
+static void test_partition_pixel_boundaries(legacy_s32 scale)
+{
+	const legacy_s32 counts[] = {
+		1, 2, TEST_SEARCH_SHORT_COUNT, TEST_SEARCH_LONG_COUNT, TEST_WIDTH - 1, TEST_WIDTH};
+	const struct HIRES_BACKEND_MATERIAL incoming = material(TEST_DECAL_COLOR, TEST_SECOND_FAMILY);
+	for (legacy_u32 partition = 0; partition < SDL_arraysize(counts); partition++) {
+		begin_frame(scale);
+		legacy_s32 count = counts[partition] * scale;
+		for (legacy_s32 x = 0; x < count; x++) {
+			struct HIRES_BACKEND_MATERIAL support =
+				material((x & 1) == 0 ? TEST_FIRST_COLOR : TEST_SECOND_COLOR, TEST_FIRST_FAMILY);
+			rectangle(x, x + 1, 0, 1, TEST_FAR_DEPTH, TEST_FAR_DEPTH, &support);
+		}
+		for (legacy_s32 x = count - 1; x >= 0; x--) {
+			if (x % TEST_SEARCH_REPLACE_PERIOD == 0 || x == count - 1) {
+				rectangle(x, x + 1, 0, 1, TEST_NEAR_DEPTH, TEST_NEAR_DEPTH, &incoming);
+			}
+		}
+		const legacy_u8 *pixels = end_frame();
+		for (legacy_s32 y = 0; y < target.height; y++) {
+			for (legacy_s32 x = 0; x < target.width; x++) {
+				legacy_s32 supported = y == 0 && x < count;
+				legacy_s32 replaced =
+					supported && (x % TEST_SEARCH_REPLACE_PERIOD == 0 || x == count - 1);
+				legacy_u8 expected = !supported		? TEST_BACKGROUND
+									 : replaced		? TEST_DECAL_COLOR
+									 : (x & 1) == 0 ? TEST_FIRST_COLOR
+													: TEST_SECOND_COLOR;
+				legacy_u32 offset = (legacy_u32)y * target.width + x;
+				assert(pixels[offset] == expected);
+				assert(target.depth_family[offset] == (!supported ? HIRES_DEPTH_FAMILY_NONE
+													   : replaced ? TEST_SECOND_FAMILY
+																  : TEST_FIRST_FAMILY));
+				if (supported) {
+					assert(target.inverse_depth[offset] ==
+						   (replaced ? TEST_NEAR_DEPTH : TEST_FAR_DEPTH));
+				}
+			}
+		}
+	}
 }
 
 static void test_offscreen_depth_oracle(legacy_s32 scale)
@@ -747,6 +794,7 @@ legacy_int main(void)
 		test_ground_uses_surface_ownership(scale);
 		test_warped_quad_depth(scale);
 		test_lazy_partition_prefix(scale);
+		test_partition_pixel_boundaries(scale);
 	}
 	test_growth_and_reset();
 	test_workers_match();

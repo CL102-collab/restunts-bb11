@@ -665,6 +665,71 @@ ASan/UBSan also pass for these focused mesh tests with the transform and test
 driver translation units instrumented. Source formatting, whitespace, CRLF,
 and non-executable file modes are checked.
 
+### Glacier visibility partition searches (2026-11-04)
+
+A line-level profile after `bf900642` attributed about 9.2% of serial CPU samples
+to visibility interval insertion, 7.1% to scan conversion, and 2.3% to depth
+evaluation. About 4.2% fell on insertion's binary search. The next change reduces
+that search and repeated material classification:
+
+- Each scanline keeps a private hint for the last partition interval. An exact
+  interval check and one neighbor check can find the next incoming span directly.
+  The hint follows partition edits and resets on every row; workers share no
+  mutable hint state.
+- A uniform binary search handles other positions. Its candidate length halves
+  independently of the comparison, allowing GCC to use conditional index moves.
+- Both endpoint depths reuse one material classification. The depth expressions,
+  decal support rules, tolerance, crossings, and existing span layout remain intact.
+
+A separate serial counter run over the same ten-second drive, including warmup
+and diagnostics, processes 23,017,388 incoming intervals in
+both versions. Full searches fall from 23,017,388 to
+6,961,816; the hint bypasses 69.75% of them.
+Binary-search probes fall from 135,512,696 to 53,115,262.
+Hint checks are separate from those probe counts. Counter instrumentation is
+excluded from the throughput measurements.
+
+The uninstrumented comparison uses baseline `bf900642`, Linux x86-64 GCC 14.2
+Release, generic instructions, the same Xeon Platinum 8573C VM and resources,
+and locked Full 1280x800 HyperVision. Each batch advances the automatic Countach
+straight ahead for ten simulated seconds, using 200 physics ticks and 600
+interpolated cockpit frames. Three baseline/candidate batches alternate order;
+the middle batch reverses the CPU-count order. This round uses affinity `4` for
+one CPU and `2,4` for two CPUs in separate L2 cache groups, with zero or one
+background workers. The changed affinity and variable VM load mean absolute FPS
+should be assessed within this round's paired measurements.
+
+| CPUs | Baseline FPS (batch range) | Optimized FPS (batch range) | Throughput change |
+| --- | ---: | ---: | ---: |
+| 1 | 58.05 (57.79–58.49) | 59.89 (59.22–60.53) | +3.2% |
+| 2 | 75.74 (74.16–77.49) | 77.65 (75.52–79.72) | +2.5% |
+
+All paired batches improve, although the two-CPU batch ranges overlap. Two-CPU
+mean elapsed time falls from 13.203 to 12.879 ms/frame;
+total process CPU time including workers falls from 23.328 to
+22.707 ms/frame. FPS includes physics, interpolation, rendering,
+and final ARGB composition. Display upload, presentation, audio playback, and
+pacing are excluded. These remain VM throughput measurements.
+
+Reproduce the two-CPU workload with an appropriate host affinity:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    taskset -c 2,4 out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --track /path/to/glacier.cstrk --drive-seconds 10 --compose
+```
+
+All 600 interpolated frame hashes and all six Glacier camera/resolution hashes
+match the baseline. Complete serial/parallel checkpoint comparisons and final
+state hash `fa0fe5fb` also match. Eight targeted renderer, replay, worker,
+interpolation, and adaptive-quality CTest suites pass. A focused regression builds
+adjacent one-pixel supports at varying partition lengths through the full
+320/640/1280-pixel widths, then overwrites exact boundary intervals in reverse
+order while checking pixels, depths, and families. ASan/UBSan visibility tests
+pass with the changed backend and test driver instrumented. Baseline and
+optimized visibility tests also pass with `-mfpmath=387 -fexcess-precision=fast`.
+Formatting, whitespace, CRLF, and non-executable source modes are checked.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
