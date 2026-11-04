@@ -26,9 +26,7 @@
     // Match the solid crop rows in extended/extended_crop_fields.c.
     const TULIP = { rows: 8, leafHeight: 4, rowHalfWidth: 60, bandHeight: 12, bandHalfWidth: 50,
         leaves: 69, rowColors: [15, 10, 61, 124, 54, 75, 37, 9] };
-    const VINE = { rows: 12, height: 96, eaveHeight: 72, ridge: 0, left: -22, right: 23,
-        dark: 68, light: 69, grapes: 73, grapeClearance: 2, grapeStationCount: 8,
-        grapeParts: [{ halfWidth: 16, bottom: 48, top: 72 }, { halfWidth: 8, bottom: 32, top: 48 }] };
+    const VINE = { rows: 24, height: 48, eaveHeight: 36, ridge: 0, left: -11, right: 11, dark: 68, light: 69 };
     const ROLL = { length: 2048, halfWidth: 120, ease: 128, rise: 390, segments: 32,
         lipBank: Math.floor(1024 * 71 / 360) * Math.PI * 2 / 1024,
         concrete: 31, concreteLight: 32, grille: 0, markings: 12, dashesPerTile: 6,
@@ -275,25 +273,11 @@
         }
         return shape;
     }
-    function vineGrapes(row) {
-        const shape = cropFieldBounds(VINE.height), center = cropFieldCenter(row, VINE.rows);
-        for (let station = 0; station < VINE.grapeStationCount; station++) {
-            const z = cropFieldCenter(station, VINE.grapeStationCount);
-            for (const side of [-1, 1]) for (const part of VINE.grapeParts) {
-                const first = shape.vertices.length;
-                for (const [dz, height] of [[-part.halfWidth, part.bottom], [part.halfWidth, part.bottom], [part.halfWidth, part.top], [-part.halfWidth, part.top]]) {
-                    shape.vertices.push([center + (side < 0 ? VINE.left - VINE.grapeClearance : VINE.right + VINE.grapeClearance), height, z + dz]);
-                }
-                cropFieldPrimitive(shape, (side < 0 ? [0, 1, 2, 3] : [0, 3, 2, 1]).map(index => first + index), VINE.grapes);
-            }
-        }
-        return shape;
-    }
     const wheatFieldShape = wheatField();
     const cropFieldShapes = new Map([
         [WHEAT_FIELD_ID, { name: 'wheat field', shapes: [wheatFieldShape], physical: WHEAT_PHYSICAL_MODEL }],
         [TULIP_FIELD_ID, { name: 'tulip field', shapes: [tulipField()], physical: TULIP_PHYSICAL_MODEL }],
-        [VINE_FIELD_ID, { name: 'vine field', shapes: [vineField(), ...Array.from({ length: VINE.rows }, (_, row) => vineGrapes(row))], physical: VINE_PHYSICAL_MODEL }]
+        [VINE_FIELD_ID, { name: 'vine field', shapes: [vineField()], physical: VINE_PHYSICAL_MODEL }]
     ]);
     function buildScene(doc, assets) {
         if (!doc || !Number.isInteger(doc.width) || !Number.isInteger(doc.height) || doc.width < 1 || doc.height < 1 ||

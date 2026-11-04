@@ -4638,6 +4638,11 @@ static legacy_u16 check_overview_detail_and_workers(void)
 	add_overview_piece(&track, CSTRK_VINE_FIELD_ID,
 					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U,
 					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U, 1U, 1U);
+	/* Vines keep their foliage at every distance. Use a palm's authored low
+	 * mesh to exercise detail reduction alongside the procedural field. */
+	add_overview_piece(&track, OBJECT_DETAIL_TEST_NATIVE_ID,
+					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U + 1U,
+					   (OVERVIEW_DETAIL_FAR_FIRST + OVERVIEW_DETAIL_FAR_LAST) / 2U, 1U, 1U);
 	activate_render_track(&track, 1);
 	assert(track_setup() == TRACK_SETUP_OK);
 	hires_set_render_scale(HIRES_SCALE);
@@ -4672,7 +4677,7 @@ static legacy_u16 check_overview_detail_and_workers(void)
 			}
 			free(reference);
 			if (detail) {
-				/* Tiny fields retain their foliage, with subpixel grape clusters omitted. */
+				/* Distant native objects use low meshes; vine foliage stays complete. */
 				assert(primitives[detail][heading] < primitives[0][heading]);
 			}
 		}

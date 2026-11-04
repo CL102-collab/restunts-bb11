@@ -117,9 +117,7 @@ static legacy_s8 frame_extended_object_distance_detail(
 	if (object->roll_ramp || object->tunnel_slalom) {
 		return detail;
 	}
-	legacy_u8 vines = object->legacy_id == CSTRK_VINE_FIELD_ID;
-	if (!vines &&
-		(!definition->ss_loShapePtr || definition->ss_loShapePtr == definition->ss_shapePtr)) {
+	if (!definition->ss_loShapePtr || definition->ss_loShapePtr == definition->ss_shapePtr) {
 		const struct TRACKOBJECT *overlay =
 			definition->ss_ssOvelay ? frame_track_object_from_legacy_index(definition->ss_ssOvelay)
 									: NULL;
@@ -133,8 +131,8 @@ static legacy_s8 frame_extended_object_distance_detail(
 		0,
 		-object->height * (legacy_f64)FRAME_EXTENDED_TERRAIN_HALF_TILE -
 			HIRES_FRAME_EXTENDED_ROAD_OVERSCAN};
-	struct SHAPE3D_HIRES_VECTOR maximum = {-minimum.x, vines ? VINE_FIELD_HEIGHT : 0, -minimum.z};
-	for (legacy_u8 part = 0; !vines && part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {
+	struct SHAPE3D_HIRES_VECTOR maximum = {-minimum.x, 0, -minimum.z};
+	for (legacy_u8 part = 0; part < FRAME_EXTENDED_OBJECT_PART_COUNT; part++) {
 		const struct TRACKOBJECT *render_definition = definition;
 		if (part) {
 			if (!definition->ss_ssOvelay) {
@@ -301,11 +299,6 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 		legacy_u8 count = model->legacy_id == CSTRK_WHEAT_FIELD_ID
 							  ? 1U
 							  : crop_fields_mesh_count(model->legacy_id);
-		if (object.detail == FRAME_EXTENDED_DISTANCE_LOW_DETAIL &&
-			model->legacy_id == CSTRK_VINE_FIELD_ID) {
-			/* Distant fields retain every foliage row without individual grape clusters. */
-			count = 1;
-		}
 		for (legacy_u8 part = 0; part < count; part++) {
 			struct SHAPE3D source;
 			legacy_s16 created = model->legacy_id == CSTRK_WHEAT_FIELD_ID

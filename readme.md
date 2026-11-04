@@ -341,10 +341,9 @@ including the Full preset. Distance is measured in 3D to the nearest point of th
 complete object's bounds, including its footprint, height, overlays, grove trees,
 and grade. Camera height counts too. Any part within 20 tiles, including exactly
 20 tiles, keeps full detail; models without a low alternative keep their full
-meshes. Distant vine fields omit tiny grape clusters while retaining foliage and
-soil. Terrain meshes and road cutouts keep their full geometry, and vehicles keep
-their existing detail policy. Multi-core rendering also prepares the preview's
-geometry in parallel.
+meshes. Vine fields, terrain meshes and road cutouts keep their full geometry,
+and vehicles keep their existing detail policy. Multi-core rendering also
+prepares the preview's geometry in parallel.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
@@ -1992,9 +1991,9 @@ rows. Adjacent tiles form larger fields, rotation changes the row direction, and
 straight inclines are supported. Cars drive through the crops using the terrain
 beneath them. **Tulip field** adds eight narrow flower rows ordered white, green,
 yellow, orange, red, purple, pink and blue, with green edging and soil separators.
-**Vine field** adds twelve low, narrow rows with triangular tops and dense purple
-grape clusters. Both support hillside
-inclines, rotation and adjoining fields. All three appear in the game and the editor's 2D and 3D views.
+**Vine field** adds twenty-four short, narrow green rows with triangular tops
+and evenly spaced soil separators. Both support hillside inclines, rotation and
+adjoining fields. All three appear in the game and the editor's 2D and 3D views.
 Tulip and Vine fields require `.cstrk` v12.
 
 The palette also includes **Pine trees (10)** and **Pine trees (6)**. Both

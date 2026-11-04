@@ -165,10 +165,10 @@ test('low wheat rows follow the terrain in all slope and rotation directions', (
 
 test('solid tulip rows and pitched vine rows render without native model resources', () => {
     const assets = { models: new Map(), palette: palette() };
-    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 12, 36, 0], [model.VINE_FIELD_ID, 96, 940, 0]]) {
+    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 12, 36, 0], [model.VINE_FIELD_ID, 48, 340, 0]]) {
         const doc = new model.Document(1, 1); doc.place(id, 0, 0);
         const before = doc.snapshot(), result = scene.buildScene(doc, assets);
-        assert.equal(result.instances, id === model.VINE_FIELD_ID ? 13 : 1); assert.equal(result.triangles, triangles);
+        assert.equal(result.instances, 1); assert.equal(result.triangles, triangles);
         assert.equal(result.linePositions.length / 6, stems);
         assert(result.positions.every(Number.isFinite)); near(result.bounds.max[1], height / TILE);
         assert.deepEqual(result.bounds.min, [0, 0, 0]); assert.deepEqual(doc.snapshot(), before);
@@ -220,39 +220,35 @@ test('tulips retain eight narrow rows in white, green, yellow, orange, red, purp
     }
 });
 
-test('twelve narrow vine rows retain vertical bodies and gain triangular tops', () => {
+test('twenty-four shorter, narrower vine rows keep triangular tops and even separators without grapes', () => {
     const doc = new model.Document(1, 1); doc.place(model.VINE_FIELD_ID, 0, 0);
     const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
-    const canopy = vertices(result.positions, 36).slice(0, 12 * 14 * 3);
-    for (let row = 0; row < 12; row++) {
-        const points = canopy.slice(row * 14 * 3, (row + 1) * 14 * 3);
-        near(Math.max(...points.map(point => point[0])) - Math.min(...points.map(point => point[0])), 45 / TILE);
-        near(Math.max(...points.map(point => point[1])), 96 / TILE);
-        const body = points.filter(point => point[1] <= 72 / TILE);
+    const rowCount = 24, rowWidth = 22, height = 48, eaveHeight = 36, trianglesPerRow = 14;
+    const canopyStart = 36, canopy = vertices(result.positions, canopyStart);
+    assert.equal(canopy.length, rowCount * trianglesPerRow * 3, 'only foliage remains above the soil');
+    assert.equal(result.instances, 1, 'the field has no separate grape meshes');
+    let previousRight;
+    for (let row = 0; row < rowCount; row++) {
+        const points = canopy.slice(row * trianglesPerRow * 3, (row + 1) * trianglesPerRow * 3);
+        const left = Math.min(...points.map(point => point[0])), right = Math.max(...points.map(point => point[0]));
+        near(right - left, rowWidth / TILE, 'row width is halved to the nearest world unit');
+        near(Math.max(...points.map(point => point[1])), height / TILE, 'row height is halved');
+        const body = points.filter(point => point[1] <= eaveHeight / TILE);
         assert.equal(new Set(body.map(point => point[0].toFixed(6))).size, 2, 'body walls stay vertical up to the eaves');
         assert.equal(new Set(points.map(point => point[1].toFixed(6))).size, 3, 'soil, eaves and ridge retain their distinct heights');
-        const ridge = points.filter(point => point[1] === 96 / TILE), center = Math.floor((2 * row + 1) * TILE / 24) / TILE;
-        assert(ridge.length > 0); ridge.forEach(point => near(point[0], center, 'roof peaks at the center ridge'));
+        const ridge = points.filter(point => point[1] === height / TILE);
+        const center = Math.floor((2 * row + 1) * TILE / (2 * rowCount)) / TILE;
+        assert(ridge.length > 0); ridge.forEach(point => near(point[0], center, 'roof peaks at the evenly spaced center ridge'));
+        if (previousRight !== undefined) {
+            const gap = Math.round((left - previousRight) * TILE);
+            const minGap = Math.floor(TILE / rowCount) - rowWidth;
+            assert(gap === minGap || gap === minGap + 1, 'separators stay even within one world unit');
+        }
+        assert(left > 0 && right < 1, 'every complete row fits inside the tile');
+        previousRight = right;
     }
-    const grapePoints = vertices(result.positions, 172 * 9);
-    assert.equal(grapePoints.length, 192 * 2 * 2 * 3, 'one hundred ninety-two bunches each have two rectangular patches');
-    assert(grapePoints.every(point => point[1] >= 32 / TILE && point[1] <= 72 / TILE));
-    for (let row = 0; row < 12; row++) {
-        const center = (Math.floor((2 * row + 1) * TILE / 24)) / TILE;
-        const points = grapePoints.slice(row * 8 * 24, (row + 1) * 8 * 24);
-        points.forEach(point => near(point[0] - center, (point[0] < center ? -24 : 25) / TILE, 'grapes stay two units outside either wall'));
-    }
-    for (let station = 0; station < 8; station++) {
-        const points = grapePoints.slice(station * 24, (station + 1) * 24);
-        near((Math.min(...points.map(point => point[2])) + Math.max(...points.map(point => point[2]))) / 2,
-            (2 * station + 1) / 16, 'grape bunches fill the row at evenly spaced stations');
-    }
-    for (const [points, width, height] of [[grapePoints.slice(0, 6), 32, 24], [grapePoints.slice(6, 12), 16, 16]]) {
-        near(Math.max(...points.map(point => point[2])) - Math.min(...points.map(point => point[2])), width / TILE);
-        near(Math.max(...points.map(point => point[1])) - Math.min(...points.map(point => point[1])), height / TILE);
-    }
-    const patchColors = new Set(vertices(result.colors, 172 * 9).map(color => color.map(channel => channel.toFixed(4)).join(',')));
-    assert.equal(patchColors.size, 1, 'all grape pixels use the same purple material');
+    const canopyColors = new Set(vertices(result.colors, canopyStart).map(color => color.map(channel => channel.toFixed(4)).join(',')));
+    assert.equal(canopyColors.size, 2, 'only the two foliage materials remain');
 });
 
 test('tulip and vine fields rotate and follow every straight hillside direction', () => {

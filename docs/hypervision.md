@@ -93,10 +93,9 @@ the preview uses the job's precise tile origin to preserve the same distance
 across large tracks.
 
 Models without a low-detail alternative retain their full meshes. Generated roll
-ramps and tunnel slaloms retain their existing geometry. Distant vine fields omit
-tiny grape-cluster meshes while retaining foliage rows and soil. Terrain meshes
-and road cutouts retain their full geometry, and this object-distance rule does
-not change vehicle detail.
+ramps, tunnel slaloms and vine fields retain their existing geometry. Terrain
+meshes and road cutouts retain their full geometry, and this object-distance
+rule does not change vehicle detail.
 
 The live menu preview remains capped at 25 presented frames per second. Its
 reported render time excludes the pacing wait and display synchronization.

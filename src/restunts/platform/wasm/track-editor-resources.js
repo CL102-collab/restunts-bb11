@@ -17,13 +17,11 @@
     const ROLL_RAMP_COLORS = { concrete: 7, shade: 8, edge: 15, grille: 0, direction: 14 };
     const PINE_ICON = 153, PINE_SMALL_COUNT = 6, PINE_GROUP_ICON_SCALE = 4, PINE_LAYOUT_SCALE = 256, PINE_TILE_WORLD_SIZE = 1024;
     const WHEAT_FIELD_ID = 215, TULIP_FIELD_ID = 216, VINE_FIELD_ID = 217;
-    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 1, CROP_ICON_GRAPE_COLOR = 171;
-    const CROP_ICON_GRAPE_COUNT = 8;
-    const CROP_ICON_GRAPE_STATIONS = Array.from({ length: CROP_ICON_GRAPE_COUNT }, (_, index) => (2 * index + 1) / (2 * CROP_ICON_GRAPE_COUNT));
+    const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 1;
     const CROP_FIELD_ICONS = new Map([
         [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
         [TULIP_FIELD_ID, { name: 'tulip field', rows: 8, gap: 2, colors: [15, 10, 70, 54, 38, 167, 181, 9] }],
-        [VINE_FIELD_ID, { name: 'vine field', rows: 12, scale: 8, gap: 6, colors: [90], edge: 92, grapes: true }]
+        [VINE_FIELD_ID, { name: 'vine field', rows: 24, scale: 16, gap: 6, colors: [90], edge: 92 }]
     ]);
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
     const PINE_TEN_LAYOUT = [[-330, 310, 128], [15, 360, 176], [312, 263, 144], [-197, 99, 112],
@@ -311,10 +309,6 @@
             for (let y = 0; y < height; y++) for (let dx = -halfWidth; dx <= halfWidth; dx++)
                 pixel(x + dx, y, field.edge !== undefined && Math.abs(dx) > halfWidth - CROP_ICON_EDGE_WIDTH
                     ? field.edge : field.colors[row % field.colors.length]);
-            if (field.grapes) for (const station of CROP_ICON_GRAPE_STATIONS) for (const side of [-1, 1]) {
-                const y = Math.floor(station * height), edge = x + side * halfWidth;
-                for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1], [0, 2]]) pixel(edge + side * dx, y + dy, CROP_ICON_GRAPE_COLOR);
-            }
         }
         return { width, height, pixels, alpha };
     }

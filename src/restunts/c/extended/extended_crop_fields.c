@@ -15,14 +15,11 @@
 #define TULIP_FIELD_PRIMITIVE_BYTES                                                                \
 	((2U * TULIP_FIELD_ROW_COUNT + 1U) * CROP_FIELDS_QUAD_BYTES + CROP_FIELDS_TERMINATOR_BYTES)
 #define VINE_FIELD_CAP_BYTES (CROP_FIELDS_PRIMITIVE_PREFIX + VINE_FIELD_SECTION_VERTICES)
-#define VINE_FIELD_GRAPE_VERTEX_FIRST CROP_FIELDS_BOUNDING_VERTICES
 #define VINE_FIELD_PRIMITIVE_BYTES                                                                 \
 	(CROP_FIELDS_QUAD_BYTES +                                                                      \
 	 VINE_FIELD_ROW_COUNT * (VINE_FIELD_SIDE_COUNT * CROP_FIELDS_QUAD_BYTES +                      \
 							 VINE_FIELD_CAP_COUNT * VINE_FIELD_CAP_BYTES) +                        \
 	 CROP_FIELDS_TERMINATOR_BYTES)
-#define VINE_FIELD_GRAPE_BATCH_PRIMITIVE_BYTES                                                     \
-	(VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT * CROP_FIELDS_QUAD_BYTES + CROP_FIELDS_TERMINATOR_BYTES)
 
 static void crop_fields_write_vertex(struct SHAPE3D *mesh, legacy_u16 index, legacy_s16 x,
 									 legacy_s16 y, legacy_s16 z)
@@ -90,44 +87,6 @@ static legacy_u8 *crop_fields_write_tulips(struct SHAPE3D *mesh, legacy_u8 *prim
 	return primitive;
 }
 
-static legacy_u8 *crop_fields_write_grapes(struct SHAPE3D *mesh, legacy_u8 *primitive,
-										   legacy_u16 row)
-{
-	legacy_u16 first = VINE_FIELD_GRAPE_VERTEX_FIRST;
-	legacy_s16 center = crop_fields_center(row, VINE_FIELD_ROW_COUNT);
-	for (legacy_u8 station = 0; station < VINE_FIELD_GRAPE_STATION_COUNT; station++) {
-		legacy_s16 z = crop_fields_center(station, VINE_FIELD_GRAPE_STATION_COUNT);
-		for (legacy_u8 side = 0; side < VINE_FIELD_GRAPE_SIDE_COUNT; side++) {
-			legacy_s16 x = side ? VINE_FIELD_ROW_RIGHT_OFFSET + VINE_FIELD_GRAPE_OUTWARD_OFFSET
-								: VINE_FIELD_ROW_LEFT_OFFSET - VINE_FIELD_GRAPE_OUTWARD_OFFSET;
-			for (legacy_u8 part = 0; part < VINE_FIELD_GRAPE_PART_COUNT; part++) {
-				legacy_s16 low =
-					part ? VINE_FIELD_GRAPE_LOWER_HEIGHT : VINE_FIELD_GRAPE_JOIN_HEIGHT;
-				legacy_s16 high =
-					part ? VINE_FIELD_GRAPE_JOIN_HEIGHT : VINE_FIELD_GRAPE_UPPER_HEIGHT;
-				legacy_s16 half =
-					part ? VINE_FIELD_GRAPE_LOWER_HALF_WIDTH : VINE_FIELD_GRAPE_UPPER_HALF_WIDTH;
-				for (legacy_u8 corner = 0; corner < CROP_FIELDS_QUAD_VERTICES; corner++) {
-					legacy_s16 y = corner >= CROP_FIELDS_QUAD_VERTICES / 2U ? high : low;
-					legacy_s16 depth =
-						corner == 0 || corner == CROP_FIELDS_QUAD_VERTICES - 1U ? -half : half;
-					crop_fields_write_vertex(mesh, first + corner, center + x, y, z + depth);
-				}
-				legacy_u8 indices[CROP_FIELDS_QUAD_VERTICES];
-				for (legacy_u8 corner = 0; corner < CROP_FIELDS_QUAD_VERTICES; corner++) {
-					legacy_u8 outward =
-						side && corner ? CROP_FIELDS_QUAD_VERTICES - corner : corner;
-					indices[corner] = (legacy_u8)(first + outward);
-				}
-				primitive = crop_fields_write_primitive(primitive, CROP_FIELDS_QUAD_VERTICES,
-														VINE_FIELD_GRAPE_MATERIAL, indices);
-				first += CROP_FIELDS_QUAD_VERTICES;
-			}
-		}
-	}
-	return primitive;
-}
-
 static legacy_u8 *crop_fields_write_vines(struct SHAPE3D *mesh, legacy_u8 *primitive)
 {
 	static const legacy_s16 section_x[VINE_FIELD_SECTION_VERTICES] = {
@@ -176,10 +135,7 @@ static legacy_u8 *crop_fields_write_vines(struct SHAPE3D *mesh, legacy_u8 *primi
 
 legacy_u8 crop_fields_mesh_count(legacy_u16 id)
 {
-	if (id == CSTRK_TULIP_FIELD_ID) {
-		return 1;
-	}
-	return id == CSTRK_VINE_FIELD_ID ? VINE_FIELD_MESH_COUNT : 0;
+	return id == CSTRK_TULIP_FIELD_ID || id == CSTRK_VINE_FIELD_ID;
 }
 
 legacy_s16 crop_fields_create_mesh(struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 part)
@@ -192,18 +148,11 @@ legacy_s16 crop_fields_create_mesh(struct SHAPE3D *mesh, legacy_u16 id, legacy_u
 		return 0;
 	}
 	legacy_u8 tulips = id == CSTRK_TULIP_FIELD_ID;
-	legacy_u8 grapes = !tulips && part != 0;
-	legacy_u16 vertices = tulips   ? TULIP_FIELD_VERTEX_COUNT
-						  : grapes ? VINE_FIELD_GRAPE_BATCH_VERTEX_COUNT
-								   : VINE_FIELD_VERTEX_COUNT;
-	legacy_u16 primitives = tulips	 ? TULIP_FIELD_PRIMITIVE_COUNT
-							: grapes ? VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT
-									 : VINE_FIELD_PRIMITIVE_COUNT;
+	legacy_u16 vertices = tulips ? TULIP_FIELD_VERTEX_COUNT : VINE_FIELD_VERTEX_COUNT;
+	legacy_u16 primitives = tulips ? TULIP_FIELD_PRIMITIVE_COUNT : VINE_FIELD_PRIMITIVE_COUNT;
 	legacy_s16 height = tulips ? TULIP_FIELD_HEIGHT : VINE_FIELD_HEIGHT;
 	size_t vertex_bytes = (size_t)vertices * SHAPE3D_VERTEX_SIZE;
-	size_t primitive_bytes = tulips	  ? TULIP_FIELD_PRIMITIVE_BYTES
-							 : grapes ? VINE_FIELD_GRAPE_BATCH_PRIMITIVE_BYTES
-									  : VINE_FIELD_PRIMITIVE_BYTES;
+	size_t primitive_bytes = tulips ? TULIP_FIELD_PRIMITIVE_BYTES : VINE_FIELD_PRIMITIVE_BYTES;
 	size_t mask_bytes = (size_t)primitives * SHAPE3D_VISIBILITY_MASK_SIZE;
 	legacy_u8 *memory = malloc(vertex_bytes + primitive_bytes + mask_bytes * 2U);
 	if (!memory) {
@@ -227,15 +176,11 @@ legacy_s16 crop_fields_create_mesh(struct SHAPE3D *mesh, legacy_u16 id, legacy_u
 			corner & 2U ? height : 0, corner & 4U ? CROP_FIELDS_HALF_TILE : -CROP_FIELDS_HALF_TILE);
 	}
 	legacy_u8 *primitive = mesh->shape3d_primitives;
-	if (grapes) {
-		primitive = crop_fields_write_grapes(mesh, primitive, part - 1U);
-	} else {
-		primitive = crop_fields_write_quad(mesh, primitive, CROP_FIELDS_SOIL_VERTEX_FIRST,
-										   -CROP_FIELDS_HALF_TILE, CROP_FIELDS_HALF_TILE,
-										   CROP_FIELDS_SOIL_HEIGHT, CROP_FIELDS_SOIL_MATERIAL);
-		primitive = tulips ? crop_fields_write_tulips(mesh, primitive)
-						   : crop_fields_write_vines(mesh, primitive);
-	}
+	primitive = crop_fields_write_quad(mesh, primitive, CROP_FIELDS_SOIL_VERTEX_FIRST,
+									   -CROP_FIELDS_HALF_TILE, CROP_FIELDS_HALF_TILE,
+									   CROP_FIELDS_SOIL_HEIGHT, CROP_FIELDS_SOIL_MATERIAL);
+	primitive = tulips ? crop_fields_write_tulips(mesh, primitive)
+					   : crop_fields_write_vines(mesh, primitive);
 	primitive[0] = primitive[1] = 0;
 	return 1;
 }

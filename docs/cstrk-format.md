@@ -217,8 +217,8 @@ Tulip field uses extended-only catalog ID `216`; Vine field uses `217`. Both
 require revision v12 and use the same one-tile footprint and zero modifier
 fields as Wheat field. Tulip fields have eight narrow rows ordered white, green,
 yellow, orange, red, purple, pink and blue, with a single color per row and
-green edging and soil separators between the bands. Vines render as twelve low,
-narrow green rows with triangular tops and dense purple grape clusters on both sides.
+green edging and soil separators between the bands. Vines render as twenty-four
+short, narrow green rows with triangular tops and evenly spaced soil separators.
 Both support all four rotations, raised ground and straight hillside inclines
 in every direction. Adjacent tiles form larger
 fields. They are decorative and drive-through, preserving the underlying
