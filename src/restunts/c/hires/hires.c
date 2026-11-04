@@ -538,6 +538,64 @@ struct HIRES_COMPOSE_JOB {
 	legacy_s32 pitch;
 };
 
+/* Indexed cells have only the supported 4x4, 2x2, or 1x1 layouts. Fixed-width
+ * stores expose the common rows without a dynamic inner sample loop. */
+static void hires_compose_palette_cell(const legacy_u8 *indices, const legacy_u8 *fallback,
+									   const legacy_u32 *palette, legacy_u32 *output,
+									   legacy_s32 pitch, legacy_s32 scale)
+{
+	if (indices == NULL) {
+		legacy_u32 color = palette[*fallback];
+		if (scale == HIRES_SCALE) {
+			for (legacy_s32 row = 0; row < HIRES_SCALE; row++) {
+				output[0] = color;
+				output[1] = color;
+				output[2] = color;
+				output[3] = color;
+				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+			}
+		} else if (scale == HIRES_MEDIUM_SCALE) {
+			for (legacy_s32 row = 0; row < HIRES_MEDIUM_SCALE; row++) {
+				output[0] = color;
+				output[1] = color;
+				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+			}
+		} else {
+			for (legacy_s32 row = 0; row < scale; row++) {
+				for (legacy_s32 column = 0; column < scale; column++) {
+					output[column] = color;
+				}
+				output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+			}
+		}
+		return;
+	}
+	if (scale == HIRES_SCALE) {
+		for (legacy_s32 row = 0; row < HIRES_SCALE; row++) {
+			output[0] = palette[indices[0]];
+			output[1] = palette[indices[1]];
+			output[2] = palette[indices[2]];
+			output[3] = palette[indices[3]];
+			indices += HIRES_SCALE;
+			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+		}
+	} else if (scale == HIRES_MEDIUM_SCALE) {
+		for (legacy_s32 row = 0; row < HIRES_MEDIUM_SCALE; row++) {
+			output[0] = palette[indices[0]];
+			output[1] = palette[indices[1]];
+			indices += HIRES_MEDIUM_SCALE;
+			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+		}
+	} else {
+		for (legacy_s32 row = 0; row < scale; row++) {
+			for (legacy_s32 column = 0; column < scale; column++) {
+				output[column] = palette[indices[row * scale + column]];
+			}
+			output = (legacy_u32 *)((legacy_u8 *)output + pitch);
+		}
+	}
+}
+
 static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_s32 top,
 									legacy_s32 bottom)
 {
@@ -559,16 +617,8 @@ static void hires_compose_argb_rows(const struct HIRES_COMPOSE_JOB *job, legacy_
 			legacy_u32 *output =
 				(legacy_u32 *)((legacy_u8 *)destination + y * scale * pitch) + x * scale;
 			if (valid != HIRES_CELL_ARGB) {
-				/* Most cells have no full-color overlay. Convert their palette
-				 * samples directly, without per-sample alpha/fade bookkeeping. */
-				for (legacy_s32 row = 0; row < scale; row++) {
-					for (legacy_s32 column = 0; column < scale; column++) {
-						legacy_u8 index = valid != HIRES_CELL_EMPTY ? indices[row * scale + column]
-																	: legacy[offset];
-						output[column] = palette[index];
-					}
-					output = (legacy_u32 *)((legacy_u8 *)output + pitch);
-				}
+				/* Full-color overlays retain their general alpha/fade path. */
+				hires_compose_palette_cell(indices, legacy + offset, palette, output, pitch, scale);
 				continue;
 			}
 			const legacy_u32 *colors = surface->argb + ((size_t)offset << cell_shift);
