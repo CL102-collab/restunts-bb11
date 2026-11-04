@@ -1989,8 +1989,9 @@ releases the mouse, and the 2D editor retains its zoom and map position.
 The Scenery palette includes **Wheat field**, a one-tile patch of golden crop
 rows. Adjacent tiles form larger fields, rotation changes the row direction, and
 straight inclines are supported. Cars drive through the crops using the terrain
-beneath them. **Tulip field** adds eight narrow flower rows ordered white, green,
-yellow, orange, red, purple, pink and blue, with green edging and soil separators.
+beneath them. **Tulip field** adds ten narrow flower rows ordered green, red, pink,
+blue, yellow, purple, teal, pink, white and yellow, with green edging and soil
+separators.
 **Vine field** adds twenty-four short, narrow green rows with triangular tops
 and evenly spaced soil separators. Both support hillside inclines, rotation and
 adjoining fields. All three appear in the game and the editor's 2D and 3D views.

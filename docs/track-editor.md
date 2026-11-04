@@ -166,9 +166,9 @@ the row direction. Wheat supports raised flat ground and straight inclines and
 appears in both the 2D editor and 3D preview. Cars can drive through the crops;
 the underlying terrain determines driving grip. Wheat field requires `.cstrk` v11.
 
-**Tulip field** adds eight narrow flower bands ordered white, green, yellow,
-orange, red, purple, pink and blue, with one color along each row and green
-edging and soil separators between the bands. **Vine field** adds twenty-four
+**Tulip field** adds ten narrow flower bands ordered green, red, pink, blue,
+yellow, purple, teal, pink, white and yellow, with one color along each row and
+green edging and soil separators between the bands. **Vine field** adds twenty-four
 short, narrow green rows with triangular tops and evenly spaced soil separators.
 Both occupy one tile, join into larger fields, and support rotation, raised
 ground and straight hillside inclines in every direction.

@@ -20,7 +20,7 @@
     const CROP_ICON_SCALE = 4, CROP_ICON_SOIL = 200, CROP_ICON_EDGE_WIDTH = 1;
     const CROP_FIELD_ICONS = new Map([
         [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
-        [TULIP_FIELD_ID, { name: 'tulip field', rows: 8, gap: 2, colors: [15, 10, 70, 54, 38, 167, 181, 9] }],
+        [TULIP_FIELD_ID, { name: 'tulip field', rows: 10, scale: 8, gap: 4, colors: [10, 38, 181, 9, 70, 167, 3, 181, 15, 70] }],
         [VINE_FIELD_ID, { name: 'vine field', rows: 24, scale: 16, gap: 6, colors: [90], edge: 92 }]
     ]);
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
