@@ -282,6 +282,7 @@ set(game_sources
     hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
     extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c
     extended/extended_frame_render_ground.c extended/extended_frame_precise.c
+    extended/extended_frame_cache.c
     extended/extended_track_preview_hires.c hires/track_preview_mode.c hires/track_menu_preview.c
     hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c
     hires/frame_car_render.c hires/frame_scene.c hires/frame_terrain.c hires/frame_particles.c

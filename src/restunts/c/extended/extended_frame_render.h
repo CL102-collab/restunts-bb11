@@ -16,6 +16,11 @@ struct FRAME_EXTENDED_OBJECT;
 
 #if defined(RESTUNTS_SDL3)
 
+/* Call reset/configuration only after all render workers have joined. */
+void hires_frame_extended_ground_cache_reset(void);
+void hires_frame_extended_ground_cache_set_budget(legacy_u32 bytes);
+legacy_u32 hires_frame_extended_ground_cache_bytes(void);
+
 #define HIRES_FRAME_EXTENDED_GROUND_AREA_EPSILON 0.00000001
 #define HIRES_FRAME_EXTENDED_ROAD_OVERSCAN 8
 #define HIRES_FRAME_EXTENDED_LOOKAHEAD_RADIUS 28

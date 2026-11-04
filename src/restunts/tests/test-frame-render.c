@@ -14,7 +14,18 @@
 #ifdef RESTUNTS_SDL3
 #include "../c/hires/frame_snapshot.c"
 #endif
+#ifdef RESTUNTS_SDL3
+#define extended_track_active frame_test_inactive_extended_track
+#endif
 #include "extended-replay-test-stubs.h"
+#ifdef RESTUNTS_SDL3
+#undef extended_track_active
+static legacy_u8 frame_test_extended_track_active;
+legacy_int extended_track_active(void)
+{
+	return frame_test_extended_track_active;
+}
+#endif
 
 #undef printf
 #undef memcpy
@@ -25,6 +36,41 @@
 #include "../c/extended/extended_frame_objects.c"
 #include "../c/extended/extended_frame_terrain.c"
 #include "../c/extended/extended_frame_precise.c"
+/* SDK-free scheduling fixtures exercise the exact clipping fallback. The real
+ * bounded shared cache is covered by the threaded extended-render fixture. */
+legacy_u8 hires_frame_extended_ground_cache_lookup(
+	const struct FRAME_EXTENDED_TERRAIN *terrain, const struct VECTOR *source, legacy_u16 count,
+	struct FRAME_HIRES_GROUND_CACHE_PENDING *pending,
+	const struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT **fragments,
+	legacy_u16 *fragment_count)
+{
+	(void)terrain;
+	(void)source;
+	(void)count;
+	pending->slot = NULL;
+	pending->face = NULL;
+	*fragments = NULL;
+	*fragment_count = 0;
+	return 0;
+}
+legacy_u8 hires_frame_extended_ground_cache_retain(
+	struct FRAME_HIRES_GROUND_CACHE_PENDING *pending, const struct VECTOR *source, legacy_u16 count,
+	struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT *fragments, legacy_u16 capacity,
+	legacy_u16 fragment_count)
+{
+	(void)pending;
+	(void)source;
+	(void)count;
+	(void)fragments;
+	(void)capacity;
+	(void)fragment_count;
+	return 0;
+}
+void hires_frame_extended_ground_cache_release(struct FRAME_HIRES_GROUND_CACHE_PENDING *pending)
+{
+	pending->slot = NULL;
+	pending->face = NULL;
+}
 #endif
 
 struct TRACKOBJECT trkObjectList[215];
@@ -821,6 +867,48 @@ static void configure_track(void)
 		track_row_positions[index] = 30512 - index * 1024U;
 	}
 }
+
+#if defined(RESTUNTS_SDL3)
+static void test_extended_continuations_at_low_detail(void)
+{
+	static const legacy_u8 continuations[] = {TRACK_TILE_CONTINUATION_SOUTHEAST,
+											  TRACK_TILE_CONTINUATION_SOUTH,
+											  TRACK_TILE_CONTINUATION_EAST};
+	const legacy_s8 selected_column = 1, selected_row = 1;
+	const struct FRAME_LOOKAHEAD_TILE lookahead = {0, 0, FRAME_TILE_DETAIL_FULL};
+	legacy_s8 saved_detail = detail_level;
+	configure_track();
+	frame_test_extended_track_active = 1;
+	/* Extended occupancy markers remain at their own cell. Classic rendering
+	 * resolves them to the owning road before any catalog/scenery decision. */
+	for (detail_level = FRAME_DETAIL_FULL; detail_level <= FRAME_DETAIL_FASTEST; detail_level++) {
+		for (legacy_u8 player_here = 0; player_here <= 1U; player_here++) {
+			for (legacy_u16 index = 0; index < sizeof(continuations) / sizeof(continuations[0]);
+				 index++) {
+				struct FRAME_TILE_SELECTION tiles = {0};
+				struct FRAME_TILE tile = {0};
+				tiles.lookahead = &lookahead;
+				tiles.player_east = player_here ? selected_column : 0;
+				tiles.player_south = player_here ? selected_row : 0;
+				tile.east = selected_column;
+				tile.south = selected_row;
+				element_map[trackrows[selected_row] + selected_column] = continuations[index];
+				terrain_map[terrainrows[selected_row] + selected_column] = TERRAIN_RAISED_TILE;
+				frame_select_track_tile(&tiles, &tile, 0);
+				assert(tile.element == 0 && tiles.elements[0] == 0);
+				assert(tile.east == selected_column && tile.south == selected_row);
+				assert(tiles.east[0] == selected_column && tiles.south[0] == selected_row);
+				assert(tile.terrain == TERRAIN_RAISED_TILE &&
+					   tiles.terrain[0] == TERRAIN_RAISED_TILE);
+				assert(tiles.detail[0] == FRAME_TILE_DETAIL_FULL);
+				assert(tiles.markers[0] == FRAME_TILE_DRAW_MARKER);
+			}
+		}
+	}
+	frame_test_extended_track_active = 0;
+	detail_level = saved_detail;
+}
+#endif
 
 static void test_tile_selection(void)
 {
@@ -2754,6 +2842,7 @@ legacy_int main(void)
 	test_renderer_selection();
 	test_renderer_capacity_retries();
 #if defined(RESTUNTS_SDL3)
+	test_extended_continuations_at_low_detail();
 	test_complete_tile_lookup_matches_scans();
 	test_renderer_car_shadows();
 	test_renderer_grounding_surfaces();

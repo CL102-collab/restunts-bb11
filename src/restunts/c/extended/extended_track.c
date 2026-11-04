@@ -8,6 +8,9 @@
 #include "../track/track_objects.h"
 #include "../track/trackdata_layout.h"
 #include "extended_geometry.h"
+#ifndef RESTUNTS_HEADLESS
+#include "extended_frame_render.h"
+#endif
 #include "roll_ramp.h"
 
 struct EXTENDED_TRACK_BINDINGS {
@@ -385,6 +388,9 @@ static void extended_track_rebind(void)
 
 void extended_track_unload(void)
 {
+#ifndef RESTUNTS_HEADLESS
+	hires_frame_extended_ground_cache_reset();
+#endif
 	restore_bindings();
 	free(storage);
 	storage = NULL;
@@ -633,6 +639,9 @@ int extended_track_load(const uint8_t *data, size_t size, char *error, size_t er
 		cstrk_free(&next);
 		return 0;
 	}
+#ifndef RESTUNTS_HEADLESS
+	hires_frame_extended_ground_cache_reset();
+#endif
 	restore_bindings();
 	free(storage);
 	cstrk_free(&current_track);

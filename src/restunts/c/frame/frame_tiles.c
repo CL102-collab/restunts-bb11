@@ -106,6 +106,11 @@ void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAME_TI
 	tiles->terrain[tile_index] = tile->terrain;
 	tiles->detail[tile_index] = tiles->lookahead[tile_index].detail;
 
+#if defined(RESTUNTS_SDL3)
+	/* Extended continuation markers describe independent object occupancy and
+	 * must be cleared before any legacy catalog lookup, including scenery. */
+	tile->element = extended_frame_legacy_element(tile->element);
+#endif
 	if (tile->element != 0 && detail_level != FRAME_DETAIL_FULL &&
 		trkObjectList[tile->element].ss_physicalModel >= FRAME_SCENERY_PHYSICAL_MODEL_FIRST &&
 		(tile->east != tiles->player_east || tile->south != tiles->player_south)) {
@@ -114,9 +119,6 @@ void frame_select_track_tile(struct FRAME_TILE_SELECTION *tiles, struct FRAME_TI
 
 	tiles->east[tile_index] = tile->east;
 	tiles->south[tile_index] = tile->south;
-#if defined(RESTUNTS_SDL3)
-	tile->element = extended_frame_legacy_element(tile->element);
-#endif
 	tiles->elements[tile_index] = tile->element;
 
 	frame_mark_covered_tiles(tiles, tile, tile_index);

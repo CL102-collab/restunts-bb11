@@ -22,6 +22,11 @@ static legacy_s16 camera_height[TEST_CAMERA_CAPACITY], camera_words[TEST_CAMERA_
 static legacy_s16 sign_headings[TEST_CAMERA_CAPACITY];
 static legacy_u8 sign_shapes[TEST_CAMERA_CAPACITY];
 
+/* This route-only fixture has no renderer-owned terrain cache. */
+void hires_frame_extended_ground_cache_reset(void)
+{
+}
+
 void far *mmgr_alloc_resbytes(const legacy_s8 *name, legacy_s32 size)
 {
 	(void)name;

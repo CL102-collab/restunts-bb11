@@ -36,9 +36,18 @@ struct HIRES_VISIBILITY_COMMAND {
 	struct HIRES_DEPTH_PLANE plane;
 	legacy_s32 planar;
 };
-struct HIRES_VISIBILITY_BIN {
-	legacy_u32 *hires_commands;
+enum {
+	HIRES_VISIBILITY_SOLID,
+	HIRES_VISIBILITY_DETAIL,
+	HIRES_VISIBILITY_PATTERN,
+	HIRES_VISIBILITY_CLASS_COUNT
+};
+struct HIRES_VISIBILITY_LIST {
+	legacy_u32 *commands;
 	size_t count, capacity;
+};
+struct HIRES_VISIBILITY_BIN {
+	struct HIRES_VISIBILITY_LIST lists[HIRES_VISIBILITY_CLASS_COUNT];
 	struct HIRES_RASTER_CONTEXT context;
 };
 struct HIRES_VISIBILITY_SPAN {
@@ -149,7 +158,9 @@ void hires_backend_shutdown(void)
 	hires_build_buffers = NULL;
 	hires_build_capacity = 0;
 	for (legacy_s32 band = 0; band < HIRES_VISIBILITY_BAND_COUNT; band++) {
-		free(hires_bins[band].hires_commands);
+		for (legacy_s32 kind = 0; kind < HIRES_VISIBILITY_CLASS_COUNT; kind++) {
+			free(hires_bins[band].lists[kind].commands);
+		}
 		memset(&hires_bins[band], 0, sizeof(hires_bins[band]));
 	}
 	hires_backend_begin(NULL);
@@ -618,29 +629,17 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 		visible[0] =
 			(struct HIRES_VISIBILITY_SPAN){bin->context.target->left, bin->context.target->right, 0,
 										   0, HIRES_VISIBILITY_NO_COMMAND};
-		for (size_t index = 0; index < bin->count; index++) {
-			legacy_u32 entry = bin->hires_commands[index];
-			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
-			if (y < command->top || y >= command->bottom ||
-				(command->material.mode == HIRES_PAINT_PATTERN ||
-				 (command->material.flags & (HIRES_BACKEND_DECAL | HIRES_BACKEND_GROUND_CLIP)) !=
-					 0U)) {
-				continue;
-			}
-			hires_visibility_scan_command(bin, entry, y, visible, &count, scratch,
-										  hires_incremental);
-		}
-		/* Solid detail layers share the same visibility partition. Most road
-		 * markings and line quads therefore need no per-sample depth checks. */
-		for (size_t index = 0; index < bin->count; index++) {
-			legacy_u32 entry = bin->hires_commands[index];
-			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
-			if (command->material.mode != HIRES_PAINT_PATTERN &&
-				(command->material.flags & (HIRES_BACKEND_DECAL | HIRES_BACKEND_GROUND_CLIP)) !=
-					0U &&
-				y >= command->top && y < command->bottom) {
-				hires_visibility_scan_command(bin, entry, y, visible, &count, scratch,
-											  hires_incremental);
+		/* Classify once when bins are built. Each list keeps submission order,
+		 * and solid detail layers still follow their supporting surfaces. */
+		for (legacy_s32 kind = HIRES_VISIBILITY_SOLID; kind <= HIRES_VISIBILITY_DETAIL; kind++) {
+			const struct HIRES_VISIBILITY_LIST *list = &bin->lists[kind];
+			for (size_t index = 0; index < list->count; index++) {
+				legacy_u32 entry = list->commands[index];
+				const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
+				if (y >= command->top && y < command->bottom) {
+					hires_visibility_scan_command(bin, entry, y, visible, &count, scratch,
+												  hires_incremental);
+				}
 			}
 		}
 		if (!hires_incremental) {
@@ -658,11 +657,11 @@ static void hires_visibility_draw_band(void *argument, legacy_s32 band)
 					material->color, material->alternate, material->pattern, material->mode);
 			}
 		}
-		for (size_t index = 0; index < bin->count; index++) {
-			legacy_u32 entry = bin->hires_commands[index];
+		const struct HIRES_VISIBILITY_LIST *patterns = &bin->lists[HIRES_VISIBILITY_PATTERN];
+		for (size_t index = 0; index < patterns->count; index++) {
+			legacy_u32 entry = patterns->commands[index];
 			const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[entry];
-			if (command->material.mode == HIRES_PAINT_PATTERN && y >= command->top &&
-				y < command->bottom) {
+			if (y >= command->top && y < command->bottom) {
 				hires_visibility_scan_command(bin, entry, y, visible, &count, scratch, 1);
 			}
 		}
@@ -684,7 +683,9 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 		(target->height + HIRES_VISIBILITY_BAND_HEIGHT - 1) / HIRES_VISIBILITY_BAND_HEIGHT;
 	for (legacy_s32 band = 0; band < band_count; band++) {
 		struct HIRES_VISIBILITY_BIN *bin = &hires_bins[band];
-		bin->count = 0;
+		for (legacy_s32 kind = 0; kind < HIRES_VISIBILITY_CLASS_COUNT; kind++) {
+			bin->lists[kind].count = 0;
+		}
 		bin->context = (struct HIRES_RASTER_CONTEXT){target, band * HIRES_VISIBILITY_BAND_HEIGHT,
 													 (band + 1) * HIRES_VISIBILITY_BAND_HEIGHT, 0};
 		if (bin->context.top < target->top) {
@@ -696,21 +697,26 @@ legacy_s32 hires_backend_end(const struct HIRES_RASTER_TARGET *target, legacy_s3
 	}
 	for (size_t index = 0; index < hires_frame.command_count; index++) {
 		const struct HIRES_VISIBILITY_COMMAND *command = &hires_frame.commands[index];
+		legacy_s32 kind =
+			command->material.mode == HIRES_PAINT_PATTERN ? HIRES_VISIBILITY_PATTERN
+			: (command->material.flags & (HIRES_BACKEND_DECAL | HIRES_BACKEND_GROUND_CLIP)) != 0U
+				? HIRES_VISIBILITY_DETAIL
+				: HIRES_VISIBILITY_SOLID;
 		legacy_s32 first = command->top / HIRES_VISIBILITY_BAND_HEIGHT;
 		legacy_s32 last = (command->bottom - 1) / HIRES_VISIBILITY_BAND_HEIGHT;
 		if (last >= band_count) {
 			last = band_count - 1;
 		}
 		for (legacy_s32 band = first; band <= last; band++) {
-			struct HIRES_VISIBILITY_BIN *bin = &hires_bins[band];
-			bin->hires_commands = hires_visibility_reserve(
-				bin->hires_commands, &bin->capacity, bin->count + 1U, HIRES_VISIBILITY_INITIAL_BIN,
-				sizeof(*bin->hires_commands), &hires_frame.allocation_failed);
+			struct HIRES_VISIBILITY_LIST *list = &hires_bins[band].lists[kind];
+			list->commands = hires_visibility_reserve(
+				list->commands, &list->capacity, list->count + 1U, HIRES_VISIBILITY_INITIAL_BIN,
+				sizeof(*list->commands), &hires_frame.allocation_failed);
 			if (hires_frame.allocation_failed) {
 				fatal_error("Cannot allocate HyperVision visibility bins");
 				return 0;
 			}
-			bin->hires_commands[bin->count++] = (legacy_u32)index;
+			list->commands[list->count++] = (legacy_u32)index;
 		}
 	}
 	legacy_s32 workers = 0;

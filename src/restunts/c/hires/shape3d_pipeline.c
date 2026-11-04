@@ -244,13 +244,23 @@ static void shape3d_hires_prepare_transform(struct TRANSFORMEDSHAPE3D *instance,
 	/* Match mat_rot_zxy's ZXY products with call-local scratch matrices.
 	 * Geometry workers share the view matrix but never rotation temporaries. */
 	struct MATRIX rotation_z, rotation_x, rotation_y, rotation_temp, rotation;
-	mat_rot_z(&rotation_z, instance->rotvec.x);
-	mat_rot_x(&rotation_x, instance->rotvec.y);
-	mat_rot_y(&rotation_y, instance->rotvec.z);
-	mat_multiply(&rotation_z, &rotation_x, &rotation_temp);
-	mat_multiply(&rotation_temp, &rotation_y, &rotation);
+	if (((instance->rotvec.x | instance->rotvec.y) & ANGLE_MASK) == 0) {
+		/* Static track shapes and generated terrain need only yaw. Identity
+		 * factors are exact in the legacy fixed-point matrix product. */
+		mat_rot_y(&rotation, instance->rotvec.z);
+	} else {
+		mat_rot_z(&rotation_z, instance->rotvec.x);
+		mat_rot_x(&rotation_x, instance->rotvec.y);
+		mat_rot_y(&rotation_y, instance->rotvec.z);
+		mat_multiply(&rotation_z, &rotation_x, &rotation_temp);
+		mat_multiply(&rotation_temp, &rotation_y, &rotation);
+	}
 	shape3d_hires_prepare_instance(instance, context, &rotation);
-	mat_multiply(&rotation, &mat_temp, &context->object_to_view_rotation);
+	if (((instance->rotvec.x | instance->rotvec.y | instance->rotvec.z) & ANGLE_MASK) == 0) {
+		context->object_to_view_rotation = mat_temp;
+	} else {
+		mat_multiply(&rotation, &mat_temp, &context->object_to_view_rotation);
+	}
 	if ((context->flags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		shape3d_hires_prepare_pretransformed(context);
 	} else {
