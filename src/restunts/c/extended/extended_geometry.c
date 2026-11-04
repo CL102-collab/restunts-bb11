@@ -352,43 +352,67 @@ legacy_s16 extended_geometry_transform_shape_paint(const struct SHAPE3D *source,
 	destination->shape3d_numpaints = 1;
 	memset(destination->shape3d_visibility_masks, 255, mask_bytes);
 	memset(destination->shape3d_front_facing_masks, 0, mask_bytes);
-	for (unsigned i = 0; i < source->shape3d_numverts; i++) {
-		struct VECTOR local, rotated;
-		const legacy_u8 *vertex = source->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
-		local.x = LEGACY_READ_S16_LE(vertex);
-		local.y = LEGACY_READ_S16_LE(vertex + 2);
-		local.z = LEGACY_READ_S16_LE(vertex + 4);
-		rotated = local;
-		switch (orientation & ANGLE_MASK) {
-			case ANGLE_QUARTER_TURN:
-				rotated.x = local.z;
-				rotated.z = LEGACY_S16_WRAP_NEGATE(local.x);
-				break;
-			case ANGLE_HALF_TURN:
-				rotated.x = LEGACY_S16_WRAP_NEGATE(local.x);
-				rotated.z = LEGACY_S16_WRAP_NEGATE(local.z);
-				break;
-			case ANGLE_THREE_QUARTER_TURN:
-				rotated.x = LEGACY_S16_WRAP_NEGATE(local.z);
-				rotated.z = local.x;
-				break;
+	legacy_u16 rotation = (legacy_u16)orientation & ANGLE_MASK;
+	if (rotation != ANGLE_QUARTER_TURN && rotation != ANGLE_HALF_TURN &&
+		rotation != ANGLE_THREE_QUARTER_TURN) {
+		/* Identity and unsupported yaw values preserve the authored bytes.
+		 * Generated meshes commonly use this path, so avoid decoding and
+		 * writing all three coordinates of every unchanged vertex. */
+		memcpy(destination->shape3d_vertex_bytes, source->shape3d_vertex_bytes, vertex_bytes);
+	} else {
+		for (legacy_u16 i = 0; i < source->shape3d_numverts; i++) {
+			struct VECTOR local, rotated;
+			const legacy_u8 *vertex =
+				source->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
+			local.x = LEGACY_READ_S16_LE(vertex);
+			local.y = LEGACY_READ_S16_LE(vertex + 2);
+			local.z = LEGACY_READ_S16_LE(vertex + 4);
+			rotated = local;
+			switch (rotation) {
+				case ANGLE_QUARTER_TURN:
+					rotated.x = local.z;
+					rotated.z = LEGACY_S16_WRAP_NEGATE(local.x);
+					break;
+				case ANGLE_HALF_TURN:
+					rotated.x = LEGACY_S16_WRAP_NEGATE(local.x);
+					rotated.z = LEGACY_S16_WRAP_NEGATE(local.z);
+					break;
+				case ANGLE_THREE_QUARTER_TURN:
+					rotated.x = LEGACY_S16_WRAP_NEGATE(local.z);
+					rotated.z = local.x;
+					break;
+			}
+			legacy_u8 *out_vertex =
+				destination->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
+			LEGACY_WRITE_U16_LE(out_vertex, (legacy_u16)rotated.x);
+			LEGACY_WRITE_U16_LE(out_vertex + 2, (legacy_u16)rotated.y);
+			LEGACY_WRITE_U16_LE(out_vertex + 4, (legacy_u16)rotated.z);
 		}
-		legacy_u8 *out_vertex = destination->shape3d_vertex_bytes + (size_t)i * SHAPE3D_VERTEX_SIZE;
-		LEGACY_WRITE_U16_LE(out_vertex, (legacy_u16)rotated.x);
-		LEGACY_WRITE_U16_LE(out_vertex + 2, (legacy_u16)rotated.y);
-		LEGACY_WRITE_U16_LE(out_vertex + 4, (legacy_u16)rotated.z);
+	}
+	if (source->shape3d_numpaints == 1 && surface == CSTRK_ROAD_PAVED) {
+		/* Single-paint generated meshes already have the final primitive
+		 * layout. The validated records can be copied together; construct
+		 * the terminator without depending on a readable source footer. */
+		size_t records = primitive_bytes - EXTENDED_GEOMETRY_TERMINATOR_BYTES;
+		if (records != 0) {
+			memcpy(destination->shape3d_primitives, source->shape3d_primitives, records);
+		}
+		destination->shape3d_primitives[records] = 0;
+		destination->shape3d_primitives[records + 1U] = 0;
+		return 1;
 	}
 	primitive = source->shape3d_primitives;
 	legacy_u8 *out = destination->shape3d_primitives;
-	for (unsigned i = 0; i < source->shape3d_numprimitives; i++) {
-		unsigned count = counts[primitive[0]];
-		legacy_u16 selected_paint = paint < source->shape3d_numpaints ? paint : 0;
+	legacy_u16 selected_paint = paint < source->shape3d_numpaints ? paint : 0;
+	legacy_u8 repaint = surface != CSTRK_ROAD_PAVED && source->shape3d_numpaints > CSTRK_ROAD_ICE &&
+						renderer_geometry_repaint_enabled();
+	for (legacy_u16 i = 0; i < source->shape3d_numprimitives; i++) {
+		legacy_u16 count = counts[primitive[0]];
 		legacy_u8 material = primitive[2U + selected_paint];
 		/* Paint columns can animate a sign while every road face stays paved.
 		 * HyperVision remaps these unchanged faces while retaining native variants. */
-		if (surface != CSTRK_ROAD_PAVED &&
-			(source->shape3d_numpaints <= CSTRK_ROAD_ICE ||
-			 (renderer_geometry_repaint_enabled() && material == primitive[2U]))) {
+		if (surface != CSTRK_ROAD_PAVED && (source->shape3d_numpaints <= CSTRK_ROAD_ICE ||
+											(repaint && material == primitive[2U]))) {
 			legacy_u8 road_material =
 				surface == CSTRK_ROAD_DIRT ? EXTENDED_MATERIAL_DIRT : EXTENDED_MATERIAL_ICE;
 			if (material == EXTENDED_MATERIAL_PAVED) {

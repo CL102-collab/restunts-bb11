@@ -612,6 +612,59 @@ at all three resolutions with serial and worker execution. The HyperVision,
 shape3d, extended-render, replay-render, worker, framebuffer, interpolation, and
 adaptive-quality tests pass; formatting and CRLF checks pass.
 
+### Glacier mesh preparation and composition (2026-11-04)
+
+The next profile after `b880ff1f` attributed about 6.2% of sampled serial CPU
+time to `extended_geometry_transform_shape_paint` and 5.0% to final ARGB
+composition. The retained changes reduce repeated work in those two phases:
+
+- Identity/default-yaw mesh transforms copy unchanged vertex bytes together.
+  Single-paint paved meshes copy their validated primitive records together and
+  create their own terminator, without reading a source footer. Other rotations
+  and material variants keep their conversion rules; paint selection and the
+  renderer's repaint setting are selected once per mesh.
+- Indexed 4x4 and 2x2 cells use fixed-width palette conversion. Empty cells look
+  up their fallback color once. The general ARGB blending/fade path and pitched
+  output remain supported.
+
+The optimized profile attributes about 2.8% of serial CPU samples to mesh
+conversion and 1.8% to composition. Diagnostic two-CPU phase timing measures
+composition at about 0.30 ms/frame, versus 0.49 ms/frame before the change.
+Sampling and phase timings are diagnostic; the uninstrumented whole-workload
+comparison below determines the reported throughput improvement.
+
+The baseline is `b880ff1f`. Both versions use the same Linux x86-64 GCC 14.2
+Release build, generic instruction baseline, Xeon Platinum 8573C VM, resource
+files, Full 1280x800 preset, and acceleration-only automatic Countach cockpit
+path described above. Each batch advances 200 physics ticks and renders 600
+interpolated samples: ten simulated seconds. Three baseline/candidate batches
+alternate order, with the CPU-count order reversed in the middle batch. CPU
+affinity is `0` with zero background workers or `0,2` with one background worker.
+
+| CPUs | Baseline FPS (batch range) | Optimized FPS (batch range) | Throughput change |
+| --- | ---: | ---: | ---: |
+| 1 | 58.30 (58.21–58.48) | 61.25 (61.11–61.53) | +5.1% |
+| 2 | 92.75 (91.80–93.89) | 96.86 (96.41–97.12) | +4.4% |
+
+On two CPUs, mean elapsed time falls from 10.782 to
+10.324 ms/frame, and total process CPU time including workers
+falls from 19.117 to 18.251 ms/frame. FPS includes
+physics, interpolation, rendering, and final ARGB composition; display upload,
+presentation, audio playback, and pacing are excluded. These are VM throughput
+measurements, rather than presented FPS or a Core 2 Duo hardware result. Use the
+`--drive-seconds 10 --compose` command above to reproduce the workload.
+
+All 600 interpolated frame hashes match `b880ff1f`; complete serial/parallel ARGB
+comparisons at the three checkpoints and final state hash `fa0fe5fb` also match.
+Ten targeted CTest suites pass, covering native/extended geometry and replay
+physics, rendered replays, visibility, composition, workers, interpolation, and
+adaptive quality. Focused tests check mixed primitive records with no source
+footer, signed-coordinate extremes, unsupported yaw, empty meshes, independent
+storage, fresh terminators, unchanged source buffers, and material variants.
+ASan/UBSan also pass for these focused mesh tests with the transform and test
+driver translation units instrumented. Source formatting, whitespace, CRLF,
+and non-executable file modes are checked.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

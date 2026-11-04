@@ -199,6 +199,111 @@ static void test_native_mesh_rotations(void)
 	}
 }
 
+/* A generated native mesh need not provide footer bytes after its declared
+ * primitive records. The result owns its storage and supplies a fresh footer. */
+static void test_native_mesh_copy_boundaries(void)
+{
+	enum {
+		COPY_VERTEX_COUNT = 4,
+		COPY_PRIMITIVE_COUNT = 4,
+		COPY_VISIBILITY_SOURCE = 0x36,
+		COPY_FACING_SOURCE = 0xA7,
+		COPY_POINT_FLAGS = 0x81,
+		COPY_LINE_FLAGS = 0x02,
+		COPY_TRIANGLE_FLAGS = 0x03,
+		COPY_QUAD_FLAGS = 0x84,
+		COPY_MINIMUM_COORDINATE = -(legacy_s32)LEGACY_S16_MAX - 1
+	};
+	const struct VECTOR coordinates[COPY_VERTEX_COUNT] = {
+		{COPY_MINIMUM_COORDINATE, 0, LEGACY_S16_MAX},
+		{-1, 1, COPY_MINIMUM_COORDINATE},
+		{LEGACY_S16_MAX, COPY_MINIMUM_COORDINATE, 0},
+		{0, -1, 1}};
+	const legacy_u8 records[] = {SHAPE3D_PRIMITIVE_POINT,
+								 COPY_POINT_FLAGS,
+								 19,
+								 3,
+								 SHAPE3D_PRIMITIVE_LINE,
+								 COPY_LINE_FLAGS,
+								 21,
+								 2,
+								 0,
+								 SHAPE3D_PRIMITIVE_POLYGON_FIRST,
+								 COPY_TRIANGLE_FLAGS,
+								 22,
+								 1,
+								 3,
+								 2,
+								 SHAPE3D_PRIMITIVE_POLYGON_FIRST + 1U,
+								 COPY_QUAD_FLAGS,
+								 24,
+								 3,
+								 0,
+								 2,
+								 1};
+	const legacy_s16 orientations[] = {0, ANGLE_FULL_TURN, ANGLE_EIGHTH_TURN, -ANGLE_EIGHTH_TURN};
+	legacy_u8 vertices[COPY_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	for (legacy_u16 vertex = 0; vertex < COPY_VERTEX_COUNT; vertex++) {
+		legacy_u8 *bytes = vertices + vertex * SHAPE3D_VERTEX_SIZE;
+		LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_X_OFFSET, (legacy_u16)coordinates[vertex].x);
+		LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_Y_OFFSET, (legacy_u16)coordinates[vertex].y);
+		LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_Z_OFFSET, (legacy_u16)coordinates[vertex].z);
+	}
+	legacy_u8 original_vertices[sizeof(vertices)];
+	memcpy(original_vertices, vertices, sizeof(vertices));
+	legacy_u8 visibility[COPY_PRIMITIVE_COUNT * SHAPE3D_VISIBILITY_MASK_SIZE];
+	legacy_u8 facing[sizeof(visibility)];
+	memset(visibility, COPY_VISIBILITY_SOURCE, sizeof(visibility));
+	memset(facing, COPY_FACING_SOURCE, sizeof(facing));
+	legacy_u8 *primitive_bytes = malloc(sizeof(records));
+	assert(primitive_bytes != NULL);
+	memcpy(primitive_bytes, records, sizeof(records));
+	struct SHAPE3D source = {COPY_VERTEX_COUNT, vertices, COPY_PRIMITIVE_COUNT, 1, primitive_bytes,
+							 visibility,		facing};
+	struct SHAPE3D original_source = source;
+	for (legacy_u16 direction = 0; direction < sizeof(orientations) / sizeof(orientations[0]);
+		 direction++) {
+		struct SHAPE3D transformed;
+		assert(extended_geometry_transform_shape_paint(&source, &transformed,
+													   orientations[direction], CSTRK_ROAD_PAVED,
+													   PHYSICAL_MODEL_ROAD, LEGACY_U16_MAX));
+		assert(transformed.shape3d_numverts == COPY_VERTEX_COUNT);
+		assert(transformed.shape3d_numprimitives == COPY_PRIMITIVE_COUNT);
+		assert(transformed.shape3d_numpaints == 1);
+		assert(transformed.shape3d_vertex_bytes != vertices);
+		assert(transformed.shape3d_primitives != primitive_bytes);
+		assert(memcmp(transformed.shape3d_vertex_bytes, original_vertices, sizeof(vertices)) == 0);
+		assert(memcmp(transformed.shape3d_primitives, records, sizeof(records)) == 0);
+		assert(transformed.shape3d_primitives[sizeof(records)] == 0);
+		assert(transformed.shape3d_primitives[sizeof(records) + 1U] == 0);
+		for (legacy_u16 byte = 0; byte < sizeof(visibility); byte++) {
+			assert(transformed.shape3d_visibility_masks[byte] == LEGACY_U8_MAX);
+			assert(transformed.shape3d_front_facing_masks[byte] == 0);
+			assert(visibility[byte] == COPY_VISIBILITY_SOURCE);
+			assert(facing[byte] == COPY_FACING_SOURCE);
+		}
+		assert(memcmp(&source, &original_source, sizeof(source)) == 0);
+		assert(memcmp(vertices, original_vertices, sizeof(vertices)) == 0);
+		assert(memcmp(primitive_bytes, records, sizeof(records)) == 0);
+		extended_geometry_free_shape(&transformed);
+	}
+	free(primitive_bytes);
+	source.shape3d_numprimitives = 0;
+	source.shape3d_primitives = NULL;
+	source.shape3d_visibility_masks = source.shape3d_front_facing_masks = NULL;
+	original_source = source;
+	struct SHAPE3D transformed;
+	assert(extended_geometry_transform_shape_paint(&source, &transformed, ANGLE_EIGHTH_TURN,
+												   CSTRK_ROAD_PAVED, PHYSICAL_MODEL_ROAD,
+												   LEGACY_U16_MAX));
+	assert(transformed.shape3d_numprimitives == 0 && transformed.shape3d_numpaints == 1);
+	assert(memcmp(transformed.shape3d_vertex_bytes, original_vertices, sizeof(vertices)) == 0);
+	assert(transformed.shape3d_primitives[0] == 0 && transformed.shape3d_primitives[1] == 0);
+	assert(memcmp(&source, &original_source, sizeof(source)) == 0);
+	assert(memcmp(vertices, original_vertices, sizeof(vertices)) == 0);
+	extended_geometry_free_shape(&transformed);
+}
+
 static void test_raised_stunt_and_snapshot(void)
 {
 	struct CSTRK_TRACK track;
@@ -3247,6 +3352,7 @@ int main(void)
 	legacy_u8 *legacy_terrain = track_terrain_map;
 	legacy_s16 *legacy_links = track_primary_route_links;
 	test_native_mesh_rotations();
+	test_native_mesh_copy_boundaries();
 	test_world_coordinates_and_surfaces();
 	test_raised_stunt_and_snapshot();
 	test_every_element_on_straight_slopes();
