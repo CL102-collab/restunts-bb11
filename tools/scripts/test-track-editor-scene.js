@@ -165,7 +165,7 @@ test('low wheat rows follow the terrain in all slope and rotation directions', (
 
 test('solid tulip rows and pitched vine rows render without native model resources', () => {
     const assets = { models: new Map(), palette: palette() };
-    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 12, 36, 0], [model.VINE_FIELD_ID, 48, 340, 0]]) {
+    for (const [id, height, triangles, stems] of [[model.TULIP_FIELD_ID, 12, 44, 0], [model.VINE_FIELD_ID, 48, 340, 0]]) {
         const doc = new model.Document(1, 1); doc.place(id, 0, 0);
         const before = doc.snapshot(), result = scene.buildScene(doc, assets);
         assert.equal(result.instances, 1); assert.equal(result.triangles, triangles);
@@ -179,18 +179,18 @@ test('solid tulip rows and pitched vine rows render without native model resourc
     }
 });
 
-test('tulips retain eight narrow rows in white, green, yellow, orange, red, purple, pink and blue order', () => {
+test('tulips retain ten narrower rows in green, red, pink, blue, yellow, purple, teal, pink, white and yellow order', () => {
     const doc = new model.Document(1, 1); doc.place(model.TULIP_FIELD_ID, 0, 0);
     const result = scene.buildScene(doc, { models: new Map(), palette: palette() });
     const objectPoints = vertices(result.positions, 18);
-    assert.equal(objectPoints.length, 17 * 6, 'only soil, eight green rows and eight colored quads remain');
+    assert.equal(objectPoints.length, 21 * 6, 'only soil, ten green rows and ten colored quads remain');
     assert.equal(result.linePositions.length, 0, 'there are no individual flower stems');
     for (let first = 0; first < objectPoints.length; first += 6) {
         const quad = objectPoints.slice(first, first + 6);
         assert(quad.every(point => point[1] === quad[0][1]), 'each solid row remains a planar quad at one height');
         assert([2 / TILE, 4 / TILE, 12 / TILE].includes(quad[0][1]), 'no individual flower cups or petals remain above the bands');
     }
-    const rowCount = 8, bandWidth = 100, leafWidth = 120;
+    const rowCount = 10, bandWidth = 80, leafWidth = 96;
     const first = (4 + rowCount * 2) * 9, count = rowCount * 6;
     const points = vertices(result.positions, first).slice(0, count);
     let area = 0;
@@ -201,8 +201,8 @@ test('tulips retain eight narrow rows in white, green, yellow, orange, red, purp
     }
     near(area, rowCount * bandWidth / TILE);
     const colors = new Set(vertices(result.colors, first).slice(0, count).map(color => color.map(channel => channel.toFixed(4)).join(',')));
-    assert.equal(colors.size, rowCount, 'all eight flower colors stay distinct');
-    const rowMaterials = [15, 10, 61, 124, 54, 75, 37, 9], flowerColors = vertices(result.colors, first).slice(0, count), rgb = palette();
+    assert.equal(colors.size, 8, 'all eight flower colors stay distinct across ten rows');
+    const rowMaterials = [10, 54, 37, 9, 61, 75, 3, 37, 15, 61], flowerColors = vertices(result.colors, first).slice(0, count), rgb = palette();
     let previousRight = -Infinity;
     const leaves = objectPoints.slice(6, 6 + rowCount * 6);
     for (let row = 0; row < rowCount; row++) {
