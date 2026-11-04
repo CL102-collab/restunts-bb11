@@ -243,6 +243,67 @@ resolutions. Enabling workers also performs a complete serial/parallel pixel
 comparison before each timed case. The replay form accepts `--start-only` to
 restrict measurements to the initial cockpit at 1280x800.
 
+### Glacier CPU optimization follow-up (2026-11-04)
+
+Profiling the same Glacier scene found costs in terrain clipping and worker
+coordination. Precise-ground clipping accounted for 23.4% of sampled serial CPU
+time. Separate phase timing measured geometry at about 16.0 ms on one core and
+8.8 ms on two cores, while building and merging raster commands increased from
+about 1.2 ms to 2.0 ms. These diagnostic timings include instrumentation overhead;
+the uninstrumented comparison below measures the complete renderer workload.
+
+Geometry joins now reserve a batch once, compute disjoint output offsets, and
+copy independent job results in parallel while preserving ordered boundaries for
+dynamic work. Precise-ground painting splits both paint regions in one vertex
+walk and alternates scratch buffers to avoid duplicate clipping and copies. Its
+zero-numerator shortcut preserves signed zero; extended-precision builds retain
+the original division expression. Padding each worker's mutable backend-buffer
+metadata prevents adjacent jobs from updating the same cache line.
+
+The comparison uses baseline `1072ea42` and the optimized renderer, built with
+GCC 14.2 in Linux Release mode (`-O3`, the same instruction-set baseline). Each
+configuration ran twice in forward and reverse order, alternating baseline and
+optimized binaries. Each batch used eight warmup frames and 240 measured frames:
+Glacier at race start, Countach cockpit, Full HyperVision at 1280x800, including
+final ARGB composition. Affinity was `0`, `0,2`, or `0,2,4` for one, two, or three
+separate physical cache groups, with zero, one, or two background workers.
+
+Values below are mean elapsed milliseconds per frame; parentheses give the range
+of the two batch means. Throughput improvement compares the optimized renderer
+with the baseline at the same core count.
+
+| Cores used | Baseline ms/frame (range) | Optimized ms/frame (range) | Throughput improvement |
+| --- | ---: | ---: | ---: |
+| 1 | 24.031 (23.952–24.109) | 21.747 (21.670–21.824) | 10.5% |
+| 2 | 15.216 (15.158–15.274) | 12.754 (12.718–12.789) | 19.3% |
+| 3 | 11.406 (11.379–11.432) | 9.294 (9.227–9.361) | 22.7% |
+
+Mean process CPU time also decreased: 24.029 to 21.746 ms per frame on one core,
+27.924 to 23.496 ms on two, and 28.849 to 23.683 ms on three. The optimized
+one-to-two-core throughput gain was 70.5% (1.705x), compared with 57.9% (1.579x)
+for the baseline in these paired runs. Three cores reached 2.340x the optimized
+one-core throughput. The two-core result improves scaling but remains below a
+90% gain.
+
+Every timed case passed a complete serial/parallel ARGB comparison and retained
+Glacier's cockpit hash `503c8616`. These measurements cover renderer throughput;
+display upload, physics, audio, frame pacing, and VSync remain outside the timed
+loop. The VM still exposes only three independent cache groups and a four-CPU
+quota, so these results do not establish four-core scaling or interactive FPS on
+the target hardware.
+
+All 82 native CTest suites pass. All 18 DEFAULT views and all six Glacier
+camera/resolution cases retained the
+baseline hashes with one and three background workers, with complete
+serial/parallel pixel comparisons. The terrain split also passes 10,240
+byte-for-byte comparisons with the original clipping functions, including signed
+zero and subnormal cases, under native SSE2 and isolated x87 evaluation modes.
+AddressSanitizer and UndefinedBehaviorSanitizer instrumented all 237 game source
+units and passed the worker, backend, geometry, extended-render and six-view
+Glacier checks. Focused ThreadSanitizer builds instrumented 79 renderer/geometry
+units and passed the worker, backend and geometry suites without race reports;
+SDL, media libraries and unrelated core code were reused without TSan.
+
 ### Earlier results
 
 A paired Linux Release comparison on 2026-10-01 used GCC 13.3 (`-O3`, the same

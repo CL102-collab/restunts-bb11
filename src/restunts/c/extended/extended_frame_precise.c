@@ -2,6 +2,11 @@
 #include "extended_frame_internal.h"
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
+
+#define HIRES_PRECISE_GROUND_CLIP_BUFFER_COUNT 2U
+#define HIRES_PRECISE_EVALUATE_AS_DECLARED 0
+#define HIRES_PRECISE_EVALUATE_AS_DOUBLE 1
 
 #if defined(RESTUNTS_SDL3)
 void hires_frame_extended_append_precise_vertex(struct SHAPE3D_HIRES_VECTOR *output,
@@ -202,6 +207,104 @@ legacy_u16 hires_frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_V
 #endif
 
 #if defined(RESTUNTS_SDL3)
+static legacy_f64 hires_frame_extended_precise_crossing_coordinate(legacy_f64 current,
+																   legacy_f64 previous,
+																   legacy_f64 previous_side,
+																   legacy_f64 side,
+																   legacy_f64 divisor)
+{
+#if FLT_EVAL_METHOD != HIRES_PRECISE_EVALUATE_AS_DECLARED &&                                       \
+	FLT_EVAL_METHOD != HIRES_PRECISE_EVALUATE_AS_DOUBLE
+	/* Preserve the original expression's extended numerator through division.
+	 * A binary64 temporary could round it before an x87 quotient is evaluated. */
+	return (current * previous_side - previous * side) / divisor;
+#else
+	legacy_f64 numerator = current * previous_side - previous * side;
+	/* A crossing has a nonzero divisor. Preserve signed cancellation without
+	 * dividing the zero height of ordinary flat terrain on both paint sides. */
+	return numerator == 0 ? (divisor < 0 ? -numerator : numerator) : numerator / divisor;
+#endif
+}
+
+/* Split both paint regions in one walk. A boundary vertex belongs to both
+ * regions, but a boundary-to-interior edge crosses only the opposite region. */
+void hires_frame_extended_split_precise_ground(
+	const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count,
+	struct SHAPE3D_HIRES_VECTOR *inside, legacy_u16 *inside_count,
+	struct SHAPE3D_HIRES_VECTOR *outside, legacy_u16 *outside_count,
+	const struct SHAPE3D_HIRES_VECTOR *a, const struct SHAPE3D_HIRES_VECTOR *b,
+	legacy_s16 orientation)
+{
+	if (!count) {
+		*inside_count = 0;
+		*outside_count = 0;
+		return;
+	}
+	legacy_u16 inside_written = 0, outside_written = 0;
+	struct SHAPE3D_HIRES_VECTOR previous = points[count - 1U];
+	legacy_f64 previous_side =
+		hires_frame_extended_precise_ground_side(a, b, &previous) * orientation;
+	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+		struct SHAPE3D_HIRES_VECTOR current = points[vertex];
+		legacy_f64 side = hires_frame_extended_precise_ground_side(a, b, &current) * orientation;
+		legacy_u8 inside_crosses = (side >= 0) != (previous_side >= 0);
+		legacy_u8 outside_crosses = (side <= 0) != (previous_side <= 0);
+		struct SHAPE3D_HIRES_VECTOR crossing;
+		if (inside_crosses) {
+			legacy_f64 divisor = previous_side - side;
+			crossing = (struct SHAPE3D_HIRES_VECTOR){
+				hires_frame_extended_precise_crossing_coordinate(current.x, previous.x,
+																 previous_side, side, divisor),
+				hires_frame_extended_precise_crossing_coordinate(current.y, previous.y,
+																 previous_side, side, divisor),
+				hires_frame_extended_precise_crossing_coordinate(current.z, previous.z,
+																 previous_side, side, divisor)};
+			hires_frame_extended_append_precise_vertex(inside, &inside_written, &crossing);
+		}
+		if (outside_crosses) {
+			legacy_f64 inverse_previous = -previous_side;
+			legacy_f64 inverse_side = -side;
+			legacy_f64 divisor = inverse_previous - inverse_side;
+			/* Negating both sides gives the same nonzero intersection. Exact
+			 * cancellation can produce differently signed zero, which the
+			 * original bitwise closing-vertex check distinguishes. */
+			if (!inside_crosses || crossing.x == 0) {
+				crossing.x = hires_frame_extended_precise_crossing_coordinate(
+					current.x, previous.x, inverse_previous, inverse_side, divisor);
+			}
+			if (!inside_crosses || crossing.y == 0) {
+				crossing.y = hires_frame_extended_precise_crossing_coordinate(
+					current.y, previous.y, inverse_previous, inverse_side, divisor);
+			}
+			if (!inside_crosses || crossing.z == 0) {
+				crossing.z = hires_frame_extended_precise_crossing_coordinate(
+					current.z, previous.z, inverse_previous, inverse_side, divisor);
+			}
+			hires_frame_extended_append_precise_vertex(outside, &outside_written, &crossing);
+		}
+		if (side >= 0) {
+			hires_frame_extended_append_precise_vertex(inside, &inside_written, &current);
+		}
+		if (side <= 0) {
+			hires_frame_extended_append_precise_vertex(outside, &outside_written, &current);
+		}
+		previous = current;
+		previous_side = side;
+	}
+	if (inside_written > 1U &&
+		memcmp(&inside[0], &inside[inside_written - 1U], sizeof(inside[0])) == 0) {
+		inside_written--;
+	}
+	if (outside_written > 1U &&
+		memcmp(&outside[0], &outside[outside_written - 1U], sizeof(outside[0])) == 0) {
+		outside_written--;
+	}
+	*inside_count = inside_written;
+	*outside_count = outside_written;
+}
+#endif
+
+#if defined(RESTUNTS_SDL3)
 legacy_s16 hires_frame_extended_append_precise_fragments(
 	struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT **fragments, legacy_u16 *written,
 	legacy_u16 *capacity, const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count)
@@ -316,26 +419,29 @@ hires_frame_extended_paint_precise_terrain_face(const struct VECTOR *source, leg
 			legacy_s16 orientation = winding > 0 ? 1 : -1;
 			legacy_u16 written = 0;
 			for (legacy_u16 fragment = 0; fragment < remaining && complete; fragment++) {
-				struct SHAPE3D_HIRES_VECTOR inside[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
+				struct SHAPE3D_HIRES_VECTOR inside[HIRES_PRECISE_GROUND_CLIP_BUFFER_COUNT]
+												  [FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
+				const struct SHAPE3D_HIRES_VECTOR *inside_points = current[fragment].points;
 				legacy_u16 inside_count = current[fragment].count;
-				memcpy(inside, current[fragment].points, inside_count * sizeof(inside[0]));
 				for (legacy_u16 edge = 0; edge < OWOOT_ROAD_TRIANGLE_VERTEX_COUNT && inside_count;
 					 edge++) {
 					struct SHAPE3D_HIRES_VECTOR outside[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
-					struct SHAPE3D_HIRES_VECTOR clipped[FRAME_EXTENDED_GROUND_CLIPPED_VERTEX_MAX];
+					struct SHAPE3D_HIRES_VECTOR *clipped =
+						inside[edge % HIRES_PRECISE_GROUND_CLIP_BUFFER_COUNT];
 					const struct SHAPE3D_HIRES_VECTOR *a = &triangle[edge];
 					const struct SHAPE3D_HIRES_VECTOR *b =
 						&triangle[(edge + 1U) % OWOOT_ROAD_TRIANGLE_VERTEX_COUNT];
-					legacy_u16 outside_count = hires_frame_extended_clip_precise_ground(
-						inside, inside_count, outside, a, b, -orientation);
+					legacy_u16 outside_count, clipped_count;
+					hires_frame_extended_split_precise_ground(inside_points, inside_count, clipped,
+															  &clipped_count, outside,
+															  &outside_count, a, b, orientation);
 					if (!hires_frame_extended_append_precise_fragments(
 							&next, &written, &next_capacity, outside, outside_count)) {
 						complete = 0;
 						break;
 					}
-					inside_count = hires_frame_extended_clip_precise_ground(
-						inside, inside_count, clipped, a, b, orientation);
-					memcpy(inside, clipped, inside_count * sizeof(inside[0]));
+					inside_count = clipped_count;
+					inside_points = clipped;
 				}
 			}
 			if (!complete) {

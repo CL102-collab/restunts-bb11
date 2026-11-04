@@ -104,6 +104,14 @@ legacy_u16 hires_frame_extended_clip_precise_ground(const struct SHAPE3D_HIRES_V
 													legacy_s16 orientation);
 #endif
 #if defined(RESTUNTS_SDL3)
+void hires_frame_extended_split_precise_ground(
+	const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count,
+	struct SHAPE3D_HIRES_VECTOR *inside, legacy_u16 *inside_count,
+	struct SHAPE3D_HIRES_VECTOR *outside, legacy_u16 *outside_count,
+	const struct SHAPE3D_HIRES_VECTOR *a, const struct SHAPE3D_HIRES_VECTOR *b,
+	legacy_s16 orientation);
+#endif
+#if defined(RESTUNTS_SDL3)
 legacy_s16 hires_frame_extended_append_precise_fragments(
 	struct FRAME_HIRES_EXTENDED_PRECISE_GROUND_FRAGMENT **fragments, legacy_u16 *written,
 	legacy_u16 *capacity, const struct SHAPE3D_HIRES_VECTOR *points, legacy_u16 count);

@@ -55,6 +55,12 @@ static void frame_hires_build_geometry(void *argument, legacy_s32 index)
 	}
 }
 
+static legacy_s32 frame_hires_geometry_join_required(void *argument, legacy_s32 index)
+{
+	(void)argument;
+	return hires_geometry_jobs[index].dynamic || hires_geometry_jobs[index].result;
+}
+
 static void frame_hires_join_geometry(void *argument, legacy_s32 index)
 {
 	struct FRAME_HIRES_GEOMETRY_FRAME *frame = argument;
@@ -107,7 +113,7 @@ static legacy_s16 frame_hires_draw_parallel_tiles(const struct FRAME_TILE_SELECT
 				(struct FRAME_HIRES_GEOMETRY_JOB){group_first, tile_count - group_first, 0, 0};
 		}
 		shape3d_hires_geometry_run(job_count, frame_hires_build_geometry, frame_hires_join_geometry,
-								   &frame);
+								   frame_hires_geometry_join_required, &frame);
 	}
 	return frame.result;
 }

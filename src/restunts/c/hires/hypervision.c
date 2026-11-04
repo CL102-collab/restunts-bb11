@@ -1,6 +1,7 @@
 #include "hypervision.h"
 #include "../fatal.h"
 #include "render_workers.h"
+#include <SDL3/SDL_cpuinfo.h>
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,9 @@ struct HIRES_BACKEND_BUFFER {
 	size_t command_offset, edge_offset;
 	legacy_u32 command_area;
 	legacy_s32 allocation_failed;
+	/* Adjacent jobs update their counts for every polygon. Keep that mutable
+	 * metadata on separate cache lines without requiring an aligned realloc. */
+	legacy_u8 cache_padding[SDL_CACHELINE_SIZE];
 };
 
 static struct HIRES_BACKEND_BUFFER hires_frame;
