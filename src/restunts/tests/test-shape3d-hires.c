@@ -3598,6 +3598,27 @@ static void join_geometry_test_job(void *argument, legacy_s32 job)
 	shape3d_hires_set_model_scale(1);
 }
 
+static legacy_s32 geometry_test_join_required(void *argument, legacy_s32 job)
+{
+	(void)argument;
+	return job == GEOMETRY_TEST_EMPTY_JOB || job == GEOMETRY_TEST_GROWTH_JOB;
+}
+
+static void join_batched_geometry_test_job(void *argument, legacy_s32 job)
+{
+	struct GEOMETRY_TEST_FRAME *frame = argument;
+	/* Defer immutable groups across empty, clipped and shadow-only producers.
+	 * The last callback is required even when the predicate does not request it. */
+	assert(job == GEOMETRY_TEST_EMPTY_JOB || job == GEOMETRY_TEST_GROWTH_JOB ||
+		   job == GEOMETRY_TEST_JOBS - 1);
+	legacy_s32 previous = job == GEOMETRY_TEST_EMPTY_JOB	? 0
+						  : job == GEOMETRY_TEST_GROWTH_JOB ? GEOMETRY_TEST_EMPTY_JOB + 1
+															: GEOMETRY_TEST_GROWTH_JOB + 1;
+	assert(frame->joined_count == previous);
+	frame->joined_count = job;
+	join_geometry_test_job(argument, job);
+}
+
 static void capture_geometry_test_scene(struct GEOMETRY_TEST_SNAPSHOT *snapshot)
 {
 	assert(hires_backend_scene_count < GEOMETRY_TEST_MAX_PRIMITIVES);
@@ -3701,57 +3722,61 @@ static void test_parallel_geometry_matches_serial(void)
 	}
 	colors[BACKLIGHT_PAINT_NORMAL] = 8;
 	colors[BACKLIGHT_PAINT_BRAKING] = 9;
-	for (legacy_u32 pass = 0; pass < SDL_arraysize(settings); pass++) {
-		hires_render_workers_shutdown();
-		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", settings[pass], true) == 0);
-		hires_render_workers_set_enabled(1);
-		prepare_scene(vertices, SDL_arraysize(vertices), primitives, sizeof(primitives), 1);
-		material_clrlist_ptr_cpy = material_clrlist2_ptr_cpy = colors;
-		material_patlist_ptr_cpy = material_patlist2_ptr_cpy = patterns;
-		shape_half_scale = 0;
-		backlights_paint_override = BACKLIGHT_PAINT_NORMAL;
-		shape3d_hires_scene_reset();
-		assert(hires_begin(&target));
-		projection_center_x = 160;
-		projection_center_y = 100;
-		projection_focal_length_x = projection_focal_length_y = GEOMETRY_TEST_FOCAL_LENGTH;
-		const struct VECTOR camera = {0, GEOMETRY_TEST_CAMERA_HEIGHT, 0};
-		const struct VECTOR cars[] = {{0, -40, 300}, {20, -35, 310}};
-		shape3d_hires_shadows_begin(&camera);
-		for (legacy_u32 car = 0; car < SDL_arraysize(cars); car++) {
-			shape3d_hires_shadow_car(&cars[car], 0, GEOMETRY_TEST_CAR_WIDTH,
-									 GEOMETRY_TEST_CAR_LENGTH);
-		}
-		struct GEOMETRY_TEST_FRAME frame = {0};
-		for (legacy_u32 rectangle = 0; rectangle < GEOMETRY_TEST_RECTANGLES; rectangle++) {
-			frame.rectangles[rectangle] = (struct RECTANGLE){320, 0, 200, 0};
-		}
-		/* A preexisting scene makes all merged primitive/shape/family/shadow
-		 * tokens nonzero offsets and keeps later joined inserts observable. */
-		build_geometry_test_job(&frame, 0);
-		shape3d_hires_geometry_run(GEOMETRY_TEST_JOBS, build_geometry_test_job,
-								   join_geometry_test_job, &frame);
-		assert(frame.joined_count == GEOMETRY_TEST_JOBS && shape3d_hires_thread_state == NULL);
-		assert(hires_backend_scene_count >
-			   GEOMETRY_TEST_GROWTH_SHAPES * GEOMETRY_TEST_PRIMITIVES_PER_SHAPE);
-		assert(shape3d_hires_state.shadow_surface_count > GEOMETRY_TEST_GROWTH_SHAPES);
-		if (pass == 0) {
-			capture_geometry_test_scene(&reference);
-			expected_frame = frame;
-		} else {
-			compare_geometry_test_scene(&reference);
-			assert(memcmp(expected_frame.joined_scene_counts, frame.joined_scene_counts,
-						  sizeof(frame.joined_scene_counts)) == 0);
-			assert(memcmp(expected_frame.rectangles, frame.rectangles, sizeof(frame.rectangles)) ==
-				   0);
-			assert(memcmp(expected_frame.joined_rectangles, frame.joined_rectangles,
-						  sizeof(frame.joined_rectangles)) == 0);
-		}
-		shape3d_render_queued_primitives();
-		if (pass == 0) {
-			memcpy(image, pixels(), sizeof(image));
-		} else {
-			assert(memcmp(image, pixels(), sizeof(image)) == 0);
+	for (legacy_u32 batched = 0; batched <= 1; batched++) {
+		for (legacy_u32 pass = 0; pass < SDL_arraysize(settings); pass++) {
+			hires_render_workers_shutdown();
+			assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", settings[pass], true) == 0);
+			hires_render_workers_set_enabled(1);
+			prepare_scene(vertices, SDL_arraysize(vertices), primitives, sizeof(primitives), 1);
+			material_clrlist_ptr_cpy = material_clrlist2_ptr_cpy = colors;
+			material_patlist_ptr_cpy = material_patlist2_ptr_cpy = patterns;
+			shape_half_scale = 0;
+			backlights_paint_override = BACKLIGHT_PAINT_NORMAL;
+			shape3d_hires_scene_reset();
+			assert(hires_begin(&target));
+			projection_center_x = 160;
+			projection_center_y = 100;
+			projection_focal_length_x = projection_focal_length_y = GEOMETRY_TEST_FOCAL_LENGTH;
+			const struct VECTOR camera = {0, GEOMETRY_TEST_CAMERA_HEIGHT, 0};
+			const struct VECTOR cars[] = {{0, -40, 300}, {20, -35, 310}};
+			shape3d_hires_shadows_begin(&camera);
+			for (legacy_u32 car = 0; car < SDL_arraysize(cars); car++) {
+				shape3d_hires_shadow_car(&cars[car], 0, GEOMETRY_TEST_CAR_WIDTH,
+										 GEOMETRY_TEST_CAR_LENGTH);
+			}
+			struct GEOMETRY_TEST_FRAME frame = {0};
+			for (legacy_u32 rectangle = 0; rectangle < GEOMETRY_TEST_RECTANGLES; rectangle++) {
+				frame.rectangles[rectangle] = (struct RECTANGLE){320, 0, 200, 0};
+			}
+			/* A preexisting scene makes all merged primitive/shape/family/shadow
+			 * tokens nonzero offsets and keeps later joined inserts observable. */
+			build_geometry_test_job(&frame, 0);
+			shape3d_hires_geometry_run(GEOMETRY_TEST_JOBS, build_geometry_test_job,
+									   batched ? join_batched_geometry_test_job
+											   : join_geometry_test_job,
+									   batched ? geometry_test_join_required : NULL, &frame);
+			assert(frame.joined_count == GEOMETRY_TEST_JOBS && shape3d_hires_thread_state == NULL);
+			assert(hires_backend_scene_count >
+				   GEOMETRY_TEST_GROWTH_SHAPES * GEOMETRY_TEST_PRIMITIVES_PER_SHAPE);
+			assert(shape3d_hires_state.shadow_surface_count > GEOMETRY_TEST_GROWTH_SHAPES);
+			if (pass == 0) {
+				capture_geometry_test_scene(&reference);
+				expected_frame = frame;
+			} else {
+				compare_geometry_test_scene(&reference);
+				assert(memcmp(expected_frame.joined_scene_counts, frame.joined_scene_counts,
+							  sizeof(frame.joined_scene_counts)) == 0);
+				assert(memcmp(expected_frame.rectangles, frame.rectangles,
+							  sizeof(frame.rectangles)) == 0);
+				assert(memcmp(expected_frame.joined_rectangles, frame.joined_rectangles,
+							  sizeof(frame.joined_rectangles)) == 0);
+			}
+			shape3d_render_queued_primitives();
+			if (pass == 0) {
+				memcpy(image, pixels(), sizeof(image));
+			} else {
+				assert(memcmp(image, pixels(), sizeof(image)) == 0);
+			}
 		}
 	}
 	backlights_paint_override = saved_backlights;

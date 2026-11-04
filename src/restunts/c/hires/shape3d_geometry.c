@@ -9,14 +9,27 @@
 
 RESTUNTS_RENDER_THREAD_LOCAL struct SHAPE3D_HIRES_STATE *shape3d_hires_thread_state;
 
+#define HIRES_GEOMETRY_PARALLEL_MERGE_MIN_PRIMITIVES 128U
+
+struct HIRES_GEOMETRY_STATE {
+	struct SHAPE3D_HIRES_STATE scene;
+	legacy_u32 primitive_offset, shadow_offset;
+};
+
 struct HIRES_GEOMETRY_JOBS {
-	struct SHAPE3D_HIRES_STATE *states;
+	struct HIRES_GEOMETRY_STATE *states;
 	const struct SHAPE3D_HIRES_STATE *source;
 	void (*job)(void *, legacy_s32);
 	void *context;
 };
 
-static struct SHAPE3D_HIRES_STATE *hires_geometry_states;
+struct HIRES_GEOMETRY_MERGE {
+	struct SHAPE3D_HIRES_STATE *destination;
+	legacy_s32 first;
+	legacy_s8 material;
+};
+
+static struct HIRES_GEOMETRY_STATE *hires_geometry_states;
 static legacy_s32 hires_geometry_capacity;
 
 void shape3d_hires_geometry_error(const legacy_char *message)
@@ -52,7 +65,7 @@ struct RECTANGLE *shape3d_hires_geometry_rectangle(struct RECTANGLE *rectangle)
 void shape3d_hires_geometry_shutdown(void)
 {
 	for (legacy_s32 index = 0; index < hires_geometry_capacity; index++) {
-		struct SHAPE3D_HIRES_STATE *state = &hires_geometry_states[index];
+		struct SHAPE3D_HIRES_STATE *state = &hires_geometry_states[index].scene;
 		free(state->primitives);
 		free(state->shapes);
 		free(state->scene);
@@ -67,7 +80,7 @@ void shape3d_hires_geometry_shutdown(void)
 static void hires_geometry_build(void *argument, legacy_s32 index)
 {
 	const struct HIRES_GEOMETRY_JOBS *jobs = argument;
-	struct SHAPE3D_HIRES_STATE *state = &jobs->states[index];
+	struct SHAPE3D_HIRES_STATE *state = &jobs->states[index].scene;
 	/* Retain each job's owned arrays while refreshing the immutable camera,
 	 * light and car-shadow snapshot for this frame. */
 	struct SHAPE3D_HIRES_STATE previous = *state;
@@ -155,7 +168,7 @@ static legacy_s32 hires_geometry_merge_shadows(const struct SHAPE3D_HIRES_STATE 
 	return 1;
 }
 
-static legacy_s32 hires_geometry_merge(const struct SHAPE3D_HIRES_STATE *source)
+static void hires_geometry_merge_rectangles(const struct SHAPE3D_HIRES_STATE *source)
 {
 	for (legacy_u32 index = 0; index < source->rectangle_count; index++) {
 		const struct HIRES_GEOMETRY_RECTANGLE *entry = &source->rectangles[index];
@@ -173,39 +186,29 @@ static legacy_s32 hires_geometry_merge(const struct SHAPE3D_HIRES_STATE *source)
 			destination->bottom = entry->value.bottom;
 		}
 	}
-	legacy_u32 first = hires_backend_scene_count;
-	legacy_u32 shadows = (legacy_u32)shape3d_hires_state.shadow_surface_count;
-	if (!hires_geometry_merge_shadows(source)) {
-		return 0;
-	}
+}
+
+static void hires_geometry_copy(void *argument, legacy_s32 index)
+{
+	const struct HIRES_GEOMETRY_MERGE *merge = argument;
+	const struct HIRES_GEOMETRY_STATE *job = &hires_geometry_states[merge->first + index];
+	const struct SHAPE3D_HIRES_STATE *source = &job->scene;
+	struct SHAPE3D_HIRES_STATE *destination = merge->destination;
+	legacy_u32 first = job->primitive_offset;
 	if (source->scene_count == 0) {
-		return 1;
+		return;
 	}
-	if (source->scene_count > LEGACY_U32_MAX - first) {
-		shape3d_hires_geometry_error("HyperVision scene has too many primitives");
-		return 0;
-	}
-	legacy_u32 end = first + source->scene_count;
-	if (!shape3d_hires_reserve_primitives(end - 1U)) {
-		return 0;
-	}
-	hires_backend_scene_count = end - 1U;
-	legacy_s32 reserved = hires_backend_scene_reserve();
-	hires_backend_scene_count = first;
-	if (!reserved) {
-		return 0;
-	}
-	memcpy(hires_backend_scene + first, source->scene,
+	memcpy(destination->scene + first, source->scene,
 		   (size_t)source->scene_count * sizeof(*source->scene));
-	for (legacy_u32 index = first; index < end; index++) {
-		if (hires_backend_scene[index].material == BACKLIGHT_PAINT_DEFAULT) {
-			hires_backend_scene[index].material = backlights_paint_override;
+	for (legacy_u32 index = first; index < first + source->scene_count; index++) {
+		if (destination->scene[index].material == BACKLIGHT_PAINT_DEFAULT) {
+			destination->scene[index].material = merge->material;
 		}
 	}
-	memcpy(shape3d_hires_state.shapes + first, source->shapes,
+	memcpy(destination->shapes + first, source->shapes,
 		   (size_t)source->scene_count * sizeof(*source->shapes));
 	for (legacy_u32 index = 0; index < source->scene_count; index++) {
-		struct HIRES_PRIMITIVE *primitive = &shape3d_hires_state.primitives[first + index];
+		struct HIRES_PRIMITIVE *primitive = &destination->primitives[first + index];
 		const struct HIRES_PRIMITIVE *incoming = &source->primitives[index];
 		/* Clipped polygons usually use only three or four of the twenty slots.
 		 * Copy live vertices and metadata without streaming unused point storage. */
@@ -215,23 +218,74 @@ static legacy_s32 hires_geometry_merge(const struct SHAPE3D_HIRES_STATE *source)
 		primitive->shape += first;
 		primitive->family += first;
 		if (primitive->shadow_surface != 0) {
-			primitive->shadow_surface += shadows;
+			primitive->shadow_surface += job->shadow_offset;
 		}
 	}
-	hires_backend_scene_count = end;
-	shape3d_hires_state.primitive_count = end;
-	shape3d_hires_state.current_shape = first + source->current_shape;
-	shape3d_hires_state.current_family = first + source->current_family;
+}
+
+static legacy_s32 hires_geometry_merge(legacy_s32 first, legacy_s32 end)
+{
+	struct SHAPE3D_HIRES_STATE *destination = &shape3d_hires_state;
+	legacy_u32 original_count = destination->scene_count;
+	legacy_u32 count = original_count;
+	legacy_s32 last_nonempty = first;
+	/* Compute prefixes and reserve before workers write disjoint ranges. Bounds
+	 * and shadow reductions stay ordered and are visible at each serial join. */
+	for (legacy_s32 index = first; index < end; index++) {
+		struct HIRES_GEOMETRY_STATE *job = &hires_geometry_states[index];
+		const struct SHAPE3D_HIRES_STATE *source = &job->scene;
+		hires_geometry_merge_rectangles(source);
+		job->primitive_offset = count;
+		job->shadow_offset = (legacy_u32)destination->shadow_surface_count;
+		if (!hires_geometry_merge_shadows(source)) {
+			return 0;
+		}
+		if (source->scene_count > LEGACY_U32_MAX - count) {
+			shape3d_hires_geometry_error("HyperVision scene has too many primitives");
+			return 0;
+		}
+		if (source->scene_count != 0) {
+			count += source->scene_count;
+			last_nonempty = index;
+		}
+	}
+	if (count == original_count) {
+		return 1;
+	}
+	if (!shape3d_hires_reserve_primitives(count - 1U)) {
+		return 0;
+	}
+	destination->scene_count = count - 1U;
+	legacy_s32 reserved = hires_backend_scene_reserve();
+	destination->scene_count = original_count;
+	if (!reserved) {
+		return 0;
+	}
+	struct HIRES_GEOMETRY_MERGE merge = {destination, first, backlights_paint_override};
+	if (count - original_count >= HIRES_GEOMETRY_PARALLEL_MERGE_MIN_PRIMITIVES) {
+		hires_render_workers_run(end - first, hires_geometry_copy, &merge);
+	} else {
+		for (legacy_s32 index = first; index < end; index++) {
+			hires_geometry_copy(&merge, index - first);
+		}
+	}
+	const struct HIRES_GEOMETRY_STATE *last = &hires_geometry_states[last_nonempty];
+	destination->scene_count = count;
+	destination->primitive_count = count;
+	destination->current_shape = last->primitive_offset + last->scene.current_shape;
+	destination->current_family = last->primitive_offset + last->scene.current_family;
 	return 1;
 }
 
 void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32),
-								void (*joined)(void *, legacy_s32), void *context)
+								void (*joined)(void *, legacy_s32),
+								legacy_s32 (*join_required)(void *, legacy_s32), void *context)
 {
 	if (count <= 1 || hires_render_workers_count() == 0) {
 		for (legacy_s32 index = 0; index < count; index++) {
 			job(context, index);
-			if (joined != NULL) {
+			if (joined != NULL &&
+				(join_required == NULL || join_required(context, index) || index == count - 1)) {
 				joined(context, index);
 			}
 		}
@@ -242,7 +296,7 @@ void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32
 			fatal_error("HyperVision geometry jobs exceed addressable memory");
 			return;
 		}
-		struct SHAPE3D_HIRES_STATE *states =
+		struct HIRES_GEOMETRY_STATE *states =
 			realloc(hires_geometry_states, (size_t)count * sizeof(*states));
 		if (states == NULL) {
 			fatal_error("Cannot allocate HyperVision geometry jobs");
@@ -258,18 +312,27 @@ void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32
 	/* Allocation failures are reported on the calling thread after every worker
 	 * has joined, before exposing a partially assembled frame to serial callers. */
 	for (legacy_s32 index = 0; index < count; index++) {
-		if (hires_geometry_states[index].allocation_error != NULL) {
-			fatal_error(hires_geometry_states[index].allocation_error);
+		if (hires_geometry_states[index].scene.allocation_error != NULL) {
+			fatal_error(hires_geometry_states[index].scene.allocation_error);
 			return;
 		}
 	}
+	legacy_s32 first = 0;
 	for (legacy_s32 index = 0; index < count; index++) {
-		if (!hires_geometry_merge(&hires_geometry_states[index])) {
+		if (index + 1 < count && joined != NULL && join_required != NULL &&
+			!join_required(context, index)) {
+			continue;
+		}
+		if (index + 1 < count && joined == NULL) {
+			continue;
+		}
+		if (!hires_geometry_merge(first, index + 1)) {
 			return;
 		}
 		if (joined != NULL) {
 			joined(context, index);
 		}
+		first = index + 1;
 	}
 }
 #endif

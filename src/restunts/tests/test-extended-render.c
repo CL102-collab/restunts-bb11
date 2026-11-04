@@ -4,12 +4,13 @@
 #include "../c/video/video_framebuffer.h"
 #include "test-render-replay.c"
 #undef stuntsmain
+#include <float.h>
 
 #include "../c/extended/cstrk.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_menu_runtime.h"
 #include "../c/extended/extended_geometry.h"
-#include "../c/extended/extended_frame.h"
+#include "../c/extended/extended_frame_render.h"
 #include "../c/frame/frame_render_private.h"
 #include "../c/skybox.h"
 #include "../c/race/race_graphics.h"
@@ -4420,9 +4421,91 @@ static legacy_u16 check_extended_track_overview(void)
 	return 7U + restored_frames;
 }
 
+enum {
+	PRECISE_SPLIT_RANDOM_CASES = 2048,
+	PRECISE_SPLIT_SOURCE_CAPACITY = SHAPE3D_POLYGON_MAX_VERTICES + OWOOT_ROAD_TRIANGLE_VERTEX_COUNT,
+	PRECISE_SPLIT_OUTPUT_CAPACITY = PRECISE_SPLIT_SOURCE_CAPACITY * 2,
+	PRECISE_SPLIT_RANDOM_RANGE = 513,
+	PRECISE_SPLIT_RANDOM_CENTER = PRECISE_SPLIT_RANDOM_RANGE / 2,
+	PRECISE_SPLIT_COORDINATE_DIVISOR = 8,
+	PRECISE_SPLIT_BOUNDARY_CASES = 4,
+	PRECISE_SPLIT_DUPLICATE_INTERVAL = 8,
+	PRECISE_SPLIT_SUBNORMAL_INTERVAL = 16,
+	PRECISE_SPLIT_SUBNORMAL_CASE = 5,
+	PRECISE_SPLIT_RANDOM_MULTIPLIER = 1664525,
+	PRECISE_SPLIT_RANDOM_INCREMENT = 1013904223
+};
+
+static legacy_f64 precise_split_random_coordinate(legacy_u32 *seed)
+{
+	*seed = *seed * PRECISE_SPLIT_RANDOM_MULTIPLIER + PRECISE_SPLIT_RANDOM_INCREMENT;
+	return ((legacy_s32)(*seed % PRECISE_SPLIT_RANDOM_RANGE) - PRECISE_SPLIT_RANDOM_CENTER) /
+		   (legacy_f64)PRECISE_SPLIT_COORDINATE_DIVISOR;
+}
+
+static void check_precise_ground_splitting(void)
+{
+	legacy_u32 seed = 1;
+	const legacy_s16 orientations[] = {-2, -1, 0, 1, 2};
+	for (legacy_u32 sample = 0; sample < PRECISE_SPLIT_RANDOM_CASES; sample++) {
+		struct SHAPE3D_HIRES_VECTOR points[PRECISE_SPLIT_SOURCE_CAPACITY];
+		for (legacy_u16 index = 0; index < PRECISE_SPLIT_SOURCE_CAPACITY; index++) {
+			points[index] = (struct SHAPE3D_HIRES_VECTOR){precise_split_random_coordinate(&seed),
+														  precise_split_random_coordinate(&seed),
+														  precise_split_random_coordinate(&seed)};
+			/* Flat terrain, negative zero and repeated coordinates exercise
+			 * exact cancellation in the symmetric crossing calculation. */
+			if (sample % PRECISE_SPLIT_BOUNDARY_CASES == 0) {
+				points[index].y = index % 2U ? -0.0 : 0.0;
+			} else if (sample % PRECISE_SPLIT_SUBNORMAL_INTERVAL == PRECISE_SPLIT_SUBNORMAL_CASE) {
+				points[index].y = index % 2U ? DBL_MIN : DBL_MIN * DBL_EPSILON;
+			}
+		}
+		legacy_u16 count = (legacy_u16)(sample % (PRECISE_SPLIT_SOURCE_CAPACITY + 1U));
+		if (count > 1U && sample % PRECISE_SPLIT_DUPLICATE_INTERVAL == 0) {
+			points[count - 1U] = points[0];
+		}
+		struct SHAPE3D_HIRES_VECTOR a = {0}, b = {0};
+		switch (sample % PRECISE_SPLIT_BOUNDARY_CASES) {
+			case 0:
+				b.x = 1;
+				break;
+			case 1:
+				b.x = b.z = 1;
+				break;
+			case 2:
+				a = points[0];
+				b = points[PRECISE_SPLIT_SOURCE_CAPACITY - 1U];
+				break;
+			default:
+				/* Coincident endpoints keep every vertex on the boundary. */
+				a = b = points[0];
+				break;
+		}
+		for (legacy_u32 choice = 0; choice < SDL_arraysize(orientations); choice++) {
+			struct SHAPE3D_HIRES_VECTOR inside[PRECISE_SPLIT_OUTPUT_CAPACITY];
+			struct SHAPE3D_HIRES_VECTOR outside[PRECISE_SPLIT_OUTPUT_CAPACITY];
+			struct SHAPE3D_HIRES_VECTOR expected_inside[PRECISE_SPLIT_OUTPUT_CAPACITY];
+			struct SHAPE3D_HIRES_VECTOR expected_outside[PRECISE_SPLIT_OUTPUT_CAPACITY];
+			legacy_u16 inside_count, outside_count;
+			hires_frame_extended_split_precise_ground(points, count, inside, &inside_count, outside,
+													  &outside_count, &a, &b, orientations[choice]);
+			legacy_u16 expected_inside_count = hires_frame_extended_clip_precise_ground(
+				points, count, expected_inside, &a, &b, orientations[choice]);
+			legacy_u16 expected_outside_count = hires_frame_extended_clip_precise_ground(
+				points, count, expected_outside, &a, &b, -orientations[choice]);
+			assert(inside_count == expected_inside_count &&
+				   outside_count == expected_outside_count);
+			assert(memcmp(inside, expected_inside, inside_count * sizeof(*inside)) == 0);
+			assert(memcmp(outside, expected_outside, outside_count * sizeof(*outside)) == 0);
+		}
+	}
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
 	assert(argc == 1);
+	check_precise_ground_splitting();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 	render_capture_mutex = SDL_CreateMutex();
 	assert(render_capture_mutex != NULL);
