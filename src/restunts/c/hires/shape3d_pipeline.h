@@ -9,6 +9,7 @@
 #define SHAPE3D_SHADOW_PRIMITIVE_FLAGS_OFFSET 1U
 struct SHAPE3D_HIRES_TRANSFORM_CONTEXT {
 	struct MATRIX object_to_world_rotation;
+	legacy_u8 object_rotation_identity;
 	struct SHAPE3D_HIRES_VECTOR object_translation;
 	struct SHAPE3D_HIRES_VECTOR view_origin;
 	struct SHAPE3D_HIRES_VECTOR hires_vertices[SHAPE3D_HIRES_VERTEX_CAPACITY];

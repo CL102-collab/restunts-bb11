@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include <limits.h>
 #if defined(RESTUNTS_SDL3)
+#include <float.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #endif
@@ -26,6 +28,10 @@
 #include "../shape3d/shape3d_pipeline_internal.h"
 
 #ifdef RESTUNTS_SDL3
+#define SHAPE3D_HIRES_EVALUATE_AS_DECLARED 0
+#define SHAPE3D_HIRES_EVALUATE_AS_DOUBLE 1
+#define SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE (DBL_MAX / TRIG_FIXED_ONE)
+
 static void shape3d_hires_rotate(const struct SHAPE3D_HIRES_VECTOR *source,
 								 const struct MATRIX *matrix, struct SHAPE3D_HIRES_VECTOR *result);
 static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u16 index,
@@ -74,7 +80,24 @@ static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u
 	source.y *= scale;
 	source.z *= scale;
 	struct SHAPE3D_HIRES_VECTOR world;
-	shape3d_hires_rotate(&source, &context->hires.object_to_world_rotation, &world);
+#if FLT_EVAL_METHOD == SHAPE3D_HIRES_EVALUATE_AS_DECLARED ||                                       \
+	FLT_EVAL_METHOD == SHAPE3D_HIRES_EVALUATE_AS_DOUBLE
+	if (context->hires.object_rotation_identity &&
+		(context->hires.source_vertices == NULL ||
+		 (fabs(source.x) <= SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE &&
+		  fabs(source.y) <= SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE &&
+		  fabs(source.z) <= SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE))) {
+		/* Native signed-word vertices always fit the exact scaling range.
+		 * Scaling by the identity diagonal and back is exact in this range.
+		 * Its three dot products have the same signed-zero terms; retain their
+		 * sum so zero coordinates keep their original IEEE rounding behavior. */
+		legacy_f64 zero = source.x * 0.0 + source.y * 0.0 + source.z * 0.0;
+		world = (struct SHAPE3D_HIRES_VECTOR){source.x + zero, source.y + zero, source.z + zero};
+	} else
+#endif
+	{
+		shape3d_hires_rotate(&source, &context->hires.object_to_world_rotation, &world);
+	}
 	struct SHAPE3D_HIRES_VECTOR *view = &context->hires.hires_vertices[index];
 	if ((context->flags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		shape3d_hires_rotate(&world, &mat_temp, view);
@@ -401,6 +424,11 @@ void shape3d_hires_prepare_instance(const struct TRANSFORMEDSHAPE3D *instance,
 	context->hires.shadow_surface_count = 0;
 	context->hires.source_vertices = NULL;
 	context->hires.object_to_world_rotation = *object_rotation;
+	context->hires.object_rotation_identity =
+		object_rotation->m._11 == TRIG_FIXED_ONE && object_rotation->m._22 == TRIG_FIXED_ONE &&
+		object_rotation->m._33 == TRIG_FIXED_ONE && object_rotation->m._12 == 0 &&
+		object_rotation->m._13 == 0 && object_rotation->m._21 == 0 && object_rotation->m._23 == 0 &&
+		object_rotation->m._31 == 0 && object_rotation->m._32 == 0;
 	context->hires.object_translation =
 		(struct SHAPE3D_HIRES_VECTOR){instance->pos.x + shape3d_hires_state.geometry_origin.x,
 									  instance->pos.y + shape3d_hires_state.geometry_origin.y,
