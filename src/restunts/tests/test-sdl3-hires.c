@@ -1364,6 +1364,190 @@ static void assert_scaled_cell(const struct TEST_SURFACE *screen, legacy_s32 x, 
 	}
 }
 
+enum {
+	COPY_TEST_CELLS = 10,
+	COPY_TEST_SAMPLE_BASE = 16,
+	COPY_TEST_CELL_STEP = HIRES_SCALE * HIRES_SCALE,
+	COPY_TEST_DESTINATION_BASE = 128,
+	COPY_TEST_FALLBACK_BASE = 240,
+	COPY_TEST_NORMAL_SOURCE = 100,
+	COPY_TEST_NORMAL_DESTINATION = 200,
+	COPY_TEST_SOURCE_WRAP = LEGACY_U16_MAX - 2,
+	COPY_TEST_DESTINATION_WRAP = LEGACY_U16_MAX - 4,
+	COPY_TEST_SELF_INVALID = 3,
+	COPY_TEST_ARGB_SOURCE = 1,
+	COPY_TEST_ARGB_DESTINATION = 2,
+	COPY_TEST_READBACK_SEGMENT = 0x6000U
+};
+
+static void copy_test_samples(legacy_u8 *samples, legacy_u32 cell, legacy_s32 scale)
+{
+	for (legacy_s32 sample = 0; sample < scale * scale; sample++) {
+		samples[sample] = (legacy_u8)(COPY_TEST_SAMPLE_BASE + cell * COPY_TEST_CELL_STEP + sample);
+	}
+}
+
+static void copy_test_seed(struct TEST_SURFACE *surface, legacy_u16 offset, legacy_s32 scale,
+						   legacy_u8 first_color)
+{
+	LEGACY_WRITE_U16_LE(surface->lines, offset);
+	struct SPRITE clip = surface->sprite;
+	clip.sprite_bottom = 1;
+	clip.sprite_raster_right = COPY_TEST_CELLS;
+	for (legacy_u32 cell = 0; cell < COPY_TEST_CELLS; cell++) {
+		surface->base[(legacy_u16)(offset + cell)] = TEST_BACKGROUND_COLOR;
+	}
+	assert(hires_begin(&clip));
+	for (legacy_s32 cell = 0; cell < COPY_TEST_CELLS; cell++) {
+		legacy_u8 samples[HIRES_SCALE * HIRES_SCALE];
+		for (legacy_s32 sample = 0; sample < scale * scale; sample++) {
+			samples[sample] = (legacy_u8)(first_color + cell * COPY_TEST_CELL_STEP + sample);
+		}
+		hires_write_pixel(cell, 0, samples);
+	}
+	hires_end();
+}
+
+/* One-cell readback exposes offsets beyond the visible 64000 bytes without
+ * repeating the run splitting or overlapping traversal under test. */
+static void copy_test_assert_cell(struct TEST_SURFACE *readback, const struct TEST_SURFACE *surface,
+								  legacy_u16 offset, legacy_s32 scale, const legacy_u8 *samples,
+								  const legacy_u32 *colors, const legacy_u32 *palette)
+{
+	hires_raster(readback->base, 0, surface->base, offset, 1, SHAPE2D_RASTER_COPY, NULL);
+	assert_scaled_cell(readback, 0, 0, scale, samples, colors, palette);
+}
+
+static void test_raster_copy_cells(void)
+{
+	const legacy_s32 scales[] = {HIRES_MINIMUM_SCALE, HIRES_MEDIUM_SCALE, HIRES_SCALE};
+	const legacy_u16 offsets[][2] = {{COPY_TEST_NORMAL_SOURCE, COPY_TEST_NORMAL_DESTINATION},
+									 {COPY_TEST_SOURCE_WRAP, COPY_TEST_NORMAL_DESTINATION},
+									 {COPY_TEST_NORMAL_SOURCE, COPY_TEST_DESTINATION_WRAP},
+									 {COPY_TEST_SOURCE_WRAP, COPY_TEST_DESTINATION_WRAP},
+									 {COPY_TEST_DESTINATION_WRAP, COPY_TEST_SOURCE_WRAP}};
+	const legacy_u16 holes[] = {2, 5, 8};
+	const legacy_u32 overlay = 0xFF123456U;
+	legacy_u32 palette[TEST_PALETTE_SIZE];
+	for (legacy_u32 color = 0; color < TEST_PALETTE_SIZE; color++) {
+		palette[color] =
+			TEST_OPAQUE_ALPHA | (color << LEGACY_WORD_BITS) | (color << LEGACY_BYTE_BITS) | color;
+	}
+	palette[TEST_WHITE_INDEX] = TEST_WHITE_ARGB;
+	hires_shutdown();
+	hires_set_enabled(1);
+	for (legacy_u32 resolution = 0; resolution < sizeof(scales) / sizeof(scales[0]); resolution++) {
+		legacy_s32 scale = scales[resolution];
+		hires_set_render_scale(scale);
+		struct TEST_SURFACE source, destination, readback;
+		setup_surface(&source, TEST_SCALE_WORKER_SEGMENT, 0);
+		setup_surface(&destination, TEST_SCALE_SCREEN_SEGMENT, 0);
+		setup_surface(&readback, COPY_TEST_READBACK_SEGMENT, 0);
+		for (legacy_u32 run = 0; run < sizeof(offsets) / sizeof(offsets[0]); run++) {
+			/* The ordinary run also checks COPY's existing full-color fallback. */
+			for (legacy_u32 argb = 0; argb <= (run == 0); argb++) {
+				hires_forget(source.base);
+				hires_forget(destination.base);
+				hires_forget(readback.base);
+				legacy_u16 from = offsets[run][0], to = offsets[run][1];
+				copy_test_seed(&source, from, scale, COPY_TEST_SAMPLE_BASE);
+				copy_test_seed(&destination, to, scale, COPY_TEST_DESTINATION_BASE);
+				destination.base[(legacy_u16)(to - 1U)] = TEST_BACKGROUND_COLOR;
+				destination.base[(legacy_u16)(to + COPY_TEST_CELLS)] = TEST_BACKGROUND_COLOR;
+				/* Empty cells interrupt several otherwise contiguous valid runs. */
+				for (legacy_u32 hole = 0; hole < sizeof(holes) / sizeof(holes[0]); hole++) {
+					legacy_u16 offset = (legacy_u16)(from + holes[hole]);
+					legacy_u8 color = (legacy_u8)(COPY_TEST_FALLBACK_BASE + holes[hole]);
+					hires_write(source.base, offset, color);
+					source.base[offset] = color;
+				}
+				/* A destination hole inside a copied run must become retained detail. */
+				hires_write(destination.base, (legacy_u16)(to + 1), TEST_BACKGROUND_COLOR);
+				if (argb != 0) {
+					struct SPRITE clip = source.sprite;
+					clip.sprite_bottom = 1;
+					clip.sprite_raster_right = COPY_TEST_CELLS;
+					assert(hires_begin_argb(&clip));
+					hires_argb_pixel(COPY_TEST_ARGB_SOURCE * scale, 0, overlay);
+					hires_end();
+					clip = destination.sprite;
+					clip.sprite_bottom = 1;
+					clip.sprite_raster_right = COPY_TEST_CELLS;
+					assert(hires_begin_argb(&clip));
+					hires_argb_pixel(COPY_TEST_ARGB_DESTINATION * scale, 0, overlay);
+					hires_end();
+				}
+				hires_raster(destination.base, to, source.base, from, COPY_TEST_CELLS,
+							 SHAPE2D_RASTER_COPY, NULL);
+				for (legacy_u32 cell = 0; cell < COPY_TEST_CELLS; cell++) {
+					legacy_u8 samples[HIRES_SCALE * HIRES_SCALE];
+					legacy_u32 colors[HIRES_SCALE * HIRES_SCALE];
+					copy_test_samples(samples, cell, scale);
+					if (cell == holes[0] || cell == holes[1] || cell == holes[2]) {
+						memset(samples, COPY_TEST_FALLBACK_BASE + cell, scale * scale);
+					}
+					for (legacy_s32 sample = 0; sample < scale * scale; sample++) {
+						colors[sample] = argb != 0 && cell == COPY_TEST_ARGB_SOURCE && sample == 0
+											 ? overlay
+											 : palette[samples[sample]];
+					}
+					copy_test_assert_cell(&readback, &destination, (legacy_u16)(to + cell), scale,
+										  samples, colors, palette);
+					assert(destination.base[(legacy_u16)(to + cell)] == TEST_BACKGROUND_COLOR);
+				}
+				legacy_u8 guard[HIRES_SCALE * HIRES_SCALE];
+				memset(guard, TEST_BACKGROUND_COLOR, scale * scale);
+				copy_test_assert_cell(&readback, &destination, (legacy_u16)(to - 1U), scale, guard,
+									  NULL, palette);
+				copy_test_assert_cell(&readback, &destination, (legacy_u16)(to + COPY_TEST_CELLS),
+									  scale, guard, NULL, palette);
+				assert((hires_framebuffer_argb(destination.base, palette) != NULL) == (argb != 0));
+			}
+		}
+		hires_forget(source.base);
+		hires_forget(readback.base);
+		copy_test_seed(&source, COPY_TEST_SOURCE_WRAP, scale, COPY_TEST_SAMPLE_BASE);
+		/* Valid self-copy keeps every sample, including across the address wrap. */
+		hires_raster(source.base, COPY_TEST_SOURCE_WRAP, source.base, COPY_TEST_SOURCE_WRAP,
+					 COPY_TEST_CELLS, SHAPE2D_RASTER_COPY, NULL);
+		for (legacy_u32 cell = 0; cell < COPY_TEST_CELLS; cell++) {
+			legacy_u8 samples[HIRES_SCALE * HIRES_SCALE];
+			copy_test_samples(samples, cell, scale);
+			copy_test_assert_cell(&readback, &source, (legacy_u16)(COPY_TEST_SOURCE_WRAP + cell),
+								  scale, samples, NULL, palette);
+		}
+		/* Invalid same-cell COPY must materialize its fallback before a later
+		 * ordinary fallback-byte update, rather than retaining stale samples. */
+		legacy_u16 invalid = (legacy_u16)(COPY_TEST_SOURCE_WRAP + COPY_TEST_SELF_INVALID);
+		hires_write(source.base, invalid, COPY_TEST_FALLBACK_BASE);
+		source.base[invalid] = COPY_TEST_FALLBACK_BASE;
+		hires_raster(source.base, invalid, source.base, invalid, 1, SHAPE2D_RASTER_COPY, NULL);
+		source.base[invalid] = TEST_BACKGROUND_COLOR;
+		legacy_u8 samples[HIRES_SCALE * HIRES_SCALE];
+		memset(samples, COPY_TEST_FALLBACK_BASE, scale * scale);
+		copy_test_assert_cell(&readback, &source, invalid, scale, samples, NULL, palette);
+		/* Forward overlap cascades the first cell through every successor. Empty
+		 * source cells are overwritten before they are read, on both sides of wrap. */
+		copy_test_seed(&source, COPY_TEST_SOURCE_WRAP, scale, COPY_TEST_SAMPLE_BASE);
+		for (legacy_u32 hole = 0; hole < sizeof(holes) / sizeof(holes[0]); hole++) {
+			legacy_u16 offset = (legacy_u16)(COPY_TEST_SOURCE_WRAP + holes[hole]);
+			hires_write(source.base, offset, COPY_TEST_FALLBACK_BASE);
+			source.base[offset] = COPY_TEST_FALLBACK_BASE;
+		}
+		hires_raster(source.base, COPY_TEST_SOURCE_WRAP + 1U, source.base, COPY_TEST_SOURCE_WRAP,
+					 COPY_TEST_CELLS - 1U, SHAPE2D_RASTER_COPY, NULL);
+		copy_test_samples(samples, 0, scale);
+		for (legacy_u32 cell = 0; cell < COPY_TEST_CELLS; cell++) {
+			copy_test_assert_cell(&readback, &source, (legacy_u16)(COPY_TEST_SOURCE_WRAP + cell),
+								  scale, samples, NULL, palette);
+		}
+		hires_forget(source.base);
+		hires_forget(destination.base);
+		hires_forget(readback.base);
+	}
+	hires_shutdown();
+}
+
 /* Use logical cells and an independent full-image index oracle: smaller rasters
  * must really have fewer samples, including sprite copies and partial overlays. */
 static void test_scaled_pixels(legacy_s32 scale)
@@ -1879,6 +2063,7 @@ legacy_int main(void)
 	test_shadow_composition();
 	test_framebuffer_copy();
 	test_depth_lifetime(&screen);
+	test_raster_copy_cells();
 	test_render_scales();
 	hires_shutdown();
 	puts("SDL3 high-resolution composition tests passed.");

@@ -379,6 +379,34 @@ static void hires_raster_argb(struct HIRES_SURFACE *dst, legacy_u16 dest, struct
 	}
 }
 
+/* Copy companion cells in the same forward order as the legacy raster.
+ * Distinct offsets name disjoint cells, including when the address wraps. */
+static void hires_raster_copy_indexed(struct HIRES_SURFACE *dst, legacy_u16 destination_offset,
+									  struct HIRES_SURFACE *src, const legacy_u8 *source,
+									  legacy_u16 source_offset, legacy_u16 count)
+{
+	for (legacy_u32 index = 0; index < count; index++) {
+		legacy_u16 so = (legacy_u16)(source_offset + index);
+		legacy_u16 dest = (legacy_u16)(destination_offset + index);
+		legacy_u8 *cell = dst->pixels + ((size_t)dest << hires_state.render_cell_shift);
+		if (src != NULL && src->valid[so]) {
+			const legacy_u8 *samples = src->pixels + ((size_t)so << hires_state.render_cell_shift);
+			if (cell != samples) {
+				if (hires_state.render_scale == HIRES_SCALE) {
+					memcpy(cell, samples, HIRES_CELL_PIXELS);
+				} else if (hires_state.render_scale == HIRES_MEDIUM_SCALE) {
+					memcpy(cell, samples, HIRES_MEDIUM_SCALE * HIRES_MEDIUM_SCALE);
+				} else {
+					*cell = *samples;
+				}
+			}
+		} else {
+			memset(cell, source[so], hires_state.render_cell_pixels);
+		}
+		dst->valid[dest] = HIRES_CELL_INDEXED;
+	}
+}
+
 void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 				  const legacy_u8 *source, legacy_u16 source_offset, legacy_u16 count,
 				  legacy_s16 operation, const legacy_u8 *palette)
@@ -395,36 +423,40 @@ void hires_raster(const legacy_u8 *destination, legacy_u16 destination_offset,
 		dst = hires_create(destination);
 	}
 	legacy_s32 argb_present = dst->argb_cells != 0 || (src != NULL && src->argb_cells != 0);
-	for (legacy_u32 index = 0; index < count; index++) {
-		legacy_u16 so = (legacy_u16)(source_offset + index);
-		legacy_u16 dest = (legacy_u16)(destination_offset + index);
-		legacy_u8 source_color = source[so];
-		legacy_u8 *cell = hires_cell(dst, dest);
-		/* Match the game's forward traversal, including overlapping copies. */
-		legacy_u8 samples[HIRES_CELL_PIXELS];
-		if (src != NULL && src->valid[so]) {
-			memcpy(samples, src->pixels + ((size_t)so << hires_state.render_cell_shift),
-				   hires_state.render_cell_pixels);
-		} else {
-			memset(samples, source_color, hires_state.render_cell_pixels);
-		}
-		if (argb_present && (dst->valid[dest] == HIRES_CELL_ARGB ||
-							 (src != NULL && src->valid[so] == HIRES_CELL_ARGB))) {
-			hires_raster_argb(dst, dest, src, so, samples, operation, palette);
-		}
-		for (legacy_s32 sample = 0; sample < hires_state.render_cell_pixels; sample++) {
-			legacy_u8 value = samples[sample];
-			if (operation == SHAPE2D_RASTER_AND) {
-				cell[sample] &= value;
-			} else if (operation == SHAPE2D_RASTER_OR) {
-				cell[sample] |= value;
-			} else if (operation == SHAPE2D_RASTER_MAP) {
-				value = palette[value];
-				if (value != LEGACY_U8_MAX) {
+	if (!argb_present && operation == SHAPE2D_RASTER_COPY) {
+		hires_raster_copy_indexed(dst, destination_offset, src, source, source_offset, count);
+	} else {
+		for (legacy_u32 index = 0; index < count; index++) {
+			legacy_u16 so = (legacy_u16)(source_offset + index);
+			legacy_u16 dest = (legacy_u16)(destination_offset + index);
+			legacy_u8 source_color = source[so];
+			legacy_u8 *cell = hires_cell(dst, dest);
+			/* Match the game's forward traversal, including overlapping copies. */
+			legacy_u8 samples[HIRES_CELL_PIXELS];
+			if (src != NULL && src->valid[so]) {
+				memcpy(samples, src->pixels + ((size_t)so << hires_state.render_cell_shift),
+					   hires_state.render_cell_pixels);
+			} else {
+				memset(samples, source_color, hires_state.render_cell_pixels);
+			}
+			if (argb_present && (dst->valid[dest] == HIRES_CELL_ARGB ||
+								 (src != NULL && src->valid[so] == HIRES_CELL_ARGB))) {
+				hires_raster_argb(dst, dest, src, so, samples, operation, palette);
+			}
+			for (legacy_s32 sample = 0; sample < hires_state.render_cell_pixels; sample++) {
+				legacy_u8 value = samples[sample];
+				if (operation == SHAPE2D_RASTER_AND) {
+					cell[sample] &= value;
+				} else if (operation == SHAPE2D_RASTER_OR) {
+					cell[sample] |= value;
+				} else if (operation == SHAPE2D_RASTER_MAP) {
+					value = palette[value];
+					if (value != LEGACY_U8_MAX) {
+						cell[sample] = value;
+					}
+				} else {
 					cell[sample] = value;
 				}
-			} else {
-				cell[sample] = value;
 			}
 		}
 	}
