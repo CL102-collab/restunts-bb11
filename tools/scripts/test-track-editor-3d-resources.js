@@ -54,7 +54,7 @@ test('wheat field artwork draws golden crop rows without a native bitmap', () =>
 
 test('tulip and vine field artwork uses distinct generated colors without native bitmaps', () => {
     for (const [id, name, expected, size] of [
-        [model.TULIP_FIELD_ID, 'tulip field', [38, 54, 70, 167, 181, 200], 60],
+        [model.TULIP_FIELD_ID, 'tulip field', [9, 10, 15, 38, 54, 70, 167, 181, 200], 60],
         [model.VINE_FIELD_ID, 'vine field', [90, 92, 171, 200], 120]
     ]) {
         const bitmap = resources.composePieceTileBitmap(new Map(), id);
@@ -67,13 +67,21 @@ test('tulip and vine field artwork uses distinct generated colors without native
     }
 });
 
-test('tulip icons keep dense single-color rows and narrow vines show purple grape pixels', () => {
-    const tulips = resources.composePieceTileBitmap(new Map(), model.TULIP_FIELD_ID), colors = [167, 54, 38, 181, 167, 70];
-    for (let row = 0; row < 6; row++) for (let y = 0; y < tulips.height; y++)
-        assert.equal(tulips.pixels[y * tulips.width + row * 10 + 5], colors[row % colors.length]);
+test('tulip icons keep eight narrow single-color rows with separators and narrow vines show purple grape pixels', () => {
+    const tulips = resources.composePieceTileBitmap(new Map(), model.TULIP_FIELD_ID), colors = [15, 10, 70, 54, 38, 167, 181, 9];
+    const halfWidth = 2;
+    for (let row = 0; row < colors.length; row++) {
+        const center = Math.floor((row + .5) * tulips.width / colors.length);
+        for (let y = 0; y < tulips.height; y++) {
+            for (let dx = -halfWidth; dx <= halfWidth; dx++)
+                assert.equal(tulips.pixels[y * tulips.width + center + dx], colors[row]);
+            assert.equal(tulips.pixels[y * tulips.width + center - halfWidth - 1], 200, 'soil separates colors');
+            assert.equal(tulips.pixels[y * tulips.width + center + halfWidth + 1], 200, 'soil separates colors');
+        }
+    }
     for (let y = 1; y < tulips.height; y++)
         assert.deepEqual(tulips.pixels.subarray(y * tulips.width, (y + 1) * tulips.width), tulips.pixels.subarray(0, tulips.width), 'flower rows contain no mixed dot decorations');
-    assert(tulips.pixels.filter(color => color !== 200).length >= tulips.pixels.length * .8, 'colored flowers cover most of the tile');
+    assert.equal(tulips.pixels.filter(color => color !== 200).length, colors.length * (halfWidth * 2 + 1) * tulips.height, 'eight equal-width bands leave visible separators');
     const vines = resources.composePieceTileBitmap(new Map(), model.VINE_FIELD_ID);
     assert(vines.pixels.includes(171), 'purple grape clusters remain visible');
     assert.equal(vines.pixels.filter(color => color === 171).length, 192 * 5, 'eight unchanged pixel bunches on each side of twelve rows');

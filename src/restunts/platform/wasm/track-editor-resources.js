@@ -22,7 +22,7 @@
     const CROP_ICON_GRAPE_STATIONS = Array.from({ length: CROP_ICON_GRAPE_COUNT }, (_, index) => (2 * index + 1) / (2 * CROP_ICON_GRAPE_COUNT));
     const CROP_FIELD_ICONS = new Map([
         [WHEAT_FIELD_ID, { name: 'wheat field', rows: 6, gap: 2, colors: [74] }],
-        [TULIP_FIELD_ID, { name: 'tulip field', rows: 6, gap: 2, colors: [167, 54, 38, 181, 167, 70] }],
+        [TULIP_FIELD_ID, { name: 'tulip field', rows: 8, gap: 2, colors: [15, 10, 70, 54, 38, 167, 181, 9] }],
         [VINE_FIELD_ID, { name: 'vine field', rows: 12, scale: 8, gap: 6, colors: [90], edge: 92, grapes: true }]
     ]);
     // Keep layouts and unsigned hash arithmetic in sync with extended/extended_pine_trees.c.
