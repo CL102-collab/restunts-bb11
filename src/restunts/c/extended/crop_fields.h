@@ -27,46 +27,26 @@
 #define TULIP_FIELD_VERTEX_COUNT                                                                   \
 	(CROP_FIELDS_BOUNDING_VERTICES + CROP_FIELDS_QUAD_VERTICES * (2U * TULIP_FIELD_ROW_COUNT + 1U))
 #define TULIP_FIELD_PRIMITIVE_COUNT (1U + 2U * TULIP_FIELD_ROW_COUNT)
-#define VINE_FIELD_ROW_COUNT 12U
-#define VINE_FIELD_ROW_WIDTH 45
+#define VINE_FIELD_ROW_COUNT 24U
+#define VINE_FIELD_ROW_WIDTH 22
 #define VINE_FIELD_ROW_LEFT_OFFSET (-(VINE_FIELD_ROW_WIDTH / 2))
 #define VINE_FIELD_ROW_RIGHT_OFFSET (VINE_FIELD_ROW_LEFT_OFFSET + VINE_FIELD_ROW_WIDTH)
-#define VINE_FIELD_EAVE_HEIGHT 72
+#define VINE_FIELD_EAVE_HEIGHT 36
 #define VINE_FIELD_RIDGE_OFFSET 0
-#define VINE_FIELD_HEIGHT 96
+#define VINE_FIELD_HEIGHT 48
 #define VINE_FIELD_SECTION_VERTICES 5U
 #define VINE_FIELD_ROW_VERTICES (2U * VINE_FIELD_SECTION_VERTICES)
 #define VINE_FIELD_SIDE_COUNT (VINE_FIELD_SECTION_VERTICES - 1U)
 #define VINE_FIELD_CAP_COUNT 2U
 #define VINE_FIELD_SIDE_MATERIAL 68U
 #define VINE_FIELD_TOP_MATERIAL 69U
-#define VINE_FIELD_GRAPE_MATERIAL 73U
-#define VINE_FIELD_GRAPE_STATION_COUNT 8U
-#define VINE_FIELD_GRAPE_SIDE_COUNT 2U
-#define VINE_FIELD_GRAPE_PART_COUNT 2U
-#define VINE_FIELD_GRAPE_LOWER_HEIGHT 32
-#define VINE_FIELD_GRAPE_JOIN_HEIGHT 48
-#define VINE_FIELD_GRAPE_UPPER_HEIGHT 72
-#define VINE_FIELD_GRAPE_UPPER_HALF_WIDTH 16
-#define VINE_FIELD_GRAPE_LOWER_HALF_WIDTH 8
-#define VINE_FIELD_GRAPE_OUTWARD_OFFSET 2
-#define VINE_FIELD_GRAPE_PRIMITIVE_COUNT                                                           \
-	(VINE_FIELD_ROW_COUNT * VINE_FIELD_GRAPE_STATION_COUNT * VINE_FIELD_GRAPE_SIDE_COUNT *         \
-	 VINE_FIELD_GRAPE_PART_COUNT)
 #define VINE_FIELD_VERTEX_COUNT                                                                    \
 	(CROP_FIELDS_BOUNDING_VERTICES + CROP_FIELDS_QUAD_VERTICES +                                   \
 	 VINE_FIELD_ROW_COUNT * VINE_FIELD_ROW_VERTICES)
 #define VINE_FIELD_PRIMITIVE_COUNT                                                                 \
 	(1U + VINE_FIELD_ROW_COUNT * (VINE_FIELD_SIDE_COUNT + VINE_FIELD_CAP_COUNT))
-#define VINE_FIELD_MESH_COUNT (1U + VINE_FIELD_ROW_COUNT)
-#define VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT                                                     \
-	(VINE_FIELD_GRAPE_STATION_COUNT * VINE_FIELD_GRAPE_SIDE_COUNT * VINE_FIELD_GRAPE_PART_COUNT)
-#define VINE_FIELD_GRAPE_BATCH_VERTEX_COUNT                                                        \
-	(CROP_FIELDS_BOUNDING_VERTICES +                                                               \
-	 VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT * CROP_FIELDS_QUAD_VERTICES)
 
-/* Asset-free, one-tile crop rows. Tulips use one mesh. Vines use a foliage mesh
- * followed by one grape mesh per row, keeping every batch within the native
+/* Asset-free, one-tile crop rows. Each field uses one mesh within the native
  * byte-indexed vertex limit. The caller frees each generated mesh with
  * extended_geometry_free_shape. Invalid IDs or parts leave an empty result. */
 legacy_u8 crop_fields_mesh_count(legacy_u16 id);

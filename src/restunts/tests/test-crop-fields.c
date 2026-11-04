@@ -21,16 +21,20 @@ static legacy_s16 coordinate(const struct SHAPE3D *mesh, legacy_u16 index, legac
 #define TEST_TULIP_HEIGHT 12
 #define TEST_TULIP_VERTEX_COUNT 76U
 #define TEST_TULIP_PRIMITIVE_COUNT 17U
-#define TEST_VINE_WIDTH 45
-#define TEST_VINE_LEFT_OFFSET (-22)
-#define TEST_VINE_RIGHT_OFFSET 23
-#define TEST_VINE_HEIGHT 96
-#define TEST_VINE_EAVE_HEIGHT 72
+#define TEST_VINE_WIDTH 22
+#define TEST_VINE_LEFT_OFFSET (-11)
+#define TEST_VINE_RIGHT_OFFSET 11
+#define TEST_VINE_HEIGHT 48
+#define TEST_VINE_EAVE_HEIGHT 36
 #define TEST_VINE_RIDGE_OFFSET 0
 #define TEST_VINE_PROFILE_POINT_COUNT 5U
-#define TEST_VINE_ROW_COUNT 12U
-#define TEST_VINE_FOLIAGE_VERTEX_COUNT 132U
-#define TEST_VINE_FOLIAGE_PRIMITIVE_COUNT 73U
+#define TEST_VINE_ROW_COUNT 24U
+#define TEST_VINE_FOLIAGE_VERTEX_COUNT 252U
+#define TEST_VINE_FOLIAGE_PRIMITIVE_COUNT 145U
+#define TEST_VINE_MIN_ROW_SPACING 42
+#define TEST_VINE_MAX_ROW_SPACING 43
+#define TEST_VINE_FIRST_CENTER (-491)
+#define TEST_VINE_LAST_CENTER 490
 
 static const legacy_u8 test_tulip_colors[TEST_TULIP_COLOR_COUNT] = {
 	TULIP_FIELD_WHITE_MATERIAL,	 TULIP_FIELD_GREEN_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL,
@@ -40,8 +44,6 @@ static const legacy_u8 test_tulip_row_colors[TEST_TULIP_ROW_COUNT] = {
 	TULIP_FIELD_WHITE_MATERIAL,	 TULIP_FIELD_GREEN_MATERIAL, TULIP_FIELD_YELLOW_MATERIAL,
 	TULIP_FIELD_ORANGE_MATERIAL, TULIP_FIELD_RED_MATERIAL,	 TULIP_FIELD_PURPLE_MATERIAL,
 	TULIP_FIELD_PINK_MATERIAL,	 TULIP_FIELD_BLUE_MATERIAL};
-static const legacy_s16 test_grape_stations[VINE_FIELD_GRAPE_STATION_COUNT] = {
-	-448, -320, -192, -64, 64, 192, 320, 448};
 
 static legacy_int flower_material(legacy_u8 material)
 {
@@ -109,7 +111,7 @@ static void check_tulip_rows(const struct SHAPE3D *mesh)
 	assert(colors == (1U << TEST_TULIP_COLOR_COUNT) - 1U);
 }
 
-static void check_vine_foliage(const struct SHAPE3D *mesh, legacy_s16 centers[VINE_FIELD_ROW_COUNT])
+static void check_vine_foliage(const struct SHAPE3D *mesh)
 {
 	static const legacy_s16 profile_x[TEST_VINE_PROFILE_POINT_COUNT] = {
 		TEST_VINE_LEFT_OFFSET, TEST_VINE_LEFT_OFFSET, TEST_VINE_RIDGE_OFFSET,
@@ -122,6 +124,7 @@ static void check_vine_foliage(const struct SHAPE3D *mesh, legacy_s16 centers[VI
 	assert(mesh->shape3d_numprimitives == TEST_VINE_FOLIAGE_PRIMITIVE_COUNT);
 	assert(VINE_FIELD_ROW_COUNT == TEST_VINE_ROW_COUNT);
 	assert(coordinate(mesh, 4, SHAPE3D_VERTEX_Y_OFFSET) == TEST_VINE_HEIGHT);
+	legacy_s16 centers[TEST_VINE_ROW_COUNT];
 	for (legacy_u8 row = 0; row < VINE_FIELD_ROW_COUNT; row++) {
 		legacy_u16 first = CROP_FIELDS_BOUNDING_VERTICES + CROP_FIELDS_QUAD_VERTICES +
 						   row * VINE_FIELD_ROW_VERTICES;
@@ -130,6 +133,11 @@ static void check_vine_foliage(const struct SHAPE3D *mesh, legacy_s16 centers[VI
 			coordinate(mesh, first + VINE_FIELD_SECTION_VERTICES - 1U, SHAPE3D_VERTEX_X_OFFSET);
 		assert(right - left == TEST_VINE_WIDTH);
 		centers[row] = left - TEST_VINE_LEFT_OFFSET;
+		if (row) {
+			legacy_s16 spacing = centers[row] - centers[row - 1U];
+			assert(spacing >= TEST_VINE_MIN_ROW_SPACING && spacing <= TEST_VINE_MAX_ROW_SPACING);
+			assert(spacing > TEST_VINE_WIDTH);
+		}
 		for (legacy_u8 end = 0; end < VINE_FIELD_CAP_COUNT; end++) {
 			for (legacy_u8 corner = 0; corner < VINE_FIELD_SECTION_VERTICES; corner++) {
 				legacy_u16 vertex = first + end * VINE_FIELD_SECTION_VERTICES + corner;
@@ -141,103 +149,17 @@ static void check_vine_foliage(const struct SHAPE3D *mesh, legacy_s16 centers[VI
 			}
 		}
 	}
+	assert(centers[0] == TEST_VINE_FIRST_CENTER);
+	assert(centers[TEST_VINE_ROW_COUNT - 1U] == TEST_VINE_LAST_CENTER);
 }
 
-static void
-check_vine_grapes(const struct SHAPE3D *mesh, legacy_u8 expected_row,
-				  const legacy_s16 centers[VINE_FIELD_ROW_COUNT],
-				  legacy_u8 bunch_parts[VINE_FIELD_ROW_COUNT][VINE_FIELD_GRAPE_SIDE_COUNT]
-									   [VINE_FIELD_GRAPE_STATION_COUNT])
-{
-	legacy_u16 grapes = 0;
-	const legacy_u8 *primitive = mesh->shape3d_primitives;
-	for (legacy_u16 index = 0; index < mesh->shape3d_numprimitives; index++) {
-		legacy_u8 count = primitive[0], material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
-		if (material == VINE_FIELD_GRAPE_MATERIAL) {
-			assert(count == CROP_FIELDS_QUAD_VERTICES);
-			legacy_u8 first = primitive[TEST_CROP_PRIMITIVE_PREFIX];
-			legacy_s16 x = coordinate(mesh, first, SHAPE3D_VERTEX_X_OFFSET);
-			legacy_s16 z = coordinate(mesh, first, SHAPE3D_VERTEX_Z_OFFSET);
-			legacy_u8 row = VINE_FIELD_ROW_COUNT;
-			for (legacy_u8 candidate = 0; candidate < VINE_FIELD_ROW_COUNT; candidate++) {
-				if (x >= centers[candidate] + TEST_VINE_LEFT_OFFSET -
-							 VINE_FIELD_GRAPE_OUTWARD_OFFSET &&
-					x <= centers[candidate] + TEST_VINE_RIGHT_OFFSET +
-							 VINE_FIELD_GRAPE_OUTWARD_OFFSET) {
-					row = candidate;
-					break;
-				}
-			}
-			assert(row < VINE_FIELD_ROW_COUNT);
-			assert(row == expected_row);
-			legacy_u8 side = x > centers[row], station = VINE_FIELD_GRAPE_STATION_COUNT;
-			legacy_s16 minimum_z = z, maximum_z = z, minimum_y = VINE_FIELD_HEIGHT, maximum_y = 0;
-			for (legacy_u8 corner = 0; corner < count; corner++) {
-				legacy_u8 actual = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
-				legacy_s16 depth = coordinate(mesh, actual, SHAPE3D_VERTEX_Z_OFFSET);
-				legacy_s16 y = coordinate(mesh, actual, SHAPE3D_VERTEX_Y_OFFSET);
-				if (depth < minimum_z) {
-					minimum_z = depth;
-				}
-				if (depth > maximum_z) {
-					maximum_z = depth;
-				}
-				if (y < minimum_y) {
-					minimum_y = y;
-				}
-				if (y > maximum_y) {
-					maximum_y = y;
-				}
-			}
-			legacy_s16 center_z = (minimum_z + maximum_z) / 2;
-			for (legacy_u8 candidate = 0; candidate < VINE_FIELD_GRAPE_STATION_COUNT; candidate++) {
-				if (center_z == test_grape_stations[candidate]) {
-					station = candidate;
-					break;
-				}
-			}
-			assert(station < VINE_FIELD_GRAPE_STATION_COUNT);
-			if (minimum_y == VINE_FIELD_GRAPE_JOIN_HEIGHT) {
-				assert(maximum_y == VINE_FIELD_GRAPE_UPPER_HEIGHT);
-				assert(maximum_z - minimum_z == VINE_FIELD_GRAPE_UPPER_HALF_WIDTH * 2);
-			} else {
-				assert(minimum_y == VINE_FIELD_GRAPE_LOWER_HEIGHT);
-				assert(maximum_y == VINE_FIELD_GRAPE_JOIN_HEIGHT);
-				assert(maximum_z - minimum_z == VINE_FIELD_GRAPE_LOWER_HALF_WIDTH * 2);
-			}
-			bunch_parts[row][side][station]++;
-			for (legacy_u8 corner = 0; corner < count; corner++) {
-				legacy_u8 actual = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
-				legacy_s16 local_x =
-					coordinate(mesh, actual, SHAPE3D_VERTEX_X_OFFSET) - centers[row];
-				legacy_s16 y = coordinate(mesh, actual, SHAPE3D_VERTEX_Y_OFFSET);
-				legacy_s16 depth = coordinate(mesh, actual, SHAPE3D_VERTEX_Z_OFFSET);
-				assert((local_x > 0) == side);
-				assert(y >= VINE_FIELD_GRAPE_LOWER_HEIGHT && y <= VINE_FIELD_GRAPE_UPPER_HEIGHT);
-				assert(y <= TEST_VINE_EAVE_HEIGHT);
-				assert(abs(depth - center_z) <= VINE_FIELD_GRAPE_UPPER_HALF_WIDTH);
-				/* Grape patches remain parallel to and outside the vertical walls. */
-				assert(local_x == (side ? TEST_VINE_RIGHT_OFFSET + VINE_FIELD_GRAPE_OUTWARD_OFFSET
-										: TEST_VINE_LEFT_OFFSET - VINE_FIELD_GRAPE_OUTWARD_OFFSET));
-			}
-			grapes++;
-		}
-		primitive += TEST_CROP_PRIMITIVE_PREFIX + count;
-	}
-	assert(grapes == VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT);
-}
-
-static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 part)
+static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id)
 {
 	legacy_u8 tulips = id == CSTRK_TULIP_FIELD_ID;
 	legacy_s16 height = tulips ? TULIP_FIELD_HEIGHT : VINE_FIELD_HEIGHT;
-	legacy_u8 grapes = !tulips && part;
-	assert(mesh->shape3d_numverts == (tulips   ? TULIP_FIELD_VERTEX_COUNT
-									  : grapes ? VINE_FIELD_GRAPE_BATCH_VERTEX_COUNT
-											   : VINE_FIELD_VERTEX_COUNT));
-	assert(mesh->shape3d_numprimitives == (tulips	? TULIP_FIELD_PRIMITIVE_COUNT
-										   : grapes ? VINE_FIELD_GRAPE_BATCH_PRIMITIVE_COUNT
-													: VINE_FIELD_PRIMITIVE_COUNT));
+	assert(mesh->shape3d_numverts == (tulips ? TULIP_FIELD_VERTEX_COUNT : VINE_FIELD_VERTEX_COUNT));
+	assert(mesh->shape3d_numprimitives ==
+		   (tulips ? TULIP_FIELD_PRIMITIVE_COUNT : VINE_FIELD_PRIMITIVE_COUNT));
 	assert(mesh->shape3d_numverts <= LEGACY_U8_MAX);
 	assert(mesh->shape3d_numprimitives <= LEGACY_U8_MAX);
 	assert(mesh->shape3d_numpaints == TEST_CROP_PAINT_COUNT);
@@ -263,16 +185,29 @@ static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 pa
 		legacy_u8 material = primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE];
 		assert(count >= CROP_FIELDS_QUAD_VERTICES && count <= VINE_FIELD_SECTION_VERTICES);
 		assert(primitive[1] == 1U);
-		if (grapes) {
-			assert(material == VINE_FIELD_GRAPE_MATERIAL && count == CROP_FIELDS_QUAD_VERTICES);
+		if (!tulips) {
+			assert(material == CROP_FIELDS_SOIL_MATERIAL || material == VINE_FIELD_SIDE_MATERIAL ||
+				   material == VINE_FIELD_TOP_MATERIAL);
 		}
-		if (!tulips && !grapes && material == VINE_FIELD_SIDE_MATERIAL) {
+		if (!tulips && material == VINE_FIELD_SIDE_MATERIAL) {
 			legacy_u8 first = primitive[TEST_CROP_PRIMITIVE_PREFIX];
 			legacy_s16 depth = coordinate(mesh, first, SHAPE3D_VERTEX_Z_OFFSET);
 			legacy_u8 end_cap = 1;
 			for (legacy_u8 corner = 1; corner < count; corner++) {
 				legacy_u8 vertex = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
 				end_cap &= coordinate(mesh, vertex, SHAPE3D_VERTEX_Z_OFFSET) == depth;
+			}
+			if (end_cap) {
+				legacy_s32 area = 0;
+				for (legacy_u8 corner = 0; corner < count; corner++) {
+					legacy_u8 current = primitive[TEST_CROP_PRIMITIVE_PREFIX + corner];
+					legacy_u8 next = primitive[TEST_CROP_PRIMITIVE_PREFIX + (corner + 1U) % count];
+					area += (legacy_s32)coordinate(mesh, current, SHAPE3D_VERTEX_X_OFFSET) *
+								coordinate(mesh, next, SHAPE3D_VERTEX_Y_OFFSET) -
+							(legacy_s32)coordinate(mesh, next, SHAPE3D_VERTEX_X_OFFSET) *
+								coordinate(mesh, current, SHAPE3D_VERTEX_Y_OFFSET);
+				}
+				assert(area != 0 && (area > 0) == (depth > 0));
 			}
 			end_caps += end_cap;
 		}
@@ -298,49 +233,29 @@ static size_t check_mesh(const struct SHAPE3D *mesh, legacy_u16 id, legacy_u8 pa
 	if (tulips) {
 		assert(green_top && end_caps == 0);
 		check_tulip_rows(mesh);
-	} else if (!grapes) {
+	} else {
 		assert(green_top && green_side);
 		assert(end_caps == TEST_VINE_ROW_COUNT * VINE_FIELD_CAP_COUNT);
-	} else {
-		assert(!green_top && !green_side && end_caps == 0);
+		check_vine_foliage(mesh);
 	}
 	return (size_t)(primitive - mesh->shape3d_primitives) + SHAPE3D_PRIMITIVE_HEADER_SIZE;
 }
 
 static void check_field(legacy_u16 id)
 {
-	legacy_s16 centers[VINE_FIELD_ROW_COUNT];
-	legacy_u8 bunch_parts[VINE_FIELD_ROW_COUNT][VINE_FIELD_GRAPE_SIDE_COUNT]
-						 [VINE_FIELD_GRAPE_STATION_COUNT] = {{{0}}};
 	legacy_u8 count = crop_fields_mesh_count(id);
-	assert(count == (id == CSTRK_TULIP_FIELD_ID ? 1U : TEST_VINE_ROW_COUNT + 1U));
+	assert(count == 1U);
 	for (legacy_u8 part = 0; part < count; part++) {
 		struct SHAPE3D mesh, repeated;
 		assert(crop_fields_create_mesh(&mesh, id, part));
 		assert(crop_fields_create_mesh(&repeated, id, part));
-		size_t primitive_bytes = check_mesh(&mesh, id, part);
-		assert(check_mesh(&repeated, id, part) == primitive_bytes);
+		size_t primitive_bytes = check_mesh(&mesh, id);
+		assert(check_mesh(&repeated, id) == primitive_bytes);
 		assert(!memcmp(mesh.shape3d_vertex_bytes, repeated.shape3d_vertex_bytes,
 					   (size_t)mesh.shape3d_numverts * SHAPE3D_VERTEX_SIZE));
 		assert(!memcmp(mesh.shape3d_primitives, repeated.shape3d_primitives, primitive_bytes));
-		if (id == CSTRK_VINE_FIELD_ID) {
-			if (part == 0) {
-				check_vine_foliage(&mesh, centers);
-			} else {
-				check_vine_grapes(&mesh, part - 1U, centers, bunch_parts);
-			}
-		}
 		free(mesh.shape3d_vertex_bytes);
 		free(repeated.shape3d_vertex_bytes);
-	}
-	if (id == CSTRK_VINE_FIELD_ID) {
-		for (legacy_u8 row = 0; row < VINE_FIELD_ROW_COUNT; row++) {
-			for (legacy_u8 side = 0; side < VINE_FIELD_GRAPE_SIDE_COUNT; side++) {
-				for (legacy_u8 station = 0; station < VINE_FIELD_GRAPE_STATION_COUNT; station++) {
-					assert(bunch_parts[row][side][station] == VINE_FIELD_GRAPE_PART_COUNT);
-				}
-			}
-		}
 	}
 	struct SHAPE3D invalid;
 	assert(!crop_fields_create_mesh(&invalid, id, count));

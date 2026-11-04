@@ -168,9 +168,8 @@ the underlying terrain determines driving grip. Wheat field requires `.cstrk` v1
 
 **Tulip field** adds eight narrow flower bands ordered white, green, yellow,
 orange, red, purple, pink and blue, with one color along each row and green
-edging and soil separators between the bands. **Vine field** adds twelve low,
-narrow green rows with triangular tops and dense purple grape clusters on
-both sides.
+edging and soil separators between the bands. **Vine field** adds twenty-four
+short, narrow green rows with triangular tops and evenly spaced soil separators.
 Both occupy one tile, join into larger fields, and support rotation, raised
 ground and straight hillside inclines in every direction.
 They appear in the 2D editor, 3D preview and game. Both are drive-through
