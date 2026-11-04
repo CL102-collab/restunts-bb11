@@ -273,13 +273,16 @@ legacy_s32 hires_render_workers_count(void)
 }
 
 void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32),
-								void (*joined)(void *, legacy_s32), void *context)
+								void (*joined)(void *, legacy_s32),
+								legacy_s32 (*join_required)(void *, legacy_s32), void *context)
 {
-	(void)count;
-	(void)job;
-	(void)joined;
-	(void)context;
-	assert(0 && "Serial frame fixtures must not dispatch geometry workers");
+	for (legacy_s32 index = 0; index < count; index++) {
+		job(context, index);
+		if (joined != NULL &&
+			(join_required == NULL || join_required(context, index) || index == count - 1)) {
+			joined(context, index);
+		}
+	}
 }
 
 legacy_u16 frame_callback_count;

@@ -76,6 +76,31 @@ transformation and clipping to move onto the GPU. The current boundary avoids
 introducing those abstractions before they are needed; it does not imply that
 software span resolution should be translated directly into Vulkan commands.
 
+## Authored meshes and track previews
+
+Native track objects can supply full and authored low-detail meshes. Classic
+reduced-detail rendering can select the low alternatives; Full HyperVision keeps
+full meshes on classic tracks. Extended-track driving, replays, and rotating
+`.cstrk` menu previews select an available low mesh when the complete object is
+farther than 20 tile lengths from the camera, including the Full preset.
+
+The cutoff uses three-dimensional Euclidean distance to the nearest point of a
+conservative axis-aligned object bounding box. The box includes the whole
+footprint, full model and overlay bounds, scattered grove trees, and grade.
+Camera height contributes to the distance. Equality and any part of the bounds
+within 20 tiles retain full detail. Driving uses unwrapped world coordinates;
+the preview uses the job's precise tile origin to preserve the same distance
+across large tracks.
+
+Models without a low-detail alternative retain their full meshes. Generated roll
+ramps and tunnel slaloms retain their existing geometry. Distant vine fields omit
+tiny grape-cluster meshes while retaining foliage rows and soil. Terrain meshes
+and road cutouts retain their full geometry, and this object-distance rule does
+not change vehicle detail.
+
+The live menu preview remains capped at 25 presented frames per second. Its
+reported render time excludes the pacing wait and display synchronization.
+
 ## Multi-core rendering
 
 `--multi-core:on` is the default and enables a persistent worker pool;
@@ -90,6 +115,11 @@ and bounding rectangles. The caller joins groups in the original submission
 order, remaps shape and depth-family indices, and inserts cars, start flags,
 and ghost lines at the same points as serial rendering. Material overrides and
 shadow receiver heights are resolved when groups join.
+
+The extended-track menu preview uses the same private geometry contexts and
+ordered joins. It builds groups of eight row-major tiles independently, then
+merges them in source order before rasterization. Its 25 FPS presentation cap
+continues to apply when workers are enabled.
 
 Projected primitives then build private polygon-command buffers in parallel.
 An ordered prefix layout lets jobs copy into disjoint final command ranges.
@@ -186,6 +216,36 @@ framebuffer composition. Display upload, VSync, audio playback, frame pacing,
 and physics advancement remain outside the timed loop. It does not measure
 complete interactive FPS. The target is excluded from ordinary builds and is
 not a CTest timing gate.
+
+### Measuring the rotating track preview
+
+Use `--preview` with `--track` to time the production `draw_track_preview` path:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=1 \
+    out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts --preview \
+    --track /path/to/glacier.cstrk --compose 120
+```
+
+Each case freezes one of four quarter-turn headings in the 40-second orbit:
+visual ticks 0, 1000, 2000, and 3000. The default measures all four at 1280x800.
+Add `--all-views` to measure each heading at 320x200, 640x400, and 1280x800,
+producing 12 cases. Each case uses the normal eight warmup frames and reports
+process CPU time, mean/median/95th-percentile elapsed time, worker count, and
+framebuffer hash. An additional diagnostic line reports `preview_tick`, submitted
+scene `primitives`, and `detail=default` or `detail=full`.
+
+Add `--preview-full-detail` to disable the preview's 20-tile distance reductions.
+This provides a full-mesh comparison using the same orbit and parallel geometry
+path. Compare worker counts with the same detail selection; compare default and
+full detail separately while reviewing the resulting visual differences.
+
+The timed loop includes preview drawing and checks that gamestate, game
+configuration, and RNG seeds are unchanged. `--compose` includes final ARGB
+composition. Menu text overlays, display upload, presentation, and the 25 FPS
+pacing wait are excluded, so these results measure renderer throughput rather
+than the menu's presented FPS. Serial/parallel pixel comparisons run before each
+case when multi-core rendering is enabled.
 
 ### Workers
 
@@ -379,6 +439,38 @@ comparisons. Focused TSan instrumented 81 game units plus SDL's atomic/spinlock
 implementations and passed workers, backend, geometry, concurrent cache stress,
 and all six Glacier views without race reports.
 
+### Glacier rotating preview measurements (2026-11-04)
+
+The comparison uses `6d08980c`, whose preview builds geometry serially, and the
+renderer with the shared 20-tile object-distance policy and parallel preview
+geometry. Both binaries used Linux Release builds with GCC 14.2, Full HyperVision
+at 1280x800, and final ARGB composition. Each batch measured 120 frames after
+eight warmup frames at each of the four frozen orbit headings. Two batches per
+configuration ran in baseline/optimized/optimized/baseline order. CPU affinity
+selected separate physical cache groups: `0` for one rendering thread and `0,2`
+for the caller plus one background worker.
+
+For each renderer and thread count, the table reports the median of eight case
+p50 values: four headings in each of two batches. Throughput improvement compares
+these medians at the same thread count.
+
+| Total rendering threads | Baseline median p50, ms | Optimized median p50, ms | Throughput improvement |
+| --- | ---: | ---: | ---: |
+| 1 | 35.8645 | 31.3835 | 14.3% |
+| 2 | 31.1970 | 18.2290 | 71.1% |
+
+Individual two-thread case p50 values ranged from 30.915 to 31.614 ms for the
+baseline and 17.966 to 18.583 ms for the optimized renderer. Mean process CPU time
+per frame decreased from 36.195 to 31.512 ms with one thread and from 37.799 to
+35.360 ms with two. At orbit tick 0, submitted scene primitives decreased from
+109,189 to 86,894, a 20.4% reduction.
+
+The timings measure the combined distance-detail policy and parallel geometry
+change. They include composition and exclude menu overlays, display upload,
+presentation, pacing, and physics. The live preview still presents at most
+25 FPS. These are comparative renderer throughput measurements on this host,
+with no claim about interactive FPS on the target hardware.
+
 ### Earlier results
 
 A paired Linux Release comparison on 2026-10-01 used GCC 13.3 (`-O3`, the same
@@ -463,6 +555,20 @@ Geometry tests compare ordered serial/parallel scenes, live vertices, shape and
 depth-family remapping, shadows, material overrides, origins, shared bounding
 rectangles and serial callbacks. Composition tests compare faded overlays and
 padded output rows at every scale.
+
+Extended-object regressions cover the exact 20-tile cutoff, diagonal and vertical
+camera distances, multi-tile footprints, native and rotated overlay bounds,
+wrapped world coordinates, missing low meshes, and actual high/low submissions.
+Overview fixtures compare full and distance-reduced previews with zero, one, and
+three background workers while preserving gamestate, configuration, RNG, and
+viewport clipping. The extended-render suite passes 4,943 frames.
+
+The preview follow-up also passes AddressSanitizer/UndefinedBehaviorSanitizer and
+focused ThreadSanitizer runs of the worker, backend, geometry, and overview
+fixtures, plus all twelve real Glacier heading/resolution cases. Serial/parallel
+ARGB hashes match in every case. The TSan build instruments preview preparation,
+procedural meshes, math, renderer/cache code, and SDL atomic/spinlock sources;
+other native dependency archives are reused.
 
 AddressSanitizer and UndefinedBehaviorSanitizer pass the worker/backend/geometry
 suites and all six Glacier camera/resolution cases, including pixel comparisons.

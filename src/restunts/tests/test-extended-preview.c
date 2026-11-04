@@ -4,6 +4,7 @@
 #include "../c/externs.h"
 #include "../c/extended/extended_track.h"
 #include "../c/extended/extended_frame.h"
+#include "../c/extended/extended_track_preview_hires.h"
 #include "../c/frame/frame_internal.h"
 #include "../c/game_input.h"
 #include "../c/hires/hires.h"
@@ -12,6 +13,7 @@
 #include "../c/math/projection.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/hires/shape3d_hires.h"
+#include "../c/hires/shape3d_pipeline.h"
 #include "../c/skybox.h"
 #include "../c/track/track_objects.h"
 #include "../c/track/trackdata_layout.h"
@@ -114,6 +116,26 @@ legacy_u32 dos_timer_get_realtime_counter(void)
 	return preview_ticks;
 }
 
+legacy_u32 shape3d_hires_scene_count(void)
+{
+	return tile_count;
+}
+
+void shape3d_hires_geometry_run(legacy_s32 count, void (*job)(void *, legacy_s32),
+								void (*joined)(void *, legacy_s32),
+								legacy_s32 (*join_required)(void *, legacy_s32), void *context)
+{
+	/* SDK-free fixtures trace source-order traversal; native renderer tests
+	 * exercise the production worker pool and private geometry scenes. */
+	for (legacy_s32 index = 0; index < count; index++) {
+		job(context, index);
+		if (joined != NULL &&
+			(join_required == NULL || join_required(context, index) || index == count - 1)) {
+			joined(context, index);
+		}
+	}
+}
+
 void shape3d_hires_set_origin(const struct SHAPE3D_HIRES_VECTOR *origin)
 {
 	if (origin == NULL) {
@@ -140,6 +162,7 @@ void extended_frame_draw_preview_tile(legacy_s16 column, legacy_s16 row)
 	assert(column >= 0 && column < preview_track.width);
 	assert(row >= 0 && row < preview_track.height);
 	legacy_u32 index = (legacy_u32)row * preview_track.width + column;
+	assert(index == tile_count);
 	assert(visited_tiles[index] == 0);
 	visited_tiles[index] = 1;
 	struct SHAPE3D_HIRES_VECTOR camera;
@@ -337,6 +360,7 @@ static struct SHAPE3D_HIRES_VECTOR render_3d(legacy_u32 ticks)
 	draw_track_preview();
 	assert(tile_count == (legacy_u32)preview_track.width * preview_track.height);
 	assert(origin_count == tile_count);
+	assert(extended_track_preview_hires_primitive_count() == tile_count);
 	assert(flush_count == 1 && reset_count != 0 && origin_active == 0);
 	assert(fill_count == 0 && outline_count == 0);
 	assert(projection_count != 0);

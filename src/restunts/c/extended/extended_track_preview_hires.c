@@ -6,6 +6,7 @@
 #include "../shape2d/shape2d.h"
 #include "../shape3d/shape3d.h"
 #include "../hires/shape3d_hires.h"
+#include "../hires/shape3d_pipeline.h"
 #include "../track/track_objects.h"
 #include "../track/trackdata_layout.h"
 #include "../skybox.h"
@@ -32,6 +33,9 @@
 #define HIRES_TRACK_PREVIEW_EXTENDED_MODEL_HEIGHT CSTRK_TILE_WORLD_SIZE
 #define HIRES_TRACK_PREVIEW_EXTENDED_MODEL_MARGIN (CSTRK_TILE_WORLD_SIZE / 64)
 #define HIRES_TRACK_PREVIEW_EXTENDED_CORNER_AXIS 2
+#define HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES 8
+
+static legacy_u32 hires_track_preview_last_primitive_count;
 
 struct HIRES_TRACK_PREVIEW_EXTENDED_BOUNDS {
 	legacy_f64 min_x, max_x, min_y, max_y, min_z, max_z;
@@ -166,6 +170,39 @@ hires_track_preview_extended_orbit_radius(const struct HIRES_TRACK_PREVIEW_EXTEN
 	return radius;
 }
 
+struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME {
+	const struct CSTRK_TRACK *track;
+	const struct SHAPE3D_HIRES_VECTOR *camera;
+};
+
+static void hires_track_preview_build_geometry(void *argument, legacy_s32 index)
+{
+	const struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME *frame = argument;
+	legacy_s32 first = index * HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES;
+	legacy_s32 end = first + HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES;
+	legacy_s32 tile_count = (legacy_s32)frame->track->width * frame->track->height;
+	if (end > tile_count) {
+		end = tile_count;
+	}
+	legacy_s16 column = (legacy_s16)(first % frame->track->width);
+	legacy_s16 row = (legacy_s16)(first / frame->track->width);
+	for (legacy_s32 tile = first; tile < end; tile++) {
+		/* Private geometry scenes retain the same row-major tile order. The
+		 * precise origin belongs to the current job's thread-local context. */
+		legacy_s32 center_x = column * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2;
+		legacy_s32 center_z =
+			(frame->track->height - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2;
+		struct SHAPE3D_HIRES_VECTOR origin = {center_x - frame->camera->x, -frame->camera->y,
+											  center_z - frame->camera->z};
+		shape3d_hires_set_origin(&origin);
+		extended_frame_draw_preview_tile(column, row);
+		if (++column == frame->track->width) {
+			column = 0;
+			row++;
+		}
+	}
+}
+
 static void hires_track_preview_draw_extended_3d(void)
 {
 	const struct CSTRK_TRACK *track = extended_track_model();
@@ -200,27 +237,29 @@ static void hires_track_preview_draw_extended_3d(void)
 							 HIRES_TRACK_PREVIEW_EXTENDED_BOTTOM - 1};
 	select_cliprect_rotate(0, -HIRES_TRACK_PREVIEW_EXTENDED_ORBIT_PITCH, (legacy_s16)heading, &clip,
 						   0);
-	for (legacy_s16 row = 0; row < track->height; row++) {
-		for (legacy_s16 column = 0; column < track->width; column++) {
-			/* Existing meshes use a tile-local wrapped camera. Restore its full
-			 * world position here before HyperVision rotates precise vertices. */
-			struct SHAPE3D_HIRES_VECTOR origin = {
-				column * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2 - camera.x, -camera.y,
-				(track->height - row) * CSTRK_TILE_WORLD_SIZE - CSTRK_TILE_WORLD_SIZE / 2 -
-					camera.z};
-			shape3d_hires_set_origin(&origin);
-			extended_frame_draw_preview_tile(column, row);
-		}
-	}
+	struct HIRES_TRACK_PREVIEW_GEOMETRY_FRAME geometry = {track, &camera};
+	legacy_s32 tile_count = (legacy_s32)track->width * track->height;
+	legacy_s32 groups = (tile_count + HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES - 1) /
+						HIRES_TRACK_PREVIEW_GEOMETRY_GROUP_TILES;
+	/* No dynamic serial geometry interrupts the overview, so all immutable
+	 * tile groups can build independently and merge once in source order. */
+	shape3d_hires_geometry_run(groups, hires_track_preview_build_geometry, NULL, NULL, &geometry);
 	shape3d_hires_set_origin(NULL);
+	hires_track_preview_last_primitive_count = shape3d_hires_scene_count();
 	shape3d_render_queued_primitives();
 	projection_set_origin(0, 0);
 	sprite_set_target_clip_bounds(0, HIRES_TRACK_PREVIEW_SCREEN_WIDTH, 0,
 								  HIRES_TRACK_PREVIEW_SCREEN_HEIGHT);
 }
 
+legacy_u32 extended_track_preview_hires_primitive_count(void)
+{
+	return hires_track_preview_last_primitive_count;
+}
+
 legacy_s16 extended_track_preview_hires_draw(void)
 {
+	hires_track_preview_last_primitive_count = 0;
 	if (!hires_enabled()) {
 		return 0;
 	}
