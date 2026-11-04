@@ -19,6 +19,14 @@ struct SHAPE3D_HIRES_POINT {
 	legacy_f64 inverse_z;
 };
 
+/* Per-instance frustum coefficients retain the vertex test's exact products. */
+struct SHAPE3D_HIRES_CLIP_CONTEXT {
+	legacy_f64 left, right, top, bottom;
+};
+void shape3d_hires_prepare_clip(struct SHAPE3D_HIRES_CLIP_CONTEXT *context);
+legacy_u8 shape3d_hires_clip_prepared(const struct SHAPE3D_HIRES_VECTOR *vector,
+									  const struct SHAPE3D_HIRES_CLIP_CONTEXT *context);
+
 struct TRANSFORMEDSHAPE3D;
 /* Queue HyperVision geometry without quantizing generated local vertices into
  * a legacy shape resource. Vertices are copied during this call. */

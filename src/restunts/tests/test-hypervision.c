@@ -54,6 +54,9 @@
 #define TEST_SEARCH_SHORT_COUNT 7
 #define TEST_SEARCH_LONG_COUNT 31
 #define TEST_SEARCH_REPLACE_PERIOD 3
+#define TEST_OUTLINE_SEGMENTS 16U
+#define TEST_OUTLINE_VERTICES (TEST_RECTANGLE_VERTICES * TEST_OUTLINE_SEGMENTS)
+#define TEST_OUTLINE_GROUPS 2
 
 enum { TEST_PARTITION_HIDDEN, TEST_PARTITION_VISIBLE, TEST_PARTITION_DECAL, TEST_PARTITION_CASES };
 
@@ -796,6 +799,75 @@ static void test_parallel_build_matches(void)
 	free(families);
 }
 
+struct TEST_BUILD_OUTLINE {
+	const struct HIRES_BACKEND_VERTEX *vertices;
+	legacy_u32 count;
+};
+
+static void build_test_outline(void *context, legacy_s32 index, struct HIRES_BACKEND_BUFFER *buffer)
+{
+	(void)index;
+	const struct TEST_BUILD_OUTLINE *outline = context;
+	const struct HIRES_BACKEND_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	hires_backend_polygon_to(buffer, outline->vertices, outline->count, &paint);
+}
+
+/* Every subdivided edge spans at least one scanline. Exact integer slopes keep
+ * this maximum-edge outline pixel-identical to its four-corner reference. */
+static void test_maximum_edge_outline(void)
+{
+	legacy_f32 *depths = malloc((size_t)HIRES_WIDTH * HIRES_HEIGHT * sizeof(*depths));
+	legacy_u32 *families = malloc((size_t)HIRES_WIDTH * HIRES_HEIGHT * sizeof(*families));
+	assert(depths != NULL && families != NULL);
+	const legacy_char *workers[] = {TEST_NO_WORKERS, "1", "3"};
+	hires_render_workers_set_enabled(1);
+	for (legacy_s32 scale = HIRES_MINIMUM_SCALE; scale <= HIRES_SCALE;
+		 scale *= HIRES_MEDIUM_SCALE) {
+		const struct HIRES_BACKEND_VERTEX corners[TEST_RECTANGLE_VERTICES] = {
+			{16 * scale, 16 * scale, TEST_MIDDLE_DEPTH},
+			{112 * scale, 32 * scale, TEST_MIDDLE_DEPTH},
+			{112 * scale, 160 * scale, TEST_MIDDLE_DEPTH},
+			{16 * scale, 144 * scale, TEST_MIDDLE_DEPTH}};
+		struct HIRES_BACKEND_VERTEX subdivided[TEST_OUTLINE_VERTICES];
+		for (legacy_u32 side = 0; side < TEST_RECTANGLE_VERTICES; side++) {
+			const struct HIRES_BACKEND_VERTEX *first = &corners[side];
+			const struct HIRES_BACKEND_VERTEX *last =
+				&corners[(side + 1U) % TEST_RECTANGLE_VERTICES];
+			for (legacy_u32 segment = 0; segment < TEST_OUTLINE_SEGMENTS; segment++) {
+				subdivided[side * TEST_OUTLINE_SEGMENTS + segment] = (struct HIRES_BACKEND_VERTEX){
+					first->x + (last->x - first->x) * segment / TEST_OUTLINE_SEGMENTS,
+					first->y + (last->y - first->y) * segment / TEST_OUTLINE_SEGMENTS,
+					TEST_MIDDLE_DEPTH};
+			}
+		}
+		struct TEST_BUILD_OUTLINE outlines[] = {{corners, TEST_RECTANGLE_VERTICES},
+												{subdivided, TEST_OUTLINE_VERTICES}};
+		for (legacy_u32 outline = 0; outline < SDL_arraysize(outlines); outline++) {
+			for (legacy_u32 worker = 0; worker < SDL_arraysize(workers); worker++) {
+				hires_render_workers_shutdown();
+				assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", workers[worker], true) == 0);
+				begin_frame(scale);
+				/* Two copies exercise both parallel merge and visibility at every scale. */
+				hires_backend_build(TEST_OUTLINE_GROUPS, build_test_outline, &outlines[outline]);
+				const legacy_u8 *pixels = end_frame();
+				size_t samples = (size_t)target.width * target.height;
+				if (outline == 0 && worker == 0) {
+					memcpy(reference, pixels, samples);
+					memcpy(depths, target.inverse_depth, samples * sizeof(*depths));
+					memcpy(families, target.depth_family, samples * sizeof(*families));
+				} else {
+					assert_same_pixels(pixels);
+					assert(memcmp(depths, target.inverse_depth, samples * sizeof(*depths)) == 0);
+					assert(memcmp(families, target.depth_family, samples * sizeof(*families)) == 0);
+				}
+			}
+		}
+	}
+	hires_render_workers_set_enabled(0);
+	free(depths);
+	free(families);
+}
+
 legacy_int main(void)
 {
 	screen = dos_memory_make_pointer(TEST_SCREEN_SEGMENT, 0);
@@ -825,6 +897,7 @@ legacy_int main(void)
 	test_growth_and_reset();
 	test_workers_match();
 	test_parallel_build_matches();
+	test_maximum_edge_outline();
 	hires_backend_shutdown();
 	hires_shutdown();
 	puts("HyperVision visibility, cutouts, decals, queue lifetime and worker parity passed.");

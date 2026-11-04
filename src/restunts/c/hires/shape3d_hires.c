@@ -98,23 +98,30 @@ static legacy_u8 hires_point_clip_flags(const struct SHAPE3D_HIRES_POINT *point,
 	return flags;
 }
 
-legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector)
+void shape3d_hires_prepare_clip(struct SHAPE3D_HIRES_CLIP_CONTEXT *context)
 {
-	/* Compare the camera-space vertex with the padded frustum planes. This
-	 * avoids projecting the same vertex again merely to reject an instance.
-	 * Keep a floating-point margin so rearranging the equation cannot discard
-	 * a line or polygon lying exactly on a viewport boundary. */
 	legacy_s32 scale = hires_render_scale();
 	legacy_f64 padding = 0.5 + 0.5 / scale;
+	legacy_f64 center_x = (legacy_s16)projection_center_x;
+	legacy_f64 center_y = (legacy_s16)projection_center_y;
+	context->left = select_rect_rc.left - padding - center_x;
+	context->right = select_rect_rc.right + 1 + padding - center_x;
+	context->top = center_y - select_rect_rc.top + padding;
+	context->bottom = center_y - select_rect_rc.bottom - 1 - padding;
+}
+
+legacy_u8 shape3d_hires_clip_prepared(const struct SHAPE3D_HIRES_VECTOR *vector,
+									  const struct SHAPE3D_HIRES_CLIP_CONTEXT *context)
+{
+	/* The coefficients contain only exact integer and dyadic arithmetic.
+	 * Keep all per-vertex products and rounding margins in their original order. */
 	legacy_f64 z = vector->z > 0 ? vector->z : 1;
 	legacy_f64 x = vector->x * projection_focal_length_x;
 	legacy_f64 y = vector->y * projection_focal_length_y;
-	legacy_f64 center_x = (legacy_s16)projection_center_x;
-	legacy_f64 center_y = (legacy_s16)projection_center_y;
-	legacy_f64 left = (select_rect_rc.left - padding - center_x) * z;
-	legacy_f64 right = (select_rect_rc.right + 1 + padding - center_x) * z;
-	legacy_f64 top = (center_y - select_rect_rc.top + padding) * z;
-	legacy_f64 bottom = (center_y - select_rect_rc.bottom - 1 - padding) * z;
+	legacy_f64 left = context->left * z;
+	legacy_f64 right = context->right * z;
+	legacy_f64 top = context->top * z;
+	legacy_f64 bottom = context->bottom * z;
 	legacy_f64 margin_x =
 		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (fabs(x) + fabs(left) + fabs(right));
 	legacy_f64 margin_y =
@@ -131,6 +138,13 @@ legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector)
 		flags |= SHAPE3D_RECT_CLIP_RIGHT;
 	}
 	return flags;
+}
+
+legacy_u8 shape3d_hires_clip_flags(const struct SHAPE3D_HIRES_VECTOR *vector)
+{
+	struct SHAPE3D_HIRES_CLIP_CONTEXT context;
+	shape3d_hires_prepare_clip(&context);
+	return shape3d_hires_clip_prepared(vector, &context);
 }
 
 static legacy_s32 hires_polygon_faces_camera(const struct SHAPE3D_HIRES_POINT *points,
@@ -236,7 +250,7 @@ legacy_s32 shape3d_hires_polygon_visible(legacy_u32 index, legacy_s32 cull_backf
 		return 0;
 	}
 	legacy_u8 flags = SHAPE3D_ALL_RECT_CLIP_FLAGS;
-	for (legacy_u32 point = 0; point < primitive->count; point++) {
+	for (legacy_u32 point = 0; point < primitive->count && flags != 0; point++) {
 		flags &= hires_point_clip_flags(&primitive->points[point], primitive->size);
 	}
 	return flags == 0 &&
@@ -327,7 +341,6 @@ static void hires_queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 v
 								  const legacy_u8 *indices,
 								  const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
-	legacy_s32 scale = hires_render_scale();
 	if (!shape3d_hires_reserve_primitives(index)) {
 		return;
 	}
@@ -372,11 +385,13 @@ static void hires_queue_primitive(legacy_u32 index, legacy_u8 type, legacy_u16 v
 	}
 	primitive->count = vertex_count;
 	if (type == RENDER_PRIMITIVE_LINE) {
+		legacy_s32 scale = hires_render_scale();
 		/* Capture projection and authored model units with the queued geometry. */
 		primitive->size = HIRES_LINE_DIAMETER * shape3d_hires_state.model_scale *
 						  projection_focal_length_x * scale;
 	}
 	if (type == RENDER_PRIMITIVE_SPHERE) {
+		legacy_s32 scale = hires_render_scale();
 		const struct SHAPE3D_HIRES_VECTOR *center = &vertices[indices[0]];
 		const struct SHAPE3D_HIRES_VECTOR *endpoint = &vertices[indices[1]];
 		legacy_f64 radius_x = center->x - endpoint->x;

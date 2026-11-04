@@ -25,6 +25,7 @@
 #include "../hires/shape3d_hires.h"
 #endif
 
+#include "shape3d_pipeline.h"
 #include "../shape3d/shape3d_pipeline_internal.h"
 
 #ifdef RESTUNTS_SDL3
@@ -199,7 +200,8 @@ static legacy_s32 hires_backend_bounds_are_clipped(const struct SHAPE3D *shape,
 			any_behind = 1;
 		} else {
 			any_front = 1;
-			common_clip_flags &= shape3d_hires_clip_flags(&context->hires.hires_vertices[index]);
+			common_clip_flags &=
+				shape3d_hires_clip_prepared(&context->hires.hires_vertices[index], &context->clip);
 			if (common_clip_flags == 0) {
 				return 0;
 			}
@@ -231,8 +233,8 @@ static legacy_s32 hires_backend_primitive_vertices(const struct SHAPE3D *shape,
 		} else {
 			any_front = 1;
 			if (common_clip_flags != 0) {
-				common_clip_flags &=
-					shape3d_hires_clip_flags(&context->hires.hires_vertices[index]);
+				common_clip_flags &= shape3d_hires_clip_prepared(
+					&context->hires.hires_vertices[index], &context->clip);
 			}
 		}
 	}
@@ -320,6 +322,7 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 		return 1;
 	}
 	shape3d_hires_prepare_transform(instance, &context);
+	shape3d_hires_prepare_clip(&context.clip);
 	context.hires.source_vertices = vertices;
 	legacy_s32 bounds_clipped = hires_backend_bounds_are_clipped(shape, &context);
 	shape3d_hires_collect_shadow_polygons(instance, &context);
