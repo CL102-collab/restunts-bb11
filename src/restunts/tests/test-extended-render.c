@@ -25,6 +25,7 @@
 #include "../c/math/projection.h"
 #include "../c/extended/roll_ramp.h"
 #include "../c/extended/pine_trees.h"
+#include "../c/extended/extended_frame_pine_cache.h"
 #include "../c/extended/wheat_field.h"
 #include "../c/extended/crop_fields.h"
 #include "../c/owoot/owoot_road.h"
@@ -3357,7 +3358,69 @@ static legacy_u16 check_general_sloped_rendering(void)
 }
 
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
-static void check_upright_sloped_plants(void)
+#define PINE_CACHE_RENDER_PASSES 3U
+
+/* Compare the actual composed scene with retention disabled, then after a cold
+ * fill and a warm hit. Geometry submission checks below cover every hill axis. */
+static legacy_u16 check_pine_cache_rendering(const struct CSTRK_OBJECT *object, legacy_u8 detail)
+{
+	struct GAMESTATE saved_state = state;
+	struct CUSTOM_CAMERA saved_custom = custom_camera;
+	struct FRAME_HIRES_ADAPTIVE_STATE saved_adaptive = frame_hires_adaptive;
+	legacy_s16 saved_camera = cameramode;
+	legacy_s8 saved_detail = detail_level;
+	legacy_s32 saved_context_x, saved_context_z;
+	extended_geometry_get_context(&saved_context_x, &saved_context_z);
+	frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_FULL);
+	position_render_target(object->x, object->y);
+	legacy_s32 ground =
+		(legacy_s32)object->base_height * CSTRK_LEVEL_WORLD_HEIGHT +
+		((legacy_s32)object->slope_x + object->slope_y) * CSTRK_LEVEL_WORLD_HEIGHT / 2;
+	state.playerstate.car_position.ly =
+		(ground + STUNT_RENDER_CAR_CLEARANCE) * GRASS_RENDER_POSITION_SCALE;
+	state.playerstate.car_previous_position = state.playerstate.car_position;
+	state.playerstate.car_crashBmpFlag = CRASH_EVENT_WATER;
+	cameramode = CAMERA_MODE_CUSTOM;
+	custom_camera.distance = STUNT_RENDER_CAMERA_DISTANCE;
+	custom_camera.elevation_angle = STUNT_RENDER_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle = object->rotation * ANGLE_QUARTER_TURN + ANGLE_EIGHTH_TURN;
+	detail_level = detail ? STUNT_RENDER_LOW_DETAIL : 0;
+	legacy_u32 *reference = NULL;
+	size_t reference_size = 0;
+	legacy_u32 retained = 0;
+	for (legacy_u8 pass = 0; pass < PINE_CACHE_RENDER_PASSES; pass++) {
+		if (pass < PINE_CACHE_RENDER_PASSES - 1U) {
+			hires_frame_extended_pine_cache_set_budget(
+				pass ? HIRES_FRAME_EXTENDED_PINE_CACHE_MAX_BYTES : 0);
+		}
+		size_t size;
+		legacy_u32 *pixels = capture_complete_render(&size);
+		if (!pass) {
+			reference = pixels;
+			reference_size = size;
+			assert(hires_frame_extended_pine_cache_bytes() == 0);
+		} else {
+			assert(size == reference_size);
+			assert(memcmp(reference, pixels, size * sizeof(*pixels)) == 0);
+			free(pixels);
+			legacy_u32 bytes = hires_frame_extended_pine_cache_bytes();
+			assert(bytes > 0 && bytes <= HIRES_FRAME_EXTENDED_PINE_CACHE_MAX_BYTES);
+			assert(!retained || retained == bytes);
+			retained = bytes;
+		}
+	}
+	free(reference);
+	detail_level = saved_detail;
+	cameramode = saved_camera;
+	custom_camera = saved_custom;
+	frame_hires_adaptive = saved_adaptive;
+	state = saved_state;
+	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
+								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
+	return PINE_CACHE_RENDER_PASSES;
+}
+
+static legacy_u16 check_upright_sloped_plants(void)
 {
 	static const struct {
 		legacy_u16 id;
@@ -3382,7 +3445,7 @@ static void check_upright_sloped_plants(void)
 		STUNT_RENDER_COLUMN * CSTRK_TILE_WORLD_SIZE + CSTRK_TILE_WORLD_SIZE / 2, 0,
 		(CSTRK_MAX_DIMENSION - STUNT_RENDER_ROW) * CSTRK_TILE_WORLD_SIZE -
 			CSTRK_TILE_WORLD_SIZE / 2);
-	legacy_u16 submissions = 0;
+	legacy_u16 submissions = 0, frames = 0;
 	for (legacy_u16 kind = 0; kind < sizeof(variants) / sizeof(variants[0]); kind++) {
 		for (legacy_u8 rotation = 0; rotation < PLANT_RENDER_DIRECTION_COUNT; rotation++) {
 			for (legacy_u8 slope = 0; slope < PLANT_RENDER_SLOPE_COUNT; slope++) {
@@ -3444,6 +3507,9 @@ static void check_upright_sloped_plants(void)
 						memcpy(lifts[detail], plant_capture_pine_lifts, sizeof(lifts[detail]));
 						extended_geometry_free_shape(&plant_capture_source);
 						submissions += trees;
+						if (object.pine_count && renderer_active && !base && slope <= 1U) {
+							frames += check_pine_cache_rendering(placed, detail);
+						}
 					}
 					/* A detail switch must not shift the canopy's elevation. */
 					for (legacy_u8 tree = 0; tree < trees; tree++) {
@@ -3468,6 +3534,7 @@ static void check_upright_sloped_plants(void)
 		   renderer_active ? "HyperVision" : "classic");
 	extended_geometry_set_context(saved_context_x * OBJECT_DETAIL_CONTEXT_SCALE,
 								  saved_context_z * OBJECT_DETAIL_CONTEXT_SCALE);
+	return frames;
 }
 #endif
 
@@ -5216,7 +5283,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		frames += check_combined_stunt_rendering();
 #ifdef RESTUNTS_WRAP_HILL_SHAPES
 		check_combined_stunt_meshes();
-		check_upright_sloped_plants();
+		frames += check_upright_sloped_plants();
 		check_roll_ramp_submissions();
 		check_crop_submissions();
 #endif

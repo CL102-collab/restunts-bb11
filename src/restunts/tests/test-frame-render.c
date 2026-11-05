@@ -36,8 +36,17 @@ legacy_int extended_track_active(void)
 #include "../c/extended/extended_frame_objects.c"
 #include "../c/extended/extended_frame_terrain.c"
 #include "../c/extended/extended_frame_precise.c"
-/* SDK-free scheduling fixtures exercise the exact clipping fallback. The real
- * bounded shared cache is covered by the threaded extended-render fixture. */
+/* SDK-free scheduling fixtures exercise the original mesh/clipping fallback.
+ * The bounded shared caches are covered by the threaded extended-render fixture. */
+const struct SHAPE3D *hires_frame_extended_pine_cache_lookup(const struct CSTRK_TRACK *track,
+															 const struct CSTRK_OBJECT *object,
+															 const struct SHAPE3D *source)
+{
+	(void)track;
+	(void)object;
+	(void)source;
+	return NULL;
+}
 legacy_u8 hires_frame_extended_ground_cache_lookup(
 	const struct FRAME_EXTENDED_TERRAIN *terrain, const struct VECTOR *source, legacy_u16 count,
 	struct FRAME_HIRES_GROUND_CACHE_PENDING *pending,

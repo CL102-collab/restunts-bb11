@@ -282,7 +282,7 @@ set(game_sources
     hires/ghost_render.c extended/extended_frame_tiles.c extended/extended_frame_hills.c
     extended/extended_frame_render_objects.c extended/extended_frame_render_terrain.c
     extended/extended_frame_render_ground.c extended/extended_frame_precise.c
-    extended/extended_frame_cache.c
+    extended/extended_frame_cache.c extended/extended_frame_pine_cache.c
     extended/extended_track_preview_hires.c hires/track_preview_mode.c hires/track_menu_preview.c
     hires/frame_visibility.c hires/frame_snapshot.c hires/frame_integration.c
     hires/frame_car_render.c hires/frame_scene.c hires/frame_terrain.c hires/frame_particles.c
@@ -1055,6 +1055,10 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-shape3d-hires PRIVATE restunts_game)
     target_compile_options(test-shape3d-hires PRIVATE -UNDEBUG)
     add_test(NAME shape3d-hires COMMAND test-shape3d-hires)
+    add_executable(test-extended-pine-cache src/restunts/tests/test-extended-pine-cache.c)
+    target_link_libraries(test-extended-pine-cache PRIVATE restunts_game)
+    target_compile_options(test-extended-pine-cache PRIVATE -UNDEBUG)
+    add_test(NAME extended-pine-cache COMMAND test-extended-pine-cache)
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
         ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
@@ -1125,7 +1129,8 @@ if(RESTUNTS_BUILD_TESTS AND TARGET nuked_opl2)
     install(TARGETS nuked_opl2
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL
         LIBRARY DESTINATION lib COMPONENT Tests EXCLUDE_FROM_ALL)
-    install(TARGETS test-shape3d-hires test-skybox-hires test-track-preview-skybox test-render-workers
+    install(TARGETS test-shape3d-hires test-extended-pine-cache test-skybox-hires
+        test-track-preview-skybox test-render-workers
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL)
     foreach(test platform audio audio-trace audio-definition audio-sequence input fileio hires timer)
         if(TARGET test-sdl3-${test})

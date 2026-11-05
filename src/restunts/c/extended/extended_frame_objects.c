@@ -1,5 +1,6 @@
 #include "extended_frame_internal.h"
 #include "pine_trees.h"
+#include "extended_frame_pine_cache.h"
 #include "wheat_field.h"
 #include "crop_fields.h"
 #include "../hires/shape3d_queue.h"
@@ -240,15 +241,43 @@ frame_extended_draw_prepared_object_mesh(const struct FRAME_EXTENDED_OBJECT *obj
 		(legacy_s16)frame_extended_queue_hill_shape(&instance, object->edges));
 }
 
+/* Only the descriptor is borrowed here; cached vertex/primitive data stays immutable. */
+static legacy_s16 frame_extended_pine_mesh(const struct SHAPE3D *source,
+										   const struct SHAPE3D *cached,
+										   struct SHAPE3D *destination,
+										   const struct CSTRK_OBJECT *object, legacy_u8 tree)
+{
+	if (cached) {
+		*destination = cached[tree];
+		return 1;
+	}
+	return pine_trees_create_mesh(source, destination, object, tree);
+}
+
 /* Each tree owns its full-detail anchor. A shared grove anchor would lift
  * every crown to the uphill tree and stretch the downhill trunks. */
-static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJECT *object)
+static legacy_s16 frame_extended_draw_pine_trees(const struct CSTRK_TRACK *track,
+												 const struct FRAME_EXTENDED_OBJECT *object)
 {
 	const struct TRACKOBJECT *native = object->definition;
+	legacy_u8 low_only =
+		object->detail != FRAME_TILE_DETAIL_FULL && native->ss_loShapePtr && !object->graded;
+	const struct SHAPE3D *cached_full =
+		low_only
+			? NULL
+			: hires_frame_extended_pine_cache_lookup(track, object->object, native->ss_shapePtr);
+	const struct SHAPE3D *cached_detail = NULL;
+	if (object->detail && native->ss_loShapePtr) {
+		cached_detail = native->ss_loShapePtr == native->ss_shapePtr && cached_full
+							? cached_full
+							: hires_frame_extended_pine_cache_lookup(track, object->object,
+																	 native->ss_loShapePtr);
+	}
 	for (legacy_u8 tree = 0; tree < object->object->pine_count; tree++) {
 		struct SHAPE3D full, detail;
-		if (object->detail != FRAME_TILE_DETAIL_FULL && native->ss_loShapePtr && !object->graded) {
-			if (!pine_trees_create_mesh(native->ss_loShapePtr, &detail, object->object, tree)) {
+		if (low_only) {
+			if (!frame_extended_pine_mesh(native->ss_loShapePtr, cached_detail, &detail,
+										  object->object, tree)) {
 				continue;
 			}
 			struct TRACKOBJECT definition = *native;
@@ -256,20 +285,26 @@ static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJ
 			definition.ss_rotY = 0;
 			legacy_s16 result =
 				frame_extended_draw_prepared_object_mesh(object, &definition, &detail);
-			extended_geometry_free_shape(&detail);
+			if (!cached_detail) {
+				extended_geometry_free_shape(&detail);
+			}
 			if (result) {
 				return result;
 			}
 			continue;
 		}
-		if (!pine_trees_create_mesh(native->ss_shapePtr, &full, object->object, tree)) {
+		if (!frame_extended_pine_mesh(native->ss_shapePtr, cached_full, &full, object->object,
+									  tree)) {
 			continue;
 		}
 		const struct SHAPE3D *source = &full;
 		legacy_u8 low_detail = object->detail && native->ss_loShapePtr;
 		if (low_detail) {
-			if (!pine_trees_create_mesh(native->ss_loShapePtr, &detail, object->object, tree)) {
-				extended_geometry_free_shape(&full);
+			if (!frame_extended_pine_mesh(native->ss_loShapePtr, cached_detail, &detail,
+										  object->object, tree)) {
+				if (!cached_full) {
+					extended_geometry_free_shape(&full);
+				}
 				continue;
 			}
 			source = &detail;
@@ -278,10 +313,12 @@ static legacy_s16 frame_extended_draw_pine_trees(const struct FRAME_EXTENDED_OBJ
 		definition.ss_shapePtr = &full;
 		definition.ss_rotY = 0;
 		legacy_s16 result = frame_extended_draw_prepared_object_mesh(object, &definition, source);
-		if (low_detail) {
+		if (low_detail && !cached_detail) {
 			extended_geometry_free_shape(&detail);
 		}
-		extended_geometry_free_shape(&full);
+		if (!cached_full) {
+			extended_geometry_free_shape(&full);
+		}
 		if (result) {
 			return result;
 		}
@@ -335,7 +372,7 @@ legacy_s16 frame_extended_draw_object(const struct CSTRK_TRACK *track,
 		return 0;
 	}
 	if (model->pine_count) {
-		return frame_extended_draw_pine_trees(&object);
+		return frame_extended_draw_pine_trees(track, &object);
 	}
 	if (model->roll_ramp) {
 		object.flags |= SHAPE3D_BLACK_GRILLE_FLAG;

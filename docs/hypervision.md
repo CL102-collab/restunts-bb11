@@ -1074,6 +1074,80 @@ also pass, including instrumented SDL atomic/spinlock operations, with no race
 reports. Formatting, CRLF endings, non-executable source modes and source line
 budgets pass.
 
+### Glacier cooked pine mesh cache (2026-11-05)
+
+A fresh serial profile of baseline `60254eef` still shows repeated procedural
+pine preparation: `pine_trees_create_mesh` accounts for 1.75% of 1,654 samples,
+and the shared mesh transform accounts for another 1.33%. Glacier contains
+1,661 pine groups. Their coordinate-derived scatter, quarter-turn rotation,
+integer scale, paint and visibility masks do not change between frames, but
+were allocated, generated and freed for every tree submission.
+
+The renderer now retains the cooked, camera-independent meshes for each active
+track object and source variant. One lookup returns the whole grove; identical
+full/low source descriptors share an entry. Queue submission still transforms
+each tree for the camera. Grades use their existing mutable copies and each
+tree's full-detail anchor. The cache preserves the original mesh generator and
+integer arithmetic.
+
+Retention, including fixed slots, is capped at 16 MiB. Published entries use
+atomic pointer publication and read-only hits. A miss takes a per-object try-lock
+and rechecks before filling; other workers can fall back without waiting.
+Published meshes stay immutable until a joined reset. Budget exhaustion, allocation failure, changed
+objects and changed source descriptors or authored bytes use the original
+uncached path. Source comparison checks primitive types before record lengths,
+including custom resources rewritten in place. Successful track replacement,
+unload and native shape load/free reset the cache after render jobs have joined.
+A diagnostic Glacier run accepts all 257,685 grove lookups and retains a peak
+1,122,550 heap bytes; those counts include startup, warmup and checkpoints.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) use the same AMD EPYC 9V74 VM and normal production link
+order. Each run accelerates the automatic Countach straight ahead for ten
+simulated seconds: 200 physics ticks and 600 interpolated cockpit frames at
+locked Full HyperVision, 1280x800, with final ARGB composition. Physics,
+interpolation, rendering, state checks and composition are timed; display
+upload/presentation, audio, pacing, warmup and hash diagnostics are excluded.
+
+Five final pairs for each CPU configuration alternate baseline/candidate order.
+The first three serial pairs are interleaved with the parallel batches; two
+additional serial pairs check the mixed serial result. The temporary placement
+shim pins the main thread to CPU 4 and the single background renderer to CPU 2;
+serial runs use CPU 4 without background workers. All final pairs are retained.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 91.11 (83.27–97.77) | 90.23 (84.38–102.63) | -1.0% |
+| 2 | 134.77 (123.91–153.43) | 145.61 (134.38–151.11) | +8.0% |
+
+Three of five two-CPU pairs improve. Their median elapsed time falls from 7.420
+to 6.868 ms/frame and total process CPU time, including workers, falls from
+13.522 to 12.469 ms/frame. Serial process CPU time changes from 10.975 to
+11.081 ms/frame. The single-CPU result does not establish an improvement; VM
+variation remains large and both configurations have overlapping ranges. These
+are uncapped within-round measurements, not presented FPS or a guarantee for
+other hardware. Reproduce with `--track /path/to/glacier.cstrk --drive-seconds 10
+--compose` and the per-thread placement above.
+
+All 600 driving-frame hashes and all six native camera/resolution hashes match
+the baseline. Complete serial/parallel checkpoint images and final state hash
+`fa0fe5fb` match; the car finishes without crashing. Focused cache tests compare
+all cooked vertex, primitive, footer and mask bytes against the original mesh
+generator for both grove sizes, four rotations and distinct full/low sources.
+They check source/object changes, shortened primitive streams, borrowed-mesh
+ownership, exact/tiny/zero budgets, source deduplication, parallel cold/hot
+lookups, failed/successful track replacement, unload and native shape free.
+Actual composed scenes also match with caching disabled, cold and warm across
+both grove sizes, all rotations, flat/graded terrain and both detail settings.
+
+Nine focused renderer, worker, replay, interpolation, adaptive-quality and cache
+CTest suites pass, together with four SDK-free host invocations. Focused
+ASan/UBSan checks pass with leak checking; the driver, cache, pine generator,
+geometry, track lifecycle and worker code are instrumented. The same focused
+suite passes TSan with instrumented SDL atomic/spinlock operations and no race
+reports. Formatting, CRLF endings, non-executable source modes and core source
+line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

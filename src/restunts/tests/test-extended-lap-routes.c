@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "../c/extended/extended_track.h"
+#include "../c/extended/extended_frame_pine_cache.h"
 #include "../c/externs.h"
 #include "../c/memmgr.h"
 #include "../c/track/track_objects.h"
@@ -22,8 +23,11 @@ static legacy_s16 camera_height[TEST_CAMERA_CAPACITY], camera_words[TEST_CAMERA_
 static legacy_s16 sign_headings[TEST_CAMERA_CAPACITY];
 static legacy_u8 sign_shapes[TEST_CAMERA_CAPACITY];
 
-/* This route-only fixture has no renderer-owned terrain cache. */
+/* This route-only fixture has no renderer-owned caches. */
 void hires_frame_extended_ground_cache_reset(void)
+{
+}
+void hires_frame_extended_pine_cache_reset(void)
 {
 }
 

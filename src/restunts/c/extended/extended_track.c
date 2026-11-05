@@ -10,6 +10,7 @@
 #include "extended_geometry.h"
 #ifndef RESTUNTS_HEADLESS
 #include "extended_frame_render.h"
+#include "extended_frame_pine_cache.h"
 #endif
 #include "roll_ramp.h"
 
@@ -390,6 +391,7 @@ void extended_track_unload(void)
 {
 #ifndef RESTUNTS_HEADLESS
 	hires_frame_extended_ground_cache_reset();
+	hires_frame_extended_pine_cache_reset();
 #endif
 	restore_bindings();
 	free(storage);
@@ -641,6 +643,7 @@ int extended_track_load(const uint8_t *data, size_t size, char *error, size_t er
 	}
 #ifndef RESTUNTS_HEADLESS
 	hires_frame_extended_ground_cache_reset();
+	hires_frame_extended_pine_cache_reset();
 #endif
 	restore_bindings();
 	free(storage);

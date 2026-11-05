@@ -2,6 +2,9 @@
 #include "../memmgr.h"
 #include "shape3d.h"
 #include "../scene_resources.h"
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+#include "../extended/extended_frame_pine_cache.h"
+#endif
 #ifdef RESTUNTS_AMIGA_TRACE
 #include <stdio.h>
 #define AMIGA_SHAPE_TRACE(stage)                                                                   \
@@ -22,6 +25,9 @@
 
 legacy_s16 shape3d_load_all()
 {
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	hires_frame_extended_pine_cache_reset();
+#endif
 	game1ptr = 0;
 	game2ptr = 0;
 
@@ -55,6 +61,9 @@ legacy_s16 shape3d_load_all()
 
 void shape3d_free_all()
 {
+#if defined(RESTUNTS_SDL3) && !defined(RESTUNTS_HEADLESS)
+	hires_frame_extended_pine_cache_reset();
+#endif
 	if (game1ptr != 0) {
 		mmgr_free(game1ptr);
 	}
