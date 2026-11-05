@@ -517,7 +517,9 @@ static void test_prepared_clip_context(void)
 		CLIP_TEST_LEFT = 40,
 		CLIP_TEST_RIGHT = 279,
 		CLIP_TEST_TOP = 30,
-		CLIP_TEST_BOTTOM = 169
+		CLIP_TEST_BOTTOM = 169,
+		CLIP_TEST_CORNERS = 4,
+		CLIP_TEST_ROUNDING_MODES = 4
 	};
 	const legacy_f64 limits[][2] = {{121, 71}, {120.75, 70.75}, {120.625, 70.625}};
 	const legacy_f64 depths[] = {1, SHAPE3D_NEAR_CLIP_Z, CLIP_TEST_FOCAL};
@@ -527,6 +529,20 @@ static void test_prepared_clip_context(void)
 	legacy_u16 saved_center_x = projection_center_x, saved_center_y = projection_center_y;
 	legacy_u16 saved_focal_x = projection_focal_length_x, saved_focal_y = projection_focal_length_y;
 	legacy_s32 saved_scale = hires_render_scale();
+	legacy_int rounding_modes[CLIP_TEST_ROUNDING_MODES];
+	legacy_u32 rounding_mode_count = 0;
+#ifdef FE_TONEAREST
+	rounding_modes[rounding_mode_count++] = FE_TONEAREST;
+#endif
+#ifdef FE_UPWARD
+	rounding_modes[rounding_mode_count++] = FE_UPWARD;
+#endif
+#ifdef FE_DOWNWARD
+	rounding_modes[rounding_mode_count++] = FE_DOWNWARD;
+#endif
+#ifdef FE_TOWARDZERO
+	rounding_modes[rounding_mode_count++] = FE_TOWARDZERO;
+#endif
 	for (legacy_u32 resolution = 0; resolution < SDL_arraysize(limits); resolution++) {
 		hires_set_render_scale(HIRES_MINIMUM_SCALE << resolution);
 		select_rect_rc =
@@ -549,6 +565,40 @@ static void test_prepared_clip_context(void)
 				assert(shape3d_hires_clip_prepared(&point, &context) == flags[edge]);
 			}
 		}
+		/* Both axes can lie on a corner, safely inside it, or beyond it together.
+		 * Keep the expected planes independent of the prepared coefficients. */
+		fenv_t saved_environment;
+		assert(feholdexcept(&saved_environment) == 0);
+		legacy_u32 tested_rounding_modes = 0;
+		for (legacy_u32 mode = 0; mode < rounding_mode_count; mode++) {
+			if (fesetround(rounding_modes[mode]) != 0) {
+				continue;
+			}
+			tested_rounding_modes++;
+			for (legacy_u32 depth = 0; depth < SDL_arraysize(depths); depth++) {
+				for (legacy_u32 corner = 0; corner < CLIP_TEST_CORNERS; corner++) {
+					legacy_u32 horizontal = corner & 1U, vertical = 2U + (corner >> 1U);
+					legacy_f64 direction_x = horizontal ? 1 : -1;
+					legacy_f64 direction_y = (corner & 2U) ? 1 : -1;
+					const struct SHAPE3D_HIRES_VECTOR boundary = {
+						direction_x * limits[resolution][0] * depths[depth] / CLIP_TEST_FOCAL,
+						direction_y * limits[resolution][1] * depths[depth] / CLIP_TEST_FOCAL,
+						depths[depth]};
+					struct SHAPE3D_HIRES_VECTOR point = boundary;
+					point.x /= 2;
+					point.y /= 2;
+					assert(shape3d_hires_clip_prepared(&point, &context) == 0);
+					point = boundary;
+					assert(shape3d_hires_clip_prepared(&point, &context) == 0);
+					point.x += direction_x * HIRES_SAMPLE_CENTER_OFFSET * point.z / CLIP_TEST_FOCAL;
+					point.y += direction_y * HIRES_SAMPLE_CENTER_OFFSET * point.z / CLIP_TEST_FOCAL;
+					assert(shape3d_hires_clip_prepared(&point, &context) ==
+						   (flags[horizontal] | flags[vertical]));
+				}
+			}
+		}
+		assert(tested_rounding_modes != 0);
+		assert(fesetenv(&saved_environment) == 0);
 		const struct SHAPE3D_HIRES_VECTOR clamped_near = {1, 0, 0};
 		assert(shape3d_hires_clip_prepared(&clamped_near, &context) == SHAPE3D_RECT_CLIP_RIGHT);
 		const struct SHAPE3D_HIRES_VECTOR probe = {-(CLIP_TEST_FOCAL - CLIP_TEST_LEFT), 0,

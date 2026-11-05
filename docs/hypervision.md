@@ -1219,6 +1219,72 @@ Baseline and optimized composition/visibility suites also pass with
 `-mfpmath=387 -fexcess-precision=fast`, including the exact depth-bit cases.
 Formatting, CRLF endings, non-executable source modes and core line budgets pass.
 
+
+### Glacier indexed-cell checks and interior clipping (2026-11-05)
+
+A fresh serial profile of baseline `f0109925` attributes 4.53% of 1,654 CPU
+samples to final ARGB composition and 3.93% to prepared vertex clipping.
+The retained changes reduce repeated work:
+
+- Check uniform 4x4 indexed cells with two 64-bit words instead of four 32-bit
+  words. `memcpy` keeps source alignment safe; repeated-byte comparisons remain
+  endian independent. This shortens the generated horizontal reduction without
+  changing palette lookup, alpha bits or the mixed-cell/ARGB paths.
+- Points already inside the four prepared clipping planes need no rounding
+  margin calculations: nonnegative margins can only widen those planes. Other
+  points retain the original conservative tests and product order. A diagnostic
+  finds 9,848,185 eligible calls among 34,403,861 calls (28.62%).
+
+Diagnostic counts include startup, warmup and checkpoints. Narrowed visibility
+searches, per-shape bounds accumulation, a full-viewport bounds shortcut and
+opaque-ARGB composition were also investigated. The bounds accumulator passed
+output checks but regressed in the final normal-link comparison and was removed.
+These other candidates were not retained.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) use normal production link order on the same AMD EPYC
+9V74 VM, with five exposed CPUs and a four-CPU quota. Each run accelerates the
+automatic Countach straight ahead for ten simulated seconds: 200 physics ticks
+and 600 interpolated cockpit frames at locked Full HyperVision, 1280x800, with
+final ARGB composition. Physics, interpolation, rendering, state checks and
+composition are timed; display upload/presentation, audio, pacing, warmup and
+hash diagnostics are excluded.
+
+Five final pairs per CPU count alternate baseline/candidate order and reverse
+CPU-count order between batches. A temporary placement shim pins the main
+thread to CPU 4 and the single background renderer to CPU 2; serial runs use
+CPU 4 without background workers. All final batches are retained.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 89.17 (79.67–97.44) | 90.27 (88.88–108.25) | +1.2% |
+| 2 | 128.08 (120.22–146.48) | 128.73 (125.69–145.78) | +0.5% |
+
+Three of five serial pairs and four of five two-CPU pairs improve. Median
+serial elapsed time changes from 11.214 to 11.078 ms/frame; two-CPU elapsed time
+changes from 7.808 to 7.768 ms/frame. Two-CPU process CPU time, including
+workers, changes from 14.267 to 14.156 ms/frame. Both configurations have wide,
+overlapping ranges. These small differences lie within VM run-to-run variation
+and do not establish a clear FPS improvement. They are uncapped within-round
+measurements, not presented FPS or guarantees for other hardware. Reproduce
+with `--track /path/to/glacier.cstrk --drive-seconds 10 --compose` and the
+per-thread placement above.
+
+All 600 driving-frame hashes and all six native Glacier camera/resolution
+hashes match baseline. Complete serial/parallel checkpoint images and final
+state hash `fa0fe5fb` match, and the car finishes without crashing. Existing
+composition fixtures check every possible single differing sample in a 4x4
+cell, arbitrary palette alpha, source preservation, padded output, all scales
+and serial/worker output. Prepared-clip fixtures check known plane limits,
+one-ULP overhangs, viewport refresh, all four corners inside/on/outside the
+planes, three depths, every scale and all four supported rounding modes.
+
+Eight focused renderer, worker, replay, interpolation and adaptive-quality
+CTest suites pass. Focused composition and geometry suites each pass ASan/UBSan
+with leak checking and TSan. Baseline and candidate composition/geometry suites
+also pass with `-mfpmath=387 -fexcess-precision=fast`. Formatting, CRLF endings,
+non-executable source modes and core line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

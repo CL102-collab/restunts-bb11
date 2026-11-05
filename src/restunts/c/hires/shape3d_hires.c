@@ -122,6 +122,11 @@ legacy_u8 shape3d_hires_clip_prepared(const struct SHAPE3D_HIRES_VECTOR *vector,
 	legacy_f64 right = context->right * z;
 	legacy_f64 top = context->top * z;
 	legacy_f64 bottom = context->bottom * z;
+	/* Rounding margins only widen these planes, so points already inside need
+	 * no margin calculation. Other points retain the conservative tests below. */
+	if (x >= left && x <= right && y >= bottom && y <= top) {
+		return 0;
+	}
 	legacy_f64 margin_x =
 		HIRES_CLIP_ROUNDING_MARGIN * DBL_EPSILON * (fabs(x) + fabs(left) + fabs(right));
 	legacy_f64 margin_y =
