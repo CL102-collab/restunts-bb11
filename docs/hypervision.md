@@ -1043,6 +1043,83 @@ composition x87 drivers, including stored-depth bit comparisons. Formatting,
 CRLF endings, source modes and core line budgets pass. The combined branch
 still needs a fresh Haswell measurement.
 
+### Linux AVX2 resolved-depth output (2026-11-05)
+
+Starting from `773c8e30`, keep the original indexed-cell composition and add
+one AVX2 helper for resolved depth/family output. A serial Glacier diagnostic
+records 3,149,761 spans and 331,236,691 samples, including warmup and checkpoints.
+Spans of at least 32 pixels represent 20.27% of calls but 95.72% of samples;
+constant-depth spans account for 92.58% of all samples. Use the AVX2 helper
+only at that length threshold, retaining the existing short-span loops.
+
+Compile only the helper with `target("avx2,no-fma")`, leaving the executable's
+baseline instruction set intact. The compiler generates eight-wide stores
+for both depth and family arrays, with separate binary64 multiply/add and
+binary32 conversion for sloped spans. Do not replace the original affine
+expression with a recurrence. Unaligned output and scalar tails remain valid;
+no aliasing or alignment assumptions are added.
+
+The path is limited to native Linux x86-64 SDL3 builds with GCC/Clang and
+`FLT_EVAL_METHOD == 0`, excluding Android and Emscripten. Cache `SDL_HasAVX2()`
+once during serial depth initialization, before worker dispatch. SDL checks
+CPU and OS vector-state support. Unsupported CPUs, platforms and x87 builds
+retain the original loops. No whole-program AVX flags, worker changes or
+indexed-cell SIMD changes are included.
+
+A same-process replay captures the real Glacier first frame: 6,067 resolved
+spans and 641,689 samples. Long spans cover 95.44% of samples. Ten alternating
+pairs replay the complete batch 200 times on CPU 4, measuring thread CPU time
+and comparing entire depth, family and indexed-pixel buffers after each run.
+The candidate object is identical to the normal production object; the original
+object's machine code is retained with only symbol renaming/localization for
+linking both implementations. Median resolved-path cost falls from 340.926 to
+312.893 microseconds (8.22%), including dispatch, helper calls, short spans
+and indexed pixel writes. Nine of ten pairs improve. This isolates the
+resolved path and does not establish the same gain for a complete frame.
+
+Normal production-link GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`)
+are compared on the AMD EPYC 9V74 VM, with five exposed CPUs and a four-CPU
+quota. Each run accelerates the automatic Countach straight ahead on Glacier
+for ten simulated seconds: 200 physics ticks and 600 interpolated cockpit
+frames, locked Full 1280x800 with final ARGB composition. Physics,
+interpolation, rendering and composition are timed; display, audio, pacing,
+warmup and hash diagnostics are excluded. Five pairs for each CPU configuration
+alternate baseline/candidate order and reverse CPU-count order between batches.
+The main thread is pinned to CPU 4; two-CPU runs pin one background renderer
+to CPU 2.
+
+| CPUs | Baseline median FPS (range) | AVX2 median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 85.04 (76.05–95.36) | 90.47 (82.85–94.89) | +6.4% |
+| 2 | 128.85 (104.89–138.72) | 129.94 (119.68–137.89) | +0.8% |
+
+Three of five serial pairs and four of five two-CPU pairs improve. Serial
+median elapsed time falls from 11.759 to 11.054 ms/frame; two-CPU time falls
+from 7.761 to 7.696 ms/frame. Two-CPU total process CPU time falls from 14.129
+to 13.902 ms/frame. Ranges overlap amid substantial VM variation, so these
+uncapped results do not establish gains of this magnitude or predict Haswell
+performance. Reproduce with `--track /path/to/glacier.cstrk --drive-seconds 10
+--compose` and the per-thread placement above.
+
+Four focused renderer, geometry, replay and composition CTest suites pass.
+All 600 Glacier driving-frame hashes and six camera/resolution hashes match
+baseline, including full serial/parallel checkpoint pixels and final state
+`fa0fe5fb`; the car finishes without crashing. Composition checks compare
+exact depth bits and family values at widths 31/32/33/36/39/40/41/63/64/65,
+all scales, misaligned starts, guarded tails, signed zeros, nonfinite origins,
+positive/negative and subnormal slopes, and native binary64 rounding edges.
+The float-midpoint oracle applies only to declared-precision evaluation:
+the original x87 build already mixes vectorized binary64 bulk samples with
+extended-precision scalar tails. Other affine cases remain active for x87.
+
+Composition passes ASan/UBSan with leak checking and TSan. A guard-disabled
+portable fallback passes ASan/UBSan; original and candidate x87 drivers pass.
+A normal build with `SDL_HasAVX2` forced false passes the complete fixture and
+verifies that capability detection runs exactly once, exercising fallback
+with the AVX2 helper still present in the binary. Assembly checks confine all
+AVX instructions to the helper and find no FMA instructions. Formatting,
+CRLF endings, source modes and core line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

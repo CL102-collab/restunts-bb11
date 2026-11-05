@@ -862,20 +862,32 @@ static void test_raster_span_depth_edges(legacy_s32 paint_mode)
 	hires_forget(screen.base);
 }
 
-/* Resolved spans store the affine depth even for zero steps. Compare bits so
- * the constant case preserves signed zero, nonfinite values and untouched guards. */
-static void test_raster_resolved_constant_depth(void)
+/* Resolved spans retain the original affine expression at dispatch thresholds
+ * and vector tails. Compare bits for signed zero, nonfinite depths and guards. */
+static void test_raster_resolved_depth(void)
 {
-	enum { RESOLVED_LEFT = 7, RESOLVED_RIGHT = 43, RESOLVED_TOP = 9 };
+	enum { RESOLVED_LEFT = 7, RESOLVED_TOP = 9, RESOLVED_TAIL_GUARD = 8 };
 	const legacy_s32 scales[] = {HIRES_SCALE, HIRES_MEDIUM_SCALE, HIRES_MINIMUM_SCALE};
+	const legacy_s32 widths[] = {31, 32, 33, 36, 39, 40, 41, 63, 64, 65};
 	const legacy_f64 infinity = raster_span_float_bits(TEST_SPAN_INFINITY_BITS);
 	const legacy_f64 not_a_number = raster_span_float_bits(TEST_SPAN_NAN_BITS);
 	const legacy_f64 depths[] = {
-		TEST_SPAN_DEPTH,   -TEST_SPAN_DEPTH, 0.0,	   -0.0,
-		1.0 + DBL_EPSILON, DBL_MIN,			 FLT_MAX,  (legacy_f64)FLT_MAX * 2.0,
-		not_a_number,	   infinity,		 -infinity};
-	const legacy_f64 steps[] = {0.0, -0.0};
+		TEST_SPAN_DEPTH, -TEST_SPAN_DEPTH, 0.0, -0.0, 1.0 + DBL_EPSILON,
+#if FLT_EVAL_METHOD == 0
+		/* Scalar x87 can round differently from the original vectorized lanes. */
+		1.0 + FLT_EPSILON / 2,
+#endif
+		DBL_MIN, FLT_MAX, (legacy_f64)FLT_MAX * 2.0, not_a_number, infinity, -infinity};
+	const legacy_f64 steps[] = {0.0,
+								-0.0,
+								0.000001,
+								-0.000001,
+								(legacy_f64)FLT_MIN / 1024,
+								-(legacy_f64)FLT_MIN / 1024,
+								DBL_EPSILON / 2,
+								-DBL_EPSILON / 2};
 	const legacy_f32 guard = 0.125f;
+	const legacy_u32 written_family = 0xA13579BDU;
 	for (size_t scale = 0; scale < sizeof(scales) / sizeof(scales[0]); scale++) {
 		hires_set_render_scale(scales[scale]);
 		struct TEST_SURFACE screen;
@@ -885,28 +897,37 @@ static void test_raster_resolved_constant_depth(void)
 		struct HIRES_RASTER_TARGET target;
 		assert(hires_raster_prepare(&target));
 		struct HIRES_RASTER_CONTEXT context = {&target, target.top, target.bottom, 0};
-		for (size_t item = 0; item < sizeof(depths) / sizeof(depths[0]); item++) {
-			for (size_t step = 0; step < sizeof(steps) / sizeof(steps[0]); step++) {
-				size_t row = (size_t)RESOLVED_TOP * target.width;
-				for (legacy_s32 x = RESOLVED_LEFT - 1; x <= RESOLVED_RIGHT; x++) {
-					target.inverse_depth[row + x] = guard;
-					target.depth_family[row + x] = TEST_SPAN_OTHER_FAMILY;
-				}
-				hires_raster_resolved_span(&context, RESOLVED_LEFT, RESOLVED_RIGHT, RESOLVED_TOP,
-										   depths[item], steps[step], TEST_SPAN_SAME_FAMILY,
-										   TEST_SPAN_COLOR, TEST_SPAN_ALTERNATE_COLOR, 0,
-										   HIRES_PAINT_SOLID);
-				for (legacy_s32 x = RESOLVED_LEFT - 1; x <= RESOLVED_RIGHT; x++) {
-					legacy_f32 expected = guard;
-					legacy_u32 family = TEST_SPAN_OTHER_FAMILY;
-					if (x >= RESOLVED_LEFT && x < RESOLVED_RIGHT) {
-						volatile legacy_f64 product = (x - RESOLVED_LEFT) * steps[step];
-						expected = (legacy_f32)(depths[item] + product);
-						family = TEST_SPAN_SAME_FAMILY;
+		for (size_t width = 0; width < sizeof(widths) / sizeof(widths[0]); width++) {
+			legacy_s32 right = RESOLVED_LEFT + widths[width];
+			for (size_t item = 0; item < sizeof(depths) / sizeof(depths[0]); item++) {
+				for (size_t step = 0; step < sizeof(steps) / sizeof(steps[0]); step++) {
+					size_t row = (size_t)RESOLVED_TOP * target.width;
+					for (legacy_s32 x = RESOLVED_LEFT - 1; x < right + RESOLVED_TAIL_GUARD; x++) {
+						target.inverse_depth[row + x] = guard;
+						target.depth_family[row + x] = TEST_SPAN_OTHER_FAMILY;
 					}
-					assert(memcmp(target.inverse_depth + row + x, &expected, sizeof(expected)) ==
-						   0);
-					assert(target.depth_family[row + x] == family);
+					hires_raster_resolved_span(&context, RESOLVED_LEFT, right, RESOLVED_TOP,
+											   depths[item], steps[step], written_family,
+											   TEST_SPAN_COLOR, TEST_SPAN_ALTERNATE_COLOR, 0,
+											   HIRES_PAINT_SOLID);
+					for (legacy_s32 x = RESOLVED_LEFT - 1; x < right + RESOLVED_TAIL_GUARD; x++) {
+						legacy_f32 expected = guard;
+						legacy_u32 family = TEST_SPAN_OTHER_FAMILY;
+						if (x >= RESOLVED_LEFT && x < right) {
+							if (steps[step] == 0) {
+								volatile legacy_f64 product = (x - RESOLVED_LEFT) * steps[step];
+								expected = (legacy_f32)(depths[item] + product);
+							} else {
+								/* Keep excess precision in the original x87 expression. */
+								expected =
+									(legacy_f32)(depths[item] + (x - RESOLVED_LEFT) * steps[step]);
+							}
+							family = written_family;
+						}
+						assert(memcmp(target.inverse_depth + row + x, &expected,
+									  sizeof(expected)) == 0);
+						assert(target.depth_family[row + x] == family);
+					}
 				}
 			}
 		}
@@ -2157,7 +2178,7 @@ legacy_int main(void)
 		 paint_mode++) {
 		test_raster_span_depth_edges(paint_mode);
 	}
-	test_raster_resolved_constant_depth();
+	test_raster_resolved_depth();
 	test_raster_span_argb_retirement();
 	test_shadow_composition();
 	test_framebuffer_copy();

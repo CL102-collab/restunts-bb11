@@ -11,6 +11,15 @@
 
 #include "hires_internal.h"
 
+#if defined(RESTUNTS_SDL3) && defined(__linux__) && defined(__x86_64__) &&                         \
+	!defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && FLT_EVAL_METHOD == 0 &&                   \
+	(defined(__GNUC__) || defined(__clang__))
+#include <SDL3/SDL_cpuinfo.h>
+#define HIRES_RESOLVED_AVX2 1
+#define HIRES_RESOLVED_AVX2_MIN_PIXELS 32
+static legacy_s32 hires_resolved_avx2_available = -1;
+#endif
+
 #define HIRES_DEPTH_CLEAR_ROWS 32
 #define HIRES_DEPTH_CLEAR_MIN_AREA 262144U
 
@@ -41,6 +50,12 @@ void hires_depth_begin(legacy_s32 left, legacy_s32 right, legacy_s32 top, legacy
 	if (hires_state.active == NULL) {
 		return;
 	}
+#if defined(HIRES_RESOLVED_AVX2)
+	/* Resolve once on the main thread, before any depth or raster jobs. */
+	if (hires_resolved_avx2_available < 0) {
+		hires_resolved_avx2_available = SDL_HasAVX2();
+	}
+#endif
 	legacy_s32 clip_left = hires_state.active_sprite.sprite_raster_left * hires_state.render_scale;
 	legacy_s32 clip_right =
 		hires_state.active_sprite.sprite_raster_right * hires_state.render_scale;
@@ -550,6 +565,28 @@ static void hires_raster_indexed_span(const struct HIRES_RASTER_TARGET *target, 
 	}
 }
 
+#if defined(HIRES_RESOLVED_AVX2)
+/* Only this long-span kernel may use AVX2. Preserve the original separate
+ * multiply/add and double-to-float conversion; the default target stays SSE2. */
+__attribute__((target("avx2,no-fma"), noinline)) static void
+hires_raster_resolved_avx2(legacy_f32 *depths, legacy_u32 *families, legacy_s32 count,
+						   legacy_f64 inverse_z, legacy_f64 depth_step, legacy_u32 family)
+{
+	if (depth_step == 0) {
+		legacy_f32 depth = (legacy_f32)(inverse_z + depth_step);
+		for (legacy_s32 x = 0; x < count; x++) {
+			depths[x] = depth;
+			families[x] = family;
+		}
+	} else {
+		for (legacy_s32 x = 0; x < count; x++) {
+			depths[x] = (legacy_f32)(inverse_z + x * depth_step);
+			families[x] = family;
+		}
+	}
+}
+#endif
+
 void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32 left,
 								legacy_s32 right, legacy_s32 y, legacy_f64 inverse_z,
 								legacy_f64 depth_step, legacy_u32 family, legacy_u16 color,
@@ -567,16 +604,24 @@ void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32
 	legacy_u32 *families = target->depth_family + (size_t)y * target->width;
 	/* Separate contiguous depth output from the legacy-cell pixel layout.
 	 * Independent samples permit vectorization without a serial recurrence. */
-	if (depth_step == 0) {
-		legacy_f32 depth = (legacy_f32)(inverse_z + depth_step);
-		for (legacy_s32 x = left; x < right; x++) {
-			depths[x] = depth;
-			families[x] = family;
-		}
-	} else {
-		for (legacy_s32 x = left; x < right; x++) {
-			depths[x] = (legacy_f32)(inverse_z + (x - left) * depth_step);
-			families[x] = family;
+#if defined(HIRES_RESOLVED_AVX2)
+	if (right - left >= HIRES_RESOLVED_AVX2_MIN_PIXELS && hires_resolved_avx2_available > 0) {
+		hires_raster_resolved_avx2(depths + left, families + left, right - left, inverse_z,
+								   depth_step, family);
+	} else
+#endif
+	{
+		if (depth_step == 0) {
+			legacy_f32 depth = (legacy_f32)(inverse_z + depth_step);
+			for (legacy_s32 x = left; x < right; x++) {
+				depths[x] = depth;
+				families[x] = family;
+			}
+		} else {
+			for (legacy_s32 x = left; x < right; x++) {
+				depths[x] = (legacy_f32)(inverse_z + (x - left) * depth_step);
+				families[x] = family;
+			}
 		}
 	}
 	if (paint_mode == HIRES_PAINT_SOLID && surface->argb_cells == 0) {
