@@ -1,4 +1,4 @@
-#include "hypervision.h"
+#include "hypervision_internal.h"
 #include "../fatal.h"
 #include "render_workers.h"
 #include <SDL3/SDL_cpuinfo.h>
@@ -31,47 +31,9 @@
 #error HyperVision command bounds exceed their compact internal fields
 #endif
 
-/* Planar commands need only screen crossings. Keep their common edge stream
- * compact and retain exact depth interpolation separately for warped polygons. */
-struct HIRES_VISIBILITY_EDGE {
-	legacy_f64 x, y, x_step;
-	legacy_s32 top, bottom;
-};
-struct HIRES_VISIBILITY_EDGE_DEPTH {
-	legacy_f64 z, z_step;
-};
-struct HIRES_VISIBILITY_COMMAND {
-	struct HIRES_BACKEND_MATERIAL material;
-	legacy_u32 first_edge;
-	legacy_u16 hires_edge_count;
-	legacy_s16 top, bottom;
-	legacy_u16 planar;
-	union {
-		struct HIRES_DEPTH_PLANE plane;
-		legacy_u32 first_depth;
-	} depth;
-};
-enum {
-	HIRES_VISIBILITY_SOLID,
-	HIRES_VISIBILITY_DETAIL,
-	HIRES_VISIBILITY_PATTERN,
-	HIRES_VISIBILITY_CLASS_COUNT
-};
-struct HIRES_VISIBILITY_LIST {
-	legacy_u32 *commands;
-	size_t count, capacity;
-};
 struct HIRES_VISIBILITY_BIN {
 	struct HIRES_VISIBILITY_LIST lists[HIRES_VISIBILITY_CLASS_COUNT];
 	struct HIRES_RASTER_CONTEXT context;
-};
-struct HIRES_VISIBILITY_SPAN {
-	legacy_s32 left, right;
-	legacy_f64 origin, step;
-	legacy_u32 command;
-};
-struct HIRES_VISIBILITY_CROSSING {
-	legacy_f64 x, z;
 };
 
 struct HIRES_BACKEND_BUFFER {
@@ -570,6 +532,41 @@ static void hires_visibility_insert(struct HIRES_VISIBILITY_SPAN *visible, legac
 				last++;
 				continue;
 			}
+		}
+		/* A contained winner leaves one or two unchanged ends. Write the final
+		 * partition directly, preserving coalescing. Exact whole spans retain
+		 * the general path below. */
+		if (first == last && incoming->right <= old->right &&
+			(old->left < incoming->left || incoming->right < old->right) &&
+			(supported || (start >= 0 && finish >= 0))) {
+			legacy_s32 prefix = old->left < incoming->left;
+			legacy_s32 suffix = incoming->right < old->right;
+			legacy_s32 added = prefix + suffix;
+			struct HIRES_VISIBILITY_SPAN previous = *old;
+			struct HIRES_VISIBILITY_SPAN winning = *incoming;
+			if (supported) {
+				winning.origin = previous.origin;
+				winning.step = previous.step;
+			}
+			if (previous.command == winning.command && previous.origin == winning.origin &&
+				previous.step == winning.step) {
+				*hint = first;
+				return;
+			}
+			memmove(visible + first + added + 1, visible + first + 1,
+					(size_t)(*count - first - 1) * sizeof(*visible));
+			if (prefix) {
+				visible[first] = previous;
+				visible[first].right = incoming->left;
+			}
+			visible[first + prefix] = winning;
+			if (suffix) {
+				visible[first + prefix + 1] = previous;
+				visible[first + prefix + 1].left = incoming->right;
+			}
+			*count += added;
+			*hint = first + prefix;
+			return;
 		}
 		if (!changed) {
 			/* Hidden surfaces leave the partition unchanged. Delay scratch writes
