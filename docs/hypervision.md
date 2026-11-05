@@ -1010,6 +1010,39 @@ suites pass. A focused ASan/UBSan build instruments all seven sources of the
 composition test target and passes with leak checking. Formatting, whitespace,
 CRLF line endings, non-executable source modes and core source budgets pass.
 
+### Selective Haswell backport on contd2 (2026-11-05)
+
+This branch starts at `969157ef` and applies the selected changes from
+`f0109925` and `b5cc2368` for a separate Haswell performance comparison.
+The original per-commit measurements describe cumulative versions; they do
+not predict the performance of this new combination.
+
+The contained-span and constant-depth work from `f0109925` is adapted to the
+earlier visibility implementation. Its direct partition path requires at
+least one unchanged end; exact whole-span replacements retain the base's
+general path, excluding the earlier shortcut from `60254eef`. Private record
+declarations move to an internal header with unchanged layouts. The complete
+visibility regression and constant-depth bit tests accompany the backport.
+Worker dispatch remains identical to `969157ef`.
+
+The cell-candidate index and query tests from `b5cc2368` apply independently.
+They retain candidate order, live footprint checks and track-storage lifetime.
+The pine-mesh cache from `ef66b23a` and the indexed-cell/clipping changes from
+`0c9c3d15` are excluded.
+
+Nine focused native track, renderer, worker, replay, interpolation and
+adaptive-quality suites pass. A ten-simulated-second Glacier drive compares
+all 600 driving-frame hashes against `969157ef`; all match. Six
+camera/resolution hashes, full serial/parallel checkpoint pixels and final
+state `fa0fe5fb` also match, with no crash. Hash capture is diagnostic and its
+FPS is excluded from performance comparisons.
+
+HyperVision, composition and track checks each pass ASan/UBSan with leak
+checking and TSan. Both baseline and backport pass the HyperVision and
+composition x87 drivers, including stored-depth bit comparisons. Formatting,
+CRLF endings, source modes and core line budgets pass. The combined branch
+still needs a fresh Haswell measurement.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
