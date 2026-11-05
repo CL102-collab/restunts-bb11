@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
+#include <string.h>
 #include <SDL3/SDL.h>
 #include "../c/legacy.h"
 
@@ -10,7 +11,10 @@ enum {
 	TEST_JOB_COUNT = 97,
 	TEST_JOB_PASSES = 3,
 	TEST_JOB_DELAY_MS = 1,
-	TEST_FAILURE_LIMIT = 3
+	TEST_FAILURE_LIMIT = 3,
+	TEST_RAPID_CORES = 4,
+	TEST_RAPID_CONTEXTS = 2,
+	TEST_RAPID_PASSES = 128
 };
 
 static legacy_int detected_cores;
@@ -113,6 +117,55 @@ static void configure_workers(const legacy_char *setting)
 	created_semaphores = 0;
 }
 
+struct PHASE_RESULTS {
+	legacy_s32 visits[TEST_JOB_COUNT], values[TEST_JOB_COUNT];
+	legacy_s32 seed;
+};
+
+static void record_forward_phase(void *argument, legacy_s32 index)
+{
+	struct PHASE_RESULTS *results = argument;
+	assert(index >= 0 && index < TEST_JOB_COUNT);
+	results->visits[index]++;
+	results->values[index] = results->seed + index;
+}
+
+static void record_reverse_phase(void *argument, legacy_s32 index)
+{
+	struct PHASE_RESULTS *results = argument;
+	assert(index >= 0 && index < TEST_JOB_COUNT);
+	results->visits[index]++;
+	results->values[index] = results->seed - index;
+}
+
+/* Back-to-back dispatches publish changing callbacks and contexts, then expose
+ * every job's writes immediately after the synchronous join, without delays. */
+static void check_rapid_phases(void)
+{
+	configure_workers("auto");
+	detected_cores = TEST_RAPID_CORES;
+	legacy_s32 workers = hires_render_workers_count();
+	assert(workers == TEST_RAPID_CORES - 1);
+	const legacy_s32 counts[] = {
+		0, 1, 2, workers, workers + 1, workers + 2, TEST_JOB_COUNT - 1, TEST_JOB_COUNT};
+	void (*functions[])(void *, legacy_s32) = {record_forward_phase, record_reverse_phase};
+	struct PHASE_RESULTS contexts[TEST_RAPID_CONTEXTS] = {0};
+	for (legacy_u32 pass = 0; pass < TEST_RAPID_PASSES; pass++) {
+		struct PHASE_RESULTS *results = &contexts[pass % SDL_arraysize(contexts)];
+		memset(results, 0, sizeof(*results));
+		results->seed = (legacy_s32)pass * TEST_JOB_COUNT;
+		legacy_u32 function = (pass / SDL_arraysize(contexts)) % SDL_arraysize(functions);
+		legacy_s32 count = counts[pass % SDL_arraysize(counts)];
+		legacy_s32 used = count <= 1 ? 0 : count <= workers ? count - 1 : workers;
+		assert(hires_render_workers_run(count, functions[function], results) == used);
+		for (legacy_s32 index = 0; index < TEST_JOB_COUNT; index++) {
+			assert(results->visits[index] == (index < count));
+			legacy_s32 expected = index < count ? results->seed + (function ? -index : index) : 0;
+			assert(results->values[index] == expected);
+		}
+	}
+}
+
 legacy_int main(void)
 {
 	assert(SDL_Init(0));
@@ -187,6 +240,7 @@ legacy_int main(void)
 	assert(single.visits[0] == 1 && single.threads[0] == SDL_GetCurrentThreadID());
 	assert(created_threads == 0 && created_semaphores == 0);
 	check_jobs(TEST_MAX_WORKERS);
+	check_rapid_phases();
 	hires_render_workers_shutdown();
 	hires_render_workers_shutdown();
 	assert(live_semaphores == 0);

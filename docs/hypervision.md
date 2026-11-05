@@ -1010,6 +1010,70 @@ suites pass. A focused ASan/UBSan build instruments all seven sources of the
 composition test target and passes with leak checking. Formatting, whitespace,
 CRLF line endings, non-executable source modes and core source budgets pass.
 
+### Glacier whole-span replacement and worker dispatch (2026-11-05)
+
+A fresh serial profile of baseline `969157ef` still attributes about 18% of CPU
+samples to visibility scanning and partition insertion. A diagnostic run finds
+1,754,123 fully winning, exact-bound replacements among 21,232,601 insertions
+(8.26%), including 610 supported decals. These counts include startup, warmup
+and checkpoints. Two changes remove repeated work:
+
+- Exact whole-span winners replace the existing interval directly after the
+  original depth tests. This avoids scratch construction, no-op tail movement
+  and copy-back. Supported decals change only the command ID and retain the
+  support's depth function. Other overlaps use the original partition path.
+- Each job participant captures its callback, context and job count once.
+  The atomic job counter has cache-line guards on both sides, separating job
+  claims from immutable dispatch data regardless of the object's alignment.
+  Semaphore publication, joins, scheduling and worker counts remain the same.
+
+The private scanline record declarations moved to an internal header to keep
+`hypervision.c` within the 800-code-line limit; their layout is unchanged.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) use the same AMD EPYC 9V74 VM, with five exposed CPUs and a
+four-CPU quota. Each run accelerates the automatic Countach straight ahead for
+ten simulated seconds on `glacier.cstrk`: 200 physics ticks and 600 interpolated
+cockpit frames, locked Full HyperVision at 1280x800 with ARGB composition.
+Physics, interpolation, rendering, state checks and composition are timed;
+display upload, presentation, audio, pacing, warmup and hash diagnostics are
+excluded. Both binaries use the normal production link order.
+
+Three one-CPU pairs and five two-CPU pairs alternate baseline/candidate order,
+with CPU-count order also reversed between batches. As in the preceding round,
+a temporary thread-creation shim pins the main thread to CPU 4 and the single
+background renderer to CPU 2; one-CPU runs use CPU 4 without render workers.
+The table retains every final batch and reports median complete-run throughput.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 83.96 (76.20–100.05) | 88.97 (85.68–96.47) | +6.0% |
+| 2 | 133.95 (123.12–145.36) | 139.10 (127.54–142.86) | +3.8% |
+
+Four of five two-CPU pairs improve. Two-CPU median elapsed time falls from
+7.465 to 7.189 ms/frame and median total process CPU time, including workers,
+falls from 13.570 to 13.048 ms/frame. VM variation remains large and ranges
+overlap; compare these uncapped measurements within this round. They do not
+establish presented FPS or target-hardware performance. Reproduce the workload
+with `--track /path/to/glacier.cstrk --drive-seconds 10 --compose` and the
+per-thread placement above.
+
+All 600 driving-frame hashes and all six native camera/resolution hashes match
+the baseline. Complete serial/parallel checkpoint images and final state hash
+`fa0fe5fb` match, and the car finishes without crashing. New tests pass against
+both baseline and optimized implementations. Visibility coverage checks whole
+winners, rejected overlaps, supported-decal depth preservation and subsequent
+depth crossings at every scale with zero, one and three background workers.
+Rapid worker phases change callbacks, contexts and job counts without delays,
+checking exactly-once execution and immediate visibility after each join.
+
+Eight focused renderer, worker, replay, interpolation and adaptive-quality CTest
+suites pass. Focused ASan/UBSan checks instrument both changed units and their
+drivers and pass with leak checking. Focused TSan worker and HyperVision suites
+also pass, including instrumented SDL atomic/spinlock operations, with no race
+reports. Formatting, CRLF endings, non-executable source modes and source line
+budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

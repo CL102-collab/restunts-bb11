@@ -27,9 +27,17 @@ struct RENDER_WORKER {
 	SDL_Semaphore *start;
 };
 
+/* Keep frequent job claims off the immutable dispatch data's cache line.
+ * Both guards make this independent of the enclosing object's alignment. */
+struct RENDER_JOB_COUNTER {
+	legacy_u8 before[SDL_CACHELINE_SIZE];
+	SDL_AtomicInt value;
+	legacy_u8 after[SDL_CACHELINE_SIZE];
+};
+
 static struct RENDER_WORKER hires_workers[RENDER_MAX_WORKERS];
 static SDL_Semaphore *hires_completed;
-static SDL_AtomicInt hires_next_job;
+static struct RENDER_JOB_COUNTER hires_next_job;
 static legacy_s32 hires_enabled;
 static legacy_s32 hires_initialized;
 static legacy_s32 hires_worker_count;
@@ -40,12 +48,15 @@ static void *hires_job_context;
 
 static void hires_run_jobs(void)
 {
+	legacy_s32 count = hires_job_count;
+	void (*job)(void *, legacy_s32) = job_function;
+	void *context = hires_job_context;
 	for (;;) {
-		legacy_s32 index = SDL_AddAtomicInt(&hires_next_job, 1);
-		if (index >= hires_job_count) {
+		legacy_s32 index = SDL_AddAtomicInt(&hires_next_job.value, 1);
+		if (index >= count) {
 			return;
 		}
-		job_function(hires_job_context, index);
+		job(context, index);
 	}
 }
 
@@ -175,7 +186,7 @@ legacy_s32 hires_render_workers_run(legacy_s32 count, void (*job)(void *, legacy
 	hires_job_count = count;
 	job_function = job;
 	hires_job_context = context;
-	SDL_SetAtomicInt(&hires_next_job, 0);
+	SDL_SetAtomicInt(&hires_next_job.value, 0);
 	for (legacy_s32 index = 0; index < used; index++) {
 		SDL_SignalSemaphore(hires_workers[index].start);
 	}

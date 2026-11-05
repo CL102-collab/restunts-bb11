@@ -1,4 +1,4 @@
-#include "hypervision.h"
+#include "hypervision_internal.h"
 #include "../fatal.h"
 #include "render_workers.h"
 #include <SDL3/SDL_cpuinfo.h>
@@ -64,14 +64,6 @@ struct HIRES_VISIBILITY_LIST {
 struct HIRES_VISIBILITY_BIN {
 	struct HIRES_VISIBILITY_LIST lists[HIRES_VISIBILITY_CLASS_COUNT];
 	struct HIRES_RASTER_CONTEXT context;
-};
-struct HIRES_VISIBILITY_SPAN {
-	legacy_s32 left, right;
-	legacy_f64 origin, step;
-	legacy_u32 command;
-};
-struct HIRES_VISIBILITY_CROSSING {
-	legacy_f64 x, z;
 };
 
 struct HIRES_BACKEND_BUFFER {
@@ -570,6 +562,18 @@ static void hires_visibility_insert(struct HIRES_VISIBILITY_SPAN *visible, legac
 				last++;
 				continue;
 			}
+		}
+		/* A whole winning interval needs no prefix, suffix, or partition shift.
+		 * Supported decals replace paint while retaining the support's depth. */
+		if (first == last && old->left == incoming->left && old->right == incoming->right &&
+			(supported || (start >= 0 && finish >= 0))) {
+			if (supported) {
+				visible[first].command = incoming->command;
+			} else {
+				visible[first] = *incoming;
+			}
+			*hint = first;
+			return;
 		}
 		if (!changed) {
 			/* Hidden surfaces leave the partition unchanged. Delay scratch writes

@@ -150,6 +150,69 @@ static void test_crossing_surfaces(legacy_s32 scale)
 	}
 }
 
+/* Whole-span winners and rejected surfaces must retain the same visibility
+ * rules as a later depth crossing. In particular, a decal's offset depth must
+ * not replace the supporting surface read by the crossing polygon. */
+static void test_whole_span_replacement(legacy_s32 scale)
+{
+	enum { TEST_WHOLE_REJECTED, TEST_WHOLE_WINNER, TEST_WHOLE_DECAL, TEST_WHOLE_CROSSING };
+	const legacy_char *workers[] = {TEST_NO_WORKERS, "1", "3"};
+	const struct HIRES_BACKEND_MATERIAL support = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL rejected = material(TEST_SECOND_COLOR, TEST_SECOND_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL winner = material(TEST_SECOND_COLOR, TEST_FIRST_FAMILY);
+	const struct HIRES_BACKEND_MATERIAL crossing = material(TEST_FIRST_COLOR, TEST_SECOND_FAMILY);
+	struct HIRES_BACKEND_MATERIAL decal = material(TEST_DECAL_COLOR, TEST_FIRST_FAMILY);
+	decal.flags = HIRES_BACKEND_DECAL;
+	hires_render_workers_set_enabled(1);
+	for (legacy_u32 worker = 0; worker < SDL_arraysize(workers); worker++) {
+		hires_render_workers_shutdown();
+		assert(SDL_setenv_unsafe("RESTUNTS_RENDER_WORKERS", workers[worker], true) == 0);
+		for (legacy_s32 kind = TEST_WHOLE_REJECTED; kind <= TEST_WHOLE_CROSSING; kind++) {
+			begin_frame(scale);
+			rectangle(0, target.width, 0, target.height, TEST_FAR_DEPTH, TEST_FAR_DEPTH, &support);
+			rectangle(0, target.width, 0, target.height, TEST_FAR_DEPTH / 2, TEST_FAR_DEPTH / 2,
+					  &rejected);
+			if (kind >= TEST_WHOLE_WINNER) {
+				rectangle(0, target.width, 0, target.height, TEST_NEAR_DEPTH, TEST_NEAR_DEPTH,
+						  &winner);
+			}
+			if (kind >= TEST_WHOLE_DECAL) {
+				rectangle(0, target.width, 0, target.height, TEST_FAR_DEPTH / 4, TEST_FAR_DEPTH / 4,
+						  &decal);
+			}
+			if (kind == TEST_WHOLE_CROSSING) {
+				rectangle(0, target.width, 0, target.height, TEST_NEAR_DEPTH + TEST_FAR_DEPTH,
+						  TEST_MIDDLE_DEPTH, &crossing);
+			}
+			const legacy_u8 *pixels = end_frame();
+			for (legacy_s32 y = 0; y < target.height; y++) {
+				for (legacy_s32 x = 0; x < target.width; x++) {
+					legacy_u32 offset = (legacy_u32)y * target.width + x;
+					legacy_u8 color = kind >= TEST_WHOLE_DECAL	  ? TEST_DECAL_COLOR
+									  : kind == TEST_WHOLE_WINNER ? TEST_SECOND_COLOR
+																  : TEST_FIRST_COLOR;
+					legacy_u32 family = TEST_FIRST_FAMILY;
+					legacy_f64 depth =
+						kind == TEST_WHOLE_REJECTED ? TEST_FAR_DEPTH : TEST_NEAR_DEPTH;
+					if (kind == TEST_WHOLE_CROSSING && x < target.width / 2) {
+						color = TEST_FIRST_COLOR;
+						family = TEST_SECOND_FAMILY;
+						depth = TEST_NEAR_DEPTH + TEST_FAR_DEPTH +
+								(TEST_MIDDLE_DEPTH - TEST_NEAR_DEPTH - TEST_FAR_DEPTH) *
+									(x + HIRES_SAMPLE_CENTER_OFFSET) / target.width;
+					}
+					assert(pixels[offset] == color);
+					assert(target.depth_family[offset] == family);
+					legacy_f64 error = target.inverse_depth[offset] - depth;
+					assert(error >= -depth * TEST_DEPTH_TOLERANCE &&
+						   error <= depth * TEST_DEPTH_TOLERANCE);
+				}
+			}
+		}
+	}
+	hires_render_workers_set_enabled(0);
+}
+
 static void test_concave_coverage(legacy_s32 scale)
 {
 	const struct HIRES_BACKEND_MATERIAL paint = material(TEST_FIRST_COLOR, TEST_FIRST_FAMILY);
@@ -882,6 +945,7 @@ legacy_int main(void)
 	for (legacy_s32 scale = HIRES_MINIMUM_SCALE; scale <= HIRES_SCALE;
 		 scale *= HIRES_MEDIUM_SCALE) {
 		test_crossing_surfaces(scale);
+		test_whole_span_replacement(scale);
 		test_concave_coverage(scale);
 		test_cutout_and_occluder(scale);
 		test_coplanar_decal(scale);
