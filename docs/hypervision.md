@@ -1148,6 +1148,77 @@ suite passes TSan with instrumented SDL atomic/spinlock operations and no race
 reports. Formatting, CRLF endings, non-executable source modes and core source
 line budgets pass.
 
+### Glacier contained-span writes and constant depth (2026-11-05)
+
+A fresh serial profile of baseline `ef66b23a` attributes 18.08% of 1,715 CPU
+samples to visibility scanning/partition insertion and 4.14% to resolved-span
+rasterization. Two diagnostics identify repeated work in these paths:
+
+- Of 21,340,082 inserts, 6,276,963 additional fully winning intervals fit inside
+  one old span with one or two unchanged ends (29.41%). The earlier exact-bound
+  shortcut handles another 1,762,965 inserts. Write the contained winner's final
+  prefix/winner/suffix partition directly, shifting the untouched tail once.
+  This avoids scratch construction and copy-back while retaining exact-bound
+  replacement, supported-decal depth, internal coalescing and the existing hint.
+  Other overlaps keep the original partition path and depth arithmetic.
+- Of 332,890,701 resolved samples, 308,176,663 (92.58%) have an exactly zero depth
+  step. Compute their binary32 depth once and broadcast it with the family,
+  avoiding a per-sample integer conversion, multiply and add. Use the original
+  affine expression for nonzero steps; include the zero-step addition so signed
+  zeros and nonfinite input behavior stay equivalent.
+
+Diagnostic counts include startup, warmup and checkpoints. Private edge,
+command and list declarations move into the existing internal header to keep
+`hypervision.c` within its 800-code-line limit; their layouts stay unchanged.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) use normal production link order on the same AMD EPYC
+9V74 VM, with five exposed CPUs and a four-CPU quota. Each run accelerates the
+automatic Countach straight ahead on Glacier for ten simulated seconds: 200
+physics ticks and 600 interpolated cockpit frames, locked Full HyperVision at
+1280x800 with final ARGB composition. Physics, interpolation, rendering, state
+checks and composition are timed; display upload/presentation, audio, pacing,
+warmup and hash diagnostics are excluded.
+
+Five pairs for each CPU configuration alternate baseline/candidate order and
+reverse CPU-count order between batches. As in the preceding round, a temporary
+placement shim pins the main thread to CPU 4 and the single background renderer
+to CPU 2; serial runs use CPU 4 without background workers. The table retains
+every final batch and reports median complete-run throughput.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 87.28 (77.27–94.70) | 88.65 (86.05–89.97) | +1.6% |
+| 2 | 127.11 (123.89–135.15) | 131.78 (121.68–147.95) | +3.7% |
+
+Only two of five paired runs improve in each CPU configuration. Median
+two-CPU elapsed time falls from 7.867 to 7.589 ms/frame and total process CPU
+time, including workers, falls from 14.358 to 13.763 ms/frame. Serial median
+elapsed time changes from 11.458 to 11.281 ms/frame. Both configurations
+have overlapping ranges and substantial VM variation, so these modest uncapped
+within-round gains do not establish presented FPS or guarantee improvement on
+other hardware. Reproduce with `--track /path/to/glacier.cstrk --drive-seconds 10
+--compose` and the per-thread placement above.
+
+All 600 driving-frame hashes and all six native Glacier camera/resolution
+hashes match baseline. Complete serial/parallel checkpoint images and final
+state hash `fa0fe5fb` match; the car finishes without crashing. The expanded
+visibility fixture checks exact and contained winners, left/right/interior cuts,
+untouched tails, supported decals and later crossings at all scales with zero,
+one and three background workers. Its independent pixel/family/depth oracle
+also passes against the saved baseline backend.
+
+Resolved-depth fixtures compare exact float bits for both signed zero steps,
+positive/negative depths, signed zeros, rounding edges, subnormals, overflow,
+NaN and infinities, with family writes and adjacent guards at every scale.
+Eight focused renderer, worker, replay, interpolation and adaptive-quality
+CTest suites pass. Focused composition and HyperVision suites each pass
+ASan/UBSan with leak checking and TSan; changed units, drivers and SDL atomic/
+spinlock sources are instrumented where relevant, with no sanitizer findings.
+Baseline and optimized composition/visibility suites also pass with
+`-mfpmath=387 -fexcess-precision=fast`, including the exact depth-bit cases.
+Formatting, CRLF endings, non-executable source modes and core line budgets pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native

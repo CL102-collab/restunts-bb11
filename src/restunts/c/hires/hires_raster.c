@@ -567,9 +567,17 @@ void hires_raster_resolved_span(struct HIRES_RASTER_CONTEXT *context, legacy_s32
 	legacy_u32 *families = target->depth_family + (size_t)y * target->width;
 	/* Separate contiguous depth output from the legacy-cell pixel layout.
 	 * Independent samples permit vectorization without a serial recurrence. */
-	for (legacy_s32 x = left; x < right; x++) {
-		depths[x] = (legacy_f32)(inverse_z + (x - left) * depth_step);
-		families[x] = family;
+	if (depth_step == 0) {
+		legacy_f32 depth = (legacy_f32)(inverse_z + depth_step);
+		for (legacy_s32 x = left; x < right; x++) {
+			depths[x] = depth;
+			families[x] = family;
+		}
+	} else {
+		for (legacy_s32 x = left; x < right; x++) {
+			depths[x] = (legacy_f32)(inverse_z + (x - left) * depth_step);
+			families[x] = family;
+		}
 	}
 	if (paint_mode == HIRES_PAINT_SOLID && surface->argb_cells == 0) {
 		hires_raster_indexed_span(target, left, right, y, (legacy_u8)color);
