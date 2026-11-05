@@ -1285,6 +1285,70 @@ with leak checking and TSan. Baseline and candidate composition/geometry suites
 also pass with `-mfpmath=387 -fexcess-precision=fast`. Formatting, CRLF endings,
 non-executable source modes and core line budgets pass.
 
+
+### Glacier cell-object candidate index (2026-11-05)
+
+A fresh serial profile of baseline `0c9c3d15` attributes 2.27% of 1,849 CPU
+samples to extended cell-object lookup. Build compact candidate lists with the
+track's owned storage to remove repeated traversal of the four origin chains.
+Each list preserves the original four-origin traversal and newest-first chain
+order, including non-covering candidates. Queries keep their live
+object-coordinate and dimension checks, sparse-footprint behavior and capacity
+truncation. Two 16-bit arrays require about 79 KiB; a compile-time guard checks
+the index bound. Load/reload/unload own their lifetime, with failed loads
+preserving the prior index. Lists remain read-only during rendering.
+
+A same-process lookup microbenchmark loads Glacier and alternates the original
+four-origin scan with the indexed query on CPU 4. Each batch queries the full
+90x90 grid 100 times, with capacity 16 and identical count/first-ID checksums.
+Across ten alternating pairs, median thread CPU time per query falls from
+15.729 to 8.050 ns (48.8%); every indexed batch is faster than its paired scan.
+This isolates lookup cost and does not measure whole-frame FPS.
+
+Uninstrumented GCC 14.2 Linux x86-64 Release builds (`-O3 -DNDEBUG`, generic
+x86-64 instructions) use normal production link order on the same AMD EPYC
+9V74 VM, with five exposed CPUs and a four-CPU quota. Each run accelerates the
+automatic Countach straight ahead on Glacier for ten simulated seconds: 200
+physics ticks and 600 interpolated cockpit frames, locked Full HyperVision at
+1280x800 with final ARGB composition. Physics, interpolation, rendering, state
+checks and composition are timed; display upload/presentation, audio, pacing,
+warmup and hash diagnostics are excluded.
+
+Five pairs for each CPU configuration alternate baseline/candidate order and
+reverse CPU-count order between batches. A temporary placement shim pins the
+main thread to CPU 4 and the single background renderer to CPU 2; serial runs
+use CPU 4 without background workers. The table retains every final batch and
+reports median complete-run throughput.
+
+| CPUs | Baseline median FPS (range) | Optimized median FPS (range) | Median change |
+| --- | ---: | ---: | ---: |
+| 1 | 93.63 (87.20–95.49) | 99.66 (91.48–103.13) | +6.4% |
+| 2 | 131.11 (126.26–156.10) | 147.46 (131.33–152.93) | +12.5% |
+
+Three of five serial pairs and four of five two-CPU pairs improve. Serial
+median elapsed time falls from 10.680 to 10.034 ms/frame; two-CPU elapsed time
+falls from 7.627 to 6.781 ms/frame. Median total process CPU time, including
+workers, falls from 13.920 to 12.179 ms/frame with two CPUs. Both configurations
+have overlapping ranges and substantial VM variation. These uncapped results
+do not establish FPS gains of this magnitude; the isolated lookup result gives
+stronger evidence for the retained change. Reproduce with `--track
+/path/to/glacier.cstrk --drive-seconds 10 --compose` and the per-thread placement
+above.
+
+All 600 driving-frame hashes and all six native Glacier camera/resolution
+hashes match baseline. Complete serial/parallel checkpoint pixels and final
+state hash `fa0fe5fb` match; the car finishes without crashing. Cell-query
+regressions compare exact pointer order against the old scan across the full
+90x90 grid, map boundaries, shared origins, sparse footprints, capacities and
+guard slots, live object mutations, failed/successful reloads, empty reload,
+unload and the maximum object count.
+
+Nine focused track, renderer, worker, replay, interpolation and adaptive-quality
+CTest suites pass. Geometry and track checks each pass ASan/UBSan with leak
+checking and TSan, including the renderer, worker and track-decoder code.
+Formatting, CRLF endings, non-executable source modes and core line budgets
+pass.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
