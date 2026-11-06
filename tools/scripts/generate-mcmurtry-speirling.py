@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and validate the MCMU Stunts car from its native low-polygon sources.
+"""Build and validate the MCMU classic car and detailed HyperVision companion.
 
 Run with --install stunts to install the game resources in stunts/cars, or --check to
 verify that the checked-in files match their deterministic authoring sources.
@@ -14,6 +14,7 @@ from pathlib import Path
 import struct
 
 import mcmurtry_dashboard as dashboard
+import mcmurtry_hypervision as detailed_model
 import mcmurtry_model as model
 import mcmurtry_physics as physics
 
@@ -31,13 +32,9 @@ SIMD_WHEEL_COORDINATE_SIZE = struct.calcsize("<3h")
 SIMD_COLLISION_BOUNDS_OFFSET = 0xC8
 GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH", "STMCMU.H3D")
 HYPERVISION_SHAPE_HEADER_SIZE = struct.calcsize("<4H")
-UNDERFLOOR_VALIDATION_SAMPLES = tuple(
-    (side * x, z) for side in (-1, 1)
-    for z, columns in ((-33, (0, 11, 14, 17)), (-12, (0, 11, 14, 17)),
-                       (-6, (0, 11, 14, 17)), (0, (0, 11, 14, 17)),
-                       (6, (0, 11, 14, 17)), (12, (0, 11, 14, 17)),
-                       (38, (0, 11, 14)))
-    for x in columns)
+HYPERVISION_FRACTION_BITS_OFFSET = struct.calcsize("<3H")
+CAR_BODY_VERTEX_START = (model.WHEEL_CONTROL_START +
+                         model.WHEEL_CONTROL_COUNT * len(model.WHEEL_CENTERS))
 DOWNLOADED_MODEL = {
     "title": "2026 McMurtry Spéirling",
     "author": "Dave Love SketchFab",
@@ -108,7 +105,8 @@ def hypervision_resources(data):
     if len(data) < model.HYPERVISION_CONTAINER_HEADER_SIZE:
         raise ValueError("Truncated HyperVision container")
     magic, version, count = struct.unpack_from("<4sHH", data)
-    if magic != model.HYPERVISION_CONTAINER_MAGIC or version != model.HYPERVISION_CONTAINER_VERSION:
+    if (magic != model.HYPERVISION_CONTAINER_MAGIC or
+            version != detailed_model.CONTAINER_VERSION):
         raise ValueError("Invalid HyperVision container signature or version")
     cursor = model.HYPERVISION_CONTAINER_HEADER_SIZE
     directory_end = cursor + count * model.HYPERVISION_CONTAINER_ENTRY_SIZE
@@ -121,6 +119,11 @@ def hypervision_resources(data):
         name = name.decode("ascii")
         if name in result or offset != previous_end or offset + size > len(data):
             raise ValueError("Invalid HyperVision entry")
+        if size < HYPERVISION_SHAPE_HEADER_SIZE:
+            raise ValueError("Truncated HyperVision shape")
+        fraction_bits = struct.unpack_from("<H", data, offset + HYPERVISION_FRACTION_BITS_OFFSET)[0]
+        if fraction_bits > detailed_model.MAX_FRACTION_BITS:
+            raise ValueError("Invalid HyperVision coordinate precision")
         result[name] = data[offset:offset + size]
         previous_end = offset + size
         cursor += model.HYPERVISION_CONTAINER_ENTRY_SIZE
@@ -135,7 +138,8 @@ def model_layout(data, name, *, hypervision=False):
         raise ValueError(f"Truncated {name}")
     counts = struct.unpack_from("<4H", data) if hypervision else data[:4]
     vertices, primitives, paints, reserved = counts
-    if not vertices or not primitives or paints != 7 or reserved:
+    if (not vertices or not primitives or paints != model.PAINT_COUNT or
+            (reserved > detailed_model.MAX_FRACTION_BITS if hypervision else reserved)):
         raise ValueError(f"Invalid shape header in {name}")
     index_size = 2 if hypervision and vertices > model.NATIVE_LIMIT else 1
     return vertices, primitives, paints, header_size, index_size
@@ -148,6 +152,12 @@ def decode_model(data, name, *, hypervision=False):
     if cursor > len(data):
         raise ValueError(f"Truncated shape tables in {name}")
     points = [struct.unpack_from("<3h", data, header_size + i * 6) for i in range(vertices)]
+    fraction_bits = (struct.unpack_from("<H", data, HYPERVISION_FRACTION_BITS_OFFSET)[0]
+                     if hypervision else 0)
+    if fraction_bits:
+        divisor = 1 << fraction_bits
+        points[CAR_BODY_VERTEX_START:] = [tuple(c / divisor for c in point)
+                                         for point in points[CAR_BODY_VERTEX_START:]]
     wheels = []
     triangles = []
     for _ in range(primitives):
@@ -190,10 +200,9 @@ def decode_model(data, name, *, hypervision=False):
     return points, triangles, {"vertices": vertices, "primitives": primitives, "paint_jobs": paints}
 
 
-def wheel_cover_groups(data, points, *, hypervision=False):
+def wheel_cover_groups(data, points):
     """Collect roof faces which the native painter draws after each wheel."""
-    vertices, primitives, paints, header_size, index_size = model_layout(
-        data, "wheel cover groups", hypervision=hypervision)
+    vertices, primitives, paints, header_size, index_size = model_layout(data, "wheel cover groups")
     cursor = header_size + vertices * 6 + primitives * 8
     groups = []
     parent = None
@@ -410,55 +419,8 @@ def validate_wheel_contacts(simd, points, scale, shift, label):
     return contacts
 
 
-def validate_underfloor(points, triangles, scale, shift, name):
-    """Cast underside rays through the centre and previously open sill strips."""
-    floor = round(model.BODY_SILL_Y * scale) + shift
-    projected = []
-    side_panels = []
-    for a, b, c in triangles:
-        if any(point[1] != floor for point in (a, b, c)):
-            continue
-        ux, uz, vx, vz = b[0] - a[0], b[2] - a[2], c[0] - a[0], c[2] - a[2]
-        determinant = ux * vz - uz * vx
-        # The XZ determinant is positive for a downward-facing surface.
-        if determinant > GEOMETRY_TOLERANCE:
-            projected.append((a, ux, uz, vx, vz, determinant))
-            if (all(point[0] > 0 for point in (a, b, c)) or
-                    all(point[0] < 0 for point in (a, b, c))):
-                side_panels.append((a, b, c))
-    for x, z in UNDERFLOOR_VALIDATION_SAMPLES:
-        covered = False
-        for a, ux, uz, vx, vz, determinant in projected:
-            px, pz = x * scale - a[0], z * scale - a[2]
-            u = (px * vz - pz * vx) / determinant
-            v = (ux * pz - uz * px) / determinant
-            if min(u, v, 1 - u - v) >= -GEOMETRY_TOLERANCE:
-                covered = True
-                break
-        if not covered:
-            raise ValueError(f"Uncovered underside in HyperVision {name} at X={x}, Z={z}")
-    clearances = []
-    for wheel, (cx, cy, cz) in enumerate(model.WHEEL_CENTERS):
-        radius = (math.hypot(model.WHEEL_RADIUS, model.WHEEL_HALF_WIDTH)
-                  if wheel < FRONT_STEERED_WHEEL_COUNT else model.WHEEL_RADIUS)
-        minimum = math.inf
-        for triangle in side_panels:
-            if triangle[0][0] * cx <= 0:
-                continue
-            stations = [point[2] / scale for point in triangle]
-            longitudinal_gap = max(min(stations) - cz, cz - max(stations), 0)
-            vertical_gap = (floor - shift) / scale - cy
-            minimum = min(minimum, math.hypot(vertical_gap, longitudinal_gap) - radius)
-        if not math.isfinite(minimum) or minimum + GEOMETRY_TOLERANCE < WHEEL_ARCH_MIN_CLEARANCE:
-            raise ValueError(f"HyperVision sill panel intersects wheel {wheel + 1} in {name}")
-        clearances.append(round(minimum, 3))
-    return {"bottom_rays_checked": len(UNDERFLOOR_VALIDATION_SAMPLES),
-            "minimum_sill_panel_tyre_clearance_game_units": clearances,
-            "result": "Central floor and sill strips covered; wheel-well intervals remain open."}
-
-
-def validate_car_geometry(shape, name, simd, *, hypervision=False):
-    points, triangles, metadata = decode_model(shape, name, hypervision=hypervision)
+def validate_car_geometry(shape, name, simd):
+    points, triangles, metadata = decode_model(shape, name)
     scale = model.SHOWROOM_SCALE if name == "car0" else 1
     shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
     floor = shift + model.CONTACT_Y * scale
@@ -484,14 +446,51 @@ def validate_car_geometry(shape, name, simd, *, hypervision=False):
         if abs(dimensions[axis] - value) > MODEL_DIMENSION_TOLERANCE:
             raise ValueError(f"Incorrect adapted model dimensions for {axis} in {name}: {dimensions}")
     metadata["dimensions_game_units"] = dimensions
-    wheel_groups = wheel_cover_groups(shape, points, hypervision=hypervision)
+    wheel_groups = wheel_cover_groups(shape, points)
     metadata["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
         points, triangles, scale, shift, name, wheel_groups=wheel_groups)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
         points, triangles, scale, shift, name)
     metadata["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
-    if hypervision:
-        metadata["underside_coverage"] = validate_underfloor(points, triangles, scale, shift, name)
+    return metadata
+
+
+def validate_hypervision_geometry(shape, name, classic, simd):
+    """Check detailed companions against the shared car and H3D contracts.
+
+    The source mesh has its own topology and silhouette. The classic fender
+    attachment groups and photo-derived body dimensions do not describe it.
+    """
+    points, triangles, metadata = decode_model(shape, name, hypervision=True)
+    original, _, _ = decode_model(classic, name)
+    if points[model.WHEEL_CONTROL_START:CAR_BODY_VERTEX_START] != original[
+            model.WHEEL_CONTROL_START:CAR_BODY_VERTEX_START]:
+        raise ValueError(f"HyperVision wheel controls differ from classic {name}")
+    if not (model.NATIVE_LIMIT < metadata["vertices"] <= model.HYPERVISION_LIMIT and
+            model.NATIVE_LIMIT < metadata["primitives"] <= model.HYPERVISION_LIMIT):
+        raise ValueError(f"Expected a detailed mesh within H3D limits in {name}")
+    scale = model.SHOWROOM_SCALE if name == "car0" else 1
+    shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
+    validate_wheel_contacts(simd, points, scale, shift, name)
+    floor = shift + model.CONTACT_Y * scale
+    if min(point[1] for point in points[CAR_BODY_VERTEX_START:]) < floor:
+        raise ValueError(f"HyperVision body below tyre contact plane in {name}")
+    half_width, _, half_length, _ = struct.unpack_from(
+        "<4h", simd, SIMD_COLLISION_BOUNDS_OFFSET)
+    if any(abs(point[0]) > half_width * scale or abs(point[2]) > half_length * scale
+           for point in points[model.WHEEL_CONTROL_START:]):
+        raise ValueError(f"HyperVision body exceeds shared collision envelope in {name}")
+    metadata["dimensions_game_units"] = {
+        "length": (max(p[2] for p in points[8:]) - min(p[2] for p in points[8:])) / scale,
+        "width": (max(p[0] for p in points[8:]) - min(p[0] for p in points[8:])) / scale,
+        "height": (max(p[1] for p in points[8:]) - floor) / scale,
+    }
+    metadata["animated_wheels"] = len(model.WHEEL_CENTERS)
+    metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
+        points, triangles, scale, shift, name)
+    fraction_bits = struct.unpack_from("<H", shape, HYPERVISION_FRACTION_BITS_OFFSET)[0]
+    metadata["coordinate_fraction_bits"] = fraction_bits
+    metadata["coordinate_step_mm"] = model.MM_PER_UNIT / (scale * (1 << fraction_bits))
     return metadata
 
 
@@ -575,13 +574,10 @@ def generate(repository):
     if set(enhanced) != {"car0", "car1", "car2"}:
         raise ValueError("Missing HyperVision showroom or racing mesh")
     simd = resources(outputs["CARMCMU.RES"])["simd"]
-    hypervision_models = {name: validate_car_geometry(shape, name, simd, hypervision=True)
+    classic_models = resources(outputs["STMCMU.3SH"])
+    hypervision_models = {name: validate_hypervision_geometry(
+                             shape, name, classic_models[name], simd)
                           for name, shape in enhanced.items()}
-    for name, shape in enhanced.items():
-        points, _, _ = decode_model(shape, name, hypervision=True)
-        classic, _, _ = decode_model(resources(outputs["STMCMU.3SH"])[name], name)
-        if points[:32] != classic[:32]:
-            raise ValueError(f"HyperVision bounds or wheel controls differ from classic {name}")
     performance = [physics.simulate_performance(fps) for fps in (20, 10)]
     for result in performance:
         if (abs(result["zero_to_60_mph_with_one_foot_rollout_seconds"] -
@@ -660,11 +656,12 @@ def generate(repository):
         "dashboard_ram_note": "Classic 320x200 native arena payloads including 16-byte allocation rounding and shared instrument/gearbox scratch bitmaps. Sprite definitions and row tables use the common preallocated window table. Generation requires strictly less extracted, prepared and resident dashboard RAM than DIA3.",
         "models": models,
         "hypervision": {
-            "resource": "STMCMU.H3D", "format_version": model.HYPERVISION_CONTAINER_VERSION,
+            "resource": "STMCMU.H3D", "format_version": detailed_model.CONTAINER_VERSION,
             "maximum_vertices_per_shape": model.HYPERVISION_LIMIT,
             "maximum_primitives_per_shape": model.HYPERVISION_LIMIT,
             "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
-            "geometry": "Carbon panels close the open sill strips ahead of, between and behind the wheels. Shared centre-floor subdivisions prevent cracks after coordinate quantization. Wheel-well intervals remain open and the existing exterior silhouette and animated wheel controls are preserved.",
+            "geometry": "Detailed exterior geometry imported from the supplied Sketchfab GLB, with transformed source bodywork, canopy, wing and underbody. Source wheel assemblies are replaced with the classic animated wheels. Source materials are mapped into the native palette and seven paint schemes; welded, quantized meshes provide separate showroom, near and distant racing detail levels.",
+            "source_mesh": detailed_model.metadata(),
             "models": hypervision_models},
         "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
         "sources": SOURCES,
@@ -680,10 +677,11 @@ repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
 assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
-The optional fifth file, STMCMU.H3D, supplies extended meshes for HyperVision.
-The generator installs it beside the classic files. HyperVision closes the
-otherwise open underside strips beside the centre floor; classic rendering
-continues to use the unchanged STMCMU.3SH. Original Stunts does not need H3D.
+The optional fifth file, STMCMU.H3D, supplies detailed source-derived meshes
+for HyperVision. The generator installs it beside the classic files. Separate
+showroom, near-racing and distant-racing meshes retain the source bodywork,
+canopy, wing and underbody with native palette materials and animated wheels.
+Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -721,7 +719,7 @@ Wheel locations follow the supplied mesh with native integer quantization.
 Wheels and physical contacts agree on the engine's six-unit contact plane.
 
 MODEL SOURCES
-The exterior is a new native low-polygon adaptation guided by the supplied
+The classic exterior is a native low-polygon adaptation guided by the supplied
 2026-mcmurtry-speirling.zip GLB. Its embedded asset.extras metadata credits:
 2026 McMurtry Speirling by Dave Love SketchFab
 https://sketchfab.com/Tyler_Dave
@@ -732,10 +730,16 @@ Supplied GLB SHA-256:
 The source hierarchy names exmods_mcmurtry_speirling22.fbx, suggesting an
 earlier prototype despite its 2026 title. The supplied high-resolution mesh
 is the exterior ground truth for the nose, canopy, main rear wing and wheels.
-All three exterior topologies are rebuilt from scratch for native Stunts
+All three classic exterior topologies are rebuilt from scratch for native Stunts
 primitives, uniform length scaling, animated wheels and seven paint schemes.
-The original high-polygon GLB, its textures and manufacturer photographs
-are not included.
+The HyperVision companion imports the detailed exterior directly from that
+GLB. A compressed transformed source mesh is retained in
+tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
+regeneration without the upload or third-party Python packages. Source wheel
+assemblies are replaced with the game's four animated wheels. Source material groups
+are adapted to native palette materials and seven paints; H3D does not store
+textures or transparency. The original GLB, textures and manufacturer
+photographs are not included.
 MCMU.json records the supplied GLB hash, attribution, changes, photo URLs,
 specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
@@ -784,13 +788,18 @@ the painter draws the fender after its wheel even at shallow angles.
 The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
-STMCMU.H3D retains these exterior surfaces and adds carbon floor panels ahead
-of, between and behind the wheels. The centre floor is subdivided at shared
-edges so integer rounding cannot leave cracks. Wheel-well intervals remain
-open. HyperVision meshes use 16-bit counts and, above 255 vertices, 16-bit
-indices: car0 and car1 have {hypervision_models['car1']['vertices']} vertices and
-{hypervision_models['car1']['primitives']} primitives; car2 has {hypervision_models['car2']['vertices']} vertices and
-{hypervision_models['car2']['primitives']} primitives. The classic meshes retain their original byte limits.
+These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
+STMCMU.H3D supplies the detailed source-derived body instead. Deterministic
+vertex clustering, welding and removal of degenerate/duplicate faces keep each
+mesh within H3D version {detailed_model.CONTAINER_VERSION}'s 65,535-vertex and 65,535-primitive limits:
+car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
+car1: {hypervision_models['car1']['vertices']} vertices, {hypervision_models['car1']['primitives']} primitives;
+car2: {hypervision_models['car2']['vertices']} vertices, {hypervision_models['car2']['primitives']} primitives.
+Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']:g} mm precision;
+racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
+Bounds and wheel controls retain native integer coordinates. The distant
+racing mesh uses coarser geometry. Classic meshes retain their original byte
+limits, wheel controls and driving specifications.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left

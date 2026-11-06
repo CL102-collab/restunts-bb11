@@ -778,6 +778,10 @@ if(RESTUNTS_BUILD_TESTS)
                 "${CMAKE_SOURCE_DIR}/tools/scripts/test-render-opl-trace.py")
             add_test(NAME skybox-assets COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tools/scripts/check-skyboxes.py")
+            add_test(NAME mcmurtry-hypervision COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/test-mcmurtry-hypervision.py")
+            add_test(NAME mcmurtry-assets COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_SOURCE_DIR}/tools/scripts/generate-mcmurtry-speirling.py" --check)
         endif()
     endif()
 endif()

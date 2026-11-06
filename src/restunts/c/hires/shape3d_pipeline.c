@@ -394,6 +394,7 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 			enhanced_instance.shapeptr = enhanced;
 			instance = &enhanced_instance;
 		}
+		vertices = hires_shape3d_car_vertices(instance->shapeptr);
 	}
 	const struct SHAPE3D *shape = instance->shapeptr;
 	struct SHAPE3D_HIRES_PIPELINE_CONTEXT context;

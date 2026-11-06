@@ -349,7 +349,9 @@ HyperVision can use optional car meshes with up to 65,535 vertices and
 primitives per mesh. Their `.H3D` companions provide enhanced geometry while
 the original model remains available to the classic renderer. See
 [HyperVision car meshes](docs/hypervision-meshes.md) for the format and fallback
-behavior. The McMurtry companion adds the missing underside panels.
+behavior. The McMurtry companion imports detailed exterior geometry from the
+supplied high-resolution source, with palette materials and native animated
+wheels. Its classic fallback and driving physics retain the existing model.
 
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
@@ -721,11 +723,12 @@ the tachometer. The stock value `0x0010` keeps both needles white, and
 
 ### McMurtry Speirling PURE custom car
 
-The `MCMU` car has new showroom/racing meshes rebuilt from the supplied
-high-resolution Speirling model, seven paints, a digital race cockpit,
-single-speed electric drive and fan adhesion. Driving specifications retain
-the 2026 production PURE tuning; exterior proportions follow the source mesh.
-Install it with:
+The `MCMU` car has classic showroom/racing meshes rebuilt from the supplied
+high-resolution Speirling model and an optional detailed `.H3D` companion
+imported directly from that source for HyperVision. Both use seven paints and
+native animated wheels. A digital race cockpit, single-speed electric drive
+and fan adhesion retain the 2026 production PURE tuning. Exterior proportions
+follow the source mesh. Install it with:
 
 ```sh
 python3 tools/scripts/generate-mcmurtry-speirling.py --install stunts
