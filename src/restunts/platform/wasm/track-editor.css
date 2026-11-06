@@ -252,6 +252,10 @@ dialog h2 { font-size: 38px; font-weight: 600; letter-spacing: -.4px; margin: 0;
 .dialog-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
 .dialog-heading-icon { display: grid; place-items: center; width: 33px; height: 33px; border-radius: 8px; background: #d9b06d15; color: #e4bc7c; }
 .dialog-heading-icon .icon { width: 18px; height: 18px; }
+.check-result-icon { width: 48px; height: 36px; border-radius: 4px; color: #fff; }
+.check-result-icon[data-result="success"] { background: #248342; }
+.check-result-icon[data-result="error"] { background: #c43d3d; }
+.check-result-icon .icon { width: 25px; height: 25px; stroke-width: 2.5; }
 .icon-button { background: transparent; border: 0; padding: 6px; margin-left: auto; color: #89949f; }
 .icon-button .icon { width: 18px; height: 18px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
