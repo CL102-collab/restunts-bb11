@@ -269,6 +269,38 @@ static void test_keyboard(void)
 	assert(kb_get_key_state(500) == 0);
 }
 
+static void test_mph_shortcut(void)
+{
+	const SDL_Keymod modifiers[] = {SDL_KMOD_LCTRL, SDL_KMOD_RCTRL, SDL_KMOD_CTRL};
+	const legacy_s16 f9_scancode = (legacy_u16)KEY_F9 >> LEGACY_BYTE_BITS;
+	kb_init_interrupt();
+	for (legacy_u32 modifier = 0; modifier < SDL_arraysize(modifiers); ++modifier) {
+		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, false);
+		assert(kb_read_char() == KEY_CTRL_F9);
+		assert(kb_get_key_state(f9_scancode) == 0);
+		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, true);
+		send_key(SDL_SCANCODE_F9, modifiers[modifier], true, false);
+		/* Ctrl can be released before F9 without queuing another toggle or plain F9. */
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, true);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
+		assert(kb_read_char() == 0);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
+	}
+	const SDL_Keymod rejected[] = {SDL_KMOD_CTRL | SDL_KMOD_SHIFT, SDL_KMOD_CTRL | SDL_KMOD_ALT,
+								   SDL_KMOD_CTRL | SDL_KMOD_GUI};
+	for (legacy_u32 modifier = 0; modifier < SDL_arraysize(rejected); ++modifier) {
+		send_key(SDL_SCANCODE_F9, rejected[modifier], true, false);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
+		assert(kb_read_char() == 0);
+		send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
+	}
+	/* Unmodified F9 remains available to the track editor. */
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, true, false);
+	assert(kb_read_char() == KEY_F9);
+	assert(kb_get_key_state(f9_scancode) == 1);
+	send_key(SDL_SCANCODE_F9, SDL_KMOD_NONE, false, false);
+}
+
 static void test_music_shortcut(void)
 {
 	const legacy_s16 f10_scancode = (legacy_u16)KEY_F10 >> LEGACY_BYTE_BITS;
@@ -2830,6 +2862,7 @@ legacy_int main(void)
 	dos_joystick_set_enabled(0);
 	sdl3_batch_mode = 0;
 	test_keyboard();
+	test_mph_shortcut();
 	test_music_shortcut();
 	test_timer();
 	test_video_vsync();

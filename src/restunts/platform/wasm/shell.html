@@ -93,6 +93,7 @@
             <div class="settings-row">
                 <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
+                <label><input id="show-mph" type="checkbox" disabled> Show MPH (Ctrl+F9)</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
@@ -158,6 +159,7 @@
                 <tr><th scope="row"><kbd>←</kbd> / <kbd>→</kbd></th><td>Steer left / right.</td></tr>
                 <tr><th scope="row"><kbd>A</kbd> or <kbd>Space</kbd></th><td>Shift up (manual gears).</td></tr>
                 <tr><th scope="row"><kbd>Z</kbd> or <kbd>Enter</kbd></th><td>Shift down (manual gears).</td></tr>
+                <tr><th scope="row"><kbd>Ctrl+F9</kbd></th><td>Show / hide speed in MPH at the bottom right. This does not change your remembered startup setting.</td></tr>
             </tbody>
             <tbody>
                 <tr><th colspan="2" scope="rowgroup">Quick rewind</th></tr>
@@ -252,7 +254,7 @@
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
         const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
-            'show-fps', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+            'show-fps', 'show-mph', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -507,6 +509,7 @@
             if (!document.getElementById('sound-enabled').checked) args.push('/ns');
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
+            args.push(document.getElementById('show-mph').checked ? '--showmph:on' : '--showmph:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');

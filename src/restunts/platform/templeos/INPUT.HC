@@ -6,6 +6,7 @@
 #define TEMPLE_SCAN_CODE_COUNT 128
 #define TEMPLE_DOS_F11_SCAN 133
 #define TEMPLE_DOS_F12_SCAN 134
+#define TEMPLE_DOS_CTRL_F9_SCAN 102
 #define TEMPLE_DOS_SHIFT_F1_SCAN 84
 #define TEMPLE_DOS_SHIFT_F11_SCAN 135
 #define TEMPLE_DOS_SHIFT_F12_SCAN 136
@@ -34,6 +35,12 @@ legacy_s16 temple_mouse_bottom=TEMPLE_LOGICAL_HEIGHT-1;
 legacy_u16 TempleInputKey(legacy_s64 character,legacy_s64 scan)
 {
   legacy_u16 noreg code=scan&TEMPLE_SCAN_CODE_MASK;
+  if(code==SC_F9&&(scan&SCF_CTRL)) {
+    if(scan&(SCF_SHIFT|SCF_ALT)) {
+      return 0;
+    }
+    return TEMPLE_DOS_CTRL_F9_SCAN<<TEMPLE_BYTE_BITS;
+  }
   if(code>=SC_F1&&code<=SC_F10) {
     if(scan&SCF_SHIFT) {
       code+=TEMPLE_DOS_SHIFT_F1_SCAN-SC_F1;

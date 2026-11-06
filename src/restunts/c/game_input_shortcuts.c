@@ -47,6 +47,13 @@ static legacy_u8 h_key_toggle;
 static legacy_s16 input_handle_display_shortcut(legacy_s16 key)
 {
 	switch (key) {
+		case KEY_CTRL_F9:
+			mph_display_enabled = mph_display_enabled == FRAME_MPH_DISPLAY_OFF
+									  ? FRAME_MPH_DISPLAY_ON
+									  : FRAME_MPH_DISPLAY_OFF;
+			full_redraw_frames_remaining = (legacy_s8)video_page_count;
+			return 1;
+
 		case KEY_F11:
 			fps_display_enabled = fps_display_enabled == FRAME_FPS_DISPLAY_OFF
 									  ? FRAME_FPS_DISPLAY_ON

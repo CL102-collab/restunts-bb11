@@ -226,6 +226,8 @@ legacy_void RsStartupStartupParseOptions(
   (options->skip_intro=TempleCastU8(0));
   (options->fps_display_enabled=TempleCastU8(FRAME_FPS_DISPLAY_OFF));
   (options->fps_display_specified=TempleCastU8(0));
+  (options->mph_display_enabled=TempleCastU8(FRAME_MPH_DISPLAY_OFF));
+  (options->mph_display_specified=TempleCastU8(0));
   temple_i_1119=TempleCastU16(1);
   while(1) {
     if(!((argc>temple_i_1119))) {
@@ -233,6 +235,8 @@ legacy_void RsStartupStartupParseOptions(
     }
     RsStartupStartupParseBoolean(argv[((temple_i_1119))],"--fps:","FPS display",
         (&(options->fps_display_enabled)),(&(options->fps_display_specified)));
+    RsStartupStartupParseBoolean(argv[((temple_i_1119))],"--showmph:","MPH display",
+        (&(options->mph_display_enabled)),(&(options->mph_display_specified)));
     if((RsInternal1Strcmp(argv[((temple_i_1119))],"--nointro")==0)) {
       (options->skip_intro=TempleCastU8(1));
     }
@@ -413,6 +417,7 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
   RsConfigureOwoot(TempleCastS16(argc),argv);
   RsStartupStartupParseOptions(TempleCastS16(argc),argv,(&(startup_options)));
   (fps_display_enabled=TempleCastU8(startup_options.fps_display_enabled));
+  (mph_display_enabled=TempleCastU8(startup_options.mph_display_enabled));
   RsFrameFpsReset();
   0;
   RsDosVideoSetMode13h();

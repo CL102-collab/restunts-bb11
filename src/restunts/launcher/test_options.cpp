@@ -40,24 +40,23 @@ legacy_int main()
 	check(wxString(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].label) ==
 			  "Chicane Fast-Grass",
 		  "The Chicane Fast-Grass checkbox must use its public label.");
+	check(LAUNCHER_SHOW_FPS + 1 == LAUNCHER_SHOW_MPH &&
+			  wxString(launcher_option_definitions[LAUNCHER_SHOW_MPH].label) ==
+				  "Show MPH (Ctrl+F9)",
+		  "Show MPH must follow Show FPS and name its in-game shortcut.");
 	LauncherOptions options;
+	check(!options.enabled[LAUNCHER_SHOW_MPH], "Show MPH must default to disabled.");
 	options.folder = wxString::FromUTF8("/game data/árvíz & test/");
 	const wxString game = "/program files/restunts";
 	std::vector<wxString> arguments = launcher_game_arguments(game, options);
 	check(arguments[GAME_ARGUMENT_INDEX] == game && arguments[DATA_OPTION_INDEX] == "--data-dir" &&
 			  arguments[DATA_FOLDER_INDEX] == options.folder,
 		  "Program and data paths must remain separate argv elements.");
-	const legacy_char *defaults[] = {"--ogg:on",
-									 "--hv:auto",
-									 "--fullscreen:off",
-									 "--fps:off",
-									 "--controller-vibration:on",
-									 "--multi-core:on",
-									 "--pg:on",
-									 "--lc:on",
-									 "--lcb:on",
-									 "--dws:on",
-									 "--cfg:on"};
+	const legacy_char *defaults[] = {
+		"--ogg:on",		   "--hv:auto",		"--fullscreen:off",
+		"--fps:off",	   "--showmph:off", "--controller-vibration:on",
+		"--multi-core:on", "--pg:on",		"--lc:on",
+		"--lcb:on",		   "--dws:on",		"--cfg:on"};
 	for (const legacy_char *argument : defaults) {
 		check(contains(arguments, argument), "Missing default game argument.");
 	}
@@ -75,6 +74,7 @@ legacy_int main()
 									"--controller-vibration:off",
 									"--fullscreen:on",
 									"--fps:on",
+									"--showmph:on",
 									"--multi-core:off",
 									"--pg:off",
 									"--lc:off",
@@ -127,6 +127,7 @@ legacy_int main()
 		config.Write("hypervision", "unknown-future-preset");
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOW_MPH].key);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
@@ -137,12 +138,15 @@ legacy_int main()
 		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
 	check(restored.enabled[LAUNCHER_MULTI_CORE],
 		  "Configurations without a saved multi-core setting must use the enabled default.");
+	check(!restored.enabled[LAUNCHER_SHOW_MPH],
+		  "Configurations without a saved Show MPH setting must use the disabled default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
-			  !restored.enabled[LAUNCHER_FULLSCREEN] && restored.enabled[LAUNCHER_MULTI_CORE] &&
+			  !restored.enabled[LAUNCHER_FULLSCREEN] && !restored.enabled[LAUNCHER_SHOW_MPH] &&
+			  restored.enabled[LAUNCHER_MULTI_CORE] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");

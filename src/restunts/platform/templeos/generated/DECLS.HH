@@ -287,6 +287,7 @@ extern legacy_void RsFrameSupersightShowStatus(legacy_s8 *name);
 extern legacy_s16 RsFrameSupersightStatusOverlayActive();
 extern legacy_s16 RsFrameSupersightStatusExpireIdle();
 extern CRectangle *RsFrameSupersightStatusDrawText();
+extern CRectangle *RsFrameMphDrawText(legacy_s16 screen_bottom);
 extern legacy_void RsFrameFpsReset();
 extern legacy_s16 RsFrameDisplayOverlayActive();
 extern legacy_s16 RsFrameFpsExpireIdle();

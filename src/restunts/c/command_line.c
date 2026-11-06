@@ -61,6 +61,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 #endif
 #endif
 	"  --fps:on|off     Start with FPS display enabled/disabled; supply "
+	"once." COMMAND_LINE_NEWLINE
+	"  --showmph:on|off Show MPH while driving (Ctrl+F9); default off; supply "
 	"once." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 	"  --pg:on|off      Enable/disable the original power gear bug." COMMAND_LINE_NEWLINE
 	"  --lc:on|off      Enable/disable original collision behavior." COMMAND_LINE_NEWLINE

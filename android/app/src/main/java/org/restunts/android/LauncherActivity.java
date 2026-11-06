@@ -84,6 +84,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox skipIntro;
     private CheckBox tiltSteering;
     private CheckBox showFps;
+    private CheckBox showMph;
     private CheckBox multiCore;
     private CheckBox showControlLayout;
     private CheckBox powerGear;
@@ -268,6 +269,8 @@ public final class LauncherActivity extends Activity {
         WrappingLayout graphics = settingsGroup(layout, "Graphics settings", textSize, spacing);
         showFps = option(graphics, "Show FPS", LaunchOptions.SHOW_FPS_KEY,
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
+        showMph = option(graphics, "Show MPH (Ctrl+F9)", LaunchOptions.SHOW_MPH_KEY,
+            LaunchOptions.DEFAULT_SHOW_MPH, textSize);
         multiCore = option(graphics, "Multi-core rendering", LaunchOptions.MULTI_CORE_KEY,
             LaunchOptions.DEFAULT_MULTI_CORE, textSize);
         showControlLayout = option(graphics, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
@@ -308,7 +311,7 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         for (CheckBox option : new CheckBox[] {
-                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, multiCore, showControlLayout,
+                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, showMph, multiCore, showControlLayout,
                 powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
@@ -366,7 +369,7 @@ public final class LauncherActivity extends Activity {
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
             legacyCollision.isChecked(), leftCornerBias.isChecked(), dualWaySwitching.isChecked(),
             chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
-            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked());
+            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked(), showMph.isChecked());
     }
 
     private void saveOptions() {
@@ -377,6 +380,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro)
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
+            .putBoolean(LaunchOptions.SHOW_MPH_KEY, options.showMph)
             .putBoolean(LaunchOptions.MULTI_CORE_KEY, options.multiCore)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
@@ -441,6 +445,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.SKIP_INTRO_KEY, options.skipIntro);
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
+                        intent.putExtra(LaunchOptions.SHOW_MPH_KEY, options.showMph);
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
