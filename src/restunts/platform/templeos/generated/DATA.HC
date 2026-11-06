@@ -230,6 +230,10 @@ legacy_u16 rs_shape3d_render_legacy_render_polygon_code_segment=0;
 CShape3DLegacyOpponentRenderContext rs_shape3d_render_legacy_opponent_render_context;
 MemSet(&rs_shape3d_render_legacy_opponent_render_context,0,
     sizeof(rs_shape3d_render_legacy_opponent_render_context));
+legacy_u8 rs_shape3d_car_showroom_car_enabled=0;
+legacy_u8 rs_shape3d_car_showroom_driving_vertices[2][(255*6)];
+MemSet(
+    &rs_shape3d_car_showroom_driving_vertices,0,sizeof(rs_shape3d_car_showroom_driving_vertices));
 CSprite rs_shape2d_window_temple_background_contexts[4][2];
 MemSet(&rs_shape2d_window_temple_background_contexts,0,
     sizeof(rs_shape2d_window_temple_background_contexts));
@@ -320,7 +324,7 @@ MemSet(&rs_command_line_command_line_revision,0,sizeof(rs_command_line_command_l
 legacy_s8 rs_command_line_command_line_version_suffix[17];
 MemSet(&rs_command_line_command_line_version_suffix,0,
     sizeof(rs_command_line_command_line_version_suffix));
-legacy_s8 rs_command_line_command_line_help[1686];
+legacy_s8 rs_command_line_command_line_help[1827];
 MemSet(&rs_command_line_command_line_help,0,sizeof(rs_command_line_command_line_help));
 CGameInfo gameconfig;
 MemSet(&gameconfig,0,sizeof(gameconfig));

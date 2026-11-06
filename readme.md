@@ -509,6 +509,13 @@ The renderer and display shortcuts work in all driving and replay cameras,
 including opponent and ghost views and paused replays. Holding a shortcut key
 changes its selection only once.
 
+Use `--showroomcar:on` to render the showroom car models while driving, scaled
+down by 20 to their normal environment size. The default is `--showroomcar:off`.
+The option is case-insensitive and must appear only once. Desktop, Android, and
+web startup screens expose **Use showroom car model while driving** in
+**Graphics settings**, unchecked initially and remembered for later launches.
+This changes presentation only; vehicle physics and replay data are unchanged.
+
 ### Race against a ghost
 
 In **Opponent**, choose **Clock**, then **Ghost** to select a replay. The game

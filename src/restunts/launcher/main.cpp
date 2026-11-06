@@ -143,7 +143,7 @@ class LauncherDialog : public wxDialog
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_FULLSCREEN);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOW_FPS);
 		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_MULTI_CORE);
-		graphics_grid->AddSpacer(FIXED_LAYOUT);
+		add_option(graphics->GetStaticBox(), graphics_grid, LAUNCHER_SHOWROOM_CAR);
 		graphics_grid->Add(new wxStaticText(graphics->GetStaticBox(), wxID_ANY, "HyperVision"),
 						   FIXED_LAYOUT, wxALIGN_CENTER_VERTICAL);
 		hypervision_ = new wxChoice(graphics->GetStaticBox(), wxID_ANY);

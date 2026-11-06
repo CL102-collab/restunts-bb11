@@ -60,6 +60,8 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --control-layout:on|off  Show/hide the touch controls; supply once." COMMAND_LINE_NEWLINE
 #endif
 #endif
+	"  --showroomcar:on|off  Use showroom car models while driving; supply "
+	"once." COMMAND_LINE_NEWLINE
 	"  --fps:on|off     Start with FPS display enabled/disabled; supply "
 	"once." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 	"  --pg:on|off      Enable/disable the original power gear bug." COMMAND_LINE_NEWLINE
@@ -117,6 +119,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"AdLib is the default driver. F12 toggles SuperSight; no "
 	"presets." COMMAND_LINE_NEWLINE
 #endif
+	"Showroom car models while driving start off." COMMAND_LINE_NEWLINE
 	"FPS display starts off. F11 toggles it during play." COMMAND_LINE_NEWLINE
 	"Physics switches are case-insensitive; the last on/off value wins." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
@@ -131,6 +134,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"Controller vibration options are case-insensitive." COMMAND_LINE_NEWLINE
 #endif
 #endif
+	"Showroom car model options are case-insensitive." COMMAND_LINE_NEWLINE
 	"FPS display options are case-insensitive." COMMAND_LINE_NEWLINE
 	"Other switch names are case-sensitive; keep legacy names lowercase." COMMAND_LINE_NEWLINE
 	"For example, /sAD uses lowercase s and a two-letter audio driver ID." COMMAND_LINE_NEWLINE

@@ -57,6 +57,11 @@ void frame_prepare_car_model(const struct TRACKOBJECT *track_object,
 		curtransshape_ptr->shapeptr = track_object->ss_loShapePtr;
 	} else {
 		curtransshape_ptr->shapeptr = track_object->ss_shapePtr;
+	}
+	/* Showroom driving shares its animated geometry across both detail slots. */
+	if (!low_detail ||
+		(wheel_shape->shape3d_vertex_bytes != 0 && curtransshape_ptr->shapeptr != 0 &&
+		 curtransshape_ptr->shapeptr->shape3d_vertex_bytes == wheel_shape->shape3d_vertex_bytes)) {
 		shape3d_update_car_wheel_vertices(
 			wheel_shape, FRAME_STEERED_WHEEL_FIRST_VERTEX, carstate->car_steeringAngle,
 			carstate->car_suspension_deflection, wheel_angles, wheel_vectors, wheel_vector);

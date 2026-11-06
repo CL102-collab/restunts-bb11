@@ -31,6 +31,16 @@ legacy_u8 fps_display_enabled;
 static legacy_u8 expected_fps_display_enabled;
 static legacy_u32 startup_fps_reset_calls;
 
+static legacy_u8 startup_showroom_car_enabled = STARTUP_SHOWROOM_CAR_OFF;
+static legacy_u32 startup_showroom_car_set_calls;
+
+void shape3d_set_showroom_car_enabled(legacy_u8 enabled)
+{
+	assert(enabled == STARTUP_SHOWROOM_CAR_OFF || enabled == STARTUP_SHOWROOM_CAR_ON);
+	startup_showroom_car_enabled = enabled;
+	++startup_showroom_car_set_calls;
+}
+
 void frame_fps_reset(void)
 {
 	++startup_fps_reset_calls;
@@ -775,6 +785,8 @@ static void reset_startup_hypervision(void)
 static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[])
 {
 	reset_startup_hypervision();
+	legacy_u32 before_showroom_car_calls = startup_showroom_car_set_calls;
+	legacy_u8 before_showroom_car_enabled = startup_showroom_car_enabled;
 #ifdef STARTUP_MULTI_CORE_PREFIX
 	legacy_u32 before_multi_core_calls = startup_multi_core_set_calls;
 	legacy_u8 before_multi_core_enabled = startup_multi_core_enabled;
@@ -803,6 +815,8 @@ static void expect_startup_option_error(legacy_s16 count, legacy_s8 *arguments[]
 	assert(frame_hires_adaptive.preset == FRAME_HIRES_ADAPTIVE_PRESET_AUTO);
 #endif
 	assert(timer_calls == 0);
+	assert(startup_showroom_car_set_calls == before_showroom_car_calls);
+	assert(startup_showroom_car_enabled == before_showroom_car_enabled);
 #ifdef STARTUP_MULTI_CORE_PREFIX
 	assert(startup_multi_core_set_calls == before_multi_core_calls);
 	assert(startup_multi_core_enabled == before_multi_core_enabled);
@@ -980,6 +994,55 @@ static void test_startup_ogg_music_options(void)
 }
 
 #endif
+
+static void test_startup_showroom_car_options(void)
+{
+	static const struct {
+		const legacy_s8 *argument;
+		legacy_u8 enabled;
+	} cases[] = {{"--showroomcar:on", STARTUP_SHOWROOM_CAR_ON},
+				 {"--showroomcar:off", STARTUP_SHOWROOM_CAR_OFF},
+				 {"--SHOWROOMCAR:On", STARTUP_SHOWROOM_CAR_ON},
+				 {"--sHoWrOoMcAr:OfF", STARTUP_SHOWROOM_CAR_OFF}};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[index].argument};
+		reset_startup_hypervision();
+		legacy_u32 before = startup_showroom_car_set_calls;
+		init_main(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(startup_showroom_car_set_calls == before + 1U);
+		assert(startup_showroom_car_enabled == cases[index].enabled);
+		assert(startup_options.showroom_car_enabled == cases[index].enabled);
+		assert(startup_options.showroom_car_specified != 0);
+	}
+	/* A fresh launch restores the default after a previous enabled session. */
+	legacy_s8 *defaults[] = {(legacy_s8 *)"game"};
+	reset_startup_hypervision();
+	startup_showroom_car_enabled = STARTUP_SHOWROOM_CAR_ON;
+	legacy_u32 before = startup_showroom_car_set_calls;
+	init_main(sizeof(defaults) / sizeof(defaults[0]), defaults);
+	assert(startup_showroom_car_set_calls == before + 1U);
+	assert(startup_showroom_car_enabled == STARTUP_SHOWROOM_CAR_OFF);
+	assert(startup_options.showroom_car_enabled == STARTUP_SHOWROOM_CAR_OFF);
+	assert(startup_options.showroom_car_specified == 0);
+	for (legacy_u16 first = 0; first < sizeof(cases) / sizeof(cases[0]); ++first) {
+		for (legacy_u16 second = 0; second < sizeof(cases) / sizeof(cases[0]); ++second) {
+			legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)cases[first].argument,
+									  (legacy_s8 *)cases[second].argument};
+			expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		}
+	}
+	static const legacy_s8 *invalid[] = {"--showroomcar:",		 "--showroomcar:auto",
+										 "--showroomcar:1",		 "--showroomcar:onx",
+										 "--showroomcar:off:on", "--SHOWROOMCAR:unknown"};
+	for (legacy_u16 index = 0; index < sizeof(invalid) / sizeof(invalid[0]); ++index) {
+		legacy_s8 *arguments[] = {(legacy_s8 *)"game", (legacy_s8 *)invalid[index]};
+		expect_startup_option_error(sizeof(arguments) / sizeof(arguments[0]), arguments);
+	}
+	/* Later errors must not change the currently selected model. */
+	legacy_s8 *later_invalid[] = {(legacy_s8 *)"game", (legacy_s8 *)"--showroomcar:on",
+								  (legacy_s8 *)"--fps:invalid"};
+	expect_startup_option_error(sizeof(later_invalid) / sizeof(later_invalid[0]), later_invalid);
+}
 
 static void test_startup_multi_core_options(void)
 {
@@ -1389,6 +1452,7 @@ int main(void)
 #endif
 #endif
 	test_startup_fps_display_options();
+	test_startup_showroom_car_options();
 	test_startup_multi_core_options();
 	test_startup_fullscreen_options();
 	test_startup_controller_vibration_options();

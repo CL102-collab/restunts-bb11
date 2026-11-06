@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '../..');
 const SHELL = path.join(ROOT, 'src/restunts/platform/wasm/shell.html');
-const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout',
+const OPTIONS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen', 'show-fps', 'multi-core', 'showroom-car', 'show-control-layout',
     'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const RULES = ['power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
 const PRESETS = ['off', 'auto', 'full', 'high', 'medium', 'low'];
@@ -99,7 +99,7 @@ async function assertSettingsLayout(page, narrow) {
         };
     }, RULES);
     assert.ok(layout.drivingTop >= layout.graphicsBottom, 'Driving rules must sit below graphics settings');
-    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'multi-core', 'show-control-layout', 'hypervision'],
+    assert.deepEqual(layout.graphicsControls, ['start-fullscreen', 'show-fps', 'multi-core', 'showroom-car', 'show-control-layout', 'hypervision'],
         'Fullscreen must precede the shared graphics controls, with HyperVision last');
     assert.deepEqual(layout.drivingControls, RULES,
         'Driving rules must end with Chicane Fast-Grass, Amiga Grass, OWOOT');
@@ -1044,6 +1044,9 @@ async function main() {
         assert.equal(await page.locator('#multi-core').isEnabled(), true);
         assert.equal(await page.locator('#multi-core-note').isVisible(), false);
         assert.equal((await page.locator('#multi-core').locator('..').innerText()).trim(), 'Multi-core rendering');
+        assert.equal(await page.locator('#showroom-car').isChecked(), false, 'Showroom car models must default off');
+        assert.equal((await page.locator('#showroom-car').locator('..').innerText()).trim(),
+            'Use showroom car model while driving');
         assert.equal(await page.locator('#show-control-layout').isChecked(), false);
         assert.equal(await page.locator('#power-gear').isChecked(), true);
         assert.equal(await page.locator('#legacy-collision').isChecked(), true);
@@ -1063,7 +1066,7 @@ async function main() {
         await page.locator('#start').click();
         await assertLoadProgress(page, 100, { visible: false, loading: false });
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:on', '--hv:auto', '--control-layout:off',
+            '--data-dir', '/stunts', '--ogg:on', '--fps:off', '--multi-core:on', '--showroomcar:off', '--hv:auto', '--control-layout:off',
             '--pg:on', '--lc:on', '--lcb:on', '--dws:on', '--cfg:on'
         ]);
         for (const id of OPTIONS) assert.equal(await page.locator('#' + id).isDisabled(), true);
@@ -1075,15 +1078,18 @@ async function main() {
             const fps = index % 2 === 1;
             await page.locator('#show-fps').setChecked(fps);
             await page.locator('#multi-core').setChecked(fps);
+            await page.locator('#showroom-car').setChecked(fps);
             const stored = await storedOptions(page);
             assert.equal(stored.hypervision, preset, 'Preset must be stored as its string value');
             assert.equal(stored['show-fps'], fps, 'FPS must be stored as a boolean');
             assert.equal(stored['multi-core'], fps, 'Multi-core rendering must be stored as a boolean');
+            assert.equal(stored['showroom-car'], fps, 'Showroom model choice must be stored as a boolean');
             await page.reload();
             await ready(page);
             assert.equal(await page.locator('#hypervision').inputValue(), preset, 'Preset must persist');
             assert.equal(await page.locator('#show-fps').isChecked(), fps, 'FPS must persist');
             assert.equal(await page.locator('#multi-core').isChecked(), fps, 'Multi-core rendering must persist');
+            assert.equal(await page.locator('#showroom-car').isChecked(), fps, 'Showroom model choice must persist');
             await loadFixture(page, fixture);
             await page.locator('#start').click();
             const args = await page.evaluate(() => window.launchedArguments);
@@ -1092,11 +1098,13 @@ async function main() {
             assert.deepEqual(args.filter(arg => arg.startsWith('--fps:')), [fps ? '--fps:on' : '--fps:off']);
             assert.deepEqual(args.filter(arg => arg.startsWith('--multi-core:')),
                 [fps ? '--multi-core:on' : '--multi-core:off']);
+            assert.deepEqual(args.filter(arg => arg.startsWith('--showroomcar:')),
+                [fps ? '--showroomcar:on' : '--showroomcar:off']);
         }
 
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
+        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'showroom-car', 'show-control-layout', 'owoot', 'amiga-grass']) {
             await page.locator('#' + id).check();
         }
         for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) await page.locator('#' + id).uncheck();
@@ -1105,7 +1113,7 @@ async function main() {
         for (const id of OPTIONS.filter(id => id !== 'hypervision')) assert.equal(typeof stored[id], 'boolean');
         await page.reload();
         await ready(page);
-        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'show-control-layout', 'owoot', 'amiga-grass']) {
+        for (const id of ['skip-intro', 'show-fps', 'multi-core', 'showroom-car', 'show-control-layout', 'owoot', 'amiga-grass']) {
             assert.equal(await page.locator('#' + id).isChecked(), true, id + ' must persist across reload');
         }
         for (const id of ['sound-enabled', 'new-midi', ...RULES.filter(id => !['amiga-grass', 'owoot'].includes(id))]) {
@@ -1115,7 +1123,7 @@ async function main() {
         await loadFixture(page, fixture);
         await page.locator('#start').click();
         assert.deepEqual(await page.evaluate(() => window.launchedArguments), [
-            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--multi-core:on', '--hv:high', '--control-layout:on',
+            '--data-dir', '/stunts', '--nointro', '/ns', '--ogg:off', '--fps:on', '--multi-core:on', '--showroomcar:on', '--hv:high', '--control-layout:on',
             '--pg:off', '--lc:off', '--lcb:off', '--dws:off', '--cfg:off', '--amigagrass', '--owoot'
         ]);
 
@@ -1142,6 +1150,8 @@ async function main() {
             assert.equal(await page.locator('#show-fps').isChecked(), false, 'Malformed boolean values must be ignored');
             assert.equal(await page.locator('#multi-core').isChecked(), true,
                 'Preferences without a multi-core setting must use the enabled default');
+            assert.equal(await page.locator('#showroom-car').isChecked(), false,
+                'Preferences without a showroom model setting must use the disabled default');
             assert.equal(await page.locator('#new-midi').isChecked(), false, 'Other remembered choices must survive migration');
             assert.equal(await page.locator('#sound-enabled').isChecked(), true,
                 'Preferences from earlier versions must leave sound enabled');

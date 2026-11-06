@@ -62,6 +62,19 @@ def main():
                         field_offset -= GAMESTATE_SIZE
                     raise AssertionError(f"{replay}, mode {mode}: {field} differs at "
                                          f"tick {offset // RECORD_SIZE}, byte {field_offset}")
+            if replay.upper() == "DEFAULT":
+                # Keep the physics comparison tied to the existing classic baseline;
+                # both renderers must draw the real showroom meshes without changing it.
+                for mode in (0, 1):
+                    output = Path(directory) / f"{replay}-showroom-{mode}.bin"
+                    subprocess.run([str(executable), "--data-dir", str(data_directory),
+                                    replay, str(output), str(mode), str(limit),
+                                    str(first), str(last), *settling, "--showroomcar:on"],
+                                   env=environment, check=True, timeout=timeout_seconds)
+                    assert output.read_bytes() == baseline, (
+                        f"{replay}, mode {mode}: showroom geometry changed simulation or RNG")
+                print(f"{replay}: showroom car geometry has matching scale and axle origin; "
+                      "classic and HyperVision preserve every gamestate and RNG seed", flush=True)
             print(f"{replay}: {len(baseline) // RECORD_SIZE} identical gamestates and RNG seeds "
                   "with rendering off, on, toggled and adaptive quality swept", flush=True)
 

@@ -94,6 +94,7 @@
                 <label><input id="start-fullscreen" type="checkbox" disabled> Fullscreen</label>
                 <label><input id="show-fps" type="checkbox" disabled> Show FPS</label>
                 <label><input id="multi-core" type="checkbox" aria-describedby="multi-core-note" checked disabled> Multi-core rendering</label>
+                <label><input id="showroom-car" type="checkbox" disabled> Use showroom car model while driving</label>
                 <label><input id="show-control-layout" type="checkbox" disabled> Show Control Layout</label>
                 <label for="hypervision">HyperVision <select id="hypervision" disabled>
                     <option value="off">Off</option>
@@ -252,7 +253,7 @@
         const FOLDER_STORE = 'folders';
         const LAUNCH_OPTIONS_STORE = 'launch-options';
         const LAUNCH_OPTION_IDS = ['skip-intro', 'sound-enabled', 'hypervision', 'new-midi', 'start-fullscreen',
-            'show-fps', 'multi-core', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
+            'show-fps', 'multi-core', 'showroom-car', 'show-control-layout', 'power-gear', 'legacy-collision', 'left-corner-bias', 'dual-way-switching', 'chicane-fast-grass', 'amiga-grass', 'owoot'];
         // Local HTML copies can share browser storage; remember each page's own settings.
         const STORAGE_KEY = window.location.href;
 
@@ -508,6 +509,7 @@
             args.push(document.getElementById('new-midi').checked ? '--ogg:on' : '--ogg:off');
             args.push(document.getElementById('show-fps').checked ? '--fps:on' : '--fps:off');
             args.push(multiCoreAvailable() && multiCore.checked ? '--multi-core:on' : '--multi-core:off');
+            args.push(document.getElementById('showroom-car').checked ? '--showroomcar:on' : '--showroomcar:off');
             if (hyperVision.value !== 'off') args.push('--hv:' + hyperVision.value);
             args.push(document.getElementById('show-control-layout').checked ? '--control-layout:on' : '--control-layout:off');
             args.push(document.getElementById('power-gear').checked ? '--pg:on' : '--pg:off');

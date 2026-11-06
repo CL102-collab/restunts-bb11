@@ -28,6 +28,11 @@ runs as a separate process and remains running after the launcher closes. The
 AppImage hides the startup window and waits for the game to exit so its mounted
 assets remain available.
 
+The **Graphics settings** group includes **Use showroom car model while driving**.
+It starts unchecked and passes `--showroomcar:off`; enabling it passes
+`--showroomcar:on`, rendering the showroom model at one twentieth its authored
+size while driving. This choice is remembered on desktop, Android, and web.
+
 The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
 and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it
 off passes `--cfg:off`, giving green chicane areas ordinary grass behavior.

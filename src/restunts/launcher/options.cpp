@@ -22,6 +22,8 @@ const LauncherOptionDefinition launcher_option_definitions[LAUNCHER_OPTION_COUNT
 	{"fullscreen", "Fullscreen", "--fullscreen:on", "--fullscreen:off", false},
 	{"show_fps", "Show FPS", "--fps:on", "--fps:off", false},
 	{"multi_core", "Multi-core rendering", "--multi-core:on", "--multi-core:off", true},
+	{"showroom_car", "Use showroom car model while driving", "--showroomcar:on",
+	 "--showroomcar:off", false},
 	{"power_gear", "Power Gear", "--pg:on", "--pg:off", true},
 	{"legacy_collision", "Original Collision Bugs", "--lc:on", "--lc:off", true},
 	{"left_corner_bias", "Left Corner Bias", "--lcb:on", "--lcb:off", true},

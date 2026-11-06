@@ -85,6 +85,7 @@ public final class LauncherActivity extends Activity {
     private CheckBox tiltSteering;
     private CheckBox showFps;
     private CheckBox multiCore;
+    private CheckBox showroomCar;
     private CheckBox showControlLayout;
     private CheckBox powerGear;
     private CheckBox legacyCollision;
@@ -270,6 +271,8 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_SHOW_FPS, textSize);
         multiCore = option(graphics, "Multi-core rendering", LaunchOptions.MULTI_CORE_KEY,
             LaunchOptions.DEFAULT_MULTI_CORE, textSize);
+        showroomCar = option(graphics, "Use showroom car model while driving",
+            LaunchOptions.SHOWROOM_CAR_KEY, LaunchOptions.DEFAULT_SHOWROOM_CAR, textSize);
         showControlLayout = option(graphics, "Show Control Layout", LaunchOptions.SHOW_CONTROL_LAYOUT_KEY,
             LaunchOptions.DEFAULT_SHOW_CONTROL_LAYOUT, textSize);
         // Keep the label and selector as one graphics item; at large font sizes
@@ -308,8 +311,9 @@ public final class LauncherActivity extends Activity {
             LaunchOptions.DEFAULT_OWOOT, textSize);
         owoot.setContentDescription("One Wheel On / Over Track (OWOOT)");
         for (CheckBox option : new CheckBox[] {
-                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, multiCore, showControlLayout,
-                powerGear, legacyCollision, leftCornerBias, dualWaySwitching, chicaneFastGrass, amigaGrass, owoot}) {
+                sound, vibration, newMidi, skipIntro, tiltSteering, showFps, multiCore, showroomCar,
+                showControlLayout, powerGear, legacyCollision, leftCornerBias, dualWaySwitching,
+                chicaneFastGrass, amigaGrass, owoot}) {
             option.setOnCheckedChangeListener((button, checked) -> saveOptions());
         }
         hyperVision.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -366,7 +370,7 @@ public final class LauncherActivity extends Activity {
             (LaunchOptions.HyperVision) hyperVision.getSelectedItem(), powerGear.isChecked(),
             legacyCollision.isChecked(), leftCornerBias.isChecked(), dualWaySwitching.isChecked(),
             chicaneFastGrass.isChecked(), owoot.isChecked(), amigaGrass.isChecked(),
-            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked());
+            sound.isChecked(), skipIntro.isChecked(), multiCore.isChecked(), showroomCar.isChecked());
     }
 
     private void saveOptions() {
@@ -378,6 +382,7 @@ public final class LauncherActivity extends Activity {
             .putBoolean(LaunchOptions.TILT_STEERING_KEY, tiltSteering.isEnabled() && tiltSteering.isChecked())
             .putBoolean(LaunchOptions.SHOW_FPS_KEY, options.showFps)
             .putBoolean(LaunchOptions.MULTI_CORE_KEY, options.multiCore)
+            .putBoolean(LaunchOptions.SHOWROOM_CAR_KEY, options.showroomCar)
             .putBoolean(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout)
             .putString(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name())
             .putBoolean(LaunchOptions.POWER_GEAR_KEY, options.powerGear)
@@ -442,6 +447,7 @@ public final class LauncherActivity extends Activity {
                         intent.putExtra(LaunchOptions.TILT_STEERING_KEY, selectedTiltSteering);
                         intent.putExtra(LaunchOptions.SHOW_FPS_KEY, options.showFps);
                         intent.putExtra(LaunchOptions.MULTI_CORE_KEY, options.multiCore);
+                        intent.putExtra(LaunchOptions.SHOWROOM_CAR_KEY, options.showroomCar);
                         intent.putExtra(LaunchOptions.SHOW_CONTROL_LAYOUT_KEY, options.showControlLayout);
                         intent.putExtra(LaunchOptions.HYPERVISION_KEY, options.hyperVision.name());
                         intent.putExtra(LaunchOptions.POWER_GEAR_KEY, options.powerGear);

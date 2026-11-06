@@ -120,6 +120,11 @@ wins. The original physics defaults are on. Dual-Way Switching (--dws:on)
 preserves the original branch-switching penalty behavior; --dws:off fixes it.
 --amigagrass and --owoot are opt-in.
 Custom-car surface adhesion is enabled only by its fand=1 car-resource flag.
+
+--showroomcar:on uses the showroom car model while driving, scaled down by 20
+to fit the track environment. It defaults to --showroomcar:off and changes only
+presentation. Supply this case-insensitive option once in the fourth options string.
+
 --nointro skips the intro and /ns disables startup music/effects. --fps:on/off selects the FPS
 display (off by default); supply once. F11 toggles it during play. Replays do not store these
 physics choices, so use the same settings for playback.

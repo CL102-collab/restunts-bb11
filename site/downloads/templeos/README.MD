@@ -245,16 +245,17 @@ Restunts("C:/Restunts/DATA", TRUE, FALSE,
 | `--amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
 | `--owoot` | Enable One Wheel On/Over Track rules. |
 | `/ns` | Start with music and sound effects disabled. |
+| `--showroomcar:on`, `--showroomcar:off` | Use showroom car models while driving at one twentieth their authored size; off by default. Supply once. |
 | `--fps:on`, `--fps:off` | Start with the FPS display enabled or disabled; supply once. F11 toggles it during play. |
 | `--help`, `-h` | Print available TempleOS options and return without loading game data. |
 | `--version`, `-v` | Print the build version and return without loading game data. |
 
 Power gear, original collisions, left corner bias, Dual-Way Switching, and
-Chicane Fast-Grass default to on. Amiga grass, OWOOT, and the FPS display default to off; intro and sound
-default to on.
+Chicane Fast-Grass default to on. Amiga grass, OWOOT, the FPS display, and showroom
+car models while driving default to off; intro and sound default to on.
 Custom-car surface adhesion is enabled only by its `fand=1` car-resource flag.
 Physics on/off options are processed in order and the last value wins. Supply
-`--fps` only once. Existing calls
+`--fps` and `--showroomcar` only once each. Existing calls
 with one, two, or three arguments retain their original behavior. The options
 string accepts whitespace-separated arguments and single or double quotes;
 backslashes remain literal. The argument array grows with the string, so

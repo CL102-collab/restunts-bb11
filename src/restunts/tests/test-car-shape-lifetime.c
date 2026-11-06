@@ -8,10 +8,24 @@
 #include "../c/fileio.h"
 #include "../c/memmgr.h"
 #include "../c/scene_resources.h"
+#include "../c/owoot/owoot.h"
+
+#undef memcpy
 
 #define TEST_SHAPE_COUNT 7U
 #define TEST_VERTEX_COUNT 32U
-#define TEST_SHAPE_BYTES (SHAPE3D_HEADER_SIZE + TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE + 14U)
+#define TEST_SHOWROOM_VERTEX_COUNT 255U
+#define TEST_SHOWROOM_PRIMITIVE_COUNT 2U
+#define TEST_PRIMITIVE_MASK_BYTES (2U * SHAPE3D_VISIBILITY_MASK_SIZE)
+#define TEST_SHOWROOM_SCALE 20
+#define TEST_FIRST_WHEEL_VERTEX 8U
+#define TEST_WHEEL_VERTEX_COUNT 24U
+#define TEST_WHEEL_CONTROL_COUNT 6U
+#define TEST_WHEEL_COUNT 4U
+#define TEST_BODY_VERTEX_COUNT (TEST_SHOWROOM_VERTEX_COUNT - TEST_VERTEX_COUNT)
+#define TEST_STEERING_ANGLE 128
+#define TEST_SHAPE_BYTES                                                                           \
+	(SHAPE3D_HEADER_SIZE + TEST_SHOWROOM_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE + 28U)
 #define TEST_RESOURCE_BYTES (TEST_SHAPE_COUNT * TEST_SHAPE_BYTES)
 #define TEST_FIRST_CAR_SHAPE 116U
 
@@ -24,6 +38,76 @@ static legacy_u32 allocation_count;
 static legacy_u32 file_load_count;
 static legacy_u32 cached_release_count;
 static legacy_u32 discarded_release_count;
+static legacy_u8 showroom_fixture_enabled;
+static legacy_u8 original_resources[2][TEST_RESOURCE_BYTES];
+
+static void write_test_vertex(legacy_u8 *shape, legacy_u16 index, const struct VECTOR *vertex)
+{
+	legacy_u8 *bytes = shape + SHAPE3D_HEADER_SIZE + index * SHAPE3D_VERTEX_SIZE;
+	LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_X_OFFSET, (legacy_u16)vertex->x);
+	LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_Y_OFFSET, (legacy_u16)vertex->y);
+	LEGACY_WRITE_U16_LE(bytes + SHAPE3D_VERTEX_Z_OFFSET, (legacy_u16)vertex->z);
+}
+
+static void initialize_showroom_fixture(legacy_u8 *resource, legacy_u8 different_car)
+{
+	/* Matching wheel centres identify the driving origin. The showroom is
+	 * deliberately raised and shifted on all axes, with half-unit body detail. */
+	const struct VECTOR origin = {100, 120, -80};
+	const struct VECTOR body[TEST_BODY_VERTEX_COUNT] = {
+		{different_car != 0 ? -410 : -210, 170, -330},
+		{210, 170, -330},
+		{-10, 30, 50},
+		{10, 30, 50}};
+	for (legacy_u16 model = 0; model < 2U; model++) {
+		legacy_u8 *shape = resource + model * TEST_SHAPE_BYTES;
+		legacy_u16 count = model == 0 ? TEST_SHOWROOM_VERTEX_COUNT : TEST_VERTEX_COUNT;
+		shape[SHAPE3D_VERTEX_COUNT_OFFSET] = (legacy_u8)count;
+		shape[SHAPE3D_PRIMITIVE_COUNT_OFFSET] = model == 0 ? TEST_SHOWROOM_PRIMITIVE_COUNT : 1U;
+		for (legacy_u16 index = 0; index < count; index++) {
+			struct VECTOR vertex;
+			if (index < TEST_FIRST_WHEEL_VERTEX) {
+				vertex.x = (index & 1U) != 0 ? 20 : -20;
+				vertex.y = (index & 2U) != 0 ? 25 : -6;
+				vertex.z = (index & 4U) != 0 ? 50 : -50;
+			} else if (index < TEST_VERTEX_COUNT) {
+				legacy_u16 wheel = (index - TEST_FIRST_WHEEL_VERTEX) / TEST_WHEEL_CONTROL_COUNT;
+				legacy_u16 control = (index - TEST_FIRST_WHEEL_VERTEX) % TEST_WHEEL_CONTROL_COUNT;
+				legacy_s16 width = different_car != 0 ? 14 : 12;
+				vertex.x = ((wheel & 1U) != 0 ? 1 : -1) * (width + (control >= 3U ? 4 : 0));
+				vertex.y = 3 + (control % 3U == 1U ? 6 : 0);
+				vertex.z = ((wheel & 2U) != 0 ? -30 : 30) + (control % 3U == 2U ? 6 : 0);
+			} else {
+				vertex = body[index - TEST_VERTEX_COUNT];
+			}
+			if (model == 0) {
+				if (index < TEST_VERTEX_COUNT) {
+					vertex.x *= TEST_SHOWROOM_SCALE;
+					vertex.y *= TEST_SHOWROOM_SCALE;
+					vertex.z *= TEST_SHOWROOM_SCALE;
+				}
+				vertex.x += origin.x;
+				vertex.y += origin.y;
+				vertex.z += origin.z;
+			}
+			write_test_vertex(shape, index, &vertex);
+		}
+		legacy_u16 primitives = shape[SHAPE3D_PRIMITIVE_COUNT_OFFSET];
+		legacy_u8 *masks = shape + SHAPE3D_HEADER_SIZE + count * SHAPE3D_VERTEX_SIZE;
+		memset(masks, 0xff, primitives * TEST_PRIMITIVE_MASK_BYTES);
+		legacy_u8 *primitive = masks + primitives * TEST_PRIMITIVE_MASK_BYTES;
+		for (legacy_u16 index = 0; index < primitives; index++) {
+			primitive[0] = SHAPE3D_PRIMITIVE_POLYGON_FIRST;
+			primitive[1] = 0;
+			primitive[2] = 4;
+			primitive[3] =
+				(legacy_u8)((model == 0 ? TEST_VERTEX_COUNT : TEST_FIRST_WHEEL_VERTEX) + index);
+			primitive[4] = primitive[3] + 1U;
+			primitive[5] = primitive[3] + 2U;
+			primitive += 6U;
+		}
+	}
+}
 
 void fatal_error(const legacy_s8 *format, ...)
 {
@@ -61,6 +145,10 @@ void far *file_load_3dres(const legacy_s8 *name)
 			LEGACY_WRITE_U16_LE(shape + SHAPE3D_HEADER_SIZE + vertex_index * SHAPE3D_VERTEX_SIZE,
 								vertex_index + 100U * shape_index);
 		}
+	}
+	if (showroom_fixture_enabled != 0) {
+		initialize_showroom_fixture(resource, name[2] == 'D');
+		memcpy(original_resources[allocation_count - 1U], resource, TEST_RESOURCE_BYTES);
 	}
 	return resource;
 }
@@ -152,6 +240,121 @@ static void check_cycle(legacy_s8 *opponent, legacy_u32 expected_loads,
 	assert(discarded_release_count - previous_discards == expected_discards);
 }
 
+static void assert_scaled_showroom(legacy_u16 showroom_index, legacy_u16 driving_index,
+								   legacy_u16 reduced_index, legacy_u8 different_car)
+{
+	const struct SHAPE3D *showroom = &game3dshapes[showroom_index];
+	const struct SHAPE3D *driving = &game3dshapes[driving_index];
+	const struct SHAPE3D *reduced = &game3dshapes[reduced_index];
+	assert(driving->shape3d_numverts == TEST_SHOWROOM_VERTEX_COUNT);
+	assert(driving->shape3d_numprimitives == TEST_SHOWROOM_PRIMITIVE_COUNT);
+	assert(driving->shape3d_vertex_bytes != showroom->shape3d_vertex_bytes);
+	assert(driving->shape3d_primitives == showroom->shape3d_primitives);
+	assert(driving->shape3d_visibility_masks == showroom->shape3d_visibility_masks);
+	assert(driving->shape3d_front_facing_masks == showroom->shape3d_front_facing_masks);
+	assert(memcmp(driving, reduced, sizeof(*driving)) == 0);
+	const legacy_u8 *native_vertices = showroom->shape3d_vertex_bytes + TEST_SHAPE_BYTES;
+	assert(memcmp(driving->shape3d_vertex_bytes, native_vertices,
+				  TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE) == 0);
+	struct VECTOR vertex;
+	shape3d_vertex_read(driving, TEST_FIRST_WHEEL_VERTEX, &vertex);
+	assert(vertex.x == (different_car != 0 ? -14 : -12));
+	assert(vertex.y == 3 && vertex.z == 30);
+	shape3d_vertex_read(driving, TEST_VERTEX_COUNT, &vertex);
+	assert(vertex.x == (different_car != 0 ? -21 : -11));
+	assert(vertex.y == 9 && vertex.z == -17);
+	shape3d_vertex_read(driving, TEST_VERTEX_COUNT + 1U, &vertex);
+	assert(vertex.x == 11 && vertex.y == 9 && vertex.z == -17);
+	shape3d_vertex_read(driving, TEST_VERTEX_COUNT + 2U, &vertex);
+	assert(vertex.x == -1 && vertex.y == 2 && vertex.z == 3);
+	shape3d_vertex_read(driving, TEST_VERTEX_COUNT + 3U, &vertex);
+	assert(vertex.x == 1 && vertex.y == 2 && vertex.z == 3);
+}
+
+static void test_showroom_driving_models(legacy_s8 *opponent)
+{
+	legacy_s8 player[] = "TEST";
+	legacy_u8 has_opponent = opponent[0] != -1;
+	legacy_u8 different_car = has_opponent && memcmp(player, opponent, 4U) != 0;
+	legacy_u8 player_vertices[TEST_SHOWROOM_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	legacy_u8 opponent_vertices[TEST_SHOWROOM_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
+	struct VECTOR physics_wheels_before[TEST_WHEEL_COUNT][OWOOT_WHEEL_VERTEX_COUNT];
+	struct VECTOR physics_wheels_after[OWOOT_WHEEL_VERTEX_COUNT];
+	struct CARSTATE physics_car = {0};
+	showroom_fixture_enabled = 1;
+	owoot_enabled = 1;
+	shape3d_set_showroom_car_enabled(0);
+	shape3d_load_car_shapes(player, opponent);
+	for (legacy_u16 wheel = 0; wheel < TEST_WHEEL_COUNT; wheel++) {
+		assert(owoot_wheel_footprint(&physics_car, wheel, physics_wheels_before[wheel]) ==
+			   OWOOT_WHEEL_VERTEX_COUNT);
+	}
+	shape3d_free_car_shapes();
+	check_released_shapes();
+
+	shape3d_set_showroom_car_enabled(1);
+	shape3d_load_car_shapes(player, opponent);
+	assert_scaled_showroom(PLAYER_CAR_LOW_SHAPE, PLAYER_CAR_WHEEL_SHAPE, PLAYER_CAR_HIGH_SHAPE, 0);
+	struct SHAPE3D *driving = &game3dshapes[PLAYER_CAR_WHEEL_SHAPE];
+	memcpy(player_vertices, driving->shape3d_vertex_bytes, sizeof(player_vertices));
+	if (has_opponent) {
+		assert_scaled_showroom(OPPONENT_CAR_LOW_SHAPE, OPPONENT_CAR_WHEEL_SHAPE,
+							   OPPONENT_CAR_HIGH_SHAPE, different_car);
+		assert(game3dshapes[OPPONENT_CAR_WHEEL_SHAPE].shape3d_vertex_bytes !=
+			   driving->shape3d_vertex_bytes);
+		memcpy(opponent_vertices, game3dshapes[OPPONENT_CAR_WHEEL_SHAPE].shape3d_vertex_bytes,
+			   sizeof(opponent_vertices));
+	}
+	legacy_s16 suspension[TEST_WHEEL_COUNT] = {64, 128, -64, 192};
+	shape3d_update_car_wheel_vertices(driving, TEST_FIRST_WHEEL_VERTEX, TEST_STEERING_ANGLE,
+									  suspension, player_wheel_vertex_state,
+									  player_base_wheel_vertices, player_front_wheel_centers);
+	assert(memcmp(driving->shape3d_vertex_bytes, player_vertices,
+				  TEST_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE) == 0);
+	assert(memcmp(driving->shape3d_vertex_bytes + TEST_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
+				  player_vertices + TEST_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
+				  TEST_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE) != 0);
+	assert(memcmp(driving->shape3d_vertex_bytes + TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE,
+				  player_vertices + TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE,
+				  TEST_BODY_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE) == 0);
+	if (has_opponent) {
+		assert(memcmp(game3dshapes[OPPONENT_CAR_WHEEL_SHAPE].shape3d_vertex_bytes,
+					  opponent_vertices, sizeof(opponent_vertices)) == 0);
+		memcpy(player_vertices, driving->shape3d_vertex_bytes, sizeof(player_vertices));
+		shape3d_update_car_wheel_vertices(&game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],
+										  TEST_FIRST_WHEEL_VERTEX, -TEST_STEERING_ANGLE, suspension,
+										  opponent_wheel_vertex_state, opponent_base_wheel_vertices,
+										  opponent_front_wheel_centers);
+		assert(memcmp(driving->shape3d_vertex_bytes, player_vertices, sizeof(player_vertices)) ==
+			   0);
+		assert(memcmp(car2resptr, original_resources[different_car != 0 ? 1U : 0U],
+					  TEST_RESOURCE_BYTES) == 0);
+	}
+	assert(memcmp(carresptr, original_resources[0], TEST_RESOURCE_BYTES) == 0);
+	for (legacy_u16 wheel = 0; wheel < TEST_WHEEL_COUNT; wheel++) {
+		assert(owoot_wheel_footprint(&physics_car, wheel, physics_wheels_after) ==
+			   OWOOT_WHEEL_VERTEX_COUNT);
+		assert(memcmp(physics_wheels_before[wheel], physics_wheels_after,
+					  sizeof(physics_wheels_after)) == 0);
+	}
+	shape3d_free_car_shapes();
+	check_released_shapes();
+
+	/* A later disabled launch restores native racing geometry and resource ownership. */
+	shape3d_set_showroom_car_enabled(0);
+	shape3d_load_car_shapes(player, opponent);
+	assert(game3dshapes[PLAYER_CAR_WHEEL_SHAPE].shape3d_numverts == TEST_VERTEX_COUNT);
+	assert(game3dshapes[PLAYER_CAR_WHEEL_SHAPE].shape3d_numprimitives == 1U);
+	assert(game3dshapes[PLAYER_CAR_WHEEL_SHAPE].shape3d_vertex_bytes ==
+		   (legacy_u8 *)locate_shape_fatal(carresptr, "car1") + SHAPE3D_HEADER_SIZE);
+	assert(game3dshapes[PLAYER_CAR_HIGH_SHAPE].shape3d_vertex_bytes !=
+		   game3dshapes[PLAYER_CAR_WHEEL_SHAPE].shape3d_vertex_bytes);
+	shape3d_free_car_shapes();
+	check_released_shapes();
+	showroom_fixture_enabled = 0;
+	owoot_enabled = 0;
+}
+
 static legacy_u32 wheel_vertex_fingerprint(void)
 {
 	legacy_s8 no_opponent[] = {-1, 0, 0, 0};
@@ -212,6 +415,9 @@ int main(void)
 	/* Pre-refactor geometry and cache state across steering and suspension boundaries. */
 	assert(wheel_vertex_fingerprint() == 0x12e2833dUL);
 #endif
+	test_showroom_driving_models(same_opponent);
+	test_showroom_driving_models(different_opponent);
+	test_showroom_driving_models(no_opponent);
 
 	return 0;
 }

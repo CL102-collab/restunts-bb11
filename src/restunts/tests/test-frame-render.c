@@ -1144,6 +1144,48 @@ static void test_ghost_uses_independent_visual_state(void)
 	assert(cars[OPPONENT_CAR_INDEX].east == -1);
 }
 
+static void test_shared_car_detail_animation(void)
+{
+	struct SHAPE3D *wheel_shape = &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE];
+	struct SHAPE3D *low_shape = &game3dshapes[OPPONENT_CAR_HIGH_SHAPE];
+	struct SHAPE3D saved_wheel_shape = *wheel_shape;
+	struct SHAPE3D saved_low_shape = *low_shape;
+	legacy_u8 wheel_vertex_bytes[SHAPE3D_VERTEX_SIZE] = {0};
+	legacy_u8 low_vertex_bytes[SHAPE3D_VERTEX_SIZE] = {0};
+	struct TRACKOBJECT object = {0};
+	object.ss_shapePtr = wheel_shape;
+	object.ss_loShapePtr = low_shape;
+	wheel_shape->shape3d_vertex_bytes = wheel_vertex_bytes;
+	/* A distinct low-detail mesh has no animated wheel controls. An alias of
+	 * the showroom mesh must keep steering and suspension moving at any LOD. */
+	for (legacy_s16 shared = 0; shared < 2; shared++) {
+		low_shape->shape3d_vertex_bytes = shared != 0 ? wheel_vertex_bytes : low_vertex_bytes;
+		for (legacy_s16 mode = 0; mode < 2; mode++) {
+			renderer_active = mode;
+			for (legacy_s16 reduced = 0; reduced < 2; reduced++) {
+				for (legacy_s16 legacy_low = 0; legacy_low < 2; legacy_low++) {
+					reset_shapes();
+					detail_level = legacy_low != 0 ? FRAME_CAR_LOW_DETAIL_FIRST : 0;
+					legacy_s8 tile_detail = FRAME_TILE_DETAIL_FULL + reduced;
+					legacy_s16 low_detail = reduced != 0 || legacy_low != 0;
+					frame_renderer_override_car_detail(&object, tile_detail, &low_detail);
+					legacy_u16 before = ghost_wheel_updates;
+					frame_prepare_car_model(
+						&object, &ghost_fixture, wheel_shape, opponent_wheel_vertex_state,
+						opponent_base_wheel_vertices, opponent_front_wheel_centers, tile_detail);
+					assert(curtransshape_ptr->shapeptr ==
+						   (low_detail != 0 ? low_shape : wheel_shape));
+					assert(ghost_wheel_updates == before + (shared != 0 || low_detail == 0));
+				}
+			}
+		}
+	}
+	*wheel_shape = saved_wheel_shape;
+	*low_shape = saved_low_shape;
+	renderer_active = 0;
+	detail_level = 0;
+}
+
 static void test_ghost_camera_modes(void)
 {
 	struct GAMESTATE live_state = {0};
@@ -2848,6 +2890,7 @@ legacy_int main(void)
 	test_invalid_multitile_flags();
 	test_ghost_uses_independent_visual_state();
 	test_ghost_camera_modes();
+	test_shared_car_detail_animation();
 #ifdef RESTUNTS_SDL3
 	test_snapshot_uses_authoritative_events();
 #endif

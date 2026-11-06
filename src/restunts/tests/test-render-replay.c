@@ -20,6 +20,8 @@
 #include "../c/wheel_transform.h"
 #include "../c/camera.h"
 #include "../c/shape2d/shape2d.h"
+#include "../c/scene_resources.h"
+#include "../c/car/car_model.h"
 #include "../c/track/track_objects.h"
 #include "../c/fatal.h"
 #include "../c/hires/hires.h"
@@ -27,6 +29,10 @@
 #include "../c/hires/frame_adaptive.h"
 
 #define RENDER_REPLAY_ADAPTIVE_MODE 3
+#define RENDER_REPLAY_SHOWROOM_ARGUMENT_COUNT 10
+#define RENDER_REPLAY_SHOWROOM_SCALE 20
+#define RENDER_REPLAY_WHEEL_FIRST_VERTEX 8U
+#define RENDER_REPLAY_WHEEL_VERTEX_COUNT 6U
 
 #undef memcpy
 #undef printf
@@ -384,16 +390,65 @@ static void initialize_replay(const legacy_s8 *name)
 	initialize_loaded_race();
 }
 
+/* Verify actual packed game models rather than only a synthetic mesh. The
+ * selection must preserve showroom topology, shrink it to track scale, and
+ * retain the normal axle origin while leaving the resource data untouched. */
+static void check_showroom_driving_model(legacy_s16 preview_index, legacy_s16 driving_index,
+										 legacy_s16 low_index, legacy_s8 far *resource)
+{
+	const struct SHAPE3D *preview = &game3dshapes[preview_index];
+	const struct SHAPE3D *driving = &game3dshapes[driving_index];
+	const struct SHAPE3D *low = &game3dshapes[low_index];
+	struct SHAPE3D original;
+	shape3d_init_shape(locate_shape_fatal(resource, "car1"), &original);
+	assert(driving->shape3d_numverts == preview->shape3d_numverts);
+	assert(driving->shape3d_numprimitives == preview->shape3d_numprimitives);
+	assert(driving->shape3d_primitives == preview->shape3d_primitives);
+	assert(driving->shape3d_vertex_bytes != preview->shape3d_vertex_bytes);
+	assert(driving->shape3d_vertex_bytes != original.shape3d_vertex_bytes);
+	assert(low->shape3d_vertex_bytes == driving->shape3d_vertex_bytes);
+	assert(low->shape3d_numprimitives == driving->shape3d_numprimitives);
+	/* The native eight-vertex box stores opposite corners at indices 0 and 7. */
+	struct VECTOR source_min, source_max, target_min, target_max;
+	shape3d_vertex_read(preview, 0, &source_min);
+	shape3d_vertex_read(preview, 7, &source_max);
+	shape3d_vertex_read(driving, 0, &target_min);
+	shape3d_vertex_read(driving, 7, &target_max);
+	assert(abs((target_max.x - target_min.x) * RENDER_REPLAY_SHOWROOM_SCALE -
+			   (source_max.x - source_min.x)) <= RENDER_REPLAY_SHOWROOM_SCALE);
+	assert(abs((target_max.y - target_min.y) * RENDER_REPLAY_SHOWROOM_SCALE -
+			   (source_max.y - source_min.y)) <= RENDER_REPLAY_SHOWROOM_SCALE);
+	assert(abs((target_max.z - target_min.z) * RENDER_REPLAY_SHOWROOM_SCALE -
+			   (source_max.z - source_min.z)) <= RENDER_REPLAY_SHOWROOM_SCALE);
+	struct VECTOR target_sum = {0}, original_sum = {0};
+	for (legacy_u16 wheel = 0; wheel < CARSTATE_WHEEL_COUNT; wheel++) {
+		legacy_u16 index =
+			RENDER_REPLAY_WHEEL_FIRST_VERTEX + wheel * RENDER_REPLAY_WHEEL_VERTEX_COUNT;
+		struct VECTOR target, original_vertex;
+		shape3d_vertex_read(driving, index, &target);
+		shape3d_vertex_read(&original, index, &original_vertex);
+		target_sum.x += target.x;
+		target_sum.y += target.y;
+		target_sum.z += target.z;
+		original_sum.x += original_vertex.x;
+		original_sum.y += original_vertex.y;
+		original_sum.z += original_vertex.z;
+	}
+	assert(abs(target_sum.x - original_sum.x) <= CARSTATE_WHEEL_COUNT);
+	assert(abs(target_sum.y - original_sum.y) <= CARSTATE_WHEEL_COUNT);
+	assert(abs(target_sum.z - original_sum.z) <= CARSTATE_WHEEL_COUNT);
+}
+
 legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 {
-	assert(argc == 7 || argc == 9);
+	assert(argc == 7 || argc == 9 || argc == RENDER_REPLAY_SHOWROOM_ARGUMENT_COUNT);
 	legacy_s16 mode = (legacy_s16)atoi((const legacy_char *)argv[3]);
 	legacy_u16 limit = (legacy_u16)atoi((const legacy_char *)argv[4]);
 	assert(mode >= 0 && mode <= RENDER_REPLAY_ADAPTIVE_MODE);
 	legacy_u16 landing_start = (legacy_u16)atoi((const legacy_char *)argv[5]);
 	legacy_u16 landing_end = (legacy_u16)atoi((const legacy_char *)argv[6]);
-	legacy_u16 settling_start = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[7]) : 0;
-	legacy_u16 settling_end = argc == 9 ? (legacy_u16)atoi((const legacy_char *)argv[8]) : 0;
+	legacy_u16 settling_start = argc >= 9 ? (legacy_u16)atoi((const legacy_char *)argv[7]) : 0;
+	legacy_u16 settling_end = argc >= 9 ? (legacy_u16)atoi((const legacy_char *)argv[8]) : 0;
 	init_main(argc, argv);
 	init_div0();
 	init_row_tables();
@@ -406,6 +461,17 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	reset_race_loop_state();
 	init_kevinrandom("kevin");
 	initialize_replay(argv[1]);
+	if (argc == RENDER_REPLAY_SHOWROOM_ARGUMENT_COUNT &&
+		strcmp((const legacy_char *)argv[9], "--showroomcar:on") == 0) {
+		check_showroom_driving_model(PLAYER_CAR_LOW_SHAPE, PLAYER_CAR_WHEEL_SHAPE,
+									 PLAYER_CAR_HIGH_SHAPE, carresptr);
+		if (gameconfig.game_opponenttype != 0) {
+			check_showroom_driving_model(OPPONENT_CAR_LOW_SHAPE, OPPONENT_CAR_WHEEL_SHAPE,
+										 OPPONENT_CAR_HIGH_SHAPE, car2resptr);
+			assert(game3dshapes[PLAYER_CAR_WHEEL_SHAPE].shape3d_vertex_bytes !=
+				   game3dshapes[OPPONENT_CAR_WHEEL_SHAPE].shape3d_vertex_bytes);
+		}
+	}
 	if (limit == 0 || limit > gameconfig.game_recordedframes) {
 		limit = gameconfig.game_recordedframes;
 	}

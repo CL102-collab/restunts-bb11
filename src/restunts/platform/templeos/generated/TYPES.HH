@@ -1057,6 +1057,8 @@ class CStartupOptions
   legacy_u8 skip_intro;
   legacy_u8 fps_display_enabled;
   legacy_u8 fps_display_specified;
+  legacy_u8 showroom_car_enabled;
+  legacy_u8 showroom_car_specified;
 };
 
 class CFatalOutputState

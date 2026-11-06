@@ -245,6 +245,7 @@ extern legacy_void RsUpdateCarSpeed(
     legacy_s8 input_flags,legacy_s16 car_index,CCarState *carstate,CSimd *simd);
 extern legacy_s16 RsShape3dLoadAll();
 extern legacy_void RsShape3dFreeAll();
+extern legacy_void RsShape3dSetShowroomCarEnabled(legacy_u8 enabled);
 extern legacy_void RsShape3dLoadCarShapes(legacy_s8 *player_car_id,legacy_s8 *opponent_car_id);
 extern legacy_void RsShape3dFreeCarShapes();
 extern legacy_void RsShape3dInitShape(legacy_s8 *shapeptr,CShape3D *gameshape);

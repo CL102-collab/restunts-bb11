@@ -153,6 +153,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->skip_intro = 0;
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
+	options->showroom_car_enabled = STARTUP_SHOWROOM_CAR_OFF;
+	options->showroom_car_specified = 0;
 #ifdef RESTUNTS_SDL3
 	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
@@ -197,6 +199,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 							  &options->control_layout_enabled, &options->control_layout_specified);
 #endif
 #endif
+		startup_parse_boolean(argv[i], STARTUP_SHOWROOM_CAR_PREFIX, "Showroom car model",
+							  &options->showroom_car_enabled, &options->showroom_car_specified);
 		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
 							  &options->fps_display_enabled, &options->fps_display_specified);
 		if (strcmp(argv[i], STARTUP_SKIP_INTRO_OPTION) == 0) {
@@ -318,6 +322,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_amiga_grass(argc, argv);
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
+	shape3d_set_showroom_car_enabled(startup_options.showroom_car_enabled);
 	fps_display_enabled = startup_options.fps_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3

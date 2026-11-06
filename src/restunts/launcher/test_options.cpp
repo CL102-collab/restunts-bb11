@@ -40,6 +40,9 @@ legacy_int main()
 	check(wxString(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].label) ==
 			  "Chicane Fast-Grass",
 		  "The Chicane Fast-Grass checkbox must use its public label.");
+	check(wxString(launcher_option_definitions[LAUNCHER_SHOWROOM_CAR].label) ==
+			  "Use showroom car model while driving",
+		  "The showroom car checkbox must use its public label.");
 	LauncherOptions options;
 	options.folder = wxString::FromUTF8("/game data/árvíz & test/");
 	const wxString game = "/program files/restunts";
@@ -53,6 +56,7 @@ legacy_int main()
 									 "--fps:off",
 									 "--controller-vibration:on",
 									 "--multi-core:on",
+									 "--showroomcar:off",
 									 "--pg:on",
 									 "--lc:on",
 									 "--lcb:on",
@@ -76,6 +80,7 @@ legacy_int main()
 									"--fullscreen:on",
 									"--fps:on",
 									"--multi-core:off",
+									"--showroomcar:on",
 									"--pg:off",
 									"--lc:off",
 									"--lcb:off",
@@ -127,6 +132,7 @@ legacy_int main()
 		config.Write("hypervision", "unknown-future-preset");
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_CHICANE_FAST_GRASS].key);
 		config.DeleteEntry(launcher_option_definitions[LAUNCHER_MULTI_CORE].key);
+		config.DeleteEntry(launcher_option_definitions[LAUNCHER_SHOWROOM_CAR].key);
 		config.Flush();
 	}
 	launcher_read_options(settings, restored);
@@ -137,12 +143,15 @@ legacy_int main()
 		"Existing configurations must enable Chicane Fast-Grass and preserve other driving rules.");
 	check(restored.enabled[LAUNCHER_MULTI_CORE],
 		  "Configurations without a saved multi-core setting must use the enabled default.");
+	check(!restored.enabled[LAUNCHER_SHOWROOM_CAR],
+		  "Configurations without a saved showroom car setting must use the disabled default.");
 	check(restored.hypervision == LAUNCHER_HV_AUTO,
 		  "An unknown stored HyperVision value must use the default.");
 	wxRemoveFile(settings);
 	launcher_read_options(settings, restored);
 	check(restored.folder.empty() && restored.enabled[LAUNCHER_NEW_MIDI] &&
 			  !restored.enabled[LAUNCHER_FULLSCREEN] && restored.enabled[LAUNCHER_MULTI_CORE] &&
+			  !restored.enabled[LAUNCHER_SHOWROOM_CAR] &&
 			  restored.enabled[LAUNCHER_CHICANE_FAST_GRASS] &&
 			  restored.hypervision == LAUNCHER_HV_AUTO,
 		  "A missing configuration must restore current defaults, not previous user state.");

@@ -25,6 +25,62 @@
 #define PLAYER_EXPLOSION_SHAPE_FIRST 116
 #define OPPONENT_EXPLOSION_SHAPE_FIRST 120
 
+#define CAR_SHOWROOM_SCALE 20L
+#define CAR_VERTEX_CAPACITY 255U
+#define CAR_DRIVING_MODEL_COUNT 2U
+
+static legacy_u8 showroom_car_enabled;
+/* Keep the showroom resource pristine: its geometry is still used by the menu,
+ * and each driving car needs independent vertices for steering and suspension. */
+static legacy_u8 far
+	showroom_driving_vertices[CAR_DRIVING_MODEL_COUNT][CAR_VERTEX_CAPACITY * SHAPE3D_VERTEX_SIZE];
+
+void shape3d_set_showroom_car_enabled(legacy_u8 enabled)
+{
+	showroom_car_enabled = enabled != 0;
+}
+
+static legacy_s16 shape3d_scale_showroom_coordinate(legacy_s16 coordinate, legacy_s32 origin_delta)
+{
+	legacy_s32 numerator = (legacy_s32)coordinate * CAR_WHEEL_COUNT + origin_delta;
+	const legacy_s32 denominator = CAR_WHEEL_COUNT * CAR_SHOWROOM_SCALE;
+	/* Round symmetrically so the left and right sides retain matching contours. */
+	if (numerator < 0) {
+		return (legacy_s16)(-((-numerator + denominator / 2) / denominator));
+	}
+	return (legacy_s16)((numerator + denominator / 2) / denominator);
+}
+
+static void shape3d_init_showroom_driving_model(const struct SHAPE3D *showroom,
+												struct SHAPE3D *driving,
+												legacy_u8 far *vertex_bytes)
+{
+	if (!showroom_car_enabled) {
+		return;
+	}
+	/* The preview can have a raised floor and a different longitudinal origin.
+	 * Match the axle midpoint to car1 without changing the showroom proportions. */
+	legacy_s32 origin_x = 0, origin_y = 0, origin_z = 0;
+	struct VECTOR source, target;
+	for (legacy_u16 wheel = 0; wheel < CAR_WHEEL_COUNT; wheel++) {
+		legacy_u16 index = CAR_FIRST_WHEEL_VERTEX + wheel * CAR_WHEEL_VERTEX_GROUP_SIZE;
+		shape3d_vertex_read(showroom, index, &source);
+		shape3d_vertex_read(driving, index, &target);
+		origin_x += (legacy_s32)target.x * CAR_SHOWROOM_SCALE - source.x;
+		origin_y += (legacy_s32)target.y * CAR_SHOWROOM_SCALE - source.y;
+		origin_z += (legacy_s32)target.z * CAR_SHOWROOM_SCALE - source.z;
+	}
+	*driving = *showroom;
+	driving->shape3d_vertex_bytes = vertex_bytes;
+	for (legacy_u16 index = 0; index < showroom->shape3d_numverts; index++) {
+		shape3d_vertex_read(showroom, index, &source);
+		target.x = shape3d_scale_showroom_coordinate(source.x, origin_x);
+		target.y = shape3d_scale_showroom_coordinate(source.y, origin_y);
+		target.z = shape3d_scale_showroom_coordinate(source.z, origin_z);
+		shape3d_vertex_write(driving, index, &target);
+	}
+}
+
 static void shape3d_init_car_wheel_vertices(const struct SHAPE3D *shape,
 											struct VECTOR centers[CAR_WHEEL_CENTER_COUNT],
 											struct VECTOR vertices[CAR_WHEEL_VERTEX_COUNT])
@@ -88,11 +144,14 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 	shape3d_init_shape(locate_shape_fatal(carresptr, "car0"), &game3dshapes[PLAYER_CAR_LOW_SHAPE]);
 	shape3d_init_shape(locate_shape_fatal(carresptr, "car1"),
 					   &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
+	/* OWOOT uses the original tyre footprint for simulation, regardless of visuals. */
+	owoot_read_wheel_shape((const legacy_u8 far *)locate_shape_fatal(carresptr, "car1"));
+	shape3d_init_showroom_driving_model(&game3dshapes[PLAYER_CAR_LOW_SHAPE],
+										&game3dshapes[PLAYER_CAR_WHEEL_SHAPE],
+										showroom_driving_vertices[0]);
 #if defined(RESTUNTS_SDL3)
 	shape3d_hires_cache_car_ground_offset(PLAYER_CAR_INDEX, &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
 #endif
-
-	owoot_read_wheel_shape((const legacy_u8 far *)locate_shape_fatal(carresptr, "car1"));
 
 	shape3d_init_car_wheel_vertices(&game3dshapes[PLAYER_CAR_WHEEL_SHAPE],
 									player_front_wheel_centers, player_base_wheel_vertices);
@@ -102,6 +161,9 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 	}
 
 	shape3d_init_shape(locate_shape_fatal(carresptr, "car2"), &game3dshapes[PLAYER_CAR_HIGH_SHAPE]);
+	if (showroom_car_enabled) {
+		game3dshapes[PLAYER_CAR_HIGH_SHAPE] = game3dshapes[PLAYER_CAR_WHEEL_SHAPE];
+	}
 	shape3d_init_shape(locate_shape_fatal(carresptr, "exp0"),
 					   &game3dshapes[PLAYER_EXPLOSION_SHAPE_FIRST]);
 	shape3d_init_shape(locate_shape_fatal(carresptr, "exp1"),
@@ -133,6 +195,9 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 						   &game3dshapes[OPPONENT_CAR_LOW_SHAPE]);
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "car1"),
 						   &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
+		shape3d_init_showroom_driving_model(&game3dshapes[OPPONENT_CAR_LOW_SHAPE],
+											&game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],
+											showroom_driving_vertices[1]);
 #if defined(RESTUNTS_SDL3)
 		shape3d_hires_cache_car_ground_offset(OPPONENT_CAR_INDEX,
 											  &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
@@ -145,6 +210,9 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 		}
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "car2"),
 						   &game3dshapes[OPPONENT_CAR_HIGH_SHAPE]);
+		if (showroom_car_enabled) {
+			game3dshapes[OPPONENT_CAR_HIGH_SHAPE] = game3dshapes[OPPONENT_CAR_WHEEL_SHAPE];
+		}
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "exp0"),
 						   &game3dshapes[OPPONENT_EXPLOSION_SHAPE_FIRST]);
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "exp1"),

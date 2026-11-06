@@ -92,6 +92,8 @@ legacy_s16 shape3d_load_all(void);
 void shape3d_free_all(void);
 void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct VECTOR *destination);
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source);
+/* Startup-only visual choice; simulation continues to use the original driving data. */
+void shape3d_set_showroom_car_enabled(legacy_u8 enabled);
 void shape3d_load_car_shapes(legacy_s8 *carid, legacy_s8 *opponent_carid);
 void shape3d_free_car_shapes(void);
 #if defined(RESTUNTS_SDL3)

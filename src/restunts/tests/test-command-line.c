@@ -109,6 +109,7 @@ static void test_help_contents(void)
 		"  --control-layout:on|off",
 #endif
 #endif
+		"  --showroomcar:on|off",
 		"  --fps:on|off",
 	};
 	static const legacy_char *physics_options[] = {
@@ -149,6 +150,8 @@ static void test_help_contents(void)
 	expect_text("Amiga grass grip starts off; enable with --amigagrass.");
 	expect_text("Use original Amiga grass grip (stock cars).");
 	expect_text("no effect");
+	expect_text("Showroom car models while driving start off.");
+	expect_text("Showroom car model options are case-insensitive.");
 	expect_text("FPS display starts off.");
 	expect_text("F11 toggles it during play.");
 	expect_text("FPS display options are case-insensitive.");

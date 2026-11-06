@@ -226,11 +226,15 @@ legacy_void RsStartupStartupParseOptions(
   (options->skip_intro=TempleCastU8(0));
   (options->fps_display_enabled=TempleCastU8(FRAME_FPS_DISPLAY_OFF));
   (options->fps_display_specified=TempleCastU8(0));
+  (options->showroom_car_enabled=TempleCastU8(0));
+  (options->showroom_car_specified=TempleCastU8(0));
   temple_i_1119=TempleCastU16(1);
   while(1) {
     if(!((argc>temple_i_1119))) {
       break;
     }
+    RsStartupStartupParseBoolean(argv[((temple_i_1119))],"--showroomcar:","Showroom car model",
+        (&(options->showroom_car_enabled)),(&(options->showroom_car_specified)));
     RsStartupStartupParseBoolean(argv[((temple_i_1119))],"--fps:","FPS display",
         (&(options->fps_display_enabled)),(&(options->fps_display_specified)));
     if((RsInternal1Strcmp(argv[((temple_i_1119))],"--nointro")==0)) {
@@ -412,6 +416,7 @@ legacy_void RsInitMain(legacy_s16 argc,legacy_s8 **argv)
   RsConfigureAmigaGrass(TempleCastS16(argc),argv);
   RsConfigureOwoot(TempleCastS16(argc),argv);
   RsStartupStartupParseOptions(TempleCastS16(argc),argv,(&(startup_options)));
+  RsShape3dSetShowroomCarEnabled(TempleCastU8(startup_options.showroom_car_enabled));
   (fps_display_enabled=TempleCastU8(startup_options.fps_display_enabled));
   RsFrameFpsReset();
   0;
