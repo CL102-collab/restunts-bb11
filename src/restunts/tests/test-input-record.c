@@ -332,7 +332,7 @@ static void reset_inputs(void)
 	memset(key_states, 0, sizeof(key_states));
 	memset(mouse_samples, 0, sizeof(mouse_samples));
 	keyboard_char = joystick_flags = 0;
-	renderer_active = fps_display_enabled = 0;
+	renderer_active = fps_display_enabled = mph_display_enabled = 0;
 	fps_reset_count = renderer_reset_count = renderer_status_count = 0;
 	renderer_status[0] = 0;
 #ifdef RESTUNTS_SDL3
@@ -987,6 +987,32 @@ static void assert_renderer_status(const legacy_char *expected, legacy_u32 count
 	assert(strcmp((const legacy_char *)renderer_status, expected) == 0);
 }
 
+static void test_mph_shortcut(void)
+{
+	assert((legacy_u16)KEY_CTRL_F9 == 0x6600U);
+	for (legacy_u8 mode = REPLAY_MODE_LIVE; mode <= REPLAY_MODE_PLAYBACK; ++mode) {
+		for (legacy_u16 camera = CAMERA_MODE_COCKPIT; camera < CAMERA_MODE_COUNT; ++camera) {
+			reset_inputs();
+			game_replay_mode = mode;
+			cameramode = camera;
+			assert(mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
+			assert(handle_ingame_kb_shortcuts(KEY_CTRL_F9) == 1);
+			assert(mph_display_enabled == FRAME_MPH_DISPLAY_ON);
+			assert(full_redraw_frames_remaining == video_page_count);
+			assert(game_replay_mode == mode && cameramode == camera);
+			assert(fps_display_enabled == FRAME_FPS_DISPLAY_OFF && renderer_active == 0);
+			assert(fps_reset_count == 0 && renderer_reset_count == 0);
+			assert(handle_ingame_kb_shortcuts(KEY_F2) == 1);
+			assert(mph_display_enabled == FRAME_MPH_DISPLAY_ON);
+			full_redraw_frames_remaining = 0;
+			assert(handle_ingame_kb_shortcuts(KEY_CTRL_F9) == 1);
+			assert(mph_display_enabled == FRAME_MPH_DISPLAY_OFF);
+			assert(full_redraw_frames_remaining == video_page_count);
+			assert(game_replay_mode == mode);
+		}
+	}
+}
+
 static void test_display_shortcuts(void)
 {
 #ifdef RESTUNTS_SDL3
@@ -1151,6 +1177,7 @@ int main(void)
 	test_recording_input_modes();
 	test_ghost_view_shortcut();
 	test_display_shortcuts();
+	test_mph_shortcut();
 	test_custom_camera_cycle();
 	test_custom_camera_switches();
 #ifdef RESTUNTS_AMIGA
@@ -1185,12 +1212,12 @@ int main(void)
 	assert(record_hash == 0x41c4e48dUL);
 	assert(callback_hash == 0x9bd7fd3eUL);
 #endif
-	/* New display shortcuts bypass the paused-race fallback. Classic keeps its
-	 * original F11/F12 fingerprint; SDL additionally recognizes Shift+F12. */
+	/* Display shortcuts, including Ctrl+F9, bypass the paused-race fallback.
+	 * SDL additionally recognizes Shift+F12. */
 #ifdef RESTUNTS_SDL3
-	assert(shortcut_hash == 0xdecf17b2UL);
+	assert(shortcut_hash == 0x9b7973b6UL);
 #else
-	assert(shortcut_hash == 0xab8a7016UL);
+	assert(shortcut_hash == 0x9c849fb2UL);
 #endif
 #endif
 	return 0;

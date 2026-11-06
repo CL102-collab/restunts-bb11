@@ -506,6 +506,7 @@
   "frame_mark_changed_rects": "RsFrameMarkChangedRects",
   "frame_mark_collision_explosion": "RsFrameMarkCollisionExplosion",
   "frame_mark_covered_tiles": "RsFrameMarkCoveredTiles",
+  "frame_mph_draw_text": "RsFrameMphDrawText",
   "frame_place_cars": "RsFramePlaceCars",
   "frame_position_camera": "RsFramePositionCamera",
   "frame_position_track_element": "RsFramePositionTrackElement",

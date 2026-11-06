@@ -15,6 +15,8 @@
 #define TEMPLE_TEST_ALL_MATCHES (TEMPLE_TEST_FIRST_MATCH|TEMPLE_TEST_SECOND_MATCH)
 #define TEMPLE_TEST_BUFFER_SIZE 8
 #define TEMPLE_TEST_KEY_F11 0x8500
+#define TEMPLE_TEST_KEY_F9 0x4300
+#define TEMPLE_TEST_KEY_CTRL_F9 0x6600
 #define TEMPLE_TEST_TICK_WAIT_MS 35
 #define TEMPLE_TEST_TIMER_SECONDS 1
 #define TEMPLE_TEST_TIMER_TOLERANCE_TICKS 2
@@ -254,6 +256,12 @@ legacy_void TempleTestNative()
       "DOS invalid-handle read contract");
   TempleTestMouse();
   TempleTestAssert(TempleInputKey(0,SC_F11)==TEMPLE_TEST_KEY_F11,"BIOS function-key mapping");
+  TempleTestAssert(TempleInputKey(0,SC_F9)==TEMPLE_TEST_KEY_F9,"unmodified F9 mapping");
+  TempleTestAssert(TempleInputKey(0,SC_F9|SCF_CTRL)==TEMPLE_TEST_KEY_CTRL_F9,
+      "Ctrl+F9 MPH shortcut mapping");
+  TempleTestAssert(!TempleInputKey(0,SC_F9|SCF_CTRL|SCF_SHIFT)&&
+          !TempleInputKey(0,SC_F9|SCF_CTRL|SCF_ALT),
+      "MPH shortcut requires Ctrl without Shift or Alt");
   RsDosTimerSetupInterrupt();
   TempleTestAssert(RsDosTimerRegisterCallback(&TempleTestCallback),"register callback");
   Sleep(TEMPLE_TEST_TICK_WAIT_MS);

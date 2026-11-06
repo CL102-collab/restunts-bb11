@@ -83,10 +83,11 @@ void race_draw_frame(void)
 		setup_car_shapes(DASHBOARD_OPERATION_UPDATE);
 		sprite_set_target_clip_bounds(0, RACE_SCREEN_WIDTH, 0, RACE_SCREEN_HEIGHT);
 	}
-	if (frame_display_overlay_active() != 0) {
-		/* Keep diagnostic text above every layer of custom dashboard artwork. */
+	if (frame_display_overlay_active() != 0 || mph_display_enabled != FRAME_MPH_DISPLAY_OFF) {
+		/* Keep HUD text above every layer of custom dashboard artwork. */
 		mouse_draw_opaque_check();
 		frame_fps_draw_text();
+		frame_mph_draw_text(replaybar_enabled != 0 ? RACE_REPLAY_BAR_TOP : RACE_SCREEN_HEIGHT);
 		mouse_draw_transparent_check();
 	}
 

@@ -28,6 +28,11 @@ runs as a separate process and remains running after the launcher closes. The
 AppImage hides the startup window and waits for the game to exit so its mounted
 assets remain available.
 
+In **Graphics settings**, **Show MPH (Ctrl+F9)** follows **Show FPS**. It starts
+off and selects `--showmph:on` or `--showmph:off` for the game. The display shows
+MPH at the bottom right while driving. Ctrl+F9 toggles it for the current game
+session without changing the saved checkbox.
+
 The **Driving rules** group ends with **Chicane Fast-Grass**, **Amiga Grass**,
 and **OWOOT**, in that order. **Chicane Fast-Grass** starts enabled; turning it
 off passes `--cfg:off`, giving green chicane areas ordinary grass behavior.

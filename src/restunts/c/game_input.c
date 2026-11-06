@@ -57,6 +57,7 @@ struct SPRITE far *mouse_background_sprite;
 legacy_s8 mouse_background_dirty;
 static legacy_s8 mouse_transparent_mode;
 legacy_u8 fps_display_enabled;
+legacy_u8 mph_display_enabled;
 static legacy_s16 input_elapsed_frames;
 
 /* A control that has not changed still fires again once the configured repeat

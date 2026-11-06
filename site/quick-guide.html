@@ -72,6 +72,10 @@
                     <dd>SDL3 builds only, including browser and DOS32. Save one PNG per press in the game data folder selected with <code>--data-dir</code>, or the current folder by default. Files are named <code>SHOT0001.PNG</code> through <code>SHOT9999.PNG</code>, skipping existing names. In browsers, screenshots go to the selected folder when writable; otherwise, or if writing fails, the PNG downloads separately from exported saves.</dd>
                 </div>
                 <div>
+                    <dt><kbd>Ctrl</kbd> + <kbd>F9</kbd> — Show MPH.</dt>
+                    <dd>Toggle speed in MPH at the bottom right while driving. This changes the current game session without changing the saved startup checkbox.</dd>
+                </div>
+                <div>
                     <dt><kbd>F11</kbd> or <kbd>Shift</kbd> + <kbd>F11</kbd> — Show performance.</dt>
                     <dd>Toggle FPS and render time in modern ports, or FPS alone in DOS16. Use Shift+F11 if your browser reserves F11 for fullscreen. Works while driving, in replays, car previews, and the driving intro; some menus hide the display until you return.</dd>
                 </div>
@@ -168,6 +172,10 @@
                     <dd>Show FPS from startup on every port; modern ports also show render time. The default is off. Supply the option once, then use F11 or Shift+F11 to toggle it while playing.</dd>
                 </div>
                 <div>
+                    <dt><code>--showmph:on</code> / <code>--showmph:off</code> — Set the MPH display.</dt>
+                    <dd>Show speed at the bottom right while driving. The default is off. Desktop, Android, and web startup windows remember Show MPH (Ctrl+F9), immediately after Show FPS. The Ctrl+F9 hotkey leaves this saved setting unchanged.</dd>
+                </div>
+                <div>
                     <dt><code>--fullscreen:on</code> / <code>--fullscreen:off</code> — Choose the initial desktop window.</dt>
                     <dd>Start desktop ports in fullscreen or a window; the default is windowed. Supply the option once. Alt+Enter toggles it later. Android, DOS32, browser, and classic ports ignore this flag; the browser startup screen has its own Fullscreen checkbox.</dd>
                 </div>
@@ -252,7 +260,7 @@
                 </div>
                 <div>
                     <dt>Startup options — Choose graphics, controls, and driving rules.</dt>
-                    <dd>HyperVision offers Off, Auto, Full, High, Medium, and Low; Auto is the browser default. New MIDI starts enabled. Graphics settings also contains Show FPS, Show Control Layout, and Fullscreen. Check Fullscreen before Start game to request it immediately. Driving rules includes Dual-Way Switching and Amiga Grass alongside the other physics choices. Selections are remembered. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
+                    <dd>HyperVision offers Off, Auto, Full, High, Medium, and Low; Auto is the browser default. New MIDI starts enabled. Graphics settings also contains Show FPS, Show MPH (Ctrl+F9), Show Control Layout, and Fullscreen. Check Fullscreen before Start game to request it immediately. Driving rules includes Dual-Way Switching and Amiga Grass alongside the other physics choices. Selections are remembered. Use F12, Shift+F12, and Shift+F10 to change graphics or music in game.</dd>
                 </div>
                 <div>
                     <dt>Export / Import — Keep your browser saves.</dt>

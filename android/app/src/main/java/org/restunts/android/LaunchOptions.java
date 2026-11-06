@@ -11,6 +11,7 @@ public final class LaunchOptions {
     public static final String SKIP_INTRO_KEY = "skip_intro";
     public static final String TILT_STEERING_KEY = "tilt_steering";
     public static final String SHOW_FPS_KEY = "show_fps";
+    public static final String SHOW_MPH_KEY = "show_mph";
     public static final String MULTI_CORE_KEY = "multi_core";
     public static final String SHOW_CONTROL_LAYOUT_KEY = "show_control_layout";
     public static final String HYPERVISION_KEY = "hypervision";
@@ -27,6 +28,7 @@ public final class LaunchOptions {
     public static final boolean DEFAULT_SKIP_INTRO = false;
     public static final boolean DEFAULT_TILT_STEERING = false;
     public static final boolean DEFAULT_SHOW_FPS = false;
+    public static final boolean DEFAULT_SHOW_MPH = false;
     public static final boolean DEFAULT_MULTI_CORE = true;
     public static final boolean DEFAULT_SHOW_CONTROL_LAYOUT = true;
     public static final boolean DEFAULT_POWER_GEAR = true;
@@ -74,6 +76,7 @@ public final class LaunchOptions {
     public final boolean sound;
     public final boolean skipIntro;
     public final boolean showFps;
+    public final boolean showMph;
     public final boolean multiCore;
     public final boolean showControlLayout;
     public final HyperVision hyperVision;
@@ -116,10 +119,21 @@ public final class LaunchOptions {
             boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
             boolean owoot, boolean amigaGrass,
             boolean sound, boolean skipIntro, boolean multiCore) {
+        this(newMidi, showFps, showControlLayout, hyperVision, powerGear, legacyCollision,
+            leftCornerBias, dualWaySwitching, chicaneFastGrass, owoot, amigaGrass,
+            sound, skipIntro, multiCore, DEFAULT_SHOW_MPH);
+    }
+
+    public LaunchOptions(boolean newMidi, boolean showFps, boolean showControlLayout,
+            HyperVision hyperVision, boolean powerGear, boolean legacyCollision,
+            boolean leftCornerBias, boolean dualWaySwitching, boolean chicaneFastGrass,
+            boolean owoot, boolean amigaGrass,
+            boolean sound, boolean skipIntro, boolean multiCore, boolean showMph) {
         this.newMidi = newMidi;
         this.sound = sound;
         this.skipIntro = skipIntro;
         this.showFps = showFps;
+        this.showMph = showMph;
         this.multiCore = multiCore;
         this.showControlLayout = showControlLayout;
         this.hyperVision = hyperVision == null ? HyperVision.OFF : hyperVision;
@@ -138,6 +152,7 @@ public final class LaunchOptions {
         arguments.add(dataDirectory);
         arguments.add(newMidi ? "--ogg:on" : "--ogg:off");
         arguments.add(showFps ? "--fps:on" : "--fps:off");
+        arguments.add(showMph ? "--showmph:on" : "--showmph:off");
         arguments.add(multiCore ? "--multi-core:on" : "--multi-core:off");
         if (hyperVision != HyperVision.OFF) {
             arguments.add("--hv:" + hyperVision.argument);

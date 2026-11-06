@@ -76,6 +76,7 @@ CSprite *mouse_background_sprite=0;
 legacy_s8 mouse_background_dirty=0;
 legacy_s8 rs_game_input_mouse_transparent_mode=0;
 legacy_u8 fps_display_enabled=0;
+legacy_u8 mph_display_enabled=0;
 legacy_s16 rs_game_input_input_elapsed_frames=0;
 legacy_s16 rs_game_input_input_mouse_repeat_at=0;
 legacy_s16 rs_game_input_input_joystick_repeat_at=0;

@@ -142,6 +142,8 @@
 #define GAMESTATE_CHECKPOINT_VALID 1
 #define FRAME_FPS_DISPLAY_OFF (-1+1)
 #define FRAME_FPS_DISPLAY_ON ((-1+1)+1)
+#define FRAME_MPH_DISPLAY_OFF (-1+1)
+#define FRAME_MPH_DISPLAY_ON ((-1+1)+1)
 #define TRACK_SETUP_OK 0
 #define TRACK_SETUP_NO_START_FINISH 1
 #define TRACK_SETUP_INTERNAL_ERROR 2
@@ -472,6 +474,14 @@
 #define TRACK_PIPE_LEFT_INNER (((((-1+1)+1)+1)+1)+1)
 #define TRACK_PIPE_RIGHT_OUTER ((((((-1+1)+1)+1)+1)+1)+1)
 #define TRACK_PIPE_RIGHT_INNER (((((((-1+1)+1)+1)+1)+1)+1)+1)
+#define MPH_TEXT_SCREEN_WIDTH 320
+#define MPH_TEXT_SCREEN_HEIGHT 200
+#define MPH_TEXT_BOTTOM_MARGIN 3
+#define MPH_TEXT_SHADOW_SIZE 1
+#define MPH_TEXT_MAX_DIGITS 3
+#define MPH_TEXT_SPEED_SHIFT 8
+#define MPH_TEXT_BACKGROUND_COLOR 0
+#define MPH_TEXT_BUFFER_SIZE (MPH_TEXT_MAX_DIGITS+5)
 #define COMMAND_LINE_CONTINUE (-(1))
 #define COMMAND_LINE_SUCCESS 0
 #define COMMAND_LINE_FAILURE 1
@@ -1057,6 +1067,8 @@ class CStartupOptions
   legacy_u8 skip_intro;
   legacy_u8 fps_display_enabled;
   legacy_u8 fps_display_specified;
+  legacy_u8 mph_display_enabled;
+  legacy_u8 mph_display_specified;
 };
 
 class CFatalOutputState

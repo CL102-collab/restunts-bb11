@@ -104,7 +104,8 @@ build supports `file://` without a local web server. The HTML's location does no
    (`/ns`). The New MIDI choice is remembered independently of this setting.
    **New MIDI** selects Ogg replacement music (`--ogg:on`); uncheck it for
    original AdLib music (`--ogg:off`). It is enabled by default.
-   **Graphics settings** contains **Show FPS** (`--fps:on`),
+   **Graphics settings** contains **Show FPS** (`--fps:on`), followed by
+   **Show MPH (Ctrl+F9)** (`--showmph:on/off`) for speed at the bottom right while driving,
    **Show Control Layout** (`--control-layout:on`), **Multi-core rendering**
    (`--multi-core:on/off`, initially on when supported), and the **HyperVision**
    selector. Multi-core rendering requires the threaded build and an isolated
@@ -112,7 +113,7 @@ build supports `file://` without a local web server. The HTML's location does no
    HyperVision offers **Off**, **Auto**, **Full**,
    **High**, **Medium**, and **Low**, matching Android. Auto is the browser
    default (`--hv:auto`); fixed presets pass the matching `--hv:` option, while
-   Off starts without HyperVision. Show FPS starts off. Show Control Layout
+   Off starts without HyperVision. Show FPS and Show MPH start off. Show Control Layout
    starts on for phones and tablets and off for desktops; a remembered choice
    overrides this default. It enables the same touch controls as Android. On
    phones, use fullscreen landscape mode to put them in the black side areas.
@@ -238,7 +239,9 @@ fullscreen still works with the browser's normal orientation behavior.
 With the canvas focused, **F12** toggles HyperVision Auto and **Shift+F12** cycles
 fixed **Full → High → Medium → Low** presets. **F11** or **Shift+F11** toggles
 the FPS and render-time display on or off. Use Shift+F11 to avoid the browser
-fullscreen shortcut assigned to F11. **Shift+F10** switches between New MIDI
+fullscreen shortcut assigned to F11. **Ctrl+F9** toggles MPH at the bottom right
+while driving for the current game session, without changing the saved launcher
+checkbox. **Shift+F10** switches between New MIDI
 and original AdLib music during the intro, menus, and race-end/victory screens.
 
 The browser presents frames through SDL3's WebGL renderer and uses WebAudio

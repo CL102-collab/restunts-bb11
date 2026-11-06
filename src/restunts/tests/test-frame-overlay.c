@@ -26,6 +26,7 @@
 struct LEGACY_EXECUTION_RESIDUE legacy_execution_residue;
 legacy_s16 legacy_render_player_headings_active;
 legacy_u8 fps_display_enabled;
+legacy_u8 mph_display_enabled;
 legacy_u8 renderer_active;
 static legacy_u32 realtime_ticks;
 
@@ -132,7 +133,7 @@ legacy_s8 dashboard_roof_shape_id[] = "roof";
 
 enum {
 	COMPOSITION_TEST_WIDTH = 320,
-	COMPOSITION_TEST_HEIGHT = 48,
+	COMPOSITION_TEST_HEIGHT = 200,
 	COMPOSITION_TEST_RENDER = 0,
 	COMPOSITION_TEST_FIRST_PAGE,
 	COMPOSITION_TEST_SECOND_PAGE,
@@ -227,6 +228,25 @@ void sprite_putimage(struct SHAPE2D far *shape)
 			}
 		}
 	}
+}
+
+static struct RECTANGLE mph_clear_bounds;
+static legacy_u16 mph_clear_count;
+
+void sprite_fill_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, legacy_s16 height,
+							  legacy_s16 color)
+{
+	mph_clear_bounds = (struct RECTANGLE){x, x + width, y, y + height};
+	mph_clear_count++;
+	assert(color == 0);
+	if (composition.active != 0) {
+		composition_fill(&mph_clear_bounds, (legacy_u8)color);
+	}
+}
+
+legacy_s16 font_text_width(const legacy_s8 *text)
+{
+	return (legacy_s16)(strlen((const legacy_char *)text) * DIAGNOSTIC_TEST_FONT_WIDTH);
 }
 
 void mouse_draw_opaque_check(void)
@@ -481,6 +501,8 @@ static void reset_ingame_text(const char *filename)
 	text_draw_count = 0;
 	memset(&opponent_icon_draw, 0, sizeof(opponent_icon_draw));
 	fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
+	mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
+	mph_clear_count = 0;
 	frame_fps_reset();
 	realtime_ticks = 0;
 	roofbmpheight_copy = 0;
@@ -1465,8 +1487,101 @@ static void test_status_only_preserves_diagnostics(void)
 	reset_status_text();
 }
 
+static void test_mph_overlay(void)
+{
+	enum {
+		MPH_TEST_RIGHT = 312,
+		MPH_TEST_LEFT = 256,
+		MPH_TEST_BOTTOM = 197,
+		MPH_TEST_REPLAY_TOP = 151,
+		MPH_TEST_REPLAY_TEXT_TOP = 139,
+		MPH_TEST_TOP = 188,
+		MPH_TEST_WHEEL_SPEED = 7U << LEGACY_BYTE_BITS
+	};
+	static const struct {
+		legacy_u16 speed;
+		const legacy_char *text;
+	} samples[] = {{0, "0 MPH"},
+				   {1U << LEGACY_BYTE_BITS, "1 MPH"},
+				   {100U << LEGACY_BYTE_BITS, "100 MPH"},
+				   {LEGACY_U16_MAX, "255 MPH"},
+				   {99U << LEGACY_BYTE_BITS, "99 MPH"},
+				   {(9U << LEGACY_BYTE_BITS) + LEGACY_U8_MAX, "9 MPH"}};
+	for (legacy_u8 flipping = 0; flipping <= 1; flipping++) {
+		for (legacy_u8 dashboard = 0; dashboard <= 1; dashboard++) {
+			reset_status_text();
+			video_uses_page_flipping = flipping;
+			dashboard_visible = dashboard;
+			mph_display_enabled = FRAME_MPH_DISPLAY_ON;
+			memset(&composition, 0, sizeof(composition));
+			composition.active = 1;
+			composition.target = COMPOSITION_TEST_FIRST_PAGE;
+			const struct RECTANGLE screen = {0, COMPOSITION_TEST_WIDTH, 0, COMPOSITION_TEST_HEIGHT};
+			composition_fill(&screen, COMPOSITION_TEST_DASHBOARD_COLOR);
+			for (legacy_u8 camera = CAMERA_MODE_COCKPIT; camera <= CAMERA_MODE_TRACKSIDE;
+				 camera++) {
+				cameramode = camera;
+				for (legacy_u16 sample = 0; sample < sizeof(samples) / sizeof(samples[0]);
+					 sample++) {
+					state.playerstate.car_actual_speed = samples[sample].speed;
+					state.playerstate.car_rev_speed = MPH_TEST_WHEEL_SPEED;
+					text_draw_count = 0;
+					struct SPRITE saved_context[SPRITE_STATE_COUNT] = {drawing_sprite,
+																	   screen_sprite};
+					struct RECTANGLE bounds = *frame_mph_draw_text(COMPOSITION_TEST_HEIGHT);
+					assert(text_draw_count == 1);
+					legacy_s16 x =
+						MPH_TEST_RIGHT - font_text_width((const legacy_s8 *)samples[sample].text);
+					assert_text(0, samples[sample].text, x, MPH_TEST_TOP);
+					assert(bounds.left == x && bounds.right == MPH_TEST_RIGHT + 1);
+					assert(bounds.top == MPH_TEST_TOP && bounds.bottom == MPH_TEST_BOTTOM);
+					assert(mph_clear_bounds.left == MPH_TEST_LEFT &&
+						   mph_clear_bounds.right == MPH_TEST_RIGHT + 1);
+					assert(mph_clear_bounds.top == MPH_TEST_TOP &&
+						   mph_clear_bounds.bottom == MPH_TEST_BOTTOM);
+					/* The previous longer number must not survive left of the new one. */
+					for (legacy_s16 pixel = MPH_TEST_LEFT; pixel < x; pixel++) {
+						assert(composition.pixels[composition.target][MPH_TEST_TOP][pixel] == 0);
+					}
+					assert(composition.pixels[composition.target][MPH_TEST_TOP][x] ==
+						   dialog_fnt_colour);
+					assert(
+						composition.pixels[composition.target][MPH_TEST_TOP - 1][MPH_TEST_LEFT] ==
+						COMPOSITION_TEST_DASHBOARD_COLOR);
+					assert(memcmp(&drawing_sprite, &saved_context[0], sizeof(drawing_sprite)) == 0);
+					assert(memcmp(&screen_sprite, &saved_context[1], sizeof(screen_sprite)) == 0);
+				}
+			}
+			/* Replay controls occupy the bottom of the screen. Leave them intact. */
+			composition_fill(&screen, COMPOSITION_TEST_DASHBOARD_COLOR);
+			text_draw_count = 0;
+			struct RECTANGLE replay_bounds = *frame_mph_draw_text(MPH_TEST_REPLAY_TOP);
+			assert(replay_bounds.top == MPH_TEST_REPLAY_TEXT_TOP);
+			assert(replay_bounds.bottom < MPH_TEST_REPLAY_TOP);
+			for (legacy_s16 y = MPH_TEST_REPLAY_TOP; y < COMPOSITION_TEST_HEIGHT; y++) {
+				for (legacy_s16 x = MPH_TEST_LEFT; x <= MPH_TEST_RIGHT; x++) {
+					assert(composition.pixels[composition.target][y][x] ==
+						   COMPOSITION_TEST_DASHBOARD_COLOR);
+				}
+			}
+			composition.active = 0;
+			/* A demo or disabled field must not paint text or erase artwork. */
+			legacy_u16 clears = mph_clear_count;
+			text_draw_count = 0;
+			idle_expired = 1;
+			assert(frame_mph_draw_text(COMPOSITION_TEST_HEIGHT) == &empty_rect);
+			idle_expired = 0;
+			mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
+			assert(frame_mph_draw_text(COMPOSITION_TEST_HEIGHT) == &empty_rect);
+			assert(text_draw_count == 0 && mph_clear_count == clears);
+		}
+	}
+	reset_status_text();
+}
+
 legacy_int main(void)
 {
+	test_mph_overlay();
 	test_incremental_crack_overlay();
 	test_rejected_crack_lines();
 	test_direct_redraw_stack();

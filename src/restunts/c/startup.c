@@ -153,6 +153,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 	options->skip_intro = 0;
 	options->fps_display_enabled = FRAME_FPS_DISPLAY_OFF;
 	options->fps_display_specified = 0;
+	options->mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
+	options->mph_display_specified = 0;
 #ifdef RESTUNTS_SDL3
 	hires_settings_reset_startup(options);
 	options->ogg_music_enabled = 0;
@@ -199,6 +201,8 @@ static void startup_parse_options(legacy_s16 argc, legacy_s8 *argv[],
 #endif
 		startup_parse_boolean(argv[i], STARTUP_FPS_DISPLAY_PREFIX, "FPS display",
 							  &options->fps_display_enabled, &options->fps_display_specified);
+		startup_parse_boolean(argv[i], STARTUP_MPH_DISPLAY_PREFIX, "MPH display",
+							  &options->mph_display_enabled, &options->mph_display_specified);
 		if (strcmp(argv[i], STARTUP_SKIP_INTRO_OPTION) == 0) {
 			options->skip_intro = 1;
 		}
@@ -319,6 +323,7 @@ void init_main(legacy_s16 argc, legacy_s8 *argv[])
 	configure_owoot(argc, argv);
 	startup_parse_options(argc, argv, &startup_options);
 	fps_display_enabled = startup_options.fps_display_enabled;
+	mph_display_enabled = startup_options.mph_display_enabled;
 	frame_fps_reset();
 #ifdef RESTUNTS_SDL3
 #ifndef __DJGPP__

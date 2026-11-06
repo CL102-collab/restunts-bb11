@@ -33,7 +33,8 @@ enum KEY_CODE {
 	KEY_INSERT = 20992,
 	KEY_DELETE = 21248,
 	KEY_SHIFT_F1 = 21504,
-	KEY_SHIFT_F10 = 23808
+	KEY_SHIFT_F10 = 23808,
+	KEY_CTRL_F9 = 26112
 };
 
 void kb_init_interrupt(void);

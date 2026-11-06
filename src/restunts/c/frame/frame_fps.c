@@ -11,6 +11,17 @@
 #include "../video/video_frame.h"
 #include "../resource.h"
 
+enum {
+	MPH_TEXT_SCREEN_WIDTH = 320,
+	MPH_TEXT_SCREEN_HEIGHT = 200,
+	MPH_TEXT_BOTTOM_MARGIN = 3,
+	MPH_TEXT_SHADOW_SIZE = 1,
+	MPH_TEXT_MAX_DIGITS = 3,
+	MPH_TEXT_SPEED_SHIFT = LEGACY_BYTE_BITS,
+	MPH_TEXT_BACKGROUND_COLOR = 0,
+	MPH_TEXT_BUFFER_SIZE = MPH_TEXT_MAX_DIGITS + sizeof(" MPH")
+};
+
 static legacy_u32 fps_sample_start;
 static legacy_u32 fps_last_presented;
 static legacy_u16 fps_sample_frames;
@@ -171,6 +182,34 @@ static legacy_u16 frame_fps_format_number(legacy_s8 *text, legacy_u16 value)
 	}
 	text[count] = 0;
 	return count;
+}
+
+struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
+{
+	if (mph_display_enabled == FRAME_MPH_DISPLAY_OFF || idle_expired != 0) {
+		return &empty_rect;
+	}
+	legacy_s8 text[MPH_TEXT_BUFFER_SIZE];
+	/* Actual road speed is Q8 MPH; engine/rev speed also includes wheelspin. */
+	legacy_u16 speed = state.playerstate.car_actual_speed >> MPH_TEXT_SPEED_SHIFT;
+	legacy_u16 count = frame_fps_format_number(text, speed);
+	copy_string(text + count, " MPH");
+	legacy_s16 x = REPLAY_TEXT_RIGHT_X - font_text_width(text);
+	legacy_s16 bottom = screen_bottom - MPH_TEXT_BOTTOM_MARGIN;
+	legacy_s16 y = bottom - font_glyph_height - MPH_TEXT_SHADOW_SIZE;
+	legacy_s16 left =
+		REPLAY_TEXT_RIGHT_X - (MPH_TEXT_BUFFER_SIZE - 1U) * REPLAY_TEXT_CHARACTER_WIDTH;
+	struct SPRITE saved_context[SPRITE_STATE_COUNT];
+	sprite_save_context(saved_context);
+	sprite_set_target_clip_bounds(0, MPH_TEXT_SCREEN_WIDTH, 0, MPH_TEXT_SCREEN_HEIGHT);
+	/* Clear the maximum field on every frame, including when its digits shrink.
+	 * The hotkey requests a full page redraw when hiding this field. */
+	sprite_fill_rect_clipped(left, y, REPLAY_TEXT_RIGHT_X + MPH_TEXT_SHADOW_SIZE - left, bottom - y,
+							 MPH_TEXT_BACKGROUND_COLOR);
+	struct RECTANGLE *bounds =
+		intro_draw_text(text, x, y, dialog_fnt_colour, MPH_TEXT_BACKGROUND_COLOR);
+	sprite_restore_context(saved_context);
+	return bounds;
 }
 
 #ifdef RESTUNTS_SDL3

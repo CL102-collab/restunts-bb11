@@ -490,6 +490,15 @@ static void input_key(const SDL_KeyboardEvent *event)
 		consumed_keys[event->scancode] = true;
 		return;
 	}
+	if (event->scancode == SDL_SCANCODE_F9 && (event->mod & SDL_KMOD_CTRL) != 0) {
+		/* Keep F9 consumed until release, including repeats after Ctrl is released. */
+		consumed_keys[event->scancode] = true;
+		if (!was_pressed && !event->repeat &&
+			(event->mod & (SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI)) == 0) {
+			sdl3_input_queue_key((legacy_u16)KEY_CTRL_F9);
+		}
+		return;
+	}
 	if (event->scancode == SDL_SCANCODE_F12 && (event->mod & SDL_KMOD_CTRL) != 0 &&
 		(event->mod & (SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI)) == 0) {
 		/* Keep F12 consumed if Ctrl is released before the shortcut key. */

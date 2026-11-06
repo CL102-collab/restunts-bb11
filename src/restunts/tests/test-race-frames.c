@@ -24,7 +24,8 @@ static legacy_u32 presented_frames;
 #define TEST_HOTKEY_ARRIVAL_NS 1000000U
 #define TEST_HOTKEY_CATCHUP_FRAMES 4U
 #define TEST_HOTKEY_OPEN_REPLAY 1U
-#define TEST_DASHBOARD_RENDER_MODES 32U
+#define TEST_DASHBOARD_RENDER_MODES 64U
+#define TEST_DASHBOARD_MPH_MODE_SHIFT 5U
 #define TEST_DASHBOARD_DIRTY_MODE_SHIFT 4U
 
 static struct {
@@ -45,6 +46,8 @@ static struct {
 static struct {
 	legacy_u8 active;
 	legacy_u8 target;
+	legacy_u8 mph_only;
+	legacy_u16 mph_draws;
 	legacy_u16 static_draws;
 	legacy_u16 updates;
 	legacy_u16 diagnostic_draws;
@@ -60,6 +63,7 @@ enum REPLAY_TEST_TARGET {
 };
 
 legacy_u8 renderer_active;
+legacy_u8 mph_display_enabled;
 
 #ifdef RESTUNTS_SDL3
 #define TEST_GHOST_DISTANCE_PER_FRAME 100L
@@ -303,7 +307,7 @@ void frame_fps_present_roof(void)
 
 legacy_s16 frame_display_overlay_active(void)
 {
-	return replay_render.active;
+	return replay_render.active != 0 && replay_render.mph_only == 0;
 }
 
 struct RECTANGLE *frame_fps_draw_text(void)
@@ -317,6 +321,23 @@ struct RECTANGLE *frame_fps_draw_text(void)
 																	  : REPLAY_TEST_SCREEN_TARGET));
 		replay_render.diagnostic_draws++;
 		assert(replay_render.diagnostic_draws == frames);
+	}
+	return &empty_rect;
+}
+
+struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
+{
+	assert(screen_bottom == (replaybar_enabled != 0 ? RACE_REPLAY_BAR_TOP : RACE_SCREEN_HEIGHT));
+	if (replay_render.active != 0) {
+		assert(replay_render.updates == frames);
+		assert(replay_render.diagnostic_draws == frames);
+		assert(replay_render.mouse_hidden != 0);
+		if (mph_display_enabled != FRAME_MPH_DISPLAY_OFF) {
+			replay_render.mph_draws++;
+			assert(replay_render.mph_draws == frames);
+		}
+		assert(replay_render.target == (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET
+																	  : REPLAY_TEST_SCREEN_TARGET));
 	}
 	return &empty_rect;
 }
@@ -808,6 +829,8 @@ static void test_replay_dashboard_rendering(void)
 	for (legacy_u16 mode = 0; mode < TEST_DASHBOARD_RENDER_MODES; mode++) {
 		memset(&replay_render, 0, sizeof(replay_render));
 		replay_render.active = 1;
+		replay_render.mph_only = (mode >> TEST_DASHBOARD_MPH_MODE_SHIFT) & 1U;
+		mph_display_enabled = replay_render.mph_only;
 		renderer_active = mode & 1;
 		replaybar_toggle = (mode >> 1) & 1;
 		video_uses_page_flipping = (mode >> 2) & 1;
@@ -838,6 +861,7 @@ static void test_replay_dashboard_rendering(void)
 		race_draw_frame();
 		assert(replay_render.static_draws == full_redraw && replay_render.updates == 1);
 		assert(replay_render.diagnostic_draws == 1);
+		assert(replay_render.mph_draws == replay_render.mph_only);
 		assert(replay_render.controls == (full_redraw != 0 && replaybar_enabled != 0));
 		assert(replay_render.clip.left == 0 && replay_render.clip.right == 320);
 		assert(replay_render.clip.top == 0 && replay_render.clip.bottom == 200);
@@ -845,6 +869,7 @@ static void test_replay_dashboard_rendering(void)
 		assert(full_redraw_frames_remaining == 0 && presented_frames == 1);
 	}
 	replay_render.active = 0;
+	mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	renderer_active = 0;
 	assert(trace_hash == previous_trace);
 }

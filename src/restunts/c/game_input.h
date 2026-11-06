@@ -62,5 +62,7 @@ enum FRAME_FPS_DISPLAY_MODE {
 	FRAME_FPS_DISPLAY_MODE_COUNT
 };
 extern legacy_u8 fps_display_enabled;
+enum FRAME_MPH_DISPLAY_MODE { FRAME_MPH_DISPLAY_OFF, FRAME_MPH_DISPLAY_ON };
+extern legacy_u8 mph_display_enabled;
 
 #endif

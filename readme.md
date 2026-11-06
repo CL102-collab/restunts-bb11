@@ -509,6 +509,13 @@ The renderer and display shortcuts work in all driving and replay cameras,
 including opponent and ghost views and paused replays. Holding a shortcut key
 changes its selection only once.
 
+Press **Ctrl+F9** to toggle the MPH display at the bottom right while driving.
+It starts off; use `--showmph:on` to enable it from startup or `--showmph:off`
+to select the default explicitly. The desktop, Android, and web startup windows
+place **Show MPH (Ctrl+F9)** immediately after **Show FPS** and remember its
+selection. Ctrl+F9 changes only the current game session, leaving the saved
+launcher checkbox unchanged.
+
 ### Race against a ghost
 
 In **Opponent**, choose **Clock**, then **Ghost** to select a replay. The game
@@ -767,7 +774,7 @@ for both 32-bit ARM and ARM64. Import your original game folder or ZIP on first
 launch; game data is not bundled in the APK. Transparent touch circles support
 driving, menu navigation, and replay controls. Manual shift buttons appear only
 while racing with manual gears; replay swipes skip ten seconds. The launcher
-offers **New MIDI**, **Show FPS**, **Show Control Layout**, **Tilt steering**,
+offers **New MIDI**, **Show FPS**, **Show MPH (Ctrl+F9)**, **Show Control Layout**, **Tilt steering**,
 and all six **HyperVision** presets. **Driving rules** keeps **Power Gear**,
 **Original Collision Bugs**, **Left Corner Bias**, **Dual-Way Switching**,
 **Chicane Fast-Grass**, **Amiga Grass**, and **OWOOT**,
