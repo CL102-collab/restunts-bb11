@@ -33,6 +33,9 @@
 #define SHAPE3D_HIRES_EVALUATE_AS_DECLARED 0
 #define SHAPE3D_HIRES_EVALUATE_AS_DOUBLE 1
 #define SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE (DBL_MAX / TRIG_FIXED_ONE)
+/* Conservative resource bounds include empty corners beyond the visible skin.
+ * Limit the cheaper racing mesh to a small footprint in physical render pixels. */
+#define SHAPE3D_HIRES_FAR_CAR_MAX_PIXELS 320.0
 
 /* Keep native models on the existing inline scratch arrays. Extended model
  * storage belongs to this call, so geometry workers never share transform state. */
@@ -383,11 +386,38 @@ static void shape3d_hires_prepare_visibility(const struct TRANSFORMEDSHAPE3D *in
 	}
 }
 
+static legacy_s32 hires_shape3d_far_car_fits(const struct SHAPE3D *shape,
+											 struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	legacy_f64 minimum_x = 0, maximum_x = 0, minimum_y = 0, maximum_y = 0;
+	for (legacy_u16 index = 0; index < SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT; index++) {
+		shape3d_hires_cache_vertex(shape, context, index);
+		if (shape3d_hires_vertex_flags(context)[index] != 0) {
+			return 0;
+		}
+		struct SHAPE3D_HIRES_POINT point;
+		shape3d_hires_project(&shape3d_hires_transformed_vertices(context)[index], &point);
+		if (index == 0) {
+			minimum_x = maximum_x = point.x;
+			minimum_y = maximum_y = point.y;
+		} else {
+			minimum_x = point.x < minimum_x ? point.x : minimum_x;
+			maximum_x = point.x > maximum_x ? point.x : maximum_x;
+			minimum_y = point.y < minimum_y ? point.y : minimum_y;
+			maximum_y = point.y > maximum_y ? point.y : maximum_y;
+		}
+	}
+	return maximum_x - minimum_x <= SHAPE3D_HIRES_FAR_CAR_MAX_PIXELS &&
+		   maximum_y - minimum_y <= SHAPE3D_HIRES_FAR_CAR_MAX_PIXELS;
+}
+
 legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 											 const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
 	struct TRANSFORMEDSHAPE3D enhanced_instance;
+	struct SHAPE3D *far_mesh = NULL;
 	if (vertices == NULL) {
+		far_mesh = hires_shape3d_car_far_mesh(instance->shapeptr);
 		struct SHAPE3D *enhanced = hires_shape3d_car_mesh(instance->shapeptr);
 		if (enhanced != instance->shapeptr) {
 			enhanced_instance = *instance;
@@ -406,6 +436,17 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 	shape3d_hires_prepare_transform(instance, &context);
 	shape3d_hires_prepare_clip(&context.clip);
 	context.hires.source_vertices = vertices;
+	if (far_mesh != NULL && hires_shape3d_far_car_fits(shape, &context)) {
+		enhanced_instance = *instance;
+		enhanced_instance.shapeptr = far_mesh;
+		instance = &enhanced_instance;
+		shape = far_mesh;
+		context.vertex_count = far_mesh->shape3d_numverts;
+		context.hires.source_vertices = hires_shape3d_car_vertices(far_mesh);
+		for (legacy_u16 index = 0; index < SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT; index++) {
+			shape3d_hires_vertex_flags(&context)[index] = SHAPE3D_VERTEX_UNTRANSFORMED;
+		}
+	}
 	legacy_s32 bounds_clipped = hires_backend_bounds_are_clipped(shape, &context);
 	shape3d_hires_collect_shadow_polygons(instance, &context);
 	if (bounds_clipped != 0) {

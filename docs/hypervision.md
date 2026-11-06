@@ -1047,6 +1047,78 @@ composition x87 drivers, including stored-depth bit comparisons. Formatting,
 CRLF endings, source modes and core line budgets pass. The combined branch
 still needs a fresh Haswell measurement.
 
+### McMurtry initial F3 profile (2026-11-06)
+
+The detailed `MCMU` mesh at `8218c06a` was measured on `DEFAULT` at replay
+ticks 0, 80 and 160, using the initial F3 camera: distance 210, elevation 80,
+azimuth 464, at 1280x800. These Release measurements use a headless Linux cloud
+host and compare renderer cost; they do not establish presented FPS on Haswell.
+The warmed batches measure 200 frames per case, including shadows, skybox,
+framebuffer copies, state checks and final ARGB composition. Physics, audio,
+upload, display synchronization and pacing are outside the timed loop.
+
+A separate serial flat CPU profile attributed 36.0% of samples to
+`hires_visibility_scan_command` and 13.6% to `hires_backend_polygon_to`.
+Transforming the detailed car took about 1.4 ms/frame, while roughly 550 other
+shapes together took 0.12–0.19 ms. Its near mesh has 27,886 primitives, compared
+with 247 in the simple body. With four background workers, batches measured
+5.53–5.78 ms/frame for the detailed body; control batches with the simple body
+were 2.17–2.88 ms (2.43 ms averaged over the three ticks). Final composition
+cost remained similar.
+
+The cached shadow-model attachment had a median cost of 0.00005–0.00006 ms,
+with only one silhouette build across 5,000 moving frames. Cold near-mesh builds
+took 3.33–3.46 ms. A projected showroom silhouette took about 5.8 ms, compared
+with 0.23 ms for the classic mesh. These cache-miss costs do not recur on every
+F3 frame; steady shadow drawing also remained comparable with the simple-body
+control. The profile concentrates the added cost in car geometry, polygon
+setup and visibility processing.
+
+Racing now selects the cheaper compatible H3D companion when the full projected
+bounds fit within 320 render pixels on both axes. Larger views and bounds that
+cross the near plane retain full detail. Initial F3 bounds measured 305–306
+pixels across, versus 381–382 pixels for its close preset. Both racing
+companions receive the current steering and suspension controls before geometry
+jobs begin. The shadow keeps its original cached silhouette.
+
+Three alternating 200-frame batches compared the original full-detail renderer
+with automatic selection at the same ticks and resolution. Median full-frame
+elapsed time, including ARGB composition, was:
+
+| Replay tick | Original serial, ms | Automatic serial, ms | Reduction | Original, 4 workers, ms | Automatic, 4 workers, ms | Reduction |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 | 10.047 | 7.698 | 23.4% | 6.694 | 4.648 | 30.6% |
+| 80 | 9.703 | 7.406 | 23.7% | 5.317 | 4.408 | 17.1% |
+| 160 | 9.548 | 7.269 | 23.9% | 5.810 | 4.051 | 30.3% |
+
+Normal F3 now draws the authored 12,102-primitive `car2` companion rather than
+27,886-primitive `car1`. This reduces grille and other visible detail; close
+views and the showroom retain their full meshes. Each implementation's frame
+hashes were stable across batches and worker modes. Before/after image changes
+were confined to the visible car body, with its shadow unchanged. These
+uncapped cloud measurements establish comparative workload savings, not a
+presented-FPS result on the reported Haswell machine.
+
+![Full and automatically selected racing detail at the initial F3 distance](cars/mcmurtry-f3-lod.png)
+
+Reproduce the initial F3 cases with the production benchmark:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=4 \
+    out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --car MCMU --f3 --compose DEFAULT 200
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RESTUNTS_RENDER_WORKERS=4 \
+    out/sdl3-linux-x64/benchmark-hypervision --data-dir stunts \
+    --car MCMU --f3 --compose --start-only DEFAULT 200
+```
+
+The first command covers ticks 0/80/160 at all three resolutions; use its
+1280x800 rows for this comparison. The second restricts measurement to tick 0
+at 1280x800. Set `RESTUNTS_RENDER_WORKERS=0` for serial cases. A value of four
+requests four background workers in addition to the calling thread. The
+on-screen render-time overlay excludes presentation and outer-loop work, so
+its milliseconds do not describe the complete presented-frame interval.
+
 ## Validation
 
 The native Linux Release build and optional benchmark build pass. All 82 native
