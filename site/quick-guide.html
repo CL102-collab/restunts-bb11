@@ -164,8 +164,8 @@
                     <dd>Apply the Amiga version’s grass grip to the 11 stock cars, leaving road grip and custom-car settings unchanged. This is off by default and appears as Amiga Grass in startup screens. It also affects green chicane areas when Chicane Fast-Grass is disabled.</dd>
                 </div>
                 <div>
-                    <dt><code>--owoot</code> — Enforce One Wheel On Or Over Track.</dt>
-                    <dd>Keep part of at least one tyre on or above the road and follow each stunt’s intended route. Under-road driving and large-corner rumble strips do not count. A single gap tile between connected, aligned ramps or bridges is allowed. A violation crashes the player, including during replay playback. Omit the switch to disable it.</dd>
+                    <dt><code>--owoot:on</code> / <code>--owoot:off</code> — Set One Wheel On Or Over Track rules.</dt>
+                    <dd>Keep part of at least one tyre on or above the road and follow each stunt’s intended route. Under-road driving and large-corner rumble strips do not count. A single gap tile between connected, aligned ramps or bridges is allowed. A violation crashes the player, including during replay playback. <code>--owoot</code> is shorthand for <code>--owoot:on</code>; <code>--owoot:off</code> disables it. The default is off.</dd>
                 </div>
                 <div>
                     <dt><code>--fps:on</code> / <code>--fps:off</code> — Set the performance display.</dt>
@@ -208,7 +208,7 @@
                     <dd>The separate physics dump tool automatically checks OWOOT and writes <code>RACE.owo</code> with <code>pass</code> or <code>fail</code>. Passing requires a completed, crash-free run without OWOOT violations. <code>--time</code> also writes <code>RACE.tim</code>: driving time excluding penalties on the first line, penalty time on the second. Unfinished runs leave the time report empty. Use either flag independently or combine them, add the recording’s physics switches after the replay name, and check the tool’s exit code when processing batches.</dd>
                 </div>
             </dl>
-            <p class="note">The HyperVision, Ogg, physics, OWOOT, FPS, fullscreen, and controller-vibration options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, <code>--lcb</code>, <code>--dws</code>, and <code>--cfg</code>, the last supplied value wins. <code>--nointro</code> is case-sensitive. <a href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/parameters.md">Full settings and TempleOS launch syntax</a>.</p>
+            <p class="note">The HyperVision, Ogg, physics, OWOOT, FPS, fullscreen, and controller-vibration options are case-insensitive. For each of <code>--pg</code>, <code>--lc</code>, <code>--lcb</code>, <code>--dws</code>, <code>--cfg</code>, and <code>--owoot</code>, the last recognized value wins. <code>--nointro</code> is case-sensitive. <a href="https://github.com/CommonLoon102/restunts-bb11/blob/main/docs/parameters.md">Full settings and TempleOS launch syntax</a>.</p>
         </section>
 
         <section class="guide-section" id="extras" aria-labelledby="extras-title">

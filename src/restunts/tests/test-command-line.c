@@ -113,8 +113,8 @@ static void test_help_contents(void)
 		"  --showmph:on|off",
 	};
 	static const legacy_char *physics_options[] = {
-		"  --pg:on|off",  "  --lc:on|off",	"  --lcb:on|off", "  --dws:on|off",
-		"  --cfg:on|off", "  --amigagrass", "  --owoot"};
+		"  --pg:on|off",  "  --lc:on|off",	"  --lcb:on|off",	 "  --dws:on|off",
+		"  --cfg:on|off", "  --amigagrass", "  --owoot[:on|off]"};
 #ifdef RESTUNTS_SDL3
 	static const legacy_char *hypervision_options[] = {"  --hv:auto", "  --hv:full", "  --hv:high",
 													   "  --hv:medium", "  --hv:low"};
@@ -143,7 +143,8 @@ static void test_help_contents(void)
 		assert(strstr(output, removed_options[index]) == NULL);
 	}
 	expect_text("Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on; "
-				"--owoot off.");
+				"--owoot:off.");
+	expect_text("--owoot is shorthand for --owoot:on.");
 	expect_text("Enable/disable original Dual-Way Switching.");
 	expect_text("Enable/disable Chicane fast-grass.");
 	expect_text("With --cfg:off, green chicane areas behave as grass.");
@@ -279,6 +280,12 @@ static void test_normal_and_similar_arguments(void)
 			   COMMAND_LINE_CONTINUE);
 		assert(output_length == 0);
 	}
+
+	legacy_s8 *owoot_arguments[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--owoot:on",
+									(legacy_s8 *)"--owoot:off", (legacy_s8 *)"--OWOOT:OFF"};
+	assert(run_arguments(COMMAND_LINE_TEST_ARGUMENT_COUNT(owoot_arguments), owoot_arguments) ==
+		   COMMAND_LINE_CONTINUE);
+	assert(output_length == 0);
 }
 
 static void test_position_and_precedence(void)

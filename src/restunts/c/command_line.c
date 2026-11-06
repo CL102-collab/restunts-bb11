@@ -70,8 +70,9 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  --dws:on|off     Enable/disable original Dual-Way Switching." COMMAND_LINE_NEWLINE
 	"  --cfg:on|off     Enable/disable Chicane fast-grass." COMMAND_LINE_NEWLINE
 	"  --amigagrass     Use original Amiga grass grip (stock cars)." COMMAND_LINE_NEWLINE
-	"  --owoot          Enable One Wheel On/Over Track driving "
-	"rules." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
+	"  --owoot[:on|off] Enable/disable One Wheel On/Over Track rules." COMMAND_LINE_NEWLINE
+	"                   --owoot is shorthand for "
+	"--owoot:on." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3
 	"  --hv:auto        Enable HyperVision with automatic quality." COMMAND_LINE_NEWLINE
 	"  --hv:full        Lock HyperVision: full track at 1280x800." COMMAND_LINE_NEWLINE
@@ -98,7 +99,7 @@ static const legacy_s8 command_line_help[] = COMMAND_LINE_NEWLINE
 	"  /nd              Recognized legacy switch with no "
 	"effect." COMMAND_LINE_NEWLINE COMMAND_LINE_NEWLINE
 	"Defaults: intro and sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on; "
-	"--owoot off." COMMAND_LINE_NEWLINE
+	"--owoot:off." COMMAND_LINE_NEWLINE
 	"With --cfg:off, green chicane areas behave as grass." COMMAND_LINE_NEWLINE
 	"Amiga grass grip starts off; enable with --amigagrass." COMMAND_LINE_NEWLINE
 #ifdef RESTUNTS_SDL3

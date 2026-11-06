@@ -638,7 +638,7 @@ assembly executables and the renderer dump tools retain their existing interface
 
 ### OWOOT driving rules
 
-Run `restunts.exe --owoot` to require at least part of one player wheel to remain
+Run `restunts.exe --owoot:on` to require at least part of one player wheel to remain
 on or above the road. The check uses the car model's tire geometry, including
 steering, suspension, pitch, and roll, and is independent of camera position,
 zoom, and detail level. Red-white rumble strips on large corners count as grass.
@@ -656,19 +656,21 @@ over the receiving road for additional tiles.
 
 A violation triggers the normal crash immediately. Only the player is checked,
 including during replay playback. Rewinding restores the OWOOT progress along
-with the car state. The switch is case-insensitive and can be combined with
-`--pg:off`, `--lc:off`, and `--nointro`; it is disabled by default.
+with the car state. `--owoot` is shorthand for `--owoot:on`; `--owoot:off`
+disables the rules, which are off by default. These switches are case-insensitive,
+and the last recognized value wins. They can be combined with `--pg:off`,
+`--lc:off`, and `--nointro`.
 
 The physics dump tool also accepts `repldump.exe <replay> --owoot`. Replays do not
 store the switch, so launch with the same settings for recording and playback.
 See [OWOOT validation notes](docs/owoot-validation.md) for replay audit findings.
 
-With `--owoot`, `repldump.exe R0019.RPL --owoot` also writes `R0019.owo`, containing
+With OWOOT enabled, `repldump.exe R0019.RPL --owoot` also writes `R0019.owo`, containing
 exactly `pass` or `fail`. Passing requires finishing the race without an OWOOT
 violation; ordinary crashes and unfinished replays fail too. The result starts
 as `fail` and changes to `pass` only after successful processing. File-writing
 or replay-loading errors return a nonzero exit code; check that code as well
-when validating a batch. Without `--owoot`, no `.owo` file is created or updated.
+when validating a batch. With OWOOT disabled, no `.owo` file is created or updated.
 
 ### Replay driving-time reports
 

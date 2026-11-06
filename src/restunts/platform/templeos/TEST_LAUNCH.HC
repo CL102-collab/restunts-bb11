@@ -127,6 +127,25 @@ legacy_void TestLaunch()
   TestLaunchAssert(!rs_trackobj_road_chicane_fast_grass_enabled,
       "Chicane fast-grass can be disabled after an earlier option");
   RsConfigureChicaneFastGrass(1,arguments);
+  arguments[1]="--owoot:off";
+  arguments[2]="--OWOOT:ON";
+  RsConfigureOwoot(3,arguments);
+  TestLaunchAssert(owoot_enabled,"OWOOT uses the last case-insensitive on/off value");
+  arguments[1]="--owoot";
+  arguments[2]="--owoot:off";
+  RsConfigureOwoot(3,arguments);
+  TestLaunchAssert(!owoot_enabled,"OWOOT can be disabled after the bare enabling option");
+  arguments[1]="--owoot:off";
+  arguments[2]="--owoot";
+  RsConfigureOwoot(3,arguments);
+  TestLaunchAssert(owoot_enabled,"bare OWOOT can override an earlier off value");
+  arguments[1]="--owoot:on";
+  arguments[2]="--owoot:invalid";
+  arguments[3]="--owoot:onx";
+  RsConfigureOwoot(4,arguments);
+  TestLaunchAssert(owoot_enabled,"unrecognized OWOOT values do not override a valid option");
+  RsConfigureOwoot(1,arguments);
+  TestLaunchAssert(!owoot_enabled,"OWOOT defaults to off when no option is provided");
   count=TempleLaunchSplit(quoted,arguments,1);
   TestLaunchAssert(
       count==4&&!StrCmp(arguments[1],"--pg:off")&&!StrCmp(arguments[2],"--lc:off"),
