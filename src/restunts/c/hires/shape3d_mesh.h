@@ -41,6 +41,9 @@ void hires_shape3d_load_car_meshes(
 void hires_shape3d_free_car_meshes(void);
 /* Lookup is read-only so concurrent geometry workers can share loaded meshes. */
 struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic);
+/* A cheaper racing companion is eligible only for a registered near mesh with
+ * matching paints and native wheels. Showroom and classic-only cars return NULL. */
+struct SHAPE3D *hires_shape3d_car_far_mesh(const struct SHAPE3D *near_mesh);
 struct SHAPE3D_HIRES_VECTOR;
 /* Fractional positions are owned by the loaded car; NULL retains native vertices.
  * Accept either its classic or enhanced descriptor. Reads are worker-safe. */

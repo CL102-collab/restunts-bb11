@@ -217,6 +217,13 @@ Racing bodies use four fraction bits, giving 1/16-unit coordinates or about
 retain native whole units.
 See the [H3D format](hypervision-meshes.md#container-format-version-2).
 
+At Full resolution, the initial F3 view uses the 12,102-primitive `car2` mesh;
+closer views retain the 27,886-primitive `car1` mesh. The renderer uses the full
+projected bounding box, switching to `car2` only when it fits within 320 render
+pixels on each axis. This avoids processing the finest geometry at ordinary
+external-view size while preserving it for larger close-ups. Both racing
+meshes follow the same current steering and suspension controls.
+
 Mesh reduction and coordinate quantization can still merge or remove small
 source features. H3D uses native palette surfaces; source UVs, textures and
 smooth-shading normals are omitted. HyperVision selects the detailed meshes

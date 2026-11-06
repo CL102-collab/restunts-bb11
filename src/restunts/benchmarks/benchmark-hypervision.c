@@ -55,7 +55,9 @@ static legacy_s32 benchmark_preview;
 static legacy_s32 benchmark_preview_full_detail;
 static legacy_s32 benchmark_start_only;
 static legacy_s32 benchmark_all_views;
+static legacy_s32 benchmark_f3;
 static legacy_u8 benchmark_multi_core = STARTUP_MULTI_CORE_ON;
+static const legacy_s8 *benchmark_car;
 static const legacy_s8 *benchmark_track;
 static const legacy_s8 *benchmark_drive_argument;
 static legacy_u32 benchmark_drive_seconds;
@@ -80,6 +82,10 @@ static void benchmark_parse_options(legacy_s16 *argc, legacy_s8 *argv[])
 			benchmark_all_views = 1;
 		} else if (strcmp((const legacy_char *)argv[input], "--start-only") == 0) {
 			benchmark_start_only = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--f3") == 0) {
+			benchmark_f3 = 1;
+		} else if (strcmp((const legacy_char *)argv[input], "--car") == 0 && input + 1 < *argc) {
+			benchmark_car = argv[++input];
 		} else if (strcmp((const legacy_char *)argv[input], "--drive-seconds") == 0 &&
 				   input + 1 < *argc) {
 			benchmark_drive_argument = argv[++input];
@@ -149,6 +155,9 @@ static void benchmark_usage(const legacy_s8 *program)
 			"  --compose also measures final ARGB framebuffer composition.\n"
 			"  --start-only measures full resolution cockpit view at tick 0.\n"
 			"  --track measures that view on a .cstrk track with the Countach.\n"
+			"  --car ID overrides the player car with a four-character resource ID.\n"
+			"  --f3 measures only the external camera at its initial F3 position;\n"
+			"    combine with --start-only for full resolution at tick 0.\n"
 			"  --drive-seconds N with --track drives straight for N simulated seconds\n"
 			"    at 20 Hz, rendering 60 interpolated frames/second at Full resolution.\n"
 			"    Reports throughput including physics; excludes display and pacing.\n"
@@ -234,11 +243,30 @@ static void benchmark_check_parallel_pixels(legacy_u32 *composed)
 	free(expected);
 }
 
+static void benchmark_override_car(void)
+{
+	if (benchmark_car != NULL) {
+		memcpy(gameconfig.game_playercarid, benchmark_car, REPLAY_CAR_ID_SIZE);
+	}
+}
+
+static void benchmark_initialize_replay(const legacy_s8 *name)
+{
+	if (benchmark_car == NULL) {
+		initialize_replay(name);
+		return;
+	}
+	assert(file_load_replay("", name) == 0);
+	benchmark_override_car();
+	initialize_loaded_race();
+}
+
 static void benchmark_initialize_track(void)
 {
 	assert(extended_file_load_track(benchmark_track) == 0);
 	memset(&gameconfig, 0, sizeof(gameconfig));
 	memcpy(gameconfig.game_playercarid, BENCH_TRACK_CAR, REPLAY_CAR_ID_SIZE);
+	benchmark_override_car();
 	gameconfig.game_opponentcarid[0] = -1;
 	gameconfig.game_framespersec = BENCH_TRACK_FRAME_RATE;
 	if (benchmark_drive_seconds != 0U) {
@@ -492,7 +520,9 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 		benchmark_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
-	if (benchmark_preview && benchmark_track == NULL) {
+	if ((benchmark_preview && (benchmark_track == NULL || benchmark_f3)) ||
+		(benchmark_car != NULL &&
+		 SDL_strlen((const legacy_char *)benchmark_car) != REPLAY_CAR_ID_SIZE)) {
 		benchmark_usage(argv[0]);
 		return EXIT_FAILURE;
 	}
@@ -511,7 +541,7 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	if (benchmark_track != NULL) {
 		benchmark_initialize_track();
 	} else {
-		initialize_replay(argv[BENCH_REPLAY_ARGUMENT]);
+		benchmark_initialize_replay(argv[BENCH_REPLAY_ARGUMENT]);
 	}
 	if (benchmark_compose) {
 		benchmark_load_palette();
@@ -521,9 +551,14 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	visual_clock_frozen = 1;
 	assert(handle_ingame_kb_shortcuts(KEY_F12) != 0);
 	frame_hires_adaptive_set_preset(&frame_hires_adaptive, FRAME_HIRES_ADAPTIVE_PRESET_FULL);
-	custom_camera.elevation_angle = BENCH_CAMERA_ELEVATION;
-	custom_camera.azimuth_angle = BENCH_CAMERA_AZIMUTH;
-	custom_camera.distance = BENCH_CAMERA_DISTANCE;
+	custom_camera.elevation_angle =
+		benchmark_f3 ? CUSTOM_CAMERA_INITIAL_ELEVATION_ANGLE : BENCH_CAMERA_ELEVATION;
+	custom_camera.azimuth_angle =
+		benchmark_f3 ? CUSTOM_CAMERA_INITIAL_AZIMUTH_ANGLE : BENCH_CAMERA_AZIMUTH;
+	custom_camera.distance = benchmark_f3 ? CUSTOM_CAMERA_INITIAL_DISTANCE : BENCH_CAMERA_DISTANCE;
+	if (benchmark_f3) {
+		cameramode = CAMERA_MODE_CUSTOM;
+	}
 	static const legacy_s8 cameras[] = {CAMERA_MODE_COCKPIT, CAMERA_MODE_CUSTOM};
 	static const legacy_s32 scales[] = {HIRES_MINIMUM_SCALE, HIRES_MEDIUM_SCALE, HIRES_SCALE};
 	legacy_u16 limit = gameconfig.game_recordedframes < BENCH_LAST_TICK
@@ -544,6 +579,11 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 			 : "Includes render/state checks, shadows, skybox and framebuffer "
 			   "copies; excludes display, pacing and physics.");
 	printf("Final ARGB composition: %s.\n", benchmark_compose ? "included" : "excluded");
+	printf("Player car: %.*s%s. External camera: distance=%d elevation=%d azimuth=%d%s.\n",
+		   (legacy_int)REPLAY_CAR_ID_SIZE, (const legacy_char *)gameconfig.game_playercarid,
+		   benchmark_car != NULL ? " (override)" : "", custom_camera.distance,
+		   custom_camera.elevation_angle, custom_camera.azimuth_angle,
+		   benchmark_f3 ? " (initial F3)" : "");
 	if (benchmark_drive_seconds != 0U) {
 		puts("Driving straight with acceleration only and automatic transmission. "
 			 "Parity/hash diagnostics are outside timing.");
@@ -558,9 +598,10 @@ legacy_s16 stuntsmain(legacy_s16 argc, legacy_s8 *argv[])
 	}
 	for (legacy_u16 tick = 0; tick <= limit; tick++) {
 		if (tick % BENCH_TICK_INTERVAL == 0 || tick == limit) {
-			legacy_u32 camera_count = benchmark_start_only ? 1U : SDL_arraysize(cameras);
+			legacy_u32 camera_count =
+				benchmark_start_only || benchmark_f3 ? 1U : SDL_arraysize(cameras);
 			for (legacy_u32 camera = 0; camera < camera_count; camera++) {
-				cameramode = cameras[camera];
+				cameramode = benchmark_f3 ? CAMERA_MODE_CUSTOM : cameras[camera];
 				legacy_u32 first_scale = benchmark_start_only ? SDL_arraysize(scales) - 1U : 0U;
 				for (legacy_u32 scale = first_scale; scale < SDL_arraysize(scales); scale++) {
 					hires_set_render_scale(scales[scale]);
