@@ -100,6 +100,29 @@
     "view": "User-highlighted side duct behind the front wheel.",
     "usage": "Simplified into a narrow vertical fish-like gill on both sides, opening toward the rear as subsequently requested; reference image is not redistributed."
   },
+  "front_wheel_crown_openings": {
+    "plan_source_xz_game_units": [
+      [
+        13.0,
+        31
+      ],
+      [
+        17.2,
+        31
+      ],
+      [
+        17.2,
+        22
+      ],
+      [
+        13.0,
+        22
+      ]
+    ],
+    "shape": "Mirrored rectangles with parallel longitudinal sides and squared ends, projected onto the existing fender crowns.",
+    "reference": "User-supplied overhead photograph, Pasted image (4).png; reference image is not redistributed.",
+    "rendering": "Four-corner native dark surfaces at every detail level, retaining the existing wheel attachment and vertex budget."
+  },
   "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
   "rear_lamps": {
     "count": 4,
@@ -401,7 +424,7 @@
         "height": 26.0,
         "wheelbase": 50.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.738,
+      "minimum_upper_tyre_clearance_game_units": 1.831,
       "minimum_side_arch_tyre_clearance_game_units": [
         1.262,
         1.262,
@@ -425,7 +448,7 @@
         "height": 26.0,
         "wheelbase": 50.0
       },
-      "minimum_upper_tyre_clearance_game_units": 1.738,
+      "minimum_upper_tyre_clearance_game_units": 1.831,
       "minimum_side_arch_tyre_clearance_game_units": [
         1.262,
         1.262,
@@ -477,7 +500,7 @@
     },
     "STMCMU.3SH": {
       "bytes": 19801,
-      "sha256": "7e49540f34ce704688ae9a1223f3506586ab6decf378ebb59a949a957c279568"
+      "sha256": "e94316f1303ff78727e908b9fcf79c8ba63a08aaa2924c3378bc02b53d7b15b5"
     },
     "STDAMCMU.VSH": {
       "bytes": 141515,
@@ -489,7 +512,7 @@
     },
     "MCMU.obj": {
       "bytes": 27742,
-      "sha256": "67d21278cbb8af10ff7acf6121ff46d8658cb8fdf468f3d55caae825b354b089"
+      "sha256": "76979da1474eba11c2afe66f18d6dadcb474e069c77966c19d9a3c7c4231fba6"
     },
     "MCMU.mtl": {
       "bytes": 837,

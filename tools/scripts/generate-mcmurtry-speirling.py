@@ -485,6 +485,11 @@ def generate(repository):
         "side_duct_detail_reference": {"file": "detail.png",
                                       "view": "User-highlighted side duct behind the front wheel.",
                                       "usage": "Simplified into a narrow vertical fish-like gill on both sides, opening toward the rear as subsequently requested; reference image is not redistributed."},
+        "front_wheel_crown_openings": {
+            "plan_source_xz_game_units": model.FRONT_CROWN_OPENING_PLAN,
+            "shape": "Mirrored rectangles with parallel longitudinal sides and squared ends, projected onto the existing fender crowns.",
+            "reference": "User-supplied overhead photograph, Pasted image (4).png; reference image is not redistributed.",
+            "rendering": "Four-corner native dark surfaces at every detail level, retaining the existing wheel attachment and vertex budget."},
         "reference_image_usage": "Exterior photo URLs are historical records of the previous photo-based model. The supplied GLB is the ground truth for the rebuilt exterior. Manufacturer photographs are not redistributed in the car package.",
         "rear_lamps": {"count": 4, "layout": "Upper and lower circular red ring with a dark centre at each outer rear corner.",
                        "centres_game_units": [(x, y, z - model.BODY_ORIGIN_Z)
@@ -646,8 +651,9 @@ The thin centre fin above the canopy and rear cowl is omitted.
 The canopy surface, main rear wing and wheel controls are preserved.
 Each wheel's cover triangles follow it with native primitive flag 2, so
 the painter draws the fender after its wheel even at shallow angles.
-The four bounded dark crown openings follow the source mesh and are native
-quadrilateral surfaces within the fenders.
+The four bounded dark crown openings are native quadrilateral surfaces within
+the fenders. The front pair has parallel long sides and squared ends, following
+the supplied overhead photograph; the rear pair retains its source contour.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left

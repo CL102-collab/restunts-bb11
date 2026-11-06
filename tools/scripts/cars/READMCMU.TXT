@@ -103,8 +103,9 @@ The thin centre fin above the canopy and rear cowl is omitted.
 The canopy surface, main rear wing and wheel controls are preserved.
 Each wheel's cover triangles follow it with native primitive flag 2, so
 the painter draws the fender after its wheel even at shallow angles.
-The four bounded dark crown openings follow the source mesh and are native
-quadrilateral surfaces within the fenders.
+The four bounded dark crown openings are native quadrilateral surfaces within
+the fenders. The front pair has parallel long sides and squared ends, following
+the supplied overhead photograph; the rear pair retains its source contour.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left
