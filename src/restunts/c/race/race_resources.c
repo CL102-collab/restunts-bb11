@@ -33,6 +33,7 @@
 #include "../car/car_resources.h"
 #include "../externs.h"
 #include "../video/video_pages.h"
+#include "../frame/frame_fps.h"
 #ifdef RESTUNTS_AMIGA
 #include "../shape2d/shape2d_internal.h"
 #endif
@@ -260,6 +261,9 @@ static legacy_s16 setup_player_cars_impl(legacy_s16 load_dashboard_shapes)
 		amiga_video_palette_race((const legacy_char *)gameconfig.game_playercarid, 1);
 	}
 #endif
+	if (idle_expired == 0 && load_dashboard_shapes != 0 && frame_mph_initialize() != 0) {
+		return 1;
+	}
 	followOpponentFlag = 0;
 	is_in_replay_copy = -1;
 	return 0;
@@ -277,6 +281,8 @@ legacy_s16 setup_player_cars_without_dashboard(void)
 
 void free_player_cars(void)
 {
+	/* Backing sprites were allocated after the render window. */
+	frame_mph_shutdown();
 #ifdef RESTUNTS_AMIGA
 	amiga_video_palette_race((const legacy_char *)gameconfig.game_playercarid, 0);
 #endif

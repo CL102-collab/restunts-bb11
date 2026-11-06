@@ -250,6 +250,8 @@ legacy_s16 RsRaceResourcesSetupPlayerCarsImpl(legacy_s16 load_dashboard_shapes)
   legacy_s8 *temple_tmp_2400;
   legacy_s32 noreg temple_tmp_2401;
   legacy_u32 noreg temple_window_pixel_bytes_2402;
+  legacy_s32 noreg temple_tmp_2403;
+  legacy_s32 noreg temple_tmp_2404;
   0;
   RsSetupLegacyPenaltyRouteWord();
   (render_window_sprite=0);
@@ -314,6 +316,29 @@ legacy_s16 RsRaceResourcesSetupPlayerCarsImpl(legacy_s16 load_dashboard_shapes)
     (render_window_sprite=
             RsSpriteMakeWnd(TempleCastU16(320),TempleCastU16(200),TempleCastU16(15)));
   }
+  temple_tmp_2403=0;
+  if((idle_expired==0)) {
+    temple_tmp_2403=1;
+  }
+  if(temple_tmp_2403) {
+    temple_tmp_2403=0;
+    if((load_dashboard_shapes!=0)) {
+      temple_tmp_2403=1;
+    }
+  }
+  temple_tmp_2404=0;
+  if(temple_tmp_2403) {
+    temple_tmp_2404=1;
+  }
+  if(temple_tmp_2404) {
+    temple_tmp_2404=0;
+    if((RsFrameMphInitialize()!=0)) {
+      temple_tmp_2404=1;
+    }
+  }
+  if(temple_tmp_2404) {
+    return TempleCastS16(1);
+  }
   (follow_opponent_flag=TempleCastS8(0));
   (is_in_replay_copy=TempleCastS8(TempleCastS32((-(1)))));
   return TempleCastS16(0);
@@ -331,6 +356,7 @@ legacy_s16 RsSetupPlayerCarsWithoutDashboard()
 
 legacy_void RsFreePlayerCars()
 {
+  RsFrameMphShutdown();
   if((video_uses_page_flipping==0)) {
     if((render_window_sprite!=0)) {
       RsSpriteFreeWnd(render_window_sprite);

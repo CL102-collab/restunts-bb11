@@ -171,6 +171,185 @@ static void composition_fill(const struct RECTANGLE *bounds, legacy_u8 color)
 	}
 }
 
+enum {
+	MPH_TEST_PAGE_CAPACITY = 2,
+	MPH_TEST_ALLOCATION_FLAGS = 15,
+	MPH_TEST_VARIABLE_ADVANCE = 9,
+	MPH_TEST_STANDARD_ADVANCE = 8,
+	MPH_TEST_BACKGROUND_FIRST = 8,
+	MPH_TEST_BACKGROUND_COLORS = 4,
+	MPH_TEST_PATTERN_ROW_MULTIPLIER = 3,
+	MPH_TEST_GLYPH_PATTERN_DIVISOR = 4,
+	MPH_TEST_SHADOW_OFFSET = 1
+};
+
+static legacy_u8 mph_variable_font;
+static legacy_u16 mph_capture_count;
+static legacy_u16 mph_restore_count;
+static legacy_u16 mph_allocation_count;
+static legacy_u16 mph_free_count;
+static legacy_u32 mph_available_bytes = LEGACY_U32_MAX;
+static struct SHAPE2D mph_target_shapes[COMPOSITION_TEST_BUFFER_COUNT];
+static struct SPRITE mph_target_sprites[COMPOSITION_TEST_BUFFER_COUNT];
+static struct {
+	struct SPRITE sprite;
+	struct SHAPE2D shape;
+	legacy_u16 width;
+	legacy_u16 height;
+	legacy_u8 pending;
+	legacy_u8 target;
+	legacy_u8 pixels[COMPOSITION_TEST_WIDTH * COMPOSITION_TEST_HEIGHT];
+} mph_backing[MPH_TEST_PAGE_CAPACITY];
+
+static void mph_test_restore_target(void)
+{
+	if (mph_variable_font == 0 || composition.active == 0) {
+		return;
+	}
+	for (legacy_u8 target = 0; target < COMPOSITION_TEST_BUFFER_COUNT; target++) {
+		if (drawing_sprite.sprite_bitmapptr == &mph_target_shapes[target]) {
+			composition.target = target;
+			return;
+		}
+	}
+	assert(0 && "Unexpected MPH drawing target");
+}
+
+void sprite_select_target(struct SPRITE far *target)
+{
+	drawing_sprite = *target;
+	mph_test_restore_target();
+}
+
+legacy_u32 mmgr_get_res_ofs_diff_scaled(void)
+{
+	return mph_available_bytes;
+}
+
+struct SPRITE far *sprite_make_wnd(legacy_u16 width, legacy_u16 height, legacy_u16 flags)
+{
+	assert(mph_variable_font != 0 && flags == MPH_TEST_ALLOCATION_FLAGS);
+	assert(mph_allocation_count < MPH_TEST_PAGE_CAPACITY);
+	assert(width > 0 && width <= COMPOSITION_TEST_WIDTH);
+	assert(height > 0 && height <= COMPOSITION_TEST_HEIGHT);
+	legacy_u16 index = mph_allocation_count++;
+	memset(&mph_backing[index], 0, sizeof(mph_backing[index]));
+	mph_backing[index].width = width;
+	mph_backing[index].height = height;
+	mph_backing[index].shape.width = width;
+	mph_backing[index].shape.height = height;
+	mph_backing[index].sprite.sprite_bitmapptr = &mph_backing[index].shape;
+	return &mph_backing[index].sprite;
+}
+
+void sprite_free_wnd(struct SPRITE far *sprite)
+{
+	assert(mph_allocation_count != 0);
+	legacy_u16 index = mph_allocation_count - 1U;
+	assert(sprite == &mph_backing[index].sprite);
+	/* The real allocator releases each window using its original row count. */
+	assert(sprite->sprite_bitmapptr->height == mph_backing[index].height);
+	mph_allocation_count--;
+	mph_free_count++;
+}
+
+static legacy_u16 mph_test_backing_index(struct SHAPE2D far *shape)
+{
+	for (legacy_u16 index = 0; index < mph_allocation_count; index++) {
+		if (shape == &mph_backing[index].shape) {
+			assert(shape->width != 0 && shape->width <= mph_backing[index].width);
+			assert(shape->height != 0 && shape->height <= mph_backing[index].height);
+			return index;
+		}
+	}
+	assert(0 && "Unexpected MPH backing shape");
+	return 0;
+}
+
+void sprite_clear_shape_alt(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
+{
+	legacy_u16 index = mph_test_backing_index(shape);
+	assert(mph_backing[index].pending == 0);
+	assert(composition.active != 0 && x >= 0 && y >= 0);
+	assert(x + shape->width <= COMPOSITION_TEST_WIDTH);
+	assert(y + shape->height <= COMPOSITION_TEST_HEIGHT);
+	mph_test_restore_target();
+	mph_backing[index].target = composition.target;
+	mph_backing[index].pending = 1;
+	shape->position_x = (legacy_u16)x;
+	shape->position_y = (legacy_u16)y;
+	for (legacy_u16 row = 0; row < shape->height; row++) {
+		memcpy(&mph_backing[index].pixels[row * shape->width],
+			   &composition.pixels[composition.target][y + row][x], shape->width);
+	}
+	mph_capture_count++;
+}
+
+void sprite_shape_to_1(struct SHAPE2D far *shape, legacy_s16 x, legacy_s16 y)
+{
+	legacy_u16 index = mph_test_backing_index(shape);
+	assert(mph_backing[index].pending != 0);
+	assert(composition.active != 0 && x >= 0 && y >= 0);
+	assert(x + shape->width <= COMPOSITION_TEST_WIDTH);
+	assert(y + shape->height <= COMPOSITION_TEST_HEIGHT);
+	mph_test_restore_target();
+	assert(composition.target == mph_backing[index].target);
+	for (legacy_u16 row = 0; row < shape->height; row++) {
+		memcpy(&composition.pixels[composition.target][y + row][x],
+			   &mph_backing[index].pixels[row * shape->width], shape->width);
+	}
+	mph_backing[index].pending = 0;
+	mph_restore_count++;
+}
+
+void sprite_shape_to_1_alt(struct SHAPE2D far *shape)
+{
+	sprite_shape_to_1(shape, (legacy_s16)shape->position_x, (legacy_s16)shape->position_y);
+}
+
+void font_set_fontdef(void)
+{
+	font_glyph_height = DIAGNOSTIC_TEST_FONT_HEIGHT;
+}
+
+void shape2d_put_word(legacy_u8 far *destination, legacy_u16 value)
+{
+	LEGACY_WRITE_U16_LE(destination, value);
+}
+
+static legacy_s16 mph_test_glyph_advance(legacy_s8 character)
+{
+	if (mph_variable_font != 0 && character != 'P' && character != 'H') {
+		return MPH_TEST_VARIABLE_ADVANCE;
+	}
+	return MPH_TEST_STANDARD_ADVANCE;
+}
+
+static void mph_test_text_pixels(legacy_u8 pixels[COMPOSITION_TEST_HEIGHT][COMPOSITION_TEST_WIDTH],
+								 const legacy_s8 *text, legacy_s16 x, legacy_s16 y, legacy_u8 color,
+								 legacy_u8 shadow)
+{
+	/* Sparse masks preserve holes and spaces, unlike the solid diagnostic stub. */
+	for (legacy_s16 layer = MPH_TEST_SHADOW_OFFSET; layer >= 0; layer--) {
+		legacy_s16 glyph_x = x;
+		for (const legacy_s8 *character = text; *character != 0; character++) {
+			legacy_s16 advance = mph_test_glyph_advance(*character);
+			if (*character != ' ') {
+				for (legacy_s16 row = 0; row < font_glyph_height; row++) {
+					for (legacy_s16 column = 0; column < advance - 1; column++) {
+						if (row == 0 || column == 0 ||
+							((*character + row + column) % MPH_TEST_GLYPH_PATTERN_DIVISOR) == 0) {
+							pixels[y + row + layer][glyph_x + column + layer] =
+								layer != 0 ? shadow : color;
+						}
+					}
+				}
+			}
+			glyph_x += advance;
+		}
+	}
+}
+
 void sprite_save_context(struct SPRITE context[SPRITE_STATE_COUNT])
 {
 	context[0] = drawing_sprite;
@@ -181,6 +360,7 @@ void sprite_restore_context(struct SPRITE context[SPRITE_STATE_COUNT])
 {
 	drawing_sprite = context[0];
 	screen_sprite = context[1];
+	mph_test_restore_target();
 }
 
 void sprite_set_target_clip_bounds(legacy_u16 left, legacy_u16 right, legacy_u16 top,
@@ -246,7 +426,11 @@ void sprite_fill_rect_clipped(legacy_s16 x, legacy_s16 y, legacy_s16 width, lega
 
 legacy_s16 font_text_width(const legacy_s8 *text)
 {
-	return (legacy_s16)(strlen((const legacy_char *)text) * DIAGNOSTIC_TEST_FONT_WIDTH);
+	legacy_s16 width = 0;
+	for (; *text != 0; text++) {
+		width += mph_test_glyph_advance(*text);
+	}
+	return width;
 }
 
 void mouse_draw_opaque_check(void)
@@ -291,14 +475,19 @@ struct RECTANGLE *intro_draw_text(legacy_s8 *text, legacy_s16 x, legacy_s16 y, l
 	draw->y = y;
 	draw->color = color;
 	draw->shadow_color = shadow_color;
-	/* Match the 8-pixel font and the shadow's extra pixel in the real renderer. */
+	/* Include the actual glyph advances and the shadow's extra pixel. */
 	text_bounds.left = x;
-	text_bounds.right = x + length * 8 + 1;
+	text_bounds.right = x + font_text_width(text) + OPPONENT_TEST_TEXT_SHADOW_HEIGHT;
 	text_bounds.top = y;
 	text_bounds.bottom = y + font_glyph_height + OPPONENT_TEST_TEXT_SHADOW_HEIGHT;
 	if (composition.active != 0) {
-		/* Solid glyph bounds expose any subsequent opaque cockpit overwrite. */
-		composition_fill(&text_bounds, (legacy_u8)color);
+		if (mph_variable_font != 0) {
+			mph_test_text_pixels(composition.pixels[composition.target], text, x, y,
+								 (legacy_u8)color, (legacy_u8)shadow_color);
+		} else {
+			/* Solid glyph bounds expose subsequent opaque cockpit overwrites. */
+			composition_fill(&text_bounds, (legacy_u8)color);
+		}
 	}
 	return &text_bounds;
 }
@@ -1487,93 +1676,189 @@ static void test_status_only_preserves_diagnostics(void)
 	reset_status_text();
 }
 
+static legacy_u8 mph_test_pattern(legacy_u8 target, legacy_u16 phase, legacy_s16 x, legacy_s16 y)
+{
+	return (legacy_u8)(MPH_TEST_BACKGROUND_FIRST +
+					   (x + y * MPH_TEST_PATTERN_ROW_MULTIPLIER + target + phase) %
+						   MPH_TEST_BACKGROUND_COLORS);
+}
+
+static void mph_test_fill_pattern(legacy_u8 target, legacy_u16 phase)
+{
+	for (legacy_s16 y = 0; y < COMPOSITION_TEST_HEIGHT; y++) {
+		for (legacy_s16 x = 0; x < COMPOSITION_TEST_WIDTH; x++) {
+			composition.pixels[target][y][x] = mph_test_pattern(target, phase, x, y);
+		}
+	}
+}
+
+static void mph_test_assert_frame(legacy_u8 target, legacy_u16 phase, const legacy_s8 *text,
+								  legacy_s16 y)
+{
+	static legacy_u8 expected[COMPOSITION_TEST_HEIGHT][COMPOSITION_TEST_WIDTH];
+	for (legacy_s16 row = 0; row < COMPOSITION_TEST_HEIGHT; row++) {
+		for (legacy_s16 column = 0; column < COMPOSITION_TEST_WIDTH; column++) {
+			expected[row][column] = mph_test_pattern(target, phase, column, row);
+		}
+	}
+	if (text != 0) {
+		legacy_s16 x = REPLAY_TEXT_RIGHT_X - font_text_width(text);
+		mph_test_text_pixels(expected, text, x, y, (legacy_u8)dialog_fnt_colour, 0);
+	}
+	assert(memcmp(composition.pixels[target], expected, sizeof(expected)) == 0);
+}
+
+static void mph_test_select_target(legacy_u8 target)
+{
+	sprite_select_target(&mph_target_sprites[target]);
+	assert(composition.target == target);
+}
+
 static void test_mph_overlay(void)
 {
 	enum {
 		MPH_TEST_RIGHT = 312,
-		MPH_TEST_LEFT = 256,
 		MPH_TEST_BOTTOM = 197,
 		MPH_TEST_REPLAY_TOP = 151,
 		MPH_TEST_REPLAY_TEXT_TOP = 139,
 		MPH_TEST_TOP = 188,
-		MPH_TEST_WHEEL_SPEED = 7U << LEGACY_BYTE_BITS
+		MPH_TEST_WHEEL_SPEED = 7U << LEGACY_BYTE_BITS,
+		MPH_TEST_ALLOCATION_WIDTH = 62,
+		MPH_TEST_ALLOCATION_HEIGHT = 9,
+		MPH_TEST_ALLOCATION_BYTES = 576,
+		MPH_TEST_SHORT_FONT_HEIGHT = 6,
+		MPH_TEST_REPLAY_SAMPLE = 3
 	};
 	static const struct {
 		legacy_u16 speed;
 		const legacy_char *text;
-	} samples[] = {{0, "0 MPH"},
-				   {1U << LEGACY_BYTE_BITS, "1 MPH"},
-				   {100U << LEGACY_BYTE_BITS, "100 MPH"},
-				   {LEGACY_U16_MAX, "255 MPH"},
+	} samples[] = {{100U << LEGACY_BYTE_BITS, "100 MPH"},
 				   {99U << LEGACY_BYTE_BITS, "99 MPH"},
-				   {(9U << LEGACY_BYTE_BITS) + LEGACY_U8_MAX, "9 MPH"}};
+				   {(9U << LEGACY_BYTE_BITS) + LEGACY_U8_MAX, "9 MPH"},
+				   {0, "0 MPH"},
+				   {LEGACY_U16_MAX, "255 MPH"},
+				   {1U << LEGACY_BYTE_BITS, "1 MPH"}};
 	for (legacy_u8 flipping = 0; flipping <= 1; flipping++) {
 		for (legacy_u8 dashboard = 0; dashboard <= 1; dashboard++) {
 			reset_status_text();
 			video_uses_page_flipping = flipping;
+			video_page_count =
+				flipping != 0 ? MPH_TEST_PAGE_CAPACITY : COMPOSITION_TEST_SINGLE_PAGE;
 			dashboard_visible = dashboard;
 			mph_display_enabled = FRAME_MPH_DISPLAY_ON;
+			mph_variable_font = 1;
+			mph_capture_count = mph_restore_count = mph_allocation_count = mph_free_count = 0;
 			memset(&composition, 0, sizeof(composition));
 			composition.active = 1;
-			composition.target = COMPOSITION_TEST_FIRST_PAGE;
-			const struct RECTANGLE screen = {0, COMPOSITION_TEST_WIDTH, 0, COMPOSITION_TEST_HEIGHT};
-			composition_fill(&screen, COMPOSITION_TEST_DASHBOARD_COLOR);
+			for (legacy_u8 target = 0; target < COMPOSITION_TEST_BUFFER_COUNT; target++) {
+				memset(&mph_target_sprites[target], 0, sizeof(mph_target_sprites[target]));
+				mph_target_sprites[target].sprite_bitmapptr = &mph_target_shapes[target];
+				mph_target_sprites[target].sprite_right = COMPOSITION_TEST_WIDTH;
+				mph_target_sprites[target].sprite_bottom = COMPOSITION_TEST_HEIGHT;
+				mph_test_fill_pattern(target, 0);
+			}
+			screen_sprite = mph_target_sprites[COMPOSITION_TEST_FIRST_PAGE];
+			mph_test_select_target(COMPOSITION_TEST_RENDER);
+			/* A failed reservation must allocate nothing and allow ordinary cleanup. */
+			mph_available_bytes = 0;
+			assert(frame_mph_initialize() != 0 && mph_allocation_count == 0);
+			frame_mph_shutdown();
+			mph_available_bytes = MPH_TEST_ALLOCATION_BYTES * video_page_count - 1U;
+			assert(frame_mph_initialize() != 0 && mph_allocation_count == 0);
+			frame_mph_shutdown();
+			mph_available_bytes++;
+			assert(frame_mph_initialize() == 0);
+			mph_available_bytes = LEGACY_U32_MAX;
+			assert(mph_allocation_count == video_page_count);
+			for (legacy_u16 page = 0; page < mph_allocation_count; page++) {
+				assert(mph_backing[page].width == MPH_TEST_ALLOCATION_WIDTH);
+				assert(mph_backing[page].height == MPH_TEST_ALLOCATION_HEIGHT);
+			}
+			assert(font_text_width((const legacy_s8 *)"100 MPH") == MPH_TEST_ALLOCATION_WIDTH - 1);
+			legacy_u16 phases[MPH_TEST_PAGE_CAPACITY] = {0, 0};
 			for (legacy_u8 camera = CAMERA_MODE_COCKPIT; camera <= CAMERA_MODE_TRACKSIDE;
 				 camera++) {
 				cameramode = camera;
 				for (legacy_u16 sample = 0; sample < sizeof(samples) / sizeof(samples[0]);
 					 sample++) {
-					state.playerstate.car_actual_speed = samples[sample].speed;
-					state.playerstate.car_rev_speed = MPH_TEST_WHEEL_SPEED;
-					text_draw_count = 0;
-					struct SPRITE saved_context[SPRITE_STATE_COUNT] = {drawing_sprite,
-																	   screen_sprite};
-					struct RECTANGLE bounds = *frame_mph_draw_text(COMPOSITION_TEST_HEIGHT);
-					assert(text_draw_count == 1);
-					legacy_s16 x =
-						MPH_TEST_RIGHT - font_text_width((const legacy_s8 *)samples[sample].text);
-					assert_text(0, samples[sample].text, x, MPH_TEST_TOP);
-					assert(bounds.left == x && bounds.right == MPH_TEST_RIGHT + 1);
-					assert(bounds.top == MPH_TEST_TOP && bounds.bottom == MPH_TEST_BOTTOM);
-					assert(mph_clear_bounds.left == MPH_TEST_LEFT &&
-						   mph_clear_bounds.right == MPH_TEST_RIGHT + 1);
-					assert(mph_clear_bounds.top == MPH_TEST_TOP &&
-						   mph_clear_bounds.bottom == MPH_TEST_BOTTOM);
-					/* The previous longer number must not survive left of the new one. */
-					for (legacy_s16 pixel = MPH_TEST_LEFT; pixel < x; pixel++) {
-						assert(composition.pixels[composition.target][MPH_TEST_TOP][pixel] == 0);
+					legacy_s16 bottom = sample >= MPH_TEST_REPLAY_SAMPLE ? MPH_TEST_REPLAY_TOP
+																		 : COMPOSITION_TEST_HEIGHT;
+					legacy_s16 text_y =
+						bottom == COMPOSITION_TEST_HEIGHT ? MPH_TEST_TOP : MPH_TEST_REPLAY_TEXT_TOP;
+					for (legacy_u16 page = 0; page < video_page_count; page++) {
+						frame_buffer_index = (legacy_s8)page;
+						legacy_u8 target = COMPOSITION_TEST_FIRST_PAGE + page;
+						/* Scene composition currently targets a different bitmap. Restoring
+						 * the previous HUD must still find the captured screen/page. */
+						mph_test_select_target(COMPOSITION_TEST_RENDER);
+						struct SPRITE before_restore[SPRITE_STATE_COUNT] = {drawing_sprite,
+																			screen_sprite};
+						frame_mph_restore_text();
+						assert(memcmp(&drawing_sprite, &before_restore[0],
+									  sizeof(drawing_sprite)) == 0);
+						assert(memcmp(&screen_sprite, &before_restore[1], sizeof(screen_sprite)) ==
+							   0);
+						assert(composition.target == COMPOSITION_TEST_RENDER);
+						mph_test_assert_frame(target, phases[page], 0, 0);
+						/* Emulate a new scene or updated dashboard before capturing the HUD. */
+						phases[page]++;
+						mph_test_fill_pattern(target, phases[page]);
+						mph_test_select_target(target);
+						state.playerstate.car_actual_speed = samples[sample].speed;
+						state.playerstate.car_rev_speed = MPH_TEST_WHEEL_SPEED;
+						text_draw_count = 0;
+						struct SPRITE saved_context[SPRITE_STATE_COUNT] = {drawing_sprite,
+																		   screen_sprite};
+						struct RECTANGLE bounds = *frame_mph_draw_text(bottom);
+						assert(text_draw_count == 1);
+						legacy_s16 x = MPH_TEST_RIGHT -
+									   font_text_width((const legacy_s8 *)samples[sample].text);
+						assert_text(0, samples[sample].text, x, text_y);
+						assert(bounds.left == x && bounds.right == MPH_TEST_RIGHT + 1);
+						assert(bounds.top == text_y &&
+							   bounds.bottom == text_y + font_glyph_height + 1);
+						/* Every pixel, including spaces, glyph holes, shadows, former leading
+						 * digits, and the replay toolbar must match a fresh transparent draw. */
+						mph_test_assert_frame(target, phases[page],
+											  (const legacy_s8 *)samples[sample].text, text_y);
+						mph_test_assert_frame(COMPOSITION_TEST_RENDER, 0, 0, 0);
+						assert(memcmp(&drawing_sprite, &saved_context[0], sizeof(drawing_sprite)) ==
+							   0);
+						assert(memcmp(&screen_sprite, &saved_context[1], sizeof(screen_sprite)) ==
+							   0);
 					}
-					assert(composition.pixels[composition.target][MPH_TEST_TOP][x] ==
-						   dialog_fnt_colour);
-					assert(
-						composition.pixels[composition.target][MPH_TEST_TOP - 1][MPH_TEST_LEFT] ==
-						COMPOSITION_TEST_DASHBOARD_COLOR);
-					assert(memcmp(&drawing_sprite, &saved_context[0], sizeof(drawing_sprite)) == 0);
-					assert(memcmp(&screen_sprite, &saved_context[1], sizeof(screen_sprite)) == 0);
 				}
 			}
-			/* Replay controls occupy the bottom of the screen. Leave them intact. */
-			composition_fill(&screen, COMPOSITION_TEST_DASHBOARD_COLOR);
-			text_draw_count = 0;
-			struct RECTANGLE replay_bounds = *frame_mph_draw_text(MPH_TEST_REPLAY_TOP);
-			assert(replay_bounds.top == MPH_TEST_REPLAY_TEXT_TOP);
-			assert(replay_bounds.bottom < MPH_TEST_REPLAY_TOP);
-			for (legacy_s16 y = MPH_TEST_REPLAY_TOP; y < COMPOSITION_TEST_HEIGHT; y++) {
-				for (legacy_s16 x = MPH_TEST_LEFT; x <= MPH_TEST_RIGHT; x++) {
-					assert(composition.pixels[composition.target][y][x] ==
-						   COMPOSITION_TEST_DASHBOARD_COLOR);
-				}
+			/* Toggling off restores every page, even when no new text is drawn. */
+			mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
+			legacy_u16 captures = mph_capture_count;
+			for (legacy_u16 page = 0; page < video_page_count; page++) {
+				frame_buffer_index = (legacy_s8)page;
+				mph_test_select_target(COMPOSITION_TEST_RENDER);
+				frame_mph_restore_text();
+				mph_test_assert_frame(COMPOSITION_TEST_FIRST_PAGE + page, phases[page], 0, 0);
+				text_draw_count = 0;
+				assert(frame_mph_draw_text(COMPOSITION_TEST_HEIGHT) == &empty_rect);
+				assert(text_draw_count == 0 && mph_capture_count == captures);
 			}
-			composition.active = 0;
-			/* A demo or disabled field must not paint text or erase artwork. */
-			legacy_u16 clears = mph_clear_count;
-			text_draw_count = 0;
+			assert(mph_capture_count != 0 && mph_restore_count == mph_capture_count);
+			assert(mph_clear_count == 0);
+			/* Demo presentation cannot capture or paint the field. */
+			mph_display_enabled = FRAME_MPH_DISPLAY_ON;
 			idle_expired = 1;
 			assert(frame_mph_draw_text(COMPOSITION_TEST_HEIGHT) == &empty_rect);
+			assert(mph_capture_count == captures);
 			idle_expired = 0;
-			mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
-			assert(frame_mph_draw_text(COMPOSITION_TEST_HEIGHT) == &empty_rect);
-			assert(text_draw_count == 0 && mph_clear_count == clears);
+			/* A shorter current capture must not confuse the LIFO window allocator. */
+			frame_buffer_index = 0;
+			font_glyph_height = MPH_TEST_SHORT_FONT_HEIGHT;
+			mph_test_select_target(COMPOSITION_TEST_FIRST_PAGE);
+			text_draw_count = 0;
+			frame_mph_draw_text(COMPOSITION_TEST_HEIGHT);
+			frame_mph_shutdown();
+			assert(mph_allocation_count == 0 && mph_free_count == video_page_count);
+			composition.active = 0;
+			mph_variable_font = 0;
 		}
 	}
 	reset_status_text();

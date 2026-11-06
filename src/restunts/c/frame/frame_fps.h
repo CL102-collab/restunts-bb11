@@ -35,7 +35,13 @@ void frame_render_timing_record(legacy_u64 elapsed_ns);
 void frame_render_timing_reset(void);
 #endif
 
-/* Draw only from race presentation, after dashboard composition. */
+/* Allocate last in race setup and release before other race resources.
+ * Return nonzero if the backing cannot fit in the remaining resource arena. */
+legacy_s16 frame_mph_initialize(void);
+void frame_mph_shutdown(void);
+/* Restore the previous page's HUD before drawing a new scene/dashboard. */
+void frame_mph_restore_text(void);
+/* Capture the composed background and draw shadowed text without a solid fill. */
 struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom);
 
 void frame_fps_reset(void);

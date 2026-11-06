@@ -52,6 +52,8 @@ void race_draw_frame(void)
 #ifdef RESTUNTS_SDL3
 	race_hires_presentation_begin_frame();
 #endif
+	/* Restore the previous page before any new scene or cached-dashboard drawing. */
+	frame_mph_restore_text();
 	if (full_redraw_frames_remaining != 0) {
 		replay_controls_drawn[dashboard_buffer_index] = 0;
 		if (dashboard_visible != 0) {
