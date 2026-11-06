@@ -1150,6 +1150,7 @@
             if (ctrl && key === 's') { event.preventDefault(); finishDrag(); openSave(); }
             else if (ctrl && key === 'o') { event.preventDefault(); $('track-file-input').click(); }
             else if (ctrl && (key === 'z' || key === 'y')) { event.preventDefault(); historyEdit(key === 'y' || event.shiftKey); }
+            else if (!ctrl && !event.altKey && key === 'c') { event.preventDefault(); checkTrack(); }
             else if (state.viewMode === '3d') return;
             else if (ctrl && (key === 'c' || key === 'x') && state.selection?.objects.length) { event.preventDefault(); copySelection(key === 'x'); }
             else if (ctrl && key === 'v' && state.clipboard?.objects.length) { event.preventDefault(); startPaste(); }
