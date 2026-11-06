@@ -12,7 +12,7 @@ import org.restunts.android.GameDataImport;
 
 public final class CarResourcesTest {
     private static final byte[] CONTENT = {1, 2, 3};
-    private static final int SUPPORTED_RESOURCE_COUNT = 7;
+    private static final int SUPPORTED_RESOURCE_COUNT = 8;
 
     private static void require(boolean value, String message) {
         if (!value) {
@@ -33,7 +33,7 @@ public final class CarResourcesTest {
             File assets = new File(root, "assets");
             GameDataImport.makeDirectory(game);
             List<String> copied = new ArrayList<>();
-            CarResources.prepare(assets, new String[] {"CaRTerR.ReS", "STMCMU.3SH", "STDAMCMU.VSH",
+            CarResources.prepare(assets, new String[] {"CaRTerR.ReS", "STMCMU.3SH", "StMcMu.H3d", "STDAMCMU.VSH",
                 "CARMCMU.RES", "CARPACK.PRE", "STPACK.P3S", "STDBPACK.PVS", "README.TXT",
                 "../OUTSIDE.RES", "nested/CARNEST.RES"}, name -> {
                     copied.add(name);
@@ -42,6 +42,8 @@ public final class CarResourcesTest {
             require(copied.size() == SUPPORTED_RESOURCE_COUNT, "Only supported immediate car resources may be extracted");
             require(Arrays.equals(Files.readAllBytes(new File(assets, "cars/carterr.res").toPath()), CONTENT),
                 "Bundled resources must retain their bytes under normalized names");
+            require(Arrays.equals(Files.readAllBytes(new File(assets, "cars/stmcmu.h3d").toPath()), CONTENT),
+                "Optional HyperVision meshes must be extracted with their classic car resources");
             require(!new File(root, "OUTSIDE.RES").exists(), "Car extraction must stay in its folder");
             file(game, "CarCoun.res");
             file(game, "CARMCMU.RES");

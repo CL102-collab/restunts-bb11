@@ -6,6 +6,10 @@ repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
 assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
+The optional fifth file, STMCMU.H3D, supplies extended meshes for HyperVision.
+The generator installs it beside the classic files. HyperVision closes the
+otherwise open underside strips beside the centre floor; classic rendering
+continues to use the unchanged STMCMU.3SH. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -106,6 +110,13 @@ the painter draws the fender after its wheel even at shallow angles.
 The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
+STMCMU.H3D retains these exterior surfaces and adds carbon floor panels ahead
+of, between and behind the wheels. The centre floor is subdivided at shared
+edges so integer rounding cannot leave cracks. Wheel-well intervals remain
+open. HyperVision meshes use 16-bit counts and, above 255 vertices, 16-bit
+indices: car0 and car1 have 265 vertices and
+258 primitives; car2 has 257 vertices and
+254 primitives. The classic meshes retain their original byte limits.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left

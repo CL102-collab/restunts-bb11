@@ -159,8 +159,9 @@ SKYBOX_IMAGES = ("scen", "sce2", "sce3", "sce4")
 OPPONENT_COUNT = 6
 MENU_BACKGROUNDS = ("main", "showroom", "opponent")
 MUSIC_TRACKS = ("titl", "slct", "over", "vict")
-CUSTOM_CAR_FILES = ("CARMCMU.RES", "CARTERR.RES", "STMCMU.3SH", "STTERR.3SH",
-                    "STDAMCMU.VSH", "STDATERR.VSH", "STDBMCMU.VSH", "STDBTERR.VSH")
+CLASSIC_CUSTOM_CAR_FILES = ("CARMCMU.RES", "CARTERR.RES", "STMCMU.3SH", "STTERR.3SH",
+                            "STDAMCMU.VSH", "STDATERR.VSH", "STDBMCMU.VSH", "STDBTERR.VSH")
+CUSTOM_CAR_FILES = CLASSIC_CUSTOM_CAR_FILES + ("STMCMU.H3D",)
 CUSTOM_CAR_DIRECTORIES = {"cars", "bin/cars", "assets/cars",
                           "share/restunts/wasm-relink/data/assets/cars"}
 SDL_DECODER_LICENSES = ("stb-LICENSE", "libvpx-LICENSE", "libvpx-PATENTS", "nestegg-LICENSE")
@@ -206,7 +207,9 @@ def validate_custom_car_resources(files):
 
 
 def custom_car_files(directory):
-    return {f"{directory}/{name}" for name in CUSTOM_CAR_FILES}
+    # Classic ports install directly under cars/ or TempleOS PORT/CARS.
+    names = CLASSIC_CUSTOM_CAR_FILES if directory in {"cars", "PORT/CARS"} else CUSTOM_CAR_FILES
+    return {f"{directory}/{name}" for name in names}
 
 
 def checked_path(name):

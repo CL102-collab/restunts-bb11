@@ -462,8 +462,8 @@ async function exerciseDirectoryLoading(browser, url) {
         await ready(page);
         const specs = ['MaIn.ReS', 'FONTDEF.FNT', 'FONTN.FNT', 'MiXeD.HIG',
             ...Array.from({ length: 12 }, (_, index) => 'TRACK' + index + '.TRK'),
-            'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM', 'CARTERR.RES',
-            'Cars/CaRTerR.ReS', 'cars/STMCMU.3SH', 'cars/STDAMCMU.VSH',
+            'MAIN.RES', 'Opponents/Animations/Opp1Win.WebM', 'CARTERR.RES', 'StMcMu.H3d',
+            'Cars/CaRTerR.ReS', 'cars/STMCMU.3SH', 'Cars/StMcMu.H3D', 'cars/STDAMCMU.VSH',
             'cars/CARCSTM.PRE', 'cars/STCSTM.P3S', 'cars/STDBCSTM.PVS',
             'Tracks/MiXeD.TrK', 'tracks/TRACK0.TRK', 'tracks/EXTENDED.CSTRK',
             'tracks/MIXED.HIG', 'tracks/EXTENDED.CSHIG',
@@ -520,6 +520,8 @@ async function exerciseDirectoryLoading(browser, url) {
         assert.ok(imported.files.includes('/stunts/carterr.res'), 'Loose car resources must still load');
         assert.ok(imported.files.includes('/stunts/cars/carterr.res'), 'Mixed-case car folders must load');
         assert.ok(imported.files.includes('/stunts/cars/stmcmu.3sh'));
+        assert.ok(imported.files.includes('/stunts/stmcmu.h3d'), 'Loose HyperVision meshes must load');
+        assert.ok(imported.files.includes('/stunts/cars/stmcmu.h3d'), 'Folder HyperVision meshes must load');
         assert.ok(imported.files.includes('/stunts/cars/stdamcmu.vsh'));
         assert.ok(imported.files.includes('/stunts/cars/carcstm.pre'));
         assert.ok(imported.files.includes('/stunts/cars/stcstm.p3s'));

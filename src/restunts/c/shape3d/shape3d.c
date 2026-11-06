@@ -43,8 +43,12 @@ legacy_u16 shape3d_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance);
 
 void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct VECTOR *destination)
 {
+#if defined(RESTUNTS_SDL3)
+	const legacy_u8 far *source = shape->shape3d_vertex_bytes + (size_t)index * SHAPE3D_VERTEX_SIZE;
+#else
 	const legacy_u8 far *source =
 		shape->shape3d_vertex_bytes + LEGACY_U16_WRAP_MUL(index, SHAPE3D_VERTEX_SIZE);
+#endif
 	destination->x = LEGACY_READ_S16_LE(source + SHAPE3D_VERTEX_X_OFFSET);
 	destination->y = LEGACY_READ_S16_LE(source + SHAPE3D_VERTEX_Y_OFFSET);
 	destination->z = LEGACY_READ_S16_LE(source + SHAPE3D_VERTEX_Z_OFFSET);
@@ -52,8 +56,12 @@ void shape3d_vertex_read(const struct SHAPE3D *shape, legacy_u16 index, struct V
 
 void shape3d_vertex_write(struct SHAPE3D *shape, legacy_u16 index, const struct VECTOR *source)
 {
+#if defined(RESTUNTS_SDL3)
+	legacy_u8 far *destination = shape->shape3d_vertex_bytes + (size_t)index * SHAPE3D_VERTEX_SIZE;
+#else
 	legacy_u8 far *destination =
 		shape->shape3d_vertex_bytes + LEGACY_U16_WRAP_MUL(index, SHAPE3D_VERTEX_SIZE);
+#endif
 	LEGACY_WRITE_U16_LE(destination + SHAPE3D_VERTEX_X_OFFSET, (legacy_u16)source->x);
 	LEGACY_WRITE_U16_LE(destination + SHAPE3D_VERTEX_Y_OFFSET, (legacy_u16)source->y);
 	LEGACY_WRITE_U16_LE(destination + SHAPE3D_VERTEX_Z_OFFSET, (legacy_u16)source->z);

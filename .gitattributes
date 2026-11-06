@@ -60,6 +60,8 @@ makefile text eol=lf
 *.RES binary
 *.3sh binary
 *.3SH binary
+*.h3d binary
+*.H3D binary
 *.vsh binary
 *.VSH binary
 *.pvs binary

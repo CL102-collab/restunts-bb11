@@ -16,7 +16,7 @@ final class CarResources {
     static final String DIRECTORY = "cars";
     static final String ASSETS_ENVIRONMENT = "RESTUNTS_ASSETS_DIR";
     private static final Pattern RESOURCE_NAME = Pattern.compile(
-        "[A-Z0-9_]{1,8}\\.(RES|PRE|3SH|P3S|VSH|PVS)", Pattern.CASE_INSENSITIVE);
+        "[A-Z0-9_]{1,8}\\.(RES|PRE|3SH|P3S|H3D|VSH|PVS)", Pattern.CASE_INSENSITIVE);
     private static final String CAR_CODE_PATTERN = "[A-Z0-9_]{4}";
     private static final Pattern CAR_CODE = Pattern.compile(CAR_CODE_PATTERN, Pattern.CASE_INSENSITIVE);
     private static final Pattern CAR_NAME = Pattern.compile("CAR(" + CAR_CODE_PATTERN + ")\\.(RES|PRE)");

@@ -127,6 +127,9 @@ legacy_int main(void)
 	write_resource("Data/CaRs/MISC.RES", 15, 0);
 	make_directory("Data/CaRs/CARA008.RES");
 	write_resource("Data/CaRs/Sta003.3Sh", 33, 0);
+	write_resource("Data/CaRs/StA003.H3d", 73, 0);
+	write_resource("App/cars/STA004.H3D", 74, 0);
+	write_resource("Data/STA009.H3D", 79, 0);
 	write_resource("App/cars/STA004.3SH", 44, 0);
 	write_resource("App/cars/STDaa004.VsH", 45, 0);
 	write_resource("App/cars/STDBA004.VSH", 46, 0);
@@ -148,6 +151,10 @@ legacy_int main(void)
 	assert_resource("cara005.res", 5);
 	assert_resource("sta003.3sh", 33);
 	assert_resource("sta004.3sh", 44);
+	assert_resource("sta003.h3d", 73);
+	assert_resource("sta004.h3d", 74);
+	assert_resource("sta009.h3d", 79);
+	assert(file_open_resource((const legacy_s8 *)"sta009.3sh") == 0);
 	assert_resource("stdaa004.vsh", 45);
 	assert_resource("stdba004.vsh", 46);
 	assert_loaded("cara001", 1);
@@ -168,11 +175,22 @@ legacy_int main(void)
 	assert(file_find((const legacy_s8 *)"stdaa004.vsh") != NULL);
 	assert(file_find((const legacy_s8 *)"misc.res") == NULL);
 	assert(file_open_resource((const legacy_s8 *)"misc.res") == 0);
+	/* A higher-priority classic override must not inherit unrelated enhanced geometry. */
+	write_resource("STA004.3SH", 84, 0);
+	assert(file_open_resource((const legacy_s8 *)"STA004.H3D") == 0);
+	write_resource("STA004.H3D", 85, 0);
+	assert_resource("STA004.H3D", 85);
+	assert(remove("STA004.H3D") == 0);
+	assert(remove("STA004.3SH") == 0);
+	assert_resource("STA004.H3D", 74);
 	assert(file_open_resource((const legacy_s8 *)"missing/cara004.res") == 0);
 	const legacy_char *const files[] = {"CaRa001.ReS",
 										"CaRa006.PrE",
 										"STA006.P3S",
 										"STDAA006.PVS",
+										"STA009.H3D",
+										"CaRs/StA003.H3d",
+										"../App/cars/STA004.H3D",
 										"CaRs/CARA003.RES",
 										"CaRs/CARA001.RES",
 										"CaRs/CARXX.RES",

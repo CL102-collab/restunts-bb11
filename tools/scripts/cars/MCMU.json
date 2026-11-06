@@ -483,6 +483,119 @@
       "paint_jobs": 7
     }
   },
+  "hypervision": {
+    "resource": "STMCMU.H3D",
+    "format_version": 1,
+    "maximum_vertices_per_shape": 65535,
+    "maximum_primitives_per_shape": 65535,
+    "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
+    "geometry": "Carbon panels close the open sill strips ahead of, between and behind the wheels. Shared centre-floor subdivisions prevent cracks after coordinate quantization. Wheel-well intervals remain open and the existing exterior silhouette and animated wheel controls are preserved.",
+    "models": {
+      "car0": {
+        "vertices": 265,
+        "primitives": 258,
+        "paint_jobs": 7,
+        "dimensions_game_units": {
+          "length": 86.7,
+          "width": 38.5,
+          "height": 25.9,
+          "wheelbase": 50.0
+        },
+        "minimum_upper_tyre_clearance_game_units": 1.688,
+        "minimum_side_arch_tyre_clearance_game_units": [
+          1.108,
+          1.108,
+          1.317,
+          1.317
+        ],
+        "wheel_cover_triangles_attached_to_each_wheel": [
+          27,
+          27,
+          22,
+          22
+        ],
+        "underside_coverage": {
+          "bottom_rays_checked": 54,
+          "minimum_sill_panel_tyre_clearance_game_units": [
+            1.469,
+            1.469,
+            2.013,
+            2.013
+          ],
+          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
+        }
+      },
+      "car1": {
+        "vertices": 265,
+        "primitives": 258,
+        "paint_jobs": 7,
+        "dimensions_game_units": {
+          "length": 87.0,
+          "width": 38.0,
+          "height": 26.0,
+          "wheelbase": 50.0
+        },
+        "minimum_upper_tyre_clearance_game_units": 1.831,
+        "minimum_side_arch_tyre_clearance_game_units": [
+          1.262,
+          1.262,
+          1.191,
+          1.191
+        ],
+        "wheel_cover_triangles_attached_to_each_wheel": [
+          27,
+          27,
+          22,
+          22
+        ],
+        "underside_coverage": {
+          "bottom_rays_checked": 54,
+          "minimum_sill_panel_tyre_clearance_game_units": [
+            1.355,
+            1.355,
+            1.899,
+            1.899
+          ],
+          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
+        }
+      },
+      "car2": {
+        "vertices": 257,
+        "primitives": 254,
+        "paint_jobs": 7,
+        "dimensions_game_units": {
+          "length": 87.0,
+          "width": 38.0,
+          "height": 26.0,
+          "wheelbase": 50.0
+        },
+        "minimum_upper_tyre_clearance_game_units": 1.831,
+        "minimum_side_arch_tyre_clearance_game_units": [
+          1.262,
+          1.262,
+          1.191,
+          1.191
+        ],
+        "wheel_cover_triangles_attached_to_each_wheel": [
+          27,
+          27,
+          22,
+          22
+        ],
+        "underside_coverage": {
+          "bottom_rays_checked": 54,
+          "minimum_sill_panel_tyre_clearance_game_units": [
+            1.355,
+            1.355,
+            1.899,
+            1.899
+          ],
+          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
+        }
+      }
+    }
+  },
+  "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
   "sources": [
     "https://mcmurtry.com/speirling-pure/",
     "https://mcmurtry.com/mcmurtry-speirling-production-form/",
@@ -509,6 +622,10 @@
     "STDBMCMU.VSH": {
       "bytes": 2008,
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
+    },
+    "STMCMU.H3D": {
+      "bytes": 23016,
+      "sha256": "8fe720f4edf665a5e7c9863cef5d2062e8e73600f60abd5c2232ba4b3a5a86cc"
     },
     "MCMU.obj": {
       "bytes": 27742,

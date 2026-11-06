@@ -1246,6 +1246,132 @@ static void prepare_scene(const struct VECTOR *vertices, legacy_u32 count,
 	material_patlist2_ptr_cpy = scene_patterns;
 }
 
+#define WIDE_MESH_BOUND_COUNT 8U
+#define WIDE_MESH_TRIANGLE_VERTEX_COUNT 3U
+#define WIDE_MESH_EXTENDED_VERTEX_COUNT 260U
+#define WIDE_MESH_EXTENDED_PRIMITIVE_COUNT (LEGACY_U8_MAX + 2U)
+#define WIDE_MESH_PRIMITIVE_BYTES (SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + 3U * sizeof(legacy_u16))
+#define WIDE_MESH_ADDRESS_BOUNDARY_VERTEX (LEGACY_U16_MAX / SHAPE3D_VERTEX_SIZE + 1U)
+
+static void test_wide_meshes_use_hypervision_only(void)
+{
+	const struct VECTOR triangles[][WIDE_MESH_TRIANGLE_VERTEX_COUNT] = {
+		{{-30, -20, 200}, {0, 20, 200}, {30, -20, 200}},
+		{{-30, -20, 1}, {0, 20, 200}, {30, -20, 200}}};
+	const struct VECTOR box[WIDE_MESH_BOUND_COUNT] = {
+		{-40, -30, 190}, {40, -30, 190}, {-40, -30, 210}, {40, -30, 210},
+		{-40, 30, 190},	 {40, 30, 190},	 {-40, 30, 210},  {40, 30, 210}};
+	const legacy_u8 compact_primitive[] = {3, 1, 0, 0, 1, 2, 0, 0};
+	const legacy_u16 counts[] = {256U, WIDE_MESH_EXTENDED_VERTEX_COUNT,
+								 WIDE_MESH_ADDRESS_BOUNDARY_VERTEX + 3U};
+	legacy_u8 wide_primitive[WIDE_MESH_PRIMITIVE_BYTES] = {3, 1, 0};
+	legacy_u8 visibility[SHAPE3D_VISIBILITY_MASK_SIZE];
+	legacy_u8 front_facing[SHAPE3D_VISIBILITY_MASK_SIZE] = {0};
+	memset(visibility, LEGACY_U8_MAX, sizeof(visibility));
+
+	for (legacy_u32 geometry = 0; geometry < SDL_arraysize(triangles); geometry++) {
+		const struct VECTOR *triangle = triangles[geometry];
+		prepare_scene(triangle, WIDE_MESH_TRIANGLE_VERTEX_COUNT, compact_primitive,
+					  sizeof(compact_primitive), 1);
+		assert(shape3d_transform_and_queue(&scene_instance) == 0);
+		shape3d_render_queued_primitives();
+		assert(count_color(7) > 0);
+		size_t image_size = (size_t)hires_render_width() * hires_render_height();
+		legacy_u8 *reference = malloc(image_size);
+		assert(reference != NULL);
+		memcpy(reference, pixels(), image_size);
+
+		for (legacy_u32 sample = 0; sample < SDL_arraysize(counts); sample++) {
+			struct SHAPE3D wide = {0};
+			wide.shape3d_numverts = counts[sample];
+			wide.shape3d_vertex_bytes = calloc(counts[sample], SHAPE3D_VERTEX_SIZE);
+			assert(wide.shape3d_vertex_bytes != NULL);
+			wide.shape3d_numprimitives = wide.shape3d_numpaints = 1;
+			wide.shape3d_primitives = wide_primitive;
+			wide.shape3d_visibility_masks = visibility;
+			wide.shape3d_front_facing_masks = front_facing;
+			for (legacy_u16 index = 0; index < WIDE_MESH_BOUND_COUNT; index++) {
+				shape3d_vertex_write(&wide, index, &box[index]);
+			}
+			for (legacy_u16 vertex = 0; vertex < WIDE_MESH_TRIANGLE_VERTEX_COUNT; vertex++) {
+				legacy_u16 index = counts[sample] - WIDE_MESH_TRIANGLE_VERTEX_COUNT + vertex;
+				shape3d_vertex_write(&wide, index, &triangle[vertex]);
+				LEGACY_WRITE_U16_LE(wide_primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U +
+										vertex * sizeof(legacy_u16),
+									index);
+			}
+			prepare_scene(triangle, WIDE_MESH_TRIANGLE_VERTEX_COUNT, compact_primitive,
+						  sizeof(compact_primitive), 1);
+			scene_shape = wide;
+			assert(shape3d_transform_and_queue(&scene_instance) == 0);
+			assert(shape3d_queued_primitive_count() == 1);
+			shape3d_render_queued_primitives();
+			assert(memcmp(reference, pixels(), image_size) == 0);
+
+			/* Wide indices must never enter the original fixed-capacity pipeline. */
+			prepare_scene(triangle, WIDE_MESH_TRIANGLE_VERTEX_COUNT, compact_primitive,
+						  sizeof(compact_primitive), 0);
+			scene_shape = wide;
+			assert(shape3d_transform_and_queue(&scene_instance) == 1);
+			assert(shape3d_queued_primitive_count() == 0);
+			free(wide.shape3d_vertex_bytes);
+
+			/* Switching back still renders the old byte-indexed shape normally. */
+			prepare_scene(triangle, WIDE_MESH_TRIANGLE_VERTEX_COUNT, compact_primitive,
+						  sizeof(compact_primitive), 1);
+			assert(shape3d_transform_and_queue(&scene_instance) == 0);
+			shape3d_render_queued_primitives();
+			assert(memcmp(reference, pixels(), image_size) == 0);
+		}
+		free(reference);
+	}
+}
+
+static void test_wide_meshes_retain_all_primitives(void)
+{
+	const struct VECTOR points[] = {{-20, 0, 200}, {20, 0, 200}};
+	const legacy_u8 compact[] = {1, 1, 0, 0, 0, 0};
+	prepare_scene(points, SDL_arraysize(points), compact, sizeof(compact), 1);
+	struct SHAPE3D wide = {0};
+	wide.shape3d_numverts = WIDE_MESH_EXTENDED_VERTEX_COUNT;
+	wide.shape3d_numprimitives = WIDE_MESH_EXTENDED_PRIMITIVE_COUNT;
+	wide.shape3d_numpaints = 1;
+	wide.shape3d_vertex_bytes = calloc(wide.shape3d_numverts, SHAPE3D_VERTEX_SIZE);
+	wide.shape3d_visibility_masks =
+		malloc((size_t)wide.shape3d_numprimitives * SHAPE3D_VISIBILITY_MASK_SIZE);
+	wide.shape3d_front_facing_masks =
+		calloc(wide.shape3d_numprimitives, SHAPE3D_VISIBILITY_MASK_SIZE);
+	size_t stride = SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + sizeof(legacy_u16);
+	wide.shape3d_primitives = calloc(wide.shape3d_numprimitives, stride);
+	assert(wide.shape3d_vertex_bytes != NULL && wide.shape3d_visibility_masks != NULL &&
+		   wide.shape3d_front_facing_masks != NULL && wide.shape3d_primitives != NULL);
+	memset(wide.shape3d_visibility_masks, LEGACY_U8_MAX,
+		   (size_t)wide.shape3d_numprimitives * SHAPE3D_VISIBILITY_MASK_SIZE);
+	for (legacy_u16 index = 0; index < WIDE_MESH_BOUND_COUNT; index++) {
+		shape3d_vertex_write(&wide, index, &points[0]);
+	}
+	shape3d_vertex_write(&wide, wide.shape3d_numverts - 2U, &points[0]);
+	shape3d_vertex_write(&wide, wide.shape3d_numverts - 1U, &points[1]);
+	for (legacy_u16 index = 0; index < wide.shape3d_numprimitives; index++) {
+		legacy_u8 *primitive = wide.shape3d_primitives + index * stride;
+		legacy_u8 last = index + 1U == wide.shape3d_numprimitives;
+		primitive[0] = SHAPE3D_PRIMITIVE_POINT;
+		primitive[1] = 1;
+		primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] = last;
+		LEGACY_WRITE_U16_LE(primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U,
+							wide.shape3d_numverts - 2U + last);
+	}
+	scene_shape = wide;
+	assert(shape3d_transform_and_queue(&scene_instance) == 0);
+	assert(shape3d_queued_primitive_count() == WIDE_MESH_EXTENDED_PRIMITIVE_COUNT);
+	shape3d_render_queued_primitives();
+	assert(count_color(7) != 0 && count_color(8) != 0);
+	free(wide.shape3d_vertex_bytes);
+	free(wide.shape3d_visibility_masks);
+	free(wide.shape3d_front_facing_masks);
+	free(wide.shape3d_primitives);
+}
+
 #define TRANSFORM_TEST_EVALUATE_AS_DECLARED 0
 #define TRANSFORM_TEST_EVALUATE_AS_DOUBLE 1
 /* Match the identity shortcut's binary64 evaluation contract. With x87 excess
@@ -4084,6 +4210,8 @@ legacy_int main(void)
 	test_roundness_preserves_near_and_bounds_small_shapes();
 	test_roundness_matches_worker_bands();
 	test_disabled_and_reset();
+	test_wide_meshes_use_hypervision_only();
+	test_wide_meshes_retain_all_primitives();
 #if FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DECLARED ||                                      \
 	FLT_EVAL_METHOD == TRANSFORM_TEST_EVALUATE_AS_DOUBLE
 	test_identity_object_rotation();

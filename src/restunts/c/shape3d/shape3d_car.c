@@ -7,6 +7,7 @@
 #if defined(RESTUNTS_SDL3)
 #include "../hires/shape3d_hires.h"
 #include "../hires/shape3d_car_ground.h"
+#include "../hires/shape3d_mesh.h"
 #include "../gamestate.h"
 #endif
 
@@ -80,6 +81,7 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 #if defined(RESTUNTS_SDL3)
 	shape3d_hires_shadow_models_reset();
 	shape3d_hires_reset_car_ground_offsets();
+	hires_shape3d_free_car_meshes();
 #endif
 	for (legacy_s16 i = 0; i < CAR_ID_LENGTH; i++) {
 		car_shape_resource_name[CAR_RESOURCE_ID_OFFSET + i] = player_car_id[i];
@@ -88,9 +90,6 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 	shape3d_init_shape(locate_shape_fatal(carresptr, "car0"), &game3dshapes[PLAYER_CAR_LOW_SHAPE]);
 	shape3d_init_shape(locate_shape_fatal(carresptr, "car1"),
 					   &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
-#if defined(RESTUNTS_SDL3)
-	shape3d_hires_cache_car_ground_offset(PLAYER_CAR_INDEX, &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
-#endif
 
 	owoot_read_wheel_shape((const legacy_u8 far *)locate_shape_fatal(carresptr, "car1"));
 
@@ -133,10 +132,6 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 						   &game3dshapes[OPPONENT_CAR_LOW_SHAPE]);
 		shape3d_init_shape(locate_shape_fatal(car2resptr, "car1"),
 						   &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
-#if defined(RESTUNTS_SDL3)
-		shape3d_hires_cache_car_ground_offset(OPPONENT_CAR_INDEX,
-											  &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
-#endif
 
 		shape3d_init_car_wheel_vertices(&game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],
 										opponent_front_wheel_centers, opponent_base_wheel_vertices);
@@ -156,6 +151,21 @@ void shape3d_load_car_shapes(legacy_s8 player_car_id[], legacy_s8 opponent_car_i
 	} else {
 		car2resptr = 0;
 	}
+#if defined(RESTUNTS_SDL3)
+	const struct SHAPE3D *player_meshes[HIRES_MESH_CAR_SHAPE_COUNT] = {
+		&game3dshapes[PLAYER_CAR_LOW_SHAPE], &game3dshapes[PLAYER_CAR_WHEEL_SHAPE],
+		&game3dshapes[PLAYER_CAR_HIGH_SHAPE]};
+	hires_shape3d_load_car_meshes(PLAYER_CAR_INDEX, player_car_id, player_meshes);
+	shape3d_hires_cache_car_ground_offset(PLAYER_CAR_INDEX, &game3dshapes[PLAYER_CAR_WHEEL_SHAPE]);
+	if (car2resptr != 0) {
+		const struct SHAPE3D *opponent_meshes[HIRES_MESH_CAR_SHAPE_COUNT] = {
+			&game3dshapes[OPPONENT_CAR_LOW_SHAPE], &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],
+			&game3dshapes[OPPONENT_CAR_HIGH_SHAPE]};
+		hires_shape3d_load_car_meshes(OPPONENT_CAR_INDEX, opponent_car_id, opponent_meshes);
+		shape3d_hires_cache_car_ground_offset(OPPONENT_CAR_INDEX,
+											  &game3dshapes[OPPONENT_CAR_WHEEL_SHAPE]);
+	}
+#endif
 }
 
 static void shape3d_steer_car_wheel_vertices(struct SHAPE3D *shape, legacy_u16 first_vertex,
@@ -245,6 +255,9 @@ void shape3d_update_car_wheel_vertices(struct SHAPE3D *shape, legacy_u16 first_v
 		cached_wheel_state[wheel_index] = vertical_offset;
 	}
 
+#if defined(RESTUNTS_SDL3)
+	hires_shape3d_update_car_mesh(shape);
+#endif
 	return;
 }
 
@@ -253,6 +266,7 @@ void shape3d_free_car_shapes(void)
 #if defined(RESTUNTS_SDL3)
 	shape3d_hires_shadow_models_reset();
 	shape3d_hires_reset_car_ground_offsets();
+	hires_shape3d_free_car_meshes();
 #endif
 	if (car2resptr != 0) {
 		shape3d_update_car_wheel_vertices(&game3dshapes[OPPONENT_CAR_WHEEL_SHAPE],

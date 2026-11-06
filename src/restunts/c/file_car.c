@@ -29,10 +29,16 @@ enum FILE_CAR_ROOT {
 };
 
 enum FILE_CAR_FAMILY { FILE_CAR_NONE, FILE_CAR_PHYSICS, FILE_CAR_MODEL, FILE_CAR_DASHBOARD };
+#ifdef RESTUNTS_SDL3
+#define FILE_CAR_HYPERVISION_MODEL (FILE_CAR_DASHBOARD + 1U)
+#endif
 
 static legacy_s8 file_car_base[FILE_CAR_PATH_SIZE];
 static const legacy_s8 *const file_car_physics_extensions[] = {".res", ".pre", 0};
 static const legacy_s8 *const file_car_model_extensions[] = {".p3s", ".3sh", 0};
+#ifdef RESTUNTS_SDL3
+static const legacy_s8 *const file_car_hypervision_extensions[] = {".h3d", 0};
+#endif
 static const legacy_s8 *const file_car_dashboard_extensions[] = {".pvs", ".vsh", ".xvs",
 																 ".pes", ".esh", 0};
 
@@ -83,6 +89,11 @@ static const legacy_s8 *const *file_car_extensions(legacy_u16 family)
 	if (family == FILE_CAR_MODEL) {
 		return file_car_model_extensions;
 	}
+#ifdef RESTUNTS_SDL3
+	if (family == FILE_CAR_HYPERVISION_MODEL) {
+		return file_car_hypervision_extensions;
+	}
+#endif
 	return file_car_dashboard_extensions;
 }
 
@@ -124,6 +135,11 @@ static legacy_u16 file_car_family(const legacy_s8 *filename, legacy_u16 *stem_le
 			return FILE_CAR_NONE;
 		}
 	}
+#ifdef RESTUNTS_SDL3
+	if (family == FILE_CAR_MODEL && file_car_equal(filename + *stem_length, ".h3d")) {
+		family = FILE_CAR_HYPERVISION_MODEL;
+	}
+#endif
 	const legacy_s8 *const *extensions = file_car_extensions(family);
 	for (legacy_u16 index = 0; extensions[index] != 0; index++) {
 		if (file_car_equal(filename + *stem_length, extensions[index])) {
@@ -209,6 +225,25 @@ legacy_u16 file_car_resolve(const legacy_s8 *filename, legacy_s8 path[FILE_CAR_P
 				return 0;
 			}
 		}
+#ifdef RESTUNTS_SDL3
+		/* A replacement classic model masks companions from lower-priority
+		 * directories. An explicit companion in this root was checked above. */
+		if (family == FILE_CAR_HYPERVISION_MODEL) {
+			for (legacy_u16 index = 0; file_car_model_extensions[index] != 0; index++) {
+				alternate[stem_length] = 0;
+				if (!file_car_append(alternate, sizeof(alternate),
+									 file_car_model_extensions[index]) ||
+					!file_car_path(root, alternate, path)) {
+					continue;
+				}
+				handle = dos_file_open(path, DOS_FILE_OPEN_EXISTING);
+				if (handle != FILEIO_INVALID_HANDLE) {
+					dos_file_close(handle);
+					return 0;
+				}
+			}
+		}
+#endif
 	}
 	return 0;
 }

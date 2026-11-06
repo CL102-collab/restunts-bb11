@@ -78,6 +78,10 @@ software span resolution should be translated directly into Vulkan commands.
 
 ## Authored meshes and track previews
 
+Optional [HyperVision car meshes](hypervision-meshes.md) support up to 65,535
+vertices and primitives per model. `.H3D` files supplement the classic car
+resources; toggling HyperVision off immediately uses the original meshes.
+
 Native track objects can supply full and authored low-detail meshes. Classic
 reduced-detail rendering can select the low alternatives; Full HyperVision keeps
 full meshes on classic tracks. Extended-track driving, replays, and rotating

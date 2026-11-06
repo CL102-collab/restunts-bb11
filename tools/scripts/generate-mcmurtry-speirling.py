@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build and validate the MCMU Stunts car from its native low-polygon sources.
 
-Run with --install stunts to install the four game resources in stunts/cars, or --check to
+Run with --install stunts to install the game resources in stunts/cars, or --check to
 verify that the checked-in files match their deterministic authoring sources.
 The recorded reference GLB and graphics packages are not needed to regenerate them.
 """
@@ -29,7 +29,15 @@ PHYSICS_POSITION_SCALE = 64
 SIMD_WHEEL_COORDINATE_OFFSET = 0xD2
 SIMD_WHEEL_COORDINATE_SIZE = struct.calcsize("<3h")
 SIMD_COLLISION_BOUNDS_OFFSET = 0xC8
-GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH")
+GAME_FILES = ("CARMCMU.RES", "STMCMU.3SH", "STDAMCMU.VSH", "STDBMCMU.VSH", "STMCMU.H3D")
+HYPERVISION_SHAPE_HEADER_SIZE = struct.calcsize("<4H")
+UNDERFLOOR_VALIDATION_SAMPLES = tuple(
+    (side * x, z) for side in (-1, 1)
+    for z, columns in ((-33, (0, 11, 14, 17)), (-12, (0, 11, 14, 17)),
+                       (-6, (0, 11, 14, 17)), (0, (0, 11, 14, 17)),
+                       (6, (0, 11, 14, 17)), (12, (0, 11, 14, 17)),
+                       (38, (0, 11, 14)))
+    for x in columns)
 DOWNLOADED_MODEL = {
     "title": "2026 McMurtry Spéirling",
     "author": "Dave Love SketchFab",
@@ -95,16 +103,51 @@ def resources(data):
             for name, offset in zip(ids, offsets)}
 
 
-def decode_model(data, name):
-    if len(data) < 4:
+def hypervision_resources(data):
+    """Validate the optional companion directory before decoding its meshes."""
+    if len(data) < model.HYPERVISION_CONTAINER_HEADER_SIZE:
+        raise ValueError("Truncated HyperVision container")
+    magic, version, count = struct.unpack_from("<4sHH", data)
+    if magic != model.HYPERVISION_CONTAINER_MAGIC or version != model.HYPERVISION_CONTAINER_VERSION:
+        raise ValueError("Invalid HyperVision container signature or version")
+    cursor = model.HYPERVISION_CONTAINER_HEADER_SIZE
+    directory_end = cursor + count * model.HYPERVISION_CONTAINER_ENTRY_SIZE
+    if directory_end > len(data):
+        raise ValueError("Truncated HyperVision directory")
+    result = {}
+    previous_end = directory_end
+    for _ in range(count):
+        name, offset, size = struct.unpack_from("<4sII", data, cursor)
+        name = name.decode("ascii")
+        if name in result or offset != previous_end or offset + size > len(data):
+            raise ValueError("Invalid HyperVision entry")
+        result[name] = data[offset:offset + size]
+        previous_end = offset + size
+        cursor += model.HYPERVISION_CONTAINER_ENTRY_SIZE
+    if previous_end != len(data):
+        raise ValueError("Unreferenced HyperVision data")
+    return result
+
+
+def model_layout(data, name, *, hypervision=False):
+    header_size = HYPERVISION_SHAPE_HEADER_SIZE if hypervision else 4
+    if len(data) < header_size:
         raise ValueError(f"Truncated {name}")
-    vertices, primitives, paints, reserved = data[:4]
+    counts = struct.unpack_from("<4H", data) if hypervision else data[:4]
+    vertices, primitives, paints, reserved = counts
     if not vertices or not primitives or paints != 7 or reserved:
         raise ValueError(f"Invalid shape header in {name}")
-    cursor = 4 + vertices * 6 + primitives * 8
+    index_size = 2 if hypervision and vertices > model.NATIVE_LIMIT else 1
+    return vertices, primitives, paints, header_size, index_size
+
+
+def decode_model(data, name, *, hypervision=False):
+    vertices, primitives, paints, header_size, index_size = model_layout(
+        data, name, hypervision=hypervision)
+    cursor = header_size + vertices * 6 + primitives * 8
     if cursor > len(data):
         raise ValueError(f"Truncated shape tables in {name}")
-    points = [struct.unpack_from("<3h", data, 4 + i * 6) for i in range(vertices)]
+    points = [struct.unpack_from("<3h", data, header_size + i * 6) for i in range(vertices)]
     wheels = []
     triangles = []
     for _ in range(primitives):
@@ -115,8 +158,11 @@ def decode_model(data, name):
         if count is None or flags & ~3:
             raise ValueError(f"Invalid primitive type or flags in {name}")
         materials = data[cursor + 2:cursor + 2 + paints]
-        indices = data[cursor + 2 + paints:cursor + 2 + paints + count]
-        if len(indices) != count or max(indices) >= vertices or max(materials) > 126:
+        index_cursor = cursor + 2 + paints
+        if index_cursor + count * index_size > len(data):
+            raise ValueError(f"Truncated primitive indices in {name}")
+        indices = struct.unpack_from(f"<{count}{'H' if index_size == 2 else 'B'}", data, index_cursor)
+        if max(indices) >= vertices or max(materials) > 126:
             raise ValueError(f"Invalid primitive index or material in {name}")
         if kind == 12:
             wheels.append(tuple(indices))
@@ -129,8 +175,10 @@ def decode_model(data, name):
                 raise ValueError(f"Degenerate first triangle in {name}")
             triangles.extend(tuple(points[i] for i in (indices[0], indices[j], indices[j + 1]))
                              for j in range(1, len(indices) - 1))
-        cursor += 2 + paints + count
-    if cursor == len(data) or any(data[cursor:]):
+        cursor += 2 + paints + count * index_size
+    valid_end = (cursor == len(data) if hypervision else
+                 cursor < len(data) and not any(data[cursor:]))
+    if not valid_end:
         raise ValueError(f"Invalid shape terminator in {name}")
     if name.startswith("car"):
         if wheels[:4] != [tuple(range(i, i + 6)) for i in (8, 14, 20, 26)]:
@@ -142,16 +190,18 @@ def decode_model(data, name):
     return points, triangles, {"vertices": vertices, "primitives": primitives, "paint_jobs": paints}
 
 
-def wheel_cover_groups(data, points):
+def wheel_cover_groups(data, points, *, hypervision=False):
     """Collect roof faces which the native painter draws after each wheel."""
-    vertices, primitives, paints, _ = data[:4]
-    cursor = 4 + vertices * 6 + primitives * 8
+    vertices, primitives, paints, header_size, index_size = model_layout(
+        data, "wheel cover groups", hypervision=hypervision)
+    cursor = header_size + vertices * 6 + primitives * 8
     groups = []
     parent = None
     for _ in range(primitives):
         kind, flags = data[cursor:cursor + 2]
         count = kind if 1 <= kind <= 10 else {11: 2, 12: 6}[kind]
-        indices = data[cursor + 2 + paints:cursor + 2 + paints + count]
+        indices = struct.unpack_from(f"<{count}{'H' if index_size == 2 else 'B'}", data,
+                                     cursor + 2 + paints)
         if kind == 12:
             groups.append([])
             parent = len(groups) - 1
@@ -160,7 +210,7 @@ def wheel_cover_groups(data, points):
         elif parent is not None and 3 <= kind <= 10:
             groups[parent].extend(tuple(points[i] for i in (indices[0], indices[j], indices[j + 1]))
                                   for j in range(1, len(indices) - 1))
-        cursor += 2 + paints + count
+        cursor += 2 + paints + count * index_size
     return groups
 
 
@@ -360,6 +410,91 @@ def validate_wheel_contacts(simd, points, scale, shift, label):
     return contacts
 
 
+def validate_underfloor(points, triangles, scale, shift, name):
+    """Cast underside rays through the centre and previously open sill strips."""
+    floor = round(model.BODY_SILL_Y * scale) + shift
+    projected = []
+    side_panels = []
+    for a, b, c in triangles:
+        if any(point[1] != floor for point in (a, b, c)):
+            continue
+        ux, uz, vx, vz = b[0] - a[0], b[2] - a[2], c[0] - a[0], c[2] - a[2]
+        determinant = ux * vz - uz * vx
+        # The XZ determinant is positive for a downward-facing surface.
+        if determinant > GEOMETRY_TOLERANCE:
+            projected.append((a, ux, uz, vx, vz, determinant))
+            if (all(point[0] > 0 for point in (a, b, c)) or
+                    all(point[0] < 0 for point in (a, b, c))):
+                side_panels.append((a, b, c))
+    for x, z in UNDERFLOOR_VALIDATION_SAMPLES:
+        covered = False
+        for a, ux, uz, vx, vz, determinant in projected:
+            px, pz = x * scale - a[0], z * scale - a[2]
+            u = (px * vz - pz * vx) / determinant
+            v = (ux * pz - uz * px) / determinant
+            if min(u, v, 1 - u - v) >= -GEOMETRY_TOLERANCE:
+                covered = True
+                break
+        if not covered:
+            raise ValueError(f"Uncovered underside in HyperVision {name} at X={x}, Z={z}")
+    clearances = []
+    for wheel, (cx, cy, cz) in enumerate(model.WHEEL_CENTERS):
+        radius = (math.hypot(model.WHEEL_RADIUS, model.WHEEL_HALF_WIDTH)
+                  if wheel < FRONT_STEERED_WHEEL_COUNT else model.WHEEL_RADIUS)
+        minimum = math.inf
+        for triangle in side_panels:
+            if triangle[0][0] * cx <= 0:
+                continue
+            stations = [point[2] / scale for point in triangle]
+            longitudinal_gap = max(min(stations) - cz, cz - max(stations), 0)
+            vertical_gap = (floor - shift) / scale - cy
+            minimum = min(minimum, math.hypot(vertical_gap, longitudinal_gap) - radius)
+        if not math.isfinite(minimum) or minimum + GEOMETRY_TOLERANCE < WHEEL_ARCH_MIN_CLEARANCE:
+            raise ValueError(f"HyperVision sill panel intersects wheel {wheel + 1} in {name}")
+        clearances.append(round(minimum, 3))
+    return {"bottom_rays_checked": len(UNDERFLOOR_VALIDATION_SAMPLES),
+            "minimum_sill_panel_tyre_clearance_game_units": clearances,
+            "result": "Central floor and sill strips covered; wheel-well intervals remain open."}
+
+
+def validate_car_geometry(shape, name, simd, *, hypervision=False):
+    points, triangles, metadata = decode_model(shape, name, hypervision=hypervision)
+    scale = model.SHOWROOM_SCALE if name == "car0" else 1
+    shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
+    floor = shift + model.CONTACT_Y * scale
+    contacts = validate_wheel_contacts(simd, points, scale, shift, name)
+    half_width, _, half_length, collision_radius = struct.unpack_from(
+        "<4h", simd, SIMD_COLLISION_BOUNDS_OFFSET)
+    if any(abs(point[0]) > half_width * scale or abs(point[2]) > half_length * scale
+           for point in points[model.WHEEL_CONTROL_START:]):
+        raise ValueError(f"Collision bounds do not enclose the centered model in {name}")
+    if collision_radius < math.ceil(math.hypot(half_width, half_length)):
+        raise ValueError(f"Collision radius does not enclose the centered bounds in {name}")
+    if min(p[1] for p in points[32:]) < floor:
+        raise ValueError(f"Body below tyre contact plane in {name}")
+    dimensions = {
+        "length": (max(p[2] for p in points[8:]) - min(p[2] for p in points[8:])) / scale,
+        "width": (max(p[0] for p in points[8:]) - min(p[0] for p in points[8:])) / scale,
+        "height": (max(p[1] for p in points[8:]) - floor) / scale,
+        "wheelbase": (contacts[0][2] - contacts[3][2]) / 64,
+    }
+    expected = {"length": model.LENGTH, "width": model.WIDTH, "height": model.BODY_HEIGHT,
+                "wheelbase": model.WHEEL_CENTERS[0][2] - model.WHEEL_CENTERS[3][2]}
+    for axis, value in expected.items():
+        if abs(dimensions[axis] - value) > MODEL_DIMENSION_TOLERANCE:
+            raise ValueError(f"Incorrect adapted model dimensions for {axis} in {name}: {dimensions}")
+    metadata["dimensions_game_units"] = dimensions
+    wheel_groups = wheel_cover_groups(shape, points, hypervision=hypervision)
+    metadata["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
+        points, triangles, scale, shift, name, wheel_groups=wheel_groups)
+    metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
+        points, triangles, scale, shift, name)
+    metadata["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
+    if hypervision:
+        metadata["underside_coverage"] = validate_underfloor(points, triangles, scale, shift, name)
+    return metadata
+
+
 def validate(outputs, repository):
     car = resources(outputs["CARMCMU.RES"])
     simd = car["simd"]
@@ -377,40 +512,10 @@ def validate(outputs, repository):
         raise ValueError("Missing showroom, racing, LOD, or crash shape")
     metadata = {}
     for name, shape in shapes.items():
-        points, triangles, metadata[name] = decode_model(shape, name)
-        if not name.startswith("car"):
-            continue
-        scale = model.SHOWROOM_SCALE if name == "car0" else 1
-        shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
-        floor = shift + model.CONTACT_Y * scale
-        contacts = validate_wheel_contacts(simd, points, scale, shift, name)
-        half_width, _, half_length, collision_radius = struct.unpack_from(
-            "<4h", simd, SIMD_COLLISION_BOUNDS_OFFSET)
-        if any(abs(point[0]) > half_width * scale or abs(point[2]) > half_length * scale
-               for point in points[model.WHEEL_CONTROL_START:]):
-            raise ValueError(f"Collision bounds do not enclose the centered model in {name}")
-        if collision_radius < math.ceil(math.hypot(half_width, half_length)):
-            raise ValueError(f"Collision radius does not enclose the centered bounds in {name}")
-        if min(p[1] for p in points[32:]) < floor:
-            raise ValueError(f"Body below tyre contact plane in {name}")
-        dimensions = {
-            "length": (max(p[2] for p in points[8:]) - min(p[2] for p in points[8:])) / scale,
-            "width": (max(p[0] for p in points[8:]) - min(p[0] for p in points[8:])) / scale,
-            "height": (max(p[1] for p in points[8:]) - floor) / scale,
-            "wheelbase": (contacts[0][2] - contacts[3][2]) / 64,
-        }
-        expected = {"length": model.LENGTH, "width": model.WIDTH, "height": model.BODY_HEIGHT,
-                    "wheelbase": model.WHEEL_CENTERS[0][2] - model.WHEEL_CENTERS[3][2]}
-        for axis, value in expected.items():
-            if abs(dimensions[axis] - value) > MODEL_DIMENSION_TOLERANCE:
-                raise ValueError(f"Incorrect adapted model dimensions for {axis} in {name}: {dimensions}")
-        metadata[name]["dimensions_game_units"] = dimensions
-        wheel_groups = wheel_cover_groups(shape, points)
-        metadata[name]["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
-            points, triangles, scale, shift, name, wheel_groups=wheel_groups)
-        metadata[name]["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
-            points, triangles, scale, shift, name)
-        metadata[name]["wheel_cover_triangles_attached_to_each_wheel"] = [len(group) for group in wheel_groups]
+        if name.startswith("car"):
+            metadata[name] = validate_car_geometry(shape, name, simd)
+        else:
+            _, _, metadata[name] = decode_model(shape, name)
     budgets = {}
     for part, required in (("A", set("dash roof dast dasm whl1 whl2 whl3 ins1 ins2 ins3 inm1 inm3 gbox imt1 imt3".split())),
                            ("B", {"dot ", "dota", "dot1", "dot2", "gnob", "gnab"} |
@@ -463,8 +568,20 @@ def generate(repository):
     specs = physics.REAL_SPECIFICATIONS
     a, b, patches = dashboard.build_dashboards(repository)
     outputs = {"CARMCMU.RES": physics.build_car(repository, patches),
-               "STMCMU.3SH": model.build_models(), "STDAMCMU.VSH": a, "STDBMCMU.VSH": b}
+               "STMCMU.3SH": model.build_models(), "STDAMCMU.VSH": a, "STDBMCMU.VSH": b,
+               "STMCMU.H3D": model.build_hypervision_models()}
     models, budgets, ram = validate(outputs, repository)
+    enhanced = hypervision_resources(outputs["STMCMU.H3D"])
+    if set(enhanced) != {"car0", "car1", "car2"}:
+        raise ValueError("Missing HyperVision showroom or racing mesh")
+    simd = resources(outputs["CARMCMU.RES"])["simd"]
+    hypervision_models = {name: validate_car_geometry(shape, name, simd, hypervision=True)
+                          for name, shape in enhanced.items()}
+    for name, shape in enhanced.items():
+        points, _, _ = decode_model(shape, name, hypervision=True)
+        classic, _, _ = decode_model(resources(outputs["STMCMU.3SH"])[name], name)
+        if points[:32] != classic[:32]:
+            raise ValueError(f"HyperVision bounds or wheel controls differ from classic {name}")
     performance = [physics.simulate_performance(fps) for fps in (20, 10)]
     for result in performance:
         if (abs(result["zero_to_60_mph_with_one_foot_rollout_seconds"] -
@@ -541,7 +658,16 @@ def generate(repository):
                                           for car_id, usage in ram.items()},
         "dashboard_ram_bytes": ram,
         "dashboard_ram_note": "Classic 320x200 native arena payloads including 16-byte allocation rounding and shared instrument/gearbox scratch bitmaps. Sprite definitions and row tables use the common preallocated window table. Generation requires strictly less extracted, prepared and resident dashboard RAM than DIA3.",
-        "models": models, "sources": SOURCES,
+        "models": models,
+        "hypervision": {
+            "resource": "STMCMU.H3D", "format_version": model.HYPERVISION_CONTAINER_VERSION,
+            "maximum_vertices_per_shape": model.HYPERVISION_LIMIT,
+            "maximum_primitives_per_shape": model.HYPERVISION_LIMIT,
+            "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
+            "geometry": "Carbon panels close the open sill strips ahead of, between and behind the wheels. Shared centre-floor subdivisions prevent cracks after coordinate quantization. Wheel-well intervals remain open and the existing exterior silhouette and animated wheel controls are preserved.",
+            "models": hypervision_models},
+        "obj_export": "Classic car0 showroom geometry with explicit tyres and annular rear lamps.",
+        "sources": SOURCES,
         "files": {name: {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
                   for name, data in outputs.items()},
     }
@@ -554,6 +680,10 @@ repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
 assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
+The optional fifth file, STMCMU.H3D, supplies extended meshes for HyperVision.
+The generator installs it beside the classic files. HyperVision closes the
+otherwise open underside strips beside the centre floor; classic rendering
+continues to use the unchanged STMCMU.3SH. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -654,6 +784,13 @@ the painter draws the fender after its wheel even at shallow angles.
 The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
+STMCMU.H3D retains these exterior surfaces and adds carbon floor panels ahead
+of, between and behind the wheels. The centre floor is subdivided at shared
+edges so integer rounding cannot leave cracks. Wheel-well intervals remain
+open. HyperVision meshes use 16-bit counts and, above 255 vertices, 16-bit
+indices: car0 and car1 have {hypervision_models['car1']['vertices']} vertices and
+{hypervision_models['car1']['primitives']} primitives; car2 has {hypervision_models['car2']['vertices']} vertices and
+{hypervision_models['car2']['primitives']} primitives. The classic meshes retain their original byte limits.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left
