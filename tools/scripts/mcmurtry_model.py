@@ -33,6 +33,11 @@ SHOWROOM_SCALE = 20
 CONTACT_Y = -6
 SHOWROOM_Y_OFFSET = -CONTACT_Y * SHOWROOM_SCALE
 NATIVE_LIMIT = 255
+HYPERVISION_LIMIT = 65535
+HYPERVISION_CONTAINER_MAGIC = b"H3D\0"
+HYPERVISION_CONTAINER_VERSION = 1
+HYPERVISION_CONTAINER_HEADER_SIZE = struct.calcsize("<4sHH")
+HYPERVISION_CONTAINER_ENTRY_SIZE = struct.calcsize("<4sII")
 PAINT_COUNT = 7
 POINT_PRIMITIVE = 1
 LINE_PRIMITIVE = 2
@@ -175,6 +180,22 @@ class _Shape:
         for kind, flags, materials, indices in self.primitives:
             data.extend((kind, flags, *materials, *indices))
         return bytes(data + b"\0\0\0")
+
+    def encode_hypervision(self):
+        """Encode a companion mesh without changing the classic byte format."""
+        if len(self.vertices) > HYPERVISION_LIMIT or len(self.primitives) > HYPERVISION_LIMIT:
+            raise ValueError("Shape exceeds HyperVision word limits")
+        index_format = "H" if len(self.vertices) > NATIVE_LIMIT else "B"
+        data = bytearray(struct.pack("<4H", len(self.vertices), len(self.primitives),
+                                     PAINT_COUNT, 0))
+        for point in self.vertices:
+            data.extend(struct.pack("<3h", *point))
+        data.extend(struct.pack("<I", ALL_DIRECTIONS_MASK) * len(self.primitives))
+        data.extend(struct.pack("<I", 0) * len(self.primitives))
+        for kind, flags, materials, indices in self.primitives:
+            data.extend((kind, flags, *materials))
+            data.extend(struct.pack(f"<{len(indices)}{index_format}", *indices))
+        return bytes(data)
 
 
 def _controls(shape):
@@ -436,7 +457,7 @@ def _duct_side(shape, side, outline, front_wheel):
     shape.polygon((lip_bottom, front, center), GREY, facing=(side, 0, 0))
 
 
-def _shell(shape):
+def _shell(shape, *, hypervision=False):
     for side in (-1, 1):
         outline = [(side * width, y, z) for z, width, y in _outer_profile()]
         outline.append(_side_point(side, _SECTIONS[-1][0], BODY_SILL_Y))
@@ -452,10 +473,10 @@ def _shell(shape):
         z1, *_, x1, y1 = rear
         shape.polygon(((-x0, y0, z0), (x0, y0, z0),
                        (x1, y1, z1), (-x1, y1, z1)), PAINT_TOP, facing=(0, 1, 0))
-    _undertray(shape)
+    _undertray(shape, hypervision=hypervision)
 
 
-def _undertray(shape):
+def _undertray(shape, *, hypervision=False):
     """Join the flat floor to a rising, closed diffuser inside the tail.
 
     The wing reaches behind the body, but the low undertray does not. Shared
@@ -470,11 +491,14 @@ def _undertray(shape):
     def mirror(point):
         return -point[0], point[1], point[2]
 
-    # Taper the hidden floor directly to the existing diffuser entry. This
-    # stays inside the tyre paths and saves two controls for hollow lamps.
-    shape.polygon((mirror(front), mirror(entry), entry, front,
-                   (0, BODY_SILL_Y, front[2])),
-                  CARBON, facing=(0, -1, 0))
+    if hypervision:
+        _hypervision_underfloor(shape)
+    else:
+        # Taper the hidden floor directly to the existing diffuser entry. This
+        # stays inside the tyre paths and saves two controls for hollow lamps.
+        shape.polygon((mirror(front), mirror(entry), entry, front,
+                       (0, BODY_SILL_Y, front[2])),
+                      CARBON, facing=(0, -1, 0))
     # The exposed rear ramp and corner returns match the darker underbody.
     shape.polygon((mirror(entry), entry, exit, mirror(exit)),
                   CARBON, facing=(0, -1, 0))
@@ -484,6 +508,39 @@ def _undertray(shape):
         # a warped quad crossing the new rising centre panel.
         shape.polygon((a, b, c), CARBON, facing=(0, -1, 0))
         shape.polygon((a, c, d), CARBON, facing=(0, -1, 0))
+
+
+def _hypervision_underfloor(shape):
+    """Close the budget-limited side strips while leaving wheel wells open.
+
+    Each outer edge shares the existing sill and wheel-arch endpoints. The
+    inner edges follow the classic floor's taper. Subdivide the centre floor
+    at the same stations so shared quantized edges cannot leave hairline gaps.
+    No side panels are added in the wheel-well intervals.
+    """
+    front = _side_point(1, _SECTIONS[0][0], BODY_SILL_Y)
+    front_arch = _wheel_arch(0)
+    rear_arch = _wheel_arch(3)
+    sill_spans = ((front[2], front_arch[-1][0]),
+                 (front_arch[0][0], SIDE_DUCT_FRONT_Z, rear_arch[-1][0]),
+                 (rear_arch[0][0], REAR_DIFFUSER_START_Z))
+
+    def inner_point(side, z):
+        fraction = (front[2] - z) / (front[2] - REAR_DIFFUSER_START_Z)
+        width = front[0] + fraction * (REAR_DIFFUSER_HALF_WIDTH - front[0])
+        return side * width, BODY_SILL_Y, z
+
+    stations = sorted({z for span in sill_spans for z in span}, reverse=True)
+    for front_z, rear_z in zip(stations, stations[1:]):
+        shape.polygon((inner_point(-1, front_z), inner_point(-1, rear_z),
+                       inner_point(1, rear_z), inner_point(1, front_z)),
+                      CARBON, facing=(0, -1, 0))
+    for side in (-1, 1):
+        for stations in sill_spans:
+            outer = tuple(_side_point(side, z, BODY_SILL_Y) for z in stations)
+            shape.polygon((inner_point(side, stations[0]), *outer,
+                           inner_point(side, stations[-1])),
+                          CARBON, facing=(0, -1, 0))
 
 
 # Each source canopy ring has lower shoulder, upper shoulder and curved
@@ -639,10 +696,10 @@ def _tail(shape):
 
 
 
-def _car(scale=1, *, simple=False):
+def _car(scale=1, *, simple=False, hypervision=False):
     shape = _Shape(scale)
     _controls(shape)
-    _shell(shape)
+    _shell(shape, hypervision=hypervision)
     _canopy(shape, simple)
     _nose(shape)
     _tail(shape)
@@ -657,8 +714,8 @@ def _car(scale=1, *, simple=False):
     return shape
 
 
-def _showroom_car():
-    shape = _car(SHOWROOM_SCALE)
+def _showroom_car(*, hypervision=False):
+    shape = _car(SHOWROOM_SCALE, hypervision=hypervision)
     shape.vertices = [(x, y + SHOWROOM_Y_OFFSET, z) for x, y, z in shape.vertices]
     return shape
 
@@ -701,6 +758,22 @@ def build_models():
                  ("car1", _car().encode()), ("car2", _car(simple=True).encode())]
     resources.extend((f"exp{i}", _debris(i)) for i in range(4))
     return _container(resources)
+
+
+def build_hypervision_models():
+    """Build optional extended meshes alongside the unchanged classic shapes."""
+    resources = [("car0", _showroom_car(hypervision=True).encode_hypervision()),
+                 ("car1", _car(hypervision=True).encode_hypervision()),
+                 ("car2", _car(simple=True, hypervision=True).encode_hypervision())]
+    offset = HYPERVISION_CONTAINER_HEADER_SIZE + len(resources) * HYPERVISION_CONTAINER_ENTRY_SIZE
+    directory = bytearray()
+    payload = bytearray()
+    for name, data in resources:
+        directory.extend(struct.pack("<4sII", name.encode("ascii"), offset, len(data)))
+        payload.extend(data)
+        offset += len(data)
+    return (struct.pack("<4sHH", HYPERVISION_CONTAINER_MAGIC,
+                        HYPERVISION_CONTAINER_VERSION, len(resources)) + directory + payload)
 
 
 def export_obj(paint=0):

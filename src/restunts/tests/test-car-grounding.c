@@ -6,6 +6,11 @@
 legacy_u16 projection_focal_length_x = 16;
 legacy_u16 projection_focal_length_y = 13;
 
+struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *shape)
+{
+	return (struct SHAPE3D *)shape;
+}
+
 #define TEST_VERTEX_COUNT 18U
 
 static legacy_u8 vertex_bytes[TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
@@ -382,6 +387,70 @@ static void check_model_ground_height(void)
 	projection_focal_length_y = original_focal_y;
 }
 
+static void check_wide_model_ground_height(void)
+{
+	enum {
+		WIDE_VERTEX_COUNT = LEGACY_U8_MAX + 5U,
+		WIDE_FIRST_VERTEX = LEGACY_U8_MAX + 1U,
+		WIDE_PRIMITIVE_COUNT = LEGACY_U8_MAX + 2U,
+		WIDE_SPHERE_BYTES = SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + 2U * sizeof(legacy_u16),
+		WIDE_FLOOR_HEIGHT = -8,
+		WIDE_SPHERE_HEIGHT = -12,
+		WIDE_SPHERE_DIAMETER = 8,
+		WIDE_SPHERE_BOTTOM = WIDE_SPHERE_HEIGHT - WIDE_SPHERE_DIAMETER / 2
+	};
+	legacy_u8 vertices[WIDE_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE] = {0};
+	legacy_u8 floor[] = {SHAPE3D_PRIMITIVE_POLYGON_FIRST + 1U, 0, 1, 0, 1, 1, 1, 2, 1, 3, 1};
+	const struct VECTOR floor_points[] = {{-2, WIDE_FLOOR_HEIGHT, -2},
+										  {-2, WIDE_FLOOR_HEIGHT, 2},
+										  {2, WIDE_FLOOR_HEIGHT, 2},
+										  {2, WIDE_FLOOR_HEIGHT, -2}};
+	struct SHAPE3D shape = {0};
+	shape.shape3d_numverts = WIDE_VERTEX_COUNT;
+	shape.shape3d_vertex_bytes = vertices;
+	shape.shape3d_numprimitives = 1;
+	shape.shape3d_numpaints = 1;
+	shape.shape3d_primitives = floor;
+	for (legacy_u16 index = 0; index < sizeof(floor_points) / sizeof(floor_points[0]); index++) {
+		legacy_u8 *vertex = vertices + (WIDE_FIRST_VERTEX + index) * SHAPE3D_VERTEX_SIZE;
+		LEGACY_WRITE_U16_LE(vertex, floor_points[index].x);
+		LEGACY_WRITE_U16_LE(vertex + SHAPE3D_VERTEX_Y_OFFSET, floor_points[index].y);
+		LEGACY_WRITE_U16_LE(vertex + SHAPE3D_VERTEX_Z_OFFSET, floor_points[index].z);
+	}
+	/* The visible floor uses vertices beyond the byte-index boundary. */
+	assert(shape3d_hires_car_ground_height(&shape) == WIDE_FLOOR_HEIGHT);
+
+	const struct VECTOR sphere_points[] = {{0, 20, 0},
+										   {2, 20, 0},
+										   {0, WIDE_SPHERE_HEIGHT, 0},
+										   {WIDE_SPHERE_DIAMETER, WIDE_SPHERE_HEIGHT, 0}};
+	for (legacy_u16 index = 0; index < sizeof(sphere_points) / sizeof(sphere_points[0]); index++) {
+		legacy_u8 *vertex = vertices + (WIDE_FIRST_VERTEX + index) * SHAPE3D_VERTEX_SIZE;
+		LEGACY_WRITE_U16_LE(vertex, sphere_points[index].x);
+		LEGACY_WRITE_U16_LE(vertex + SHAPE3D_VERTEX_Y_OFFSET, sphere_points[index].y);
+		LEGACY_WRITE_U16_LE(vertex + SHAPE3D_VERTEX_Z_OFFSET, sphere_points[index].z);
+	}
+	legacy_u8 spheres[WIDE_PRIMITIVE_COUNT * WIDE_SPHERE_BYTES];
+	for (legacy_u16 index = 0; index < WIDE_PRIMITIVE_COUNT; index++) {
+		legacy_u8 *primitive = spheres + index * WIDE_SPHERE_BYTES;
+		primitive[0] = SHAPE3D_PRIMITIVE_SPHERE;
+		primitive[1] = 0;
+		primitive[SHAPE3D_PRIMITIVE_HEADER_SIZE] = 1;
+		legacy_u16 first = WIDE_FIRST_VERTEX + (index + 1U == WIDE_PRIMITIVE_COUNT ? 2U : 0U);
+		LEGACY_WRITE_U16_LE(primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U, first);
+		LEGACY_WRITE_U16_LE(primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + 1U + sizeof(legacy_u16),
+							first + 1U);
+	}
+	shape.shape3d_primitives = spheres;
+	shape.shape3d_numprimitives = WIDE_PRIMITIVE_COUNT;
+	/* The lowest sphere follows more than 255 preceding primitives. */
+	assert(shape3d_hires_car_ground_height(&shape) == WIDE_SPHERE_BOTTOM);
+	shape3d_hires_cache_car_ground_offset(0, &shape);
+	assert(shape3d_hires_car_ground_offset(&shape) == WIDE_SPHERE_BOTTOM - CAR_PHYSICS_TIRE_BOTTOM);
+	shape3d_hires_reset_car_ground_offsets();
+	assert(shape3d_hires_car_ground_offset(&shape) == 0);
+}
+
 legacy_int main(void)
 {
 	check_wheel_clearance();
@@ -391,5 +460,6 @@ legacy_int main(void)
 	check_sphere_geometry();
 	check_cached_clearance();
 	check_model_ground_height();
+	check_wide_model_ground_height();
 	return 0;
 }

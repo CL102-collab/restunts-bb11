@@ -14,6 +14,7 @@
 #include "../shape3d/shape3d_internal.h"
 
 #include "shape3d_hires_internal.h"
+#include "shape3d_mesh.h"
 
 static void hires_shadow_update_volume(struct HIRES_CAR_SHADOW *shadow);
 
@@ -180,7 +181,7 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 	static const legacy_u8 vertex_counts[SHAPE3D_PRIMITIVE_TYPE_COUNT] = {0, 1, 2,	3, 4, 5, 6, 7,
 																		  8, 9, 10, 2, 6, 3, 0, 0};
 	const legacy_u8 *primitive = shape->shape3d_primitives;
-	for (legacy_u16 index = 0; index < shape->shape3d_numprimitives; index++) {
+	for (legacy_u32 index = 0; index < shape->shape3d_numprimitives; index++) {
 		legacy_u8 type = primitive[0];
 		if (type >= SHAPE3D_PRIMITIVE_TYPE_COUNT) {
 			return;
@@ -188,7 +189,7 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 		legacy_u8 count = vertex_counts[type];
 		const legacy_u8 *indices =
 			primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + shape->shape3d_numpaints;
-		primitive = indices + count;
+		primitive = indices + count * hires_shape3d_index_size(shape);
 		if (silhouette->projection.enabled && shape->shape3d_visibility_masks != NULL &&
 			LEGACY_READ_U32_LE(shape->shape3d_visibility_masks +
 							   index * SHAPE3D_VISIBILITY_MASK_SIZE) == 0) {
@@ -197,11 +198,12 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 		struct VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
 		legacy_s32 valid = 1;
 		for (legacy_u8 vertex = 0; vertex < count; vertex++) {
-			if (indices[vertex] >= shape->shape3d_numverts) {
+			legacy_u16 vertex_index = hires_shape3d_vertex_index(shape, indices, vertex);
+			if (vertex_index >= shape->shape3d_numverts) {
 				valid = 0;
 				break;
 			}
-			shape3d_vertex_read(shape, indices[vertex], &vertices[vertex]);
+			shape3d_vertex_read(shape, vertex_index, &vertices[vertex]);
 			if (!rasterize && vertices[vertex].y > silhouette->height) {
 				silhouette->height = vertices[vertex].y;
 			}
@@ -462,6 +464,7 @@ static void hires_shadow_attach_model(const struct SHAPE3D *shape, legacy_s16 gr
 	if (!hires_enabled() || hires_render_scale() == HIRES_MINIMUM_SCALE) {
 		return;
 	}
+	shape = hires_shape3d_car_mesh(shape);
 	struct HIRES_CAR_SHADOW *shadow =
 		&shape3d_hires_state.car_shadows[shape3d_hires_state.car_shadow_count - 1];
 	struct SHADOW_SILHOUETTE *silhouette =

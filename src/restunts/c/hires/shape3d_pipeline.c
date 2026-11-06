@@ -26,12 +26,79 @@
 #endif
 
 #include "shape3d_pipeline.h"
+#include "shape3d_mesh.h"
 #include "../shape3d/shape3d_pipeline_internal.h"
 
 #ifdef RESTUNTS_SDL3
 #define SHAPE3D_HIRES_EVALUATE_AS_DECLARED 0
 #define SHAPE3D_HIRES_EVALUATE_AS_DOUBLE 1
 #define SHAPE3D_HIRES_IDENTITY_MAX_COORDINATE (DBL_MAX / TRIG_FIXED_ONE)
+
+/* Keep native models on the existing inline scratch arrays. Extended model
+ * storage belongs to this call, so geometry workers never share transform state. */
+static struct SHAPE3D_HIRES_VECTOR *
+shape3d_hires_transformed_vertices(struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	return context->hires.extended_vertices != NULL ? context->hires.extended_vertices
+													: context->hires.hires_vertices;
+}
+
+static legacy_u8 *shape3d_hires_vertex_flags(struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	return context->extended_vertex_clip_flags != NULL ? context->extended_vertex_clip_flags
+													   : context->vertex_clip_flags;
+}
+
+static legacy_u32 *shape3d_hires_shadow_surfaces(struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	return context->hires.extended_shadow_surfaces != NULL ? context->hires.extended_shadow_surfaces
+														   : context->hires.shadow_surfaces;
+}
+
+static void shape3d_hires_free_model_scratch(struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	if (context->hires.extended_vertices != NULL) {
+		free(context->hires.extended_vertices);
+	}
+	if (context->extended_vertex_clip_flags != NULL) {
+		free(context->extended_vertex_clip_flags);
+	}
+	if (context->hires.extended_shadow_surfaces != NULL) {
+		free(context->hires.extended_shadow_surfaces);
+	}
+}
+
+static legacy_u8
+shape3d_hires_allocate_model_scratch(const struct SHAPE3D *shape,
+									 struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context)
+{
+	context->hires.extended_vertices = NULL;
+	context->extended_vertex_clip_flags = NULL;
+	context->hires.extended_shadow_surfaces = NULL;
+	if (shape->shape3d_numverts > SHAPE3D_HIRES_VERTEX_CAPACITY) {
+		context->hires.extended_vertices =
+			malloc((size_t)shape->shape3d_numverts * sizeof(*context->hires.extended_vertices));
+		context->extended_vertex_clip_flags = malloc(shape->shape3d_numverts);
+		if (context->hires.extended_vertices == NULL ||
+			context->extended_vertex_clip_flags == NULL) {
+			goto allocation_failed;
+		}
+	}
+	if (shape->shape3d_numprimitives > SHAPE3D_SHADOW_PRIMITIVE_CAPACITY) {
+		context->hires.extended_shadow_surfaces =
+			malloc((size_t)shape->shape3d_numprimitives *
+				   sizeof(*context->hires.extended_shadow_surfaces));
+		if (context->hires.extended_shadow_surfaces == NULL) {
+			goto allocation_failed;
+		}
+	}
+	return 1;
+
+allocation_failed:
+	shape3d_hires_free_model_scratch(context);
+	shape3d_hires_geometry_error("Cannot allocate HyperVision model scratch");
+	return 0;
+}
 
 static void shape3d_hires_rotate(const struct SHAPE3D_HIRES_VECTOR *source,
 								 const struct MATRIX *matrix, struct SHAPE3D_HIRES_VECTOR *result);
@@ -102,7 +169,7 @@ static void shape3d_hires_transform_vertex(const struct SHAPE3D *shape, legacy_u
 	{
 		shape3d_hires_rotate(&source, &context->hires.object_to_world_rotation, &world);
 	}
-	struct SHAPE3D_HIRES_VECTOR *view = &context->hires.hires_vertices[index];
+	struct SHAPE3D_HIRES_VECTOR *view = &shape3d_hires_transformed_vertices(context)[index];
 	if ((context->flags & SHAPE3D_PRETRANSFORMED_FLAG) != 0) {
 		shape3d_hires_rotate(&world, &mat_temp, view);
 		view->x += context->hires.object_translation.x;
@@ -134,17 +201,17 @@ void shape3d_hires_collect_shadow_polygons(const struct TRANSFORMEDSHAPE3D *inst
 								  : SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT;
 	/* The camera bounds test can stop early or use only four flat corners. */
 	for (legacy_u32 vertex = 0; vertex < bounds_count; vertex++) {
-		if (context->vertex_clip_flags[vertex] == SHAPE3D_VERTEX_UNTRANSFORMED) {
+		if (shape3d_hires_vertex_flags(context)[vertex] == SHAPE3D_VERTEX_UNTRANSFORMED) {
 			shape3d_hires_cache_vertex(shape, context, (legacy_u16)vertex);
 		}
 	}
-	if (!shape3d_hires_shadow_overlap(context->hires.hires_vertices, bounds_count)) {
+	if (!shape3d_hires_shadow_overlap(shape3d_hires_transformed_vertices(context), bounds_count)) {
 		return;
 	}
 	/* Shadow blockers retain their geometry even when camera visibility rejects them. */
 	const legacy_u8 *primitive = shape->shape3d_primitives;
-	while (primitive[0] != 0 &&
-		   context->hires.shadow_surface_count < SHAPE3D_SHADOW_PRIMITIVE_CAPACITY) {
+	while (context->hires.shadow_surface_count < shape->shape3d_numprimitives &&
+		   primitive[0] != SHAPE3D_PRIMITIVE_EMPTY && primitive[0] < SHAPE3D_PRIMITIVE_TYPE_COUNT) {
 		legacy_u32 surface = 0;
 		legacy_u32 count = primidxcounttab[primitive[0]];
 		const legacy_u8 *indices = primitive + SHAPE3D_PRIMITIVE_HEADER_SIZE + context->paint_count;
@@ -160,14 +227,15 @@ void shape3d_hires_collect_shadow_polygons(const struct TRANSFORMEDSHAPE3D *inst
 				struct SHAPE3D_HIRES_VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
 				legacy_u32 vertex;
 				for (vertex = 0; vertex < count; vertex++) {
-					legacy_u16 index = indices[vertex];
+					legacy_u16 index = hires_shape3d_vertex_index(shape, indices, vertex);
 					if (index >= context->vertex_count) {
 						break;
 					}
-					if (context->vertex_clip_flags[index] == SHAPE3D_VERTEX_UNTRANSFORMED) {
+					if (shape3d_hires_vertex_flags(context)[index] ==
+						SHAPE3D_VERTEX_UNTRANSFORMED) {
 						shape3d_hires_cache_vertex(shape, context, index);
 					}
-					vertices[vertex] = context->hires.hires_vertices[index];
+					vertices[vertex] = shape3d_hires_transformed_vertices(context)[index];
 				}
 				if (vertex == count) {
 					surface = shape3d_hires_shadow_polygon(vertices, count,
@@ -175,8 +243,8 @@ void shape3d_hires_collect_shadow_polygons(const struct TRANSFORMEDSHAPE3D *inst
 				}
 			}
 		}
-		context->hires.shadow_surfaces[context->hires.shadow_surface_count++] = surface;
-		primitive = indices + count;
+		shape3d_hires_shadow_surfaces(context)[context->hires.shadow_surface_count++] = surface;
+		primitive = indices + count * hires_shape3d_index_size(shape);
 	}
 }
 
@@ -199,12 +267,12 @@ static legacy_s32 hires_backend_bounds_are_clipped(const struct SHAPE3D *shape,
 								  : SHAPE3D_SHADOW_BOUNDS_VERTEX_COUNT;
 	for (legacy_u16 index = 0; index < bounds_count; index++) {
 		shape3d_hires_cache_vertex(shape, context, index);
-		if (context->vertex_clip_flags[index] != 0) {
+		if (shape3d_hires_vertex_flags(context)[index] != 0) {
 			any_behind = 1;
 		} else {
 			any_front = 1;
-			common_clip_flags &=
-				shape3d_hires_clip_prepared(&context->hires.hires_vertices[index], &context->clip);
+			common_clip_flags &= shape3d_hires_clip_prepared(
+				&shape3d_hires_transformed_vertices(context)[index], &context->clip);
 			if (common_clip_flags == 0) {
 				return 0;
 			}
@@ -224,20 +292,20 @@ static legacy_s32 hires_backend_primitive_vertices(const struct SHAPE3D *shape,
 	legacy_s32 any_front = 0;
 	legacy_s32 any_behind = 0;
 	for (legacy_u16 vertex = 0; vertex < count; vertex++) {
-		legacy_u16 index = indices[vertex];
+		legacy_u16 index = hires_shape3d_vertex_index(shape, indices, vertex);
 		if (index >= shape->shape3d_numverts) {
 			return 0;
 		}
-		if (context->vertex_clip_flags[index] == SHAPE3D_VERTEX_UNTRANSFORMED) {
+		if (shape3d_hires_vertex_flags(context)[index] == SHAPE3D_VERTEX_UNTRANSFORMED) {
 			shape3d_hires_cache_vertex(shape, context, index);
 		}
-		if (context->vertex_clip_flags[index] != 0) {
+		if (shape3d_hires_vertex_flags(context)[index] != 0) {
 			any_behind = 1;
 		} else {
 			any_front = 1;
 			if (common_clip_flags != 0) {
 				common_clip_flags &= shape3d_hires_clip_prepared(
-					&context->hires.hires_vertices[index], &context->clip);
+					&shape3d_hires_transformed_vertices(context)[index], &context->clip);
 			}
 		}
 	}
@@ -265,7 +333,7 @@ static void shape3d_hires_prepare_transform(struct TRANSFORMEDSHAPE3D *instance,
 							 ? shape3d_hires_geometry_rectangle(instance->rectptr)
 							 : NULL;
 	for (legacy_u16 index = 0; index < context->vertex_count; index++) {
-		context->vertex_clip_flags[index] = SHAPE3D_VERTEX_UNTRANSFORMED;
+		shape3d_hires_vertex_flags(context)[index] = SHAPE3D_VERTEX_UNTRANSFORMED;
 	}
 	context->visibility_mask = -1;
 	context->front_facing_mask = 0;
@@ -318,19 +386,30 @@ static void shape3d_hires_prepare_visibility(const struct TRANSFORMEDSHAPE3D *in
 legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
 											 const struct SHAPE3D_HIRES_VECTOR *vertices)
 {
+	struct TRANSFORMEDSHAPE3D enhanced_instance;
+	if (vertices == NULL) {
+		struct SHAPE3D *enhanced = hires_shape3d_car_mesh(instance->shapeptr);
+		if (enhanced != instance->shapeptr) {
+			enhanced_instance = *instance;
+			enhanced_instance.shapeptr = enhanced;
+			instance = &enhanced_instance;
+		}
+	}
 	const struct SHAPE3D *shape = instance->shapeptr;
 	struct SHAPE3D_HIRES_PIPELINE_CONTEXT context;
 	context.vertex_count = shape->shape3d_numverts;
-	if (context.vertex_count > SHAPE3D_VERTEX_CAPACITY) {
+	if (!shape3d_hires_allocate_model_scratch(shape, &context)) {
 		return 1;
 	}
+	legacy_u16 result;
 	shape3d_hires_prepare_transform(instance, &context);
 	shape3d_hires_prepare_clip(&context.clip);
 	context.hires.source_vertices = vertices;
 	legacy_s32 bounds_clipped = hires_backend_bounds_are_clipped(shape, &context);
 	shape3d_hires_collect_shadow_polygons(instance, &context);
 	if (bounds_clipped != 0) {
-		return (legacy_u16)-1;
+		result = (legacy_u16)-1;
+		goto complete;
 	}
 	shape3d_hires_prepare_visibility(instance, &context);
 	legacy_s32 depth_mode = (context.flags & SHAPE3D_BACKGROUND_FLAG) != 0
@@ -342,7 +421,7 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 	const legacy_u8 *primitive = shape->shape3d_primitives;
 	legacy_u32 initial_count = hires_backend_scene_count;
 	legacy_s32 parent_visible = 1;
-	for (legacy_u16 primitive_index = 0; primitive_index < shape->shape3d_numprimitives;
+	for (legacy_u32 primitive_index = 0; primitive_index < shape->shape3d_numprimitives;
 		 primitive_index++) {
 		legacy_u8 resource_type = primitive[0];
 		if (resource_type == SHAPE3D_PRIMITIVE_EMPTY ||
@@ -361,8 +440,22 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 			 (legacy_u32)context.visibility_mask) != 0 &&
 			hires_backend_primitive_vertices(shape, &context, indices, count, type);
 		if (visible != 0) {
-			shape3d_hires_queue(hires_backend_scene_count, type, count, indices,
-								context.hires.hires_vertices, flags);
+			if (hires_shape3d_index_size(shape) == sizeof(legacy_u8)) {
+				shape3d_hires_queue(hires_backend_scene_count, type, count, indices,
+									shape3d_hires_transformed_vertices(&context), flags);
+			} else {
+				/* The rasterizer consumes one primitive at a time. Gather its
+				 * wide global indices into the unchanged local byte-index API. */
+				struct SHAPE3D_HIRES_VECTOR points[SHAPE3D_POLYGON_MAX_VERTICES];
+				legacy_u8 local_indices[SHAPE3D_POLYGON_MAX_VERTICES];
+				for (legacy_u16 vertex = 0; vertex < count; vertex++) {
+					legacy_u16 index = hires_shape3d_vertex_index(shape, indices, vertex);
+					points[vertex] = shape3d_hires_transformed_vertices(&context)[index];
+					local_indices[vertex] = (legacy_u8)vertex;
+				}
+				shape3d_hires_queue(hires_backend_scene_count, type, count, local_indices, points,
+									flags);
+			}
 			if (type == RENDER_PRIMITIVE_POLYGON) {
 				legacy_s32 cull_backface =
 					(flags & SHAPE3D_PRIMITIVE_ALWAYS_VISIBLE_FLAG) == 0 &&
@@ -380,8 +473,9 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 		}
 		if (visible != 0) {
 			if (primitive_index < context.hires.shadow_surface_count) {
-				shape3d_hires_set_shadow_surface(hires_backend_scene_count,
-												 context.hires.shadow_surfaces[primitive_index]);
+				shape3d_hires_set_shadow_surface(
+					hires_backend_scene_count,
+					shape3d_hires_shadow_surfaces(&context)[primitive_index]);
 			}
 			if (context.rectangle != NULL) {
 				shape3d_hires_update_bounds(hires_backend_scene_count, type, context.rectangle);
@@ -398,7 +492,8 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 				type |= RENDER_PRIMITIVE_GHOST_FLAG;
 			}
 			if (!hires_backend_scene_reserve()) {
-				return 1;
+				result = 1;
+				goto complete;
 			}
 			hires_backend_scene[hires_backend_scene_count++] =
 				(struct HIRES_BACKEND_SCENE_PRIMITIVE){material, type};
@@ -406,9 +501,13 @@ legacy_u16 hires_backend_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance
 		if (!attached) {
 			parent_visible = visible;
 		}
-		primitive = indices + count;
+		primitive = indices + count * hires_shape3d_index_size(shape);
 	}
-	return hires_backend_scene_count != initial_count ? 0 : (legacy_u16)-1;
+	result = hires_backend_scene_count != initial_count ? 0 : (legacy_u16)-1;
+
+complete:
+	shape3d_hires_free_model_scratch(&context);
+	return result;
 }
 
 legacy_u16 shape3d_hires_transform_and_queue(struct TRANSFORMEDSHAPE3D *instance,
@@ -464,8 +563,8 @@ void shape3d_hires_cache_vertex(const struct SHAPE3D *shape,
 								struct SHAPE3D_HIRES_PIPELINE_CONTEXT *context, legacy_u16 index)
 {
 	shape3d_hires_transform_vertex(shape, index, context);
-	context->vertex_clip_flags[index] =
-		context->hires.hires_vertices[index].z < SHAPE3D_NEAR_CLIP_Z;
+	shape3d_hires_vertex_flags(context)[index] =
+		shape3d_hires_transformed_vertices(context)[index].z < SHAPE3D_NEAR_CLIP_Z;
 }
 legacy_s16 shape3d_hires_try_transform(struct TRANSFORMEDSHAPE3D *instance,
 									   legacy_u16 *hires_result)

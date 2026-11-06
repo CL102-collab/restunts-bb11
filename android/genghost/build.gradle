@@ -27,7 +27,7 @@ def carAssets = layout.buildDirectory.dir('generated/car-assets')
 def prepareCars = tasks.register('prepareGenghostCarAssets', Sync) {
     from('../../assets/cars') {
         caseSensitive = false
-        include '*.res', '*.3sh', '*.vsh'
+        include '*.res', '*.3sh', '*.h3d', '*.vsh'
         into 'cars'
     }
     into carAssets

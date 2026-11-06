@@ -345,6 +345,12 @@ meshes. Vine fields, terrain meshes and road cutouts keep their full geometry,
 and vehicles keep their existing detail policy. Multi-core rendering also
 prepares the preview's geometry in parallel.
 
+HyperVision can use optional car meshes with up to 65,535 vertices and
+primitives per mesh. Their `.H3D` companions provide enhanced geometry while
+the original model remains available to the classic renderer. See
+[HyperVision car meshes](docs/hypervision-meshes.md) for the format and fallback
+behavior. The McMurtry companion adds the missing underside panels.
+
 In SDL3 builds, HyperVision corrects each car model's visible ride height so
 its underside meets the driving surface, including cars with spherical wheels.
 This presentation offset follows the car's rotation and preserves suspension

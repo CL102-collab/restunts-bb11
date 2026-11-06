@@ -272,7 +272,7 @@ set(game_sources
     shape2d/shape2d_window.c video/video_pages.c hires/hires.c hires/hires_raster.c hires/hypervision.c
     hires/render_workers.c hires/frame_interpolation.c hires/shape3d_hires.c
     hires/shape3d_geometry.c
-    hires/shape3d_car_ground.c hires/shape3d_hires_draw.c
+    hires/shape3d_car_ground.c hires/shape3d_hires_draw.c hires/shape3d_mesh.c
     hires/shape3d_hires_shadow_model.c hires/shape3d_hires_shadow.c
     shape2d/shape2d_resources.c heapsort.c frame/frame.c frame/frame_camera.c frame/frame_car.c
     frame/frame_tiles.c frame/frame_terrain.c frame/frame_objects.c hires/frame_adaptive.c
@@ -381,7 +381,7 @@ add_library(restunts_game STATIC ${common_sources} ${game_sources} ${platform_co
 target_include_directories(restunts_game PRIVATE "${CMAKE_SOURCE_DIR}/third_party/stb")
 set(menu_backgrounds main showroom opponent)
 set(music_tracks titl slct over vict)
-set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STTERR.3SH
+set(restunts_car_files CARMCMU.RES CARTERR.RES STMCMU.3SH STMCMU.H3D STTERR.3SH
     STDAMCMU.VSH STDATERR.VSH STDBMCMU.VSH STDBTERR.VSH)
 target_compile_definitions(restunts_game PRIVATE RESTUNTS_FULL
     RESTUNTS_EDITOR_DIRECTORY="${CMAKE_CURRENT_BINARY_DIR}"
@@ -1055,6 +1055,15 @@ if(RESTUNTS_BUILD_TESTS)
     target_link_libraries(test-shape3d-hires PRIVATE restunts_game)
     target_compile_options(test-shape3d-hires PRIVATE -UNDEBUG)
     add_test(NAME shape3d-hires COMMAND test-shape3d-hires)
+    add_executable(test-hires-mesh src/restunts/tests/test-hires-mesh.c)
+    target_link_libraries(test-hires-mesh PRIVATE restunts_game)
+    target_compile_definitions(test-hires-mesh PRIVATE
+        TEST_HIRES_MESH_ASSET_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+    target_compile_options(test-hires-mesh PRIVATE -UNDEBUG)
+    add_test(NAME hires-mesh COMMAND test-hires-mesh)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/hires-mesh-test")
+    set_tests_properties(hires-mesh PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/hires-mesh-test")
     add_executable(test-skybox-hires src/restunts/tests/test-skybox-hires.c
         ${core}/hires/skybox_hires.c ${core}/hires/hires.c ${core}/hires/hires_raster.c
         ${core}/hires/render_workers.c
@@ -1125,7 +1134,7 @@ if(RESTUNTS_BUILD_TESTS AND TARGET nuked_opl2)
     install(TARGETS nuked_opl2
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL
         LIBRARY DESTINATION lib COMPONENT Tests EXCLUDE_FROM_ALL)
-    install(TARGETS test-shape3d-hires test-skybox-hires test-track-preview-skybox test-render-workers
+    install(TARGETS test-shape3d-hires test-hires-mesh test-skybox-hires test-track-preview-skybox test-render-workers
         RUNTIME DESTINATION bin COMPONENT Tests EXCLUDE_FROM_ALL)
     foreach(test platform audio audio-trace audio-definition audio-sequence input fileio hires timer)
         if(TARGET test-sdl3-${test})
