@@ -962,7 +962,16 @@
         function addResult(text, error = false) {
             const item = document.createElement('div');
             item.className = 'check-item' + (error ? ' error' : '');
-            item.textContent = text;
+            const icon = document.createElement('span');
+            icon.className = 'check-result-icon';
+            icon.dataset.result = error ? 'error' : 'success';
+            icon.setAttribute('role', 'img');
+            icon.setAttribute('aria-label', error ? 'Track check failed' : 'Track check passed');
+            icon.append(makeIcon(error ? 'close' : 'tick'));
+            const message = document.createElement('span');
+            message.className = 'check-message';
+            message.textContent = text;
+            item.append(icon, message);
             container.append(item);
         }
         if (issues.length) {
@@ -981,10 +990,7 @@
                 addResult(error?.message || 'The race route could not be checked.', true);
             }
         }
-        const icon = $('check-result-icon');
-        icon.dataset.result = succeeded ? 'success' : 'error';
-        icon.setAttribute('aria-label', succeeded ? 'Track check passed' : 'Track check failed');
-        icon.querySelector('use').setAttribute('href', succeeded ? '#i-tick' : '#i-close');
+        $('check-title').textContent = succeeded ? 'Track passed validation' : 'Track failed validation';
         showDialog('check-dialog');
     }
 
