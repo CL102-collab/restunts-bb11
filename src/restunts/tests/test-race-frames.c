@@ -48,6 +48,7 @@ static struct {
 	legacy_u8 target;
 	legacy_u8 mph_only;
 	legacy_u16 mph_draws;
+	legacy_u16 mph_restores;
 	legacy_u16 static_draws;
 	legacy_u16 updates;
 	legacy_u16 diagnostic_draws;
@@ -305,6 +306,18 @@ void frame_fps_present_roof(void)
 {
 }
 
+void frame_mph_restore_text(void)
+{
+	if (replay_render.active != 0) {
+		/* Every page is cleaned before scene, dashboard, or text composition,
+		 * including the frame after the display is switched off. */
+		assert(replay_render.updates == frames);
+		assert(replay_render.diagnostic_draws == frames);
+		assert(replay_render.mph_restores == frames);
+		replay_render.mph_restores++;
+	}
+}
+
 legacy_s16 frame_display_overlay_active(void)
 {
 	return replay_render.active != 0 && replay_render.mph_only == 0;
@@ -331,6 +344,7 @@ struct RECTANGLE *frame_mph_draw_text(legacy_s16 screen_bottom)
 	if (replay_render.active != 0) {
 		assert(replay_render.updates == frames);
 		assert(replay_render.diagnostic_draws == frames);
+		assert(replay_render.mph_restores == frames);
 		assert(replay_render.mouse_hidden != 0);
 		if (mph_display_enabled != FRAME_MPH_DISPLAY_OFF) {
 			replay_render.mph_draws++;
@@ -538,6 +552,7 @@ void setup_car_shapes(legacy_s16 operation)
 	if (replay_render.active != 0) {
 		if (operation == DASHBOARD_OPERATION_REDRAW_STATIC) {
 			assert(replay_render.updates == frames && replay_render.diagnostic_draws == frames);
+			assert(replay_render.mph_restores == frames + 1U);
 			replay_render.static_draws++;
 		} else {
 			assert(operation == DASHBOARD_OPERATION_UPDATE);
@@ -610,6 +625,7 @@ void update_frame(legacy_s8 buffer, struct RECTANGLE *rect)
 		assert(rect == &rect_windshield);
 		assert(rect->bottom == (renderer_active != 0 && replaybar_enabled != 0 ? 151 : 165));
 		assert(replay_render.updates == frames && replay_render.diagnostic_draws == frames);
+		assert(replay_render.mph_restores == frames + 1U);
 		assert(replay_render.target == (video_uses_page_flipping != 0 ? REPLAY_TEST_PAGE_TARGET
 																	  : REPLAY_TEST_RENDER_TARGET));
 		frames++;
@@ -867,6 +883,14 @@ static void test_replay_dashboard_rendering(void)
 		assert(replay_render.clip.top == 0 && replay_render.clip.bottom == 200);
 		assert(frame_buffer_index == (video_uses_page_flipping != 0 ? 1 : 0));
 		assert(full_redraw_frames_remaining == 0 && presented_frames == 1);
+		assert(replay_render.mph_restores == 1);
+		/* Hiding the text still restores the old field before cached drawing. */
+		mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
+		replay_render.mph_only = 0;
+		race_select_render_target();
+		race_draw_frame();
+		assert(replay_render.mph_restores == 2 && replay_render.updates == 2);
+		assert(replay_render.mph_draws == ((mode >> TEST_DASHBOARD_MPH_MODE_SHIFT) & 1U));
 	}
 	replay_render.active = 0;
 	mph_display_enabled = FRAME_MPH_DISPLAY_OFF;

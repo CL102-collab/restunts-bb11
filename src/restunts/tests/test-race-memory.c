@@ -19,6 +19,10 @@ static legacy_u32 race_memory_free_bytes;
 #define RACE_MEMORY_VGA_CRTC_INDEX_PORT 0x3D4U
 #define RACE_MEMORY_VGA_CRTC_DATA_PORT 0x3D5U
 #define RACE_MEMORY_VGA_SEGMENT 0xA000U
+#define RACE_MEMORY_MPH_SMALL_STEP 2
+#define RACE_MEMORY_MPH_HIDE_STEP 4
+#define RACE_MEMORY_MPH_LARGE_SPEED 100U
+#define RACE_MEMORY_MPH_SMALL_SPEED 9U
 
 static legacy_u8 race_memory_read_crtc(legacy_u8 index)
 {
@@ -91,6 +95,7 @@ static legacy_s16 race_memory_draw(void)
 				((valid_pages & (1U << page)) != 0 && race_memory_check_marker(markers[page]))) {
 				return 1;
 			}
+			frame_mph_restore_text();
 			if (full_redraw_frames_remaining != 0) {
 				sprite_clear_target(0);
 				setup_car_shapes(DASHBOARD_OPERATION_REDRAW_STATIC);
@@ -110,6 +115,15 @@ static legacy_s16 race_memory_draw(void)
 			sprite_set_target_clip_bounds(0, GAME_SCREEN_WIDTH, 0, GAME_SCREEN_HEIGHT);
 			mouse_draw_opaque_check();
 			frame_fps_draw_text();
+			/* Exercise per-page MPH backing with shrinking speed and later hiding,
+			 * preserving the real dashboard and allocation lifetime. */
+			mph_display_enabled =
+				step < RACE_MEMORY_MPH_HIDE_STEP ? FRAME_MPH_DISPLAY_ON : FRAME_MPH_DISPLAY_OFF;
+			state.playerstate.car_actual_speed =
+				(legacy_u16)(step < RACE_MEMORY_MPH_SMALL_STEP ? RACE_MEMORY_MPH_LARGE_SPEED
+															   : RACE_MEMORY_MPH_SMALL_SPEED)
+				<< LEGACY_BYTE_BITS;
+			frame_mph_draw_text(GAME_SCREEN_HEIGHT);
 			mouse_draw_transparent_check();
 			/* Four adjacent pixels cover every VGA plane at the end of the page. */
 			for (legacy_u16 pixel = 0; pixel < RACE_MEMORY_MARKER_WIDTH; pixel++) {
@@ -133,6 +147,7 @@ static legacy_s16 race_memory_draw(void)
 			}
 		}
 	}
+	mph_display_enabled = FRAME_MPH_DISPLAY_OFF;
 	return 0;
 }
 

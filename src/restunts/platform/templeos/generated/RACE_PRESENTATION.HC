@@ -100,6 +100,7 @@ legacy_void RsRaceDrawFrame()
   legacy_s8 *temple_tmp_2148;
   legacy_s8 noreg temple_tmp_2149;
   legacy_s8 *temple_tmp_2150;
+  RsFrameMphRestoreText();
   if((full_redraw_frames_remaining!=0)) {
     (replay_controls_drawn[dashboard_buffer_index]=TempleCastS8(0));
     if((dashboard_visible!=0)) {
