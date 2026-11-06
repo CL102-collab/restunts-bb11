@@ -954,6 +954,7 @@
     }
     function checkTrack() {
         const issues = state.doc.validate(), container = $('check-results');
+        let succeeded = false;
         container.replaceChildren();
         const intro = document.createElement('p');
         intro.textContent = 'Checks terrain, piece placement, surfaces, and the connected race route, including jump rules.';
@@ -973,12 +974,17 @@
                 }
                 const route = window.TrackEditorValidation.validateRoute(state.doc);
                 if (route.status === 0) {
+                    succeeded = true;
                     addResult('Track data and race route are valid. ' + route.pieces + ' route pieces across ' + state.doc.width + ' × ' + state.doc.height + ' tiles.');
                 } else addResult(route.message, true);
             } catch (error) {
                 addResult(error?.message || 'The race route could not be checked.', true);
             }
         }
+        const icon = $('check-result-icon');
+        icon.dataset.result = succeeded ? 'success' : 'error';
+        icon.setAttribute('aria-label', succeeded ? 'Track check passed' : 'Track check failed');
+        icon.querySelector('use').setAttribute('href', succeeded ? '#i-tick' : '#i-close');
         showDialog('check-dialog');
     }
 
