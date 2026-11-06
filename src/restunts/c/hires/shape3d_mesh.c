@@ -5,6 +5,7 @@
 #include <string.h>
 #include "../fileio.h"
 #include "../platform.h"
+#include "shape3d_hires.h"
 
 #define HIRES_MESH_MATERIAL_COUNT 129U
 #define HIRES_MESH_ALLOWED_FLAGS 3U
@@ -20,6 +21,7 @@
 #define HIRES_MESH_FILENAME_SIZE 11U
 #define HIRES_MESH_OFFSET_FIELD 4U
 #define HIRES_MESH_LENGTH_FIELD 8U
+#define HIRES_MESH_FRACTION_BITS_FIELD (3U * sizeof(legacy_u16))
 
 static const legacy_u8 hires_mesh_vertex_counts[SHAPE3D_PRIMITIVE_WHEEL + 1U] = {
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6};
@@ -30,6 +32,7 @@ struct HIRES_CAR_MESHES {
 	legacy_u8 *data;
 	const struct SHAPE3D *classics[HIRES_MESH_CAR_SHAPE_COUNT];
 	struct SHAPE3D meshes[HIRES_MESH_CAR_SHAPE_COUNT];
+	struct SHAPE3D_HIRES_VECTOR *vertices[HIRES_MESH_CAR_SHAPE_COUNT];
 };
 static struct HIRES_CAR_MESHES hires_car_meshes[HIRES_MESH_CAR_COUNT];
 
@@ -46,9 +49,10 @@ legacy_u8 hires_shape3d_mesh_decode(const legacy_u8 *data, size_t size, struct S
 	decoded.shape3d_numverts = LEGACY_READ_U16_LE(data);
 	decoded.shape3d_numprimitives = LEGACY_READ_U16_LE(data + sizeof(legacy_u16));
 	decoded.shape3d_numpaints = LEGACY_READ_U16_LE(data + 2U * sizeof(legacy_u16));
+	legacy_u16 fraction_bits = LEGACY_READ_U16_LE(data + HIRES_MESH_FRACTION_BITS_FIELD);
 	if (decoded.shape3d_numverts == 0 || decoded.shape3d_numprimitives == 0 ||
 		decoded.shape3d_numpaints == 0 || decoded.shape3d_numpaints > LEGACY_U8_MAX ||
-		LEGACY_READ_U16_LE(data + 3U * sizeof(legacy_u16)) != 0) {
+		fraction_bits > HIRES_MESH_MAX_FRACTION_BITS) {
 		return 0;
 	}
 	size_t vertex_bytes = (size_t)decoded.shape3d_numverts * SHAPE3D_VERTEX_SIZE;
@@ -94,6 +98,51 @@ legacy_u8 hires_shape3d_mesh_decode(const legacy_u8 *data, size_t size, struct S
 		return 0;
 	}
 	*shape = decoded;
+	return 1;
+}
+
+static void hires_shape3d_clear_car_meshes(struct HIRES_CAR_MESHES *car)
+{
+	for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
+		free(car->vertices[index]);
+	}
+	free(car->data);
+	memset(car, 0, sizeof(*car));
+}
+
+static void hires_shape3d_copy_native_vertices(const struct SHAPE3D *shape,
+											   struct SHAPE3D_HIRES_VECTOR *vertices)
+{
+	for (legacy_u16 index = 0; index < HIRES_MESH_NATIVE_VERTEX_COUNT; index++) {
+		struct VECTOR point;
+		shape3d_vertex_read(shape, index, &point);
+		vertices[index] = (struct SHAPE3D_HIRES_VECTOR){point.x, point.y, point.z};
+	}
+}
+
+static legacy_u8 hires_shape3d_decode_fractional_vertices(struct HIRES_CAR_MESHES *car,
+														  legacy_u16 index,
+														  legacy_u16 fraction_bits)
+{
+	if (fraction_bits == 0) {
+		return 1;
+	}
+	struct SHAPE3D *shape = &car->meshes[index];
+	struct SHAPE3D_HIRES_VECTOR *vertices =
+		malloc((size_t)shape->shape3d_numverts * sizeof(*vertices));
+	if (vertices == NULL) {
+		return 0;
+	}
+	legacy_f64 divisor = (legacy_u32)1U << fraction_bits;
+	hires_shape3d_copy_native_vertices(shape, vertices);
+	for (legacy_u16 vertex = HIRES_MESH_NATIVE_VERTEX_COUNT; vertex < shape->shape3d_numverts;
+		 vertex++) {
+		struct VECTOR point;
+		shape3d_vertex_read(shape, vertex, &point);
+		vertices[vertex] =
+			(struct SHAPE3D_HIRES_VECTOR){point.x / divisor, point.y / divisor, point.z / divisor};
+	}
+	car->vertices[index] = vertices;
 	return 1;
 }
 
@@ -180,8 +229,8 @@ hires_shape3d_decode_car_meshes(struct HIRES_CAR_MESHES *car, size_t size,
 								const struct SHAPE3D *const classics[HIRES_MESH_CAR_SHAPE_COUNT])
 {
 	const legacy_u8 *data = car->data;
-	if (memcmp(data, "H3D", sizeof("H3D")) != 0 ||
-		LEGACY_READ_U16_LE(data + sizeof("H3D")) != HIRES_MESH_VERSION) {
+	legacy_u16 version = LEGACY_READ_U16_LE(data + sizeof("H3D"));
+	if (memcmp(data, "H3D", sizeof("H3D")) != 0 || version != HIRES_MESH_VERSION) {
 		return 0;
 	}
 	legacy_u16 count = LEGACY_READ_U16_LE(data + sizeof("H3D") + sizeof(legacy_u16));
@@ -226,6 +275,11 @@ hires_shape3d_decode_car_meshes(struct HIRES_CAR_MESHES *car, size_t size,
 		memcpy(shape->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   classic->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   HIRES_MESH_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
+		legacy_u16 fraction_bits =
+			LEGACY_READ_U16_LE(data + offset + HIRES_MESH_FRACTION_BITS_FIELD);
+		if (!hires_shape3d_decode_fractional_vertices(car, index, fraction_bits)) {
+			return 0;
+		}
 		car->classics[index] = classic;
 		offsets[entry] = offset;
 		lengths[entry] = length;
@@ -240,23 +294,21 @@ void hires_shape3d_load_car_meshes(legacy_u16 car, const legacy_s8 *id,
 		return;
 	}
 	struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
-	free(meshes->data);
-	memset(meshes, 0, sizeof(*meshes));
+	hires_shape3d_clear_car_meshes(meshes);
 	if (id == NULL || classics == NULL) {
 		return;
 	}
 	size_t size = 0;
 	meshes->data = hires_shape3d_read_car_meshes(id, &size);
 	if (meshes->data != NULL && !hires_shape3d_decode_car_meshes(meshes, size, classics)) {
-		free(meshes->data);
-		memset(meshes, 0, sizeof(*meshes));
+		hires_shape3d_clear_car_meshes(meshes);
 	}
 }
 
 void hires_shape3d_free_car_meshes(void)
 {
 	for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
-		free(hires_car_meshes[car].data);
+		hires_shape3d_clear_car_meshes(&hires_car_meshes[car]);
 	}
 	memset(hires_car_meshes, 0, sizeof(hires_car_meshes));
 }
@@ -275,6 +327,22 @@ struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic)
 	return (struct SHAPE3D *)classic;
 }
 
+const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE3D *shape)
+{
+	if (shape != NULL) {
+		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
+				const struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
+				if (meshes->classics[index] != NULL &&
+					(shape == meshes->classics[index] || shape == &meshes->meshes[index])) {
+					return meshes->vertices[index];
+				}
+			}
+		}
+	}
+	return NULL;
+}
+
 void hires_shape3d_update_car_mesh(const struct SHAPE3D *classic)
 {
 	struct SHAPE3D *mesh = hires_shape3d_car_mesh(classic);
@@ -282,6 +350,15 @@ void hires_shape3d_update_car_mesh(const struct SHAPE3D *classic)
 		memcpy(mesh->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   classic->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   HIRES_MESH_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
+		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
+				if (&hires_car_meshes[car].meshes[index] == mesh &&
+					hires_car_meshes[car].vertices[index] != NULL) {
+					hires_shape3d_copy_native_vertices(mesh, hires_car_meshes[car].vertices[index]);
+					return;
+				}
+			}
+		}
 	}
 }
 #endif

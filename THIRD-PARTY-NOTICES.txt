@@ -112,15 +112,26 @@ License: Creative Commons Attribution 4.0 International (CC BY 4.0)
 http://creativecommons.org/licenses/by/4.0/
 
 The user-supplied GLB identifies the author, title, source and license above
-in its embedded asset.extras metadata. MCMU's exterior geometry adapts that
+in its embedded asset.extras metadata. MCMU's classic exterior adapts that
 reference into completely rebuilt low-polygon topology for the showroom and
-both racing detail levels, following the supplied mesh as the exterior
-reference. Changes include uniform length scaling, integer-quantized native
-animated wheels, rounded and enlarged wheel areas for visible tyre clearance,
-simplified lamps and rear details, native materials and seven paint schemes.
+both racing detail levels. Changes include uniform length scaling,
+integer-quantized native animated wheels, rounded and enlarged wheel areas
+for visible tyre clearance, simplified lamps and rear details, native materials
+and seven paint schemes. The editable classic geometry is exported as MCMU.obj
+and MCMU.mtl; its runtime geometry is in STMCMU.3SH.
+
+The optional STMCMU.H3D companion adapts the source exterior triangles directly.
+Changes include node transforms, uniform scaling and coordinate alignment,
+quadric error mesh simplification, spatial vertex clustering and fixed-point
+coordinate quantization for HyperVision, local fender-opening expansion for
+native tyre steering, palette material mapping, seven paints, and replacement
+of source wheel assemblies with the existing native animated wheels. Hidden cockpit geometry
+and alpha decals are omitted. A compact transformed mesh with precomputed
+detail levels is retained in
+tools/scripts/cars/mcmurtry_hypervision_source.json.gz for reproducible generation
+with tools/scripts/mcmurtry_hypervision.py.
+
 The internal filename suggests an earlier prototype despite its 2026 title.
-The original high-polygon GLB and its textures are not included. The editable
-adapted geometry is exported as
-MCMU.obj and MCMU.mtl; runtime geometry is in STMCMU.3SH. Attribution and source
-hashes are also recorded in MCMU.json and READMCMU.TXT. These changes do not
-imply endorsement by the source author.
+The original high-polygon GLB and its textures are not included. Attribution
+and source hashes are also recorded in MCMU.json and READMCMU.TXT. These
+changes do not imply endorsement by the source author.

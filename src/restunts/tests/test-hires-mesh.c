@@ -4,18 +4,27 @@
 #include <string.h>
 #include <SDL3/SDL.h>
 
+#include "../c/externs.h"
+#include "../c/math/projection.h"
 #include "../c/fileio.h"
+#include "../c/platform.h"
 #include "../c/memmgr.h"
 #include "../c/scene_resources.h"
 #include "../c/car/car_model.h"
 #include "../c/hires/hires.h"
 
 #include "../c/hires/shape3d_mesh.h"
+#include "../c/hires/shape3d_hires.h"
+#include "../c/shape3d/shape3d_pipeline_internal.h"
+#include "../c/shape2d/shape2d.h"
+#include "../c/video/video_framebuffer.h"
+
+#undef memcpy
 
 #define TEST_MESH_HEADER_SIZE 8U
 #define TEST_MESH_PRIMITIVE_COUNT_OFFSET 2U
 #define TEST_MESH_PAINT_COUNT_OFFSET 4U
-#define TEST_MESH_RESERVED_OFFSET 6U
+#define TEST_MESH_FRACTION_BITS_OFFSET 6U
 #define TEST_MESH_STORAGE_PREFIX 1U
 #define TEST_MESH_WIDE_VERTEX_COUNT 260U
 #define TEST_MESH_PAINT_COUNT 2U
@@ -24,6 +33,10 @@
 #define TEST_MESH_NEGATIVE_LIMIT LEGACY_S16_FROM_BITS(LEGACY_U16_SIGN_BIT)
 #define TEST_MESH_VISIBILITY_MASK 0x12345678UL
 #define TEST_MESH_FRONT_FACING_MASK 0x89abcdefUL
+#define TEST_MESH_FRACTION_BITS 4U
+#define TEST_MESH_FRACTION_DIVISOR (1U << TEST_MESH_FRACTION_BITS)
+#define TEST_MESH_OBSOLETE_VERSION 1U
+#define TEST_MESH_INVALID_VERSION 3U
 #define TEST_MESH_ADDRESS_BOUNDARY_VERTEX (LEGACY_U16_MAX / SHAPE3D_VERTEX_SIZE + 1U)
 
 struct TEST_MESH {
@@ -115,6 +128,23 @@ static void check_valid_meshes(void)
 	}
 }
 
+static void check_fractional_mesh_headers(void)
+{
+	struct TEST_MESH mesh = make_mesh(TEST_MESH_WIDE_VERTEX_COUNT, TEST_MESH_PAINT_COUNT,
+									  SHAPE3D_PRIMITIVE_POLYGON_FIRST);
+	struct SHAPE3D shape;
+	for (legacy_u16 bits = 0; bits <= HIRES_MESH_MAX_FRACTION_BITS; bits++) {
+		LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_FRACTION_BITS_OFFSET, bits);
+		assert(hires_shape3d_mesh_decode(mesh.data, mesh.size, &shape));
+		assert(shape.shape3d_numverts == TEST_MESH_WIDE_VERTEX_COUNT);
+		assert(hires_shape3d_car_vertices(&shape) == NULL);
+	}
+	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_FRACTION_BITS_OFFSET,
+						HIRES_MESH_MAX_FRACTION_BITS + 1U);
+	expect_rejected(mesh.data, mesh.size);
+	free(mesh.storage);
+}
+
 static void check_primitive_counts_past_byte_range(void)
 {
 	const legacy_u16 counts[] = {LEGACY_U8_MAX + 1U, LEGACY_U16_MAX};
@@ -186,9 +216,10 @@ static void check_malformed_meshes(void)
 	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_PAINT_COUNT_OFFSET, LEGACY_U8_MAX + 1U);
 	expect_rejected(mesh.data, mesh.size);
 	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_PAINT_COUNT_OFFSET, TEST_MESH_PAINT_COUNT);
-	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_RESERVED_OFFSET, 1);
+	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_FRACTION_BITS_OFFSET,
+						HIRES_MESH_MAX_FRACTION_BITS + 1U);
 	expect_rejected(mesh.data, mesh.size);
-	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_RESERVED_OFFSET, 0);
+	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_FRACTION_BITS_OFFSET, 0);
 	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_PRIMITIVE_COUNT_OFFSET, LEGACY_U16_MAX);
 	expect_rejected(mesh.data, mesh.size);
 	LEGACY_WRITE_U16_LE(mesh.data + TEST_MESH_PRIMITIVE_COUNT_OFFSET, 1);
@@ -269,7 +300,7 @@ static legacy_u8 *make_container(const struct TEST_CLASSIC_CARS *cars, size_t *s
 	legacy_u8 *data = calloc(1, *size);
 	assert(data != NULL);
 	memcpy(data, "H3D", sizeof("H3D"));
-	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, 1);
+	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, HIRES_MESH_VERSION);
 	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_COUNT_OFFSET, TEST_CAR_MESH_COUNT);
 	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
 		legacy_u8 *entry = data + TEST_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
@@ -412,19 +443,22 @@ static void check_car_mesh_lifetime(void)
 	const size_t bad_fields[] = {
 		0,
 		TEST_CONTAINER_VERSION_OFFSET,
+		TEST_CONTAINER_VERSION_OFFSET,
 		TEST_CONTAINER_COUNT_OFFSET,
 		TEST_CONTAINER_HEADER_SIZE + TEST_CONTAINER_ENTRY_SIZE,
 		TEST_CONTAINER_HEADER_SIZE + TEST_CONTAINER_ENTRY_SIZE + TEST_CONTAINER_OFFSET_FIELD,
 		TEST_CONTAINER_HEADER_SIZE + TEST_CONTAINER_ENTRY_SIZE + TEST_CONTAINER_LENGTH_FIELD};
 	const legacy_u32 bad_values[] = {
 		0,
-		2,
+		TEST_MESH_OBSOLETE_VERSION,
+		TEST_MESH_INVALID_VERSION,
 		TEST_CONTAINER_INVALID_ENTRY_COUNT,
 		LEGACY_READ_U32_LE(data + TEST_CONTAINER_HEADER_SIZE),
 		LEGACY_READ_U32_LE(data + TEST_CONTAINER_HEADER_SIZE + TEST_CONTAINER_OFFSET_FIELD),
 		LEGACY_U32_MAX};
 	const size_t field_widths[] = {sizeof(legacy_u32), sizeof(legacy_u16), sizeof(legacy_u16),
-								   sizeof(legacy_u32), sizeof(legacy_u32), sizeof(legacy_u32)};
+								   sizeof(legacy_u16), sizeof(legacy_u32), sizeof(legacy_u32),
+								   sizeof(legacy_u32)};
 	for (size_t index = 0; index < sizeof(bad_fields) / sizeof(bad_fields[0]); index++) {
 		legacy_u32 previous = LEGACY_READ_U32_LE(data + bad_fields[index]);
 		if (field_widths[index] == sizeof(legacy_u16)) {
@@ -472,25 +506,34 @@ static void check_car_mesh_lifetime(void)
 }
 
 #define TEST_MCMURTRY_CLASSIC_PRIMITIVES 247U
-#define TEST_MCMURTRY_WIDE_VERTICES 265U
-#define TEST_MCMURTRY_WIDE_PRIMITIVES 258U
-#define TEST_MCMURTRY_FAR_WIDE_VERTICES 257U
-#define TEST_MCMURTRY_FAR_WIDE_PRIMITIVES 254U
+#define TEST_MCMURTRY_DETAIL_MULTIPLIER 4U
 #define TEST_MCMURTRY_STEERING_ANGLE 64
 #define TEST_MCMURTRY_OPPONENT_STEERING_ANGLE -96
 #define TEST_MCMURTRY_WHEEL_BYTES (TEST_CAR_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE)
 
 extern void full_data_initialize(void);
 
-static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_u16 vertices,
-												legacy_u16 primitives)
+static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_u8 fractional)
 {
 	struct SHAPE3D *mesh = hires_shape3d_car_mesh(classic);
 	assert(mesh != classic);
-	assert(mesh->shape3d_numverts == vertices && mesh->shape3d_numprimitives == primitives);
+	assert(mesh->shape3d_numverts >
+		   (legacy_u32)classic->shape3d_numverts * TEST_MCMURTRY_DETAIL_MULTIPLIER);
+	assert(mesh->shape3d_numprimitives >
+		   (legacy_u32)classic->shape3d_numprimitives * TEST_MCMURTRY_DETAIL_MULTIPLIER);
+	assert(mesh->shape3d_numpaints == classic->shape3d_numpaints);
 	assert(memcmp(classic->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 				  mesh->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 				  TEST_MCMURTRY_WHEEL_BYTES) == 0);
+	const struct SHAPE3D_HIRES_VECTOR *vertices = hires_shape3d_car_vertices(mesh);
+	assert((vertices != NULL) == (fractional != 0));
+	assert(vertices == hires_shape3d_car_vertices(classic));
+	for (legacy_u16 index = 0; vertices != NULL && index < TEST_CAR_VERTEX_COUNT; index++) {
+		struct VECTOR vertex;
+		shape3d_vertex_read(mesh, index, &vertex);
+		assert(vertices[index].x == vertex.x && vertices[index].y == vertex.y &&
+			   vertices[index].z == vertex.z);
+	}
 	return mesh;
 }
 
@@ -512,8 +555,7 @@ static void check_real_car_cache_reload(void)
 	shape3d_load_car_shapes(car_id, no_opponent);
 	assert(player->shape3d_numverts == LEGACY_U8_MAX);
 	assert(player->shape3d_numprimitives == TEST_MCMURTRY_CLASSIC_PRIMITIVES);
-	struct SHAPE3D *enhanced = check_real_mcmurtry_mesh(player, TEST_MCMURTRY_WIDE_VERTICES,
-														TEST_MCMURTRY_WIDE_PRIMITIVES);
+	struct SHAPE3D *enhanced = check_real_mcmurtry_mesh(player, 1);
 	memcpy(original,
 		   player->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 		   sizeof(original));
@@ -523,7 +565,7 @@ static void check_real_car_cache_reload(void)
 	assert(memcmp(original,
 				  player->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 				  sizeof(original)) != 0);
-	check_real_mcmurtry_mesh(player, TEST_MCMURTRY_WIDE_VERTICES, TEST_MCMURTRY_WIDE_PRIMITIVES);
+	check_real_mcmurtry_mesh(player, 1);
 	shape3d_free_car_shapes();
 	assert(hires_shape3d_car_mesh(player) == player);
 
@@ -537,23 +579,33 @@ static void check_real_car_cache_reload(void)
 							  TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 						  sizeof(original)) != 0);
 		}
-		enhanced = check_real_mcmurtry_mesh(player, TEST_MCMURTRY_WIDE_VERTICES,
-											TEST_MCMURTRY_WIDE_PRIMITIVES);
-		struct SHAPE3D *opponent_enhanced = check_real_mcmurtry_mesh(
-			opponent, TEST_MCMURTRY_WIDE_VERTICES, TEST_MCMURTRY_WIDE_PRIMITIVES);
-		check_real_mcmurtry_mesh(&game3dshapes[PLAYER_CAR_HIGH_SHAPE],
-								 TEST_MCMURTRY_FAR_WIDE_VERTICES,
-								 TEST_MCMURTRY_FAR_WIDE_PRIMITIVES);
+		enhanced = check_real_mcmurtry_mesh(player, 1);
+		struct SHAPE3D *opponent_enhanced = check_real_mcmurtry_mesh(opponent, 1);
+		struct SHAPE3D *showroom = check_real_mcmurtry_mesh(&game3dshapes[PLAYER_CAR_LOW_SHAPE], 0);
+		struct SHAPE3D *far_mesh =
+			check_real_mcmurtry_mesh(&game3dshapes[PLAYER_CAR_HIGH_SHAPE], 1);
+		assert(showroom->shape3d_numprimitives > enhanced->shape3d_numprimitives);
+		assert(enhanced->shape3d_numprimitives > far_mesh->shape3d_numprimitives);
 		assert(player->shape3d_vertex_bytes != opponent->shape3d_vertex_bytes);
 		assert(enhanced->shape3d_vertex_bytes != opponent_enhanced->shape3d_vertex_bytes);
+		const struct SHAPE3D_HIRES_VECTOR *player_cache = hires_shape3d_car_vertices(enhanced);
+		const struct SHAPE3D_HIRES_VECTOR *opponent_cache =
+			hires_shape3d_car_vertices(opponent_enhanced);
+		assert(player_cache != opponent_cache);
+		struct SHAPE3D_HIRES_VECTOR original_body = player_cache[TEST_CAR_VERTEX_COUNT];
+		struct SHAPE3D_HIRES_VECTOR opponent_wheel = opponent_cache[TEST_CAR_FIRST_WHEEL_VERTEX];
 		memcpy(opponent_before,
 			   opponent->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 			   sizeof(opponent_before));
 		shape3d_update_car_wheel_vertices(
 			player, TEST_CAR_FIRST_WHEEL_VERTEX, TEST_MCMURTRY_STEERING_ANGLE, player_suspension,
 			player_wheel_vertex_state, player_base_wheel_vertices, player_front_wheel_centers);
-		check_real_mcmurtry_mesh(player, TEST_MCMURTRY_WIDE_VERTICES,
-								 TEST_MCMURTRY_WIDE_PRIMITIVES);
+		check_real_mcmurtry_mesh(player, 1);
+		assert(player_cache == hires_shape3d_car_vertices(enhanced));
+		assert(memcmp(&original_body, &player_cache[TEST_CAR_VERTEX_COUNT],
+					  sizeof(original_body)) == 0);
+		assert(memcmp(&opponent_wheel, &opponent_cache[TEST_CAR_FIRST_WHEEL_VERTEX],
+					  sizeof(opponent_wheel)) == 0);
 		assert(memcmp(opponent_before,
 					  opponent->shape3d_vertex_bytes +
 						  TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
@@ -573,8 +625,7 @@ static void check_real_car_cache_reload(void)
 					  opponent->shape3d_vertex_bytes +
 						  TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 					  sizeof(opponent_before)) != 0);
-		check_real_mcmurtry_mesh(opponent, TEST_MCMURTRY_WIDE_VERTICES,
-								 TEST_MCMURTRY_WIDE_PRIMITIVES);
+		check_real_mcmurtry_mesh(opponent, 1);
 		assert(
 			memcmp(player_before,
 				   player->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
@@ -591,14 +642,177 @@ static void check_real_car_cache_reload(void)
 	file_car_set_base(NULL);
 }
 
+#define TEST_FRACTION_RENDER_WIDTH 320U
+#define TEST_FRACTION_RENDER_HEIGHT 200U
+#define TEST_FRACTION_RENDER_SCALE 2
+#define TEST_FRACTION_RENDER_FOCAL 160U
+#define TEST_FRACTION_RENDER_DEPTH 100
+#define TEST_FRACTION_RENDER_BACKGROUND 3U
+#define TEST_FRACTION_RENDER_WIDTH_LIMIT 40
+#define TEST_FRACTION_RENDER_MIN_PIXELS 256U
+
+static legacy_s16 fractional_render_width(struct SHAPE3D *classic)
+{
+	legacy_u8 *screen = dos_memory_make_pointer(0xA000U, 0);
+	legacy_u8 rows[TEST_FRACTION_RENDER_HEIGHT * LEGACY_WORD_BYTES];
+	struct SPRITE target = {0};
+	target.sprite_bitmapptr = (struct SHAPE2D *)screen;
+	target.sprite_lineofs = rows;
+	target.sprite_right = target.sprite_pitch = target.sprite_buffer_width =
+		target.sprite_raster_right = TEST_FRACTION_RENDER_WIDTH;
+	target.sprite_bottom = TEST_FRACTION_RENDER_HEIGHT;
+	for (legacy_u16 row = 0; row < TEST_FRACTION_RENDER_HEIGHT; row++) {
+		LEGACY_WRITE_U16_LE(rows + row * LEGACY_WORD_BYTES, row * TEST_FRACTION_RENDER_WIDTH);
+	}
+	hires_shutdown();
+	memset(screen, TEST_FRACTION_RENDER_BACKGROUND,
+		   TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_HEIGHT);
+	hires_set_enabled(1);
+	hires_set_render_scale(TEST_FRACTION_RENDER_SCALE);
+	sprite_select_target(&target);
+	struct RECTANGLE clip = {0, TEST_FRACTION_RENDER_WIDTH, 0, TEST_FRACTION_RENDER_HEIGHT};
+	select_cliprect_rotate(0, 0, 0, &clip, 0);
+	projection_center_x = TEST_FRACTION_RENDER_WIDTH / 2U;
+	projection_center_y = TEST_FRACTION_RENDER_HEIGHT / 2U;
+	projection_focal_length_x = projection_focal_length_y = TEST_FRACTION_RENDER_FOCAL;
+	material_clrlist_ptr_cpy = material_clrlist_ptr;
+	material_clrlist2_ptr_cpy = material_clrlist2_ptr;
+	material_patlist_ptr_cpy = material_patlist_ptr;
+	material_patlist2_ptr_cpy = material_patlist2_ptr;
+	polyinfo_reset();
+	struct RECTANGLE bounds = {TEST_FRACTION_RENDER_WIDTH, 0, TEST_FRACTION_RENDER_HEIGHT, 0};
+	struct TRANSFORMEDSHAPE3D instance = {0};
+	instance.shapeptr = classic;
+	instance.rectptr = &bounds;
+	instance.ts_flags = SHAPE3D_USE_BOUNDING_RECT_FLAG | SHAPE3D_PRETRANSFORMED_FLAG;
+	instance.pos.z = TEST_FRACTION_RENDER_DEPTH;
+	instance.culling_distance = TEST_FRACTION_RENDER_DEPTH;
+	assert(shape3d_transform_and_queue(&instance) == 0);
+	assert(shape3d_queued_primitive_count() == 1);
+	shape3d_render_queued_primitives();
+	legacy_s32 width, height;
+	const legacy_u8 *image = video_framebuffer(screen, &width, &height);
+	assert(width == TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_SCALE &&
+		   height == TEST_FRACTION_RENDER_HEIGHT * TEST_FRACTION_RENDER_SCALE);
+	legacy_u32 covered = 0;
+	for (legacy_s32 pixel = 0; pixel < width * height; pixel++) {
+		covered += image[pixel] != TEST_FRACTION_RENDER_BACKGROUND;
+	}
+	assert(covered > TEST_FRACTION_RENDER_MIN_PIXELS);
+	hires_shutdown();
+	return bounds.right - bounds.left;
+}
+
+static void check_fractional_car_cache(void)
+{
+	struct TEST_CLASSIC_CARS cars;
+	prepare_classic_cars(&cars);
+	size_t size;
+	legacy_u8 *data = make_container(&cars, &size);
+	const struct VECTOR body = {123, -140, 7};
+	const struct VECTOR triangle[] = {{-320, -320, 1600}, {320, -320, 1600}, {0, 320, 1600}};
+	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
+		legacy_u8 *entry = data + TEST_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
+		legacy_u8 *payload = data + LEGACY_READ_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD);
+		LEGACY_WRITE_U16_LE(payload + TEST_MESH_FRACTION_BITS_OFFSET, TEST_MESH_FRACTION_BITS);
+		struct SHAPE3D shape;
+		assert(hires_shape3d_mesh_decode(
+			payload, LEGACY_READ_U32_LE(entry + TEST_CONTAINER_LENGTH_FIELD), &shape));
+		shape3d_vertex_write(&shape, TEST_CAR_VERTEX_COUNT, &body);
+		for (legacy_u16 corner = 0; corner < SDL_arraysize(triangle); corner++) {
+			shape3d_vertex_write(&shape, shape.shape3d_numverts - SDL_arraysize(triangle) + corner,
+								 &triangle[corner]);
+		}
+		LEGACY_WRITE_U32_LE(shape.shape3d_visibility_masks, LEGACY_U32_MAX);
+		LEGACY_WRITE_U32_LE(shape.shape3d_front_facing_masks, 0);
+		shape.shape3d_primitives[1] = SHAPE3D_PRIMITIVE_ALWAYS_VISIBLE_FLAG;
+	}
+	legacy_char directory[FILE_CAR_PATH_SIZE], path[FILE_CAR_PATH_SIZE];
+	assert(SDL_snprintf(directory, sizeof(directory), "hires-fractional-%" LEGACY_PRIu64,
+						(legacy_u64)SDL_GetTicksNS()) > 0);
+	assert(SDL_CreateDirectory(directory));
+	assert(SDL_snprintf(path, sizeof(path), "%s/STFRAC.H3D", directory) > 0);
+	file_car_set_base((const legacy_s8 *)directory);
+	write_container(path, data, size);
+	for (legacy_u16 car = 0; car < TEST_CAR_COUNT; car++) {
+		hires_shape3d_load_car_meshes(car, (const legacy_s8 *)"FRAC", cars.pointers[car]);
+	}
+	struct SHAPE3D *player = hires_shape3d_car_mesh(cars.pointers[0][1]);
+	struct SHAPE3D *opponent = hires_shape3d_car_mesh(cars.pointers[1][1]);
+	const struct SHAPE3D_HIRES_VECTOR *vertices = hires_shape3d_car_vertices(player);
+	const struct SHAPE3D_HIRES_VECTOR *other = hires_shape3d_car_vertices(opponent);
+	assert(player != cars.pointers[0][1] && opponent != cars.pointers[1][1]);
+	assert(vertices != NULL && other != NULL && vertices != other);
+	assert(vertices == hires_shape3d_car_vertices(cars.pointers[0][1]));
+	assert(vertices[TEST_CAR_VERTEX_COUNT].x == (legacy_f64)body.x / TEST_MESH_FRACTION_DIVISOR &&
+		   vertices[TEST_CAR_VERTEX_COUNT].y == (legacy_f64)body.y / TEST_MESH_FRACTION_DIVISOR &&
+		   vertices[TEST_CAR_VERTEX_COUNT].z == (legacy_f64)body.z / TEST_MESH_FRACTION_DIVISOR);
+	for (legacy_u16 index = 0; index < TEST_CAR_VERTEX_COUNT; index++) {
+		struct VECTOR vertex;
+		shape3d_vertex_read(player, index, &vertex);
+		assert(vertices[index].x == vertex.x && vertices[index].y == vertex.y &&
+			   vertices[index].z == vertex.z);
+	}
+	legacy_s16 fractional_width = fractional_render_width(&cars.shapes[0][1]);
+	assert(fractional_width < TEST_FRACTION_RENDER_WIDTH_LIMIT);
+
+	const struct VECTOR wheel = {-123, 45, 67};
+	shape3d_vertex_write(&cars.shapes[0][1], TEST_CAR_FIRST_WHEEL_VERTEX, &wheel);
+	hires_shape3d_update_car_mesh(cars.pointers[0][1]);
+	assert(vertices[TEST_CAR_FIRST_WHEEL_VERTEX].x == wheel.x &&
+		   vertices[TEST_CAR_FIRST_WHEEL_VERTEX].y == wheel.y &&
+		   vertices[TEST_CAR_FIRST_WHEEL_VERTEX].z == wheel.z);
+	assert(other[TEST_CAR_FIRST_WHEEL_VERTEX].x == TEST_CAR_FIRST_WHEEL_VERTEX);
+	assert(vertices[TEST_CAR_VERTEX_COUNT].x == (legacy_f64)body.x / TEST_MESH_FRACTION_DIVISOR);
+	prepare_classic_cars(&cars);
+
+	/* One malformed last entry rejects every replacement for that car while
+	 * leaving the independently loaded opponent's fractional cache intact. */
+	legacy_u8 *last =
+		data + TEST_CONTAINER_HEADER_SIZE + (TEST_CAR_MESH_COUNT - 1U) * TEST_CONTAINER_ENTRY_SIZE;
+	legacy_u8 *last_header = data + LEGACY_READ_U32_LE(last + TEST_CONTAINER_OFFSET_FIELD);
+	LEGACY_WRITE_U16_LE(last_header + TEST_MESH_FRACTION_BITS_OFFSET,
+						HIRES_MESH_MAX_FRACTION_BITS + 1U);
+	write_container(path, data, size);
+	hires_shape3d_load_car_meshes(0, (const legacy_s8 *)"FRAC", cars.pointers[0]);
+	assert_classic_fallback(&cars, 0);
+	assert(hires_shape3d_car_vertices(cars.pointers[0][1]) == NULL);
+	assert(hires_shape3d_car_vertices(opponent) == other);
+	assert(other[TEST_CAR_VERTEX_COUNT].x == (legacy_f64)body.x / TEST_MESH_FRACTION_DIVISOR);
+	LEGACY_WRITE_U16_LE(last_header + TEST_MESH_FRACTION_BITS_OFFSET, TEST_MESH_FRACTION_BITS);
+
+	/* The same current-format triangle has a different projected size when its
+	 * fraction bits are zero. Exercise the production loader and raster pipeline. */
+	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
+		legacy_u8 *entry = data + TEST_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
+		legacy_u8 *payload = data + LEGACY_READ_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD);
+		LEGACY_WRITE_U16_LE(payload + TEST_MESH_FRACTION_BITS_OFFSET, 0);
+	}
+	write_container(path, data, size);
+	hires_shape3d_load_car_meshes(0, (const legacy_s8 *)"FRAC", cars.pointers[0]);
+	assert(hires_shape3d_car_mesh(cars.pointers[0][1]) != cars.pointers[0][1]);
+	assert(hires_shape3d_car_vertices(cars.pointers[0][1]) == NULL);
+	legacy_s16 integer_width = fractional_render_width(&cars.shapes[0][1]);
+	assert(integer_width > TEST_FRACTION_RENDER_WIDTH_LIMIT && integer_width > fractional_width);
+	hires_shape3d_free_car_meshes();
+	assert_classic_fallback(&cars, 0);
+	assert_classic_fallback(&cars, 1);
+	file_car_set_base(NULL);
+	assert(SDL_RemovePath(path));
+	assert(SDL_RemovePath(directory));
+	free(data);
+}
+
 legacy_int main(void)
 {
 	check_valid_meshes();
 	check_coordinate_offsets_past_one_segment();
+	check_fractional_mesh_headers();
 	check_primitive_counts_past_byte_range();
 	check_malformed_meshes();
 	check_car_mesh_lifetime();
 	check_real_car_cache_reload();
+	check_fractional_car_cache();
 	puts("HyperVision wide mesh decoding, resource lifetime and fallback checks passed.");
 	return 0;
 }

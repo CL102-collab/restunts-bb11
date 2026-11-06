@@ -485,113 +485,116 @@
   },
   "hypervision": {
     "resource": "STMCMU.H3D",
-    "format_version": 1,
+    "format_version": 2,
     "maximum_vertices_per_shape": 65535,
     "maximum_primitives_per_shape": 65535,
     "selection": "Optional companion meshes are used only by HyperVision; classic rendering and original Stunts retain the unchanged STMCMU.3SH shapes.",
-    "geometry": "Carbon panels close the open sill strips ahead of, between and behind the wheels. Shared centre-floor subdivisions prevent cracks after coordinate quantization. Wheel-well intervals remain open and the existing exterior silhouette and animated wheel controls are preserved.",
+    "geometry": "Detailed exterior geometry imported from the supplied Sketchfab GLB, with transformed source bodywork, canopy, wing and underbody. Source wheel assemblies are replaced with the classic animated wheels. Source materials are mapped into the native palette and seven paint schemes; welded, quantized meshes provide separate showroom, near and distant racing detail levels.",
+    "source_mesh": {
+      "source_sha256": "c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013",
+      "source_triangles": 211145,
+      "retained_source_triangles": 119399,
+      "retained_meshes": 33,
+      "compact_source": "tools/scripts/cars/mcmurtry_hypervision_source.json.gz",
+      "author": "Dave Love SketchFab",
+      "source_url": "https://sketchfab.com/3d-models/2026-mcmurtry-speirling-24a39a15bde049acbb3ede571cee0c8b",
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "container_version": 2,
+      "coordinate_fraction_bits": {
+        "car0": 0,
+        "car1": 4,
+        "car2": 4
+      },
+      "simplification": {
+        "algorithm": "quadric error metrics",
+        "package": "fast-simplification==0.2.0",
+        "preserve_material_boundaries": true,
+        "aggressiveness": 5,
+        "target_triangles": {
+          "car0": 32000,
+          "car1": 12000
+        }
+      },
+      "lod_source_triangles": {
+        "car0": 37175,
+        "car1": 32713,
+        "car2": 32713
+      },
+      "cluster_spacing_game_units": {
+        "car0": 0.05,
+        "car1": 0.0625,
+        "car2": 0.5
+      },
+      "cluster_spacing_mm": {
+        "car0": 2.2,
+        "car1": 2.75,
+        "car2": 22.0
+      },
+      "arch_target_radius_game_units": {
+        "car0": 10.0,
+        "car1": 10.0,
+        "car2": 10.7
+      },
+      "arch_blend_radius_game_units": 16.0,
+      "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM for showroom/near racing and spatial vertex clustering of the protected near mesh for distant racing, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."
+    },
     "models": {
       "car0": {
-        "vertices": 265,
-        "primitives": 258,
+        "vertices": 21648,
+        "primitives": 33507,
         "paint_jobs": 7,
         "dimensions_game_units": {
           "length": 86.7,
-          "width": 38.5,
-          "height": 25.9,
-          "wheelbase": 50.0
+          "width": 38.0,
+          "height": 27.3
         },
-        "minimum_upper_tyre_clearance_game_units": 1.688,
+        "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.108,
-          1.108,
-          1.317,
-          1.317
+          1.277,
+          1.277,
+          1.743,
+          1.743
         ],
-        "wheel_cover_triangles_attached_to_each_wheel": [
-          27,
-          27,
-          22,
-          22
-        ],
-        "underside_coverage": {
-          "bottom_rays_checked": 54,
-          "minimum_sill_panel_tyre_clearance_game_units": [
-            1.469,
-            1.469,
-            2.013,
-            2.013
-          ],
-          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
-        }
+        "coordinate_fraction_bits": 0,
+        "coordinate_step_mm": 2.2
       },
       "car1": {
-        "vertices": 265,
-        "primitives": 258,
+        "vertices": 18706,
+        "primitives": 27886,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 87.0,
-          "width": 38.0,
-          "height": 26.0,
-          "wheelbase": 50.0
+          "length": 86.75,
+          "width": 38.125,
+          "height": 27.3125
         },
-        "minimum_upper_tyre_clearance_game_units": 1.831,
+        "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.262,
-          1.262,
-          1.191,
-          1.191
+          1.324,
+          1.362,
+          1.75,
+          1.75
         ],
-        "wheel_cover_triangles_attached_to_each_wheel": [
-          27,
-          27,
-          22,
-          22
-        ],
-        "underside_coverage": {
-          "bottom_rays_checked": 54,
-          "minimum_sill_panel_tyre_clearance_game_units": [
-            1.355,
-            1.355,
-            1.899,
-            1.899
-          ],
-          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
-        }
+        "coordinate_fraction_bits": 4,
+        "coordinate_step_mm": 2.75
       },
       "car2": {
-        "vertices": 257,
-        "primitives": 254,
+        "vertices": 7505,
+        "primitives": 12102,
         "paint_jobs": 7,
         "dimensions_game_units": {
           "length": 87.0,
           "width": 38.0,
-          "height": 26.0,
-          "wheelbase": 50.0
+          "height": 27.5
         },
-        "minimum_upper_tyre_clearance_game_units": 1.831,
+        "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.262,
-          1.262,
-          1.191,
-          1.191
+          1.871,
+          1.95,
+          2.296,
+          2.296
         ],
-        "wheel_cover_triangles_attached_to_each_wheel": [
-          27,
-          27,
-          22,
-          22
-        ],
-        "underside_coverage": {
-          "bottom_rays_checked": 54,
-          "minimum_sill_panel_tyre_clearance_game_units": [
-            1.355,
-            1.355,
-            1.899,
-            1.899
-          ],
-          "result": "Central floor and sill strips covered; wheel-well intervals remain open."
-        }
+        "coordinate_fraction_bits": 4,
+        "coordinate_step_mm": 2.75
       }
     }
   },
@@ -624,8 +627,8 @@
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
     },
     "STMCMU.H3D": {
-      "bytes": 23016,
-      "sha256": "8fe720f4edf665a5e7c9863cef5d2062e8e73600f60abd5c2232ba4b3a5a86cc"
+      "bytes": 1977679,
+      "sha256": "5eac1f44c9a02667be0986f856265653924eef36367d072cdcd244dde73ad836"
     },
     "MCMU.obj": {
       "bytes": 27742,

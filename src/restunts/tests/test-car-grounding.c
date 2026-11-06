@@ -11,6 +11,14 @@ struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *shape)
 	return (struct SHAPE3D *)shape;
 }
 
+static const struct SHAPE3D_HIRES_VECTOR *test_precise_vertices;
+
+const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE3D *shape)
+{
+	(void)shape;
+	return test_precise_vertices;
+}
+
 #define TEST_VERTEX_COUNT 18U
 
 static legacy_u8 vertex_bytes[TEST_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE];
@@ -56,6 +64,7 @@ static void set_wheel(legacy_u16 first, legacy_s16 center, legacy_s16 radius)
 
 static struct SHAPE3D reset_shape(void)
 {
+	test_precise_vertices = NULL;
 	memset(vertex_bytes, 0, sizeof(vertex_bytes));
 	struct SHAPE3D shape = {0};
 	shape.shape3d_numverts = TEST_VERTEX_COUNT;
@@ -451,6 +460,25 @@ static void check_wide_model_ground_height(void)
 	assert(shape3d_hires_car_ground_offset(&shape) == 0);
 }
 
+static void check_fractional_body_ground_height(void)
+{
+	struct SHAPE3D shape = reset_shape();
+	legacy_u8 triangle[] = {SHAPE3D_PRIMITIVE_POLYGON_FIRST, 0, 1, 0, 1, 2};
+	const struct SHAPE3D_HIRES_VECTOR precise[] = {
+		{0, -6.0625, 0}, {0.5, -6.0625, 0}, {0, -6.0625, 0.5}};
+	shape.shape3d_numverts = sizeof(precise) / sizeof(precise[0]);
+	shape.shape3d_numprimitives = 1;
+	shape.shape3d_primitives = triangle;
+	/* Fixed-point payload bytes must not become the visible body's height. */
+	set_vertex(0, 0, -97, 0);
+	set_vertex(1, 16, -97, 0);
+	set_vertex(2, 0, -97, 16);
+	test_precise_vertices = precise;
+	assert(shape3d_hires_car_ground_height(&shape) == -7);
+	assert(calculate_offset(&shape) == -1);
+	test_precise_vertices = NULL;
+}
+
 legacy_int main(void)
 {
 	check_wheel_clearance();
@@ -461,5 +489,6 @@ legacy_int main(void)
 	check_cached_clearance();
 	check_model_ground_height();
 	check_wide_model_ground_height();
+	check_fractional_body_ground_height();
 	return 0;
 }

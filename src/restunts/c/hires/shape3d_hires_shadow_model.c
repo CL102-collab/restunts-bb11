@@ -101,7 +101,8 @@ static void hires_shadow_silhouette_polygon(struct SHADOW_SILHOUETTE *silhouette
 }
 
 static void hires_shadow_silhouette_line(struct SHADOW_SILHOUETTE *silhouette,
-										 const struct VECTOR *first, const struct VECTOR *last,
+										 const struct SHAPE3D_HIRES_VECTOR *first,
+										 const struct SHAPE3D_HIRES_VECTOR *last,
 										 legacy_s32 rasterize)
 {
 	struct SHADOW_SILHOUETTE_POINT start =
@@ -131,11 +132,12 @@ static void hires_shadow_silhouette_line(struct SHADOW_SILHOUETTE *silhouette,
 }
 
 static void hires_shadow_projected_wheel(struct SHADOW_SILHOUETTE *silhouette,
-										 const struct VECTOR *vertices, legacy_s32 rasterize)
+										 const struct SHAPE3D_HIRES_VECTOR *vertices,
+										 legacy_s32 rasterize)
 {
 	for (legacy_u32 rim = 0; rim <= SHAPE3D_WHEEL_RIM_VERTEX_COUNT;
 		 rim += SHAPE3D_WHEEL_RIM_VERTEX_COUNT) {
-		const struct VECTOR *center = &vertices[rim];
+		const struct SHAPE3D_HIRES_VECTOR *center = &vertices[rim];
 		struct SHAPE3D_HIRES_VECTOR first = {vertices[rim + SHAPE3D_WHEEL_FIRST_AXIS].x - center->x,
 											 vertices[rim + SHAPE3D_WHEEL_FIRST_AXIS].y - center->y,
 											 vertices[rim + SHAPE3D_WHEEL_FIRST_AXIS].z -
@@ -156,7 +158,8 @@ static void hires_shadow_projected_wheel(struct SHADOW_SILHOUETTE *silhouette,
 			legacy_f64 along_first = bottom_cosine * cosine - bottom_sine * sine;
 			legacy_f64 along_second = bottom_sine * cosine + bottom_cosine * sine;
 			for (legacy_u32 face = 0; face < SDL_arraysize(faces); face++) {
-				const struct VECTOR *origin = &vertices[face * SHAPE3D_WHEEL_RIM_VERTEX_COUNT];
+				const struct SHAPE3D_HIRES_VECTOR *origin =
+					&vertices[face * SHAPE3D_WHEEL_RIM_VERTEX_COUNT];
 				faces[face][vertex] = hires_shadow_project_point(
 					silhouette, origin->x + first.x * along_first + second.x * along_second,
 					origin->y + first.y * along_first + second.y * along_second,
@@ -180,6 +183,7 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 {
 	static const legacy_u8 vertex_counts[SHAPE3D_PRIMITIVE_TYPE_COUNT] = {0, 1, 2,	3, 4, 5, 6, 7,
 																		  8, 9, 10, 2, 6, 3, 0, 0};
+	const struct SHAPE3D_HIRES_VECTOR *precise = hires_shape3d_car_vertices(shape);
 	const legacy_u8 *primitive = shape->shape3d_primitives;
 	for (legacy_u32 index = 0; index < shape->shape3d_numprimitives; index++) {
 		legacy_u8 type = primitive[0];
@@ -195,7 +199,7 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 							   index * SHAPE3D_VISIBILITY_MASK_SIZE) == 0) {
 			continue;
 		}
-		struct VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
+		struct SHAPE3D_HIRES_VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
 		legacy_s32 valid = 1;
 		for (legacy_u8 vertex = 0; vertex < count; vertex++) {
 			legacy_u16 vertex_index = hires_shape3d_vertex_index(shape, indices, vertex);
@@ -203,7 +207,13 @@ static void hires_shadow_silhouette_primitives(struct SHADOW_SILHOUETTE *silhoue
 				valid = 0;
 				break;
 			}
-			shape3d_vertex_read(shape, vertex_index, &vertices[vertex]);
+			if (precise != NULL) {
+				vertices[vertex] = precise[vertex_index];
+			} else {
+				struct VECTOR native;
+				shape3d_vertex_read(shape, vertex_index, &native);
+				vertices[vertex] = (struct SHAPE3D_HIRES_VECTOR){native.x, native.y, native.z};
+			}
 			if (!rasterize && vertices[vertex].y > silhouette->height) {
 				silhouette->height = vertices[vertex].y;
 			}

@@ -6,10 +6,11 @@ repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
 assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
-The optional fifth file, STMCMU.H3D, supplies extended meshes for HyperVision.
-The generator installs it beside the classic files. HyperVision closes the
-otherwise open underside strips beside the centre floor; classic rendering
-continues to use the unchanged STMCMU.3SH. Original Stunts does not need H3D.
+The optional fifth file, STMCMU.H3D, supplies detailed source-derived meshes
+for HyperVision. The generator installs it beside the classic files. Separate
+showroom, near-racing and distant-racing meshes retain the source bodywork,
+canopy, wing and underbody with native palette materials and animated wheels.
+Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
 
@@ -47,7 +48,7 @@ Wheel locations follow the supplied mesh with native integer quantization.
 Wheels and physical contacts agree on the engine's six-unit contact plane.
 
 MODEL SOURCES
-The exterior is a new native low-polygon adaptation guided by the supplied
+The classic exterior is a native low-polygon adaptation guided by the supplied
 2026-mcmurtry-speirling.zip GLB. Its embedded asset.extras metadata credits:
 2026 McMurtry Speirling by Dave Love SketchFab
 https://sketchfab.com/Tyler_Dave
@@ -58,10 +59,16 @@ c32649493eaebec5005e7b8824bb429d77aa3fdbab277282e37b1b918b7f1013
 The source hierarchy names exmods_mcmurtry_speirling22.fbx, suggesting an
 earlier prototype despite its 2026 title. The supplied high-resolution mesh
 is the exterior ground truth for the nose, canopy, main rear wing and wheels.
-All three exterior topologies are rebuilt from scratch for native Stunts
+All three classic exterior topologies are rebuilt from scratch for native Stunts
 primitives, uniform length scaling, animated wheels and seven paint schemes.
-The original high-polygon GLB, its textures and manufacturer photographs
-are not included.
+The HyperVision companion imports the detailed exterior directly from that
+GLB. A compressed transformed source mesh is retained in
+tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
+regeneration without the upload or third-party Python packages. Source wheel
+assemblies are replaced with the game's four animated wheels. Source material groups
+are adapted to native palette materials and seven paints; H3D does not store
+textures or transparency. The original GLB, textures and manufacturer
+photographs are not included.
 MCMU.json records the supplied GLB hash, attribution, changes, photo URLs,
 specifications, dimensions and resource hashes. The cockpit remains original
 indexed-colour artwork based on the previously supplied references.
@@ -110,13 +117,18 @@ the painter draws the fender after its wheel even at shallow angles.
 The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
-STMCMU.H3D retains these exterior surfaces and adds carbon floor panels ahead
-of, between and behind the wheels. The centre floor is subdivided at shared
-edges so integer rounding cannot leave cracks. Wheel-well intervals remain
-open. HyperVision meshes use 16-bit counts and, above 255 vertices, 16-bit
-indices: car0 and car1 have 265 vertices and
-258 primitives; car2 has 257 vertices and
-254 primitives. The classic meshes retain their original byte limits.
+These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
+STMCMU.H3D supplies the detailed source-derived body instead. Deterministic
+vertex clustering, welding and removal of degenerate/duplicate faces keep each
+mesh within H3D version 2's 65,535-vertex and 65,535-primitive limits:
+car0: 21648 vertices, 33507 primitives;
+car1: 18706 vertices, 27886 primitives;
+car2: 7505 vertices, 12102 primitives.
+Showroom body coordinates have 2.2 mm precision;
+racing body coordinates have 2.75 mm precision.
+Bounds and wheel controls retain native integer coordinates. The distant
+racing mesh uses coarser geometry. Classic meshes retain their original byte
+limits, wheel controls and driving specifications.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left

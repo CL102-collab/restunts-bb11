@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "shape3d_mesh.h"
+#include "shape3d_hires.h"
 #include "../math/projection.h"
 
 #define CAR_WHEEL_VERTEX_GROUP_SIZE 6
@@ -79,6 +80,25 @@ static legacy_s16 shape3d_hires_car_has_area(const struct VECTOR *vertices, lega
 	return 0;
 }
 
+static legacy_s16 shape3d_hires_car_precise_has_area(const struct SHAPE3D_HIRES_VECTOR *vertices,
+													 legacy_u16 count)
+{
+	for (legacy_u16 index = 1; index + 1U < count; index++) {
+		legacy_f64 ax = vertices[index].x - vertices[0].x;
+		legacy_f64 ay = vertices[index].y - vertices[0].y;
+		legacy_f64 az = vertices[index].z - vertices[0].z;
+		for (legacy_u16 next = index + 1U; next < count; next++) {
+			legacy_f64 bx = vertices[next].x - vertices[0].x;
+			legacy_f64 by = vertices[next].y - vertices[0].y;
+			legacy_f64 bz = vertices[next].z - vertices[0].z;
+			if (ay * bz != az * by || az * bx != ax * bz || ax * by != ay * bx) {
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
 static void shape3d_hires_car_ground_bottom(struct CAR_GROUND_BOUNDS *bounds, legacy_s32 bottom)
 {
 	if (!bounds->has_geometry || bottom < bounds->lowest) {
@@ -118,6 +138,7 @@ static void shape3d_hires_car_ground_bounds(const struct SHAPE3D *shape,
 		}
 		bounds->sphere_capacity = shape->shape3d_numprimitives;
 	}
+	const struct SHAPE3D_HIRES_VECTOR *precise = hires_shape3d_car_vertices(shape);
 	const legacy_u8 *primitive = shape->shape3d_primitives;
 	for (legacy_u32 index = 0; index < shape->shape3d_numprimitives; index++) {
 		legacy_u8 type = primitive[0];
@@ -136,13 +157,26 @@ static void shape3d_hires_car_ground_bounds(const struct SHAPE3D *shape,
 			continue;
 		}
 		struct VECTOR vertices[SHAPE3D_POLYGON_MAX_VERTICES];
+		struct SHAPE3D_HIRES_VECTOR precise_points[SHAPE3D_POLYGON_MAX_VERTICES];
 		for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 			legacy_u16 vertex_index = hires_shape3d_vertex_index(shape, indices, vertex);
 			if (vertex_index >= shape->shape3d_numverts) {
 				shape3d_hires_car_ground_clear(bounds);
 				return;
 			}
-			shape3d_vertex_read(shape, vertex_index, &vertices[vertex]);
+			if (precise != NULL) {
+				precise_points[vertex] = precise[vertex_index];
+				/* Ground presentation uses whole model units. Round the underside
+				 * down so fractional bodywork cannot sink into its receiving plane. */
+				vertices[vertex].x = (legacy_s16)precise[vertex_index].x;
+				vertices[vertex].y = (legacy_s16)precise[vertex_index].y;
+				if (vertices[vertex].y > precise[vertex_index].y) {
+					vertices[vertex].y--;
+				}
+				vertices[vertex].z = (legacy_s16)precise[vertex_index].z;
+			} else {
+				shape3d_vertex_read(shape, vertex_index, &vertices[vertex]);
+			}
 		}
 		if (type == SHAPE3D_PRIMITIVE_WHEEL) {
 			legacy_s32 radius = 0;
@@ -187,7 +221,8 @@ static void shape3d_hires_car_ground_bounds(const struct SHAPE3D *shape,
 			sphere->center_y = vertices[0].y;
 			sphere->diameter = diameter;
 		} else if (type == SHAPE3D_PRIMITIVE_POINT || type == SHAPE3D_PRIMITIVE_LINE ||
-				   shape3d_hires_car_has_area(vertices, count)) {
+				   (precise != NULL ? shape3d_hires_car_precise_has_area(precise_points, count)
+									: shape3d_hires_car_has_area(vertices, count))) {
 			for (legacy_u16 vertex = 0; vertex < count; vertex++) {
 				shape3d_hires_car_ground_bottom(bounds, vertices[vertex].y);
 			}
