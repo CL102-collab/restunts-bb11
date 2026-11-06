@@ -2,60 +2,41 @@
 
 legacy_s8 RsReplayLegacyS8FromBits(legacy_u8 value)
 {
-  legacy_s32 noreg temple_tmp_7606;
+  legacy_s32 noreg temple_tmp_7610;
   if((value<=127)) {
-    temple_tmp_7606=TempleCastS32(TempleCastS8(value));
+    temple_tmp_7610=TempleCastS32(TempleCastS8(value));
   } else {
-    temple_tmp_7606=TempleCastS32(TempleCastS8(
+    temple_tmp_7610=TempleCastS32(TempleCastS8(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS8(TempleCastU32((255-value)))))));
   }
-  return TempleCastS8(temple_tmp_7606);
+  return TempleCastS8(temple_tmp_7610);
 }
 
 legacy_s16 RsReplayLegacyS16FromBits(legacy_u16 value)
 {
-  legacy_s32 noreg temple_tmp_7607;
+  legacy_s32 noreg temple_tmp_7611;
   if((value<=32767)) {
-    temple_tmp_7607=TempleCastS32(TempleCastS16(value));
+    temple_tmp_7611=TempleCastS32(TempleCastS16(value));
   } else {
-    temple_tmp_7607=TempleCastS32(TempleCastS16(
+    temple_tmp_7611=TempleCastS32(TempleCastS16(
         TempleCastS32((TempleCastS32((-(1)))-TempleCastS16(TempleCastU32((65535-value)))))));
   }
-  return TempleCastS16(temple_tmp_7607);
+  return TempleCastS16(temple_tmp_7611);
 }
 
 legacy_s32 RsReplayLegacyS32FromBits(legacy_u32 value)
 {
-  legacy_s32 noreg temple_tmp_7608;
+  legacy_s32 noreg temple_tmp_7612;
   if((value<=TempleCastU32(2147483647))) {
-    temple_tmp_7608=TempleCastS32(TempleCastS32(value));
+    temple_tmp_7612=TempleCastS32(TempleCastS32(value));
   } else {
-    temple_tmp_7608=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
+    temple_tmp_7612=TempleCastS32(TempleCastS32(TempleCastS32((TempleCastS32((-(1)))-
         TempleCastS32(TempleCastU32((TempleCastU32(4294967295)-value)))))));
   }
-  return TempleCastS32(temple_tmp_7608);
+  return TempleCastS32(temple_tmp_7612);
 }
 
 legacy_void RsReplayReplayReadBytes(legacy_s8 *destination,legacy_u8 *source,legacy_u16 count)
-{
-  legacy_u16 noreg temple_index_7610;
-  legacy_u16 *temple_tmp_7611;
-  legacy_u16 noreg temple_tmp_7612;
-  temple_index_7610=TempleCastU16(0);
-  while(1) {
-    if(!((temple_index_7610<count))) {
-      break;
-    }
-    (destination[temple_index_7610]=TempleCastS8(
-        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7610])))));
-    temple_tmp_7611=&(temple_index_7610);
-    temple_tmp_7612=*temple_tmp_7611;
-    *temple_tmp_7611=TempleCastU16((temple_tmp_7612+1));
-    temple_tmp_7612;
-  }
-}
-
-legacy_void RsReplayReplayWriteBytes(legacy_u8 *destination,legacy_s8 *source,legacy_u16 count)
 {
   legacy_u16 noreg temple_index_7614;
   legacy_u16 *temple_tmp_7615;
@@ -65,11 +46,30 @@ legacy_void RsReplayReplayWriteBytes(legacy_u8 *destination,legacy_s8 *source,le
     if(!((temple_index_7614<count))) {
       break;
     }
-    (destination[temple_index_7614]=TempleCastU8(TempleCastU8(source[temple_index_7614])));
+    (destination[temple_index_7614]=TempleCastS8(
+        RsReplayLegacyS8FromBits(TempleCastU8(TempleCastU8(source[temple_index_7614])))));
     temple_tmp_7615=&(temple_index_7614);
     temple_tmp_7616=*temple_tmp_7615;
     *temple_tmp_7615=TempleCastU16((temple_tmp_7616+1));
     temple_tmp_7616;
+  }
+}
+
+legacy_void RsReplayReplayWriteBytes(legacy_u8 *destination,legacy_s8 *source,legacy_u16 count)
+{
+  legacy_u16 noreg temple_index_7618;
+  legacy_u16 *temple_tmp_7619;
+  legacy_u16 noreg temple_tmp_7620;
+  temple_index_7618=TempleCastU16(0);
+  while(1) {
+    if(!((temple_index_7618<count))) {
+      break;
+    }
+    (destination[temple_index_7618]=TempleCastU8(TempleCastU8(source[temple_index_7618])));
+    temple_tmp_7619=&(temple_index_7618);
+    temple_tmp_7620=*temple_tmp_7619;
+    *temple_tmp_7619=TempleCastU16((temple_tmp_7620+1));
+    temple_tmp_7620;
   }
 }
 
@@ -98,8 +98,8 @@ legacy_void RsReplayGameinfoDecode(CGameInfo *destination,legacy_u8 *source)
 
 legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
 {
-  legacy_u16 noreg temple_legacy_write_u16_value__7618;
-  legacy_u16 noreg temple_legacy_write_u16_value__7620;
+  legacy_u16 noreg temple_legacy_write_u16_value__7622;
+  legacy_u16 noreg temple_legacy_write_u16_value__7624;
   RsReplayReplayWriteBytes((destination+0),source->game_playercarid,TempleCastU16(4));
   (destination[4]=TempleCastU8(TempleCastU8(source->game_playermaterial)));
   (destination[5]=TempleCastU8(TempleCastU8(source->game_playertransmission)));
@@ -109,19 +109,19 @@ legacy_void RsReplayGameinfoEncode(legacy_u8 *destination,CGameInfo *source)
   (destination[12]=TempleCastU8(TempleCastU8(source->game_opponenttransmission)));
   RsReplayReplayWriteBytes((destination+13),source->game_trackname,TempleCastU16(9));
   while(1) {
-    temple_legacy_write_u16_value__7618=TempleCastU16(TempleCastU16(source->game_framespersec));
-    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7618)));
+    temple_legacy_write_u16_value__7622=TempleCastU16(TempleCastU16(source->game_framespersec));
+    ((destination+22)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7622)));
     ((destination+22)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7618>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7622>>8)))));
     if(!(0)) {
       break;
     }
   }
   while(1) {
-    temple_legacy_write_u16_value__7620=TempleCastU16(TempleCastU16(source->game_recordedframes));
-    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7620)));
+    temple_legacy_write_u16_value__7624=TempleCastU16(TempleCastU16(source->game_recordedframes));
+    ((destination+24)[0]=TempleCastU8(TempleCastU8(temple_legacy_write_u16_value__7624)));
     ((destination+24)[1]=
-            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7620>>8)))));
+            TempleCastU8(TempleCastU8(TempleCastS32((temple_legacy_write_u16_value__7624>>8)))));
     if(!(0)) {
       break;
     }

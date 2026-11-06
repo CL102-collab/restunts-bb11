@@ -251,7 +251,7 @@ Restunts("C:/Restunts/DATA", TRUE, FALSE,
 | `--dws:on`, `--dws:off` | Dual-Way Switching: preserve original penalty behavior when on; fix branch-switching penalties when off. |
 | `--cfg:on`, `--cfg:off` | Chicane Fast-Grass: green chicane areas use road behavior when on, ordinary grass grip and drag when off. |
 | `--amigagrass` | Use Amiga grass grip for stock cars; equivalent to the third `TRUE`. |
-| `--owoot` | Enable One Wheel On/Over Track rules. |
+| `--owoot:on`, `--owoot:off` | Enable or disable One Wheel On/Over Track rules; `--owoot` enables. |
 | `/ns` | Start with music and sound effects disabled. |
 | `--fps:on`, `--fps:off` | Start with the FPS display enabled or disabled; supply once. F11 toggles it during play. |
 | `--help`, `-h` | Print available TempleOS options and return without loading game data. |

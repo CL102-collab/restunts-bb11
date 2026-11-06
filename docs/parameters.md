@@ -12,15 +12,15 @@ the preserved assembly executable retain their original interfaces.
 | Dual-Way Switching | `--dws:on` / `--dws:off` | On |
 | Chicane Fast-Grass | `--cfg:on` / `--cfg:off` | On |
 | Original Amiga grass grip for stock cars | `--amigagrass` | Off |
-| One Wheel On/Over Track rules | `--owoot` | Off |
+| One Wheel On/Over Track rules | `--owoot:on` / `--owoot:off` (`--owoot` enables) | Off |
 | Skip intro | `--nointro` | Off |
 | Disable music and sound effects | `/ns` | Off (sound on) |
 | FPS display | `--fps:on` / `--fps:off` | Off |
 
 Physics switches and FPS values are case-insensitive. For power gear,
-collision, corner bias, dual-way switching, and chicane fast-grass, the last value wins. Supply the
-FPS option once; invalid or repeated FPS options report an error. F11 toggles FPS
-during play.
+collision, corner bias, dual-way switching, chicane fast-grass, and OWOOT, the
+last recognized value wins. Supply the FPS option once; invalid or repeated FPS
+options report an error. F11 toggles FPS during play.
 Replays do not record driving options: use the same settings when recording
 and playing them.
 

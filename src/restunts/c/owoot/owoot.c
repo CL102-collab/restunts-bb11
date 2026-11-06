@@ -8,9 +8,15 @@ legacy_s16 owoot_enabled = 0;
 
 void configure_owoot(legacy_s16 argc, legacy_s8 *argv[])
 {
+	static const legacy_s8 shorthand_option[] = "--owoot";
+	static const legacy_s8 on_option[] = "--owoot:on";
+	static const legacy_s8 off_option[] = "--owoot:off";
 	owoot_enabled = 0;
 	for (legacy_s16 index = 1; index < argc; index++) {
-		if (stricmp(argv[index], "--owoot") == 0) {
+		if (stricmp(argv[index], off_option) == 0) {
+			owoot_enabled = 0;
+		} else if (stricmp(argv[index], shorthand_option) == 0 ||
+				   stricmp(argv[index], on_option) == 0) {
 			owoot_enabled = 1;
 		}
 	}

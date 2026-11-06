@@ -75,10 +75,29 @@ static void test_owoot_options(void)
 	static const struct {
 		const legacy_char *option;
 		legacy_s16 expected_enabled;
-	} cases[] = {{NULL, 0},		  {"--owoot", 1},	{"--OWOOT", 1},
-				 {"--OwOoT", 1},  {"/owoot", 0},	{"/OWOOT", 0},
-				 {"owoot", 0},	  {"-owoot", 0},	{"--owoot-extra", 0},
-				 {"--owoot ", 0}, {"--owoot:on", 0}};
+	} cases[] = {{NULL, 0},
+				 {"--owoot", 1},
+				 {"--OWOOT", 1},
+				 {"--OwOoT", 1},
+				 {"--owoot:on", 1},
+				 {"--OWOOT:ON", 1},
+				 {"--OwOoT:oN", 1},
+				 {"--owoot:off", 0},
+				 {"--OWOOT:OFF", 0},
+				 {"--OwOoT:oFf", 0},
+				 {"/owoot", 0},
+				 {"/OWOOT", 0},
+				 {"owoot", 0},
+				 {"-owoot", 0},
+				 {"--owoot-extra", 0},
+				 {"--owoot ", 0},
+				 {"--owoot:", 0},
+				 {"--owoot:on-extra", 0},
+				 {"--owoot:off-extra", 0},
+				 {"--owoot:on ", 0},
+				 {"--owoot: off", 0},
+				 {"--owoot:on:off", 0},
+				 {"--owoot=off", 0}};
 	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
 		set_mode("--owoot");
 		set_mode(cases[index].option);
@@ -91,6 +110,40 @@ static void test_owoot_options(void)
 	legacy_s8 *executable_only[] = {(legacy_s8 *)"--owoot"};
 	configure_owoot(sizeof(executable_only) / sizeof(executable_only[0]), executable_only);
 	assert(!owoot_enabled);
+}
+
+static void test_owoot_option_order(void)
+{
+	static const struct {
+		const legacy_char *first;
+		const legacy_char *second;
+		legacy_s16 expected_enabled;
+	} cases[] = {{"--owoot:on", "--owoot:off", 0},		 {"--owoot:off", "--owoot:on", 1},
+				 {"--owoot", "--owoot:off", 0},			 {"--owoot:off", "--owoot", 1},
+				 {"--OWOOT:ON", "--OwOoT:oFf", 0},		 {"--OWOOT:OFF", "--OwOoT:oN", 1},
+				 {"--owoot:on", "--owoot:off-extra", 1}, {"--owoot:on", "--owoot:", 1},
+				 {"--owoot:on", "--owoot:off ", 1},		 {"--owoot:off", "--owoot:on-extra", 0},
+				 {"--owoot:off", "--owoot:on:off", 0}};
+	legacy_s8 *arguments[] = {(legacy_s8 *)"restunts", NULL, NULL};
+	for (legacy_u16 index = 0; index < sizeof(cases) / sizeof(cases[0]); index++) {
+		arguments[1] = (legacy_s8 *)cases[index].first;
+		arguments[2] = (legacy_s8 *)cases[index].second;
+		configure_owoot(sizeof(arguments) / sizeof(arguments[0]), arguments);
+		assert(owoot_enabled == cases[index].expected_enabled);
+	}
+}
+
+static void test_explicit_switch_enforcement(void)
+{
+	reset_player();
+	route_valid = 0;
+	set_mode("--owoot:on");
+	set_mode("--owoot:off");
+	owoot_update_player(&state.playerstate, PLAYER_CAR_INDEX);
+	assert(crashes == 0 && route_queries == 0 && jump_queries == 0 && road_queries == 0);
+	set_mode("--owoot:on");
+	owoot_update_player(&state.playerstate, PLAYER_CAR_INDEX);
+	assert(crashes == 1 && route_queries == 1 && jump_queries == 1 && road_queries == 0);
 }
 
 static void test_switch_and_enforcement(void)
@@ -256,6 +309,8 @@ int main(void)
 	test_model_wheel_projection();
 	test_steering_control_rounding();
 	test_owoot_options();
+	test_owoot_option_order();
+	test_explicit_switch_enforcement();
 	test_switch_and_enforcement();
 	test_failed_stunt_cannot_use_road_fallback();
 	puts("OWOOT mode and wheel tests passed");

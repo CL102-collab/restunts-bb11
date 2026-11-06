@@ -5679,16 +5679,16 @@ MemCpy(rs_command_line_command_line_help,
     "left corner bias.\r\n  --dws:on|off     Dual-Way Switching: off fixes branch-switching "
     "penalties.\r\n  --cfg:on|off     Enable/disable Chicane fast-grass.\r\n                   Off "
     "makes green chicane areas behave as grass.\r\n  --amigagrass     Use original Amiga grass "
-    "grip for stock cars.\r\n  --owoot          Enable One Wheel On/Over Track driving rules.\r\n  "
-    "/ns              Start with music and sound effects disabled.\r\n\r\nDefaults: intro and "
-    "sound on; --pg:on, --lc:on, --lcb:on, --dws:on, --cfg:on.\r\nFPS, Amiga grass, and OWOOT "
-    "start off.\r\nPhysics and FPS switches are case-insensitive.\r\nFor physics on/off switches, "
-    "the last value wins.\r\nSupply --fps only once; other switch names are "
-    "case-sensitive.\r\nVideo: 640 x 400 (8:5), 16 colors. Audio: PC speaker.\r\nF11 toggles FPS; "
-    "F12 toggles SuperSight.\r\n/sXX and /h are legacy compatibility switches with no "
-    "alternate\r\nTempleOS device; /nd is a recognized legacy switch with no effect.\r\nThe first "
-    "--help/-h or --version/-v request wins.\r\n",
-    1686);
+    "grip for stock cars.\r\n  --owoot[:on|off] Enable/disable One Wheel On/Over Track rules.\r\n  "
+    "                 --owoot is shorthand for --owoot:on.\r\n  /ns              Start with music "
+    "and sound effects disabled.\r\n\r\nDefaults: intro and sound on; --pg:on, --lc:on, --lcb:on, "
+    "--dws:on, --cfg:on.\r\nFPS, Amiga grass, and OWOOT start off.\r\nPhysics and FPS switches are "
+    "case-insensitive.\r\nFor physics on/off switches, the last value wins.\r\nSupply --fps only "
+    "once; other switch names are case-sensitive.\r\nVideo: 640 x 400 (8:5), 16 colors. Audio: PC "
+    "speaker.\r\nF11 toggles FPS; F12 toggles SuperSight.\r\n/sXX and /h are legacy compatibility "
+    "switches with no alternate\r\nTempleOS device; /nd is a recognized legacy switch with no "
+    "effect.\r\nThe first --help/-h or --version/-v request wins.\r\n",
+    1743);
 MemSet(&hill_height_consts,0,sizeof(hill_height_consts));
 hill_height_consts[1]=450;
 MemSet(&car_resource_name,0,sizeof(car_resource_name));
@@ -14129,50 +14129,56 @@ temple_segments_7042[1][3]=CORK_LR_UPPER_LEFT_OUTER_SEGMENT;
 temple_segments_7042[1][4]=CORK_LR_UPPER_LEFT_INNER_SEGMENT;
 temple_segments_7042[1][5]=CORK_LR_UPPER_RIGHT_OUTER_SEGMENT;
 temple_segments_7042[1][6]=CORK_LR_UPPER_RIGHT_INNER_SEGMENT;
-MemSet(&temple_aperture_7399,0,sizeof(temple_aperture_7399));
-temple_aperture_7399[0].x=(-(31));
-temple_aperture_7399[1].x=31;
-temple_aperture_7399[2].x=84;
-temple_aperture_7399[2].z=35;
-temple_aperture_7399[3].x=115;
-temple_aperture_7399[3].z=88;
-temple_aperture_7399[4].x=115;
-temple_aperture_7399[4].z=151;
-temple_aperture_7399[5].x=84;
-temple_aperture_7399[5].z=204;
-temple_aperture_7399[6].x=31;
-temple_aperture_7399[6].z=235;
-temple_aperture_7399[7].x=(-(31));
-temple_aperture_7399[7].z=235;
-temple_aperture_7399[8].x=(-(84));
-temple_aperture_7399[8].z=204;
-temple_aperture_7399[9].x=(-(115));
-temple_aperture_7399[9].z=151;
-temple_aperture_7399[10].x=(-(115));
-temple_aperture_7399[10].z=88;
-temple_aperture_7399[11].x=(-(84));
-temple_aperture_7399[11].z=35;
-MemSet(&temple_aperture_7400,0,sizeof(temple_aperture_7400));
-temple_aperture_7400[0].x=(-(120));
-temple_aperture_7400[1].x=120;
-temple_aperture_7400[2].x=120;
-temple_aperture_7400[2].z=144;
-temple_aperture_7400[3].x=(-(120));
-temple_aperture_7400[3].z=144;
-MemSet(&temple_barriers_7430,0,sizeof(temple_barriers_7430));
-temple_barriers_7430[0][0].x=23;
-temple_barriers_7430[0][0].z=(-(271));
-temple_barriers_7430[0][1].x=97;
-temple_barriers_7430[0][1].z=(-(271));
-temple_barriers_7430[0][2].x=97;
-temple_barriers_7430[0][2].z=(-(241));
-temple_barriers_7430[0][3].x=23;
-temple_barriers_7430[0][3].z=(-(241));
-temple_barriers_7430[1][0].x=(-(97));
-temple_barriers_7430[1][0].z=241;
-temple_barriers_7430[1][1].x=(-(23));
-temple_barriers_7430[1][1].z=241;
-temple_barriers_7430[1][2].x=(-(23));
-temple_barriers_7430[1][2].z=271;
-temple_barriers_7430[1][3].x=(-(97));
-temple_barriers_7430[1][3].z=271;
+MemSet(&temple_shorthand_option_7195,0,sizeof(temple_shorthand_option_7195));
+MemCpy(temple_shorthand_option_7195,"--owoot",8);
+MemSet(&temple_on_option_7196,0,sizeof(temple_on_option_7196));
+MemCpy(temple_on_option_7196,"--owoot:on",11);
+MemSet(&temple_off_option_7197,0,sizeof(temple_off_option_7197));
+MemCpy(temple_off_option_7197,"--owoot:off",12);
+MemSet(&temple_aperture_7403,0,sizeof(temple_aperture_7403));
+temple_aperture_7403[0].x=(-(31));
+temple_aperture_7403[1].x=31;
+temple_aperture_7403[2].x=84;
+temple_aperture_7403[2].z=35;
+temple_aperture_7403[3].x=115;
+temple_aperture_7403[3].z=88;
+temple_aperture_7403[4].x=115;
+temple_aperture_7403[4].z=151;
+temple_aperture_7403[5].x=84;
+temple_aperture_7403[5].z=204;
+temple_aperture_7403[6].x=31;
+temple_aperture_7403[6].z=235;
+temple_aperture_7403[7].x=(-(31));
+temple_aperture_7403[7].z=235;
+temple_aperture_7403[8].x=(-(84));
+temple_aperture_7403[8].z=204;
+temple_aperture_7403[9].x=(-(115));
+temple_aperture_7403[9].z=151;
+temple_aperture_7403[10].x=(-(115));
+temple_aperture_7403[10].z=88;
+temple_aperture_7403[11].x=(-(84));
+temple_aperture_7403[11].z=35;
+MemSet(&temple_aperture_7404,0,sizeof(temple_aperture_7404));
+temple_aperture_7404[0].x=(-(120));
+temple_aperture_7404[1].x=120;
+temple_aperture_7404[2].x=120;
+temple_aperture_7404[2].z=144;
+temple_aperture_7404[3].x=(-(120));
+temple_aperture_7404[3].z=144;
+MemSet(&temple_barriers_7434,0,sizeof(temple_barriers_7434));
+temple_barriers_7434[0][0].x=23;
+temple_barriers_7434[0][0].z=(-(271));
+temple_barriers_7434[0][1].x=97;
+temple_barriers_7434[0][1].z=(-(271));
+temple_barriers_7434[0][2].x=97;
+temple_barriers_7434[0][2].z=(-(241));
+temple_barriers_7434[0][3].x=23;
+temple_barriers_7434[0][3].z=(-(241));
+temple_barriers_7434[1][0].x=(-(97));
+temple_barriers_7434[1][0].z=241;
+temple_barriers_7434[1][1].x=(-(23));
+temple_barriers_7434[1][1].z=241;
+temple_barriers_7434[1][2].x=(-(23));
+temple_barriers_7434[1][2].z=271;
+temple_barriers_7434[1][3].x=(-(97));
+temple_barriers_7434[1][3].z=271;

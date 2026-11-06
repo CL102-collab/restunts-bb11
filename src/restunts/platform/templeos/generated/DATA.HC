@@ -330,7 +330,7 @@ MemSet(&rs_command_line_command_line_revision,0,sizeof(rs_command_line_command_l
 legacy_s8 rs_command_line_command_line_version_suffix[17];
 MemSet(&rs_command_line_command_line_version_suffix,0,
     sizeof(rs_command_line_command_line_version_suffix));
-legacy_s8 rs_command_line_command_line_help[1686];
+legacy_s8 rs_command_line_command_line_help[1743];
 MemSet(&rs_command_line_command_line_help,0,sizeof(rs_command_line_command_line_help));
 CGameInfo gameconfig;
 MemSet(&gameconfig,0,sizeof(gameconfig));

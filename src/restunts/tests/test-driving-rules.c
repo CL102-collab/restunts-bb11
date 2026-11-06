@@ -53,6 +53,14 @@ static void test_all_recorded_combinations(void)
 		assert(driving_rules_current() == mask);
 		/* Reading the snapshot does not reset or alter any configured rule. */
 		assert(driving_rules_current() == mask);
+		/* Explicit on/off switches must produce the same recorded rules as the alias. */
+		if (mask & DRIVING_RULE_OWOOT) {
+			arguments[argc - 1] = (legacy_s8 *)"--owoot:on";
+		} else {
+			arguments[argc++] = (legacy_s8 *)"--owoot:off";
+		}
+		configure_rules(argc, arguments);
+		assert(driving_rules_current() == mask);
 		configure_rules(1, defaults);
 		assert(driving_rules_current() == TEST_DEFAULT_RULES);
 	}
@@ -61,15 +69,20 @@ static void test_all_recorded_combinations(void)
 static void test_startup_argument_semantics(void)
 {
 	legacy_s8 *arguments[] = {
-		(legacy_s8 *)"restunts",  (legacy_s8 *)"--PG:off", (legacy_s8 *)"--PG:on",
-		(legacy_s8 *)"--LC:on",	  (legacy_s8 *)"--LC:off", (legacy_s8 *)"--LCB:off",
-		(legacy_s8 *)"--LCB:on",  (legacy_s8 *)"--DWS:on", (legacy_s8 *)"--DWS:off",
-		(legacy_s8 *)"--CFG:off", (legacy_s8 *)"--CFG:on", (legacy_s8 *)"--AMIGAGRASS",
-		(legacy_s8 *)"--OWOOT"};
+		(legacy_s8 *)"restunts",	(legacy_s8 *)"--PG:off",  (legacy_s8 *)"--PG:on",
+		(legacy_s8 *)"--LC:on",		(legacy_s8 *)"--LC:off",  (legacy_s8 *)"--LCB:off",
+		(legacy_s8 *)"--LCB:on",	(legacy_s8 *)"--DWS:on",  (legacy_s8 *)"--DWS:off",
+		(legacy_s8 *)"--CFG:off",	(legacy_s8 *)"--CFG:on",  (legacy_s8 *)"--AMIGAGRASS",
+		(legacy_s8 *)"--OWOOT:OFF", (legacy_s8 *)"--OWOOT:ON"};
 	configure_rules((legacy_s16)(sizeof(arguments) / sizeof(arguments[0])), arguments);
 	assert(driving_rules_current() ==
 		   (DRIVING_RULE_POWER_GEAR | DRIVING_RULE_LEFT_CORNER_BIAS |
 			DRIVING_RULE_CHICANE_FAST_GRASS | DRIVING_RULE_AMIGA_GRASS | DRIVING_RULE_OWOOT));
+	legacy_s8 *owoot_overrides[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--owoot",
+									(legacy_s8 *)"--owoot:off", (legacy_s8 *)"--owoot:on-extra"};
+	configure_rules((legacy_s16)(sizeof(owoot_overrides) / sizeof(owoot_overrides[0])),
+					owoot_overrides);
+	assert(driving_rules_current() == TEST_DEFAULT_RULES);
 	legacy_s8 *visual_options[] = {(legacy_s8 *)"restunts", (legacy_s8 *)"--fullscreen:on",
 								   (legacy_s8 *)"--fps:off", (legacy_s8 *)"--ogg:on",
 								   (legacy_s8 *)"--nointro"};
