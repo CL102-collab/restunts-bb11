@@ -21,6 +21,8 @@ light gray.
 
 ![Front fender before and after lowering the crown toward the source profile](cars/mcmurtry-front-profile-comparison.png)
 
+![Front-wheel crown openings before and after squaring their outlines, from above and the front quarter](cars/mcmurtry-front-openings-comparison.png)
+
 ![Front nose before and after replacing the broad black opening with curved paint and a narrow dark-grey inset](cars/mcmurtry-nose-comparison.png)
 
 ![Rear before and after replacing the broad black fascia with curved paint and a compact dark-grey inset](cars/mcmurtry-tail-comparison.png)
@@ -73,7 +75,10 @@ canopy surface and animated wheel controls remain unchanged. Mirror heads
 retain their shape, with stems attached to existing fender-crown vertices to
 reserve geometry for the side gills. The front fender crown follows the
 source's shallow, nearly level profile toward the cockpit, with a small lift over the enlarged native arch instead of a tall
-peak over the axle.
+peak over the axle. The two openings above the front wheels are rectangular,
+with parallel long sides and squared ends following the supplied overhead
+photograph. Their four-corner outlines sit on the existing fender crowns in
+the showroom and both racing detail levels.
 The nose has curved body-colour bands above and below a narrow dark-grey
 inset, rolled painted cheeks and a low splitter. The four white front lamp
 markers are omitted. Four shared rows of five points form the front
