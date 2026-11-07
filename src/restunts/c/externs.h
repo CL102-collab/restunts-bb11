@@ -2,9 +2,11 @@
 #define RESTUNTS_EXTERNS_H
 
 #ifdef RESTUNTS_SDL3
-/* Declare the host CRT before the legacy spelling aliases below. */
+/* Declare the host CRT before the legacy spelling aliases below. MinGW also
+ * declares memcpy in wchar.h, which SDL headers can include later. */
 #include <string.h>
 #include <stdlib.h>
+#include <wchar.h>
 #endif
 
 /* The original timer shutdown restores INT 8 and the BIOS PIT divisor. */
