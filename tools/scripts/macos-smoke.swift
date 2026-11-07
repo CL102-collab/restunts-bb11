@@ -159,8 +159,9 @@ private func visibleWindow(pid: pid_t) async throws -> SCWindow {
     try require(CGPreflightScreenCaptureAccess(), "Screen recording permission is unavailable")
     let content = try await SCShareableContent.excludingDesktopWindows(true,
                                                                       onScreenWindowsOnly: true)
+    // Cocoa modal panels (including the wxWidgets launcher) use elevated layers.
     let windows = content.windows.filter {
-        $0.owningApplication?.processID == pid && $0.windowLayer == 0 &&
+        $0.owningApplication?.processID == pid &&
             $0.frame.width > 0 && $0.frame.height > 0
     }
     guard let window = windows.max(by: {
