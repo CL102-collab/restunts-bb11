@@ -21,6 +21,28 @@ private struct WindowSelectionTest {
     private static let captureSeconds = 30.0
     private static let unavailableExitCode: Int32 = 77
 
+    @available(macOS 14.0, *)
+    private static func checkAudioFailure(window: SCWindow, destination: URL) throws {
+        let streamError = NSError(domain: "FixtureStreamFailure", code: Int(EXIT_FAILURE))
+        let stoppingError = NSError(domain: "FixtureStopFailure", code: Int(EXIT_FAILURE))
+        let recorder = AudioRecorder(destination: destination)
+        let stream = SCStream(filter: SCContentFilter(desktopIndependentWindow: window),
+                              configuration: SCStreamConfiguration(), delegate: recorder)
+        // Queue the same delegate failure that a terminated capture stream reports.
+        recorder.stream(stream, didStopWithError: streamError)
+        let unstarted = AudioRecorder(destination: destination)
+        for (recording, expected) in [(recorder, streamError), (unstarted, stoppingError)] {
+            do {
+                _ = try recording.finish(stoppingError: stoppingError)
+                throw SmokeError("A failed recorder must not finish successfully")
+            } catch {
+                let actual = error as NSError
+                try require(actual.domain == expected.domain && actual.code == expected.code,
+                            "Recorder must preserve the original failure over cleanup or empty audio")
+            }
+        }
+    }
+
     @MainActor
     private static func checkCapture(helper: URL, destination: URL, panel: NSPanel) async throws {
         let stdoutURL = destination.appendingPathExtension("stdout")
@@ -113,6 +135,10 @@ private struct WindowSelectionTest {
                 throw SmokeError("Capture must not fall back to a different process")
             }
             try require(CommandLine.arguments.count == 3, "Missing production helper or PNG path")
+            guard let window = selected else { throw SmokeError("Missing selected fixture window") }
+            try checkAudioFailure(window: window,
+                                  destination: URL(fileURLWithPath: CommandLine.arguments[2])
+                                      .appendingPathExtension("wav"))
             try await checkCapture(helper: URL(fileURLWithPath: CommandLine.arguments[1]),
                                    destination: URL(fileURLWithPath: CommandLine.arguments[2]),
                                    panel: panel)

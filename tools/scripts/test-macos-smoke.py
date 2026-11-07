@@ -166,6 +166,9 @@ class SmokeTest:
     def intro_audio(self):
         ready = self.results / "audio-ready.json"
         wave_path = self.results / "intro.wav"
+        # Bracket recording with screenshots instead of starting another
+        # ScreenCaptureKit helper while the audio stream is active.
+        self.capture("intro", self.game_pid)
         self.audio = subprocess.Popen(
             [str(self.helper), "audio", str(self.game_pid), str(wave_path),
              str(AUDIO_SECONDS), str(ready)], env=self.environment,
@@ -178,8 +181,7 @@ class SmokeTest:
 
         started = self.wait_for("app audio recording", recording_ready, AUDIO_READY_TIMEOUT)
         require(started["pid"] == self.game_pid, "Audio filter uses the wrong process")
-        self.capture("intro", self.game_pid)
-        # No key is sent until capture stops and both intro images have been checked.
+        # No other capture helper or input runs until recording has finished.
         output, errors = self.audio.communicate(timeout=AUDIO_FINISH_TIMEOUT)
         (self.results / "audio.log").write_text(errors, encoding="utf-8")
         (self.results / "audio-capture.json").write_text(output, encoding="utf-8")
@@ -198,7 +200,7 @@ class SmokeTest:
                 "WAV format differs from the captured stream")
         intro_start = self.evidence["screenshots"]["intro"]["captured_at"]
         intro_end = self.evidence["screenshots"]["intro-end"]["captured_at"]
-        require(recorded["started_at"] <= intro_start <= recorded["ended_at"] <= intro_end,
+        require(intro_start <= recorded["started_at"] <= recorded["ended_at"] <= intro_end,
                 "Intro screenshots do not bracket the audio recording")
         self.evidence["audio"] = dict(recorded, validation=audio_metrics)
         self.evidence["intro_input_sent"] = False

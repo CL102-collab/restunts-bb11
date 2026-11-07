@@ -32,8 +32,9 @@ class MacOSSmokeDriverTests(unittest.TestCase):
         self.smoke.game_pid = GAME_PID
 
     def intro_recording(self, *, silent=False, marker=True, wrong_pid=False,
-                        wrong_frames=False, outside_interval=False):
-        frames = RECORDING_SECONDS * SAMPLE_RATE
+                        wrong_frames=False, audio_interval=(100, 109),
+                        recording_seconds=RECORDING_SECONDS, recording_error=None):
+        frames = recording_seconds * SAMPLE_RATE
         samples = array("h")
         for frame in range(frames):
             value = 0 if silent else round(6000 * math.sin(2 * math.pi * 440 * frame / SAMPLE_RATE))
@@ -49,28 +50,52 @@ class MacOSSmokeDriverTests(unittest.TestCase):
         captured = {"pid": GAME_PID + 1 if wrong_pid else GAME_PID,
                     "frames": frames + 1 if wrong_frames else frames,
                     "sample_rate": SAMPLE_RATE, "channels": 2,
-                    "started_at": 100, "ended_at": 109}
+                    "started_at": audio_interval[0], "ended_at": audio_interval[1]}
         recorder = mock.Mock()
         recorder.poll.return_value = None
-        recorder.returncode = 0
-        recorder.communicate.return_value = (json.dumps(captured), "")
+        recorder.returncode = 1 if recording_error else 0
+        active = False
+        events = []
+
+        def start_recording(*arguments, **options):
+            nonlocal active
+            active = True
+            events.append("recording-start")
+            return recorder
+
+        def finish_recording(**options):
+            nonlocal active
+            events.append("recording-stop")
+            active = False
+            return json.dumps(captured), recording_error or ""
+
+        recorder.communicate.side_effect = finish_recording
 
         def screenshot(stage, pid):
-            timestamp = (111 if outside_interval else 101) if stage == "intro" else 110
+            self.assertFalse(active, "Screenshot helper must not overlap the audio helper")
+            events.append(stage)
+            timestamp = 99 if stage == "intro" else 110
             self.smoke.evidence["screenshots"][stage] = {
                 "captured_at": timestamp,
                 "validation": {"intro_words": ["stunts"] if marker else []},
             }
 
-        with mock.patch.object(DRIVER.subprocess, "Popen", return_value=recorder), \
-                mock.patch.object(self.smoke, "capture", side_effect=screenshot):
+        with mock.patch.object(DRIVER.subprocess, "Popen", side_effect=start_recording), \
+                mock.patch.object(self.smoke, "capture", side_effect=screenshot), \
+                mock.patch.object(self.smoke, "native", side_effect=AssertionError(
+                    "Native input must not be sent during the intro audio check")):
             self.smoke.intro_audio()
+        return events
 
     def test_valid_intro_capture_records_decoded_audio_metrics(self):
         self.intro_recording()
         evidence = self.smoke.evidence
         self.assertEqual(evidence["audio"]["validation"]["duration_seconds"], RECORDING_SECONDS)
         self.assertFalse(evidence["intro_input_sent"])
+
+    def test_screenshot_helpers_bracket_the_complete_audio_process(self):
+        events = self.intro_recording()
+        self.assertEqual(events, ["intro", "recording-start", "recording-stop", "intro-end"])
 
     def test_silent_audio_cannot_pass_through_the_driver(self):
         with self.assertRaisesRegex(ValueError, "silent"):
@@ -89,9 +114,29 @@ class MacOSSmokeDriverTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "frame count"):
             self.intro_recording(wrong_frames=True)
 
-    def test_intro_capture_must_overlap_the_recording_interval(self):
+    def test_audio_must_not_start_before_the_first_intro_capture(self):
         with self.assertRaisesRegex(RuntimeError, "bracket"):
-            self.intro_recording(outside_interval=True)
+            self.intro_recording(audio_interval=(98, 109))
+
+    def test_audio_must_not_end_after_the_last_intro_capture(self):
+        with self.assertRaisesRegex(RuntimeError, "bracket"):
+            self.intro_recording(audio_interval=(100, 111))
+
+    def test_reversed_recording_timestamps_are_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "bracket"):
+            self.intro_recording(audio_interval=(109, 100))
+
+    def test_truncated_recording_cannot_pass_with_valid_bracketing_images(self):
+        with self.assertRaisesRegex(ValueError, "shorter"):
+            self.intro_recording(recording_seconds=3)
+        self.assertNotIn("audio", self.smoke.evidence)
+
+    def test_failed_recorder_preserves_native_diagnostics(self):
+        message = "Original stream failure: test interruption"
+        with self.assertRaisesRegex(RuntimeError, "System audio recording failed"):
+            self.intro_recording(recording_error=message)
+        self.assertEqual((self.root / "audio.log").read_text(), message)
+        self.assertNotIn("audio", self.smoke.evidence)
 
     def test_dummy_drivers_and_injected_libraries_are_not_inherited(self):
         with mock.patch.dict(os.environ, {"SDL_AUDIODRIVER": "dummy", "SDL_VIDEODRIVER": "dummy",

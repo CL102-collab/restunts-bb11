@@ -310,11 +310,12 @@ private final class AudioRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
     // stopCapture completes first; this barrier drains queued callbacks and closes
     // AVAudioFile, which finalizes the WAV header before the caller reports success.
-    func finish() throws -> UInt64 {
+    func finish(stoppingError: Error? = nil) throws -> UInt64 {
         try queue.sync {
             accepting = false
             file = nil
             if let failure = failure { throw failure }
+            if let stoppingError = stoppingError { throw stoppingError }
             try require(frames > 0, "ScreenCaptureKit recorded no audio buffers")
             return frames
         }
@@ -355,7 +356,9 @@ private func recordAudio(pid: pid_t, destination: URL, seconds: Double,
                 "started_at": startedAt, "ended_at": Date().timeIntervalSince1970]
     } catch {
         try? await stream.stopCapture()
-        _ = try? recorder.finish()
+        // Prefer the original delegate or sample error over a secondary failure
+        // to stop an already terminated stream. Keep start/stop errors otherwise.
+        _ = try recorder.finish(stoppingError: error)
         throw error
     }
 }
