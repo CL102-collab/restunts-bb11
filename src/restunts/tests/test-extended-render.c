@@ -4632,6 +4632,7 @@ static legacy_u16 check_overview_detail_and_workers(void)
 	legacy_s32 previous_scale = hires_render_scale();
 	const legacy_char *workers[] = {"0", "1", "3"};
 	struct CSTRK_TRACK track;
+	cstrk_init(&track);
 	make_overview_lap(&track, CSTRK_MAX_DIMENSION, CSTRK_MAX_DIMENSION, OVERVIEW_DETAIL_FAR_FIRST,
 					  OVERVIEW_DETAIL_FAR_FIRST, OVERVIEW_DETAIL_FAR_LAST, OVERVIEW_DETAIL_FAR_LAST,
 					  0);
