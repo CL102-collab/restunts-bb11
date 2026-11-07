@@ -9,7 +9,7 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "macos-smoke.swift"
 COMPILE_TIMEOUT = 120
-TEST_TIMEOUT = 30
+TEST_TIMEOUT = 45
 PERMISSION_UNAVAILABLE = 77
 FIXTURE = r'''
 @main
@@ -18,7 +18,59 @@ private struct WindowSelectionTest {
     private static let largeFrame = NSRect(x: 100, y: 100, width: 640, height: 480)
     private static let pollSeconds = 0.1
     private static let readySeconds = 5.0
+    private static let captureSeconds = 30.0
     private static let unavailableExitCode: Int32 = 77
+
+    @MainActor
+    private static func checkCapture(helper: URL, destination: URL, panel: NSPanel) async throws {
+        let stdoutURL = destination.appendingPathExtension("stdout")
+        let stderrURL = destination.appendingPathExtension("stderr")
+        try Data().write(to: stdoutURL)
+        try Data().write(to: stderrURL)
+        let stdout = try FileHandle(forWritingTo: stdoutURL)
+        let stderr = try FileHandle(forWritingTo: stderrURL)
+        defer {
+            try? stdout.close()
+            try? stderr.close()
+        }
+        // A fresh CLI process must initialize its own WindowServer connection.
+        let process = Process()
+        process.executableURL = helper
+        process.arguments = ["capture", String(getpid()), destination.path]
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        defer {
+            if process.isRunning { Darwin.kill(process.processIdentifier, SIGKILL) }
+        }
+        let deadline = Date().addingTimeInterval(captureSeconds)
+        while process.isRunning && Date() < deadline {
+            // Keep the fixture's main actor responsive while its window is captured.
+            try await sleepSeconds(pollSeconds)
+        }
+        try require(!process.isRunning, "Production capture helper timed out")
+        let output = try Data(contentsOf: stdoutURL)
+        let errors = try Data(contentsOf: stderrURL)
+        try require(process.terminationStatus == EXIT_SUCCESS,
+                    "Production capture failed (\(process.terminationStatus)): " +
+                    String(decoding: output + errors, as: UTF8.self))
+        guard let metadata = try JSONSerialization.jsonObject(with: output) as? [String: Any] else {
+            throw SmokeError("Production capture did not return JSON metadata")
+        }
+        try require((metadata["pid"] as? NSNumber)?.int32Value == getpid(),
+                    "Production capture must report the fixture process")
+        try require((metadata["window_id"] as? NSNumber)?.uint32Value == CGWindowID(panel.windowNumber),
+                    "Production capture must select the modal panel")
+        guard let source = CGImageSourceCreateWithURL(destination as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw SmokeError("Production capture did not write a decodable PNG")
+        }
+        try require(image.width > 0 && image.height > 0,
+                    "Production capture must have positive image dimensions")
+        try require((metadata["width"] as? NSNumber)?.intValue == image.width &&
+                    (metadata["height"] as? NSNumber)?.intValue == image.height,
+                    "Production capture metadata must match the decoded image")
+    }
 
     @MainActor
     static func main() async {
@@ -60,6 +112,10 @@ private struct WindowSelectionTest {
             if (try? await visibleWindow(pid: pid_t.max)) != nil {
                 throw SmokeError("Capture must not fall back to a different process")
             }
+            try require(CommandLine.arguments.count == 3, "Missing production helper or PNG path")
+            try await checkCapture(helper: URL(fileURLWithPath: CommandLine.arguments[1]),
+                                   destination: URL(fileURLWithPath: CommandLine.arguments[2]),
+                                   panel: panel)
         } catch {
             FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
             Darwin.exit(EXIT_FAILURE)
@@ -72,18 +128,24 @@ private struct WindowSelectionTest {
 @unittest.skipUnless(sys.platform == "darwin", "Requires Cocoa and ScreenCaptureKit")
 class MacOSWindowSelectionTests(unittest.TestCase):
     def test_modal_panel_is_captured_without_weakening_process_selection(self):
-        # Compile the production helper functions with a fixture entry point.
+        # Keep fixture inspection and the unmodified production CLI in separate processes.
         helper_source, separator, _ = SCRIPT.read_text(encoding="utf-8").partition("\n@main\n")
         self.assertTrue(separator, "Native helper entry point is missing")
         with tempfile.TemporaryDirectory(prefix="macos-smoke-windows-") as temporary:
             work = Path(temporary)
             source, helper = work / "windows.swift", work / "windows"
+            production = work / "macos-smoke"
             source.write_text(helper_source + "\n" + FIXTURE, encoding="utf-8")
             compiled = subprocess.run(["/usr/bin/xcrun", "swiftc", "-swift-version", "5",
                                        "-parse-as-library", source, "-o", helper],
                                       capture_output=True, text=True, timeout=COMPILE_TIMEOUT)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
-            result = subprocess.run([helper], capture_output=True, text=True, timeout=TEST_TIMEOUT)
+            compiled = subprocess.run(["/usr/bin/xcrun", "swiftc", "-swift-version", "5",
+                                       "-parse-as-library", SCRIPT, "-o", production],
+                                      capture_output=True, text=True, timeout=COMPILE_TIMEOUT)
+            self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
+            result = subprocess.run([helper, production, work / "capture.png"],
+                                    capture_output=True, text=True, timeout=TEST_TIMEOUT)
         if result.returncode == PERMISSION_UNAVAILABLE:
             self.skipTest("Requires macOS 14+ with screen recording permission")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

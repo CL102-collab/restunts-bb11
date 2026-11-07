@@ -436,6 +436,11 @@ private struct MacOSSmoke {
             guard #available(macOS 14.0, *) else {
                 throw SmokeError("macOS 14 or later is required for the native smoke helper")
             }
+            // Establish the WindowServer connection before creating capture filters
+            // or posting input events. This CLI has no NSApplicationMain bootstrap.
+            let app = NSApplication.shared
+            app.setActivationPolicy(.prohibited)
+            app.finishLaunching()
             let result: [String: Any]
             switch command {
             case "preflight" where arguments.count == 1:
