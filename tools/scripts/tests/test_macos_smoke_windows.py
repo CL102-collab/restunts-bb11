@@ -31,6 +31,8 @@ private struct WindowSelectionTest {
                               backing: .buffered, defer: false)
         let panel = NSPanel(contentRect: largeFrame, styleMask: [.titled],
                             backing: .buffered, defer: false)
+        // A modal session controls event dispatch; set the window level explicitly.
+        panel.level = .modalPanel
         normal.orderFrontRegardless()
         let session = app.beginModalSession(for: panel)
         defer {
@@ -49,6 +51,8 @@ private struct WindowSelectionTest {
             } while Date() < deadline
             try require(selected?.windowID == CGWindowID(panel.windowNumber),
                         "Capture must select the larger modal panel instead of the normal window")
+            try require(selected?.windowLayer == NSWindow.Level.modalPanel.rawValue,
+                        "Captured panel must retain its elevated window layer")
             try require(selected?.owningApplication?.processID == getpid(),
                         "Captured window must belong to the requested process")
             try require((selected?.frame.width ?? 0) > 0 && (selected?.frame.height ?? 0) > 0,
