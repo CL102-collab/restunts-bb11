@@ -15,7 +15,6 @@
 
 #include "../c/hires/shape3d_mesh.h"
 #include "../c/hires/shape3d_hires.h"
-#include "../c/hires/render_workers.h"
 #include "../c/shape3d/shape3d_pipeline_internal.h"
 #include "../c/shape2d/shape2d.h"
 #include "../c/video/video_framebuffer.h"
@@ -506,104 +505,6 @@ static void check_car_mesh_lifetime(void)
 	free(data);
 }
 
-#define TEST_LOD_NEAR_INDEX 1U
-#define TEST_LOD_FAR_INDEX 2U
-#define TEST_LOD_NEAR_PRIMITIVES 2U
-
-static legacy_u8 *make_lod_container(const struct TEST_CLASSIC_CARS *cars,
-									 legacy_u16 near_primitives, size_t *size)
-{
-	struct TEST_MESH models[TEST_CAR_MESH_COUNT];
-	*size = TEST_CONTAINER_HEADER_SIZE + TEST_CAR_MESH_COUNT * TEST_CONTAINER_ENTRY_SIZE;
-	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
-		models[index] =
-			make_mesh(TEST_MESH_WIDE_VERTEX_COUNT, cars->shapes[0][index].shape3d_numpaints,
-					  SHAPE3D_PRIMITIVE_POLYGON_FIRST);
-		legacy_u16 count = index == TEST_LOD_NEAR_INDEX ? near_primitives : 1U;
-		*size += TEST_MESH_HEADER_SIZE + TEST_MESH_WIDE_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE +
-				 count * (2U * SHAPE3D_VISIBILITY_MASK_SIZE + models[index].size -
-						  models[index].primitive_offset);
-	}
-	legacy_u8 *data = calloc(1, *size);
-	assert(data != NULL);
-	memcpy(data, "H3D", sizeof("H3D"));
-	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_VERSION_OFFSET, HIRES_MESH_VERSION);
-	LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_COUNT_OFFSET, TEST_CAR_MESH_COUNT);
-	size_t offset = TEST_CONTAINER_HEADER_SIZE + TEST_CAR_MESH_COUNT * TEST_CONTAINER_ENTRY_SIZE;
-	for (legacy_u16 index = 0; index < TEST_CAR_MESH_COUNT; index++) {
-		struct TEST_MESH *model = &models[index];
-		legacy_u16 count = index == TEST_LOD_NEAR_INDEX ? near_primitives : 1U;
-		size_t prefix = TEST_MESH_HEADER_SIZE + TEST_MESH_WIDE_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE;
-		size_t stride = model->size - model->primitive_offset;
-		size_t length = prefix + count * (2U * SHAPE3D_VISIBILITY_MASK_SIZE + stride);
-		legacy_u8 *entry = data + TEST_CONTAINER_HEADER_SIZE + index * TEST_CONTAINER_ENTRY_SIZE;
-		memcpy(entry, "car0", sizeof("car0") - 1U);
-		entry[3] += index;
-		LEGACY_WRITE_U32_LE(entry + TEST_CONTAINER_OFFSET_FIELD, offset);
-		LEGACY_WRITE_U32_LE(entry + TEST_CONTAINER_LENGTH_FIELD, length);
-		memcpy(data + offset, model->data, prefix);
-		LEGACY_WRITE_U16_LE(data + offset + TEST_MESH_PRIMITIVE_COUNT_OFFSET, count);
-		memcpy(data + offset + TEST_MESH_HEADER_SIZE +
-				   TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-			   cars->vertices[0][index] + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-			   TEST_CAR_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
-		for (legacy_u16 primitive = 0; primitive < count; primitive++) {
-			LEGACY_WRITE_U32_LE(data + offset + prefix + primitive * SHAPE3D_VISIBILITY_MASK_SIZE,
-								TEST_MESH_VISIBILITY_MASK);
-			memcpy(data + offset + prefix + 2U * count * SHAPE3D_VISIBILITY_MASK_SIZE +
-					   primitive * stride,
-				   model->data + model->primitive_offset, stride);
-		}
-		offset += length;
-		free(model->storage);
-	}
-	assert(offset == *size);
-	return data;
-}
-
-static void check_car_lod_eligibility(void)
-{
-	struct TEST_CLASSIC_CARS cars;
-	legacy_char directory[FILE_CAR_PATH_SIZE], path[FILE_CAR_PATH_SIZE];
-	assert(SDL_snprintf(directory, sizeof(directory), "hires-lod-%" LEGACY_PRIu64,
-						(legacy_u64)SDL_GetTicksNS()) > 0);
-	assert(SDL_CreateDirectory(directory));
-	assert(SDL_snprintf(path, sizeof(path), "%s/STLODS.H3D", directory) > 0);
-	file_car_set_base((const legacy_s8 *)directory);
-	for (legacy_u16 variation = 0; variation < 5U; variation++) {
-		prepare_classic_cars(&cars);
-		if (variation == 1U) {
-			cars.shapes[0][TEST_LOD_FAR_INDEX].shape3d_numpaints--;
-		} else if (variation == 2U) {
-			struct VECTOR wheel = {-123, 45, 67};
-			shape3d_vertex_write(&cars.shapes[0][TEST_LOD_FAR_INDEX], TEST_CAR_FIRST_WHEEL_VERTEX,
-								 &wheel);
-		}
-		size_t size;
-		legacy_u8 *data =
-			make_lod_container(&cars, variation == 3U ? 1U : TEST_LOD_NEAR_PRIMITIVES, &size);
-		if (variation == 4U) {
-			LEGACY_WRITE_U16_LE(data + TEST_CONTAINER_COUNT_OFFSET, TEST_CAR_MESH_COUNT - 1U);
-		}
-		write_container(path, data, size);
-		hires_shape3d_load_car_meshes(0, (const legacy_s8 *)"LODS", cars.pointers[0]);
-		struct SHAPE3D *near_mesh = hires_shape3d_car_mesh(cars.pointers[0][TEST_LOD_NEAR_INDEX]);
-		assert(near_mesh != cars.pointers[0][TEST_LOD_NEAR_INDEX]);
-		assert((hires_shape3d_car_far_mesh(near_mesh) != NULL) == (variation == 0));
-		assert(hires_shape3d_car_far_mesh(cars.pointers[0][TEST_LOD_NEAR_INDEX]) ==
-			   hires_shape3d_car_far_mesh(near_mesh));
-		assert(hires_shape3d_car_far_mesh(cars.pointers[0][0]) == NULL);
-		assert(hires_shape3d_car_far_mesh(cars.pointers[0][TEST_LOD_FAR_INDEX]) == NULL);
-		assert(hires_shape3d_car_far_mesh(cars.pointers[1][TEST_LOD_NEAR_INDEX]) == NULL);
-		hires_shape3d_free_car_meshes();
-		assert(hires_shape3d_car_far_mesh(cars.pointers[0][TEST_LOD_NEAR_INDEX]) == NULL);
-		free(data);
-	}
-	file_car_set_base(NULL);
-	assert(SDL_RemovePath(path));
-	assert(SDL_RemovePath(directory));
-}
-
 #define TEST_MCMURTRY_CLASSIC_PRIMITIVES 247U
 #define TEST_MCMURTRY_DETAIL_MULTIPLIER 4U
 #define TEST_MCMURTRY_STEERING_ANGLE 64
@@ -634,41 +535,6 @@ static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_
 			   vertices[index].z == vertex.z);
 	}
 	return mesh;
-}
-
-struct TEST_LOD_LOOKUP_JOB {
-	const struct SHAPE3D *near_mesh[TEST_CAR_COUNT];
-	struct SHAPE3D *far_mesh[TEST_CAR_COUNT];
-};
-
-static void check_lod_lookup_job(void *argument, legacy_s32 index)
-{
-	const struct TEST_LOD_LOOKUP_JOB *job = argument;
-	assert(hires_shape3d_car_far_mesh(job->near_mesh[index]) == job->far_mesh[index]);
-}
-
-static void check_lod_lookup_workers(const struct SHAPE3D *player, const struct SHAPE3D *opponent)
-{
-	struct TEST_LOD_LOOKUP_JOB job = {
-		{player, opponent},
-		{hires_shape3d_car_far_mesh(player), hires_shape3d_car_far_mesh(opponent)}};
-	assert(job.far_mesh[0] != NULL && job.far_mesh[1] != NULL &&
-		   job.far_mesh[0] != job.far_mesh[1]);
-	const legacy_char *original = SDL_getenv("RESTUNTS_RENDER_WORKERS");
-	legacy_char *saved = original != NULL ? SDL_strdup(original) : NULL;
-	assert(original == NULL || saved != NULL);
-	assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS", "2", true));
-	hires_render_workers_set_enabled(1);
-	hires_render_workers_run(TEST_CAR_COUNT, check_lod_lookup_job, &job);
-	hires_render_workers_shutdown();
-	hires_render_workers_set_enabled(0);
-	if (saved != NULL) {
-		assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS", saved,
-										  true));
-		SDL_free(saved);
-	} else {
-		assert(SDL_UnsetEnvironmentVariable(SDL_GetEnvironment(), "RESTUNTS_RENDER_WORKERS"));
-	}
 }
 
 static void check_real_car_cache_reload(void)
@@ -718,18 +584,10 @@ static void check_real_car_cache_reload(void)
 		struct SHAPE3D *showroom = check_real_mcmurtry_mesh(&game3dshapes[PLAYER_CAR_LOW_SHAPE], 0);
 		struct SHAPE3D *far_mesh =
 			check_real_mcmurtry_mesh(&game3dshapes[PLAYER_CAR_HIGH_SHAPE], 1);
-		assert(hires_shape3d_car_far_mesh(player) == far_mesh);
-		assert(hires_shape3d_car_far_mesh(enhanced) == far_mesh);
-		assert(hires_shape3d_car_far_mesh(showroom) == NULL);
-		const struct SHAPE3D_HIRES_VECTOR *far_cache = hires_shape3d_car_vertices(far_mesh);
-		struct SHAPE3D_HIRES_VECTOR far_body = far_cache[TEST_CAR_VERTEX_COUNT];
-		struct SHAPE3D_HIRES_VECTOR far_bounds[TEST_CAR_FIRST_WHEEL_VERTEX];
-		memcpy(far_bounds, far_cache, sizeof(far_bounds));
 		assert(showroom->shape3d_numprimitives > enhanced->shape3d_numprimitives);
 		assert(enhanced->shape3d_numprimitives > far_mesh->shape3d_numprimitives);
 		assert(player->shape3d_vertex_bytes != opponent->shape3d_vertex_bytes);
 		assert(enhanced->shape3d_vertex_bytes != opponent_enhanced->shape3d_vertex_bytes);
-		check_lod_lookup_workers(player, opponent);
 		const struct SHAPE3D_HIRES_VECTOR *player_cache = hires_shape3d_car_vertices(enhanced);
 		const struct SHAPE3D_HIRES_VECTOR *opponent_cache =
 			hires_shape3d_car_vertices(opponent_enhanced);
@@ -743,16 +601,6 @@ static void check_real_car_cache_reload(void)
 			player, TEST_CAR_FIRST_WHEEL_VERTEX, TEST_MCMURTRY_STEERING_ANGLE, player_suspension,
 			player_wheel_vertex_state, player_base_wheel_vertices, player_front_wheel_centers);
 		check_real_mcmurtry_mesh(player, 1);
-		assert(memcmp(&far_body, &far_cache[TEST_CAR_VERTEX_COUNT], sizeof(far_body)) == 0);
-		assert(memcmp(far_bounds, far_cache, sizeof(far_bounds)) == 0);
-		assert(
-			memcmp(far_mesh->shape3d_vertex_bytes +
-					   TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-				   player->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-				   TEST_MCMURTRY_WHEEL_BYTES) == 0);
-		assert(memcmp(far_cache + TEST_CAR_FIRST_WHEEL_VERTEX,
-					  player_cache + TEST_CAR_FIRST_WHEEL_VERTEX,
-					  TEST_CAR_WHEEL_VERTEX_COUNT * sizeof(*far_cache)) == 0);
 		assert(player_cache == hires_shape3d_car_vertices(enhanced));
 		assert(memcmp(&original_body, &player_cache[TEST_CAR_VERTEX_COUNT],
 					  sizeof(original_body)) == 0);
@@ -803,9 +651,7 @@ static void check_real_car_cache_reload(void)
 #define TEST_FRACTION_RENDER_WIDTH_LIMIT 40
 #define TEST_FRACTION_RENDER_MIN_PIXELS 256U
 
-static legacy_s16 render_lod_test_mesh(struct SHAPE3D *shape,
-									   const struct SHAPE3D_HIRES_VECTOR *vertices,
-									   legacy_s16 depth, legacy_s32 scale, legacy_u8 *output)
+static legacy_s16 fractional_render_width(struct SHAPE3D *classic)
 {
 	legacy_u8 *screen = dos_memory_make_pointer(0xA000U, 0);
 	legacy_u8 rows[TEST_FRACTION_RENDER_HEIGHT * LEGACY_WORD_BYTES];
@@ -822,7 +668,7 @@ static legacy_s16 render_lod_test_mesh(struct SHAPE3D *shape,
 	memset(screen, TEST_FRACTION_RENDER_BACKGROUND,
 		   TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_HEIGHT);
 	hires_set_enabled(1);
-	hires_set_render_scale(scale);
+	hires_set_render_scale(TEST_FRACTION_RENDER_SCALE);
 	sprite_select_target(&target);
 	struct RECTANGLE clip = {0, TEST_FRACTION_RENDER_WIDTH, 0, TEST_FRACTION_RENDER_HEIGHT};
 	select_cliprect_rotate(0, 0, 0, &clip, 0);
@@ -836,74 +682,25 @@ static legacy_s16 render_lod_test_mesh(struct SHAPE3D *shape,
 	polyinfo_reset();
 	struct RECTANGLE bounds = {TEST_FRACTION_RENDER_WIDTH, 0, TEST_FRACTION_RENDER_HEIGHT, 0};
 	struct TRANSFORMEDSHAPE3D instance = {0};
-	instance.shapeptr = shape;
+	instance.shapeptr = classic;
 	instance.rectptr = &bounds;
 	instance.ts_flags = SHAPE3D_USE_BOUNDING_RECT_FLAG | SHAPE3D_PRETRANSFORMED_FLAG;
-	instance.pos.z = depth;
-	instance.culling_distance = depth;
-	assert((vertices != NULL ? shape3d_hires_transform_and_queue(&instance, vertices)
-							 : shape3d_transform_and_queue(&instance)) == 0);
-	assert(shape3d_queued_primitive_count() > 0);
-	if (shape->shape3d_numprimitives == 1U) {
-		assert(shape3d_queued_primitive_count() == 1U);
-	}
+	instance.pos.z = TEST_FRACTION_RENDER_DEPTH;
+	instance.culling_distance = TEST_FRACTION_RENDER_DEPTH;
+	assert(shape3d_transform_and_queue(&instance) == 0);
+	assert(shape3d_queued_primitive_count() == 1);
 	shape3d_render_queued_primitives();
 	legacy_s32 width, height;
 	const legacy_u8 *image = video_framebuffer(screen, &width, &height);
-	assert(width == (legacy_s32)TEST_FRACTION_RENDER_WIDTH * scale &&
-		   height == (legacy_s32)TEST_FRACTION_RENDER_HEIGHT * scale);
+	assert(width == TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_SCALE &&
+		   height == TEST_FRACTION_RENDER_HEIGHT * TEST_FRACTION_RENDER_SCALE);
 	legacy_u32 covered = 0;
 	for (legacy_s32 pixel = 0; pixel < width * height; pixel++) {
 		covered += image[pixel] != TEST_FRACTION_RENDER_BACKGROUND;
 	}
 	assert(covered > TEST_FRACTION_RENDER_MIN_PIXELS);
-	if (output != NULL) {
-		memcpy(output, image, (size_t)width * height);
-	}
 	hires_shutdown();
 	return bounds.right - bounds.left;
-}
-
-static legacy_s16 fractional_render_width(struct SHAPE3D *classic)
-{
-	return render_lod_test_mesh(classic, NULL, TEST_FRACTION_RENDER_DEPTH,
-								TEST_FRACTION_RENDER_SCALE, NULL);
-}
-
-#define TEST_LOD_RENDER_SCALE 4
-#define TEST_LOD_NORMAL_DEPTH 200
-#define TEST_LOD_CLOSE_DEPTH 70
-#define TEST_LOD_NEAR_PLANE_DEPTH 50
-
-static void check_real_car_screen_lod(void)
-{
-	static legacy_u8 automatic[TEST_FRACTION_RENDER_WIDTH * TEST_FRACTION_RENDER_HEIGHT *
-							   TEST_LOD_RENDER_SCALE * TEST_LOD_RENDER_SCALE];
-	static legacy_u8 reference[sizeof(automatic)];
-	file_car_set_base((const legacy_s8 *)TEST_HIRES_MESH_ASSET_DIRECTORY);
-	legacy_s8 car_id[] = "MCMU", no_opponent[] = {-1, 0, 0, 0, 0};
-	shape3d_load_car_shapes(car_id, no_opponent);
-	struct SHAPE3D *classic = &game3dshapes[PLAYER_CAR_WHEEL_SHAPE];
-	struct SHAPE3D *near_mesh = hires_shape3d_car_mesh(classic);
-	struct SHAPE3D *far_mesh = hires_shape3d_car_far_mesh(classic);
-	assert(far_mesh != NULL);
-	const legacy_s16 depths[] = {TEST_LOD_NORMAL_DEPTH, TEST_LOD_CLOSE_DEPTH,
-								 TEST_LOD_NEAR_PLANE_DEPTH};
-	const struct SHAPE3D_HIRES_VECTOR *near_vertices = hires_shape3d_car_vertices(near_mesh);
-	const struct SHAPE3D_HIRES_VECTOR *far_vertices = hires_shape3d_car_vertices(far_mesh);
-	struct SHAPE3D_HIRES_VECTOR near_body = near_vertices[TEST_CAR_VERTEX_COUNT];
-	struct SHAPE3D_HIRES_VECTOR far_body = far_vertices[TEST_CAR_VERTEX_COUNT];
-	for (legacy_u16 view = 0; view < SDL_arraysize(depths); view++) {
-		render_lod_test_mesh(classic, NULL, depths[view], TEST_LOD_RENDER_SCALE, automatic);
-		struct SHAPE3D *expected = view == 0 ? far_mesh : near_mesh;
-		render_lod_test_mesh(expected, hires_shape3d_car_vertices(expected), depths[view],
-							 TEST_LOD_RENDER_SCALE, reference);
-		assert(memcmp(automatic, reference, sizeof(automatic)) == 0);
-		assert(memcmp(&near_body, &near_vertices[TEST_CAR_VERTEX_COUNT], sizeof(near_body)) == 0);
-		assert(memcmp(&far_body, &far_vertices[TEST_CAR_VERTEX_COUNT], sizeof(far_body)) == 0);
-	}
-	shape3d_free_car_shapes();
-	file_car_set_base(NULL);
 }
 
 static void check_fractional_car_cache(void)
@@ -1014,9 +811,7 @@ legacy_int main(void)
 	check_primitive_counts_past_byte_range();
 	check_malformed_meshes();
 	check_car_mesh_lifetime();
-	check_car_lod_eligibility();
 	check_real_car_cache_reload();
-	check_real_car_screen_lod();
 	check_fractional_car_cache();
 	puts("HyperVision wide mesh decoding, resource lifetime and fallback checks passed.");
 	return 0;

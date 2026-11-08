@@ -22,8 +22,6 @@
 #define HIRES_MESH_OFFSET_FIELD 4U
 #define HIRES_MESH_LENGTH_FIELD 8U
 #define HIRES_MESH_FRACTION_BITS_FIELD (3U * sizeof(legacy_u16))
-#define HIRES_MESH_NEAR_SHAPE 1U
-#define HIRES_MESH_FAR_SHAPE 2U
 
 static const legacy_u8 hires_mesh_vertex_counts[SHAPE3D_PRIMITIVE_WHEEL + 1U] = {
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 2, 6};
@@ -35,7 +33,6 @@ struct HIRES_CAR_MESHES {
 	const struct SHAPE3D *classics[HIRES_MESH_CAR_SHAPE_COUNT];
 	struct SHAPE3D meshes[HIRES_MESH_CAR_SHAPE_COUNT];
 	struct SHAPE3D_HIRES_VECTOR *vertices[HIRES_MESH_CAR_SHAPE_COUNT];
-	legacy_u8 racing_lod_compatible;
 };
 static struct HIRES_CAR_MESHES hires_car_meshes[HIRES_MESH_CAR_COUNT];
 
@@ -287,15 +284,6 @@ hires_shape3d_decode_car_meshes(struct HIRES_CAR_MESHES *car, size_t size,
 		offsets[entry] = offset;
 		lengths[entry] = length;
 	}
-	const struct SHAPE3D *near_mesh = &car->meshes[HIRES_MESH_NEAR_SHAPE];
-	const struct SHAPE3D *far_mesh = &car->meshes[HIRES_MESH_FAR_SHAPE];
-	car->racing_lod_compatible =
-		car->classics[HIRES_MESH_NEAR_SHAPE] != NULL &&
-		car->classics[HIRES_MESH_FAR_SHAPE] != NULL &&
-		far_mesh->shape3d_numverts <= near_mesh->shape3d_numverts &&
-		far_mesh->shape3d_numprimitives < near_mesh->shape3d_numprimitives &&
-		far_mesh->shape3d_numpaints == near_mesh->shape3d_numpaints &&
-		hires_shape3d_car_wheels_match(far_mesh, near_mesh);
 	return 1;
 }
 
@@ -339,21 +327,6 @@ struct SHAPE3D *hires_shape3d_car_mesh(const struct SHAPE3D *classic)
 	return (struct SHAPE3D *)classic;
 }
 
-struct SHAPE3D *hires_shape3d_car_far_mesh(const struct SHAPE3D *near_mesh)
-{
-	if (near_mesh != NULL) {
-		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
-			struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
-			if (meshes->racing_lod_compatible &&
-				(near_mesh == meshes->classics[HIRES_MESH_NEAR_SHAPE] ||
-				 near_mesh == &meshes->meshes[HIRES_MESH_NEAR_SHAPE])) {
-				return &meshes->meshes[HIRES_MESH_FAR_SHAPE];
-			}
-		}
-	}
-	return NULL;
-}
-
 const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE3D *shape)
 {
 	if (shape != NULL) {
@@ -370,34 +343,20 @@ const struct SHAPE3D_HIRES_VECTOR *hires_shape3d_car_vertices(const struct SHAPE
 	return NULL;
 }
 
-static void hires_shape3d_update_mesh_wheels(struct HIRES_CAR_MESHES *car, legacy_u16 index,
-											 const struct SHAPE3D *classic)
-{
-	struct SHAPE3D *mesh = &car->meshes[index];
-	memcpy(mesh->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-		   classic->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
-		   HIRES_MESH_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
-	if (car->vertices[index] != NULL) {
-		hires_shape3d_copy_native_vertices(mesh, car->vertices[index]);
-	}
-}
-
 void hires_shape3d_update_car_mesh(const struct SHAPE3D *classic)
 {
-	if (classic == NULL) {
-		return;
-	}
-	for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
-		struct HIRES_CAR_MESHES *meshes = &hires_car_meshes[car];
-		for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
-			if (meshes->classics[index] == classic) {
-				hires_shape3d_update_mesh_wheels(meshes, index, classic);
-				if (index == HIRES_MESH_NEAR_SHAPE && meshes->racing_lod_compatible) {
-					/* Animation is completed before geometry workers begin. Each
-				 * companion keeps its bounds and immutable body vertices. */
-					hires_shape3d_update_mesh_wheels(meshes, HIRES_MESH_FAR_SHAPE, classic);
+	struct SHAPE3D *mesh = hires_shape3d_car_mesh(classic);
+	if (mesh != classic) {
+		memcpy(mesh->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
+			   classic->shape3d_vertex_bytes + HIRES_MESH_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
+			   HIRES_MESH_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE);
+		for (legacy_u16 car = 0; car < HIRES_MESH_CAR_COUNT; car++) {
+			for (legacy_u16 index = 0; index < HIRES_MESH_CAR_SHAPE_COUNT; index++) {
+				if (&hires_car_meshes[car].meshes[index] == mesh &&
+					hires_car_meshes[car].vertices[index] != NULL) {
+					hires_shape3d_copy_native_vertices(mesh, hires_car_meshes[car].vertices[index]);
+					return;
 				}
-				return;
 			}
 		}
 	}

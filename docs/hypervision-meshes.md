@@ -6,16 +6,6 @@ available `car0`, `car1` and `car2` meshes for the showroom and racing.
 Each mesh supports up to 65,535 vertices and 65,535 primitives, with signed
 16-bit coordinate storage and the original material palette.
 
-Racing selects the cheaper `car2` companion when the full projected bounds of
-`car1` fit within 320 render pixels on both axes. Larger views retain `car1`;
-bounds crossing the near plane also retain it. The showroom always uses `car0`.
-This screen-size choice requires both racing companions, matching paints and
-compatible native wheel geometry, no more vertices, and fewer primitives in
-`car2`.
-The current steering and suspension controls are copied into both compatible
-racing companions before rendering workers run. Cars without an eligible pair
-retain their existing detail selection.
-
 Turning HyperVision off selects the original model immediately. Existing cars
 work without a companion; a missing or invalid companion also uses the original
 meshes. Classic model bytes, their 255-vertex format, the classic renderer and
