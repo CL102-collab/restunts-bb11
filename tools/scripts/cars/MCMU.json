@@ -522,21 +522,35 @@
       },
       "cluster_spacing_game_units": {
         "car0": 0.05,
-        "car1": 0.0625,
-        "car2": 0.5
+        "car1": 2.25,
+        "car2": 4.0
       },
       "cluster_spacing_mm": {
         "car0": 2.2,
-        "car1": 2.75,
-        "car2": 22.0
+        "car1": 99.0,
+        "car2": 176.0
       },
+      "racing_vertex_targets_including_controls": {
+        "car1": 2000,
+        "car2": 1000
+      },
+      "racing_cluster_representative": "source vertex centroid, rounded to body coordinate precision",
+      "racing_arch_cluster_spacing_game_units": {
+        "car1": 0.5,
+        "car2": 1.0
+      },
+      "racing_arch_cluster_radius_game_units": {
+        "car1": 11.0,
+        "car2": 12.0
+      },
+      "racing_arch_cluster_min_abs_x_game_units": 13.5,
       "arch_target_radius_game_units": {
         "car0": 10.0,
         "car1": 10.0,
         "car2": 10.7
       },
       "arch_blend_radius_game_units": 16.0,
-      "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM for showroom/near racing and spatial vertex clustering of the protected near mesh for distant racing, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."
+      "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM authoring input, adaptive centroid vertex clustering for both racing meshes with finer wheel-opening cells, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."
     },
     "models": {
       "car0": {
@@ -559,11 +573,11 @@
         "coordinate_step_mm": 2.2
       },
       "car1": {
-        "vertices": 18706,
-        "primitives": 27886,
+        "vertices": 2042,
+        "primitives": 4192,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 86.75,
+          "length": 86.625,
           "width": 38.125,
           "height": 27.3125
         },
@@ -571,27 +585,27 @@
         "minimum_side_arch_tyre_clearance_game_units": [
           1.324,
           1.362,
-          1.75,
-          1.75
+          1.739,
+          1.692
         ],
         "coordinate_fraction_bits": 4,
         "coordinate_step_mm": 2.75
       },
       "car2": {
-        "vertices": 7505,
-        "primitives": 12102,
+        "vertices": 1056,
+        "primitives": 2424,
         "paint_jobs": 7,
         "dimensions_game_units": {
-          "length": 87.0,
-          "width": 38.0,
-          "height": 27.5
+          "length": 84.625,
+          "width": 38.0625,
+          "height": 26.875
         },
         "animated_wheels": 4,
         "minimum_side_arch_tyre_clearance_game_units": [
-          1.871,
-          1.95,
-          2.296,
-          2.296
+          2.01,
+          1.987,
+          2.424,
+          2.403
         ],
         "coordinate_fraction_bits": 4,
         "coordinate_step_mm": 2.75
@@ -627,8 +641,8 @@
       "sha256": "003f39fe65de73f38a4c344ae9df97693378aed4b59c5e27ca293e5f0359c267"
     },
     "STMCMU.H3D": {
-      "bytes": 1977679,
-      "sha256": "5eac1f44c9a02667be0986f856265653924eef36367d072cdcd244dde73ad836"
+      "bytes": 1071445,
+      "sha256": "8c8d32266f9ce868c460bccf5d8392ce7c16c1ba18425bf9dcb88e8051ed3d01"
     },
     "MCMU.obj": {
       "bytes": 27742,

@@ -789,17 +789,25 @@ The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
-STMCMU.H3D supplies the detailed source-derived body instead. Deterministic
-vertex clustering, welding and removal of degenerate/duplicate faces keep each
-mesh within H3D version {detailed_model.CONTAINER_VERSION}'s 65,535-vertex and 65,535-primitive limits:
+STMCMU.H3D supplies the detailed source-derived body instead. The showroom
+retains its existing detail. Both racing meshes apply adaptive centroid vertex
+clustering to the retained quadric-error source, targeting about 2000 and 1000
+vertices including bounds and wheel controls. Finer wheel-opening clusters
+retain tyre clearance; coarser body clusters reduce the remaining geometry.
+Deterministic quantization, welding and removal of degenerate, flipped and
+duplicate faces keep each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
+65,535-vertex and 65,535-primitive limits:
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
 car1: {hypervision_models['car1']['vertices']} vertices, {hypervision_models['car1']['primitives']} primitives;
 car2: {hypervision_models['car2']['vertices']} vertices, {hypervision_models['car2']['primitives']} primitives.
 Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']:g} mm precision;
 racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
-Bounds and wheel controls retain native integer coordinates. The distant
-racing mesh uses coarser geometry. Classic meshes retain their original byte
-limits, wheel controls and driving specifications.
+Vertex counts include eight bounds and 24 animated wheel controls; primitive
+counts include four native wheels. Bounds and wheel controls retain native
+integer coordinates. Fine storage precision does not restore features removed
+by clustering. Ordinary generation uses Python's standard library and preserves
+the compact source and its precomputed meshes. Classic meshes retain their
+original byte limits, wheel controls and driving specifications.
 The dashboard layout follows the supplied studio interior photograph,
 6.-McMurtry-Speirling-studio-interior-1-1024x683-2898273447.jpg: a narrow
 fascia, dark carbon surround, empty upright display mount on the left

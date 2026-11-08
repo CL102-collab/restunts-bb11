@@ -162,11 +162,13 @@ within its 255-vertex and 255-primitive limits.
 
 The optional `STMCMU.H3D` imports source exterior triangles instead of adding
 panels to the classic retopology. Source node transforms and uniform scaling
-place the body in the existing car coordinate system. Quadric error mesh
-simplification reduces the showroom and near racing geometry while preserving
-source mesh boundaries. The distant mesh applies spatial vertex clustering to
-the near racing source.
-Each stays within HyperVision's limit of 65,535 vertices and 65,535 primitives.
+place the body in the existing car coordinate system. Precomputed quadric error
+mesh simplification preserves source mesh boundaries. The showroom retains its
+existing detail; both racing models apply adaptive centroid vertex clustering
+to the retained near racing source, targeting about 2,000 and 1,000 vertices.
+Finer clusters around the wheel openings retain tyre clearance while coarser
+clusters reduce the rest of the body. Each stays within HyperVision's limit of
+65,535 vertices and 65,535 primitives.
 The fender openings are locally expanded for the native tyre and steering
 envelope. Source materials map to the native palette and all seven paint
 schemes; the original textures are not reproduced. Source wheel
@@ -178,7 +180,9 @@ geometry and alpha decals are omitted.
 The retained transformed input is
 [`mcmurtry_hypervision_source.json.gz`](../tools/scripts/cars/mcmurtry_hypervision_source.json.gz).
 [`mcmurtry_hypervision.py`](../tools/scripts/mcmurtry_hypervision.py) reads this
-compact mesh and its precomputed detail levels with Python's standard library.
+compact mesh and its precomputed quadric error detail levels with Python's
+standard library. Adaptive racing reduction runs during ordinary generation;
+the retained compact source and its precomputed meshes remain unchanged.
 The normal car generator needs neither the original GLB nor external modeling
 tools. Its source hash and attribution remain recorded in the car manifest. This companion replaces the
 earlier version that only closed the classic underside. Rebuilding the compact
@@ -201,13 +205,16 @@ Running the module without arguments reports the current companion mesh counts.
 | HyperVision shape | Vertices | Primitives | Body coordinate step |
 | --- | ---: | ---: | ---: |
 | `car0` showroom | 21,648 | 33,507 | 2.2 mm |
-| `car1` racing | 18,706 | 27,886 | 2.75 mm |
-| `car2` distant racing | 7,505 | 12,102 | 2.75 mm |
+| `car1` racing | 2,042 | 4,192 | 2.75 mm |
+| `car2` distant racing | 1,056 | 2,424 | 2.75 mm |
 
-These counts include four native wheel primitives. After mesh reduction,
-quantization removes degenerate, flipped and duplicate triangles. The distant
-mesh uses a 22 mm clustering grid; its finer storage precision does not restore
-features removed by that reduction.
+Vertex counts include the eight bounds and 24 animated wheel controls;
+primitive counts include four native wheels. The racing meshes place clustered
+vertices at their centroid, then quantize to the stored coordinate precision.
+The near mesh uses a 2.25-unit (99 mm) body grid and a 0.5-unit (22 mm)
+wheel-opening grid. The distant mesh uses 4-unit (176 mm) and 1-unit (44 mm)
+grids respectively. Reduction removes degenerate, flipped and duplicate
+triangles; fine storage precision does not restore removed source features.
 
 The companion uses H3D version 2 with signed 16-bit body-coordinate storage
 and wide vertex indices above 255 vertices. Showroom bodies use whole model
@@ -217,8 +224,8 @@ Racing bodies use four fraction bits, giving 1/16-unit coordinates or about
 retain native whole units.
 See the [H3D format](hypervision-meshes.md#container-format-version-2).
 
-At Full resolution, the initial F3 view uses the 12,102-primitive `car2` mesh;
-closer views retain the 27,886-primitive `car1` mesh. The renderer uses the full
+At Full resolution, the initial F3 view uses the 2,424-primitive `car2` mesh;
+closer views retain the 4,192-primitive `car1` mesh. The renderer uses the full
 projected bounding box, switching to `car2` only when it fits within 320 render
 pixels on each axis. This avoids processing the finest geometry at ordinary
 external-view size while preserving it for larger close-ups. Both racing

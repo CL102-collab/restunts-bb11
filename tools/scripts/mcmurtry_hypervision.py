@@ -34,8 +34,12 @@ RACING_FRACTION_BITS = 4
 FRACTION_BITS = {"car0": 0, "car1": RACING_FRACTION_BITS, "car2": RACING_FRACTION_BITS}
 QEM_TARGETS = {"car0": 32_000, "car1": 12_000}
 SHOWROOM_CLUSTER = .05
-RACING_CLUSTER = 1 / (1 << RACING_FRACTION_BITS)
-DISTANT_CLUSTER = .5
+RACING_CLUSTER = 2.25
+DISTANT_CLUSTER = 4.0
+RACING_VERTEX_TARGETS = {"car1": 2_000, "car2": 1_000}
+RACING_ARCH_MIN_X = 13.5
+RACING_ARCH_CLUSTER = {"car1": .5, "car2": 1.0}
+RACING_ARCH_RADIUS = {"car1": 11.0, "car2": 12.0}
 TRIANGLE_VERTICES = 3
 AXES = 3
 HOMOGENEOUS_AXES = 4
@@ -356,6 +360,32 @@ def _fit_bounds(shape, model):
               for a in range(AXES)) for p in bounds]
 
 
+def _cluster_racing_points(points, name, cluster, model):
+    """Weld to cell centroids, retaining a finer grid at the wheel openings.
+
+    Averaging the source positions preserves curved bodywork better than
+    snapping it to a coarse grid. Shared source positions use the same cell
+    across materials, and the fine arch cells preserve tyre clearance.
+    """
+    groups, keys = {}, []
+    for point in points:
+        x, y, z = point
+        _, cy, cz = min(model.WHEEL_CENTERS, key=lambda c: abs(c[2] - z))
+        spacing = (RACING_ARCH_CLUSTER[name]
+                   if abs(x) > RACING_ARCH_MIN_X and
+                   math.hypot(y - cy, z - cz) < RACING_ARCH_RADIUS[name]
+                   else cluster)
+        key = (spacing, *(round(c / spacing) for c in point))
+        groups.setdefault(key, []).append(point)
+        keys.append(key)
+    factor = 1 << FRACTION_BITS[name]
+    centers = {
+        key: tuple(round(sum(p[axis] for p in group) / len(group) * factor) / factor
+                   for axis in range(AXES))
+        for key, group in groups.items()}
+    return [centers[key] for key in keys]
+
+
 def _shape(source, name, cluster, model):
     scale = model.SHOWROOM_SCALE if name == "car0" else 1
     # Copy compatible controls and tyres, rather than importing static wheels.
@@ -367,18 +397,22 @@ def _shape(source, name, cluster, model):
     shape._lookup = {}
     shape.primitives = [p for p in classic.primitives if p[0] == model.WHEEL_PRIMITIVE]
     shift = model.SHOWROOM_Y_OFFSET if name == "car0" else 0
-    points = []
     authored = []
     for raw in source["vertices"]:
         x, y, z = (c / SOURCE_UNITS for c in raw)
         z -= model.BODY_ORIGIN_Z
         point = _adapt_arch((x, y, z), name, model)
         authored.append(point)
-        point = tuple(round(c / cluster) * cluster for c in point)
+    if name == "car0":
+        points = []
         factor = 1 << FRACTION_BITS[name]
-        points.append((round(point[0] * scale * factor) / factor,
-                       round(point[1] * scale * factor) / factor + shift,
-                       round(point[2] * scale * factor) / factor))
+        for point in authored:
+            point = tuple(round(c / cluster) * cluster for c in point)
+            points.append((round(point[0] * scale * factor) / factor,
+                           round(point[1] * scale * factor) / factor + shift,
+                           round(point[2] * scale * factor) / factor))
+    else:
+        points = _cluster_racing_points(authored, name, cluster, model)
     seen = set()
     for a, b, c, surface in source["triangles"]:
         triangle = (points[a], points[b], points[c])
@@ -442,9 +476,14 @@ def metadata():
                                             "car2": DISTANT_CLUSTER},
             "cluster_spacing_mm": {"car0": SHOWROOM_CLUSTER * model.MM_PER_UNIT, "car1": RACING_CLUSTER * model.MM_PER_UNIT,
                                     "car2": DISTANT_CLUSTER * model.MM_PER_UNIT},
+            "racing_vertex_targets_including_controls": RACING_VERTEX_TARGETS,
+            "racing_cluster_representative": "source vertex centroid, rounded to body coordinate precision",
+            "racing_arch_cluster_spacing_game_units": RACING_ARCH_CLUSTER,
+            "racing_arch_cluster_radius_game_units": RACING_ARCH_RADIUS,
+            "racing_arch_cluster_min_abs_x_game_units": RACING_ARCH_MIN_X,
             "arch_target_radius_game_units": ARCH_TARGET_RADIUS,
             "arch_blend_radius_game_units": ARCH_BLEND_RADIUS,
-            "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM for showroom/near racing and spatial vertex clustering of the protected near mesh for distant racing, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."}
+            "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM authoring input, adaptive centroid vertex clustering for both racing meshes with finer wheel-opening cells, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."}
 
 
 def main():

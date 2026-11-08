@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check source provenance, detailed H3D geometry and shared animated wheels."""
 
+import hashlib
 import importlib.util
 import math
 from pathlib import Path
@@ -19,7 +20,9 @@ SPEC.loader.exec_module(generator)
 CONTROLS_END = model.WHEEL_CONTROL_START + detailed.WHEEL_COUNT * model.WHEEL_CONTROL_COUNT
 SOURCE_LENGTH_TOLERANCE = .1
 MINIMUM_SOURCE_TRIANGLES = 100_000
-MINIMUM_DETAIL_VERTICES = 1_000
+RACING_VERTEX_TARGETS = {"car1": 2_000, "car2": 1_000}
+VERTEX_TARGET_TOLERANCE = .1
+SHOWROOM_PAYLOAD_SHA256 = "cd6267449c1a10c19c19dc1c8375aafe3dc221d41dbcc6cbbd96d7e64852dd03"
 
 
 class SourceImportTests(unittest.TestCase):
@@ -60,6 +63,8 @@ class DetailedGeometryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = detailed.load_source()
         cls.shapes = detailed.build_shapes()
+        companion = Path(__file__).resolve().parents[2] / "assets/cars/STMCMU.H3D"
+        cls.installed_shapes = generator.hypervision_resources(companion.read_bytes())
 
     def test_source_provenance_dimensions_and_exterior_selection(self):
         self.assertEqual(detailed.SOURCE_SHA256, self.source["source_sha256"])
@@ -86,7 +91,7 @@ class DetailedGeometryTests(unittest.TestCase):
                 self.assertTrue(all(min(indices) >= CONTROLS_END
                                     for kind, _, _, indices in shape.primitives
                                     if kind != model.WHEEL_PRIMITIVE))
-                self.assertGreater(len(shape.vertices), MINIMUM_DETAIL_VERTICES)
+                self.assertGreater(len(shape.vertices), model.NATIVE_LIMIT)
                 self.assertLessEqual(len(shape.vertices), model.HYPERVISION_LIMIT)
                 self.assertLessEqual(len(shape.primitives), model.HYPERVISION_LIMIT)
                 payload = shape.encode_hypervision()
@@ -96,6 +101,31 @@ class DetailedGeometryTests(unittest.TestCase):
                                     for _, _, materials, _ in shape.primitives))
                 self.assertTrue(any(len(set(materials)) > 1
                                     for _, _, materials, _ in shape.primitives))
+
+    def test_racing_vertex_budgets_include_bounds_and_wheel_controls(self):
+        for name, target in RACING_VERTEX_TARGETS.items():
+            payloads = {"generated": self.shapes[name].encode_hypervision(),
+                        "installed": self.installed_shapes[name]}
+            for source, payload in payloads.items():
+                with self.subTest(shape=name, source=source):
+                    points, _, metadata = generator.decode_model(payload, name, hypervision=True)
+                    # The complete encoded table includes the first 32 bounds
+                    # and animated-wheel controls, as requested by the budget.
+                    self.assertEqual(len(points), metadata["vertices"])
+                    self.assertGreaterEqual(len(points), target * (1 - VERTEX_TARGET_TOLERANCE))
+                    self.assertLessEqual(len(points), target * (1 + VERTEX_TARGET_TOLERANCE))
+            with self.subTest(shape=name, source="authoring"):
+                self.assertGreaterEqual(len(self.shapes[name].vertices),
+                                        target * (1 - VERTEX_TARGET_TOLERANCE))
+                self.assertLessEqual(len(self.shapes[name].vertices),
+                                     target * (1 + VERTEX_TARGET_TOLERANCE))
+
+    def test_showroom_payload_stays_byte_identical(self):
+        payloads = {"generated": self.shapes["car0"].encode_hypervision(),
+                    "installed": self.installed_shapes["car0"]}
+        for source, payload in payloads.items():
+            with self.subTest(source=source):
+                self.assertEqual(SHOWROOM_PAYLOAD_SHA256, hashlib.sha256(payload).hexdigest())
 
     def test_envelope_contains_all_geometry_and_stays_above_ground(self):
         for name, shape in self.shapes.items():
