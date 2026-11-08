@@ -152,6 +152,12 @@ class MacOSSmokeDriverTests(unittest.TestCase):
         self.assertNotIn("DYLD_INSERT_LIBRARIES", environment)
         self.assertNotIn("RESTUNTS_AUDIO_TRACE", environment)
 
+    def test_synthetic_mouse_input_uses_native_cocoa_events(self):
+        with mock.patch.dict(os.environ, {"SDL_MAC_USE_GCMOUSE": "1"}):
+            environment = DRIVER.clean_environment()
+            self.assertEqual(environment["SDL_MAC_USE_GCMOUSE"], "0")
+            self.assertEqual(os.environ["SDL_MAC_USE_GCMOUSE"], "1")
+
     def test_existing_launcher_preferences_are_restored_after_failure(self):
         settings = self.root / "Library/Application Support/Restunts/launcher.ini"
         settings.parent.mkdir(parents=True)

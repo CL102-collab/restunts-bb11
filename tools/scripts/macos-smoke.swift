@@ -20,6 +20,7 @@ private enum Limits {
     static let maximumKeySeconds = 5.0
     static let defaultKeySeconds = 0.1
     static let clickSeconds = 0.1
+    static let clickCount: Int64 = 1
     static let activationSeconds = 0.15
     static let sampleRate = 48_000
     static let channels = 2
@@ -406,6 +407,7 @@ private func click(pid: pid_t, point: CGPoint) async throws -> [String: Any] {
     }
     try require(app.activate(options: [.activateIgnoringOtherApps]), "Cannot activate target game")
     try await sleepSeconds(Limits.activationSeconds)
+    try require(app.isActive, "Target application did not become active for mouse input")
     let window = try await visibleWindow(pid: pid)
     try require(window.frame.contains(point), "Click lies outside the target application window")
     guard let move = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
@@ -419,10 +421,15 @@ private func click(pid: pid_t, point: CGPoint) async throws -> [String: Any] {
     move.flags = []
     down.flags = []
     up.flags = []
+    down.setIntegerValueField(.mouseEventClickState, value: Limits.clickCount)
+    up.setIntegerValueField(.mouseEventClickState, value: Limits.clickCount)
     try require(CGWarpMouseCursorPosition(point) == .success, "Cannot position the mouse cursor")
-    move.postToPid(pid)
-    down.postToPid(pid)
-    defer { up.postToPid(pid) }
+    // WindowServer must associate mouse events with the window under the cursor.
+    // Posting directly to a PID bypasses that routing, so Cocoa/SDL can discard
+    // the click even though the helper reports success.
+    move.post(tap: .cghidEventTap)
+    down.post(tap: .cghidEventTap)
+    defer { up.post(tap: .cghidEventTap) }
     try await sleepSeconds(Limits.clickSeconds)
     return ["pid": Int(pid), "x": point.x, "y": point.y, "window_id": Int(window.windowID)]
 }

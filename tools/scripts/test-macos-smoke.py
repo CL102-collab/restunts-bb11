@@ -60,8 +60,12 @@ def package_helper():
 
 def clean_environment():
     # A package test must resolve its own libraries and use real Cocoa/CoreAudio.
-    return {key: value for key, value in os.environ.items()
-            if key not in FORBIDDEN_ENVIRONMENT and not key.startswith("SDL_AUDIO_")}
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in FORBIDDEN_ENVIRONMENT and not key.startswith("SDL_AUDIO_")}
+    # SDL's GameController mouse backend ignores synthetic input. Use its native
+    # Cocoa event path so WindowServer-posted clicks reach the packaged game.
+    environment["SDL_MAC_USE_GCMOUSE"] = "0"
+    return environment
 
 
 @contextmanager
