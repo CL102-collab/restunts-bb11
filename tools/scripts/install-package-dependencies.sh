@@ -10,6 +10,20 @@ target=${1:?Usage: install-package-dependencies.sh TARGET}
 tool_root=${RESTUNTS_TOOLCHAIN_ROOT:-${RUNNER_TEMP:-/tmp}/restunts-toolchains}
 mkdir -p "$tool_root/downloads"
 
+verify_riscv64_build_host() {
+    local vendor base_files_version
+    local debian_major=13
+    vendor=$(dpkg-vendor --query Vendor)
+    base_files_version=$(dpkg-query --show --showformat='${Version}' base-files)
+    case "$vendor:$base_files_version" in
+        "Debian:$debian_major".*) ;;
+        *)
+            echo "$target must be built in Debian $debian_major to preserve its runtime baseline." >&2
+            exit 1
+            ;;
+    esac
+}
+
 download() {
     local url=$1 checksum=$2 destination=$3
     if [[ -f "$destination" ]] && printf '%s  %s\n' "$checksum" "$destination" | sha256sum --check --status; then
@@ -20,6 +34,19 @@ download() {
 }
 
 case "$target" in
+    linux-appimage-riscv64)
+        # Debian 13 is the first official Debian riscv64 release. Keep both
+        # the compiler and the pinned target SDK on that release's baseline.
+        verify_riscv64_build_host
+        apt-get update
+        apt-get install -y --no-install-recommends \
+            build-essential gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
+            cmake ninja-build python3 curl ca-certificates pkg-config \
+            autoconf automake libtool libtool-bin meson patch gawk ripgrep qemu-user \
+            file bzip2 xz-utils patchelf squashfs-tools
+        bash "$script_dir/prepare-appimage-riscv64-sysroot.sh" "$target"
+        bash "$script_dir/build-appimage-runtime.sh" "$target"
+        ;;
     linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2|linux-appimage-armv7|linux-appimage-arm64)
         # The compiler is modern; all target headers, CRT objects and runtime
         # libraries come from the verified historical sysroot instead of apt.
@@ -59,11 +86,19 @@ case "$target" in
         esac
         ;;
     linux-*)
+        emulator_packages=()
         case "$target" in
             linux-x64) architecture=amd64 ;;
             linux-x86|linux-x86-no-sse2) architecture=i386; compiler=gcc-multilib; cxx_compiler=g++-multilib ;;
             linux-arm32) architecture=armhf; compiler=gcc-arm-linux-gnueabihf; cxx_compiler=g++-arm-linux-gnueabihf ;;
             linux-arm64) architecture=arm64; compiler=gcc-aarch64-linux-gnu; cxx_compiler=g++-aarch64-linux-gnu ;;
+            linux-riscv64)
+                verify_riscv64_build_host
+                architecture=riscv64
+                compiler=gcc-riscv64-linux-gnu
+                cxx_compiler=g++-riscv64-linux-gnu
+                emulator_packages=(qemu-user)
+                ;;
             *) echo "Unknown Linux target: $target" >&2; exit 1 ;;
         esac
         if [[ "$architecture" != amd64 ]]; then
@@ -71,7 +106,7 @@ case "$target" in
         fi
         apt-get update
         if [[ -n "${compiler:-}" ]]; then
-            apt-get install -y --no-install-recommends "$compiler" "$cxx_compiler"
+            apt-get install -y --no-install-recommends "$compiler" "$cxx_compiler" "${emulator_packages[@]}"
         fi
         apt-get install -y --no-install-recommends \
             "libasound2-dev:$architecture" "libpulse-dev:$architecture" "libgtk-3-dev:$architecture" \

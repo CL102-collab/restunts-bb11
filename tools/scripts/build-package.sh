@@ -21,10 +21,19 @@ verify_bsd_host() {
     local host_system host_architecture
     host_system=$(uname -s)
     host_architecture=$(uname -m)
+    case "$host_architecture" in
+        evbarm|riscv) host_architecture=$(uname -p) ;;
+    esac
     case "$target:$host_system:$host_architecture" in
         freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64|\
+        freebsd-arm64:FreeBSD:arm64|freebsd-arm64:FreeBSD:aarch64|\
+        freebsd-riscv64:FreeBSD:riscv64|\
         openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64|\
+        openbsd-arm64:OpenBSD:arm64|openbsd-arm64:OpenBSD:aarch64|\
+        openbsd-riscv64:OpenBSD:riscv64|\
         netbsd-x64:NetBSD:amd64|netbsd-x64:NetBSD:x86_64|\
+        netbsd-arm64:NetBSD:aarch64|netbsd-arm64:NetBSD:arm64|\
+        netbsd-riscv64:NetBSD:riscv64|\
         netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386) ;;
         *)
             echo "$target requires its matching native BSD userspace; found $host_system $host_architecture." >&2
@@ -105,10 +114,10 @@ case "$target" in
         case "$target" in
             linux-x64) ;;
             linux-appimage-x64|linux-appimage-x86|linux-appimage-x86-no-sse2|\
-            linux-appimage-armv7|linux-appimage-arm64)
+            linux-appimage-armv7|linux-appimage-arm64|linux-appimage-riscv64)
                 appimage_environment="$tool_root/appimage-sysroots/$target.env"
                 [[ -f "$appimage_environment" ]] || {
-                    echo "Missing legacy AppImage environment; run install-package-dependencies.sh $target first." >&2
+                    echo "Missing AppImage environment; run install-package-dependencies.sh $target first." >&2
                     exit 1
                 }
                 # shellcheck source=/dev/null
@@ -128,13 +137,17 @@ case "$target" in
                 cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-x86.cmake -DRESTUNTS_SSE2=OFF) ;;
             linux-arm32) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-arm32.cmake) ;;
             linux-arm64) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-arm64.cmake) ;;
-            freebsd-x64|openbsd-x64) ;;
+            linux-riscv64) cmake_options+=(-DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/linux-riscv64.cmake) ;;
+            freebsd-riscv64)
+                # The signed RISC-V package repository provides GTK2, not GTK3.
+                cmake_options+=(-DRESTUNTS_WX_TOOLKIT=gtk2) ;;
+            freebsd-x64|freebsd-arm64|openbsd-x64|openbsd-arm64|openbsd-riscv64) ;;
             haiku-x64|haiku-x86)
                 # Keep CTest's limits and its Python subprocess limits in sync.
                 cmake_options+=(-DRESTUNTS_BUILD_TESTS=ON
                     "-DRESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER=${RESTUNTS_GENGHOST_TEST_TIMEOUT_MULTIPLIER:-$default_genghost_test_timeout_multiplier}")
                 ;;
-            netbsd-x64|netbsd-x86|netbsd-x86-no-sse2)
+            netbsd-x64|netbsd-x86|netbsd-x86-no-sse2|netbsd-arm64|netbsd-riscv64)
                 # NetBSD's ASLR prevents GCC from reusing SDL's precompiled header.
                 cmake_options+=('-DCMAKE_PREFIX_PATH=/usr/pkg;/usr/X11R7' -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON)
                 export PKG_CONFIG_PATH="/usr/pkg/lib/pkgconfig:/usr/X11R7/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"

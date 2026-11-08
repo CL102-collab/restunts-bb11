@@ -1160,6 +1160,16 @@ paths from your working directory. The runtime is a Terminal-launched program;
 there is no Finder `.app` bundle. On keyboards that assign system actions to function keys, use
 Fn/Globe with F11/F12 for the game's timing and HyperVision controls.
 
+#### Linux RISC-V64: Debian 13 and AppImage
+
+The `linux-riscv64` and `linux-appimage-riscv64` targets use Debian 13 Trixie
+and glibc 2.41 as their userspace baseline. Debian 13 is the first official
+Debian release for RISC-V. Both packages target `rv64gc` with the `lp64d` ABI,
+so they do not require RISC-V vector extensions. The AppImage bundles desktop
+dependencies while using the host's glibc, ELF loader and graphics drivers.
+See the [Linux build instructions](docs/sdl3.md#linux) and
+[release package guide](docs/releases.md) for cross-build and runtime details.
+
 #### BSD hosts: FreeBSD, OpenBSD, and NetBSD
 
 The shared SDL3 backend has these native release targets:
@@ -1167,8 +1177,14 @@ The shared SDL3 backend has these native release targets:
 | Target | Build environment |
 | --- | --- |
 | `freebsd-x64` | FreeBSD 14.4, amd64 |
+| `freebsd-arm64` | FreeBSD 14.4, AArch64 |
+| `freebsd-riscv64` | FreeBSD 15.0, RISC-V64 |
 | `openbsd-x64` | OpenBSD 7.9, amd64 |
+| `openbsd-arm64` | OpenBSD 7.9, ARM64 |
+| `openbsd-riscv64` | OpenBSD 7.9, RISC-V64 |
 | `netbsd-x64` | NetBSD 10.2, amd64 |
+| `netbsd-arm64` | NetBSD 10.2, AArch64 |
+| `netbsd-riscv64` | NetBSD 11.0, RISC-V64 |
 | `netbsd-x86` | NetBSD 10.2, i386 userspace; SSE2 enabled |
 | `netbsd-x86-no-sse2` | NetBSD 10.2, i386 userspace; SSE2 disabled |
 
@@ -1176,7 +1192,9 @@ Each target produces a separate `.tar.gz` archive. Build on the matching BSD;
 Linux binaries and libraries cannot be used for these native targets. See the
 [BSD build instructions](docs/sdl3.md#bsd) for dependencies, local builds, and
 package creation. CI uses BSD virtual machines; the NetBSD x86 jobs build in
-an i386 userspace inside the amd64 VM.
+an i386 userspace inside the amd64 VM. ARM64 and RISC-V64 jobs use matching
+emulated native userspaces. Build and relocated-startup checks do not establish
+graphics/audio support or game performance on every physical board.
 
 #### Haiku hosts: x86-64 and x86
 
@@ -1746,9 +1764,10 @@ refactors and audit results.
 ## CI packages and releases
 
 **PR validation** and **Release** build every distribution package: 16-bit and
-32-bit DOS; Linux ARMv7, ARM64, x86 with and without SSE2, and x64, including
-AppImage variants; Windows ARM64, x86 with and without SSE2, and x64; FreeBSD,
-OpenBSD, and NetBSD x64; NetBSD x86 with and without SSE2; Haiku x64 and x86;
+32-bit DOS; Linux ARMv7, ARM64, RISC-V64, x86 with and without SSE2, and x64,
+including AppImage variants; Windows ARM64, x86 with and without SSE2, and x64;
+FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64; NetBSD x86 with and without
+SSE2; Haiku x64 and x86;
 Universal macOS; the offline browser; Android ARMv7 and ARM64 (both Android 5.0+);
 Amiga 68000; and stock TempleOS.
 The reusable **Build release packages** workflow is used by **PR validation** and **Release**.

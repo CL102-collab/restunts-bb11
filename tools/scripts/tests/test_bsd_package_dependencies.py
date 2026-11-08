@@ -22,18 +22,25 @@ from pathlib import Path
 command = Path(sys.argv[0]).name
 package_path = os.environ.get("PKG_PATH", os.environ.get("BSD_HELPER_TEST_CONFIG_PATH", ""))
 if command == "uname":
-    print({"-s": "NetBSD", "-m": os.environ["BSD_HELPER_TEST_ARCH"], "-r": "10.2"}[sys.argv[1]])
+    print({"-s": os.environ.get("BSD_HELPER_TEST_SYSTEM", "NetBSD"),
+           "-m": os.environ["BSD_HELPER_TEST_ARCH"],
+           "-p": os.environ.get("BSD_HELPER_TEST_PROCESSOR", os.environ["BSD_HELPER_TEST_ARCH"]),
+           "-r": os.environ.get("BSD_HELPER_TEST_RELEASE", "10.2")}[sys.argv[1]])
 elif command == "pkg_admin":
     if sys.argv[1:] != ["config-var", "PKG_PATH"]:
         sys.exit("Unexpected pkg_admin arguments")
     if os.environ.get("BSD_HELPER_TEST_CONFIG_FAILURE"):
         sys.exit("Cannot query package configuration")
     print(package_path)
-elif command == "pkg_add":
+elif command in ("pkg_add", "pkg"):
     with open(os.environ["BSD_HELPER_TEST_EVENTS"], "a") as output:
         output.write(json.dumps({"arguments": sys.argv[1:], "path": package_path,
                                  "environment_path": os.environ.get("PKG_PATH")}) + "\\n")
-elif command not in ("curl", "cksum", "tar"):
+elif command in ("curl", "cksum"):
+    with open(os.environ["BSD_HELPER_TEST_DOWNLOADS"], "a") as output:
+        output.write(json.dumps({"command": command, "arguments": sys.argv[1:],
+                                 "input": sys.stdin.read() if command == "cksum" else ""}) + "\\n")
+elif command != "tar":
     sys.exit("Unexpected mock command")
 """
 
@@ -45,15 +52,22 @@ class BsdPackageDependencyTests(unittest.TestCase):
         self.root = Path(temporary.name)
         self.scripts = self.root / "tools/scripts"
         self.scripts.mkdir(parents=True)
-        for name in (HELPER, "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512"):
+        for name in (HELPER, "netbsd-x64-sets.sha512", "netbsd-x86-sets.sha512",
+                     "netbsd-arm64-sets.sha512", "netbsd-riscv64-sets.sha512"):
             shutil.copy2(ROOT / "tools/scripts" / name, self.scripts / name)
+        x11 = self.root / "X11R6/include/X11/Xlib.h"
+        x11.parent.mkdir(parents=True)
+        x11.touch()
+        helper = self.scripts / HELPER
+        helper.write_text(helper.read_text().replace("/usr/X11R6", str(self.root / "X11R6")))
         self.commands = self.root / "commands"
         self.commands.mkdir()
-        for name in ("uname", "pkg_admin", "pkg_add", "curl", "cksum", "tar"):
+        for name in ("uname", "pkg_admin", "pkg_add", "pkg", "curl", "cksum", "tar"):
             command = self.commands / name
             command.write_text(MOCK_COMMAND, encoding="utf-8")
             command.chmod(0o755)
         self.events = self.root / "events.jsonl"
+        self.downloads = self.root / "downloads.jsonl"
         self.environment = dict(os.environ)
         self.environment.pop("PKG_PATH", None)
         self.environment.update({
@@ -61,10 +75,12 @@ class BsdPackageDependencyTests(unittest.TestCase):
             "BSD_HELPER_TEST_ARCH": "amd64",
             "BSD_HELPER_TEST_CONFIG_PATH": "",
             "BSD_HELPER_TEST_EVENTS": str(self.events),
+            "BSD_HELPER_TEST_DOWNLOADS": str(self.downloads),
         })
 
     def run_helper(self, target="netbsd-x64", environment=None):
         self.events.unlink(missing_ok=True)
+        self.downloads.unlink(missing_ok=True)
         values = self.environment.copy()
         values.update(environment or {})
         result = subprocess.run(["sh", str(self.scripts / HELPER), target],
@@ -106,6 +122,61 @@ class BsdPackageDependencyTests(unittest.TestCase):
                 expected = ("https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/"
                             f"{package_architecture}/10.0/All/")
                 self.assert_repositories(result, events, expected, expected)
+
+    def test_arm64_and_riscv64_use_matching_netbsd_sets_and_package_abis(self):
+        for target, machine, processor, release, set_architecture, suffix in (
+                ("netbsd-arm64", "evbarm", "aarch64", "10.2", "evbarm-aarch64", "tar.xz"),
+                ("netbsd-arm64", "aarch64", "aarch64", "10.2", "evbarm-aarch64", "tar.xz"),
+                ("netbsd-riscv64", "riscv", "riscv64", "11.0", "riscv-riscv64", "tgz"),
+                ("netbsd-riscv64", "riscv64", "riscv64", "11.0", "riscv-riscv64", "tgz")):
+            with self.subTest(target=target, machine=machine):
+                result, events = self.run_helper(target, {
+                    "BSD_HELPER_TEST_ARCH": machine,
+                    "BSD_HELPER_TEST_PROCESSOR": processor,
+                    "BSD_HELPER_TEST_RELEASE": release,
+                })
+                major = release.split(".")[0]
+                expected = ("https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/"
+                            f"{processor}/{major}.0/All/")
+                self.assert_repositories(result, events, expected, expected)
+                downloads = [json.loads(line) for line in self.downloads.read_text().splitlines()]
+                for index, set_name in enumerate(("xbase", "xcomp")):
+                    archive = f"{set_name}.{suffix}"
+                    expected_url = (f"https://cdn.netbsd.org/pub/NetBSD/NetBSD-{release}/"
+                                    f"{set_architecture}/binary/sets/{archive}")
+                    self.assertIn(expected_url, downloads[index * 2]["arguments"])
+                    manifest = (ROOT / "tools/scripts" /
+                                f"{target}-sets.sha512").read_text().splitlines()
+                    self.assertIn(downloads[index * 2 + 1]["input"].strip(), manifest)
+
+    def test_freebsd_and_openbsd_arm64_and_riscv64_install_native_dependencies(self):
+        for system, target, machine, processor in (
+                ("FreeBSD", "freebsd-arm64", "arm64", "aarch64"),
+                ("FreeBSD", "freebsd-riscv64", "riscv", "riscv64"),
+                ("OpenBSD", "openbsd-arm64", "arm64", "aarch64"),
+                ("OpenBSD", "openbsd-riscv64", "riscv64", "riscv64")):
+            with self.subTest(target=target):
+                result, events = self.run_helper(target, {
+                    "BSD_HELPER_TEST_SYSTEM": system,
+                    "BSD_HELPER_TEST_ARCH": machine,
+                    "BSD_HELPER_TEST_PROCESSOR": processor,
+                })
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(len(events), 1)
+                cmake_package = "cmake-core" if target == "freebsd-riscv64" else "cmake"
+                gtk_package = ("gtk2" if target == "freebsd-riscv64" else
+                               "gtk3" if system == "FreeBSD" else "gtk+3")
+                self.assertIn(cmake_package, events[0]["arguments"])
+                self.assertIn(gtk_package, events[0]["arguments"])
+
+    def test_wrong_architecture_is_rejected_before_installing_packages(self):
+        for target in ("freebsd-arm64", "openbsd-riscv64", "netbsd-arm64", "netbsd-riscv64"):
+            with self.subTest(target=target):
+                result, events = self.run_helper(target)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("requires its matching native BSD userspace", result.stderr)
+                self.assertEqual(events, [])
+                self.assertFalse(self.downloads.exists())
 
     def test_configuration_query_error_fails_before_package_installation(self):
         result, events = self.run_helper(environment={"BSD_HELPER_TEST_CONFIG_FAILURE": "1"})

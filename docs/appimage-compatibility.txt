@@ -188,3 +188,27 @@ Fedora lifecycle: https://fedoraproject.org/wiki/Differences_to_Ubuntu#Life_cycl
 Fedora 19 image: https://hub.docker.com/r/mattdm/fedora
 Fedora 16-labelled image: https://hub.docker.com/r/paratools/fedora
 Fedora 14 image history: https://www.redhat.com/en/blog/engineering-compatibility-red-hat-universal-base-image
+
+RISC-V64 AppImage baseline (2026-11-08)
+
+The linux-appimage-riscv64 target uses Debian 13 Trixie and glibc 2.41.
+Trixie is Debian's first official RISC-V release, so the historical x86 and
+ARM userspace baselines above do not apply to this architecture. The
+ordinary linux-riscv64 archive uses the same Debian 13 baseline.
+
+The CPU/ABI baseline is rv64gc/lp64d, with no required vector extension.
+The AppImage uses a pinned Debian 13 RISC-V SDK and a static RISC-V loader
+built from pinned upstream AppImage runtime sources. Desktop dependencies
+are bundled; glibc, the ELF interpreter and graphics drivers remain host
+components. The Debian 13 ABI target does not establish compatibility with
+every RISC-V board, physical graphics/audio device or Linux distribution.
+
+CI tests the exact RISC-V64 archive through the shared
+tools/scripts/test-appimage-arm.sh driver with qemu-riscv64/rv64 and the
+pinned Debian 13 loader/libraries. It checks static-runtime extraction,
+every bundled ELF's architecture/ABI and dependency resolution, information
+commands, menu startup, a replay frame checksum and non-silent ALSA output.
+Logs and result.json record the tested archive and pinned userspace hashes.
+These are userspace checks on the host kernel; they do not boot a Debian 13
+kernel or test FUSE mounting and physical graphics/audio hardware.
+See docs/releases.md for the current build and verification matrix.

@@ -40,6 +40,8 @@ TARGETS = {
     "dos16": ".zip",
     "dos32": ".zip",
     "freebsd-x64": ".tar.gz",
+    "freebsd-arm64": ".tar.gz",
+    "freebsd-riscv64": ".tar.gz",
     "haiku-x64": ".tar.gz",
     "haiku-x86": ".tar.gz",
     "linux-appimage-x64": ".tar.gz",
@@ -47,15 +49,21 @@ TARGETS = {
     "linux-appimage-x86-no-sse2": ".tar.gz",
     "linux-appimage-armv7": ".tar.gz",
     "linux-appimage-arm64": ".tar.gz",
+    "linux-appimage-riscv64": ".tar.gz",
     "linux-arm32": ".tar.gz",
     "linux-arm64": ".tar.gz",
+    "linux-riscv64": ".tar.gz",
     "linux-x86": ".tar.gz",
     "linux-x86-no-sse2": ".tar.gz",
     "linux-x64": ".tar.gz",
     "netbsd-x64": ".tar.gz",
+    "netbsd-arm64": ".tar.gz",
+    "netbsd-riscv64": ".tar.gz",
     "netbsd-x86": ".tar.gz",
     "netbsd-x86-no-sse2": ".tar.gz",
     "openbsd-x64": ".tar.gz",
+    "openbsd-arm64": ".tar.gz",
+    "openbsd-riscv64": ".tar.gz",
     "windows-arm64": ".zip",
     "windows-x86": ".zip",
     "windows-x86-no-sse2": ".zip",
@@ -75,13 +83,20 @@ AMIGA_EXECUTABLE = "restunts"
 AMIGA_PACKAGE_FILES = {AMIGA_EXECUTABLE, "restunts.map", "README.md"}
 BSD_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
+    "freebsd-arm64": "FreeBSD AArch64",
+    "freebsd-riscv64": "FreeBSD RISC-V 64-bit",
     "openbsd-x64": "OpenBSD x86-64",
+    "openbsd-arm64": "OpenBSD AArch64",
+    "openbsd-riscv64": "OpenBSD RISC-V 64-bit",
     "netbsd-x64": "NetBSD x86-64",
+    "netbsd-arm64": "NetBSD AArch64",
+    "netbsd-riscv64": "NetBSD RISC-V 64-bit",
     "netbsd-x86": "NetBSD 32-bit x86 with SSE2",
     "netbsd-x86-no-sse2": "NetBSD 32-bit x86; SSE2 instructions are disabled",
 }
 HAIKU_TARGETS = {"haiku-x64": "Haiku x86-64", "haiku-x86": "Haiku 32-bit x86 with SSE2"}
-ELF_TARGETS = {**BSD_TARGETS, **HAIKU_TARGETS}
+LINUX_ELF_TARGETS = {"linux-riscv64": "Linux RISC-V 64-bit"}
+ELF_TARGETS = {**BSD_TARGETS, **HAIKU_TARGETS, **LINUX_ELF_TARGETS}
 ANDROID_TARGETS = {"android-armv7": "armeabi-v7a", "android-arm64": "arm64-v8a"}
 ANDROID_TOOLCHAIN_PROPERTIES = ROOT / "android/toolchain.properties"
 ANDROID_MINIMUM_KEYS = {"android-armv7": "ANDROID_ARMV7_MIN_SDK", "android-arm64": "ANDROID_ARM64_MIN_SDK"}
@@ -116,16 +131,19 @@ APPIMAGE_TARGETS = {
     "linux-appimage-x86-no-sse2": "x86",
     "linux-appimage-armv7": "armv7",
     "linux-appimage-arm64": "arm64",
+    "linux-appimage-riscv64": "riscv64",
 }
 APPIMAGE_ARCHITECTURE_NAMES = {
     "x64": "x86-64", "x86": "32-bit x86",
     "armv7": "ARMv7 hard-float", "arm64": "AArch64",
+    "riscv64": "RISC-V 64-bit (RV64GC, LP64D)",
 }
 APPIMAGE_BASELINES = {
     "x64": "Ubuntu 10.04 (glibc 2.11)",
     "x86": "Ubuntu 10.04 (glibc 2.11)",
     "armv7": "Raspbian 7 Wheezy (glibc 2.13)",
     "arm64": "Debian 8 Jessie (glibc 2.19)",
+    "riscv64": "Debian 13 Trixie (glibc 2.41)",
 }
 APPIMAGE_MAGIC = b"AI\x02"
 APPIMAGE_MAGIC_OFFSET = 8
@@ -138,6 +156,7 @@ ELF_MACHINE_X86 = 3
 ELF_MACHINE_X64 = 62
 ELF_MACHINE_ARM = 40
 ELF_MACHINE_AARCH64 = 183
+ELF_MACHINE_RISCV = 243
 ELF_MACHINE_OFFSET = 18
 ELF_TYPE_OFFSET = 16
 ELF_TYPE_SHARED = 3
@@ -147,6 +166,7 @@ ELF_ARCHITECTURES = {
     "x64": (ELF_CLASS_64, ELF_MACHINE_X64),
     "armv7": (ELF_CLASS_32, ELF_MACHINE_ARM),
     "arm64": (ELF_CLASS_64, ELF_MACHINE_AARCH64),
+    "riscv64": (ELF_CLASS_64, ELF_MACHINE_RISCV),
 }
 ELF_FILES = {f"bin/{name}" for name in NATIVE_EXECUTABLES} | {"lib/libnuked-opl2.so"}
 ORIGINAL_SUFFIXES = {
@@ -631,7 +651,7 @@ def readme(target, commit):
         architecture = APPIMAGE_TARGETS[target]
         lines += [f"Linux {APPIMAGE_ARCHITECTURE_NAMES[architecture]}; targets "
                   f"{APPIMAGE_BASELINES[architecture]} or newer.",
-                  "Built using a verified legacy sysroot; the host's glibc is not bundled.",
+                  "Built using a verified distribution sysroot; the host's glibc is not bundled.",
                   "Start the AppImage with:",
                   "bin/restunts.AppImage (no arguments opens the startup window)",
                   "For direct CLI use: bin/restunts.AppImage --data-dir PATH_TO_YOUR_STUNTS_FOLDER",
@@ -651,6 +671,11 @@ def readme(target, commit):
             lines += ["Requires a 64-bit ARM operating system; Wheezy had no ARM64 release.",
                       "Raspberry Pi OS 64-bit starts with the Buster beta (2020),",
                       "or Bullseye for its first stable 64-bit release (2022)."]
+        elif architecture == "riscv64":
+            lines += ["Requires RV64GC with the LP64D ABI; RISC-V vector extensions are not required."]
+    if target == "linux-riscv64":
+        lines += ["Requires Debian 13 Trixie (glibc 2.41) or newer, RV64GC and the LP64D ABI.",
+                  "RISC-V vector extensions are not required."]
     if target.startswith("windows-x86"):
         lines += ["Requires Windows XP SP2 or newer (the pinned SDL system API minimum)."]
     if target in ELF_TARGETS:

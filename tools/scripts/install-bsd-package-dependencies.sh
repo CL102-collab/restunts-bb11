@@ -6,7 +6,15 @@ script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 target=${1:?Usage: install-bsd-package-dependencies.sh TARGET}
 host_system=$(uname -s)
 host_architecture=$(uname -m)
+# Some BSD kernels report a machine family through -m on ARM/RISC-V;
+# package and compiler ABIs use the CPU architecture reported by -p.
+case "$host_architecture" in
+    evbarm|riscv) host_architecture=$(uname -p) ;;
+esac
 netbsd_release=10.2
+if [ "$target" = netbsd-riscv64 ]; then
+    netbsd_release=11.0
+fi
 
 install_netbsd_x11() {
     if [ -f /usr/X11R7/include/X11/Xlib.h ] && [ -f /usr/X11R7/lib/libX11.so ]; then
@@ -19,6 +27,15 @@ install_netbsd_x11() {
     case "$host_architecture" in
         amd64|x86_64) sets_architecture=amd64; sets_suffix=tar.xz; checksum_file=netbsd-x64-sets.sha512 ;;
         i386) sets_architecture=i386; sets_suffix=tgz; checksum_file=netbsd-x86-sets.sha512 ;;
+        aarch64|arm64)
+            sets_architecture=evbarm-aarch64; sets_suffix=tar.xz
+            checksum_file=netbsd-arm64-sets.sha512
+            ;;
+        riscv64)
+            sets_architecture=riscv-riscv64; sets_suffix=tgz
+            checksum_file=netbsd-riscv64-sets.sha512
+            ;;
+        *) echo "Unsupported NetBSD X11 architecture: $host_architecture" >&2; exit 1 ;;
     esac
     download_dir=$(mktemp -d /tmp/restunts-netbsd-x11.XXXXXX)
     trap 'rm -rf -- "$download_dir"' 0
@@ -44,11 +61,23 @@ install_netbsd_x11() {
 }
 
 case "$target:$host_system:$host_architecture" in
-    freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64)
-        pkg install -y bash cmake ninja git python313 pkgconf \
-            gtk3 libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
+    freebsd-x64:FreeBSD:amd64|freebsd-x64:FreeBSD:x86_64|\
+    freebsd-arm64:FreeBSD:arm64|freebsd-arm64:FreeBSD:aarch64|\
+    freebsd-riscv64:FreeBSD:riscv64)
+        bsd_cmake_package=cmake
+        bsd_gtk_package=gtk3
+        if [ "$target" = freebsd-riscv64 ]; then
+            # This architecture's signed VM repository has GTK2, while GTK3's
+            # Rust/librsvg dependency is not yet available.
+            bsd_cmake_package=cmake-core
+            bsd_gtk_package=gtk2
+        fi
+        pkg install -y bash "$bsd_cmake_package" ninja git python313 pkgconf \
+            "$bsd_gtk_package" libX11 libXext libXrandr libXcursor libXi libXfixes libXScrnSaver libXtst
         ;;
-    openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64)
+    openbsd-x64:OpenBSD:amd64|openbsd-x64:OpenBSD:x86_64|\
+    openbsd-arm64:OpenBSD:arm64|openbsd-arm64:OpenBSD:aarch64|\
+    openbsd-riscv64:OpenBSD:riscv64)
         # OpenBSD ships pkg-config in base; its Python 3 branch is lang/python/3.
         pkg_add -I bash cmake ninja git 'python%3' gtk+3
         if [ ! -f /usr/X11R6/include/X11/Xlib.h ]; then
@@ -57,7 +86,9 @@ case "$target:$host_system:$host_architecture" in
         fi
         ;;
     netbsd-x64:NetBSD:amd64|netbsd-x64:NetBSD:x86_64|\
-    netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386)
+    netbsd-x86:NetBSD:i386|netbsd-x86-no-sse2:NetBSD:i386|\
+    netbsd-arm64:NetBSD:aarch64|netbsd-arm64:NetBSD:arm64|\
+    netbsd-riscv64:NetBSD:riscv64)
         export PATH="/usr/pkg/sbin:/usr/pkg/bin:$PATH"
         # Keep the caller's PKG_PATH or the VM's configured quarterly mirrors.
         # Use a fallback only for unconfigured systems, such as fresh i386 base sets.
@@ -66,9 +97,10 @@ case "$target:$host_system:$host_architecture" in
             # NetBSD packages use the major release's ABI and the base X11 sets.
             package_release=$(uname -r | cut -d . -f 1).0
             package_architecture=$host_architecture
-            if [ "$package_architecture" = amd64 ]; then
-                package_architecture=x86_64
-            fi
+            case "$package_architecture" in
+                amd64) package_architecture=x86_64 ;;
+                arm64) package_architecture=aarch64 ;;
+            esac
             export PKG_PATH="https://cdn.netbsd.org/pub/pkgsrc/packages/NetBSD/$package_architecture/$package_release/All/"
         fi
         # The VM image may contain older dependencies than the package mirror.

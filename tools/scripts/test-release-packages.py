@@ -36,12 +36,19 @@ TEMPLEOS_FORMAT = runpy.run_path(str(TEMPLEOS_TOOLS / "MAKE_DATA_CD.PY"))
 PORTED_TARGETS = {"templeos", "amiga-m68k"}
 ELF_TARGETS = {
     "freebsd-x64": "FreeBSD x86-64",
+    "freebsd-arm64": "FreeBSD AArch64",
+    "freebsd-riscv64": "FreeBSD RISC-V 64-bit",
     "haiku-x64": "Haiku x86-64",
     "haiku-x86": "Haiku 32-bit x86 with SSE2",
     "openbsd-x64": "OpenBSD x86-64",
+    "openbsd-arm64": "OpenBSD AArch64",
+    "openbsd-riscv64": "OpenBSD RISC-V 64-bit",
     "netbsd-x64": "NetBSD x86-64",
+    "netbsd-arm64": "NetBSD AArch64",
+    "netbsd-riscv64": "NetBSD RISC-V 64-bit",
     "netbsd-x86": "NetBSD 32-bit x86 with SSE2",
     "netbsd-x86-no-sse2": "NetBSD 32-bit x86; SSE2 instructions are disabled",
+    "linux-riscv64": "Linux RISC-V 64-bit",
 }
 
 
@@ -746,11 +753,13 @@ class ReleasePackageTests(unittest.TestCase):
             modes = {name: PACKAGES.EXECUTABLE_MODE for name in files}
             for name in PACKAGES.ELF_FILES:
                 wrong_class = bytearray(files[name])
+                elf_class, machine = PACKAGES.ELF_ARCHITECTURES[target.split("-")[1]]
                 wrong_class[PACKAGES.ELF_CLASS_OFFSET] = (
-                    PACKAGES.ELF_CLASS_32 if target.endswith("-x64") else PACKAGES.ELF_CLASS_64)
+                    PACKAGES.ELF_CLASS_32 if elf_class == PACKAGES.ELF_CLASS_64 else PACKAGES.ELF_CLASS_64)
                 wrong_machine = bytearray(files[name])
-                machine = PACKAGES.ELF_MACHINE_X86 if target.endswith("-x64") else PACKAGES.ELF_MACHINE_X64
-                struct.pack_into("<H", wrong_machine, PACKAGES.ELF_MACHINE_OFFSET, machine)
+                other_machine = (PACKAGES.ELF_MACHINE_X86 if machine != PACKAGES.ELF_MACHINE_X86
+                                 else PACKAGES.ELF_MACHINE_X64)
+                struct.pack_into("<H", wrong_machine, PACKAGES.ELF_MACHINE_OFFSET, other_machine)
                 for content in (FILE_DATA, files[name][:PACKAGES.ELF_MACHINE_OFFSET],
                                 wrong_class, wrong_machine):
                     with self.subTest(target=target, name=name, content=content), \

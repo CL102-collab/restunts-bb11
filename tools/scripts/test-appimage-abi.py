@@ -26,6 +26,8 @@ def elf_description(target, *, version=None, interpreter=None, flags=None):
         description += f"  Flags: {flags}\n"
     elif target_abi.machine == "ARM":
         description += "  Flags: 0x5000400, Version5 EABI, hard-float ABI\n"
+    elif target_abi.machine == "RISC-V":
+        description += "  Flags: 0x5, RVC, double-float ABI\n"
     if interpreter is not None:
         description += f"  [Requesting program interpreter: {interpreter}]\n"
     if version is not None:
@@ -91,6 +93,31 @@ class ElfAbiTests(unittest.TestCase):
         with mock.patch.object(abi, "inspect", return_value=description):
             with self.assertRaisesRegex(ValueError, "expected ARM EABI5 hard-float ABI"):
                 abi.check_elf(Path("libsound.so.1"), target)
+
+    def test_riscv64_rejects_non_lp64d_abis(self):
+        target = "linux-appimage-riscv64"
+        for flags in ("", "0x1, RVC, soft-float ABI", "0x3, RVC, single-float ABI"):
+            with self.subTest(flags=flags):
+                description = elf_description(target, flags=flags)
+                with mock.patch.object(abi, "inspect", return_value=description):
+                    with self.assertRaisesRegex(ValueError, "expected RISC-V LP64D"):
+                        abi.check_elf(Path("restunts"), target)
+
+    def test_riscv64_requires_its_lp64d_interpreter(self):
+        target = "linux-appimage-riscv64"
+        description = elf_description(target, interpreter="/lib/ld-linux-riscv64-lp64.so.1")
+        with mock.patch.object(abi, "inspect", return_value=description):
+            with self.assertRaisesRegex(ValueError, "unexpected interpreter"):
+                abi.check_elf(Path("restunts"), target)
+
+    def test_riscv64_runtime_must_be_static(self):
+        target = "linux-appimage-riscv64"
+        for description in (elf_description(target, interpreter=abi.TARGETS[target].interpreter),
+                            elf_description(target) + dependencies("libc.so.6")):
+            with self.subTest(description=description):
+                with mock.patch.object(abi, "inspect", return_value=description):
+                    with self.assertRaisesRegex(ValueError, "AppImage runtime must be static"):
+                        abi.check_elf(Path("runtime"), target, static=True)
 
     def test_arm_runtimes_must_have_no_interpreter_or_shared_libraries(self):
         for target in ("linux-appimage-armv7", "linux-appimage-arm64"):
@@ -198,7 +225,7 @@ class DependencyClosureTests(unittest.TestCase):
             Path("usr/bin/restunts"): dependencies(
                 "libc.so.6", "libm.so.6", "libdl.so.2", "libpthread.so.0", "librt.so.1",
                 "libresolv.so.2", "ld-linux-x86-64.so.2", "ld-linux-armhf.so.3",
-                "ld-linux-aarch64.so.1"),
+                "ld-linux-aarch64.so.1", "ld-linux-riscv64-lp64d.so.1"),
         })
 
     def test_library_soname_does_not_replace_its_missing_loader_filename(self):

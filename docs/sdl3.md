@@ -22,9 +22,12 @@ All platforms use the same revision; no separate SDL fork is required.
 | Linux x86 | GCC multilib or an i386 environment, Debian 12 build baseline; separate SSE2 and no-SSE2 packages. |
 | Linux ARM32 and ARM64 | Debian 12 cross-compilers; ARMv7 hard-float (Pi 2+) or AArch64. Debian/Raspbian 12+ baseline. |
 | Linux ARM AppImages | ARMv7: Raspbian Wheezy/glibc 2.13; ARM64: Debian Jessie/glibc 2.19. Historical userspace checks run under QEMU; see [release packages](releases.md). |
-| FreeBSD x64 | Native compiler, FreeBSD 14.4 amd64 build baseline. |
-| OpenBSD x64 | Native Clang, OpenBSD 7.9 amd64 build baseline. |
-| NetBSD x64 and x86 | Native GCC, NetBSD 10.2 amd64/i386 build baseline; separate x86 SSE2 and no-SSE2 packages. |
+| Linux RISC-V64 and AppImage | Debian 13 Trixie, glibc 2.41; `rv64gc`/`lp64d`, without required vector extensions. |
+| FreeBSD x64 and ARM64 | Native compiler, FreeBSD 14.4 amd64/AArch64 build baseline. |
+| FreeBSD RISC-V64 | Native compiler, FreeBSD 15.0 RISC-V64 build baseline; GTK 2 launcher. |
+| OpenBSD x64, ARM64 and RISC-V64 | Native Clang, OpenBSD 7.9 build baseline. |
+| NetBSD x64, x86 and ARM64 | Native GCC, NetBSD 10.2 build baseline; separate x86 SSE2 and no-SSE2 packages. |
+| NetBSD RISC-V64 | Native GCC, NetBSD 11.0 RISC-V64 build baseline. |
 | Haiku x64 and x86 | Native modern GCC/G++, Haiku R1/beta6; x86 uses the hybrid system’s modern GCC ABI and SSE2. |
 | macOS arm64 and x86_64 | Apple Clang and macOS SDK; helper scripts target macOS 11.0+. Universal builds are available. |
 | Windows x86 | MinGW-w64 with MSVCRT; Windows XP SP2+ runtime, XP API target; separate SSE2 and no-SSE2 packages. |
@@ -40,9 +43,10 @@ SDL's DOS minimum is i386 with 4 MB RAM; the game's actual memory and performanc
 requirements can be higher. See [SDL's DOS notes](https://github.com/libsdl-org/SDL/blob/015489c672f24feed28c2aa2cdd6176df95329f3/docs/README-dos.md).
 
 Desktop builds include the [native startup window](launcher.md), using pinned
-wxWidgets 3.2.12 and system GTK 3 development/runtime libraries on Linux/BSD,
-and Cocoa on macOS. Haiku uses the patched HaikuPorts wxQt 3.2.4 system package
-with Qt 5 and Haiku platform/style plugins. `RESTUNTS_BUILD_LAUNCHER=OFF` provides
+wxWidgets 3.2.12. Ordinary Linux/BSD packages use system GTK 3 development/runtime
+libraries; FreeBSD RISC-V64 and AppImages use GTK 2. macOS uses Cocoa. Haiku uses
+the patched HaikuPorts wxQt 3.2.4 system package with Qt 5 and Haiku platform/style
+plugins. `RESTUNTS_BUILD_LAUNCHER=OFF` provides
 a headless game/tools-only build. Web, Android and DOS exclude this dependency.
 
 ## Linux
@@ -77,6 +81,15 @@ installing its packages. The ARM32 toolchain selects ARMv7 and VFPv3-D16 with
 the hard-float ABI. `tools/scripts/install-package-dependencies.sh` records the
 complete package list used by the Debian 12 build jobs.
 
+Linux RISC-V64 uses Debian 13 Trixie, the first official Debian release for this
+architecture. In a Debian 13 x64 environment, install the dependencies with
+`bash tools/scripts/install-package-dependencies.sh linux-riscv64`, then use
+`cmake/toolchains/linux-riscv64.cmake` in a separate build tree. It selects
+`riscv64-linux-gnu-gcc`/`g++`, the `rv64gc` instruction set and `lp64d` ABI;
+RISC-V vector extensions are not required. CI runs this cross-build in a Debian
+13 container. The `linux-appimage-riscv64` package uses the same Debian 13/glibc
+2.41 baseline with bundled desktop dependencies; see [release packages](releases.md).
+
 Append `-DRESTUNTS_SSE2=OFF` for a 32-bit x86 build without SSE/SSE2/AVX code in
 the game, Nuked OPL2 Lite, or bundled SDL. Use another fresh build tree when changing CPU options.
 The same option is available for Windows x86 and NetBSD i386; x64 requires SSE2. A build without
@@ -99,16 +112,23 @@ cannot silently remove desktop audio support.
 ## BSD
 
 FreeBSD, OpenBSD, and NetBSD use the same SDL3 backend as the other desktop
-builds. Release jobs use FreeBSD 14.4 amd64, OpenBSD 7.9 amd64, and NetBSD 10.2
-amd64/i386. Each OS has its own binary archive and system dependencies.
+builds. Each OS has x64, ARM64 and RISC-V64 targets with its own binary archive
+and system dependencies. FreeBSD x64/ARM64 use 14.4 and RISC-V64 uses 15.0;
+OpenBSD uses 7.9 for all three. NetBSD x64/x86/ARM64 use 10.2 and RISC-V64 uses
+11.0. ARM64 and RISC-V64 CI jobs build in matching emulated native userspaces.
+The FreeBSD RISC-V64 VM uses the signed
+[anyvm-org package repository](https://github.com/anyvm-org/freebsd-pkg-repo)
+and builds its launcher with GTK 2; its package repository does not provide GTK 3.
 
 Install the build dependencies on the matching BSD using
 `tools/scripts/install-bsd-package-dependencies.sh` as root, with the desired
-release target (`freebsd-x64`, `openbsd-x64`, `netbsd-x64`, `netbsd-x86`, or
-`netbsd-x86-no-sse2`). Run this helper with `sh`; it installs Bash as well.
-OpenBSD needs its X11 base/development sets. On NetBSD 10.2 the helper installs
-missing X11 sets from checksum-verified release archives. These are build
-prerequisites; a running graphical desktop and its audio drivers are needed to play.
+release target: `freebsd-{x64,arm64,riscv64}`, `openbsd-{x64,arm64,riscv64}`,
+`netbsd-{x64,arm64,riscv64}`, `netbsd-x86`, or `netbsd-x86-no-sse2`. Choose one
+concrete target, for example `freebsd-arm64`; the braces above are shorthand.
+Run this helper with `sh`; it installs Bash as well. OpenBSD needs its X11
+base/development sets. On NetBSD the helper installs missing X11 sets from
+checksum-verified release archives. A running graphical desktop and its audio
+drivers are needed to play.
 
 For a local native x64 build, for example on FreeBSD:
 
@@ -120,9 +140,12 @@ cmake --install out/sdl3-freebsd-x64 --prefix "$PWD/out/package-freebsd-x64" \
 out/package-freebsd-x64/bin/restunts --data-dir "$PWD/stunts"
 ```
 
-Use a corresponding output directory on OpenBSD. On NetBSD, include the
-pkgsrc and X11 prefixes and disable precompiled headers, which conflict with
-the native compiler's address layout:
+Use a corresponding output directory on OpenBSD. For ARM64 or RISC-V64, use
+the compiler and libraries of the matching native BSD userspace. For FreeBSD
+RISC-V64, add `-DRESTUNTS_WX_TOOLKIT=gtk2` to the configure command; its package
+helper selects this automatically. On NetBSD, include the pkgsrc and X11
+prefixes and disable precompiled headers, which conflict with the native
+compiler's address layout:
 
 ```sh
 PKG_CONFIG_PATH=/usr/pkg/lib/pkgconfig:/usr/X11R7/lib/pkgconfig \
@@ -156,7 +179,7 @@ export GITHUB_SHA="$(git rev-parse HEAD)"
 bash tools/scripts/build-package.sh freebsd-x64
 ```
 
-Replace the target for the other four packages. Archives and checksums appear
+Replace the target for the other BSD packages. Archives and checksums appear
 under `dist/packages/`. The release workflow also supplies build-run provenance
 and attestations. Keep `bin/`, `lib/`, and `share/` together when moving an
 extracted package. The executables find Nuked relative to their location;
@@ -565,13 +588,16 @@ original music behavior.
 ## Validation and CI
 
 The shared **Build release packages** workflow builds all distribution targets for
-**PR validation** and **Release**, using Debian 12 for the Linux baseline.
-The matrix includes ARMv7, ARM64, both x86 SSE2 variants, Windows ARM64, and a
-Universal macOS 11+ package. Native BSD VM jobs add FreeBSD, OpenBSD, and NetBSD
-x64 plus NetBSD x86 with and without SSE2. They check package contents, binary architecture,
+**PR validation** and **Release**, using Debian 12 for existing Linux targets
+and Debian 13 for RISC-V64. The matrix includes Linux ARMv7, ARM64, RISC-V64,
+both x86 SSE2 variants, Windows ARM64, and a Universal macOS 11+ package. Native
+BSD VM jobs add FreeBSD, OpenBSD, and NetBSD x64, ARM64 and RISC-V64, plus
+NetBSD x86 with and without SSE2. They check package contents, binary architecture,
 and relocated startup without game data. Haiku R1/beta6 VM jobs build
-and check the x64 and x86 packages. The cross-built targets do not run game
-tests. Linux/BSD/Haiku/macOS archives use `.tar.gz` to preserve
+and check the x64 and x86 packages. Ordinary cross-built archives do not run
+the full game regression suites. ARM and RISC-V64 AppImages additionally run pinned-userspace
+compatibility checks under QEMU, including replay rendering and ALSA output;
+see [release packages](releases.md). Linux/BSD/Haiku/macOS archives use `.tar.gz` to preserve
 executable permissions; DOS, Windows, and browser archives use `.zip`.
 
 Native Linux SDL3 tests cover the platform layer, AdLib synthesis, worker

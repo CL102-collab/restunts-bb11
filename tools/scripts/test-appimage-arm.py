@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test an archived ARM AppImage with its pinned historical libc under QEMU user mode."""
+"""Test an archived ARM or RISC-V AppImage with its pinned libc under QEMU user mode."""
 
 import argparse
 import hashlib
@@ -24,6 +24,7 @@ ABI_SPEC.loader.exec_module(ABI)
 TARGET_CPUS = {
     "linux-appimage-armv7": "cortex-a7",
     "linux-appimage-arm64": "cortex-a53",
+    "linux-appimage-riscv64": "rv64",
 }
 BATCH_TIMEOUT = 180
 STARTUP_TIMEOUT = 12
@@ -145,7 +146,7 @@ def main():
         evidence["loader_sha256"] = checksum(loader)
         evidence["qemu_version"] = subprocess.check_output([qemu, "--version"], env=environment,
                                                           text=True).splitlines()[0]
-        with tempfile.TemporaryDirectory(prefix="restunts-arm-compat-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="restunts-cross-compat-") as temporary:
             work = Path(temporary)
             package, extraction, data = (work / name for name in ("package", "extraction", "data"))
             package.mkdir()

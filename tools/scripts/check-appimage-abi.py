@@ -16,6 +16,8 @@ TargetAbi = namedtuple("TargetAbi", "elf_class machine interpreter glibc_version
 UBUNTU_LUCID = ((2, 11), "Ubuntu 10.04")
 RASPBIAN_WHEEZY = ((2, 13), "Raspbian Wheezy")
 DEBIAN_JESSIE = ((2, 19), "Debian Jessie")
+DEBIAN_TRIXIE = ((2, 41), "Debian 13 Trixie")
+RISCV_DOUBLE_FLOAT_ABI = "double-float ABI"
 ARM_EABI_VERSION = "Version5 EABI"
 ARM_HARD_FLOAT_ATTRIBUTE = r"^\s*Tag_ABI_VFP_args:\s*VFP registers\s*$"
 TARGETS = {
@@ -28,6 +30,8 @@ TARGETS = {
         "ELF32", "ARM", "/lib/ld-linux-armhf.so.3", *RASPBIAN_WHEEZY),
     "linux-appimage-arm64": TargetAbi(
         "ELF64", "AArch64", "/lib/ld-linux-aarch64.so.1", *DEBIAN_JESSIE),
+    "linux-appimage-riscv64": TargetAbi(
+        "ELF64", "RISC-V", "/lib/ld-linux-riscv64-lp64d.so.1", *DEBIAN_TRIXIE),
 }
 SYSTEM_LIBRARIES = re.compile(
     r"(?:ld(?:-linux[^/]*|-[0-9][^/]*)?|"
@@ -65,6 +69,10 @@ def check_elf(path, target, *, static=False):
         if (not flags or ARM_EABI_VERSION not in flags[1]
                 or "soft-float ABI" in flags[1] or not hard_float):
             raise ValueError(f"{path}: expected ARM EABI5 hard-float ABI")
+    if target_abi.machine == "RISC-V":
+        flags = re.search(r"^\s*Flags:\s*(.*)$", description, re.MULTILINE)
+        if not flags or RISCV_DOUBLE_FLOAT_ABI not in flags[1]:
+            raise ValueError(f"{path}: expected RISC-V LP64D double-float ABI")
     requested = re.search(r"Requesting program interpreter:\s*([^\]]+)", description)
     if static:
         if requested or re.search(r"\(NEEDED\)", description):

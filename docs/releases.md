@@ -13,6 +13,7 @@ archives and a SHA-256 sidecar for each archive:
 | `restunts-dos32.zip` | 32-bit DOS, DJGPP/SDL3, bundled CWSDPMI |
 | `restunts-linux-arm32.tar.gz` | ARMv7 hard-float, Debian/Raspbian 12+; Pi 2 and newer |
 | `restunts-linux-arm64.tar.gz` | AArch64, Debian/Raspbian 12+ |
+| `restunts-linux-riscv64.tar.gz` | RISC-V64 (`rv64gc`, `lp64d`), Debian 13+ |
 | `restunts-linux-x86.tar.gz` | 32-bit x86 with SSE2, Debian 12+ |
 | `restunts-linux-x86-no-sse2.tar.gz` | 32-bit x86 without SSE2, Debian 12+ |
 | `restunts-linux-x64.tar.gz` | x86_64, Debian 12+ |
@@ -21,13 +22,20 @@ archives and a SHA-256 sidecar for each archive:
 | `restunts-linux-appimage-x86-no-sse2.tar.gz` | 32-bit x86 AppImage without SSE2, Ubuntu 10.04-compatible sysroot, glibc 2.11+ |
 | `restunts-linux-appimage-armv7.tar.gz` | ARMv7 hard-float AppImage, Raspbian Wheezy, glibc 2.13+; Pi 2 and newer |
 | `restunts-linux-appimage-arm64.tar.gz` | AArch64 AppImage, Debian Jessie ABI, glibc 2.19+; requires a 64-bit OS |
+| `restunts-linux-appimage-riscv64.tar.gz` | RISC-V64 AppImage, Debian 13 Trixie ABI, glibc 2.41+ |
 | `restunts-windows-arm64.zip` | ARM64, Windows 10+ |
 | `restunts-windows-x86.zip` | 32-bit x86 with SSE2, Windows XP SP2+ |
 | `restunts-windows-x86-no-sse2.zip` | 32-bit x86 without SSE2, Windows XP SP2+ |
 | `restunts-windows-x64.zip` | x86_64, Windows 7+ |
 | `restunts-freebsd-x64.tar.gz` | x86_64, FreeBSD 14.4 |
+| `restunts-freebsd-arm64.tar.gz` | AArch64, FreeBSD 14.4 |
+| `restunts-freebsd-riscv64.tar.gz` | RISC-V64, FreeBSD 15.0; GTK 2 launcher |
 | `restunts-openbsd-x64.tar.gz` | x86_64, OpenBSD 7.9 |
+| `restunts-openbsd-arm64.tar.gz` | ARM64, OpenBSD 7.9 |
+| `restunts-openbsd-riscv64.tar.gz` | RISC-V64, OpenBSD 7.9 |
 | `restunts-netbsd-x64.tar.gz` | x86_64, NetBSD 10.2 |
+| `restunts-netbsd-arm64.tar.gz` | AArch64, NetBSD 10.2 |
+| `restunts-netbsd-riscv64.tar.gz` | RISC-V64, NetBSD 11.0 |
 | `restunts-netbsd-x86.tar.gz` | 32-bit x86 with SSE2, NetBSD 10.2 |
 | `restunts-netbsd-x86-no-sse2.tar.gz` | 32-bit x86 without SSE2, NetBSD 10.2 |
 | `restunts-haiku-x64.tar.gz` | x86_64, Haiku R1/beta6 |
@@ -49,11 +57,18 @@ These are build baselines, not a claim that CI exercises every OS version and
 CPU. The full golden replay suites run on native Linux SDL3 and/or 16-bit DOS,
 as selected by the `platforms` input. That selection never reduces the package
 matrix. BSD packages build in native virtual machines; the NetBSD x86 packages
-use an i386 userspace inside the amd64 VM. BSD jobs validate architecture and
-relocated startup without game data. Haiku x64 and x86 build in Haiku R1/beta6 VMs
+use an i386 userspace inside the amd64 VM. ARM64 and RISC-V64 BSD jobs use
+matching native userspaces under emulation. BSD jobs validate architecture and
+relocated startup without game data; they do not verify physical-board graphics
+or audio support. Haiku x64 and x86 build in Haiku R1/beta6 VMs
 and run native regressions, including relocated-package and Nuked replacement tests. ARM32 targets ARMv7; it does not cover
 the original Pi 1 or Pi Zero. The no-SSE2 option controls the game, bundled SDL,
 and Nuked library; system libraries retain their own CPU requirements.
+
+The FreeBSD 15.0 RISC-V64 VM installs signed dependencies from the
+[anyvm-org package repository](https://github.com/anyvm-org/freebsd-pkg-repo).
+That target uses a GTK 2 launcher because the repository does not provide GTK 3;
+other ordinary Linux/BSD packages use GTK 3. AppImages bundle GTK 2.
 
 ## Package contents
 
@@ -134,14 +149,26 @@ release. Raspberry Pi OS first offered a 64-bit Buster beta in 2020 and a
 stable 64-bit Bullseye release in 2022; both exceed this ABI baseline.
 The game sources are shared unchanged between these packages.
 
-ARM CI jobs test the exact archive with QEMU user emulation and its pinned
-historical loader/libraries. They check AppImage extraction, dependency
-resolution, information commands, menu startup, replay rendering and ALSA
-output. These are userspace tests on the build host's kernel, not tests of
-original Raspberry Pi kernels, FUSE mounting or physical graphics/audio devices.
+Both Linux RISC-V64 packages target Debian 13 Trixie, Debian's first official
+RISC-V release, with glibc 2.41. The ordinary archive cross-builds in a Debian 13
+container with Debian's RISC-V compiler and development packages. The AppImage
+uses a pinned Debian 13 RISC-V SDK and a static RISC-V AppImage loader. The CPU
+baseline is `rv64gc` with the `lp64d` ABI; vector extensions are not required.
+The AppImage bundles desktop dependencies while leaving glibc, its ELF loader
+and graphics drivers to the host. This is a Debian 13 ABI baseline, not a claim
+that every Linux distribution or RISC-V board has been tested.
 
-PR and Release CI build all five variants. The three x86 variants test the exact
-uploaded archive bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
+ARM and RISC-V64 CI jobs test the exact archive with QEMU user emulation and
+the pinned userspace loader/libraries: historical Raspbian/Debian for ARM and
+Debian 13 for RISC-V64. The shared `tools/scripts/test-appimage-arm.sh` driver
+checks AppImage extraction, ELF architecture/ABI, dependency resolution,
+information commands, menu startup, a replay frame checksum and non-silent
+ALSA output. It records logs and `result.json` compatibility evidence. These
+are userspace tests on the build host's kernel; target kernels, FUSE mounting
+and physical graphics/audio devices require separate testing.
+
+PR and Release CI build all six AppImage variants. The three x86 variants test
+the exact uploaded archive bytes on Ubuntu 10.04, Ubuntu 26.10, Fedora 20 and Fedora 44. These are the oldest
 supported and newest stable Ubuntu/Fedora releases selected for this matrix.
 Ubuntu 10.04 tests run as an ordinary user in QEMU with its original kernel
 and userspace; current Ubuntu and Fedora tests use isolated Docker userspaces. The 32-bit packages run

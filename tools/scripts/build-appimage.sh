@@ -9,6 +9,7 @@ runtime_dir=$(cd -- "${1:?Usage: build-appimage.sh RUNTIME_DIRECTORY [TARGET]}" 
 target=${2:-linux-appimage-x64}
 tool_root=${RESTUNTS_TOOLCHAIN_ROOT:-${RUNNER_TEMP:-/tmp}/restunts-toolchains}
 source "$script_dir/package-toolchains.conf"
+custom_runtime_arch=
 case "$target" in
     linux-appimage-x64)
         architecture=x86_64
@@ -17,6 +18,7 @@ case "$target" in
         ;;
     linux-appimage-x86|linux-appimage-x86-no-sse2)
         architecture=i686
+        custom_runtime_arch=i586
         runtime="$tool_root/appimage-runtime-i586/runtime-i586"
         (cd "$tool_root/appimage-runtime-i586"; sha256sum --check --status runtime-i586.sha256)
         ;;
@@ -29,6 +31,12 @@ case "$target" in
         architecture=aarch64
         runtime="$tool_root/downloads/appimage-runtime-aarch64"
         printf '%s  %s\n' "$APPIMAGE_RUNTIME_ARM64_SHA256" "$runtime" | sha256sum --check --status
+        ;;
+    linux-appimage-riscv64)
+        architecture=riscv64
+        custom_runtime_arch=riscv64
+        runtime="$tool_root/appimage-runtime-riscv64/runtime-riscv64"
+        (cd "$tool_root/appimage-runtime-riscv64"; sha256sum --check --status runtime-riscv64.sha256)
         ;;
     *) echo "Unknown AppImage target: $target" >&2; exit 1 ;;
 esac
@@ -62,15 +70,16 @@ if compgen -G "$appdir/usr/lib/libc.so*" > /dev/null \
     echo 'Refusing to bundle glibc or its dynamic loader.' >&2
     exit 1
 fi
-if [[ "$architecture" == i686 ]]; then
+if [[ -n "$custom_runtime_arch" ]]; then
+    runtime_build="$tool_root/appimage-runtime-$custom_runtime_arch"
     mkdir -p "$appdir/usr/share/licenses/appimage-runtime" "$appdir/usr/share/sources/appimage-runtime"
-    cp -a "$tool_root/appimage-runtime-i586/licenses/." "$appdir/usr/share/licenses/appimage-runtime/"
+    cp -a "$runtime_build/licenses/." "$appdir/usr/share/licenses/appimage-runtime/"
     for archive in musl-1.2.5.tar.gz zlib-1.3.1.tar.xz zstd-1.5.7.tar.gz fuse-3.15.0.tar.xz \
         squashfuse-0.5.2.tar.gz type2-runtime-dd6cebed.tar.gz; do
         cp "$tool_root/downloads/$archive" "$appdir/usr/share/sources/appimage-runtime/"
     done
     cp "$script_dir/build-appimage-runtime.sh" "$appdir/usr/share/sources/appimage-runtime/"
-    cp -a "$tool_root/appimage-runtime-i586/relink" "$appdir/usr/share/sources/appimage-runtime/"
+    cp -a "$runtime_build/relink" "$appdir/usr/share/sources/appimage-runtime/"
 fi
 cp "$repo_dir/tools/appimage/AppRun" "$appdir/AppRun"
 chmod +x "$appdir/AppRun"
@@ -82,9 +91,33 @@ chmod 755 "$appdir/AppRun" \
     "$appdir/usr/bin/"{restunts,restunts-launcher,genghost-gui,repldump,pixldump,genghost,restunts-gtk-modules}
 python3 "$script_dir/check-appimage-abi.py" "$appdir" "$target" --runtime "$runtime"
 
-# Extracted appimagetool and a pinned static runtime avoid FUSE and network use.
-ARCH="$architecture" "$tool_root/appimagetool/squashfs-root/AppRun" --no-appstream \
-    --runtime-file "$runtime" \
-    --mksquashfs-opt -processors --mksquashfs-opt "${RESTUNTS_BUILD_JOBS:-2}" \
-    "$appdir" "$runtime_dir/bin/restunts.AppImage"
+if [[ "$architecture" == riscv64 ]]; then
+    # The pinned appimagetool has no riscv64 architecture support. Type 2
+    # AppImages are an ELF runtime followed by SquashFS at its reported offset.
+    ln -s restunts.svg "$appdir/.DirIcon"
+    squashfs="$appdir_parent/runtime.squashfs"
+    mksquashfs "$appdir" "$squashfs" -noappend -root-owned -no-xattrs -comp zstd \
+        -processors "${RESTUNTS_BUILD_JOBS:-2}"
+    runtime_offset=$("${RESTUNTS_APPIMAGE_QEMU:?Missing RISC-V QEMU executable}" \
+        "$runtime" --appimage-offset)
+    python3 - "$runtime" "$squashfs" "$runtime_offset" "$runtime_dir/bin/restunts.AppImage" <<'PYIMAGE'
+from pathlib import Path
+import shutil
+import sys
+runtime, payload, offset, output = sys.argv[1:]
+content = Path(runtime).read_bytes()
+offset = int(offset)
+if not 0 < offset <= len(content):
+    raise ValueError("AppImage runtime reported an invalid SquashFS offset")
+with Path(output).open("wb") as stream, Path(payload).open("rb") as filesystem:
+    stream.write(content[:offset])
+    shutil.copyfileobj(filesystem, stream)
+PYIMAGE
+else
+    # Extracted appimagetool and a pinned static runtime avoid FUSE and network use.
+    ARCH="$architecture" "$tool_root/appimagetool/squashfs-root/AppRun" --no-appstream \
+        --runtime-file "$runtime" \
+        --mksquashfs-opt -processors --mksquashfs-opt "${RESTUNTS_BUILD_JOBS:-2}" \
+        "$appdir" "$runtime_dir/bin/restunts.AppImage"
+fi
 chmod +x "$runtime_dir/bin/restunts.AppImage"

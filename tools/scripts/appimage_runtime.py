@@ -10,6 +10,7 @@ SYSTEM_GRAPHICS_LIBRARIES = frozenset({"libX11.so.6", "libX11-xcb.so.1", "libxcb
 SYSTEM_RUNTIME_LIBRARIES = frozenset({
     "libc.so.6", "libm.so.6", "libdl.so.2", "libpthread.so.0", "librt.so.1", "libresolv.so.2",
     "ld-linux.so.2", "ld-linux-x86-64.so.2", "ld-linux-armhf.so.3", "ld-linux-aarch64.so.1",
+    "ld-linux-riscv64-lp64d.so.1",
 }) | SYSTEM_GRAPHICS_LIBRARIES
 
 
