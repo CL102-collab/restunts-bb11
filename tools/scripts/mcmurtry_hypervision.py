@@ -1,9 +1,10 @@
 """Detailed McMurtry HyperVision meshes adapted from the supplied Sketchfab GLB.
 
-Normal car generation uses only Python's standard library and the compact,
-transformed exterior in cars/mcmurtry_hypervision_source.json.gz. Reimport the
-original archive with --source to rebuild that authoring input. Native wheel
-primitives retain the game's steering, suspension and tyre rendering.
+Normal car generation uses Python's standard library, the compact showroom
+source in cars/mcmurtry_hypervision_source.json.gz, and the smooth racing
+retopology in mcmurtry_racing.py. Reimport the original archive with --source
+to rebuild the showroom input. Native wheel primitives retain the game's
+steering, suspension and tyre rendering.
 """
 
 from __future__ import annotations
@@ -34,12 +35,7 @@ RACING_FRACTION_BITS = 4
 FRACTION_BITS = {"car0": 0, "car1": RACING_FRACTION_BITS, "car2": RACING_FRACTION_BITS}
 QEM_TARGETS = {"car0": 32_000, "car1": 12_000}
 SHOWROOM_CLUSTER = .05
-RACING_CLUSTER = 4.0
-DISTANT_CLUSTER = 5.5
 RACING_VERTEX_TARGETS = {"car1": 1_000, "car2": 500}
-RACING_ARCH_MIN_X = 13.5
-RACING_ARCH_CLUSTER = {"car1": 1.0, "car2": 3.0}
-RACING_ARCH_RADIUS = {"car1": 11.0, "car2": 11.0}
 TRIANGLE_VERTICES = 3
 AXES = 3
 HOMOGENEOUS_AXES = 4
@@ -177,8 +173,6 @@ def _simplified_lods(source):
             meshes.append({**mesh, "source_triangles": mesh["triangles"], "triangles": len(local_faces)})
         lods[name] = {"vertices": vertices, "triangles": triangles, "meshes": meshes,
                       "target_triangles": target_count}
-    lods["car2"] = {**lods["car1"], "vertex_clustering_game_units": DISTANT_CLUSTER,
-                    "source_lod": "car1"}
     return lods
 
 
@@ -360,33 +354,8 @@ def _fit_bounds(shape, model):
               for a in range(AXES)) for p in bounds]
 
 
-def _cluster_racing_points(points, name, cluster, model):
-    """Weld to cell centroids, retaining a finer grid at the wheel openings.
-
-    Averaging the source positions preserves curved bodywork better than
-    snapping it to a coarse grid. Shared source positions use the same cell
-    across materials, and the fine arch cells preserve tyre clearance.
-    """
-    groups, keys = {}, []
-    for point in points:
-        x, y, z = point
-        _, cy, cz = min(model.WHEEL_CENTERS, key=lambda c: abs(c[2] - z))
-        spacing = (RACING_ARCH_CLUSTER[name]
-                   if abs(x) > RACING_ARCH_MIN_X and
-                   math.hypot(y - cy, z - cz) < RACING_ARCH_RADIUS[name]
-                   else cluster)
-        key = (spacing, *(round(c / spacing) for c in point))
-        groups.setdefault(key, []).append(point)
-        keys.append(key)
-    factor = 1 << FRACTION_BITS[name]
-    centers = {
-        key: tuple(round(sum(p[axis] for p in group) / len(group) * factor) / factor
-                   for axis in range(AXES))
-        for key, group in groups.items()}
-    return [centers[key] for key in keys]
-
-
-def _shape(source, name, cluster, model):
+def _showroom_shape(source, model):
+    name, cluster = "car0", SHOWROOM_CLUSTER
     scale = model.SHOWROOM_SCALE if name == "car0" else 1
     # Copy compatible controls and tyres, rather than importing static wheels.
     classic = model._showroom_car() if name == "car0" else model._car(simple=name == "car2")
@@ -403,16 +372,13 @@ def _shape(source, name, cluster, model):
         z -= model.BODY_ORIGIN_Z
         point = _adapt_arch((x, y, z), name, model)
         authored.append(point)
-    if name == "car0":
-        points = []
-        factor = 1 << FRACTION_BITS[name]
-        for point in authored:
-            point = tuple(round(c / cluster) * cluster for c in point)
-            points.append((round(point[0] * scale * factor) / factor,
-                           round(point[1] * scale * factor) / factor + shift,
-                           round(point[2] * scale * factor) / factor))
-    else:
-        points = _cluster_racing_points(authored, name, cluster, model)
+    points = []
+    factor = 1 << FRACTION_BITS[name]
+    for point in authored:
+        point = tuple(round(c / cluster) * cluster for c in point)
+        points.append((round(point[0] * scale * factor) / factor,
+                       round(point[1] * scale * factor) / factor + shift,
+                       round(point[2] * scale * factor) / factor))
     seen = set()
     for a, b, c, surface in source["triangles"]:
         triangle = (points[a], points[b], points[c])
@@ -440,10 +406,17 @@ def _shape(source, name, cluster, model):
 def build_shapes(model=None):
     if model is None:
         import mcmurtry_model as model
+    import mcmurtry_racing as racing
+    import mcmurtry_apertures as apertures
     source = load_source()
-    return {name: _shape({**source, **source["lods"][name]}, name, cluster, model)
-            for name, cluster in (("car0", SHOWROOM_CLUSTER), ("car1", RACING_CLUSTER),
-                                  ("car2", DISTANT_CLUSTER))}
+    shapes = {"car0": _showroom_shape({**source, **source["lods"]["car0"]}, model)}
+    for name in RACING_VERTEX_TARGETS:
+        shape = _DetailedShape(1, FRACTION_BITS[name])
+        racing.populate_shape(shape, name, model)
+        apertures.populate_apertures(shape, model)
+        _fit_bounds(shape, model)
+        shapes[name] = shape
+    return shapes
 
 
 def build_container(model=None):
@@ -463,6 +436,7 @@ def build_container(model=None):
 
 def metadata():
     import mcmurtry_model as model
+    import mcmurtry_racing as racing
     source = load_source()
     return {"source_sha256": source["source_sha256"], "source_triangles": source["source_triangles"],
             "retained_source_triangles": len(source["triangles"]), "retained_meshes": len(source["meshes"]),
@@ -470,20 +444,24 @@ def metadata():
             "author": source["author"], "source_url": source["source_url"], "license": source["license"],
             "container_version": CONTAINER_VERSION, "coordinate_fraction_bits": FRACTION_BITS,
             "simplification": source["simplification"],
-            "lod_source_triangles": {name: len(lod.get("triangles", source["triangles"]))
-                                     for name, lod in source["lods"].items()},
-            "cluster_spacing_game_units": {"car0": SHOWROOM_CLUSTER, "car1": RACING_CLUSTER,
-                                            "car2": DISTANT_CLUSTER},
-            "cluster_spacing_mm": {"car0": SHOWROOM_CLUSTER * model.MM_PER_UNIT, "car1": RACING_CLUSTER * model.MM_PER_UNIT,
-                                    "car2": DISTANT_CLUSTER * model.MM_PER_UNIT},
+            "lod_source_triangles": {"car0": len(source["lods"]["car0"]["triangles"])},
+            "cluster_spacing_game_units": {"car0": SHOWROOM_CLUSTER},
+            "cluster_spacing_mm": {"car0": SHOWROOM_CLUSTER * model.MM_PER_UNIT},
             "racing_vertex_targets_including_controls": RACING_VERTEX_TARGETS,
-            "racing_cluster_representative": "source vertex centroid, rounded to body coordinate precision",
-            "racing_arch_cluster_spacing_game_units": RACING_ARCH_CLUSTER,
-            "racing_arch_cluster_radius_game_units": RACING_ARCH_RADIUS,
-            "racing_arch_cluster_min_abs_x_game_units": RACING_ARCH_MIN_X,
-            "arch_target_radius_game_units": ARCH_TARGET_RADIUS,
-            "arch_blend_radius_game_units": ARCH_BLEND_RADIUS,
-            "adaptation": "Local fender-opening expansion accommodates the native steering envelope; transformed exterior topology, material-name palette colors and seven paints; original-normal paint shading; boundary-preserving QEM authoring input, adaptive centroid vertex clustering for both racing meshes with finer wheel-opening cells, degenerate/duplicate face removal; native animated wheels replace source wheel and brake assemblies; hidden cockpit and alpha decals omitted."}
+            "racing_authoring_source": "tools/scripts/mcmurtry_model.py",
+            "racing_surface_generator": "tools/scripts/mcmurtry_racing.py",
+            "racing_aperture_generator": "tools/scripts/mcmurtry_apertures.py",
+            "racing_mirrors": False,
+            "racing_wheel_top_apertures": "four roof cutouts following authored outlines, with fitted recess walls and dark floors",
+            "racing_surface_construction": {
+                "car1": "crease-aware Catmull-Clark subdivision of connected authored panels",
+                "car2": "smoothed authored panels with face-center triangulation and preserved arch outlines",
+                "crease_angle_degrees": racing.CREASE_ANGLE_DEGREES,
+                "preserve_encoded_panel_winding": True,
+                "distant_arch_min_abs_x_game_units": racing.DISTANT_ARCH_MIN_X},
+            "showroom_arch_target_radius_game_units": ARCH_TARGET_RADIUS["car0"],
+            "showroom_arch_blend_radius_game_units": ARCH_BLEND_RADIUS,
+            "adaptation": "Showroom retains imported source topology, boundary-preserving QEM and local fender-opening expansion. Racing shells use continuous source-guided native retopology with crease-aware panel smoothing and constrained winding instead of merging disconnected imported layers; panel materials and seven paints remain coherent. Four recessed wheel-top apertures retain their authored outlines; racing mirrors are omitted. Native animated wheels and integer controls are preserved; original textures, hidden cockpit and alpha decals are omitted."}
 
 
 def main():

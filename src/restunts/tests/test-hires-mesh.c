@@ -506,7 +506,6 @@ static void check_car_mesh_lifetime(void)
 }
 
 #define TEST_MCMURTRY_CLASSIC_PRIMITIVES 247U
-#define TEST_MCMURTRY_DETAIL_MULTIPLIER 4U
 #define TEST_MCMURTRY_STEERING_ANGLE 64
 #define TEST_MCMURTRY_OPPONENT_STEERING_ANGLE -96
 #define TEST_MCMURTRY_WHEEL_BYTES (TEST_CAR_WHEEL_VERTEX_COUNT * SHAPE3D_VERTEX_SIZE)
@@ -517,10 +516,8 @@ static struct SHAPE3D *check_real_mcmurtry_mesh(struct SHAPE3D *classic, legacy_
 {
 	struct SHAPE3D *mesh = hires_shape3d_car_mesh(classic);
 	assert(mesh != classic);
-	assert(mesh->shape3d_numverts >
-		   (legacy_u32)classic->shape3d_numverts * TEST_MCMURTRY_DETAIL_MULTIPLIER);
-	assert(mesh->shape3d_numprimitives >
-		   (legacy_u32)classic->shape3d_numprimitives * TEST_MCMURTRY_DETAIL_MULTIPLIER);
+	assert(mesh->shape3d_numverts > LEGACY_U8_MAX);
+	assert(mesh->shape3d_numprimitives > LEGACY_U8_MAX);
 	assert(mesh->shape3d_numpaints == classic->shape3d_numpaints);
 	assert(memcmp(classic->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,
 				  mesh->shape3d_vertex_bytes + TEST_CAR_FIRST_WHEEL_VERTEX * SHAPE3D_VERTEX_SIZE,

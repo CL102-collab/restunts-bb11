@@ -488,6 +488,9 @@ def validate_hypervision_geometry(shape, name, classic, simd):
     metadata["animated_wheels"] = len(model.WHEEL_CENTERS)
     metadata["minimum_side_arch_tyre_clearance_game_units"] = validate_wheel_arch_clearance(
         points, triangles, scale, shift, name)
+    if name in detailed_model.RACING_VERTEX_TARGETS:
+        metadata["minimum_upper_tyre_clearance_game_units"] = validate_wheel_covers(
+            points, triangles, scale, shift, name)
     fraction_bits = struct.unpack_from("<H", shape, HYPERVISION_FRACTION_BITS_OFFSET)[0]
     metadata["coordinate_fraction_bits"] = fraction_bits
     metadata["coordinate_step_mm"] = model.MM_PER_UNIT / (scale * (1 << fraction_bits))
@@ -677,10 +680,10 @@ repository keeps CARMCMU.RES, STMCMU.3SH, STDAMCMU.VSH and STDBMCMU.VSH in
 assets/cars; --install GAME_DIRECTORY copies them to GAME_DIRECTORY/cars.
 For original Stunts, copy these four files directly into your
 Stunts game-data folder and select McMurtry Speirling PURE in the car menu.
-The optional fifth file, STMCMU.H3D, supplies detailed source-derived meshes
-for HyperVision. The generator installs it beside the classic files. Separate
-showroom, near-racing and distant-racing meshes retain the source bodywork,
-canopy, wing and underbody with native palette materials and animated wheels.
+The optional fifth file, STMCMU.H3D, supplies an imported showroom mesh and
+smooth simplified racing shells for HyperVision. The generator installs it
+beside the classic files. Connected racing panels retain the source-guided
+bodywork, canopy, wing and underbody with palette materials and animated wheels.
 Classic rendering uses the unchanged STMCMU.3SH. Original Stunts does not need H3D.
 Paints: Turquoise (default), Purple, Orange, Yellow, Blue, White, Light gray.
 Single-speed electric drive. No stock car is replaced.
@@ -732,12 +735,13 @@ earlier prototype despite its 2026 title. The supplied high-resolution mesh
 is the exterior ground truth for the nose, canopy, main rear wing and wheels.
 All three classic exterior topologies are rebuilt from scratch for native Stunts
 primitives, uniform length scaling, animated wheels and seven paint schemes.
-The HyperVision companion imports the detailed exterior directly from that
+The HyperVision showroom imports the detailed exterior directly from that
 GLB. A compressed transformed source mesh is retained in
 tools/scripts/cars/mcmurtry_hypervision_source.json.gz for deterministic
-regeneration without the upload or third-party Python packages. Source wheel
-assemblies are replaced with the game's four animated wheels. Source material groups
-are adapted to native palette materials and seven paints; H3D does not store
+regeneration without the upload or third-party Python packages. Racing meshes
+smooth the connected native retopology at fractional precision, preserving
+continuous panels instead of merging unrelated source layers. All models
+use the game's four animated wheels, palette materials and seven paints. H3D does not store
 textures or transparency. The original GLB, textures and manufacturer
 photographs are not included.
 MCMU.json records the supplied GLB hash, attribution, changes, photo URLs,
@@ -789,13 +793,18 @@ The four bounded dark crown openings are native quadrilateral surfaces within
 the fenders. The front pair has parallel long sides and squared ends, following
 the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
-STMCMU.H3D supplies the detailed source-derived body instead. The showroom
-retains its existing detail. Both racing meshes apply adaptive centroid vertex
-clustering to the retained quadric-error source, targeting about {detailed_model.RACING_VERTEX_TARGETS['car1']} and {detailed_model.RACING_VERTEX_TARGETS['car2']}
-vertices including bounds and wheel controls. Finer wheel-opening clusters
-retain tyre clearance; coarser body clusters reduce the remaining geometry.
-Deterministic quantization, welding and removal of degenerate, flipped and
-duplicate faces keep each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
+STMCMU.H3D retains the detailed imported showroom and builds smoother racing
+shells from connected authored panels. Near racing uses crease-aware
+Catmull-Clark subdivision; distant racing smooths the original corners and
+triangulates around panel centres while preserving the wheel-arch outlines.
+Broad body panels are rounded, with deliberate glass, intake and wing creases.
+Smoothing backs off at narrow panels before their encoded triangles can fold.
+Both racing meshes omit the mirrors. Four wheel-top openings are cut into the
+smoothed body, following the rectangular front and shaped rear outlines, with
+fitted recess walls and dark floors instead of floating surface overlays.
+The racing budgets remain about {detailed_model.RACING_VERTEX_TARGETS['car1']} and {detailed_model.RACING_VERTEX_TARGETS['car2']}
+vertices including bounds and wheel controls. Deterministic quantization
+keeps each mesh within H3D version {detailed_model.CONTAINER_VERSION}'s
 65,535-vertex and 65,535-primitive limits:
 car0: {hypervision_models['car0']['vertices']} vertices, {hypervision_models['car0']['primitives']} primitives;
 car1: {hypervision_models['car1']['vertices']} vertices, {hypervision_models['car1']['primitives']} primitives;
@@ -804,8 +813,8 @@ Showroom body coordinates have {hypervision_models['car0']['coordinate_step_mm']
 racing body coordinates have {hypervision_models['car1']['coordinate_step_mm']:g} mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive
 counts include four native wheels. Bounds and wheel controls retain native
-integer coordinates. Fine storage precision does not restore features removed
-by clustering. Ordinary generation uses Python's standard library and preserves
+integer coordinates. Simplified continuous panels omit tiny source features.
+Ordinary generation uses Python's standard library and preserves
 the compact source and its precomputed meshes. Classic meshes retain their
 original byte limits, wheel controls and driving specifications.
 The dashboard layout follows the supplied studio interior photograph,
