@@ -120,15 +120,15 @@ the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
 STMCMU.H3D supplies the detailed source-derived body instead. The showroom
 retains its existing detail. Both racing meshes apply adaptive centroid vertex
-clustering to the retained quadric-error source, targeting about 2000 and 1000
+clustering to the retained quadric-error source, targeting about 1000 and 500
 vertices including bounds and wheel controls. Finer wheel-opening clusters
 retain tyre clearance; coarser body clusters reduce the remaining geometry.
 Deterministic quantization, welding and removal of degenerate, flipped and
 duplicate faces keep each mesh within H3D version 2's
 65,535-vertex and 65,535-primitive limits:
 car0: 21648 vertices, 33507 primitives;
-car1: 2042 vertices, 4192 primitives;
-car2: 1056 vertices, 2424 primitives.
+car1: 982 vertices, 2281 primitives;
+car2: 488 vertices, 1152 primitives.
 Showroom body coordinates have 2.2 mm precision;
 racing body coordinates have 2.75 mm precision.
 Vertex counts include eight bounds and 24 animated wheel controls; primitive

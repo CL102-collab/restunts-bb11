@@ -791,7 +791,7 @@ the supplied overhead photograph; the rear pair retains its source contour.
 These classic geometry refinements remain in STMCMU.3SH and the OBJ export.
 STMCMU.H3D supplies the detailed source-derived body instead. The showroom
 retains its existing detail. Both racing meshes apply adaptive centroid vertex
-clustering to the retained quadric-error source, targeting about 2000 and 1000
+clustering to the retained quadric-error source, targeting about {detailed_model.RACING_VERTEX_TARGETS['car1']} and {detailed_model.RACING_VERTEX_TARGETS['car2']}
 vertices including bounds and wheel controls. Finer wheel-opening clusters
 retain tyre clearance; coarser body clusters reduce the remaining geometry.
 Deterministic quantization, welding and removal of degenerate, flipped and

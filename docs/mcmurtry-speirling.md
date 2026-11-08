@@ -165,7 +165,7 @@ panels to the classic retopology. Source node transforms and uniform scaling
 place the body in the existing car coordinate system. Precomputed quadric error
 mesh simplification preserves source mesh boundaries. The showroom retains its
 existing detail; both racing models apply adaptive centroid vertex clustering
-to the retained near racing source, targeting about 2,000 and 1,000 vertices.
+to the retained near racing source, targeting about 1,000 and 500 vertices.
 Finer clusters around the wheel openings retain tyre clearance while coarser
 clusters reduce the rest of the body. Each stays within HyperVision's limit of
 65,535 vertices and 65,535 primitives.
@@ -205,14 +205,14 @@ Running the module without arguments reports the current companion mesh counts.
 | HyperVision shape | Vertices | Primitives | Body coordinate step |
 | --- | ---: | ---: | ---: |
 | `car0` showroom | 21,648 | 33,507 | 2.2 mm |
-| `car1` racing | 2,042 | 4,192 | 2.75 mm |
-| `car2` distant racing | 1,056 | 2,424 | 2.75 mm |
+| `car1` racing | 982 | 2,281 | 2.75 mm |
+| `car2` distant racing | 488 | 1,152 | 2.75 mm |
 
 Vertex counts include the eight bounds and 24 animated wheel controls;
 primitive counts include four native wheels. The racing meshes place clustered
 vertices at their centroid, then quantize to the stored coordinate precision.
-The near mesh uses a 2.25-unit (99 mm) body grid and a 0.5-unit (22 mm)
-wheel-opening grid. The distant mesh uses 4-unit (176 mm) and 1-unit (44 mm)
+The near mesh uses a 4-unit (176 mm) body grid and a 1-unit (44 mm)
+wheel-opening grid. The distant mesh uses 5.5-unit (242 mm) and 3-unit (132 mm)
 grids respectively. Reduction removes degenerate, flipped and duplicate
 triangles; fine storage precision does not restore removed source features.
 
