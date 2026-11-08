@@ -2,6 +2,8 @@
 """Regression checks for verified downloads and isolated SDK extraction."""
 
 import hashlib
+import http.client
+import http.server
 import importlib.util
 import io
 import os
@@ -10,6 +12,7 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -44,12 +47,68 @@ class SysrootTests(unittest.TestCase):
         source = self.root / "source"
         source.write_bytes(b"verified compiler input")
         destination = self.root / "cache" / "archive"
-        with self.assertRaisesRegex(RuntimeError, "SHA256 mismatch"):
-            sdk.download(source.as_uri(), "0" * 64, destination)
-        self.assertFalse(destination.exists())
+        destination.parent.mkdir()
+        destination.write_bytes(b"previous cached download")
+        with mock.patch.object(sdk.time, "sleep"), \
+                mock.patch.object(sdk.urllib.request, "urlopen", wraps=sdk.urllib.request.urlopen) as opened:
+            with self.assertRaisesRegex(RuntimeError, "SHA256 mismatch") as failure:
+                sdk.download(source.as_uri(), "0" * 64, destination)
+        self.assertEqual(opened.call_count, sdk.DOWNLOAD_ATTEMPTS)
+        self.assertIn("expected " + "0" * 64, str(failure.exception))
+        self.assertIn("got " + sdk.sha256(source), str(failure.exception))
+        self.assertIn(f"({source.stat().st_size} bytes)", str(failure.exception))
+        self.assertEqual(destination.read_bytes(), b"previous cached download")
         self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
         sdk.download(source.as_uri(), hashlib.sha256(source.read_bytes()).hexdigest(), destination)
         self.assertEqual(destination.read_bytes(), source.read_bytes())
+        with mock.patch.object(sdk.urllib.request, "urlopen") as opened:
+            sdk.download(source.as_uri(), sdk.sha256(source), destination)
+        opened.assert_not_called()
+
+    def test_incomplete_and_corrupt_http_downloads_are_retried(self):
+        content = b"verified compiler input"
+        responses = [content[:5], b"x" * len(content), content]
+        requests = []
+        destination = self.root / "cache" / "archive"
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                self.wfile.write(responses[len(requests) - 1])
+
+            def log_message(self, *args):
+                pass
+
+        with http.server.HTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                url = f"http://127.0.0.1:{server.server_port}/archive"
+                with mock.patch.object(sdk.time, "sleep"):
+                    sdk.download(url, hashlib.sha256(content).hexdigest(), destination)
+            finally:
+                server.shutdown()
+                thread.join()
+        self.assertEqual(requests, ["/archive"] * len(responses))
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
+
+    def test_http_read_failure_is_retried(self):
+        content = b"verified compiler input"
+        class IncompleteResponse(io.BytesIO):
+            def read(self, size=-1):
+                raise http.client.IncompleteRead(b"partial response")
+
+        destination = self.root / "cache" / "archive"
+        responses = [IncompleteResponse(), io.BytesIO(content)]
+        with mock.patch.object(sdk.time, "sleep"), \
+                mock.patch.object(sdk.urllib.request, "urlopen", side_effect=responses) as opened:
+            sdk.download("https://example.org/archive", hashlib.sha256(content).hexdigest(), destination)
+        self.assertEqual(opened.call_count, len(responses))
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertEqual(list(destination.parent.glob("*.partial.*")), [])
 
     def test_absolute_sdk_symlink_stays_inside_sysroot(self):
         archive = self.archive("root.tar.gz", [

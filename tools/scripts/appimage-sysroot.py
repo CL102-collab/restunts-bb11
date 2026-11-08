@@ -9,6 +9,7 @@ libraries that are actually shipped in the AppImage.
 import argparse
 import gzip
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -22,6 +23,9 @@ import urllib.parse
 import urllib.request
 
 from appimage_runtime import SYSTEM_RUNTIME_LIBRARIES
+
+
+DOWNLOAD_ATTEMPTS = 3
 
 
 def sha256(path):
@@ -52,23 +56,28 @@ def download(url, checksum, destination):
     os.close(descriptor)
     partial = Path(partial_name)
     try:
-        for attempt in range(3):
+        for attempt in range(DOWNLOAD_ATTEMPTS):
             try:
                 request = urllib.request.Request(url, headers=headers)
                 with urllib.request.urlopen(request, timeout=60) as response, partial.open("wb") as output:
                     shutil.copyfileobj(response, output, 1024 * 1024)
-                break
-            except OSError:
-                if attempt == 2:
+            except (OSError, http.client.HTTPException):
+                if attempt == DOWNLOAD_ATTEMPTS - 1:
                     raise
-                time.sleep(2 ** attempt)
-        actual = sha256(partial)
-        if actual != checksum:
-            raise RuntimeError(f"SHA256 mismatch for {destination.name}: {actual}")
-        partial.replace(destination)
+            else:
+                # A server can close a successful response early without a read
+                # error. Retry incomplete or corrupt bodies, but never cache them.
+                actual = sha256(partial)
+                if actual == checksum:
+                    partial.replace(destination)
+                    return destination
+                if attempt == DOWNLOAD_ATTEMPTS - 1:
+                    raise RuntimeError(
+                        f"SHA256 mismatch for {destination.name} after {DOWNLOAD_ATTEMPTS} attempts: "
+                        f"expected {checksum}, got {actual} ({partial.stat().st_size} bytes)")
+            time.sleep(2 ** attempt)
     finally:
         partial.unlink(missing_ok=True)
-    return destination
 
 
 LEGACY_CXX_PREFIX = "opt/rh/devtoolset-2/root/usr"
